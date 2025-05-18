@@ -35,7 +35,7 @@ func NewCommand() *cobra.Command {
 		newImportCommand(),
 		newRehashCommand(),
 		newResolveCommand(),
-		
+
 		// These are implemented in their own files
 		newSymlinksCommand(), // from symlinks.go
 		newConfigCommand(),   // from config.go
@@ -56,42 +56,42 @@ func newInstallCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
-			
+
 			// Get flags (same as build command)
 			sourceFile, err := cmd.Flags().GetString("source")
 			if err != nil {
 				return err
 			}
-			
+
 			installDir, err := cmd.Flags().GetString("prefix")
 			if err != nil {
 				return err
 			}
-			
+
 			buildJobs, err := cmd.Flags().GetInt("jobs")
 			if err != nil {
 				return err
 			}
-			
+
 			runTests, err := cmd.Flags().GetBool("test")
 			if err != nil {
 				return err
 			}
-			
+
 			skipBuild, err := cmd.Flags().GetBool("skip-build")
 			if err != nil {
 				return err
 			}
-			
+
 			if skipBuild {
 				cmd.Println("Skip-build specified but no import functionality implemented yet.")
 				cmd.Println("This will be implemented in a future version.")
 				return nil
 			}
-			
+
 			// Build Perl using our build functionality
 			cmd.Printf("Installing Perl %s...\n", version)
-			
+
 			// Create progress callback to display build progress
 			var currentStage perl.BuildProgressStage
 			progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
@@ -100,18 +100,18 @@ func newInstallCommand() *cobra.Command {
 					cmd.Printf("\n=== %s ===\n", stage.String())
 					currentStage = stage
 				}
-				
+
 				// Print progress details
 				if details != "" {
 					// For compile and test stages, we get lots of output
 					// Only print lines with errors or warnings, or important milestones
 					if stage == perl.StageCompile || stage == perl.StageTest {
-						if strings.Contains(details, "ERROR") || 
-						   strings.Contains(details, "WARNING") ||
-						   strings.Contains(details, "warning:") ||
-						   strings.Contains(details, "error:") ||
-						   strings.Contains(details, "Done") ||
-						   strings.Contains(details, "All tests successful") {
+						if strings.Contains(details, "ERROR") ||
+							strings.Contains(details, "WARNING") ||
+							strings.Contains(details, "warning:") ||
+							strings.Contains(details, "error:") ||
+							strings.Contains(details, "Done") ||
+							strings.Contains(details, "All tests successful") {
 							cmd.Println(details)
 						}
 					} else {
@@ -119,12 +119,12 @@ func newInstallCommand() *cobra.Command {
 						cmd.Println(details)
 					}
 				}
-				
+
 				// If we have numeric progress, show a progress bar
 				if progress > 0 && stage < perl.StageDone {
 					width := 40
 					completeChars := int(float64(width) * progress)
-					
+
 					// Format progress bar
 					progressBar := "["
 					for i := 0; i < width; i++ {
@@ -137,17 +137,17 @@ func newInstallCommand() *cobra.Command {
 						}
 					}
 					progressBar += "]"
-					
+
 					// Clear line and show progress
-					fmt.Printf("\r%s %.1f%%                    ", 
-						progressBar, progress * 100)
-					
+					fmt.Printf("\r%s %.1f%%                    ",
+						progressBar, progress*100)
+
 					if progress >= 1.0 {
 						fmt.Println()
 					}
 				}
 			}
-			
+
 			// Create build options
 			options := &perl.BuildOptions{
 				Version:          version,
@@ -159,32 +159,32 @@ func newInstallCommand() *cobra.Command {
 				ProgressCallback: progressCallback,
 				Context:          cmd.Context(),
 			}
-			
+
 			// Start the build
 			result, err := perl.BuildPerl(options)
 			if err != nil {
 				cmd.Printf("\nInstallation failed: %v\n", err)
 				return err
 			}
-			
+
 			// Show build results
 			cmd.Printf("\nInstallation completed successfully!\n")
 			cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
 			cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
-			
-			// TODO: Register the installed version in a future prompt
-			
+
+			// The registration is now handled automatically in the BuildPerl function
+
 			return nil
 		},
 	}
-	
+
 	// Add flags
 	cmd.Flags().String("source", "", "Source archive file path (default: download or use cached)")
 	cmd.Flags().String("prefix", "", "Installation directory (default: XDG_DATA_HOME/pvm/versions/<version>)")
 	cmd.Flags().Int("jobs", 0, "Number of parallel build jobs (default: number of CPU cores)")
 	cmd.Flags().Bool("test", false, "Run Perl tests after building")
 	cmd.Flags().Bool("skip-build", false, "Skip build and import from existing installation")
-	
+
 	return cmd
 }
 
@@ -222,25 +222,181 @@ func newLocalCommand() *cobra.Command {
 }
 
 func newVersionsCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "versions",
 		Short: "List installed versions",
 		Long:  "List all installed Perl versions",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Versions command not yet implemented")
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get the installed versions
+			installedVersions, err := perl.GetInstalledVersions()
+			if err != nil {
+				return err
+			}
+
+			// Check if we have any installed versions
+			if len(installedVersions) == 0 {
+				cmd.Println("No versions installed. Use 'pvm install <version>' to install a version.")
+				return nil
+			}
+
+			// Get flags
+			showPath, err := cmd.Flags().GetBool("paths")
+			if err != nil {
+				return err
+			}
+
+			showSource, err := cmd.Flags().GetBool("source")
+			if err != nil {
+				return err
+			}
+
+			// Display installed versions
+			cmd.Println("Installed Perl versions:")
+			for i, versionInfo := range installedVersions {
+				// Add decoration for special versions
+				decoration := ""
+				if i == 0 {
+					decoration = " (latest)"
+				}
+
+				// Basic output
+				if !showPath && !showSource {
+					cmd.Printf("  %s%s\n", versionInfo.Version, decoration)
+					continue
+				}
+
+				// Detailed output
+				cmd.Printf("  %s%s\n", versionInfo.Version, decoration)
+				
+				if showPath {
+					cmd.Printf("    Path: %s\n", versionInfo.InstallPath)
+				}
+				
+				if showSource {
+					cmd.Printf("    Source: %s\n", versionInfo.Source)
+					cmd.Printf("    Installed: %s\n", versionInfo.InstallTime.Format("2006-01-02 15:04:05"))
+				}
+				
+				// Add a separator between versions for detailed output
+				if i < len(installedVersions)-1 && (showPath || showSource) {
+					cmd.Println()
+				}
+			}
+
+			// Add a hint about current/active version
+			cmd.Println("\nNote: Use 'pvm current' to show the currently active Perl version.")
+
+			return nil
 		},
 	}
+
+	// Add flags
+	cmd.Flags().Bool("paths", false, "Show installation paths")
+	cmd.Flags().Bool("source", false, "Show source and installation time")
+
+	return cmd
 }
 
 func newAvailableCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "available",
 		Short: "List available Perl versions",
 		Long:  "List all Perl versions available for installation",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Available command not yet implemented")
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get the currently installed versions
+			installedVersions, err := perl.GetInstalledVersions()
+			if err != nil {
+				return err
+			}
+
+			// Create a map for fast lookup of installed versions
+			installedMap := make(map[string]bool)
+			for _, info := range installedVersions {
+				installedMap[info.Version] = true
+			}
+
+			// Define common stable Perl versions (5.10.0 through latest)
+			// These would ideally come from a remote API in the future
+			stableVersions := []string{
+				"5.38.0", "5.36.0", "5.34.1", "5.34.0", 
+				"5.32.1", "5.32.0", "5.30.3", "5.30.2", "5.30.1", "5.30.0",
+				"5.28.3", "5.28.2", "5.28.1", "5.28.0", "5.26.3", "5.26.2", "5.26.1", "5.26.0",
+				"5.24.4", "5.24.3", "5.24.2", "5.24.1", "5.24.0", "5.22.4", "5.22.3", "5.22.2", "5.22.1", "5.22.0",
+				"5.20.3", "5.20.2", "5.20.1", "5.20.0", "5.18.4", "5.18.3", "5.18.2", "5.18.1", "5.18.0",
+				"5.16.3", "5.16.2", "5.16.1", "5.16.0", "5.14.4", "5.14.3", "5.14.2", "5.14.1", "5.14.0",
+				"5.12.5", "5.12.4", "5.12.3", "5.12.2", "5.12.1", "5.12.0", "5.10.1", "5.10.0",
+			}
+
+			// Current development version
+			devVersions := []string{"5.39.0"}
+
+			// Display header
+			cmd.Println("Available Perl versions:")
+
+			// Group versions by major.minor
+			groupedVersions := make(map[string][]string)
+			
+			// Add stable versions to groups
+			for _, version := range stableVersions {
+				// Parse version to get major.minor
+				parsedVersion, err := perl.ParseVersion(version)
+				if err != nil {
+					continue // Skip invalid versions
+				}
+				
+				// Create group key (e.g., "5.38")
+				groupKey := fmt.Sprintf("%d.%d", parsedVersion.Major, parsedVersion.Minor)
+				
+				// Add to group
+				groupedVersions[groupKey] = append(groupedVersions[groupKey], version)
+			}
+
+			// Add development versions separately
+			cmd.Println("\nDevelopment versions:")
+			for _, version := range devVersions {
+				installed := ""
+				if installedMap[version] {
+					installed = " (installed)"
+				}
+				cmd.Printf("  %s%s\n", version, installed)
+			}
+			
+			// Display stable versions by group
+			cmd.Println("\nStable versions:")
+			
+			// Sort groups (we could use a proper version sorting here)
+			// But for this simple listing, the natural string sort will work reasonably well
+			groupKeys := make([]string, 0, len(groupedVersions))
+			for key := range groupedVersions {
+				groupKeys = append(groupKeys, key)
+			}
+			// Note: This would be better with a custom sort
+			
+			// Display groups
+			for _, groupKey := range groupKeys {
+				versions := groupedVersions[groupKey]
+				
+				// Skip empty groups
+				if len(versions) == 0 {
+					continue
+				}
+				
+				// Display group versions
+				cmd.Printf("  %s series:\n", groupKey)
+				for _, version := range versions {
+					installed := ""
+					if installedMap[version] {
+						installed = " (installed)"
+					}
+					cmd.Printf("    %s%s\n", version, installed)
+				}
+			}
+			
+			cmd.Println("\nUse 'pvm install <version>' to install a specific version.")
+			return nil
 		},
 	}
+	return cmd
 }
 
 func newDownloadCommand() *cobra.Command {
@@ -251,7 +407,7 @@ func newDownloadCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
-			
+
 			// Get mirror from flags or config
 			mirror, err := cmd.Flags().GetString("mirror")
 			if err != nil {
@@ -275,11 +431,11 @@ func newDownloadCommand() *cobra.Command {
 				// Only show progress for downloads with known size
 				if total > 0 {
 					percentage := float64(transferred) / float64(total) * 100
-					
+
 					// Create a simple progress bar
 					width := 40
 					completeChars := int(float64(width) * float64(transferred) / float64(total))
-					
+
 					// Format progress bar
 					progressBar := "["
 					for i := 0; i < width; i++ {
@@ -292,11 +448,11 @@ func newDownloadCommand() *cobra.Command {
 						}
 					}
 					progressBar += "]"
-					
+
 					// Clear line and show progress
-					fmt.Printf("\r%s %.1f%% (%d/%d bytes)                    ", 
+					fmt.Printf("\r%s %.1f%% (%d/%d bytes)                    ",
 						progressBar, percentage, transferred, total)
-					
+
 					if done {
 						fmt.Println()
 					}
@@ -315,7 +471,7 @@ func newDownloadCommand() *cobra.Command {
 
 			// Start the download
 			cmd.Printf("Downloading Perl %s...\n", version)
-			
+
 			if mirror != "" {
 				cmd.Printf("Using mirror: %s\n", mirror)
 			}
@@ -334,7 +490,7 @@ func newDownloadCommand() *cobra.Command {
 				cmd.Printf("Download size: %d bytes\n", result.Size)
 				cmd.Printf("Download time: %s\n", result.Duration.Round(time.Millisecond))
 			}
-			
+
 			if result.Checksum != "" {
 				cmd.Printf("SHA-256: %s\n", result.Checksum)
 			}
@@ -363,14 +519,61 @@ func newExecCommand() *cobra.Command {
 }
 
 func newUninstallCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "uninstall [version]",
 		Short: "Remove a Perl version",
 		Long:  "Uninstall a specific version of Perl",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Uninstall command not yet implemented")
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version := args[0]
+
+			// Check if the version is installed
+			versionInfo, err := perl.GetVersionInfo(version)
+			if err != nil {
+				return err
+			}
+
+			// Get force flag
+			force, err := cmd.Flags().GetBool("force")
+			if err != nil {
+				return err
+			}
+
+			// Get confirmation unless force flag is used
+			if !force {
+				cmd.Printf("Are you sure you want to uninstall Perl %s? [y/N] ", version)
+				var response string
+				fmt.Scanln(&response)
+
+				response = strings.ToLower(strings.TrimSpace(response))
+				if response != "y" && response != "yes" {
+					cmd.Println("Uninstall cancelled.")
+					return nil
+				}
+			}
+
+			// If this is a system Perl, warn the user
+			if versionInfo.Source == "system" {
+				cmd.Println("Note: This is a system Perl installation.")
+				cmd.Println("The installation will be unregistered from PVM but the actual files will not be removed.")
+			}
+
+			// Perform the uninstallation
+			cmd.Printf("Uninstalling Perl %s...\n", version)
+			err = perl.UninstallVersion(version)
+			if err != nil {
+				return err
+			}
+
+			cmd.Printf("Perl %s has been uninstalled.\n", version)
+			return nil
 		},
 	}
+
+	// Add flags
+	cmd.Flags().Bool("force", false, "Skip confirmation prompt")
+
+	return cmd
 }
 
 func newImportCommand() *cobra.Command {
@@ -444,14 +647,45 @@ func importFromLegacyTool(cmd *cobra.Command, tool perl.LegacyToolType) error {
 }
 
 func newRehashCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "rehash",
 		Short: "Rebuild shim executables",
 		Long:  "Rebuild shim executables for all installed Perl versions",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Rehash command not yet implemented")
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.Println("Rebuilding shim executables...")
+			
+			// Call rehash function
+			err := perl.Rehash()
+			if err != nil {
+				return err
+			}
+			
+			// Check if PATH is configured correctly
+			pathConfigured, shimDir, err := perl.CheckPath()
+			if err != nil {
+				return err
+			}
+			
+			// Show success message
+			cmd.Println("Shim executables rebuilt successfully.")
+			
+			// Warn if PATH is not configured
+			if !pathConfigured {
+				cmd.Println("\nWarning: The shim directory is not in your PATH.")
+				cmd.Printf("To use pvm, add the following directory to your PATH:\n%s\n", shimDir)
+				
+				// Get the command to add to PATH
+				pathCmd, err := perl.GetPathConfigCommand()
+				if err == nil {
+					cmd.Printf("\nYou can do this with the following command:\n%s\n", pathCmd)
+				}
+			}
+			
+			return nil
 		},
 	}
+	
+	return cmd
 }
 
 func newResolveCommand() *cobra.Command {
@@ -507,39 +741,39 @@ func newBuildCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
-			
+
 			// Get flags
 			sourceFile, err := cmd.Flags().GetString("source")
 			if err != nil {
 				return err
 			}
-			
+
 			installDir, err := cmd.Flags().GetString("prefix")
 			if err != nil {
 				return err
 			}
-			
+
 			buildJobs, err := cmd.Flags().GetInt("jobs")
 			if err != nil {
 				return err
 			}
-			
+
 			runTests, err := cmd.Flags().GetBool("test")
 			if err != nil {
 				return err
 			}
-			
+
 			cleanupBuildDir, err := cmd.Flags().GetBool("cleanup")
 			if err != nil {
 				return err
 			}
-			
+
 			// Create a slice for configure options
 			configureOptions, err := cmd.Flags().GetStringArray("configure-options")
 			if err != nil {
 				return err
 			}
-			
+
 			// Create progress callback to display build progress
 			var currentStage perl.BuildProgressStage
 			progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
@@ -548,18 +782,18 @@ func newBuildCommand() *cobra.Command {
 					cmd.Printf("\n=== %s ===\n", stage.String())
 					currentStage = stage
 				}
-				
+
 				// Print progress details
 				if details != "" {
 					// For compile and test stages, we get lots of output
 					// Only print lines with errors or warnings, or important milestones
 					if stage == perl.StageCompile || stage == perl.StageTest {
-						if strings.Contains(details, "ERROR") || 
-						   strings.Contains(details, "WARNING") ||
-						   strings.Contains(details, "warning:") ||
-						   strings.Contains(details, "error:") ||
-						   strings.Contains(details, "Done") ||
-						   strings.Contains(details, "All tests successful") {
+						if strings.Contains(details, "ERROR") ||
+							strings.Contains(details, "WARNING") ||
+							strings.Contains(details, "warning:") ||
+							strings.Contains(details, "error:") ||
+							strings.Contains(details, "Done") ||
+							strings.Contains(details, "All tests successful") {
 							cmd.Println(details)
 						}
 					} else {
@@ -567,12 +801,12 @@ func newBuildCommand() *cobra.Command {
 						cmd.Println(details)
 					}
 				}
-				
+
 				// If we have numeric progress, show a progress bar
 				if progress > 0 && stage < perl.StageDone {
 					width := 40
 					completeChars := int(float64(width) * progress)
-					
+
 					// Format progress bar
 					progressBar := "["
 					for i := 0; i < width; i++ {
@@ -585,17 +819,17 @@ func newBuildCommand() *cobra.Command {
 						}
 					}
 					progressBar += "]"
-					
+
 					// Clear line and show progress
-					fmt.Printf("\r%s %.1f%%                    ", 
-						progressBar, progress * 100)
-					
+					fmt.Printf("\r%s %.1f%%                    ",
+						progressBar, progress*100)
+
 					if progress >= 1.0 {
 						fmt.Println()
 					}
 				}
 			}
-			
+
 			// Create build options
 			options := &perl.BuildOptions{
 				Version:          version,
@@ -608,54 +842,54 @@ func newBuildCommand() *cobra.Command {
 				ProgressCallback: progressCallback,
 				Context:          cmd.Context(),
 			}
-			
+
 			// Print build information
 			cmd.Printf("Building Perl %s...\n", version)
-			
+
 			if sourceFile != "" {
 				cmd.Printf("Using source file: %s\n", sourceFile)
 			}
-			
+
 			if installDir != "" {
 				cmd.Printf("Installation directory: %s\n", installDir)
 			}
-			
+
 			if buildJobs > 0 {
 				cmd.Printf("Using %d parallel build jobs\n", buildJobs)
 			} else {
 				cmd.Printf("Using default number of build jobs\n")
 			}
-			
+
 			if runTests {
 				cmd.Println("Will run tests after building")
 			}
-			
+
 			if cleanupBuildDir {
 				cmd.Println("Will clean up build directory after installation")
 			}
-			
+
 			// Start the build
 			result, err := perl.BuildPerl(options)
 			if err != nil {
 				cmd.Printf("\nBuild failed: %v\n", err)
 				return err
 			}
-			
+
 			// Show build results
 			cmd.Printf("\nBuild completed successfully!\n")
 			cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
 			cmd.Printf("Total build time: %s\n", result.Duration.Round(time.Second))
-			
+
 			// Show timing for each stage
 			cmd.Println("\nBuild stage timing:")
 			for stage, duration := range result.Stages {
 				cmd.Printf("  %-12s: %s\n", stage.String(), duration.Round(time.Second))
 			}
-			
+
 			return nil
 		},
 	}
-	
+
 	// Add flags
 	cmd.Flags().String("source", "", "Source archive file path (default: download or use cached)")
 	cmd.Flags().String("prefix", "", "Installation directory (default: XDG_DATA_HOME/pvm/versions/<version>)")
@@ -663,6 +897,6 @@ func newBuildCommand() *cobra.Command {
 	cmd.Flags().Bool("test", false, "Run Perl tests after building")
 	cmd.Flags().Bool("cleanup", true, "Clean up build directory after installation")
 	cmd.Flags().StringArray("configure-options", nil, "Additional options to pass to Configure (can be specified multiple times)")
-	
+
 	return cmd
 }
