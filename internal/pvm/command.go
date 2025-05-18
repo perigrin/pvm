@@ -5,6 +5,7 @@ package pvm
 
 import (
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/perl"
 )
 
 // NewCommand creates a new PVM command
@@ -14,7 +15,7 @@ func NewCommand() *cobra.Command {
 		Short: "Perl Version Manager",
 		Long:  "Manages Perl installations and versions",
 	}
-	
+
 	// Add PVM-specific commands
 	cmd.AddCommand(
 		newInstallCommand(),
@@ -30,8 +31,9 @@ func NewCommand() *cobra.Command {
 		newSymlinksCommand(),
 		newConfigCommand(),
 		newPerlCommand(),
+		newVersionUtilCommand(),
 	)
-	
+
 	return cmd
 }
 
@@ -131,27 +133,68 @@ func newImportCommand() *cobra.Command {
 		Short: "Import Perl installations from other tools",
 		Long:  "Import Perl installations from other version managers (plenv, perlbrew)",
 	}
-	
+
 	cmd.AddCommand(
 		&cobra.Command{
 			Use:   "plenv",
 			Short: "Import from plenv",
 			Long:  "Import Perl installations from plenv",
-			Run: func(cmd *cobra.Command, args []string) {
-				cmd.Println("Import from plenv not yet implemented")
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return importFromLegacyTool(cmd, perl.Plenv)
 			},
 		},
 		&cobra.Command{
 			Use:   "perlbrew",
 			Short: "Import from perlbrew",
 			Long:  "Import Perl installations from perlbrew",
-			Run: func(cmd *cobra.Command, args []string) {
-				cmd.Println("Import from perlbrew not yet implemented")
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return importFromLegacyTool(cmd, perl.Perlbrew)
 			},
 		},
 	)
-	
+
 	return cmd
+}
+
+// importFromLegacyTool implements the logic for importing from a legacy tool
+func importFromLegacyTool(cmd *cobra.Command, tool perl.LegacyToolType) error {
+	cmd.Printf("Detecting %s installations...\n", tool)
+
+	installations, err := perl.ImportFromLegacyTool(tool)
+	if err != nil {
+		return err
+	}
+
+	cmd.Printf("Found %d %s installation(s):\n", len(installations), tool)
+	for i, inst := range installations {
+		defaultMark := ""
+		if inst.IsDefault {
+			defaultMark = " (default)"
+		}
+		cmd.Printf("%d. %s%s at %s\n", i+1, inst.Version, defaultMark, inst.Path)
+	}
+
+	// In a real implementation, here we would:
+	// 1. Ask the user which installations to import
+	// 2. Create symlinks or copy the installations
+	// 3. Register them in PVM's internal database
+	// But for now, we'll just report what was found
+
+	cmd.Println("\nNote: This command currently only detects installations.")
+	cmd.Println("Actual import functionality will be implemented in a future version.")
+
+	// If it's perlbrew, also show aliases
+	if tool == perl.Perlbrew {
+		aliases, err := perl.GetPerlbrewAliases()
+		if err == nil && len(aliases) > 0 {
+			cmd.Println("\nPerlbrew aliases detected:")
+			for alias, target := range aliases {
+				cmd.Printf("  %s -> %s\n", alias, target)
+			}
+		}
+	}
+
+	return nil
 }
 
 func newRehashCommand() *cobra.Command {

@@ -383,7 +383,7 @@ Implement detection of system Perl installations, including version information 
 - Handle unusual Perl installations or custom builds
 ```
 
-#### Prompt 9: Version String Parsing and Constraints
+#### Prompt 9: Version String Parsing and Constraints ✅
 
 ```
 # Implement Version String Parsing and Constraints
@@ -430,7 +430,7 @@ Implement parsing and comparison of Perl version strings, along with support for
 - Ensure compatibility with existing tools' version specifications
 ```
 
-#### Prompt 10: Legacy Tool Integration (plenv/perlbrew)
+#### Prompt 10: Legacy Tool Integration (plenv/perlbrew) ✅
 
 ```
 # Implement Legacy Tool Integration (plenv/perlbrew)
