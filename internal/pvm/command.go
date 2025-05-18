@@ -5,6 +5,7 @@ package pvm
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -28,15 +29,18 @@ func NewCommand() *cobra.Command {
 		newVersionsCommand(),
 		newAvailableCommand(),
 		newDownloadCommand(),
+		newBuildCommand(),
 		newExecCommand(),
 		newUninstallCommand(),
 		newImportCommand(),
 		newRehashCommand(),
 		newResolveCommand(),
-		newSymlinksCommand(),
-		newConfigCommand(),
-		newPerlCommand(),
-		newVersionUtilCommand(),
+		
+		// These are implemented in their own files
+		newSymlinksCommand(), // from symlinks.go
+		newConfigCommand(),   // from config.go
+		newPerlCommand(),     // from perl.go
+		newVersionCommand(),  // from version.go
 	)
 
 	return cmd
@@ -45,14 +49,143 @@ func NewCommand() *cobra.Command {
 // Placeholder commands, to be implemented later
 
 func newInstallCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "install [version]",
 		Short: "Install a Perl version",
 		Long:  "Download and install a specific version of Perl",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Install command not yet implemented")
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version := args[0]
+			
+			// Get flags (same as build command)
+			sourceFile, err := cmd.Flags().GetString("source")
+			if err != nil {
+				return err
+			}
+			
+			installDir, err := cmd.Flags().GetString("prefix")
+			if err != nil {
+				return err
+			}
+			
+			buildJobs, err := cmd.Flags().GetInt("jobs")
+			if err != nil {
+				return err
+			}
+			
+			runTests, err := cmd.Flags().GetBool("test")
+			if err != nil {
+				return err
+			}
+			
+			skipBuild, err := cmd.Flags().GetBool("skip-build")
+			if err != nil {
+				return err
+			}
+			
+			if skipBuild {
+				cmd.Println("Skip-build specified but no import functionality implemented yet.")
+				cmd.Println("This will be implemented in a future version.")
+				return nil
+			}
+			
+			// Build Perl using our build functionality
+			cmd.Printf("Installing Perl %s...\n", version)
+			
+			// Create progress callback to display build progress
+			var currentStage perl.BuildProgressStage
+			progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
+				// Only print stage transition once
+				if stage != currentStage {
+					cmd.Printf("\n=== %s ===\n", stage.String())
+					currentStage = stage
+				}
+				
+				// Print progress details
+				if details != "" {
+					// For compile and test stages, we get lots of output
+					// Only print lines with errors or warnings, or important milestones
+					if stage == perl.StageCompile || stage == perl.StageTest {
+						if strings.Contains(details, "ERROR") || 
+						   strings.Contains(details, "WARNING") ||
+						   strings.Contains(details, "warning:") ||
+						   strings.Contains(details, "error:") ||
+						   strings.Contains(details, "Done") ||
+						   strings.Contains(details, "All tests successful") {
+							cmd.Println(details)
+						}
+					} else {
+						// For other stages, print all details
+						cmd.Println(details)
+					}
+				}
+				
+				// If we have numeric progress, show a progress bar
+				if progress > 0 && stage < perl.StageDone {
+					width := 40
+					completeChars := int(float64(width) * progress)
+					
+					// Format progress bar
+					progressBar := "["
+					for i := 0; i < width; i++ {
+						if i < completeChars {
+							progressBar += "="
+						} else if i == completeChars {
+							progressBar += ">"
+						} else {
+							progressBar += " "
+						}
+					}
+					progressBar += "]"
+					
+					// Clear line and show progress
+					fmt.Printf("\r%s %.1f%%                    ", 
+						progressBar, progress * 100)
+					
+					if progress >= 1.0 {
+						fmt.Println()
+					}
+				}
+			}
+			
+			// Create build options
+			options := &perl.BuildOptions{
+				Version:          version,
+				SourceFile:       sourceFile,
+				InstallDir:       installDir,
+				BuildJobs:        buildJobs,
+				RunTests:         runTests,
+				CleanupBuildDir:  true, // Always clean up for install command
+				ProgressCallback: progressCallback,
+				Context:          cmd.Context(),
+			}
+			
+			// Start the build
+			result, err := perl.BuildPerl(options)
+			if err != nil {
+				cmd.Printf("\nInstallation failed: %v\n", err)
+				return err
+			}
+			
+			// Show build results
+			cmd.Printf("\nInstallation completed successfully!\n")
+			cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
+			cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
+			
+			// TODO: Register the installed version in a future prompt
+			
+			return nil
 		},
 	}
+	
+	// Add flags
+	cmd.Flags().String("source", "", "Source archive file path (default: download or use cached)")
+	cmd.Flags().String("prefix", "", "Installation directory (default: XDG_DATA_HOME/pvm/versions/<version>)")
+	cmd.Flags().Int("jobs", 0, "Number of parallel build jobs (default: number of CPU cores)")
+	cmd.Flags().Bool("test", false, "Run Perl tests after building")
+	cmd.Flags().Bool("skip-build", false, "Skip build and import from existing installation")
+	
+	return cmd
 }
 
 func newUseCommand() *cobra.Command {
@@ -353,40 +486,183 @@ func newResolveCommand() *cobra.Command {
 			}
 
 			// OnVersionResolved callback will print the details
+			_ = resolved // Avoid unused variable warning
 			return nil
 		},
 	}
 }
 
-func newSymlinksCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "symlinks",
-		Short: "Manage symlinks for installations",
-		Long:  "Create and manage symlinks for Perl installations",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Symlinks command not yet implemented")
-		},
-	}
-}
+// newSymlinksCommand is implemented in symlinks.go
 
-func newConfigCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "config",
-		Short: "Configure PVM options",
-		Long:  "View and modify PVM configuration options",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Config command not yet implemented")
-		},
-	}
-}
+// newConfigCommand is implemented in config.go
 
-func newVersionUtilCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "version",
-		Short: "Show PVM version",
-		Long:  "Display the version of PVM itself",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("PVM version command not yet implemented")
+// newSystemCommand creates a command for showing system Perl info
+// This is now moved to perl.go as newPerlSystemCommand()
+
+func newBuildCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "build [version]",
+		Short: "Build Perl from source",
+		Long:  "Build and install a specific version of Perl from source code",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version := args[0]
+			
+			// Get flags
+			sourceFile, err := cmd.Flags().GetString("source")
+			if err != nil {
+				return err
+			}
+			
+			installDir, err := cmd.Flags().GetString("prefix")
+			if err != nil {
+				return err
+			}
+			
+			buildJobs, err := cmd.Flags().GetInt("jobs")
+			if err != nil {
+				return err
+			}
+			
+			runTests, err := cmd.Flags().GetBool("test")
+			if err != nil {
+				return err
+			}
+			
+			cleanupBuildDir, err := cmd.Flags().GetBool("cleanup")
+			if err != nil {
+				return err
+			}
+			
+			// Create a slice for configure options
+			configureOptions, err := cmd.Flags().GetStringArray("configure-options")
+			if err != nil {
+				return err
+			}
+			
+			// Create progress callback to display build progress
+			var currentStage perl.BuildProgressStage
+			progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
+				// Only print stage transition once
+				if stage != currentStage {
+					cmd.Printf("\n=== %s ===\n", stage.String())
+					currentStage = stage
+				}
+				
+				// Print progress details
+				if details != "" {
+					// For compile and test stages, we get lots of output
+					// Only print lines with errors or warnings, or important milestones
+					if stage == perl.StageCompile || stage == perl.StageTest {
+						if strings.Contains(details, "ERROR") || 
+						   strings.Contains(details, "WARNING") ||
+						   strings.Contains(details, "warning:") ||
+						   strings.Contains(details, "error:") ||
+						   strings.Contains(details, "Done") ||
+						   strings.Contains(details, "All tests successful") {
+							cmd.Println(details)
+						}
+					} else {
+						// For other stages, print all details
+						cmd.Println(details)
+					}
+				}
+				
+				// If we have numeric progress, show a progress bar
+				if progress > 0 && stage < perl.StageDone {
+					width := 40
+					completeChars := int(float64(width) * progress)
+					
+					// Format progress bar
+					progressBar := "["
+					for i := 0; i < width; i++ {
+						if i < completeChars {
+							progressBar += "="
+						} else if i == completeChars {
+							progressBar += ">"
+						} else {
+							progressBar += " "
+						}
+					}
+					progressBar += "]"
+					
+					// Clear line and show progress
+					fmt.Printf("\r%s %.1f%%                    ", 
+						progressBar, progress * 100)
+					
+					if progress >= 1.0 {
+						fmt.Println()
+					}
+				}
+			}
+			
+			// Create build options
+			options := &perl.BuildOptions{
+				Version:          version,
+				SourceFile:       sourceFile,
+				InstallDir:       installDir,
+				BuildJobs:        buildJobs,
+				RunTests:         runTests,
+				CleanupBuildDir:  cleanupBuildDir,
+				ConfigureOptions: configureOptions,
+				ProgressCallback: progressCallback,
+				Context:          cmd.Context(),
+			}
+			
+			// Print build information
+			cmd.Printf("Building Perl %s...\n", version)
+			
+			if sourceFile != "" {
+				cmd.Printf("Using source file: %s\n", sourceFile)
+			}
+			
+			if installDir != "" {
+				cmd.Printf("Installation directory: %s\n", installDir)
+			}
+			
+			if buildJobs > 0 {
+				cmd.Printf("Using %d parallel build jobs\n", buildJobs)
+			} else {
+				cmd.Printf("Using default number of build jobs\n")
+			}
+			
+			if runTests {
+				cmd.Println("Will run tests after building")
+			}
+			
+			if cleanupBuildDir {
+				cmd.Println("Will clean up build directory after installation")
+			}
+			
+			// Start the build
+			result, err := perl.BuildPerl(options)
+			if err != nil {
+				cmd.Printf("\nBuild failed: %v\n", err)
+				return err
+			}
+			
+			// Show build results
+			cmd.Printf("\nBuild completed successfully!\n")
+			cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
+			cmd.Printf("Total build time: %s\n", result.Duration.Round(time.Second))
+			
+			// Show timing for each stage
+			cmd.Println("\nBuild stage timing:")
+			for stage, duration := range result.Stages {
+				cmd.Printf("  %-12s: %s\n", stage.String(), duration.Round(time.Second))
+			}
+			
+			return nil
 		},
 	}
+	
+	// Add flags
+	cmd.Flags().String("source", "", "Source archive file path (default: download or use cached)")
+	cmd.Flags().String("prefix", "", "Installation directory (default: XDG_DATA_HOME/pvm/versions/<version>)")
+	cmd.Flags().Int("jobs", 0, "Number of parallel build jobs (default: number of CPU cores)")
+	cmd.Flags().Bool("test", false, "Run Perl tests after building")
+	cmd.Flags().Bool("cleanup", true, "Clean up build directory after installation")
+	cmd.Flags().StringArray("configure-options", nil, "Additional options to pass to Configure (can be specified multiple times)")
+	
+	return cmd
 }

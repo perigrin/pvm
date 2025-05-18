@@ -126,8 +126,19 @@ func GenerateSourceURL(mirror, version string) (string, error) {
 	return url, nil
 }
 
+// DownloadPerlSourceFunc holds the current implementation of DownloadPerlSource
+// It can be replaced with a mock for testing
+var DownloadPerlSourceFunc = func(options *DownloadOptions) (*DownloadResult, error) {
+	return doDownloadPerlSource(options)
+}
+
 // DownloadPerlSource downloads a Perl source archive for the specified version
 func DownloadPerlSource(options *DownloadOptions) (*DownloadResult, error) {
+	return DownloadPerlSourceFunc(options)
+}
+
+// doDownloadPerlSource is the actual implementation of downloading a Perl source archive
+func doDownloadPerlSource(options *DownloadOptions) (*DownloadResult, error) {
 	// Use default options if not specified
 	if options == nil {
 		options = &DownloadOptions{}
