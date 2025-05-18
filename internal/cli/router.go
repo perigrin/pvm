@@ -5,8 +5,6 @@ package cli
 
 import (
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/version"
@@ -30,26 +28,19 @@ const (
 
 // DetectComponent detects which component to run based on the binary name
 func DetectComponent() string {
-	// Get the executable name
-	executable := filepath.Base(os.Args[0])
+	// Use the enhanced detection logic
+	info := DetectInvocation()
 	
-	// Remove extension on Windows
-	executable = strings.TrimSuffix(executable, filepath.Ext(executable))
-	
-	// Check for known components
-	switch executable {
-	case ComponentPVM:
-		return ComponentPVM
-	case ComponentPVX:
-		return ComponentPVX
-	case ComponentPVI:
-		return ComponentPVI
-	case ComponentPSC:
-		return ComponentPSC
-	default:
-		// Default to PVM if not recognized
-		return ComponentPVM
+	// If verbose flag is set, we'll print debug info
+	// This has to be checked manually since flags aren't parsed yet
+	for _, arg := range os.Args {
+		if arg == "--debug" || arg == "-d" {
+			PrintDebugInfo()
+			break
+		}
 	}
+	
+	return info.Component
 }
 
 // GetComponentDescription returns the description for a component

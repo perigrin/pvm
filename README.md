@@ -33,7 +33,21 @@ The PVM Ecosystem uses a unified CLI framework based on [Cobra](https://github.c
 - **Consistent Command Structure**: All components share the same command structure, error handling, and help text formatting.
 - **Command Registration**: Components register their commands with a central registry.
 - **Structured Error Handling**: Errors include categories, context, and helpful hints.
-- **Global Flags**: Common flags like `--verbose` are available across all components.
+- **Global Flags**: Common flags like `--verbose` and `--debug` are available across all components.
+
+### Command Router
+
+The command router enables the single binary to function as multiple tools based on how it's invoked:
+
+- **Binary Name Detection**: Automatically detects which component to run based on the filename used to invoke the binary.
+- **Symlink Support**: Works with symlinks on Unix-like systems and file copies on Windows.
+- **Fallback Behavior**: If invoked with an unknown name, defaults to PVM functionality.
+- **Debug Mode**: Run with `--debug` flag to see detailed information about the invocation.
+- **Symlink Management**: Includes commands to create and verify the necessary symlinks:
+  ```
+  pvm symlinks create  # Create symlinks for all components
+  pvm symlinks verify  # Check if all symlinks exist
+  ```
 
 ## Building the Project
 

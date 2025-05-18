@@ -14,6 +14,9 @@ import (
 var (
 	// Verbose output flag
 	Verbose bool
+	
+	// Debug mode flag
+	Debug bool
 )
 
 // NewRootCommand creates a new root command for a component
@@ -26,6 +29,7 @@ func NewRootCommand(name string, description string) *cobra.Command {
 
 	// Add global flags
 	cmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Enable verbose output")
+	cmd.PersistentFlags().BoolVarP(&Debug, "debug", "d", false, "Enable debug mode")
 	
 	// Add version command
 	cmd.AddCommand(newVersionCommand(name))
