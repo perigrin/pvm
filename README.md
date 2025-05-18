@@ -15,21 +15,37 @@ The PVM Ecosystem provides a comprehensive suite of tools for Perl development e
   - `pvi/` - Perl Version Installer command
   - `psc/` - Perl Script Compiler command
 - `internal/` - Internal packages not meant for external use
+  - `cli/` - Shared CLI framework used by all components
+  - `pvm/` - PVM-specific commands
+  - `pvx/` - PVX-specific commands
+  - `pvi/` - PVI-specific commands
+  - `psc/` - PSC-specific commands
+  - `version/` - Shared version information
 - `pkg/` - Public packages that may be used by other tools
 - `docs/` - Documentation
 - `test/` - Test fixtures and helpers
 
+## CLI Framework
+
+The PVM Ecosystem uses a unified CLI framework based on [Cobra](https://github.com/spf13/cobra) with the following features:
+
+- **Single Binary, Multiple Entry Points**: The same binary can be invoked as `pvm`, `pvx`, `pvi`, or `psc` (using symlinks) and will provide the appropriate functionality based on how it was invoked.
+- **Consistent Command Structure**: All components share the same command structure, error handling, and help text formatting.
+- **Command Registration**: Components register their commands with a central registry.
+- **Structured Error Handling**: Errors include categories, context, and helpful hints.
+- **Global Flags**: Common flags like `--verbose` are available across all components.
+
 ## Building the Project
 
 ```bash
-# Build all components
-go build ./...
+# Build all components using the Makefile
+make
 
 # Build a specific component
-go build -o pvm ./cmd/pvm
-go build -o pvx ./cmd/pvx
-go build -o pvi ./cmd/pvi
-go build -o psc ./cmd/psc
+make pvm
+make pvx
+make pvi
+make psc
 
 # Run tests
 go test ./...

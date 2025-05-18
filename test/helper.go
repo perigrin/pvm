@@ -14,12 +14,12 @@ func GetProjectRoot() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	// If we're in the test directory, go up one level
 	if filepath.Base(wd) == "test" {
 		return filepath.Dir(wd), nil
 	}
-	
+
 	return wd, nil
 }
 
@@ -34,7 +34,7 @@ func NewTestHelper() (*TestHelper, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &TestHelper{
 		ProjectRoot: root,
 	}, nil
