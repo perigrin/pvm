@@ -199,18 +199,18 @@ func newUseCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
-			
+
 			// Switch version using shell integration
 			err := perl.SwitchVersion(version, "shell")
 			if err != nil {
 				return err
 			}
-			
+
 			// Success message
 			cmd.Printf("Using Perl %s in current shell\n", version)
 			cmd.Println("Note: This command only works properly when PVM's shell integration is set up")
 			cmd.Println("If you haven't set up shell integration, run 'pvm init' to get started")
-			
+
 			return nil
 		},
 	}
@@ -224,17 +224,17 @@ func newGlobalCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
-			
+
 			// Set global version
 			err := perl.SetGlobalVersion(version)
 			if err != nil {
 				return err
 			}
-			
+
 			// Success message
 			cmd.Printf("Global Perl version set to %s\n", version)
 			cmd.Println("This is now the default version when no other version is specified")
-			
+
 			return nil
 		},
 	}
@@ -248,24 +248,24 @@ func newLocalCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
-			
+
 			// Set local version
 			err := perl.SetLocalVersion(version)
 			if err != nil {
 				return err
 			}
-			
+
 			// Get current directory for the message
 			dir, err := os.Getwd()
 			if err != nil {
 				dir = "current directory"
 			}
-			
+
 			// Success message
 			cmd.Printf("Local Perl version set to %s for %s\n", version, dir)
 			cmd.Println("This version will be used in this directory and its subdirectories")
 			cmd.Println("Note: Shell integration must be set up for automatic switching to work")
-			
+
 			return nil
 		},
 	}

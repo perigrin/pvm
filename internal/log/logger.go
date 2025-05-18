@@ -215,7 +215,7 @@ func Fatalf(format string, args ...interface{}) {
 // ParseLevel parses a level string to a level constant
 func ParseLevel(level string) (int, error) {
 	level = strings.ToUpper(level)
-	
+
 	switch level {
 	case "DEBUG":
 		return LevelDebug, nil

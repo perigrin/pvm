@@ -74,7 +74,7 @@ func TestDetectAllSystemPerls(t *testing.T) {
 	// Log all detected Perls
 	t.Logf("Detected %d Perl installations:", len(perls))
 	for i, perl := range perls {
-		t.Logf("  %d. %s (version %s, %s, primary: %v)", 
+		t.Logf("  %d. %s (version %s, %s, primary: %v)",
 			i+1, perl.Path, perl.Version, perl.Architecture, perl.IsPrimary)
 	}
 }
@@ -157,7 +157,7 @@ func TestMockPerlScript(t *testing.T) {
 func createMockPerlScript(path string) error {
 	// Mock output simulating 'perl -v'
 	mockOutput := `This is perl 5, version 38, subversion 0 (v5.38.0) built for x86_64-linux
-	
+
 	Copyright 1987-2023, Larry Wall
 
 	Perl may be copied only under the terms of either the Artistic License or the
@@ -188,6 +188,6 @@ func createMockPerlScript(path string) error {
 
 	// Create the script
 	script := []byte("#!/bin/sh\n\nif [ \"$1\" = \"-v\" ]; then\n  cat <<'EOT'\n" + mockOutput + "\nEOT\nelif [ \"$1\" = \"-e\" ]; then\n  echo \"v5.38.0\"\nfi\n")
-	
+
 	return os.WriteFile(path, script, 0644)
 }

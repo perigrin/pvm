@@ -18,14 +18,14 @@ import (
 
 // Shell-related error codes
 const (
-	ErrShellDetectionFailed    = "501" // Failed to detect user shell
-	ErrShellInitFailed         = "502" // Failed to create shell initialization scripts
-	ErrVersionSwitchFailed     = "503" // Failed to switch Perl version
-	ErrPerlVersionFileFailed   = "504" // Failed to create .perl-version file
-	ErrGlobalVersionSetFailed  = "505" // Failed to set global Perl version
-	ErrLocalVersionSetFailed   = "506" // Failed to set local Perl version
-	ErrUseVersionFailed        = "507" // Failed to use specified Perl version
-	ErrShellScriptFailed       = "508" // Failed to generate shell script
+	ErrShellDetectionFailed   = "501" // Failed to detect user shell
+	ErrShellInitFailed        = "502" // Failed to create shell initialization scripts
+	ErrVersionSwitchFailed    = "503" // Failed to switch Perl version
+	ErrPerlVersionFileFailed  = "504" // Failed to create .perl-version file
+	ErrGlobalVersionSetFailed = "505" // Failed to set global Perl version
+	ErrLocalVersionSetFailed  = "506" // Failed to set local Perl version
+	ErrUseVersionFailed       = "507" // Failed to use specified Perl version
+	ErrShellScriptFailed      = "508" // Failed to generate shell script
 )
 
 // ShellType represents the type of shell
@@ -33,12 +33,12 @@ type ShellType string
 
 const (
 	// Supported shell types
-	ShellBash      ShellType = "bash"
-	ShellZsh       ShellType = "zsh"
-	ShellFish      ShellType = "fish"
+	ShellBash       ShellType = "bash"
+	ShellZsh        ShellType = "zsh"
+	ShellFish       ShellType = "fish"
 	ShellPowerShell ShellType = "powershell"
-	ShellCmd       ShellType = "cmd"
-	ShellUnknown   ShellType = "unknown"
+	ShellCmd        ShellType = "cmd"
+	ShellUnknown    ShellType = "unknown"
 )
 
 // ShellScriptData contains data for shell script templates
@@ -488,7 +488,7 @@ func CheckShellInit(shellType ShellType) (bool, string, error) {
 				WithLocation(bashrcPath)
 		}
 
-		return strings.Contains(string(content), "pvm init"), 
+		return strings.Contains(string(content), "pvm init"),
 			"Add 'eval \"$(pvm init)\"' to your ~/.bashrc file", nil
 
 	case ShellZsh:
@@ -509,7 +509,7 @@ func CheckShellInit(shellType ShellType) (bool, string, error) {
 				WithLocation(zshrcPath)
 		}
 
-		return strings.Contains(string(content), "pvm init"), 
+		return strings.Contains(string(content), "pvm init"),
 			"Add 'eval \"$(pvm init)\"' to your ~/.zshrc file", nil
 
 	case ShellFish:
@@ -530,7 +530,7 @@ func CheckShellInit(shellType ShellType) (bool, string, error) {
 				WithLocation(fishConfigPath)
 		}
 
-		return strings.Contains(string(content), "pvm init"), 
+		return strings.Contains(string(content), "pvm init"),
 			"Add 'pvm init | source' to your ~/.config/fish/config.fish file", nil
 
 	case ShellPowerShell:
@@ -630,7 +630,7 @@ PVM_SHIMS_DIR="{{ .ShimsDir }}"
     # Function to run custom commands upon directory change
     {{ .FunctionPrefix }}cd() {
         \cd "$@" || return $?
-        
+
         # Check for .perl-version file in current directory
         if [ -f .perl-version ]; then
             local version=$(cat .perl-version)
@@ -647,7 +647,7 @@ PVM_SHIMS_DIR="{{ .ShimsDir }}"
                 [ -n "$version" ] && {{ .FunctionPrefix }}use "$version"
             fi
         }
-        
+
         autoload -Uz add-zsh-hook
         add-zsh-hook chpwd {{ .FunctionPrefix }}chpwd
     else

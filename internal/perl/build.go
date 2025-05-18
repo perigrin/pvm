@@ -237,20 +237,20 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	if sourceFile == "" {
 		// Check if the source is already cached
 		archiveFilename := ""
-		
+
 		// Determine the correct archive extension based on version
 		majorVersion := parsedVersion.Major
 		minorVersion := parsedVersion.Minor
 		patchVersion := parsedVersion.Patch
-		
+
 		if majorVersion > 5 || (majorVersion == 5 && (minorVersion > 14 || (minorVersion == 14 && patchVersion >= 0))) {
 			archiveFilename = fmt.Sprintf("perl-%s.tar.xz", version)
 		} else {
 			archiveFilename = fmt.Sprintf("perl-%s.tar.gz", version)
 		}
-		
+
 		sourceFile = filepath.Join(dirs.SourcesDir, archiveFilename)
-		
+
 		// Check if the source archive exists
 		if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
 			// Download the source archive
@@ -259,7 +259,7 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 				ProgressCallback: nil, // TODO: Adapt download progress to build progress
 				Context:          options.Context,
 			}
-			
+
 			downloadResult, err := DownloadPerlSource(downloadOptions)
 			if err != nil {
 				return nil, errors.NewVersionError(
@@ -267,7 +267,7 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 					"Failed to download source archive",
 					err)
 			}
-			
+
 			sourceFile = downloadResult.Path
 		}
 	}
@@ -317,8 +317,8 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 
 	// Construct configure options
 	configureOptions := []string{
-		"-des",                       // Default options, no interactive prompts
-		"-Dusethreads",              // Enable threads
+		"-des",                                 // Default options, no interactive prompts
+		"-Dusethreads",                         // Enable threads
 		fmt.Sprintf("-Dprefix=%s", installDir), // Installation directory
 	}
 
@@ -466,8 +466,8 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 		if cleanupErr != nil {
 			// Non-fatal error, continue but report it
 			if options.ProgressCallback != nil {
-				options.ProgressCallback(StageCleanup, 
-					fmt.Sprintf("Warning: Failed to clean up build directory: %v", cleanupErr), 
+				options.ProgressCallback(StageCleanup,
+					fmt.Sprintf("Warning: Failed to clean up build directory: %v", cleanupErr),
 					1.0)
 			}
 		}
@@ -478,6 +478,17 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 
 	// Update final timing
 	result.Duration = time.Since(startTime)
+
+	// Register the installed Perl version
+	err = RegisterVersionAfterBuild(result, "pvm")
+	if err != nil {
+		// Log the error but don't fail the build
+		if options.ProgressCallback != nil {
+			options.ProgressCallback(StageDone,
+				fmt.Sprintf("Warning: Failed to register Perl version: %v", err),
+				1.0)
+		}
+	}
 
 	return result, nil
 }
@@ -658,7 +669,7 @@ func doRunCommandWithProgress(
 
 	// Read output in background
 	var stdoutBuf, stderrBuf bytes.Buffer
-	
+
 	// Start goroutine to read stdout
 	stdoutCh := make(chan error, 1)
 	go func() {
@@ -704,7 +715,7 @@ func doRunCommandWithProgress(
 	// Check command exit status
 	if err != nil {
 		// Add output to error for better diagnostics
-		err = fmt.Errorf("%w\nSTDOUT:\n%s\nSTDERR:\n%s", 
+		err = fmt.Errorf("%w\nSTDOUT:\n%s\nSTDERR:\n%s",
 			err, stdoutBuf.String(), stderrBuf.String())
 	}
 
@@ -719,17 +730,17 @@ func getPlatformConfigureOptions() ([]string, error) {
 	case "darwin":
 		// macOS-specific options
 		options = append(options,
-			"-Duseshrplib",      // Build shared libperl
-			"-Dusedtrace",       // Enable dtrace support
-			"-Dusethreads",      // Enable threads
-			"-Duselargefiles",   // Enable large file support
+			"-Duseshrplib",          // Build shared libperl
+			"-Dusedtrace",           // Enable dtrace support
+			"-Dusethreads",          // Enable threads
+			"-Duselargefiles",       // Enable large file support
 			"-Dccflags=-DHAS_TIMES", // Fix for macOS time handling
 		)
 
 		// Check if we're on Apple Silicon (arm64)
 		if runtime.GOARCH == "arm64" {
 			options = append(options,
-				"-Dcc=clang",    // Use clang compiler
+				"-Dcc=clang", // Use clang compiler
 				"-Darchname=darwin-thread-multi-2level-arm64", // Architecture name
 			)
 		}
@@ -737,20 +748,20 @@ func getPlatformConfigureOptions() ([]string, error) {
 	case "linux":
 		// Linux-specific options
 		options = append(options,
-			"-Duseshrplib",      // Build shared libperl
-			"-Duselargefiles",   // Enable large file support
+			"-Duseshrplib",       // Build shared libperl
+			"-Duselargefiles",    // Enable large file support
 			"-Dcccdlflags=-fPIC", // Position-independent code for shared libs
 		)
 
 	case "windows":
 		// Windows-specific options
-		// Note: Building Perl on Windows is complex and may require 
+		// Note: Building Perl on Windows is complex and may require
 		// different approaches depending on the build environment
 		// For simplicity, we'll assume using MinGW/MSYS2 here
 		options = append(options,
-			"-Duseshrplib",      // Build shared libperl
-			"-Duseithreads",     // Use POSIX threads
-			"-Dcc=gcc",          // Use gcc compiler
+			"-Duseshrplib",  // Build shared libperl
+			"-Duseithreads", // Use POSIX threads
+			"-Dcc=gcc",      // Use gcc compiler
 		)
 	}
 

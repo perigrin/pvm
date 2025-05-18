@@ -86,7 +86,7 @@ func TestDetectShell(t *testing.T) {
 		{"/bin/bash", ShellBash, false},
 		{"/usr/bin/zsh", ShellZsh, false},
 		{"/usr/bin/fish", ShellFish, false},
-		{"", ShellBash, false}, // Default case
+		{"", ShellBash, false},                               // Default case
 		{"powershell", ShellBash, runtime.GOOS != "windows"}, // Skip on non-Windows
 	}
 

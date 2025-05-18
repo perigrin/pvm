@@ -13,7 +13,7 @@ import (
 
 // Function variables to allow for easier testing
 var (
-	loadSystemConfig = defaultLoadSystemConfig
+	loadSystemConfig  = defaultLoadSystemConfig
 	loadProjectConfig = defaultLoadProjectConfig
 )
 
@@ -41,14 +41,13 @@ func LoadEffectiveConfig() (*Config, error) {
 	systemConfig, _ := loadSystemConfig()
 	userConfig, _ := loadUserConfig(dirs)
 	projectConfig, _ := loadProjectConfig()
-	
 
 	// Merge configurations according to precedence
 	// System (lowest) <- User <- Project (highest)
-	
+
 	// Create empty result config
 	result := NewDefaultConfig()
-	
+
 	// Apply configs in order of precedence (low to high)
 	// This ensures higher priority configs override lower priority ones
 	if systemConfig != nil {
@@ -65,7 +64,7 @@ func LoadEffectiveConfig() (*Config, error) {
 			mergePSCConfig(result.PSC, systemConfig.PSC)
 		}
 	}
-	
+
 	if userConfig != nil {
 		if userConfig.PVM != nil {
 			mergePVMConfig(result.PVM, userConfig.PVM)
@@ -80,7 +79,7 @@ func LoadEffectiveConfig() (*Config, error) {
 			mergePSCConfig(result.PSC, userConfig.PSC)
 		}
 	}
-	
+
 	if projectConfig != nil {
 		if projectConfig.PVM != nil {
 			mergePVMConfig(result.PVM, projectConfig.PVM)
@@ -95,7 +94,7 @@ func LoadEffectiveConfig() (*Config, error) {
 			mergePSCConfig(result.PSC, projectConfig.PSC)
 		}
 	}
-	
+
 	return result, nil
 }
 

@@ -39,7 +39,7 @@ func (r *CommandRegistry) CreateCommand(name string) (*cobra.Command, bool) {
 	if !ok {
 		return nil, false
 	}
-	
+
 	return provider(), true
 }
 

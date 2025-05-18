@@ -62,12 +62,12 @@ func setupDownloadTest(t *testing.T) *downloadTestEnv {
 			CacheDir:   tempDir,
 			SourcesDir: sourcesDir,
 		}
-		
+
 		// Mock EnsureDirs method
 		dirs.EnsureDirs = func() error {
 			return nil
 		}
-		
+
 		return dirs, nil
 	}
 
@@ -220,7 +220,7 @@ func TestDownloadPerlSource(t *testing.T) {
 
 	// Test with a valid version
 	version := "5.38.0"
-	
+
 	// Create progress tracking variables
 	var lastProgress, totalSize int64
 	progressCalled := false
@@ -397,7 +397,7 @@ func TestDownloadCancellation(t *testing.T) {
 	// Start download in a goroutine
 	resultCh := make(chan *DownloadResult)
 	errCh := make(chan error)
-	
+
 	// Create a temporary file mimicking a download in progress
 	tmpDir := os.TempDir()
 	tmpFile, err := os.CreateTemp(tmpDir, "download-test-*.tmp")
@@ -405,11 +405,11 @@ func TestDownloadCancellation(t *testing.T) {
 		tmpFile.Close()
 		defer os.Remove(tmpFile.Name())
 	}
-	
+
 	go func() {
 		// Sleep briefly to simulate download starting
 		time.Sleep(50 * time.Millisecond)
-		
+
 		// Send the started signal
 		select {
 		case started <- true:
@@ -417,10 +417,10 @@ func TestDownloadCancellation(t *testing.T) {
 		default:
 			// Already signaled
 		}
-		
+
 		// Sleep a bit more to ensure cancellation has time to take effect
 		time.Sleep(50 * time.Millisecond)
-		
+
 		result, err := DownloadPerlSource(options)
 		if err != nil {
 			errCh <- err
@@ -479,7 +479,7 @@ func TestVerifyMirror(t *testing.T) {
 		},
 		{
 			name:        "Default mirror",
-			mirror:      "", // Should use default
+			mirror:      "",   // Should use default
 			shouldError: true, // Default mirror requires network access, might fail in CI
 		},
 	}
@@ -567,7 +567,7 @@ func TestProgressReader(t *testing.T) {
 	// Read all data but with a small buffer to trigger multiple reads
 	buf := make([]byte, 5) // Smaller than the full data
 	var fullBuf []byte
-	
+
 	for {
 		n, err := reader.Read(buf)
 		fullBuf = append(fullBuf, buf[:n]...)

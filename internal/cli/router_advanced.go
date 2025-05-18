@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	
+
 	"tamarou.com/pvm/internal/version"
 )
 
@@ -33,22 +33,22 @@ type InvocationInfo struct {
 func DetectInvocation() *InvocationInfo {
 	// Get the executable path from args
 	exePath := os.Args[0]
-	
+
 	// Get the real path (resolving symlinks)
 	realPath, err := filepath.EvalSymlinks(exePath)
 	if err != nil {
 		// If we can't resolve symlinks, just use the original path
 		realPath = exePath
 	}
-	
+
 	// Get the base names
 	exeName := filepath.Base(exePath)
 	realName := filepath.Base(realPath)
-	
+
 	// Remove extensions (relevant for Windows)
 	exeName = strings.TrimSuffix(exeName, filepath.Ext(exeName))
 	realName = strings.TrimSuffix(realName, filepath.Ext(realName))
-	
+
 	// Initialize result
 	info := &InvocationInfo{
 		Component:   exeName,
@@ -57,7 +57,7 @@ func DetectInvocation() *InvocationInfo {
 		BinaryPath:  realPath,
 		Detected:    true,
 	}
-	
+
 	// Check if this is a symlink
 	if exePath != realPath {
 		info.Type = InvocationSymlink
@@ -65,7 +65,7 @@ func DetectInvocation() *InvocationInfo {
 		// This could be a copy/rename
 		info.Type = InvocationCopy
 	}
-	
+
 	// Check if this is a known component
 	switch exeName {
 	case ComponentPVM, ComponentPVX, ComponentPVI, ComponentPSC:
@@ -76,7 +76,7 @@ func DetectInvocation() *InvocationInfo {
 		info.Type = InvocationFallback
 		info.Detected = false
 	}
-	
+
 	return info
 }
 
@@ -84,7 +84,7 @@ func DetectInvocation() *InvocationInfo {
 // This is useful for debugging symlink and path issues
 func PrintDebugInfo() {
 	info := DetectInvocation()
-	
+
 	fmt.Println("PVM Ecosystem Debug Information:")
 	fmt.Println("--------------------------------")
 	fmt.Printf("Invoked as:       %s\n", info.OriginalArg)

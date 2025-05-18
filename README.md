@@ -86,6 +86,35 @@ go test ./...
 - Environment isolation for script execution
 - Type checking with flow-sensitive analysis
 - CPAN module management
+- Flexible TOML-based configuration system
+
+## Configuration
+
+The PVM Ecosystem uses TOML configuration files located according to the XDG Base Directory Specification:
+
+- System-wide configuration: `/etc/pvm/pvm.toml`
+- User configuration: `$XDG_CONFIG_HOME/pvm/pvm.toml` (defaults to `~/.config/pvm/pvm.toml`)
+- Project configuration: `.pvm/pvm.toml` in the project directory
+
+All configuration files are optional. The system works without any configuration files present, using sensible defaults.
+
+Basic configuration commands:
+
+```bash
+# Show the current configuration
+pvm config show
+
+# Get a specific configuration value
+pvm config get pvm.default_perl
+
+# Set a configuration value
+pvm config set pvm.default_perl 5.36.0
+
+# Create a new configuration file with default values
+pvm config init
+```
+
+See [Configuration Guide](docs/configuration.md) for more details.
 
 ## License
 

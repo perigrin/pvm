@@ -37,8 +37,8 @@ type Constraint struct {
 // ConstraintSet is a collection of constraints that must all be satisfied
 type ConstraintSet []Constraint
 
-// ParseVersion parses a version string into a PerlVersion struct
-func ParseVersion(version string) (PerlVersion, error) {
+// parseVersionFunc parses a version string into a PerlVersion struct
+func parseVersionFunc(version string) (PerlVersion, error) {
 	// Check for common formats and normalize
 	version = strings.TrimSpace(version)
 
@@ -323,6 +323,10 @@ func GetSystemVersionString() (string, error) {
 
 	return perl.Version, nil
 }
+
+// ParseVersion is a variable that points to parseVersionFunc,
+// allowing it to be replaced in tests
+var ParseVersion = parseVersionFunc
 
 // FindBestMatch finds the best version that satisfies the constraints
 // Returns the highest matching version from the available versions

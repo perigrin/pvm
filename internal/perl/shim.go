@@ -19,10 +19,10 @@ import (
 
 // Shim-related error codes
 const (
-	ErrShimCreationFailed  = "401" // Failed to create shim
-	ErrShimTemplateFailed  = "402" // Failed to process shim template
+	ErrShimCreationFailed   = "401" // Failed to create shim
+	ErrShimTemplateFailed   = "402" // Failed to process shim template
 	ErrShimExecutableFailed = "403" // Failed to make shim executable
-	ErrShimDirectoryFailed = "404" // Failed to create shim directory
+	ErrShimDirectoryFailed  = "404" // Failed to create shim directory
 	ErrShimGenerationFailed = "405" // Failed to generate shims
 )
 
@@ -32,7 +32,7 @@ type ShimType string
 const (
 	// ShimPerl represents the main perl executable
 	ShimPerl ShimType = "perl"
-	
+
 	// ShimScript represents perl scripts like cpan, prove, etc.
 	ShimScript ShimType = "script"
 )
@@ -41,10 +41,10 @@ const (
 type ShimInfo struct {
 	// Name of the shim (e.g., "perl", "cpan", "prove")
 	Name string
-	
+
 	// Type of the shim (perl or script)
 	Type ShimType
-	
+
 	// Path to the original executable/script (optional, used for system scripts)
 	OriginalPath string
 }
@@ -53,16 +53,16 @@ type ShimInfo struct {
 type ShimTemplate struct {
 	// Name of the shim executable
 	Name string
-	
+
 	// Type of the shim
 	Type string
-	
+
 	// Full path to the PVM binary
 	PVMPath string
-	
+
 	// Whether this is a Windows shim
 	IsWindows bool
-	
+
 	// Whether this is a script (as opposed to the perl executable)
 	IsScript bool
 }
@@ -472,7 +472,7 @@ func GetShimCommand(shimName string, args []string) (*exec.Cmd, error) {
 
 	// Set environment variables
 	cmd.Env = os.Environ()
-	
+
 	// Set up input/output
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

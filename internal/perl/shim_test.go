@@ -124,12 +124,12 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 	xdg.GetDirs = func() (*xdg.Dirs, error) {
 		return dirs, nil
 	}
-	
+
 	// Setup the mock registry functions
 	LoadRegistry = func() (*VersionRegistry, error) {
 		return registry, nil
 	}
-	
+
 	SaveRegistry = func(reg *VersionRegistry) error {
 		return nil
 	}
@@ -163,13 +163,13 @@ func TestCreateShim(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create fake pvm: %v", err)
 	}
-	
+
 	// Mock the executablePath function to return our fake PVM path
 	originalExecutable := executablePath
 	executablePath = func() (string, error) {
 		return pvmPath, nil
 	}
-	
+
 	// Update the cleanup function to also restore executablePath
 	oldCleanup := cleanup
 	cleanup = func() {
@@ -228,25 +228,25 @@ func TestGenerateShims(t *testing.T) {
 func TestRehash(t *testing.T) {
 	// Just test that Rehash calls GenerateShims, which we've already tested at the lower level
 	// with TestCreateShim. Mocking at a higher level is too complex for this test.
-	
+
 	// Directly create a mock function for Rehash to avoid the nil pointer issue
 	originalGenerateShims := GenerateShimsFunc
 	defer func() { GenerateShimsFunc = originalGenerateShims }()
-	
+
 	called := false
 	GenerateShimsFunc = func() error {
 		called = true
 		return nil
 	}
-	
+
 	// Call Rehash
 	err := Rehash()
-	
+
 	// Verify it worked
 	if err != nil {
 		t.Fatalf("Failed to rehash: %v", err)
 	}
-	
+
 	if !called {
 		t.Errorf("Rehash did not call GenerateShims")
 	}

@@ -16,7 +16,7 @@ import (
 var (
 	// Verbose output flag
 	Verbose bool
-	
+
 	// Debug mode flag
 	Debug bool
 )
@@ -32,10 +32,10 @@ func NewRootCommand(name string, description string) *cobra.Command {
 	// Add global flags
 	cmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.PersistentFlags().BoolVarP(&Debug, "debug", "d", false, "Enable debug mode")
-	
+
 	// Add version command
 	cmd.AddCommand(newVersionCommand(name))
-	
+
 	return cmd
 }
 
@@ -63,16 +63,16 @@ func Execute(rootCmd *cobra.Command) {
 		} else {
 			log.SetGlobalLevel(log.LevelInfo)
 		}
-		
+
 		// Set component from command
 		log.SetGlobalComponent(cmd.Root().Use)
-		
+
 		// Call the original pre-run if it exists
 		if origPreRun != nil {
 			origPreRun(cmd, args)
 		}
 	}
-	
+
 	// Execute the command
 	if err := rootCmd.Execute(); err != nil {
 		// Log the error using our structured logging

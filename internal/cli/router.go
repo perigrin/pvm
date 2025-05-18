@@ -30,7 +30,7 @@ const (
 func DetectComponent() string {
 	// Use the enhanced detection logic
 	info := DetectInvocation()
-	
+
 	// If verbose flag is set, we'll print debug info
 	// This has to be checked manually since flags aren't parsed yet
 	for _, arg := range os.Args {
@@ -39,7 +39,7 @@ func DetectComponent() string {
 			break
 		}
 	}
-	
+
 	return info.Component
 }
 
@@ -63,10 +63,10 @@ func GetComponentDescription(component string) string {
 func CreateRootCommand(component string) *cobra.Command {
 	description := GetComponentDescription(component)
 	rootCmd := NewRootCommand(component, description)
-	
+
 	// Add component-specific initialization here
 	rootCmd.Long = rootCmd.Long + "\n\nVersion: " + version.GetVersion()
-	
+
 	// Look up registered commands for this component
 	provider, exists := GlobalRegistry.Get(component)
 	if exists {
@@ -75,6 +75,6 @@ func CreateRootCommand(component string) *cobra.Command {
 			rootCmd.AddCommand(cmd)
 		}
 	}
-	
+
 	return rootCmd
 }

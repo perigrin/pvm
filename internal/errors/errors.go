@@ -22,22 +22,22 @@ const (
 const (
 	// Configuration-related errors
 	CategoryConfig = "Configuration Error"
-	
+
 	// Version-related errors
 	CategoryVersion = "Version Error"
-	
+
 	// Module-related errors
 	CategoryModule = "Module Error"
-	
+
 	// Execution-related errors
 	CategoryExecution = "Execution Error"
-	
+
 	// Type-checking related errors
 	CategoryType = "Type Error"
-	
+
 	// System-related errors
 	CategorySystem = "System Error"
-	
+
 	// User input errors
 	CategoryUserInput = "User Input Error"
 )
@@ -46,25 +46,25 @@ const (
 type Error struct {
 	// Prefix identifies the component (PVM, PVX, etc.)
 	Prefix string
-	
+
 	// Category identifies the type of error
 	Category string
-	
+
 	// Code is a unique identifier for this error
 	Code string
-	
+
 	// Message is a short description of the error
 	Message string
-	
+
 	// Detail provides additional information about the error
 	Detail string
-	
+
 	// Location indicates where the error occurred (file, line, etc.)
 	Location string
-	
+
 	// Hint provides a suggestion for resolving the error
 	Hint string
-	
+
 	// InnerErr is the underlying error
 	InnerErr error
 }
@@ -72,38 +72,38 @@ type Error struct {
 // Error implements the error interface
 func (e *Error) Error() string {
 	var builder strings.Builder
-	
+
 	// Format the error code with the prefix
 	errCode := fmt.Sprintf("%s-%s", e.Prefix, e.Code)
-	
+
 	// Start with the error code and message
 	builder.WriteString(fmt.Sprintf("%s: %s", errCode, e.Message))
-	
+
 	// Add the category if set
 	if e.Category != "" {
 		builder.WriteString(fmt.Sprintf(" (%s)", e.Category))
 	}
-	
+
 	// Add detail if present
 	if e.Detail != "" {
 		builder.WriteString(fmt.Sprintf("\n  Detail: %s", e.Detail))
 	}
-	
+
 	// Add location if present
 	if e.Location != "" {
 		builder.WriteString(fmt.Sprintf("\n  Location: %s", e.Location))
 	}
-	
+
 	// Add hint if present
 	if e.Hint != "" {
 		builder.WriteString(fmt.Sprintf("\n  Hint: %s", e.Hint))
 	}
-	
+
 	// Add inner error if present and verbose is enabled
 	if e.InnerErr != nil {
 		builder.WriteString(fmt.Sprintf("\n  Cause: %v", e.InnerErr))
 	}
-	
+
 	return builder.String()
 }
 
@@ -113,7 +113,7 @@ func (e *Error) Is(target error) bool {
 	if !ok {
 		return false
 	}
-	
+
 	// Match by code and prefix
 	return e.Code == t.Code && e.Prefix == t.Prefix
 }
@@ -157,7 +157,7 @@ func Wrap(err error, prefix, category, code, message string) *Error {
 	if err == nil {
 		return nil
 	}
-	
+
 	return &Error{
 		Prefix:   prefix,
 		Category: category,

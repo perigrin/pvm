@@ -1,0 +1,232 @@
+// ABOUTME: Tests for XDG Base Directory support
+// ABOUTME: Verifies XDG directory paths and creation functionality
+
+package xdg
+
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"testing"
+)
+
+func TestGetDirs(t *testing.T) {
+	// Save current environment variables to restore later
+	oldConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	oldCacheHome := os.Getenv("XDG_CACHE_HOME")
+	oldDataHome := os.Getenv("XDG_DATA_HOME")
+	oldStateHome := os.Getenv("XDG_STATE_HOME")
+
+	// Restore environment variables after the test
+	defer func() {
+		os.Setenv("XDG_CONFIG_HOME", oldConfigHome)
+		os.Setenv("XDG_CACHE_HOME", oldCacheHome)
+		os.Setenv("XDG_DATA_HOME", oldDataHome)
+		os.Setenv("XDG_STATE_HOME", oldStateHome)
+	}()
+
+	t.Run("ExplicitEnvironmentVariables", func(t *testing.T) {
+		// Set test environment variables
+		testDir := t.TempDir()
+		testConfigDir := filepath.Join(testDir, "config")
+		testCacheDir := filepath.Join(testDir, "cache")
+		testDataDir := filepath.Join(testDir, "data")
+		testStateDir := filepath.Join(testDir, "state")
+
+		os.Setenv("XDG_CONFIG_HOME", testConfigDir)
+		os.Setenv("XDG_CACHE_HOME", testCacheDir)
+		os.Setenv("XDG_DATA_HOME", testDataDir)
+		os.Setenv("XDG_STATE_HOME", testStateDir)
+
+		dirs, err := GetDirs()
+		if err != nil {
+			t.Fatalf("GetDirs() returned an error: %v", err)
+		}
+
+		// Verify XDG base directories
+		if dirs.ConfigHome != testConfigDir {
+			t.Errorf("Expected ConfigHome to be %s, got %s", testConfigDir, dirs.ConfigHome)
+		}
+		if dirs.CacheHome != testCacheDir {
+			t.Errorf("Expected CacheHome to be %s, got %s", testCacheDir, dirs.CacheHome)
+		}
+		if dirs.DataHome != testDataDir {
+			t.Errorf("Expected DataHome to be %s, got %s", testDataDir, dirs.DataHome)
+		}
+		if dirs.StateHome != testStateDir {
+			t.Errorf("Expected StateHome to be %s, got %s", testStateDir, dirs.StateHome)
+		}
+
+		// Verify application-specific directories
+		expectedConfigDir := filepath.Join(testConfigDir, AppDirName)
+		if dirs.ConfigDir != expectedConfigDir {
+			t.Errorf("Expected ConfigDir to be %s, got %s", expectedConfigDir, dirs.ConfigDir)
+		}
+
+		expectedCacheDir := filepath.Join(testCacheDir, AppDirName)
+		if dirs.CacheDir != expectedCacheDir {
+			t.Errorf("Expected CacheDir to be %s, got %s", expectedCacheDir, dirs.CacheDir)
+		}
+
+		expectedDataDir := filepath.Join(testDataDir, AppDirName)
+		if dirs.DataDir != expectedDataDir {
+			t.Errorf("Expected DataDir to be %s, got %s", expectedDataDir, dirs.DataDir)
+		}
+
+		// Verify PVM-specific directories
+		expectedVersionsDir := filepath.Join(expectedDataDir, VersionsDir)
+		if dirs.VersionsDir != expectedVersionsDir {
+			t.Errorf("Expected VersionsDir to be %s, got %s", expectedVersionsDir, dirs.VersionsDir)
+		}
+
+		expectedSourcesDir := filepath.Join(expectedCacheDir, SourcesDir)
+		if dirs.SourcesDir != expectedSourcesDir {
+			t.Errorf("Expected SourcesDir to be %s, got %s", expectedSourcesDir, dirs.SourcesDir)
+		}
+	})
+
+	t.Run("DefaultFallbacks", func(t *testing.T) {
+		// Clear environment variables to test defaults
+		os.Unsetenv("XDG_CONFIG_HOME")
+		os.Unsetenv("XDG_CACHE_HOME")
+		os.Unsetenv("XDG_DATA_HOME")
+		os.Unsetenv("XDG_STATE_HOME")
+
+		dirs, err := GetDirs()
+		if err != nil {
+			t.Fatalf("GetDirs() returned an error: %v", err)
+		}
+
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("UserHomeDir() returned an error: %v", err)
+		}
+
+		// Check that we got fallback values
+		var expectedConfigBase, expectedCacheBase, expectedDataBase, expectedStateBase string
+
+		switch runtime.GOOS {
+		case "windows":
+			expectedConfigBase = filepath.Join(home, WindowsConfigDirName)
+			expectedCacheBase = filepath.Join(home, WindowsCacheDirName)
+			expectedDataBase = filepath.Join(home, WindowsDataDirName)
+			expectedStateBase = filepath.Join(home, WindowsStateDirName)
+		case "darwin":
+			expectedConfigBase = filepath.Join(home, DefaultConfigDirName)
+			expectedCacheBase = filepath.Join(home, DarwinCacheDirName)
+			expectedDataBase = filepath.Join(home, DarwinDataDirName)
+			expectedStateBase = filepath.Join(home, DefaultStateDirName)
+		default:
+			expectedConfigBase = filepath.Join(home, DefaultConfigDirName)
+			expectedCacheBase = filepath.Join(home, DefaultCacheDirName)
+			expectedDataBase = filepath.Join(home, DefaultDataDirName)
+			expectedStateBase = filepath.Join(home, DefaultStateDirName)
+		}
+
+		if dirs.ConfigHome != expectedConfigBase {
+			t.Errorf("Expected default ConfigHome to be %s, got %s", expectedConfigBase, dirs.ConfigHome)
+		}
+		if dirs.CacheHome != expectedCacheBase {
+			t.Errorf("Expected default CacheHome to be %s, got %s", expectedCacheBase, dirs.CacheHome)
+		}
+		if dirs.DataHome != expectedDataBase {
+			t.Errorf("Expected default DataHome to be %s, got %s", expectedDataBase, dirs.DataHome)
+		}
+		if dirs.StateHome != expectedStateBase {
+			t.Errorf("Expected default StateHome to be %s, got %s", expectedStateBase, dirs.StateHome)
+		}
+	})
+}
+
+func TestEnsureDirs(t *testing.T) {
+	// Create a temporary directory for the test
+	testDir := t.TempDir()
+
+	// Set environment variables to use the test directory
+	os.Setenv("XDG_CONFIG_HOME", filepath.Join(testDir, "config"))
+	os.Setenv("XDG_CACHE_HOME", filepath.Join(testDir, "cache"))
+	os.Setenv("XDG_DATA_HOME", filepath.Join(testDir, "data"))
+	os.Setenv("XDG_STATE_HOME", filepath.Join(testDir, "state"))
+
+	// Get directories
+	dirs, err := GetDirs()
+	if err != nil {
+		t.Fatalf("GetDirs() returned an error: %v", err)
+	}
+
+	// Ensure directories exist
+	err = dirs.EnsureDirs()
+	if err != nil {
+		t.Fatalf("EnsureDirs() returned an error: %v", err)
+	}
+
+	// Check if directories were created
+	dirsToCheck := []string{
+		dirs.ConfigDir,
+		dirs.CacheDir,
+		dirs.DataDir,
+		dirs.StateDir,
+		dirs.VersionsDir,
+		dirs.SourcesDir,
+		dirs.ShimsDir,
+		dirs.TypeDefinitionsDir,
+		dirs.BuildDir,
+	}
+
+	for _, dir := range dirsToCheck {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			t.Errorf("Directory %s was not created", dir)
+		}
+	}
+}
+
+func TestGetConfigFilePath(t *testing.T) {
+	// Create a temporary directory for the test
+	testDir := t.TempDir()
+	os.Setenv("XDG_CONFIG_HOME", testDir)
+
+	// Get directories
+	dirs, err := GetDirs()
+	if err != nil {
+		t.Fatalf("GetDirs() returned an error: %v", err)
+	}
+
+	configPath := dirs.GetConfigFilePath()
+	expectedPath := filepath.Join(testDir, AppDirName, "pvm.toml")
+
+	if configPath != expectedPath {
+		t.Errorf("Expected config file path to be %s, got %s", expectedPath, configPath)
+	}
+}
+
+func TestGetProjectConfigPath(t *testing.T) {
+	// Create a test project directory
+	projectDir := t.TempDir()
+
+	configPath := GetProjectConfigPath(projectDir)
+	expectedPath := filepath.Join(projectDir, ".pvm", "pvm.toml")
+
+	if configPath != expectedPath {
+		t.Errorf("Expected project config path to be %s, got %s", expectedPath, configPath)
+	}
+}
+
+func TestGetSystemConfigPath(t *testing.T) {
+	configPath := GetSystemConfigPath()
+	var expectedPath string
+
+	if runtime.GOOS == "windows" {
+		programData := os.Getenv("ProgramData")
+		if programData == "" {
+			// Skip on Windows if ProgramData is not set
+			t.Skip("ProgramData environment variable not set")
+		}
+		expectedPath = filepath.Join(programData, "pvm", "pvm.toml")
+	} else {
+		expectedPath = "/etc/pvm/pvm.toml"
+	}
+
+	if configPath != expectedPath {
+		t.Errorf("Expected system config path to be %s, got %s", expectedPath, configPath)
+	}
+}

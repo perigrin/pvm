@@ -48,13 +48,13 @@ func setupTestDirs(t *testing.T) (*xdg.Dirs, string) {
 		DataHome:   filepath.Join(tempDir, "data"),
 		CacheHome:  filepath.Join(tempDir, "cache"),
 		StateHome:  filepath.Join(tempDir, "state"),
-		
+
 		// Application-specific directories
 		ConfigDir: filepath.Join(tempDir, "config", appDir),
 		CacheDir:  filepath.Join(tempDir, "cache", appDir),
 		DataDir:   filepath.Join(tempDir, "data", appDir),
 		StateDir:  filepath.Join(tempDir, "state", appDir),
-		
+
 		// PVM-specific directories
 		VersionsDir:        filepath.Join(tempDir, "data", appDir, "versions"),
 		SourcesDir:         filepath.Join(tempDir, "cache", appDir, "sources"),
@@ -62,7 +62,7 @@ func setupTestDirs(t *testing.T) (*xdg.Dirs, string) {
 		TypeDefinitionsDir: filepath.Join(tempDir, "data", appDir, "type_definitions"),
 		BuildDir:           filepath.Join(tempDir, "cache", appDir, "build"),
 	}
-	
+
 	// Set the EnsureDirs function
 	dirs.EnsureDirs = func() error {
 		// Create all required directories
@@ -77,13 +77,13 @@ func setupTestDirs(t *testing.T) (*xdg.Dirs, string) {
 			dirs.TypeDefinitionsDir,
 			dirs.BuildDir,
 		}
-		
+
 		for _, dir := range dirsToCreate {
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return err
 			}
 		}
-		
+
 		return nil
 	}
 
@@ -119,7 +119,7 @@ func createMockArchive(t *testing.T, dirs *xdg.Dirs, version string) string {
 
 	// Just create an empty file - we'll mock the extraction
 	// In a more thorough test, we would create a real tar.gz with minimal content
-	
+
 	return archivePath
 }
 
@@ -130,12 +130,12 @@ func mockExtraction(t *testing.T, tempDir string) func(archivePath, destDir stri
 		extractedDir := filepath.Join(destDir, "perl-5.36.0")
 		err := os.MkdirAll(extractedDir, 0755)
 		require.NoError(t, err)
-		
+
 		// Create a mock Configure script
 		configureFile := filepath.Join(extractedDir, "Configure")
 		err = os.WriteFile(configureFile, []byte("#!/bin/sh\necho 'Mock Configure'"), 0755)
 		require.NoError(t, err)
-		
+
 		return extractedDir, nil
 	}
 }
@@ -144,18 +144,18 @@ func mockExtraction(t *testing.T, tempDir string) func(archivePath, destDir stri
 func TestBuildPerlBasic(t *testing.T) {
 	// Setup test environment
 	dirs, tempDir := setupTestDirs(t)
-	
+
 	// Save original extraction function and mock it
 	originalExtractArchiveFunc := extractArchiveFunc
 	t.Cleanup(func() {
 		extractArchiveFunc = originalExtractArchiveFunc
 	})
 	extractArchiveFunc = mockExtraction(t, tempDir)
-	
+
 	// Create a mock source archive
 	version := "5.36.0"
 	archivePath := createMockArchive(t, dirs, version)
-	
+
 	// Mock the command execution
 	runCommandWithProgressFunc = func(
 		dir string,
@@ -170,7 +170,7 @@ func TestBuildPerlBasic(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	// Track progress calls
 	var progressStages []BuildProgressStage
 	var progressDetails []string
@@ -178,7 +178,7 @@ func TestBuildPerlBasic(t *testing.T) {
 		progressStages = append(progressStages, stage)
 		progressDetails = append(progressDetails, details)
 	}
-	
+
 	// Create build options
 	options := &BuildOptions{
 		Version:          version,
@@ -190,15 +190,15 @@ func TestBuildPerlBasic(t *testing.T) {
 		ProgressCallback: progressCallback,
 		Context:          context.Background(),
 	}
-	
+
 	// Run the build
 	result, err := BuildPerl(options)
-	
+
 	// Verify results
 	require.NoError(t, err)
 	assert.Equal(t, version, result.Version)
 	assert.Equal(t, filepath.Join(dirs.VersionsDir, version), result.InstallPath)
-	
+
 	// Verify progress reporting
 	assert.Contains(t, progressStages, StageExtract)
 	assert.Contains(t, progressStages, StageConfigure)
@@ -213,35 +213,35 @@ func TestBuildPerlBasic(t *testing.T) {
 func TestBuildPerlDownload(t *testing.T) {
 	// Setup test environment
 	dirs, tempDir := setupTestDirs(t)
-	
+
 	// Save original extraction function and mock it
 	originalExtractArchiveFunc := extractArchiveFunc
 	t.Cleanup(func() {
 		extractArchiveFunc = originalExtractArchiveFunc
 	})
 	extractArchiveFunc = mockExtraction(t, tempDir)
-	
+
 	// Mock the source download
 	version := "5.36.0"
 	archivePath := filepath.Join(dirs.SourcesDir, fmt.Sprintf("perl-%s.tar.gz", version))
-	
+
 	DownloadPerlSourceFunc = func(options *DownloadOptions) (*DownloadResult, error) {
 		assert.Equal(t, version, options.Version)
-		
+
 		// Create a mock source archive
 		err := os.MkdirAll(filepath.Dir(archivePath), 0755)
 		require.NoError(t, err)
-		
+
 		f, err := os.Create(archivePath)
 		require.NoError(t, err)
 		f.Close()
-		
+
 		return &DownloadResult{
 			Version: version,
 			Path:    archivePath,
 		}, nil
 	}
-	
+
 	// Mock the command execution
 	runCommandWithProgressFunc = func(
 		dir string,
@@ -255,7 +255,7 @@ func TestBuildPerlDownload(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	// Create build options without source file
 	options := &BuildOptions{
 		Version:         version,
@@ -265,10 +265,10 @@ func TestBuildPerlDownload(t *testing.T) {
 		CleanupBuildDir: false,
 		Context:         context.Background(),
 	}
-	
+
 	// Run the build
 	result, err := BuildPerl(options)
-	
+
 	// Verify results
 	require.NoError(t, err)
 	assert.Equal(t, version, result.Version)
@@ -279,18 +279,18 @@ func TestBuildPerlDownload(t *testing.T) {
 func TestBuildPerlFailedConfigure(t *testing.T) {
 	// Setup test environment
 	dirs, tempDir := setupTestDirs(t)
-	
+
 	// Save original extraction function and mock it
 	originalExtractArchiveFunc := extractArchiveFunc
 	t.Cleanup(func() {
 		extractArchiveFunc = originalExtractArchiveFunc
 	})
 	extractArchiveFunc = mockExtraction(t, tempDir)
-	
+
 	// Create a mock source archive
 	version := "5.36.0"
 	archivePath := createMockArchive(t, dirs, version)
-	
+
 	// Mock the command execution with a failure at Configure stage
 	configureFailed := false
 	runCommandWithProgressFunc = func(
@@ -306,7 +306,7 @@ func TestBuildPerlFailedConfigure(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	// Create build options
 	options := &BuildOptions{
 		Version:         version,
@@ -317,10 +317,10 @@ func TestBuildPerlFailedConfigure(t *testing.T) {
 		CleanupBuildDir: false,
 		Context:         context.Background(),
 	}
-	
+
 	// Run the build
 	result, err := BuildPerl(options)
-	
+
 	// Verify results
 	assert.Error(t, err)
 	assert.True(t, configureFailed)
@@ -332,11 +332,11 @@ func TestBuildPerlFailedConfigure(t *testing.T) {
 func TestBuildPerlPlatformOptions(t *testing.T) {
 	// Get platform-specific configure options
 	options, err := getPlatformConfigureOptions()
-	
+
 	// Verify results
 	require.NoError(t, err)
 	assert.NotEmpty(t, options)
-	
+
 	// Check that platform-specific options are present
 	switch runtime.GOOS {
 	case "darwin":
@@ -355,25 +355,25 @@ func TestBuildPerlPlatformOptions(t *testing.T) {
 func TestBuildPerlCancellation(t *testing.T) {
 	// Setup test environment
 	dirs, tempDir := setupTestDirs(t)
-	
+
 	// Save original extraction function and mock it
 	originalExtractArchiveFunc := extractArchiveFunc
 	t.Cleanup(func() {
 		extractArchiveFunc = originalExtractArchiveFunc
 	})
 	extractArchiveFunc = mockExtraction(t, tempDir)
-	
+
 	// Create a mock source archive
 	version := "5.36.0"
 	archivePath := createMockArchive(t, dirs, version)
-	
+
 	// Create a context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Cancel after a short delay
 	cancelled := false
 	configureStarted := false
-	
+
 	runCommandWithProgressFunc = func(
 		dir string,
 		command string,
@@ -389,10 +389,10 @@ func TestBuildPerlCancellation(t *testing.T) {
 				cancelled = true
 				cancel()
 			}()
-			
+
 			// Simulate the command running
 			time.Sleep(100 * time.Millisecond)
-			
+
 			// Check if context was cancelled
 			select {
 			case <-ctx.Done():
@@ -403,7 +403,7 @@ func TestBuildPerlCancellation(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	// Create build options
 	options := &BuildOptions{
 		Version:         version,
@@ -414,10 +414,10 @@ func TestBuildPerlCancellation(t *testing.T) {
 		CleanupBuildDir: false,
 		Context:         ctx,
 	}
-	
+
 	// Run the build
 	result, err := BuildPerl(options)
-	
+
 	// Verify results
 	assert.Error(t, err)
 	assert.True(t, cancelled)
@@ -430,33 +430,33 @@ func TestBuildPerlCancellation(t *testing.T) {
 func TestBuildPerlWithDefaults(t *testing.T) {
 	// Setup test environment
 	dirs, tempDir := setupTestDirs(t)
-	
+
 	// Save original extraction function and mock it
 	originalExtractArchiveFunc := extractArchiveFunc
 	t.Cleanup(func() {
 		extractArchiveFunc = originalExtractArchiveFunc
 	})
 	extractArchiveFunc = mockExtraction(t, tempDir)
-	
+
 	// Mock the source download
 	version := "5.36.0"
 	archivePath := filepath.Join(dirs.SourcesDir, fmt.Sprintf("perl-%s.tar.gz", version))
-	
+
 	DownloadPerlSourceFunc = func(options *DownloadOptions) (*DownloadResult, error) {
 		// Create a mock source archive
 		err := os.MkdirAll(filepath.Dir(archivePath), 0755)
 		require.NoError(t, err)
-		
+
 		f, err := os.Create(archivePath)
 		require.NoError(t, err)
 		f.Close()
-		
+
 		return &DownloadResult{
 			Version: version,
 			Path:    archivePath,
 		}, nil
 	}
-	
+
 	// Mock the command execution
 	runCommandWithProgressFunc = func(
 		dir string,
@@ -467,15 +467,15 @@ func TestBuildPerlWithDefaults(t *testing.T) {
 	) error {
 		return nil
 	}
-	
+
 	// Create build options with minimal configuration
 	options := &BuildOptions{
 		Version: version,
 	}
-	
+
 	// Run the build
 	result, err := BuildPerl(options)
-	
+
 	// Verify results
 	require.NoError(t, err)
 	assert.Equal(t, version, result.Version)

@@ -15,13 +15,13 @@ import (
 func CreateSymlinks(binaryPath string) (map[string]string, error) {
 	// Get the directory of the binary
 	dir := filepath.Dir(binaryPath)
-	
+
 	// Get the base name of the binary
 	base := filepath.Base(binaryPath)
-	
+
 	// Create a map to store the symlink paths
 	symlinks := make(map[string]string)
-	
+
 	// List of components to create symlinks for
 	components := []string{
 		ComponentPVM,
@@ -29,14 +29,14 @@ func CreateSymlinks(binaryPath string) (map[string]string, error) {
 		ComponentPVI,
 		ComponentPSC,
 	}
-	
+
 	// Create symlinks for each component
 	for _, component := range components {
 		// Skip if the binary is already named after this component
 		if base == component || base == component+".exe" {
 			continue
 		}
-		
+
 		// Create the symlink path
 		var symlinkPath string
 		if runtime.GOOS == "windows" {
@@ -44,10 +44,10 @@ func CreateSymlinks(binaryPath string) (map[string]string, error) {
 		} else {
 			symlinkPath = filepath.Join(dir, component)
 		}
-		
+
 		// Remove existing symlink if it exists
 		os.Remove(symlinkPath)
-		
+
 		// Create the symlink
 		var err error
 		if runtime.GOOS == "windows" {
@@ -62,15 +62,15 @@ func CreateSymlinks(binaryPath string) (map[string]string, error) {
 			// On Unix, we can create a symlink
 			err = os.Symlink(binaryPath, symlinkPath)
 		}
-		
+
 		if err != nil {
 			return symlinks, fmt.Errorf("failed to create symlink for %s: %v", component, err)
 		}
-		
+
 		// Store the symlink path
 		symlinks[component] = symlinkPath
 	}
-	
+
 	return symlinks, nil
 }
 
@@ -81,7 +81,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Write to the destination file
 	return os.WriteFile(dst, data, 0755)
 }
@@ -91,10 +91,10 @@ func copyFile(src, dst string) error {
 func VerifySymlinks(binaryPath string) map[string]bool {
 	// Get the directory of the binary
 	dir := filepath.Dir(binaryPath)
-	
+
 	// Create a map to store the symlink status
 	status := make(map[string]bool)
-	
+
 	// List of components to check
 	components := []string{
 		ComponentPVM,
@@ -102,7 +102,7 @@ func VerifySymlinks(binaryPath string) map[string]bool {
 		ComponentPVI,
 		ComponentPSC,
 	}
-	
+
 	// Check each component
 	for _, component := range components {
 		var symlinkPath string
@@ -111,11 +111,11 @@ func VerifySymlinks(binaryPath string) map[string]bool {
 		} else {
 			symlinkPath = filepath.Join(dir, component)
 		}
-		
+
 		// Check if the symlink exists
 		_, err := os.Stat(symlinkPath)
 		status[component] = err == nil
 	}
-	
+
 	return status
 }

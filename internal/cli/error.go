@@ -20,7 +20,7 @@ const (
 	PrefixPSC = errors.PrefixPSC
 	PrefixCFG = errors.PrefixCFG
 	PrefixSYS = errors.PrefixSYS
-	
+
 	// Error categories
 	CategoryConfig    = errors.CategoryConfig
 	CategoryVersion   = errors.CategoryVersion
@@ -44,13 +44,13 @@ func HandleError(err error) {
 	if err == nil {
 		return
 	}
-	
+
 	// Log the error
 	errors.LogError(err)
-	
+
 	// Print to stderr for user visibility
 	fmt.Fprintln(os.Stderr, err.Error())
-	
+
 	// Exit with error code
 	os.Exit(1)
 }

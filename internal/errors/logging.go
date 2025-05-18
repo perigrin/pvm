@@ -12,7 +12,7 @@ func LogError(err error) {
 	if err == nil {
 		return
 	}
-	
+
 	// Check if it's our structured error type
 	if e, ok := err.(*Error); ok {
 		// Choose log level based on category
@@ -44,7 +44,7 @@ func LogDebug(err error) {
 	if err == nil {
 		return
 	}
-	
+
 	log.Debugf("Error: %v", err)
 }
 
@@ -53,7 +53,7 @@ func LogFatal(err error) {
 	if err == nil {
 		return
 	}
-	
+
 	log.Fatalf("Fatal error: %v", err)
 }
 
@@ -62,7 +62,7 @@ func LogErrorWithLocation(err error, location string) {
 	if err == nil {
 		return
 	}
-	
+
 	// Check if it's our structured error type
 	if e, ok := err.(*Error); ok {
 		// Add location if not already set
@@ -70,7 +70,7 @@ func LogErrorWithLocation(err error, location string) {
 			e.Location = location
 		}
 	}
-	
+
 	// Log the error
 	LogError(err)
 }

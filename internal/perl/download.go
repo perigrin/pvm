@@ -117,7 +117,7 @@ func GenerateSourceURL(mirror, version string) (string, error) {
 	}
 
 	// Construct filename
-	filename := fmt.Sprintf("perl-%d.%d.%d.%s", 
+	filename := fmt.Sprintf("perl-%d.%d.%d.%s",
 		majorVersion, minorVersion, patchVersion, extension)
 
 	// Construct URL
@@ -401,7 +401,7 @@ func (r *progressReader) Read(p []byte) (n int, err error) {
 	n, err = r.reader.Read(p)
 	if n > 0 {
 		r.read += int64(n)
-		
+
 		// Limit progress reports to 10 per second
 		now := time.Now()
 		if now.Sub(r.lastReport) >= 100*time.Millisecond || err == io.EOF {
@@ -409,12 +409,12 @@ func (r *progressReader) Read(p []byte) (n int, err error) {
 			r.lastReport = now
 		}
 	}
-	
+
 	// If this is the end of the file, always report 100% progress
 	if err == io.EOF {
 		r.progressCallback(r.total, r.read, true)
 	}
-	
+
 	return
 }
 

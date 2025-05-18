@@ -35,11 +35,11 @@ const (
 	AppDirName = "pvm"
 
 	// Sub-directory names
-	VersionsDir         = "versions"
-	SourcesDir          = "sources"
-	ShimsDir            = "shims"
-	TypeDefinitionsDir  = "type_definitions"
-	BuildDir            = "build"
+	VersionsDir        = "versions"
+	SourcesDir         = "sources"
+	ShimsDir           = "shims"
+	TypeDefinitionsDir = "type_definitions"
+	BuildDir           = "build"
 )
 
 // Dirs holds the directories used by the PVM Ecosystem
@@ -51,18 +51,18 @@ type Dirs struct {
 	StateHome  string // For state files
 
 	// Application-specific directories
-	ConfigDir           string // App-specific config directory
-	CacheDir            string // App-specific cache directory
-	DataDir             string // App-specific data directory
-	StateDir            string // App-specific state directory
-	
+	ConfigDir string // App-specific config directory
+	CacheDir  string // App-specific cache directory
+	DataDir   string // App-specific data directory
+	StateDir  string // App-specific state directory
+
 	// PVM-specific directories
-	VersionsDir         string // For installed Perl versions
-	SourcesDir          string // For downloaded source archives
-	ShimsDir            string // For shim executables
-	TypeDefinitionsDir  string // For type definitions
-	BuildDir            string // For build cache
-	
+	VersionsDir        string // For installed Perl versions
+	SourcesDir         string // For downloaded source archives
+	ShimsDir           string // For shim executables
+	TypeDefinitionsDir string // For type definitions
+	BuildDir           string // For build cache
+
 	// Function pointers for easier testing
 	EnsureDirs func() error
 }
@@ -105,7 +105,7 @@ func getDirsFunc() (*Dirs, error) {
 	dirs.ShimsDir = filepath.Join(dirs.DataDir, ShimsDir)
 	dirs.TypeDefinitionsDir = filepath.Join(dirs.DataDir, TypeDefinitionsDir)
 	dirs.BuildDir = filepath.Join(dirs.CacheDir, BuildDir)
-	
+
 	// Set the EnsureDirs function
 	dirs.EnsureDirs = func() error {
 		return dirs.ensureDirsImpl()
@@ -176,7 +176,7 @@ func getConfigHome() (string, error) {
 	// Fallback to platform-specific default
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", errors.NewSystemError("002", 
+		return "", errors.NewSystemError("002",
 			"Failed to determine user home directory", err)
 	}
 
@@ -202,7 +202,7 @@ func getCacheHome() (string, error) {
 	// Fallback to platform-specific default
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", errors.NewSystemError("003", 
+		return "", errors.NewSystemError("003",
 			"Failed to determine user home directory", err)
 	}
 
@@ -230,7 +230,7 @@ func getDataHome() (string, error) {
 	// Fallback to platform-specific default
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", errors.NewSystemError("004", 
+		return "", errors.NewSystemError("004",
 			"Failed to determine user home directory", err)
 	}
 
@@ -258,7 +258,7 @@ func getStateHome() (string, error) {
 	// Fallback to platform-specific default
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", errors.NewSystemError("005", 
+		return "", errors.NewSystemError("005",
 			"Failed to determine user home directory", err)
 	}
 

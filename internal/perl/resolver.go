@@ -214,7 +214,7 @@ func resolveExplicitVersion(version string, availableVersions []string, cfg *con
 			break
 		}
 	}
-	
+
 	if !available {
 		return nil, errors.NewVersionError(
 			ErrUnsatisfiedVersion,
