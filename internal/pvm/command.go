@@ -4,6 +4,9 @@
 package pvm
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/perl"
 )
@@ -24,6 +27,7 @@ func NewCommand() *cobra.Command {
 		newLocalCommand(),
 		newVersionsCommand(),
 		newAvailableCommand(),
+		newDownloadCommand(),
 		newExecCommand(),
 		newUninstallCommand(),
 		newImportCommand(),
@@ -104,6 +108,114 @@ func newAvailableCommand() *cobra.Command {
 			cmd.Println("Available command not yet implemented")
 		},
 	}
+}
+
+func newDownloadCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "download [version]",
+		Short: "Download Perl source",
+		Long:  "Download Perl source code archive for a specific version",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version := args[0]
+			
+			// Get mirror from flags or config
+			mirror, err := cmd.Flags().GetString("mirror")
+			if err != nil {
+				return err
+			}
+
+			// Get skip-cache flag
+			skipCache, err := cmd.Flags().GetBool("skip-cache")
+			if err != nil {
+				return err
+			}
+
+			// Get skip-checksum flag
+			skipChecksum, err := cmd.Flags().GetBool("skip-checksum")
+			if err != nil {
+				return err
+			}
+
+			// Create progress bar display
+			progressCallback := func(total, transferred int64, done bool) {
+				// Only show progress for downloads with known size
+				if total > 0 {
+					percentage := float64(transferred) / float64(total) * 100
+					
+					// Create a simple progress bar
+					width := 40
+					completeChars := int(float64(width) * float64(transferred) / float64(total))
+					
+					// Format progress bar
+					progressBar := "["
+					for i := 0; i < width; i++ {
+						if i < completeChars {
+							progressBar += "="
+						} else if i == completeChars {
+							progressBar += ">"
+						} else {
+							progressBar += " "
+						}
+					}
+					progressBar += "]"
+					
+					// Clear line and show progress
+					fmt.Printf("\r%s %.1f%% (%d/%d bytes)                    ", 
+						progressBar, percentage, transferred, total)
+					
+					if done {
+						fmt.Println()
+					}
+				}
+			}
+
+			// Create download options
+			options := &perl.DownloadOptions{
+				Mirror:           mirror,
+				Version:          version,
+				ProgressCallback: progressCallback,
+				SkipCache:        skipCache,
+				SkipChecksum:     skipChecksum,
+				Context:          cmd.Context(),
+			}
+
+			// Start the download
+			cmd.Printf("Downloading Perl %s...\n", version)
+			
+			if mirror != "" {
+				cmd.Printf("Using mirror: %s\n", mirror)
+			}
+
+			// Perform the download
+			result, err := perl.DownloadPerlSource(options)
+			if err != nil {
+				return err
+			}
+
+			// Show download results
+			if result.FromCache {
+				cmd.Printf("Loaded from cache: %s\n", result.Path)
+			} else {
+				cmd.Printf("Download complete: %s\n", result.Path)
+				cmd.Printf("Download size: %d bytes\n", result.Size)
+				cmd.Printf("Download time: %s\n", result.Duration.Round(time.Millisecond))
+			}
+			
+			if result.Checksum != "" {
+				cmd.Printf("SHA-256: %s\n", result.Checksum)
+			}
+
+			return nil
+		},
+	}
+
+	// Add flags
+	cmd.Flags().String("mirror", "", "Mirror URL to use for downloading (default: "+perl.DefaultMirror+")")
+	cmd.Flags().Bool("skip-cache", false, "Skip using cached downloads")
+	cmd.Flags().Bool("skip-checksum", false, "Skip checksum validation")
+
+	return cmd
 }
 
 func newExecCommand() *cobra.Command {

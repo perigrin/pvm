@@ -527,7 +527,7 @@ Implement the version resolution algorithm that determines which Perl version to
 - Ensure clear error messages when resolution fails
 ```
 
-#### Prompt 12: Perl Installation - Source Downloading
+#### Prompt 12: Perl Installation - Source Downloading ✅
 
 ```
 # Implement Perl Source Downloading
