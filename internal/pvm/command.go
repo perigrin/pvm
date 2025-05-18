@@ -5,6 +5,7 @@ package pvm
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -35,6 +36,8 @@ func NewCommand() *cobra.Command {
 		newImportCommand(),
 		newRehashCommand(),
 		newResolveCommand(),
+		newInitCommand(),
+		newShellCommand(),
 
 		// These are implemented in their own files
 		newSymlinksCommand(), // from symlinks.go
@@ -193,8 +196,22 @@ func newUseCommand() *cobra.Command {
 		Use:   "use [version]",
 		Short: "Use a specific version in the current shell",
 		Long:  "Temporarily use a specific Perl version in the current shell session",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Use command not yet implemented")
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version := args[0]
+			
+			// Switch version using shell integration
+			err := perl.SwitchVersion(version, "shell")
+			if err != nil {
+				return err
+			}
+			
+			// Success message
+			cmd.Printf("Using Perl %s in current shell\n", version)
+			cmd.Println("Note: This command only works properly when PVM's shell integration is set up")
+			cmd.Println("If you haven't set up shell integration, run 'pvm init' to get started")
+			
+			return nil
 		},
 	}
 }
@@ -204,8 +221,21 @@ func newGlobalCommand() *cobra.Command {
 		Use:   "global [version]",
 		Short: "Set the global Perl version",
 		Long:  "Set the default Perl version for all shells",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Global command not yet implemented")
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version := args[0]
+			
+			// Set global version
+			err := perl.SetGlobalVersion(version)
+			if err != nil {
+				return err
+			}
+			
+			// Success message
+			cmd.Printf("Global Perl version set to %s\n", version)
+			cmd.Println("This is now the default version when no other version is specified")
+			
+			return nil
 		},
 	}
 }
@@ -215,8 +245,28 @@ func newLocalCommand() *cobra.Command {
 		Use:   "local [version]",
 		Short: "Set the local version for a directory",
 		Long:  "Set the Perl version for the current directory and subdirectories",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Local command not yet implemented")
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version := args[0]
+			
+			// Set local version
+			err := perl.SetLocalVersion(version)
+			if err != nil {
+				return err
+			}
+			
+			// Get current directory for the message
+			dir, err := os.Getwd()
+			if err != nil {
+				dir = "current directory"
+			}
+			
+			// Success message
+			cmd.Printf("Local Perl version set to %s for %s\n", version, dir)
+			cmd.Println("This version will be used in this directory and its subdirectories")
+			cmd.Println("Note: Shell integration must be set up for automatic switching to work")
+			
+			return nil
 		},
 	}
 }
@@ -267,16 +317,16 @@ func newVersionsCommand() *cobra.Command {
 
 				// Detailed output
 				cmd.Printf("  %s%s\n", versionInfo.Version, decoration)
-				
+
 				if showPath {
 					cmd.Printf("    Path: %s\n", versionInfo.InstallPath)
 				}
-				
+
 				if showSource {
 					cmd.Printf("    Source: %s\n", versionInfo.Source)
 					cmd.Printf("    Installed: %s\n", versionInfo.InstallTime.Format("2006-01-02 15:04:05"))
 				}
-				
+
 				// Add a separator between versions for detailed output
 				if i < len(installedVersions)-1 && (showPath || showSource) {
 					cmd.Println()
@@ -318,7 +368,7 @@ func newAvailableCommand() *cobra.Command {
 			// Define common stable Perl versions (5.10.0 through latest)
 			// These would ideally come from a remote API in the future
 			stableVersions := []string{
-				"5.38.0", "5.36.0", "5.34.1", "5.34.0", 
+				"5.38.0", "5.36.0", "5.34.1", "5.34.0",
 				"5.32.1", "5.32.0", "5.30.3", "5.30.2", "5.30.1", "5.30.0",
 				"5.28.3", "5.28.2", "5.28.1", "5.28.0", "5.26.3", "5.26.2", "5.26.1", "5.26.0",
 				"5.24.4", "5.24.3", "5.24.2", "5.24.1", "5.24.0", "5.22.4", "5.22.3", "5.22.2", "5.22.1", "5.22.0",
@@ -335,7 +385,7 @@ func newAvailableCommand() *cobra.Command {
 
 			// Group versions by major.minor
 			groupedVersions := make(map[string][]string)
-			
+
 			// Add stable versions to groups
 			for _, version := range stableVersions {
 				// Parse version to get major.minor
@@ -343,10 +393,10 @@ func newAvailableCommand() *cobra.Command {
 				if err != nil {
 					continue // Skip invalid versions
 				}
-				
+
 				// Create group key (e.g., "5.38")
 				groupKey := fmt.Sprintf("%d.%d", parsedVersion.Major, parsedVersion.Minor)
-				
+
 				// Add to group
 				groupedVersions[groupKey] = append(groupedVersions[groupKey], version)
 			}
@@ -360,10 +410,10 @@ func newAvailableCommand() *cobra.Command {
 				}
 				cmd.Printf("  %s%s\n", version, installed)
 			}
-			
+
 			// Display stable versions by group
 			cmd.Println("\nStable versions:")
-			
+
 			// Sort groups (we could use a proper version sorting here)
 			// But for this simple listing, the natural string sort will work reasonably well
 			groupKeys := make([]string, 0, len(groupedVersions))
@@ -371,16 +421,16 @@ func newAvailableCommand() *cobra.Command {
 				groupKeys = append(groupKeys, key)
 			}
 			// Note: This would be better with a custom sort
-			
+
 			// Display groups
 			for _, groupKey := range groupKeys {
 				versions := groupedVersions[groupKey]
-				
+
 				// Skip empty groups
 				if len(versions) == 0 {
 					continue
 				}
-				
+
 				// Display group versions
 				cmd.Printf("  %s series:\n", groupKey)
 				for _, version := range versions {
@@ -391,7 +441,7 @@ func newAvailableCommand() *cobra.Command {
 					cmd.Printf("    %s%s\n", version, installed)
 				}
 			}
-			
+
 			cmd.Println("\nUse 'pvm install <version>' to install a specific version.")
 			return nil
 		},
@@ -653,38 +703,38 @@ func newRehashCommand() *cobra.Command {
 		Long:  "Rebuild shim executables for all installed Perl versions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.Println("Rebuilding shim executables...")
-			
+
 			// Call rehash function
 			err := perl.Rehash()
 			if err != nil {
 				return err
 			}
-			
+
 			// Check if PATH is configured correctly
 			pathConfigured, shimDir, err := perl.CheckPath()
 			if err != nil {
 				return err
 			}
-			
+
 			// Show success message
 			cmd.Println("Shim executables rebuilt successfully.")
-			
+
 			// Warn if PATH is not configured
 			if !pathConfigured {
 				cmd.Println("\nWarning: The shim directory is not in your PATH.")
 				cmd.Printf("To use pvm, add the following directory to your PATH:\n%s\n", shimDir)
-				
+
 				// Get the command to add to PATH
 				pathCmd, err := perl.GetPathConfigCommand()
 				if err == nil {
 					cmd.Printf("\nYou can do this with the following command:\n%s\n", pathCmd)
 				}
 			}
-			
+
 			return nil
 		},
 	}
-	
+
 	return cmd
 }
 
@@ -732,6 +782,110 @@ func newResolveCommand() *cobra.Command {
 
 // newSystemCommand creates a command for showing system Perl info
 // This is now moved to perl.go as newPerlSystemCommand()
+
+func newInitCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Initialize shell integration",
+		Long:  "Generate shell integration script for the current shell",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Detect shell type
+			shell, err := perl.DetectShell()
+			if err != nil {
+				return err
+			}
+
+			// Check if --generate flag is provided
+			generate, err := cmd.Flags().GetBool("generate")
+			if err != nil {
+				return err
+			}
+
+			if generate {
+				// Generate and create shell initialization scripts
+				err = perl.CreateShellInitScripts()
+				if err != nil {
+					return err
+				}
+				cmd.Println("Shell initialization scripts generated successfully.")
+				return nil
+			}
+
+			// Get shell script for the detected shell
+			script, err := perl.GetCurrentShellScript(shell)
+			if err != nil {
+				return err
+			}
+
+			// Print the script to stdout (for eval)
+			fmt.Print(script)
+			return nil
+		},
+	}
+
+	// Add flags
+	cmd.Flags().Bool("generate", false, "Generate shell initialization scripts instead of printing them")
+
+	return cmd
+}
+
+func newShellCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "shell",
+		Short: "Shell integration utilities",
+		Long:  "Commands for shell integration and management",
+	}
+
+	// Add subcommands
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:   "init",
+			Short: "Initialize shell integration",
+			Long:  "Generate shell integration script for the current shell",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				// Redirect to init command
+				return newInitCommand().RunE(cmd, args)
+			},
+		},
+		&cobra.Command{
+			Use:   "setup",
+			Short: "Setup shell integration",
+			Long:  "Show instructions for setting up shell integration",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				// Detect shell type
+				shell, err := perl.DetectShell()
+				if err != nil {
+					return err
+				}
+
+				// Check if shell is already initialized
+				initialized, instruction, err := perl.CheckShellInit(shell)
+				if err != nil {
+					// If error checking initialization, just show instructions
+					cmd.Println("Could not check if shell is initialized.")
+					cmd.Println("Here are the instructions for setting up shell integration:")
+					cmd.Println(perl.GetShellInitInstructions(shell))
+					return nil
+				}
+
+				// Show appropriate message based on initialization status
+				if initialized {
+					cmd.Println("Shell integration is already set up.")
+				} else {
+					cmd.Println("Shell integration is not set up.")
+					cmd.Println("Here's how to set it up:")
+					cmd.Println(instruction)
+					cmd.Println("\nDetailed instructions:")
+					cmd.Println(perl.GetShellInitInstructions(shell))
+				}
+
+				return nil
+			},
+		},
+	)
+
+	return cmd
+}
 
 func newBuildCommand() *cobra.Command {
 	cmd := &cobra.Command{
