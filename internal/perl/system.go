@@ -41,8 +41,8 @@ type SystemPerl struct {
 	IsPrimary bool
 }
 
-// DetectSystemPerl detects the primary system Perl
-func DetectSystemPerl() (*SystemPerl, error) {
+// detectSystemPerlFunc is the actual function that detects the primary system Perl
+func detectSystemPerlFunc() (*SystemPerl, error) {
 	// First, try to find perl in PATH
 	perlPath, err := findPerlInPath()
 	if err != nil {
@@ -52,6 +52,10 @@ func DetectSystemPerl() (*SystemPerl, error) {
 	// Then, extract version info
 	return extractPerlInfo(perlPath, true)
 }
+
+// DetectSystemPerl is a variable that points to detectSystemPerlFunc,
+// allowing it to be replaced in tests
+var DetectSystemPerl = detectSystemPerlFunc
 
 // DetectAllSystemPerls detects all Perl installations on the system
 func DetectAllSystemPerls() ([]*SystemPerl, error) {
@@ -221,14 +225,14 @@ func findAdditionalPerls() ([]*SystemPerl, error) {
 		// Add Program Files paths
 		programFiles := os.Getenv("ProgramFiles")
 		if programFiles != "" {
-			perlPaths = append(perlPaths, 
+			perlPaths = append(perlPaths,
 				filepath.Join(programFiles, "Perl\\bin\\perl.exe"),
 				filepath.Join(programFiles, "Strawberry\\perl\\bin\\perl.exe"))
 		}
 
 		programFilesX86 := os.Getenv("ProgramFiles(x86)")
 		if programFilesX86 != "" {
-			perlPaths = append(perlPaths, 
+			perlPaths = append(perlPaths,
 				filepath.Join(programFilesX86, "Perl\\bin\\perl.exe"),
 				filepath.Join(programFilesX86, "Strawberry\\perl\\bin\\perl.exe"))
 		}
@@ -290,7 +294,7 @@ func GetSystemPerlVersion(perlPath string) (string, error) {
 	}
 
 	version := stdout.String()
-	
+
 	// If the output starts with 'v', remove it
 	if strings.HasPrefix(version, "v") {
 		version = version[1:]

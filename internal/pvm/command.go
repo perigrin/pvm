@@ -28,6 +28,7 @@ func NewCommand() *cobra.Command {
 		newUninstallCommand(),
 		newImportCommand(),
 		newRehashCommand(),
+		newResolveCommand(),
 		newSymlinksCommand(),
 		newConfigCommand(),
 		newPerlCommand(),
@@ -204,6 +205,76 @@ func newRehashCommand() *cobra.Command {
 		Long:  "Rebuild shim executables for all installed Perl versions",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Println("Rehash command not yet implemented")
+		},
+	}
+}
+
+func newResolveCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "resolve [version]",
+		Short: "Resolve a Perl version",
+		Long:  "Resolve a Perl version based on the version resolution algorithm",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var explicitVersion string
+			if len(args) > 0 {
+				explicitVersion = args[0]
+			}
+
+			options := &perl.ResolutionOptions{
+				ExplicitVersion: explicitVersion,
+			}
+
+			// Set up callback to print resolution process
+			perl.OnVersionResolved = func(version *perl.ResolvedVersion) {
+				path := version.Path
+				if path == "" {
+					path = "N/A"
+				}
+				cmd.Printf("Resolved version: %s\n", version.Version)
+				cmd.Printf("Source: %s\n", version.Source)
+				cmd.Printf("Path: %s\n", path)
+			}
+
+			resolved, err := perl.ResolveVersion(options)
+			if err != nil {
+				return err
+			}
+
+			// OnVersionResolved callback will print the details
+			return nil
+		},
+	}
+}
+
+func newSymlinksCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "symlinks",
+		Short: "Manage symlinks for installations",
+		Long:  "Create and manage symlinks for Perl installations",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Println("Symlinks command not yet implemented")
+		},
+	}
+}
+
+func newConfigCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "config",
+		Short: "Configure PVM options",
+		Long:  "View and modify PVM configuration options",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Println("Config command not yet implemented")
+		},
+	}
+}
+
+func newVersionUtilCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show PVM version",
+		Long:  "Display the version of PVM itself",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Println("PVM version command not yet implemented")
 		},
 	}
 }

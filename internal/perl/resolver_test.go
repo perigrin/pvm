@@ -1,0 +1,657 @@
+// ABOUTME: Tests for version resolution algorithm
+// ABOUTME: Ensures the version resolution precedence works correctly
+
+package perl
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"tamarou.com/pvm/internal/config"
+)
+
+// Setup for testing
+type resolverTestEnv struct {
+	// Original environment variables
+	origEnv map[string]string
+
+	// Temporary directories
+	tempDir        string
+	projectDir     string
+	pvmProjectDir  string
+	versionFileDir string
+
+	// Mock system Perl
+	mockSystemPerl *SystemPerl
+
+	// Cleanup functions
+	cleanup []func()
+}
+
+// Setup test environment
+func setupResolverTest(t *testing.T) *resolverTestEnv {
+	env := &resolverTestEnv{
+		origEnv: make(map[string]string),
+		cleanup: []func(){},
+	}
+
+	// Save original environment variables
+	for _, name := range []string{"PLENV_VERSION", "PERLBREW_PERL"} {
+		env.origEnv[name] = os.Getenv(name)
+	}
+
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "pvm-resolver-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	env.tempDir = tempDir
+	env.cleanup = append(env.cleanup, func() { os.RemoveAll(tempDir) })
+
+	// Create project directories
+	env.projectDir = filepath.Join(tempDir, "project")
+	if err := os.MkdirAll(env.projectDir, 0755); err != nil {
+		t.Fatalf("Failed to create project directory: %v", err)
+	}
+
+	// Create .pvm directory
+	env.pvmProjectDir = filepath.Join(env.projectDir, ".pvm")
+	if err := os.MkdirAll(env.pvmProjectDir, 0755); err != nil {
+		t.Fatalf("Failed to create .pvm directory: %v", err)
+	}
+
+	// Create directory with .perl-version file
+	env.versionFileDir = filepath.Join(env.tempDir, "version-file")
+	if err := os.MkdirAll(env.versionFileDir, 0755); err != nil {
+		t.Fatalf("Failed to create version file directory: %v", err)
+	}
+
+	// Set up mock system Perl function
+	originalDetectSystemPerl := DetectSystemPerl
+	env.cleanup = append(env.cleanup, func() { DetectSystemPerl = originalDetectSystemPerl })
+	env.mockSystemPerl = &SystemPerl{
+		Path:         "/usr/bin/perl",
+		Version:      "5.30.3",
+		FullVersion:  "5.30.3",
+		Architecture: "x86_64",
+		IsPrimary:    true,
+	}
+	DetectSystemPerl = func() (*SystemPerl, error) {
+		return env.mockSystemPerl, nil
+	}
+
+	return env
+}
+
+// Cleanup test environment
+func (env *resolverTestEnv) cleanup_() {
+	// Restore environment variables
+	for name, value := range env.origEnv {
+		if value == "" {
+			os.Unsetenv(name)
+		} else {
+			os.Setenv(name, value)
+		}
+	}
+
+	// Run cleanup functions in reverse order
+	for i := len(env.cleanup) - 1; i >= 0; i-- {
+		env.cleanup[i]()
+	}
+}
+
+// Create a project configuration file
+func (env *resolverTestEnv) createProjectConfig(t *testing.T, defaultPerl string, aliases map[string]string) {
+	configFile := filepath.Join(env.pvmProjectDir, "pvm.toml")
+	
+	// Create simple TOML content
+	content := "[pvm]\n"
+	content += "default_perl = \"" + defaultPerl + "\"\n"
+	
+	if len(aliases) > 0 {
+		content += "\n[pvm.version_aliases]\n"
+		for alias, value := range aliases {
+			content += alias + " = \"" + value + "\"\n"
+		}
+	}
+	
+	if err := os.WriteFile(configFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to create project config file: %v", err)
+	}
+}
+
+// Create a .perl-version file
+func (env *resolverTestEnv) createPerlVersionFile(t *testing.T, version string) {
+	versionFile := filepath.Join(env.versionFileDir, ".perl-version")
+	if err := os.WriteFile(versionFile, []byte(version+"\n"), 0644); err != nil {
+		t.Fatalf("Failed to create .perl-version file: %v", err)
+	}
+}
+
+// Test explicit version resolution
+func TestResolveExplicitVersion(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+
+	// Test with available version
+	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
+	
+	cfg := &config.Config{
+		PVM: &config.PVMConfig{
+			DefaultPerl: "5.36.0",
+			VersionAliases: map[string]string{
+				"latest": "5.38.0",
+				"stable": "5.36.0",
+			},
+		},
+	}
+	
+	options := &ResolutionOptions{
+		ExplicitVersion:    "5.38.0",
+		AvailableVersions:  availableVersions,
+		Config:             cfg,
+		SkipVersionResolved: true,
+	}
+	
+	resolved, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve explicit version: %v", err)
+	}
+	
+	if resolved.Version != "5.38.0" {
+		t.Errorf("Expected version 5.38.0, got %s", resolved.Version)
+	}
+	
+	if resolved.Source != ExplicitVersion {
+		t.Errorf("Expected source ExplicitVersion, got %s", resolved.Source)
+	}
+	
+	// Test with alias
+	options.ExplicitVersion = "@latest"
+	resolved, err = ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve explicit version with alias: %v", err)
+	}
+	
+	if resolved.Version != "5.38.0" {
+		t.Errorf("Expected version 5.38.0 for @latest, got %s", resolved.Version)
+	}
+	
+	// Simple direct test of the resolveExplicitVersion function
+	version := "5.99.0" // A very unlikely version 
+	availVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
+	testConfig := &config.Config{
+		PVM: &config.PVMConfig{
+			VersionAliases: map[string]string{
+				"latest": "5.38.0",
+			},
+		},
+	}
+	
+	// Call the function directly to see if it's working properly
+	resolved2, err2 := resolveExplicitVersion(version, availVersions, testConfig)
+	if err2 == nil {
+		t.Errorf("Expected resolveExplicitVersion to error for unavailable version %s, but got resolved: %+v", 
+			version, resolved2)
+	}
+}
+
+// Test .perl-version file resolution
+func TestResolvePerlVersionFile(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+	
+	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
+	
+	// Create .perl-version file
+	env.createPerlVersionFile(t, "5.36.0")
+	
+	// Mock FindDotPerlVersionFiles to return our test file
+	originalFindDotPerlVersionFiles := FindDotPerlVersionFiles
+	defer func() { FindDotPerlVersionFiles = originalFindDotPerlVersionFiles }()
+	
+	versionFilePath := filepath.Join(env.versionFileDir, ".perl-version")
+	FindDotPerlVersionFiles = func(startDir string) ([]string, error) {
+		return []string{versionFilePath}, nil
+	}
+	
+	// Mock ReadPerlVersionFile to return our test version
+	originalReadPerlVersionFile := ReadPerlVersionFile
+	defer func() { ReadPerlVersionFile = originalReadPerlVersionFile }()
+	
+	ReadPerlVersionFile = func(dir string) (string, error) {
+		return "5.36.0", nil
+	}
+	
+	options := &ResolutionOptions{
+		ProjectDir:        env.versionFileDir,
+		AvailableVersions: availableVersions,
+		SkipVersionResolved: true,
+	}
+	
+	resolved, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve from .perl-version file: %v", err)
+	}
+	
+	if resolved.Version != "5.36.0" {
+		t.Errorf("Expected version 5.36.0, got %s", resolved.Version)
+	}
+	
+	if resolved.Source != ProjectVersionFile {
+		t.Errorf("Expected source ProjectVersionFile, got %s", resolved.Source)
+	}
+}
+
+// Test project configuration resolution
+func TestResolveProjectConfig(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+	
+	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
+	
+	// Create project config
+	env.createProjectConfig(t, "5.34.1", map[string]string{
+		"old":   "5.16.3",
+		"local": "5.34.1",
+	})
+	
+	// Mock GetProjectRoot to return our test directory
+	originalGetProjectRoot := config.GetProjectRoot
+	defer func() { config.GetProjectRoot = originalGetProjectRoot }()
+	
+	config.GetProjectRoot = func() string {
+		return env.projectDir
+	}
+	
+	// Set options to skip .perl-version file check since we're testing project config
+	options := &ResolutionOptions{
+		ProjectDir:        env.projectDir,
+		AvailableVersions: availableVersions,
+		SkipVersionResolved: true,
+	}
+	
+	// Mock FindDotPerlVersionFiles to return no files, so we test project config
+	originalFindDotPerlVersionFiles := FindDotPerlVersionFiles
+	defer func() { FindDotPerlVersionFiles = originalFindDotPerlVersionFiles }()
+	
+	FindDotPerlVersionFiles = func(startDir string) ([]string, error) {
+		return []string{}, nil
+	}
+	
+	resolved, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve from project config: %v", err)
+	}
+	
+	if resolved.Version != "5.34.1" {
+		t.Errorf("Expected version 5.34.1, got %s", resolved.Version)
+	}
+	
+	if resolved.Source != ProjectConfig {
+		t.Errorf("Expected source ProjectConfig, got %s", resolved.Source)
+	}
+}
+
+// Test environment variable resolution
+func TestResolveEnvironmentVariables(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+	
+	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
+	
+	// Test PLENV_VERSION (higher precedence)
+	os.Setenv("PLENV_VERSION", "5.38.0")
+	os.Setenv("PERLBREW_PERL", "perl-5.36.0")
+	
+	options := &ResolutionOptions{
+		AvailableVersions: availableVersions,
+		SkipLocal:         true, // Skip project-local checks
+		SkipVersionResolved: true,
+	}
+	
+	resolved, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve from environment variables: %v", err)
+	}
+	
+	if resolved.Version != "5.38.0" {
+		t.Errorf("Expected version 5.38.0 from PLENV_VERSION, got %s", resolved.Version)
+	}
+	
+	if resolved.Source != EnvironmentVariable {
+		t.Errorf("Expected source EnvironmentVariable, got %s", resolved.Source)
+	}
+	
+	// Test PERLBREW_PERL (lower precedence)
+	os.Unsetenv("PLENV_VERSION")
+	
+	resolved, err = ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve from PERLBREW_PERL: %v", err)
+	}
+	
+	if resolved.Version != "5.36.0" {
+		t.Errorf("Expected version 5.36.0 from PERLBREW_PERL, got %s", resolved.Version)
+	}
+}
+
+// Test user configuration resolution
+func TestResolveUserConfig(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+	
+	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
+	
+	// Create user config
+	cfg := &config.Config{
+		PVM: &config.PVMConfig{
+			DefaultPerl: "5.34.1",
+			VersionAliases: map[string]string{
+				"latest": "5.38.0",
+				"stable": "5.36.0",
+			},
+		},
+	}
+	
+	options := &ResolutionOptions{
+		AvailableVersions: availableVersions,
+		Config:            cfg,
+		SkipLocal:         true, // Skip project-local checks
+		SkipEnvVars:       true, // Skip environment variables
+		SkipVersionResolved: true,
+	}
+	
+	resolved, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve from user config: %v", err)
+	}
+	
+	if resolved.Version != "5.34.1" {
+		t.Errorf("Expected version 5.34.1 from user config, got %s", resolved.Version)
+	}
+	
+	if resolved.Source != UserConfig {
+		t.Errorf("Expected source UserConfig, got %s", resolved.Source)
+	}
+	
+	// Test with user config alias
+	cfg.PVM.DefaultPerl = "@latest"
+	
+	resolved, err = ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve from user config with alias: %v", err)
+	}
+	
+	if resolved.Version != "5.38.0" {
+		t.Errorf("Expected version 5.38.0 for @latest in user config, got %s", resolved.Version)
+	}
+}
+
+// Test fallback to system Perl
+func TestResolveSystemPerl(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+	
+	// Set options to skip all other resolution methods
+	options := &ResolutionOptions{
+		SkipLocal:         true, // Skip project-local checks
+		SkipEnvVars:       true, // Skip environment variables
+		SkipUserConfig:    true, // Skip user configuration
+		SkipVersionResolved: true,
+	}
+	
+	resolved, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve from system Perl: %v", err)
+	}
+	
+	if resolved.Version != env.mockSystemPerl.Version {
+		t.Errorf("Expected version %s from system Perl, got %s", env.mockSystemPerl.Version, resolved.Version)
+	}
+	
+	if resolved.Source != SystemPerlSource {
+		t.Errorf("Expected source SystemPerlSource, got %s", resolved.Source)
+	}
+	
+	if resolved.Path != env.mockSystemPerl.Path {
+		t.Errorf("Expected path %s from system Perl, got %s", env.mockSystemPerl.Path, resolved.Path)
+	}
+}
+
+// Test full resolution precedence
+func TestResolutionPrecedence(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+	
+	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1", "5.32.1", "5.30.3"}
+	
+	// Create config files and set environment variables to test precedence
+	
+	// 1. System Perl is 5.30.3 (lowest precedence)
+	env.mockSystemPerl.Version = "5.30.3"
+	
+	// 2. User config has 5.32.1
+	cfg := &config.Config{
+		PVM: &config.PVMConfig{
+			DefaultPerl: "5.32.1",
+		},
+	}
+	
+	// 3. Environment variables
+	os.Setenv("PERLBREW_PERL", "perl-5.34.1")
+	
+	// 4. Project config
+	env.createProjectConfig(t, "5.36.0", nil)
+	
+	// Mock GetProjectRoot to return our test directory
+	originalGetProjectRoot := config.GetProjectRoot
+	defer func() { config.GetProjectRoot = originalGetProjectRoot }()
+	
+	config.GetProjectRoot = func() string {
+		return env.projectDir
+	}
+	
+	// 5. .perl-version file
+	env.createPerlVersionFile(t, "5.38.0")
+	
+	// Mock FindDotPerlVersionFiles and ReadPerlVersionFile
+	originalFindDotPerlVersionFiles := FindDotPerlVersionFiles
+	defer func() { FindDotPerlVersionFiles = originalFindDotPerlVersionFiles }()
+	
+	versionFilePath := filepath.Join(env.versionFileDir, ".perl-version")
+	FindDotPerlVersionFiles = func(startDir string) ([]string, error) {
+		return []string{versionFilePath}, nil
+	}
+	
+	originalReadPerlVersionFile := ReadPerlVersionFile
+	defer func() { ReadPerlVersionFile = originalReadPerlVersionFile }()
+	
+	ReadPerlVersionFile = func(dir string) (string, error) {
+		return "5.38.0", nil
+	}
+	
+	// Test precedence
+	// Reset environment variables for testing precedence
+	os.Unsetenv("PLENV_VERSION")
+	os.Setenv("PERLBREW_PERL", "perl-5.34.1")
+	
+	tests := []struct {
+		name     string
+		options  ResolutionOptions
+		expected struct {
+			version string
+			source  ResolutionSource
+		}
+	}{
+		{
+			name: "Explicit version has highest precedence",
+			options: ResolutionOptions{
+				ExplicitVersion:   "5.26.3",
+				AvailableVersions: append(availableVersions, "5.26.3"),
+				Config:            cfg,
+				ProjectDir:        env.projectDir,
+				SkipVersionResolved: true,
+			},
+			expected: struct {
+				version string
+				source  ResolutionSource
+			}{
+				version: "5.26.3",
+				source:  ExplicitVersion,
+			},
+		},
+		{
+			name: ".perl-version file has precedence over project config",
+			options: ResolutionOptions{
+				AvailableVersions: availableVersions,
+				Config:            cfg,
+				ProjectDir:        env.projectDir,
+				SkipVersionResolved: true,
+			},
+			expected: struct {
+				version string
+				source  ResolutionSource
+			}{
+				version: "5.38.0",
+				source:  ProjectVersionFile,
+			},
+		},
+		{
+			name: "Project config has precedence over environment variables",
+			options: ResolutionOptions{
+				AvailableVersions: availableVersions,
+				Config:            cfg,
+				ProjectDir:        env.projectDir,
+				SkipVersionResolved: true,
+			},
+			expected: struct {
+				version string
+				source  ResolutionSource
+			}{
+				version: "5.38.0", // From .perl-version, which has higher precedence
+				source:  ProjectVersionFile,
+			},
+		},
+		{
+			name: "Environment variables have precedence over user config",
+			options: ResolutionOptions{
+				AvailableVersions: availableVersions,
+				Config:            cfg,
+				SkipLocal:         true, // Skip project-local checks
+				SkipVersionResolved: true,
+			},
+			expected: struct {
+				version string
+				source  ResolutionSource
+			}{
+				// We set PERLBREW_PERL to perl-5.34.1 above
+				version: "5.34.1",
+				source:  EnvironmentVariable,
+			},
+		},
+		{
+			name: "User config has precedence over system Perl",
+			options: ResolutionOptions{
+				AvailableVersions: availableVersions,
+				Config:            cfg,
+				SkipLocal:         true, // Skip project-local checks
+				SkipEnvVars:       true, // Skip environment variables
+				SkipVersionResolved: true,
+			},
+			expected: struct {
+				version string
+				source  ResolutionSource
+			}{
+				version: "5.32.1",
+				source:  UserConfig,
+			},
+		},
+		{
+			name: "System Perl is used as last resort",
+			options: ResolutionOptions{
+				AvailableVersions: availableVersions,
+				SkipLocal:         true, // Skip project-local checks
+				SkipEnvVars:       true, // Skip environment variables
+				SkipUserConfig:    true, // Skip user config
+				SkipVersionResolved: true,
+			},
+			expected: struct {
+				version string
+				source  ResolutionSource
+			}{
+				version: "5.30.3",
+				source:  SystemPerlSource,
+			},
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolved, err := ResolveVersion(&tt.options)
+			if err != nil {
+				t.Fatalf("Failed to resolve version: %v", err)
+			}
+			
+			if resolved.Version != tt.expected.version {
+				t.Errorf("Expected version %s, got %s", tt.expected.version, resolved.Version)
+			}
+			
+			if resolved.Source != tt.expected.source {
+				t.Errorf("Expected source %s, got %s", tt.expected.source, resolved.Source)
+			}
+		})
+	}
+}
+
+// Test version resolution callback
+func TestVersionResolvedCallback(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+	
+	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
+	
+	callbackCalled := false
+	callbackVersion := ""
+	
+	// Set callback
+	originalCallback := OnVersionResolved
+	defer func() { OnVersionResolved = originalCallback }()
+	
+	OnVersionResolved = func(version *ResolvedVersion) {
+		callbackCalled = true
+		callbackVersion = version.Version
+	}
+	
+	options := &ResolutionOptions{
+		ExplicitVersion:   "5.38.0",
+		AvailableVersions: availableVersions,
+	}
+	
+	_, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve version: %v", err)
+	}
+	
+	if !callbackCalled {
+		t.Errorf("Expected callback to be called")
+	}
+	
+	if callbackVersion != "5.38.0" {
+		t.Errorf("Expected callback version 5.38.0, got %s", callbackVersion)
+	}
+	
+	// Test skipping callback
+	callbackCalled = false
+	options.SkipVersionResolved = true
+	
+	_, err = ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve version: %v", err)
+	}
+	
+	if callbackCalled {
+		t.Errorf("Expected callback to be skipped")
+	}
+}

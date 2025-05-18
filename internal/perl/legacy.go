@@ -131,8 +131,8 @@ func DetectPlenv() ([]LegacyPerl, error) {
 	return installations, nil
 }
 
-// ReadPerlVersionFile reads a .perl-version file from the specified directory
-func ReadPerlVersionFile(dir string) (string, error) {
+// readPerlVersionFileFunc reads a .perl-version file from the specified directory
+func readPerlVersionFileFunc(dir string) (string, error) {
 	versionFile := filepath.Join(dir, ".perl-version")
 
 	// Check if the file exists
@@ -163,6 +163,10 @@ func ReadPerlVersionFile(dir string) (string, error) {
 
 	return version, nil
 }
+
+// ReadPerlVersionFile is a variable that points to readPerlVersionFileFunc,
+// allowing it to be replaced in tests
+var ReadPerlVersionFile = readPerlVersionFileFunc
 
 // DetectPerlbrew checks for perlbrew installations and returns their paths
 func DetectPerlbrew() ([]LegacyPerl, error) {
@@ -363,9 +367,9 @@ func GetPerlbrewAliases() (map[string]string, error) {
 	return aliases, nil
 }
 
-// FindDotPerlVersionFiles searches for .perl-version files starting from the given directory
+// findDotPerlVersionFilesFunc searches for .perl-version files starting from the given directory
 // and moving up through parent directories until found or reaching the root directory
-func FindDotPerlVersionFiles(startDir string) ([]string, error) {
+func findDotPerlVersionFilesFunc(startDir string) ([]string, error) {
 	var files []string
 
 	// Ensure we have an absolute path
@@ -396,6 +400,10 @@ func FindDotPerlVersionFiles(startDir string) ([]string, error) {
 
 	return files, nil
 }
+
+// FindDotPerlVersionFiles is a variable that points to findDotPerlVersionFilesFunc,
+// allowing it to be replaced in tests
+var FindDotPerlVersionFiles = findDotPerlVersionFilesFunc
 
 // ImportFromLegacyTool imports Perl installations from a legacy tool
 func ImportFromLegacyTool(toolType LegacyToolType) ([]LegacyPerl, error) {
