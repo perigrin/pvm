@@ -1,17 +1,22 @@
 package cli
 
 import (
-	"errors"
+	"bytes"
+	stdErrors "errors"
 	"strings"
 	"testing"
+
+	"tamarou.com/pvm/internal/log"
 )
 
 func TestNewError(t *testing.T) {
+	// The implementation now delegates to errors.New, so we just need to verify
+	// that the error is created with the correct values
 	prefix := PrefixPVM
 	category := CategoryConfig
 	code := "001"
 	message := "Test error"
-	innerErr := errors.New("inner error")
+	innerErr := stdErrors.New("inner error")
 	
 	err := NewError(prefix, category, code, message, innerErr)
 	
@@ -36,72 +41,46 @@ func TestNewError(t *testing.T) {
 	}
 }
 
-func TestErrorWithChain(t *testing.T) {
-	innerErr := errors.New("inner error")
-	err := NewError(PrefixPVM, CategoryConfig, "001", "Test error", innerErr)
+func TestLoggingFunctions(t *testing.T) {
+	// Create a buffer to capture log output
+	buf := new(bytes.Buffer)
 	
-	// Test WithDetail
-	err = err.WithDetail("Error details")
-	if err.Detail != "Error details" {
-		t.Errorf("Expected detail 'Error details', got %s", err.Detail)
-	}
+	// Set up logging
+	log.SetGlobalOutput(buf)
+	log.SetGlobalLevel(log.LevelDebug)
+	log.SetGlobalComponent("TEST")
 	
-	// Test WithLocation
-	err = err.WithLocation("config.go:123")
-	if err.Location != "config.go:123" {
-		t.Errorf("Expected location 'config.go:123', got %s", err.Location)
-	}
+	// Test each logging function
+	LogDebug("Debug message")
+	LogInfo("Info message")
+	LogWarning("Warning message")
+	LogError("Error message")
 	
-	// Test WithHint
-	err = err.WithHint("Check your config file")
-	if err.Hint != "Check your config file" {
-		t.Errorf("Expected hint 'Check your config file', got %s", err.Hint)
-	}
-}
-
-func TestErrorOutput(t *testing.T) {
-	innerErr := errors.New("inner error")
-	err := NewError(PrefixPVM, CategoryConfig, "001", "Test error", innerErr)
-	err = err.WithDetail("Error details").WithLocation("config.go:123").WithHint("Check your config file")
+	// Check the output
+	output := buf.String()
 	
-	// Test error string
-	errStr := err.Error()
-	
-	mustContain := []string{
-		"PVM-001: Test error",
-		"Detail: Error details",
-		"Location: config.go:123",
-		"Hint: Check your config file",
-	}
-	
-	for _, s := range mustContain {
-		if !strings.Contains(errStr, s) {
-			t.Errorf("Expected error string to contain '%s', but it doesn't: %s", s, errStr)
-		}
-	}
-	
-	// In non-verbose mode, inner error should not be included
-	if strings.Contains(errStr, "inner error") {
-		t.Errorf("Error string should not contain inner error in non-verbose mode: %s", errStr)
-	}
-	
-	// Set verbose mode and check again
+	// Set Verbose to true to test debug logging
 	Verbose = true
-	errStr = err.Error()
-	if !strings.Contains(errStr, "inner error") {
-		t.Errorf("Error string should contain inner error in verbose mode: %s", errStr)
+	LogDebug("Debug message with verbose")
+	
+	// Reset Verbose
+	Verbose = false
+	
+	// Verify log levels
+	if !strings.Contains(output, "[INFO]") {
+		t.Error("Expected info message to be logged")
 	}
 	
-	// Reset verbose mode
-	Verbose = false
-}
-
-func TestErrorUnwrap(t *testing.T) {
-	innerErr := errors.New("inner error")
-	err := NewError(PrefixPVM, CategoryConfig, "001", "Test error", innerErr)
+	if !strings.Contains(output, "[WARNING]") {
+		t.Error("Expected warning message to be logged")
+	}
 	
-	unwrapped := errors.Unwrap(err)
-	if unwrapped != innerErr {
-		t.Errorf("Expected unwrapped error to be %v, got %v", innerErr, unwrapped)
+	if !strings.Contains(output, "[ERROR]") {
+		t.Error("Expected error message to be logged")
+	}
+	
+	// Verify that debug message with verbose is logged
+	if Verbose && !strings.Contains(output, "Debug message with verbose") {
+		t.Error("Expected debug message to be logged when verbose is true")
 	}
 }

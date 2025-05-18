@@ -8,6 +8,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/version"
 )
 
@@ -52,8 +54,29 @@ func newVersionCommand(component string) *cobra.Command {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute(rootCmd *cobra.Command) {
+	// Setup command pre-run hook to configure logging
+	origPreRun := rootCmd.PersistentPreRun
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		// Set log level based on flags
+		if Verbose {
+			log.SetGlobalLevel(log.LevelDebug)
+		} else {
+			log.SetGlobalLevel(log.LevelInfo)
+		}
+		
+		// Set component from command
+		log.SetGlobalComponent(cmd.Root().Use)
+		
+		// Call the original pre-run if it exists
+		if origPreRun != nil {
+			origPreRun(cmd, args)
+		}
+	}
+	
+	// Execute the command
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		// Log the error using our structured logging
+		errors.LogError(err)
 		os.Exit(1)
 	}
 }

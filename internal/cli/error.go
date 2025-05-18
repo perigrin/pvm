@@ -6,97 +6,37 @@ package cli
 import (
 	"fmt"
 	"os"
+
+	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/log"
 )
 
-// Error component prefixes
+// Re-export error constants for backward compatibility
 const (
-	PrefixPVM = "PVM"
-	PrefixPVX = "PVX"
-	PrefixPVI = "PVI"
-	PrefixPSC = "PSC"
-	PrefixCFG = "CFG"
-	PrefixSYS = "SYS"
+	// Component prefixes
+	PrefixPVM = errors.PrefixPVM
+	PrefixPVX = errors.PrefixPVX
+	PrefixPVI = errors.PrefixPVI
+	PrefixPSC = errors.PrefixPSC
+	PrefixCFG = errors.PrefixCFG
+	PrefixSYS = errors.PrefixSYS
+	
+	// Error categories
+	CategoryConfig    = errors.CategoryConfig
+	CategoryVersion   = errors.CategoryVersion
+	CategoryModule    = errors.CategoryModule
+	CategoryExecution = errors.CategoryExecution
+	CategoryType      = errors.CategoryType
+	CategorySystem    = errors.CategorySystem
+	CategoryUserInput = errors.CategoryUserInput
 )
 
-// Error categories
-const (
-	CategoryConfig    = "Configuration Error"
-	CategoryVersion   = "Version Error"
-	CategoryModule    = "Module Error"
-	CategoryExecution = "Execution Error"
-	CategoryType      = "Type Error"
-	CategorySystem    = "System Error"
-	CategoryUserInput = "User Input Error"
-)
+// For backward compatibility, redefine Error as the errors.Error type
+type Error = errors.Error
 
-// Error represents a cli error with additional context
-type Error struct {
-	Prefix    string
-	Category  string
-	Code      string
-	Message   string
-	Detail    string
-	Location  string
-	Hint      string
-	InnerErr  error
-}
-
-// NewError creates a new CLI error
+// NewError creates a new CLI error (wrapper around errors.New)
 func NewError(prefix, category, code, message string, err error) *Error {
-	return &Error{
-		Prefix:   prefix,
-		Category: category,
-		Code:     code,
-		Message:  message,
-		InnerErr: err,
-	}
-}
-
-// WithDetail adds detail information to the error
-func (e *Error) WithDetail(detail string) *Error {
-	e.Detail = detail
-	return e
-}
-
-// WithLocation adds location information to the error
-func (e *Error) WithLocation(location string) *Error {
-	e.Location = location
-	return e
-}
-
-// WithHint adds a hint for resolving the error
-func (e *Error) WithHint(hint string) *Error {
-	e.Hint = hint
-	return e
-}
-
-// Error implements the error interface
-func (e *Error) Error() string {
-	prefix := fmt.Sprintf("%s-%s", e.Prefix, e.Code)
-	result := fmt.Sprintf("%s: %s", prefix, e.Message)
-	
-	if e.Detail != "" {
-		result += fmt.Sprintf("\n  Detail: %s", e.Detail)
-	}
-	
-	if e.Location != "" {
-		result += fmt.Sprintf("\n  Location: %s", e.Location)
-	}
-	
-	if e.Hint != "" {
-		result += fmt.Sprintf("\n  Hint: %s", e.Hint)
-	}
-	
-	if e.InnerErr != nil && Verbose {
-		result += fmt.Sprintf("\n  Cause: %v", e.InnerErr)
-	}
-	
-	return result
-}
-
-// Unwrap implements the unwrap interface for error chains
-func (e *Error) Unwrap() error {
-	return e.InnerErr
+	return errors.New(prefix, category, code, message, err)
 }
 
 // HandleError handles a CLI error appropriately based on flags
@@ -105,6 +45,34 @@ func HandleError(err error) {
 		return
 	}
 	
+	// Log the error
+	errors.LogError(err)
+	
+	// Print to stderr for user visibility
 	fmt.Fprintln(os.Stderr, err.Error())
+	
+	// Exit with error code
 	os.Exit(1)
+}
+
+// LogDebug logs an error at debug level if verbose mode is enabled
+func LogDebug(format string, args ...interface{}) {
+	if Verbose {
+		log.Debugf(format, args...)
+	}
+}
+
+// LogInfo logs an informational message
+func LogInfo(format string, args ...interface{}) {
+	log.Infof(format, args...)
+}
+
+// LogWarning logs a warning message
+func LogWarning(format string, args ...interface{}) {
+	log.Warningf(format, args...)
+}
+
+// LogError logs an error message
+func LogError(format string, args ...interface{}) {
+	log.Errorf(format, args...)
 }

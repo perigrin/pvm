@@ -35,6 +35,20 @@ The PVM Ecosystem uses a unified CLI framework based on [Cobra](https://github.c
 - **Structured Error Handling**: Errors include categories, context, and helpful hints.
 - **Global Flags**: Common flags like `--verbose` and `--debug` are available across all components.
 
+### Error Handling and Logging
+
+The PVM Ecosystem includes a comprehensive error handling and logging framework:
+
+- **Structured Errors**: All errors include component prefix, error code, category, description, and optional context.
+- **Error Categories**: Errors are categorized as Configuration, Version, Module, Execution, Type, System, or User Input errors.
+- **Contextual Information**: Errors can include detailed information about where they occurred and how to fix them.
+- **Error Propagation**: Errors maintain their structure when passed between components.
+- **Multi-level Logging**: Support for Debug, Info, Warning, Error, and Fatal log levels.
+- **Configurable Verbosity**: Logging level can be controlled via the `--verbose` flag.
+- **Component Tagging**: Log messages are tagged with the component that generated them.
+
+See [Error Handling and Logging Guide](docs/error-handling.md) for more details.
+
 ### Command Router
 
 The command router enables the single binary to function as multiple tools based on how it's invoked:
