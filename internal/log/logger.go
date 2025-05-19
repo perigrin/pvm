@@ -126,9 +126,21 @@ func (l *Logger) logf(level int, format string, args ...interface{}) {
 	// Write to output
 	_, _ = fmt.Fprint(l.output, line)
 
-	// Exit if fatal
+	// Exit if fatal - IMPORTANT: This must be after the unlock via defer
 	if level == LevelFatal {
-		os.Exit(1)
+		// Save the fatal status
+		isFatal := true
+		// Unlock explicitly before exit
+		l.mu.Unlock()
+		// Re-lock to maintain the mutex state for the defer
+		l.mu.Lock()
+		// After this function returns and the deferred unlock happens,
+		// then we can exit if needed
+		defer func() {
+			if isFatal {
+				os.Exit(1)
+			}
+		}()
 	}
 }
 

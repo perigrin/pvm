@@ -323,16 +323,14 @@ func isBoolKey(section, key string) bool {
 }
 
 func isStringSliceKey(section, key string) bool {
-	switch section {
-	case "psc":
+	if section == "psc" {
 		return key == "watch_exclude"
 	}
 	return false
 }
 
 func isStringMapKey(section, key string) bool {
-	switch section {
-	case "pvm":
+	if section == "pvm" {
 		return key == "version_aliases"
 	}
 	return false

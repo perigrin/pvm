@@ -1,11 +1,12 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"tamarou.com/pvm/internal/errors"
+	pvm_errors "tamarou.com/pvm/internal/errors"
 )
 
 func TestParseString(t *testing.T) {
@@ -89,8 +90,9 @@ func TestParseInvalidTOML(t *testing.T) {
 	}
 
 	// Check that the error is a configuration error
-	if _, ok := err.(*errors.Error); !ok {
-		t.Fatalf("Expected *errors.Error, got %T", err)
+	var configError *pvm_errors.Error
+	if !errors.As(err, &configError) {
+		t.Fatalf("Expected *pvm_errors.Error, got %T", err)
 	}
 }
 
@@ -106,8 +108,9 @@ func TestParseUnknownField(t *testing.T) {
 	}
 
 	// Check that the error is a configuration error
-	if _, ok := err.(*errors.Error); !ok {
-		t.Fatalf("Expected *errors.Error, got %T", err)
+	var configError *pvm_errors.Error
+	if !errors.As(err, &configError) {
+		t.Fatalf("Expected *pvm_errors.Error, got %T", err)
 	}
 }
 
@@ -126,8 +129,9 @@ func TestValidation(t *testing.T) {
 	}
 
 	// Check that the error is a configuration error
-	if _, ok := err.(*errors.Error); !ok {
-		t.Fatalf("Expected *errors.Error, got %T", err)
+	var configError *pvm_errors.Error
+	if !errors.As(err, &configError) {
+		t.Fatalf("Expected *pvm_errors.Error, got %T", err)
 	}
 
 	// Check that the error message contains the validation errors

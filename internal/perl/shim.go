@@ -120,9 +120,7 @@ if exist "%PVM_EXEC%" (
 `
 
 // executablePath is a variable that can be mocked in tests
-var executablePath = func() (string, error) {
-	return os.Executable()
-}
+var executablePath = os.Executable
 
 // GenerateShims creates shims for all standard Perl commands
 // This includes perl itself and standard utilities like cpan, prove, etc.
@@ -224,7 +222,7 @@ func createShim(shimDir string, shimInfo ShimInfo, pvmPath string) error {
 	// Determine shim filename with extension for Windows
 	shimName := shimInfo.Name
 	if runtime.GOOS == "windows" {
-		shimName = shimName + ".bat"
+		shimName += ".bat"
 	}
 
 	// Full path to the shim

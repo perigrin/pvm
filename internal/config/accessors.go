@@ -89,22 +89,16 @@ func (c *Config) GetBool(section, key string) bool {
 
 // GetStringSlice returns a string slice configuration value
 func (c *Config) GetStringSlice(section, key string) []string {
-	switch section {
-	case "psc":
-		if c.PSC != nil {
-			return getPSCStringSlice(c.PSC, key)
-		}
+	if section == "psc" && c.PSC != nil {
+		return getPSCStringSlice(c.PSC, key)
 	}
 	return nil
 }
 
 // GetStringMap returns a string map configuration value
 func (c *Config) GetStringMap(section, key string) map[string]string {
-	switch section {
-	case "pvm":
-		if c.PVM != nil {
-			return getPVMStringMap(c.PVM, key)
-		}
+	if section == "pvm" && c.PVM != nil {
+		return getPVMStringMap(c.PVM, key)
 	}
 	return nil
 }
@@ -146,32 +140,28 @@ func getPVIString(c *PVIConfig, key string) string {
 }
 
 func getPSCString(c *PSCConfig, key string) string {
-	switch key {
-	case "type_definitions_path":
+	if key == "type_definitions_path" {
 		return c.TypeDefinitionsPath
 	}
 	return ""
 }
 
 func getPVMInt(c *PVMConfig, key string) int {
-	switch key {
-	case "build_jobs":
+	if key == "build_jobs" {
 		return c.BuildJobs
 	}
 	return 0
 }
 
 func getPVXInt(c *PVXConfig, key string) int {
-	switch key {
-	case "timeout":
+	if key == "timeout" {
 		return c.Timeout
 	}
 	return 0
 }
 
 func getPVMBool(c *PVMConfig, key string) bool {
-	switch key {
-	case "run_tests":
+	if key == "run_tests" {
 		return c.RunTests
 	}
 	return false
@@ -216,16 +206,14 @@ func getPSCBool(c *PSCConfig, key string) bool {
 }
 
 func getPSCStringSlice(c *PSCConfig, key string) []string {
-	switch key {
-	case "watch_exclude":
+	if key == "watch_exclude" {
 		return c.WatchExclude
 	}
 	return nil
 }
 
 func getPVMStringMap(c *PVMConfig, key string) map[string]string {
-	switch key {
-	case "version_aliases":
+	if key == "version_aliases" {
 		return c.VersionAliases
 	}
 	return nil

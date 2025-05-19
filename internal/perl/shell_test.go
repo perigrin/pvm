@@ -324,10 +324,8 @@ func TestVersionSwitching(t *testing.T) {
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Errorf("Failed to read config file: %v", err)
-	} else {
-		if !strings.Contains(string(content), "default_perl = \"5.36.0\"") {
-			t.Errorf("Config file does not contain expected version: %s", content)
-		}
+	} else if !strings.Contains(string(content), "default_perl = \"5.36.0\"") {
+		t.Errorf("Config file does not contain expected version: %s", content)
 	}
 
 	// Test local version setting
@@ -354,10 +352,8 @@ func TestVersionSwitching(t *testing.T) {
 	content, err = os.ReadFile(versionFilePath)
 	if err != nil {
 		t.Errorf("Failed to read .perl-version file: %v", err)
-	} else {
-		if strings.TrimSpace(string(content)) != "5.38.0" {
-			t.Errorf("Version file does not contain expected version: %s", content)
-		}
+	} else if strings.TrimSpace(string(content)) != "5.38.0" {
+		t.Errorf("Version file does not contain expected version: %s", content)
 	}
 }
 

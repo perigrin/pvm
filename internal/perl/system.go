@@ -175,15 +175,16 @@ func extractPerlInfo(perlPath string, isPrimary bool) (*SystemPerl, error) {
 		perl.Architecture = matches[1]
 	} else {
 		// Try to detect platform from full version
-		if strings.Contains(perl.FullVersion, "x86_64") {
+		switch {
+		case strings.Contains(perl.FullVersion, "x86_64"):
 			perl.Architecture = "x86_64"
-		} else if strings.Contains(perl.FullVersion, "amd64") {
+		case strings.Contains(perl.FullVersion, "amd64"):
 			perl.Architecture = "amd64"
-		} else if strings.Contains(perl.FullVersion, "i686") {
+		case strings.Contains(perl.FullVersion, "i686"):
 			perl.Architecture = "i686"
-		} else if strings.Contains(perl.FullVersion, "arm64") {
+		case strings.Contains(perl.FullVersion, "arm64"):
 			perl.Architecture = "arm64"
-		} else {
+		default:
 			// Default to runtime.GOARCH as a fallback
 			perl.Architecture = runtime.GOARCH
 		}

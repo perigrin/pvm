@@ -495,9 +495,7 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 
 // extractArchiveFunc is a variable holding the extract archive function
 // This allows tests to replace it with a mock
-var extractArchiveFunc = func(archivePath, destDir string, ctx context.Context) (string, error) {
-	return doExtractArchive(archivePath, destDir, ctx)
-}
+var extractArchiveFunc = doExtractArchive
 
 // extractArchive is a wrapper function that calls the current implementation
 func extractArchive(archivePath, destDir string, ctx context.Context) (string, error) {
@@ -518,7 +516,8 @@ func doExtractArchive(archivePath, destDir string, ctx context.Context) (string,
 	var reader io.Reader
 
 	// Extract archive based on its type
-	if strings.HasSuffix(baseName, ".tar.gz") || strings.HasSuffix(baseName, ".tgz") {
+	switch {
+	case strings.HasSuffix(baseName, ".tar.gz") || strings.HasSuffix(baseName, ".tgz"):
 		// Create gzip reader
 		gzReader, err := gzip.NewReader(file)
 		if err != nil {
@@ -526,14 +525,14 @@ func doExtractArchive(archivePath, destDir string, ctx context.Context) (string,
 		}
 		defer func() { _ = gzReader.Close() }()
 		reader = gzReader
-	} else if strings.HasSuffix(baseName, ".tar.xz") {
+	case strings.HasSuffix(baseName, ".tar.xz"):
 		// Create xz reader
 		xzReader, err := xz.NewReader(file)
 		if err != nil {
 			return "", err
 		}
 		reader = xzReader
-	} else {
+	default:
 		return "", fmt.Errorf("unsupported archive format: %s", baseName)
 	}
 
@@ -618,15 +617,7 @@ func doExtractArchive(archivePath, destDir string, ctx context.Context) (string,
 
 // runCommandWithProgressFunc holds the current implementation of runCommandWithProgress
 // It can be replaced with a mock for testing
-var runCommandWithProgressFunc = func(
-	dir string,
-	command string,
-	args []string,
-	ctx context.Context,
-	progressCb func(line string),
-) error {
-	return doRunCommandWithProgress(dir, command, args, ctx, progressCb)
-}
+var runCommandWithProgressFunc = doRunCommandWithProgress
 
 // runCommandWithProgress is a wrapper that calls the current implementation
 func runCommandWithProgress(
