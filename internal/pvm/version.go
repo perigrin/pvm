@@ -1,0 +1,164 @@
+// ABOUTME: PVM version-related commands
+// ABOUTME: Provides commands for working with Perl versions
+
+package pvm
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/config"
+	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/perl"
+)
+
+// newVersionCommand creates a command for version utilities
+func newVersionCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "version-util",
+		Short: "Perl version utilities",
+		Long:  "Parse, validate, and compare Perl versions",
+	}
+
+	// Add subcommands
+	cmd.AddCommand(
+		newVersionParseCommand(),
+		newVersionCompareCommand(),
+		newVersionSatisfiesCommand(),
+		newVersionAliasCommand(),
+	)
+
+	return cmd
+}
+
+// newVersionParseCommand creates a command to parse a version string
+func newVersionParseCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "parse [version]",
+		Short: "Parse a version string",
+		Long:  "Parse a version string into its components",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version, err := perl.ParseVersion(args[0])
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Version:     %s\n", version.String())
+			fmt.Printf("Major:       %d\n", version.Major)
+			fmt.Printf("Minor:       %d\n", version.Minor)
+			fmt.Printf("Patch:       %d\n", version.Patch)
+			fmt.Printf("Development: %t\n", version.Dev)
+			fmt.Printf("Stable:      %t\n", version.IsStable())
+
+			return nil
+		},
+	}
+}
+
+// newVersionCompareCommand creates a command to compare two versions
+func newVersionCompareCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "compare [version1] [version2]",
+		Short: "Compare two versions",
+		Long:  "Compare two versions and determine their relationship",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			v1, err := perl.ParseVersion(args[0])
+			if err != nil {
+				return errors.NewVersionError("001",
+					fmt.Sprintf("Invalid first version: %s", args[0]), err)
+			}
+
+			v2, err := perl.ParseVersion(args[1])
+			if err != nil {
+				return errors.NewVersionError("002",
+					fmt.Sprintf("Invalid second version: %s", args[1]), err)
+			}
+
+			result := v1.Compare(v2)
+			var relationship string
+			switch {
+			case result < 0:
+				relationship = "less than"
+			case result > 0:
+				relationship = "greater than"
+			default:
+				relationship = "equal to"
+			}
+
+			fmt.Printf("%s is %s %s\n", v1.String(), relationship, v2.String())
+			return nil
+		},
+	}
+}
+
+// newVersionSatisfiesCommand creates a command to check if a version satisfies constraints
+func newVersionSatisfiesCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "satisfies [version] [constraints]",
+		Short: "Check if a version satisfies constraints",
+		Long:  "Check if a version meets the specified version constraints",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version, err := perl.ParseVersion(args[0])
+			if err != nil {
+				return errors.NewVersionError("003",
+					fmt.Sprintf("Invalid version: %s", args[0]), err)
+			}
+
+			constraints, err := perl.ParseConstraintSet(args[1])
+			if err != nil {
+				return errors.NewVersionError("004",
+					fmt.Sprintf("Invalid constraint set: %s", args[1]), err)
+			}
+
+			satisfies := constraints.Satisfies(version)
+			if satisfies {
+				fmt.Printf("%s satisfies %s\n", version.String(), constraints.String())
+			} else {
+				fmt.Printf("%s does NOT satisfy %s\n", version.String(), constraints.String())
+			}
+
+			return nil
+		},
+	}
+}
+
+// newVersionAliasCommand creates a command to resolve version aliases
+func newVersionAliasCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "alias [alias]",
+		Short: "Resolve a version alias",
+		Long:  "Resolve a version alias to an actual version",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load configuration to get aliases
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return err
+			}
+
+			// Get version aliases
+			versionAliases := map[string]string{}
+			if cfg.PVM != nil && cfg.PVM.VersionAliases != nil {
+				versionAliases = cfg.PVM.VersionAliases
+			}
+
+			// Ensure alias starts with @
+			alias := args[0]
+			if !strings.HasPrefix(alias, "@") {
+				alias = "@" + alias
+			}
+
+			version, err := perl.ResolveVersionAlias(alias, versionAliases)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Alias: %s\nVersion: %s\n", alias, version)
+			return nil
+		},
+	}
+}
