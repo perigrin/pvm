@@ -36,7 +36,7 @@ func NewCommand() *cobra.Command {
 
 			// Check if we're executing code directly or running a script
 			if executeCode == "" && len(args) == 0 {
-				cmd.Help()
+				_ = cmd.Help() // Ignoring error as we're exiting anyway
 				return
 			}
 

@@ -25,10 +25,13 @@ const (
 	ErrInvalidIsolation = "404" // Invalid isolation level specified
 )
 
-// Variable for execCommand to allow mocking in tests
+// Variables for mocking in tests
 var execCommand = func(cmd *exec.Cmd) error {
 	return cmd.Run()
 }
+
+// resolvePerlExecutable is a variable to allow mocking in tests
+var resolvePerlExecutable = resolvePerlExecutableImpl
 
 // IsolationLevel defines the level of isolation for script execution
 type IsolationLevel string
@@ -306,8 +309,9 @@ func cleanupIsolationDir(options *ExecutionOptions) {
 	}
 }
 
-// resolvePerlExecutable finds the appropriate Perl executable
-func resolvePerlExecutable(options *ExecutionOptions) (string, error) {
+// resolvePerlExecutableImpl finds the appropriate Perl executable
+// This is the actual implementation used by the resolvePerlExecutable variable
+func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 	// Check if PerlVersion is an absolute path to a Perl executable
 	if options.PerlVersion != "" && filepath.IsAbs(options.PerlVersion) {
 		// Check if the file exists and is executable

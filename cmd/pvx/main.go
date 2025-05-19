@@ -14,13 +14,13 @@ import (
 func main() {
 	// Create a PVX command directly
 	pvxCmd := pvx.NewCommand()
-	
+
 	// Add global flags (these would normally be added by the CLI framework)
 	pvxCmd.PersistentFlags().BoolP("debug", "d", false, "Enable debug mode")
-	
+
 	// Add version information
 	pvxCmd.Long = pvxCmd.Long + "\n\nVersion: " + version.GetVersion()
-	
+
 	// Add version command
 	pvxCmd.AddCommand(&cobra.Command{
 		Use:   "version",
@@ -29,7 +29,7 @@ func main() {
 			cmd.Println("PVX version:", version.GetVersion())
 		},
 	})
-	
+
 	// Execute the command
 	if err := pvxCmd.Execute(); err != nil {
 		os.Exit(1)

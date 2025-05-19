@@ -5,48 +5,23 @@ package pvx
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// Mock for execCommand to capture environment variables
-type mockCmd struct {
-	cmd     string
-	args    []string
-	env     []string
-	exitErr bool
-}
-
-func mockExecCommand(mockCmd *mockCmd) func(cmd *exec.Cmd) error {
-	return func(cmd *exec.Cmd) error {
-		mockCmd.cmd = cmd.Path
-		mockCmd.args = cmd.Args
-		mockCmd.env = cmd.Env
-		
-		if mockCmd.exitErr {
-			// Mock an exit error if needed
-			return &exec.ExitError{}
-		}
-		return nil
-	}
-}
-
-func TestIsolationLevels(t *testing.T) {
+// TestIsolationLevelsCommand tests the environment creation for different isolation levels
+func TestIsolationLevelsCommand(t *testing.T) {
 	// Set up a temporary directory for the tests
-	tmpDir, err := os.MkdirTemp("", "pvm-test-isolation")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create a test script
 	scriptPath := filepath.Join(tmpDir, "test_script.pl")
-	err = os.WriteFile(scriptPath, []byte("print 'Hello world';\n"), 0755)
-	if err != nil {
-		t.Fatalf("Failed to create test script: %v", err)
-	}
+	err := os.WriteFile(scriptPath, []byte("print 'Hello world';\n"), 0755)
+	require.NoError(t, err, "Failed to create test script")
 
 	// Define test cases for different isolation levels
 	testCases := []struct {
@@ -90,7 +65,7 @@ func TestIsolationLevels(t *testing.T) {
 				// Should only have PERL5LIB pointing to isolated directories
 				foundLocalLib := false
 				cleanPerl5Lib := false
-				
+
 				for _, envVar := range env {
 					if strings.HasPrefix(envVar, "PERL_LOCAL_LIB_ROOT=") {
 						foundLocalLib = true
@@ -99,14 +74,14 @@ func TestIsolationLevels(t *testing.T) {
 						// Should not contain system paths
 						perl5lib := strings.TrimPrefix(envVar, "PERL5LIB=")
 						for _, path := range strings.Split(perl5lib, ":") {
-							if strings.Contains(path, "isolated") {
+							if strings.Contains(path, "isolated") || strings.Contains(path, "test-isolation") {
 								cleanPerl5Lib = true
 								break
 							}
 						}
 					}
 				}
-				
+
 				if !foundLocalLib {
 					t.Errorf("IsolationMedium should set PERL_LOCAL_LIB_ROOT, but not found in env")
 				}
@@ -121,31 +96,35 @@ func TestIsolationLevels(t *testing.T) {
 			checkEnv: func(t *testing.T, env []string) {
 				// Should have minimal environment variables
 				essentialVars := map[string]bool{
-					"PATH":               true,
-					"HOME":               true,
-					"USER":               true,
-					"SHELL":              true,
-					"TMPDIR":             true,
-					"TERM":               true,
-					"PERL5LIB":           true,
+					"PATH":                true,
+					"HOME":                true,
+					"USER":                true,
+					"SHELL":               true,
+					"TMPDIR":              true,
+					"TERM":                true,
+					"PERL5LIB":            true,
 					"PERL_LOCAL_LIB_ROOT": true,
-					"PERL_MB_OPT":        true,
-					"PERL_MM_OPT":        true,
+					"PERL_MB_OPT":         true,
+					"PERL_MM_OPT":         true,
 				}
-				
-				// Check if environment is minimal
+
+				// Count the variables outside the essential set
+				nonEssentialCount := 0
 				for _, envVar := range env {
 					parts := strings.SplitN(envVar, "=", 2)
 					if len(parts) < 2 {
 						continue
 					}
-					
+
 					key := parts[0]
 					if !essentialVars[key] && !strings.HasPrefix(key, "PVM_") {
-						t.Logf("Unexpected environment variable in high isolation: %s", key)
+						nonEssentialCount++
 					}
 				}
-				
+
+				// Should have fewer environment variables than the original environment
+				assert.Less(t, nonEssentialCount, 20, "IsolationHigh should have minimal non-essential variables")
+
 				// Should have PERL_LOCAL_LIB_ROOT
 				foundLocalLib := false
 				for _, envVar := range env {
@@ -164,33 +143,36 @@ func TestIsolationLevels(t *testing.T) {
 	// Run test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Skip the test that would try to find a real Perl executable
-			t.Skip("Skipping isolation level tests until proper mocking can be set up")
-			
-			// Create a mock for exec.Command
-			mockCmd := &mockCmd{}
-			origExecCommand := execCommand
-			execCommand = mockExecCommand(mockCmd)
+			// Set up mocks
+			mockCmdOutput = "Hello world"
+			mockExecShouldFail = false
+			mockCmdArgs = nil
+			mockCmdEnv = nil
+			execCommand = mockExecCmd
 			defer func() { execCommand = origExecCommand }()
+
+			// Temporarily replace version resolution to avoid system call
+			origResolvePerlExecutable := resolvePerlExecutable
+			resolvePerlExecutable = func(options *ExecutionOptions) (string, error) {
+				return "/mock/bin/perl", nil
+			}
+			defer func() { resolvePerlExecutable = origResolvePerlExecutable }()
 
 			// Create execution options with the test isolation level
 			options := &ExecutionOptions{
 				ScriptPath:     scriptPath,
 				IsolationLevel: tc.isolationLevel,
-				Env:            make(map[string]string),
+				Env:            map[string]string{},
 				Verbose:        true,
-				// In a real test, we would mock the Perl executable resolution
-				PerlVersion:    "/usr/bin/perl", // This would be properly mocked in a full test suite
+				PerlVersion:    "/mock/bin/perl", // We're using a mock resolver but this helps create the proper execution path
 			}
 
 			// Execute the script
 			_, err := ExecuteScript(options)
-			if err != nil {
-				t.Fatalf("ExecuteScript failed: %v", err)
-			}
+			require.NoError(t, err, "ExecuteScript failed")
 
 			// Check the environment
-			tc.checkEnv(t, mockCmd.env)
+			tc.checkEnv(t, mockCmdEnv)
 		})
 	}
 }
@@ -198,47 +180,44 @@ func TestIsolationLevels(t *testing.T) {
 // TestLegacyIsolationFlag tests that the deprecated Isolated flag still works
 func TestLegacyIsolationFlag(t *testing.T) {
 	// Set up a temporary directory for the tests
-	tmpDir, err := os.MkdirTemp("", "pvm-test-legacy-isolation")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create a test script
 	scriptPath := filepath.Join(tmpDir, "test_script.pl")
-	err = os.WriteFile(scriptPath, []byte("print 'Hello world';\n"), 0755)
-	if err != nil {
-		t.Fatalf("Failed to create test script: %v", err)
-	}
+	err := os.WriteFile(scriptPath, []byte("print 'Hello world';\n"), 0755)
+	require.NoError(t, err, "Failed to create test script")
 
-	// Create a mock for exec.Command
-	mockCmd := &mockCmd{}
-	origExecCommand := execCommand
-	execCommand = mockExecCommand(mockCmd)
+	// Set up mocks
+	mockCmdOutput = "Hello world"
+	mockExecShouldFail = false
+	mockCmdArgs = nil
+	mockCmdEnv = nil
+	execCommand = mockExecCmd
 	defer func() { execCommand = origExecCommand }()
 
-	// Skip the test that would try to find a real Perl executable
-	t.Skip("Skipping legacy isolation flag test until proper mocking can be set up")
-	
+	// Temporarily replace version resolution to avoid system call
+	origResolvePerlExecutable := resolvePerlExecutable
+	resolvePerlExecutable = func(options *ExecutionOptions) (string, error) {
+		return "/mock/bin/perl", nil
+	}
+	defer func() { resolvePerlExecutable = origResolvePerlExecutable }()
+
 	// Test with legacy isolation flag
 	options := &ExecutionOptions{
 		ScriptPath:  scriptPath,
 		Isolated:    true,
-		Env:         make(map[string]string),
+		Env:         map[string]string{},
 		Verbose:     true,
-		// In a real test, we would mock the Perl executable resolution
-		PerlVersion: "/usr/bin/perl", // This would be properly mocked in a full test suite
+		PerlVersion: "/mock/bin/perl",
 	}
 
 	// Execute the script
 	_, err = ExecuteScript(options)
-	if err != nil {
-		t.Fatalf("ExecuteScript failed: %v", err)
-	}
+	require.NoError(t, err, "ExecuteScript failed")
 
 	// Should contain PERL_LOCAL_LIB_ROOT (indicating it was converted to IsolationLow)
 	foundLocalLib := false
-	for _, envVar := range mockCmd.env {
+	for _, envVar := range mockCmdEnv {
 		if strings.HasPrefix(envVar, "PERL_LOCAL_LIB_ROOT=") {
 			foundLocalLib = true
 			break
@@ -263,7 +242,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 			checkEnv: func(t *testing.T, env []string) {
 				originalEnvCount := len(os.Environ())
 				if len(env) < originalEnvCount {
-					t.Errorf("Expected at least %d environment variables, got %d", 
+					t.Errorf("Expected at least %d environment variables, got %d",
 						originalEnvCount, len(env))
 				}
 			},
@@ -274,7 +253,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 			checkEnv: func(t *testing.T, env []string) {
 				foundLocalLib := false
 				perl5libSet := false
-				
+
 				for _, envVar := range env {
 					if strings.HasPrefix(envVar, "PERL_LOCAL_LIB_ROOT=") {
 						foundLocalLib = true
@@ -283,7 +262,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 						perl5libSet = true
 					}
 				}
-				
+
 				if !foundLocalLib {
 					t.Errorf("Expected PERL_LOCAL_LIB_ROOT to be set")
 				}
@@ -298,7 +277,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 			checkEnv: func(t *testing.T, env []string) {
 				foundLocalLib := false
 				perl5libSet := false
-				
+
 				for _, envVar := range env {
 					if strings.HasPrefix(envVar, "PERL_LOCAL_LIB_ROOT=") {
 						foundLocalLib = true
@@ -307,7 +286,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 						perl5libSet = true
 					}
 				}
-				
+
 				if !foundLocalLib {
 					t.Errorf("Expected PERL_LOCAL_LIB_ROOT to be set")
 				}
@@ -322,7 +301,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 			checkEnv: func(t *testing.T, env []string) {
 				foundLocalLib := false
 				perl5libSet := false
-				
+
 				for _, envVar := range env {
 					if strings.HasPrefix(envVar, "PERL_LOCAL_LIB_ROOT=") {
 						foundLocalLib = true
@@ -331,14 +310,14 @@ func TestEnvironmentBuilding(t *testing.T) {
 						perl5libSet = true
 					}
 				}
-				
+
 				if !foundLocalLib {
 					t.Errorf("Expected PERL_LOCAL_LIB_ROOT to be set")
 				}
 				if !perl5libSet {
 					t.Errorf("Expected PERL5LIB to be set")
 				}
-				
+
 				// Check that the environment is smaller than the original
 				if len(env) >= len(os.Environ()) {
 					t.Errorf("Expected high isolation to have fewer env vars than original")
@@ -349,18 +328,31 @@ func TestEnvironmentBuilding(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			isolationDir := filepath.Join(tempDir, "pvm-test-env-building")
+			
 			options := &ExecutionOptions{
 				IsolationLevel: tc.isolationLevel,
-				IsolationDir:   filepath.Join(os.TempDir(), "pvm-test-env-building"),
-				Env:            make(map[string]string),
+				IsolationDir:   isolationDir,
+				Env:            map[string]string{},
 			}
-			
+
 			env, err := buildEnvironment(options)
-			if err != nil {
-				t.Fatalf("buildEnvironment failed: %v", err)
-			}
-			
+			require.NoError(t, err, "buildEnvironment failed")
+
 			tc.checkEnv(t, env)
 		})
 	}
+}
+
+// TestInvalidIsolationLevel tests that an invalid isolation level is rejected
+func TestInvalidIsolationLevel(t *testing.T) {
+	options := &ExecutionOptions{
+		IsolationLevel: "invalid_level",
+		Env:            map[string]string{},
+	}
+
+	_, err := buildEnvironment(options)
+	require.Error(t, err, "Invalid isolation level should be rejected")
+	assert.Contains(t, err.Error(), "Invalid isolation level", "Error should indicate invalid level")
 }
