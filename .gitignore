@@ -35,3 +35,4 @@ go.work
 .DS_Store
 Thumbs.db
 coverage.html
+build

@@ -374,7 +374,7 @@ func TestExecuteInlineCode(t *testing.T) {
 func TestIsolationEnvironment(t *testing.T) {
 	tempDir := t.TempDir()
 	isolationDir := filepath.Join(tempDir, "pvm-test-isolation")
-	
+
 	options := &ExecutionOptions{
 		IsolationDir:   isolationDir,
 		Env:            map[string]string{},

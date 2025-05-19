@@ -596,7 +596,7 @@ func newUninstallCommand() *cobra.Command {
 			if !force {
 				cmd.Printf("Are you sure you want to uninstall Perl %s? [y/N] ", version)
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 
 				response = strings.ToLower(strings.TrimSpace(response))
 				if response != "y" && response != "yes" {

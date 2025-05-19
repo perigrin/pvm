@@ -330,7 +330,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
 			isolationDir := filepath.Join(tempDir, "pvm-test-env-building")
-			
+
 			options := &ExecutionOptions{
 				IsolationLevel: tc.isolationLevel,
 				IsolationDir:   isolationDir,

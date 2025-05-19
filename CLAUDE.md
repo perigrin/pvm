@@ -65,3 +65,9 @@ All files are optional with the system working with sensible defaults.
 - Handle errors with structured error codes and detailed messages
 - Maintain backward compatibility with existing Perl version managers
 - Optimize for both performance and usability
+
+## Golang Best Practices
+
+- use Testify for testing
+- use gofumpt for formatting
+- use golangci-lint for linting
