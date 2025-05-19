@@ -93,7 +93,7 @@ print "Script completed successfully\n";
 		testFile := filepath.Join(env.HomeDir, "test_file.txt")
 		if env.FileExists(testFile) {
 			// If this exists from previous test, remove it
-			os.Remove(testFile)
+			_ = os.Remove(testFile)
 		}
 		helpers.AssertFileDoesNotExist(t, testFile,
 			"With isolation=low, file should not be created in current directory")

@@ -38,6 +38,7 @@ func TestCommandRegistry(t *testing.T) {
 
 	if cmd == nil {
 		t.Error("Expected command to be non-nil")
+		return // Return early to avoid potential nil pointer dereference
 	}
 
 	if cmd.Use != "test" {

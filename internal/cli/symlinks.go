@@ -46,7 +46,7 @@ func CreateSymlinks(binaryPath string) (map[string]string, error) {
 		}
 
 		// Remove existing symlink if it exists
-		os.Remove(symlinkPath)
+		_ = os.Remove(symlinkPath) // Ignoring error as it's OK if the file doesn't exist
 
 		// Create the symlink
 		var err error

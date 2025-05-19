@@ -18,7 +18,7 @@ func TestShellInit(t *testing.T) {
 
 	// Run shell init command or skip as TODO if not implemented
 	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"shell", "init"}, "Shell initialization")
-	
+
 	// If we get here, the command succeeded, so run the normal assertions
 	helpers.AssertStringContains(t, stdout, "Shell integration initialized",
 		"Shell init output does not indicate success")
@@ -45,11 +45,11 @@ func TestBashIntegration(t *testing.T) {
 	defer env.Cleanup()
 
 	// First run shell init or skip as TODO if not implemented
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"shell", "init"}, "Shell initialization")
+	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"shell", "init"}, "Shell initialization")
 
 	// Source the bash script
 	bashScript := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")
-	
+
 	// Check if the bash script exists before continuing
 	if _, err := os.Stat(bashScript); os.IsNotExist(err) {
 		helpers.SkipTODO(t, "Bash shell integration script")
@@ -106,7 +106,7 @@ func TestPerlVersionFileDetection(t *testing.T) {
 	}
 
 	// Initialize shell integration
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"shell", "init"}, "Shell initialization")
+	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"shell", "init"}, "Shell initialization")
 
 	// Look for the bash script
 	bashScript := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")

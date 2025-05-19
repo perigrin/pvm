@@ -150,7 +150,7 @@ func TestParseFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	tmpFile := filepath.Join(tmpDir, "pvm.toml")
 
@@ -318,7 +318,7 @@ func TestSaveConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Save the configuration
 	tmpFile := filepath.Join(tmpDir, "pvm.toml")

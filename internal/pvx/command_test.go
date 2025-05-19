@@ -19,16 +19,16 @@ func TestPVXCommand(t *testing.T) {
 	t.Run("ShowsHelpWhenNoArgs", func(t *testing.T) {
 		// Create a new PVX command
 		cmd := NewCommand()
-		
+
 		// Capture output
 		output := new(bytes.Buffer)
 		cmd.SetOut(output)
 		cmd.SetErr(output)
-		
+
 		// Execute with no arguments
 		cmd.SetArgs([]string{})
 		err := cmd.Execute()
-		
+
 		// Should succeed and output should contain help text
 		require.NoError(t, err)
 		assert.Contains(t, output.String(), "pvx [options] script.pl [args...]")
@@ -41,56 +41,56 @@ func TestPVXCommand(t *testing.T) {
 		scriptPath := filepath.Join(tempDir, "test.pl")
 		err := os.WriteFile(scriptPath, []byte(`print "Hello from PVX CLI";`), 0755)
 		require.NoError(t, err)
-		
+
 		// Create a new PVX command
 		cmd := NewCommand()
-		
+
 		// Capture output
 		output := new(bytes.Buffer)
 		cmd.SetOut(output)
 		cmd.SetErr(output)
-		
+
 		// Override os.Exit to prevent test termination
 		origOsExit := osExit
 		defer func() { osExit = origOsExit }()
-		
+
 		exitCode := 0
 		osExit = func(code int) {
 			exitCode = code
 		}
-		
+
 		// Execute with script path
 		cmd.SetArgs([]string{scriptPath})
 		err = cmd.Execute()
-		
+
 		// Should succeed
 		require.NoError(t, err)
 		assert.Equal(t, 0, exitCode, "Exit code should be 0")
 	})
-	
+
 	t.Run("InlineCodeExecution", func(t *testing.T) {
 		t.Skip("Skipping inline code test until proper mocking can be set up")
 		// Create a new PVX command
 		cmd := NewCommand()
-		
+
 		// Capture output
 		output := new(bytes.Buffer)
 		cmd.SetOut(output)
 		cmd.SetErr(output)
-		
+
 		// Override os.Exit to prevent test termination
 		origOsExit := osExit
 		defer func() { osExit = origOsExit }()
-		
+
 		exitCode := 0
 		osExit = func(code int) {
 			exitCode = code
 		}
-		
+
 		// Set the -e flag with inline Perl code
 		cmd.SetArgs([]string{"-e", `print "Hello from inline Perl!";`})
 		err := cmd.Execute()
-		
+
 		// Should succeed
 		require.NoError(t, err)
 		assert.Equal(t, 0, exitCode, "Exit code should be 0")

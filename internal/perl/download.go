@@ -306,7 +306,7 @@ func downloadFile(url, destPath string, options *DownloadOptions) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
@@ -326,7 +326,7 @@ func downloadFile(url, destPath string, options *DownloadOptions) error {
 		return err
 	}
 	defer func() {
-		out.Close()
+		_ = out.Close()
 		// Clean up temporary file on error
 		if err != nil {
 			os.Remove(tmpPath)
@@ -353,7 +353,7 @@ func downloadFile(url, destPath string, options *DownloadOptions) error {
 	}
 
 	// Close file before renaming
-	out.Close()
+	_ = out.Close()
 
 	// Move temporary file to destination
 	err = os.Rename(tmpPath, destPath)
@@ -375,7 +375,7 @@ func calculateFileChecksum(filePath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	hasher := sha256.New()
 	_, err = io.Copy(hasher, file)
@@ -437,7 +437,7 @@ func VerifyMirror(mirror string) error {
 			fmt.Sprintf("Failed to connect to mirror: %s", mirror),
 			err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status code
 	if resp.StatusCode >= 400 {

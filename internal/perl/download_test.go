@@ -104,7 +104,7 @@ func setupDownloadTest(t *testing.T) *downloadTestEnv {
 				if len(rangeParts) == 2 {
 					// Return a partial response
 					w.WriteHeader(http.StatusPartialContent)
-					fmt.Fprintf(w, "Partial content for %s", path)
+					_, _ = fmt.Fprintf(w, "Partial content for %s", path)
 					return
 				}
 			}
@@ -118,12 +118,12 @@ func setupDownloadTest(t *testing.T) *downloadTestEnv {
 
 			// Generate content based on the path to ensure uniqueness
 			for i := 0; i < 1024; i++ {
-				w.Write([]byte{byte(i % 256)})
+				_, _ = w.Write([]byte{byte(i % 256)})
 			}
 		} else {
 			// Default response
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "Mock response for %s", path)
+			_, _ = fmt.Fprintf(w, "Mock response for %s", path)
 		}
 	}))
 	env.server = server
@@ -402,7 +402,7 @@ func TestDownloadCancellation(t *testing.T) {
 	tmpDir := os.TempDir()
 	tmpFile, err := os.CreateTemp(tmpDir, "download-test-*.tmp")
 	if err == nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		defer os.Remove(tmpFile.Name())
 	}
 
@@ -519,7 +519,7 @@ func TestCalculateFileChecksum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to write to temp file: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Expected SHA-256 checksum for "Hello, world!"
 	expectedChecksum := "315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3"

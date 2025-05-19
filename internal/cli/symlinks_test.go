@@ -17,7 +17,7 @@ func TestVerifySymlinks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test binary: %v", err)
 	}
-	defer os.Remove(binPath)
+	defer func() { _ = os.Remove(binPath) }()
 
 	// Verify with no symlinks
 	status := VerifySymlinks(binPath)
@@ -44,7 +44,7 @@ func TestCreateSymlinks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test binary: %v", err)
 	}
-	defer os.Remove(binPath)
+	defer func() { _ = os.Remove(binPath) }()
 
 	// Create symlinks
 	symlinks, err := CreateSymlinks(binPath)
@@ -61,7 +61,7 @@ func TestCreateSymlinks(t *testing.T) {
 		}
 
 		// Clean up
-		os.Remove(symlinkPath)
+		_ = os.Remove(symlinkPath)
 	}
 }
 
@@ -72,8 +72,8 @@ func TestCopyFile(t *testing.T) {
 	dstPath := filepath.Join(tempDir, "dest_file")
 
 	// Clean up any existing files
-	os.Remove(srcPath)
-	os.Remove(dstPath)
+	_ = os.Remove(srcPath)
+	_ = os.Remove(dstPath)
 
 	// Write content to source file
 	content := []byte("test content")
@@ -81,14 +81,14 @@ func TestCopyFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create source file: %v", err)
 	}
-	defer os.Remove(srcPath)
+	defer func() { _ = os.Remove(srcPath) }()
 
 	// Copy the file
 	err = copyFile(srcPath, dstPath)
 	if err != nil {
 		t.Fatalf("Failed to copy file: %v", err)
 	}
-	defer os.Remove(dstPath)
+	defer func() { _ = os.Remove(dstPath) }()
 
 	// Check that the destination file exists and has the correct content
 	dstContent, err := os.ReadFile(dstPath)

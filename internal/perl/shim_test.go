@@ -98,7 +98,10 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 	}
 
 	// Save the fake registry
-	SaveRegistry(registry)
+	err = SaveRegistry(registry)
+	if err != nil {
+		t.Fatalf("Failed to save registry: %v", err)
+	}
 
 	// Create mock dirs structure
 	dirs := &xdg.Dirs{
@@ -170,12 +173,15 @@ func TestCreateShim(t *testing.T) {
 		return pvmPath, nil
 	}
 
-	// Update the cleanup function to also restore executablePath
-	oldCleanup := cleanup
+	// Create a new cleanup function that also restores executablePath
+	originalCleanup := cleanup
 	cleanup = func() {
+		if originalCleanup != nil {
+			originalCleanup()
+		}
 		executablePath = originalExecutable
-		oldCleanup()
 	}
+	t.Cleanup(cleanup)
 
 	// Create a shim for perl
 	shimInfo := ShimInfo{

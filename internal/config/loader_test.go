@@ -129,12 +129,20 @@ func TestGetProjectRoot(t *testing.T) {
 
 	// Save current directory
 	oldDir, _ := os.Getwd()
-	defer os.Chdir(oldDir)
+	defer func() {
+		err := os.Chdir(oldDir)
+		if err != nil {
+			t.Logf("Failed to return to original directory: %v", err)
+		}
+	}()
 
 	// Test finding project root from different locations
 
 	t.Run("FromProjectRoot", func(t *testing.T) {
-		os.Chdir(projectRoot)
+		err := os.Chdir(projectRoot)
+		if err != nil {
+			t.Fatalf("Failed to change to project root: %v", err)
+		}
 
 		root := GetProjectRoot()
 		// On macOS, /var/folders resolves to /private/var/folders, so use filepath.EvalSymlinks
@@ -146,7 +154,10 @@ func TestGetProjectRoot(t *testing.T) {
 	})
 
 	t.Run("FromNestedDirectory", func(t *testing.T) {
-		os.Chdir(subDir2)
+		err := os.Chdir(subDir2)
+		if err != nil {
+			t.Fatalf("Failed to change to subdirectory: %v", err)
+		}
 
 		root := GetProjectRoot()
 		// On macOS, /var/folders resolves to /private/var/folders, so use filepath.EvalSymlinks
@@ -158,7 +169,10 @@ func TestGetProjectRoot(t *testing.T) {
 	})
 
 	t.Run("OutsideProject", func(t *testing.T) {
-		os.Chdir(testDir)
+		err := os.Chdir(testDir)
+		if err != nil {
+			t.Fatalf("Failed to change to test directory: %v", err)
+		}
 
 		root := GetProjectRoot()
 		if root != "" {

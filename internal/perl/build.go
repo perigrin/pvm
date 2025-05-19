@@ -511,11 +511,11 @@ func doExtractArchive(archivePath, destDir string, ctx context.Context) (string,
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Determine the archive type based on extension
-	var reader io.Reader = file
 	baseName := filepath.Base(archivePath)
+	var reader io.Reader
 
 	// Extract archive based on its type
 	if strings.HasSuffix(baseName, ".tar.gz") || strings.HasSuffix(baseName, ".tgz") {
@@ -524,7 +524,7 @@ func doExtractArchive(archivePath, destDir string, ctx context.Context) (string,
 		if err != nil {
 			return "", err
 		}
-		defer gzReader.Close()
+		defer func() { _ = gzReader.Close() }()
 		reader = gzReader
 	} else if strings.HasSuffix(baseName, ".tar.xz") {
 		// Create xz reader
@@ -595,10 +595,10 @@ func doExtractArchive(archivePath, destDir string, ctx context.Context) (string,
 
 			// Copy file content
 			if _, err := io.Copy(f, tarReader); err != nil {
-				f.Close()
+				_ = f.Close()
 				return "", err
 			}
-			f.Close()
+			_ = f.Close()
 
 		case tar.TypeSymlink:
 			// Create parent directory if it doesn't exist

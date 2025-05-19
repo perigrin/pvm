@@ -164,7 +164,7 @@ func AssertPVMSucceedsOrSkipTODO(t *testing.T, env *TestEnv, args []string, feat
 	t.Helper()
 	stdout, stderr, err := env.RunPVM(args...)
 	if err != nil {
-		t.Skip(fmt.Sprintf("TODO: %s not yet implemented\nCommand: pvm %s\nError: %v\nStdout: %s\nStderr: %s", 
+		t.Skip(fmt.Sprintf("TODO: %s not yet implemented\nCommand: pvm %s\nError: %v\nStdout: %s\nStderr: %s",
 			feature, strings.Join(args, " "), err, stdout, stderr))
 	}
 	return stdout
@@ -176,7 +176,7 @@ func AssertPVMFailsOrSkipTODO(t *testing.T, env *TestEnv, args []string, feature
 	t.Helper()
 	stdout, stderr, err := env.RunPVM(args...)
 	if err == nil {
-		t.Skip(fmt.Sprintf("TODO: %s not yet implemented (command succeeded unexpectedly)\nCommand: pvm %s\nStdout: %s\nStderr: %s", 
+		t.Skip(fmt.Sprintf("TODO: %s not yet implemented (command succeeded unexpectedly)\nCommand: pvm %s\nStdout: %s\nStderr: %s",
 			feature, strings.Join(args, " "), stdout, stderr))
 	}
 	return stderr

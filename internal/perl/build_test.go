@@ -95,7 +95,7 @@ func setupTestDirs(t *testing.T) (*xdg.Dirs, string) {
 	originalGetDirs := xdg.GetDirs
 	t.Cleanup(func() {
 		xdg.GetDirs = originalGetDirs
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		resetMocks()
 	})
 
@@ -115,7 +115,7 @@ func createMockArchive(t *testing.T, dirs *xdg.Dirs, version string) string {
 	// Create a minimal tar.gz file (just enough to be valid)
 	f, err := os.Create(archivePath)
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Just create an empty file - we'll mock the extraction
 	// In a more thorough test, we would create a real tar.gz with minimal content
@@ -234,7 +234,7 @@ func TestBuildPerlDownload(t *testing.T) {
 
 		f, err := os.Create(archivePath)
 		require.NoError(t, err)
-		f.Close()
+		_ = f.Close()
 
 		return &DownloadResult{
 			Version: version,
@@ -449,7 +449,7 @@ func TestBuildPerlWithDefaults(t *testing.T) {
 
 		f, err := os.Create(archivePath)
 		require.NoError(t, err)
-		f.Close()
+		_ = f.Close()
 
 		return &DownloadResult{
 			Version: version,

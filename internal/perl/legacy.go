@@ -279,7 +279,7 @@ func DetectPerlbrew() ([]LegacyPerl, error) {
 		// Parse aliases file if it exists
 		file, err := os.Open(aliasFile)
 		if err == nil {
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 
 			// Each line should be in the format: alias_name=actual_name
 			scanner := bufio.NewScanner(file)

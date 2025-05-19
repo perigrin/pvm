@@ -55,10 +55,10 @@ func TestVersionSwitching(t *testing.T) {
 	defer env.Cleanup()
 
 	// Import system Perl first or skip as TODO if not implemented
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"import-system"}, "System Perl import")
+	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"import-system"}, "System Perl import")
 
 	// Get the system Perl version or skip as TODO if not implemented
-	stdout = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"list"}, "Perl version listing")
+	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"list"}, "Perl version listing")
 	lines := strings.Split(stdout, "\n")
 	var systemVersion string
 	for _, line := range lines {
@@ -77,7 +77,7 @@ func TestVersionSwitching(t *testing.T) {
 	}
 
 	// Test local version setting or skip as TODO if not implemented
-	stdout = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"local", systemVersion}, "Local Perl version setting")
+	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"local", systemVersion}, "Local Perl version setting")
 
 	// Verify .perl-version file was created
 	dotPerlVersionPath := filepath.Join(env.HomeDir, ".perl-version")
@@ -85,7 +85,7 @@ func TestVersionSwitching(t *testing.T) {
 	helpers.AssertPerlVersionFile(t, dotPerlVersionPath, systemVersion, "Wrong version in .perl-version file")
 
 	// Test global version setting or skip as TODO if not implemented
-	stdout = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"global", systemVersion}, "Global Perl version setting")
+	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"global", systemVersion}, "Global Perl version setting")
 
 	// Verify config file was updated
 	configFile := filepath.Join(env.PVMConfigDir, "pvm.toml")
@@ -104,7 +104,7 @@ func TestInstallPerl(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping Perl installation test in short mode")
 	}
-	
+
 	helpers.SkipTODO(t, "Perl version installation functionality")
 }
 
@@ -120,10 +120,10 @@ func TestUninstallPerl(t *testing.T) {
 	defer env.Cleanup()
 
 	// Import system Perl to have something we can uninstall
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"import-system"}, "System Perl import")
+	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"import-system"}, "System Perl import")
 
 	// Get the system Perl version
-	stdout = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"list"}, "Perl version listing")
+	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"list"}, "Perl version listing")
 	lines := strings.Split(stdout, "\n")
 	var systemVersion string
 	for _, line := range lines {

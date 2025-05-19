@@ -45,11 +45,11 @@ func TestConfigSetCommand(t *testing.T) {
 
 	// Set a config value or skip as TODO if not implemented
 	testValue := "5.36.0"
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"config", "set", "pvm.default_perl", testValue},
+	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"config", "set", "pvm.default_perl", testValue},
 		"Configuration value setting")
 
 	// Get the value to verify it was set
-	stdout = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"config", "get", "pvm.default_perl"},
+	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"config", "get", "pvm.default_perl"},
 		"Configuration value retrieval")
 
 	// Check that the value was set correctly
