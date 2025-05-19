@@ -67,7 +67,7 @@ func setupShellTest(t *testing.T) func() {
 		executablePath = origExecutablePath
 
 		// Remove temporary directory
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}
 }
 
@@ -75,7 +75,7 @@ func setupShellTest(t *testing.T) func() {
 func TestDetectShell(t *testing.T) {
 	// Save original environment variables
 	origShell := os.Getenv("SHELL")
-	defer os.Setenv("SHELL", origShell)
+	defer func() { _ = os.Setenv("SHELL", origShell) }()
 
 	// Test cases
 	testCases := []struct {
@@ -95,7 +95,7 @@ func TestDetectShell(t *testing.T) {
 			continue
 		}
 
-		os.Setenv("SHELL", tc.shellEnv)
+		_ = os.Setenv("SHELL", tc.shellEnv)
 		shell, err := DetectShell()
 		if err != nil {
 			t.Errorf("DetectShell() error = %v", err)
@@ -336,12 +336,12 @@ func TestVersionSwitching(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Change to the temporary directory
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(tmpDir)
 
 	// Set local version
 	err = SetLocalVersion("5.38.0")
@@ -368,7 +368,7 @@ func TestPerlVersionFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(rootDir)
+	defer func() { _ = os.RemoveAll(rootDir) }()
 
 	// Create nested directories
 	subDir1 := filepath.Join(rootDir, "dir1")
@@ -451,12 +451,12 @@ func TestCheckShellInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Mock environment and user home directory
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	// Create example shell config files
 	bashrcPath := filepath.Join(tmpDir, ".bashrc")

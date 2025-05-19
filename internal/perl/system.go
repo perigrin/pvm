@@ -296,9 +296,7 @@ func GetSystemPerlVersion(perlPath string) (string, error) {
 	version := stdout.String()
 
 	// If the output starts with 'v', remove it
-	if strings.HasPrefix(version, "v") {
-		version = version[1:]
-	}
+	version = strings.TrimPrefix(version, "v")
 
 	return version, nil
 }

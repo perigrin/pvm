@@ -239,10 +239,7 @@ func DetectPerlbrew() ([]LegacyPerl, error) {
 				isDefault := versionName == defaultVersion
 
 				// Clean up the version name (perlbrew often uses names like perl-5.32.1)
-				cleanVersion := versionName
-				if strings.HasPrefix(cleanVersion, "perl-") {
-					cleanVersion = cleanVersion[5:]
-				}
+				cleanVersion := strings.TrimPrefix(versionName, "perl-")
 
 				installations = append(installations, LegacyPerl{
 					Path:      path,
@@ -349,7 +346,7 @@ func GetPerlbrewAliases() (map[string]string, error) {
 			"Failed to open perlbrew aliases file",
 			err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Each line should be in the format: alias_name=actual_name
 	scanner := bufio.NewScanner(file)

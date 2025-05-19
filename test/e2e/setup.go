@@ -4,16 +4,19 @@
 package e2e
 
 import (
-	"math/rand"
-	"strings"
-	"time"
+	// Uncomment when the commented-out functionality is needed
+	// "math/rand"
+	// "strings"
+	// "time"
 )
 
-// init initializes the random number generator
-func init() {
-	// Seed random number generator
-	rand.Seed(time.Now().UnixNano())
-}
+// This file contains setup code for end-to-end tests
+// Since it's currently unused, the functionality has been commented out
+// rather than removed in case it's needed in the future
+
+/*
+// Random source for test functions
+var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // generateRandomID generates a random string ID for test purposes
 func generateRandomID() string {
@@ -21,8 +24,9 @@ func generateRandomID() string {
 	result := strings.Builder{}
 
 	for i := 0; i < 8; i++ {
-		result.WriteByte(chars[rand.Intn(len(chars))])
+		result.WriteByte(chars[rng.Intn(len(chars))])
 	}
 
 	return result.String()
 }
+*/

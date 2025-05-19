@@ -159,7 +159,7 @@ print "Script completed successfully\n";
 	}
 
 	// Set a test environment variable
-	os.Setenv("TEST_VAR", "test_value")
+	_ = os.Setenv("TEST_VAR", "test_value")
 
 	// Test environment variable passing with different isolation levels
 	isolationLevels := []string{"none", "low"}

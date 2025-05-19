@@ -56,7 +56,7 @@ type TestEnv struct {
 // NewTestEnv creates a new isolated test environment
 func NewTestEnv(t *testing.T) *TestEnv {
 	// Create root directory for test with test name
-	testName := strings.Replace(t.Name(), "/", "_", -1)
+	testName := strings.ReplaceAll(t.Name(), "/", "_")
 	rootDir, err := os.MkdirTemp("", "pvm-e2e-test-"+testName+"-")
 	if err != nil {
 		t.Fatalf("Failed to create test root directory: %v", err)
@@ -161,21 +161,21 @@ func (e *TestEnv) saveEnvironment() {
 // setEnvironment sets up the test environment variables
 func (e *TestEnv) setEnvironment() {
 	// Set environment variables
-	os.Setenv("HOME", e.HomeDir)
-	os.Setenv("XDG_CONFIG_HOME", e.ConfigHome)
-	os.Setenv("XDG_DATA_HOME", e.DataHome)
-	os.Setenv("XDG_CACHE_HOME", e.CacheHome)
-	os.Setenv("XDG_STATE_HOME", e.StateHome)
+	_ = os.Setenv("HOME", e.HomeDir)
+	_ = os.Setenv("XDG_CONFIG_HOME", e.ConfigHome)
+	_ = os.Setenv("XDG_DATA_HOME", e.DataHome)
+	_ = os.Setenv("XDG_CACHE_HOME", e.CacheHome)
+	_ = os.Setenv("XDG_STATE_HOME", e.StateHome)
 
 	// Add PVM bin and shims directories to PATH
 	path := fmt.Sprintf("%s:%s:%s", e.PVMBinDir, e.PVMShimsDir, os.Getenv("PATH"))
-	os.Setenv("PATH", path)
+	_ = os.Setenv("PATH", path)
 
 	// Set PVM_HOME
-	os.Setenv("PVM_HOME", e.PVMDataDir)
+	_ = os.Setenv("PVM_HOME", e.PVMDataDir)
 
 	// Unset PERL_VERSION to start clean
-	os.Unsetenv("PERL_VERSION")
+	_ = os.Unsetenv("PERL_VERSION")
 }
 
 // Cleanup removes the test environment
@@ -189,14 +189,14 @@ func (e *TestEnv) Cleanup() {
 	// Restore original environment
 	for k, v := range e.OriginalEnv {
 		if v == "" {
-			os.Unsetenv(k)
+			_ = os.Unsetenv(k)
 		} else {
-			os.Setenv(k, v)
+			_ = os.Setenv(k, v)
 		}
 	}
 
 	// Remove test directory
-	os.RemoveAll(e.RootDir)
+	_ = os.RemoveAll(e.RootDir)
 }
 
 // RunPVM runs the PVM binary with the given arguments
@@ -311,7 +311,7 @@ func (e *TestEnv) CopyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() { _ = sourceFile.Close() }()
 
 	// If dst is not absolute, make it relative to root dir
 	if !filepath.IsAbs(dst) {
@@ -327,7 +327,7 @@ func (e *TestEnv) CopyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	_, err = io.Copy(destFile, sourceFile)
 	if err != nil {

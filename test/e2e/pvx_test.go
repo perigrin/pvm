@@ -134,7 +134,7 @@ print "TEST_VAR=", $ENV{TEST_VAR} || "undefined", "\n";
 	}
 
 	// Set the environment variable in the test process
-	os.Setenv("TEST_VAR", "test_value")
+	_ = os.Setenv("TEST_VAR", "test_value")
 
 	// Run the script, which should inherit the environment variable
 	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,

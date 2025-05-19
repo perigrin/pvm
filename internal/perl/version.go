@@ -43,14 +43,10 @@ func parseVersionFunc(version string) (PerlVersion, error) {
 	version = strings.TrimSpace(version)
 
 	// Remove "perl-" prefix if present
-	if strings.HasPrefix(version, "perl-") {
-		version = version[5:]
-	}
+	version = strings.TrimPrefix(version, "perl-")
 
 	// Remove "v" prefix if present
-	if strings.HasPrefix(version, "v") {
-		version = version[1:]
-	}
+	version = strings.TrimPrefix(version, "v")
 
 	// Define regex patterns for valid version formats
 	patterns := []*regexp.Regexp{

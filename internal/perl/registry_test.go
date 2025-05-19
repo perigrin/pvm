@@ -59,7 +59,7 @@ func setupTestRegistry(t *testing.T) (*VersionRegistry, string, func()) {
 	cleanup := func() {
 		LoadRegistry = originalLoadRegistry
 		SaveRegistry = originalSaveRegistry
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 	}
 
 	return registry, registryPath, cleanup
@@ -513,8 +513,26 @@ func TestLoadRegistryFullCoverage(t *testing.T) {
 				},
 			},
 		}
-		regJSON, _ := json.Marshal(expectedRegistry)
-		ioutilReadFile = func(filename string) ([]byte, error) {
+	// Create a version without build options for serialization
+	simpleRegistry := &VersionRegistry{
+		Versions: make(map[string]VersionInfo),
+	}
+	
+	// Copy only the basic fields, explicitly setting BuildOptions to nil
+	for k, v := range expectedRegistry.Versions {
+		versionCopy := VersionInfo{
+			Version:     v.Version,
+			InstallPath: v.InstallPath,
+			InstallTime: v.InstallTime,
+			Source:      v.Source,
+			BuildOptions: nil, // Explicitly set to nil to avoid marshaling issues
+		}
+		simpleRegistry.Versions[k] = versionCopy
+	}
+	
+	// nolint:staticcheck // SA1026: We're deliberately excluding BuildOptions which contains the problematic BuildProgressCallback
+	regJSON, _ := json.Marshal(simpleRegistry)
+	ioutilReadFile = func(filename string) ([]byte, error) {
 			return regJSON, nil
 		}
 
