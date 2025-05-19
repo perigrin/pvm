@@ -19,10 +19,10 @@ func TestGetDirs(t *testing.T) {
 
 	// Restore environment variables after the test
 	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", oldConfigHome)
-		os.Setenv("XDG_CACHE_HOME", oldCacheHome)
-		os.Setenv("XDG_DATA_HOME", oldDataHome)
-		os.Setenv("XDG_STATE_HOME", oldStateHome)
+		_ = os.Setenv("XDG_CONFIG_HOME", oldConfigHome)
+		_ = os.Setenv("XDG_CACHE_HOME", oldCacheHome)
+		_ = os.Setenv("XDG_DATA_HOME", oldDataHome)
+		_ = os.Setenv("XDG_STATE_HOME", oldStateHome)
 	}()
 
 	t.Run("ExplicitEnvironmentVariables", func(t *testing.T) {
@@ -33,10 +33,10 @@ func TestGetDirs(t *testing.T) {
 		testDataDir := filepath.Join(testDir, "data")
 		testStateDir := filepath.Join(testDir, "state")
 
-		os.Setenv("XDG_CONFIG_HOME", testConfigDir)
-		os.Setenv("XDG_CACHE_HOME", testCacheDir)
-		os.Setenv("XDG_DATA_HOME", testDataDir)
-		os.Setenv("XDG_STATE_HOME", testStateDir)
+		_ = os.Setenv("XDG_CONFIG_HOME", testConfigDir)
+		_ = os.Setenv("XDG_CACHE_HOME", testCacheDir)
+		_ = os.Setenv("XDG_DATA_HOME", testDataDir)
+		_ = os.Setenv("XDG_STATE_HOME", testStateDir)
 
 		dirs, err := GetDirs()
 		if err != nil {
@@ -87,10 +87,10 @@ func TestGetDirs(t *testing.T) {
 
 	t.Run("DefaultFallbacks", func(t *testing.T) {
 		// Clear environment variables to test defaults
-		os.Unsetenv("XDG_CONFIG_HOME")
-		os.Unsetenv("XDG_CACHE_HOME")
-		os.Unsetenv("XDG_DATA_HOME")
-		os.Unsetenv("XDG_STATE_HOME")
+		_ = os.Unsetenv("XDG_CONFIG_HOME")
+		_ = os.Unsetenv("XDG_CACHE_HOME")
+		_ = os.Unsetenv("XDG_DATA_HOME")
+		_ = os.Unsetenv("XDG_STATE_HOME")
 
 		dirs, err := GetDirs()
 		if err != nil {
@@ -143,10 +143,10 @@ func TestEnsureDirs(t *testing.T) {
 	testDir := t.TempDir()
 
 	// Set environment variables to use the test directory
-	os.Setenv("XDG_CONFIG_HOME", filepath.Join(testDir, "config"))
-	os.Setenv("XDG_CACHE_HOME", filepath.Join(testDir, "cache"))
-	os.Setenv("XDG_DATA_HOME", filepath.Join(testDir, "data"))
-	os.Setenv("XDG_STATE_HOME", filepath.Join(testDir, "state"))
+	_ = os.Setenv("XDG_CONFIG_HOME", filepath.Join(testDir, "config"))
+	_ = os.Setenv("XDG_CACHE_HOME", filepath.Join(testDir, "cache"))
+	_ = os.Setenv("XDG_DATA_HOME", filepath.Join(testDir, "data"))
+	_ = os.Setenv("XDG_STATE_HOME", filepath.Join(testDir, "state"))
 
 	// Get directories
 	dirs, err := GetDirs()
@@ -183,7 +183,7 @@ func TestEnsureDirs(t *testing.T) {
 func TestGetConfigFilePath(t *testing.T) {
 	// Create a temporary directory for the test
 	testDir := t.TempDir()
-	os.Setenv("XDG_CONFIG_HOME", testDir)
+	_ = os.Setenv("XDG_CONFIG_HOME", testDir)
 
 	// Get directories
 	dirs, err := GetDirs()

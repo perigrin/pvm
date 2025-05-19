@@ -128,9 +128,7 @@ func GenerateSourceURL(mirror, version string) (string, error) {
 
 // DownloadPerlSourceFunc holds the current implementation of DownloadPerlSource
 // It can be replaced with a mock for testing
-var DownloadPerlSourceFunc = func(options *DownloadOptions) (*DownloadResult, error) {
-	return doDownloadPerlSource(options)
-}
+var DownloadPerlSourceFunc = doDownloadPerlSource
 
 // DownloadPerlSource downloads a Perl source archive for the specified version
 func DownloadPerlSource(options *DownloadOptions) (*DownloadResult, error) {
@@ -329,7 +327,7 @@ func downloadFile(url, destPath string, options *DownloadOptions) error {
 		_ = out.Close()
 		// Clean up temporary file on error
 		if err != nil {
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath)
 		}
 	}()
 

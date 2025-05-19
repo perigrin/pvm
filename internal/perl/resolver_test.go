@@ -47,7 +47,7 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
 	env.tempDir = tempDir
-	env.cleanup = append(env.cleanup, func() { os.RemoveAll(tempDir) })
+	env.cleanup = append(env.cleanup, func() { _ = os.RemoveAll(tempDir) })
 
 	// Create project directories
 	env.projectDir = filepath.Join(tempDir, "project")
@@ -89,9 +89,9 @@ func (env *resolverTestEnv) cleanup_() {
 	// Restore environment variables
 	for name, value := range env.origEnv {
 		if value == "" {
-			os.Unsetenv(name)
+			_ = os.Unsetenv(name)
 		} else {
-			os.Setenv(name, value)
+			_ = os.Setenv(name, value)
 		}
 	}
 
@@ -302,8 +302,8 @@ func TestResolveEnvironmentVariables(t *testing.T) {
 	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
 
 	// Test PLENV_VERSION (higher precedence)
-	os.Setenv("PLENV_VERSION", "5.38.0")
-	os.Setenv("PERLBREW_PERL", "perl-5.36.0")
+	_ = os.Setenv("PLENV_VERSION", "5.38.0")
+	_ = os.Setenv("PERLBREW_PERL", "perl-5.36.0")
 
 	options := &ResolutionOptions{
 		AvailableVersions:   availableVersions,
@@ -325,7 +325,7 @@ func TestResolveEnvironmentVariables(t *testing.T) {
 	}
 
 	// Test PERLBREW_PERL (lower precedence)
-	os.Unsetenv("PLENV_VERSION")
+	_ = os.Unsetenv("PLENV_VERSION")
 
 	resolved, err = ResolveVersion(options)
 	if err != nil {
@@ -440,7 +440,7 @@ func TestResolutionPrecedence(t *testing.T) {
 	}
 
 	// 3. Environment variables
-	os.Setenv("PERLBREW_PERL", "perl-5.34.1")
+	_ = os.Setenv("PERLBREW_PERL", "perl-5.34.1")
 
 	// 4. Project config
 	env.createProjectConfig(t, "5.36.0", nil)
@@ -474,8 +474,8 @@ func TestResolutionPrecedence(t *testing.T) {
 
 	// Test precedence
 	// Reset environment variables for testing precedence
-	os.Unsetenv("PLENV_VERSION")
-	os.Setenv("PERLBREW_PERL", "perl-5.34.1")
+	_ = os.Unsetenv("PLENV_VERSION")
+	_ = os.Setenv("PERLBREW_PERL", "perl-5.34.1")
 
 	tests := []struct {
 		name     string

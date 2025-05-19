@@ -96,7 +96,7 @@ func resolveVersion(version string) (string, error) {
     result, err := doSomething()
     if err != nil {
         // Add context to the error
-        return "", errors.Wrap(err, PrefixPVM, CategoryVersion, "002", 
+        return "", errors.Wrap(err, PrefixPVM, CategoryVersion, "002",
             "Failed to resolve version alias")
     }
     return result, nil

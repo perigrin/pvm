@@ -43,7 +43,7 @@ func setupDownloadTest(t *testing.T) *downloadTestEnv {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
 	env.tempDir = tempDir
-	env.cleanup = append(env.cleanup, func() { os.RemoveAll(tempDir) })
+	env.cleanup = append(env.cleanup, func() { _ = os.RemoveAll(tempDir) })
 
 	// Create sources directory
 	sourcesDir := filepath.Join(tempDir, "sources")
@@ -403,7 +403,7 @@ func TestDownloadCancellation(t *testing.T) {
 	tmpFile, err := os.CreateTemp(tmpDir, "download-test-*.tmp")
 	if err == nil {
 		_ = tmpFile.Close()
-		defer os.Remove(tmpFile.Name())
+		defer func() { _ = os.Remove(tmpFile.Name()) }()
 	}
 
 	go func() {
@@ -511,7 +511,7 @@ func TestCalculateFileChecksum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 	// Write some data to the file
 	data := "Hello, world!"

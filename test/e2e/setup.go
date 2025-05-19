@@ -3,12 +3,10 @@
 
 package e2e
 
-import (
-	// Uncomment when the commented-out functionality is needed
-	// "math/rand"
-	// "strings"
-	// "time"
-)
+// Uncomment when the commented-out functionality is needed
+// "math/rand"
+// "strings"
+// "time"
 
 // This file contains setup code for end-to-end tests
 // Since it's currently unused, the functionality has been commented out

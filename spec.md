@@ -26,7 +26,7 @@ A key design principle is that the tools work immediately without requiring any 
 
 The system seamlessly integrates with existing Perl version managers:
 
-- **plenv Integration**: 
+- **plenv Integration**:
   - Detects and reads `.perl-version` files
   - Recognizes Perl versions installed via plenv in `~/.plenv/versions/`
   - Uses the same version specification format for compatibility
@@ -126,7 +126,7 @@ All configuration files are **optional**. The system works without any configura
 Runtime data is stored in XDG-compliant locations:
 
 - **Installed Perl versions**: `$XDG_DATA_HOME/pvm/versions/`
-- **Downloaded source archives**: `$XDG_CACHE_HOME/pvm/sources/`  
+- **Downloaded source archives**: `$XDG_CACHE_HOME/pvm/sources/`
 - **Shim executables**: `$XDG_DATA_HOME/pvm/shims/`
 - **Type definitions**: `$XDG_DATA_HOME/pvm/type_definitions/`
 - **Build cache**: `$XDG_CACHE_HOME/pvm/build/`
@@ -367,7 +367,7 @@ package DBI {
         method prepare(Str $query) -> DBI::st;
         method selectall_arrayref(Str $query) -> ArrayRef[ArrayRef[Scalar]];
     }
-    
+
     class DBI::st {
         method execute(@params) -> Bool;
         method fetchrow_array() -> List;
@@ -422,7 +422,7 @@ These grammar extensions should be implemented in a way that remains backward co
 - Execution environments inherit PVM version settings
 - Both use the same version resolution algorithm
 
-### 6.2 PVX and PVI Integration 
+### 6.2 PVX and PVI Integration
 
 - PVX uses PVI to install required modules in isolated environments
 - Module installation respects version-specific contexts

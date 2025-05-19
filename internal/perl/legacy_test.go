@@ -15,7 +15,7 @@ func TestReadPerlVersionFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Create a .perl-version file
 	versionFile := filepath.Join(tempDir, ".perl-version")
@@ -68,7 +68,7 @@ func TestFindDotPerlVersionFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(baseDir)
+	defer func() { _ = os.RemoveAll(baseDir) }()
 
 	// Create subdirectories
 	subDir1 := filepath.Join(baseDir, "sub1")
@@ -113,7 +113,7 @@ func TestMockPlenv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock home dir: %v", err)
 	}
-	defer os.RemoveAll(homeDir)
+	defer func() { _ = os.RemoveAll(homeDir) }()
 
 	// Create plenv structure
 	plenvDir := filepath.Join(homeDir, ".plenv")
@@ -180,7 +180,7 @@ func TestMockPerlbrew(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mock home dir: %v", err)
 	}
-	defer os.RemoveAll(homeDir)
+	defer func() { _ = os.RemoveAll(homeDir) }()
 
 	// Create perlbrew structure
 	perlbrewDir := filepath.Join(homeDir, "perl5", "perlbrew")

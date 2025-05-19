@@ -134,11 +134,12 @@ func newInstallCommand() *cobra.Command {
 					// Format progress bar
 					progressBar := "["
 					for i := 0; i < width; i++ {
-						if i < completeChars {
+						switch {
+						case i < completeChars:
 							progressBar += "="
-						} else if i == completeChars {
+						case i == completeChars:
 							progressBar += ">"
-						} else {
+						default:
 							progressBar += " "
 						}
 					}
@@ -492,11 +493,12 @@ func newDownloadCommand() *cobra.Command {
 					// Format progress bar
 					progressBar := "["
 					for i := 0; i < width; i++ {
-						if i < completeChars {
+						switch {
+						case i < completeChars:
 							progressBar += "="
-						} else if i == completeChars {
+						case i == completeChars:
 							progressBar += ">"
-						} else {
+						default:
 							progressBar += " "
 						}
 					}
@@ -791,10 +793,10 @@ func newPVXCommand() *cobra.Command {
 	// Instead of reimplementing the PVX command here, we'll get a fresh command
 	// from the pvx package and copy all its relevant properties
 	originalCmd := pvx.NewCommand()
-	
+
 	// Copy the Run function
 	pvxCommand.Run = originalCmd.Run
-	
+
 	// Copy all flags
 	originalCmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		pvxCommand.Flags().AddFlag(flag)
@@ -991,11 +993,12 @@ func newBuildCommand() *cobra.Command {
 					// Format progress bar
 					progressBar := "["
 					for i := 0; i < width; i++ {
-						if i < completeChars {
+						switch {
+						case i < completeChars:
 							progressBar += "="
-						} else if i == completeChars {
+						case i == completeChars:
 							progressBar += ">"
-						} else {
+						default:
 							progressBar += " "
 						}
 					}

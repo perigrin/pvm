@@ -193,17 +193,17 @@ func TestInitUserConfig(t *testing.T) {
 
 	// Restore environment variables after the test
 	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", oldConfigHome)
-		os.Setenv("XDG_CACHE_HOME", oldCacheHome)
-		os.Setenv("XDG_DATA_HOME", oldDataHome)
-		os.Setenv("XDG_STATE_HOME", oldStateHome)
+		_ = os.Setenv("XDG_CONFIG_HOME", oldConfigHome)
+		_ = os.Setenv("XDG_CACHE_HOME", oldCacheHome)
+		_ = os.Setenv("XDG_DATA_HOME", oldDataHome)
+		_ = os.Setenv("XDG_STATE_HOME", oldStateHome)
 	}()
 
 	// Set environment variables for the test
-	os.Setenv("XDG_CONFIG_HOME", testDir)
-	os.Setenv("XDG_CACHE_HOME", filepath.Join(testDir, "cache"))
-	os.Setenv("XDG_DATA_HOME", filepath.Join(testDir, "data"))
-	os.Setenv("XDG_STATE_HOME", filepath.Join(testDir, "state"))
+	_ = os.Setenv("XDG_CONFIG_HOME", testDir)
+	_ = os.Setenv("XDG_CACHE_HOME", filepath.Join(testDir, "cache"))
+	_ = os.Setenv("XDG_DATA_HOME", filepath.Join(testDir, "data"))
+	_ = os.Setenv("XDG_STATE_HOME", filepath.Join(testDir, "state"))
 
 	// Initialize user config
 	err := InitUserConfig()

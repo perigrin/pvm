@@ -63,7 +63,7 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 	// Create fake Perl executable
 	perlExec := filepath.Join(perlBinDir, "perl")
 	if runtime.GOOS == "windows" {
-		perlExec = perlExec + ".exe"
+		perlExec += ".exe"
 	}
 	err = os.WriteFile(perlExec, []byte("#!/bin/sh\necho Hello from fake Perl"), 0755)
 	if err != nil {
@@ -73,7 +73,7 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 	// Create a fake script
 	scriptName := "testscript"
 	if runtime.GOOS == "windows" {
-		scriptName = scriptName + ".bat"
+		scriptName += ".bat"
 	}
 	err = os.WriteFile(filepath.Join(perlBinDir, scriptName), []byte("#!/bin/sh\necho Hello from fake script"), 0755)
 	if err != nil {
@@ -145,7 +145,7 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 		SaveRegistry = originalSaveRegistry
 
 		// Remove temp directory
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 	}
 
 	return tempDir, dirs, cleanup
@@ -160,7 +160,7 @@ func TestCreateShim(t *testing.T) {
 	// Create a fake PVM executable path
 	pvmPath := filepath.Join(tempDir, "pvm")
 	if runtime.GOOS == "windows" {
-		pvmPath = pvmPath + ".exe"
+		pvmPath += ".exe"
 	}
 	err := os.WriteFile(pvmPath, []byte("#!/bin/sh\necho Hello from fake PVM"), 0755)
 	if err != nil {
@@ -196,7 +196,7 @@ func TestCreateShim(t *testing.T) {
 	// Check if the shim was created
 	shimPath := filepath.Join(dirs.ShimsDir, "perl")
 	if runtime.GOOS == "windows" {
-		shimPath = shimPath + ".bat"
+		shimPath += ".bat"
 	}
 	if _, err := os.Stat(shimPath); os.IsNotExist(err) {
 		t.Fatalf("Shim file was not created at %s", shimPath)
