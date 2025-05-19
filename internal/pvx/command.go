@@ -53,7 +53,7 @@ func NewCommand() *cobra.Command {
 				IsolationDir: isolationDir,
 				NoCleanup:    noCleanup,
 			}
-			
+
 			// Set isolation level if provided
 			if isolationLevel != "" {
 				options.IsolationLevel = IsolationLevel(isolationLevel)
@@ -90,12 +90,12 @@ func NewCommand() *cobra.Command {
 				log.Debugf("Executing Perl script: %s", scriptPath)
 				output, err = ExecuteScript(options)
 			}
-			
+
 			// Print output regardless of error (may contain diagnostic information)
 			if output != "" {
 				fmt.Print(output)
 			}
-			
+
 			// Handle execution error
 			if err != nil {
 				log.Errorf("Execution failed: %v", err)

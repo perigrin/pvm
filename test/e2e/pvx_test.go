@@ -41,13 +41,13 @@ print "Args: ", join(", ", @ARGV), "\n" if @ARGV;
 	}
 
 	// Run the script with PVX, explicitly specifying Perl path
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, 
-		[]string{"pvx", "-p", perlPath, scriptPath, "arg1", "arg2"}, 
+	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		[]string{"pvx", "-p", perlPath, scriptPath, "arg1", "arg2"},
 		"PVX script execution")
-	
-	helpers.AssertStringContains(t, stdout, "Hello from PVX test!", 
+
+	helpers.AssertStringContains(t, stdout, "Hello from PVX test!",
 		"Script output should contain greeting")
-	helpers.AssertStringContains(t, stdout, "Args: arg1, arg2", 
+	helpers.AssertStringContains(t, stdout, "Args: arg1, arg2",
 		"Script output should show passed arguments")
 }
 
@@ -64,11 +64,11 @@ func TestPVXInlineCodeExecution(t *testing.T) {
 	}
 
 	// Execute inline Perl code with PVX, explicitly specifying Perl path
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, 
-		[]string{"pvx", "-p", perlPath, "-e", "print 'Inline code executed successfully!\\n';"}, 
+	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		[]string{"pvx", "-p", perlPath, "-e", "print 'Inline code executed successfully!\\n';"},
 		"PVX inline code execution")
-	
-	helpers.AssertStringContains(t, stdout, "Inline code executed successfully!", 
+
+	helpers.AssertStringContains(t, stdout, "Inline code executed successfully!",
 		"Output should show inline code execution")
 }
 
@@ -85,11 +85,11 @@ func TestPVXVersionSpecification(t *testing.T) {
 	}
 
 	// Import system Perl
-	helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"import-system"}, 
+	helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"import-system"},
 		"System Perl import")
 
 	// Ensure system Perl is available by running list
-	helpers.AssertPVMSucceedsOrSkipTODO(t, env, 
+	helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 		[]string{"list"}, "Perl version listing")
 
 	// Create a script that prints Perl version
@@ -103,11 +103,11 @@ print "Perl version: $^V\n";
 	}
 
 	// Run with explicit version flag
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, 
-		[]string{"pvx", "-p", "system", scriptPath}, 
+	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		[]string{"pvx", "-p", "system", scriptPath},
 		"PVX execution with specific version")
-	
-	helpers.AssertStringContains(t, stdout, "Perl version:", 
+
+	helpers.AssertStringContains(t, stdout, "Perl version:",
 		"Output should contain Perl version information")
 }
 
@@ -137,11 +137,11 @@ print "TEST_VAR=", $ENV{TEST_VAR} || "undefined", "\n";
 	os.Setenv("TEST_VAR", "test_value")
 
 	// Run the script, which should inherit the environment variable
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, 
-		[]string{"pvx", "-p", perlPath, scriptPath}, 
+	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		[]string{"pvx", "-p", perlPath, scriptPath},
 		"PVX execution with environment variables")
-	
-	helpers.AssertStringContains(t, stdout, "TEST_VAR=test_value", 
+
+	helpers.AssertStringContains(t, stdout, "TEST_VAR=test_value",
 		"Output should contain environment variable")
 }
 
@@ -168,11 +168,11 @@ exit 42;
 	}
 
 	// Run the script and expect it to fail with a specific exit code
-	stderr := helpers.AssertPVMFailsOrSkipTODO(t, env, 
-		[]string{"pvx", "-p", perlPath, scriptPath}, 
+	stderr := helpers.AssertPVMFailsOrSkipTODO(t, env,
+		[]string{"pvx", "-p", perlPath, scriptPath},
 		"PVX exit code propagation")
-	
+
 	// Check that the error contains the exit code 42
-	helpers.AssertStringContains(t, stderr, "42", 
+	helpers.AssertStringContains(t, stderr, "42",
 		"Error message should contain the exit code")
 }

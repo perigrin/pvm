@@ -19,10 +19,10 @@ import (
 
 // PVX execution error codes
 const (
-	ErrExecutionFailed   = "401" // Script execution failed
-	ErrScriptNotFound    = "402" // Script file not found
-	ErrVersionNotFound   = "403" // Specified Perl version not found
-	ErrInvalidIsolation  = "404" // Invalid isolation level specified
+	ErrExecutionFailed  = "401" // Script execution failed
+	ErrScriptNotFound   = "402" // Script file not found
+	ErrVersionNotFound  = "403" // Specified Perl version not found
+	ErrInvalidIsolation = "404" // Invalid isolation level specified
 )
 
 // Variable for execCommand to allow mocking in tests
@@ -93,16 +93,16 @@ type ExecutionOptions struct {
 
 	// Whether to enable verbose output
 	Verbose bool
-	
+
 	// Whether to create an isolated environment for the script (deprecated, use IsolationLevel instead)
 	Isolated bool
-	
+
 	// The level of isolation to apply when executing the script
 	IsolationLevel IsolationLevel
-	
+
 	// Path to the isolation directory (if empty, will be created in a temp directory)
 	IsolationDir string
-	
+
 	// Whether to skip cleanup of the isolation directory after execution
 	NoCleanup bool
 }
@@ -141,7 +141,7 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 
 	// Create the command to execute the script
 	cmd := exec.Command(perlExe, buildArguments(options)...)
-	
+
 	// Set environment variables
 	env, err := buildEnvironment(options)
 	if err != nil {
@@ -184,7 +184,7 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 
 	// Cleanup isolation directory if needed
 	cleanupIsolationDir(options)
-	
+
 	return outputBuffer.String(), nil
 }
 
@@ -212,7 +212,7 @@ func ExecuteInlineCode(options *ExecutionOptions) (string, error) {
 
 	// Build command arguments for inline code execution
 	args := []string{"-e", options.InlineCode}
-	
+
 	// Add any script arguments if provided
 	if len(options.Args) > 0 {
 		args = append(args, options.Args...)
@@ -220,7 +220,7 @@ func ExecuteInlineCode(options *ExecutionOptions) (string, error) {
 
 	// Create the command to execute the Perl code
 	cmd := exec.Command(perlExe, args...)
-	
+
 	// Set environment variables
 	env, err := buildEnvironment(options)
 	if err != nil {
@@ -276,14 +276,14 @@ func cleanupIsolationDir(options *ExecutionOptions) {
 		}
 		return
 	}
-	
+
 	// Skip if no isolation directory was created
-	if options.IsolationDir == "" || 
-		options.IsolationLevel == "" || 
+	if options.IsolationDir == "" ||
+		options.IsolationLevel == "" ||
 		options.IsolationLevel == IsolationNone {
 		return
 	}
-	
+
 	// Only cleanup directories created by us (auto-generated temp directories)
 	// Skip cleanup for user-specified isolation directories
 	if !strings.Contains(options.IsolationDir, "pvm-isolated-") {
@@ -292,12 +292,12 @@ func cleanupIsolationDir(options *ExecutionOptions) {
 		}
 		return
 	}
-	
+
 	// Perform cleanup
 	if options.Verbose {
 		log.Infof("Cleaning up isolation directory: %s", options.IsolationDir)
 	}
-	
+
 	err := os.RemoveAll(options.IsolationDir)
 	if err != nil {
 		log.Warnf("Failed to clean up isolation directory %s: %v", options.IsolationDir, err)
@@ -383,7 +383,7 @@ func resolvePerlExecutable(options *ExecutionOptions) (string, error) {
 				perlExe = filepath.Join("/usr/local/pvm/perls", resolvedVersion.Version, "bin", "perl")
 			}
 		}
-		
+
 		// If we're forcing a version but it doesn't exist, fall back to system Perl
 		fileErr := func() error {
 			_, err := os.Stat(perlExe)
@@ -409,10 +409,10 @@ func resolvePerlExecutable(options *ExecutionOptions) (string, error) {
 			err)
 	}
 
-	log.Debugf("Using Perl executable: %s (version %s from %s)", 
+	log.Debugf("Using Perl executable: %s (version %s from %s)",
 		perlExe, resolvedVersion.Version, resolvedVersion.Source)
 	if options.Verbose {
-		log.Infof("Using Perl version %s via %s", 
+		log.Infof("Using Perl version %s via %s",
 			resolvedVersion.Version, perlExe)
 	}
 
@@ -485,7 +485,7 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 
 	// For all other isolation levels, set up the isolation environment
 	isolationDir := options.IsolationDir
-	
+
 	// If no isolation directory is specified, create one
 	if isolationDir == "" {
 		// Determine a unique name for the isolation directory
@@ -497,7 +497,7 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				scriptName = scriptName[:len(scriptName)-len(ext)]
 			}
 		}
-		
+
 		// Create a temporary directory for isolation
 		var err error
 		isolationDir, err = os.MkdirTemp("", fmt.Sprintf("pvm-isolated-%s-", scriptName))
@@ -507,7 +507,7 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				"Failed to create isolation directory",
 				err)
 		}
-		
+
 		// If verbose, log the isolation directory
 		if options.Verbose {
 			log.Infof("Created isolation directory: %s", isolationDir)
@@ -521,10 +521,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				err)
 		}
 	}
-	
+
 	// Create subdirectories for the Perl installation
 	libDir := filepath.Join(isolationDir, "lib", "perl5")
-	
+
 	// Get the architecture using the perl executable
 	archDir, err := getPerlArchDir(options.PerlVersion)
 	if err != nil {
@@ -532,10 +532,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 		log.Debugf("Failed to get Perl architecture, using default: %v", err)
 		archDir = "darwin-2level" // Default for macOS
 	}
-	
+
 	archLibDir := filepath.Join(libDir, archDir)
 	binDir := filepath.Join(isolationDir, "bin")
-	
+
 	// Create the directories
 	for _, dir := range []string{libDir, archLibDir, binDir} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -545,13 +545,13 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				err)
 		}
 	}
-	
+
 	// Set up the environment based on isolation level
 	switch options.IsolationLevel {
 	case IsolationLow:
 		// Low isolation: Add local::lib equivalent while preserving existing PERL5LIB
 		perl5lib := fmt.Sprintf("%s:%s", libDir, archLibDir)
-		
+
 		// Add to existing PERL5LIB if present
 		for i, existing := range env {
 			if strings.HasPrefix(existing, "PERL5LIB=") {
@@ -563,13 +563,13 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				break
 			}
 		}
-		
+
 		// Set up the local::lib equivalent environment variables
 		setEnvVar(&env, "PERL5LIB", perl5lib)
 		setEnvVar(&env, "PERL_LOCAL_LIB_ROOT", isolationDir)
 		setEnvVar(&env, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", isolationDir))
 		setEnvVar(&env, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", isolationDir))
-		
+
 		// Add the bin directory to PATH
 		for i, existing := range env {
 			if strings.HasPrefix(existing, "PATH=") {
@@ -578,19 +578,19 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				break
 			}
 		}
-		
+
 	case IsolationMedium:
 		// Medium isolation: Clean PERL5LIB but preserve most environment variables
-		
+
 		// Set PERL5LIB to only include the isolation directory paths
 		perl5lib := fmt.Sprintf("%s:%s", libDir, archLibDir)
 		setEnvVar(&env, "PERL5LIB", perl5lib)
-		
+
 		// Set up the local::lib equivalent environment variables
 		setEnvVar(&env, "PERL_LOCAL_LIB_ROOT", isolationDir)
 		setEnvVar(&env, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", isolationDir))
 		setEnvVar(&env, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", isolationDir))
-		
+
 		// Add the bin directory to PATH
 		for i, existing := range env {
 			if strings.HasPrefix(existing, "PATH=") {
@@ -599,23 +599,23 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				break
 			}
 		}
-		
+
 	case IsolationHigh:
 		// High isolation: Start with minimal environment and add only what's needed
-		
+
 		// Create a clean environment with only essential variables
 		cleanEnv := []string{}
-		
+
 		// Copy only essential environment variables (non-exhaustive list)
 		essentialVars := []string{
 			"PATH",
-			"HOME", 
-			"USER", 
+			"HOME",
+			"USER",
 			"SHELL",
 			"TMPDIR",
 			"TERM",
 		}
-		
+
 		for _, key := range essentialVars {
 			for _, envVar := range env {
 				if strings.HasPrefix(envVar, key+"=") {
@@ -624,21 +624,21 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				}
 			}
 		}
-		
+
 		// Add custom environment variables
 		for key, value := range options.Env {
 			setEnvVar(&cleanEnv, key, value)
 		}
-		
+
 		// Set PERL5LIB to only include the isolation directory paths
 		perl5lib := fmt.Sprintf("%s:%s", libDir, archLibDir)
 		setEnvVar(&cleanEnv, "PERL5LIB", perl5lib)
-		
+
 		// Set up the local::lib equivalent environment variables
 		setEnvVar(&cleanEnv, "PERL_LOCAL_LIB_ROOT", isolationDir)
 		setEnvVar(&cleanEnv, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", isolationDir))
 		setEnvVar(&cleanEnv, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", isolationDir))
-		
+
 		// Set PATH to include the bin directory first
 		for i, existing := range cleanEnv {
 			if strings.HasPrefix(existing, "PATH=") {
@@ -647,11 +647,11 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				break
 			}
 		}
-		
+
 		// Use the clean environment instead of the original one
 		env = cleanEnv
 	}
-	
+
 	// Store the isolation directory in options for potential cleanup
 	options.IsolationDir = isolationDir
 

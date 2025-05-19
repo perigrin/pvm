@@ -40,7 +40,7 @@ use warnings;
 # Print environment variables
 print "PERL5LIB: $ENV{PERL5LIB}\n";
 print "HOME: $ENV{HOME}\n";
-print "Working directory: " . `+"`pwd`"+`\n";
+print "Working directory: " . ` + "`pwd`" + `\n";
 
 # Create a test file to check filesystem isolation
 open(my $fh, '>', 'test_file.txt') or die "Could not create file: $!";
@@ -66,15 +66,15 @@ print "Script completed successfully\n";
 
 	// Test isolation level: none
 	t.Run("IsolationNone", func(t *testing.T) {
-		stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, 
-			[]string{"pvx", "--isolation", "none", "-p", perlPath, scriptPath}, 
+		stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+			[]string{"pvx", "--isolation", "none", "-p", perlPath, scriptPath},
 			"PVX with isolation level: none")
-		
-		helpers.AssertStringContains(t, stdout, "Script completed successfully", 
+
+		helpers.AssertStringContains(t, stdout, "Script completed successfully",
 			"Script should complete successfully")
-		helpers.AssertStringContains(t, stdout, "HOME: "+env.HomeDir, 
+		helpers.AssertStringContains(t, stdout, "HOME: "+env.HomeDir,
 			"HOME environment should match test environment")
-		
+
 		// Check that file was created in current directory
 		testFile := filepath.Join(env.HomeDir, "test_file.txt")
 		helpers.AssertFileExists(t, testFile, "With isolation=none, file should be created in current directory")
@@ -82,24 +82,24 @@ print "Script completed successfully\n";
 
 	// Test isolation level: low
 	t.Run("IsolationLow", func(t *testing.T) {
-		stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, 
-			[]string{"pvx", "--isolation", "low", "-p", perlPath, scriptPath}, 
+		stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+			[]string{"pvx", "--isolation", "low", "-p", perlPath, scriptPath},
 			"PVX with isolation level: low")
-		
-		helpers.AssertStringContains(t, stdout, "Script completed successfully", 
+
+		helpers.AssertStringContains(t, stdout, "Script completed successfully",
 			"Script should complete successfully")
-		
+
 		// In low isolation, files should be created in an isolation directory, not current dir
 		testFile := filepath.Join(env.HomeDir, "test_file.txt")
 		if env.FileExists(testFile) {
 			// If this exists from previous test, remove it
 			os.Remove(testFile)
 		}
-		helpers.AssertFileDoesNotExist(t, testFile, 
+		helpers.AssertFileDoesNotExist(t, testFile,
 			"With isolation=low, file should not be created in current directory")
-		
+
 		// Check that parent directory files are still accessible
-		helpers.AssertStringContains(t, stdout, "Could read parent directory file", 
+		helpers.AssertStringContains(t, stdout, "Could read parent directory file",
 			"With isolation=low, parent directory files should be accessible")
 	})
 
@@ -163,27 +163,27 @@ print "Script completed successfully\n";
 
 	// Test environment variable passing with different isolation levels
 	isolationLevels := []string{"none", "low"}
-	
+
 	// Start with the simpler isolation levels that should work initially
 	for _, level := range isolationLevels {
 		t.Run("EnvVars_"+level, func(t *testing.T) {
-			stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, 
-				[]string{"pvx", "--isolation", level, "-p", perlPath, scriptPath}, 
+			stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+				[]string{"pvx", "--isolation", level, "-p", perlPath, scriptPath},
 				"PVX env vars with isolation level: "+level)
-			
-			helpers.AssertStringContains(t, stdout, "Script completed successfully", 
+
+			helpers.AssertStringContains(t, stdout, "Script completed successfully",
 				"Script should complete successfully")
-			
+
 			// Environment variables should be passed through at these isolation levels
-			helpers.AssertStringContains(t, stdout, "TEST_VAR: test_value", 
+			helpers.AssertStringContains(t, stdout, "TEST_VAR: test_value",
 				"TEST_VAR should be passed through at isolation level: "+level)
-			
+
 			// HOME should match test environment at these isolation levels
-			helpers.AssertStringContains(t, stdout, "HOME: "+env.HomeDir, 
+			helpers.AssertStringContains(t, stdout, "HOME: "+env.HomeDir,
 				"HOME should match test environment at isolation level: "+level)
 		})
 	}
-	
+
 	// Test medium and high isolation levels as TODO items
 	mediumHighLevels := []string{"medium", "high"}
 	for _, level := range mediumHighLevels {
