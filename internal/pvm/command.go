@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/pvx"
 )
 
 // NewCommand creates a new PVM command
@@ -38,6 +40,7 @@ func NewCommand() *cobra.Command {
 		newResolveCommand(),
 		newInitCommand(),
 		newShellCommand(),
+		newPVXCommand(),
 
 		// These are implemented in their own files
 		newSymlinksCommand(), // from symlinks.go
@@ -774,6 +777,30 @@ func newResolveCommand() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// newPVXCommand creates a command for the PVX subcommand
+func newPVXCommand() *cobra.Command {
+	// Import the PVX command directly from the pvx package
+	pvxCommand := &cobra.Command{
+		Use:   "pvx",
+		Short: "Perl Version eXecutor",
+		Long:  "Executes Perl code in isolated environments",
+	}
+
+	// Instead of reimplementing the PVX command here, we'll get a fresh command
+	// from the pvx package and copy all its relevant properties
+	originalCmd := pvx.NewCommand()
+	
+	// Copy the Run function
+	pvxCommand.Run = originalCmd.Run
+	
+	// Copy all flags
+	originalCmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		pvxCommand.Flags().AddFlag(flag)
+	})
+
+	return pvxCommand
 }
 
 // newSymlinksCommand is implemented in symlinks.go
