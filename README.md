@@ -83,7 +83,7 @@ go test ./...
 
 - Zero-configuration operation
 - Integration with existing Perl version managers (plenv, perlbrew)
-- Environment isolation for script execution
+- Multi-level environment isolation for script execution (none, low, medium, high)
 - Type checking with flow-sensitive analysis
 - CPAN module management
 - Flexible TOML-based configuration system
@@ -115,6 +115,26 @@ pvm config init
 ```
 
 See [Configuration Guide](docs/configuration.md) for more details.
+
+## PVX Isolation Levels
+
+PVX provides multiple isolation levels for script execution:
+
+- **none** - No isolation, uses system environment
+- **low** - Minimal isolation with local module installation
+- **medium** - Clean PERL5LIB environment with restricted module access
+- **high** - Strongest possible isolation without containers
+
+Example usage:
+```bash
+# Run with low isolation level
+pvx --isolation=low script.pl
+
+# Run with high isolation level and custom isolation directory
+pvx --isolation=high --isolation-dir=/path/to/isolation script.pl
+```
+
+See [PVX Isolation Guide](docs/pvx-isolation.md) for more details.
 
 ## License
 
