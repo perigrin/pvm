@@ -202,6 +202,11 @@ func Warningf(format string, args ...interface{}) {
 	globalLogger.Warningf(format, args...)
 }
 
+// Warnf is an alias for Warningf
+func Warnf(format string, args ...interface{}) {
+	globalLogger.Warningf(format, args...)
+}
+
 // Errorf logs an error message to the global logger
 func Errorf(format string, args ...interface{}) {
 	globalLogger.Errorf(format, args...)

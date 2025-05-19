@@ -6,10 +6,12 @@
 *.dll
 *.so
 *.dylib
-pvm
-pvx
-pvi
-psc
+
+# Binaries but not directories
+/pvm
+/pvx
+/pvi
+/psc
 
 # Test binary, built with `go test -c`
 *.test
@@ -32,3 +34,4 @@ go.work
 # OS specific files
 .DS_Store
 Thumbs.db
+coverage.html
