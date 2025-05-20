@@ -63,11 +63,11 @@ type TypeCheck struct {
 
 	// EnableFlowSensitiveAnalysis controls whether flow-sensitive analysis is enabled
 	EnableFlowSensitiveAnalysis bool
-	
+
 	// SkipFlowChecks controls whether to skip flow-sensitive type checks
 	// but still perform type refinements based on control flow
 	SkipFlowChecks bool
-	
+
 	// FlowPatterns contains additional flow-sensitive patterns to recognize
 	// These can include custom validation patterns for type refinement
 	FlowPatterns []string
@@ -94,8 +94,8 @@ func NewTypeCheck() (*TypeCheck, error) {
 		Parser:                      parser,
 		TypeStore:                   typeStore,
 		TypeHierarchy:               hierarchy,
-		EnableFlowSensitiveAnalysis: true, // Enable by default
-		SkipFlowChecks:              false, // Don't skip checks by default
+		EnableFlowSensitiveAnalysis: true,       // Enable by default
+		SkipFlowChecks:              false,      // Don't skip checks by default
 		FlowPatterns:                []string{}, // No additional patterns by default
 	}, nil
 }
@@ -122,6 +122,7 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 		for _, parseErr := range ast.Errors {
 			var typErr TypeCheckError
 
+			// Check if the error is a ParseError to extract position information
 			if perr, ok := parseErr.(*ParseError); ok {
 				typErr = TypeCheckError{
 					Message: perr.Message,
@@ -152,13 +153,13 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 
 	// Configure flow-sensitive analysis options
 	checker.Debug = tc.EnableFlowSensitiveAnalysis
-	
+
 	// If enabled, pass additional flow-sensitive analysis options
 	if tc.EnableFlowSensitiveAnalysis {
-		// Configure to skip flow checks if specified 
+		// Configure to skip flow checks if specified
 		// (in a real implementation we would have a field for this in TypeChecker)
 		// checker.SkipFlowChecks = tc.SkipFlowChecks
-		
+
 		// Add custom validation patterns if specified
 		if len(tc.FlowPatterns) > 0 {
 			// In a real implementation, we would parse and add these patterns
@@ -186,7 +187,11 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 		message := err.Error()
 
 		// Try to extract position information from the error
-		if typeErr, ok := err.(errors.TypedError); ok {
+		// Check if the error implements the TypedError interface
+		if typeErr, ok := err.(interface {
+			Location() string
+			Description() string
+		}); ok {
 			if loc := typeErr.Location(); loc != "" {
 				parts := strings.Split(loc, ":")
 				if len(parts) >= 3 {
