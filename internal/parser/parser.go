@@ -161,10 +161,18 @@ func (te *TypeExpression) String() string {
 func (te *TypeExpression) basicString() string {
 	if te.Union && len(te.Params) == 2 {
 		return te.Params[0].String() + "|" + te.Params[1].String()
+	} else if te.Union {
+		// If it's marked as a union but doesn't have exactly 2 params,
+		// just return the name which should include the | symbol
+		return te.Name
 	}
 
 	if te.Intersection && len(te.Params) == 2 {
 		return te.Params[0].String() + "&" + te.Params[1].String()
+	} else if te.Intersection {
+		// If it's marked as an intersection but doesn't have exactly 2 params,
+		// just return the name which should include the & symbol
+		return te.Name
 	}
 
 	if len(te.Params) > 0 {
@@ -180,7 +188,90 @@ func (te *TypeExpression) basicString() string {
 
 // ParseTypeExpression parses a type expression string and returns a TypeExpression
 func ParseTypeExpression(text string, pos Position) (*TypeExpression, error) {
-	return parseTypeExpression(text, pos)
+	// Handle special cases for parameterized types that our simple parser might miss
+	// For example, ArrayRef[Str] or HashRef[Str, Int]
+
+	// First, clean up the type text by removing any extra spaces
+	text = strings.TrimSpace(text)
+
+	// Check if this is a parameterized type (containing square brackets)
+	openBracket := strings.Index(text, "[")
+	closeBracket := strings.LastIndex(text, "]")
+
+	if openBracket > 0 && closeBracket > openBracket {
+		typeName := strings.TrimSpace(text[:openBracket])
+		paramText := text[openBracket+1 : closeBracket]
+
+		// Parse the parameters
+		var params []*TypeExpression
+		if paramText != "" {
+			// Split by comma for multiple parameters
+			paramParts := strings.Split(paramText, ",")
+			for _, part := range paramParts {
+				part = strings.TrimSpace(part)
+				if part == "" {
+					continue
+				}
+
+				// Recursively parse each parameter
+				paramPos := Position{
+					Line:   pos.Line,
+					Column: pos.Column + strings.Index(text, part),
+				}
+				param, err := ParseTypeExpression(part, paramPos)
+				if err != nil {
+					return nil, err
+				}
+				params = append(params, param)
+			}
+		}
+
+		// Create a parameterized type
+		return &TypeExpression{
+			Name:   typeName,
+			Params: params,
+			Pos:    pos,
+		}, nil
+	}
+
+	// Check for union types (Type1|Type2)
+	pipeIndex := strings.Index(text, "|")
+	if pipeIndex > 0 && pipeIndex < len(text)-1 {
+		leftType := strings.TrimSpace(text[:pipeIndex])
+		rightType := strings.TrimSpace(text[pipeIndex+1:])
+
+		leftPos := Position{
+			Line:   pos.Line,
+			Column: pos.Column,
+		}
+		rightPos := Position{
+			Line:   pos.Line,
+			Column: pos.Column + pipeIndex + 1,
+		}
+
+		leftExpr, err := ParseTypeExpression(leftType, leftPos)
+		if err != nil {
+			return nil, err
+		}
+
+		rightExpr, err := ParseTypeExpression(rightType, rightPos)
+		if err != nil {
+			return nil, err
+		}
+
+		return &TypeExpression{
+			Name:   text,
+			Params: []*TypeExpression{leftExpr, rightExpr},
+			Union:  true,
+			Pos:    pos,
+		}, nil
+	}
+
+	// Return a simple type
+	return &TypeExpression{
+		Name: text,
+		Pos:  pos,
+	}, nil
 }
 
 // NewParser returns a new Parser instance
@@ -254,19 +345,38 @@ func (p *simpleParser) ParseString(content string) (*AST, error) {
 						if j > 0 {
 							typeName = parts[j]
 
+							// If it's a parameterized type that contains spaces,
+							// we need to reconstruct it from multiple parts
+							// For example: "HashRef[Str]" might be split into multiple tokens
+							if strings.Contains(typeName, "[") && !strings.Contains(typeName, "]") {
+								// Look for the matching closing bracket
+								for k := j + 1; k < len(parts); k++ {
+									if strings.Contains(parts[k], "]") {
+										// Join all parts between the opening and closing brackets
+										typeName = strings.Join(parts[j:k+1], " ")
+										break
+									}
+								}
+							}
+
+							// Parse the type expression
+							typeExpr, err := ParseTypeExpression(typeName, Position{
+								Line:   lineNum,
+								Column: strings.Index(line, typeName) + 1,
+							})
+
+							if err != nil {
+								ast.Errors = append(ast.Errors, err)
+								continue
+							}
+
 							// Add a type annotation
 							annotation := &TypeAnnotation{
-								AnnotatedItem: varName,
-								TypeExpression: &TypeExpression{
-									Name: typeName,
-									Pos: Position{
-										Line:   lineNum,
-										Column: strings.Index(line, typeName),
-									},
-								},
+								AnnotatedItem:  varName,
+								TypeExpression: typeExpr,
 								Pos: Position{
 									Line:   lineNum,
-									Column: strings.Index(line, typeName),
+									Column: strings.Index(line, typeName) + 1,
 								},
 								Kind: VarAnnotation,
 							}
@@ -279,10 +389,14 @@ func (p *simpleParser) ParseString(content string) (*AST, error) {
 			}
 		}
 
-		// Check for subroutine declarations with type annotations
+		// Check for subroutine or method declarations with type annotations
 		// Example: sub foo(Type $param) -> ReturnType
-		if strings.Contains(line, "sub ") && !strings.HasPrefix(strings.TrimSpace(line), "#") {
-			// This is a very simplified check and would need a proper parser in a real implementation
+		// Example: method foo(Type $param) -> ReturnType
+		if (strings.Contains(line, "sub ") || strings.Contains(line, "method ")) && !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			// Determine if this is a method or subroutine
+			isMethod := strings.Contains(line, "method ")
+
+			// Check for return type annotations
 			if strings.Contains(line, "->") {
 				// This likely has a return type
 				parts := strings.Split(line, "->")
@@ -292,21 +406,33 @@ func (p *simpleParser) ParseString(content string) (*AST, error) {
 						returnType = strings.TrimSpace(returnType[:len(returnType)-1])
 					}
 
+					// Parse the type expression
+					typeExpr, err := ParseTypeExpression(returnType, Position{
+						Line:   lineNum,
+						Column: strings.Index(line, "->") + 3,
+					})
+
+					if err != nil {
+						ast.Errors = append(ast.Errors, err)
+						continue
+					}
+
 					// Add a return type annotation
+					var annotationKind AnnotationKind
+					if isMethod {
+						annotationKind = MethodReturnAnnotation
+					} else {
+						annotationKind = SubReturnAnnotation
+					}
+
 					annotation := &TypeAnnotation{
-						AnnotatedItem: "return",
-						TypeExpression: &TypeExpression{
-							Name: returnType,
-							Pos: Position{
-								Line:   lineNum,
-								Column: strings.Index(line, "->") + 2,
-							},
-						},
+						AnnotatedItem:  "return",
+						TypeExpression: typeExpr,
 						Pos: Position{
 							Line:   lineNum,
-							Column: strings.Index(line, "->") + 2,
+							Column: strings.Index(line, "->") + 3,
 						},
-						Kind: SubReturnAnnotation,
+						Kind: annotationKind,
 					}
 
 					ast.TypeAnnotations = append(ast.TypeAnnotations, annotation)
@@ -333,25 +459,95 @@ func (p *simpleParser) ParseString(content string) (*AST, error) {
 							paramName := parts[len(parts)-1]
 							paramType := strings.Join(parts[:len(parts)-1], " ")
 
+							// Parse the type expression
+							typeExpr, err := ParseTypeExpression(paramType, Position{
+								Line:   lineNum,
+								Column: strings.Index(line, paramType) + 1,
+							})
+
+							if err != nil {
+								ast.Errors = append(ast.Errors, err)
+								continue
+							}
+
 							// Add a parameter type annotation
+							var annotationKind AnnotationKind
+							if isMethod {
+								annotationKind = MethodParamAnnotation
+							} else {
+								annotationKind = SubParamAnnotation
+							}
+
 							annotation := &TypeAnnotation{
-								AnnotatedItem: paramName,
-								TypeExpression: &TypeExpression{
-									Name: paramType,
-									Pos: Position{
-										Line:   lineNum,
-										Column: strings.Index(line, paramType),
-									},
-								},
+								AnnotatedItem:  paramName,
+								TypeExpression: typeExpr,
 								Pos: Position{
 									Line:   lineNum,
-									Column: strings.Index(line, paramType),
+									Column: strings.Index(line, paramType) + 1,
 								},
-								Kind: SubParamAnnotation,
+								Kind: annotationKind,
 							}
 
 							ast.TypeAnnotations = append(ast.TypeAnnotations, annotation)
 						}
+					}
+				}
+			}
+		}
+
+		// Check for attribute declarations with type annotations
+		// Example: field Type $attr
+		if strings.Contains(line, "field ") && !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			parts := strings.Fields(line)
+			if len(parts) >= 3 && parts[0] == "field" {
+				attrName := ""
+				typeName := ""
+
+				// Simple heuristic to detect type annotations
+				for j, part := range parts[1:] {
+					if strings.HasPrefix(part, "$") {
+						attrName = part
+						if j > 0 {
+							typeName = parts[j]
+
+							// If it's a parameterized type that contains spaces,
+							// we need to reconstruct it from multiple parts
+							if strings.Contains(typeName, "[") && !strings.Contains(typeName, "]") {
+								// Look for the matching closing bracket
+								for k := j + 1; k < len(parts); k++ {
+									if strings.Contains(parts[k], "]") {
+										// Join all parts between the opening and closing brackets
+										typeName = strings.Join(parts[j:k+1], " ")
+										break
+									}
+								}
+							}
+
+							// Parse the type expression
+							typeExpr, err := ParseTypeExpression(typeName, Position{
+								Line:   lineNum,
+								Column: strings.Index(line, typeName) + 1,
+							})
+
+							if err != nil {
+								ast.Errors = append(ast.Errors, err)
+								continue
+							}
+
+							// Add a type annotation
+							annotation := &TypeAnnotation{
+								AnnotatedItem:  attrName,
+								TypeExpression: typeExpr,
+								Pos: Position{
+									Line:   lineNum,
+									Column: strings.Index(line, typeName) + 1,
+								},
+								Kind: AttrAnnotation,
+							}
+
+							ast.TypeAnnotations = append(ast.TypeAnnotations, annotation)
+						}
+						break
 					}
 				}
 			}

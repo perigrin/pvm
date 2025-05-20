@@ -124,69 +124,9 @@ func (p *TreeSitterParser) ParseReader(reader io.Reader) (*AST, error) {
  *    - Type assertion: `$var as Type`
  */
 
-// This function would create a tree-sitter query for type annotations
-func createTypeAnnotationQueries() string {
-	// In a real implementation, we would create tree-sitter queries
-	// for extracting type annotations from the syntax tree
-	// These queries would match the grammar extensions described above
-
-	return `
-		; Variable declarations with type annotations
-		(variable_declaration
-			(type_annotation) @type
-			(variable_name) @var
-		)
-
-		; Subroutine declarations with parameter types
-		(subroutine_declaration
-			name: (identifier) @sub_name
-			parameters: (parameter_list
-				(parameter
-					type: (type_annotation) @param_type
-					name: (variable_name) @param_name
-				)
-			)
-		)
-
-		; Subroutine declarations with return types
-		(subroutine_declaration
-			name: (identifier) @sub_name
-			return_type: (type_annotation) @return_type
-		)
-
-		; Method declarations with parameter types
-		(method_declaration
-			name: (identifier) @method_name
-			parameters: (parameter_list
-				(parameter
-					type: (type_annotation) @param_type
-					name: (variable_name) @param_name
-				)
-			)
-		)
-
-		; Method declarations with return types
-		(method_declaration
-			name: (identifier) @method_name
-			return_type: (type_annotation) @return_type
-		)
-
-		; Attribute declarations with type annotations
-		(attribute_declaration
-			(type_annotation) @type
-			(variable_name) @attr
-		)
-
-		; Type declarations
-		(type_declaration
-			name: (identifier) @type_name
-			value: (type_expression) @type_value
-		)
-
-		; Typecast expressions
-		(typecast_expression
-			expression: (_) @expr
-			type: (type_annotation) @cast_type
-		)
-	`
-}
+// createTypeAnnotationQueries creates tree-sitter queries for extracting type annotations
+// This is a placeholder for future tree-sitter implementation
+// Currently unused as we're using a simpler parser implementation
+//
+// TODO: Remove this comment and fully implement tree-sitter integration
+// in the future when we move to a more sophisticated parser
