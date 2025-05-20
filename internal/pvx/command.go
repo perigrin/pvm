@@ -81,22 +81,38 @@ func NewCommand() *cobra.Command {
 				// Set default isolation level from config if not specified on command line
 				if isolationLevel == "" && !isolated && cfg.PVX.IsolationLevel != "" {
 					options.IsolationLevel = IsolationLevel(cfg.PVX.IsolationLevel)
+					if options.Verbose {
+						log.Infof("Using isolation level '%s' from configuration", options.IsolationLevel)
+					}
 				}
 
 				// Apply cleanup setting from config if not specified on command line
 				if !cmd.Flags().Changed("no-cleanup") {
 					options.NoCleanup = !cfg.PVX.CleanupAfter
+					if options.Verbose {
+						if options.NoCleanup {
+							log.Infof("Using 'no-cleanup' setting from configuration")
+						} else {
+							log.Infof("Using 'cleanup' setting from configuration")
+						}
+					}
 				}
 
 				// Apply filesystem isolation settings from config if not specified on command line
 				if len(readOnlyPaths) == 0 && len(cfg.PVX.IsolationReadOnlyPaths) > 0 {
 					options.ReadOnlyPaths = cfg.PVX.IsolationReadOnlyPaths
+					if options.Verbose {
+						log.Infof("Using read-only paths from configuration: %v", options.ReadOnlyPaths)
+					}
 				} else {
 					options.ReadOnlyPaths = readOnlyPaths
 				}
 
 				if len(readWritePaths) == 0 && len(cfg.PVX.IsolationReadWritePaths) > 0 {
 					options.ReadWritePaths = cfg.PVX.IsolationReadWritePaths
+					if options.Verbose {
+						log.Infof("Using read-write paths from configuration: %v", options.ReadWritePaths)
+					}
 				} else {
 					options.ReadWritePaths = readWritePaths
 				}
@@ -104,6 +120,9 @@ func NewCommand() *cobra.Command {
 				// Apply isolated output settings from config if not specified on command line
 				if !cmd.Flags().Changed("isolated-output") {
 					options.IsolatedOutput = cfg.PVX.IsolatedOutput
+					if options.Verbose && options.IsolatedOutput {
+						log.Infof("Using isolated output setting from configuration")
+					}
 				} else {
 					options.IsolatedOutput = isolatedOutput
 				}
@@ -111,6 +130,9 @@ func NewCommand() *cobra.Command {
 				// Apply save output directory setting from config if not specified on command line
 				if saveOutputDir == "" && cfg.PVX.SaveOutputDir != "" {
 					options.SaveOutputDir = cfg.PVX.SaveOutputDir
+					if options.Verbose {
+						log.Infof("Using save output directory from configuration: %s", options.SaveOutputDir)
+					}
 				} else {
 					options.SaveOutputDir = saveOutputDir
 				}
@@ -118,6 +140,9 @@ func NewCommand() *cobra.Command {
 				// Apply environment variable settings from config if not specified on command line
 				if len(preserveEnv) == 0 && len(cfg.PVX.PreserveEnvVars) > 0 {
 					options.PreserveEnv = cfg.PVX.PreserveEnvVars
+					if options.Verbose {
+						log.Infof("Using preserved environment variables from configuration: %v", options.PreserveEnv)
+					}
 				} else {
 					options.PreserveEnv = preserveEnv
 				}
@@ -128,12 +153,18 @@ func NewCommand() *cobra.Command {
 				// Apply module path settings from config if not specified on command line
 				if len(includeModulePaths) == 0 && len(cfg.PVX.AdditionalModulePaths) > 0 {
 					options.AdditionalModulePaths = cfg.PVX.AdditionalModulePaths
+					if options.Verbose {
+						log.Infof("Using additional module paths from configuration: %v", options.AdditionalModulePaths)
+					}
 				} else {
 					options.AdditionalModulePaths = includeModulePaths
 				}
 
 				if customModulePath == "" && cfg.PVX.CustomModulePath != "" {
 					options.CustomModulePath = cfg.PVX.CustomModulePath
+					if options.Verbose {
+						log.Infof("Using custom module path from configuration: %s", options.CustomModulePath)
+					}
 				} else {
 					options.CustomModulePath = customModulePath
 				}
@@ -152,10 +183,22 @@ func NewCommand() *cobra.Command {
 			// Set isolation level if provided
 			if isolationLevel != "" {
 				options.IsolationLevel = IsolationLevel(isolationLevel)
+				if options.Verbose {
+					log.Infof("Using isolation level '%s' from command line", options.IsolationLevel)
+				}
 			} else if isolated {
 				// Backward compatibility: if --isolated flag is used without --isolation,
 				// default to low isolation
 				options.IsolationLevel = IsolationLow
+				if options.Verbose {
+					log.Infof("Using isolation level 'low' due to --isolated flag (legacy mode)")
+				}
+			}
+
+			// Validate that high isolation features are only used with high isolation level
+			if options.IsolationLevel != IsolationHigh &&
+				(len(options.ReadOnlyPaths) > 0 || len(options.ReadWritePaths) > 0 || options.IsolatedOutput) {
+				log.Warnf("Read-only paths, read-write paths, and isolated output are only fully effective with high isolation")
 			}
 
 			// Set the no-install environment variable if needed
@@ -187,12 +230,17 @@ func NewCommand() *cobra.Command {
 
 			// If using isolated output and saveOutputDir is specified, copy generated files
 			if options.IsolatedOutput && options.SaveOutputDir != "" && err == nil {
+				if options.Verbose {
+					log.Infof("Attempting to save output files to %s", options.SaveOutputDir)
+				}
 				savedFiles, saveErr := saveOutputFiles(options, options.SaveOutputDir)
 				if saveErr != nil {
 					log.Warnf("Failed to save output files: %v", saveErr)
 				} else if len(savedFiles) > 0 && options.Verbose {
 					log.Infof("Saved %d files to %s", len(savedFiles), options.SaveOutputDir)
 				}
+			} else if options.IsolatedOutput && options.SaveOutputDir == "" && options.Verbose {
+				log.Infof("Isolated output is enabled but no save directory was specified. Output files will be discarded after execution.")
 			}
 
 			// Print output regardless of error (may contain diagnostic information)

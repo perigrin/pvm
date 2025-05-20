@@ -563,6 +563,9 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 
 	// If no isolation requested, return current environment
 	if options.IsolationLevel == "" || options.IsolationLevel == IsolationNone {
+		if options.Verbose {
+			log.Infof("Using no isolation - script will run in the current environment")
+		}
 		return env, nil
 	}
 
@@ -652,6 +655,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 	switch options.IsolationLevel {
 	case IsolationLow:
 		// Low isolation: Add local::lib equivalent while preserving existing PERL5LIB
+		if options.Verbose {
+			log.Infof("Using low isolation - preserving environment but adding local module paths")
+		}
+
 		perl5lib := fmt.Sprintf("%s:%s", libDir, archLibDir)
 
 		// Add any user-specified additional module paths
@@ -663,6 +670,7 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 		}
 
 		// Add to existing PERL5LIB if present
+		perl5LibFound := false
 		for i, existing := range env {
 			if strings.HasPrefix(existing, "PERL5LIB=") {
 				currentValue := strings.TrimPrefix(existing, "PERL5LIB=")
@@ -670,27 +678,51 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 					perl5lib = fmt.Sprintf("%s:%s", perl5lib, currentValue)
 				}
 				env[i] = fmt.Sprintf("PERL5LIB=%s", perl5lib)
+				perl5LibFound = true
 				break
+			}
+		}
+
+		// Add PERL5LIB if not found in environment
+		if !perl5LibFound {
+			env = append(env, fmt.Sprintf("PERL5LIB=%s", perl5lib))
+		}
+
+		// Use the custom module path if provided, otherwise use the isolation directory
+		modulePath := isolationDir
+		if options.CustomModulePath != "" {
+			modulePath = options.CustomModulePath
+			if options.Verbose {
+				log.Infof("Using custom module path: %s", modulePath)
 			}
 		}
 
 		// Set up the local::lib equivalent environment variables
-		setEnvVar(&env, "PERL5LIB", perl5lib)
-		setEnvVar(&env, "PERL_LOCAL_LIB_ROOT", isolationDir)
-		setEnvVar(&env, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", isolationDir))
-		setEnvVar(&env, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", isolationDir))
+		setEnvVar(&env, "PERL_LOCAL_LIB_ROOT", modulePath)
+		setEnvVar(&env, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", modulePath))
+		setEnvVar(&env, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", modulePath))
 
 		// Add the bin directory to PATH
+		pathFound := false
 		for i, existing := range env {
 			if strings.HasPrefix(existing, "PATH=") {
 				currentPath := strings.TrimPrefix(existing, "PATH=")
 				env[i] = fmt.Sprintf("PATH=%s:%s", binDir, currentPath)
+				pathFound = true
 				break
 			}
 		}
 
+		// Add PATH if not found (unlikely, but just in case)
+		if !pathFound {
+			env = append(env, fmt.Sprintf("PATH=%s", binDir))
+		}
+
 	case IsolationMedium:
 		// Medium isolation: Clean PERL5LIB but preserve most environment variables
+		if options.Verbose {
+			log.Infof("Using medium isolation - preserving most environment but cleaning PERL5LIB")
+		}
 
 		// Set PERL5LIB to include all the isolation directory paths
 		perl5lib := fmt.Sprintf("%s:%s:%s:%s",
@@ -725,16 +757,26 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 		setEnvVar(&env, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", modulePath))
 
 		// Add the bin directory to PATH
+		pathFound := false
 		for i, existing := range env {
 			if strings.HasPrefix(existing, "PATH=") {
 				currentPath := strings.TrimPrefix(existing, "PATH=")
 				env[i] = fmt.Sprintf("PATH=%s:%s", binDir, currentPath)
+				pathFound = true
 				break
 			}
 		}
 
+		// Add PATH if not found
+		if !pathFound {
+			env = append(env, fmt.Sprintf("PATH=%s", binDir))
+		}
+
 	case IsolationHigh:
 		// High isolation: Start with minimal environment and add only what's needed
+		if options.Verbose {
+			log.Infof("Using high isolation - starting with minimal environment")
+		}
 
 		// Create a clean environment with only essential variables
 		cleanEnv := []string{}
@@ -749,11 +791,64 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			"TERM",
 		}
 
+		// Add essential environment variables
 		for _, key := range essentialVars {
 			for _, envVar := range env {
 				if strings.HasPrefix(envVar, key+"=") {
 					cleanEnv = append(cleanEnv, envVar)
+					if options.Verbose {
+						log.Debugf("Preserving essential environment variable: %s", key)
+					}
 					break
+				}
+			}
+		}
+
+		// Add any preserved environment variables that aren't already in essential list
+		if len(options.PreserveEnv) > 0 {
+			if options.Verbose {
+				log.Infof("Preserving user-specified environment variables: %v", options.PreserveEnv)
+			}
+
+			for _, key := range options.PreserveEnv {
+				// Skip if it's already in essential vars
+				isEssential := false
+				for _, essential := range essentialVars {
+					if key == essential {
+						isEssential = true
+						break
+					}
+				}
+				if isEssential {
+					continue
+				}
+
+				// Skip if it should be cleared
+				if len(options.ClearEnv) > 0 {
+					shouldClear := false
+					for _, clearKey := range options.ClearEnv {
+						if key == clearKey {
+							shouldClear = true
+							break
+						}
+					}
+					if shouldClear {
+						if options.Verbose {
+							log.Debugf("Skipping preservation of environment variable %s (in clear list)", key)
+						}
+						continue
+					}
+				}
+
+				// Find and add from original environment
+				for _, envVar := range env {
+					if strings.HasPrefix(envVar, key+"=") {
+						cleanEnv = append(cleanEnv, envVar)
+						if options.Verbose {
+							log.Debugf("Preserving user-specified environment variable: %s", key)
+						}
+						break
+					}
 				}
 			}
 		}
@@ -761,6 +856,9 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 		// Add custom environment variables
 		for key, value := range options.Env {
 			setEnvVar(&cleanEnv, key, value)
+			if options.Verbose {
+				log.Debugf("Setting custom environment variable: %s=%s", key, value)
+			}
 		}
 
 		// Set up enhanced filesystem isolation for high isolation mode
@@ -835,12 +933,19 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 		setEnvVar(&cleanEnv, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", modulePath))
 
 		// Set PATH to include the bin directory first
+		pathFound := false
 		for i, existing := range cleanEnv {
 			if strings.HasPrefix(existing, "PATH=") {
 				currentPath := strings.TrimPrefix(existing, "PATH=")
 				cleanEnv[i] = fmt.Sprintf("PATH=%s:%s", binDir, currentPath)
+				pathFound = true
 				break
 			}
+		}
+
+		// Add PATH if not found
+		if !pathFound {
+			cleanEnv = append(cleanEnv, fmt.Sprintf("PATH=%s", binDir))
 		}
 
 		// Use the clean environment instead of the original one
@@ -856,13 +961,20 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 // saveOutputFiles copies generated files from the isolated output directory to a specified target location
 // Returns a map of saved file paths to their content, and any error encountered
 func saveOutputFiles(options *ExecutionOptions, targetDir string) (map[string]string, error) {
+	// Exit early if isolated output is not enabled or isolation directory is not set
 	if !options.IsolatedOutput || options.IsolationDir == "" {
+		if options.Verbose {
+			log.Infof("Output files were not saved: isolated output is not enabled or isolation directory is not set")
+		}
 		return nil, nil
 	}
 
 	// Check if the output directory exists
 	outputDir := filepath.Join(options.IsolationDir, "output")
 	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+		if options.Verbose {
+			log.Infof("Output directory does not exist: %s", outputDir)
+		}
 		return nil, nil
 	}
 
@@ -883,11 +995,26 @@ func saveOutputFiles(options *ExecutionOptions, targetDir string) (map[string]st
 			err)
 	}
 
+	// Check if there are any files to copy
+	if len(files) == 0 {
+		if options.Verbose {
+			log.Infof("No output files found in %s", outputDir)
+		}
+		return nil, nil
+	}
+
+	if options.Verbose {
+		log.Infof("Copying %d files from %s to %s", len(files), outputDir, targetDir)
+	}
+
 	result := make(map[string]string)
 
 	// Copy each file
 	for _, file := range files {
 		if file.IsDir() {
+			if options.Verbose {
+				log.Debugf("Skipping directory: %s", file.Name())
+			}
 			continue // Skip directories
 		}
 
@@ -895,28 +1022,29 @@ func saveOutputFiles(options *ExecutionOptions, targetDir string) (map[string]st
 		srcPath := filepath.Join(outputDir, file.Name())
 		data, err := os.ReadFile(srcPath)
 		if err != nil {
-			return result, errors.NewExecutionError(
-				ErrExecutionFailed,
-				fmt.Sprintf("Failed to read file %s", srcPath),
-				err)
+			log.Warnf("Failed to read file %s: %v", srcPath, err)
+			continue // Skip files that can't be read
 		}
 
 		// Write to the target location
 		targetPath := filepath.Join(targetDir, file.Name())
 		err = os.WriteFile(targetPath, data, 0644)
 		if err != nil {
-			return result, errors.NewExecutionError(
-				ErrExecutionFailed,
-				fmt.Sprintf("Failed to write file %s", targetPath),
-				err)
+			log.Warnf("Failed to write file %s: %v", targetPath, err)
+			continue // Skip files that can't be written
 		}
 
 		// Store in the result map
 		result[targetPath] = string(data)
 
 		if options.Verbose {
-			log.Infof("Saved output file: %s", targetPath)
+			log.Infof("Saved output file: %s (%d bytes)", targetPath, len(data))
 		}
+	}
+
+	// Log summary of operation
+	if options.Verbose {
+		log.Infof("Successfully saved %d output files to %s", len(result), targetDir)
 	}
 
 	return result, nil
