@@ -23,7 +23,7 @@ func NewCommand() *cobra.Command {
 
 	// Add PSC-specific commands
 	cmd.AddCommand(
-		newCheckCommand(),
+		newCheckTypeCommand(), // Use the enhanced type checking command
 		newStripCommand(),
 		newRunCommand(),
 		newWatchCommand(),
@@ -33,8 +33,7 @@ func NewCommand() *cobra.Command {
 	return cmd
 }
 
-// Placeholder commands, to be implemented later
-
+// Legacy command - kept for backwards compatibility but delegates to the new implementation
 func newCheckCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check [file|dir]",
@@ -50,7 +49,7 @@ func newCheckCommand() *cobra.Command {
 			verbose, _ := cmd.Flags().GetBool("verbose")
 
 			// Create a type checker
-			checker, err := parser.NewTypeChecker()
+			tc, err := parser.NewTypeCheck()
 			if err != nil {
 				return fmt.Errorf("failed to create type checker: %v", err)
 			}
@@ -83,11 +82,11 @@ func newCheckCommand() *cobra.Command {
 					}
 
 					// Check the file
-					return checkSingleFile(checker, filePath, verbose)
+					return checkSingleFile(tc, filePath, verbose)
 				})
 			} else {
 				// Check a single file
-				return checkSingleFile(checker, path, verbose)
+				return checkSingleFile(tc, path, verbose)
 			}
 		},
 	}
@@ -99,13 +98,13 @@ func newCheckCommand() *cobra.Command {
 }
 
 // checkSingleFile checks a single Perl file for type errors
-func checkSingleFile(checker *parser.TypeChecker, path string, verbose bool) error {
+func checkSingleFile(tc *parser.TypeCheck, path string, verbose bool) error {
 	if verbose {
 		fmt.Printf("Checking file: %s\n", path)
 	}
 
 	// Type check the file
-	result, err := checker.CheckFile(path)
+	result, err := tc.CheckFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to check file %s: %v", path, err)
 	}
@@ -211,13 +210,13 @@ func newRunCommand() *cobra.Command {
 			// Type check the file first (unless skipped)
 			if !skipCheck {
 				// Create a type checker
-				checker, err := parser.NewTypeChecker()
+				tc, err := parser.NewTypeCheck()
 				if err != nil {
 					return fmt.Errorf("failed to create type checker: %v", err)
 				}
 
 				// Type check the file
-				result, err := checker.CheckFile(file)
+				result, err := tc.CheckFile(file)
 				if err != nil {
 					return fmt.Errorf("failed to check file %s: %v", file, err)
 				}
@@ -280,7 +279,7 @@ func newWatchCommand() *cobra.Command {
 			path := args[0]
 
 			// Create a type checker
-			checker, err := parser.NewTypeChecker()
+			tc, err := parser.NewTypeCheck()
 			if err != nil {
 				return fmt.Errorf("failed to create type checker: %v", err)
 			}
@@ -324,7 +323,7 @@ func newWatchCommand() *cobra.Command {
 						}
 
 						// Check the file
-						result, err := checker.CheckFile(filePath)
+						result, err := tc.CheckFile(filePath)
 						if err != nil {
 							fmt.Printf("Error checking %s: %v\n", filePath, err)
 							return nil
@@ -345,7 +344,7 @@ func newWatchCommand() *cobra.Command {
 					})
 				} else {
 					// Check a single file
-					result, err := checker.CheckFile(path)
+					result, err := tc.CheckFile(path)
 					if err != nil {
 						fmt.Printf("Error checking %s: %v\n", path, err)
 					} else if len(result.Errors) > 0 {

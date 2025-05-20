@@ -14,9 +14,9 @@ func LogError(err error) {
 	}
 
 	// Check if it's our structured error type
-	if e, ok := err.(*Error); ok {
+	if e, ok := err.(TypedError); ok {
 		// Choose log level based on category
-		switch e.Category {
+		switch e.Category() {
 		case CategoryUserInput:
 			// User input errors are usually not critical
 			log.Warningf("User input error: %v", err)
@@ -66,8 +66,8 @@ func LogErrorWithLocation(err error, location string) {
 	// Check if it's our structured error type
 	if e, ok := err.(*Error); ok {
 		// Add location if not already set
-		if e.Location == "" {
-			e.Location = location
+		if e.location == "" {
+			e.location = location
 		}
 	}
 

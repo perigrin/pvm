@@ -44,17 +44,20 @@ func (e TypeCheckError) Error() string {
 	return fmt.Sprintf("%s:%d:%d: %s", e.Path, e.Line, e.Column, e.Message)
 }
 
-// TypeChecker provides type checking functionality
-type TypeChecker struct {
+// TypeCheck is the main entry point for type checking a file
+type TypeCheck struct {
 	// Parser is the parser used for parsing Perl code
 	Parser Parser
 
 	// TypeStore is the store for type definitions
 	TypeStore *typedef.Storage
+
+	// TypeHierarchy is the type hierarchy used for checking
+	TypeHierarchy *typedef.TypeHierarchy
 }
 
-// NewTypeChecker creates a new TypeChecker
-func NewTypeChecker() (*TypeChecker, error) {
+// NewTypeCheck creates a new TypeCheck instance
+func NewTypeCheck() (*TypeCheck, error) {
 	// Create a parser
 	parser, err := NewParser()
 	if err != nil {
@@ -67,16 +70,19 @@ func NewTypeChecker() (*TypeChecker, error) {
 		return nil, err
 	}
 
-	return &TypeChecker{
-		Parser:    parser,
-		TypeStore: typeStore,
+	// Create the type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(typeStore)
+
+	return &TypeCheck{
+		Parser:        parser,
+		TypeStore:     typeStore,
+		TypeHierarchy: hierarchy,
 	}, nil
 }
 
 // CheckFile performs type checking on a Perl file
-func (tc *TypeChecker) CheckFile(path string) (*TypeCheckResult, error) {
+func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	// Parse the file using our enhanced parser
-	// The TreeSitterParser now provides better support for type annotations
 	ast, err := tc.Parser.ParseFile(path)
 	if err != nil {
 		return nil, err
@@ -116,161 +122,87 @@ func (tc *TypeChecker) CheckFile(path string) (*TypeCheckResult, error) {
 		return result, nil
 	}
 
-	// With our enhanced parser, we should have more accurate type annotations
-	// from advanced parsing capabilities like field declarations, method parameters,
-	// type declarations, etc.
+	// Extract module name from the file path
+	moduleName := extractModuleNameFromPath(path)
 
-	// Type check annotations
-	return tc.checkTypeAnnotations(ast)
-}
+	// Create a type checker
+	checker := NewTypeChecker(tc.TypeHierarchy, moduleName)
 
-// checkTypeAnnotations checks type annotations found in the AST
-func (tc *TypeChecker) checkTypeAnnotations(ast *AST) (*TypeCheckResult, error) {
+	// Check the AST for type errors
+	typeErrors := checker.CheckAST(ast)
+
+	// Create the result
 	result := &TypeCheckResult{
-		Path:            ast.Path,
+		Path:            path,
 		Errors:          []TypeCheckError{},
 		TypeAnnotations: ast.TypeAnnotations,
 	}
 
-	// Build module import map
-	imports := make(map[string]bool)
+	// Convert errors to TypeCheckError format
+	for _, err := range typeErrors {
+		line := 0
+		col := 0
+		message := err.Error()
 
-	// This would involve scanning the AST for use statements
-	// For the simplified implementation, we'll assume no imports
-
-	// Check each type annotation
-	for _, annotation := range ast.TypeAnnotations {
-		// Verify the type exists
-		err := tc.verifyType(annotation.TypeExpression, imports)
-		if err != nil {
-			result.Errors = append(result.Errors, TypeCheckError{
-				Message: err.Error(),
-				Line:    annotation.Pos.Line,
-				Column:  annotation.Pos.Column,
-				Path:    ast.Path,
-			})
+		// Try to extract position information from the error
+		if typeErr, ok := err.(errors.TypedError); ok {
+			if loc := typeErr.Location(); loc != "" {
+				parts := strings.Split(loc, ":")
+				if len(parts) >= 3 {
+					// Extract line and column from location
+					fmt.Sscanf(parts[1], "%d", &line)
+					fmt.Sscanf(parts[2], "%d", &col)
+				}
+			}
+			message = typeErr.Description()
 		}
+
+		result.Errors = append(result.Errors, TypeCheckError{
+			Message: message,
+			Line:    line,
+			Column:  col,
+			Path:    path,
+		})
 	}
 
 	return result, nil
 }
 
-// verifyType checks if a type exists and is valid
-func (tc *TypeChecker) verifyType(typeExpr *TypeExpression, imports map[string]bool) error {
-	// Handle negation types
-	if typeExpr.Negation {
-		// A negation type is valid if the underlying type is valid
-		return tc.verifyType(typeExpr, imports)
+// extractModuleNameFromPath extracts a module name from a file path
+func extractModuleNameFromPath(path string) string {
+	// This is a simplified implementation that would need to be enhanced in a real system
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 {
+		return ""
 	}
 
-	// Check if it's a built-in type
-	if isBuiltinType(typeExpr.Name) {
-		return nil
-	}
+	filename := parts[len(parts)-1]
+	moduleName := strings.TrimSuffix(filename, ".pm")
+	moduleName = strings.TrimSuffix(moduleName, ".pl")
 
-	// For parameterized types, check the parameters
-	for _, param := range typeExpr.Params {
-		if err := tc.verifyType(param, imports); err != nil {
-			return err
+	// Handle lib/Module/Name.pm style paths
+	if len(parts) >= 3 {
+		if parts[len(parts)-3] == "lib" {
+			// This might be a module in a standard lib directory
+			// Try to construct a module name from the path
+			libIndex := -1
+			for i, part := range parts {
+				if part == "lib" {
+					libIndex = i
+					break
+				}
+			}
+
+			if libIndex >= 0 && libIndex < len(parts)-1 {
+				// Reconstruct the module name from the path components after "lib"
+				moduleComponents := parts[libIndex+1 : len(parts)-1]
+				moduleComponents = append(moduleComponents, moduleName)
+				moduleName = strings.Join(moduleComponents, "::")
+			}
 		}
 	}
 
-	// For union and intersection types, the type itself is valid if the components are valid
-	if typeExpr.Union || typeExpr.Intersection {
-		// For explicit union and intersection types where we have the components,
-		// we don't need to verify the name itself
-		return nil
-	}
-
-	// Check if it's an imported type
-	parts := strings.Split(typeExpr.Name, "::")
-	if len(parts) > 1 {
-		moduleName := strings.Join(parts[:len(parts)-1], "::")
-		if !imports[moduleName] {
-			return fmt.Errorf("type %s comes from module %s which is not imported", typeExpr.Name, moduleName)
-		}
-
-		// Check if the module has a type definition
-		_, err := tc.TypeStore.Load(moduleName)
-		if err != nil {
-			return fmt.Errorf("no type definition found for module %s", moduleName)
-		}
-
-		// In a real implementation, we would check if the specific type exists in the module
-		return nil
-	}
-
-	// Check if it's a type defined in the current module
-	// This is a simplified check - in a real implementation, we would look up
-	// the type in a registry of types defined in the current module
-	// For now, we assume it's valid if it starts with an uppercase letter
-	// (a common convention for type names)
-	if len(typeExpr.Name) > 0 && typeExpr.Name[0] >= 'A' && typeExpr.Name[0] <= 'Z' {
-		return nil
-	}
-
-	// If we can't verify the type, log a warning but don't fail
-	// In a real implementation, we would have a more thorough check
-	return fmt.Errorf("unrecognized type %s", typeExpr.Name)
-}
-
-// isBuiltinType returns true if the type is a built-in type
-func isBuiltinType(typeName string) bool {
-	builtinTypes := map[string]bool{
-		// Basic types
-		"Any":    true,
-		"Scalar": true,
-		"Str":    true,
-		"Num":    true,
-		"Int":    true,
-		"Float":  true,
-		"Double": true,
-		"Bool":   true,
-		"Undef":  true,
-
-		// Reference types
-		"Ref":        true,
-		"ScalarRef":  true,
-		"ArrayRef":   true,
-		"HashRef":    true,
-		"CodeRef":    true,
-		"RegexpRef":  true,
-		"GlobRef":    true,
-		"FileHandle": true,
-
-		// Container types
-		"List":  true,
-		"Array": true,
-		"Hash":  true,
-		"Code":  true,
-		"Glob":  true,
-
-		// Type modifiers
-		"Maybe":    true,
-		"Optional": true,
-
-		// Role/trait types
-		"Callable":    true,
-		"Iterable":    true,
-		"Positional":  true,
-		"Associative": true,
-
-		// IO and system types
-		"IO":   true,
-		"Path": true,
-		"File": true,
-		"Dir":  true,
-
-		// Additional scalar types
-		"ClassName":  true,
-		"RoleName":   true,
-		"MethodName": true,
-		"Byte":       true,
-		"Char":       true,
-		"VarName":    true,
-	}
-
-	return builtinTypes[typeName]
+	return moduleName
 }
 
 // StripAnnotations removes type annotations from Perl code

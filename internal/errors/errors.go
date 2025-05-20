@@ -42,31 +42,43 @@ const (
 	CategoryUserInput = "User Input Error"
 )
 
+// TypedError is an interface for errors that provide additional type information
+type TypedError interface {
+	error
+	Category() string
+	Code() string
+	Prefix() string
+	Message() string
+	Description() string
+	Location() string
+	Hint() string
+}
+
 // Error represents a structured error with context
 type Error struct {
 	// Prefix identifies the component (PVM, PVX, etc.)
-	Prefix string
+	prefix string
 
 	// Category identifies the type of error
-	Category string
+	category string
 
 	// Code is a unique identifier for this error
-	Code string
+	code string
 
 	// Message is a short description of the error
-	Message string
+	message string
 
 	// Detail provides additional information about the error
-	Detail string
+	detail string
 
 	// Location indicates where the error occurred (file, line, etc.)
-	Location string
+	location string
 
 	// Hint provides a suggestion for resolving the error
-	Hint string
+	hint string
 
 	// InnerErr is the underlying error
-	InnerErr error
+	innerErr error
 }
 
 // Error implements the error interface
@@ -74,34 +86,34 @@ func (e *Error) Error() string {
 	var builder strings.Builder
 
 	// Format the error code with the prefix
-	errCode := fmt.Sprintf("%s-%s", e.Prefix, e.Code)
+	errCode := fmt.Sprintf("%s-%s", e.prefix, e.code)
 
 	// Start with the error code and message
-	builder.WriteString(fmt.Sprintf("%s: %s", errCode, e.Message))
+	builder.WriteString(fmt.Sprintf("%s: %s", errCode, e.message))
 
 	// Add the category if set
-	if e.Category != "" {
-		builder.WriteString(fmt.Sprintf(" (%s)", e.Category))
+	if e.category != "" {
+		builder.WriteString(fmt.Sprintf(" (%s)", e.category))
 	}
 
 	// Add detail if present
-	if e.Detail != "" {
-		builder.WriteString(fmt.Sprintf("\n  Detail: %s", e.Detail))
+	if e.detail != "" {
+		builder.WriteString(fmt.Sprintf("\n  Detail: %s", e.detail))
 	}
 
 	// Add location if present
-	if e.Location != "" {
-		builder.WriteString(fmt.Sprintf("\n  Location: %s", e.Location))
+	if e.location != "" {
+		builder.WriteString(fmt.Sprintf("\n  Location: %s", e.location))
 	}
 
 	// Add hint if present
-	if e.Hint != "" {
-		builder.WriteString(fmt.Sprintf("\n  Hint: %s", e.Hint))
+	if e.hint != "" {
+		builder.WriteString(fmt.Sprintf("\n  Hint: %s", e.hint))
 	}
 
 	// Add inner error if present and verbose is enabled
-	if e.InnerErr != nil {
-		builder.WriteString(fmt.Sprintf("\n  Cause: %v", e.InnerErr))
+	if e.innerErr != nil {
+		builder.WriteString(fmt.Sprintf("\n  Cause: %v", e.innerErr))
 	}
 
 	return builder.String()
@@ -115,40 +127,77 @@ func (e *Error) Is(target error) bool {
 	}
 
 	// Match by code and prefix
-	return e.Code == t.Code && e.Prefix == t.Prefix
+	return e.code == t.code && e.prefix == t.prefix
 }
 
 // Unwrap implements the errors.Unwrap interface for error chains
 func (e *Error) Unwrap() error {
-	return e.InnerErr
+	return e.innerErr
 }
 
 // WithDetail adds detail to the error
 func (e *Error) WithDetail(detail string) *Error {
-	e.Detail = detail
+	e.detail = detail
 	return e
 }
 
 // WithLocation adds location information to the error
 func (e *Error) WithLocation(location string) *Error {
-	e.Location = location
+	e.location = location
 	return e
 }
 
 // WithHint adds a hint for resolving the error
 func (e *Error) WithHint(hint string) *Error {
-	e.Hint = hint
+	e.hint = hint
 	return e
+}
+
+// Implementations of the TypedError interface
+
+// Category returns the error category
+func (e *Error) Category() string {
+	return e.category
+}
+
+// Code returns the error code
+func (e *Error) Code() string {
+	return e.code
+}
+
+// Prefix returns the error prefix
+func (e *Error) Prefix() string {
+	return e.prefix
+}
+
+// Message returns the error message
+func (e *Error) Message() string {
+	return e.message
+}
+
+// Description returns the error message (used for backward compatibility)
+func (e *Error) Description() string {
+	return e.message
+}
+
+// Location returns the error location
+func (e *Error) Location() string {
+	return e.location
+}
+
+// Hint returns the error hint
+func (e *Error) Hint() string {
+	return e.hint
 }
 
 // New creates a new error with the specified parameters
 func New(prefix, category, code, message string, inner error) *Error {
 	return &Error{
-		Prefix:   prefix,
-		Category: category,
-		Code:     code,
-		Message:  message,
-		InnerErr: inner,
+		prefix:   prefix,
+		category: category,
+		code:     code,
+		message:  message,
+		innerErr: inner,
 	}
 }
 
@@ -159,11 +208,11 @@ func Wrap(err error, prefix, category, code, message string) *Error {
 	}
 
 	return &Error{
-		Prefix:   prefix,
-		Category: category,
-		Code:     code,
-		Message:  message,
-		InnerErr: err,
+		prefix:   prefix,
+		category: category,
+		code:     code,
+		message:  message,
+		innerErr: err,
 	}
 }
 
