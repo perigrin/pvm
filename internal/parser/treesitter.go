@@ -157,9 +157,9 @@ func (p *TreeSitterParser) parseSource(content string) (Node, []error) {
 	// Create a root node
 	root := &TreeSitterNode{
 		NodeType:     "program",
-		Text:     content,
-		StartPos:    Position{Line: 1, Column: 1, Offset: 0},
-		EndPos:      Position{Line: len(lines), Column: len(lines[len(lines)-1]) + 1, Offset: len(content)},
+		Text:         content,
+		StartPos:     Position{Line: 1, Column: 1, Offset: 0},
+		EndPos:       Position{Line: len(lines), Column: len(lines[len(lines)-1]) + 1, Offset: len(content)},
 		NodeChildren: []*TreeSitterNode{},
 	}
 
@@ -184,9 +184,9 @@ func (p *TreeSitterParser) parseSource(content string) (Node, []error) {
 		// Create a node for this line
 		node := &TreeSitterNode{
 			NodeType:     p.determineNodeType(trimmed),
-			Text:     trimmed,
-			StartPos:    Position{Line: lineNum, Column: startCol, Offset: offset + indentLen},
-			EndPos:      Position{Line: lineNum, Column: len(line) + 1, Offset: offset + len(line)},
+			Text:         trimmed,
+			StartPos:     Position{Line: lineNum, Column: startCol, Offset: offset + indentLen},
+			EndPos:       Position{Line: lineNum, Column: len(line) + 1, Offset: offset + len(line)},
 			NodeChildren: []*TreeSitterNode{},
 		}
 
@@ -194,7 +194,7 @@ func (p *TreeSitterParser) parseSource(content string) (Node, []error) {
 		root.NodeChildren = append(root.NodeChildren, node)
 
 		// Add children nodes for complex statements
-		p.processNodeChildren(node, trimmed, lineNum, offset + indentLen)
+		p.processNodeChildren(node, trimmed, lineNum, offset+indentLen)
 
 		// Update offset for the next line
 		offset += len(line) + 1 // +1 for the newline
@@ -233,13 +233,14 @@ func (p *TreeSitterParser) determineNodeType(line string) string {
 	case "type":
 		return "type_declaration"
 	default:
-		if strings.HasPrefix(line, "if ") || strings.HasPrefix(line, "if(") {
+		switch {
+		case strings.HasPrefix(line, "if ") || strings.HasPrefix(line, "if("):
 			return "if_statement"
-		} else if strings.HasPrefix(line, "while ") || strings.HasPrefix(line, "while(") {
+		case strings.HasPrefix(line, "while ") || strings.HasPrefix(line, "while("):
 			return "while_statement"
-		} else if strings.HasPrefix(line, "for ") || strings.HasPrefix(line, "for(") {
+		case strings.HasPrefix(line, "for ") || strings.HasPrefix(line, "for("):
 			return "for_statement"
-		} else if strings.HasPrefix(line, "foreach ") || strings.HasPrefix(line, "foreach(") {
+		case strings.HasPrefix(line, "foreach ") || strings.HasPrefix(line, "foreach("):
 			return "foreach_statement"
 		}
 	}
@@ -260,9 +261,9 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 			// Extract type annotations and variable name
 			varDeclNode := &TreeSitterNode{
 				NodeType:     "variable_declarator",
-				Text:     parts[0],
-				StartPos:    Position{Line: lineNum, Column: offset + 1, Offset: offset},
-				EndPos:      Position{Line: lineNum, Column: offset + len(parts[0]) + 1, Offset: offset + len(parts[0])},
+				Text:         parts[0],
+				StartPos:     Position{Line: lineNum, Column: offset + 1, Offset: offset},
+				EndPos:       Position{Line: lineNum, Column: offset + len(parts[0]) + 1, Offset: offset + len(parts[0])},
 				NodeChildren: []*TreeSitterNode{},
 			}
 			node.NodeChildren = append(node.NodeChildren, varDeclNode)
@@ -272,9 +273,9 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 			if typePos >= 0 {
 				typeNode := &TreeSitterNode{
 					NodeType:     "type_annotation",
-					Text:     parts[1],
-					StartPos:    Position{Line: lineNum, Column: offset + typePos + 1, Offset: offset + typePos},
-					EndPos:      Position{Line: lineNum, Column: offset + typePos + len(parts[1]) + 1, Offset: offset + typePos + len(parts[1])},
+					Text:         parts[1],
+					StartPos:     Position{Line: lineNum, Column: offset + typePos + 1, Offset: offset + typePos},
+					EndPos:       Position{Line: lineNum, Column: offset + typePos + len(parts[1]) + 1, Offset: offset + typePos + len(parts[1])},
 					NodeChildren: []*TreeSitterNode{},
 				}
 				node.NodeChildren = append(node.NodeChildren, typeNode)
@@ -285,9 +286,9 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 			if varPos >= 0 {
 				varNode := &TreeSitterNode{
 					NodeType:     "identifier",
-					Text:     parts[2],
-					StartPos:    Position{Line: lineNum, Column: offset + varPos + 1, Offset: offset + varPos},
-					EndPos:      Position{Line: lineNum, Column: offset + varPos + len(parts[2]) + 1, Offset: offset + varPos + len(parts[2])},
+					Text:         parts[2],
+					StartPos:     Position{Line: lineNum, Column: offset + varPos + 1, Offset: offset + varPos},
+					EndPos:       Position{Line: lineNum, Column: offset + varPos + len(parts[2]) + 1, Offset: offset + varPos + len(parts[2])},
 					NodeChildren: []*TreeSitterNode{},
 				}
 				node.NodeChildren = append(node.NodeChildren, varNode)
@@ -303,9 +304,9 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 			if subNamePos >= 0 {
 				nameNode := &TreeSitterNode{
 					NodeType:     "identifier",
-					Text:     parts[1],
-					StartPos:    Position{Line: lineNum, Column: offset + subNamePos + 1, Offset: offset + subNamePos},
-					EndPos:      Position{Line: lineNum, Column: offset + subNamePos + len(parts[1]) + 1, Offset: offset + subNamePos + len(parts[1])},
+					Text:         parts[1],
+					StartPos:     Position{Line: lineNum, Column: offset + subNamePos + 1, Offset: offset + subNamePos},
+					EndPos:       Position{Line: lineNum, Column: offset + subNamePos + len(parts[1]) + 1, Offset: offset + subNamePos + len(parts[1])},
 					NodeChildren: []*TreeSitterNode{},
 				}
 				node.NodeChildren = append(node.NodeChildren, nameNode)
@@ -315,18 +316,18 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 			paramStart := strings.Index(content, "(")
 			paramEnd := strings.Index(content, ")")
 			if paramStart >= 0 && paramEnd > paramStart {
-				paramText := content[paramStart:paramEnd+1]
+				paramText := content[paramStart : paramEnd+1]
 				paramNode := &TreeSitterNode{
 					NodeType:     "parameter_list",
-					Text:     paramText,
-					StartPos:    Position{Line: lineNum, Column: offset + paramStart + 1, Offset: offset + paramStart},
-					EndPos:      Position{Line: lineNum, Column: offset + paramEnd + 2, Offset: offset + paramEnd + 1},
+					Text:         paramText,
+					StartPos:     Position{Line: lineNum, Column: offset + paramStart + 1, Offset: offset + paramStart},
+					EndPos:       Position{Line: lineNum, Column: offset + paramEnd + 2, Offset: offset + paramEnd + 1},
 					NodeChildren: []*TreeSitterNode{},
 				}
 				node.NodeChildren = append(node.NodeChildren, paramNode)
 
 				// Process each parameter
-				params := content[paramStart+1:paramEnd]
+				params := content[paramStart+1 : paramEnd]
 				if len(params) > 0 {
 					paramsList := strings.Split(params, ",")
 					paramOffset := offset + paramStart + 1
@@ -347,9 +348,9 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 								if typePos >= 0 {
 									typeNode := &TreeSitterNode{
 										NodeType:     "type_annotation",
-										Text:     paramParts[0],
-										StartPos:    Position{Line: lineNum, Column: typePos + 1, Offset: typePos},
-										EndPos:      Position{Line: lineNum, Column: typePos + len(paramParts[0]) + 1, Offset: typePos + len(paramParts[0])},
+										Text:         paramParts[0],
+										StartPos:     Position{Line: lineNum, Column: typePos + 1, Offset: typePos},
+										EndPos:       Position{Line: lineNum, Column: typePos + len(paramParts[0]) + 1, Offset: typePos + len(paramParts[0])},
 										NodeChildren: []*TreeSitterNode{},
 									}
 									paramNode.NodeChildren = append(paramNode.NodeChildren, typeNode)
@@ -360,9 +361,9 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 								if varPos >= 0 {
 									varNode := &TreeSitterNode{
 										NodeType:     "identifier",
-										Text:     paramParts[len(paramParts)-1],
-										StartPos:    Position{Line: lineNum, Column: varPos + 1, Offset: varPos},
-										EndPos:      Position{Line: lineNum, Column: varPos + len(paramParts[len(paramParts)-1]) + 1, Offset: varPos + len(paramParts[len(paramParts)-1])},
+										Text:         paramParts[len(paramParts)-1],
+										StartPos:     Position{Line: lineNum, Column: varPos + 1, Offset: varPos},
+										EndPos:       Position{Line: lineNum, Column: varPos + len(paramParts[len(paramParts)-1]) + 1, Offset: varPos + len(paramParts[len(paramParts)-1])},
 										NodeChildren: []*TreeSitterNode{},
 									}
 									paramNode.NodeChildren = append(paramNode.NodeChildren, varNode)
@@ -382,18 +383,18 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 				returnTypeText = strings.TrimSpace(returnTypeText)
 
 				// Remove trailing curly brace or semicolon if present
-				if idx := strings.Index(returnTypeText, "{"); idx >= 0 {
+				if idx := strings.Index(returnTypeText, "{"); idx != -1 {
 					returnTypeText = strings.TrimSpace(returnTypeText[:idx])
 				}
-				if idx := strings.Index(returnTypeText, ";"); idx >= 0 {
+				if idx := strings.Index(returnTypeText, ";"); idx != -1 {
 					returnTypeText = strings.TrimSpace(returnTypeText[:idx])
 				}
 
 				returnNode := &TreeSitterNode{
 					NodeType:     "return_type_annotation",
-					Text:     returnTypeText,
-					StartPos:    Position{Line: lineNum, Column: offset + returnArrow + 3, Offset: offset + returnArrow + 2},
-					EndPos:      Position{Line: lineNum, Column: offset + returnArrow + 3 + len(returnTypeText), Offset: offset + returnArrow + 2 + len(returnTypeText)},
+					Text:         returnTypeText,
+					StartPos:     Position{Line: lineNum, Column: offset + returnArrow + 3, Offset: offset + returnArrow + 2},
+					EndPos:       Position{Line: lineNum, Column: offset + returnArrow + 3 + len(returnTypeText), Offset: offset + returnArrow + 2 + len(returnTypeText)},
 					NodeChildren: []*TreeSitterNode{},
 				}
 				node.NodeChildren = append(node.NodeChildren, returnNode)
@@ -409,9 +410,9 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 			if typePos >= 0 {
 				typeNode := &TreeSitterNode{
 					NodeType:     "type_annotation",
-					Text:     parts[1],
-					StartPos:    Position{Line: lineNum, Column: offset + typePos + 1, Offset: offset + typePos},
-					EndPos:      Position{Line: lineNum, Column: offset + typePos + len(parts[1]) + 1, Offset: offset + typePos + len(parts[1])},
+					Text:         parts[1],
+					StartPos:     Position{Line: lineNum, Column: offset + typePos + 1, Offset: offset + typePos},
+					EndPos:       Position{Line: lineNum, Column: offset + typePos + len(parts[1]) + 1, Offset: offset + typePos + len(parts[1])},
 					NodeChildren: []*TreeSitterNode{},
 				}
 				node.NodeChildren = append(node.NodeChildren, typeNode)
@@ -422,9 +423,9 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 			if fieldPos >= 0 {
 				fieldNode := &TreeSitterNode{
 					NodeType:     "identifier",
-					Text:     parts[2],
-					StartPos:    Position{Line: lineNum, Column: offset + fieldPos + 1, Offset: offset + fieldPos},
-					EndPos:      Position{Line: lineNum, Column: offset + fieldPos + len(parts[2]) + 1, Offset: offset + fieldPos + len(parts[2])},
+					Text:         parts[2],
+					StartPos:     Position{Line: lineNum, Column: offset + fieldPos + 1, Offset: offset + fieldPos},
+					EndPos:       Position{Line: lineNum, Column: offset + fieldPos + len(parts[2]) + 1, Offset: offset + fieldPos + len(parts[2])},
 					NodeChildren: []*TreeSitterNode{},
 				}
 				node.NodeChildren = append(node.NodeChildren, fieldNode)
@@ -440,9 +441,9 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 			if typeNamePos >= 0 {
 				typeNameNode := &TreeSitterNode{
 					NodeType:     "identifier",
-					Text:     parts[1],
-					StartPos:    Position{Line: lineNum, Column: offset + typeNamePos + 1, Offset: offset + typeNamePos},
-					EndPos:      Position{Line: lineNum, Column: offset + typeNamePos + len(parts[1]) + 1, Offset: offset + typeNamePos + len(parts[1])},
+					Text:         parts[1],
+					StartPos:     Position{Line: lineNum, Column: offset + typeNamePos + 1, Offset: offset + typeNamePos},
+					EndPos:       Position{Line: lineNum, Column: offset + typeNamePos + len(parts[1]) + 1, Offset: offset + typeNamePos + len(parts[1])},
 					NodeChildren: []*TreeSitterNode{},
 				}
 				node.NodeChildren = append(node.NodeChildren, typeNameNode)
@@ -453,15 +454,15 @@ func (p *TreeSitterParser) processNodeChildren(node *TreeSitterNode, content str
 			if typeDefPos >= 0 {
 				typeDefText := content[typeDefPos:]
 				// Remove trailing semicolon if present
-				if idx := strings.Index(typeDefText, ";"); idx >= 0 {
+				if idx := strings.Index(typeDefText, ";"); idx != -1 {
 					typeDefText = typeDefText[:idx]
 				}
 
 				typeDefNode := &TreeSitterNode{
 					NodeType:     "type_definition",
-					Text:     typeDefText,
-					StartPos:    Position{Line: lineNum, Column: offset + typeDefPos + 1, Offset: offset + typeDefPos},
-					EndPos:      Position{Line: lineNum, Column: offset + typeDefPos + len(typeDefText) + 1, Offset: offset + typeDefPos + len(typeDefText)},
+					Text:         typeDefText,
+					StartPos:     Position{Line: lineNum, Column: offset + typeDefPos + 1, Offset: offset + typeDefPos},
+					EndPos:       Position{Line: lineNum, Column: offset + typeDefPos + len(typeDefText) + 1, Offset: offset + typeDefPos + len(typeDefText)},
 					NodeChildren: []*TreeSitterNode{},
 				}
 				node.NodeChildren = append(node.NodeChildren, typeDefNode)
@@ -621,7 +622,7 @@ func (p *TreeSitterParser) processSubroutineDeclaration(content string, lines []
 		paramStart := strings.Index(line, "(")
 		paramEnd := strings.Index(line, ")")
 		if paramStart >= 0 && paramEnd > paramStart {
-			params := line[paramStart+1:paramEnd]
+			params := line[paramStart+1 : paramEnd]
 
 			// Split parameters by comma
 			paramList := strings.Split(params, ",")
