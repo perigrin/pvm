@@ -63,6 +63,14 @@ type TypeCheck struct {
 
 	// EnableFlowSensitiveAnalysis controls whether flow-sensitive analysis is enabled
 	EnableFlowSensitiveAnalysis bool
+	
+	// SkipFlowChecks controls whether to skip flow-sensitive type checks
+	// but still perform type refinements based on control flow
+	SkipFlowChecks bool
+	
+	// FlowPatterns contains additional flow-sensitive patterns to recognize
+	// These can include custom validation patterns for type refinement
+	FlowPatterns []string
 }
 
 // NewTypeCheck creates a new TypeCheck instance
@@ -87,6 +95,8 @@ func NewTypeCheck() (*TypeCheck, error) {
 		TypeStore:                   typeStore,
 		TypeHierarchy:               hierarchy,
 		EnableFlowSensitiveAnalysis: true, // Enable by default
+		SkipFlowChecks:              false, // Don't skip checks by default
+		FlowPatterns:                []string{}, // No additional patterns by default
 	}, nil
 }
 
@@ -140,8 +150,22 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	// Create a type checker
 	checker := NewTypeChecker(tc.TypeHierarchy, moduleName)
 
-	// Enable or disable flow-sensitive analysis
+	// Configure flow-sensitive analysis options
 	checker.Debug = tc.EnableFlowSensitiveAnalysis
+	
+	// If enabled, pass additional flow-sensitive analysis options
+	if tc.EnableFlowSensitiveAnalysis {
+		// Configure to skip flow checks if specified 
+		// (in a real implementation we would have a field for this in TypeChecker)
+		// checker.SkipFlowChecks = tc.SkipFlowChecks
+		
+		// Add custom validation patterns if specified
+		if len(tc.FlowPatterns) > 0 {
+			// In a real implementation, we would parse and add these patterns
+			// For now, we'll just log that we received them
+			fmt.Printf("INFO: Using %d custom flow patterns\n", len(tc.FlowPatterns))
+		}
+	}
 
 	// Check the AST for type errors
 	typeErrors := checker.CheckAST(ast)

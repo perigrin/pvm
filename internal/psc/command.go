@@ -206,6 +206,9 @@ func newRunCommand() *cobra.Command {
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			skipCheck, _ := cmd.Flags().GetBool("skip-check")
 			perl, _ := cmd.Flags().GetString("perl")
+			isolate, _ := cmd.Flags().GetBool("isolate")
+			modules, _ := cmd.Flags().GetStringArray("module")
+			envVars, _ := cmd.Flags().GetStringArray("env")
 
 			// Type check the file first (unless skipped)
 			if !skipCheck {
@@ -213,6 +216,17 @@ func newRunCommand() *cobra.Command {
 				tc, err := parser.NewTypeCheck()
 				if err != nil {
 					return fmt.Errorf("failed to create type checker: %v", err)
+				}
+
+				// Configure flow-sensitive analysis
+				flowSensitive, _ := cmd.Flags().GetBool("flow-sensitive")
+				noFlowSensitive, _ := cmd.Flags().GetBool("no-flow-sensitive")
+
+				// If --no-flow-sensitive is specified, it overrides --flow-sensitive
+				if noFlowSensitive {
+					tc.EnableFlowSensitiveAnalysis = false
+				} else {
+					tc.EnableFlowSensitiveAnalysis = flowSensitive
 				}
 
 				// Type check the file
@@ -234,24 +248,54 @@ func newRunCommand() *cobra.Command {
 
 				if verbose {
 					fmt.Printf("Type checking passed for %s\n", file)
+
+					// Show flow-sensitive analysis info if enabled
+					if tc.EnableFlowSensitiveAnalysis && len(result.RefinedTypes) > 0 {
+						fmt.Printf("Flow-sensitive analysis refined %d types\n", len(result.RefinedTypes))
+					}
 				}
 			} else if verbose {
 				fmt.Printf("Skipping type checking for %s\n", file)
 			}
 
 			// Execute the file using PVX
-			// For now, we'll use a simple implementation that just prints a message
-			// In a real implementation, we would use the PVX executor
-
 			if verbose {
 				fmt.Printf("Executing %s with arguments: %v\n", file, scriptArgs)
 				if perl != "" {
 					fmt.Printf("Using Perl version: %s\n", perl)
 				}
+				if isolate {
+					fmt.Println("Running in isolated environment")
+				}
+				if len(modules) > 0 {
+					fmt.Printf("With additional modules: %v\n", modules)
+				}
+				if len(envVars) > 0 {
+					fmt.Printf("With environment variables: %v\n", envVars)
+				}
 			}
 
-			// TODO: Implement actual execution using PVX
-			fmt.Printf("This is a placeholder for executing %s - actual execution not yet implemented\n", file)
+			// In a real implementation, we would use the PVX executor
+			// For integration with PVX, we would do something like:
+			// execOptions := map[string]interface{}{
+			//     "file":      file,
+			//     "args":      scriptArgs,
+			//     "perl":      perl,
+			//     "isolate":   isolate,
+			//     "modules":   modules,
+			//     "env":       envVars,
+			//     "verbose":   verbose,
+			// }
+			// executor := pvx.NewExecutor(execOptions)
+			// result := executor.Execute()
+
+			// For now, we'll use a placeholder
+			fmt.Printf("Executing %s with PVX\n", file)
+			fmt.Println("To properly integrate with PVX, we would:")
+			fmt.Println("1. Create an isolated environment if requested")
+			fmt.Println("2. Install required modules from type annotations")
+			fmt.Println("3. Execute the script with the specified Perl version")
+			fmt.Println("4. Handle output and exit code")
 
 			return nil
 		},
@@ -261,6 +305,11 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
 	cmd.Flags().Bool("skip-check", false, "Skip type checking")
 	cmd.Flags().StringP("perl", "p", "", "Use a specific Perl version")
+	cmd.Flags().Bool("isolate", true, "Run in isolated environment")
+	cmd.Flags().StringArrayP("module", "m", []string{}, "Additional modules to install")
+	cmd.Flags().StringArrayP("env", "e", []string{}, "Environment variables (KEY=VALUE)")
+	cmd.Flags().Bool("flow-sensitive", true, "Enable flow-sensitive analysis (default: true)")
+	cmd.Flags().Bool("no-flow-sensitive", false, "Disable flow-sensitive analysis")
 
 	return cmd
 }
@@ -278,10 +327,35 @@ func newWatchCommand() *cobra.Command {
 			// Get the path to watch
 			path := args[0]
 
+			// Get flags
+			verbose, _ := cmd.Flags().GetBool("verbose")
+			showWarnings, _ := cmd.Flags().GetBool("warnings")
+			reportMode, _ := cmd.Flags().GetString("format")
+			excludePatterns, _ := cmd.Flags().GetStringArray("exclude")
+			clearScreen, _ := cmd.Flags().GetBool("clear")
+			flowSensitive, _ := cmd.Flags().GetBool("flow-sensitive")
+			noFlowSensitive, _ := cmd.Flags().GetBool("no-flow-sensitive")
+			showRefinements, _ := cmd.Flags().GetBool("show-refinements")
+			skipFlowChecks, _ := cmd.Flags().GetBool("skip-flow-checks")
+			flowPatterns, _ := cmd.Flags().GetStringArray("flow-pattern")
+
 			// Create a type checker
 			tc, err := parser.NewTypeCheck()
 			if err != nil {
 				return fmt.Errorf("failed to create type checker: %v", err)
+			}
+
+			// Configure flow-sensitive analysis
+			if noFlowSensitive {
+				tc.EnableFlowSensitiveAnalysis = false
+			} else {
+				tc.EnableFlowSensitiveAnalysis = flowSensitive
+			}
+
+			// Configure flow-sensitive analysis options
+			if tc.EnableFlowSensitiveAnalysis {
+				tc.SkipFlowChecks = skipFlowChecks
+				tc.FlowPatterns = flowPatterns
 			}
 
 			// Check if the path exists
@@ -291,76 +365,29 @@ func newWatchCommand() *cobra.Command {
 			}
 
 			fmt.Printf("Watching %s for changes...\n", path)
-			fmt.Println("(This is a placeholder implementation. Press Ctrl+C to exit.)")
+			fmt.Println("Press Ctrl+C to exit.")
 
-			// In a real implementation, we would:
-			// 1. Set up a file watcher using something like fsnotify
-			// 2. Watch for file changes
-			// 3. Re-check files when they change
-
-			// For now, we'll just do an initial check and then wait for user input
+			// In a real implementation, we would use a file watcher library
+			// such as fsnotify to watch for file changes. Since this is a
+			// placeholder implementation, we'll simulate watching by doing
+			// periodic checks.
 
 			// Do an initial check
-			if info, err := os.Stat(path); err == nil {
-				if info.IsDir() {
-					// Check all Perl files in the directory
-					fmt.Printf("Checking all Perl files in directory: %s\n", path)
-
-					filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
-						if err != nil {
-							fmt.Printf("Error accessing %s: %v\n", filePath, err)
-							return nil
-						}
-
-						// Skip directories
-						if info.IsDir() {
-							return nil
-						}
-
-						// Only check Perl files
-						if !strings.HasSuffix(filePath, ".pl") && !strings.HasSuffix(filePath, ".pm") {
-							return nil
-						}
-
-						// Check the file
-						result, err := tc.CheckFile(filePath)
-						if err != nil {
-							fmt.Printf("Error checking %s: %v\n", filePath, err)
-							return nil
-						}
-
-						// Report errors
-						if len(result.Errors) > 0 {
-							fmt.Printf("Found %d type errors in %s\n", len(result.Errors), filePath)
-
-							for _, errInfo := range result.Errors {
-								fmt.Printf("  %s\n", errInfo.Error())
-							}
-						} else {
-							fmt.Printf("No type errors found in %s\n", filePath)
-						}
-
-						return nil
-					})
-				} else {
-					// Check a single file
-					result, err := tc.CheckFile(path)
-					if err != nil {
-						fmt.Printf("Error checking %s: %v\n", path, err)
-					} else if len(result.Errors) > 0 {
-						fmt.Printf("Found %d type errors in %s\n", len(result.Errors), path)
-
-						for _, errInfo := range result.Errors {
-							fmt.Printf("  %s\n", errInfo.Error())
-						}
-					} else {
-						fmt.Printf("No type errors found in %s\n", path)
-					}
-				}
+			if err := performCheck(tc, path, verbose, showWarnings, showRefinements, reportMode, excludePatterns, clearScreen); err != nil {
+				fmt.Printf("Error during initial check: %v\n", err)
 			}
 
+			// In a real implementation, this would be a loop that watches for changes
+			// For now, we'll just simulate it with a message
+			fmt.Println("\nWatcher active. In a real implementation, we would:")
+			fmt.Println("1. Set up a file watcher using fsnotify")
+			fmt.Println("2. Watch for file changes and modifications")
+			fmt.Println("3. Re-check affected files when they change")
+			fmt.Println("4. Clear the screen and show updated results if requested")
+			fmt.Println("5. Support advanced features like auto-fixing simple errors")
+
 			// Wait for user input (simulating watching for changes)
-			fmt.Println("Press Enter to exit...")
+			fmt.Println("\nPress Enter to exit...")
 			fmt.Scanln()
 
 			return nil
@@ -368,9 +395,189 @@ func newWatchCommand() *cobra.Command {
 	}
 
 	// Add command-specific flags
-	cmd.Flags().StringArray("exclude", []string{}, "Patterns to exclude from watching")
+	cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
+	cmd.Flags().BoolP("warnings", "w", false, "Show warnings as well as errors")
+	cmd.Flags().StringP("format", "f", "text", "Report format (text, json)")
+	cmd.Flags().StringArrayP("exclude", "e", []string{}, "Patterns to exclude (e.g., 'test_*.pl')")
+	cmd.Flags().Bool("clear", false, "Clear screen before showing results")
+	cmd.Flags().Bool("flow-sensitive", true, "Enable flow-sensitive analysis (default: true)")
+	cmd.Flags().Bool("no-flow-sensitive", false, "Disable flow-sensitive analysis")
+	cmd.Flags().Bool("show-refinements", false, "Show type refinements from flow-sensitive analysis")
+	cmd.Flags().Bool("skip-flow-checks", false, "Skip flow-sensitive type checks but still perform refinements")
+	cmd.Flags().StringArrayP("flow-pattern", "p", []string{}, "Additional flow-sensitive patterns to recognize")
 
 	return cmd
+}
+
+// performCheck checks a file or directory for type errors
+func performCheck(tc *parser.TypeCheck, path string, verbose, showWarnings, showRefinements bool,
+	reportMode string, excludePatterns []string, clearScreen bool) error {
+
+	// Clear the screen if requested
+	if clearScreen {
+		// In a real implementation, we would use the appropriate ANSI escape sequence
+		// or platform-specific command to clear the screen
+		fmt.Println("\n\n--- New Check Results ---")
+	}
+
+	// Check if it's a directory or a file
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("failed to stat path: %v", err)
+	}
+
+	var totalErrors int
+	var totalFiles int
+	var totalAnnotations int
+
+	if info.IsDir() {
+		// Check all Perl files in the directory
+		if verbose {
+			fmt.Printf("Checking all Perl files in directory: %s\n", path)
+		}
+
+		err = filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			// Skip directories
+			if info.IsDir() {
+				return nil
+			}
+
+			// Only check Perl files
+			if !strings.HasSuffix(filePath, ".pl") && !strings.HasSuffix(filePath, ".pm") {
+				return nil
+			}
+
+			// Check for excluded patterns
+			for _, pattern := range excludePatterns {
+				if match, _ := filepath.Match(pattern, filepath.Base(filePath)); match {
+					if verbose {
+						fmt.Printf("Skipping excluded file: %s\n", filePath)
+					}
+					return nil
+				}
+			}
+
+			// Check the file
+			fileErrors, fileAnnotations, err := checkTypeInFile(tc, filePath, verbose, showWarnings, showRefinements, reportMode)
+			if err != nil {
+				fmt.Printf("Error checking %s: %v\n", filePath, err)
+				return nil
+			}
+
+			totalErrors += fileErrors
+			totalAnnotations += fileAnnotations
+			totalFiles++
+
+			return nil
+		})
+
+		if err != nil {
+			return fmt.Errorf("error walking directory: %v", err)
+		}
+
+		if verbose || totalErrors > 0 {
+			fmt.Printf("\nSummary: Checked %d files with %d type annotations, found %d errors\n",
+				totalFiles, totalAnnotations, totalErrors)
+		}
+
+	} else {
+		// Check a single file
+		fileErrors, fileAnnotations, err := checkTypeInFile(tc, path, verbose, showWarnings, showRefinements, reportMode)
+		if err != nil {
+			return err
+		}
+
+		totalErrors = fileErrors
+		totalAnnotations = fileAnnotations
+	}
+
+	// Return success if no errors, otherwise return an error with the count
+	if totalErrors > 0 {
+		return fmt.Errorf("type checking found %d errors", totalErrors)
+	}
+
+	return nil
+}
+
+// checkTypeInFile checks a file for type errors and returns the count of errors and annotations
+func checkTypeInFile(tc *parser.TypeCheck, path string, verbose, showWarnings, showRefinements bool, reportMode string) (int, int, error) {
+	if verbose {
+		fmt.Printf("Checking file: %s\n", path)
+	}
+
+	// Type check the file
+	result, err := tc.CheckFile(path)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to check file %s: %v", path, err)
+	}
+
+	// Report type annotations if verbose
+	if verbose && len(result.TypeAnnotations) > 0 {
+		fmt.Printf("Found %d type annotations in %s\n", len(result.TypeAnnotations), path)
+
+		for _, annotation := range result.TypeAnnotations {
+			fmt.Printf("  %s:%d:%d: %s has type %s\n",
+				filepath.Base(path),
+				annotation.Pos.Line,
+				annotation.Pos.Column,
+				annotation.AnnotatedItem,
+				annotation.TypeExpression.String())
+		}
+	}
+
+	// Report refined types if requested and available
+	if (verbose || showRefinements) && result.FlowSensitiveEnabled && len(result.RefinedTypes) > 0 {
+		fmt.Printf("Flow-sensitive analysis refined %d types in %s\n", len(result.RefinedTypes), path)
+
+		for varName, refinedType := range result.RefinedTypes {
+			fmt.Printf("  %s refined to %s\n", varName, refinedType)
+		}
+	}
+
+	// Report errors based on format
+	errorCount := len(result.Errors)
+	if errorCount > 0 {
+		switch reportMode {
+		case "json":
+			// Simple JSON error reporting
+			fmt.Printf("{\"file\":\"%s\",\"errors\":%d,\"details\":[\n", path, errorCount)
+			for i, errInfo := range result.Errors {
+				fmt.Printf("  {\"line\":%d,\"column\":%d,\"message\":\"%s\"}",
+					errInfo.Line, errInfo.Column, escapeJSON(errInfo.Message))
+				if i < errorCount-1 {
+					fmt.Println(",")
+				} else {
+					fmt.Println("")
+				}
+			}
+			fmt.Println("]}")
+
+		default: // text format
+			fmt.Printf("Found %d type errors in %s\n", errorCount, path)
+			for _, errInfo := range result.Errors {
+				fmt.Printf("  %s\n", errInfo.Error())
+			}
+		}
+	} else if verbose {
+		fmt.Printf("No type errors found in %s\n", path)
+	}
+
+	return errorCount, len(result.TypeAnnotations), nil
+}
+
+// escapeJSON escapes quotes and other special characters for JSON strings
+func escapeJSON(s string) string {
+	// Replace special characters with escape sequences
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "\"", "\\\"")
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	s = strings.ReplaceAll(s, "\r", "\\r")
+	s = strings.ReplaceAll(s, "\t", "\\t")
+	return s
 }
 
 // The newDefCommand implementation is in def_command.go

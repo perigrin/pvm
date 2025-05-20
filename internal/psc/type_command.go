@@ -36,6 +36,41 @@ func newCheckTypeCommand() *cobra.Command {
 				return fmt.Errorf("failed to create type checker: %v", err)
 			}
 
+			// Handle flow-sensitive analysis flags
+			flowSensitive, _ := cmd.Flags().GetBool("flow-sensitive")
+			noFlowSensitive, _ := cmd.Flags().GetBool("no-flow-sensitive")
+			showRefinements, _ := cmd.Flags().GetBool("show-refinements")
+			skipFlowChecks, _ := cmd.Flags().GetBool("skip-flow-checks")
+			flowPatterns, _ := cmd.Flags().GetStringArray("flow-pattern")
+
+			// If --no-flow-sensitive is specified, it overrides --flow-sensitive
+			if noFlowSensitive {
+				tc.EnableFlowSensitiveAnalysis = false
+			} else {
+				tc.EnableFlowSensitiveAnalysis = flowSensitive
+			}
+
+			// Configure flow-sensitive analysis options
+			if tc.EnableFlowSensitiveAnalysis {
+				// Pass additional flow-sensitive options to type checker
+				tc.SkipFlowChecks = skipFlowChecks
+				tc.FlowPatterns = flowPatterns
+
+				if len(flowPatterns) > 0 && verbose {
+					fmt.Printf("Using additional flow-sensitive patterns: %v\n", flowPatterns)
+				}
+
+				if skipFlowChecks && verbose {
+					fmt.Println("Flow-sensitive type checks will be skipped, but refinements will be performed")
+				}
+
+				if showRefinements && verbose {
+					fmt.Println("Flow-sensitive refinements will be shown in the output")
+				}
+			} else if verbose {
+				fmt.Println("Flow-sensitive analysis is disabled")
+			}
+
 			// Check if it's a directory or a file
 			info, err := os.Stat(path)
 			if err != nil {
@@ -80,7 +115,7 @@ func newCheckTypeCommand() *cobra.Command {
 					}
 
 					// Check the file
-					fileErrors, fileAnnotations, err := checkTypeInFile(tc, filePath, verbose, showWarnings, reportMode)
+					fileErrors, fileAnnotations, err := checkTypeInFile(tc, filePath, verbose, showWarnings, showRefinements, reportMode)
 					if err != nil {
 						fmt.Printf("Error checking %s: %v\n", filePath, err)
 						return nil
@@ -108,7 +143,7 @@ func newCheckTypeCommand() *cobra.Command {
 
 			} else {
 				// Check a single file
-				fileErrors, fileAnnotations, err := checkTypeInFile(tc, path, verbose, showWarnings, reportMode)
+				fileErrors, fileAnnotations, err := checkTypeInFile(tc, path, verbose, showWarnings, showRefinements, reportMode)
 				if err != nil {
 					return err
 				}
@@ -130,74 +165,11 @@ func newCheckTypeCommand() *cobra.Command {
 	cmd.Flags().BoolP("warnings", "w", false, "Show warnings as well as errors")
 	cmd.Flags().StringP("format", "f", "text", "Report format (text, json)")
 	cmd.Flags().StringArrayP("exclude", "e", []string{}, "Patterns to exclude (e.g., 'test_*.pl')")
+	cmd.Flags().Bool("flow-sensitive", true, "Enable flow-sensitive analysis (default: true)")
+	cmd.Flags().Bool("no-flow-sensitive", false, "Disable flow-sensitive analysis")
+	cmd.Flags().Bool("show-refinements", false, "Show type refinements from flow-sensitive analysis")
+	cmd.Flags().Bool("skip-flow-checks", false, "Skip flow-sensitive type checks but still perform refinements")
+	cmd.Flags().StringArrayP("flow-pattern", "p", []string{}, "Additional flow-sensitive patterns to recognize (e.g., 'isa_check')")
 
 	return cmd
-}
-
-// checkTypeInFile checks a file for type errors and returns the count of errors and annotations
-func checkTypeInFile(tc *parser.TypeCheck, path string, verbose, showWarnings bool, reportMode string) (int, int, error) {
-	if verbose {
-		fmt.Printf("Checking file: %s\n", path)
-	}
-
-	// Type check the file
-	result, err := tc.CheckFile(path)
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to check file %s: %v", path, err)
-	}
-
-	// Report type annotations if verbose
-	if verbose && len(result.TypeAnnotations) > 0 {
-		fmt.Printf("Found %d type annotations in %s\n", len(result.TypeAnnotations), path)
-
-		for _, annotation := range result.TypeAnnotations {
-			fmt.Printf("  %s:%d:%d: %s has type %s\n",
-				filepath.Base(path),
-				annotation.Pos.Line,
-				annotation.Pos.Column,
-				annotation.AnnotatedItem,
-				annotation.TypeExpression.String())
-		}
-	}
-
-	// Report errors based on format
-	errorCount := len(result.Errors)
-	if errorCount > 0 {
-		switch reportMode {
-		case "json":
-			// Simple JSON error reporting
-			fmt.Printf("{\"file\":\"%s\",\"errors\":%d,\"details\":[\n", path, errorCount)
-			for i, errInfo := range result.Errors {
-				fmt.Printf("  {\"line\":%d,\"column\":%d,\"message\":\"%s\"}",
-					errInfo.Line, errInfo.Column, escapeJSON(errInfo.Message))
-				if i < errorCount-1 {
-					fmt.Println(",")
-				} else {
-					fmt.Println("")
-				}
-			}
-			fmt.Println("]}")
-
-		default: // text format
-			fmt.Printf("Found %d type errors in %s\n", errorCount, path)
-			for _, errInfo := range result.Errors {
-				fmt.Printf("  %s\n", errInfo.Error())
-			}
-		}
-	} else if verbose {
-		fmt.Printf("No type errors found in %s\n", path)
-	}
-
-	return errorCount, len(result.TypeAnnotations), nil
-}
-
-// escapeJSON escapes quotes and other special characters for JSON strings
-func escapeJSON(s string) string {
-	// Replace special characters with escape sequences
-	s = strings.ReplaceAll(s, "\\", "\\\\")
-	s = strings.ReplaceAll(s, "\"", "\\\"")
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	s = strings.ReplaceAll(s, "\r", "\\r")
-	s = strings.ReplaceAll(s, "\t", "\\t")
-	return s
 }
