@@ -65,8 +65,8 @@ func TestTypeAnnotationValidation(t *testing.T) {
 
 	// Test error cases - with our current implementation, custom types might pass validation
 	// but in a more robust implementation they would fail if the type is not defined
-	assert.NoError(t, checker.validateType("CustomType"))  // Uppercase is okay
-	assert.Error(t, checker.validateType("invalidType"))   // lowercase is not valid
+	assert.NoError(t, checker.validateType("CustomType")) // Uppercase is okay
+	assert.Error(t, checker.validateType("invalidType"))  // lowercase is not valid
 }
 
 // TestTypeCompatibilityChecking tests checking of type compatibility
@@ -211,8 +211,8 @@ func TestExpressionTypeInference(t *testing.T) {
 	assert.Equal(t, "Str", checker.inferExpressionType("`backtick`"))
 
 	// Test boolean literals
-	assert.Equal(t, "Bool", checker.inferExpressionType("1"))  // Special case for Perl
-	assert.Equal(t, "Bool", checker.inferExpressionType("0"))  // Special case for Perl
+	assert.Equal(t, "Bool", checker.inferExpressionType("1")) // Special case for Perl
+	assert.Equal(t, "Bool", checker.inferExpressionType("0")) // Special case for Perl
 	assert.Equal(t, "Bool", checker.inferExpressionType("True"))
 	assert.Equal(t, "Bool", checker.inferExpressionType("False"))
 
@@ -237,7 +237,7 @@ func TestExpressionTypeInference(t *testing.T) {
 	assert.Equal(t, "HashRef", checker.inferExpressionType("{}"))
 
 	// Test complex expressions
-	assert.Equal(t, "", checker.inferExpressionType("$a + $b"))  // Would need real expression parsing
+	assert.Equal(t, "", checker.inferExpressionType("$a + $b")) // Would need real expression parsing
 }
 
 // TestCollectTypeAnnotations tests collecting and accessing type annotations
@@ -320,6 +320,231 @@ func TestTypeCheckIntegration(t *testing.T) {
 	assert.NotNil(t, tc.Parser)
 	assert.NotNil(t, tc.TypeStore)
 	assert.NotNil(t, tc.TypeHierarchy)
+	assert.True(t, tc.EnableFlowSensitiveAnalysis) // Flow-sensitive analysis should be enabled by default
+}
+
+// TestFlowSensitiveAnalysis tests the flow-sensitive analysis functionality
+func TestFlowSensitiveAnalysis(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Setup initial variable types for testing
+	checker.VariableTypes["$maybeStr"] = "Maybe[Str]"
+	checker.VariableTypes["$ref"] = "Ref"
+	checker.VariableTypes["$any"] = "Any"
+
+	// Test that flow-sensitive analysis is properly initialized
+	assert.NotNil(t, checker.TypeState)
+	assert.Empty(t, checker.TypeState.RefinedTypes)
+
+	// Create a mock defined check node
+	definedNode := &MockNode{
+		NodeType:     "function_call",
+		NodeText:     "defined($maybeStr)",
+		NodeChildren: []Node{},
+	}
+
+	// Process the node for flow-sensitive analysis
+	var errors []error
+	checker.analyzePatternValidation(definedNode, &errors)
+
+	// Check that the type was refined
+	refinedType, ok := checker.TypeState.RefinedTypes["$maybeStr"]
+	assert.True(t, ok, "The type should be refined after a defined check")
+	assert.Equal(t, "Str", refinedType, "Maybe[Str] should be refined to Str after a defined check")
+
+	// Create a mock ref check node
+	refNode := &MockNode{
+		NodeType:     "eq_expression",
+		NodeText:     "ref($ref) eq 'ARRAY'",
+		NodeChildren: []Node{},
+	}
+
+	// Process the node for flow-sensitive analysis
+	checker.analyzePatternValidation(refNode, &errors)
+
+	// Check that the type was refined
+	refinedType, ok = checker.TypeState.RefinedTypes["$ref"]
+	assert.True(t, ok, "The type should be refined after a ref check")
+	assert.Equal(t, "ArrayRef", refinedType, "Ref should be refined to ArrayRef after a ref check for ARRAY")
+}
+
+// TestTypeStateCloning tests the cloning of type states for different code paths
+func TestTypeStateCloning(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Setup initial type state
+	checker.TypeState.VariableTypes["$var1"] = "Int"
+	checker.TypeState.VariableTypes["$var2"] = "Str"
+	checker.TypeState.RefinedTypes["$var1"] = "Int"
+
+	// Clone the state
+	clonedState := checker.cloneTypeState(checker.TypeState)
+
+	// Verify the clone is a deep copy
+	assert.NotSame(t, checker.TypeState, clonedState)
+	assert.Equal(t, checker.TypeState.VariableTypes, clonedState.VariableTypes)
+	assert.Equal(t, checker.TypeState.RefinedTypes, clonedState.RefinedTypes)
+
+	// Modify the clone and verify it doesn't affect the original
+	clonedState.VariableTypes["$var3"] = "Bool"
+	clonedState.RefinedTypes["$var2"] = "ClassName"
+
+	assert.NotContains(t, checker.TypeState.VariableTypes, "$var3")
+	assert.NotContains(t, checker.TypeState.RefinedTypes, "$var2")
+}
+
+// TestConditionalTypeRefinement tests type refinement based on conditions
+func TestConditionalTypeRefinement(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Setup initial variable types
+	checker.VariableTypes["$maybeVar"] = "Maybe[Int]"
+
+	// Create a mock condition node for $maybeVar != undef
+	conditionNode := &MockNode{
+		NodeType:     "ne_expression",
+		NodeText:     "$maybeVar != undef",
+		NodeChildren: []Node{},
+	}
+
+	// Analyze the condition
+	condition, refinements := checker.analyzeCondition(conditionNode)
+
+	// Check the extracted condition
+	assert.Equal(t, "$maybeVar", condition.Variable)
+	assert.Equal(t, "!=", condition.Operator)
+	assert.Equal(t, "undef", condition.Value)
+	assert.True(t, condition.Negated)
+
+	// Check the refinements
+	assert.Contains(t, refinements, "$maybeVar")
+	assert.Equal(t, "Int", refinements["$maybeVar"])
+
+	// Apply the refinements
+	checker.applyRefinements(refinements)
+
+	// Check that the refinement was applied
+	refinedType, ok := checker.TypeState.RefinedTypes["$maybeVar"]
+	assert.True(t, ok)
+	assert.Equal(t, "Int", refinedType)
+
+	// Test negating the refinements for an else branch
+	negatedRefinements := checker.negateRefinements(condition, refinements)
+	assert.Empty(t, negatedRefinements, "Negation of != undef doesn't provide useful refinements")
+
+	// Set up a different condition for testing negation
+	eqUndefCondition := Condition{
+		Variable: "$maybeVar",
+		Operator: "==",
+		Value:    "undef",
+		Negated:  false,
+	}
+
+	// Create empty refinements map
+	emptyRefinements := make(map[string]string)
+
+	// Negate the condition (maybeVar == undef -> maybeVar != undef)
+	negatedRefinements = checker.negateRefinements(eqUndefCondition, emptyRefinements)
+
+	// Check that the negation produces a refinement
+	assert.Contains(t, negatedRefinements, "$maybeVar")
+	assert.Equal(t, "Int", negatedRefinements["$maybeVar"])
+}
+
+// TestGetVariableTypeWithRefinements tests the GetVariableType method with refined types
+func TestGetVariableTypeWithRefinements(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Setup initial variable types and refined types
+	checker.VariableTypes["$var1"] = "Maybe[Int]"
+	checker.TypeState.RefinedTypes["$var1"] = "Int"
+	checker.VariableTypes["$var2"] = "Str"
+
+	// Test that refined types take precedence
+	typ, ok := checker.GetVariableType("$var1")
+	assert.True(t, ok)
+	assert.Equal(t, "Int", typ)
+
+	// Test fallback to regular variable types
+	typ, ok = checker.GetVariableType("$var2")
+	assert.True(t, ok)
+	assert.Equal(t, "Str", typ)
+
+	// Test unknown variable
+	typ, ok = checker.GetVariableType("$unknown")
+	assert.False(t, ok)
+	assert.Empty(t, typ)
+}
+
+// Mock node implementation for testing
+type MockNode struct {
+	NodeType     string
+	NodeText     string
+	NodeChildren []Node
+}
+
+func (n *MockNode) Type() string {
+	return n.NodeType
+}
+
+func (n *MockNode) Text() string {
+	return n.NodeText
+}
+
+func (n *MockNode) Children() []Node {
+	return n.NodeChildren
+}
+
+func (n *MockNode) Parent() Node {
+	return nil
+}
+
+func (n *MockNode) Start() Position {
+	return Position{Line: 1, Column: 1}
+}
+
+func (n *MockNode) End() Position {
+	return Position{Line: 1, Column: len(n.NodeText)}
 }
 
 // TypeError is a helper type for testing

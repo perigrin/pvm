@@ -1152,7 +1152,7 @@ Implement parser enhancements to support type annotations in Perl code, followin
 - Design for extensibility of the type system
 ```
 
-#### Prompt 25: Type Checking System - Basic Implementation ⏳
+#### Prompt 25: Type Checking System - Basic Implementation ✅
 
 ```
 # Implement Basic Type Checking System
@@ -1199,7 +1199,7 @@ Implement the basic type checking system that can validate types according to th
 - Design for extensibility of the type system
 ```
 
-#### Prompt 26: Type Checking System - Flow-Sensitive Analysis ⏳
+#### Prompt 26: Type Checking System - Flow-Sensitive Analysis ✅
 
 ```
 # Implement Flow-Sensitive Type Analysis

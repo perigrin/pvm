@@ -9,13 +9,15 @@ PSC provides gradual type checking for Perl scripts and modules through the foll
 - Type annotation parsing for Perl code
 - Type hierarchy and compatibility checking
 - Type error reporting
+- Flow-sensitive type analysis
 - Command-line tools for checking and stripping type annotations
 
-The type checking system is design to be:
+The type checking system is designed to be:
 
 - Unobtrusive: Type annotations are optional and can be stripped for compatibility with regular Perl
 - Gradual: Typing can be added incrementally to existing code
 - Flexible: Supports a variety of Perl-specific types and type combinations
+- Smart: Uses flow analysis to refine types based on validation patterns
 
 ## Type Annotation Syntax
 
@@ -116,6 +118,13 @@ psc check --format json myfile.pl
 
 # Exclude certain files
 psc check --exclude "test_*.pl" lib/
+
+# Control flow-sensitive analysis
+psc check --flow-sensitive myfile.pl    # Explicitly enable (default)
+psc check --no-flow-sensitive myfile.pl # Disable flow-sensitive analysis
+
+# Show refined types from flow analysis
+psc check --show-refinements myfile.pl
 ```
 
 ### Stripping Annotations
@@ -186,13 +195,76 @@ PSC integrates with PVX (Perl Version eXecutor) to run type-checked code in isol
 2. If no errors are found, PSC strips the annotations
 3. PVX executes the code in an isolated environment with the specified Perl version
 
+## Flow-Sensitive Type Analysis
+
+PSC implements flow-sensitive type analysis which refines variable types based on control flow and validation patterns.
+
+### Type Refinement in Control Flow
+
+Flow-sensitive analysis tracks how types change within different code paths:
+
+```perl
+my Maybe[Str] $name = get_name();
+
+if (defined $name) {
+    # Here, $name is refined from Maybe[Str] to Str
+    print "Name length: " . length($name);  # Safe, $name is known to be defined
+} else {
+    # Here, $name is known to be undef
+    print "No name provided";
+}
+```
+
+### Recognized Validation Patterns
+
+The system recognizes common validation patterns and automatically refines types:
+
+#### Defined Checks
+
+```perl
+if (defined $variable) {
+    # $variable is refined from Maybe[T] to T
+}
+```
+
+#### Reference Type Checks
+
+```perl
+if (ref($variable) eq 'ARRAY') {
+    # $variable is refined from Ref to ArrayRef
+}
+
+if (ref($variable) eq 'HASH') {
+    # $variable is refined from Ref to HashRef
+}
+```
+
+#### Class Checks
+
+```perl
+if ($object->isa('MyClass')) {
+    # $object is refined to MyClass
+}
+```
+
+### Enabling Flow Sensitive Analysis
+
+Flow-sensitive analysis is enabled by default and can be controlled with command line options:
+
+```bash
+# Explicitly enable flow-sensitive analysis
+psc check --flow-sensitive script.pl
+
+# Disable flow-sensitive analysis
+psc check --no-flow-sensitive script.pl
+```
+
 ## Future Enhancements
 
 Future enhancements to the type checking system may include:
 
-- Flow-sensitive type analysis
-- Type inference for variables without annotations
-- More sophisticated type compatibility rules
+- More sophisticated type inference for variables without annotations
+- Additional flow-sensitive analysis patterns
 - Enhanced editor integrations (LSP)
 - Custom type declarations
 - Module-level type definitions

@@ -22,6 +22,12 @@ type TypeCheckResult struct {
 
 	// TypeAnnotations is a list of type annotations found in the code
 	TypeAnnotations []*TypeAnnotation
+
+	// RefinedTypes maps variable names to their refined types from flow-sensitive analysis
+	RefinedTypes map[string]string
+
+	// FlowSensitiveEnabled indicates if flow-sensitive analysis was enabled for this check
+	FlowSensitiveEnabled bool
 }
 
 // TypeCheckError represents a type checking error
@@ -54,6 +60,9 @@ type TypeCheck struct {
 
 	// TypeHierarchy is the type hierarchy used for checking
 	TypeHierarchy *typedef.TypeHierarchy
+
+	// EnableFlowSensitiveAnalysis controls whether flow-sensitive analysis is enabled
+	EnableFlowSensitiveAnalysis bool
 }
 
 // NewTypeCheck creates a new TypeCheck instance
@@ -74,9 +83,10 @@ func NewTypeCheck() (*TypeCheck, error) {
 	hierarchy := typedef.NewTypeHierarchy(typeStore)
 
 	return &TypeCheck{
-		Parser:        parser,
-		TypeStore:     typeStore,
-		TypeHierarchy: hierarchy,
+		Parser:                      parser,
+		TypeStore:                   typeStore,
+		TypeHierarchy:               hierarchy,
+		EnableFlowSensitiveAnalysis: true, // Enable by default
 	}, nil
 }
 
@@ -91,9 +101,11 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	// Check for parser errors
 	if len(ast.Errors) > 0 {
 		result := &TypeCheckResult{
-			Path:            path,
-			Errors:          []TypeCheckError{},
-			TypeAnnotations: ast.TypeAnnotations,
+			Path:                 path,
+			Errors:               []TypeCheckError{},
+			TypeAnnotations:      ast.TypeAnnotations,
+			RefinedTypes:         make(map[string]string),
+			FlowSensitiveEnabled: tc.EnableFlowSensitiveAnalysis,
 		}
 
 		// Convert parser errors to type check errors
@@ -128,14 +140,19 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	// Create a type checker
 	checker := NewTypeChecker(tc.TypeHierarchy, moduleName)
 
+	// Enable or disable flow-sensitive analysis
+	checker.Debug = tc.EnableFlowSensitiveAnalysis
+
 	// Check the AST for type errors
 	typeErrors := checker.CheckAST(ast)
 
 	// Create the result
 	result := &TypeCheckResult{
-		Path:            path,
-		Errors:          []TypeCheckError{},
-		TypeAnnotations: ast.TypeAnnotations,
+		Path:                 path,
+		Errors:               []TypeCheckError{},
+		TypeAnnotations:      ast.TypeAnnotations,
+		RefinedTypes:         make(map[string]string),
+		FlowSensitiveEnabled: tc.EnableFlowSensitiveAnalysis,
 	}
 
 	// Convert errors to TypeCheckError format
@@ -163,6 +180,13 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 			Column:  col,
 			Path:    path,
 		})
+	}
+
+	// Include refined types from flow-sensitive analysis
+	if tc.EnableFlowSensitiveAnalysis && checker.TypeState != nil {
+		for varName, refinedType := range checker.TypeState.RefinedTypes {
+			result.RefinedTypes[varName] = refinedType
+		}
 	}
 
 	return result, nil
