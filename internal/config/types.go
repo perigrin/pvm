@@ -98,6 +98,24 @@ type PVIConfig struct {
 	// DefaultMirror specifies the CPAN mirror to use
 	DefaultMirror string `toml:"default_mirror"`
 
+	// AdditionalMirrors specifies backup CPAN mirrors to use if the default mirror fails
+	AdditionalMirrors []string `toml:"additional_mirrors"`
+
+	// MetadataSource specifies the source for CPAN metadata
+	// Valid values: "metacpan", "cpan"
+	MetadataSource string `toml:"metadata_source"`
+
+	// MetadataURL specifies the URL for the metadata API
+	// Used when MetadataSource is "custom"
+	MetadataURL string `toml:"metadata_url"`
+
+	// CacheDir specifies the directory to use for caching metadata
+	CacheDir string `toml:"cache_dir"`
+
+	// CacheTTL specifies the time-to-live for cached metadata in hours
+	// Set to 0 to always refresh metadata
+	CacheTTL int `toml:"cache_ttl"`
+
 	// TestDuringInstall specifies whether to run tests during module installation
 	TestDuringInstall bool `toml:"test_during_install"`
 
@@ -109,6 +127,9 @@ type PVIConfig struct {
 
 	// CheckSignatures specifies whether to check module signatures
 	CheckSignatures bool `toml:"check_signatures"`
+
+	// DisableNetwork specifies whether to disable network access (for testing)
+	DisableNetwork bool `toml:"disable_network"`
 }
 
 // PSCConfig represents configuration for the Perl Script Compiler
@@ -160,9 +181,15 @@ func NewDefaultConfig() *Config {
 		PVI: &PVIConfig{
 			PreferredInstaller: "auto",
 			DefaultMirror:      "https://cpan.metacpan.org",
+			AdditionalMirrors:  []string{"https://cpan.mirror.co.uk", "https://www.cpan.org"},
+			MetadataSource:     "metacpan",
+			MetadataURL:        "https://api.metacpan.org/v1",
+			CacheDir:           "$XDG_CACHE_HOME/pvm/cpan",
+			CacheTTL:           24,
 			TestDuringInstall:  false,
 			CacheModules:       true,
 			CheckSignatures:    true,
+			DisableNetwork:     false,
 		},
 		PSC: &PSCConfig{
 			TypeDefinitionsPath:  "$XDG_DATA_HOME/pvm/type_definitions",
@@ -290,6 +317,27 @@ func (c *PVIConfig) Validate() []error {
 	// Validate DefaultMirror
 	if c.DefaultMirror == "" {
 		errors = append(errors, ValidateError("DefaultMirror cannot be empty"))
+	}
+
+	// Validate MetadataSource
+	validSources := map[string]bool{
+		"metacpan": true,
+		"cpan":     true,
+		"custom":   true,
+	}
+
+	if c.MetadataSource != "" && !validSources[c.MetadataSource] {
+		errors = append(errors, ValidateError("MetadataSource must be one of: metacpan, cpan, custom"))
+	}
+
+	// Validate MetadataURL if source is custom
+	if c.MetadataSource == "custom" && c.MetadataURL == "" {
+		errors = append(errors, ValidateError("MetadataURL must be specified when MetadataSource is 'custom'"))
+	}
+
+	// Validate CacheTTL
+	if c.CacheTTL < 0 {
+		errors = append(errors, ValidateError("CacheTTL cannot be negative"))
 	}
 
 	return errors

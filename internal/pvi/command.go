@@ -4,7 +4,12 @@
 package pvi
 
 import (
+	"context"
+	"strings"
+
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/config"
+	"tamarou.com/pvm/internal/cpan"
 )
 
 // NewCommand creates a new PVI command
@@ -79,14 +84,96 @@ func newRemoveCommand() *cobra.Command {
 }
 
 func newSearchCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "search [query]",
 		Short: "Search available modules",
 		Long:  "Search for CPAN modules matching the given query",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Search command not yet implemented")
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get configuration
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return err
+			}
+
+			// Get options from flags
+			limit, _ := cmd.Flags().GetInt("limit")
+			source, _ := cmd.Flags().GetString("source")
+			noCache, _ := cmd.Flags().GetBool("no-cache")
+
+			// If source is not provided, use the one from the configuration
+			if source == "" && cfg.PVI != nil {
+				source = cfg.PVI.MetadataSource
+			}
+
+			// Default to metacpan if still not set
+			if source == "" {
+				source = "metacpan"
+			}
+
+			// Build the provider options
+			var providerOpts []cpan.ProviderOption
+
+			// Add options based on configuration
+			if cfg.PVI != nil {
+				// Set base URL if custom source and URL provided
+				if source == "custom" && cfg.PVI.MetadataURL != "" {
+					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
+				}
+
+				// Set cache settings if caching is enabled and not disabled by flag
+				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
+					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
+				}
+
+				// Set mirrors
+				if cfg.PVI.DefaultMirror != "" {
+					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
+				}
+				if len(cfg.PVI.AdditionalMirrors) > 0 {
+					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
+				}
+
+				// Set network access
+				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
+			}
+
+			// Create the provider
+			provider, err := cpan.NewProvider(source, providerOpts...)
+			if err != nil {
+				return err
+			}
+
+			// Join the arguments into a query
+			query := strings.Join(args, " ")
+
+			// Run the search
+			results, err := provider.SearchModules(context.Background(), query, limit)
+			if err != nil {
+				return err
+			}
+
+			// Display the results
+			cmd.Printf("Search results for '%s' (%d of %d results from %s):\n\n",
+				results.Query, len(results.Results), results.Total, results.Source)
+
+			for i, result := range results.Results {
+				cmd.Printf("[%d] %s (%s)\n", i+1, result.Name, result.Version)
+				cmd.Printf("    %s\n", result.Abstract)
+				cmd.Printf("    Author: %s | Released: %s\n\n",
+					result.Author, result.ReleaseDate.Format("2006-01-02"))
+			}
+
+			return nil
 		},
 	}
+
+	// Add flags
+	cmd.Flags().IntP("limit", "l", 20, "Limit the number of results")
+	cmd.Flags().StringP("source", "s", "", "Use a specific metadata source (metacpan, cpan, custom)")
+	cmd.Flags().Bool("no-cache", false, "Disable caching for this search")
+
+	return cmd
 }
 
 func newDepsCommand() *cobra.Command {
