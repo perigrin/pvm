@@ -655,45 +655,116 @@ func TestFilesystemIsolation(t *testing.T) {
 	// Create a temporary directory for testing
 	tmpDir := t.TempDir()
 
-	// Create options with read-only and read-write paths
-	options := &ExecutionOptions{
-		IsolationLevel: IsolationHigh,
-		IsolationDir:   tmpDir,
-		ReadOnlyPaths:  []string{"/usr", "/bin"},
-		ReadWritePaths: []string{"/tmp", "/home"},
-		IsolatedOutput: true,
-		Verbose:        true,
+	// Test different combinations of filesystem isolation features
+	testCases := []struct {
+		name            string
+		options         *ExecutionOptions
+		expectedEnvVars map[string]string
+		checkDirs       []string
+	}{
+		{
+			name: "BasicHighIsolation",
+			options: &ExecutionOptions{
+				IsolationLevel: IsolationHigh,
+				IsolationDir:   tmpDir,
+				ReadOnlyPaths:  []string{"/usr", "/bin"},
+				ReadWritePaths: []string{"/tmp", "/home"},
+				IsolatedOutput: true,
+				Verbose:        true,
+			},
+			expectedEnvVars: map[string]string{
+				"PVM_READONLY_PATHS":  "/usr:/bin",
+				"PVM_READWRITE_PATHS": "/tmp:/home",
+				"PVM_ISOLATED_OUTPUT": "1",
+			},
+			checkDirs: []string{"output"},
+		},
+		{
+			name: "CustomPathsIsolation",
+			options: &ExecutionOptions{
+				IsolationLevel: IsolationHigh,
+				IsolationDir:   tmpDir,
+				ReadOnlyPaths:  []string{"/etc", "/opt"},
+				ReadWritePaths: []string{"/var/tmp", "/usr/local"},
+				IsolatedOutput: true,
+				Verbose:        true,
+			},
+			expectedEnvVars: map[string]string{
+				"PVM_READONLY_PATHS":  "/etc:/opt",
+				"PVM_READWRITE_PATHS": "/var/tmp:/usr/local",
+				"PVM_ISOLATED_OUTPUT": "1",
+			},
+			checkDirs: []string{"output"},
+		},
+		{
+			name: "OutputOnlyIsolation",
+			options: &ExecutionOptions{
+				IsolationLevel: IsolationHigh,
+				IsolationDir:   tmpDir,
+				IsolatedOutput: true,
+				Verbose:        true,
+			},
+			expectedEnvVars: map[string]string{
+				"PVM_ISOLATED_OUTPUT": "1",
+			},
+			checkDirs: []string{"output"},
+		},
+		{
+			name: "NoOutputIsolation",
+			options: &ExecutionOptions{
+				IsolationLevel: IsolationHigh,
+				IsolationDir:   tmpDir,
+				ReadOnlyPaths:  []string{"/usr", "/bin"},
+				ReadWritePaths: []string{"/tmp", "/home"},
+				IsolatedOutput: false,
+				Verbose:        true,
+			},
+			expectedEnvVars: map[string]string{
+				"PVM_READONLY_PATHS":  "/usr:/bin",
+				"PVM_READWRITE_PATHS": "/tmp:/home",
+			},
+			checkDirs: []string{},
+		},
 	}
 
-	// Create the output directory for testing
-	outputDir := filepath.Join(tmpDir, "output")
-	require.NoError(t, os.MkdirAll(outputDir, 0755), "Failed to create output directory")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a fresh subdirectory for each test case
+			testCaseDir := filepath.Join(tmpDir, tc.name)
+			require.NoError(t, os.MkdirAll(testCaseDir, 0755), "Failed to create test case directory")
+			tc.options.IsolationDir = testCaseDir
 
-	// Build the environment using our test-only function
-	env, err := buildTestEnvironment(options)
-	require.NoError(t, err, "buildTestEnvironment should not fail")
+			// Create the required directories for testing
+			for _, dir := range tc.checkDirs {
+				dirPath := filepath.Join(testCaseDir, dir)
+				require.NoError(t, os.MkdirAll(dirPath, 0755), "Failed to create directory")
+			}
 
-	// Check that read-only and read-write paths are set in the environment
-	var foundROPaths, foundRWPaths, foundIsolatedOutput bool
-	for _, envVar := range env {
-		if envVar == "PVM_READONLY_PATHS=/usr:/bin" {
-			foundROPaths = true
-		}
-		if envVar == "PVM_READWRITE_PATHS=/tmp:/home" {
-			foundRWPaths = true
-		}
-		if envVar == "PVM_ISOLATED_OUTPUT=1" {
-			foundIsolatedOutput = true
-		}
+			// Build the environment using our test-only function
+			env, err := buildTestEnvironment(tc.options)
+			require.NoError(t, err, "buildTestEnvironment should not fail")
+
+			// Check that expected environment variables are set correctly
+			for key, expectedValue := range tc.expectedEnvVars {
+				expectedEnvVar := key + "=" + expectedValue
+				found := false
+				for _, envVar := range env {
+					if envVar == expectedEnvVar {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Expected environment variable %s should be set", expectedEnvVar)
+			}
+
+			// Check that output directory exists if isolated output is enabled
+			if tc.options.IsolatedOutput {
+				outputDir := filepath.Join(tc.options.IsolationDir, "output")
+				_, err = os.Stat(outputDir)
+				require.NoError(t, err, "Output directory should exist when isolated output is enabled")
+			}
+		})
 	}
-
-	assert.True(t, foundROPaths, "PVM_READONLY_PATHS should be set in the environment")
-	assert.True(t, foundRWPaths, "PVM_READWRITE_PATHS should be set in the environment")
-	assert.True(t, foundIsolatedOutput, "PVM_ISOLATED_OUTPUT should be set in the environment")
-
-	// Output directory has already been created by us for the test
-	_, err = os.Stat(outputDir)
-	require.NoError(t, err, "Output directory should exist")
 }
 
 // TestSaveOutputFiles tests that output files are saved correctly
@@ -743,5 +814,181 @@ func TestSaveOutputFiles(t *testing.T) {
 		// Check that the file exists on disk
 		_, err := os.Stat(targetPath)
 		assert.NoError(t, err, "File should exist in the target directory")
+	}
+}
+
+// TestIsolationPersistence tests that isolation settings are reused with the same directory
+func TestIsolationPersistence(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+	isolationDir := filepath.Join(tmpDir, "persistent-isolation")
+	require.NoError(t, os.MkdirAll(isolationDir, 0755), "Failed to create isolation directory")
+
+	// Create a test module directory
+	moduleDir := filepath.Join(isolationDir, "lib", "perl5")
+	require.NoError(t, os.MkdirAll(moduleDir, 0755), "Failed to create module directory")
+
+	// Create a test module file
+	moduleFilePath := filepath.Join(moduleDir, "TestModule.pm")
+	moduleContent := "package TestModule;\nsub test { return 'test'; }\n1;"
+	require.NoError(t, os.WriteFile(moduleFilePath, []byte(moduleContent), 0644), "Failed to create test module")
+
+	// First run with custom isolation directory
+	options1 := &ExecutionOptions{
+		IsolationLevel: IsolationMedium,
+		IsolationDir:   isolationDir,
+		Verbose:        true,
+	}
+
+	// Build environment for first run
+	env1, err := buildTestEnvironment(options1)
+	require.NoError(t, err, "First buildTestEnvironment should not fail")
+
+	// Second run with the same isolation directory
+	options2 := &ExecutionOptions{
+		IsolationLevel: IsolationMedium,
+		IsolationDir:   isolationDir,
+		Verbose:        true,
+	}
+
+	// Build environment for second run
+	env2, err := buildTestEnvironment(options2)
+	require.NoError(t, err, "Second buildTestEnvironment should not fail")
+
+	// Both environments should be nearly identical
+	// Extract PERL5LIB from both environments
+	var perl5lib1, perl5lib2 string
+	for _, envVar := range env1 {
+		if strings.HasPrefix(envVar, "PERL5LIB=") {
+			perl5lib1 = envVar
+			break
+		}
+	}
+	for _, envVar := range env2 {
+		if strings.HasPrefix(envVar, "PERL5LIB=") {
+			perl5lib2 = envVar
+			break
+		}
+	}
+
+	assert.Equal(t, perl5lib1, perl5lib2, "PERL5LIB should be the same when reusing the same isolation directory")
+
+	// Check that test module is still accessible
+	_, err = os.Stat(moduleFilePath)
+	assert.NoError(t, err, "Test module should still exist after multiple isolation setups")
+}
+
+// TestCustomModuleIsolation tests custom module path configurations
+func TestCustomModuleIsolation(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create custom module paths
+	customModulePath := filepath.Join(tmpDir, "custom-modules")
+	require.NoError(t, os.MkdirAll(customModulePath, 0755), "Failed to create custom module path")
+
+	additionalPath1 := filepath.Join(tmpDir, "extra-modules-1")
+	require.NoError(t, os.MkdirAll(additionalPath1, 0755), "Failed to create additional module path 1")
+
+	additionalPath2 := filepath.Join(tmpDir, "extra-modules-2")
+	require.NoError(t, os.MkdirAll(additionalPath2, 0755), "Failed to create additional module path 2")
+
+	// Test cases for different isolation levels with custom module paths
+	testCases := []struct {
+		name             string
+		isolationLevel   IsolationLevel
+		customModulePath string
+		additionalPaths  []string
+		expectedVars     []string
+		unexpectedVars   []string
+	}{
+		{
+			name:             "LowIsolationWithCustomModule",
+			isolationLevel:   IsolationLow,
+			customModulePath: customModulePath,
+			additionalPaths:  []string{additionalPath1, additionalPath2},
+			expectedVars: []string{
+				"PERL_LOCAL_LIB_ROOT=" + customModulePath,
+				"PERL_MM_OPT=INSTALL_BASE=" + customModulePath,
+			},
+			unexpectedVars: []string{},
+		},
+		{
+			name:             "MediumIsolationWithCustomModule",
+			isolationLevel:   IsolationMedium,
+			customModulePath: customModulePath,
+			additionalPaths:  []string{additionalPath1},
+			expectedVars: []string{
+				"PERL_LOCAL_LIB_ROOT=" + customModulePath,
+				"PERL_MM_OPT=INSTALL_BASE=" + customModulePath,
+			},
+			unexpectedVars: []string{},
+		},
+		{
+			name:             "HighIsolationWithCustomModule",
+			isolationLevel:   IsolationHigh,
+			customModulePath: customModulePath,
+			additionalPaths:  []string{},
+			expectedVars: []string{
+				"PERL_LOCAL_LIB_ROOT=" + customModulePath,
+				"PERL_MM_OPT=INSTALL_BASE=" + customModulePath,
+			},
+			unexpectedVars: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			isolationDir := filepath.Join(tmpDir, "isolation-"+string(tc.isolationLevel))
+			require.NoError(t, os.MkdirAll(isolationDir, 0755), "Failed to create isolation directory")
+
+			options := &ExecutionOptions{
+				IsolationLevel:        tc.isolationLevel,
+				IsolationDir:          isolationDir,
+				CustomModulePath:      tc.customModulePath,
+				AdditionalModulePaths: tc.additionalPaths,
+				Verbose:               true,
+			}
+
+			// Build environment
+			env, err := buildTestEnvironment(options)
+			require.NoError(t, err, "buildTestEnvironment should not fail")
+
+			// Check for expected environment variables
+			for _, expectedVar := range tc.expectedVars {
+				found := false
+				for _, envVar := range env {
+					if envVar == expectedVar {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Expected environment variable not found: %s", expectedVar)
+			}
+
+			// Check for unexpected environment variables
+			for _, unexpectedVar := range tc.unexpectedVars {
+				found := false
+				for _, envVar := range env {
+					if envVar == unexpectedVar {
+						found = true
+						break
+					}
+				}
+				assert.False(t, found, "Unexpected environment variable found: %s", unexpectedVar)
+			}
+
+			// Check that PERL5LIB includes additional module paths
+			for _, addPath := range tc.additionalPaths {
+				found := false
+				for _, envVar := range env {
+					if strings.HasPrefix(envVar, "PERL5LIB=") && strings.Contains(envVar, addPath) {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "PERL5LIB should include additional module path: %s", addPath)
+			}
+		})
 	}
 }

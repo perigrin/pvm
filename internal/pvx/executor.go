@@ -876,6 +876,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			setEnvVar(&cleanEnv, "PVM_OUTPUT_DIR", outputDir)
 			setEnvVar(&cleanEnv, "PVM_ISOLATED_OUTPUT", "1")
 
+			// Also set current working directory to the output directory
+			// This will make the script write files to the isolated output directory by default
+			setEnvVar(&cleanEnv, "PWD", outputDir)
+
 			if options.Verbose {
 				log.Infof("Created isolated output directory: %s", outputDir)
 			}
@@ -948,6 +952,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			cleanEnv = append(cleanEnv, fmt.Sprintf("PATH=%s", binDir))
 		}
 
+		// Add additional isolation environment variables
+		setEnvVar(&cleanEnv, "PVM_ISOLATION_LEVEL", string(options.IsolationLevel))
+		setEnvVar(&cleanEnv, "PVM_ISOLATION_DIR", isolationDir)
+
 		// Use the clean environment instead of the original one
 		env = cleanEnv
 	}
@@ -976,6 +984,33 @@ func saveOutputFiles(options *ExecutionOptions, targetDir string) (map[string]st
 			log.Infof("Output directory does not exist: %s", outputDir)
 		}
 		return nil, nil
+	}
+
+	// Expand any environment variables in the target directory
+	// This is particularly useful for configurations that use $PWD or $HOME
+	expandedTargetDir := targetDir
+	if strings.Contains(targetDir, "$") {
+		for _, envVar := range os.Environ() {
+			parts := strings.SplitN(envVar, "=", 2)
+			if len(parts) == 2 {
+				key := parts[0]
+				value := parts[1]
+				if strings.Contains(expandedTargetDir, "$"+key) {
+					expandedTargetDir = strings.ReplaceAll(expandedTargetDir, "$"+key, value)
+				}
+			}
+		}
+		// Special handling for $PWD if not already replaced
+		if strings.Contains(expandedTargetDir, "$PWD") {
+			pwd, err := os.Getwd()
+			if err == nil {
+				expandedTargetDir = strings.ReplaceAll(expandedTargetDir, "$PWD", pwd)
+			}
+		}
+		if options.Verbose && expandedTargetDir != targetDir {
+			log.Debugf("Expanded target directory from %s to %s", targetDir, expandedTargetDir)
+		}
+		targetDir = expandedTargetDir
 	}
 
 	// Make sure the target directory exists
@@ -1008,6 +1043,9 @@ func saveOutputFiles(options *ExecutionOptions, targetDir string) (map[string]st
 	}
 
 	result := make(map[string]string)
+	copiedCount := 0
+	skippedDirs := 0
+	skippedErrors := 0
 
 	// Copy each file
 	for _, file := range files {
@@ -1015,6 +1053,7 @@ func saveOutputFiles(options *ExecutionOptions, targetDir string) (map[string]st
 			if options.Verbose {
 				log.Debugf("Skipping directory: %s", file.Name())
 			}
+			skippedDirs++
 			continue // Skip directories
 		}
 
@@ -1023,28 +1062,42 @@ func saveOutputFiles(options *ExecutionOptions, targetDir string) (map[string]st
 		data, err := os.ReadFile(srcPath)
 		if err != nil {
 			log.Warnf("Failed to read file %s: %v", srcPath, err)
+			skippedErrors++
 			continue // Skip files that can't be read
+		}
+
+		// Get file permissions
+		srcInfo, err := os.Stat(srcPath)
+		var srcMode os.FileMode
+		if err == nil {
+			srcMode = srcInfo.Mode().Perm()
+		} else {
+			srcMode = 0644 // Default permissions if stat fails
 		}
 
 		// Write to the target location
 		targetPath := filepath.Join(targetDir, file.Name())
-		err = os.WriteFile(targetPath, data, 0644)
+		err = os.WriteFile(targetPath, data, srcMode)
 		if err != nil {
 			log.Warnf("Failed to write file %s: %v", targetPath, err)
+			skippedErrors++
 			continue // Skip files that can't be written
 		}
 
 		// Store in the result map
 		result[targetPath] = string(data)
+		copiedCount++
 
 		if options.Verbose {
-			log.Infof("Saved output file: %s (%d bytes)", targetPath, len(data))
+			log.Infof("Saved output file: %s (%d bytes, mode %s)",
+				targetPath, len(data), srcMode.String())
 		}
 	}
 
 	// Log summary of operation
 	if options.Verbose {
-		log.Infof("Successfully saved %d output files to %s", len(result), targetDir)
+		log.Infof("Successfully saved %d output files to %s (skipped %d directories, %d errors)",
+			copiedCount, targetDir, skippedDirs, skippedErrors)
 	}
 
 	return result, nil
