@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/log"
 )
 
@@ -34,13 +35,34 @@ func NewCommand() *cobra.Command {
 			isolationLevel, _ := cmd.Flags().GetString("isolation")
 			noCleanup, _ := cmd.Flags().GetBool("no-cleanup")
 
+			// Get filesystem isolation flags
+			readOnlyPaths, _ := cmd.Flags().GetStringArray("ro-path")
+			readWritePaths, _ := cmd.Flags().GetStringArray("rw-path")
+			isolatedOutput, _ := cmd.Flags().GetBool("isolated-output")
+			saveOutputDir, _ := cmd.Flags().GetString("save-output-dir")
+
+			// Get environment variable isolation flags
+			preserveEnv, _ := cmd.Flags().GetStringArray("preserve-env")
+			clearEnv, _ := cmd.Flags().GetStringArray("clear-env")
+
+			// Get module path configuration flags
+			includeModulePaths, _ := cmd.Flags().GetStringArray("include-path")
+			customModulePath, _ := cmd.Flags().GetString("module-path")
+
 			// Check if we're executing code directly or running a script
 			if executeCode == "" && len(args) == 0 {
 				_ = cmd.Help() // Ignoring error as we're exiting anyway
 				return
 			}
 
-			// Create execution options
+			// Load configuration
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				log.Warnf("Failed to load configuration: %v", err)
+				// Continue with default values
+			}
+
+			// Create execution options with defaults from configuration if available
 			options := &ExecutionOptions{
 				Args:         args,
 				PerlVersion:  perlVersion,
@@ -52,6 +74,79 @@ func NewCommand() *cobra.Command {
 				Isolated:     isolated,
 				IsolationDir: isolationDir,
 				NoCleanup:    noCleanup,
+			}
+
+			// Fill in values from configuration if available and not overridden by command line flags
+			if cfg != nil && cfg.PVX != nil {
+				// Set default isolation level from config if not specified on command line
+				if isolationLevel == "" && !isolated && cfg.PVX.IsolationLevel != "" {
+					options.IsolationLevel = IsolationLevel(cfg.PVX.IsolationLevel)
+				}
+
+				// Apply cleanup setting from config if not specified on command line
+				if !cmd.Flags().Changed("no-cleanup") {
+					options.NoCleanup = !cfg.PVX.CleanupAfter
+				}
+
+				// Apply filesystem isolation settings from config if not specified on command line
+				if len(readOnlyPaths) == 0 && len(cfg.PVX.IsolationReadOnlyPaths) > 0 {
+					options.ReadOnlyPaths = cfg.PVX.IsolationReadOnlyPaths
+				} else {
+					options.ReadOnlyPaths = readOnlyPaths
+				}
+
+				if len(readWritePaths) == 0 && len(cfg.PVX.IsolationReadWritePaths) > 0 {
+					options.ReadWritePaths = cfg.PVX.IsolationReadWritePaths
+				} else {
+					options.ReadWritePaths = readWritePaths
+				}
+
+				// Apply isolated output settings from config if not specified on command line
+				if !cmd.Flags().Changed("isolated-output") {
+					options.IsolatedOutput = cfg.PVX.IsolatedOutput
+				} else {
+					options.IsolatedOutput = isolatedOutput
+				}
+
+				// Apply save output directory setting from config if not specified on command line
+				if saveOutputDir == "" && cfg.PVX.SaveOutputDir != "" {
+					options.SaveOutputDir = cfg.PVX.SaveOutputDir
+				} else {
+					options.SaveOutputDir = saveOutputDir
+				}
+
+				// Apply environment variable settings from config if not specified on command line
+				if len(preserveEnv) == 0 && len(cfg.PVX.PreserveEnvVars) > 0 {
+					options.PreserveEnv = cfg.PVX.PreserveEnvVars
+				} else {
+					options.PreserveEnv = preserveEnv
+				}
+
+				// Always apply clearEnv from command line as it's more specific
+				options.ClearEnv = clearEnv
+
+				// Apply module path settings from config if not specified on command line
+				if len(includeModulePaths) == 0 && len(cfg.PVX.AdditionalModulePaths) > 0 {
+					options.AdditionalModulePaths = cfg.PVX.AdditionalModulePaths
+				} else {
+					options.AdditionalModulePaths = includeModulePaths
+				}
+
+				if customModulePath == "" && cfg.PVX.CustomModulePath != "" {
+					options.CustomModulePath = cfg.PVX.CustomModulePath
+				} else {
+					options.CustomModulePath = customModulePath
+				}
+			} else {
+				// If no config or PVX config, use command line flags directly
+				options.ReadOnlyPaths = readOnlyPaths
+				options.ReadWritePaths = readWritePaths
+				options.IsolatedOutput = isolatedOutput
+				options.SaveOutputDir = saveOutputDir
+				options.PreserveEnv = preserveEnv
+				options.ClearEnv = clearEnv
+				options.AdditionalModulePaths = includeModulePaths
+				options.CustomModulePath = customModulePath
 			}
 
 			// Set isolation level if provided
@@ -69,7 +164,6 @@ func NewCommand() *cobra.Command {
 			}
 
 			var output string
-			var err error
 
 			if executeCode != "" {
 				// Execute Perl code directly
@@ -89,6 +183,16 @@ func NewCommand() *cobra.Command {
 
 				log.Debugf("Executing Perl script: %s", scriptPath)
 				output, err = ExecuteScript(options)
+			}
+
+			// If using isolated output and saveOutputDir is specified, copy generated files
+			if options.IsolatedOutput && options.SaveOutputDir != "" && err == nil {
+				savedFiles, saveErr := saveOutputFiles(options, options.SaveOutputDir)
+				if saveErr != nil {
+					log.Warnf("Failed to save output files: %v", saveErr)
+				} else if len(savedFiles) > 0 && options.Verbose {
+					log.Infof("Saved %d files to %s", len(savedFiles), options.SaveOutputDir)
+				}
 			}
 
 			// Print output regardless of error (may contain diagnostic information)
@@ -116,6 +220,20 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().String("isolation-dir", "", "Specify the directory to use for isolation (default: auto-generated temp dir)")
 	cmd.Flags().String("isolation", "", "Set isolation level: none, low, medium, high")
 	cmd.Flags().Bool("no-cleanup", false, "Keep isolation directory after execution (default: cleanup)")
+
+	// Filesystem isolation flags
+	cmd.Flags().StringArray("ro-path", []string{}, "Add a read-only path for filesystem isolation (high isolation only, can be specified multiple times)")
+	cmd.Flags().StringArray("rw-path", []string{}, "Add a read-write path for filesystem isolation (high isolation only, can be specified multiple times)")
+	cmd.Flags().Bool("isolated-output", false, "Create a temporary directory for script output (high isolation only)")
+	cmd.Flags().String("save-output-dir", "", "Save generated files from isolated output to this directory")
+
+	// Environment variable isolation flags
+	cmd.Flags().StringArray("preserve-env", []string{}, "Preserve specific environment variables in isolation (can be specified multiple times)")
+	cmd.Flags().StringArray("clear-env", []string{}, "Remove specific environment variables from all isolation levels (can be specified multiple times)")
+
+	// Module path configuration flags
+	cmd.Flags().StringArray("include-path", []string{}, "Add additional module paths to PERL5LIB (can be specified multiple times)")
+	cmd.Flags().String("module-path", "", "Specify a custom module installation path")
 
 	return cmd
 }

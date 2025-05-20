@@ -56,7 +56,8 @@ const (
 	// IsolationHigh creates the strongest isolation possible without containers
 	// - Creates a clean environment with minimal environment variables
 	// - Restricts module access to only the isolation directory
-	// - Still has filesystem access, but proper isolation is recommended
+	// - Restricts filesystem access to specified paths where possible
+	// - Creates a more robust isolation for running untrusted code
 	IsolationHigh IsolationLevel = "high"
 )
 
@@ -81,6 +82,14 @@ type ExecutionOptions struct {
 
 	// Environment variables to set for the script execution
 	Env map[string]string
+
+	// Environment variables to preserve in isolation
+	// This is useful for preserving specific environment variables in high isolation mode
+	PreserveEnv []string
+
+	// Environment variables to clear/remove for isolation
+	// This is useful for removing specific environment variables in all isolation modes
+	ClearEnv []string
 
 	// Specific Perl version to use (if empty, will be resolved)
 	PerlVersion string
@@ -108,6 +117,30 @@ type ExecutionOptions struct {
 
 	// Whether to skip cleanup of the isolation directory after execution
 	NoCleanup bool
+
+	// ReadOnly paths for filesystem isolation - only applicable for high isolation mode
+	// Any directories in this list will be accessible for reading but not writing
+	ReadOnlyPaths []string
+
+	// ReadWrite paths for filesystem isolation - only applicable for high isolation mode
+	// Any directories in this list will be accessible for both reading and writing
+	ReadWritePaths []string
+
+	// Whether to create a temporary directory for script output - only applicable for high isolation mode
+	// When set to true, a temporary directory will be created and set as the working directory
+	IsolatedOutput bool
+
+	// Directory to save isolated output files to after execution
+	// If set and IsolatedOutput is true, files will be copied from the isolated output directory
+	SaveOutputDir string
+
+	// Additional module paths to add to PERL5LIB
+	// These paths will be added to the PERL5LIB environment variable in addition to the default ones
+	AdditionalModulePaths []string
+
+	// Custom module installation path
+	// If set, this path will be used for module installation (PERL_LOCAL_LIB_ROOT)
+	CustomModulePath string
 }
 
 // ExecuteResult contains the result of script execution
@@ -296,6 +329,26 @@ func cleanupIsolationDir(options *ExecutionOptions) {
 		return
 	}
 
+	// Check if output directory was created with isolated output flag
+	if options.IsolatedOutput {
+		outputDir := filepath.Join(options.IsolationDir, "output")
+		if _, err := os.Stat(outputDir); err == nil {
+			// Process output directory before cleanup if needed
+			if options.Verbose {
+				log.Infof("Output directory contains generated files at: %s", outputDir)
+
+				// List files in the output directory
+				files, err := os.ReadDir(outputDir)
+				if err == nil && len(files) > 0 {
+					log.Infof("Generated files in output directory:")
+					for _, file := range files {
+						log.Infof("  - %s", file.Name())
+					}
+				}
+			}
+		}
+	}
+
 	// Perform cleanup
 	if options.Verbose {
 		log.Infof("Cleaning up isolation directory: %s", options.IsolationDir)
@@ -449,6 +502,32 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 	// Start with the current environment
 	env := os.Environ()
 
+	// Process any environment variables that should be cleared
+	if len(options.ClearEnv) > 0 {
+		// Create a map for faster lookup
+		clearEnvMap := make(map[string]bool)
+		for _, key := range options.ClearEnv {
+			clearEnvMap[key] = true
+		}
+
+		// Filter out environment variables that should be cleared
+		filteredEnv := []string{}
+		for _, envVar := range env {
+			parts := strings.SplitN(envVar, "=", 2)
+			if len(parts) < 2 {
+				continue
+			}
+
+			if !clearEnvMap[parts[0]] {
+				filteredEnv = append(filteredEnv, envVar)
+			} else if options.Verbose {
+				log.Debugf("Clearing environment variable: %s", parts[0])
+			}
+		}
+
+		env = filteredEnv
+	}
+
 	// Add or override with custom environment variables
 	for key, value := range options.Env {
 		envVar := fmt.Sprintf("%s=%s", key, value)
@@ -539,9 +618,28 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 
 	archLibDir := filepath.Join(libDir, archDir)
 	binDir := filepath.Join(isolationDir, "bin")
+	siteDir := filepath.Join(isolationDir, "lib", "site_perl")
+	vendorDir := filepath.Join(isolationDir, "lib", "vendor_perl")
+
+	// Create the standard directories
+	dirsToCreate := []string{libDir, archLibDir, binDir}
+
+	// If medium or high isolation, create more complete directory structure
+	if options.IsolationLevel == IsolationMedium || options.IsolationLevel == IsolationHigh {
+		dirsToCreate = append(dirsToCreate,
+			siteDir,
+			vendorDir,
+			filepath.Join(isolationDir, "man"),
+			filepath.Join(isolationDir, "etc"),
+			filepath.Join(isolationDir, "share"))
+
+		if options.Verbose {
+			log.Infof("Creating complete Perl module directory structure for %s isolation", options.IsolationLevel)
+		}
+	}
 
 	// Create the directories
-	for _, dir := range []string{libDir, archLibDir, binDir} {
+	for _, dir := range dirsToCreate {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, errors.NewExecutionError(
 				ErrExecutionFailed,
@@ -555,6 +653,14 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 	case IsolationLow:
 		// Low isolation: Add local::lib equivalent while preserving existing PERL5LIB
 		perl5lib := fmt.Sprintf("%s:%s", libDir, archLibDir)
+
+		// Add any user-specified additional module paths
+		for _, path := range options.AdditionalModulePaths {
+			perl5lib = fmt.Sprintf("%s:%s", perl5lib, path)
+			if options.Verbose {
+				log.Infof("Adding module path to PERL5LIB: %s", path)
+			}
+		}
 
 		// Add to existing PERL5LIB if present
 		for i, existing := range env {
@@ -586,14 +692,37 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 	case IsolationMedium:
 		// Medium isolation: Clean PERL5LIB but preserve most environment variables
 
-		// Set PERL5LIB to only include the isolation directory paths
-		perl5lib := fmt.Sprintf("%s:%s", libDir, archLibDir)
+		// Set PERL5LIB to include all the isolation directory paths
+		perl5lib := fmt.Sprintf("%s:%s:%s:%s",
+			libDir,
+			archLibDir,
+			siteDir,
+			vendorDir)
+
+		// Add any user-specified additional module paths
+		for _, path := range options.AdditionalModulePaths {
+			perl5lib = fmt.Sprintf("%s:%s", perl5lib, path)
+			if options.Verbose {
+				log.Infof("Adding module path to PERL5LIB: %s", path)
+			}
+		}
+
 		setEnvVar(&env, "PERL5LIB", perl5lib)
 
 		// Set up the local::lib equivalent environment variables
-		setEnvVar(&env, "PERL_LOCAL_LIB_ROOT", isolationDir)
-		setEnvVar(&env, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", isolationDir))
-		setEnvVar(&env, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", isolationDir))
+
+		// Use the custom module path if provided, otherwise use the isolation directory
+		modulePath := isolationDir
+		if options.CustomModulePath != "" {
+			modulePath = options.CustomModulePath
+			if options.Verbose {
+				log.Infof("Using custom module path: %s", modulePath)
+			}
+		}
+
+		setEnvVar(&env, "PERL_LOCAL_LIB_ROOT", modulePath)
+		setEnvVar(&env, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", modulePath))
+		setEnvVar(&env, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", modulePath))
 
 		// Add the bin directory to PATH
 		for i, existing := range env {
@@ -634,14 +763,76 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			setEnvVar(&cleanEnv, key, value)
 		}
 
-		// Set PERL5LIB to only include the isolation directory paths
-		perl5lib := fmt.Sprintf("%s:%s", libDir, archLibDir)
+		// Set up enhanced filesystem isolation for high isolation mode
+		if options.IsolatedOutput {
+			// Create a temporary directory for script output
+			outputDir := filepath.Join(isolationDir, "output")
+			if err := os.MkdirAll(outputDir, 0755); err != nil {
+				return nil, errors.NewExecutionError(
+					ErrExecutionFailed,
+					fmt.Sprintf("Failed to create output directory at %s", outputDir),
+					err)
+			}
+
+			// Set as the working directory for the script
+			setEnvVar(&cleanEnv, "PVM_OUTPUT_DIR", outputDir)
+			setEnvVar(&cleanEnv, "PVM_ISOLATED_OUTPUT", "1")
+
+			if options.Verbose {
+				log.Infof("Created isolated output directory: %s", outputDir)
+			}
+		}
+
+		// Configure filesystem access paths
+		if len(options.ReadOnlyPaths) > 0 {
+			readOnlyPathsStr := strings.Join(options.ReadOnlyPaths, ":")
+			setEnvVar(&cleanEnv, "PVM_READONLY_PATHS", readOnlyPathsStr)
+
+			if options.Verbose {
+				log.Infof("Set read-only paths: %s", readOnlyPathsStr)
+			}
+		}
+
+		if len(options.ReadWritePaths) > 0 {
+			readWritePathsStr := strings.Join(options.ReadWritePaths, ":")
+			setEnvVar(&cleanEnv, "PVM_READWRITE_PATHS", readWritePathsStr)
+
+			if options.Verbose {
+				log.Infof("Set read-write paths: %s", readWritePathsStr)
+			}
+		}
+
+		// Set PERL5LIB to include all the isolation directory paths
+		perl5lib := fmt.Sprintf("%s:%s:%s:%s",
+			libDir,
+			archLibDir,
+			siteDir,
+			vendorDir)
+
+		// Add any user-specified additional module paths
+		for _, path := range options.AdditionalModulePaths {
+			perl5lib = fmt.Sprintf("%s:%s", perl5lib, path)
+			if options.Verbose {
+				log.Infof("Adding module path to PERL5LIB: %s", path)
+			}
+		}
+
 		setEnvVar(&cleanEnv, "PERL5LIB", perl5lib)
 
 		// Set up the local::lib equivalent environment variables
-		setEnvVar(&cleanEnv, "PERL_LOCAL_LIB_ROOT", isolationDir)
-		setEnvVar(&cleanEnv, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", isolationDir))
-		setEnvVar(&cleanEnv, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", isolationDir))
+
+		// Use the custom module path if provided, otherwise use the isolation directory
+		modulePath := isolationDir
+		if options.CustomModulePath != "" {
+			modulePath = options.CustomModulePath
+			if options.Verbose {
+				log.Infof("Using custom module path: %s", modulePath)
+			}
+		}
+
+		setEnvVar(&cleanEnv, "PERL_LOCAL_LIB_ROOT", modulePath)
+		setEnvVar(&cleanEnv, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", modulePath))
+		setEnvVar(&cleanEnv, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", modulePath))
 
 		// Set PATH to include the bin directory first
 		for i, existing := range cleanEnv {
@@ -660,6 +851,75 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 	options.IsolationDir = isolationDir
 
 	return env, nil
+}
+
+// saveOutputFiles copies generated files from the isolated output directory to a specified target location
+// Returns a map of saved file paths to their content, and any error encountered
+func saveOutputFiles(options *ExecutionOptions, targetDir string) (map[string]string, error) {
+	if !options.IsolatedOutput || options.IsolationDir == "" {
+		return nil, nil
+	}
+
+	// Check if the output directory exists
+	outputDir := filepath.Join(options.IsolationDir, "output")
+	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	// Make sure the target directory exists
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return nil, errors.NewExecutionError(
+			ErrExecutionFailed,
+			fmt.Sprintf("Failed to create target directory %s", targetDir),
+			err)
+	}
+
+	// Copy all files from the output directory to the target directory
+	files, err := os.ReadDir(outputDir)
+	if err != nil {
+		return nil, errors.NewExecutionError(
+			ErrExecutionFailed,
+			fmt.Sprintf("Failed to read output directory %s", outputDir),
+			err)
+	}
+
+	result := make(map[string]string)
+
+	// Copy each file
+	for _, file := range files {
+		if file.IsDir() {
+			continue // Skip directories
+		}
+
+		// Read the source file
+		srcPath := filepath.Join(outputDir, file.Name())
+		data, err := os.ReadFile(srcPath)
+		if err != nil {
+			return result, errors.NewExecutionError(
+				ErrExecutionFailed,
+				fmt.Sprintf("Failed to read file %s", srcPath),
+				err)
+		}
+
+		// Write to the target location
+		targetPath := filepath.Join(targetDir, file.Name())
+		err = os.WriteFile(targetPath, data, 0644)
+		if err != nil {
+			return result, errors.NewExecutionError(
+				ErrExecutionFailed,
+				fmt.Sprintf("Failed to write file %s", targetPath),
+				err)
+		}
+
+		// Store in the result map
+		result[targetPath] = string(data)
+
+		if options.Verbose {
+			log.Infof("Saved output file: %s", targetPath)
+		}
+	}
+
+	return result, nil
 }
 
 // getPerlArchDir determines the architecture directory for Perl modules

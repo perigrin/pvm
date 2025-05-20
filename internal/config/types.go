@@ -3,6 +3,10 @@
 
 package config
 
+import (
+	"strings"
+)
+
 // Config represents the root configuration object
 type Config struct {
 	// PVM specific configuration
@@ -62,6 +66,27 @@ type PVXConfig struct {
 
 	// MaxMemory specifies the maximum memory usage (e.g., "512MB")
 	MaxMemory string `toml:"max_memory"`
+
+	// IsolationReadOnlyPaths specifies paths that should be read-only in high isolation mode
+	IsolationReadOnlyPaths []string `toml:"isolation_ro_paths"`
+
+	// IsolationReadWritePaths specifies paths that should be read-write in high isolation mode
+	IsolationReadWritePaths []string `toml:"isolation_rw_paths"`
+
+	// IsolatedOutput specifies whether to create an isolated output directory
+	IsolatedOutput bool `toml:"isolated_output"`
+
+	// SaveOutputDir specifies where to save isolated output files
+	SaveOutputDir string `toml:"save_output_dir"`
+
+	// PreserveEnvVars specifies which environment variables to preserve in isolation
+	PreserveEnvVars []string `toml:"preserve_env_vars"`
+
+	// AdditionalModulePaths specifies additional module paths to add to PERL5LIB
+	AdditionalModulePaths []string `toml:"additional_module_paths"`
+
+	// CustomModulePath specifies a custom module installation path
+	CustomModulePath string `toml:"custom_module_path"`
 }
 
 // PVIConfig represents configuration for the Perl Version Installer
@@ -118,12 +143,19 @@ func NewDefaultConfig() *Config {
 			},
 		},
 		PVX: &PVXConfig{
-			CacheModules:      true,
-			CleanupAfter:      true,
-			IsolationLevel:    "medium",
-			AlwaysInstallDeps: true,
-			Timeout:           300,
-			MaxMemory:         "512MB",
+			CacheModules:            true,
+			CleanupAfter:            true,
+			IsolationLevel:          "medium",
+			AlwaysInstallDeps:       true,
+			Timeout:                 300,
+			MaxMemory:               "512MB",
+			IsolationReadOnlyPaths:  []string{"/usr", "/bin", "/lib"},
+			IsolationReadWritePaths: []string{},
+			IsolatedOutput:          false,
+			SaveOutputDir:           "$PWD/output",
+			PreserveEnvVars:         []string{"TERM", "DISPLAY"},
+			AdditionalModulePaths:   []string{},
+			CustomModulePath:        "",
 		},
 		PVI: &PVIConfig{
 			PreferredInstaller: "auto",
@@ -205,6 +237,35 @@ func (c *PVXConfig) Validate() []error {
 	// Validate Timeout
 	if c.Timeout < 0 {
 		errors = append(errors, ValidateError("Timeout cannot be negative"))
+	}
+
+	// Validate Read-Only Paths
+	for _, path := range c.IsolationReadOnlyPaths {
+		if path == "" {
+			errors = append(errors, ValidateError("IsolationReadOnlyPaths cannot contain empty paths"))
+			break
+		}
+	}
+
+	// Validate Read-Write Paths
+	for _, path := range c.IsolationReadWritePaths {
+		if path == "" {
+			errors = append(errors, ValidateError("IsolationReadWritePaths cannot contain empty paths"))
+			break
+		}
+	}
+
+	// Validate SaveOutputDir if IsolatedOutput is true
+	if c.IsolatedOutput && c.SaveOutputDir == "" {
+		errors = append(errors, ValidateError("SaveOutputDir must be specified when IsolatedOutput is enabled"))
+	}
+
+	// Validate Custom Module Path
+	if c.CustomModulePath != "" {
+		// Check if it contains valid path characters (simplified version)
+		if strings.Contains(c.CustomModulePath, "\\") && !strings.Contains(c.CustomModulePath, "\\\\") {
+			errors = append(errors, ValidateError("CustomModulePath contains invalid character: '\\'"))
+		}
 	}
 
 	return errors

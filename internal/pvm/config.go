@@ -281,7 +281,9 @@ func isStringKey(section, key string) bool {
 			key == "compiler"
 	case "pvx":
 		return key == "isolation_level" ||
-			key == "max_memory"
+			key == "max_memory" ||
+			key == "save_output_dir" ||
+			key == "custom_module_path"
 	case "pvi":
 		return key == "preferred_installer" ||
 			key == "default_mirror"
@@ -308,7 +310,8 @@ func isBoolKey(section, key string) bool {
 	case "pvx":
 		return key == "cache_modules" ||
 			key == "cleanup_after" ||
-			key == "always_install_deps"
+			key == "always_install_deps" ||
+			key == "isolated_output"
 	case "pvi":
 		return key == "test_during_install" ||
 			key == "cache_modules" ||
@@ -323,8 +326,14 @@ func isBoolKey(section, key string) bool {
 }
 
 func isStringSliceKey(section, key string) bool {
-	if section == "psc" {
+	switch section {
+	case "psc":
 		return key == "watch_exclude"
+	case "pvx":
+		return key == "isolation_ro_paths" ||
+			key == "isolation_rw_paths" ||
+			key == "preserve_env_vars" ||
+			key == "additional_module_paths"
 	}
 	return false
 }
@@ -428,6 +437,28 @@ func updatePVXValue(cfg *config.PVXConfig, key, value string) error {
 		if err != nil {
 			return err
 		}
+	case "isolation_ro_paths":
+		// Parse the comma-separated list of paths
+		cfg.IsolationReadOnlyPaths = parseStringSlice(value)
+	case "isolation_rw_paths":
+		// Parse the comma-separated list of paths
+		cfg.IsolationReadWritePaths = parseStringSlice(value)
+	case "isolated_output":
+		var err error
+		cfg.IsolatedOutput, err = parseBool(value)
+		if err != nil {
+			return err
+		}
+	case "save_output_dir":
+		cfg.SaveOutputDir = value
+	case "preserve_env_vars":
+		// Parse the comma-separated list of environment variables
+		cfg.PreserveEnvVars = parseStringSlice(value)
+	case "additional_module_paths":
+		// Parse the comma-separated list of module paths
+		cfg.AdditionalModulePaths = parseStringSlice(value)
+	case "custom_module_path":
+		cfg.CustomModulePath = value
 	default:
 		return errors.NewUserInputError(cli.PrefixPVM, "108",
 			"Unknown configuration key", nil).
@@ -528,4 +559,24 @@ func parseBool(value string) (bool, error) {
 			"Invalid boolean value", nil).
 			WithHint("Valid values are: true/false, yes/no, y/n, 1/0, on/off")
 	}
+}
+
+func parseStringSlice(value string) []string {
+	// Split the comma-separated string into an array
+	items := strings.Split(value, ",")
+
+	// Trim whitespace from each item
+	for i, item := range items {
+		items[i] = strings.TrimSpace(item)
+	}
+
+	// Filter out empty items
+	var filteredItems []string
+	for _, item := range items {
+		if item != "" {
+			filteredItems = append(filteredItems, item)
+		}
+	}
+
+	return filteredItems
 }
