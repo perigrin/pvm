@@ -144,6 +144,20 @@ type ModuleInstallResult struct {
 func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) {
 	startTime := time.Now()
 
+	// Use default options if nil
+	if options == nil {
+		return &ModuleInstallResult{
+				ModuleName:   "",
+				Success:      false,
+				Warnings:     []string{"No installation options provided"},
+				Errors:       []string{"No installation options provided"},
+				Dependencies: []*ModuleInstallResult{},
+			}, errors.NewSystemError(
+				ErrInstallationFailed,
+				"No installation options provided",
+				nil)
+	}
+
 	// Initialize result
 	result := &ModuleInstallResult{
 		ModuleName:   options.ModuleName,
@@ -151,14 +165,6 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 		Warnings:     []string{},
 		Errors:       []string{},
 		Dependencies: []*ModuleInstallResult{},
-	}
-
-	// Use default options if nil
-	if options == nil {
-		return result, errors.NewSystemError(
-			ErrInstallationFailed,
-			"No installation options provided",
-			nil)
 	}
 
 	// Ensure module name is provided

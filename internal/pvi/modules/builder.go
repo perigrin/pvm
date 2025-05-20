@@ -4,7 +4,6 @@
 package modules
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -280,8 +279,10 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 
 	// Install prerequisites if not skipped
 	if !options.SkipPrereqs {
-		// For Module::Build (Build.PL)
-		if buildSystem == "Build.PL" {
+		// Create the install command based on build system
+		switch buildSystem {
+		case "Build.PL":
+			// For Module::Build (Build.PL)
 			// Run the build script generator
 			log.Debugf("Running Build.PL")
 			updateStage(StageCreateBuildScript, "Running Build.PL", 0.2)
@@ -311,7 +312,8 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 			if options.Verbose {
 				installCmd = append(installCmd, "--verbose")
 			}
-		} else if buildSystem == "Makefile.PL" {
+
+		case "Makefile.PL":
 			// For ExtUtils::MakeMaker (Makefile.PL)
 			log.Debugf("Running Makefile.PL")
 			updateStage(StageCreateBuildScript, "Running Makefile.PL", 0.2)
@@ -344,7 +346,8 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 			if options.Force {
 				installCmd = append(installCmd, "FORCE=1")
 			}
-		} else if buildSystem == "Makefile" {
+
+		case "Makefile":
 			// Pre-existing Makefile
 			log.Debugf("Using existing Makefile")
 			updateStage(StageCreateBuildScript, "Using existing Makefile", 0.5)
@@ -354,7 +357,8 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 			if options.Force {
 				installCmd = append(installCmd, "FORCE=1")
 			}
-		} else {
+
+		default:
 			result.Errors = append(result.Errors, fmt.Sprintf("Unsupported build system: %s", buildSystem))
 			return result, errors.NewSystemError(
 				ErrBadBuildSystem,
@@ -367,7 +371,8 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 	// Build the module
 	updateStage(StageBuild, "Building module", 0.0)
 
-	if buildSystem == "Build.PL" {
+	switch buildSystem {
+	case "Build.PL":
 		// Build with Module::Build
 		cmd := []string{"./Build"}
 		if options.Verbose {
@@ -385,7 +390,8 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 				err).
 				WithLocation(options.ModuleDir)
 		}
-	} else if buildSystem == "Makefile.PL" || buildSystem == "Makefile" {
+
+	case "Makefile.PL", "Makefile":
 		// Build with make
 		cmd := []string{"make"}
 
@@ -413,12 +419,13 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 		updateStage(StageTest, "Running tests", 0.0)
 
 		var testCmd []string
-		if buildSystem == "Build.PL" {
+		switch buildSystem {
+		case "Build.PL":
 			testCmd = []string{"./Build", "test"}
 			if options.Verbose {
 				testCmd = append(testCmd, "--verbose")
 			}
-		} else if buildSystem == "Makefile.PL" || buildSystem == "Makefile" {
+		case "Makefile.PL", "Makefile":
 			testCmd = []string{"make", "test"}
 		}
 
@@ -529,98 +536,4 @@ func runCommand(dir string, command []string, ctx context.Context) (string, erro
 	}
 
 	return output, nil
-}
-
-// runCommandWithProgress runs a command with real-time progress reporting
-func runCommandWithProgress(
-	dir string,
-	command []string,
-	ctx context.Context,
-	progressCb func(line string),
-) error {
-	if len(command) == 0 {
-		return fmt.Errorf("empty command")
-	}
-
-	// Create command
-	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
-	cmd.Dir = dir
-
-	// Set common environment variables
-	env := os.Environ()
-	env = append(env, "PERL_MM_USE_DEFAULT=1") // Non-interactive installation
-	cmd.Env = env
-
-	// Create pipes for stdout and stderr
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-
-	// Log the command being run
-	log.Debugf("Running command in %s: %s", dir, strings.Join(command, " "))
-
-	// Start the command
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	// Read output in background
-	var stdoutBuf, stderrBuf bytes.Buffer
-
-	// Start goroutine to read stdout
-	stdoutCh := make(chan error, 1)
-	go func() {
-		scanner := bufio.NewScanner(stdoutPipe)
-		for scanner.Scan() {
-			line := scanner.Text()
-			stdoutBuf.WriteString(line + "\n")
-			if progressCb != nil {
-				progressCb(line)
-			}
-		}
-		stdoutCh <- scanner.Err()
-	}()
-
-	// Start goroutine to read stderr
-	stderrCh := make(chan error, 1)
-	go func() {
-		scanner := bufio.NewScanner(stderrPipe)
-		for scanner.Scan() {
-			line := scanner.Text()
-			stderrBuf.WriteString(line + "\n")
-			if progressCb != nil {
-				progressCb("ERROR: " + line)
-			}
-		}
-		stderrCh <- scanner.Err()
-	}()
-
-	// Wait for command to complete
-	err = cmd.Wait()
-
-	// Check for output reading errors
-	stdoutErr := <-stdoutCh
-	if stdoutErr != nil {
-		return fmt.Errorf("error reading stdout: %v", stdoutErr)
-	}
-
-	stderrErr := <-stderrCh
-	if stderrErr != nil {
-		return fmt.Errorf("error reading stderr: %v", stderrErr)
-	}
-
-	// Check command exit status
-	if err != nil {
-		// Add output to error for better diagnostics
-		err = fmt.Errorf("%w\nSTDOUT:\n%s\nSTDERR:\n%s",
-			err, stdoutBuf.String(), stderrBuf.String())
-	}
-
-	return err
 }
