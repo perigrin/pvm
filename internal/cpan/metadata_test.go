@@ -19,7 +19,7 @@ func TestMetaCPANGetModuleInfo(t *testing.T) {
 	// Create a test server that returns a mock module response
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check the request
-		assert.Equal(t, "/module/Test::Module", r.URL.Path, "URL path should match the module name")
+		assert.Equal(t, "/module/Test/Module", r.URL.Path, "URL path should match the module name")
 		assert.Equal(t, "GET", r.Method, "HTTP method should be GET")
 		assert.Equal(t, defaultUserAgent, r.Header.Get("User-Agent"), "User-Agent header should be set")
 		assert.Equal(t, "application/json", r.Header.Get("Accept"), "Accept header should be set")
@@ -27,7 +27,7 @@ func TestMetaCPANGetModuleInfo(t *testing.T) {
 		// Return a mock response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"name": "Test::Module",
 			"version": "1.0.0",
 			"author": "TESTUSER",
@@ -77,12 +77,12 @@ func TestMetaCPANGetModuleInfo(t *testing.T) {
 	defer server.Close()
 
 	// Create a provider that uses the test server
-	provider, err := NewMetaCPANProvider(
-		WithBaseURL(server.URL),
-		WithDisableNetwork(false),
-	)
+	provider, err := NewMetaCPANProvider()
 	require.NoError(t, err, "NewMetaCPANProvider should not return an error")
 	require.NotNil(t, provider, "Provider should not be nil")
+
+	// Directly set the baseURL on the provider to ensure it's used
+	provider.baseURL = server.URL
 
 	// Get module info
 	moduleInfo, err := provider.GetModuleInfo(context.Background(), "Test::Module")
@@ -136,7 +136,7 @@ func TestMetaCPANSearchModules(t *testing.T) {
 		// Return a mock response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"total": 2,
 			"hits": [
 				{
@@ -171,12 +171,12 @@ func TestMetaCPANSearchModules(t *testing.T) {
 	defer server.Close()
 
 	// Create a provider that uses the test server
-	provider, err := NewMetaCPANProvider(
-		WithBaseURL(server.URL),
-		WithDisableNetwork(false),
-	)
+	provider, err := NewMetaCPANProvider()
 	require.NoError(t, err, "NewMetaCPANProvider should not return an error")
 	require.NotNil(t, provider, "Provider should not be nil")
+
+	// Directly set the baseURL on the provider to ensure it's used
+	provider.baseURL = server.URL
 
 	// Search for modules
 	results, err := provider.SearchModules(context.Background(), "test", 20)
@@ -223,9 +223,12 @@ func TestMetaCPANSearchModules(t *testing.T) {
 // TestDisabledNetwork tests that operations fail when network is disabled
 func TestDisabledNetwork(t *testing.T) {
 	// Create a provider with network disabled
-	provider, err := NewMetaCPANProvider(WithDisableNetwork(true))
+	provider, err := NewMetaCPANProvider()
 	require.NoError(t, err, "NewMetaCPANProvider should not return an error")
 	require.NotNil(t, provider, "Provider should not be nil")
+
+	// Directly set the disableNetwork flag to true
+	provider.disableNetwork = true
 
 	// Try to get module info
 	moduleInfo, err := provider.GetModuleInfo(context.Background(), "Test::Module")

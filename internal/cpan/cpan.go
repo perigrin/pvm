@@ -18,6 +18,7 @@ type CPANProvider struct {
 	mirrors       []string
 	currentMirror int
 	timeout       int
+	_             bool // disableNetwork is deprecated
 }
 
 // NewCPANProvider creates a new CPANProvider with the given options

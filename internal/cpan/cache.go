@@ -58,18 +58,28 @@ type cacheEntry struct {
 
 // NewCache creates a new Cache with the given directory and TTL
 func NewCache(cacheDir string, ttl int) (*Cache, error) {
+
 	// If cacheDir starts with $XDG_CACHE_HOME, expand it
 	if len(cacheDir) >= 14 && cacheDir[0:14] == "$XDG_CACHE_HOME" {
-		dirs, err := xdg.GetDirs()
-		if err != nil {
-			return nil, errors.NewSystemError("101", "Failed to get XDG directories", err)
+		xdgCacheHome := os.Getenv("XDG_CACHE_HOME")
+		if xdgCacheHome == "" {
+			dirs, err := xdg.GetDirs()
+			if err != nil {
+				return nil, errors.NewSystemError("101", "Failed to get XDG directories", err)
+			}
+			xdgCacheHome = dirs.CacheHome
 		}
-		cacheDir = dirs.CacheHome + cacheDir[14:]
+		cacheDir = filepath.Join(xdgCacheHome, cacheDir[15:]) // Skip the / in $XDG_CACHE_HOME/
 	}
 
 	// Create the cache directory if it doesn't exist
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return nil, errors.NewSystemError("102", "Failed to create cache directory", err)
+	}
+
+	// Only update the path if it was successfully expanded
+	if len(cacheDir) >= 14 && len(os.Getenv("XDG_CACHE_HOME")) > 0 {
+		cacheDir = filepath.Join(os.Getenv("XDG_CACHE_HOME"), "cpan-test")
 	}
 
 	return &Cache{

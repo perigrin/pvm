@@ -60,55 +60,117 @@ func NewProvider(source string, options ...ProviderOption) (Provider, error) {
 // WithBaseURL sets the base URL for the provider's API
 func WithBaseURL(url string) ProviderOption {
 	return func(p Provider) error {
-		// This will be implemented by each provider
-		return nil
+		switch v := p.(type) {
+		case *MetaCPANProvider:
+			return v.WithBaseURL(url)
+		case *CPANProvider:
+			v.baseURL = url
+			return nil
+		case *CustomProvider:
+			return v.WithBaseURL(url)
+		default:
+			return nil
+		}
 	}
 }
 
 // WithCache enables caching for the provider
 func WithCache(cacheDir string, ttl int) ProviderOption {
 	return func(p Provider) error {
-		// This will be implemented by each provider
-		return nil
+		switch v := p.(type) {
+		case *MetaCPANProvider:
+			return v.WithCache(cacheDir, ttl)
+		case *CPANProvider:
+			v.cacheDir = cacheDir
+			v.cacheTTL = ttl
+			return nil
+		case *CustomProvider:
+			return v.WithCache(cacheDir, ttl)
+		default:
+			return nil
+		}
 	}
 }
 
 // WithTimeout sets the timeout for API requests
 func WithTimeout(timeout int) ProviderOption {
 	return func(p Provider) error {
-		// This will be implemented by each provider
-		return nil
+		switch v := p.(type) {
+		case *MetaCPANProvider:
+			return v.WithTimeout(timeout)
+		case *CPANProvider:
+			v.timeout = timeout
+			return nil
+		case *CustomProvider:
+			return v.WithTimeout(timeout)
+		default:
+			return nil
+		}
 	}
 }
 
 // WithUserAgent sets the User-Agent header for API requests
 func WithUserAgent(userAgent string) ProviderOption {
 	return func(p Provider) error {
-		// This will be implemented by each provider
-		return nil
+		switch v := p.(type) {
+		case *MetaCPANProvider:
+			return v.WithUserAgent(userAgent)
+		case *CPANProvider:
+			v.userAgent = userAgent
+			return nil
+		case *CustomProvider:
+			return v.WithUserAgent(userAgent)
+		default:
+			return nil
+		}
 	}
 }
 
 // WithMirror sets the CPAN mirror to use
 func WithMirror(mirror string) ProviderOption {
 	return func(p Provider) error {
-		// This will be implemented by each provider
-		return nil
+		switch v := p.(type) {
+		case *MetaCPANProvider:
+			return v.WithMirror(mirror)
+		case *CPANProvider:
+			v.mirrors = []string{mirror}
+			v.currentMirror = 0
+			return nil
+		case *CustomProvider:
+			return v.WithMirror(mirror)
+		default:
+			return nil
+		}
 	}
 }
 
 // WithAdditionalMirrors sets additional CPAN mirrors to use as fallbacks
 func WithAdditionalMirrors(mirrors []string) ProviderOption {
 	return func(p Provider) error {
-		// This will be implemented by each provider
-		return nil
+		switch v := p.(type) {
+		case *MetaCPANProvider:
+			return v.WithAdditionalMirrors(mirrors)
+		case *CPANProvider:
+			v.mirrors = append(v.mirrors, mirrors...)
+			return nil
+		case *CustomProvider:
+			return v.WithAdditionalMirrors(mirrors)
+		default:
+			return nil
+		}
 	}
 }
 
 // WithDisableNetwork disables network access (for testing)
 func WithDisableNetwork(disable bool) ProviderOption {
 	return func(p Provider) error {
-		// This will be implemented by each provider
-		return nil
+		switch v := p.(type) {
+		case *MetaCPANProvider:
+			return v.WithDisableNetwork(disable)
+		case *CustomProvider:
+			return v.WithDisableNetwork(disable)
+		default:
+			return nil
+		}
 	}
 }

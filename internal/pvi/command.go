@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
+	"tamarou.com/pvm/internal/pvi/deps"
 )
 
 // NewCommand creates a new PVI command
@@ -177,14 +178,172 @@ func newSearchCommand() *cobra.Command {
 }
 
 func newDepsCommand() *cobra.Command {
-	return &cobra.Command{
+	var (
+		includeTest  bool
+		includeBuild bool
+		includeCore  bool
+		includeDev   bool
+		maxDepth     int
+		source       string
+		noCache      bool
+		perlVersion  string
+		verbose      bool
+		flat         bool
+	)
+
+	cmd := &cobra.Command{
 		Use:   "deps [module]",
 		Short: "Show module dependencies",
 		Long:  "Display the dependencies for a CPAN module",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Deps command not yet implemented")
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Options are already bound to the variables
+
+			// Get configuration
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return err
+			}
+
+			// If source is not provided, use the one from the configuration
+			if source == "" && cfg.PVI != nil {
+				source = cfg.PVI.MetadataSource
+			}
+
+			// Default to metacpan if still not set
+			if source == "" {
+				source = "metacpan"
+			}
+
+			// Build the provider options
+			var providerOpts []cpan.ProviderOption
+
+			// Add options based on configuration
+			if cfg.PVI != nil {
+				// Set base URL if custom source and URL provided
+				if source == "custom" && cfg.PVI.MetadataURL != "" {
+					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
+				}
+
+				// Set cache settings if caching is enabled and not disabled by flag
+				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
+					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
+				}
+
+				// Set mirrors
+				if cfg.PVI.DefaultMirror != "" {
+					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
+				}
+				if len(cfg.PVI.AdditionalMirrors) > 0 {
+					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
+				}
+
+				// Set network access
+				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
+			}
+
+			// Create the provider
+			provider, err := cpan.NewProvider(source, providerOpts...)
+			if err != nil {
+				return err
+			}
+
+			// Create the dependency resolver
+			var cacheDir string
+			var cacheTTL int
+
+			if cfg.PVI != nil && !noCache {
+				cacheDir = cfg.PVI.CacheDir
+				cacheTTL = cfg.PVI.CacheTTL
+			}
+
+			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
+			if err != nil {
+				return err
+			}
+
+			// Set up resolution options
+			options := &deps.DependencyResolutionOptions{
+				Provider:     provider,
+				IncludeCore:  includeCore,
+				IncludeTest:  includeTest,
+				IncludeBuild: includeBuild,
+				IncludeDev:   includeDev,
+				MaxDepth:     maxDepth,
+				Verbose:      verbose,
+				UseCache:     !noCache,
+				CacheTTL:     cacheTTL,
+				CacheDir:     cacheDir,
+				PerlVersion:  perlVersion,
+			}
+
+			// Resolve dependencies
+			moduleName := args[0]
+			result, err := resolver.ResolveDependencies(context.Background(), moduleName, options)
+			if err != nil {
+				return err
+			}
+
+			// Display the results
+			if flat {
+				// Display as a flat list
+				cmd.Printf("Dependencies for %s:\n\n", moduleName)
+				deps := resolver.GetFlattenedDependencies(result)
+				for _, dep := range deps {
+					if dep.IsRoot {
+						continue // Skip the root module
+					}
+					cmd.Printf("%s", dep.Name)
+					if dep.VersionConstraint != "" {
+						cmd.Printf(" (%s)", dep.VersionConstraint)
+					}
+					if dep.Phase != "" && dep.Phase != "runtime" {
+						cmd.Printf(" [%s]", dep.Phase)
+					}
+					cmd.Println()
+				}
+			} else {
+				// Display as a tree
+				cmd.Printf("Dependency tree for %s:\n\n", moduleName)
+				tree := resolver.PrintDependencyTree(result.Root)
+				cmd.Println(tree)
+			}
+
+			// Display warnings and conflicts
+			if len(result.Warnings) > 0 {
+				cmd.Println("\nWarnings:")
+				for _, warning := range result.Warnings {
+					cmd.Printf("- %s\n", warning)
+				}
+			}
+
+			if len(result.Conflicts) > 0 {
+				cmd.Println("\nVersion conflicts:")
+				for _, conflict := range result.Conflicts {
+					cmd.Printf("- %s has conflicting requirements:\n", conflict.Module)
+					for constraint, requirers := range conflict.Requirements {
+						cmd.Printf("  - %s required by: %s\n", constraint, strings.Join(requirers, ", "))
+					}
+				}
+			}
+
+			return nil
 		},
 	}
+
+	// Add flags with direct binding to variables
+	cmd.Flags().BoolVarP(&includeTest, "include-test", "t", false, "Include test dependencies")
+	cmd.Flags().BoolVarP(&includeBuild, "include-build", "b", true, "Include build dependencies")
+	cmd.Flags().BoolVar(&includeCore, "include-core", false, "Include core modules")
+	cmd.Flags().BoolVar(&includeDev, "include-dev", false, "Include development dependencies")
+	cmd.Flags().IntVarP(&maxDepth, "max-depth", "m", 0, "Maximum depth to traverse (0 = no limit)")
+	cmd.Flags().StringVarP(&source, "source", "s", "", "Use a specific metadata source (metacpan, cpan, custom)")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "Disable caching for this operation")
+	cmd.Flags().StringVarP(&perlVersion, "perl", "p", "", "Perl version to use for core module detection")
+	cmd.Flags().BoolVar(&verbose, "verbose", false, "Enable verbose output")
+	cmd.Flags().BoolVarP(&flat, "flat", "f", false, "Display dependencies as a flat list instead of a tree")
+
+	return cmd
 }
 
 func newBundleCommand() *cobra.Command {

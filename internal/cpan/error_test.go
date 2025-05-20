@@ -75,17 +75,17 @@ func TestHTTPErrorHandling(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Return a 404 Not Found error
 		w.WriteHeader(http.StatusNotFound)
-		_ = w.Write([]byte("Not Found"))
+		_, _ = w.Write([]byte("Not Found"))
 	}))
 	defer server.Close()
 
 	// Create a provider that uses the test server
-	provider, err := NewMetaCPANProvider(
-		WithBaseURL(server.URL),
-		WithDisableNetwork(false),
-	)
+	provider, err := NewMetaCPANProvider()
 	require.NoError(t, err, "NewMetaCPANProvider should not return an error")
 	require.NotNil(t, provider, "Provider should not be nil")
+
+	// Directly set the baseURL on the provider to ensure it's used
+	provider.baseURL = server.URL
 
 	// Try to get module info
 	_, err = provider.GetModuleInfo(context.Background(), "Test::Module")
@@ -132,17 +132,17 @@ func TestParseFailureHandling(t *testing.T) {
 		// Return invalid JSON
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = w.Write([]byte("This is not valid JSON"))
+		_, _ = w.Write([]byte("This is not valid JSON"))
 	}))
 	defer server.Close()
 
 	// Create a provider that uses the test server
-	provider, err := NewMetaCPANProvider(
-		WithBaseURL(server.URL),
-		WithDisableNetwork(false),
-	)
+	provider, err := NewMetaCPANProvider()
 	require.NoError(t, err, "NewMetaCPANProvider should not return an error")
 	require.NotNil(t, provider, "Provider should not be nil")
+
+	// Directly set the baseURL on the provider to ensure it's used
+	provider.baseURL = server.URL
 
 	// Try to get module info
 	_, err = provider.GetModuleInfo(context.Background(), "Test::Module")

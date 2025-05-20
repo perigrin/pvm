@@ -223,7 +223,9 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 	// Check cache first (not implemented yet)
 
 	// Prepare the URL
-	endpoint := fmt.Sprintf("/module/%s", url.PathEscape(moduleName))
+	// Convert :: to / in module name for MetaCPAN API
+	modulePath := strings.ReplaceAll(moduleName, "::", "/")
+	endpoint := fmt.Sprintf("/module/%s", url.PathEscape(modulePath))
 	requestURL := p.baseURL + endpoint
 
 	// Make the request
