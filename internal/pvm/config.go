@@ -186,7 +186,7 @@ func newConfigSetCommand() *cobra.Command {
 			}
 
 			// Save the configuration
-			return config.SaveConfig(cfg, configPath)
+			return config.SaveToFile(cfg, configPath)
 		},
 	}
 
@@ -261,7 +261,7 @@ func initializeConfig(configPath string) error {
 	cfg := config.NewDefaultConfig()
 
 	// Save the configuration
-	err := config.SaveConfig(cfg, configPath)
+	err := config.SaveToFile(cfg, configPath)
 	if err != nil {
 		return err
 	}

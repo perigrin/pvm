@@ -210,8 +210,8 @@ func mergePSCConfig(target, source *PSCConfig) {
 	}
 }
 
-// SaveConfig saves a configuration to a file
-func SaveConfig(config *Config, path string) error {
+// SaveToFile saves a configuration to a file
+func SaveToFile(config *Config, path string) error {
 	// Create the directory if it doesn't exist
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {

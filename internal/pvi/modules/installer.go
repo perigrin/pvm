@@ -1,0 +1,434 @@
+// ABOUTME: Module installer for PVI
+// ABOUTME: Provides the main module installation functionality
+
+package modules
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"tamarou.com/pvm/internal/cpan"
+	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/log"
+	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/pvi/deps"
+	"tamarou.com/pvm/internal/xdg"
+)
+
+// Error codes for module installation operations
+const (
+	ErrInstallationFailed = "PVI-4301" // General installation failure
+	ErrModuleNotResolved  = "PVI-4302" // Module could not be resolved
+	ErrModuleMissing      = "PVI-4303" // Module not found in registry
+	ErrDependencyFailure  = "PVI-4304" // Dependency resolution failed
+)
+
+// InstallProgressStage represents a stage in the module installation process
+type InstallProgressStage int
+
+const (
+	// Module installation stages
+	StageResolving InstallProgressStage = iota
+	StageDownloading
+	StageExtracting
+	StageBuilding
+	StageTesting
+	StageInstallingModule
+	StageCleaningUp
+	StageFinished
+)
+
+// String returns a string representation of the installation stage
+func (s InstallProgressStage) String() string {
+	switch s {
+	case StageResolving:
+		return "Resolving dependencies"
+	case StageDownloading:
+		return "Downloading module"
+	case StageExtracting:
+		return "Extracting module"
+	case StageBuilding:
+		return "Building module"
+	case StageTesting:
+		return "Testing module"
+	case StageInstallingModule:
+		return "Installing module"
+	case StageCleaningUp:
+		return "Cleaning up"
+	case StageFinished:
+		return "Finished"
+	default:
+		return "Unknown"
+	}
+}
+
+// InstallProgressCallback is called to report progress during installation
+type InstallProgressCallback func(stage InstallProgressStage, moduleName string, details string, progress float64)
+
+// ModuleInstallOptions contains options for installing a module
+type ModuleInstallOptions struct {
+	// Module name to install
+	ModuleName string
+
+	// Version constraint for the module
+	VersionConstraint string
+
+	// Path to the Perl interpreter to use
+	PerlPath string
+
+	// Installation directory (usually site_perl)
+	InstallDir string
+
+	// Run tests before installation
+	RunTests bool
+
+	// Force installation even if tests fail
+	Force bool
+
+	// Clean build directory after installation
+	Cleanup bool
+
+	// Include verbose output
+	Verbose bool
+
+	// Skip prerequisite installation (dependencies)
+	SkipDependencies bool
+
+	// Additional build arguments
+	BuildArgs []string
+
+	// CPAN provider for metadata
+	Provider cpan.Provider
+
+	// Dependency resolver
+	DependencyResolver deps.DependencyResolver
+
+	// Progress callback
+	ProgressCallback InstallProgressCallback
+
+	// Context for cancellation
+	Context context.Context
+}
+
+// ModuleInstallResult contains information about the installation
+type ModuleInstallResult struct {
+	// Module name
+	ModuleName string
+
+	// Module version
+	Version string
+
+	// Whether the module was successfully installed
+	Success bool
+
+	// Warning messages from the installation process
+	Warnings []string
+
+	// Error messages from the installation process
+	Errors []string
+
+	// The path where the module was installed
+	InstallPath string
+
+	// List of dependencies that were resolved and installed
+	Dependencies []*ModuleInstallResult
+
+	// Total time taken for installation
+	Duration time.Duration
+}
+
+// InstallModule installs a Perl module and its dependencies
+func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) {
+	startTime := time.Now()
+
+	// Initialize result
+	result := &ModuleInstallResult{
+		ModuleName:   options.ModuleName,
+		Success:      false,
+		Warnings:     []string{},
+		Errors:       []string{},
+		Dependencies: []*ModuleInstallResult{},
+	}
+
+	// Use default options if nil
+	if options == nil {
+		return result, errors.NewSystemError(
+			ErrInstallationFailed,
+			"No installation options provided",
+			nil)
+	}
+
+	// Ensure module name is provided
+	if options.ModuleName == "" {
+		return result, errors.NewSystemError(
+			ErrModuleMissing,
+			"No module name specified",
+			nil)
+	}
+
+	// Set default context if not specified
+	if options.Context == nil {
+		options.Context = context.Background()
+	}
+
+	// Ensure we have a provider
+	if options.Provider == nil {
+		return result, errors.NewSystemError(
+			ErrModuleMissing,
+			"No CPAN provider specified",
+			nil)
+	}
+
+	// Ensure we have a perl path
+	if options.PerlPath == "" {
+		perlPath, err := perl.GetCurrentPerlPath()
+		if err != nil {
+			return result, errors.NewSystemError(
+				ErrInstallationFailed,
+				"Failed to determine Perl path",
+				err)
+		}
+		options.PerlPath = perlPath
+	}
+
+	// Get XDG directories for cache/build paths
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return result, errors.NewSystemError("001",
+			"Failed to determine XDG directories", err)
+	}
+
+	// Ensure directories exist
+	err = dirs.EnsureDirs()
+	if err != nil {
+		return result, errors.NewSystemError("002",
+			"Failed to create required directories", err)
+	}
+
+	// Create module build directories
+	modulesBuildDir := filepath.Join(dirs.BuildDir, "modules")
+	if err := os.MkdirAll(modulesBuildDir, 0755); err != nil {
+		return result, errors.NewSystemError("003",
+			"Failed to create modules build directory", err)
+	}
+
+	// Create timestamp-based build directory for this module
+	timestamp := time.Now().Format("20060102-150405")
+	buildDir := filepath.Join(modulesBuildDir, fmt.Sprintf("%s-%s", options.ModuleName, timestamp))
+	if err := os.MkdirAll(buildDir, 0755); err != nil {
+		return result, errors.NewSystemError("004",
+			"Failed to create module build directory", err)
+	}
+
+	// Update progress
+	updateProgress := func(stage InstallProgressStage, details string, progress float64) {
+		if options.ProgressCallback != nil {
+			options.ProgressCallback(stage, options.ModuleName, details, progress)
+		}
+	}
+
+	// Start resolving dependencies if not skipped
+	if !options.SkipDependencies && options.DependencyResolver != nil {
+		updateProgress(StageResolving, "Resolving dependencies", 0.0)
+
+		// Create dependency resolution options
+		resolutionOptions := &deps.DependencyResolutionOptions{
+			Provider:     options.Provider,
+			IncludeCore:  false,
+			IncludeTest:  options.RunTests,
+			IncludeBuild: true,
+			IncludeDev:   false,
+			MaxDepth:     0, // No limit
+			Verbose:      options.Verbose,
+		}
+
+		// Resolve dependencies
+		log.Infof("Resolving dependencies for module %s", options.ModuleName)
+		depResult, err := options.DependencyResolver.ResolveDependencies(
+			options.Context, options.ModuleName, resolutionOptions)
+
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("Failed to resolve dependencies: %v", err))
+			return result, errors.NewSystemError(
+				ErrDependencyFailure,
+				fmt.Sprintf("Failed to resolve dependencies for %s", options.ModuleName),
+				err)
+		}
+
+		// Get flattened dependencies
+		flatDeps := options.DependencyResolver.GetFlattenedDependencies(depResult)
+		log.Infof("Resolved %d dependencies for %s", len(flatDeps)-1, options.ModuleName) // -1 to exclude root module
+
+		// Process dependencies in correct order (leaves first)
+		// Skip the root module (the one we're installing directly)
+		for _, dep := range flatDeps {
+			if dep.IsRoot || dep.IsCore {
+				continue
+			}
+
+			log.Infof("Installing dependency: %s", dep.Name)
+			updateProgress(StageResolving, fmt.Sprintf("Installing dependency: %s", dep.Name), 0.5)
+
+			// Create options for installing the dependency
+			depOptions := &ModuleInstallOptions{
+				ModuleName:         dep.Name,
+				VersionConstraint:  dep.VersionConstraint,
+				PerlPath:           options.PerlPath,
+				InstallDir:         options.InstallDir,
+				RunTests:           options.RunTests,
+				Force:              options.Force,
+				Cleanup:            options.Cleanup,
+				Verbose:            options.Verbose,
+				SkipDependencies:   true, // Skip recursive dependency resolution
+				Provider:           options.Provider,
+				DependencyResolver: nil, // Avoid further dependency resolution
+				Context:            options.Context,
+			}
+
+			// Install the dependency
+			depInstallResult, err := InstallModule(depOptions)
+			if err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("Failed to install dependency %s: %v", dep.Name, err))
+
+				// Don't fail the main installation for optional dependencies
+				if dep.Type == "recommends" || dep.Type == "suggests" {
+					result.Warnings = append(result.Warnings, fmt.Sprintf("Optional dependency %s failed to install: %v", dep.Name, err))
+					continue
+				}
+
+				// Only fail for required dependencies
+				if !options.Force {
+					return result, errors.NewSystemError(
+						ErrDependencyFailure,
+						fmt.Sprintf("Failed to install dependency %s for %s", dep.Name, options.ModuleName),
+						err)
+				}
+
+				// Force continue despite dependency failure
+				result.Warnings = append(result.Warnings, fmt.Sprintf("Dependency %s failed to install, continuing anyway (--force)", dep.Name))
+			}
+
+			// Add to dependencies list
+			result.Dependencies = append(result.Dependencies, depInstallResult)
+		}
+	}
+
+	// Start downloading the module
+	updateProgress(StageDownloading, "Downloading module", 0.0)
+
+	// Create download options
+	downloadOptions := &DownloadOptions{
+		ModuleName:        options.ModuleName,
+		VersionConstraint: options.VersionConstraint,
+		Provider:          options.Provider,
+		Context:           options.Context,
+		SkipCache:         false,
+		ProgressCallback: func(total, transferred int64, done bool) {
+			progress := float64(0)
+			if total > 0 {
+				progress = float64(transferred) / float64(total)
+			}
+			updateProgress(StageDownloading, fmt.Sprintf("Downloading %s (%d%%)", options.ModuleName, int(progress*100)), progress)
+		},
+	}
+
+	// Download the module
+	log.Infof("Downloading module: %s", options.ModuleName)
+	downloadResult, err := DownloadModule(downloadOptions)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to download module: %v", err))
+		return result, errors.NewSystemError(
+			ErrInstallationFailed,
+			fmt.Sprintf("Failed to download module %s", options.ModuleName),
+			err)
+	}
+
+	// Update result with version from download
+	result.Version = downloadResult.Version
+
+	// Extract the module
+	updateProgress(StageExtracting, "Extracting module archive", 0.0)
+
+	log.Infof("Extracting module: %s", options.ModuleName)
+	extractResult, err := ExtractModuleArchive(downloadResult.Path, buildDir, options.Context)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to extract module: %v", err))
+		return result, errors.NewSystemError(
+			ErrInstallationFailed,
+			fmt.Sprintf("Failed to extract module %s", options.ModuleName),
+			err)
+	}
+
+	// Update progress
+	updateProgress(StageExtracting, "Module extracted", 1.0)
+
+	// Build and install the module
+	updateProgress(StageBuilding, "Building module", 0.0)
+
+	// Create build options
+	buildOptions := &ModuleBuildOptions{
+		ModuleDir:    extractResult.ExtractedDir,
+		ModuleName:   options.ModuleName,
+		Distribution: extractResult.Distribution,
+		PerlPath:     options.PerlPath,
+		InstallDir:   options.InstallDir,
+		BuildDir:     buildDir,
+		RunTests:     options.RunTests,
+		Force:        options.Force,
+		Cleanup:      options.Cleanup,
+		Verbose:      options.Verbose,
+		BuildArgs:    options.BuildArgs,
+		SkipPrereqs:  options.SkipDependencies,
+		Context:      options.Context,
+		ProgressCallback: func(stage BuildProgressStage, details string, progress float64) {
+			// Map build stages to install stages
+			installStage := StageBuilding
+			switch stage {
+			case StagePrepare, StageCreateBuildScript:
+				installStage = StageBuilding
+			case StageBuild:
+				installStage = StageBuilding
+			case StageTest:
+				installStage = StageTesting
+			case StageInstall:
+				installStage = StageInstallingModule
+			case StageCleanup:
+				installStage = StageCleaningUp
+			case StageDone:
+				installStage = StageFinished
+			}
+
+			updateProgress(installStage, details, progress)
+		},
+	}
+
+	// Build and install the module
+	log.Infof("Building and installing module: %s", options.ModuleName)
+	buildResult, err := BuildAndInstallModule(buildOptions)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to build and install module: %v", err))
+		return result, errors.NewSystemError(
+			ErrInstallationFailed,
+			fmt.Sprintf("Failed to build and install module %s", options.ModuleName),
+			err)
+	}
+
+	// Update result with build warnings and errors
+	result.Warnings = append(result.Warnings, buildResult.Warnings...)
+	result.Errors = append(result.Errors, buildResult.Errors...)
+
+	// Set success and install path
+	result.Success = buildResult.Installed
+	result.InstallPath = options.InstallDir // This is approximate
+
+	// Calculate total duration
+	result.Duration = time.Since(startTime)
+
+	// Final progress update
+	updateProgress(StageFinished, "Module installation completed", 1.0)
+
+	return result, nil
+}

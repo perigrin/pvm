@@ -270,6 +270,15 @@ func findAdditionalPerls() ([]*SystemPerl, error) {
 	return perls, nil
 }
 
+// GetCurrentPerlPath returns the path to the current Perl executable
+func GetCurrentPerlPath() (string, error) {
+	perl, err := DetectSystemPerl()
+	if err != nil {
+		return "", err
+	}
+	return perl.Path, nil
+}
+
 // GetSystemPerlVersion executes a Perl command and returns its version
 func GetSystemPerlVersion(perlPath string) (string, error) {
 	if perlPath == "" {

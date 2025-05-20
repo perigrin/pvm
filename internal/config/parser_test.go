@@ -326,7 +326,7 @@ func TestSaveConfig(t *testing.T) {
 
 	// Save the configuration
 	tmpFile := filepath.Join(tmpDir, "pvm.toml")
-	err = SaveConfig(config, tmpFile)
+	err = SaveToFile(config, tmpFile)
 	if err != nil {
 		t.Fatalf("Failed to save configuration: %v", err)
 	}

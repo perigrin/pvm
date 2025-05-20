@@ -71,3 +71,70 @@ All files are optional with the system working with sensible defaults.
 - use Testify for testing
 - use gofumpt for formatting
 - use golangci-lint for linting
+
+## Go Formatting and Linting Issues
+
+### Common Linting Issues
+
+1. **Error Handling (errcheck)**
+   - Always check errors from:
+     - File operations: `os.Remove`, `os.RemoveAll`, `file.Close`
+     - Environment modifications: `os.Chdir`, `os.Setenv`, `os.Unsetenv`
+     - I/O operations: `fmt.Fprintf`, `resp.Body.Close`, `w.Write`
+
+2. **Variable Usage (ineffassign)**
+   - Avoid unused variable assignments
+   - Either use the variable or remove the assignment
+
+3. **Code Structure (go-critic)**
+   - Convert if-else chains to switch statements where appropriate
+
+### Best Practices for Error Handling
+
+1. **Deferred Functions**
+   ```go
+   // Correct way to handle errors in deferred calls
+   defer func() {
+       _ = file.Close()
+   }()
+   ```
+
+2. **Direct Function Calls**
+   ```go
+   // When error handling isn't necessary but linter requires check
+   _ = os.Remove(tmpPath)
+   ```
+
+3. **Test Files**
+   - In test code, ensure environment cleanup with proper error handling:
+   ```go
+   defer func() { _ = os.RemoveAll(tempDir) }()
+   ```
+
+### Pre-commit Hooks
+
+The project uses the following pre-commit hooks:
+
+1. **go vet** - Analyzes code for potential errors
+   - Runs `go vet ./...` on the entire module
+   - Ensures code correctness before committing
+
+2. **Automated Fixes**
+   - `fix_error_checks.sh` - Corrects common error handling issues
+   - `fix_linting.sh` - Addresses switch statement formatting
+   - `fix_indentation.sh` - Fixes indentation in specific files
+
+### Running Linters
+
+```bash
+# Run all linting checks
+golangci-lint run
+
+# Run specific checks
+golangci-lint run --disable-all --enable=errcheck
+golangci-lint run --disable-all --enable=ineffassign
+golangci-lint run --disable-all --enable=staticcheck
+golangci-lint run --disable-all --enable=go-critic
+```
+
+For more details on linting issues and their resolutions, see `docs/linting-issues.md`.

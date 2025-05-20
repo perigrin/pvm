@@ -182,6 +182,30 @@ func getProjectRootFunc() string {
 var GetProjectRoot = getProjectRootFunc
 
 // findProjectRoot recursively searches for a .pvm directory in the given directory
+
+// SaveUserConfig saves the configuration to the user's configuration file
+func SaveUserConfig(cfg *Config) error {
+	// Get XDG directories
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return errors.NewConfigError("111",
+			"Failed to determine XDG directories", err)
+	}
+
+	// Ensure directories exist
+	err = dirs.EnsureDirs()
+	if err != nil {
+		return errors.NewConfigError("112",
+			"Failed to create required directories", err)
+	}
+
+	// Create user config path
+	configPath := filepath.Join(dirs.ConfigDir, "pvm.toml")
+
+	// Save the configuration
+	return SaveToFile(cfg, configPath)
+}
+
 // and its parent directories, stopping at the filesystem root
 func findProjectRoot(dir string) string {
 	// Check for .pvm directory
@@ -232,7 +256,7 @@ func InitUserConfig() error {
 	config := NewDefaultConfig()
 
 	// Save configuration
-	return SaveConfig(config, userConfigPath)
+	return SaveToFile(config, userConfigPath)
 }
 
 // InitProjectConfig initializes a project configuration file with default values
@@ -259,5 +283,5 @@ func InitProjectConfig(projectDir string) error {
 	config := NewDefaultConfig()
 
 	// Save configuration
-	return SaveConfig(config, projectConfigPath)
+	return SaveToFile(config, projectConfigPath)
 }
