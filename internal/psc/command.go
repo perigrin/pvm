@@ -73,13 +73,4 @@ func newWatchCommand() *cobra.Command {
 	}
 }
 
-func newDefCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "def [module]",
-		Short: "Generate type definitions for a module",
-		Long:  "Create or update type definitions for a Perl module",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Def command not yet implemented")
-		},
-	}
-}
+// The newDefCommand implementation is in def_command.go

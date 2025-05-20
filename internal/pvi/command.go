@@ -1125,14 +1125,16 @@ func newBundleCommand() *cobra.Command {
 }
 
 func newTypeCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "type [module]",
-		Short: "Manage type definitions for a module",
-		Long:  "Generate, install, or view type definitions for a module",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Type command not yet implemented")
-		},
+	cmd := &cobra.Command{
+		Use:   "type",
+		Short: "Manage type definitions",
+		Long:  "Create, list, and manage type definitions for Perl modules",
 	}
+
+	// Add subcommands from type_command.go
+	createTypeCommands(cmd)
+
+	return cmd
 }
 
 func newMirrorCommand() *cobra.Command {
