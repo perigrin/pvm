@@ -48,12 +48,27 @@ print "PVM_ISOLATION_DIR: " . ($ENV{PVM_ISOLATION_DIR} || "not set") . "\n";
 print "PVM_OUTPUT_DIR: " . ($ENV{PVM_OUTPUT_DIR} || "not set") . "\n";
 
 # Create a test file to check filesystem isolation
+# When using high isolation with isolated output, files need to be created in the current working directory
+# which will automatically be set to the output directory
 my $test_filename = 'test_output_file.txt';
 eval {
+    # Print current working directory to verify we're in the output directory
+    print "Creating file in: " . qx(pwd) . "\n";
     open(my $fh, '>', $test_filename) or die "Could not create file: $!";
     print $fh "This is a test file, created at " . localtime() . "\n";
     close($fh);
-    print "Successfully created test file: $test_filename\n";
+
+    # Verify the file was created successfully
+    if (-f $test_filename) {
+        print "Successfully created test file: $test_filename\n";
+        # Print the contents to make sure it was created correctly
+        open(my $fh_read, '<', $test_filename) or die "Could not read file: $!";
+        my $content = do { local $/; <$fh_read> };
+        close($fh_read);
+        print "File contents: $content\n";
+    } else {
+        print "ERROR: File not found after creation: $test_filename\n";
+    }
 };
 if ($@) {
     print "Error creating test file: $@\n";
@@ -99,7 +114,7 @@ print "\nScript completed successfully\n";
 
 	// Test isolation level: none
 	t.Run("IsolationNone", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{"pvx", "--isolation", "none", "-p", perlPath, "--verbose", scriptPath},
 			"PVX with isolation level: none")
 
@@ -118,7 +133,7 @@ print "\nScript completed successfully\n";
 
 	// Test isolation level: low
 	t.Run("IsolationLow", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{"pvx", "--isolation", "low", "-p", perlPath, "--verbose", scriptPath},
 			"PVX with isolation level: low")
 
@@ -137,7 +152,7 @@ print "\nScript completed successfully\n";
 
 	// Test isolation level: medium
 	t.Run("IsolationMedium", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{"pvx", "--isolation", "medium", "-p", perlPath, "--verbose", scriptPath},
 			"PVX with isolation level: medium")
 
@@ -156,7 +171,7 @@ print "\nScript completed successfully\n";
 
 	// Test isolation level: high
 	t.Run("IsolationHigh", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
 				"--isolation", "high",
@@ -192,11 +207,12 @@ print "\nScript completed successfully\n";
 
 		// Verify that the file was saved to the output directory
 		savedFiles, err := os.ReadDir(saveDir)
-		if err != nil {
+		switch {
+		case err != nil:
 			t.Errorf("Failed to read saved output directory: %v", err)
-		} else if len(savedFiles) == 0 {
-			t.Errorf("No files were saved to the output directory")
-		} else {
+		case len(savedFiles) == 0:
+			t.Errorf("No files were saved to the output directory. Check if saveOutputFiles function in executor.go actually copies the files correctly")
+		default:
 			foundOutputFile := false
 			for _, file := range savedFiles {
 				if file.Name() == "test_output_file.txt" {
@@ -246,7 +262,7 @@ print "Script completed successfully\n";
 	// First test: with automatic cleanup (default)
 	t.Run("AutoCleanup", func(t *testing.T) {
 		// Run script with isolation
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
 				"--isolation", "high",
@@ -260,10 +276,11 @@ print "Script completed successfully\n";
 		var isolationDir string
 		lines := strings.Split(stdout, "\n")
 		for _, line := range lines {
-			if strings.HasPrefix(line, "Created isolation directory: ") {
+			switch {
+			case strings.HasPrefix(line, "Created isolation directory: "):
 				isolationDir = strings.TrimPrefix(line, "Created isolation directory: ")
 				break
-			} else if strings.HasPrefix(line, "Isolation directory: ") && !strings.Contains(line, "unknown") {
+			case strings.HasPrefix(line, "Isolation directory: ") && !strings.Contains(line, "unknown"):
 				isolationDir = strings.TrimPrefix(line, "Isolation directory: ")
 				break
 			}
@@ -286,7 +303,7 @@ print "Script completed successfully\n";
 	// Second test: with cleanup disabled
 	t.Run("NoCleanup", func(t *testing.T) {
 		// Run script with isolation and no cleanup
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
 				"--isolation", "high",
@@ -301,13 +318,14 @@ print "Script completed successfully\n";
 		var isolationDir string
 		lines := strings.Split(stdout, "\n")
 		for _, line := range lines {
-			if strings.HasPrefix(line, "Created isolation directory: ") {
+			switch {
+			case strings.HasPrefix(line, "Created isolation directory: "):
 				isolationDir = strings.TrimPrefix(line, "Created isolation directory: ")
 				break
-			} else if strings.HasPrefix(line, "Isolation directory: ") && !strings.Contains(line, "unknown") {
+			case strings.HasPrefix(line, "Isolation directory: ") && !strings.Contains(line, "unknown"):
 				isolationDir = strings.TrimPrefix(line, "Isolation directory: ")
 				break
-			} else if strings.HasPrefix(line, "Isolation directory retained (--no-cleanup): ") {
+			case strings.HasPrefix(line, "Isolation directory retained (--no-cleanup): "):
 				isolationDir = strings.TrimPrefix(line, "Isolation directory retained (--no-cleanup): ")
 				break
 			}
@@ -343,7 +361,7 @@ print "Script completed successfully\n";
 		}
 
 		// Run script with custom isolation directory
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
 				"--isolation", "high",
@@ -424,7 +442,7 @@ print "Script completed successfully\n";
 
 	// Test isolation level: none (should pass all environment variables)
 	t.Run("EnvVars_none", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{"pvx", "--isolation", "none", "-p", perlPath, "--verbose", scriptPath},
 			"PVX env vars with isolation level: none")
 
@@ -446,7 +464,7 @@ print "Script completed successfully\n";
 
 	// Test isolation level: low (should pass all environment variables)
 	t.Run("EnvVars_low", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{"pvx", "--isolation", "low", "-p", perlPath, "--verbose", scriptPath},
 			"PVX env vars with isolation level: low")
 
@@ -472,7 +490,7 @@ print "Script completed successfully\n";
 
 	// Test isolation level: medium (should still pass most environment variables)
 	t.Run("EnvVars_medium", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{"pvx", "--isolation", "medium", "-p", perlPath, "--verbose", scriptPath},
 			"PVX env vars with isolation level: medium")
 
@@ -498,7 +516,7 @@ print "Script completed successfully\n";
 
 	// Test isolation level: high with preserved variables
 	t.Run("EnvVars_high_with_preserved", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
 				"--isolation", "high",
@@ -532,7 +550,7 @@ print "Script completed successfully\n";
 
 	// Test isolation level: high with clear-env
 	t.Run("EnvVars_high_with_clear", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
 				"--isolation", "high",
@@ -557,7 +575,8 @@ print "Script completed successfully\n";
 
 	// Test isolation level: high with custom environment variables
 	t.Run("EnvVars_high_with_custom", func(t *testing.T) {
-		_ := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		// First run with standard script - we don't need to verify its output
+		helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
 				"--isolation", "high",

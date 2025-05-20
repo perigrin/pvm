@@ -185,6 +185,17 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 	}
 	cmd.Env = env
 
+	// Set the working directory for high isolation with isolated output
+	if options.IsolationLevel == IsolationHigh && options.IsolatedOutput && options.IsolationDir != "" {
+		outputDir := filepath.Join(options.IsolationDir, "output")
+		if _, err := os.Stat(outputDir); err == nil {
+			cmd.Dir = outputDir
+			if options.Verbose {
+				log.Infof("Setting script working directory to: %s", outputDir)
+			}
+		}
+	}
+
 	// Configure output capture
 	var outputBuffer bytes.Buffer
 	cmd.Stdout = &outputBuffer
@@ -263,6 +274,17 @@ func ExecuteInlineCode(options *ExecutionOptions) (string, error) {
 		return "", err
 	}
 	cmd.Env = env
+
+	// Set the working directory for high isolation with isolated output
+	if options.IsolationLevel == IsolationHigh && options.IsolatedOutput && options.IsolationDir != "" {
+		outputDir := filepath.Join(options.IsolationDir, "output")
+		if _, err := os.Stat(outputDir); err == nil {
+			cmd.Dir = outputDir
+			if options.Verbose {
+				log.Infof("Setting script working directory to: %s", outputDir)
+			}
+		}
+	}
 
 	// Configure output capture
 	var outputBuffer bytes.Buffer
@@ -344,6 +366,20 @@ func cleanupIsolationDir(options *ExecutionOptions) {
 					for _, file := range files {
 						log.Infof("  - %s", file.Name())
 					}
+				}
+			}
+
+			// If SaveOutputDir is specified, save the output files
+			if options.SaveOutputDir != "" {
+				if options.Verbose {
+					log.Infof("Saving output files to: %s", options.SaveOutputDir)
+				}
+
+				savedFiles, err := saveOutputFiles(options, options.SaveOutputDir)
+				if err != nil {
+					log.Warnf("Failed to save output files: %v", err)
+				} else if options.Verbose {
+					log.Infof("Successfully saved %d output files", len(savedFiles))
 				}
 			}
 		}
@@ -789,6 +825,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			"SHELL",
 			"TMPDIR",
 			"TERM",
+			"LANG",
+			"LC_ALL",
+			"HOSTNAME",
+			"LOGNAME",
 		}
 
 		// Add essential environment variables
@@ -861,6 +901,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			}
 		}
 
+		// Set isolation environment variables first, so scripts know the isolation level
+		setEnvVar(&cleanEnv, "PVM_ISOLATION_LEVEL", string(options.IsolationLevel))
+		setEnvVar(&cleanEnv, "PVM_ISOLATION_DIR", isolationDir)
+
 		// Set up enhanced filesystem isolation for high isolation mode
 		if options.IsolatedOutput {
 			// Create a temporary directory for script output
@@ -882,6 +926,15 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 
 			if options.Verbose {
 				log.Infof("Created isolated output directory: %s", outputDir)
+				// Create a test file to verify permissions
+				testFilePath := filepath.Join(outputDir, "test_permission.txt")
+				err := os.WriteFile(testFilePath, []byte("Permission test file\n"), 0644)
+				if err != nil {
+					log.Warnf("Failed to create test file in output directory: %v", err)
+				} else {
+					log.Infof("Successfully created test file in output directory")
+					_ = os.Remove(testFilePath) // Clean up test file
+				}
 			}
 		}
 
@@ -952,9 +1005,7 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			cleanEnv = append(cleanEnv, fmt.Sprintf("PATH=%s", binDir))
 		}
 
-		// Add additional isolation environment variables
-		setEnvVar(&cleanEnv, "PVM_ISOLATION_LEVEL", string(options.IsolationLevel))
-		setEnvVar(&cleanEnv, "PVM_ISOLATION_DIR", isolationDir)
+		// Environment variables already set earlier
 
 		// Use the clean environment instead of the original one
 		env = cleanEnv
@@ -1034,12 +1085,22 @@ func saveOutputFiles(options *ExecutionOptions, targetDir string) (map[string]st
 	if len(files) == 0 {
 		if options.Verbose {
 			log.Infof("No output files found in %s", outputDir)
+			// List contents of parent directory for debugging
+			parentFiles, _ := os.ReadDir(options.IsolationDir)
+			log.Infof("Contents of isolation directory %s:", options.IsolationDir)
+			for _, f := range parentFiles {
+				log.Infof("  - %s", f.Name())
+			}
 		}
 		return nil, nil
 	}
 
 	if options.Verbose {
 		log.Infof("Copying %d files from %s to %s", len(files), outputDir, targetDir)
+		log.Infof("Files to be copied:")
+		for _, f := range files {
+			log.Infof("  - %s", f.Name())
+		}
 	}
 
 	result := make(map[string]string)
