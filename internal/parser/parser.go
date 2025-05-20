@@ -275,13 +275,10 @@ func ParseTypeExpression(text string, pos Position) (*TypeExpression, error) {
 }
 
 // NewParser returns a new Parser instance
-// The implementation is based on a simple recursive descent parser
-// In a real implementation, this would be replaced with a more robust parser like tree-sitter
+// The implementation now uses a more robust TreeSitterParser
 func NewParser() (Parser, error) {
-	// This is a placeholder implementation
-	// In a real implementation, we would initialize a tree-sitter parser
-	// For now, we return a simple parser that can handle basic syntax
-	return &simpleParser{}, nil
+	// Use the TreeSitterParser for enhanced type annotation support
+	return NewTreeSitterParser()
 }
 
 // simpleParser is a simple implementation of the Parser interface

@@ -75,7 +75,8 @@ func NewTypeChecker() (*TypeChecker, error) {
 
 // CheckFile performs type checking on a Perl file
 func (tc *TypeChecker) CheckFile(path string) (*TypeCheckResult, error) {
-	// Parse the file
+	// Parse the file using our enhanced parser
+	// The TreeSitterParser now provides better support for type annotations
 	ast, err := tc.Parser.ParseFile(path)
 	if err != nil {
 		return nil, err
@@ -115,6 +116,10 @@ func (tc *TypeChecker) CheckFile(path string) (*TypeCheckResult, error) {
 		return result, nil
 	}
 
+	// With our enhanced parser, we should have more accurate type annotations
+	// from advanced parsing capabilities like field declarations, method parameters,
+	// type declarations, etc.
+
 	// Type check annotations
 	return tc.checkTypeAnnotations(ast)
 }
@@ -152,6 +157,12 @@ func (tc *TypeChecker) checkTypeAnnotations(ast *AST) (*TypeCheckResult, error) 
 
 // verifyType checks if a type exists and is valid
 func (tc *TypeChecker) verifyType(typeExpr *TypeExpression, imports map[string]bool) error {
+	// Handle negation types
+	if typeExpr.Negation {
+		// A negation type is valid if the underlying type is valid
+		return tc.verifyType(typeExpr, imports)
+	}
+
 	// Check if it's a built-in type
 	if isBuiltinType(typeExpr.Name) {
 		return nil
@@ -166,6 +177,8 @@ func (tc *TypeChecker) verifyType(typeExpr *TypeExpression, imports map[string]b
 
 	// For union and intersection types, the type itself is valid if the components are valid
 	if typeExpr.Union || typeExpr.Intersection {
+		// For explicit union and intersection types where we have the components,
+		// we don't need to verify the name itself
 		return nil
 	}
 
@@ -187,32 +200,74 @@ func (tc *TypeChecker) verifyType(typeExpr *TypeExpression, imports map[string]b
 		return nil
 	}
 
-	// If we can't verify the type, we'll assume it's valid
+	// Check if it's a type defined in the current module
+	// This is a simplified check - in a real implementation, we would look up
+	// the type in a registry of types defined in the current module
+	// For now, we assume it's valid if it starts with an uppercase letter
+	// (a common convention for type names)
+	if len(typeExpr.Name) > 0 && typeExpr.Name[0] >= 'A' && typeExpr.Name[0] <= 'Z' {
+		return nil
+	}
+
+	// If we can't verify the type, log a warning but don't fail
 	// In a real implementation, we would have a more thorough check
-	return nil
+	return fmt.Errorf("unrecognized type %s", typeExpr.Name)
 }
 
 // isBuiltinType returns true if the type is a built-in type
 func isBuiltinType(typeName string) bool {
 	builtinTypes := map[string]bool{
-		"Any":       true,
-		"Scalar":    true,
-		"Str":       true,
-		"Num":       true,
-		"Int":       true,
-		"Bool":      true,
-		"Undef":     true,
-		"Ref":       true,
-		"ScalarRef": true,
-		"ArrayRef":  true,
-		"HashRef":   true,
-		"CodeRef":   true,
-		"List":      true,
-		"Array":     true,
-		"Hash":      true,
-		"Code":      true,
-		"Glob":      true,
-		"Maybe":     true,
+		// Basic types
+		"Any":    true,
+		"Scalar": true,
+		"Str":    true,
+		"Num":    true,
+		"Int":    true,
+		"Float":  true,
+		"Double": true,
+		"Bool":   true,
+		"Undef":  true,
+
+		// Reference types
+		"Ref":        true,
+		"ScalarRef":  true,
+		"ArrayRef":   true,
+		"HashRef":    true,
+		"CodeRef":    true,
+		"RegexpRef":  true,
+		"GlobRef":    true,
+		"FileHandle": true,
+
+		// Container types
+		"List":  true,
+		"Array": true,
+		"Hash":  true,
+		"Code":  true,
+		"Glob":  true,
+
+		// Type modifiers
+		"Maybe":    true,
+		"Optional": true,
+
+		// Role/trait types
+		"Callable":    true,
+		"Iterable":    true,
+		"Positional":  true,
+		"Associative": true,
+
+		// IO and system types
+		"IO":   true,
+		"Path": true,
+		"File": true,
+		"Dir":  true,
+
+		// Additional scalar types
+		"ClassName":  true,
+		"RoleName":   true,
+		"MethodName": true,
+		"Byte":       true,
+		"Char":       true,
+		"VarName":    true,
 	}
 
 	return builtinTypes[typeName]
@@ -226,8 +281,8 @@ func StripAnnotations(path string) (string, error) {
 		return "", err
 	}
 
-	// Parse the file
-	_, err = p.ParseFile(path)
+	// Parse the file with our enhanced parser
+	ast, err := p.ParseFile(path)
 	if err != nil {
 		return "", err
 	}
@@ -240,8 +295,117 @@ func StripAnnotations(path string) (string, error) {
 			WithLocation(path)
 	}
 
-	// This is a simplified implementation that doesn't actually strip annotations
-	// In a real implementation, we would modify the content to remove annotations
+	// Convert content to string
+	originalCode := string(content)
 
-	return string(content), nil
+	// Now that we have a more advanced parser, we can implement a more sophisticated
+	// annotation stripping process. The approach is to rewrite the code line by line,
+	// removing the type annotations where they are found.
+
+	// We need to be careful to avoid changing line numbers, so we'll replace annotations
+	// with spaces rather than removing them entirely.
+
+	if len(ast.TypeAnnotations) == 0 {
+		// No annotations to strip
+		return originalCode, nil
+	}
+
+	// Split the code into lines for easier processing
+	lines := strings.Split(originalCode, "\n")
+
+	// Map annotations by line for efficient lookup
+	annotationsByLine := make(map[int][]*TypeAnnotation)
+	for _, ann := range ast.TypeAnnotations {
+		lineNum := ann.Pos.Line
+		annotationsByLine[lineNum] = append(annotationsByLine[lineNum], ann)
+	}
+
+	// Process each line that has annotations
+	for lineNum, annotations := range annotationsByLine {
+		if lineNum <= 0 || lineNum > len(lines) {
+			continue
+		}
+
+		line := lines[lineNum-1]
+
+		// Sort annotations in reverse order of column position
+		// This ensures we process them from right to left
+		// to avoid affecting the positions of subsequent annotations
+		for i := 0; i < len(annotations); i++ {
+			for j := i + 1; j < len(annotations); j++ {
+				if annotations[i].Pos.Column < annotations[j].Pos.Column {
+					annotations[i], annotations[j] = annotations[j], annotations[i]
+				}
+			}
+		}
+
+		// Process each annotation on this line
+		for _, ann := range annotations {
+			switch ann.Kind {
+			case VarAnnotation:
+				// Handle variable annotations - e.g., "my Type $var" -> "my $var"
+				if typePos := strings.Index(line, ann.TypeExpression.String()); typePos >= 0 {
+					typeLen := len(ann.TypeExpression.String())
+					// Replace the type with spaces to maintain line structure
+					spaces := strings.Repeat(" ", typeLen)
+					line = line[:typePos] + spaces + line[typePos+typeLen:]
+				}
+
+			case SubParamAnnotation, MethodParamAnnotation:
+				// Handle parameter annotations - e.g., "Type $param" -> "$param"
+				if ann.AnnotatedItem != "" {
+					paramPos := strings.Index(line, ann.AnnotatedItem)
+					if paramPos > 0 {
+						// Look for the type that appears before the parameter
+						beforeParam := line[:paramPos]
+						if typePos := strings.LastIndex(beforeParam, ann.TypeExpression.String()); typePos >= 0 {
+							typeLen := len(ann.TypeExpression.String())
+							// Replace the type with spaces to maintain line structure
+							spaces := strings.Repeat(" ", typeLen)
+							line = line[:typePos] + spaces + line[typePos+typeLen:]
+						}
+					}
+				}
+
+			case SubReturnAnnotation, MethodReturnAnnotation:
+				// Handle return type annotations - e.g., "-> Type" -> "-> "
+				arrowPos := strings.Index(line, "->")
+				if arrowPos >= 0 {
+					returnTypePos := arrowPos + 2 // Skip the "->"
+					// Find the type after the arrow
+					afterArrow := strings.TrimSpace(line[returnTypePos:])
+					if strings.HasPrefix(afterArrow, ann.TypeExpression.String()) {
+						typeLen := len(ann.TypeExpression.String())
+						// Calculate the actual position of the type
+						actualTypePos := returnTypePos + strings.Index(line[returnTypePos:], ann.TypeExpression.String())
+						// Replace the type with spaces to maintain line structure
+						spaces := strings.Repeat(" ", typeLen)
+						line = line[:actualTypePos] + spaces + line[actualTypePos+typeLen:]
+					}
+				}
+
+			case AttrAnnotation:
+				// Handle field/attribute annotations - e.g., "field Type $attr" -> "field $attr"
+				if typePos := strings.Index(line, ann.TypeExpression.String()); typePos >= 0 {
+					typeLen := len(ann.TypeExpression.String())
+					// Replace the type with spaces to maintain line structure
+					spaces := strings.Repeat(" ", typeLen)
+					line = line[:typePos] + spaces + line[typePos+typeLen:]
+				}
+
+			case TypeDeclAnnotation:
+				// For type declarations, we might want to keep them as-is or
+				// replace the entire line with a comment
+				// For now, we'll keep them as they don't affect runtime behavior
+			}
+		}
+
+		// Update the line in the array
+		lines[lineNum-1] = line
+	}
+
+	// Combine the lines back into a single string
+	strippedCode := strings.Join(lines, "\n")
+
+	return strippedCode, nil
 }

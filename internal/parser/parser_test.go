@@ -54,79 +54,75 @@ func TestParseSimpleTypeAnnotations(t *testing.T) {
 	// Check the type annotations
 	assert.NotEmpty(t, ast.TypeAnnotations)
 
-	// For now, just log what we find and ensure we have annotations
-	// In the future, when the parser is more complete, we can uncomment the assertions below
-	/*
-		// Check for variable type annotations
-		var foundStrVar, foundIntArray, foundHashRefMap bool
+	// With our enhanced parser, we can now fully verify the type annotations
+	// Check for variable type annotations
+	var foundStrVar, foundIntArray, foundHashRefMap bool
 
-		// Check for subroutine parameter type annotations
-		var foundAddParamA, foundAddParamB, foundProcessParamInput, foundProcessParamOptions bool
+	// Check for subroutine parameter type annotations
+	var foundAddParamA, foundAddParamB, foundProcessParamInput, foundProcessParamOptions bool
 
-		// Check for subroutine return type annotations
-		var foundAddReturnType, foundGetConfigReturnType bool
+	// Check for subroutine return type annotations
+	var foundAddReturnType, foundGetConfigReturnType bool
 
-		for _, annotation := range ast.TypeAnnotations {
-			// Variable type annotations
-			if annotation.Kind == VarAnnotation {
-				if annotation.AnnotatedItem == "$name" && annotation.TypeExpression.Name == "Str" {
-					foundStrVar = true
-				} else if annotation.AnnotatedItem == "@ages" && annotation.TypeExpression.Name == "Int" {
-					foundIntArray = true
-				} else if annotation.AnnotatedItem == "$cache" && annotation.TypeExpression.Name == "HashRef" {
-					foundHashRefMap = true
-					// Check that it's a parameterized type
-					assert.Equal(t, 1, len(annotation.TypeExpression.Params))
-					assert.Equal(t, "Str", annotation.TypeExpression.Params[0].Name)
-				}
-			}
-
-			// Subroutine parameter type annotations
-			if annotation.Kind == SubParamAnnotation {
-				if annotation.AnnotatedItem == "$a" && annotation.TypeExpression.Name == "Int" {
-					foundAddParamA = true
-				} else if annotation.AnnotatedItem == "$b" && annotation.TypeExpression.Name == "Int" {
-					foundAddParamB = true
-				} else if annotation.AnnotatedItem == "$input" && annotation.TypeExpression.Name == "Str" {
-					foundProcessParamInput = true
-				} else if annotation.AnnotatedItem == "$options" && annotation.TypeExpression.Name == "ArrayRef" {
-					foundProcessParamOptions = true
-					// Check that it's a parameterized type
-					assert.Equal(t, 1, len(annotation.TypeExpression.Params))
-					assert.Equal(t, "Str", annotation.TypeExpression.Params[0].Name)
-				}
-			}
-
-			// Subroutine return type annotations
-			if annotation.Kind == SubReturnAnnotation {
-				if annotation.TypeExpression.Name == "Int" {
-					foundAddReturnType = true
-				} else if annotation.TypeExpression.Name == "HashRef" {
-					foundGetConfigReturnType = true
-				}
+	for _, annotation := range ast.TypeAnnotations {
+		// Variable type annotations
+		if annotation.Kind == VarAnnotation {
+			if annotation.AnnotatedItem == "$name" && annotation.TypeExpression.Name == "Str" {
+				foundStrVar = true
+			} else if annotation.AnnotatedItem == "@ages" && annotation.TypeExpression.Name == "Int" {
+				foundIntArray = true
+			} else if annotation.AnnotatedItem == "$cache" && annotation.TypeExpression.Name == "HashRef" {
+				foundHashRefMap = true
+				// Check that it's a parameterized type
+				assert.Equal(t, 1, len(annotation.TypeExpression.Params))
+				assert.Equal(t, "Str", annotation.TypeExpression.Params[0].Name)
 			}
 		}
 
-		// Basic checks for variable type annotations
-		assert.True(t, foundStrVar, "Should find scalar variable with Str type")
-		assert.True(t, foundIntArray, "Should find array variable with Int type")
-		assert.True(t, foundHashRefMap, "Should find scalar variable with HashRef[Str] type")
+		// Subroutine parameter type annotations
+		if annotation.Kind == SubParamAnnotation {
+			if annotation.AnnotatedItem == "$a" && annotation.TypeExpression.Name == "Int" {
+				foundAddParamA = true
+			} else if annotation.AnnotatedItem == "$b" && annotation.TypeExpression.Name == "Int" {
+				foundAddParamB = true
+			} else if annotation.AnnotatedItem == "$input" && annotation.TypeExpression.Name == "Str" {
+				foundProcessParamInput = true
+			} else if annotation.AnnotatedItem == "$options" && annotation.TypeExpression.Name == "ArrayRef" {
+				foundProcessParamOptions = true
+				// Check that it's a parameterized type
+				assert.Equal(t, 1, len(annotation.TypeExpression.Params))
+				assert.Equal(t, "Str", annotation.TypeExpression.Params[0].Name)
+			}
+		}
 
-		// Basic checks for subroutine parameter type annotations
-		assert.True(t, foundAddParamA, "Should find parameter $a with Int type")
-		assert.True(t, foundAddParamB, "Should find parameter $b with Int type")
-		assert.True(t, foundProcessParamInput, "Should find parameter $input with Str type")
-		assert.True(t, foundProcessParamOptions, "Should find parameter $options with ArrayRef[Str] type")
+		// Subroutine return type annotations
+		if annotation.Kind == SubReturnAnnotation {
+			if annotation.TypeExpression.Name == "Int" {
+				foundAddReturnType = true
+			} else if annotation.TypeExpression.Name == "HashRef" {
+				foundGetConfigReturnType = true
+			}
+		}
+	}
 
-		// Basic checks for subroutine return type annotations
-		assert.True(t, foundAddReturnType, "Should find return type Int for add()")
-		assert.True(t, foundGetConfigReturnType, "Should find return type HashRef for get_config()")
-	*/
+	// Basic checks for variable type annotations
+	assert.True(t, foundStrVar, "Should find scalar variable with Str type")
+	assert.True(t, foundIntArray, "Should find array variable with Int type")
+	assert.True(t, foundHashRefMap, "Should find scalar variable with HashRef[Str] type")
+
+	// Basic checks for subroutine parameter type annotations
+	assert.True(t, foundAddParamA, "Should find parameter $a with Int type")
+	assert.True(t, foundAddParamB, "Should find parameter $b with Int type")
+	assert.True(t, foundProcessParamInput, "Should find parameter $input with Str type")
+	assert.True(t, foundProcessParamOptions, "Should find parameter $options with ArrayRef[Str] type")
+
+	// Basic checks for subroutine return type annotations
+	assert.True(t, foundAddReturnType, "Should find return type Int for add()")
+	assert.True(t, foundGetConfigReturnType, "Should find return type HashRef for get_config()")
 }
 
 func TestParseComplexTypeExpressions(t *testing.T) {
-	// Skip this test for now until we improve the type expression parser
-	t.Skip("Complex type expression parsing needs further implementation")
+	// With our enhanced parser, we can now handle complex type expressions
 	// Test parsing complex type expressions
 	testCases := []struct {
 		name           string
@@ -259,6 +255,221 @@ func TestParseComplexTypeExpressions(t *testing.T) {
 }
 
 func TestParseMethodTypeAnnotations(t *testing.T) {
-	// This test is skipped for now until we improve the parser
-	t.Skip("Method type annotations parsing needs further implementation")
+	// Create a parser
+	p, err := NewParser()
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	// Sample Perl code with method type annotations
+	code := `
+		package MyClass;
+		use v5.36;
+
+		# Class with methods that have type annotations
+		class MyClass {
+			field Str $name;
+			field Int $age;
+
+			# Constructor with type annotations
+			method new(Str $class, HashRef[Str] $args) -> MyClass {
+				my MyClass $self = bless {}, $class;
+
+				$self->{name} = $args->{name};
+				$self->{age} = $args->{age} // 0;
+
+				return $self;
+			}
+
+			# Method with type annotations
+			method get_name() -> Str {
+				return $self->{name};
+			}
+
+			# Method with parameter annotations
+			method set_name(Str $new_name) {
+				$self->{name} = $new_name;
+			}
+
+			# Method with multiple parameters and return type
+			method format_info(Str $prefix, Bool $include_age) -> Str {
+				my Str $result = $prefix . " " . $self->{name};
+				if ($include_age) {
+					$result .= " (" . $self->{age} . ")";
+				}
+				return $result;
+			}
+		}
+	`
+
+	// Parse the code
+	ast, err := p.ParseString(code)
+	require.NoError(t, err)
+	require.NotNil(t, ast)
+
+	// Debug output
+	for _, ann := range ast.TypeAnnotations {
+		t.Logf("Found annotation: %s has type %s (kind: %d)",
+			ann.AnnotatedItem, ann.TypeExpression.String(), ann.Kind)
+	}
+
+	// Check the type annotations
+	assert.NotEmpty(t, ast.TypeAnnotations)
+
+	// Check for field type annotations
+	var foundNameField, foundAgeField bool
+
+	// Check for method parameter type annotations
+	var foundClassParam, foundArgsParam, foundNewNameParam, foundPrefixParam, foundIncludeAgeParam bool
+
+	// Check for method return type annotations
+	var foundNewReturnType, foundGetNameReturnType, foundFormatInfoReturnType bool
+
+	for _, annotation := range ast.TypeAnnotations {
+		// Field type annotations
+		if annotation.Kind == AttrAnnotation {
+			if annotation.AnnotatedItem == "$name" && annotation.TypeExpression.Name == "Str" {
+				foundNameField = true
+			} else if annotation.AnnotatedItem == "$age" && annotation.TypeExpression.Name == "Int" {
+				foundAgeField = true
+			}
+		}
+
+		// Method parameter type annotations
+		if annotation.Kind == MethodParamAnnotation {
+			if annotation.AnnotatedItem == "$class" && annotation.TypeExpression.Name == "Str" {
+				foundClassParam = true
+			} else if annotation.AnnotatedItem == "$args" && annotation.TypeExpression.Name == "HashRef" {
+				foundArgsParam = true
+				// Check that it's a parameterized type
+				assert.Equal(t, 1, len(annotation.TypeExpression.Params))
+				assert.Equal(t, "Str", annotation.TypeExpression.Params[0].Name)
+			} else if annotation.AnnotatedItem == "$new_name" && annotation.TypeExpression.Name == "Str" {
+				foundNewNameParam = true
+			} else if annotation.AnnotatedItem == "$prefix" && annotation.TypeExpression.Name == "Str" {
+				foundPrefixParam = true
+			} else if annotation.AnnotatedItem == "$include_age" && annotation.TypeExpression.Name == "Bool" {
+				foundIncludeAgeParam = true
+			}
+		}
+
+		// Method return type annotations
+		if annotation.Kind == MethodReturnAnnotation {
+			if annotation.TypeExpression.Name == "MyClass" {
+				foundNewReturnType = true
+			} else if annotation.TypeExpression.Name == "Str" {
+				// Could be either get_name or format_info
+				if annotation.Pos.Line == 34 { // Using hardcoded line numbers is not ideal, but works for this test
+					foundGetNameReturnType = true
+				} else if annotation.Pos.Line == 42 {
+					foundFormatInfoReturnType = true
+				}
+			}
+		}
+	}
+
+	// Basic checks for field type annotations
+	assert.True(t, foundNameField, "Should find field $name with Str type")
+	assert.True(t, foundAgeField, "Should find field $age with Int type")
+
+	// Basic checks for method parameter type annotations
+	assert.True(t, foundClassParam, "Should find parameter $class with Str type")
+	assert.True(t, foundArgsParam, "Should find parameter $args with HashRef[Str] type")
+	assert.True(t, foundNewNameParam, "Should find parameter $new_name with Str type")
+	assert.True(t, foundPrefixParam, "Should find parameter $prefix with Str type")
+	assert.True(t, foundIncludeAgeParam, "Should find parameter $include_age with Bool type")
+
+	// Basic checks for method return type annotations
+	assert.True(t, foundNewReturnType, "Should find return type MyClass for new()")
+	assert.True(t, foundGetNameReturnType, "Should find return type Str for get_name()")
+	assert.True(t, foundFormatInfoReturnType, "Should find return type Str for format_info()")
+}
+
+func TestParseTypeDeclarations(t *testing.T) {
+	// Create a parser
+	p, err := NewParser()
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	// Sample Perl code with type declarations
+	code := `
+		package MyTypes;
+		use v5.36;
+
+		# Simple type alias
+		type UserID = Str;
+
+		# Parameterized type alias
+		type UserMap = HashRef[UserID, User];
+
+		# Union type alias
+		type MaybeStr = Str|Undef;
+
+		# Complex type with nested parameters
+		type ComplexData = ArrayRef[HashRef[Str, ArrayRef[Int]]];
+
+		# Negation type
+		type NonNull = !Undef;
+
+		# Intersection type (for advanced type functionality)
+		type Serializable = ToJSON & FromJSON;
+	`
+
+	// Parse the code
+	ast, err := p.ParseString(code)
+	require.NoError(t, err)
+	require.NotNil(t, ast)
+
+	// Debug output
+	for _, ann := range ast.TypeAnnotations {
+		t.Logf("Found type declaration: %s = %s",
+			ann.AnnotatedItem, ann.TypeExpression.String())
+	}
+
+	// Check the type annotations
+	assert.NotEmpty(t, ast.TypeAnnotations)
+
+	// Check for type declarations
+	var foundUserID, foundUserMap, foundMaybeStr, foundComplexData, foundNonNull, foundSerializable bool
+
+	for _, annotation := range ast.TypeAnnotations {
+		// Type declarations
+		if annotation.Kind == TypeDeclAnnotation {
+			switch annotation.AnnotatedItem {
+			case "UserID":
+				foundUserID = true
+				assert.Equal(t, "Str", annotation.TypeExpression.Name)
+			case "UserMap":
+				foundUserMap = true
+				assert.Equal(t, "HashRef", annotation.TypeExpression.Name)
+				assert.Equal(t, 2, len(annotation.TypeExpression.Params))
+				assert.Equal(t, "UserID", annotation.TypeExpression.Params[0].Name)
+				assert.Equal(t, "User", annotation.TypeExpression.Params[1].Name)
+			case "MaybeStr":
+				foundMaybeStr = true
+				assert.True(t, annotation.TypeExpression.Union)
+				assert.Equal(t, 2, len(annotation.TypeExpression.Params))
+				assert.Equal(t, "Str", annotation.TypeExpression.Params[0].Name)
+				assert.Equal(t, "Undef", annotation.TypeExpression.Params[1].Name)
+			case "ComplexData":
+				foundComplexData = true
+				assert.Equal(t, "ArrayRef", annotation.TypeExpression.Name)
+				assert.GreaterOrEqual(t, len(annotation.TypeExpression.Params), 1)
+			case "NonNull":
+				foundNonNull = true
+				assert.True(t, annotation.TypeExpression.Negation)
+				assert.Equal(t, "Undef", annotation.TypeExpression.Name)
+			case "Serializable":
+				foundSerializable = true
+				assert.True(t, strings.Contains(annotation.TypeExpression.String(), "&"))
+			}
+		}
+	}
+
+	// Basic checks for type declarations
+	assert.True(t, foundUserID, "Should find type declaration for UserID")
+	assert.True(t, foundUserMap, "Should find type declaration for UserMap")
+	assert.True(t, foundMaybeStr, "Should find type declaration for MaybeStr")
+	assert.True(t, foundComplexData, "Should find type declaration for ComplexData")
+	assert.True(t, foundNonNull, "Should find type declaration for NonNull")
+	assert.True(t, foundSerializable, "Should find type declaration for Serializable")
 }
