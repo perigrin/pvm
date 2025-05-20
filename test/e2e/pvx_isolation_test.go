@@ -576,7 +576,7 @@ print "Script completed successfully\n";
 	// Test isolation level: high with custom environment variables
 	t.Run("EnvVars_high_with_custom", func(t *testing.T) {
 		// First run with standard script - we don't need to verify its output
-		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
+		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
 				"--isolation", "high",
