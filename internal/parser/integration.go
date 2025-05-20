@@ -196,8 +196,8 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 				parts := strings.Split(loc, ":")
 				if len(parts) >= 3 {
 					// Extract line and column from location
-					fmt.Sscanf(parts[1], "%d", &line)
-					fmt.Sscanf(parts[2], "%d", &col)
+					_, _ = fmt.Sscanf(parts[1], "%d", &line)
+					_, _ = fmt.Sscanf(parts[2], "%d", &col)
 				}
 			}
 			message = typeErr.Description()
