@@ -1316,6 +1316,229 @@ func TestParameterTypeCompatibility(t *testing.T) {
 	})
 }
 
+// TestContainerTypeChecking tests container type validation (Phase 6)
+func TestContainerTypeChecking(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Test array element type checking
+	t.Run("ArrayElementTypeChecking", func(t *testing.T) {
+		// Valid array element access
+		err := checker.CheckArrayElementAccess("ArrayRef[Int]", 0, "Int")
+		assert.NoError(t, err, "Valid array element access should not error")
+
+		err = checker.CheckArrayElementAccess("ArrayRef[Str]", 0, "Str")
+		assert.NoError(t, err, "Valid string array element access should not error")
+
+		// Invalid array element access - wrong element type
+		err = checker.CheckArrayElementAccess("ArrayRef[Int]", 0, "Str")
+		assert.Error(t, err, "Invalid array element type should error")
+		assert.Contains(t, err.Error(), "element type", "Error should mention element type")
+
+		// Invalid array element assignment
+		err = checker.CheckArrayElementAssignment("ArrayRef[Int]", 0, "Str")
+		assert.Error(t, err, "Invalid array element assignment should error")
+		assert.Contains(t, err.Error(), "cannot assign", "Error should mention assignment")
+	})
+
+	// Test hash element type checking
+	t.Run("HashElementTypeChecking", func(t *testing.T) {
+		// Valid hash element access (HashRef[V] means HashRef[Str,V])
+		err := checker.CheckHashElementAccess("HashRef[Int]", "key", "Int")
+		assert.NoError(t, err, "Valid hash element access should not error")
+
+		// Valid hash element access with explicit key/value types
+		err = checker.CheckHashElementAccess("HashRef[Str,Int]", "key", "Int")
+		assert.NoError(t, err, "Valid hash element access with explicit types should not error")
+
+		// Invalid hash element access - wrong value type
+		err = checker.CheckHashElementAccess("HashRef[Int]", "key", "Str")
+		assert.Error(t, err, "Invalid hash element type should error")
+		assert.Contains(t, err.Error(), "element type", "Error should mention element type")
+
+		// Valid hash key access with Int key
+		err = checker.CheckHashKeyAccess("HashRef[Int,Bool]", 42)
+		assert.NoError(t, err, "Valid Int hash key should not error")
+
+		// Invalid hash key type - string key for Int hash
+		err = checker.CheckHashKeyAccess("HashRef[Int,Bool]", "key")
+		assert.Error(t, err, "Invalid hash key type should error")
+		assert.Contains(t, err.Error(), "key type", "Error should mention key type")
+
+		// Valid hash key access with string key
+		err = checker.CheckHashKeyAccess("HashRef[Str,Bool]", "key")
+		assert.NoError(t, err, "Valid string hash key should not error")
+	})
+
+	// Test nested container validation
+	t.Run("NestedContainerValidation", func(t *testing.T) {
+		// Valid nested array access
+		err := checker.CheckArrayElementAccess("ArrayRef[ArrayRef[Int]]", 0, "ArrayRef[Int]")
+		assert.NoError(t, err, "Valid nested array access should not error")
+
+		// Invalid nested array access
+		err = checker.CheckArrayElementAccess("ArrayRef[ArrayRef[Int]]", 0, "ArrayRef[Str]")
+		assert.Error(t, err, "Invalid nested array element type should error")
+
+		// Valid complex nested structure
+		err = checker.CheckHashElementAccess("HashRef[Str,ArrayRef[Int]]", "numbers", "ArrayRef[Int]")
+		assert.NoError(t, err, "Valid complex nested structure should not error")
+
+		// Invalid complex nested structure
+		err = checker.CheckHashElementAccess("HashRef[Str,ArrayRef[Int]]", "numbers", "ArrayRef[Str]")
+		assert.Error(t, err, "Invalid complex nested structure should error")
+	})
+}
+
+// TestContainerCovariance tests covariant subtyping for containers (Phase 6)
+func TestContainerCovariance(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Test array covariance: ArrayRef[Int] ⊆ ArrayRef[Num]
+	t.Run("ArrayCovariance", func(t *testing.T) {
+		// ArrayRef[Int] should be assignable to ArrayRef[Num] (covariance)
+		err := checker.CheckContainerTypeCompatibility("ArrayRef[Int]", "ArrayRef[Num]")
+		assert.NoError(t, err, "ArrayRef[Int] should be compatible with ArrayRef[Num] (covariance)")
+
+		// ArrayRef[Int] should be assignable to ArrayRef[Scalar] 
+		err = checker.CheckContainerTypeCompatibility("ArrayRef[Int]", "ArrayRef[Scalar]")
+		assert.NoError(t, err, "ArrayRef[Int] should be compatible with ArrayRef[Scalar] (covariance)")
+
+		// ArrayRef[Num] should NOT be assignable to ArrayRef[Int] (contravariance not allowed)
+		err = checker.CheckContainerTypeCompatibility("ArrayRef[Num]", "ArrayRef[Int]")
+		assert.Error(t, err, "ArrayRef[Num] should not be compatible with ArrayRef[Int] (no contravariance)")
+
+		// ArrayRef[Str] should NOT be assignable to ArrayRef[Int] (unrelated types)
+		err = checker.CheckContainerTypeCompatibility("ArrayRef[Str]", "ArrayRef[Int]")
+		assert.Error(t, err, "ArrayRef[Str] should not be compatible with ArrayRef[Int] (unrelated types)")
+	})
+
+	// Test hash covariance: HashRef[K,V1] ⊆ HashRef[K,V2] if V1 ⊆ V2
+	t.Run("HashCovariance", func(t *testing.T) {
+		// HashRef[Str,Int] should be assignable to HashRef[Str,Num] (value covariance)
+		err := checker.CheckContainerTypeCompatibility("HashRef[Str,Int]", "HashRef[Str,Num]")
+		assert.NoError(t, err, "HashRef[Str,Int] should be compatible with HashRef[Str,Num] (value covariance)")
+
+		// HashRef[Str,Int] should be assignable to HashRef[Str,Scalar] 
+		err = checker.CheckContainerTypeCompatibility("HashRef[Str,Int]", "HashRef[Str,Scalar]")
+		assert.NoError(t, err, "HashRef[Str,Int] should be compatible with HashRef[Str,Scalar] (value covariance)")
+
+		// Key types must match exactly (no key covariance)
+		err = checker.CheckContainerTypeCompatibility("HashRef[Int,Str]", "HashRef[Num,Str]")
+		assert.Error(t, err, "Hash key types should not allow covariance")
+
+		// Simple HashRef[V] (defaulting to HashRef[Str,V]) covariance
+		err = checker.CheckContainerTypeCompatibility("HashRef[Int]", "HashRef[Num]")
+		assert.NoError(t, err, "HashRef[Int] should be compatible with HashRef[Num] (value covariance)")
+	})
+
+	// Test nested container covariance
+	t.Run("NestedContainerCovariance", func(t *testing.T) {
+		// ArrayRef[ArrayRef[Int]] ⊆ ArrayRef[ArrayRef[Num]]
+		err := checker.CheckContainerTypeCompatibility("ArrayRef[ArrayRef[Int]]", "ArrayRef[ArrayRef[Num]]")
+		assert.NoError(t, err, "Nested array covariance should work")
+
+		// Complex nested structure covariance
+		err = checker.CheckContainerTypeCompatibility("HashRef[Str,ArrayRef[Int]]", "HashRef[Str,ArrayRef[Num]]")
+		assert.NoError(t, err, "Complex nested covariance should work")
+
+		// Invalid nested covariance
+		err = checker.CheckContainerTypeCompatibility("ArrayRef[ArrayRef[Str]]", "ArrayRef[ArrayRef[Int]]")
+		assert.Error(t, err, "Invalid nested covariance should fail")
+	})
+}
+
+// TestContainerElementOperations tests operations on container elements (Phase 6)
+func TestContainerElementOperations(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Test array operations
+	t.Run("ArrayOperations", func(t *testing.T) {
+		// Array push/append operations
+		err := checker.CheckArrayPushOperation("ArrayRef[Int]", "Int")
+		assert.NoError(t, err, "Valid array push should not error")
+
+		err = checker.CheckArrayPushOperation("ArrayRef[Int]", "Str")
+		assert.Error(t, err, "Invalid array push should error")
+
+		// Array iteration type inference
+		elementType, err := checker.InferArrayElementType("ArrayRef[Str]")
+		assert.NoError(t, err, "Array element type inference should not error")
+		assert.Equal(t, "Str", elementType, "Should infer correct element type")
+
+		// Invalid array type for iteration
+		_, err = checker.InferArrayElementType("Int")
+		assert.Error(t, err, "Non-array type should error for element inference")
+	})
+
+	// Test hash operations  
+	t.Run("HashOperations", func(t *testing.T) {
+		// Hash key/value operations
+		keyType, valueType, err := checker.InferHashTypes("HashRef[Str,Int]")
+		assert.NoError(t, err, "Hash type inference should not error")
+		assert.Equal(t, "Str", keyType, "Should infer correct key type")
+		assert.Equal(t, "Int", valueType, "Should infer correct value type")
+
+		// Single parameter hash (defaults to HashRef[Str,V])
+		keyType, valueType, err = checker.InferHashTypes("HashRef[Bool]")
+		assert.NoError(t, err, "Single param hash type inference should not error")
+		assert.Equal(t, "Str", keyType, "Should default to Str key type")
+		assert.Equal(t, "Bool", valueType, "Should infer correct value type")
+
+		// Invalid hash type
+		_, _, err = checker.InferHashTypes("ArrayRef[Int]")
+		assert.Error(t, err, "Non-hash type should error for hash inference")
+	})
+
+	// Test container type extraction
+	t.Run("ContainerTypeExtraction", func(t *testing.T) {
+		// Extract container base type and parameters
+		baseType, params, err := checker.ExtractContainerInfo("ArrayRef[Int]")
+		assert.NoError(t, err, "Container info extraction should not error")
+		assert.Equal(t, "ArrayRef", baseType, "Should extract correct base type")
+		assert.Equal(t, []string{"Int"}, params, "Should extract correct parameters")
+
+		// Complex container extraction
+		baseType, params, err = checker.ExtractContainerInfo("HashRef[Str,ArrayRef[Int]]")
+		assert.NoError(t, err, "Complex container extraction should not error")
+		assert.Equal(t, "HashRef", baseType, "Should extract correct base type")
+		assert.Equal(t, []string{"Str", "ArrayRef[Int]"}, params, "Should extract correct parameters")
+
+		// Non-container type
+		_, _, err = checker.ExtractContainerInfo("Int")
+		assert.Error(t, err, "Non-container type should error for extraction")
+	})
+}
+
 // TypeError is a helper type for testing
 type TypeError struct {
 	Message string

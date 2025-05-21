@@ -1552,6 +1552,264 @@ func (tc *TypeChecker) isIntegerCompatible(typeName string) bool {
 	return tc.Hierarchy.IsSubtypeOf(typeName, "Int") || typeName == "Int"
 }
 
+// Container Type Checking Methods (Phase 6)
+
+// CheckArrayElementAccess validates array element access type compatibility
+func (tc *TypeChecker) CheckArrayElementAccess(arrayType string, index interface{}, expectedElementType string) error {
+	// Extract element type from array type
+	elementType, err := tc.InferArrayElementType(arrayType)
+	if err != nil {
+		return fmt.Errorf("invalid array type '%s': %w", arrayType, err)
+	}
+
+	// Check if the expected element type is compatible with the actual element type
+	err = tc.CheckStrictParameterTypeCompatibility(expectedElementType, elementType)
+	if err != nil {
+		return fmt.Errorf("array element type mismatch: expected %s, but array contains %s", elementType, expectedElementType)
+	}
+
+	return nil
+}
+
+// CheckArrayElementAssignment validates array element assignment
+func (tc *TypeChecker) CheckArrayElementAssignment(arrayType string, index interface{}, valueType string) error {
+	// Extract element type from array type
+	elementType, err := tc.InferArrayElementType(arrayType)
+	if err != nil {
+		return fmt.Errorf("invalid array type '%s': %w", arrayType, err)
+	}
+
+	// Check if the value type can be assigned to the element type
+	err = tc.CheckStrictParameterTypeCompatibility(valueType, elementType)
+	if err != nil {
+		return fmt.Errorf("cannot assign %s to array element of type %s: %w", valueType, elementType, err)
+	}
+
+	return nil
+}
+
+// CheckHashElementAccess validates hash element access type compatibility
+func (tc *TypeChecker) CheckHashElementAccess(hashType string, key interface{}, expectedValueType string) error {
+	// Extract key and value types from hash type
+	keyType, valueType, err := tc.InferHashTypes(hashType)
+	if err != nil {
+		return fmt.Errorf("invalid hash type '%s': %w", hashType, err)
+	}
+
+	// Validate the key type (if provided as specific type)
+	if keyStr, ok := key.(string); ok {
+		err = tc.CheckStrictParameterTypeCompatibility("Str", keyType)
+		if err != nil {
+			return fmt.Errorf("hash key type mismatch: expected %s, got string '%s'", keyType, keyStr)
+		}
+	}
+
+	// Check if the expected value type is compatible with the actual value type
+	err = tc.CheckStrictParameterTypeCompatibility(expectedValueType, valueType)
+	if err != nil {
+		return fmt.Errorf("hash element type mismatch: expected %s, but hash contains %s", valueType, expectedValueType)
+	}
+
+	return nil
+}
+
+// CheckHashKeyAccess validates hash key type compatibility
+func (tc *TypeChecker) CheckHashKeyAccess(hashType string, key interface{}) error {
+	// Extract key type from hash type
+	keyType, _, err := tc.InferHashTypes(hashType)
+	if err != nil {
+		return fmt.Errorf("invalid hash type '%s': %w", hashType, err)
+	}
+
+	// Determine the type of the provided key
+	var providedKeyType string
+	switch key.(type) {
+	case string:
+		providedKeyType = "Str"
+	case int, int32, int64:
+		providedKeyType = "Int"
+	case float32, float64:
+		providedKeyType = "Num"
+	default:
+		providedKeyType = fmt.Sprintf("%T", key)
+	}
+
+	// Check if the provided key type is compatible with the expected key type
+	err = tc.CheckStrictParameterTypeCompatibility(providedKeyType, keyType)
+	if err != nil {
+		return fmt.Errorf("hash key type mismatch: expected %s, got %s", keyType, providedKeyType)
+	}
+
+	return nil
+}
+
+// CheckContainerTypeCompatibility checks covariant subtyping for container types
+func (tc *TypeChecker) CheckContainerTypeCompatibility(sourceType, targetType string) error {
+	// Parse source container type
+	sourceBase, sourceParams, err := tc.ExtractContainerInfo(sourceType)
+	if err != nil {
+		return fmt.Errorf("invalid source container type '%s': %w", sourceType, err)
+	}
+
+	// Parse target container type
+	targetBase, targetParams, err := tc.ExtractContainerInfo(targetType)
+	if err != nil {
+		return fmt.Errorf("invalid target container type '%s': %w", targetType, err)
+	}
+
+	// Base types must match
+	if sourceBase != targetBase {
+		return fmt.Errorf("container base types do not match: %s vs %s", sourceBase, targetBase)
+	}
+
+	// Check parameter compatibility based on container type
+	switch sourceBase {
+	case "ArrayRef":
+		// ArrayRef[T1] ⊆ ArrayRef[T2] if T1 ⊆ T2 (covariance)
+		if len(sourceParams) != 1 || len(targetParams) != 1 {
+			return fmt.Errorf("ArrayRef requires exactly 1 parameter")
+		}
+		return tc.CheckContainerElementCompatibility(sourceParams[0], targetParams[0])
+
+	case "HashRef":
+		// Handle both HashRef[V] and HashRef[K,V] forms
+		sourceKey, sourceValue := tc.normalizeHashParams(sourceParams)
+		targetKey, targetValue := tc.normalizeHashParams(targetParams)
+
+		// Key types must match exactly (no covariance)
+		if sourceKey != targetKey {
+			return fmt.Errorf("hash key types must match exactly: %s vs %s", sourceKey, targetKey)
+		}
+
+		// Value types can be covariant: HashRef[K,V1] ⊆ HashRef[K,V2] if V1 ⊆ V2
+		return tc.CheckContainerElementCompatibility(sourceValue, targetValue)
+
+	case "Maybe", "Optional":
+		// Maybe[T1] ⊆ Maybe[T2] if T1 ⊆ T2 (covariance)
+		if len(sourceParams) != 1 || len(targetParams) != 1 {
+			return fmt.Errorf("%s requires exactly 1 parameter", sourceBase)
+		}
+		return tc.CheckContainerElementCompatibility(sourceParams[0], targetParams[0])
+
+	default:
+		return fmt.Errorf("unsupported container type: %s", sourceBase)
+	}
+}
+
+// CheckContainerElementCompatibility checks if one element type is compatible with another (with covariance)
+func (tc *TypeChecker) CheckContainerElementCompatibility(sourceElementType, targetElementType string) error {
+	// Exact match is always allowed
+	if sourceElementType == targetElementType {
+		return nil
+	}
+
+	// Check if both are container types (for nested containers)
+	if tc.isContainerType(sourceElementType) && tc.isContainerType(targetElementType) {
+		return tc.CheckContainerTypeCompatibility(sourceElementType, targetElementType)
+	}
+
+	// For non-container element types, use subtype relationships
+	// This allows ArrayRef[Int] ⊆ ArrayRef[Num] (since Int ⊆ Num)
+	if tc.Hierarchy.IsSubtypeOf(sourceElementType, targetElementType) {
+		return nil
+	}
+
+	return fmt.Errorf("element type %s is not compatible with %s", sourceElementType, targetElementType)
+}
+
+// normalizeHashParams normalizes hash parameters to (key, value) pair
+func (tc *TypeChecker) normalizeHashParams(params []string) (string, string) {
+	switch len(params) {
+	case 1:
+		// HashRef[V] defaults to HashRef[Str,V]
+		return "Str", params[0]
+	case 2:
+		// HashRef[K,V]
+		return params[0], params[1]
+	default:
+		// Invalid, but we'll return defaults to avoid panics
+		return "Str", "Any"
+	}
+}
+
+// isContainerType checks if a type is a container type
+func (tc *TypeChecker) isContainerType(typeName string) bool {
+	return strings.HasPrefix(typeName, "ArrayRef[") ||
+		strings.HasPrefix(typeName, "HashRef[") ||
+		strings.HasPrefix(typeName, "Maybe[") ||
+		strings.HasPrefix(typeName, "Optional[")
+}
+
+// Array operation methods
+
+// CheckArrayPushOperation validates array push/append operations
+func (tc *TypeChecker) CheckArrayPushOperation(arrayType string, valueType string) error {
+	// Extract element type from array type
+	elementType, err := tc.InferArrayElementType(arrayType)
+	if err != nil {
+		return fmt.Errorf("invalid array type '%s': %w", arrayType, err)
+	}
+
+	// Check if the value type can be pushed to the array
+	err = tc.CheckStrictParameterTypeCompatibility(valueType, elementType)
+	if err != nil {
+		return fmt.Errorf("cannot push %s to array of %s: %w", valueType, elementType, err)
+	}
+
+	return nil
+}
+
+// InferArrayElementType extracts the element type from an array type
+func (tc *TypeChecker) InferArrayElementType(arrayType string) (string, error) {
+	baseType, params, err := tc.ExtractContainerInfo(arrayType)
+	if err != nil {
+		return "", err
+	}
+
+	if baseType != "ArrayRef" {
+		return "", fmt.Errorf("type '%s' is not an array type", arrayType)
+	}
+
+	if len(params) != 1 {
+		return "", fmt.Errorf("ArrayRef requires exactly 1 parameter, got %d", len(params))
+	}
+
+	return params[0], nil
+}
+
+// Hash operation methods
+
+// InferHashTypes extracts key and value types from a hash type
+func (tc *TypeChecker) InferHashTypes(hashType string) (string, string, error) {
+	baseType, params, err := tc.ExtractContainerInfo(hashType)
+	if err != nil {
+		return "", "", err
+	}
+
+	if baseType != "HashRef" {
+		return "", "", fmt.Errorf("type '%s' is not a hash type", hashType)
+	}
+
+	keyType, valueType := tc.normalizeHashParams(params)
+	return keyType, valueType, nil
+}
+
+// ExtractContainerInfo extracts base type and parameters from a container type
+func (tc *TypeChecker) ExtractContainerInfo(containerType string) (string, []string, error) {
+	// Check if it's actually a container type
+	if !strings.Contains(containerType, "[") {
+		return "", nil, fmt.Errorf("type '%s' is not a container type", containerType)
+	}
+
+	// Use the existing ExtractTypeAndParams function
+	baseType, params := ExtractTypeAndParams(containerType)
+	if baseType == "" {
+		return "", nil, fmt.Errorf("failed to parse container type '%s'", containerType)
+	}
+
+	return baseType, params, nil
+}
+
 // checkASTFunctionReturns checks return types in an AST
 // This function is referenced by CheckAST but commented out in the current implementation
 // nolint:unused
