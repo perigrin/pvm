@@ -1913,6 +1913,167 @@ func TestContextSensitiveTypes(t *testing.T) {
 	})
 }
 
+// TestAdvancedFeatures tests Phase 10 - Advanced Features
+func TestAdvancedFeatures(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	t.Run("TypeAliases", func(t *testing.T) {
+		// Test type alias definition and usage
+		// type UserID = Str;
+		// type Point = {x: Int, y: Int};
+		
+		err := checker.DefineTypeAlias("UserID", "Str")
+		assert.NoError(t, err, "Should define simple type alias")
+
+		// Resolve type alias
+		resolved, err := checker.ResolveTypeAlias("UserID")
+		assert.NoError(t, err, "Should resolve type alias")
+		assert.Equal(t, "Str", resolved, "UserID should resolve to Str")
+
+		// Test complex type alias
+		err = checker.DefineTypeAlias("Point", "Hash{x:Int,y:Int}")
+		assert.NoError(t, err, "Should define complex type alias")
+
+		resolved, err = checker.ResolveTypeAlias("Point")
+		assert.NoError(t, err, "Should resolve complex type alias")
+		assert.Equal(t, "Hash{x:Int,y:Int}", resolved, "Point should resolve to structured hash")
+
+		// Test alias chaining
+		err = checker.DefineTypeAlias("Coordinate", "Point")
+		assert.NoError(t, err, "Should define alias chain")
+
+		resolved, err = checker.ResolveTypeAlias("Coordinate")
+		assert.NoError(t, err, "Should resolve alias chain")
+		assert.Equal(t, "Hash{x:Int,y:Int}", resolved, "Should resolve through chain")
+	})
+
+	t.Run("GenericTypes", func(t *testing.T) {
+		// Test generic function definitions and type parameter inference
+		// sub identity<T>(T $value) -> T { return $value; }
+		
+		err := checker.DefineGenericFunction("identity", []string{"T"}, 
+			map[string]string{"$value": "T"}, "T")
+		assert.NoError(t, err, "Should define generic function")
+
+		// Test type parameter inference from call site
+		// my $str_result = identity("hello");  # T = Str
+		inferredType, err := checker.InferGenericTypeParameters("identity", []string{"Str"})
+		assert.NoError(t, err, "Should infer type parameters")
+		assert.Contains(t, inferredType, "T", "Should infer T type parameter")
+		assert.Equal(t, "Str", inferredType["T"], "T should be inferred as Str")
+
+		// Test with numeric argument
+		// my $int_result = identity(42);  # T = Int
+		inferredType, err = checker.InferGenericTypeParameters("identity", []string{"Int"})
+		assert.NoError(t, err, "Should infer Int type")
+		assert.Equal(t, "Int", inferredType["T"], "T should be inferred as Int")
+
+		// Test generic function call validation
+		err = checker.ValidateGenericFunctionCall("identity", []string{"Str"})
+		assert.NoError(t, err, "Should validate generic function call")
+	})
+
+	t.Run("HigherKindedTypes", func(t *testing.T) {
+		// Test higher-kinded types (advanced feature)
+		// type Container<F<_>> = ...
+		
+		err := checker.DefineHigherKindedType("Container", []string{"F"}, "F[Any]")
+		assert.NoError(t, err, "Should define higher-kinded type")
+
+		// Test application of higher-kinded type
+		// Container[ArrayRef] should be valid
+		applied, err := checker.ApplyHigherKindedType("Container", []string{"ArrayRef"})
+		assert.NoError(t, err, "Should apply higher-kinded type")
+		assert.Equal(t, "ArrayRef[Any]", applied, "Should apply type constructor")
+	})
+
+	t.Run("ModuleTypeImports", func(t *testing.T) {
+		// Test module type imports from .ptd files
+		// use DBI;  # Automatically imports DBI.ptd type definitions
+		
+		err := checker.ImportModuleTypes("DBI")
+		assert.NoError(t, err, "Should import module types")
+
+		// Check that module types are available
+		hasType := checker.HasModuleType("DBI", "db")
+		assert.True(t, hasType, "Should have DBI::db type after import")
+
+		// Test using imported types
+		// my DBI::db $dbh = DBI->connect(...);
+		err = checker.ValidateModuleTypeUsage("DBI::db", "DBI::db")
+		assert.NoError(t, err, "Should validate imported type usage")
+	})
+
+	t.Run("TypeConstraints", func(t *testing.T) {
+		// Test type constraints for generic parameters
+		// sub process<T: Serializable>(T $item) -> Str { ... }
+		
+		err := checker.DefineGenericFunctionWithConstraints("process", 
+			map[string][]string{"T": {"Serializable"}},
+			map[string]string{"$item": "T"}, "Str")
+		assert.NoError(t, err, "Should define constrained generic function")
+
+		// Test constraint validation
+		err = checker.ValidateTypeConstraint("Str", "Serializable")
+		assert.NoError(t, err, "Str should satisfy Serializable constraint")
+
+		// Test constraint violation
+		err = checker.ValidateTypeConstraint("CodeRef", "Serializable")
+		assert.Error(t, err, "CodeRef should not satisfy Serializable constraint")
+	})
+
+	t.Run("TypeInference", func(t *testing.T) {
+		// Test complex type inference with generics
+		// my $result = process(serialize($data));  # Should infer types through call chain
+		
+		// Set up generic functions
+		err := checker.DefineGenericFunction("serialize", []string{"T"}, 
+			map[string]string{"$data": "T"}, "Str")
+		require.NoError(t, err)
+
+		err = checker.DefineGenericFunction("process", []string{"U"}, 
+			map[string]string{"$input": "U"}, "U")
+		require.NoError(t, err)
+
+		// Test inference through function call chain
+		resultType, err := checker.InferChainedCallType([]string{"serialize", "process"}, []string{"Int"})
+		assert.NoError(t, err, "Should infer chained call type")
+		assert.Equal(t, "Str", resultType, "Should infer final result type as Str")
+	})
+
+	t.Run("ErrorHandling", func(t *testing.T) {
+		// Test error cases for advanced features
+		
+		// Invalid type alias - using an empty type name which should definitely be invalid
+		err := checker.DefineTypeAlias("InvalidAlias", "")
+		assert.Error(t, err, "Should error for invalid type alias")
+
+		// Circular type alias
+		err = checker.DefineTypeAlias("A", "B")
+		require.NoError(t, err)
+		err = checker.DefineTypeAlias("B", "A")
+		assert.Error(t, err, "Should detect circular type alias")
+
+		// Invalid generic function
+		err = checker.DefineGenericFunction("invalid", []string{}, map[string]string{}, "")
+		assert.Error(t, err, "Should error for invalid generic function")
+
+		// Missing module types
+		err = checker.ImportModuleTypes("NonExistentModule")
+		assert.Error(t, err, "Should error for non-existent module")
+	})
+}
+
 // TypeError is a helper type for testing
 type TypeError struct {
 	Message string

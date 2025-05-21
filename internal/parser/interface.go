@@ -121,6 +121,18 @@ type TypeChecker struct {
 	// ContextSensitiveFunctions maps function names to their context-dependent return types
 	ContextSensitiveFunctions map[string]map[string]string
 
+	// TypeAliases maps alias names to their target types
+	TypeAliases map[string]string
+
+	// GenericFunctions maps function names to their generic signature information
+	GenericFunctions map[string]*GenericFunctionSignature
+
+	// ModuleTypes maps module names to their exported types
+	ModuleTypes map[string]map[string]string
+
+	// HigherKindedTypes maps type names to their higher-kinded definitions
+	HigherKindedTypes map[string]*HigherKindedTypeDefinition
+
 	// Debug enables debug mode
 	Debug bool
 }
@@ -135,6 +147,36 @@ type FunctionSignature struct {
 
 	// IsMethod indicates if this is a method
 	IsMethod bool
+}
+
+// GenericFunctionSignature represents a generic function signature
+type GenericFunctionSignature struct {
+	// TypeParameters lists the generic type parameters
+	TypeParameters []string
+
+	// ParameterTypes maps parameter names to their types (may include type parameters)
+	ParameterTypes map[string]string
+
+	// ReturnType is the return type (may include type parameters)
+	ReturnType string
+
+	// Constraints maps type parameters to their constraint types
+	Constraints map[string][]string
+
+	// IsMethod indicates if this is a method
+	IsMethod bool
+}
+
+// HigherKindedTypeDefinition represents a higher-kinded type definition
+type HigherKindedTypeDefinition struct {
+	// Name is the name of the higher-kinded type
+	Name string
+
+	// TypeConstructors lists the type constructor parameters
+	TypeConstructors []string
+
+	// Definition is the type definition body
+	Definition string
 }
 
 // TypeState represents the types of variables at a specific point in the code
@@ -200,6 +242,10 @@ func NewTypeChecker(hierarchy *typedef.TypeHierarchy, moduleName string) *TypeCh
 		TypeStateStack:            []*TypeState{},
 		ValidationPatterns:        []ValidationPattern{},
 		ContextSensitiveFunctions: make(map[string]map[string]string),
+		TypeAliases:               make(map[string]string),
+		GenericFunctions:          make(map[string]*GenericFunctionSignature),
+		ModuleTypes:               make(map[string]map[string]string),
+		HigherKindedTypes:         make(map[string]*HigherKindedTypeDefinition),
 		Debug:                     false,
 	}
 
