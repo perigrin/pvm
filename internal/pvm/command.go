@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/pvx"
 )
 
@@ -36,11 +37,13 @@ func NewCommand() *cobra.Command {
 		newExecCommand(),
 		newUninstallCommand(),
 		newImportCommand(),
+		newImportSystemCommand(), // Add top-level import-system for compatibility
 		newRehashCommand(),
 		newResolveCommand(),
 		newInitCommand(),
 		newShellCommand(),
 		newPVXCommand(),
+		newPSCCommand(),
 
 		// These are implemented in their own files
 		newSymlinksCommand(), // from symlinks.go
@@ -701,6 +704,21 @@ func importFromLegacyTool(cmd *cobra.Command, tool perl.LegacyToolType) error {
 	return nil
 }
 
+func newImportSystemCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "import-system",
+		Short: "Import system Perl",
+		Long:  "Register the system Perl in PVM's version registry (alias for 'pvm perl import-system')",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// This is just an alias for the perl import-system command
+			// Delegate to the actual implementation
+			perlCmd := newPerlCommand()
+			importSystemCmd := perlCmd.Commands()[1] // import-system is the second subcommand
+			return importSystemCmd.RunE(cmd, args)
+		},
+	}
+}
+
 func newRehashCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rehash",
@@ -1083,4 +1101,17 @@ func newBuildCommand() *cobra.Command {
 	cmd.Flags().StringArray("configure-options", nil, "Additional options to pass to Configure (can be specified multiple times)")
 
 	return cmd
+}
+
+// newPSCCommand creates a PSC command that delegates to the PSC package
+func newPSCCommand() *cobra.Command {
+	// Get the PSC command from the PSC package
+	pscCmd := psc.NewCommand()
+
+	// Customize for integration with PVM
+	pscCmd.Use = "psc"
+	pscCmd.Short = "Perl Script Compiler (Type Checking)"
+	pscCmd.Long = "Provides static type checking for Perl code with type annotations"
+
+	return pscCmd
 }

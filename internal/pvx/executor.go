@@ -15,6 +15,7 @@ import (
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/pvi"
 )
 
 // PVX execution error codes
@@ -141,6 +142,13 @@ type ExecutionOptions struct {
 	// Custom module installation path
 	// If set, this path will be used for module installation (PERL_LOCAL_LIB_ROOT)
 	CustomModulePath string
+
+	// Required modules to install before execution
+	// These modules will be automatically installed using PVI if they're not available
+	RequiredModules []string
+
+	// Whether to automatically install required modules using PVI
+	AutoInstallModules bool
 }
 
 // ExecuteResult contains the result of script execution
@@ -173,6 +181,45 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 	perlExe, err := resolvePerlExecutable(options)
 	if err != nil {
 		return "", err
+	}
+
+	// Install required modules using PVI if needed
+	if options.AutoInstallModules && len(options.RequiredModules) > 0 {
+		if options.Verbose {
+			log.Infof("Installing %d required modules using PVI", len(options.RequiredModules))
+		}
+
+		// Create PVI integration options
+		pviOptions := &pvi.PVXIntegrationOptions{
+			PerlVersion:     options.PerlVersion,
+			RequiredModules: options.RequiredModules,
+			InstallDir:      options.CustomModulePath,
+			Verbose:         options.Verbose,
+			MaxRetries:      2,
+			SkipTests:       true, // Skip tests for faster installation
+		}
+
+		// Install required modules
+		installResult, err := pvi.InstallModulesForPVX(pviOptions)
+		if err != nil {
+			return "", errors.NewExecutionError(
+				ErrExecutionFailed,
+				fmt.Sprintf("Failed to install required modules: %v", err),
+				err)
+		}
+
+		// Check if any modules failed to install
+		if len(installResult.FailedModules) > 0 {
+			return "", errors.NewExecutionError(
+				ErrExecutionFailed,
+				fmt.Sprintf("Failed to install modules: %v", installResult.FailedModules),
+				nil)
+		}
+
+		if options.Verbose {
+			log.Infof("Successfully installed %d modules, skipped %d already installed",
+				len(installResult.InstalledModules), len(installResult.SkippedModules))
+		}
 	}
 
 	// Create the command to execute the script

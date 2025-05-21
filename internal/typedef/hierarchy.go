@@ -85,6 +85,8 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	// Type modifiers
 	h.addBuiltinType("Maybe", "Optional type that can be undef", "modifier")
 	h.addBuiltinType("Optional", "Optional type like Maybe but specific to key existence", "modifier")
+	h.addBuiltinType("Union", "Union type that can be one of multiple types", "modifier")
+	h.addBuiltinType("Intersection", "Intersection type that must satisfy all types", "modifier")
 
 	// Role/trait types
 	h.addBuiltinType("Callable", "Can be called like a function", "role")
@@ -116,11 +118,11 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 
 	h.addSubtypeRelation("Str", "Scalar")
 	h.addSubtypeRelation("Num", "Str") // Numbers can be automatically stringified in Perl
-	h.addSubtypeRelation("Bool", "Scalar")
 	h.addSubtypeRelation("Undef", "Scalar")
 
 	h.addSubtypeRelation("Int", "Num")
 	h.addSubtypeRelation("Float", "Num")
+	h.addSubtypeRelation("Bool", "Int") // Bool is a subtype of Int per specification
 
 	h.addSubtypeRelation("ClassName", "Str")
 	h.addSubtypeRelation("RoleName", "Str")
@@ -185,6 +187,20 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 			return "", fmt.Errorf("List requires exactly one type parameter")
 		}
 		return fmt.Sprintf("List[%s]", params[0]), nil
+	}
+
+	h.parameterizedTypes["Union"] = func(params []string) (string, error) {
+		if len(params) < 2 {
+			return "", fmt.Errorf("union requires at least two type parameters")
+		}
+		return fmt.Sprintf("Union[%s]", strings.Join(params, ", ")), nil
+	}
+
+	h.parameterizedTypes["Intersection"] = func(params []string) (string, error) {
+		if len(params) < 2 {
+			return "", fmt.Errorf("intersection requires at least two type parameters")
+		}
+		return fmt.Sprintf("Intersection[%s]", strings.Join(params, ", ")), nil
 	}
 }
 
@@ -350,6 +366,27 @@ func (h *TypeHierarchy) CheckTypeCompatibility(sourceType, targetType string) er
 		_, params := extractTypeAndParams(sourceType)
 		if len(params) > 0 && h.IsSubtypeOf(params[0], targetType) {
 			return nil
+		}
+	}
+
+	// Special case: Union types
+	if strings.HasPrefix(sourceType, "Union[") {
+		// Union[A, B] can be assigned to T if any constituent type can be assigned to T
+		_, params := extractTypeAndParams(sourceType)
+		for _, param := range params {
+			if h.CheckTypeCompatibility(param, targetType) == nil {
+				return nil
+			}
+		}
+	}
+
+	if strings.HasPrefix(targetType, "Union[") {
+		// T can be assigned to Union[A, B] if T can be assigned to any constituent type
+		_, params := extractTypeAndParams(targetType)
+		for _, param := range params {
+			if h.CheckTypeCompatibility(sourceType, param) == nil {
+				return nil
+			}
 		}
 	}
 

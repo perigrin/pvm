@@ -151,6 +151,8 @@ func (e *TestEnv) saveEnvironment() {
 		"PATH",
 		"PVM_HOME",
 		"PERL_VERSION",
+		"DYLD_LIBRARY_PATH",
+		"LD_LIBRARY_PATH",
 	}
 
 	for _, v := range vars {
@@ -173,6 +175,30 @@ func (e *TestEnv) setEnvironment() {
 
 	// Set PVM_HOME
 	_ = os.Setenv("PVM_HOME", e.PVMDataDir)
+
+	// Set up library paths for tree-sitter
+	projectRoot, _ := findProjectRoot()
+	if projectRoot != "" {
+		libPaths := []string{
+			filepath.Join(projectRoot, "lib"),
+			filepath.Join(projectRoot, "internal", "parser"),
+			filepath.Join(projectRoot, "vendor", "tree-sitter-perl"),
+		}
+
+		// Set DYLD_LIBRARY_PATH for macOS
+		currentDyldPath := os.Getenv("DYLD_LIBRARY_PATH")
+		allPaths := make([]string, len(libPaths))
+		copy(allPaths, libPaths)
+		allPaths = append(allPaths, currentDyldPath)
+		_ = os.Setenv("DYLD_LIBRARY_PATH", strings.Join(allPaths, ":"))
+
+		// Set LD_LIBRARY_PATH for Linux
+		currentLdPath := os.Getenv("LD_LIBRARY_PATH")
+		allLdPaths := make([]string, len(libPaths))
+		copy(allLdPaths, libPaths)
+		allLdPaths = append(allLdPaths, currentLdPath)
+		_ = os.Setenv("LD_LIBRARY_PATH", strings.Join(allLdPaths, ":"))
+	}
 
 	// Unset PERL_VERSION to start clean
 	_ = os.Unsetenv("PERL_VERSION")

@@ -5,10 +5,10 @@ package psc
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/parser"
 )
 
 // newRunCommand creates a command to type-check and execute a file
@@ -35,22 +35,12 @@ func newRunCommand() *cobra.Command {
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			skipCheck, _ := cmd.Flags().GetBool("skip-check")
 			perl, _ := cmd.Flags().GetString("perl")
-			isolate, _ := cmd.Flags().GetBool("isolate")
-			modules, _ := cmd.Flags().GetStringArray("module")
-			envVars, _ := cmd.Flags().GetStringArray("env")
 			flowSensitive, _ := cmd.Flags().GetBool("flow-sensitive")
 			noFlowSensitive, _ := cmd.Flags().GetBool("no-flow-sensitive")
-			skipCleanup, _ := cmd.Flags().GetBool("no-cleanup")
 			skipFlowChecks, _ := cmd.Flags().GetBool("skip-flow-checks")
 
-			// Create environment variables map
-			envMap := make(map[string]string)
-			for _, env := range envVars {
-				parts := strings.SplitN(env, "=", 2)
-				if len(parts) == 2 {
-					envMap[parts[0]] = parts[1]
-				}
-			}
+			// Environment variables are not used in simple strip-and-execute approach
+			// This simplifies the command for basic use cases
 
 			// Determine if flow-sensitive analysis should be enabled
 			// If --no-flow-sensitive is specified, it overrides --flow-sensitive
@@ -59,46 +49,60 @@ func newRunCommand() *cobra.Command {
 				enableFlowSensitiveAnalysis = false
 			}
 
-			// Configure execution options
-			options := &TypeCheckedExecutionOptions{
-				ScriptPath:                  file,
-				Args:                        scriptArgs,
-				PerlVersion:                 perl,
-				SkipTypeCheck:               skipCheck,
-				DisableIsolation:            !isolate,
-				EnableFlowSensitiveAnalysis: enableFlowSensitiveAnalysis,
-				SkipFlowChecks:              skipFlowChecks,
-				EnvironmentVars:             envMap,
-				RequiredModules:             modules,
-				Verbose:                     verbose,
-				NoCleanup:                   skipCleanup,
-			}
+			// If not skipping type check, perform type checking first
+			if !skipCheck {
+				// Perform type checking
+				tc, err := parser.NewTypeCheck()
+				if err != nil {
+					return errors.NewTypeError(
+						ErrTypeCheckFailed,
+						"Failed to create type checker",
+						err)
+				}
 
-			// Execute the script with type checking
-			result, err := ExecuteWithTypeChecking(options)
-			if err != nil {
-				// If it's a type checking error, we show the errors
-				if result != nil && !result.TypeCheckPassed {
-					// We've already shown the errors in the verbose mode in ExecuteWithTypeChecking
-					if !verbose {
-						// Just show the error count
-						fmt.Printf("Found %d type errors in %s\n", len(result.TypeCheckErrors), file)
+				// Configure flow-sensitive analysis
+				tc.EnableFlowSensitiveAnalysis = enableFlowSensitiveAnalysis
+				tc.SkipFlowChecks = skipFlowChecks
+
+				// Perform type checking
+				checkResult, err := tc.CheckFile(file)
+				if err != nil {
+					return errors.NewTypeError(
+						ErrTypeCheckFailed,
+						fmt.Sprintf("Failed to check file: %s", file),
+						err)
+				}
+
+				// Check if there were type errors
+				if len(checkResult.Errors) > 0 {
+					if verbose {
+						fmt.Printf("Type checking failed for %s\n", file)
+						for _, err := range checkResult.Errors {
+							fmt.Printf("  %s:%d:%d: %s\n", err.Path, err.Line, err.Column, err.Message)
+						}
+					} else {
+						fmt.Printf("Found %d type errors in %s\n", len(checkResult.Errors), file)
 					}
 
-					// Return the error
 					return errors.NewTypeError(
 						ErrTypeCheckFailed,
 						"Type checking failed, aborting execution",
 						nil)
 				}
 
-				// For other errors, return them directly
+				if verbose {
+					fmt.Printf("Type checking passed for %s\n", file)
+				}
+			}
+
+			// Strip type annotations and execute
+			output, err := StripAndExecute(file, scriptArgs, perl, verbose)
+			if err != nil {
 				return err
 			}
 
-			// If we made it here, the script executed successfully
-			// The output has already been printed by ExecuteWithTypeChecking
-			fmt.Println(result.Output)
+			// Print the output
+			fmt.Print(output)
 			return nil
 		},
 	}

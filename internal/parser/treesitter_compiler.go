@@ -248,7 +248,8 @@ func (c *TreeSitterCompiler) CompileWithPreservedFormatting(root *sitter.Node) s
 	for _, errRange := range errorRanges {
 		// Copy text before this ERROR node
 		if errRange.Start > lastPos {
-			result.Write(c.content[lastPos:errRange.Start])
+			beforeText := string(c.content[lastPos:errRange.Start])
+			result.WriteString(beforeText)
 		}
 		lastPos = errRange.End
 	}
@@ -258,7 +259,12 @@ func (c *TreeSitterCompiler) CompileWithPreservedFormatting(root *sitter.Node) s
 		result.Write(c.content[lastPos:])
 	}
 
-	return result.String()
+	output := result.String()
+
+	// Clean up spacing issues caused by removing type annotations
+	output = c.cleanupSpacing(output)
+
+	return output
 }
 
 // ErrorRange represents a byte range to skip
@@ -309,6 +315,7 @@ func (c *TreeSitterCompiler) isTypeAnnotation(node *sitter.Node) bool {
 	typePatterns := []string{
 		"Str", "Int", "Num", "Bool", "ArrayRef", "HashRef", "CodeRef",
 		"Maybe", "Optional", "Any", "Object", "Class", "Role",
+		"Union", "Intersection", "Scalar", "Ref", "List", "Array", "Hash",
 	}
 
 	for _, pattern := range typePatterns {
@@ -323,4 +330,35 @@ func (c *TreeSitterCompiler) isTypeAnnotation(node *sitter.Node) bool {
 	}
 
 	return false
+}
+
+// cleanupSpacing fixes spacing issues caused by removing type annotations
+func (c *TreeSitterCompiler) cleanupSpacing(output string) string {
+	// Split into lines to process each line independently
+	lines := strings.Split(output, "\n")
+
+	for i, line := range lines {
+		// Fix common spacing patterns caused by type removal
+
+		// Fix "my  $var" -> "my $var" (double space after my/our/state)
+		line = strings.ReplaceAll(line, "my  $", "my $")
+		line = strings.ReplaceAll(line, "our  $", "our $")
+		line = strings.ReplaceAll(line, "state  $", "state $")
+
+		// Fix function signatures like "sub func( $a,  $b)" -> "sub func($a, $b)"
+		line = strings.ReplaceAll(line, "( $", "($")
+		line = strings.ReplaceAll(line, ",  $", ", $")
+
+		// Fix for loops like "for my  $var" -> "for my $var"
+		line = strings.ReplaceAll(line, "for my  $", "for my $")
+
+		// Fix general case of multiple spaces
+		for strings.Contains(line, "  ") {
+			line = strings.ReplaceAll(line, "  ", " ")
+		}
+
+		lines[i] = line
+	}
+
+	return strings.Join(lines, "\n")
 }

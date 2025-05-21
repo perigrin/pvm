@@ -297,23 +297,39 @@ func (p *Parser) calculatePosition(byteOffset int, content string) Position {
 
 // ParseString parses a string containing Perl code and returns its AST
 func (p *Parser) ParseString(content string) (*AST, error) {
-	// Parse the string using a simplified approach until tree-sitter is integrated
+	// Parse the string using tree-sitter
 	tree, err := p.perlParser.ParseString(content)
 	if err != nil {
 		return nil, errors.NewSystemError("004",
 			"Failed to parse string", err)
 	}
 
+	// Extract type annotations from the tree
+	perlAnnotations, err := tree.FindTypeAnnotations()
+	if err != nil {
+		return nil, errors.NewSystemError("005",
+			"Failed to extract type annotations", err)
+	}
+
+	// Convert PerlTypeAnnotations to TypeAnnotations
+	var typeAnnotations []*TypeAnnotation
+	for _, perlAnn := range perlAnnotations {
+		annotation, convErr := p.convertPerlTypeAnnotation(perlAnn, content)
+		if convErr != nil {
+			// Log the error but don't fail the parse
+			log.Debugf("Failed to convert annotation %s: %v", perlAnn.ItemName, convErr)
+			continue
+		}
+		typeAnnotations = append(typeAnnotations, annotation)
+	}
+
 	// Create an AST from the parse tree
 	ast := &AST{
 		Root:            newSimpleNode("root"),
-		TypeAnnotations: []*TypeAnnotation{},
+		TypeAnnotations: typeAnnotations,
 		Errors:          []error{},
 		rawTree:         tree,
 	}
-
-	// This is a simplified implementation with no real parsing
-	// In a complete implementation, we would populate TypeAnnotations from tree
 
 	return ast, nil
 }

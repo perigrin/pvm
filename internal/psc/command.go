@@ -26,6 +26,8 @@ func NewCommand() *cobra.Command {
 		newGenerateTypeCommand(),
 		newImportTypeCommand(),
 		newListTypesCommand(),
+		// Add LSP command
+		lspCmd,
 	)
 
 	return cmd

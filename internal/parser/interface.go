@@ -5,6 +5,8 @@ package parser
 
 import (
 	"fmt"
+	"os"
+	"regexp"
 	"strings"
 
 	"tamarou.com/pvm/internal/typedef"
@@ -605,10 +607,16 @@ func extractModuleNameFromPath(path string) string {
 
 // StripAnnotations removes type annotations from Perl code
 func StripAnnotations(path string) (string, error) {
-	// Use direct tree-sitter compilation to generate clean Perl code
-	// This approach parses with tree-sitter and generates valid Perl,
-	// automatically omitting type annotations during code generation.
-	return CompileTreeSitterToPerl(path)
+	// For now, use a purely regex-based approach since tree-sitter
+	// has trouble with complex parameterized types in certain constructs
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	result := regexCleanupTypeAnnotations(string(content))
+
+	return result, nil
 }
 
 // GeneratePerlFromAST generates Perl code from an AST with optional type annotations
@@ -709,4 +717,57 @@ func ValidateRoundTrip(path string) error {
 	}
 
 	return nil
+}
+
+// regexCleanupTypeAnnotations removes type annotations using regex patterns
+// This is a fallback for complex parameterized types that tree-sitter might miss
+func regexCleanupTypeAnnotations(code string) string {
+	// Process line by line for better control
+	lines := strings.Split(code, "\n")
+	for i, line := range lines {
+
+		// Handle variable declarations
+		// Pattern: my Type $var or my Complex[Type[Nested]] $var
+		varPattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][^$]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
+		if varPattern.MatchString(line) {
+			line = varPattern.ReplaceAllString(line, `$1 $2`)
+		}
+
+		// Handle function parameters
+		// Pattern: sub name(Type $param) or sub name(Complex[Type] $param)
+		funcPattern := regexp.MustCompile(`\bsub\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)`)
+		if funcPattern.MatchString(line) {
+			line = funcPattern.ReplaceAllStringFunc(line, func(match string) string {
+				parts := funcPattern.FindStringSubmatch(match)
+				if len(parts) != 3 {
+					return match
+				}
+
+				funcName := parts[1]
+				params := parts[2]
+
+				// Clean parameters
+				paramPattern := regexp.MustCompile(`[A-Z][^$]*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
+				cleanParams := paramPattern.ReplaceAllString(params, `$1`)
+
+				return fmt.Sprintf("sub %s(%s)", funcName, cleanParams)
+			})
+		}
+
+		// Handle for loops
+		// Pattern: for my Type $var (@array)
+		forPattern := regexp.MustCompile(`\bfor\s+my\s+[A-Z][^$]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*\s+\([^)]+\))`)
+		if forPattern.MatchString(line) {
+			line = forPattern.ReplaceAllString(line, `for my $1`)
+		}
+
+		// Clean up any remaining return type annotations
+		// Pattern: -> Type or -> Complex[Type]
+		returnTypePattern := regexp.MustCompile(`\s*->\s*[A-Z][a-zA-Z_:]*(?:\[[^\]]*\])*`)
+		line = returnTypePattern.ReplaceAllString(line, "")
+
+		lines[i] = line
+	}
+
+	return strings.Join(lines, "\n")
 }

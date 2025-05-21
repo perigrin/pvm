@@ -5,6 +5,7 @@ package parser
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -1027,22 +1028,42 @@ func (tc *TypeChecker) CheckMethodCall(className string, methodName string, argT
 func (tc *TypeChecker) CheckASTAssignments(ast *AST) []error {
 	var errors []error
 
-	// This would require traversing the AST looking for assignment nodes,
-	// extracting the left-hand side and right-hand side, determining their types,
-	// and checking compatibility.
+	// Since AST parsing might have issues, we'll also check assignments
+	// directly from the source text as a fallback.
 
-	// For each assignment node in the AST:
-	// 1. Determine the type of the left-hand side (variable)
-	// 2. Determine the type of the right-hand side (expression)
-	// 3. Check if the right-hand side type is compatible with the left-hand side type
-	// 4. If not, add an error
-
-	// Process assignment nodes in the tree
+	// First, try to process assignment nodes in the tree
 	if ast.Root != nil {
 		tc.checkNodeForAssignments(ast.Root, &errors)
 	}
 
+	// As a fallback, check assignments directly from source text when we have type annotations
+	if len(errors) == 0 && len(ast.TypeAnnotations) > 0 {
+		tc.checkAssignmentsFromSourceText(ast.Path, &errors)
+	}
+
 	return errors
+}
+
+// checkAssignmentsFromSourceText checks assignments by reading the source file directly
+func (tc *TypeChecker) checkAssignmentsFromSourceText(filePath string, errors *[]error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return // Can't read file, skip this check
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for lineNum, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Look for assignments with =
+		if strings.Contains(line, "=") && !strings.Contains(line, "==") && !strings.Contains(line, "!=") {
+			pos := Position{Line: lineNum + 1, Column: 1}
+			tc.checkPossibleAssignment(line, pos, errors)
+		}
+	}
 }
 
 // checkNodeForAssignments checks a node and its children for assignments
@@ -1075,17 +1096,27 @@ func (tc *TypeChecker) checkPossibleAssignment(text string, pos Position, errors
 	leftSide := strings.TrimSpace(parts[0])
 	rightSide := strings.TrimSpace(parts[1])
 
-	// Check if the left side is a variable we know the type of
-	varType, ok := tc.GetVariableType(leftSide)
+	// If there are multiple statements on the same line (separated by ;),
+	// only consider the first one for the assignment
+	if strings.Contains(rightSide, ";") {
+		rightParts := strings.SplitN(rightSide, ";", 2)
+		rightSide = strings.TrimSpace(rightParts[0])
+	}
+
+	// Extract variable name from declaration like "my Int $x" or simple assignment "$x"
+	varName := tc.extractVariableFromDeclaration(leftSide)
+	if varName == "" {
+		return // Couldn't extract variable name
+	}
+
+	// Check if we know the type of this variable
+	varType, ok := tc.GetVariableType(varName)
 	if !ok {
 		// We don't know the type of this variable, so we can't check the assignment
 		return
 	}
 
-	// In a real implementation, we would analyze the right side expression to determine its type
-	// For now, we'll use a simplified approach that only handles direct assignments of literals or variables
-
-	// Infer the type of the right side (very simplified)
+	// Infer the type of the right side
 	rightType := tc.inferExpressionType(rightSide)
 	if rightType == "" {
 		// Couldn't determine the type
@@ -1097,6 +1128,34 @@ func (tc *TypeChecker) checkPossibleAssignment(text string, pos Position, errors
 	if err != nil {
 		*errors = append(*errors, err)
 	}
+}
+
+// extractVariableFromDeclaration extracts variable name from declarations like "my Int $x" or "$x"
+func (tc *TypeChecker) extractVariableFromDeclaration(declaration string) string {
+	declaration = strings.TrimSpace(declaration)
+
+	// Handle simple variable references like "$x", "@arr", "%hash"
+	if strings.HasPrefix(declaration, "$") || strings.HasPrefix(declaration, "@") || strings.HasPrefix(declaration, "%") {
+		// Extract just the variable name (might have spaces, handle that)
+		parts := strings.Fields(declaration)
+		if len(parts) > 0 {
+			return parts[0]
+		}
+		return declaration
+	}
+
+	// Handle declarations like "my Type $var" or "my $var"
+	if strings.HasPrefix(declaration, "my ") {
+		// Split into words and find the variable
+		words := strings.Fields(declaration)
+		for _, word := range words {
+			if strings.HasPrefix(word, "$") || strings.HasPrefix(word, "@") || strings.HasPrefix(word, "%") {
+				return word
+			}
+		}
+	}
+
+	return ""
 }
 
 // inferExpressionType infers the type of an expression (simplified implementation)
@@ -2369,28 +2428,6 @@ func (tc *TypeChecker) isConversionBasedRelationship(childType, parentType strin
 	return false
 }
 
-// isProperSubsetOfIntersection checks if source type is a proper subset that can't represent the full intersection
-func (tc *TypeChecker) isProperSubsetOfIntersection(sourceType string, intersectionTypes []string) bool {
-	// For Int&Num, we want to reject Int as being too narrow
-	// The logic is: if source is a strict subtype of any intersection component,
-	// and there are multiple components, then source might not capture the full intersection
-
-	if len(intersectionTypes) < 2 {
-		return false // Single component intersection is not really an intersection
-	}
-
-	// Check if source is a proper subtype of any component
-	for _, component := range intersectionTypes {
-		if sourceType != component && tc.Hierarchy.IsSubtypeOf(sourceType, component) {
-			// Source is a proper subtype of this component
-			// This means source is narrower than the component, so it can't represent the full intersection
-			return true
-		}
-	}
-
-	return false
-}
-
 // splitTypeExpression splits a type expression on the given delimiter, respecting parentheses and brackets
 func (tc *TypeChecker) splitTypeExpression(expr string, delimiter rune) ([]string, error) {
 	var parts []string
@@ -2453,9 +2490,10 @@ func (tc *TypeChecker) stripOuterParentheses(expr string) string {
 		// Check if these parentheses actually wrap the entire expression
 		parenDepth := 0
 		for i, r := range trimmed {
-			if r == '(' {
+			switch r {
+			case '(':
 				parenDepth++
-			} else if r == ')' {
+			case ')':
 				parenDepth--
 				if parenDepth == 0 && i < len(trimmed)-1 {
 					// Parentheses closed before the end, so they don't wrap the entire expression
@@ -2677,7 +2715,7 @@ func (tc *TypeChecker) resolveTypeAliasHelper(typeName string, visited map[strin
 	visited[typeName] = true
 	resolved, err := tc.resolveTypeAliasHelper(targetType, visited)
 	delete(visited, typeName) // Unmark for other paths
-	
+
 	return resolved, err
 }
 
@@ -2686,16 +2724,16 @@ func (tc *TypeChecker) wouldCreateCircularAlias(aliasName, targetType string) bo
 	// Temporarily add the alias and try to resolve it
 	original, existed := tc.TypeAliases[aliasName]
 	tc.TypeAliases[aliasName] = targetType
-	
+
 	_, err := tc.ResolveTypeAlias(aliasName)
-	
+
 	// Restore original state
 	if existed {
 		tc.TypeAliases[aliasName] = original
 	} else {
 		delete(tc.TypeAliases, aliasName)
 	}
-	
+
 	return err != nil
 }
 
@@ -2705,7 +2743,7 @@ func (tc *TypeChecker) DefineGenericFunction(funcName string, typeParams []strin
 	if len(typeParams) == 0 {
 		return fmt.Errorf("generic function must have at least one type parameter")
 	}
-	
+
 	if returnType == "" {
 		return fmt.Errorf("generic function must have a return type")
 	}
@@ -2756,14 +2794,14 @@ func (tc *TypeChecker) InferGenericTypeParameters(funcName string, argTypes []st
 	}
 
 	inference := make(map[string]string)
-	
+
 	// Simple inference: match parameter types with argument types
 	i := 0
 	for _, paramType := range sig.ParameterTypes {
 		if i >= len(argTypes) {
 			break
 		}
-		
+
 		if tc.isTypeParameter(paramType, sig.TypeParameters) {
 			inference[paramType] = argTypes[i]
 		}
@@ -2863,7 +2901,7 @@ func (tc *TypeChecker) ApplyHigherKindedType(typeName string, typeArgs []string)
 	}
 
 	if len(typeArgs) != len(hkt.TypeConstructors) {
-		return "", fmt.Errorf("wrong number of type arguments for %s: expected %d, got %d", 
+		return "", fmt.Errorf("wrong number of type arguments for %s: expected %d, got %d",
 			typeName, len(hkt.TypeConstructors), len(typeArgs))
 	}
 
@@ -2919,7 +2957,7 @@ func (tc *TypeChecker) InferChainedCallType(funcNames []string, initialTypes []s
 	}
 
 	currentTypes := initialTypes
-	
+
 	for _, funcName := range funcNames {
 		sig, exists := tc.GenericFunctions[funcName]
 		if !exists {

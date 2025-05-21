@@ -45,6 +45,7 @@ Any      (explicit polymorphic type)
 │   │           └── Bool
 │   ├── Undef
 │   └── Ref
+│       ├── Object
 │       ├── ScalarRef
 │       ├── ArrayRef
 │       ├── HashRef

@@ -11,6 +11,7 @@ import (
 
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/pvx"
 )
 
@@ -192,17 +193,47 @@ func ExecuteWithTypeChecking(options *TypeCheckedExecutionOptions) (*TypeChecked
 		NoCleanup:      options.NoCleanup,
 	}
 
-	// If modules are required, add them to the execution options
+	// If modules are required, ensure they are installed using PVI
 	if len(options.RequiredModules) > 0 {
 		if options.Verbose {
-			fmt.Printf("Adding %d required modules to execution environment\n", len(options.RequiredModules))
+			fmt.Printf("Installing %d required modules using PVI\n", len(options.RequiredModules))
 		}
 
-		// In a full implementation, we would ensure these modules are installed
-		// using the PVI component before executing the script
-		// For now, we'll just set them as additional module paths
+		// Create PVI integration options
+		pviOptions := &pvi.PVXIntegrationOptions{
+			PerlVersion:     options.PerlVersion,
+			RequiredModules: options.RequiredModules,
+			InstallDir:      options.ModuleDir,
+			Verbose:         options.Verbose,
+			MaxRetries:      2,
+			SkipTests:       true, // Skip tests for faster installation in execution context
+		}
+
+		// Install required modules using PVI
+		installResult, err := pvi.InstallModulesForPVX(pviOptions)
+		if err != nil {
+			return result, errors.NewTypeError(
+				ErrDependencyMissing,
+				fmt.Sprintf("Failed to install required modules: %v", err),
+				err).WithLocation(options.ScriptPath)
+		}
+
+		// Check if any modules failed to install
+		if len(installResult.FailedModules) > 0 {
+			return result, errors.NewTypeError(
+				ErrDependencyMissing,
+				fmt.Sprintf("Failed to install modules: %v", installResult.FailedModules),
+				nil).WithLocation(options.ScriptPath)
+		}
+
+		// Set custom module path if installation directory is specified
 		if options.ModuleDir != "" {
 			execOptions.CustomModulePath = options.ModuleDir
+		}
+
+		if options.Verbose {
+			fmt.Printf("Successfully installed %d modules, skipped %d already installed\n",
+				len(installResult.InstalledModules), len(installResult.SkippedModules))
 		}
 	}
 

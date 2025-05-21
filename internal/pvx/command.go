@@ -48,6 +48,8 @@ func NewCommand() *cobra.Command {
 			// Get module path configuration flags
 			includeModulePaths, _ := cmd.Flags().GetStringArray("include-path")
 			customModulePath, _ := cmd.Flags().GetString("module-path")
+			requiredModules, _ := cmd.Flags().GetStringArray("require")
+			autoInstall, _ := cmd.Flags().GetBool("auto-install")
 
 			// Check if we're executing code directly or running a script
 			if executeCode == "" && len(args) == 0 {
@@ -168,6 +170,10 @@ func NewCommand() *cobra.Command {
 				} else {
 					options.CustomModulePath = customModulePath
 				}
+
+				// Set required modules and auto-install flag
+				options.RequiredModules = requiredModules
+				options.AutoInstallModules = autoInstall
 			} else {
 				// If no config or PVX config, use command line flags directly
 				options.ReadOnlyPaths = readOnlyPaths
@@ -178,6 +184,8 @@ func NewCommand() *cobra.Command {
 				options.ClearEnv = clearEnv
 				options.AdditionalModulePaths = includeModulePaths
 				options.CustomModulePath = customModulePath
+				options.RequiredModules = requiredModules
+				options.AutoInstallModules = autoInstall
 			}
 
 			// Set isolation level if provided
@@ -282,6 +290,8 @@ func NewCommand() *cobra.Command {
 	// Module path configuration flags
 	cmd.Flags().StringArray("include-path", []string{}, "Add additional module paths to PERL5LIB (can be specified multiple times)")
 	cmd.Flags().String("module-path", "", "Specify a custom module installation path")
+	cmd.Flags().StringArray("require", []string{}, "Require specific modules and install if missing (can be specified multiple times)")
+	cmd.Flags().Bool("auto-install", false, "Automatically install required modules using PVI")
 
 	return cmd
 }
