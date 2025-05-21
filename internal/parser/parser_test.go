@@ -97,9 +97,10 @@ func TestParseSimpleTypeAnnotations(t *testing.T) {
 
 		// Subroutine return type annotations
 		if annotation.Kind == SubReturnAnnotation {
-			if annotation.TypeExpression.Name == "Int" {
+			switch annotation.TypeExpression.Name {
+			case "Int":
 				foundAddReturnType = true
-			} else if annotation.TypeExpression.Name == "HashRef" {
+			case "HashRef":
 				foundGetConfigReturnType = true
 			}
 		}
@@ -354,13 +355,15 @@ func TestParseMethodTypeAnnotations(t *testing.T) {
 
 		// Method return type annotations
 		if annotation.Kind == MethodReturnAnnotation {
-			if annotation.TypeExpression.Name == "MyClass" {
+			switch annotation.TypeExpression.Name {
+			case "MyClass":
 				foundNewReturnType = true
-			} else if annotation.TypeExpression.Name == "Str" {
+			case "Str":
 				// Could be either get_name or format_info
-				if annotation.Pos.Line == 34 { // Using hardcoded line numbers is not ideal, but works for this test
+				switch annotation.Pos.Line {
+				case 34: // Using hardcoded line numbers is not ideal, but works for this test
 					foundGetNameReturnType = true
-				} else if annotation.Pos.Line == 42 {
+				case 42:
 					foundFormatInfoReturnType = true
 				}
 			}

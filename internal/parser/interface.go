@@ -5,10 +5,8 @@ package parser
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
-	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -557,160 +555,8 @@ func extractModuleNameFromPath(path string) string {
 
 // StripAnnotations removes type annotations from Perl code
 func StripAnnotations(path string) (string, error) {
-	// Create a parser
-	p, err := NewParser()
-	if err != nil {
-		return "", err
-	}
-
-	// Parse the file with our enhanced parser
-	ast, err := p.ParseFile(path)
-	if err != nil {
-		return "", err
-	}
-
-	// Read the file content
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return "", errors.NewSystemError("001",
-			"Failed to read file", err).
-			WithLocation(path)
-	}
-
-	// Convert content to string
-	originalCode := string(content)
-
-	// Now that we have a more advanced parser, we can implement a more sophisticated
-	// annotation stripping process. The approach is to rewrite the code line by line,
-	// removing the type annotations where they are found.
-
-	// We need to be careful to avoid changing line numbers, so we'll replace annotations
-	// with spaces rather than removing them entirely.
-
-	if len(ast.TypeAnnotations) == 0 {
-		// No annotations to strip
-		return originalCode, nil
-	}
-
-	// Split the code into lines for easier processing
-	lines := strings.Split(originalCode, "\n")
-
-	// Map annotations by line for efficient lookup
-	annotationsByLine := make(map[int][]*TypeAnnotation)
-	for _, ann := range ast.TypeAnnotations {
-		lineNum := ann.Pos.Line
-		annotationsByLine[lineNum] = append(annotationsByLine[lineNum], ann)
-	}
-
-	// Process each line that has annotations
-	for lineNum, annotations := range annotationsByLine {
-		if lineNum <= 0 || lineNum > len(lines) {
-			continue
-		}
-
-		line := lines[lineNum-1]
-
-		// Sort annotations in reverse order of column position
-		// This ensures we process them from right to left
-		// to avoid affecting the positions of subsequent annotations
-		for i := 0; i < len(annotations); i++ {
-			for j := i + 1; j < len(annotations); j++ {
-				if annotations[i].Pos.Column < annotations[j].Pos.Column {
-					annotations[i], annotations[j] = annotations[j], annotations[i]
-				}
-			}
-		}
-
-		// Process each annotation on this line
-		for _, ann := range annotations {
-			switch ann.Kind {
-			case VarAnnotation:
-				// Handle variable annotations - e.g., "my Type $var" -> "my $var"
-				if typePos := strings.Index(line, ann.TypeExpression.String()); typePos >= 0 {
-					typeLen := len(ann.TypeExpression.String())
-					// Replace the type with spaces to maintain line structure
-					spaces := strings.Repeat(" ", typeLen)
-					line = line[:typePos] + spaces + line[typePos+typeLen:]
-				}
-
-			case SubParamAnnotation, MethodParamAnnotation:
-				// Handle parameter annotations - e.g., "Type $param" -> "$param"
-				if ann.AnnotatedItem != "" {
-					paramPos := strings.Index(line, ann.AnnotatedItem)
-					if paramPos > 0 {
-						// Look for the type that appears before the parameter
-						beforeParam := line[:paramPos]
-						if typePos := strings.LastIndex(beforeParam, ann.TypeExpression.String()); typePos >= 0 {
-							typeLen := len(ann.TypeExpression.String())
-							// Replace the type with spaces to maintain line structure
-							spaces := strings.Repeat(" ", typeLen)
-							line = line[:typePos] + spaces + line[typePos+typeLen:]
-						}
-					}
-				}
-
-			case SubReturnAnnotation, MethodReturnAnnotation:
-				// Handle return type annotations - e.g., "-> Type" -> "-> "
-				arrowPos := strings.Index(line, "->")
-				if arrowPos >= 0 {
-					returnTypePos := arrowPos + 2 // Skip the "->"
-					// Find the type after the arrow
-					afterArrow := strings.TrimSpace(line[returnTypePos:])
-					if strings.HasPrefix(afterArrow, ann.TypeExpression.String()) {
-						typeLen := len(ann.TypeExpression.String())
-						// Calculate the actual position of the type
-						actualTypePos := returnTypePos + strings.Index(line[returnTypePos:], ann.TypeExpression.String())
-						// Replace the type with spaces to maintain line structure
-						spaces := strings.Repeat(" ", typeLen)
-						line = line[:actualTypePos] + spaces + line[actualTypePos+typeLen:]
-					}
-				}
-
-			case AttrAnnotation:
-				// Handle field/attribute annotations - e.g., "field Type $attr" -> "field $attr"
-				if typePos := strings.Index(line, ann.TypeExpression.String()); typePos >= 0 {
-					typeLen := len(ann.TypeExpression.String())
-					// Replace the type with spaces to maintain line structure
-					spaces := strings.Repeat(" ", typeLen)
-					line = line[:typePos] + spaces + line[typePos+typeLen:]
-				}
-
-			case TypeDeclAnnotation:
-				// For type declarations, we might want to keep them as-is or
-				// replace the entire line with a comment
-				// For now, we'll keep them as they don't affect runtime behavior
-			}
-		}
-
-		// Update the line in the array
-		lines[lineNum-1] = line
-	}
-
-	// Combine the lines back into a single string
-	strippedCode := strings.Join(lines, "\n")
-
-	return strippedCode, nil
+	// Use direct tree-sitter compilation to generate clean Perl code
+	// This approach parses with tree-sitter and generates valid Perl,
+	// automatically omitting type annotations during code generation.
+	return CompileTreeSitterToPerl(path)
 }
-
-// These methods are implemented in typechecker.go to avoid circular dependencies
-
-// collectTypeAnnotation collects a type annotation without full validation
-// Implemented in typechecker.go
-
-// checkTypeAnnotation validates a single type annotation
-// Implemented in typechecker.go
-
-// CheckASTAssignments checks all assignments in an AST
-// Implemented in typechecker.go
-
-// checkASTFunctionReturns checks return types in functions
-// Implemented in typechecker.go
-
-// performFlowSensitiveAnalysis performs flow-sensitive type analysis
-// Implemented in typechecker.go
-
-// extractImports extracts imported modules from the AST
-// Implemented in typechecker.go
-
-// SkipFlowChecks is a field for the TypeChecker
-// It controls whether to skip certain flow checks but still perform refinements

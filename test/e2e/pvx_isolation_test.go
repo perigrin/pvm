@@ -279,9 +279,10 @@ print "Script completed successfully\n";
 			switch {
 			case strings.HasPrefix(line, "Created isolation directory: "):
 				isolationDir = strings.TrimPrefix(line, "Created isolation directory: ")
-				break
 			case strings.HasPrefix(line, "Isolation directory: ") && !strings.Contains(line, "unknown"):
 				isolationDir = strings.TrimPrefix(line, "Isolation directory: ")
+			}
+			if isolationDir != "" {
 				break
 			}
 		}
@@ -321,12 +322,12 @@ print "Script completed successfully\n";
 			switch {
 			case strings.HasPrefix(line, "Created isolation directory: "):
 				isolationDir = strings.TrimPrefix(line, "Created isolation directory: ")
-				break
 			case strings.HasPrefix(line, "Isolation directory: ") && !strings.Contains(line, "unknown"):
 				isolationDir = strings.TrimPrefix(line, "Isolation directory: ")
-				break
 			case strings.HasPrefix(line, "Isolation directory retained (--no-cleanup): "):
 				isolationDir = strings.TrimPrefix(line, "Isolation directory retained (--no-cleanup): ")
+			}
+			if isolationDir != "" {
 				break
 			}
 		}

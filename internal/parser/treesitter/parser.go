@@ -207,19 +207,92 @@ func (p *Parser) ParseFile(path string) (*AST, error) {
 			WithLocation(path)
 	}
 
+	// Extract type annotations from the tree
+	perlAnnotations, err := tree.FindTypeAnnotations()
+	if err != nil {
+		return nil, errors.NewSystemError("003",
+			"Failed to extract type annotations", err).
+			WithLocation(path)
+	}
+
+	// Convert PerlTypeAnnotations to TypeAnnotations
+	var typeAnnotations []*TypeAnnotation
+	for _, perlAnn := range perlAnnotations {
+		annotation, convErr := p.convertPerlTypeAnnotation(perlAnn, string(tree.Content))
+		if convErr != nil {
+			// Log the error but don't fail the parse
+			log.Debugf("Failed to convert annotation %s: %v", perlAnn.ItemName, convErr)
+			continue
+		}
+		typeAnnotations = append(typeAnnotations, annotation)
+	}
+
 	// Create an AST from the parse tree
 	ast := &AST{
 		Path:            path,
 		Root:            newSimpleNode("root"),
-		TypeAnnotations: []*TypeAnnotation{},
+		TypeAnnotations: typeAnnotations,
 		Errors:          []error{},
 		rawTree:         tree,
 	}
 
-	// This is a simplified implementation with no real parsing
-	// In a complete implementation, we would populate TypeAnnotations from tree
-
 	return ast, nil
+}
+
+// convertPerlTypeAnnotation converts a PerlTypeAnnotation to the standard TypeAnnotation format
+func (p *Parser) convertPerlTypeAnnotation(perlAnn *PerlTypeAnnotation, content string) (*TypeAnnotation, error) {
+	// Calculate line and column from byte position
+	pos := p.calculatePosition(perlAnn.StartPos, content)
+
+	// Create TypeExpression
+	typeExpr := &TypeExpression{
+		BaseType: perlAnn.TypeName,
+	}
+
+	// Determine annotation kind
+	var kind AnnotationKind
+	switch perlAnn.Kind {
+	case "variable":
+		kind = VarAnnotation
+	case "subroutine":
+		kind = SubParamAnnotation // Simplified for now
+	case "method":
+		kind = MethodParamAnnotation // Simplified for now
+	default:
+		kind = VarAnnotation // Default fallback
+	}
+
+	return &TypeAnnotation{
+		AnnotatedItem:  perlAnn.ItemName,
+		TypeExpression: typeExpr,
+		Pos:            pos,
+		Kind:           kind,
+	}, nil
+}
+
+// calculatePosition converts a byte offset to line/column position
+func (p *Parser) calculatePosition(byteOffset int, content string) Position {
+	if byteOffset < 0 || byteOffset > len(content) {
+		return Position{Line: 1, Column: 1, Offset: byteOffset}
+	}
+
+	line := 1
+	column := 1
+
+	for i := 0; i < byteOffset && i < len(content); i++ {
+		if content[i] == '\n' {
+			line++
+			column = 1
+		} else {
+			column++
+		}
+	}
+
+	return Position{
+		Line:   line,
+		Column: column,
+		Offset: byteOffset,
+	}
 }
 
 // ParseString parses a string containing Perl code and returns its AST

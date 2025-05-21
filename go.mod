@@ -19,3 +19,5 @@ require (
 	github.com/tree-sitter/go-tree-sitter v0.25.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace tamarou.com/pvm => /Users/perigrin/dev/pvm

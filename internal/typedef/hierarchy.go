@@ -38,9 +38,9 @@ type TypeHierarchy struct {
 // NewTypeHierarchy creates a new TypeHierarchy with built-in types
 func NewTypeHierarchy(store *Storage) *TypeHierarchy {
 	hierarchy := &TypeHierarchy{
-		BuiltinTypes:      make(map[string]*TypeInfo),
-		TypeStore:         store,
-		subtypeRelations:  make(map[string][]string),
+		BuiltinTypes:       make(map[string]*TypeInfo),
+		TypeStore:          store,
+		subtypeRelations:   make(map[string][]string),
 		parameterizedTypes: make(map[string]func([]string) (string, error)),
 	}
 
@@ -113,22 +113,22 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	h.addSubtypeRelation("Code", "Any")
 	h.addSubtypeRelation("Glob", "Any")
 	h.addSubtypeRelation("IO", "Any")
-	
+
 	h.addSubtypeRelation("Str", "Scalar")
 	h.addSubtypeRelation("Num", "Scalar")
 	h.addSubtypeRelation("Bool", "Scalar")
 	h.addSubtypeRelation("Undef", "Scalar")
-	
+
 	h.addSubtypeRelation("Int", "Num")
 	h.addSubtypeRelation("Float", "Num")
-	
+
 	h.addSubtypeRelation("ClassName", "Str")
 	h.addSubtypeRelation("RoleName", "Str")
 	h.addSubtypeRelation("MethodName", "Str")
 	h.addSubtypeRelation("Byte", "Str")
 	h.addSubtypeRelation("Char", "Str")
 	h.addSubtypeRelation("VarName", "Str")
-	
+
 	h.addSubtypeRelation("ScalarRef", "Ref")
 	h.addSubtypeRelation("ArrayRef", "Ref")
 	h.addSubtypeRelation("HashRef", "Ref")
@@ -136,7 +136,7 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	h.addSubtypeRelation("RegexpRef", "Ref")
 	h.addSubtypeRelation("GlobRef", "Ref")
 	h.addSubtypeRelation("FileHandle", "Ref")
-	
+
 	h.addSubtypeRelation("Array", "List")
 	h.addSubtypeRelation("Hash", "Associative")
 	h.addSubtypeRelation("Array", "Positional")
@@ -144,7 +144,7 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	h.addSubtypeRelation("Array", "Iterable")
 	h.addSubtypeRelation("Code", "Callable")
 	h.addSubtypeRelation("CodeRef", "Callable")
-	
+
 	h.addSubtypeRelation("File", "IO")
 	h.addSubtypeRelation("Dir", "IO")
 	h.addSubtypeRelation("Path", "Str")
@@ -168,14 +168,14 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 
 	h.parameterizedTypes["Maybe"] = func(params []string) (string, error) {
 		if len(params) != 1 {
-			return "", fmt.Errorf("Maybe requires exactly one type parameter")
+			return "", fmt.Errorf("maybe requires exactly one type parameter")
 		}
 		return fmt.Sprintf("Maybe[%s]", params[0]), nil
 	}
 
 	h.parameterizedTypes["Optional"] = func(params []string) (string, error) {
 		if len(params) != 1 {
-			return "", fmt.Errorf("Optional requires exactly one type parameter")
+			return "", fmt.Errorf("optional requires exactly one type parameter")
 		}
 		return fmt.Sprintf("Optional[%s]", params[0]), nil
 	}
@@ -203,7 +203,7 @@ func (h *TypeHierarchy) IsBuiltinType(typeName string) bool {
 		_, isParamType := h.parameterizedTypes[baseType]
 		return isParamType
 	}
-	
+
 	_, exists := h.BuiltinTypes[typeName]
 	return exists
 }
