@@ -5,7 +5,6 @@ package treesitter
 
 import (
 	"os"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -103,7 +102,7 @@ func TestParseWithMockData(t *testing.T) {
 	// Create a temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "parser-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Create a sample Perl file with type annotations
 	sampleFile := filepath.Join(tempDir, "sample.pl")

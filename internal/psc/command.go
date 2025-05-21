@@ -38,68 +38,7 @@ func NewCommand() *cobra.Command {
 }
 
 // Legacy command - kept for backwards compatibility but delegates to the new implementation
-func newCheckCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "check [file|dir]",
-		Short: "Check a file or directory for type errors",
-		Long:  "Analyze Perl code for type errors without executing it",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return fmt.Errorf("expected a file or directory to check")
-			}
-
-			// Get the path to check
-			path := args[0]
-			verbose, _ := cmd.Flags().GetBool("verbose")
-
-			// Create a type checker
-			tc, err := parser.NewTypeCheck()
-			if err != nil {
-				return fmt.Errorf("failed to create type checker: %v", err)
-			}
-
-			// Check if it's a directory or a file
-			info, err := os.Stat(path)
-			if err != nil {
-				return fmt.Errorf("failed to stat path: %v", err)
-			}
-
-			if info.IsDir() {
-				// Check all Perl files in the directory
-				if verbose {
-					fmt.Printf("Checking all Perl files in directory: %s\n", path)
-				}
-
-				return filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
-					if err != nil {
-						return err
-					}
-
-					// Skip directories
-					if info.IsDir() {
-						return nil
-					}
-
-					// Only check Perl files
-					if !strings.HasSuffix(filePath, ".pl") && !strings.HasSuffix(filePath, ".pm") {
-						return nil
-					}
-
-					// Check the file
-					return checkSingleFile(tc, filePath, verbose)
-				})
-			} else {
-				// Check a single file
-				return checkSingleFile(tc, path, verbose)
-			}
-		},
-	}
-
-	// Add command-specific flags
-	cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
-
-	return cmd
-}
+// The newCheckTypeCommand implementation is in check_command.go
 
 // checkSingleFile checks a single Perl file for type errors
 func checkSingleFile(tc *parser.TypeCheck, path string, verbose bool) error {

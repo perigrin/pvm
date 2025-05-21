@@ -6,7 +6,6 @@ package treesitter
 import (
 	"fmt"
 	"os"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"

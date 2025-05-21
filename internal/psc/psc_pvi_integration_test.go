@@ -5,7 +5,6 @@ package psc
 
 import (
 	"os"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,7 +18,7 @@ func TestGenerateTypeDefinition(t *testing.T) {
 	// Create a temporary directory for test files
 	tmpDir, err := os.MkdirTemp("", "psc-pvi-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a sample Perl file with type annotations
 	sampleFile := filepath.Join(tmpDir, "TestModule.pm")
@@ -104,7 +103,7 @@ func TestPSCPVIIntegration(t *testing.T) {
 	// Create a temporary directory for test files
 	tmpDir, err := os.MkdirTemp("", "psc-pvi-integration-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a sample Perl file with type annotations
 	sampleFile := filepath.Join(tmpDir, "SampleModule.pm")

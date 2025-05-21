@@ -142,7 +142,7 @@ Any      (explicit polymorphic type)
 3. **Type Narrowing** - Types become more specific based on conditionals:
    ```perl
    my $data = get_input();  # Str
-   
+
    if ($data =~ /^\d+$/) {
        say $data * 2;  # Int (narrowed from Str)
    }
@@ -239,7 +239,7 @@ package DBI {
         method prepare(Str $query) -> DBI::st;
         method selectall_arrayref(Str $query) -> ArrayRef[ArrayRef[Scalar]];
     }
-    
+
     class DBI::st {
         method execute(@params) -> Bool;
         method fetchrow_array() -> List;
