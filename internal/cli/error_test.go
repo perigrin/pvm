@@ -20,24 +20,24 @@ func TestNewError(t *testing.T) {
 
 	err := NewError(prefix, category, code, message, innerErr)
 
-	if err.Prefix != prefix {
-		t.Errorf("Expected prefix %s, got %s", prefix, err.Prefix)
+	if err.Prefix() != prefix {
+		t.Errorf("Expected prefix %s, got %s", prefix, err.Prefix())
 	}
 
-	if err.Category != category {
-		t.Errorf("Expected category %s, got %s", category, err.Category)
+	if err.Category() != category {
+		t.Errorf("Expected category %s, got %s", category, err.Category())
 	}
 
-	if err.Code != code {
-		t.Errorf("Expected code %s, got %s", code, err.Code)
+	if err.Code() != code {
+		t.Errorf("Expected code %s, got %s", code, err.Code())
 	}
 
-	if err.Message != message {
-		t.Errorf("Expected message %s, got %s", message, err.Message)
+	if err.Message() != message {
+		t.Errorf("Expected message %s, got %s", message, err.Message())
 	}
 
-	if err.InnerErr != innerErr {
-		t.Errorf("Expected inner error %v, got %v", innerErr, err.InnerErr)
+	if err.Unwrap() != innerErr {
+		t.Errorf("Expected inner error %v, got %v", innerErr, err.Unwrap())
 	}
 }
 

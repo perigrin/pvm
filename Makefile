@@ -1,13 +1,21 @@
-.PHONY: all test clean install
+.PHONY: all test clean install tree-sitter
 
 # Define binaries
 BINARIES := pvm pvx pvi psc
 BUILDDIR := build
+LIBDIR := lib
 
-all: $(BUILDDIR) $(BINARIES)
+all: $(BUILDDIR) $(LIBDIR) tree-sitter $(BINARIES)
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
+
+$(LIBDIR):
+	mkdir -p $(LIBDIR)
+
+# Build tree-sitter-perl library
+tree-sitter: $(LIBDIR)
+	./bin/build_tree_sitter.sh
 
 # Build rules for each binary
 pvm: $(BUILDDIR)
@@ -19,16 +27,18 @@ pvx: $(BUILDDIR)
 pvi: $(BUILDDIR)
 	go build -o $(BUILDDIR)/pvi ./cmd/pvi
 
-psc: $(BUILDDIR)
+psc: $(BUILDDIR) tree-sitter
 	go build -o $(BUILDDIR)/psc ./cmd/psc
 
 # Run all tests
-test:
+test: tree-sitter
 	go test -v ./...
 
 # Clean build artifacts
 clean:
 	rm -rf $(BUILDDIR)
+	rm -rf $(LIBDIR)
+	rm -rf vendor/tree-sitter-perl
 
 # Install binaries
 install: $(BINARIES)

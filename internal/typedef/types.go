@@ -74,6 +74,9 @@ type ParamInfo struct {
 	Default     string `json:"default"`     // Default value for this parameter
 }
 
+// ParameterInfo is an alias for ParamInfo for backwards compatibility
+type ParameterInfo = ParamInfo
+
 // PropInfo represents information about a property
 type PropInfo struct {
 	Name        string `json:"name"`        // Property name

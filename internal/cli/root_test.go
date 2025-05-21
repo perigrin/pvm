@@ -56,12 +56,12 @@ func TestHandleErrorFunc(t *testing.T) {
 	err = err.WithDetail("Some detail").WithHint("Some hint")
 
 	// Check error type
-	if err.Prefix != PrefixPVM {
-		t.Errorf("Expected prefix %s, got %s", PrefixPVM, err.Prefix)
+	if err.Prefix() != PrefixPVM {
+		t.Errorf("Expected prefix %s, got %s", PrefixPVM, err.Prefix())
 	}
 
-	if err.Code != "001" {
-		t.Errorf("Expected code 001, got %s", err.Code)
+	if err.Code() != "001" {
+		t.Errorf("Expected code 001, got %s", err.Code())
 	}
 
 	// Check error formatting

@@ -85,24 +85,24 @@ func TestErrorWrap(t *testing.T) {
 	err := Wrap(innerErr, PrefixPVI, CategoryModule, "002", "Failed to install module")
 
 	// Verify the wrapped error
-	if err.InnerErr != innerErr {
-		t.Errorf("Expected inner error to be preserved, got: %v", err.InnerErr)
+	if err.Unwrap() != innerErr {
+		t.Errorf("Expected inner error to be preserved, got: %v", err.Unwrap())
 	}
 
-	if err.Prefix != PrefixPVI {
-		t.Errorf("Expected prefix %s, got: %s", PrefixPVI, err.Prefix)
+	if err.Prefix() != PrefixPVI {
+		t.Errorf("Expected prefix %s, got: %s", PrefixPVI, err.Prefix())
 	}
 
-	if err.Category != CategoryModule {
-		t.Errorf("Expected category %s, got: %s", CategoryModule, err.Category)
+	if err.Category() != CategoryModule {
+		t.Errorf("Expected category %s, got: %s", CategoryModule, err.Category())
 	}
 
-	if err.Code != "002" {
-		t.Errorf("Expected code 002, got: %s", err.Code)
+	if err.Code() != "002" {
+		t.Errorf("Expected code 002, got: %s", err.Code())
 	}
 
-	if err.Message != "Failed to install module" {
-		t.Errorf("Expected message 'Failed to install module', got: %s", err.Message)
+	if err.Message() != "Failed to install module" {
+		t.Errorf("Expected message 'Failed to install module', got: %s", err.Message())
 	}
 }
 
@@ -160,12 +160,12 @@ func TestErrorHelperFunctions(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.err.Prefix != tc.prefix {
-				t.Errorf("Expected prefix %s, got: %s", tc.prefix, tc.err.Prefix)
+			if tc.err.Prefix() != tc.prefix {
+				t.Errorf("Expected prefix %s, got: %s", tc.prefix, tc.err.Prefix())
 			}
 
-			if tc.err.Category != tc.category {
-				t.Errorf("Expected category %s, got: %s", tc.category, tc.err.Category)
+			if tc.err.Category() != tc.category {
+				t.Errorf("Expected category %s, got: %s", tc.category, tc.err.Category())
 			}
 		})
 	}

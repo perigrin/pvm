@@ -17,6 +17,10 @@ import (
 // The CheckAST method has been moved to interface.go
 // This is the real implementation of the method
 
+// SkipFlowChecks controls whether to skip flow-sensitive type checks
+// but still perform type refinements based on control flow
+var SkipFlowChecks bool
+
 // performFlowSensitiveAnalysis performs flow-sensitive type analysis on the AST
 // This function is called by CheckAST in interface.go
 // nolint:unused

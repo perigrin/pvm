@@ -189,6 +189,12 @@ func (s *Storage) Delete(moduleName string) error {
 	return nil
 }
 
+// GetPathForModule returns the file path for a module's type definition
+func (s *Storage) GetPathForModule(moduleName string) string {
+	filename := moduleToFilename(moduleName)
+	return filepath.Join(s.DirectoryPath, filename)
+}
+
 // Helper functions
 
 // moduleToFilename converts a module name to a filename

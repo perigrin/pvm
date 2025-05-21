@@ -4,7 +4,6 @@
 package parser
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -211,22 +210,4 @@ func (e *ParseError) Error() string {
 	return e.Message
 }
 
-// TypeCheckError represents a type checking error
-type TypeCheckError struct {
-	// Message is the error message
-	Message string
-
-	// Line is the line number where the error occurred
-	Line int
-
-	// Column is the column number where the error occurred
-	Column int
-
-	// Path is the path to the file where the error occurred
-	Path string
-}
-
-// Error implements the error interface
-func (e TypeCheckError) Error() string {
-	return fmt.Sprintf("%s:%d:%d: %s", e.Path, e.Line, e.Column, e.Message)
-}
+// Note: TypeCheckError is defined in interface.go to avoid duplication

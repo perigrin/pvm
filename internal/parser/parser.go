@@ -5,10 +5,8 @@ package parser
 
 import (
 	"io"
-	"os"
-	"strings"
 
-	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/parser/treesitter"
 )
 
 // Parser represents a parser for Perl code with type annotations
@@ -75,334 +73,172 @@ type TypeAnnotation struct {
 	Kind AnnotationKind
 }
 
-// NewParser returns a new Parser instance
-// The implementation now uses a more robust TreeSitterParser
+// NewParser returns a new Parser instance using tree-sitter
 func NewParser() (Parser, error) {
-	// Use the TreeSitterParser for enhanced type annotation support
-	return NewTreeSitterParser()
-}
-
-// simpleParser is a simple implementation of the Parser interface
-// This is a placeholder and would be replaced with the tree-sitter-based parser in a real implementation
-// It is intentionally unused as we prefer to use the TreeSitterParser for enhanced functionality
-// nolint:unused
-type simpleParser struct {
-}
-
-// ParseFile implements the Parser interface
-// nolint:unused
-func (p *simpleParser) ParseFile(path string) (*AST, error) {
-	// Read the file
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return nil, errors.NewSystemError("001",
-			"Failed to read file", err).
-			WithLocation(path)
-	}
-
-	// Parse the content
-	ast, err := p.ParseString(string(content))
+	// Use the tree-sitter parser
+	tsParser, err := treesitter.NewParser(false)
 	if err != nil {
 		return nil, err
 	}
 
-	// Set the path
-	ast.Path = path
+	// Wrap the tree-sitter parser to match our interface
+	return &treeSitterParserWrapper{
+		parser: tsParser,
+	}, nil
+}
 
-	return ast, nil
+// treeSitterParserWrapper adapts our tree-sitter parser to the Parser interface
+type treeSitterParserWrapper struct {
+	parser *treesitter.Parser
+}
+
+// ParseFile implements the Parser interface
+func (w *treeSitterParserWrapper) ParseFile(path string) (*AST, error) {
+	tsAst, err := w.parser.ParseFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the tree-sitter AST to our AST format
+	return w.convertAst(tsAst), nil
 }
 
 // ParseString implements the Parser interface
-// nolint:unused
-func (p *simpleParser) ParseString(content string) (*AST, error) {
-	// This is a placeholder implementation
-	// In a real implementation, we would use tree-sitter to parse the code
-	// For now, we just create a simple AST with some placeholder nodes
-
-	ast := &AST{
-		Root:            &simpleNode{nodeType: "root"},
-		TypeAnnotations: []*TypeAnnotation{},
-		Errors:          []error{},
+func (w *treeSitterParserWrapper) ParseString(content string) (*AST, error) {
+	tsAst, err := w.parser.ParseString(content)
+	if err != nil {
+		return nil, err
 	}
 
-	// Simple parsing of type annotations
-	// This is just a placeholder to demonstrate the structure
-	lines := strings.Split(content, "\n")
-	for i, line := range lines {
-		lineNum := i + 1
-
-		// Check for variable declarations with type annotations
-		// Example: my Type $var
-		if strings.Contains(line, "my ") && !strings.HasPrefix(strings.TrimSpace(line), "#") {
-			parts := strings.Fields(line)
-			if len(parts) >= 3 && (parts[0] == "my" || parts[0] == "our" || parts[0] == "state") {
-				varName := ""
-				typeName := ""
-
-				// Simple heuristic to detect type annotations
-				// In a real implementation, we would use a proper parser
-				for j, part := range parts[1:] {
-					if strings.HasPrefix(part, "$") || strings.HasPrefix(part, "@") || strings.HasPrefix(part, "%") {
-						varName = part
-						if j > 0 {
-							typeName = parts[j]
-
-							// If it's a parameterized type that contains spaces,
-							// we need to reconstruct it from multiple parts
-							// For example: "HashRef[Str]" might be split into multiple tokens
-							if strings.Contains(typeName, "[") && !strings.Contains(typeName, "]") {
-								// Look for the matching closing bracket
-								for k := j + 1; k < len(parts); k++ {
-									if strings.Contains(parts[k], "]") {
-										// Join all parts between the opening and closing brackets
-										typeName = strings.Join(parts[j:k+1], " ")
-										break
-									}
-								}
-							}
-
-							// Parse the type expression
-							typeExpr, err := ParseTypeExpression(typeName, Position{
-								Line:   lineNum,
-								Column: strings.Index(line, typeName) + 1,
-							})
-
-							if err != nil {
-								ast.Errors = append(ast.Errors, err)
-								continue
-							}
-
-							// Add a type annotation
-							annotation := &TypeAnnotation{
-								AnnotatedItem:  varName,
-								TypeExpression: typeExpr,
-								Pos: Position{
-									Line:   lineNum,
-									Column: strings.Index(line, typeName) + 1,
-								},
-								Kind: VarAnnotation,
-							}
-
-							ast.TypeAnnotations = append(ast.TypeAnnotations, annotation)
-						}
-						break
-					}
-				}
-			}
-		}
-
-		// Check for subroutine or method declarations with type annotations
-		// Example: sub foo(Type $param) -> ReturnType
-		// Example: method foo(Type $param) -> ReturnType
-		if (strings.Contains(line, "sub ") || strings.Contains(line, "method ")) && !strings.HasPrefix(strings.TrimSpace(line), "#") {
-			// Determine if this is a method or subroutine
-			isMethod := strings.Contains(line, "method ")
-
-			// Check for return type annotations
-			if strings.Contains(line, "->") {
-				// This likely has a return type
-				parts := strings.Split(line, "->")
-				if len(parts) == 2 {
-					returnType := strings.TrimSpace(parts[1])
-					if strings.HasSuffix(returnType, "{") {
-						returnType = strings.TrimSpace(returnType[:len(returnType)-1])
-					}
-
-					// Parse the type expression
-					typeExpr, err := ParseTypeExpression(returnType, Position{
-						Line:   lineNum,
-						Column: strings.Index(line, "->") + 3,
-					})
-
-					if err != nil {
-						ast.Errors = append(ast.Errors, err)
-						continue
-					}
-
-					// Add a return type annotation
-					var annotationKind AnnotationKind
-					if isMethod {
-						annotationKind = MethodReturnAnnotation
-					} else {
-						annotationKind = SubReturnAnnotation
-					}
-
-					annotation := &TypeAnnotation{
-						AnnotatedItem:  "return",
-						TypeExpression: typeExpr,
-						Pos: Position{
-							Line:   lineNum,
-							Column: strings.Index(line, "->") + 3,
-						},
-						Kind: annotationKind,
-					}
-
-					ast.TypeAnnotations = append(ast.TypeAnnotations, annotation)
-				}
-			}
-
-			// Check for parameter type annotations
-			if strings.Contains(line, "(") && strings.Contains(line, ")") {
-				// This is a very simplified check and would need a proper parser in a real implementation
-				// In a real implementation, we would parse the parameter list properly
-				paramStart := strings.Index(line, "(")
-				paramEnd := strings.Index(line, ")")
-				if paramStart >= 0 && paramEnd > paramStart {
-					params := line[paramStart+1 : paramEnd]
-					// This is a very simplified parsing of parameters
-					// In a real implementation, we would use a proper parser
-					paramParts := strings.Split(params, ",")
-					for _, param := range paramParts {
-						param = strings.TrimSpace(param)
-						parts := strings.Fields(param)
-						if len(parts) >= 2 && (strings.HasPrefix(parts[len(parts)-1], "$") ||
-							strings.HasPrefix(parts[len(parts)-1], "@") ||
-							strings.HasPrefix(parts[len(parts)-1], "%")) {
-							paramName := parts[len(parts)-1]
-							paramType := strings.Join(parts[:len(parts)-1], " ")
-
-							// Parse the type expression
-							typeExpr, err := ParseTypeExpression(paramType, Position{
-								Line:   lineNum,
-								Column: strings.Index(line, paramType) + 1,
-							})
-
-							if err != nil {
-								ast.Errors = append(ast.Errors, err)
-								continue
-							}
-
-							// Add a parameter type annotation
-							var annotationKind AnnotationKind
-							if isMethod {
-								annotationKind = MethodParamAnnotation
-							} else {
-								annotationKind = SubParamAnnotation
-							}
-
-							annotation := &TypeAnnotation{
-								AnnotatedItem:  paramName,
-								TypeExpression: typeExpr,
-								Pos: Position{
-									Line:   lineNum,
-									Column: strings.Index(line, paramType) + 1,
-								},
-								Kind: annotationKind,
-							}
-
-							ast.TypeAnnotations = append(ast.TypeAnnotations, annotation)
-						}
-					}
-				}
-			}
-		}
-
-		// Check for attribute declarations with type annotations
-		// Example: field Type $attr
-		if strings.Contains(line, "field ") && !strings.HasPrefix(strings.TrimSpace(line), "#") {
-			parts := strings.Fields(line)
-			if len(parts) >= 3 && parts[0] == "field" {
-				attrName := ""
-				typeName := ""
-
-				// Simple heuristic to detect type annotations
-				for j, part := range parts[1:] {
-					if strings.HasPrefix(part, "$") {
-						attrName = part
-						if j > 0 {
-							typeName = parts[j]
-
-							// If it's a parameterized type that contains spaces,
-							// we need to reconstruct it from multiple parts
-							if strings.Contains(typeName, "[") && !strings.Contains(typeName, "]") {
-								// Look for the matching closing bracket
-								for k := j + 1; k < len(parts); k++ {
-									if strings.Contains(parts[k], "]") {
-										// Join all parts between the opening and closing brackets
-										typeName = strings.Join(parts[j:k+1], " ")
-										break
-									}
-								}
-							}
-
-							// Parse the type expression
-							typeExpr, err := ParseTypeExpression(typeName, Position{
-								Line:   lineNum,
-								Column: strings.Index(line, typeName) + 1,
-							})
-
-							if err != nil {
-								ast.Errors = append(ast.Errors, err)
-								continue
-							}
-
-							// Add a type annotation
-							annotation := &TypeAnnotation{
-								AnnotatedItem:  attrName,
-								TypeExpression: typeExpr,
-								Pos: Position{
-									Line:   lineNum,
-									Column: strings.Index(line, typeName) + 1,
-								},
-								Kind: AttrAnnotation,
-							}
-
-							ast.TypeAnnotations = append(ast.TypeAnnotations, annotation)
-						}
-						break
-					}
-				}
-			}
-		}
-	}
-
-	return ast, nil
+	// Convert the tree-sitter AST to our AST format
+	return w.convertAst(tsAst), nil
 }
 
 // ParseReader implements the Parser interface
-// nolint:unused
-func (p *simpleParser) ParseReader(reader io.Reader) (*AST, error) {
-	// Read the content
-	content, err := io.ReadAll(reader)
+func (w *treeSitterParserWrapper) ParseReader(reader io.Reader) (*AST, error) {
+	tsAst, err := w.parser.ParseReader(reader)
 	if err != nil {
-		return nil, errors.NewSystemError("002",
-			"Failed to read from reader", err)
+		return nil, err
 	}
 
-	// Parse the content
-	return p.ParseString(string(content))
+	// Convert the tree-sitter AST to our AST format
+	return w.convertAst(tsAst), nil
 }
 
-// simpleNode is a simple implementation of the Node interface
-// This is intentionally unused as we use TreeSitterNode in the actual implementation
-// nolint:unused
-type simpleNode struct {
-	nodeType string
-	position Position
-	endPos   Position
-	children []Node
+// convertAst converts a tree-sitter AST to our AST format
+func (w *treeSitterParserWrapper) convertAst(tsAst *treesitter.AST) *AST {
+	// Convert the root node
+	var rootNode Node
+	if tsAst.Root != nil {
+		rootNode = &nodeWrapper{node: tsAst.Root}
+	}
+
+	// Convert type annotations
+	var annotations []*TypeAnnotation
+	for _, tsAnnot := range tsAst.TypeAnnotations {
+		annotations = append(annotations, &TypeAnnotation{
+			AnnotatedItem:  tsAnnot.AnnotatedItem,
+			TypeExpression: convertTypeExpression(tsAnnot.TypeExpression),
+			Pos:            convertPosition(tsAnnot.Pos),
+			Kind:           AnnotationKind(tsAnnot.Kind),
+		})
+	}
+
+	ast := &AST{
+		Path:            tsAst.Path,
+		Root:            rootNode,
+		TypeAnnotations: annotations,
+		Errors:          tsAst.Errors,
+	}
+
+	return ast
 }
 
-// Type implements the Node interface
-// nolint:unused
-func (n *simpleNode) Type() string {
-	return n.nodeType
+// nodeWrapper adapts treesitter.Node to parser.Node
+type nodeWrapper struct {
+	node treesitter.Node
 }
 
-// Start implements the Node interface
-// nolint:unused
-func (n *simpleNode) Start() Position {
-	return n.position
+func (n *nodeWrapper) Type() string {
+	return n.node.Type()
 }
 
-// End implements the Node interface
-// nolint:unused
-func (n *simpleNode) End() Position {
-	return n.endPos
+func (n *nodeWrapper) Start() Position {
+	tsPos := n.node.Start()
+	return convertPosition(tsPos)
 }
 
-// Children implements the Node interface
-// nolint:unused
-func (n *simpleNode) Children() []Node {
-	return n.children
+func (n *nodeWrapper) End() Position {
+	tsPos := n.node.End()
+	return convertPosition(tsPos)
 }
+
+func (n *nodeWrapper) Children() []Node {
+	tsChildren := n.node.Children()
+	children := make([]Node, len(tsChildren))
+	for i, child := range tsChildren {
+		children[i] = &nodeWrapper{node: child}
+	}
+	return children
+}
+
+func (n *nodeWrapper) Text() string {
+	return n.node.Text()
+}
+
+// convertPosition converts treesitter.Position to parser.Position
+func convertPosition(tsPos treesitter.Position) Position {
+	return Position{
+		Line:   tsPos.Line,
+		Column: tsPos.Column,
+		Offset: tsPos.Offset,
+	}
+}
+
+// convertTypeExpression converts treesitter.TypeExpression to parser.TypeExpression
+func convertTypeExpression(tsExpr *treesitter.TypeExpression) *TypeExpression {
+	if tsExpr == nil {
+		return nil
+	}
+
+	expr := &TypeExpression{
+		Name:         tsExpr.BaseType,
+		Union:        tsExpr.IsUnion,
+		Intersection: tsExpr.IsIntersection,
+		Negation:     tsExpr.IsNegation,
+		Pos:          convertPosition(tsExpr.Pos),
+	}
+
+	// Convert parameters
+	if len(tsExpr.Parameters) > 0 {
+		expr.Params = make([]*TypeExpression, len(tsExpr.Parameters))
+		for i, param := range tsExpr.Parameters {
+			expr.Params[i] = convertTypeExpression(param)
+		}
+	}
+
+	// For union types, put them in Params
+	if len(tsExpr.UnionTypes) > 0 {
+		expr.Params = make([]*TypeExpression, len(tsExpr.UnionTypes))
+		for i, unionType := range tsExpr.UnionTypes {
+			expr.Params[i] = convertTypeExpression(unionType)
+		}
+	}
+
+	// For intersection types, put them in Params
+	if len(tsExpr.IntersectionTypes) > 0 {
+		expr.Params = make([]*TypeExpression, len(tsExpr.IntersectionTypes))
+		for i, intType := range tsExpr.IntersectionTypes {
+			expr.Params[i] = convertTypeExpression(intType)
+		}
+	}
+
+	// For negated types, use the original string
+	if tsExpr.NegatedType != nil && tsExpr.OriginalString != "" {
+		expr.Name = tsExpr.OriginalString
+	}
+
+	return expr
+}
+
+// We exclusively use tree-sitter for parsing now

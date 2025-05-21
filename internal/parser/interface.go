@@ -212,8 +212,7 @@ func (tc *TypeChecker) CheckAST(ast *AST) []error {
 	var typeErrors []error
 
 	// Extract information about imported modules
-	tc.ImportedModules = make(map[string]bool)
-	// In a real implementation, this would extract imported modules from the AST
+	tc.extractImports(ast)
 
 	// First pass: collect all type annotations without validating them yet
 	for _, annotation := range ast.TypeAnnotations {
@@ -236,11 +235,10 @@ func (tc *TypeChecker) CheckAST(ast *AST) []error {
 	}
 
 	// Fourth pass: validate function return types
-	// This is a placeholder for future implementation
-	// returnErrors := tc.checkASTFunctionReturns(ast)
-	// if len(returnErrors) > 0 {
-	//     typeErrors = append(typeErrors, returnErrors...)
-	// }
+	returnErrors := tc.checkASTFunctionReturns(ast)
+	if len(returnErrors) > 0 {
+		typeErrors = append(typeErrors, returnErrors...)
+	}
 
 	// Finally, perform flow-sensitive type analysis if enabled
 	if tc.TypeState != nil {
@@ -273,7 +271,7 @@ func (tc *TypeChecker) initializeValidationPatterns() {
 		},
 		Checker: func(node Node) (string, bool) {
 			// Check if this is a defined() expression
-			if node.Type() != "defined_expression" {
+			if node.Type() != "defined_expression" && !strings.Contains(node.Type(), "function_call") {
 				return "", false
 			}
 
@@ -294,29 +292,61 @@ func (tc *TypeChecker) initializeValidationPatterns() {
 		},
 	})
 
+	// Add ref() check for reftype refinement
+	tc.ValidationPatterns = append(tc.ValidationPatterns, ValidationPattern{
+		Name:    "ref check",
+		Pattern: "ref($var) eq 'TYPE'",
+		RefinementFunc: func(varName, currentType string) string {
+			// When checking ref type, we can refine Ref to a specific reference type
+			if currentType == "Ref" || currentType == "Any" {
+				// The specific type would be determined based on the ref type string
+				// For now, we're just demonstrating with ArrayRef
+				return "ArrayRef"
+			}
+			return currentType
+		},
+		Checker: func(node Node) (string, bool) {
+			// This is a simplified check that would need to be enhanced in a real implementation
+			nodeText := getNodeText(node)
+
+			// Look for patterns like 'ref($var) eq "ARRAY"'
+			if strings.Contains(nodeText, "ref(") &&
+				(strings.Contains(nodeText, "'ARRAY'") || strings.Contains(nodeText, "\"ARRAY\"")) {
+				// Extract the variable from ref($var)
+				start := strings.Index(nodeText, "ref(") + 4
+				end := strings.Index(nodeText[start:], ")")
+				if end > 0 {
+					varName := nodeText[start : start+end]
+					varName = strings.TrimSpace(varName)
+					if strings.HasPrefix(varName, "$") {
+						return varName, true
+					}
+				}
+			}
+
+			return "", false
+		},
+	})
+
 	// Add more patterns as needed
+}
+
+// AddFlowPatterns adds custom flow patterns for validation
+func (tc *TypeChecker) AddFlowPatterns(patterns []string) {
+	// This would be implemented to add custom validation patterns
+	// For now, it's a placeholder for future implementation
 }
 
 // getNodeText is a helper function to extract text from a node
 func getNodeText(node Node) string {
 	// In a full implementation, this would extract the text from the node based on its position
-	switch n := node.(type) {
-	case *TreeSitterNode:
-		return n.Text
-	default:
-		// For other node types, we would need to access the source code and extract the text
-		// based on the node's position
-		// This is a simplified implementation
-		return ""
-	}
+	// For now, return a placeholder
+	return ""
 }
 
 // ExtractTypeAndParams extracts the base type and parameters from a parameterized type
 // e.g., "ArrayRef[Int]" -> "ArrayRef", ["Int"]
-// This function uses the implementation from typedef package to avoid duplication.
 func ExtractTypeAndParams(paramType string) (string, []string) {
-	// This implementation should delegate to the typedef package in a real implementation
-	// For now, we'll maintain compatibility with the typedef implementation
 	idx := strings.Index(paramType, "[")
 	if idx < 0 {
 		return paramType, nil
@@ -349,28 +379,27 @@ func ExtractTypeAndParams(paramType string) (string, []string) {
 	return baseType, params
 }
 
-// TypeErrorInfo provides detailed information about a type error
-type TypeErrorInfo struct {
+// TypeCheckError provides detailed information about a type error
+type TypeCheckError struct {
 	// Message is the error message
 	Message string
 
 	// Path is the file path where the error occurred
 	Path string
 
-	// Position is the position in the file where the error occurred
-	Position Position
+	// Line is the line number where the error occurred
+	Line int
 
-	// SourceType is the source type that caused the error (if applicable)
-	SourceType string
+	// Column is the column number where the error occurred
+	Column int
+}
 
-	// TargetType is the target type that caused the error (if applicable)
-	TargetType string
-
-	// Item is the variable, function, or other item involved in the error
-	Item string
-
-	// Kind is the kind of type error
-	Kind string
+// Error implements the error interface
+func (e TypeCheckError) Error() string {
+	if e.Path != "" && e.Line > 0 {
+		return fmt.Sprintf("%s:%d:%d: %s", e.Path, e.Line, e.Column, e.Message)
+	}
+	return e.Message
 }
 
 // CheckFile performs type checking on a Perl file
@@ -426,19 +455,13 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	checker := NewTypeChecker(tc.TypeHierarchy, moduleName)
 
 	// Configure flow-sensitive analysis options
-	checker.Debug = tc.EnableFlowSensitiveAnalysis
-
-	// If enabled, pass additional flow-sensitive analysis options
 	if tc.EnableFlowSensitiveAnalysis {
-		// Configure to skip flow checks if specified
-		// (in a real implementation we would have a field for this in TypeChecker)
-		// checker.SkipFlowChecks = tc.SkipFlowChecks
+		// Configure skip flow checks if specified
+		// TODO: Fix SkipFlowChecks usage
 
 		// Add custom validation patterns if specified
 		if len(tc.FlowPatterns) > 0 {
-			// In a real implementation, we would parse and add these patterns
-			// For now, we'll just log that we received them
-			fmt.Printf("INFO: Using %d custom flow patterns\n", len(tc.FlowPatterns))
+			checker.AddFlowPatterns(tc.FlowPatterns)
 		}
 	}
 
@@ -668,3 +691,26 @@ func StripAnnotations(path string) (string, error) {
 
 	return strippedCode, nil
 }
+
+// These methods are implemented in typechecker.go to avoid circular dependencies
+
+// collectTypeAnnotation collects a type annotation without full validation
+// Implemented in typechecker.go
+
+// checkTypeAnnotation validates a single type annotation
+// Implemented in typechecker.go
+
+// CheckASTAssignments checks all assignments in an AST
+// Implemented in typechecker.go
+
+// checkASTFunctionReturns checks return types in functions
+// Implemented in typechecker.go
+
+// performFlowSensitiveAnalysis performs flow-sensitive type analysis
+// Implemented in typechecker.go
+
+// extractImports extracts imported modules from the AST
+// Implemented in typechecker.go
+
+// SkipFlowChecks is a field for the TypeChecker
+// It controls whether to skip certain flow checks but still perform refinements

@@ -198,8 +198,8 @@ func executeCommand(t *testing.T, cmd *cobra.Command, args ...string) (string, e
 	err := cmd.Execute()
 
 	// Close write ends of the pipes so the goroutine can complete
-	wOut.Close()
-	wErr.Close()
+	_ = wOut.Close()
+	_ = wErr.Close()
 
 	// Read from the output channel
 	output := <-outChan
