@@ -70,14 +70,18 @@ func (s *Server) handleTextDocumentDidOpen(msg *JSONRPCMessage) error {
 
 	s.logger.Printf("Document opened: %s", params.TextDocument.URI)
 
+	now := time.Now()
 	doc := &Document{
-		URI:     params.TextDocument.URI,
-		Text:    params.TextDocument.Text,
-		Version: params.TextDocument.Version,
+		URI:         params.TextDocument.URI,
+		Text:        params.TextDocument.Text,
+		Version:     params.TextDocument.Version,
+		LastChanged: now,
+		LineChanges: make(map[int]struct{}), // Initialize empty map of changed lines
 	}
 
 	// Write the document content to a temporary file for analysis
-	if err := s.writeDocumentToTempFile(doc); err != nil {
+	_, err := s.writeDocumentToTempFile(doc)
+	if err != nil {
 		s.logger.Printf("Failed to write document to temp file: %v", err)
 	}
 
@@ -110,22 +114,82 @@ func (s *Server) handleTextDocumentDidChange(msg *JSONRPCMessage) error {
 
 	// Update document content (full sync)
 	if len(params.ContentChanges) > 0 {
+		// Get the old text to identify changed lines
+		oldText := doc.Text
+		oldLines := strings.Split(oldText, "\n")
+		
+		// Update document content
 		doc.Text = params.ContentChanges[0].Text
 		doc.Version = params.TextDocument.Version
-
+		doc.LastChanged = time.Now()
+		
+		// Identify changed lines
+		newLines := strings.Split(doc.Text, "\n")
+		
+		// Update line changes - first mark all lines that changed
+		if doc.LineChanges == nil {
+			doc.LineChanges = make(map[int]struct{})
+		}
+		
+		// Compare the two texts to identify changed lines
+		// Simple approach: compare lines and mark those that changed
+		minLines := len(oldLines)
+		if len(newLines) < minLines {
+			minLines = len(newLines)
+		}
+		
+		// Check common length
+		for i := 0; i < minLines; i++ {
+			if oldLines[i] != newLines[i] {
+				doc.LineChanges[i] = struct{}{}
+			}
+		}
+		
+		// Any added or removed lines
+		if len(oldLines) != len(newLines) {
+			// Mark lines that were added or removed
+			for i := minLines; i < len(newLines); i++ {
+				doc.LineChanges[i] = struct{}{}
+			}
+		}
+		
 		// Write the updated document content to a temporary file
-		if err := s.writeDocumentToTempFile(doc); err != nil {
+		_, err := s.writeDocumentToTempFile(doc)
+		if err != nil {
 			s.logger.Printf("Failed to write document to temp file: %v", err)
 		}
-
-		// Re-analyze the document
-		if err := s.analyzeDocument(doc); err != nil {
-			s.logger.Printf("Failed to analyze document: %v", err)
+		
+		// Check if we should perform a full analysis based on time since last check
+		now := time.Now()
+		shouldFullCheck := doc.LastChecked.IsZero() || // Never checked before
+			now.Sub(doc.LastChecked) > 3*time.Second || // Not checked for a while
+			len(doc.LineChanges) > 10 // Too many lines changed
+		
+		if shouldFullCheck {
+			// Perform a full re-analysis
+			if err := s.analyzeDocument(doc); err != nil {
+				s.logger.Printf("Failed to analyze document: %v", err)
+			}
+			
+			// Reset changed lines since we did a full check
+			doc.LineChanges = make(map[int]struct{})
+			doc.LastChecked = now
+		} else {
+			// Perform an incremental analysis (only of changed lines)
+			if err := s.analyzeDocumentIncremental(doc); err != nil {
+				s.logger.Printf("Failed to incrementally analyze document: %v", err)
+				
+				// Fall back to full analysis on error
+				if err := s.analyzeDocument(doc); err != nil {
+					s.logger.Printf("Failed to analyze document: %v", err)
+				}
+				doc.LastChecked = now
+			}
 		}
-
+		
 		// Update the stored document
 		s.setDocument(params.TextDocument.URI, doc)
-
+		
 		// Publish updated diagnostics
 		return s.publishDiagnostics(doc.URI, doc.Errors)
 	}
@@ -239,13 +303,15 @@ func (s *Server) generateHoverInfo(doc *Document, pos Position) *Hover {
 	var content string
 	kind := MarkupKindMarkdown
 
-	if isTypeAnnotation(word) {
+	// Determine content based on word type
+	switch {
+	case isTypeAnnotation(word):
 		content = fmt.Sprintf("**Type**: `%s`\n\n%s", word, getTypeDescription(word))
-	} else if isBuiltinFunction(word) {
+	case isBuiltinFunction(word):
 		content = fmt.Sprintf("**Builtin Function**: `%s`\n\n%s", word, getBuiltinDescription(word))
-	} else if isPerlKeyword(word) {
+	case isPerlKeyword(word):
 		content = fmt.Sprintf("**Keyword**: `%s`\n\n%s", word, getKeywordDescription(word))
-	} else {
+	default:
 		// Try to find type information from the document analysis
 		content = fmt.Sprintf("**Symbol**: `%s`", word)
 	}
@@ -519,13 +585,15 @@ func (s *Server) getBuiltinCompletions() []CompletionItem {
 }
 
 // writeDocumentToTempFile writes document content to a temporary file for analysis
-func (s *Server) writeDocumentToTempFile(doc *Document) error {
+// and returns the path to the temporary file
+func (s *Server) writeDocumentToTempFile(doc *Document) (string, error) {
 	// Create a temporary file with Perl extension
 	tempDir := os.TempDir()
 	fileName := fmt.Sprintf("lsp_%d_%s.pl", time.Now().Unix(), filepath.Base(uriToPath(doc.URI)))
 	tempPath := filepath.Join(tempDir, fileName)
 
-	return os.WriteFile(tempPath, []byte(doc.Text), 0644)
+	err := os.WriteFile(tempPath, []byte(doc.Text), 0644)
+	return tempPath, err
 }
 
 // getClientName extracts client name from client info

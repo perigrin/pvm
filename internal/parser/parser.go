@@ -4,7 +4,10 @@
 package parser
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"io"
+	"os"
 
 	"tamarou.com/pvm/internal/parser/treesitter"
 )
@@ -84,16 +87,104 @@ func NewParser() (Parser, error) {
 		return nil, err
 	}
 
-	// Wrap the tree-sitter parser to match our interface
-	return &treeSitterParserWrapper{
+	// Create the base parser
+	baseParser := &treeSitterParserWrapper{
 		parser: tsParser,
+	}
+
+	// Wrap with caching for better performance
+	return &CachedParser{
+		parser: baseParser,
+		cache:  NewParserCache(100), // Cache up to 100 files
 	}, nil
+}
+
+// hashContent generates a hash of the content string for caching purposes
+func hashContent(content string) string {
+	hash := md5.Sum([]byte(content))
+	return hex.EncodeToString(hash[:])
 }
 
 // treeSitterParserWrapper adapts our tree-sitter parser to the Parser interface
 type treeSitterParserWrapper struct {
 	parser *treesitter.Parser
 }
+
+// CachedParser is a Parser implementation that caches ASTs
+type CachedParser struct {
+	parser Parser     // Underlying parser
+	cache  *ParserCache // Cache for parsed ASTs
+}
+
+// ParseFile implements the Parser interface with caching
+func (cp *CachedParser) ParseFile(path string) (*AST, error) {
+	// Read the file content
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, &ParseError{
+			Message: "Failed to read file: " + err.Error(),
+			Line:    0,
+			Column:  0,
+		}
+	}
+	
+	// Check if we have a cached version
+	if cachedAST := cp.cache.Get(path, string(content)); cachedAST != nil {
+		return cachedAST, nil
+	}
+	
+	// Parse with the underlying parser
+	ast, err := cp.parser.ParseFile(path)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Cache the result
+	cp.cache.Put(path, string(content), ast)
+	
+	return ast, nil
+}
+
+// ParseString implements the Parser interface with caching
+func (cp *CachedParser) ParseString(content string) (*AST, error) {
+	// For strings, use a synthetic path based on content hash
+	path := "memory:" + hashContent(content)
+	
+	// Check if we have a cached version
+	if cachedAST := cp.cache.Get(path, content); cachedAST != nil {
+		return cachedAST, nil
+	}
+	
+	// Parse with the underlying parser
+	ast, err := cp.parser.ParseString(content)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Cache the result
+	cp.cache.Put(path, content, ast)
+	
+	return ast, nil
+}
+
+// ParseReader implements the Parser interface with caching
+func (cp *CachedParser) ParseReader(reader io.Reader) (*AST, error) {
+	// For reader input, we can't cache effectively without consuming the reader
+	// So we'll read it into memory first
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, &ParseError{
+			Message: "Failed to read from reader: " + err.Error(),
+			Line:    0,
+			Column:  0,
+		}
+	}
+	
+	// Use the string parser which handles caching
+	return cp.ParseString(string(content))
+}
+
+// We're already using hashContent from above, so no need to redefine it here.
 
 // ParseFile implements the Parser interface
 func (w *treeSitterParserWrapper) ParseFile(path string) (*AST, error) {
