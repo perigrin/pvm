@@ -691,31 +691,9 @@ func (tc *TypeChecker) checkTypeDeclarationAnnotation(annotation *TypeAnnotation
 
 // validateType checks if a type is valid
 func (tc *TypeChecker) validateType(typeName string) error {
-	// Handle union types
-	if strings.Contains(typeName, "|") {
-		parts := strings.Split(typeName, "|")
-		for _, part := range parts {
-			if err := tc.validateType(strings.TrimSpace(part)); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	// Handle intersection types
-	if strings.Contains(typeName, "&") {
-		parts := strings.Split(typeName, "&")
-		for _, part := range parts {
-			if err := tc.validateType(strings.TrimSpace(part)); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	// Handle negation types
-	if strings.HasPrefix(typeName, "!") {
-		return tc.validateType(typeName[1:])
+	// Handle complex type expressions (union, intersection, negation)
+	if tc.isComplexTypeExpression(typeName) {
+		return tc.validateComplexTypeExpression(typeName)
 	}
 
 	// Use the type hierarchy to validate the type
@@ -724,6 +702,16 @@ func (tc *TypeChecker) validateType(typeName string) error {
 
 // CheckTypeCompatibility checks if two types are compatible
 func (tc *TypeChecker) CheckTypeCompatibility(sourceType, targetType string) error {
+	// Handle complex parameterized types (e.g., ArrayRef[Int] vs ArrayRef[Int|Str])
+	if tc.isParameterizedType(sourceType) && tc.isParameterizedType(targetType) {
+		return tc.checkParameterizedTypeCompatibility(sourceType, targetType)
+	}
+
+	// Handle complex types in general
+	if tc.isComplexTypeExpression(targetType) {
+		return tc.CheckComplexTypeCompatibility(sourceType, targetType)
+	}
+
 	return tc.Hierarchy.CheckTypeCompatibility(sourceType, targetType)
 }
 
@@ -768,7 +756,7 @@ func (tc *TypeChecker) CheckStrictParameterTypeCompatibility(argType, paramType 
 
 	// For everything else, types must be compatible through the standard hierarchy
 	// but we reject conversions that would lose information or require implicit conversion
-	
+
 	// Reject numeric -> string conversions (would be coercion)
 	if argType == "Int" && (paramType == "Str") {
 		return fmt.Errorf("cannot pass %s to parameter expecting %s (implicit conversion not allowed)", argType, paramType)
@@ -835,7 +823,7 @@ func (tc *TypeChecker) CheckStrictReturnTypeCompatibility(returnType, expectedRe
 		return fmt.Errorf("cannot return %s as %s (implicit conversion not allowed)", returnType, expectedReturnType)
 	}
 
-	// Reject string -> numeric conversions 
+	// Reject string -> numeric conversions
 	if returnType == "Str" && (expectedReturnType == "Int" || expectedReturnType == "Num") {
 		return fmt.Errorf("cannot return %s as %s (implicit conversion not allowed)", returnType, expectedReturnType)
 	}
@@ -907,10 +895,10 @@ func (tc *TypeChecker) CheckFunctionCall(funcName string, argTypes []string) err
 func (tc *TypeChecker) ValidateParameterTypes(funcName string, signature *FunctionSignature, argTypes []string) error {
 	// For this simplified implementation, we'll assume the parameter types map
 	// is ordered consistently. In a real implementation, we'd use AST parameter order.
-	
+
 	// Check parameter count
 	if len(argTypes) != len(signature.ParameterTypes) {
-		return fmt.Errorf("parameter count mismatch for function %s: expected %d, got %d", 
+		return fmt.Errorf("parameter count mismatch for function %s: expected %d, got %d",
 			funcName, len(signature.ParameterTypes), len(argTypes))
 	}
 
@@ -918,7 +906,7 @@ func (tc *TypeChecker) ValidateParameterTypes(funcName string, signature *Functi
 	// For methods, we need to ensure $self comes first, then others alphabetically
 	var paramNames []string
 	var hasSelfs bool
-	
+
 	// Check if this is a method (has $self parameter)
 	for paramName := range signature.ParameterTypes {
 		if paramName == "$self" {
@@ -926,7 +914,7 @@ func (tc *TypeChecker) ValidateParameterTypes(funcName string, signature *Functi
 			break
 		}
 	}
-	
+
 	if hasSelfs {
 		// For methods, put $self first, then sort the rest
 		paramNames = append(paramNames, "$self")
@@ -955,11 +943,11 @@ func (tc *TypeChecker) ValidateParameterTypes(funcName string, signature *Functi
 
 		paramName := paramNames[i]
 		expectedType := signature.ParameterTypes[paramName]
-		
+
 		// Check strict type compatibility for function parameters
 		err := tc.CheckStrictParameterTypeCompatibility(argType, expectedType)
 		if err != nil {
-			return fmt.Errorf("parameter %d (%s) of function %s: incompatible type %s (expected %s): %w", 
+			return fmt.Errorf("parameter %d (%s) of function %s: incompatible type %s (expected %s): %w",
 				i+1, paramName, funcName, argType, expectedType, err)
 		}
 	}
@@ -978,7 +966,7 @@ func (tc *TypeChecker) CheckReturnType(funcName string, returnType string) error
 	// Check strict return type compatibility
 	err := tc.CheckStrictReturnTypeCompatibility(returnType, signature.ReturnType)
 	if err != nil {
-		return fmt.Errorf("function %s return type: incompatible type %s (expected %s): %w", 
+		return fmt.Errorf("function %s return type: incompatible type %s (expected %s): %w",
 			funcName, returnType, signature.ReturnType, err)
 	}
 
@@ -1006,7 +994,7 @@ func (tc *TypeChecker) CheckSubroutineCall(subName string, argTypes []string) er
 func (tc *TypeChecker) CheckMethodCall(className string, methodName string, argTypes []string) error {
 	// Construct the full method name (Class::method convention)
 	fullMethodName := fmt.Sprintf("%s::%s", className, methodName)
-	
+
 	// Get the method signature
 	signature, ok := tc.GetFunctionSignature(fullMethodName)
 	if !ok {
@@ -1810,6 +1798,451 @@ func (tc *TypeChecker) ExtractContainerInfo(containerType string) (string, []str
 	return baseType, params, nil
 }
 
+// Union, Intersection, and Negation Type Checking Methods (Phase 7)
+
+// CheckUnionTypeCompatibility checks if a source type is compatible with a union type
+func (tc *TypeChecker) CheckUnionTypeCompatibility(sourceType, targetUnionType string) error {
+	// Parse the target union type
+	if !tc.isUnionType(targetUnionType) {
+		// If target is not a union, try different direction
+		if tc.isUnionType(sourceType) {
+			return tc.checkUnionToSingleTypeCompatibility(sourceType, targetUnionType)
+		}
+		// Neither is union, use regular compatibility
+		return tc.CheckTypeCompatibility(sourceType, targetUnionType)
+	}
+
+	// Target is a union type - check if source is also a union
+	if tc.isUnionType(sourceType) {
+		// Both are union types - use union-to-union compatibility
+		return tc.checkUnionToSingleTypeCompatibility(sourceType, targetUnionType)
+	}
+	unionTypes, err := tc.parseUnionType(targetUnionType)
+	if err != nil {
+		return fmt.Errorf("invalid union type '%s': %w", targetUnionType, err)
+	}
+
+	// For containerized union types like ArrayRef[Int|Str], handle specially
+	if strings.HasPrefix(sourceType, "ArrayRef[") && strings.HasPrefix(targetUnionType, "ArrayRef[") {
+		return tc.checkContainerUnionCompatibility(sourceType, targetUnionType)
+	}
+
+	// Check if source type is compatible with any of the union alternatives
+	// Use strict subtype checking to prevent unsafe broadenings
+	for _, unionAlt := range unionTypes {
+		// Exact match or strict subtype compatibility
+		if sourceType == unionAlt || tc.isStrictSubtype(sourceType, unionAlt) {
+			return nil // Compatible - source is a valid subtype
+		}
+	}
+
+	return fmt.Errorf("type '%s' is not compatible with union type '%s'", sourceType, targetUnionType)
+}
+
+// checkUnionToSingleTypeCompatibility checks if a union type can be assigned to a single type
+func (tc *TypeChecker) checkUnionToSingleTypeCompatibility(sourceUnionType, targetType string) error {
+	unionTypes, err := tc.parseUnionType(sourceUnionType)
+	if err != nil {
+		return fmt.Errorf("invalid union type '%s': %w", sourceUnionType, err)
+	}
+
+	// Special case: if target is a broader union type, check subset relationship
+	if tc.isUnionType(targetType) {
+		targetUnionTypes, err := tc.parseUnionType(targetType)
+		if err != nil {
+			return fmt.Errorf("invalid target union type '%s': %w", targetType, err)
+		}
+
+		// Each source union component must be compatible with some target union component
+		for _, sourceAlt := range unionTypes {
+			compatible := false
+			for _, targetAlt := range targetUnionTypes {
+				if tc.CheckTypeCompatibility(sourceAlt, targetAlt) == nil {
+					compatible = true
+					break
+				}
+			}
+			if !compatible {
+				return fmt.Errorf("union alternative '%s' is not compatible with target union '%s'",
+					sourceAlt, targetType)
+			}
+		}
+		return nil
+	}
+
+	// All union alternatives must be compatible with the target type
+	for _, unionAlt := range unionTypes {
+		err := tc.CheckTypeCompatibility(unionAlt, targetType)
+		if err != nil {
+			return fmt.Errorf("union alternative '%s' is not compatible with target type '%s': %w",
+				unionAlt, targetType, err)
+		}
+	}
+
+	return nil
+}
+
+// CheckIntersectionTypeCompatibility checks intersection type compatibility
+func (tc *TypeChecker) CheckIntersectionTypeCompatibility(sourceType, targetType string) error {
+	// Handle intersection in source type
+	if tc.isIntersectionType(sourceType) {
+		return tc.checkIntersectionSourceCompatibility(sourceType, targetType)
+	}
+
+	// Handle intersection in target type
+	if tc.isIntersectionType(targetType) {
+		return tc.checkIntersectionTargetCompatibility(sourceType, targetType)
+	}
+
+	// Neither is intersection, use regular compatibility
+	return tc.CheckTypeCompatibility(sourceType, targetType)
+}
+
+// checkIntersectionSourceCompatibility checks if an intersection type can be assigned to a target
+func (tc *TypeChecker) checkIntersectionSourceCompatibility(sourceIntersectionType, targetType string) error {
+	intersectionTypes, err := tc.parseIntersectionType(sourceIntersectionType)
+	if err != nil {
+		return fmt.Errorf("invalid intersection type '%s': %w", sourceIntersectionType, err)
+	}
+
+	// An intersection type is compatible with a target if the intersection satisfies the target
+	// For now, we'll check if any component of the intersection is compatible (simplified)
+	// In a more sophisticated system, we'd compute the actual intersection result
+	for _, intersectionComponent := range intersectionTypes {
+		err := tc.CheckTypeCompatibility(intersectionComponent, targetType)
+		if err == nil {
+			return nil // At least one component is compatible
+		}
+	}
+
+	return fmt.Errorf("intersection type '%s' is not compatible with '%s'", sourceIntersectionType, targetType)
+}
+
+// checkIntersectionTargetCompatibility checks if a source can be assigned to an intersection target
+func (tc *TypeChecker) checkIntersectionTargetCompatibility(sourceType, targetIntersectionType string) error {
+	intersectionTypes, err := tc.parseIntersectionType(targetIntersectionType)
+	if err != nil {
+		return fmt.Errorf("invalid intersection type '%s': %w", targetIntersectionType, err)
+	}
+
+	// For intersection types, source must be able to represent the intersection
+	// This means source should be compatible with ALL components AND not be a proper subset that loses information
+
+	// First check that source is compatible with all components
+	for _, intersectionComponent := range intersectionTypes {
+		err := tc.CheckTypeCompatibility(sourceType, intersectionComponent)
+		if err != nil {
+			return fmt.Errorf("type '%s' is not compatible with intersection component '%s': %w",
+				sourceType, intersectionComponent, err)
+		}
+	}
+
+	// For intersection types, as long as source satisfies all constraints, it's compatible
+	// it might not be able to represent the full intersection
+	// Removed narrowness check - not needed for proper intersection semantics
+	if false { // tc.isProperSubsetOfIntersection(sourceType, intersectionTypes) {
+		return fmt.Errorf("type '%s' is too narrow to represent intersection type '%s'",
+			sourceType, targetIntersectionType)
+	}
+
+	return nil
+}
+
+// ValidateIntersectionType checks if an intersection type is logically valid
+func (tc *TypeChecker) ValidateIntersectionType(intersectionType string) (bool, error) {
+	intersectionTypes, err := tc.parseIntersectionType(intersectionType)
+	if err != nil {
+		return false, err
+	}
+
+	// Check for impossible intersections (types that can't coexist)
+	for i, type1 := range intersectionTypes {
+		for j, type2 := range intersectionTypes {
+			if i != j && tc.areTypesIncompatible(type1, type2) {
+				return false, nil // Impossible intersection
+			}
+		}
+	}
+
+	return true, nil
+}
+
+// areTypesIncompatible checks if two types are mutually exclusive
+func (tc *TypeChecker) areTypesIncompatible(type1, type2 string) bool {
+	// Same type is always compatible with itself
+	if type1 == type2 {
+		return false
+	}
+
+	// Check for known incompatible type pairs
+	incompatiblePairs := [][]string{
+		{"Int", "Str"},
+		{"Int", "Bool"},
+		{"Str", "Bool"},
+		{"ArrayRef", "HashRef"},
+		{"ArrayRef", "Int"},
+		{"HashRef", "Int"},
+		{"ArrayRef", "Str"},
+		{"HashRef", "Str"},
+	}
+
+	for _, pair := range incompatiblePairs {
+		if (type1 == pair[0] && type2 == pair[1]) || (type1 == pair[1] && type2 == pair[0]) {
+			return true
+		}
+	}
+
+	// Check if neither is a subtype of the other (simplified check)
+	compatible1 := tc.Hierarchy.IsSubtypeOf(type1, type2)
+	compatible2 := tc.Hierarchy.IsSubtypeOf(type2, type1)
+
+	// If neither is a subtype of the other, they might be incompatible
+	// This is a simplified heuristic - in a full system we'd have more sophisticated rules
+	return !compatible1 && !compatible2 && !tc.haveCommonSupertype(type1, type2)
+}
+
+// haveCommonSupertype checks if two types have a common supertype (other than Any)
+func (tc *TypeChecker) haveCommonSupertype(type1, type2 string) bool {
+	// Both are subtypes of Scalar, so they have a common supertype
+	if tc.Hierarchy.IsSubtypeOf(type1, "Scalar") && tc.Hierarchy.IsSubtypeOf(type2, "Scalar") {
+		return true
+	}
+
+	// Both are reference types
+	if tc.isReferenceType(type1) && tc.isReferenceType(type2) {
+		return true
+	}
+
+	return false
+}
+
+// isReferenceType checks if a type is a reference type
+func (tc *TypeChecker) isReferenceType(typeName string) bool {
+	return tc.Hierarchy.IsSubtypeOf(typeName, "Ref") ||
+		strings.HasPrefix(typeName, "ArrayRef") ||
+		strings.HasPrefix(typeName, "HashRef")
+}
+
+// CheckNegationTypeCompatibility checks negation type compatibility
+func (tc *TypeChecker) CheckNegationTypeCompatibility(sourceType, targetNegationType string) error {
+	if !tc.isNegationType(targetNegationType) {
+		return fmt.Errorf("target type '%s' is not a negation type", targetNegationType)
+	}
+
+	negatedType, err := tc.parseNegationType(targetNegationType)
+	if err != nil {
+		return fmt.Errorf("invalid negation type '%s': %w", targetNegationType, err)
+	}
+
+	// Handle double negation: !!T is equivalent to T
+	if tc.isNegationType(negatedType) {
+		doubleNegatedType, err := tc.parseNegationType(negatedType)
+		if err != nil {
+			return err
+		}
+		return tc.CheckTypeCompatibility(sourceType, doubleNegatedType)
+	}
+
+	// Check if source type is excluded by the negation
+	// Source is compatible with !T if source is NOT compatible with T
+	err = tc.CheckTypeCompatibility(sourceType, negatedType)
+	if err == nil {
+		// Source IS compatible with negated type, so it's NOT compatible with the negation
+		return fmt.Errorf("type '%s' is excluded by negation type '%s'", sourceType, targetNegationType)
+	}
+
+	// Also check that supertypes of the source don't include the negated type
+	// This prevents Num from being compatible with !Int (since Num includes Int)
+	if tc.wouldIncludeNegatedType(sourceType, negatedType) && !tc.areTypesDisjoint(sourceType, negatedType) {
+		return fmt.Errorf("type '%s' could include excluded type '%s'", sourceType, negatedType)
+	}
+
+	return nil // Source is compatible with the negation
+}
+
+// wouldIncludeNegatedType checks if a source type could include instances of the negated type
+func (tc *TypeChecker) wouldIncludeNegatedType(sourceType, negatedType string) bool {
+	// If negated type is a subtype of source type, then source includes negated type
+	return tc.Hierarchy.IsSubtypeOf(negatedType, sourceType)
+}
+
+// Complex type expression handling
+
+// CheckComplexTypeCompatibility handles complex type expressions with unions, intersections, and negations
+func (tc *TypeChecker) CheckComplexTypeCompatibility(sourceType, targetType string) error {
+	// Parse and normalize the complex type expression
+	normalizedTarget, err := tc.NormalizeTypeExpression(targetType)
+	if err != nil {
+		return fmt.Errorf("invalid target type expression '%s': %w", targetType, err)
+	}
+
+	// Check compatibility based on the type of expression
+	if tc.isUnionType(normalizedTarget) {
+		return tc.CheckUnionTypeCompatibility(sourceType, normalizedTarget)
+	}
+
+	if tc.isIntersectionType(normalizedTarget) {
+		return tc.CheckIntersectionTypeCompatibility(sourceType, normalizedTarget)
+	}
+
+	if tc.isNegationType(normalizedTarget) {
+		return tc.CheckNegationTypeCompatibility(sourceType, normalizedTarget)
+	}
+
+	// Regular type compatibility
+	return tc.CheckTypeCompatibility(sourceType, normalizedTarget)
+}
+
+// ParseAndValidateTypeExpression parses and validates a complex type expression
+func (tc *TypeChecker) ParseAndValidateTypeExpression(typeExpr string) (bool, error) {
+	// First normalize the expression
+	normalized, err := tc.NormalizeTypeExpression(typeExpr)
+	if err != nil {
+		return false, err
+	}
+
+	// Validate the normalized expression
+	err = tc.validateComplexTypeExpression(normalized)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// NormalizeTypeExpression normalizes a complex type expression, handling precedence and associativity
+func (tc *TypeChecker) NormalizeTypeExpression(typeExpr string) (string, error) {
+	// For now, return the expression as-is (simplified implementation)
+	// In a full implementation, this would parse the expression tree and normalize precedence
+
+	// Basic validation - check for incomplete expressions
+	if strings.HasSuffix(typeExpr, "|") || strings.HasSuffix(typeExpr, "&") {
+		return "", fmt.Errorf("incomplete type expression: %s", typeExpr)
+	}
+
+	if strings.HasPrefix(typeExpr, "|") || strings.HasPrefix(typeExpr, "&") {
+		return "", fmt.Errorf("incomplete type expression: %s", typeExpr)
+	}
+
+	return typeExpr, nil
+}
+
+// validateComplexTypeExpression validates a complex type expression
+func (tc *TypeChecker) validateComplexTypeExpression(typeExpr string) error {
+	// Strip outer parentheses first
+	typeExpr = tc.stripOuterParentheses(typeExpr)
+
+	// Parse the expression and validate each component
+	if tc.isUnionType(typeExpr) {
+		unionTypes, err := tc.parseUnionType(typeExpr)
+		if err != nil {
+			return err
+		}
+		for _, unionType := range unionTypes {
+			if err := tc.validateType(unionType); err != nil {
+				return fmt.Errorf("invalid union component '%s': %w", unionType, err)
+			}
+		}
+		return nil
+	}
+
+	if tc.isIntersectionType(typeExpr) {
+		intersectionTypes, err := tc.parseIntersectionType(typeExpr)
+		if err != nil {
+			return err
+		}
+		for _, intersectionType := range intersectionTypes {
+			if err := tc.validateType(intersectionType); err != nil {
+				return fmt.Errorf("invalid intersection component '%s': %w", intersectionType, err)
+			}
+		}
+		return nil
+	}
+
+	if tc.isNegationType(typeExpr) {
+		negatedType, err := tc.parseNegationType(typeExpr)
+		if err != nil {
+			return err
+		}
+		return tc.validateType(negatedType)
+	}
+
+	// Regular type validation
+	return tc.validateType(typeExpr)
+}
+
+// Type parsing helper methods
+
+// isUnionType checks if a type expression is primarily a union type
+// Union has lower precedence, so A|B&C is treated as A|(B&C), making it a union
+func (tc *TypeChecker) isUnionType(typeExpr string) bool {
+	if strings.HasPrefix(typeExpr, "!") {
+		return false // Negation has higher precedence
+	}
+	// Check if there are top-level union operators (not inside parentheses)
+	// Strip outer parentheses first, then check for top-level operators
+	stripped := tc.stripOuterParentheses(typeExpr)
+	return tc.hasTopLevelOperator(stripped, '|')
+}
+
+// isIntersectionType checks if a type expression is primarily an intersection type
+// Only if it has intersection operators but no top-level union operators
+func (tc *TypeChecker) isIntersectionType(typeExpr string) bool {
+	if strings.HasPrefix(typeExpr, "!") {
+		return false // Negation has higher precedence
+	}
+	// Strip outer parentheses first
+	stripped := tc.stripOuterParentheses(typeExpr)
+	if tc.hasTopLevelOperator(stripped, '|') {
+		return false // Union has lower precedence, takes priority
+	}
+	return tc.hasTopLevelOperator(stripped, '&')
+}
+
+// isNegationType checks if a type expression is a negation type
+func (tc *TypeChecker) isNegationType(typeExpr string) bool {
+	return strings.HasPrefix(typeExpr, "!")
+}
+
+// parseUnionType parses a union type expression into its components
+func (tc *TypeChecker) parseUnionType(unionType string) ([]string, error) {
+	if !tc.isUnionType(unionType) {
+		return nil, fmt.Errorf("not a union type: %s", unionType)
+	}
+
+	// Parse respecting parentheses and brackets
+	// Strip outer parentheses first, then parse
+	stripped := tc.stripOuterParentheses(unionType)
+	return tc.splitTypeExpression(stripped, '|')
+}
+
+// parseIntersectionType parses an intersection type expression into its components
+func (tc *TypeChecker) parseIntersectionType(intersectionType string) ([]string, error) {
+	if !tc.isIntersectionType(intersectionType) {
+		return nil, fmt.Errorf("not an intersection type: %s", intersectionType)
+	}
+
+	// Parse respecting parentheses and brackets
+	// Strip outer parentheses first, then parse
+	stripped := tc.stripOuterParentheses(intersectionType)
+	return tc.splitTypeExpression(stripped, '&')
+}
+
+// parseNegationType parses a negation type expression to get the negated type
+func (tc *TypeChecker) parseNegationType(negationType string) (string, error) {
+	if !tc.isNegationType(negationType) {
+		return "", fmt.Errorf("not a negation type: %s", negationType)
+	}
+
+	// Remove the leading !
+	negatedType := strings.TrimSpace(negationType[1:])
+	if negatedType == "" {
+		return "", fmt.Errorf("empty negation type: %s", negationType)
+	}
+
+	return negatedType, nil
+}
+
 // checkASTFunctionReturns checks return types in an AST
 // This function is referenced by CheckAST but commented out in the current implementation
 // nolint:unused
@@ -1835,4 +2268,418 @@ func (tc *TypeChecker) checkASTFunctionReturns(ast *AST) []error {
 // FormatTypeError formats a type error message with location information
 func FormatTypeError(err error, pos Position, path string) string {
 	return fmt.Sprintf("%s:%d:%d: %s", path, pos.Line, pos.Column, err.Error())
+}
+
+// checkContainerUnionCompatibility handles union types within container types
+func (tc *TypeChecker) checkContainerUnionCompatibility(sourceType, targetType string) error {
+	// Extract container types and their parameters
+	sourceContainer, sourceParams := ExtractTypeAndParams(sourceType)
+	targetContainer, targetParams := ExtractTypeAndParams(targetType)
+
+	// Containers must be the same type
+	if sourceContainer != targetContainer {
+		return fmt.Errorf("container types '%s' and '%s' are incompatible", sourceContainer, targetContainer)
+	}
+
+	// For ArrayRef[T] -> ArrayRef[U|V], check if T is compatible with U|V
+	if len(sourceParams) > 0 && len(targetParams) > 0 {
+		return tc.CheckUnionTypeCompatibility(sourceParams[0], targetParams[0])
+	}
+
+	return fmt.Errorf("invalid container union compatibility check")
+}
+
+// areTypesDisjoint checks if two types have no overlap
+func (tc *TypeChecker) areTypesDisjoint(type1, type2 string) bool {
+	// Int and Str are disjoint
+	if (type1 == "Int" && type2 == "Str") || (type1 == "Str" && type2 == "Int") {
+		return true
+	}
+	// Int and Bool are disjoint
+	if (type1 == "Int" && type2 == "Bool") || (type1 == "Bool" && type2 == "Int") {
+		return true
+	}
+	// Str and Bool are disjoint
+	if (type1 == "Str" && type2 == "Bool") || (type1 == "Bool" && type2 == "Str") {
+		return true
+	}
+	// ArrayRef and HashRef are disjoint
+	if (strings.HasPrefix(type1, "ArrayRef") && strings.HasPrefix(type2, "HashRef")) ||
+		(strings.HasPrefix(type1, "HashRef") && strings.HasPrefix(type2, "ArrayRef")) {
+		return true
+	}
+	return false
+}
+
+// isStrictSubtype checks for strict structural subtyping, excluding conversion-based relationships
+func (tc *TypeChecker) isStrictSubtype(childType, parentType string) bool {
+	// Exclude conversion-based relationships that are too permissive for union types
+	conversionRelationships := map[string][]string{
+		"Num":  {"Str"}, // Numbers can be stringified, but shouldn't be in unions
+		"Int":  {"Str"}, // Integers can be stringified, but shouldn't be in unions
+		"Bool": {"Str"}, // Booleans can be stringified, but shouldn't be in unions
+	}
+
+	// Check if this would be a conversion-based relationship
+	if conversions, ok := conversionRelationships[childType]; ok {
+		for _, target := range conversions {
+			if parentType == target {
+				return false // This is a conversion, not a strict subtype
+			}
+		}
+	}
+
+	// For other relationships, use standard subtyping but exclude problematic conversions
+	switch {
+	case childType == "Int" && parentType == "Num":
+		return true // Int is truly a subtype of Num
+	case childType == "Float" && parentType == "Num":
+		return true // Float is truly a subtype of Num
+	case childType == "Num" && parentType == "Scalar":
+		return true // Num is truly a subtype of Scalar
+	case childType == "Str" && parentType == "Scalar":
+		return true // Str is truly a subtype of Scalar
+	case childType == "Int" && parentType == "Scalar":
+		return true // Int is truly a subtype of Scalar (via Num)
+	case childType == "Bool" && parentType == "Scalar":
+		return true // Bool is truly a subtype of Scalar
+	case parentType == "Any":
+		return true // Everything is a subtype of Any
+	default:
+		// For other cases, use regular subtyping but be conservative
+		return tc.Hierarchy.IsSubtypeOf(childType, parentType) && !tc.isConversionBasedRelationship(childType, parentType)
+	}
+}
+
+// isConversionBasedRelationship checks if a subtype relationship is based on implicit conversion
+func (tc *TypeChecker) isConversionBasedRelationship(childType, parentType string) bool {
+	// Known conversion-based relationships that should be excluded from strict unions
+	conversionPairs := [][]string{
+		{"Num", "Str"},
+		{"Int", "Str"},
+		{"Bool", "Str"},
+		{"Float", "Str"},
+	}
+
+	for _, pair := range conversionPairs {
+		if childType == pair[0] && parentType == pair[1] {
+			return true
+		}
+	}
+	return false
+}
+
+// isProperSubsetOfIntersection checks if source type is a proper subset that can't represent the full intersection
+func (tc *TypeChecker) isProperSubsetOfIntersection(sourceType string, intersectionTypes []string) bool {
+	// For Int&Num, we want to reject Int as being too narrow
+	// The logic is: if source is a strict subtype of any intersection component,
+	// and there are multiple components, then source might not capture the full intersection
+
+	if len(intersectionTypes) < 2 {
+		return false // Single component intersection is not really an intersection
+	}
+
+	// Check if source is a proper subtype of any component
+	for _, component := range intersectionTypes {
+		if sourceType != component && tc.Hierarchy.IsSubtypeOf(sourceType, component) {
+			// Source is a proper subtype of this component
+			// This means source is narrower than the component, so it can't represent the full intersection
+			return true
+		}
+	}
+
+	return false
+}
+
+// splitTypeExpression splits a type expression on the given delimiter, respecting parentheses and brackets
+func (tc *TypeChecker) splitTypeExpression(expr string, delimiter rune) ([]string, error) {
+	var parts []string
+	var current strings.Builder
+	parenDepth := 0
+	bracketDepth := 0
+
+	for i, r := range expr {
+		switch r {
+		case '(':
+			parenDepth++
+			current.WriteRune(r)
+		case ')':
+			parenDepth--
+			if parenDepth < 0 {
+				return nil, fmt.Errorf("unmatched closing parenthesis at position %d in %s", i, expr)
+			}
+			current.WriteRune(r)
+		case '[':
+			bracketDepth++
+			current.WriteRune(r)
+		case ']':
+			bracketDepth--
+			if bracketDepth < 0 {
+				return nil, fmt.Errorf("unmatched closing bracket at position %d in %s", i, expr)
+			}
+			current.WriteRune(r)
+		case delimiter:
+			if parenDepth == 0 && bracketDepth == 0 {
+				// Split here - we're at the top level
+				parts = append(parts, strings.TrimSpace(current.String()))
+				current.Reset()
+			} else {
+				// Inside parentheses or brackets, keep the delimiter
+				current.WriteRune(r)
+			}
+		default:
+			current.WriteRune(r)
+		}
+	}
+
+	// Check for unmatched delimiters
+	if parenDepth != 0 {
+		return nil, fmt.Errorf("unmatched parentheses in expression: %s", expr)
+	}
+	if bracketDepth != 0 {
+		return nil, fmt.Errorf("unmatched brackets in expression: %s", expr)
+	}
+
+	// Add the final part
+	parts = append(parts, strings.TrimSpace(current.String()))
+
+	return parts, nil
+}
+
+// stripOuterParentheses removes outer parentheses if they wrap the entire expression
+func (tc *TypeChecker) stripOuterParentheses(expr string) string {
+	trimmed := strings.TrimSpace(expr)
+	if len(trimmed) >= 2 && trimmed[0] == '(' && trimmed[len(trimmed)-1] == ')' {
+		// Check if these parentheses actually wrap the entire expression
+		parenDepth := 0
+		for i, r := range trimmed {
+			if r == '(' {
+				parenDepth++
+			} else if r == ')' {
+				parenDepth--
+				if parenDepth == 0 && i < len(trimmed)-1 {
+					// Parentheses closed before the end, so they don't wrap the entire expression
+					return trimmed
+				}
+			}
+		}
+		// If we got here, the outer parentheses do wrap the entire expression
+		return strings.TrimSpace(trimmed[1 : len(trimmed)-1])
+	}
+	return trimmed
+}
+
+// isComplexTypeExpression checks if a type expression contains union, intersection, or negation operators
+func (tc *TypeChecker) isComplexTypeExpression(typeName string) bool {
+	return tc.isUnionType(typeName) || tc.isIntersectionType(typeName) || tc.isNegationType(typeName)
+}
+
+// hasTopLevelOperator checks if a type expression has the specified operator at the top level (not inside parentheses)
+func (tc *TypeChecker) hasTopLevelOperator(expr string, operator rune) bool {
+	parenDepth := 0
+	bracketDepth := 0
+
+	for _, r := range expr {
+		switch r {
+		case '(':
+			parenDepth++
+		case ')':
+			parenDepth--
+		case '[':
+			bracketDepth++
+		case ']':
+			bracketDepth--
+		default:
+			if r == operator && parenDepth == 0 && bracketDepth == 0 {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// isParameterizedType checks if a type is parameterized (has brackets)
+func (tc *TypeChecker) isParameterizedType(typeName string) bool {
+	return strings.Contains(typeName, "[") && strings.Contains(typeName, "]")
+}
+
+// checkParameterizedTypeCompatibility handles compatibility between parameterized types
+// Phase 9: Context-Sensitive Types Implementation
+
+// InferContextSensitiveReturnType infers the return type of a function based on its calling context
+func (tc *TypeChecker) InferContextSensitiveReturnType(funcName, argType, context string) (string, error) {
+	// Validate context
+	if context != "list" && context != "scalar" {
+		return "", fmt.Errorf("unknown context type: %s", context)
+	}
+
+	// Handle built-in context-sensitive functions
+	switch funcName {
+	case "keys":
+		if context == "list" {
+			// Extract key type from HashRef
+			if strings.HasPrefix(argType, "HashRef[") {
+				keyType, _, err := tc.InferHashTypes(argType)
+				if err != nil {
+					return "", fmt.Errorf("invalid hash type for keys: %v", err)
+				}
+				return fmt.Sprintf("List[%s]", keyType), nil
+			}
+			return "List[Str]", nil // Default for untyped hashes
+		} else { // scalar context
+			return "Int", nil // Number of keys
+		}
+
+	case "values":
+		if context == "list" {
+			// Extract value type from HashRef
+			if strings.HasPrefix(argType, "HashRef[") {
+				_, valueType, err := tc.InferHashTypes(argType)
+				if err != nil {
+					return "", fmt.Errorf("invalid hash type for values: %v", err)
+				}
+				return fmt.Sprintf("List[%s]", valueType), nil
+			}
+			return "List[Any]", nil // Default for untyped hashes
+		} else { // scalar context
+			return "Int", nil // Number of values
+		}
+
+	default:
+		// Check for user-defined context-sensitive functions
+		if contextTypes, exists := tc.ContextSensitiveFunctions[funcName]; exists {
+			if returnType, hasContext := contextTypes[context]; hasContext {
+				return returnType, nil
+			}
+			return "", fmt.Errorf("function %s does not support %s context", funcName, context)
+		}
+
+		// Check regular function signatures with union return types
+		if sig, exists := tc.FunctionTypes[funcName]; exists {
+			if tc.isUnionType(sig.ReturnType) {
+				return tc.ResolveUnionTypeForContext(sig.ReturnType, context)
+			}
+			return sig.ReturnType, nil
+		}
+
+		return "", fmt.Errorf("unknown function: %s", funcName)
+	}
+}
+
+// RegisterContextSensitiveFunction registers a function with context-dependent return types
+func (tc *TypeChecker) RegisterContextSensitiveFunction(funcName string, contextTypes map[string]string) error {
+	if tc.ContextSensitiveFunctions == nil {
+		tc.ContextSensitiveFunctions = make(map[string]map[string]string)
+	}
+
+	// Validate context types
+	for context, returnType := range contextTypes {
+		if context != "list" && context != "scalar" {
+			return fmt.Errorf("invalid context type: %s", context)
+		}
+		if err := tc.validateType(returnType); err != nil {
+			return fmt.Errorf("invalid return type %s for context %s: %v", returnType, context, err)
+		}
+	}
+
+	tc.ContextSensitiveFunctions[funcName] = contextTypes
+	return nil
+}
+
+// ResolveUnionTypeForContext resolves a union type to the most appropriate alternative for the given context
+func (tc *TypeChecker) ResolveUnionTypeForContext(unionType, context string) (string, error) {
+	if !tc.isUnionType(unionType) {
+		return unionType, nil // Not a union type, return as-is
+	}
+
+	// Parse union type
+	alternatives, err := tc.parseUnionType(unionType)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse union type %s: %v", unionType, err)
+	}
+
+	// Find the best alternative for this context
+	for _, alt := range alternatives {
+		if tc.isTypeCompatibleWithContext(alt, context) {
+			return alt, nil
+		}
+	}
+
+	return "", fmt.Errorf("no suitable type in union %s for %s context", unionType, context)
+}
+
+// InferContextFromAssignment infers the context based on the assignment target
+func (tc *TypeChecker) InferContextFromAssignment(target string) string {
+	if strings.HasPrefix(target, "@") || strings.HasPrefix(target, "%") {
+		return "list" // Array or hash assignment implies list context
+	}
+	return "scalar" // Scalar assignment implies scalar context
+}
+
+// isTypeCompatibleWithContext checks if a type is compatible with the given context
+func (tc *TypeChecker) isTypeCompatibleWithContext(typeName, context string) bool {
+	switch context {
+	case "list":
+		// List types, arrays, and hashes are compatible with list context
+		return strings.HasPrefix(typeName, "List[") ||
+			strings.HasPrefix(typeName, "Array") ||
+			strings.HasPrefix(typeName, "Hash")
+
+	case "scalar":
+		// Most types are compatible with scalar context, except pure list types
+		return !strings.HasPrefix(typeName, "List[") ||
+			typeName == "List" // bare List type can be scalar
+
+	default:
+		return false
+	}
+}
+
+func (tc *TypeChecker) checkParameterizedTypeCompatibility(sourceType, targetType string) error {
+	// Extract base types and parameters
+	sourceBase, sourceParams := ExtractTypeAndParams(sourceType)
+	targetBase, targetParams := ExtractTypeAndParams(targetType)
+
+	// Base types must be compatible
+	if err := tc.Hierarchy.CheckTypeCompatibility(sourceBase, targetBase); err != nil {
+		return err
+	}
+
+	// If target has no parameters, source is compatible
+	if len(targetParams) == 0 {
+		return nil
+	}
+
+	// Parameter count must match
+	if len(sourceParams) != len(targetParams) {
+		return fmt.Errorf("parameter count mismatch: %s has %d params, %s has %d params",
+			sourceType, len(sourceParams), targetType, len(targetParams))
+	}
+
+	// Check each parameter - this is where we handle complex parameter types
+	for i, sourceParam := range sourceParams {
+		targetParam := targetParams[i]
+
+		// Use complex type compatibility checking for parameters
+		if tc.isComplexTypeExpression(targetParam) {
+			if err := tc.CheckComplexTypeCompatibility(sourceParam, targetParam); err != nil {
+				return fmt.Errorf("parameter %d incompatible: %s vs %s: %w",
+					i, sourceParam, targetParam, err)
+			}
+		} else if tc.isComplexTypeExpression(sourceParam) {
+			if err := tc.CheckComplexTypeCompatibility(sourceParam, targetParam); err != nil {
+				return fmt.Errorf("parameter %d incompatible: %s vs %s: %w",
+					i, sourceParam, targetParam, err)
+			}
+		} else {
+			// Both are simple types, use hierarchy
+			if err := tc.Hierarchy.CheckTypeCompatibility(sourceParam, targetParam); err != nil {
+				return fmt.Errorf("parameter %d incompatible: %s vs %s: %w",
+					i, sourceParam, targetParam, err)
+			}
+		}
+	}
+
+	return nil
 }

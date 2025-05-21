@@ -1195,7 +1195,7 @@ func TestFunctionReturnTypeValidation(t *testing.T) {
 		assert.Error(t, err, "Invalid return type should error")
 		assert.Contains(t, err.Error(), "return type", "Error should mention return type")
 
-		// Function that returns Str, but returns Int  
+		// Function that returns Str, but returns Int
 		err = checker.CheckReturnType("greet", "Int")
 		assert.Error(t, err, "Invalid return type should error")
 		assert.Contains(t, err.Error(), "return type", "Error should mention return type")
@@ -1419,7 +1419,7 @@ func TestContainerCovariance(t *testing.T) {
 		err := checker.CheckContainerTypeCompatibility("ArrayRef[Int]", "ArrayRef[Num]")
 		assert.NoError(t, err, "ArrayRef[Int] should be compatible with ArrayRef[Num] (covariance)")
 
-		// ArrayRef[Int] should be assignable to ArrayRef[Scalar] 
+		// ArrayRef[Int] should be assignable to ArrayRef[Scalar]
 		err = checker.CheckContainerTypeCompatibility("ArrayRef[Int]", "ArrayRef[Scalar]")
 		assert.NoError(t, err, "ArrayRef[Int] should be compatible with ArrayRef[Scalar] (covariance)")
 
@@ -1438,7 +1438,7 @@ func TestContainerCovariance(t *testing.T) {
 		err := checker.CheckContainerTypeCompatibility("HashRef[Str,Int]", "HashRef[Str,Num]")
 		assert.NoError(t, err, "HashRef[Str,Int] should be compatible with HashRef[Str,Num] (value covariance)")
 
-		// HashRef[Str,Int] should be assignable to HashRef[Str,Scalar] 
+		// HashRef[Str,Int] should be assignable to HashRef[Str,Scalar]
 		err = checker.CheckContainerTypeCompatibility("HashRef[Str,Int]", "HashRef[Str,Scalar]")
 		assert.NoError(t, err, "HashRef[Str,Int] should be compatible with HashRef[Str,Scalar] (value covariance)")
 
@@ -1500,7 +1500,7 @@ func TestContainerElementOperations(t *testing.T) {
 		assert.Error(t, err, "Non-array type should error for element inference")
 	})
 
-	// Test hash operations  
+	// Test hash operations
 	t.Run("HashOperations", func(t *testing.T) {
 		// Hash key/value operations
 		keyType, valueType, err := checker.InferHashTypes("HashRef[Str,Int]")
@@ -1536,6 +1536,380 @@ func TestContainerElementOperations(t *testing.T) {
 		// Non-container type
 		_, _, err = checker.ExtractContainerInfo("Int")
 		assert.Error(t, err, "Non-container type should error for extraction")
+	})
+}
+
+// TestUnionTypes tests union type compatibility (Phase 7)
+func TestUnionTypes(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Test union type compatibility
+	t.Run("UnionTypeCompatibility", func(t *testing.T) {
+		// Int should be compatible with Int|Str
+		err := checker.CheckUnionTypeCompatibility("Int", "Int|Str")
+		assert.NoError(t, err, "Int should be compatible with Int|Str")
+
+		// Str should be compatible with Int|Str
+		err = checker.CheckUnionTypeCompatibility("Str", "Int|Str")
+		assert.NoError(t, err, "Str should be compatible with Int|Str")
+
+		// Num should be compatible with Int|Str (since Int ⊆ Num, and Int is in union)
+		err = checker.CheckUnionTypeCompatibility("Num", "Int|Str")
+		assert.Error(t, err, "Num should not be compatible with Int|Str (contravariance)")
+
+		// Bool should not be compatible with Int|Str
+		err = checker.CheckUnionTypeCompatibility("Bool", "Int|Str")
+		assert.Error(t, err, "Bool should not be compatible with Int|Str")
+	})
+
+	// Test union assignment compatibility
+	t.Run("UnionAssignmentCompatibility", func(t *testing.T) {
+		// Int|Str should be compatible with Scalar (since both Int and Str are subtypes of Scalar)
+		err := checker.CheckUnionTypeCompatibility("Int|Str", "Scalar")
+		assert.NoError(t, err, "Int|Str should be compatible with Scalar")
+
+		// Int|Str should be compatible with Any
+		err = checker.CheckUnionTypeCompatibility("Int|Str", "Any")
+		assert.NoError(t, err, "Int|Str should be compatible with Any")
+
+		// Int|Str should not be compatible with Int (union is wider than component)
+		err = checker.CheckUnionTypeCompatibility("Int|Str", "Int")
+		assert.Error(t, err, "Int|Str should not be compatible with Int (union is wider)")
+	})
+
+	// Test nested union types
+	t.Run("NestedUnionTypes", func(t *testing.T) {
+		// ArrayRef[Int] should be compatible with ArrayRef[Int|Str] (covariance)
+		err := checker.CheckUnionTypeCompatibility("ArrayRef[Int]", "ArrayRef[Int|Str]")
+		assert.NoError(t, err, "ArrayRef[Int] should be compatible with ArrayRef[Int|Str]")
+
+		// ArrayRef[Int|Str] should not be compatible with ArrayRef[Int] (contravariance not allowed)
+		err = checker.CheckUnionTypeCompatibility("ArrayRef[Int|Str]", "ArrayRef[Int]")
+		assert.Error(t, err, "ArrayRef[Int|Str] should not be compatible with ArrayRef[Int]")
+
+		// Complex union: Int|Str should be compatible with Int|Str|Bool
+		err = checker.CheckUnionTypeCompatibility("Int|Str", "Int|Str|Bool")
+		assert.NoError(t, err, "Int|Str should be compatible with Int|Str|Bool")
+	})
+}
+
+// TestIntersectionTypes tests intersection type compatibility (Phase 7)
+func TestIntersectionTypes(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Test intersection type compatibility
+	t.Run("IntersectionTypeCompatibility", func(t *testing.T) {
+		// Int&Num should be compatible with Int (intersection is narrower)
+		err := checker.CheckIntersectionTypeCompatibility("Int&Num", "Int")
+		assert.NoError(t, err, "Int&Num should be compatible with Int")
+
+		// Int&Num should be compatible with Num
+		err = checker.CheckIntersectionTypeCompatibility("Int&Num", "Num")
+		assert.NoError(t, err, "Int&Num should be compatible with Num")
+
+		// Int should not be compatible with Int&Num (Int doesn't necessarily satisfy both constraints)
+		err = checker.CheckIntersectionTypeCompatibility("Int", "Int&Num")
+		assert.Error(t, err, "Int should not be compatible with Int&Num")
+
+		// Scalar&Str should be compatible with Str (intersection resolves to the narrower type)
+		err = checker.CheckIntersectionTypeCompatibility("Scalar&Str", "Str")
+		assert.NoError(t, err, "Scalar&Str should be compatible with Str")
+	})
+
+	// Test impossible intersections
+	t.Run("ImpossibleIntersections", func(t *testing.T) {
+		// Int&Str should be impossible (no value can be both Int and Str)
+		isValid, err := checker.ValidateIntersectionType("Int&Str")
+		assert.NoError(t, err, "Should not error on syntax")
+		assert.False(t, isValid, "Int&Str should be invalid (impossible intersection)")
+
+		// ArrayRef&HashRef should be impossible
+		isValid, err = checker.ValidateIntersectionType("ArrayRef&HashRef")
+		assert.NoError(t, err, "Should not error on syntax")
+		assert.False(t, isValid, "ArrayRef&HashRef should be invalid")
+
+		// Int&Num should be valid (Int is subtype of Num)
+		isValid, err = checker.ValidateIntersectionType("Int&Num")
+		assert.NoError(t, err, "Should not error")
+		assert.True(t, isValid, "Int&Num should be valid")
+	})
+
+	// Test intersection with interfaces/traits (conceptual)
+	t.Run("IntersectionWithInterfaces", func(t *testing.T) {
+		// Define some conceptual interfaces
+		// Serializable & Printable would be valid if both interfaces existed
+		err := checker.CheckIntersectionTypeCompatibility("Serializable&Printable", "Serializable")
+		assert.NoError(t, err, "Intersection should be compatible with component")
+
+		err = checker.CheckIntersectionTypeCompatibility("Serializable&Printable", "Printable")
+		assert.NoError(t, err, "Intersection should be compatible with component")
+	})
+}
+
+// TestNegationTypes tests type negation compatibility (Phase 7)
+func TestNegationTypes(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Test negation type compatibility
+	t.Run("NegationTypeCompatibility", func(t *testing.T) {
+		// Str should be compatible with !Int (Str is not Int)
+		err := checker.CheckNegationTypeCompatibility("Str", "!Int")
+		assert.NoError(t, err, "Str should be compatible with !Int")
+
+		// ArrayRef should be compatible with !Int
+		err = checker.CheckNegationTypeCompatibility("ArrayRef[Int]", "!Int")
+		assert.NoError(t, err, "ArrayRef should be compatible with !Int")
+
+		// Int should not be compatible with !Int
+		err = checker.CheckNegationTypeCompatibility("Int", "!Int")
+		assert.Error(t, err, "Int should not be compatible with !Int")
+
+		// Num should not be compatible with !Int (since Int is subtype of Num, this should be rejected for safety)
+		err = checker.CheckNegationTypeCompatibility("Num", "!Int")
+		assert.Error(t, err, "Num should not be compatible with !Int (could contain Int)")
+	})
+
+	// Test negation of container types
+	t.Run("ContainerNegation", func(t *testing.T) {
+		// Int should be compatible with !Ref (Int is not a reference)
+		err := checker.CheckNegationTypeCompatibility("Int", "!Ref")
+		assert.NoError(t, err, "Int should be compatible with !Ref")
+
+		// ArrayRef should not be compatible with !Ref (ArrayRef is a Ref)
+		err = checker.CheckNegationTypeCompatibility("ArrayRef[Int]", "!Ref")
+		assert.Error(t, err, "ArrayRef should not be compatible with !Ref")
+
+		// HashRef should not be compatible with !Ref
+		err = checker.CheckNegationTypeCompatibility("HashRef[Str,Int]", "!Ref")
+		assert.Error(t, err, "HashRef should not be compatible with !Ref")
+	})
+
+	// Test double negation
+	t.Run("DoubleNegation", func(t *testing.T) {
+		// !!Int should be equivalent to Int
+		err := checker.CheckNegationTypeCompatibility("Int", "!!Int")
+		assert.NoError(t, err, "!!Int should be equivalent to Int")
+
+		err = checker.CheckNegationTypeCompatibility("Str", "!!Int")
+		assert.Error(t, err, "Str should not be compatible with !!Int")
+	})
+}
+
+// TestComplexTypeExpressions tests complex combinations of type operations (Phase 7)
+func TestComplexTypeExpressions(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Test complex type expressions
+	t.Run("ComplexTypeExpressions", func(t *testing.T) {
+		// (Int|Str)&Scalar should be equivalent to Int|Str (since both are subtypes of Scalar)
+		err := checker.CheckComplexTypeCompatibility("Int", "(Int|Str)&Scalar")
+		assert.NoError(t, err, "Int should be compatible with (Int|Str)&Scalar")
+
+		err = checker.CheckComplexTypeCompatibility("Str", "(Int|Str)&Scalar")
+		assert.NoError(t, err, "Str should be compatible with (Int|Str)&Scalar")
+
+		// !(Int|Str) should exclude both Int and Str
+		err = checker.CheckComplexTypeCompatibility("Bool", "!(Int|Str)")
+		assert.NoError(t, err, "Bool should be compatible with !(Int|Str)")
+
+		err = checker.CheckComplexTypeCompatibility("Int", "!(Int|Str)")
+		assert.Error(t, err, "Int should not be compatible with !(Int|Str)")
+
+		// ArrayRef[Int|Str] - complex parameterized union
+		err = checker.CheckComplexTypeCompatibility("ArrayRef[Int]", "ArrayRef[Int|Str]")
+		assert.NoError(t, err, "ArrayRef[Int] should be compatible with ArrayRef[Int|Str]")
+	})
+
+	// Test type expression parsing
+	t.Run("TypeExpressionParsing", func(t *testing.T) {
+		// Parse and validate complex type expressions
+		valid, err := checker.ParseAndValidateTypeExpression("Int|Str")
+		assert.NoError(t, err, "Should parse Int|Str")
+		assert.True(t, valid, "Int|Str should be valid")
+
+		valid, err = checker.ParseAndValidateTypeExpression("(Int|Str)&Scalar")
+		assert.NoError(t, err, "Should parse (Int|Str)&Scalar")
+		assert.True(t, valid, "(Int|Str)&Scalar should be valid")
+
+		valid, err = checker.ParseAndValidateTypeExpression("!(ArrayRef[Int]|HashRef[Str,Int])")
+		assert.NoError(t, err, "Should parse complex negation")
+		assert.True(t, valid, "Complex negation should be valid")
+
+		// Invalid expressions
+		_, err = checker.ParseAndValidateTypeExpression("Int|")
+		assert.Error(t, err, "Should error on incomplete union")
+
+		_, err = checker.ParseAndValidateTypeExpression("&Str")
+		assert.Error(t, err, "Should error on incomplete intersection")
+	})
+
+	// Test precedence and associativity
+	t.Run("TypeOperatorPrecedence", func(t *testing.T) {
+		// Test that & has higher precedence than |
+		// Int|Str&Num should parse as Int|(Str&Num)
+		result1, err := checker.NormalizeTypeExpression("Int|Str&Num")
+		assert.NoError(t, err, "Should normalize precedence")
+
+		result2, err := checker.NormalizeTypeExpression("Int|(Str&Num)")
+		assert.NoError(t, err, "Should normalize explicit grouping")
+
+		assert.Equal(t, result1, result2, "Should have same precedence")
+
+		// Test that ! has higher precedence than &
+		// !Int&Str should parse as (!Int)&Str
+		result1, err = checker.NormalizeTypeExpression("!Int&Str")
+		assert.NoError(t, err, "Should normalize negation precedence")
+
+		result2, err = checker.NormalizeTypeExpression("(!Int)&Str")
+		assert.NoError(t, err, "Should normalize explicit negation grouping")
+
+		assert.Equal(t, result1, result2, "Should have same negation precedence")
+	})
+}
+
+// TestContextSensitiveTypes tests Phase 9 - Context-Sensitive Types
+func TestContextSensitiveTypes(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	t.Run("ListContextReturnTypes", func(t *testing.T) {
+		// Test context-dependent return types for built-in functions
+		// keys %hash should return List[Str] in list context, Int in scalar context
+
+		// List context: my @keys = keys %hash;
+		listType, err := checker.InferContextSensitiveReturnType("keys", "HashRef[Str, Int]", "list")
+		assert.NoError(t, err, "keys should work in list context")
+		assert.Equal(t, "List[Str]", listType, "keys should return List[Str] in list context")
+
+		// Scalar context: my $count = keys %hash;
+		scalarType, err := checker.InferContextSensitiveReturnType("keys", "HashRef[Str, Int]", "scalar")
+		assert.NoError(t, err, "keys should work in scalar context")
+		assert.Equal(t, "Int", scalarType, "keys should return Int in scalar context")
+	})
+
+	t.Run("ValuesContextSensitivity", func(t *testing.T) {
+		// Test values function context sensitivity
+		// values %hash should return List[ValueType] in list context, Int in scalar context
+
+		listType, err := checker.InferContextSensitiveReturnType("values", "HashRef[Str, Int]", "list")
+		assert.NoError(t, err, "values should work in list context")
+		assert.Equal(t, "List[Int]", listType, "values should return List[Int] in list context")
+
+		scalarType, err := checker.InferContextSensitiveReturnType("values", "HashRef[Str, Int]", "scalar")
+		assert.NoError(t, err, "values should work in scalar context")
+		assert.Equal(t, "Int", scalarType, "values should return Int in scalar context")
+	})
+
+	t.Run("UserDefinedContextSensitiveFunctions", func(t *testing.T) {
+		// Test user-defined functions with context-sensitive return types
+		// Function signature: sub get_data() -> List[Int]|Str { ... }
+
+		// Register a context-sensitive function
+		err := checker.RegisterContextSensitiveFunction("get_data", map[string]string{
+			"list":   "List[Int]",
+			"scalar": "Str",
+		})
+		assert.NoError(t, err, "Should register context-sensitive function")
+
+		// Test list context
+		listType, err := checker.InferContextSensitiveReturnType("get_data", "", "list")
+		assert.NoError(t, err, "get_data should work in list context")
+		assert.Equal(t, "List[Int]", listType, "get_data should return List[Int] in list context")
+
+		// Test scalar context
+		scalarType, err := checker.InferContextSensitiveReturnType("get_data", "", "scalar")
+		assert.NoError(t, err, "get_data should work in scalar context")
+		assert.Equal(t, "Str", scalarType, "get_data should return Str in scalar context")
+	})
+
+	t.Run("UnionTypeResolution", func(t *testing.T) {
+		// Test that union types are resolved correctly based on context
+		// Function with union return type: List[Int]|Str
+
+		resolved, err := checker.ResolveUnionTypeForContext("List[Int]|Str", "list")
+		assert.NoError(t, err, "Should resolve union type for list context")
+		assert.Equal(t, "List[Int]", resolved, "Should select List[Int] for list context")
+
+		resolved, err = checker.ResolveUnionTypeForContext("List[Int]|Str", "scalar")
+		assert.NoError(t, err, "Should resolve union type for scalar context")
+		assert.Equal(t, "Str", resolved, "Should select Str for scalar context")
+	})
+
+	t.Run("ContextInferenceFromAssignment", func(t *testing.T) {
+		// Test context inference from assignment targets
+
+		// Array assignment implies list context
+		context := checker.InferContextFromAssignment("@array")
+		assert.Equal(t, "list", context, "Array assignment should imply list context")
+
+		// Scalar assignment implies scalar context
+		context = checker.InferContextFromAssignment("$scalar")
+		assert.Equal(t, "scalar", context, "Scalar assignment should imply scalar context")
+
+		// Hash assignment implies list context
+		context = checker.InferContextFromAssignment("%hash")
+		assert.Equal(t, "list", context, "Hash assignment should imply list context")
+	})
+
+	t.Run("InvalidContextResolution", func(t *testing.T) {
+		// Test error cases for context resolution
+
+		// Union type with no suitable alternative for context
+		_, err := checker.ResolveUnionTypeForContext("Int|Num", "list")
+		assert.Error(t, err, "Should error when no list-compatible type in union")
+
+		// Unknown context type
+		_, err = checker.InferContextSensitiveReturnType("keys", "HashRef[Str, Int]", "unknown")
+		assert.Error(t, err, "Should error for unknown context")
 	})
 }
 

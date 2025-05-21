@@ -179,6 +179,13 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 		}
 		return fmt.Sprintf("Optional[%s]", params[0]), nil
 	}
+
+	h.parameterizedTypes["List"] = func(params []string) (string, error) {
+		if len(params) != 1 {
+			return "", fmt.Errorf("List requires exactly one type parameter")
+		}
+		return fmt.Sprintf("List[%s]", params[0]), nil
+	}
 }
 
 // addBuiltinType adds a built-in type to the hierarchy

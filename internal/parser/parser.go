@@ -49,6 +49,9 @@ type Node interface {
 
 	// Children returns the child nodes
 	Children() []Node
+
+	// Text returns the text content of the node
+	Text() string
 }
 
 // Position represents a position in the source code

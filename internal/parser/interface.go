@@ -118,6 +118,9 @@ type TypeChecker struct {
 	// ValidationPatterns holds recognized validation patterns
 	ValidationPatterns []ValidationPattern
 
+	// ContextSensitiveFunctions maps function names to their context-dependent return types
+	ContextSensitiveFunctions map[string]map[string]string
+
 	// Debug enables debug mode
 	Debug bool
 }
@@ -187,16 +190,17 @@ func NewTypeChecker(hierarchy *typedef.TypeHierarchy, moduleName string) *TypeCh
 	}
 
 	tc := &TypeChecker{
-		Hierarchy:          hierarchy,
-		CurrentModule:      moduleName,
-		ImportedModules:    make(map[string]bool),
-		TypeAnnotations:    make(map[string]string),
-		VariableTypes:      make(map[string]string),
-		FunctionTypes:      make(map[string]*FunctionSignature),
-		TypeState:          initialState,
-		TypeStateStack:     []*TypeState{},
-		ValidationPatterns: []ValidationPattern{},
-		Debug:              false,
+		Hierarchy:                 hierarchy,
+		CurrentModule:             moduleName,
+		ImportedModules:           make(map[string]bool),
+		TypeAnnotations:           make(map[string]string),
+		VariableTypes:             make(map[string]string),
+		FunctionTypes:             make(map[string]*FunctionSignature),
+		TypeState:                 initialState,
+		TypeStateStack:            []*TypeState{},
+		ValidationPatterns:        []ValidationPattern{},
+		ContextSensitiveFunctions: make(map[string]map[string]string),
+		Debug:                     false,
 	}
 
 	// Initialize validation patterns
@@ -337,9 +341,8 @@ func (tc *TypeChecker) AddFlowPatterns(patterns []string) {
 
 // getNodeText is a helper function to extract text from a node
 func getNodeText(node Node) string {
-	// In a full implementation, this would extract the text from the node based on its position
-	// For now, return a placeholder
-	return ""
+	// Use the Text() method from the Node interface
+	return node.Text()
 }
 
 // ExtractTypeAndParams extracts the base type and parameters from a parameterized type

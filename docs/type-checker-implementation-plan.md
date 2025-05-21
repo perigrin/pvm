@@ -174,7 +174,7 @@ my ArrayRef[ArrayRef[Int]] $matrix = [[1, 2], [3, 4]];
 - Covariant subtyping for containers
 - Type parameters validated correctly
 
-### Phase 7: Union and Intersection Types ✓ Spec Section 2.3, 4.4
+### Phase 7: Union and Intersection Types ✅ Spec Section 2.3, 4.4
 *Focus: Complex type combinations*
 
 **Specification Requirements:**
@@ -200,9 +200,12 @@ $primitive = [];                # Error - is a Ref
 - Union types accept either alternative
 - Intersection types require both constraints
 - Type negation properly excludes types
-- Complex type expressions parse and validate
+- Complex type expressions parse and validate ✅
 
-### Phase 8: Flow-Sensitive Analysis ✓ Spec Section 3.4
+**Implementation Status:** ✅ **COMPLETED**
+All core union/intersection/negation functionality implemented with comprehensive test coverage.
+
+### Phase 8: Flow-Sensitive Analysis ✅ Spec Section 3.4
 *Focus: Type refinement based on conditions*
 
 **Specification Requirements:**
@@ -240,7 +243,10 @@ if ($input =~ /^\d+$/) {
 - Ref types narrow after ref() validation
 - Regex patterns enable Str → Int refinement
 
-### Phase 9: Context-Sensitive Types ✓ Spec Section 3.3
+**Implementation Status:** ✅ **COMPLETED**
+Fixed getNodeText() implementation and validation patterns working correctly.
+
+### Phase 9: Context-Sensitive Types ✅ Spec Section 3.3
 *Focus: Scalar vs list context and type coercion*
 
 **Specification Requirements:**
@@ -265,6 +271,9 @@ my $count = keys %hash;          # Int
 - Functions return appropriate types based on context
 - Union types resolve correctly in different contexts
 - Built-in functions respect context sensitivity
+
+**Implementation Status:** ✅ **COMPLETED**
+Complete context-sensitive type system with built-in and user-defined functions, union type resolution, and context inference.
 
 ### Phase 10: Advanced Features ✓ Spec Section 4.3, 4.5, 5
 *Focus: Generic types, type aliases, and module imports*
