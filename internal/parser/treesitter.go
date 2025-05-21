@@ -821,6 +821,8 @@ func (p *TreeSitterParser) processTypeDeclaration(content string, lines []string
 
 // createTypeAnnotationQueries creates queries for extracting type annotations from a tree-sitter syntax tree
 // This function would be used in a real implementation with tree-sitter
+// It is intentionally unused in the current implementation as we don't have full tree-sitter integration yet
+// nolint:unused
 func (p *TreeSitterParser) createTypeAnnotationQueries() string {
 	// Example of what tree-sitter queries might look like
 	// These would be used with the tree-sitter query API
