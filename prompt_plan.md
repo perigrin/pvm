@@ -1295,6 +1295,22 @@ Implement the complete set of PSC commands, including check, strip, run, watch, 
 - Provide helpful error messages for users
 ```
 
+### Current PSC Implementation Status
+
+The PSC command implementation has been completed with basic functionality, but several architectural issues have been identified during implementation:
+
+1. **Circular Dependencies**: The current implementation has circular dependency issues between parser and type checker components, where they both reference each other's types.
+
+2. **Architecture Refinement Needed**: The Updated Type System Architecture section below outlines the revised approach to address these issues, focusing on making the parser self-contained with the type checker as a consumer of parser output.
+
+3. **Next Implementation Steps**:
+   - Refactor the parser package to be fully self-contained with all type definitions
+   - Move shared types to the parser package
+   - Restructure the type checker to consume parser output without circular references
+   - Complete the integration between components following the revised architecture
+
+This architectural refinement will enable better separation of concerns, prevent circular dependencies, and create a more maintainable implementation.
+
 #### Prompt 28: Cross-Component Integration ⏳
 
 ```
@@ -1439,6 +1455,60 @@ Implement final polishing and integration tasks to ensure the entire PVM Ecosyst
 - Ensure consistency across all components
 - Consider future maintenance and extensibility
 ```
+
+## Updated Type System Architecture
+
+After implementation work on the PSC component, we've refined the architecture for the type system to better handle dependencies and separation of concerns. This updated architecture addresses circular dependency issues and clarifies component responsibilities.
+
+### Package Organization
+1. **Parser Package**:
+   - Self-contained with no dependencies on type checker
+   - Defines AST, Node, TypeAnnotation, and other parsing-related types
+   - Provides methods to parse Perl code and extract type annotations
+   - Handles annotation extraction and AST creation
+
+2. **Type Checker Package**:
+   - Consumes parser output (AST with type annotations)
+   - Performs type validation against rules
+   - No circular dependencies back to parser
+
+3. **Interface Definition**:
+   - Parser owns all type definitions that both components use
+   - Type checker consumes these types without creating circular references
+
+### Revised Implementation Sequence
+1. **Phase 1: Parser & Annotation Stripping**
+   - Create clear interfaces for Parser with AST, Node, and TypeAnnotation types
+   - Implement parser to extract type annotations from Perl code
+   - Add annotation stripping to produce clean Perl code
+   - Build unit tests for parser accuracy
+
+2. **Phase 2: Type Inference Engine**
+   - Implement type inference algorithm independent of annotations
+   - Create TypeChecker interface consuming AST
+   - Develop basic type validation using only inferred types
+   - Build unit tests comparing inferred types to expected
+
+3. **Phase 3: Annotation-Aware Type Checking**
+   - Enhance TypeChecker to consider explicit annotations
+   - Implement disambiguation rules for annotation/inference conflicts
+   - Add comprehensive error reporting with positions
+   - Expand test suite with annotation validation tests
+
+4. **Phase 4: Integration & Optimization**
+   - Integrate PSC with PVX for type-checked code execution
+   - Implement watch mode for continuous checking
+   - Add hook system for compiler optimizations
+   - Build end-to-end tests for the entire workflow
+
+### Key Architectural Principles
+- Parser is completely self-contained
+- One-way dependency: Type checker depends on parser, not vice versa
+- Error flow primarily from parser to checker, not back
+- Shared types are owned by the parser package
+- Clean separation of parsing and validation concerns
+
+This architecture ensures a maintainable system with clear boundaries between components and prevents circular dependencies.
 
 ## Implementation Notes
 
