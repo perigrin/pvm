@@ -36,3 +36,6 @@ go.work
 Thumbs.db
 coverage.html
 build
+
+# Backup files
+*.bak
