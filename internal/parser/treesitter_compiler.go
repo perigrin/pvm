@@ -4,6 +4,7 @@
 package parser
 
 import (
+	"sort"
 	"strings"
 
 	sitter "github.com/tree-sitter/go-tree-sitter"
@@ -25,12 +26,12 @@ func CompileTreeSitterToPerl(path string) (string, error) {
 	}
 	defer tree.Close()
 
-	// Compile directly from tree-sitter nodes
+	// Use a position-based approach to preserve formatting
 	compiler := &TreeSitterCompiler{
 		content: tree.Content,
 	}
 
-	return compiler.CompileNode(tree.Root()), nil
+	return compiler.CompileWithPreservedFormatting(tree.Root()), nil
 }
 
 // TreeSitterCompiler generates Perl code directly from tree-sitter nodes
@@ -73,7 +74,8 @@ func (c *TreeSitterCompiler) isSimpleNode(node *sitter.Node) bool {
 	simpleNodes := []string{
 		"=", ";", "{", "}", "(", ")", ",", ".", "return", "print",
 		"interpolated_string_literal", "string_content", "number",
-		"comment", "function", "bareword", "$", "varname",
+		"comment", "function", "bareword", "$", "varname", "\n", " ",
+		"shebang", "whitespace", "newline",
 	}
 
 	for _, simple := range simpleNodes {
@@ -227,4 +229,98 @@ func (c *TreeSitterCompiler) getNodeText(node *sitter.Node) string {
 	}
 
 	return string(c.content[start:end])
+}
+
+// CompileWithPreservedFormatting compiles while preserving original formatting
+func (c *TreeSitterCompiler) CompileWithPreservedFormatting(root *sitter.Node) string {
+	// Collect all ERROR nodes (type annotations) to skip
+	errorRanges := c.collectErrorRanges(root)
+
+	// Sort ranges by start position to process them in order
+	sort.Slice(errorRanges, func(i, j int) bool {
+		return errorRanges[i].Start < errorRanges[j].Start
+	})
+
+	// Build output by copying original text and skipping ERROR ranges
+	var result strings.Builder
+	lastPos := uint(0)
+
+	for _, errRange := range errorRanges {
+		// Copy text before this ERROR node
+		if errRange.Start > lastPos {
+			result.Write(c.content[lastPos:errRange.Start])
+		}
+		lastPos = errRange.End
+	}
+
+	// Copy remaining text after last ERROR
+	if lastPos < uint(len(c.content)) {
+		result.Write(c.content[lastPos:])
+	}
+
+	return result.String()
+}
+
+// ErrorRange represents a byte range to skip
+type ErrorRange struct {
+	Start uint
+	End   uint
+}
+
+// collectErrorRanges finds all ERROR node ranges that should be skipped
+func (c *TreeSitterCompiler) collectErrorRanges(node *sitter.Node) []ErrorRange {
+	var ranges []ErrorRange
+
+	if node == nil {
+		return ranges
+	}
+
+	// If this node is an ERROR containing type annotations, add its range
+	if node.Kind() == "ERROR" && c.isTypeAnnotation(node) {
+		ranges = append(ranges, ErrorRange{
+			Start: node.StartByte(),
+			End:   node.EndByte(),
+		})
+		return ranges
+	}
+
+	// Recursively collect from children
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child != nil {
+			childRanges := c.collectErrorRanges(child)
+			ranges = append(ranges, childRanges...)
+		}
+	}
+
+	return ranges
+}
+
+// isTypeAnnotation checks if an ERROR node represents a type annotation
+func (c *TreeSitterCompiler) isTypeAnnotation(node *sitter.Node) bool {
+	if node.Kind() != "ERROR" {
+		return false
+	}
+
+	text := c.getNodeText(node)
+	text = strings.TrimSpace(text)
+
+	// Common type annotation patterns
+	typePatterns := []string{
+		"Str", "Int", "Num", "Bool", "ArrayRef", "HashRef", "CodeRef",
+		"Maybe", "Optional", "Any", "Object", "Class", "Role",
+	}
+
+	for _, pattern := range typePatterns {
+		if strings.Contains(text, pattern) {
+			return true
+		}
+	}
+
+	// Also check for return type arrows
+	if strings.Contains(text, "->") {
+		return true
+	}
+
+	return false
 }

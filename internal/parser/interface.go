@@ -359,11 +359,12 @@ func ExtractTypeAndParams(paramType string) (string, []string) {
 	start := 0
 
 	for i, c := range paramStr {
-		if c == '[' {
+		switch {
+		case c == '[':
 			bracketCount++
-		} else if c == ']' {
+		case c == ']':
 			bracketCount--
-		} else if c == ',' && bracketCount == 0 {
+		case c == ',' && bracketCount == 0:
 			params = append(params, strings.TrimSpace(paramStr[start:i]))
 			start = i + 1
 		}
@@ -559,4 +560,104 @@ func StripAnnotations(path string) (string, error) {
 	// This approach parses with tree-sitter and generates valid Perl,
 	// automatically omitting type annotations during code generation.
 	return CompileTreeSitterToPerl(path)
+}
+
+// GeneratePerlFromAST generates Perl code from an AST with optional type annotations
+func GeneratePerlFromAST(ast *AST, includeTypes bool) (string, error) {
+	return GenerateFromAST(ast, includeTypes)
+}
+
+// GenerateTypedPerl generates Perl code with type annotations from an AST
+func GenerateTypedPerl(ast *AST) (string, error) {
+	return GenerateFromAST(ast, true)
+}
+
+// GenerateCleanPerl generates Perl code without type annotations from an AST
+func GenerateCleanPerl(ast *AST) (string, error) {
+	return GenerateFromAST(ast, false)
+}
+
+// AddTypesToAST creates a type injector for adding type annotations to an AST
+func AddTypesToAST(ast *AST) *TypeInjector {
+	return NewTypeInjector(ast)
+}
+
+// RoundTripParse parses a file and returns both the AST and the regenerated source
+func RoundTripParse(path string, includeTypes bool) (*AST, string, error) {
+	// Parse the file
+	parser, err := NewParser()
+	if err != nil {
+		return nil, "", err
+	}
+
+	ast, err := parser.ParseFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Generate source from AST
+	generatedSource, err := GenerateFromAST(ast, includeTypes)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return ast, generatedSource, nil
+}
+
+// ConvertUntypedToTyped takes untyped Perl and adds type annotations based on a type mapping
+func ConvertUntypedToTyped(path string, typeMapping map[string]string) (string, error) {
+	// Parse the untyped file
+	parser, err := NewParser()
+	if err != nil {
+		return "", err
+	}
+
+	ast, err := parser.ParseFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	// Create type injector and apply type mapping
+	injector := NewTypeInjector(ast)
+	err = injector.ApplyTypeMapping(typeMapping)
+	if err != nil {
+		return "", err
+	}
+
+	// Generate typed source
+	return GenerateFromAST(ast, true)
+}
+
+// ValidateRoundTrip validates that a file can be round-tripped without data loss
+func ValidateRoundTrip(path string) error {
+	// Parse original file
+	parser, err := NewParser()
+	if err != nil {
+		return err
+	}
+
+	originalAST, err := parser.ParseFile(path)
+	if err != nil {
+		return err
+	}
+
+	// Generate source from AST
+	regeneratedSource, err := GenerateFromAST(originalAST, true)
+	if err != nil {
+		return err
+	}
+
+	// Parse the regenerated source
+	regeneratedAST, err := parser.ParseString(regeneratedSource)
+	if err != nil {
+		return fmt.Errorf("failed to parse regenerated source: %v", err)
+	}
+
+	// Basic validation - check type annotation count
+	if len(originalAST.TypeAnnotations) != len(regeneratedAST.TypeAnnotations) {
+		return fmt.Errorf("type annotation count mismatch: original=%d, regenerated=%d",
+			len(originalAST.TypeAnnotations), len(regeneratedAST.TypeAnnotations))
+	}
+
+	return nil
 }
