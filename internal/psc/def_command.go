@@ -4,9 +4,11 @@
 package psc
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -87,6 +89,7 @@ func newDefGenerateCommand() *cobra.Command {
 			version, _ := cmd.Flags().GetString("version")
 			outputFile, _ := cmd.Flags().GetString("output")
 			saveTypeDef, _ := cmd.Flags().GetBool("save")
+			verbose, _ := cmd.Flags().GetBool("verbose")
 
 			// Create a minimal type definition
 			typeDef := &typedef.TypeDefinition{
@@ -101,9 +104,20 @@ func newDefGenerateCommand() *cobra.Command {
 				Methods:    []typedef.MethodInfo{},
 			}
 
-			// Normally, we would analyze the module here using Perl's introspection
-			// facilities. For now, we'll create a minimal type definition.
-			// TODO: Implement actual module analysis and type extraction
+			// Extract module type information using Perl introspection
+			moduleTypes, err := analyzeModuleTypes(moduleName)
+			if err != nil && verbose {
+				fmt.Printf("Warning: Could not fully analyze module: %v\n", err)
+				fmt.Println("Generating a basic type definition instead.")
+			}
+
+			// Add any discovered types to our type definition
+			if moduleTypes != nil && len(moduleTypes.Types) > 0 {
+				typeDef.Types = append(typeDef.Types, moduleTypes.Types...)
+				typeDef.Subs = append(typeDef.Subs, moduleTypes.Subs...)
+				typeDef.Methods = append(typeDef.Methods, moduleTypes.Methods...)
+				typeDef.Packages = append(typeDef.Packages, moduleTypes.Packages...)
+			}
 
 			// Add some placeholder types if none provided
 			if len(typeDef.Types) == 0 {
@@ -295,6 +309,7 @@ func newDefInstallCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			moduleName := args[0]
 			forceGenerate, _ := cmd.Flags().GetBool("force")
+			verbose, _ := cmd.Flags().GetBool("verbose")
 
 			// Create a new storage instance
 			storage, err := typedef.NewStorage()
@@ -322,9 +337,20 @@ func newDefInstallCommand() *cobra.Command {
 				Methods:    []typedef.MethodInfo{},
 			}
 
-			// Normally, we would analyze the module here using Perl's introspection
-			// For now, we'll create a minimal type definition like in the generate command
-			// TODO: Same as generate - implement module analysis
+			// Extract module type information using Perl introspection
+			moduleTypes, err := analyzeModuleTypes(moduleName)
+			if err != nil && verbose {
+				fmt.Printf("Warning: Could not fully analyze module: %v\n", err)
+				fmt.Println("Generating a basic type definition instead.")
+			}
+
+			// Add any discovered types to our type definition
+			if moduleTypes != nil && len(moduleTypes.Types) > 0 {
+				typeDef.Types = append(typeDef.Types, moduleTypes.Types...)
+				typeDef.Subs = append(typeDef.Subs, moduleTypes.Subs...)
+				typeDef.Methods = append(typeDef.Methods, moduleTypes.Methods...)
+				typeDef.Packages = append(typeDef.Packages, moduleTypes.Packages...)
+			}
 
 			// Add some placeholder types
 			typeDef.Types = append(typeDef.Types, typedef.TypeInfo{
@@ -354,6 +380,370 @@ func newDefInstallCommand() *cobra.Command {
 
 	// Add flags
 	cmd.Flags().BoolP("force", "f", false, "Force generation of type definition even if it already exists")
+	cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
 
 	return cmd
+}
+
+// analyzeModuleTypes performs type analysis of a Perl module using introspection
+func analyzeModuleTypes(moduleName string) (*typedef.TypeDefinition, error) {
+	// Create a temporary Perl script to analyze the module
+	tempScript, err := os.CreateTemp("", "psc-module-analyzer-*.pl")
+	if err != nil {
+		return nil, errors.NewSystemError("001",
+			"Failed to create temporary file", err)
+	}
+	defer os.Remove(tempScript.Name())
+
+	// Perl script for module analysis
+	// This script uses Perl's introspection capabilities to extract type information
+	analyzerScript := fmt.Sprintf(`#!/usr/bin/perl
+use strict;
+use warnings;
+use feature 'say';
+use JSON;
+use Module::Load;
+use Class::Inspector;
+use B::Deparse;
+use Data::Dumper;
+
+# Module to analyze
+my $module = '%s';
+
+# Result structure
+my $result = {
+    module => $module,
+    version => '0.0.1',
+    types => [],
+    subs => [],
+    methods => [],
+    packages => []
+};
+
+# Try to load the module
+eval {
+    load $module;
+};
+if ($@) {
+    say STDERR "Failed to load module: $@";
+    # Still attempt basic analysis even if we can't load it
+}
+
+# Analyze the module
+analyze_module($module);
+
+# Output the result as JSON
+print encode_json($result);
+
+# Main analysis function
+sub analyze_module {
+    my ($module) = @_;
+
+    # Get the package namespace
+    my $package = $module;
+    $package =~ s/::/\//g;
+
+    # Add basic module info
+    push @{$result->{packages}}, {
+        name => $module,
+        description => "Package $module",
+        version => $module->VERSION // '0.0.1',
+        imports => []
+    };
+
+    # Get all the classes in the module's namespace
+    my @classes = ($module);
+    push @classes, find_subclasses($module);
+
+    foreach my $class (@classes) {
+        # Extract class information
+        my $class_info = {
+            name => $class,
+            description => "Class $class",
+            kind => "class",
+            methods => [],
+            properties => []
+        };
+
+        # Get methods
+        my $methods = Class::Inspector->methods($class, 'public') || [];
+        foreach my $method (@$methods) {
+            # Skip some common Perl internals
+            next if $method =~ /^(BEGIN|DESTROY|AUTOLOAD|import|END)$/;
+
+            # Extract method info
+            my $method_info = {
+                name => $method,
+                description => "Method $method",
+                params => [],
+                returns => "Any"
+            };
+
+            # Try to infer parameter types and return type
+            if (my $code = $class->can($method)) {
+                my $deparse = B::Deparse->new;
+                my $src = $deparse->coderef2text($code);
+
+                # Look for parameter assignments
+                if ($src =~ /my\s*\(([^)]+)\)\s*=\s*\@_/) {
+                    my $params = $1;
+                    my @param_vars = split /\s*,\s*/, $params;
+                    foreach my $var (@param_vars) {
+                        push @{$method_info->{params}}, {
+                            name => $var,
+                            type => guess_type($var, $src)
+                        };
+                    }
+                }
+
+                # Try to infer return type
+                if ($src =~ /return\s+(.+?);/s) {
+                    $method_info->{returns} = guess_return_type($1, $src);
+                }
+            }
+
+            # Add method to class
+            push @{$class_info->{methods}}, $method_info;
+
+            # Also add to the global methods list
+            push @{$result->{methods}}, {
+                name => $method,
+                class => $class,
+                description => "Method $class->$method",
+                params => $method_info->{params},
+                returns => $method_info->{returns}
+            };
+        }
+
+        # Try to find properties
+        my $properties = find_properties($class);
+        $class_info->{properties} = $properties if @$properties;
+
+        # Add class to types
+        push @{$result->{types}}, $class_info;
+    }
+
+    # Find standalone functions
+    my $subs = Class::Inspector->functions($module) || [];
+    foreach my $sub (@$subs) {
+        # Skip some common Perl internals
+        next if $sub =~ /^(BEGIN|DESTROY|AUTOLOAD|import|END)$/;
+
+        # Extract function info
+        my $sub_info = {
+            name => $sub,
+            description => "Function $module\::$sub",
+            params => [],
+            returns => "Any"
+        };
+
+        # Try to infer parameter types and return type
+        if (my $code = $module->can($sub)) {
+            my $deparse = B::Deparse->new;
+            my $src = $deparse->coderef2text($code);
+
+            # Look for parameter assignments
+            if ($src =~ /my\s*\(([^)]+)\)\s*=\s*\@_/) {
+                my $params = $1;
+                my @param_vars = split /\s*,\s*/, $params;
+                foreach my $var (@param_vars) {
+                    push @{$sub_info->{params}}, {
+                        name => $var,
+                        type => guess_type($var, $src)
+                    };
+                }
+            }
+
+            # Try to infer return type
+            if ($src =~ /return\s+(.+?);/s) {
+                $sub_info->{returns} = guess_return_type($1, $src);
+            }
+        }
+
+        # Add function to subs
+        push @{$result->{subs}}, $sub_info;
+    }
+}
+
+# Helper to find subclasses in the module's namespace
+sub find_subclasses {
+    my ($parent) = @_;
+    my @classes;
+
+    # This is a simplified approach - in a production system,
+    # you would want a more robust method to find all related classes
+    foreach my $symbol (keys %{$parent . '::'}) {
+        next if $symbol =~ /^(BEGIN|DESTROY|AUTOLOAD|import|END)$/;
+        my $full_name = $parent . '::' . $symbol;
+        $full_name =~ s/::$//;
+
+        # Check if it's a package
+        if ($full_name->can('can')) {
+            push @classes, $full_name unless $full_name eq $parent;
+        }
+    }
+
+    return @classes;
+}
+
+# Helper to find class properties
+sub find_properties {
+    my ($class) = @_;
+    my @properties;
+
+    # Try to find has/field declarations (for Moo/Moose/Mouse classes)
+    if ($class->can('meta') && $class->meta->can('get_attribute_list')) {
+        my @attrs = $class->meta->get_attribute_list;
+        foreach my $attr (@attrs) {
+            push @properties, {
+                name => $attr,
+                type => "Any",
+                description => "Property $attr"
+            };
+        }
+    } else {
+        # Try to infer from accessor methods
+        my $methods = Class::Inspector->methods($class, 'public') || [];
+        my %potential_props;
+
+        foreach my $method (@$methods) {
+            if ($method =~ /^(get|set)_(.+)$/ ||
+                $method =~ /^(.+?)(?:_accessor)?$/ && $class->can("${1}_accessor")) {
+                my $prop = $2 || $1;
+                $potential_props{$prop} = 1;
+            }
+        }
+
+        foreach my $prop (keys %potential_props) {
+            push @properties, {
+                name => $prop,
+                type => "Any",
+                description => "Property $prop"
+            };
+        }
+    }
+
+    return \@properties;
+}
+
+# Helper to guess a variable's type from its usage in code
+sub guess_type {
+    my ($var, $src) = @_;
+
+    # Remove sigil for pattern matching
+    my $bare_var = $var;
+    $bare_var =~ s/^[\$\@\%]//;
+
+    # Look for hints in the code
+    if ($src =~ /\Q$var\E\s*=~\s*\//) {
+        return "Str";
+    } elsif ($src =~ /\Q$var\E\s*\+\s*\d+/ ||
+             $src =~ /\d+\s*\+\s*\Q$var\E/ ||
+             $src =~ /\Q$var\E\s*\*\s*\d+/ ||
+             $src =~ /\d+\s*\*\s*\Q$var\E/) {
+        return "Num";
+    } elsif ($src =~ /\Q$var\E\s*=\s*\d+\s*;/) {
+        return "Int";
+    } elsif ($src =~ /\Q$var\E\s*=\s*['"]/) {
+        return "Str";
+    } elsif ($src =~ /\Q$var\E\s*=\s*\[\s*/) {
+        return "ArrayRef";
+    } elsif ($src =~ /\Q$var\E\s*=\s*\{\s*/) {
+        return "HashRef";
+    } elsif ($src =~ /\Q$var\E\s*=\s*sub\s*\{/) {
+        return "CodeRef";
+    } elsif ($src =~ /\Q$var\E\s*=\s*bless/) {
+        return "Object";
+    } elsif ($var =~ /^\$/) {
+        return "Scalar";
+    } elsif ($var =~ /^\@/) {
+        return "Array";
+    } elsif ($var =~ /^\%/) {
+        return "Hash";
+    }
+
+    return "Any";
+}
+
+# Helper to guess a function's return type
+sub guess_return_type {
+    my ($return_expr, $src) = @_;
+
+    if ($return_expr =~ /^\d+(\.\d+)?$/) {
+        return $return_expr =~ /\./ ? "Num" : "Int";
+    } elsif ($return_expr =~ /^['"]/) {
+        return "Str";
+    } elsif ($return_expr =~ /^\[/) {
+        return "ArrayRef";
+    } elsif ($return_expr =~ /^\{/) {
+        return "HashRef";
+    } elsif ($return_expr =~ /^sub\s*\{/) {
+        return "CodeRef";
+    } elsif ($return_expr =~ /^bless/) {
+        return "Object";
+    } elsif ($return_expr =~ /^\$/) {
+        return "Scalar";
+    } elsif ($return_expr =~ /^\@/) {
+        return "Array";
+    } elsif ($return_expr =~ /^\%/) {
+        return "Hash";
+    }
+
+    return "Any";
+}
+`, moduleName)
+
+	// Write the analyzer script
+	if _, err := tempScript.Write([]byte(analyzerScript)); err != nil {
+		return nil, errors.NewSystemError("002",
+			"Failed to write temporary file", err)
+	}
+
+	// Close the file to flush changes
+	if err := tempScript.Close(); err != nil {
+		return nil, errors.NewSystemError("003",
+			"Failed to close temporary file", err)
+	}
+
+	// Make the script executable
+	if err := os.Chmod(tempScript.Name(), 0755); err != nil {
+		return nil, errors.NewSystemError("004",
+			"Failed to make temporary file executable", err)
+	}
+
+	// Execute the script to analyze the module
+	cmd := exec.Command("perl", tempScript.Name())
+
+	// Capture stdout and stderr
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	// Run the analysis script
+	if err := cmd.Run(); err != nil {
+		// Check if we got any error output
+		stderrStr := stderrBuf.String()
+		if stderrStr != "" {
+			return nil, errors.NewTypeError(
+				"PSC-810",
+				fmt.Sprintf("Module analysis failed: %s", stderrStr),
+				err)
+		}
+
+		return nil, errors.NewTypeError(
+			"PSC-811",
+			"Module analysis failed",
+			err)
+	}
+
+	// Parse the JSON output
+	var typeDef typedef.TypeDefinition
+	if err := json.Unmarshal(stdoutBuf.Bytes(), &typeDef); err != nil {
+		return nil, errors.NewTypeError(
+			"PSC-812",
+			"Failed to parse module analysis output",
+			err)
+	}
+
+	return &typeDef, nil
 }

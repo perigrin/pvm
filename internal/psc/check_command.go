@@ -19,8 +19,26 @@ func newCheckTypeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check [file|dir]",
 		Short: "Check types in Perl files",
-		Long:  "Perform static type checking on Perl files using type annotations",
-		Args:  cobra.MinimumNArgs(1),
+		Long: `Perform static type checking on Perl files using type annotations.
+
+The check command analyzes Perl code for type compatibility issues, validates
+type annotations against the type hierarchy, and provides detailed error
+reporting with line numbers and descriptions.
+
+Supports:
+• Single file or directory checking
+• Recursive directory traversal
+• Flow-sensitive type analysis
+• Custom type definitions
+• Multiple output formats
+
+Examples:
+  psc check script.pl              # Check single file
+  psc check --recursive lib/       # Check all .pl/.pm files in lib/
+  psc check --verbose script.pl    # Detailed output
+  psc check --format json script.pl # JSON error output
+  psc check --strict script.pl     # Strict mode (warnings as errors)`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			strict, _ := cmd.Flags().GetBool("strict")
 			verbose, _ := cmd.Flags().GetBool("verbose")
@@ -89,7 +107,7 @@ func checkFile(filePath string, strict, verbose bool) (int, error) {
 	}
 
 	// Check if the file is a Perl file
-	if !isPerlFile(filePath) {
+	if !isPerlFileCheck(filePath) {
 		if verbose {
 			fmt.Printf("Skipping non-Perl file: %s\n", filePath)
 		}
@@ -134,7 +152,7 @@ func checkDirectory(dirPath string, strict, verbose bool) (int, int, error) {
 			return err
 		}
 
-		if !info.IsDir() && isPerlFile(path) {
+		if !info.IsDir() && isPerlFileCheck(path) {
 			errors, err := checkFile(path, strict, verbose)
 			if err != nil {
 				return err
@@ -149,8 +167,8 @@ func checkDirectory(dirPath string, strict, verbose bool) (int, int, error) {
 	return totalFiles, totalErrors, err
 }
 
-// isPerlFile checks if a file is a Perl file based on its extension
-func isPerlFile(filePath string) bool {
+// isPerlFileCheck checks if a file is a Perl file based on its extension
+func isPerlFileCheck(filePath string) bool {
 	ext := filepath.Ext(filePath)
 	return ext == ".pl" || ext == ".pm" || ext == ".t"
 }

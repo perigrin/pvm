@@ -11,8 +11,26 @@ import (
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "psc",
-		Short: "Perl Script Compiler",
-		Long:  "Provides static type checking for Perl code",
+		Short: "Perl Script Compiler - Static type checking for Perl",
+		Long: `PSC (Perl Script Compiler) provides static type checking for Perl code.
+
+It offers these key features:
+• Type checking with detailed error reporting
+• Type annotation stripping for compatibility
+• Continuous monitoring with file watching
+• Type definition management for modules
+• Flow-sensitive type analysis and refinement
+
+PSC helps catch type errors before runtime and supports gradual typing -
+you can add type annotations incrementally to existing code.
+
+Examples:
+  psc check myfile.pl                  # Check a single file
+  psc check --recursive lib/           # Check all files in a directory
+  psc strip myfile.pl clean.pl         # Strip type annotations
+  psc watch lib/                       # Watch directory for changes
+  psc def generate MyModule --save     # Generate type definitions
+  psc run myfile.pl                    # Type-check and run`,
 	}
 
 	// Add PSC-specific commands

@@ -10,11 +10,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
 func TestPSCBasicTypeChecking(t *testing.T) {
-	t.Skip("Environment setup required for Tree-sitter library in CI - skipping temporarily")
+	// Skip if Tree-sitter library is not available
+	if !isTreeSitterAvailable() {
+		t.Skip("Tree-sitter library not available, skipping PSC tests")
+	}
+
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -48,7 +53,11 @@ say "Name: $name";
 }
 
 func TestPSCTypeErrorDetection(t *testing.T) {
-	t.Skip("Environment setup required for Tree-sitter library in CI - skipping temporarily")
+	// Skip if Tree-sitter library is not available
+	if !isTreeSitterAvailable() {
+		t.Skip("Tree-sitter library not available, skipping PSC tests")
+	}
+
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -80,7 +89,11 @@ my Int $result = add_numbers($wrong_arg, 10);  # TYPE ERROR: String passed to In
 }
 
 func TestPSCStripAnnotations(t *testing.T) {
-	t.Skip("Environment setup required for Tree-sitter library in CI - skipping temporarily")
+	// Skip if Tree-sitter library is not available
+	if !isTreeSitterAvailable() {
+		t.Skip("Tree-sitter library not available, skipping PSC tests")
+	}
+
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -153,7 +166,11 @@ say "Numbers: " . join(", ", @$numbers);
 }
 
 func TestPSCCompleteWorkflow(t *testing.T) {
-	t.Skip("Environment setup required for Tree-sitter library in CI - skipping temporarily")
+	// Skip if Tree-sitter library is not available
+	if !isTreeSitterAvailable() {
+		t.Skip("Tree-sitter library not available, skipping PSC tests")
+	}
+
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -267,7 +284,11 @@ say "Result2: $result2";
 }
 
 func TestPSCRoundTripConsistency(t *testing.T) {
-	t.Skip("Environment setup required for Tree-sitter library in CI - skipping temporarily")
+	// Skip if Tree-sitter library is not available
+	if !isTreeSitterAvailable() {
+		t.Skip("Tree-sitter library not available, skipping PSC tests")
+	}
+
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -307,7 +328,11 @@ say $result;
 }
 
 func TestPSCFlowSensitiveAnalysis(t *testing.T) {
-	t.Skip("Environment setup required for Tree-sitter library in CI - skipping temporarily")
+	// Skip if Tree-sitter library is not available
+	if !isTreeSitterAvailable() {
+		t.Skip("Tree-sitter library not available, skipping PSC tests")
+	}
+
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -384,7 +409,11 @@ say "Ref: $ref_result";
 }
 
 func TestPSCDirectoryChecking(t *testing.T) {
-	t.Skip("Environment setup required for Tree-sitter library in CI - skipping temporarily")
+	// Skip if Tree-sitter library is not available
+	if !isTreeSitterAvailable() {
+		t.Skip("Tree-sitter library not available, skipping PSC tests")
+	}
+
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -448,4 +477,11 @@ say "Number: $x";
 	} else {
 		t.Logf("Directory check failed as expected due to type errors: stderr=%s", stderr)
 	}
+}
+
+// isTreeSitterAvailable checks if the Tree-sitter parser is available for testing
+func isTreeSitterAvailable() bool {
+	// Try to create a parser to check if Tree-sitter is initialized properly
+	_, err := parser.NewParser()
+	return err == nil
 }

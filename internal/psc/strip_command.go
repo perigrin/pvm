@@ -17,7 +17,26 @@ func newStripCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "strip [file] [output]",
 		Short: "Strip type annotations from a file",
-		Long:  "Remove type annotations from a Perl file for compatibility",
+		Long: `Remove type annotations from a Perl file to create clean, compatible Perl code.
+
+The strip command safely removes type annotations while preserving all original
+program logic and comments. The resulting code will run on any standard Perl
+interpreter without modification.
+
+This is useful for:
+• Publishing modules to CPAN
+• Running on systems without PSC
+• Backwards compatibility with older Perl versions
+• Code sharing with teams not using typed Perl
+
+Output:
+  If no output file is specified, writes to stdout
+  If output file is specified, writes cleaned code to that file
+
+Examples:
+  psc strip typed.pl                    # Print to stdout
+  psc strip typed.pl clean.pl           # Write to file
+  psc strip lib/MyModule.pm lib/clean/  # Process to directory`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return fmt.Errorf("expected a file to strip")
