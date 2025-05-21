@@ -115,7 +115,7 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	h.addSubtypeRelation("IO", "Any")
 
 	h.addSubtypeRelation("Str", "Scalar")
-	h.addSubtypeRelation("Num", "Scalar")
+	h.addSubtypeRelation("Num", "Str") // Numbers can be automatically stringified in Perl
 	h.addSubtypeRelation("Bool", "Scalar")
 	h.addSubtypeRelation("Undef", "Scalar")
 
@@ -362,19 +362,23 @@ func (h *TypeHierarchy) GetBaseType(typeName string) string {
 
 // ValidateType checks if a type is valid
 func (h *TypeHierarchy) ValidateType(typeName string) error {
-	// Check built-in types
-	if h.IsBuiltinType(typeName) {
-		return nil
+	// Handle empty type names
+	if typeName == "" {
+		return errors.NewTypeError(
+			ErrTypeInvalid,
+			"Type name cannot be empty",
+			nil,
+		)
 	}
 
-	// Check parameterized types
+	// Check for parameterized types
 	if idx := strings.Index(typeName, "["); idx > 0 {
-		baseType := typeName[:idx]
-		_, isParamType := h.parameterizedTypes[baseType]
-		if isParamType {
-			// TODO: Validate parameters as well
-			return nil
-		}
+		return h.validateParameterizedType(typeName)
+	}
+
+	// Check built-in types
+	if _, exists := h.BuiltinTypes[typeName]; exists {
+		return nil
 	}
 
 	// Check user-defined types from type definitions
@@ -389,6 +393,54 @@ func (h *TypeHierarchy) ValidateType(typeName string) error {
 		fmt.Sprintf("Undefined type: %s", typeName),
 		nil,
 	)
+}
+
+// validateParameterizedType validates a parameterized type and its parameters
+func (h *TypeHierarchy) validateParameterizedType(typeName string) error {
+	baseType, params := extractTypeAndParams(typeName)
+
+	// Check if the base type supports parameterization
+	constructor, exists := h.parameterizedTypes[baseType]
+	if !exists {
+		return errors.NewTypeError(
+			ErrTypeInvalid,
+			fmt.Sprintf("Type '%s' is not parameterizable", baseType),
+			nil,
+		)
+	}
+
+	// Check if parameters are empty
+	if len(params) == 0 {
+		return errors.NewTypeError(
+			ErrTypeInvalid,
+			fmt.Sprintf("Type '%s' requires parameters", baseType),
+			nil,
+		)
+	}
+
+	// Validate each parameter recursively
+	for i, param := range params {
+		if err := h.ValidateType(param); err != nil {
+			return errors.NewTypeError(
+				ErrTypeInvalid,
+				fmt.Sprintf("Invalid parameter %d ('%s') in type '%s': %s",
+					i+1, param, typeName, err.Error()),
+				err,
+			)
+		}
+	}
+
+	// Use the constructor to validate parameter count and compatibility
+	_, err := constructor(params)
+	if err != nil {
+		return errors.NewTypeError(
+			ErrTypeInvalid,
+			fmt.Sprintf("Invalid parameterized type '%s': %s", typeName, err.Error()),
+			err,
+		)
+	}
+
+	return nil
 }
 
 // isValidTypeName checks if a string is a valid type name

@@ -909,15 +909,26 @@ func isNumericLiteral(s string) bool {
 		}
 	}
 
-	// Check if it's a decimal number
+	// Check if it's a decimal number or scientific notation
 	hasDecimal := false
 	hasDigit := false
+	hasExponent := false
 
 	for i := startIndex; i < len(s); i++ {
-		if s[i] >= '0' && s[i] <= '9' {
+		c := s[i]
+		if c >= '0' && c <= '9' {
 			hasDigit = true
-		} else if s[i] == '.' && !hasDecimal {
+		} else if c == '.' && !hasDecimal && !hasExponent {
 			hasDecimal = true
+		} else if (c == 'e' || c == 'E') && !hasExponent && hasDigit {
+			hasExponent = true
+			// Check if next character is a sign or digit
+			if i+1 < len(s) {
+				next := s[i+1]
+				if next == '+' || next == '-' {
+					i++ // Skip the sign
+				}
+			}
 		} else {
 			return false // Not a numeric character
 		}
@@ -933,6 +944,345 @@ func isStringLiteral(s string) bool {
 	return (strings.HasPrefix(s, "'") && strings.HasSuffix(s, "'")) ||
 		(strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"")) ||
 		(strings.HasPrefix(s, "`") && strings.HasSuffix(s, "`"))
+}
+
+// inferLiteralType infers the most specific type for a literal value
+// This implements Phase 1: Pure Type Inference for literals
+func (tc *TypeChecker) inferLiteralType(literal string) string {
+	// Handle empty input
+	if literal == "" {
+		return ""
+	}
+
+	// Handle undef literal
+	if literal == "undef" {
+		return "Undef"
+	}
+
+	// Handle boolean literals
+	if literal == "True" || literal == "False" {
+		return "Bool"
+	}
+
+	// Handle string literals - check this before numeric to avoid false positives
+	if isStringLiteral(literal) {
+		return "Str"
+	}
+
+	// Handle numeric literals
+	if isNumericLiteral(literal) {
+		// Check if it's a float (contains decimal point or scientific notation)
+		if strings.Contains(literal, ".") || strings.Contains(strings.ToLower(literal), "e") {
+			return "Float"
+		}
+		// Otherwise it's an integer
+		return "Int"
+	}
+
+	// If we can't identify the literal type, return empty string
+	return ""
+}
+
+// InferBinaryOperatorType infers the result type of a binary operator expression
+// This implements Phase 4: Operator Type Checking
+func (tc *TypeChecker) InferBinaryOperatorType(leftType, operator, rightType string) (string, error) {
+	// First, check that both operand types are valid
+	if err := tc.validateType(leftType); err != nil {
+		return "", fmt.Errorf("invalid left operand type '%s': %w", leftType, err)
+	}
+	if err := tc.validateType(rightType); err != nil {
+		return "", fmt.Errorf("invalid right operand type '%s': %w", rightType, err)
+	}
+
+	switch operator {
+	// Numeric arithmetic operators: +, -, *, /, %, **
+	case "+", "-", "*", "/", "%", "**":
+		return tc.inferArithmeticOperatorType(leftType, operator, rightType)
+
+	// Numeric comparison operators: ==, !=, <, >, <=, >=, <=>
+	case "==", "!=", "<", ">", "<=", ">=", "<=>":
+		return tc.inferNumericComparisonType(leftType, operator, rightType)
+
+	// String operators: . (concatenation)
+	case ".":
+		return tc.inferStringConcatenationType(leftType, operator, rightType)
+
+	// String comparison operators: eq, ne, lt, gt, le, ge, cmp
+	case "eq", "ne", "lt", "gt", "le", "ge", "cmp":
+		return tc.inferStringComparisonType(leftType, operator, rightType)
+
+	// Logical operators: &&, ||, //
+	case "&&", "||", "//":
+		return tc.inferLogicalOperatorType(leftType, operator, rightType)
+
+	// Pattern matching operators: =~, !~
+	case "=~", "!~":
+		return tc.inferPatternMatchType(leftType, operator, rightType)
+
+	// Bitwise operators: &, |, ^, <<, >>
+	case "&", "|", "^", "<<", ">>":
+		return tc.inferBitwiseOperatorType(leftType, operator, rightType)
+
+	default:
+		return "", fmt.Errorf("unknown binary operator: %s", operator)
+	}
+}
+
+// InferUnaryOperatorType infers the result type of a unary operator expression
+func (tc *TypeChecker) InferUnaryOperatorType(operator, operandType string) (string, error) {
+	// First, check that the operand type is valid
+	if err := tc.validateType(operandType); err != nil {
+		return "", fmt.Errorf("invalid operand type '%s': %w", operandType, err)
+	}
+
+	switch operator {
+	// Logical NOT
+	case "!":
+		// ! can be applied to any type (everything has boolean context in Perl)
+		return "Bool", nil
+
+	// Numeric negation
+	case "-":
+		return tc.inferNumericNegationType(operandType)
+
+	// Numeric positive (unary +)
+	case "+":
+		return tc.inferNumericPositiveType(operandType)
+
+	// Bitwise NOT
+	case "~":
+		return tc.inferBitwiseNotType(operandType)
+
+	// Reference operator
+	case "\\":
+		return tc.inferReferenceType(operandType)
+
+	// Dereference operators (handled separately as they're more complex)
+	case "*", "@", "%", "&":
+		return tc.inferDereferenceType(operator, operandType)
+
+	default:
+		return "", fmt.Errorf("unknown unary operator: %s", operator)
+	}
+}
+
+// Helper methods for specific operator categories
+
+func (tc *TypeChecker) inferArithmeticOperatorType(leftType, operator, rightType string) (string, error) {
+	// Both operands must be numeric-compatible
+	if !tc.isNumericCompatible(leftType) {
+		return "", fmt.Errorf("left operand of '%s' must be numeric, got '%s'", operator, leftType)
+	}
+	if !tc.isNumericCompatible(rightType) {
+		return "", fmt.Errorf("right operand of '%s' must be numeric, got '%s'", operator, rightType)
+	}
+
+	// Arithmetic operations generally return Num
+	// Special case: if both operands are Int and operator preserves integer property
+	if leftType == "Int" && rightType == "Int" && (operator == "+" || operator == "-" || operator == "*" || operator == "%") {
+		return "Num", nil // In Perl, even integer arithmetic can produce non-integers
+	}
+
+	return "Num", nil
+}
+
+func (tc *TypeChecker) inferNumericComparisonType(leftType, operator, rightType string) (string, error) {
+	// Both operands must be numeric-compatible
+	if !tc.isNumericCompatible(leftType) {
+		return "", fmt.Errorf("left operand of '%s' must be numeric, got '%s'", operator, leftType)
+	}
+	if !tc.isNumericCompatible(rightType) {
+		return "", fmt.Errorf("right operand of '%s' must be numeric, got '%s'", operator, rightType)
+	}
+
+	// All numeric comparisons return Bool, except <=> which returns Int
+	if operator == "<=>" {
+		return "Int", nil // Returns -1, 0, or 1
+	}
+	return "Bool", nil
+}
+
+func (tc *TypeChecker) inferStringConcatenationType(leftType, operator, rightType string) (string, error) {
+	// For typed Perl, we require explicit string types or types that are already strings
+	// This prevents implicit numeric-to-string coercion
+	if !tc.isDirectlyStringCompatible(leftType) {
+		return "", fmt.Errorf("left operand of '.' must be string-compatible, got '%s'", leftType)
+	}
+	if !tc.isDirectlyStringCompatible(rightType) {
+		return "", fmt.Errorf("right operand of '.' must be string-compatible, got '%s'", rightType)
+	}
+
+	return "Str", nil
+}
+
+func (tc *TypeChecker) inferStringComparisonType(leftType, operator, rightType string) (string, error) {
+	// Both operands must be string-compatible
+	if !tc.isStringifiable(leftType) {
+		return "", fmt.Errorf("left operand of '%s' must be stringifiable, got '%s'", operator, leftType)
+	}
+	if !tc.isStringifiable(rightType) {
+		return "", fmt.Errorf("right operand of '%s' must be stringifiable, got '%s'", operator, rightType)
+	}
+
+	// All string comparisons return Bool, except cmp which returns Int
+	if operator == "cmp" {
+		return "Int", nil // Returns -1, 0, or 1
+	}
+	return "Bool", nil
+}
+
+func (tc *TypeChecker) inferLogicalOperatorType(leftType, operator, rightType string) (string, error) {
+	// Logical operators can work with any types (boolean context)
+	// && and || can return either operand type depending on which is returned
+	// For simplicity in typed Perl, we'll say they return Bool
+	// // (defined-or) is a bit different but we'll treat it similarly
+	return "Bool", nil
+}
+
+func (tc *TypeChecker) inferPatternMatchType(leftType, operator, rightType string) (string, error) {
+	// Left side should be stringifiable, right side should be a regexp pattern
+	if !tc.isStringifiable(leftType) {
+		return "", fmt.Errorf("left operand of '%s' must be stringifiable, got '%s'", operator, leftType)
+	}
+	// For now, we'll accept any type for the right side (could be Regexp, Str, etc.)
+	return "Bool", nil
+}
+
+func (tc *TypeChecker) inferBitwiseOperatorType(leftType, operator, rightType string) (string, error) {
+	// Bitwise operations require integer-compatible types
+	if !tc.isIntegerCompatible(leftType) {
+		return "", fmt.Errorf("left operand of '%s' must be integer-compatible, got '%s'", operator, leftType)
+	}
+	if !tc.isIntegerCompatible(rightType) {
+		return "", fmt.Errorf("right operand of '%s' must be integer-compatible, got '%s'", operator, rightType)
+	}
+
+	return "Int", nil
+}
+
+func (tc *TypeChecker) inferNumericNegationType(operandType string) (string, error) {
+	if !tc.isNumericCompatible(operandType) {
+		return "", fmt.Errorf("unary '-' requires numeric operand, got '%s'", operandType)
+	}
+
+	// Preserve the specific numeric type
+	if operandType == "Int" {
+		return "Int", nil
+	}
+	if operandType == "Float" {
+		return "Float", nil
+	}
+	return "Num", nil
+}
+
+func (tc *TypeChecker) inferNumericPositiveType(operandType string) (string, error) {
+	if !tc.isNumericCompatible(operandType) {
+		return "", fmt.Errorf("unary '+' requires numeric operand, got '%s'", operandType)
+	}
+
+	// Preserve the specific numeric type
+	if operandType == "Int" {
+		return "Int", nil
+	}
+	if operandType == "Float" {
+		return "Float", nil
+	}
+	return "Num", nil
+}
+
+func (tc *TypeChecker) inferBitwiseNotType(operandType string) (string, error) {
+	if !tc.isIntegerCompatible(operandType) {
+		return "", fmt.Errorf("bitwise '~' requires integer-compatible operand, got '%s'", operandType)
+	}
+	return "Int", nil
+}
+
+func (tc *TypeChecker) inferReferenceType(operandType string) (string, error) {
+	// Taking a reference to a type creates a reference type
+	switch operandType {
+	case "Scalar", "Str", "Num", "Int", "Float", "Bool":
+		return "ScalarRef", nil
+	case "Array":
+		return "ArrayRef", nil
+	case "Hash":
+		return "HashRef", nil
+	case "Code":
+		return "CodeRef", nil
+	case "Glob":
+		return "GlobRef", nil
+	default:
+		// For other types, create a generic Ref
+		return "Ref", nil
+	}
+}
+
+func (tc *TypeChecker) inferDereferenceType(operator, operandType string) (string, error) {
+	// This is complex - dereferencing depends on the reference type
+	// For now, simplified implementation
+	if !strings.HasSuffix(operandType, "Ref") && operandType != "Ref" {
+		return "", fmt.Errorf("cannot dereference non-reference type '%s'", operandType)
+	}
+
+	switch operator {
+	case "*": // Scalar dereference
+		if operandType == "ScalarRef" || operandType == "Ref" {
+			return "Scalar", nil
+		}
+		return "", fmt.Errorf("cannot scalar dereference '%s'", operandType)
+	case "@": // Array dereference
+		if operandType == "ArrayRef" || operandType == "Ref" {
+			return "Array", nil
+		}
+		return "", fmt.Errorf("cannot array dereference '%s'", operandType)
+	case "%": // Hash dereference
+		if operandType == "HashRef" || operandType == "Ref" {
+			return "Hash", nil
+		}
+		return "", fmt.Errorf("cannot hash dereference '%s'", operandType)
+	case "&": // Code dereference
+		if operandType == "CodeRef" || operandType == "Ref" {
+			return "Code", nil
+		}
+		return "", fmt.Errorf("cannot code dereference '%s'", operandType)
+	default:
+		return "", fmt.Errorf("unknown dereference operator: %s", operator)
+	}
+}
+
+// Helper methods for type compatibility checking
+
+func (tc *TypeChecker) isNumericCompatible(typeName string) bool {
+	// Check if type is numeric or can be treated as numeric
+	return tc.Hierarchy.IsSubtypeOf(typeName, "Num") || typeName == "Num"
+}
+
+func (tc *TypeChecker) isStringifiable(typeName string) bool {
+	// In our type system, anything that's a subtype of Str is stringifiable
+	// This includes Int, Num, etc. due to our hierarchy
+	return tc.Hierarchy.IsSubtypeOf(typeName, "Str") || typeName == "Str"
+}
+
+func (tc *TypeChecker) isDirectlyStringCompatible(typeName string) bool {
+	// For strict string operations, only allow types that are directly string-related
+	// This excludes numeric types that would require implicit conversion
+	switch typeName {
+	case "Str", "Scalar":
+		return true
+	default:
+		// Check for parameterized string types like Maybe[Str]
+		if strings.HasPrefix(typeName, "Maybe[") {
+			baseType, params := ExtractTypeAndParams(typeName)
+			if baseType == "Maybe" && len(params) > 0 {
+				return tc.isDirectlyStringCompatible(params[0])
+			}
+		}
+		return false
+	}
+}
+
+func (tc *TypeChecker) isIntegerCompatible(typeName string) bool {
+	// Only Int and its subtypes are considered integer-compatible for bitwise ops
+	return tc.Hierarchy.IsSubtypeOf(typeName, "Int") || typeName == "Int"
 }
 
 // checkASTFunctionReturns checks return types in an AST
