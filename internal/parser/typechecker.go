@@ -5,6 +5,7 @@ package parser
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"tamarou.com/pvm/internal/errors"
@@ -726,6 +727,123 @@ func (tc *TypeChecker) CheckTypeCompatibility(sourceType, targetType string) err
 	return tc.Hierarchy.CheckTypeCompatibility(sourceType, targetType)
 }
 
+// CheckStrictParameterTypeCompatibility provides stricter type checking for function parameters
+// This allows contravariant parameter typing - parameters can accept supertypes but not arbitrary subtypes
+func (tc *TypeChecker) CheckStrictParameterTypeCompatibility(argType, paramType string) error {
+	// Exact type match is always allowed
+	if argType == paramType {
+		return nil
+	}
+
+	// For function parameters, we want strict typing with controlled coercion
+	// Rather than allowing contravariance, we'll explicitly allow safe conversions below
+
+	// In practice, we'll be more permissive and allow some safe coercions
+	// Allow Int -> Num (numeric widening is safe)
+	if paramType == "Num" && argType == "Int" {
+		return nil
+	}
+
+	// Allow Num -> Scalar, Int -> Scalar, Str -> Scalar (all safe)
+	if paramType == "Scalar" && (argType == "Int" || argType == "Num" || argType == "Str") {
+		return nil
+	}
+
+	// Allow anything -> Any
+	if paramType == "Any" {
+		return nil
+	}
+
+	// Special handling for Maybe types
+	if strings.HasPrefix(paramType, "Maybe[") {
+		_, params := ExtractTypeAndParams(paramType)
+		if len(params) > 0 {
+			// Maybe[T] parameter can accept T or Maybe[T]
+			if argType == params[0] {
+				return nil
+			}
+			return tc.CheckStrictParameterTypeCompatibility(argType, params[0])
+		}
+	}
+
+	// For everything else, types must be compatible through the standard hierarchy
+	// but we reject conversions that would lose information or require implicit conversion
+	
+	// Reject numeric -> string conversions (would be coercion)
+	if argType == "Int" && (paramType == "Str") {
+		return fmt.Errorf("cannot pass %s to parameter expecting %s (implicit conversion not allowed)", argType, paramType)
+	}
+	if argType == "Num" && (paramType == "Str") {
+		return fmt.Errorf("cannot pass %s to parameter expecting %s (implicit conversion not allowed)", argType, paramType)
+	}
+
+	// Reject string -> numeric conversions (would be parsing/coercion)
+	if argType == "Str" && (paramType == "Int" || paramType == "Num") {
+		return fmt.Errorf("cannot pass %s to parameter expecting %s (implicit conversion not allowed)", argType, paramType)
+	}
+
+	// Reject other narrowing conversions that could lose data
+	if argType == "Scalar" && (paramType == "Int" || paramType == "Num" || paramType == "Str") {
+		return fmt.Errorf("cannot pass %s to parameter expecting %s (narrowing conversion not allowed)", argType, paramType)
+	}
+
+	// Use standard type compatibility for remaining cases (like inheritance hierarchies)
+	return tc.CheckTypeCompatibility(argType, paramType)
+}
+
+// CheckStrictReturnTypeCompatibility provides stricter type checking for function return types
+func (tc *TypeChecker) CheckStrictReturnTypeCompatibility(returnType, expectedReturnType string) error {
+	// Exact type match is always allowed
+	if returnType == expectedReturnType {
+		return nil
+	}
+
+	// For return types, we allow covariant subtyping BUT only for safe, non-conversion subtypes
+	// We'll be explicit about what's allowed rather than using the full hierarchy
+
+	// Allow safe numeric widening: Int -> Num, Int -> Scalar, Num -> Scalar
+	if expectedReturnType == "Num" && returnType == "Int" {
+		return nil
+	}
+	if expectedReturnType == "Scalar" && (returnType == "Int" || returnType == "Num" || returnType == "Str") {
+		return nil
+	}
+	if expectedReturnType == "Any" {
+		return nil // anything can be returned as Any
+	}
+
+	// Special handling for Maybe types
+	if strings.HasPrefix(expectedReturnType, "Maybe[") {
+		_, params := ExtractTypeAndParams(expectedReturnType)
+		if len(params) > 0 {
+			// Can return T for Maybe[T]
+			if returnType == params[0] {
+				return nil
+			}
+			return tc.CheckStrictReturnTypeCompatibility(returnType, params[0])
+		}
+	}
+
+	// Reject conversions that require implicit conversion or could lose data
+	// These are the opposite rules from parameter checking
+
+	// Reject numeric -> string conversions for return types too (unless overridden by hierarchy)
+	if returnType == "Int" && expectedReturnType == "Str" {
+		return fmt.Errorf("cannot return %s as %s (implicit conversion not allowed)", returnType, expectedReturnType)
+	}
+	if returnType == "Num" && expectedReturnType == "Str" {
+		return fmt.Errorf("cannot return %s as %s (implicit conversion not allowed)", returnType, expectedReturnType)
+	}
+
+	// Reject string -> numeric conversions 
+	if returnType == "Str" && (expectedReturnType == "Int" || expectedReturnType == "Num") {
+		return fmt.Errorf("cannot return %s as %s (implicit conversion not allowed)", returnType, expectedReturnType)
+	}
+
+	// For other mismatches, return a generic incompatibility error
+	return fmt.Errorf("return type %s is not compatible with expected %s", returnType, expectedReturnType)
+}
+
 // CheckAssignment checks if a value of sourceType can be assigned to a variable of targetType
 func (tc *TypeChecker) CheckAssignment(sourceType, targetType string, pos Position) error {
 	err := tc.CheckTypeCompatibility(sourceType, targetType)
@@ -764,6 +882,155 @@ func (tc *TypeChecker) GetVariableType(variable string) (string, bool) {
 func (tc *TypeChecker) GetFunctionSignature(funcName string) (*FunctionSignature, bool) {
 	sig, ok := tc.FunctionTypes[funcName]
 	return sig, ok
+}
+
+// CheckFunctionCall validates a function call against its signature (Phase 5)
+func (tc *TypeChecker) CheckFunctionCall(funcName string, argTypes []string) error {
+	// Get the function signature
+	signature, ok := tc.GetFunctionSignature(funcName)
+	if !ok {
+		return fmt.Errorf("unknown function: %s", funcName)
+	}
+
+	// Check parameter count
+	expectedCount := len(signature.ParameterTypes)
+	actualCount := len(argTypes)
+	if actualCount != expectedCount {
+		return fmt.Errorf("function %s expects %d parameters, got %d", funcName, expectedCount, actualCount)
+	}
+
+	// Validate parameter types
+	return tc.ValidateParameterTypes(funcName, signature, argTypes)
+}
+
+// ValidateParameterTypes checks that argument types are compatible with parameter types (Phase 5)
+func (tc *TypeChecker) ValidateParameterTypes(funcName string, signature *FunctionSignature, argTypes []string) error {
+	// For this simplified implementation, we'll assume the parameter types map
+	// is ordered consistently. In a real implementation, we'd use AST parameter order.
+	
+	// Check parameter count
+	if len(argTypes) != len(signature.ParameterTypes) {
+		return fmt.Errorf("parameter count mismatch for function %s: expected %d, got %d", 
+			funcName, len(signature.ParameterTypes), len(argTypes))
+	}
+
+	// Convert parameter types map to ordered slice for comparison
+	// For methods, we need to ensure $self comes first, then others alphabetically
+	var paramNames []string
+	var hasSelfs bool
+	
+	// Check if this is a method (has $self parameter)
+	for paramName := range signature.ParameterTypes {
+		if paramName == "$self" {
+			hasSelfs = true
+			break
+		}
+	}
+	
+	if hasSelfs {
+		// For methods, put $self first, then sort the rest
+		paramNames = append(paramNames, "$self")
+		for paramName := range signature.ParameterTypes {
+			if paramName != "$self" {
+				paramNames = append(paramNames, paramName)
+			}
+		}
+		// Sort the non-self parameters
+		if len(paramNames) > 1 {
+			sort.Strings(paramNames[1:])
+		}
+	} else {
+		// For functions, just sort all parameters alphabetically
+		for paramName := range signature.ParameterTypes {
+			paramNames = append(paramNames, paramName)
+		}
+		sort.Strings(paramNames)
+	}
+
+	// Check each argument type against expected parameter type
+	for i, argType := range argTypes {
+		if i >= len(paramNames) {
+			return fmt.Errorf("too many arguments for function %s", funcName)
+		}
+
+		paramName := paramNames[i]
+		expectedType := signature.ParameterTypes[paramName]
+		
+		// Check strict type compatibility for function parameters
+		err := tc.CheckStrictParameterTypeCompatibility(argType, expectedType)
+		if err != nil {
+			return fmt.Errorf("parameter %d (%s) of function %s: incompatible type %s (expected %s): %w", 
+				i+1, paramName, funcName, argType, expectedType, err)
+		}
+	}
+
+	return nil
+}
+
+// CheckReturnType validates that a return expression type matches the function's return type (Phase 5)
+func (tc *TypeChecker) CheckReturnType(funcName string, returnType string) error {
+	// Get the function signature
+	signature, ok := tc.GetFunctionSignature(funcName)
+	if !ok {
+		return fmt.Errorf("unknown function: %s", funcName)
+	}
+
+	// Check strict return type compatibility
+	err := tc.CheckStrictReturnTypeCompatibility(returnType, signature.ReturnType)
+	if err != nil {
+		return fmt.Errorf("function %s return type: incompatible type %s (expected %s): %w", 
+			funcName, returnType, signature.ReturnType, err)
+	}
+
+	return nil
+}
+
+// CheckSubroutineCall validates a subroutine call (Phase 5)
+func (tc *TypeChecker) CheckSubroutineCall(subName string, argTypes []string) error {
+	// Get the function signature
+	signature, ok := tc.GetFunctionSignature(subName)
+	if !ok {
+		return fmt.Errorf("unknown subroutine: %s", subName)
+	}
+
+	// Check that it's actually a subroutine, not a method
+	if signature.IsMethod {
+		return fmt.Errorf("%s is not a subroutine (it's a method)", subName)
+	}
+
+	// Validate the call using standard function call validation
+	return tc.CheckFunctionCall(subName, argTypes)
+}
+
+// CheckMethodCall validates a method call (Phase 5)
+func (tc *TypeChecker) CheckMethodCall(className string, methodName string, argTypes []string) error {
+	// Construct the full method name (Class::method convention)
+	fullMethodName := fmt.Sprintf("%s::%s", className, methodName)
+	
+	// Get the method signature
+	signature, ok := tc.GetFunctionSignature(fullMethodName)
+	if !ok {
+		// Also try just the method name without class prefix
+		signature, ok = tc.GetFunctionSignature(methodName)
+		if !ok {
+			return fmt.Errorf("unknown method: %s::%s", className, methodName)
+		}
+	}
+
+	// Check that it's actually a method, not a subroutine
+	if !signature.IsMethod {
+		return fmt.Errorf("%s is not a method (it's a subroutine)", methodName)
+	}
+
+	// Check parameter count (including self parameter for methods)
+	expectedCount := len(signature.ParameterTypes)
+	actualCount := len(argTypes)
+	if actualCount != expectedCount {
+		return fmt.Errorf("method %s::%s expects %d parameters, got %d", className, methodName, expectedCount, actualCount)
+	}
+
+	// Validate parameter types
+	return tc.ValidateParameterTypes(fullMethodName, signature, argTypes)
 }
 
 // CheckASTAssignments checks all assignments in an AST

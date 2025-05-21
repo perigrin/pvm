@@ -1074,6 +1074,248 @@ func (n *MockNode) End() Position {
 	return Position{Line: 1, Column: len(n.NodeText)}
 }
 
+// TestFunctionSignatureValidation tests function signature validation (Phase 5)
+func TestFunctionSignatureValidation(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// First register some function signatures
+	addSig := &FunctionSignature{
+		ParameterTypes: map[string]string{"$a": "Int", "$b": "Int"},
+		ReturnType:     "Int",
+	}
+	checker.FunctionTypes["add"] = addSig
+
+	greetSig := &FunctionSignature{
+		ParameterTypes: map[string]string{"$name": "Str"},
+		ReturnType:     "Str",
+	}
+	checker.FunctionTypes["greet"] = greetSig
+
+	// Test valid function calls
+	t.Run("ValidFunctionCalls", func(t *testing.T) {
+		// Valid call: add(Int, Int) -> Int
+		err := checker.CheckFunctionCall("add", []string{"Int", "Int"})
+		assert.NoError(t, err, "Valid function call should not error")
+
+		// Valid call: greet(Str) -> Str
+		err = checker.CheckFunctionCall("greet", []string{"Str"})
+		assert.NoError(t, err, "Valid function call should not error")
+	})
+
+	// Test invalid parameter types
+	t.Run("InvalidParameterTypes", func(t *testing.T) {
+		// Invalid call: add(Str, Int) - first param wrong type
+		err := checker.CheckFunctionCall("add", []string{"Str", "Int"})
+		assert.Error(t, err, "Function call with wrong parameter type should error")
+		assert.Contains(t, err.Error(), "parameter", "Error should mention parameter")
+
+		// Invalid call: greet(Int) - wrong parameter type
+		err = checker.CheckFunctionCall("greet", []string{"Int"})
+		assert.Error(t, err, "Function call with wrong parameter type should error")
+		assert.Contains(t, err.Error(), "parameter", "Error should mention parameter")
+	})
+
+	// Test wrong number of parameters
+	t.Run("WrongParameterCount", func(t *testing.T) {
+		// Too few parameters: add(Int)
+		err := checker.CheckFunctionCall("add", []string{"Int"})
+		assert.Error(t, err, "Function call with too few parameters should error")
+		assert.Contains(t, err.Error(), "expects 2", "Error should mention expected parameter count")
+
+		// Too many parameters: add(Int, Int, Int)
+		err = checker.CheckFunctionCall("add", []string{"Int", "Int", "Int"})
+		assert.Error(t, err, "Function call with too many parameters should error")
+		assert.Contains(t, err.Error(), "expects 2", "Error should mention expected parameter count")
+
+		// Too many parameters: greet(Str, Str)
+		err = checker.CheckFunctionCall("greet", []string{"Str", "Str"})
+		assert.Error(t, err, "Function call with too many parameters should error")
+		assert.Contains(t, err.Error(), "expects 1", "Error should mention expected parameter count")
+	})
+
+	// Test unknown function
+	t.Run("UnknownFunction", func(t *testing.T) {
+		err := checker.CheckFunctionCall("unknown_func", []string{"Int"})
+		assert.Error(t, err, "Call to unknown function should error")
+		assert.Contains(t, err.Error(), "unknown function", "Error should mention unknown function")
+	})
+}
+
+// TestFunctionReturnTypeValidation tests return type validation (Phase 5)
+func TestFunctionReturnTypeValidation(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Register function signatures for testing
+	addSig := &FunctionSignature{
+		ParameterTypes: map[string]string{"$a": "Int", "$b": "Int"},
+		ReturnType:     "Int",
+	}
+	checker.FunctionTypes["add"] = addSig
+
+	greetSig := &FunctionSignature{
+		ParameterTypes: map[string]string{"$name": "Str"},
+		ReturnType:     "Str",
+	}
+	checker.FunctionTypes["greet"] = greetSig
+
+	// Test return type checking
+	t.Run("ValidReturnTypes", func(t *testing.T) {
+		// Function that returns Int, returning Int expression
+		err := checker.CheckReturnType("add", "Int")
+		assert.NoError(t, err, "Valid return type should not error")
+
+		// Function that returns Str, returning Str expression
+		err = checker.CheckReturnType("greet", "Str")
+		assert.NoError(t, err, "Valid return type should not error")
+	})
+
+	t.Run("InvalidReturnTypes", func(t *testing.T) {
+		// Function that returns Int, but returns Str
+		err := checker.CheckReturnType("add", "Str")
+		assert.Error(t, err, "Invalid return type should error")
+		assert.Contains(t, err.Error(), "return type", "Error should mention return type")
+
+		// Function that returns Str, but returns Int  
+		err = checker.CheckReturnType("greet", "Int")
+		assert.Error(t, err, "Invalid return type should error")
+		assert.Contains(t, err.Error(), "return type", "Error should mention return type")
+	})
+
+	t.Run("UnknownFunctionReturn", func(t *testing.T) {
+		err := checker.CheckReturnType("unknown_func", "Int")
+		assert.Error(t, err, "Return check for unknown function should error")
+		assert.Contains(t, err.Error(), "unknown function", "Error should mention unknown function")
+	})
+}
+
+// TestMethodVsSubroutineDistinction tests method vs subroutine distinction (Phase 5)
+func TestMethodVsSubroutineDistinction(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Test subroutine vs method calls
+	t.Run("SubroutineCalls", func(t *testing.T) {
+		// Register a subroutine
+		subSig := &FunctionSignature{
+			ParameterTypes: map[string]string{"$value": "Int"},
+			ReturnType:     "Str",
+			IsMethod:       false,
+		}
+		checker.FunctionTypes["format_number"] = subSig
+
+		// Valid subroutine call
+		err := checker.CheckSubroutineCall("format_number", []string{"Int"})
+		assert.NoError(t, err, "Valid subroutine call should not error")
+
+		// Try to call as method (should error)
+		err = checker.CheckMethodCall("SomeClass", "format_number", []string{"Int"})
+		assert.Error(t, err, "Calling subroutine as method should error")
+		assert.Contains(t, err.Error(), "not a method", "Error should mention it's not a method")
+	})
+
+	t.Run("MethodCalls", func(t *testing.T) {
+		// Register a method
+		methodSig := &FunctionSignature{
+			ParameterTypes: map[string]string{"$self": "Person", "$age": "Int"},
+			ReturnType:     "Bool",
+			IsMethod:       true,
+		}
+		checker.FunctionTypes["Person::set_age"] = methodSig
+
+		// Valid method call
+		err := checker.CheckMethodCall("Person", "set_age", []string{"Person", "Int"})
+		assert.NoError(t, err, "Valid method call should not error")
+
+		// Try to call as subroutine (should error)
+		err = checker.CheckSubroutineCall("Person::set_age", []string{"Person", "Int"})
+		assert.Error(t, err, "Calling method as subroutine should error")
+		assert.Contains(t, err.Error(), "not a subroutine", "Error should mention it's not a subroutine")
+	})
+}
+
+// TestParameterTypeCompatibility tests parameter type compatibility with subtyping (Phase 5)
+func TestParameterTypeCompatibility(t *testing.T) {
+	// Create a mock storage
+	storage, err := typedef.NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := typedef.NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Create a type checker
+	checker := NewTypeChecker(hierarchy, "Test::Module")
+	require.NotNil(t, checker)
+
+	// Test parameter subtype compatibility
+	t.Run("SubtypeCompatibility", func(t *testing.T) {
+		// Function expects Num, but gets Int (should be valid due to Int -> Num)
+		numFuncSig := &FunctionSignature{
+			ParameterTypes: map[string]string{"$value": "Num"},
+			ReturnType:     "Str",
+		}
+		checker.FunctionTypes["format_num"] = numFuncSig
+
+		// Int should be compatible with Num parameter
+		err := checker.CheckFunctionCall("format_num", []string{"Int"})
+		assert.NoError(t, err, "Int should be compatible with Num parameter")
+
+		// Function expects Scalar, gets Str (should be valid due to Str -> Scalar)
+		scalarFuncSig := &FunctionSignature{
+			ParameterTypes: map[string]string{"$value": "Scalar"},
+			ReturnType:     "Int",
+		}
+		checker.FunctionTypes["length_scalar"] = scalarFuncSig
+
+		// Str should be compatible with Scalar parameter
+		err = checker.CheckFunctionCall("length_scalar", []string{"Str"})
+		assert.NoError(t, err, "Str should be compatible with Scalar parameter")
+	})
+
+	t.Run("IncompatibleTypes", func(t *testing.T) {
+		// Function expects Int, but gets Str (should error - no Str -> Int conversion)
+		intFuncSig := &FunctionSignature{
+			ParameterTypes: map[string]string{"$number": "Int"},
+			ReturnType:     "Int",
+		}
+		checker.FunctionTypes["double_int"] = intFuncSig
+
+		// Str is not compatible with Int parameter
+		err := checker.CheckFunctionCall("double_int", []string{"Str"})
+		assert.Error(t, err, "Str should not be compatible with Int parameter")
+		assert.Contains(t, err.Error(), "incompatible", "Error should mention incompatibility")
+	})
+}
+
 // TypeError is a helper type for testing
 type TypeError struct {
 	Message string
