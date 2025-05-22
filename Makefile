@@ -9,6 +9,7 @@ all: $(BUILDDIR) $(LIBDIR) tree-sitter $(BINARIES)
 
 # Set CGO flags for tree-sitter integration
 export CGO_ENABLED=1
+export CGO_CFLAGS=-I$(PWD)/include -I$(PWD)/tree-sitter-typed-perl
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)

@@ -319,7 +319,7 @@ func (h *TypeHierarchy) checkParameterizedSubtype(childType, parentType string) 
 
 	// Check each parameter
 	for i, childParam := range childParams {
-		if !h.IsSubtypeOf(childParam, parentParams[i]) {
+		if err := h.CheckTypeCompatibility(childParam, parentParams[i]); err != nil {
 			return false
 		}
 	}
@@ -382,6 +382,17 @@ func (h *TypeHierarchy) CheckTypeCompatibility(sourceType, targetType string) er
 		_, params := extractTypeAndParams(sourceType)
 		if len(params) > 0 && h.IsSubtypeOf(params[0], targetType) {
 			return nil
+		}
+	}
+
+	// Special case: T and Undef can be assigned to Maybe[T]
+	if strings.HasPrefix(targetType, "Maybe[") {
+		_, params := extractTypeAndParams(targetType)
+		if len(params) > 0 {
+			// T -> Maybe[T] or Undef -> Maybe[T]
+			if sourceType == "Undef" || h.IsSubtypeOf(sourceType, params[0]) {
+				return nil
+			}
 		}
 	}
 
@@ -558,8 +569,26 @@ func (h *TypeHierarchy) IsUnionType(typeName string) bool {
 		return true
 	}
 
-	// Check for pipe-separated format
-	return strings.Contains(typeName, "|")
+	// Check for pipe-separated format, but only at top level (not inside brackets)
+	return h.containsTopLevelPipe(typeName)
+}
+
+// containsTopLevelPipe checks if a string contains "|" at the top level (not inside brackets)
+func (h *TypeHierarchy) containsTopLevelPipe(typeName string) bool {
+	bracketCount := 0
+	for _, c := range typeName {
+		switch c {
+		case '[':
+			bracketCount++
+		case ']':
+			bracketCount--
+		case '|':
+			if bracketCount == 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ParseUnionType parses a union type string and creates a UnionType instance

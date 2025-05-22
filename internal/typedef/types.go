@@ -213,13 +213,15 @@ func (ut *UnionType) ContainsMember(typeName string) bool {
 
 // IsCompatibleWith checks if this union type is compatible with another type
 func (ut *UnionType) IsCompatibleWith(targetType string, hierarchy *TypeHierarchy) bool {
-	// Union[A, B] is compatible with T if any member is compatible with T
+	// Union[A, B] is compatible with T if ALL members are compatible with T
+	// This ensures type safety: if you have a union, you can only assign it to
+	// a type that can handle all possible values
 	for _, member := range ut.Members {
-		if err := hierarchy.CheckTypeCompatibility(member, targetType); err == nil {
-			return true
+		if err := hierarchy.CheckTypeCompatibility(member, targetType); err != nil {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // CanAssignFrom checks if a source type can be assigned to this union

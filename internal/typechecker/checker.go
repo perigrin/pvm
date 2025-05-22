@@ -4,6 +4,8 @@
 package typechecker
 
 import (
+	"strings"
+
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/typedef"
@@ -184,4 +186,143 @@ func (tc *TypeChecker) GetVariableType(varName string) (string, bool) {
 	}
 
 	return "", false
+}
+
+// CheckAssignment checks if a source type can be assigned to a target type
+func (tc *TypeChecker) CheckAssignment(sourceType, targetType string, pos parser.Position) error {
+	return tc.Hierarchy.CheckTypeCompatibility(sourceType, targetType)
+}
+
+// refineTypeAfterCondition refines a variable's type based on a conditional check
+func (tc *TypeChecker) refineTypeAfterCondition(variable, condition string, positive bool) {
+	currentType, exists := tc.VariableTypes[variable]
+	if !exists {
+		return
+	}
+
+	var refinedType string
+
+	switch condition {
+	case "defined":
+		if positive {
+			// After defined($var), exclude Undef from the type
+			refinedType = tc.excludeTypeFromUnion(currentType, "Undef")
+		} else {
+			// After !defined($var), the variable must be Undef
+			if tc.Hierarchy.IsUnionType(currentType) {
+				unionType := tc.Hierarchy.ParseUnionType(currentType)
+				if unionType != nil && unionType.ContainsMember("Undef") {
+					refinedType = "Undef"
+				}
+			} else if currentType == "Maybe["+tc.extractMaybeParameter(currentType)+"]" {
+				refinedType = "Undef"
+			}
+		}
+	}
+
+	if refinedType != "" {
+		tc.TypeState.RefinedTypes[variable] = refinedType
+	}
+}
+
+// excludeTypeFromUnion removes a specific type from a union type
+func (tc *TypeChecker) excludeTypeFromUnion(unionType, excludeType string) string {
+	// Handle Maybe[T] special case
+	if strings.HasPrefix(unionType, "Maybe[") {
+		param := tc.extractMaybeParameter(unionType)
+		if param != "" {
+			return param // Maybe[T] without Undef becomes T
+		}
+	}
+
+	// Handle regular union types
+	if tc.Hierarchy.IsUnionType(unionType) {
+		unionInstance := tc.Hierarchy.ParseUnionType(unionType)
+		if unionInstance != nil {
+			members := unionInstance.GetMembers()
+			var newMembers []string
+			for _, member := range members {
+				if member != excludeType {
+					newMembers = append(newMembers, member)
+				}
+			}
+
+			if len(newMembers) == 1 {
+				return newMembers[0] // Single type remaining
+			} else if len(newMembers) > 1 {
+				return strings.Join(newMembers, "|") // Remaining union
+			}
+		}
+	}
+
+	return unionType // No change
+}
+
+// extractMaybeParameter extracts the parameter from Maybe[T]
+func (tc *TypeChecker) extractMaybeParameter(maybeType string) string {
+	if strings.HasPrefix(maybeType, "Maybe[") && strings.HasSuffix(maybeType, "]") {
+		return maybeType[6 : len(maybeType)-1]
+	}
+	return ""
+}
+
+// inferExpressionType infers the type of a literal expression
+func (tc *TypeChecker) inferExpressionType(expression string) string {
+	expression = strings.TrimSpace(expression)
+
+	// Integer literals
+	if strings.Trim(expression, "0123456789") == "" && expression != "" {
+		return "Int"
+	}
+
+	// Float literals
+	if strings.Contains(expression, ".") {
+		if strings.Trim(expression, "0123456789.") == "" {
+			return "Float"
+		}
+	}
+
+	// String literals
+	if (strings.HasPrefix(expression, "\"") && strings.HasSuffix(expression, "\"")) ||
+		(strings.HasPrefix(expression, "'") && strings.HasSuffix(expression, "'")) {
+		return "Str"
+	}
+
+	// Special values
+	switch expression {
+	case "undef":
+		return "Undef"
+	case "[]":
+		return "ArrayRef"
+	case "{}":
+		return "HashRef"
+	}
+
+	// Default to unknown
+	return "Any"
+}
+
+// initializeValidationPatterns initializes the validation patterns for flow-sensitive analysis
+func (tc *TypeChecker) initializeValidationPatterns() {
+	// This would initialize flow-sensitive validation patterns
+	// For now, it's a placeholder
+}
+
+// validateType validates that a type string is valid
+func (tc *TypeChecker) validateType(typeStr string) error {
+	return tc.Hierarchy.ValidateType(typeStr)
+}
+
+// checkTypeAnnotation validates a single type annotation
+func (tc *TypeChecker) checkTypeAnnotation(annotation *parser.TypeAnnotation) error {
+	if annotation == nil || annotation.TypeExpression == nil {
+		return errors.NewTypeError(
+			ErrTypeValidationError,
+			"Nil type annotation",
+			nil,
+		)
+	}
+
+	typeStr := annotation.TypeExpression.String()
+	return tc.validateType(typeStr)
 }
