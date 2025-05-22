@@ -173,6 +173,14 @@ module.exports = grammar({
     [$.autoquoted_bareword],
     // nameless params need extra lookahead
     [$.optional_parameter],
+    // typed method parameters conflict with mandatory parameters
+    [$.typed_method_parameter, $.mandatory_parameter],
+    // signature scalar parsing conflicts
+    [$.mandatory_parameter, $._signature_scalar],
+    // signature array parsing conflicts
+    [$.slurpy_parameter, $._signature_array],
+    // signature hash parsing conflicts
+    [$.slurpy_parameter, $._signature_hash],
     // these are all dynamic handling for continue BLOCK vs func0 b/c we don't get lookahead
     [$._loop_body],
     // we need an extra lookahead so we can correctly hide the `->` in a non-interpolating case
@@ -296,11 +304,21 @@ module.exports = grammar({
       alias(choice($._HASH_PERCENT, $._signature_hash), $.hash)
     ),
 
+    typed_method_parameter: $ => prec(1, seq(
+      field('type', $.type_expression),
+      field('parameter', choice(
+        alias($._signature_scalar, $.scalar),
+        alias($._signature_array, $.array),
+        alias($._signature_hash, $.hash)
+      ))
+    )),
+
     _signature_vars: $ => choice(
       $.mandatory_parameter,
       $.optional_parameter,
       $.slurpy_parameter,
       $.named_parameter,
+      $.typed_method_parameter,
     ),
 
 
@@ -323,6 +341,11 @@ module.exports = grammar({
       field('body', $.block),
     ),
 
+    method_return_type: $ => seq(
+      '->',
+      field('return_type', $.type_expression)
+    ),
+
     method_declaration_statement: $ => seq(
       optional(field('lexical', 'my')),
       subExtensions(),
@@ -330,6 +353,7 @@ module.exports = grammar({
       field('name', $.bareword),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice($.prototype, $.signature)),
+      optional(field('return_type', $.method_return_type)),
       field('body', $.block),
     ),
 

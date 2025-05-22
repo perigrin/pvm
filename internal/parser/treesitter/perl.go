@@ -161,7 +161,7 @@ func (t *PerlTree) traverseForTypeAnnotations(node *sitter.Node, annotations *[]
 		t.processTypedVariableDeclaration(node, annotations)
 	case "subroutine_declaration_statement":
 		t.processSubroutineDeclaration(node, annotations)
-	case "method_declaration":
+	case "method_declaration_statement":
 		t.processMethodDeclaration(node, annotations)
 	case "type_declaration":
 		if os.Getenv("DEBUG_PARSER") == "1" {
@@ -373,18 +373,134 @@ func (t *PerlTree) extractParameterTypes(signatureNode *sitter.Node) []string {
 
 // processMethodDeclaration looks for type annotations in method declarations
 func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
-	content := t.getNodeText(node)
+	var methodName string
 
-	if len(content) > 0 && (containsMethodTypePattern(content)) {
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing method declaration with %d children\n", node.ChildCount())
+	}
+
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Method child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "bareword":
+			if methodName == "" {
+				methodName = t.getNodeText(child)
+			}
+		case "signature":
+			t.processMethodSignature(child, methodName, annotations)
+		case "method_return_type":
+			t.processMethodReturnType(child, methodName, annotations)
+		}
+	}
+}
+
+// processMethodSignature handles signature nodes for typed method parameters
+func (t *PerlTree) processMethodSignature(signatureNode *sitter.Node, methodName string, annotations *[]*PerlTypeAnnotation) {
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing method signature for %s with %d children\n", methodName, signatureNode.ChildCount())
+	}
+
+	for i := 0; i < int(signatureNode.ChildCount()); i++ {
+		child := signatureNode.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Signature child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		if child.Kind() == "typed_method_parameter" {
+			t.processTypedMethodParameter(child, methodName, annotations)
+		}
+	}
+}
+
+// processTypedMethodParameter processes individual typed method parameters
+func (t *PerlTree) processTypedMethodParameter(paramNode *sitter.Node, methodName string, annotations *[]*PerlTypeAnnotation) {
+	var paramName, typeName string
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing typed method parameter for %s with %d children\n", methodName, paramNode.ChildCount())
+	}
+
+	for i := 0; i < int(paramNode.ChildCount()); i++ {
+		child := paramNode.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Parameter child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "type_expression":
+			typeName = t.extractTypeExpression(child)
+		case "scalar", "array", "hash":
+			paramName = t.getNodeText(child)
+		}
+	}
+
+	if paramName != "" && typeName != "" {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Creating method parameter annotation: %s for %s: %s\n", paramName, methodName, typeName)
+		}
 		annotation := &PerlTypeAnnotation{
-			ItemName: extractMethodName(content),
-			TypeName: extractMethodTypes(content),
-			Kind:     "method",
-			StartPos: int(node.StartByte()),
-			EndPos:   int(node.EndByte()),
-			Content:  content,
+			ItemName: paramName,
+			TypeName: typeName,
+			Kind:     "method_parameter",
+			StartPos: int(paramNode.StartByte()),
+			EndPos:   int(paramNode.EndByte()),
+			Content:  t.getNodeText(paramNode),
 		}
 		*annotations = append(*annotations, annotation)
+	}
+}
+
+// processMethodReturnType processes method return type annotations
+func (t *PerlTree) processMethodReturnType(returnTypeNode *sitter.Node, methodName string, annotations *[]*PerlTypeAnnotation) {
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing method return type for %s with %d children\n", methodName, returnTypeNode.ChildCount())
+	}
+
+	for i := 0; i < int(returnTypeNode.ChildCount()); i++ {
+		child := returnTypeNode.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Return type child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		if child.Kind() == "type_expression" {
+			typeName := t.extractTypeExpression(child)
+
+			if typeName != "" {
+				if os.Getenv("DEBUG_PARSER") == "1" {
+					fmt.Printf("DEBUG: Creating method return type annotation for %s: %s\n", methodName, typeName)
+				}
+				annotation := &PerlTypeAnnotation{
+					ItemName: methodName + "_return", // Unique identifier for return type
+					TypeName: typeName,
+					Kind:     "method_return",
+					StartPos: int(returnTypeNode.StartByte()),
+					EndPos:   int(returnTypeNode.EndByte()),
+					Content:  t.getNodeText(returnTypeNode),
+				}
+				*annotations = append(*annotations, annotation)
+			}
+			break
+		}
 	}
 }
 

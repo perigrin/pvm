@@ -14485,6 +14485,16 @@
             "named": true
           }
         ]
+      },
+      "return_type": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "method_return_type",
+            "named": true
+          }
+        ]
       }
     },
     "children": {
@@ -14500,6 +14510,22 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "method_return_type",
+    "named": true,
+    "fields": {
+      "return_type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_expression",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -18963,6 +18989,10 @@
         {
           "type": "slurpy_parameter",
           "named": true
+        },
+        {
+          "type": "typed_method_parameter",
+          "named": true
         }
       ]
     }
@@ -21382,6 +21412,40 @@
     }
   },
   {
+    "type": "typed_method_parameter",
+    "named": true,
+    "fields": {
+      "parameter": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "array",
+            "named": true
+          },
+          {
+            "type": "hash",
+            "named": true
+          },
+          {
+            "type": "scalar",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "typed_variable_declaration",
     "named": true,
     "fields": {
@@ -23314,11 +23378,11 @@
   },
   {
     "type": "prototype",
-    "named": false
+    "named": true
   },
   {
     "type": "prototype",
-    "named": true
+    "named": false
   },
   {
     "type": "q",

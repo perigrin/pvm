@@ -255,11 +255,21 @@ func (p *Parser) convertPerlTypeAnnotation(perlAnn *PerlTypeAnnotation, content 
 	case "subroutine":
 		kind = SubParamAnnotation // Simplified for now
 	case "method":
-		kind = MethodParamAnnotation // Simplified for now
+		kind = MethodParamAnnotation // Keep existing for backwards compatibility
+	case "method_parameter":
+		kind = MethodParamAnnotation
+	case "method_return":
+		kind = MethodReturnAnnotation
 	case "type_declaration":
 		kind = TypeDeclAnnotation
 	default:
 		kind = VarAnnotation // Default fallback
+	}
+
+	// Add debug output for method annotation conversion
+	if os.Getenv("DEBUG_PARSER") == "1" && (perlAnn.Kind == "method_parameter" || perlAnn.Kind == "method_return") {
+		log.Debugf("DEBUG: Converting method annotation: %s = %s (kind: %s)",
+			perlAnn.ItemName, perlAnn.TypeName, perlAnn.Kind)
 	}
 
 	return &TypeAnnotation{

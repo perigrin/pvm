@@ -278,8 +278,7 @@ func TestParseComplexTypeExpressions(t *testing.T) {
 }
 
 func TestParseMethodTypeAnnotations(t *testing.T) {
-	// TODO: Skip this test until method annotations are implemented in tree-sitter parser
-	t.Skip("Method type annotations not fully implemented in tree-sitter parser yet")
+	// Method type annotations are now implemented in tree-sitter parser
 
 	// Create a parser
 	p, err := NewParser()
