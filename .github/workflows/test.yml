@@ -1,0 +1,69 @@
+name: Quick Test
+
+on:
+  push:
+    branches-ignore: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  quick-test:
+    name: Quick Test on Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ubuntu-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ubuntu-go-
+
+    - name: Download dependencies
+      run: |
+        go mod download
+        go mod vendor
+
+    - name: Run quick tests (non-tree-sitter)
+      run: |
+        # Run tests excluding tree-sitter dependencies for speed
+        go test -v -short $(go list ./... | grep -v treesitter | grep -v e2e)
+
+    - name: Basic build check
+      run: |
+        # Quick build check for core components
+        go build ./cmd/pvm
+        go build ./cmd/pvx
+        go build ./cmd/pvi
+        echo "Basic builds successful"
+
+    - name: Lint critical issues only
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        args: --fast --disable-all --enable=errcheck,unused,deadcode,varcheck
+
+  validate-markdown:
+    name: Validate Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate Markdown
+      uses: avto-dev/markdown-lint@v1
+      with:
+        args: '**/*.md'
+        ignore: 'vendor'

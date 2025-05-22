@@ -4,12 +4,7 @@
 // This file contains grammar extensions for tree-sitter-perl to handle typed Perl syntax
 // It would be integrated with the main tree-sitter-perl grammar during the build process
 
-module.exports = {
-  // Extend the base grammar with type annotation rules
-  extends: 'perl',
-
-  // Add custom rules for type annotations
-  rules: {
+module.exports.rules = {
     // Extend variable declaration to include type annotations
     // Example: my Int $var
     _variable_declaration: ($, original) => choice(
@@ -153,7 +148,6 @@ module.exports = {
       'as',
       field('type', $.type_expression)
     )
-  }
 };
 
 // Helper functions for grammar definition

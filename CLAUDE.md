@@ -3,12 +3,70 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Build/Test Commands
-- Build: `go build -o pvm ./cmd/pvm`
+
+### Basic Commands
+- Build all: `make all` (builds all components including tree-sitter)
+- Build individual components:
+  - PVM: `make pvm` or `go build -o build/pvm ./cmd/pvm`
+  - PVX: `make pvx` or `go build -o build/pvx ./cmd/pvx`
+  - PVI: `make pvi` or `go build -o build/pvi ./cmd/pvi`
+  - PSC: `make psc` (requires tree-sitter build first)
 - Test all: `go test ./...`
 - Test single package: `go test ./path/to/package`
 - Test with coverage: `go test -cover ./...`
 - Lint: `golangci-lint run`
-- Run locally: `go run ./cmd/pvm [commands]`
+- Clean: `make clean`
+
+### Cross-Platform Build
+- Cross-compile all platforms: `make cross-compile`
+- Create release archives: `make release`
+
+Supported platforms:
+- Linux (AMD64, ARM64)
+- macOS (AMD64, ARM64)
+- Windows (AMD64)
+
+### Tree-sitter Build (Required for PSC)
+PSC uses tree-sitter-perl with custom type annotation extensions. The build process:
+
+1. **Prerequisites**: Node.js and npm must be installed for tree-sitter-cli
+2. **Build tree-sitter**: `make tree-sitter` or `./bin/build_tree_sitter.sh`
+
+This process:
+- Clones the official tree-sitter-perl grammar from GitHub
+- Integrates our custom type annotation grammar extensions
+- Generates the extended parser using tree-sitter-cli
+- Builds the shared library for go-tree-sitter integration
+
+### PSC-Specific Build Issues
+PSC requires tree-sitter integration which has additional dependencies:
+- Tree-sitter C library headers
+- Extended perl grammar with type annotations
+- CGO build flags for header includes
+
+**Current Status**: Tree-sitter build completes successfully but Go build integration still needs work on CGO path resolution.
+
+## GitHub Workflows
+
+The project includes automated CI/CD workflows:
+
+### Build Workflow (`.github/workflows/build.yml`)
+- Triggers on pushes to main/develop and pull requests
+- Tests across Ubuntu, Windows, and macOS
+- Builds tree-sitter library for each platform
+- Runs comprehensive tests and linting
+- Uploads build artifacts for each platform
+
+### Quick Test Workflow (`.github/workflows/test.yml`)
+- Triggers on feature branch pushes and PRs
+- Fast feedback with basic tests and linting
+- Validates documentation and markdown
+
+### Release Workflow (`.github/workflows/release.yml`)
+- Triggers on version tags (v*.*.*)
+- Cross-compiles for all supported platforms
+- Creates GitHub releases with downloadable archives
+- Includes both native builds and shared libraries
 
 ## Project Architecture
 

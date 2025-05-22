@@ -1,0 +1,169 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+  build-and-upload:
+    name: Build and Upload Assets
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Linux builds
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            lib_extension: "so"
+            archive_type: "tar.gz"
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            lib_extension: "so"
+            archive_type: "tar.gz"
+
+          # macOS builds
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            lib_extension: "dylib"
+            archive_type: "tar.gz"
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            lib_extension: "dylib"
+            archive_type: "tar.gz"
+
+          # Windows builds
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            lib_extension: "dll"
+            archive_type: "zip"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install tree-sitter CLI
+      run: npm install -g tree-sitter-cli
+
+    - name: Install system dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gcc-aarch64-linux-gnu
+
+    - name: Install system dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install msys2 -y
+        $env:PATH += ";C:\tools\msys64\usr\bin"
+
+    - name: Download dependencies
+      run: |
+        go mod download
+        go mod vendor
+
+    - name: Build tree-sitter parser
+      run: |
+        chmod +x ./bin/build_tree_sitter.sh
+        ./bin/build_tree_sitter.sh
+      shell: bash
+
+    - name: Set build environment
+      run: |
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
+        echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Set cross-compilation environment (Linux ARM64)
+      if: matrix.goos == 'linux' && matrix.goarch == 'arm64'
+      run: |
+        echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+        echo "CGO_CFLAGS=-I$(pwd)/include" >> $GITHUB_ENV
+
+    - name: Set cross-compilation environment (Darwin ARM64)
+      if: matrix.goos == 'darwin' && matrix.goarch == 'arm64'
+      run: |
+        echo "CGO_CFLAGS=-I$(pwd)/include" >> $GITHUB_ENV
+        echo "CGO_LDFLAGS=-L$(pwd)/lib" >> $GITHUB_ENV
+
+    - name: Build binaries
+      run: |
+        mkdir -p release
+
+        # Build all components
+        go build -ldflags="-s -w" -o release/pvm${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/pvm
+        go build -ldflags="-s -w" -o release/pvx${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/pvx
+        go build -ldflags="-s -w" -o release/pvi${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/pvi
+
+        # PSC build may fail due to CGO complexity, but try it
+        go build -ldflags="-s -w" -o release/psc${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/psc || echo "PSC build failed"
+
+        # Copy library
+        cp lib/libtree-sitter-perl.${{ matrix.lib_extension }} release/ || echo "Library copy failed"
+
+        # Copy documentation
+        cp README.md release/ || true
+        cp LICENSE release/ || true
+      shell: bash
+
+    - name: Create archive (Unix)
+      if: matrix.archive_type == 'tar.gz'
+      run: |
+        cd release
+        tar -czf ../pvm-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz *
+        cd ..
+
+    - name: Create archive (Windows)
+      if: matrix.archive_type == 'zip'
+      run: |
+        cd release
+        7z a ../pvm-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
+        cd ..
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./pvm-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.${{ matrix.archive_type }}
+        asset_name: pvm-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.${{ matrix.archive_type }}
+        asset_content_type: ${{ matrix.archive_type == 'zip' && 'application/zip' || 'application/gzip' }}
