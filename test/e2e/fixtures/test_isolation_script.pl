@@ -24,4 +24,3 @@ if (open(my $fh, '<', '../test_isolation_script.pl')) {
 
 print "Script completed successfully\n";
 EOL < /dev/null
-

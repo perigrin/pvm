@@ -417,7 +417,7 @@ func (s *Server) analyzeDocumentIncremental(doc *Document) error {
 
 	// Convert URI to file path but we'll only use the temp file path
 	_ = uriToPath(doc.URI)
-	
+
 	// Create a temp file for analysis
 	tempFilePath, err := s.writeDocumentToTempFile(doc)
 	if err != nil {
@@ -427,7 +427,7 @@ func (s *Server) analyzeDocumentIncremental(doc *Document) error {
 	// Get existing errors
 	currentErrors := make(map[int][]parser.TypeCheckError)
 	var otherErrors []parser.TypeCheckError
-	
+
 	// Group existing errors by line
 	for _, err := range doc.Errors {
 		if _, ok := doc.LineChanges[err.Line]; ok {
@@ -466,7 +466,7 @@ func (s *Server) analyzeDocumentIncremental(doc *Document) error {
 				typeChecker.VariableTypes["imported_module"] = "Module"
 			}
 		}
-		
+
 		// Collect all type annotations without validation
 		for _, annotation := range ast.TypeAnnotations {
 			// Store the annotation without validation
@@ -481,10 +481,10 @@ func (s *Server) analyzeDocumentIncremental(doc *Document) error {
 
 	// Analyze only the changed lines
 	var newErrors []parser.TypeCheckError
-	
+
 	// We only need the AST structure for checking nodes at specific lines
 	// The rest of the checking is simplified
-	
+
 	// Check each changed line
 	for lineNum := range doc.LineChanges {
 		// Check nodes on this line - simplified approach just checking position
@@ -498,7 +498,7 @@ func (s *Server) analyzeDocumentIncremental(doc *Document) error {
 	combinedErrors = append(combinedErrors, otherErrors...)
 	combinedErrors = append(combinedErrors, newErrors...)
 	doc.Errors = combinedErrors
-	
+
 	// Clear line changes since we've checked them
 	doc.LineChanges = make(map[int]struct{})
 	doc.LastChecked = time.Now()
@@ -512,7 +512,7 @@ func (s *Server) checkElementsAtLine(ast *parser.AST, lineNum int, typeChecker s
 	TypeAnnotations map[string]string
 }) []parser.TypeCheckError {
 	var errors []parser.TypeCheckError
-	
+
 	// Find nodes at this line
 	if ast == nil || ast.Root == nil {
 		return errors
@@ -521,7 +521,7 @@ func (s *Server) checkElementsAtLine(ast *parser.AST, lineNum int, typeChecker s
 	// This is a simplified implementation for incremental checking
 	// A full implementation would check declarations, assignments, and type annotations
 	// by traversing the AST and checking nodes at the specific line
-	
+
 	// Check for type annotations at this line
 	for _, anno := range ast.TypeAnnotations {
 		// Check if annotation is at this line
@@ -532,7 +532,7 @@ func (s *Server) checkElementsAtLine(ast *parser.AST, lineNum int, typeChecker s
 			if anno.TypeExpression != nil {
 				typeName = anno.TypeExpression.String()
 			}
-			
+
 			// Very basic validation - just check for empty type names
 			if typeName == "" || typeName == "Unknown" {
 				errors = append(errors, parser.TypeCheckError{
@@ -544,10 +544,10 @@ func (s *Server) checkElementsAtLine(ast *parser.AST, lineNum int, typeChecker s
 			}
 		}
 	}
-	
+
 	// In a real implementation, we would also check variable declarations and assignments
 	// by traversing the AST and finding nodes at the specific line
-	
+
 	return errors
 }
 

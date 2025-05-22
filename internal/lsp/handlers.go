@@ -117,34 +117,34 @@ func (s *Server) handleTextDocumentDidChange(msg *JSONRPCMessage) error {
 		// Get the old text to identify changed lines
 		oldText := doc.Text
 		oldLines := strings.Split(oldText, "\n")
-		
+
 		// Update document content
 		doc.Text = params.ContentChanges[0].Text
 		doc.Version = params.TextDocument.Version
 		doc.LastChanged = time.Now()
-		
+
 		// Identify changed lines
 		newLines := strings.Split(doc.Text, "\n")
-		
+
 		// Update line changes - first mark all lines that changed
 		if doc.LineChanges == nil {
 			doc.LineChanges = make(map[int]struct{})
 		}
-		
+
 		// Compare the two texts to identify changed lines
 		// Simple approach: compare lines and mark those that changed
 		minLines := len(oldLines)
 		if len(newLines) < minLines {
 			minLines = len(newLines)
 		}
-		
+
 		// Check common length
 		for i := 0; i < minLines; i++ {
 			if oldLines[i] != newLines[i] {
 				doc.LineChanges[i] = struct{}{}
 			}
 		}
-		
+
 		// Any added or removed lines
 		if len(oldLines) != len(newLines) {
 			// Mark lines that were added or removed
@@ -152,25 +152,25 @@ func (s *Server) handleTextDocumentDidChange(msg *JSONRPCMessage) error {
 				doc.LineChanges[i] = struct{}{}
 			}
 		}
-		
+
 		// Write the updated document content to a temporary file
 		_, err := s.writeDocumentToTempFile(doc)
 		if err != nil {
 			s.logger.Printf("Failed to write document to temp file: %v", err)
 		}
-		
+
 		// Check if we should perform a full analysis based on time since last check
 		now := time.Now()
 		shouldFullCheck := doc.LastChecked.IsZero() || // Never checked before
 			now.Sub(doc.LastChecked) > 3*time.Second || // Not checked for a while
 			len(doc.LineChanges) > 10 // Too many lines changed
-		
+
 		if shouldFullCheck {
 			// Perform a full re-analysis
 			if err := s.analyzeDocument(doc); err != nil {
 				s.logger.Printf("Failed to analyze document: %v", err)
 			}
-			
+
 			// Reset changed lines since we did a full check
 			doc.LineChanges = make(map[int]struct{})
 			doc.LastChecked = now
@@ -178,7 +178,7 @@ func (s *Server) handleTextDocumentDidChange(msg *JSONRPCMessage) error {
 			// Perform an incremental analysis (only of changed lines)
 			if err := s.analyzeDocumentIncremental(doc); err != nil {
 				s.logger.Printf("Failed to incrementally analyze document: %v", err)
-				
+
 				// Fall back to full analysis on error
 				if err := s.analyzeDocument(doc); err != nil {
 					s.logger.Printf("Failed to analyze document: %v", err)
@@ -186,10 +186,10 @@ func (s *Server) handleTextDocumentDidChange(msg *JSONRPCMessage) error {
 				doc.LastChecked = now
 			}
 		}
-		
+
 		// Update the stored document
 		s.setDocument(params.TextDocument.URI, doc)
-		
+
 		// Publish updated diagnostics
 		return s.publishDiagnostics(doc.URI, doc.Errors)
 	}

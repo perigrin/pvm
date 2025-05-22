@@ -12,16 +12,21 @@ repos:
       - id: go-fmt
       - id: go-imports
       - id: no-go-testing
-      - id: golangci-lint
-        exclude: ^(internal/parser/treesitter/|cmd/psc/)
+      # golangci-lint and go-unit-tests disabled due to tree-sitter C dependencies
+      # Use 'make test' and 'make' for complete validation
       - id: go-critic
-      - id: go-unit-tests
-        args: [-mod=mod, ./internal/cli/..., ./internal/config/..., ./internal/cpan/..., ./internal/errors/..., ./internal/log/..., ./internal/perl/..., ./internal/pvi/..., ./internal/pvm/..., ./internal/pvx/..., ./internal/typedef/..., ./internal/version/..., ./internal/xdg/...]
-      - id: go-build
-        args: [-mod=mod, ./cmd/pvm, ./cmd/pvx, ./cmd/pvi]
+        exclude: ^(internal/parser/.*\.go|internal/psc/.*\.go|internal/typechecker/.*\.go|cmd/psc/.*\.go)$
       # - id: validate-toml
   - repo: local
     hooks:
+      - id: makefile-build
+        name: 'Makefile build'
+        description: "Build using Makefile to ensure tree-sitter dependencies"
+        entry: make
+        language: system
+        pass_filenames: false
+        files: '\.go$'
+      # makefile-test-fast disabled - use 'make test' for comprehensive testing
       - id: go-vet-custom
         name: 'go vet custom'
         description: "Runs go vet on the entire module (excluding tree-sitter)"
@@ -29,7 +34,7 @@ repos:
         language: script
         pass_filenames: false
         files: '\.go$'
-        exclude: ^(internal/parser/treesitter/|cmd/psc/)
+        exclude: ^(internal/parser/.*\.go|internal/psc/.*\.go|internal/typechecker/.*\.go|cmd/psc/.*\.go)$
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v8.0.0
     hooks:

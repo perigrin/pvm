@@ -45,10 +45,6 @@ psc: $(BUILDDIR) tree-sitter
 test: tree-sitter
 	go test -mod=mod -v ./...
 
-# Run only non-tree-sitter tests for faster feedback
-test-fast:
-	go test -v $(shell go list ./... | grep -v treesitter | grep -v 'cmd/psc' | grep -v 'test/e2e')
-
 # Clean build artifacts
 clean:
 	rm -rf $(BUILDDIR)

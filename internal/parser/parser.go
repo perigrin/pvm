@@ -112,7 +112,7 @@ type treeSitterParserWrapper struct {
 
 // CachedParser is a Parser implementation that caches ASTs
 type CachedParser struct {
-	parser Parser     // Underlying parser
+	parser Parser       // Underlying parser
 	cache  *ParserCache // Cache for parsed ASTs
 }
 
@@ -127,21 +127,21 @@ func (cp *CachedParser) ParseFile(path string) (*AST, error) {
 			Column:  0,
 		}
 	}
-	
+
 	// Check if we have a cached version
 	if cachedAST := cp.cache.Get(path, string(content)); cachedAST != nil {
 		return cachedAST, nil
 	}
-	
+
 	// Parse with the underlying parser
 	ast, err := cp.parser.ParseFile(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Cache the result
 	cp.cache.Put(path, string(content), ast)
-	
+
 	return ast, nil
 }
 
@@ -149,21 +149,21 @@ func (cp *CachedParser) ParseFile(path string) (*AST, error) {
 func (cp *CachedParser) ParseString(content string) (*AST, error) {
 	// For strings, use a synthetic path based on content hash
 	path := "memory:" + hashContent(content)
-	
+
 	// Check if we have a cached version
 	if cachedAST := cp.cache.Get(path, content); cachedAST != nil {
 		return cachedAST, nil
 	}
-	
+
 	// Parse with the underlying parser
 	ast, err := cp.parser.ParseString(content)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Cache the result
 	cp.cache.Put(path, content, ast)
-	
+
 	return ast, nil
 }
 
@@ -179,7 +179,7 @@ func (cp *CachedParser) ParseReader(reader io.Reader) (*AST, error) {
 			Column:  0,
 		}
 	}
-	
+
 	// Use the string parser which handles caching
 	return cp.ParseString(string(content))
 }

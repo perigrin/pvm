@@ -46,11 +46,11 @@ func NewParserCache(maxEntries int) *ParserCache {
 // Get retrieves a cached AST if it exists and matches the content hash
 func (pc *ParserCache) Get(path, content string) *AST {
 	contentHash := hashContent(content)
-	
+
 	pc.mutex.RLock()
 	entry, exists := pc.cache[path]
 	pc.mutex.RUnlock()
-	
+
 	if exists && entry.ContentHash == contentHash {
 		// Update last accessed time
 		pc.mutex.Lock()
@@ -58,7 +58,7 @@ func (pc *ParserCache) Get(path, content string) *AST {
 		pc.mutex.Unlock()
 		return entry.AST
 	}
-	
+
 	return nil
 }
 
@@ -66,10 +66,10 @@ func (pc *ParserCache) Get(path, content string) *AST {
 func (pc *ParserCache) Put(path, content string, ast *AST) {
 	contentHash := hashContent(content)
 	now := time.Now()
-	
+
 	pc.mutex.Lock()
 	defer pc.mutex.Unlock()
-	
+
 	// Create new cache entry
 	pc.cache[path] = &FileContentCache{
 		ContentHash:  contentHash,
@@ -77,7 +77,7 @@ func (pc *ParserCache) Put(path, content string, ast *AST) {
 		LastAccessed: now,
 		CreatedAt:    now,
 	}
-	
+
 	// Clean up cache if it exceeds max entries
 	if len(pc.cache) > pc.maxEntries {
 		pc.cleanCache()
@@ -103,13 +103,13 @@ func (pc *ParserCache) cleanCache() {
 	// In a full implementation, we would sort entries by last accessed time
 	// and remove the oldest ones first, but for simplicity we'll just remove
 	// random entries until we're back under the limit
-	
+
 	// No need to lock here as this is called with the lock held
 	numToRemove := len(pc.cache) - pc.maxEntries
 	if numToRemove <= 0 {
 		return
 	}
-	
+
 	// Remove random entries until we're under the limit
 	for path := range pc.cache {
 		delete(pc.cache, path)
