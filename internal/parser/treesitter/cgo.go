@@ -4,7 +4,10 @@
 package treesitter
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../../include
+#cgo CFLAGS: -I${SRCDIR}/../../../include -I${SRCDIR}/../../../lib
 #cgo LDFLAGS: -L${SRCDIR}/../../../lib
+// Include the generated parser directly
+#include "parser.c"
+#include "scanner.c"
 */
 import "C"

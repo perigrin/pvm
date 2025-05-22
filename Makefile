@@ -7,6 +7,11 @@ LIBDIR := lib
 
 all: $(BUILDDIR) $(LIBDIR) tree-sitter $(BINARIES)
 
+# Set CGO flags for tree-sitter integration
+export CGO_ENABLED=1
+export CGO_CFLAGS=-I$(shell pwd)/include -I$(shell pwd)/lib
+export CGO_LDFLAGS=-L$(shell pwd)/lib
+
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
 
@@ -32,15 +37,15 @@ pvi: $(BUILDDIR)
 	go build -o $(BUILDDIR)/pvi ./cmd/pvi
 
 psc: $(BUILDDIR) tree-sitter
-	CGO_CFLAGS="-I$(shell pwd)/include" go build -o $(BUILDDIR)/psc ./cmd/psc
+	go build -o $(BUILDDIR)/psc ./cmd/psc
 
-# Run all tests (excluding tree-sitter dependent tests)
-test:
-	go test -v $(shell go list ./... | grep -v treesitter)
+# Run all tests (with tree-sitter support)
+test: tree-sitter
+	go test -v ./...
 
-# Run PSC tests with proper CGO flags
-test-psc: tree-sitter
-	CGO_CFLAGS="-I$(shell pwd)/include" go test -v ./internal/parser/treesitter/...
+# Run only non-tree-sitter tests for faster feedback
+test-fast:
+	go test -v $(shell go list ./... | grep -v treesitter | grep -v 'cmd/psc' | grep -v 'test/e2e')
 
 # Clean build artifacts
 clean:
