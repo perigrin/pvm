@@ -604,7 +604,7 @@ sub find_properties {
     } else {
         # Try to infer from accessor methods
         my $methods = Class::Inspector->methods($class, 'public') || [];
-        my %potential_props;
+        my %%potential_props;
 
         foreach my $method (@$methods) {
             if ($method =~ /^(get|set)_(.+)$/ ||
@@ -614,7 +614,7 @@ sub find_properties {
             }
         }
 
-        foreach my $prop (keys %potential_props) {
+        foreach my $prop (keys %%potential_props) {
             push @properties, {
                 name => $prop,
                 type => "Any",
@@ -632,7 +632,7 @@ sub guess_type {
 
     # Remove sigil for pattern matching
     my $bare_var = $var;
-    $bare_var =~ s/^[\$\@\%]//;
+    $bare_var =~ s/^[\$\@\%%]//;
 
     # Look for hints in the code
     if ($src =~ /\Q$var\E\s*=~\s*\//) {
@@ -658,7 +658,7 @@ sub guess_type {
         return "Scalar";
     } elsif ($var =~ /^\@/) {
         return "Array";
-    } elsif ($var =~ /^\%/) {
+    } elsif ($var =~ /^\%%/) {
         return "Hash";
     }
 
@@ -685,7 +685,7 @@ sub guess_return_type {
         return "Scalar";
     } elsif ($return_expr =~ /^\@/) {
         return "Array";
-    } elsif ($return_expr =~ /^\%/) {
+    } elsif ($return_expr =~ /^\%%/) {
         return "Hash";
     }
 
