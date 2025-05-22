@@ -123,16 +123,19 @@ func (e *TestEnv) buildPVM() error {
 		return fmt.Errorf("failed to find project root: %w", err)
 	}
 
-	// Build PVM binary
-	cmd := exec.Command("go", "build", "-o", e.PVMBinary, "./cmd/pvm")
-	cmd.Dir = projectRoot
-	cmd.Stdout = &e.Stdout
-	cmd.Stderr = &e.Stderr
+	// First run make to ensure tree-sitter parser is generated
+	makeCmd := exec.Command("make", "pvm")
+	makeCmd.Dir = projectRoot
+	makeCmd.Stdout = &e.Stdout
+	makeCmd.Stderr = &e.Stderr
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to build PVM binary: %w\nOutput: %s\nError: %s",
+	if err := makeCmd.Run(); err != nil {
+		return fmt.Errorf("failed to build PVM binary with make: %w\nOutput: %s\nError: %s",
 			err, e.Stdout.String(), e.Stderr.String())
 	}
+
+	// Set the binary path to the built location
+	e.PVMBinary = filepath.Join(projectRoot, "build", "pvm")
 
 	return nil
 }
