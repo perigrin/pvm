@@ -32,11 +32,15 @@ pvi: $(BUILDDIR)
 	go build -o $(BUILDDIR)/pvi ./cmd/pvi
 
 psc: $(BUILDDIR) tree-sitter
-	go build -o $(BUILDDIR)/psc ./cmd/psc
+	CGO_CFLAGS="-I$(shell pwd)/include" go build -o $(BUILDDIR)/psc ./cmd/psc
 
-# Run all tests
-test: tree-sitter
-	go test -v ./...
+# Run all tests (excluding tree-sitter dependent tests)
+test:
+	go test -v $(shell go list ./... | grep -v treesitter)
+
+# Run PSC tests with proper CGO flags
+test-psc: tree-sitter
+	CGO_CFLAGS="-I$(shell pwd)/include" go test -v ./internal/parser/treesitter/...
 
 # Clean build artifacts
 clean:

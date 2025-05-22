@@ -11,13 +11,19 @@ The tree-sitter build system is complete and functional:
 
 ## Outstanding Issues
 
-### CGO Header Path Resolution
+### Type Compatibility Between Generated Parser and go-tree-sitter
 
-The go-tree-sitter library requires `tree_sitter/api.h` to be found during compilation. Current approaches tried:
+The tree-sitter generation is working correctly, but there are type mismatches:
 
-1. **Local CGO flags** - Added to `internal/parser/treesitter/cgo.go` but doesn't affect vendor packages
-2. **Global CGO_CFLAGS** - Works for PSC compilation but creates pre-commit hook conflicts
-3. **Include directory setup** - Headers copied to `include/tree_sitter/api.h` but path resolution still fails
+1. **Unknown type errors** - `TSMapSlice` and `TSLexerMode` not recognized by go-tree-sitter headers
+2. **Const qualifier warnings** - Generated code uses const arrays where headers expect mutable pointers
+3. **Version compatibility** - Potential mismatch between tree-sitter-cli 0.25.4 and go-tree-sitter expectations
+
+### Resolved Issues
+
+✅ **CGO Header Path Resolution** - Fixed with Makefile CGO_CFLAGS
+✅ **Build Script Integration** - Successfully generates parser, copies sources, and sets up lib.c
+✅ **Cross-platform Build** - Works on macOS, configured for Linux/Windows
 
 ### Pre-commit Hook Integration
 
@@ -29,12 +35,13 @@ This allows the rest of the codebase to maintain quality checks while PSC develo
 
 ## Next Steps
 
-1. **Resolve CGO path issues** - May need to:
-   - Install tree-sitter system-wide
-   - Use different go-tree-sitter integration approach
-   - Set up build environment variables
+1. **Resolve type compatibility** - Options:
+   - Use older tree-sitter-cli version for generation
+   - Update go-tree-sitter library to newer version
+   - Patch generated code to fix type mismatches
+   - Consider alternative Go tree-sitter bindings
 
-2. **Re-enable full pre-commit hooks** once tree-sitter integration is stable
+2. **Makefile PSC build** - Now correctly sets CGO_CFLAGS and builds tree-sitter library
 
 3. **Test GitHub workflow builds** to ensure CI/CD works across platforms
 

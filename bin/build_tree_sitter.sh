@@ -103,12 +103,13 @@ fi
 echo "Setting up sources for go-tree-sitter integration..."
 cp src/parser.c "$SCRIPT_DIR/lib/"
 cp src/scanner.c "$SCRIPT_DIR/lib/"
+cp src/*.h "$SCRIPT_DIR/lib/" 2>/dev/null || true
 
-# Create lib.c for go-tree-sitter
-cat > "$SCRIPT_DIR/vendor/github.com/tree-sitter/go-tree-sitter/lib.c" << 'EOF'
+# Create lib.c for go-tree-sitter with absolute paths
+cat > "$SCRIPT_DIR/vendor/github.com/tree-sitter/go-tree-sitter/lib.c" << EOF
 // Tree-sitter parser library for go-tree-sitter integration
-#include "../../../../../../lib/parser.c"
-#include "../../../../../../lib/scanner.c"
+#include "$SCRIPT_DIR/lib/parser.c"
+#include "$SCRIPT_DIR/lib/scanner.c"
 EOF
 
 echo "Build complete!"
