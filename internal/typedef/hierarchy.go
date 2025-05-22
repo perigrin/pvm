@@ -33,6 +33,9 @@ type TypeHierarchy struct {
 
 	// Parameterized type constructors
 	parameterizedTypes map[string]func([]string) (string, error)
+
+	// unionTypes stores created union type instances
+	unionTypes map[string]*UnionType
 }
 
 // NewTypeHierarchy creates a new TypeHierarchy with built-in types
@@ -42,6 +45,7 @@ func NewTypeHierarchy(store *Storage) *TypeHierarchy {
 		TypeStore:          store,
 		subtypeRelations:   make(map[string][]string),
 		parameterizedTypes: make(map[string]func([]string) (string, error)),
+		unionTypes:         make(map[string]*UnionType),
 	}
 
 	// Initialize built-in types
@@ -327,6 +331,11 @@ func extractTypeAndParams(paramType string) (string, []string) {
 		return paramType, nil
 	}
 
+	// Check if the closing bracket exists
+	if !strings.HasSuffix(paramType, "]") || len(paramType) <= idx+1 {
+		return paramType, nil // Malformed, return as simple type
+	}
+
 	baseType := paramType[:idx]
 	paramStr := paramType[idx+1 : len(paramType)-1] // Remove outer brackets
 
@@ -336,13 +345,16 @@ func extractTypeAndParams(paramType string) (string, []string) {
 	start := 0
 
 	for i, c := range paramStr {
-		if c == '[' {
+		switch c {
+		case '[':
 			bracketCount++
-		} else if c == ']' {
+		case ']':
 			bracketCount--
-		} else if c == ',' && bracketCount == 0 {
-			params = append(params, strings.TrimSpace(paramStr[start:i]))
-			start = i + 1
+		case ',':
+			if bracketCount == 0 {
+				params = append(params, strings.TrimSpace(paramStr[start:i]))
+				start = i + 1
+			}
 		}
 	}
 
@@ -369,25 +381,9 @@ func (h *TypeHierarchy) CheckTypeCompatibility(sourceType, targetType string) er
 		}
 	}
 
-	// Special case: Union types
-	if strings.HasPrefix(sourceType, "Union[") {
-		// Union[A, B] can be assigned to T if any constituent type can be assigned to T
-		_, params := extractTypeAndParams(sourceType)
-		for _, param := range params {
-			if h.CheckTypeCompatibility(param, targetType) == nil {
-				return nil
-			}
-		}
-	}
-
-	if strings.HasPrefix(targetType, "Union[") {
-		// T can be assigned to Union[A, B] if T can be assigned to any constituent type
-		_, params := extractTypeAndParams(targetType)
-		for _, param := range params {
-			if h.CheckTypeCompatibility(sourceType, param) == nil {
-				return nil
-			}
-		}
+	// Enhanced Union type handling using trait intersection
+	if h.IsUnionType(sourceType) || h.IsUnionType(targetType) {
+		return h.CheckUnionTypeCompatibility(sourceType, targetType)
 	}
 
 	// Types are incompatible
@@ -526,4 +522,126 @@ func (h *TypeHierarchy) CreateParameterizedType(baseType string, params []string
 	}
 
 	return constructor(params)
+}
+
+// CreateUnionType creates and stores a union type instance
+func (h *TypeHierarchy) CreateUnionType(members []string) *UnionType {
+	unionType := NewUnionType(members)
+	typeName := unionType.TypeName()
+	h.unionTypes[typeName] = unionType
+	return unionType
+}
+
+// GetUnionType retrieves a stored union type by its type name
+func (h *TypeHierarchy) GetUnionType(typeName string) *UnionType {
+	return h.unionTypes[typeName]
+}
+
+// IsUnionType checks if a type name represents a union type
+func (h *TypeHierarchy) IsUnionType(typeName string) bool {
+	// Check if it's a stored union type
+	if _, exists := h.unionTypes[typeName]; exists {
+		return true
+	}
+
+	// Check if it's a union type format like "Union[A, B]" or "A|B"
+	if strings.HasPrefix(typeName, "Union[") {
+		return true
+	}
+
+	// Check for pipe-separated format
+	return strings.Contains(typeName, "|")
+}
+
+// ParseUnionType parses a union type string and creates a UnionType instance
+func (h *TypeHierarchy) ParseUnionType(typeName string) *UnionType {
+	// Check if it's already stored
+	if unionType, exists := h.unionTypes[typeName]; exists {
+		return unionType
+	}
+
+	var members []string
+
+	// Handle different union type formats
+	switch {
+	case strings.HasPrefix(typeName, "Union["):
+		// Handle "Union[A, B, C]" format
+		_, params := extractTypeAndParams(typeName)
+		members = params
+	case strings.Contains(typeName, "|"):
+		// Handle "A|B|C" format
+		parts := strings.Split(typeName, "|")
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if part != "" { // Only add non-empty parts
+				members = append(members, part)
+			}
+		}
+	default:
+		// Not a union type
+		return nil
+	}
+
+	if len(members) < 2 {
+		return nil
+	}
+
+	// Create and store the union type
+	unionType := NewUnionType(members)
+	h.unionTypes[unionType.TypeName()] = unionType
+	return unionType
+}
+
+// CheckUnionTypeCompatibility checks union type compatibility using trait intersection
+func (h *TypeHierarchy) CheckUnionTypeCompatibility(sourceType, targetType string) error {
+	// Handle union to non-union
+	if h.IsUnionType(sourceType) && !h.IsUnionType(targetType) {
+		unionType := h.ParseUnionType(sourceType)
+		if unionType == nil {
+			return fmt.Errorf("invalid union type: %s", sourceType)
+		}
+
+		if unionType.IsCompatibleWith(targetType, h) {
+			return nil
+		}
+
+		return fmt.Errorf("union type %s is not compatible with %s", sourceType, targetType)
+	}
+
+	// Handle non-union to union
+	if !h.IsUnionType(sourceType) && h.IsUnionType(targetType) {
+		unionType := h.ParseUnionType(targetType)
+		if unionType == nil {
+			return fmt.Errorf("invalid union type: %s", targetType)
+		}
+
+		if unionType.CanAssignFrom(sourceType, h) {
+			return nil
+		}
+
+		return fmt.Errorf("type %s cannot be assigned to union type %s", sourceType, targetType)
+	}
+
+	// Handle union to union
+	if h.IsUnionType(sourceType) && h.IsUnionType(targetType) {
+		sourceUnion := h.ParseUnionType(sourceType)
+		targetUnion := h.ParseUnionType(targetType)
+
+		if sourceUnion == nil || targetUnion == nil {
+			return fmt.Errorf("invalid union types: %s, %s", sourceType, targetType)
+		}
+
+		// Union[A, B] is compatible with Union[C, D] if every member of source
+		// is compatible with at least one member of target
+		for _, sourceMember := range sourceUnion.GetMembers() {
+			if !targetUnion.CanAssignFrom(sourceMember, h) {
+				return fmt.Errorf("union type %s is not compatible with union type %s", sourceType, targetType)
+			}
+		}
+
+		return nil
+	}
+
+	// Neither is union, shouldn't reach here in normal flow
+	return fmt.Errorf("internal error: non-union types in union compatibility check")
 }

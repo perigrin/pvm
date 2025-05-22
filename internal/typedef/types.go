@@ -5,7 +5,10 @@ package typedef
 
 import (
 	"fmt"
+	"strings"
 	"time"
+
+	"tamarou.com/pvm/internal/traits"
 )
 
 // TypeDefinition represents a type definition for a Perl module
@@ -116,4 +119,139 @@ func (td *TypeDefinition) String() string {
 // String returns a string representation of a TypeInfo
 func (ti *TypeInfo) String() string {
 	return fmt.Sprintf("Type %s (%s)", ti.Name, ti.Kind)
+}
+
+// UnionType represents a union type that can be one of multiple member types
+type UnionType struct {
+	// Members are the types that make up this union
+	Members []string
+
+	// cachedTraits stores the computed trait intersection (lazy loading)
+	cachedTraits *traits.TraitSet
+
+	// intersector for computing trait intersections
+	intersector *traits.TraitIntersector
+}
+
+// NewUnionType creates a new union type with the given member types
+func NewUnionType(members []string) *UnionType {
+	if len(members) < 2 {
+		panic("Union type must have at least two members")
+	}
+
+	// Remove duplicates and maintain order
+	uniqueMembers := make([]string, 0, len(members))
+	seen := make(map[string]bool)
+	for _, member := range members {
+		if !seen[member] {
+			uniqueMembers = append(uniqueMembers, member)
+			seen[member] = true
+		}
+	}
+
+	return &UnionType{
+		Members:     uniqueMembers,
+		intersector: traits.NewTraitIntersector(),
+	}
+}
+
+// String returns a string representation of the union type
+func (ut *UnionType) String() string {
+	return strings.Join(ut.Members, "|")
+}
+
+// TypeName returns the full type name for this union
+func (ut *UnionType) TypeName() string {
+	return fmt.Sprintf("Union[%s]", strings.Join(ut.Members, ", "))
+}
+
+// GetTraits returns the trait intersection for this union type (lazy computed)
+func (ut *UnionType) GetTraits() *traits.TraitSet {
+	if ut.cachedTraits == nil {
+		ut.cachedTraits = ut.intersector.IntersectTypes(ut.Members)
+	}
+	return ut.cachedTraits
+}
+
+// SupportsOperation checks if this union type supports the given operation
+func (ut *UnionType) SupportsOperation(operation string) bool {
+	traits := ut.GetTraits()
+	return traits.HasTrait(operation)
+}
+
+// GetOperationResultType returns the result type for the given operation
+func (ut *UnionType) GetOperationResultType(operation string) (string, error) {
+	traits := ut.GetTraits()
+	if !traits.HasTrait(operation) {
+		return "", fmt.Errorf("operation '%s' not supported by union type %s", operation, ut.String())
+	}
+
+	resultType := traits.GetResultType(operation)
+	if resultType == "" {
+		return "", fmt.Errorf("no result type for operation '%s'", operation)
+	}
+
+	return resultType, nil
+}
+
+// GetMembers returns a copy of the member types
+func (ut *UnionType) GetMembers() []string {
+	result := make([]string, len(ut.Members))
+	copy(result, ut.Members)
+	return result
+}
+
+// ContainsMember checks if the union contains the given type as a member
+func (ut *UnionType) ContainsMember(typeName string) bool {
+	for _, member := range ut.Members {
+		if member == typeName {
+			return true
+		}
+	}
+	return false
+}
+
+// IsCompatibleWith checks if this union type is compatible with another type
+func (ut *UnionType) IsCompatibleWith(targetType string, hierarchy *TypeHierarchy) bool {
+	// Union[A, B] is compatible with T if any member is compatible with T
+	for _, member := range ut.Members {
+		if err := hierarchy.CheckTypeCompatibility(member, targetType); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// CanAssignFrom checks if a source type can be assigned to this union
+func (ut *UnionType) CanAssignFrom(sourceType string, hierarchy *TypeHierarchy) bool {
+	// T can be assigned to Union[A, B] if T is compatible with any member
+	for _, member := range ut.Members {
+		if err := hierarchy.CheckTypeCompatibility(sourceType, member); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// ClearTraitCache clears the cached traits, forcing recomputation next time
+func (ut *UnionType) ClearTraitCache() {
+	ut.cachedTraits = nil
+	if ut.intersector != nil {
+		ut.intersector.ClearCache()
+	}
+}
+
+// Equals checks if this union type is equal to another union type
+func (ut *UnionType) Equals(other *UnionType) bool {
+	if len(ut.Members) != len(other.Members) {
+		return false
+	}
+
+	// Check if all members match (order independent)
+	for _, member := range ut.Members {
+		if !other.ContainsMember(member) {
+			return false
+		}
+	}
+	return true
 }
