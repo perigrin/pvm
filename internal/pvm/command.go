@@ -6,7 +6,9 @@ package pvm
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -36,8 +38,8 @@ func NewCommand() *cobra.Command {
 		newBuildCommand(),
 		newExecCommand(),
 		newUninstallCommand(),
+		newImportSystemCommand(),
 		newImportCommand(),
-		newImportSystemCommand(), // Add top-level import-system for compatibility
 		newRehashCommand(),
 		newResolveCommand(),
 		newInitCommand(),
@@ -571,7 +573,19 @@ func newExecCommand() *cobra.Command {
 		Short: "Execute a command with a specific version",
 		Long:  "Execute a command using a specific Perl version",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Exec command not yet implemented")
+			if len(args) < 2 {
+				cmd.PrintErrln("Usage: pvm exec [version] [command]")
+				return
+			}
+
+			version := args[0]
+			command := args[1:]
+
+			err := execCommand(cmd, version, command)
+			if err != nil {
+				cmd.PrintErrln("Error:", err)
+				os.Exit(1)
+			}
 		},
 	}
 }
@@ -632,6 +646,17 @@ func newUninstallCommand() *cobra.Command {
 	cmd.Flags().Bool("force", false, "Skip confirmation prompt")
 
 	return cmd
+}
+
+func newImportSystemCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "import-system",
+		Short: "Import system Perl installation",
+		Long:  "Import the system Perl installation into PVM registry",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return importSystemPerl(cmd)
+		},
+	}
 }
 
 func newImportCommand() *cobra.Command {
@@ -702,21 +727,6 @@ func importFromLegacyTool(cmd *cobra.Command, tool perl.LegacyToolType) error {
 	}
 
 	return nil
-}
-
-func newImportSystemCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "import-system",
-		Short: "Import system Perl",
-		Long:  "Register the system Perl in PVM's version registry (alias for 'pvm perl import-system')",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// This is just an alias for the perl import-system command
-			// Delegate to the actual implementation
-			perlCmd := newPerlCommand()
-			importSystemCmd := perlCmd.Commands()[1] // import-system is the second subcommand
-			return importSystemCmd.RunE(cmd, args)
-		},
-	}
 }
 
 func newRehashCommand() *cobra.Command {
@@ -1114,4 +1124,108 @@ func newPSCCommand() *cobra.Command {
 	pscCmd.Long = "Provides static type checking for Perl code with type annotations"
 
 	return pscCmd
+}
+
+// execCommand implements the exec command functionality
+func execCommand(cmd *cobra.Command, version string, command []string) error {
+	// Resolve the version to get the Perl path
+	options := &perl.ResolutionOptions{
+		ExplicitVersion: version,
+	}
+
+	resolved, err := perl.ResolveVersion(options)
+	if err != nil {
+		return fmt.Errorf("failed to resolve Perl version %s: %w", version, err)
+	}
+
+	// Check if the resolved version has a path
+	if resolved.Path == "" {
+		return fmt.Errorf("no path found for Perl version %s", resolved.Version)
+	}
+
+	// Check if the Perl binary exists
+	if _, err := os.Stat(resolved.Path); os.IsNotExist(err) {
+		return fmt.Errorf("Perl version %s not found at %s", resolved.Version, resolved.Path)
+	}
+
+	// Create a new environment with the Perl bin directory in PATH
+	env := os.Environ()
+	perlBinDir := strings.TrimSuffix(resolved.Path, "/perl")
+	if perlBinDir == resolved.Path {
+		// Handle case where path doesn't end with /perl
+		perlBinDir = resolved.Path[:strings.LastIndex(resolved.Path, "/")]
+	}
+
+	// Update PATH to include the Perl bin directory at the beginning
+	for i, envVar := range env {
+		if strings.HasPrefix(envVar, "PATH=") {
+			currentPath := envVar[5:] // Remove "PATH=" prefix
+			env[i] = fmt.Sprintf("PATH=%s:%s", perlBinDir, currentPath)
+			break
+		}
+	}
+
+	// Create the command to execute
+	// If the first argument is "perl", replace it with the resolved Perl path
+	if command[0] == "perl" {
+		command[0] = resolved.Path
+	}
+
+	// Execute the command
+	execCmd := exec.Command(command[0], command[1:]...)
+	execCmd.Env = env
+	execCmd.Stdin = os.Stdin
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
+
+	// Run the command and wait for completion
+	err = execCmd.Run()
+	if err != nil {
+		// Check if it's an exit error to get the exit code
+		if exitError, ok := err.(*exec.ExitError); ok {
+			if status, ok := exitError.Sys().(syscall.WaitStatus); ok {
+				os.Exit(status.ExitStatus())
+			}
+		}
+		return fmt.Errorf("command execution failed: %w", err)
+	}
+
+	return nil
+}
+
+// importSystemPerl imports the system Perl installation into PVM registry
+func importSystemPerl(cmd *cobra.Command) error {
+	// Detect the system Perl
+	systemPerl, err := perl.DetectSystemPerl()
+	if err != nil {
+		return fmt.Errorf("failed to detect system Perl: %w", err)
+	}
+
+	cmd.Printf("Found system Perl %s at %s\n", systemPerl.Version, systemPerl.Path)
+
+	// Check if this version is already registered
+	installed, err := perl.IsVersionInstalled(systemPerl.Version)
+	if err != nil {
+		return fmt.Errorf("failed to check if version is installed: %w", err)
+	}
+	if installed {
+		cmd.Printf("System Perl %s is already registered with PVM\n", systemPerl.Version)
+		return nil
+	}
+
+	// Register the system Perl by creating a VersionInfo entry
+	versionInfo := perl.VersionInfo{
+		Version:     systemPerl.Version,
+		InstallPath: systemPerl.Path,
+		InstallTime: time.Now(),
+		Source:      "system",
+	}
+
+	err = perl.RegisterVersion(versionInfo)
+	if err != nil {
+		return fmt.Errorf("failed to register system Perl: %w", err)
+	}
+
+	cmd.Printf("Successfully imported system Perl %s\n", systemPerl.Version)
+	return nil
 }

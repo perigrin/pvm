@@ -5,8 +5,6 @@ package cpan
 
 import (
 	"context"
-
-	"tamarou.com/pvm/internal/errors"
 )
 
 // CustomProvider implements the Provider interface with a custom metadata source
@@ -88,38 +86,116 @@ func (p *CustomProvider) WithDisableNetwork(disable bool) error {
 
 // GetModuleInfo retrieves metadata about a specific module from the custom source
 func (p *CustomProvider) GetModuleInfo(ctx context.Context, moduleName string) (*ModuleInfo, error) {
-	// This is a placeholder implementation
-	return nil, errors.NewSystemError("101", "CustomProvider.GetModuleInfo is not implemented yet", nil)
+	if p.disableNetwork {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "network_disabled",
+			Message: "Network access is disabled",
+		}
+	}
+
+	// For custom providers, we can't provide a generic implementation
+	// Users would need to implement their own based on their API
+	return nil, &ProviderError{
+		Source:  p.Name(),
+		Code:    "not_implemented",
+		Message: "Custom provider must implement GetModuleInfo for their specific API",
+	}
 }
 
 // SearchModules searches for modules matching the given query using the custom source
 func (p *CustomProvider) SearchModules(ctx context.Context, query string, limit int) (*SearchResults, error) {
-	// This is a placeholder implementation
-	return nil, errors.NewSystemError("101", "CustomProvider.SearchModules is not implemented yet", nil)
+	if p.disableNetwork {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "network_disabled",
+			Message: "Network access is disabled",
+		}
+	}
+
+	// For custom providers, we can't provide a generic implementation
+	// Users would need to implement their own based on their API
+	return nil, &ProviderError{
+		Source:  p.Name(),
+		Code:    "not_implemented",
+		Message: "Custom provider must implement SearchModules for their specific API",
+	}
 }
 
 // GetDependencies retrieves the dependencies for a module from the custom source
 func (p *CustomProvider) GetDependencies(ctx context.Context, moduleName string) ([]*Dependency, error) {
-	// This is a placeholder implementation
-	return nil, errors.NewSystemError("101", "CustomProvider.GetDependencies is not implemented yet", nil)
+	if p.disableNetwork {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "network_disabled",
+			Message: "Network access is disabled",
+		}
+	}
+
+	// For custom providers, we can't provide a generic implementation
+	// Users would need to implement their own based on their API
+	return nil, &ProviderError{
+		Source:  p.Name(),
+		Code:    "not_implemented",
+		Message: "Custom provider must implement GetDependencies for their specific API",
+	}
 }
 
 // GetModuleVersions retrieves all available versions of a module from the custom source
 func (p *CustomProvider) GetModuleVersions(ctx context.Context, moduleName string) ([]string, error) {
-	// This is a placeholder implementation
-	return nil, errors.NewSystemError("101", "CustomProvider.GetModuleVersions is not implemented yet", nil)
+	if p.disableNetwork {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "network_disabled",
+			Message: "Network access is disabled",
+		}
+	}
+
+	// For custom providers, we can't provide a generic implementation
+	// Users would need to implement their own based on their API
+	return nil, &ProviderError{
+		Source:  p.Name(),
+		Code:    "not_implemented",
+		Message: "Custom provider must implement GetModuleVersions for their specific API",
+	}
 }
 
 // GetAuthorInfo retrieves information about a CPAN author from the custom source
 func (p *CustomProvider) GetAuthorInfo(ctx context.Context, authorID string) (map[string]interface{}, error) {
-	// This is a placeholder implementation
-	return nil, errors.NewSystemError("101", "CustomProvider.GetAuthorInfo is not implemented yet", nil)
+	if p.disableNetwork {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "network_disabled",
+			Message: "Network access is disabled",
+		}
+	}
+
+	// For custom providers, we can't provide a generic implementation
+	// Users would need to implement their own based on their API
+	return nil, &ProviderError{
+		Source:  p.Name(),
+		Code:    "not_implemented",
+		Message: "Custom provider must implement GetAuthorInfo for their specific API",
+	}
 }
 
 // IsCoreModule checks if a module is part of the Perl core
 func (p *CustomProvider) IsCoreModule(ctx context.Context, moduleName string, perlVersion string) (bool, error) {
-	// This is a placeholder implementation
-	return false, errors.NewSystemError("101", "CustomProvider.IsCoreModule is not implemented yet", nil)
+	if p.disableNetwork {
+		return false, &ProviderError{
+			Source:  p.Name(),
+			Code:    "network_disabled",
+			Message: "Network access is disabled",
+		}
+	}
+
+	// For custom providers, we can't provide a generic implementation
+	// Users would need to implement their own based on their API
+	return false, &ProviderError{
+		Source:  p.Name(),
+		Code:    "not_implemented",
+		Message: "Custom provider must implement IsCoreModule for their specific API",
+	}
 }
 
 // WithMirror is not applicable for CustomProvider

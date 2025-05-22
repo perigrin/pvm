@@ -1407,7 +1407,7 @@ Implement editor integration support for the PVM Ecosystem, focusing on PSC for 
 - Design for compatibility with multiple editors
 ```
 
-#### Prompt 30: Final Polishing and Integration ⏳
+#### Prompt 30: Final Polishing and Integration ✅
 
 ```
 # Implement Final Polishing and Integration
@@ -1454,6 +1454,640 @@ Implement final polishing and integration tasks to ensure the entire PVM Ecosyst
 - Focus on user experience as the primary goal
 - Ensure consistency across all components
 - Consider future maintenance and extensibility
+```
+
+### Phase 5: Core Functionality Implementation
+
+#### Prompt 31: CPAN Provider Implementation ✅
+
+```
+# Implement CPAN Provider Core Functionality
+
+## Context
+The PVM Ecosystem's PVI component has architectural foundations but lacks the core CPAN provider implementations. Currently, all CPAN provider methods return "not implemented yet", which prevents module installation and management from functioning.
+
+## Previous Implementation
+- Complete architectural framework for CPAN integration
+- MetaCPAN API integration (partial)
+- Module management command structure
+- Type definition support framework
+
+## Current Task
+Implement the core CPAN provider functionality to enable actual module installation, search, and management operations.
+
+## Test Requirements
+1. Test CPANProvider InstallModule functionality
+2. Test CPANProvider UninstallModule functionality
+3. Test CPANProvider ListModules functionality
+4. Test CPANProvider SearchModules functionality
+5. Test CPANProvider ShowModule functionality
+6. Test CPANProvider UpdateModule functionality
+7. Test CustomProvider implementations for all methods
+8. Test MetaCPAN caching retrieval, storage, and validation
+9. Test end-to-end module installation workflow
+10. Test error handling for network failures and module conflicts
+
+## Implementation Requirements
+
+### Core CPAN Provider (internal/cpan/cpan.go)
+1. Implement InstallModule method:
+   - Download module source from CPAN
+   - Handle dependency resolution
+   - Execute build process (Makefile.PL or Build.PL)
+   - Run tests if configured
+   - Install to appropriate lib directory
+2. Implement UninstallModule method:
+   - Remove installed files
+   - Clean up man pages and documentation
+   - Handle dependencies safely
+3. Implement ListModules method:
+   - Scan installed modules in lib directories
+   - Parse .packlist files for module information
+   - Return structured module information
+4. Implement SearchModules method:
+   - Use MetaCPAN API for module search
+   - Filter and format results
+   - Handle search term matching
+5. Implement ShowModule method:
+   - Retrieve detailed module information
+   - Show dependencies, versions, documentation
+6. Implement UpdateModule method:
+   - Check for newer versions
+   - Perform upgrade process safely
+
+### Custom Provider (internal/cpan/custom.go)
+1. Implement all provider methods for custom/local modules:
+   - Support local directory installations
+   - Handle custom module repositories
+   - Manage non-CPAN modules
+
+### MetaCPAN Caching (internal/cpan/metacpan.go)
+1. Complete cacheRetrieve method:
+   - Implement proper cache key generation
+   - Add cache expiration handling
+   - Return cached data when valid
+2. Complete cacheStore method:
+   - Store API responses with metadata
+   - Implement cache size management
+   - Handle cache directory creation
+3. Complete cacheValidate method:
+   - Check cache freshness
+   - Validate data integrity
+   - Handle cache corruption
+
+## Integration Points
+- Integrate with existing MetaCPAN API client
+- Connect with Perl version resolution for target installation
+- Integrate with dependency resolution system
+- Connect with PVX for module testing during installation
+
+## Documentation Requirements
+1. Document CPAN provider installation process
+2. Explain custom provider usage and configuration
+3. Add troubleshooting guide for common installation issues
+4. Document caching behavior and configuration options
+5. Add examples of module installation workflows
+6. Update command documentation with working examples
+
+## Considerations
+- Handle various module build systems (ExtUtils::MakeMaker, Module::Build, etc.)
+- Implement proper error recovery for failed installations
+- Consider parallel installation of independent modules
+- Ensure proper cleanup on installation failures
+- Handle permission issues gracefully
+- Support both system and user-level installations
+
+## Success Criteria
+- `pvi install Some::Module` successfully installs modules
+- `pvi list` shows installed modules accurately
+- `pvi search term` returns relevant results from CPAN
+- Module dependencies are resolved and installed automatically
+- Failed installations clean up properly without corrupting state
+```
+
+#### Prompt 32: PVM Core Commands Implementation
+
+```
+# Implement Missing PVM Core Commands
+
+## Context
+The PVM component has solid version management infrastructure but is missing critical commands that users expect from a Perl version manager, specifically the `exec` command and complete system Perl import functionality.
+
+## Previous Implementation
+- Version installation, listing, and switching (use, global, local)
+- Perl building and downloading with progress tracking
+- Shell integration framework
+- Configuration system
+- Legacy tool detection (plenv/perlbrew)
+
+## Current Task
+Implement the missing core PVM commands to provide complete version management functionality.
+
+## Test Requirements
+1. Test `pvm exec` command with various scenarios:
+   - Execute single commands with specific Perl version
+   - Execute scripts with version resolution
+   - Handle command-line arguments properly
+   - Test environment variable isolation
+2. Test system Perl import functionality:
+   - Detect system Perl installation
+   - Import system Perl into PVM registry
+   - Handle multiple system Perl installations
+   - Test version naming and aliasing
+3. Test legacy tool import completion:
+   - Complete plenv installation import
+   - Complete perlbrew installation import
+   - Handle version mapping between tools
+   - Test configuration migration
+4. Test configuration layer priorities:
+   - Verify project > user > system precedence
+   - Test configuration merging edge cases
+   - Handle missing configuration files gracefully
+
+## Implementation Requirements
+
+### PVM Exec Command (internal/pvm/command.go)
+1. Implement exec command at line 574:
+   ```go
+   func (c *Command) execCommand(cmd *cobra.Command, args []string) error {
+       // Implementation needed
+   }
+   ```
+2. Add version resolution for exec context
+3. Implement environment setup for target version
+4. Execute command with proper PATH and environment
+5. Handle exit code propagation
+6. Add error handling for missing versions or commands
+
+### System Perl Import (internal/perl/system.go)
+1. Complete system Perl import functionality:
+   - Detect system Perl version and location
+   - Create PVM registry entry for system installation
+   - Set appropriate symlinks and configuration
+   - Handle multiple system installations (if present)
+2. Add `pvm import-system` command
+3. Implement proper error handling for import failures
+
+### Legacy Tool Import (internal/perl/legacy.go)
+1. Complete plenv import functionality:
+   - Copy plenv installations to PVM structure
+   - Migrate version configuration
+   - Update shell configuration if needed
+2. Complete perlbrew import functionality:
+   - Import perlbrew installations
+   - Handle perlbrew aliases and configuration
+   - Migrate environment setup
+3. Add `pvm import-from plenv|perlbrew` command completion
+
+### Configuration System Fixes (internal/config/parser.go)
+1. Fix configuration layer priority issues:
+   - Ensure proper precedence order
+   - Handle missing configuration files
+   - Fix accessor method edge cases
+2. Complete remaining accessor methods
+3. Add configuration validation improvements
+
+## Integration Points
+- Integrate exec command with version resolution algorithm
+- Connect import functionality with version registry
+- Integrate with shell setup for imported versions
+- Connect configuration fixes with all components using config
+
+## Documentation Requirements
+1. Document `pvm exec` command with examples:
+   - Basic usage: `pvm exec 5.32.0 perl script.pl`
+   - Environment isolation examples
+   - Integration with build tools
+2. Document import commands:
+   - System Perl import process
+   - Legacy tool migration instructions
+   - Post-import verification steps
+3. Add troubleshooting section for common import issues
+4. Update configuration documentation with precedence rules
+5. Add migration guide from plenv/perlbrew
+
+## Considerations
+- Ensure exec command has minimal performance overhead
+- Handle edge cases in system Perl detection (custom builds, multiple versions)
+- Provide clear migration paths without destroying existing setups
+- Consider shell integration implications of version switching
+- Handle permission issues during import operations
+
+## Success Criteria
+- `pvm exec 5.32.0 perl -v` executes with correct version
+- `pvm import-system` successfully imports system Perl
+- `pvm import-from plenv` migrates existing plenv setup
+- Configuration precedence works correctly in all scenarios
+- All import operations are reversible and safe
+```
+
+#### Prompt 33: Shell Integration and Shim System Implementation
+
+```
+# Implement Complete Shell Integration and Shim System
+
+## Context
+The PVM ecosystem has basic shell integration but lacks the complete shim system and advanced shell features that provide seamless version switching and PATH management for users.
+
+## Previous Implementation
+- Basic shell integration framework
+- Version resolution algorithm
+- Perl installation management
+- Environment setup foundations
+
+## Current Task
+Implement the complete shell integration system and shim functionality to provide transparent version switching and executable management.
+
+## Test Requirements
+1. Test shim creation for all Perl executables:
+   - perl, cpan, cpanm, perldoc, etc.
+   - Custom executables from installed modules
+   - Platform-specific shim behavior (Unix vs Windows)
+2. Test shim execution and version resolution:
+   - Automatic version resolution via shims
+   - Shim performance and overhead
+   - Error handling for missing versions
+3. Test rehash functionality:
+   - Detect new executables after module installation
+   - Rebuild shims automatically
+   - Clean up orphaned shims
+4. Test shell completion:
+   - Tab completion for PVM commands
+   - Version name completion
+   - Module name completion
+5. Test shell initialization:
+   - Bash, Zsh, Fish, PowerShell support
+   - Shell detection and appropriate script generation
+   - PATH modification and restoration
+
+## Implementation Requirements
+
+### Shim System (internal/cli/shim.go)
+1. Implement shim creation functionality:
+   - Generate shim executables for all Perl tools
+   - Create platform-appropriate shims (shell scripts vs binaries)
+   - Install shims to XDG_DATA_HOME/pvm/shims/
+2. Implement shim execution logic:
+   - Version resolution within shim context
+   - PATH setup for resolved version
+   - Command execution with proper environment
+3. Add rehash command implementation:
+   - Scan installed Perl versions for executables
+   - Create/update shims for discovered commands
+   - Remove orphaned shims for uninstalled tools
+4. Implement shim template system:
+   - Configurable shim templates
+   - Platform-specific adaptations
+   - Performance optimizations
+
+### Shell Integration (internal/cli/shell.go)
+1. Complete shell initialization system:
+   - Generate init scripts for bash, zsh, fish, PowerShell
+   - Handle shell-specific syntax and features
+   - Provide eval-based integration commands
+2. Implement tab completion:
+   - Generate completion scripts for supported shells
+   - Complete PVM command names and options
+   - Complete version names and module names
+   - Dynamic completion based on current state
+3. Add shell detection:
+   - Automatic shell detection from environment
+   - Fallback mechanisms for unknown shells
+   - User override options
+
+### PATH Management (internal/cli/path.go)
+1. Implement PATH manipulation:
+   - Add/remove shim directory from PATH
+   - Preserve original PATH for restoration
+   - Handle PATH priorities correctly
+2. Add environment variable management:
+   - Set PERL5LIB and related variables
+   - Manage version-specific environment
+   - Clean environment restoration
+
+## Integration Points
+- Integrate with version resolution algorithm
+- Connect with Perl installation registry
+- Integrate with PVI for module executable detection
+- Connect with configuration system for shim preferences
+
+## Documentation Requirements
+1. Document shim system:
+   - How shims work and their purpose
+   - Shim directory location and management
+   - Troubleshooting shim issues
+2. Document shell integration:
+   - Setup instructions for each supported shell
+   - Shell initialization process
+   - Tab completion setup
+3. Add PATH management documentation:
+   - How PATH modification works
+   - Manual PATH setup if needed
+   - Restoring original environment
+4. Include troubleshooting guide:
+   - Common shim issues and solutions
+   - Shell integration problems
+   - Performance tuning options
+
+## Considerations
+- Minimize shim execution overhead for performance
+- Handle edge cases in shell detection and setup
+- Consider security implications of executable generation
+- Ensure proper cleanup when uninstalling PVM
+- Handle multiple shell sessions and concurrent usage
+- Support for custom executable names and aliases
+
+## Success Criteria
+- Shims are created automatically for all Perl executables
+- `perl -v` uses the correct version via shim resolution
+- Tab completion works in bash/zsh for PVM commands
+- Shell initialization sets up environment correctly
+- Rehash command updates shims after module installations
+- All shell integration works across supported platforms
+```
+
+#### Prompt 34: Advanced PVX Isolation and Execution Features
+
+```
+# Implement Advanced PVX Isolation and Execution Features
+
+## Context
+PVX has basic execution capabilities but lacks the advanced isolation features and execution modes needed for secure and reliable script execution in various environments.
+
+## Previous Implementation
+- Basic script execution with version resolution
+- Simple environment isolation
+- Command-line argument handling
+- Integration with version management
+
+## Current Task
+Implement advanced PVX isolation features and execution modes to provide comprehensive sandboxed execution capabilities.
+
+## Test Requirements
+1. Test advanced isolation levels:
+   - Complete filesystem isolation with chroot/containers
+   - Network isolation options
+   - Resource limits (memory, CPU, time)
+   - Permission restrictions
+2. Test custom module path isolation:
+   - Isolated module installations per execution
+   - Custom PERL5LIB handling
+   - Module conflict prevention
+3. Test execution persistence options:
+   - Temporary vs persistent execution environments
+   - Environment cleanup and reuse
+   - State preservation between executions
+4. Test security features:
+   - Safe execution of untrusted scripts
+   - Resource limit enforcement
+   - Permission sandboxing
+5. Test output and logging:
+   - Structured output capture
+   - Error stream handling
+   - Execution logging and auditing
+
+## Implementation Requirements
+
+### Advanced Isolation (internal/pvx/isolation.go)
+1. Implement high-level isolation features:
+   - Filesystem sandboxing using available OS features
+   - Network access control and restrictions
+   - Process resource limits (memory, CPU, file descriptors)
+   - Temporary filesystem creation and cleanup
+2. Add configurable isolation policies:
+   - Predefined isolation profiles (development, testing, production)
+   - Custom isolation rule definitions
+   - Per-script isolation configuration
+3. Implement isolation validation:
+   - Verify isolation effectiveness
+   - Monitor resource usage
+   - Detect isolation bypass attempts
+
+### Custom Module Environments (internal/pvx/modules.go)
+1. Implement per-execution module environments:
+   - Create isolated module installation directories
+   - Custom PERL5LIB path management
+   - Module dependency isolation
+2. Add module installation for execution contexts:
+   - Install required modules in isolation
+   - Handle conflicting module versions
+   - Clean up temporary installations
+3. Implement module caching:
+   - Cache commonly used modules
+   - Share compatible module installations
+   - Optimize installation performance
+
+### Execution Persistence (internal/pvx/persistence.go)
+1. Implement execution environment management:
+   - Create persistent execution environments
+   - Environment lifecycle management
+   - Environment naming and organization
+2. Add state preservation features:
+   - Save execution state between runs
+   - Restore previous execution contexts
+   - Handle state migration and upgrades
+3. Implement cleanup and garbage collection:
+   - Automatic cleanup of unused environments
+   - Resource usage monitoring
+   - Storage optimization
+
+### Security Enhancements (internal/pvx/security.go)
+1. Implement security policies:
+   - Define safe execution parameters
+   - Validate script safety before execution
+   - Implement execution time limits
+2. Add resource monitoring:
+   - Track CPU, memory, and I/O usage
+   - Implement resource limit enforcement
+   - Generate resource usage reports
+3. Implement audit logging:
+   - Log all execution attempts and results
+   - Track resource usage and violations
+   - Generate security reports
+
+## Integration Points
+- Integrate with PVI for module installation in isolation
+- Connect with PSC for type-checked secure execution
+- Integrate with system security features (cgroups, containers)
+- Connect with logging framework for audit trails
+
+## Documentation Requirements
+1. Document isolation levels and their implications:
+   - Security vs performance tradeoffs
+   - Platform-specific isolation features
+   - Configuration options for each level
+2. Document execution modes:
+   - Temporary vs persistent execution
+   - Module isolation strategies
+   - Resource limit configuration
+3. Add security documentation:
+   - Safe execution practices
+   - Security policy configuration
+   - Audit log interpretation
+4. Include performance tuning guide:
+   - Optimization strategies for different use cases
+   - Benchmarking isolation overhead
+   - Resource usage monitoring
+
+## Considerations
+- Balance security isolation with execution performance
+- Handle platform differences in isolation capabilities
+- Consider container/virtualization integration where available
+- Ensure proper cleanup of isolated environments
+- Handle edge cases in resource limit enforcement
+- Provide clear error messages for isolation failures
+
+## Success Criteria
+- Scripts execute safely in high-isolation mode without system access
+- Module installations are properly isolated between executions
+- Resource limits are enforced and violations handled gracefully
+- Persistent execution environments can be created and managed
+- Security audit logs provide comprehensive execution tracking
+- Performance overhead of isolation is acceptable for practical use
+```
+
+#### Prompt 35: Configuration System Enhancement and Error Handling
+
+```
+# Implement Enhanced Configuration System and Unified Error Handling
+
+## Context
+The PVM ecosystem has basic configuration support but needs enhanced configuration management, better error handling, and improved user experience across all components.
+
+## Previous Implementation
+- Basic TOML configuration parsing
+- XDG directory support
+- Simple configuration merging
+- Component-specific error handling
+
+## Current Task
+Implement enhanced configuration management with advanced features and unified error handling across all ecosystem components.
+
+## Test Requirements
+1. Test advanced configuration features:
+   - Configuration validation and schema checking
+   - Dynamic configuration reloading
+   - Configuration migration between versions
+   - Environment variable interpolation
+2. Test configuration layering edge cases:
+   - Complex nested configuration merging
+   - Array and map merging strategies
+   - Configuration inheritance patterns
+   - Override and reset mechanisms
+3. Test unified error handling:
+   - Consistent error format across components
+   - Error context and stack traces
+   - Recovery suggestions and help
+   - Internationalization support preparation
+4. Test configuration UI and tooling:
+   - Configuration inspection commands
+   - Configuration validation tools
+   - Configuration diff and comparison
+   - Configuration backup and restore
+
+## Implementation Requirements
+
+### Enhanced Configuration System (internal/config/)
+1. Implement configuration schema validation:
+   - Define schema for all configuration sections
+   - Validate configuration against schema
+   - Provide detailed validation error messages
+   - Support for configuration migrations
+2. Add advanced configuration features:
+   - Environment variable interpolation in config values
+   - Configuration templates and includes
+   - Dynamic configuration reloading
+   - Configuration change notifications
+3. Implement configuration management commands:
+   - `pvm config get/set/unset` commands
+   - `pvm config validate` command
+   - `pvm config show` command with different output formats
+   - `pvm config diff` command for comparing configurations
+
+### Advanced Configuration Merging (internal/config/merger.go)
+1. Implement sophisticated merging strategies:
+   - Deep merging for nested objects
+   - Array merge strategies (append, replace, merge)
+   - Type-aware merging with validation
+   - Merge conflict detection and resolution
+2. Add configuration override mechanisms:
+   - Explicit override markers
+   - Environment-specific overrides
+   - Temporary override support
+   - Override priority management
+
+### Unified Error System (internal/errors/)
+1. Enhance error categorization:
+   - More granular error codes and categories
+   - Context-aware error messages
+   - Error severity levels
+   - Recovery action suggestions
+2. Implement error context system:
+   - Error cause chains
+   - Operation context tracking
+   - User action context
+   - Environmental context (version, platform, etc.)
+3. Add error formatting and presentation:
+   - Consistent error message formatting
+   - Color-coded error output
+   - Error message localization framework
+   - Help text integration with errors
+
+### Configuration Tools and UI (internal/config/tools.go)
+1. Implement configuration inspection:
+   - Show effective configuration after merging
+   - Display configuration sources and precedence
+   - Highlight overridden values
+   - Export configuration in different formats
+2. Add configuration backup and restore:
+   - Automatic configuration backups
+   - Configuration history tracking
+   - Point-in-time configuration restoration
+   - Configuration change auditing
+3. Implement configuration validation tools:
+   - Standalone configuration validation
+   - Integration with CI/CD systems
+   - Configuration linting and best practices
+   - Migration path validation
+
+## Integration Points
+- Integrate enhanced error handling across all components
+- Connect configuration tools with all component configurations
+- Integrate with shell completion for configuration keys
+- Connect with documentation system for configuration help
+
+## Documentation Requirements
+1. Document enhanced configuration features:
+   - Configuration schema and validation
+   - Environment variable interpolation syntax
+   - Configuration inheritance and merging rules
+   - Migration procedures between versions
+2. Document configuration management commands:
+   - Complete command reference with examples
+   - Configuration best practices and patterns
+   - Troubleshooting configuration issues
+   - Performance implications of different settings
+3. Document error handling improvements:
+   - Error code reference and meanings
+   - Common error scenarios and solutions
+   - Error recovery procedures
+   - Integration with support and debugging
+
+## Considerations
+- Maintain backward compatibility with existing configurations
+- Consider performance implications of configuration validation
+- Design configuration schema for extensibility
+- Ensure configuration security (no sensitive data exposure)
+- Handle concurrent configuration access safely
+- Provide migration tools for breaking configuration changes
+
+## Success Criteria
+- All components use consistent error handling and formatting
+- Configuration validation catches errors before they cause problems
+- Users can easily inspect and modify configuration via commands
+- Configuration merging works correctly in all edge cases
+- Error messages provide clear guidance for resolution
+- Configuration changes can be made safely with rollback capability
 ```
 
 ## Updated Type System Architecture

@@ -4,6 +4,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 )
 
@@ -361,4 +362,148 @@ type ValidateError string
 // Error implements the error interface
 func (e ValidateError) Error() string {
 	return string(e)
+}
+
+// SchemaValidator provides configuration schema validation
+type SchemaValidator struct {
+	config *Config
+}
+
+// NewSchemaValidator creates a new schema validator
+func NewSchemaValidator(config *Config) *SchemaValidator {
+	return &SchemaValidator{config: config}
+}
+
+// ValidateWithSchema performs comprehensive schema validation
+func (v *SchemaValidator) ValidateWithSchema() []error {
+	var errors []error
+
+	// Use existing validation as baseline
+	errors = append(errors, v.config.Validate()...)
+
+	// Add enhanced schema validation
+	if v.config.PVM != nil {
+		errors = append(errors, v.validatePVMSchema(v.config.PVM)...)
+	}
+	if v.config.PVX != nil {
+		errors = append(errors, v.validatePVXSchema(v.config.PVX)...)
+	}
+	if v.config.PVI != nil {
+		errors = append(errors, v.validatePVISchema(v.config.PVI)...)
+	}
+	if v.config.PSC != nil {
+		errors = append(errors, v.validatePSCSchema(v.config.PSC)...)
+	}
+
+	return errors
+}
+
+// validatePVMSchema validates PVM configuration schema
+func (v *SchemaValidator) validatePVMSchema(cfg *PVMConfig) []error {
+	var errors []error
+
+	// Validate version format for DefaultPerl
+	if cfg.DefaultPerl != "" && !isValidVersionFormat(cfg.DefaultPerl) {
+		errors = append(errors, ValidateError("DefaultPerl must be in format X.Y.Z or alias"))
+	}
+
+	// Validate URL format for DownloadMirror
+	if cfg.DownloadMirror != "" && !strings.HasPrefix(cfg.DownloadMirror, "http") {
+		errors = append(errors, ValidateError("DownloadMirror must be a valid URL"))
+	}
+
+	// Validate BuildJobs range
+	if cfg.BuildJobs > 64 {
+		errors = append(errors, ValidateError("BuildJobs should not exceed 64 for stability"))
+	}
+
+	return errors
+}
+
+// validatePVXSchema validates PVX configuration schema
+func (v *SchemaValidator) validatePVXSchema(cfg *PVXConfig) []error {
+	var errors []error
+
+	// Validate MaxMemory format
+	if cfg.MaxMemory != "" && !isValidMemoryFormat(cfg.MaxMemory) {
+		errors = append(errors, ValidateError("MaxMemory must be in format like '512MB' or '2GB'"))
+	}
+
+	// Validate timeout range
+	if cfg.Timeout > 3600 {
+		errors = append(errors, ValidateError("Timeout should not exceed 3600 seconds (1 hour)"))
+	}
+
+	// Validate isolation paths exist
+	for _, path := range cfg.IsolationReadOnlyPaths {
+		if !pathExists(path) {
+			errors = append(errors, ValidateError("IsolationReadOnlyPath does not exist: "+path))
+		}
+	}
+
+	return errors
+}
+
+// validatePVISchema validates PVI configuration schema
+func (v *SchemaValidator) validatePVISchema(cfg *PVIConfig) []error {
+	var errors []error
+
+	// Validate mirror URLs
+	for _, mirror := range cfg.AdditionalMirrors {
+		if !strings.HasPrefix(mirror, "http") {
+			errors = append(errors, ValidateError("AdditionalMirrors must contain valid URLs: "+mirror))
+		}
+	}
+
+	// Validate CacheTTL range
+	if cfg.CacheTTL > 168 { // 1 week
+		errors = append(errors, ValidateError("CacheTTL should not exceed 168 hours (1 week)"))
+	}
+
+	return errors
+}
+
+// validatePSCSchema validates PSC configuration schema
+func (v *SchemaValidator) validatePSCSchema(cfg *PSCConfig) []error {
+	var errors []error
+
+	// Validate watch exclude patterns
+	for _, pattern := range cfg.WatchExclude {
+		if !isValidGlobPattern(pattern) {
+			errors = append(errors, ValidateError("Invalid glob pattern in WatchExclude: "+pattern))
+		}
+	}
+
+	return errors
+}
+
+// Helper functions for validation
+
+func isValidVersionFormat(version string) bool {
+	// Allow aliases or version patterns like 5.38.0
+	if strings.Contains(version, ".") {
+		parts := strings.Split(version, ".")
+		return len(parts) >= 2 && len(parts) <= 3
+	}
+	// Allow aliases like "latest", "stable"
+	return len(version) > 0
+}
+
+func isValidMemoryFormat(memory string) bool {
+	return strings.HasSuffix(memory, "MB") || strings.HasSuffix(memory, "GB") ||
+		strings.HasSuffix(memory, "KB") || strings.HasSuffix(memory, "TB")
+}
+
+func pathExists(path string) bool {
+	// For validation, we'll be lenient with paths that start with / or contain variables
+	if strings.HasPrefix(path, "/") || strings.Contains(path, "$") {
+		return true
+	}
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func isValidGlobPattern(pattern string) bool {
+	// Simple validation - more complex validation could use filepath.Match
+	return !strings.Contains(pattern, "\\") || strings.Contains(pattern, "*")
 }

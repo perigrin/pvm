@@ -31,6 +31,9 @@ func newConfigCommand() *cobra.Command {
 		newConfigGetCommand(),
 		newConfigSetCommand(),
 		newConfigInitCommand(),
+		newConfigValidateCommand(),
+		newConfigDiffCommand(),
+		newConfigUnsetCommand(),
 	)
 
 	return cmd
@@ -579,4 +582,301 @@ func parseStringSlice(value string) []string {
 	}
 
 	return filteredItems
+}
+
+// newConfigValidateCommand creates a command to validate configuration
+func newConfigValidateCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "validate",
+		Short: "Validate configuration",
+		Long:  "Validate the current configuration for errors and warnings",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load configuration
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return err
+			}
+
+			// Create schema validator
+			validator := config.NewSchemaValidator(cfg)
+
+			// Validate with schema
+			validationErrors := validator.ValidateWithSchema()
+
+			if len(validationErrors) == 0 {
+				fmt.Println("Configuration is valid ✓")
+				return nil
+			}
+
+			// Report validation errors
+			fmt.Printf("Configuration validation failed with %d errors:\n", len(validationErrors))
+			for i, err := range validationErrors {
+				fmt.Printf("  %d. %s\n", i+1, err.Error())
+			}
+
+			return errors.NewConfigError("200", "Configuration validation failed", nil)
+		},
+	}
+}
+
+// newConfigDiffCommand creates a command to show configuration differences
+func newConfigDiffCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "diff [config-file]",
+		Short: "Show configuration differences",
+		Long:  "Compare effective configuration with a specific configuration file",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load effective configuration
+			effectiveConfig, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return err
+			}
+
+			var compareConfig *config.Config
+
+			if len(args) == 1 {
+				// Compare with specified file
+				compareConfig, err = config.ParseFile(args[0])
+				if err != nil {
+					return err
+				}
+			} else {
+				// Compare with default configuration
+				compareConfig = config.NewDefaultConfig()
+			}
+
+			// Detect conflicts/differences
+			detector := config.NewConflictDetector()
+			conflicts := detector.DetectConflicts(compareConfig, effectiveConfig)
+
+			if len(conflicts) == 0 {
+				fmt.Println("No differences found")
+				return nil
+			}
+
+			fmt.Printf("Found %d differences:\n", len(conflicts))
+			for _, conflict := range conflicts {
+				fmt.Printf("  %s: %v → %v (%s)\n",
+					conflict.Path,
+					conflict.TargetValue,
+					conflict.SourceValue,
+					conflict.Resolution)
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// newConfigUnsetCommand creates a command to unset configuration values
+func newConfigUnsetCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "unset [section.key]",
+		Short: "Unset a configuration value",
+		Long:  "Remove a specific configuration value (revert to default)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Parse the section.key argument
+			parts := strings.SplitN(args[0], ".", 2)
+			if len(parts) != 2 {
+				return errors.NewUserInputError(cli.PrefixPVM, "201",
+					"Invalid format for section.key", nil).
+					WithHint("Use format 'section.key', e.g., 'pvm.default_perl'")
+			}
+
+			section := parts[0]
+			key := parts[1]
+
+			// Determine which config file to update
+			var configPath string
+			var err error
+
+			system, _ := cmd.Flags().GetBool("system")
+			project, _ := cmd.Flags().GetBool("project")
+
+			switch {
+			case system:
+				configPath = xdg.GetSystemConfigPath()
+			case project:
+				projectRoot := config.GetProjectRoot()
+				if projectRoot == "" {
+					return errors.NewUserInputError(cli.PrefixPVM, "202",
+						"Not in a project directory", nil).
+						WithHint("Use --user to update user configuration instead")
+				}
+				configPath = xdg.GetProjectConfigPath(projectRoot)
+			default:
+				dirs, err := xdg.GetDirs()
+				if err != nil {
+					return err
+				}
+				configPath = dirs.GetConfigFilePath()
+			}
+
+			// Load existing config or return error if it doesn't exist
+			if _, err := os.Stat(configPath); os.IsNotExist(err) {
+				return errors.NewUserInputError(cli.PrefixPVM, "203",
+					"Configuration file does not exist", nil).
+					WithLocation(configPath).
+					WithHint("Use 'pvm config init' to create a configuration file first")
+			}
+
+			cfg, err := config.ParseFile(configPath)
+			if err != nil {
+				return err
+			}
+
+			// Unset the value by setting it to the default value
+			defaultCfg := config.NewDefaultConfig()
+			err = unsetConfigValue(cfg, defaultCfg, section, key)
+			if err != nil {
+				return err
+			}
+
+			// Save the configuration
+			return config.SaveToFile(cfg, configPath)
+		},
+	}
+
+	// Add flags
+	cmd.Flags().Bool("system", false, "Update system-wide configuration")
+	cmd.Flags().Bool("user", true, "Update user configuration (default)")
+	cmd.Flags().Bool("project", false, "Update project configuration")
+
+	return cmd
+}
+
+// unsetConfigValue resets a configuration value to its default
+func unsetConfigValue(cfg, defaultCfg *config.Config, section, key string) error {
+	switch section {
+	case "pvm":
+		if cfg.PVM == nil {
+			return nil // Already unset
+		}
+		return unsetPVMValue(cfg.PVM, defaultCfg.PVM, key)
+	case "pvx":
+		if cfg.PVX == nil {
+			return nil // Already unset
+		}
+		return unsetPVXValue(cfg.PVX, defaultCfg.PVX, key)
+	case "pvi":
+		if cfg.PVI == nil {
+			return nil // Already unset
+		}
+		return unsetPVIValue(cfg.PVI, defaultCfg.PVI, key)
+	case "psc":
+		if cfg.PSC == nil {
+			return nil // Already unset
+		}
+		return unsetPSCValue(cfg.PSC, defaultCfg.PSC, key)
+	default:
+		return errors.NewUserInputError(cli.PrefixPVM, "204",
+			"Unknown configuration section", nil).
+			WithHint("Valid sections are: pvm, pvx, pvi, psc")
+	}
+}
+
+func unsetPVMValue(cfg, defaultCfg *config.PVMConfig, key string) error {
+	switch key {
+	case "default_perl":
+		cfg.DefaultPerl = defaultCfg.DefaultPerl
+	case "download_mirror":
+		cfg.DownloadMirror = defaultCfg.DownloadMirror
+	case "patches_dir":
+		cfg.PatchesDir = defaultCfg.PatchesDir
+	case "compiler":
+		cfg.Compiler = defaultCfg.Compiler
+	case "build_jobs":
+		cfg.BuildJobs = defaultCfg.BuildJobs
+	case "run_tests":
+		cfg.RunTests = defaultCfg.RunTests
+	default:
+		return errors.NewUserInputError(cli.PrefixPVM, "205",
+			"Unknown configuration key", nil).
+			WithHint("Use 'pvm config show' to see all available keys")
+	}
+	return nil
+}
+
+func unsetPVXValue(cfg, defaultCfg *config.PVXConfig, key string) error {
+	switch key {
+	case "isolation_level":
+		cfg.IsolationLevel = defaultCfg.IsolationLevel
+	case "max_memory":
+		cfg.MaxMemory = defaultCfg.MaxMemory
+	case "timeout":
+		cfg.Timeout = defaultCfg.Timeout
+	case "cache_modules":
+		cfg.CacheModules = defaultCfg.CacheModules
+	case "cleanup_after":
+		cfg.CleanupAfter = defaultCfg.CleanupAfter
+	case "always_install_deps":
+		cfg.AlwaysInstallDeps = defaultCfg.AlwaysInstallDeps
+	case "isolated_output":
+		cfg.IsolatedOutput = defaultCfg.IsolatedOutput
+	case "save_output_dir":
+		cfg.SaveOutputDir = defaultCfg.SaveOutputDir
+	case "custom_module_path":
+		cfg.CustomModulePath = defaultCfg.CustomModulePath
+	case "isolation_ro_paths":
+		cfg.IsolationReadOnlyPaths = make([]string, len(defaultCfg.IsolationReadOnlyPaths))
+		copy(cfg.IsolationReadOnlyPaths, defaultCfg.IsolationReadOnlyPaths)
+	case "isolation_rw_paths":
+		cfg.IsolationReadWritePaths = make([]string, len(defaultCfg.IsolationReadWritePaths))
+		copy(cfg.IsolationReadWritePaths, defaultCfg.IsolationReadWritePaths)
+	case "preserve_env_vars":
+		cfg.PreserveEnvVars = make([]string, len(defaultCfg.PreserveEnvVars))
+		copy(cfg.PreserveEnvVars, defaultCfg.PreserveEnvVars)
+	case "additional_module_paths":
+		cfg.AdditionalModulePaths = make([]string, len(defaultCfg.AdditionalModulePaths))
+		copy(cfg.AdditionalModulePaths, defaultCfg.AdditionalModulePaths)
+	default:
+		return errors.NewUserInputError(cli.PrefixPVM, "206",
+			"Unknown configuration key", nil).
+			WithHint("Use 'pvm config show' to see all available keys")
+	}
+	return nil
+}
+
+func unsetPVIValue(cfg, defaultCfg *config.PVIConfig, key string) error {
+	switch key {
+	case "preferred_installer":
+		cfg.PreferredInstaller = defaultCfg.PreferredInstaller
+	case "default_mirror":
+		cfg.DefaultMirror = defaultCfg.DefaultMirror
+	case "test_during_install":
+		cfg.TestDuringInstall = defaultCfg.TestDuringInstall
+	case "cache_modules":
+		cfg.CacheModules = defaultCfg.CacheModules
+	case "force_reinstall":
+		cfg.ForceReinstall = defaultCfg.ForceReinstall
+	case "check_signatures":
+		cfg.CheckSignatures = defaultCfg.CheckSignatures
+	default:
+		return errors.NewUserInputError(cli.PrefixPVM, "207",
+			"Unknown configuration key", nil).
+			WithHint("Use 'pvm config show' to see all available keys")
+	}
+	return nil
+}
+
+func unsetPSCValue(cfg, defaultCfg *config.PSCConfig, key string) error {
+	switch key {
+	case "type_definitions_path":
+		cfg.TypeDefinitionsPath = defaultCfg.TypeDefinitionsPath
+	case "strict_mode":
+		cfg.StrictMode = defaultCfg.StrictMode
+	case "generate_missing_types":
+		cfg.GenerateMissingTypes = defaultCfg.GenerateMissingTypes
+	case "check_before_run":
+		cfg.CheckBeforeRun = defaultCfg.CheckBeforeRun
+	default:
+		return errors.NewUserInputError(cli.PrefixPVM, "208",
+			"Unknown configuration key", nil).
+			WithHint("Use 'pvm config show' to see all available keys")
+	}
+	return nil
 }
