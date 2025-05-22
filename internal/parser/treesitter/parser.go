@@ -244,10 +244,8 @@ func (p *Parser) convertPerlTypeAnnotation(perlAnn *PerlTypeAnnotation, content 
 	// Calculate line and column from byte position
 	pos := p.calculatePosition(perlAnn.StartPos, content)
 
-	// Create TypeExpression
-	typeExpr := &TypeExpression{
-		BaseType: perlAnn.TypeName,
-	}
+	// Create TypeExpression - parse the type string into structured components
+	typeExpr := p.parseTypeExpression(perlAnn.TypeName, pos)
 
 	// Determine annotation kind
 	var kind AnnotationKind
@@ -258,6 +256,8 @@ func (p *Parser) convertPerlTypeAnnotation(perlAnn *PerlTypeAnnotation, content 
 		kind = SubParamAnnotation // Simplified for now
 	case "method":
 		kind = MethodParamAnnotation // Simplified for now
+	case "type_declaration":
+		kind = TypeDeclAnnotation
 	default:
 		kind = VarAnnotation // Default fallback
 	}
@@ -293,6 +293,126 @@ func (p *Parser) calculatePosition(byteOffset int, content string) Position {
 		Column: column,
 		Offset: byteOffset,
 	}
+}
+
+// parseTypeExpression parses a type expression string into a structured TypeExpression
+func (p *Parser) parseTypeExpression(typeStr string, pos Position) *TypeExpression {
+	typeStr = strings.TrimSpace(typeStr)
+
+	// Handle negation types (!Type)
+	if strings.HasPrefix(typeStr, "!") {
+		innerType := p.parseTypeExpression(strings.TrimSpace(typeStr[1:]), pos)
+		return &TypeExpression{
+			BaseType:       innerType.BaseType, // Use the inner type's base type as the name
+			Parameters:     innerType.Parameters,
+			IsUnion:        innerType.IsUnion,
+			IsIntersection: innerType.IsIntersection,
+			IsNegation:     true,
+			NegatedType:    innerType,
+			OriginalString: typeStr,
+			Pos:            pos,
+		}
+	}
+
+	// Handle union types (Type1|Type2)
+	if strings.Contains(typeStr, "|") && !strings.Contains(typeStr, "[") {
+		// Simple union without brackets
+		parts := strings.Split(typeStr, "|")
+		if len(parts) >= 2 {
+			var unionTypes []*TypeExpression
+			for _, part := range parts {
+				unionTypes = append(unionTypes, p.parseTypeExpression(strings.TrimSpace(part), pos))
+			}
+			return &TypeExpression{
+				BaseType:       typeStr, // Keep full expression as name for now
+				IsUnion:        true,
+				UnionTypes:     unionTypes,
+				OriginalString: typeStr,
+				Pos:            pos,
+			}
+		}
+	}
+
+	// Handle intersection types (Type1&Type2)
+	if strings.Contains(typeStr, "&") && !strings.Contains(typeStr, "[") {
+		// Simple intersection without brackets
+		parts := strings.Split(typeStr, "&")
+		if len(parts) >= 2 {
+			var intersectionTypes []*TypeExpression
+			for _, part := range parts {
+				intersectionTypes = append(intersectionTypes, p.parseTypeExpression(strings.TrimSpace(part), pos))
+			}
+			return &TypeExpression{
+				BaseType:          typeStr, // Keep full expression as name for now
+				IsIntersection:    true,
+				IntersectionTypes: intersectionTypes,
+				OriginalString:    typeStr,
+				Pos:               pos,
+			}
+		}
+	}
+
+	// Handle parameterized types (Type[Param1, Param2])
+	if idx := strings.Index(typeStr, "["); idx > 0 && strings.HasSuffix(typeStr, "]") {
+		baseName := strings.TrimSpace(typeStr[:idx])
+		paramStr := strings.TrimSpace(typeStr[idx+1 : len(typeStr)-1])
+
+		var params []*TypeExpression
+		if paramStr != "" {
+			// Parse parameters, handling nested brackets
+			paramParts := p.splitParameters(paramStr)
+			for _, part := range paramParts {
+				params = append(params, p.parseTypeExpression(strings.TrimSpace(part), pos))
+			}
+		}
+
+		return &TypeExpression{
+			BaseType:       baseName,
+			Parameters:     params,
+			OriginalString: typeStr,
+			Pos:            pos,
+		}
+	}
+
+	// Simple type (no special syntax)
+	return &TypeExpression{
+		BaseType:       typeStr,
+		OriginalString: typeStr,
+		Pos:            pos,
+	}
+}
+
+// splitParameters splits parameter strings, handling nested brackets
+func (p *Parser) splitParameters(paramStr string) []string {
+	var params []string
+	var current strings.Builder
+	bracketCount := 0
+
+	for _, char := range paramStr {
+		switch char {
+		case '[':
+			bracketCount++
+			current.WriteRune(char)
+		case ']':
+			bracketCount--
+			current.WriteRune(char)
+		case ',':
+			if bracketCount == 0 {
+				params = append(params, current.String())
+				current.Reset()
+			} else {
+				current.WriteRune(char)
+			}
+		default:
+			current.WriteRune(char)
+		}
+	}
+
+	if current.Len() > 0 {
+		params = append(params, current.String())
+	}
+
+	return params
 }
 
 // ParseString parses a string containing Perl code and returns its AST

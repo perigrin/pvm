@@ -163,6 +163,11 @@ func (t *PerlTree) traverseForTypeAnnotations(node *sitter.Node, annotations *[]
 		t.processSubroutineDeclaration(node, annotations)
 	case "method_declaration":
 		t.processMethodDeclaration(node, annotations)
+	case "type_declaration":
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Found type_declaration node\n")
+		}
+		t.processTypeDeclaration(node, annotations)
 	}
 
 	// Recursively process all child nodes
@@ -381,6 +386,72 @@ func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*P
 		}
 		*annotations = append(*annotations, annotation)
 	}
+}
+
+// processTypeDeclaration processes type declarations like "type MyType = OtherType"
+func (t *PerlTree) processTypeDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
+	var typeName, typeDefinition string
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing type declaration with %d children\n", node.ChildCount())
+	}
+
+	// Walk through child nodes to find the components
+	// Based on grammar: type_declaration: $ => seq('type', field('name', $.identifier), '=', field('definition', $.type_expression), $._semicolon)
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "identifier":
+			// This should be the type name after 'type' keyword
+			if typeName == "" {
+				typeName = t.getNodeText(child)
+			}
+		case "type_expression":
+			// This is the type definition after '='
+			typeDefinition = t.extractTypeExpression(child)
+		}
+	}
+
+	if typeName != "" && typeDefinition != "" {
+		annotation := &PerlTypeAnnotation{
+			ItemName: typeName,
+			TypeName: typeDefinition,
+			Kind:     "type_declaration",
+			StartPos: int(node.StartByte()),
+			EndPos:   int(node.EndByte()),
+			Content:  t.getNodeText(node),
+		}
+		*annotations = append(*annotations, annotation)
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Created type declaration annotation: %s = %s\n", typeName, typeDefinition)
+		}
+	}
+}
+
+// extractTypeExpression extracts the type definition from a type_expression node
+func (t *PerlTree) extractTypeExpression(node *sitter.Node) string {
+	if node == nil {
+		return ""
+	}
+
+	// For simple cases, just return the text content
+	// In more complex cases, we might need to parse union types, intersection types, etc.
+	content := t.getNodeText(node)
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Extracting type expression: %s (kind: %s)\n", content, node.Kind())
+	}
+
+	return content
 }
 
 // PerlTypeAnnotation represents a type annotation found in Perl code

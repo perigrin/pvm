@@ -36,6 +36,9 @@ type TypeHierarchy struct {
 
 	// unionTypes stores created union type instances
 	unionTypes map[string]*UnionType
+
+	// intersectionTypes stores created intersection type instances
+	intersectionTypes map[string]*IntersectionType
 }
 
 // NewTypeHierarchy creates a new TypeHierarchy with built-in types
@@ -46,6 +49,7 @@ func NewTypeHierarchy(store *Storage) *TypeHierarchy {
 		subtypeRelations:   make(map[string][]string),
 		parameterizedTypes: make(map[string]func([]string) (string, error)),
 		unionTypes:         make(map[string]*UnionType),
+		intersectionTypes:  make(map[string]*IntersectionType),
 	}
 
 	// Initialize built-in types
@@ -386,6 +390,11 @@ func (h *TypeHierarchy) CheckTypeCompatibility(sourceType, targetType string) er
 		return h.CheckUnionTypeCompatibility(sourceType, targetType)
 	}
 
+	// Enhanced Intersection type handling using trait intersection
+	if h.IsIntersectionType(sourceType) || h.IsIntersectionType(targetType) {
+		return h.CheckIntersectionTypeCompatibility(sourceType, targetType)
+	}
+
 	// Types are incompatible
 	return errors.NewTypeError(
 		ErrTypeIncompatible,
@@ -644,4 +653,133 @@ func (h *TypeHierarchy) CheckUnionTypeCompatibility(sourceType, targetType strin
 
 	// Neither is union, shouldn't reach here in normal flow
 	return fmt.Errorf("internal error: non-union types in union compatibility check")
+}
+
+// CreateIntersectionType creates and stores an intersection type instance
+func (h *TypeHierarchy) CreateIntersectionType(members []string) *IntersectionType {
+	intersectionType := NewIntersectionType(members)
+	typeName := intersectionType.TypeName()
+	h.intersectionTypes[typeName] = intersectionType
+	return intersectionType
+}
+
+// GetIntersectionType retrieves a stored intersection type by its type name
+func (h *TypeHierarchy) GetIntersectionType(typeName string) *IntersectionType {
+	return h.intersectionTypes[typeName]
+}
+
+// IsIntersectionType checks if a type name represents an intersection type
+func (h *TypeHierarchy) IsIntersectionType(typeName string) bool {
+	// Check if it's a stored intersection type
+	if _, exists := h.intersectionTypes[typeName]; exists {
+		return true
+	}
+
+	// Check if it's an intersection type format like "Intersection[A, B]" or "A&B"
+	if strings.HasPrefix(typeName, "Intersection[") {
+		return true
+	}
+
+	// Check for ampersand-separated format
+	return strings.Contains(typeName, "&")
+}
+
+// ParseIntersectionType parses an intersection type string and creates an IntersectionType instance
+func (h *TypeHierarchy) ParseIntersectionType(typeName string) *IntersectionType {
+	// Check if it's already stored
+	if intersectionType, exists := h.intersectionTypes[typeName]; exists {
+		return intersectionType
+	}
+
+	var members []string
+
+	// Handle different intersection type formats
+	switch {
+	case strings.HasPrefix(typeName, "Intersection["):
+		// Handle "Intersection[A, B, C]" format
+		_, params := extractTypeAndParams(typeName)
+		members = params
+	case strings.Contains(typeName, "&"):
+		// Handle "A&B&C" format
+		parts := strings.Split(typeName, "&")
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if part != "" { // Only add non-empty parts
+				members = append(members, part)
+			}
+		}
+	default:
+		// Not an intersection type
+		return nil
+	}
+
+	if len(members) < 2 {
+		return nil
+	}
+
+	// Create and store the intersection type
+	intersectionType := NewIntersectionType(members)
+	h.intersectionTypes[intersectionType.TypeName()] = intersectionType
+	return intersectionType
+}
+
+// CheckIntersectionTypeCompatibility checks intersection type compatibility using trait intersection
+func (h *TypeHierarchy) CheckIntersectionTypeCompatibility(sourceType, targetType string) error {
+	// Handle intersection to non-intersection
+	if h.IsIntersectionType(sourceType) && !h.IsIntersectionType(targetType) {
+		intersectionType := h.ParseIntersectionType(sourceType)
+		if intersectionType == nil {
+			return fmt.Errorf("invalid intersection type: %s", sourceType)
+		}
+
+		if intersectionType.IsCompatibleWith(targetType, h) {
+			return nil
+		}
+
+		return fmt.Errorf("intersection type %s is not compatible with %s", sourceType, targetType)
+	}
+
+	// Handle non-intersection to intersection
+	if !h.IsIntersectionType(sourceType) && h.IsIntersectionType(targetType) {
+		intersectionType := h.ParseIntersectionType(targetType)
+		if intersectionType == nil {
+			return fmt.Errorf("invalid intersection type: %s", targetType)
+		}
+
+		if intersectionType.CanAssignFrom(sourceType, h) {
+			return nil
+		}
+
+		return fmt.Errorf("type %s cannot be assigned to intersection type %s", sourceType, targetType)
+	}
+
+	// Handle intersection to intersection
+	if h.IsIntersectionType(sourceType) && h.IsIntersectionType(targetType) {
+		sourceIntersection := h.ParseIntersectionType(sourceType)
+		targetIntersection := h.ParseIntersectionType(targetType)
+
+		if sourceIntersection == nil || targetIntersection == nil {
+			return fmt.Errorf("invalid intersection types: %s, %s", sourceType, targetType)
+		}
+
+		// Intersection[A, B] is compatible with Intersection[C, D] if every member of target
+		// is compatible with at least one member of source (reverse of union logic)
+		for _, targetMember := range targetIntersection.GetMembers() {
+			compatible := false
+			for _, sourceMember := range sourceIntersection.GetMembers() {
+				if err := h.CheckTypeCompatibility(sourceMember, targetMember); err == nil {
+					compatible = true
+					break
+				}
+			}
+			if !compatible {
+				return fmt.Errorf("intersection type %s is not compatible with intersection type %s", sourceType, targetType)
+			}
+		}
+
+		return nil
+	}
+
+	// Neither is intersection, shouldn't reach here in normal flow
+	return fmt.Errorf("internal error: non-intersection types in intersection compatibility check")
 }

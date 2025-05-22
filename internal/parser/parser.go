@@ -327,9 +327,9 @@ func convertTypeExpression(tsExpr *treesitter.TypeExpression) *TypeExpression {
 		}
 	}
 
-	// For negated types, use the original string
-	if tsExpr.NegatedType != nil && tsExpr.OriginalString != "" {
-		expr.Name = tsExpr.OriginalString
+	// For negated types, use the negated type's name
+	if tsExpr.NegatedType != nil {
+		expr.Name = tsExpr.NegatedType.BaseType
 	}
 
 	return expr

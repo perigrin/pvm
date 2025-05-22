@@ -255,3 +255,140 @@ func (ut *UnionType) Equals(other *UnionType) bool {
 	}
 	return true
 }
+
+// IntersectionType represents an intersection type that must satisfy all member types
+type IntersectionType struct {
+	// Members are the types that make up this intersection
+	Members []string
+
+	// cachedTraits stores the computed trait intersection (lazy loading)
+	cachedTraits *traits.TraitSet
+
+	// intersector for computing trait intersections
+	intersector *traits.TraitIntersector
+}
+
+// NewIntersectionType creates a new intersection type with the given member types
+func NewIntersectionType(members []string) *IntersectionType {
+	if len(members) < 2 {
+		panic("Intersection type must have at least two members")
+	}
+
+	// Remove duplicates and maintain order
+	uniqueMembers := make([]string, 0, len(members))
+	seen := make(map[string]bool)
+	for _, member := range members {
+		if !seen[member] {
+			uniqueMembers = append(uniqueMembers, member)
+			seen[member] = true
+		}
+	}
+
+	return &IntersectionType{
+		Members:     uniqueMembers,
+		intersector: traits.NewTraitIntersector(),
+	}
+}
+
+// String returns a string representation of the intersection type
+func (it *IntersectionType) String() string {
+	return strings.Join(it.Members, "&")
+}
+
+// TypeName returns the full type name for this intersection
+func (it *IntersectionType) TypeName() string {
+	return fmt.Sprintf("Intersection[%s]", strings.Join(it.Members, ", "))
+}
+
+// GetTraits returns the trait intersection for this intersection type (lazy computed)
+func (it *IntersectionType) GetTraits() *traits.TraitSet {
+	if it.cachedTraits == nil {
+		it.cachedTraits = it.intersector.IntersectTypes(it.Members)
+	}
+	return it.cachedTraits
+}
+
+// SupportsOperation checks if this intersection type supports the given operation
+func (it *IntersectionType) SupportsOperation(operation string) bool {
+	traits := it.GetTraits()
+	return traits.HasTrait(operation)
+}
+
+// GetOperationResultType returns the result type for the given operation
+func (it *IntersectionType) GetOperationResultType(operation string) (string, error) {
+	traits := it.GetTraits()
+	if !traits.HasTrait(operation) {
+		return "", fmt.Errorf("operation '%s' not supported by intersection type %s", operation, it.String())
+	}
+
+	resultType := traits.GetResultType(operation)
+	if resultType == "" {
+		return "", fmt.Errorf("no result type for operation '%s'", operation)
+	}
+
+	return resultType, nil
+}
+
+// GetMembers returns a copy of the member types
+func (it *IntersectionType) GetMembers() []string {
+	result := make([]string, len(it.Members))
+	copy(result, it.Members)
+	return result
+}
+
+// ContainsMember checks if the intersection contains the given type as a member
+func (it *IntersectionType) ContainsMember(typeName string) bool {
+	for _, member := range it.Members {
+		if member == typeName {
+			return true
+		}
+	}
+	return false
+}
+
+// IsCompatibleWith checks if this intersection type is compatible with another type
+func (it *IntersectionType) IsCompatibleWith(targetType string, hierarchy *TypeHierarchy) bool {
+	// Intersection[A, B] is compatible with T if the intersection can be assigned to T
+	// Since intersection types represent values that satisfy ALL members,
+	// the intersection is compatible with T if at least one member is compatible with T
+	for _, member := range it.Members {
+		if err := hierarchy.CheckTypeCompatibility(member, targetType); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// CanAssignFrom checks if a source type can be assigned to this intersection
+func (it *IntersectionType) CanAssignFrom(sourceType string, hierarchy *TypeHierarchy) bool {
+	// T can be assigned to Intersection[A, B] if T is compatible with all members
+	for _, member := range it.Members {
+		if err := hierarchy.CheckTypeCompatibility(sourceType, member); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// ClearTraitCache clears the cached traits, forcing recomputation next time
+func (it *IntersectionType) ClearTraitCache() {
+	it.cachedTraits = nil
+	if it.intersector != nil {
+		it.intersector.ClearCache()
+	}
+}
+
+// Equals checks if this intersection type is equal to another intersection type
+func (it *IntersectionType) Equals(other *IntersectionType) bool {
+	if len(it.Members) != len(other.Members) {
+		return false
+	}
+
+	// Check if all members match (order independent)
+	for _, member := range it.Members {
+		if !other.ContainsMember(member) {
+			return false
+		}
+	}
+	return true
+}

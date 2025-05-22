@@ -413,8 +413,7 @@ func TestParseMethodTypeAnnotations(t *testing.T) {
 }
 
 func TestParseTypeDeclarations(t *testing.T) {
-	// TODO: Skip this test until type declarations are implemented in tree-sitter parser
-	t.Skip("Type declarations not fully implemented in tree-sitter parser yet")
+	// Type declarations are now implemented in tree-sitter parser
 
 	// Create a parser
 	p, err := NewParser()
