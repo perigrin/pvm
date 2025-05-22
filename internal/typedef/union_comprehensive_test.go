@@ -359,7 +359,7 @@ func TestUnionTypeIntegrationWithHierarchy(t *testing.T) {
 			{"Int|Str|Bool", true},
 			{"Int", false},
 			{"ArrayRef[Int]", false},
-			{"ArrayRef[Int|Str]", true}, // This contains a union, so it's detected as union
+			{"ArrayRef[Int|Str]", false}, // This is a parameterized type, not a union
 		}
 
 		for _, tc := range testCases {

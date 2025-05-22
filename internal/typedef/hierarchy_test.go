@@ -34,8 +34,6 @@ func TestTypeHierarchyCreation(t *testing.T) {
 
 // TestSubtypeRelationships tests the subtype relationships
 func TestSubtypeRelationships(t *testing.T) {
-	// TODO: Skip subtype relationship tests until the full typedef system is implemented
-	t.Skip("Subtype relationships not fully implemented in tree-sitter parser yet")
 	// Create a mock storage
 	storage, err := NewStorageWithPath(t.TempDir())
 	require.NoError(t, err)
@@ -58,7 +56,7 @@ func TestSubtypeRelationships(t *testing.T) {
 	assert.True(t, hierarchy.IsSubtypeOf("Str", "Any"))
 
 	// Test non-subtype relationships
-	assert.False(t, hierarchy.IsSubtypeOf("Int", "Str"))
+	assert.False(t, hierarchy.IsSubtypeOf("Str", "Int")) // Str is NOT a subtype of Int
 	assert.False(t, hierarchy.IsSubtypeOf("ArrayRef", "HashRef"))
 	assert.False(t, hierarchy.IsSubtypeOf("Ref", "Scalar"))
 }
@@ -100,8 +98,6 @@ func TestParameterizedTypes(t *testing.T) {
 
 // TestTypeCompatibility tests type compatibility checking
 func TestTypeCompatibility(t *testing.T) {
-	// TODO: Skip type compatibility tests until the full typedef system is implemented
-	t.Skip("Type compatibility checks not fully implemented in tree-sitter parser yet")
 	// Create a mock storage
 	storage, err := NewStorageWithPath(t.TempDir())
 	require.NoError(t, err)
@@ -121,14 +117,14 @@ func TestTypeCompatibility(t *testing.T) {
 	assert.NoError(t, hierarchy.CheckTypeCompatibility("Int", "Any"))
 
 	// Test incompatible types
-	assert.Error(t, hierarchy.CheckTypeCompatibility("Int", "Str"))
+	assert.Error(t, hierarchy.CheckTypeCompatibility("Str", "Int")) // Str cannot be assigned to Int
 	assert.Error(t, hierarchy.CheckTypeCompatibility("ArrayRef", "HashRef"))
 	assert.Error(t, hierarchy.CheckTypeCompatibility("Int", "ArrayRef[Int]"))
 
 	// Test parameterized type compatibility
 	assert.NoError(t, hierarchy.CheckTypeCompatibility("ArrayRef[Int]", "ArrayRef[Num]"))
 	assert.NoError(t, hierarchy.CheckTypeCompatibility("HashRef[Int]", "HashRef[Scalar]"))
-	assert.Error(t, hierarchy.CheckTypeCompatibility("ArrayRef[Int]", "ArrayRef[Str]"))
+	assert.NoError(t, hierarchy.CheckTypeCompatibility("ArrayRef[Int]", "ArrayRef[Str]")) // Int is subtype of Str
 }
 
 // TestTypeValidation tests type validation
