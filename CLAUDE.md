@@ -59,6 +59,9 @@ PSC requires tree-sitter integration which has additional dependencies:
 - The CGO dependencies should all be in tree-sitter-typed-perl now
 - Please do not undo that work
 
+## Tree-sitter Integration Principle
+- tree-sitter is integral to the system, we MUST NOT work around it
+
 ## Tree-sitter-typed-perl Integration
 
 The project uses a custom `tree-sitter-typed-perl` grammar that extends the standard Perl grammar with type annotations:
