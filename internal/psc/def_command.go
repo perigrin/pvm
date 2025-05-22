@@ -411,14 +411,14 @@ use Data::Dumper;
 my $module = '%s';
 
 # Result structure
-my $result = {
+my $result = {{
     module => $module,
     version => '0.0.1',
     types => [],
     subs => [],
     methods => [],
     packages => []
-};
+}};
 
 # Try to load the module
 eval {
