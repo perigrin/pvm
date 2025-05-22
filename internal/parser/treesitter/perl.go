@@ -142,10 +142,23 @@ func (t *PerlTree) traverseForTypeAnnotations(node *sitter.Node, annotations *[]
 		return
 	}
 
+	// DEBUG: Print node kinds to understand what we're seeing (only if DEBUG_PARSER=1)
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Traversing node: %s (text: %.50s)\n", node.Kind(), strings.ReplaceAll(t.getNodeText(node), "\n", "\\n"))
+	}
+
 	// Check if this node represents a type annotation pattern
 	switch node.Kind() {
 	case "variable_declaration":
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Found variable_declaration node\n")
+		}
 		t.processVariableDeclaration(node, annotations)
+	case "typed_variable_declaration":
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Found typed_variable_declaration node\n")
+		}
+		t.processTypedVariableDeclaration(node, annotations)
 	case "subroutine_declaration_statement":
 		t.processSubroutineDeclaration(node, annotations)
 	case "method_declaration":
@@ -161,16 +174,13 @@ func (t *PerlTree) traverseForTypeAnnotations(node *sitter.Node, annotations *[]
 	}
 }
 
-// processVariableDeclaration looks for type annotations in variable declarations
-func (t *PerlTree) processVariableDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
-	// Look for both patterns:
-	// 1. Original: my + scalar + : + attrlist  (my $var: Type)
-	// 2. Typed Perl: my + ERROR + scalar       (my Type $var)
-
+// processTypedVariableDeclaration processes typed variable declarations like "my Type $var"
+func (t *PerlTree) processTypedVariableDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
 	var varName, typeName string
-	var typeNode *sitter.Node
-	hasColon := false
-	hasTypeError := false
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing typed variable declaration with %d children\n", node.ChildCount())
+	}
 
 	// Walk through child nodes to find the components
 	for i := 0; i < int(node.ChildCount()); i++ {
@@ -179,21 +189,68 @@ func (t *PerlTree) processVariableDeclaration(node *sitter.Node, annotations *[]
 			continue
 		}
 
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
 		switch child.Kind() {
 		case "scalar":
 			varName = t.getNodeText(child)
-		case ":":
-			hasColon = true
-		case "attrlist":
-			// Look for attribute inside attrlist
+		case "type_expression":
+			// Get the type from inside the type_expression
 			for j := 0; j < int(child.ChildCount()); j++ {
-				attr := child.Child(uint(j))
-				if attr != nil && attr.Kind() == "attribute" {
-					typeName = t.getNodeText(attr)
-					typeNode = attr // Store the attribute node for position
+				typeChild := child.Child(uint(j))
+				if typeChild != nil && typeChild.Kind() == "identifier" {
+					typeName = t.getNodeText(typeChild)
 					break
 				}
 			}
+		}
+	}
+
+	// Create annotation if we found both variable name and type name
+	if varName != "" && typeName != "" {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Creating typed annotation for %s: %s\n", varName, typeName)
+		}
+		annotation := &PerlTypeAnnotation{
+			ItemName: varName,
+			TypeName: typeName,
+			Kind:     "variable",
+			StartPos: int(node.StartByte()),
+			EndPos:   int(node.EndByte()),
+			Content:  t.getNodeText(node),
+		}
+		*annotations = append(*annotations, annotation)
+	}
+}
+
+// processVariableDeclaration looks for type annotations in variable declarations
+func (t *PerlTree) processVariableDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
+	// Only handle Typed Perl syntax: my Type $var
+	// This appears as: my + ERROR + scalar (where ERROR contains the type)
+
+	var varName, typeName string
+	var typeNode *sitter.Node
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing variable declaration with %d children\n", node.ChildCount())
+	}
+
+	// Walk through child nodes to find the components
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "scalar":
+			varName = t.getNodeText(child)
 		case "ERROR":
 			// This might be a type name in "my Type $var" syntax
 			errorText := t.getNodeText(child)
@@ -201,14 +258,15 @@ func (t *PerlTree) processVariableDeclaration(node *sitter.Node, annotations *[]
 			if len(errorText) > 0 && errorText[0] >= 'A' && errorText[0] <= 'Z' {
 				typeName = errorText
 				typeNode = child // Store the ERROR node for position
-				hasTypeError = true
 			}
 		}
 	}
 
-	// Create annotation if we found the components and have a type node for position
-	// Either colon-based (my $var: Type) OR error-based (my Type $var)
-	if (hasColon || hasTypeError) && varName != "" && typeName != "" && typeNode != nil {
+	// Create annotation if we found both variable name and type name
+	if varName != "" && typeName != "" && typeNode != nil {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Creating annotation for %s: %s\n", varName, typeName)
+		}
 		annotation := &PerlTypeAnnotation{
 			ItemName: varName,
 			TypeName: typeName,

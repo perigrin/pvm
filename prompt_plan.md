@@ -1,2158 +1,464 @@
-# Detailed Implementation Blueprint for PVM Ecosystem
+# PSC Check MVP - Detailed Build Plan
 
-Based on my analysis of the specification, I've created a comprehensive blueprint for implementing the PVM Ecosystem. This plan breaks down the project into manageable steps, ensuring test-driven development and incremental progress.
+## High-Level Blueprint
 
-## High-Level Implementation Strategy
+The goal is to implement a minimal viable `psc check` command that can detect basic type mismatches in Typed Perl code, using the existing tree-sitter parser and typechecker foundation.
 
-The implementation follows these major phases, with each broken down into smaller, testable steps:
+## Architecture Overview
 
-1. **Foundation Layer** - Core infrastructure and basic functionality
-2. **Environment Management** - Perl installation and execution environment
-3. **Module Management** - CPAN integration and module operations
-4. **Type System** - Type checking and advanced integrations
+```
+Input: myfile.pl
+    ↓
+1. Parse (existing tree-sitter)
+    ↓
+2. Type Analysis Pass (extend existing typechecker)
+    ↓
+3. Error Reporting (new formatter)
+    ↓
+Output: Compiler-style errors or silent success
+```
 
-## Detailed Implementation Steps
+## Iterative Implementation Plan
 
-Below are the code generation prompts for each implementation step. Each prompt is designed to build upon previous work while maintaining a test-driven approach.
+### Phase 1: Foundation (Steps 1-3)
+- Set up basic command structure
+- Wire in existing parser
+- Create error reporting foundation
 
-### Phase 1: Foundation Layer
+### Phase 2: Core Logic (Steps 4-6)
+- Implement basic type checking
+- Add type inference with Unknown fallback
+- Integrate type analysis with parser
 
-#### Prompt 1: Project Structure Setup ✅
+### Phase 3: Polish (Steps 7-8)
+- Add comprehensive error formatting
+- Final integration and testing
 
-```
-# Implement Basic Project Structure for PVM Ecosystem
-
-## Context
-You're starting the implementation of the PVM Ecosystem, a comprehensive suite of tools for Perl development environment management built as a single Go binary with multiple entry points. The system consists of four main components: PVM (Perl Version Manager), PVX (Perl Version eXecutor), PVI (Perl Version Installer), and PSC (Perl Script Compiler).
-
-## Current Task
-Establish the basic project structure following Go best practices. This includes setting up the Go module, directory structure, and initial documentation.
-
-## Test Requirements
-1. Create a simple test to verify the Go module configuration is correct
-2. Add a test to ensure the project can be built
-
-## Implementation Requirements
-1. Initialize a Go module with appropriate module name (e.g., github.com/username/pvm)
-2. Set up the following directory structure:
-   - cmd/ (for command entry points: pvm, pvx, pvi, psc)
-   - internal/ (for internal packages)
-   - pkg/ (for public packages)
-   - docs/ (for documentation)
-   - test/ (for test fixtures and helpers)
-3. Create a simple README.md with project overview
-4. Add LICENSE file with appropriate open-source license
-5. Create a basic .gitignore file for Go projects
-6. Set up a minimal Go build script or Makefile
-
-## Documentation Requirements
-1. Document the project structure in README.md
-2. Include basic instructions for building the project
-3. Add comments explaining the purpose of key directories
-
-## Considerations
-- The structure should support multiple entry points from a single codebase
-- The organization should facilitate clean separation of concerns
-- Consider cross-platform compatibility (Linux, macOS, Windows)
-```
+---
 
-#### Prompt 2: CLI Framework Implementation ✅
+## Step-by-Step Implementation
 
-```
-# Implement CLI Framework for PVM Ecosystem
-
-## Context
-Building on the project structure you've established, you now need to implement a CLI framework that will serve as the foundation for all command-line interactions across the four main components (PVM, PVX, PVI, PSC).
-
-## Previous Implementation
-- Basic project structure with directories and documentation
-- Go module setup with initial build capability
-
-## Current Task
-Implement a flexible CLI framework that can handle commands, subcommands, flags, and arguments. This framework should be reusable across all components of the system.
-
-## Test Requirements
-1. Test command-line argument parsing for basic commands
-2. Test help text generation and formatting
-3. Test version flag functionality
-4. Test error handling for invalid commands/arguments
-
-## Implementation Requirements
-1. Select and integrate an appropriate CLI library (e.g., cobra, urfave/cli, etc.)
-2. Create a base command structure that can be extended for specific commands
-3. Implement version flag displaying version information
-4. Implement help functionality that displays usage information
-5. Create a basic command registration mechanism
-6. Implement proper error output for command failures
-
-## Integration Points
-- The CLI framework should be usable by all four entry points (PVM, PVX, PVI, PSC)
-- The command structure should allow for future extension
-
-## Documentation Requirements
-1. Add code documentation for public functions and types
-2. Update README.md with information about the CLI framework
-3. Document how to add new commands to the system
-
-## Considerations
-- The CLI framework should be flexible enough to accommodate all planned commands
-- Consider user experience and consistent help/error messaging
-- Ensure cross-platform compatibility for terminal interactions
-```
+### Step 1: Command Structure Setup
 
-#### Prompt 3: Command Router Implementation ✅
+**Goal**: Create the basic `psc check` command structure with proper CLI parsing
 
-```
-# Implement Command Router for Multiple Entry Points
-
-## Context
-The PVM Ecosystem is designed as a single binary with multiple entry points (pvm, pvx, pvi, psc). You need to implement a command router that can identify which entry point was used and direct to the appropriate command set.
-
-## Previous Implementation
-- Basic project structure
-- CLI framework with command handling capabilities
-- Command registration mechanism
-
-## Current Task
-Create a command router that detects how the binary was invoked (by name) and routes to the appropriate command set. This will allow the single binary to function as four different tools.
-
-## Test Requirements
-1. Test detection of binary name from different invocation methods
-2. Test correct routing to PVM commands when invoked as "pvm"
-3. Test correct routing to PVX commands when invoked as "pvx"
-4. Test correct routing to PVI commands when invoked as "pvi"
-5. Test correct routing to PSC commands when invoked as "psc"
-6. Test fallback behavior when invoked with an unknown name
-
-## Implementation Requirements
-1. Implement detection of binary name from os.Args[0] or equivalent
-2. Create a router mechanism that selects the appropriate command set
-3. Set up placeholders for the four main command sets
-4. Implement a small set of dummy commands for each entry point to validate routing
-5. Ensure proper error messages when invalid commands are provided
-
-## Integration Points
-- Integrate with the CLI framework from the previous step
-- Set up the structure for the four command sets that will be implemented later
-
-## Documentation Requirements
-1. Document how the command routing works
-2. Update the build documentation to explain how to create the necessary symlinks or copies
-3. Add code comments explaining the routing logic
-
-## Considerations
-- The router should work on all target platforms (Linux, macOS, Windows)
-- Consider how symlinks or file copies work on different platforms
-- The design should allow for easy extension with new commands
-```
+```text
+Create a new check command for PSC that:
+- Adds a "check" subcommand to the existing PSC CLI structure
+- Accepts a single file path as argument
+- Has basic validation for file existence
+- Returns appropriate exit codes (0 for success, 1 for errors)
+- Includes unit tests for the command parsing and validation
 
-#### Prompt 4: Logging and Error Framework ✅
+Requirements:
+- Extend the existing PSC command structure in internal/psc/
+- Follow the existing command patterns used by other PSC commands
+- Add comprehensive unit tests for argument parsing
+- Ensure proper error handling for missing files
+- Use TDD approach - write tests first, then implement
 
-```
-# Implement Logging and Error Framework
-
-## Context
-The PVM Ecosystem needs a consistent approach to logging and error handling across all components. The specification outlines detailed requirements for error categories, formatting, and inter-component communication.
-
-## Previous Implementation
-- Project structure and CLI framework
-- Command router for handling multiple entry points
-- Basic command execution flow
-
-## Current Task
-Implement a logging and error handling framework that meets the specifications and provides consistent behavior across all components.
-
-## Test Requirements
-1. Test logging at different levels (info, warning, error, debug)
-2. Test error creation with various categories
-3. Test error formatting according to the specified format
-4. Test error propagation between components
-5. Test error wrapping and context addition
-
-## Implementation Requirements
-1. Create an error framework with the specified error categories:
-   - Configuration Errors
-   - Version Errors
-   - Module Errors
-   - Execution Errors
-   - Type Errors
-   - System Errors
-   - User Input Errors
-2. Implement error codes with component prefixes (PVM-, PVX-, PVI-, PSC-, CFG-, SYS-)
-3. Create a structured error format with description, detail, location, and hint
-4. Implement a logging system with appropriate levels and output formatting
-5. Add error wrapping capabilities for inter-component error communication
-
-## Integration Points
-- Integrate with the CLI framework for displaying errors to users
-- Set up for use across all components
-
-## Documentation Requirements
-1. Document error categories and codes
-2. Create guidelines for error message writing
-3. Document logging levels and when to use each
-4. Add code comments explaining key functions and types
-
-## Considerations
-- Logging should be configurable (verbosity levels, output destination)
-- Error handling should be consistent across all components
-- Consider internationalization potential for error messages
-- Performance impact of error creation and logging should be minimal
+The command should initially just validate input and return success, with a placeholder for the actual type checking logic.
 ```
 
-#### Prompt 5: Configuration System - Basic TOML Parsing ✅
+### Step 2: Parser Integration
 
-```
-# Implement Basic TOML Configuration Parsing
-
-## Context
-The PVM Ecosystem uses TOML for configuration, with a layered approach following XDG Base Directory Specification. This step implements the basic TOML parsing functionality.
-
-## Previous Implementation
-- Project structure, CLI framework, and command routing
-- Logging and error handling framework
-
-## Current Task
-Implement basic TOML configuration parsing that can read and validate configuration files for the PVM Ecosystem.
-
-## Test Requirements
-1. Test parsing valid TOML configuration files
-2. Test handling of invalid TOML syntax
-3. Test validation of configuration against expected schema
-4. Test extraction of configuration values with appropriate types
-
-## Implementation Requirements
-1. Select and integrate a TOML parsing library
-2. Create configuration structs matching the specification
-3. Implement parsing of TOML files into configuration structs
-4. Add basic validation of configuration values
-5. Create helper functions for accessing configuration values
-6. Implement proper error handling for parsing and validation errors
-
-## Integration Points
-- Integrate with the error handling framework for reporting configuration errors
-- Design for later integration with the XDG directory support
-
-## Documentation Requirements
-1. Document the configuration format with examples
-2. Add code comments explaining the configuration structs
-3. Document error messages related to configuration parsing
-
-## Considerations
-- The implementation should be extensible for future configuration needs
-- Consider performance for configuration parsing
-- Ensure thread safety if configuration might be accessed concurrently
-```
+**Goal**: Wire the check command to use the existing tree-sitter parser
 
-#### Prompt 6: XDG Directory Support ✅
+```text
+Integrate the existing tree-sitter parser with the check command:
+- Use the existing parser in internal/parser/ to parse the input file
+- Handle parsing errors gracefully and report them as check failures
+- Create a basic AST validation to ensure the file is syntactically valid Perl
+- Add unit tests for parser integration
+- Test with both valid and invalid Perl syntax
 
-```
-# Implement XDG Directory Support for Configuration
-
-## Context
-The PVM Ecosystem follows the XDG Base Directory Specification for storing configuration and data files. This step implements support for the XDG directory structure and locating configuration files.
-
-## Previous Implementation
-- Project structure, CLI framework, and command routing
-- Logging and error handling framework
-- Basic TOML configuration parsing
-
-## Current Task
-Implement XDG Base Directory Specification support to locate and manage configuration and data files across different platforms.
-
-## Test Requirements
-1. Test detection of XDG directories on different platforms
-2. Test fallback to default locations when XDG variables are not set
-3. Test location of configuration files in the correct directories
-4. Test creation of directories when needed
-5. Test platform-specific behavior (Windows, macOS, Linux)
-
-## Implementation Requirements
-1. Implement detection of XDG_CONFIG_HOME, XDG_DATA_HOME, and XDG_CACHE_HOME
-2. Create fallback paths for when environment variables are not set
-3. Implement platform-specific path handling
-4. Add functions to locate configuration files in the correct directories
-5. Create helper functions for accessing data and cache directories
-6. Implement creation of necessary directories when they don't exist
-
-## Integration Points
-- Integrate with the configuration parser to load files from the correct locations
-- Design for use by other components that need to access data files
-
-## Documentation Requirements
-1. Document the directory structure used by the application
-2. Add code comments explaining the XDG specification implementation
-3. Document platform-specific behaviors
-
-## Considerations
-- Paths should work correctly on Windows, macOS, and Linux
-- Consider permission issues when creating directories
-- Ensure thread safety for directory operations
+Requirements:
+- Extend the check command from Step 1 to use internal/parser/parser.go
+- Handle tree-sitter parsing errors and convert them to user-friendly messages
+- Add tests for various Perl syntax scenarios (valid, invalid, edge cases)
+- Ensure parsing errors are reported in compiler-style format (filename:line:col)
+- Create test fixtures with sample Perl files for testing
+
+The command should now parse files and report syntax errors, but still return success for syntactically valid files.
 ```
 
-#### Prompt 7: Configuration Layering and Merging ✅
+### Step 3: Error Reporting Foundation
 
-```
-# Implement Configuration Layering and Merging
-
-## Context
-The PVM Ecosystem uses a layered configuration approach with project, user, and system-level configuration files. This step implements loading and merging configurations from multiple sources.
-
-## Previous Implementation
-- TOML configuration parsing
-- XDG directory support for locating configuration files
-
-## Current Task
-Implement configuration layering that can load and merge configuration from multiple sources according to the priority specified in the specification.
-
-## Test Requirements
-1. Test loading configuration from multiple files
-2. Test correct priority order (project > user > system)
-3. Test merging of configuration values from different sources
-4. Test overriding behavior for specific settings
-5. Test handling of missing configuration files
-
-## Implementation Requirements
-1. Create a configuration loader that can discover configuration files in all locations
-2. Implement merging of configuration values from multiple sources
-3. Respect the priority order: project > user > system
-4. Handle nested configuration sections during merging
-5. Implement override markers or mechanisms if specified
-6. Create a unified configuration object representing the merged state
-
-## Integration Points
-- Integrate with the XDG directory support for file discovery
-- Integrate with the TOML parser for reading individual files
-
-## Documentation Requirements
-1. Document the configuration precedence rules
-2. Explain how configuration merging works, especially for nested values
-3. Add code comments explaining merge logic
-4. Update user documentation with configuration information
-
-## Considerations
-- The merging logic should be clear and predictable for users
-- Consider the performance impact of loading multiple files
-- Ensure thread safety if configuration might be reloaded during runtime
-```
+**Goal**: Create a structured error reporting system for type checking results
 
-### Phase 2: Environment Management
+```text
+Build a comprehensive error reporting system for type checking:
+- Create a structured error type that includes file, line, column, severity, and message
+- Implement compiler-style error formatting (filename:line:col: error: message)
+- Add support for multiple errors per file
+- Include basic error categorization (syntax, type mismatch, etc.)
+- Provide unit tests for error formatting
 
-#### Prompt 8: System Perl Detection ✅
+Requirements:
+- Create new error types in internal/psc/ for type checking errors
+- Implement a formatter that outputs errors in compiler style format
+- Support collecting multiple errors and reporting them all
+- Add tests for error formatting with various scenarios
+- Ensure error messages are clear and actionable
+- Handle edge cases like missing line numbers or invalid positions
 
+The error reporting should be ready to receive type checking results, but the check command still only reports syntax errors.
 ```
-# Implement System Perl Detection
-
-## Context
-The PVM Ecosystem needs to detect and use the system's installed Perl when no other version is specified. This step implements the detection of system Perl installations.
-
-## Previous Implementation
-- Configuration system with layering and merging
-- Directory structure support
-
-## Current Task
-Implement detection of system Perl installations, including version information and installation path.
-
-## Test Requirements
-1. Test detection of system Perl presence
-2. Test extraction of system Perl version
-3. Test handling of systems without Perl installed
-4. Test detection on different platforms (mock if needed)
-5. Test correct path resolution for system Perl
-
-## Implementation Requirements
-1. Implement detection of system Perl using PATH lookup
-2. Create version extraction from "perl -v" output
-3. Implement path resolution for the system Perl binary
-4. Add structure for storing detected Perl information
-5. Implement error handling for systems without Perl
-6. Add platform-specific detection logic if needed
-
-## Integration Points
-- Integrate with the configuration system for default version fallback
-- Design for use by version resolution algorithm later
-
-## Documentation Requirements
-1. Document how system Perl detection works
-2. Explain version extraction logic
-3. Add code comments for platform-specific behavior
-
-## Considerations
-- The detection should work on all supported platforms
-- Consider performance implications of running Perl processes
-- Handle unusual Perl installations or custom builds
-```
 
-#### Prompt 9: Version String Parsing and Constraints ✅
+### Step 4: Basic Type Checking Logic
 
-```
-# Implement Version String Parsing and Constraints
-
-## Context
-The PVM Ecosystem needs to parse and compare Perl version strings and handle version constraints to support version selection and dependency resolution.
-
-## Previous Implementation
-- System Perl detection
-- Configuration and directory management
-
-## Current Task
-Implement parsing and comparison of Perl version strings, along with support for version constraints as used in the specification.
-
-## Test Requirements
-1. Test parsing of various Perl version formats (5.32.1, v5.32.1, etc.)
-2. Test comparison between versions (>, <, ==, etc.)
-3. Test parsing of version constraints (>=5.30.0, <5.38.0, etc.)
-4. Test validation of versions against constraints
-5. Test handling of version aliases as specified in the configuration
-
-## Implementation Requirements
-1. Create a version type that represents a Perl version
-2. Implement parsing of version strings into structured data
-3. Add comparison operators for versions
-4. Implement parsing of version constraints
-5. Create validation functions for checking versions against constraints
-6. Add support for version aliases (latest, stable, etc.)
-7. Implement proper error handling for invalid version strings or constraints
-
-## Integration Points
-- Design for use by version resolution algorithm later
-- Integrate with configuration for version aliases
-
-## Documentation Requirements
-1. Document supported version formats and constraints
-2. Explain version comparison rules
-3. Document version alias functionality
-4. Add code comments explaining parsing logic
-
-## Considerations
-- The implementation should handle all Perl version formats correctly
-- Consider performance for version comparisons that may happen frequently
-- Ensure compatibility with existing tools' version specifications
-```
+**Goal**: Implement the core type mismatch detection for simple cases
 
-#### Prompt 10: Legacy Tool Integration (plenv/perlbrew) ✅
+```text
+Extend the existing typechecker to detect basic type mismatches:
+- Identify typed variable declarations (my Int $x = ...)
+- Detect simple type mismatches (Int vs String literals)
+- Implement basic type inference for untyped variables
+- Add Unknown type fallback for ambiguous cases
+- Create comprehensive unit tests for type checking logic
 
-```
-# Implement Legacy Tool Integration (plenv/perlbrew)
-
-## Context
-The PVM Ecosystem is designed to integrate seamlessly with existing Perl version managers like plenv and perlbrew. This step implements detection and integration with these tools.
-
-## Previous Implementation
-- System Perl detection
-- Version string parsing and constraints
-
-## Current Task
-Implement detection and integration with plenv and perlbrew installations, including reading their configuration and version information.
-
-## Test Requirements
-1. Test detection of plenv installations and versions
-2. Test detection of perlbrew installations and versions
-3. Test reading of .perl-version files (plenv)
-4. Test reading of perlbrew configuration and aliases
-5. Test import functionality from both systems
-
-## Implementation Requirements
-1. Implement detection of plenv installations in ~/.plenv/versions/
-2. Implement detection of perlbrew installations in ~/perl5/perlbrew/perls/
-3. Create readers for .perl-version files
-4. Implement parsing of perlbrew configuration and aliases
-5. Add import commands (pvm import-from plenv|perlbrew)
-6. Create a unified registry for tracking detected installations
-7. Implement version mapping for consistent naming
-
-## Integration Points
-- Integrate with version resolution for using detected installations
-- Connect with the command router for import commands
-
-## Documentation Requirements
-1. Document how legacy tool integration works
-2. Explain the import process and what it does/doesn't do
-3. Add command documentation for import commands
-4. Provide guidance on migrating from existing tools
-
-## Considerations
-- The integration should be non-destructive to existing installations
-- Consider handling of custom installation paths for these tools
-- Ensure correct version mapping between different naming schemes
+Requirements:
+- Build on the existing internal/parser/typechecker.go
+- Focus on simple, clear-cut type mismatches first
+- Support basic Perl types: Int, Str, Num, Bool, ArrayRef, HashRef
+- Handle literal values (42, "string", 3.14, true/false)
+- Add extensive unit tests covering various type mismatch scenarios
+- Ensure type checking works with the existing AST structure
+
+The typechecker should identify basic type errors but not yet integrate with the check command.
 ```
 
-#### Prompt 11: Version Resolution Algorithm ✅
+### Step 5: Type Inference Implementation
 
-```
-# Implement Version Resolution Algorithm
-
-## Context
-The PVM Ecosystem needs to resolve which Perl version to use based on various inputs like explicit specification, project settings, user configuration, and system defaults.
-
-## Previous Implementation
-- System Perl detection
-- Version string parsing and constraints
-- Legacy tool integration (plenv/perlbrew)
-
-## Current Task
-Implement the version resolution algorithm that determines which Perl version to use in any given context according to the precedence rules in the specification.
-
-## Test Requirements
-1. Test resolution with explicit version specification
-2. Test resolution with project-local .perl-version file
-3. Test resolution with project-local .pvm/pvm.toml
-4. Test resolution with user-level configuration
-5. Test resolution with environment variables (PLENV_VERSION, PERLBREW_PERL)
-6. Test fallback to system Perl
-7. Test resolution with version aliases
-
-## Implementation Requirements
-1. Create a version resolver that implements the precedence rules
-2. Implement checking for project-local version files
-3. Add support for reading version from configuration
-4. Implement environment variable checks
-5. Create fallback chain to system Perl
-6. Add alias resolution from configuration
-7. Implement proper error handling for missing or invalid versions
-
-## Integration Points
-- Integrate with all previous version detection mechanisms
-- Design for use by execution components later
-
-## Documentation Requirements
-1. Document the version resolution algorithm and precedence
-2. Explain how different methods of specifying versions interact
-3. Add examples of common scenarios
-4. Include code comments explaining resolution logic
-
-## Considerations
-- The resolution should be fast as it may be called frequently
-- Consider caching resolved versions where appropriate
-- Ensure clear error messages when resolution fails
-```
+**Goal**: Add type inference capabilities with Unknown fallback
 
-#### Prompt 12: Perl Installation - Source Downloading ✅
+```text
+Implement type inference for untyped Perl code:
+- Infer types from literal assignments (my $x = 42 -> Int)
+- Handle unknown function return types by defaulting to Unknown
+- Implement basic control flow type inference
+- Add inference for common Perl operations
+- Create tests for inference scenarios and edge cases
 
-```
-# Implement Perl Source Downloading
-
-## Context
-The PVM Ecosystem needs to download Perl source code for installing specific versions. This step implements the mechanisms for downloading source archives.
-
-## Previous Implementation
-- Version resolution algorithm
-- Configuration and directory management
-
-## Current Task
-Implement functionality to download Perl source code archives from appropriate mirrors for installation.
-
-## Test Requirements
-1. Test URL construction for different Perl versions
-2. Test downloading from configurable mirrors
-3. Test handling of download failures
-4. Test caching of downloaded archives
-5. Test validation of downloaded files (checksums if available)
-
-## Implementation Requirements
-1. Create URL generation for Perl source archives
-2. Implement configurable mirrors from configuration
-3. Add download functionality with progress reporting
-4. Implement caching in XDG_CACHE_HOME/pvm/sources/
-5. Add checksum validation if available
-6. Create retry mechanism for failed downloads
-7. Implement proper error handling and reporting
-
-## Integration Points
-- Integrate with the configuration system for mirror settings
-- Design for use by installation process later
-
-## Documentation Requirements
-1. Document the download process and caching
-2. Explain mirror configuration options
-3. Add code comments explaining URL generation
-4. Document error handling for network issues
-
-## Considerations
-- Handle various network conditions gracefully
-- Consider proxy settings and authentication if needed
-- Ensure security of downloads (TLS, checksums)
-- Consider bandwidth usage and provide progress information
+Requirements:
+- Extend the typechecker from Step 4 with inference capabilities
+- Implement Unknown type as fallback for unresolvable types
+- Handle common Perl patterns like variable assignments and operations
+- Add comprehensive tests for type inference accuracy
+- Ensure inference doesn't introduce false positives
+- Document inference rules and limitations
+
+The typechecker should now handle both typed and untyped Perl code gracefully.
 ```
 
-#### Prompt 13: Perl Installation - Build Process ✅
+### Step 6: Integration of Type Analysis
 
-```
-# Implement Perl Build Process
-
-## Context
-After downloading Perl source code, the PVM Ecosystem needs to compile and install it. This step implements the build process for Perl installations.
-
-## Previous Implementation
-- Source downloading mechanism
-- Configuration and directory management
-
-## Current Task
-Implement the build process for compiling Perl from source and installing it to the appropriate location.
-
-## Test Requirements
-1. Test extraction of source archives
-2. Test configuration of build with various options
-3. Test compilation process with error handling
-4. Test installation to target directory
-5. Test registration of installed version
-6. Test cleanup after installation
-
-## Implementation Requirements
-1. Implement extraction of source archives
-2. Create build directory management in XDG_CACHE_HOME/pvm/build/
-3. Add Configure script execution with appropriate options
-4. Implement make execution with parallelism
-5. Add make test execution (optional based on configuration)
-6. Implement make install to target directory
-7. Create cleanup procedures for build directories
-8. Implement proper error handling and reporting
-9. Add platform-specific build adjustments
-
-## Integration Points
-- Integrate with source downloading
-- Connect with version registration
-
-## Documentation Requirements
-1. Document the build process and options
-2. Explain configuration options for builds
-3. Add platform-specific build information
-4. Document troubleshooting for common build issues
-
-## Considerations
-- The build process is time-consuming and should provide good progress information
-- Consider platform-specific build requirements
-- Handle build failures gracefully with useful error messages
-- Ensure parallel builds work correctly
-```
+**Goal**: Connect the type checking logic with the check command
 
-#### Prompt 14: Perl Installation - Registration and Management ✅
+```text
+Integrate the typechecker with the check command to create a working type validator:
+- Connect the AST from the parser to the typechecker
+- Collect type checking errors and format them using the error reporter
+- Implement the analysis pass after parsing
+- Add integration tests for the complete check workflow
+- Ensure proper error handling throughout the pipeline
 
-```
-# Implement Perl Installation Registration and Management
-
-## Context
-After building and installing Perl, the PVM Ecosystem needs to register and manage installed versions. This step implements the registration and management of Perl installations.
-
-## Previous Implementation
-- Source downloading and build process
-- Configuration and directory management
-
-## Current Task
-Implement registration of installed Perl versions and commands for managing them.
-
-## Test Requirements
-1. Test registration of newly installed versions
-2. Test listing of installed versions
-3. Test uninstallation process
-4. Test commands for installation management (install, versions, uninstall)
-5. Test handling of installation errors
-
-## Implementation Requirements
-1. Create a registry for tracking installed versions
-2. Implement version registration after successful installation
-3. Add commands for listing installed versions (pvm versions)
-4. Implement uninstallation functionality
-5. Create commands for installation management
-6. Add version validation for installation requests
-7. Implement proper error handling and reporting
-
-## Integration Points
-- Integrate with the build process
-- Connect with command router for installation commands
-
-## Documentation Requirements
-1. Document the installation commands and options
-2. Explain version registry functionality
-3. Add command documentation for version management
-4. Include examples of common usage patterns
-
-## Considerations
-- Consider storage format for version registry
-- Ensure thread safety for registration operations
-- Handle partial or failed installations gracefully
+Requirements:
+- Modify the check command to run type analysis after parsing
+- Pass type checking results to the error reporting system
+- Handle both syntax and type errors in a unified way
+- Add end-to-end tests with real Perl files
+- Test the complete workflow: parse -> analyze -> report
+- Ensure silent success for valid typed Perl code
+
+The check command should now perform basic type checking and report errors appropriately.
 ```
 
-#### Prompt 15: Environment Setup - Shim Generation ✅
+### Step 7: Enhanced Error Formatting
 
-```
-# Implement Shim Generation for Perl Executables
-
-## Context
-The PVM Ecosystem uses shims to intercept Perl-related commands and direct them to the appropriate version. This step implements the generation and management of shim executables.
-
-## Previous Implementation
-- Perl installation registration and management
-- Version resolution algorithm
-
-## Current Task
-Implement generation and management of shim executables for Perl and related tools.
-
-## Test Requirements
-1. Test shim template compilation
-2. Test shim generation for perl and core tools
-3. Test shim execution with version resolution
-4. Test rehash functionality for updating shims
-5. Test platform-specific shim behavior
-
-## Implementation Requirements
-1. Create a shim template that performs version resolution
-2. Implement detection of commands to shim (perl, cpan, etc.)
-3. Add generation of shim executables in XDG_DATA_HOME/pvm/shims/
-4. Implement PATH management for shims
-5. Create rehash command for rebuilding shims
-6. Add platform-specific shim generation (shell scripts vs. executables)
-7. Implement proper error handling for shim operations
-
-## Integration Points
-- Integrate with version resolution
-- Connect with command router for rehash command
-
-## Documentation Requirements
-1. Document how shims work and their purpose
-2. Explain the rehash command functionality
-3. Add information about PATH management
-4. Include platform-specific shim information
-
-## Considerations
-- Shims should have minimal performance overhead
-- Consider security implications of executable generation
-- Ensure platform compatibility for execution
-```
+**Goal**: Polish the error output with context and clear messaging
 
-#### Prompt 16: Environment Setup - Shell Integration ✅
+```text
+Enhance the error reporting to provide better user experience:
+- Add context lines showing the problematic code
+- Improve error messages with helpful suggestions
+- Implement proper error positioning and highlighting
+- Add support for different error severity levels
+- Create comprehensive tests for error formatting
 
-```
-# Implement Shell Integration for PVM
-
-## Context
-The PVM Ecosystem needs to integrate with different shells for version switching and environment variables. This step implements shell integration for various shells.
-
-## Previous Implementation
-- Shim generation and management
-- Version resolution algorithm
-
-## Current Task
-Implement shell integration for different shells (bash, zsh, fish, PowerShell) to support version switching and environment setup.
-
-## Test Requirements
-1. Test generation of shell initialization scripts
-2. Test version switching for different shells
-3. Test environment variable setup
-4. Test global, local, and shell-specific version settings
-5. Test platform-specific shell behavior
-
-## Implementation Requirements
-1. Create shell initialization scripts for different shells
-2. Implement commands for version switching (pvm use, pvm global, pvm local)
-3. Add environment variable management
-4. Create .perl-version file generation for local version
-5. Implement shell detection and appropriate script selection
-6. Add platform-specific shell handling
-7. Create eval-based integration for shells
-
-## Integration Points
-- Integrate with version resolution
-- Connect with command router for shell commands
-
-## Documentation Requirements
-1. Document shell integration process and supported shells
-2. Explain version switching commands
-3. Add shell-specific setup instructions
-4. Include examples for common usage patterns
-
-## Considerations
-- Consider portability across different shell implementations
-- Ensure minimal impact on shell startup time
-- Handle edge cases like non-interactive shells
+Requirements:
+- Extend the error reporting system to include source code context
+- Show relevant lines of code with error markers
+- Provide helpful suggestions for fixing type errors
+- Ensure error messages are clear and actionable
+- Add tests for various error formatting scenarios
+- Handle edge cases like very long lines or missing source
+
+The error output should be professional and helpful for developers.
 ```
 
-#### Prompt 17: Basic Execution Capabilities - PVX Foundation ✅
+### Step 8: Final Integration and Testing
 
-```
-# Implement Basic Execution Capabilities for PVX
-
-## Context
-The PVM Ecosystem includes PVX (Perl Version eXecutor) for executing Perl code in isolated environments. This step implements the foundation for PVX functionality.
-
-## Previous Implementation
-- Shell integration and environment setup
-- Version resolution algorithm
-
-## Current Task
-Implement the basic execution capabilities for PVX to run Perl scripts with specific versions.
-
-## Test Requirements
-1. Test basic script execution with specified version
-2. Test command-line argument passing
-3. Test environment variable handling
-4. Test exit code propagation
-5. Test error handling for execution failures
-
-## Implementation Requirements
-1. Create basic command structure for PVX
-2. Implement script execution with specific Perl version
-3. Add command-line argument passing
-4. Create environment variable handling
-5. Implement exit code propagation
-6. Add error capturing and reporting
-7. Create integration with version resolution
-
-## Integration Points
-- Integrate with version resolution algorithm
-- Connect with command router for PVX commands
-
-## Documentation Requirements
-1. Document basic PVX usage
-2. Explain command-line options
-3. Add examples of simple execution patterns
-4. Include error handling documentation
-
-## Considerations
-- Consider performance overhead of execution
-- Ensure proper isolation between different executions
-- Handle path resolution correctly across platforms
-```
+**Goal**: Complete the MVP with comprehensive testing and documentation
 
-#### Prompt 18: Environment Isolation for PVX ✅
+```text
+Finalize the psc check MVP implementation:
+- Add comprehensive integration tests covering all functionality
+- Test edge cases and error conditions
+- Ensure compatibility with existing PVM ecosystem
+- Add basic documentation for the check command
+- Verify the implementation meets all MVP requirements
 
-```
-# Implement Environment Isolation for PVX
-
-## Context
-PVX needs to execute Perl code in isolated environments to prevent interference between different scripts or modules. This step implements environment isolation for PVX execution.
-
-## Previous Implementation
-- Basic execution capabilities for PVX
-- Version resolution and management
-
-## Current Task
-Implement environment isolation for PVX to provide controlled execution environments with configurable isolation levels.
-
-## Test Requirements
-1. Test different isolation levels (none, low, medium, high)
-2. Test environment variable isolation
-3. Test filesystem isolation where applicable
-4. Test module path isolation
-5. Test cleanup after execution
-
-## Implementation Requirements
-1. Create isolated environment structures
-2. Implement different isolation levels
-3. Add environment variable isolation
-4. Create module path isolation
-5. Implement filesystem isolation where needed
-6. Add cleanup procedures for temporary environments
-7. Create configuration options for isolation settings
-
-## Integration Points
-- Integrate with basic execution capabilities
-- Connect with configuration system for isolation settings
-
-## Documentation Requirements
-1. Document isolation levels and their implications
-2. Explain environment isolation mechanisms
-3. Add configuration options for isolation
-4. Include examples of use cases for different levels
-
-## Considerations
-- Balance isolation with performance
-- Consider security implications of isolation
-- Ensure consistent behavior across platforms
+Requirements:
+- Create comprehensive test suite covering the entire check workflow
+- Test with various Perl code samples (valid, invalid, edge cases)
+- Ensure proper integration with existing PSC command structure
+- Add documentation for the check command usage
+- Verify exit codes and error handling work correctly
+- Test the complete user workflow from command line
+
+The final implementation should be a complete, tested, and documented MVP ready for use.
 ```
 
-### Phase 3: Module Management
+---
 
-#### Prompt 19: CPAN Integration - Metadata Retrieval ✅
+## Implementation Prompts
 
-```
-# Implement CPAN Metadata Retrieval
-
-## Context
-The PVM Ecosystem includes PVI (Perl Version Installer) for managing CPAN modules. This step implements the foundation for CPAN integration with metadata retrieval.
-
-## Previous Implementation
-- Environment isolation for PVX
-- Version management and resolution
-
-## Current Task
-Implement CPAN metadata retrieval for discovering and analyzing available modules.
-
-## Test Requirements
-1. Test CPAN mirror configuration and access
-2. Test module metadata retrieval
-3. Test search functionality
-4. Test handling of metadata caching
-5. Test error handling for network issues
-
-## Implementation Requirements
-1. Create CPAN mirror configuration and management
-2. Implement metadata retrieval from CPAN
-3. Add search capabilities for modules
-4. Create metadata caching system
-5. Implement module information display
-6. Add error handling for network and data issues
-
-## Integration Points
-- Integrate with configuration system for mirror settings
-- Design for use by module installation later
-
-## Documentation Requirements
-1. Document CPAN integration features
-2. Explain mirror configuration options
-3. Add search command documentation
-4. Include information about metadata caching
-
-## Considerations
-- Handle network connectivity issues gracefully
-- Consider caching strategies for performance
-- Ensure compatibility with official CPAN API
-```
+### Prompt 1: Command Structure Setup
 
-#### Prompt 20: Dependency Resolution for Modules ✅
+```text
+I need to implement a new "check" subcommand for the PSC tool in the PVM ecosystem. Looking at the existing codebase, I can see PSC commands are structured in internal/psc/ with files like command.go, run_command.go, etc.
 
-```
-# Implement Dependency Resolution for Modules
-
-## Context
-PVI needs to resolve module dependencies during installation. This step implements dependency resolution for CPAN modules.
-
-## Previous Implementation
-- CPAN metadata retrieval
-- Module search capabilities
-
-## Current Task
-Implement dependency resolution for CPAN modules following the approach specified in the documentation (similar to Menlo and App::cpanminus).
-
-## Test Requirements
-1. Test recursive dependency resolution
-2. Test handling of version constraints
-3. Test conflict resolution
-4. Test handling of circular dependencies
-5. Test dependency caching
-
-## Implementation Requirements
-1. Create a dependency resolver following the specified approach
-2. Implement recursive resolution of dependencies
-3. Add version constraint checking
-4. Create conflict resolution strategy
-5. Implement dependency caching
-6. Add visualization of dependency trees
-7. Create proper error handling for resolution failures
-
-## Integration Points
-- Integrate with CPAN metadata retrieval
-- Design for use by module installation process
-
-## Documentation Requirements
-1. Document the dependency resolution algorithm
-2. Explain conflict resolution strategy
-3. Add information about handling circular dependencies
-4. Include examples of dependency resolution
-
-## Considerations
-- Balance thoroughness with performance
-- Consider memory usage for large dependency trees
-- Ensure reliable resolution in edge cases
-```
+Create a new check_command.go file that:
+- Follows the existing PSC command patterns
+- Adds a "check" subcommand that accepts a single file path argument
+- Validates the file exists and is readable
+- Returns appropriate exit codes (0 success, 1 error)
+- Includes proper error handling for missing or invalid files
+- Has a placeholder for the actual type checking logic
 
-#### Prompt 21: Module Installation Process ✅
+Also create comprehensive unit tests in check_command_test.go that cover:
+- Valid file path handling
+- Missing file error cases
+- Invalid file permissions
+- Command argument parsing
+- Exit code verification
 
-```
-# Implement Module Installation Process
-
-## Context
-PVI needs to install CPAN modules for specific Perl versions. This step implements the module installation process.
-
-## Previous Implementation
-- CPAN metadata retrieval
-- Dependency resolution for modules
-
-## Current Task
-Implement the module installation process for CPAN modules, including downloading, building, testing, and installation.
-
-## Test Requirements
-1. Test module download and extraction
-2. Test module build process
-3. Test module testing (optional)
-4. Test module installation
-5. Test handling of installation failures
-6. Test installation with and without dependencies
-
-## Implementation Requirements
-1. Create module download and extraction functionality
-2. Implement build process management
-3. Add module testing capability (configurable)
-4. Create installation process
-5. Implement handling of install prerequisites
-6. Add installation tracking
-7. Create cleanup procedures
-8. Implement proper error handling and reporting
-
-## Integration Points
-- Integrate with dependency resolution
-- Connect with Perl version management
-
-## Documentation Requirements
-1. Document the installation process
-2. Explain configuration options for installation
-3. Add installation command documentation
-4. Include troubleshooting information
-
-## Considerations
-- Balance installation thoroughness with speed
-- Consider handling of failed dependencies
-- Ensure consistent installation across platforms
+Use TDD approach - write tests first, then implement the functionality. Follow the existing code style and patterns in the PSC package.
 ```
 
-#### Prompt 22: Module Management Commands ✅
+### Prompt 2: Parser Integration
 
-```
-# Implement Module Management Commands
-
-## Context
-PVI needs a complete set of commands for managing modules. This step implements the full set of module management commands specified in the documentation.
-
-## Previous Implementation
-- Module installation process
-- Dependency resolution
-- CPAN integration
-
-## Current Task
-Implement the complete set of module management commands for PVI, including install, list, update, remove, search, deps, bundle, etc.
-
-## Test Requirements
-1. Test all module management commands
-2. Test command output formatting
-3. Test error handling for various scenarios
-4. Test integration with installed Perl versions
-5. Test bundle export and import
-
-## Implementation Requirements
-1. Implement pvi install command
-2. Create pvi list command
-3. Add pvi update command
-4. Implement pvi remove command
-5. Create pvi search command
-6. Add pvi deps command
-7. Implement pvi bundle export/import commands
-8. Create pvi mirror command
-9. Add pvi outdated command
-10. Implement proper error handling for all commands
-
-## Integration Points
-- Integrate with module installation process
-- Connect with command router for PVI commands
-
-## Documentation Requirements
-1. Document all module management commands
-2. Explain command options and arguments
-3. Add examples for common use cases
-4. Include bundle format documentation
-
-## Considerations
-- Ensure consistent command behavior
-- Consider performance for listing and searching
-- Provide helpful output for all commands
-```
+```text
+Building on the check command from the previous step, I need to integrate it with the existing tree-sitter parser to parse Perl files for syntax validation.
 
-#### Prompt 23: Type Definition Support - Basic Format ✅
+Extend the check_command.go file to:
+- Use the existing parser from internal/parser/parser.go
+- Parse the input file and handle any parsing errors
+- Convert parsing errors to user-friendly error messages
+- Report syntax errors in compiler-style format (filename:line:col: error: message)
+- Return success for syntactically valid files
 
-```
-# Implement Basic Type Definition Support
-
-## Context
-The PVM Ecosystem includes PSC (Perl Script Compiler) for type checking. PVI needs to support type definitions for modules. This step implements the basic type definition format and support.
-
-## Previous Implementation
-- Module management commands
-- CPAN integration
-
-## Current Task
-Implement the basic type definition support, including the format definition and management in PVI.
-
-## Test Requirements
-1. Test type definition file format parsing
-2. Test type definition storage
-3. Test type definition retrieval
-4. Test basic type definition validation
-5. Test the pvi type command
-
-## Implementation Requirements
-1. Define and implement the Perl Type Definition (ptd) file format
-2. Create storage for type definitions in XDG_DATA_HOME/pvm/type_definitions/
-3. Implement the pvi type command for managing definitions
-4. Add type definition validation
-5. Create retrieval functionality for type definitions
-6. Implement proper error handling for definition management
-
-## Integration Points
-- Integrate with module management
-- Design for use by PSC type checking later
-
-## Documentation Requirements
-1. Document the type definition file format
-2. Explain type definition management
-3. Add command documentation for pvi type
-4. Include examples of type definitions
-
-## Considerations
-- Ensure format is extensible for future type system enhancements
-- Consider version compatibility for type definitions
-- Design storage structure for efficient retrieval
+Update the unit tests to cover:
+- Valid Perl syntax parsing
+- Invalid syntax error handling
+- Parser error message formatting
+- Various Perl syntax edge cases
+
+Create test fixture files in a testdata/ directory with:
+- Valid Perl code samples
+- Invalid Perl syntax examples
+- Edge cases like empty files, very large files
+
+The check command should now parse files and report syntax errors, but still return success for valid Perl code (type checking comes next).
 ```
 
-### Phase 4: Type System
+### Prompt 3: Error Reporting Foundation
 
-#### Prompt 24: Parser Enhancement - Type Annotation Syntax ✅
+```text
+I need to create a structured error reporting system for the type checker that will be built in subsequent steps.
 
-```
-# Implement Parser Enhancement for Type Annotations
-
-## Context
-PSC (Perl Script Compiler) requires parser enhancements to support type annotations in Perl code. This step implements the necessary parser extensions.
-
-## Previous Implementation
-- Basic type definition support
-- Module management system
-
-## Current Task
-Implement parser enhancements to support type annotations in Perl code, following the specification for grammar extensions.
-
-## Test Requirements
-1. Test parsing of type annotations in variable declarations
-2. Test parsing of type annotations in subroutine declarations
-3. Test parsing of type annotations in method declarations
-4. Test parsing of type annotations in attribute declarations
-5. Test parsing of complex type expressions
-6. Test error handling for invalid syntax
-
-## Implementation Requirements
-1. Select and integrate a parser framework (possibly tree-sitter as mentioned)
-2. Implement extensions for variable declaration annotations
-3. Add extensions for subroutine and method annotations
-4. Create extensions for attribute annotations
-5. Implement parsing of type expressions (simple, parameterized, union, etc.)
-6. Add error reporting for parsing issues
-7. Create AST representation of typed code
-
-## Integration Points
-- Design for use by type checking system later
-- Connect with type definition support
-
-## Documentation Requirements
-1. Document the type annotation syntax
-2. Explain parser extension approach
-3. Add examples of supported syntax
-4. Include information about the AST representation
-
-## Considerations
-- Ensure backward compatibility with regular Perl syntax
-- Consider performance for parsing large files
-- Design for extensibility of the type system
-```
+Create a new error handling system in internal/psc/ that includes:
+- Structured error types with file, line, column, severity, and message fields
+- Compiler-style error formatting (filename:line:col: error: message)
+- Support for collecting and reporting multiple errors
+- Error categorization (syntax, type, etc.)
+- Clear, actionable error messages
 
-#### Prompt 25: Type Checking System - Basic Implementation ✅
+The error types should include:
+- Position information (file, line, column)
+- Error severity levels (error, warning, info)
+- Error categories for different types of issues
+- Human-readable error messages
+- Optional suggestions for fixes
 
-```
-# Implement Basic Type Checking System
-
-## Context
-PSC needs to implement a type checking system for analyzing Perl code with type annotations. This step implements the basic type checking system.
-
-## Previous Implementation
-- Parser enhancements for type annotations
-- Type definition support
-
-## Current Task
-Implement the basic type checking system that can validate types according to the specification's type hierarchy.
-
-## Test Requirements
-1. Test type checking of variable declarations
-2. Test type checking of function parameters and returns
-3. Test type checking of assignments
-4. Test validation against the type hierarchy
-5. Test handling of type errors
-
-## Implementation Requirements
-1. Implement the core type hierarchy as specified
-2. Create type checking logic for variable declarations
-3. Add type checking for function parameters and returns
-4. Implement assignment compatibility checking
-5. Create type error reporting
-6. Add integration with type definitions
-7. Implement basic PSC commands for checking
-
-## Integration Points
-- Integrate with parser enhancements
-- Connect with type definition support
-
-## Documentation Requirements
-1. Document the type checking system
-2. Explain the type hierarchy
-3. Add information about type compatibility rules
-4. Include examples of type checking
-
-## Considerations
-- Balance type checking thoroughness with performance
-- Consider incremental type checking for large files
-- Design for extensibility of the type system
+Create comprehensive unit tests for:
+- Error formatting with various scenarios
+- Multiple error collection and reporting
+- Edge cases like missing position information
+- Different error severity levels
+
+This foundation will be used by the type checker in the next steps, but for now integrate it with the existing syntax error reporting from the parser integration.
 ```
 
-#### Prompt 26: Type Checking System - Flow-Sensitive Analysis ✅
+### Prompt 4: Basic Type Checking Logic
 
-```
-# Implement Flow-Sensitive Type Analysis
-
-## Context
-PSC's type system should include flow-sensitive analysis that recognizes validation patterns to refine types. This step implements flow-sensitive type analysis.
-
-## Previous Implementation
-- Basic type checking system
-- Parser enhancements for type annotations
-
-## Current Task
-Implement flow-sensitive type analysis that can refine types based on control flow and validation patterns.
-
-## Test Requirements
-1. Test type refinement with simple conditions
-2. Test type refinement with validation functions
-3. Test handling of branches (if/else)
-4. Test loop handling
-5. Test handling of potentially undefined values
-
-## Implementation Requirements
-1. Implement control flow analysis
-2. Create type refinement based on conditions
-3. Add recognition of common validation patterns
-4. Implement handling of branches with different type states
-5. Create merge points for type states
-6. Add support for common type guards
-7. Implement proper error reporting for flow-sensitive issues
-
-## Integration Points
-- Integrate with basic type checking system
-- Connect with AST traversal from parser
-
-## Documentation Requirements
-1. Document flow-sensitive analysis capabilities
-2. Explain supported validation patterns
-3. Add examples of type refinement
-4. Include information about type guards
-
-## Considerations
-- Balance analysis thoroughness with performance
-- Consider handling of complex control flow patterns
-- Design for extensibility of recognized patterns
-```
+```text
+Now I need to implement the core type checking logic by extending the existing typechecker in internal/parser/typechecker.go.
 
-#### Prompt 27: PSC Commands Implementation ✅
+Extend the typechecker to:
+- Analyze typed variable declarations (my Int $x = ...)
+- Detect basic type mismatches between declared types and assigned values
+- Support basic Perl types: Int, Str, Num, Bool, ArrayRef, HashRef
+- Handle literal values (42, "string", 3.14, true/false)
+- Identify clear type violations
 
-```
-# Implement PSC Commands
-
-## Context
-PSC needs a complete set of commands for type checking and management. This step implements the full set of PSC commands specified in the documentation.
-
-## Previous Implementation
-- Type checking system with flow-sensitive analysis
-- Parser enhancements for type annotations
-
-## Current Task
-Implement the complete set of PSC commands, including check, strip, run, watch, and def.
-
-## Test Requirements
-1. Test all PSC commands
-2. Test command output formatting
-3. Test error handling for various scenarios
-4. Test integration with type definitions
-5. Test watch mode functionality
-
-## Implementation Requirements
-1. Implement psc check command
-2. Create psc strip command
-3. Add psc run command
-4. Implement psc watch command
-5. Create psc def command
-6. Add command-line options for all commands
-7. Implement proper error handling and reporting
-8. Create output formatting for type errors
-
-## Integration Points
-- Integrate with type checking system
-- Connect with PVX for the run command
-- Integrate with command router for PSC commands
-
-## Documentation Requirements
-1. Document all PSC commands
-2. Explain command options and arguments
-3. Add examples for common use cases
-4. Include type error format documentation
-
-## Considerations
-- Ensure consistent command behavior
-- Consider performance for large projects
-- Provide helpful error messages for users
-```
+The type checking should focus on simple, unambiguous cases:
+- `my Int $x = "string"` should be a type error
+- `my Str $name = 42` should be a type error
+- `my Int $count = 42` should be valid
+- `my $untyped = 42` should be handled gracefully (inference comes next)
 
-### Current PSC Implementation Status
+Create comprehensive unit tests covering:
+- Various type mismatch scenarios
+- Valid type assignments
+- Edge cases with different literal types
+- Invalid type declarations
+- AST traversal for type information
 
-The PSC command implementation has been completed with basic functionality, but several architectural issues have been identified during implementation:
+The typechecker should work with the existing AST structure and return structured error information that can be consumed by the error reporting system from the previous step.
+```
 
-1. **Circular Dependencies**: The current implementation has circular dependency issues between parser and type checker components, where they both reference each other's types.
+### Prompt 5: Type Inference Implementation
 
-2. **Architecture Refinement Needed**: The Updated Type System Architecture section below outlines the revised approach to address these issues, focusing on making the parser self-contained with the type checker as a consumer of parser output.
+```text
+Building on the basic type checking from the previous step, I need to add type inference capabilities to handle untyped Perl code gracefully.
 
-3. **Next Implementation Steps**:
-   - Refactor the parser package to be fully self-contained with all type definitions
-   - Move shared types to the parser package
-   - Restructure the type checker to consume parser output without circular references
-   - Complete the integration between components following the revised architecture
+Extend the typechecker to:
+- Infer types from literal assignments (my $x = 42 infers Int)
+- Handle unknown function return types by using Unknown type
+- Implement basic type inference for common Perl operations
+- Provide Unknown type fallback for unresolvable cases
+- Maintain inference information for error reporting
 
-This architectural refinement will enable better separation of concerns, prevent circular dependencies, and create a more maintainable implementation.
+The inference should handle:
+- Direct literal assignments: `my $x = 42` -> Int
+- String literals: `my $name = "hello"` -> Str
+- Numeric literals: `my $pi = 3.14` -> Num
+- Unknown function calls: `my $result = some_function()` -> Unknown
+- Complex expressions that can't be resolved: -> Unknown
 
-#### Prompt 28: Cross-Component Integration ✅
+Create comprehensive unit tests for:
+- Type inference accuracy for various scenarios
+- Unknown type fallback behavior
+- Interaction between inferred and declared types
+- Edge cases with ambiguous expressions
 
+The typechecker should now handle both typed and untyped Perl code, providing useful type information without being overly strict on legacy code.
 ```
-# Implement Full Cross-Component Integration
-
-## Context
-The PVM Ecosystem consists of four main components (PVM, PVX, PVI, PSC) that need to work together seamlessly. This step implements the full cross-component integration.
-
-## Previous Implementation
-- All individual components with their functionality
-- Basic integration between some components
-
-## Current Task
-Implement the full cross-component integration to ensure all parts of the system work together seamlessly as specified in the integration points section of the specification.
-
-## Test Requirements
-1. Test PVM and PVX integration
-2. Test PVX and PVI integration
-3. Test PSC and PVX integration
-4. Test PSC and PVI integration
-5. Test end-to-end workflows across all components
-
-## Implementation Requirements
-1. Finalize PVM and PVX integration for version resolution
-2. Complete PVX and PVI integration for module installation
-3. Implement PSC and PVX integration for type-checked execution
-4. Finalize PSC and PVI integration for type definitions
-5. Create unified error handling across components
-6. Add cross-component communication mechanisms
-7. Implement end-to-end workflows that use multiple components
-
-## Integration Points
-This task focuses on all integration points mentioned in the specification:
-- PVM and PVX Integration
-- PVX and PVI Integration
-- PSC and PVX Integration
-- PSC and PVI Integration
-
-## Documentation Requirements
-1. Document how components work together
-2. Explain cross-component workflows
-3. Add troubleshooting information for integration issues
-4. Include examples of end-to-end usage
-
-## Considerations
-- Ensure consistent behavior across all components
-- Consider performance implications of cross-component calls
-- Design for future extensibility of the integration
-```
 
-#### Prompt 29: Editor Integration Support ✅
+### Prompt 6: Integration of Type Analysis
 
-```
-# Implement Editor Integration Support
-
-## Context
-The PVM Ecosystem should support integration with text editors and IDEs for features like type checking, autocomplete, and error reporting. This step implements editor integration support.
-
-## Previous Implementation
-- Full cross-component integration
-- Complete type checking system
-
-## Current Task
-Implement editor integration support for the PVM Ecosystem, focusing on PSC for type checking and error reporting.
-
-## Test Requirements
-1. Test language server protocol implementation
-2. Test error reporting format
-3. Test type information queries
-4. Test autocompletion suggestions
-5. Test integration with common editors (VSCode, etc.)
-
-## Implementation Requirements
-1. Implement a language server protocol (LSP) interface
-2. Create structured output formats for errors and warnings
-3. Add type information query functionality
-4. Implement autocompletion suggestion generation
-5. Create editor-specific configuration examples
-6. Add documentation for editor integration
-
-## Integration Points
-- Integrate with PSC type checking system
-- Connect with error reporting framework
-
-## Documentation Requirements
-1. Document the LSP implementation
-2. Explain how to set up editor integration
-3. Add editor-specific setup guides
-4. Include troubleshooting information
-
-## Considerations
-- Ensure responsiveness for editor integration
-- Consider incremental analysis for better performance
-- Design for compatibility with multiple editors
-```
+```text
+Now I need to connect all the pieces: integrate the enhanced typechecker with the check command and error reporting system to create a working type validator.
 
-#### Prompt 30: Final Polishing and Integration ✅
+Update the check_command.go to:
+- Run the type analysis pass after successful parsing
+- Collect type checking errors from the typechecker
+- Format errors using the error reporting system
+- Handle both syntax and type errors in a unified way
+- Provide silent success for valid code
 
-```
-# Implement Final Polishing and Integration
-
-## Context
-With all major components and integrations implemented, this final step focuses on polishing the entire system, improving performance, fixing edge cases, and ensuring a seamless user experience.
-
-## Previous Implementation
-- All major components and their integration
-- Editor integration support
-
-## Current Task
-Implement final polishing and integration tasks to ensure the entire PVM Ecosystem works smoothly, efficiently, and provides a great user experience.
-
-## Test Requirements
-1. Test end-to-end workflows with real-world projects
-2. Test performance with large codebases
-3. Test edge cases identified during development
-4. Test cross-platform compatibility
-5. Test upgrade paths and migration
-
-## Implementation Requirements
-1. Optimize critical performance paths
-2. Fix any remaining edge cases or bugs
-3. Improve error messages and help text
-4. Enhance documentation with real-world examples
-5. Add migration guides for existing tool users
-6. Create getting started documentation
-7. Implement consistent styling and messaging
-8. Add telemetry (if specified) with opt-out
-
-## Integration Points
-- Ensure all components work together seamlessly
-- Verify external tool integration (editors, build systems)
-
-## Documentation Requirements
-1. Finalize all documentation
-2. Create comprehensive user guide
-3. Add complete command reference
-4. Include real-world examples and tutorials
-5. Create troubleshooting guide
-
-## Considerations
-- Focus on user experience as the primary goal
-- Ensure consistency across all components
-- Consider future maintenance and extensibility
-```
+The integration should:
+- Parse the file using the existing parser
+- Run type analysis on the resulting AST
+- Collect all type checking errors
+- Format and display errors using the compiler-style format
+- Return appropriate exit codes
 
-### Phase 5: Core Functionality Implementation
+Create comprehensive integration tests that:
+- Test the complete workflow with real Perl files
+- Verify both syntax and type error handling
+- Test silent success for valid typed Perl
+- Cover edge cases and error conditions
+- Verify proper exit codes and error messages
 
-#### Prompt 31: CPAN Provider Implementation ✅
+Create test fixtures with various Perl code samples:
+- Valid typed Perl code
+- Code with type errors
+- Mixed typed and untyped code
+- Edge cases and boundary conditions
 
-```
-# Implement CPAN Provider Core Functionality
-
-## Context
-The PVM Ecosystem's PVI component has architectural foundations but lacks the core CPAN provider implementations. Currently, all CPAN provider methods return "not implemented yet", which prevents module installation and management from functioning.
-
-## Previous Implementation
-- Complete architectural framework for CPAN integration
-- MetaCPAN API integration (partial)
-- Module management command structure
-- Type definition support framework
-
-## Current Task
-Implement the core CPAN provider functionality to enable actual module installation, search, and management operations.
-
-## Test Requirements
-1. Test CPANProvider InstallModule functionality
-2. Test CPANProvider UninstallModule functionality
-3. Test CPANProvider ListModules functionality
-4. Test CPANProvider SearchModules functionality
-5. Test CPANProvider ShowModule functionality
-6. Test CPANProvider UpdateModule functionality
-7. Test CustomProvider implementations for all methods
-8. Test MetaCPAN caching retrieval, storage, and validation
-9. Test end-to-end module installation workflow
-10. Test error handling for network failures and module conflicts
-
-## Implementation Requirements
-
-### Core CPAN Provider (internal/cpan/cpan.go)
-1. Implement InstallModule method:
-   - Download module source from CPAN
-   - Handle dependency resolution
-   - Execute build process (Makefile.PL or Build.PL)
-   - Run tests if configured
-   - Install to appropriate lib directory
-2. Implement UninstallModule method:
-   - Remove installed files
-   - Clean up man pages and documentation
-   - Handle dependencies safely
-3. Implement ListModules method:
-   - Scan installed modules in lib directories
-   - Parse .packlist files for module information
-   - Return structured module information
-4. Implement SearchModules method:
-   - Use MetaCPAN API for module search
-   - Filter and format results
-   - Handle search term matching
-5. Implement ShowModule method:
-   - Retrieve detailed module information
-   - Show dependencies, versions, documentation
-6. Implement UpdateModule method:
-   - Check for newer versions
-   - Perform upgrade process safely
-
-### Custom Provider (internal/cpan/custom.go)
-1. Implement all provider methods for custom/local modules:
-   - Support local directory installations
-   - Handle custom module repositories
-   - Manage non-CPAN modules
-
-### MetaCPAN Caching (internal/cpan/metacpan.go)
-1. Complete cacheRetrieve method:
-   - Implement proper cache key generation
-   - Add cache expiration handling
-   - Return cached data when valid
-2. Complete cacheStore method:
-   - Store API responses with metadata
-   - Implement cache size management
-   - Handle cache directory creation
-3. Complete cacheValidate method:
-   - Check cache freshness
-   - Validate data integrity
-   - Handle cache corruption
-
-## Integration Points
-- Integrate with existing MetaCPAN API client
-- Connect with Perl version resolution for target installation
-- Integrate with dependency resolution system
-- Connect with PVX for module testing during installation
-
-## Documentation Requirements
-1. Document CPAN provider installation process
-2. Explain custom provider usage and configuration
-3. Add troubleshooting guide for common installation issues
-4. Document caching behavior and configuration options
-5. Add examples of module installation workflows
-6. Update command documentation with working examples
-
-## Considerations
-- Handle various module build systems (ExtUtils::MakeMaker, Module::Build, etc.)
-- Implement proper error recovery for failed installations
-- Consider parallel installation of independent modules
-- Ensure proper cleanup on installation failures
-- Handle permission issues gracefully
-- Support both system and user-level installations
-
-## Success Criteria
-- `pvi install Some::Module` successfully installs modules
-- `pvi list` shows installed modules accurately
-- `pvi search term` returns relevant results from CPAN
-- Module dependencies are resolved and installed automatically
-- Failed installations clean up properly without corrupting state
+The check command should now be a functional type validator that meets the MVP requirements.
 ```
 
-#### Prompt 32: PVM Core Commands Implementation
+### Prompt 7: Enhanced Error Formatting
 
-```
-# Implement Missing PVM Core Commands
-
-## Context
-The PVM component has solid version management infrastructure but is missing critical commands that users expect from a Perl version manager, specifically the `exec` command and complete system Perl import functionality.
-
-## Previous Implementation
-- Version installation, listing, and switching (use, global, local)
-- Perl building and downloading with progress tracking
-- Shell integration framework
-- Configuration system
-- Legacy tool detection (plenv/perlbrew)
-
-## Current Task
-Implement the missing core PVM commands to provide complete version management functionality.
-
-## Test Requirements
-1. Test `pvm exec` command with various scenarios:
-   - Execute single commands with specific Perl version
-   - Execute scripts with version resolution
-   - Handle command-line arguments properly
-   - Test environment variable isolation
-2. Test system Perl import functionality:
-   - Detect system Perl installation
-   - Import system Perl into PVM registry
-   - Handle multiple system Perl installations
-   - Test version naming and aliasing
-3. Test legacy tool import completion:
-   - Complete plenv installation import
-   - Complete perlbrew installation import
-   - Handle version mapping between tools
-   - Test configuration migration
-4. Test configuration layer priorities:
-   - Verify project > user > system precedence
-   - Test configuration merging edge cases
-   - Handle missing configuration files gracefully
-
-## Implementation Requirements
-
-### PVM Exec Command (internal/pvm/command.go)
-1. Implement exec command at line 574:
-   ```go
-   func (c *Command) execCommand(cmd *cobra.Command, args []string) error {
-       // Implementation needed
-   }
-   ```
-2. Add version resolution for exec context
-3. Implement environment setup for target version
-4. Execute command with proper PATH and environment
-5. Handle exit code propagation
-6. Add error handling for missing versions or commands
-
-### System Perl Import (internal/perl/system.go)
-1. Complete system Perl import functionality:
-   - Detect system Perl version and location
-   - Create PVM registry entry for system installation
-   - Set appropriate symlinks and configuration
-   - Handle multiple system installations (if present)
-2. Add `pvm import-system` command
-3. Implement proper error handling for import failures
-
-### Legacy Tool Import (internal/perl/legacy.go)
-1. Complete plenv import functionality:
-   - Copy plenv installations to PVM structure
-   - Migrate version configuration
-   - Update shell configuration if needed
-2. Complete perlbrew import functionality:
-   - Import perlbrew installations
-   - Handle perlbrew aliases and configuration
-   - Migrate environment setup
-3. Add `pvm import-from plenv|perlbrew` command completion
-
-### Configuration System Fixes (internal/config/parser.go)
-1. Fix configuration layer priority issues:
-   - Ensure proper precedence order
-   - Handle missing configuration files
-   - Fix accessor method edge cases
-2. Complete remaining accessor methods
-3. Add configuration validation improvements
-
-## Integration Points
-- Integrate exec command with version resolution algorithm
-- Connect import functionality with version registry
-- Integrate with shell setup for imported versions
-- Connect configuration fixes with all components using config
-
-## Documentation Requirements
-1. Document `pvm exec` command with examples:
-   - Basic usage: `pvm exec 5.32.0 perl script.pl`
-   - Environment isolation examples
-   - Integration with build tools
-2. Document import commands:
-   - System Perl import process
-   - Legacy tool migration instructions
-   - Post-import verification steps
-3. Add troubleshooting section for common import issues
-4. Update configuration documentation with precedence rules
-5. Add migration guide from plenv/perlbrew
-
-## Considerations
-- Ensure exec command has minimal performance overhead
-- Handle edge cases in system Perl detection (custom builds, multiple versions)
-- Provide clear migration paths without destroying existing setups
-- Consider shell integration implications of version switching
-- Handle permission issues during import operations
-
-## Success Criteria
-- `pvm exec 5.32.0 perl -v` executes with correct version
-- `pvm import-system` successfully imports system Perl
-- `pvm import-from plenv` migrates existing plenv setup
-- Configuration precedence works correctly in all scenarios
-- All import operations are reversible and safe
-```
+```text
+I need to enhance the error reporting to provide better user experience with context lines and improved messaging.
 
-#### Prompt 33: Shell Integration and Shim System Implementation
+Extend the error reporting system to:
+- Show context lines of source code around errors
+- Add error markers pointing to the problematic code
+- Provide helpful suggestions for fixing common type errors
+- Handle different error severity levels appropriately
+- Ensure error messages are clear and actionable
 
-```
-# Implement Complete Shell Integration and Shim System
-
-## Context
-The PVM ecosystem has basic shell integration but lacks the complete shim system and advanced shell features that provide seamless version switching and PATH management for users.
-
-## Previous Implementation
-- Basic shell integration framework
-- Version resolution algorithm
-- Perl installation management
-- Environment setup foundations
-
-## Current Task
-Implement the complete shell integration system and shim functionality to provide transparent version switching and executable management.
-
-## Test Requirements
-1. Test shim creation for all Perl executables:
-   - perl, cpan, cpanm, perldoc, etc.
-   - Custom executables from installed modules
-   - Platform-specific shim behavior (Unix vs Windows)
-2. Test shim execution and version resolution:
-   - Automatic version resolution via shims
-   - Shim performance and overhead
-   - Error handling for missing versions
-3. Test rehash functionality:
-   - Detect new executables after module installation
-   - Rebuild shims automatically
-   - Clean up orphaned shims
-4. Test shell completion:
-   - Tab completion for PVM commands
-   - Version name completion
-   - Module name completion
-5. Test shell initialization:
-   - Bash, Zsh, Fish, PowerShell support
-   - Shell detection and appropriate script generation
-   - PATH modification and restoration
-
-## Implementation Requirements
-
-### Shim System (internal/cli/shim.go)
-1. Implement shim creation functionality:
-   - Generate shim executables for all Perl tools
-   - Create platform-appropriate shims (shell scripts vs binaries)
-   - Install shims to XDG_DATA_HOME/pvm/shims/
-2. Implement shim execution logic:
-   - Version resolution within shim context
-   - PATH setup for resolved version
-   - Command execution with proper environment
-3. Add rehash command implementation:
-   - Scan installed Perl versions for executables
-   - Create/update shims for discovered commands
-   - Remove orphaned shims for uninstalled tools
-4. Implement shim template system:
-   - Configurable shim templates
-   - Platform-specific adaptations
-   - Performance optimizations
-
-### Shell Integration (internal/cli/shell.go)
-1. Complete shell initialization system:
-   - Generate init scripts for bash, zsh, fish, PowerShell
-   - Handle shell-specific syntax and features
-   - Provide eval-based integration commands
-2. Implement tab completion:
-   - Generate completion scripts for supported shells
-   - Complete PVM command names and options
-   - Complete version names and module names
-   - Dynamic completion based on current state
-3. Add shell detection:
-   - Automatic shell detection from environment
-   - Fallback mechanisms for unknown shells
-   - User override options
-
-### PATH Management (internal/cli/path.go)
-1. Implement PATH manipulation:
-   - Add/remove shim directory from PATH
-   - Preserve original PATH for restoration
-   - Handle PATH priorities correctly
-2. Add environment variable management:
-   - Set PERL5LIB and related variables
-   - Manage version-specific environment
-   - Clean environment restoration
-
-## Integration Points
-- Integrate with version resolution algorithm
-- Connect with Perl installation registry
-- Integrate with PVI for module executable detection
-- Connect with configuration system for shim preferences
-
-## Documentation Requirements
-1. Document shim system:
-   - How shims work and their purpose
-   - Shim directory location and management
-   - Troubleshooting shim issues
-2. Document shell integration:
-   - Setup instructions for each supported shell
-   - Shell initialization process
-   - Tab completion setup
-3. Add PATH management documentation:
-   - How PATH modification works
-   - Manual PATH setup if needed
-   - Restoring original environment
-4. Include troubleshooting guide:
-   - Common shim issues and solutions
-   - Shell integration problems
-   - Performance tuning options
-
-## Considerations
-- Minimize shim execution overhead for performance
-- Handle edge cases in shell detection and setup
-- Consider security implications of executable generation
-- Ensure proper cleanup when uninstalling PVM
-- Handle multiple shell sessions and concurrent usage
-- Support for custom executable names and aliases
-
-## Success Criteria
-- Shims are created automatically for all Perl executables
-- `perl -v` uses the correct version via shim resolution
-- Tab completion works in bash/zsh for PVM commands
-- Shell initialization sets up environment correctly
-- Rehash command updates shims after module installations
-- All shell integration works across supported platforms
-```
+The enhanced formatting should:
+- Display 2-3 lines of context around each error
+- Use visual markers (^, ~, etc.) to highlight problem areas
+- Provide specific suggestions for common type mismatches
+- Handle very long lines gracefully
+- Support multiple errors with clear separation
 
-#### Prompt 34: Advanced PVX Isolation and Execution Features
+Create comprehensive tests for:
+- Error formatting with various code samples
+- Context line extraction and display
+- Error marker positioning
+- Helpful suggestion generation
+- Edge cases like very long lines or missing source
 
-```
-# Implement Advanced PVX Isolation and Execution Features
-
-## Context
-PVX has basic execution capabilities but lacks the advanced isolation features and execution modes needed for secure and reliable script execution in various environments.
-
-## Previous Implementation
-- Basic script execution with version resolution
-- Simple environment isolation
-- Command-line argument handling
-- Integration with version management
-
-## Current Task
-Implement advanced PVX isolation features and execution modes to provide comprehensive sandboxed execution capabilities.
-
-## Test Requirements
-1. Test advanced isolation levels:
-   - Complete filesystem isolation with chroot/containers
-   - Network isolation options
-   - Resource limits (memory, CPU, time)
-   - Permission restrictions
-2. Test custom module path isolation:
-   - Isolated module installations per execution
-   - Custom PERL5LIB handling
-   - Module conflict prevention
-3. Test execution persistence options:
-   - Temporary vs persistent execution environments
-   - Environment cleanup and reuse
-   - State preservation between executions
-4. Test security features:
-   - Safe execution of untrusted scripts
-   - Resource limit enforcement
-   - Permission sandboxing
-5. Test output and logging:
-   - Structured output capture
-   - Error stream handling
-   - Execution logging and auditing
-
-## Implementation Requirements
-
-### Advanced Isolation (internal/pvx/isolation.go)
-1. Implement high-level isolation features:
-   - Filesystem sandboxing using available OS features
-   - Network access control and restrictions
-   - Process resource limits (memory, CPU, file descriptors)
-   - Temporary filesystem creation and cleanup
-2. Add configurable isolation policies:
-   - Predefined isolation profiles (development, testing, production)
-   - Custom isolation rule definitions
-   - Per-script isolation configuration
-3. Implement isolation validation:
-   - Verify isolation effectiveness
-   - Monitor resource usage
-   - Detect isolation bypass attempts
-
-### Custom Module Environments (internal/pvx/modules.go)
-1. Implement per-execution module environments:
-   - Create isolated module installation directories
-   - Custom PERL5LIB path management
-   - Module dependency isolation
-2. Add module installation for execution contexts:
-   - Install required modules in isolation
-   - Handle conflicting module versions
-   - Clean up temporary installations
-3. Implement module caching:
-   - Cache commonly used modules
-   - Share compatible module installations
-   - Optimize installation performance
-
-### Execution Persistence (internal/pvx/persistence.go)
-1. Implement execution environment management:
-   - Create persistent execution environments
-   - Environment lifecycle management
-   - Environment naming and organization
-2. Add state preservation features:
-   - Save execution state between runs
-   - Restore previous execution contexts
-   - Handle state migration and upgrades
-3. Implement cleanup and garbage collection:
-   - Automatic cleanup of unused environments
-   - Resource usage monitoring
-   - Storage optimization
-
-### Security Enhancements (internal/pvx/security.go)
-1. Implement security policies:
-   - Define safe execution parameters
-   - Validate script safety before execution
-   - Implement execution time limits
-2. Add resource monitoring:
-   - Track CPU, memory, and I/O usage
-   - Implement resource limit enforcement
-   - Generate resource usage reports
-3. Implement audit logging:
-   - Log all execution attempts and results
-   - Track resource usage and violations
-   - Generate security reports
-
-## Integration Points
-- Integrate with PVI for module installation in isolation
-- Connect with PSC for type-checked secure execution
-- Integrate with system security features (cgroups, containers)
-- Connect with logging framework for audit trails
-
-## Documentation Requirements
-1. Document isolation levels and their implications:
-   - Security vs performance tradeoffs
-   - Platform-specific isolation features
-   - Configuration options for each level
-2. Document execution modes:
-   - Temporary vs persistent execution
-   - Module isolation strategies
-   - Resource limit configuration
-3. Add security documentation:
-   - Safe execution practices
-   - Security policy configuration
-   - Audit log interpretation
-4. Include performance tuning guide:
-   - Optimization strategies for different use cases
-   - Benchmarking isolation overhead
-   - Resource usage monitoring
-
-## Considerations
-- Balance security isolation with execution performance
-- Handle platform differences in isolation capabilities
-- Consider container/virtualization integration where available
-- Ensure proper cleanup of isolated environments
-- Handle edge cases in resource limit enforcement
-- Provide clear error messages for isolation failures
-
-## Success Criteria
-- Scripts execute safely in high-isolation mode without system access
-- Module installations are properly isolated between executions
-- Resource limits are enforced and violations handled gracefully
-- Persistent execution environments can be created and managed
-- Security audit logs provide comprehensive execution tracking
-- Performance overhead of isolation is acceptable for practical use
+The error output should be professional and helpful, similar to modern compiler error messages that guide developers toward solutions rather than just reporting problems.
 ```
 
-#### Prompt 35: Configuration System Enhancement and Error Handling
+### Prompt 8: Final Integration and Testing
 
-```
-# Implement Enhanced Configuration System and Unified Error Handling
-
-## Context
-The PVM ecosystem has basic configuration support but needs enhanced configuration management, better error handling, and improved user experience across all components.
-
-## Previous Implementation
-- Basic TOML configuration parsing
-- XDG directory support
-- Simple configuration merging
-- Component-specific error handling
-
-## Current Task
-Implement enhanced configuration management with advanced features and unified error handling across all ecosystem components.
-
-## Test Requirements
-1. Test advanced configuration features:
-   - Configuration validation and schema checking
-   - Dynamic configuration reloading
-   - Configuration migration between versions
-   - Environment variable interpolation
-2. Test configuration layering edge cases:
-   - Complex nested configuration merging
-   - Array and map merging strategies
-   - Configuration inheritance patterns
-   - Override and reset mechanisms
-3. Test unified error handling:
-   - Consistent error format across components
-   - Error context and stack traces
-   - Recovery suggestions and help
-   - Internationalization support preparation
-4. Test configuration UI and tooling:
-   - Configuration inspection commands
-   - Configuration validation tools
-   - Configuration diff and comparison
-   - Configuration backup and restore
-
-## Implementation Requirements
-
-### Enhanced Configuration System (internal/config/)
-1. Implement configuration schema validation:
-   - Define schema for all configuration sections
-   - Validate configuration against schema
-   - Provide detailed validation error messages
-   - Support for configuration migrations
-2. Add advanced configuration features:
-   - Environment variable interpolation in config values
-   - Configuration templates and includes
-   - Dynamic configuration reloading
-   - Configuration change notifications
-3. Implement configuration management commands:
-   - `pvm config get/set/unset` commands
-   - `pvm config validate` command
-   - `pvm config show` command with different output formats
-   - `pvm config diff` command for comparing configurations
-
-### Advanced Configuration Merging (internal/config/merger.go)
-1. Implement sophisticated merging strategies:
-   - Deep merging for nested objects
-   - Array merge strategies (append, replace, merge)
-   - Type-aware merging with validation
-   - Merge conflict detection and resolution
-2. Add configuration override mechanisms:
-   - Explicit override markers
-   - Environment-specific overrides
-   - Temporary override support
-   - Override priority management
-
-### Unified Error System (internal/errors/)
-1. Enhance error categorization:
-   - More granular error codes and categories
-   - Context-aware error messages
-   - Error severity levels
-   - Recovery action suggestions
-2. Implement error context system:
-   - Error cause chains
-   - Operation context tracking
-   - User action context
-   - Environmental context (version, platform, etc.)
-3. Add error formatting and presentation:
-   - Consistent error message formatting
-   - Color-coded error output
-   - Error message localization framework
-   - Help text integration with errors
-
-### Configuration Tools and UI (internal/config/tools.go)
-1. Implement configuration inspection:
-   - Show effective configuration after merging
-   - Display configuration sources and precedence
-   - Highlight overridden values
-   - Export configuration in different formats
-2. Add configuration backup and restore:
-   - Automatic configuration backups
-   - Configuration history tracking
-   - Point-in-time configuration restoration
-   - Configuration change auditing
-3. Implement configuration validation tools:
-   - Standalone configuration validation
-   - Integration with CI/CD systems
-   - Configuration linting and best practices
-   - Migration path validation
-
-## Integration Points
-- Integrate enhanced error handling across all components
-- Connect configuration tools with all component configurations
-- Integrate with shell completion for configuration keys
-- Connect with documentation system for configuration help
-
-## Documentation Requirements
-1. Document enhanced configuration features:
-   - Configuration schema and validation
-   - Environment variable interpolation syntax
-   - Configuration inheritance and merging rules
-   - Migration procedures between versions
-2. Document configuration management commands:
-   - Complete command reference with examples
-   - Configuration best practices and patterns
-   - Troubleshooting configuration issues
-   - Performance implications of different settings
-3. Document error handling improvements:
-   - Error code reference and meanings
-   - Common error scenarios and solutions
-   - Error recovery procedures
-   - Integration with support and debugging
-
-## Considerations
-- Maintain backward compatibility with existing configurations
-- Consider performance implications of configuration validation
-- Design configuration schema for extensibility
-- Ensure configuration security (no sensitive data exposure)
-- Handle concurrent configuration access safely
-- Provide migration tools for breaking configuration changes
-
-## Success Criteria
-- All components use consistent error handling and formatting
-- Configuration validation catches errors before they cause problems
-- Users can easily inspect and modify configuration via commands
-- Configuration merging works correctly in all edge cases
-- Error messages provide clear guidance for resolution
-- Configuration changes can be made safely with rollback capability
-```
+```text
+Complete the PSC check MVP with comprehensive testing, documentation, and final integration.
+
+Tasks to complete:
+- Add comprehensive end-to-end tests covering all functionality
+- Test the complete user workflow from command line
+- Verify integration with the existing PSC command structure
+- Add basic documentation for the check command
+- Test edge cases and error conditions thoroughly
 
-## Updated Type System Architecture
-
-After implementation work on the PSC component, we've refined the architecture for the type system to better handle dependencies and separation of concerns. This updated architecture addresses circular dependency issues and clarifies component responsibilities.
-
-### Package Organization
-1. **Parser Package**:
-   - Self-contained with no dependencies on type checker
-   - Defines AST, Node, TypeAnnotation, and other parsing-related types
-   - Provides methods to parse Perl code and extract type annotations
-   - Handles annotation extraction and AST creation
-
-2. **Type Checker Package**:
-   - Consumes parser output (AST with type annotations)
-   - Performs type validation against rules
-   - No circular dependencies back to parser
-
-3. **Interface Definition**:
-   - Parser owns all type definitions that both components use
-   - Type checker consumes these types without creating circular references
-
-### Revised Implementation Sequence
-1. **Phase 1: Parser & Annotation Stripping**
-   - Create clear interfaces for Parser with AST, Node, and TypeAnnotation types
-   - Implement parser to extract type annotations from Perl code
-   - Add annotation stripping to produce clean Perl code
-   - Build unit tests for parser accuracy
-
-2. **Phase 2: Type Inference Engine**
-   - Implement type inference algorithm independent of annotations
-   - Create TypeChecker interface consuming AST
-   - Develop basic type validation using only inferred types
-   - Build unit tests comparing inferred types to expected
-
-3. **Phase 3: Annotation-Aware Type Checking**
-   - Enhance TypeChecker to consider explicit annotations
-   - Implement disambiguation rules for annotation/inference conflicts
-   - Add comprehensive error reporting with positions
-   - Expand test suite with annotation validation tests
-
-4. **Phase 4: Integration & Optimization**
-   - Integrate PSC with PVX for type-checked code execution
-   - Implement watch mode for continuous checking
-   - Add hook system for compiler optimizations
-   - Build end-to-end tests for the entire workflow
-
-### Key Architectural Principles
-- Parser is completely self-contained
-- One-way dependency: Type checker depends on parser, not vice versa
-- Error flow primarily from parser to checker, not back
-- Shared types are owned by the parser package
-- Clean separation of parsing and validation concerns
-
-This architecture ensures a maintainable system with clear boundaries between components and prevents circular dependencies.
-
-## Implementation Notes
-
-This implementation plan follows a logical progression from the foundation to more advanced features. Each step builds upon previous work, ensuring that the system is developed incrementally with proper testing at every stage.
-
-Key aspects of this approach:
-
-1. **Test-Driven Development**: Each step begins with test requirements before implementation
-2. **Incremental Progress**: Components are built in small, manageable steps
-3. **Integration Focus**: Clear integration points ensure components work together seamlessly
-4. **Documentation Emphasis**: Documentation is treated as a first-class requirement
-
-By following these prompts in sequence, a code-generation LLM can implement the PVM Ecosystem in a structured, testable manner that aligns with the specification requirements.
+The final testing should include:
+- Real-world Perl code samples with various patterns
+- Performance testing with larger files
+- Error handling for various failure modes
+- Compatibility verification with existing PVM ecosystem
+- User experience testing from command line
+
+Create comprehensive test suites:
+- Unit tests for all components
+- Integration tests for the complete workflow
+- End-to-end tests with real command execution
+- Performance and stress tests
+- Error handling and edge case tests
+
+Add documentation:
+- Command usage examples
+- Error message explanations
+- Integration with existing PVM workflow
+- Troubleshooting guide for common issues
+
+Verify the implementation meets all MVP requirements:
+- Basic type mismatch detection
+- Compiler-style error output with line numbers
+- Silent success for valid code
+- Simple file input handling
+- Basic type inference with Unknown fallback
+
+The final result should be a complete, tested, and documented MVP ready for real-world usage.
+```

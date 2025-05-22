@@ -572,7 +572,7 @@ sub find_subclasses {
 
     # This is a simplified approach - in a production system,
     # you would want a more robust method to find all related classes
-    foreach my $symbol (keys %{$parent . '::'}) {
+    foreach my $symbol (keys %%{$parent . '::'}) {
         next if $symbol =~ /^(BEGIN|DESTROY|AUTOLOAD|import|END)$/;
         my $full_name = $parent . '::' . $symbol;
         $full_name =~ s/::$//;

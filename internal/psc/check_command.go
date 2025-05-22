@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/errors"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/typechecker"
 )
 
 // newCheckTypeCommand creates a command to check types in Perl files
@@ -115,7 +115,7 @@ func checkFile(filePath string, strict, verbose bool) (int, error) {
 	}
 
 	// Create a TypeCheck instance
-	tc, err := parser.NewTypeCheck()
+	tc, err := typechecker.NewTypeCheck()
 	if err != nil {
 		return 0, errors.NewSystemError("006",
 			"Failed to create type checker", err).
@@ -133,6 +133,13 @@ func checkFile(filePath string, strict, verbose bool) (int, error) {
 	// Print errors
 	for _, typeError := range result.Errors {
 		fmt.Printf("%s\n", typeError.Error())
+	}
+
+	if verbose {
+		fmt.Printf("Found %d type annotations in %s\n", len(result.TypeAnnotations), filePath)
+		for i, annotation := range result.TypeAnnotations {
+			fmt.Printf("  [%d] %s: %s (kind: %d)\n", i+1, annotation.AnnotatedItem, annotation.TypeExpression.String(), annotation.Kind)
+		}
 	}
 
 	if len(result.Errors) == 0 && verbose {
