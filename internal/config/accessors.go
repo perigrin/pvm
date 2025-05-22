@@ -5,6 +5,7 @@ package config
 
 import (
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -31,22 +32,8 @@ func (c *Config) GetString(section, key string) string {
 		}
 	}
 
-	// Expand environment variables if value starts with $
-	if strings.HasPrefix(value, "$") {
-		// Strip the $ and get the environment variable
-		envVar := value[1:]
-
-		// Check for complex expressions like ${VAR}
-		if strings.HasPrefix(envVar, "{") && strings.HasSuffix(envVar, "}") {
-			envVar = envVar[1 : len(envVar)-1]
-		}
-
-		if envValue := os.Getenv(envVar); envValue != "" {
-			return envValue
-		}
-	}
-
-	return value
+	// Expand environment variables in the value
+	return expandEnvironmentVariables(value)
 }
 
 // GetInt returns an integer configuration value
@@ -217,4 +204,146 @@ func getPVMStringMap(c *PVMConfig, key string) map[string]string {
 		return c.VersionAliases
 	}
 	return nil
+}
+
+// expandEnvironmentVariables expands environment variables in configuration values
+func expandEnvironmentVariables(value string) string {
+	if value == "" {
+		return value
+	}
+
+	// Handle simple $VAR format
+	if strings.HasPrefix(value, "$") && !strings.Contains(value[1:], "$") {
+		envVar := value[1:]
+		// Check for complex expressions like ${VAR}
+		if strings.HasPrefix(envVar, "{") && strings.HasSuffix(envVar, "}") {
+			envVar = envVar[1 : len(envVar)-1]
+		}
+		if envValue := os.Getenv(envVar); envValue != "" {
+			return envValue
+		}
+		return value
+	}
+
+	// Handle embedded variables like /path/$VAR/subdir
+	re := regexp.MustCompile(`\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)`)
+	return re.ReplaceAllStringFunc(value, func(match string) string {
+		var envVar string
+		if strings.HasPrefix(match, "${") {
+			// ${VAR} format
+			envVar = match[2 : len(match)-1]
+		} else {
+			// $VAR format
+			envVar = match[1:]
+		}
+
+		if envValue := os.Getenv(envVar); envValue != "" {
+			return envValue
+		}
+		return match // Return original if env var not found
+	})
+}
+
+// GetStringWithDefault returns a string configuration value with a default fallback
+func (c *Config) GetStringWithDefault(section, key, defaultValue string) string {
+	value := c.GetString(section, key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+// GetIntWithDefault returns an integer configuration value with a default fallback
+func (c *Config) GetIntWithDefault(section, key string, defaultValue int) int {
+	value := c.GetInt(section, key)
+	if value == 0 {
+		return defaultValue
+	}
+	return value
+}
+
+// GetBoolWithDefault returns a boolean configuration value with a default fallback
+func (c *Config) GetBoolWithDefault(section, key string, defaultValue bool) bool {
+	// Note: for boolean, we can't distinguish between false and unset
+	// This is a limitation of the current implementation
+	return c.GetBool(section, key)
+}
+
+// HasSection returns true if the specified section exists in the configuration
+func (c *Config) HasSection(section string) bool {
+	switch section {
+	case "pvm":
+		return c.PVM != nil
+	case "pvx":
+		return c.PVX != nil
+	case "pvi":
+		return c.PVI != nil
+	case "psc":
+		return c.PSC != nil
+	}
+	return false
+}
+
+// HasKey returns true if the specified key exists in the given section
+func (c *Config) HasKey(section, key string) bool {
+	switch section {
+	case "pvm":
+		if c.PVM != nil {
+			return hasPVMKey(c.PVM, key)
+		}
+	case "pvx":
+		if c.PVX != nil {
+			return hasPVXKey(c.PVX, key)
+		}
+	case "pvi":
+		if c.PVI != nil {
+			return hasPVIKey(c.PVI, key)
+		}
+	case "psc":
+		if c.PSC != nil {
+			return hasPSCKey(c.PSC, key)
+		}
+	}
+	return false
+}
+
+// Helper functions to check if keys exist
+
+func hasPVMKey(c *PVMConfig, key string) bool {
+	switch key {
+	case "default_perl", "download_mirror", "patches_dir", "compiler",
+		"build_jobs", "run_tests", "version_aliases":
+		return true
+	}
+	return false
+}
+
+func hasPVXKey(c *PVXConfig, key string) bool {
+	switch key {
+	case "isolation_level", "max_memory", "timeout", "cache_modules",
+		"cleanup_after", "always_install_deps", "isolated_output",
+		"save_output_dir", "custom_module_path":
+		return true
+	}
+	return false
+}
+
+func hasPVIKey(c *PVIConfig, key string) bool {
+	switch key {
+	case "preferred_installer", "default_mirror", "additional_mirrors",
+		"metadata_source", "metadata_url", "cache_dir", "cache_ttl",
+		"test_during_install", "cache_modules", "force_reinstall",
+		"check_signatures", "disable_network":
+		return true
+	}
+	return false
+}
+
+func hasPSCKey(c *PSCConfig, key string) bool {
+	switch key {
+	case "type_definitions_path", "strict_mode", "watch_exclude",
+		"generate_missing_types", "check_before_run":
+		return true
+	}
+	return false
 }

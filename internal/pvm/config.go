@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/config"
@@ -34,6 +33,10 @@ func newConfigCommand() *cobra.Command {
 		newConfigValidateCommand(),
 		newConfigDiffCommand(),
 		newConfigUnsetCommand(),
+		newConfigSourcesCommand(),
+		newConfigBackupCommand(),
+		newConfigRestoreCommand(),
+		newConfigListBackupsCommand(),
 	)
 
 	return cmd
@@ -41,29 +44,31 @@ func newConfigCommand() *cobra.Command {
 
 // newConfigShowCommand creates a command to show the current configuration
 func newConfigShowCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "show",
 		Short: "Show current configuration",
 		Long:  "Show the effective configuration (merged from all sources)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Load configuration
-			cfg, err := config.LoadEffectiveConfig()
-			if err != nil {
-				return err
-			}
+			format, _ := cmd.Flags().GetString("format")
 
-			// Marshal the configuration to TOML
-			data, err := toml.Marshal(cfg)
+			// Use enhanced config manager
+			manager := config.NewConfigManager()
+
+			output, err := manager.Show(format)
 			if err != nil {
 				return errors.NewConfigError("101",
-					"Failed to marshal configuration", err)
+					"Failed to display configuration", err)
 			}
 
-			// Print the configuration
-			fmt.Println(string(data))
+			fmt.Println(output)
 			return nil
 		},
 	}
+
+	// Add format flag
+	cmd.Flags().StringP("format", "f", "toml", "Output format (toml, json, yaml)")
+
+	return cmd
 }
 
 // newConfigGetCommand creates a command to get a specific configuration value
@@ -879,4 +884,134 @@ func unsetPSCValue(cfg, defaultCfg *config.PSCConfig, key string) error {
 			WithHint("Use 'pvm config show' to see all available keys")
 	}
 	return nil
+}
+
+// newConfigSourcesCommand creates a command to show configuration sources
+func newConfigSourcesCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "sources",
+		Short: "Show configuration sources",
+		Long:  "Display configuration sources and their precedence order",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			manager := config.NewConfigManager()
+
+			output, err := manager.ShowSources()
+			if err != nil {
+				return errors.NewConfigError("301",
+					"Failed to display configuration sources", err)
+			}
+
+			fmt.Print(output)
+			return nil
+		},
+	}
+}
+
+// newConfigBackupCommand creates a command to backup configuration
+func newConfigBackupCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "backup [backup-directory]",
+		Short: "Backup configuration files",
+		Long:  "Create a backup of current configuration files",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			backupDir := "~/.config/pvm/backups" // Default backup directory
+			if len(args) > 0 {
+				backupDir = args[0]
+			}
+
+			// Expand tilde
+			if strings.HasPrefix(backupDir, "~/") {
+				homeDir, err := os.UserHomeDir()
+				if err != nil {
+					return errors.NewSystemError("301", "Failed to get home directory", err)
+				}
+				backupDir = filepath.Join(homeDir, backupDir[2:])
+			}
+
+			manager := config.NewConfigManager()
+
+			err := manager.Backup(backupDir)
+			if err != nil {
+				return errors.NewConfigError("302",
+					"Failed to backup configuration", err)
+			}
+
+			fmt.Printf("Configuration backed up to: %s\n", backupDir)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// newConfigRestoreCommand creates a command to restore configuration from backup
+func newConfigRestoreCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "restore [backup-file]",
+		Short: "Restore configuration from backup",
+		Long:  "Restore configuration from a backup file",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			backupFile := args[0]
+
+			manager := config.NewConfigManager()
+
+			err := manager.Restore(backupFile)
+			if err != nil {
+				return errors.NewConfigError("303",
+					"Failed to restore configuration", err)
+			}
+
+			fmt.Printf("Configuration restored from: %s\n", backupFile)
+			return nil
+		},
+	}
+}
+
+// newConfigListBackupsCommand creates a command to list available backups
+func newConfigListBackupsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "list-backups [backup-directory]",
+		Short: "List available configuration backups",
+		Long:  "List all available configuration backup files",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			backupDir := "~/.config/pvm/backups" // Default backup directory
+			if len(args) > 0 {
+				backupDir = args[0]
+			}
+
+			// Expand tilde
+			if strings.HasPrefix(backupDir, "~/") {
+				homeDir, err := os.UserHomeDir()
+				if err != nil {
+					return errors.NewSystemError("302", "Failed to get home directory", err)
+				}
+				backupDir = filepath.Join(homeDir, backupDir[2:])
+			}
+
+			manager := config.NewConfigManager()
+
+			backups, err := manager.ListBackups(backupDir)
+			if err != nil {
+				return errors.NewConfigError("304",
+					"Failed to list backups", err)
+			}
+
+			if len(backups) == 0 {
+				fmt.Println("No backups found")
+				return nil
+			}
+
+			fmt.Printf("Available backups in %s:\n", backupDir)
+			for _, backup := range backups {
+				fmt.Printf("  %s\n", backup)
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
 }
