@@ -130,9 +130,14 @@ func checkFile(filePath string, strict, verbose bool) (int, error) {
 			WithLocation(filePath)
 	}
 
-	// Print errors
-	for _, typeError := range result.Errors {
-		fmt.Printf("%s\n", typeError.Error())
+	// Print errors with enhanced formatting
+	if len(result.Errors) > 0 {
+		formatter := NewErrorFormatter()
+		if !verbose {
+			// Less context in non-verbose mode
+			formatter.SetContextLines(1)
+		}
+		fmt.Print(formatter.FormatErrors(result.Errors))
 	}
 
 	if verbose {
