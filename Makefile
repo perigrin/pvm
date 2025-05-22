@@ -9,8 +9,6 @@ all: $(BUILDDIR) $(LIBDIR) tree-sitter $(BINARIES)
 
 # Set CGO flags for tree-sitter integration
 export CGO_ENABLED=1
-export CGO_CFLAGS=-I$(shell pwd)/include -I$(shell pwd)/lib
-export CGO_LDFLAGS=-L$(shell pwd)/lib
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
@@ -22,26 +20,30 @@ $(LIBDIR):
 vendor:
 	go mod vendor
 
-# Build tree-sitter-perl library
+# Build tree-sitter-typed-perl library
 tree-sitter: $(LIBDIR) vendor
-	./bin/build_tree_sitter.sh
+	@echo "Generating tree-sitter-typed-perl parser..."
+	tree-sitter generate -o tree-sitter-typed-perl tree-sitter-typed-perl/grammar.js
+	@echo "Updating scanner function names..."
+	sed -i '' 's/tree_sitter_perl_external_scanner/tree_sitter_typed_perl_external_scanner/g' tree-sitter-typed-perl/src/scanner.c
+	@echo "Tree-sitter-typed-perl build complete"
 
 # Build rules for each binary
 pvm: $(BUILDDIR)
-	go build -o $(BUILDDIR)/pvm ./cmd/pvm
+	go build -mod=mod -o $(BUILDDIR)/pvm ./cmd/pvm
 
 pvx: $(BUILDDIR)
-	go build -o $(BUILDDIR)/pvx ./cmd/pvx
+	go build -mod=mod -o $(BUILDDIR)/pvx ./cmd/pvx
 
 pvi: $(BUILDDIR)
-	go build -o $(BUILDDIR)/pvi ./cmd/pvi
+	go build -mod=mod -o $(BUILDDIR)/pvi ./cmd/pvi
 
 psc: $(BUILDDIR) tree-sitter
-	go build -o $(BUILDDIR)/psc ./cmd/psc
+	go build -mod=mod -o $(BUILDDIR)/psc ./cmd/psc
 
 # Run all tests (with tree-sitter support)
 test: tree-sitter
-	go test -v ./...
+	go test -mod=mod -v ./...
 
 # Run only non-tree-sitter tests for faster feedback
 test-fast:

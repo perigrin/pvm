@@ -42,3 +42,9 @@ build
 tree-sitter-perl/
 vendor/tree-sitter-perl/
 lib/
+
+# Generated parser files
+src/parser.c
+tree-sitter-typed-perl/parser.c
+*.so
+*.dylib

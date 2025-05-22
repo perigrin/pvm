@@ -6,7 +6,7 @@ set -e
 
 # Run go vet for the entire module (excluding tree-sitter packages)
 echo "Running go vet for the entire module (excluding tree-sitter)..."
-go vet $(go list ./... | grep -v treesitter)
+go vet -mod=mod $(go list -mod=mod ./... | grep -v treesitter)
 
 # If we get this far, all checks passed
 exit 0

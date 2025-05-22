@@ -16,9 +16,9 @@ repos:
         exclude: ^(internal/parser/treesitter/|cmd/psc/)
       - id: go-critic
       - id: go-unit-tests
-        args: [./internal/cli/..., ./internal/config/..., ./internal/cpan/..., ./internal/errors/..., ./internal/log/..., ./internal/perl/..., ./internal/pvi/..., ./internal/pvm/..., ./internal/pvx/..., ./internal/typedef/..., ./internal/version/..., ./internal/xdg/...]
+        args: [-mod=mod, ./internal/cli/..., ./internal/config/..., ./internal/cpan/..., ./internal/errors/..., ./internal/log/..., ./internal/perl/..., ./internal/pvi/..., ./internal/pvm/..., ./internal/pvx/..., ./internal/typedef/..., ./internal/version/..., ./internal/xdg/...]
       - id: go-build
-        args: [./cmd/pvm, ./cmd/pvx, ./cmd/pvi]
+        args: [-mod=mod, ./cmd/pvm, ./cmd/pvx, ./cmd/pvi]
       # - id: validate-toml
   - repo: local
     hooks:

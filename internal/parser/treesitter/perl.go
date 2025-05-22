@@ -3,27 +3,19 @@
 
 package treesitter
 
-/*
-#cgo CFLAGS: -I/opt/homebrew/include -I../../include
-#cgo LDFLAGS: -L/opt/homebrew/lib -L../../../lib -ltree-sitter -ltree-sitter-perl -Wl,-rpath,/Users/perigrin/dev/pvm/lib
-#include <tree_sitter/api.h>
-
-extern const TSLanguage *tree_sitter_perl(void);
-*/
-import "C"
 import (
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
-	"unsafe"
 
+	tree_sitter_typed_perl "github.com/perigrin/pvm/tree-sitter-typed-perl/bindings/go"
 	sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// Language returns the tree-sitter language for Perl
+// Language returns the tree-sitter language for Typed Perl
 func Language() *sitter.Language {
-	return sitter.NewLanguage(unsafe.Pointer(C.tree_sitter_perl()))
+	return sitter.NewLanguage(tree_sitter_typed_perl.Language())
 }
 
 // PerlParser represents a parser instance for Perl code

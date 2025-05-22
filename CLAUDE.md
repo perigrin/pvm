@@ -5,17 +5,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build/Test Commands
 
 ### Basic Commands
-- Build all: `make all` (builds all components including tree-sitter)
+- Build all: `make` (builds all components including tree-sitter-typed-perl)
 - Build individual components:
-  - PVM: `make pvm` or `go build -o build/pvm ./cmd/pvm`
-  - PVX: `make pvx` or `go build -o build/pvx ./cmd/pvx`
-  - PVI: `make pvi` or `go build -o build/pvi ./cmd/pvi`
-  - PSC: `make psc` (requires tree-sitter build first)
-- Test all: `go test ./...`
-- Test single package: `go test ./path/to/package`
-- Test with coverage: `go test -cover ./...`
+  - PVM: `make pvm`
+  - PVX: `make pvx`
+  - PVI: `make pvi`
+  - PSC: `make psc` (requires tree-sitter-typed-perl build first)
+- Test all: `make test`
+- Test fast (skip tree-sitter): `make test-fast`
 - Lint: `golangci-lint run`
 - Clean: `make clean`
+
+### Manual Build Commands (if needed)
+- Build: `go build -mod=mod -o build/pvm ./cmd/pvm`
+- Test all: `go test -mod=mod ./...`
+- Test single package: `go test -mod=mod ./path/to/package`
+- Test with coverage: `go test -mod=mod -cover ./...`
 
 ### Cross-Platform Build
 - Cross-compile all platforms: `make cross-compile`
@@ -44,7 +49,29 @@ PSC requires tree-sitter integration which has additional dependencies:
 - Extended perl grammar with type annotations
 - CGO build flags for header includes
 
-**Current Status**: Tree-sitter build completes successfully but Go build integration still needs work on CGO path resolution.
+**Current Status**: ✅ Complete! Tree-sitter-typed-perl integration is working with full type annotation support.
+
+## Tree-sitter-typed-perl Integration
+
+The project uses a custom `tree-sitter-typed-perl` grammar that extends the standard Perl grammar with type annotations:
+
+### Type Annotation Support
+- Typed variable declarations: `my Int $var = 42;`
+- Typed field declarations: `field Str $name;`
+- Type declarations: `type MyType = Int|Str;`
+- Union types: `Int|Str`
+- Intersection types: `Object&Serializable`
+- Negation types: `!Undef`
+- Parameterized types: `ArrayRef[Int]`
+- Type assertions: `$value as Int`
+
+### Build Process
+1. **Grammar Generation**: `tree-sitter generate` creates parser.c and scanner.c
+2. **Function Name Updates**: Scanner functions are renamed for typed_perl namespace
+3. **Go Bindings**: Located in `tree-sitter-typed-perl/bindings/go/`
+4. **Integration**: PSC component uses the bindings for static type checking
+
+The build is completely self-contained with no external dependencies beyond Go and tree-sitter CLI.
 
 ## GitHub Workflows
 
