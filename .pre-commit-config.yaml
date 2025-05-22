@@ -12,21 +12,24 @@ repos:
       - id: go-fmt
       - id: go-imports
       - id: no-go-testing
-      # Temporarily disabled due to tree-sitter CGO dependencies
-      # - id: golangci-lint
-      # - id: go-critic
-      # - id: go-unit-tests
-      # - id: go-build
+      - id: golangci-lint
+        exclude: ^(internal/parser/treesitter/|cmd/psc/)
+      - id: go-critic
+      - id: go-unit-tests
+        args: [./internal/cli/..., ./internal/config/..., ./internal/cpan/..., ./internal/errors/..., ./internal/log/..., ./internal/perl/..., ./internal/pvi/..., ./internal/pvm/..., ./internal/pvx/..., ./internal/typedef/..., ./internal/version/..., ./internal/xdg/...]
+      - id: go-build
+        args: [./cmd/pvm, ./cmd/pvx, ./cmd/pvi]
       # - id: validate-toml
-  # - repo: local
-  #   hooks:
-  #     - id: go-vet-custom
-  #       name: 'go vet custom'
-  #       description: "Runs go vet on the entire module"
-  #       entry: .github/hooks/run-go-vet.sh
-  #       language: script
-  #       pass_filenames: false
-  #       files: '\.go$'
+  - repo: local
+    hooks:
+      - id: go-vet-custom
+        name: 'go vet custom'
+        description: "Runs go vet on the entire module (excluding tree-sitter)"
+        entry: .github/hooks/run-go-vet.sh
+        language: script
+        pass_filenames: false
+        files: '\.go$'
+        exclude: ^(internal/parser/treesitter/|cmd/psc/)
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v8.0.0
     hooks:
