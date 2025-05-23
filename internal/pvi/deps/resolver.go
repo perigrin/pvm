@@ -87,12 +87,14 @@ func (r *defaultResolver) ResolveDependencies(ctx context.Context, moduleName st
 	}
 
 	// Create the root node
+	// Strip .pm suffix if present for consistency
+	rootName := strings.TrimSuffix(moduleInfo.Name, ".pm")
 	root := &DependencyNode{
-		Name:    moduleInfo.Name,
+		Name:    rootName,
 		Version: moduleInfo.Version,
 		IsRoot:  true,
 		Parent:  nil,
-		Path:    []string{moduleInfo.Name},
+		Path:    []string{rootName},
 		Depth:   0,
 	}
 
@@ -221,7 +223,9 @@ func (r *defaultResolver) resolveNodeDependencies(ctx context.Context, node *Dep
 		}
 
 		// Check if the dependency is already in the tree
-		existingNode, exists := result.Modules[dep.Name]
+		// Strip .pm suffix if present for consistency
+		normalizedDepName := strings.TrimSuffix(dep.Name, ".pm")
+		existingNode, exists := result.Modules[normalizedDepName]
 		if exists {
 			// Check for version constraints
 			if dep.Version != "" {
@@ -287,8 +291,10 @@ func (r *defaultResolver) resolveNodeDependencies(ctx context.Context, node *Dep
 		}
 
 		// Create a new dependency node
+		// Strip .pm suffix if present for consistency
+		depName := strings.TrimSuffix(dep.Name, ".pm")
 		depNode := &DependencyNode{
-			Name:              dep.Name,
+			Name:              depName,
 			Version:           "", // Will be filled in during recursive resolution
 			VersionConstraint: dep.Version,
 			Phase:             dep.Phase,
@@ -296,7 +302,7 @@ func (r *defaultResolver) resolveNodeDependencies(ctx context.Context, node *Dep
 			IsCore:            isCore,
 			Parent:            node,
 			Children:          []*DependencyNode{},
-			Path:              append(append([]string{}, node.Path...), dep.Name),
+			Path:              append(append([]string{}, node.Path...), depName),
 			Depth:             node.Depth + 1,
 		}
 
@@ -314,7 +320,7 @@ func (r *defaultResolver) resolveNodeDependencies(ctx context.Context, node *Dep
 		node.Children = append(node.Children, depNode)
 
 		// Add to the modules map
-		result.Modules[dep.Name] = depNode
+		result.Modules[depName] = depNode
 
 		// Recursively resolve this dependency's dependencies
 		err = r.resolveNodeDependencies(ctx, depNode, options, result)

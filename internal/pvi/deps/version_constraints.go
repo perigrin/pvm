@@ -22,8 +22,6 @@ const (
 	OpGreaterThanOrEqual
 	OpLessThan
 	OpLessThanOrEqual
-	OpRange // Represents a version range (e.g., ">= 1.0, < 2.0")
-	OpExact // Exact version match with no operator (e.g., "1.2.3")
 )
 
 // VersionConstraint represents a parsed version constraint
@@ -31,26 +29,25 @@ type VersionConstraint struct {
 	// Raw is the original constraint string
 	Raw string
 
+	// Constraints is a list of individual constraints that must all be satisfied (AND logic)
+	Constraints []SingleConstraint
+}
+
+// SingleConstraint represents a single version comparison
+type SingleConstraint struct {
 	// Operator is the comparison operator
 	Operator ConstraintOperator
 
 	// Version is the version to compare against
 	Version string
-
-	// UpperVersion is used for range constraints (e.g., the "2.0" in ">= 1.0, < 2.0")
-	UpperVersion string
-
-	// UpperOperator is used for range constraints (e.g., the "<" in ">= 1.0, < 2.0")
-	UpperOperator ConstraintOperator
 }
 
 // Regular expressions for parsing version constraints
 var (
 	// Matches the common operators: ==, !=, >, >=, <, <=
-	operatorRegex = regexp.MustCompile(`^\s*(==|!=|>=|>|<=|<)\s*(.+)$`)
-
-	// Matches version ranges like ">= 1.0, < 2.0"
-	rangeRegex = regexp.MustCompile(`^\s*(>=|>)\s*(.+?)\s*,\s*(<=|<)\s*(.+)\s*$`)
+	// Note: Order matters - check two-char operators before single-char ones
+	// The version part must start with a digit or 'v'
+	operatorRegex = regexp.MustCompile(`^\s*(==|!=|>=|<=|>|<)\s*(v?\d.*)$`)
 
 	// Matches simple version numbers without operators
 	versionRegex = regexp.MustCompile(`^\s*v?(\d+(\.\d+)*).*$`)
@@ -58,58 +55,60 @@ var (
 
 // ParseVersionConstraint parses a version constraint string
 func ParseVersionConstraint(constraint string) (*VersionConstraint, error) {
+	result := &VersionConstraint{
+		Raw:         constraint,
+		Constraints: []SingleConstraint{},
+	}
+
 	if constraint == "" {
-		// Empty constraint means no constraint
-		return &VersionConstraint{
-			Raw:      "",
-			Operator: OpEqual,
-			Version:  "",
-		}, nil
+		// Empty constraint means no constraint (any version)
+		return result, nil
 	}
 
-	// Try to match range pattern first (e.g., ">= 1.0, < 2.0")
-	if rangeMatch := rangeRegex.FindStringSubmatch(constraint); len(rangeMatch) >= 5 {
-		return &VersionConstraint{
-			Raw:           constraint,
-			Operator:      OpRange, // Use the special range operator
-			Version:       normalizeVersion(rangeMatch[2]),
-			UpperOperator: operatorToEnum(rangeMatch[3]),
-			UpperVersion:  normalizeVersion(rangeMatch[4]),
-		}, nil
+	// Split by comma for multiple constraints
+	parts := strings.Split(constraint, ",")
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// Try to match operator pattern (e.g., ">= 1.0", "< 2.0", "!= 1.5")
+		if opMatch := operatorRegex.FindStringSubmatch(part); len(opMatch) >= 3 {
+			result.Constraints = append(result.Constraints, SingleConstraint{
+				Operator: operatorToEnum(opMatch[1]),
+				Version:  normalizeVersion(opMatch[2]),
+			})
+			continue
+		}
+
+		// Try to match simple version number (e.g., "1.0")
+		// In Perl/cpanfile, a bare version number means "this version or higher"
+		if verMatch := versionRegex.FindStringSubmatch(part); len(verMatch) >= 2 {
+			result.Constraints = append(result.Constraints, SingleConstraint{
+				Operator: OpGreaterThanOrEqual, // Bare version means >= in Perl
+				Version:  normalizeVersion(verMatch[0]),
+			})
+			continue
+		}
+
+		// If we can't parse this part, return an error
+		return nil, errors.NewSystemError(
+			ErrInvalidVersionPattern,
+			fmt.Sprintf("Invalid version constraint pattern: %s", part),
+			nil)
 	}
 
-	// Try to match operator pattern (e.g., ">= 1.0")
-	if opMatch := operatorRegex.FindStringSubmatch(constraint); len(opMatch) >= 3 {
-		return &VersionConstraint{
-			Raw:      constraint,
-			Operator: operatorToEnum(opMatch[1]),
-			Version:  normalizeVersion(opMatch[2]),
-		}, nil
+	// If no constraints were parsed, but we had non-empty input, it's an error
+	if len(result.Constraints) == 0 && constraint != "" {
+		return nil, errors.NewSystemError(
+			ErrInvalidVersionPattern,
+			fmt.Sprintf("Invalid version constraint pattern: %s", constraint),
+			nil)
 	}
 
-	// Try to match simple version number (e.g., "1.0")
-	if verMatch := versionRegex.FindStringSubmatch(constraint); len(verMatch) >= 2 {
-		return &VersionConstraint{
-			Raw:      constraint,
-			Operator: OpExact,
-			Version:  normalizeVersion(verMatch[0]),
-		}, nil
-	}
-
-	// If constraint is not valid (e.g., "invalid"), let's try to handle it
-	if versionRegex.MatchString(constraint) {
-		return &VersionConstraint{
-			Raw:      constraint,
-			Operator: OpExact,
-			Version:  normalizeVersion(constraint),
-		}, nil
-	}
-
-	// If we get here, the constraint couldn't be parsed
-	return nil, errors.NewSystemError(
-		ErrInvalidVersionPattern,
-		fmt.Sprintf("Invalid version constraint pattern: %s", constraint),
-		nil)
+	return result, nil
 }
 
 // operatorToEnum converts a string operator to a ConstraintOperator
@@ -148,54 +147,47 @@ func CheckVersionConstraint(version, constraint string) (bool, error) {
 		return false, err
 	}
 
-	// If the constraint is empty, it's satisfied by any version
-	if parsedConstraint.Raw == "" {
+	// If there are no constraints, it's satisfied by any version
+	if len(parsedConstraint.Constraints) == 0 {
 		return true, nil
 	}
 
 	// Normalize the version
 	normVersion := normalizeVersion(version)
 
-	// Check based on operator
-	switch parsedConstraint.Operator {
-	case OpEqual, OpExact:
-		return compareVersions(normVersion, parsedConstraint.Version) == 0, nil
+	// All constraints must be satisfied (AND logic)
+	for _, c := range parsedConstraint.Constraints {
+		satisfied, err := checkSingleConstraint(normVersion, c)
+		if err != nil {
+			return false, err
+		}
+		if !satisfied {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// checkSingleConstraint checks if a version satisfies a single constraint
+func checkSingleConstraint(version string, constraint SingleConstraint) (bool, error) {
+	switch constraint.Operator {
+	case OpEqual:
+		return compareVersions(version, constraint.Version) == 0, nil
 	case OpNotEqual:
-		return compareVersions(normVersion, parsedConstraint.Version) != 0, nil
+		return compareVersions(version, constraint.Version) != 0, nil
 	case OpGreaterThan:
-		return compareVersions(normVersion, parsedConstraint.Version) > 0, nil
+		return compareVersions(version, constraint.Version) > 0, nil
 	case OpGreaterThanOrEqual:
-		return compareVersions(normVersion, parsedConstraint.Version) >= 0, nil
+		return compareVersions(version, constraint.Version) >= 0, nil
 	case OpLessThan:
-		return compareVersions(normVersion, parsedConstraint.Version) < 0, nil
+		return compareVersions(version, constraint.Version) < 0, nil
 	case OpLessThanOrEqual:
-		return compareVersions(normVersion, parsedConstraint.Version) <= 0, nil
-	case OpRange:
-		// For a range, both conditions must be true
-		lowerSatisfied := false
-		upperSatisfied := false
-
-		// Check lower bound
-		switch parsedConstraint.Operator {
-		case OpGreaterThan:
-			lowerSatisfied = compareVersions(normVersion, parsedConstraint.Version) > 0
-		case OpGreaterThanOrEqual:
-			lowerSatisfied = compareVersions(normVersion, parsedConstraint.Version) >= 0
-		}
-
-		// Check upper bound
-		switch parsedConstraint.UpperOperator {
-		case OpLessThan:
-			upperSatisfied = compareVersions(normVersion, parsedConstraint.UpperVersion) < 0
-		case OpLessThanOrEqual:
-			upperSatisfied = compareVersions(normVersion, parsedConstraint.UpperVersion) <= 0
-		}
-
-		return lowerSatisfied && upperSatisfied, nil
+		return compareVersions(version, constraint.Version) <= 0, nil
 	default:
 		return false, errors.NewSystemError(
 			ErrInvalidVersionPattern,
-			fmt.Sprintf("Unknown constraint operator: %v", parsedConstraint.Operator),
+			fmt.Sprintf("Unknown constraint operator: %v", constraint.Operator),
 			nil)
 	}
 }

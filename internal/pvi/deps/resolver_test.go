@@ -371,18 +371,35 @@ func TestVersionConstraintParsing(t *testing.T) {
 	// Test cases for constraint parsing
 	testCases := []struct {
 		constraint    string
-		expectedOp    ConstraintOperator
-		expectedVer   string
+		expectedCount int
+		expectedOps   []ConstraintOperator
+		expectedVers  []string
 		expectedError bool
 	}{
-		{"== 1.0", OpEqual, "1.0", false},
-		{">= 2.0", OpGreaterThanOrEqual, "2.0", false},
-		{"< 3.0", OpLessThan, "3.0", false},
-		{"!= 1.5", OpNotEqual, "1.5", false},
-		{"1.0", OpExact, "1.0", false},
-		{"v2.3.4", OpExact, "2.3.4", false},
-		{"", OpEqual, "", false},
-		{"invalid", OpExact, "invalid", true}, // Should fail for malformed version
+		// Single constraints
+		{"== 1.0", 1, []ConstraintOperator{OpEqual}, []string{"1.0"}, false},
+		{">= 2.0", 1, []ConstraintOperator{OpGreaterThanOrEqual}, []string{"2.0"}, false},
+		{"> 1.0", 1, []ConstraintOperator{OpGreaterThan}, []string{"1.0"}, false},
+		{"< 3.0", 1, []ConstraintOperator{OpLessThan}, []string{"3.0"}, false},
+		{"<= 3.0", 1, []ConstraintOperator{OpLessThanOrEqual}, []string{"3.0"}, false},
+		{"!= 1.5", 1, []ConstraintOperator{OpNotEqual}, []string{"1.5"}, false},
+		{"1.0", 1, []ConstraintOperator{OpGreaterThanOrEqual}, []string{"1.0"}, false},
+		{"v2.3.4", 1, []ConstraintOperator{OpGreaterThanOrEqual}, []string{"2.3.4"}, false},
+
+		// Multiple constraints (cpanfile style)
+		{">= 1.2, != 1.5, < 2.0", 3,
+			[]ConstraintOperator{OpGreaterThanOrEqual, OpNotEqual, OpLessThan},
+			[]string{"1.2", "1.5", "2.0"}, false},
+		{">= 2.00, < 2.80", 2,
+			[]ConstraintOperator{OpGreaterThanOrEqual, OpLessThan},
+			[]string{"2.00", "2.80"}, false},
+
+		// Empty constraint
+		{"", 0, []ConstraintOperator{}, []string{}, false},
+
+		// Invalid constraints
+		{"invalid", 0, []ConstraintOperator{}, []string{}, true},
+		{"<> 1.0", 0, []ConstraintOperator{}, []string{}, true}, // Invalid operator
 	}
 
 	for _, tc := range testCases {
@@ -392,8 +409,12 @@ func TestVersionConstraintParsing(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedOp, constraint.Operator)
-				assert.Equal(t, tc.expectedVer, constraint.Version)
+				assert.Equal(t, tc.expectedCount, len(constraint.Constraints))
+
+				for i := 0; i < tc.expectedCount; i++ {
+					assert.Equal(t, tc.expectedOps[i], constraint.Constraints[i].Operator)
+					assert.Equal(t, tc.expectedVers[i], constraint.Constraints[i].Version)
+				}
 			}
 		})
 	}
@@ -417,13 +438,20 @@ func TestVersionConstraintChecking(t *testing.T) {
 		{"2.0", "< 2.0", false, false},
 		{"1.5", "<= 1.5", true, false},
 		{"1.6", "<= 1.5", false, false},
-		{"1.5", "1.5", true, false},
-		{"1.5", "1.6", false, false},
-		{"1.2.3", "v1.2.3", true, false},
-		// Skip range tests temporarily as they need more work
-		// {"2.0.0", ">= 1, < 3", true, false},
-		// {"0.5.0", ">= 1, < 3", false, false},
-		// {"3.0.0", ">= 1, < 3", false, false},
+		{"1.5", "1.5", true, false},      // 1.5 satisfies >= 1.5
+		{"1.5", "1.6", false, false},     // 1.5 does not satisfy >= 1.6
+		{"1.2.3", "v1.2.3", true, false}, // 1.2.3 satisfies >= 1.2.3
+		{"1.6", "1.5", true, false},      // 1.6 satisfies >= 1.5
+		{"2.0", "1.0", true, false},      // 2.0 satisfies >= 1.0
+
+		// Multiple constraints (cpanfile style)
+		{"2.0.0", ">= 1, < 3", true, false},            // 2.0.0 is between 1 and 3
+		{"0.5.0", ">= 1, < 3", false, false},           // 0.5.0 is less than 1
+		{"3.0.0", ">= 1, < 3", false, false},           // 3.0.0 is not less than 3
+		{"1.5", ">= 1.2, != 1.5, < 2.0", false, false}, // 1.5 is excluded
+		{"1.6", ">= 1.2, != 1.5, < 2.0", true, false},  // 1.6 satisfies all
+		{"2.5", ">= 2.00, < 2.80", true, false},        // cpanfile example
+
 		{"1.0", "", true, false}, // Empty constraint matches anything
 	}
 
