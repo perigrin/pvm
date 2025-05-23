@@ -246,141 +246,165 @@ Acceptance Criteria:
 - Type annotation analysis helps improve code quality
 ```
 
-### Step 7: Embedding Provider Architecture
+### Step 7: Embedding System with chromem-go Integration
 
 ```text
-Create pluggable embedding provider system with three initial implementations.
+Integrate chromem-go as the vector database and implement embedding providers.
 
 Requirements:
-- Design pluggable architecture for embedding providers
-- Implement OpenAI embeddings provider
-- Implement VoyageAI embeddings provider
-- Implement local HuggingFace embeddings provider
-- Add provider configuration and selection logic
+- Integrate chromem-go for vector storage and similarity search
+- Implement embedding provider wrapper for chromem-go
+- Support OpenAI embeddings (primary provider)
+- Support local embeddings with sentence-transformers
+- Configure persistence and collection management
 
 Implementation Details:
-- Create `internal/mcp/embeddings/` package with provider interface
-- Implement OpenAI provider using their API
-- Implement VoyageAI provider using their API
-- Implement HuggingFace provider with local model support
-- Add provider factory and configuration management
-- Handle provider failures gracefully with fallbacks
+- Add chromem-go dependency to go.mod
+- Create `internal/mcp/embeddings/` package with chromem integration
+- Implement EmbeddingStore that wraps chromem.DB
+- Create OpenAI embedding function for chromem-go
+- Add local embedding option using go-sentence-transformers
+- Configure persistent storage in XDG data directory
+- Implement collection-per-project organization
 
 Testing:
-- Provider interface compliance tests
-- API integration tests for external providers
-- Local model loading and inference tests
-- Provider switching and fallback behavior
-- Error handling for network/model failures
+- Vector storage and retrieval tests
+- Similarity search accuracy tests
+- Persistence and recovery tests
+- Multi-project isolation tests
+- Embedding provider switching tests
 
 Acceptance Criteria:
-- All three providers implement the same interface correctly
-- External API providers handle authentication and rate limiting
-- Local HuggingFace provider works offline
-- Provider selection is configurable and works reliably
-- Graceful degradation when providers are unavailable
+- Code embeddings are stored and retrieved correctly
+- Similarity search returns relevant results
+- Database persists between server restarts
+- Projects are isolated in separate collections
+- Graceful fallback when embedding provider is unavailable
 ```
 
-### Step 8: Code Block Extraction and Context Building
+### Step 8: Code Block Extraction and Document Preparation
 
 ```text
-Implement intelligent code block extraction using PVM's parser with rich context.
+Implement code block extraction and prepare documents for chromem-go storage.
 
 Requirements:
-- Use PVM's Perl parsing to identify meaningful code blocks
-- Extract rich context including imports, module declarations, scope
-- Handle different code block types (functions, classes, statements)
-- Build hierarchical context for accurate embeddings
-- Optimize extraction performance for large files
+- Use PVM's Perl parser to identify meaningful code blocks
+- Extract rich metadata for each code block
+- Create chromem.Document structures with proper metadata
+- Include file context and type information
+- Batch processing for efficient embedding generation
 
 Implementation Details:
-- Create code block extractor using PVM's AST parsing
-- Implement context builder that captures file-level metadata
-- Add scope detection for variables, functions, and classes
-- Build context hierarchy (immediate context + inherited context)
-- Optimize parsing to avoid re-parsing unchanged files
+- Create `internal/mcp/embeddings/extractor.go` for code extraction
+- Parse Perl files into AST using PVM's parser
+- Extract functions, methods, classes, and significant blocks
+- Build chromem.Document with:
+  - ID: project/file/block identifier
+  - Content: the code block text
+  - Metadata: type info, context, imports, location
+- Implement batch document creation for efficiency
+- Add incremental extraction for modified files only
 
 Testing:
-- Code block extraction accuracy across different Perl constructs
-- Context building completeness and correctness
-- Performance tests with large files
-- Scope detection accuracy
-- Context hierarchy validation
+- Code block extraction coverage tests
+- Document metadata completeness tests
+- Batch processing performance tests
+- Incremental update correctness tests
+- Large file handling tests
 
 Acceptance Criteria:
-- Extracts meaningful code blocks using proper Perl parsing
-- Context includes all relevant imports and declarations
-- Different code block types are handled appropriately
-- Performance is acceptable for files up to 10k lines
-- Context accurately represents code's semantic environment
+- All significant code blocks are extracted
+- Documents contain complete metadata
+- Batch processing handles 100+ files efficiently
+- Incremental updates work correctly
+- Type information is preserved in metadata
 ```
 
-### Step 9: Embedding Cache System
+### Step 9: Collection Management and Optimization
 
 ```text
-Implement sophisticated caching system for embeddings with context-aware keys.
+Implement chromem-go collection management and search optimization.
 
 Requirements:
-- Design cache keys that include code content + file context
-- Implement intelligent cache invalidation based on context changes
-- Add hierarchical context storage to manage cache size
-- Support configurable cache size limits and eviction policies
-- Provide cache statistics and monitoring
+- Create per-project collections in chromem-go
+- Implement efficient document updates and deletions
+- Add metadata-based filtering for searches
+- Optimize embedding generation with batching
+- Monitor collection statistics and performance
 
 Implementation Details:
-- Create cache key generator using content + context hash
-- Implement LRU cache with size-based eviction
-- Add context change detection for smart invalidation
-- Store direct context in keys, inherited context separately
-- Add cache metrics and performance monitoring
+- Create `internal/mcp/embeddings/manager.go` for collection ops
+- Use chromem.DB.CreateCollection for project isolation
+- Implement document lifecycle management:
+  - Add new documents when files are created
+  - Update documents when code changes
+  - Remove documents when files are deleted
+- Add metadata filters for search refinement:
+  - Filter by type (function, class, method)
+  - Filter by file path patterns
+  - Filter by type annotations
+- Batch embedding requests to reduce API calls
+- Track collection metrics (size, document count, etc.)
 
 Testing:
-- Cache key collision detection and uniqueness
-- Invalidation correctness when context changes
-- Eviction policy behavior under memory pressure
-- Performance impact of cache operations
-- Cache hit rate optimization
+- Multi-collection isolation tests
+- Document lifecycle management tests
+- Metadata filtering accuracy tests
+- Batch processing efficiency tests
+- Performance benchmarks with large collections
 
 Acceptance Criteria:
-- Cache keys correctly differentiate contexts
-- Invalidation happens precisely when needed
-- Cache size stays within configured limits
-- Hit rates are optimized for typical usage patterns
-- Performance monitoring provides actionable insights
+- Projects are fully isolated in separate collections
+- Document updates are handled efficiently
+- Searches can be filtered by metadata
+- Embedding generation is optimized with batching
+- Collection metrics are accurately tracked
 ```
 
-### Step 10: Search Tool Implementation
+### Step 10: Search Tool Implementation with chromem-go
 
 ```text
-Implement semantic search capabilities using the embedding system.
+Implement the search_code tool using chromem-go's search capabilities.
 
 Requirements:
 - Support three search methods: similarity, type_signature, pattern
-- Integrate with embedding cache for performance
+- Use chromem-go's Query method for similarity search
+- Combine vector search with metadata filtering
 - Provide ranked results with relevance scores
-- Add filtering by project scope and code block type
-- Optimize search performance for large codebases
+- Support cross-project and project-scoped searches
 
 Implementation Details:
-- Create `internal/mcp/tools/search.go` with search logic
-- Implement similarity search using vector comparisons
-- Add type signature matching using type system knowledge
-- Create pattern search with regex and AST matching
-- Add result ranking and relevance scoring algorithms
+- Update `internal/mcp/tools/search.go` to use chromem-go
+- Implement similarity search:
+  - Use chromem.Collection.Query for vector similarity
+  - Apply metadata filters for refinement
+  - Return top-k results with scores
+- Implement type signature search:
+  - Extract type signatures from query
+  - Use metadata filtering on type annotations
+  - Combine with text search for accuracy
+- Implement pattern search:
+  - Use regex on document content
+  - Leverage AST metadata for structured search
+  - Combine with similarity for better results
+- Add result post-processing:
+  - Merge results from multiple search methods
+  - Re-rank based on combined scores
+  - Format results for LLM consumption
 
 Testing:
-- Search accuracy across different query types
-- Performance tests with large embedding databases
+- Search accuracy tests for each method
+- Performance tests with 1000+ documents
 - Relevance scoring validation
-- Filtering correctness by project and type
-- Edge case handling (empty results, malformed queries)
+- Cross-project search isolation
+- Query edge case handling
 
 Acceptance Criteria:
-- Similarity search returns semantically related code
-- Type signature search accurately matches function signatures
-- Pattern search handles complex regex and AST patterns
-- Results are ranked meaningfully by relevance
-- Performance scales to codebases with 1000+ files
+- Similarity search leverages chromem-go effectively
+- Type searches accurately match signatures
+- Pattern searches work with complex queries
+- Results are relevant and well-ranked
+- Performance meets requirements at scale
 ```
 
 ### Step 11: Generation Memory System
