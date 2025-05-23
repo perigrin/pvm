@@ -18,6 +18,7 @@ import (
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/mcp/generation"
+	"tamarou.com/pvm/internal/mcp/tools"
 	"tamarou.com/pvm/internal/mcp/validation"
 )
 
@@ -32,6 +33,7 @@ type Server struct {
 	validator      *validation.Validator
 	autoFixer      *validation.AutoFixer
 	samplingClient *generation.SamplingClient
+	codeAnalyzer   *tools.CodeAnalyzer
 }
 
 // ServerMetrics tracks server performance and usage statistics
@@ -111,6 +113,12 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	// Create auto-fixer
 	autoFixer := validation.NewAutoFixer(validator, samplingClient, cfg.MCP.AutoFixErrors)
 
+	// Create code analyzer
+	codeAnalyzer, err := tools.NewCodeAnalyzer(validator, autoFixer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create code analyzer: %w", err)
+	}
+
 	pvmServer := &Server{
 		config:         cfg.MCP,
 		mcpServer:      mcpServer,
@@ -121,6 +129,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		validator:      validator,
 		autoFixer:      autoFixer,
 		samplingClient: samplingClient,
+		codeAnalyzer:   codeAnalyzer,
 	}
 
 	// Register tool groups
@@ -358,50 +367,37 @@ func (s *Server) handleAnalyzeCode(ctx context.Context, request mcp.CallToolRequ
 
 	s.logger.Infof("Analyzing code: type=%s, length=%d, project=%s", analysisType, len(code), projectPath)
 
-	// Validate the code first
-	validationResult, err := s.validator.ValidateCode(ctx, code, projectPath)
+	// Use the code analyzer
+	analysisResult, err := s.codeAnalyzer.Analyze(ctx, code, analysisType, projectPath, s.config.AutoFixErrors)
 	if err != nil {
 		s.recordError()
-		s.logger.Errorf("Failed to validate code: %v", err)
-		return nil, fmt.Errorf("failed to validate code: %w", err)
+		s.logger.Errorf("Analysis failed: %v", err)
+		return nil, fmt.Errorf("analysis failed: %w", err)
 	}
 
-	// Prepare result based on analysis type
-	var result map[string]interface{}
+	// Convert to JSON-friendly format
+	result := map[string]interface{}{
+		"status":        analysisResult.Status,
+		"analysis_type": analysisResult.AnalysisType,
+		"valid":         analysisResult.Valid,
+		"timestamp":     analysisResult.Timestamp,
+	}
 
-	switch analysisType {
-	case "get_types":
-		result = map[string]interface{}{
-			"status":    "success",
-			"type_info": validationResult.TypeInfo,
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
-		}
-
-	case "check_errors":
-		// Attempt auto-fix if enabled and there are errors
-		var fixes []validation.FixError
-		if !validationResult.Valid && s.config.AutoFixErrors {
-			fixes, _ = s.autoFixer.AutoFix(ctx, code, validationResult.Errors, projectPath)
-		}
-
-		result = map[string]interface{}{
-			"status":    "success",
-			"valid":     validationResult.Valid,
-			"errors":    validationResult.Errors,
-			"warnings":  validationResult.Warnings,
-			"fixes":     fixes,
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
-		}
-
-	case "infer_types":
-		// For now, return the same as get_types
-		// In Step 4, we'll implement actual type inference
-		result = map[string]interface{}{
-			"status":    "success",
-			"type_info": validationResult.TypeInfo,
-			"inferred":  true,
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
-		}
+	// Add type-specific fields
+	if len(analysisResult.TypeInfo) > 0 {
+		result["type_info"] = analysisResult.TypeInfo
+	}
+	if len(analysisResult.Errors) > 0 {
+		result["errors"] = analysisResult.Errors
+	}
+	if len(analysisResult.Warnings) > 0 {
+		result["warnings"] = analysisResult.Warnings
+	}
+	if len(analysisResult.Fixes) > 0 {
+		result["fixes"] = analysisResult.Fixes
+	}
+	if len(analysisResult.InferredTypes) > 0 {
+		result["inferred_types"] = analysisResult.InferredTypes
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("%v", result)), nil
