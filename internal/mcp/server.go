@@ -24,16 +24,17 @@ import (
 
 // Server represents the MCP server for PVM
 type Server struct {
-	config         *config.MCPConfig
-	mcpServer      *server.MCPServer
-	projects       map[string]*ProjectContext
-	globalConfig   *config.Config
-	metrics        *ServerMetrics
-	logger         *log.Logger
-	validator      *validation.Validator
-	autoFixer      *validation.AutoFixer
-	samplingClient *generation.SamplingClient
-	codeAnalyzer   *tools.CodeAnalyzer
+	config          *config.MCPConfig
+	mcpServer       *server.MCPServer
+	projects        map[string]*ProjectContext
+	globalConfig    *config.Config
+	metrics         *ServerMetrics
+	logger          *log.Logger
+	validator       *validation.Validator
+	autoFixer       *validation.AutoFixer
+	samplingClient  *generation.SamplingClient
+	codeAnalyzer    *tools.CodeAnalyzer
+	projectAnalyzer *tools.ProjectAnalyzer
 }
 
 // ServerMetrics tracks server performance and usage statistics
@@ -119,17 +120,24 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, fmt.Errorf("failed to create code analyzer: %w", err)
 	}
 
+	// Create project analyzer
+	projectAnalyzer, err := tools.NewProjectAnalyzer(codeAnalyzer, validator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create project analyzer: %w", err)
+	}
+
 	pvmServer := &Server{
-		config:         cfg.MCP,
-		mcpServer:      mcpServer,
-		projects:       make(map[string]*ProjectContext),
-		globalConfig:   cfg,
-		metrics:        NewServerMetrics(),
-		logger:         logger,
-		validator:      validator,
-		autoFixer:      autoFixer,
-		samplingClient: samplingClient,
-		codeAnalyzer:   codeAnalyzer,
+		config:          cfg.MCP,
+		mcpServer:       mcpServer,
+		projects:        make(map[string]*ProjectContext),
+		globalConfig:    cfg,
+		metrics:         NewServerMetrics(),
+		logger:          logger,
+		validator:       validator,
+		autoFixer:       autoFixer,
+		samplingClient:  samplingClient,
+		codeAnalyzer:    codeAnalyzer,
+		projectAnalyzer: projectAnalyzer,
 	}
 
 	// Register tool groups
@@ -272,14 +280,13 @@ func (s *Server) registerAnalyzeTools() error {
 	analyzeCodeTool := mcp.NewTool("analyze_code",
 		mcp.WithDescription("Analyze Perl code for types, errors, and inference"),
 		mcp.WithString("code",
-			mcp.Required(),
-			mcp.Description("Perl code to analyze")),
+			mcp.Description("Perl code to analyze (required for single-file analysis)")),
 		mcp.WithString("analysis_type",
 			mcp.Required(),
-			mcp.Description("Type of analysis: get_types, check_errors, infer_types"),
-			mcp.Enum("get_types", "check_errors", "infer_types")),
+			mcp.Description("Type of analysis: get_types, check_errors, infer_types, project_analysis, project_summary"),
+			mcp.Enum("get_types", "check_errors", "infer_types", "project_analysis", "project_summary")),
 		mcp.WithString("project_path",
-			mcp.Description("Optional project path for context")),
+			mcp.Description("Project path (required for project_analysis and project_summary)")),
 	)
 
 	s.mcpServer.AddTool(analyzeCodeTool, s.handleAnalyzeCode)
@@ -336,13 +343,6 @@ func (s *Server) handleAnalyzeCode(ctx context.Context, request mcp.CallToolRequ
 	s.logger.Debugf("handleAnalyzeCode called")
 
 	// Validate and extract parameters
-	code, err := request.RequireString("code")
-	if err != nil {
-		s.recordError()
-		s.logger.Errorf("Failed to get 'code' parameter: %v", err)
-		return nil, fmt.Errorf("missing or invalid 'code' parameter: %w", err)
-	}
-
 	analysisType, err := request.RequireString("analysis_type")
 	if err != nil {
 		s.recordError()
@@ -352,14 +352,58 @@ func (s *Server) handleAnalyzeCode(ctx context.Context, request mcp.CallToolRequ
 
 	// Validate analysis type
 	validTypes := map[string]bool{
-		"get_types":    true,
-		"check_errors": true,
-		"infer_types":  true,
+		"get_types":        true,
+		"check_errors":     true,
+		"infer_types":      true,
+		"project_analysis": true,
+		"project_summary":  true,
 	}
 	if !validTypes[analysisType] {
 		s.recordError()
 		s.logger.Errorf("Invalid analysis_type: %s", analysisType)
-		return nil, fmt.Errorf("invalid analysis_type '%s', must be one of: get_types, check_errors, infer_types", analysisType)
+		return nil, fmt.Errorf("invalid analysis_type '%s', must be one of: get_types, check_errors, infer_types, project_analysis, project_summary", analysisType)
+	}
+
+	// Handle project-wide analysis types
+	if analysisType == "project_analysis" || analysisType == "project_summary" {
+		projectPath := request.GetString("project_path", "")
+		if projectPath == "" {
+			// Try to use current working directory
+			cwd, err := os.Getwd()
+			if err != nil {
+				s.recordError()
+				return nil, fmt.Errorf("project_path is required for %s", analysisType)
+			}
+			projectPath = cwd
+		}
+
+		if analysisType == "project_analysis" {
+			s.logger.Infof("Performing project analysis for: %s", projectPath)
+			projectAnalysis, err := s.projectAnalyzer.AnalyzeProject(ctx, projectPath)
+			if err != nil {
+				s.recordError()
+				s.logger.Errorf("Project analysis failed: %v", err)
+				return nil, fmt.Errorf("project analysis failed: %w", err)
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("%v", projectAnalysis)), nil
+		} else { // project_summary
+			s.logger.Infof("Getting project summary for: %s", projectPath)
+			summary, err := s.projectAnalyzer.GetProjectSummary(projectPath)
+			if err != nil {
+				s.recordError()
+				s.logger.Errorf("Failed to get project summary: %v", err)
+				return nil, fmt.Errorf("failed to get project summary: %w", err)
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("%v", summary)), nil
+		}
+	}
+
+	// For single-file analysis types, code parameter is required
+	code, err := request.RequireString("code")
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to get 'code' parameter: %v", err)
+		return nil, fmt.Errorf("missing or invalid 'code' parameter: %w", err)
 	}
 
 	// Get optional project path
