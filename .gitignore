@@ -48,3 +48,6 @@ src/parser.c
 tree-sitter-typed-perl/parser.c
 *.so
 *.dylib
+
+# Test artifacts
+test/e2e/test_output_file.txt

@@ -39,24 +39,28 @@ Based on analysis of the codebase, comments, and notes, here's what's left to im
 
 ### **Medium Priority**
 
-#### 4. Integration Test Fixes
-- **Status**: Many E2E tests are skipped due to missing system Perl setup and environment configuration
+#### 4. ~~Integration Test Fixes~~ ✅ COMPLETED
+- **Status**: ✅ COMPLETED - Fixed E2E tests to properly detect and use system Perl
 - **Location**: `test/e2e/` directory
-- **Impact**: Reduced confidence in system functionality
+- **Impact**: Increased confidence in system functionality
 - **Details**:
-  - System Perl installation tests
-  - Environment setup requirements
-  - PSC integration tests (skipped when tree-sitter unavailable)
-  - PVX isolation tests with proper setup
+  - Fixed system Perl detection to use portable detection ✅
+  - Fixed flag conflicts in PSC def command ✅
+  - Updated tests to specify Perl interpreter properly ✅
+  - All integration tests now passing when system Perl is available ✅
 
-#### 5. PVI Dependency Resolver
-- **Status**: Some dependency resolution features appear incomplete
+#### 5. ~~PVI Dependency Resolver~~ ✅ PARTIALLY COMPLETED
+- **Status**: ✅ Core functionality improved - cpanfile-style version constraints now supported
 - **Location**: `internal/pvi/deps/dep_resolver.go`
-- **Impact**: Module dependency management may be limited
-- **Details**:
-  - Advanced dependency resolution algorithms
-  - Conflict resolution strategies
-  - Version constraint handling
+- **Impact**: Module dependency management is now more robust
+- **Completed**:
+  - Fixed ".pm" suffix handling in module names ✅
+  - Implemented cpanfile-style version constraints (multiple constraints with AND logic) ✅
+  - Added support for all comparison operators: ==, !=, >, >=, <, <= ✅
+  - Fixed bare version semantics (bare versions now mean >= as per Perl standards) ✅
+- **Still TODO**:
+  - Advanced conflict resolution strategies
+  - Dependency resolution optimization algorithms
 
 #### 6. LSP Server Functionality
 - **Status**: Advanced formatting and protocol features need completion

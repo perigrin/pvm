@@ -12,7 +12,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - PVI: `make pvi`
   - PSC: `make psc` (requires tree-sitter-typed-perl build first)
 - Test all: `make test`
-- Test fast (skip tree-sitter): `make test-fast`
 - Lint: `golangci-lint run`
 - Clean: `make clean`
 
