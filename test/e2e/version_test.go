@@ -5,7 +5,6 @@ package e2e
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,12 +24,7 @@ func TestVersionCommand(t *testing.T) {
 
 // Test importing system Perl
 func TestImportSystemPerl(t *testing.T) {
-	t.Skip("Environment setup requires additional Perl setup - skipping temporarily")
-	// Check if perl is installed
-	_, err := os.Stat("/usr/bin/perl")
-	if os.IsNotExist(err) {
-		t.Skip("System Perl not found, skipping test")
-	}
+	helpers.SkipIfNoSystemPerl(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -46,11 +40,7 @@ func TestImportSystemPerl(t *testing.T) {
 
 // Test version switching functionality
 func TestVersionSwitching(t *testing.T) {
-	// This test requires a real Perl version, so we'll import system Perl
-	_, err := os.Stat("/usr/bin/perl")
-	if os.IsNotExist(err) {
-		t.Skip("System Perl not found, skipping test")
-	}
+	helpers.SkipIfNoSystemPerl(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
