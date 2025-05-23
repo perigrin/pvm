@@ -96,12 +96,10 @@ func TestCrossComponentIntegration_ImportSystem(t *testing.T) {
 
 	// The command should work, though it may detect that system Perl is already registered
 	// or successfully import it
-	if err == nil {
-		assert.Contains(t, stdout, "perl", "Should mention perl in success output")
-	} else {
-		// If it fails, it should be for a reasonable reason (e.g., already imported)
-		assert.Contains(t, stderr, "perl", "Error should mention perl")
-	}
+	// Note: import-system writes to stderr for informational messages
+	assert.NoError(t, err, "import-system command should succeed")
+	output := stdout + stderr
+	assert.Contains(t, output, "perl", "Should mention perl in output")
 }
 
 func TestCrossComponentIntegration_TypeDefinitions(t *testing.T) {
