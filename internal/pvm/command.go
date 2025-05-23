@@ -46,6 +46,7 @@ func NewCommand() *cobra.Command {
 		newShellCommand(),
 		newPVXCommand(),
 		newPSCCommand(),
+		newMCPCommand(),
 
 		// These are implemented in their own files
 		newSymlinksCommand(), // from symlinks.go

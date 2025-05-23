@@ -21,6 +21,9 @@ type Config struct {
 
 	// PSC specific configuration
 	PSC *PSCConfig `toml:"psc"`
+
+	// MCP specific configuration
+	MCP *MCPConfig `toml:"mcp_server"`
 }
 
 // PVMConfig represents configuration for the Perl Version Manager
@@ -151,6 +154,46 @@ type PSCConfig struct {
 	CheckBeforeRun bool `toml:"check_before_run"`
 }
 
+// MCPConfig represents configuration for the MCP Server
+type MCPConfig struct {
+	// Port specifies the port for the MCP server
+	Port int `toml:"port"`
+
+	// Host specifies the host address for the MCP server
+	Host string `toml:"host"`
+
+	// AutoDiscoverProjects specifies whether to automatically discover Perl projects
+	AutoDiscoverProjects bool `toml:"auto_discover_projects"`
+
+	// AutoFixErrors specifies whether to attempt auto-fixing errors via sampling
+	AutoFixErrors bool `toml:"auto_fix_errors"`
+
+	// ValidationCacheSize specifies the maximum size for validation cache
+	ValidationCacheSize string `toml:"validation_cache_size"`
+
+	// EmbeddingProvider specifies which embedding provider to use
+	// Valid values: "openai", "voyageai", "huggingface"
+	EmbeddingProvider string `toml:"embedding_provider"`
+
+	// EmbeddingCacheSize specifies the maximum size for embedding cache
+	EmbeddingCacheSize string `toml:"embedding_cache_size"`
+
+	// EmbeddingModel specifies the model to use (provider-specific)
+	EmbeddingModel string `toml:"embedding_model"`
+
+	// GenerationMemorySize specifies the memory size for generation context
+	GenerationMemorySize int `toml:"generation_memory_size"`
+
+	// EnableIterativeRefinement specifies whether to enable iterative refinement
+	EnableIterativeRefinement bool `toml:"enable_iterative_refinement"`
+
+	// MaxConcurrentRequests specifies the maximum number of concurrent requests
+	MaxConcurrentRequests int `toml:"max_concurrent_requests"`
+
+	// RequestTimeout specifies the timeout for requests
+	RequestTimeout string `toml:"request_timeout"`
+}
+
 // NewDefaultConfig creates a new configuration with default values
 func NewDefaultConfig() *Config {
 	return &Config{
@@ -199,6 +242,20 @@ func NewDefaultConfig() *Config {
 			GenerateMissingTypes: true,
 			CheckBeforeRun:       true,
 		},
+		MCP: &MCPConfig{
+			Port:                      3000,
+			Host:                      "localhost",
+			AutoDiscoverProjects:      true,
+			AutoFixErrors:             true,
+			ValidationCacheSize:       "50MB",
+			EmbeddingProvider:         "openai",
+			EmbeddingCacheSize:        "100MB",
+			EmbeddingModel:            "text-embedding-3-small",
+			GenerationMemorySize:      50,
+			EnableIterativeRefinement: true,
+			MaxConcurrentRequests:     10,
+			RequestTimeout:            "30s",
+		},
 	}
 }
 
@@ -224,6 +281,11 @@ func (c *Config) Validate() []error {
 	// Add PSC validation
 	if c.PSC != nil {
 		errors = append(errors, c.PSC.Validate()...)
+	}
+
+	// Add MCP validation
+	if c.MCP != nil {
+		errors = append(errors, c.MCP.Validate()...)
 	}
 
 	return errors
@@ -356,6 +418,58 @@ func (c *PSCConfig) Validate() []error {
 	return errors
 }
 
+// Validate checks if the MCP configuration is valid
+func (c *MCPConfig) Validate() []error {
+	var errors []error
+
+	// Validate Port
+	if c.Port < 1 || c.Port > 65535 {
+		errors = append(errors, ValidateError("Port must be between 1 and 65535"))
+	}
+
+	// Validate Host
+	if c.Host == "" {
+		errors = append(errors, ValidateError("Host cannot be empty"))
+	}
+
+	// Validate EmbeddingProvider
+	validProviders := map[string]bool{
+		"openai":      true,
+		"voyageai":    true,
+		"huggingface": true,
+	}
+
+	if c.EmbeddingProvider != "" && !validProviders[c.EmbeddingProvider] {
+		errors = append(errors, ValidateError("EmbeddingProvider must be one of: openai, voyageai, huggingface"))
+	}
+
+	// Validate cache sizes (must have valid memory format)
+	if c.ValidationCacheSize != "" && !isValidMemoryFormat(c.ValidationCacheSize) {
+		errors = append(errors, ValidateError("ValidationCacheSize must be in format like '50MB' or '2GB'"))
+	}
+
+	if c.EmbeddingCacheSize != "" && !isValidMemoryFormat(c.EmbeddingCacheSize) {
+		errors = append(errors, ValidateError("EmbeddingCacheSize must be in format like '100MB' or '2GB'"))
+	}
+
+	// Validate GenerationMemorySize
+	if c.GenerationMemorySize < 0 {
+		errors = append(errors, ValidateError("GenerationMemorySize cannot be negative"))
+	}
+
+	// Validate MaxConcurrentRequests
+	if c.MaxConcurrentRequests < 1 {
+		errors = append(errors, ValidateError("MaxConcurrentRequests must be at least 1"))
+	}
+
+	// Validate RequestTimeout (must be valid duration string)
+	if c.RequestTimeout != "" && !isValidDurationFormat(c.RequestTimeout) {
+		errors = append(errors, ValidateError("RequestTimeout must be in format like '30s' or '5m'"))
+	}
+
+	return errors
+}
+
 // ValidateError creates a validation error
 type ValidateError string
 
@@ -393,6 +507,9 @@ func (v *SchemaValidator) ValidateWithSchema() []error {
 	}
 	if v.config.PSC != nil {
 		errors = append(errors, v.validatePSCSchema(v.config.PSC)...)
+	}
+	if v.config.MCP != nil {
+		errors = append(errors, v.validateMCPSchema(v.config.MCP)...)
 	}
 
 	return errors
@@ -477,6 +594,37 @@ func (v *SchemaValidator) validatePSCSchema(cfg *PSCConfig) []error {
 	return errors
 }
 
+// validateMCPSchema validates MCP configuration schema
+func (v *SchemaValidator) validateMCPSchema(cfg *MCPConfig) []error {
+	var errors []error
+
+	// Validate memory format for cache sizes
+	if cfg.ValidationCacheSize != "" && !isValidMemoryFormat(cfg.ValidationCacheSize) {
+		errors = append(errors, ValidateError("ValidationCacheSize must be in format like '50MB' or '2GB'"))
+	}
+
+	if cfg.EmbeddingCacheSize != "" && !isValidMemoryFormat(cfg.EmbeddingCacheSize) {
+		errors = append(errors, ValidateError("EmbeddingCacheSize must be in format like '100MB' or '2GB'"))
+	}
+
+	// Validate RequestTimeout format
+	if cfg.RequestTimeout != "" && !isValidDurationFormat(cfg.RequestTimeout) {
+		errors = append(errors, ValidateError("RequestTimeout must be in format like '30s' or '5m'"))
+	}
+
+	// Validate MaxConcurrentRequests range
+	if cfg.MaxConcurrentRequests > 100 {
+		errors = append(errors, ValidateError("MaxConcurrentRequests should not exceed 100 for stability"))
+	}
+
+	// Validate GenerationMemorySize range
+	if cfg.GenerationMemorySize > 1000 {
+		errors = append(errors, ValidateError("GenerationMemorySize should not exceed 1000 for memory efficiency"))
+	}
+
+	return errors
+}
+
 // Helper functions for validation
 
 func isValidVersionFormat(version string) bool {
@@ -506,4 +654,11 @@ func pathExists(path string) bool {
 func isValidGlobPattern(pattern string) bool {
 	// Simple validation - more complex validation could use filepath.Match
 	return !strings.Contains(pattern, "\\") || strings.Contains(pattern, "*")
+}
+
+func isValidDurationFormat(duration string) bool {
+	// Valid duration suffixes: s, m, h, ns, us, ms
+	return strings.HasSuffix(duration, "s") || strings.HasSuffix(duration, "m") ||
+		strings.HasSuffix(duration, "h") || strings.HasSuffix(duration, "ns") ||
+		strings.HasSuffix(duration, "us") || strings.HasSuffix(duration, "ms")
 }

@@ -46,6 +46,7 @@ lib/
 # Generated parser files
 src/parser.c
 tree-sitter-typed-perl/parser.c
+tree-sitter-typed-perl/node-types.json
 *.so
 *.dylib
 
