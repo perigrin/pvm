@@ -72,7 +72,22 @@ Based on analysis of the codebase, comments, and notes, here's what's left to im
   - Error reporting and diagnostics
   - Autocompletion enhancements
 
-#### 7. Type Definition Generation
+#### 7. ~~MCP Server Implementation~~ 📋 PLANNED
+- **Status**: 📋 Complete implementation plan created - ready for development
+- **Location**: `prompt_plan.md` (15-step implementation blueprint)
+- **Impact**: Enable LLM integration with PVM's Perl type system
+- **Completed Planning**:
+  - Comprehensive 15-step implementation blueprint ✅
+  - 5-phase development approach (Foundation → Analysis → Embeddings → Generation → Integration) ✅
+  - Pluggable embedding providers (OpenAI, VoyageAI, HuggingFace) ✅
+  - MCP sampling for collaborative code generation ✅
+  - Context-aware semantic search and caching ✅
+  - Integration with existing PVM components ✅
+- **Next Steps**:
+  - Begin implementation following prompt_plan.md
+  - Start with Phase 1: MCP Server Foundation (Steps 1-3)
+
+#### 8. Type Definition Generation
 - **Status**: Better Perl introspection and module analysis needed for accurate type definitions
 - **Location**: `internal/psc/def_command.go`
 - **Impact**: Generated type definitions may be incomplete or inaccurate
@@ -82,7 +97,7 @@ Based on analysis of the codebase, comments, and notes, here's what's left to im
   - More comprehensive module analysis
   - Improved type definition accuracy
 
-#### 8. Perl Build System
+#### 9. Perl Build System
 - **Status**: Enhanced error handling and dependency management needed
 - **Location**: `internal/perl/build.go`
 - **Impact**: Perl installation and build process could be more robust
@@ -94,7 +109,7 @@ Based on analysis of the codebase, comments, and notes, here's what's left to im
 
 ### **Lower Priority**
 
-#### 9. Advanced Configuration Features
+#### 10. Advanced Configuration Features
 - **Status**: Environment variable interpolation and dynamic configuration reloading
 - **Location**: `internal/config/` directory
 - **Impact**: Configuration system could be more flexible
@@ -104,7 +119,7 @@ Based on analysis of the codebase, comments, and notes, here's what's left to im
   - Configuration templates and includes
   - Configuration change notifications
 
-#### 10. Shell Integration Tests
+#### 11. Shell Integration Tests
 - **Status**: Comprehensive cross-platform compatibility testing needed
 - **Location**: `test/e2e/shell_test.go`, `test/e2e/shim_test.go`
 - **Impact**: Shell integration reliability across platforms
@@ -114,7 +129,7 @@ Based on analysis of the codebase, comments, and notes, here's what's left to im
   - Shim system robustness testing
   - PATH management verification
 
-#### 11. Performance Optimizations
+#### 12. Performance Optimizations
 - **Status**: Caching improvements and parallel processing opportunities
 - **Location**: Various components
 - **Impact**: System performance and responsiveness
@@ -124,7 +139,7 @@ Based on analysis of the codebase, comments, and notes, here's what's left to im
   - Memory usage optimization
   - Startup time improvements
 
-#### 12. Advanced Documentation
+#### 13. Advanced Documentation
 - **Status**: Detailed guides for type checking, LSP integration, and advanced configuration
 - **Location**: `docs/` directory
 - **Impact**: User experience and adoption
@@ -137,8 +152,8 @@ Based on analysis of the codebase, comments, and notes, here's what's left to im
 ## 🔍 **Key Findings**
 
 ### **Most Critical Gaps**
-- **Testing**: Many integration tests are skipped due to environment setup issues
-- **Medium Priority Features**: LSP, dependency resolution, and other features need completion
+- **Medium Priority Features**: LSP server and MCP server implementation are next major priorities
+- **Type Definition Generation**: Needs enhancement for better Perl introspection
 
 ### **Architecture Solid**
 - Configuration system and error handling are well-implemented
@@ -147,22 +162,23 @@ Based on analysis of the codebase, comments, and notes, here's what's left to im
 - ✅ Advanced type checking features (union/intersection types, conditional refinement) are COMPLETE
 - ✅ Tree-sitter parser integration for complex type expressions is COMPLETE
 - ✅ Type hierarchy and compatibility system is COMPLETE
+- ✅ Integration test environment and E2E testing infrastructure are COMPLETE
+- ✅ PVI dependency resolver with cpanfile-style version constraints is COMPLETE
 
 ## 📋 **Implementation Notes**
 
 ### **Test Files with Skipped Functionality**
-- `test/e2e/` - Various integration tests (environment setup issues)
 - `internal/typedef/union_test.go` - One union type compatibility test (intentionally skipped)
 
 ### **Code Patterns Indicating Incomplete Work**
-- Tests using `t.Skip()` with TODO messages in e2e tests
-- Placeholder implementations with basic functionality
-- Comments indicating future work needed
+- Placeholder implementations with basic functionality in some LSP and type definition components
+- Comments indicating future work needed for advanced features
 
 ## 🎯 **Next Steps Priority**
 
-1. **Fix Integration Tests** - Resolve environment setup issues in e2e tests
-2. **Polish Features** - Complete LSP, dependency resolution, and other medium-priority items
-3. **Performance Optimizations** - Implement caching and parallel processing improvements
+1. **MCP Server Implementation** - Follow the 15-step blueprint in `prompt_plan.md` to enable LLM integration
+2. **LSP Server Enhancement** - Complete advanced formatting and protocol features for IDE integration
+3. **Type Definition Generation** - Improve Perl introspection and module analysis
+4. **Performance Optimizations** - Implement caching and parallel processing improvements
 
-The project has excellent foundations with ALL of the core type system features completed! The remaining work is primarily focused on integration testing, feature polish, and performance optimizations to fulfill its full potential as a comprehensive Perl development environment with static type checking.
+The project has excellent foundations with ALL of the core type system features completed! Integration tests are now working reliably, and dependency resolution supports modern cpanfile constraints. The next major milestone is implementing the MCP server to enable sophisticated LLM integration with PVM's type system.

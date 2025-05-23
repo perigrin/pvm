@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"tamarou.com/pvm/internal/config"
 )
@@ -244,5 +245,53 @@ func TestMCPConfigValidation(t *testing.T) {
 				t.Errorf("MCPConfig.Validate() hasError = %v, wantError %v, errors = %v", hasError, tt.wantError, errors)
 			}
 		})
+	}
+}
+
+func TestServerMetrics(t *testing.T) {
+	// Create server
+	cfg := &config.Config{
+		MCP: &config.MCPConfig{
+			Port:                 3000,
+			Host:                 "localhost",
+			AutoDiscoverProjects: true,
+		},
+	}
+
+	server, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	// Test initial metrics
+	metrics := server.GetMetrics()
+	if metrics.RequestCount != 0 {
+		t.Errorf("Expected initial RequestCount to be 0, got %d", metrics.RequestCount)
+	}
+	if metrics.ErrorCount != 0 {
+		t.Errorf("Expected initial ErrorCount to be 0, got %d", metrics.ErrorCount)
+	}
+	if len(metrics.ToolUsageCount) != 0 {
+		t.Errorf("Expected initial ToolUsageCount to be empty, got %v", metrics.ToolUsageCount)
+	}
+
+	// Test recordError
+	server.recordError()
+	metrics = server.GetMetrics()
+	if metrics.ErrorCount != 1 {
+		t.Errorf("Expected ErrorCount to be 1 after recordError(), got %d", metrics.ErrorCount)
+	}
+
+	// Test recordToolUsage
+	server.recordToolUsage("test_tool", time.Now().Add(-10*time.Millisecond))
+	metrics = server.GetMetrics()
+	if metrics.RequestCount != 1 {
+		t.Errorf("Expected RequestCount to be 1 after recordToolUsage(), got %d", metrics.RequestCount)
+	}
+	if metrics.ToolUsageCount["test_tool"] != 1 {
+		t.Errorf("Expected ToolUsageCount['test_tool'] to be 1, got %d", metrics.ToolUsageCount["test_tool"])
+	}
+	if metrics.AverageLatency == 0 {
+		t.Error("Expected AverageLatency to be set after recordToolUsage()")
 	}
 }

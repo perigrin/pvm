@@ -1,615 +1,616 @@
-# Method Type Annotations Implementation Blueprint ✅ COMPLETED
+# MCP Server Implementation Blueprint
 
 ## Project Overview
 
-We need to implement parsing support for method type annotations in the PVM (Perl Version Manager) type system. This includes:
-- Method parameter types: `method foo(Type $param)`
-- Method return types: `method foo() -> ReturnType`
-- Combined syntax: `method foo(Type $param) -> ReturnType`
+Implement a Model Context Protocol (MCP) server as a PVM subcommand (`pvm mcp-server`) that provides LLMs with:
+- Perl code analysis using PVM's type system
+- Semantic code search via embeddings
+- Intelligent code generation with collaborative sampling
+- Rich context awareness and project-scoped operations
 
 ## High-Level Architecture
 
-The implementation spans two main components:
-1. **Tree-sitter Grammar Extension** - Add parsing rules for typed method syntax
-2. **Parser Implementation** - Extract and convert parsed annotations to type system objects
+The implementation spans four main components:
+1. **MCP Server Foundation** - Basic server setup, configuration, and tool registration
+2. **Code Analysis Engine** - Leverage PVM's existing type checker and parser
+3. **Embedding System** - Pluggable embedding providers with intelligent caching
+4. **Generation Engine** - Collaborative code generation using MCP sampling
 
 ## Detailed Step-by-Step Blueprint
 
-### Phase 1: Grammar Foundation (Steps 1-3)
-**Goal**: Extend tree-sitter grammar to parse method type annotations
+### Phase 1: Foundation (Steps 1-3)
+**Goal**: Establish basic MCP server infrastructure with PVM integration
 
-### Phase 2: Parser Implementation (Steps 4-6)
-**Goal**: Implement extraction and conversion of parsed method annotations
+### Phase 2: Analysis Engine (Steps 4-6)
+**Goal**: Implement code analysis tools leveraging existing PVM capabilities
 
-### Phase 3: Integration & Testing (Steps 7-8)
-**Goal**: Wire everything together and ensure robust testing
+### Phase 3: Embedding System (Steps 7-10)
+**Goal**: Build semantic search with pluggable embedding providers
+
+### Phase 4: Generation Engine (Steps 11-13)
+**Goal**: Implement collaborative code generation with sampling
+
+### Phase 5: Integration & Testing (Steps 14-15)
+**Goal**: Wire everything together with comprehensive testing
 
 ---
 
 ## Implementation Steps
 
-### Step 1: Add Typed Method Parameter Grammar Rules ✅ COMPLETED
-
-**Scope**: Extend tree-sitter grammar to parse `Type $param` syntax in method signatures
-**Risk**: Low - Additive grammar change
-**Test Strategy**: Grammar-level parsing tests
+### Step 1: MCP Server Command Foundation ✅ COMPLETED
 
 ```text
-Implement tree-sitter grammar rules for typed method parameters.
-
-Context: We need to extend the existing method signature parsing in tree-sitter-typed-perl to support type annotations like `method foo(Type $param, ArrayRef[Int] $data)`.
-
-Current State:
-- The grammar has `method_declaration_statement` and `signature` rules
-- Signatures support basic parameters but not typed parameters
-- The `_signature_vars` rule needs extension
+Create the basic MCP server subcommand infrastructure for PVM.
 
 Requirements:
-1. Add a `typed_method_parameter` rule that matches `Type $variable` syntax
-2. Extend `_signature_vars` to include typed parameters
-3. Ensure the new rule works with existing parameter types (scalar, array, hash)
-4. Maintain backwards compatibility with existing signature parsing
+- Add `mcp-server` subcommand to PVM CLI using cobra
+- Implement basic MCP protocol server using the official MCP Go SDK
+- Integrate with PVM's existing configuration system
+- Support auto-discovery of Perl projects in current directory tree
+- Handle graceful startup/shutdown with proper error reporting
 
-Implementation:
-1. In tree-sitter-typed-perl/grammar.js, add the new rule:
-   ```javascript
-   typed_method_parameter: $ => seq(
-     field('type', $.type_expression),
-     field('parameter', choice(
-       alias($._signature_scalar, $.scalar),
-       alias($._signature_array, $.array),
-       alias($._signature_hash, $.hash)
-     ))
-   ),
-   ```
-
-2. Update `_signature_vars` to include the new rule:
-   ```javascript
-   _signature_vars: $ => choice(
-     $.mandatory_parameter,
-     $.optional_parameter,
-     $.slurpy_parameter,
-     $.named_parameter,
-     $.typed_method_parameter  // Add this line
-   ),
-   ```
-
-3. Test with examples:
-   - `method foo(Str $name)`
-   - `method bar(HashRef[Int] $data, Bool $flag)`
-   - `method baz($regular, Typed $typed)` (mixed parameters)
+Implementation Details:
+- Create `internal/mcp/server.go` with MCP server setup
+- Add `cmd/pvm/mcp.go` for the subcommand
+- Use PVM's config system for MCP-specific settings
+- Implement project discovery logic (look for cpanfile, .perl-version files)
+- Return PVM-style errors for consistency
 
 Testing:
-- Create minimal test cases that parse method signatures with typed parameters
-- Verify the AST structure contains the expected type_expression and parameter nodes
-- Ensure backwards compatibility with existing method signature tests
+- Unit tests for project discovery
+- Integration tests for basic server startup/shutdown
+- Configuration loading tests
+- Error handling verification
 
-Deliverable: Updated grammar.js with typed method parameter support that passes basic parsing tests.
+Acceptance Criteria:
+- ✅ `pvm mcp-server` starts successfully
+- ✅ Server responds to MCP capability requests
+- ✅ Projects are auto-discovered correctly
+- ✅ Configuration loads from PVM config files
+- ✅ Graceful error handling for missing dependencies
+
+COMPLETED: All requirements implemented and tested successfully. MCP server foundation is working.
 ```
 
-### Step 2: Add Method Return Type Grammar Rules ✅ COMPLETED
-
-**Scope**: Add grammar support for `-> ReturnType` syntax after method signatures
-**Risk**: Low - Additive grammar change
-**Test Strategy**: Grammar-level parsing tests
+### Step 2: Basic Tool Registration and Request Handling ✅ COMPLETED
 
 ```text
-Implement tree-sitter grammar rules for method return type annotations.
-
-Context: We need to add support for method return type syntax like `method foo() -> ReturnType` and `method bar(Type $param) -> ReturnType`.
-
-Current State:
-- Method declarations support signatures but not return types
-- Need to add optional return type parsing after signatures
-- The `method_declaration_statement` rule needs extension
+Implement the MCP tool registration system and basic request routing.
 
 Requirements:
-1. Add a `method_return_type` rule that matches `-> Type` syntax
-2. Update `method_declaration_statement` to include optional return types
-3. Ensure return types work with all method signature variations
-4. Maintain proper precedence and parsing order
+- Register three main tool groups: analyze_code, search_code, generate_code
+- Implement request validation and parameter parsing
+- Set up project context management (separate contexts per project)
+- Implement basic error responses using PVM error format
+- Add request logging and basic metrics
 
-Implementation:
-1. Add the method return type rule to grammar.js:
-   ```javascript
-   method_return_type: $ => seq(
-     '->',
-     field('return_type', $.type_expression)
-   ),
-   ```
-
-2. Update the method declaration statement:
-   ```javascript
-   method_declaration_statement: $ => seq(
-     optional(field('lexical', 'my')),
-     subExtensions(),
-     'method',
-     field('name', $.bareword),
-     optseq(':', optional(field('attributes', $.attrlist))),
-     optional(choice($.prototype, $.signature)),
-     optional(field('return_type', $.method_return_type)),  // Add this line
-     field('body', $.block),
-   ),
-   ```
-
-3. Test with examples:
-   - `method foo() -> Str`
-   - `method bar(Type $param) -> ReturnType`
-   - `method baz() -> ArrayRef[Int]` (complex return types)
+Implementation Details:
+- Create `internal/mcp/tools/` package structure
+- Implement tool schema definitions for MCP protocol
+- Add request router that validates and dispatches to appropriate handlers
+- Create project context manager for scoped operations
+- Integrate PVM's error system for consistent error responses
 
 Testing:
-- Create test cases for various return type syntax patterns
-- Verify AST contains method_return_type nodes with proper type_expression children
-- Test interaction between signatures and return types
-- Ensure backwards compatibility with methods without return types
+- Tool registration verification
+- Parameter validation tests
+- Project context isolation tests
+- Error response format validation
+- Request routing correctness
 
-Deliverable: Updated grammar.js with method return type support that passes parsing tests.
+Acceptance Criteria:
+- ✅ All three tool groups are properly registered with MCP
+- ✅ Invalid requests return proper error responses
+- ✅ Project contexts are correctly isolated
+- ✅ Tool schemas are valid according to MCP specification
+- ✅ Logging captures all request/response cycles
+
+COMPLETED: Enhanced tool handlers with proper validation, logging, and metrics tracking. All tools now include comprehensive error handling and performance monitoring.
 ```
 
-### Step 3: Rebuild and Validate Grammar ✅ COMPLETED
-
-**Scope**: Rebuild tree-sitter parser and validate grammar changes
-**Risk**: Medium - Build process dependencies
-**Test Strategy**: Integration tests with sample method code
+### Step 3: Configuration and Validation Framework
 
 ```text
-Rebuild the tree-sitter parser with the new grammar rules and validate the changes.
-
-Context: After modifying the grammar, we need to rebuild the tree-sitter parser and ensure the changes work correctly with real method syntax examples.
-
-Current State:
-- Grammar rules have been added for typed parameters and return types
-- The parser binary needs rebuilding to include the changes
-- Need to validate that parsing works end-to-end
+Implement comprehensive configuration system and input validation using PVM's type checker.
 
 Requirements:
-1. Rebuild the tree-sitter parser binary with the new grammar
-2. Test parsing of complete method examples from the test case
-3. Verify AST structure matches expectations
-4. Ensure no regressions in existing method parsing
+- Extend PVM config to support MCP server settings
+- Implement code validation using existing PVM type checker
+- Add auto-fix functionality with configurable behavior
+- Create sampling infrastructure for LLM collaboration
+- Set up validation caching for performance
 
-Implementation:
-1. Follow the existing build process in the project:
-   - Run `make tree-sitter` or equivalent build command
-   - Ensure tree-sitter-cli is available and working
-   - Verify the build completes without errors
-
-2. Create comprehensive test examples:
-   ```perl
-   class TestClass {
-       method simple() -> Str { }
-       method with_params(Str $name, Int $age) { }
-       method full_syntax(HashRef[Str] $data) -> ArrayRef[Int] { }
-       method mixed($regular, Typed $typed) -> Bool { }
-   }
-   ```
-
-3. Test parsing programmatically:
-   - Use the tree-sitter Go bindings to parse test examples
-   - Inspect the resulting AST structure
-   - Verify that typed_method_parameter and method_return_type nodes appear correctly
+Implementation Details:
+- Add MCP section to PVM configuration schema
+- Create validation service that wraps PVM's type checker
+- Implement sampling client for MCP protocol
+- Add validation result caching with smart invalidation
+- Configure auto-fix behavior (default enabled, user configurable)
 
 Testing:
-- Parse the complete test method examples from the failing test
-- Verify AST contains all expected node types
-- Check that existing method parsing still works
-- Document any AST structure findings for the next step
+- Configuration loading and validation
+- Type checker integration tests
+- Sampling request/response cycle tests
+- Cache hit/miss behavior verification
+- Auto-fix functionality testing
 
-Deliverable: Successfully rebuilt tree-sitter parser with validated grammar changes and documented AST structure.
+Acceptance Criteria:
+- MCP settings integrate seamlessly with PVM config
+- All Perl code inputs are validated before processing
+- Auto-fix attempts work via sampling when enabled
+- Validation results are cached for repeated requests
+- Configuration changes are respected without restart
 ```
 
-### Step 4: Implement Method Signature Processing ✅ COMPLETED
-
-**Scope**: Add parser functions to extract typed method parameters from AST
-**Risk**: Medium - Parser logic complexity
-**Test Strategy**: Unit tests for signature processing
+### Step 4: Code Analysis Tool Implementation
 
 ```text
-Implement parser functions to extract typed method parameter annotations from the tree-sitter AST.
-
-Context: With the grammar changes in place, we need to implement the Go parser code that extracts typed method parameters and converts them to TypeAnnotation objects.
-
-Current State:
-- Tree-sitter grammar can parse typed method parameters
-- The `processMethodDeclaration` function exists but uses regex patterns
-- Need to replace with structured AST traversal
+Implement the analyze_code tool with full type analysis capabilities.
 
 Requirements:
-1. Rewrite `processMethodDeclaration` to use tree-sitter node traversal
-2. Add `processMethodSignature` function to handle signature nodes
-3. Add `processTypedMethodParameter` function for individual parameters
-4. Create proper PerlTypeAnnotation objects for each parameter
-5. Assign correct `MethodParamAnnotation` kind
+- Support three analysis types: get_types, check_errors, infer_types
+- Return structured JSON responses to minimize token usage
+- Leverage PVM's existing parser for code block extraction
+- Implement auto-fix workflow with sampling
+- Handle edge cases and malformed code gracefully
 
-Implementation:
-1. Replace the existing `processMethodDeclaration` function in internal/parser/treesitter/perl.go:
-   ```go
-   func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
-       var methodName string
-
-       for i := 0; i < int(node.ChildCount()); i++ {
-           child := node.Child(uint(i))
-           if child == nil {
-               continue
-           }
-
-           switch child.Kind() {
-           case "bareword":
-               if methodName == "" {
-                   methodName = t.getNodeText(child)
-               }
-           case "signature":
-               t.processMethodSignature(child, methodName, annotations)
-           }
-       }
-   }
-   ```
-
-2. Implement the signature processing function:
-   ```go
-   func (t *PerlTree) processMethodSignature(signatureNode *sitter.Node, methodName string, annotations *[]*PerlTypeAnnotation) {
-       for i := 0; i < int(signatureNode.ChildCount()); i++ {
-           child := signatureNode.Child(uint(i))
-           if child == nil {
-               continue
-           }
-
-           if child.Kind() == "typed_method_parameter" {
-               t.processTypedMethodParameter(child, methodName, annotations)
-           }
-       }
-   }
-   ```
-
-3. Implement the typed parameter processing:
-   ```go
-   func (t *PerlTree) processTypedMethodParameter(paramNode *sitter.Node, methodName string, annotations *[]*PerlTypeAnnotation) {
-       var paramName, typeName string
-
-       for i := 0; i < int(paramNode.ChildCount()); i++ {
-           child := paramNode.Child(uint(i))
-           if child == nil {
-               continue
-           }
-
-           switch child.Kind() {
-           case "type_expression":
-               typeName = t.extractTypeExpression(child)
-           case "scalar", "array", "hash":
-               paramName = t.getNodeText(child)
-           }
-       }
-
-       if paramName != "" && typeName != "" {
-           annotation := &PerlTypeAnnotation{
-               ItemName: paramName,
-               TypeName: typeName,
-               Kind:     "method_parameter",
-               StartPos: int(paramNode.StartByte()),
-               EndPos:   int(paramNode.EndByte()),
-               Content:  t.getNodeText(paramNode),
-           }
-           *annotations = append(*annotations, annotation)
-       }
-   }
-   ```
+Implementation Details:
+- Create `internal/mcp/tools/analyze.go` with analysis logic
+- Integrate with PVM's type system for type extraction
+- Implement error checking and type inference workflows
+- Add auto-fix logic that samples LLM for corrections
+- Return minimal, structured data optimized for LLM consumption
 
 Testing:
-- Create unit tests for each function with minimal AST node examples
-- Test with various parameter types: scalar, array, hash
-- Test with complex type expressions: parameterized types, unions
-- Verify that `MethodParamAnnotation` kind is assigned correctly in conversion
+- Type extraction accuracy tests
+- Error detection and reporting tests
+- Type inference correctness verification
+- Auto-fix workflow integration tests
+- Edge case handling (malformed code, missing types)
 
-Deliverable: Working method signature processing that extracts typed parameter annotations.
+Acceptance Criteria:
+- Accurately extracts type information from Perl code
+- Detects and reports type errors with PVM consistency
+- Infers types correctly using PVM's inference engine
+- Auto-fix workflow successfully corrects common errors
+- Responses are minimal and LLM-friendly
 ```
 
-### Step 5: Implement Method Return Type Processing ✅ COMPLETED
-
-**Scope**: Add parser functions to extract method return type annotations
-**Risk**: Low - Similar to parameter processing
-**Test Strategy**: Unit tests for return type processing
+### Step 5: Project-Scoped Analysis and Context Management
 
 ```text
-Implement parser functions to extract method return type annotations from the tree-sitter AST.
-
-Context: Building on the signature processing, we need to handle method return types like `-> ReturnType` and convert them to MethodReturnAnnotation objects.
-
-Current State:
-- Method signature processing is implemented
-- Grammar supports method_return_type nodes
-- Need to add return type extraction logic
+Enhance analysis tools with project-aware context and cross-file type resolution.
 
 Requirements:
-1. Add return type handling to `processMethodDeclaration`
-2. Implement `processMethodReturnType` function
-3. Create proper PerlTypeAnnotation objects for return types
-4. Assign correct `MethodReturnAnnotation` kind
-5. Handle method name association for return types
+- Implement project-scoped type lookups and imports
+- Add support for analyzing code in context of entire project
+- Handle module dependencies and type imports correctly
+- Optimize analysis performance with smart caching
+- Provide project-level type summaries and statistics
 
-Implementation:
-1. Update `processMethodDeclaration` to handle return types:
-   ```go
-   func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
-       var methodName string
-
-       for i := 0; i < int(node.ChildCount()); i++ {
-           child := node.Child(uint(i))
-           if child == nil {
-               continue
-           }
-
-           switch child.Kind() {
-           case "bareword":
-               if methodName == "" {
-                   methodName = t.getNodeText(child)
-               }
-           case "signature":
-               t.processMethodSignature(child, methodName, annotations)
-           case "method_return_type":
-               t.processMethodReturnType(child, methodName, annotations)
-           }
-       }
-   }
-   ```
-
-2. Implement the return type processing function:
-   ```go
-   func (t *PerlTree) processMethodReturnType(returnTypeNode *sitter.Node, methodName string, annotations *[]*PerlTypeAnnotation) {
-       for i := 0; i < int(returnTypeNode.ChildCount()); i++ {
-           child := returnTypeNode.Child(uint(i))
-           if child == nil {
-               continue
-           }
-
-           if child.Kind() == "type_expression" {
-               typeName := t.extractTypeExpression(child)
-
-               if typeName != "" {
-                   annotation := &PerlTypeAnnotation{
-                       ItemName: methodName + "_return",  // Unique identifier for return type
-                       TypeName: typeName,
-                       Kind:     "method_return",
-                       StartPos: int(returnTypeNode.StartByte()),
-                       EndPos:   int(returnTypeNode.EndByte()),
-                       Content:  t.getNodeText(returnTypeNode),
-                   }
-                   *annotations = append(*annotations, annotation)
-               }
-               break
-           }
-       }
-   }
-   ```
-
-3. Update the annotation conversion in parser.go to handle the new kinds:
-   ```go
-   case "method_parameter":
-       kind = MethodParamAnnotation
-   case "method_return":
-       kind = MethodReturnAnnotation
-   ```
+Implementation Details:
+- Create project context builder that maps all types and modules
+- Implement cross-file type resolution using existing PVM logic
+- Add project-level caching for type definitions and imports
+- Create type summary generation for project overview
+- Optimize for repeated analyses within same project
 
 Testing:
-- Create unit tests for return type processing with various type expressions
-- Test simple types: `-> Str`, `-> Int`
-- Test complex types: `-> HashRef[Str]`, `-> ArrayRef[Int]`
-- Verify that `MethodReturnAnnotation` kind is assigned correctly
-- Test methods with both parameters and return types
+- Cross-file type resolution accuracy
+- Project context building correctness
+- Cache performance and invalidation
+- Type summary completeness
+- Large project handling performance
 
-Deliverable: Working method return type processing that extracts return type annotations.
+Acceptance Criteria:
+- Code analysis works correctly with imported types
+- Project context provides accurate cross-file type information
+- Performance is acceptable for projects with 100+ files
+- Type summaries accurately represent project structure
+- Context updates correctly when files change
 ```
 
-### Step 6: Update Annotation Conversion Pipeline ✅ COMPLETED
-
-**Scope**: Ensure proper conversion from PerlTypeAnnotation to main parser TypeAnnotation
-**Risk**: Low - Existing conversion patterns
-**Test Strategy**: Integration tests with type conversion
+### Step 6: Advanced Analysis Features
 
 ```text
-Update the annotation conversion pipeline to properly handle method parameter and return type annotations.
-
-Context: The tree-sitter parser extracts PerlTypeAnnotation objects, but these need to be converted to the main parser's TypeAnnotation format with correct kinds and type expressions.
-
-Current State:
-- Method parameter and return type extraction is implemented
-- The `convertPerlTypeAnnotation` function needs updates for new annotation kinds
-- Type expression parsing should already work from previous implementations
+Add sophisticated analysis capabilities including flow-sensitive analysis and type refinement.
 
 Requirements:
-1. Add handling for "method_parameter" and "method_return" kinds in conversion
-2. Ensure type expression parsing works for method annotations
-3. Verify correct AnnotationKind assignment
-4. Test the complete pipeline from AST to TypeAnnotation
+- Integrate PVM's flow-sensitive type analysis
+- Add support for conditional type refinement
+- Implement type compatibility checking
+- Add code quality analysis (complexity, type coverage)
+- Support analysis of type annotations and their correctness
 
-Implementation:
-1. Update the conversion function in internal/parser/treesitter/parser.go:
-   ```go
-   switch perlAnn.Kind {
-   case "variable":
-       kind = VarAnnotation
-   case "subroutine":
-       kind = SubParamAnnotation
-   case "method":
-       kind = MethodParamAnnotation // Keep existing for backwards compatibility
-   case "method_parameter":
-       kind = MethodParamAnnotation
-   case "method_return":
-       kind = MethodReturnAnnotation
-   case "type_declaration":
-       kind = TypeDeclAnnotation
-   default:
-       kind = VarAnnotation
-   }
-   ```
-
-2. Ensure the type expression parsing handles method-specific cases:
-   - The existing `parseTypeExpression` function should work for method types
-   - Test with parameterized types from method signatures
-   - Verify complex type expressions are parsed correctly
-
-3. Add debug output for method annotation conversion:
-   ```go
-   if os.Getenv("DEBUG_PARSER") == "1" && (perlAnn.Kind == "method_parameter" || perlAnn.Kind == "method_return") {
-       fmt.Printf("DEBUG: Converting method annotation: %s = %s (kind: %s)\n",
-                  perlAnn.ItemName, perlAnn.TypeName, perlAnn.Kind)
-   }
-   ```
+Implementation Details:
+- Integrate with PVM's flow-sensitive analysis engine
+- Add conditional type refinement detection and reporting
+- Implement type compatibility matrix generation
+- Create code quality metrics based on type information
+- Add type annotation validation and suggestions
 
 Testing:
-- Create integration tests that parse complete method examples
-- Verify that PerlTypeAnnotation objects are created correctly
-- Test conversion to main parser TypeAnnotation format
-- Check that annotation kinds are assigned properly
-- Test with the actual method examples from the failing test case
+- Flow-sensitive analysis accuracy tests
+- Type refinement detection verification
+- Compatibility checking correctness
+- Code quality metrics validation
+- Type annotation analysis tests
 
-Deliverable: Complete annotation conversion pipeline that properly handles method type annotations.
+Acceptance Criteria:
+- Flow-sensitive analysis provides accurate results
+- Type refinement is correctly detected and reported
+- Compatibility checking matches PVM's behavior
+- Code quality metrics are meaningful and actionable
+- Type annotation analysis helps improve code quality
 ```
 
-### Step 7: Enable and Debug Test Case ✅ COMPLETED
-
-**Scope**: Enable TestParseMethodTypeAnnotations and fix any remaining issues
-**Risk**: Medium - Integration debugging
-**Test Strategy**: Full test case execution and debugging
+### Step 7: Embedding Provider Architecture
 
 ```text
-Enable the TestParseMethodTypeAnnotations test case and debug any remaining parsing issues.
-
-Context: With all the parsing infrastructure in place, we need to enable the skipped test and ensure it passes completely, finding all expected annotations.
-
-Current State:
-- All parser components are implemented
-- The test is currently skipped with a message about incomplete implementation
-- Need to enable the test and debug any issues
+Create pluggable embedding provider system with three initial implementations.
 
 Requirements:
-1. Remove the test skip and enable the full test
-2. Parse the complete test method examples
-3. Debug and fix any annotation extraction issues
-4. Ensure all 10 expected annotations are found
-5. Verify correct annotation kinds and type expressions
+- Design pluggable architecture for embedding providers
+- Implement OpenAI embeddings provider
+- Implement VoyageAI embeddings provider
+- Implement local HuggingFace embeddings provider
+- Add provider configuration and selection logic
 
-Implementation:
-1. Remove the skip from TestParseMethodTypeAnnotations in internal/parser/parser_test.go:
-   ```go
-   func TestParseMethodTypeAnnotations(t *testing.T) {
-       // Method type annotations are now implemented in tree-sitter parser
+Implementation Details:
+- Create `internal/mcp/embeddings/` package with provider interface
+- Implement OpenAI provider using their API
+- Implement VoyageAI provider using their API
+- Implement HuggingFace provider with local model support
+- Add provider factory and configuration management
+- Handle provider failures gracefully with fallbacks
 
-       // Create a parser
-       p, err := NewParser()
-       require.NoError(t, err)
-       require.NotNil(t, p)
-       // ... rest of test
-   ```
+Testing:
+- Provider interface compliance tests
+- API integration tests for external providers
+- Local model loading and inference tests
+- Provider switching and fallback behavior
+- Error handling for network/model failures
 
-2. Run the test with debug output enabled:
-   ```bash
-   DEBUG_PARSER=1 go test -v -run TestParseMethodTypeAnnotations ./internal/parser
-   ```
-
-3. Debug common issues:
-   - Check that method_declaration nodes are being found
-   - Verify signature and method_return_type nodes are parsed correctly
-   - Ensure typed_method_parameter nodes appear in the AST
-   - Debug type expression parsing for complex types
-
-4. Fix any issues found:
-   - Grammar precedence or parsing problems
-   - AST traversal logic errors
-   - Type expression extraction issues
-   - Annotation kind assignment problems
-
-Testing Strategy:
-- Run with debug output to see what annotations are found
-- Compare expected vs actual annotations
-- Debug step by step through the parsing pipeline
-- Test individual method examples in isolation if needed
-- Verify that field annotations (already working) still pass
-
-Deliverable: Enabled and passing TestParseMethodTypeAnnotations test case.
+Acceptance Criteria:
+- All three providers implement the same interface correctly
+- External API providers handle authentication and rate limiting
+- Local HuggingFace provider works offline
+- Provider selection is configurable and works reliably
+- Graceful degradation when providers are unavailable
 ```
 
-### Step 8: Integration Testing and Cleanup ✅ COMPLETED
-
-**Scope**: Run full test suite, ensure no regressions, clean up code
-**Risk**: Low - Final validation
-**Test Strategy**: Complete test suite execution
+### Step 8: Code Block Extraction and Context Building
 
 ```text
-Perform comprehensive integration testing and code cleanup to ensure the implementation is robust and complete.
-
-Context: With the main functionality working, we need to ensure no regressions were introduced and that the implementation follows project standards.
-
-Current State:
-- TestParseMethodTypeAnnotations should be passing
-- All implementation components are in place
-- Need to validate the complete system and clean up
+Implement intelligent code block extraction using PVM's parser with rich context.
 
 Requirements:
-1. Run the complete parser test suite to check for regressions
-2. Run related type system tests to ensure integration
-3. Clean up any debug code or temporary implementations
-4. Ensure code follows project formatting and style standards
-5. Update documentation if needed
+- Use PVM's Perl parsing to identify meaningful code blocks
+- Extract rich context including imports, module declarations, scope
+- Handle different code block types (functions, classes, statements)
+- Build hierarchical context for accurate embeddings
+- Optimize extraction performance for large files
 
-Implementation:
-1. Run the full parser test suite:
-   ```bash
-   go test -v ./internal/parser
-   ```
+Implementation Details:
+- Create code block extractor using PVM's AST parsing
+- Implement context builder that captures file-level metadata
+- Add scope detection for variables, functions, and classes
+- Build context hierarchy (immediate context + inherited context)
+- Optimize parsing to avoid re-parsing unchanged files
 
-2. Run related tests to check for regressions:
-   ```bash
-   go test -v ./internal/typedef
-   go test -v ./internal/typechecker
-   ```
+Testing:
+- Code block extraction accuracy across different Perl constructs
+- Context building completeness and correctness
+- Performance tests with large files
+- Scope detection accuracy
+- Context hierarchy validation
 
-3. Clean up implementation:
-   - Remove or formalize any debug output
-   - Ensure consistent error handling
-   - Add any missing documentation comments
-   - Verify code formatting with `go fmt`
-
-4. Performance validation:
-   - Ensure parsing performance hasn't degraded
-   - Check that the new grammar doesn't significantly slow down parsing
-   - Verify memory usage is reasonable
-
-5. Integration checks:
-   - Test method type annotations with the type checker
-   - Verify annotations work with the rest of the type system
-   - Check that PSC (Perl Static Checker) can use the new annotations
-
-Testing Strategy:
-- Run comprehensive test suite
-- Test with various method signature patterns beyond the test case
-- Verify backwards compatibility with existing code
-- Check integration with other type system components
-
-Deliverable: Complete, tested, and cleaned implementation of method type annotations parsing.
+Acceptance Criteria:
+- Extracts meaningful code blocks using proper Perl parsing
+- Context includes all relevant imports and declarations
+- Different code block types are handled appropriately
+- Performance is acceptable for files up to 10k lines
+- Context accurately represents code's semantic environment
 ```
 
----
+### Step 9: Embedding Cache System
 
-## Implementation Prompts Summary
+```text
+Implement sophisticated caching system for embeddings with context-aware keys.
 
-The implementation has been broken down into 8 carefully sized steps:
+Requirements:
+- Design cache keys that include code content + file context
+- Implement intelligent cache invalidation based on context changes
+- Add hierarchical context storage to manage cache size
+- Support configurable cache size limits and eviction policies
+- Provide cache statistics and monitoring
 
-1. **Add Typed Method Parameter Grammar Rules** - Grammar extension for `Type $param`
-2. **Add Method Return Type Grammar Rules** - Grammar extension for `-> ReturnType`
-3. **Rebuild and Validate Grammar** - Build process and validation
-4. **Implement Method Signature Processing** - Parser logic for parameters
-5. **Implement Method Return Type Processing** - Parser logic for return types
-6. **Update Annotation Conversion Pipeline** - Integration with type system
-7. **Enable and Debug Test Case** - Test enablement and debugging
-8. **Integration Testing and Cleanup** - Final validation and cleanup
+Implementation Details:
+- Create cache key generator using content + context hash
+- Implement LRU cache with size-based eviction
+- Add context change detection for smart invalidation
+- Store direct context in keys, inherited context separately
+- Add cache metrics and performance monitoring
 
-Each step builds incrementally on the previous ones, with strong testing at every stage. The steps are sized to be implementable safely while making meaningful progress toward the goal.
+Testing:
+- Cache key collision detection and uniqueness
+- Invalidation correctness when context changes
+- Eviction policy behavior under memory pressure
+- Performance impact of cache operations
+- Cache hit rate optimization
 
-The approach prioritizes:
-- **Incremental Progress**: Each step adds a specific capability
-- **Early Testing**: Grammar and parser components are tested in isolation
-- **No Big Jumps**: Complexity increases gradually across steps
-- **Integration Focus**: Steps 6-8 ensure everything works together
-- **Best Practices**: Follows existing code patterns and project standards
+Acceptance Criteria:
+- Cache keys correctly differentiate contexts
+- Invalidation happens precisely when needed
+- Cache size stays within configured limits
+- Hit rates are optimized for typical usage patterns
+- Performance monitoring provides actionable insights
+```
 
-This blueprint provides a robust foundation for implementing method type annotations parsing with confidence and reliability.
+### Step 10: Search Tool Implementation
+
+```text
+Implement semantic search capabilities using the embedding system.
+
+Requirements:
+- Support three search methods: similarity, type_signature, pattern
+- Integrate with embedding cache for performance
+- Provide ranked results with relevance scores
+- Add filtering by project scope and code block type
+- Optimize search performance for large codebases
+
+Implementation Details:
+- Create `internal/mcp/tools/search.go` with search logic
+- Implement similarity search using vector comparisons
+- Add type signature matching using type system knowledge
+- Create pattern search with regex and AST matching
+- Add result ranking and relevance scoring algorithms
+
+Testing:
+- Search accuracy across different query types
+- Performance tests with large embedding databases
+- Relevance scoring validation
+- Filtering correctness by project and type
+- Edge case handling (empty results, malformed queries)
+
+Acceptance Criteria:
+- Similarity search returns semantically related code
+- Type signature search accurately matches function signatures
+- Pattern search handles complex regex and AST patterns
+- Results are ranked meaningfully by relevance
+- Performance scales to codebases with 1000+ files
+```
+
+### Step 11: Generation Memory System
+
+```text
+Implement small memory system for maintaining context during code generation tasks.
+
+Requirements:
+- Maintain context within single generation task
+- Store type choices, naming conventions, and decisions
+- Clear memory when generation task completes
+- Provide context querying for generation decisions
+- Keep memory size bounded and efficient
+
+Implementation Details:
+- Create generation session manager with scoped memory
+- Implement context storage for types, names, and patterns
+- Add memory querying interface for generation tools
+- Create automatic cleanup on task completion
+- Design memory structure for efficient access and updates
+
+Testing:
+- Memory persistence within generation sessions
+- Proper cleanup between different generation tasks
+- Context querying accuracy and performance
+- Memory size bounds and enforcement
+- Concurrent session isolation
+
+Acceptance Criteria:
+- Memory correctly maintains context during generation
+- Memory is completely cleared between generation tasks
+- Context queries provide relevant information efficiently
+- Memory usage stays within configured bounds
+- Multiple concurrent generations are properly isolated
+```
+
+### Step 12: Collaborative Code Generation with Sampling
+
+```text
+Implement collaborative code generation using MCP sampling for LLM interaction.
+
+Requirements:
+- Support three generation types: function, class, test
+- Use sampling to collaborate with LLM on design decisions
+- Integrate with generation memory for context continuity
+- Validate generated code using PVM's type checker
+- Provide iterative refinement through sampling
+
+Implementation Details:
+- Create `internal/mcp/tools/generate.go` with generation logic
+- Implement sampling workflows for each generation type
+- Add template systems for common Perl patterns
+- Integrate type validation and auto-correction
+- Create iterative refinement loops with LLM feedback
+
+Testing:
+- Generation quality across different code types
+- Sampling workflow correctness and reliability
+- Memory integration during generation sessions
+- Type validation and correction effectiveness
+- Iterative refinement convergence
+
+Acceptance Criteria:
+- Generated code follows Perl best practices and PVM typing
+- Sampling collaboration produces meaningful results
+- Memory provides helpful context throughout generation
+- Type validation catches errors early in generation
+- Iterative refinement improves code quality
+```
+
+### Step 13: Advanced Generation Features
+
+```text
+Add sophisticated generation capabilities including test generation and refactoring.
+
+Requirements:
+- Generate comprehensive test suites from type signatures
+- Support code refactoring with type preservation
+- Add documentation generation from typed code
+- Implement code completion and suggestion features
+- Support batch generation operations
+
+Implementation Details:
+- Create test generation templates and logic
+- Implement type-preserving refactoring algorithms
+- Add documentation generators using type information
+- Create completion engine for partial code
+- Add batch processing for multiple generation requests
+
+Testing:
+- Test generation coverage and quality
+- Refactoring correctness and type preservation
+- Documentation accuracy and completeness
+- Completion relevance and accuracy
+- Batch operation performance and reliability
+
+Acceptance Criteria:
+- Generated tests provide good coverage of type constraints
+- Refactoring maintains type correctness throughout
+- Generated documentation is accurate and helpful
+- Code completion suggestions are contextually relevant
+- Batch operations handle large requests efficiently
+```
+
+### Step 14: Integration and Performance Optimization
+
+```text
+Integrate all components and optimize performance for production use.
+
+Requirements:
+- Integrate all tools into cohesive MCP server
+- Optimize performance for concurrent requests
+- Add comprehensive error handling and recovery
+- Implement health checks and monitoring
+- Add graceful degradation for component failures
+
+Implementation Details:
+- Create integrated server with all tools properly wired
+- Add connection pooling and request queuing
+- Implement circuit breakers for external dependencies
+- Add health check endpoints and monitoring metrics
+- Create fallback modes for component failures
+
+Testing:
+- End-to-end integration tests covering all workflows
+- Performance tests under load with concurrent requests
+- Failure recovery and graceful degradation tests
+- Health check accuracy and monitoring coverage
+- Resource usage optimization verification
+
+Acceptance Criteria:
+- All tools work together seamlessly in integrated server
+- Performance scales to handle 10+ concurrent LLM sessions
+- System recovers gracefully from component failures
+- Health checks accurately reflect system status
+- Resource usage is optimized for production deployment
+```
+
+### Step 15: Comprehensive Testing and Documentation
+
+```text
+Add comprehensive test suite and complete documentation for the MCP server.
+
+Requirements:
+- Create integration tests for all major workflows
+- Add performance benchmarks and regression tests
+- Write comprehensive user documentation
+- Create LLM integration examples and best practices
+- Add troubleshooting guides and debugging tools
+
+Implementation Details:
+- Create end-to-end test suite covering all use cases
+- Implement performance benchmarks for key operations
+- Write user guide with configuration and usage examples
+- Create LLM prompt examples and integration patterns
+- Add debugging tools and troubleshooting documentation
+
+Testing:
+- Full system integration tests with real projects
+- Performance regression test suite
+- Documentation accuracy and completeness verification
+- Example code correctness and functionality
+- Troubleshooting guide effectiveness
+
+Acceptance Criteria:
+- Test suite provides comprehensive coverage of all functionality
+- Performance benchmarks establish baseline expectations
+- Documentation enables users to successfully deploy and use the system
+- Examples demonstrate best practices for LLM integration
+- Troubleshooting guides help users resolve common issues
+```
+
+## Implementation Notes
+
+### Dependencies
+- MCP Go SDK for protocol implementation
+- Existing PVM components (type checker, parser, config system)
+- Embedding provider APIs (OpenAI, VoyageAI)
+- HuggingFace transformers for local embeddings
+
+### File Structure
+```
+internal/mcp/
+├── server.go              # Main MCP server implementation
+├── config.go              # MCP-specific configuration
+├── project.go             # Project discovery and context management
+├── tools/
+│   ├── analyze.go          # Code analysis tool
+│   ├── search.go           # Code search tool
+│   └── generate.go         # Code generation tool
+├── embeddings/
+│   ├── provider.go         # Embedding provider interface
+│   ├── openai.go           # OpenAI embeddings
+│   ├── voyage.go           # VoyageAI embeddings
+│   ├── huggingface.go      # Local HF embeddings
+│   └── cache.go            # Embedding cache system
+├── generation/
+│   ├── memory.go           # Generation memory system
+│   ├── sampling.go         # MCP sampling client
+│   └── templates.go        # Code generation templates
+└── validation/
+    ├── validator.go        # Code validation service
+    └── auto_fix.go         # Auto-fix functionality
+
+cmd/pvm/
+└── mcp.go                  # MCP server subcommand
+```
+
+### Configuration Schema Extension
+```toml
+[mcp_server]
+# Server settings
+port = 3000
+host = "localhost"
+auto_discover_projects = true
+
+# Analysis settings
+auto_fix_errors = true
+validation_cache_size = "50MB"
+
+# Embedding settings
+embedding_provider = "openai"  # openai | voyageai | huggingface
+embedding_cache_size = "100MB"
+embedding_model = "text-embedding-3-small"  # provider-specific
+
+# Generation settings
+generation_memory_size = 50
+enable_iterative_refinement = true
+
+# Performance settings
+max_concurrent_requests = 10
+request_timeout = "30s"
+```
+
+This blueprint provides a comprehensive, step-by-step approach to implementing a sophisticated MCP server that leverages PVM's existing capabilities while adding powerful LLM integration features. Each step builds incrementally on the previous ones, ensuring safe and testable development progression.

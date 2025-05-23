@@ -9,18 +9,58 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"tamarou.com/pvm/internal/config"
+	"tamarou.com/pvm/internal/log"
+	"tamarou.com/pvm/internal/mcp/generation"
+	"tamarou.com/pvm/internal/mcp/validation"
 )
 
 // Server represents the MCP server for PVM
 type Server struct {
-	config       *config.MCPConfig
-	mcpServer    *server.MCPServer
-	projects     map[string]*ProjectContext
-	globalConfig *config.Config
+	config         *config.MCPConfig
+	mcpServer      *server.MCPServer
+	projects       map[string]*ProjectContext
+	globalConfig   *config.Config
+	metrics        *ServerMetrics
+	logger         *log.Logger
+	validator      *validation.Validator
+	autoFixer      *validation.AutoFixer
+	samplingClient *generation.SamplingClient
+}
+
+// ServerMetrics tracks server performance and usage statistics
+type ServerMetrics struct {
+	mu              sync.RWMutex
+	RequestCount    int64            `json:"request_count"`
+	ErrorCount      int64            `json:"error_count"`
+	ToolUsageCount  map[string]int64 `json:"tool_usage_count"`
+	AverageLatency  time.Duration    `json:"average_latency"`
+	LastRequestTime time.Time        `json:"last_request_time"`
+	StartTime       time.Time        `json:"start_time"`
+}
+
+// NewServerMetrics creates a new ServerMetrics instance
+func NewServerMetrics() *ServerMetrics {
+	return &ServerMetrics{
+		ToolUsageCount: make(map[string]int64),
+		StartTime:      time.Now(),
+	}
+}
+
+// MetricsSnapshot represents a read-only snapshot of server metrics
+type MetricsSnapshot struct {
+	RequestCount    int64            `json:"request_count"`
+	ErrorCount      int64            `json:"error_count"`
+	ToolUsageCount  map[string]int64 `json:"tool_usage_count"`
+	AverageLatency  time.Duration    `json:"average_latency"`
+	LastRequestTime time.Time        `json:"last_request_time"`
+	StartTime       time.Time        `json:"start_time"`
 }
 
 // ProjectContext holds context information for a discovered Perl project
@@ -46,11 +86,41 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		server.WithRecovery(),
 	)
 
+	// Create logger
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "mcp-server")
+
+	// Create validation cache
+	cacheSize := cfg.MCP.ValidationCacheSize
+	if cacheSize == "" {
+		cacheSize = "50MB"
+	}
+	validationCache, err := validation.NewValidationCache(cacheSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create validation cache: %w", err)
+	}
+
+	// Create validator
+	validator, err := validation.NewValidator(validationCache)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create validator: %w", err)
+	}
+
+	// Create sampling client
+	samplingClient := generation.NewSamplingClient(cfg.MCP.EnableIterativeRefinement)
+
+	// Create auto-fixer
+	autoFixer := validation.NewAutoFixer(validator, samplingClient, cfg.MCP.AutoFixErrors)
+
 	pvmServer := &Server{
-		config:       cfg.MCP,
-		mcpServer:    mcpServer,
-		projects:     make(map[string]*ProjectContext),
-		globalConfig: cfg,
+		config:         cfg.MCP,
+		mcpServer:      mcpServer,
+		projects:       make(map[string]*ProjectContext),
+		globalConfig:   cfg,
+		metrics:        NewServerMetrics(),
+		logger:         logger,
+		validator:      validator,
+		autoFixer:      autoFixer,
+		samplingClient: samplingClient,
 	}
 
 	// Register tool groups
@@ -250,48 +320,194 @@ func (s *Server) registerGenerateTools() error {
 // Tool handler implementations (placeholders for now)
 
 func (s *Server) handleAnalyzeCode(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Placeholder implementation
-	// This will be implemented in Step 4
-	code, _ := request.RequireString("code")
-	analysisType, _ := request.RequireString("analysis_type")
+	startTime := time.Now()
+	defer s.recordToolUsage("analyze_code", startTime)
 
-	result := map[string]interface{}{
-		"status":        "not_implemented",
-		"message":       "analyze_code tool will be implemented in Step 4",
-		"code_length":   len(code),
-		"analysis_type": analysisType,
+	// Log request
+	s.logger.Debugf("handleAnalyzeCode called")
+
+	// Validate and extract parameters
+	code, err := request.RequireString("code")
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to get 'code' parameter: %v", err)
+		return nil, fmt.Errorf("missing or invalid 'code' parameter: %w", err)
 	}
 
-	return mcp.NewToolResultText(fmt.Sprintf("Analyze code result: %v", result)), nil
+	analysisType, err := request.RequireString("analysis_type")
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to get 'analysis_type' parameter: %v", err)
+		return nil, fmt.Errorf("missing or invalid 'analysis_type' parameter: %w", err)
+	}
+
+	// Validate analysis type
+	validTypes := map[string]bool{
+		"get_types":    true,
+		"check_errors": true,
+		"infer_types":  true,
+	}
+	if !validTypes[analysisType] {
+		s.recordError()
+		s.logger.Errorf("Invalid analysis_type: %s", analysisType)
+		return nil, fmt.Errorf("invalid analysis_type '%s', must be one of: get_types, check_errors, infer_types", analysisType)
+	}
+
+	// Get optional project path
+	projectPath := request.GetString("project_path", "")
+
+	s.logger.Infof("Analyzing code: type=%s, length=%d, project=%s", analysisType, len(code), projectPath)
+
+	// Validate the code first
+	validationResult, err := s.validator.ValidateCode(ctx, code, projectPath)
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to validate code: %v", err)
+		return nil, fmt.Errorf("failed to validate code: %w", err)
+	}
+
+	// Prepare result based on analysis type
+	var result map[string]interface{}
+
+	switch analysisType {
+	case "get_types":
+		result = map[string]interface{}{
+			"status":    "success",
+			"type_info": validationResult.TypeInfo,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		}
+
+	case "check_errors":
+		// Attempt auto-fix if enabled and there are errors
+		var fixes []validation.FixError
+		if !validationResult.Valid && s.config.AutoFixErrors {
+			fixes, _ = s.autoFixer.AutoFix(ctx, code, validationResult.Errors, projectPath)
+		}
+
+		result = map[string]interface{}{
+			"status":    "success",
+			"valid":     validationResult.Valid,
+			"errors":    validationResult.Errors,
+			"warnings":  validationResult.Warnings,
+			"fixes":     fixes,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		}
+
+	case "infer_types":
+		// For now, return the same as get_types
+		// In Step 4, we'll implement actual type inference
+		result = map[string]interface{}{
+			"status":    "success",
+			"type_info": validationResult.TypeInfo,
+			"inferred":  true,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		}
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("%v", result)), nil
 }
 
 func (s *Server) handleSearchCode(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Placeholder implementation
-	// This will be implemented in Step 10
-	query, _ := request.RequireString("query")
-	searchMethod, _ := request.RequireString("search_method")
+	startTime := time.Now()
+	defer s.recordToolUsage("search_code", startTime)
 
+	// Log request
+	s.logger.Debugf("handleSearchCode called")
+
+	// Validate and extract parameters
+	query, err := request.RequireString("query")
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to get 'query' parameter: %v", err)
+		return nil, fmt.Errorf("missing or invalid 'query' parameter: %w", err)
+	}
+
+	searchMethod, err := request.RequireString("search_method")
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to get 'search_method' parameter: %v", err)
+		return nil, fmt.Errorf("missing or invalid 'search_method' parameter: %w", err)
+	}
+
+	// Validate search method
+	validMethods := map[string]bool{
+		"similarity":     true,
+		"type_signature": true,
+		"pattern":        true,
+	}
+	if !validMethods[searchMethod] {
+		s.recordError()
+		s.logger.Errorf("Invalid search_method: %s", searchMethod)
+		return nil, fmt.Errorf("invalid search_method '%s', must be one of: similarity, type_signature, pattern", searchMethod)
+	}
+
+	// Get optional project path
+	projectPath := request.GetString("project_path", "")
+
+	s.logger.Infof("Searching code: method=%s, query=%s, project=%s", searchMethod, query, projectPath)
+
+	// Placeholder implementation - will be implemented in Step 10
 	result := map[string]interface{}{
 		"status":        "not_implemented",
 		"message":       "search_code tool will be implemented in Step 10",
 		"query":         query,
 		"search_method": searchMethod,
+		"project_path":  projectPath,
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Search code result: %v", result)), nil
 }
 
 func (s *Server) handleGenerateCode(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// Placeholder implementation
-	// This will be implemented in Step 12
-	generationType, _ := request.RequireString("generation_type")
-	specification, _ := request.RequireString("specification")
+	startTime := time.Now()
+	defer s.recordToolUsage("generate_code", startTime)
 
+	// Log request
+	s.logger.Debugf("handleGenerateCode called")
+
+	// Validate and extract parameters
+	generationType, err := request.RequireString("generation_type")
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to get 'generation_type' parameter: %v", err)
+		return nil, fmt.Errorf("missing or invalid 'generation_type' parameter: %w", err)
+	}
+
+	specification, err := request.RequireString("specification")
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to get 'specification' parameter: %v", err)
+		return nil, fmt.Errorf("missing or invalid 'specification' parameter: %w", err)
+	}
+
+	// Validate generation type
+	validTypes := map[string]bool{
+		"function": true,
+		"class":    true,
+		"test":     true,
+	}
+	if !validTypes[generationType] {
+		s.recordError()
+		s.logger.Errorf("Invalid generation_type: %s", generationType)
+		return nil, fmt.Errorf("invalid generation_type '%s', must be one of: function, class, test", generationType)
+	}
+
+	// Get optional parameters
+	context := request.GetString("context", "")
+	projectPath := request.GetString("project_path", "")
+
+	s.logger.Infof("Generating code: type=%s, spec_length=%d, project=%s", generationType, len(specification), projectPath)
+
+	// Placeholder implementation - will be implemented in Step 12
 	result := map[string]interface{}{
 		"status":          "not_implemented",
 		"message":         "generate_code tool will be implemented in Step 12",
 		"generation_type": generationType,
 		"specification":   specification,
+		"context":         context,
+		"project_path":    projectPath,
+		"timestamp":       time.Now().UTC().Format(time.RFC3339),
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Generate code result: %v", result)), nil
@@ -305,4 +521,59 @@ func (s *Server) GetProjects() map[string]*ProjectContext {
 // GetConfig returns the MCP configuration
 func (s *Server) GetConfig() *config.MCPConfig {
 	return s.config
+}
+
+// recordToolUsage records metrics for tool usage
+func (s *Server) recordToolUsage(toolName string, startTime time.Time) {
+	duration := time.Since(startTime)
+
+	s.metrics.mu.Lock()
+	defer s.metrics.mu.Unlock()
+
+	// Increment request count
+	atomic.AddInt64(&s.metrics.RequestCount, 1)
+
+	// Increment tool-specific usage count
+	s.metrics.ToolUsageCount[toolName]++
+
+	// Update average latency (simple moving average)
+	if s.metrics.AverageLatency == 0 {
+		s.metrics.AverageLatency = duration
+	} else {
+		// Simple weighted average - could be improved with more sophisticated algorithms
+		s.metrics.AverageLatency = (s.metrics.AverageLatency + duration) / 2
+	}
+
+	// Update last request time
+	s.metrics.LastRequestTime = time.Now()
+
+	s.logger.Debugf("Tool usage recorded: %s took %v", toolName, duration)
+}
+
+// recordError records an error occurrence
+func (s *Server) recordError() {
+	atomic.AddInt64(&s.metrics.ErrorCount, 1)
+}
+
+// GetMetrics returns a snapshot of the current metrics
+func (s *Server) GetMetrics() MetricsSnapshot {
+	s.metrics.mu.RLock()
+	defer s.metrics.mu.RUnlock()
+
+	// Create a snapshot to avoid data races
+	snapshot := MetricsSnapshot{
+		RequestCount:    atomic.LoadInt64(&s.metrics.RequestCount),
+		ErrorCount:      atomic.LoadInt64(&s.metrics.ErrorCount),
+		ToolUsageCount:  make(map[string]int64),
+		AverageLatency:  s.metrics.AverageLatency,
+		LastRequestTime: s.metrics.LastRequestTime,
+		StartTime:       s.metrics.StartTime,
+	}
+
+	// Copy tool usage counts
+	for tool, count := range s.metrics.ToolUsageCount {
+		snapshot.ToolUsageCount[tool] = count
+	}
+
+	return snapshot
 }
