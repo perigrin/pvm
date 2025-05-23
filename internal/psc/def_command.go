@@ -184,7 +184,7 @@ func newDefGenerateCommand() *cobra.Command {
 	}
 
 	// Add flags
-	cmd.Flags().StringP("version", "v", "0.0.1", "Module version")
+	cmd.Flags().StringP("version", "V", "0.0.1", "Module version")
 	cmd.Flags().StringP("output", "o", "", "Output file (default: stdout)")
 	cmd.Flags().BoolP("save", "s", false, "Save the type definition to the registry")
 
