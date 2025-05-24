@@ -1077,7 +1077,7 @@ func (s *Server) handleRefactorCode(ctx context.Context, request mcp.CallToolReq
 	sessionID := request.GetString("session_id", fmt.Sprintf("refactor_%d", time.Now().UnixNano()))
 
 	// Create request
-	refactorRequest := tools.RefactoringRequest{
+	refactorRequest := tools.RefactoringRequestInternal{
 		Code:            code,
 		RefactoringType: refactoringType,
 		Target:          target,
@@ -1129,7 +1129,7 @@ func (s *Server) handleGenerateDocumentation(ctx context.Context, request mcp.Ca
 	sessionID := request.GetString("session_id", fmt.Sprintf("doc_%d", time.Now().UnixNano()))
 
 	// Create request
-	docRequest := tools.DocumentationRequest{
+	docRequest := tools.DocumentationRequestInternal{
 		Code:      code,
 		Style:     style,
 		SessionID: sessionID,
@@ -1190,7 +1190,7 @@ func (s *Server) handleCompleteCode(ctx context.Context, request mcp.CallToolReq
 	sessionID := request.GetString("session_id", fmt.Sprintf("complete_%d", time.Now().UnixNano()))
 
 	// Create request
-	completionRequest := tools.CompletionRequest{
+	completionRequest := tools.CompletionRequestInternal{
 		PartialCode: partialCode,
 		CursorPos:   cursorPos,
 		Context:     context,
@@ -1267,7 +1267,7 @@ func (s *Server) handleBatchGenerate(ctx context.Context, request mcp.CallToolRe
 	sessionID := request.GetString("session_id", fmt.Sprintf("batch_%d", time.Now().UnixNano()))
 
 	// Create batch request
-	batchRequest := tools.BatchGenerationRequest{
+	batchRequest := tools.BatchGenerationRequestInternal{
 		Requests:  requests,
 		SessionID: sessionID,
 	}

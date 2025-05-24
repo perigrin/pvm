@@ -1,513 +1,687 @@
-// ABOUTME: Advanced code generation features including test generation and refactoring
-// ABOUTME: Provides sophisticated generation capabilities using type information
+// ABOUTME: Advanced code generation features including test generation, refactoring, and documentation
+// ABOUTME: Extends basic generation with type-aware transformations and batch operations
 
 package tools
 
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/mcp/generation"
-	"tamarou.com/pvm/internal/mcp/validation"
 )
 
-// AdvancedGenerator extends CodeGenerator with sophisticated capabilities
-type AdvancedGenerator struct {
-	*CodeGenerator
+// SimpleType represents a simple type for internal use
+type SimpleType struct {
+	Name string
 }
 
-// NewAdvancedGenerator creates a new advanced generator instance
-func NewAdvancedGenerator(validator Validator, autoFixer AutoFixer, samplingClient *generation.SamplingClient, memoryManager *generation.MemoryManager, logger *log.Logger) *AdvancedGenerator {
-	return &AdvancedGenerator{
-		CodeGenerator: NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger),
+// TypeParser interface for parsing type signatures
+type TypeParser interface {
+	ParseTypeSignature(signature string) (*SimpleType, error)
+	ExtractTypeFromCode(code string) ([]*SimpleType, error)
+}
+
+// DocumentationGenerator generates documentation from typed code
+type DocumentationGenerator struct {
+	samplingClient *generation.SamplingClient
+	logger         *log.Logger
+}
+
+// NewDocumentationGenerator creates a new documentation generator
+func NewDocumentationGenerator(samplingClient *generation.SamplingClient, logger *log.Logger) *DocumentationGenerator {
+	return &DocumentationGenerator{
+		samplingClient: samplingClient,
+		logger:         logger,
 	}
 }
 
-// TestGenerationRequest represents a request to generate tests from code
-type TestGenerationRequest struct {
-	Code        string            `json:"code"`         // code to generate tests for
-	TypeSigs    map[string]string `json:"type_sigs"`    // type signatures
-	Framework   string            `json:"framework"`    // test framework to use
-	SessionID   string            `json:"session_id"`   // memory session ID
-	ProjectPath string            `json:"project_path"` // optional project path
+// TestGenerator generates test suites from type signatures
+type TestGenerator struct {
+	samplingClient *generation.SamplingClient
+	typeParser     TypeParser
+	logger         *log.Logger
+}
+
+// NewTestGenerator creates a new test generator
+func NewTestGenerator(samplingClient *generation.SamplingClient, typeParser TypeParser, logger *log.Logger) *TestGenerator {
+	return &TestGenerator{
+		samplingClient: samplingClient,
+		typeParser:     typeParser,
+		logger:         logger,
+	}
+}
+
+// RefactoringEngine performs type-preserving code transformations
+type RefactoringEngine struct {
+	samplingClient *generation.SamplingClient
+	typeParser     TypeParser
+	validator      Validator
+	logger         *log.Logger
+}
+
+// NewRefactoringEngine creates a new refactoring engine
+func NewRefactoringEngine(samplingClient *generation.SamplingClient, typeParser TypeParser, validator Validator, logger *log.Logger) *RefactoringEngine {
+	return &RefactoringEngine{
+		samplingClient: samplingClient,
+		typeParser:     typeParser,
+		validator:      validator,
+		logger:         logger,
+	}
+}
+
+// CompletionEngine provides code completion suggestions
+type CompletionEngine struct {
+	samplingClient *generation.SamplingClient
+	typeParser     TypeParser
+	logger         *log.Logger
+}
+
+// NewCompletionEngine creates a new completion engine
+func NewCompletionEngine(samplingClient *generation.SamplingClient, typeParser TypeParser, logger *log.Logger) *CompletionEngine {
+	return &CompletionEngine{
+		samplingClient: samplingClient,
+		typeParser:     typeParser,
+		logger:         logger,
+	}
+}
+
+// TestGenRequest represents a request to generate tests from types
+type TestGenRequest struct {
+	TypeSignature string `json:"type_signature"`
+	FunctionName  string `json:"function_name"`
+	Context       string `json:"context"`
+	Framework     string `json:"framework"`
+}
+
+// TestGenerationResult represents generated test code
+type TestGenerationResult struct {
+	TestCode  string   `json:"test_code"`
+	TestCases []string `json:"test_cases"`
+	Coverage  float64  `json:"coverage"`
+	Warnings  []string `json:"warnings"`
+}
+
+// GenerateTestsFromType generates comprehensive test suites from type signatures
+func (tg *TestGenerator) GenerateTestsFromType(request TestGenRequest) (*TestGenerationResult, error) {
+	tg.logger.Infof("Generating tests for function: %s with type: %s", request.FunctionName, request.TypeSignature)
+
+	// Parse the type signature
+	typeInfo, err := tg.typeParser.ParseTypeSignature(request.TypeSignature)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse type signature: %w", err)
+	}
+
+	// Determine test framework
+	framework := request.Framework
+	if framework == "" {
+		framework = "Test2::V0" // default
+	}
+
+	// Generate test cases based on type constraints
+	testCases := tg.generateTestCasesFromType(typeInfo, request.FunctionName)
+
+	// Build comprehensive test prompt
+	prompt := tg.buildTestGenerationPrompt(request.FunctionName, typeInfo, testCases, framework, request.Context)
+
+	// Sample for test implementation
+	response, err := tg.samplingClient.Sample(context.Background(), prompt, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate tests: %w", err)
+	}
+
+	// Calculate coverage estimate
+	coverage := tg.estimateTestCoverage(testCases, typeInfo)
+
+	// Identify any warnings
+	warnings := tg.identifyTestWarnings(typeInfo, testCases)
+
+	return &TestGenerationResult{
+		TestCode:  response.Content,
+		TestCases: testCases,
+		Coverage:  coverage,
+		Warnings:  warnings,
+	}, nil
 }
 
 // RefactoringRequest represents a code refactoring request
 type RefactoringRequest struct {
-	Code            string `json:"code"`             // code to refactor
+	Code            string `json:"code"`
 	RefactoringType string `json:"refactoring_type"` // extract_method, rename, inline, etc.
-	Target          string `json:"target"`           // target element to refactor
-	NewName         string `json:"new_name"`         // new name (for rename operations)
-	SessionID       string `json:"session_id"`       // memory session ID
+	Target          string `json:"target"`           // what to refactor
+	NewName         string `json:"new_name"`         // for rename operations
+	PreserveTypes   bool   `json:"preserve_types"`   // ensure type safety
+}
+
+// RefactoringResult represents the result of a refactoring operation
+type RefactoringResult struct {
+	RefactoredCode string   `json:"refactored_code"`
+	Changes        []string `json:"changes"`
+	TypesSafe      bool     `json:"types_safe"`
+	Warnings       []string `json:"warnings"`
+}
+
+// Refactor performs type-preserving code transformations
+func (re *RefactoringEngine) Refactor(request RefactoringRequest) (*RefactoringResult, error) {
+	re.logger.Infof("Performing %s refactoring on target: %s", request.RefactoringType, request.Target)
+
+	// Extract current types from code
+	currentTypes, err := re.typeParser.ExtractTypeFromCode(request.Code)
+	if err != nil {
+		re.logger.Warningf("Failed to extract types: %v", err)
+	}
+
+	// Build refactoring prompt
+	prompt := re.buildRefactoringPrompt(request, currentTypes)
+
+	// Sample for refactored code
+	response, err := re.samplingClient.Sample(context.Background(), prompt, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to refactor code: %w", err)
+	}
+
+	refactoredCode := response.Content
+
+	// Validate type preservation if requested
+	typesSafe := true
+	if request.PreserveTypes && re.validator != nil {
+		originalResult, _ := re.validator.ValidateCode(context.Background(), request.Code, "")
+		refactoredResult, _ := re.validator.ValidateCode(context.Background(), refactoredCode, "")
+
+		if refactoredResult != nil && originalResult != nil {
+			typesSafe = len(refactoredResult.Errors) <= len(originalResult.Errors)
+		}
+	}
+
+	// Identify changes
+	changes := re.identifyChanges(request.Code, refactoredCode, request.RefactoringType)
+
+	// Generate warnings
+	warnings := re.generateRefactoringWarnings(request, typesSafe)
+
+	return &RefactoringResult{
+		RefactoredCode: refactoredCode,
+		Changes:        changes,
+		TypesSafe:      typesSafe,
+		Warnings:       warnings,
+	}, nil
 }
 
 // DocumentationRequest represents a documentation generation request
 type DocumentationRequest struct {
-	Code      string `json:"code"`       // code to document
-	Style     string `json:"style"`      // pod, markdown, inline
-	SessionID string `json:"session_id"` // memory session ID
+	Code         string `json:"code"`
+	DocType      string `json:"doc_type"`      // pod, inline, both
+	IncludeTypes bool   `json:"include_types"` // include type information
+	Verbose      bool   `json:"verbose"`       // detailed documentation
+}
+
+// DocumentationResult represents generated documentation
+type DocumentationResult struct {
+	Documentation string            `json:"documentation"`
+	Sections      map[string]string `json:"sections"`
+	TypeInfo      []string          `json:"type_info"`
+}
+
+// GenerateDocumentation creates documentation from typed code
+func (dg *DocumentationGenerator) GenerateDocumentation(request DocumentationRequest) (*DocumentationResult, error) {
+	dg.logger.Infof("Generating %s documentation", request.DocType)
+
+	// Build documentation prompt
+	prompt := dg.buildDocumentationPrompt(request)
+
+	// Sample for documentation
+	response, err := dg.samplingClient.Sample(context.Background(), prompt, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate documentation: %w", err)
+	}
+
+	// Parse sections from generated documentation
+	sections := dg.parseDocumentationSections(response.Content)
+
+	// Extract type information if requested
+	var typeInfo []string
+	if request.IncludeTypes {
+		typeInfo = dg.extractTypeDocumentation(request.Code)
+	}
+
+	return &DocumentationResult{
+		Documentation: response.Content,
+		Sections:      sections,
+		TypeInfo:      typeInfo,
+	}, nil
 }
 
 // CompletionRequest represents a code completion request
 type CompletionRequest struct {
-	PartialCode string `json:"partial_code"` // incomplete code
-	CursorPos   int    `json:"cursor_pos"`   // cursor position
-	Context     string `json:"context"`      // surrounding code context
-	SessionID   string `json:"session_id"`   // memory session ID
+	PartialCode    string `json:"partial_code"`
+	CursorPosition int    `json:"cursor_position"`
+	Context        string `json:"context"`
+	MaxSuggestions int    `json:"max_suggestions"`
 }
 
-// BatchGenerationRequest represents multiple generation requests
-type BatchGenerationRequest struct {
-	Requests  []GenerationRequest `json:"requests"`   // multiple requests
-	SessionID string              `json:"session_id"` // shared session ID
+// CompletionResult represents code completion suggestions
+type CompletionResult struct {
+	Suggestions []CompletionSuggestion `json:"suggestions"`
+	TypeHints   []string               `json:"type_hints"`
 }
 
-// GenerateTestsFromTypes generates comprehensive test suites from type signatures
-func (ag *AdvancedGenerator) GenerateTestsFromTypes(ctx context.Context, request TestGenerationRequest) (*GenerationResult, error) {
-	ag.logger.Infof("Generating tests from types for session: %s", request.SessionID)
-
-	// Get or create memory session
-	memory := ag.memoryManager.GetSession(request.SessionID)
-	memory.AddDecision("test_generation", "from_types", request.Framework,
-		"Generating tests from type signatures")
-
-	// Parse type signatures and code structure
-	typeInfo := ag.extractTypeInfo(request.Code, request.TypeSigs)
-
-	// Build test generation prompt
-	prompt := ag.buildTestFromTypesPrompt(request, typeInfo, memory)
-
-	// Generate tests using collaborative sampling
-	tests, iterations, err := ag.generateWithRefinement(prompt, memory, "test")
-	if err != nil {
-		return nil, fmt.Errorf("test generation failed: %w", err)
-	}
-
-	// Validate generated tests
-	validationResult, err := ag.validateAndFix(tests, memory)
-	if err != nil {
-		return nil, fmt.Errorf("test validation failed: %w", err)
-	}
-
-	return &GenerationResult{
-		Status:           "success",
-		GeneratedCode:    tests,
-		ValidationResult: validationResult,
-		Iterations:       iterations,
-		Message:          fmt.Sprintf("Generated comprehensive tests using %s", request.Framework),
-	}, nil
+// CompletionSuggestion represents a single completion suggestion
+type CompletionSuggestion struct {
+	Text        string  `json:"text"`
+	Description string  `json:"description"`
+	TypeInfo    string  `json:"type_info"`
+	Score       float64 `json:"score"`
 }
 
-// RefactorCode performs type-preserving code refactoring
-func (ag *AdvancedGenerator) RefactorCode(ctx context.Context, request RefactoringRequest) (*GenerationResult, error) {
-	ag.logger.Infof("Refactoring code: type=%s, session=%s", request.RefactoringType, request.SessionID)
-
-	// Get or create memory session
-	memory := ag.memoryManager.GetSession(request.SessionID)
-	memory.AddDecision("refactoring", request.RefactoringType, request.Target,
-		fmt.Sprintf("Refactoring %s", request.Target))
-
-	// Validate original code to get type information
-	originalValidation, err := ag.validator.ValidateCode(ctx, request.Code, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate original code: %w", err)
-	}
-
-	// Perform refactoring based on type
-	var refactoredCode string
-	var iterations int
-
-	switch request.RefactoringType {
-	case "extract_method":
-		refactoredCode, iterations, err = ag.extractMethod(request, memory, originalValidation)
-	case "rename":
-		refactoredCode, iterations, err = ag.renameElement(request, memory, originalValidation)
-	case "inline":
-		refactoredCode, iterations, err = ag.inlineCode(request, memory, originalValidation)
-	default:
-		return nil, fmt.Errorf("unsupported refactoring type: %s", request.RefactoringType)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("refactoring failed: %w", err)
-	}
-
-	// Validate refactored code
-	refactoredValidation, err := ag.validator.ValidateCode(ctx, refactoredCode, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate refactored code: %w", err)
-	}
-
-	// Ensure types are preserved
-	if !ag.typesPreserved(originalValidation, refactoredValidation) {
-		return nil, fmt.Errorf("refactoring broke type preservation")
-	}
-
-	return &GenerationResult{
-		Status:           "success",
-		GeneratedCode:    refactoredCode,
-		ValidationResult: refactoredValidation,
-		Iterations:       iterations,
-		Message:          fmt.Sprintf("Successfully refactored code with %s", request.RefactoringType),
-	}, nil
-}
-
-// GenerateDocumentation generates documentation from typed code
-func (ag *AdvancedGenerator) GenerateDocumentation(ctx context.Context, request DocumentationRequest) (*GenerationResult, error) {
-	ag.logger.Infof("Generating documentation: style=%s, session=%s", request.Style, request.SessionID)
-
-	// Get or create memory session
-	memory := ag.memoryManager.GetSession(request.SessionID)
-	memory.AddDecision("documentation", request.Style, "generate",
-		fmt.Sprintf("Generating %s documentation", request.Style))
-
-	// Validate code to extract type information
-	validationResult, err := ag.validator.ValidateCode(ctx, request.Code, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate code: %w", err)
-	}
-
-	// Build documentation prompt with type information
-	prompt := ag.buildDocumentationPrompt(request, validationResult, memory)
-
-	// Generate documentation
-	docs, iterations, err := ag.generateWithRefinement(prompt, memory, "documentation")
-	if err != nil {
-		return nil, fmt.Errorf("documentation generation failed: %w", err)
-	}
-
-	// Format documentation based on style
-	formattedDocs := ag.formatDocumentation(docs, request.Style)
-
-	return &GenerationResult{
-		Status:        "success",
-		GeneratedCode: formattedDocs,
-		Iterations:    iterations,
-		Message:       fmt.Sprintf("Generated %s documentation", request.Style),
-	}, nil
-}
-
-// CompleteCode provides intelligent code completion suggestions
-func (ag *AdvancedGenerator) CompleteCode(ctx context.Context, request CompletionRequest) (*GenerationResult, error) {
-	ag.logger.Infof("Completing code at position %d, session=%s", request.CursorPos, request.SessionID)
-
-	// Get or create memory session
-	memory := ag.memoryManager.GetSession(request.SessionID)
+// Complete provides code completion suggestions
+func (ce *CompletionEngine) Complete(request CompletionRequest) (*CompletionResult, error) {
+	ce.logger.Debugf("Generating completions at position %d", request.CursorPosition)
 
 	// Extract context around cursor
-	prefix, suffix := ag.extractCursorContext(request.PartialCode, request.CursorPos)
+	contextInfo := ce.extractCompletionContext(request.PartialCode, request.CursorPosition)
 
 	// Build completion prompt
-	prompt := ag.buildCompletionPrompt(prefix, suffix, request.Context, memory)
+	prompt := ce.buildCompletionPrompt(contextInfo, request)
 
-	// Generate completion
-	completionResponse, err := ag.samplingClient.Sample(ctx, prompt, "")
+	// Sample for completions
+	response, err := ce.samplingClient.Sample(context.Background(), prompt, "")
 	if err != nil {
-		return nil, fmt.Errorf("completion generation failed: %w", err)
+		return nil, fmt.Errorf("failed to generate completions: %w", err)
 	}
 
-	completion := strings.TrimSpace(completionResponse.Content)
+	// Parse suggestions from response
+	suggestions := ce.parseSuggestions(response.Content, request.MaxSuggestions)
 
-	// Build completed code
-	completedCode := prefix + completion + suffix
+	// Extract type hints
+	typeHints := ce.extractTypeHints(contextInfo, suggestions)
 
-	// Validate completed code
-	validationResult, err := ag.validator.ValidateCode(ctx, completedCode, "")
-	if err != nil {
-		// If validation fails, return completion anyway with warning
-		return &GenerationResult{
-			Status:        "success_with_warnings",
-			GeneratedCode: completion,
-			Iterations:    1,
-			Message:       "Completion generated but may have validation issues",
-		}, nil
-	}
-
-	return &GenerationResult{
-		Status:           "success",
-		GeneratedCode:    completion,
-		ValidationResult: validationResult,
-		Iterations:       1,
-		Message:          "Code completion generated successfully",
+	return &CompletionResult{
+		Suggestions: suggestions,
+		TypeHints:   typeHints,
 	}, nil
 }
 
-// BatchGenerate handles multiple generation requests efficiently
-func (ag *AdvancedGenerator) BatchGenerate(ctx context.Context, request BatchGenerationRequest) ([]*GenerationResult, error) {
-	ag.logger.Infof("Batch generating %d requests, session=%s", len(request.Requests), request.SessionID)
+// BatchGenerationRequest represents a batch generation request
+type BatchGenerationRequest struct {
+	Requests  []GenerationRequest `json:"requests"`
+	Parallel  bool                `json:"parallel"`
+	SessionID string              `json:"session_id"`
+}
 
-	// Get or create memory session (shared across batch)
-	memory := ag.memoryManager.GetSession(request.SessionID)
-	memory.AddDecision("batch_generation", "start", fmt.Sprintf("%d requests", len(request.Requests)),
-		"Starting batch generation")
+// BatchGenerationResult represents results from batch generation
+type BatchGenerationResult struct {
+	Results   []*GenerationResult `json:"results"`
+	Succeeded int                 `json:"succeeded"`
+	Failed    int                 `json:"failed"`
+	Errors    []string            `json:"errors"`
+}
 
-	results := make([]*GenerationResult, len(request.Requests))
-	var errors []error
+// GenerateBatch performs batch code generation operations
+func (cg *CodeGenerator) GenerateBatch(request BatchGenerationRequest) (*BatchGenerationResult, error) {
+	cg.logger.Infof("Processing batch generation with %d requests", len(request.Requests))
 
-	// Process requests sequentially to maintain memory context
-	// In a production system, you might parallelize with proper memory synchronization
+	result := &BatchGenerationResult{
+		Results: make([]*GenerationResult, len(request.Requests)),
+		Errors:  []string{},
+	}
+
+	// Process each request
 	for i, req := range request.Requests {
-		// Override session ID to use shared session
-		req.SessionID = request.SessionID
+		// Use the batch session ID if individual request doesn't have one
+		if req.SessionID == "" {
+			req.SessionID = request.SessionID
+		}
 
-		result, err := ag.Generate(req)
+		genResult, err := cg.Generate(req)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("request %d failed: %w", i, err))
-			// Create error result
-			results[i] = &GenerationResult{
+			result.Failed++
+			result.Errors = append(result.Errors, fmt.Sprintf("Request %d failed: %v", i, err))
+			result.Results[i] = &GenerationResult{
 				Status:  "error",
 				Message: err.Error(),
 			}
 		} else {
-			results[i] = result
+			result.Succeeded++
+			result.Results[i] = genResult
 		}
 	}
 
-	// Record batch completion
-	memory.AddDecision("batch_generation", "complete",
-		fmt.Sprintf("%d succeeded, %d failed", len(request.Requests)-len(errors), len(errors)),
-		"Batch generation completed")
-
-	if len(errors) > 0 {
-		return results, fmt.Errorf("batch generation had %d errors", len(errors))
-	}
-
-	return results, nil
+	cg.logger.Infof("Batch generation completed: %d succeeded, %d failed", result.Succeeded, result.Failed)
+	return result, nil
 }
 
-// Helper methods for advanced generation
+// Helper methods for TestGenerator
 
-func (ag *AdvancedGenerator) extractTypeInfo(code string, typeSigs map[string]string) map[string]interface{} {
-	typeInfo := make(map[string]interface{})
-	typeInfo["signatures"] = typeSigs
+func (tg *TestGenerator) generateTestCasesFromType(typeInfo *SimpleType, functionName string) []string {
+	var testCases []string
 
-	// Extract function signatures from code
-	functions := ag.extractFunctions(code)
-	typeInfo["functions"] = functions
+	// Generate boundary test cases
+	testCases = append(testCases, fmt.Sprintf("Test %s with valid input", functionName))
+	testCases = append(testCases, fmt.Sprintf("Test %s with invalid input", functionName))
+	testCases = append(testCases, fmt.Sprintf("Test %s with edge cases", functionName))
 
-	// Extract class information
-	classes := ag.extractClasses(code)
-	typeInfo["classes"] = classes
+	// Type-specific test cases
+	if typeInfo != nil {
+		testCases = append(testCases, fmt.Sprintf("Test %s type constraints", functionName))
+		testCases = append(testCases, fmt.Sprintf("Test %s return type correctness", functionName))
+	}
+
+	return testCases
+}
+
+func (tg *TestGenerator) buildTestGenerationPrompt(functionName string, typeInfo *SimpleType, testCases []string, framework, context string) string {
+	prompt := fmt.Sprintf(`Generate comprehensive Perl tests for function '%s' with the following requirements:
+
+Function Type Signature: %v
+Test Framework: %s
+Context: %s
+
+Required Test Cases:
+%s
+
+Requirements:
+- Test all type constraints and boundaries
+- Include both positive and negative test cases
+- Use %s test framework idioms
+- Add descriptive test names
+- Include setup/teardown if needed
+- Ensure high code coverage
+
+Generate only the test code, no explanations:`,
+		functionName, typeInfo, framework, context,
+		strings.Join(testCases, "\n- "),
+		framework)
+
+	return prompt
+}
+
+func (tg *TestGenerator) estimateTestCoverage(testCases []string, typeInfo *SimpleType) float64 {
+	// Simple heuristic: more test cases = better coverage
+	baseCoverage := float64(len(testCases)) * 0.15
+	if baseCoverage > 0.95 {
+		baseCoverage = 0.95
+	}
+	return baseCoverage
+}
+
+func (tg *TestGenerator) identifyTestWarnings(typeInfo *SimpleType, testCases []string) []string {
+	var warnings []string
+
+	if len(testCases) < 3 {
+		warnings = append(warnings, "Limited test coverage - consider adding more test cases")
+	}
+
+	if typeInfo == nil {
+		warnings = append(warnings, "No type information available - tests may not cover all constraints")
+	}
+
+	return warnings
+}
+
+// Helper methods for RefactoringEngine
+
+func (re *RefactoringEngine) buildRefactoringPrompt(request RefactoringRequest, currentTypes []*SimpleType) string {
+	typeContext := ""
+	if len(currentTypes) > 0 {
+		typeContext = fmt.Sprintf("\nCurrent Types: %v", currentTypes)
+	}
+
+	prompt := fmt.Sprintf(`Perform %s refactoring on the following Perl code:
+
+Code:
+%s
+
+Target: %s
+%s
+
+Requirements:
+- Preserve all type annotations and constraints
+- Maintain the same behavior
+- Follow Perl best practices
+- Keep the code readable and maintainable
+- %s
+
+Generate only the refactored code, no explanations:`,
+		request.RefactoringType, request.Code, request.Target, typeContext,
+		re.getRefactoringSpecificRequirements(request))
+
+	return prompt
+}
+
+func (re *RefactoringEngine) getRefactoringSpecificRequirements(request RefactoringRequest) string {
+	switch request.RefactoringType {
+	case "extract_method":
+		return "Extract the target code into a well-named method with appropriate parameters"
+	case "rename":
+		return fmt.Sprintf("Rename all occurrences of '%s' to '%s'", request.Target, request.NewName)
+	case "inline":
+		return "Inline the target method/variable at all call sites"
+	case "simplify":
+		return "Simplify the code while maintaining functionality"
+	default:
+		return "Apply the requested refactoring"
+	}
+}
+
+func (re *RefactoringEngine) identifyChanges(original, refactored, refactoringType string) []string {
+	var changes []string
+
+	// Simple line-based diff identification
+	originalLines := strings.Split(original, "\n")
+	refactoredLines := strings.Split(refactored, "\n")
+
+	if len(originalLines) != len(refactoredLines) {
+		changes = append(changes, fmt.Sprintf("Line count changed from %d to %d", len(originalLines), len(refactoredLines)))
+	}
+
+	switch refactoringType {
+	case "extract_method":
+		changes = append(changes, "Extracted code into new method")
+	case "rename":
+		changes = append(changes, "Renamed identifiers throughout code")
+	case "inline":
+		changes = append(changes, "Inlined method/variable at call sites")
+	}
+
+	return changes
+}
+
+func (re *RefactoringEngine) generateRefactoringWarnings(request RefactoringRequest, typesSafe bool) []string {
+	var warnings []string
+
+	if !typesSafe && request.PreserveTypes {
+		warnings = append(warnings, "Type safety may have been compromised - please verify")
+	}
+
+	if request.RefactoringType == "extract_method" && len(request.Target) > 100 {
+		warnings = append(warnings, "Large extraction - consider breaking into smaller methods")
+	}
+
+	return warnings
+}
+
+// Helper methods for DocumentationGenerator
+
+func (dg *DocumentationGenerator) buildDocumentationPrompt(request DocumentationRequest) string {
+	docTypeInstructions := ""
+	switch request.DocType {
+	case "pod":
+		docTypeInstructions = "Generate POD (Plain Old Documentation) format documentation"
+	case "inline":
+		docTypeInstructions = "Generate inline comments throughout the code"
+	case "both":
+		docTypeInstructions = "Generate both POD documentation and inline comments"
+	}
+
+	verbosity := "concise"
+	if request.Verbose {
+		verbosity = "detailed"
+	}
+
+	prompt := fmt.Sprintf(`Generate %s Perl documentation for the following code:
+
+Code:
+%s
+
+Requirements:
+- %s
+- Include parameter descriptions and return values
+- Document any type constraints if present
+- Add usage examples where appropriate
+- Make documentation %s
+- Follow Perl documentation best practices
+
+Generate the documentation:`,
+		verbosity, request.Code, docTypeInstructions, verbosity)
+
+	return prompt
+}
+
+func (dg *DocumentationGenerator) parseDocumentationSections(documentation string) map[string]string {
+	sections := make(map[string]string)
+
+	// Parse POD sections
+	podSectionRegex := regexp.MustCompile(`(?m)^=head\d\s+(\w+)\s*\n([\s\S]*?)(?:^=|$)`)
+	matches := podSectionRegex.FindAllStringSubmatch(documentation, -1)
+
+	for _, match := range matches {
+		if len(match) >= 3 {
+			sections[match[1]] = strings.TrimSpace(match[2])
+		}
+	}
+
+	// If no POD sections found, treat as single section
+	if len(sections) == 0 {
+		sections["main"] = documentation
+	}
+
+	return sections
+}
+
+func (dg *DocumentationGenerator) extractTypeDocumentation(code string) []string {
+	var typeInfo []string
+
+	// Extract type annotations
+	typeRegex := regexp.MustCompile(`my\s+(\w+(?:\[[\w\[\]]+\])?)\s+\$(\w+)`)
+	matches := typeRegex.FindAllStringSubmatch(code, -1)
+
+	for _, match := range matches {
+		if len(match) >= 3 {
+			typeInfo = append(typeInfo, fmt.Sprintf("$%s: %s", match[2], match[1]))
+		}
+	}
 
 	return typeInfo
 }
 
-func (ag *AdvancedGenerator) buildTestFromTypesPrompt(request TestGenerationRequest, typeInfo map[string]interface{}, memory *generation.GenerationMemory) string {
-	// Get test framework from memory or request
-	framework := request.Framework
-	if framework == "" {
-		if saved, exists := memory.GetNamingPattern("test_framework"); exists {
-			framework = saved
-		} else {
-			framework = "Test2::V0"
-		}
-	}
+// Helper methods for CompletionEngine
 
-	prompt := fmt.Sprintf(`Generate comprehensive tests for the following Perl code:
+func (ce *CompletionEngine) extractCompletionContext(code string, position int) map[string]string {
+	context := make(map[string]string)
 
-Code:
-%s
-
-Type Signatures:
-%v
-
-Requirements:
-- Use %s test framework
-- Test all type constraints and edge cases
-- Include positive and negative test cases
-- Test type coercion and validation
-- Add descriptive test names
-- Include setup/teardown if needed
-- Ensure 100%% code coverage
-
-Generate only the test code:`,
-		request.Code, typeInfo["signatures"], framework)
-
-	return prompt
-}
-
-func (ag *AdvancedGenerator) extractMethod(request RefactoringRequest, memory *generation.GenerationMemory, validation *validation.ValidationResult) (string, int, error) {
-	prompt := fmt.Sprintf(`Extract the following code into a method:
-
-Original Code:
-%s
-
-Target to Extract:
-%s
-
-Requirements:
-- Preserve all type information
-- Create appropriate method signature
-- Handle parameters and return values correctly
-- Update calling code to use new method
-- Maintain code functionality
-
-Refactored code:`,
-		request.Code, request.Target)
-
-	return ag.generateWithRefinement(prompt, memory, "refactoring")
-}
-
-func (ag *AdvancedGenerator) renameElement(request RefactoringRequest, memory *generation.GenerationMemory, validation *validation.ValidationResult) (string, int, error) {
-	prompt := fmt.Sprintf(`Rename element in the following code:
-
-Original Code:
-%s
-
-Element to Rename:
-%s
-
-New Name:
-%s
-
-Requirements:
-- Update all references to the element
-- Preserve type information
-- Maintain code functionality
-- Update documentation if present
-
-Refactored code:`,
-		request.Code, request.Target, request.NewName)
-
-	return ag.generateWithRefinement(prompt, memory, "refactoring")
-}
-
-func (ag *AdvancedGenerator) inlineCode(request RefactoringRequest, memory *generation.GenerationMemory, validation *validation.ValidationResult) (string, int, error) {
-	prompt := fmt.Sprintf(`Inline the following element:
-
-Original Code:
-%s
-
-Element to Inline:
-%s
-
-Requirements:
-- Replace all calls with inlined code
-- Preserve type information
-- Maintain code functionality
-- Remove the original definition
-
-Refactored code:`,
-		request.Code, request.Target)
-
-	return ag.generateWithRefinement(prompt, memory, "refactoring")
-}
-
-func (ag *AdvancedGenerator) typesPreserved(original, refactored *validation.ValidationResult) bool {
-	// Compare type information between original and refactored code
-	// This is a simplified check - in production, you'd do deeper analysis
-	return len(refactored.Errors) <= len(original.Errors)
-}
-
-func (ag *AdvancedGenerator) buildDocumentationPrompt(request DocumentationRequest, validation *validation.ValidationResult, memory *generation.GenerationMemory) string {
-	prompt := fmt.Sprintf(`Generate %s documentation for the following Perl code:
-
-Code:
-%s
-
-Requirements:
-- Document all functions, methods, and classes
-- Include parameter types and return types
-- Add usage examples where appropriate
-- Follow %s documentation standards
-- Be concise but comprehensive
-
-Generate only the documentation:`,
-		request.Style, request.Code, request.Style)
-
-	return prompt
-}
-
-func (ag *AdvancedGenerator) formatDocumentation(docs, style string) string {
-	// Format documentation based on style
-	switch style {
-	case "pod":
-		// Ensure POD formatting
-		if !strings.HasPrefix(docs, "=") {
-			docs = "=pod\n\n" + docs + "\n\n=cut"
-		}
-	case "markdown":
-		// Ensure markdown formatting
-		if !strings.HasPrefix(docs, "#") {
-			docs = "# Documentation\n\n" + docs
-		}
-	case "inline":
-		// Format as inline comments
-		lines := strings.Split(docs, "\n")
-		for i, line := range lines {
-			if line != "" {
-				lines[i] = "# " + line
-			}
-		}
-		docs = strings.Join(lines, "\n")
-	}
-
-	return docs
-}
-
-func (ag *AdvancedGenerator) extractCursorContext(code string, cursorPos int) (string, string) {
-	if cursorPos < 0 {
-		cursorPos = 0
-	}
-	if cursorPos > len(code) {
-		cursorPos = len(code)
-	}
-
-	prefix := code[:cursorPos]
-	suffix := code[cursorPos:]
-
-	return prefix, suffix
-}
-
-func (ag *AdvancedGenerator) buildCompletionPrompt(prefix, suffix, context string, memory *generation.GenerationMemory) string {
-	// Get recent type choices for context
-	recentDecisions := memory.GetRecentDecisions(5)
-	typeContext := ag.extractTypeContext(recentDecisions)
-
-	prompt := fmt.Sprintf(`Complete the Perl code at the cursor position:
-
-Code before cursor:
-%s
-
-Code after cursor:
-%s
-
-Context:
-%s
-
-Type Context:
-%s
-
-Provide only the completion text that should be inserted at cursor position:`,
-		prefix, suffix, context, typeContext)
-
-	return prompt
-}
-
-func (ag *AdvancedGenerator) extractFunctions(code string) []string {
-	var functions []string
+	// Extract line context
 	lines := strings.Split(code, "\n")
+	currentLine := 0
+	currentPos := 0
 
-	for _, line := range lines {
-		if strings.Contains(line, "sub ") || strings.Contains(line, "method ") {
-			functions = append(functions, strings.TrimSpace(line))
+	for i, line := range lines {
+		if currentPos+len(line)+1 > position {
+			currentLine = i
+			break
+		}
+		currentPos += len(line) + 1
+	}
+
+	if currentLine < len(lines) {
+		context["current_line"] = lines[currentLine]
+		context["line_number"] = fmt.Sprintf("%d", currentLine+1)
+	}
+
+	// Extract preceding token
+	if position > 0 && position <= len(code) {
+		beforeCursor := code[:position]
+		tokens := strings.Fields(beforeCursor)
+		if len(tokens) > 0 {
+			context["preceding_token"] = tokens[len(tokens)-1]
 		}
 	}
 
-	return functions
+	return context
 }
 
-func (ag *AdvancedGenerator) extractClasses(code string) []string {
-	var classes []string
-	lines := strings.Split(code, "\n")
+func (ce *CompletionEngine) buildCompletionPrompt(contextInfo map[string]string, request CompletionRequest) string {
+	prompt := fmt.Sprintf(`Provide code completion suggestions for the following Perl code:
 
-	for _, line := range lines {
-		if strings.Contains(line, "class ") || strings.Contains(line, "package ") {
-			classes = append(classes, strings.TrimSpace(line))
+Partial Code:
+%s
+
+Cursor Position: %d
+Current Line: %s
+Preceding Token: %s
+
+Additional Context:
+%s
+
+Requirements:
+- Suggest the most likely completions
+- Include method names, variable names, or keywords as appropriate
+- Consider Perl syntax and idioms
+- Provide up to %d suggestions
+- Include brief descriptions for each suggestion
+
+Format each suggestion as:
+SUGGESTION: <text>
+DESCRIPTION: <brief description>
+TYPE: <type info if available>
+
+Generate suggestions:`,
+		request.PartialCode, request.CursorPosition,
+		contextInfo["current_line"], contextInfo["preceding_token"],
+		request.Context, request.MaxSuggestions)
+
+	return prompt
+}
+
+func (ce *CompletionEngine) parseSuggestions(response string, maxSuggestions int) []CompletionSuggestion {
+	var suggestions []CompletionSuggestion
+
+	// Parse structured suggestions from response
+	suggestionRegex := regexp.MustCompile(`SUGGESTION:\s*(.+?)\nDESCRIPTION:\s*(.+?)(?:\nTYPE:\s*(.+?))?(?:\n|$)`)
+	matches := suggestionRegex.FindAllStringSubmatch(response, -1)
+
+	for i, match := range matches {
+		if i >= maxSuggestions {
+			break
+		}
+
+		suggestion := CompletionSuggestion{
+			Text:        strings.TrimSpace(match[1]),
+			Description: strings.TrimSpace(match[2]),
+			Score:       1.0 - (float64(i) * 0.1), // Simple scoring based on order
+		}
+
+		if len(match) > 3 && match[3] != "" {
+			suggestion.TypeInfo = strings.TrimSpace(match[3])
+		}
+
+		suggestions = append(suggestions, suggestion)
+	}
+
+	return suggestions
+}
+
+func (ce *CompletionEngine) extractTypeHints(contextInfo map[string]string, suggestions []CompletionSuggestion) []string {
+	var hints []string
+	seen := make(map[string]bool)
+
+	for _, suggestion := range suggestions {
+		if suggestion.TypeInfo != "" && !seen[suggestion.TypeInfo] {
+			hints = append(hints, suggestion.TypeInfo)
+			seen[suggestion.TypeInfo] = true
 		}
 	}
 
-	return classes
+	return hints
 }

@@ -1,588 +1,638 @@
+// ABOUTME: Tests for advanced code generation features
+// ABOUTME: Validates test generation, refactoring, documentation, and completion functionality
+
 package tools
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/mcp/generation"
 	"tamarou.com/pvm/internal/mcp/validation"
 )
 
-func TestNewAdvancedGenerator(t *testing.T) {
-	validator := &MockValidator{}
-	autoFixer := &MockAutoFixer{}
+// Mock implementations for testing
+
+type mockTypeParser struct {
+	parseTypeErr   error
+	extractTypeErr error
+	parsedType     *SimpleType
+	extractedTypes []*SimpleType
+}
+
+func (m *mockTypeParser) ParseTypeSignature(signature string) (*SimpleType, error) {
+	if m.parseTypeErr != nil {
+		return nil, m.parseTypeErr
+	}
+	if m.parsedType != nil {
+		return m.parsedType, nil
+	}
+	// Return a simple type for testing
+	return &SimpleType{Name: "Int"}, nil
+}
+
+func (m *mockTypeParser) ExtractTypeFromCode(code string) ([]*SimpleType, error) {
+	if m.extractTypeErr != nil {
+		return nil, m.extractTypeErr
+	}
+	if m.extractedTypes != nil {
+		return m.extractedTypes, nil
+	}
+	// Return some default types
+	return []*SimpleType{
+		{Name: "Int"},
+		{Name: "Str"},
+	}, nil
+}
+
+type mockValidator struct {
+	result *validation.ValidationResult
+	err    error
+}
+
+func (m *mockValidator) ValidateCode(ctx context.Context, code string, projectPath string) (*validation.ValidationResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.result != nil {
+		return m.result, nil
+	}
+	return &validation.ValidationResult{
+		Valid:  true,
+		Errors: []validation.ValidationError{},
+	}, nil
+}
+
+func TestTestGenerator_GenerateTestsFromType(t *testing.T) {
+	logger := log.NewLogger(log.LevelError, os.Stderr, "test")
 	samplingClient := generation.NewSamplingClient(true)
-	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
+	typeParser := &mockTypeParser{}
 
-	advGen := NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
-
-	assert.NotNil(t, advGen)
-	assert.NotNil(t, advGen.CodeGenerator)
-}
-
-func TestAdvancedGenerator_GenerateTestsFromTypes(t *testing.T) {
-	validator := &MockValidator{}
-	autoFixer := &MockAutoFixer{}
-	samplingClient := generation.NewSamplingClient(true)
-	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
-
-	advGen := NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
-
-	// Mock validation response
-	validationResult := &validation.ValidationResult{
-		Errors:   []validation.ValidationError{},
-		Warnings: []validation.ValidationWarning{},
-	}
-	validator.On("ValidateCode", mock.AnythingOfType("string")).Return(validationResult, nil)
-
-	request := TestGenerationRequest{
-		Code: `sub add {
-			my ($x, $y) = @_;
-			return $x + $y;
-		}`,
-		TypeSigs: map[string]string{
-			"add": "(Int, Int) -> Int",
-		},
-		Framework: "Test2::V0",
-		SessionID: "test-session",
-	}
-
-	result, err := advGen.GenerateTestsFromTypes(context.Background(), request)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, "success", result.Status)
-	assert.NotEmpty(t, result.GeneratedCode)
-	assert.Contains(t, result.GeneratedCode, "Test2::V0")
-	assert.Contains(t, result.Message, "Generated comprehensive tests")
-
-	validator.AssertExpectations(t)
-}
-
-func TestAdvancedGenerator_RefactorCode(t *testing.T) {
-	validator := &MockValidator{}
-	autoFixer := &MockAutoFixer{}
-	samplingClient := generation.NewSamplingClient(true)
-	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
-
-	advGen := NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
-
-	// Mock validation responses
-	originalValidation := &validation.ValidationResult{
-		Errors:   []validation.ValidationError{},
-		Warnings: []validation.ValidationWarning{},
-	}
-	refactoredValidation := &validation.ValidationResult{
-		Errors:   []validation.ValidationError{},
-		Warnings: []validation.ValidationWarning{},
-	}
-
-	validator.On("ValidateCode", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("string"), "").
-		Return(originalValidation, nil).Once()
-	validator.On("ValidateCode", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("string"), "").
-		Return(refactoredValidation, nil).Once()
-
-	tests := []struct {
-		name             string
-		request          RefactoringRequest
-		expectedStatus   string
-		expectedContains string
-	}{
-		{
-			name: "extract_method",
-			request: RefactoringRequest{
-				Code:            "sub process { my $x = 5; my $y = 10; return $x + $y; }",
-				RefactoringType: "extract_method",
-				Target:          "my $y = 10; return $x + $y;",
-				SessionID:       "test-session",
-			},
-			expectedStatus:   "success",
-			expectedContains: "extract_method",
-		},
-		{
-			name: "rename",
-			request: RefactoringRequest{
-				Code:            "sub calculate { my $value = 42; return $value * 2; }",
-				RefactoringType: "rename",
-				Target:          "calculate",
-				NewName:         "compute",
-				SessionID:       "test-session",
-			},
-			expectedStatus:   "success",
-			expectedContains: "rename",
-		},
-		{
-			name: "inline",
-			request: RefactoringRequest{
-				Code:            "sub helper { return 42; } sub main { my $x = helper(); }",
-				RefactoringType: "inline",
-				Target:          "helper",
-				SessionID:       "test-session",
-			},
-			expectedStatus:   "success",
-			expectedContains: "inline",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := advGen.RefactorCode(context.Background(), tt.request)
-
-			assert.NoError(t, err)
-			assert.NotNil(t, result)
-			assert.Equal(t, tt.expectedStatus, result.Status)
-			assert.NotEmpty(t, result.GeneratedCode)
-			assert.Contains(t, result.Message, tt.expectedContains)
-		})
-	}
-
-	validator.AssertExpectations(t)
-}
-
-func TestAdvancedGenerator_RefactorCode_InvalidType(t *testing.T) {
-	validator := &MockValidator{}
-	autoFixer := &MockAutoFixer{}
-	samplingClient := generation.NewSamplingClient(true)
-	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
-
-	advGen := NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
-
-	// Mock validation response
-	validationResult := &validation.ValidationResult{
-		Errors:   []validation.ValidationError{},
-		Warnings: []validation.ValidationWarning{},
-	}
-	validator.On("ValidateCode", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("string"), "").
-		Return(validationResult, nil)
-
-	request := RefactoringRequest{
-		Code:            "sub test { }",
-		RefactoringType: "invalid_type",
-		Target:          "test",
-		SessionID:       "test-session",
-	}
-
-	result, err := advGen.RefactorCode(context.Background(), request)
-
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "unsupported refactoring type")
-}
-
-func TestAdvancedGenerator_GenerateDocumentation(t *testing.T) {
-	validator := &MockValidator{}
-	autoFixer := &MockAutoFixer{}
-	samplingClient := generation.NewSamplingClient(true)
-	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
-
-	advGen := NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
-
-	// Mock validation response
-	validationResult := &validation.ValidationResult{
-		Errors:   []validation.ValidationError{},
-		Warnings: []validation.ValidationWarning{},
-	}
-	validator.On("ValidateCode", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("string"), "").
-		Return(validationResult, nil)
-
-	tests := []struct {
-		name           string
-		request        DocumentationRequest
-		expectedPrefix string
-	}{
-		{
-			name: "pod_style",
-			request: DocumentationRequest{
-				Code:      "sub calculate { my ($x, $y) = @_; return $x + $y; }",
-				Style:     "pod",
-				SessionID: "test-session",
-			},
-			expectedPrefix: "=",
-		},
-		{
-			name: "markdown_style",
-			request: DocumentationRequest{
-				Code:      "sub calculate { my ($x, $y) = @_; return $x + $y; }",
-				Style:     "markdown",
-				SessionID: "test-session",
-			},
-			expectedPrefix: "#",
-		},
-		{
-			name: "inline_style",
-			request: DocumentationRequest{
-				Code:      "sub calculate { my ($x, $y) = @_; return $x + $y; }",
-				Style:     "inline",
-				SessionID: "test-session",
-			},
-			expectedPrefix: "#",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := advGen.GenerateDocumentation(context.Background(), tt.request)
-
-			assert.NoError(t, err)
-			assert.NotNil(t, result)
-			assert.Equal(t, "success", result.Status)
-			assert.NotEmpty(t, result.GeneratedCode)
-			assert.True(t, strings.HasPrefix(result.GeneratedCode, tt.expectedPrefix) ||
-				strings.Contains(result.GeneratedCode, tt.expectedPrefix))
-			assert.Contains(t, result.Message, tt.request.Style)
-		})
-	}
-
-	validator.AssertExpectations(t)
-}
-
-func TestAdvancedGenerator_CompleteCode(t *testing.T) {
-	validator := &MockValidator{}
-	autoFixer := &MockAutoFixer{}
-	samplingClient := generation.NewSamplingClient(true)
-	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
-
-	advGen := NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
-
-	// Mock validation response
-	validationResult := &validation.ValidationResult{
-		Errors:   []validation.ValidationError{},
-		Warnings: []validation.ValidationWarning{},
-	}
-	validator.On("ValidateCode", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("string"), "").
-		Return(validationResult, nil)
-
-	request := CompletionRequest{
-		PartialCode: "sub calculate { my ($x, $y) = @_; ret",
-		CursorPos:   37, // After "ret"
-		Context:     "use v5.40;",
-		SessionID:   "test-session",
-	}
-
-	result, err := advGen.CompleteCode(context.Background(), request)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, "success", result.Status)
-	assert.NotEmpty(t, result.GeneratedCode)
-	assert.Contains(t, result.Message, "completion generated successfully")
-
-	validator.AssertExpectations(t)
-}
-
-func TestAdvancedGenerator_CompleteCode_ValidationFailure(t *testing.T) {
-	validator := &MockValidator{}
-	autoFixer := &MockAutoFixer{}
-	samplingClient := generation.NewSamplingClient(true)
-	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
-
-	advGen := NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
-
-	// Mock validation failure
-	validator.On("ValidateCode", mock.AnythingOfType("*context.emptyCtx"), mock.AnythingOfType("string"), "").
-		Return(nil, assert.AnError)
-
-	request := CompletionRequest{
-		PartialCode: "sub calculate { my ($x, $y) = @_; ret",
-		CursorPos:   37,
-		Context:     "use v5.40;",
-		SessionID:   "test-session",
-	}
-
-	result, err := advGen.CompleteCode(context.Background(), request)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, "success_with_warnings", result.Status)
-	assert.NotEmpty(t, result.GeneratedCode)
-	assert.Contains(t, result.Message, "may have validation issues")
-
-	validator.AssertExpectations(t)
-}
-
-func TestAdvancedGenerator_BatchGenerate(t *testing.T) {
-	validator := &MockValidator{}
-	autoFixer := &MockAutoFixer{}
-	samplingClient := generation.NewSamplingClient(true)
-	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
-
-	advGen := NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
-
-	// Mock validation responses
-	validationResult := &validation.ValidationResult{
-		Errors:   []validation.ValidationError{},
-		Warnings: []validation.ValidationWarning{},
-	}
-	validator.On("ValidateCode", mock.AnythingOfType("string")).Return(validationResult, nil)
-
-	request := BatchGenerationRequest{
-		Requests: []GenerationRequest{
-			{
-				Type:          "function",
-				Specification: "Create add function",
-			},
-			{
-				Type:          "class",
-				Specification: "Create Person class",
-			},
-			{
-				Type:          "test",
-				Specification: "Test add function",
-			},
-		},
-		SessionID: "batch-session",
-	}
-
-	results, err := advGen.BatchGenerate(context.Background(), request)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, results)
-	assert.Len(t, results, 3)
-
-	for i, result := range results {
-		assert.NotNil(t, result)
-		assert.Equal(t, "success", result.Status)
-		assert.NotEmpty(t, result.GeneratedCode)
-
-		// Verify correct type generation
-		switch request.Requests[i].Type {
-		case "function":
-			assert.Contains(t, result.GeneratedCode, "sub ")
-		case "class":
-			assert.True(t, strings.Contains(result.GeneratedCode, "class ") ||
-				strings.Contains(result.GeneratedCode, "package "))
-		case "test":
-			assert.True(t, strings.Contains(result.GeneratedCode, "ok(") ||
-				strings.Contains(result.GeneratedCode, "is("))
-		}
-	}
-
-	// Verify shared session was used
-	memory := memoryManager.GetSession("batch-session")
-	decisions := memory.GetDecisions()
-	assert.Greater(t, len(decisions), 3) // Should have decisions from all generations
-
-	validator.AssertExpectations(t)
-}
-
-func TestAdvancedGenerator_BatchGenerate_WithErrors(t *testing.T) {
-	validator := &MockValidator{}
-	autoFixer := &MockAutoFixer{}
-	samplingClient := generation.NewSamplingClient(true)
-	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
-
-	advGen := NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
-
-	// Mock validation responses - first succeeds, second fails
-	validationResult := &validation.ValidationResult{
-		Errors:   []validation.ValidationError{},
-		Warnings: []validation.ValidationWarning{},
-	}
-	validator.On("ValidateCode", mock.AnythingOfType("string")).Return(validationResult, nil).Once()
-	validator.On("ValidateCode", mock.AnythingOfType("string")).Return(nil, assert.AnError).Once()
-
-	request := BatchGenerationRequest{
-		Requests: []GenerationRequest{
-			{
-				Type:          "function",
-				Specification: "Create add function",
-			},
-			{
-				Type:          "invalid", // This will cause an error
-				Specification: "Invalid type",
-			},
-		},
-		SessionID: "batch-error-session",
-	}
-
-	results, err := advGen.BatchGenerate(context.Background(), request)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "batch generation had 1 errors")
-	assert.NotNil(t, results)
-	assert.Len(t, results, 2)
-
-	// First result should be success
-	assert.Equal(t, "success", results[0].Status)
-	assert.NotEmpty(t, results[0].GeneratedCode)
-
-	// Second result should be error
-	assert.Equal(t, "error", results[1].Status)
-	assert.NotEmpty(t, results[1].Message)
-}
-
-func TestAdvancedGenerator_ExtractTypeInfo(t *testing.T) {
-	advGen := &AdvancedGenerator{}
-
-	code := `sub add {
-		my ($x, $y) = @_;
-		return $x + $y;
-	}
-
-	class Calculator {
-		field $value;
-		method compute { }
-	}`
-
-	typeSigs := map[string]string{
-		"add":     "(Int, Int) -> Int",
-		"compute": "() -> Int",
-	}
-
-	typeInfo := advGen.extractTypeInfo(code, typeSigs)
-
-	assert.NotNil(t, typeInfo)
-	assert.Equal(t, typeSigs, typeInfo["signatures"])
-
-	// Verify functions were extracted - direct access without type assertion
-	functionsRaw := typeInfo["functions"]
-	require.NotNil(t, functionsRaw, "functions should exist")
-
-	// Use type switch to handle the value
-	var functions []string
-	switch v := functionsRaw.(type) {
-	case []string:
-		functions = v
-	default:
-		t.Fatalf("expected []string, got %T", v)
-	}
-
-	assert.Len(t, functions, 2)
-	assert.Contains(t, functions[0], "sub add")
-	assert.Contains(t, functions[1], "method compute")
-
-	// Verify classes were extracted - direct access without type assertion
-	classesRaw := typeInfo["classes"]
-	require.NotNil(t, classesRaw, "classes should exist")
-
-	// Use type switch to handle the value
-	var classes []string
-	switch v := classesRaw.(type) {
-	case []string:
-		classes = v
-	default:
-		t.Fatalf("expected []string, got %T", v)
-	}
-
-	assert.Len(t, classes, 1)
-	assert.Contains(t, classes[0], "class Calculator")
-}
-
-func TestAdvancedGenerator_FormatDocumentation(t *testing.T) {
-	advGen := &AdvancedGenerator{}
+	testGen := NewTestGenerator(samplingClient, typeParser, logger)
 
 	tests := []struct {
 		name     string
-		docs     string
-		style    string
-		expected string
+		request  TestGenRequest
+		wantErr  bool
+		errMsg   string
+		validate func(t *testing.T, result *TestGenerationResult)
 	}{
 		{
-			name:     "pod_formatting",
-			docs:     "This is documentation",
-			style:    "pod",
-			expected: "=pod\n\nThis is documentation\n\n=cut",
+			name: "successful test generation with default framework",
+			request: TestGenRequest{
+				TypeSignature: "Int -> Str",
+				FunctionName:  "int_to_string",
+				Context:       "Converts integer to string",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *TestGenerationResult) {
+				assert.NotEmpty(t, result.TestCode)
+				assert.Contains(t, result.TestCode, "use Test2::V0")
+				assert.Contains(t, result.TestCode, "int_to_string")
+				assert.Len(t, result.TestCases, 5)
+				assert.Contains(t, result.TestCases[0], "valid input")
+				assert.Contains(t, result.TestCases[1], "invalid input")
+				assert.Contains(t, result.TestCases[2], "edge cases")
+				assert.Contains(t, result.TestCases[3], "type constraints")
+				assert.Contains(t, result.TestCases[4], "return type correctness")
+				assert.Greater(t, result.Coverage, 0.0)
+				assert.LessOrEqual(t, result.Coverage, 1.0)
+			},
 		},
 		{
-			name:     "pod_already_formatted",
-			docs:     "=head1 NAME\n\nModule",
-			style:    "pod",
-			expected: "=head1 NAME\n\nModule",
+			name: "test generation with custom framework",
+			request: TestGenRequest{
+				TypeSignature: "ArrayRef[Int] -> Int",
+				FunctionName:  "sum_array",
+				Context:       "Sums all integers in array",
+				Framework:     "Test::More",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *TestGenerationResult) {
+				assert.NotEmpty(t, result.TestCode)
+				assert.Contains(t, result.TestCode, "use Test::More")
+				assert.Contains(t, result.TestCode, "sum_array")
+			},
 		},
 		{
-			name:     "markdown_formatting",
-			docs:     "This is documentation",
-			style:    "markdown",
-			expected: "# Documentation\n\nThis is documentation",
-		},
-		{
-			name:     "markdown_already_formatted",
-			docs:     "# Title\n\nContent",
-			style:    "markdown",
-			expected: "# Title\n\nContent",
-		},
-		{
-			name:     "inline_formatting",
-			docs:     "Line 1\nLine 2\n\nLine 3",
-			style:    "inline",
-			expected: "# Line 1\n# Line 2\n\n# Line 3",
+			name: "type parsing error",
+			request: TestGenRequest{
+				TypeSignature: "Invalid::Type",
+				FunctionName:  "bad_function",
+			},
+			wantErr: true,
+			errMsg:  "failed to parse type signature",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			formatted := advGen.formatDocumentation(tt.docs, tt.style)
-			assert.Equal(t, tt.expected, formatted)
+			if tt.wantErr && strings.Contains(tt.errMsg, "parse type signature") {
+				typeParser.parseTypeErr = assert.AnError
+			} else {
+				typeParser.parseTypeErr = nil
+			}
+
+			result, err := testGen.GenerateTestsFromType(tt.request)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				tt.validate(t, result)
+			}
 		})
 	}
 }
 
-func TestAdvancedGenerator_ExtractCursorContext(t *testing.T) {
-	advGen := &AdvancedGenerator{}
+func TestRefactoringEngine_Refactor(t *testing.T) {
+	logger := log.NewLogger(log.LevelError, os.Stderr, "test")
+	samplingClient := generation.NewSamplingClient(true)
+	typeParser := &mockTypeParser{}
+	validator := &mockValidator{}
+
+	refactorer := NewRefactoringEngine(samplingClient, typeParser, validator, logger)
 
 	tests := []struct {
-		name           string
-		code           string
-		cursorPos      int
-		expectedPrefix string
-		expectedSuffix string
+		name     string
+		request  RefactoringRequest
+		wantErr  bool
+		validate func(t *testing.T, result *RefactoringResult)
 	}{
 		{
-			name:           "middle_position",
-			code:           "sub test { return 42; }",
-			cursorPos:      10,
-			expectedPrefix: "sub test {",
-			expectedSuffix: " return 42; }",
+			name: "extract method refactoring",
+			request: RefactoringRequest{
+				Code: `sub process {
+    my $data = shift;
+    # validation logic
+    die "Invalid data" unless $data;
+    die "Data too large" if length($data) > 100;
+    # processing logic
+    return uc($data);
+}`,
+				RefactoringType: "extract_method",
+				Target:          "# validation logic",
+				PreserveTypes:   true,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *RefactoringResult) {
+				assert.NotEmpty(t, result.RefactoredCode)
+				assert.Contains(t, result.RefactoredCode, "sub ")
+				assert.True(t, result.TypesSafe)
+				assert.Contains(t, result.Changes, "Extracted code into new method")
+			},
 		},
 		{
-			name:           "start_position",
-			code:           "sub test { }",
-			cursorPos:      0,
-			expectedPrefix: "",
-			expectedSuffix: "sub test { }",
+			name: "rename refactoring",
+			request: RefactoringRequest{
+				Code: `my $foo = 42;
+print $foo;`,
+				RefactoringType: "rename",
+				Target:          "foo",
+				NewName:         "meaningful_name",
+				PreserveTypes:   true,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *RefactoringResult) {
+				assert.NotEmpty(t, result.RefactoredCode)
+				assert.Contains(t, result.RefactoredCode, "meaningful_name")
+				assert.Contains(t, result.Changes, "Renamed identifiers throughout code")
+			},
 		},
 		{
-			name:           "end_position",
-			code:           "sub test { }",
-			cursorPos:      12,
-			expectedPrefix: "sub test { }",
-			expectedSuffix: "",
-		},
-		{
-			name:           "beyond_end",
-			code:           "sub test { }",
-			cursorPos:      100,
-			expectedPrefix: "sub test { }",
-			expectedSuffix: "",
-		},
-		{
-			name:           "negative_position",
-			code:           "sub test { }",
-			cursorPos:      -5,
-			expectedPrefix: "",
-			expectedSuffix: "sub test { }",
+			name: "inline refactoring",
+			request: RefactoringRequest{
+				Code: `sub get_pi { return 3.14159; }
+my $circle_area = get_pi() * $r * $r;`,
+				RefactoringType: "inline",
+				Target:          "get_pi",
+				PreserveTypes:   false,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *RefactoringResult) {
+				assert.NotEmpty(t, result.RefactoredCode)
+				assert.Contains(t, result.RefactoredCode, "3.14159")
+				assert.Contains(t, result.Changes, "Inlined method/variable at call sites")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prefix, suffix := advGen.extractCursorContext(tt.code, tt.cursorPos)
-			assert.Equal(t, tt.expectedPrefix, prefix)
-			assert.Equal(t, tt.expectedSuffix, suffix)
+			result, err := refactorer.Refactor(tt.request)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				tt.validate(t, result)
+			}
 		})
 	}
+}
+
+func TestDocumentationGenerator_GenerateDocumentation(t *testing.T) {
+	logger := log.NewLogger(log.LevelError, os.Stderr, "test")
+	samplingClient := generation.NewSamplingClient(true)
+
+	docGen := NewDocumentationGenerator(samplingClient, logger)
+
+	tests := []struct {
+		name     string
+		request  DocumentationRequest
+		wantErr  bool
+		validate func(t *testing.T, result *DocumentationResult)
+	}{
+		{
+			name: "generate POD documentation",
+			request: DocumentationRequest{
+				Code: `sub calculate_discount {
+    my ($price, $percentage) = @_;
+    return $price * (1 - $percentage / 100);
+}`,
+				DocType:      "pod",
+				IncludeTypes: true,
+				Verbose:      false,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *DocumentationResult) {
+				assert.NotEmpty(t, result.Documentation)
+				assert.Contains(t, result.Documentation, "=head")
+				assert.NotEmpty(t, result.Sections)
+			},
+		},
+		{
+			name: "generate inline documentation",
+			request: DocumentationRequest{
+				Code: `my Int $count = 0;
+$count++;`,
+				DocType:      "inline",
+				IncludeTypes: true,
+				Verbose:      true,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *DocumentationResult) {
+				assert.NotEmpty(t, result.Documentation)
+				assert.NotEmpty(t, result.TypeInfo)
+				assert.Contains(t, result.TypeInfo[0], "$count: Int")
+			},
+		},
+		{
+			name: "generate both POD and inline",
+			request: DocumentationRequest{
+				Code: `package MyModule;
+use v5.40;`,
+				DocType:      "both",
+				IncludeTypes: false,
+				Verbose:      false,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *DocumentationResult) {
+				assert.NotEmpty(t, result.Documentation)
+				assert.NotEmpty(t, result.Sections)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := docGen.GenerateDocumentation(tt.request)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				tt.validate(t, result)
+			}
+		})
+	}
+}
+
+func TestCompletionEngine_Complete(t *testing.T) {
+	logger := log.NewLogger(log.LevelError, os.Stderr, "test")
+	samplingClient := generation.NewSamplingClient(true)
+	typeParser := &mockTypeParser{}
+
+	completer := NewCompletionEngine(samplingClient, typeParser, logger)
+
+	tests := []struct {
+		name     string
+		request  CompletionRequest
+		wantErr  bool
+		validate func(t *testing.T, result *CompletionResult)
+	}{
+		{
+			name: "method completion",
+			request: CompletionRequest{
+				PartialCode: `my $str = "hello";
+$str->`,
+				CursorPosition: 24,
+				Context:        "String object methods",
+				MaxSuggestions: 5,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *CompletionResult) {
+				assert.NotEmpty(t, result.Suggestions)
+				assert.LessOrEqual(t, len(result.Suggestions), 5)
+				if len(result.Suggestions) > 0 {
+					assert.NotEmpty(t, result.Suggestions[0].Text)
+					assert.NotEmpty(t, result.Suggestions[0].Description)
+					assert.Greater(t, result.Suggestions[0].Score, 0.0)
+				}
+			},
+		},
+		{
+			name: "variable completion",
+			request: CompletionRequest{
+				PartialCode: `my $count = 0;
+my $c`,
+				CursorPosition: 20,
+				Context:        "Variable names",
+				MaxSuggestions: 3,
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *CompletionResult) {
+				assert.NotEmpty(t, result.Suggestions)
+				assert.LessOrEqual(t, len(result.Suggestions), 3)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := completer.Complete(tt.request)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				tt.validate(t, result)
+			}
+		})
+	}
+}
+
+func TestCodeGenerator_GenerateBatch(t *testing.T) {
+	logger := log.NewLogger(log.LevelError, os.Stderr, "test")
+	samplingClient := generation.NewSamplingClient(true)
+	memoryManager := generation.NewMemoryManager(50)
+	validator := &mockValidator{}
+	autoFixer := &mockAutoFixer{}
+
+	codeGen := NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
+
+	tests := []struct {
+		name     string
+		request  BatchGenerationRequest
+		wantErr  bool
+		validate func(t *testing.T, result *BatchGenerationResult)
+	}{
+		{
+			name: "successful batch generation",
+			request: BatchGenerationRequest{
+				Requests: []GenerationRequest{
+					{
+						Type:          "function",
+						Specification: "Add two numbers",
+						Context:       "",
+						SessionID:     "batch-1",
+					},
+					{
+						Type:          "class",
+						Specification: "User class with name and email",
+						Context:       "",
+						SessionID:     "batch-1",
+					},
+					{
+						Type:          "test",
+						Specification: "Test the add function",
+						Context:       "sub add { my ($a, $b) = @_; return $a + $b; }",
+						SessionID:     "batch-1",
+					},
+				},
+				Parallel:  false,
+				SessionID: "batch-1",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, result *BatchGenerationResult) {
+				assert.Equal(t, 3, len(result.Results))
+				assert.Equal(t, 3, result.Succeeded)
+				assert.Equal(t, 0, result.Failed)
+				assert.Empty(t, result.Errors)
+
+				// Check individual results
+				for _, res := range result.Results {
+					assert.NotNil(t, res)
+					assert.Equal(t, "success", res.Status)
+					assert.NotEmpty(t, res.GeneratedCode)
+					assert.NotEmpty(t, res.Message)
+					assert.Greater(t, res.Iterations, 0)
+				}
+			},
+		},
+		{
+			name: "batch with invalid request",
+			request: BatchGenerationRequest{
+				Requests: []GenerationRequest{
+					{
+						Type:          "function",
+						Specification: "Valid function",
+						SessionID:     "batch-2",
+					},
+					{
+						Type:          "invalid_type",
+						Specification: "This should fail",
+						SessionID:     "batch-2",
+					},
+				},
+				SessionID: "batch-2",
+			},
+			wantErr: false, // Batch itself doesn't error, individual requests do
+			validate: func(t *testing.T, result *BatchGenerationResult) {
+				assert.Equal(t, 2, len(result.Results))
+				assert.Equal(t, 1, result.Succeeded)
+				assert.Equal(t, 1, result.Failed)
+				assert.Len(t, result.Errors, 1)
+				assert.Contains(t, result.Errors[0], "unsupported generation type")
+
+				// First should succeed
+				assert.Equal(t, "success", result.Results[0].Status)
+				// Second should fail
+				assert.Equal(t, "error", result.Results[1].Status)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := codeGen.GenerateBatch(tt.request)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				tt.validate(t, result)
+			}
+		})
+	}
+}
+
+// Test helper functions
+
+func TestGenerateTestCasesFromType(t *testing.T) {
+	logger := log.NewLogger(log.LevelError, os.Stderr, "test")
+	samplingClient := generation.NewSamplingClient(true)
+	typeParser := &mockTypeParser{}
+
+	testGen := NewTestGenerator(samplingClient, typeParser, logger)
+
+	tests := []struct {
+		name         string
+		typeInfo     *SimpleType
+		functionName string
+		wantCases    int
+		checkContent func(t *testing.T, cases []string)
+	}{
+		{
+			name:         "with type info",
+			typeInfo:     &SimpleType{Name: "Int"},
+			functionName: "calculate",
+			wantCases:    5,
+			checkContent: func(t *testing.T, cases []string) {
+				assert.Contains(t, cases[3], "type constraints")
+				assert.Contains(t, cases[4], "return type correctness")
+			},
+		},
+		{
+			name:         "without type info",
+			typeInfo:     nil,
+			functionName: "process",
+			wantCases:    3,
+			checkContent: func(t *testing.T, cases []string) {
+				assert.Contains(t, cases[0], "valid input")
+				assert.Contains(t, cases[1], "invalid input")
+				assert.Contains(t, cases[2], "edge cases")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cases := testGen.generateTestCasesFromType(tt.typeInfo, tt.functionName)
+			assert.Len(t, cases, tt.wantCases)
+			tt.checkContent(t, cases)
+		})
+	}
+}
+
+func TestParseDocumentationSections(t *testing.T) {
+	logger := log.NewLogger(log.LevelError, os.Stderr, "test")
+	samplingClient := generation.NewSamplingClient(true)
+	docGen := NewDocumentationGenerator(samplingClient, logger)
+
+	tests := []struct {
+		name     string
+		doc      string
+		expected map[string]string
+	}{
+		{
+			name: "POD sections",
+			doc: `=head1 NAME
+
+MyModule - A test module
+
+=head1 DESCRIPTION
+
+This module does things.
+
+=head1 METHODS
+
+=head2 new
+
+Constructor`,
+			expected: map[string]string{
+				"NAME":        "MyModule - A test module",
+				"DESCRIPTION": "This module does things.",
+				"METHODS":     "=head2 new\n\nConstructor",
+			},
+		},
+		{
+			name: "no POD sections",
+			doc:  "Just plain text documentation",
+			expected: map[string]string{
+				"main": "Just plain text documentation",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sections := docGen.parseDocumentationSections(tt.doc)
+			assert.Equal(t, len(tt.expected), len(sections))
+			for key, expectedValue := range tt.expected {
+				assert.Contains(t, sections, key)
+				assert.Equal(t, expectedValue, sections[key])
+			}
+		})
+	}
+}
+
+func TestExtractCompletionContext(t *testing.T) {
+	logger := log.NewLogger(log.LevelError, os.Stderr, "test")
+	samplingClient := generation.NewSamplingClient(true)
+	typeParser := &mockTypeParser{}
+	completer := NewCompletionEngine(samplingClient, typeParser, logger)
+
+	tests := []struct {
+		name          string
+		code          string
+		position      int
+		expectedLine  string
+		expectedToken string
+	}{
+		{
+			name: "middle of line",
+			code: `my $foo = 42;
+$foo->`,
+			position:      20,
+			expectedLine:  "$foo->",
+			expectedToken: "$foo->",
+		},
+		{
+			name: "start of line",
+			code: `use v5.40;
+my`,
+			position:      11,
+			expectedLine:  "my",
+			expectedToken: "my",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			context := completer.extractCompletionContext(tt.code, tt.position)
+			assert.Equal(t, tt.expectedLine, context["current_line"])
+			if tt.expectedToken != "" {
+				assert.Equal(t, tt.expectedToken, context["preceding_token"])
+			}
+		})
+	}
+}
+
+// Mock auto-fixer for testing
+type mockAutoFixer struct{}
+
+func (m *mockAutoFixer) AutoFix(ctx context.Context, code string, errors []validation.ValidationError, projectPath string) ([]validation.FixError, error) {
+	return []validation.FixError{}, nil
 }
