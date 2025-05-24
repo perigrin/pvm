@@ -122,10 +122,11 @@ func TestOptimizedUnionType(t *testing.T) {
 		optimized.mu.RUnlock()
 
 		assert.True(t, exists, "Result should be cached")
-		if result, ok := cached.(*OperationResult); ok {
+		switch result := cached.(type) {
+		case *OperationResult:
 			assert.NoError(t, result.Error, "Cached result should not contain error")
 			assert.Equal(t, resultType1, result.Result)
-		} else {
+		default:
 			t.Errorf("Cached result has wrong type: %T", cached)
 		}
 	})
@@ -151,9 +152,10 @@ func TestOptimizedUnionType(t *testing.T) {
 
 			t.Logf("Cache check: exists=%v, cached=%v", exists, cached)
 			assert.True(t, exists, "Error should be cached")
-			if result, ok := cached.(*OperationResult); ok {
+			switch result := cached.(type) {
+			case *OperationResult:
 				assert.Error(t, result.Error, "Cached result should contain error")
-			} else {
+			default:
 				t.Errorf("Cached result has wrong type: %T", cached)
 			}
 		} else {

@@ -62,8 +62,13 @@ func TestNetworkDisabledError(t *testing.T) {
 	require.Error(t, err, "GetModuleInfo should return an error when network is disabled")
 
 	// Check that the error is a ProviderError
-	providerErr, ok := err.(*ProviderError)
-	require.True(t, ok, "Error should be a ProviderError")
+	var providerErr *ProviderError
+	switch e := err.(type) {
+	case *ProviderError:
+		providerErr = e
+	default:
+		t.Fatalf("Error should be a ProviderError, got %T", err)
+	}
 	assert.Equal(t, "metacpan", providerErr.Source, "Error source should be 'metacpan'")
 	assert.Equal(t, "network_disabled", providerErr.Code, "Error code should be 'network_disabled'")
 	assert.Equal(t, "Network access is disabled", providerErr.Message, "Error message should be correct")
@@ -92,8 +97,13 @@ func TestHTTPErrorHandling(t *testing.T) {
 	require.Error(t, err, "GetModuleInfo should return an error when the server returns an error")
 
 	// Check that the error is a ProviderError
-	providerErr, ok := err.(*ProviderError)
-	require.True(t, ok, "Error should be a ProviderError")
+	var providerErr *ProviderError
+	switch e := err.(type) {
+	case *ProviderError:
+		providerErr = e
+	default:
+		t.Fatalf("Error should be a ProviderError, got %T", err)
+	}
 	assert.Equal(t, "metacpan", providerErr.Source, "Error source should be 'metacpan'")
 	assert.Equal(t, "http_error", providerErr.Code, "Error code should be 'http_error'")
 	assert.Equal(t, fmt.Sprintf("HTTP error: %d", http.StatusNotFound), providerErr.Message, "Error message should be correct")
@@ -116,8 +126,13 @@ func TestRequestFailureHandling(t *testing.T) {
 	require.Error(t, err, "GetModuleInfo should return an error when the request fails")
 
 	// Check that the error is a ProviderError
-	providerErr, ok := err.(*ProviderError)
-	require.True(t, ok, "Error should be a ProviderError")
+	var providerErr *ProviderError
+	switch e := err.(type) {
+	case *ProviderError:
+		providerErr = e
+	default:
+		t.Fatalf("Error should be a ProviderError, got %T", err)
+	}
 	assert.Equal(t, "metacpan", providerErr.Source, "Error source should be 'metacpan'")
 	assert.Equal(t, "request_failed", providerErr.Code, "Error code should be 'request_failed'")
 	assert.Contains(t, providerErr.Message, "Failed to execute request", "Error message should be correct")
@@ -149,8 +164,13 @@ func TestParseFailureHandling(t *testing.T) {
 	require.Error(t, err, "GetModuleInfo should return an error when the response is invalid JSON")
 
 	// Check that the error is a ProviderError
-	providerErr, ok := err.(*ProviderError)
-	require.True(t, ok, "Error should be a ProviderError")
+	var providerErr *ProviderError
+	switch e := err.(type) {
+	case *ProviderError:
+		providerErr = e
+	default:
+		t.Fatalf("Error should be a ProviderError, got %T", err)
+	}
 	assert.Equal(t, "metacpan", providerErr.Source, "Error source should be 'metacpan'")
 	assert.Equal(t, "parse_failed", providerErr.Code, "Error code should be 'parse_failed'")
 	assert.Contains(t, providerErr.Message, "Failed to parse JSON response", "Error message should be correct")

@@ -380,12 +380,14 @@ func (cm *CollectionManager) ApplySearchFilter(results []SearchResult, filter Se
 			if !exists {
 				continue
 			}
-			filePath, isString := filePathVal.(string)
-			if !isString {
-				continue
-			}
-			matched, _ := filepath.Match(filter.FilePattern, filePath)
-			if !matched {
+			// Use type switch to handle the interface{} value
+			switch v := filePathVal.(type) {
+			case string:
+				matched, _ := filepath.Match(filter.FilePattern, v)
+				if !matched {
+					continue
+				}
+			default:
 				continue
 			}
 		}

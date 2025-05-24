@@ -18,8 +18,13 @@ func TestNewProviderWithDefaults(t *testing.T) {
 	require.NotNil(t, provider, "Provider should not be nil")
 
 	// Check that the provider is a MetaCPANProvider
-	metacpanProvider, ok := provider.(*MetaCPANProvider)
-	require.True(t, ok, "Provider should be a MetaCPANProvider")
+	var metacpanProvider *MetaCPANProvider
+	switch p := provider.(type) {
+	case *MetaCPANProvider:
+		metacpanProvider = p
+	default:
+		t.Fatalf("Provider should be a MetaCPANProvider, got %T", provider)
+	}
 
 	// Check default settings
 	assert.Equal(t, "metacpan", metacpanProvider.Name(), "Provider name should be 'metacpan'")
@@ -46,8 +51,13 @@ func TestNewProviderWithOptions(t *testing.T) {
 	require.NotNil(t, provider, "Provider should not be nil")
 
 	// Check that the provider is a MetaCPANProvider
-	metacpanProvider, ok := provider.(*MetaCPANProvider)
-	require.True(t, ok, "Provider should be a MetaCPANProvider")
+	var metacpanProvider *MetaCPANProvider
+	switch p := provider.(type) {
+	case *MetaCPANProvider:
+		metacpanProvider = p
+	default:
+		t.Fatalf("Provider should be a MetaCPANProvider, got %T", provider)
+	}
 
 	// Check custom settings
 	assert.Equal(t, "metacpan", metacpanProvider.Name(), "Provider name should be 'metacpan'")
@@ -68,8 +78,13 @@ func TestNewCustomProvider(t *testing.T) {
 	require.NotNil(t, provider, "Provider should not be nil")
 
 	// Check that the provider is a CustomProvider
-	customProvider, ok := provider.(*CustomProvider)
-	require.True(t, ok, "Provider should be a CustomProvider")
+	var customProvider *CustomProvider
+	switch p := provider.(type) {
+	case *CustomProvider:
+		customProvider = p
+	default:
+		t.Fatalf("Provider should be a CustomProvider, got %T", provider)
+	}
 
 	// Check settings
 	assert.Equal(t, "custom", customProvider.Name(), "Provider name should be 'custom'")
@@ -92,8 +107,12 @@ func TestNewProviderWithUnknownSource(t *testing.T) {
 	require.NotNil(t, provider, "Provider should not be nil")
 
 	// Check that the provider is a MetaCPANProvider
-	_, ok := provider.(*MetaCPANProvider)
-	assert.True(t, ok, "Provider should be a MetaCPANProvider (default)")
+	switch provider.(type) {
+	case *MetaCPANProvider:
+		// Expected type
+	default:
+		t.Fatalf("Provider should be a MetaCPANProvider (default), got %T", provider)
+	}
 }
 
 // TestWithCPANConfig tests creating a provider with a CPAN configuration
@@ -141,8 +160,13 @@ func TestWithCPANConfig(t *testing.T) {
 	require.NotNil(t, provider, "Provider should not be nil")
 
 	// Check that the provider is a MetaCPANProvider
-	metacpanProvider, ok := provider.(*MetaCPANProvider)
-	require.True(t, ok, "Provider should be a MetaCPANProvider")
+	var metacpanProvider *MetaCPANProvider
+	switch p := provider.(type) {
+	case *MetaCPANProvider:
+		metacpanProvider = p
+	default:
+		t.Fatalf("Provider should be a MetaCPANProvider, got %T", provider)
+	}
 
 	// Check that settings from config were applied
 	// In this case, since we're using MetaCPAN, the base URL from config is not applied
