@@ -1,0 +1,507 @@
+// ABOUTME: Code block extraction for embedding generation
+// ABOUTME: Extracts meaningful code blocks from Perl files for semantic search
+
+package embeddings
+
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
+	chromem "github.com/philippgille/chromem-go"
+	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/parser"
+)
+
+// Error codes for extraction operations
+const (
+	ErrExtractionFailed  = "MCP-8101" // Failed to extract code blocks
+	ErrParsingFailed     = "MCP-8102" // Failed to parse file
+	ErrInvalidCodeBlock  = "MCP-8103" // Invalid code block structure
+	ErrBatchCreationFail = "MCP-8104" // Failed to create document batch
+)
+
+// CodeBlock represents an extracted code block with metadata
+type CodeBlock struct {
+	// ID is a unique identifier for the block (project/file/block)
+	ID string
+
+	// Content is the actual code text
+	Content string
+
+	// Type is the kind of code block (function, method, class, etc.)
+	Type string
+
+	// Name is the name of the code element (function name, class name, etc.)
+	Name string
+
+	// File is the source file path
+	File string
+
+	// StartLine is the starting line number
+	StartLine int
+
+	// EndLine is the ending line number
+	EndLine int
+
+	// TypeInfo contains type annotations if present
+	TypeInfo map[string]string
+
+	// Imports are the modules imported by this file
+	Imports []string
+
+	// Context provides surrounding context (e.g., parent class/package)
+	Context string
+}
+
+// Extractor extracts code blocks from Perl files
+type Extractor struct {
+	parser parser.Parser
+}
+
+// NewExtractor creates a new code block extractor
+func NewExtractor() (*Extractor, error) {
+	p, err := parser.NewParser()
+	if err != nil {
+		return nil, errors.NewSystemError(
+			ErrExtractionFailed,
+			"Failed to create parser for extraction",
+			err,
+		)
+	}
+
+	return &Extractor{
+		parser: p,
+	}, nil
+}
+
+// ExtractFromFile extracts code blocks from a single Perl file
+func (e *Extractor) ExtractFromFile(projectID, filePath string) ([]*CodeBlock, error) {
+	// Parse the file
+	ast, err := e.parser.ParseFile(filePath)
+	if err != nil {
+		return nil, errors.NewSystemError(
+			ErrParsingFailed,
+			fmt.Sprintf("Failed to parse file: %s", filePath),
+			err,
+		).WithLocation(filePath)
+	}
+
+	// Check for parse errors
+	if len(ast.Errors) > 0 {
+		// We can still extract from files with errors, just log them
+		// In a real system, you might want to handle this differently
+	}
+
+	// Extract code blocks from the AST
+	blocks := e.extractBlocksFromAST(ast, projectID, filePath)
+
+	return blocks, nil
+}
+
+// extractBlocksFromAST extracts code blocks from a parsed AST
+func (e *Extractor) extractBlocksFromAST(ast *parser.AST, projectID, filePath string) []*CodeBlock {
+	var blocks []*CodeBlock
+
+	// Get base filename without path for IDs
+	baseFile := filepath.Base(filePath)
+
+	// Extract package/module context
+	packageName := e.extractPackageName(ast.Root)
+	imports := e.extractImports(ast.Root)
+
+	// Walk the AST to find code blocks
+	e.walkNode(ast.Root, func(node parser.Node) bool {
+		switch node.Type() {
+		case "subroutine_declaration_statement", "subroutine_declaration":
+			if block := e.extractSubroutine(node, projectID, filePath, baseFile, packageName, imports); block != nil {
+				blocks = append(blocks, block)
+			}
+		case "method_declaration_statement", "method_declaration":
+			if block := e.extractMethod(node, projectID, filePath, baseFile, packageName, imports); block != nil {
+				blocks = append(blocks, block)
+			}
+		case "class_declaration":
+			if block := e.extractClass(node, projectID, filePath, baseFile, packageName, imports); block != nil {
+				blocks = append(blocks, block)
+			}
+		case "package_declaration":
+			// Package declarations are captured for context, not as separate blocks
+		}
+		return true // Continue walking
+	})
+
+	// If no specific blocks found, create a file-level block
+	if len(blocks) == 0 && ast.Root != nil {
+		blocks = append(blocks, &CodeBlock{
+			ID:        fmt.Sprintf("%s/%s/file", projectID, baseFile),
+			Content:   ast.Root.Text(),
+			Type:      "file",
+			Name:      baseFile,
+			File:      filePath,
+			StartLine: ast.Root.Start().Line,
+			EndLine:   ast.Root.End().Line,
+			TypeInfo:  e.extractTypeInfo(ast),
+			Imports:   imports,
+			Context:   packageName,
+		})
+	}
+
+	return blocks
+}
+
+// walkNode recursively walks the AST nodes
+func (e *Extractor) walkNode(node parser.Node, visitor func(parser.Node) bool) {
+	if node == nil {
+		return
+	}
+
+	// Visit this node
+	if !visitor(node) {
+		return // Stop if visitor returns false
+	}
+
+	// Visit children
+	for _, child := range node.Children() {
+		e.walkNode(child, visitor)
+	}
+}
+
+// extractPackageName extracts the package name from the AST
+func (e *Extractor) extractPackageName(root parser.Node) string {
+	var packageName string
+
+	e.walkNode(root, func(node parser.Node) bool {
+		if node.Type() == "package_declaration" {
+			// Extract package name from the declaration
+			text := node.Text()
+			if parts := strings.Fields(text); len(parts) >= 2 {
+				packageName = strings.TrimSuffix(parts[1], ";")
+			}
+			return false // Stop after finding first package
+		}
+		return true
+	})
+
+	if packageName == "" {
+		packageName = "main"
+	}
+
+	return packageName
+}
+
+// extractImports extracts import statements from the AST
+func (e *Extractor) extractImports(root parser.Node) []string {
+	var imports []string
+	seen := make(map[string]bool)
+
+	e.walkNode(root, func(node parser.Node) bool {
+		if node.Type() == "use_statement" {
+			// Extract module name from use statement
+			text := node.Text()
+			if parts := strings.Fields(text); len(parts) >= 2 {
+				module := strings.TrimSuffix(parts[1], ";")
+				// Remove version or import list
+				if idx := strings.IndexAny(module, " ("); idx > 0 {
+					module = module[:idx]
+				}
+				if !seen[module] {
+					imports = append(imports, module)
+					seen[module] = true
+				}
+			}
+		}
+		return true
+	})
+
+	return imports
+}
+
+// extractSubroutine extracts a subroutine block
+func (e *Extractor) extractSubroutine(node parser.Node, projectID, filePath, baseFile, packageName string, imports []string) *CodeBlock {
+	// Extract subroutine name
+	name := e.extractSubroutineName(node)
+	if name == "" {
+		return nil
+	}
+
+	// Extract type information
+	typeInfo := e.extractSubroutineTypes(node)
+
+	return &CodeBlock{
+		ID:        fmt.Sprintf("%s/%s/sub/%s", projectID, baseFile, name),
+		Content:   node.Text(),
+		Type:      "function",
+		Name:      name,
+		File:      filePath,
+		StartLine: node.Start().Line,
+		EndLine:   node.End().Line,
+		TypeInfo:  typeInfo,
+		Imports:   imports,
+		Context:   packageName,
+	}
+}
+
+// extractMethod extracts a method block
+func (e *Extractor) extractMethod(node parser.Node, projectID, filePath, baseFile, packageName string, imports []string) *CodeBlock {
+	// Extract method name
+	name := e.extractMethodName(node)
+	if name == "" {
+		return nil
+	}
+
+	// Extract type information
+	typeInfo := e.extractMethodTypes(node)
+
+	return &CodeBlock{
+		ID:        fmt.Sprintf("%s/%s/method/%s", projectID, baseFile, name),
+		Content:   node.Text(),
+		Type:      "method",
+		Name:      name,
+		File:      filePath,
+		StartLine: node.Start().Line,
+		EndLine:   node.End().Line,
+		TypeInfo:  typeInfo,
+		Imports:   imports,
+		Context:   packageName,
+	}
+}
+
+// extractClass extracts a class block
+func (e *Extractor) extractClass(node parser.Node, projectID, filePath, baseFile, packageName string, imports []string) *CodeBlock {
+	// Extract class name
+	name := e.extractClassName(node)
+	if name == "" {
+		return nil
+	}
+
+	return &CodeBlock{
+		ID:        fmt.Sprintf("%s/%s/class/%s", projectID, baseFile, name),
+		Content:   node.Text(),
+		Type:      "class",
+		Name:      name,
+		File:      filePath,
+		StartLine: node.Start().Line,
+		EndLine:   node.End().Line,
+		TypeInfo:  make(map[string]string), // TODO: Extract field types
+		Imports:   imports,
+		Context:   packageName,
+	}
+}
+
+// Helper methods to extract names and types
+
+func (e *Extractor) extractSubroutineName(node parser.Node) string {
+	// Look for the subroutine name in children
+	for _, child := range node.Children() {
+		if child.Type() == "name" || child.Type() == "identifier" {
+			return child.Text()
+		}
+		// Sometimes the name is nested deeper
+		if child.Type() == "subroutine_signature" {
+			for _, grandchild := range child.Children() {
+				if grandchild.Type() == "name" || grandchild.Type() == "identifier" {
+					return grandchild.Text()
+				}
+			}
+		}
+	}
+
+	// Fallback: try to extract from text
+	text := node.Text()
+	if strings.HasPrefix(text, "sub ") {
+		parts := strings.Fields(text)
+		if len(parts) >= 2 {
+			name := parts[1]
+			// Remove signature or body
+			if idx := strings.IndexAny(name, "({"); idx > 0 {
+				name = name[:idx]
+			}
+			return name
+		}
+	}
+
+	return ""
+}
+
+func (e *Extractor) extractMethodName(node parser.Node) string {
+	// Similar to subroutine but for methods
+	for _, child := range node.Children() {
+		if child.Type() == "name" || child.Type() == "identifier" {
+			return child.Text()
+		}
+	}
+
+	// Fallback: try to extract from text
+	text := node.Text()
+	if strings.HasPrefix(text, "method ") {
+		parts := strings.Fields(text)
+		if len(parts) >= 2 {
+			name := parts[1]
+			if idx := strings.IndexAny(name, "({"); idx > 0 {
+				name = name[:idx]
+			}
+			return name
+		}
+	}
+
+	return ""
+}
+
+func (e *Extractor) extractClassName(node parser.Node) string {
+	// Look for class name in children
+	for _, child := range node.Children() {
+		if child.Type() == "name" || child.Type() == "identifier" || child.Type() == "class_name" {
+			return child.Text()
+		}
+	}
+
+	// Fallback: try to extract from text
+	text := node.Text()
+	if strings.HasPrefix(text, "class ") {
+		parts := strings.Fields(text)
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+	}
+
+	return ""
+}
+
+func (e *Extractor) extractSubroutineTypes(node parser.Node) map[string]string {
+	typeInfo := make(map[string]string)
+
+	// Look for typed parameters and return type
+	for _, child := range node.Children() {
+		if child.Type() == "subroutine_signature" || child.Type() == "signature" {
+			// Extract parameter types
+			e.extractParameterTypes(child, typeInfo)
+		}
+		if child.Type() == "return_type" {
+			typeInfo["return"] = child.Text()
+		}
+	}
+
+	return typeInfo
+}
+
+func (e *Extractor) extractMethodTypes(node parser.Node) map[string]string {
+	// Methods have similar type extraction to subroutines
+	return e.extractSubroutineTypes(node)
+}
+
+func (e *Extractor) extractParameterTypes(node parser.Node, typeInfo map[string]string) {
+	// Walk the signature node to find typed parameters
+	e.walkNode(node, func(child parser.Node) bool {
+		if child.Type() == "typed_parameter" || child.Type() == "parameter" {
+			// Extract parameter name and type
+			paramName := ""
+			paramType := ""
+
+			for _, grandchild := range child.Children() {
+				switch grandchild.Type() {
+				case "variable", "scalar_variable":
+					paramName = grandchild.Text()
+				case "type", "type_expression":
+					paramType = grandchild.Text()
+				}
+			}
+
+			if paramName != "" && paramType != "" {
+				typeInfo[paramName] = paramType
+			}
+		}
+		return true
+	})
+}
+
+func (e *Extractor) extractTypeInfo(ast *parser.AST) map[string]string {
+	typeInfo := make(map[string]string)
+
+	// Extract type information from type annotations
+	for _, annotation := range ast.TypeAnnotations {
+		if annotation.TypeExpression != nil {
+			typeInfo[annotation.AnnotatedItem] = annotation.TypeExpression.String()
+		}
+	}
+
+	return typeInfo
+}
+
+// ConvertToDocuments converts code blocks to chromem documents
+func ConvertToDocuments(blocks []*CodeBlock) []chromem.Document {
+	docs := make([]chromem.Document, len(blocks))
+
+	for i, block := range blocks {
+		// Create metadata map
+		metadata := map[string]any{
+			"type":       block.Type,
+			"name":       block.Name,
+			"file":       block.File,
+			"start_line": block.StartLine,
+			"end_line":   block.EndLine,
+			"context":    block.Context,
+		}
+
+		// Add imports if present
+		if len(block.Imports) > 0 {
+			metadata["imports"] = strings.Join(block.Imports, ",")
+		}
+
+		// Add type information if present
+		for k, v := range block.TypeInfo {
+			metadata["type_"+k] = v
+		}
+
+		docs[i] = chromem.Document{
+			ID:       block.ID,
+			Content:  block.Content,
+			Metadata: toString(metadata),
+		}
+	}
+
+	return docs
+}
+
+// BatchExtractAndConvert extracts code blocks from multiple files and converts to documents
+func BatchExtractAndConvert(extractor *Extractor, projectID string, filePaths []string) ([]chromem.Document, error) {
+	var allBlocks []*CodeBlock
+
+	for _, filePath := range filePaths {
+		blocks, err := extractor.ExtractFromFile(projectID, filePath)
+		if err != nil {
+			// Log error but continue with other files
+			// In production, you might want to collect these errors
+			continue
+		}
+		allBlocks = append(allBlocks, blocks...)
+	}
+
+	if len(allBlocks) == 0 {
+		return nil, errors.NewConfigError(
+			ErrBatchCreationFail,
+			"No code blocks extracted from any files",
+			nil,
+		)
+	}
+
+	return ConvertToDocuments(allBlocks), nil
+}
+
+// toString converts map[string]any to map[string]string for chromem metadata
+func toString(m map[string]any) map[string]string {
+	result := make(map[string]string)
+	for k, v := range m {
+		switch val := v.(type) {
+		case string:
+			result[k] = val
+		case int:
+			result[k] = fmt.Sprintf("%d", val)
+		case []string:
+			result[k] = strings.Join(val, ",")
+		default:
+			result[k] = fmt.Sprintf("%v", val)
+		}
+	}
+	return result
+}
