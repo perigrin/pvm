@@ -255,19 +255,20 @@ func downloadModule(options *DownloadOptions) (*DownloadResult, error) {
 
 	// Determine download URL from the mirror or module info
 	var downloadURL string
-	if options.Mirror != "" {
+	switch {
+	case options.Mirror != "":
 		// Use specified mirror
 		// Format: mirror/authors/id/A/AU/AUTHOR/Distribution-Version.tar.gz
 		// Extract author path from distribution file
 		authorPath := filepath.Dir(moduleInfo.DistributionFile)
 		downloadURL = fmt.Sprintf("%s/%s/%s", options.Mirror, authorPath, filename)
-	} else if moduleInfo.DistributionFile == "" {
+	case moduleInfo.DistributionFile == "":
 		// Use default CPAN URL format if distribution file not provided
 		firstChar := moduleInfo.Author[0:1]
 		firstTwo := moduleInfo.Author[0:2]
 		downloadURL = fmt.Sprintf("https://cpan.metacpan.org/authors/id/%s/%s/%s/%s",
 			firstChar, firstTwo, moduleInfo.Author, filename)
-	} else {
+	default:
 		// Use the distribution file path from module info with default CPAN URL
 		downloadURL = fmt.Sprintf("https://cpan.metacpan.org/%s", moduleInfo.DistributionFile)
 	}

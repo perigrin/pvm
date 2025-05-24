@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/mcp/generation"
 	"tamarou.com/pvm/internal/mcp/validation"
@@ -447,19 +448,36 @@ func TestAdvancedGenerator_ExtractTypeInfo(t *testing.T) {
 	assert.NotNil(t, typeInfo)
 	assert.Equal(t, typeSigs, typeInfo["signatures"])
 
-	// Type assertions with proper handling
-	functionsInterface, ok := typeInfo["functions"]
-	assert.True(t, ok, "functions key should exist")
-	functions, ok := functionsInterface.([]string)
-	assert.True(t, ok, "functions should be []string")
+	// Verify functions were extracted - direct access without type assertion
+	functionsRaw := typeInfo["functions"]
+	require.NotNil(t, functionsRaw, "functions should exist")
+
+	// Use type switch to handle the value
+	var functions []string
+	switch v := functionsRaw.(type) {
+	case []string:
+		functions = v
+	default:
+		t.Fatalf("expected []string, got %T", v)
+	}
+
 	assert.Len(t, functions, 2)
 	assert.Contains(t, functions[0], "sub add")
 	assert.Contains(t, functions[1], "method compute")
 
-	classesInterface, ok := typeInfo["classes"]
-	assert.True(t, ok, "classes key should exist")
-	classes, ok := classesInterface.([]string)
-	assert.True(t, ok, "classes should be []string")
+	// Verify classes were extracted - direct access without type assertion
+	classesRaw := typeInfo["classes"]
+	require.NotNil(t, classesRaw, "classes should exist")
+
+	// Use type switch to handle the value
+	var classes []string
+	switch v := classesRaw.(type) {
+	case []string:
+		classes = v
+	default:
+		t.Fatalf("expected []string, got %T", v)
+	}
+
 	assert.Len(t, classes, 1)
 	assert.Contains(t, classes[0], "class Calculator")
 }

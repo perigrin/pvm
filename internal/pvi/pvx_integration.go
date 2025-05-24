@@ -360,12 +360,13 @@ func CheckModuleAvailability(modules []string, perlVersion string) (*ModuleAvail
 	ctx := context.Background()
 	for _, moduleName := range modules {
 		available, err := checkSingleModuleAvailability(provider, moduleName, ctx)
-		if err != nil {
+		switch {
+		case err != nil:
 			result.Errors = append(result.Errors, err)
 			result.UnavailableModules = append(result.UnavailableModules, moduleName)
-		} else if available {
+		case available:
 			result.AvailableModules = append(result.AvailableModules, moduleName)
-		} else {
+		default:
 			result.UnavailableModules = append(result.UnavailableModules, moduleName)
 		}
 	}
