@@ -204,7 +204,7 @@ func TestMCPConfigValidation(t *testing.T) {
 				EmbeddingProvider:     "openai",
 				ValidationCacheSize:   "50MB",
 				EmbeddingCacheSize:    "100MB",
-				RequestTimeout:        "30s",
+				RequestTimeout:        30 * time.Second,
 				MaxConcurrentRequests: 10,
 				GenerationMemorySize:  50,
 			},

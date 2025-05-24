@@ -6,6 +6,7 @@ package config
 import (
 	"os"
 	"strings"
+	"time"
 )
 
 // Config represents the root configuration object
@@ -191,7 +192,7 @@ type MCPConfig struct {
 	MaxConcurrentRequests int `toml:"max_concurrent_requests" json:"max_concurrent_requests"`
 
 	// RequestTimeout specifies the timeout for requests
-	RequestTimeout string `toml:"request_timeout" json:"request_timeout"`
+	RequestTimeout time.Duration `toml:"request_timeout" json:"request_timeout"`
 }
 
 // NewDefaultConfig creates a new configuration with default values
@@ -254,7 +255,7 @@ func NewDefaultConfig() *Config {
 			GenerationMemorySize:      50,
 			EnableIterativeRefinement: true,
 			MaxConcurrentRequests:     10,
-			RequestTimeout:            "30s",
+			RequestTimeout:            30 * time.Second,
 		},
 	}
 }
@@ -462,9 +463,9 @@ func (c *MCPConfig) Validate() []error {
 		errors = append(errors, ValidateError("MaxConcurrentRequests must be at least 1"))
 	}
 
-	// Validate RequestTimeout (must be valid duration string)
-	if c.RequestTimeout != "" && !isValidDurationFormat(c.RequestTimeout) {
-		errors = append(errors, ValidateError("RequestTimeout must be in format like '30s' or '5m'"))
+	// Validate RequestTimeout (must be positive duration)
+	if c.RequestTimeout <= 0 {
+		errors = append(errors, ValidateError("RequestTimeout must be positive"))
 	}
 
 	return errors
@@ -607,9 +608,9 @@ func (v *SchemaValidator) validateMCPSchema(cfg *MCPConfig) []error {
 		errors = append(errors, ValidateError("EmbeddingCacheSize must be in format like '100MB' or '2GB'"))
 	}
 
-	// Validate RequestTimeout format
-	if cfg.RequestTimeout != "" && !isValidDurationFormat(cfg.RequestTimeout) {
-		errors = append(errors, ValidateError("RequestTimeout must be in format like '30s' or '5m'"))
+	// Validate RequestTimeout range
+	if cfg.RequestTimeout <= 0 {
+		errors = append(errors, ValidateError("RequestTimeout must be positive"))
 	}
 
 	// Validate MaxConcurrentRequests range

@@ -43,6 +43,12 @@ type Server struct {
 	codeSearcher      *tools.CodeSearcher
 	codeGenerator     *tools.CodeGenerator
 	advancedGenerator *tools.AdvancedGenerator
+
+	// New performance and reliability components
+	healthMonitor      *HealthMonitor
+	performanceManager *PerformanceManager
+	degradationManager *DegradationManager
+	circuitManager     *CircuitBreakerManager
 }
 
 // ServerMetrics tracks server performance and usage statistics
@@ -182,26 +188,53 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	// Create advanced generator
 	advancedGenerator := tools.NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
 
-	pvmServer := &Server{
-		config:            cfg.MCP,
-		mcpServer:         mcpServer,
-		projects:          make(map[string]*ProjectContext),
-		globalConfig:      cfg,
-		metrics:           NewServerMetrics(),
-		logger:            logger,
-		validator:         validator,
-		autoFixer:         autoFixer,
-		samplingClient:    samplingClient,
-		memoryManager:     memoryManager,
-		codeAnalyzer:      codeAnalyzer,
-		projectAnalyzer:   projectAnalyzer,
-		embeddingStore:    embeddingStore,
-		embeddingManager:  embeddingManager,
-		codeExtractor:     codeExtractor,
-		codeSearcher:      codeSearcher,
-		codeGenerator:     codeGenerator,
-		advancedGenerator: advancedGenerator,
+	// Create performance and reliability components
+	healthMonitor := NewHealthMonitor()
+
+	// Create performance manager with default config
+	perfConfig := DefaultPerformanceConfig()
+	if cfg.MCP.MaxConcurrentRequests > 0 {
+		perfConfig.MaxConcurrentRequests = cfg.MCP.MaxConcurrentRequests
 	}
+	if cfg.MCP.RequestTimeout > 0 {
+		perfConfig.RequestTimeout = cfg.MCP.RequestTimeout
+	}
+	performanceManager := NewPerformanceManager(perfConfig)
+
+	// Create degradation manager
+	degradationConfig := DefaultDegradationConfig()
+	degradationManager := NewDegradationManager(degradationConfig, logger)
+
+	// Get circuit breaker manager from performance manager
+	circuitManager := performanceManager.GetCircuitManager()
+
+	pvmServer := &Server{
+		config:             cfg.MCP,
+		mcpServer:          mcpServer,
+		projects:           make(map[string]*ProjectContext),
+		globalConfig:       cfg,
+		metrics:            NewServerMetrics(),
+		logger:             logger,
+		validator:          validator,
+		autoFixer:          autoFixer,
+		samplingClient:     samplingClient,
+		memoryManager:      memoryManager,
+		codeAnalyzer:       codeAnalyzer,
+		projectAnalyzer:    projectAnalyzer,
+		embeddingStore:     embeddingStore,
+		embeddingManager:   embeddingManager,
+		codeExtractor:      codeExtractor,
+		codeSearcher:       codeSearcher,
+		codeGenerator:      codeGenerator,
+		advancedGenerator:  advancedGenerator,
+		healthMonitor:      healthMonitor,
+		performanceManager: performanceManager,
+		degradationManager: degradationManager,
+		circuitManager:     circuitManager,
+	}
+
+	// Register health checkers
+	pvmServer.registerHealthCheckers()
 
 	// Register tool groups
 	if err := pvmServer.registerTools(); err != nil {
@@ -220,6 +253,13 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}
 
+	// Start performance and health monitoring
+	s.performanceManager.Start(ctx)
+	go s.healthMonitor.Start(ctx)
+
+	s.logger.Infof("MCP server started with performance optimization enabled")
+	s.logger.Infof("Health monitoring active with %d components", len(s.healthMonitor.checkers))
+
 	// Start the MCP server using stdio transport
 	// Note: MCP typically uses stdio for communication with LLM clients
 	return server.ServeStdio(s.mcpServer)
@@ -227,6 +267,13 @@ func (s *Server) Start(ctx context.Context) error {
 
 // Stop gracefully stops the MCP server
 func (s *Server) Stop(ctx context.Context) error {
+	s.logger.Infof("Stopping MCP server gracefully...")
+
+	// Stop health monitoring
+	if s.healthMonitor != nil {
+		s.healthMonitor.Stop()
+	}
+
 	// Clean up memory manager
 	if s.memoryManager != nil {
 		s.memoryManager.Close()
@@ -235,6 +282,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	// Close embedding store if it has cleanup methods
 	// (Note: Current implementation doesn't require explicit cleanup)
 
+	s.logger.Infof("MCP server stopped successfully")
 	return nil
 }
 
@@ -348,6 +396,11 @@ func (s *Server) registerTools() error {
 	// Register advanced generation tools
 	if err := s.registerAdvancedGenerationTools(); err != nil {
 		return fmt.Errorf("failed to register advanced generation tools: %w", err)
+	}
+
+	// Register health and monitoring tools
+	if err := s.registerHealthTools(); err != nil {
+		return fmt.Errorf("failed to register health tools: %w", err)
 	}
 
 	return nil
@@ -1307,4 +1360,155 @@ func (s *Server) handleBatchGenerate(ctx context.Context, request mcp.CallToolRe
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Batch generation result: %v", response)), nil
+}
+
+// registerHealthCheckers registers health checkers for all components
+func (s *Server) registerHealthCheckers() {
+	// Register health checkers for all major components
+	s.healthMonitor.RegisterChecker("embedding_store", NewEmbeddingHealthChecker(s.embeddingStore))
+	s.healthMonitor.RegisterChecker("validator", NewValidatorHealthChecker(s.validator))
+	s.healthMonitor.RegisterChecker("memory_manager", NewMemoryHealthChecker(s.memoryManager))
+	s.healthMonitor.RegisterChecker("sampling_client", NewSamplingHealthChecker(s.samplingClient))
+	s.healthMonitor.RegisterChecker("circuit_breakers", NewBreakersHealthChecker(s.circuitManager))
+	s.healthMonitor.RegisterChecker("degradation_manager", s.degradationManager)
+}
+
+// registerHealthTools registers health and monitoring tools
+func (s *Server) registerHealthTools() error {
+	// Health check tool
+	healthTool := mcp.NewTool("health_check",
+		mcp.WithDescription("Get server health status and component status"),
+		mcp.WithString("component",
+			mcp.Description("Optional component name to check (returns all if not specified)")),
+	)
+	s.mcpServer.AddTool(healthTool, s.handleHealthCheck)
+
+	// Metrics tool
+	metricsTool := mcp.NewTool("get_metrics",
+		mcp.WithDescription("Get server performance metrics and statistics"),
+		mcp.WithString("category",
+			mcp.Description("Optional metrics category: server, performance, circuit_breakers, degradation"),
+			mcp.Enum("server", "performance", "circuit_breakers", "degradation")),
+	)
+	s.mcpServer.AddTool(metricsTool, s.handleGetMetrics)
+
+	// Circuit breaker control tool
+	circuitTool := mcp.NewTool("circuit_breaker_control",
+		mcp.WithDescription("Control circuit breaker state"),
+		mcp.WithString("action",
+			mcp.Required(),
+			mcp.Description("Action to perform"),
+			mcp.Enum("status", "reset", "open", "close")),
+		mcp.WithString("breaker_name",
+			mcp.Description("Circuit breaker name (required for reset/open/close actions)")),
+	)
+	s.mcpServer.AddTool(circuitTool, s.handleCircuitBreakerControl)
+
+	return nil
+}
+
+// handleHealthCheck handles health check requests
+func (s *Server) handleHealthCheck(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	defer s.recordToolUsage("health_check", startTime)
+
+	component := request.GetString("component", "")
+
+	if component != "" {
+		// Check specific component
+		if checker, exists := s.healthMonitor.checkers[component]; exists {
+			status := checker.HealthCheck(ctx)
+			return mcp.NewToolResultText(fmt.Sprintf("Component health: %v", status)), nil
+		} else {
+			return mcp.NewToolResultText(fmt.Sprintf("Component '%s' not found", component)), nil
+		}
+	}
+
+	// Get overall health report
+	health := s.healthMonitor.GetHealth()
+	return mcp.NewToolResultText(fmt.Sprintf("Server health: %v", health)), nil
+}
+
+// handleGetMetrics handles metrics requests
+func (s *Server) handleGetMetrics(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	defer s.recordToolUsage("get_metrics", startTime)
+
+	category := request.GetString("category", "")
+
+	var result map[string]interface{}
+
+	switch category {
+	case "server":
+		result = map[string]interface{}{
+			"server_metrics": s.GetMetrics(),
+		}
+	case "performance":
+		result = map[string]interface{}{
+			"performance_metrics": s.performanceManager.GetAllStats(),
+		}
+	case "circuit_breakers":
+		result = map[string]interface{}{
+			"circuit_breakers": s.circuitManager.GetBreakersStatus(),
+		}
+	case "degradation":
+		result = map[string]interface{}{
+			"degradation_stats": s.degradationManager.GetStats(),
+		}
+	default:
+		// Return all metrics
+		result = map[string]interface{}{
+			"server_metrics":      s.GetMetrics(),
+			"performance_metrics": s.performanceManager.GetAllStats(),
+			"circuit_breakers":    s.circuitManager.GetBreakersStatus(),
+			"degradation_stats":   s.degradationManager.GetStats(),
+			"health_status":       s.healthMonitor.GetHealth(),
+		}
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Metrics: %v", result)), nil
+}
+
+// handleCircuitBreakerControl handles circuit breaker control requests
+func (s *Server) handleCircuitBreakerControl(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	defer s.recordToolUsage("circuit_breaker_control", startTime)
+
+	action, err := request.RequireString("action")
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("missing or invalid 'action' parameter: %w", err)
+	}
+
+	switch action {
+	case "status":
+		status := s.circuitManager.GetBreakersStatus()
+		return mcp.NewToolResultText(fmt.Sprintf("Circuit breaker status: %v", status)), nil
+
+	case "reset", "open", "close":
+		breakerName := request.GetString("breaker_name", "")
+		if breakerName == "" {
+			s.recordError()
+			return nil, fmt.Errorf("breaker_name is required for action '%s'", action)
+		}
+
+		breakers := s.circuitManager.GetAllBreakers()
+		breaker, exists := breakers[breakerName]
+		if !exists {
+			s.recordError()
+			return nil, fmt.Errorf("circuit breaker '%s' not found", breakerName)
+		}
+
+		switch action {
+		case "reset":
+			breaker.Reset()
+			return mcp.NewToolResultText(fmt.Sprintf("Circuit breaker '%s' reset to closed state", breakerName)), nil
+		default:
+			return mcp.NewToolResultText(fmt.Sprintf("Action '%s' not yet implemented", action)), nil
+		}
+
+	default:
+		s.recordError()
+		return nil, fmt.Errorf("invalid action '%s'", action)
+	}
 }
