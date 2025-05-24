@@ -25,23 +25,24 @@ import (
 
 // Server represents the MCP server for PVM
 type Server struct {
-	config           *config.MCPConfig
-	mcpServer        *server.MCPServer
-	projects         map[string]*ProjectContext
-	globalConfig     *config.Config
-	metrics          *ServerMetrics
-	logger           *log.Logger
-	validator        *validation.Validator
-	autoFixer        *validation.AutoFixer
-	samplingClient   *generation.SamplingClient
-	memoryManager    *generation.MemoryManager
-	codeAnalyzer     *tools.CodeAnalyzer
-	projectAnalyzer  *tools.ProjectAnalyzer
-	embeddingStore   *embeddings.EmbeddingStore
-	embeddingManager *embeddings.CollectionManager
-	codeExtractor    *embeddings.Extractor
-	codeSearcher     *tools.CodeSearcher
-	codeGenerator    *tools.CodeGenerator
+	config            *config.MCPConfig
+	mcpServer         *server.MCPServer
+	projects          map[string]*ProjectContext
+	globalConfig      *config.Config
+	metrics           *ServerMetrics
+	logger            *log.Logger
+	validator         *validation.Validator
+	autoFixer         *validation.AutoFixer
+	samplingClient    *generation.SamplingClient
+	memoryManager     *generation.MemoryManager
+	codeAnalyzer      *tools.CodeAnalyzer
+	projectAnalyzer   *tools.ProjectAnalyzer
+	embeddingStore    *embeddings.EmbeddingStore
+	embeddingManager  *embeddings.CollectionManager
+	codeExtractor     *embeddings.Extractor
+	codeSearcher      *tools.CodeSearcher
+	codeGenerator     *tools.CodeGenerator
+	advancedGenerator *tools.AdvancedGenerator
 }
 
 // ServerMetrics tracks server performance and usage statistics
@@ -178,24 +179,28 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	// Create code generator
 	codeGenerator := tools.NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
 
+	// Create advanced generator
+	advancedGenerator := tools.NewAdvancedGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
+
 	pvmServer := &Server{
-		config:           cfg.MCP,
-		mcpServer:        mcpServer,
-		projects:         make(map[string]*ProjectContext),
-		globalConfig:     cfg,
-		metrics:          NewServerMetrics(),
-		logger:           logger,
-		validator:        validator,
-		autoFixer:        autoFixer,
-		samplingClient:   samplingClient,
-		memoryManager:    memoryManager,
-		codeAnalyzer:     codeAnalyzer,
-		projectAnalyzer:  projectAnalyzer,
-		embeddingStore:   embeddingStore,
-		embeddingManager: embeddingManager,
-		codeExtractor:    codeExtractor,
-		codeSearcher:     codeSearcher,
-		codeGenerator:    codeGenerator,
+		config:            cfg.MCP,
+		mcpServer:         mcpServer,
+		projects:          make(map[string]*ProjectContext),
+		globalConfig:      cfg,
+		metrics:           NewServerMetrics(),
+		logger:            logger,
+		validator:         validator,
+		autoFixer:         autoFixer,
+		samplingClient:    samplingClient,
+		memoryManager:     memoryManager,
+		codeAnalyzer:      codeAnalyzer,
+		projectAnalyzer:   projectAnalyzer,
+		embeddingStore:    embeddingStore,
+		embeddingManager:  embeddingManager,
+		codeExtractor:     codeExtractor,
+		codeSearcher:      codeSearcher,
+		codeGenerator:     codeGenerator,
+		advancedGenerator: advancedGenerator,
 	}
 
 	// Register tool groups
@@ -340,6 +345,11 @@ func (s *Server) registerTools() error {
 		return fmt.Errorf("failed to register memory tools: %w", err)
 	}
 
+	// Register advanced generation tools
+	if err := s.registerAdvancedGenerationTools(); err != nil {
+		return fmt.Errorf("failed to register advanced generation tools: %w", err)
+	}
+
 	return nil
 }
 
@@ -435,6 +445,89 @@ func (s *Server) registerMemoryTools() error {
 	)
 
 	s.mcpServer.AddTool(memorySessionTool, s.handleMemorySession)
+	return nil
+}
+
+// registerAdvancedGenerationTools registers advanced code generation tools
+func (s *Server) registerAdvancedGenerationTools() error {
+	// Test generation from types
+	testGenTool := mcp.NewTool("generate_tests_from_types",
+		mcp.WithDescription("Generate comprehensive test suites from type signatures"),
+		mcp.WithString("code",
+			mcp.Required(),
+			mcp.Description("Code to generate tests for")),
+		mcp.WithObject("type_signatures",
+			mcp.Description("Map of function/method names to type signatures")),
+		mcp.WithString("framework",
+			mcp.Description("Test framework to use (Test2::V0, Test::More, Test::Most)"),
+			mcp.Enum("Test2::V0", "Test::More", "Test::Most")),
+		mcp.WithString("session_id",
+			mcp.Description("Optional generation session ID for memory continuity")),
+	)
+	s.mcpServer.AddTool(testGenTool, s.handleGenerateTestsFromTypes)
+
+	// Code refactoring
+	refactorTool := mcp.NewTool("refactor_code",
+		mcp.WithDescription("Perform type-preserving code refactoring"),
+		mcp.WithString("code",
+			mcp.Required(),
+			mcp.Description("Code to refactor")),
+		mcp.WithString("refactoring_type",
+			mcp.Required(),
+			mcp.Description("Type of refactoring to perform"),
+			mcp.Enum("extract_method", "rename", "inline")),
+		mcp.WithString("target",
+			mcp.Required(),
+			mcp.Description("Target element to refactor")),
+		mcp.WithString("new_name",
+			mcp.Description("New name (required for rename operations)")),
+		mcp.WithString("session_id",
+			mcp.Description("Optional generation session ID")),
+	)
+	s.mcpServer.AddTool(refactorTool, s.handleRefactorCode)
+
+	// Documentation generation
+	docGenTool := mcp.NewTool("generate_documentation",
+		mcp.WithDescription("Generate documentation from typed code"),
+		mcp.WithString("code",
+			mcp.Required(),
+			mcp.Description("Code to document")),
+		mcp.WithString("style",
+			mcp.Required(),
+			mcp.Description("Documentation style"),
+			mcp.Enum("pod", "markdown", "inline")),
+		mcp.WithString("session_id",
+			mcp.Description("Optional generation session ID")),
+	)
+	s.mcpServer.AddTool(docGenTool, s.handleGenerateDocumentation)
+
+	// Code completion
+	completionTool := mcp.NewTool("complete_code",
+		mcp.WithDescription("Provide intelligent code completion suggestions"),
+		mcp.WithString("partial_code",
+			mcp.Required(),
+			mcp.Description("Incomplete code to complete")),
+		mcp.WithNumber("cursor_position",
+			mcp.Required(),
+			mcp.Description("Cursor position in the code")),
+		mcp.WithString("context",
+			mcp.Description("Surrounding code context")),
+		mcp.WithString("session_id",
+			mcp.Description("Optional generation session ID")),
+	)
+	s.mcpServer.AddTool(completionTool, s.handleCompleteCode)
+
+	// Batch generation
+	batchGenTool := mcp.NewTool("batch_generate",
+		mcp.WithDescription("Handle multiple generation requests efficiently"),
+		mcp.WithArray("requests",
+			mcp.Required(),
+			mcp.Description("Array of generation requests")),
+		mcp.WithString("session_id",
+			mcp.Description("Shared session ID for all requests")),
+	)
+	s.mcpServer.AddTool(batchGenTool, s.handleBatchGenerate)
+
 	return nil
 }
 
@@ -897,4 +990,321 @@ func (s *Server) GetMetrics() MetricsSnapshot {
 	}
 
 	return snapshot
+}
+
+// Advanced generation tool handlers
+
+func (s *Server) handleGenerateTestsFromTypes(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	defer s.recordToolUsage("generate_tests_from_types", startTime)
+
+	// Extract parameters
+	code, err := request.RequireString("code")
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("missing or invalid 'code' parameter: %w", err)
+	}
+
+	// Get type signatures (optional)
+	typeSigs := make(map[string]string)
+	args := request.GetArguments()
+	if typeSigsRaw, exists := args["type_signatures"]; exists {
+		if typeSigsMap, ok := typeSigsRaw.(map[string]interface{}); ok {
+			for k, v := range typeSigsMap {
+				if str, ok := v.(string); ok {
+					typeSigs[k] = str
+				}
+			}
+		}
+	}
+
+	framework := request.GetString("framework", "Test2::V0")
+	sessionID := request.GetString("session_id", fmt.Sprintf("test_gen_%d", time.Now().UnixNano()))
+
+	// Create request
+	testGenRequest := tools.TestGenerationRequest{
+		Code:        code,
+		TypeSigs:    typeSigs,
+		Framework:   framework,
+		SessionID:   sessionID,
+		ProjectPath: "",
+	}
+
+	// Generate tests
+	result, err := s.advancedGenerator.GenerateTestsFromTypes(ctx, testGenRequest)
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("test generation failed: %w", err)
+	}
+
+	// Convert to MCP response
+	response := map[string]interface{}{
+		"status":         result.Status,
+		"generated_code": result.GeneratedCode,
+		"iterations":     result.Iterations,
+		"message":        result.Message,
+		"session_id":     sessionID,
+		"timestamp":      time.Now().UTC().Format(time.RFC3339),
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Test generation result: %v", response)), nil
+}
+
+func (s *Server) handleRefactorCode(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	defer s.recordToolUsage("refactor_code", startTime)
+
+	// Extract parameters
+	code, err := request.RequireString("code")
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("missing or invalid 'code' parameter: %w", err)
+	}
+
+	refactoringType, err := request.RequireString("refactoring_type")
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("missing or invalid 'refactoring_type' parameter: %w", err)
+	}
+
+	target, err := request.RequireString("target")
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("missing or invalid 'target' parameter: %w", err)
+	}
+
+	newName := request.GetString("new_name", "")
+	sessionID := request.GetString("session_id", fmt.Sprintf("refactor_%d", time.Now().UnixNano()))
+
+	// Create request
+	refactorRequest := tools.RefactoringRequest{
+		Code:            code,
+		RefactoringType: refactoringType,
+		Target:          target,
+		NewName:         newName,
+		SessionID:       sessionID,
+	}
+
+	// Perform refactoring
+	result, err := s.advancedGenerator.RefactorCode(ctx, refactorRequest)
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("refactoring failed: %w", err)
+	}
+
+	// Convert to MCP response
+	response := map[string]interface{}{
+		"status":          result.Status,
+		"refactored_code": result.GeneratedCode,
+		"iterations":      result.Iterations,
+		"message":         result.Message,
+		"session_id":      sessionID,
+		"timestamp":       time.Now().UTC().Format(time.RFC3339),
+	}
+
+	if result.ValidationResult != nil {
+		response["validation_result"] = result.ValidationResult
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Refactoring result: %v", response)), nil
+}
+
+func (s *Server) handleGenerateDocumentation(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	defer s.recordToolUsage("generate_documentation", startTime)
+
+	// Extract parameters
+	code, err := request.RequireString("code")
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("missing or invalid 'code' parameter: %w", err)
+	}
+
+	style, err := request.RequireString("style")
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("missing or invalid 'style' parameter: %w", err)
+	}
+
+	sessionID := request.GetString("session_id", fmt.Sprintf("doc_%d", time.Now().UnixNano()))
+
+	// Create request
+	docRequest := tools.DocumentationRequest{
+		Code:      code,
+		Style:     style,
+		SessionID: sessionID,
+	}
+
+	// Generate documentation
+	result, err := s.advancedGenerator.GenerateDocumentation(ctx, docRequest)
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("documentation generation failed: %w", err)
+	}
+
+	// Convert to MCP response
+	response := map[string]interface{}{
+		"status":                  result.Status,
+		"generated_documentation": result.GeneratedCode,
+		"style":                   style,
+		"iterations":              result.Iterations,
+		"message":                 result.Message,
+		"session_id":              sessionID,
+		"timestamp":               time.Now().UTC().Format(time.RFC3339),
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Documentation generation result: %v", response)), nil
+}
+
+func (s *Server) handleCompleteCode(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	defer s.recordToolUsage("complete_code", startTime)
+
+	// Extract parameters
+	partialCode, err := request.RequireString("partial_code")
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("missing or invalid 'partial_code' parameter: %w", err)
+	}
+
+	// Get cursor position from arguments
+	args := request.GetArguments()
+	cursorPosRaw, exists := args["cursor_position"]
+	if !exists {
+		s.recordError()
+		return nil, fmt.Errorf("missing 'cursor_position' parameter")
+	}
+
+	var cursorPos int
+	switch v := cursorPosRaw.(type) {
+	case float64:
+		cursorPos = int(v)
+	case int:
+		cursorPos = v
+	default:
+		s.recordError()
+		return nil, fmt.Errorf("invalid 'cursor_position' parameter type: %T", cursorPosRaw)
+	}
+
+	context := request.GetString("context", "")
+	sessionID := request.GetString("session_id", fmt.Sprintf("complete_%d", time.Now().UnixNano()))
+
+	// Create request
+	completionRequest := tools.CompletionRequest{
+		PartialCode: partialCode,
+		CursorPos:   cursorPos,
+		Context:     context,
+		SessionID:   sessionID,
+	}
+
+	// Complete code
+	result, err := s.advancedGenerator.CompleteCode(ctx, completionRequest)
+	if err != nil {
+		s.recordError()
+		return nil, fmt.Errorf("code completion failed: %w", err)
+	}
+
+	// Convert to MCP response
+	response := map[string]interface{}{
+		"status":     result.Status,
+		"completion": result.GeneratedCode,
+		"message":    result.Message,
+		"session_id": sessionID,
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
+	}
+
+	if result.ValidationResult != nil {
+		response["validation_result"] = result.ValidationResult
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Code completion result: %v", response)), nil
+}
+
+func (s *Server) handleBatchGenerate(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	defer s.recordToolUsage("batch_generate", startTime)
+
+	// Extract requests array
+	args := request.GetArguments()
+	requestsRaw, exists := args["requests"]
+	if !exists {
+		s.recordError()
+		return nil, fmt.Errorf("missing 'requests' parameter")
+	}
+
+	requestsArray, ok := requestsRaw.([]interface{})
+	if !ok {
+		s.recordError()
+		return nil, fmt.Errorf("'requests' parameter must be an array")
+	}
+
+	// Convert to generation requests
+	var requests []tools.GenerationRequest
+	for i, reqRaw := range requestsArray {
+		if reqMap, ok := reqRaw.(map[string]interface{}); ok {
+			genType, _ := reqMap["type"].(string)
+			spec, _ := reqMap["specification"].(string)
+			context, _ := reqMap["context"].(string)
+			projectPath, _ := reqMap["project_path"].(string)
+
+			if genType == "" || spec == "" {
+				s.recordError()
+				return nil, fmt.Errorf("invalid request at index %d: missing type or specification", i)
+			}
+
+			requests = append(requests, tools.GenerationRequest{
+				Type:          genType,
+				Specification: spec,
+				Context:       context,
+				ProjectPath:   projectPath,
+			})
+		} else {
+			s.recordError()
+			return nil, fmt.Errorf("invalid request format at index %d", i)
+		}
+	}
+
+	sessionID := request.GetString("session_id", fmt.Sprintf("batch_%d", time.Now().UnixNano()))
+
+	// Create batch request
+	batchRequest := tools.BatchGenerationRequest{
+		Requests:  requests,
+		SessionID: sessionID,
+	}
+
+	// Perform batch generation
+	results, err := s.advancedGenerator.BatchGenerate(ctx, batchRequest)
+	if err != nil {
+		s.recordError()
+		// Note: err contains info about partial failures, results may still have successful items
+	}
+
+	// Convert results to response format
+	var responseResults []map[string]interface{}
+	for _, result := range results {
+		resMap := map[string]interface{}{
+			"status":         result.Status,
+			"generated_code": result.GeneratedCode,
+			"iterations":     result.Iterations,
+			"message":        result.Message,
+		}
+		if result.ValidationResult != nil {
+			resMap["validation_result"] = result.ValidationResult
+		}
+		responseResults = append(responseResults, resMap)
+	}
+
+	// Build response
+	response := map[string]interface{}{
+		"results":    responseResults,
+		"total":      len(requests),
+		"session_id": sessionID,
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
+	}
+
+	if err != nil {
+		response["errors"] = err.Error()
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Batch generation result: %v", response)), nil
 }
