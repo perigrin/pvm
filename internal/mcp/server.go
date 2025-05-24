@@ -17,6 +17,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/log"
+	"tamarou.com/pvm/internal/mcp/embeddings"
 	"tamarou.com/pvm/internal/mcp/generation"
 	"tamarou.com/pvm/internal/mcp/tools"
 	"tamarou.com/pvm/internal/mcp/validation"
@@ -24,17 +25,21 @@ import (
 
 // Server represents the MCP server for PVM
 type Server struct {
-	config          *config.MCPConfig
-	mcpServer       *server.MCPServer
-	projects        map[string]*ProjectContext
-	globalConfig    *config.Config
-	metrics         *ServerMetrics
-	logger          *log.Logger
-	validator       *validation.Validator
-	autoFixer       *validation.AutoFixer
-	samplingClient  *generation.SamplingClient
-	codeAnalyzer    *tools.CodeAnalyzer
-	projectAnalyzer *tools.ProjectAnalyzer
+	config           *config.MCPConfig
+	mcpServer        *server.MCPServer
+	projects         map[string]*ProjectContext
+	globalConfig     *config.Config
+	metrics          *ServerMetrics
+	logger           *log.Logger
+	validator        *validation.Validator
+	autoFixer        *validation.AutoFixer
+	samplingClient   *generation.SamplingClient
+	codeAnalyzer     *tools.CodeAnalyzer
+	projectAnalyzer  *tools.ProjectAnalyzer
+	embeddingStore   *embeddings.EmbeddingStore
+	embeddingManager *embeddings.CollectionManager
+	codeExtractor    *embeddings.Extractor
+	codeSearcher     *tools.CodeSearcher
 }
 
 // ServerMetrics tracks server performance and usage statistics
@@ -126,18 +131,57 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, fmt.Errorf("failed to create project analyzer: %w", err)
 	}
 
+	// Create embedding provider
+	embeddingConfig := embeddings.EmbeddingConfig{
+		Provider:   cfg.MCP.EmbeddingProvider,
+		Model:      cfg.MCP.EmbeddingModel,
+		Dimensions: 384, // Default dimensions
+		MaxTokens:  512, // Default max tokens
+		BatchSize:  100, // Default batch size
+	}
+
+	embeddingProvider, err := embeddings.NewProvider(embeddingConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create embedding provider: %w", err)
+	}
+
+	// Create embedding store
+	embeddingStore, err := embeddings.NewEmbeddingStore(embeddings.StoreConfig{
+		Provider: embeddingProvider,
+		Logger:   logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create embedding store: %w", err)
+	}
+
+	// Create collection manager
+	embeddingManager := embeddings.NewCollectionManager(embeddingStore, logger)
+
+	// Create code extractor
+	codeExtractor, err := embeddings.NewExtractor()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create code extractor: %w", err)
+	}
+
+	// Create code searcher
+	codeSearcher := tools.NewCodeSearcher(embeddingStore, embeddingManager, codeExtractor, logger)
+
 	pvmServer := &Server{
-		config:          cfg.MCP,
-		mcpServer:       mcpServer,
-		projects:        make(map[string]*ProjectContext),
-		globalConfig:    cfg,
-		metrics:         NewServerMetrics(),
-		logger:          logger,
-		validator:       validator,
-		autoFixer:       autoFixer,
-		samplingClient:  samplingClient,
-		codeAnalyzer:    codeAnalyzer,
-		projectAnalyzer: projectAnalyzer,
+		config:           cfg.MCP,
+		mcpServer:        mcpServer,
+		projects:         make(map[string]*ProjectContext),
+		globalConfig:     cfg,
+		metrics:          NewServerMetrics(),
+		logger:           logger,
+		validator:        validator,
+		autoFixer:        autoFixer,
+		samplingClient:   samplingClient,
+		codeAnalyzer:     codeAnalyzer,
+		projectAnalyzer:  projectAnalyzer,
+		embeddingStore:   embeddingStore,
+		embeddingManager: embeddingManager,
+		codeExtractor:    codeExtractor,
+		codeSearcher:     codeSearcher,
 	}
 
 	// Register tool groups
@@ -483,20 +527,36 @@ func (s *Server) handleSearchCode(ctx context.Context, request mcp.CallToolReque
 
 	// Get optional project path
 	projectPath := request.GetString("project_path", "")
+	if projectPath == "" {
+		// Try to use current working directory
+		cwd, err := os.Getwd()
+		if err != nil {
+			s.recordError()
+			return nil, fmt.Errorf("project_path is required for search")
+		}
+		projectPath = cwd
+	}
 
 	s.logger.Infof("Searching code: method=%s, query=%s, project=%s", searchMethod, query, projectPath)
 
-	// Placeholder implementation - will be implemented in Step 10
-	result := map[string]interface{}{
-		"status":        "not_implemented",
-		"message":       "search_code tool will be implemented in Step 10",
-		"query":         query,
-		"search_method": searchMethod,
-		"project_path":  projectPath,
-		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	// Create search request
+	searchRequest := tools.SearchRequest{
+		Query:         query,
+		Method:        searchMethod,
+		ProjectPath:   projectPath,
+		TopK:          20,  // Default top K
+		MinSimilarity: 0.3, // Default minimum similarity
 	}
 
-	return mcp.NewToolResultText(fmt.Sprintf("Search code result: %v", result)), nil
+	// Perform search
+	searchResponse, err := s.codeSearcher.Search(ctx, searchRequest)
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Search failed: %v", err)
+		return nil, fmt.Errorf("search failed: %w", err)
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("%v", searchResponse)), nil
 }
 
 func (s *Server) handleGenerateCode(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
