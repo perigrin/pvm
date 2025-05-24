@@ -34,12 +34,14 @@ type Server struct {
 	validator        *validation.Validator
 	autoFixer        *validation.AutoFixer
 	samplingClient   *generation.SamplingClient
+	memoryManager    *generation.MemoryManager
 	codeAnalyzer     *tools.CodeAnalyzer
 	projectAnalyzer  *tools.ProjectAnalyzer
 	embeddingStore   *embeddings.EmbeddingStore
 	embeddingManager *embeddings.CollectionManager
 	codeExtractor    *embeddings.Extractor
 	codeSearcher     *tools.CodeSearcher
+	codeGenerator    *tools.CodeGenerator
 }
 
 // ServerMetrics tracks server performance and usage statistics
@@ -116,6 +118,13 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	// Create sampling client
 	samplingClient := generation.NewSamplingClient(cfg.MCP.EnableIterativeRefinement)
 
+	// Create memory manager
+	memorySize := cfg.MCP.GenerationMemorySize
+	if memorySize == 0 {
+		memorySize = 50 // Default memory size
+	}
+	memoryManager := generation.NewMemoryManager(memorySize)
+
 	// Create auto-fixer
 	autoFixer := validation.NewAutoFixer(validator, samplingClient, cfg.MCP.AutoFixErrors)
 
@@ -166,6 +175,9 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	// Create code searcher
 	codeSearcher := tools.NewCodeSearcher(embeddingStore, embeddingManager, codeExtractor, logger)
 
+	// Create code generator
+	codeGenerator := tools.NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
+
 	pvmServer := &Server{
 		config:           cfg.MCP,
 		mcpServer:        mcpServer,
@@ -176,12 +188,14 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		validator:        validator,
 		autoFixer:        autoFixer,
 		samplingClient:   samplingClient,
+		memoryManager:    memoryManager,
 		codeAnalyzer:     codeAnalyzer,
 		projectAnalyzer:  projectAnalyzer,
 		embeddingStore:   embeddingStore,
 		embeddingManager: embeddingManager,
 		codeExtractor:    codeExtractor,
 		codeSearcher:     codeSearcher,
+		codeGenerator:    codeGenerator,
 	}
 
 	// Register tool groups
@@ -208,8 +222,14 @@ func (s *Server) Start(ctx context.Context) error {
 
 // Stop gracefully stops the MCP server
 func (s *Server) Stop(ctx context.Context) error {
-	// For now, the stop is handled by context cancellation
-	// Future implementations may need cleanup logic here
+	// Clean up memory manager
+	if s.memoryManager != nil {
+		s.memoryManager.Close()
+	}
+
+	// Close embedding store if it has cleanup methods
+	// (Note: Current implementation doesn't require explicit cleanup)
+
 	return nil
 }
 
@@ -315,6 +335,11 @@ func (s *Server) registerTools() error {
 		return fmt.Errorf("failed to register generate tools: %w", err)
 	}
 
+	// Register memory management tools
+	if err := s.registerMemoryTools(); err != nil {
+		return fmt.Errorf("failed to register memory tools: %w", err)
+	}
+
 	return nil
 }
 
@@ -371,13 +396,49 @@ func (s *Server) registerGenerateTools() error {
 			mcp.Description("Optional context code")),
 		mcp.WithString("project_path",
 			mcp.Description("Optional project path for context")),
+		mcp.WithString("session_id",
+			mcp.Description("Optional generation session ID for memory continuity")),
 	)
 
 	s.mcpServer.AddTool(generateCodeTool, s.handleGenerateCode)
 	return nil
 }
 
-// Tool handler implementations (placeholders for now)
+// registerMemoryTools registers generation memory management tools
+func (s *Server) registerMemoryTools() error {
+	// Create memory_session tool for managing generation memory
+	memorySessionTool := mcp.NewTool("memory_session",
+		mcp.WithDescription("Manage generation memory sessions for maintaining context during code generation"),
+		mcp.WithString("action",
+			mcp.Required(),
+			mcp.Description("Action to perform: create, get, clear, stats"),
+			mcp.Enum("create", "get", "clear", "stats")),
+		mcp.WithString("session_id",
+			mcp.Required(),
+			mcp.Description("Unique identifier for the generation session")),
+		mcp.WithString("type_choice_name",
+			mcp.Description("Variable/function name for type choice operations")),
+		mcp.WithString("type_choice_value",
+			mcp.Description("Type value for type choice operations")),
+		mcp.WithString("naming_pattern_type",
+			mcp.Description("Pattern type for naming convention operations")),
+		mcp.WithString("naming_pattern_value",
+			mcp.Description("Naming convention value for pattern operations")),
+		mcp.WithString("decision_type",
+			mcp.Description("Type of decision being recorded")),
+		mcp.WithString("decision_context",
+			mcp.Description("Context for the decision")),
+		mcp.WithString("decision_choice",
+			mcp.Description("Choice made for the decision")),
+		mcp.WithString("decision_rationale",
+			mcp.Description("Rationale for the decision")),
+	)
+
+	s.mcpServer.AddTool(memorySessionTool, s.handleMemorySession)
+	return nil
+}
+
+// Tool handler implementations
 
 func (s *Server) handleAnalyzeCode(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	startTime := time.Now()
@@ -596,21 +657,181 @@ func (s *Server) handleGenerateCode(ctx context.Context, request mcp.CallToolReq
 	// Get optional parameters
 	context := request.GetString("context", "")
 	projectPath := request.GetString("project_path", "")
+	sessionID := request.GetString("session_id", fmt.Sprintf("gen_%d", time.Now().UnixNano()))
 
-	s.logger.Infof("Generating code: type=%s, spec_length=%d, project=%s", generationType, len(specification), projectPath)
+	s.logger.Infof("Generating code: type=%s, spec_length=%d, project=%s, session=%s",
+		generationType, len(specification), projectPath, sessionID)
 
-	// Placeholder implementation - will be implemented in Step 12
+	// Use the code generator to perform collaborative generation
+	generationRequest := tools.GenerationRequest{
+		Type:          generationType,
+		Specification: specification,
+		Context:       context,
+		ProjectPath:   projectPath,
+		SessionID:     sessionID,
+	}
+
+	generationResult, err := s.codeGenerator.Generate(generationRequest)
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Code generation failed: %v", err)
+		return nil, fmt.Errorf("code generation failed: %w", err)
+	}
+
+	// Convert to MCP response format
 	result := map[string]interface{}{
-		"status":          "not_implemented",
-		"message":         "generate_code tool will be implemented in Step 12",
-		"generation_type": generationType,
-		"specification":   specification,
-		"context":         context,
-		"project_path":    projectPath,
-		"timestamp":       time.Now().UTC().Format(time.RFC3339),
+		"status":            generationResult.Status,
+		"generated_code":    generationResult.GeneratedCode,
+		"validation_result": generationResult.ValidationResult,
+		"memory_context":    generationResult.MemoryContext,
+		"iterations":        generationResult.Iterations,
+		"decisions":         generationResult.Decisions,
+		"message":           generationResult.Message,
+		"generation_type":   generationType,
+		"specification":     specification,
+		"context":           context,
+		"project_path":      projectPath,
+		"session_id":        sessionID,
+		"timestamp":         generationResult.Timestamp,
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("Generate code result: %v", result)), nil
+}
+
+func (s *Server) handleMemorySession(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	startTime := time.Now()
+	defer s.recordToolUsage("memory_session", startTime)
+
+	// Log request
+	s.logger.Debugf("handleMemorySession called")
+
+	// Validate and extract required parameters
+	action, err := request.RequireString("action")
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to get 'action' parameter: %v", err)
+		return nil, fmt.Errorf("missing or invalid 'action' parameter: %w", err)
+	}
+
+	sessionID, err := request.RequireString("session_id")
+	if err != nil {
+		s.recordError()
+		s.logger.Errorf("Failed to get 'session_id' parameter: %v", err)
+		return nil, fmt.Errorf("missing or invalid 'session_id' parameter: %w", err)
+	}
+
+	s.logger.Infof("Memory session action: %s for session: %s", action, sessionID)
+
+	var result map[string]interface{}
+
+	switch action {
+	case "create":
+		// Create a new memory session
+		memory := s.memoryManager.CreateSession(sessionID)
+		result = map[string]interface{}{
+			"status":     "success",
+			"action":     "create",
+			"session_id": sessionID,
+			"message":    "Memory session created successfully",
+			"context":    memory.GetContext(),
+		}
+
+	case "get":
+		// Get memory session context and recent decisions
+		memory := s.memoryManager.GetSession(sessionID)
+		result = map[string]interface{}{
+			"status":           "success",
+			"action":           "get",
+			"session_id":       sessionID,
+			"context":          memory.GetContext(),
+			"recent_decisions": memory.GetRecentDecisions(30), // Last 30 minutes
+			"stats":            memory.SessionStats(),
+		}
+
+		// Handle optional type choice operations
+		if typeChoiceName := request.GetString("type_choice_name", ""); typeChoiceName != "" {
+			if typeChoiceValue := request.GetString("type_choice_value", ""); typeChoiceValue != "" {
+				// Set type choice
+				memory.SetTypeChoice(typeChoiceName, typeChoiceValue)
+				result["type_choice_set"] = map[string]string{
+					"name": typeChoiceName,
+					"type": typeChoiceValue,
+				}
+			} else {
+				// Get type choice
+				if typeStr, exists := memory.GetTypeChoice(typeChoiceName); exists {
+					result["type_choice"] = map[string]string{
+						"name": typeChoiceName,
+						"type": typeStr,
+					}
+				}
+			}
+		}
+
+		// Handle optional naming pattern operations
+		if namingPatternType := request.GetString("naming_pattern_type", ""); namingPatternType != "" {
+			if namingPatternValue := request.GetString("naming_pattern_value", ""); namingPatternValue != "" {
+				// Set naming pattern
+				memory.SetNamingPattern(namingPatternType, namingPatternValue)
+				result["naming_pattern_set"] = map[string]string{
+					"pattern_type": namingPatternType,
+					"convention":   namingPatternValue,
+				}
+			} else {
+				// Get naming pattern
+				if pattern, exists := memory.GetNamingPattern(namingPatternType); exists {
+					result["naming_pattern"] = map[string]string{
+						"pattern_type": namingPatternType,
+						"convention":   pattern,
+					}
+				}
+			}
+		}
+
+		// Handle optional decision recording
+		if decisionType := request.GetString("decision_type", ""); decisionType != "" {
+			decisionContext := request.GetString("decision_context", "")
+			decisionChoice := request.GetString("decision_choice", "")
+			decisionRationale := request.GetString("decision_rationale", "")
+
+			if decisionContext != "" && decisionChoice != "" {
+				memory.AddDecision(decisionType, decisionContext, decisionChoice, decisionRationale)
+				result["decision_recorded"] = map[string]string{
+					"type":      decisionType,
+					"context":   decisionContext,
+					"choice":    decisionChoice,
+					"rationale": decisionRationale,
+				}
+			}
+		}
+
+	case "clear":
+		// Clear memory session
+		s.memoryManager.ClearSession(sessionID)
+		result = map[string]interface{}{
+			"status":     "success",
+			"action":     "clear",
+			"session_id": sessionID,
+			"message":    "Memory session cleared successfully",
+		}
+
+	case "stats":
+		// Get memory session statistics
+		memory := s.memoryManager.GetSession(sessionID)
+		result = map[string]interface{}{
+			"status":     "success",
+			"action":     "stats",
+			"session_id": sessionID,
+			"stats":      memory.SessionStats(),
+		}
+
+	default:
+		s.recordError()
+		s.logger.Errorf("Invalid action: %s", action)
+		return nil, fmt.Errorf("invalid action '%s', must be one of: create, get, clear, stats", action)
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Memory session result: %v", result)), nil
 }
 
 // GetProjects returns the discovered projects
