@@ -11,187 +11,187 @@ import (
 // Config represents the root configuration object
 type Config struct {
 	// PVM specific configuration
-	PVM *PVMConfig `toml:"pvm"`
+	PVM *PVMConfig `toml:"pvm" json:"pvm"`
 
 	// PVX specific configuration
-	PVX *PVXConfig `toml:"pvx"`
+	PVX *PVXConfig `toml:"pvx" json:"pvx"`
 
 	// PVI specific configuration
-	PVI *PVIConfig `toml:"pvi"`
+	PVI *PVIConfig `toml:"pvi" json:"pvi"`
 
 	// PSC specific configuration
-	PSC *PSCConfig `toml:"psc"`
+	PSC *PSCConfig `toml:"psc" json:"psc"`
 
 	// MCP specific configuration
-	MCP *MCPConfig `toml:"mcp_server"`
+	MCP *MCPConfig `toml:"mcp_server" json:"mcp_server"`
 }
 
 // PVMConfig represents configuration for the Perl Version Manager
 type PVMConfig struct {
 	// DefaultPerl is the default Perl version to use when none is specified
-	DefaultPerl string `toml:"default_perl"`
+	DefaultPerl string `toml:"default_perl" json:"default_perl"`
 
 	// BuildJobs specifies the number of parallel jobs to use during build
-	BuildJobs int `toml:"build_jobs"`
+	BuildJobs int `toml:"build_jobs" json:"build_jobs"`
 
 	// DownloadMirror specifies the mirror to use for downloading Perl source
-	DownloadMirror string `toml:"download_mirror"`
+	DownloadMirror string `toml:"download_mirror" json:"download_mirror"`
 
 	// PatchesDir specifies the directory containing patches to apply during build
-	PatchesDir string `toml:"patches_dir"`
+	PatchesDir string `toml:"patches_dir" json:"patches_dir"`
 
 	// Compiler specifies the compiler to use for building Perl
-	Compiler string `toml:"compiler"`
+	Compiler string `toml:"compiler" json:"compiler"`
 
 	// RunTests specifies whether to run tests during Perl installation
-	RunTests bool `toml:"run_tests"`
+	RunTests bool `toml:"run_tests" json:"run_tests"`
 
 	// VersionAliases maps aliases to actual version strings
-	VersionAliases map[string]string `toml:"version_aliases"`
+	VersionAliases map[string]string `toml:"version_aliases" json:"version_aliases"`
 }
 
 // PVXConfig represents configuration for the Perl Version eXecutor
 type PVXConfig struct {
 	// CacheModules specifies whether to cache modules for faster startup
-	CacheModules bool `toml:"cache_modules"`
+	CacheModules bool `toml:"cache_modules" json:"cache_modules"`
 
 	// CleanupAfter specifies whether to clean up temporary files after execution
-	CleanupAfter bool `toml:"cleanup_after"`
+	CleanupAfter bool `toml:"cleanup_after" json:"cleanup_after"`
 
 	// IsolationLevel specifies the level of isolation for script execution
 	// Valid values: "none", "low", "medium", "high"
-	IsolationLevel string `toml:"isolation_level"`
+	IsolationLevel string `toml:"isolation_level" json:"isolation_level"`
 
 	// AlwaysInstallDeps specifies whether to automatically install missing dependencies
-	AlwaysInstallDeps bool `toml:"always_install_deps"`
+	AlwaysInstallDeps bool `toml:"always_install_deps" json:"always_install_deps"`
 
 	// Timeout specifies the maximum execution time in seconds
-	Timeout int `toml:"timeout"`
+	Timeout int `toml:"timeout" json:"timeout"`
 
 	// MaxMemory specifies the maximum memory usage (e.g., "512MB")
-	MaxMemory string `toml:"max_memory"`
+	MaxMemory string `toml:"max_memory" json:"max_memory"`
 
 	// IsolationReadOnlyPaths specifies paths that should be read-only in high isolation mode
-	IsolationReadOnlyPaths []string `toml:"isolation_ro_paths"`
+	IsolationReadOnlyPaths []string `toml:"isolation_ro_paths" json:"isolation_ro_paths"`
 
 	// IsolationReadWritePaths specifies paths that should be read-write in high isolation mode
-	IsolationReadWritePaths []string `toml:"isolation_rw_paths"`
+	IsolationReadWritePaths []string `toml:"isolation_rw_paths" json:"isolation_rw_paths"`
 
 	// IsolatedOutput specifies whether to create an isolated output directory
-	IsolatedOutput bool `toml:"isolated_output"`
+	IsolatedOutput bool `toml:"isolated_output" json:"isolated_output"`
 
 	// SaveOutputDir specifies where to save isolated output files
-	SaveOutputDir string `toml:"save_output_dir"`
+	SaveOutputDir string `toml:"save_output_dir" json:"save_output_dir"`
 
 	// PreserveEnvVars specifies which environment variables to preserve in isolation
-	PreserveEnvVars []string `toml:"preserve_env_vars"`
+	PreserveEnvVars []string `toml:"preserve_env_vars" json:"preserve_env_vars"`
 
 	// AdditionalModulePaths specifies additional module paths to add to PERL5LIB
-	AdditionalModulePaths []string `toml:"additional_module_paths"`
+	AdditionalModulePaths []string `toml:"additional_module_paths" json:"additional_module_paths"`
 
 	// CustomModulePath specifies a custom module installation path
-	CustomModulePath string `toml:"custom_module_path"`
+	CustomModulePath string `toml:"custom_module_path" json:"custom_module_path"`
 }
 
 // PVIConfig represents configuration for the Perl Version Installer
 type PVIConfig struct {
 	// PreferredInstaller specifies the preferred installation method
 	// Valid values: "auto", "cpanm", "cpan", "cpm"
-	PreferredInstaller string `toml:"preferred_installer"`
+	PreferredInstaller string `toml:"preferred_installer" json:"preferred_installer"`
 
 	// DefaultMirror specifies the CPAN mirror to use
-	DefaultMirror string `toml:"default_mirror"`
+	DefaultMirror string `toml:"default_mirror" json:"default_mirror"`
 
 	// AdditionalMirrors specifies backup CPAN mirrors to use if the default mirror fails
-	AdditionalMirrors []string `toml:"additional_mirrors"`
+	AdditionalMirrors []string `toml:"additional_mirrors" json:"additional_mirrors"`
 
 	// MetadataSource specifies the source for CPAN metadata
 	// Valid values: "metacpan", "cpan"
-	MetadataSource string `toml:"metadata_source"`
+	MetadataSource string `toml:"metadata_source" json:"metadata_source"`
 
 	// MetadataURL specifies the URL for the metadata API
 	// Used when MetadataSource is "custom"
-	MetadataURL string `toml:"metadata_url"`
+	MetadataURL string `toml:"metadata_url" json:"metadata_url"`
 
 	// CacheDir specifies the directory to use for caching metadata
-	CacheDir string `toml:"cache_dir"`
+	CacheDir string `toml:"cache_dir" json:"cache_dir"`
 
 	// CacheTTL specifies the time-to-live for cached metadata in hours
 	// Set to 0 to always refresh metadata
-	CacheTTL int `toml:"cache_ttl"`
+	CacheTTL int `toml:"cache_ttl" json:"cache_ttl"`
 
 	// TestDuringInstall specifies whether to run tests during module installation
-	TestDuringInstall bool `toml:"test_during_install"`
+	TestDuringInstall bool `toml:"test_during_install" json:"test_during_install"`
 
 	// CacheModules specifies whether to cache modules for faster installation
-	CacheModules bool `toml:"cache_modules"`
+	CacheModules bool `toml:"cache_modules" json:"cache_modules"`
 
 	// ForceReinstall specifies whether to force reinstallation of modules
-	ForceReinstall bool `toml:"force_reinstall"`
+	ForceReinstall bool `toml:"force_reinstall" json:"force_reinstall"`
 
 	// CheckSignatures specifies whether to check module signatures
-	CheckSignatures bool `toml:"check_signatures"`
+	CheckSignatures bool `toml:"check_signatures" json:"check_signatures"`
 
 	// DisableNetwork specifies whether to disable network access (for testing)
-	DisableNetwork bool `toml:"disable_network"`
+	DisableNetwork bool `toml:"disable_network" json:"disable_network"`
 }
 
 // PSCConfig represents configuration for the Perl Script Compiler
 type PSCConfig struct {
 	// TypeDefinitionsPath specifies the path to type definitions
-	TypeDefinitionsPath string `toml:"type_definitions_path"`
+	TypeDefinitionsPath string `toml:"type_definitions_path" json:"type_definitions_path"`
 
 	// StrictMode enables more rigorous type checking
-	StrictMode bool `toml:"strict_mode"`
+	StrictMode bool `toml:"strict_mode" json:"strict_mode"`
 
 	// WatchExclude specifies patterns to exclude from watch mode
-	WatchExclude []string `toml:"watch_exclude"`
+	WatchExclude []string `toml:"watch_exclude" json:"watch_exclude"`
 
 	// GenerateMissingTypes specifies whether to generate missing type definitions
-	GenerateMissingTypes bool `toml:"generate_missing_types"`
+	GenerateMissingTypes bool `toml:"generate_missing_types" json:"generate_missing_types"`
 
 	// CheckBeforeRun specifies whether to check types before running a script
-	CheckBeforeRun bool `toml:"check_before_run"`
+	CheckBeforeRun bool `toml:"check_before_run" json:"check_before_run"`
 }
 
 // MCPConfig represents configuration for the MCP Server
 type MCPConfig struct {
 	// Port specifies the port for the MCP server
-	Port int `toml:"port"`
+	Port int `toml:"port" json:"port"`
 
 	// Host specifies the host address for the MCP server
-	Host string `toml:"host"`
+	Host string `toml:"host" json:"host"`
 
 	// AutoDiscoverProjects specifies whether to automatically discover Perl projects
-	AutoDiscoverProjects bool `toml:"auto_discover_projects"`
+	AutoDiscoverProjects bool `toml:"auto_discover_projects" json:"auto_discover_projects"`
 
 	// AutoFixErrors specifies whether to attempt auto-fixing errors via sampling
-	AutoFixErrors bool `toml:"auto_fix_errors"`
+	AutoFixErrors bool `toml:"auto_fix_errors" json:"auto_fix_errors"`
 
 	// ValidationCacheSize specifies the maximum size for validation cache
-	ValidationCacheSize string `toml:"validation_cache_size"`
+	ValidationCacheSize string `toml:"validation_cache_size" json:"validation_cache_size"`
 
 	// EmbeddingProvider specifies which embedding provider to use
 	// Valid values: "openai", "voyageai", "huggingface"
-	EmbeddingProvider string `toml:"embedding_provider"`
+	EmbeddingProvider string `toml:"embedding_provider" json:"embedding_provider"`
 
 	// EmbeddingCacheSize specifies the maximum size for embedding cache
-	EmbeddingCacheSize string `toml:"embedding_cache_size"`
+	EmbeddingCacheSize string `toml:"embedding_cache_size" json:"embedding_cache_size"`
 
 	// EmbeddingModel specifies the model to use (provider-specific)
-	EmbeddingModel string `toml:"embedding_model"`
+	EmbeddingModel string `toml:"embedding_model" json:"embedding_model"`
 
 	// GenerationMemorySize specifies the memory size for generation context
-	GenerationMemorySize int `toml:"generation_memory_size"`
+	GenerationMemorySize int `toml:"generation_memory_size" json:"generation_memory_size"`
 
 	// EnableIterativeRefinement specifies whether to enable iterative refinement
-	EnableIterativeRefinement bool `toml:"enable_iterative_refinement"`
+	EnableIterativeRefinement bool `toml:"enable_iterative_refinement" json:"enable_iterative_refinement"`
 
 	// MaxConcurrentRequests specifies the maximum number of concurrent requests
-	MaxConcurrentRequests int `toml:"max_concurrent_requests"`
+	MaxConcurrentRequests int `toml:"max_concurrent_requests" json:"max_concurrent_requests"`
 
 	// RequestTimeout specifies the timeout for requests
-	RequestTimeout string `toml:"request_timeout"`
+	RequestTimeout string `toml:"request_timeout" json:"request_timeout"`
 }
 
 // NewDefaultConfig creates a new configuration with default values
