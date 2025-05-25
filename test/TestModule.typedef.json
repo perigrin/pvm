@@ -1,0 +1,22 @@
+{
+  "module": "TestModule",
+  "version": "0.0.1",
+  "generated": "2025-05-25T00:21:22.247831-04:00",
+  "maintainer": "PSC type generator",
+  "source": "generated",
+  "types": [
+    {
+      "name": "TestModule",
+      "description": "Auto-generated type information for TestModule",
+      "kind": "class",
+      "parameters": null,
+      "properties": [],
+      "methods": [],
+      "parent": "",
+      "roles": null
+    }
+  ],
+  "packages": [],
+  "subs": [],
+  "methods": []
+}

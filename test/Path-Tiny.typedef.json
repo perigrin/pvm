@@ -1,0 +1,22 @@
+{
+  "module": "Path::Tiny",
+  "version": "0.0.1",
+  "generated": "2025-05-25T00:21:41.515746-04:00",
+  "maintainer": "PSC type generator",
+  "source": "generated",
+  "types": [
+    {
+      "name": "Path::Tiny",
+      "description": "Auto-generated type information for Path::Tiny",
+      "kind": "class",
+      "parameters": null,
+      "properties": [],
+      "methods": [],
+      "parent": "",
+      "roles": null
+    }
+  ],
+  "packages": [],
+  "subs": [],
+  "methods": []
+}
