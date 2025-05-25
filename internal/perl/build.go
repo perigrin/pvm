@@ -111,6 +111,21 @@ type BuildOptions struct {
 
 	// Context for cancellation
 	Context context.Context
+
+	// TestTimeout is the timeout for running tests
+	TestTimeout time.Duration
+
+	// AllowTestFailures allows build to continue even if tests fail
+	AllowTestFailures bool
+
+	// ForceRebuild forces a rebuild even if cached
+	ForceRebuild bool
+
+	// MaxRetries is the maximum number of retries for build steps
+	MaxRetries int
+
+	// Verbose enables verbose output
+	Verbose bool
 }
 
 // BuildResult contains information about the build
@@ -129,6 +144,9 @@ type BuildResult struct {
 
 	// Stages contains timing information for each stage
 	Stages map[BuildProgressStage]time.Duration
+
+	// Timestamp is when the build started
+	Timestamp time.Time
 }
 
 // BuildPerl builds and installs Perl from source
