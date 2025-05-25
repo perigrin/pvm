@@ -425,3 +425,57 @@ type DocumentOnTypeFormattingCapabilities struct{}
 type RenameClientCapabilities struct{}
 type PublishDiagnosticsClientCapabilities struct{}
 type FoldingRangeClientCapabilities struct{}
+
+// DefinitionParams represents parameters for textDocument/definition
+type DefinitionParams struct {
+	TextDocumentPositionParams
+}
+
+// ReferenceParams represents parameters for textDocument/references
+type ReferenceParams struct {
+	TextDocumentPositionParams
+	Context ReferenceContext `json:"context"`
+}
+
+// ReferenceContext provides additional context for references
+type ReferenceContext struct {
+	IncludeDeclaration bool `json:"includeDeclaration"`
+}
+
+// DocumentFormattingParams represents parameters for textDocument/formatting
+type DocumentFormattingParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Options      FormattingOptions      `json:"options"`
+}
+
+// FormattingOptions represents formatting options
+type FormattingOptions struct {
+	TabSize      int  `json:"tabSize"`
+	InsertSpaces bool `json:"insertSpaces"`
+}
+
+// CodeActionParams represents parameters for textDocument/codeAction
+type CodeActionParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Range        Range                  `json:"range"`
+	Context      CodeActionContext      `json:"context"`
+}
+
+// CodeActionContext provides context for code actions
+type CodeActionContext struct {
+	Diagnostics []Diagnostic `json:"diagnostics"`
+}
+
+// CodeAction represents a code action
+type CodeAction struct {
+	Title       string         `json:"title"`
+	Kind        string         `json:"kind,omitempty"`
+	Diagnostics []Diagnostic   `json:"diagnostics,omitempty"`
+	Edit        *WorkspaceEdit `json:"edit,omitempty"`
+	Command     *Command       `json:"command,omitempty"`
+}
+
+// WorkspaceEdit represents changes to multiple text documents
+type WorkspaceEdit struct {
+	Changes map[string][]TextEdit `json:"changes"`
+}

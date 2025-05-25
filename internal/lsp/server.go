@@ -79,10 +79,14 @@ type Document struct {
 
 // ServerCapabilities defines what the server can do
 type ServerCapabilities struct {
-	TextDocumentSync    *TextDocumentSyncOptions `json:"textDocumentSync,omitempty"`
-	HoverProvider       bool                     `json:"hoverProvider,omitempty"`
-	CompletionProvider  *CompletionOptions       `json:"completionProvider,omitempty"`
-	DiagnosticsProvider bool                     `json:"diagnosticsProvider,omitempty"`
+	TextDocumentSync           *TextDocumentSyncOptions `json:"textDocumentSync,omitempty"`
+	HoverProvider              bool                     `json:"hoverProvider,omitempty"`
+	CompletionProvider         *CompletionOptions       `json:"completionProvider,omitempty"`
+	DiagnosticsProvider        bool                     `json:"diagnosticsProvider,omitempty"`
+	DefinitionProvider         bool                     `json:"definitionProvider,omitempty"`
+	ReferencesProvider         bool                     `json:"referencesProvider,omitempty"`
+	DocumentFormattingProvider bool                     `json:"documentFormattingProvider,omitempty"`
+	CodeActionProvider         bool                     `json:"codeActionProvider,omitempty"`
 }
 
 // TextDocumentSyncOptions defines text synchronization capabilities
@@ -124,7 +128,11 @@ func NewServer(conn io.ReadWriteCloser) (*Server, error) {
 				TriggerCharacters: []string{"$", "@", "%", ":", ".", "->"},
 				ResolveProvider:   false,
 			},
-			DiagnosticsProvider: true,
+			DiagnosticsProvider:        true,
+			DefinitionProvider:         true,
+			ReferencesProvider:         true,
+			DocumentFormattingProvider: true,
+			CodeActionProvider:         true,
 		},
 		ctx:    ctx,
 		cancel: cancel,
@@ -246,6 +254,14 @@ func (s *Server) dispatchMessage(msg *JSONRPCMessage) error {
 		return s.handleTextDocumentHover(msg)
 	case "textDocument/completion":
 		return s.handleTextDocumentCompletion(msg)
+	case "textDocument/definition":
+		return s.handleTextDocumentDefinition(msg)
+	case "textDocument/references":
+		return s.handleTextDocumentReferences(msg)
+	case "textDocument/formatting":
+		return s.handleTextDocumentFormatting(msg)
+	case "textDocument/codeAction":
+		return s.handleTextDocumentCodeAction(msg)
 	default:
 		return s.sendError(msg.ID, -32601, "Method not found", nil)
 	}

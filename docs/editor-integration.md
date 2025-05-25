@@ -8,6 +8,10 @@ The PSC Language Server provides:
 - **Type checking** with real-time error reporting
 - **Hover information** for types, functions, and variables
 - **Auto-completion** for Perl keywords, types, and symbols
+- **Go to Definition** to navigate to symbol definitions
+- **Find References** to locate all uses of a symbol
+- **Document Formatting** to clean up code style
+- **Code Actions** for quick fixes and refactoring
 - **Structured diagnostics** in multiple formats (LSP, JSON, SARIF, etc.)
 
 ## Quick Start
@@ -310,6 +314,38 @@ The server activates for files with:
 1. **Increase timeout**: Set higher `"psc.timeout"` value
 2. **Limit errors**: Set lower `"psc.maxErrors"` value
 3. **Disable flow-sensitive**: Set `"psc.flowSensitive": false`
+
+## Using LSP Features
+
+### Go to Definition
+- **VSCode**: `F12` or `Ctrl+Click` on a symbol
+- **Neovim**: `gd` in normal mode
+- **Vim**: `gd` or `<plug>(lsp-definition)`
+- **Emacs**: `M-.` or `xref-find-definitions`
+
+### Find References
+- **VSCode**: `Shift+F12` or right-click → "Find All References"
+- **Neovim**: `gr` in normal mode
+- **Vim**: `<plug>(lsp-references)`
+- **Emacs**: `M-?` or `xref-find-references`
+
+### Document Formatting
+- **VSCode**: `Shift+Alt+F` or right-click → "Format Document"
+- **Neovim**: `<space>f` or `:lua vim.lsp.buf.formatting()`
+- **Vim**: `<plug>(lsp-document-format)`
+- **Emacs**: `M-x lsp-format-buffer`
+
+### Code Actions
+- **VSCode**: `Ctrl+.` or lightbulb icon
+- **Neovim**: `<space>ca` or `:lua vim.lsp.buf.code_action()`
+- **Vim**: `<plug>(lsp-code-action)`
+- **Emacs**: `M-x lsp-execute-code-action`
+
+Available code actions include:
+- **Quick fixes** for undefined variables
+- **Type mismatch corrections**
+- **Extract variable** refactoring
+- **Add missing type annotations**
 
 ## Advanced Configuration
 

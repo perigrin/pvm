@@ -266,6 +266,96 @@ func (s *Server) handleTextDocumentCompletion(msg *JSONRPCMessage) error {
 	return s.sendResponse(msg.ID, result)
 }
 
+// handleTextDocumentDefinition handles the textDocument/definition request
+func (s *Server) handleTextDocumentDefinition(msg *JSONRPCMessage) error {
+	var params DefinitionParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		return s.sendError(msg.ID, -32602, "Invalid params", err.Error())
+	}
+
+	s.logger.Printf("Definition request for %s at %d:%d",
+		params.TextDocument.URI, params.Position.Line, params.Position.Character)
+
+	doc, exists := s.getDocument(params.TextDocument.URI)
+	if !exists {
+		return s.sendResponse(msg.ID, nil)
+	}
+
+	// Find definition
+	locations := s.findDefinition(doc, params.Position)
+	if len(locations) == 0 {
+		return s.sendResponse(msg.ID, nil)
+	}
+
+	// Return single location if only one, otherwise return array
+	if len(locations) == 1 {
+		return s.sendResponse(msg.ID, locations[0])
+	}
+	return s.sendResponse(msg.ID, locations)
+}
+
+// handleTextDocumentReferences handles the textDocument/references request
+func (s *Server) handleTextDocumentReferences(msg *JSONRPCMessage) error {
+	var params ReferenceParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		return s.sendError(msg.ID, -32602, "Invalid params", err.Error())
+	}
+
+	s.logger.Printf("References request for %s at %d:%d (includeDecl: %v)",
+		params.TextDocument.URI, params.Position.Line, params.Position.Character,
+		params.Context.IncludeDeclaration)
+
+	doc, exists := s.getDocument(params.TextDocument.URI)
+	if !exists {
+		return s.sendResponse(msg.ID, []Location{})
+	}
+
+	// Find references
+	locations := s.findReferences(doc, params.Position, params.Context.IncludeDeclaration)
+	return s.sendResponse(msg.ID, locations)
+}
+
+// handleTextDocumentFormatting handles the textDocument/formatting request
+func (s *Server) handleTextDocumentFormatting(msg *JSONRPCMessage) error {
+	var params DocumentFormattingParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		return s.sendError(msg.ID, -32602, "Invalid params", err.Error())
+	}
+
+	s.logger.Printf("Formatting request for %s", params.TextDocument.URI)
+
+	doc, exists := s.getDocument(params.TextDocument.URI)
+	if !exists {
+		return s.sendResponse(msg.ID, []TextEdit{})
+	}
+
+	// Format document
+	edits := s.formatDocument(doc, params.Options)
+	return s.sendResponse(msg.ID, edits)
+}
+
+// handleTextDocumentCodeAction handles the textDocument/codeAction request
+func (s *Server) handleTextDocumentCodeAction(msg *JSONRPCMessage) error {
+	var params CodeActionParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		return s.sendError(msg.ID, -32602, "Invalid params", err.Error())
+	}
+
+	s.logger.Printf("Code action request for %s at %d:%d-%d:%d",
+		params.TextDocument.URI,
+		params.Range.Start.Line, params.Range.Start.Character,
+		params.Range.End.Line, params.Range.End.Character)
+
+	doc, exists := s.getDocument(params.TextDocument.URI)
+	if !exists {
+		return s.sendResponse(msg.ID, []CodeAction{})
+	}
+
+	// Generate code actions
+	actions := s.generateCodeActions(doc, params.Range, params.Context)
+	return s.sendResponse(msg.ID, actions)
+}
+
 // generateHoverInfo generates hover information for a position in a document
 func (s *Server) generateHoverInfo(doc *Document, pos Position) *Hover {
 	// Extract the word at the cursor position
