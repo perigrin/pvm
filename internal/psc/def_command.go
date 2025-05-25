@@ -10,11 +10,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -104,19 +106,30 @@ func newDefGenerateCommand() *cobra.Command {
 				Methods:    []typedef.MethodInfo{},
 			}
 
-			// Extract module type information using Perl introspection
-			moduleTypes, err := analyzeModuleTypes(moduleName)
-			if err != nil && verbose {
-				fmt.Printf("Warning: Could not fully analyze module: %v\n", err)
-				fmt.Println("Generating a basic type definition instead.")
+			// Extract module type information using enhanced introspection
+			if verbose {
+				fmt.Printf("Analyzing module %s using enhanced introspection...\n", moduleName)
 			}
 
-			// Add any discovered types to our type definition
-			if moduleTypes != nil && len(moduleTypes.Types) > 0 {
-				typeDef.Types = append(typeDef.Types, moduleTypes.Types...)
-				typeDef.Subs = append(typeDef.Subs, moduleTypes.Subs...)
-				typeDef.Methods = append(typeDef.Methods, moduleTypes.Methods...)
-				typeDef.Packages = append(typeDef.Packages, moduleTypes.Packages...)
+			moduleTypes, err := analyzeModuleTypes(moduleName)
+			if err != nil {
+				if verbose {
+					fmt.Printf("Warning: Could not fully analyze module: %v\n", err)
+					fmt.Println("Generating a basic type definition instead.")
+				}
+			} else if moduleTypes != nil {
+				// Successfully analyzed - use the enhanced type definition
+				typeDef = moduleTypes
+
+				if verbose {
+					methodCount := len(typeDef.Methods)
+					typeCount := len(typeDef.Types)
+					pkgCount := len(typeDef.Packages)
+					fmt.Printf("Successfully analyzed module %s:\n", moduleName)
+					fmt.Printf("  - Found %d packages\n", pkgCount)
+					fmt.Printf("  - Found %d types\n", typeCount)
+					fmt.Printf("  - Found %d methods\n", methodCount)
+				}
 			}
 
 			// Add some placeholder types if none provided
@@ -337,29 +350,42 @@ func newDefInstallCommand() *cobra.Command {
 				Methods:    []typedef.MethodInfo{},
 			}
 
-			// Extract module type information using Perl introspection
+			// Extract module type information using enhanced introspection
+			if verbose {
+				fmt.Printf("Analyzing module %s using enhanced introspection...\n", moduleName)
+			}
+
 			moduleTypes, err := analyzeModuleTypes(moduleName)
-			if err != nil && verbose {
-				fmt.Printf("Warning: Could not fully analyze module: %v\n", err)
-				fmt.Println("Generating a basic type definition instead.")
+			if err != nil {
+				if verbose {
+					fmt.Printf("Warning: Could not fully analyze module: %v\n", err)
+					fmt.Println("Generating a basic type definition instead.")
+				}
+			} else if moduleTypes != nil {
+				// Successfully analyzed - use the enhanced type definition
+				typeDef = moduleTypes
+
+				if verbose {
+					methodCount := len(typeDef.Methods)
+					typeCount := len(typeDef.Types)
+					pkgCount := len(typeDef.Packages)
+					fmt.Printf("Successfully analyzed module %s:\n", moduleName)
+					fmt.Printf("  - Found %d packages\n", pkgCount)
+					fmt.Printf("  - Found %d types\n", typeCount)
+					fmt.Printf("  - Found %d methods\n", methodCount)
+				}
 			}
 
-			// Add any discovered types to our type definition
-			if moduleTypes != nil && len(moduleTypes.Types) > 0 {
-				typeDef.Types = append(typeDef.Types, moduleTypes.Types...)
-				typeDef.Subs = append(typeDef.Subs, moduleTypes.Subs...)
-				typeDef.Methods = append(typeDef.Methods, moduleTypes.Methods...)
-				typeDef.Packages = append(typeDef.Packages, moduleTypes.Packages...)
+			// Add a placeholder type if none were found
+			if len(typeDef.Types) == 0 {
+				typeDef.Types = append(typeDef.Types, typedef.TypeInfo{
+					Name:        moduleName,
+					Description: "Auto-generated type information for " + moduleName,
+					Kind:        "class",
+					Methods:     []typedef.MethodInfo{},
+					Properties:  []typedef.PropInfo{},
+				})
 			}
-
-			// Add some placeholder types
-			typeDef.Types = append(typeDef.Types, typedef.TypeInfo{
-				Name:        moduleName,
-				Description: "Auto-generated type information for " + moduleName,
-				Kind:        "class",
-				Methods:     []typedef.MethodInfo{},
-				Properties:  []typedef.PropInfo{},
-			})
 
 			// Save the type definition
 			if err := storage.Save(typeDef); err != nil {
@@ -385,8 +411,171 @@ func newDefInstallCommand() *cobra.Command {
 	return cmd
 }
 
-// analyzeModuleTypes performs type analysis of a Perl module using introspection
+// analyzeModuleTypes performs enhanced type analysis of a Perl module using introspection
 func analyzeModuleTypes(moduleName string) (*typedef.TypeDefinition, error) {
+	// Create the enhanced introspector
+	introspector, err := parser.NewEnhancedIntrospector()
+	if err != nil {
+		// Fall back to the Perl introspection method
+		return analyzeModuleTypesWithPerl(moduleName)
+	}
+
+	// Perform comprehensive analysis
+	result, err := introspector.AnalyzeModule(moduleName)
+	if err != nil {
+		// Fall back to Perl introspection if enhanced introspection fails
+		return analyzeModuleTypesWithPerl(moduleName)
+	}
+
+	// Check if we have a valid type definition
+	if result.TypeDefinition == nil {
+		// Fall back to Perl introspection
+		return analyzeModuleTypesWithPerl(moduleName)
+	}
+
+	// Log warnings if any
+	if len(result.Warnings) > 0 {
+		for _, warning := range result.Warnings {
+			fmt.Fprintf(os.Stderr, "Warning: %s\n", warning)
+		}
+	}
+
+	// Log confidence scores if verbose
+	if result.Confidence.Overall < 0.7 {
+		fmt.Fprintf(os.Stderr, "Note: Type inference confidence is %.0f%% (Methods: %.0f%%, Attributes: %.0f%%)\n",
+			result.Confidence.Overall*100,
+			result.Confidence.Methods*100,
+			result.Confidence.Attributes*100)
+	}
+
+	return result.TypeDefinition, nil
+}
+
+// findModuleFile attempts to find the file path for a Perl module
+func findModuleFile(moduleName string) (string, error) {
+	// Convert module name to file path
+	moduleFile := strings.ReplaceAll(moduleName, "::", "/") + ".pm"
+
+	// Search in @INC paths using perl
+	cmd := exec.Command("perl", "-e", fmt.Sprintf(`
+		foreach my $inc (@INC) {
+			my $file = "$inc/%s";
+			if (-f $file) {
+				print $file;
+				exit 0;
+			}
+		}
+		exit 1;
+	`, moduleFile))
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("module not found in @INC: %s", moduleName)
+	}
+
+	return strings.TrimSpace(string(output)), nil
+}
+
+// convertIntrospectionToTypeDef converts introspection results to TypeDefinition
+func convertIntrospectionToTypeDef(moduleName string, result *parser.ModuleIntrospectionResult) *typedef.TypeDefinition {
+	typeDef := &typedef.TypeDefinition{
+		Module:     moduleName,
+		Version:    "0.0.1",
+		Generated:  time.Now(),
+		Maintainer: "PSC enhanced type generator",
+		Source:     "introspection",
+		Types:      []typedef.TypeInfo{},
+		Packages:   []typedef.PackageInfo{},
+		Subs:       []typedef.SubInfo{},
+		Methods:    []typedef.MethodInfo{},
+	}
+
+	// Convert packages to TypeDefinition format
+	for pkgName, pkgInfo := range result.Packages {
+		// Add package info
+		typeDef.Packages = append(typeDef.Packages, typedef.PackageInfo{
+			Name:        pkgName,
+			Description: fmt.Sprintf("Package %s", pkgName),
+			Exports:     []typedef.ExportInfo{},
+		})
+
+		// Create type info for the package
+		typeInfo := typedef.TypeInfo{
+			Name:        pkgName,
+			Description: fmt.Sprintf("Type information for %s", pkgName),
+			Kind:        "class",
+			Methods:     []typedef.MethodInfo{},
+			Properties:  []typedef.PropInfo{},
+		}
+
+		// Convert methods
+		for methodName, methodSig := range pkgInfo.Methods {
+			// Convert parameters
+			params := []typedef.ParamInfo{}
+			for _, param := range methodSig.Parameters {
+				params = append(params, typedef.ParamInfo{
+					Name:        param.Name,
+					Type:        param.Type,
+					Description: param.Documentation,
+					Optional:    param.IsOptional,
+					Default:     param.DefaultValue,
+				})
+			}
+
+			// Convert return type to ReturnInfo
+			returns := []typedef.ReturnInfo{}
+			if methodSig.ReturnType != "" && methodSig.ReturnType != "Any" {
+				returns = append(returns, typedef.ReturnInfo{
+					Type:        methodSig.ReturnType,
+					Description: "Return value",
+				})
+			}
+
+			methodInfo := typedef.MethodInfo{
+				Name:        methodName,
+				Description: methodSig.Documentation,
+				Parameters:  params,
+				Returns:     returns,
+			}
+
+			typeInfo.Methods = append(typeInfo.Methods, methodInfo)
+
+			// Also add to global methods list
+			typeDef.Methods = append(typeDef.Methods, typedef.MethodInfo{
+				Name:        methodName,
+				Description: methodSig.Documentation,
+				Parameters:  params,
+				Returns:     returns,
+			})
+		}
+
+		// Convert attributes to properties
+		for attrName, attrInfo := range pkgInfo.Attributes {
+			typeInfo.Properties = append(typeInfo.Properties, typedef.PropInfo{
+				Name:        attrName,
+				Type:        attrInfo.Type,
+				Description: attrInfo.Documentation,
+			})
+		}
+
+		typeDef.Types = append(typeDef.Types, typeInfo)
+	}
+
+	// Add detected frameworks as metadata
+	if len(result.DetectedFrameworks) > 0 {
+		// This information could be added to a metadata field if TypeDefinition supported it
+		// For now, we'll add it to the description of the main type
+		if len(typeDef.Types) > 0 {
+			typeDef.Types[0].Description += fmt.Sprintf(" (Frameworks: %s)",
+				strings.Join(result.DetectedFrameworks, ", "))
+		}
+	}
+
+	return typeDef
+}
+
+// analyzeModuleTypesWithPerl is the original Perl-based analysis function
+func analyzeModuleTypesWithPerl(moduleName string) (*typedef.TypeDefinition, error) {
 	// Create a temporary Perl script to analyze the module
 	tempScript, err := os.CreateTemp("", "psc-module-analyzer-*.pl")
 	if err != nil {

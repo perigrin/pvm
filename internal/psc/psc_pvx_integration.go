@@ -282,7 +282,7 @@ func extractRequiredModulesFromTypeAnnotations(result *parser.TypeCheckResult) [
 	modules := make([]string, 0, len(moduleMap))
 	for module := range moduleMap {
 		// Skip core modules and simple built-in types
-		if isBuiltinType(module) {
+		if isPVXBuiltinType(module) {
 			continue
 		}
 		modules = append(modules, module)
@@ -318,8 +318,8 @@ func extractModulesFromType(typeStr string, moduleMap map[string]bool) {
 	}
 }
 
-// isBuiltinType checks if a type is a built-in type
-func isBuiltinType(typeName string) bool {
+// isPVXBuiltinType checks if a type is a built-in type
+func isPVXBuiltinType(typeName string) bool {
 	// List of built-in types
 	builtinTypes := map[string]bool{
 		"Any":         true,
