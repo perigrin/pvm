@@ -43,6 +43,7 @@ Examples:
 			strict, _ := cmd.Flags().GetBool("strict")
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			recursive, _ := cmd.Flags().GetBool("recursive")
+			showInferred, _ := cmd.Flags().GetBool("show-inferred")
 
 			// Process each argument
 			totalFiles := 0
@@ -59,7 +60,7 @@ Examples:
 
 				if info.IsDir() {
 					if recursive {
-						files, errors, err := checkDirectory(arg, strict, verbose)
+						files, errors, err := checkDirectory(arg, strict, verbose, showInferred)
 						if err != nil {
 							return err
 						}
@@ -69,7 +70,7 @@ Examples:
 						fmt.Printf("Skipping directory %s (use --recursive to check directories)\n", arg)
 					}
 				} else {
-					errors, err := checkFile(arg, strict, verbose)
+					errors, err := checkFile(arg, strict, verbose, showInferred)
 					if err != nil {
 						return err
 					}
@@ -96,12 +97,13 @@ Examples:
 	cmd.Flags().BoolP("strict", "s", false, "Exit with non-zero status if type errors are found")
 	cmd.Flags().BoolP("verbose", "v", false, "Verbose output")
 	cmd.Flags().BoolP("recursive", "r", false, "Recursively check directories")
+	cmd.Flags().BoolP("show-inferred", "i", false, "Show inferred types")
 
 	return cmd
 }
 
 // checkFile performs type checking on a single file
-func checkFile(filePath string, strict, verbose bool) (int, error) {
+func checkFile(filePath string, strict, verbose, showInferred bool) (int, error) {
 	if verbose {
 		fmt.Printf("Checking %s...\n", filePath)
 	}
@@ -147,6 +149,14 @@ func checkFile(filePath string, strict, verbose bool) (int, error) {
 		}
 	}
 
+	// Show inferred types if requested
+	if showInferred && len(result.RefinedTypes) > 0 {
+		fmt.Printf("\nInferred types in %s:\n", filePath)
+		for varName, inferredType := range result.RefinedTypes {
+			fmt.Printf("  %s: %s\n", varName, inferredType)
+		}
+	}
+
 	if len(result.Errors) == 0 && verbose {
 		fmt.Printf("✓ %s: No type errors found\n", filePath)
 	}
@@ -155,7 +165,7 @@ func checkFile(filePath string, strict, verbose bool) (int, error) {
 }
 
 // checkDirectory recursively checks all Perl files in a directory
-func checkDirectory(dirPath string, strict, verbose bool) (int, int, error) {
+func checkDirectory(dirPath string, strict, verbose, showInferred bool) (int, int, error) {
 	totalFiles := 0
 	totalErrors := 0
 
@@ -165,7 +175,7 @@ func checkDirectory(dirPath string, strict, verbose bool) (int, int, error) {
 		}
 
 		if !info.IsDir() && isPerlFileCheck(path) {
-			errors, err := checkFile(path, strict, verbose)
+			errors, err := checkFile(path, strict, verbose, showInferred)
 			if err != nil {
 				return err
 			}

@@ -81,7 +81,7 @@ my Str $another_typed = $untyped_var;`,
 			}
 
 			// Test the complete check workflow
-			errorCount, err := checkFile(testFile, false, false)
+			errorCount, err := checkFile(testFile, false, false, false)
 			if err != nil {
 				t.Fatalf("checkFile failed: %v", err)
 			}
@@ -163,7 +163,7 @@ my Int $bad = "error";
 	}
 
 	// Test recursive checking
-	totalFiles, totalErrors, err := checkDirectory(tempDir, false, false)
+	totalFiles, totalErrors, err := checkDirectory(tempDir, false, false, false)
 	if err != nil {
 		t.Fatalf("checkDirectory failed: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestCheckCommandErrorHandling(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filePath := tt.setup()
 
-			_, err := checkFile(filePath, false, false)
+			_, err := checkFile(filePath, false, false, false)
 
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got none")
@@ -266,7 +266,7 @@ func TestPerformanceWithLargeFile(t *testing.T) {
 	}
 
 	// Test that large file can be checked without timeout or memory issues
-	errorCount, err := checkFile(largeFile, false, true) // Use verbose for more info
+	errorCount, err := checkFile(largeFile, false, true, false) // Use verbose for more info
 	if err != nil {
 		t.Fatalf("Failed to check large file: %v", err)
 	}
@@ -295,7 +295,7 @@ my Str $name = 42;`
 	}
 
 	// Test non-strict mode (should not exit with error)
-	errorCount, err := checkFile(errorFile, false, false)
+	errorCount, err := checkFile(errorFile, false, false, false)
 	if err != nil {
 		t.Errorf("Non-strict mode should not return error: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestFileExtensionFiltering(t *testing.T) {
 	}
 
 	// Test recursive checking to see which files are processed
-	totalFiles, totalErrors, err := checkDirectory(tempDir, false, false)
+	totalFiles, totalErrors, err := checkDirectory(tempDir, false, false, false)
 	if err != nil {
 		t.Fatalf("checkDirectory failed: %v", err)
 	}

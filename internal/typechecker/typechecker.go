@@ -39,6 +39,12 @@ type TypeCheck struct {
 
 	// Maximum cache size to prevent memory issues
 	maxCacheSize int
+
+	// InferenceEngine for advanced type inference
+	InferenceEngine *InferenceEngine
+
+	// EnableTypeInference controls whether type inference is enabled
+	EnableTypeInference bool
 }
 
 // NewTypeCheck creates a new TypeCheck instance
@@ -58,6 +64,9 @@ func NewTypeCheck() (*TypeCheck, error) {
 	// Create the type hierarchy
 	hierarchy := typedef.NewTypeHierarchy(typeStore)
 
+	// Create the inference engine
+	inferenceEngine := NewInferenceEngine(hierarchy)
+
 	return &TypeCheck{
 		Parser:                      parser,
 		TypeStore:                   typeStore,
@@ -67,6 +76,8 @@ func NewTypeCheck() (*TypeCheck, error) {
 		FlowPatterns:                []string{},                        // No additional patterns by default
 		fileCache:                   make(map[string]*TypeCheckResult), // Initialize caches
 		maxCacheSize:                100,                               // Reasonable default cache size
+		InferenceEngine:             inferenceEngine,
+		EnableTypeInference:         true, // Enable type inference by default
 	}, nil
 }
 
@@ -146,7 +157,7 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	moduleName := extractModuleNameFromPath(path)
 
 	// Create a type checker
-	checker := NewTypeChecker(tc.TypeHierarchy, moduleName)
+	checker := parser.NewTypeChecker(tc.TypeHierarchy, moduleName)
 
 	// Configure flow-sensitive analysis options
 	if tc.EnableFlowSensitiveAnalysis {
@@ -160,6 +171,24 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 		// Add custom validation patterns if specified
 		if len(tc.FlowPatterns) > 0 {
 			checker.AddFlowPatterns(tc.FlowPatterns)
+		}
+	}
+
+	// Perform type inference if enabled
+	if tc.EnableTypeInference && tc.InferenceEngine != nil {
+		if err := tc.InferenceEngine.InferTypes(ast); err != nil {
+			// Log inference error but don't fail type checking
+			// Type inference is supplementary to explicit type checking
+			fmt.Fprintf(os.Stderr, "Type inference warning: %v\n", err)
+		}
+
+		// Apply inferred types to the checker
+		inferredTypes := tc.InferenceEngine.GetAllInferredTypes()
+		for varName, inferredType := range inferredTypes {
+			// Only apply inferred type if variable doesn't already have an explicit type
+			if _, hasType := checker.VariableTypes[varName]; !hasType {
+				checker.VariableTypes[varName] = inferredType
+			}
 		}
 	}
 
@@ -210,6 +239,16 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	if tc.EnableFlowSensitiveAnalysis && checker.TypeState != nil {
 		for varName, refinedType := range checker.TypeState.RefinedTypes {
 			result.RefinedTypes[varName] = refinedType
+		}
+	}
+
+	// Include inferred types if type inference is enabled
+	if tc.EnableTypeInference && tc.InferenceEngine != nil {
+		// Add inferred types that aren't already in refined types
+		for varName, inferredType := range tc.InferenceEngine.GetAllInferredTypes() {
+			if _, exists := result.RefinedTypes[varName]; !exists {
+				result.RefinedTypes[varName] = inferredType + " (inferred)"
+			}
 		}
 	}
 
