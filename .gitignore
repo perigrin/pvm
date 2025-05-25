@@ -1,4 +1,4 @@
-**/.claude/settings.local.json
+.claude/
 
 # Binaries for programs and plugins
 *.exe
