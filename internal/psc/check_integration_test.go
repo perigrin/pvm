@@ -306,7 +306,7 @@ my Str $name = 42;`
 
 	// Test strict mode - we can't directly test os.Exit, but we can verify
 	// that the error count is properly returned for strict mode logic
-	errorCountStrict, err := checkFile(errorFile, true, false)
+	errorCountStrict, err := checkFile(errorFile, true, false, false)
 	if err != nil {
 		t.Errorf("Strict mode should not return error from checkFile: %v", err)
 	}
@@ -333,7 +333,7 @@ my Str $name = "hello";`
 
 	// Test verbose mode - we can't easily capture stdout in unit tests,
 	// but we can verify the function completes without error
-	errorCount, err := checkFile(testFile, false, true)
+	errorCount, err := checkFile(testFile, false, true, false)
 	if err != nil {
 		t.Errorf("Verbose mode failed: %v", err)
 	}
