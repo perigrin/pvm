@@ -52,3 +52,9 @@ tree-sitter-typed-perl/node-types.json
 
 # Test artifacts
 test/e2e/test_output_file.txt
+
+# Temporary and miscellaneous files
+lib.c
+run_inference_tests.go
+*.tmp
+*.log
