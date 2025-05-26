@@ -15,12 +15,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Lint: `golangci-lint run`
 - Clean: `make clean`
 
-### Manual Build Commands (if needed)
-- Build: `go build -mod=mod -o build/pvm ./cmd/pvm`
-- Test all: `go test -mod=mod ./...`
-- Test single package: `go test -mod=mod ./path/to/package`
-- Test with coverage: `go test -mod=mod -cover ./...`
-
 ### Cross-Platform Build
 - Cross-compile all platforms: `make cross-compile`
 - Create release archives: `make release`
@@ -36,19 +30,11 @@ PSC uses tree-sitter-perl with custom type annotation extensions. The build proc
 1. **Prerequisites**: Node.js and npm must be installed for tree-sitter-cli
 2. **Build tree-sitter**: `make tree-sitter` or `./bin/build_tree_sitter.sh`
 
-This process:
-- Clones the official tree-sitter-perl grammar from GitHub
-- Integrates our custom type annotation grammar extensions
-- Generates the extended parser using tree-sitter-cli
-- Builds the shared library for go-tree-sitter integration
-
 ### PSC-Specific Build Issues
 PSC requires tree-sitter integration which has additional dependencies:
 - Tree-sitter C library headers
 - Extended perl grammar with type annotations
 - CGO build flags for header includes
-
-**Current Status**: ✅ Complete! Tree-sitter-typed-perl integration is working with full type annotation support.
 
 ## Recurring Build Memories
 
@@ -83,4 +69,38 @@ The project uses a custom `tree-sitter-typed-perl` grammar that extends the stan
 
 The build is completely self-contained with no external dependencies beyond Go and tree-sitter CLI.
 
-[... rest of the file remains the same ...]
+## Compiler Architecture
+
+PVM uses a modular compiler architecture in `internal/compiler` package:
+
+### Compiler Package Structure
+- **compiler.go**: Core interfaces and registry for different compilation targets
+- **clean_perl.go**: Compiles AST to standard Perl without type annotations
+- **typed_perl.go**: Compiles AST preserving all type annotations
+- **parser_adapter.go**: Adapts parser.AST to compiler AST interface
+- **types.go**: AST interface definitions for compiler independence
+- **errors.go**: Structured error handling for compilation failures
+
+### Compilation Targets
+- `TargetCleanPerl`: Produces standard Perl code compatible with any interpreter
+- `TargetTypedPerl`: Preserves type annotations for PSC consumption
+
+### Usage Example
+```go
+// Parse file
+parser, _ := parser.NewParser()
+ast, _ := parser.ParseFile("script.pl")
+
+// Compile to clean Perl
+registry := compiler.NewCompilerRegistry()
+adapter := compiler.NewParserASTAdapter(ast)
+cleanCode, _ := registry.Compile(adapter, compiler.TargetCleanPerl)
+```
+
+### Integration with PSC
+PSC commands (`psc strip`, `psc run`) use the compiler package for:
+- Stripping type annotations for execution on standard Perl
+- Converting typed Perl to untyped for CPAN distribution
+- Future: Adding multiple compilation targets (JavaScript, etc.)
+
+## Code Style Guidelines

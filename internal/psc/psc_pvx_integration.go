@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"tamarou.com/pvm/internal/compiler"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/pvi"
@@ -381,8 +382,27 @@ func StripAndExecute(scriptPath string, args []string, perlVersion string, verbo
 	baseName := filepath.Base(scriptPath)
 	strippedPath := filepath.Join(dir, "."+baseName+".stripped.pl")
 
-	// Strip type annotations
-	strippedCode, err := parser.StripAnnotations(scriptPath)
+	// Parse the file first
+	p, err := parser.NewParser()
+	if err != nil {
+		return "", errors.NewTypeError(
+			ErrIntegrationFailed,
+			"Failed to create parser",
+			err).WithLocation(scriptPath)
+	}
+
+	ast, err := p.ParseFile(scriptPath)
+	if err != nil {
+		return "", errors.NewTypeError(
+			ErrIntegrationFailed,
+			"Failed to parse file",
+			err).WithLocation(scriptPath)
+	}
+
+	// Strip type annotations using compiler
+	registry := compiler.NewCompilerRegistry()
+	astAdapter := compiler.NewParserASTAdapter(ast)
+	strippedCode, err := registry.Compile(astAdapter, compiler.TargetCleanPerl)
 	if err != nil {
 		return "", errors.NewTypeError(
 			ErrIntegrationFailed,

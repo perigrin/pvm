@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/compiler"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
 )
@@ -51,8 +52,27 @@ Examples:
 				outputFile = args[1]
 			}
 
-			// Strip type annotations
-			result, err := parser.StripAnnotations(inputFile)
+			// Parse the file first
+			p, err := parser.NewParser()
+			if err != nil {
+				return errors.NewTypeError(
+					ErrIntegrationFailed,
+					fmt.Sprintf("Failed to create parser: %v", err),
+					err).WithLocation(inputFile)
+			}
+
+			ast, err := p.ParseFile(inputFile)
+			if err != nil {
+				return errors.NewTypeError(
+					ErrIntegrationFailed,
+					fmt.Sprintf("Failed to parse file %s", inputFile),
+					err).WithLocation(inputFile)
+			}
+
+			// Use compiler to strip type annotations
+			registry := compiler.NewCompilerRegistry()
+			astAdapter := compiler.NewParserASTAdapter(ast)
+			result, err := registry.Compile(astAdapter, compiler.TargetCleanPerl)
 			if err != nil {
 				return errors.NewTypeError(
 					ErrIntegrationFailed,
