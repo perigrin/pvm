@@ -52,6 +52,8 @@ func NewCommand() *cobra.Command {
 			customModulePath, _ := cmd.Flags().GetString("module-path")
 			requiredModules, _ := cmd.Flags().GetStringArray("require")
 			autoInstall, _ := cmd.Flags().GetBool("auto-install")
+			autoDetectDeps, _ := cmd.Flags().GetBool("auto-detect-deps")
+			additionalDeps, _ := cmd.Flags().GetStringArray("with")
 
 			// Check if we're executing code directly or running a script
 			if executeCode == "" && len(args) == 0 {
@@ -176,7 +178,9 @@ func NewCommand() *cobra.Command {
 
 				// Set required modules and auto-install flag
 				options.RequiredModules = requiredModules
+				options.RequiredModules = append(options.RequiredModules, additionalDeps...)
 				options.AutoInstallModules = autoInstall
+				options.AutoDetectDependencies = autoDetectDeps
 			} else {
 				// If no config or PVX config, use command line flags directly
 				options.ReadOnlyPaths = readOnlyPaths
@@ -188,7 +192,9 @@ func NewCommand() *cobra.Command {
 				options.AdditionalModulePaths = includeModulePaths
 				options.CustomModulePath = customModulePath
 				options.RequiredModules = requiredModules
+				options.RequiredModules = append(options.RequiredModules, additionalDeps...)
 				options.AutoInstallModules = autoInstall
+				options.AutoDetectDependencies = autoDetectDeps
 			}
 
 			// Set isolation level if provided
@@ -306,6 +312,8 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().String("module-path", "", "Specify a custom module installation path")
 	cmd.Flags().StringArray("require", []string{}, "Require specific modules and install if missing (can be specified multiple times)")
 	cmd.Flags().Bool("auto-install", false, "Automatically install required modules using PVI")
+	cmd.Flags().Bool("auto-detect-deps", true, "Automatically detect dependencies from use/require statements (default: true)")
+	cmd.Flags().StringArray("with", []string{}, "Add additional dependencies beyond auto-detected ones (can be specified multiple times)")
 
 	// Named environment flags
 	cmd.Flags().String("name", "", "Create a named persistent isolation environment")

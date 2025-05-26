@@ -45,7 +45,8 @@ func mockExecCmd(cmd *exec.Cmd) error {
 }
 
 // Helper to create a temporary script file
-func createTempScript(t *testing.T, content string) string {
+// Helper to create a temporary script file
+func createTempScript3(t *testing.T, content string) string {
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "test_script.pl")
 	err := os.WriteFile(scriptPath, []byte(content), 0755)
@@ -57,7 +58,7 @@ func createTempScript(t *testing.T, content string) string {
 func TestExecuteScript(t *testing.T) {
 	t.Run("SimpleExecution", func(t *testing.T) {
 		// Create a simple Perl script
-		scriptPath := createTempScript(t, `print "Hello, PVX!";`)
+		scriptPath := createTempScript3(t, `print "Hello, PVX!";`)
 
 		// Set up mocks
 		mockCmdOutput = "Hello, PVX!"
@@ -90,7 +91,7 @@ func TestExecuteScript(t *testing.T) {
 
 	t.Run("CommandLineArguments", func(t *testing.T) {
 		// Create a script that echoes its arguments
-		scriptPath := createTempScript(t, `print "Arguments: ", join(", ", @ARGV);`)
+		scriptPath := createTempScript3(t, `print "Arguments: ", join(", ", @ARGV);`)
 
 		// Set up mocks
 		mockCmdOutput = "Arguments: arg1, arg2, arg3"
@@ -125,7 +126,7 @@ func TestExecuteScript(t *testing.T) {
 
 	t.Run("EnvironmentVariables", func(t *testing.T) {
 		// Create a script that reads an environment variable
-		scriptPath := createTempScript(t, `print "TEST_VAR: $ENV{TEST_VAR}";`)
+		scriptPath := createTempScript3(t, `print "TEST_VAR: $ENV{TEST_VAR}";`)
 
 		// Set up mocks
 		mockCmdOutput = "TEST_VAR: test_value"
@@ -165,7 +166,7 @@ func TestExecuteScript(t *testing.T) {
 
 	t.Run("ExitCodePropagation", func(t *testing.T) {
 		// Create a script that exits with a non-zero code
-		scriptPath := createTempScript(t, `exit 42;`)
+		scriptPath := createTempScript3(t, `exit 42;`)
 
 		// Set up mocks
 		mockCmdOutput = "Error output"
@@ -210,7 +211,7 @@ func TestExecuteScript(t *testing.T) {
 
 	t.Run("VersionResolutionError", func(t *testing.T) {
 		// Create a script
-		scriptPath := createTempScript(t, `print "Hello";`)
+		scriptPath := createTempScript3(t, `print "Hello";`)
 
 		// Temporarily replace version resolution to simulate failure
 		origResolvePerlExecutable := resolvePerlExecutable

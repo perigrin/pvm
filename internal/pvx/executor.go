@@ -153,6 +153,9 @@ type ExecutionOptions struct {
 
 	// Whether to automatically install required modules using PVI
 	AutoInstallModules bool
+
+	// Whether to automatically detect dependencies from use/require statements
+	AutoDetectDependencies bool
 }
 
 // ExecuteResult contains the result of script execution
@@ -179,6 +182,28 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 			ErrScriptNotFound,
 			fmt.Sprintf("Script file not found: %s", options.ScriptPath),
 			err)
+	}
+
+	// Auto-detect dependencies using PSC parsing if enabled (superior to manual metadata)
+	if options.AutoDetectDependencies {
+		autoDeps, err := AutoDetectDependenciesWithOptions(options.ScriptPath, false) // Filter out core modules
+		if err != nil {
+			if options.Verbose {
+				log.Infof("Could not auto-detect dependencies (continuing without): %v", err)
+			}
+			autoDeps = []string{}
+		}
+
+		// Merge auto-detected dependencies with execution options
+		if len(autoDeps) > 0 {
+			if options.Verbose {
+				log.Infof("Auto-detected %d dependencies from script: %v", len(autoDeps), autoDeps)
+			}
+			// Add auto-detected dependencies to required modules
+			options.RequiredModules = append(options.RequiredModules, autoDeps...)
+			// Enable auto-install if we have auto-detected dependencies
+			options.AutoInstallModules = true
+		}
 	}
 
 	// Resolve Perl version to use
