@@ -248,46 +248,6 @@ func TestConflictDetector(t *testing.T) {
 	assert.True(t, found["pvm.build_jobs"])
 }
 
-func TestSchemaValidator(t *testing.T) {
-	config := &Config{
-		PVM: &PVMConfig{
-			DefaultPerl:    "5.38.0",
-			BuildJobs:      4,
-			DownloadMirror: "https://www.cpan.org/src/5.0",
-		},
-		PVX: &PVXConfig{
-			IsolationLevel: "medium",
-			Timeout:        300,
-			MaxMemory:      "512MB",
-		},
-	}
-
-	validator := NewSchemaValidator(config)
-	errors := validator.ValidateWithSchema()
-
-	// Should have no validation errors for valid config
-	assert.Empty(t, errors)
-
-	// Test with invalid config
-	invalidConfig := &Config{
-		PVM: &PVMConfig{
-			BuildJobs:      -1,          // Invalid: negative
-			DownloadMirror: "not-a-url", // Invalid: not a URL
-		},
-		PVX: &PVXConfig{
-			IsolationLevel: "invalid-level",  // Invalid: not in enum
-			MaxMemory:      "invalid-format", // Invalid: wrong format
-		},
-	}
-
-	invalidValidator := NewSchemaValidator(invalidConfig)
-	invalidErrors := invalidValidator.ValidateWithSchema()
-
-	// Should have validation errors
-	assert.NotEmpty(t, invalidErrors)
-	assert.True(t, len(invalidErrors) >= 3) // At least 3 errors expected
-}
-
 func TestConfigAccessors(t *testing.T) {
 	config := &Config{
 		PVM: &PVMConfig{

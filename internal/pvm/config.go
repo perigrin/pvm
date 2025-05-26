@@ -37,6 +37,7 @@ func newConfigCommand() *cobra.Command {
 		newConfigBackupCommand(),
 		newConfigRestoreCommand(),
 		newConfigListBackupsCommand(),
+		newConfigGenerateCommand(),
 	)
 
 	return cmd
@@ -603,10 +604,10 @@ func newConfigValidateCommand() *cobra.Command {
 			}
 
 			// Create schema validator
-			validator := config.NewSchemaValidator(cfg)
+			validator := config.NewSchemaValidator()
 
 			// Validate with schema
-			validationErrors := validator.ValidateWithSchema()
+			validationErrors := validator.ValidateConfig(cfg)
 
 			if len(validationErrors) == 0 {
 				fmt.Println("Configuration is valid ✓")

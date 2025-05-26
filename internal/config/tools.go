@@ -186,8 +186,8 @@ func (m *ConfigManager) Validate() ([]error, error) {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	validator := NewSchemaValidator(config)
-	errors := validator.ValidateWithSchema()
+	validator := NewSchemaValidator()
+	errors := validator.ValidateConfig(config)
 
 	return errors, nil
 }
