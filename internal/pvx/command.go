@@ -34,6 +34,7 @@ func NewCommand() *cobra.Command {
 			isolationDir, _ := cmd.Flags().GetString("isolation-dir")
 			isolationLevel, _ := cmd.Flags().GetString("isolation")
 			noCleanup, _ := cmd.Flags().GetBool("no-cleanup")
+			envName, _ := cmd.Flags().GetString("name")
 
 			// Get filesystem isolation flags
 			readOnlyPaths, _ := cmd.Flags().GetStringArray("ro-path")
@@ -76,6 +77,7 @@ func NewCommand() *cobra.Command {
 				Isolated:     isolated,
 				IsolationDir: isolationDir,
 				NoCleanup:    noCleanup,
+				EnvName:      envName,
 			}
 
 			// Fill in values from configuration if available and not overridden by command line flags
@@ -292,6 +294,9 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().String("module-path", "", "Specify a custom module installation path")
 	cmd.Flags().StringArray("require", []string{}, "Require specific modules and install if missing (can be specified multiple times)")
 	cmd.Flags().Bool("auto-install", false, "Automatically install required modules using PVI")
+
+	// Named environment flags
+	cmd.Flags().String("name", "", "Create a named persistent isolation environment")
 
 	return cmd
 }

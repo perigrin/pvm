@@ -16,6 +16,7 @@ import (
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/pvi"
+	"tamarou.com/pvm/internal/xdg"
 )
 
 // PVX execution error codes
@@ -118,6 +119,9 @@ type ExecutionOptions struct {
 
 	// Whether to skip cleanup of the isolation directory after execution
 	NoCleanup bool
+
+	// Name for persistent isolation environment
+	EnvName string
 
 	// ReadOnly paths for filesystem isolation - only applicable for high isolation mode
 	// Any directories in this list will be accessible for reading but not writing
@@ -657,29 +661,67 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 
 	// If no isolation directory is specified, create one
 	if isolationDir == "" {
-		// Determine a unique name for the isolation directory
-		scriptName := "inline"
-		if options.ScriptPath != "" {
-			scriptName = filepath.Base(options.ScriptPath)
-			// Remove extension if present
-			if ext := filepath.Ext(scriptName); ext != "" {
-				scriptName = scriptName[:len(scriptName)-len(ext)]
+		if options.EnvName != "" {
+			// Create named persistent environment
+			dirs, err := xdg.GetDirs()
+			if err != nil {
+				return nil, errors.NewExecutionError(
+					ErrExecutionFailed,
+					"Failed to determine XDG directories",
+					err)
 			}
-		}
 
-		// Create a temporary directory for isolation
-		var err error
-		isolationDir, err = os.MkdirTemp("", fmt.Sprintf("pvm-isolated-%s-", scriptName))
-		if err != nil {
-			return nil, errors.NewExecutionError(
-				ErrExecutionFailed,
-				"Failed to create isolation directory",
-				err)
-		}
+			// Create environments directory
+			envDir := filepath.Join(dirs.DataDir, "environments")
+			if err := os.MkdirAll(envDir, 0755); err != nil {
+				return nil, errors.NewExecutionError(
+					ErrExecutionFailed,
+					"Failed to create environments directory",
+					err)
+			}
 
-		// If verbose, log the isolation directory
-		if options.Verbose {
-			log.Infof("Created isolation directory: %s", isolationDir)
+			// Use named environment directory
+			isolationDir = filepath.Join(envDir, options.EnvName)
+
+			// Create the named environment directory
+			if err := os.MkdirAll(isolationDir, 0755); err != nil {
+				return nil, errors.NewExecutionError(
+					ErrExecutionFailed,
+					fmt.Sprintf("Failed to create named environment '%s'", options.EnvName),
+					err)
+			}
+
+			// Force no cleanup for named environments
+			options.NoCleanup = true
+
+			if options.Verbose {
+				log.Infof("Created/using named environment '%s' at: %s", options.EnvName, isolationDir)
+			}
+		} else {
+			// Determine a unique name for the isolation directory
+			scriptName := "inline"
+			if options.ScriptPath != "" {
+				scriptName = filepath.Base(options.ScriptPath)
+				// Remove extension if present
+				if ext := filepath.Ext(scriptName); ext != "" {
+					scriptName = scriptName[:len(scriptName)-len(ext)]
+				}
+			}
+
+			// Create a temporary directory for isolation
+			var err error
+			isolationDir, err = os.MkdirTemp("", fmt.Sprintf("pvm-isolated-%s-", scriptName))
+			if err != nil {
+				return nil, errors.NewExecutionError(
+					ErrExecutionFailed,
+					"Failed to create isolation directory",
+					err)
+			}
+
+			// If verbose, log the isolation directory
+			if options.Verbose {
+				log.Infof("Created isolation directory: %s", isolationDir)
+			}
 		}
 	} else {
 		// Ensure the specified isolation directory exists
@@ -1061,6 +1103,16 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 	// Store the isolation directory in options for potential cleanup
 	options.IsolationDir = isolationDir
 
+	// Generate shims for named environments
+	if options.EnvName != "" {
+		err := generateEnvironmentShims(options, isolationDir)
+		if err != nil {
+			log.Warnf("Failed to generate shims for environment '%s': %v", options.EnvName, err)
+		} else if options.Verbose {
+			log.Infof("Generated shims for environment '%s'", options.EnvName)
+		}
+	}
+
 	return env, nil
 }
 
@@ -1258,4 +1310,65 @@ func setEnvVar(env *[]string, key, value string) {
 		}
 	}
 	*env = append(*env, envVar)
+}
+
+// generateEnvironmentShims creates shims for a named environment that preserve the isolation settings
+func generateEnvironmentShims(options *ExecutionOptions, isolationDir string) error {
+	// Create bin directory in the environment
+	binDir := filepath.Join(isolationDir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return fmt.Errorf("failed to create bin directory: %w", err)
+	}
+
+	// Get the PVM executable path
+	pvmPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to determine PVM executable path: %w", err)
+	}
+
+	// Standard Perl commands to create shims for
+	commands := []string{"perl", "cpan", "prove", "perldoc", "h2ph", "h2xs", "enc2xs", "xsubpp", "corelist", "cpanm"}
+
+	// Generate shim for each command
+	for _, command := range commands {
+		shimPath := filepath.Join(binDir, command)
+
+		// Create shim script that uses this environment
+		shimContent := generateEnvironmentShimScript(command, options.EnvName, pvmPath, options.PerlVersion, options.IsolationLevel)
+
+		// Write shim file
+		if err := os.WriteFile(shimPath, []byte(shimContent), 0755); err != nil {
+			return fmt.Errorf("failed to create shim for %s: %w", command, err)
+		}
+	}
+
+	return nil
+}
+
+// generateEnvironmentShimScript creates the content for an environment-specific shim
+func generateEnvironmentShimScript(command, envName, pvmPath, perlVersion string, isolationLevel IsolationLevel) string {
+	template := `#!/usr/bin/env sh
+# Generated by PVM - Environment-specific shim for: %s
+# Environment: %s
+
+# Get the PVM executable
+PVM_EXEC="%s"
+
+# Execute the command through PVM with environment settings
+if [ -x "$PVM_EXEC" ]; then
+  exec "$PVM_EXEC" pvx --name "%s" --isolation=%s%s --no-cleanup -e 'exec { "%s" } "%s", @ARGV;' -- "$@"
+else
+  echo "Error: PVM executable not found at '$PVM_EXEC'"
+  echo "Please ensure PVM is installed correctly"
+  exit 1
+fi
+`
+
+	// Add perl version flag if specified
+	perlFlag := ""
+	if perlVersion != "" {
+		perlFlag = fmt.Sprintf(" --perl=%s", perlVersion)
+	}
+
+	return fmt.Sprintf(template, command, envName, pvmPath, envName, isolationLevel, perlFlag, command, command)
 }

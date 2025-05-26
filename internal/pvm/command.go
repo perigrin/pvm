@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/pvx"
+	"tamarou.com/pvm/internal/xdg"
 )
 
 // NewCommand creates a new PVM command
@@ -47,6 +49,7 @@ func NewCommand() *cobra.Command {
 		newPVXCommand(),
 		newPSCCommand(),
 		newMCPCommand(),
+		newEnvCommand(),
 
 		// These are implemented in their own files
 		newSymlinksCommand(), // from symlinks.go
@@ -1233,5 +1236,205 @@ func importSystemPerl(cmd *cobra.Command) error {
 	}
 
 	cmd.Printf("Successfully imported system Perl %s\n", systemPerl.Version)
+	return nil
+}
+
+// newEnvCommand creates environment management commands
+func newEnvCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "env",
+		Short: "Manage isolation environments",
+		Long:  "Commands for managing named isolation environments",
+	}
+
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:   "list",
+			Short: "List all named environments",
+			Long:  "List all named isolation environments",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return listEnvironments(cmd)
+			},
+		},
+		&cobra.Command{
+			Use:   "activate [name]",
+			Short: "Generate activation command for an environment",
+			Long:  "Output shell command to activate a named environment",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return activateEnvironment(cmd, args[0])
+			},
+		},
+		&cobra.Command{
+			Use:   "remove [name]",
+			Short: "Remove a named environment",
+			Long:  "Remove a named isolation environment and all its files",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return removeEnvironment(cmd, args[0])
+			},
+		},
+		&cobra.Command{
+			Use:   "info [name]",
+			Short: "Show environment information",
+			Long:  "Show detailed information about a named environment",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return showEnvironmentInfo(cmd, args[0])
+			},
+		},
+	)
+
+	return cmd
+}
+
+// listEnvironments lists all named isolation environments
+func listEnvironments(cmd *cobra.Command) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	envDir := filepath.Join(dirs.DataDir, "environments")
+
+	// Check if environments directory exists
+	if _, err := os.Stat(envDir); os.IsNotExist(err) {
+		cmd.Println("No environments found.")
+		return nil
+	}
+
+	// Read environments directory
+	entries, err := os.ReadDir(envDir)
+	if err != nil {
+		return fmt.Errorf("failed to read environments directory: %w", err)
+	}
+
+	if len(entries) == 0 {
+		cmd.Println("No environments found.")
+		return nil
+	}
+
+	cmd.Println("Named isolation environments:")
+	for _, entry := range entries {
+		if entry.IsDir() {
+			envPath := filepath.Join(envDir, entry.Name())
+			info, err := os.Stat(envPath)
+			if err == nil {
+				cmd.Printf("  %s (created: %s)\n", entry.Name(), info.ModTime().Format("2006-01-02 15:04:05"))
+			} else {
+				cmd.Printf("  %s\n", entry.Name())
+			}
+		}
+	}
+
+	cmd.Printf("\nTo activate an environment, add its bin directory to your PATH:\n")
+	cmd.Printf("export PATH=\"%s/<env-name>/bin:$PATH\"\n", envDir)
+
+	return nil
+}
+
+// activateEnvironment outputs shell command to activate an environment
+func activateEnvironment(cmd *cobra.Command, envName string) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	envPath := filepath.Join(dirs.DataDir, "environments", envName)
+
+	// Check if environment exists
+	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+		return fmt.Errorf("environment '%s' does not exist", envName)
+	}
+
+	binDir := filepath.Join(envPath, "bin")
+
+	// Output the activation command
+	fmt.Printf("export PATH=\"%s:$PATH\"\n", binDir)
+	fmt.Printf("# Environment '%s' activated. Use 'deactivate' or start a new shell to deactivate.\n", envName)
+
+	return nil
+}
+
+// removeEnvironment removes a named isolation environment
+func removeEnvironment(cmd *cobra.Command, envName string) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	envPath := filepath.Join(dirs.DataDir, "environments", envName)
+
+	// Check if environment exists
+	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+		return fmt.Errorf("environment '%s' does not exist", envName)
+	}
+
+	// Confirm removal
+	cmd.Printf("Are you sure you want to remove environment '%s'? [y/N] ", envName)
+	var response string
+	_, _ = fmt.Scanln(&response)
+
+	response = strings.ToLower(strings.TrimSpace(response))
+	if response != "y" && response != "yes" {
+		cmd.Println("Environment removal cancelled.")
+		return nil
+	}
+
+	// Remove the environment directory
+	err = os.RemoveAll(envPath)
+	if err != nil {
+		return fmt.Errorf("failed to remove environment '%s': %w", envName, err)
+	}
+
+	cmd.Printf("Environment '%s' has been removed.\n", envName)
+	return nil
+}
+
+// showEnvironmentInfo shows detailed information about an environment
+func showEnvironmentInfo(cmd *cobra.Command, envName string) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	envPath := filepath.Join(dirs.DataDir, "environments", envName)
+
+	// Check if environment exists
+	info, err := os.Stat(envPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("environment '%s' does not exist", envName)
+	}
+
+	cmd.Printf("Environment: %s\n", envName)
+	cmd.Printf("Path: %s\n", envPath)
+	cmd.Printf("Created: %s\n", info.ModTime().Format("2006-01-02 15:04:05"))
+
+	// Check for bin directory and shims
+	binDir := filepath.Join(envPath, "bin")
+	if binInfo, err := os.Stat(binDir); err == nil && binInfo.IsDir() {
+		cmd.Printf("Bin directory: %s\n", binDir)
+
+		// List shims
+		shims, err := os.ReadDir(binDir)
+		if err == nil && len(shims) > 0 {
+			cmd.Printf("Available commands:\n")
+			for _, shim := range shims {
+				if !shim.IsDir() {
+					cmd.Printf("  %s\n", shim.Name())
+				}
+			}
+		}
+	}
+
+	// Check for lib directory
+	libDir := filepath.Join(envPath, "lib")
+	if libInfo, err := os.Stat(libDir); err == nil && libInfo.IsDir() {
+		cmd.Printf("Library directory: %s\n", libDir)
+	}
+
+	cmd.Printf("\nTo activate this environment:\n")
+	cmd.Printf("export PATH=\"%s:$PATH\"\n", binDir)
+
 	return nil
 }
