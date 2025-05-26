@@ -115,10 +115,10 @@ test:
 dev-install:
 	npm run dev-install
 
+generate: $(SRC_DIR)/parser.c parser.c
+
 parser.c: $(SRC_DIR)/parser.c
 	cp $(SRC_DIR)/parser.c parser.c
-
-generate: $(SRC_DIR)/parser.c parser.c
 
 build: generate test
 
