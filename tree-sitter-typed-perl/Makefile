@@ -82,7 +82,9 @@ $(LANGUAGE_NAME).pc: bindings/c/$(LANGUAGE_NAME).pc.in
 		-e 's|@PREFIX@|$(PREFIX)|' $< > $@
 
 $(SRC_DIR)/parser.c: grammar.js
-	$(TS) generate --no-bindings
+	$(TS) generate
+	@echo "Copying parser.c to root for Go bindings..."
+	cp $(SRC_DIR)/parser.c parser.c
 	@echo "Updating scanner function names for typed_perl namespace..."
 	sed -i '' 's/tree_sitter_perl_external_scanner/tree_sitter_typed_perl_external_scanner/g' $(SRC_DIR)/scanner.c || true
 
@@ -104,7 +106,7 @@ uninstall:
 		'$(DESTDIR)$(PCLIBDIR)'/$(LANGUAGE_NAME).pc
 
 clean:
-	$(RM) $(OBJS) $(LANGUAGE_NAME).pc lib$(LANGUAGE_NAME).a lib$(LANGUAGE_NAME).$(SOEXT)
+	$(RM) $(OBJS) $(LANGUAGE_NAME).pc lib$(LANGUAGE_NAME).a lib$(LANGUAGE_NAME).$(SOEXT) parser.c
 
 test:
 	$(TS) test
@@ -113,7 +115,10 @@ test:
 dev-install:
 	npm run dev-install
 
-generate: $(SRC_DIR)/parser.c
+parser.c: $(SRC_DIR)/parser.c
+	cp $(SRC_DIR)/parser.c parser.c
+
+generate: $(SRC_DIR)/parser.c parser.c
 
 build: generate test
 

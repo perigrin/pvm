@@ -9,5 +9,6 @@ package-lock.json
 *.so
 *.o
 src/*
+!parser.c
 tree-sitter-perl.wasm
 log.html
