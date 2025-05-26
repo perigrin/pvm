@@ -930,59 +930,6 @@
         }
       ]
     },
-    "typed_method_parameter": {
-      "type": "PREC",
-      "value": 1,
-      "content": {
-        "type": "SEQ",
-        "members": [
-          {
-            "type": "FIELD",
-            "name": "type",
-            "content": {
-              "type": "SYMBOL",
-              "name": "type_expression"
-            }
-          },
-          {
-            "type": "FIELD",
-            "name": "parameter",
-            "content": {
-              "type": "CHOICE",
-              "members": [
-                {
-                  "type": "ALIAS",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "_signature_scalar"
-                  },
-                  "named": true,
-                  "value": "scalar"
-                },
-                {
-                  "type": "ALIAS",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "_signature_array"
-                  },
-                  "named": true,
-                  "value": "array"
-                },
-                {
-                  "type": "ALIAS",
-                  "content": {
-                    "type": "SYMBOL",
-                    "name": "_signature_hash"
-                  },
-                  "named": true,
-                  "value": "hash"
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
     "_signature_vars": {
       "type": "CHOICE",
       "members": [
@@ -1001,10 +948,6 @@
         {
           "type": "SYMBOL",
           "name": "named_parameter"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "typed_method_parameter"
         }
       ]
     },
@@ -1160,6 +1103,35 @@
                 {
                   "type": "SYMBOL",
                   "name": "signature"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "typed_parameter_list"
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "->"
+                },
+                {
+                  "type": "FIELD",
+                  "name": "return_type",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "return_type_annotation"
+                  }
                 }
               ]
             },
@@ -1174,23 +1146,6 @@
           "content": {
             "type": "SYMBOL",
             "name": "block"
-          }
-        }
-      ]
-    },
-    "method_return_type": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "->"
-        },
-        {
-          "type": "FIELD",
-          "name": "return_type",
-          "content": {
-            "type": "SYMBOL",
-            "name": "type_expression"
           }
         }
       ]
@@ -1288,6 +1243,10 @@
                 {
                   "type": "SYMBOL",
                   "name": "signature"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "typed_parameter_list"
                 }
               ]
             },
@@ -1300,12 +1259,21 @@
           "type": "CHOICE",
           "members": [
             {
-              "type": "FIELD",
-              "name": "return_type",
-              "content": {
-                "type": "SYMBOL",
-                "name": "method_return_type"
-              }
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "->"
+                },
+                {
+                  "type": "FIELD",
+                  "name": "return_type",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "return_type_annotation"
+                  }
+                }
+              ]
             },
             {
               "type": "BLANK"
@@ -9183,6 +9151,77 @@
         ]
       }
     },
+    "typed_parameter_list": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "typed_parameter"
+                },
+                {
+                  "type": "REPEAT",
+                  "content": {
+                    "type": "SEQ",
+                    "members": [
+                      {
+                        "type": "STRING",
+                        "value": ","
+                      },
+                      {
+                        "type": "SYMBOL",
+                        "name": "typed_parameter"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "STRING",
+          "value": ")"
+        }
+      ]
+    },
+    "typed_parameter": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "type",
+          "content": {
+            "type": "SYMBOL",
+            "name": "type_expression"
+          }
+        },
+        {
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_variables"
+          }
+        }
+      ]
+    },
+    "return_type_annotation": {
+      "type": "SYMBOL",
+      "name": "type_expression"
+    },
     "type_assertion": {
       "type": "SEQ",
       "members": [
@@ -9638,22 +9677,6 @@
     ],
     [
       "optional_parameter"
-    ],
-    [
-      "typed_method_parameter",
-      "mandatory_parameter"
-    ],
-    [
-      "mandatory_parameter",
-      "_signature_scalar"
-    ],
-    [
-      "slurpy_parameter",
-      "_signature_array"
-    ],
-    [
-      "slurpy_parameter",
-      "_signature_hash"
     ],
     [
       "_loop_body"

@@ -9,7 +9,7 @@ all: $(BUILDDIR) $(LIBDIR) tree-sitter $(BINARIES)
 
 # Set CGO flags for tree-sitter integration
 export CGO_ENABLED=1
-export CGO_CFLAGS=-I$(PWD)/include -I$(PWD)/tree-sitter-typed-perl
+export CGO_CFLAGS=-I$(PWD)/tree-sitter-typed-perl/include -I$(PWD)/tree-sitter-typed-perl
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
@@ -23,10 +23,8 @@ vendor:
 
 # Build tree-sitter-typed-perl library
 tree-sitter: $(LIBDIR) vendor
-	@echo "Generating tree-sitter-typed-perl parser..."
-	tree-sitter generate -o tree-sitter-typed-perl tree-sitter-typed-perl/grammar.js
-	@echo "Updating scanner function names..."
-	sed -i '' 's/tree_sitter_perl_external_scanner/tree_sitter_typed_perl_external_scanner/g' tree-sitter-typed-perl/src/scanner.c
+	@echo "Building tree-sitter-typed-perl parser..."
+	cd tree-sitter-typed-perl && $(MAKE) generate
 	@echo "Tree-sitter-typed-perl build complete"
 
 # Build rules for each binary
@@ -50,6 +48,7 @@ test: tree-sitter
 clean:
 	rm -rf $(BUILDDIR)
 	rm -rf $(LIBDIR)
+	cd tree-sitter-typed-perl && $(MAKE) clean || true
 
 # Install binaries
 install: $(BINARIES)

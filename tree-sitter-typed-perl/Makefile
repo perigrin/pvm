@@ -1,6 +1,6 @@
-VERSION := 0.0.1
+VERSION := 1.0.0
 
-LANGUAGE_NAME := tree-sitter-perl
+LANGUAGE_NAME := tree-sitter-typed-perl
 
 # repository
 SRC_DIR := src
@@ -83,6 +83,8 @@ $(LANGUAGE_NAME).pc: bindings/c/$(LANGUAGE_NAME).pc.in
 
 $(SRC_DIR)/parser.c: grammar.js
 	$(TS) generate --no-bindings
+	@echo "Updating scanner function names for typed_perl namespace..."
+	sed -i '' 's/tree_sitter_perl_external_scanner/tree_sitter_typed_perl_external_scanner/g' $(SRC_DIR)/scanner.c || true
 
 install: all
 	install -d '$(DESTDIR)$(INCLUDEDIR)'/tree_sitter '$(DESTDIR)$(PCLIBDIR)' '$(DESTDIR)$(LIBDIR)'
@@ -107,4 +109,28 @@ clean:
 test:
 	$(TS) test
 
-.PHONY: all install uninstall clean test
+# Development convenience targets
+dev-install:
+	npm run dev-install
+
+generate: $(SRC_DIR)/parser.c
+
+build: generate test
+
+dev: dev-install generate test
+	@echo "Development setup complete"
+
+help:
+	@echo "Available targets:"
+	@echo "  all         - Build static and shared libraries"
+	@echo "  generate    - Generate parser from grammar.js"
+	@echo "  test        - Run tree-sitter tests"
+	@echo "  build       - Generate and test"
+	@echo "  dev-install - Install tree-sitter CLI locally"
+	@echo "  dev         - Full development setup"
+	@echo "  install     - Install libraries and headers"
+	@echo "  uninstall   - Remove installed files"
+	@echo "  clean       - Remove build artifacts"
+	@echo "  help        - Show this help"
+
+.PHONY: all install uninstall clean test dev-install generate build dev help
