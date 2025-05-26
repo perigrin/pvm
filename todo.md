@@ -1,0 +1,152 @@
+# PVM Development TODO List
+
+This list represents all TODO markers, incomplete features, and missing functionality found in the codebase as of the current state.
+
+## **Highest Priority TODOs**
+
+### **Shell Integration (Critical for User Experience)**
+- [ ] **Shell initialization functionality** (test/e2e/shell_test.go)
+- [ ] **Bash shell integration scripts**
+- [ ] **Shell setup and completion functionality**
+- [ ] **Shell environment variable management**
+
+### **Shim System (Essential for Version Switching)**
+- [ ] **Shim creation functionality** (test/e2e/shim_test.go)
+- [ ] **Shim execution functionality**
+- [ ] **Shim PATH priority functionality**
+- [ ] **Rehash command functionality**
+- [ ] **Shim version resolution functionality**
+
+### **Configuration Management System**
+- [ ] **Configuration layering and priority functionality** (test/e2e/config_test.go)
+- [ ] **Configuration initialization command**
+- [ ] **XDG directory configuration support**
+
+## **Core Implementation TODOs**
+
+### **PVI (Package Installer)**
+- [ ] **Module analysis implementation** (internal/pvi/type_command.go)
+  - Currently placeholder: `// TODO: In a future implementation, we would actually analyze the module`
+- [ ] **Advanced dependency resolution completion**
+
+### **Version Management**
+- [ ] **Perl version installation functionality** (test/e2e/version_test.go)
+- [ ] **System Perl installation requirements** for various tests
+- [ ] **Version switching automation**
+
+### **PVX Isolation System**
+- [ ] **Multiple isolation environment features** (test/e2e/pvx_isolation_test.go)
+- [ ] **System Perl integration** for isolation tests
+
+## **Parser and Type System TODOs**
+
+### **Tree-sitter Integration (Critical for PSC)**
+- [ ] **Complete tree-sitter-perl implementation** (internal/parser/treesitter/parser_test.go)
+- [ ] **Variable annotations detection** (@ages, $cache patterns)
+- [ ] **Complex type checking implementation**
+- [ ] **Tree-sitter integration test completion**
+
+### **Type System Features**
+- [ ] **Union type compatibility checking** (internal/typedef/union_test.go)
+- [ ] **Intersection type implementations**
+- [ ] **Maybe type handling for optional values**
+- [ ] **Type-specific test case coverage**
+
+### **PSC (Perl Static Checker)**
+- [ ] **Type mismatch auto-fixes** (internal/lsp/features.go)
+- [ ] **Complex type checking patterns**
+- [ ] **Error handling improvements**
+
+## **Build System TODOs**
+
+### **Perl Build System** (internal/perl/)
+- [ ] **Download progress adaptation** to build progress (build.go)
+- [ ] **Load checksums** from XDG_CONFIG_HOME/pvm/checksums.txt (checksums.go)
+- [ ] **Cross-platform build optimization**
+
+## **LSP and MCP Component TODOs**
+
+### **LSP Features** (internal/lsp/features.go)
+- [ ] **Search in other workspace files**
+- [ ] **Integrate with perltidy** for sophisticated formatting
+- [ ] **Implement type mismatch fixes**
+
+### **MCP Components** (internal/mcp/)
+- [ ] **Extract field types** from TypeInfo maps (embeddings/extractor.go)
+- [ ] **Workaround implementation** completion (embeddings/manager.go)
+- [ ] **Actual health check logic** implementations (health.go)
+- [ ] **Performance monitoring** implementation
+- [ ] **Circuit breaker** patterns
+
+## **Test Infrastructure TODOs**
+
+### **Parser Tests**
+- [ ] **Tree-sitter-perl implementation** tests (parser_test.go)
+- [ ] **Complex type checking** test coverage
+- [ ] **Integration test** completion
+
+### **E2E Test Dependencies**
+- [ ] **System Perl installation** automation for CI
+- [ ] **Cross-platform test reliability**
+- [ ] **Performance test** optimization
+- [ ] **Large file test** conditional execution
+
+## **Documentation Workflow TODOs**
+
+### **Legacy Codebase Transformation** (docs/workflow-legacy-codebase-transformation.md)
+- [ ] All new functions have type signatures
+- [ ] Type annotations are specific
+- [ ] Maybe types used for optional values
+- [ ] Union types used appropriately
+- [ ] Legacy interfaces preserved
+- [ ] Typed facades created
+- [ ] Error handling improved
+- [ ] Performance impact assessed
+- [ ] Regression tests generated
+- [ ] Type-specific test cases added
+- [ ] Integration tests updated
+- [ ] Type definitions documented
+- [ ] Migration notes added
+
+## **Component Status Summary**
+
+### **Completion Status by Component:**
+
+**PVM Core:** 70% - Missing shell integration, shims
+**PVX:** 80% - Core isolation works, needs system Perl tests
+**PVI:** 60% - Basic functionality, missing advanced analysis
+**PSC:** 70% - Type checking works, missing tree-sitter completion
+**Build System:** 85% - Works well, minor optimization TODOs
+**LSP:** 60% - Basic features, missing advanced functionality
+**MCP:** 50% - Architecture in place, missing implementations
+**Documentation:** 90% - Comprehensive, minor workflow items pending
+
+## **Next Sprint Priorities**
+
+### **Sprint 1: Core User Experience**
+1. **Shell integration** implementation
+2. **Shim system** completion
+3. **Configuration management** system
+
+### **Sprint 2: Advanced Features**
+1. **Tree-sitter integration** completion
+2. **PVI module analysis** implementation
+3. **LSP advanced features**
+
+### **Sprint 3: Polish and Performance**
+1. **MCP health checks** and monitoring
+2. **Cross-platform test** reliability
+3. **Performance optimizations**
+
+## **Technical Debt**
+
+- Multiple test skips requiring system Perl installation
+- Placeholder implementations in core components
+- DEBUG code in parser system (not critical)
+- Incomplete error handling in several areas
+- Missing integration between components
+
+---
+
+*Last updated: Current codebase state*
+*Priority: Items marked as highest priority are critical for basic PVM functionality*

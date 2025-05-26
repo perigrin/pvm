@@ -751,7 +751,7 @@ func newRehashCommand() *cobra.Command {
 			}
 
 			// Show success message
-			cmd.Println("Shim executables rebuilt successfully.")
+			fmt.Println("Shim executables rebuilt successfully.")
 
 			// Warn if PATH is not configured
 			if !pathConfigured {
@@ -901,8 +901,13 @@ func newShellCommand() *cobra.Command {
 			Short: "Initialize shell integration",
 			Long:  "Generate shell integration script for the current shell",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				// Redirect to init command
-				return newInitCommand().RunE(cmd, args)
+				// Generate and create shell initialization scripts
+				err := perl.CreateShellInitScripts()
+				if err != nil {
+					return err
+				}
+				fmt.Println("Shell integration initialized")
+				return nil
 			},
 		},
 		&cobra.Command{
