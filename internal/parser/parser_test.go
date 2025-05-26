@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tamarou.com/pvm/internal/ast"
 )
 
 func TestParseSimpleTypeAnnotations(t *testing.T) {
@@ -71,11 +72,11 @@ func TestParseSimpleTypeAnnotations(t *testing.T) {
 		if annotation.Kind == VarAnnotation {
 			switch annotation.AnnotatedItem {
 			case "$name":
-				if annotation.TypeExpression.Name == "Str" {
+				if annotation.TypeExpression.BaseType == "Str" {
 					foundStrVar = true
 				}
 			case "add_param":
-				if annotation.TypeExpression.Name == "Int" {
+				if annotation.TypeExpression.BaseType == "Int" {
 					if !foundAddParamA {
 						foundAddParamA = true
 					} else {
@@ -83,23 +84,23 @@ func TestParseSimpleTypeAnnotations(t *testing.T) {
 					}
 				}
 			case "add_return":
-				if annotation.TypeExpression.Name == "Int" {
+				if annotation.TypeExpression.BaseType == "Int" {
 					foundAddReturnType = true
 				}
 			case "process_param":
 				t.Logf("process_param found with type: %s", annotation.TypeExpression.String())
-				if annotation.TypeExpression.Name == "Str" {
+				if annotation.TypeExpression.BaseType == "Str" {
 					foundProcessParamInput = true
-				} else if annotation.TypeExpression.Name == "ArrayRef" || annotation.TypeExpression.String() == "ArrayRef[Str]" {
-					t.Logf("Found ArrayRef process_param, params: %d", len(annotation.TypeExpression.Params))
+				} else if annotation.TypeExpression.BaseType == "ArrayRef" || annotation.TypeExpression.String() == "ArrayRef[Str]" {
+					t.Logf("Found ArrayRef process_param, params: %d", len(annotation.TypeExpression.Parameters))
 					foundProcessParamOptions = true
 					// Check that it's a parameterized type
-					if len(annotation.TypeExpression.Params) > 0 {
-						assert.Equal(t, "Str", annotation.TypeExpression.Params[0].Name)
+					if len(annotation.TypeExpression.Parameters) > 0 {
+						assert.Equal(t, "Str", annotation.TypeExpression.Parameters[0].BaseType)
 					}
 				}
 			case "get_config_return":
-				if annotation.TypeExpression.Name == "HashRef" {
+				if annotation.TypeExpression.BaseType == "HashRef" {
 					foundGetConfigReturnType = true
 				}
 			}
@@ -143,112 +144,112 @@ func TestParseComplexTypeExpressions(t *testing.T) {
 	testCases := []struct {
 		name           string
 		typeExpression string
-		validate       func(t *testing.T, expr *TypeExpression)
+		validate       func(t *testing.T, expr *ast.TypeExpression)
 	}{
 		{
 			name:           "Simple type",
 			typeExpression: "Int",
-			validate: func(t *testing.T, expr *TypeExpression) {
-				assert.Equal(t, "Int", expr.Name)
-				assert.Empty(t, expr.Params)
-				assert.False(t, expr.Union)
-				assert.False(t, expr.Intersection)
-				assert.False(t, expr.Negation)
+			validate: func(t *testing.T, expr *ast.TypeExpression) {
+				assert.Equal(t, "Int", expr.BaseType)
+				assert.Empty(t, expr.Parameters)
+				assert.False(t, expr.IsUnion)
+				assert.False(t, expr.IsIntersection)
+				assert.False(t, expr.IsNegation)
 			},
 		},
 		{
 			name:           "Parameterized type",
 			typeExpression: "ArrayRef[Int]",
-			validate: func(t *testing.T, expr *TypeExpression) {
-				assert.Equal(t, "ArrayRef", expr.Name)
-				assert.Equal(t, 1, len(expr.Params))
-				assert.Equal(t, "Int", expr.Params[0].Name)
-				assert.False(t, expr.Union)
-				assert.False(t, expr.Intersection)
-				assert.False(t, expr.Negation)
+			validate: func(t *testing.T, expr *ast.TypeExpression) {
+				assert.Equal(t, "ArrayRef", expr.BaseType)
+				assert.Equal(t, 1, len(expr.Parameters))
+				assert.Equal(t, "Int", expr.Parameters[0].BaseType)
+				assert.False(t, expr.IsUnion)
+				assert.False(t, expr.IsIntersection)
+				assert.False(t, expr.IsNegation)
 			},
 		},
 		{
 			name:           "Multi-parameter type",
 			typeExpression: "HashRef[Str, Int]",
-			validate: func(t *testing.T, expr *TypeExpression) {
-				assert.Equal(t, "HashRef", expr.Name)
-				assert.Equal(t, 2, len(expr.Params))
-				assert.Equal(t, "Str", expr.Params[0].Name)
-				assert.Equal(t, "Int", expr.Params[1].Name)
-				assert.False(t, expr.Union)
-				assert.False(t, expr.Intersection)
-				assert.False(t, expr.Negation)
+			validate: func(t *testing.T, expr *ast.TypeExpression) {
+				assert.Equal(t, "HashRef", expr.BaseType)
+				assert.Equal(t, 2, len(expr.Parameters))
+				assert.Equal(t, "Str", expr.Parameters[0].BaseType)
+				assert.Equal(t, "Int", expr.Parameters[1].BaseType)
+				assert.False(t, expr.IsUnion)
+				assert.False(t, expr.IsIntersection)
+				assert.False(t, expr.IsNegation)
 			},
 		},
 		{
 			name:           "Nested parameterized type",
 			typeExpression: "ArrayRef[HashRef[Str, Int]]",
-			validate: func(t *testing.T, expr *TypeExpression) {
+			validate: func(t *testing.T, expr *ast.TypeExpression) {
 				// Currently our simple implementation just handles this as a string
 				// In a production implementation with tree-sitter, we would have proper nested parsing
-				assert.Equal(t, "ArrayRef", expr.Name)
-				assert.True(t, len(expr.Params) > 0, "Should have at least one parameter")
+				assert.Equal(t, "ArrayRef", expr.BaseType)
+				assert.True(t, len(expr.Parameters) > 0, "Should have at least one parameter")
 				// Just check that we parse something as a parameter, without checking details
-				assert.NotEmpty(t, expr.Params[0].Name)
-				assert.False(t, expr.Union)
-				assert.False(t, expr.Intersection)
-				assert.False(t, expr.Negation)
+				assert.NotEmpty(t, expr.Parameters[0].BaseType)
+				assert.False(t, expr.IsUnion)
+				assert.False(t, expr.IsIntersection)
+				assert.False(t, expr.IsNegation)
 			},
 		},
 		{
 			name:           "Union type",
 			typeExpression: "Str|Undef",
-			validate: func(t *testing.T, expr *TypeExpression) {
-				assert.Equal(t, "Str|Undef", expr.Name)
-				assert.Equal(t, 2, len(expr.Params))
-				assert.Equal(t, "Str", expr.Params[0].Name)
-				assert.Equal(t, "Undef", expr.Params[1].Name)
-				assert.True(t, expr.Union)
-				assert.False(t, expr.Intersection)
-				assert.False(t, expr.Negation)
+			validate: func(t *testing.T, expr *ast.TypeExpression) {
+				assert.Equal(t, "Str|Undef", expr.BaseType)
+				assert.Equal(t, 2, len(expr.Parameters))
+				assert.Equal(t, "Str", expr.Parameters[0].BaseType)
+				assert.Equal(t, "Undef", expr.Parameters[1].BaseType)
+				assert.True(t, expr.IsUnion)
+				assert.False(t, expr.IsIntersection)
+				assert.False(t, expr.IsNegation)
 			},
 		},
 		{
 			name:           "Intersection type",
 			typeExpression: "HasField&Serializable",
-			validate: func(t *testing.T, expr *TypeExpression) {
-				assert.Equal(t, "HasField&Serializable", expr.Name)
+			validate: func(t *testing.T, expr *ast.TypeExpression) {
+				assert.Equal(t, "HasField&Serializable", expr.BaseType)
 				// In our current implementation we don't split intersection types into parameters
 				// This could be implemented similarly to union types in a future version
-				assert.True(t, expr.Intersection)
-				assert.False(t, expr.Union)
-				assert.False(t, expr.Negation)
+				assert.True(t, expr.IsIntersection)
+				assert.False(t, expr.IsUnion)
+				assert.False(t, expr.IsNegation)
 			},
 		},
 		{
 			name:           "Negation type",
 			typeExpression: "!Undef",
-			validate: func(t *testing.T, expr *TypeExpression) {
-				assert.Equal(t, "Undef", expr.Name)
-				assert.Empty(t, expr.Params)
-				assert.False(t, expr.Union)
-				assert.False(t, expr.Intersection)
-				assert.True(t, expr.Negation)
+			validate: func(t *testing.T, expr *ast.TypeExpression) {
+				assert.Equal(t, "Undef", expr.BaseType)
+				assert.Empty(t, expr.Parameters)
+				assert.False(t, expr.IsUnion)
+				assert.False(t, expr.IsIntersection)
+				assert.True(t, expr.IsNegation)
 			},
 		},
 		{
 			name:           "Complex type with union and parameterized types",
 			typeExpression: "ArrayRef[Int]|HashRef[Str, Int]",
-			validate: func(t *testing.T, expr *TypeExpression) {
-				assert.True(t, expr.Union)
-				assert.Equal(t, 2, len(expr.Params))
+			validate: func(t *testing.T, expr *ast.TypeExpression) {
+				assert.True(t, expr.IsUnion)
+				assert.Equal(t, 2, len(expr.Parameters))
 
 				// First parameter should be ArrayRef[Int]
-				assert.Equal(t, "ArrayRef", expr.Params[0].Name)
-				assert.Equal(t, 1, len(expr.Params[0].Params))
-				assert.Equal(t, "Int", expr.Params[0].Params[0].Name)
+				assert.Equal(t, "ArrayRef", expr.Parameters[0].BaseType)
+				assert.Equal(t, 1, len(expr.Parameters[0].Parameters))
+				assert.Equal(t, "Int", expr.Parameters[0].Parameters[0].BaseType)
 
 				// Second parameter should be HashRef[Str, Int]
-				assert.Equal(t, "HashRef", expr.Params[1].Name)
-				assert.Equal(t, 2, len(expr.Params[1].Params))
-				assert.Equal(t, "Str", expr.Params[1].Params[0].Name)
-				assert.Equal(t, "Int", expr.Params[1].Params[1].Name)
+				assert.Equal(t, "HashRef", expr.Parameters[1].BaseType)
+				assert.Equal(t, 2, len(expr.Parameters[1].Parameters))
+				assert.Equal(t, "Str", expr.Parameters[1].Parameters[0].BaseType)
+				assert.Equal(t, "Int", expr.Parameters[1].Parameters[1].BaseType)
 			},
 		},
 	}
@@ -352,34 +353,34 @@ func TestParseMethodTypeAnnotations(t *testing.T) {
 	for _, annotation := range ast.TypeAnnotations {
 		// Field type annotations
 		if annotation.Kind == AttrAnnotation {
-			if annotation.AnnotatedItem == "$name" && annotation.TypeExpression.Name == "Str" {
+			if annotation.AnnotatedItem == "$name" && annotation.TypeExpression.BaseType == "Str" {
 				foundNameField = true
-			} else if annotation.AnnotatedItem == "$age" && annotation.TypeExpression.Name == "Int" {
+			} else if annotation.AnnotatedItem == "$age" && annotation.TypeExpression.BaseType == "Int" {
 				foundAgeField = true
 			}
 		}
 
 		// Method parameter type annotations
 		if annotation.Kind == MethodParamAnnotation {
-			if annotation.AnnotatedItem == "$class" && annotation.TypeExpression.Name == "Str" {
+			if annotation.AnnotatedItem == "$class" && annotation.TypeExpression.BaseType == "Str" {
 				foundClassParam = true
-			} else if annotation.AnnotatedItem == "$args" && annotation.TypeExpression.Name == "HashRef" {
+			} else if annotation.AnnotatedItem == "$args" && annotation.TypeExpression.BaseType == "HashRef" {
 				foundArgsParam = true
 				// Check that it's a parameterized type
-				assert.Equal(t, 1, len(annotation.TypeExpression.Params))
-				assert.Equal(t, "Str", annotation.TypeExpression.Params[0].Name)
-			} else if annotation.AnnotatedItem == "$new_name" && annotation.TypeExpression.Name == "Str" {
+				assert.Equal(t, 1, len(annotation.TypeExpression.Parameters))
+				assert.Equal(t, "Str", annotation.TypeExpression.Parameters[0].BaseType)
+			} else if annotation.AnnotatedItem == "$new_name" && annotation.TypeExpression.BaseType == "Str" {
 				foundNewNameParam = true
-			} else if annotation.AnnotatedItem == "$prefix" && annotation.TypeExpression.Name == "Str" {
+			} else if annotation.AnnotatedItem == "$prefix" && annotation.TypeExpression.BaseType == "Str" {
 				foundPrefixParam = true
-			} else if annotation.AnnotatedItem == "$include_age" && annotation.TypeExpression.Name == "Bool" {
+			} else if annotation.AnnotatedItem == "$include_age" && annotation.TypeExpression.BaseType == "Bool" {
 				foundIncludeAgeParam = true
 			}
 		}
 
 		// Method return type annotations
 		if annotation.Kind == MethodReturnAnnotation {
-			switch annotation.TypeExpression.Name {
+			switch annotation.TypeExpression.BaseType {
 			case "MyClass":
 				foundNewReturnType = true
 			case "Str":
@@ -466,27 +467,27 @@ func TestParseTypeDeclarations(t *testing.T) {
 			switch annotation.AnnotatedItem {
 			case "UserID":
 				foundUserID = true
-				assert.Equal(t, "Str", annotation.TypeExpression.Name)
+				assert.Equal(t, "Str", annotation.TypeExpression.BaseType)
 			case "UserMap":
 				foundUserMap = true
-				assert.Equal(t, "HashRef", annotation.TypeExpression.Name)
-				assert.Equal(t, 2, len(annotation.TypeExpression.Params))
-				assert.Equal(t, "UserID", annotation.TypeExpression.Params[0].Name)
-				assert.Equal(t, "User", annotation.TypeExpression.Params[1].Name)
+				assert.Equal(t, "HashRef", annotation.TypeExpression.BaseType)
+				assert.Equal(t, 2, len(annotation.TypeExpression.Parameters))
+				assert.Equal(t, "UserID", annotation.TypeExpression.Parameters[0].BaseType)
+				assert.Equal(t, "User", annotation.TypeExpression.Parameters[1].BaseType)
 			case "MaybeStr":
 				foundMaybeStr = true
-				assert.True(t, annotation.TypeExpression.Union)
-				assert.Equal(t, 2, len(annotation.TypeExpression.Params))
-				assert.Equal(t, "Str", annotation.TypeExpression.Params[0].Name)
-				assert.Equal(t, "Undef", annotation.TypeExpression.Params[1].Name)
+				assert.True(t, annotation.TypeExpression.IsUnion)
+				assert.Equal(t, 2, len(annotation.TypeExpression.Parameters))
+				assert.Equal(t, "Str", annotation.TypeExpression.Parameters[0].BaseType)
+				assert.Equal(t, "Undef", annotation.TypeExpression.Parameters[1].BaseType)
 			case "ComplexData":
 				foundComplexData = true
-				assert.Equal(t, "ArrayRef", annotation.TypeExpression.Name)
-				assert.GreaterOrEqual(t, len(annotation.TypeExpression.Params), 1)
+				assert.Equal(t, "ArrayRef", annotation.TypeExpression.BaseType)
+				assert.GreaterOrEqual(t, len(annotation.TypeExpression.Parameters), 1)
 			case "NonNull":
 				foundNonNull = true
-				assert.True(t, annotation.TypeExpression.Negation)
-				assert.Equal(t, "Undef", annotation.TypeExpression.Name)
+				assert.True(t, annotation.TypeExpression.IsNegation)
+				assert.Equal(t, "Undef", annotation.TypeExpression.BaseType)
 			case "Serializable":
 				foundSerializable = true
 				assert.True(t, strings.Contains(annotation.TypeExpression.String(), "&"))

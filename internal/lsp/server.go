@@ -15,8 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/errors"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/typechecker"
 )
 
 // LSP error codes
@@ -42,7 +43,7 @@ type Server struct {
 	conn io.ReadWriteCloser
 
 	// Parser for type checking
-	typeChecker *parser.TypeCheck
+	typeChecker *typechecker.TypeCheck
 
 	// Workspace documents
 	documents map[string]*Document
@@ -70,8 +71,8 @@ type Document struct {
 	URI         string
 	Text        string
 	Version     int
-	AST         *parser.AST
-	Errors      []parser.TypeCheckError
+	AST         *ast.AST
+	Errors      []typechecker.TypeCheckError
 	LastChecked time.Time        // When the document was last type-checked
 	LastChanged time.Time        // When the document was last changed
 	LineChanges map[int]struct{} // Set of line numbers that have changed since last check
@@ -103,7 +104,7 @@ type CompletionOptions struct {
 
 // NewServer creates a new LSP server
 func NewServer(conn io.ReadWriteCloser) (*Server, error) {
-	tc, err := parser.NewTypeCheck()
+	tc, err := typechecker.NewTypeCheck()
 	if err != nil {
 		return nil, errors.NewSystemError(
 			ErrServerInit,
@@ -414,7 +415,7 @@ func (s *Server) analyzeDocument(doc *Document) error {
 	if result != nil {
 		doc.Errors = result.Errors
 	} else {
-		doc.Errors = []parser.TypeCheckError{}
+		doc.Errors = []typechecker.TypeCheckError{}
 	}
 
 	// Update AST
@@ -441,8 +442,8 @@ func (s *Server) analyzeDocumentIncremental(doc *Document) error {
 	}
 
 	// Get existing errors
-	currentErrors := make(map[int][]parser.TypeCheckError)
-	var otherErrors []parser.TypeCheckError
+	currentErrors := make(map[int][]typechecker.TypeCheckError)
+	var otherErrors []typechecker.TypeCheckError
 
 	// Group existing errors by line
 	for _, err := range doc.Errors {
@@ -496,7 +497,7 @@ func (s *Server) analyzeDocumentIncremental(doc *Document) error {
 	}
 
 	// Analyze only the changed lines
-	var newErrors []parser.TypeCheckError
+	var newErrors []typechecker.TypeCheckError
 
 	// We only need the AST structure for checking nodes at specific lines
 	// The rest of the checking is simplified
@@ -510,7 +511,7 @@ func (s *Server) analyzeDocumentIncremental(doc *Document) error {
 	}
 
 	// Combine the errors
-	var combinedErrors []parser.TypeCheckError
+	var combinedErrors []typechecker.TypeCheckError
 	combinedErrors = append(combinedErrors, otherErrors...)
 	combinedErrors = append(combinedErrors, newErrors...)
 	doc.Errors = combinedErrors
@@ -523,11 +524,11 @@ func (s *Server) analyzeDocumentIncremental(doc *Document) error {
 }
 
 // checkElementsAtLine checks AST elements at a specific line for type errors
-func (s *Server) checkElementsAtLine(ast *parser.AST, lineNum int, typeChecker struct {
+func (s *Server) checkElementsAtLine(ast *ast.AST, lineNum int, typeChecker struct {
 	VariableTypes   map[string]string
 	TypeAnnotations map[string]string
-}) []parser.TypeCheckError {
-	var errors []parser.TypeCheckError
+}) []typechecker.TypeCheckError {
+	var errors []typechecker.TypeCheckError
 
 	// Find nodes at this line
 	if ast == nil || ast.Root == nil {
@@ -551,7 +552,7 @@ func (s *Server) checkElementsAtLine(ast *parser.AST, lineNum int, typeChecker s
 
 			// Very basic validation - just check for empty type names
 			if typeName == "" || typeName == "Unknown" {
-				errors = append(errors, parser.TypeCheckError{
+				errors = append(errors, typechecker.TypeCheckError{
 					Message: fmt.Sprintf("invalid type annotation for %s", varName),
 					Path:    uriToPath(ast.Path),
 					Line:    anno.Pos.Line,
@@ -572,7 +573,7 @@ func (s *Server) checkElementsAtLine(ast *parser.AST, lineNum int, typeChecker s
 // We use the file path directly instead of extracting module names
 
 // publishDiagnostics sends diagnostics to the client
-func (s *Server) publishDiagnostics(uri string, errors []parser.TypeCheckError) error {
+func (s *Server) publishDiagnostics(uri string, errors []typechecker.TypeCheckError) error {
 	diagnostics := make([]Diagnostic, len(errors))
 	for i, err := range errors {
 		diagnostics[i] = Diagnostic{

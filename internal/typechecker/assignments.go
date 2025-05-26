@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/ast"
 )
 
 // CheckASTAssignments checks all assignments in an AST
-func (tc *TypeChecker) CheckASTAssignments(ast *parser.AST) []error {
+func (tc *TypeChecker) CheckASTAssignments(ast *ast.AST) []error {
 	var errors []error
 
 	// Since AST parsing might have issues, we'll also check assignments
@@ -46,14 +46,14 @@ func (tc *TypeChecker) checkAssignmentsFromSourceText(filePath string, errors *[
 
 		// Look for assignments with =
 		if strings.Contains(line, "=") && !strings.Contains(line, "==") && !strings.Contains(line, "!=") {
-			pos := parser.Position{Line: lineNum + 1, Column: 1}
+			pos := ast.Position{Line: lineNum + 1, Column: 1}
 			tc.checkPossibleAssignment(line, pos, errors)
 		}
 	}
 }
 
 // checkNodeForAssignments checks a node and its children for assignments
-func (tc *TypeChecker) checkNodeForAssignments(node parser.Node, errors *[]error) {
+func (tc *TypeChecker) checkNodeForAssignments(node ast.Node, errors *[]error) {
 	// Look for assignment statements
 	if node.Type() == "expression_statement" {
 		nodeText := getNodeText(node)
@@ -72,7 +72,7 @@ func (tc *TypeChecker) checkNodeForAssignments(node parser.Node, errors *[]error
 }
 
 // checkPossibleAssignment checks a potential assignment statement
-func (tc *TypeChecker) checkPossibleAssignment(text string, pos parser.Position, errors *[]error) {
+func (tc *TypeChecker) checkPossibleAssignment(text string, pos ast.Position, errors *[]error) {
 	// Split the text by = to get left and right sides
 	parts := strings.SplitN(text, "=", 2)
 	if len(parts) != 2 {

@@ -6,8 +6,8 @@ package typechecker
 import (
 	"strings"
 
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/errors"
-	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -93,7 +93,7 @@ func NewTypeChecker(hierarchy *typedef.TypeHierarchy, moduleName string) *TypeCh
 }
 
 // CheckAST performs type checking on an entire AST
-func (tc *TypeChecker) CheckAST(ast *parser.AST) []error {
+func (tc *TypeChecker) CheckAST(ast *ast.AST) []error {
 	var typeErrors []error
 
 	// Extract information about imported modules
@@ -137,13 +137,13 @@ func (tc *TypeChecker) CheckAST(ast *parser.AST) []error {
 }
 
 // extractImports extracts import information from the AST (placeholder)
-func (tc *TypeChecker) extractImports(ast *parser.AST) {
+func (tc *TypeChecker) extractImports(ast *ast.AST) {
 	// This would be implemented to extract module imports
 	// For now, it's a placeholder
 }
 
 // collectTypeAnnotation collects a type annotation without full validation
-func (tc *TypeChecker) collectTypeAnnotation(annotation *parser.TypeAnnotation) error {
+func (tc *TypeChecker) collectTypeAnnotation(annotation *ast.TypeAnnotation) error {
 	if annotation == nil || annotation.TypeExpression == nil {
 		return errors.NewTypeError(
 			ErrTypeValidationError,
@@ -159,7 +159,7 @@ func (tc *TypeChecker) collectTypeAnnotation(annotation *parser.TypeAnnotation) 
 
 	// Record additional type information based on the kind of annotation
 	switch annotation.Kind {
-	case parser.VarAnnotation:
+	case ast.VarAnnotation:
 		tc.VariableTypes[annotation.AnnotatedItem] = typeStr
 	}
 
@@ -167,7 +167,7 @@ func (tc *TypeChecker) collectTypeAnnotation(annotation *parser.TypeAnnotation) 
 }
 
 // checkASTFunctionReturns checks function return types
-func (tc *TypeChecker) checkASTFunctionReturns(ast *parser.AST) []error {
+func (tc *TypeChecker) checkASTFunctionReturns(ast *ast.AST) []error {
 	// This would check function return type compatibility
 	// For now, it's a placeholder that returns no errors
 	return []error{}
@@ -189,7 +189,7 @@ func (tc *TypeChecker) GetVariableType(varName string) (string, bool) {
 }
 
 // CheckAssignment checks if a source type can be assigned to a target type
-func (tc *TypeChecker) CheckAssignment(sourceType, targetType string, pos parser.Position) error {
+func (tc *TypeChecker) CheckAssignment(sourceType, targetType string, pos ast.Position) error {
 	return tc.Hierarchy.CheckTypeCompatibility(sourceType, targetType)
 }
 
@@ -314,7 +314,7 @@ func (tc *TypeChecker) validateType(typeStr string) error {
 }
 
 // checkTypeAnnotation validates a single type annotation
-func (tc *TypeChecker) checkTypeAnnotation(annotation *parser.TypeAnnotation) error {
+func (tc *TypeChecker) checkTypeAnnotation(annotation *ast.TypeAnnotation) error {
 	if annotation == nil || annotation.TypeExpression == nil {
 		return errors.NewTypeError(
 			ErrTypeValidationError,

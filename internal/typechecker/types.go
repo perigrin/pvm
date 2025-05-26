@@ -6,7 +6,7 @@ package typechecker
 import (
 	"fmt"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/ast"
 )
 
 // PSC Error codes for type checking
@@ -29,7 +29,7 @@ type TypeCheckResult struct {
 	Errors []TypeCheckError
 
 	// TypeAnnotations is a list of type annotations found in the code
-	TypeAnnotations []*parser.TypeAnnotation
+	TypeAnnotations []*ast.TypeAnnotation
 
 	// RefinedTypes maps variable names to their refined types from flow-sensitive analysis
 	RefinedTypes map[string]string
@@ -147,5 +147,5 @@ type ValidationPattern struct {
 	RefinementFunc func(variable string, currentType string) string
 
 	// Checker is a function that checks if code matches this pattern
-	Checker func(node parser.Node) (string, bool)
+	Checker func(node ast.Node) (string, bool)
 }

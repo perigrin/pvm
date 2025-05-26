@@ -263,17 +263,17 @@ func TestExtractModulesFromTypeCheck(t *testing.T) {
 		TypeAnnotations: []*parser.TypeAnnotation{
 			{
 				TypeExpression: &parser.TypeExpression{
-					Name: "Data::Dumper::Simple",
+					BaseType: "Data::Dumper::Simple",
 				},
 			},
 			{
 				TypeExpression: &parser.TypeExpression{
-					Name: "JSON::PP::Boolean",
+					BaseType: "JSON::PP::Boolean",
 				},
 			},
 			{
 				TypeExpression: &parser.TypeExpression{
-					Name: "Str", // Built-in type
+					BaseType: "Str", // Built-in type
 				},
 			},
 		},

@@ -71,7 +71,7 @@ func (pe *ParseError) Error() string {
 
 // ParseTypeExpression parses a type expression and returns it in the consolidated format
 // for backward compatibility
-func ParseTypeExpression(text string, pos Position) (*TypeExpression, error) {
+func ParseTypeExpression(text string, pos Position) (*ast.TypeExpression, error) {
 	tsPos := treesitter.Position{
 		Line:   pos.Line,
 		Column: pos.Column,

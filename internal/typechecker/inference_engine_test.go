@@ -6,43 +6,43 @@ package typechecker
 import (
 	"testing"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/typedef"
 )
 
-// MockNode implements parser.Node for testing
+// MockNode implements ast.Node for testing
 type MockNode struct {
 	NodeType  string
 	NodeText  string
-	StartPos  parser.Position
-	Children_ []parser.Node
-	Parent_   parser.Node
+	StartPos  ast.Position
+	Children_ []ast.Node
+	Parent_   ast.Node
 }
 
-func (m *MockNode) Type() string               { return m.NodeType }
-func (m *MockNode) Text() string               { return m.NodeText }
-func (m *MockNode) Start() parser.Position     { return m.StartPos }
-func (m *MockNode) End() parser.Position       { return m.StartPos }
-func (m *MockNode) Children() []parser.Node    { return m.Children_ }
-func (m *MockNode) Parent() parser.Node        { return m.Parent_ }
-func (m *MockNode) Child(int) parser.Node      { return nil }
-func (m *MockNode) ChildCount() int            { return len(m.Children_) }
-func (m *MockNode) NamedChild(int) parser.Node { return nil }
-func (m *MockNode) NamedChildCount() int       { return 0 }
-func (m *MockNode) NextSibling() parser.Node   { return nil }
-func (m *MockNode) PrevSibling() parser.Node   { return nil }
-func (m *MockNode) String() string             { return m.NodeText }
-func (m *MockNode) SetParent(parent parser.Node) { m.Parent_ = parent }
+func (m *MockNode) Type() string              { return m.NodeType }
+func (m *MockNode) Text() string              { return m.NodeText }
+func (m *MockNode) Start() ast.Position       { return m.StartPos }
+func (m *MockNode) End() ast.Position         { return m.StartPos }
+func (m *MockNode) Children() []ast.Node      { return m.Children_ }
+func (m *MockNode) Parent() ast.Node          { return m.Parent_ }
+func (m *MockNode) Child(int) ast.Node        { return nil }
+func (m *MockNode) ChildCount() int           { return len(m.Children_) }
+func (m *MockNode) NamedChild(int) ast.Node   { return nil }
+func (m *MockNode) NamedChildCount() int      { return 0 }
+func (m *MockNode) NextSibling() ast.Node     { return nil }
+func (m *MockNode) PrevSibling() ast.Node     { return nil }
+func (m *MockNode) String() string            { return m.NodeText }
+func (m *MockNode) SetParent(parent ast.Node) { m.Parent_ = parent }
 
-// MockAST implements parser.AST for testing
+// MockAST implements ast.AST for testing
 type MockAST struct {
 	Path            string
-	Root            parser.Node
-	TypeAnnotations []*parser.TypeAnnotation
+	Root            ast.Node
+	TypeAnnotations []*ast.TypeAnnotation
 	Errors          []error
 }
 
-func (m *MockAST) RootNode() parser.Node { return m.Root }
+func (m *MockAST) RootNode() ast.Node { return m.Root }
 
 func TestNewInferenceEngine(t *testing.T) {
 	storage, err := typedef.NewStorage()
@@ -254,7 +254,7 @@ func TestInferenceRecording(t *testing.T) {
 	engine := NewInferenceEngine(hierarchy)
 
 	// Record a simple inference
-	pos := parser.Position{Line: 1, Column: 1}
+	pos := ast.Position{Line: 1, Column: 1}
 	engine.recordInference("$var", "Int", 0.8, InferenceFromPattern, pos)
 
 	// Check if inference was recorded
@@ -359,7 +359,7 @@ func TestGetInferredType(t *testing.T) {
 	}
 
 	// Record an inference above threshold
-	pos := parser.Position{Line: 1, Column: 1}
+	pos := ast.Position{Line: 1, Column: 1}
 	engine.recordInference("$var1", "Int", 0.8, InferenceFromPattern, pos)
 
 	inferredType, confidence = engine.GetInferredType("$var1")
@@ -384,7 +384,7 @@ func TestGetAllInferredTypes(t *testing.T) {
 	hierarchy := typedef.NewTypeHierarchy(storage)
 	engine := NewInferenceEngine(hierarchy)
 
-	pos := parser.Position{Line: 1, Column: 1}
+	pos := ast.Position{Line: 1, Column: 1}
 
 	// Record some inferences
 	engine.recordInference("$var1", "Int", 0.8, InferenceFromPattern, pos) // Above threshold
@@ -422,11 +422,11 @@ func TestAnalyzeUsagePatterns(t *testing.T) {
 	root := &MockNode{
 		NodeType: "program",
 		NodeText: "push @array, $item",
-		Children_: []parser.Node{
+		Children_: []ast.Node{
 			&MockNode{
 				NodeType: "expression",
 				NodeText: "push @array, $item",
-				StartPos: parser.Position{Line: 1, Column: 1},
+				StartPos: ast.Position{Line: 1, Column: 1},
 			},
 		},
 	}
@@ -461,7 +461,7 @@ func TestInferenceReport(t *testing.T) {
 	hierarchy := typedef.NewTypeHierarchy(storage)
 	engine := NewInferenceEngine(hierarchy)
 
-	pos := parser.Position{Line: 1, Column: 1}
+	pos := ast.Position{Line: 1, Column: 1}
 
 	// Record some inferences
 	engine.recordInference("$var1", "Int", 0.8, InferenceFromPattern, pos)
@@ -502,31 +502,31 @@ func TestInferTypesIntegration(t *testing.T) {
 	engine := NewInferenceEngine(hierarchy)
 
 	// Create a mock AST
-	ast := &MockAST{
+	mockAST := &MockAST{
 		Root: &MockNode{
 			NodeType: "program",
 			NodeText: "my $count = @array; $obj->method();",
-			Children_: []parser.Node{
+			Children_: []ast.Node{
 				&MockNode{
 					NodeType: "assignment",
 					NodeText: "my $count = @array",
-					StartPos: parser.Position{Line: 1, Column: 1},
+					StartPos: ast.Position{Line: 1, Column: 1},
 				},
 				&MockNode{
 					NodeType: "method_call",
 					NodeText: "$obj->method()",
-					StartPos: parser.Position{Line: 1, Column: 20},
+					StartPos: ast.Position{Line: 1, Column: 20},
 				},
 			},
 		},
 	}
 
-	// Convert MockAST to parser.AST
-	realAST := &parser.AST{
-		Path:            ast.Path,
-		Root:            ast.Root,
-		TypeAnnotations: ast.TypeAnnotations,
-		Errors:          ast.Errors,
+	// Convert MockAST to ast.AST
+	realAST := &ast.AST{
+		Path:            mockAST.Path,
+		Root:            mockAST.Root,
+		TypeAnnotations: mockAST.TypeAnnotations,
+		Errors:          mockAST.Errors,
 	}
 
 	// Run full inference
@@ -662,12 +662,12 @@ func BenchmarkInferenceEngine(b *testing.B) {
 	engine := NewInferenceEngine(hierarchy)
 
 	// Create a large mock AST
-	children := make([]parser.Node, 100)
+	children := make([]ast.Node, 100)
 	for i := 0; i < 100; i++ {
 		children[i] = &MockNode{
 			NodeType: "expression",
 			NodeText: "push @array, $item",
-			StartPos: parser.Position{Line: i + 1, Column: 1},
+			StartPos: ast.Position{Line: i + 1, Column: 1},
 		}
 	}
 
@@ -679,8 +679,8 @@ func BenchmarkInferenceEngine(b *testing.B) {
 
 	mockAST := &MockAST{Root: root}
 
-	// Convert to parser.AST
-	realAST := &parser.AST{
+	// Convert to ast.AST
+	realAST := &ast.AST{
 		Path:            mockAST.Path,
 		Root:            mockAST.Root,
 		TypeAnnotations: mockAST.TypeAnnotations,

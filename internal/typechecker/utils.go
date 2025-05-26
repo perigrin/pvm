@@ -6,11 +6,11 @@ package typechecker
 import (
 	"strings"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/ast"
 )
 
 // getNodeText is a helper function to extract text from a node
-func getNodeText(node parser.Node) string {
+func getNodeText(node ast.Node) string {
 	// Use the Text() method from the Node interface
 	return node.Text()
 }

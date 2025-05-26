@@ -4,11 +4,11 @@
 package typechecker
 
 import (
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/ast"
 )
 
 // performFlowSensitiveAnalysis performs flow-sensitive type analysis
-func (tc *TypeChecker) performFlowSensitiveAnalysis(ast *parser.AST) []error {
+func (tc *TypeChecker) performFlowSensitiveAnalysis(ast *ast.AST) []error {
 	// This would perform flow-sensitive analysis
 	// For now, it's a placeholder that returns no errors
 	return []error{}

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/typechecker"
 )
 
 // OutputFormat represents different output formats for diagnostics
@@ -56,7 +56,7 @@ func (f *DiagnosticFormatter) SetMaxContextLines(lines int) {
 }
 
 // FormatTypeCheckResult formats a type check result according to the specified format
-func (f *DiagnosticFormatter) FormatTypeCheckResult(result *parser.TypeCheckResult) (string, error) {
+func (f *DiagnosticFormatter) FormatTypeCheckResult(result *typechecker.TypeCheckResult) (string, error) {
 	switch f.format {
 	case OutputFormatLSP:
 		return f.formatLSP(result)
@@ -74,7 +74,7 @@ func (f *DiagnosticFormatter) FormatTypeCheckResult(result *parser.TypeCheckResu
 }
 
 // formatLSP formats errors in LSP diagnostic format
-func (f *DiagnosticFormatter) formatLSP(result *parser.TypeCheckResult) (string, error) {
+func (f *DiagnosticFormatter) formatLSP(result *typechecker.TypeCheckResult) (string, error) {
 	diagnostics := make([]Diagnostic, len(result.Errors))
 
 	for i, err := range result.Errors {
@@ -120,7 +120,7 @@ func (f *DiagnosticFormatter) formatLSP(result *parser.TypeCheckResult) (string,
 }
 
 // formatJSON formats errors in structured JSON format
-func (f *DiagnosticFormatter) formatJSON(result *parser.TypeCheckResult) (string, error) {
+func (f *DiagnosticFormatter) formatJSON(result *typechecker.TypeCheckResult) (string, error) {
 	type JSONError struct {
 		File     string `json:"file"`
 		Line     int    `json:"line"`
@@ -188,7 +188,7 @@ func (f *DiagnosticFormatter) formatJSON(result *parser.TypeCheckResult) (string
 }
 
 // formatText formats errors in human-readable text format
-func (f *DiagnosticFormatter) formatText(result *parser.TypeCheckResult) (string, error) {
+func (f *DiagnosticFormatter) formatText(result *typechecker.TypeCheckResult) (string, error) {
 	var builder strings.Builder
 
 	// Header
@@ -246,7 +246,7 @@ func (f *DiagnosticFormatter) formatText(result *parser.TypeCheckResult) (string
 }
 
 // formatSarif formats errors in SARIF format for static analysis tools
-func (f *DiagnosticFormatter) formatSarif(result *parser.TypeCheckResult) (string, error) {
+func (f *DiagnosticFormatter) formatSarif(result *typechecker.TypeCheckResult) (string, error) {
 	type SarifLocation struct {
 		PhysicalLocation struct {
 			ArtifactLocation struct {
@@ -368,7 +368,7 @@ func (f *DiagnosticFormatter) formatSarif(result *parser.TypeCheckResult) (strin
 }
 
 // formatCheckstyle formats errors in Checkstyle XML format
-func (f *DiagnosticFormatter) formatCheckstyle(result *parser.TypeCheckResult) (string, error) {
+func (f *DiagnosticFormatter) formatCheckstyle(result *typechecker.TypeCheckResult) (string, error) {
 	var builder strings.Builder
 
 	builder.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
@@ -422,7 +422,7 @@ func getCodeDescription(message string) string {
 }
 
 // getErrorContext retrieves context around an error (placeholder implementation)
-func (f *DiagnosticFormatter) getErrorContext(err parser.TypeCheckError) string {
+func (f *DiagnosticFormatter) getErrorContext(err typechecker.TypeCheckError) string {
 	// In a real implementation, this would read the source file
 	// and extract lines around the error location
 	return fmt.Sprintf("Error at line %d, column %d", err.Line, err.Column)
@@ -456,8 +456,8 @@ func isNumeric(s string) bool {
 }
 
 // FormatErrorsForEditor formats errors specifically for editor display
-func FormatErrorsForEditor(errors []parser.TypeCheckError, format OutputFormat) (string, error) {
-	result := &parser.TypeCheckResult{
+func FormatErrorsForEditor(errors []typechecker.TypeCheckError, format OutputFormat) (string, error) {
+	result := &typechecker.TypeCheckResult{
 		Path:   "",
 		Errors: errors,
 	}
@@ -471,7 +471,7 @@ func FormatErrorsForEditor(errors []parser.TypeCheckError, format OutputFormat) 
 }
 
 // FormatSingleError formats a single error for quick display
-func FormatSingleError(err parser.TypeCheckError, includeLocation bool) string {
+func FormatSingleError(err typechecker.TypeCheckError, includeLocation bool) string {
 	if includeLocation {
 		return fmt.Sprintf("%s:%d:%d: %s", err.Path, err.Line, err.Column, err.Message)
 	}

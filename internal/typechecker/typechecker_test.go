@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -73,14 +73,13 @@ func TestBasicTypeAnnotation(t *testing.T) {
 	require.NotNil(t, checker)
 
 	// Create a valid type annotation for a variable
-	validVarAnnotation := &parser.TypeAnnotation{
+	validVarAnnotation := &ast.TypeAnnotation{
 		AnnotatedItem: "$var",
-		TypeExpression: &parser.TypeExpression{
-			Name: "Int",
-			Pos:  parser.Position{Line: 1, Column: 5},
+		TypeExpression: &ast.TypeExpression{
+			BaseType: "Int",
 		},
-		Pos:  parser.Position{Line: 1, Column: 5},
-		Kind: parser.VarAnnotation,
+		Pos:  ast.Position{Line: 1, Column: 5},
+		Kind: ast.VarAnnotation,
 	}
 
 	// Check the valid annotation
@@ -107,7 +106,7 @@ func TestAssignmentChecking(t *testing.T) {
 	checker := NewTypeChecker(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
-	pos := parser.Position{Line: 1, Column: 1}
+	pos := ast.Position{Line: 1, Column: 1}
 
 	// Test valid assignments
 	assert.NoError(t, checker.CheckAssignment("Int", "Int", pos))
@@ -161,7 +160,7 @@ func TestUnionTypes(t *testing.T) {
 	checker := NewTypeChecker(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
-	pos := parser.Position{Line: 1, Column: 1}
+	pos := ast.Position{Line: 1, Column: 1}
 
 	// Test union type creation and compatibility
 	// Union[Int, ArrayRef] should accept both Int and ArrayRef
@@ -202,7 +201,7 @@ func TestIntersectionTypes(t *testing.T) {
 	checker := NewTypeChecker(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
-	pos := parser.Position{Line: 1, Column: 1}
+	pos := ast.Position{Line: 1, Column: 1}
 
 	// Test intersection type creation and compatibility
 	// Intersection[Iterable, Positional] should be compatible with both
@@ -286,7 +285,7 @@ func TestComplexTypeExpressions(t *testing.T) {
 	checker := NewTypeChecker(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
-	pos := parser.Position{Line: 1, Column: 1}
+	pos := ast.Position{Line: 1, Column: 1}
 
 	// Test complex union types
 	assert.NoError(t, checker.CheckAssignment("Int", "Int|Str|Bool", pos))

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/typechecker"
 )
 
 // handleInitialize handles the initialize request
@@ -210,7 +210,7 @@ func (s *Server) handleTextDocumentDidClose(msg *JSONRPCMessage) error {
 	s.removeDocument(params.TextDocument.URI)
 
 	// Clear diagnostics for the closed document
-	return s.publishDiagnostics(params.TextDocument.URI, []parser.TypeCheckError{})
+	return s.publishDiagnostics(params.TextDocument.URI, []typechecker.TypeCheckError{})
 }
 
 // handleTextDocumentHover handles the textDocument/hover request

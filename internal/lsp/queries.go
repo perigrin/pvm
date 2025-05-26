@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/ast"
 )
 
 // TypeQuery represents a query for type information
@@ -412,12 +412,12 @@ func (s *TypeQueryService) getKeywordInfo(keyword string) *TypeInfo {
 }
 
 // symbolMatchesAnnotation checks if a symbol matches a type annotation
-func (s *TypeQueryService) symbolMatchesAnnotation(symbol string, annotation *parser.TypeAnnotation) bool {
+func (s *TypeQueryService) symbolMatchesAnnotation(symbol string, annotation *ast.TypeAnnotation) bool {
 	return strings.Contains(annotation.AnnotatedItem, symbol)
 }
 
 // createTypeInfoFromAnnotation creates type info from a parser annotation
-func (s *TypeQueryService) createTypeInfoFromAnnotation(annotation *parser.TypeAnnotation) *TypeInfo {
+func (s *TypeQueryService) createTypeInfoFromAnnotation(annotation *ast.TypeAnnotation) *TypeInfo {
 	if annotation == nil {
 		return nil
 	}
@@ -428,25 +428,25 @@ func (s *TypeQueryService) createTypeInfoFromAnnotation(annotation *parser.TypeA
 	}
 
 	switch annotation.Kind {
-	case parser.VarAnnotation:
+	case ast.VarAnnotation:
 		info.Kind = "variable"
 		info.Documentation = fmt.Sprintf("Variable %s of type %s", annotation.AnnotatedItem, info.Type)
-	case parser.SubParamAnnotation:
+	case ast.SubParamAnnotation:
 		info.Kind = "parameter"
 		info.Documentation = fmt.Sprintf("Parameter %s of type %s", annotation.AnnotatedItem, info.Type)
-	case parser.SubReturnAnnotation:
+	case ast.SubReturnAnnotation:
 		info.Kind = "return"
 		info.Documentation = fmt.Sprintf("Return type %s", info.Type)
-	case parser.MethodParamAnnotation:
+	case ast.MethodParamAnnotation:
 		info.Kind = "parameter"
 		info.Documentation = fmt.Sprintf("Method parameter %s of type %s", annotation.AnnotatedItem, info.Type)
-	case parser.MethodReturnAnnotation:
+	case ast.MethodReturnAnnotation:
 		info.Kind = "return"
 		info.Documentation = fmt.Sprintf("Method return type %s", info.Type)
-	case parser.AttrAnnotation:
+	case ast.FieldAnnotation:
 		info.Kind = "attribute"
 		info.Documentation = fmt.Sprintf("Attribute %s of type %s", annotation.AnnotatedItem, info.Type)
-	case parser.TypeDeclAnnotation:
+	case ast.TypeDeclAnnotation:
 		info.Kind = "type"
 		info.Documentation = fmt.Sprintf("Type declaration %s", annotation.AnnotatedItem)
 	}
@@ -455,7 +455,7 @@ func (s *TypeQueryService) createTypeInfoFromAnnotation(annotation *parser.TypeA
 }
 
 // createDetailedTypeInfo creates detailed type info from an annotation
-func (s *TypeQueryService) createDetailedTypeInfo(annotation *parser.TypeAnnotation) *TypeInfo {
+func (s *TypeQueryService) createDetailedTypeInfo(annotation *ast.TypeAnnotation) *TypeInfo {
 	info := s.createTypeInfoFromAnnotation(annotation)
 	if info == nil {
 		return nil

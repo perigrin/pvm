@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -59,7 +59,7 @@ type InferenceSource struct {
 	Type InferenceSourceType
 
 	// Location in code
-	Location parser.Position
+	Location ast.Position
 
 	// Confidence contribution
 	Confidence float64
@@ -130,7 +130,7 @@ type DataFlowNode struct {
 	Type string
 
 	// AST node reference
-	ASTNode parser.Node
+	ASTNode ast.Node
 
 	// Variables defined at this point
 	Definitions map[string]string
@@ -190,7 +190,7 @@ type TypeTransformation struct {
 	To string
 
 	// Location of transformation
-	Location parser.Position
+	Location ast.Position
 
 	// Reason for transformation
 	Reason string
@@ -223,7 +223,7 @@ type ContextRule struct {
 	Pattern string
 
 	// Type inference function
-	InferType func(expr parser.Node, context PerlContext) string
+	InferType func(expr ast.Node, context PerlContext) string
 
 	// Confidence for this rule
 	Confidence float64
@@ -244,10 +244,10 @@ type UsagePattern struct {
 	Name string
 
 	// Pattern matcher
-	Matcher func(node parser.Node) bool
+	Matcher func(node ast.Node) bool
 
 	// Type inference from pattern
-	InferType func(node parser.Node) (string, float64)
+	InferType func(node ast.Node) (string, float64)
 
 	// Priority for pattern matching
 	Priority int
@@ -286,10 +286,10 @@ type PropagationRule struct {
 	Name string
 
 	// Condition for applying the rule
-	Condition func(node parser.Node) bool
+	Condition func(node ast.Node) bool
 
 	// Propagation function
-	Propagate func(node parser.Node, types map[string]string) map[string]string
+	Propagate func(node ast.Node, types map[string]string) map[string]string
 }
 
 // TypeConstraint represents a constraint on types
@@ -304,7 +304,7 @@ type TypeConstraint struct {
 	Value string
 
 	// Source of constraint
-	Source parser.Position
+	Source ast.Position
 }
 
 // NewInferenceEngine creates a new inference engine
@@ -378,7 +378,7 @@ func (ie *InferenceEngine) initializeContextRules() {
 	// Scalar context rule
 	ie.ContextAnalyzer.ContextRules["scalar"] = ContextRule{
 		Pattern: "scalar",
-		InferType: func(expr parser.Node, context PerlContext) string {
+		InferType: func(expr ast.Node, context PerlContext) string {
 			// In scalar context, arrays become counts
 			if exprType := ie.getNodeType(expr); strings.HasPrefix(exprType, "Array") {
 				return "Int"
@@ -391,7 +391,7 @@ func (ie *InferenceEngine) initializeContextRules() {
 	// List context rule
 	ie.ContextAnalyzer.ContextRules["list"] = ContextRule{
 		Pattern: "list",
-		InferType: func(expr parser.Node, context PerlContext) string {
+		InferType: func(expr ast.Node, context PerlContext) string {
 			// In list context, scalars become single-element lists
 			if exprType := ie.getNodeType(expr); !strings.Contains(exprType, "Array") {
 				return "Array"
@@ -404,7 +404,7 @@ func (ie *InferenceEngine) initializeContextRules() {
 	// Numeric context rule
 	ie.ContextAnalyzer.ContextRules["numeric"] = ContextRule{
 		Pattern: "numeric",
-		InferType: func(expr parser.Node, context PerlContext) string {
+		InferType: func(expr ast.Node, context PerlContext) string {
 			return "Num"
 		},
 		Confidence: 0.9,
@@ -413,7 +413,7 @@ func (ie *InferenceEngine) initializeContextRules() {
 	// String context rule
 	ie.ContextAnalyzer.ContextRules["string"] = ContextRule{
 		Pattern: "string",
-		InferType: func(expr parser.Node, context PerlContext) string {
+		InferType: func(expr ast.Node, context PerlContext) string {
 			return "Str"
 		},
 		Confidence: 0.9,
@@ -425,13 +425,13 @@ func (ie *InferenceEngine) initializeUsagePatterns() {
 	// Pattern: Variable used with array operations
 	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
 		Name: "array_operations",
-		Matcher: func(node parser.Node) bool {
+		Matcher: func(node ast.Node) bool {
 			text := node.Text()
 			return strings.Contains(text, "push") || strings.Contains(text, "pop") ||
 				strings.Contains(text, "shift") || strings.Contains(text, "unshift") ||
 				strings.Contains(text, "@{")
 		},
-		InferType: func(node parser.Node) (string, float64) {
+		InferType: func(node ast.Node) (string, float64) {
 			return "ArrayRef", 0.9
 		},
 		Priority: 10,
@@ -440,12 +440,12 @@ func (ie *InferenceEngine) initializeUsagePatterns() {
 	// Pattern: Variable used with hash operations
 	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
 		Name: "hash_operations",
-		Matcher: func(node parser.Node) bool {
+		Matcher: func(node ast.Node) bool {
 			text := node.Text()
 			return strings.Contains(text, "keys") || strings.Contains(text, "values") ||
 				strings.Contains(text, "exists") || strings.Contains(text, "%{")
 		},
-		InferType: func(node parser.Node) (string, float64) {
+		InferType: func(node ast.Node) (string, float64) {
 			return "HashRef", 0.9
 		},
 		Priority: 10,
@@ -454,7 +454,7 @@ func (ie *InferenceEngine) initializeUsagePatterns() {
 	// Pattern: Variable used in numeric operations
 	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
 		Name: "numeric_operations",
-		Matcher: func(node parser.Node) bool {
+		Matcher: func(node ast.Node) bool {
 			text := node.Text()
 			// Look for numeric operators
 			return strings.ContainsAny(text, "+-*/%") ||
@@ -463,7 +463,7 @@ func (ie *InferenceEngine) initializeUsagePatterns() {
 				strings.Contains(text, ">=") || strings.Contains(text, "<") ||
 				strings.Contains(text, ">") && !strings.Contains(text, "->")
 		},
-		InferType: func(node parser.Node) (string, float64) {
+		InferType: func(node ast.Node) (string, float64) {
 			// Check if it looks like an integer
 			if strings.Contains(node.Text(), ".") {
 				return "Num", 0.8
@@ -476,14 +476,14 @@ func (ie *InferenceEngine) initializeUsagePatterns() {
 	// Pattern: Variable used in string operations
 	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
 		Name: "string_operations",
-		Matcher: func(node parser.Node) bool {
+		Matcher: func(node ast.Node) bool {
 			text := node.Text()
 			return strings.Contains(text, "=~") || strings.Contains(text, "!~") ||
 				strings.Contains(text, ".") && !strings.Contains(text, "->") ||
 				strings.Contains(text, "substr") || strings.Contains(text, "length") ||
 				strings.Contains(text, "uc") || strings.Contains(text, "lc")
 		},
-		InferType: func(node parser.Node) (string, float64) {
+		InferType: func(node ast.Node) (string, float64) {
 			return "Str", 0.8
 		},
 		Priority: 5,
@@ -492,11 +492,11 @@ func (ie *InferenceEngine) initializeUsagePatterns() {
 	// Pattern: Variable used as object (method calls)
 	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
 		Name: "object_method_calls",
-		Matcher: func(node parser.Node) bool {
+		Matcher: func(node ast.Node) bool {
 			text := node.Text()
 			return strings.Contains(text, "->") && !strings.Contains(text, "=>")
 		},
-		InferType: func(node parser.Node) (string, float64) {
+		InferType: func(node ast.Node) (string, float64) {
 			// Try to extract class name from method call or constructor
 			text := node.Text()
 			if strings.Contains(text, "->new") {
@@ -517,13 +517,13 @@ func (ie *InferenceEngine) initializeUsagePatterns() {
 	// Pattern: Variable used in file operations
 	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
 		Name: "file_operations",
-		Matcher: func(node parser.Node) bool {
+		Matcher: func(node ast.Node) bool {
 			text := node.Text()
 			return strings.Contains(text, "open") || strings.Contains(text, "close") ||
 				strings.Contains(text, "print") && strings.Contains(text, "FILEHANDLE") ||
 				strings.Contains(text, "<") && strings.Contains(text, ">")
 		},
-		InferType: func(node parser.Node) (string, float64) {
+		InferType: func(node ast.Node) (string, float64) {
 			return "FileHandle", 0.8
 		},
 		Priority: 8,
@@ -535,10 +535,10 @@ func (ie *InferenceEngine) initializePropagationRules() {
 	// Assignment propagation
 	ie.TypePropagator.PropagationRules = append(ie.TypePropagator.PropagationRules, PropagationRule{
 		Name: "assignment",
-		Condition: func(node parser.Node) bool {
+		Condition: func(node ast.Node) bool {
 			return node.Type() == "assignment_expression" || strings.Contains(node.Text(), "=")
 		},
-		Propagate: func(node parser.Node, types map[string]string) map[string]string {
+		Propagate: func(node ast.Node, types map[string]string) map[string]string {
 			// Propagate type from right to left in assignment
 			result := make(map[string]string)
 			for k, v := range types {
@@ -552,10 +552,10 @@ func (ie *InferenceEngine) initializePropagationRules() {
 	// Function parameter propagation
 	ie.TypePropagator.PropagationRules = append(ie.TypePropagator.PropagationRules, PropagationRule{
 		Name: "function_params",
-		Condition: func(node parser.Node) bool {
+		Condition: func(node ast.Node) bool {
 			return node.Type() == "function_call" || node.Type() == "method_call"
 		},
-		Propagate: func(node parser.Node, types map[string]string) map[string]string {
+		Propagate: func(node ast.Node, types map[string]string) map[string]string {
 			// Propagate types to function parameters
 			result := make(map[string]string)
 			for k, v := range types {
@@ -569,10 +569,10 @@ func (ie *InferenceEngine) initializePropagationRules() {
 	// Return type propagation
 	ie.TypePropagator.PropagationRules = append(ie.TypePropagator.PropagationRules, PropagationRule{
 		Name: "return_type",
-		Condition: func(node parser.Node) bool {
+		Condition: func(node ast.Node) bool {
 			return node.Type() == "return_statement" || strings.HasPrefix(node.Text(), "return")
 		},
-		Propagate: func(node parser.Node, types map[string]string) map[string]string {
+		Propagate: func(node ast.Node, types map[string]string) map[string]string {
 			// Propagate return expression type to function return type
 			result := make(map[string]string)
 			for k, v := range types {
@@ -585,7 +585,7 @@ func (ie *InferenceEngine) initializePropagationRules() {
 }
 
 // InferTypes performs type inference on an AST
-func (ie *InferenceEngine) InferTypes(ast *parser.AST) error {
+func (ie *InferenceEngine) InferTypes(ast *ast.AST) error {
 	// Build data flow graph
 	if err := ie.buildDataFlowGraph(ast); err != nil {
 		return fmt.Errorf("failed to build data flow graph: %w", err)
@@ -610,14 +610,14 @@ func (ie *InferenceEngine) InferTypes(ast *parser.AST) error {
 }
 
 // buildDataFlowGraph builds the data flow graph from AST
-func (ie *InferenceEngine) buildDataFlowGraph(ast *parser.AST) error {
+func (ie *InferenceEngine) buildDataFlowGraph(ast *ast.AST) error {
 	// Implementation would traverse AST and build data flow graph
 	// For now, return nil
 	return nil
 }
 
 // analyzeUsagePatterns analyzes how variables are used
-func (ie *InferenceEngine) analyzeUsagePatterns(node parser.Node) {
+func (ie *InferenceEngine) analyzeUsagePatterns(node ast.Node) {
 	// Check all patterns against this node
 	for _, pattern := range ie.UsagePatternAnalyzer.Patterns {
 		if pattern.Matcher(node) {
@@ -639,7 +639,7 @@ func (ie *InferenceEngine) performDataFlowAnalysis() {
 }
 
 // applyContextAnalysis applies context-sensitive type inference
-func (ie *InferenceEngine) applyContextAnalysis(node parser.Node) {
+func (ie *InferenceEngine) applyContextAnalysis(node ast.Node) {
 	// Determine current context
 	context := ie.determineContext(node)
 
@@ -678,7 +678,7 @@ func (ie *InferenceEngine) resolveTypeConstraints() {
 }
 
 // recordInference records an inferred type
-func (ie *InferenceEngine) recordInference(name, inferredType string, confidence float64, source InferenceSourceType, location parser.Position) {
+func (ie *InferenceEngine) recordInference(name, inferredType string, confidence float64, source InferenceSourceType, location ast.Position) {
 	if existing, exists := ie.InferredTypes[name]; exists {
 		// Update confidence if this inference is stronger
 		if confidence > existing.Confidence {
@@ -707,7 +707,7 @@ func (ie *InferenceEngine) recordInference(name, inferredType string, confidence
 }
 
 // determineContext determines the Perl context for a node
-func (ie *InferenceEngine) determineContext(node parser.Node) PerlContext {
+func (ie *InferenceEngine) determineContext(node ast.Node) PerlContext {
 	// Simple context determination based on parent nodes
 	nodeType := node.Type()
 
@@ -731,7 +731,7 @@ func (ie *InferenceEngine) determineContext(node parser.Node) PerlContext {
 }
 
 // getNodeType gets the current type of a node (if known)
-func (ie *InferenceEngine) getNodeType(node parser.Node) string {
+func (ie *InferenceEngine) getNodeType(node ast.Node) string {
 	if info, exists := ie.InferredTypes[node.Text()]; exists {
 		return info.Type
 	}
