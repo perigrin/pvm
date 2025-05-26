@@ -610,29 +610,434 @@ func (mi *ModuleIntrospector) getCurrentPackage(node Node) string {
 	return "main"
 }
 
-// Stub methods for analysis
+// analyzeVariableDeclaration analyzes variable declarations for type inference
 func (mi *ModuleIntrospector) analyzeVariableDeclaration(node Node, result *ModuleIntrospectionResult) {
-	// TODO: Implement variable declaration analysis
+	text := node.Text()
+
+	// Extract variable information
+	if varInfo := mi.extractVariableInfo(node); varInfo != nil {
+		// Add to symbol table
+		mi.SymbolTable.GlobalVariables[varInfo.Name] = varInfo
+
+		// Apply type inference rules
+		for _, rule := range mi.DataStructureAnalyzer.TypeInferenceRules {
+			if rule.Pattern.MatchString(text) {
+				inferredType := rule.InferType(rule.Pattern.FindStringSubmatch(text))
+				if inferredType != "" && varInfo.Type == "" {
+					varInfo.Type = inferredType
+				}
+			}
+		}
+	}
 }
 
 func (mi *ModuleIntrospector) analyzeUseStatement(node Node, result *ModuleIntrospectionResult) {
-	// TODO: Implement use statement analysis
+	text := node.Text()
+
+	// Extract use statement information
+	if importInfo := mi.extractImportInfo(node); importInfo != nil {
+		mi.SymbolTable.Imports[importInfo.ModuleName] = importInfo
+
+		// Detect OOP frameworks from use statements
+		if framework := mi.detectFrameworkFromUse(text); framework != "" {
+			if !contains(mi.OOPPatternDetector.DetectedFrameworks, framework) {
+				mi.OOPPatternDetector.DetectedFrameworks = append(mi.OOPPatternDetector.DetectedFrameworks, framework)
+			}
+			result.DetectedFrameworks = mi.OOPPatternDetector.DetectedFrameworks
+		}
+	}
 }
 
 func (mi *ModuleIntrospector) analyzeClassDefinition(node Node, result *ModuleIntrospectionResult) {
-	// TODO: Implement class definition analysis
+	// This handles explicit class definitions (for modern Perl OOP)
+	if classInfo := mi.extractClassInfo(node); classInfo != nil {
+		// Create or update package symbols
+		_ = mi.getOrCreatePackage(classInfo.Name)
+
+		// Add to result
+		if result.Packages[classInfo.Name] == nil {
+			result.Packages[classInfo.Name] = &PackageInfo{
+				Name:       classInfo.Name,
+				Methods:    make(map[string]*MethodSignature),
+				Attributes: make(map[string]*AttributeInfo),
+			}
+		}
+
+		// Copy class information
+		pkgInfo := result.Packages[classInfo.Name]
+		pkgInfo.ParentClasses = classInfo.ParentClasses
+		pkgInfo.Roles = classInfo.Roles
+	}
 }
 
 func (mi *ModuleIntrospector) detectOOPFrameworks(ast *AST, result *ModuleIntrospectionResult) {
-	// TODO: Implement OOP framework detection
+	if ast.Root == nil {
+		return
+	}
+
+	// Traverse AST to detect framework patterns
+	mi.detectFrameworkPatternsInNode(ast.Root, result)
+
+	// Add detected frameworks to result
+	result.DetectedFrameworks = mi.OOPPatternDetector.DetectedFrameworks
 }
 
 func (mi *ModuleIntrospector) analyzeDynamicMethods(ast *AST, result *ModuleIntrospectionResult) {
-	// TODO: Implement dynamic method analysis
+	if ast.Root == nil {
+		return
+	}
+
+	// Search for dynamic method generation patterns
+	mi.findDynamicMethodsInNode(ast.Root, result)
 }
 
 func (mi *ModuleIntrospector) analyzeDataStructures(ast *AST, result *ModuleIntrospectionResult) {
-	// TODO: Implement data structure analysis
+	if ast.Root == nil {
+		return
+	}
+
+	// Initialize data structures map if not present
+	if result.DataStructures == nil {
+		result.DataStructures = make(map[string]*DataStructureInfo)
+	}
+
+	// Analyze data structure patterns in the AST
+	mi.analyzeDataStructuresInNode(ast.Root, result)
+}
+
+// ClassInfo represents extracted class information
+type ClassInfo struct {
+	Name          string
+	ParentClasses []string
+	Roles         []string
+}
+
+// Helper functions for extraction and analysis
+
+// extractVariableInfo extracts variable information from AST node
+func (mi *ModuleIntrospector) extractVariableInfo(node Node) *VariableInfo {
+	text := node.Text()
+
+	// Basic variable declaration patterns
+	patterns := []struct {
+		regex *regexp.Regexp
+		scope string
+	}{
+		{regexp.MustCompile(`my\s+(\$\w+)`), "my"},
+		{regexp.MustCompile(`our\s+(\$\w+)`), "our"},
+		{regexp.MustCompile(`state\s+(\$\w+)`), "state"},
+	}
+
+	for _, pattern := range patterns {
+		if matches := pattern.regex.FindStringSubmatch(text); len(matches) > 1 {
+			varName := matches[1]
+
+			// Extract initial value if present
+			initialValue := ""
+			if idx := strings.Index(text, "="); idx > 0 {
+				remaining := strings.TrimSpace(text[idx+1:])
+				if endIdx := strings.Index(remaining, ";"); endIdx > 0 {
+					initialValue = strings.TrimSpace(remaining[:endIdx])
+				} else {
+					initialValue = remaining
+				}
+			}
+
+			return &VariableInfo{
+				Name:         varName,
+				Type:         "", // Will be inferred
+				Scope:        pattern.scope,
+				InitialValue: initialValue,
+			}
+		}
+	}
+
+	return nil
+}
+
+// extractImportInfo extracts import information from use statement
+func (mi *ModuleIntrospector) extractImportInfo(node Node) *ImportInfo {
+	text := node.Text()
+
+	// Pattern: use Module::Name qw(symbol1 symbol2);
+	// Pattern: use Module::Name 'version';
+	// Pattern: use Module::Name;
+	usePattern := regexp.MustCompile(`use\s+([A-Za-z0-9:_]+)(?:\s+([^;]+))?`)
+
+	if matches := usePattern.FindStringSubmatch(text); len(matches) > 1 {
+		moduleName := matches[1]
+		importInfo := &ImportInfo{
+			ModuleName:      moduleName,
+			ImportedSymbols: []string{},
+			ImportAll:       false,
+		}
+
+		if len(matches) > 2 && matches[2] != "" {
+			params := strings.TrimSpace(matches[2])
+
+			// Check for version number
+			if matched, _ := regexp.MatchString(`^['"]?[\d.]+['"]?$`, params); matched {
+				importInfo.Version = strings.Trim(params, `'"`)
+			} else if strings.Contains(params, "qw") {
+				// Extract symbols from qw()
+				qwPattern := regexp.MustCompile(`qw\s*\(\s*([^)]+)\s*\)`)
+				if qwMatches := qwPattern.FindStringSubmatch(params); len(qwMatches) > 1 {
+					symbols := strings.Fields(qwMatches[1])
+					importInfo.ImportedSymbols = symbols
+				}
+			} else if params == ":all" {
+				importInfo.ImportAll = true
+			}
+		}
+
+		return importInfo
+	}
+
+	return nil
+}
+
+// extractClassInfo extracts class information for modern Perl OOP
+func (mi *ModuleIntrospector) extractClassInfo(node Node) *ClassInfo {
+	text := node.Text()
+
+	// Modern class syntax (if supported by the parser)
+	classPattern := regexp.MustCompile(`class\s+(\w+(?:::\w+)*)\s*(?:extends\s+([^{]+))?`)
+
+	if matches := classPattern.FindStringSubmatch(text); len(matches) > 1 {
+		className := matches[1]
+		classInfo := &ClassInfo{
+			Name:          className,
+			ParentClasses: []string{},
+			Roles:         []string{},
+		}
+
+		// Extract parent classes
+		if len(matches) > 2 && matches[2] != "" {
+			parents := strings.Split(strings.TrimSpace(matches[2]), ",")
+			for _, parent := range parents {
+				classInfo.ParentClasses = append(classInfo.ParentClasses, strings.TrimSpace(parent))
+			}
+		}
+
+		return classInfo
+	}
+
+	return nil
+}
+
+// detectFrameworkFromUse detects OOP framework from use statement
+func (mi *ModuleIntrospector) detectFrameworkFromUse(useText string) string {
+	for frameworkName, pattern := range mi.OOPPatternDetector.FrameworkPatterns {
+		if pattern.UsePattern.MatchString(useText) {
+			return frameworkName
+		}
+	}
+	return ""
+}
+
+// getOrCreatePackage gets or creates a package in the symbol table
+func (mi *ModuleIntrospector) getOrCreatePackage(packageName string) *PackageSymbols {
+	if pkg, exists := mi.SymbolTable.Packages[packageName]; exists {
+		return pkg
+	}
+
+	pkg := &PackageSymbols{
+		Name:       packageName,
+		Methods:    make(map[string]*MethodSignature),
+		Attributes: make(map[string]*AttributeInfo),
+		Constants:  make(map[string]interface{}),
+	}
+	mi.SymbolTable.Packages[packageName] = pkg
+	return pkg
+}
+
+// detectFrameworkPatternsInNode recursively detects framework patterns
+func (mi *ModuleIntrospector) detectFrameworkPatternsInNode(node Node, result *ModuleIntrospectionResult) {
+	text := node.Text()
+
+	// Check for framework-specific patterns in this node
+	for frameworkName, pattern := range mi.OOPPatternDetector.FrameworkPatterns {
+		// Check use pattern
+		if pattern.UsePattern != nil && pattern.UsePattern.MatchString(text) {
+			if !contains(mi.OOPPatternDetector.DetectedFrameworks, frameworkName) {
+				mi.OOPPatternDetector.DetectedFrameworks = append(mi.OOPPatternDetector.DetectedFrameworks, frameworkName)
+			}
+		}
+
+		// Check attribute pattern (Moose/Moo 'has' declarations)
+		if pattern.AttributePattern != nil && pattern.AttributePattern.MatchString(text) {
+			if !contains(mi.OOPPatternDetector.DetectedFrameworks, frameworkName) {
+				mi.OOPPatternDetector.DetectedFrameworks = append(mi.OOPPatternDetector.DetectedFrameworks, frameworkName)
+			}
+
+			// Extract attribute information
+			mi.extractFrameworkAttribute(node, pattern, result)
+		}
+
+		// Check method modifier pattern
+		if pattern.MethodModifierPattern != nil && pattern.MethodModifierPattern.MatchString(text) {
+			if !contains(mi.OOPPatternDetector.DetectedFrameworks, frameworkName) {
+				mi.OOPPatternDetector.DetectedFrameworks = append(mi.OOPPatternDetector.DetectedFrameworks, frameworkName)
+			}
+		}
+	}
+
+	// Recursively check children
+	for _, child := range node.Children() {
+		mi.detectFrameworkPatternsInNode(child, result)
+	}
+}
+
+// findDynamicMethodsInNode finds dynamic method generation patterns
+func (mi *ModuleIntrospector) findDynamicMethodsInNode(node Node, result *ModuleIntrospectionResult) {
+	text := node.Text()
+
+	// Check for method generator patterns
+	for _, generator := range mi.MethodDetector.KnownGenerators {
+		if generator.Pattern.MatchString(text) {
+			matches := generator.Pattern.FindStringSubmatch(text)
+			methodName := generator.ExtractMethodName(matches)
+
+			if methodName != "" {
+				// Create method signature
+				signature := generator.InferSignature(matches)
+				if signature != nil {
+					// Determine current package
+					currentPackage := mi.getCurrentPackageFromContext(node)
+
+					// Add to result
+					if result.Packages[currentPackage] == nil {
+						result.Packages[currentPackage] = &PackageInfo{
+							Name:       currentPackage,
+							Methods:    make(map[string]*MethodSignature),
+							Attributes: make(map[string]*AttributeInfo),
+						}
+					}
+
+					signature.Name = methodName
+					result.Packages[currentPackage].Methods[methodName] = signature
+				}
+			}
+		}
+	}
+
+	// Recursively check children
+	for _, child := range node.Children() {
+		mi.findDynamicMethodsInNode(child, result)
+	}
+}
+
+// analyzeDataStructuresInNode analyzes data structures in AST node
+func (mi *ModuleIntrospector) analyzeDataStructuresInNode(node Node, result *ModuleIntrospectionResult) {
+	text := node.Text()
+
+	// Apply type inference rules to detect data structures
+	for _, rule := range mi.DataStructureAnalyzer.TypeInferenceRules {
+		if rule.Pattern.MatchString(text) {
+			matches := rule.Pattern.FindStringSubmatch(text)
+			inferredType := rule.InferType(matches)
+
+			if inferredType != "" {
+				// Try to extract variable name
+				varName := mi.extractVariableNameFromText(text)
+				if varName != "" {
+					result.DataStructures[varName] = &DataStructureInfo{
+						Name:      varName,
+						Type:      inferredType,
+						Structure: text, // Store the actual structure for analysis
+					}
+				}
+			}
+		}
+	}
+
+	// Recursively check children
+	for _, child := range node.Children() {
+		mi.analyzeDataStructuresInNode(child, result)
+	}
+}
+
+// extractFrameworkAttribute extracts attribute information from framework patterns
+func (mi *ModuleIntrospector) extractFrameworkAttribute(node Node, pattern *FrameworkPattern, result *ModuleIntrospectionResult) {
+	text := node.Text()
+
+	// Moose/Moo attribute pattern: has 'attr_name' => (...)
+	attrPattern := regexp.MustCompile(`has\s+['"]?(\w+)['"]?\s*=>`)
+	if matches := attrPattern.FindStringSubmatch(text); len(matches) > 1 {
+		attrName := matches[1]
+
+		// Determine current package
+		currentPackage := mi.getCurrentPackageFromContext(node)
+
+		// Ensure package exists in result
+		if result.Packages[currentPackage] == nil {
+			result.Packages[currentPackage] = &PackageInfo{
+				Name:       currentPackage,
+				Methods:    make(map[string]*MethodSignature),
+				Attributes: make(map[string]*AttributeInfo),
+			}
+		}
+
+		// Create attribute info
+		attrInfo := &AttributeInfo{
+			Name:          attrName,
+			Type:          "Any", // Default, could be enhanced by parsing the attribute definition
+			Documentation: "",
+		}
+
+		// Try to extract type information from the attribute definition
+		if typeMatch := regexp.MustCompile(`isa\s*=>\s*['"]?([^'",\s]+)['"]?`).FindStringSubmatch(text); len(typeMatch) > 1 {
+			attrInfo.Type = typeMatch[1]
+		}
+
+		// Check for required/optional
+		if strings.Contains(text, "required") && strings.Contains(text, "1") {
+			attrInfo.IsRequired = true
+		}
+
+		// Check for default value
+		if defaultMatch := regexp.MustCompile(`default\s*=>\s*(.+?)(?:,|\))`).FindStringSubmatch(text); len(defaultMatch) > 1 {
+			attrInfo.HasDefault = true
+			attrInfo.DefaultValue = strings.TrimSpace(defaultMatch[1])
+		}
+
+		result.Packages[currentPackage].Attributes[attrName] = attrInfo
+	}
+}
+
+// getCurrentPackageFromContext determines current package from AST context
+func (mi *ModuleIntrospector) getCurrentPackageFromContext(node Node) string {
+	// In a full implementation, this would traverse up the AST to find the current package
+	// For now, return "main" as default
+	return "main"
+}
+
+// extractVariableNameFromText extracts variable name from text
+func (mi *ModuleIntrospector) extractVariableNameFromText(text string) string {
+	// Look for variable patterns
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`my\s+(\$\w+)`),
+		regexp.MustCompile(`our\s+(\$\w+)`),
+		regexp.MustCompile(`(\$\w+)\s*=`),
+	}
+
+	for _, pattern := range patterns {
+		if matches := pattern.FindStringSubmatch(text); len(matches) > 1 {
+			return matches[1]
+		}
+	}
+
+	return ""
+}
+
+// contains checks if a slice contains a string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 // ModuleIntrospectionResult represents the result of module introspection
