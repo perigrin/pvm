@@ -1,39 +1,6 @@
 # Typed Perl: Comprehensive Type System Specification
 
-## Document Information
-- **Title**: Typed Perl Type System Specification
-- **Purpose**: Complete technical specification for the PVM typed-Perl type system
-- **Target Audience**: Developers, implementers, type system contributors
-- **Prerequisites**: Understanding of Perl programming and basic type system concepts
-
-## Executive Summary
-
-Typed Perl is a **gradual, bidirectional type system with flow-sensitive analysis** designed to bring modern type safety to Perl while preserving its dynamic nature. Key characteristics:
-
-- **Zero Runtime Overhead**: Types are stripped after verification, like TypeScript
-- **Incremental Adoption**: Add types gradually to existing codebases
-- **Flow-Sensitive**: Types are refined based on validation patterns (`defined()`, `ref()` checks, etc.)
-- **Bidirectional Inference**: Types flow both from declarations to usage and from usage to variables
-- **Perl-Native**: Designed specifically for Perl's idioms and dynamic features
-
-**Quick Start**: See [quickstart.md](quickstart.md) for immediate hands-on experience
-**Practical Usage**: See workflow guides for real-world application patterns
-**Implementation**: All specification features are implemented in PSC (Perl Script Compiler)
-
-## Table of Contents
-
-1. [Core Design Principles](#1-core-design-principles)
-2. [Type Hierarchy and Relationships](#2-type-hierarchy-and-relationships)
-3. [Type Inference System](#3-type-inference-system)
-4. [Type Syntax](#4-type-syntax)
-5. [Type Definition Files](#5-type-definition-files)
-6. [Implementation Requirements](#6-implementation-requirements)
-7. [Type Checking Rules](#7-type-checking-rules)
-8. [Error Handling](#8-error-handling)
-9. [Future Extensions](#9-future-extensions)
-10. [Appendices](#appendices)
-
----
+This document provides a comprehensive specification for the Typed Perl type system. It is intended to be detailed enough for implementation by developers with limited prior type system experience.
 
 ## 1. Core Design Principles
 
@@ -46,8 +13,6 @@ Typed Perl is a gradual, bidirectional type system with flow-sensitive analysis,
 3. **Flow-sensitive** - Type refinements based on runtime checks are tracked through control flow
 4. **Zero runtime overhead** - Types are stripped after verification
 5. **Separate from runtime** - Type checking happens in a separate process from Perl execution (like TypeScript/JavaScript relationship)
-
-> **For Practical Usage**: See [workflow-new-development.md](workflow-new-development.md) for implementing these principles in new projects, or [workflow-existing-project-migration.md](workflow-existing-project-migration.md) for gradual adoption strategies.
 
 ### 1.2 Type Checking Modes
 
@@ -107,8 +72,6 @@ Any      (explicit polymorphic type)
 2. **Intersection Types (T1 & T2)** - Values that satisfy both type T1 and type T2
 3. **Type Negation (!T)** - Values that are not of type T
 
-> **Advanced Usage**: See [workflow-typed-perl-new-code.md](workflow-typed-perl-new-code.md) for effective patterns using union, intersection, and negation types.
-
 ### 2.4 Parameterized Types
 
 1. **Container Types** - `ArrayRef[T]`, `HashRef[K, V]`, etc.
@@ -164,8 +127,6 @@ Any      (explicit polymorphic type)
 
 ### 3.4 Flow-Sensitive Type Refinement
 
-Flow-sensitive analysis automatically refines types based on validation patterns common in Perl code.
-
 1. **Pattern Recognition** - Common validation patterns refine types in conditional branches:
    ```perl
    if ($x =~ /^\d+$/) {
@@ -190,8 +151,6 @@ Flow-sensitive analysis automatically refines types based on validation patterns
 
 4. **Extensibility** - Future versions will allow custom pattern registration
 5. **Path-Sensitive Analysis** - Planned for future versions, will track relationships between variables
-
-> **Legacy Code**: See [workflow-psc-legacy-codebases.md](workflow-psc-legacy-codebases.md) for using flow-sensitive analysis to understand and improve existing codebases.
 
 ## 4. Type Syntax
 
@@ -266,8 +225,6 @@ my $value = get_data();
 my $name = (Str) $value;  # Explicitly cast to Str
 ```
 
-> **Practical Examples**: See [workflow-typed-perl-new-code.md](workflow-typed-perl-new-code.md) for comprehensive examples of effective type annotation patterns.
-
 ## 5. Type Definition Files
 
 Type definition files allow specifying types for existing modules without modifying them.
@@ -327,8 +284,6 @@ The type system maintains its own registry of type information, separate from Pe
 
 1. **AST Transformation** - Remove type annotations from AST
 2. **Source Generation** - Output valid Perl code without type annotations
-
-> **CI/CD Integration**: See [workflow-ci-cd-integration.md](workflow-ci-cd-integration.md) for using type stripping in automated deployment pipelines.
 
 ### 6.4 Configuration Options
 
@@ -423,9 +378,7 @@ A future extension will allow registering custom validation patterns for type re
 
 Later versions will focus on performance improvements once the core functionality is stable and correct.
 
-## Appendices
-
-### Appendix A: Type Compatibility Rules
+## Appendix A: Type Compatibility Rules
 
 | Type A | Type B | Compatible? | Notes |
 |--------|--------|-------------|-------|
@@ -443,7 +396,7 @@ Later versions will focus on performance improvements once the core functionalit
 | Callback<-A> | Callback<-B> | Yes | If B is a subtype of A (contravariant) |
 | Container<A> | Container<B> | No | Invariant, no subtyping regardless of A and B relationship |
 
-### Appendix B: Operator Type Rules
+## Appendix B: Operator Type Rules
 
 | Operator | Operand Types | Result Type |
 |----------|---------------|-------------|
@@ -453,16 +406,5 @@ Later versions will focus on performance improvements once the core functionalit
 | ==, !=, <, > | Num, Num | Bool |
 | &&, \|\|, ! | Any, Any | Bool |
 | =~ | Str, Regexp | Bool |
-
----
-
-## Related Documentation
-
-- **[quickstart.md](quickstart.md)** - Get started with typed-Perl in 15 minutes
-- **[workflow-new-development.md](workflow-new-development.md)** - Complete new project workflow
-- **[workflow-existing-project-migration.md](workflow-existing-project-migration.md)** - Gradual migration strategies
-- **[workflow-typed-perl-new-code.md](workflow-typed-perl-new-code.md)** - Advanced coding patterns
-- **[workflow-psc-legacy-codebases.md](workflow-psc-legacy-codebases.md)** - Legacy transformation techniques
-- **[workflow-ci-cd-integration.md](workflow-ci-cd-integration.md)** - Production deployment patterns
 
 This specification provides a comprehensive blueprint for implementing the Typed Perl type system. The design combines features from modern type systems while respecting Perl's dynamic and pragmatic nature.

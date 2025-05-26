@@ -1,0 +1,84 @@
+# PVM Ecosystem Configuration Example
+# This file demonstrates all available configuration options
+
+# PVM (Perl Version Manager) configuration
+[pvm]
+# Default Perl version to use when none is specified
+default_perl = "5.38.0"
+
+# Number of parallel jobs to use during build (default: 4)
+build_jobs = 4
+
+# Mirror to use for downloading Perl source
+download_mirror = "https://www.cpan.org/src/5.0"
+
+# Directory containing patches to apply during build
+patches_dir = "$XDG_DATA_HOME/pvm/patches"
+
+# Compiler to use for building Perl (default: system compiler)
+compiler = "gcc"
+
+# Whether to run tests during Perl installation (default: true)
+run_tests = true
+
+# Version aliases map alias names to actual version strings
+version_aliases = { latest = "5.38.0", stable = "5.36.0", legacy = "5.32.1" }
+
+# PVX (Perl Version eXecutor) configuration
+[pvx]
+# Whether to cache modules for faster startup (default: true)
+cache_modules = true
+
+# Whether to clean up temporary files after execution (default: true)
+cleanup_after = true
+
+# Level of isolation for script execution
+# Valid values: "none", "low", "medium", "high" (default: "medium")
+isolation_level = "medium"
+
+# Whether to automatically install missing dependencies (default: true)
+always_install_deps = true
+
+# Maximum execution time in seconds (default: 300)
+timeout = 300
+
+# Maximum memory usage (default: "512MB")
+max_memory = "512MB"
+
+# PVI (Perl Version Installer) configuration
+[pvi]
+# Preferred installation method
+# Valid values: "auto", "cpanm", "cpan", "cpm" (default: "auto")
+preferred_installer = "auto"
+
+# CPAN mirror to use (default: "https://cpan.metacpan.org")
+default_mirror = "https://cpan.metacpan.org"
+
+# Whether to run tests during module installation (default: false)
+test_during_install = false
+
+# Whether to cache modules for faster installation (default: true)
+cache_modules = true
+
+# Whether to force reinstallation of modules (default: false)
+force_reinstall = false
+
+# Whether to check module signatures (default: true)
+check_signatures = true
+
+# PSC (Perl Script Compiler) configuration
+[psc]
+# Path to type definitions (default: "$XDG_DATA_HOME/pvm/type_definitions")
+type_definitions_path = "$XDG_DATA_HOME/pvm/type_definitions"
+
+# Whether to enable more rigorous type checking (default: false)
+strict_mode = false
+
+# Patterns to exclude from watch mode
+watch_exclude = ["**/node_modules/**", "**/.git/**", "**/local/**"]
+
+# Whether to generate missing type definitions (default: true)
+generate_missing_types = true
+
+# Whether to check types before running a script (default: true)
+check_before_run = true
