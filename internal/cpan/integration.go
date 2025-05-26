@@ -1,5 +1,5 @@
 // ABOUTME: CPAN integration for package manager support
-// ABOUTME: Provides integration with cpanm, carton, and CPAN metadata
+// ABOUTME: Provides integration with cpanm, carton, and CPAN metadata with full cpanfile/snapshot parsing
 
 package cpan
 
@@ -401,19 +401,19 @@ func (c *CPANMinus) GetModulePath(module string) (string, error) {
 
 // Carton implements PackageManager for Carton
 type Carton struct {
-	// cartonPath is the path to carton executable
-	cartonPath string
+	// CartonPath is the path to carton executable
+	CartonPath string
 
-	// projectRoot is the project root with cpanfile
-	projectRoot string
+	// ProjectRoot is the project root with cpanfile
+	ProjectRoot string
 }
 
 // NewCarton creates a new Carton package manager
 func NewCarton() *Carton {
 	cartonPath, _ := exec.LookPath("carton")
 	return &Carton{
-		cartonPath:  cartonPath,
-		projectRoot: findProjectRoot(),
+		CartonPath:  cartonPath,
+		ProjectRoot: findProjectRoot(),
 	}
 }
 
@@ -436,38 +436,243 @@ func (c *Carton) Name() string {
 
 // IsAvailable checks if carton is available
 func (c *Carton) IsAvailable() bool {
-	return c.cartonPath != "" && c.projectRoot != ""
+	return c.CartonPath != "" && c.ProjectRoot != ""
 }
 
 // GetInstalledModules returns all installed modules
 func (c *Carton) GetInstalledModules() ([]ModuleInfo, error) {
 	// Parse cpanfile.snapshot
-	snapshotPath := filepath.Join(c.projectRoot, "cpanfile.snapshot")
+	snapshotPath := filepath.Join(c.ProjectRoot, "cpanfile.snapshot")
 	if _, err := os.Stat(snapshotPath); err != nil {
 		return nil, fmt.Errorf("cpanfile.snapshot not found")
 	}
 
-	// This is simplified - real implementation would parse the snapshot format
-	return nil, fmt.Errorf("carton snapshot parsing not implemented")
+	snapshot, err := c.ParseSnapshot(snapshotPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse snapshot: %w", err)
+	}
+
+	var modules []ModuleInfo
+	for name, info := range snapshot.Modules {
+		modules = append(modules, ModuleInfo{
+			Name:         name,
+			Version:      info.Version,
+			Distribution: info.Distribution,
+			Path:         info.Path,
+		})
+	}
+
+	return modules, nil
 }
 
 // GetModuleInfo returns information about a specific module
 func (c *Carton) GetModuleInfo(module string) (*ModuleInfo, error) {
-	// Would need to parse cpanfile.snapshot
-	return nil, fmt.Errorf("carton module info not implemented")
+	// First check snapshot for exact version
+	snapshotPath := filepath.Join(c.ProjectRoot, "cpanfile.snapshot")
+	if _, err := os.Stat(snapshotPath); err == nil {
+		snapshot, err := c.ParseSnapshot(snapshotPath)
+		if err == nil {
+			if info, exists := snapshot.Modules[module]; exists {
+				return &ModuleInfo{
+					Name:         module,
+					Version:      info.Version,
+					Distribution: info.Distribution,
+					Path:         info.Path,
+				}, nil
+			}
+		}
+	}
+
+	// Fallback to local lib search
+	path, err := c.GetModulePath(module)
+	if err != nil {
+		return nil, fmt.Errorf("module %s not found in carton environment", module)
+	}
+
+	return &ModuleInfo{
+		Name: module,
+		Path: path,
+	}, nil
 }
 
 // GetDependencies returns module dependencies
 func (c *Carton) GetDependencies(module string) ([]Dependency, error) {
-	// Would need to parse cpanfile
-	return nil, fmt.Errorf("carton dependencies not implemented")
+	// Parse cpanfile for declared dependencies
+	cpanfile, err := c.ParseCPANFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse cpanfile: %w", err)
+	}
+
+	var deps []Dependency
+	for _, req := range cpanfile.Requirements {
+		if req.Module == module || module == "" {
+			deps = append(deps, Dependency{
+				Name:    req.Module,
+				Version: req.Version,
+				Type:    req.Relationship,
+				Phase:   req.Phase,
+			})
+		}
+	}
+
+	// If no module specified, return all dependencies
+	if module == "" {
+		return deps, nil
+	}
+
+	// For specific module, also check snapshot for transitive deps
+	snapshotPath := filepath.Join(c.ProjectRoot, "cpanfile.snapshot")
+	if _, err := os.Stat(snapshotPath); err == nil {
+		snapshot, err := c.ParseSnapshot(snapshotPath)
+		if err == nil {
+			if info, exists := snapshot.Modules[module]; exists {
+				for _, dep := range info.Dependencies {
+					deps = append(deps, dep)
+				}
+			}
+		}
+	}
+
+	return deps, nil
 }
 
 // GetModulePath returns the installation path for a module
 func (c *Carton) GetModulePath(module string) (string, error) {
-	// localLib := filepath.Join(c.projectRoot, "local", "lib", "perl5")
-	// Would need to search in local/lib
-	return "", fmt.Errorf("carton module path not implemented")
+	localLib := filepath.Join(c.ProjectRoot, "local", "lib", "perl5")
+	if _, err := os.Stat(localLib); err != nil {
+		return "", fmt.Errorf("carton local lib not found")
+	}
+
+	// Convert module name to file path
+	modulePath := strings.ReplaceAll(module, "::", "/") + ".pm"
+
+	// Search in carton's local lib directories
+	searchPaths := []string{
+		localLib,
+		filepath.Join(localLib, "auto"),
+	}
+
+	// Also check architecture-specific paths
+	archDirs, _ := filepath.Glob(filepath.Join(localLib, "*-*-*"))
+	searchPaths = append(searchPaths, archDirs...)
+
+	for _, searchPath := range searchPaths {
+		fullPath := filepath.Join(searchPath, modulePath)
+		if _, err := os.Stat(fullPath); err == nil {
+			return fullPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("module %s not found in carton local lib", module)
+}
+
+// ParseCPANFile parses the project's cpanfile
+func (c *Carton) ParseCPANFile() (*CPANFile, error) {
+	cpanfilePath := filepath.Join(c.ProjectRoot, "cpanfile")
+	if _, err := os.Stat(cpanfilePath); err != nil {
+		return nil, fmt.Errorf("cpanfile not found")
+	}
+
+	content, err := os.ReadFile(cpanfilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read cpanfile: %w", err)
+	}
+
+	return ParseCPANFile(string(content))
+}
+
+// ParseSnapshot parses a cpanfile.snapshot file
+func (c *Carton) ParseSnapshot(snapshotPath string) (*CPANSnapshot, error) {
+	content, err := os.ReadFile(snapshotPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read snapshot: %w", err)
+	}
+
+	return ParseCPANSnapshot(string(content))
+}
+
+// CPANSnapshot represents a parsed cpanfile.snapshot
+type CPANSnapshot struct {
+	// Modules are the locked module versions
+	Modules map[string]SnapshotModule
+}
+
+// SnapshotModule represents a module in the snapshot
+type SnapshotModule struct {
+	Version      string
+	Distribution string
+	Path         string
+	Dependencies []Dependency
+}
+
+// ParseCPANSnapshot parses cpanfile.snapshot content
+func ParseCPANSnapshot(content string) (*CPANSnapshot, error) {
+	snapshot := &CPANSnapshot{
+		Modules: make(map[string]SnapshotModule),
+	}
+
+	lines := strings.Split(content, "\n")
+	var currentDist string
+
+	// State tracking for snapshot parsing
+	inDistribution := false
+	inProvides := false
+
+	for _, line := range lines {
+		originalLine := line
+		line = strings.TrimSpace(line)
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Distribution header: DISTRIBUTIONS
+		if line == "DISTRIBUTIONS" {
+			inDistribution = true
+			continue
+		}
+
+		// Provides section
+		if strings.HasPrefix(originalLine, "    provides:") {
+			inProvides = true
+			continue
+		}
+
+		// Reset provides when we hit a new section
+		if inDistribution && !strings.HasPrefix(originalLine, "    ") && !strings.HasPrefix(originalLine, "  ") {
+			inProvides = false
+		}
+
+		// Parse module entries in provides section
+		if inProvides && strings.HasPrefix(originalLine, "      ") {
+			// Module entry: "      ModuleName version"
+			parts := strings.Fields(strings.TrimSpace(line))
+			if len(parts) >= 2 {
+				moduleName := parts[0]
+				version := parts[1]
+
+				snapshot.Modules[moduleName] = SnapshotModule{
+					Version:      version,
+					Distribution: currentDist,
+					Dependencies: []Dependency{},
+				}
+			}
+			continue
+		}
+
+		// Distribution name line (starts with 2 spaces)
+		if inDistribution && strings.HasPrefix(originalLine, "  ") && !strings.HasPrefix(originalLine, "    ") {
+			parts := strings.Fields(strings.TrimSpace(line))
+			if len(parts) >= 1 {
+				currentDist = parts[0]
+				inProvides = false
+			}
+			continue
+		}
+	}
+
+	return snapshot, nil
 }
 
 // SystemPerl implements PackageManager using system perl
@@ -817,23 +1022,104 @@ func ParseCPANFile(content string) (*CPANFile, error) {
 		Platforms:    make(map[string][]Requirement),
 	}
 
-	// Simple regex-based parsing
-	requiresRe := regexp.MustCompile(`requires\s+'([^']+)'(?:\s*,\s*'([^']+)')?`)
+	// Enhanced regex patterns for different cpanfile constructs
+	requiresRe := regexp.MustCompile(`(?:^|\s+)requires\s+'([^']+)'(?:\s*,\s*['"]([^'"]+)['"])?`)
+	recommendsRe := regexp.MustCompile(`(?:^|\s+)recommends\s+'([^']+)'(?:\s*,\s*['"]([^'"]+)['"])?`)
+	suggestsRe := regexp.MustCompile(`(?:^|\s+)suggests\s+'([^']+)'(?:\s*,\s*['"]([^'"]+)['"])?`)
+	testRequiresRe := regexp.MustCompile(`(?:^|\s+)test_requires\s+'([^']+)'(?:\s*,\s*['"]([^'"]+)['"])?`)
+	buildRequiresRe := regexp.MustCompile(`(?:^|\s+)build_requires\s+'([^']+)'(?:\s*,\s*['"]([^'"]+)['"])?`)
+
+	// Feature and platform parsing
+	featureRe := regexp.MustCompile(`feature\s+'([^']+)'`)
+	onRe := regexp.MustCompile(`on\s+'([^']+)'`)
+
+	var currentFeature string
+	var currentPlatform string
+	var currentPhase string = "runtime"
 
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
-		if matches := requiresRe.FindStringSubmatch(line); matches != nil {
-			req := Requirement{
-				Module:       matches[1],
-				Relationship: "requires",
-				Phase:        "runtime",
+		// Skip comments and empty lines
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Handle feature blocks
+		if matches := featureRe.FindStringSubmatch(line); matches != nil {
+			currentFeature = matches[1]
+			if cpanfile.Features[currentFeature] == nil {
+				cpanfile.Features[currentFeature] = []Requirement{}
 			}
-			if len(matches) > 2 && matches[2] != "" {
-				req.Version = matches[2]
+			continue
+		}
+
+		// Handle platform/phase blocks
+		if matches := onRe.FindStringSubmatch(line); matches != nil {
+			target := matches[1]
+			// Check if it's a phase (test, build, runtime) vs platform (MSWin32, etc.)
+			switch target {
+			case "test", "build", "runtime":
+				currentPhase = target
+			default:
+				currentPlatform = target
+				if cpanfile.Platforms[currentPlatform] == nil {
+					cpanfile.Platforms[currentPlatform] = []Requirement{}
+				}
 			}
-			cpanfile.Requirements = append(cpanfile.Requirements, req)
+			continue
+		}
+
+		// Parse different requirement types
+		patterns := []struct {
+			regex        *regexp.Regexp
+			relationship string
+		}{
+			{requiresRe, "requires"},
+			{recommendsRe, "recommends"},
+			{suggestsRe, "suggests"},
+			{testRequiresRe, "test_requires"},
+			{buildRequiresRe, "build_requires"},
+		}
+
+		for _, pattern := range patterns {
+			if matches := pattern.regex.FindStringSubmatch(line); matches != nil {
+				req := Requirement{
+					Module:       matches[1],
+					Relationship: pattern.relationship,
+					Phase:        currentPhase,
+				}
+				if len(matches) > 2 && matches[2] != "" {
+					req.Version = matches[2]
+				}
+
+				// Determine phase for test_requires and build_requires
+				switch pattern.relationship {
+				case "test_requires":
+					req.Phase = "test"
+				case "build_requires":
+					req.Phase = "build"
+				}
+
+				// Add to appropriate collection
+				switch {
+				case currentFeature != "":
+					cpanfile.Features[currentFeature] = append(cpanfile.Features[currentFeature], req)
+				case currentPlatform != "":
+					cpanfile.Platforms[currentPlatform] = append(cpanfile.Platforms[currentPlatform], req)
+				default:
+					cpanfile.Requirements = append(cpanfile.Requirements, req)
+				}
+				break
+			}
+		}
+
+		// Reset context on block end
+		if strings.Contains(line, "};") {
+			currentFeature = ""
+			currentPlatform = ""
+			currentPhase = "runtime"
 		}
 	}
 

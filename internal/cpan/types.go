@@ -68,6 +68,9 @@ type ModuleInfo struct {
 
 	// HasTests indicates whether the module has tests
 	HasTests bool
+
+	// Path is the local file system path to the module (for locally installed modules)
+	Path string
 }
 
 // Dependency represents a module dependency
