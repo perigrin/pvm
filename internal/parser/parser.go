@@ -80,8 +80,9 @@ type TypeAnnotation struct {
 }
 
 // NewParser returns a new Parser instance using tree-sitter
+// This maintains backward compatibility with existing code
 func NewParser() (Parser, error) {
-	// Use the tree-sitter parser
+	// Use the tree-sitter parser for compatibility
 	tsParser, err := treesitter.NewParser(false)
 	if err != nil {
 		return nil, err
@@ -97,6 +98,18 @@ func NewParser() (Parser, error) {
 		parser: baseParser,
 		cache:  NewParserCache(100), // Cache up to 100 files
 	}, nil
+}
+
+// NewParserWithOptions creates a parser with specific options
+// This is the new interface for choosing scanner vs tree-sitter parsing
+func NewParserWithOptions(useScanner bool) (Parser, error) {
+	if useScanner {
+		// Use the new scanner-based parser
+		return NewTokenBasedParser(true)
+	}
+
+	// Use traditional tree-sitter parser
+	return NewParser()
 }
 
 // hashContent generates a hash of the content string for caching purposes
