@@ -1,0 +1,256 @@
+name: Build Release on PU Branch
+
+on:
+  push:
+    branches: [ pu ]
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Run Tests Before Release
+    uses: ./.github/workflows/test-cross-platform.yml
+
+  build-release:
+    name: Build Release Binaries
+    needs: tests
+    runs-on: ${{ matrix.os }}
+    if: needs.tests.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: linux-amd64
+            ext: ""
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact: linux-arm64
+            ext: ""
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact: windows-amd64
+            ext: ".exe"
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact: darwin-amd64
+            ext: ""
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact: darwin-arm64
+            ext: ""
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Set up Node.js (for tree-sitter)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install tree-sitter CLI
+      run: npm install -g tree-sitter-cli
+
+    - name: Install system dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+        if [ "${{ matrix.goarch }}" == "arm64" ]; then
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+        fi
+
+    - name: Install system dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install msys2 -y
+        echo "C:/tools/msys64/mingw64/bin" >> $GITHUB_PATH
+
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        xcode-select --install 2>/dev/null || true
+
+    - name: Download Go dependencies
+      run: go mod download
+
+    - name: Build tree-sitter parser
+      run: make tree-sitter
+
+    - name: Set build environment
+      run: |
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
+        echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
+
+    - name: Set cross-compilation environment (Linux ARM64)
+      if: matrix.goos == 'linux' && matrix.goarch == 'arm64'
+      run: |
+        echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+    - name: Build release binaries
+      run: |
+        # Create release directory
+        mkdir -p release
+
+        # Get version info
+        VERSION=$(git describe --tags --always)
+        BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        COMMIT_HASH=$(git rev-parse --short HEAD)
+
+        # Set build flags
+        LDFLAGS="-s -w"
+        LDFLAGS="$LDFLAGS -X 'tamarou.com/pvm/internal/version.Version=$VERSION'"
+        LDFLAGS="$LDFLAGS -X 'tamarou.com/pvm/internal/version.BuildTime=$BUILD_TIME'"
+        LDFLAGS="$LDFLAGS -X 'tamarou.com/pvm/internal/version.CommitHash=$COMMIT_HASH'"
+
+        echo "Building for ${{ matrix.goos }}/${{ matrix.goarch }}..."
+
+        # Build core components
+        go build -ldflags="$LDFLAGS" -o "release/pvm${{ matrix.ext }}" ./cmd/pvm
+        go build -ldflags="$LDFLAGS" -o "release/pvx${{ matrix.ext }}" ./cmd/pvx
+        go build -ldflags="$LDFLAGS" -o "release/pvi${{ matrix.ext }}" ./cmd/pvi
+
+        # Build PSC (handle potential cross-compilation issues gracefully)
+        echo "Building PSC..."
+        if go build -mod=mod -ldflags="$LDFLAGS" -o "release/psc${{ matrix.ext }}" ./cmd/psc; then
+          echo "✅ PSC build successful"
+        else
+          echo "⚠️ PSC build failed for ${{ matrix.goos }}/${{ matrix.goarch }} - tree-sitter CGO cross-compilation issue"
+          echo "This is expected for some cross-compilation targets"
+        fi
+
+        # Create build info
+        echo "PVM Development Build" > release/BUILD_INFO.txt
+        echo "===================" >> release/BUILD_INFO.txt
+        echo "Version: $VERSION" >> release/BUILD_INFO.txt
+        echo "Platform: ${{ matrix.goos }}-${{ matrix.goarch }}" >> release/BUILD_INFO.txt
+        echo "Build Time: $BUILD_TIME" >> release/BUILD_INFO.txt
+        echo "Commit: $COMMIT_HASH" >> release/BUILD_INFO.txt
+        echo "Branch: pu" >> release/BUILD_INFO.txt
+
+        # Copy documentation
+        cp README.md release/ 2>/dev/null || true
+        cp LICENSE release/ 2>/dev/null || true
+
+        echo "Built files:"
+        ls -la release/
+
+    - name: Test binaries
+      run: |
+        echo "Testing built binaries..."
+
+        # Test core components
+        ./release/pvm${{ matrix.ext }} --version
+        ./release/pvx${{ matrix.ext }} --version
+        ./release/pvi${{ matrix.ext }} --version
+
+        # Test PSC if it was built
+        if [ -f "./release/psc${{ matrix.ext }}" ]; then
+          ./release/psc${{ matrix.ext }} --version
+          echo "✅ All components working"
+        else
+          echo "⚠️ PSC not available for this platform"
+        fi
+
+    - name: Create archive
+      run: |
+        cd release
+        if [ "${{ matrix.goos }}" == "windows" ]; then
+          powershell Compress-Archive -Path * -DestinationPath "../pvm-pu-${{ matrix.artifact }}.zip"
+        else
+          tar -czf "../pvm-pu-${{ matrix.artifact }}.tar.gz" *
+        fi
+        cd ..
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: pvm-pu-${{ matrix.artifact }}
+        path: |
+          pvm-pu-${{ matrix.artifact }}.tar.gz
+          pvm-pu-${{ matrix.artifact }}.zip
+        retention-days: 30
+
+  create-release:
+    name: Create Development Release
+    needs: [tests, build-release]
+    runs-on: ubuntu-latest
+    if: needs.tests.result == 'success' && needs.build-release.result == 'success'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Generate release info
+      id: release_info
+      run: |
+        VERSION="pu-$(git rev-parse --short HEAD)"
+        TAG_NAME="dev-$VERSION"
+
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+        # Create release notes
+        echo "# PVM Development Build - PU Branch" > release_notes.md
+        echo "" >> release_notes.md
+        echo "**⚠️ This is a development build from the \`pu\` branch - use at your own risk!**" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "## Build Information" >> release_notes.md
+        echo "- **Branch:** pu" >> release_notes.md
+        echo "- **Commit:** $(git rev-parse HEAD)" >> release_notes.md
+        echo "- **Build Time:** $(date -u)" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "## Recent Changes" >> release_notes.md
+        git log --oneline -10 --no-merges >> release_notes.md
+        echo "" >> release_notes.md
+        echo "## Components" >> release_notes.md
+        echo "- **pvm:** Perl Version Manager" >> release_notes.md
+        echo "- **pvx:** Perl Version Executor" >> release_notes.md
+        echo "- **pvi:** Perl Version Installer" >> release_notes.md
+        echo "- **psc:** Perl Static Checker (may not be available on all platforms)" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "## Installation" >> release_notes.md
+        echo "Download the appropriate archive for your platform, extract it, and add the binaries to your PATH." >> release_notes.md
+
+    - name: Delete existing development release
+      run: |
+        # Delete existing development releases to keep artifacts clean
+        gh release delete dev-latest --yes 2>/dev/null || true
+        git tag -d dev-latest 2>/dev/null || true
+        git push origin :refs/tags/dev-latest 2>/dev/null || true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create development release
+      run: |
+        # Create new development release
+        gh release create dev-latest \
+          --title "PVM Development Build (PU Branch)" \
+          --notes-file release_notes.md \
+          --prerelease \
+          --target pu
+
+        # Upload all artifacts
+        find artifacts -name "*.tar.gz" -o -name "*.zip" | while read file; do
+          echo "Uploading $file..."
+          gh release upload dev-latest "$file"
+        done
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

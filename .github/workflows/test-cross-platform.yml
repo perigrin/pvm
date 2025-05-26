@@ -1,0 +1,143 @@
+name: Cross-Platform Tests
+
+on:
+  push:
+    branches: [ main, pu, develop ]
+  pull_request:
+    branches: [ main, pu ]
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            shell: bash
+          - os: windows-latest
+            shell: bash
+          - os: macos-latest
+            shell: bash
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Set up Node.js (for tree-sitter)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install tree-sitter CLI
+      run: npm install -g tree-sitter-cli
+
+    - name: Install system dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Install system dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install msys2 -y
+        echo "C:/tools/msys64/mingw64/bin" >> $GITHUB_PATH
+
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Xcode command line tools should already be available
+        xcode-select --install 2>/dev/null || true
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download Go dependencies
+      run: go mod download
+
+    - name: Build tree-sitter parser
+      run: make tree-sitter
+
+    - name: Set CGO environment
+      run: |
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+
+    - name: Build all components
+      run: |
+        echo "Building PVM components..."
+        make pvm
+        make pvx
+        make pvi
+        make psc
+
+    - name: Verify builds
+      run: |
+        echo "Testing built binaries..."
+        ./build/pvm --version
+        ./build/pvx --version
+        ./build/pvi --version
+        ./build/psc --version
+
+    - name: Run unit tests
+      run: |
+        echo "Running tests in module mode..."
+        go test -mod=mod -v ./internal/...
+
+    - name: Run PSC-specific tests
+      run: |
+        echo "Running PSC tests..."
+        go test -mod=mod -v ./internal/psc
+
+    - name: Run basic e2e tests
+      run: |
+        echo "Running basic e2e tests..."
+        go test -mod=mod -timeout=60s -v ./test/e2e -run="TestVersionCommand|TestPSCCheck"
+
+    - name: Test PSC functionality
+      run: |
+        echo "Testing PSC with real typed Perl code..."
+        echo 'my Int $x = 42; my Str $name = "test";' > test.pl
+        ./build/psc check test.pl
+        echo "PSC test passed!"
+
+  lint:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        args: --timeout=10m
+
+    - name: Check pre-commit hooks
+      run: |
+        pip install pre-commit
+        pre-commit run --all-files
