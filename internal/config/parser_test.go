@@ -4,10 +4,132 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	pvm_errors "tamarou.com/pvm/internal/errors"
 )
+
+func TestParseBytes_WithInterpolation(t *testing.T) {
+	// Set up test environment variables
+	os.Setenv("TEST_HOME", "/test/home")
+	os.Setenv("TEST_USER", "testuser")
+	os.Setenv("TEST_MIRROR", "https://test.mirror.com")
+	defer func() {
+		os.Unsetenv("TEST_HOME")
+		os.Unsetenv("TEST_USER")
+		os.Unsetenv("TEST_MIRROR")
+	}()
+
+	tomlData := `
+[pvm]
+default_perl = "5.38.0"
+download_mirror = "${TEST_MIRROR}/perl"
+patches_dir = "${TEST_HOME}/${TEST_USER}/patches"
+
+[pvi]
+cache_dir = "${TEST_HOME:-/default}/cache"
+default_mirror = "${TEST_MIRROR}"
+
+[pvx]
+save_output_dir = "${TEST_HOME}/output"
+preserve_env_vars = ["${TEST_USER}_VAR", "DISPLAY"]
+
+[psc]
+type_definitions_path = "${TEST_HOME}/types"
+`
+
+	config, err := ParseBytes([]byte(tomlData), "test")
+	if err != nil {
+		t.Fatalf("ParseBytes() error = %v", err)
+	}
+
+	// Verify interpolation worked
+	if config.PVM.DownloadMirror != "https://test.mirror.com/perl" {
+		t.Errorf("PVM.DownloadMirror = %v, want https://test.mirror.com/perl", config.PVM.DownloadMirror)
+	}
+
+	if config.PVM.PatchesDir != "/test/home/testuser/patches" {
+		t.Errorf("PVM.PatchesDir = %v, want /test/home/testuser/patches", config.PVM.PatchesDir)
+	}
+
+	if config.PVI.CacheDir != "/test/home/cache" {
+		t.Errorf("PVI.CacheDir = %v, want /test/home/cache", config.PVI.CacheDir)
+	}
+
+	if config.PVI.DefaultMirror != "https://test.mirror.com" {
+		t.Errorf("PVI.DefaultMirror = %v, want https://test.mirror.com", config.PVI.DefaultMirror)
+	}
+
+	if config.PVX.SaveOutputDir != "/test/home/output" {
+		t.Errorf("PVX.SaveOutputDir = %v, want /test/home/output", config.PVX.SaveOutputDir)
+	}
+
+	if len(config.PVX.PreserveEnvVars) != 2 || config.PVX.PreserveEnvVars[0] != "testuser_VAR" {
+		t.Errorf("PVX.PreserveEnvVars = %v, want [testuser_VAR, DISPLAY]", config.PVX.PreserveEnvVars)
+	}
+
+	if config.PSC.TypeDefinitionsPath != "/test/home/types" {
+		t.Errorf("PSC.TypeDefinitionsPath = %v, want /test/home/types", config.PSC.TypeDefinitionsPath)
+	}
+}
+
+func TestParseBytes_InterpolationWithDefaults(t *testing.T) {
+	// Don't set MISSING_VAR to test default values
+	os.Setenv("EXISTING_VAR", "exists")
+	defer os.Unsetenv("EXISTING_VAR")
+
+	tomlData := `
+[pvm]
+download_mirror = "${MISSING_VAR:-https://default.mirror.com}"
+patches_dir = "${EXISTING_VAR}/patches"
+
+[pvi]
+cache_dir = "${MISSING_VAR:-/default/cache}"
+`
+
+	config, err := ParseBytes([]byte(tomlData), "test")
+	if err != nil {
+		t.Fatalf("ParseBytes() error = %v", err)
+	}
+
+	// Verify default values were used
+	if config.PVM.DownloadMirror != "https://default.mirror.com" {
+		t.Errorf("PVM.DownloadMirror = %v, want https://default.mirror.com", config.PVM.DownloadMirror)
+	}
+
+	if config.PVM.PatchesDir != "exists/patches" {
+		t.Errorf("PVM.PatchesDir = %v, want exists/patches", config.PVM.PatchesDir)
+	}
+
+	if config.PVI.CacheDir != "/default/cache" {
+		t.Errorf("PVI.CacheDir = %v, want /default/cache", config.PVI.CacheDir)
+	}
+}
+
+func TestParseBytes_InterpolationErrors(t *testing.T) {
+	// Set up a circular reference
+	os.Setenv("CIRCULAR_A", "${CIRCULAR_B}")
+	os.Setenv("CIRCULAR_B", "${CIRCULAR_A}")
+	defer func() {
+		os.Unsetenv("CIRCULAR_A")
+		os.Unsetenv("CIRCULAR_B")
+	}()
+
+	tomlData := `
+[pvm]
+download_mirror = "${CIRCULAR_A}"
+`
+
+	_, err := ParseBytes([]byte(tomlData), "test")
+	if err == nil {
+		t.Error("ParseBytes() expected error for circular reference, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "interpolation failed") {
+		t.Errorf("Expected interpolation error, got: %v", err)
+	}
+}
 
 func TestParseString(t *testing.T) {
 	// Test valid TOML parsing

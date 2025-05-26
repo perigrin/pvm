@@ -50,19 +50,21 @@ func ParseBytes(data []byte, source string) (*Config, error) {
 			WithLocation(source)
 	}
 
-	// Validate the configuration
-	validationErrors := config.Validate()
-	if len(validationErrors) > 0 {
-		// Combine validation errors into a single error message
-		messages := make([]string, len(validationErrors))
-		for i, err := range validationErrors {
-			messages[i] = err.Error()
-		}
+	// Perform environment variable interpolation
+	interpolationEngine := NewInterpolationEngine()
+	config, err = interpolationEngine.InterpolateConfig(config)
+	if err != nil {
+		return nil, errors.NewConfigError("008",
+			"Environment variable interpolation failed", err).
+			WithLocation(source)
+	}
 
-		return nil, errors.NewConfigError("004",
-			"Invalid configuration values", nil).
-			WithLocation(source).
-			WithDetail(strings.Join(messages, "; "))
+	// Validate the configuration after interpolation
+	err = interpolationEngine.ValidateInterpolatedConfig(config)
+	if err != nil {
+		return nil, errors.NewConfigError("009",
+			"Configuration validation failed after interpolation", err).
+			WithLocation(source)
 	}
 
 	return config, nil
