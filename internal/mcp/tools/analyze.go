@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/mcp/validation"
 	"tamarou.com/pvm/internal/parser"
 )
@@ -145,7 +146,7 @@ func (a *CodeAnalyzer) getTypes(ctx context.Context, code string, projectPath st
 			}
 
 			// Add constraints for parameterized types
-			if len(ann.TypeExpression.Params) > 0 {
+			if len(ann.TypeExpression.Parameters) > 0 {
 				detail.Constraints = extractConstraints(ann.TypeExpression)
 			}
 
@@ -304,7 +305,7 @@ func (a *CodeAnalyzer) inferTypes(ctx context.Context, code string, projectPath 
 // Helper functions
 
 // extractInferredTypes extracts types that can be inferred from code structure
-func (a *CodeAnalyzer) extractInferredTypes(ast *parser.AST) map[string]TypeDetail {
+func (a *CodeAnalyzer) extractInferredTypes(ast *ast.AST) map[string]TypeDetail {
 	inferred := make(map[string]TypeDetail)
 
 	// This is a simplified implementation
@@ -319,7 +320,7 @@ func (a *CodeAnalyzer) extractInferredTypes(ast *parser.AST) map[string]TypeDeta
 }
 
 // performTypeInference performs actual type inference based on usage patterns
-func (a *CodeAnalyzer) performTypeInference(ast *parser.AST, knownTypes map[string]TypeDetail) map[string]TypeDetail {
+func (a *CodeAnalyzer) performTypeInference(ast *ast.AST, knownTypes map[string]TypeDetail) map[string]TypeDetail {
 	inferred := make(map[string]TypeDetail)
 
 	// This is a simplified implementation
@@ -337,21 +338,21 @@ func (a *CodeAnalyzer) performTypeInference(ast *parser.AST, knownTypes map[stri
 }
 
 // getAnnotationKind converts parser annotation kind to string
-func getAnnotationKind(kind parser.AnnotationKind) string {
+func getAnnotationKind(kind ast.AnnotationKind) string {
 	switch kind {
-	case parser.VarAnnotation:
+	case ast.VarAnnotation:
 		return "variable"
-	case parser.SubParamAnnotation:
+	case ast.SubParamAnnotation:
 		return "subroutine_param"
-	case parser.SubReturnAnnotation:
+	case ast.SubReturnAnnotation:
 		return "subroutine_return"
-	case parser.MethodParamAnnotation:
+	case ast.MethodParamAnnotation:
 		return "method_param"
-	case parser.MethodReturnAnnotation:
+	case ast.MethodReturnAnnotation:
 		return "method_return"
-	case parser.AttrAnnotation:
+	case ast.FieldAnnotation:
 		return "attribute"
-	case parser.TypeDeclAnnotation:
+	case ast.TypeDeclAnnotation:
 		return "type_declaration"
 	default:
 		return "unknown"
@@ -359,21 +360,21 @@ func getAnnotationKind(kind parser.AnnotationKind) string {
 }
 
 // extractConstraints extracts type constraints from a type expression
-func extractConstraints(typeExpr *parser.TypeExpression) []string {
+func extractConstraints(typeExpr *ast.TypeExpression) []string {
 	constraints := []string{}
 
-	if typeExpr.Union {
+	if typeExpr.IsUnion {
 		constraints = append(constraints, "union_type")
 	}
-	if typeExpr.Intersection {
+	if typeExpr.IsIntersection {
 		constraints = append(constraints, "intersection_type")
 	}
-	if typeExpr.Negation {
+	if typeExpr.IsNegation {
 		constraints = append(constraints, "negation_type")
 	}
 
 	// Add parameter constraints
-	for _, param := range typeExpr.Params {
+	for _, param := range typeExpr.Parameters {
 		constraints = append(constraints, fmt.Sprintf("param:%s", param.String()))
 	}
 
@@ -675,7 +676,7 @@ func (a *CodeAnalyzer) performFullAnalysis(ctx context.Context, code string, pro
 
 // Helper methods for advanced analysis
 
-func (a *CodeAnalyzer) findTypeRefinements(ast *parser.AST) map[string][]TypeRefinement {
+func (a *CodeAnalyzer) findTypeRefinements(ast *ast.AST) map[string][]TypeRefinement {
 	refinements := make(map[string][]TypeRefinement)
 	// Implementation would analyze control flow for type refinements
 	// For example: if (defined $var) { ... } refines $var to !Undef
@@ -716,7 +717,7 @@ func (a *CodeAnalyzer) calculateCyclomaticComplexity(code string) int {
 	return complexity
 }
 
-func (a *CodeAnalyzer) calculateTypeCoverage(ast *parser.AST) float64 {
+func (a *CodeAnalyzer) calculateTypeCoverage(ast *ast.AST) float64 {
 	if ast == nil {
 		return 0.0
 	}
@@ -730,12 +731,12 @@ func (a *CodeAnalyzer) calculateTypeCoverage(ast *parser.AST) float64 {
 	return (typedVars / totalVars) * 100.0
 }
 
-func (a *CodeAnalyzer) calculateTypeAnnotationRatio(ast *parser.AST) float64 {
+func (a *CodeAnalyzer) calculateTypeAnnotationRatio(ast *ast.AST) float64 {
 	// Similar to type coverage but for all annotatable elements
 	return a.calculateTypeCoverage(ast)
 }
 
-func (a *CodeAnalyzer) calculateTypeSafety(ast *parser.AST) TypeSafetyMetrics {
+func (a *CodeAnalyzer) calculateTypeSafety(ast *ast.AST) TypeSafetyMetrics {
 	return TypeSafetyMetrics{
 		UnsafeOperations:  0,    // Would count eval, symbolic refs, etc.
 		ImplicitCasts:     0,    // Would count automatic type conversions
@@ -749,7 +750,7 @@ type typePair struct {
 	type2 string
 }
 
-func (a *CodeAnalyzer) extractTypePairs(ast *parser.AST) []typePair {
+func (a *CodeAnalyzer) extractTypePairs(ast *ast.AST) []typePair {
 	pairs := []typePair{}
 	// Would extract from assignments and function calls
 	return pairs
@@ -780,12 +781,12 @@ func (a *CodeAnalyzer) getCompatibilityReason(type1, type2 string) string {
 	return fmt.Sprintf("%s and %s are incompatible types", type1, type2)
 }
 
-func (a *CodeAnalyzer) isAnnotationCorrect(annotation *parser.TypeAnnotation) bool {
+func (a *CodeAnalyzer) isAnnotationCorrect(annotation *ast.TypeAnnotation) bool {
 	// Would validate against actual usage
 	return true // Simplified
 }
 
-func (a *CodeAnalyzer) suggestType(varName string, ast *parser.AST) string {
+func (a *CodeAnalyzer) suggestType(varName string, ast *ast.AST) string {
 	// Would infer from usage
 	return "Any" // Simplified
 }
@@ -797,7 +798,7 @@ type varInfo struct {
 	inferredType string
 }
 
-func (a *CodeAnalyzer) findUnannotatedVariables(ast *parser.AST) []varInfo {
+func (a *CodeAnalyzer) findUnannotatedVariables(ast *ast.AST) []varInfo {
 	vars := []varInfo{}
 	// Would find all variable declarations without types
 	return vars

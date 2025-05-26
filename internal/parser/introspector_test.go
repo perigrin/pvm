@@ -179,6 +179,7 @@ func testDataStructureAnalysis(t *testing.T, introspector *ModuleIntrospector) {
 type MockNode struct {
 	text     string
 	children []Node
+	parent   Node
 }
 
 func (m *MockNode) Type() string {
@@ -199,6 +200,14 @@ func (m *MockNode) Start() Position {
 
 func (m *MockNode) End() Position {
 	return Position{Line: 1, Column: len(m.text), Offset: len(m.text)}
+}
+
+func (m *MockNode) Parent() Node {
+	return m.parent
+}
+
+func (m *MockNode) SetParent(parent Node) {
+	m.parent = parent
 }
 
 func TestFrameworkPatternMatching(t *testing.T) {

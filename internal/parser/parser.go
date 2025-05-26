@@ -6,77 +6,85 @@ package parser
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/parser/treesitter"
 )
 
 // Parser represents a parser for Perl code with type annotations
 type Parser interface {
 	// ParseFile parses a Perl file and returns its AST
-	ParseFile(path string) (*AST, error)
+	ParseFile(path string) (*ast.AST, error)
 
 	// ParseString parses a string containing Perl code and returns its AST
-	ParseString(content string) (*AST, error)
+	ParseString(content string) (*ast.AST, error)
 
 	// ParseReader parses Perl code from a reader and returns its AST
-	ParseReader(reader io.Reader) (*AST, error)
+	ParseReader(reader io.Reader) (*ast.AST, error)
 }
 
-// AST represents the Abstract Syntax Tree of a parsed Perl file
-type AST struct {
-	// Path is the path to the parsed file
-	Path string
+// Backward compatibility type aliases
+// These allow existing code to continue working while we migrate to consolidated AST types
+type AST = ast.AST
+type Node = ast.Node
+type Position = ast.Position
+type TypeAnnotation = ast.TypeAnnotation
+type TypeExpression = ast.TypeExpression
+type AnnotationKind = ast.AnnotationKind
 
-	// Root is the root node of the AST
-	Root Node
+// Backward compatibility constants
+const (
+	VarAnnotation          = ast.VarAnnotation
+	SubParamAnnotation     = ast.SubParamAnnotation
+	SubReturnAnnotation    = ast.SubReturnAnnotation
+	MethodParamAnnotation  = ast.MethodParamAnnotation
+	MethodReturnAnnotation = ast.MethodReturnAnnotation
+	AttrAnnotation         = ast.FieldAnnotation // Map old name to new name
+	TypeDeclAnnotation     = ast.TypeDeclAnnotation
+)
 
-	// TypeAnnotations is a list of type annotations found in the code
-	TypeAnnotations []*TypeAnnotation
+// ParseError represents a parsing error
+type ParseError struct {
+	// Message is the error message
+	Message string
 
-	// Errors is a list of syntax errors found during parsing
-	Errors []error
-}
+	// Line is the line number where the error occurred
+	Line int
 
-// Node represents a node in the AST
-type Node interface {
-	// Type returns the type of the node
-	Type() string
-
-	// Start returns the start position of the node
-	Start() Position
-
-	// End returns the end position of the node
-	End() Position
-
-	// Children returns the child nodes
-	Children() []Node
-
-	// Text returns the text content of the node
-	Text() string
-}
-
-// Position represents a position in the source code
-type Position struct {
-	Line   int
+	// Column is the column number where the error occurred
 	Column int
-	Offset int
+
+	// Path is the path to the file where the error occurred
+	Path string
 }
 
-// TypeAnnotation represents a type annotation found in the code
-type TypeAnnotation struct {
-	// AnnotatedItem is the item that has the type annotation
-	AnnotatedItem string
+// Error implements the error interface
+func (pe *ParseError) Error() string {
+	if pe.Path != "" {
+		return fmt.Sprintf("%s:%d:%d: %s", pe.Path, pe.Line, pe.Column, pe.Message)
+	}
+	return fmt.Sprintf("%d:%d: %s", pe.Line, pe.Column, pe.Message)
+}
 
-	// TypeExpression is the type expression
-	TypeExpression *TypeExpression
+// ParseTypeExpression parses a type expression and returns it in the consolidated format
+// for backward compatibility
+func ParseTypeExpression(text string, pos Position) (*TypeExpression, error) {
+	tsPos := treesitter.Position{
+		Line:   pos.Line,
+		Column: pos.Column,
+		Offset: pos.Offset,
+	}
 
-	// Position is the position of the type annotation
-	Pos Position
+	tsExpr, err := treesitter.ParseTypeExpression(text, tsPos)
+	if err != nil {
+		return nil, err
+	}
 
-	// Kind is the kind of annotation (variable, subroutine, method, attribute, etc.)
-	Kind AnnotationKind
+	// Convert treesitter TypeExpression to consolidated TypeExpression
+	return convertTypeExpression(tsExpr), nil
 }
 
 // NewParser returns a new Parser instance using tree-sitter
@@ -200,91 +208,94 @@ func (cp *CachedParser) ParseReader(reader io.Reader) (*AST, error) {
 // We're already using hashContent from above, so no need to redefine it here.
 
 // ParseFile implements the Parser interface
-func (w *treeSitterParserWrapper) ParseFile(path string) (*AST, error) {
+func (w *treeSitterParserWrapper) ParseFile(path string) (*ast.AST, error) {
 	tsAst, err := w.parser.ParseFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert the tree-sitter AST to our AST format
+	// Convert the tree-sitter AST to our consolidated AST format
 	return w.convertAst(tsAst), nil
 }
 
 // ParseString implements the Parser interface
-func (w *treeSitterParserWrapper) ParseString(content string) (*AST, error) {
+func (w *treeSitterParserWrapper) ParseString(content string) (*ast.AST, error) {
 	tsAst, err := w.parser.ParseString(content)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert the tree-sitter AST to our AST format
+	// Convert the tree-sitter AST to our consolidated AST format
 	return w.convertAst(tsAst), nil
 }
 
 // ParseReader implements the Parser interface
-func (w *treeSitterParserWrapper) ParseReader(reader io.Reader) (*AST, error) {
+func (w *treeSitterParserWrapper) ParseReader(reader io.Reader) (*ast.AST, error) {
 	tsAst, err := w.parser.ParseReader(reader)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert the tree-sitter AST to our AST format
+	// Convert the tree-sitter AST to our consolidated AST format
 	return w.convertAst(tsAst), nil
 }
 
-// convertAst converts a tree-sitter AST to our AST format
-func (w *treeSitterParserWrapper) convertAst(tsAst *treesitter.AST) *AST {
+// convertAst converts a tree-sitter AST to our consolidated AST format
+func (w *treeSitterParserWrapper) convertAst(tsAst *treesitter.AST) *ast.AST {
 	// Convert the root node
-	var rootNode Node
+	var rootNode ast.Node
 	if tsAst.Root != nil {
 		rootNode = &nodeWrapper{node: tsAst.Root}
 	}
 
 	// Convert type annotations
-	var annotations []*TypeAnnotation
+	var annotations []*ast.TypeAnnotation
 	for _, tsAnnot := range tsAst.TypeAnnotations {
-		annotations = append(annotations, &TypeAnnotation{
+		annotations = append(annotations, &ast.TypeAnnotation{
 			AnnotatedItem:  tsAnnot.AnnotatedItem,
 			TypeExpression: convertTypeExpression(tsAnnot.TypeExpression),
 			Pos:            convertPosition(tsAnnot.Pos),
-			Kind:           AnnotationKind(tsAnnot.Kind),
+			Kind:           ast.AnnotationKind(tsAnnot.Kind),
 		})
 	}
 
-	ast := &AST{
+	result := &ast.AST{
 		Path:            tsAst.Path,
 		Root:            rootNode,
 		TypeAnnotations: annotations,
 		Errors:          tsAst.Errors,
+		Source:          "", // Tree-sitter doesn't provide source, could be added
 	}
 
-	return ast
+	return result
 }
 
-// nodeWrapper adapts treesitter.Node to parser.Node
+// nodeWrapper adapts treesitter.Node to consolidated ast.Node
 type nodeWrapper struct {
-	node treesitter.Node
+	node   treesitter.Node
+	parent ast.Node
 }
 
 func (n *nodeWrapper) Type() string {
 	return n.node.Type()
 }
 
-func (n *nodeWrapper) Start() Position {
+func (n *nodeWrapper) Start() ast.Position {
 	tsPos := n.node.Start()
 	return convertPosition(tsPos)
 }
 
-func (n *nodeWrapper) End() Position {
+func (n *nodeWrapper) End() ast.Position {
 	tsPos := n.node.End()
 	return convertPosition(tsPos)
 }
 
-func (n *nodeWrapper) Children() []Node {
+func (n *nodeWrapper) Children() []ast.Node {
 	tsChildren := n.node.Children()
-	children := make([]Node, len(tsChildren))
+	children := make([]ast.Node, len(tsChildren))
 	for i, child := range tsChildren {
-		children[i] = &nodeWrapper{node: child}
+		childWrapper := &nodeWrapper{node: child, parent: n}
+		children[i] = childWrapper
 	}
 	return children
 }
@@ -293,56 +304,65 @@ func (n *nodeWrapper) Text() string {
 	return n.node.Text()
 }
 
-// convertPosition converts treesitter.Position to parser.Position
-func convertPosition(tsPos treesitter.Position) Position {
-	return Position{
+func (n *nodeWrapper) Parent() ast.Node {
+	return n.parent
+}
+
+func (n *nodeWrapper) SetParent(parent ast.Node) {
+	n.parent = parent
+}
+
+// convertPosition converts treesitter.Position to consolidated ast.Position
+func convertPosition(tsPos treesitter.Position) ast.Position {
+	return ast.Position{
 		Line:   tsPos.Line,
 		Column: tsPos.Column,
 		Offset: tsPos.Offset,
 	}
 }
 
-// convertTypeExpression converts treesitter.TypeExpression to parser.TypeExpression
-func convertTypeExpression(tsExpr *treesitter.TypeExpression) *TypeExpression {
+// convertTypeExpression converts treesitter.TypeExpression to consolidated ast.TypeExpression
+func convertTypeExpression(tsExpr *treesitter.TypeExpression) *ast.TypeExpression {
 	if tsExpr == nil {
 		return nil
 	}
 
-	expr := &TypeExpression{
-		Name:         tsExpr.BaseType,
-		Union:        tsExpr.IsUnion,
-		Intersection: tsExpr.IsIntersection,
-		Negation:     tsExpr.IsNegation,
-		Pos:          convertPosition(tsExpr.Pos),
+	expr := &ast.TypeExpression{
+		BaseType:       tsExpr.BaseType,
+		IsUnion:        tsExpr.IsUnion,
+		IsIntersection: tsExpr.IsIntersection,
+		IsNegation:     tsExpr.IsNegation,
+		OriginalString: tsExpr.OriginalString,
+		Pos:            convertPosition(tsExpr.Pos),
 	}
 
 	// Convert parameters
 	if len(tsExpr.Parameters) > 0 {
-		expr.Params = make([]*TypeExpression, len(tsExpr.Parameters))
+		expr.Parameters = make([]*ast.TypeExpression, len(tsExpr.Parameters))
 		for i, param := range tsExpr.Parameters {
-			expr.Params[i] = convertTypeExpression(param)
+			expr.Parameters[i] = convertTypeExpression(param)
 		}
 	}
 
-	// For union types, put them in Params
+	// Convert union types
 	if len(tsExpr.UnionTypes) > 0 {
-		expr.Params = make([]*TypeExpression, len(tsExpr.UnionTypes))
+		expr.UnionTypes = make([]*ast.TypeExpression, len(tsExpr.UnionTypes))
 		for i, unionType := range tsExpr.UnionTypes {
-			expr.Params[i] = convertTypeExpression(unionType)
+			expr.UnionTypes[i] = convertTypeExpression(unionType)
 		}
 	}
 
-	// For intersection types, put them in Params
+	// Convert intersection types
 	if len(tsExpr.IntersectionTypes) > 0 {
-		expr.Params = make([]*TypeExpression, len(tsExpr.IntersectionTypes))
+		expr.IntersectionTypes = make([]*ast.TypeExpression, len(tsExpr.IntersectionTypes))
 		for i, intType := range tsExpr.IntersectionTypes {
-			expr.Params[i] = convertTypeExpression(intType)
+			expr.IntersectionTypes[i] = convertTypeExpression(intType)
 		}
 	}
 
-	// For negated types, use the negated type's name
+	// Convert negated type
 	if tsExpr.NegatedType != nil {
-		expr.Name = tsExpr.NegatedType.BaseType
+		expr.NegatedType = convertTypeExpression(tsExpr.NegatedType)
 	}
 
 	return expr

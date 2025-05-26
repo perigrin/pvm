@@ -32,6 +32,7 @@ func (m *MockNode) NamedChildCount() int       { return 0 }
 func (m *MockNode) NextSibling() parser.Node   { return nil }
 func (m *MockNode) PrevSibling() parser.Node   { return nil }
 func (m *MockNode) String() string             { return m.NodeText }
+func (m *MockNode) SetParent(parent parser.Node) { m.Parent_ = parent }
 
 // MockAST implements parser.AST for testing
 type MockAST struct {

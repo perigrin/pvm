@@ -350,15 +350,15 @@ func (ti *TypeInjector) ValidateTypeAnnotations() []error {
 			continue
 		}
 
-		if annotation.TypeExpression.Name == "" {
+		if annotation.TypeExpression.BaseType == "" {
 			errors = append(errors, fmt.Errorf("empty type name for %s", annotation.AnnotatedItem))
 			continue
 		}
 
 		// Validate type name format
-		if !ti.isValidTypeName(annotation.TypeExpression.Name) {
+		if !ti.isValidTypeName(annotation.TypeExpression.BaseType) {
 			errors = append(errors, fmt.Errorf("invalid type name '%s' for %s",
-				annotation.TypeExpression.Name, annotation.AnnotatedItem))
+				annotation.TypeExpression.BaseType, annotation.AnnotatedItem))
 		}
 	}
 
@@ -425,12 +425,15 @@ func (ti *TypeInjector) Clone() (*AST, error) {
 		newAST.TypeAnnotations[i] = &TypeAnnotation{
 			AnnotatedItem: annotation.AnnotatedItem,
 			TypeExpression: &TypeExpression{
-				Name:         annotation.TypeExpression.Name,
-				Params:       annotation.TypeExpression.Params, // Shallow copy
-				Union:        annotation.TypeExpression.Union,
-				Intersection: annotation.TypeExpression.Intersection,
-				Negation:     annotation.TypeExpression.Negation,
-				Pos:          annotation.TypeExpression.Pos,
+				BaseType:          annotation.TypeExpression.BaseType,
+				Parameters:        annotation.TypeExpression.Parameters,
+				IsUnion:           annotation.TypeExpression.IsUnion,
+				IsIntersection:    annotation.TypeExpression.IsIntersection,
+				IsNegation:        annotation.TypeExpression.IsNegation,
+				UnionTypes:        annotation.TypeExpression.UnionTypes,
+				IntersectionTypes: annotation.TypeExpression.IntersectionTypes,
+				NegatedType:       annotation.TypeExpression.NegatedType,
+				Pos:               annotation.TypeExpression.Pos,
 			},
 			Pos:  annotation.Pos,
 			Kind: annotation.Kind,

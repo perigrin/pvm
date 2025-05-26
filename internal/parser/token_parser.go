@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/scanner"
 )
 
@@ -105,18 +106,20 @@ func (p *TokenBasedParser) parseFromTokens(path, content string) (*AST, error) {
 	root := &tokenNode{
 		nodeType: "root",
 		tokens:   p.collectTokens(iter),
-		position: Position{Line: 1, Column: 1, Offset: 0},
+		position: ast.Position{Line: 1, Column: 1, Offset: 0},
 	}
 
 	// Extract type annotations from tokens
 	annotations := p.extractTypeAnnotationsFromTokens(root.tokens, content)
 
-	return &AST{
+	astResult := &ast.AST{
 		Path:            path,
 		Root:            root,
 		TypeAnnotations: annotations,
 		Errors:          []error{},
-	}, nil
+		Source:          content,
+	}
+	return (*AST)(astResult), nil
 }
 
 // collectTokens collects all tokens from the iterator
@@ -133,8 +136,8 @@ func (p *TokenBasedParser) collectTokens(iter scanner.TokenIterator) []scanner.T
 }
 
 // extractTypeAnnotationsFromTokens finds type annotations in the token stream
-func (p *TokenBasedParser) extractTypeAnnotationsFromTokens(tokens []scanner.Token, content string) []*TypeAnnotation {
-	var annotations []*TypeAnnotation
+func (p *TokenBasedParser) extractTypeAnnotationsFromTokens(tokens []scanner.Token, content string) []*ast.TypeAnnotation {
+	var annotations []*ast.TypeAnnotation
 
 	for i := 0; i < len(tokens); i++ {
 		token := tokens[i]
@@ -154,7 +157,7 @@ func (p *TokenBasedParser) extractTypeAnnotationsFromTokens(tokens []scanner.Tok
 }
 
 // parseTypeAnnotationFromTokens parses a type annotation starting at the given position
-func (p *TokenBasedParser) parseTypeAnnotationFromTokens(tokens []scanner.Token, start int, content string) *TypeAnnotation {
+func (p *TokenBasedParser) parseTypeAnnotationFromTokens(tokens []scanner.Token, start int, content string) *ast.TypeAnnotation {
 	if start >= len(tokens) {
 		return nil
 	}
@@ -167,17 +170,17 @@ func (p *TokenBasedParser) parseTypeAnnotationFromTokens(tokens []scanner.Token,
 		varToken := tokens[start+2]
 
 		if typeToken.Type() == scanner.TokenIdentifier && varToken.Type() == scanner.TokenVariable {
-			pos := Position{
+			pos := ast.Position{
 				Line:   typeToken.Position().Line,
 				Column: typeToken.Position().Column,
 				Offset: typeToken.Position().Offset,
 			}
 
-			return &TypeAnnotation{
+			return &ast.TypeAnnotation{
 				AnnotatedItem:  varToken.Value(),
 				TypeExpression: p.parseTypeExpressionFromToken(typeToken),
 				Pos:            pos,
-				Kind:           VarAnnotation,
+				Kind:           ast.VarAnnotation,
 			}
 		}
 	}
@@ -187,8 +190,8 @@ func (p *TokenBasedParser) parseTypeAnnotationFromTokens(tokens []scanner.Token,
 }
 
 // parseTypeExpressionFromToken creates a TypeExpression from a token
-func (p *TokenBasedParser) parseTypeExpressionFromToken(token scanner.Token) *TypeExpression {
-	pos := Position{
+func (p *TokenBasedParser) parseTypeExpressionFromToken(token scanner.Token) *ast.TypeExpression {
+	pos := ast.Position{
 		Line:   token.Position().Line,
 		Column: token.Position().Column,
 		Offset: token.Position().Offset,
@@ -196,9 +199,9 @@ func (p *TokenBasedParser) parseTypeExpressionFromToken(token scanner.Token) *Ty
 
 	// For now, create a simple type expression
 	// This will be enhanced in future iterations to handle complex types
-	return &TypeExpression{
-		Name: token.Value(),
-		Pos:  pos,
+	return &ast.TypeExpression{
+		BaseType: token.Value(),
+		Pos:      pos,
 	}
 }
 
@@ -206,23 +209,24 @@ func (p *TokenBasedParser) parseTypeExpressionFromToken(token scanner.Token) *Ty
 type tokenNode struct {
 	nodeType string
 	tokens   []scanner.Token
-	position Position
-	children []Node
+	position ast.Position
+	children []ast.Node
+	parent   ast.Node
 }
 
 func (n *tokenNode) Type() string {
 	return n.nodeType
 }
 
-func (n *tokenNode) Start() Position {
+func (n *tokenNode) Start() ast.Position {
 	return n.position
 }
 
-func (n *tokenNode) End() Position {
+func (n *tokenNode) End() ast.Position {
 	if len(n.tokens) > 0 {
 		lastToken := n.tokens[len(n.tokens)-1]
 		pos := lastToken.Position()
-		return Position{
+		return ast.Position{
 			Line:   pos.Line,
 			Column: pos.Column + lastToken.Length(),
 			Offset: pos.Offset + lastToken.Length(),
@@ -231,9 +235,9 @@ func (n *tokenNode) End() Position {
 	return n.position
 }
 
-func (n *tokenNode) Children() []Node {
+func (n *tokenNode) Children() []ast.Node {
 	if n.children == nil {
-		n.children = []Node{}
+		n.children = []ast.Node{}
 	}
 	return n.children
 }
@@ -244,6 +248,14 @@ func (n *tokenNode) Text() string {
 		text += token.Value()
 	}
 	return text
+}
+
+func (n *tokenNode) Parent() ast.Node {
+	return n.parent
+}
+
+func (n *tokenNode) SetParent(parent ast.Node) {
+	n.parent = parent
 }
 
 // NewParserWithScanner creates a new parser with scanner enabled

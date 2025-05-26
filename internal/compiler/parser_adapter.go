@@ -6,16 +6,16 @@ package compiler
 import (
 	"os"
 
-	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/ast"
 )
 
-// ParserASTAdapter adapts parser.AST to implement the compiler AST interface
+// ParserASTAdapter adapts ast.AST to implement the compiler AST interface
 type ParserASTAdapter struct {
-	ast *parser.AST
+	ast *ast.AST
 }
 
-// NewParserASTAdapter creates a new adapter for parser.AST
-func NewParserASTAdapter(ast *parser.AST) *ParserASTAdapter {
+// NewParserASTAdapter creates a new adapter for ast.AST
+func NewParserASTAdapter(ast *ast.AST) *ParserASTAdapter {
 	return &ParserASTAdapter{ast: ast}
 }
 

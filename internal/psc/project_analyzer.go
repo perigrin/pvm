@@ -699,7 +699,7 @@ func (pa *ProjectAnalyzer) extractTypeInfo(modulePath string, result *typechecke
 	for _, annotation := range result.TypeAnnotations {
 		// This is simplified - would need more sophisticated extraction
 		if annotation.TypeExpression != nil {
-			typeInfo.UsedTypes = append(typeInfo.UsedTypes, annotation.TypeExpression.Name)
+			typeInfo.UsedTypes = append(typeInfo.UsedTypes, annotation.TypeExpression.BaseType)
 		}
 	}
 
