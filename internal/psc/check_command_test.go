@@ -4,6 +4,8 @@
 package psc
 
 import (
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -250,50 +252,187 @@ func TestFlagUsage(t *testing.T) {
 
 // TestCheckFileValidPerl tests checking a valid Perl file
 func TestCheckFileValidPerl(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	// Create a temporary valid Perl file with types
+	content := `#!/usr/bin/perl
+use v5.36;
+
+my Int $count = 42;
+my Str $name = "test";
+
+sub add_numbers(Int $a, Int $b) -> Int {
+    return $a + $b;
+}
+
+my Int $result = add_numbers($count, 8);
+`
+	tmpFile := t.TempDir() + "/valid.pl"
+	err := os.WriteFile(tmpFile, []byte(content), 0644)
+	require.NoError(t, err)
+
+	// Test checkFile function
+	errorCount, err := checkFile(tmpFile, false, false, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, errorCount, "Valid Perl file should have no type errors")
 }
 
 // TestCheckFileInvalidTypes tests checking a Perl file with type errors
 func TestCheckFileInvalidTypes(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	// Create a temporary Perl file with type errors
+	content := `#!/usr/bin/perl
+use v5.36;
+
+my Int $count = "not a number";  # Type error
+my Str $name = 42;               # Type error
+`
+	tmpFile := t.TempDir() + "/invalid.pl"
+	err := os.WriteFile(tmpFile, []byte(content), 0644)
+	require.NoError(t, err)
+
+	// Test checkFile function
+	errorCount, err := checkFile(tmpFile, false, false, false)
+	assert.NoError(t, err)
+	assert.Greater(t, errorCount, 0, "Invalid Perl file should have type errors")
 }
 
 // TestCheckFileNonExistent tests checking a non-existent file
 func TestCheckFileNonExistent(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	cmd := newCheckTypeCommand()
+
+	// Test with non-existent file
+	err := cmd.RunE(cmd, []string{"nonexistent.pl"})
+	assert.Error(t, err, "Should error when file doesn't exist")
+	assert.Contains(t, err.Error(), "not found", "Error should mention file not found")
 }
 
 // TestCheckDirectoryRecursive tests recursive directory checking
 func TestCheckDirectoryRecursive(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	tmpDir := t.TempDir()
+
+	// Create test files in subdirectories
+	subDir := tmpDir + "/subdir"
+	err := os.MkdirAll(subDir, 0755)
+	require.NoError(t, err)
+
+	// Create a valid Perl file
+	validContent := `my Int $x = 42;`
+	err = os.WriteFile(tmpDir+"/test1.pl", []byte(validContent), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(subDir+"/test2.pl", []byte(validContent), 0644)
+	require.NoError(t, err)
+
+	// Test recursive directory checking
+	cmd := newCheckTypeCommand()
+	cmd.Flags().Set("recursive", "true")
+
+	err = cmd.RunE(cmd, []string{tmpDir})
+	assert.NoError(t, err, "Recursive directory check should succeed")
 }
 
 // TestCheckFileVerboseMode tests verbose output
 func TestCheckFileVerboseMode(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	content := `my Int $count = 42;`
+	tmpFile := t.TempDir() + "/verbose.pl"
+	err := os.WriteFile(tmpFile, []byte(content), 0644)
+	require.NoError(t, err)
+
+	// Test verbose mode produces different output than non-verbose
+	errorCount, err := checkFile(tmpFile, false, true, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, errorCount, "File should have no errors")
+	// Note: We can't easily test the actual verbose output without capturing stdout
 }
 
 // TestCheckFileStrictMode tests strict mode behavior
 func TestCheckFileStrictMode(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	content := `my Int $count = 42;`
+	tmpFile := t.TempDir() + "/strict.pl"
+	err := os.WriteFile(tmpFile, []byte(content), 0644)
+	require.NoError(t, err)
+
+	// Test strict mode (should not affect error count for valid file)
+	errorCount, err := checkFile(tmpFile, true, false, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, errorCount, "Valid file should have no errors in strict mode")
 }
 
 // TestMixedFileTypes tests handling of mixed Perl and non-Perl files
 func TestMixedFileTypes(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	tmpDir := t.TempDir()
+
+	// Create a Perl file
+	perlContent := `my Int $count = 42;`
+	err := os.WriteFile(tmpDir+"/test.pl", []byte(perlContent), 0644)
+	require.NoError(t, err)
+
+	// Create a non-Perl file
+	textContent := `This is just a text file`
+	err = os.WriteFile(tmpDir+"/readme.txt", []byte(textContent), 0644)
+	require.NoError(t, err)
+
+	// Test that only Perl files are checked
+	errorCount, err := checkFile(tmpDir+"/test.pl", false, false, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, errorCount)
+
+	// Test that non-Perl files are skipped
+	errorCount, err = checkFile(tmpDir+"/readme.txt", false, false, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, errorCount, "Non-Perl files should be skipped")
 }
 
 // TestFilePermissions tests handling of file permission issues
 func TestFilePermissions(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	if os.Getuid() == 0 {
+		t.Skip("Skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+	restrictedFile := tmpDir + "/restricted.pl"
+
+	// Create a file and make it unreadable
+	content := `my Int $count = 42;`
+	err := os.WriteFile(restrictedFile, []byte(content), 0000)
+	require.NoError(t, err)
+
+	// Test that permission errors are handled gracefully
+	_, err = checkFile(restrictedFile, false, false, false)
+	assert.Error(t, err, "Should error when file is unreadable")
 }
 
 // TestEmptyFile tests handling of empty Perl files
 func TestEmptyFile(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	tmpFile := t.TempDir() + "/empty.pl"
+	err := os.WriteFile(tmpFile, []byte(""), 0644)
+	require.NoError(t, err)
+
+	// Test empty file handling
+	errorCount, err := checkFile(tmpFile, false, false, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, errorCount, "Empty file should have no errors")
 }
 
 // TestLargePerlFile tests handling of large Perl files
 func TestLargePerlFile(t *testing.T) {
-	t.Skip("Skipping due to tree-sitter CGO build requirements")
+	if testing.Short() {
+		t.Skip("Skipping large file test in short mode")
+	}
+
+	tmpFile := t.TempDir() + "/large.pl"
+
+	// Create a large file with many type annotations
+	var content strings.Builder
+	content.WriteString("#!/usr/bin/perl\nuse v5.36;\n\n")
+
+	for i := 0; i < 1000; i++ {
+		content.WriteString(fmt.Sprintf("my Int $var%d = %d;\n", i, i))
+	}
+
+	err := os.WriteFile(tmpFile, []byte(content.String()), 0644)
+	require.NoError(t, err)
+
+	// Test large file handling
+	errorCount, err := checkFile(tmpFile, false, false, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, errorCount, "Large valid file should have no errors")
 }
