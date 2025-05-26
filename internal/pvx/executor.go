@@ -1372,3 +1372,67 @@ fi
 
 	return fmt.Sprintf(template, command, envName, pvmPath, envName, isolationLevel, perlFlag, command, command)
 }
+
+// ExecuteTool executes a Perl tool directly (similar to uvx)
+func ExecuteTool(options *ExecutionOptions, toolName string, toolArgs []string) (string, error) {
+	// Create a temporary inline code that invokes the tool
+	// This allows us to leverage existing isolation infrastructure
+
+	// Build the command to execute the tool
+	var toolCode string
+	if len(toolArgs) == 0 {
+		// Just run the tool with no arguments
+		toolCode = fmt.Sprintf("exec { '%s' } '%s';", toolName, toolName)
+	} else {
+		// Run the tool with the provided arguments
+		// Need to properly quote arguments for Perl
+		quotedArgs := make([]string, len(toolArgs))
+		for i, arg := range toolArgs {
+			// Simple quoting - escape single quotes and wrap in single quotes
+			escaped := strings.ReplaceAll(arg, "'", "\\'")
+			quotedArgs[i] = fmt.Sprintf("'%s'", escaped)
+		}
+		argsStr := strings.Join(quotedArgs, ", ")
+		toolCode = fmt.Sprintf("exec { '%s' } '%s', %s;", toolName, toolName, argsStr)
+	}
+
+	// Set up options for inline code execution
+	options.InlineCode = toolCode
+
+	// Add the tool to required modules if it's not a standard command
+	standardCommands := []string{"perl", "cpan", "prove", "perldoc", "h2ph", "h2xs", "enc2xs", "xsubpp", "corelist"}
+	isStandard := false
+	for _, cmd := range standardCommands {
+		if toolName == cmd {
+			isStandard = true
+			break
+		}
+	}
+
+	if !isStandard {
+		// For non-standard tools, we need to map tool names to module names
+		// This is a basic mapping - could be expanded
+		moduleMap := map[string]string{
+			"cpanm":      "App::cpanminus",
+			"plackup":    "Plack",
+			"carton":     "Carton",
+			"dzil":       "Dist::Zilla",
+			"perlcritic": "Perl::Critic",
+			"perltidy":   "Perl::Tidy",
+		}
+
+		if module, exists := moduleMap[toolName]; exists {
+			options.RequiredModules = append(options.RequiredModules, module)
+			options.AutoInstallModules = true
+		} else {
+			// Auto-discovery: try to install a module with the same name as the tool
+			// Convert tool name to likely module name (capitalize first letter)
+			moduleName := strings.Title(toolName)
+			options.RequiredModules = append(options.RequiredModules, moduleName)
+			options.AutoInstallModules = true
+		}
+	}
+
+	// Execute as inline code
+	return ExecuteInlineCode(options)
+}

@@ -6,6 +6,7 @@ package pvx
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/config"
@@ -218,12 +219,23 @@ func NewCommand() *cobra.Command {
 
 			var output string
 
-			if executeCode != "" {
+			switch {
+			case executeCode != "":
 				// Execute Perl code directly
 				log.Debugf("Executing Perl code: %s", executeCode)
 				options.InlineCode = executeCode
 				output, err = ExecuteInlineCode(options)
-			} else {
+			case isToolName(args[0]):
+				// Execute a tool directly (like uvx)
+				toolName := args[0]
+				toolArgs := []string{}
+				if len(args) > 1 {
+					toolArgs = args[1:]
+				}
+
+				log.Debugf("Executing tool: %s", toolName)
+				output, err = ExecuteTool(options, toolName, toolArgs)
+			default:
 				// Execute a script file
 				scriptPath := args[0]
 				scriptArgs := []string{}
@@ -299,4 +311,28 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().String("name", "", "Create a named persistent isolation environment")
 
 	return cmd
+}
+
+// isToolName determines if the given argument is a tool name rather than a script file
+func isToolName(arg string) bool {
+	// If it has a file extension or contains path separators, it's likely a script
+	if strings.Contains(arg, "/") || strings.Contains(arg, "\\") || strings.Contains(arg, ".") {
+		return false
+	}
+
+	// Check if it's a known Perl tool name
+	knownTools := []string{
+		"perl", "cpan", "prove", "perldoc", "h2ph", "h2xs", "enc2xs", "xsubpp",
+		"corelist", "cpanm", "plackup", "carton", "dzil", "perlcritic", "perltidy",
+	}
+
+	for _, tool := range knownTools {
+		if arg == tool {
+			return true
+		}
+	}
+
+	// If it doesn't look like a file path and we don't recognize it,
+	// assume it's a tool name (auto-discovery)
+	return true
 }

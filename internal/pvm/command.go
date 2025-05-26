@@ -50,6 +50,7 @@ func NewCommand() *cobra.Command {
 		newPSCCommand(),
 		newMCPCommand(),
 		newEnvCommand(),
+		newToolCommand(),
 
 		// These are implemented in their own files
 		newSymlinksCommand(), // from symlinks.go
@@ -1436,5 +1437,351 @@ func showEnvironmentInfo(cmd *cobra.Command, envName string) error {
 	cmd.Printf("\nTo activate this environment:\n")
 	cmd.Printf("export PATH=\"%s:$PATH\"\n", binDir)
 
+	return nil
+}
+
+// newToolCommand creates tool management commands
+func newToolCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "tool",
+		Short: "Manage tool installations",
+		Long:  "Commands for installing, running, and managing Perl tools",
+	}
+
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:   "install [tool[@version]]",
+			Short: "Install a tool",
+			Long:  "Install a Perl tool (module) and make it available as a command",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return installTool(cmd, args[0])
+			},
+		},
+		&cobra.Command{
+			Use:   "run [tool] [args...]",
+			Short: "Run a tool",
+			Long:  "Run a Perl tool without installing it permanently",
+			Args:  cobra.MinimumNArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return runTool(cmd, args[0], args[1:])
+			},
+		},
+		&cobra.Command{
+			Use:   "list",
+			Short: "List installed tools",
+			Long:  "List all installed tools and their versions",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return listTools(cmd)
+			},
+		},
+		&cobra.Command{
+			Use:   "upgrade [tool]",
+			Short: "Upgrade a tool",
+			Long:  "Upgrade an installed tool to the latest version",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return upgradeTool(cmd, args[0])
+			},
+		},
+		&cobra.Command{
+			Use:   "uninstall [tool]",
+			Short: "Uninstall a tool",
+			Long:  "Remove an installed tool",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return uninstallTool(cmd, args[0])
+			},
+		},
+	)
+
+	return cmd
+}
+
+// installTool installs a tool and creates a shim for it
+func installTool(cmd *cobra.Command, toolSpec string) error {
+	// Parse tool specification (tool@version or just tool)
+	parts := strings.Split(toolSpec, "@")
+	toolName := parts[0]
+	var version string
+	if len(parts) > 1 {
+		version = parts[1]
+	}
+
+	cmd.Printf("Installing tool '%s'", toolName)
+	if version != "" {
+		cmd.Printf(" (version %s)", version)
+	}
+	cmd.Println("...")
+
+	// Get XDG directories
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	// Create tools directory
+	toolsDir := filepath.Join(dirs.DataDir, "tools")
+	if err := os.MkdirAll(toolsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create tools directory: %w", err)
+	}
+
+	// Create tool-specific environment
+	toolEnvDir := filepath.Join(toolsDir, toolName)
+	if version != "" {
+		toolEnvDir = filepath.Join(toolsDir, fmt.Sprintf("%s-%s", toolName, version))
+	}
+
+	// Use PVX to install the tool in an isolated environment
+	options := &pvx.ExecutionOptions{
+		PerlVersion:    "", // Use default
+		IsolationLevel: pvx.IsolationLow,
+		IsolationDir:   toolEnvDir,
+		EnvName:        fmt.Sprintf("tool-%s", toolName),
+		NoCleanup:      true,
+	}
+
+	// Create installation script
+	var installScript string
+	if version != "" {
+		installScript = fmt.Sprintf(`
+use App::cpanminus;
+exec { 'cpanm' } 'cpanm', '%s@%s';
+`, toolName, version)
+	} else {
+		installScript = fmt.Sprintf(`
+use App::cpanminus;
+exec { 'cpanm' } 'cpanm', '%s';
+`, toolName)
+	}
+
+	// Create a temporary script file
+	tmpDir := os.TempDir()
+	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("install-%s-%d.pl", toolName, os.Getpid()))
+
+	err = os.WriteFile(scriptPath, []byte(installScript), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create installation script: %w", err)
+	}
+	defer os.Remove(scriptPath)
+
+	// Set the script path
+	options.ScriptPath = scriptPath
+
+	// Execute installation
+	_, err = pvx.ExecuteScript(options)
+	if err != nil {
+		return fmt.Errorf("failed to install tool '%s': %w", toolName, err)
+	}
+
+	// Create shim for the tool
+	err = createToolShim(toolName, toolEnvDir)
+	if err != nil {
+		return fmt.Errorf("failed to create shim for tool '%s': %w", toolName, err)
+	}
+
+	cmd.Printf("Tool '%s' installed successfully\n", toolName)
+	cmd.Printf("Shim created in tools directory\n")
+
+	return nil
+}
+
+// runTool runs a tool temporarily without installing it
+func runTool(cmd *cobra.Command, toolName string, toolArgs []string) error {
+	// Use PVX to execute the tool directly
+	options := &pvx.ExecutionOptions{
+		PerlVersion:    "", // Use default
+		IsolationLevel: pvx.IsolationLow,
+		NoCleanup:      false, // Clean up for temporary runs
+	}
+
+	output, err := pvx.ExecuteTool(options, toolName, toolArgs)
+	if err != nil {
+		return fmt.Errorf("failed to run tool '%s': %w", toolName, err)
+	}
+
+	// Print output
+	fmt.Print(output)
+	return nil
+}
+
+// listTools lists all installed tools
+func listTools(cmd *cobra.Command) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	toolsDir := filepath.Join(dirs.DataDir, "tools")
+
+	// Check if tools directory exists
+	if _, err := os.Stat(toolsDir); os.IsNotExist(err) {
+		cmd.Println("No tools installed.")
+		return nil
+	}
+
+	// Read tools directory
+	entries, err := os.ReadDir(toolsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read tools directory: %w", err)
+	}
+
+	if len(entries) == 0 {
+		cmd.Println("No tools installed.")
+		return nil
+	}
+
+	cmd.Println("Installed tools:")
+	for _, entry := range entries {
+		if entry.IsDir() {
+			toolPath := filepath.Join(toolsDir, entry.Name())
+			info, err := os.Stat(toolPath)
+			if err == nil {
+				cmd.Printf("  %s (installed: %s)\n", entry.Name(), info.ModTime().Format("2006-01-02 15:04:05"))
+			} else {
+				cmd.Printf("  %s\n", entry.Name())
+			}
+		}
+	}
+
+	return nil
+}
+
+// upgradeTool upgrades an installed tool to the latest version
+func upgradeTool(cmd *cobra.Command, toolName string) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	toolsDir := filepath.Join(dirs.DataDir, "tools")
+	toolEnvDir := filepath.Join(toolsDir, toolName)
+
+	// Check if tool is installed
+	if _, err := os.Stat(toolEnvDir); os.IsNotExist(err) {
+		return fmt.Errorf("tool '%s' is not installed", toolName)
+	}
+
+	cmd.Printf("Upgrading tool '%s'...\n", toolName)
+
+	// Use PVX to upgrade the tool
+	options := &pvx.ExecutionOptions{
+		PerlVersion:    "", // Use default
+		IsolationLevel: pvx.IsolationLow,
+		IsolationDir:   toolEnvDir,
+		EnvName:        fmt.Sprintf("tool-%s", toolName),
+		NoCleanup:      true,
+	}
+
+	// Create upgrade script
+	upgradeScript := fmt.Sprintf(`
+use App::cpanminus;
+exec { 'cpanm' } 'cpanm', '--force', '%s';
+`, toolName)
+
+	// Create a temporary script file
+	tmpDir := os.TempDir()
+	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("upgrade-%s-%d.pl", toolName, os.Getpid()))
+
+	err = os.WriteFile(scriptPath, []byte(upgradeScript), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create upgrade script: %w", err)
+	}
+	defer os.Remove(scriptPath)
+
+	// Set the script path
+	options.ScriptPath = scriptPath
+
+	// Execute upgrade
+	_, err = pvx.ExecuteScript(options)
+	if err != nil {
+		return fmt.Errorf("failed to upgrade tool '%s': %w", toolName, err)
+	}
+
+	cmd.Printf("Tool '%s' upgraded successfully\n", toolName)
+	return nil
+}
+
+// uninstallTool removes an installed tool
+func uninstallTool(cmd *cobra.Command, toolName string) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	toolsDir := filepath.Join(dirs.DataDir, "tools")
+	toolEnvDir := filepath.Join(toolsDir, toolName)
+
+	// Check if tool is installed
+	if _, err := os.Stat(toolEnvDir); os.IsNotExist(err) {
+		return fmt.Errorf("tool '%s' is not installed", toolName)
+	}
+
+	// Confirm removal
+	cmd.Printf("Are you sure you want to uninstall tool '%s'? [y/N] ", toolName)
+	var response string
+	_, _ = fmt.Scanln(&response)
+
+	response = strings.ToLower(strings.TrimSpace(response))
+	if response != "y" && response != "yes" {
+		cmd.Println("Tool uninstall cancelled.")
+		return nil
+	}
+
+	// Remove the tool directory
+	err = os.RemoveAll(toolEnvDir)
+	if err != nil {
+		return fmt.Errorf("failed to remove tool '%s': %w", toolName, err)
+	}
+
+	// Remove shim if it exists
+	removeToolShim(toolName)
+
+	cmd.Printf("Tool '%s' has been uninstalled.\n", toolName)
+	return nil
+}
+
+// createToolShim creates a shim for a tool in the tools directory
+func createToolShim(toolName, toolEnvDir string) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	// Create shims directory in tools
+	shimsDir := filepath.Join(dirs.DataDir, "tools", "bin")
+	if err := os.MkdirAll(shimsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create shims directory: %w", err)
+	}
+
+	shimPath := filepath.Join(shimsDir, toolName)
+
+	// Create shim script that uses the tool's environment
+	shimContent := fmt.Sprintf(`#!/bin/bash
+# Tool shim for %s
+export PATH="%s/bin:$PATH"
+export PERL5LIB="%s/lib/perl5:$PERL5LIB"
+exec "%s" "$@"
+`, toolName, toolEnvDir, toolEnvDir, toolName)
+
+	err = os.WriteFile(shimPath, []byte(shimContent), 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create shim: %w", err)
+	}
+
+	return nil
+}
+
+// removeToolShim removes a tool's shim
+func removeToolShim(toolName string) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	shimPath := filepath.Join(dirs.DataDir, "tools", "bin", toolName)
+	if _, err := os.Stat(shimPath); err == nil {
+		return os.Remove(shimPath)
+	}
 	return nil
 }
