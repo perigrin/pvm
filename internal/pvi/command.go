@@ -59,15 +59,18 @@ func newInstallCommand() *cobra.Command {
 		buildOnly    bool
 		installOnly  bool
 		keepBuildDir bool
+		workers      int
+		parallel     bool
+		timing       bool
 	)
 
 	cmd := &cobra.Command{
-		Use:   "install [module]",
-		Short: "Install a module",
-		Long:  "Install a CPAN module for the current Perl version",
+		Use:   "install [module...]",
+		Short: "Install one or more modules",
+		Long:  "Install CPAN modules for the current Perl version. Supports parallel installation for multiple modules.",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			moduleName := args[0]
+			moduleNames := args
 
 			// Get configuration
 			cfg, err := config.LoadEffectiveConfig()
@@ -140,7 +143,7 @@ func newInstallCommand() *cobra.Command {
 
 			// Create installation options
 			installOptions := &modules.ModuleInstallOptions{
-				ModuleName:         moduleName,
+				ModuleName:         "", // Will be set per module later
 				VersionConstraint:  version,
 				PerlPath:           perlPath,
 				InstallDir:         installDir,
@@ -162,42 +165,136 @@ func newInstallCommand() *cobra.Command {
 				Context: cmd.Context(),
 			}
 
-			// Install the module
-			cmd.Printf("Installing module %s...\n", moduleName)
-			result, err := modules.InstallModule(installOptions)
+			// Determine if we should use parallel installation
+			useParallel := parallel || len(moduleNames) > 1
 
-			if err != nil {
-				cmd.Printf("Failed to install %s: %v\n", moduleName, err)
-				return err
-			}
-
-			// Display result
-			if result.Success {
-				cmd.Printf("Successfully installed %s v%s\n", result.ModuleName, result.Version)
-
-				// Show installed dependencies count
-				if len(result.Dependencies) > 0 {
-					cmd.Printf("Installed %d dependencies\n", len(result.Dependencies))
+			if useParallel && len(moduleNames) > 1 {
+				// Parallel installation for multiple modules
+				if timing {
+					cmd.Printf("Installing %d modules in parallel with %d workers...\n", len(moduleNames), workers)
+				} else {
+					cmd.Printf("Installing %d modules in parallel...\n", len(moduleNames))
 				}
 
-				// Show warnings if any
-				if len(result.Warnings) > 0 && verbose {
-					cmd.Println("Warnings:")
-					for _, warning := range result.Warnings {
-						cmd.Printf("  - %s\n", warning)
+				parallelOptions := &modules.ParallelInstallOptions{
+					Modules:     make([]*modules.ModuleInstallOptions, len(moduleNames)),
+					Workers:     workers,
+					StopOnError: false,
+					Context:     cmd.Context(),
+				}
+
+				// Create module options for each module
+				for i, moduleName := range moduleNames {
+					moduleOpts := *installOptions // Copy base options
+					moduleOpts.ModuleName = moduleName
+					parallelOptions.Modules[i] = &moduleOpts
+				}
+
+				// Add progress callback for parallel installation
+				if verbose || timing {
+					parallelOptions.ProgressCallback = func(completed, total int, currentModule string, stage modules.InstallProgressStage) {
+						cmd.Printf("[%d/%d] %s: %s\n", completed, total, currentModule, stage.String())
 					}
 				}
 
-				cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
+				startTime := time.Now()
+				result, err := modules.InstallModulesParallel(parallelOptions)
+				duration := time.Since(startTime)
+
+				if err != nil {
+					cmd.Printf("Parallel installation failed: %v\n", err)
+					return err
+				}
+
+				// Display results
+				cmd.Printf("\nInstallation Summary:\n")
+				cmd.Printf("  Modules: %d\n", len(moduleNames))
+				cmd.Printf("  Successful: %d\n", result.SuccessCount)
+				cmd.Printf("  Failed: %d\n", result.FailureCount)
+				if timing {
+					cmd.Printf("  Total time: %s\n", duration.Round(time.Millisecond))
+					cmd.Printf("  Average per module: %s\n", (duration / time.Duration(len(moduleNames))).Round(time.Millisecond))
+				}
+
+				// Show successful installations
+				if len(result.Results) > 0 {
+					cmd.Println("\nSuccessful installations:")
+					for _, res := range result.Results {
+						if res.Success {
+							if timing {
+								cmd.Printf("  ✓ %s v%s (%s)\n", res.ModuleName, res.Version, res.Duration.Round(time.Millisecond))
+							} else {
+								cmd.Printf("  ✓ %s v%s\n", res.ModuleName, res.Version)
+							}
+						}
+					}
+				}
+
+				// Show failures
+				if len(result.Failures) > 0 {
+					cmd.Println("\nFailed installations:")
+					for _, failure := range result.Failures {
+						if timing {
+							cmd.Printf("  ✗ %s (%s): %v\n", failure.ModuleName, failure.Duration.Round(time.Millisecond), failure.Error)
+						} else {
+							cmd.Printf("  ✗ %s: %v\n", failure.ModuleName, failure.Error)
+						}
+					}
+					return fmt.Errorf("%d modules failed to install", len(result.Failures))
+				}
+
 			} else {
-				cmd.Printf("Failed to install %s\n", moduleName)
-				if len(result.Errors) > 0 {
-					cmd.Println("Errors:")
-					for _, err := range result.Errors {
-						cmd.Printf("  - %s\n", err)
-					}
+				// Single module installation (original logic)
+				moduleName := moduleNames[0]
+				installOptions.ModuleName = moduleName
+
+				cmd.Printf("Installing module %s...\n", moduleName)
+
+				startTime := time.Now()
+				result, err := modules.InstallModule(installOptions)
+				duration := time.Since(startTime)
+
+				if err != nil {
+					cmd.Printf("Failed to install %s: %v\n", moduleName, err)
+					return err
 				}
-				return fmt.Errorf("installation failed")
+
+				// Display result
+				if result.Success {
+					if timing {
+						cmd.Printf("Successfully installed %s v%s (%s)\n", result.ModuleName, result.Version, duration.Round(time.Millisecond))
+					} else {
+						cmd.Printf("Successfully installed %s v%s\n", result.ModuleName, result.Version)
+					}
+
+					// Show installed dependencies count
+					if len(result.Dependencies) > 0 {
+						cmd.Printf("Installed %d dependencies\n", len(result.Dependencies))
+					}
+
+					// Show warnings if any
+					if len(result.Warnings) > 0 && verbose {
+						cmd.Println("Warnings:")
+						for _, warning := range result.Warnings {
+							cmd.Printf("  - %s\n", warning)
+						}
+					}
+
+					if timing {
+						cmd.Printf("Total installation time: %s\n", duration.Round(time.Millisecond))
+					} else {
+						cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
+					}
+				} else {
+					cmd.Printf("Failed to install %s\n", moduleName)
+					if len(result.Errors) > 0 {
+						cmd.Println("Errors:")
+						for _, err := range result.Errors {
+							cmd.Printf("  - %s\n", err)
+						}
+					}
+					return fmt.Errorf("installation failed")
+				}
 			}
 
 			return nil
@@ -216,6 +313,9 @@ func newInstallCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&buildOnly, "build-only", false, "Only build the module, don't install it")
 	cmd.Flags().BoolVar(&installOnly, "install-only", false, "Only install the module, don't build it (assumes it's already built)")
 	cmd.Flags().BoolVar(&keepBuildDir, "keep-build-dir", false, "Keep the build directory after installation")
+	cmd.Flags().IntVar(&workers, "workers", 0, "Number of parallel workers (0 = auto-detect, only used with multiple modules)")
+	cmd.Flags().BoolVar(&parallel, "parallel", false, "Force parallel installation even for single module")
+	cmd.Flags().BoolVar(&timing, "timing", false, "Show detailed timing information")
 
 	return cmd
 }
