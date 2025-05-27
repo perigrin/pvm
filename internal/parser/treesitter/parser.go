@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	sitter "github.com/tree-sitter/go-tree-sitter"
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 )
@@ -191,7 +193,7 @@ func NewParser(debug bool) (*Parser, error) {
 }
 
 // ParseFile parses a Perl file and returns its AST
-func (p *Parser) ParseFile(path string) (*AST, error) {
+func (p *Parser) ParseFile(path string) (*ast.AST, error) {
 	// Check if the file exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, errors.NewSystemError("001",
@@ -228,15 +230,31 @@ func (p *Parser) ParseFile(path string) (*AST, error) {
 	}
 
 	// Create an AST from the parse tree
-	ast := &AST{
-		Path:            path,
-		Root:            newSimpleNode("root"),
-		TypeAnnotations: typeAnnotations,
-		Errors:          []error{},
-		rawTree:         tree,
+	// Convert tree-sitter root to our Node interface
+	var rootNode Node
+	if tree.Root() != nil {
+		rootNode = p.convertTreeSitterNode(tree.Root(), tree)
+	} else {
+		rootNode = newSimpleNode("root")
 	}
 
-	return ast, nil
+	// Convert to proper ast.AST with ast.Node types
+	astRoot := p.convertToASTNode(rootNode)
+
+	// Convert type annotations to ast.TypeAnnotation
+	var astTypeAnnotations []*ast.TypeAnnotation
+	for _, ta := range typeAnnotations {
+		astTypeAnnotations = append(astTypeAnnotations, p.convertToASTTypeAnnotation(ta))
+	}
+
+	astResult := &ast.AST{
+		Path:            path,
+		Root:            astRoot,
+		TypeAnnotations: astTypeAnnotations,
+		Errors:          []error{},
+	}
+
+	return astResult, nil
 }
 
 // convertPerlTypeAnnotation converts a PerlTypeAnnotation to the standard TypeAnnotation format
@@ -426,7 +444,7 @@ func (p *Parser) splitParameters(paramStr string) []string {
 }
 
 // ParseString parses a string containing Perl code and returns its AST
-func (p *Parser) ParseString(content string) (*AST, error) {
+func (p *Parser) ParseString(content string) (*ast.AST, error) {
 	// Parse the string using tree-sitter
 	tree, err := p.perlParser.ParseString(content)
 	if err != nil {
@@ -453,19 +471,35 @@ func (p *Parser) ParseString(content string) (*AST, error) {
 		typeAnnotations = append(typeAnnotations, annotation)
 	}
 
-	// Create an AST from the parse tree
-	ast := &AST{
-		Root:            newSimpleNode("root"),
-		TypeAnnotations: typeAnnotations,
-		Errors:          []error{},
-		rawTree:         tree,
+	// Convert tree-sitter root to our Node interface
+	var rootNode Node
+	if tree.Root() != nil {
+		rootNode = p.convertTreeSitterNode(tree.Root(), tree)
+	} else {
+		rootNode = newSimpleNode("root")
 	}
 
-	return ast, nil
+	// Convert to proper ast.AST with ast.Node types
+	astRoot := p.convertToASTNode(rootNode)
+
+	// Convert type annotations to ast.TypeAnnotation
+	var astTypeAnnotations []*ast.TypeAnnotation
+	for _, ta := range typeAnnotations {
+		astTypeAnnotations = append(astTypeAnnotations, p.convertToASTTypeAnnotation(ta))
+	}
+
+	// Create an AST from the parse tree
+	astResult := &ast.AST{
+		Root:            astRoot,
+		TypeAnnotations: astTypeAnnotations,
+		Errors:          []error{},
+	}
+
+	return astResult, nil
 }
 
 // ParseReader parses Perl code from a reader and returns its AST
-func (p *Parser) ParseReader(reader io.Reader) (*AST, error) {
+func (p *Parser) ParseReader(reader io.Reader) (*ast.AST, error) {
 	// Read all content from the reader
 	content, err := io.ReadAll(reader)
 	if err != nil {
@@ -526,6 +560,208 @@ func newSimpleNode(nodeType string) Node {
 		NodeChildren: []Node{},
 		StartPos:     Position{Line: 1, Column: 1, Offset: 0},
 		EndPos:       Position{Line: 1, Column: 1, Offset: 0},
+	}
+}
+
+// convertTreeSitterNode converts a tree-sitter node to our Node interface
+func (p *Parser) convertTreeSitterNode(tsNode *sitter.Node, tree *PerlTree) Node {
+	if tsNode == nil {
+		return newSimpleNode("root")
+	}
+
+	// Get node information
+	nodeType := tsNode.Kind()
+	nodeText := tree.GetNodeText(tsNode)
+
+	// Convert positions
+	startPos := Position{
+		Line:   int(tsNode.StartPosition().Row) + 1, // tree-sitter is 0-based, we want 1-based
+		Column: int(tsNode.StartPosition().Column) + 1,
+		Offset: int(tsNode.StartByte()),
+	}
+	endPos := Position{
+		Line:   int(tsNode.EndPosition().Row) + 1,
+		Column: int(tsNode.EndPosition().Column) + 1,
+		Offset: int(tsNode.EndByte()),
+	}
+
+	// Convert children
+	var children []Node
+	childCount := tsNode.ChildCount()
+	for i := uint(0); i < childCount; i++ {
+		child := tsNode.Child(i)
+		if child != nil {
+			children = append(children, p.convertTreeSitterNode(child, tree))
+		}
+	}
+
+	return &SimpleNode{
+		NodeType:     nodeType,
+		Text_:        nodeText,
+		StartPos:     startPos,
+		EndPos:       endPos,
+		NodeChildren: children,
+	}
+}
+
+// convertToASTNode converts a tree-sitter Node to an ast.Node
+func (p *Parser) convertToASTNode(node Node) ast.Node {
+	if node == nil {
+		return nil
+	}
+
+	// Convert position from tree-sitter to ast format
+	start := ast.Position{
+		Line:   node.Start().Line,
+		Column: node.Start().Column,
+	}
+	end := ast.Position{
+		Line:   node.End().Line,
+		Column: node.End().Column,
+	}
+
+	// Check if this is a variable declaration
+	nodeType := node.Type()
+	nodeText := node.Text()
+
+	// Handle variable declarations (my $var = value)
+	if nodeType == "assignment_expression" &&
+		(strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
+			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
+			strings.HasPrefix(strings.TrimSpace(nodeText), "state ")) {
+		return p.convertToVarDeclAST(nodeText, start, end)
+	}
+
+	// For other nodes, create a generic statement or expression
+	// Convert children recursively
+	var children []ast.Node
+	for _, child := range node.Children() {
+		if childAST := p.convertToASTNode(child); childAST != nil {
+			children = append(children, childAST)
+		}
+	}
+
+	// Create appropriate AST node based on type
+	switch nodeType {
+	case "source_file":
+		// For the root source file, create a program node that doesn't create a new scope
+		// Return the first statement if there's only one, or create a container
+		if len(children) == 1 {
+			if stmt, ok := children[0].(ast.StatementNode); ok {
+				return stmt
+			}
+		}
+		// For multiple statements, we need a different approach that doesn't use BlockStmt
+		// For now, return the first statement - this needs to be improved for multiple statements
+		if len(children) > 0 {
+			if stmt, ok := children[0].(ast.StatementNode); ok {
+				return stmt
+			}
+		}
+		// Fallback: create a dummy expression statement
+		return ast.NewExpressionStmt(
+			ast.NewLiteralExpr("", ast.StringLiteral, start, end),
+			start, end)
+	case "expression_statement":
+		// If the first child is already a statement (like VarDecl), return it directly
+		if len(children) > 0 {
+			if stmt, ok := children[0].(ast.StatementNode); ok {
+				return stmt
+			}
+			if expr, ok := children[0].(ast.ExpressionNode); ok {
+				return ast.NewExpressionStmt(expr, start, end)
+			}
+		}
+		// Fallback: create a literal expression from the text
+		return ast.NewExpressionStmt(
+			ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end),
+			start, end)
+	default:
+		// For other nodes, create a literal expression wrapped in expression statement
+		return ast.NewExpressionStmt(
+			ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end),
+			start, end)
+	}
+}
+
+// convertToVarDeclAST converts a variable declaration text to ast.VarDecl
+func (p *Parser) convertToVarDeclAST(nodeText string, start, end ast.Position) ast.Node {
+	// Parse the variable declaration
+	parts := strings.Fields(strings.TrimSpace(nodeText))
+	if len(parts) < 2 {
+		return nil // Invalid declaration
+	}
+
+	declType := parts[0] // "my", "our", "state"
+	varName := parts[1]  // "$foo"
+
+	// Remove sigil to get just the variable name and determine sigil
+	var name, sigil string
+	if len(varName) > 1 && (varName[0] == '$' || varName[0] == '@' || varName[0] == '%') {
+		sigil = string(varName[0])
+		name = varName[1:]
+	} else {
+		name = varName
+		sigil = "$" // default
+	}
+
+	// Create variable expression
+	varExpr := ast.NewVariableExpr(name, sigil, start, end)
+
+	// Create variable declaration
+	return ast.NewVarDecl(declType, []*ast.VariableExpr{varExpr}, nil, nil, start, end)
+}
+
+// convertToASTTypeAnnotation converts tree-sitter TypeAnnotation to ast.TypeAnnotation
+func (p *Parser) convertToASTTypeAnnotation(ta *TypeAnnotation) *ast.TypeAnnotation {
+	// Convert the type annotation from tree-sitter format to ast format
+	astPos := ast.Position{Line: ta.Pos.Line, Column: ta.Pos.Column}
+
+	return &ast.TypeAnnotation{
+		Kind:           ast.AnnotationKind(ta.Kind),
+		AnnotatedItem:  ta.AnnotatedItem,
+		TypeExpression: p.convertToASTTypeExpression(ta.TypeExpression),
+		Pos:            astPos,
+	}
+}
+
+// convertToASTTypeExpression converts tree-sitter TypeExpression to ast.TypeExpression
+func (p *Parser) convertToASTTypeExpression(te *TypeExpression) *ast.TypeExpression {
+	if te == nil {
+		return nil
+	}
+
+	astPos := ast.Position{Line: te.Pos.Line, Column: te.Pos.Column}
+
+	// Convert parameters recursively
+	var astParams []*ast.TypeExpression
+	for _, param := range te.Parameters {
+		astParams = append(astParams, p.convertToASTTypeExpression(param))
+	}
+
+	// Convert union types recursively
+	var astUnionTypes []*ast.TypeExpression
+	for _, unionType := range te.UnionTypes {
+		astUnionTypes = append(astUnionTypes, p.convertToASTTypeExpression(unionType))
+	}
+
+	// Convert intersection types recursively
+	var astIntersectionTypes []*ast.TypeExpression
+	for _, intersectionType := range te.IntersectionTypes {
+		astIntersectionTypes = append(astIntersectionTypes, p.convertToASTTypeExpression(intersectionType))
+	}
+
+	return &ast.TypeExpression{
+		BaseType:          te.BaseType,
+		Parameters:        astParams,
+		IsUnion:           te.IsUnion,
+		IsIntersection:    te.IsIntersection,
+		IsNegation:        te.IsNegation,
+		UnionTypes:        astUnionTypes,
+		IntersectionTypes: astIntersectionTypes,
+		NegatedType:       p.convertToASTTypeExpression(te.NegatedType),
+		OriginalString:    te.OriginalString,
+		Pos:               astPos,
 	}
 }
 

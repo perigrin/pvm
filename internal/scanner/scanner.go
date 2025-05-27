@@ -9,6 +9,7 @@ package scanner
 import (
 	"io"
 	"os"
+	"strings"
 
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser/treesitter"
@@ -187,15 +188,10 @@ func (s *treeSitterScanner) ScanFile(path string) (TokenIterator, error) {
 
 // ScanString implements Scanner interface
 func (s *treeSitterScanner) ScanString(content string) (TokenIterator, error) {
-	// Parse with tree-sitter to get the AST
-	ast, err := s.parser.ParseString(content)
-	if err != nil {
-		return nil, errors.NewSystemError("004",
-			"Failed to parse content for scanning", err)
-	}
-
-	// Extract tokens from the AST
-	tokens := s.extractTokensFromAST(ast, content)
+	// TODO: Temporary fallback - create basic tokens from simple parsing
+	// The main parser now returns ast.AST which is incompatible with scanner's tree-sitter AST
+	// This should be properly integrated once the scanner is updated to work with the new AST format
+	tokens := s.extractTokensBasic(content)
 
 	return &tokenIterator{
 		tokens: tokens,
@@ -213,6 +209,82 @@ func (s *treeSitterScanner) ScanReader(reader io.Reader) (TokenIterator, error) 
 	}
 
 	return s.ScanString(string(content))
+}
+
+// extractTokensBasic performs basic tokenization without AST analysis
+func (s *treeSitterScanner) extractTokensBasic(content string) []Token {
+	var tokens []Token
+
+	// Simple tokenization for basic functionality
+	// This is a temporary implementation until scanner-AST integration is fixed
+
+	// Split on whitespace but also handle operators
+	parts := strings.Fields(content)
+
+	for _, part := range parts {
+		// Handle the "=" operator and ";" separately
+		if strings.Contains(part, "=") {
+			// Split by = and add tokens for each part
+			beforeEq := strings.Split(part, "=")[0]
+			if beforeEq != "" {
+				tokens = append(tokens, s.createBasicToken(beforeEq))
+			}
+			tokens = append(tokens, &treeSitterToken{
+				tokenType: TokenAssign,
+				value:     "=",
+				position:  Position{Line: 1, Column: 1},
+				length:    1,
+			})
+			afterEq := strings.TrimSuffix(strings.Split(part, "=")[1], ";")
+			if afterEq != "" {
+				tokens = append(tokens, s.createBasicToken(afterEq))
+			}
+		} else {
+			cleaned := strings.TrimSuffix(part, ";")
+			if cleaned != "" {
+				tokens = append(tokens, s.createBasicToken(cleaned))
+			}
+		}
+
+		// Add semicolon if present
+		if strings.HasSuffix(part, ";") {
+			tokens = append(tokens, &treeSitterToken{
+				tokenType: TokenSemicolon,
+				value:     ";",
+				position:  Position{Line: 1, Column: 1},
+				length:    1,
+			})
+		}
+	}
+
+	return tokens
+}
+
+// createBasicToken creates a token from a string value
+func (s *treeSitterScanner) createBasicToken(value string) Token {
+	var tokenType TokenType
+
+	switch {
+	case value == "my" || value == "our" || value == "state":
+		tokenType = TokenMy
+	case value == "sub":
+		tokenType = TokenSub
+	case value == "package":
+		tokenType = TokenPackage
+	case strings.HasPrefix(value, "$"):
+		tokenType = TokenVariable
+	case strings.ContainsAny(value, "0123456789") && !strings.ContainsAny(value, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+		tokenType = TokenNumber
+	default:
+		tokenType = TokenIdentifier
+	}
+
+	return &treeSitterToken{
+		tokenType: tokenType,
+		value:     value,
+		position:  Position{Line: 1, Column: 1},
+		length:    len(value),
+	}
 }
 
 // extractTokensFromAST converts tree-sitter AST nodes to tokens
@@ -271,13 +343,13 @@ func (s *treeSitterScanner) extractTokensFromNode(node treesitter.Node, content 
 // mapNodeTypeToTokenType maps tree-sitter node types to our token types
 func (s *treeSitterScanner) mapNodeTypeToTokenType(nodeType, nodeText string) TokenType {
 	switch nodeType {
-	case "identifier":
+	case "identifier", "varname":
 		return TokenIdentifier
 	case "string", "string_literal":
 		return TokenString
-	case "number", "numeric_literal":
+	case "number":
 		return TokenNumber
-	case "variable", "scalar_variable":
+	case "scalar":
 		return TokenVariable
 	case "array_variable":
 		return TokenArrayVariable
@@ -315,6 +387,8 @@ func (s *treeSitterScanner) mapNodeTypeToTokenType(nodeType, nodeText string) To
 		return TokenComma
 	case ";":
 		return TokenSemicolon
+	case "$":
+		return TokenVariable // $ sigil is part of variable
 	case "(":
 		return TokenLParen
 	case ")":

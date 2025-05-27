@@ -95,12 +95,6 @@ test-baselines-update: tree-sitter check-tools
 	UPDATE_BASELINES=1 gotestsum --format=short -- -mod=mod -run=TestParser_Baselines ./internal/parser/
 	UPDATE_BASELINES=1 gotestsum --format=short -- -mod=mod -run=TestTypeChecker_Baselines ./internal/typechecker/
 
-# Performance testing and monitoring
-test-performance: tree-sitter check-tools
-	@echo "Running performance benchmarks..."
-	go test -mod=mod -bench=BenchmarkParser_Performance -benchmem ./internal/parser/
-	go test -mod=mod -bench=BenchmarkTypeChecker_Performance -benchmem ./internal/typechecker/
-
 test-performance-baseline: tree-sitter check-tools
 	@echo "Updating performance baselines..."
 	UPDATE_PERFORMANCE_BASELINE=1 go test -mod=mod -bench=BenchmarkParser_Performance -benchmem ./internal/parser/

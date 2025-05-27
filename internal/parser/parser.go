@@ -92,30 +92,20 @@ func ParseTypeExpression(text string, pos Position) (*ast.TypeExpression, error)
 // NewParser returns a new Parser instance using the modern scanner→parser pipeline
 // This now uses the scanner-based parser by default for the TypeScript-Go architecture
 func NewParser() (Parser, error) {
-	// Use the new scanner-based parser for modern architecture
-	// Fall back to tree-sitter parser if scanner initialization fails
-	scannerParser, err := NewTokenBasedParser(true)
+	// For now, use tree-sitter parser directly since it has working type annotation extraction
+	// TODO: Integrate scanner-based parser with type annotation extraction
+	tsParser, err := treesitter.NewParser(false)
 	if err != nil {
-		// Fallback to tree-sitter parser for compatibility
-		tsParser, tsErr := treesitter.NewParser(false)
-		if tsErr != nil {
-			return nil, fmt.Errorf("failed to create scanner parser (%v) and tree-sitter fallback (%v)", err, tsErr)
-		}
-
-		baseParser := &treeSitterParserWrapper{
-			parser: tsParser,
-		}
-
-		return &CachedParser{
-			parser: baseParser,
-			cache:  NewParserCache(100),
-		}, nil
+		return nil, fmt.Errorf("failed to create tree-sitter parser: %v", err)
 	}
 
-	// Wrap scanner parser with caching for better performance
+	baseParser := &treeSitterParserWrapper{
+		parser: tsParser,
+	}
+
 	return &CachedParser{
-		parser: scannerParser,
-		cache:  NewParserCache(100), // Cache up to 100 files
+		parser: baseParser,
+		cache:  NewParserCache(100),
 	}, nil
 }
 
@@ -243,8 +233,8 @@ func (w *treeSitterParserWrapper) ParseFile(path string) (*ast.AST, error) {
 		return nil, err
 	}
 
-	// Convert the tree-sitter AST to our consolidated AST format
-	return w.convertAst(tsAst), nil
+	// The tree-sitter parser now returns *ast.AST directly, no conversion needed
+	return tsAst, nil
 }
 
 // ParseString implements the Parser interface
@@ -254,8 +244,8 @@ func (w *treeSitterParserWrapper) ParseString(content string) (*ast.AST, error) 
 		return nil, err
 	}
 
-	// Convert the tree-sitter AST to our consolidated AST format
-	return w.convertAst(tsAst), nil
+	// The tree-sitter parser now returns *ast.AST directly, no conversion needed
+	return tsAst, nil
 }
 
 // ParseReader implements the Parser interface
@@ -265,8 +255,8 @@ func (w *treeSitterParserWrapper) ParseReader(reader io.Reader) (*ast.AST, error
 		return nil, err
 	}
 
-	// Convert the tree-sitter AST to our consolidated AST format
-	return w.convertAst(tsAst), nil
+	// The tree-sitter parser now returns *ast.AST directly, no conversion needed
+	return tsAst, nil
 }
 
 // convertAst converts a tree-sitter AST to our consolidated AST format
