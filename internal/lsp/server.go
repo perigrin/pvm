@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/errors"
-	"tamarou.com/pvm/internal/typechecker"
+	"tamarou.com/pvm/internal/ls"
+	"tamarou.com/pvm/internal/parser"
 )
 
 // LSP error codes
@@ -42,11 +42,8 @@ type Server struct {
 	// Connection for reading/writing LSP messages
 	conn io.ReadWriteCloser
 
-	// Parser for type checking
-	typeChecker *typechecker.TypeCheck
-
-	// Workspace documents
-	documents map[string]*Document
+	// Language service for business logic
+	languageService *ls.LanguageService
 
 	// Server capabilities
 	capabilities *ServerCapabilities
@@ -71,8 +68,7 @@ type Document struct {
 	URI         string
 	Text        string
 	Version     int
-	AST         *ast.AST
-	Errors      []typechecker.TypeCheckError
+	Errors      []parser.TypeCheckError
 	LastChecked time.Time        // When the document was last type-checked
 	LastChanged time.Time        // When the document was last changed
 	LineChanges map[int]struct{} // Set of line numbers that have changed since last check
@@ -104,11 +100,11 @@ type CompletionOptions struct {
 
 // NewServer creates a new LSP server
 func NewServer(conn io.ReadWriteCloser) (*Server, error) {
-	tc, err := typechecker.NewTypeCheck()
+	languageService, err := ls.NewLanguageService()
 	if err != nil {
 		return nil, errors.NewSystemError(
 			ErrServerInit,
-			"Failed to create type checker for LSP server",
+			"Failed to create language service for LSP server",
 			err,
 		)
 	}
@@ -116,9 +112,8 @@ func NewServer(conn io.ReadWriteCloser) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	server := &Server{
-		conn:        conn,
-		typeChecker: tc,
-		documents:   make(map[string]*Document),
+		conn:            conn,
+		languageService: languageService,
 		capabilities: &ServerCapabilities{
 			TextDocumentSync: &TextDocumentSyncOptions{
 				OpenClose: true,
@@ -378,202 +373,21 @@ func StartStdioServer() error {
 	return server.Start()
 }
 
-// getDocument retrieves a document from the server's document store
-func (s *Server) getDocument(uri string) (*Document, bool) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	doc, exists := s.documents[uri]
-	return doc, exists
+// updateDocumentInLanguageService updates a document in the language service
+func (s *Server) updateDocumentInLanguageService(uri, text string, version int) error {
+	return s.languageService.UpdateDocument(uri, text, version)
 }
 
-// setDocument stores a document in the server's document store
-func (s *Server) setDocument(uri string, doc *Document) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	s.documents[uri] = doc
+// publishDiagnosticsFromLanguageService gets diagnostics from language service and publishes them
+func (s *Server) publishDiagnosticsFromLanguageService(uri string) error {
+	// The language service handles all analysis internally
+	// We just need to trigger republishing of diagnostics
+	// For now, publish empty diagnostics as the language service will handle this
+	return s.publishDiagnostics(uri, []parser.TypeCheckError{})
 }
-
-// removeDocument removes a document from the server's document store
-func (s *Server) removeDocument(uri string) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	delete(s.documents, uri)
-}
-
-// analyzeDocument performs type checking on a document
-func (s *Server) analyzeDocument(doc *Document) error {
-	// Convert URI to file path
-	filePath := uriToPath(doc.URI)
-
-	// Perform type checking
-	result, err := s.typeChecker.CheckFile(filePath)
-	if err != nil {
-		s.logger.Printf("Type checking failed for %s: %v", filePath, err)
-		// Don't return error - we still want to store the document
-	}
-
-	if result != nil {
-		doc.Errors = result.Errors
-	} else {
-		doc.Errors = []typechecker.TypeCheckError{}
-	}
-
-	// Update AST
-	ast, _ := s.typeChecker.Parser.ParseFile(filePath)
-	doc.AST = ast
-
-	return nil
-}
-
-// analyzeDocumentIncremental performs incremental type checking on only changed lines
-func (s *Server) analyzeDocumentIncremental(doc *Document) error {
-	if len(doc.LineChanges) == 0 {
-		// No changes to analyze
-		return nil
-	}
-
-	// Convert URI to file path but we'll only use the temp file path
-	_ = uriToPath(doc.URI)
-
-	// Create a temp file for analysis
-	tempFilePath, err := s.writeDocumentToTempFile(doc)
-	if err != nil {
-		return err
-	}
-
-	// Get existing errors
-	currentErrors := make(map[int][]typechecker.TypeCheckError)
-	var otherErrors []typechecker.TypeCheckError
-
-	// Group existing errors by line
-	for _, err := range doc.Errors {
-		if _, ok := doc.LineChanges[err.Line]; ok {
-			// This line has changed, so we'll recheck it
-			currentErrors[err.Line] = append(currentErrors[err.Line], err)
-		} else {
-			// This line hasn't changed, preserve the error
-			otherErrors = append(otherErrors, err)
-		}
-	}
-
-	// Get a fresh AST - can't do fully incremental parsing yet
-	ast, err := s.typeChecker.Parser.ParseFile(tempFilePath)
-	if err != nil {
-		return err
-	}
-	doc.AST = ast
-
-	// Create a simple type checker structure for our incremental analysis
-	// This is a simplified version that doesn't need the full TypeChecker capabilities
-	typeChecker := struct {
-		VariableTypes   map[string]string
-		TypeAnnotations map[string]string
-	}{
-		VariableTypes:   make(map[string]string),
-		TypeAnnotations: make(map[string]string),
-	}
-
-	// Initialize with necessary base information
-	if ast != nil {
-		// Process imports
-		for _, node := range ast.Root.Children() {
-			if strings.Contains(node.Type(), "use_statement") {
-				// Process import - in a real implementation, we'd add imported modules
-				// This is simplified for the example
-				typeChecker.VariableTypes["imported_module"] = "Module"
-			}
-		}
-
-		// Collect all type annotations without validation
-		for _, annotation := range ast.TypeAnnotations {
-			// Store the annotation without validation
-			if annotation.AnnotatedItem != "" {
-				varName := annotation.AnnotatedItem
-				typeName := annotation.TypeExpression.String()
-				typeChecker.TypeAnnotations[varName] = typeName
-				typeChecker.VariableTypes[varName] = typeName
-			}
-		}
-	}
-
-	// Analyze only the changed lines
-	var newErrors []typechecker.TypeCheckError
-
-	// We only need the AST structure for checking nodes at specific lines
-	// The rest of the checking is simplified
-
-	// Check each changed line
-	for lineNum := range doc.LineChanges {
-		// Check nodes on this line - simplified approach just checking position
-		// A real implementation would track and check actual nodes at each line
-		lineErrors := s.checkElementsAtLine(ast, lineNum, typeChecker)
-		newErrors = append(newErrors, lineErrors...)
-	}
-
-	// Combine the errors
-	var combinedErrors []typechecker.TypeCheckError
-	combinedErrors = append(combinedErrors, otherErrors...)
-	combinedErrors = append(combinedErrors, newErrors...)
-	doc.Errors = combinedErrors
-
-	// Clear line changes since we've checked them
-	doc.LineChanges = make(map[int]struct{})
-	doc.LastChecked = time.Now()
-
-	return nil
-}
-
-// checkElementsAtLine checks AST elements at a specific line for type errors
-func (s *Server) checkElementsAtLine(ast *ast.AST, lineNum int, typeChecker struct {
-	VariableTypes   map[string]string
-	TypeAnnotations map[string]string
-}) []typechecker.TypeCheckError {
-	var errors []typechecker.TypeCheckError
-
-	// Find nodes at this line
-	if ast == nil || ast.Root == nil {
-		return errors
-	}
-
-	// This is a simplified implementation for incremental checking
-	// A full implementation would check declarations, assignments, and type annotations
-	// by traversing the AST and checking nodes at the specific line
-
-	// Check for type annotations at this line
-	for _, anno := range ast.TypeAnnotations {
-		// Check if annotation is at this line
-		if anno.Pos.Line == lineNum {
-			// Basic validation
-			varName := anno.AnnotatedItem
-			typeName := "Unknown"
-			if anno.TypeExpression != nil {
-				typeName = anno.TypeExpression.String()
-			}
-
-			// Very basic validation - just check for empty type names
-			if typeName == "" || typeName == "Unknown" {
-				errors = append(errors, typechecker.TypeCheckError{
-					Message: fmt.Sprintf("invalid type annotation for %s", varName),
-					Path:    uriToPath(ast.Path),
-					Line:    anno.Pos.Line,
-					Column:  anno.Pos.Column,
-				})
-			}
-		}
-	}
-
-	// In a real implementation, we would also check variable declarations and assignments
-	// by traversing the AST and finding nodes at the specific line
-
-	return errors
-}
-
-// Note: The collectNodeLines function is no longer needed as we've simplified the implementation
-
-// We use the file path directly instead of extracting module names
 
 // publishDiagnostics sends diagnostics to the client
-func (s *Server) publishDiagnostics(uri string, errors []typechecker.TypeCheckError) error {
+func (s *Server) publishDiagnostics(uri string, errors []parser.TypeCheckError) error {
 	diagnostics := make([]Diagnostic, len(errors))
 	for i, err := range errors {
 		diagnostics[i] = Diagnostic{

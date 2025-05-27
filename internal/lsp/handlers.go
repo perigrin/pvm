@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"tamarou.com/pvm/internal/typechecker"
+	"tamarou.com/pvm/internal/ls"
+	"tamarou.com/pvm/internal/parser"
 )
 
 // handleInitialize handles the initialize request
@@ -70,31 +71,18 @@ func (s *Server) handleTextDocumentDidOpen(msg *JSONRPCMessage) error {
 
 	s.logger.Printf("Document opened: %s", params.TextDocument.URI)
 
-	now := time.Now()
-	doc := &Document{
-		URI:         params.TextDocument.URI,
-		Text:        params.TextDocument.Text,
-		Version:     params.TextDocument.Version,
-		LastChanged: now,
-		LineChanges: make(map[int]struct{}), // Initialize empty map of changed lines
-	}
-
-	// Write the document content to a temporary file for analysis
-	_, err := s.writeDocumentToTempFile(doc)
+	// Update document in language service
+	err := s.updateDocumentInLanguageService(
+		params.TextDocument.URI,
+		params.TextDocument.Text,
+		params.TextDocument.Version,
+	)
 	if err != nil {
-		s.logger.Printf("Failed to write document to temp file: %v", err)
+		s.logger.Printf("Failed to update document in language service: %v", err)
 	}
 
-	// Analyze the document
-	if err := s.analyzeDocument(doc); err != nil {
-		s.logger.Printf("Failed to analyze document: %v", err)
-	}
-
-	// Store the document
-	s.setDocument(params.TextDocument.URI, doc)
-
-	// Publish diagnostics
-	return s.publishDiagnostics(doc.URI, doc.Errors)
+	// Publish diagnostics from language service
+	return s.publishDiagnosticsFromLanguageService(params.TextDocument.URI)
 }
 
 // handleTextDocumentDidChange handles the textDocument/didChange notification
@@ -106,92 +94,20 @@ func (s *Server) handleTextDocumentDidChange(msg *JSONRPCMessage) error {
 
 	s.logger.Printf("Document changed: %s", params.TextDocument.URI)
 
-	doc, exists := s.getDocument(params.TextDocument.URI)
-	if !exists {
-		s.logger.Printf("Document not found: %s", params.TextDocument.URI)
-		return nil
-	}
-
 	// Update document content (full sync)
 	if len(params.ContentChanges) > 0 {
-		// Get the old text to identify changed lines
-		oldText := doc.Text
-		oldLines := strings.Split(oldText, "\n")
-
-		// Update document content
-		doc.Text = params.ContentChanges[0].Text
-		doc.Version = params.TextDocument.Version
-		doc.LastChanged = time.Now()
-
-		// Identify changed lines
-		newLines := strings.Split(doc.Text, "\n")
-
-		// Update line changes - first mark all lines that changed
-		if doc.LineChanges == nil {
-			doc.LineChanges = make(map[int]struct{})
-		}
-
-		// Compare the two texts to identify changed lines
-		// Simple approach: compare lines and mark those that changed
-		minLines := len(oldLines)
-		if len(newLines) < minLines {
-			minLines = len(newLines)
-		}
-
-		// Check common length
-		for i := 0; i < minLines; i++ {
-			if oldLines[i] != newLines[i] {
-				doc.LineChanges[i] = struct{}{}
-			}
-		}
-
-		// Any added or removed lines
-		if len(oldLines) != len(newLines) {
-			// Mark lines that were added or removed
-			for i := minLines; i < len(newLines); i++ {
-				doc.LineChanges[i] = struct{}{}
-			}
-		}
-
-		// Write the updated document content to a temporary file
-		_, err := s.writeDocumentToTempFile(doc)
+		// Update document in language service
+		err := s.updateDocumentInLanguageService(
+			params.TextDocument.URI,
+			params.ContentChanges[0].Text,
+			params.TextDocument.Version,
+		)
 		if err != nil {
-			s.logger.Printf("Failed to write document to temp file: %v", err)
+			s.logger.Printf("Failed to update document in language service: %v", err)
 		}
 
-		// Check if we should perform a full analysis based on time since last check
-		now := time.Now()
-		shouldFullCheck := doc.LastChecked.IsZero() || // Never checked before
-			now.Sub(doc.LastChecked) > 3*time.Second || // Not checked for a while
-			len(doc.LineChanges) > 10 // Too many lines changed
-
-		if shouldFullCheck {
-			// Perform a full re-analysis
-			if err := s.analyzeDocument(doc); err != nil {
-				s.logger.Printf("Failed to analyze document: %v", err)
-			}
-
-			// Reset changed lines since we did a full check
-			doc.LineChanges = make(map[int]struct{})
-			doc.LastChecked = now
-		} else {
-			// Perform an incremental analysis (only of changed lines)
-			if err := s.analyzeDocumentIncremental(doc); err != nil {
-				s.logger.Printf("Failed to incrementally analyze document: %v", err)
-
-				// Fall back to full analysis on error
-				if err := s.analyzeDocument(doc); err != nil {
-					s.logger.Printf("Failed to analyze document: %v", err)
-				}
-				doc.LastChecked = now
-			}
-		}
-
-		// Update the stored document
-		s.setDocument(params.TextDocument.URI, doc)
-
-		// Publish updated diagnostics
-		return s.publishDiagnostics(doc.URI, doc.Errors)
+		// Publish updated diagnostics from language service
+		return s.publishDiagnosticsFromLanguageService(params.TextDocument.URI)
 	}
 
 	return nil
@@ -206,11 +122,8 @@ func (s *Server) handleTextDocumentDidClose(msg *JSONRPCMessage) error {
 
 	s.logger.Printf("Document closed: %s", params.TextDocument.URI)
 
-	// Remove the document from storage
-	s.removeDocument(params.TextDocument.URI)
-
 	// Clear diagnostics for the closed document
-	return s.publishDiagnostics(params.TextDocument.URI, []typechecker.TypeCheckError{})
+	return s.publishDiagnostics(params.TextDocument.URI, []parser.TypeCheckError{})
 }
 
 // handleTextDocumentHover handles the textDocument/hover request
@@ -223,18 +136,23 @@ func (s *Server) handleTextDocumentHover(msg *JSONRPCMessage) error {
 	s.logger.Printf("Hover request for %s at %d:%d",
 		params.TextDocument.URI, params.Position.Line, params.Position.Character)
 
-	doc, exists := s.getDocument(params.TextDocument.URI)
-	if !exists {
+	// Convert LSP position to language service position
+	lsPos := convertLSPPosition(params.Position)
+
+	// Get hover information from language service
+	hoverInfo, err := s.languageService.GetHover(params.TextDocument.URI, lsPos)
+	if err != nil {
+		s.logger.Printf("Failed to get hover info: %v", err)
 		return s.sendResponse(msg.ID, nil)
 	}
 
-	// Generate hover information
-	hoverInfo := s.generateHoverInfo(doc, params.Position)
 	if hoverInfo == nil {
 		return s.sendResponse(msg.ID, nil)
 	}
 
-	return s.sendResponse(msg.ID, hoverInfo)
+	// Convert language service hover to LSP hover
+	lspHover := convertToLSPHover(hoverInfo)
+	return s.sendResponse(msg.ID, lspHover)
 }
 
 // handleTextDocumentCompletion handles the textDocument/completion request
@@ -247,20 +165,25 @@ func (s *Server) handleTextDocumentCompletion(msg *JSONRPCMessage) error {
 	s.logger.Printf("Completion request for %s at %d:%d",
 		params.TextDocument.URI, params.Position.Line, params.Position.Character)
 
-	doc, exists := s.getDocument(params.TextDocument.URI)
-	if !exists {
+	// Convert LSP position to language service position
+	lsPos := convertLSPPosition(params.Position)
+
+	// Get completions from language service
+	completions, err := s.languageService.GetCompletions(params.TextDocument.URI, lsPos)
+	if err != nil {
+		s.logger.Printf("Failed to get completions: %v", err)
 		return s.sendResponse(msg.ID, CompletionList{
 			IsIncomplete: false,
 			Items:        []CompletionItem{},
 		})
 	}
 
-	// Generate completion items
-	completions := s.generateCompletions(doc, params.Position, params.Context)
+	// Convert language service completions to LSP completions
+	lspCompletions := convertToLSPCompletions(completions)
 
 	result := CompletionList{
 		IsIncomplete: false,
-		Items:        completions,
+		Items:        lspCompletions,
 	}
 
 	return s.sendResponse(msg.ID, result)
@@ -276,22 +199,23 @@ func (s *Server) handleTextDocumentDefinition(msg *JSONRPCMessage) error {
 	s.logger.Printf("Definition request for %s at %d:%d",
 		params.TextDocument.URI, params.Position.Line, params.Position.Character)
 
-	doc, exists := s.getDocument(params.TextDocument.URI)
-	if !exists {
+	// Convert LSP position to language service position
+	lsPos := convertLSPPosition(params.Position)
+
+	// Get definition from language service
+	definition, err := s.languageService.GetDefinition(params.TextDocument.URI, lsPos)
+	if err != nil {
+		s.logger.Printf("Failed to get definition: %v", err)
 		return s.sendResponse(msg.ID, nil)
 	}
 
-	// Find definition
-	locations := s.findDefinition(doc, params.Position)
-	if len(locations) == 0 {
+	if definition == nil {
 		return s.sendResponse(msg.ID, nil)
 	}
 
-	// Return single location if only one, otherwise return array
-	if len(locations) == 1 {
-		return s.sendResponse(msg.ID, locations[0])
-	}
-	return s.sendResponse(msg.ID, locations)
+	// Convert language service definition to LSP location
+	lspLocation := convertToLSPLocation(definition.Location)
+	return s.sendResponse(msg.ID, lspLocation)
 }
 
 // handleTextDocumentReferences handles the textDocument/references request
@@ -305,14 +229,19 @@ func (s *Server) handleTextDocumentReferences(msg *JSONRPCMessage) error {
 		params.TextDocument.URI, params.Position.Line, params.Position.Character,
 		params.Context.IncludeDeclaration)
 
-	doc, exists := s.getDocument(params.TextDocument.URI)
-	if !exists {
+	// Convert LSP position to language service position
+	lsPos := convertLSPPosition(params.Position)
+
+	// Find references using language service
+	locations, err := s.languageService.FindReferences(params.TextDocument.URI, lsPos, params.Context.IncludeDeclaration)
+	if err != nil {
+		s.logger.Printf("Failed to find references: %v", err)
 		return s.sendResponse(msg.ID, []Location{})
 	}
 
-	// Find references
-	locations := s.findReferences(doc, params.Position, params.Context.IncludeDeclaration)
-	return s.sendResponse(msg.ID, locations)
+	// Convert language service locations to LSP locations
+	lspLocations := convertToLSPLocations(locations)
+	return s.sendResponse(msg.ID, lspLocations)
 }
 
 // handleTextDocumentFormatting handles the textDocument/formatting request
@@ -324,14 +253,9 @@ func (s *Server) handleTextDocumentFormatting(msg *JSONRPCMessage) error {
 
 	s.logger.Printf("Formatting request for %s", params.TextDocument.URI)
 
-	doc, exists := s.getDocument(params.TextDocument.URI)
-	if !exists {
-		return s.sendResponse(msg.ID, []TextEdit{})
-	}
-
-	// Format document
-	edits := s.formatDocument(doc, params.Options)
-	return s.sendResponse(msg.ID, edits)
+	// Formatting not yet implemented with language service
+	// Return empty edits for now
+	return s.sendResponse(msg.ID, []TextEdit{})
 }
 
 // handleTextDocumentCodeAction handles the textDocument/codeAction request
@@ -346,14 +270,9 @@ func (s *Server) handleTextDocumentCodeAction(msg *JSONRPCMessage) error {
 		params.Range.Start.Line, params.Range.Start.Character,
 		params.Range.End.Line, params.Range.End.Character)
 
-	doc, exists := s.getDocument(params.TextDocument.URI)
-	if !exists {
-		return s.sendResponse(msg.ID, []CodeAction{})
-	}
-
-	// Generate code actions
-	actions := s.generateCodeActions(doc, params.Range, params.Context)
-	return s.sendResponse(msg.ID, actions)
+	// Code actions not yet implemented with language service
+	// Return empty actions for now
+	return s.sendResponse(msg.ID, []CodeAction{})
 }
 
 // generateHoverInfo generates hover information for a position in a document
@@ -684,6 +603,112 @@ func (s *Server) writeDocumentToTempFile(doc *Document) (string, error) {
 
 	err := os.WriteFile(tempPath, []byte(doc.Text), 0644)
 	return tempPath, err
+}
+
+// Conversion helper functions between LSP and language service types
+
+// convertLSPPosition converts LSP position to language service position
+func convertLSPPosition(lspPos Position) ls.Position {
+	return ls.Position{
+		Line:      lspPos.Line,
+		Character: lspPos.Character,
+	}
+}
+
+// convertToLSPHover converts language service hover to LSP hover
+func convertToLSPHover(lsHover *ls.Hover) *Hover {
+	if lsHover == nil {
+		return nil
+	}
+
+	hover := &Hover{
+		Contents: MarkupContent{
+			Kind:  MarkupKindMarkdown,
+			Value: lsHover.Contents,
+		},
+	}
+
+	if lsHover.Range != nil {
+		hover.Range = &Range{
+			Start: Position{
+				Line:      lsHover.Range.Start.Line,
+				Character: lsHover.Range.Start.Character,
+			},
+			End: Position{
+				Line:      lsHover.Range.End.Line,
+				Character: lsHover.Range.End.Character,
+			},
+		}
+	}
+
+	return hover
+}
+
+// convertToLSPCompletions converts language service completions to LSP completions
+func convertToLSPCompletions(lsCompletions []ls.CompletionItem) []CompletionItem {
+	items := make([]CompletionItem, len(lsCompletions))
+
+	for i, lsItem := range lsCompletions {
+		items[i] = CompletionItem{
+			Label:  lsItem.Label,
+			Kind:   convertCompletionItemKind(lsItem.Kind),
+			Detail: lsItem.Detail,
+		}
+	}
+
+	return items
+}
+
+// convertCompletionItemKind converts language service completion kind to LSP kind
+func convertCompletionItemKind(lsKind ls.CompletionItemKind) *CompletionItemKind {
+	var lspKind CompletionItemKind
+
+	switch lsKind {
+	case ls.CompletionItemKindVariable:
+		lspKind = CompletionItemKindVariable
+	case ls.CompletionItemKindFunction:
+		lspKind = CompletionItemKindFunction
+	case ls.CompletionItemKindKeyword:
+		lspKind = CompletionItemKindKeyword
+	case ls.CompletionItemKindType:
+		lspKind = CompletionItemKindClass
+	case ls.CompletionItemKindMethod:
+		lspKind = CompletionItemKindMethod
+	case ls.CompletionItemKindModule:
+		lspKind = CompletionItemKindModule
+	default:
+		lspKind = CompletionItemKindText
+	}
+
+	return &lspKind
+}
+
+// convertToLSPLocation converts language service location to LSP location
+func convertToLSPLocation(lsLocation ls.Location) Location {
+	return Location{
+		URI: lsLocation.URI,
+		Range: Range{
+			Start: Position{
+				Line:      lsLocation.Range.Start.Line,
+				Character: lsLocation.Range.Start.Character,
+			},
+			End: Position{
+				Line:      lsLocation.Range.End.Line,
+				Character: lsLocation.Range.End.Character,
+			},
+		},
+	}
+}
+
+// convertToLSPLocations converts language service locations to LSP locations
+func convertToLSPLocations(lsLocations []ls.Location) []Location {
+	locations := make([]Location, len(lsLocations))
+
+	for i, lsLocation := range lsLocations {
+		locations[i] = convertToLSPLocation(lsLocation)
+	}
+
+	return locations
 }
 
 // getClientName extracts client name from client info
