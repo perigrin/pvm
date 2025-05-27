@@ -1,0 +1,146 @@
+# ABOUTME: Performance monitoring workflow for regression detection and benchmarking
+# ABOUTME: Tracks performance metrics over time and detects performance regressions
+
+name: Performance Monitoring
+
+on:
+  push:
+    branches: [ main, pu ]
+  pull_request:
+    branches: [ main, pu ]
+  schedule:
+    # Run performance monitoring twice daily
+    - cron: '0 6,18 * * *'
+
+jobs:
+  benchmark:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Set up Node.js (for tree-sitter)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install tree-sitter CLI
+      run: npm install -g tree-sitter-cli
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+    - name: Download dependencies and install tools
+      run: |
+        go mod download
+        make install-tools
+
+    - name: Build tree-sitter parser
+      run: make tree-sitter
+
+    - name: Run comprehensive benchmarks
+      run: |
+        echo "Running performance benchmarks..."
+        make test-performance 2>&1 | tee benchmark-results.txt
+
+    - name: Generate performance report
+      run: |
+        echo "Generating performance report..."
+        go run scripts/generate_performance_report.go benchmark-results.txt > performance-report.json
+
+    - name: Check for performance regressions
+      run: |
+        echo "Checking for performance regressions..."
+        go run scripts/check_performance_regression.go performance-report.json
+
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results-${{ github.sha }}
+        path: |
+          benchmark-results.txt
+          performance-report.json
+          .build-metrics/
+        retention-days: 90
+
+    - name: Comment performance results on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+
+          try {
+            const performanceData = JSON.parse(fs.readFileSync('performance-report.json', 'utf8'));
+
+            const comment = `## 🚀 Performance Report
+
+            | Component | Operations/sec | Memory Usage | Change |
+            |-----------|----------------|--------------|--------|
+            ${performanceData.benchmarks.map(b =>
+              `| ${b.name} | ${b.ops_per_sec.toLocaleString()} | ${b.memory_mb}MB | ${b.change || 'baseline'} |`
+            ).join('\n')}
+
+            ${performanceData.regressions?.length > 0 ?
+              `⚠️ **Performance Regressions Detected:**\n${performanceData.regressions.map(r => `- ${r.component}: ${r.change}`).join('\n')}` :
+              '✅ No performance regressions detected'}
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          } catch (error) {
+            console.log('Could not read performance report:', error.message);
+          }
+
+  memory-profiling:
+    name: Memory Profiling
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Build and profile memory usage
+      run: |
+        echo "Building with memory profiling..."
+        go build -o psc-profile ./cmd/psc
+
+        echo "Running memory profile..."
+        echo 'my Int $x = 42; my Str $name = "test";' > test.pl
+        go tool pprof -memprofile=mem.prof -o mem.out ./psc-profile check test.pl
+
+        echo "Generating memory report..."
+        go tool pprof -top -cum mem.prof > memory-profile.txt
+
+    - name: Upload memory profile
+      uses: actions/upload-artifact@v4
+      with:
+        name: memory-profile-${{ github.sha }}
+        path: |
+          mem.prof
+          memory-profile.txt
+        retention-days: 30

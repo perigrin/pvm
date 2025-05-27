@@ -75,8 +75,14 @@ jobs:
     - name: Download Go dependencies
       run: go mod download
 
+    - name: Install development tools
+      run: make install-tools
+
     - name: Build tree-sitter parser
       run: make tree-sitter
+
+    - name: Verify code generation is up to date
+      run: make check-generate
 
     - name: Set CGO environment
       run: |
@@ -98,10 +104,21 @@ jobs:
         ./build/pvi --version
         ./build/psc --version
 
-    - name: Run unit tests
+    - name: Run baseline tests
+      run: make test-baselines
+
+    - name: Run unit tests with coverage
       run: |
-        echo "Running tests in module mode..."
-        go test -mod=mod -v ./internal/...
+        echo "Running tests with coverage..."
+        make test-coverage
+
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        fail_ci_if_error: false
+        verbose: true
 
     - name: Run PSC-specific tests
       run: |
@@ -113,12 +130,47 @@ jobs:
         echo "Running basic e2e tests..."
         go test -mod=mod -timeout=60s -v ./test/e2e -run="TestVersionCommand|TestPSCCheck"
 
+    - name: Run performance benchmarks
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        echo "Running performance benchmarks..."
+        make test-performance-baseline
+
+    - name: Security scan
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        echo "Running security scan..."
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
+
     - name: Test PSC functionality
       run: |
         echo "Testing PSC with real typed Perl code..."
         echo 'my Int $x = 42; my Str $name = "test";' > test.pl
         ./build/psc check test.pl
         echo "PSC test passed!"
+
+    - name: Collect test artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.os }}
+        path: |
+          coverage.out
+          coverage.html
+          .build-metrics/
+          test/e2e/test_output_file.txt
+        retention-days: 30
+
+    - name: Collect performance artifacts
+      if: matrix.os == 'ubuntu-latest' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results
+        path: |
+          testdata/performance/
+          .build-metrics/
+        retention-days: 90
 
   lint:
     name: Lint and Format Check

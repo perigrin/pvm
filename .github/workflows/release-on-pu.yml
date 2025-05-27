@@ -4,6 +4,11 @@ on:
   push:
     branches: [ pu ]
   workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Version tag for release (e.g., v1.0.0-dev.1)'
+        required: false
+        type: string
 
 jobs:
   tests:
@@ -183,9 +188,50 @@ jobs:
           pvm-pu-${{ matrix.artifact }}.zip
         retention-days: 30
 
+  performance-tracking:
+    name: Performance Tracking
+    needs: tests
+    runs-on: ubuntu-latest
+    if: needs.tests.result == 'success'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: |
+        npm install -g tree-sitter-cli
+        sudo apt-get update && sudo apt-get install -y build-essential
+        go mod download
+        make install-tools
+
+    - name: Build and run performance benchmarks
+      run: |
+        make tree-sitter
+        make test-performance-baseline
+
+    - name: Upload performance data
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-tracking-${{ github.sha }}
+        path: |
+          testdata/performance/
+          .build-metrics/
+        retention-days: 90
+
   create-release:
     name: Create Development Release
-    needs: [tests, build-release]
+    needs: [tests, build-release, performance-tracking]
     runs-on: ubuntu-latest
     if: needs.tests.result == 'success' && needs.build-release.result == 'success'
 
