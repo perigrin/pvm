@@ -4,9 +4,11 @@
 package ls
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"tamarou.com/pvm/internal/ast"
@@ -23,6 +25,12 @@ type LanguageService struct {
 
 	// Document cache
 	documents map[string]*Document
+
+	// Performance optimizations
+	cache   *DocumentCache
+	monitor *PerformanceMonitor
+
+	mu sync.RWMutex
 }
 
 // Document represents a document in the language service
@@ -35,6 +43,11 @@ type Document struct {
 	Errors      []parser.TypeCheckError
 	LastChecked time.Time
 	LastChanged time.Time
+
+	// Performance tracking
+	ContentHash string
+	ASTHash     string
+	SymbolHash  string
 }
 
 // Position represents a source position
@@ -105,57 +118,126 @@ func NewLanguageService() (*LanguageService, error) {
 		binder:    b,
 		checker:   checker,
 		documents: make(map[string]*Document),
+		cache:     NewDocumentCache(),
+		monitor:   NewPerformanceMonitor(),
 	}, nil
 }
 
 // UpdateDocument updates or creates a document in the service
 func (ls *LanguageService) UpdateDocument(uri, text string, version int) error {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+
+	contentHash := ls.cache.HashContent(text)
+
+	// Check if we have a cached version that's still valid
+	if existingDoc, exists := ls.documents[uri]; exists {
+		if existingDoc.ContentHash == contentHash && existingDoc.Version == version {
+			// No changes, return existing document
+			return nil
+		}
+	}
+
+	// Invalidate caches for this document
+	ls.cache.InvalidateDocument(uri)
+
 	doc := &Document{
 		URI:         uri,
 		Text:        text,
 		Version:     version,
 		LastChanged: time.Now(),
+		ContentHash: contentHash,
 	}
 
-	// Parse the document
-	ast, err := ls.parser.ParseString(text)
-	if err != nil {
-		// Store document even with parse errors
-		doc.AST = ast
-		ls.documents[uri] = doc
-		return err
+	// Parse with performance monitoring
+	parseOp := ls.monitor.StartOperation(context.Background(), "parse")
+	ast := ls.cache.GetAST(uri, contentHash)
+	if ast == nil {
+		ls.monitor.RecordCacheMiss()
+		var err error
+		parseStart := time.Now()
+		ast, err = ls.parser.ParseString(text)
+		parseDuration := time.Since(parseStart)
+
+		if err != nil {
+			parseOp.CompleteWithError(err)
+			doc.AST = ast
+			ls.documents[uri] = doc
+			return err
+		}
+
+		// Cache the AST
+		ls.cache.SetAST(uri, contentHash, ast, parseDuration, []string{})
+	} else {
+		ls.monitor.RecordCacheHit()
 	}
+	parseOp.Complete()
 	doc.AST = ast
+	doc.ASTHash = ls.cache.HashContent(fmt.Sprintf("%p", ast)) // Simple AST hash
 
-	// Perform symbol binding
-	symbolTable, err := ls.binder.BindAST(ast)
-	if err != nil {
-		// Store document even with binding errors
-		doc.SymbolTable = symbolTable
-		ls.documents[uri] = doc
-		return err
+	// Symbol binding with performance monitoring
+	bindOp := ls.monitor.StartOperation(context.Background(), "bind")
+	symbolTable := ls.cache.GetSymbolTable(uri, contentHash, doc.ASTHash)
+	if symbolTable == nil {
+		ls.monitor.RecordCacheMiss()
+		var err error
+		bindStart := time.Now()
+		symbolTable, err = ls.binder.BindAST(ast)
+		bindDuration := time.Since(bindStart)
+
+		if err != nil {
+			bindOp.CompleteWithError(err)
+			doc.SymbolTable = symbolTable
+			ls.documents[uri] = doc
+			return err
+		}
+
+		// Cache the symbol table
+		ls.cache.SetSymbolTable(uri, contentHash, doc.ASTHash, symbolTable, bindDuration)
+	} else {
+		ls.monitor.RecordCacheHit()
 	}
+	bindOp.Complete()
 	doc.SymbolTable = symbolTable
+	doc.SymbolHash = ls.cache.HashContent(fmt.Sprintf("%p", symbolTable)) // Simple symbol table hash
 
-	// Perform type checking
-	// Create a temporary file for type checking
-	tempPath, err := ls.writeToTempFile(uri, text)
-	if err != nil {
-		doc.SymbolTable = symbolTable
-		ls.documents[uri] = doc
-		return err
-	}
+	// Type checking with performance monitoring
+	typeCheckOp := ls.monitor.StartOperation(context.Background(), "typecheck")
+	errors := ls.cache.GetTypeCheckResult(uri, contentHash, doc.SymbolHash)
+	if errors == nil {
+		ls.monitor.RecordCacheMiss()
+		tempPath, err := ls.writeToTempFile(uri, text)
+		if err != nil {
+			typeCheckOp.CompleteWithError(err)
+			doc.SymbolTable = symbolTable
+			ls.documents[uri] = doc
+			return err
+		}
 
-	result, err := ls.checker.CheckFile(tempPath)
-	if err != nil {
-		doc.SymbolTable = symbolTable
-		ls.documents[uri] = doc
-		return err
-	}
+		typeCheckStart := time.Now()
+		result, err := ls.checker.CheckFile(tempPath)
+		typeCheckDuration := time.Since(typeCheckStart)
 
-	if result != nil {
-		doc.Errors = result.Errors
+		if err != nil {
+			typeCheckOp.CompleteWithError(err)
+			doc.SymbolTable = symbolTable
+			ls.documents[uri] = doc
+			return err
+		}
+
+		if result != nil {
+			errors = result.Errors
+		} else {
+			errors = []parser.TypeCheckError{}
+		}
+
+		// Cache the type check results
+		ls.cache.SetTypeCheckResult(uri, contentHash, doc.SymbolHash, errors, typeCheckDuration)
+	} else {
+		ls.monitor.RecordCacheHit()
 	}
+	typeCheckOp.Complete()
+	doc.Errors = errors
 	doc.LastChecked = time.Now()
 
 	ls.documents[uri] = doc
@@ -300,10 +382,26 @@ func (ls *LanguageService) FindReferences(uri string, pos Position, includeDecla
 
 // GetHover provides hover information for a symbol at the given position
 func (ls *LanguageService) GetHover(uri string, pos Position) (*Hover, error) {
+	hoverOp := ls.monitor.StartOperation(context.Background(), "hover")
+	defer hoverOp.Complete()
+
+	ls.mu.RLock()
 	doc, exists := ls.documents[uri]
+	ls.mu.RUnlock()
+
 	if !exists {
 		return nil, nil
 	}
+
+	// Generate cache key
+	cacheKey := fmt.Sprintf("%s:%d:%d", uri, pos.Line, pos.Character)
+
+	// Check cache first
+	if cached := ls.cache.GetHover(cacheKey); cached != nil {
+		ls.monitor.RecordCacheHit()
+		return cached, nil
+	}
+	ls.monitor.RecordCacheMiss()
 
 	// Find the symbol at the position
 	symbol := ls.findSymbolAtPosition(doc, pos)
@@ -381,23 +479,47 @@ func (ls *LanguageService) GetHover(uri string, pos Position) (*Hover, error) {
 	// Remove trailing newlines
 	finalContent := strings.TrimSuffix(content.String(), "\n\n")
 
-	return &Hover{
+	hover := &Hover{
 		Contents: finalContent,
 		Range: &Range{
 			Start: pos,
 			End:   Position{Line: pos.Line, Character: pos.Character + len(symbol.Name)},
 		},
-	}, nil
+	}
+
+	// Cache the result
+	ls.cache.SetHover(cacheKey, doc.ContentHash, hover)
+
+	return hover, nil
 }
 
 // GetCompletions provides completion suggestions at the given position
 func (ls *LanguageService) GetCompletions(uri string, pos Position) ([]CompletionItem, error) {
+	completionOp := ls.monitor.StartOperation(context.Background(), "completion")
+	defer completionOp.Complete()
+
+	ls.mu.RLock()
 	doc, exists := ls.documents[uri]
+	ls.mu.RUnlock()
+
 	if !exists {
 		return nil, nil
 	}
 
-	var items []CompletionItem
+	// Generate cache key based on position and context
+	cacheKey := fmt.Sprintf("%s:%d:%d:completion", uri, pos.Line, pos.Character)
+
+	// Check cache first
+	if cached := ls.cache.GetCompletions(cacheKey); cached != nil {
+		ls.monitor.RecordCacheHit()
+		return cached, nil
+	}
+	ls.monitor.RecordCacheMiss()
+
+	// Use memory pool for completion items
+	itemsPtr := ls.cache.GetCompletionItems(32)
+	defer ls.cache.PutCompletionItems(itemsPtr)
+	items := *itemsPtr
 
 	// Get context information for better completions
 	context := ls.getCompletionContext(doc, pos)
@@ -453,7 +575,14 @@ func (ls *LanguageService) GetCompletions(uri string, pos Position) ([]Completio
 		}
 	}
 
-	return items, nil
+	// Make a copy for caching (since we're returning the pooled slice)
+	result := make([]CompletionItem, len(items))
+	copy(result, items)
+
+	// Cache the result
+	ls.cache.SetCompletions(cacheKey, doc.ContentHash, result)
+
+	return result, nil
 }
 
 // GetDocumentSymbols returns all symbols in the document for outline view
@@ -960,4 +1089,24 @@ func (ls *LanguageService) getContextualKeywords(context *CompletionContext) []s
 	}
 
 	return baseKeywords
+}
+
+// GetCacheStats returns cache performance statistics
+func (ls *LanguageService) GetCacheStats() CacheStats {
+	return ls.cache.GetStats()
+}
+
+// GetPerformanceStats returns performance monitoring statistics
+func (ls *LanguageService) GetPerformanceStats() PerformanceStats {
+	return ls.monitor.GetStats()
+}
+
+// ClearCache clears all cached data
+func (ls *LanguageService) ClearCache() {
+	ls.cache.Clear()
+}
+
+// ResetPerformanceMetrics resets all performance counters
+func (ls *LanguageService) ResetPerformanceMetrics() {
+	ls.monitor.Reset()
 }
