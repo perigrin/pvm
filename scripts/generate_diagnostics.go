@@ -61,8 +61,8 @@ const (
 	SeverityHint    DiagnosticSeverity = "hint"
 )
 
-// Diagnostic represents a diagnostic message
-type Diagnostic struct {
+// GeneratedDiagnostic represents a diagnostic message
+type GeneratedDiagnostic struct {
 	ID       string
 	Severity DiagnosticSeverity
 	Category string
@@ -87,14 +87,14 @@ type Position struct {
 {{- range .Diagnostics }}
 
 // New{{ .Component }}{{ .ID }}Diagnostic creates a new {{ .ID }} diagnostic
-func New{{ .Component }}{{ .ID }}Diagnostic(location string, args ...interface{}) *Diagnostic {
+func New{{ .Component }}{{ .ID }}Diagnostic(location string, args ...interface{}) *GeneratedDiagnostic {
 	template := "{{ .Template }}"
 	message := "{{ .Message }}"
 	if len(args) > 0 {
 		message = fmt.Sprintf(template, args...)
 	}
 
-	return &Diagnostic{
+	return &GeneratedDiagnostic{
 		ID:       "{{ .ID }}",
 		Severity: Severity{{ .Severity }},
 		Category: "{{ .Category }}",
@@ -149,24 +149,30 @@ func main() {
 		// Create output file in the same directory as the caller
 		outputFile := strings.ToLower(component) + "_generated.go"
 
-		file, err := os.Create(outputFile)
-		if err != nil {
-			log.Fatalf("Failed to create output file: %v", err)
-		}
-		defer file.Close()
+		func() {
+			file, err := os.Create(outputFile)
+			if err != nil {
+				log.Fatalf("Failed to create output file: %v", err)
+			}
+			defer func() {
+				if err := file.Close(); err != nil {
+					log.Printf("Warning: failed to close file: %v", err)
+				}
+			}()
 
-		// Generate code
-		data := struct {
-			Component   string
-			Diagnostics []DiagnosticDefinition
-		}{
-			Component:   component,
-			Diagnostics: diagnostics,
-		}
+			// Generate code
+			data := struct {
+				Component   string
+				Diagnostics []DiagnosticDefinition
+			}{
+				Component:   component,
+				Diagnostics: diagnostics,
+			}
 
-		if err := tmpl.Execute(file, data); err != nil {
-			log.Fatalf("Failed to execute template: %v", err)
-		}
+			if err := tmpl.Execute(file, data); err != nil {
+				log.Fatalf("Failed to execute template: %v", err)
+			}
+		}()
 
 		fmt.Printf("Generated %s\n", outputFile)
 	}
