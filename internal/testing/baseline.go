@@ -4,7 +4,6 @@
 package basetesting
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,7 +50,7 @@ func (suite *BaselineTestSuite) RunTestCase(t *testing.T, testName string) {
 	baselinePath := filepath.Join(suite.BaselineDir, testName+".expected")
 
 	// Read input file
-	input, err := ioutil.ReadFile(inputPath)
+	input, err := os.ReadFile(inputPath)
 	if err != nil {
 		t.Fatalf("Failed to read input file %s: %v", inputPath, err)
 	}
@@ -69,7 +68,7 @@ func (suite *BaselineTestSuite) RunTestCase(t *testing.T, testName string) {
 			t.Fatalf("Failed to create baseline directory: %v", err)
 		}
 
-		err = ioutil.WriteFile(baselinePath, actual, 0644)
+		err = os.WriteFile(baselinePath, actual, 0644)
 		if err != nil {
 			t.Fatalf("Failed to write baseline file %s: %v", baselinePath, err)
 		}
@@ -79,7 +78,7 @@ func (suite *BaselineTestSuite) RunTestCase(t *testing.T, testName string) {
 	}
 
 	// Normal test mode - compare against existing baseline
-	expected, err := ioutil.ReadFile(baselinePath)
+	expected, err := os.ReadFile(baselinePath)
 	if err != nil {
 		t.Fatalf("Failed to read baseline file %s: %v\nRun with UPDATE_BASELINES=1 to create initial baseline", baselinePath, err)
 	}
@@ -199,7 +198,7 @@ func BaselineTestFunc(t *testing.T, name string, processor func(input []byte) ([
 		t.Fatalf("Failed to create input directory: %v", err)
 	}
 
-	err = ioutil.WriteFile(inputPath, input, 0644)
+	err = os.WriteFile(inputPath, input, 0644)
 	if err != nil {
 		t.Fatalf("Failed to write input file: %v", err)
 	}

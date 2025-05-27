@@ -1452,7 +1452,7 @@ func ExecuteTool(options *ExecutionOptions, toolName string, toolArgs []string) 
 		} else {
 			// Auto-discovery: try to install a module with the same name as the tool
 			// Convert tool name to likely module name (capitalize first letter)
-			moduleName := strings.Title(toolName)
+			moduleName := strings.ToTitle(toolName)
 			options.RequiredModules = append(options.RequiredModules, moduleName)
 			options.AutoInstallModules = true
 		}

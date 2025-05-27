@@ -85,6 +85,9 @@ hello();`,
 
 			if actualCount != tt.expected {
 				t.Errorf("Expected %d locations, got %d", tt.expected, actualCount)
+				t.Logf("Definition result: %+v", definition)
+				t.Logf("Document content: %q", tt.content)
+				t.Logf("Search position: Line=%d, Character=%d", tt.position.Line, tt.position.Character)
 			}
 		})
 	}

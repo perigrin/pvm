@@ -43,7 +43,7 @@ func NewTemplateManager(templatesDir string) *TemplateManager {
 		funcMap: texttemplate.FuncMap{
 			"upper":      strings.ToUpper,
 			"lower":      strings.ToLower,
-			"title":      strings.Title,
+			"title":      strings.ToTitle,
 			"join":       strings.Join,
 			"split":      strings.Split,
 			"contains":   strings.Contains,

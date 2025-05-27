@@ -6,7 +6,6 @@ package basetesting
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -113,7 +112,7 @@ func (pm *PerformanceMonitor) runSingleBenchmark(t *testing.T, name string, benc
 
 // loadBaseline loads the baseline performance data
 func (pm *PerformanceMonitor) loadBaseline() ([]BenchmarkResult, error) {
-	data, err := ioutil.ReadFile(pm.BaselineFile)
+	data, err := os.ReadFile(pm.BaselineFile)
 	if err != nil {
 		return nil, err
 	}
@@ -142,14 +141,14 @@ func (pm *PerformanceMonitor) saveReport(report PerformanceReport) error {
 	// Save current report with timestamp
 	timestamp := report.Timestamp.Format("2006-01-02-15-04-05")
 	reportFile := filepath.Join(pm.ReportDir, fmt.Sprintf("report-%s.json", timestamp))
-	err = ioutil.WriteFile(reportFile, data, 0644)
+	err = os.WriteFile(reportFile, data, 0644)
 	if err != nil {
 		return err
 	}
 
 	// Update baseline if this is an update run
 	if os.Getenv("UPDATE_PERFORMANCE_BASELINE") == "1" {
-		return ioutil.WriteFile(pm.BaselineFile, data, 0644)
+		return os.WriteFile(pm.BaselineFile, data, 0644)
 	}
 
 	return nil
@@ -250,7 +249,7 @@ func (pm *PerformanceMonitor) logResults(t *testing.T, results []BenchmarkResult
 
 // GeneratePerformanceReport creates a human-readable performance report
 func (pm *PerformanceMonitor) GeneratePerformanceReport() (string, error) {
-	data, err := ioutil.ReadFile(pm.BaselineFile)
+	data, err := os.ReadFile(pm.BaselineFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to read baseline: %w", err)
 	}

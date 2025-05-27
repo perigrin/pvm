@@ -4,6 +4,7 @@
 package ls
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -211,7 +212,7 @@ func TestPerformanceMonitor(t *testing.T) {
 	monitor := NewPerformanceMonitor()
 
 	// Test operation timing
-	op := monitor.StartOperation(nil, "test")
+	op := monitor.StartOperation(context.TODO(), "test")
 	time.Sleep(1 * time.Millisecond) // Small delay
 	op.Complete()
 
@@ -222,7 +223,7 @@ func TestPerformanceMonitor(t *testing.T) {
 	}
 
 	// Test error recording
-	op2 := monitor.StartOperation(nil, "test")
+	op2 := monitor.StartOperation(context.TODO(), "test")
 	op2.CompleteWithError(nil)
 
 	stats = monitor.GetStats()

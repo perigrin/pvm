@@ -275,67 +275,7 @@ func (s *Server) handleTextDocumentCodeAction(msg *JSONRPCMessage) error {
 	return s.sendResponse(msg.ID, []CodeAction{})
 }
 
-// generateHoverInfo generates hover information for a position in a document
-func (s *Server) generateHoverInfo(doc *Document, pos Position) *Hover {
-	// Extract the word at the cursor position
-	lines := strings.Split(doc.Text, "\n")
-	if pos.Line >= len(lines) {
-		return nil
-	}
-
-	line := lines[pos.Line]
-	if pos.Character >= len(line) {
-		return nil
-	}
-
-	// Find word boundaries
-	start := pos.Character
-	end := pos.Character
-
-	// Move start backwards to beginning of word
-	for start > 0 && isWordChar(line[start-1]) {
-		start--
-	}
-
-	// Move end forwards to end of word
-	for end < len(line) && isWordChar(line[end]) {
-		end++
-	}
-
-	if start == end {
-		return nil
-	}
-
-	word := line[start:end]
-
-	// Generate hover content based on the word
-	var content string
-	kind := MarkupKindMarkdown
-
-	// Determine content based on word type
-	switch {
-	case isTypeAnnotation(word):
-		content = fmt.Sprintf("**Type**: `%s`\n\n%s", word, getTypeDescription(word))
-	case isBuiltinFunction(word):
-		content = fmt.Sprintf("**Builtin Function**: `%s`\n\n%s", word, getBuiltinDescription(word))
-	case isPerlKeyword(word):
-		content = fmt.Sprintf("**Keyword**: `%s`\n\n%s", word, getKeywordDescription(word))
-	default:
-		// Try to find type information from the document analysis
-		content = fmt.Sprintf("**Symbol**: `%s`", word)
-	}
-
-	return &Hover{
-		Contents: MarkupContent{
-			Kind:  kind,
-			Value: content,
-		},
-		Range: &Range{
-			Start: Position{Line: pos.Line, Character: start},
-			End:   Position{Line: pos.Line, Character: end},
-		},
-	}
-}
+// TODO: Legacy hover generation - replaced by language service
 
 // generateCompletions generates completion items for a position in a document
 func (s *Server) generateCompletions(doc *Document, pos Position, context *CompletionContext) []CompletionItem {
