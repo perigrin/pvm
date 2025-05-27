@@ -4,6 +4,7 @@
 package ls
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -176,8 +177,32 @@ func (ls *LanguageService) GetDefinition(uri string, pos Position) (*Definition,
 
 	// Return the symbol's declaration location
 	if symbol.Declaration != nil {
+		// Use the declaration's actual position for accurate navigation
+		declPos := symbol.Declaration.Start()
 		location := Location{
 			URI: uri, // For now, assume same file
+			Range: Range{
+				Start: Position{
+					Line:      declPos.Line - 1, // Convert to 0-based
+					Character: declPos.Column - 1,
+				},
+				End: Position{
+					Line:      declPos.Line - 1,
+					Character: declPos.Column - 1 + len(symbol.Name),
+				},
+			},
+		}
+
+		return &Definition{
+			Location: location,
+			Symbol:   symbol,
+		}, nil
+	}
+
+	// If no declaration node, fall back to position from symbol table
+	if symbol.Position.Line > 0 {
+		location := Location{
+			URI: uri,
 			Range: Range{
 				Start: Position{
 					Line:      symbol.Position.Line - 1, // Convert to 0-based
@@ -218,41 +243,52 @@ func (ls *LanguageService) FindReferences(uri string, pos Position, includeDecla
 	if doc.AST != nil && doc.AST.Root != nil {
 		navigator := astnav.NewNavigator(doc.AST.Root)
 
-		// Find all variable expressions that match this symbol
-		variableNodes := navigator.FindNodesByType("variable_expression")
-		for _, node := range variableNodes {
-			if ls.nodeMatchesSymbol(node, symbol) {
-				nodePos := node.Start()
-				location := Location{
-					URI: uri,
-					Range: Range{
-						Start: Position{
-							Line:      nodePos.Line - 1,
-							Character: nodePos.Column - 1,
-						},
-						End: Position{
-							Line:      nodePos.Line - 1,
-							Character: nodePos.Column - 1 + len(symbol.Name),
-						},
-					},
+		// Find all nodes that reference this symbol
+		allNodes := []ast.Node{}
+		navigator.Walk(doc.AST.Root, func(node ast.Node) bool {
+			// Check various node types that might reference symbols
+			switch node.Type() {
+			case "variable_expression", "subroutine_call", "method_call", "identifier":
+				if ls.nodeMatchesSymbol(node, symbol) {
+					allNodes = append(allNodes, node)
 				}
-				locations = append(locations, location)
 			}
+			return true
+		})
+
+		// Convert nodes to locations
+		for _, node := range allNodes {
+			nodePos := node.Start()
+			location := Location{
+				URI: uri,
+				Range: Range{
+					Start: Position{
+						Line:      nodePos.Line - 1,
+						Character: nodePos.Column - 1,
+					},
+					End: Position{
+						Line:      nodePos.Line - 1,
+						Character: nodePos.Column - 1 + len(symbol.Name),
+					},
+				},
+			}
+			locations = append(locations, location)
 		}
 	}
 
 	// Include declaration if requested
 	if includeDeclaration && symbol.Declaration != nil {
+		declPos := symbol.Declaration.Start()
 		location := Location{
 			URI: uri,
 			Range: Range{
 				Start: Position{
-					Line:      symbol.Position.Line - 1,
-					Character: symbol.Position.Column - 1,
+					Line:      declPos.Line - 1,
+					Character: declPos.Column - 1,
 				},
 				End: Position{
-					Line:      symbol.Position.Line - 1,
-					Character: symbol.Position.Column - 1 + len(symbol.Name),
+					Line:      declPos.Line - 1,
+					Character: declPos.Column - 1 + len(symbol.Name),
 				},
 			},
 		}
@@ -278,10 +314,13 @@ func (ls *LanguageService) GetHover(uri string, pos Position) (*Hover, error) {
 	// Generate hover content based on symbol information
 	var content strings.Builder
 
-	// Add symbol kind and name
+	// Add symbol kind and name with sigil for variables
 	content.WriteString("**")
 	content.WriteString(ls.symbolKindToString(symbol.Kind))
 	content.WriteString("**: `")
+	if ls.isVariableSymbol(symbol.Kind) {
+		content.WriteString(ls.getSigilForSymbol(symbol.Kind))
+	}
 	content.WriteString(symbol.Name)
 	content.WriteString("`\n\n")
 
@@ -292,10 +331,25 @@ func (ls *LanguageService) GetHover(uri string, pos Position) (*Hover, error) {
 		content.WriteString("`\n\n")
 	}
 
-	// Add scope information
+	// Add declaration location if available
+	if symbol.Declaration != nil {
+		declPos := symbol.Declaration.Start()
+		content.WriteString("**Declared at**: Line ")
+		content.WriteString(fmt.Sprintf("%d", declPos.Line))
+		content.WriteString(", Column ")
+		content.WriteString(fmt.Sprintf("%d", declPos.Column))
+		content.WriteString("\n\n")
+	}
+
+	// Add scope information with additional context
 	if symbol.Scope != nil {
 		content.WriteString("**Scope**: ")
 		content.WriteString(ls.scopeKindToString(symbol.Scope.Kind))
+		if symbol.Scope.Parent != nil {
+			content.WriteString(" (nested in ")
+			content.WriteString(ls.scopeKindToString(symbol.Scope.Parent.Kind))
+			content.WriteString(")")
+		}
 		content.WriteString("\n\n")
 	}
 
@@ -306,15 +360,29 @@ func (ls *LanguageService) GetHover(uri string, pos Position) (*Hover, error) {
 		content.WriteString("`\n\n")
 	}
 
-	// Add flags information
+	// Add flags information with descriptions
 	if symbol.Flags != binder.SymbolFlagNone {
-		content.WriteString("**Flags**: ")
+		content.WriteString("**Properties**: ")
 		content.WriteString(ls.symbolFlagsToString(symbol.Flags))
 		content.WriteString("\n\n")
 	}
 
+	// Add additional context for specific symbol types
+	switch symbol.Kind {
+	case binder.SymbolSubroutine, binder.SymbolMethod:
+		content.WriteString("**Type**: Function/Method")
+		// Add more function-specific info if available from the AST
+		if symbol.Declaration != nil {
+			content.WriteString("\n\n**Declaration**: Available in AST")
+		}
+		content.WriteString("\n\n")
+	}
+
+	// Remove trailing newlines
+	finalContent := strings.TrimSuffix(content.String(), "\n\n")
+
 	return &Hover{
-		Contents: content.String(),
+		Contents: finalContent,
 		Range: &Range{
 			Start: pos,
 			End:   Position{Line: pos.Line, Character: pos.Character + len(symbol.Name)},
@@ -331,22 +399,28 @@ func (ls *LanguageService) GetCompletions(uri string, pos Position) ([]Completio
 
 	var items []CompletionItem
 
+	// Get context information for better completions
+	context := ls.getCompletionContext(doc, pos)
+
 	// Get all visible symbols from the symbol table
 	if doc.SymbolTable != nil {
 		visibleSymbols := ls.getVisibleSymbols(doc.SymbolTable, pos)
 
 		for _, symbol := range visibleSymbols {
-			item := CompletionItem{
-				Label:  symbol.Name,
-				Kind:   ls.symbolKindToCompletionKind(symbol.Kind),
-				Detail: symbol.Type,
+			// Filter by context when appropriate
+			if ls.shouldIncludeSymbolInCompletion(symbol, context) {
+				item := CompletionItem{
+					Label:  ls.formatSymbolForCompletion(symbol),
+					Kind:   ls.symbolKindToCompletionKind(symbol.Kind),
+					Detail: ls.formatSymbolDetail(symbol),
+				}
+				items = append(items, item)
 			}
-			items = append(items, item)
 		}
 	}
 
-	// Add keywords
-	keywords := []string{"my", "our", "state", "sub", "method", "if", "elsif", "else", "while", "for", "foreach", "use", "package", "return"}
+	// Add context-appropriate keywords
+	keywords := ls.getContextualKeywords(context)
 	for _, keyword := range keywords {
 		items = append(items, CompletionItem{
 			Label:  keyword,
@@ -355,14 +429,28 @@ func (ls *LanguageService) GetCompletions(uri string, pos Position) ([]Completio
 		})
 	}
 
-	// Add types
-	types := []string{"Str", "Int", "Num", "Bool", "ArrayRef", "HashRef", "CodeRef", "Any", "Undef", "Maybe"}
-	for _, typeName := range types {
-		items = append(items, CompletionItem{
-			Label:  typeName,
-			Kind:   CompletionItemKindType,
-			Detail: "Type annotation",
-		})
+	// Add types when in type context
+	if context.ExpectedType || context.InTypeAnnotation {
+		types := []string{"Str", "Int", "Num", "Bool", "ArrayRef", "HashRef", "CodeRef", "Any", "Undef", "Maybe"}
+		for _, typeName := range types {
+			items = append(items, CompletionItem{
+				Label:  typeName,
+				Kind:   CompletionItemKindType,
+				Detail: "Type annotation",
+			})
+		}
+	}
+
+	// Add built-in functions when appropriate
+	if context.ExpectedFunction {
+		builtins := []string{"print", "say", "defined", "ref", "substr", "length", "chomp", "split", "join", "grep", "map", "sort", "push", "pop", "shift", "unshift"}
+		for _, builtin := range builtins {
+			items = append(items, CompletionItem{
+				Label:  builtin,
+				Kind:   CompletionItemKindFunction,
+				Detail: "Perl builtin function",
+			})
+		}
 	}
 
 	return items, nil
@@ -385,6 +473,77 @@ func (ls *LanguageService) GetDocumentSymbols(uri string) ([]*binder.Symbol, err
 	ls.collectSymbolsFromScope(doc.SymbolTable.GlobalScope, &symbols)
 
 	return symbols, nil
+}
+
+// TextEdit represents a text edit for rename operations
+type TextEdit struct {
+	Range   Range
+	NewText string
+}
+
+// RenameSymbol provides rename functionality for symbols
+func (ls *LanguageService) RenameSymbol(uri string, pos Position, newName string) ([]TextEdit, error) {
+	doc, exists := ls.documents[uri]
+	if !exists {
+		return nil, fmt.Errorf("document not found: %s", uri)
+	}
+
+	// Find the symbol at the position
+	symbol := ls.findSymbolAtPosition(doc, pos)
+	if symbol == nil {
+		return nil, fmt.Errorf("no symbol found at position")
+	}
+
+	// Check if the new name is valid
+	if !ls.isValidSymbolName(newName) {
+		return nil, fmt.Errorf("invalid symbol name: %s", newName)
+	}
+
+	var edits []TextEdit
+
+	// Find all references to this symbol
+	locations, err := ls.FindReferences(uri, pos, true) // Include declaration
+	if err != nil {
+		return nil, fmt.Errorf("failed to find references: %w", err)
+	}
+
+	// Create text edits for all references
+	for _, location := range locations {
+		// Only handle same-file renames for now
+		if location.URI == uri {
+			edit := TextEdit{
+				Range:   location.Range,
+				NewText: newName,
+			}
+			edits = append(edits, edit)
+		}
+	}
+
+	return edits, nil
+}
+
+// GetWorkspaceSymbols searches for symbols across all documents in the workspace
+func (ls *LanguageService) GetWorkspaceSymbols(query string) ([]*binder.Symbol, error) {
+	var allSymbols []*binder.Symbol
+
+	// Search through all documents
+	for _, doc := range ls.documents {
+		if doc.SymbolTable == nil {
+			continue
+		}
+
+		var docSymbols []*binder.Symbol
+		ls.collectSymbolsFromScope(doc.SymbolTable.GlobalScope, &docSymbols)
+
+		// Filter symbols by query
+		for _, symbol := range docSymbols {
+			if query == "" || strings.Contains(strings.ToLower(symbol.Name), strings.ToLower(query)) {
+				allSymbols = append(allSymbols, symbol)
+			}
+		}
+	}
+
+	return allSymbols, nil
 }
 
 // Helper methods
@@ -639,4 +798,166 @@ func (ls *LanguageService) writeToTempFile(uri, text string) (string, error) {
 	}
 
 	return tempFile.Name(), nil
+}
+
+// Helper methods for enhanced hover information
+
+func (ls *LanguageService) isVariableSymbol(kind binder.SymbolKind) bool {
+	switch kind {
+	case binder.SymbolScalar, binder.SymbolArray, binder.SymbolHash, binder.SymbolGlob:
+		return true
+	default:
+		return false
+	}
+}
+
+func (ls *LanguageService) getSigilForSymbol(kind binder.SymbolKind) string {
+	switch kind {
+	case binder.SymbolScalar:
+		return "$"
+	case binder.SymbolArray:
+		return "@"
+	case binder.SymbolHash:
+		return "%"
+	case binder.SymbolGlob:
+		return "*"
+	default:
+		return ""
+	}
+}
+
+func (ls *LanguageService) isValidSymbolName(name string) bool {
+	if name == "" {
+		return false
+	}
+
+	// Check if first character is valid (letter or underscore)
+	first := name[0]
+	if !((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || first == '_') {
+		return false
+	}
+
+	// Check remaining characters (letters, digits, underscores, colons)
+	for i := 1; i < len(name); i++ {
+		c := name[i]
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '_' || c == ':') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// CompletionContext represents the context for code completion
+type CompletionContext struct {
+	ExpectedType     bool   // True if we're in a type annotation context
+	InTypeAnnotation bool   // True if cursor is in a type annotation
+	ExpectedFunction bool   // True if we expect a function/method call
+	TriggerCharacter string // Character that triggered completion
+	PreviousWord     string // Word before cursor
+}
+
+// getCompletionContext analyzes the text around the cursor to determine completion context
+func (ls *LanguageService) getCompletionContext(doc *Document, pos Position) *CompletionContext {
+	lines := strings.Split(doc.Text, "\n")
+	if pos.Line >= len(lines) {
+		return &CompletionContext{}
+	}
+
+	line := lines[pos.Line]
+	prefix := ""
+	if pos.Character <= len(line) {
+		prefix = line[:pos.Character]
+	}
+
+	context := &CompletionContext{}
+
+	// Check for type annotation context
+	if strings.Contains(prefix, "my ") && !strings.Contains(prefix, ";") {
+		// Likely in variable declaration with potential type
+		context.ExpectedType = true
+	}
+
+	// Check for explicit type annotation
+	if strings.Contains(prefix, " ") {
+		words := strings.Fields(prefix)
+		if len(words) >= 2 && (words[len(words)-2] == "my" || words[len(words)-2] == "our" || words[len(words)-2] == "state") {
+			context.InTypeAnnotation = true
+		}
+	}
+
+	// Check for function call context
+	if strings.HasSuffix(prefix, "(") || strings.HasSuffix(prefix, " ") {
+		context.ExpectedFunction = true
+	}
+
+	// Extract previous word
+	words := strings.Fields(prefix)
+	if len(words) > 0 {
+		context.PreviousWord = words[len(words)-1]
+	}
+
+	return context
+}
+
+// shouldIncludeSymbolInCompletion determines if a symbol should be included based on context
+func (ls *LanguageService) shouldIncludeSymbolInCompletion(symbol *binder.Symbol, context *CompletionContext) bool {
+	// If expecting a function, prefer functions and methods
+	if context.ExpectedFunction {
+		switch symbol.Kind {
+		case binder.SymbolSubroutine, binder.SymbolMethod:
+			return true
+		default:
+			// Still include variables but with lower priority
+			return true
+		}
+	}
+
+	// If in type annotation, exclude variables
+	if context.InTypeAnnotation {
+		return symbol.Kind == binder.SymbolType
+	}
+
+	// Default: include all symbols
+	return true
+}
+
+// formatSymbolForCompletion formats a symbol name for completion display
+func (ls *LanguageService) formatSymbolForCompletion(symbol *binder.Symbol) string {
+	if ls.isVariableSymbol(symbol.Kind) {
+		return ls.getSigilForSymbol(symbol.Kind) + symbol.Name
+	}
+	return symbol.Name
+}
+
+// formatSymbolDetail formats detailed information about a symbol for completion
+func (ls *LanguageService) formatSymbolDetail(symbol *binder.Symbol) string {
+	var detail strings.Builder
+
+	if symbol.Type != "" {
+		detail.WriteString(symbol.Type)
+	} else {
+		detail.WriteString(ls.symbolKindToString(symbol.Kind))
+	}
+
+	if symbol.Package != "" && symbol.Package != "main" {
+		detail.WriteString(" (")
+		detail.WriteString(symbol.Package)
+		detail.WriteString(")")
+	}
+
+	return detail.String()
+}
+
+// getContextualKeywords returns keywords appropriate for the current context
+func (ls *LanguageService) getContextualKeywords(context *CompletionContext) []string {
+	baseKeywords := []string{"my", "our", "state", "sub", "method", "if", "elsif", "else", "while", "for", "foreach", "use", "package", "return"}
+
+	// Add control flow keywords based on context
+	if context.ExpectedFunction {
+		return append(baseKeywords, "last", "next", "redo", "goto")
+	}
+
+	return baseKeywords
 }
