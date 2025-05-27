@@ -87,23 +87,32 @@ func ParseTypeExpression(text string, pos Position) (*ast.TypeExpression, error)
 	return convertTypeExpression(tsExpr), nil
 }
 
-// NewParser returns a new Parser instance using tree-sitter
-// This maintains backward compatibility with existing code
+// NewParser returns a new Parser instance using the modern scanner→parser pipeline
+// This now uses the scanner-based parser by default for the TypeScript-Go architecture
 func NewParser() (Parser, error) {
-	// Use the tree-sitter parser for compatibility
-	tsParser, err := treesitter.NewParser(false)
+	// Use the new scanner-based parser for modern architecture
+	// Fall back to tree-sitter parser if scanner initialization fails
+	scannerParser, err := NewTokenBasedParser(true)
 	if err != nil {
-		return nil, err
+		// Fallback to tree-sitter parser for compatibility
+		tsParser, tsErr := treesitter.NewParser(false)
+		if tsErr != nil {
+			return nil, fmt.Errorf("failed to create scanner parser (%v) and tree-sitter fallback (%v)", err, tsErr)
+		}
+
+		baseParser := &treeSitterParserWrapper{
+			parser: tsParser,
+		}
+
+		return &CachedParser{
+			parser: baseParser,
+			cache:  NewParserCache(100),
+		}, nil
 	}
 
-	// Create the base parser
-	baseParser := &treeSitterParserWrapper{
-		parser: tsParser,
-	}
-
-	// Wrap with caching for better performance
+	// Wrap scanner parser with caching for better performance
 	return &CachedParser{
-		parser: baseParser,
+		parser: scannerParser,
 		cache:  NewParserCache(100), // Cache up to 100 files
 	}, nil
 }
@@ -116,8 +125,26 @@ func NewParserWithOptions(useScanner bool) (Parser, error) {
 		return NewTokenBasedParser(true)
 	}
 
-	// Use traditional tree-sitter parser
-	return NewParser()
+	// Use traditional tree-sitter parser directly
+	return NewTreeSitterParser()
+}
+
+// NewTreeSitterParser creates a parser that explicitly uses tree-sitter
+// This is provided for cases where tree-sitter parsing is specifically required
+func NewTreeSitterParser() (Parser, error) {
+	tsParser, err := treesitter.NewParser(false)
+	if err != nil {
+		return nil, err
+	}
+
+	baseParser := &treeSitterParserWrapper{
+		parser: tsParser,
+	}
+
+	return &CachedParser{
+		parser: baseParser,
+		cache:  NewParserCache(100),
+	}, nil
 }
 
 // hashContent generates a hash of the content string for caching purposes
