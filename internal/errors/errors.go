@@ -1,6 +1,8 @@
 // ABOUTME: Error handling framework for PVM Ecosystem
 // ABOUTME: Provides structured error types with context and categorization
 
+//go:generate go run ../../scripts/generate_errors.go ../../scripts/error_definitions.json
+
 package errors
 
 import (

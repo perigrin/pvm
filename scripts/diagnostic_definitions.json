@@ -1,0 +1,109 @@
+{
+  "diagnostics": [
+    {
+      "id": "TYPE_MISMATCH",
+      "component": "PSC",
+      "severity": "Error",
+      "category": "Type Checking",
+      "message": "Type mismatch in assignment",
+      "template": "Variable '%s' declared as %s but assigned %s at line %d",
+      "description": "A variable is being assigned a value that doesn't match its declared type",
+      "examples": [
+        {
+          "input": "my Int $count = 'hello';",
+          "output": "Variable 'count' declared as Int but assigned Str at line 1"
+        }
+      ]
+    },
+    {
+      "id": "UNDEFINED_VARIABLE",
+      "component": "PSC",
+      "severity": "Error",
+      "category": "Symbol Resolution",
+      "message": "Undefined variable",
+      "template": "Variable '%s' used before declaration at line %d",
+      "description": "A variable is being used without being declared first",
+      "examples": [
+        {
+          "input": "print $undeclared;",
+          "output": "Variable 'undeclared' used before declaration at line 1"
+        }
+      ]
+    },
+    {
+      "id": "UNUSED_VARIABLE",
+      "component": "PSC",
+      "severity": "Warning",
+      "category": "Code Quality",
+      "message": "Unused variable",
+      "template": "Variable '%s' declared but never used at line %d",
+      "description": "A variable is declared but never referenced in the code",
+      "examples": [
+        {
+          "input": "my $unused = 42;",
+          "output": "Variable 'unused' declared but never used at line 1"
+        }
+      ]
+    },
+    {
+      "id": "VARIABLE_SHADOWING",
+      "component": "PSC",
+      "severity": "Warning",
+      "category": "Code Quality",
+      "message": "Variable shadowing",
+      "template": "Variable '%s' shadows outer scope variable declared at line %d",
+      "description": "A variable declaration hides a variable with the same name from an outer scope",
+      "examples": [
+        {
+          "input": "my $name = 'outer'; { my $name = 'inner'; }",
+          "output": "Variable 'name' shadows outer scope variable declared at line 1"
+        }
+      ]
+    },
+    {
+      "id": "INVALID_TYPE_SYNTAX",
+      "component": "PSC",
+      "severity": "Error",
+      "category": "Type Parsing",
+      "message": "Invalid type syntax",
+      "template": "Invalid type expression '%s' at line %d: %s",
+      "description": "The type expression contains invalid syntax",
+      "examples": [
+        {
+          "input": "my Int| $var;",
+          "output": "Invalid type expression 'Int|' at line 1: incomplete union type"
+        }
+      ]
+    },
+    {
+      "id": "DEPRECATED_SYNTAX",
+      "component": "PSC",
+      "severity": "Warning",
+      "category": "Code Style",
+      "message": "Deprecated syntax",
+      "template": "Deprecated syntax '%s' at line %d, use '%s' instead",
+      "description": "Code uses deprecated syntax that should be updated",
+      "examples": [
+        {
+          "input": "my $var : Int;",
+          "output": "Deprecated syntax 'my $var : Int' at line 1, use 'my Int $var' instead"
+        }
+      ]
+    },
+    {
+      "id": "PERFORMANCE_HINT",
+      "component": "PSC",
+      "severity": "Hint",
+      "category": "Performance",
+      "message": "Performance optimization available",
+      "template": "Consider using %s instead of %s for better performance at line %d",
+      "description": "Suggests performance improvements for common patterns",
+      "examples": [
+        {
+          "input": "for my $i (0..1000000) { ... }",
+          "output": "Consider using ArrayRef[Int] instead of range for better performance at line 1"
+        }
+      ]
+    }
+  ]
+}

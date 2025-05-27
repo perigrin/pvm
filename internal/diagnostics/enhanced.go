@@ -1,6 +1,8 @@
 // ABOUTME: Enhanced diagnostics system leveraging symbol information for better error reporting
 // ABOUTME: Provides symbol-aware error messages, undefined variable detection, and usage tracking
 
+//go:generate go run ../../scripts/generate_diagnostics.go ../../scripts/diagnostic_definitions.json
+
 package diagnostics
 
 import (

@@ -1,9 +1,12 @@
 // ABOUTME: Core AST type definitions consolidating scattered node types
 // ABOUTME: Provides unified interfaces following TypeScript-Go astnav patterns
 
+//go:generate stringer -type=AnnotationKind -output=annotation_kind_string.go
+
 package ast
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -97,6 +100,44 @@ func (a *AST) SetParent(parent Node) {
 	// AST is the root, cannot set parent
 }
 
+// String returns a string representation of the AST for baseline testing
+func (a *AST) String() string {
+	var builder strings.Builder
+
+	builder.WriteString("AST {\n")
+	builder.WriteString("  Path: " + a.Path + "\n")
+	builder.WriteString("  Source length: ")
+	builder.WriteString(fmt.Sprintf("%d", len(a.Source)))
+	builder.WriteString(" characters\n")
+
+	if len(a.TypeAnnotations) > 0 {
+		builder.WriteString("  Type Annotations:\n")
+		for _, annotation := range a.TypeAnnotations {
+			builder.WriteString("    ")
+			builder.WriteString(annotation.String())
+			builder.WriteString("\n")
+		}
+	}
+
+	if len(a.Errors) > 0 {
+		builder.WriteString("  Errors:\n")
+		for _, err := range a.Errors {
+			builder.WriteString("    ")
+			builder.WriteString(err.Error())
+			builder.WriteString("\n")
+		}
+	}
+
+	if a.Root != nil {
+		builder.WriteString("  Root: ")
+		builder.WriteString(a.Root.Type())
+		builder.WriteString("\n")
+	}
+
+	builder.WriteString("}")
+	return builder.String()
+}
+
 // TypeAnnotation represents a type annotation in the code
 // Consolidated from parser and treesitter TypeAnnotation types
 type TypeAnnotation struct {
@@ -111,6 +152,22 @@ type TypeAnnotation struct {
 
 	// Kind indicates what kind of item is being annotated
 	Kind AnnotationKind
+}
+
+// String returns a string representation of the type annotation
+func (ta *TypeAnnotation) String() string {
+	var builder strings.Builder
+
+	builder.WriteString(ta.Kind.String())
+	builder.WriteString(": ")
+	builder.WriteString(ta.AnnotatedItem)
+	if ta.TypeExpression != nil {
+		builder.WriteString(" :: ")
+		builder.WriteString(ta.TypeExpression.String())
+	}
+	builder.WriteString(fmt.Sprintf(" at %d:%d", ta.Pos.Line, ta.Pos.Column))
+
+	return builder.String()
 }
 
 // AnnotationKind represents the kind of type annotation
@@ -138,28 +195,6 @@ const (
 	// TypeDeclAnnotation is a type declaration
 	TypeDeclAnnotation
 )
-
-// String returns a string representation of the annotation kind
-func (ak AnnotationKind) String() string {
-	switch ak {
-	case VarAnnotation:
-		return "variable"
-	case SubParamAnnotation:
-		return "subroutine_parameter"
-	case SubReturnAnnotation:
-		return "subroutine_return"
-	case MethodParamAnnotation:
-		return "method_parameter"
-	case MethodReturnAnnotation:
-		return "method_return"
-	case FieldAnnotation:
-		return "field"
-	case TypeDeclAnnotation:
-		return "type_declaration"
-	default:
-		return "unknown"
-	}
-}
 
 // TypeExpression represents a type expression
 // Consolidated and enhanced from parser and treesitter implementations

@@ -12,14 +12,14 @@ func TestTokenType_StringBasic(t *testing.T) {
 		tokenType TokenType
 		expected  string
 	}{
-		{TokenEOF, "EOF"},
-		{TokenError, "ERROR"},
-		{TokenMy, "MY"},
-		{TokenVariable, "VARIABLE"},
-		{TokenPipe, "PIPE"},
-		{TokenLBracket, "LBRACKET"},
-		{TokenTypeKeyword, "TYPE"},
-		{TokenType(9999), "UNKNOWN"},
+		{TokenEOF, "TokenEOF"},
+		{TokenError, "TokenError"},
+		{TokenMy, "TokenMy"},
+		{TokenVariable, "TokenVariable"},
+		{TokenPipe, "TokenPipe"},
+		{TokenLBracket, "TokenLBracket"},
+		{TokenTypeKeyword, "TokenTypeKeyword"},
+		{TokenType(9999), "TokenType(9999)"},
 	}
 
 	for _, test := range tests {

@@ -1,0 +1,84 @@
+{
+  "errors": [
+    {
+      "code": "001",
+      "component": "PVM",
+      "category": "Configuration Error",
+      "message": "Invalid configuration file",
+      "description": "The configuration file is malformed or contains invalid values",
+      "hint": "Check the configuration file syntax and ensure all required fields are present"
+    },
+    {
+      "code": "002",
+      "component": "PVM",
+      "category": "Version Error",
+      "message": "Perl version not found",
+      "description": "The requested Perl version is not installed or available",
+      "hint": "Use 'pvm list' to see available versions or install with 'pvm install <version>'"
+    },
+    {
+      "code": "003",
+      "component": "PVM",
+      "category": "System Error",
+      "message": "Permission denied",
+      "description": "Insufficient permissions to perform the requested operation",
+      "hint": "Try running with elevated privileges or check file permissions"
+    },
+    {
+      "code": "101",
+      "component": "PSC",
+      "category": "Type Error",
+      "message": "Type mismatch",
+      "description": "Variable assignment type does not match declared type",
+      "hint": "Ensure the assigned value matches the variable's declared type"
+    },
+    {
+      "code": "102",
+      "component": "PSC",
+      "category": "Type Error",
+      "message": "Undefined variable",
+      "description": "Variable used before declaration",
+      "hint": "Declare the variable with 'my', 'our', or 'state' before use"
+    },
+    {
+      "code": "103",
+      "component": "PSC",
+      "category": "Type Error",
+      "message": "Invalid type expression",
+      "description": "Type expression contains invalid syntax or undefined types",
+      "hint": "Check the type syntax and ensure all referenced types are defined"
+    },
+    {
+      "code": "201",
+      "component": "PVI",
+      "category": "Module Error",
+      "message": "Module not found",
+      "description": "The requested module could not be found on CPAN",
+      "hint": "Check the module name spelling or try a different CPAN mirror"
+    },
+    {
+      "code": "202",
+      "component": "PVI",
+      "category": "Module Error",
+      "message": "Dependency conflict",
+      "description": "Module dependencies have conflicting version requirements",
+      "hint": "Update conflicting modules or use a compatible version"
+    },
+    {
+      "code": "301",
+      "component": "PVX",
+      "category": "Execution Error",
+      "message": "Script execution failed",
+      "description": "The Perl script exited with a non-zero status",
+      "hint": "Check the script for runtime errors or syntax issues"
+    },
+    {
+      "code": "302",
+      "component": "PVX",
+      "category": "Execution Error",
+      "message": "Execution timeout",
+      "description": "Script execution exceeded the configured timeout limit",
+      "hint": "Increase the timeout limit or optimize the script performance"
+    }
+  ]
+}

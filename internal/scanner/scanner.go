@@ -1,6 +1,9 @@
 // ABOUTME: Scanner package provides lexical analysis interface following TypeScript-Go patterns
 // ABOUTME: Separates tokenization concerns from parsing for better modularity and performance
 
+//go:generate stringer -type=TokenType -output=token_type_string.go
+//go:generate moq -out scanner_mock.go . Scanner Token TokenIterator
+
 package scanner
 
 import (
@@ -64,92 +67,6 @@ const (
 	TokenIntersectionOperator
 	TokenNegationOperator
 )
-
-// String returns a string representation of the token type
-func (tt TokenType) String() string {
-	switch tt {
-	case TokenEOF:
-		return "EOF"
-	case TokenError:
-		return "ERROR"
-	case TokenWhitespace:
-		return "WHITESPACE"
-	case TokenComment:
-		return "COMMENT"
-	case TokenNewline:
-		return "NEWLINE"
-	case TokenString:
-		return "STRING"
-	case TokenNumber:
-		return "NUMBER"
-	case TokenIdentifier:
-		return "IDENTIFIER"
-	case TokenVariable:
-		return "VARIABLE"
-	case TokenArrayVariable:
-		return "ARRAY_VARIABLE"
-	case TokenHashVariable:
-		return "HASH_VARIABLE"
-	case TokenMy:
-		return "MY"
-	case TokenOur:
-		return "OUR"
-	case TokenState:
-		return "STATE"
-	case TokenSub:
-		return "SUB"
-	case TokenMethod:
-		return "METHOD"
-	case TokenField:
-		return "FIELD"
-	case TokenTypeKeyword:
-		return "TYPE"
-	case TokenUse:
-		return "USE"
-	case TokenPackage:
-		return "PACKAGE"
-	case TokenClass:
-		return "CLASS"
-	case TokenAssign:
-		return "ASSIGN"
-	case TokenComma:
-		return "COMMA"
-	case TokenSemicolon:
-		return "SEMICOLON"
-	case TokenLParen:
-		return "LPAREN"
-	case TokenRParen:
-		return "RPAREN"
-	case TokenLBrace:
-		return "LBRACE"
-	case TokenRBrace:
-		return "RBRACE"
-	case TokenLBracket:
-		return "LBRACKET"
-	case TokenRBracket:
-		return "RBRACKET"
-	case TokenArrow:
-		return "ARROW"
-	case TokenPipe:
-		return "PIPE"
-	case TokenAmpersand:
-		return "AMPERSAND"
-	case TokenExclamation:
-		return "EXCLAMATION"
-	case TokenTypeAnnotation:
-		return "TYPE_ANNOTATION"
-	case TokenTypeExpression:
-		return "TYPE_EXPRESSION"
-	case TokenUnionOperator:
-		return "UNION_OPERATOR"
-	case TokenIntersectionOperator:
-		return "INTERSECTION_OPERATOR"
-	case TokenNegationOperator:
-		return "NEGATION_OPERATOR"
-	default:
-		return "UNKNOWN"
-	}
-}
 
 // Position represents a position in the source code
 type Position struct {

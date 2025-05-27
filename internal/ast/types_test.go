@@ -200,14 +200,14 @@ func TestAnnotationKind_String(t *testing.T) {
 		kind     AnnotationKind
 		expected string
 	}{
-		{VarAnnotation, "variable"},
-		{SubParamAnnotation, "subroutine_parameter"},
-		{SubReturnAnnotation, "subroutine_return"},
-		{MethodParamAnnotation, "method_parameter"},
-		{MethodReturnAnnotation, "method_return"},
-		{FieldAnnotation, "field"},
-		{TypeDeclAnnotation, "type_declaration"},
-		{AnnotationKind(999), "unknown"},
+		{VarAnnotation, "VarAnnotation"},
+		{SubParamAnnotation, "SubParamAnnotation"},
+		{SubReturnAnnotation, "SubReturnAnnotation"},
+		{MethodParamAnnotation, "MethodParamAnnotation"},
+		{MethodReturnAnnotation, "MethodReturnAnnotation"},
+		{FieldAnnotation, "FieldAnnotation"},
+		{TypeDeclAnnotation, "TypeDeclAnnotation"},
+		{AnnotationKind(999), "AnnotationKind(999)"},
 	}
 
 	for _, test := range tests {

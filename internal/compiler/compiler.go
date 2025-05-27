@@ -1,6 +1,8 @@
 // ABOUTME: Core compiler interfaces and types for converting AST to various target formats
 // ABOUTME: Provides extensible architecture for multiple compilation targets
 
+//go:generate moq -out compiler_mock.go . Compiler
+
 package compiler
 
 // No external imports needed for core compiler interfaces

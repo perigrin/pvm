@@ -1,6 +1,8 @@
 // ABOUTME: CPAN metadata provider interfaces
 // ABOUTME: Defines interfaces for retrieving CPAN metadata
 
+//go:generate moq -out provider_mock.go . Provider
+
 package cpan
 
 import (

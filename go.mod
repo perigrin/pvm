@@ -22,6 +22,8 @@ require (
 	honnef.co/go/tools v0.5.1
 )
 
+require github.com/google/go-cmp v0.7.0
+
 require (
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/bitfield/gotestdox v0.2.2 // indirect

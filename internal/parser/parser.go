@@ -1,6 +1,8 @@
 // ABOUTME: Parser for Perl code with type annotations
 // ABOUTME: Implements parsing capabilities for PSC type checking
 
+//go:generate moq -out parser_mock.go . Parser
+
 package parser
 
 import (

@@ -1,9 +1,13 @@
 // ABOUTME: Core types and interfaces for symbol binding in Perl code analysis.
 // ABOUTME: Defines Symbol, Scope, and SymbolTable structures following TypeScript-Go binder architecture.
 
+//go:generate moq -out binder_mock.go . Binder SymbolResolver ScopeManager
+
 package binder
 
 import (
+	"fmt"
+
 	"tamarou.com/pvm/internal/ast"
 )
 
@@ -64,6 +68,25 @@ type Symbol struct {
 	CapturedBy     []*Scope  // Scopes that capture this symbol (for closures)
 	Upvalues       []*Symbol // Symbols captured from outer scopes
 	QualifiedName  string    // Full package-qualified name
+}
+
+// String returns a string representation of the symbol for debugging and baseline testing
+func (s *Symbol) String() string {
+	result := s.Kind.String() + " " + s.Name
+
+	if s.Type != "" {
+		result += " :: " + s.Type
+	}
+
+	if s.Package != "" && s.Package != "main" {
+		result += " @ " + s.Package
+	}
+
+	if s.Flags != SymbolFlagNone {
+		result += " [" + s.Flags.String() + "]"
+	}
+
+	return fmt.Sprintf("%s at %d:%d", result, s.Position.Line, s.Position.Column)
 }
 
 // ScopeKind represents different types of scopes in Perl

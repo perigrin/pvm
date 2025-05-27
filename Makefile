@@ -83,6 +83,52 @@ test: tree-sitter check-tools
 test-short: tree-sitter check-tools
 	gotestsum --format=short -- -mod=mod -short ./...
 
+# Baseline testing for regression prevention
+test-baselines: tree-sitter check-tools
+	@echo "Running baseline tests..."
+	gotestsum --format=short -- -mod=mod -run=TestParser_Baselines ./internal/parser/
+	gotestsum --format=short -- -mod=mod -run=TestTypeChecker_Baselines ./internal/typechecker/
+
+test-baselines-update: tree-sitter check-tools
+	@echo "Updating baseline tests..."
+	UPDATE_BASELINES=1 gotestsum --format=short -- -mod=mod -run=TestParser_Baselines ./internal/parser/
+	UPDATE_BASELINES=1 gotestsum --format=short -- -mod=mod -run=TestTypeChecker_Baselines ./internal/typechecker/
+
+# Performance testing and monitoring
+test-performance: tree-sitter check-tools
+	@echo "Running performance benchmarks..."
+	go test -mod=mod -bench=BenchmarkParser_Performance -benchmem ./internal/parser/
+	go test -mod=mod -bench=BenchmarkTypeChecker_Performance -benchmem ./internal/typechecker/
+
+test-performance-baseline: tree-sitter check-tools
+	@echo "Updating performance baselines..."
+	UPDATE_PERFORMANCE_BASELINE=1 go test -mod=mod -bench=BenchmarkParser_Performance -benchmem ./internal/parser/
+	UPDATE_PERFORMANCE_BASELINE=1 go test -mod=mod -bench=BenchmarkTypeChecker_Performance -benchmem ./internal/typechecker/
+
+# Coverage reporting
+test-coverage: tree-sitter check-tools
+	@echo "Running tests with coverage..."
+	gotestsum --format=short -- -mod=mod -coverprofile=coverage.out -covermode=atomic ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report saved to coverage.html"
+
+test-coverage-report: test-coverage
+	@echo "Coverage Summary:"
+	go tool cover -func=coverage.out | grep total | awk '{print "Total Coverage: " $$3}'
+
+# Integration testing
+test-integration: tree-sitter check-tools
+	@echo "Running integration tests..."
+	gotestsum --format=short -- -mod=mod -tags=integration ./test/e2e/
+
+# Complete test suite with all validations
+test-all: tree-sitter check-tools
+	@echo "Running complete test suite..."
+	make test-baselines
+	make test-performance
+	make test-integration
+	make test-coverage-report
+
 # Run all tests (with tree-sitter support) - legacy compatibility
 test-go: tree-sitter
 	go test -mod=mod -v ./...
