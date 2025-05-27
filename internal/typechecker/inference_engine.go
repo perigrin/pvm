@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
+	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -27,6 +28,9 @@ type InferenceEngine struct {
 
 	// TypeHierarchy for type compatibility checks
 	TypeHierarchy *typedef.TypeHierarchy
+
+	// SymbolTable for symbol information
+	SymbolTable *binder.SymbolTable
 
 	// InferredTypes stores inferred type information
 	InferredTypes map[string]*InferredTypeInfo
@@ -307,14 +311,15 @@ type TypeConstraint struct {
 	Source ast.Position
 }
 
-// NewInferenceEngine creates a new inference engine
-func NewInferenceEngine(hierarchy *typedef.TypeHierarchy) *InferenceEngine {
+// NewInferenceEngine creates a new inference engine with symbol table support
+func NewInferenceEngine(hierarchy *typedef.TypeHierarchy, symbolTable *binder.SymbolTable) *InferenceEngine {
 	engine := &InferenceEngine{
 		DataFlowAnalyzer:     NewDataFlowAnalyzer(),
 		ContextAnalyzer:      NewContextAnalyzer(),
 		UsagePatternAnalyzer: NewUsagePatternAnalyzer(),
 		TypePropagator:       NewTypePropagator(),
 		TypeHierarchy:        hierarchy,
+		SymbolTable:          symbolTable,
 		InferredTypes:        make(map[string]*InferredTypeInfo),
 		ConfidenceThreshold:  0.7, // 70% confidence threshold
 	}
@@ -380,7 +385,9 @@ func (ie *InferenceEngine) initializeContextRules() {
 		Pattern: "scalar",
 		InferType: func(expr ast.Node, context PerlContext) string {
 			// In scalar context, arrays become counts
-			if exprType := ie.getNodeType(expr); strings.HasPrefix(exprType, "Array") {
+			exprType := ie.getNodeType(expr)
+			nodeType := expr.Type()
+			if strings.HasPrefix(exprType, "Array") || nodeType == "array" {
 				return "Int"
 			}
 			return "Scalar"
@@ -393,7 +400,9 @@ func (ie *InferenceEngine) initializeContextRules() {
 		Pattern: "list",
 		InferType: func(expr ast.Node, context PerlContext) string {
 			// In list context, scalars become single-element lists
-			if exprType := ie.getNodeType(expr); !strings.Contains(exprType, "Array") {
+			exprType := ie.getNodeType(expr)
+			nodeType := expr.Type()
+			if !strings.Contains(exprType, "Array") && nodeType != "array" {
 				return "Array"
 			}
 			return "Array"
@@ -422,6 +431,46 @@ func (ie *InferenceEngine) initializeContextRules() {
 
 // initializeUsagePatterns sets up usage-based inference patterns
 func (ie *InferenceEngine) initializeUsagePatterns() {
+	// Pattern: Variable used as object (method calls) - HIGHEST PRIORITY
+	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
+		Name: "object_method_calls",
+		Matcher: func(node ast.Node) bool {
+			text := node.Text()
+			return strings.Contains(text, "->") && !strings.Contains(text, "=>")
+		},
+		InferType: func(node ast.Node) (string, float64) {
+			// Try to extract class name from method call or constructor
+			text := node.Text()
+			if strings.Contains(text, "->new") {
+				// Look for Class->new pattern
+				if idx := strings.Index(text, "->new"); idx > 0 {
+					possibleClass := strings.TrimSpace(text[:idx])
+					if strings.HasPrefix(possibleClass, "$") {
+						return "Object", 0.7
+					}
+					return possibleClass, 0.9
+				}
+			}
+			return "Object", 0.8
+		},
+		Priority: 15,
+	})
+
+	// Pattern: Variable used in string operations - HIGH PRIORITY
+	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
+		Name: "string_operations",
+		Matcher: func(node ast.Node) bool {
+			text := node.Text()
+			return strings.Contains(text, "=~") || strings.Contains(text, "!~") ||
+				strings.Contains(text, "substr") || strings.Contains(text, "length") ||
+				strings.Contains(text, "uc") || strings.Contains(text, "lc")
+		},
+		InferType: func(node ast.Node) (string, float64) {
+			return "Str", 0.8
+		},
+		Priority: 10,
+	})
+
 	// Pattern: Variable used with array operations
 	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
 		Name: "array_operations",
@@ -451,17 +500,36 @@ func (ie *InferenceEngine) initializeUsagePatterns() {
 		Priority: 10,
 	})
 
-	// Pattern: Variable used in numeric operations
+	// Pattern: Variable used in file operations
+	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
+		Name: "file_operations",
+		Matcher: func(node ast.Node) bool {
+			text := node.Text()
+			return strings.Contains(text, "open") || strings.Contains(text, "close") ||
+				strings.Contains(text, "print") && strings.Contains(text, "FILEHANDLE")
+		},
+		InferType: func(node ast.Node) (string, float64) {
+			return "FileHandle", 0.8
+		},
+		Priority: 8,
+	})
+
+	// Pattern: Variable used in numeric operations - LOWER PRIORITY
 	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
 		Name: "numeric_operations",
 		Matcher: func(node ast.Node) bool {
 			text := node.Text()
+			// Look for numeric operators, but avoid regex operators, method calls, and hash arrows
+			if strings.Contains(text, "=~") || strings.Contains(text, "!~") ||
+				strings.Contains(text, "->") || strings.Contains(text, "=>") {
+				return false
+			}
 			// Look for numeric operators
 			return strings.ContainsAny(text, "+-*/%") ||
 				strings.Contains(text, "++") || strings.Contains(text, "--") ||
 				strings.Contains(text, "**") || strings.Contains(text, "<=") ||
 				strings.Contains(text, ">=") || strings.Contains(text, "<") ||
-				strings.Contains(text, ">") && !strings.Contains(text, "->")
+				strings.Contains(text, ">")
 		},
 		InferType: func(node ast.Node) (string, float64) {
 			// Check if it looks like an integer
@@ -471,62 +539,6 @@ func (ie *InferenceEngine) initializeUsagePatterns() {
 			return "Int", 0.8
 		},
 		Priority: 5,
-	})
-
-	// Pattern: Variable used in string operations
-	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
-		Name: "string_operations",
-		Matcher: func(node ast.Node) bool {
-			text := node.Text()
-			return strings.Contains(text, "=~") || strings.Contains(text, "!~") ||
-				strings.Contains(text, ".") && !strings.Contains(text, "->") ||
-				strings.Contains(text, "substr") || strings.Contains(text, "length") ||
-				strings.Contains(text, "uc") || strings.Contains(text, "lc")
-		},
-		InferType: func(node ast.Node) (string, float64) {
-			return "Str", 0.8
-		},
-		Priority: 5,
-	})
-
-	// Pattern: Variable used as object (method calls)
-	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
-		Name: "object_method_calls",
-		Matcher: func(node ast.Node) bool {
-			text := node.Text()
-			return strings.Contains(text, "->") && !strings.Contains(text, "=>")
-		},
-		InferType: func(node ast.Node) (string, float64) {
-			// Try to extract class name from method call or constructor
-			text := node.Text()
-			if strings.Contains(text, "->new") {
-				// Look for Class->new pattern
-				if idx := strings.Index(text, "->new"); idx > 0 {
-					possibleClass := strings.TrimSpace(text[:idx])
-					if strings.HasPrefix(possibleClass, "$") {
-						return "Object", 0.7
-					}
-					return possibleClass, 0.9
-				}
-			}
-			return "Object", 0.8
-		},
-		Priority: 15,
-	})
-
-	// Pattern: Variable used in file operations
-	ie.UsagePatternAnalyzer.Patterns = append(ie.UsagePatternAnalyzer.Patterns, UsagePattern{
-		Name: "file_operations",
-		Matcher: func(node ast.Node) bool {
-			text := node.Text()
-			return strings.Contains(text, "open") || strings.Contains(text, "close") ||
-				strings.Contains(text, "print") && strings.Contains(text, "FILEHANDLE") ||
-				strings.Contains(text, "<") && strings.Contains(text, ">")
-		},
-		InferType: func(node ast.Node) (string, float64) {
-			return "FileHandle", 0.8
-		},
-		Priority: 8,
 	})
 }
 

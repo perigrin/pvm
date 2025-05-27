@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/typedef"
 )
@@ -16,6 +17,9 @@ import (
 type TypeCheck struct {
 	// Parser is the parser used for parsing Perl code
 	Parser parser.Parser
+
+	// Binder is the symbol binder used for symbol resolution
+	Binder binder.Binder
 
 	// TypeStore is the store for type definitions
 	TypeStore *typedef.Storage
@@ -64,11 +68,15 @@ func NewTypeCheck() (*TypeCheck, error) {
 	// Create the type hierarchy
 	hierarchy := typedef.NewTypeHierarchy(typeStore)
 
-	// Create the inference engine
-	inferenceEngine := NewInferenceEngine(hierarchy)
+	// Create the binder
+	symbolBinder := binder.NewBinder()
+
+	// Create the inference engine (will be updated with symbol table later)
+	inferenceEngine := NewInferenceEngine(hierarchy, nil)
 
 	return &TypeCheck{
 		Parser:                      parser,
+		Binder:                      symbolBinder,
 		TypeStore:                   typeStore,
 		TypeHierarchy:               hierarchy,
 		EnableFlowSensitiveAnalysis: true,                              // Enable by default
@@ -156,8 +164,20 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	// Extract module name from the file path
 	moduleName := extractModuleNameFromPath(path)
 
-	// Create a type checker
-	checker := parser.NewTypeChecker(tc.TypeHierarchy, moduleName)
+	// NEW PIPELINE: Source → Parser → Binder → Checker
+	// Step 1: Bind symbols using the binder
+	symbolTable, err := tc.Binder.BindAST(ast)
+	if err != nil {
+		return nil, fmt.Errorf("symbol binding failed: %w", err)
+	}
+
+	// Step 2: Create a type checker with symbol table
+	checker := NewTypeChecker(tc.TypeHierarchy, symbolTable, moduleName)
+
+	// Update inference engine with symbol table
+	if tc.EnableTypeInference {
+		checker.InferenceEngine = NewInferenceEngine(tc.TypeHierarchy, symbolTable)
+	}
 
 	// Configure flow-sensitive analysis options
 	if tc.EnableFlowSensitiveAnalysis {

@@ -50,7 +50,7 @@ func TestNewInferenceEngine(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	if engine == nil {
 		t.Fatal("NewInferenceEngine returned nil")
@@ -89,7 +89,7 @@ func TestContextRules(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	// Test scalar context rule
 	scalarRule, exists := engine.ContextAnalyzer.ContextRules["scalar"]
@@ -150,7 +150,7 @@ func TestUsagePatterns(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	tests := []struct {
 		name         string
@@ -251,7 +251,7 @@ func TestInferenceRecording(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	// Record a simple inference
 	pos := ast.Position{Line: 1, Column: 1}
@@ -316,7 +316,7 @@ func TestContextDetermination(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	tests := []struct {
 		name         string
@@ -350,7 +350,7 @@ func TestGetInferredType(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	// Test with no inference
 	inferredType, confidence := engine.GetInferredType("$unknown")
@@ -382,7 +382,7 @@ func TestGetAllInferredTypes(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	pos := ast.Position{Line: 1, Column: 1}
 
@@ -416,7 +416,7 @@ func TestAnalyzeUsagePatterns(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	// Create a simple AST with array operations
 	root := &MockNode{
@@ -459,7 +459,7 @@ func TestInferenceReport(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	pos := ast.Position{Line: 1, Column: 1}
 
@@ -499,7 +499,7 @@ func TestInferTypesIntegration(t *testing.T) {
 		t.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	// Create a mock AST
 	mockAST := &MockAST{
@@ -659,7 +659,7 @@ func BenchmarkInferenceEngine(b *testing.B) {
 		b.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	// Create a large mock AST
 	children := make([]ast.Node, 100)
@@ -700,7 +700,7 @@ func BenchmarkPatternMatching(b *testing.B) {
 		b.Fatalf("Failed to create storage: %v", err)
 	}
 	hierarchy := typedef.NewTypeHierarchy(storage)
-	engine := NewInferenceEngine(hierarchy)
+	engine := NewInferenceEngine(hierarchy, nil)
 
 	node := &MockNode{
 		NodeType: "expression",

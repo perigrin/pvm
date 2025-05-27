@@ -23,7 +23,7 @@ func TestTypeCheckerCreation(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Create a type checker
-	checker := NewTypeChecker(hierarchy, "Test::Module")
+	checker := NewTypeCheckerLegacy(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
 	// Check initial state
@@ -45,7 +45,7 @@ func TestTypeAnnotationValidation(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Create a type checker
-	checker := NewTypeChecker(hierarchy, "Test::Module")
+	checker := NewTypeCheckerLegacy(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
 	// Test validation of valid types
@@ -69,7 +69,7 @@ func TestBasicTypeAnnotation(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Create a type checker
-	checker := NewTypeChecker(hierarchy, "Test::Module")
+	checker := NewTypeCheckerLegacy(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
 	// Create a valid type annotation for a variable
@@ -103,7 +103,7 @@ func TestAssignmentChecking(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Create a type checker
-	checker := NewTypeChecker(hierarchy, "Test::Module")
+	checker := NewTypeCheckerLegacy(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
 	pos := ast.Position{Line: 1, Column: 1}
@@ -129,7 +129,7 @@ func TestTypeInference(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Create a type checker
-	checker := NewTypeChecker(hierarchy, "Test::Module")
+	checker := NewTypeCheckerLegacy(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
 	// Test numeric literals
@@ -157,7 +157,7 @@ func TestUnionTypes(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Create a type checker
-	checker := NewTypeChecker(hierarchy, "Test::Module")
+	checker := NewTypeCheckerLegacy(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
 	pos := ast.Position{Line: 1, Column: 1}
@@ -198,7 +198,7 @@ func TestIntersectionTypes(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Create a type checker
-	checker := NewTypeChecker(hierarchy, "Test::Module")
+	checker := NewTypeCheckerLegacy(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
 	pos := ast.Position{Line: 1, Column: 1}
@@ -236,7 +236,7 @@ func TestConditionalTypeRefinement(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Create a type checker
-	checker := NewTypeChecker(hierarchy, "Test::Module")
+	checker := NewTypeCheckerLegacy(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
 	// Set up a variable with union type
@@ -282,7 +282,7 @@ func TestComplexTypeExpressions(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Create a type checker
-	checker := NewTypeChecker(hierarchy, "Test::Module")
+	checker := NewTypeCheckerLegacy(hierarchy, "Test::Module")
 	require.NotNil(t, checker)
 
 	pos := ast.Position{Line: 1, Column: 1}

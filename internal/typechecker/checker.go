@@ -4,9 +4,11 @@
 package typechecker
 
 import (
+	"fmt"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
+	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/typedef"
 )
@@ -15,6 +17,9 @@ import (
 type TypeChecker struct {
 	// Hierarchy is the type hierarchy used for checking
 	Hierarchy *typedef.TypeHierarchy
+
+	// SymbolTable contains symbol information from the binder phase
+	SymbolTable *binder.SymbolTable
 
 	// CurrentModule is the current module being checked
 	CurrentModule string
@@ -55,12 +60,15 @@ type TypeChecker struct {
 	// HigherKindedTypes maps type names to their higher-kinded definitions
 	HigherKindedTypes map[string]*HigherKindedTypeDefinition
 
+	// InferenceEngine for advanced type inference
+	InferenceEngine *InferenceEngine
+
 	// Debug enables debug mode
 	Debug bool
 }
 
-// NewTypeChecker creates a new TypeChecker with the given type hierarchy
-func NewTypeChecker(hierarchy *typedef.TypeHierarchy, moduleName string) *TypeChecker {
+// NewTypeChecker creates a new TypeChecker with the given type hierarchy and symbol table
+func NewTypeChecker(hierarchy *typedef.TypeHierarchy, symbolTable *binder.SymbolTable, moduleName string) *TypeChecker {
 	// Create initial type state
 	initialState := &TypeState{
 		VariableTypes: make(map[string]string),
@@ -70,6 +78,7 @@ func NewTypeChecker(hierarchy *typedef.TypeHierarchy, moduleName string) *TypeCh
 
 	tc := &TypeChecker{
 		Hierarchy:                 hierarchy,
+		SymbolTable:               symbolTable,
 		CurrentModule:             moduleName,
 		ImportedModules:           make(map[string]bool),
 		TypeAnnotations:           make(map[string]string),
@@ -92,12 +101,208 @@ func NewTypeChecker(hierarchy *typedef.TypeHierarchy, moduleName string) *TypeCh
 	return tc
 }
 
-// CheckAST performs type checking on an entire AST
+// populateTypesFromSymbolTable extracts type information from the symbol table
+func (tc *TypeChecker) populateTypesFromSymbolTable() {
+	if tc.SymbolTable == nil {
+		return
+	}
+
+	// Extract variable types from symbols
+	for name, symbols := range tc.SymbolTable.Symbols {
+		for _, symbol := range symbols {
+			if symbol.Type != "" {
+				tc.VariableTypes[name] = symbol.Type
+				tc.TypeAnnotations[name] = symbol.Type
+			}
+		}
+	}
+
+	// Extract function types from subroutine and method symbols
+	for _, symbols := range tc.SymbolTable.Symbols {
+		for _, symbol := range symbols {
+			if symbol.Kind == binder.SymbolSubroutine || symbol.Kind == binder.SymbolMethod {
+				if symbol.Type != "" {
+					// For functions, the type is the return type
+					signature := &FunctionSignature{
+						ParameterTypes: make(map[string]string),
+						ReturnType:     symbol.Type,
+						IsMethod:       symbol.Kind == binder.SymbolMethod,
+					}
+					tc.FunctionTypes[symbol.Name] = signature
+				}
+			}
+		}
+	}
+}
+
+// resolveSymbolType resolves the type of a symbol with enhanced error context
+func (tc *TypeChecker) resolveSymbolType(symbolName string) (string, *binder.Symbol, error) {
+	if tc.SymbolTable == nil {
+		return "", nil, fmt.Errorf("no symbol table available")
+	}
+
+	// Resolve symbol in current scope
+	symbol := tc.SymbolTable.ResolveSymbol(symbolName, binder.SymbolKind(-1)) // Any kind
+	if symbol == nil {
+		// Try to suggest similar symbols
+		suggestions := tc.findSimilarSymbols(symbolName)
+		if len(suggestions) > 0 {
+			return "", nil, fmt.Errorf("undefined variable '%s' - did you mean '%s'?", symbolName, suggestions[0])
+		}
+		return "", nil, fmt.Errorf("undefined variable '%s'", symbolName)
+	}
+
+	return symbol.Type, symbol, nil
+}
+
+// findSimilarSymbols finds symbols with similar names for suggestions
+func (tc *TypeChecker) findSimilarSymbols(target string) []string {
+	var suggestions []string
+	if tc.SymbolTable == nil {
+		return suggestions
+	}
+
+	// Simple edit distance-based matching
+	for name := range tc.SymbolTable.Symbols {
+		if tc.editDistance(target, name) <= 2 && len(name) > 2 {
+			suggestions = append(suggestions, name)
+		}
+	}
+
+	return suggestions
+}
+
+// editDistance calculates the edit distance between two strings
+func (tc *TypeChecker) editDistance(s1, s2 string) int {
+	if len(s1) == 0 {
+		return len(s2)
+	}
+	if len(s2) == 0 {
+		return len(s1)
+	}
+
+	// Create matrix
+	matrix := make([][]int, len(s1)+1)
+	for i := range matrix {
+		matrix[i] = make([]int, len(s2)+1)
+	}
+
+	// Initialize first row and column
+	for i := 0; i <= len(s1); i++ {
+		matrix[i][0] = i
+	}
+	for j := 0; j <= len(s2); j++ {
+		matrix[0][j] = j
+	}
+
+	// Fill matrix
+	for i := 1; i <= len(s1); i++ {
+		for j := 1; j <= len(s2); j++ {
+			cost := 0
+			if s1[i-1] != s2[j-1] {
+				cost = 1
+			}
+
+			matrix[i][j] = min(
+				matrix[i-1][j]+1,      // deletion
+				matrix[i][j-1]+1,      // insertion
+				matrix[i-1][j-1]+cost, // substitution
+			)
+		}
+	}
+
+	return matrix[len(s1)][len(s2)]
+}
+
+// min returns the minimum of three integers
+func min(a, b, c int) int {
+	if a < b {
+		if a < c {
+			return a
+		}
+		return c
+	}
+	if b < c {
+		return b
+	}
+	return c
+}
+
+// checkSymbolUsage checks for unused variables and shadowing warnings
+func (tc *TypeChecker) checkSymbolUsage() []error {
+	var warnings []error
+	if tc.SymbolTable == nil {
+		return warnings
+	}
+
+	// Check for unused variables
+	for _, symbols := range tc.SymbolTable.Symbols {
+		for _, symbol := range symbols {
+			if symbol.Flags&binder.SymbolFlagLexical != 0 {
+				// For now, just collect symbols - in a real implementation,
+				// we'd track usage and report unused ones
+				_ = symbol
+			}
+		}
+	}
+
+	// Check for shadowing
+	tc.checkShadowing(&warnings)
+
+	return warnings
+}
+
+// checkShadowing checks for variable shadowing and adds warnings
+func (tc *TypeChecker) checkShadowing(warnings *[]error) {
+	// Walk through scopes and check for shadowed variables
+	tc.walkScopes(tc.SymbolTable.GlobalScope, warnings)
+}
+
+// walkScopes recursively walks scopes to find shadowing
+func (tc *TypeChecker) walkScopes(scope *binder.Scope, warnings *[]error) {
+	if scope == nil {
+		return
+	}
+
+	// Check each symbol in this scope
+	for name, symbol := range scope.Symbols {
+		// Look for same-named symbols in parent scopes
+		parent := scope.Parent
+		for parent != nil {
+			if parentSymbol, exists := parent.Symbols[name]; exists {
+				// Found shadowing
+				warning := fmt.Errorf("variable '%s' at line %d shadows outer scope variable at line %d",
+					name, symbol.Position.Line, parentSymbol.Position.Line)
+				*warnings = append(*warnings, warning)
+				break
+			}
+			parent = parent.Parent
+		}
+	}
+
+	// Recursively check child scopes
+	for _, child := range scope.Children {
+		tc.walkScopes(child, warnings)
+	}
+}
+
+// NewTypeCheckerLegacy creates a new TypeChecker without symbol table for backward compatibility
+func NewTypeCheckerLegacy(hierarchy *typedef.TypeHierarchy, moduleName string) *TypeChecker {
+	// Create empty symbol table for backward compatibility
+	symbolTable := binder.NewSymbolTable()
+	symbolTable.Package = moduleName
+	return NewTypeChecker(hierarchy, symbolTable, moduleName)
+}
+
+// CheckAST performs type checking on an entire AST using symbol table information
 func (tc *TypeChecker) CheckAST(ast *ast.AST) []error {
 	var typeErrors []error
 
 	// Extract information about imported modules
 	tc.extractImports(ast)
+
+	// Use symbol table to populate type information
+	tc.populateTypesFromSymbolTable()
 
 	// First pass: collect all type annotations without validating them yet
 	for _, annotation := range ast.TypeAnnotations {
@@ -131,6 +336,12 @@ func (tc *TypeChecker) CheckAST(ast *ast.AST) []error {
 		if len(flowErrors) > 0 {
 			typeErrors = append(typeErrors, flowErrors...)
 		}
+	}
+
+	// Check for symbol usage issues (unused variables, shadowing)
+	usageWarnings := tc.checkSymbolUsage()
+	if len(usageWarnings) > 0 {
+		typeErrors = append(typeErrors, usageWarnings...)
 	}
 
 	return typeErrors

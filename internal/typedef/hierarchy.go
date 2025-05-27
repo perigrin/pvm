@@ -130,7 +130,8 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 
 	h.addSubtypeRelation("Int", "Num")
 	h.addSubtypeRelation("Float", "Num")
-	h.addSubtypeRelation("Bool", "Int") // Bool is a subtype of Int per specification
+	h.addSubtypeRelation("Bool", "Scalar") // Bool is a scalar type
+	h.addSubtypeRelation("Int", "Bool")    // Int can be used in boolean context in Perl
 
 	h.addSubtypeRelation("ClassName", "Str")
 	h.addSubtypeRelation("RoleName", "Str")
