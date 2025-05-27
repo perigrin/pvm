@@ -177,7 +177,7 @@ func TestSplitParams(t *testing.T) {
 		{
 			name:     "Empty input",
 			input:    "",
-			expected: []string{},
+			expected: nil,
 		},
 	}
 
