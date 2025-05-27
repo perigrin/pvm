@@ -1,11 +1,27 @@
-.PHONY: all test clean install tree-sitter vendor cross-compile release
+.PHONY: all test clean install tree-sitter vendor cross-compile release install-tools check-tools
+.PHONY: build-dev build-release lint check fmt check-generate generate
 
 # Define binaries
 BINARIES := pvm pvx pvi psc
 BUILDDIR := build
 LIBDIR := lib
 
-all: $(BUILDDIR) $(LIBDIR) tree-sitter $(BINARIES)
+# Build configuration
+BUILD_TAGS ?=
+LDFLAGS := -s -w
+DEBUG_LDFLAGS :=
+
+# Development build uses debug symbols and development tags
+build-dev: BUILD_TAGS += debug,noembed
+build-dev: LDFLAGS := $(DEBUG_LDFLAGS)
+build-dev: $(BUILDDIR) $(LIBDIR) tree-sitter $(BINARIES)
+
+# Release build uses optimized flags and embed tags
+build-release: BUILD_TAGS += release,embed
+build-release: $(BUILDDIR) $(LIBDIR) tree-sitter $(BINARIES)
+
+# Default target
+all: build-dev
 
 # Set CGO flags for tree-sitter integration
 export CGO_ENABLED=1
@@ -27,21 +43,48 @@ tree-sitter: $(LIBDIR)
 	cd tree-sitter-typed-perl && $(MAKE) generate
 	@echo "Tree-sitter-typed-perl build complete"
 
+# Tool management
+install-tools:
+	@echo "Installing development tools..."
+	go install golang.org/x/tools/cmd/stringer@latest
+	go install github.com/matryer/moq@latest
+	go install gotest.tools/gotestsum@latest
+	go install honnef.co/go/tools/cmd/staticcheck@latest
+	go install golang.org/x/vuln/cmd/govulncheck@latest
+	go install golang.org/x/tools/cmd/godoc@latest
+	@echo "Development tools installed successfully"
+
+check-tools:
+	@echo "Checking development tools..."
+	@command -v stringer >/dev/null 2>&1 || (echo "stringer not found, run 'make install-tools'" && exit 1)
+	@command -v moq >/dev/null 2>&1 || (echo "moq not found, run 'make install-tools'" && exit 1)
+	@command -v gotestsum >/dev/null 2>&1 || (echo "gotestsum not found, run 'make install-tools'" && exit 1)
+	@command -v staticcheck >/dev/null 2>&1 || (echo "staticcheck not found, run 'make install-tools'" && exit 1)
+	@command -v govulncheck >/dev/null 2>&1 || (echo "govulncheck not found, run 'make install-tools'" && exit 1)
+	@echo "All tools are available"
+
 # Build rules for each binary
 pvm: $(BUILDDIR)
-	go build -mod=mod -o $(BUILDDIR)/pvm ./cmd/pvm
+	go build -mod=mod -tags="$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/pvm ./cmd/pvm
 
 pvx: $(BUILDDIR)
-	go build -mod=mod -o $(BUILDDIR)/pvx ./cmd/pvx
+	go build -mod=mod -tags="$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/pvx ./cmd/pvx
 
 pvi: $(BUILDDIR)
-	go build -mod=mod -o $(BUILDDIR)/pvi ./cmd/pvi
+	go build -mod=mod -tags="$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/pvi ./cmd/pvi
 
 psc: $(BUILDDIR) tree-sitter
-	go build -mod=mod -o $(BUILDDIR)/psc ./cmd/psc
+	go build -mod=mod -tags="$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/psc ./cmd/psc
 
-# Run all tests (with tree-sitter support)
-test: tree-sitter
+# Enhanced testing with gotestsum
+test: tree-sitter check-tools
+	gotestsum --format=standard-verbose -- -mod=mod ./...
+
+test-short: tree-sitter check-tools
+	gotestsum --format=short -- -mod=mod -short ./...
+
+# Run all tests (with tree-sitter support) - legacy compatibility
+test-go: tree-sitter
 	go test -mod=mod -v ./...
 
 # Run tests without vendor (for better tree-sitter compatibility)
@@ -51,13 +94,76 @@ test-novendor: tree-sitter
 
 # Run specific component tests
 test-scanner: tree-sitter
-	go test -mod=mod -v ./internal/scanner/...
+	gotestsum --format=short -- -mod=mod ./internal/scanner/...
 
 test-parser: tree-sitter
-	go test -mod=mod -v ./internal/parser/...
+	gotestsum --format=short -- -mod=mod ./internal/parser/...
 
 test-ast: tree-sitter
-	go test -mod=mod -v ./internal/ast/... ./internal/astnav/...
+	gotestsum --format=short -- -mod=mod ./internal/ast/... ./internal/astnav/...
+
+# Benchmarking
+bench: tree-sitter
+	go test -mod=mod -bench=. -benchmem ./...
+
+bench-compare: tree-sitter
+	@echo "Running benchmark comparison..."
+	go test -mod=mod -bench=. -benchmem -count=5 ./...
+
+# Code quality
+lint: check-tools
+	staticcheck ./...
+	go vet ./...
+
+fmt:
+	go fmt ./...
+
+check: lint
+	go mod tidy
+	go mod verify
+
+# Security scanning
+security: check-tools
+	govulncheck ./...
+
+# Code generation
+generate:
+	go generate ./...
+
+check-generate: generate
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Generated code is out of date. Please run 'make generate' and commit the changes."; \
+		git status --porcelain; \
+		exit 1; \
+	fi
+
+# Development environment setup
+setup: install-tools
+	go mod download
+	go mod tidy
+
+# Build performance monitoring
+build-monitor:
+	@echo "🔍 Running monitored build..."
+	./scripts/build-monitor.sh all
+
+build-monitor-component:
+	@if [ -z "$(COMPONENT)" ]; then \
+		echo "Usage: make build-monitor-component COMPONENT=<pvm|pvx|pvi|psc>"; \
+		exit 1; \
+	fi
+	./scripts/build-monitor.sh $(COMPONENT)
+
+# Performance reporting
+performance-report:
+	@echo "📊 Build Performance Report"
+	@echo "============================"
+	@if [ -d .build-metrics ]; then \
+		echo "Recent build metrics:"; \
+		ls -la .build-metrics/ | tail -5; \
+	else \
+		echo "No build metrics found. Run 'make build-monitor' first."; \
+	fi
 
 # Clean build artifacts
 clean:

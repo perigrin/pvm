@@ -58,3 +58,6 @@ lib.c
 run_inference_tests.go
 *.tmp
 *.log
+
+# Build performance metrics
+.build-metrics/
