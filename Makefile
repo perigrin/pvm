@@ -1,5 +1,6 @@
 .PHONY: all test clean install tree-sitter vendor cross-compile release install-tools check-tools
 .PHONY: build-dev build-release lint check fmt check-generate generate
+.PHONY: test-performance profile optimize performance-analysis
 
 # Define binaries
 BINARIES := pvm pvx pvi psc
@@ -120,6 +121,15 @@ test-coverage-report: test-coverage
 test-integration: tree-sitter check-tools
 	@echo "Running integration tests..."
 	gotestsum --format=short -- -mod=mod -tags=integration ./test/e2e/
+
+# Performance optimization targets
+optimize-performance: tree-sitter check-tools
+	@echo "Running performance optimization analysis..."
+	go run scripts/optimize_performance.go
+
+profile-performance: tree-sitter check-tools
+	@echo "Profiling performance bottlenecks..."
+	go run scripts/profile_performance.go
 
 # Complete test suite with all validations
 test-all: tree-sitter check-tools
@@ -260,3 +270,23 @@ release: cross-compile
 	tar -czf pvm-darwin-arm64.tar.gz pvm-darwin-arm64 pvx-darwin-arm64 pvi-darwin-arm64 && \
 	zip pvm-windows-amd64.zip pvm-windows-amd64.exe pvx-windows-amd64.exe pvi-windows-amd64.exe
 	@echo "Release archives created in $(BUILDDIR)/release/"
+
+# Performance optimization targets
+test-performance: tree-sitter
+	@echo "🚀 Running performance benchmarks..."
+	go test -bench=BenchmarkParser_Performance -benchmem ./internal/parser/ -run=^$
+
+profile: tree-sitter
+	@echo "🔍 Generating performance profiles..."
+	go run scripts/profile_performance.go
+	@echo "📊 Profiles saved to performance-profiles/"
+	@echo "🔧 Analyze with: go tool pprof performance-profiles/<profile>.prof"
+
+optimize: tree-sitter
+	@echo "🧪 Running optimization validation..."
+	go run scripts/test_optimizations.go
+
+performance-analysis: profile optimize
+	@echo "📈 Comprehensive performance analysis complete"
+	@echo "📂 Check performance-profiles/ for detailed profiling data"
+	@echo "💡 Use 'make test-performance' for regular benchmarking"
