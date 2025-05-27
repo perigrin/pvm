@@ -22,7 +22,7 @@ vendor:
 	go mod vendor
 
 # Build tree-sitter-typed-perl library
-tree-sitter: $(LIBDIR) vendor
+tree-sitter: $(LIBDIR)
 	@echo "Building tree-sitter-typed-perl parser..."
 	cd tree-sitter-typed-perl && $(MAKE) generate
 	@echo "Tree-sitter-typed-perl build complete"
@@ -43,6 +43,21 @@ psc: $(BUILDDIR) tree-sitter
 # Run all tests (with tree-sitter support)
 test: tree-sitter
 	go test -mod=mod -v ./...
+
+# Run tests without vendor (for better tree-sitter compatibility)
+test-novendor: tree-sitter
+	rm -rf vendor || true
+	go test -mod=mod -v ./...
+
+# Run specific component tests
+test-scanner: tree-sitter
+	go test -mod=mod -v ./internal/scanner/...
+
+test-parser: tree-sitter
+	go test -mod=mod -v ./internal/parser/...
+
+test-ast: tree-sitter
+	go test -mod=mod -v ./internal/ast/... ./internal/astnav/...
 
 # Clean build artifacts
 clean:

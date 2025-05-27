@@ -28,7 +28,7 @@ func NewTokenBasedParser(useScanner bool) (Parser, error) {
 	}
 
 	// Create fallback parser for compatibility
-	fallbackParser, err := NewParser()
+	fallbackParser, err := NewTreeSitterParser()
 	if err != nil {
 		return nil, err
 	}
