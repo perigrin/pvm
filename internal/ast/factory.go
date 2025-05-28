@@ -33,9 +33,7 @@ type NodeFactory struct {
 	subDeclPool        core.Pool[SubDecl]
 
 	// Type expression pools
-	typeExprPool         core.Pool[TypeExpression]
-	unionTypePool        core.Pool[UnionType]
-	intersectionTypePool core.Pool[IntersectionType]
+	typeExprPool core.Pool[TypeExpression]
 
 	// Slice pools for collections
 	nodeSlicePool *core.Pool[[]Node]
@@ -460,8 +458,6 @@ func (f *NodeFactory) Reset() {
 	f.blockStmtPool.Reset()
 	f.subDeclPool.Reset()
 	f.typeExprPool.Reset()
-	f.unionTypePool.Reset()
-	f.intersectionTypePool.Reset()
 
 	if f.nodeSlicePool != nil {
 		f.nodeSlicePool.Reset()
@@ -495,8 +491,6 @@ func (f *NodeFactory) Clear() {
 	f.blockStmtPool.Clear()
 	f.subDeclPool.Clear()
 	f.typeExprPool.Clear()
-	f.unionTypePool.Clear()
-	f.intersectionTypePool.Clear()
 
 	if f.nodeSlicePool != nil {
 		f.nodeSlicePool.Clear()

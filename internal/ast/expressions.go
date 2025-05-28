@@ -42,10 +42,14 @@ func (le *LiteralExpr) IsExpression() bool {
 }
 
 // VariableExpr represents variable references ($var, @array, %hash)
+// Enhanced with type information context
 type VariableExpr struct {
 	*BaseNode
-	Name  string
-	Sigil string // $, @, %
+	Name        string          // variable name
+	Sigil       string          // $, @, %
+	Package     string          // package qualification
+	InferredType *TypeExpression // inferred type from context
+	DeclContext  *VarDecl       // reference to declaration if available
 }
 
 // NewVariableExpr creates a new variable expression
@@ -55,6 +59,30 @@ func NewVariableExpr(name, sigil string, start, end Position) *VariableExpr {
 		Name:     name,
 		Sigil:    sigil,
 	}
+}
+
+// GetVariableTypeInfo returns type information for this variable reference
+func (ve *VariableExpr) GetVariableTypeInfo() *VariableReferenceInfo {
+	return &VariableReferenceInfo{
+		Name:         ve.Name,
+		Sigil:        ve.Sigil,
+		FullName:     ve.FullName(),
+		Package:      ve.Package,
+		InferredType: ve.InferredType,
+		DeclContext:  ve.DeclContext,
+		Position:     ve.Start(),
+	}
+}
+
+// VariableReferenceInfo contains comprehensive information about a variable reference
+type VariableReferenceInfo struct {
+	Name         string          // variable name
+	Sigil        string          // variable sigil
+	FullName     string          // full name with sigil
+	Package      string          // package qualification
+	InferredType *TypeExpression // inferred type
+	DeclContext  *VarDecl       // declaration context
+	Position     Position        // source position
 }
 
 // IsExpression implements ExpressionNode interface
@@ -225,10 +253,13 @@ func (hre *HashRefExpr) IsExpression() bool {
 }
 
 // TypeAssertionExpr represents type assertions ($value as Type)
+// Enhanced with comprehensive type assertion information
 type TypeAssertionExpr struct {
 	*BaseNode
-	Expression ExpressionNode
-	TargetType *TypeExpression
+	Expression   ExpressionNode  // expression being asserted
+	TargetType   *TypeExpression // target type
+	IsConditional bool           // whether this is a conditional assertion (as?)
+	Constraints  []*TypeConstraint // additional constraints
 }
 
 // NewTypeAssertionExpr creates a new type assertion expression
@@ -242,8 +273,31 @@ func NewTypeAssertionExpr(expr ExpressionNode, targetType *TypeExpression, start
 	if expr != nil {
 		assertion.AddChild(expr)
 	}
+	if targetType != nil {
+		assertion.AddChild(targetType)
+	}
 
 	return assertion
+}
+
+// GetTypeAssertionInfo returns comprehensive information about this type assertion
+func (tae *TypeAssertionExpr) GetTypeAssertionInfo() *TypeAssertionInfo {
+	return &TypeAssertionInfo{
+		Expression:    tae.Expression,
+		TargetType:    tae.TargetType,
+		IsConditional: tae.IsConditional,
+		Constraints:   tae.Constraints,
+		Position:      tae.Start(),
+	}
+}
+
+// TypeAssertionInfo contains comprehensive information about a type assertion
+type TypeAssertionInfo struct {
+	Expression    ExpressionNode    // the expression being asserted
+	TargetType    *TypeExpression   // the target type
+	IsConditional bool              // conditional assertion flag
+	Constraints   []*TypeConstraint // additional constraints
+	Position      Position          // source position
 }
 
 // IsExpression implements ExpressionNode interface

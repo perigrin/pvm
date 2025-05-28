@@ -8,6 +8,7 @@ package ast
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Position represents a position in source code
@@ -204,6 +205,9 @@ const (
 type TypeExpression struct {
 	*BaseNode
 
+	// Kind represents the type expression kind
+	Kind TypeExpressionKind
+
 	// Name is the primary type name (renamed from BaseType for consistency)
 	Name string
 
@@ -228,14 +232,35 @@ type TypeExpression struct {
 	// NegatedType is the type being negated (for negation types)
 	NegatedType *TypeExpression
 
+	// Constraint represents type constraints (where clauses)
+	Constraint ExpressionNode
+
 	// OriginalString preserves the original source text
 	OriginalString string
 }
 
+// TypeExpressionKind represents the kind of type expression
+type TypeExpressionKind int
+
+const (
+	SimpleTypeKind TypeExpressionKind = iota
+	UnionTypeKind
+	IntersectionTypeKind
+	NegationTypeKind
+	ParameterizedTypeKind
+	ConstrainedTypeKind
+)
+
 // NewTypeExpression creates a new type expression
 func NewTypeExpression(name string, params []*TypeExpression, start, end Position) *TypeExpression {
+	kind := SimpleTypeKind
+	if len(params) > 0 {
+		kind = ParameterizedTypeKind
+	}
+
 	te := &TypeExpression{
 		BaseNode:   NewBaseNode("type_expr", start, end),
+		Kind:       kind,
 		Name:       name,
 		Parameters: params,
 	}
@@ -322,6 +347,20 @@ func (te *TypeExpression) GetAllTypes() []string {
 	}
 
 	return types
+}
+
+// WhereClauseMultiple represents multiple type constraints
+type WhereClauseMultiple struct {
+	*BaseNode
+	Constraints []*TypeConstraint // list of constraints
+}
+
+// NewWhereClauseMultiple creates a new where clause with constraints
+func NewWhereClauseMultiple(constraints []*TypeConstraint, start, end Position) *WhereClauseMultiple {
+	return &WhereClauseMultiple{
+		BaseNode:    NewBaseNode("where_clause_multi", start, end),
+		Constraints: constraints,
+	}
 }
 
 // WhereClause represents a type constraint expression (where { ... })
@@ -462,46 +501,198 @@ type WalkFunc struct {
 	Exit  func(node Node)      // Called when leaving node
 }
 
-// UnionType represents a union type (Int|Str)
-type UnionType struct {
-	*BaseNode
-	Types []*TypeExpression
+// TypeConstraint represents a type constraint
+type TypeConstraint struct {
+	Parameter  string         // type parameter being constrained
+	Kind       ConstraintKind // type, protocol, value, capability
+	Expression ExpressionNode // constraint expression
+	Position   Position       // source position
 }
 
-// NewUnionType creates a new union type
-func NewUnionType(types []*TypeExpression, start, end Position) *UnionType {
-	ut := &UnionType{
-		BaseNode: NewBaseNode("union_type", start, end),
-		Types:    types,
+// ConstraintKind represents the kind of constraint
+type ConstraintKind int
+
+const (
+	TypeConstraintKind ConstraintKind = iota // T: SomeType
+	ProtocolConstraint                       // T does SomeRole
+	CapabilityConstraint                     // T can 'method'
+	ValueConstraint                          // $param > 0
+	VersionConstraint                        // T->VERSION >= 1.0
+)
+
+// TypeParameter represents a generic type parameter
+type TypeParameter struct {
+	Name        string            // parameter name (e.g., T, U)
+	Constraints []*TypeConstraint // constraints on this parameter
+	Position    Position          // source position
+}
+
+// ParameterInfo represents detailed parameter information for methods
+type ParameterInfo struct {
+	Name       string           // parameter name
+	Type       *TypeExpression  // parameter type (optional)
+	Default    ExpressionNode   // default value (optional)
+	IsOptional bool             // optional parameter flag
+	IsNamed    bool             // named parameter flag (:$param)
+	IsVariadic bool             // variadic parameter flag (*@args)
+	Position   Position         // source position
+}
+
+// MethodSignature represents a complete method signature
+type MethodSignature struct {
+	Name           string              // method name
+	TypeParameters []*TypeParameter    // generic type parameters
+	Parameters     []*ParameterInfo    // method parameters
+	ReturnType     *TypeExpression     // return type specification
+	Constraints    []*TypeConstraint   // type constraints
+	Position       Position            // source position
+}
+
+// TypeVisitor defines an interface for visiting type information in AST
+type TypeVisitor interface {
+	VisitTypeExpression(node *TypeExpression) error
+	VisitTypedVariable(node *VarDecl) error
+	VisitTypedMethod(node *SubDecl) error
+	VisitTypeAssertion(node *TypeAssertionExpr) error
+	VisitFieldDeclaration(node *FieldDecl) error
+	VisitTypeDeclaration(node *TypeDecl) error
+}
+
+// TypeWalker provides functionality to traverse AST and visit type information
+type TypeWalker struct {
+	visitor TypeVisitor
+}
+
+// NewTypeWalker creates a new type walker
+func NewTypeWalker(visitor TypeVisitor) *TypeWalker {
+	return &TypeWalker{visitor: visitor}
+}
+
+// WalkTypes traverses AST and calls visitor methods for nodes with type information
+func (tw *TypeWalker) WalkTypes(ast *AST) error {
+	if ast.Root == nil {
+		return nil
+	}
+	return tw.walkNode(ast.Root)
+}
+
+// walkNode recursively walks AST nodes looking for type information
+func (tw *TypeWalker) walkNode(node Node) error {
+	if node == nil {
+		return nil
 	}
 
-	for _, t := range types {
-		if t != nil {
-			ut.AddChild(t)
+	// Visit specific node types with type information
+	switch n := node.(type) {
+	case *VarDecl:
+		if n.IsTyped() {
+			if err := tw.visitor.VisitTypedVariable(n); err != nil {
+				return err
+			}
+		}
+	case *SubDecl:
+		if n.IsTyped() {
+			if err := tw.visitor.VisitTypedMethod(n); err != nil {
+				return err
+			}
+		}
+	case *TypeAssertionExpr:
+		if err := tw.visitor.VisitTypeAssertion(n); err != nil {
+			return err
+		}
+	case *FieldDecl:
+		if err := tw.visitor.VisitFieldDeclaration(n); err != nil {
+			return err
+		}
+	case *TypeDecl:
+		if err := tw.visitor.VisitTypeDeclaration(n); err != nil {
+			return err
+		}
+	case *TypeExpression:
+		if err := tw.visitor.VisitTypeExpression(n); err != nil {
+			return err
 		}
 	}
 
-	return ut
-}
-
-// IntersectionType represents an intersection type (Object&Serializable)
-type IntersectionType struct {
-	*BaseNode
-	Types []*TypeExpression
-}
-
-// NewIntersectionType creates a new intersection type
-func NewIntersectionType(types []*TypeExpression, start, end Position) *IntersectionType {
-	it := &IntersectionType{
-		BaseNode: NewBaseNode("intersection_type", start, end),
-		Types:    types,
-	}
-
-	for _, t := range types {
-		if t != nil {
-			it.AddChild(t)
+	// Recursively walk children
+	for _, child := range node.Children() {
+		if err := tw.walkNode(child); err != nil {
+			return err
 		}
 	}
 
-	return it
+	return nil
+}
+
+// TypeInformation represents serializable type information from an AST
+type TypeInformation struct {
+	Variables       []*VariableTypeInfo     `json:"variables"`
+	Methods         []*MethodSignature      `json:"methods"`
+	Fields          []*FieldTypeInfo        `json:"fields"`
+	TypeAliases     []*TypeAliasInfo        `json:"type_aliases"`
+	TypeAssertions  []*TypeAssertionInfo    `json:"type_assertions"`
+	Classes         []*ClassTypeInfo        `json:"classes"`
+	Roles           []*RoleTypeInfo         `json:"roles"`
+	FilePath        string                  `json:"file_path"`
+	Timestamp       int64                   `json:"timestamp"`
+}
+
+// ExtractTypeInformation extracts all type information from an AST for serialization
+func ExtractTypeInformation(ast *AST) *TypeInformation {
+	extractor := &typeInformationExtractor{
+		typeInfo: &TypeInformation{
+			FilePath:  ast.Path,
+			Timestamp: time.Now().Unix(),
+		},
+	}
+
+	walker := NewTypeWalker(extractor)
+	walker.WalkTypes(ast)
+
+	return extractor.typeInfo
+}
+
+// typeInformationExtractor implements TypeVisitor to extract type information
+type typeInformationExtractor struct {
+	typeInfo *TypeInformation
+}
+
+func (tie *typeInformationExtractor) VisitTypeExpression(node *TypeExpression) error {
+	// Type expressions are handled as part of other nodes
+	return nil
+}
+
+func (tie *typeInformationExtractor) VisitTypedVariable(node *VarDecl) error {
+	if info := node.GetTypeInfo(); info != nil {
+		tie.typeInfo.Variables = append(tie.typeInfo.Variables, info)
+	}
+	return nil
+}
+
+func (tie *typeInformationExtractor) VisitTypedMethod(node *SubDecl) error {
+	if sig := node.GetMethodSignature(); sig != nil {
+		tie.typeInfo.Methods = append(tie.typeInfo.Methods, sig)
+	}
+	return nil
+}
+
+func (tie *typeInformationExtractor) VisitTypeAssertion(node *TypeAssertionExpr) error {
+	if info := node.GetTypeAssertionInfo(); info != nil {
+		tie.typeInfo.TypeAssertions = append(tie.typeInfo.TypeAssertions, info)
+	}
+	return nil
+}
+
+func (tie *typeInformationExtractor) VisitFieldDeclaration(node *FieldDecl) error {
+	if info := node.GetFieldTypeInfo(); info != nil {
+		tie.typeInfo.Fields = append(tie.typeInfo.Fields, info)
+	}
+	return nil
+}
+
+func (tie *typeInformationExtractor) VisitTypeDeclaration(node *TypeDecl) error {
+	if info := node.GetTypeAliasInfo(); info != nil {
+		tie.typeInfo.TypeAliases = append(tie.typeInfo.TypeAliases, info)
+	}
+	return nil
 }

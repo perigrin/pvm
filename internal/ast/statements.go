@@ -35,12 +35,15 @@ func (es *ExpressionStmt) IsStatement() bool {
 }
 
 // VarDecl represents variable declarations (my, our, state)
+// Enhanced with comprehensive type information
 type VarDecl struct {
 	*BaseNode
 	DeclType    string          // "my", "our", "state"
 	Variables   []*VariableExpr // Variables being declared
 	TypeExpr    *TypeExpression // Optional type annotation
 	Initializer ExpressionNode  // Optional initializer
+	Scope       string          // variable scope context
+	Package     string          // package qualification if any
 }
 
 // NewVarDecl creates a new variable declaration
@@ -51,6 +54,7 @@ func NewVarDecl(declType string, vars []*VariableExpr, typeExpr *TypeExpression,
 		Variables:   vars,
 		TypeExpr:    typeExpr,
 		Initializer: init,
+		Scope:       declType, // scope defaults to declaration type
 	}
 
 	// Add children
@@ -59,11 +63,49 @@ func NewVarDecl(declType string, vars []*VariableExpr, typeExpr *TypeExpression,
 			decl.AddChild(v)
 		}
 	}
+	if typeExpr != nil {
+		decl.AddChild(typeExpr)
+	}
 	if init != nil {
 		decl.AddChild(init)
 	}
 
 	return decl
+}
+
+// GetTypeInfo returns comprehensive type information for this declaration
+func (vd *VarDecl) GetTypeInfo() *VariableTypeInfo {
+	return &VariableTypeInfo{
+		DeclType:     vd.DeclType,
+		TypeExpr:     vd.TypeExpr,
+		VariableNames: vd.getVariableNames(),
+		Scope:        vd.Scope,
+		Package:      vd.Package,
+		HasInitializer: vd.Initializer != nil,
+		Position:     vd.Start(),
+	}
+}
+
+// getVariableNames extracts variable names from the declaration
+func (vd *VarDecl) getVariableNames() []string {
+	var names []string
+	for _, v := range vd.Variables {
+		if v != nil {
+			names = append(names, v.FullName())
+		}
+	}
+	return names
+}
+
+// VariableTypeInfo contains comprehensive type information for a variable declaration
+type VariableTypeInfo struct {
+	DeclType       string          // my, our, state, etc.
+	TypeExpr       *TypeExpression // type annotation
+	VariableNames  []string        // names of declared variables
+	Scope          string          // scope context
+	Package        string          // package qualification
+	HasInitializer bool            // whether declaration has initializer
+	Position       Position        // source position
 }
 
 // IsStatement implements StatementNode interface
@@ -77,21 +119,32 @@ func (vd *VarDecl) IsTyped() bool {
 }
 
 // SubDecl represents subroutine declarations
+// Enhanced with comprehensive type signature information
 type SubDecl struct {
 	*BaseNode
-	Name       string
-	Parameters []*Parameter
-	ReturnType *TypeExpression
-	Body       *BlockStmt
-	IsMethod   bool
+	Name           string              // subroutine/method name
+	Parameters     []*Parameter        // parameter list
+	ReturnType     *TypeExpression     // return type annotation
+	Body           *BlockStmt          // subroutine body
+	IsMethod       bool                // true if this is a method
+	TypeParameters []*TypeParameter    // generic type parameters
+	Constraints    []*TypeConstraint   // type constraints
+	Signature      *MethodSignature    // complete method signature info
+	Package        string              // package context
+	AccessLevel    string              // public, private, protected (future)
 }
 
 // Parameter represents a subroutine parameter
+// Enhanced with comprehensive parameter information
 type Parameter struct {
-	Name     string
-	TypeExpr *TypeExpression
-	Variable *VariableExpr
-	Pos      Position
+	Name       string           // parameter name
+	TypeExpr   *TypeExpression  // parameter type annotation
+	Variable   *VariableExpr    // parameter variable
+	Default    ExpressionNode   // default value expression
+	IsOptional bool             // optional parameter flag
+	IsNamed    bool             // named parameter flag (:$param)
+	IsVariadic bool             // variadic parameter flag (*@args)
+	Pos        Position         // source position
 }
 
 // NewSubDecl creates a new subroutine declaration
@@ -105,12 +158,55 @@ func NewSubDecl(name string, params []*Parameter, returnType *TypeExpression, bo
 		IsMethod:   isMethod,
 	}
 
-	// Add body as child
+	// Add children
+	if returnType != nil {
+		decl.AddChild(returnType)
+	}
 	if body != nil {
 		decl.AddChild(body)
 	}
 
+	// Build method signature if this is typed
+	if decl.IsTyped() {
+		decl.Signature = decl.buildMethodSignature()
+	}
+
 	return decl
+}
+
+// buildMethodSignature creates a MethodSignature from the subroutine declaration
+func (sd *SubDecl) buildMethodSignature() *MethodSignature {
+	var paramInfos []*ParameterInfo
+	for _, param := range sd.Parameters {
+		if param != nil {
+			paramInfos = append(paramInfos, &ParameterInfo{
+				Name:       param.Name,
+				Type:       param.TypeExpr,
+				Default:    param.Default,
+				IsOptional: param.IsOptional,
+				IsNamed:    param.IsNamed,
+				IsVariadic: param.IsVariadic,
+				Position:   param.Pos,
+			})
+		}
+	}
+
+	return &MethodSignature{
+		Name:           sd.Name,
+		TypeParameters: sd.TypeParameters,
+		Parameters:     paramInfos,
+		ReturnType:     sd.ReturnType,
+		Constraints:    sd.Constraints,
+		Position:       sd.Start(),
+	}
+}
+
+// GetMethodSignature returns the complete method signature information
+func (sd *SubDecl) GetMethodSignature() *MethodSignature {
+	if sd.Signature == nil && sd.IsTyped() {
+		sd.Signature = sd.buildMethodSignature()
+	}
+	return sd.Signature
 }
 
 // IsStatement implements StatementNode interface
@@ -147,12 +243,17 @@ func NewMethodDecl(name string, params []*Parameter, returnType *TypeExpression,
 }
 
 // FieldDecl represents field declarations (field keyword)
+// Enhanced with comprehensive field type information
 type FieldDecl struct {
 	*BaseNode
-	Name        string
-	TypeExpr    *TypeExpression
-	Variable    *VariableExpr
-	Initializer ExpressionNode
+	Name        string          // field name
+	TypeExpr    *TypeExpression // field type annotation
+	Variable    *VariableExpr   // field variable
+	Initializer ExpressionNode  // field initializer
+	AccessLevel string          // public, private, protected (future)
+	IsStatic    bool            // static field flag (future)
+	Package     string          // package context
+	Constraints []*TypeConstraint // field-specific constraints
 }
 
 // NewFieldDecl creates a new field declaration
@@ -163,8 +264,12 @@ func NewFieldDecl(name string, typeExpr *TypeExpression, variable *VariableExpr,
 		TypeExpr:    typeExpr,
 		Variable:    variable,
 		Initializer: init,
+		AccessLevel: "public", // default to public
 	}
 
+	if typeExpr != nil {
+		decl.AddChild(typeExpr)
+	}
 	if variable != nil {
 		decl.AddChild(variable)
 	}
@@ -175,25 +280,95 @@ func NewFieldDecl(name string, typeExpr *TypeExpression, variable *VariableExpr,
 	return decl
 }
 
+// GetFieldTypeInfo returns comprehensive type information for this field
+func (fd *FieldDecl) GetFieldTypeInfo() *FieldTypeInfo {
+	return &FieldTypeInfo{
+		Name:           fd.Name,
+		TypeExpr:       fd.TypeExpr,
+		HasInitializer: fd.Initializer != nil,
+		AccessLevel:    fd.AccessLevel,
+		IsStatic:       fd.IsStatic,
+		Package:        fd.Package,
+		Constraints:    fd.Constraints,
+		Position:       fd.Start(),
+	}
+}
+
+// FieldTypeInfo contains comprehensive type information for a field declaration
+type FieldTypeInfo struct {
+	Name           string            // field name
+	TypeExpr       *TypeExpression   // type annotation
+	HasInitializer bool              // whether field has initializer
+	AccessLevel    string            // access level
+	IsStatic       bool              // static field flag
+	Package        string            // package context
+	Constraints    []*TypeConstraint // field constraints
+	Position       Position          // source position
+}
+
 // IsStatement implements StatementNode interface
 func (fd *FieldDecl) IsStatement() bool {
 	return true
 }
 
 // TypeDecl represents type declarations (type Name = Type)
+// Enhanced with comprehensive type alias information
 type TypeDecl struct {
 	*BaseNode
-	Name     string
-	TypeExpr *TypeExpression
+	Name           string              // type alias name
+	TypeExpr       *TypeExpression     // aliased type expression
+	TypeParameters []*TypeParameter    // generic type parameters
+	Constraints    []*TypeConstraint   // type constraints
+	Package        string              // package context
+	IsExported     bool                // whether type is exported
 }
 
 // NewTypeDecl creates a new type declaration
 func NewTypeDecl(name string, typeExpr *TypeExpression, start, end Position) *TypeDecl {
-	return &TypeDecl{
-		BaseNode: NewBaseNode("type_decl", start, end),
-		Name:     name,
-		TypeExpr: typeExpr,
+	decl := &TypeDecl{
+		BaseNode:   NewBaseNode("type_decl", start, end),
+		Name:       name,
+		TypeExpr:   typeExpr,
+		IsExported: isExportedName(name), // determine if name is exported
 	}
+
+	if typeExpr != nil {
+		decl.AddChild(typeExpr)
+	}
+
+	return decl
+}
+
+// isExportedName determines if a type name is exported (starts with uppercase)
+func isExportedName(name string) bool {
+	if len(name) == 0 {
+		return false
+	}
+	return name[0] >= 'A' && name[0] <= 'Z'
+}
+
+// GetTypeAliasInfo returns comprehensive information about this type alias
+func (td *TypeDecl) GetTypeAliasInfo() *TypeAliasInfo {
+	return &TypeAliasInfo{
+		Name:           td.Name,
+		AliasedType:    td.TypeExpr,
+		TypeParameters: td.TypeParameters,
+		Constraints:    td.Constraints,
+		Package:        td.Package,
+		IsExported:     td.IsExported,
+		Position:       td.Start(),
+	}
+}
+
+// TypeAliasInfo contains comprehensive information about a type alias
+type TypeAliasInfo struct {
+	Name           string              // alias name
+	AliasedType    *TypeExpression     // the type being aliased
+	TypeParameters []*TypeParameter    // generic parameters
+	Constraints    []*TypeConstraint   // type constraints
+	Package        string              // package context
+	IsExported     bool                // export status
+	Position       Position            // source position
 }
 
 // IsStatement implements StatementNode interface
@@ -396,4 +571,165 @@ func NewPackageStmt(name, version string, start, end Position) *PackageStmt {
 // IsStatement implements StatementNode interface
 func (ps *PackageStmt) IsStatement() bool {
 	return true
+}
+
+// ClassDecl represents class declarations
+type ClassDecl struct {
+	*BaseNode
+	Name           string              // class name
+	TypeParameters []*TypeParameter    // generic parameters
+	Superclass     *TypeExpression     // parent class
+	Roles          []*TypeExpression   // implemented roles
+	Fields         []*FieldDecl        // class fields
+	Methods        []*MethodDecl       // class methods
+	Constructors   []*MethodDecl       // constructor methods
+	Constraints    []*TypeConstraint   // type constraints
+	Package        string              // package context
+	IsExported     bool                // export status
+}
+
+// NewClassDecl creates a new class declaration
+func NewClassDecl(name string, start, end Position) *ClassDecl {
+	return &ClassDecl{
+		BaseNode:   NewBaseNode("class_decl", start, end),
+		Name:       name,
+		IsExported: isExportedName(name),
+	}
+}
+
+// IsStatement implements StatementNode interface
+func (cd *ClassDecl) IsStatement() bool {
+	return true
+}
+
+// AddField adds a field to the class
+func (cd *ClassDecl) AddField(field *FieldDecl) {
+	if field != nil {
+		cd.Fields = append(cd.Fields, field)
+		cd.AddChild(field)
+	}
+}
+
+// AddMethod adds a method to the class
+func (cd *ClassDecl) AddMethod(method *MethodDecl) {
+	if method != nil {
+		cd.Methods = append(cd.Methods, method)
+		cd.AddChild(method)
+	}
+}
+
+// AddRole adds a role to the class
+func (cd *ClassDecl) AddRole(role *TypeExpression) {
+	if role != nil {
+		cd.Roles = append(cd.Roles, role)
+		cd.AddChild(role)
+	}
+}
+
+// GetClassTypeInfo returns comprehensive type information for this class
+func (cd *ClassDecl) GetClassTypeInfo() *ClassTypeInfo {
+	return &ClassTypeInfo{
+		Name:           cd.Name,
+		TypeParameters: cd.TypeParameters,
+		Superclass:     cd.Superclass,
+		Roles:          cd.Roles,
+		FieldCount:     len(cd.Fields),
+		MethodCount:    len(cd.Methods),
+		Constraints:    cd.Constraints,
+		Package:        cd.Package,
+		IsExported:     cd.IsExported,
+		Position:       cd.Start(),
+	}
+}
+
+// ClassTypeInfo contains comprehensive information about a class declaration
+type ClassTypeInfo struct {
+	Name           string              // class name
+	TypeParameters []*TypeParameter    // generic parameters
+	Superclass     *TypeExpression     // parent class
+	Roles          []*TypeExpression   // implemented roles
+	FieldCount     int                 // number of fields
+	MethodCount    int                 // number of methods
+	Constraints    []*TypeConstraint   // type constraints
+	Package        string              // package context
+	IsExported     bool                // export status
+	Position       Position            // source position
+}
+
+// RoleDecl represents role declarations
+type RoleDecl struct {
+	*BaseNode
+	Name            string              // role name
+	TypeParameters  []*TypeParameter    // generic parameters
+	RequiredMethods []*MethodSignature  // required method signatures
+	ProvidedMethods []*MethodDecl       // provided method implementations
+	Fields          []*FieldDecl        // role fields
+	Constraints     []*TypeConstraint   // type constraints
+	Package         string              // package context
+	IsExported      bool                // export status
+}
+
+// NewRoleDecl creates a new role declaration
+func NewRoleDecl(name string, start, end Position) *RoleDecl {
+	return &RoleDecl{
+		BaseNode:   NewBaseNode("role_decl", start, end),
+		Name:       name,
+		IsExported: isExportedName(name),
+	}
+}
+
+// IsStatement implements StatementNode interface
+func (rd *RoleDecl) IsStatement() bool {
+	return true
+}
+
+// AddRequiredMethod adds a required method signature to the role
+func (rd *RoleDecl) AddRequiredMethod(signature *MethodSignature) {
+	if signature != nil {
+		rd.RequiredMethods = append(rd.RequiredMethods, signature)
+	}
+}
+
+// AddProvidedMethod adds a provided method implementation to the role
+func (rd *RoleDecl) AddProvidedMethod(method *MethodDecl) {
+	if method != nil {
+		rd.ProvidedMethods = append(rd.ProvidedMethods, method)
+		rd.AddChild(method)
+	}
+}
+
+// AddField adds a field to the role
+func (rd *RoleDecl) AddField(field *FieldDecl) {
+	if field != nil {
+		rd.Fields = append(rd.Fields, field)
+		rd.AddChild(field)
+	}
+}
+
+// GetRoleTypeInfo returns comprehensive type information for this role
+func (rd *RoleDecl) GetRoleTypeInfo() *RoleTypeInfo {
+	return &RoleTypeInfo{
+		Name:                 rd.Name,
+		TypeParameters:       rd.TypeParameters,
+		RequiredMethodCount:  len(rd.RequiredMethods),
+		ProvidedMethodCount:  len(rd.ProvidedMethods),
+		FieldCount:           len(rd.Fields),
+		Constraints:          rd.Constraints,
+		Package:              rd.Package,
+		IsExported:           rd.IsExported,
+		Position:             rd.Start(),
+	}
+}
+
+// RoleTypeInfo contains comprehensive information about a role declaration
+type RoleTypeInfo struct {
+	Name                string              // role name
+	TypeParameters      []*TypeParameter    // generic parameters
+	RequiredMethodCount int                 // number of required methods
+	ProvidedMethodCount int                 // number of provided methods
+	FieldCount          int                 // number of fields
+	Constraints         []*TypeConstraint   // type constraints
+	Package             string              // package context
+	IsExported          bool                // export status
+	Position            Position            // source position
 }
