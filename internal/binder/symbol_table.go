@@ -12,57 +12,64 @@ import (
 
 // NewSymbolTable creates a new symbol table with global scope
 func NewSymbolTable() *SymbolTable {
-	globalScope := &Scope{
-		Kind:     ScopeGlobal,
-		Parent:   nil,
-		Children: []*Scope{},
-		Symbols:  make(map[string]*Symbol),
-		Package:  "main",
-		Position: ast.Position{Line: 1, Column: 1},
+	return NewSymbolTableWithPool(DefaultSymbolPoolManager(), "main")
+}
 
-		// Initialize advanced fields
-		LocalSymbols:    make(map[string]*Symbol),
-		SavedValues:     make(map[string]*Symbol),
-		ImportedModules: make(map[string]string),
-		CapturedSymbols: []*Symbol{},
-	}
+// NewSymbolTableWithPool creates a new symbol table with global scope using a pool manager
+func NewSymbolTableWithPool(poolManager *SymbolPoolManager, packageName string) *SymbolTable {
+	// Create symbol table using pool manager
+	table := poolManager.NewSymbolTable(packageName)
 
-	return &SymbolTable{
-		GlobalScope:  globalScope,
-		Scopes:       make(map[ast.Node]*Scope),
-		Symbols:      make(map[string][]*Symbol),
-		CurrentScope: globalScope,
-		Package:      "main",
+	// Create global scope using pool manager
+	globalScope := poolManager.NewScope(
+		ScopeGlobal,
+		nil,
+		nil,
+		ast.Position{Line: 1, Column: 1},
+	)
+	globalScope.Package = packageName
 
-		// Initialize advanced features
-		ModuleSymbols:   make(map[string]*SymbolTable),
-		PackageSymbols:  make(map[string]*Scope),
-		ExportedSymbols: make(map[string]*Symbol),
-		DynamicSymbols:  make(map[string]*Symbol),
-	}
+	// Set up symbol table
+	table.GlobalScope = globalScope
+	table.CurrentScope = globalScope
+	table.PoolManager = poolManager
+
+	return table
 }
 
 // EnterScope creates and enters a new scope
 func (st *SymbolTable) EnterScope(kind ScopeKind, node ast.Node) *Scope {
-	scope := &Scope{
-		Kind:     kind,
-		Parent:   st.CurrentScope,
-		Children: []*Scope{},
-		Symbols:  make(map[string]*Symbol),
-		Package:  st.Package,
-		Node:     node,
+	// Use pool manager to create scope if available
+	var scope *Scope
+	if st.PoolManager != nil {
+		pos := ast.Position{Line: 1, Column: 1}
+		if node != nil {
+			pos = node.Start()
+		}
+		scope = st.PoolManager.NewScope(kind, st.CurrentScope, node, pos)
+	} else {
+		// Fallback to direct allocation
+		scope = &Scope{
+			Kind:     kind,
+			Parent:   st.CurrentScope,
+			Children: []*Scope{},
+			Symbols:  make(map[string]*Symbol),
+			Node:     node,
 
-		// Initialize advanced fields
-		LocalSymbols:    make(map[string]*Symbol),
-		SavedValues:     make(map[string]*Symbol),
-		ImportedModules: make(map[string]string),
-		CapturedSymbols: []*Symbol{},
+			// Initialize advanced fields
+			LocalSymbols:    make(map[string]*Symbol),
+			SavedValues:     make(map[string]*Symbol),
+			ImportedModules: make(map[string]string),
+			CapturedSymbols: []*Symbol{},
+		}
+
+		// Add to parent's children
+		if st.CurrentScope != nil {
+			st.CurrentScope.Children = append(st.CurrentScope.Children, scope)
+		}
 	}
 
-	// Add to parent's children
-	if st.CurrentScope != nil {
-		st.CurrentScope.Children = append(st.CurrentScope.Children, scope)
-	}
+	scope.Package = st.Package
 
 	// Map AST node to scope
 	if node != nil {

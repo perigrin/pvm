@@ -131,6 +131,9 @@ type SymbolTable struct {
 	PackageSymbols  map[string]*Scope       // Package-level symbol scopes
 	ExportedSymbols map[string]*Symbol      // Symbols exported by this module
 	DynamicSymbols  map[string]*Symbol      // Dynamically created symbols
+
+	// Pool manager for efficient memory allocation
+	PoolManager *SymbolPoolManager // Pool manager for symbols and scopes
 }
 
 // Binder interface defines the symbol binding operations

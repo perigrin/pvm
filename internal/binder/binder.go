@@ -12,16 +12,26 @@ import (
 // DefaultBinder implements the Binder interface
 type DefaultBinder struct {
 	symbolTable *SymbolTable
+	poolManager *SymbolPoolManager
 }
 
 // NewBinder creates a new default binder
 func NewBinder() *DefaultBinder {
-	return &DefaultBinder{}
+	return &DefaultBinder{
+		poolManager: DefaultSymbolPoolManager(),
+	}
+}
+
+// NewBinderWithPool creates a new binder with a specific pool manager
+func NewBinderWithPool(poolManager *SymbolPoolManager) *DefaultBinder {
+	return &DefaultBinder{
+		poolManager: poolManager,
+	}
 }
 
 // Bind performs symbol binding on an AST node
 func (b *DefaultBinder) Bind(node ast.Node) (*SymbolTable, error) {
-	b.symbolTable = NewSymbolTable()
+	b.symbolTable = NewSymbolTableWithPool(b.poolManager, "main")
 
 	// Traverse the AST and bind symbols
 	return b.symbolTable, b.visitNode(node)
@@ -29,7 +39,7 @@ func (b *DefaultBinder) Bind(node ast.Node) (*SymbolTable, error) {
 
 // BindAST performs symbol binding on a parsed AST
 func (b *DefaultBinder) BindAST(astTree *ast.AST) (*SymbolTable, error) {
-	b.symbolTable = NewSymbolTable()
+	b.symbolTable = NewSymbolTableWithPool(b.poolManager, "main")
 
 	// Traverse the root node
 	if astTree.Root != nil {
@@ -93,15 +103,15 @@ func (b *DefaultBinder) bindVariableDeclaration(node *ast.VarDecl) error {
 			flags |= SymbolFlagTypeAnnotated
 		}
 
-		// Create symbol
-		symbol := &Symbol{
-			Name:        b.stripSigil(variable.Name),
-			Kind:        kind,
-			Flags:       flags,
-			Declaration: node,
-			Type:        typeAnnotation,
-			Position:    variable.Start(),
-		}
+		// Create symbol using pool manager
+		symbol := b.poolManager.NewSymbol(
+			b.stripSigil(variable.Name),
+			kind,
+			flags,
+			node,
+			variable.Start(),
+		)
+		symbol.Type = typeAnnotation
 
 		// Add to symbol table
 		if err := b.symbolTable.AddSymbol(symbol); err != nil {
@@ -119,14 +129,14 @@ func (b *DefaultBinder) bindVariableDeclaration(node *ast.VarDecl) error {
 
 // bindSubroutineDeclaration handles subroutine declarations
 func (b *DefaultBinder) bindSubroutineDeclaration(node *ast.SubDecl) error {
-	// Create symbol for the subroutine
-	symbol := &Symbol{
-		Name:        node.Name,
-		Kind:        SymbolSubroutine,
-		Flags:       SymbolFlagNone,
-		Declaration: node,
-		Position:    node.Start(),
-	}
+	// Create symbol for the subroutine using pool manager
+	symbol := b.poolManager.NewSymbol(
+		node.Name,
+		SymbolSubroutine,
+		SymbolFlagNone,
+		node,
+		node.Start(),
+	)
 
 	// Add return type if present
 	if node.ReturnType != nil {
@@ -164,14 +174,14 @@ func (b *DefaultBinder) bindSubroutineDeclaration(node *ast.SubDecl) error {
 
 // bindMethodDeclaration handles method declarations
 func (b *DefaultBinder) bindMethodDeclaration(node *ast.MethodDecl) error {
-	// Create symbol for the method
-	symbol := &Symbol{
-		Name:        node.Name,
-		Kind:        SymbolMethod,
-		Flags:       SymbolFlagMethod,
-		Declaration: node,
-		Position:    node.Start(),
-	}
+	// Create symbol for the method using pool manager
+	symbol := b.poolManager.NewSymbol(
+		node.Name,
+		SymbolMethod,
+		SymbolFlagMethod,
+		node,
+		node.Start(),
+	)
 
 	// Add return type if present
 	if node.ReturnType != nil {
@@ -212,14 +222,14 @@ func (b *DefaultBinder) bindPackageDeclaration(node *ast.PackageStmt) error {
 	// Update current package
 	b.symbolTable.SetPackage(node.Name)
 
-	// Create package symbol
-	symbol := &Symbol{
-		Name:        node.Name,
-		Kind:        SymbolPackage,
-		Flags:       SymbolFlagNone,
-		Declaration: node,
-		Position:    node.Start(),
-	}
+	// Create package symbol using pool manager
+	symbol := b.poolManager.NewSymbol(
+		node.Name,
+		SymbolPackage,
+		SymbolFlagNone,
+		node,
+		node.Start(),
+	)
 
 	return b.symbolTable.AddSymbol(symbol)
 }
@@ -305,14 +315,14 @@ func (b *DefaultBinder) bindForStatement(node *ast.ForStmt) error {
 
 // bindUseStatement handles use/require statements
 func (b *DefaultBinder) bindUseStatement(node *ast.UseStmt) error {
-	// Create import symbol
-	symbol := &Symbol{
-		Name:        node.Module,
-		Kind:        SymbolImport,
-		Flags:       SymbolFlagImported,
-		Declaration: node,
-		Position:    node.Start(),
-	}
+	// Create import symbol using pool manager
+	symbol := b.poolManager.NewSymbol(
+		node.Module,
+		SymbolImport,
+		SymbolFlagImported,
+		node,
+		node.Start(),
+	)
 
 	// Add to symbol table
 	if err := b.symbolTable.AddSymbol(symbol); err != nil {
@@ -377,15 +387,15 @@ func (b *DefaultBinder) bindParameter(param *ast.Parameter) error {
 		flags |= SymbolFlagTypeAnnotated
 	}
 
-	// Create symbol
-	symbol := &Symbol{
-		Name:        b.stripSigil(param.Name),
-		Kind:        kind,
-		Flags:       flags,
-		Declaration: param.Variable, // Use the Variable field which is a Node
-		Type:        typeAnnotation,
-		Position:    param.Pos,
-	}
+	// Create symbol using pool manager
+	symbol := b.poolManager.NewSymbol(
+		b.stripSigil(param.Name),
+		kind,
+		flags,
+		param.Variable, // Use the Variable field which is a Node
+		param.Pos,
+	)
+	symbol.Type = typeAnnotation
 
 	return b.symbolTable.AddSymbol(symbol)
 }
