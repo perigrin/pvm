@@ -1,0 +1,69 @@
+{
+  "name": "Malformed Type Expressions",
+  "description": "Test cases for type parsing error recovery",
+  "test_cases": [
+    {
+      "name": "missing_closing_bracket",
+      "input": "my ArrayRef[Int $var;",
+      "expected_error": "MissingClosingBracketError",
+      "expected_suggestion": "Add closing ']' to complete the parameterized type",
+      "context": "variable declaration"
+    },
+    {
+      "name": "invalid_union_syntax",
+      "input": "my Int||Str $bad_union;",
+      "expected_error": "InvalidUnionSyntaxError",
+      "expected_suggestion": "Change '||' to '|' for union types",
+      "context": "union type"
+    },
+    {
+      "name": "incomplete_type_assertion",
+      "input": "my $val = $input as ;",
+      "expected_error": "IncompleteTypeAssertionError",
+      "expected_suggestion": "Add the target type after 'as' keyword",
+      "context": "type assertion"
+    },
+    {
+      "name": "invalid_parameterized_space",
+      "input": "my ArrayRef[ Int] $spaced;",
+      "expected_error": "InvalidParameterizedTypeError",
+      "expected_suggestion": "Remove space after '[' in parameterized type",
+      "context": "parameterized type"
+    },
+    {
+      "name": "missing_type_name",
+      "input": "my $var = 42;",
+      "expected_error": "MissingTypeNameError",
+      "expected_suggestion": "Add a valid type name before the variable",
+      "context": "variable declaration"
+    },
+    {
+      "name": "invalid_where_clause",
+      "input": "method test() where $invalid { }",
+      "expected_error": "InvalidWhereClauseError",
+      "expected_suggestion": "Use 'where Type: Constraint' syntax for type constraints",
+      "context": "method constraint"
+    },
+    {
+      "name": "invalid_intersection_syntax",
+      "input": "my Object&&Serializable $obj;",
+      "expected_error": "InvalidIntersectionSyntaxError",
+      "expected_suggestion": "Change '&&' to '&' for intersection types",
+      "context": "intersection type"
+    },
+    {
+      "name": "invalid_negation_syntax",
+      "input": "my !!Undef $not_undef;",
+      "expected_error": "InvalidNegationSyntaxError",
+      "expected_suggestion": "Change '!!' to '!' for negation types",
+      "context": "negation type"
+    },
+    {
+      "name": "deeply_nested_types",
+      "input": "my ArrayRef[HashRef[ArrayRef[HashRef[ArrayRef[HashRef[ArrayRef[HashRef[ArrayRef[HashRef[ArrayRef[HashRef[ArrayRef[HashRef[ArrayRef[HashRef[ArrayRef[HashRef[ArrayRef[HashRef[ArrayRef[Int]]]]]]]]]]]]]]]]]]]]] $deep;",
+      "expected_error": "DeepNestingError",
+      "expected_suggestion": "Reduce type nesting to less than 20 levels",
+      "context": "type expression"
+    }
+  ]
+}
