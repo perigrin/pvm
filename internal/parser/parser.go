@@ -346,14 +346,12 @@ func convertTypeExpression(tsExpr *treesitter.TypeExpression) *ast.TypeExpressio
 		return nil
 	}
 
-	expr := &ast.TypeExpression{
-		BaseType:       tsExpr.BaseType,
-		IsUnion:        tsExpr.IsUnion,
-		IsIntersection: tsExpr.IsIntersection,
-		IsNegation:     tsExpr.IsNegation,
-		OriginalString: tsExpr.OriginalString,
-		Pos:            convertPosition(tsExpr.Pos),
-	}
+	start := convertPosition(tsExpr.Pos)
+	expr := ast.NewTypeExpression(tsExpr.BaseType, nil, start, start)
+	expr.IsUnion = tsExpr.IsUnion
+	expr.IsIntersection = tsExpr.IsIntersection
+	expr.IsNegation = tsExpr.IsNegation
+	expr.OriginalString = tsExpr.OriginalString
 
 	// Convert parameters
 	if len(tsExpr.Parameters) > 0 {

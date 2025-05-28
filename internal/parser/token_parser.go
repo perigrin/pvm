@@ -199,10 +199,7 @@ func (p *TokenBasedParser) parseTypeExpressionFromToken(token scanner.Token) *as
 
 	// For now, create a simple type expression
 	// This will be enhanced in future iterations to handle complex types
-	return &ast.TypeExpression{
-		BaseType: token.Value(),
-		Pos:      pos,
-	}
+	return ast.NewTypeExpression(token.Value(), nil, pos, pos)
 }
 
 // tokenNode implements Node interface for token-based parsing

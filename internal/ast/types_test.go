@@ -89,7 +89,7 @@ func TestBaseNode_Text(t *testing.T) {
 
 func TestTypeExpression_Simple(t *testing.T) {
 	expr := &TypeExpression{
-		BaseType: "Int",
+		Name: "Int",
 	}
 
 	if !expr.IsSimple() {
@@ -107,9 +107,9 @@ func TestTypeExpression_Simple(t *testing.T) {
 }
 
 func TestTypeExpression_Parameterized(t *testing.T) {
-	param := &TypeExpression{BaseType: "Int"}
+	param := &TypeExpression{Name: "Int"}
 	expr := &TypeExpression{
-		BaseType:   "ArrayRef",
+		Name:       "ArrayRef",
 		Parameters: []*TypeExpression{param},
 	}
 
@@ -124,8 +124,8 @@ func TestTypeExpression_Parameterized(t *testing.T) {
 }
 
 func TestTypeExpression_Union(t *testing.T) {
-	type1 := &TypeExpression{BaseType: "Int"}
-	type2 := &TypeExpression{BaseType: "Str"}
+	type1 := &TypeExpression{Name: "Int"}
+	type2 := &TypeExpression{Name: "Str"}
 
 	expr := &TypeExpression{
 		IsUnion:    true,
@@ -148,8 +148,8 @@ func TestTypeExpression_Union(t *testing.T) {
 }
 
 func TestTypeExpression_Intersection(t *testing.T) {
-	type1 := &TypeExpression{BaseType: "Object"}
-	type2 := &TypeExpression{BaseType: "Serializable"}
+	type1 := &TypeExpression{Name: "Object"}
+	type2 := &TypeExpression{Name: "Serializable"}
 
 	expr := &TypeExpression{
 		IsIntersection:    true,
@@ -167,7 +167,7 @@ func TestTypeExpression_Intersection(t *testing.T) {
 }
 
 func TestTypeExpression_Negation(t *testing.T) {
-	innerType := &TypeExpression{BaseType: "Undef"}
+	innerType := &TypeExpression{Name: "Undef"}
 	expr := &TypeExpression{
 		IsNegation:  true,
 		NegatedType: innerType,
@@ -185,7 +185,7 @@ func TestTypeExpression_Negation(t *testing.T) {
 
 func TestTypeExpression_OriginalString(t *testing.T) {
 	expr := &TypeExpression{
-		BaseType:       "Int",
+		Name:           "Int",
 		OriginalString: "Integer",
 	}
 
@@ -220,7 +220,7 @@ func TestAnnotationKind_String(t *testing.T) {
 }
 
 func TestTypeAnnotation(t *testing.T) {
-	typeExpr := &TypeExpression{BaseType: "Int"}
+	typeExpr := &TypeExpression{Name: "Int"}
 	pos := Position{Line: 5, Column: 10, Offset: 42}
 
 	annotation := &TypeAnnotation{
@@ -252,7 +252,7 @@ func TestAST(t *testing.T) {
 	end := Position{Line: 10, Column: 1, Offset: 100}
 	root := NewBaseNode("root", start, end)
 
-	typeExpr := &TypeExpression{BaseType: "Int"}
+	typeExpr := &TypeExpression{Name: "Int"}
 	annotation := &TypeAnnotation{
 		AnnotatedItem:  "$x",
 		TypeExpression: typeExpr,

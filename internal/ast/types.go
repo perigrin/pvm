@@ -199,8 +199,10 @@ const (
 // TypeExpression represents a type expression
 // Consolidated and enhanced from parser and treesitter implementations
 type TypeExpression struct {
-	// BaseType is the primary type name
-	BaseType string
+	*BaseNode
+
+	// Name is the primary type name (renamed from BaseType for consistency)
+	Name string
 
 	// Parameters are type parameters for parameterized types (e.g., ArrayRef[Int])
 	Parameters []*TypeExpression
@@ -225,9 +227,24 @@ type TypeExpression struct {
 
 	// OriginalString preserves the original source text
 	OriginalString string
+}
 
-	// Pos is the position in source where this type appears
-	Pos Position
+// NewTypeExpression creates a new type expression
+func NewTypeExpression(name string, params []*TypeExpression, start, end Position) *TypeExpression {
+	te := &TypeExpression{
+		BaseNode:   NewBaseNode("type_expr", start, end),
+		Name:       name,
+		Parameters: params,
+	}
+
+	// Add parameter children
+	for _, param := range params {
+		if param != nil {
+			te.AddChild(param)
+		}
+	}
+
+	return te
 }
 
 // String returns a string representation of the type expression
@@ -270,11 +287,11 @@ func (te *TypeExpression) String() string {
 		for _, param := range te.Parameters {
 			params = append(params, param.String())
 		}
-		return te.BaseType + "[" + strings.Join(params, ", ") + "]"
+		return te.Name + "[" + strings.Join(params, ", ") + "]"
 	}
 
 	// Simple type
-	return te.BaseType
+	return te.Name
 }
 
 // IsSimple returns true if this is a simple, non-compound type
@@ -298,7 +315,7 @@ func (te *TypeExpression) GetAllTypes() []string {
 	case te.IsNegation && te.NegatedType != nil:
 		types = append(types, te.NegatedType.GetAllTypes()...)
 	default:
-		types = append(types, te.BaseType)
+		types = append(types, te.Name)
 	}
 
 	return types
@@ -381,4 +398,48 @@ type NodeVisitor func(node Node) bool
 type WalkFunc struct {
 	Enter func(node Node) bool // Return false to skip children
 	Exit  func(node Node)      // Called when leaving node
+}
+
+// UnionType represents a union type (Int|Str)
+type UnionType struct {
+	*BaseNode
+	Types []*TypeExpression
+}
+
+// NewUnionType creates a new union type
+func NewUnionType(types []*TypeExpression, start, end Position) *UnionType {
+	ut := &UnionType{
+		BaseNode: NewBaseNode("union_type", start, end),
+		Types:    types,
+	}
+
+	for _, t := range types {
+		if t != nil {
+			ut.AddChild(t)
+		}
+	}
+
+	return ut
+}
+
+// IntersectionType represents an intersection type (Object&Serializable)
+type IntersectionType struct {
+	*BaseNode
+	Types []*TypeExpression
+}
+
+// NewIntersectionType creates a new intersection type
+func NewIntersectionType(types []*TypeExpression, start, end Position) *IntersectionType {
+	it := &IntersectionType{
+		BaseNode: NewBaseNode("intersection_type", start, end),
+		Types:    types,
+	}
+
+	for _, t := range types {
+		if t != nil {
+			it.AddChild(t)
+		}
+	}
+
+	return it
 }

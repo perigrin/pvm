@@ -5,6 +5,8 @@ package parser
 
 import (
 	"fmt"
+
+	"tamarou.com/pvm/internal/ast"
 )
 
 // TypeInjector manages adding type annotations to AST nodes
@@ -350,15 +352,15 @@ func (ti *TypeInjector) ValidateTypeAnnotations() []error {
 			continue
 		}
 
-		if annotation.TypeExpression.BaseType == "" {
+		if annotation.TypeExpression.Name == "" {
 			errors = append(errors, fmt.Errorf("empty type name for %s", annotation.AnnotatedItem))
 			continue
 		}
 
 		// Validate type name format
-		if !ti.isValidTypeName(annotation.TypeExpression.BaseType) {
+		if !ti.isValidTypeName(annotation.TypeExpression.Name) {
 			errors = append(errors, fmt.Errorf("invalid type name '%s' for %s",
-				annotation.TypeExpression.BaseType, annotation.AnnotatedItem))
+				annotation.TypeExpression.Name, annotation.AnnotatedItem))
 		}
 	}
 
@@ -424,17 +426,22 @@ func (ti *TypeInjector) Clone() (*AST, error) {
 	for i, annotation := range ti.ast.TypeAnnotations {
 		newAST.TypeAnnotations[i] = &TypeAnnotation{
 			AnnotatedItem: annotation.AnnotatedItem,
-			TypeExpression: &TypeExpression{
-				BaseType:          annotation.TypeExpression.BaseType,
-				Parameters:        annotation.TypeExpression.Parameters,
-				IsUnion:           annotation.TypeExpression.IsUnion,
-				IsIntersection:    annotation.TypeExpression.IsIntersection,
-				IsNegation:        annotation.TypeExpression.IsNegation,
-				UnionTypes:        annotation.TypeExpression.UnionTypes,
-				IntersectionTypes: annotation.TypeExpression.IntersectionTypes,
-				NegatedType:       annotation.TypeExpression.NegatedType,
-				Pos:               annotation.TypeExpression.Pos,
-			},
+			TypeExpression: func() *TypeExpression {
+				te := ast.NewTypeExpression(
+					annotation.TypeExpression.Name,
+					annotation.TypeExpression.Parameters,
+					annotation.TypeExpression.Start(),
+					annotation.TypeExpression.End(),
+				)
+				te.IsUnion = annotation.TypeExpression.IsUnion
+				te.IsIntersection = annotation.TypeExpression.IsIntersection
+				te.IsNegation = annotation.TypeExpression.IsNegation
+				te.UnionTypes = annotation.TypeExpression.UnionTypes
+				te.IntersectionTypes = annotation.TypeExpression.IntersectionTypes
+				te.NegatedType = annotation.TypeExpression.NegatedType
+				te.OriginalString = annotation.TypeExpression.OriginalString
+				return te
+			}(),
 			Pos:  annotation.Pos,
 			Kind: annotation.Kind,
 		}

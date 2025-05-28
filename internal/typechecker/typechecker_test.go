@@ -75,9 +75,7 @@ func TestBasicTypeAnnotation(t *testing.T) {
 	// Create a valid type annotation for a variable
 	validVarAnnotation := &ast.TypeAnnotation{
 		AnnotatedItem: "$var",
-		TypeExpression: &ast.TypeExpression{
-			BaseType: "Int",
-		},
+		TypeExpression: ast.NewTypeExpression("Int", nil, ast.Position{Line: 1, Column: 5}, ast.Position{Line: 1, Column: 8}),
 		Pos:  ast.Position{Line: 1, Column: 5},
 		Kind: ast.VarAnnotation,
 	}

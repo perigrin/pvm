@@ -188,10 +188,7 @@ func TestBinder_VariableDeclarations(t *testing.T) {
 		Sigil:    "$",
 	}
 
-	typeExpr := &ast.TypeExpression{
-		BaseType: "Int",
-		Pos:      ast.Position{Line: 1, Column: 1},
-	}
+	typeExpr := ast.NewTypeExpression("Int", nil, ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 4})
 
 	varDecl := ast.NewVarDecl(
 		"my",
@@ -236,13 +233,11 @@ func TestBinder_SubroutineDeclarations(t *testing.T) {
 	// Create test subroutine declaration
 	param := &ast.Parameter{
 		Name:     "$param1",
-		TypeExpr: &ast.TypeExpression{BaseType: "Int"},
+		TypeExpr: ast.NewTypeExpression("Int", nil, ast.Position{Line: 1, Column: 10}, ast.Position{Line: 1, Column: 13}),
 		Pos:      ast.Position{Line: 1, Column: 10},
 	}
 
-	returnType := &ast.TypeExpression{
-		BaseType: "Str",
-	}
+	returnType := ast.NewTypeExpression("Str", nil, ast.Position{Line: 1, Column: 15}, ast.Position{Line: 1, Column: 18})
 
 	body := ast.NewBlockStmt(
 		[]ast.StatementNode{},

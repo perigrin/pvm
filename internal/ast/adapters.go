@@ -210,14 +210,17 @@ func ConvertLegacyTypeAnnotation(oldAnnotation interface{}) *TypeAnnotation {
 
 // ConvertLegacyTypeExpression converts old TypeExpression to new format
 func ConvertLegacyTypeExpression(oldTypeExpr interface{}) *TypeExpression {
-	expr := &TypeExpression{}
+	// Initialize with default position, will be updated if position info is available
+	expr := &TypeExpression{
+		BaseNode: NewBaseNode("type_expr", Position{}, Position{}),
+	}
 
 	// Extract base type/name
 	if hasName, ok := oldTypeExpr.(interface{ GetName() string }); ok {
-		expr.BaseType = hasName.GetName()
+		expr.Name = hasName.GetName()
 	}
 	if hasBaseType, ok := oldTypeExpr.(interface{ GetBaseType() string }); ok {
-		expr.BaseType = hasBaseType.GetBaseType()
+		expr.Name = hasBaseType.GetBaseType()
 	}
 
 	// Extract parameters
@@ -248,7 +251,9 @@ func ConvertLegacyTypeExpression(oldTypeExpr interface{}) *TypeExpression {
 	// Extract position
 	if hasPos, ok := oldTypeExpr.(interface{ GetPos() interface{} }); ok {
 		if oldPos := hasPos.GetPos(); oldPos != nil {
-			expr.Pos = ConvertLegacyPosition(oldPos)
+			pos := ConvertLegacyPosition(oldPos)
+			expr.BaseNode.start = pos
+			expr.BaseNode.end = pos
 		}
 	}
 

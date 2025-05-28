@@ -24,7 +24,7 @@ func createTestAST() *ast.AST {
 	literal := ast.NewLiteralExpr("42", ast.NumberLiteral, ast.Position{Line: 1, Column: 13, Offset: 12}, ast.Position{Line: 1, Column: 15, Offset: 14})
 	literal.SetText("42")
 
-	typeExpr := &ast.TypeExpression{BaseType: "Int"}
+	typeExpr := ast.NewTypeExpression("Int", nil, varStart, varEnd)
 	varDecl := ast.NewVarDecl("my", []*ast.VariableExpr{variable}, typeExpr, literal, varStart, varEnd)
 
 	root.AddChild(varDecl)
@@ -57,11 +57,12 @@ func TestNavigator_FindNodeAt(t *testing.T) {
 	}
 
 	// Should find the variable expression
-	if varExpr, ok := node.(*ast.VariableExpr); ok { //nolint:go-critic
+	switch varExpr := node.(type) {
+	case *ast.VariableExpr:
 		if varExpr.Name != "x" {
 			t.Errorf("Expected variable 'x', got %q", varExpr.Name)
 		}
-	} else {
+	default:
 		t.Errorf("Expected VariableExpr, got %T", node)
 	}
 }

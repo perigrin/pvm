@@ -312,3 +312,36 @@ func NewListExpr(elements []ExpressionNode, start, end Position) *ListExpr {
 func (le *ListExpr) IsExpression() bool {
 	return true
 }
+
+// AssignmentExpr represents assignment expressions ($a = $b, $a += $b, etc.)
+type AssignmentExpr struct {
+	*BaseNode
+	Left     ExpressionNode
+	Right    ExpressionNode
+	Operator string // =, +=, -=, *=, etc.
+}
+
+// NewAssignmentExpr creates a new assignment expression
+func NewAssignmentExpr(left, right ExpressionNode, operator string, start, end Position) *AssignmentExpr {
+	expr := &AssignmentExpr{
+		BaseNode: NewBaseNode("assignment_expr", start, end),
+		Left:     left,
+		Right:    right,
+		Operator: operator,
+	}
+
+	// Add children
+	if left != nil {
+		expr.AddChild(left)
+	}
+	if right != nil {
+		expr.AddChild(right)
+	}
+
+	return expr
+}
+
+// IsExpression implements ExpressionNode interface
+func (ae *AssignmentExpr) IsExpression() bool {
+	return true
+}

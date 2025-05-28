@@ -751,18 +751,15 @@ func (p *Parser) convertToASTTypeExpression(te *TypeExpression) *ast.TypeExpress
 		astIntersectionTypes = append(astIntersectionTypes, p.convertToASTTypeExpression(intersectionType))
 	}
 
-	return &ast.TypeExpression{
-		BaseType:          te.BaseType,
-		Parameters:        astParams,
-		IsUnion:           te.IsUnion,
-		IsIntersection:    te.IsIntersection,
-		IsNegation:        te.IsNegation,
-		UnionTypes:        astUnionTypes,
-		IntersectionTypes: astIntersectionTypes,
-		NegatedType:       p.convertToASTTypeExpression(te.NegatedType),
-		OriginalString:    te.OriginalString,
-		Pos:               astPos,
-	}
+	astTypeExpr := ast.NewTypeExpression(te.BaseType, astParams, astPos, astPos)
+	astTypeExpr.IsUnion = te.IsUnion
+	astTypeExpr.IsIntersection = te.IsIntersection
+	astTypeExpr.IsNegation = te.IsNegation
+	astTypeExpr.UnionTypes = astUnionTypes
+	astTypeExpr.IntersectionTypes = astIntersectionTypes
+	astTypeExpr.NegatedType = p.convertToASTTypeExpression(te.NegatedType)
+	astTypeExpr.OriginalString = te.OriginalString
+	return astTypeExpr
 }
 
 // ParseTypeExpression parses a type expression string and returns a TypeExpression

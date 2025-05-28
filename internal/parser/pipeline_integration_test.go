@@ -187,9 +187,7 @@ func TestASTNodeInterface(t *testing.T) {
 // TestConsolidatedTypeExpression tests that the consolidated TypeExpression works correctly
 func TestConsolidatedTypeExpression(t *testing.T) {
 	// Test simple type
-	simpleType := &ast.TypeExpression{
-		BaseType: "Int",
-	}
+	simpleType := ast.NewTypeExpression("Int", nil, ast.Position{}, ast.Position{})
 
 	if !simpleType.IsSimple() {
 		t.Error("Simple type should be marked as simple")
@@ -205,12 +203,9 @@ func TestConsolidatedTypeExpression(t *testing.T) {
 	}
 
 	// Test parameterized type
-	paramType := &ast.TypeExpression{
-		BaseType: "ArrayRef",
-		Parameters: []*ast.TypeExpression{
-			{BaseType: "Str"},
-		},
-	}
+	paramType := ast.NewTypeExpression("ArrayRef", []*ast.TypeExpression{
+		ast.NewTypeExpression("Str", nil, ast.Position{}, ast.Position{}),
+	}, ast.Position{}, ast.Position{})
 
 	if paramType.IsSimple() {
 		t.Error("Parameterized type should not be marked as simple")
