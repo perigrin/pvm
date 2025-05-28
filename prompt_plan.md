@@ -1245,7 +1245,7 @@ SUCCESS CRITERIA:
 This enables sophisticated type constraints and requirements for advanced typing.
 ```
 
-### Step 18: Nested Parameterized Types ✅ TODO
+### Step 18: Nested Parameterized Types ✅ COMPLETED
 
 ```
 You are continuing the parser implementation from Step 17.
@@ -1327,7 +1327,7 @@ SUCCESS CRITERIA:
 This enables sophisticated generic programming patterns in typed-Perl.
 ```
 
-### Step 19: Method Signature Parsing ✅ TODO
+### Step 19: Method Signature Parsing ✅ COMPLETED
 
 ```
 You are continuing the parser implementation from Step 18.
