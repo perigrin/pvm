@@ -58,8 +58,7 @@ Read **[typed-perl-specification.md](typed-perl-specification.md)** for comprehe
 ## Legacy Documentation
 
 The original 28 documentation files have been safely preserved:
-- **Backup**: Complete backup in `../docs-backup/` (original state)
-- **Archive**: Legacy files moved to `../docs-archive/` (cleaned from main docs)
+- **Archive**: Legacy files and completed planning documents in `archive/`
 - **Audit**: Complete content audit available in `../docs-audit.md`
 
 The transformation successfully consolidated 25+ scattered documents into 8 focused, workflow-oriented guides.
