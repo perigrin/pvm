@@ -744,6 +744,10 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 
 	// Create appropriate AST node based on type
 	switch nodeType {
+	case "class_statement":
+		return p.convertToClassDeclAST(node, start, end)
+	case "role_statement":
+		return p.convertToRoleDeclAST(node, start, end)
 	case "source_file":
 		// For the root source file, create a program node that doesn't create a new scope
 		// Return the first statement if there's only one, or create a container
@@ -993,4 +997,171 @@ func splitParams(params string) []string {
 	}
 
 	return result
+}
+
+// convertToClassDeclAST converts a class_statement node to ast.ClassDecl
+func (p *Parser) convertToClassDeclAST(node Node, start, end ast.Position) ast.Node {
+	className := ""
+	
+	// Extract class name from tree-sitter node
+	for _, child := range node.Children() {
+		if child.Type() == "package" {
+			className = child.Text()
+			break
+		}
+	}
+	
+	// Create class declaration
+	classDecl := ast.NewClassDecl(className, start, end)
+	
+	// Process children to find fields and methods
+	for _, child := range node.Children() {
+		switch child.Type() {
+		case "block":
+			// Process block contents for fields and methods
+			p.processClassBlock(child, classDecl)
+		case "package":
+			// Already handled above
+			continue
+		}
+	}
+	
+	return classDecl
+}
+
+// convertToRoleDeclAST converts a role_statement node to ast.RoleDecl  
+func (p *Parser) convertToRoleDeclAST(node Node, start, end ast.Position) ast.Node {
+	roleName := ""
+	
+	// Extract role name from tree-sitter node
+	for _, child := range node.Children() {
+		if child.Type() == "package" {
+			roleName = child.Text()
+			break
+		}
+	}
+	
+	// Create role declaration
+	roleDecl := ast.NewRoleDecl(roleName, start, end)
+	
+	// Process children to find fields and methods
+	for _, child := range node.Children() {
+		switch child.Type() {
+		case "block":
+			// Process block contents for fields and methods
+			p.processRoleBlock(child, roleDecl)
+		case "package":
+			// Already handled above
+			continue
+		}
+	}
+	
+	return roleDecl
+}
+
+// processClassBlock processes the contents of a class block
+func (p *Parser) processClassBlock(blockNode Node, classDecl *ast.ClassDecl) {
+	for _, stmt := range blockNode.Children() {
+		// Process field declarations
+		if strings.Contains(stmt.Text(), "field ") {
+			if field := p.extractFieldDecl(stmt); field != nil {
+				classDecl.AddField(field)
+			}
+		}
+		
+		// Process method declarations
+		if strings.Contains(stmt.Text(), "method ") {
+			if method := p.extractMethodDecl(stmt); method != nil {
+				classDecl.AddMethod(method)
+			}
+		}
+	}
+}
+
+// processRoleBlock processes the contents of a role block
+func (p *Parser) processRoleBlock(blockNode Node, roleDecl *ast.RoleDecl) {
+	for _, stmt := range blockNode.Children() {
+		// Process field declarations
+		if strings.Contains(stmt.Text(), "field ") {
+			if field := p.extractFieldDecl(stmt); field != nil {
+				roleDecl.AddField(field)
+			}
+		}
+		
+		// Process method declarations  
+		if strings.Contains(stmt.Text(), "method ") {
+			if method := p.extractMethodDecl(stmt); method != nil {
+				roleDecl.AddProvidedMethod(method)
+			}
+		}
+	}
+}
+
+// extractFieldDecl extracts a field declaration from a statement node
+func (p *Parser) extractFieldDecl(stmt Node) *ast.FieldDecl {
+	// Simple parsing - this would need to be enhanced for full parsing
+	text := stmt.Text()
+	
+	// Basic pattern: field Type $name = value;
+	if !strings.HasPrefix(strings.TrimSpace(text), "field ") {
+		return nil
+	}
+	
+	start := ast.Position{Line: stmt.Start().Line, Column: stmt.Start().Column}
+	end := ast.Position{Line: stmt.End().Line, Column: stmt.End().Column}
+	
+	// Extract field name (simplified)
+	parts := strings.Fields(text)
+	if len(parts) < 3 {
+		return nil
+	}
+	
+	fieldName := parts[2] // Should be $name
+	if strings.HasPrefix(fieldName, "$") {
+		fieldName = fieldName[1:] // Remove $
+	}
+	
+	// Create variable expression for the field
+	varExpr := ast.NewVariableExpr(fieldName, "$", start, end)
+	
+	// Create field declaration
+	return ast.NewFieldDecl(fieldName, nil, varExpr, nil, start, end)
+}
+
+// extractMethodDecl extracts a method declaration from a statement node
+func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
+	// Simple parsing - this would need to be enhanced for full parsing
+	text := stmt.Text()
+	
+	if !strings.Contains(text, "method ") {
+		return nil
+	}
+	
+	start := ast.Position{Line: stmt.Start().Line, Column: stmt.Start().Column}
+	end := ast.Position{Line: stmt.End().Line, Column: stmt.End().Column}
+	
+	// Extract method name (simplified)
+	lines := strings.Split(text, "\n")
+	if len(lines) == 0 {
+		return nil
+	}
+	
+	firstLine := strings.TrimSpace(lines[0])
+	if !strings.HasPrefix(firstLine, "method ") {
+		return nil
+	}
+	
+	// Parse method name from first line
+	parts := strings.Fields(firstLine)
+	if len(parts) < 2 {
+		return nil
+	}
+	
+	methodName := parts[1]
+	if strings.Contains(methodName, "(") {
+		methodName = strings.Split(methodName, "(")[0]
+	}
+	
+	// Create basic method declaration
+	return ast.NewMethodDecl(methodName, nil, nil, nil, start, end)
 }

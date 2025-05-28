@@ -1,0 +1,9 @@
+{
+  "name": "generic_class_declarations",
+  "category": "typed-perl",
+  "subcategory": "classes-roles",
+  "input": "class Container<T> where T: Serializable {\n    field ArrayRef[T] $items = [];\n\n    method add(T $item) -> Void {\n        push @{$items}, $item;\n    }\n\n    method get_all() -> ArrayRef[T] {\n        return $items;\n    }\n\n    method find(CodeRef[T, Bool] $predicate) -> Optional[T] {\n        for my $item (@{$items}) {\n            return $item if $predicate->($item);\n        }\n        return undef;\n    }\n}",
+  "description": "Generic class with type parameters and constraints",
+  "tags": ["generic-class", "type-parameters", "type-constraints", "parameterized-methods"],
+  "should_error": false
+}

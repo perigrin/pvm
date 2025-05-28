@@ -1,0 +1,9 @@
+{
+  "name": "basic_role_declarations",
+  "category": "typed-perl",
+  "subcategory": "classes-roles",
+  "input": "role Serializable {\n    method serialize() -> Str;\n    method deserialize(Str $data) -> Self;\n}\n\nrole Cacheable {\n    field Optional[DateTime] $cached_at;\n    \n    method cache_key() -> Str;\n    \n    method is_stale() -> Bool {\n        return 0 unless defined $cached_at;\n        return time() - $cached_at->epoch > 3600;\n    }\n    \n    method invalidate() -> Void {\n        $cached_at = undef;\n    }\n}",
+  "description": "Basic role declarations with required and provided methods",
+  "tags": ["role-declaration", "required-methods", "provided-methods", "role-fields"],
+  "should_error": false
+}

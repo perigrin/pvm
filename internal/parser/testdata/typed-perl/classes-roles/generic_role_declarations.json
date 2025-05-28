@@ -1,0 +1,9 @@
+{
+  "name": "generic_role_declarations",
+  "category": "typed-perl",
+  "subcategory": "classes-roles",
+  "input": "role Processable<T> where T: Defined {\n    method process(T $input) -> ProcessResult;\n    method validate(T $input) -> Bool;\n}\n\nrole EventHandler<T> where T: Event {\n    field ArrayRef[CodeRef[T, Void]] $handlers = [];\n    \n    method add_handler(CodeRef[T, Void] $handler) -> Void {\n        push @{$handlers}, $handler;\n    }\n    \n    method handle_event(T $event) -> Void {\n        for my $handler (@{$handlers}) {\n            $handler->($event);\n        }\n    }\n    \n    method handler_count() -> Int {\n        return scalar @{$handlers};\n    }\n}",
+  "description": "Generic roles with type parameters and constraints",
+  "tags": ["generic-role", "type-parameters", "type-constraints", "parameterized-role-methods"],
+  "should_error": false
+}

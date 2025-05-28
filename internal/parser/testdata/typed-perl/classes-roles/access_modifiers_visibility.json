@@ -1,0 +1,9 @@
+{
+  "name": "access_modifiers_visibility",
+  "category": "typed-perl",
+  "subcategory": "classes-roles",
+  "input": "class BankAccount {\n    field private Num $balance = 0.0;\n    field protected Str $account_number;\n    field public Str $account_holder;\n    field readonly DateTime $created_at;\n\n    method new(Str $holder, Str $number) -> BankAccount {\n        return bless {\n            account_holder => $holder,\n            account_number => $number,\n            balance => 0.0,\n            created_at => DateTime->now()\n        }, __PACKAGE__;\n    }\n\n    method private validate_amount(Num $amount) -> Bool {\n        return $amount > 0;\n    }\n\n    method public deposit(Num $amount) -> Bool {\n        return 0 unless $self->validate_amount($amount);\n        $balance += $amount;\n        return 1;\n    }\n\n    method public get_balance() -> Num {\n        return $balance;\n    }\n\n    method protected get_account_number() -> Str {\n        return $account_number;\n    }\n}",
+  "description": "Class with access modifiers and field visibility",
+  "tags": ["access-modifiers", "field-visibility", "private-methods", "protected-methods", "readonly-fields"],
+  "should_error": false
+}

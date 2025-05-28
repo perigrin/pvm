@@ -1,0 +1,9 @@
+{
+  "name": "class_inheritance",
+  "category": "typed-perl",
+  "subcategory": "classes-roles",
+  "input": "class Document : BaseDocument does Serializable, Cacheable {\n    field Str $content;\n    field DateTime $created;\n    field Optional[UserRef] $author;\n\n    method serialize() -> Str {\n        return encode_json({\n            content => $content,\n            created => $created->iso8601,\n            author => $author ? $author->id : undef\n        });\n    }\n\n    method deserialize(Str $data) -> Self {\n        my $decoded = decode_json($data);\n        return __PACKAGE__->new(\n            content => $decoded->{content},\n            created => DateTime->from_epoch(epoch => $decoded->{created}),\n            author => $decoded->{author} ? UserRef->new(id => $decoded->{author}) : undef\n        );\n    }\n}",
+  "description": "Class with inheritance and role composition",
+  "tags": ["inheritance", "role-composition", "multiple-roles", "interface-implementation"],
+  "should_error": false
+}
