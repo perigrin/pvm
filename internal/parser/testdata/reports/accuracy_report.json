@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-05-28T19:27:46.068012795Z",
+  "timestamp": "2025-05-28T19:42:37.793040899Z",
   "parser_version": "current",
   "overall_accuracy": 0,
   "category_accuracy": {
@@ -53,9 +53,11 @@
     "complex": 0,
     "complex-assignments": 0,
     "complex-combinations": 0,
+    "complex-expressions": 0,
     "complex-fields": 0,
     "complex-methods": 0,
     "complex-nesting": 0,
+    "complex-parameters": 0,
     "complex-return-types": 0,
     "complex_expression": 0,
     "comprehensive": 0,
@@ -100,6 +102,7 @@
     "field-initialization": 0,
     "field-modifiers": 0,
     "field-visibility": 0,
+    "fields": 0,
     "file_handle": 0,
     "file_test": 0,
     "flag_clearing": 0,
@@ -160,6 +163,7 @@
     "mixed_operators": 0,
     "modules": 0,
     "modulo": 0,
+    "multi-way-unions": 0,
     "multiple": 0,
     "multiple-parameters": 0,
     "multiple_operators": 0,
@@ -167,6 +171,7 @@
     "namespaces": 0,
     "naming": 0,
     "nested": 0,
+    "nested-contexts": 0,
     "nested-parameters": 0,
     "next": 0,
     "no_default": 0,
@@ -224,6 +229,7 @@
     "sequential": 0,
     "short_circuit": 0,
     "side_effects": 0,
+    "simple-unions": 0,
     "simulation": 0,
     "single_line": 0,
     "slice": 0,
@@ -249,6 +255,7 @@
     "undef_handling": 0,
     "undefined": 0,
     "underscore": 0,
+    "union-types": 0,
     "unions": 0,
     "unless": 0,
     "until": 0,
@@ -269,15 +276,15 @@
     "xor": 0
   },
   "performance_baseline": {
-    "average_parse_time": 19247,
-    "memory_usage": -11488,
-    "throughput_lines_per_second": 51955.008521270836,
-    "throughput_tokens_per_second": 532538.8373430261
+    "average_parse_time": 23755,
+    "memory_usage": -11424,
+    "throughput_lines_per_second": 42095.09386942839,
+    "throughput_tokens_per_second": 431474.712161641
   },
   "test_coverage": {
     "total_features": 39,
-    "covered_features": 259,
-    "coverage_percent": 664.1025641025641,
+    "covered_features": 266,
+    "coverage_percent": 682.051282051282,
     "feature_status": {
       "arithmetic_expressions": "missing",
       "array_variables": "missing",

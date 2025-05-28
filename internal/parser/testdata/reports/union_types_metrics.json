@@ -1,0 +1,113 @@
+{
+  "total_tests": 7,
+  "passed_tests": 7,
+  "failed_tests": 0,
+  "category_metrics": {
+    "typed-perl": {
+      "total": 7,
+      "passed": 7,
+      "failed": 0,
+      "accuracy": 100
+    }
+  },
+  "feature_metrics": {
+    "complex-expressions": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "complex-parameters": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "custom-types": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "fields": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "formatting": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "method-signatures": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "multi-way-unions": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "nested-contexts": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "package-qualified": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "parameter-types": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "parameterized-types": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "return-types": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "simple-unions": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "union-types": {
+      "total": 7,
+      "passed": 7,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "variable-declarations": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "whitespace": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    }
+  },
+  "parsing_time": 0,
+  "memory_usage": 0
+}

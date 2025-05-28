@@ -1,0 +1,9 @@
+{
+  "name": "whitespace_variations",
+  "category": "typed-perl",
+  "subcategory": "union-types",
+  "input": "my Int | Str $spaced;\nmy Int|Str|Bool $compact;\nmy  Num  |  Str  |  Bool  $extra_spaced;\nmy Int|\n    Str|\n    Bool $multiline;",
+  "description": "Union types with different whitespace formatting variations",
+  "tags": ["union-types", "whitespace", "formatting", "variable-declarations"],
+  "should_error": false
+}

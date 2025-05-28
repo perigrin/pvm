@@ -1,0 +1,9 @@
+{
+  "name": "nested_contexts",
+  "category": "typed-perl",
+  "subcategory": "union-types",
+  "input": "method complex(\n    ArrayRef[Int|Str] $data,\n    CodeRef|Undef $callback\n) -> HashRef[Bool|Str] {\n    return {};\n}",
+  "description": "Union types in nested method signature contexts with complex parameters",
+  "tags": ["union-types", "nested-contexts", "method-signatures", "complex-parameters"],
+  "should_error": false
+}
