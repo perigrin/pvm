@@ -137,10 +137,10 @@ This list represents all TODO markers, incomplete features, and missing function
 
 ## **Next Sprint Priorities**
 
-### **Sprint 1: Documentation and Polish**
-1. **Step 18: Documentation and Migration Guide** - Complete the final step
-2. **Type annotation detection improvements** - Enhanced parser accuracy
-3. **Complete LSP implementation** - Full Language Server Protocol support
+### **Sprint 1: Current Development Focus**
+1. **Type annotation detection improvements** - Enhanced parser accuracy
+2. **Complete LSP implementation** - Full Language Server Protocol support
+3. **Command interface completion** - Implement remaining legacy commands (e.g., `pvm list`)
 
 ### **Sprint 2: Advanced Features**
 1. **Tree-sitter integration** completion
