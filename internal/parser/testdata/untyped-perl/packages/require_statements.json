@@ -1,0 +1,9 @@
+{
+  "name": "require_statements",
+  "category": "untyped-perl",
+  "subcategory": "packages",
+  "description": "Test require statements and dynamic module loading",
+  "tags": ["packages", "require", "dynamic", "modules"],
+  "input": "require DynamicModule;\nrequire 'module.pl';\nrequire v5.10;\nrequire 5.010;\nrequire Module::Name;",
+  "should_error": false
+}

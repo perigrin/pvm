@@ -84,13 +84,56 @@ func (f *ParserTestFramework) LoadTestCase(filePath string) (*ParserTestCase, er
 		return nil, fmt.Errorf("failed to read test case file %s: %w", filePath, err)
 	}
 
+	// Try to parse as single test case first
 	var testCase ParserTestCase
 	err = json.Unmarshal(data, &testCase)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse test case file %s: %w", filePath, err)
+	if err == nil {
+		return &testCase, nil
 	}
 
-	return &testCase, nil
+	// If that fails, try to parse as array format (legacy)
+	var testCases []ParserTestCase
+	err = json.Unmarshal(data, &testCases)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse test case file %s as either single test case or array: %w", filePath, err)
+	}
+
+	// For array format, return the first test case
+	if len(testCases) > 0 {
+		return &testCases[0], nil
+	}
+
+	return nil, fmt.Errorf("empty test case array in file %s", filePath)
+}
+
+// LoadTestCases loads test cases from a JSON file (handles both single and array formats)
+func (f *ParserTestFramework) LoadTestCases(filePath string) ([]*ParserTestCase, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read test case file %s: %w", filePath, err)
+	}
+
+	// Try to parse as single test case first
+	var testCase ParserTestCase
+	err = json.Unmarshal(data, &testCase)
+	if err == nil {
+		return []*ParserTestCase{&testCase}, nil
+	}
+
+	// If that fails, try to parse as array format
+	var testCases []ParserTestCase
+	err = json.Unmarshal(data, &testCases)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse test case file %s as either single test case or array: %w", filePath, err)
+	}
+
+	// Convert to pointer slice
+	var result []*ParserTestCase
+	for i := range testCases {
+		result = append(result, &testCases[i])
+	}
+
+	return result, nil
 }
 
 // SaveTestCase saves a test case to a JSON file
@@ -229,7 +272,7 @@ func (f *ParserTestFramework) ValidateAST(t *testing.T, ast *ast.AST, testName s
 
 // DiscoverTestCases finds all test cases in the test data directory
 func (f *ParserTestFramework) DiscoverTestCases() ([]*ParserTestCase, error) {
-	var testCases []*ParserTestCase
+	var allTestCases []*ParserTestCase
 
 	err := filepath.Walk(f.TestDataDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -237,17 +280,17 @@ func (f *ParserTestFramework) DiscoverTestCases() ([]*ParserTestCase, error) {
 		}
 
 		if strings.HasSuffix(path, ".json") {
-			testCase, err := f.LoadTestCase(path)
+			testCases, err := f.LoadTestCases(path)
 			if err != nil {
-				return fmt.Errorf("failed to load test case %s: %w", path, err)
+				return fmt.Errorf("failed to load test cases %s: %w", path, err)
 			}
-			testCases = append(testCases, testCase)
+			allTestCases = append(allTestCases, testCases...)
 		}
 
 		return nil
 	})
 
-	return testCases, err
+	return allTestCases, err
 }
 
 // RunAllTests executes all discovered test cases and returns accuracy metrics

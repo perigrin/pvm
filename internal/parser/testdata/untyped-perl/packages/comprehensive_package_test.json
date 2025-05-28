@@ -1,0 +1,9 @@
+{
+  "name": "comprehensive_package_test",
+  "category": "untyped-perl",
+  "subcategory": "packages",
+  "description": "Comprehensive test covering all package and module system features",
+  "tags": ["packages", "modules", "comprehensive", "namespaces", "inheritance"],
+  "input": "#!/usr/bin/perl\nuse v5.20;\nuse strict;\nuse warnings;\n\n# Package declarations\npackage MyPackage;\npackage MyPackage::Subspace;\npackage MyPackage 1.23;\n\n# Module imports\nuse Data::Dumper;\nuse MyModule qw(function1 function2);\nuse AnotherModule 1.5 qw(:all);\nrequire DynamicModule;\n\n# Package qualification\n$MyPackage::variable = \"value\";\nMyPackage::function();\nmy $ref = \\&MyPackage::function;\n\n# Complex patterns\n{\n    package LocalPackage;\n    use parent 'BaseClass';\n\n    sub new {\n        my $class = shift;\n        return bless {}, $class;\n    }\n}\n\n# Version specifications\nuse 5.010;\nuse MyModule v1.2.3;\npackage TestPackage v2.0.0;",
+  "should_error": false
+}

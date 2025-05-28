@@ -1,0 +1,9 @@
+{
+  "name": "inheritance_patterns",
+  "category": "untyped-perl",
+  "subcategory": "packages",
+  "description": "Test inheritance and parent module patterns",
+  "tags": ["packages", "inheritance", "parent", "base", "isa"],
+  "input": "use parent 'BaseClass';\nuse base qw(Base1 Base2);\nuse parent qw(Parent::Class Another::Parent);\nour @ISA = qw(BaseClass);\npush @ISA, 'Mixin::Class';",
+  "should_error": false
+}

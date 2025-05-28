@@ -1,0 +1,9 @@
+{
+  "name": "package_variables",
+  "category": "untyped-perl",
+  "subcategory": "packages",
+  "description": "Test package-qualified variable declarations and usage",
+  "tags": ["packages", "variables", "qualification", "namespaces"],
+  "input": "$MyPackage::variable = \"value\";\n@Package::array = (1, 2, 3);\n%Other::Package::hash = (key => 'value');\nour $Package::qualified;\nmy $ref = \\&MyPackage::function;\n$main::global = \"in main\";",
+  "should_error": false
+}
