@@ -1,0 +1,89 @@
+{
+  "total_tests": 6,
+  "passed_tests": 6,
+  "failed_tests": 0,
+  "category_metrics": {
+    "untyped-perl": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "accuracy": 100
+    }
+  },
+  "feature_metrics": {
+    "arrays": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "context": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "declarations": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "edge-cases": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "expressions": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "hashes": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "naming": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "package-qualification": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "scalars": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "scoping": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "special-vars": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "variables": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "accuracy": 100
+    }
+  },
+  "parsing_time": 0,
+  "memory_usage": 0
+}

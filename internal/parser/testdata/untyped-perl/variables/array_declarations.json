@@ -1,0 +1,9 @@
+{
+  "name": "array_declarations",
+  "category": "untyped-perl",
+  "subcategory": "variables",
+  "description": "Test array variable declarations with different scoping and assignment patterns",
+  "tags": ["variables", "arrays", "declarations", "scoping"],
+  "input": "my @simple_array;\nmy @assigned = (1, 2, 3);\nour @package_array;\n@Package::qualified = qw(a b c);",
+  "should_error": false
+}

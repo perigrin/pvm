@@ -246,8 +246,13 @@ func (p *Parser) ParseFile(path string) (*ast.AST, error) {
 	for _, ta := range typeAnnotations {
 		astTypeAnnotations = append(astTypeAnnotations, p.convertToASTTypeAnnotation(ta))
 	}
+	// Ensure slice is never nil, even if empty
+	if astTypeAnnotations == nil {
+		astTypeAnnotations = make([]*ast.TypeAnnotation, 0)
+	}
 
 	astResult := &ast.AST{
+		Source:          string(tree.Content),
 		Path:            path,
 		Root:            astRoot,
 		TypeAnnotations: astTypeAnnotations,
@@ -487,9 +492,14 @@ func (p *Parser) ParseString(content string) (*ast.AST, error) {
 	for _, ta := range typeAnnotations {
 		astTypeAnnotations = append(astTypeAnnotations, p.convertToASTTypeAnnotation(ta))
 	}
+	// Ensure slice is never nil, even if empty
+	if astTypeAnnotations == nil {
+		astTypeAnnotations = make([]*ast.TypeAnnotation, 0)
+	}
 
 	// Create an AST from the parse tree
 	astResult := &ast.AST{
+		Source:          content,
 		Root:            astRoot,
 		TypeAnnotations: astTypeAnnotations,
 		Errors:          []error{},
