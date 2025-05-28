@@ -45,6 +45,9 @@ type Server struct {
 	// Language service for business logic
 	languageService *ls.LanguageService
 
+	// Pool manager for efficient object allocation
+	poolManager *LSPPoolManager
+
 	// Server capabilities
 	capabilities *ServerCapabilities
 
@@ -109,11 +112,15 @@ func NewServer(conn io.ReadWriteCloser) (*Server, error) {
 		)
 	}
 
+	// Create pool manager for efficient LSP object allocation
+	poolManager := GlobalLSPPoolManager()
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	server := &Server{
 		conn:            conn,
 		languageService: languageService,
+		poolManager:     poolManager,
 		capabilities: &ServerCapabilities{
 			TextDocumentSync: &TextDocumentSyncOptions{
 				OpenClose: true,
@@ -265,11 +272,11 @@ func (s *Server) dispatchMessage(msg *JSONRPCMessage) error {
 
 // sendResponse sends a JSON-RPC response
 func (s *Server) sendResponse(id interface{}, result interface{}) error {
-	response := JSONRPCResponse{
-		JSONRPC: JSONRPCVersion,
-		ID:      id,
-		Result:  result,
-	}
+	// Use pooled response object
+	response := s.poolManager.NewJSONRPCResponse("")
+	response.JSONRPC = JSONRPCVersion
+	response.ID = id
+	response.Result = result
 
 	data, err := json.Marshal(response)
 	if err != nil {
@@ -281,15 +288,12 @@ func (s *Server) sendResponse(id interface{}, result interface{}) error {
 
 // sendError sends a JSON-RPC error response
 func (s *Server) sendError(id interface{}, code int, message string, data interface{}) error {
-	response := JSONRPCResponse{
-		JSONRPC: JSONRPCVersion,
-		ID:      id,
-		Error: &JSONRPCError{
-			Code:    code,
-			Message: message,
-			Data:    data,
-		},
-	}
+	// Use pooled response and error objects
+	response := s.poolManager.NewJSONRPCResponse("")
+	response.JSONRPC = JSONRPCVersion
+	response.ID = id
+	response.Error = s.poolManager.NewJSONRPCError("", code, message)
+	response.Error.Data = data
 
 	responseData, err := json.Marshal(response)
 	if err != nil {

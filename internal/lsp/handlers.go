@@ -157,6 +157,11 @@ func (s *Server) handleTextDocumentHover(msg *JSONRPCMessage) error {
 
 // handleTextDocumentCompletion handles the textDocument/completion request
 func (s *Server) handleTextDocumentCompletion(msg *JSONRPCMessage) error {
+	// Start request-scoped pooling
+	requestID := fmt.Sprintf("completion_%v", msg.ID)
+	_ = s.poolManager.StartRequest(requestID, "textDocument/completion")
+	defer s.poolManager.EndRequest(requestID)
+
 	var params CompletionParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
 		return s.sendError(msg.ID, -32602, "Invalid params", err.Error())
@@ -172,18 +177,38 @@ func (s *Server) handleTextDocumentCompletion(msg *JSONRPCMessage) error {
 	completions, err := s.languageService.GetCompletions(params.TextDocument.URI, lsPos)
 	if err != nil {
 		s.logger.Printf("Failed to get completions: %v", err)
-		return s.sendResponse(msg.ID, CompletionList{
-			IsIncomplete: false,
-			Items:        []CompletionItem{},
-		})
+
+		// Use pooled completion list for empty response
+		result := s.poolManager.NewCompletionList(requestID, false)
+		return s.sendResponse(msg.ID, result)
 	}
 
-	// Convert language service completions to LSP completions
-	lspCompletions := convertToLSPCompletions(completions)
+	// Create pooled completion list and items
+	result := s.poolManager.NewCompletionList(requestID, false)
 
-	result := CompletionList{
-		IsIncomplete: false,
-		Items:        lspCompletions,
+	// Convert language service completions to pooled LSP completions
+	for _, comp := range completions {
+		item := s.poolManager.NewCompletionItem(requestID, comp.Label, comp.Detail)
+
+		// Convert LS completion item kind to LSP completion item kind
+		var lspKind CompletionItemKind
+		switch comp.Kind {
+		case ls.CompletionItemKindFunction:
+			lspKind = CompletionItemKindFunction
+		case ls.CompletionItemKindVariable:
+			lspKind = CompletionItemKindVariable
+		case ls.CompletionItemKindMethod:
+			lspKind = CompletionItemKindMethod
+		case ls.CompletionItemKindKeyword:
+			lspKind = CompletionItemKindKeyword
+		case ls.CompletionItemKindType:
+			lspKind = CompletionItemKindClass
+		default:
+			lspKind = CompletionItemKindText
+		}
+		item.Kind = &lspKind
+
+		result.Items = append(result.Items, *item)
 	}
 
 	return s.sendResponse(msg.ID, result)
