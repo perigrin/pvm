@@ -1,0 +1,9 @@
+{
+  "name": "method_calls",
+  "category": "untyped-perl",
+  "subcategory": "subroutines",
+  "description": "Test method calls and arrow notation for object-oriented patterns",
+  "tags": ["subroutines", "methods", "arrow_notation", "objects"],
+  "input": "# Object method calls\nmy $object = Package->new();\n$object->method($arg1, $arg2);\nmy $result = $obj->process()->transform();\n\n# Class method calls\nPackage::function($args);\nMy::Module->class_method(@parameters);\n\n# Chained method calls\nmy $chained = $obj->first()->second()->third();\n\n# Method calls on complex expressions\nmy $complex = get_object()->method();\n$hash->{key}->process();\n$array->[0]->handle();",
+  "should_error": false
+}

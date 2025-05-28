@@ -1,0 +1,9 @@
+{
+  "name": "subroutine_calls",
+  "category": "untyped-perl",
+  "subcategory": "subroutines",
+  "description": "Test various subroutine call patterns and argument passing",
+  "tags": ["subroutines", "calls", "arguments"],
+  "input": "my $result = simple_sub();\nmy $sum = with_params(10, 20);\nmy $doubled = $code_ref->(5);\n\n# Calls without parentheses\nmy $no_parens = simple_sub;\nmy $with_args = function_call 'arg1', 'arg2';\n\n# Calls with complex arguments\nmy $complex = process($var, @array, %hash);\nmy $nested = outer(inner(42), another());\n\n# Ampersand calls\nmy $amp_call = &function_name;\nmy $amp_with_args = &other_function(@args);",
+  "should_error": false
+}

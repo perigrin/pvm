@@ -1,0 +1,9 @@
+{
+  "name": "complex_subroutines",
+  "category": "untyped-perl",
+  "subcategory": "subroutines",
+  "description": "Test complex subroutine patterns and edge cases",
+  "tags": ["subroutines", "complex", "edge_cases"],
+  "input": "# Nested subroutine definitions\nsub outer_function {\n    my $param = shift;\n    \n    my $inner = sub {\n        return $param * 2;\n    };\n    \n    return $inner;\n}\n\n# Recursive subroutines\nsub factorial {\n    my $n = shift;\n    return $n <= 1 ? 1 : $n * factorial($n - 1);\n}\n\n# Subroutines with complex parameter handling\nsub complex_params {\n    my ($first, @rest) = @_;\n    my %options = @rest;\n    return process($first, \\%options);\n}\n\n# Subroutines returning different types\nsub context_sensitive {\n    return wantarray ? ('list', 'result') : 'scalar result';\n}\n\n# Forward declarations\nsub forward_declared;\n\nsub uses_forward {\n    return forward_declared(42);\n}\n\nsub forward_declared {\n    my $value = shift;\n    return $value * 3;\n}",
+  "should_error": false
+}
