@@ -909,7 +909,7 @@ SUCCESS CRITERIA:
 This enables the parser to correctly handle all the type expressions we've tested.
 ```
 
-### Step 14: Better Error Recovery and Position Tracking ✅ TODO
+### Step 14: Better Error Recovery and Position Tracking ✅ COMPLETED
 
 ```
 You are continuing the parser implementation from Step 13.

@@ -1,0 +1,9 @@
+{
+  "name": "nested_unions_in_parameterized",
+  "category": "typed-perl",
+  "subcategory": "complex-types",
+  "input": "my ArrayRef[Int|Str|Bool] @complex_array;\nmy HashRef[ArrayRef[Int]|HashRef[Str]] %nested_complex;\nmy Map[Str, Int|Undef] %optional_values;",
+  "description": "Union types nested within parameterized types",
+  "tags": ["union-types", "parameterized-types", "complex-combinations"],
+  "should_error": false
+}

@@ -1,0 +1,11 @@
+{
+  "name": "stress_testing",
+  "category": "typed-perl",
+  "subcategory": "complex-types", 
+  "input": "my Map[Str, ArrayRef[HashRef[Tuple[Int, Result[Data[UserInfo[Profile[Settings[Theme]]]], Error[ValidationFailure[FieldError[TypeError]]]]]]] %extremely_nested;\nmy (A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T) $many_union_alternatives;\nmy Container[Wrapper[Inner[Core[Data[Value[Item[Element[Node[Leaf]]]]]]]]] $very_deep;",
+  "description": "Stress testing with very deep nesting and many union alternatives",
+  "tags": ["stress-testing", "deep-nesting", "many-alternatives", "performance"],
+  "should_error": false,
+  "performance_limit": "2s",
+  "memory_limit": "100MB"
+}

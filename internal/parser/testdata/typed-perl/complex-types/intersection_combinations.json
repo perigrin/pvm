@@ -1,0 +1,9 @@
+{
+  "name": "intersection_combinations",
+  "category": "typed-perl",
+  "subcategory": "complex-types",
+  "input": "my ArrayRef[Object&Serializable] @serializable_list;\nmy HashRef[ArrayRef[Int|Str]&Defined] %defined_arrays;\nmy Container[Data&Validated&Cached] $safe_container;",
+  "description": "Intersection types combined with parameterized and union types",
+  "tags": ["intersection-types", "parameterized-types", "complex-combinations"],
+  "should_error": false
+}

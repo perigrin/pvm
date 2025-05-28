@@ -1,0 +1,16 @@
+{
+  "name": "complex_malformed_types",
+  "category": "error-cases",
+  "subcategory": "complex-types",
+  "input": "my ArrayRef[Int| $incomplete_union;\nmy HashRef[Str,, Int] $double_comma;\nmy Container[Wrapper[Missing $unclosed_nested;\nmy (Int|Str& $mixed_operators_without_close;\nmy Map[Str ArrayRef[Int]] $missing_comma_in_params;",
+  "description": "Malformed complex type expressions that should produce helpful error messages",
+  "tags": ["error-recovery", "malformed-types", "complex-expressions"],
+  "should_error": true,
+  "expected_errors": [
+    "Incomplete union type",
+    "Unexpected comma in parameter list", 
+    "Unclosed bracket in nested type",
+    "Mismatched operators in type expression",
+    "Missing comma between type parameters"
+  ]
+}

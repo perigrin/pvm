@@ -335,6 +335,7 @@ func (p *Parser) calculatePosition(byteOffset int, content string) Position {
 // parseTypeExpression parses a type expression string into a structured TypeExpression
 func (p *Parser) parseTypeExpression(typeStr string, pos Position) *TypeExpression {
 	typeStr = strings.TrimSpace(typeStr)
+	
 
 	// Handle negation types (!Type)
 	if strings.HasPrefix(typeStr, "!") {
@@ -351,10 +352,10 @@ func (p *Parser) parseTypeExpression(typeStr string, pos Position) *TypeExpressi
 		}
 	}
 
-	// Handle union types (Type1|Type2)
-	if strings.Contains(typeStr, "|") && !strings.Contains(typeStr, "[") {
-		// Simple union without brackets
-		parts := strings.Split(typeStr, "|")
+	// Handle union types (Type1|Type2) - enhanced to support complex expressions
+	if strings.Contains(typeStr, "|") {
+		// Parse union types with proper bracket awareness
+		parts := p.splitUnionTypes(typeStr)
 		if len(parts) >= 2 {
 			var unionTypes []*TypeExpression
 			for _, part := range parts {
@@ -370,10 +371,10 @@ func (p *Parser) parseTypeExpression(typeStr string, pos Position) *TypeExpressi
 		}
 	}
 
-	// Handle intersection types (Type1&Type2)
-	if strings.Contains(typeStr, "&") && !strings.Contains(typeStr, "[") {
-		// Simple intersection without brackets
-		parts := strings.Split(typeStr, "&")
+	// Handle intersection types (Type1&Type2) - enhanced to support complex expressions
+	if strings.Contains(typeStr, "&") {
+		// Parse intersection types with proper bracket awareness
+		parts := p.splitIntersectionTypes(typeStr)
 		if len(parts) >= 2 {
 			var intersectionTypes []*TypeExpression
 			for _, part := range parts {
@@ -417,6 +418,92 @@ func (p *Parser) parseTypeExpression(typeStr string, pos Position) *TypeExpressi
 		OriginalString: typeStr,
 		Pos:            pos,
 	}
+}
+
+// splitUnionTypes splits a union type string into components while respecting bracket nesting
+func (p *Parser) splitUnionTypes(typeStr string) []string {
+	var parts []string
+	var currentPart strings.Builder
+	bracketDepth := 0
+	parenDepth := 0
+	
+	for _, char := range typeStr {
+		switch char {
+		case '[':
+			bracketDepth++
+			currentPart.WriteRune(char)
+		case ']':
+			bracketDepth--
+			currentPart.WriteRune(char)
+		case '(':
+			parenDepth++
+			currentPart.WriteRune(char)
+		case ')':
+			parenDepth--
+			currentPart.WriteRune(char)
+		case '|':
+			if bracketDepth == 0 && parenDepth == 0 {
+				// This is a top-level union separator
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+			} else {
+				// This | is inside brackets or parentheses, keep it
+				currentPart.WriteRune(char)
+			}
+		default:
+			currentPart.WriteRune(char)
+		}
+	}
+	
+	// Add the final part
+	if currentPart.Len() > 0 {
+		parts = append(parts, currentPart.String())
+	}
+	
+	return parts
+}
+
+// splitIntersectionTypes splits an intersection type string into components while respecting bracket nesting
+func (p *Parser) splitIntersectionTypes(typeStr string) []string {
+	var parts []string
+	var currentPart strings.Builder
+	bracketDepth := 0
+	parenDepth := 0
+	
+	for _, char := range typeStr {
+		switch char {
+		case '[':
+			bracketDepth++
+			currentPart.WriteRune(char)
+		case ']':
+			bracketDepth--
+			currentPart.WriteRune(char)
+		case '(':
+			parenDepth++
+			currentPart.WriteRune(char)
+		case ')':
+			parenDepth--
+			currentPart.WriteRune(char)
+		case '&':
+			if bracketDepth == 0 && parenDepth == 0 {
+				// This is a top-level intersection separator
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+			} else {
+				// This & is inside brackets or parentheses, keep it
+				currentPart.WriteRune(char)
+			}
+		default:
+			currentPart.WriteRune(char)
+		}
+	}
+	
+	// Add the final part
+	if currentPart.Len() > 0 {
+		parts = append(parts, currentPart.String())
+	}
+	
+	return parts
 }
 
 // splitParameters splits parameter strings, handling nested brackets
