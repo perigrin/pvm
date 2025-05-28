@@ -1,0 +1,64 @@
+[
+  {
+    "name": "Constraint Inheritance",
+    "description": "Test constraint inheritance from roles and parent classes",
+    "tests": [
+      {
+        "input": "role Processable<T> where T: Defined {\n    method process(T $input) -> ProcessResult;\n}",
+        "expected_type_annotations": [
+          {
+            "kind": "MethodParamAnnotation",
+            "item": "$input",
+            "type": "T",
+            "constraints": [
+              {
+                "parameter": "T",
+                "kind": "TypeConstraint",
+                "expression": "Defined"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "input": "class DataProcessor<T> does Processable<T> where T: Serializable&Defined {\n    field ArrayRef[T] $data;\n}",
+        "expected_type_annotations": [
+          {
+            "kind": "FieldAnnotation",
+            "item": "$data",
+            "type": "ArrayRef[T]",
+            "constraints": [
+              {
+                "parameter": "T",
+                "kind": "TypeConstraint",
+                "expression": "Serializable&Defined"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "input": "class AdvancedProcessor<T> : DataProcessor<T> where T: Cacheable {\n    method cache(T $item) -> Void where $item->can('cache_key') {\n        # Implementation\n    }\n}",
+        "expected_type_annotations": [
+          {
+            "kind": "MethodParamAnnotation",
+            "item": "$item",
+            "type": "T",
+            "constraints": [
+              {
+                "parameter": "T",
+                "kind": "TypeConstraint",
+                "expression": "Cacheable"
+              },
+              {
+                "parameter": "$item",
+                "kind": "ValueConstraint",
+                "expression": "$item->can('cache_key')"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

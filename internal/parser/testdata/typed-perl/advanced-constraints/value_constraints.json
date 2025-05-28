@@ -1,0 +1,69 @@
+[
+  {
+    "name": "Value Constraints", 
+    "description": "Test parsing of value constraints and runtime validation",
+    "tests": [
+      {
+        "input": "method create_array<T>(Int $size) -> ArrayRef[T] where T: Any, $size > 0 && $size < 1000 {\n    return [(undef) x $size];\n}",
+        "expected_type_annotations": [
+          {
+            "kind": "MethodParamAnnotation",
+            "item": "$size",
+            "type": "Int",
+            "constraints": [
+              {
+                "parameter": "T",
+                "kind": "TypeConstraint",
+                "expression": "Any"
+              },
+              {
+                "parameter": "$size",
+                "kind": "ValueConstraint",
+                "expression": "$size > 0 && $size < 1000"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "input": "method validate<T>(T $input) -> Bool where T: Defined, $input->can('validate') {\n    return $input->validate();\n}",
+        "expected_type_annotations": [
+          {
+            "kind": "MethodParamAnnotation",
+            "item": "$input",
+            "type": "T",
+            "constraints": [
+              {
+                "parameter": "T",
+                "kind": "TypeConstraint",
+                "expression": "Defined"
+              },
+              {
+                "parameter": "$input", 
+                "kind": "ValueConstraint",
+                "expression": "$input->can('validate')"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "input": "method range_check(Num $value) -> Bool where $value >= 0.0 && $value <= 100.0 {\n    return 1;\n}",
+        "expected_type_annotations": [
+          {
+            "kind": "MethodParamAnnotation",
+            "item": "$value",
+            "type": "Num",
+            "constraints": [
+              {
+                "parameter": "$value",
+                "kind": "ValueConstraint",
+                "expression": "$value >= 0.0 && $value <= 100.0"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

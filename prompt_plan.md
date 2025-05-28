@@ -1445,7 +1445,7 @@ SUCCESS CRITERIA:
 This enables sophisticated method definitions with advanced parameter handling.
 ```
 
-### Step 20: Class and Role Declarations ✅ TODO
+### Step 20: Class and Role Declarations ✅ COMPLETED
 
 ```
 You are continuing the parser implementation from Step 19.
@@ -1578,7 +1578,7 @@ SUCCESS CRITERIA:
 This enables full object-oriented programming with sophisticated typing in typed-Perl.
 ```
 
-### Step 21: Advanced Type Constraints ✅ TODO
+### Step 21: Advanced Type Constraints ✅ COMPLETED
 
 ```
 You are continuing the parser implementation from Step 20.

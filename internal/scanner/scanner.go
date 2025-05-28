@@ -47,6 +47,9 @@ const (
 	TokenClass
 	TokenAs
 	TokenWhere
+	TokenDoes
+	TokenCan
+	TokenRole
 
 	// Operators and punctuation
 	TokenAssign

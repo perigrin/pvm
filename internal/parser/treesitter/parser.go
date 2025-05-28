@@ -252,6 +252,10 @@ func (p *Parser) ParseFile(path string) (*ast.AST, error) {
 	if astTypeAnnotations == nil {
 		astTypeAnnotations = make([]*ast.TypeAnnotation, 0)
 	}
+	
+	// Add constraint-based type annotations by scanning source text
+	constraintAnnotations := p.extractConstraintAnnotations(string(tree.Content))
+	astTypeAnnotations = append(astTypeAnnotations, constraintAnnotations...)
 
 	astResult := &ast.AST{
 		Source:          string(tree.Content),
@@ -587,6 +591,10 @@ func (p *Parser) ParseString(content string) (*ast.AST, error) {
 	if astTypeAnnotations == nil {
 		astTypeAnnotations = make([]*ast.TypeAnnotation, 0)
 	}
+	
+	// Add constraint-based type annotations by scanning source text
+	constraintAnnotations := p.extractConstraintAnnotations(content)
+	astTypeAnnotations = append(astTypeAnnotations, constraintAnnotations...)
 
 	// Create an AST from the parse tree
 	astResult := &ast.AST{
@@ -1003,6 +1011,9 @@ func splitParams(params string) []string {
 func (p *Parser) convertToClassDeclAST(node Node, start, end ast.Position) ast.Node {
 	className := ""
 	
+	// Extract constraints from the class signature
+	constraints := p.extractConstraintsFromText(node.Text())
+	
 	// Extract class name from tree-sitter node
 	for _, child := range node.Children() {
 		if child.Type() == "package" {
@@ -1013,6 +1024,7 @@ func (p *Parser) convertToClassDeclAST(node Node, start, end ast.Position) ast.N
 	
 	// Create class declaration
 	classDecl := ast.NewClassDecl(className, start, end)
+	classDecl.Constraints = constraints
 	
 	// Process children to find fields and methods
 	for _, child := range node.Children() {
@@ -1033,6 +1045,9 @@ func (p *Parser) convertToClassDeclAST(node Node, start, end ast.Position) ast.N
 func (p *Parser) convertToRoleDeclAST(node Node, start, end ast.Position) ast.Node {
 	roleName := ""
 	
+	// Extract constraints from the role signature
+	constraints := p.extractConstraintsFromText(node.Text())
+	
 	// Extract role name from tree-sitter node
 	for _, child := range node.Children() {
 		if child.Type() == "package" {
@@ -1043,6 +1058,7 @@ func (p *Parser) convertToRoleDeclAST(node Node, start, end ast.Position) ast.No
 	
 	// Create role declaration
 	roleDecl := ast.NewRoleDecl(roleName, start, end)
+	roleDecl.Constraints = constraints
 	
 	// Process children to find fields and methods
 	for _, child := range node.Children() {
@@ -1129,6 +1145,320 @@ func (p *Parser) extractFieldDecl(stmt Node) *ast.FieldDecl {
 }
 
 // extractMethodDecl extracts a method declaration from a statement node
+// extractConstraintsFromText extracts constraint information from method or class signatures
+func (p *Parser) extractConstraintsFromText(text string) []*ast.TypeConstraint {
+	var constraints []*ast.TypeConstraint
+
+	// Look for "where" clause
+	whereIndex := strings.Index(text, " where ")
+	if whereIndex == -1 {
+		return constraints
+	}
+
+	// Extract constraint text after "where"
+	constraintText := strings.TrimSpace(text[whereIndex+7:])
+	
+	// Find the end of constraints (before opening brace)
+	braceIndex := strings.Index(constraintText, "{")
+	if braceIndex != -1 {
+		constraintText = strings.TrimSpace(constraintText[:braceIndex])
+	}
+
+	if constraintText == "" {
+		return constraints
+	}
+
+	// Parse individual constraints separated by commas
+	constraintParts := strings.Split(constraintText, ",")
+	for _, part := range constraintParts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		constraint := p.parseConstraintText(part)
+		if constraint != nil {
+			constraints = append(constraints, constraint)
+		}
+	}
+
+	return constraints
+}
+
+// parseConstraintText parses a single constraint expression
+func (p *Parser) parseConstraintText(text string) *ast.TypeConstraint {
+	text = strings.TrimSpace(text)
+	
+	// Type constraint: T: SomeType
+	if colonIndex := strings.Index(text, ":"); colonIndex != -1 {
+		parameter := strings.TrimSpace(text[:colonIndex])
+		typeExpr := strings.TrimSpace(text[colonIndex+1:])
+		
+		// Create a simple expression node for the constraint
+		expr := ast.NewLiteralExpr(typeExpr, ast.StringLiteral, ast.Position{}, ast.Position{})
+		
+		return &ast.TypeConstraint{
+			Parameter:  parameter,
+			Kind:       ast.TypeConstraintKind,
+			Expression: expr,
+			Position:   ast.Position{},
+		}
+	}
+
+	// Protocol constraint: T does Role
+	if doesIndex := strings.Index(text, " does "); doesIndex != -1 {
+		parameter := strings.TrimSpace(text[:doesIndex])
+		roleExpr := strings.TrimSpace(text[doesIndex+6:])
+		
+		expr := ast.NewLiteralExpr(roleExpr, ast.StringLiteral, ast.Position{}, ast.Position{})
+		
+		return &ast.TypeConstraint{
+			Parameter:  parameter,
+			Kind:       ast.ProtocolConstraint,
+			Expression: expr,
+			Position:   ast.Position{},
+		}
+	}
+
+	// Capability constraint: T can 'method'
+	if canIndex := strings.Index(text, " can "); canIndex != -1 {
+		parameter := strings.TrimSpace(text[:canIndex])
+		methodExpr := strings.TrimSpace(text[canIndex+5:])
+		
+		expr := ast.NewLiteralExpr(methodExpr, ast.StringLiteral, ast.Position{}, ast.Position{})
+		
+		return &ast.TypeConstraint{
+			Parameter:  parameter,
+			Kind:       ast.CapabilityConstraint,
+			Expression: expr,
+			Position:   ast.Position{},
+		}
+	}
+
+	// Value constraint: $param > 0 or version constraint: T->VERSION >= 1.0
+	if strings.Contains(text, ">") || strings.Contains(text, "<") || strings.Contains(text, "=") || strings.Contains(text, "->VERSION") {
+		// For now, treat as value constraint - more sophisticated parsing could be added
+		parameter := extractParameterFromValueConstraint(text)
+		
+		expr := ast.NewLiteralExpr(text, ast.StringLiteral, ast.Position{}, ast.Position{})
+		
+		kind := ast.ValueConstraint
+		if strings.Contains(text, "->VERSION") {
+			kind = ast.VersionConstraint
+		}
+		
+		return &ast.TypeConstraint{
+			Parameter:  parameter,
+			Kind:       kind,
+			Expression: expr,
+			Position:   ast.Position{},
+		}
+	}
+
+	return nil
+}
+
+// extractConstraintAnnotations extracts constraint-based type annotations from source text
+func (p *Parser) extractConstraintAnnotations(content string) []*ast.TypeAnnotation {
+	var annotations []*ast.TypeAnnotation
+
+	lines := strings.Split(content, "\n")
+	for lineNum, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Look for method signatures with constraints
+		if strings.Contains(line, "method ") && strings.Contains(line, " where ") {
+			annotations = append(annotations, p.extractMethodConstraintAnnotations(line, lineNum+1)...)
+		}
+		
+		// Look for method signatures without constraints (to extract basic type annotations)
+		if strings.Contains(line, "method ") && !strings.Contains(line, " where ") {
+			annotations = append(annotations, p.extractMethodConstraintAnnotations(line, lineNum+1)...)
+		}
+		
+		// Look for field declarations
+		if strings.Contains(line, "field ") && strings.Contains(line, " $") {
+			annotations = append(annotations, p.extractFieldAnnotations(line, lineNum+1)...)
+		}
+		
+		// Look for class declarations with constraints
+		if strings.Contains(line, "class ") && strings.Contains(line, " where ") {
+			annotations = append(annotations, p.extractClassConstraintAnnotations(line, lineNum+1)...)
+		}
+		
+		// Look for role declarations with constraints
+		if strings.Contains(line, "role ") && strings.Contains(line, " where ") {
+			annotations = append(annotations, p.extractRoleConstraintAnnotations(line, lineNum+1)...)
+		}
+	}
+
+	return annotations
+}
+
+// extractMethodConstraintAnnotations extracts constraint annotations from method signatures
+func (p *Parser) extractMethodConstraintAnnotations(line string, lineNum int) []*ast.TypeAnnotation {
+	var annotations []*ast.TypeAnnotation
+
+	// Extract method name
+	methodNameMatch := strings.Index(line, "method ")
+	if methodNameMatch == -1 {
+		return annotations
+	}
+
+	// Find parameter list
+	parenStart := strings.Index(line, "(")
+	parenEnd := strings.LastIndex(line, ")")
+	if parenStart == -1 || parenEnd == -1 {
+		return annotations
+	}
+
+	paramList := line[parenStart+1 : parenEnd]
+	
+	// Extract parameter type annotations
+	params := strings.Split(paramList, ",")
+	for _, param := range params {
+		param = strings.TrimSpace(param)
+		if strings.Contains(param, " $") {
+			// Extract parameter type and name
+			parts := strings.Fields(param)
+			if len(parts) >= 2 {
+				typeExpr := parts[0]
+				varName := parts[len(parts)-1]
+				
+				// Create type expression
+				typeExpression := &ast.TypeExpression{
+					Name: typeExpr,
+					Kind: ast.SimpleTypeKind,
+				}
+				
+				annotation := &ast.TypeAnnotation{
+					AnnotatedItem:  varName,
+					TypeExpression: typeExpression,
+					Pos:            ast.Position{Line: lineNum, Column: 1},
+					Kind:           ast.MethodParamAnnotation,
+				}
+				annotations = append(annotations, annotation)
+			}
+		}
+	}
+
+	// Extract return type annotation
+	arrowIndex := strings.Index(line, "->")
+	whereIndex := strings.Index(line, " where ")
+	if arrowIndex != -1 {
+		endIndex := len(line)
+		if whereIndex != -1 && whereIndex > arrowIndex {
+			endIndex = whereIndex
+		}
+		
+		returnType := strings.TrimSpace(line[arrowIndex+2 : endIndex])
+		if returnType != "" {
+			typeExpression := &ast.TypeExpression{
+				Name: returnType,
+				Kind: ast.SimpleTypeKind,
+			}
+			
+			// Extract method name for annotation
+			methodParts := strings.Fields(line[methodNameMatch+7:])
+			methodName := ""
+			if len(methodParts) > 0 {
+				methodName = strings.Split(methodParts[0], "(")[0]
+			}
+			
+			annotation := &ast.TypeAnnotation{
+				AnnotatedItem:  methodName,
+				TypeExpression: typeExpression,
+				Pos:            ast.Position{Line: lineNum, Column: 1},
+				Kind:           ast.MethodReturnAnnotation,
+			}
+			annotations = append(annotations, annotation)
+		}
+	}
+
+	return annotations
+}
+
+// extractFieldAnnotations extracts type annotations from field declarations
+func (p *Parser) extractFieldAnnotations(line string, lineNum int) []*ast.TypeAnnotation {
+	var annotations []*ast.TypeAnnotation
+
+	// Look for field declarations: field Type $varname
+	fieldIndex := strings.Index(line, "field ")
+	if fieldIndex == -1 {
+		return annotations
+	}
+
+	// Extract the part after "field "
+	fieldPart := strings.TrimSpace(line[fieldIndex+6:])
+	
+	// Split on whitespace to get type and variable
+	parts := strings.Fields(fieldPart)
+	if len(parts) >= 2 {
+		typeExpr := parts[0]
+		varName := parts[1]
+		
+		// Remove semicolon from variable name if present
+		if strings.HasSuffix(varName, ";") {
+			varName = varName[:len(varName)-1]
+		}
+		
+		// Create type expression
+		typeExpression := &ast.TypeExpression{
+			Name: typeExpr,
+			Kind: ast.SimpleTypeKind,
+		}
+		
+		annotation := &ast.TypeAnnotation{
+			AnnotatedItem:  varName,
+			TypeExpression: typeExpression,
+			Pos:            ast.Position{Line: lineNum, Column: 1},
+			Kind:           ast.FieldAnnotation,
+		}
+		annotations = append(annotations, annotation)
+	}
+
+	return annotations
+}
+
+// extractClassConstraintAnnotations extracts constraint annotations from class declarations
+func (p *Parser) extractClassConstraintAnnotations(line string, lineNum int) []*ast.TypeAnnotation {
+	var annotations []*ast.TypeAnnotation
+	// For now, just create a basic annotation for the class
+	// More sophisticated extraction could be added later
+	return annotations
+}
+
+// extractRoleConstraintAnnotations extracts constraint annotations from role declarations
+func (p *Parser) extractRoleConstraintAnnotations(line string, lineNum int) []*ast.TypeAnnotation {
+	var annotations []*ast.TypeAnnotation
+	// For now, just create a basic annotation for the role
+	// More sophisticated extraction could be added later
+	return annotations
+}
+
+// extractParameterFromValueConstraint extracts the parameter name from a value constraint
+func extractParameterFromValueConstraint(text string) string {
+	// Look for variable pattern ($param) or type pattern (T->)
+	if strings.HasPrefix(text, "$") {
+		spaceIndex := strings.Index(text, " ")
+		if spaceIndex != -1 {
+			return strings.TrimSpace(text[:spaceIndex])
+		}
+	}
+	
+	if arrowIndex := strings.Index(text, "->"); arrowIndex != -1 {
+		return strings.TrimSpace(text[:arrowIndex])
+	}
+	
+	// Default to first word
+	parts := strings.Fields(text)
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	
+	return ""
+}
+
 func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
 	// Simple parsing - this would need to be enhanced for full parsing
 	text := stmt.Text()
@@ -1139,6 +1469,9 @@ func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
 	
 	start := ast.Position{Line: stmt.Start().Line, Column: stmt.Start().Column}
 	end := ast.Position{Line: stmt.End().Line, Column: stmt.End().Column}
+	
+	// Extract constraints from the method signature
+	constraints := p.extractConstraintsFromText(text)
 	
 	// Extract method name (simplified)
 	lines := strings.Split(text, "\n")
@@ -1162,6 +1495,9 @@ func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
 		methodName = strings.Split(methodName, "(")[0]
 	}
 	
-	// Create basic method declaration
-	return ast.NewMethodDecl(methodName, nil, nil, nil, start, end)
+	// Create basic method declaration with constraints
+	methodDecl := ast.NewMethodDecl(methodName, nil, nil, nil, start, end)
+	methodDecl.Constraints = constraints
+	
+	return methodDecl
 }

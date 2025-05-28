@@ -31,29 +31,32 @@ func _() {
 	_ = x[TokenClass-20]
 	_ = x[TokenAs-21]
 	_ = x[TokenWhere-22]
-	_ = x[TokenAssign-23]
-	_ = x[TokenComma-24]
-	_ = x[TokenSemicolon-25]
-	_ = x[TokenLParen-26]
-	_ = x[TokenRParen-27]
-	_ = x[TokenLBrace-28]
-	_ = x[TokenRBrace-29]
-	_ = x[TokenLBracket-30]
-	_ = x[TokenRBracket-31]
-	_ = x[TokenArrow-32]
-	_ = x[TokenPipe-33]
-	_ = x[TokenAmpersand-34]
-	_ = x[TokenExclamation-35]
-	_ = x[TokenTypeAnnotation-36]
-	_ = x[TokenTypeExpression-37]
-	_ = x[TokenUnionOperator-38]
-	_ = x[TokenIntersectionOperator-39]
-	_ = x[TokenNegationOperator-40]
+	_ = x[TokenDoes-23]
+	_ = x[TokenCan-24]
+	_ = x[TokenRole-25]
+	_ = x[TokenAssign-26]
+	_ = x[TokenComma-27]
+	_ = x[TokenSemicolon-28]
+	_ = x[TokenLParen-29]
+	_ = x[TokenRParen-30]
+	_ = x[TokenLBrace-31]
+	_ = x[TokenRBrace-32]
+	_ = x[TokenLBracket-33]
+	_ = x[TokenRBracket-34]
+	_ = x[TokenArrow-35]
+	_ = x[TokenPipe-36]
+	_ = x[TokenAmpersand-37]
+	_ = x[TokenExclamation-38]
+	_ = x[TokenTypeAnnotation-39]
+	_ = x[TokenTypeExpression-40]
+	_ = x[TokenUnionOperator-41]
+	_ = x[TokenIntersectionOperator-42]
+	_ = x[TokenNegationOperator-43]
 }
 
-const _TokenType_name = "TokenEOFTokenErrorTokenWhitespaceTokenCommentTokenNewlineTokenStringTokenNumberTokenIdentifierTokenVariableTokenArrayVariableTokenHashVariableTokenMyTokenOurTokenStateTokenSubTokenMethodTokenFieldTokenTypeKeywordTokenUseTokenPackageTokenClassTokenAsTokenWhereTokenAssignTokenCommaTokenSemicolonTokenLParenTokenRParenTokenLBraceTokenRBraceTokenLBracketTokenRBracketTokenArrowTokenPipeTokenAmpersandTokenExclamationTokenTypeAnnotationTokenTypeExpressionTokenUnionOperatorTokenIntersectionOperatorTokenNegationOperator"
+const _TokenType_name = "TokenEOFTokenErrorTokenWhitespaceTokenCommentTokenNewlineTokenStringTokenNumberTokenIdentifierTokenVariableTokenArrayVariableTokenHashVariableTokenMyTokenOurTokenStateTokenSubTokenMethodTokenFieldTokenTypeKeywordTokenUseTokenPackageTokenClassTokenAsTokenWhereTokenDoesTokenCanTokenRoleTokenAssignTokenCommaTokenSemicolonTokenLParenTokenRParenTokenLBraceTokenRBraceTokenLBracketTokenRBracketTokenArrowTokenPipeTokenAmpersandTokenExclamationTokenTypeAnnotationTokenTypeExpressionTokenUnionOperatorTokenIntersectionOperatorTokenNegationOperator"
 
-var _TokenType_index = [...]uint16{0, 8, 18, 33, 45, 57, 68, 79, 94, 107, 125, 142, 149, 157, 167, 175, 186, 196, 212, 220, 232, 242, 249, 259, 270, 280, 294, 305, 316, 327, 338, 351, 364, 374, 383, 397, 413, 432, 451, 469, 494, 515}
+var _TokenType_index = [...]uint16{0, 8, 18, 33, 45, 57, 68, 79, 94, 107, 125, 142, 149, 157, 167, 175, 186, 196, 212, 220, 232, 242, 249, 259, 268, 276, 285, 296, 306, 320, 331, 342, 353, 364, 377, 390, 400, 409, 423, 439, 458, 477, 495, 520, 541}
 
 func (i TokenType) String() string {
 	if i < 0 || i >= TokenType(len(_TokenType_index)-1) {
