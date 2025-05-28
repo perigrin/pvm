@@ -125,7 +125,7 @@ SUCCESS CRITERIA:
 Focus on comprehensive coverage of standard Perl variable patterns before adding type extensions.
 ```
 
-### Step 3: Basic Expressions and Operators (Untyped Perl) ✅ TODO
+### Step 3: Basic Expressions and Operators (Untyped Perl) ✅ COMPLETED
 
 ```
 You are continuing the parser testing implementation from Step 2.
@@ -191,7 +191,7 @@ SUCCESS CRITERIA:
 Focus on complete operator coverage to establish expression parsing foundation.
 ```
 
-### Step 4: Control Flow Structures (Untyped Perl) ✅ TODO
+### Step 4: Control Flow Structures (Untyped Perl) ✅ COMPLETED
 
 ```
 You are continuing the parser testing implementation from Step 3.

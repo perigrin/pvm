@@ -1,0 +1,110 @@
+[
+  {
+    "name": "basic_if_statement",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if ($condition) {\n    do_something();\n}",
+    "should_error": false,
+    "description": "Basic if statement with block",
+    "tags": ["conditional", "if", "block"]
+  },
+  {
+    "name": "if_elsif_else_chain",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if ($condition) {\n    do_something();\n} elsif ($other) {\n    do_other();\n} else {\n    do_default();\n}",
+    "should_error": false,
+    "description": "Complete if-elsif-else conditional chain",
+    "tags": ["conditional", "if", "elsif", "else", "chain"]
+  },
+  {
+    "name": "multiple_elsif",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if ($a) {\n    first();\n} elsif ($b) {\n    second();\n} elsif ($c) {\n    third();\n} else {\n    default();\n}",
+    "should_error": false,
+    "description": "Multiple elsif clauses in conditional",
+    "tags": ["conditional", "if", "elsif", "multiple", "chain"]
+  },
+  {
+    "name": "unless_statement",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "unless ($negative_condition) {\n    execute();\n}",
+    "should_error": false,
+    "description": "Unless conditional statement",
+    "tags": ["conditional", "unless", "block"]
+  },
+  {
+    "name": "unless_else",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "unless ($condition) {\n    when_false();\n} else {\n    when_true();\n}",
+    "should_error": false,
+    "description": "Unless statement with else clause",
+    "tags": ["conditional", "unless", "else"]
+  },
+  {
+    "name": "postfix_if",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "do_something() if $condition;",
+    "should_error": false,
+    "description": "Postfix if conditional",
+    "tags": ["conditional", "if", "postfix", "statement_modifier"]
+  },
+  {
+    "name": "postfix_unless",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "execute() unless $skip;",
+    "should_error": false,
+    "description": "Postfix unless conditional",
+    "tags": ["conditional", "unless", "postfix", "statement_modifier"]
+  },
+  {
+    "name": "nested_conditionals",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if ($outer) {\n    if ($inner) {\n        nested_action();\n    } else {\n        inner_else();\n    }\n} else {\n    outer_else();\n}",
+    "should_error": false,
+    "description": "Nested conditional statements",
+    "tags": ["conditional", "nested", "if", "else"]
+  },
+  {
+    "name": "complex_condition",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if (($a > 0) && ($b < 100) || ($c == $d)) {\n    complex_action();\n}",
+    "should_error": false,
+    "description": "Conditional with complex boolean expression",
+    "tags": ["conditional", "if", "complex_expression", "logical"]
+  },
+  {
+    "name": "conditional_with_assignment",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if (my $result = function_call()) {\n    process($result);\n}",
+    "should_error": false,
+    "description": "Conditional with variable assignment in condition",
+    "tags": ["conditional", "if", "assignment", "variable_declaration"]
+  },
+  {
+    "name": "single_line_if_block",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if ($condition) { single_statement(); }",
+    "should_error": false,
+    "description": "Single line if statement with braces",
+    "tags": ["conditional", "if", "single_line", "block"]
+  },
+  {
+    "name": "conditional_with_return",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if ($error) {\n    return $error_value;\n}\nreturn $success_value;",
+    "should_error": false,
+    "description": "Conditional with return statements",
+    "tags": ["conditional", "if", "return", "control_flow"]
+  }
+]

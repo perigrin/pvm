@@ -1,0 +1,128 @@
+[
+  {
+    "name": "basic_while_loop",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "while ($condition) {\n    process();\n}",
+    "should_error": false,
+    "description": "Basic while loop",
+    "tags": ["loop", "while", "block"]
+  },
+  {
+    "name": "basic_until_loop",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "until ($done) {\n    continue_processing();\n}",
+    "should_error": false,
+    "description": "Basic until loop",
+    "tags": ["loop", "until", "block"]
+  },
+  {
+    "name": "for_loop_c_style",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "for (my $i = 0; $i < $max; $i++) {\n    handle($i);\n}",
+    "should_error": false,
+    "description": "C-style for loop with initialization, condition, and increment",
+    "tags": ["loop", "for", "c_style", "initialization", "increment"]
+  },
+  {
+    "name": "for_loop_range",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "for my $i (0..$max) {\n    handle($i);\n}",
+    "should_error": false,
+    "description": "For loop with range operator",
+    "tags": ["loop", "for", "range", "iterator"]
+  },
+  {
+    "name": "foreach_loop_array",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "foreach my $item (@list) {\n    process($item);\n}",
+    "should_error": false,
+    "description": "Foreach loop over array",
+    "tags": ["loop", "foreach", "array", "iterator"]
+  },
+  {
+    "name": "foreach_loop_hash",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "foreach my $key (keys %hash) {\n    process($key, $hash{$key});\n}",
+    "should_error": false,
+    "description": "Foreach loop over hash keys",
+    "tags": ["loop", "foreach", "hash", "keys"]
+  },
+  {
+    "name": "foreach_no_variable",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "foreach (@items) {\n    process($_);\n}",
+    "should_error": false,
+    "description": "Foreach loop using default variable $_",
+    "tags": ["loop", "foreach", "default_variable", "underscore"]
+  },
+  {
+    "name": "for_loop_list",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "for my $item (qw(apple banana cherry)) {\n    print \"$item\\n\";\n}",
+    "should_error": false,
+    "description": "For loop over literal list",
+    "tags": ["loop", "for", "list", "qw"]
+  },
+  {
+    "name": "nested_loops",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "for my $outer (@outer_list) {\n    foreach my $inner (@{$outer->{items}}) {\n        if ($inner->{valid}) {\n            process($inner);\n        }\n    }\n}",
+    "should_error": false,
+    "description": "Nested loops with complex data structures",
+    "tags": ["loop", "nested", "for", "foreach", "complex"]
+  },
+  {
+    "name": "while_with_assignment",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "while (my $line = <$fh>) {\n    chomp $line;\n    process($line);\n}",
+    "should_error": false,
+    "description": "While loop with assignment in condition",
+    "tags": ["loop", "while", "assignment", "file_handle"]
+  },
+  {
+    "name": "postfix_while",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "do {\n    process();\n} while ($continue);",
+    "should_error": false,
+    "description": "Do-while loop (postfix while)",
+    "tags": ["loop", "do_while", "postfix", "block"]
+  },
+  {
+    "name": "postfix_until",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "do {\n    attempt();\n} until ($success);",
+    "should_error": false,
+    "description": "Do-until loop (postfix until)",
+    "tags": ["loop", "do_until", "postfix", "block"]
+  },
+  {
+    "name": "infinite_loop",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "while (1) {\n    handle_request();\n    last if $shutdown;\n}",
+    "should_error": false,
+    "description": "Infinite loop with break condition",
+    "tags": ["loop", "while", "infinite", "last"]
+  },
+  {
+    "name": "loop_with_complex_iterator",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "foreach my $file (glob(\"*.txt\")) {\n    process_file($file);\n}",
+    "should_error": false,
+    "description": "Loop with function call as iterator",
+    "tags": ["loop", "foreach", "function_call", "glob"]
+  }
+]

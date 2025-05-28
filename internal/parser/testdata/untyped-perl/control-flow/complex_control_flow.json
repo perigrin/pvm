@@ -1,0 +1,92 @@
+[
+  {
+    "name": "nested_mixed_structures",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if ($enabled) {\n    foreach my $item (@items) {\n        if ($item->{process}) {\n            while (my $data = $item->next()) {\n                last if process_data($data);\n            }\n        }\n    }\n}",
+    "should_error": false,
+    "description": "Deeply nested mixed control structures",
+    "tags": ["complex", "nested", "if", "foreach", "while", "mixed"]
+  },
+  {
+    "name": "exception_handling_eval",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "eval {\n    risky_operation();\n    1;\n} or do {\n    my $error = $@ || 'Unknown error';\n    handle_error($error);\n};",
+    "should_error": false,
+    "description": "Exception handling with eval block",
+    "tags": ["complex", "eval", "exception", "error_handling"]
+  },
+  {
+    "name": "try_catch_finally",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "{\n    local $@;\n    eval {\n        dangerous_operation();\n    };\n    if ($@) {\n        handle_exception($@);\n    } else {\n        success_handler();\n    }\n    # cleanup always runs\n    cleanup();\n}",
+    "should_error": false,
+    "description": "Try-catch-finally pattern with eval",
+    "tags": ["complex", "try_catch", "eval", "cleanup", "local"]
+  },
+  {
+    "name": "state_machine_loop",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "my $state = 'start';\nwhile (1) {\n    given ($state) {\n        when ('start') {\n            initialize();\n            $state = 'process';\n        }\n        when ('process') {\n            if (process_item()) {\n                $state = 'finish';\n            } else {\n                $state = 'error';\n            }\n        }\n        when ('error') {\n            handle_error();\n            $state = 'start';\n        }\n        when ('finish') {\n            finalize();\n            last;\n        }\n    }\n}",
+    "should_error": false,
+    "description": "State machine implementation with loop and switch",
+    "tags": ["complex", "state_machine", "while", "given", "when", "infinite"]
+  },
+  {
+    "name": "iterator_pattern",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "my $iterator = sub {\n    state @items = (1..10);\n    state $index = 0;\n    return if $index >= @items;\n    return $items[$index++];\n};\n\nwhile (defined(my $item = $iterator->())) {\n    process($item);\n}",
+    "should_error": false,
+    "description": "Iterator pattern with closure and state variables",
+    "tags": ["complex", "iterator", "closure", "state", "while"]
+  },
+  {
+    "name": "recursive_descent",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "sub process_tree {\n    my ($node, $depth) = @_;\n    return if $depth > $max_depth;\n    \n    if ($node->{type} eq 'leaf') {\n        process_leaf($node);\n    } else {\n        foreach my $child (@{$node->{children}}) {\n            process_tree($child, $depth + 1);\n        }\n    }\n}",
+    "should_error": false,
+    "description": "Recursive tree processing with depth control",
+    "tags": ["complex", "recursive", "tree", "depth", "foreach"]
+  },
+  {
+    "name": "pipeline_processing",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "foreach my $input (@inputs) {\n    my $result = $input;\n    \n    STAGE: foreach my $stage (@pipeline) {\n        eval {\n            $result = $stage->process($result);\n        };\n        if ($@) {\n            log_error(\"Stage failed: $@\");\n            next STAGE if $stage->{optional};\n            last STAGE;\n        }\n    }\n    \n    push @outputs, $result if defined $result;\n}",
+    "should_error": false,
+    "description": "Pipeline processing with error handling and optional stages",
+    "tags": ["complex", "pipeline", "foreach", "eval", "labeled", "optional"]
+  },
+  {
+    "name": "coroutine_simulation",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "sub coroutine {\n    my $state = shift;\n    \n    DISPATCH: {\n        $state eq 'init' and do {\n            initialize_data();\n            $state = 'process';\n            redo DISPATCH;\n        };\n        \n        $state eq 'process' and do {\n            return process_next() || 'done';\n        };\n        \n        $state eq 'done' and do {\n            cleanup();\n            return undef;\n        };\n    }\n}",
+    "should_error": false,
+    "description": "Coroutine simulation using dispatch table and redo",
+    "tags": ["complex", "coroutine", "dispatch", "redo", "labeled"]
+  },
+  {
+    "name": "event_loop",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "while (my $event = get_next_event()) {\n    given ($event->{type}) {\n        when ('timer') {\n            handle_timer($event);\n            continue;\n        }\n        when ('input') {\n            unless (validate_input($event)) {\n                log_invalid_input($event);\n                next;\n            }\n            process_input($event);\n        }\n        when ('shutdown') {\n            cleanup_and_exit();\n            last;\n        }\n        default {\n            log_unknown_event($event);\n        }\n    }\n}",
+    "should_error": false,
+    "description": "Event loop with various event types and validation",
+    "tags": ["complex", "event_loop", "while", "given", "when", "validation"]
+  },
+  {
+    "name": "parallel_processing_sim",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "my @workers = ();\nfor my $i (1..$num_workers) {\n    push @workers, {\n        id => $i,\n        status => 'idle',\n        task => undef\n    };\n}\n\nwhile (@tasks || grep { $_->{status} eq 'busy' } @workers) {\n    foreach my $worker (@workers) {\n        if ($worker->{status} eq 'idle' && @tasks) {\n            $worker->{task} = shift @tasks;\n            $worker->{status} = 'busy';\n        } elsif ($worker->{status} eq 'busy') {\n            if (task_complete($worker->{task})) {\n                finish_task($worker->{task});\n                $worker->{status} = 'idle';\n                $worker->{task} = undef;\n            }\n        }\n    }\n    sleep(0.1); # simulate time passage\n}",
+    "should_error": false,
+    "description": "Parallel processing simulation with worker management",
+    "tags": ["complex", "parallel", "simulation", "workers", "while", "foreach"]
+  }
+]

@@ -1,0 +1,92 @@
+[
+  {
+    "name": "given_when_basic",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "given ($value) {\n    when (1) { print \"one\"; }\n    when (2) { print \"two\"; }\n    default { print \"other\"; }\n}",
+    "should_error": false,
+    "description": "Basic given-when switch statement",
+    "tags": ["switch", "given", "when", "default"]
+  },
+  {
+    "name": "given_when_ranges",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "given ($score) {\n    when (90..100) { print \"A\"; }\n    when (80..89)  { print \"B\"; }\n    when (70..79)  { print \"C\"; }\n    default        { print \"F\"; }\n}",
+    "should_error": false,
+    "description": "Given-when with range matching",
+    "tags": ["switch", "given", "when", "range", "default"]
+  },
+  {
+    "name": "given_when_arrays",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "given ($day) {\n    when ([qw(sat sun)]) { print \"weekend\"; }\n    when ([qw(mon tue wed thu fri)]) { print \"weekday\"; }\n}",
+    "should_error": false,
+    "description": "Given-when with array reference matching",
+    "tags": ["switch", "given", "when", "array", "qw"]
+  },
+  {
+    "name": "given_when_regex",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "given ($input) {\n    when (/^\\d+$/) { print \"number\"; }\n    when (/^[a-zA-Z]+$/) { print \"letters\"; }\n    when (/^\\s*$/) { print \"empty\"; }\n    default { print \"mixed\"; }\n}",
+    "should_error": false,
+    "description": "Given-when with regex matching",
+    "tags": ["switch", "given", "when", "regex", "pattern"]
+  },
+  {
+    "name": "given_when_nested",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "given ($type) {\n    when ('user') {\n        given ($action) {\n            when ('create') { create_user(); }\n            when ('delete') { delete_user(); }\n            default { invalid_action(); }\n        }\n    }\n    when ('admin') { admin_action(); }\n}",
+    "should_error": false,
+    "description": "Nested given-when statements",
+    "tags": ["switch", "given", "when", "nested", "default"]
+  },
+  {
+    "name": "when_continue",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "given ($value) {\n    when ($_ > 0) {\n        print \"positive\";\n        continue;\n    }\n    when ($_ % 2 == 0) { print \"even\"; }\n    when ($_ % 2 == 1) { print \"odd\"; }\n}",
+    "should_error": false,
+    "description": "When clause with continue statement",
+    "tags": ["switch", "given", "when", "continue", "fallthrough"]
+  },
+  {
+    "name": "when_break",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "given ($status) {\n    when ('active') {\n        process_active();\n        break;\n    }\n    when ('inactive') { process_inactive(); }\n    default { handle_unknown(); }\n}",
+    "should_error": false,
+    "description": "When clause with break statement",
+    "tags": ["switch", "given", "when", "break", "explicit"]
+  },
+  {
+    "name": "given_when_complex_condition",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "given ($record) {\n    when ($_->{type} eq 'user' && $_->{active}) {\n        process_active_user($_);\n    }\n    when ($_->{type} eq 'admin') {\n        process_admin($_);\n    }\n    default { process_unknown($_); }\n}",
+    "should_error": false,
+    "description": "Given-when with complex conditions",
+    "tags": ["switch", "given", "when", "complex", "hash", "logical"]
+  },
+  {
+    "name": "smartmatch_operator",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "if ($value ~~ @valid_values) {\n    process($value);\n} elsif ($value ~~ /pattern/) {\n    handle_pattern($value);\n}",
+    "should_error": false,
+    "description": "Smartmatch operator usage",
+    "tags": ["switch", "smartmatch", "if", "pattern", "array"]
+  },
+  {
+    "name": "given_no_default",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "given ($option) {\n    when ('verbose') { $verbose = 1; }\n    when ('quiet') { $quiet = 1; }\n    when ('debug') { $debug = 1; }\n}",
+    "should_error": false,
+    "description": "Given-when without default clause",
+    "tags": ["switch", "given", "when", "no_default", "options"]
+  }
+]

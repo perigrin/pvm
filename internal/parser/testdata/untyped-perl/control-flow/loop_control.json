@@ -1,0 +1,110 @@
+[
+  {
+    "name": "next_statement",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "foreach my $item (@list) {\n    next if skip_condition($item);\n    process($item);\n}",
+    "should_error": false,
+    "description": "Next statement to skip to next iteration",
+    "tags": ["loop_control", "next", "foreach", "conditional"]
+  },
+  {
+    "name": "last_statement",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "foreach my $item (@list) {\n    process($item);\n    last if stop_condition($item);\n}",
+    "should_error": false,
+    "description": "Last statement to break out of loop",
+    "tags": ["loop_control", "last", "foreach", "break"]
+  },
+  {
+    "name": "redo_statement",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "while ($condition) {\n    my $input = get_input();\n    redo if invalid($input);\n    process($input);\n}",
+    "should_error": false,
+    "description": "Redo statement to restart current iteration",
+    "tags": ["loop_control", "redo", "while", "restart"]
+  },
+  {
+    "name": "labeled_next",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "OUTER: for my $i (1..10) {\n    for my $j (1..10) {\n        next OUTER if ($i * $j > 50);\n        print \"$i x $j = \", $i * $j, \"\\n\";\n    }\n}",
+    "should_error": false,
+    "description": "Labeled next to skip outer loop iteration",
+    "tags": ["loop_control", "next", "labeled", "nested", "outer"]
+  },
+  {
+    "name": "labeled_last",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "SEARCH: foreach my $item (@items) {\n    foreach my $prop (@properties) {\n        if ($item->{$prop} eq $target) {\n            $found = $item;\n            last SEARCH;\n        }\n    }\n}",
+    "should_error": false,
+    "description": "Labeled last to break out of outer loop",
+    "tags": ["loop_control", "last", "labeled", "nested", "search"]
+  },
+  {
+    "name": "labeled_redo",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "RETRY: while ($attempts < $max_attempts) {\n    my $result = try_operation();\n    if ($result eq 'retry') {\n        $attempts++;\n        redo RETRY;\n    }\n    return $result;\n}",
+    "should_error": false,
+    "description": "Labeled redo to restart specific loop",
+    "tags": ["loop_control", "redo", "labeled", "retry"]
+  },
+  {
+    "name": "complex_loop_control",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "foreach my $batch (@batches) {\n    foreach my $item (@{$batch}) {\n        next if $item->{skip};\n        my $result = process($item);\n        if ($result->{error}) {\n            log_error($result->{error});\n            next;\n        }\n        last if $result->{complete};\n    }\n}",
+    "should_error": false,
+    "description": "Complex loop control with multiple conditions",
+    "tags": ["loop_control", "complex", "next", "last", "nested"]
+  },
+  {
+    "name": "next_with_postfix",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "for my $file (@files) {\n    next unless -f $file;\n    process_file($file);\n}",
+    "should_error": false,
+    "description": "Next with postfix unless condition",
+    "tags": ["loop_control", "next", "postfix", "unless", "file_test"]
+  },
+  {
+    "name": "last_with_value",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "my $result = do {\n    for my $item (@items) {\n        if ($item->{target}) {\n            last $item->{value};\n        }\n    }\n    'default';\n};",
+    "should_error": false,
+    "description": "Last statement with return value",
+    "tags": ["loop_control", "last", "value", "do_block"]
+  },
+  {
+    "name": "bare_block_control",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "{\n    my $x = calculate();\n    last if $x > 100;\n    process($x);\n}",
+    "should_error": false,
+    "description": "Loop control in bare block",
+    "tags": ["loop_control", "last", "bare_block", "scope"]
+  },
+  {
+    "name": "continue_block",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "while ($condition) {\n    process();\n} continue {\n    cleanup();\n    update_condition();\n}",
+    "should_error": false,
+    "description": "While loop with continue block",
+    "tags": ["loop_control", "continue", "while", "cleanup"]
+  },
+  {
+    "name": "foreach_continue",
+    "category": "untyped-perl",
+    "subcategory": "control-flow",
+    "input": "foreach my $item (@items) {\n    process($item);\n} continue {\n    log_progress();\n}",
+    "should_error": false,
+    "description": "Foreach loop with continue block",
+    "tags": ["loop_control", "continue", "foreach", "progress"]
+  }
+]
