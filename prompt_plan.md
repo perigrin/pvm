@@ -271,7 +271,7 @@ SUCCESS CRITERIA:
 Focus on complete control flow coverage to support complex program structure parsing.
 ```
 
-### Step 5: Subroutines and Calls (Untyped Perl) ✅ TODO
+### Step 5: Subroutines and Calls (Untyped Perl) ✅ COMPLETED
 
 ```
 You are continuing the parser testing implementation from Step 4.
@@ -350,7 +350,7 @@ SUCCESS CRITERIA:
 Focus on complete subroutine coverage to support complex program organization.
 ```
 
-### Step 6: Package and Module Constructs (Untyped Perl) ✅ TODO
+### Step 6: Package and Module Constructs (Untyped Perl) ✅ COMPLETED
 
 ```
 You are continuing the parser testing implementation from Step 5.

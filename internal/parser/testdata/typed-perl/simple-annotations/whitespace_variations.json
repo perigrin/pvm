@@ -1,0 +1,9 @@
+{
+  "name": "whitespace_variations",
+  "category": "typed-perl",
+  "subcategory": "simple-annotations",
+  "input": "my  Int  $spaced = 42;\nmy\tStr\t$tabbed=\"test\";\nmy Int$compact=100;\nmy   ArrayRef[Str]   @loose_array   =   ();",
+  "description": "Type annotations with various whitespace patterns",
+  "tags": ["typed-variables", "whitespace", "formatting"],
+  "should_error": false
+}

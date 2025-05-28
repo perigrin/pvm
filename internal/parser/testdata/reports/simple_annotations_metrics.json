@@ -1,0 +1,149 @@
+{
+  "total_tests": 8,
+  "passed_tests": 8,
+  "failed_tests": 0,
+  "category_metrics": {
+    "typed-perl": {
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
+    }
+  },
+  "feature_metrics": {
+    "arrays": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "backward-compatibility": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "built-in-types": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "complex-assignments": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "custom-types": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "expressions": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "formatting": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "hashes": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "local": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "maybe-types": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "mixed-code": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "optional-types": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "our": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "package-qualified": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "parameterized-types": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "scoping": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "state": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "typed-variables": {
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "undefined": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "untyped-variables": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "variable-declarations": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    },
+    "whitespace": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
+    }
+  },
+  "parsing_time": 0,
+  "memory_usage": 0
+}

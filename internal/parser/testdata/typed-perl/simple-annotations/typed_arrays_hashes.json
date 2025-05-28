@@ -1,0 +1,9 @@
+{
+  "name": "typed_arrays_hashes",
+  "category": "typed-perl",
+  "subcategory": "simple-annotations",
+  "input": "my ArrayRef[Int] @numbers = (1, 2, 3);\nmy HashRef[Str] %config = (key => 'value');\nmy ArrayRef[Str] @strings = (\"a\", \"b\", \"c\");",
+  "description": "Typed array and hash declarations with basic parameterized types",
+  "tags": ["typed-variables", "parameterized-types", "arrays", "hashes"],
+  "should_error": false
+}
