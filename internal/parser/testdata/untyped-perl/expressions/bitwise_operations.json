@@ -1,0 +1,110 @@
+[
+  {
+    "name": "bitwise_and",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $a & $b;",
+    "should_error": false,
+    "description": "Bitwise AND operation",
+    "tags": ["bitwise", "binary_operator", "and"]
+  },
+  {
+    "name": "bitwise_or",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $a | $b;",
+    "should_error": false,
+    "description": "Bitwise OR operation",
+    "tags": ["bitwise", "binary_operator", "or"]
+  },
+  {
+    "name": "bitwise_xor",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $a ^ $b;",
+    "should_error": false,
+    "description": "Bitwise XOR operation",
+    "tags": ["bitwise", "binary_operator", "xor"]
+  },
+  {
+    "name": "bitwise_not",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = ~$value;",
+    "should_error": false,
+    "description": "Bitwise NOT (complement) operation",
+    "tags": ["bitwise", "unary_operator", "not", "complement"]
+  },
+  {
+    "name": "left_shift",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $value << $positions;",
+    "should_error": false,
+    "description": "Left shift operation",
+    "tags": ["bitwise", "binary_operator", "left_shift"]
+  },
+  {
+    "name": "right_shift",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $value >> $positions;",
+    "should_error": false,
+    "description": "Right shift operation",
+    "tags": ["bitwise", "binary_operator", "right_shift"]
+  },
+  {
+    "name": "complex_bitwise",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$flags = ($a & $mask) | ($b << 4) | (~$c & 0xFF);",
+    "should_error": false,
+    "description": "Complex bitwise expression with multiple operations",
+    "tags": ["bitwise", "complex", "multiple_operators"]
+  },
+  {
+    "name": "bitwise_with_hex",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$masked = $value & 0xFF00;",
+    "should_error": false,
+    "description": "Bitwise operation with hexadecimal literal",
+    "tags": ["bitwise", "hexadecimal", "mask"]
+  },
+  {
+    "name": "bit_manipulation",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$bit_set = $flags | (1 << $bit_number);",
+    "should_error": false,
+    "description": "Setting a specific bit using shift and OR",
+    "tags": ["bitwise", "bit_manipulation", "flag_setting"]
+  },
+  {
+    "name": "bit_clearing",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$bit_cleared = $flags & ~(1 << $bit_number);",
+    "should_error": false,
+    "description": "Clearing a specific bit using NOT and AND",
+    "tags": ["bitwise", "bit_manipulation", "flag_clearing"]
+  },
+  {
+    "name": "bit_toggling",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$bit_toggled = $flags ^ (1 << $bit_number);",
+    "should_error": false,
+    "description": "Toggling a specific bit using XOR",
+    "tags": ["bitwise", "bit_manipulation", "flag_toggling"]
+  },
+  {
+    "name": "bitwise_precedence",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $a | $b & $c ^ $d;",
+    "should_error": false,
+    "description": "Bitwise operations with operator precedence",
+    "tags": ["bitwise", "precedence", "multiple_operators"]
+  }
+]

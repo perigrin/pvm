@@ -1,0 +1,101 @@
+[
+  {
+    "name": "basic_addition",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $a + $b;",
+    "should_error": false,
+    "description": "Basic addition operator",
+    "tags": ["arithmetic", "binary_operator", "addition"]
+  },
+  {
+    "name": "basic_subtraction",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $a - $b;",
+    "should_error": false,
+    "description": "Basic subtraction operator",
+    "tags": ["arithmetic", "binary_operator", "subtraction"]
+  },
+  {
+    "name": "basic_multiplication",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $a * $b;",
+    "should_error": false,
+    "description": "Basic multiplication operator",
+    "tags": ["arithmetic", "binary_operator", "multiplication"]
+  },
+  {
+    "name": "basic_division",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $a / $b;",
+    "should_error": false,
+    "description": "Basic division operator",
+    "tags": ["arithmetic", "binary_operator", "division"]
+  },
+  {
+    "name": "modulo_operation",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$remainder = $dividend % $divisor;",
+    "should_error": false,
+    "description": "Modulo operator for remainder calculation",
+    "tags": ["arithmetic", "binary_operator", "modulo"]
+  },
+  {
+    "name": "exponentiation",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$power = $base ** $exponent;",
+    "should_error": false,
+    "description": "Exponentiation operator",
+    "tags": ["arithmetic", "binary_operator", "exponentiation"]
+  },
+  {
+    "name": "complex_arithmetic",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $a + $b * $c / $d - $e % $f;",
+    "should_error": false,
+    "description": "Complex arithmetic expression with operator precedence",
+    "tags": ["arithmetic", "complex", "precedence"]
+  },
+  {
+    "name": "parenthesized_arithmetic",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = ($a + $b) * ($c - $d) / ($e || 1);",
+    "should_error": false,
+    "description": "Arithmetic with parentheses for precedence control",
+    "tags": ["arithmetic", "parentheses", "precedence"]
+  },
+  {
+    "name": "unary_plus",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = +$value;",
+    "should_error": false,
+    "description": "Unary plus operator",
+    "tags": ["arithmetic", "unary_operator", "plus"]
+  },
+  {
+    "name": "unary_minus",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = -$value;",
+    "should_error": false,
+    "description": "Unary minus operator",
+    "tags": ["arithmetic", "unary_operator", "minus"]
+  },
+  {
+    "name": "numeric_literals",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = 42 + 3.14 + 1e5 + 0xFF;",
+    "should_error": false,
+    "description": "Arithmetic with various numeric literal formats",
+    "tags": ["arithmetic", "literals", "numeric"]
+  }
+]

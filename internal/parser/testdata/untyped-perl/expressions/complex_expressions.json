@@ -1,0 +1,146 @@
+[
+  {
+    "name": "deeply_nested_parentheses",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = ((($a + $b) * ($c - $d)) / (($e + $f) || 1));",
+    "should_error": false,
+    "description": "Deeply nested parenthesized expression",
+    "tags": ["complex", "parentheses", "nested", "arithmetic"]
+  },
+  {
+    "name": "mixed_operator_types",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = ($str . '_' . $num) eq ($prefix . ($count + 1));",
+    "should_error": false,
+    "description": "Expression mixing string, arithmetic, and comparison operators",
+    "tags": ["complex", "mixed", "string", "arithmetic", "comparison"]
+  },
+  {
+    "name": "ternary_operator",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $condition ? $true_value : $false_value;",
+    "should_error": false,
+    "description": "Ternary conditional operator",
+    "tags": ["complex", "ternary", "conditional"]
+  },
+  {
+    "name": "nested_ternary",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$grade = $score >= 90 ? 'A' : $score >= 80 ? 'B' : $score >= 70 ? 'C' : 'F';",
+    "should_error": false,
+    "description": "Nested ternary operators for multiple conditions",
+    "tags": ["complex", "ternary", "nested", "conditional"]
+  },
+  {
+    "name": "array_element_expression",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$value = $array[$index + 1] + $matrix[$row][$col];",
+    "should_error": false,
+    "description": "Array element access in arithmetic expression",
+    "tags": ["complex", "array", "indexing", "arithmetic"]
+  },
+  {
+    "name": "hash_element_expression",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$total = $hash{$key} * $config{'multiplier'} + $defaults{rate};",
+    "should_error": false,
+    "description": "Hash element access in arithmetic expression",
+    "tags": ["complex", "hash", "key_access", "arithmetic"]
+  },
+  {
+    "name": "method_call_expression",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $object->method($arg) + $other->calculate($x, $y);",
+    "should_error": false,
+    "description": "Method calls in arithmetic expression",
+    "tags": ["complex", "method_calls", "arithmetic", "objects"]
+  },
+  {
+    "name": "function_call_expression",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = sqrt($value) + sin($angle * 3.14159 / 180);",
+    "should_error": false,
+    "description": "Function calls in arithmetic expression",
+    "tags": ["complex", "function_calls", "arithmetic", "math"]
+  },
+  {
+    "name": "reference_dereferencing",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$sum = ${$scalar_ref} + @{$array_ref} + keys %{$hash_ref};",
+    "should_error": false,
+    "description": "Reference dereferencing in expressions",
+    "tags": ["complex", "references", "dereferencing", "arithmetic"]
+  },
+  {
+    "name": "regex_match_expression",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$valid = ($input =~ /^\\d+$/) && ($email =~ /@\\w+\\.\\w+$/);",
+    "should_error": false,
+    "description": "Regular expression matching in logical expression",
+    "tags": ["complex", "regex", "matching", "logical"]
+  },
+  {
+    "name": "range_operator",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "@numbers = ($start .. $end);",
+    "should_error": false,
+    "description": "Range operator for generating sequences",
+    "tags": ["complex", "range", "sequence", "list"]
+  },
+  {
+    "name": "slice_expression",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "@subset = @array[$start .. $end];",
+    "should_error": false,
+    "description": "Array slice with range operator",
+    "tags": ["complex", "slice", "array", "range"]
+  },
+  {
+    "name": "list_assignment_expression",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "($first, $second, @rest) = split /,/, $csv_line;",
+    "should_error": false,
+    "description": "List assignment with function call",
+    "tags": ["complex", "list", "assignment", "function_call"]
+  },
+  {
+    "name": "postfix_increment",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = $array[$counter++] + $hash{$key++};",
+    "should_error": false,
+    "description": "Postfix increment in expression",
+    "tags": ["complex", "postfix", "increment", "side_effects"]
+  },
+  {
+    "name": "prefix_decrement",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = --$counter * ++$multiplier;",
+    "should_error": false,
+    "description": "Prefix increment and decrement in expression",
+    "tags": ["complex", "prefix", "increment", "decrement"]
+  },
+  {
+    "name": "comma_operator",
+    "category": "untyped-perl",
+    "subcategory": "expressions",
+    "input": "$result = ($operation1, $operation2, $final_value);",
+    "should_error": false,
+    "description": "Comma operator for sequential evaluation",
+    "tags": ["complex", "comma", "sequential", "evaluation"]
+  }
+]
