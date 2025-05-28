@@ -194,6 +194,9 @@ const (
 
 	// TypeDeclAnnotation is a type declaration
 	TypeDeclAnnotation
+
+	// TypeAssertionAnnotation is a type assertion (expr as Type)
+	TypeAssertionAnnotation
 )
 
 // TypeExpression represents a type expression
@@ -319,6 +322,65 @@ func (te *TypeExpression) GetAllTypes() []string {
 	}
 
 	return types
+}
+
+// WhereClause represents a type constraint expression (where { ... })
+type WhereClause struct {
+	*BaseNode
+	Expression Node // The constraint expression - using Node interface to avoid circular dependency
+}
+
+// NewWhereClause creates a new where clause
+func NewWhereClause(expr Node, start, end Position) *WhereClause {
+	clause := &WhereClause{
+		BaseNode:   NewBaseNode("where_clause", start, end),
+		Expression: expr,
+	}
+
+	if expr != nil {
+		clause.AddChild(expr)
+	}
+
+	return clause
+}
+
+// ConstrainedType represents a type with constraints (Type where { ... })
+type ConstrainedType struct {
+	*BaseNode
+	BaseType   *TypeExpression
+	Constraint *WhereClause
+}
+
+// NewConstrainedType creates a new constrained type
+func NewConstrainedType(baseType *TypeExpression, constraint *WhereClause, start, end Position) *ConstrainedType {
+	ct := &ConstrainedType{
+		BaseNode:   NewBaseNode("constrained_type", start, end),
+		BaseType:   baseType,
+		Constraint: constraint,
+	}
+
+	if baseType != nil {
+		ct.AddChild(baseType)
+	}
+	if constraint != nil {
+		ct.AddChild(constraint)
+	}
+
+	return ct
+}
+
+// String returns a string representation of the constrained type
+func (ct *ConstrainedType) String() string {
+	if ct.BaseType == nil {
+		return ""
+	}
+
+	result := ct.BaseType.String()
+	if ct.Constraint != nil {
+		result += " where { ... }"
+	}
+
+	return result
 }
 
 // BaseNode provides a common implementation for AST nodes

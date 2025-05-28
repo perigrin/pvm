@@ -32,6 +32,8 @@ const (
 	AttrAnnotation
 	// TypeDeclAnnotation is for type declarations like "type MyType = Type"
 	TypeDeclAnnotation
+	// TypeAssertionAnnotation is for type assertions like "$expr as Type"
+	TypeAssertionAnnotation
 )
 
 // AST represents the Abstract Syntax Tree of a parsed Perl file
@@ -285,6 +287,8 @@ func (p *Parser) convertPerlTypeAnnotation(perlAnn *PerlTypeAnnotation, content 
 		kind = MethodReturnAnnotation
 	case "type_declaration":
 		kind = TypeDeclAnnotation
+	case "type_assertion":
+		kind = TypeAssertionAnnotation
 	default:
 		kind = VarAnnotation // Default fallback
 	}

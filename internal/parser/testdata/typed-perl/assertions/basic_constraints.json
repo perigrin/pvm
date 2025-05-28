@@ -1,0 +1,94 @@
+{
+  "name": "basic_constraints",
+  "description": "Basic type constraints with 'where' clauses",
+  "test_cases": [
+    {
+      "input": "my $validated = $input as (Int where { $_ > 0 });",
+      "expected": {
+        "type": "variable_declaration",
+        "variable_name": "$validated",
+        "assignment": {
+          "type": "type_assertion",
+          "expression": {
+            "type": "variable_expression",
+            "name": "$input"
+          },
+          "target_type": {
+            "type": "constrained_type",
+            "base_type": {
+              "type": "simple_type",
+              "name": "Int"
+            },
+            "constraint": {
+              "type": "where_clause",
+              "expression": {
+                "type": "binary_expression",
+                "operator": ">",
+                "left": {
+                  "type": "variable_expression",
+                  "name": "$_"
+                },
+                "right": {
+                  "type": "number_literal",
+                  "value": "0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "input": "my $range = $number as (Num where { $_ >= 0 && $_ <= 100 });",
+      "expected": {
+        "type": "variable_declaration",
+        "variable_name": "$range",
+        "assignment": {
+          "type": "type_assertion",
+          "expression": {
+            "type": "variable_expression",
+            "name": "$number"
+          },
+          "target_type": {
+            "type": "constrained_type",
+            "base_type": {
+              "type": "simple_type",
+              "name": "Num"
+            },
+            "constraint": {
+              "type": "where_clause",
+              "expression": {
+                "type": "logical_expression",
+                "operator": "&&",
+                "left": {
+                  "type": "binary_expression",
+                  "operator": ">=",
+                  "left": {
+                    "type": "variable_expression",
+                    "name": "$_"
+                  },
+                  "right": {
+                    "type": "number_literal",
+                    "value": "0"
+                  }
+                },
+                "right": {
+                  "type": "binary_expression",
+                  "operator": "<=",
+                  "left": {
+                    "type": "variable_expression",
+                    "name": "$_"
+                  },
+                  "right": {
+                    "type": "number_literal",
+                    "value": "100"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

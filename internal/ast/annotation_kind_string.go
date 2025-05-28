@@ -15,11 +15,12 @@ func _() {
 	_ = x[MethodReturnAnnotation-4]
 	_ = x[FieldAnnotation-5]
 	_ = x[TypeDeclAnnotation-6]
+	_ = x[TypeAssertionAnnotation-7]
 }
 
-const _AnnotationKind_name = "VarAnnotationSubParamAnnotationSubReturnAnnotationMethodParamAnnotationMethodReturnAnnotationFieldAnnotationTypeDeclAnnotation"
+const _AnnotationKind_name = "VarAnnotationSubParamAnnotationSubReturnAnnotationMethodParamAnnotationMethodReturnAnnotationFieldAnnotationTypeDeclAnnotationTypeAssertionAnnotation"
 
-var _AnnotationKind_index = [...]uint8{0, 13, 31, 50, 71, 93, 108, 126}
+var _AnnotationKind_index = [...]uint8{0, 13, 31, 50, 71, 93, 108, 126, 149}
 
 func (i AnnotationKind) String() string {
 	if i < 0 || i >= AnnotationKind(len(_AnnotationKind_index)-1) {

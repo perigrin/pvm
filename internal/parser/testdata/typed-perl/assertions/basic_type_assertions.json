@@ -1,0 +1,60 @@
+{
+  "name": "basic_type_assertions",
+  "description": "Basic type assertion expressions using 'as' keyword",
+  "test_cases": [
+    {
+      "input": "my $number = $input as Int;",
+      "expected": {
+        "type": "variable_declaration",
+        "variable_name": "$number",
+        "assignment": {
+          "type": "type_assertion",
+          "expression": {
+            "type": "variable_expression",
+            "name": "$input"
+          },
+          "target_type": {
+            "type": "simple_type",
+            "name": "Int"
+          }
+        }
+      }
+    },
+    {
+      "input": "my $text = $data as Str;",
+      "expected": {
+        "type": "variable_declaration",
+        "variable_name": "$text",
+        "assignment": {
+          "type": "type_assertion",
+          "expression": {
+            "type": "variable_expression",
+            "name": "$data"
+          },
+          "target_type": {
+            "type": "simple_type",
+            "name": "Str"
+          }
+        }
+      }
+    },
+    {
+      "input": "my $ref = $object as MyClass;",
+      "expected": {
+        "type": "variable_declaration",
+        "variable_name": "$ref",
+        "assignment": {
+          "type": "type_assertion",
+          "expression": {
+            "type": "variable_expression",
+            "name": "$object"
+          },
+          "target_type": {
+            "type": "simple_type",
+            "name": "MyClass"
+          }
+        }
+      }
+    }
+  ]
+}

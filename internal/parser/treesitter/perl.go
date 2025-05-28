@@ -168,6 +168,11 @@ func (t *PerlTree) traverseForTypeAnnotations(node *sitter.Node, annotations *[]
 			fmt.Printf("DEBUG: Found type_declaration node\n")
 		}
 		t.processTypeDeclaration(node, annotations)
+	case "type_assertion":
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Found type_assertion node\n")
+		}
+		t.processTypeAssertion(node, annotations)
 	}
 
 	// Recursively process all child nodes
@@ -715,4 +720,55 @@ func extractMethodName(content string) string {
 func extractMethodTypes(content string) string {
 	// This is a simplified extraction - full implementation would parse parameters and return types
 	return "method_types"
+}
+
+// processTypeAssertion processes type assertion expressions like "$value as Type"
+func (t *PerlTree) processTypeAssertion(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
+	var expressionText, typeName string
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing type assertion with %d children\n", node.ChildCount())
+		fmt.Printf("DEBUG: Type assertion text: %s\n", t.getNodeText(node))
+	}
+
+	// Walk through child nodes to find the expression and type
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "type_expression":
+			// Extract the type being asserted to
+			typeName = t.getNodeText(child)
+		default:
+			// The first non-"as" child should be the expression being asserted
+			childText := t.getNodeText(child)
+			if childText != "as" && expressionText == "" {
+				expressionText = childText
+			}
+		}
+	}
+
+	// Create a type assertion annotation if we found both parts
+	if expressionText != "" && typeName != "" {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Creating type assertion annotation: %s :: %s\n", expressionText, typeName)
+		}
+
+		annotation := &PerlTypeAnnotation{
+			ItemName: expressionText,
+			TypeName: typeName,
+			Kind:     "type_assertion",
+			StartPos: int(node.StartByte()),
+			EndPos:   int(node.EndByte()),
+		}
+
+		*annotations = append(*annotations, annotation)
+	}
 }

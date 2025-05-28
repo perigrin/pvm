@@ -1,0 +1,96 @@
+{
+  "name": "complex_type_assertions",
+  "description": "Type assertions with complex type expressions",
+  "test_cases": [
+    {
+      "input": "my $array = $input as ArrayRef[Str];",
+      "expected": {
+        "type": "variable_declaration",
+        "variable_name": "$array",
+        "assignment": {
+          "type": "type_assertion",
+          "expression": {
+            "type": "variable_expression",
+            "name": "$input"
+          },
+          "target_type": {
+            "type": "parameterized_type",
+            "name": "ArrayRef",
+            "parameters": [
+              {
+                "type": "simple_type",
+                "name": "Str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "input": "my $union = $data as (Int|Str);",
+      "expected": {
+        "type": "variable_declaration",
+        "variable_name": "$union",
+        "assignment": {
+          "type": "type_assertion",
+          "expression": {
+            "type": "variable_expression",
+            "name": "$data"
+          },
+          "target_type": {
+            "type": "union_type",
+            "types": [
+              {
+                "type": "simple_type",
+                "name": "Int"
+              },
+              {
+                "type": "simple_type",
+                "name": "Str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "input": "my $complex = $nested as ArrayRef[HashRef[Int|Bool]];",
+      "expected": {
+        "type": "variable_declaration",
+        "variable_name": "$complex",
+        "assignment": {
+          "type": "type_assertion",
+          "expression": {
+            "type": "variable_expression",
+            "name": "$nested"
+          },
+          "target_type": {
+            "type": "parameterized_type",
+            "name": "ArrayRef",
+            "parameters": [
+              {
+                "type": "parameterized_type",
+                "name": "HashRef",
+                "parameters": [
+                  {
+                    "type": "union_type",
+                    "types": [
+                      {
+                        "type": "simple_type",
+                        "name": "Int"
+                      },
+                      {
+                        "type": "simple_type",
+                        "name": "Bool"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
