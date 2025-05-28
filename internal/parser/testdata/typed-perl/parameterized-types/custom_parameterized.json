@@ -1,0 +1,9 @@
+{
+  "name": "custom_parameterized",
+  "category": "typed-perl",
+  "subcategory": "parameterized-types",
+  "input": "my Container[MyType] $custom_container;\nmy Package::Generic[Int] $qualified;\nmy Result[UserData, ErrorCode] $result;",
+  "description": "Custom parameterized types and package-qualified generics",
+  "tags": ["parameterized-types", "custom-types", "package-qualified", "generics"],
+  "should_error": false
+}

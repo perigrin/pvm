@@ -45,6 +45,8 @@ const (
 	TokenUse
 	TokenPackage
 	TokenClass
+	TokenAs
+	TokenWhere
 
 	// Operators and punctuation
 	TokenAssign

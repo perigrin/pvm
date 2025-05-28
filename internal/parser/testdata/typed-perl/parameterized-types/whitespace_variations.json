@@ -1,0 +1,9 @@
+{
+  "name": "whitespace_variations",
+  "category": "typed-perl",
+  "subcategory": "parameterized-types",
+  "input": "my ArrayRef[ Int ] @spaced;\nmy HashRef[Str] %compact;\nmy Map[ Str , Int ] %loose;\nmy ArrayRef[\n  Int\n] @multiline;",
+  "description": "Parameterized types with various whitespace patterns",
+  "tags": ["parameterized-types", "whitespace", "formatting"],
+  "should_error": false
+}

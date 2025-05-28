@@ -199,15 +199,22 @@ func (t *PerlTree) processTypedVariableDeclaration(node *sitter.Node, annotation
 		}
 
 		switch child.Kind() {
-		case "scalar":
+		case "scalar", "array", "hash":
+			// Handle all variable types: $var, @array, %hash
 			varName = t.getNodeText(child)
 		case "type_expression":
-			// Get the type from inside the type_expression
-			for j := 0; j < int(child.ChildCount()); j++ {
-				typeChild := child.Child(uint(j))
-				if typeChild != nil && typeChild.Kind() == "identifier" {
-					typeName = t.getNodeText(typeChild)
-					break
+			// Extract the full type expression text instead of just identifier
+			typeName = t.getNodeText(child)
+			
+			// Check if the next child is an ERROR node containing package qualification
+			if i+1 < int(node.ChildCount()) {
+				nextChild := node.Child(uint(i + 1))
+				if nextChild != nil && nextChild.Kind() == "ERROR" {
+					errorText := t.getNodeText(nextChild)
+					if strings.HasPrefix(errorText, "::") {
+						// This is a package-qualified type like Package::Type
+						typeName = typeName + errorText
+					}
 				}
 			}
 		}

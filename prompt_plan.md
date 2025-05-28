@@ -426,7 +426,7 @@ SUCCESS CRITERIA:
 This completes the untyped Perl baseline coverage. Next steps will add type annotations.
 ```
 
-### Step 7: Simple Type Annotations ✅ TODO
+### Step 7: Simple Type Annotations ✅ COMPLETED
 
 ```
 You are continuing the parser testing implementation from Step 6.

@@ -1,0 +1,9 @@
+{
+  "name": "nested_parameterized",
+  "category": "typed-perl",
+  "subcategory": "parameterized-types",
+  "input": "my ArrayRef[ArrayRef[Int]] @matrix;\nmy HashRef[ArrayRef[Str]] %grouped_strings;\nmy ArrayRef[HashRef[Int]] @array_of_hashes;",
+  "description": "Nested parameterized types with multiple levels",
+  "tags": ["parameterized-types", "nested-parameters", "complex-nesting"],
+  "should_error": false
+}

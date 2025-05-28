@@ -1,0 +1,9 @@
+{
+  "name": "field_declarations",
+  "category": "typed-perl",
+  "subcategory": "parameterized-types",
+  "input": "field ArrayRef[MyClass] $objects;\nfield HashRef[ArrayRef[Str]] $nested_data;\nfield Optional[ArrayRef[Int]] $maybe_numbers;",
+  "description": "Parameterized types in field declarations",
+  "tags": ["parameterized-types", "field-declarations", "class-fields"],
+  "should_error": false
+}

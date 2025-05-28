@@ -1,0 +1,9 @@
+{
+  "name": "multiple_parameters",
+  "category": "typed-perl",
+  "subcategory": "parameterized-types",
+  "input": "my Map[Str, Int] %mapping;\nmy Tuple[Int, Str, Bool] $triple;\nmy Function[Int, Str, Bool] $complex_func;",
+  "description": "Parameterized types with multiple type parameters",
+  "tags": ["parameterized-types", "multiple-parameters", "Map", "Tuple", "Function"],
+  "should_error": false
+}
