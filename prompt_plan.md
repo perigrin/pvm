@@ -640,7 +640,7 @@ SUCCESS CRITERIA:
 This enables runtime type checking and validation in typed-Perl code.
 ```
 
-### Step 10: Simple Union Types ✅ TODO
+### Step 10: Simple Union Types ✅ COMPLETED
 
 ```
 You are continuing the parser testing implementation from Step 9.
