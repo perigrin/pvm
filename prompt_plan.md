@@ -986,7 +986,7 @@ SUCCESS CRITERIA:
 This improves the development experience when working with type annotations.
 ```
 
-### Step 15: Complex Type Expression Support ✅ TODO
+### Step 15: Complex Type Expression Support ✅ COMPLETED
 
 ```
 You are continuing the parser implementation from Step 14.
@@ -1062,7 +1062,7 @@ SUCCESS CRITERIA:
 This enables sophisticated type expressions for advanced typed-Perl programming.
 ```
 
-### Step 16: AST Enhancements for Type Information ✅ TODO
+### Step 16: AST Enhancements for Type Information ✅ COMPLETED
 
 ```
 You are continuing the parser implementation from Step 15.
@@ -1155,7 +1155,7 @@ SUCCESS CRITERIA:
 This provides the AST foundation for advanced type-aware tooling and analysis.
 ```
 
-### Step 17: Complex Union and Intersection Types ✅ TODO
+### Step 17: Complex Union and Intersection Types ✅ COMPLETED
 
 ```
 You are continuing the parser implementation from Step 16.
