@@ -491,7 +491,7 @@ SUCCESS CRITERIA:
 This establishes the foundation for more complex type expressions in subsequent steps.
 ```
 
-### Step 8: Method and Field Annotations ✅ TODO
+### Step 8: Method and Field Annotations ✅ COMPLETED
 
 ```
 You are continuing the parser testing implementation from Step 7.
@@ -571,7 +571,7 @@ SUCCESS CRITERIA:
 This builds on simple type annotations to support object-oriented typed programming.
 ```
 
-### Step 9: Type Assertions and Constraints ✅ TODO
+### Step 9: Type Assertions and Constraints ✅ COMPLETED
 
 ```
 You are continuing the parser testing implementation from Step 8.
