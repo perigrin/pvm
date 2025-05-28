@@ -1,0 +1,9 @@
+{
+  "name": "complex_field_types",
+  "category": "typed-perl",
+  "subcategory": "methods-fields",
+  "input": "field ArrayRef[Int] $numbers = [];\nfield HashRef[Str] $config = {};\nfield CodeRef[Int, Str] $formatter;\nfield ArrayRef[MyType] $items;\nfield HashRef[ArrayRef[Str]] $grouped_data = {};",
+  "description": "Field declarations with complex parameterized types and custom types",
+  "tags": ["complex-fields", "parameterized-types", "custom-types", "field-declarations"],
+  "should_error": false
+}

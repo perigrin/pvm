@@ -1,0 +1,9 @@
+{
+  "name": "field_access_modifiers",
+  "category": "typed-perl",
+  "subcategory": "methods-fields",
+  "input": "# Different field visibility patterns\nfield Int $public_field = 1;\nfield private Str $private_field = \"secret\";\nfield protected Bool $protected_field = 0;\nfield readonly ArrayRef[Int] $readonly_field = [1, 2, 3];\nfield static HashRef[Str] $class_field = {};",
+  "description": "Field declarations with access modifiers and visibility keywords",
+  "tags": ["field-modifiers", "access-control", "field-visibility"],
+  "should_error": false
+}

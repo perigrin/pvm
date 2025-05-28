@@ -1,0 +1,9 @@
+{
+  "name": "basic_method_definitions",
+  "category": "typed-perl",
+  "subcategory": "methods-fields",
+  "input": "method calculate(Int $a, Int $b) -> Int {\n    return $a + $b;\n}\n\nmethod greet(Str $name) -> Str {\n    return \"Hello, $name!\";\n}\n\nmethod is_valid(Bool $flag) -> Bool {\n    return $flag;\n}",
+  "description": "Basic typed method definitions with parameter and return types",
+  "tags": ["typed-methods", "method-definitions", "parameter-types", "return-types"],
+  "should_error": false
+}

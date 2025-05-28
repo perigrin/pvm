@@ -1,0 +1,9 @@
+{
+  "name": "method_return_types",
+  "category": "typed-perl",
+  "subcategory": "methods-fields",
+  "input": "method get_number() -> Int {\n    return 42;\n}\n\nmethod get_array() -> ArrayRef[Str] {\n    return [\"a\", \"b\", \"c\"];\n}\n\nmethod get_hash() -> HashRef[Int] {\n    return { count => 5, total => 100 };\n}\n\nmethod get_nothing() -> Void {\n    # Side effects only\n    print \"Done\\n\";\n}\n\nmethod get_optional() -> Optional[Str] {\n    return undef;\n}",
+  "description": "Methods with various return type annotations including complex types",
+  "tags": ["return-types", "method-signatures", "complex-return-types"],
+  "should_error": false
+}
