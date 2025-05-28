@@ -304,3 +304,41 @@ func (si *StringInterner) MemoryUsage() int64 {
 	})
 	return total
 }
+
+// GlobalPoolStats aggregates statistics from all registered pools
+type GlobalPoolStats struct {
+	TotalAllocations uint64
+	PoolHits         uint64
+	PoolMisses       uint64
+	PoolLeaks        uint64
+}
+
+var (
+	globalPools []Pool[any]
+	globalMu    sync.RWMutex
+)
+
+// RegisterPool registers a pool for global statistics tracking
+func RegisterPool(pool Pool[any]) {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	globalPools = append(globalPools, pool)
+}
+
+// GetGlobalPoolStats returns aggregated statistics from all registered pools
+func GetGlobalPoolStats() GlobalPoolStats {
+	globalMu.RLock()
+	defer globalMu.RUnlock()
+
+	var stats GlobalPoolStats
+	for _, pool := range globalPools {
+		poolStats := pool.Stats()
+		stats.TotalAllocations += poolStats.Gets
+		stats.PoolHits += poolStats.Hits
+		stats.PoolMisses += poolStats.Misses
+		// Pool leaks would be (Gets - Puts) but we don't track that here
+		// For now, assume proper pool usage
+	}
+
+	return stats
+}
