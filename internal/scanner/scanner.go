@@ -147,8 +147,9 @@ func (t *treeSitterToken) Length() int {
 
 // treeSitterScanner implements Scanner using tree-sitter
 type treeSitterScanner struct {
-	parser *treesitter.Parser
-	debug  bool
+	parser      *treesitter.Parser
+	debug       bool
+	poolManager *TokenPoolManager
 }
 
 // NewScanner creates a new Scanner instance using tree-sitter
@@ -160,8 +161,24 @@ func NewScanner(debug bool) (Scanner, error) {
 	}
 
 	return &treeSitterScanner{
-		parser: parser,
-		debug:  debug,
+		parser:      parser,
+		debug:       debug,
+		poolManager: GetGlobalTokenPoolManager(),
+	}, nil
+}
+
+// NewScannerWithPool creates a new Scanner instance with a specific token pool manager
+func NewScannerWithPool(debug bool, poolManager *TokenPoolManager) (Scanner, error) {
+	parser, err := treesitter.NewParser(debug)
+	if err != nil {
+		return nil, errors.NewSystemError("001",
+			"Failed to create tree-sitter parser", err)
+	}
+
+	return &treeSitterScanner{
+		parser:      parser,
+		debug:       debug,
+		poolManager: poolManager,
 	}, nil
 }
 
@@ -193,10 +210,7 @@ func (s *treeSitterScanner) ScanString(content string) (TokenIterator, error) {
 	// This should be properly integrated once the scanner is updated to work with the new AST format
 	tokens := s.extractTokensBasic(content)
 
-	return &tokenIterator{
-		tokens: tokens,
-		pos:    0,
-	}, nil
+	return s.poolManager.CreateTokenIterator(tokens), nil
 }
 
 // ScanReader implements Scanner interface
@@ -213,7 +227,12 @@ func (s *treeSitterScanner) ScanReader(reader io.Reader) (TokenIterator, error) 
 
 // extractTokensBasic performs basic tokenization without AST analysis
 func (s *treeSitterScanner) extractTokensBasic(content string) []Token {
-	var tokens []Token
+	// Use pooled token slice for collecting tokens
+	tokenSlice := s.poolManager.GetTokenSlice(64) // Start with 64 token capacity
+	defer s.poolManager.ReleaseTokenSlice(tokenSlice)
+
+	tokens := *tokenSlice
+	tokens = tokens[:0] // Clear slice but keep capacity
 
 	// Simple tokenization for basic functionality
 	// This is a temporary implementation until scanner-AST integration is fixed
@@ -229,12 +248,12 @@ func (s *treeSitterScanner) extractTokensBasic(content string) []Token {
 			if beforeEq != "" {
 				tokens = append(tokens, s.createBasicToken(beforeEq))
 			}
-			tokens = append(tokens, &treeSitterToken{
-				tokenType: TokenAssign,
-				value:     "=",
-				position:  Position{Line: 1, Column: 1},
-				length:    1,
-			})
+			tokens = append(tokens, s.poolManager.CreateToken(
+				TokenAssign,
+				"=",
+				Position{Line: 1, Column: 1},
+				1,
+			))
 			afterEq := strings.TrimSuffix(strings.Split(part, "=")[1], ";")
 			if afterEq != "" {
 				tokens = append(tokens, s.createBasicToken(afterEq))
@@ -248,16 +267,19 @@ func (s *treeSitterScanner) extractTokensBasic(content string) []Token {
 
 		// Add semicolon if present
 		if strings.HasSuffix(part, ";") {
-			tokens = append(tokens, &treeSitterToken{
-				tokenType: TokenSemicolon,
-				value:     ";",
-				position:  Position{Line: 1, Column: 1},
-				length:    1,
-			})
+			tokens = append(tokens, s.poolManager.CreateToken(
+				TokenSemicolon,
+				";",
+				Position{Line: 1, Column: 1},
+				1,
+			))
 		}
 	}
 
-	return tokens
+	// Create a new slice to return (not pooled since it needs to outlive this function)
+	result := make([]Token, len(tokens))
+	copy(result, tokens)
+	return result
 }
 
 // createBasicToken creates a token from a string value
@@ -279,31 +301,39 @@ func (s *treeSitterScanner) createBasicToken(value string) Token {
 		tokenType = TokenIdentifier
 	}
 
-	return &treeSitterToken{
-		tokenType: tokenType,
-		value:     value,
-		position:  Position{Line: 1, Column: 1},
-		length:    len(value),
-	}
+	return s.poolManager.CreateToken(
+		tokenType,
+		value,
+		Position{Line: 1, Column: 1},
+		len(value),
+	)
 }
 
 // extractTokensFromAST converts tree-sitter AST nodes to tokens
 func (s *treeSitterScanner) extractTokensFromAST(ast *treesitter.AST, content string) []Token {
-	var tokens []Token
+	// Use pooled token slice for collecting tokens
+	tokenSlice := s.poolManager.GetTokenSlice(128) // Start with 128 token capacity for AST
+	defer s.poolManager.ReleaseTokenSlice(tokenSlice)
+
+	tokens := *tokenSlice
+	tokens = tokens[:0] // Clear slice but keep capacity
 
 	if ast.Root != nil {
 		s.extractTokensFromNode(ast.Root, content, &tokens)
 	}
 
-	// Add EOF token
-	tokens = append(tokens, &treeSitterToken{
-		tokenType: TokenEOF,
-		value:     "",
-		position:  Position{Line: len(content), Column: 1, Offset: len(content)},
-		length:    0,
-	})
+	// Add EOF token using pooled allocation
+	tokens = append(tokens, s.poolManager.CreateToken(
+		TokenEOF,
+		"",
+		Position{Line: len(content), Column: 1, Offset: len(content)},
+		0,
+	))
 
-	return tokens
+	// Create a new slice to return (not pooled since it needs to outlive this function)
+	result := make([]Token, len(tokens))
+	copy(result, tokens)
+	return result
 }
 
 // extractTokensFromNode recursively extracts tokens from AST nodes
@@ -325,12 +355,12 @@ func (s *treeSitterScanner) extractTokensFromNode(node treesitter.Node, content 
 
 	// Only create tokens for leaf nodes or significant structural nodes
 	if len(node.Children()) == 0 || s.isSignificantStructuralNode(nodeType) {
-		token := &treeSitterToken{
-			tokenType: tokenType,
-			value:     nodeText,
-			position:  pos,
-			length:    endPos.Offset - startPos.Offset,
-		}
+		token := s.poolManager.CreateToken(
+			tokenType,
+			nodeText,
+			pos,
+			endPos.Offset-startPos.Offset,
+		)
 		*tokens = append(*tokens, token)
 	}
 

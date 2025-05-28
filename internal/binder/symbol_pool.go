@@ -21,30 +21,30 @@ type SymbolPoolManager struct {
 	symbolTablePool core.Pool[SymbolTable]
 
 	// Map pools for efficient reuse
-	symbolMapPool     *core.Pool[map[string]*Symbol]
-	symbolSlicePool   *core.Pool[[]*Symbol]
-	scopeSlicePool    *core.Pool[[]*Scope]
-	moduleMapPool     *core.Pool[map[string]*SymbolTable]
-	stringMapPool     *core.Pool[map[string]string]
-	nodeMapPool       *core.Pool[map[ast.Node]*Scope]
+	symbolMapPool   *core.Pool[map[string]*Symbol]
+	symbolSlicePool *core.Pool[[]*Symbol]
+	scopeSlicePool  *core.Pool[[]*Scope]
+	moduleMapPool   *core.Pool[map[string]*SymbolTable]
+	stringMapPool   *core.Pool[map[string]string]
+	nodeMapPool     *core.Pool[map[ast.Node]*Scope]
 
 	// Statistics and monitoring
-	symbolCount     int64
-	scopeCount      int64
-	poolHits        int64
-	poolMisses      int64
-	memoryReused    int64
+	symbolCount  int64
+	scopeCount   int64
+	poolHits     int64
+	poolMisses   int64
+	memoryReused int64
 
 	mu sync.RWMutex
 }
 
 // SymbolPoolHooks provides lifecycle hooks for debugging and monitoring
 type SymbolPoolHooks struct {
-	OnSymbolCreate func(symbol *Symbol)      // Called when a symbol is created
-	OnScopeCreate  func(scope *Scope)        // Called when a scope is created
-	OnSymbolReset  func(symbol *Symbol)      // Called when a symbol is reset for pooling
-	OnScopeReset   func(scope *Scope)        // Called when a scope is reset for pooling
-	OnPoolWarming  func(poolType string)     // Called during pool warming
+	OnSymbolCreate func(symbol *Symbol)  // Called when a symbol is created
+	OnScopeCreate  func(scope *Scope)    // Called when a scope is created
+	OnSymbolReset  func(symbol *Symbol)  // Called when a symbol is reset for pooling
+	OnScopeReset   func(scope *Scope)    // Called when a scope is reset for pooling
+	OnPoolWarming  func(poolType string) // Called during pool warming
 }
 
 // SymbolPoolCoercible allows types to provide a SymbolPoolManager
