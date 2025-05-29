@@ -70,7 +70,7 @@ my HashRef[Str] $config = { name => "test" };
 `,
 			expectValid:  true,
 			expectErrors: 0,
-			expectTypes:  0, // Step 3: Parser doesn't extract complex types yet
+			expectTypes:  2, // Parser now successfully extracts complex types
 		},
 	}
 
