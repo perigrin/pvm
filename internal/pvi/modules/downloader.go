@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"tamarou.com/pvm/internal/cpan"
@@ -181,14 +182,27 @@ func downloadModule(options *DownloadOptions) (*DownloadResult, error) {
 	}
 
 	// Determine destination filename from distribution file path
+	log.Infof("Module info: Name=%s, Distribution=%s, DistributionVersion=%s, DistributionFile=%s", 
+		moduleInfo.Name, moduleInfo.Distribution, moduleInfo.DistributionVersion, moduleInfo.DistributionFile)
+	
 	filename := filepath.Base(moduleInfo.DistributionFile)
-	if filename == "" {
+	log.Debugf("Initial filename from DistributionFile: %s", filename)
+	
+	if filename == "" || filename == "." || filename == "/" {
 		// Use distribution and version if file path not available
 		filename = fmt.Sprintf("%s-%s.tar.gz", moduleInfo.Distribution, moduleInfo.DistributionVersion)
+		log.Debugf("Using fallback filename: %s", filename)
+	}
+	
+	// Additional safety check - ensure filename is not empty
+	if filename == "" {
+		filename = fmt.Sprintf("%s.tar.gz", moduleInfo.Name)
+		log.Debugf("Using final fallback filename: %s", filename)
 	}
 
 	// Create cache path
 	cachePath := filepath.Join(cacheDir, filename)
+	log.Debugf("Cache path: %s", cachePath)
 
 	// Check if file exists in cache
 	if !options.SkipCache {
@@ -269,8 +283,13 @@ func downloadModule(options *DownloadOptions) (*DownloadResult, error) {
 		downloadURL = fmt.Sprintf("https://cpan.metacpan.org/authors/id/%s/%s/%s/%s",
 			firstChar, firstTwo, moduleInfo.Author, filename)
 	default:
-		// Use the distribution file path from module info with default CPAN URL
-		downloadURL = fmt.Sprintf("https://cpan.metacpan.org/%s", moduleInfo.DistributionFile)
+		// Use the distribution file URL directly if it's already a full URL
+		if strings.HasPrefix(moduleInfo.DistributionFile, "http://") || strings.HasPrefix(moduleInfo.DistributionFile, "https://") {
+			downloadURL = moduleInfo.DistributionFile
+		} else {
+			// Use the distribution file path from module info with default CPAN URL
+			downloadURL = fmt.Sprintf("https://cpan.metacpan.org/%s", moduleInfo.DistributionFile)
+		}
 	}
 
 	// Download the file
@@ -329,7 +348,7 @@ func downloadModule(options *DownloadOptions) (*DownloadResult, error) {
 	}
 
 	// Return download result
-	return &DownloadResult{
+	result := &DownloadResult{
 		Path:         cachePath,
 		ModuleName:   options.ModuleName,
 		Version:      moduleInfo.Version,
@@ -339,7 +358,9 @@ func downloadModule(options *DownloadOptions) (*DownloadResult, error) {
 		Duration:     time.Since(startTime),
 		Distribution: moduleInfo.Distribution,
 		Author:       moduleInfo.Author,
-	}, nil
+	}
+	log.Debugf("Download result: Path=%s, ModuleName=%s, Size=%d", result.Path, result.ModuleName, result.Size)
+	return result, nil
 }
 
 // downloadFile downloads a file from a URL to a destination path

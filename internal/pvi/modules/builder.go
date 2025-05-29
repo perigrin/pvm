@@ -115,6 +115,9 @@ type ModuleBuildOptions struct {
 	// Skip prerequisite installation
 	SkipPrereqs bool
 
+	// Environment variables for the build process (e.g., local::lib setup)
+	Environment map[string]string
+
 	// Progress callback
 	ProgressCallback BuildProgressCallback
 
@@ -292,7 +295,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 				cmd = append(cmd, "--verbose")
 			}
 
-			output, err := runCommand(options.ModuleDir, cmd, options.Context)
+			output, err := runCommandWithEnv(options.ModuleDir, cmd, options.Context, options.Environment)
 			outputBuffer.WriteString(output)
 
 			if err != nil {
@@ -320,16 +323,14 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 
 			cmd := []string{options.PerlPath, "Makefile.PL"}
 
-			// Add INSTALL_BASE if InstallDir is specified
-			if options.InstallDir != "" {
-				cmd = append(cmd, fmt.Sprintf("INSTALL_BASE=%s", options.InstallDir))
-			}
+			// Note: Installation directory is now handled via PERL_MM_OPT environment variable
+			// set up in the isolation environment (local::lib style)
 
 			if options.Verbose {
 				cmd = append(cmd, "VERBOSE=1")
 			}
 
-			output, err := runCommand(options.ModuleDir, cmd, options.Context)
+			output, err := runCommandWithEnv(options.ModuleDir, cmd, options.Context, options.Environment)
 			outputBuffer.WriteString(output)
 
 			if err != nil {
@@ -379,7 +380,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 			cmd = append(cmd, "--verbose")
 		}
 
-		output, err := runCommand(options.ModuleDir, cmd, options.Context)
+		output, err := runCommandWithEnv(options.ModuleDir, cmd, options.Context, options.Environment)
 		outputBuffer.WriteString(output)
 
 		if err != nil {
@@ -399,7 +400,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 		jobs := runtime.NumCPU()
 		cmd = append(cmd, fmt.Sprintf("-j%d", jobs))
 
-		output, err := runCommand(options.ModuleDir, cmd, options.Context)
+		output, err := runCommandWithEnv(options.ModuleDir, cmd, options.Context, options.Environment)
 		outputBuffer.WriteString(output)
 
 		if err != nil {
@@ -432,7 +433,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 		// Add any user-specified test arguments
 		testCmd = append(testCmd, options.TestArgs...)
 
-		output, err := runCommand(options.ModuleDir, testCmd, options.Context)
+		output, err := runCommandWithEnv(options.ModuleDir, testCmd, options.Context, options.Environment)
 		outputBuffer.WriteString(output)
 
 		if err != nil {
@@ -460,7 +461,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 	// Add any user-specified install arguments
 	installCmd = append(installCmd, options.InstallArgs...)
 
-	output, err := runCommand(options.ModuleDir, installCmd, options.Context)
+	output, err := runCommandWithEnv(options.ModuleDir, installCmd, options.Context, options.Environment)
 	outputBuffer.WriteString(output)
 
 	if err != nil {
@@ -501,8 +502,8 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 	return result, nil
 }
 
-// runCommand runs a command in the specified directory
-func runCommand(dir string, command []string, ctx context.Context) (string, error) {
+// runCommandWithEnv runs a command in the specified directory with custom environment variables
+func runCommandWithEnv(dir string, command []string, ctx context.Context, envVars map[string]string) (string, error) {
 	if len(command) == 0 {
 		return "", fmt.Errorf("empty command")
 	}
@@ -516,24 +517,38 @@ func runCommand(dir string, command []string, ctx context.Context) (string, erro
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	// Set common environment variables
+	// Set up environment variables
 	env := os.Environ()
 	env = append(env, "PERL_MM_USE_DEFAULT=1") // Non-interactive installation
+	
+	// Add custom environment variables
+	if envVars != nil {
+		for key, value := range envVars {
+			env = append(env, fmt.Sprintf("%s=%s", key, value))
+		}
+	}
+	
 	cmd.Env = env
-
+	
 	// Log the command being run
 	log.Debugf("Running command in %s: %s", dir, strings.Join(command, " "))
-
-	// Run the command
-	err := cmd.Run()
-
-	// Capture output
-	output := stdout.String() + stderr.String()
-
-	// Return output even on error
-	if err != nil {
-		return output, fmt.Errorf("%w\nCommand output: %s", err, output)
+	if envVars != nil && len(envVars) > 0 {
+		log.Debugf("With environment variables: %v", envVars)
 	}
 
-	return output, nil
+	// Execute the command
+	err := cmd.Run()
+
+	// Combine stdout and stderr
+	output := stdout.String()
+	if stderr.Len() > 0 {
+		output += stderr.String()
+	}
+
+	return output, err
+}
+
+// runCommand runs a command in the specified directory (legacy function for backward compatibility)
+func runCommand(dir string, command []string, ctx context.Context) (string, error) {
+	return runCommandWithEnv(dir, command, ctx, nil)
 }

@@ -79,7 +79,7 @@ type ModuleInstallOptions struct {
 	// Path to the Perl interpreter to use
 	PerlPath string
 
-	// Installation directory (usually site_perl)
+	// Installation directory (optional - if empty, will use XDG data directory)
 	InstallDir string
 
 	// Run tests before installation
@@ -138,6 +138,71 @@ type ModuleInstallResult struct {
 
 	// Total time taken for installation
 	Duration time.Duration
+}
+
+// setupIsolationEnvironment creates a local::lib isolation environment for module installation
+func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[string]string, error) {
+
+	// Determine installation directory
+	installDir := options.InstallDir
+	if installDir == "" {
+		// Use XDG data directory for user-space installation
+		dirs, err := xdg.GetDirs()
+		if err != nil {
+			return "", nil, errors.NewSystemError("001",
+				"Failed to determine XDG directories", err)
+		}
+		
+		// Create perl modules directory in XDG data directory
+		installDir = filepath.Join(dirs.DataDir, "perl", "modules")
+		log.Infof("Using default installation directory: %s", installDir)
+	}
+
+	// Ensure installation directory exists
+	if err := os.MkdirAll(installDir, 0755); err != nil {
+		return "", nil, errors.NewSystemError("002",
+			"Failed to create installation directory", err)
+	}
+
+	// Set up local::lib environment variables
+	envVars := make(map[string]string)
+	
+	// Create lib and bin directories
+	libDir := filepath.Join(installDir, "lib", "perl5")
+	binDir := filepath.Join(installDir, "bin")
+	
+	if err := os.MkdirAll(libDir, 0755); err != nil {
+		return "", nil, errors.NewSystemError("003",
+			"Failed to create lib directory", err)
+	}
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return "", nil, errors.NewSystemError("004",
+			"Failed to create bin directory", err)
+	}
+
+	// Set up local::lib environment variables (based on PVX isolation logic)
+	envVars["PERL_LOCAL_LIB_ROOT"] = installDir
+	envVars["PERL_MB_OPT"] = fmt.Sprintf("--install_base '%s'", installDir)
+	envVars["PERL_MM_OPT"] = fmt.Sprintf("INSTALL_BASE=%s", installDir)
+	envVars["PERL5LIB"] = libDir
+	
+	// Update PATH to include bin directory
+	currentPath := os.Getenv("PATH")
+	if currentPath != "" {
+		envVars["PATH"] = fmt.Sprintf("%s:%s", binDir, currentPath)
+	} else {
+		envVars["PATH"] = binDir
+	}
+
+	log.Infof("Set up isolation environment for module installation in: %s", installDir)
+	if options.Verbose {
+		log.Infof("PERL_LOCAL_LIB_ROOT=%s", envVars["PERL_LOCAL_LIB_ROOT"])
+		log.Infof("PERL_MB_OPT=%s", envVars["PERL_MB_OPT"])
+		log.Infof("PERL_MM_OPT=%s", envVars["PERL_MM_OPT"])
+		log.Infof("PERL5LIB=%s", envVars["PERL5LIB"])
+	}
+
+	return installDir, envVars, nil
 }
 
 // InstallModule installs a Perl module and its dependencies
@@ -199,6 +264,18 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 		}
 		options.PerlPath = perlPath
 	}
+
+	// Set up isolation environment for local::lib installation
+	actualInstallDir, isolationEnv, err := setupIsolationEnvironment(options)
+	if err != nil {
+		return result, errors.NewSystemError(
+			ErrInstallationFailed,
+			"Failed to set up isolation environment",
+			err)
+	}
+	
+	// Update options to use the actual install directory
+	options.InstallDir = actualInstallDir
 
 	// Get XDG directories for cache/build paths
 	dirs, err := xdg.GetDirs()
@@ -388,6 +465,7 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 		Verbose:      options.Verbose,
 		BuildArgs:    options.BuildArgs,
 		SkipPrereqs:  options.SkipDependencies,
+		Environment:  isolationEnv, // Use PVX isolation environment for local::lib
 		Context:      options.Context,
 		ProgressCallback: func(stage BuildProgressStage, details string, progress float64) {
 			// Map build stages to install stages
