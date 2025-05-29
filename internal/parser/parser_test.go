@@ -201,10 +201,10 @@ func TestParseComplexTypeExpressions(t *testing.T) {
 			name:           "Union type",
 			typeExpression: "Str|Undef",
 			validate: func(t *testing.T, expr *ast.TypeExpression) {
-				assert.Equal(t, "Str|Undef", expr.Name)
-				assert.Equal(t, 2, len(expr.Parameters))
-				assert.Equal(t, "Str", expr.Parameters[0].Name)
-				assert.Equal(t, "Undef", expr.Parameters[1].Name)
+				assert.Equal(t, "Str|Undef", expr.String()) // Use String() for union representation
+				assert.Equal(t, 2, len(expr.UnionTypes))    // Union types are in UnionTypes, not Parameters
+				assert.Equal(t, "Str", expr.UnionTypes[0].Name)
+				assert.Equal(t, "Undef", expr.UnionTypes[1].Name)
 				assert.True(t, expr.IsUnion)
 				assert.False(t, expr.IsIntersection)
 				assert.False(t, expr.IsNegation)

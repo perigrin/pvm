@@ -70,10 +70,18 @@ type ParserTestFramework struct {
 
 // NewParserTestFramework creates a new parser testing framework
 func NewParserTestFramework(testDataDir string) *ParserTestFramework {
+	// Initialize parser - use default parser if creation fails
+	parser, err := NewParser()
+	if err != nil {
+		// Log error but don't fail - tests will handle missing parser
+		fmt.Fprintf(os.Stderr, "Warning: Failed to create parser for test framework: %v\n", err)
+	}
+	
 	return &ParserTestFramework{
 		TestDataDir: testDataDir,
 		UpdateMode:  os.Getenv("UPDATE_BASELINES") == "1",
 		Verbose:     os.Getenv("VERBOSE_TESTS") == "1",
+		Parser:      parser,
 	}
 }
 
