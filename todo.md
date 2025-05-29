@@ -3,7 +3,7 @@
 This list represents all TODO markers, incomplete features, and missing functionality found in the codebase as of the current state.
 
 ## **Highest Priority TODOs**
-
+- [ ] rework the test system from JSON to Markdown similar to [ty](https://github.com/astral-sh/ruff/tree/main/crates/ty_python_semantic/resources/mdtest)
 ### **Core User Experience (All IMPLEMENTED ✅)**
 - [x] **Shell initialization functionality** - COMPLETE (perl/shell.go, 847 lines)
 - [x] **Bash shell integration scripts** - COMPLETE (supports bash, zsh, fish, PowerShell)
