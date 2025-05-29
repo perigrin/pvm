@@ -61,3 +61,6 @@ run_inference_tests.go
 
 # Build performance metrics
 .build-metrics/
+
+# Binary tools
+bin/act
