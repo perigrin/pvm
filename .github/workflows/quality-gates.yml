@@ -32,11 +32,14 @@ jobs:
         npm install -g tree-sitter-cli
         sudo apt-get update
         sudo apt-get install -y build-essential
-        go mod download
-        make install-tools
 
     - name: Build tree-sitter parser
       run: make tree-sitter
+
+    - name: Download Go dependencies and install tools
+      run: |
+        go mod download
+        make install-tools
 
     - name: Code generation verification
       run: |

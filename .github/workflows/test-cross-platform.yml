@@ -72,14 +72,14 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-go-
 
+    - name: Build tree-sitter parser
+      run: make tree-sitter
+
     - name: Download Go dependencies
       run: go mod download
 
     - name: Install development tools
       run: make install-tools
-
-    - name: Build tree-sitter parser
-      run: make tree-sitter
 
     - name: Verify code generation is up to date
       run: make check-generate

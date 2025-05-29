@@ -212,13 +212,17 @@ jobs:
       run: |
         npm install -g tree-sitter-cli
         sudo apt-get update && sudo apt-get install -y build-essential
+
+    - name: Build tree-sitter parser
+      run: make tree-sitter
+
+    - name: Download Go dependencies and install tools
+      run: |
         go mod download
         make install-tools
 
     - name: Build and run performance benchmarks
-      run: |
-        make tree-sitter
-        make test-performance-baseline
+      run: make test-performance-baseline
 
     - name: Upload performance data
       uses: actions/upload-artifact@v4
