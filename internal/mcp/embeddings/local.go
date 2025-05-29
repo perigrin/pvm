@@ -6,7 +6,6 @@ package embeddings
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"math"
 	"strings"
 )
@@ -120,11 +119,6 @@ func (p *LocalProvider) IsAvailable() bool {
 	return true // Local provider is always available
 }
 
-// Helper function to convert bytes to float32
-func bytesToFloat32(b []byte) float32 {
-	bits := binary.LittleEndian.Uint32(b)
-	return math.Float32frombits(bits)
-}
 
 func init() {
 	// Register local provider

@@ -38,6 +38,7 @@ func TestDocumentCache(t *testing.T) {
 	result = cache.GetHover(cacheKey)
 	if result == nil {
 		t.Error("Expected cache hit, but got miss")
+		return
 	}
 
 	if result.Contents != hover.Contents {

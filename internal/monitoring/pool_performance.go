@@ -19,7 +19,6 @@ type PoolPerformanceMonitor struct {
 	baselines       map[string]PerformanceBaseline
 	optimizations   []OptimizationRecommendation
 	benchmarks      []BenchmarkResult
-	regressionTests []RegressionTest
 	alertThresholds AlertThresholds
 	config          MonitoringConfig
 	ticker          *time.Ticker

@@ -214,7 +214,6 @@ func nanoTime() int64 {
 type AdaptiveCompressor struct {
 	compressors map[string]Compressor
 	threshold   float64 // Minimum compression ratio to use compression
-	mu          sync.RWMutex
 }
 
 // NewAdaptiveCompressor creates a new adaptive compressor

@@ -271,19 +271,6 @@ func (lspm *LSPoolManager) NewAnalysisContext(uri string) *AnalysisContext {
 
 // Helper methods for getting pooled collections
 
-// getStringMap returns a pooled string map
-func (lspm *LSPoolManager) getStringMap() map[string]string {
-	m := lspm.stringMapPool.New()
-	if *m == nil {
-		*m = make(map[string]string)
-		atomic.AddInt64(&lspm.poolMisses, 1)
-	} else {
-		lspm.clearStringMap(*m)
-		atomic.AddInt64(&lspm.poolHits, 1)
-	}
-	return *m
-}
-
 // getInterfaceMap returns a pooled interface map
 func (lspm *LSPoolManager) getInterfaceMap() map[string]interface{} {
 	m := lspm.interfaceMapPool.New()
@@ -292,19 +279,6 @@ func (lspm *LSPoolManager) getInterfaceMap() map[string]interface{} {
 		atomic.AddInt64(&lspm.poolMisses, 1)
 	} else {
 		lspm.clearInterfaceMap(*m)
-		atomic.AddInt64(&lspm.poolHits, 1)
-	}
-	return *m
-}
-
-// getDocumentMap returns a pooled document map
-func (lspm *LSPoolManager) getDocumentMap() map[string]*Document {
-	m := lspm.documentMapPool.New()
-	if *m == nil {
-		*m = make(map[string]*Document)
-		atomic.AddInt64(&lspm.poolMisses, 1)
-	} else {
-		lspm.clearDocumentMap(*m)
 		atomic.AddInt64(&lspm.poolHits, 1)
 	}
 	return *m
@@ -379,11 +353,6 @@ func (lspm *LSPoolManager) warmDocuments() {
 		doc := lspm.NewDocument("", "", 0)
 		lspm.resetDocument(doc)
 	}
-}
-
-// warmCaches pre-allocates cache structures
-func (lspm *LSPoolManager) warmCaches() {
-	// Note: Cache warming handled by existing cache system
 }
 
 // warmAnalysisResults pre-allocates analysis result structures
@@ -486,22 +455,8 @@ func (lspm *LSPoolManager) resetAnalysisContext(ctx *AnalysisContext) {
 
 // Helper methods to clear maps efficiently
 
-// clearStringMap clears a string map efficiently
-func (lspm *LSPoolManager) clearStringMap(m map[string]string) {
-	for k := range m {
-		delete(m, k)
-	}
-}
-
 // clearInterfaceMap clears an interface map efficiently
 func (lspm *LSPoolManager) clearInterfaceMap(m map[string]interface{}) {
-	for k := range m {
-		delete(m, k)
-	}
-}
-
-// clearDocumentMap clears a document map efficiently
-func (lspm *LSPoolManager) clearDocumentMap(m map[string]*Document) {
 	for k := range m {
 		delete(m, k)
 	}

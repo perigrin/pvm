@@ -418,7 +418,7 @@ func generatePerlCode(lines int) string {
 	// Generate some subroutines
 	for i := 0; i < lines/20; i++ {
 		builder.WriteString(fmt.Sprintf("sub function%d {\n", i))
-		builder.WriteString(fmt.Sprintf("    my ($param) = @_;\n"))
+		builder.WriteString("    my ($param) = @_;\n")
 		builder.WriteString(fmt.Sprintf("    return $param * %d;\n", i+1))
 		builder.WriteString("}\n\n")
 	}

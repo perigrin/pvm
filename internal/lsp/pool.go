@@ -25,46 +25,24 @@ type LSPPoolManager struct {
 	positionPool                        core.Pool[Position]
 	rangePool                           core.Pool[Range]
 	locationPool                        core.Pool[Location]
-	textDocumentIdentifierPool          core.Pool[TextDocumentIdentifier]
-	versionedTextDocumentIdentifierPool core.Pool[VersionedTextDocumentIdentifier]
-	textDocumentItemPool                core.Pool[TextDocumentItem]
-	textDocumentContentChangePool       core.Pool[TextDocumentContentChangeEvent]
 
 	// Completion pools
 	completionItemPool    core.Pool[CompletionItem]
 	completionListPool    core.Pool[CompletionList]
-	completionParamsPool  core.Pool[CompletionParams]
-	completionContextPool core.Pool[CompletionContext]
 
 	// Diagnostic pools
 	diagnosticPool            core.Pool[Diagnostic]
-	diagnosticRelatedInfoPool core.Pool[DiagnosticRelatedInfo]
 	publishDiagnosticsPool    core.Pool[PublishDiagnosticsParams]
 
-	// Definition and navigation pools
-	definitionParamsPool           core.Pool[DefinitionParams]
-	textDocumentPositionParamsPool core.Pool[TextDocumentPositionParams]
-	hoverParamsPool                core.Pool[HoverParams]
-	hoverPool                      core.Pool[Hover]
-	markupContentPool              core.Pool[MarkupContent]
 
-	// Initialize pools
-	initializeParamsPool   core.Pool[InitializeParams]
-	initializeResultPool   core.Pool[InitializeResult]
-	serverCapabilitiesPool core.Pool[ServerCapabilities]
-	clientInfoPool         core.Pool[ClientInfo]
 
 	// Slice pools for collections
 	completionItemSlicePool *core.Pool[[]CompletionItem]
 	diagnosticSlicePool     *core.Pool[[]Diagnostic]
 	locationSlicePool       *core.Pool[[]Location]
-	textEditSlicePool       *core.Pool[[]TextEdit]
-	workspaceEditSlicePool  *core.Pool[[]WorkspaceEdit]
-	stringSlicePool         *core.Pool[[]string]
 
 	// Map pools for efficient reuse
-	stringMapPool    *core.Pool[map[string]string]
-	interfaceMapPool *core.Pool[map[string]interface{}]
+	stringMapPool *core.Pool[map[string]string]
 
 	// Request-scoped allocation tracking
 	requestPools map[string]*RequestScopedPool
@@ -121,13 +99,9 @@ func NewLSPPoolManager(hooks LSPPoolHooks) *LSPPoolManager {
 	manager.completionItemSlicePool = &core.Pool[[]CompletionItem]{}
 	manager.diagnosticSlicePool = &core.Pool[[]Diagnostic]{}
 	manager.locationSlicePool = &core.Pool[[]Location]{}
-	manager.textEditSlicePool = &core.Pool[[]TextEdit]{}
-	manager.workspaceEditSlicePool = &core.Pool[[]WorkspaceEdit]{}
-	manager.stringSlicePool = &core.Pool[[]string]{}
 
 	// Initialize map pools
 	manager.stringMapPool = &core.Pool[map[string]string]{}
-	manager.interfaceMapPool = &core.Pool[map[string]interface{}]{}
 
 	// Register with global pool manager for monitoring
 	core.RegisterGlobalPool("lsp-pool", manager)
@@ -502,31 +476,7 @@ func (lpm *LSPPoolManager) getDiagnosticSlice() []Diagnostic {
 	return *s
 }
 
-// getLocationSlice returns a pooled location slice
-func (lpm *LSPPoolManager) getLocationSlice() []Location {
-	s := lpm.locationSlicePool.New()
-	if *s == nil {
-		*s = make([]Location, 0, 4)
-		atomic.AddInt64(&lpm.poolMisses, 1)
-	} else {
-		*s = (*s)[:0] // Reset length but keep capacity
-		atomic.AddInt64(&lpm.poolHits, 1)
-	}
-	return *s
-}
 
-// getStringMap returns a pooled string map
-func (lpm *LSPPoolManager) getStringMap() map[string]string {
-	m := lpm.stringMapPool.New()
-	if *m == nil {
-		*m = make(map[string]string)
-		atomic.AddInt64(&lpm.poolMisses, 1)
-	} else {
-		lpm.clearStringMap(*m)
-		atomic.AddInt64(&lpm.poolHits, 1)
-	}
-	return *m
-}
 
 // Pool warming methods
 
@@ -689,14 +639,6 @@ func (lpm *LSPPoolManager) resetPublishDiagnosticsParams(params *PublishDiagnost
 	}
 }
 
-// Helper methods to clear maps efficiently
-
-// clearStringMap clears a string map efficiently
-func (lpm *LSPPoolManager) clearStringMap(m map[string]string) {
-	for k := range m {
-		delete(m, k)
-	}
-}
 
 // Request tracking methods
 

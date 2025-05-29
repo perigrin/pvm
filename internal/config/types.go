@@ -4,7 +4,6 @@
 package config
 
 import (
-	"os"
 	"strings"
 	"time"
 )
@@ -481,38 +480,7 @@ func (e ValidateError) Error() string {
 
 // Helper functions for validation
 
-func isValidVersionFormat(version string) bool {
-	// Allow aliases or version patterns like 5.38.0
-	if strings.Contains(version, ".") {
-		parts := strings.Split(version, ".")
-		return len(parts) >= 2 && len(parts) <= 3
-	}
-	// Allow aliases like "latest", "stable"
-	return len(version) > 0
-}
-
 func isValidMemoryFormat(memory string) bool {
 	return strings.HasSuffix(memory, "MB") || strings.HasSuffix(memory, "GB") ||
 		strings.HasSuffix(memory, "KB") || strings.HasSuffix(memory, "TB")
-}
-
-func pathExists(path string) bool {
-	// For validation, we'll be lenient with paths that start with / or contain variables
-	if strings.HasPrefix(path, "/") || strings.Contains(path, "$") {
-		return true
-	}
-	_, err := os.Stat(path)
-	return err == nil
-}
-
-func isValidGlobPattern(pattern string) bool {
-	// Simple validation - more complex validation could use filepath.Match
-	return !strings.Contains(pattern, "\\") || strings.Contains(pattern, "*")
-}
-
-func isValidDurationFormat(duration string) bool {
-	// Valid duration suffixes: s, m, h, ns, us, ms
-	return strings.HasSuffix(duration, "s") || strings.HasSuffix(duration, "m") ||
-		strings.HasSuffix(duration, "h") || strings.HasSuffix(duration, "ns") ||
-		strings.HasSuffix(duration, "us") || strings.HasSuffix(duration, "ms")
 }

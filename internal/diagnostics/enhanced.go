@@ -171,7 +171,7 @@ func (engine *EnhancedDiagnosticEngine) findShadowedVariables() []Diagnostic {
 							SymbolKind:     binder.SymbolScalar, // Use actual symbol kind
 							FilePath:       engine.filePath,
 							LineText:       engine.getLineText(innerSymbol.Position.Line),
-							Suggestion:     fmt.Sprintf("Consider using a different name or accessing outer variable as needed"),
+							Suggestion:     "Consider using a different name or accessing outer variable as needed",
 							RelatedSymbols: []*binder.Symbol{outerSymbol},
 							Code:           "PSC-W001",
 							HelpMessage:    fmt.Sprintf("Outer variable '%s' declared at line %d", name, outerSymbol.Position.Line),

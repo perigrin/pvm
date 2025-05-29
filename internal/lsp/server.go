@@ -414,13 +414,6 @@ func (s *Server) publishDiagnostics(uri string, errors []parser.TypeCheckError) 
 	return s.sendNotification("textDocument/publishDiagnostics", params)
 }
 
-// uriToPath converts a file URI to a file path
-func uriToPath(uri string) string {
-	if strings.HasPrefix(uri, "file://") {
-		return uri[7:] // Remove "file://" prefix
-	}
-	return uri
-}
 
 // pathToURI converts a file path to a file URI
 func pathToURI(path string) string {
@@ -428,4 +421,3 @@ func pathToURI(path string) string {
 	return "file://" + abs
 }
 
-// Note: Using the writeDocumentToTempFile method defined in handlers.go

@@ -371,14 +371,14 @@ func TestMemoryManager_MultipleSessionIsolation(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, "Int", typeChoice)
 
-	typeChoice, exists = mem1.GetTypeChoice("var2")
+	_, exists = mem1.GetTypeChoice("var2")
 	assert.False(t, exists)
 
 	typeChoice, exists = mem2.GetTypeChoice("var2")
 	assert.True(t, exists)
 	assert.Equal(t, "String", typeChoice)
 
-	typeChoice, exists = mem2.GetTypeChoice("var1")
+	_, exists = mem2.GetTypeChoice("var1")
 	assert.False(t, exists)
 
 	// Verify decision isolation

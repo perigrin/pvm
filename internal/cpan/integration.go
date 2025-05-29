@@ -526,9 +526,7 @@ func (c *Carton) GetDependencies(module string) ([]Dependency, error) {
 		snapshot, err := c.ParseSnapshot(snapshotPath)
 		if err == nil {
 			if info, exists := snapshot.Modules[module]; exists {
-				for _, dep := range info.Dependencies {
-					deps = append(deps, dep)
-				}
+				deps = append(deps, info.Dependencies...)
 			}
 		}
 	}

@@ -1,3 +1,5 @@
+//go:build ignore
+
 // ABOUTME: Performance optimization validation script
 // ABOUTME: Tests and measures effectiveness of caching, fast parsing, and algorithmic improvements
 

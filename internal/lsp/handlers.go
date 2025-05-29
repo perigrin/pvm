@@ -6,10 +6,6 @@ package lsp
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
 
 	"tamarou.com/pvm/internal/ls"
 	"tamarou.com/pvm/internal/parser"
@@ -302,60 +298,6 @@ func (s *Server) handleTextDocumentCodeAction(msg *JSONRPCMessage) error {
 
 // TODO: Legacy hover generation - replaced by language service
 
-// generateCompletions generates completion items for a position in a document
-func (s *Server) generateCompletions(doc *Document, pos Position, context *CompletionContext) []CompletionItem {
-	var items []CompletionItem
-
-	// Get the current line
-	lines := strings.Split(doc.Text, "\n")
-	if pos.Line >= len(lines) {
-		return items
-	}
-
-	line := lines[pos.Line]
-	prefix := ""
-	if pos.Character <= len(line) {
-		prefix = line[:pos.Character]
-	}
-
-	// Determine what kind of completions to offer based on context
-	triggerChar := ""
-	if context != nil && context.TriggerKind == CompletionTriggerKindTriggerCharacter {
-		triggerChar = context.TriggerCharacter
-	}
-
-	switch triggerChar {
-	case "$":
-		// Variable completions
-		items = append(items, s.getVariableCompletions()...)
-	case "@":
-		// Array completions
-		items = append(items, s.getArrayCompletions()...)
-	case "%":
-		// Hash completions
-		items = append(items, s.getHashCompletions()...)
-	case ":":
-		if strings.HasSuffix(prefix, "::") {
-			// Module method completions
-			items = append(items, s.getModuleCompletions(prefix)...)
-		}
-	case ".":
-		// Object method completions
-		items = append(items, s.getMethodCompletions()...)
-	case "-":
-		if strings.HasSuffix(prefix, "->") {
-			// Dereference completions
-			items = append(items, s.getDereferenceCompletions()...)
-		}
-	default:
-		// General completions
-		items = append(items, s.getKeywordCompletions()...)
-		items = append(items, s.getTypeCompletions()...)
-		items = append(items, s.getBuiltinCompletions()...)
-	}
-
-	return items
-}
 
 // Helper functions for hover and completion
 
@@ -364,211 +306,23 @@ func isWordChar(c byte) bool {
 		(c >= '0' && c <= '9') || c == '_' || c == ':'
 }
 
-func isTypeAnnotation(word string) bool {
-	types := []string{"Str", "Int", "Num", "Bool", "ArrayRef", "HashRef", "CodeRef", "Any", "Undef", "Maybe"}
-	for _, t := range types {
-		if word == t {
-			return true
-		}
-	}
-	return false
-}
 
-func isBuiltinFunction(word string) bool {
-	builtins := []string{"print", "say", "defined", "ref", "substr", "length", "chomp", "split", "join", "grep", "map", "sort"}
-	for _, b := range builtins {
-		if word == b {
-			return true
-		}
-	}
-	return false
-}
 
-func isPerlKeyword(word string) bool {
-	keywords := []string{"my", "our", "local", "sub", "if", "elsif", "else", "while", "for", "foreach", "use", "package"}
-	for _, k := range keywords {
-		if word == k {
-			return true
-		}
-	}
-	return false
-}
 
-func getTypeDescription(typeName string) string {
-	descriptions := map[string]string{
-		"Str":      "String type - represents text values",
-		"Int":      "Integer type - represents whole numbers",
-		"Num":      "Number type - represents numeric values",
-		"Bool":     "Boolean type - represents true/false values",
-		"ArrayRef": "Array reference type - reference to an array",
-		"HashRef":  "Hash reference type - reference to a hash",
-		"CodeRef":  "Code reference type - reference to a subroutine",
-		"Any":      "Any type - accepts any value",
-		"Undef":    "Undefined type - represents undefined values",
-		"Maybe":    "Maybe type - optional value that can be undef",
-	}
 
-	if desc, ok := descriptions[typeName]; ok {
-		return desc
-	}
-	return "User-defined type"
-}
 
-func getBuiltinDescription(funcName string) string {
-	descriptions := map[string]string{
-		"print":   "Print values to STDOUT",
-		"say":     "Print values to STDOUT with newline",
-		"defined": "Test whether a value is defined",
-		"ref":     "Return reference type of a value",
-		"substr":  "Extract substring from a string",
-		"length":  "Return length of a string or array",
-		"chomp":   "Remove trailing newline",
-		"split":   "Split string into array",
-		"join":    "Join array elements into string",
-		"grep":    "Filter array elements",
-		"map":     "Transform array elements",
-		"sort":    "Sort array elements",
-	}
-
-	if desc, ok := descriptions[funcName]; ok {
-		return desc
-	}
-	return "Perl builtin function"
-}
-
-func getKeywordDescription(keyword string) string {
-	descriptions := map[string]string{
-		"my":      "Declare lexical variable",
-		"our":     "Declare package variable",
-		"local":   "Temporarily localize variable",
-		"sub":     "Define subroutine",
-		"if":      "Conditional statement",
-		"elsif":   "Additional condition",
-		"else":    "Default condition",
-		"while":   "Loop while condition is true",
-		"for":     "C-style for loop",
-		"foreach": "Loop over list",
-		"use":     "Load and import module",
-		"package": "Declare package namespace",
-	}
-
-	if desc, ok := descriptions[keyword]; ok {
-		return desc
-	}
-	return "Perl keyword"
-}
 
 // Completion generators
 
-func (s *Server) getVariableCompletions() []CompletionItem {
-	return []CompletionItem{
-		{Label: "$_", Kind: &[]CompletionItemKind{CompletionItemKindVariable}[0], Detail: "Default variable"},
-		{Label: "$@", Kind: &[]CompletionItemKind{CompletionItemKindVariable}[0], Detail: "Error variable"},
-		{Label: "$!", Kind: &[]CompletionItemKind{CompletionItemKindVariable}[0], Detail: "System error variable"},
-		{Label: "$$", Kind: &[]CompletionItemKind{CompletionItemKindVariable}[0], Detail: "Process ID"},
-	}
-}
 
-func (s *Server) getArrayCompletions() []CompletionItem {
-	return []CompletionItem{
-		{Label: "@_", Kind: &[]CompletionItemKind{CompletionItemKindVariable}[0], Detail: "Subroutine arguments"},
-		{Label: "@ARGV", Kind: &[]CompletionItemKind{CompletionItemKindVariable}[0], Detail: "Command line arguments"},
-	}
-}
 
-func (s *Server) getHashCompletions() []CompletionItem {
-	return []CompletionItem{
-		{Label: "%ENV", Kind: &[]CompletionItemKind{CompletionItemKindVariable}[0], Detail: "Environment variables"},
-		{Label: "%SIG", Kind: &[]CompletionItemKind{CompletionItemKindVariable}[0], Detail: "Signal handlers"},
-	}
-}
 
-func (s *Server) getModuleCompletions(prefix string) []CompletionItem {
-	// Extract module name from prefix
-	parts := strings.Split(prefix, "::")
-	if len(parts) < 2 {
-		return []CompletionItem{}
-	}
 
-	// Common module completions
-	return []CompletionItem{
-		{Label: "new", Kind: &[]CompletionItemKind{CompletionItemKindConstructor}[0], Detail: "Constructor method"},
-		{Label: "DESTROY", Kind: &[]CompletionItemKind{CompletionItemKindMethod}[0], Detail: "Destructor method"},
-	}
-}
 
-func (s *Server) getMethodCompletions() []CompletionItem {
-	return []CompletionItem{
-		{Label: "can", Kind: &[]CompletionItemKind{CompletionItemKindMethod}[0], Detail: "Check if method exists"},
-		{Label: "isa", Kind: &[]CompletionItemKind{CompletionItemKindMethod}[0], Detail: "Check object type"},
-		{Label: "DOES", Kind: &[]CompletionItemKind{CompletionItemKindMethod}[0], Detail: "Check role implementation"},
-	}
-}
 
-func (s *Server) getDereferenceCompletions() []CompletionItem {
-	return []CompletionItem{
-		{Label: "[]", Kind: &[]CompletionItemKind{CompletionItemKindOperator}[0], Detail: "Array dereference"},
-		{Label: "{}", Kind: &[]CompletionItemKind{CompletionItemKindOperator}[0], Detail: "Hash dereference"},
-		{Label: "()", Kind: &[]CompletionItemKind{CompletionItemKindOperator}[0], Detail: "Code dereference"},
-	}
-}
 
-func (s *Server) getKeywordCompletions() []CompletionItem {
-	keywords := []string{"my", "our", "local", "sub", "if", "elsif", "else", "while", "for", "foreach", "use", "package", "return", "last", "next", "redo"}
-	items := make([]CompletionItem, len(keywords))
 
-	for i, keyword := range keywords {
-		items[i] = CompletionItem{
-			Label:  keyword,
-			Kind:   &[]CompletionItemKind{CompletionItemKindKeyword}[0],
-			Detail: getKeywordDescription(keyword),
-		}
-	}
 
-	return items
-}
-
-func (s *Server) getTypeCompletions() []CompletionItem {
-	types := []string{"Str", "Int", "Num", "Bool", "ArrayRef", "HashRef", "CodeRef", "Any", "Undef", "Maybe"}
-	items := make([]CompletionItem, len(types))
-
-	for i, typeName := range types {
-		items[i] = CompletionItem{
-			Label:  typeName,
-			Kind:   &[]CompletionItemKind{CompletionItemKindClass}[0],
-			Detail: getTypeDescription(typeName),
-		}
-	}
-
-	return items
-}
-
-func (s *Server) getBuiltinCompletions() []CompletionItem {
-	builtins := []string{"print", "say", "defined", "ref", "substr", "length", "chomp", "split", "join", "grep", "map", "sort", "push", "pop", "shift", "unshift", "splice"}
-	items := make([]CompletionItem, len(builtins))
-
-	for i, builtin := range builtins {
-		items[i] = CompletionItem{
-			Label:  builtin,
-			Kind:   &[]CompletionItemKind{CompletionItemKindFunction}[0],
-			Detail: getBuiltinDescription(builtin),
-		}
-	}
-
-	return items
-}
-
-// writeDocumentToTempFile writes document content to a temporary file for analysis
-// and returns the path to the temporary file
-func (s *Server) writeDocumentToTempFile(doc *Document) (string, error) {
-	// Create a temporary file with Perl extension
-	tempDir := os.TempDir()
-	fileName := fmt.Sprintf("lsp_%d_%s.pl", time.Now().Unix(), filepath.Base(uriToPath(doc.URI)))
-	tempPath := filepath.Join(tempDir, fileName)
-
-	err := os.WriteFile(tempPath, []byte(doc.Text), 0644)
-	return tempPath, err
-}
 
 // Conversion helper functions between LSP and language service types
 
@@ -609,44 +363,7 @@ func convertToLSPHover(lsHover *ls.Hover) *Hover {
 	return hover
 }
 
-// convertToLSPCompletions converts language service completions to LSP completions
-func convertToLSPCompletions(lsCompletions []ls.CompletionItem) []CompletionItem {
-	items := make([]CompletionItem, len(lsCompletions))
 
-	for i, lsItem := range lsCompletions {
-		items[i] = CompletionItem{
-			Label:  lsItem.Label,
-			Kind:   convertCompletionItemKind(lsItem.Kind),
-			Detail: lsItem.Detail,
-		}
-	}
-
-	return items
-}
-
-// convertCompletionItemKind converts language service completion kind to LSP kind
-func convertCompletionItemKind(lsKind ls.CompletionItemKind) *CompletionItemKind {
-	var lspKind CompletionItemKind
-
-	switch lsKind {
-	case ls.CompletionItemKindVariable:
-		lspKind = CompletionItemKindVariable
-	case ls.CompletionItemKindFunction:
-		lspKind = CompletionItemKindFunction
-	case ls.CompletionItemKindKeyword:
-		lspKind = CompletionItemKindKeyword
-	case ls.CompletionItemKindType:
-		lspKind = CompletionItemKindClass
-	case ls.CompletionItemKindMethod:
-		lspKind = CompletionItemKindMethod
-	case ls.CompletionItemKindModule:
-		lspKind = CompletionItemKindModule
-	default:
-		lspKind = CompletionItemKindText
-	}
-
-	return &lspKind
-}
 
 // convertToLSPLocation converts language service location to LSP location
 func convertToLSPLocation(lsLocation ls.Location) Location {

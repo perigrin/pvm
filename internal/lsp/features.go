@@ -8,32 +8,6 @@ import (
 	"strings"
 )
 
-// findDefinition finds the definition of a symbol at the given position
-func (s *Server) findDefinition(doc *Document, pos Position) []Location {
-	// Extract the symbol at the position
-	symbol := s.extractSymbolAtPosition(doc.Text, pos)
-	if symbol == "" {
-		return nil
-	}
-
-	s.logger.Printf("Finding definition for symbol: %s", symbol)
-
-	// Search for definition in current document
-	locations := []Location{}
-
-	// Check if it's a variable
-	if strings.HasPrefix(symbol, "$") || strings.HasPrefix(symbol, "@") || strings.HasPrefix(symbol, "%") {
-		// Look for variable declarations
-		locations = append(locations, s.findVariableDefinition(doc, symbol)...)
-	} else {
-		// Look for subroutine definitions
-		locations = append(locations, s.findSubroutineDefinition(doc, symbol)...)
-	}
-
-	// TODO: Search in other files in the workspace
-
-	return locations
-}
 
 // findReferences finds all references to a symbol at the given position
 func (s *Server) findReferences(doc *Document, pos Position, includeDeclaration bool) []Location {
@@ -191,58 +165,7 @@ func (s *Server) extractSymbolAtPosition(text string, pos Position) string {
 	return line[start:end]
 }
 
-func (s *Server) findVariableDefinition(doc *Document, varName string) []Location {
-	locations := []Location{}
-	lines := strings.Split(doc.Text, "\n")
 
-	// Look for my, our, state declarations
-	declarationKeywords := []string{"my", "our", "state"}
-
-	for lineNum, line := range lines {
-		for _, keyword := range declarationKeywords {
-			if strings.Contains(line, keyword) && strings.Contains(line, varName) {
-				// Simple check - could be improved with proper parsing
-				idx := strings.Index(line, varName)
-				if idx != -1 {
-					locations = append(locations, Location{
-						URI: doc.URI,
-						Range: Range{
-							Start: Position{Line: lineNum, Character: idx},
-							End:   Position{Line: lineNum, Character: idx + len(varName)},
-						},
-					})
-					// Usually only one definition per variable
-					return locations
-				}
-			}
-		}
-	}
-
-	return locations
-}
-
-func (s *Server) findSubroutineDefinition(doc *Document, subName string) []Location {
-	locations := []Location{}
-	lines := strings.Split(doc.Text, "\n")
-
-	// Look for sub declarations
-	for lineNum, line := range lines {
-		if strings.Contains(line, "sub "+subName) {
-			idx := strings.Index(line, subName)
-			if idx != -1 {
-				locations = append(locations, Location{
-					URI: doc.URI,
-					Range: Range{
-						Start: Position{Line: lineNum, Character: idx},
-						End:   Position{Line: lineNum, Character: idx + len(subName)},
-					},
-				})
-			}
-		}
-	}
-
-	return locations
-}
 
 func (s *Server) isDeclaration(line, symbol string) bool {
 	// Check if this line contains a declaration of the symbol

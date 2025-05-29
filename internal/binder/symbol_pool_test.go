@@ -381,10 +381,10 @@ func TestSymbolPoolManager_SymbolFieldsReset(t *testing.T) {
 	if symbol.Type != "Int" { // Type should be preserved
 		t.Error("Type should be preserved during reset")
 	}
-	if symbol.CapturedBy != nil && len(symbol.CapturedBy) != 0 {
+	if len(symbol.CapturedBy) != 0 {
 		t.Error("CapturedBy slice should be empty after reset")
 	}
-	if symbol.Upvalues != nil && len(symbol.Upvalues) != 0 {
+	if len(symbol.Upvalues) != 0 {
 		t.Error("Upvalues slice should be empty after reset")
 	}
 	if symbol.OriginalSymbol != nil {

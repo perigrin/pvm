@@ -1,3 +1,5 @@
+//go:build ignore
+
 // ABOUTME: Script to convert JSON test files to Markdown format
 // ABOUTME: Processes all test data directories and converts individual/array JSON files to Markdown
 

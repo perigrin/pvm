@@ -4,6 +4,7 @@
 package ls
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -126,7 +127,7 @@ func (ls *LanguageService) analyzeChanges(changes []TextDocumentContentChangeEve
 }
 
 // shouldUseIncrementalParsing determines if incremental parsing should be used
-func (ls *LanguageService) shouldUseIncrementalParsing(context *IncrementalContext, changes []DocumentChange) bool {
+func (ls *LanguageService) shouldUseIncrementalParsing(incCtx *IncrementalContext, changes []DocumentChange) bool {
 	// Don't use incremental for full document changes
 	for _, change := range changes {
 		if change.Type == ChangeTypeFull {
@@ -135,12 +136,12 @@ func (ls *LanguageService) shouldUseIncrementalParsing(context *IncrementalConte
 	}
 
 	// Don't use incremental if we haven't done a full parse recently
-	if time.Since(context.LastFullParse) > 5*time.Minute {
+	if time.Since(incCtx.LastFullParse) > 5*time.Minute {
 		return false
 	}
 
 	// Don't use incremental if there are too many recent changes
-	if len(context.RecentChanges) > 50 {
+	if len(incCtx.RecentChanges) > 50 {
 		return false
 	}
 
@@ -155,7 +156,7 @@ func (ls *LanguageService) shouldUseIncrementalParsing(context *IncrementalConte
 	}
 
 	// Don't use incremental if change frequency is too high
-	if context.ChangeFrequency > 10 {
+	if incCtx.ChangeFrequency > 10 {
 		return false
 	}
 
@@ -163,8 +164,8 @@ func (ls *LanguageService) shouldUseIncrementalParsing(context *IncrementalConte
 }
 
 // performIncrementalUpdate updates the document using incremental parsing
-func (ls *LanguageService) performIncrementalUpdate(uri, newText string, version int, contentHash string, existingDoc *Document, context *IncrementalContext, changes []DocumentChange) error {
-	incOp := ls.monitor.StartOperation(nil, "incremental_parse")
+func (ls *LanguageService) performIncrementalUpdate(uri, newText string, version int, contentHash string, existingDoc *Document, incCtx *IncrementalContext, changes []DocumentChange) error {
+	incOp := ls.monitor.StartOperation(context.TODO(), "incremental_parse")
 	defer incOp.Complete()
 
 	// Invalidate affected caches only
@@ -189,17 +190,17 @@ func (ls *LanguageService) performIncrementalUpdate(uri, newText string, version
 		ls.reparseAffectedRegions(doc, changes)
 	} else {
 		// Fall back to full reparse
-		return ls.performFullUpdate(uri, newText, version, contentHash, context)
+		return ls.performFullUpdate(uri, newText, version, contentHash, incCtx)
 	}
 
 	// Update symbol table incrementally
 	if doc.AST != nil {
-		bindOp := ls.monitor.StartOperation(nil, "incremental_bind")
+		bindOp := ls.monitor.StartOperation(context.TODO(), "incremental_bind")
 		symbolTable, err := ls.updateSymbolTableIncrementally(doc.AST, existingDoc.SymbolTable, changes)
 		if err != nil {
 			bindOp.CompleteWithError(err)
 			// Fall back to full update
-			return ls.performFullUpdate(uri, newText, version, contentHash, context)
+			return ls.performFullUpdate(uri, newText, version, contentHash, incCtx)
 		}
 		bindOp.Complete()
 		doc.SymbolTable = symbolTable
@@ -217,25 +218,25 @@ func (ls *LanguageService) performIncrementalUpdate(uri, newText string, version
 	doc.LastChecked = time.Now()
 
 	// Update context
-	context.ChangeFrequency++
-	ls.updateIncrementalContext(uri, context)
+	incCtx.ChangeFrequency++
+	ls.updateIncrementalContext(uri, incCtx)
 
 	ls.documents[uri] = doc
 	return nil
 }
 
 // performFullUpdate performs a full document update (fallback)
-func (ls *LanguageService) performFullUpdate(uri, newText string, version int, contentHash string, context *IncrementalContext) error {
+func (ls *LanguageService) performFullUpdate(uri, newText string, version int, contentHash string, incCtx *IncrementalContext) error {
 	// Use the existing UpdateDocument method
 	err := ls.UpdateDocument(uri, newText, version)
 
 	// Update context to reflect full parse
-	context.LastFullParse = time.Now()
-	context.RecentChanges = nil // Clear recent changes
-	context.DirtyRegions = make(map[int]bool)
-	context.StableRegions = make(map[int]bool)
-	context.ChangeFrequency = 0
-	ls.updateIncrementalContext(uri, context)
+	incCtx.LastFullParse = time.Now()
+	incCtx.RecentChanges = nil // Clear recent changes
+	incCtx.DirtyRegions = make(map[int]bool)
+	incCtx.StableRegions = make(map[int]bool)
+	incCtx.ChangeFrequency = 0
+	ls.updateIncrementalContext(uri, incCtx)
 
 	return err
 }
@@ -316,7 +317,7 @@ func (ls *LanguageService) reparseAffectedRegions(doc *Document, changes []Docum
 	// For now, we'll do a full reparse but track that we intended to do incremental
 	// A full implementation would extract affected AST nodes and reparse only those regions
 
-	parseOp := ls.monitor.StartOperation(nil, "selective_reparse")
+	parseOp := ls.monitor.StartOperation(context.TODO(), "selective_reparse")
 	defer parseOp.Complete()
 
 	// Extract affected text regions and reparse them
@@ -380,18 +381,18 @@ func (ls *LanguageService) getIncrementalContext(uri string) *IncrementalContext
 	return context
 }
 
-func (ls *LanguageService) updateIncrementalContext(uri string, context *IncrementalContext) {
-	incrementalContexts[uri] = context
+func (ls *LanguageService) updateIncrementalContext(uri string, incCtx *IncrementalContext) {
+	incrementalContexts[uri] = incCtx
 
 	// Clean up old changes
 	cutoff := time.Now().Add(-10 * time.Minute)
 	var recentChanges []DocumentChange
-	for _, change := range context.RecentChanges {
+	for _, change := range incCtx.RecentChanges {
 		if change.Timestamp.After(cutoff) {
 			recentChanges = append(recentChanges, change)
 		}
 	}
-	context.RecentChanges = recentChanges
+	incCtx.RecentChanges = recentChanges
 }
 
 // Helper function

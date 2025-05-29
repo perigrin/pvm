@@ -279,7 +279,7 @@ func (n *Navigator) GetNodePath(node ast.Node) string {
 
 	// Build path from node to root
 	for current != nil {
-		nodeDesc := fmt.Sprintf("%s", current.Type())
+		nodeDesc := current.Type()
 
 		// Add position for disambiguation
 		start := current.Start()
