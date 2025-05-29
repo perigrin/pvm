@@ -5,11 +5,14 @@ package cpan
 
 import (
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +48,17 @@ type cacheMetadata struct {
 
 	// Source is the metadata provider that created the cache
 	Source string `json:"source"`
+
+	// HTTP cache headers for validation
+	ETag         string `json:"etag,omitempty"`
+	LastModified string `json:"last_modified,omitempty"`
+	CacheControl string `json:"cache_control,omitempty"`
+
+	// Content hash for change detection
+	ContentHash string `json:"content_hash,omitempty"`
+
+	// URL that was cached (for conditional requests)
+	URL string `json:"url,omitempty"`
 }
 
 // cacheEntry represents a cached item with its metadata
@@ -302,6 +316,195 @@ func (c *Cache) Cleanup() error {
 				fmt.Fprintf(os.Stderr, "Error deleting cache file %s: %v\n", file.Name(), err)
 				continue
 			}
+		}
+	}
+
+	return nil
+}
+
+// SetWithHTTPHeaders stores an item in the cache with HTTP cache headers
+func (c *Cache) SetWithHTTPHeaders(key string, data interface{}, source string, headers http.Header, url string) error {
+	// Create a lock for this key if it doesn't exist
+	c.globalLock.Lock()
+	if _, ok := c.locks[key]; !ok {
+		c.locks[key] = &sync.Mutex{}
+	}
+	lock := c.locks[key]
+	c.globalLock.Unlock()
+
+	// Lock this cache key
+	lock.Lock()
+	defer lock.Unlock()
+
+	// Calculate content hash for change detection
+	contentData, _ := json.Marshal(data)
+	contentHash := fmt.Sprintf("%x", sha256.Sum256(contentData))
+
+	// Create the cache entry with HTTP headers
+	now := time.Now()
+	metadata := cacheMetadata{
+		Key:         key,
+		Timestamp:   now,
+		Source:      source,
+		ContentHash: contentHash,
+		URL:         url,
+	}
+
+	// Extract HTTP cache headers
+	if etag := headers.Get("ETag"); etag != "" {
+		metadata.ETag = etag
+	}
+	if lastMod := headers.Get("Last-Modified"); lastMod != "" {
+		metadata.LastModified = lastMod
+	}
+	if cacheControl := headers.Get("Cache-Control"); cacheControl != "" {
+		metadata.CacheControl = cacheControl
+	}
+
+	// Determine expiration from Cache-Control or use default TTL
+	metadata.Expires = c.calculateExpiration(headers, now)
+
+	entry := cacheEntry{
+		Metadata: metadata,
+		Data:     data,
+	}
+
+	// Marshal the cache entry
+	entryData, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cache entry: %w", err)
+	}
+
+	// Write the cache entry to disk
+	cachePath := c.getCachePath(key)
+	if err := os.WriteFile(cachePath, entryData, 0644); err != nil {
+		return fmt.Errorf("failed to write cache file: %w", err)
+	}
+
+	return nil
+}
+
+// GetCacheMetadata returns cache metadata for a key if it exists
+func (c *Cache) GetCacheMetadata(key string) (*cacheMetadata, bool) {
+	cachePath := c.getCachePath(key)
+	
+	// Check if the cache file exists
+	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
+		return nil, false
+	}
+
+	// Read the cache file
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		return nil, false
+	}
+
+	// Parse the cache entry
+	var entry cacheEntry
+	if err := json.Unmarshal(data, &entry); err != nil {
+		return nil, false
+	}
+
+	return &entry.Metadata, true
+}
+
+// IsExpired checks if a cache entry is expired based on HTTP headers and TTL
+func (c *Cache) IsExpired(key string) bool {
+	metadata, exists := c.GetCacheMetadata(key)
+	if !exists {
+		return true
+	}
+
+	// Check TTL expiration
+	if time.Now().After(metadata.Expires) {
+		return true
+	}
+
+	return false
+}
+
+// NeedsValidation checks if a cache entry should be validated with the server
+func (c *Cache) NeedsValidation(key string) bool {
+	metadata, exists := c.GetCacheMetadata(key)
+	if !exists {
+		return true
+	}
+
+	// If we have ETag or Last-Modified, we can do conditional requests
+	if metadata.ETag != "" || metadata.LastModified != "" {
+		// Check if it's been a while since last validation (e.g., 1 hour)
+		validationInterval := time.Hour
+		return time.Since(metadata.Timestamp) > validationInterval
+	}
+
+	// No conditional headers available, use TTL
+	return c.IsExpired(key)
+}
+
+// GetConditionalHeaders returns headers for conditional HTTP requests
+func (c *Cache) GetConditionalHeaders(key string) http.Header {
+	metadata, exists := c.GetCacheMetadata(key)
+	if !exists {
+		return nil
+	}
+
+	headers := make(http.Header)
+	
+	if metadata.ETag != "" {
+		headers.Set("If-None-Match", metadata.ETag)
+	}
+	
+	if metadata.LastModified != "" {
+		headers.Set("If-Modified-Since", metadata.LastModified)
+	}
+
+	return headers
+}
+
+// calculateExpiration determines cache expiration from HTTP headers
+func (c *Cache) calculateExpiration(headers http.Header, now time.Time) time.Time {
+	cacheControl := headers.Get("Cache-Control")
+	
+	// Parse Cache-Control header for max-age
+	if cacheControl != "" {
+		for _, directive := range strings.Split(cacheControl, ",") {
+			directive = strings.TrimSpace(directive)
+			if strings.HasPrefix(directive, "max-age=") {
+				if maxAge := strings.TrimPrefix(directive, "max-age="); maxAge != "" {
+					// Try to parse max-age (simplified - would need proper parsing in production)
+					// For now, fall back to default TTL
+					break
+				}
+			}
+			if directive == "no-cache" || directive == "no-store" {
+				// Don't cache or cache for minimal time
+				return now.Add(5 * time.Minute)
+			}
+		}
+	}
+
+	// Check Expires header
+	if expires := headers.Get("Expires"); expires != "" {
+		if expireTime, err := time.Parse(time.RFC1123, expires); err == nil {
+			return expireTime
+		}
+	}
+
+	// Fall back to default TTL
+	return now.Add(time.Duration(c.ttl) * time.Hour)
+}
+
+// InvalidateByPattern removes cache entries matching a pattern
+func (c *Cache) InvalidateByPattern(pattern string) error {
+	cacheFiles, err := filepath.Glob(filepath.Join(c.cacheDir, "*"))
+	if err != nil {
+		return err
+	}
+
+	for _, file := range cacheFiles {
+		// Simple pattern matching - could be enhanced
+		if strings.Contains(filepath.Base(file), pattern) {
+			os.Remove(file)
 		}
 	}
 

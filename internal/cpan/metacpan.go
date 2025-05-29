@@ -33,21 +33,29 @@ type MetaCPANProvider struct {
 	currentMirror  int
 }
 
+// MetaCPANModuleInfo represents a module entry within the module array
+type MetaCPANModuleInfo struct {
+	Name      string  `json:"name"`
+	Version   string  `json:"version"`
+	Indexed   bool    `json:"indexed"`
+}
+
 // MetaCPANModule represents a module in the MetaCPAN API
 type MetaCPANModule struct {
-	Name             string               `json:"name"`
-	Version          string               `json:"version"`
-	AuthorID         string               `json:"author"`
-	Abstract         string               `json:"abstract"`
-	Description      string               `json:"description"`
-	Distribution     string               `json:"distribution"`
-	DistVersion      string               `json:"dist_version"`
-	DownloadURL      string               `json:"download_url"`
-	ReleaseDate      string               `json:"date"`
-	Status           string               `json:"status"`
-	MetaData         MetaCPANMeta         `json:"metadata"`
-	Resources        MetaCPANResources    `json:"resources"`
-	Dependencies     []MetaCPANDependency `json:"dependency"`
+	Name             string                `json:"name"`           // This is the filename (e.g., "JSON.pm")
+	Version          string                `json:"version"`
+	AuthorID         string                `json:"author"`
+	Abstract         string                `json:"abstract"`
+	Description      string                `json:"description"`
+	Distribution     string                `json:"distribution"`
+	DistVersion      string                `json:"dist_version"`
+	DownloadURL      string                `json:"download_url"`
+	ReleaseDate      string                `json:"date"`
+	Status           string                `json:"status"`
+	Module           []MetaCPANModuleInfo  `json:"module"`         // Array of modules in this distribution
+	MetaData         MetaCPANMeta          `json:"metadata"`
+	Resources        MetaCPANResources     `json:"resources"`
+	Dependencies     []MetaCPANDependency  `json:"dependency"`
 	StatsCPANTesters MetaCPANStats        `json:"stats"`
 	StatsRecent      MetaCPANStatsRecent  `json:"stats_recent"`
 }
@@ -219,21 +227,27 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 	}
 
 	// Check cache first
+	var cache *Cache
+	var cacheKey string
 	if p.cacheDir != "" {
-		cache, err := NewCache(p.cacheDir, p.cacheTTL)
+		var err error
+		cache, err = NewCache(p.cacheDir, p.cacheTTL)
 		if err == nil {
-			cacheKey := fmt.Sprintf("module_info_%s", moduleName)
-			var cachedInfo ModuleInfo
-			if cache.Get(cacheKey, &cachedInfo) {
-				return &cachedInfo, nil
+			cacheKey = fmt.Sprintf("module_info_%s", moduleName)
+			
+			// Check if cache needs validation
+			if !cache.NeedsValidation(cacheKey) {
+				var cachedInfo ModuleInfo
+				if cache.Get(cacheKey, &cachedInfo) {
+					return &cachedInfo, nil
+				}
 			}
 		}
 	}
 
 	// Prepare the URL
-	// Convert :: to / in module name for MetaCPAN API
-	modulePath := strings.ReplaceAll(moduleName, "::", "/")
-	endpoint := fmt.Sprintf("/module/%s", url.PathEscape(modulePath))
+	// Use module name as-is for MetaCPAN API (no :: to / conversion needed)
+	endpoint := fmt.Sprintf("/module/%s", url.QueryEscape(moduleName))
 	requestURL := p.baseURL + endpoint
 
 	// Make the request
@@ -251,6 +265,17 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 	// Set headers
 	req.Header.Set("User-Agent", p.userAgent)
 	req.Header.Set("Accept", "application/json")
+	
+	// Add conditional headers if we have cached data that needs validation
+	if cache != nil && cacheKey != "" {
+		if conditionalHeaders := cache.GetConditionalHeaders(cacheKey); conditionalHeaders != nil {
+			for key, values := range conditionalHeaders {
+				for _, value := range values {
+					req.Header.Add(key, value)
+				}
+			}
+		}
+	}
 
 	// Execute the request
 	resp, err := p.client.Do(req)
@@ -265,7 +290,26 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Check status code
+	// Check status code first
+	if resp.StatusCode == http.StatusNotModified {
+		// HTTP 304 Not Modified - return cached data
+		if cache != nil && cacheKey != "" {
+			var cachedInfo ModuleInfo
+			if cache.Get(cacheKey, &cachedInfo) {
+				return &cachedInfo, nil
+			}
+		}
+		
+		// If we can't get cached data for some reason, treat as error
+		return nil, &ProviderError{
+			Source:     p.Name(),
+			Code:       "cache_miss_on_304",
+			Message:    "Received 304 Not Modified but no cached data available",
+			URL:        requestURL,
+			StatusCode: resp.StatusCode,
+		}
+	}
+	
 	if resp.StatusCode != http.StatusOK {
 		return nil, &ProviderError{
 			Source:     p.Name(),
@@ -288,6 +332,7 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 		}
 	}
 
+
 	// Parse the JSON response
 	var module MetaCPANModule
 	if err := json.Unmarshal(body, &module); err != nil {
@@ -299,17 +344,49 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 			Err:     err,
 		}
 	}
+	
+	// Debug: log the parsed module info
+
+	// Get the primary module name from the module array
+	var actualModuleName string
+	var actualModuleVersion string
+	if len(module.Module) > 0 {
+		// Use the first indexed module
+		for _, mod := range module.Module {
+			if mod.Indexed {
+				actualModuleName = mod.Name
+				actualModuleVersion = mod.Version
+				break
+			}
+		}
+		// Fallback to first module if none are indexed
+		if actualModuleName == "" {
+			actualModuleName = module.Module[0].Name
+			actualModuleVersion = module.Module[0].Version
+		}
+	}
+	
+	// Fallback to distribution name if no modules found
+	if actualModuleName == "" {
+		actualModuleName = module.Distribution
+	}
+	
+	// Use distribution version if module version is empty
+	if actualModuleVersion == "" {
+		actualModuleVersion = module.Version
+	}
 
 	// Convert to a generic ModuleInfo
 	info := &ModuleInfo{
-		Name:                module.Name,
-		Version:             module.Version,
+		Name:                actualModuleName,     // Use actual module name, not filename
+		Version:             actualModuleVersion,  // Use module version
 		Author:              module.AuthorID,
 		Description:         module.Description,
 		Abstract:            module.Abstract,
 		Distribution:        module.Distribution,
-		DistributionVersion: module.DistVersion,
-		Documentation:       fmt.Sprintf("%s/pod/%s", metaCPANWebBaseURL, module.Name),
+		DistributionVersion: module.Version,      // Use top-level version for distribution
+		DistributionFile:    module.DownloadURL,
+		Documentation:       fmt.Sprintf("%s/pod/%s", metaCPANWebBaseURL, actualModuleName),
 		Downloads:           module.StatsRecent.Downloads,
 		Rating:              calculateRating(&module),
 		HasTests:            module.StatsCPANTesters.Pass > 0,
@@ -359,13 +436,9 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 		}
 	}
 
-	// Save to cache
-	if p.cacheDir != "" {
-		cache, err := NewCache(p.cacheDir, p.cacheTTL)
-		if err == nil {
-			cacheKey := fmt.Sprintf("module_info_%s", moduleName)
-			_ = cache.Set(cacheKey, info, p.Name())
-		}
+	// Save to cache with HTTP headers
+	if cache != nil && cacheKey != "" {
+		_ = cache.SetWithHTTPHeaders(cacheKey, info, p.Name(), resp.Header, requestURL)
 	}
 
 	return info, nil
