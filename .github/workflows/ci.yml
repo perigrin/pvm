@@ -1,0 +1,244 @@
+# ABOUTME: Consolidated CI/CD workflow combining testing, security, quality, and release
+# ABOUTME: Single workflow to reduce GitHub Actions billing costs while maintaining coverage
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ pu ]
+  pull_request:
+    branches: [ pu ]
+  schedule:
+    # Run security and performance checks weekly
+    - cron: '0 6 * * 1'
+
+jobs:
+  test-and-build:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    outputs:
+      should-release: ${{ steps.check-release.outputs.should-release }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24.1'
+
+    - name: Set up Node.js (for tree-sitter)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: |
+        npm install -g tree-sitter-cli
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Build tree-sitter parser
+      run: make tree-sitter
+
+    - name: Download Go dependencies and install tools
+      run: |
+        go mod download
+        make install-tools
+
+    - name: Code generation verification
+      run: make check-generate
+
+    - name: Lint and format check
+      run: make lint
+
+    - name: Security scan
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
+
+    - name: Build all components
+      run: make build-release
+
+    - name: Run tests with coverage
+      run: make test-coverage
+
+    - name: Coverage gate (70% minimum)
+      run: |
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+        echo "Coverage: ${COVERAGE}%"
+        if (( $(echo "$COVERAGE >= 70" | bc -l) )); then
+          echo "✅ Coverage meets 70% threshold"
+        else
+          echo "❌ Coverage below 70% threshold"
+          exit 1
+        fi
+
+    - name: Basic integration tests
+      run: |
+        go test -mod=mod -timeout=60s -v ./test/e2e -run="TestVersionCommand"
+        echo 'my Int $x = 42; my Str $name = "test";' > test.pl
+        ./build/psc check test.pl
+
+    - name: Check if should release
+      id: check-release
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/pu" && "${{ github.event_name }}" == "push" ]]; then
+          echo "should-release=true" >> $GITHUB_OUTPUT
+        else
+          echo "should-release=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        fail_ci_if_error: false
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts
+        path: build/
+        retention-days: 30
+
+  cross-platform-test:
+    name: Cross-Platform (${{ matrix.os }})
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24.1'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install tree-sitter CLI
+      run: npm install -g tree-sitter-cli
+
+    - name: Install system dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install msys2 -y
+        echo "C:/tools/msys64/mingw64/bin" >> $GITHUB_PATH
+
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: xcode-select --install 2>/dev/null || true
+
+    - name: Build non-PSC components
+      run: |
+        go mod download
+        go build -o build/pvm ./cmd/pvm
+        go build -o build/pvx ./cmd/pvx
+        go build -o build/pvi ./cmd/pvi
+
+    - name: Test non-PSC components
+      run: |
+        ./build/pvm version
+        ./build/pvx version
+        ./build/pvi version
+
+  weekly-security-and-performance:
+    name: Weekly Security & Performance
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24.1'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: |
+        npm install -g tree-sitter-cli
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Build tree-sitter parser
+      run: make tree-sitter
+
+    - name: Install security tools
+      run: |
+        go install github.com/securego/gosec/v2/cmd/gosec@latest
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+
+    - name: Security scan
+      run: |
+        gosec -fmt sarif -out gosec-results.sarif ./... || true
+        govulncheck -json ./... > vuln-results.json || true
+
+    - name: Performance benchmarks
+      run: |
+        go test -bench=BenchmarkParser_Performance -benchmem ./internal/parser/ -run=^$ -timeout=10m || echo "Performance tests completed with issues"
+
+    - name: Upload security results
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-results
+        path: |
+          gosec-results.sarif
+          vuln-results.json
+        retention-days: 90
+
+  release:
+    name: Build Release
+    needs: test-and-build
+    if: needs.test-and-build.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24.1'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: |
+        npm install -g tree-sitter-cli
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Build tree-sitter parser
+      run: make tree-sitter
+
+    - name: Cross-compile release binaries
+      run: make cross-compile
+
+    - name: Create release archives
+      run: make release
+
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-binaries
+        path: build/release/
+        retention-days: 90
