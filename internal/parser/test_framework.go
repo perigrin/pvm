@@ -4,16 +4,19 @@
 package parser
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"tamarou.com/pvm/internal/ast"
+	"gopkg.in/yaml.v3"
 )
 
 // TestCategory represents different categories of parser tests
@@ -142,6 +145,240 @@ func (f *ParserTestFramework) LoadTestCases(filePath string) ([]*ParserTestCase,
 	}
 
 	return result, nil
+}
+
+// MarkdownTestMetadata represents the YAML frontmatter in a markdown test file
+type MarkdownTestMetadata struct {
+	Category    TestCategory `yaml:"category"`
+	Subcategory string       `yaml:"subcategory"`
+	Tags        []string     `yaml:"tags"`
+}
+
+// LoadMarkdownTestCases loads test cases from a Markdown file
+func (f *ParserTestFramework) LoadMarkdownTestCases(filePath string) ([]*ParserTestCase, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read markdown test file %s: %w", filePath, err)
+	}
+
+	content := string(data)
+	
+	// Parse YAML frontmatter
+	metadata, content, err := f.parseMarkdownFrontmatter(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse frontmatter in %s: %w", filePath, err)
+	}
+
+	// Parse test cases from markdown content
+	testCases, err := f.parseMarkdownTestCases(content, metadata, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse test cases from %s: %w", filePath, err)
+	}
+
+	return testCases, nil
+}
+
+// parseMarkdownFrontmatter extracts YAML frontmatter from markdown content
+func (f *ParserTestFramework) parseMarkdownFrontmatter(content string) (*MarkdownTestMetadata, string, error) {
+	lines := strings.Split(content, "\n")
+	
+	if len(lines) < 3 || lines[0] != "---" {
+		// No frontmatter, return default metadata
+		return &MarkdownTestMetadata{}, content, nil
+	}
+
+	// Find the closing ---
+	var frontmatterEnd int
+	for i := 1; i < len(lines); i++ {
+		if lines[i] == "---" {
+			frontmatterEnd = i
+			break
+		}
+	}
+
+	if frontmatterEnd == 0 {
+		return nil, "", fmt.Errorf("unclosed YAML frontmatter")
+	}
+
+	// Parse YAML frontmatter
+	yamlContent := strings.Join(lines[1:frontmatterEnd], "\n")
+	var metadata MarkdownTestMetadata
+	err := yaml.Unmarshal([]byte(yamlContent), &metadata)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to parse YAML frontmatter: %w", err)
+	}
+
+	// Return content without frontmatter
+	remainingContent := strings.Join(lines[frontmatterEnd+1:], "\n")
+	return &metadata, remainingContent, nil
+}
+
+// parseMarkdownTestCases extracts test cases from markdown content
+func (f *ParserTestFramework) parseMarkdownTestCases(content string, metadata *MarkdownTestMetadata, filePath string) ([]*ParserTestCase, error) {
+	var testCases []*ParserTestCase
+	
+	// Split content into sections by headers
+	sections := f.splitMarkdownSections(content)
+	
+	for _, section := range sections {
+		testCase, err := f.parseMarkdownSection(section, metadata, filePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse section: %w", err)
+		}
+		if testCase != nil {
+			testCases = append(testCases, testCase)
+		}
+	}
+
+	return testCases, nil
+}
+
+// MarkdownSection represents a section of markdown content
+type MarkdownSection struct {
+	Title       string
+	Description string
+	Comments    map[string]string
+	CodeBlocks  []MarkdownCodeBlock
+}
+
+// MarkdownCodeBlock represents a fenced code block
+type MarkdownCodeBlock struct {
+	Language string
+	Content  string
+}
+
+// splitMarkdownSections splits markdown content into sections by headers
+func (f *ParserTestFramework) splitMarkdownSections(content string) []MarkdownSection {
+	var sections []MarkdownSection
+	var currentSection *MarkdownSection
+	
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	
+	for scanner.Scan() {
+		line := scanner.Text()
+		
+		// Check for header (## or #)
+		if strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "# ") {
+			// Save previous section
+			if currentSection != nil {
+				sections = append(sections, *currentSection)
+			}
+			
+			// Start new section
+			title := strings.TrimLeft(line, "# ")
+			currentSection = &MarkdownSection{
+				Title:    title,
+				Comments: make(map[string]string),
+			}
+			continue
+		}
+		
+		if currentSection == nil {
+			continue
+		}
+		
+		// Check for HTML comments with metadata
+		if commentMatch := regexp.MustCompile(`<!-- (\w+): (.+) -->`).FindStringSubmatch(line); commentMatch != nil {
+			currentSection.Comments[commentMatch[1]] = commentMatch[2]
+			continue
+		}
+		
+		// Check for fenced code blocks
+		if strings.HasPrefix(line, "```") {
+			language := strings.TrimPrefix(line, "```")
+			var codeLines []string
+			
+			// Read until closing ```
+			for scanner.Scan() {
+				codeLine := scanner.Text()
+				if codeLine == "```" {
+					break
+				}
+				codeLines = append(codeLines, codeLine)
+			}
+			
+			currentSection.CodeBlocks = append(currentSection.CodeBlocks, MarkdownCodeBlock{
+				Language: language,
+				Content:  strings.Join(codeLines, "\n"),
+			})
+			continue
+		}
+		
+		// Regular content becomes description
+		if strings.TrimSpace(line) != "" && currentSection.Description == "" {
+			currentSection.Description = strings.TrimSpace(line)
+		}
+	}
+	
+	// Don't forget the last section
+	if currentSection != nil {
+		sections = append(sections, *currentSection)
+	}
+	
+	return sections
+}
+
+// parseMarkdownSection converts a markdown section into a ParserTestCase
+func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, metadata *MarkdownTestMetadata, filePath string) (*ParserTestCase, error) {
+	// Skip sections without Perl code blocks
+	var perlCode string
+	for _, block := range section.CodeBlocks {
+		if block.Language == "perl" || block.Language == "" {
+			perlCode = block.Content
+			break
+		}
+	}
+	
+	if perlCode == "" {
+		return nil, nil // Skip sections without Perl code
+	}
+	
+	// Generate test case name from title and file
+	name := f.generateTestCaseName(section.Title, filePath)
+	
+	// Parse error expectations from comments
+	shouldError := section.Comments["should_error"] == "true"
+	errorType := section.Comments["expected_error"]
+	
+	testCase := &ParserTestCase{
+		Name:        name,
+		Category:    metadata.Category,
+		Subcategory: metadata.Subcategory,
+		Input:       perlCode,
+		ShouldError: shouldError,
+		ErrorType:   errorType,
+		Description: section.Description,
+		Tags:        metadata.Tags,
+	}
+	
+	return testCase, nil
+}
+
+// generateTestCaseName creates a unique test case name from title and filepath
+func (f *ParserTestFramework) generateTestCaseName(title, filePath string) string {
+	// Extract filename without extension
+	baseName := filepath.Base(filePath)
+	baseName = strings.TrimSuffix(baseName, filepath.Ext(baseName))
+	
+	// Convert title to snake_case
+	titleSlug := strings.ToLower(strings.ReplaceAll(title, " ", "_"))
+	titleSlug = regexp.MustCompile(`[^a-z0-9_]`).ReplaceAllString(titleSlug, "")
+	
+	return fmt.Sprintf("%s_%s", baseName, titleSlug)
+}
+
+// LoadTestCasesFromFile loads test cases from either JSON or Markdown format
+func (f *ParserTestFramework) LoadTestCasesFromFile(filePath string) ([]*ParserTestCase, error) {
+	ext := filepath.Ext(filePath)
+	
+	switch ext {
+	case ".json":
+		return f.LoadTestCases(filePath)
+	case ".md":
+		return f.LoadMarkdownTestCases(filePath)
+	default:
+		return nil, fmt.Errorf("unsupported test file format: %s", ext)
+	}
 }
 
 // SaveTestCase saves a test case to a JSON file
@@ -287,8 +524,8 @@ func (f *ParserTestFramework) DiscoverTestCases() ([]*ParserTestCase, error) {
 			return err
 		}
 
-		if strings.HasSuffix(path, ".json") {
-			testCases, err := f.LoadTestCases(path)
+		if strings.HasSuffix(path, ".json") || strings.HasSuffix(path, ".md") {
+			testCases, err := f.LoadTestCasesFromFile(path)
 			if err != nil {
 				return fmt.Errorf("failed to load test cases %s: %w", path, err)
 			}
