@@ -1,6 +1,7 @@
 run:
   timeout: 10m
   go: "1.24"
+  # Test workflows after billing issue resolution
 
 linters:
   enable:
