@@ -41,7 +41,7 @@ build
 *.bak
 tree-sitter-perl/
 vendor/tree-sitter-perl/
-lib/
+/lib/
 
 # Generated parser files
 src/parser.c
