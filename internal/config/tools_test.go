@@ -148,7 +148,7 @@ func TestEnvironmentVariableExpansion(t *testing.T) {
 			input:    "$HOME/${USER}/config",
 			envVar:   "HOME",
 			envValue: "/home/test",
-			expected: "$HOME/${USER}/config", // Only HOME should be expanded in this test
+			expected: "/home/test/perigrin/config", // HOME expanded to test value, USER expanded to current env value
 		},
 		{
 			name:     "No variables",

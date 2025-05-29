@@ -212,17 +212,27 @@ func expandEnvironmentVariables(value string) string {
 		return value
 	}
 
-	// Handle simple $VAR format
+	// Handle cases where the entire value is a single variable like $VAR or ${VAR}
 	if strings.HasPrefix(value, "$") && !strings.Contains(value[1:], "$") {
 		envVar := value[1:]
 		// Check for complex expressions like ${VAR}
 		if strings.HasPrefix(envVar, "{") && strings.HasSuffix(envVar, "}") {
 			envVar = envVar[1 : len(envVar)-1]
+			// Entire value is ${VAR}
+			envValue, exists := os.LookupEnv(envVar)
+			if exists {
+				return envValue
+			}
+			return value
 		}
-		if envValue := os.Getenv(envVar); envValue != "" {
-			return envValue
+		// Check if this is a simple $VAR without any other characters
+		if !strings.ContainsAny(envVar, "/\\:. ") {
+			envValue, exists := os.LookupEnv(envVar)
+			if exists {
+				return envValue
+			}
+			return value
 		}
-		return value
 	}
 
 	// Handle embedded variables like /path/$VAR/subdir
@@ -237,7 +247,8 @@ func expandEnvironmentVariables(value string) string {
 			envVar = match[1:]
 		}
 
-		if envValue := os.Getenv(envVar); envValue != "" {
+		envValue, exists := os.LookupEnv(envVar)
+		if exists {
 			return envValue
 		}
 		return match // Return original if env var not found

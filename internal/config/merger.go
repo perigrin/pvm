@@ -108,8 +108,11 @@ func (m *AdvancedMerger) mergePVMConfigAdvanced(target, source *PVMConfig) *PVMC
 	m.mergeStringField(&target.PatchesDir, source.PatchesDir)
 	m.mergeStringField(&target.Compiler, source.Compiler)
 
-	// Always merge numeric fields (allows zero values to override)
-	target.BuildJobs = source.BuildJobs
+	// Merge numeric fields - only override if source has non-zero value
+	if source.BuildJobs != 0 {
+		target.BuildJobs = source.BuildJobs
+	}
+	// Boolean fields always merge (false can be a valid override)
 	target.RunTests = source.RunTests
 
 	// Merge map with advanced strategy
