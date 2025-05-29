@@ -73,7 +73,13 @@ jobs:
           ${{ runner.os }}-go-
 
     - name: Build tree-sitter parser
-      run: make tree-sitter
+      run: |
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          echo "⚠️ Tree-sitter build not supported on Windows, skipping PSC build"
+          echo "SKIP_PSC_BUILD=true" >> $GITHUB_ENV
+        else
+          make tree-sitter
+        fi
 
     - name: Download Go dependencies
       run: go mod download
@@ -94,15 +100,23 @@ jobs:
         make pvm
         make pvx
         make pvi
-        make psc
+        if [[ "$SKIP_PSC_BUILD" != "true" ]]; then
+          make psc
+        else
+          echo "⚠️ Skipping PSC build on Windows (tree-sitter not supported)"
+        fi
 
     - name: Verify builds
       run: |
         echo "Testing built binaries..."
-        ./build/pvm --version
-        ./build/pvx --version
-        ./build/pvi --version
-        ./build/psc --version
+        ./build/pvm version
+        ./build/pvx version
+        ./build/pvi version
+        if [[ "$SKIP_PSC_BUILD" != "true" ]]; then
+          ./build/psc version
+        else
+          echo "⚠️ Skipping PSC verification (not built on Windows)"
+        fi
 
     - name: Run baseline tests
       run: make test-baselines
@@ -122,13 +136,21 @@ jobs:
 
     - name: Run PSC-specific tests
       run: |
-        echo "Running PSC tests..."
-        go test -mod=mod -v ./internal/psc
+        if [[ "$SKIP_PSC_BUILD" != "true" ]]; then
+          echo "Running PSC tests..."
+          go test -mod=mod -v ./internal/psc
+        else
+          echo "⚠️ Skipping PSC tests (not supported on Windows)"
+        fi
 
     - name: Run basic e2e tests
       run: |
         echo "Running basic e2e tests..."
-        go test -mod=mod -timeout=60s -v ./test/e2e -run="TestVersionCommand|TestPSCCheck"
+        if [[ "$SKIP_PSC_BUILD" != "true" ]]; then
+          go test -mod=mod -timeout=60s -v ./test/e2e -run="TestVersionCommand|TestPSCCheck"
+        else
+          go test -mod=mod -timeout=60s -v ./test/e2e -run="TestVersionCommand"
+        fi
 
     - name: Run performance benchmarks
       if: matrix.os == 'ubuntu-latest'
@@ -145,10 +167,14 @@ jobs:
 
     - name: Test PSC functionality
       run: |
-        echo "Testing PSC with real typed Perl code..."
-        echo 'my Int $x = 42; my Str $name = "test";' > test.pl
-        ./build/psc check test.pl
-        echo "PSC test passed!"
+        if [[ "$SKIP_PSC_BUILD" != "true" ]]; then
+          echo "Testing PSC with real typed Perl code..."
+          echo 'my Int $x = 42; my Str $name = "test";' > test.pl
+          ./build/psc check test.pl
+          echo "PSC test passed!"
+        else
+          echo "⚠️ Skipping PSC functionality test (not supported on Windows)"
+        fi
 
     - name: Collect test artifacts
       if: always()
@@ -183,6 +209,20 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version: '1.24.1'
+
+    - name: Set up Node.js (for tree-sitter)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install tree-sitter CLI and build dependencies
+      run: |
+        npm install -g tree-sitter-cli
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Build tree-sitter parser
+      run: make tree-sitter
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v3
