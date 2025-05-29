@@ -429,5 +429,5 @@ func BenchmarkVersionSolver_ComplexResolution(b *testing.B) {
 // Test helper for adding import
 func init() {
 	// Ensure fmt is imported for test that uses it
-	_ = fmt.Sprintf("")
+	_ = ""
 }

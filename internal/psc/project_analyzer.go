@@ -47,9 +47,6 @@ type ProjectAnalyzer struct {
 
 	// Results accumulates analysis results
 	Results *ProjectAnalysisResult
-
-	// mutex for thread-safe operations
-	mu sync.RWMutex
 }
 
 // AnalyzerConfig contains configuration for the project analyzer
@@ -614,9 +611,7 @@ func (pa *ProjectAnalyzer) pathToModuleName(path string) string {
 	module = strings.ReplaceAll(module, string(filepath.Separator), "::")
 
 	// Remove lib/ prefix if present
-	if strings.HasPrefix(module, "lib::") {
-		module = strings.TrimPrefix(module, "lib::")
-	}
+	module = strings.TrimPrefix(module, "lib::")
 
 	return module
 }

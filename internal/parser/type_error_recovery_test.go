@@ -132,6 +132,7 @@ func TestNestingDepthValidation(t *testing.T) {
 	err = recovery.CheckNestingDepth(25, position)
 	if err == nil {
 		t.Error("Expected error for depth 25, got nil")
+		return
 	}
 	
 	if err.ErrorCode != DeepNestingError {

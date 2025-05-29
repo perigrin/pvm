@@ -107,10 +107,10 @@ type BuildOptions struct {
 	CleanupBuildDir bool
 
 	// ProgressCallback is called to report progress
-	ProgressCallback BuildProgressCallback
+	ProgressCallback BuildProgressCallback `json:"-"`
 
 	// Context for cancellation
-	Context context.Context
+	Context context.Context `json:"-"`
 
 	// TestTimeout is the timeout for running tests
 	TestTimeout time.Duration

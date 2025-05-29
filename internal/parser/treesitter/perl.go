@@ -6,7 +6,6 @@ package treesitter
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
 	tree_sitter_typed_perl "github.com/perigrin/pvm/tree-sitter-typed-perl/bindings/go"
@@ -361,27 +360,6 @@ func (t *PerlTree) processSubroutineDeclaration(node *sitter.Node, annotations *
 	}
 }
 
-// extractParameterTypes extracts type information from a signature node
-func (t *PerlTree) extractParameterTypes(signatureNode *sitter.Node) []string {
-	var paramTypes []string
-
-	for i := 0; i < int(signatureNode.ChildCount()); i++ {
-		child := signatureNode.Child(uint(i))
-		if child == nil {
-			continue
-		}
-
-		if child.Kind() == "ERROR" {
-			// This might be a parameter type like "Str" before the parameter name
-			errorText := t.getNodeText(child)
-			if len(errorText) > 0 && errorText[0] >= 'A' && errorText[0] <= 'Z' {
-				paramTypes = append(paramTypes, errorText)
-			}
-		}
-	}
-
-	return paramTypes
-}
 
 // processMethodDeclaration looks for type annotations in method declarations
 func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
@@ -631,96 +609,14 @@ func (t *PerlTree) getNodeText(node *sitter.Node) string {
 	return t.GetNodeText(node)
 }
 
-// containsTypePattern checks if content contains variable type annotations
-func containsTypePattern(content string) bool {
-	// Look for patterns like: my $var: Type  or  my Type $var
-	typePattern := `:\s*[A-Z][a-zA-Z0-9_]*|my\s+[A-Z][a-zA-Z0-9_]*\s+\$`
-	matched, _ := regexp.MatchString(typePattern, content)
-	return matched
-}
 
-// containsSubTypePattern checks if content contains subroutine type annotations
-func containsSubTypePattern(content string) bool {
-	// Look for patterns like: sub name(Type $param): ReturnType
-	typePattern := `sub\s+\w+\s*\([^)]*:[^)]*\)|sub\s+\w+.*->`
-	matched, _ := regexp.MatchString(typePattern, content)
-	return matched
-}
 
-// containsMethodTypePattern checks if content contains method type annotations
-func containsMethodTypePattern(content string) bool {
-	// Look for patterns like: method name(Type $param): ReturnType
-	typePattern := `method\s+\w+\s*\([^)]*:[^)]*\)|method\s+\w+.*->`
-	matched, _ := regexp.MatchString(typePattern, content)
-	return matched
-}
 
-// extractVariableName extracts variable name from declaration
-func extractVariableName(content string) string {
-	// Look for $variableName pattern
-	varPattern := `\$([a-zA-Z_][a-zA-Z0-9_]*)`
-	re := regexp.MustCompile(varPattern)
-	matches := re.FindStringSubmatch(content)
-	if len(matches) > 1 {
-		return "$" + matches[1]
-	}
-	return ""
-}
 
-// extractTypeName extracts type name from variable declaration
-func extractTypeName(content string) string {
-	// Look for : Type pattern or my Type pattern
-	colonTypePattern := `:\s*([A-Z][a-zA-Z0-9_]*)`
-	myTypePattern := `my\s+([A-Z][a-zA-Z0-9_]*)\s+\$`
 
-	re := regexp.MustCompile(colonTypePattern)
-	matches := re.FindStringSubmatch(content)
-	if len(matches) > 1 {
-		return matches[1]
-	}
 
-	re = regexp.MustCompile(myTypePattern)
-	matches = re.FindStringSubmatch(content)
-	if len(matches) > 1 {
-		return matches[1]
-	}
 
-	return ""
-}
 
-// extractSubroutineName extracts subroutine name from declaration
-func extractSubroutineName(content string) string {
-	subPattern := `sub\s+([a-zA-Z_][a-zA-Z0-9_]*)`
-	re := regexp.MustCompile(subPattern)
-	matches := re.FindStringSubmatch(content)
-	if len(matches) > 1 {
-		return matches[1]
-	}
-	return ""
-}
-
-// extractSubroutineTypes extracts type information from subroutine
-func extractSubroutineTypes(content string) string {
-	// This is a simplified extraction - full implementation would parse parameters and return types
-	return "subroutine_types"
-}
-
-// extractMethodName extracts method name from declaration
-func extractMethodName(content string) string {
-	methodPattern := `method\s+([a-zA-Z_][a-zA-Z0-9_]*)`
-	re := regexp.MustCompile(methodPattern)
-	matches := re.FindStringSubmatch(content)
-	if len(matches) > 1 {
-		return matches[1]
-	}
-	return ""
-}
-
-// extractMethodTypes extracts type information from method
-func extractMethodTypes(content string) string {
-	// This is a simplified extraction - full implementation would parse parameters and return types
-	return "method_types"
-}
 
 // processTypeAssertion processes type assertion expressions like "$value as Type"
 func (t *PerlTree) processTypeAssertion(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {

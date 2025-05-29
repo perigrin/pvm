@@ -234,8 +234,7 @@ func TestBuildCache(t *testing.T) {
 	}
 	if cachedResult == nil {
 		t.Error("Expected non-nil cached result")
-	}
-	if cachedResult.InstallPath != buildResult.InstallPath {
+	} else if cachedResult.InstallPath != buildResult.InstallPath {
 		t.Errorf("Cached install path mismatch: got %s, want %s",
 			cachedResult.InstallPath, buildResult.InstallPath)
 	}
@@ -285,7 +284,7 @@ func TestCommandRunner(t *testing.T) {
 
 	// Test command with progress
 	var lines []string
-	output, err = runner.RunWithProgress(
+	_, err = runner.RunWithProgress(
 		".",
 		"echo",
 		[]string{"line1\nline2\nline3"},

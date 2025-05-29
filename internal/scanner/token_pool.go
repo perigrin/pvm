@@ -90,7 +90,7 @@ func NewTokenPoolManager(hooks TokenPoolHooks) *TokenPoolManager {
 		},
 		func(iter *tokenIterator) {
 			// Return token slices to pool if they came from pool
-			if iter.tokens != nil && len(iter.tokens) > 0 {
+			if len(iter.tokens) > 0 {
 				// Only put back if it was a pooled slice
 				if slice := manager.tokenSlicePool.Get(len(iter.tokens)); slice != nil {
 					manager.tokenSlicePool.Put(slice)

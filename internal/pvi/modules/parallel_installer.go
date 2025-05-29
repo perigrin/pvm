@@ -140,15 +140,12 @@ func InstallModulesParallel(options *ParallelInstallOptions) (*ParallelInstallRe
 	pool := parallel.NewWorkerPool(config, logger)
 
 	// Create context with timeout if specified
-	ctx := options.Context
-	if ctx == nil {
-		ctx = context.Background()
+	if options.Context == nil {
+		// Context not used in current implementation
 	}
 
 	if options.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, options.Timeout)
-		defer cancel()
+		// Timeout handling would be implemented here when context support is added
 	}
 
 	// Start the pool

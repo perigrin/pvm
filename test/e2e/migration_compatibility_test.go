@@ -76,7 +76,7 @@ system_path = "/usr/bin/perl"
 
 	// Test migration process
 	t.Log("Testing configuration migration...")
-	stdout, _, err = env.RunPVM("config", "migrate")
+	_, _, err = env.RunPVM("config", "migrate")
 
 	// Migration command may not exist yet, but config operations should work
 	if err != nil {
@@ -120,7 +120,7 @@ exec "` + helpers.FindSystemPerl() + `" "$@"
 
 	// Test shim regeneration
 	t.Log("Testing shim regeneration...")
-	stdout, _, err = env.RunPVM("shim", "rehash")
+	_, _, err = env.RunPVM("shim", "rehash")
 
 	if err != nil {
 		t.Logf("Shim rehash output: %v", err)

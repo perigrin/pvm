@@ -741,7 +741,6 @@ var incrementalFactoryOnce sync.Once
 // IncrementalTypeCheckerFactory creates incremental type checkers
 type IncrementalTypeCheckerFactory struct {
 	config IncrementalConfig
-	mu     sync.RWMutex
 }
 
 // NewIncrementalTypeCheckerFactory creates a new incremental type checker factory

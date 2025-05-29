@@ -65,7 +65,7 @@ func TestStep14_CircuitBreaker(t *testing.T) {
 
 	// Test circuit opens after failures
 	for i := 0; i < 3; i++ {
-		err = breaker.Execute(ctx, func(ctx context.Context) error {
+		_ = breaker.Execute(ctx, func(ctx context.Context) error {
 			return context.DeadlineExceeded
 		})
 	}
@@ -144,7 +144,7 @@ func TestStep14_DegradationManager(t *testing.T) {
 
 	// Test embedding failure handling with cache strategy
 	manager.config.EmbeddingFailureStrategy = StrategyCache
-	result, err := manager.HandleEmbeddingFailure(ctx, "test_operation", context.DeadlineExceeded)
+	_, err := manager.HandleEmbeddingFailure(ctx, "test_operation", context.DeadlineExceeded)
 
 	// Should fail since no cache is available
 	if err == nil {
@@ -153,7 +153,7 @@ func TestStep14_DegradationManager(t *testing.T) {
 
 	// Test fallback strategy
 	manager.config.EmbeddingFailureStrategy = StrategyFallback
-	result, err = manager.HandleEmbeddingFailure(ctx, "test_operation", context.DeadlineExceeded)
+	result, err := manager.HandleEmbeddingFailure(ctx, "test_operation", context.DeadlineExceeded)
 
 	if err != nil {
 		t.Errorf("Expected fallback to succeed, got error: %v", err)

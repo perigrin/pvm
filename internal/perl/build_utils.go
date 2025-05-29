@@ -187,7 +187,6 @@ func (ae *ArchiveExtractor) extractFile(target string, reader io.Reader, header 
 // CommandRunner runs commands with enhanced error handling and output capture
 type CommandRunner struct {
 	logger *log.Logger
-	mu     sync.Mutex
 }
 
 // NewCommandRunner creates a new command runner

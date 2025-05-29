@@ -425,7 +425,7 @@ func extractCompletions(t *testing.T, ast *AST, line, column int) []string {
 		"class", "method", "field",
 	}
 
-	if ast.TypeAnnotations != nil && len(ast.TypeAnnotations) > 0 {
+	if len(ast.TypeAnnotations) > 0 {
 		completions = append(completions, "type_annotation_context")
 	}
 

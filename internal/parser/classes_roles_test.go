@@ -5,7 +5,6 @@ package parser
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 	
 	"tamarou.com/pvm/internal/ast"
@@ -553,16 +552,3 @@ func walkAST(node ast.Node, visitor func(ast.Node) bool) {
 	}
 }
 
-// debugPrintASTNodes prints AST node structure for debugging
-func debugPrintASTNodes(t *testing.T, node ast.Node, depth int) {
-	if node == nil {
-		return
-	}
-	
-	indent := strings.Repeat("  ", depth)
-	t.Logf("%s%s: %q", indent, node.Type(), node.Text())
-	
-	for _, child := range node.Children() {
-		debugPrintASTNodes(t, child, depth+1)
-	}
-}

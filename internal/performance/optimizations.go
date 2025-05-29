@@ -184,7 +184,7 @@ func (op *ObjectPool) PutASTNodes(nodes []*ast.Node) {
 	if cap(nodes) > 1000 { // Don't keep very large slices
 		return
 	}
-	op.astNodes.Put(nodes)
+	op.astNodes.Put(&nodes)
 }
 
 // GetSymbolMap returns a pre-allocated map for symbols
@@ -216,7 +216,7 @@ func (op *ObjectPool) PutStringBuffer(buffer []byte) {
 	if cap(buffer) > 10240 { // Don't keep buffers larger than 10KB
 		return
 	}
-	op.stringBuilders.Put(buffer)
+	op.stringBuilders.Put(&buffer)
 }
 
 // fastHash implements a fast hash function for content caching

@@ -672,7 +672,7 @@ func (ie *InferenceEngine) applyContextAnalysis(node ast.Node) {
 // propagateTypes propagates types through the program
 func (ie *InferenceEngine) propagateTypes() {
 	// Apply propagation rules
-	for _, _ = range ie.TypePropagator.PropagationRules {
+	for range ie.TypePropagator.PropagationRules {
 		// Implementation would apply rules to propagate types
 	}
 }

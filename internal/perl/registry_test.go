@@ -530,7 +530,6 @@ func TestLoadRegistryFullCoverage(t *testing.T) {
 			simpleRegistry.Versions[k] = versionCopy
 		}
 
-		// nolint:staticcheck // SA1026: We're deliberately excluding BuildOptions which contains the problematic BuildProgressCallback
 		regJSON, _ := json.Marshal(simpleRegistry)
 		ioutilReadFile = func(filename string) ([]byte, error) {
 			return regJSON, nil

@@ -49,9 +49,6 @@ type AST struct {
 
 	// Errors is a list of syntax errors found during parsing
 	Errors []error
-
-	// rawTree is the underlying tree-sitter tree
-	rawTree *PerlTree
 }
 
 // Node represents a node in the AST
@@ -1133,9 +1130,7 @@ func (p *Parser) extractFieldDecl(stmt Node) *ast.FieldDecl {
 	}
 	
 	fieldName := parts[2] // Should be $name
-	if strings.HasPrefix(fieldName, "$") {
-		fieldName = fieldName[1:] // Remove $
-	}
+	fieldName = strings.TrimPrefix(fieldName, "$") // Remove $
 	
 	// Create variable expression for the field
 	varExpr := ast.NewVariableExpr(fieldName, "$", start, end)
@@ -1398,9 +1393,7 @@ func (p *Parser) extractFieldAnnotations(line string, lineNum int) []*ast.TypeAn
 		varName := parts[1]
 		
 		// Remove semicolon from variable name if present
-		if strings.HasSuffix(varName, ";") {
-			varName = varName[:len(varName)-1]
-		}
+		varName = strings.TrimSuffix(varName, ";")
 		
 		// Create type expression
 		typeExpression := &ast.TypeExpression{

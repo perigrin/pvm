@@ -64,7 +64,7 @@ func TestComprehensiveIntegration_CompletePrograms(t *testing.T) {
 				t.Logf("Features tested: %v", tc.Features)
 
 				// If AST has type annotations, log them
-				if ast.TypeAnnotations != nil && len(ast.TypeAnnotations) > 0 {
+				if len(ast.TypeAnnotations) > 0 {
 					t.Logf("Found %d type annotations", len(ast.TypeAnnotations))
 				}
 
@@ -127,7 +127,7 @@ func TestComprehensiveIntegration_MixedTypedUntyped(t *testing.T) {
 					t.Logf("Successfully parsed mixed code program")
 					
 					// Verify both typed and untyped elements are handled
-					hasTypedElements := ast.TypeAnnotations != nil && len(ast.TypeAnnotations) > 0
+					hasTypedElements := len(ast.TypeAnnotations) > 0
 					t.Logf("Program has typed elements: %v", hasTypedElements)
 				}
 			}
@@ -234,10 +234,8 @@ func TestComprehensiveIntegration_SaveResults(t *testing.T) {
 		}
 
 		if ast != nil {
-			result["has_type_annotations"] = ast.TypeAnnotations != nil && len(ast.TypeAnnotations) > 0
-			if ast.TypeAnnotations != nil {
-				result["type_annotation_count"] = len(ast.TypeAnnotations)
-			}
+			result["has_type_annotations"] = len(ast.TypeAnnotations) > 0
+			result["type_annotation_count"] = len(ast.TypeAnnotations)
 		}
 
 		results[tc.Name] = result

@@ -24,7 +24,6 @@ type BuildManager struct {
 	depChecker   *DependencyChecker
 	buildCache   *BuildCache
 	progressPool *ProgressPool
-	mu           sync.RWMutex
 }
 
 // NewBuildManager creates a new enhanced build manager
@@ -352,7 +351,6 @@ type BuildContext struct {
 	ConfigCache    map[string]string
 	BuildArtifacts []string
 	Logger         *log.Logger
-	mu             sync.Mutex
 }
 
 // Cleanup cleans up the build context

@@ -80,7 +80,6 @@ func (dc *DependencyChecker) CheckBuildDependencies() (*DependencyInfo, error) {
 type dependency struct {
 	name    string
 	command string
-	check   func() bool // Optional custom check function
 }
 
 // getRequiredDependencies returns required build dependencies

@@ -138,7 +138,7 @@ func TestSpecificSimpleTypeAnnotations(t *testing.T) {
 			}
 
 			// Ensure AST has proper structure
-			if ast.TypeAnnotations != nil && len(ast.TypeAnnotations) > 0 {
+			if len(ast.TypeAnnotations) > 0 {
 				for i, annotation := range ast.TypeAnnotations {
 					if annotation.Kind != VarAnnotation {
 						t.Errorf("Annotation %d: Expected VarAnnotation, got %v", i, annotation.Kind)

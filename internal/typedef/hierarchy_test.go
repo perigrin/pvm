@@ -399,15 +399,15 @@ func TestIntersectionTypeCompatibilityWithHierarchy(t *testing.T) {
 	require.NotNil(t, hierarchy)
 
 	// Test basic intersection type compatibility through hierarchy
-	err = hierarchy.CheckTypeCompatibility("Str&Callable", "Str")
+	_ = hierarchy.CheckTypeCompatibility("Str&Callable", "Str")
 	// This should work if the intersection type parsing and compatibility is correct
 	// The exact behavior depends on the implementation details
 
-	err = hierarchy.CheckTypeCompatibility("Str", "Str&Callable")
+	_ = hierarchy.CheckTypeCompatibility("Str", "Str&Callable")
 	// This should fail in most cases unless Str implements Callable
 
 	// Test intersection type to intersection type compatibility
-	err = hierarchy.CheckTypeCompatibility("Str&Callable&Comparable", "Str&Callable")
+	_ = hierarchy.CheckTypeCompatibility("Str&Callable&Comparable", "Str&Callable")
 	// More specific should be compatible with less specific
 
 	err = hierarchy.CheckTypeCompatibility("Str&Callable", "Int&Comparable")

@@ -694,8 +694,7 @@ func TestTypePoolManager_MemoryFootprint(t *testing.T) {
 	newResult := manager.NewTypeCheckResult("after-reset.pl")
 	if newResult == nil {
 		t.Error("Expected to be able to create objects after pool reset")
-	}
-	if newResult.Path != "after-reset.pl" {
+	} else if newResult.Path != "after-reset.pl" {
 		t.Errorf("Expected path 'after-reset.pl', got %s", newResult.Path)
 	}
 }

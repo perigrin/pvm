@@ -1260,42 +1260,6 @@ func isStringLiteral(s string) bool {
 		(strings.HasPrefix(s, "`") && strings.HasSuffix(s, "`"))
 }
 
-// inferLiteralType infers the most specific type for a literal value
-// This implements Phase 1: Pure Type Inference for literals
-func (tc *TypeChecker) inferLiteralType(literal string) string {
-	// Handle empty input
-	if literal == "" {
-		return ""
-	}
-
-	// Handle undef literal
-	if literal == "undef" {
-		return "Undef"
-	}
-
-	// Handle boolean literals
-	if literal == "True" || literal == "False" {
-		return "Bool"
-	}
-
-	// Handle string literals - check this before numeric to avoid false positives
-	if isStringLiteral(literal) {
-		return "Str"
-	}
-
-	// Handle numeric literals
-	if isNumericLiteral(literal) {
-		// Check if it's a float (contains decimal point or scientific notation)
-		if strings.Contains(literal, ".") || strings.Contains(strings.ToLower(literal), "e") {
-			return "Float"
-		}
-		// Otherwise it's an integer
-		return "Int"
-	}
-
-	// If we can't identify the literal type, return empty string
-	return ""
-}
 
 // InferBinaryOperatorType infers the result type of a binary operator expression
 // This implements Phase 4: Operator Type Checking

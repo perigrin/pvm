@@ -271,7 +271,6 @@ type LazyTypeResolver struct {
 	typeCache       *TypeCache
 	unresolvedTypes map[string]*LazyType
 	resolutionQueue []*LazyType
-	isResolving     bool
 	mu              sync.Mutex
 }
 

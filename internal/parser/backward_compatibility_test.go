@@ -471,7 +471,7 @@ func (bct *BackwardCompatibilityTester) RunCompatibilityTest(t *testing.T, test 
 				result.ErrorsMatch = false
 				result.Compatible = false
 				result.Differences = append(result.Differences,
-					fmt.Sprintf("Error message doesn't match expected patterns"))
+					"Error message doesn't match expected patterns")
 				result.ActualError = enhancedErr.Error()
 				result.ExpectedError = strings.Join(test.ExpectedErrors, " OR ")
 			} else {

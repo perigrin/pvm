@@ -379,25 +379,24 @@ func (cs *CodeSearcher) applyFilters(results []SearchResult, request SearchReque
 			case "file_extension":
 				if !strings.HasSuffix(result.FilePath, value) {
 					matches = false
-					break
 				}
 			case "type":
 				if result.Type != value {
 					matches = false
-					break
 				}
 			case "file_pattern":
 				matched, _ := filepath.Match(value, result.FilePath)
 				if !matched {
 					matches = false
-					break
 				}
 			default:
 				// Check in metadata
 				if metaValue, exists := result.Metadata[key]; !exists || fmt.Sprintf("%v", metaValue) != value {
 					matches = false
-					break
 				}
+			}
+			if !matches {
+				break
 			}
 		}
 

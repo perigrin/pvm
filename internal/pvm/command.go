@@ -1233,7 +1233,7 @@ func execCommand(cmd *cobra.Command, version string, command []string) error {
 
 	// Check if the Perl binary exists
 	if _, err := os.Stat(resolved.Path); os.IsNotExist(err) {
-		return fmt.Errorf("Perl version %s not found at %s", resolved.Version, resolved.Path)
+		return fmt.Errorf("perl version %s not found at %s", resolved.Version, resolved.Path)
 	}
 
 	// Create a new environment with the Perl bin directory in PATH

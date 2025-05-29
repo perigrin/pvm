@@ -277,26 +277,6 @@ func NewMemoryOptimizedBinder() *MemoryOptimizedBinder {
 	}
 }
 
-// internString reduces memory usage by reusing identical strings
-func (mob *MemoryOptimizedBinder) internString(s string) string {
-	if interned, exists := mob.stringCache[s]; exists {
-		return interned
-	}
-
-	// Limit cache size
-	if len(mob.stringCache) > 10000 {
-		// Clear some entries (simple strategy)
-		for k := range mob.stringCache {
-			delete(mob.stringCache, k)
-			if len(mob.stringCache) < 5000 {
-				break
-			}
-		}
-	}
-
-	mob.stringCache[s] = s
-	return s
-}
 
 // AlgorithmicOptimizer provides algorithmic improvements for common operations
 type AlgorithmicOptimizer struct {
