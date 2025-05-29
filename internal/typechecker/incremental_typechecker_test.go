@@ -361,6 +361,7 @@ func TestIncrementalTypeChecker_updateDependencies(t *testing.T) {
 
 	if len(recordedDeps) != 2 {
 		t.Errorf("Expected 2 dependencies, got %d", len(recordedDeps))
+		return // Prevent panic on empty slice
 	}
 	if recordedDeps[0] != "dep1.pl" || recordedDeps[1] != "dep2.pl" {
 		t.Errorf("Expected deps [dep1.pl, dep2.pl], got %v", recordedDeps)
