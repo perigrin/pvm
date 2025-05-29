@@ -450,31 +450,49 @@ func (bn *BaseNode) Type() string {
 
 // Start implements Node interface
 func (bn *BaseNode) Start() Position {
+	if bn == nil {
+		return Position{}
+	}
 	return bn.start
 }
 
 // End implements Node interface
 func (bn *BaseNode) End() Position {
+	if bn == nil {
+		return Position{}
+	}
 	return bn.end
 }
 
 // Children implements Node interface
 func (bn *BaseNode) Children() []Node {
+	if bn == nil {
+		return nil
+	}
 	return bn.children
 }
 
 // Text implements Node interface
 func (bn *BaseNode) Text() string {
+	if bn == nil {
+		return ""
+	}
 	return bn.text
 }
 
 // Parent implements Node interface
 func (bn *BaseNode) Parent() Node {
+	if bn == nil {
+		return nil
+	}
 	return bn.parent
 }
 
 // SetParent implements Node interface
 func (bn *BaseNode) SetParent(parent Node) {
+	if bn == nil {
+		return
+	}
 	bn.parent = parent
 }
 

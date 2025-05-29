@@ -27,17 +27,7 @@ type PerformanceTest struct {
 	Complexity  int           `json:"complexity"` // 1=simple, 2=medium, 3=complex, 4=stress
 }
 
-// PerformanceResult captures the results of a performance test
-type PerformanceResult struct {
-	TestName       string        `json:"test_name"`
-	ParseDuration  time.Duration `json:"parse_duration"`
-	MemoryUsage    int64         `json:"memory_usage"`
-	AllocCount     int64         `json:"alloc_count"`
-	Success        bool          `json:"success"`
-	Error          string        `json:"error,omitempty"`
-	Timestamp      time.Time     `json:"timestamp"`
-	ParserType     string        `json:"parser_type"`
-}
+// Note: PerformanceResult is now defined in performance_monitor.go
 
 // PerformanceBenchmarkBaseline represents baseline performance metrics for individual tests
 type PerformanceBenchmarkBaseline struct {
@@ -57,16 +47,7 @@ type PerformanceReport struct {
 }
 
 // PerformanceSummary provides aggregate performance metrics
-type PerformanceSummary struct {
-	TotalTests       int           `json:"total_tests"`
-	PassedTests      int           `json:"passed_tests"`
-	FailedTests      int           `json:"failed_tests"`
-	TotalParseTime   time.Duration `json:"total_parse_time"`
-	AvgParseTime     time.Duration `json:"avg_parse_time"`
-	TotalMemoryUsed  int64         `json:"total_memory_used"`
-	AvgMemoryUsed    int64         `json:"avg_memory_used"`
-	RegressionsFound int           `json:"regressions_found"`
-}
+// Note: PerformanceSummary is now defined in performance_monitor.go
 
 // PerformanceTestSuite manages performance testing infrastructure
 type PerformanceTestSuite struct {
@@ -294,7 +275,7 @@ func (pts *PerformanceTestSuite) RunPerformanceTest(t *testing.T, test *Performa
 
 		if err != nil {
 			result.Success = false
-			result.Error = err.Error()
+			result.Error = err
 			return result
 		}
 
@@ -309,7 +290,7 @@ func (pts *PerformanceTestSuite) RunPerformanceTest(t *testing.T, test *Performa
 		// Check if we're exceeding limits
 		if duration > test.MaxDuration {
 			result.Success = false
-			result.Error = fmt.Sprintf("Parse duration %v exceeded maximum %v", duration, test.MaxDuration)
+			result.Error = fmt.Errorf("parse duration %v exceeded maximum %v", duration, test.MaxDuration)
 			return result
 		}
 	}
@@ -323,7 +304,7 @@ func (pts *PerformanceTestSuite) RunPerformanceTest(t *testing.T, test *Performa
 	// Check memory limits
 	if result.MemoryUsage > test.MaxMemory {
 		result.Success = false
-		result.Error = fmt.Sprintf("Memory usage %d exceeded maximum %d", result.MemoryUsage, test.MaxMemory)
+		result.Error = fmt.Errorf("memory usage %d exceeded maximum %d", result.MemoryUsage, test.MaxMemory)
 	}
 
 	return result

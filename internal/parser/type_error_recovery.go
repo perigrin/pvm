@@ -292,8 +292,12 @@ func (ter *TypeErrorRecovery) ValidateTypeExpression(expr *ast.TypeExpression, s
 	
 	// Check for deep nesting in parameterized types
 	depth := ter.calculateTypeDepth(expr)
-	if depthError := ter.CheckNestingDepth(depth, expr.Start()); depthError != nil {
-		errors = append(errors, depthError)
+	// Only check depth if expr has valid position information
+	pos := expr.Start()
+	if pos.Line > 0 && pos.Column >= 0 {
+		if depthError := ter.CheckNestingDepth(depth, pos); depthError != nil {
+			errors = append(errors, depthError)
+		}
 	}
 	
 	// Validate union types
