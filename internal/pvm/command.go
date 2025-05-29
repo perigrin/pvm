@@ -35,6 +35,7 @@ func NewCommand() *cobra.Command {
 		newGlobalCommand(),
 		newLocalCommand(),
 		newVersionsCommand(),
+		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
 		newDownloadCommand(),
 		newBuildCommand(),
@@ -290,6 +291,83 @@ func newVersionsCommand() *cobra.Command {
 		Use:   "versions",
 		Short: "List installed versions",
 		Long:  "List all installed Perl versions",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get the installed versions
+			installedVersions, err := perl.GetInstalledVersions()
+			if err != nil {
+				return err
+			}
+
+			// Check if we have any installed versions
+			if len(installedVersions) == 0 {
+				cmd.Println("No versions installed. Use 'pvm install <version>' to install a version.")
+				return nil
+			}
+
+			// Get flags
+			showPath, err := cmd.Flags().GetBool("paths")
+			if err != nil {
+				return err
+			}
+
+			showSource, err := cmd.Flags().GetBool("source")
+			if err != nil {
+				return err
+			}
+
+			// Display installed versions
+			cmd.Println("Installed Perl versions:")
+			for i, versionInfo := range installedVersions {
+				// Add decoration for special versions
+				decoration := ""
+				if i == 0 {
+					decoration = " (latest)"
+				}
+
+				// Basic output
+				if !showPath && !showSource {
+					cmd.Printf("  %s%s\n", versionInfo.Version, decoration)
+					continue
+				}
+
+				// Detailed output
+				cmd.Printf("  %s%s\n", versionInfo.Version, decoration)
+
+				if showPath {
+					cmd.Printf("    Path: %s\n", versionInfo.InstallPath)
+				}
+
+				if showSource {
+					cmd.Printf("    Source: %s\n", versionInfo.Source)
+					cmd.Printf("    Installed: %s\n", versionInfo.InstallTime.Format("2006-01-02 15:04:05"))
+				}
+
+				// Add a separator between versions for detailed output
+				if i < len(installedVersions)-1 && (showPath || showSource) {
+					cmd.Println()
+				}
+			}
+
+			// Add a hint about current/active version
+			cmd.Println("\nNote: Use 'pvm current' to show the currently active Perl version.")
+
+			return nil
+		},
+	}
+
+	// Add flags
+	cmd.Flags().Bool("paths", false, "Show installation paths")
+	cmd.Flags().Bool("source", false, "Show source and installation time")
+
+	return cmd
+}
+
+func newListCommand() *cobra.Command {
+	// Create an alias to the versions command for compatibility with tests
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List installed versions (alias for versions)",
+		Long:  "List all installed Perl versions (alias for versions command)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get the installed versions
 			installedVersions, err := perl.GetInstalledVersions()
