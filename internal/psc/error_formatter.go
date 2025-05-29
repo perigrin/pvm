@@ -99,11 +99,11 @@ func (ef *ErrorFormatter) generateSuggestion(err *typechecker.TypeCheckError) st
 
 	// Type mismatch suggestions
 	if strings.Contains(message, "type mismatch") {
-		if strings.Contains(message, "int") && strings.Contains(message, "str") {
-			return "Consider using string interpolation: \"$value\" or explicit conversion"
-		}
-		if strings.Contains(message, "str") && strings.Contains(message, "int") {
+		if strings.Contains(message, "expected int") && strings.Contains(message, "got str") {
 			return "Consider using numeric conversion: int($value) or 0 + $value"
+		}
+		if strings.Contains(message, "expected str") && strings.Contains(message, "got int") {
+			return "Consider using string interpolation: \"$value\" or explicit conversion"
 		}
 		return "Check that the assigned value matches the declared type"
 	}

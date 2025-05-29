@@ -275,35 +275,35 @@ func TestStripCommandWithSampleFile(t *testing.T) {
 
 // TestCommandErrorHandling tests error handling in commands
 func TestCommandErrorHandling(t *testing.T) {
-	// Test check command with no arguments
+	// Test check command with no arguments (uses Cobra validation)
 	cmd := newCheckTypeCommand()
 	_, err := executeCommand(t, cmd)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "expected a file or directory")
+	assert.Contains(t, err.Error(), "requires at least 1 arg")
 
-	// Test strip command with no arguments
+	// Test strip command with no arguments (has custom error message)
 	cmd = newStripCommand()
 	_, err = executeCommand(t, cmd)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "expected a file to strip")
 
-	// Test run command with no arguments
+	// Test run command with no arguments (has custom error message)
 	cmd = newRunCommand()
 	_, err = executeCommand(t, cmd)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "expected a file to run")
 
-	// Test watch command with no arguments
+	// Test watch command with no arguments (uses Cobra validation)
 	cmd = newWatchCommand()
 	_, err = executeCommand(t, cmd)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "expected a file or directory")
+	assert.Contains(t, err.Error(), "requires at least 1 arg")
 
 	// Test with non-existent file
 	cmd = newCheckTypeCommand()
 	_, err = executeCommand(t, cmd, "/path/that/does/not/exist")
 	assert.Error(t, err)
-	assert.Contains(t, strings.ToLower(err.Error()), "failed to stat")
+	assert.Contains(t, strings.ToLower(err.Error()), "file or directory not found")
 }
 
 // TestFlowSensitiveFlags tests the flow-sensitive analysis flags

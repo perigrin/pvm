@@ -117,7 +117,15 @@ sub set_count {
 	// Test type generation
 	typeDef, err := analyzeModuleTypes("TestModule")
 	if err != nil {
+		// Skip test if required Perl modules are not available
+		if strings.Contains(err.Error(), "Can't locate JSON.pm") ||
+			strings.Contains(err.Error(), "Module::Load") ||
+			strings.Contains(err.Error(), "Class::Inspector") ||
+			strings.Contains(err.Error(), "Required Perl modules not available") {
+			t.Skip("Skipping test: required Perl modules not available (JSON, Module::Load, Class::Inspector)")
+		}
 		t.Errorf("Failed to analyze module: %v", err)
+		return
 	}
 
 	if typeDef == nil {

@@ -574,8 +574,47 @@ func convertIntrospectionToTypeDef(moduleName string, result *parser.ModuleIntro
 	return typeDef
 }
 
+// ensureRequiredPerlModules checks for required Perl modules and provides helpful error messages
+func ensureRequiredPerlModules() error {
+	requiredModules := []string{"JSON", "Module::Load", "Class::Inspector"}
+	missingModules := []string{}
+	
+	for _, module := range requiredModules {
+		// Check if module is available, including local::lib paths
+		checkScript := fmt.Sprintf(`perl -I ~/perl5/lib/perl5/ -M%s -e 'print "OK"' 2>/dev/null || perl -M%s -e 'print "OK"' 2>/dev/null`, module, module)
+		cmd := exec.Command("sh", "-c", checkScript)
+		if err := cmd.Run(); err != nil {
+			missingModules = append(missingModules, module)
+		}
+	}
+	
+	if len(missingModules) > 0 {
+		suggestion := fmt.Sprintf(
+			"Missing required Perl modules for PSC type analysis: %s\n"+
+			"Please install them using one of these methods:\n"+
+			"1. Using PVI (recommended): pvi install %s\n"+
+			"2. Using cpanminus: cpanm -l ~/perl5 %s && eval $(perl -I ~/perl5/lib/perl5/ -Mlocal::lib)\n"+
+			"3. Using system package manager: sudo apt-get install lib%s-perl (on Ubuntu/Debian)\n"+
+			"\nNote: PSC's advanced type analysis features require these modules for Perl introspection.\n"+
+			"Basic type checking will still work without them.",
+			strings.Join(missingModules, ", "),
+			strings.Join(missingModules, " "),
+			strings.Join(missingModules, " "),
+			strings.ToLower(strings.ReplaceAll(missingModules[0], "::", "-")))
+		
+		return errors.NewSystemError("010",
+			"Required Perl modules not available for type analysis", 
+			fmt.Errorf("%s", suggestion))
+	}
+	return nil
+}
+
 // analyzeModuleTypesWithPerl is the original Perl-based analysis function
 func analyzeModuleTypesWithPerl(moduleName string) (*typedef.TypeDefinition, error) {
+	// Ensure required Perl modules are available
+	if err := ensureRequiredPerlModules(); err != nil {
+		return nil, err
+	}
 	// Create a temporary Perl script to analyze the module
 	tempScript, err := os.CreateTemp("", "psc-module-analyzer-*.pl")
 	if err != nil {
@@ -590,6 +629,7 @@ func analyzeModuleTypesWithPerl(moduleName string) (*typedef.TypeDefinition, err
 use strict;
 use warnings;
 use feature 'say';
+use lib "$ENV{HOME}/perl5/lib/perl5";
 use JSON;
 use Module::Load;
 use Class::Inspector;
