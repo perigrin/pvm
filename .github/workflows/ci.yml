@@ -63,10 +63,7 @@ jobs:
       run: make build-release
 
     - name: Run tests with coverage
-      run: |
-        # Run short tests for fast feedback with parallelization
-        gotestsum --format=short -- -mod=mod -short -timeout=2m -parallel=4 -coverprofile=coverage.out -covermode=atomic ./...
-        go tool cover -html=coverage.out -o coverage.html
+      run: make test-coverage
 
     - name: Coverage gate (70% minimum)
       run: |
@@ -81,7 +78,13 @@ jobs:
 
     - name: Basic integration tests
       run: |
-        go test -mod=mod -timeout=60s -v ./test/e2e -run="TestVersionCommand"
+        # Test version commands work
+        ./build/pvm version
+        ./build/pvx version  
+        ./build/pvi version
+        ./build/psc version
+        
+        # Test basic PSC functionality
         echo 'my Int $x = 42; my Str $name = "test";' > test.pl
         ./build/psc check test.pl
 
@@ -155,8 +158,8 @@ jobs:
         ./build/pvx version
         ./build/pvi version
 
-  weekly-security-and-performance:
-    name: Weekly Security & Performance
+  weekly-full-validation:
+    name: Weekly Full Test Suite
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
@@ -182,28 +185,35 @@ jobs:
     - name: Build tree-sitter parser
       run: make tree-sitter
 
-    - name: Install security tools
+    - name: Run full test suite
       run: |
-        go install github.com/securego/gosec/v2/cmd/gosec@latest
-        go install golang.org/x/vuln/cmd/govulncheck@latest
+        echo "🧪 Running comprehensive test validation..."
+        make test-all
 
     - name: Security scan
       run: |
+        echo "🔒 Running security validation..."
+        go install github.com/securego/gosec/v2/cmd/gosec@latest
+        go install golang.org/x/vuln/cmd/govulncheck@latest
         gosec -fmt sarif -out gosec-results.sarif ./... || true
         govulncheck -json ./... > vuln-results.json || true
 
     - name: Performance benchmarks
       run: |
-        go test -bench=BenchmarkParser_Performance -benchmem ./internal/parser/ -run=^$ -timeout=10m || echo "Performance tests completed with issues"
+        echo "⚡ Running performance validation..."
+        make test-performance || echo "Performance tests completed with issues"
 
-    - name: Upload security results
+    - name: Upload comprehensive results
       uses: actions/upload-artifact@v4
       with:
-        name: security-results
+        name: weekly-validation-results
         path: |
+          coverage.out
+          coverage.html
           gosec-results.sarif
           vuln-results.json
-        retention-days: 90
+          .build-metrics/
+        retention-days: 30
 
   release:
     name: Build Release

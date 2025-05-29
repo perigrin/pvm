@@ -78,43 +78,65 @@ psc: $(BUILDDIR) tree-sitter
 	go build -mod=mod -tags="$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/psc ./cmd/psc
 
 # Enhanced testing with gotestsum
-test: tree-sitter check-tools
-	gotestsum --format=standard-verbose -- -mod=mod ./...
+# Auto-detects CPU count for optimal parallelization
+# Default test runs in short mode for fast feedback (10% sampling of long tests)
+test: tree-sitter install-tools
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	echo "Running tests with $$PARALLEL_JOBS parallel workers..."; \
+	gotestsum --format=short -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...
 
-test-short: tree-sitter check-tools
-	gotestsum --format=short -- -mod=mod -short -timeout=2m -parallel=4 ./...
+# Full test suite for comprehensive validation (all tests including slow ones)
+test-full: tree-sitter install-tools
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	echo "Running full test suite with $$PARALLEL_JOBS parallel workers..."; \
+	gotestsum --format=standard-verbose -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...
+
+# Legacy compatibility
+test-short: test
 
 # Baseline testing for regression prevention
-test-baselines: tree-sitter check-tools
+test-baselines: tree-sitter install-tools
 	@echo "Running baseline tests..."
 	gotestsum --format=short -- -mod=mod -run=TestParser_Baselines ./internal/parser/
 	gotestsum --format=short -- -mod=mod -run=TestTypeChecker_Baselines ./internal/typechecker/
 
-test-baselines-update: tree-sitter check-tools
+test-baselines-update: tree-sitter install-tools
 	@echo "Updating baseline tests..."
 	UPDATE_BASELINES=1 gotestsum --format=short -- -mod=mod -run=TestParser_Baselines ./internal/parser/
 	UPDATE_BASELINES=1 gotestsum --format=short -- -mod=mod -run=TestTypeChecker_Baselines ./internal/typechecker/
 
-test-performance-baseline: tree-sitter check-tools
+test-performance-baseline: tree-sitter install-tools
 	@echo "Updating performance baselines..."
 	UPDATE_PERFORMANCE_BASELINE=1 go test -mod=mod -bench=BenchmarkParser_Performance -benchmem ./internal/parser/
 	UPDATE_PERFORMANCE_BASELINE=1 go test -mod=mod -bench=BenchmarkTypeChecker_Performance -benchmem ./internal/typechecker/
 
-# Coverage reporting
-test-coverage: tree-sitter check-tools
+# Coverage reporting  
+test-coverage: tree-sitter install-tools
 	@echo "Running tests with coverage..."
-	gotestsum --format=short -- -mod=mod -coverprofile=coverage.out -covermode=atomic ./...
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	echo "Using $$PARALLEL_JOBS parallel workers for coverage..."; \
+	gotestsum --format=short -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS -coverprofile=coverage.out -covermode=atomic ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report saved to coverage.html"
+
+# Full coverage reporting
+test-coverage-full: tree-sitter install-tools
+	@echo "Running full test suite with coverage..."
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	echo "Using $$PARALLEL_JOBS parallel workers for full coverage..."; \
+	gotestsum --format=short -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS -coverprofile=coverage.out -covermode=atomic ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Full coverage report saved to coverage.html"
 
 test-coverage-report: test-coverage
 	@echo "Coverage Summary:"
 	go tool cover -func=coverage.out | grep total | awk '{print "Total Coverage: " $$3}'
 
 # Integration testing
-test-integration: tree-sitter check-tools
+test-integration: tree-sitter install-tools
 	@echo "Running integration tests..."
-	gotestsum --format=short -- -mod=mod -tags=integration ./test/e2e/
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	gotestsum --format=short -- -mod=mod -tags=integration -parallel=$$PARALLEL_JOBS ./test/e2e/
 
 # Performance optimization targets
 optimize-performance: tree-sitter check-tools
@@ -125,13 +147,13 @@ profile-performance: tree-sitter check-tools
 	@echo "Profiling performance bottlenecks..."
 	go run scripts/profile_performance.go
 
-# Complete test suite with all validations
-test-all: tree-sitter check-tools
+# Complete test suite with all validations  
+test-all: tree-sitter install-tools
 	@echo "Running complete test suite..."
 	make test-baselines
 	make test-performance
 	make test-integration
-	make test-coverage-report
+	make test-coverage-full
 
 # Run all tests (with tree-sitter support) - legacy compatibility
 test-go: tree-sitter
