@@ -8,10 +8,12 @@ import (
 
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/binder"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/internal/typedef"
 )
 
 func TestPooledTypeCheckerFactory_CreateTypeChecker(t *testing.T) {
+	basetesting.SampleTypeCheckerTest(t)
 	config := DefaultPooledTypeCheckerConfig()
 	factory := NewPooledTypeCheckerFactory(config)
 

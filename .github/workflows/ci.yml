@@ -63,7 +63,10 @@ jobs:
       run: make build-release
 
     - name: Run tests with coverage
-      run: make test-coverage
+      run: |
+        # Run short tests for fast feedback with parallelization
+        gotestsum --format=short -- -mod=mod -short -timeout=2m -parallel=4 -coverprofile=coverage.out -covermode=atomic ./...
+        go tool cover -html=coverage.out -o coverage.html
 
     - name: Coverage gate (70% minimum)
       run: |

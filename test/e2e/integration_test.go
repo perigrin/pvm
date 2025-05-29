@@ -10,10 +10,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
 func TestCrossComponentIntegration_PSC_PVX(t *testing.T) {
+	basetesting.SampleE2ETest(t)
 	helpers.SkipIfNoSystemPerl(t)
 	helpers.SkipIfNoTreeSitter(t)
 

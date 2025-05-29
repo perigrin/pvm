@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/ast"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -45,6 +46,7 @@ type MockAST struct {
 func (m *MockAST) RootNode() ast.Node { return m.Root }
 
 func TestNewInferenceEngine(t *testing.T) {
+	basetesting.SampleTypeCheckerTest(t)
 	storage, err := typedef.NewStorage()
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)

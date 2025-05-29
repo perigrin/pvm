@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-05-29T13:52:02.72448907Z",
+  "timestamp": "2025-05-29T20:06:32.51937619Z",
   "parser_version": "current",
   "overall_accuracy": 94.91525423728814,
   "category_accuracy": {
@@ -322,10 +322,10 @@
     "xor": 100
   },
   "performance_baseline": {
-    "average_parse_time": 6859,
-    "memory_usage": -192,
-    "throughput_lines_per_second": 145777.53546311884,
-    "throughput_tokens_per_second": 1494219.738496968
+    "average_parse_time": 25117,
+    "memory_usage": -4696,
+    "throughput_lines_per_second": 39812.736811135146,
+    "throughput_tokens_per_second": 408080.5523141352
   },
   "test_coverage": {
     "total_features": 39,
