@@ -53,6 +53,14 @@ repos:
         language: script
         pass_filenames: false
         files: '\.go$'
+      - id: govulncheck
+        name: 'vulnerability scan'
+        description: "Runs govulncheck for Go vulnerabilities"
+        entry: govulncheck
+        args: ['./...']
+        language: system
+        pass_filenames: false
+        files: '(go\.mod|go\.sum|\.go)$'
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v8.0.0
     hooks:
