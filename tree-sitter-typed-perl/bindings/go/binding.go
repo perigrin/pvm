@@ -1,7 +1,7 @@
 package tree_sitter_typed_perl
 
 // #cgo CFLAGS: -std=c11 -fPIC -I../../
-// #include "../../parser.c"
+// #include "../../src/parser.c"
 // #include "../../src/scanner.c"
 import "C"
 

@@ -106,7 +106,7 @@ func parseBenchmarkResults(file *os.File) []BenchmarkData {
 		matches := benchmarkRegex.FindStringSubmatch(line)
 		if len(matches) >= 4 {
 			name := matches[1]
-			iterations, _ := strconv.ParseInt(matches[2], 10, 64)
+			_, _ = strconv.ParseInt(matches[2], 10, 64) // iterations (not used)
 			nsPerOp, _ := strconv.ParseInt(matches[3], 10, 64)
 
 			var memoryBytes int64
