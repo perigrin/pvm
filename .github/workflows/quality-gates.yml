@@ -16,6 +16,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Go
       uses: actions/setup-go@v4
@@ -98,6 +100,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Check documentation completeness
       run: |
@@ -105,14 +109,14 @@ jobs:
         echo "Checking documentation completeness..."
 
         # Check for README updates
-        if git diff --name-only origin/main..HEAD | grep -q "README.md"; then
+        if git diff --name-only origin/pu..HEAD | grep -q "README.md"; then
           echo "✅ README.md updated"
         else
           echo "ℹ️ README.md not modified"
         fi
 
         # Check for new features without docs
-        NEW_GO_FILES=$(git diff --name-only origin/main..HEAD | grep '\.go$' | grep -v '_test\.go$' | grep -E '(cmd/|internal/[^/]+/[^/]+\.go)' || true)
+        NEW_GO_FILES=$(git diff --name-only origin/pu..HEAD | grep '\.go$' | grep -v '_test\.go$' | grep -E '(cmd/|internal/[^/]+/[^/]+\.go)' || true)
         if [ -n "$NEW_GO_FILES" ]; then
           echo "New Go files detected: $NEW_GO_FILES"
           echo "Consider updating documentation for significant changes"
@@ -144,13 +148,15 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: License compliance
       run: |
         echo "Checking license compliance..."
 
         # Check for license headers in new Go files
-        NEW_GO_FILES=$(git diff --name-only origin/main..HEAD | grep '\.go$' || true)
+        NEW_GO_FILES=$(git diff --name-only origin/pu..HEAD | grep '\.go$' || true)
 
         if [ -n "$NEW_GO_FILES" ]; then
           echo "Checking license headers in new files..."
