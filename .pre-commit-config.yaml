@@ -39,6 +39,20 @@ repos:
         pass_filenames: false
         files: '\.go$'
         exclude: ^(internal/parser/.*\.go|internal/psc/.*\.go|internal/typechecker/.*\.go|cmd/psc/.*\.go)$
+      - id: gosec-security-scan
+        name: 'gosec security scan'
+        description: "Runs gosec security scanner on Go code"
+        entry: .github/hooks/run-gosec.sh
+        language: script
+        pass_filenames: false
+        files: '\.go$'
+      - id: staticcheck-linting
+        name: 'staticcheck linting'
+        description: "Runs staticcheck static analysis on Go code"
+        entry: .github/hooks/run-staticcheck.sh
+        language: script
+        pass_filenames: false
+        files: '\.go$'
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v8.0.0
     hooks:

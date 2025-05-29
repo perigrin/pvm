@@ -174,7 +174,12 @@ check: lint
 
 # Security scanning
 security: check-tools
+	@echo "🔍 Running comprehensive security scan..."
+	@echo "📊 Running vulnerability check..."
 	govulncheck ./...
+	@echo "🛡️ Running static security analysis..."
+	@command -v gosec >/dev/null 2>&1 || go install github.com/securego/gosec/v2/cmd/gosec@latest
+	gosec ./...
 
 # Code generation
 generate:
