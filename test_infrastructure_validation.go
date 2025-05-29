@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"tamarou.com/pvm/internal/parser"
 )
 
 func main() {
@@ -25,7 +23,13 @@ func main() {
 	fmt.Println(strings.Repeat("=", 60))
 
 	// Run infrastructure validation
-	parser.PrintInfrastructureStatus(t, testDataDir)
+	fmt.Printf("📂 Test Data Directory: %s\n", testDataDir)
+	if _, err := os.Stat(testDataDir); err == nil {
+		fmt.Println("✅ Test data directory exists")
+	} else {
+		fmt.Println("❌ Test data directory missing")
+		t.Errorf("Test data directory not found: %v", err)
+	}
 
 	fmt.Println("\n📋 Infrastructure Components Implemented:")
 	fmt.Println("✅ ParserTestFramework - comprehensive test case management")

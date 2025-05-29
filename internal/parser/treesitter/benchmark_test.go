@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"tamarou.com/pvm/internal/astnav"
 )
 
 // BenchmarkParseSmallFile benchmarks parsing a small Perl file (< 100 lines)
@@ -198,10 +199,8 @@ func BenchmarkExtractTypeAnnotations(b *testing.B) {
 	// Run the benchmark
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := tree.rawTree.FindTypeAnnotations()
-		if err != nil {
-			b.Fatal(err)
-		}
+		nav := astnav.NewNavigator(tree)
+		_ = nav.FindTypeAnnotations()
 	}
 }
 

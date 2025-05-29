@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 // PerformanceMetrics tracks detailed performance metrics over time
@@ -43,6 +45,39 @@ type PerformanceTrend struct {
 	HistoricalAvgDuration time.Duration `json:"historical_avg_duration"`
 	PercentChange      float64       `json:"percent_change"`
 	LastUpdated        time.Time     `json:"last_updated"`
+}
+
+// PerformanceResult represents a single performance test result
+type PerformanceResult struct {
+	TestName      string        `json:"test_name"`
+	ParseDuration time.Duration `json:"parse_duration"`
+	MemoryUsage   int64         `json:"memory_usage"`
+	AllocCount    int64         `json:"alloc_count"`
+	Success       bool          `json:"success"`
+	Timestamp     time.Time     `json:"timestamp"`
+	ParserType    string        `json:"parser_type"`
+	Error         error         `json:"error,omitempty"`
+}
+
+// PerformanceSummary provides aggregate performance statistics
+type PerformanceSummary struct {
+	TotalTests        int           `json:"total_tests"`
+	PassedTests       int           `json:"passed_tests"`
+	FailedTests       int           `json:"failed_tests"`
+	TotalParseTime    time.Duration `json:"total_parse_time"`
+	AvgParseTime      time.Duration `json:"avg_parse_time"`
+	TotalMemoryUsed   int64         `json:"total_memory_used"`
+	AvgMemoryUsed     int64         `json:"avg_memory_used"`
+	RegressionsFound  int           `json:"regressions_found"`
+	ReportTimestamp   time.Time     `json:"report_timestamp"`
+}
+
+// CustomPerformanceReport extends the base performance report with parser-specific data
+type CustomPerformanceReport struct {
+	basetesting.PerformanceReport
+	TestResults []PerformanceResult `json:"test_results"`
+	Summary     PerformanceSummary  `json:"summary"`
+	Trends      []PerformanceTrend  `json:"trends"`
 }
 
 // PerformanceAlert represents a performance alert
@@ -313,7 +348,7 @@ func (pm *PerformanceMonitor) SaveAlerts(alerts []PerformanceAlert) error {
 }
 
 // GeneratePerformanceReport generates a comprehensive performance report
-func (pm *PerformanceMonitor) GeneratePerformanceReport() (*PerformanceReport, error) {
+func (pm *PerformanceMonitor) GeneratePerformanceReport() (*CustomPerformanceReport, error) {
 	historyDir := filepath.Join(pm.DataDir, "history")
 	
 	// Find all history files
@@ -322,9 +357,10 @@ func (pm *PerformanceMonitor) GeneratePerformanceReport() (*PerformanceReport, e
 		return nil, err
 	}
 
-	report := &PerformanceReport{
-		Timestamp: time.Now(),
-		Summary: PerformanceSummary{},
+	report := &CustomPerformanceReport{
+		PerformanceReport: basetesting.PerformanceReport{
+			Timestamp: time.Now(),
+		},
 	}
 
 	var allResults []PerformanceResult
