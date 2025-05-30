@@ -66,10 +66,10 @@ func (sn *SimpleNode) String() string {
 
 // FastParser implements a hybrid parsing strategy that avoids tree-sitter for simple cases
 type FastParser struct {
-	treesitterParser parser.Parser
-	simplePatterns   *SimplePatternMatcher
-	fallbackCount    int64
-	fastParseCount   int64
+	simplePatterns *SimplePatternMatcher
+	fallbackCount  int64
+	fastParseCount int64
+	// Note: Using parser pool instead of shared instance for thread safety
 }
 
 // SimplePatternMatcher handles basic Perl constructs without full parsing
@@ -82,10 +82,9 @@ type SimplePatternMatcher struct {
 }
 
 // NewFastParser creates a new fast parser
-func NewFastParser(baseParser parser.Parser) *FastParser {
+func NewFastParser() *FastParser {
 	return &FastParser{
-		treesitterParser: baseParser,
-		simplePatterns:   newSimplePatternMatcher(),
+		simplePatterns: newSimplePatternMatcher(),
 	}
 }
 
@@ -119,9 +118,11 @@ func (fp *FastParser) ParseString(content string) (*ast.AST, error) {
 		}
 	}
 
-	// Fall back to tree-sitter for complex content
+	// Fall back to tree-sitter for complex content using parser pool
 	fp.fallbackCount++
-	return fp.treesitterParser.ParseString(content)
+	return parser.PooledParserFunc(func(p parser.Parser) (*parser.AST, error) {
+		return p.ParseString(content)
+	})
 }
 
 // isSimpleContent determines if content might be parseable with fast parser
@@ -276,7 +277,6 @@ func NewMemoryOptimizedBinder() *MemoryOptimizedBinder {
 		stringCache: make(map[string]string, 1000),
 	}
 }
-
 
 // AlgorithmicOptimizer provides algorithmic improvements for common operations
 type AlgorithmicOptimizer struct {

@@ -332,7 +332,7 @@ func TestMemoryUsage(t *testing.T) {
 			t.Fatalf("UpdateDocument failed: %v", err)
 		}
 
-		pos := Position{Line: 5, Character: 5}
+		pos := Position{Line: 6, Character: 4} // Should be on $var0
 		_, err = ls.GetHover(uri, pos)
 		if err != nil {
 			t.Fatalf("GetHover failed: %v", err)
@@ -363,7 +363,7 @@ func TestCacheInvalidation(t *testing.T) {
 	uri := "file:///test_invalidation.pl"
 	content1 := generatePerlCode(100)
 	content2 := generatePerlCode(100) + "\n# Additional line"
-	pos := Position{Line: 5, Character: 5}
+	pos := Position{Line: 6, Character: 4} // Should be on $var0
 
 	// First document version
 	err = ls.UpdateDocument(uri, content1, 1)

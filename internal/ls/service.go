@@ -19,9 +19,9 @@ import (
 
 // LanguageService provides language analysis and editor features
 type LanguageService struct {
-	parser  parser.Parser
 	binder  binder.Binder
 	checker *parser.TypeCheck
+	// Note: Using parser pool instead of shared instance for thread safety
 
 	// Document cache
 	documents map[string]*Document
@@ -101,11 +101,6 @@ const (
 
 // NewLanguageService creates a new language service
 func NewLanguageService() (*LanguageService, error) {
-	p, err := parser.NewParser()
-	if err != nil {
-		return nil, err
-	}
-
 	b := binder.NewBinder()
 
 	checker, err := parser.NewTypeCheck()
@@ -114,7 +109,6 @@ func NewLanguageService() (*LanguageService, error) {
 	}
 
 	return &LanguageService{
-		parser:    p,
 		binder:    b,
 		checker:   checker,
 		documents: make(map[string]*Document),
@@ -156,7 +150,11 @@ func (ls *LanguageService) UpdateDocument(uri, text string, version int) error {
 		ls.monitor.RecordCacheMiss()
 		var err error
 		parseStart := time.Now()
-		ast, err = ls.parser.ParseString(text)
+
+		// Use parser pool for thread safety
+		ast, err = parser.PooledParserFunc(func(p parser.Parser) (*parser.AST, error) {
+			return p.ParseString(text)
+		})
 		parseDuration := time.Since(parseStart)
 
 		if err != nil {
@@ -1002,7 +1000,8 @@ func (ls *LanguageService) findSymbolAtPosition(doc *Document, pos Position) *bi
 func (ls *LanguageService) findScopeAtPosition(symbolTable *binder.SymbolTable, pos Position) *binder.Scope {
 	// This is a simplified implementation
 	// In a full implementation, you would traverse the AST to find the scope containing the position
-	return symbolTable.CurrentScope
+	// For now, start from global scope to ensure we can find all symbols
+	return symbolTable.GlobalScope
 }
 
 func (ls *LanguageService) extractWordAtPosition(text string, pos Position) string {
@@ -1020,24 +1019,33 @@ func (ls *LanguageService) extractWordAtPosition(text string, pos Position) stri
 	start := pos.Character
 	end := pos.Character
 
-	// Include sigil for variables
-	if start > 0 && strings.ContainsRune("$@%*", rune(line[start-1])) {
-		start--
-	}
-
-	// Move start backwards to beginning of word
-	for start > 0 && ls.isWordChar(line[start-1]) {
-		start--
-	}
-
-	// Include sigil if at the start
-	if start > 0 && strings.ContainsRune("$@%*", rune(line[start-1])) {
-		start--
-	}
-
-	// Move end forwards to end of word
-	for end < len(line) && ls.isWordChar(line[end]) {
+	// Handle case where we're starting on a sigil
+	if strings.ContainsRune("$@%*", rune(line[pos.Character])) {
+		// Move end forward to capture the variable name after the sigil
 		end++
+		for end < len(line) && ls.isWordChar(line[end]) {
+			end++
+		}
+	} else {
+		// Include sigil for variables if one exists before the current position
+		if start > 0 && strings.ContainsRune("$@%*", rune(line[start-1])) {
+			start--
+		}
+
+		// Move start backwards to beginning of word
+		for start > 0 && ls.isWordChar(line[start-1]) {
+			start--
+		}
+
+		// Include sigil if at the start
+		if start > 0 && strings.ContainsRune("$@%*", rune(line[start-1])) {
+			start--
+		}
+
+		// Move end forwards to end of word
+		for end < len(line) && ls.isWordChar(line[end]) {
+			end++
+		}
 	}
 
 	if start == end {

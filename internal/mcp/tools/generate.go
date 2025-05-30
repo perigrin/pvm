@@ -475,7 +475,13 @@ func (cg *CodeGenerator) scoreGeneration(code, codeType string) float64 {
 		}
 	case "test":
 		if strings.Contains(code, "ok(") || strings.Contains(code, "is(") {
-			score += 1.0
+			score += 2.0 // Give tests higher scores for basic assertions
+		}
+		if strings.Contains(code, "use Test") || strings.Contains(code, "use Test2") {
+			score += 1.0 // Extra points for using test framework
+		}
+		if strings.Contains(code, "done_testing") {
+			score += 0.5 // Extra points for proper test completion
 		}
 	}
 

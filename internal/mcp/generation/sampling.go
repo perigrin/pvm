@@ -6,6 +6,7 @@ package generation
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -131,16 +132,107 @@ func (c *SamplingClient) generateMockResponse(request *SamplingRequest) *Samplin
 	case contains(request.Prompt, "undefined variable"):
 		content = "my $undefined_var;"
 		confidence = 0.8
-	case contains(request.Prompt, "generate function"):
-		content = `sub calculate_sum {
-    my (ArrayRef[Int] $numbers) = @_;
-    my Int $sum = 0;
-    for my $num (@$numbers) {
-        $sum += $num;
-    }
-    return $sum;
+	case contains(request.Prompt, "generate function") || contains(request.Prompt, "Generate a Perl function"):
+		content = `sub add_numbers {
+    my ($num1, $num2) = @_;
+    return $num1 + $num2;
 }`
 		confidence = 0.85
+	case contains(request.Prompt, "Generate a Perl test") || contains(request.Prompt, "test framework") || contains(request.Prompt, "Generate comprehensive Perl tests"):
+		// Extract function name from prompt if available
+		funcName := extractFunctionName(request.Prompt)
+		framework := extractFramework(request.Prompt)
+		if framework == "" {
+			framework = "Test2::V0"
+		}
+		if funcName == "" {
+			funcName = "test_function"
+		}
+
+		content = fmt.Sprintf(`use %s;
+use strict;
+use warnings;
+
+# Test %s function
+ok(1, "valid input");
+ok(1, "invalid input");
+ok(1, "edge cases");
+ok(1, "type constraints");
+ok(1, "return type correctness");
+
+# Test %s with specific cases
+is(%s(42), "42", "%s converts integer to string");
+
+done_testing();`, framework, funcName, funcName, funcName, funcName)
+		confidence = 0.85
+	case contains(request.Prompt, "Generate a Perl class") || contains(request.Prompt, "class pattern"):
+		content = `package MyClass;
+use v5.40;
+use warnings;
+
+sub new {
+    my ($class) = @_;
+    my $self = bless {}, $class;
+    return $self;
+}
+
+1;`
+		confidence = 0.85
+	case contains(request.Prompt, "naming convention"):
+		content = "snake_case"
+		confidence = 0.9
+	case contains(request.Prompt, "completion") || contains(request.Prompt, "Complete the following") || contains(request.Prompt, "Provide code completion suggestions"):
+		// Generate structured completion suggestions
+		content = `SUGGESTION: length
+DESCRIPTION: Built-in function to get string length
+TYPE: Str -> Int
+
+SUGGESTION: substr
+DESCRIPTION: Extract substring from string
+TYPE: (Str, Int, Int?) -> Str
+
+SUGGESTION: chomp
+DESCRIPTION: Remove trailing newline characters
+TYPE: Str -> Str`
+		confidence = 0.8
+	case contains(request.Prompt, "refactor") || contains(request.Prompt, "Refactor"):
+		if contains(request.Prompt, "extract") {
+			content = `sub extracted_method {
+    my ($param) = @_;
+    return $param + 1;
+}`
+		} else if contains(request.Prompt, "rename") {
+			content = `my $meaningful_name = 42;
+print $meaningful_name;`
+		} else if contains(request.Prompt, "inline") {
+			content = `my $result = 3.14159;`
+		} else {
+			content = `# Refactored code
+my $improved_code = 1;`
+		}
+		confidence = 0.8
+	case contains(request.Prompt, "Generate documentation") || contains(request.Prompt, "POD documentation") || contains(request.Prompt, "Generate concise Perl documentation") || contains(request.Prompt, "Generate detailed Perl documentation"):
+		content = `=head1 NAME
+
+MyModule - A sample Perl module
+
+=head1 SYNOPSIS
+
+    use MyModule;
+    my $obj = MyModule->new();
+
+=head1 DESCRIPTION
+
+This module provides sample functionality.
+
+=head1 METHODS
+
+=head2 new
+
+Constructor method.
+
+=cut`
+		confidence = 0.8
 	default:
 		// Generic response
 		content = "# Generated code based on prompt"
@@ -167,6 +259,34 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// extractFunctionName extracts function name from test generation prompts
+func extractFunctionName(prompt string) string {
+	// Look for "Generate comprehensive Perl tests for function 'function_name'"
+	start := strings.Index(prompt, "function '")
+	if start == -1 {
+		return ""
+	}
+	start += len("function '")
+
+	end := strings.Index(prompt[start:], "'")
+	if end == -1 {
+		return ""
+	}
+
+	return prompt[start : start+end]
+}
+
+// extractFramework extracts test framework from prompts
+func extractFramework(prompt string) string {
+	if contains(prompt, "Test::More") {
+		return "Test::More"
+	}
+	if contains(prompt, "Test2::V0") {
+		return "Test2::V0"
+	}
+	return ""
 }
 
 // CreateSamplingMessage creates an MCP sampling message structure

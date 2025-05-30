@@ -15,8 +15,7 @@ import (
 
 // TypeCheck is the main entry point for type checking a file
 type TypeCheck struct {
-	// Parser is the parser used for parsing Perl code
-	Parser parser.Parser
+	// Note: Using parser pool instead of shared instance for thread safety
 
 	// Binder is the symbol binder used for symbol resolution
 	Binder binder.Binder
@@ -53,12 +52,6 @@ type TypeCheck struct {
 
 // NewTypeCheck creates a new TypeCheck instance
 func NewTypeCheck() (*TypeCheck, error) {
-	// Create a parser
-	parser, err := parser.NewParser()
-	if err != nil {
-		return nil, err
-	}
-
 	// Create a type store
 	typeStore, err := typedef.NewStorage()
 	if err != nil {
@@ -75,7 +68,6 @@ func NewTypeCheck() (*TypeCheck, error) {
 	inferenceEngine := NewInferenceEngine(hierarchy, nil)
 
 	return &TypeCheck{
-		Parser:                      parser,
 		Binder:                      symbolBinder,
 		TypeStore:                   typeStore,
 		TypeHierarchy:               hierarchy,
@@ -117,8 +109,10 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 			return cached, nil
 		}
 	}
-	// Parse the file using our enhanced parser
-	ast, err := tc.Parser.ParseFile(path)
+	// Parse the file using parser pool for thread safety
+	ast, err := parser.PooledParserFunc(func(p parser.Parser) (*parser.AST, error) {
+		return p.ParseFile(path)
+	})
 	if err != nil {
 		return nil, err
 	}

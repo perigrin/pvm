@@ -52,29 +52,20 @@ type TypeInfo struct {
 
 // Validator provides code validation using PVM's type checker
 type Validator struct {
-	parser      parser.Parser
 	typeStorage *typedef.Storage
 	cache       *ValidationCache
+	// Note: Using parser pool instead of shared instance for thread safety
 }
 
 // NewValidator creates a new validator instance
 func NewValidator(cache *ValidationCache) (*Validator, error) {
-	// Create parser
-	p, err := parser.NewParser()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create parser: %w", err)
-	}
-
 	// Create type storage
 	storage, err := typedef.NewStorage()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create type storage: %w", err)
 	}
 
-	// We don't need the type checker here, just remove it
-
 	return &Validator{
-		parser:      p,
 		typeStorage: storage,
 		cache:       cache,
 	}, nil
@@ -90,14 +81,19 @@ func (v *Validator) ValidateCode(ctx context.Context, code string, projectPath s
 		return cached, nil
 	}
 
-	// Parse the code
-	ast, err := v.parser.ParseString(code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse code: %w", err)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse code: %w", err)
-	}
+	// Parse the code using parser pool for thread safety
+	return parser.PooledParserFunc(func(p parser.Parser) (*ValidationResult, error) {
+		ast, err := p.ParseString(code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse code: %w", err)
+		}
+
+		return v.processValidation(ast, code, projectPath, cacheKey), nil
+	})
+}
+
+// processValidation processes the AST for validation
+func (v *Validator) processValidation(ast *parser.AST, code, projectPath, cacheKey string) *ValidationResult {
 
 	result := &ValidationResult{
 		Valid:     true,
@@ -160,7 +156,7 @@ func (v *Validator) ValidateCode(ctx context.Context, code string, projectPath s
 	// Cache the result
 	v.cache.Set(cacheKey, result)
 
-	return result, nil
+	return result
 }
 
 // performTypeChecking performs type checking on the code

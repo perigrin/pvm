@@ -5,6 +5,7 @@ package embeddings
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -56,47 +57,38 @@ type CodeBlock struct {
 
 // Extractor extracts code blocks from Perl files
 type Extractor struct {
-	parser parser.Parser
+	// Note: Using parser pool instead of shared instance for thread safety
 }
 
 // NewExtractor creates a new code block extractor
 func NewExtractor() (*Extractor, error) {
-	p, err := parser.NewParser()
-	if err != nil {
-		return nil, errors.NewSystemError(
-			ErrExtractionFailed,
-			"Failed to create parser for extraction",
-			err,
-		)
-	}
-
-	return &Extractor{
-		parser: p,
-	}, nil
+	return &Extractor{}, nil
 }
 
 // ExtractFromFile extracts code blocks from a single Perl file
 func (e *Extractor) ExtractFromFile(projectID, filePath string) ([]*CodeBlock, error) {
-	// Parse the file
-	ast, err := e.parser.ParseFile(filePath)
-	if err != nil {
-		return nil, errors.NewSystemError(
-			ErrParsingFailed,
-			fmt.Sprintf("Failed to parse file: %s", filePath),
-			err,
-		).WithLocation(filePath)
-	}
+	// Parse the file using parser pool for thread safety
+	return parser.PooledParserFunc(func(p parser.Parser) ([]*CodeBlock, error) {
+		ast, err := p.ParseFile(filePath)
+		if err != nil {
+			return nil, errors.NewSystemError(
+				ErrParsingFailed,
+				fmt.Sprintf("Failed to parse file: %s", filePath),
+				err,
+			).WithLocation(filePath)
+		}
 
-	// Check for parse errors
-	if len(ast.Errors) > 0 {
-		// We can still extract from files with errors, just log them
-		// In a real system, you might want to handle this differently
-	}
+		// Check for parse errors
+		if len(ast.Errors) > 0 {
+			// We can still extract from files with errors, just log them
+			// In a real system, you might want to handle this differently
+		}
 
-	// Extract code blocks from the AST
-	blocks := e.extractBlocksFromAST(ast, projectID, filePath)
+		// Extract code blocks from the AST
+		blocks := e.extractBlocksFromAST(ast, projectID, filePath)
 
-	return blocks, nil
+		return blocks, nil
+	})
 }
 
 // extractBlocksFromAST extracts code blocks from a parsed AST
@@ -133,14 +125,21 @@ func (e *Extractor) extractBlocksFromAST(ast *parser.AST, projectID, filePath st
 
 	// If no specific blocks found, create a file-level block
 	if len(blocks) == 0 && ast.Root != nil {
+		// Read file content directly since ast.Root.Text() may be empty with pooled parsers
+		content, err := os.ReadFile(filePath)
+		contentStr := ""
+		if err == nil {
+			contentStr = string(content)
+		}
+
 		blocks = append(blocks, &CodeBlock{
 			ID:        fmt.Sprintf("%s/%s/file", projectID, baseFile),
-			Content:   ast.Root.Text(),
+			Content:   contentStr,
 			Type:      "file",
 			Name:      baseFile,
 			File:      filePath,
-			StartLine: ast.Root.Start().Line,
-			EndLine:   ast.Root.End().Line,
+			StartLine: 1,
+			EndLine:   len(strings.Split(contentStr, "\n")),
 			TypeInfo:  e.extractTypeInfo(ast),
 			Imports:   imports,
 			Context:   packageName,

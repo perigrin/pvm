@@ -76,8 +76,8 @@ func NewOptimizedPipeline(baseParser parser.Parser, config *OptimizationConfig) 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Create optimized components
-	fastParser := NewFastParser(baseParser)
-	optimizedParser := NewOptimizedParser(baseParser)
+	fastParser := NewFastParser()
+	optimizedParser := NewOptimizedParser()
 	memBinder := NewMemoryOptimizedBinder()
 
 	// Create caches and pools

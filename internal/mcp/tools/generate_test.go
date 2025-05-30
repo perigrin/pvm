@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -36,7 +37,7 @@ func TestNewCodeGenerator(t *testing.T) {
 	autoFixer := &MockAutoFixer{}
 	samplingClient := generation.NewSamplingClient(true)
 	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "test")
 
 	generator := NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
 
@@ -53,7 +54,7 @@ func TestCodeGenerator_Generate_Function(t *testing.T) {
 	autoFixer := &MockAutoFixer{}
 	samplingClient := generation.NewSamplingClient(true)
 	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "test")
 
 	generator := NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
 
@@ -90,7 +91,7 @@ func TestCodeGenerator_Generate_Class(t *testing.T) {
 	autoFixer := &MockAutoFixer{}
 	samplingClient := generation.NewSamplingClient(true)
 	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "test")
 
 	generator := NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
 
@@ -125,7 +126,7 @@ func TestCodeGenerator_Generate_Test(t *testing.T) {
 	autoFixer := &MockAutoFixer{}
 	samplingClient := generation.NewSamplingClient(true)
 	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "test")
 
 	generator := NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
 
@@ -160,7 +161,7 @@ func TestCodeGenerator_Generate_InvalidType(t *testing.T) {
 	autoFixer := &MockAutoFixer{}
 	samplingClient := generation.NewSamplingClient(true)
 	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "test")
 
 	generator := NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
 
@@ -181,7 +182,7 @@ func TestCodeGenerator_ValidateAndFix_WithErrors(t *testing.T) {
 	validator := &MockValidator{}
 	autoFixer := &MockAutoFixer{}
 	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "test")
 
 	generator := &CodeGenerator{
 		validator:     validator,
@@ -274,7 +275,7 @@ func TestCodeGenerator_MemoryIntegration(t *testing.T) {
 	autoFixer := &MockAutoFixer{}
 	samplingClient := generation.NewSamplingClient(true)
 	memoryManager := generation.NewMemoryManager(50)
-	logger := log.NewLogger(log.LevelInfo, nil, "test")
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "test")
 
 	generator := NewCodeGenerator(validator, autoFixer, samplingClient, memoryManager, logger)
 

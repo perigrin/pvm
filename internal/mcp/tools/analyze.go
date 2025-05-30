@@ -18,21 +18,14 @@ import (
 type CodeAnalyzer struct {
 	validator *validation.Validator
 	autoFixer *validation.AutoFixer
-	parser    parser.Parser
+	// Note: Using parser pool instead of shared instance for thread safety
 }
 
 // NewCodeAnalyzer creates a new code analyzer
 func NewCodeAnalyzer(validator *validation.Validator, autoFixer *validation.AutoFixer) (*CodeAnalyzer, error) {
-	// Create parser
-	p, err := parser.NewParser()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create parser: %w", err)
-	}
-
 	return &CodeAnalyzer{
 		validator: validator,
 		autoFixer: autoFixer,
-		parser:    p,
 	}, nil
 }
 
@@ -119,12 +112,19 @@ func (a *CodeAnalyzer) Analyze(ctx context.Context, code string, analysisType st
 
 // getTypes extracts type information from the code
 func (a *CodeAnalyzer) getTypes(ctx context.Context, code string, projectPath string) (*AnalysisResult, error) {
-	// Parse the code to extract type annotations
-	ast, err := a.parser.ParseString(code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse code: %w", err)
-	}
+	// Parse the code using parser pool for thread safety
+	return parser.PooledParserFunc(func(p parser.Parser) (*AnalysisResult, error) {
+		ast, err := p.ParseString(code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse code: %w", err)
+		}
 
+		return a.processTypesFromAST(ast), nil
+	})
+}
+
+// processTypesFromAST processes the AST to extract type information
+func (a *CodeAnalyzer) processTypesFromAST(ast *ast.AST) *AnalysisResult {
 	result := &AnalysisResult{
 		Status:       "success",
 		AnalysisType: "get_types",
@@ -163,7 +163,7 @@ func (a *CodeAnalyzer) getTypes(ctx context.Context, code string, projectPath st
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 // checkErrors validates the code and checks for type errors
@@ -255,12 +255,19 @@ func (a *CodeAnalyzer) checkErrors(ctx context.Context, code string, projectPath
 
 // inferTypes performs type inference on the code
 func (a *CodeAnalyzer) inferTypes(ctx context.Context, code string, projectPath string) (*AnalysisResult, error) {
-	// Parse the code
-	ast, err := a.parser.ParseString(code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse code: %w", err)
-	}
+	// Parse the code using parser pool for thread safety
+	return parser.PooledParserFunc(func(p parser.Parser) (*AnalysisResult, error) {
+		ast, err := p.ParseString(code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse code: %w", err)
+		}
 
+		return a.processInferredTypes(ast), nil
+	})
+}
+
+// processInferredTypes processes the AST to perform type inference
+func (a *CodeAnalyzer) processInferredTypes(ast *ast.AST) *AnalysisResult {
 	result := &AnalysisResult{
 		Status:        "success",
 		AnalysisType:  "infer_types",
@@ -299,7 +306,7 @@ func (a *CodeAnalyzer) inferTypes(ctx context.Context, code string, projectPath 
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 // Helper functions
@@ -485,12 +492,19 @@ type AnnotationSuggestion struct {
 
 // performFlowAnalysis performs flow-sensitive type analysis
 func (a *CodeAnalyzer) performFlowAnalysis(ctx context.Context, code string, projectPath string) (*AnalysisResult, error) {
-	// Parse the code
-	ast, err := a.parser.ParseString(code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse code: %w", err)
-	}
+	// Parse the code using parser pool for thread safety
+	return parser.PooledParserFunc(func(p parser.Parser) (*AnalysisResult, error) {
+		ast, err := p.ParseString(code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse code: %w", err)
+		}
 
+		return a.processFlowAnalysis(ast, code), nil
+	})
+}
+
+// processFlowAnalysis processes the AST for flow analysis
+func (a *CodeAnalyzer) processFlowAnalysis(ast *ast.AST, code string) *AnalysisResult {
 	result := &AnalysisResult{
 		Status:       "success",
 		AnalysisType: "flow_analysis",
@@ -515,17 +529,24 @@ func (a *CodeAnalyzer) performFlowAnalysis(ctx context.Context, code string, pro
 	patterns := a.findValidationPatterns(code)
 	result.FlowAnalysis.ValidationPatterns = patterns
 
-	return result, nil
+	return result
 }
 
 // analyzeCodeQuality analyzes code quality metrics
 func (a *CodeAnalyzer) analyzeCodeQuality(ctx context.Context, code string, projectPath string) (*AnalysisResult, error) {
-	// Parse the code
-	ast, err := a.parser.ParseString(code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse code: %w", err)
-	}
+	// Parse the code using parser pool for thread safety
+	return parser.PooledParserFunc(func(p parser.Parser) (*AnalysisResult, error) {
+		ast, err := p.ParseString(code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse code: %w", err)
+		}
 
+		return a.processCodeQuality(ast, code), nil
+	})
+}
+
+// processCodeQuality processes the AST for code quality analysis
+func (a *CodeAnalyzer) processCodeQuality(ast *ast.AST, code string) *AnalysisResult {
 	result := &AnalysisResult{
 		Status:       "success",
 		AnalysisType: "code_quality",
@@ -545,17 +566,24 @@ func (a *CodeAnalyzer) analyzeCodeQuality(ctx context.Context, code string, proj
 	// Calculate type safety metrics
 	result.CodeQuality.TypeSafety = a.calculateTypeSafety(ast)
 
-	return result, nil
+	return result
 }
 
 // checkTypeCompatibility checks compatibility between types
 func (a *CodeAnalyzer) checkTypeCompatibility(ctx context.Context, code string, projectPath string) (*AnalysisResult, error) {
-	// Parse the code
-	ast, err := a.parser.ParseString(code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse code: %w", err)
-	}
+	// Parse the code using parser pool for thread safety
+	return parser.PooledParserFunc(func(p parser.Parser) (*AnalysisResult, error) {
+		ast, err := p.ParseString(code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse code: %w", err)
+		}
 
+		return a.processTypeCompatibility(ast), nil
+	})
+}
+
+// processTypeCompatibility processes the AST for type compatibility analysis
+func (a *CodeAnalyzer) processTypeCompatibility(ast *ast.AST) *AnalysisResult {
 	result := &AnalysisResult{
 		Status:            "success",
 		AnalysisType:      "type_compatibility",
@@ -578,17 +606,24 @@ func (a *CodeAnalyzer) checkTypeCompatibility(ctx context.Context, code string, 
 		result.TypeCompatibility = append(result.TypeCompatibility, compat)
 	}
 
-	return result, nil
+	return result
 }
 
 // analyzeTypeAnnotations analyzes type annotation quality and coverage
 func (a *CodeAnalyzer) analyzeTypeAnnotations(ctx context.Context, code string, projectPath string) (*AnalysisResult, error) {
-	// Parse the code
-	ast, err := a.parser.ParseString(code)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse code: %w", err)
-	}
+	// Parse the code using parser pool for thread safety
+	return parser.PooledParserFunc(func(p parser.Parser) (*AnalysisResult, error) {
+		ast, err := p.ParseString(code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse code: %w", err)
+		}
 
+		return a.processTypeAnnotations(ast), nil
+	})
+}
+
+// processTypeAnnotations processes the AST for type annotation analysis
+func (a *CodeAnalyzer) processTypeAnnotations(ast *ast.AST) *AnalysisResult {
 	result := &AnalysisResult{
 		Status:       "success",
 		AnalysisType: "annotation_analysis",
@@ -634,7 +669,7 @@ func (a *CodeAnalyzer) analyzeTypeAnnotations(ctx context.Context, code string, 
 		analysis.MissingAnnotations = append(analysis.MissingAnnotations, missing)
 	}
 
-	return result, nil
+	return result
 }
 
 // performFullAnalysis performs comprehensive analysis including all features

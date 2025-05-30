@@ -15,7 +15,6 @@ import (
 
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/mcp/validation"
-	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -23,11 +22,11 @@ import (
 type ProjectAnalyzer struct {
 	codeAnalyzer *CodeAnalyzer
 	validator    *validation.Validator
-	parser       parser.Parser
 	typeStorage  *typedef.Storage
 	logger       *log.Logger
 	mu           sync.RWMutex
 	projectCache map[string]*ProjectAnalysis
+	// Note: Using parser pool instead of shared instance for thread safety
 }
 
 // ProjectAnalysis represents the analysis results for an entire project
@@ -112,22 +111,16 @@ type ExportInfo struct {
 
 // NewProjectAnalyzer creates a new project analyzer
 func NewProjectAnalyzer(codeAnalyzer *CodeAnalyzer, validator *validation.Validator) (*ProjectAnalyzer, error) {
-	parser, err := parser.NewParser()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create parser: %w", err)
-	}
-
 	typeStorage, err := typedef.NewStorage()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create type storage: %w", err)
 	}
 
-	logger := log.NewLogger(log.LevelInfo, nil, "project-analyzer")
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "project-analyzer")
 
 	return &ProjectAnalyzer{
 		codeAnalyzer: codeAnalyzer,
 		validator:    validator,
-		parser:       parser,
 		typeStorage:  typeStorage,
 		logger:       logger,
 		projectCache: make(map[string]*ProjectAnalysis),
@@ -284,9 +277,12 @@ func (pa *ProjectAnalyzer) analyzeFile(ctx context.Context, filePath string) (*F
 		return nil, err
 	}
 
-	// Copy type information
+	// Copy type information - only include actual type declarations, not variables
 	for name, typeDetail := range analysisResult.TypeInfo {
-		fileAnalysis.Types[name] = typeDetail
+		// Only count type declarations as "types" for project analysis
+		if typeDetail.Kind == "type_declaration" {
+			fileAnalysis.Types[name] = typeDetail
+		}
 	}
 
 	// Check for errors

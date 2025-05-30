@@ -80,7 +80,8 @@ func (cs *CodeSearcher) Search(ctx context.Context, request SearchRequest) (*Sea
 	if request.TopK == 0 {
 		request.TopK = cs.defaultTopK
 	}
-	if request.MinSimilarity == 0 {
+	// Only set default MinSimilarity if it's negative (unset), not zero
+	if request.MinSimilarity < 0 {
 		request.MinSimilarity = cs.minSimilarity
 	}
 
@@ -262,18 +263,37 @@ func (cs *CodeSearcher) patternSearch(ctx context.Context, request SearchRequest
 
 // extractTypeSignature extracts type information from a search query
 func (cs *CodeSearcher) extractTypeSignature(query string) []string {
-	// Look for common Perl type patterns
+	// Look for common Perl type patterns with non-overlapping matching
 	typePatterns := []string{
-		`\b(Int|Str|Bool|ArrayRef|HashRef|CodeRef|Object|Any|Undef)\b`,
-		`\b([A-Z][a-zA-Z0-9_]*)\b`, // Custom types (capitalized)
-		`\$[a-zA-Z_][a-zA-Z0-9_]*`, // Variables
+		`\b(Int|Str|Bool|ArrayRef|HashRef|CodeRef|Object|Any|Undef)\b`, // Built-in types
+		`\$[a-zA-Z_][a-zA-Z0-9_]*`,                                     // Variables
 	}
 
-	var types []string
+	// Use a map to track unique types and avoid duplicates
+	typeSet := make(map[string]bool)
+
 	for _, pattern := range typePatterns {
 		re := regexp.MustCompile(pattern)
 		matches := re.FindAllString(query, -1)
-		types = append(types, matches...)
+		for _, match := range matches {
+			typeSet[match] = true
+		}
+	}
+
+	// Handle custom types (capitalized words not already matched by built-in types)
+	customTypeRegex := regexp.MustCompile(`\b([A-Z][a-zA-Z0-9_]*)\b`)
+	customMatches := customTypeRegex.FindAllString(query, -1)
+	for _, match := range customMatches {
+		// Only add if it's not already a built-in type
+		if !typeSet[match] {
+			typeSet[match] = true
+		}
+	}
+
+	// Convert map keys to slice
+	var types []string
+	for typeStr := range typeSet {
+		types = append(types, typeStr)
 	}
 
 	return types

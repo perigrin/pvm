@@ -382,16 +382,10 @@ func StripAndExecute(scriptPath string, args []string, perlVersion string, verbo
 	baseName := filepath.Base(scriptPath)
 	strippedPath := filepath.Join(dir, "."+baseName+".stripped.pl")
 
-	// Parse the file first
-	p, err := parser.NewParser()
-	if err != nil {
-		return "", errors.NewTypeError(
-			ErrIntegrationFailed,
-			"Failed to create parser",
-			err).WithLocation(scriptPath)
-	}
-
-	ast, err := p.ParseFile(scriptPath)
+	// Parse the file using parser pool for thread safety
+	ast, err := parser.PooledParserFunc(func(p parser.Parser) (*parser.AST, error) {
+		return p.ParseFile(scriptPath)
+	})
 	if err != nil {
 		return "", errors.NewTypeError(
 			ErrIntegrationFailed,

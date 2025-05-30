@@ -52,16 +52,10 @@ Examples:
 				outputFile = args[1]
 			}
 
-			// Parse the file first
-			p, err := parser.NewParser()
-			if err != nil {
-				return errors.NewTypeError(
-					ErrIntegrationFailed,
-					fmt.Sprintf("Failed to create parser: %v", err),
-					err).WithLocation(inputFile)
-			}
-
-			ast, err := p.ParseFile(inputFile)
+			// Parse the file using parser pool for thread safety
+			ast, err := parser.PooledParserFunc(func(p parser.Parser) (*parser.AST, error) {
+				return p.ParseFile(inputFile)
+			})
 			if err != nil {
 				return errors.NewTypeError(
 					ErrIntegrationFailed,

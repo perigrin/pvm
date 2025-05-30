@@ -5,12 +5,14 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/philippgille/chromem-go"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/mcp/embeddings"
 )
@@ -396,8 +398,35 @@ func indexTestProject(t *testing.T, searcher *CodeSearcher, projectPath string) 
 		}
 	}
 
-	// Add documents to store
-	return searcher.store.AddDocuments(context.Background(), projectPath, storeDocs)
+	// Get or create collection using the same method as search
+	collection, err := searcher.manager.GetOrCreateCollection(context.Background(), projectPath)
+	if err != nil {
+		return err
+	}
+
+	// Convert to chromem documents
+	chromemDocs := make([]chromem.Document, len(storeDocs))
+	for i, doc := range storeDocs {
+		// Convert metadata from map[string]any to map[string]string
+		metadata := make(map[string]string)
+		for k, v := range doc.Metadata {
+			metadata[k] = fmt.Sprintf("%v", v)
+		}
+
+		chromemDocs[i] = chromem.Document{
+			ID:       doc.ID,
+			Content:  doc.Content,
+			Metadata: metadata,
+		}
+	}
+
+	// Add documents using collection manager
+	err = searcher.manager.AddDocuments(context.Background(), collection, chromemDocs)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // findPerlFiles recursively finds Perl files in a directory

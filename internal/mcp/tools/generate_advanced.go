@@ -542,14 +542,28 @@ Generate the documentation:`,
 func (dg *DocumentationGenerator) parseDocumentationSections(documentation string) map[string]string {
 	sections := make(map[string]string)
 
-	// Parse POD sections
-	podSectionRegex := regexp.MustCompile(`(?m)^=head\d\s+(\w+)\s*\n([\s\S]*?)(?:^=|$)`)
-	matches := podSectionRegex.FindAllStringSubmatch(documentation, -1)
+	// Parse POD sections - handle nested headers correctly
+	lines := strings.Split(documentation, "\n")
+	var currentSection string
+	var content []string
 
-	for _, match := range matches {
-		if len(match) >= 3 {
-			sections[match[1]] = strings.TrimSpace(match[2])
+	for _, line := range lines {
+		if strings.HasPrefix(line, "=head1 ") {
+			// Save previous section if exists
+			if currentSection != "" {
+				sections[currentSection] = strings.TrimSpace(strings.Join(content, "\n"))
+			}
+			// Start new section
+			currentSection = strings.TrimSpace(strings.TrimPrefix(line, "=head1"))
+			content = []string{}
+		} else if currentSection != "" {
+			content = append(content, line)
 		}
+	}
+
+	// Save the last section
+	if currentSection != "" {
+		sections[currentSection] = strings.TrimSpace(strings.Join(content, "\n"))
 	}
 
 	// If no POD sections found, treat as single section
@@ -599,16 +613,40 @@ func (ce *CompletionEngine) extractCompletionContext(code string, position int) 
 		context["line_number"] = fmt.Sprintf("%d", currentLine+1)
 	}
 
-	// Extract preceding token
+	// Extract preceding token - handle partial words
 	if position > 0 && position <= len(code) {
-		beforeCursor := code[:position]
-		tokens := strings.Fields(beforeCursor)
-		if len(tokens) > 0 {
-			context["preceding_token"] = tokens[len(tokens)-1]
+		// Find the word at the cursor position
+		start := position
+		end := position
+
+		// Move start backward to find word boundary
+		for start > 0 && (isAlphaNumeric(code[start-1]) || code[start-1] == '_' || code[start-1] == '$' || code[start-1] == '@' || code[start-1] == '%') {
+			start--
+		}
+
+		// Move end forward to find word boundary
+		for end < len(code) && (isAlphaNumeric(code[end]) || code[end] == '_') {
+			end++
+		}
+
+		if start < end {
+			context["preceding_token"] = code[start:end]
+		} else {
+			// Fallback to previous complete word
+			beforeCursor := code[:position]
+			tokens := strings.Fields(beforeCursor)
+			if len(tokens) > 0 {
+				context["preceding_token"] = tokens[len(tokens)-1]
+			}
 		}
 	}
 
 	return context
+}
+
+// isAlphaNumeric checks if character is alphanumeric
+func isAlphaNumeric(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
 func (ce *CompletionEngine) buildCompletionPrompt(contextInfo map[string]string, request CompletionRequest) string {

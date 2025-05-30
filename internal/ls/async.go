@@ -153,22 +153,49 @@ func (rq *RequestQueue) worker(id int) {
 func (rq *RequestQueue) processRequest(req *LSPRequest) {
 	start := time.Now()
 
-	// Check if request has timed out
+	// Check if request has already timed out before processing
 	if req.Timeout > 0 && time.Since(req.Timestamp) > req.Timeout {
 		req.ResultChan <- LSPResult{Error: context.DeadlineExceeded}
 		return
 	}
 
-	// Check if context is cancelled
-	select {
-	case <-req.Context.Done():
-		req.ResultChan <- LSPResult{Error: req.Context.Err()}
-		return
-	default:
+	// Create context with timeout for execution
+	ctx := req.Context
+	var cancel context.CancelFunc
+	if req.Timeout > 0 {
+		remainingTime := req.Timeout - time.Since(req.Timestamp)
+		if remainingTime <= 0 {
+			req.ResultChan <- LSPResult{Error: context.DeadlineExceeded}
+			return
+		}
+		ctx, cancel = context.WithTimeout(req.Context, remainingTime)
+		defer cancel()
 	}
 
-	// Execute the request
-	result, err := req.Handler()
+	// Execute the request with timeout enforcement
+	type handlerResult struct {
+		result interface{}
+		err    error
+	}
+
+	resultChan := make(chan handlerResult, 1)
+	go func() {
+		result, err := req.Handler()
+		resultChan <- handlerResult{result, err}
+	}()
+
+	var result interface{}
+	var err error
+
+	select {
+	case <-ctx.Done():
+		// Request timed out or was cancelled
+		req.ResultChan <- LSPResult{Error: ctx.Err()}
+		return
+	case handlerRes := <-resultChan:
+		result = handlerRes.result
+		err = handlerRes.err
+	}
 
 	// Update statistics
 	rq.mu.Lock()

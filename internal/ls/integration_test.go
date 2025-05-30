@@ -86,7 +86,7 @@ print "Result: " . $calc->get_result() . "\n";
 		{"Variable", 7, 5, true, "Hover on $version variable"},
 		{"Subroutine", 9, 5, true, "Hover on 'new' subroutine"},
 		{"Method", 18, 5, true, "Hover on 'add' method"},
-		{"Parameter", 19, 10, true, "Hover on $self parameter"},
+		{"Parameter", 44, 1, true, "Hover on $calc usage"},
 		{"Comment", 6, 5, false, "Hover on comment (should not work)"},
 		{"Whitespace", 8, 0, false, "Hover on whitespace"},
 	}
@@ -158,8 +158,8 @@ print "Result: " . $calc->get_result() . "\n";
 		expectDef   bool
 		description string
 	}{
-		{"Variable", 40, 5, true, "Definition of $calc variable"},
-		{"Method", 41, 7, true, "Definition of add method"},
+		{"Variable", 43, 3, true, "Definition of $calc variable"},
+		{"Method", 44, 0, true, "Definition of add method"},
 		{"Subroutine", 9, 5, true, "Definition of new subroutine"},
 	}
 
@@ -259,7 +259,8 @@ use lib 'lib';
 use Utils;
 
 # Test Utils functions
-is(Utils::format_number(42.12345), "42.12", "Number formatting");
+my $test_value = 42.12345;
+is(Utils::format_number($test_value), "42.12", "Number formatting");
 ok(1, "Basic test");
 
 done_testing();

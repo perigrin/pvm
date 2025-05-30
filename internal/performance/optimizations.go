@@ -108,15 +108,14 @@ func (pc *ParseCache) GetStats() (hits, misses int64, hitRate float64) {
 
 // OptimizedParser wraps the regular parser with performance optimizations
 type OptimizedParser struct {
-	baseParser parser.Parser
 	cache      *ParseCache
 	objectPool *ObjectPool
+	// Note: Using parser pool instead of shared instance for thread safety
 }
 
 // NewOptimizedParser creates a performance-optimized parser
-func NewOptimizedParser(baseParser parser.Parser) *OptimizedParser {
+func NewOptimizedParser() *OptimizedParser {
 	return &OptimizedParser{
-		baseParser: baseParser,
 		cache:      NewParseCache(1000), // Cache up to 1000 parse results
 		objectPool: NewObjectPool(),
 	}
@@ -133,8 +132,10 @@ func (op *OptimizedParser) ParseString(content string) (*ast.AST, error) {
 		return entry.AST, nil
 	}
 
-	// Parse with base parser
-	result, err := op.baseParser.ParseString(content)
+	// Parse with parser pool for thread safety
+	result, err := parser.PooledParserFunc(func(p parser.Parser) (*ast.AST, error) {
+		return p.ParseString(content)
+	})
 	if err != nil {
 		return nil, err
 	}

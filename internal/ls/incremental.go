@@ -322,7 +322,9 @@ func (ls *LanguageService) reparseAffectedRegions(doc *Document, changes []Docum
 
 	// Extract affected text regions and reparse them
 	// This is a simplified version - a full implementation would be more sophisticated
-	ast, err := ls.parser.ParseString(doc.Text)
+	ast, err := parser.PooledParserFunc(func(p parser.Parser) (*parser.AST, error) {
+		return p.ParseString(doc.Text)
+	})
 	if err == nil {
 		doc.AST = ast
 		doc.ASTHash = ls.cache.HashContent(strings.Join([]string{doc.ContentHash, "ast"}, ":"))
