@@ -256,15 +256,34 @@ func (ter *TypeErrorRecovery) FindSynchronizationPoint(source string, position a
 		}
 		
 		line := lines[lineNum-1]
+		startCol := 0
+		if lineNum == position.Line {
+			// On the same line, start searching after current position
+			startCol = position.Column - 1 // Convert to 0-based
+			if startCol < 0 {
+				startCol = 0
+			}
+		}
+		
+		// Find the earliest sync token
+		bestCol := -1
+		bestToken := ""
 		for token := range ter.syncTokens {
-			if strings.Contains(line, token) {
-				// Found a synchronization point
-				col := strings.Index(line, token)
-				return ast.Position{
-					Line:   lineNum,
-					Column: col + len(token),
-					Offset: position.Offset + len(line[:col]) + len(token),
-				}
+			// Find token starting from the appropriate position
+			col := strings.Index(line[startCol:], token)
+			if col != -1 && (bestCol == -1 || col < bestCol) {
+				bestCol = col
+				bestToken = token
+			}
+		}
+		
+		if bestCol != -1 {
+			// Found a synchronization point
+			actualCol := startCol + bestCol
+			return ast.Position{
+				Line:   lineNum,
+				Column: actualCol + len(bestToken) + 1, // +1 for 1-based column numbering
+				Offset: position.Offset + len(line[:actualCol]) + len(bestToken),
 			}
 		}
 	}
@@ -274,7 +293,7 @@ func (ter *TypeErrorRecovery) FindSynchronizationPoint(source string, position a
 		line := lines[position.Line-1]
 		return ast.Position{
 			Line:   position.Line,
-			Column: len(line),
+			Column: len(line) + 1, // +1 for 1-based column numbering
 			Offset: position.Offset + len(line) - position.Column,
 		}
 	}

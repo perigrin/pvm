@@ -4,6 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build/Test Commands
 
+All test files MUST pass 100% before committing, even tests that appear
+unrelated to the current work.
+
 ### Basic Commands
 - Build all: `make` (builds all components including tree-sitter-typed-perl)
 - Build individual components:

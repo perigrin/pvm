@@ -1,13 +1,13 @@
 {
   "total_tests": 7,
-  "passed_tests": 7,
-  "failed_tests": 0,
+  "passed_tests": 6,
+  "failed_tests": 1,
   "category_metrics": {
     "typed-perl": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 6,
+      "failed": 1,
+      "accuracy": 85.71428571428571
     }
   },
   "feature_metrics": {
@@ -37,9 +37,9 @@
     },
     "formatting": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "method-signatures": {
       "total": 2,
@@ -91,21 +91,21 @@
     },
     "union-types": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 6,
+      "failed": 1,
+      "accuracy": 85.71428571428571
     },
     "variable-declarations": {
       "total": 4,
-      "passed": 4,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 1,
+      "accuracy": 75
     },
     "whitespace": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     }
   },
   "parsing_time": 0,

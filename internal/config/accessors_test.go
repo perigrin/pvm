@@ -48,7 +48,7 @@ func TestGetString(t *testing.T) {
 	// Test environment variable expansion
 	_ = os.Setenv("XDG_DATA_HOME", "/home/user/.local/share")
 	value := config.GetString("psc", "type_definitions_path")
-	if value != "$XDG_DATA_HOME/pvm/types" {
+	if value != "/home/user/.local/share/pvm/types" {
 		t.Errorf("Environment variable not expanded correctly, got %s", value)
 	}
 }

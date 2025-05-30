@@ -160,19 +160,20 @@ func TestParserTestFramework_AST_Validation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test with valid Perl code
-	ast, err := parser.ParseString(`my $test = "hello";`)
+	testInput := `my $test = "hello";`
+	ast, err := parser.ParseString(testInput)
 	if err != nil {
 		t.Skipf("Parser returned error for valid code: %v", err)
 		return
 	}
 
 	if ast != nil {
-		isValid := framework.ValidateAST(t, ast, "test_validation")
+		isValid := framework.ValidateAST(t, ast, "test_validation", testInput)
 		assert.True(t, isValid, "Valid AST should pass validation")
 	}
 
 	// Test with nil AST
-	isValid := framework.ValidateAST(t, nil, "nil_test")
+	isValid := framework.ValidateAST(t, nil, "nil_test", "")
 	assert.False(t, isValid, "Nil AST should fail validation")
 }
 

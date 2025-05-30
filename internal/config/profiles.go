@@ -146,62 +146,23 @@ func (pm *ProfileManager) GetEnvironments() []string {
 
 // ResolveProfile resolves a profile with inheritance and template rendering
 func (pm *ProfileManager) ResolveProfile(profileName string, extraVariables map[string]string) (*Config, error) {
-	profile, err := pm.GetProfile(profileName)
+	// Use Viper-based implementation for better inheritance handling
+	vpm := NewViperProfileManager(pm.profilesDir, pm.templateManager)
+	config, err := vpm.ResolveProfileWithViper(profileName, extraVariables)
 	if err != nil {
 		return nil, err
 	}
 
-	// Start with base configuration
-	var config *Config
-
-	// If profile uses a template, render it first
-	if profile.Template != "" && pm.templateManager != nil {
-		variables := pm.mergeVariables(profile.Variables, extraVariables)
-		config, err = pm.templateManager.RenderTemplate(profile.Template, variables)
-		if err != nil {
-			return nil, errors.NewConfigError("P002",
-				"Failed to render profile template", err).
-				WithLocation("profile:" + profileName + ",template:" + profile.Template)
-		}
-	} else {
-		config = NewDefaultConfig()
-	}
-
-	// Resolve inheritance chain
-	resolvedConfig, err := pm.resolveInheritance(profile, config, extraVariables)
+	// Apply environment variable interpolation
+	ie := NewInterpolationEngine()
+	interpolatedConfig, err := ie.InterpolateConfig(config)
 	if err != nil {
-		return nil, errors.NewConfigError("P003",
-			"Failed to resolve profile inheritance", err).
+		return nil, errors.NewConfigError("P004",
+			"Failed to interpolate configuration", err).
 			WithLocation("profile:" + profileName)
 	}
 
-	// Apply profile-specific configuration
-	if profile.Config != nil {
-		resolvedConfig = MergeConfigs(resolvedConfig, profile.Config)
-	}
-
-	return resolvedConfig, nil
-}
-
-// resolveInheritance resolves the inheritance chain for a profile
-func (pm *ProfileManager) resolveInheritance(profile *Profile, baseConfig *Config, extraVariables map[string]string) (*Config, error) {
-	if len(profile.Inherits) == 0 {
-		return baseConfig, nil
-	}
-
-	// Resolve each inherited profile
-	configs := []*Config{baseConfig}
-
-	for _, parentName := range profile.Inherits {
-		parentConfig, err := pm.ResolveProfile(parentName, extraVariables)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve parent profile '%s': %w", parentName, err)
-		}
-		configs = append(configs, parentConfig)
-	}
-
-	// Merge all configurations
-	return MergeConfigs(configs...), nil
+	return interpolatedConfig, nil
 }
 
 // mergeVariables merges profile variables with extra variables

@@ -459,7 +459,7 @@ func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase
 	}
 
 	// Validate AST structure is reasonable
-	if !f.ValidateAST(t, ast, testCase.Name) {
+	if !f.ValidateAST(t, ast, testCase.Name, testCase.Input) {
 		return false
 	}
 
@@ -489,7 +489,7 @@ func (f *ParserTestFramework) CompareASTs(t *testing.T, expected, actual *ast.AS
 }
 
 // ValidateAST performs basic validation of AST structure
-func (f *ParserTestFramework) ValidateAST(t *testing.T, ast *ast.AST, testName string) bool {
+func (f *ParserTestFramework) ValidateAST(t *testing.T, ast *ast.AST, testName string, testInput string) bool {
 	t.Helper()
 
 	if ast == nil {
@@ -498,8 +498,8 @@ func (f *ParserTestFramework) ValidateAST(t *testing.T, ast *ast.AST, testName s
 	}
 
 	// Basic structural validation
-	if ast.Source == "" {
-		t.Errorf("Test %s: AST source is empty", testName)
+	if ast.Source == "" && testInput != "" {
+		t.Errorf("Test %s: AST source is empty but input was not empty", testName)
 		return false
 	}
 

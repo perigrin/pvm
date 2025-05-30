@@ -3,7 +3,8 @@ package tree_sitter_typed_perl_test
 import (
 	"testing"
 
-	tree_sitter "github.com/smacker/go-tree-sitter"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+	tree_sitter_perl "github.com/perigrin/pvm/tree-sitter-typed-perl/bindings/go"
 )
 
 func TestCanLoadGrammar(t *testing.T) {

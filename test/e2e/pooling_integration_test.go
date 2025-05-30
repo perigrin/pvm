@@ -492,7 +492,13 @@ func TestPoolingIntegration_MemoryLeakDetection(t *testing.T) {
 
 	// Analyze memory growth pattern
 	finalSnapshot := len(memorySnapshots) - 1
-	memoryGrowth := memorySnapshots[finalSnapshot] - memorySnapshots[0]
+	// Calculate memory growth, handling case where final < initial (memory was cleaned up)
+	var memoryGrowth uint64
+	if memorySnapshots[finalSnapshot] > memorySnapshots[0] {
+		memoryGrowth = memorySnapshots[finalSnapshot] - memorySnapshots[0]
+	} else {
+		memoryGrowth = 0 // Memory was cleaned up, no growth
+	}
 	poolLeaks := poolSnapshots[finalSnapshot].PoolLeaks
 
 	t.Logf("Memory leak test completed %d iterations", iterations)

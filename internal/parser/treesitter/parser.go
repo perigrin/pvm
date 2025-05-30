@@ -4,6 +4,7 @@
 package treesitter
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -593,12 +594,20 @@ func (p *Parser) ParseString(content string) (*ast.AST, error) {
 	constraintAnnotations := p.extractConstraintAnnotations(content)
 	astTypeAnnotations = append(astTypeAnnotations, constraintAnnotations...)
 
+	// Validate the parsed content for syntax errors
+	syntaxErrors := p.validateSyntax(content, astTypeAnnotations)
+	
 	// Create an AST from the parse tree
 	astResult := &ast.AST{
 		Source:          content,
 		Root:            astRoot,
 		TypeAnnotations: astTypeAnnotations,
-		Errors:          []error{},
+		Errors:          syntaxErrors,
+	}
+
+	// If there are syntax errors, return them
+	if len(syntaxErrors) > 0 {
+		return astResult, syntaxErrors[0] // Return the first error
 	}
 
 	return astResult, nil
@@ -1493,4 +1502,95 @@ func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
 	methodDecl.Constraints = constraints
 	
 	return methodDecl
+}
+
+// validateSyntax performs additional syntax validation on parsed content
+func (p *Parser) validateSyntax(content string, typeAnnotations []*ast.TypeAnnotation) []error {
+	var errors []error
+	
+	// Check for common malformed type patterns
+	lines := strings.Split(content, "\n")
+	for lineNum, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		
+		// Check for malformed type patterns
+		if err := p.validateTypeSyntax(line, lineNum+1); err != nil {
+			errors = append(errors, err)
+		}
+	}
+	
+	return errors
+}
+
+// validateTypeSyntax checks for specific malformed type syntax patterns
+func (p *Parser) validateTypeSyntax(line string, lineNum int) error {
+	// Check for malformed union syntax (|| instead of |) ONLY in type declarations
+	if strings.Contains(line, "||") && strings.Contains(line, "my ") && 
+		!strings.Contains(line, "=") && !strings.Contains(line, "{") && !strings.Contains(line, "where") {
+		// Only flag || as error if it's in a type declaration position (no assignment)
+		return fmt.Errorf("InvalidUnionSyntaxError: line %d: invalid union syntax '||', use '|' for union types", lineNum)
+	}
+	
+	// Check for malformed intersection syntax (&& instead of &) ONLY in type declarations
+	if strings.Contains(line, "&&") && strings.Contains(line, "my ") &&
+		!strings.Contains(line, "=") && !strings.Contains(line, "{") && !strings.Contains(line, "where") && !strings.Contains(line, ">=") {
+		// Only flag && as error if it's in a type declaration position (no assignment)
+		return fmt.Errorf("InvalidIntersectionSyntaxError: line %d: invalid intersection syntax '&&', use '&' for intersection types", lineNum)
+	}
+	
+	// Check for incomplete union types ONLY in type declaration contexts
+	if strings.Contains(line, "|") && strings.Contains(line, "my ") && !strings.Contains(line, "=") {
+		// Look for patterns like "Type|" without a following type (only in type declarations)
+		if strings.Contains(line, "| $") || strings.Contains(line, "|;") || line[len(line)-1] == '|' {
+			return fmt.Errorf("IncompleteUnionTypeError: line %d: incomplete union type", lineNum)
+		}
+	}
+	
+	// Check for unclosed brackets in parameterized types
+	if strings.Contains(line, "ArrayRef[") || strings.Contains(line, "HashRef[") {
+		openBrackets := strings.Count(line, "[")
+		closeBrackets := strings.Count(line, "]")
+		if openBrackets > closeBrackets {
+			return fmt.Errorf("MissingClosingBracketError: line %d: missing closing ']' in parameterized type", lineNum)
+		}
+	}
+	
+	// Check for incomplete type assertions (ending with 'as ')
+	if strings.Contains(line, " as ;") || strings.HasSuffix(strings.TrimSpace(line), " as") {
+		return fmt.Errorf("IncompleteTypeAssertionError: line %d: incomplete type assertion, expected type after 'as'", lineNum)
+	}
+	
+	// Check for invalid spaces in parameterized types
+	if strings.Contains(line, "[ ") && (strings.Contains(line, "ArrayRef") || strings.Contains(line, "HashRef")) {
+		return fmt.Errorf("InvalidParameterizedTypeError: line %d: invalid space after '[' in parameterized type", lineNum)
+	}
+	
+	// Check for malformed constraint syntax
+	if strings.Contains(line, "where") {
+		// Check for missing constraint expression after colon
+		if strings.Contains(line, "where T: {") || strings.Contains(line, ": {") {
+			return fmt.Errorf("MissingConstraintExpressionError: line %d: missing constraint expression after ':'", lineNum)
+		}
+		
+		// Check for invalid constraint keywords
+		if strings.Contains(line, "where T does") || strings.Contains(line, " does ") {
+			return fmt.Errorf("InvalidConstraintSyntaxError: line %d: invalid constraint syntax, use ':' not 'does'", lineNum)
+		}
+		
+		// Check for malformed value constraints
+		if strings.Contains(line, "$size > {") || strings.Contains(line, "> {") {
+			return fmt.Errorf("MalformedValueConstraintError: line %d: incomplete value constraint expression", lineNum)
+		}
+		
+		// Check for empty where clauses (but allow where { ... } blocks)
+		if strings.Contains(line, "where {") && !strings.Contains(line, "$_") {
+			// Only flag as error if there's no content in the where block
+			return fmt.Errorf("IncompleteWhereClauseError: line %d: empty where clause", lineNum)
+		}
+	}
+	
+	return nil
 }

@@ -286,7 +286,7 @@ func TestPositionTracking(t *testing.T) {
 			source:   "my Int $var;\nmy Str $other;",
 			line:     2,
 			column:   4,
-			expected: ast.Position{Line: 2, Column: 4, Offset: 17},
+			expected: ast.Position{Line: 2, Column: 4, Offset: 16},
 		},
 	}
 	

@@ -327,11 +327,6 @@ func walkNode(node ast.Node) int {
 
 // Test concurrent parsing (safety)
 func TestParser_Concurrency(t *testing.T) {
-	parser, err := NewParser()
-	if err != nil {
-		t.Fatalf("Failed to create parser: %v", err)
-	}
-
 	testCode := "my Int $var = 42;"
 	concurrency := 10
 	iterations := 100
@@ -339,13 +334,24 @@ func TestParser_Concurrency(t *testing.T) {
 	done := make(chan bool, concurrency)
 	errors := make(chan error, concurrency*iterations)
 
-	// Start multiple goroutines
+	// Start multiple goroutines using pooled parsers
 	for i := 0; i < concurrency; i++ {
 		go func(id int) {
 			defer func() { done <- true }()
 
 			for j := 0; j < iterations; j++ {
+				// Get parser from pool for each operation
+				parser, err := NewParser()
+				if err != nil {
+					errors <- fmt.Errorf("failed to create parser in goroutine %d iteration %d: %v", id, j, err)
+					return
+				}
+
 				result, err := parser.ParseString(testCode)
+				
+				// Return parser to pool
+				ReturnParser(parser)
+				
 				if err != nil {
 					errors <- err
 					return

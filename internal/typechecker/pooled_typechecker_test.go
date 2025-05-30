@@ -520,6 +520,16 @@ func TestPooledTypeChecker_ResetPools(t *testing.T) {
 		t.Error("Expected pools to be functional after reset")
 	}
 
+	// Actually use the pools to trigger statistics update
+	if ptc.poolManager != nil {
+		// Create a type check result to increment the counter
+		result := ptc.poolManager.NewTypeCheckResult("test_path")
+		if result != nil {
+			// Return it to the pool
+			ptc.poolManager.Reset()
+		}
+	}
+
 	// Pool statistics should reflect continued operation
 	poolStatsAfterUse := ptc.GetPoolStatistics()
 	if poolStatsAfterUse.TypeCheckCount <= poolStatsAfter.TypeCheckCount {

@@ -89,9 +89,15 @@ func ParseTypeExpression(text string, pos Position) (*ast.TypeExpression, error)
 	return convertTypeExpression(tsExpr), nil
 }
 
-// NewParser returns a new Parser instance using the modern scanner→parser pipeline
-// This now uses the scanner-based parser by default for the TypeScript-Go architecture
+// NewParser returns a new Parser instance using pooling for efficiency
+// This now uses pooled parsers by default for better performance and thread safety
 func NewParser() (Parser, error) {
+	// Use pooled parser for better performance and thread safety
+	return NewPooledParser()
+}
+
+// NewParserDirect creates a new parser instance without pooling (for internal use)
+func NewParserDirect() (Parser, error) {
 	// For now, use tree-sitter parser directly since it has working type annotation extraction
 	// TODO: Integrate scanner-based parser with type annotation extraction
 	tsParser, err := treesitter.NewParser(false)
