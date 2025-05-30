@@ -45,4 +45,3 @@ Test: deeply_nested_generics
   error: MissingTypeNameError: line 31: missing type name in variable declaration
   name: deeply_nested_generics
   parse_time: 15.563816ms
-

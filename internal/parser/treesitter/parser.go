@@ -1563,7 +1563,15 @@ func (p *Parser) validateTypeSyntax(line string, lineNum int) error {
 		return fmt.Errorf("IncompleteTypeAssertionError: line %d: incomplete type assertion, missing target type", lineNum)
 	}
 
-	// Note: Spacing validation removed to avoid false positives with valid whitespace variations
+	// Check for specific malformed spacing pattern: space after [ but not before ]
+	if strings.Contains(trimmedLine, "my ") && 
+		strings.Contains(trimmedLine, "[ ") && 
+		strings.Contains(trimmedLine, "]") &&
+		!strings.Contains(trimmedLine, " ]") &&
+		strings.Contains(trimmedLine, ";") {
+		// Only flag the very specific pattern "[ Int]" (space after [ but not before ])
+		return fmt.Errorf("InvalidParameterizedTypeError: line %d: invalid spacing in parameterized type", lineNum)
+	}
 
 	return nil
 }

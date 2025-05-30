@@ -49,4 +49,3 @@ Test: error_recovery_test
   error: InvalidUnionSyntaxError: line 10: invalid union syntax '||', use '|' for union types
   name: error_recovery_test
   parse_time: 1.508219ms
-
