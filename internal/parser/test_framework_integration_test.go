@@ -16,7 +16,7 @@ func TestParserTestFramework_Integration(t *testing.T) {
 	// Create temporary test directory
 	tmpDir := t.TempDir()
 	testDataDir := filepath.Join(tmpDir, "testdata")
-	
+
 	// Initialize framework
 	framework := NewParserTestFramework(testDataDir)
 	require.NotNil(t, framework)
@@ -37,7 +37,7 @@ func TestParserTestFramework_Integration(t *testing.T) {
 			[]string{"scalar_variables", "variable_declarations"},
 		),
 		framework.GenerateTestCase(
-			"typed_scalar", 
+			"typed_scalar",
 			`my Int $count = 42;`,
 			"Typed scalar variable declaration",
 			TypedPerl,
@@ -47,7 +47,7 @@ func TestParserTestFramework_Integration(t *testing.T) {
 			"syntax_error",
 			`my $broken = ;`,
 			"Syntax error test case",
-			"syntax",
+			"IncompleteAssignmentError",
 			ErrorCases,
 			[]string{"error_recovery", "syntax_errors"},
 		),
@@ -142,10 +142,10 @@ func TestAccuracyMeasurement_Integration(t *testing.T) {
 	// Verify report files exist
 	jsonReport := filepath.Join(reportDir, "accuracy_report.json")
 	textReport := filepath.Join(reportDir, "accuracy_report.txt")
-	
+
 	_, err = os.Stat(jsonReport)
 	assert.NoError(t, err, "JSON report should be created")
-	
+
 	_, err = os.Stat(textReport)
 	assert.NoError(t, err, "Text report should be created")
 
@@ -155,7 +155,7 @@ func TestAccuracyMeasurement_Integration(t *testing.T) {
 func TestParserTestFramework_AST_Validation(t *testing.T) {
 	// Test AST validation functionality
 	framework := NewParserTestFramework("testdata")
-	
+
 	parser, err := NewParser()
 	require.NoError(t, err)
 
@@ -179,7 +179,7 @@ func TestParserTestFramework_AST_Validation(t *testing.T) {
 
 func TestTestCaseGeneration(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	// Test normal test case generation
 	testCase := framework.GenerateTestCase(
 		"test_name",
@@ -188,7 +188,7 @@ func TestTestCaseGeneration(t *testing.T) {
 		UntypedPerl,
 		[]string{"tag1", "tag2"},
 	)
-	
+
 	assert.Equal(t, "test_name", testCase.Name)
 	assert.Equal(t, "my $var = 1;", testCase.Input)
 	assert.Equal(t, "Test description", testCase.Description)
@@ -205,7 +205,7 @@ func TestTestCaseGeneration(t *testing.T) {
 		ErrorCases,
 		[]string{"error_tag"},
 	)
-	
+
 	assert.Equal(t, "error_test", errorCase.Name)
 	assert.True(t, errorCase.ShouldError)
 	assert.Equal(t, "parse_error", errorCase.ErrorType)
@@ -215,7 +215,7 @@ func TestTestCaseGeneration(t *testing.T) {
 // Benchmark the test framework itself
 func BenchmarkTestFramework_Performance(b *testing.B) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	testCase := framework.GenerateTestCase(
 		"benchmark_test",
 		`my $test = "performance";`,
@@ -225,7 +225,7 @@ func BenchmarkTestFramework_Performance(b *testing.B) {
 	)
 
 	b.ResetTimer()
-	
+
 	for i := 0; i < b.N; i++ {
 		// Create a test that doesn't fail the benchmark
 		t := &testing.T{}
@@ -235,7 +235,7 @@ func BenchmarkTestFramework_Performance(b *testing.B) {
 
 func TestParserTestFramework_ErrorHandling(t *testing.T) {
 	framework := NewParserTestFramework("nonexistent/path")
-	
+
 	// Test discovery with nonexistent path
 	testCases, err := framework.DiscoverTestCases()
 	if err != nil {
@@ -249,7 +249,7 @@ func TestParserTestFramework_ErrorHandling(t *testing.T) {
 		Category: "invalid_category",
 		Input:    "",
 	}
-	
+
 	success := framework.RunTestCase(t, invalidTestCase)
 	t.Logf("Invalid test case result: %v", success)
 }

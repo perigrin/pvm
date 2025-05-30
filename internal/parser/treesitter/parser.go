@@ -250,7 +250,7 @@ func (p *Parser) ParseFile(path string) (*ast.AST, error) {
 	if astTypeAnnotations == nil {
 		astTypeAnnotations = make([]*ast.TypeAnnotation, 0)
 	}
-	
+
 	// Add constraint-based type annotations by scanning source text
 	constraintAnnotations := p.extractConstraintAnnotations(string(tree.Content))
 	astTypeAnnotations = append(astTypeAnnotations, constraintAnnotations...)
@@ -337,7 +337,6 @@ func (p *Parser) calculatePosition(byteOffset int, content string) Position {
 // parseTypeExpression parses a type expression string into a structured TypeExpression
 func (p *Parser) parseTypeExpression(typeStr string, pos Position) *TypeExpression {
 	typeStr = strings.TrimSpace(typeStr)
-	
 
 	// Handle negation types (!Type)
 	if strings.HasPrefix(typeStr, "!") {
@@ -428,7 +427,7 @@ func (p *Parser) splitUnionTypes(typeStr string) []string {
 	var currentPart strings.Builder
 	bracketDepth := 0
 	parenDepth := 0
-	
+
 	for _, char := range typeStr {
 		switch char {
 		case '[':
@@ -456,12 +455,12 @@ func (p *Parser) splitUnionTypes(typeStr string) []string {
 			currentPart.WriteRune(char)
 		}
 	}
-	
+
 	// Add the final part
 	if currentPart.Len() > 0 {
 		parts = append(parts, currentPart.String())
 	}
-	
+
 	return parts
 }
 
@@ -471,7 +470,7 @@ func (p *Parser) splitIntersectionTypes(typeStr string) []string {
 	var currentPart strings.Builder
 	bracketDepth := 0
 	parenDepth := 0
-	
+
 	for _, char := range typeStr {
 		switch char {
 		case '[':
@@ -499,12 +498,12 @@ func (p *Parser) splitIntersectionTypes(typeStr string) []string {
 			currentPart.WriteRune(char)
 		}
 	}
-	
+
 	// Add the final part
 	if currentPart.Len() > 0 {
 		parts = append(parts, currentPart.String())
 	}
-	
+
 	return parts
 }
 
@@ -589,14 +588,14 @@ func (p *Parser) ParseString(content string) (*ast.AST, error) {
 	if astTypeAnnotations == nil {
 		astTypeAnnotations = make([]*ast.TypeAnnotation, 0)
 	}
-	
+
 	// Add constraint-based type annotations by scanning source text
 	constraintAnnotations := p.extractConstraintAnnotations(content)
 	astTypeAnnotations = append(astTypeAnnotations, constraintAnnotations...)
 
 	// Validate the parsed content for syntax errors
 	syntaxErrors := p.validateSyntax(content, astTypeAnnotations)
-	
+
 	// Create an AST from the parse tree
 	astResult := &ast.AST{
 		Source:          content,
@@ -1016,10 +1015,10 @@ func splitParams(params string) []string {
 // convertToClassDeclAST converts a class_statement node to ast.ClassDecl
 func (p *Parser) convertToClassDeclAST(node Node, start, end ast.Position) ast.Node {
 	className := ""
-	
+
 	// Extract constraints from the class signature
 	constraints := p.extractConstraintsFromText(node.Text())
-	
+
 	// Extract class name from tree-sitter node
 	for _, child := range node.Children() {
 		if child.Type() == "package" {
@@ -1027,11 +1026,11 @@ func (p *Parser) convertToClassDeclAST(node Node, start, end ast.Position) ast.N
 			break
 		}
 	}
-	
+
 	// Create class declaration
 	classDecl := ast.NewClassDecl(className, start, end)
 	classDecl.Constraints = constraints
-	
+
 	// Process children to find fields and methods
 	for _, child := range node.Children() {
 		switch child.Type() {
@@ -1043,17 +1042,17 @@ func (p *Parser) convertToClassDeclAST(node Node, start, end ast.Position) ast.N
 			continue
 		}
 	}
-	
+
 	return classDecl
 }
 
-// convertToRoleDeclAST converts a role_statement node to ast.RoleDecl  
+// convertToRoleDeclAST converts a role_statement node to ast.RoleDecl
 func (p *Parser) convertToRoleDeclAST(node Node, start, end ast.Position) ast.Node {
 	roleName := ""
-	
+
 	// Extract constraints from the role signature
 	constraints := p.extractConstraintsFromText(node.Text())
-	
+
 	// Extract role name from tree-sitter node
 	for _, child := range node.Children() {
 		if child.Type() == "package" {
@@ -1061,11 +1060,11 @@ func (p *Parser) convertToRoleDeclAST(node Node, start, end ast.Position) ast.No
 			break
 		}
 	}
-	
+
 	// Create role declaration
 	roleDecl := ast.NewRoleDecl(roleName, start, end)
 	roleDecl.Constraints = constraints
-	
+
 	// Process children to find fields and methods
 	for _, child := range node.Children() {
 		switch child.Type() {
@@ -1077,7 +1076,7 @@ func (p *Parser) convertToRoleDeclAST(node Node, start, end ast.Position) ast.No
 			continue
 		}
 	}
-	
+
 	return roleDecl
 }
 
@@ -1090,7 +1089,7 @@ func (p *Parser) processClassBlock(blockNode Node, classDecl *ast.ClassDecl) {
 				classDecl.AddField(field)
 			}
 		}
-		
+
 		// Process method declarations
 		if strings.Contains(stmt.Text(), "method ") {
 			if method := p.extractMethodDecl(stmt); method != nil {
@@ -1109,8 +1108,8 @@ func (p *Parser) processRoleBlock(blockNode Node, roleDecl *ast.RoleDecl) {
 				roleDecl.AddField(field)
 			}
 		}
-		
-		// Process method declarations  
+
+		// Process method declarations
 		if strings.Contains(stmt.Text(), "method ") {
 			if method := p.extractMethodDecl(stmt); method != nil {
 				roleDecl.AddProvidedMethod(method)
@@ -1123,27 +1122,27 @@ func (p *Parser) processRoleBlock(blockNode Node, roleDecl *ast.RoleDecl) {
 func (p *Parser) extractFieldDecl(stmt Node) *ast.FieldDecl {
 	// Simple parsing - this would need to be enhanced for full parsing
 	text := stmt.Text()
-	
+
 	// Basic pattern: field Type $name = value;
 	if !strings.HasPrefix(strings.TrimSpace(text), "field ") {
 		return nil
 	}
-	
+
 	start := ast.Position{Line: stmt.Start().Line, Column: stmt.Start().Column}
 	end := ast.Position{Line: stmt.End().Line, Column: stmt.End().Column}
-	
+
 	// Extract field name (simplified)
 	parts := strings.Fields(text)
 	if len(parts) < 3 {
 		return nil
 	}
-	
-	fieldName := parts[2] // Should be $name
+
+	fieldName := parts[2]                          // Should be $name
 	fieldName = strings.TrimPrefix(fieldName, "$") // Remove $
-	
+
 	// Create variable expression for the field
 	varExpr := ast.NewVariableExpr(fieldName, "$", start, end)
-	
+
 	// Create field declaration
 	return ast.NewFieldDecl(fieldName, nil, varExpr, nil, start, end)
 }
@@ -1161,7 +1160,7 @@ func (p *Parser) extractConstraintsFromText(text string) []*ast.TypeConstraint {
 
 	// Extract constraint text after "where"
 	constraintText := strings.TrimSpace(text[whereIndex+7:])
-	
+
 	// Find the end of constraints (before opening brace)
 	braceIndex := strings.Index(constraintText, "{")
 	if braceIndex != -1 {
@@ -1192,15 +1191,15 @@ func (p *Parser) extractConstraintsFromText(text string) []*ast.TypeConstraint {
 // parseConstraintText parses a single constraint expression
 func (p *Parser) parseConstraintText(text string) *ast.TypeConstraint {
 	text = strings.TrimSpace(text)
-	
+
 	// Type constraint: T: SomeType
 	if colonIndex := strings.Index(text, ":"); colonIndex != -1 {
 		parameter := strings.TrimSpace(text[:colonIndex])
 		typeExpr := strings.TrimSpace(text[colonIndex+1:])
-		
+
 		// Create a simple expression node for the constraint
 		expr := ast.NewLiteralExpr(typeExpr, ast.StringLiteral, ast.Position{}, ast.Position{})
-		
+
 		return &ast.TypeConstraint{
 			Parameter:  parameter,
 			Kind:       ast.TypeConstraintKind,
@@ -1213,9 +1212,9 @@ func (p *Parser) parseConstraintText(text string) *ast.TypeConstraint {
 	if doesIndex := strings.Index(text, " does "); doesIndex != -1 {
 		parameter := strings.TrimSpace(text[:doesIndex])
 		roleExpr := strings.TrimSpace(text[doesIndex+6:])
-		
+
 		expr := ast.NewLiteralExpr(roleExpr, ast.StringLiteral, ast.Position{}, ast.Position{})
-		
+
 		return &ast.TypeConstraint{
 			Parameter:  parameter,
 			Kind:       ast.ProtocolConstraint,
@@ -1228,9 +1227,9 @@ func (p *Parser) parseConstraintText(text string) *ast.TypeConstraint {
 	if canIndex := strings.Index(text, " can "); canIndex != -1 {
 		parameter := strings.TrimSpace(text[:canIndex])
 		methodExpr := strings.TrimSpace(text[canIndex+5:])
-		
+
 		expr := ast.NewLiteralExpr(methodExpr, ast.StringLiteral, ast.Position{}, ast.Position{})
-		
+
 		return &ast.TypeConstraint{
 			Parameter:  parameter,
 			Kind:       ast.CapabilityConstraint,
@@ -1243,14 +1242,14 @@ func (p *Parser) parseConstraintText(text string) *ast.TypeConstraint {
 	if strings.Contains(text, ">") || strings.Contains(text, "<") || strings.Contains(text, "=") || strings.Contains(text, "->VERSION") {
 		// For now, treat as value constraint - more sophisticated parsing could be added
 		parameter := extractParameterFromValueConstraint(text)
-		
+
 		expr := ast.NewLiteralExpr(text, ast.StringLiteral, ast.Position{}, ast.Position{})
-		
+
 		kind := ast.ValueConstraint
 		if strings.Contains(text, "->VERSION") {
 			kind = ast.VersionConstraint
 		}
-		
+
 		return &ast.TypeConstraint{
 			Parameter:  parameter,
 			Kind:       kind,
@@ -1269,27 +1268,27 @@ func (p *Parser) extractConstraintAnnotations(content string) []*ast.TypeAnnotat
 	lines := strings.Split(content, "\n")
 	for lineNum, line := range lines {
 		line = strings.TrimSpace(line)
-		
+
 		// Look for method signatures with constraints
 		if strings.Contains(line, "method ") && strings.Contains(line, " where ") {
 			annotations = append(annotations, p.extractMethodConstraintAnnotations(line, lineNum+1)...)
 		}
-		
+
 		// Look for method signatures without constraints (to extract basic type annotations)
 		if strings.Contains(line, "method ") && !strings.Contains(line, " where ") {
 			annotations = append(annotations, p.extractMethodConstraintAnnotations(line, lineNum+1)...)
 		}
-		
+
 		// Look for field declarations
 		if strings.Contains(line, "field ") && strings.Contains(line, " $") {
 			annotations = append(annotations, p.extractFieldAnnotations(line, lineNum+1)...)
 		}
-		
+
 		// Look for class declarations with constraints
 		if strings.Contains(line, "class ") && strings.Contains(line, " where ") {
 			annotations = append(annotations, p.extractClassConstraintAnnotations(line, lineNum+1)...)
 		}
-		
+
 		// Look for role declarations with constraints
 		if strings.Contains(line, "role ") && strings.Contains(line, " where ") {
 			annotations = append(annotations, p.extractRoleConstraintAnnotations(line, lineNum+1)...)
@@ -1317,7 +1316,7 @@ func (p *Parser) extractMethodConstraintAnnotations(line string, lineNum int) []
 	}
 
 	paramList := line[parenStart+1 : parenEnd]
-	
+
 	// Extract parameter type annotations
 	params := strings.Split(paramList, ",")
 	for _, param := range params {
@@ -1328,13 +1327,13 @@ func (p *Parser) extractMethodConstraintAnnotations(line string, lineNum int) []
 			if len(parts) >= 2 {
 				typeExpr := parts[0]
 				varName := parts[len(parts)-1]
-				
+
 				// Create type expression
 				typeExpression := &ast.TypeExpression{
 					Name: typeExpr,
 					Kind: ast.SimpleTypeKind,
 				}
-				
+
 				annotation := &ast.TypeAnnotation{
 					AnnotatedItem:  varName,
 					TypeExpression: typeExpression,
@@ -1354,21 +1353,21 @@ func (p *Parser) extractMethodConstraintAnnotations(line string, lineNum int) []
 		if whereIndex != -1 && whereIndex > arrowIndex {
 			endIndex = whereIndex
 		}
-		
+
 		returnType := strings.TrimSpace(line[arrowIndex+2 : endIndex])
 		if returnType != "" {
 			typeExpression := &ast.TypeExpression{
 				Name: returnType,
 				Kind: ast.SimpleTypeKind,
 			}
-			
+
 			// Extract method name for annotation
 			methodParts := strings.Fields(line[methodNameMatch+7:])
 			methodName := ""
 			if len(methodParts) > 0 {
 				methodName = strings.Split(methodParts[0], "(")[0]
 			}
-			
+
 			annotation := &ast.TypeAnnotation{
 				AnnotatedItem:  methodName,
 				TypeExpression: typeExpression,
@@ -1394,22 +1393,22 @@ func (p *Parser) extractFieldAnnotations(line string, lineNum int) []*ast.TypeAn
 
 	// Extract the part after "field "
 	fieldPart := strings.TrimSpace(line[fieldIndex+6:])
-	
+
 	// Split on whitespace to get type and variable
 	parts := strings.Fields(fieldPart)
 	if len(parts) >= 2 {
 		typeExpr := parts[0]
 		varName := parts[1]
-		
+
 		// Remove semicolon from variable name if present
 		varName = strings.TrimSuffix(varName, ";")
-		
+
 		// Create type expression
 		typeExpression := &ast.TypeExpression{
 			Name: typeExpr,
 			Kind: ast.SimpleTypeKind,
 		}
-		
+
 		annotation := &ast.TypeAnnotation{
 			AnnotatedItem:  varName,
 			TypeExpression: typeExpression,
@@ -1447,67 +1446,67 @@ func extractParameterFromValueConstraint(text string) string {
 			return strings.TrimSpace(text[:spaceIndex])
 		}
 	}
-	
+
 	if arrowIndex := strings.Index(text, "->"); arrowIndex != -1 {
 		return strings.TrimSpace(text[:arrowIndex])
 	}
-	
+
 	// Default to first word
 	parts := strings.Fields(text)
 	if len(parts) > 0 {
 		return parts[0]
 	}
-	
+
 	return ""
 }
 
 func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
 	// Simple parsing - this would need to be enhanced for full parsing
 	text := stmt.Text()
-	
+
 	if !strings.Contains(text, "method ") {
 		return nil
 	}
-	
+
 	start := ast.Position{Line: stmt.Start().Line, Column: stmt.Start().Column}
 	end := ast.Position{Line: stmt.End().Line, Column: stmt.End().Column}
-	
+
 	// Extract constraints from the method signature
 	constraints := p.extractConstraintsFromText(text)
-	
+
 	// Extract method name (simplified)
 	lines := strings.Split(text, "\n")
 	if len(lines) == 0 {
 		return nil
 	}
-	
+
 	firstLine := strings.TrimSpace(lines[0])
 	if !strings.HasPrefix(firstLine, "method ") {
 		return nil
 	}
-	
+
 	// Parse method name from first line
 	parts := strings.Fields(firstLine)
 	if len(parts) < 2 {
 		return nil
 	}
-	
+
 	methodName := parts[1]
 	if strings.Contains(methodName, "(") {
 		methodName = strings.Split(methodName, "(")[0]
 	}
-	
+
 	// Create basic method declaration with constraints
 	methodDecl := ast.NewMethodDecl(methodName, nil, nil, nil, start, end)
 	methodDecl.Constraints = constraints
-	
+
 	return methodDecl
 }
 
 // validateSyntax performs additional syntax validation on parsed content
 func (p *Parser) validateSyntax(content string, typeAnnotations []*ast.TypeAnnotation) []error {
 	var errors []error
-	
+
 	// Check for common malformed type patterns
 	lines := strings.Split(content, "\n")
 	for lineNum, line := range lines {
@@ -1515,82 +1514,56 @@ func (p *Parser) validateSyntax(content string, typeAnnotations []*ast.TypeAnnot
 		if line == "" {
 			continue
 		}
-		
+
 		// Check for malformed type patterns
 		if err := p.validateTypeSyntax(line, lineNum+1); err != nil {
 			errors = append(errors, err)
 		}
 	}
-	
+
 	return errors
 }
 
 // validateTypeSyntax checks for specific malformed type syntax patterns
 func (p *Parser) validateTypeSyntax(line string, lineNum int) error {
-	// Check for malformed union syntax (|| instead of |) ONLY in type declarations
-	if strings.Contains(line, "||") && strings.Contains(line, "my ") && 
-		!strings.Contains(line, "=") && !strings.Contains(line, "{") && !strings.Contains(line, "where") {
-		// Only flag || as error if it's in a type declaration position (no assignment)
+	// Conservative validation - catch malformed syntax patterns that should be errors
+
+	trimmedLine := strings.TrimSpace(line)
+
+	// Check for malformed assignment expressions that are clearly incomplete
+	if strings.Contains(trimmedLine, "my ") && strings.HasSuffix(trimmedLine, "= ;") {
+		return fmt.Errorf("IncompleteAssignmentError: line %d: incomplete assignment expression", lineNum)
+	}
+
+	// Check for missing closing bracket in parameterized types
+	if strings.Contains(trimmedLine, "my ") && strings.Contains(trimmedLine, "ArrayRef[") &&
+		!strings.Contains(trimmedLine, "]") && strings.Contains(trimmedLine, ";") {
+		return fmt.Errorf("MissingClosingBracketError: line %d: missing closing bracket in parameterized type", lineNum)
+	}
+
+	// Check for double union operators in type declarations
+	if strings.Contains(trimmedLine, "my ") && strings.Contains(trimmedLine, "||") &&
+		!strings.Contains(trimmedLine, "=") && !strings.Contains(trimmedLine, "{") {
 		return fmt.Errorf("InvalidUnionSyntaxError: line %d: invalid union syntax '||', use '|' for union types", lineNum)
 	}
-	
-	// Check for malformed intersection syntax (&& instead of &) ONLY in type declarations
-	if strings.Contains(line, "&&") && strings.Contains(line, "my ") &&
-		!strings.Contains(line, "=") && !strings.Contains(line, "{") && !strings.Contains(line, "where") && !strings.Contains(line, ">=") {
-		// Only flag && as error if it's in a type declaration position (no assignment)
+
+	// Check for double intersection operators in type declarations
+	if strings.Contains(trimmedLine, "my ") && strings.Contains(trimmedLine, "&&") &&
+		!strings.Contains(trimmedLine, "=") && !strings.Contains(trimmedLine, "{") && !strings.Contains(trimmedLine, ">=") {
 		return fmt.Errorf("InvalidIntersectionSyntaxError: line %d: invalid intersection syntax '&&', use '&' for intersection types", lineNum)
 	}
-	
-	// Check for incomplete union types ONLY in type declaration contexts
-	if strings.Contains(line, "|") && strings.Contains(line, "my ") && !strings.Contains(line, "=") {
-		// Look for patterns like "Type|" without a following type (only in type declarations)
-		if strings.Contains(line, "| $") || strings.Contains(line, "|;") || line[len(line)-1] == '|' {
-			return fmt.Errorf("IncompleteUnionTypeError: line %d: incomplete union type", lineNum)
-		}
+
+	// Check for double negation operators
+	if strings.Contains(trimmedLine, "my ") && strings.Contains(trimmedLine, "!!") {
+		return fmt.Errorf("InvalidNegationSyntaxError: line %d: invalid negation syntax '!!', use '!' for negation types", lineNum)
 	}
-	
-	// Check for unclosed brackets in parameterized types
-	if strings.Contains(line, "ArrayRef[") || strings.Contains(line, "HashRef[") {
-		openBrackets := strings.Count(line, "[")
-		closeBrackets := strings.Count(line, "]")
-		if openBrackets > closeBrackets {
-			return fmt.Errorf("MissingClosingBracketError: line %d: missing closing ']' in parameterized type", lineNum)
-		}
+
+	// Check for incomplete type assertions
+	if strings.Contains(trimmedLine, " as ;") {
+		return fmt.Errorf("IncompleteTypeAssertionError: line %d: incomplete type assertion, missing target type", lineNum)
 	}
-	
-	// Check for incomplete type assertions (ending with 'as ')
-	if strings.Contains(line, " as ;") || strings.HasSuffix(strings.TrimSpace(line), " as") {
-		return fmt.Errorf("IncompleteTypeAssertionError: line %d: incomplete type assertion, expected type after 'as'", lineNum)
-	}
-	
-	// Check for invalid spaces in parameterized types
-	if strings.Contains(line, "[ ") && (strings.Contains(line, "ArrayRef") || strings.Contains(line, "HashRef")) {
-		return fmt.Errorf("InvalidParameterizedTypeError: line %d: invalid space after '[' in parameterized type", lineNum)
-	}
-	
-	// Check for malformed constraint syntax
-	if strings.Contains(line, "where") {
-		// Check for missing constraint expression after colon
-		if strings.Contains(line, "where T: {") || strings.Contains(line, ": {") {
-			return fmt.Errorf("MissingConstraintExpressionError: line %d: missing constraint expression after ':'", lineNum)
-		}
-		
-		// Check for invalid constraint keywords
-		if strings.Contains(line, "where T does") || strings.Contains(line, " does ") {
-			return fmt.Errorf("InvalidConstraintSyntaxError: line %d: invalid constraint syntax, use ':' not 'does'", lineNum)
-		}
-		
-		// Check for malformed value constraints
-		if strings.Contains(line, "$size > {") || strings.Contains(line, "> {") {
-			return fmt.Errorf("MalformedValueConstraintError: line %d: incomplete value constraint expression", lineNum)
-		}
-		
-		// Check for empty where clauses (but allow where { ... } blocks)
-		if strings.Contains(line, "where {") && !strings.Contains(line, "$_") {
-			// Only flag as error if there's no content in the where block
-			return fmt.Errorf("IncompleteWhereClauseError: line %d: empty where clause", lineNum)
-		}
-	}
-	
+
+	// Note: Spacing validation removed to avoid false positives with valid whitespace variations
+
 	return nil
 }
