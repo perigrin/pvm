@@ -94,14 +94,14 @@ func newSimplePatternMatcher() *SimplePatternMatcher {
 		// Match variable declarations: my $var = value; or my Type $var = value;
 		varDecl: regexp.MustCompile(`^\s*my\s+(?:(\w+)\s+)?(\$\w+)\s*=\s*([^;]+);\s*$`),
 
-		// Match subroutine declarations: sub name { } or sub name(Type $param) -> RetType { }
-		subDecl: regexp.MustCompile(`^\s*sub\s+(\w+)(?:\([^)]*\))?(?:\s*->\s*\w+)?\s*\{.*\}\s*$`),
+		// Match subroutine declarations: sub name { } or sub name(Type $param) -> RetType {
+		subDecl: regexp.MustCompile(`^\s*sub\s+(\w+)(?:\([^)]*\))?(?:\s*->\s*\w+)?\s*\{`),
 
 		// Match type annotations: Type or Type|OtherType
 		typeAnnot: regexp.MustCompile(`^[A-Z]\w*(?:\|[A-Z]\w*)*$`),
 
 		// Match simple statements: print, return, etc.
-		simpleStmt: regexp.MustCompile(`^\s*(?:print|say|return|last|next|die)\b`),
+		simpleStmt: regexp.MustCompile(`^\s*(?:print|say|return|last|next|die)\b|^\s*\w+\s*\(|^\s*return\s+|^\s*\$\w+|^\s*my\s+|^\s*\w+\s*=`),
 
 		// Match use statements: use Module;
 		useStmt: regexp.MustCompile(`^\s*use\s+[\w:]+(?:\s+qw\([^)]*\))?\s*;\s*$`),
@@ -136,15 +136,15 @@ func (fp *FastParser) isSimpleContent(content string) bool {
 
 	// Check if all lines match simple patterns
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
+		trimmed := strings.TrimSpace(line)
 
 		// Skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, "#") {
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
 
 		// Check if line matches any simple pattern
-		if !fp.simplePatterns.matchesSimplePattern(line) {
+		if !fp.simplePatterns.matchesSimplePattern(trimmed) {
 			return false
 		}
 	}
@@ -158,8 +158,9 @@ func (spm *SimplePatternMatcher) matchesSimplePattern(line string) bool {
 		spm.subDecl.MatchString(line) ||
 		spm.simpleStmt.MatchString(line) ||
 		spm.useStmt.MatchString(line) ||
-		strings.HasPrefix(line, "}") ||
-		strings.HasPrefix(line, "{")
+		strings.HasPrefix(strings.TrimSpace(line), "}") ||
+		strings.HasPrefix(strings.TrimSpace(line), "{") ||
+		strings.TrimSpace(line) == ""
 }
 
 // tryFastParse attempts to parse simple content without tree-sitter

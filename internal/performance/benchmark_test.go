@@ -73,11 +73,6 @@ func BenchmarkOriginalParser(b *testing.B) {
 
 // BenchmarkOptimizedParser benchmarks the optimized parser
 func BenchmarkOptimizedParser(b *testing.B) {
-	baseParser, err := parser.NewParser()
-	if err != nil {
-		b.Fatalf("Failed to create base parser: %v", err)
-	}
-
 	optimizedParser := NewOptimizedParser()
 	content := benchmarkContent["typed"]
 
@@ -92,11 +87,6 @@ func BenchmarkOptimizedParser(b *testing.B) {
 
 // BenchmarkFastParser benchmarks the fast parser
 func BenchmarkFastParser(b *testing.B) {
-	baseParser, err := parser.NewParser()
-	if err != nil {
-		b.Fatalf("Failed to create base parser: %v", err)
-	}
-
 	fastParser := NewFastParser()
 	content := benchmarkContent["simple"] // Use simple content for fast parser
 

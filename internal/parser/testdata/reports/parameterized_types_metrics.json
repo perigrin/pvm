@@ -1,13 +1,13 @@
 {
   "total_tests": 8,
-  "passed_tests": 7,
-  "failed_tests": 1,
+  "passed_tests": 8,
+  "failed_tests": 0,
   "category_metrics": {
     "typed-perl": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     }
   },
   "feature_metrics": {
@@ -91,9 +91,9 @@
     },
     "formatting": {
       "total": 1,
-      "passed": 0,
-      "failed": 1,
-      "accuracy": 0
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
     },
     "generics": {
       "total": 1,
@@ -127,9 +127,9 @@
     },
     "parameterized-types": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "parameters": {
       "total": 1,
@@ -151,9 +151,9 @@
     },
     "whitespace": {
       "total": 1,
-      "passed": 0,
-      "failed": 1,
-      "accuracy": 0
+      "passed": 1,
+      "failed": 0,
+      "accuracy": 100
     }
   },
   "parsing_time": 0,

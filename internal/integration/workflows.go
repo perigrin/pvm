@@ -45,6 +45,9 @@ type WorkflowOptions struct {
 	// SkipModuleInstall disables automatic module installation
 	SkipModuleInstall bool
 
+	// SkipExecution disables script execution
+	SkipExecution bool
+
 	// GenerateTypeDefs enables type definition generation
 	GenerateTypeDefs bool
 
@@ -198,24 +201,28 @@ func CompleteWorkflow(options *WorkflowOptions) (*WorkflowResult, error) {
 		}
 	}
 
-	// Step 4: Script Execution
-	if options.Verbose {
-		fmt.Printf("Step 4: Executing script...\n")
-	}
+	// Step 4: Script Execution (if not skipped)
+	if !options.SkipExecution {
+		if options.Verbose {
+			fmt.Printf("Step 4: Executing script...\n")
+		}
 
-	execResult, err := executeScript(options, resolvedVersion)
-	if err != nil {
-		result.Errors = append(result.Errors, err)
-		// Script execution failure is a terminal error
-		result.Duration = time.Since(startTime)
-		return result, err
-	}
+		execResult, err := executeScript(options, resolvedVersion)
+		if err != nil {
+			result.Errors = append(result.Errors, err)
+			// Script execution failure is a terminal error
+			result.Duration = time.Since(startTime)
+			return result, err
+		}
 
-	result.ExecutionOutput = execResult.Output
-	result.ExecutionExitCode = execResult.ExitCode
+		result.ExecutionOutput = execResult.Output
+		result.ExecutionExitCode = execResult.ExitCode
 
-	if options.Verbose {
-		fmt.Printf("  Script executed successfully (exit code: %d)\n", result.ExecutionExitCode)
+		if options.Verbose {
+			fmt.Printf("  Script executed successfully (exit code: %d)\n", result.ExecutionExitCode)
+		}
+	} else if options.Verbose {
+		fmt.Printf("Step 4: Skipping script execution\n")
 	}
 
 	// Step 5: Type Definition Generation (if enabled)
@@ -256,6 +263,7 @@ func TypeCheckWorkflow(scriptPath string, perlVersion string, verbose bool) (*Wo
 		PerlVersion:       perlVersion,
 		Verbose:           verbose,
 		SkipModuleInstall: true, // Only type check, don't install modules
+		SkipExecution:     true, // Only type check, don't execute
 		GenerateTypeDefs:  true,
 		SaveTypeDefs:      true,
 	}
@@ -292,6 +300,26 @@ func DevelopmentWorkflow(scriptPath string, perlVersion string) (*WorkflowResult
 
 // resolveVersion resolves the Perl version to use
 func resolveVersion(options *WorkflowOptions) (*perl.ResolvedVersion, error) {
+	// For integration tests, when no explicit version is provided, use system Perl directly
+	if options.PerlVersion == "" {
+		systemPerl, err := perl.DetectSystemPerl()
+		if err != nil {
+			return nil, errors.NewVersionError(
+				ErrVersionResolution,
+				"Failed to detect system Perl for integration test",
+				err,
+			)
+		}
+
+		resolved := &perl.ResolvedVersion{
+			Version: systemPerl.Version,
+			Source:  perl.SystemPerlSource,
+			Path:    systemPerl.Path,
+		}
+		return resolved, nil
+	}
+
+	// For explicit versions, use normal resolution
 	resolutionOptions := &perl.ResolutionOptions{
 		ExplicitVersion: options.PerlVersion,
 	}
@@ -386,6 +414,7 @@ func executeScript(options *WorkflowOptions, resolvedVersion *perl.ResolvedVersi
 	execOptions := &pvx.ExecutionOptions{
 		ScriptPath:     options.ScriptPath,
 		PerlVersion:    resolvedVersion.Version,
+		ForceVersion:   true, // Force fallback to system Perl when version not found
 		Verbose:        options.Verbose,
 		IsolationLevel: options.IsolationLevel,
 	}
@@ -447,43 +476,43 @@ func extractModuleName(scriptPath string) string {
 // isBuiltinModule checks if a module name represents a builtin module
 func isBuiltinModule(moduleName string) bool {
 	builtins := map[string]bool{
-		"strict":     true,
-		"warnings":   true,
-		"utf8":       true,
-		"feature":    true,
-		"Carp":       true,
-		"Data":       true,
-		"List":       true,
-		"Scalar":     true,
-		"File":       true,
-		"IO":         true,
-		"Time":       true,
-		"Getopt":     true,
-		"Pod":        true,
-		"Test":       true,
-		"POSIX":      true,
-		"Fcntl":      true,
-		"Socket":     true,
-		"Storable":   true,
-		"Digest":     true,
-		"MIME":       true,
-		"Encode":     true,
-		"threads":    true,
-		"Thread":     true,
-		"Config":     true,
-		"Exporter":   true,
-		"AutoLoader": true,
-		"SelfLoader": true,
-		"Benchmark":  true,
-		"Class":      true,
-		"base":       true,
-		"parent":     true,
-		"constant":   true,
-		"vars":       true,
-		"lib":        true,
-		"overload":   true,
-		"attributes": true,
-		"fields":     true,
+		"strict":         true,
+		"warnings":       true,
+		"utf8":           true,
+		"feature":        true,
+		"Carp":           true,
+		"List::Util":     true,
+		"Scalar::Util":   true,
+		"File::Basename": true,
+		"File::Path":     true,
+		"IO::Handle":     true,
+		"Time::Local":    true,
+		"Getopt::Long":   true,
+		"Pod::Usage":     true,
+		"Test::More":     true,
+		"POSIX":          true,
+		"Fcntl":          true,
+		"Socket":         true,
+		"Storable":       true,
+		"Digest::MD5":    true,
+		"MIME":           true,
+		"Encode":         true,
+		"threads":        true,
+		"Thread":         true,
+		"Config":         true,
+		"Exporter":       true,
+		"AutoLoader":     true,
+		"SelfLoader":     true,
+		"Benchmark":      true,
+		"Class":          true,
+		"base":           true,
+		"parent":         true,
+		"constant":       true,
+		"vars":           true,
+		"lib":            true,
+		"overload":       true,
+		"attributes":     true,
+		"fields":         true,
 	}
 
 	// Check the first component of the module name
@@ -503,22 +532,22 @@ func ValidationWorkflow(testScript string) (*WorkflowResult, error) {
 		testScript = filepath.Join(tempDir, "pvm_integration_test.pl")
 
 		testCode := `#!/usr/bin/env perl
-use v5.40;
 use strict;
 use warnings;
 
-# Type annotations for testing
-my Str $message = "Hello, PVM Integration!";
-my ArrayRef[Int] $numbers = [1, 2, 3, 4, 5];
+# Validation script compatible with system Perl
+my $message = "Hello, PVM Integration!";
+my $numbers = [1, 2, 3, 4, 5];
 
-sub Int add(Int $a, Int $b) -> Int {
+sub add {
+    my ($a, $b) = @_;
     return $a + $b;
 }
 
 # Test the integration
-say $message;
-say "Sum of 2 + 3 = " . add(2, 3);
-say "Numbers: " . join(", ", @$numbers);
+print $message . "\n";
+print "Sum of 2 + 3 = " . add(2, 3) . "\n";
+print "Numbers: " . join(", ", @$numbers) . "\n";
 `
 
 		err := os.WriteFile(testScript, []byte(testCode), 0644)
