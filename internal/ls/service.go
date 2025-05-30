@@ -325,59 +325,156 @@ func (ls *LanguageService) FindReferences(uri string, pos Position, includeDecla
 	if doc.AST != nil && doc.AST.Root != nil {
 		navigator := astnav.NewNavigator(doc.AST.Root)
 
+		// Split document text into lines for position-based text extraction
+		lines := strings.Split(doc.Text, "\n")
+
 		// Find all nodes that reference this symbol
 		allNodes := []ast.Node{}
 		navigator.Walk(doc.AST.Root, func(node ast.Node) bool {
-			// Check various node types that might reference symbols
-			switch node.Type() {
-			case "variable_expression", "subroutine_call", "method_call", "identifier":
-				if ls.nodeMatchesSymbol(node, symbol) {
+			// Extract text from source using node positions since node.Text() is empty
+			nodeText := ls.extractNodeText(node, lines)
+
+			// Check if this node contains the symbol we're looking for
+			if ls.nodeMatchesSymbolByText(nodeText, node.Type(), symbol) {
+				// Only add if not already in list
+				found := false
+				for _, existing := range allNodes {
+					if existing.Start().Line == node.Start().Line && existing.Start().Column == node.Start().Column {
+						found = true
+						break
+					}
+				}
+				if !found {
 					allNodes = append(allNodes, node)
 				}
 			}
 			return true
 		})
 
-		// Convert nodes to locations
+		// Convert nodes to locations, separating declarations from references
+		var declarationLocation *Location
 		for _, node := range allNodes {
 			nodePos := node.Start()
-			location := Location{
-				URI: uri,
-				Range: Range{
-					Start: Position{
-						Line:      nodePos.Line - 1,
-						Character: nodePos.Column - 1,
-					},
-					End: Position{
-						Line:      nodePos.Line - 1,
-						Character: nodePos.Column - 1 + len(symbol.Name),
-					},
-				},
-			}
-			locations = append(locations, location)
-		}
-	}
+			// Extract the actual text to find the exact symbol position within the node
+			nodeText := ls.extractNodeText(node, lines)
+			symbolStart, symbolEnd := ls.findSymbolInText(nodeText, symbol.Name)
 
-	// Include declaration if requested
-	if includeDeclaration && symbol.Declaration != nil {
-		declPos := symbol.Declaration.Start()
-		location := Location{
-			URI: uri,
-			Range: Range{
-				Start: Position{
-					Line:      declPos.Line - 1,
-					Character: declPos.Column - 1,
-				},
-				End: Position{
-					Line:      declPos.Line - 1,
-					Character: declPos.Column - 1 + len(symbol.Name),
-				},
-			},
+			if symbolStart >= 0 {
+				location := Location{
+					URI: uri,
+					Range: Range{
+						Start: Position{
+							Line:      nodePos.Line - 1,
+							Character: nodePos.Column - 1 + symbolStart,
+						},
+						End: Position{
+							Line:      nodePos.Line - 1,
+							Character: nodePos.Column - 1 + symbolEnd,
+						},
+					},
+				}
+
+				// Check if this is the declaration by comparing positions
+				if symbol.Declaration != nil {
+					declPos := symbol.Declaration.Start()
+					if nodePos.Line == declPos.Line &&
+						nodePos.Column == declPos.Column {
+						// This is the declaration
+						if includeDeclaration {
+							declarationLocation = &location
+						}
+						continue
+					}
+				}
+
+				// This is a reference
+				locations = append(locations, location)
+			}
 		}
-		locations = append(locations, location)
+
+		// Add declaration at the beginning if requested and found
+		if declarationLocation != nil {
+			locations = append([]Location{*declarationLocation}, locations...)
+		}
 	}
 
 	return locations, nil
+}
+
+// extractNodeText extracts text from source using node positions
+func (ls *LanguageService) extractNodeText(node ast.Node, lines []string) string {
+	start := node.Start()
+	end := node.End()
+
+	if start.Line <= 0 || start.Line > len(lines) {
+		return ""
+	}
+
+	line := lines[start.Line-1] // Convert 1-based to 0-based
+
+	// Handle single line extraction
+	if start.Line == end.Line {
+		if start.Column > 0 && end.Column > 0 &&
+			start.Column-1 < len(line) && end.Column-1 <= len(line) {
+			return line[start.Column-1 : end.Column-1]
+		}
+	} else {
+		// For multi-line nodes, just return the first line for now
+		if start.Column > 0 && start.Column-1 < len(line) {
+			return line[start.Column-1:]
+		}
+	}
+
+	return ""
+}
+
+// nodeMatchesSymbolByText checks if extracted text contains the symbol
+func (ls *LanguageService) nodeMatchesSymbolByText(text, nodeType string, symbol *binder.Symbol) bool {
+	if text == "" {
+		return false
+	}
+
+	// Look for the symbol name in the text
+	symbolName := symbol.Name
+
+	// Check for variable references like $count, @count, %count
+	if strings.Contains(text, "$"+symbolName) ||
+		strings.Contains(text, "@"+symbolName) ||
+		strings.Contains(text, "%"+symbolName) {
+		return true
+	}
+
+	// Check for bare symbol name (subroutines, etc.)
+	if strings.Contains(text, symbolName) {
+		return true
+	}
+
+	return false
+}
+
+// findSymbolInText finds the start and end position of a symbol within text
+func (ls *LanguageService) findSymbolInText(text, symbolName string) (int, int) {
+	// Look for $symbolName first (most common case)
+	if idx := strings.Index(text, "$"+symbolName); idx >= 0 {
+		return idx, idx + 1 + len(symbolName)
+	}
+
+	// Look for @symbolName
+	if idx := strings.Index(text, "@"+symbolName); idx >= 0 {
+		return idx, idx + 1 + len(symbolName)
+	}
+
+	// Look for %symbolName
+	if idx := strings.Index(text, "%"+symbolName); idx >= 0 {
+		return idx, idx + 1 + len(symbolName)
+	}
+
+	// Look for bare symbolName
+	if idx := strings.Index(text, symbolName); idx >= 0 {
+		return idx, idx + len(symbolName)
+	}
+
+	return -1, -1
 }
 
 // GetHover provides hover information for a symbol at the given position
@@ -610,6 +707,54 @@ type TextEdit struct {
 	NewText string
 }
 
+// FormattingOptions represents document formatting options
+type FormattingOptions struct {
+	TabSize      int  // Size of a tab in spaces
+	InsertSpaces bool // Prefer spaces over tabs
+}
+
+// CodeActionContext represents the context for code action requests
+type CodeActionContext struct {
+	Diagnostics []Diagnostic // Diagnostics that triggered the code action
+}
+
+// CodeAction represents a code action (quick fix, refactoring, etc.)
+type CodeAction struct {
+	Title   string         // Human-readable title
+	Kind    string         // Kind of code action (quickfix, refactor, etc.)
+	Edit    *WorkspaceEdit // Optional workspace edit to apply
+	Command *Command       // Optional command to execute
+}
+
+// WorkspaceEdit represents changes to multiple documents
+type WorkspaceEdit struct {
+	Changes map[string][]TextEdit // URI -> list of edits
+}
+
+// Command represents a command that can be executed
+type Command struct {
+	Title     string        // Human-readable command title
+	Command   string        // Command identifier
+	Arguments []interface{} // Optional command arguments
+}
+
+// Diagnostic represents a diagnostic message (error, warning, etc.)
+type Diagnostic struct {
+	Range    Range               // Source range where diagnostic applies
+	Severity *DiagnosticSeverity // Optional severity level
+	Message  string              // Diagnostic message
+}
+
+// DiagnosticSeverity represents diagnostic severity levels
+type DiagnosticSeverity int
+
+const (
+	DiagnosticSeverityError       DiagnosticSeverity = 1
+	DiagnosticSeverityWarning     DiagnosticSeverity = 2
+	DiagnosticSeverityInformation DiagnosticSeverity = 3
+	DiagnosticSeverityHint        DiagnosticSeverity = 4
+)
+
 // RenameSymbol provides rename functionality for symbols
 func (ls *LanguageService) RenameSymbol(uri string, pos Position, newName string) ([]TextEdit, error) {
 	doc, exists := ls.documents[uri]
@@ -649,6 +794,156 @@ func (ls *LanguageService) RenameSymbol(uri string, pos Position, newName string
 	}
 
 	return edits, nil
+}
+
+// FormatDocument provides document formatting functionality
+func (ls *LanguageService) FormatDocument(uri string, options FormattingOptions) ([]TextEdit, error) {
+	doc, exists := ls.documents[uri]
+	if !exists {
+		return nil, fmt.Errorf("document not found: %s", uri)
+	}
+
+	var edits []TextEdit
+	lines := strings.Split(doc.Text, "\n")
+
+	for lineNum, line := range lines {
+		var newLine string
+		changed := false
+
+		// Rule 1: Trim trailing whitespace
+		trimmed := strings.TrimRight(line, " \t")
+		if trimmed != line {
+			newLine = trimmed
+			changed = true
+		} else {
+			newLine = line
+		}
+
+		// Rule 2: Convert tabs to spaces if InsertSpaces is true
+		if options.InsertSpaces && strings.Contains(newLine, "\t") {
+			spaces := strings.Repeat(" ", options.TabSize)
+			converted := strings.ReplaceAll(newLine, "\t", spaces)
+			if converted != newLine {
+				newLine = converted
+				changed = true
+			}
+		}
+
+		// Create edit if line was changed
+		if changed {
+			edit := TextEdit{
+				Range: Range{
+					Start: Position{Line: lineNum, Character: 0},
+					End:   Position{Line: lineNum, Character: len(line)},
+				},
+				NewText: newLine,
+			}
+			edits = append(edits, edit)
+		}
+	}
+
+	return edits, nil
+}
+
+// GenerateCodeActions provides code action functionality (quick fixes, refactoring)
+func (ls *LanguageService) GenerateCodeActions(uri string, range_ Range, context CodeActionContext) ([]CodeAction, error) {
+	doc, exists := ls.documents[uri]
+	if !exists {
+		return nil, fmt.Errorf("document not found: %s", uri)
+	}
+
+	var actions []CodeAction
+
+	// Process diagnostics to generate quick fixes
+	for _, diagnostic := range context.Diagnostics {
+		if strings.Contains(diagnostic.Message, "undefined") && strings.Contains(diagnostic.Message, "$") {
+			// Quick fix for undefined variables
+			// Extract variable name from diagnostic message
+			if varName := extractVariableName(diagnostic.Message); varName != "" {
+				action := CodeAction{
+					Title: fmt.Sprintf("Declare variable '%s'", varName),
+					Kind:  "quickfix",
+					Edit: &WorkspaceEdit{
+						Changes: map[string][]TextEdit{
+							uri: {
+								{
+									Range: Range{
+										Start: Position{Line: diagnostic.Range.Start.Line, Character: 0},
+										End:   Position{Line: diagnostic.Range.Start.Line, Character: 0},
+									},
+									NewText: fmt.Sprintf("my %s;\n", varName),
+								},
+							},
+						},
+					},
+				}
+				actions = append(actions, action)
+			}
+		}
+	}
+
+	// Generate refactoring actions for selected code (only if no diagnostics to fix)
+	if len(context.Diagnostics) == 0 && range_.Start.Line == range_.End.Line && range_.End.Character > range_.Start.Character {
+		// Extract variable refactoring
+		lines := strings.Split(doc.Text, "\n")
+		if range_.Start.Line < len(lines) {
+			line := lines[range_.Start.Line]
+			if range_.Start.Character < len(line) && range_.End.Character <= len(line) {
+				selectedText := line[range_.Start.Character:range_.End.Character]
+				if strings.TrimSpace(selectedText) != "" {
+					action := CodeAction{
+						Title: "Extract to variable",
+						Kind:  "refactor.extract",
+						Edit: &WorkspaceEdit{
+							Changes: map[string][]TextEdit{
+								uri: {
+									{
+										Range: Range{
+											Start: Position{Line: range_.Start.Line, Character: 0},
+											End:   Position{Line: range_.Start.Line, Character: 0},
+										},
+										NewText: "my $extracted_value = " + selectedText + ";\n",
+									},
+									{
+										Range:   range_,
+										NewText: "$extracted_value",
+									},
+								},
+							},
+						},
+					}
+					actions = append(actions, action)
+				}
+			}
+		}
+	}
+
+	return actions, nil
+}
+
+// Helper function to extract variable name from diagnostic message
+func extractVariableName(message string) string {
+	// Look for patterns like "Variable $foo is undefined"
+	start := strings.Index(message, "$")
+	if start == -1 {
+		return ""
+	}
+
+	end := start + 1
+	for end < len(message) && (isAlphaNumeric(message[end]) || message[end] == '_') {
+		end++
+	}
+
+	if end > start+1 {
+		return message[start:end]
+	}
+
+	return ""
+}
+
+// Helper function to check if character is alphanumeric
+func isAlphaNumeric(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
 // GetWorkspaceSymbols searches for symbols across all documents in the workspace
@@ -758,16 +1053,39 @@ func (ls *LanguageService) isWordChar(c byte) bool {
 }
 
 func (ls *LanguageService) nodeMatchesSymbol(node ast.Node, symbol *binder.Symbol) bool {
-	// Extract variable name from node and compare with symbol
-	if node.Type() == "variable_expression" {
-		text := node.Text()
+	text := node.Text()
+	if text == "" {
+		return false
+	}
+
+	switch node.Type() {
+	case "variable_expression", "scalar_variable", "variable_declaration":
+		// Handle variable references like $foo, @arr, %hash
+		if len(text) > 0 && strings.ContainsRune("$@%*", rune(text[0])) {
+			varName := text[1:]
+			return varName == symbol.Name
+		}
+		return text == symbol.Name
+
+	case "subroutine_call", "method_call":
+		// Handle subroutine/method calls - extract name without parentheses
+		callName := strings.TrimSuffix(text, "()")
+		callName = strings.TrimSpace(callName)
+		return callName == symbol.Name
+
+	case "identifier":
+		// Handle plain identifiers
+		return text == symbol.Name
+
+	default:
+		// For any other node type, check if the text matches the symbol name
+		// This is a fallback for cases we might have missed
 		if len(text) > 0 && strings.ContainsRune("$@%*", rune(text[0])) {
 			varName := text[1:]
 			return varName == symbol.Name
 		}
 		return text == symbol.Name
 	}
-	return false
 }
 
 func (ls *LanguageService) resolveSymbolInScope(scope *binder.Scope, name string) *binder.Symbol {
@@ -1109,4 +1427,12 @@ func (ls *LanguageService) ClearCache() {
 // ResetPerformanceMetrics resets all performance counters
 func (ls *LanguageService) ResetPerformanceMetrics() {
 	ls.monitor.Reset()
+}
+
+// GetDocumentForDebug returns document for debugging (should only be used in tests)
+func (ls *LanguageService) GetDocumentForDebug(uri string) (*Document, bool) {
+	ls.mu.RLock()
+	defer ls.mu.RUnlock()
+	doc, exists := ls.documents[uri]
+	return doc, exists
 }

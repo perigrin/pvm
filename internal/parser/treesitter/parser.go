@@ -761,25 +761,20 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 		return p.convertToClassDeclAST(node, start, end)
 	case "role_statement":
 		return p.convertToRoleDeclAST(node, start, end)
+	case "subroutine_declaration_statement":
+		return p.convertToSubDeclAST(node, start, end)
 	case "source_file":
 		// For the root source file, create a program node that doesn't create a new scope
-		// Return the first statement if there's only one, or create a container
-		if len(children) == 1 {
-			if stmt, ok := children[0].(ast.StatementNode); ok {
-				return stmt
+		// Convert all children to statements and create a ProgramStmt
+		var statements []ast.StatementNode
+		for _, child := range children {
+			if stmt, ok := child.(ast.StatementNode); ok {
+				statements = append(statements, stmt)
 			}
 		}
-		// For multiple statements, we need a different approach that doesn't use BlockStmt
-		// For now, return the first statement - this needs to be improved for multiple statements
-		if len(children) > 0 {
-			if stmt, ok := children[0].(ast.StatementNode); ok {
-				return stmt
-			}
-		}
-		// Fallback: create a dummy expression statement
-		return ast.NewExpressionStmt(
-			ast.NewLiteralExpr("", ast.StringLiteral, start, end),
-			start, end)
+
+		// Create program statement containing all top-level statements
+		return ast.NewProgramStmt(statements, start, end)
 	case "expression_statement":
 		// If the first child is already a statement (like VarDecl), return it directly
 		if len(children) > 0 {
@@ -1078,6 +1073,43 @@ func (p *Parser) convertToRoleDeclAST(node Node, start, end ast.Position) ast.No
 	}
 
 	return roleDecl
+}
+
+// convertToSubDeclAST converts a subroutine_declaration_statement node to ast.SubDecl
+func (p *Parser) convertToSubDeclAST(node Node, start, end ast.Position) ast.Node {
+	subroutineName := ""
+	var params []*ast.Parameter
+	var returnType *ast.TypeExpression
+	var body *ast.BlockStmt
+
+	// Extract subroutine name from tree-sitter node structure
+	// Based on the tree dump: subroutine_declaration_statement has children: sub, bareword, block
+	children := node.Children()
+	for _, child := range children {
+		switch child.Type() {
+		case "bareword":
+			// This should be the subroutine name (e.g., "hello")
+			subroutineName = child.Text()
+		case "block":
+			// Convert the block to a BlockStmt
+			blockStart := ast.Position{
+				Line:   child.Start().Line,
+				Column: child.Start().Column,
+			}
+			blockEnd := ast.Position{
+				Line:   child.End().Line,
+				Column: child.End().Column,
+			}
+
+			// For now, create an empty block - we can enhance this later to parse block contents
+			var blockStatements []ast.StatementNode
+			body = ast.NewBlockStmt(blockStatements, blockStart, blockEnd)
+		}
+	}
+
+	// Create subroutine declaration
+	// For now, create with empty parameters and no return type - we can enhance this later
+	return ast.NewSubDecl(subroutineName, params, returnType, body, false, start, end)
 }
 
 // processClassBlock processes the contents of a class block
@@ -1564,8 +1596,8 @@ func (p *Parser) validateTypeSyntax(line string, lineNum int) error {
 	}
 
 	// Check for specific malformed spacing pattern: space after [ but not before ]
-	if strings.Contains(trimmedLine, "my ") && 
-		strings.Contains(trimmedLine, "[ ") && 
+	if strings.Contains(trimmedLine, "my ") &&
+		strings.Contains(trimmedLine, "[ ") &&
 		strings.Contains(trimmedLine, "]") &&
 		!strings.Contains(trimmedLine, " ]") &&
 		strings.Contains(trimmedLine, ";") {

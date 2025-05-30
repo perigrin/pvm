@@ -9,6 +9,36 @@ type StatementNode interface {
 	IsStatement() bool
 }
 
+// ProgramStmt represents the top-level program containing multiple statements
+// Unlike BlockStmt, ProgramStmt does not create a new scope - it represents
+// the global program context that can contain subroutines, classes, and statements
+type ProgramStmt struct {
+	*BaseNode
+	Statements []StatementNode
+}
+
+// NewProgramStmt creates a new program statement
+func NewProgramStmt(statements []StatementNode, start, end Position) *ProgramStmt {
+	stmt := &ProgramStmt{
+		BaseNode:   NewBaseNode("program_stmt", start, end),
+		Statements: statements,
+	}
+
+	// Add all statements as children
+	for _, s := range statements {
+		if s != nil {
+			stmt.AddChild(s)
+		}
+	}
+
+	return stmt
+}
+
+// IsStatement implements StatementNode interface
+func (ps *ProgramStmt) IsStatement() bool {
+	return true
+}
+
 // ExpressionStmt represents expression statements (expressions used as statements)
 type ExpressionStmt struct {
 	*BaseNode
@@ -76,13 +106,13 @@ func NewVarDecl(declType string, vars []*VariableExpr, typeExpr *TypeExpression,
 // GetTypeInfo returns comprehensive type information for this declaration
 func (vd *VarDecl) GetTypeInfo() *VariableTypeInfo {
 	return &VariableTypeInfo{
-		DeclType:     vd.DeclType,
-		TypeExpr:     vd.TypeExpr,
-		VariableNames: vd.getVariableNames(),
-		Scope:        vd.Scope,
-		Package:      vd.Package,
+		DeclType:       vd.DeclType,
+		TypeExpr:       vd.TypeExpr,
+		VariableNames:  vd.getVariableNames(),
+		Scope:          vd.Scope,
+		Package:        vd.Package,
 		HasInitializer: vd.Initializer != nil,
-		Position:     vd.Start(),
+		Position:       vd.Start(),
 	}
 }
 
@@ -122,29 +152,29 @@ func (vd *VarDecl) IsTyped() bool {
 // Enhanced with comprehensive type signature information
 type SubDecl struct {
 	*BaseNode
-	Name           string              // subroutine/method name
-	Parameters     []*Parameter        // parameter list
-	ReturnType     *TypeExpression     // return type annotation
-	Body           *BlockStmt          // subroutine body
-	IsMethod       bool                // true if this is a method
-	TypeParameters []*TypeParameter    // generic type parameters
-	Constraints    []*TypeConstraint   // type constraints
-	Signature      *MethodSignature    // complete method signature info
-	Package        string              // package context
-	AccessLevel    string              // public, private, protected (future)
+	Name           string            // subroutine/method name
+	Parameters     []*Parameter      // parameter list
+	ReturnType     *TypeExpression   // return type annotation
+	Body           *BlockStmt        // subroutine body
+	IsMethod       bool              // true if this is a method
+	TypeParameters []*TypeParameter  // generic type parameters
+	Constraints    []*TypeConstraint // type constraints
+	Signature      *MethodSignature  // complete method signature info
+	Package        string            // package context
+	AccessLevel    string            // public, private, protected (future)
 }
 
 // Parameter represents a subroutine parameter
 // Enhanced with comprehensive parameter information
 type Parameter struct {
-	Name       string           // parameter name
-	TypeExpr   *TypeExpression  // parameter type annotation
-	Variable   *VariableExpr    // parameter variable
-	Default    ExpressionNode   // default value expression
-	IsOptional bool             // optional parameter flag
-	IsNamed    bool             // named parameter flag (:$param)
-	IsVariadic bool             // variadic parameter flag (*@args)
-	Pos        Position         // source position
+	Name       string          // parameter name
+	TypeExpr   *TypeExpression // parameter type annotation
+	Variable   *VariableExpr   // parameter variable
+	Default    ExpressionNode  // default value expression
+	IsOptional bool            // optional parameter flag
+	IsNamed    bool            // named parameter flag (:$param)
+	IsVariadic bool            // variadic parameter flag (*@args)
+	Pos        Position        // source position
 }
 
 // NewSubDecl creates a new subroutine declaration
@@ -246,13 +276,13 @@ func NewMethodDecl(name string, params []*Parameter, returnType *TypeExpression,
 // Enhanced with comprehensive field type information
 type FieldDecl struct {
 	*BaseNode
-	Name        string          // field name
-	TypeExpr    *TypeExpression // field type annotation
-	Variable    *VariableExpr   // field variable
-	Initializer ExpressionNode  // field initializer
-	AccessLevel string          // public, private, protected (future)
-	IsStatic    bool            // static field flag (future)
-	Package     string          // package context
+	Name        string            // field name
+	TypeExpr    *TypeExpression   // field type annotation
+	Variable    *VariableExpr     // field variable
+	Initializer ExpressionNode    // field initializer
+	AccessLevel string            // public, private, protected (future)
+	IsStatic    bool              // static field flag (future)
+	Package     string            // package context
 	Constraints []*TypeConstraint // field-specific constraints
 }
 
@@ -315,12 +345,12 @@ func (fd *FieldDecl) IsStatement() bool {
 // Enhanced with comprehensive type alias information
 type TypeDecl struct {
 	*BaseNode
-	Name           string              // type alias name
-	TypeExpr       *TypeExpression     // aliased type expression
-	TypeParameters []*TypeParameter    // generic type parameters
-	Constraints    []*TypeConstraint   // type constraints
-	Package        string              // package context
-	IsExported     bool                // whether type is exported
+	Name           string            // type alias name
+	TypeExpr       *TypeExpression   // aliased type expression
+	TypeParameters []*TypeParameter  // generic type parameters
+	Constraints    []*TypeConstraint // type constraints
+	Package        string            // package context
+	IsExported     bool              // whether type is exported
 }
 
 // NewTypeDecl creates a new type declaration
@@ -362,13 +392,13 @@ func (td *TypeDecl) GetTypeAliasInfo() *TypeAliasInfo {
 
 // TypeAliasInfo contains comprehensive information about a type alias
 type TypeAliasInfo struct {
-	Name           string              // alias name
-	AliasedType    *TypeExpression     // the type being aliased
-	TypeParameters []*TypeParameter    // generic parameters
-	Constraints    []*TypeConstraint   // type constraints
-	Package        string              // package context
-	IsExported     bool                // export status
-	Position       Position            // source position
+	Name           string            // alias name
+	AliasedType    *TypeExpression   // the type being aliased
+	TypeParameters []*TypeParameter  // generic parameters
+	Constraints    []*TypeConstraint // type constraints
+	Package        string            // package context
+	IsExported     bool              // export status
+	Position       Position          // source position
 }
 
 // IsStatement implements StatementNode interface
@@ -576,16 +606,16 @@ func (ps *PackageStmt) IsStatement() bool {
 // ClassDecl represents class declarations
 type ClassDecl struct {
 	*BaseNode
-	Name           string              // class name
-	TypeParameters []*TypeParameter    // generic parameters
-	Superclass     *TypeExpression     // parent class
-	Roles          []*TypeExpression   // implemented roles
-	Fields         []*FieldDecl        // class fields
-	Methods        []*MethodDecl       // class methods
-	Constructors   []*MethodDecl       // constructor methods
-	Constraints    []*TypeConstraint   // type constraints
-	Package        string              // package context
-	IsExported     bool                // export status
+	Name           string            // class name
+	TypeParameters []*TypeParameter  // generic parameters
+	Superclass     *TypeExpression   // parent class
+	Roles          []*TypeExpression // implemented roles
+	Fields         []*FieldDecl      // class fields
+	Methods        []*MethodDecl     // class methods
+	Constructors   []*MethodDecl     // constructor methods
+	Constraints    []*TypeConstraint // type constraints
+	Package        string            // package context
+	IsExported     bool              // export status
 }
 
 // NewClassDecl creates a new class declaration
@@ -644,29 +674,29 @@ func (cd *ClassDecl) GetClassTypeInfo() *ClassTypeInfo {
 
 // ClassTypeInfo contains comprehensive information about a class declaration
 type ClassTypeInfo struct {
-	Name           string              // class name
-	TypeParameters []*TypeParameter    // generic parameters
-	Superclass     *TypeExpression     // parent class
-	Roles          []*TypeExpression   // implemented roles
-	FieldCount     int                 // number of fields
-	MethodCount    int                 // number of methods
-	Constraints    []*TypeConstraint   // type constraints
-	Package        string              // package context
-	IsExported     bool                // export status
-	Position       Position            // source position
+	Name           string            // class name
+	TypeParameters []*TypeParameter  // generic parameters
+	Superclass     *TypeExpression   // parent class
+	Roles          []*TypeExpression // implemented roles
+	FieldCount     int               // number of fields
+	MethodCount    int               // number of methods
+	Constraints    []*TypeConstraint // type constraints
+	Package        string            // package context
+	IsExported     bool              // export status
+	Position       Position          // source position
 }
 
 // RoleDecl represents role declarations
 type RoleDecl struct {
 	*BaseNode
-	Name            string              // role name
-	TypeParameters  []*TypeParameter    // generic parameters
-	RequiredMethods []*MethodSignature  // required method signatures
-	ProvidedMethods []*MethodDecl       // provided method implementations
-	Fields          []*FieldDecl        // role fields
-	Constraints     []*TypeConstraint   // type constraints
-	Package         string              // package context
-	IsExported      bool                // export status
+	Name            string             // role name
+	TypeParameters  []*TypeParameter   // generic parameters
+	RequiredMethods []*MethodSignature // required method signatures
+	ProvidedMethods []*MethodDecl      // provided method implementations
+	Fields          []*FieldDecl       // role fields
+	Constraints     []*TypeConstraint  // type constraints
+	Package         string             // package context
+	IsExported      bool               // export status
 }
 
 // NewRoleDecl creates a new role declaration
@@ -709,27 +739,27 @@ func (rd *RoleDecl) AddField(field *FieldDecl) {
 // GetRoleTypeInfo returns comprehensive type information for this role
 func (rd *RoleDecl) GetRoleTypeInfo() *RoleTypeInfo {
 	return &RoleTypeInfo{
-		Name:                 rd.Name,
-		TypeParameters:       rd.TypeParameters,
-		RequiredMethodCount:  len(rd.RequiredMethods),
-		ProvidedMethodCount:  len(rd.ProvidedMethods),
-		FieldCount:           len(rd.Fields),
-		Constraints:          rd.Constraints,
-		Package:              rd.Package,
-		IsExported:           rd.IsExported,
-		Position:             rd.Start(),
+		Name:                rd.Name,
+		TypeParameters:      rd.TypeParameters,
+		RequiredMethodCount: len(rd.RequiredMethods),
+		ProvidedMethodCount: len(rd.ProvidedMethods),
+		FieldCount:          len(rd.Fields),
+		Constraints:         rd.Constraints,
+		Package:             rd.Package,
+		IsExported:          rd.IsExported,
+		Position:            rd.Start(),
 	}
 }
 
 // RoleTypeInfo contains comprehensive information about a role declaration
 type RoleTypeInfo struct {
-	Name                string              // role name
-	TypeParameters      []*TypeParameter    // generic parameters
-	RequiredMethodCount int                 // number of required methods
-	ProvidedMethodCount int                 // number of provided methods
-	FieldCount          int                 // number of fields
-	Constraints         []*TypeConstraint   // type constraints
-	Package             string              // package context
-	IsExported          bool                // export status
-	Position            Position            // source position
+	Name                string            // role name
+	TypeParameters      []*TypeParameter  // generic parameters
+	RequiredMethodCount int               // number of required methods
+	ProvidedMethodCount int               // number of provided methods
+	FieldCount          int               // number of fields
+	Constraints         []*TypeConstraint // type constraints
+	Package             string            // package context
+	IsExported          bool              // export status
+	Position            Position          // source position
 }

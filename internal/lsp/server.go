@@ -4,6 +4,7 @@
 package lsp
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -182,11 +183,14 @@ func (s *Server) SetLogger(logger *log.Logger) {
 
 // handleMessage handles a single LSP message
 func (s *Server) handleMessage() error {
+	// Use buffered reader for proper line reading
+	reader := bufio.NewReader(s.conn)
+
 	// Read the Content-Length header
 	var contentLength int
 	for {
-		var line string
-		if _, err := fmt.Fscanln(s.conn, &line); err != nil {
+		line, err := reader.ReadString('\n')
+		if err != nil {
 			return err
 		}
 
@@ -216,7 +220,7 @@ func (s *Server) handleMessage() error {
 
 	// Read the message body
 	body := make([]byte, contentLength)
-	if _, err := io.ReadFull(s.conn, body); err != nil {
+	if _, err := io.ReadFull(reader, body); err != nil {
 		return err
 	}
 
@@ -414,10 +418,8 @@ func (s *Server) publishDiagnostics(uri string, errors []parser.TypeCheckError) 
 	return s.sendNotification("textDocument/publishDiagnostics", params)
 }
 
-
 // pathToURI converts a file path to a file URI
 func pathToURI(path string) string {
 	abs, _ := filepath.Abs(path)
 	return "file://" + abs
 }
-

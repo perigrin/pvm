@@ -4,11 +4,13 @@
 package lsp
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"testing"
+	"time"
 )
 
 // mockConn implements io.ReadWriteCloser for testing
@@ -29,6 +31,16 @@ func (m *mockConn) Read(p []byte) (n int, err error) {
 	if m.closed {
 		return 0, io.EOF
 	}
+
+	// If buffer is empty, wait for data instead of returning EOF immediately
+	for m.input.Len() == 0 && !m.closed {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if m.closed {
+		return 0, io.EOF
+	}
+
 	return m.input.Read(p)
 }
 
@@ -75,10 +87,28 @@ func (m *mockConn) writeMessage(id interface{}, method string, params interface{
 
 // readResponse reads a JSON-RPC response from the connection
 func (m *mockConn) readResponse() (*JSONRPCResponse, error) {
+	// Wait for response data to be available
+	timeout := time.After(1 * time.Second)
+	for {
+		select {
+		case <-timeout:
+			return nil, fmt.Errorf("timeout waiting for response")
+		default:
+			if m.output.Len() > 0 {
+				goto parseResponse
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+parseResponse:
+	// Use buffered reader for proper parsing
+	reader := bufio.NewReader(m.output)
+
 	// Parse headers
 	var contentLength int
 	for {
-		line, err := m.output.ReadString('\n')
+		line, err := reader.ReadString('\n')
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +125,7 @@ func (m *mockConn) readResponse() (*JSONRPCResponse, error) {
 
 	// Read body
 	body := make([]byte, contentLength)
-	n, err := io.ReadFull(m.output, body)
+	n, err := io.ReadFull(reader, body)
 	if err != nil || n != contentLength {
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
