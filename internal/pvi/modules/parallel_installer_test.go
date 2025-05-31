@@ -63,12 +63,14 @@ func TestInstallModulesParallel(t *testing.T) {
 		defer cancel()
 		options.Context = ctx
 
-		// Note: This may fail due to actual module installation attempts
+		// Note: Individual installations may fail, but the parallel installer should succeed
 		// In a real test environment, we'd mock InstallModule
-		_, err := InstallModulesParallel(options)
-		// We expect this to fail since we don't have real modules to install
-		// but it should not fail due to configuration issues
-		assert.Error(t, err) // Expected since we can't actually install modules in test
+		result, err := InstallModulesParallel(options)
+		// The parallel installer should not fail at the function level
+		assert.NoError(t, err)
+		// But individual module installations should fail due to missing CPAN provider
+		assert.NotNil(t, result)
+		assert.Greater(t, len(result.Failures), 0, "Expected some module installation failures")
 	})
 }
 
@@ -94,9 +96,12 @@ func TestInstallModulesBatch(t *testing.T) {
 		defer cancel()
 		options.Context = ctx
 
-		_, err := InstallModulesBatch(moduleNames, options)
-		// Expected to fail since we can't install real modules, but should not panic
-		assert.Error(t, err)
+		result, err := InstallModulesBatch(moduleNames, options)
+		// The batch installer should not fail at the function level
+		assert.NoError(t, err)
+		// But individual module installations should fail due to missing CPAN provider
+		assert.NotNil(t, result)
+		assert.Greater(t, len(result.Failures), 0, "Expected some module installation failures")
 	})
 }
 
