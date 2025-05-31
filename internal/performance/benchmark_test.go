@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/typechecker"
+	"tamarou.com/pvm/internal/typedef"
 )
 
 // Test content for benchmarking
@@ -339,14 +342,31 @@ func TestOptimizationEffectiveness(t *testing.T) {
 
 	content := benchmarkContent["typed"]
 
-	// Measure baseline performance
+	// Measure baseline performance (parsing + binding + type checking)
 	start := time.Now()
 	iterations := 100
 	for i := 0; i < iterations; i++ {
-		_, err := baseParser.ParseString(content)
+		// Parse
+		ast, err := baseParser.ParseString(content)
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
+
+		// Bind symbols
+		symbolBinder := binder.NewBinder()
+		symbolTable, err := symbolBinder.Bind(ast)
+		if err != nil {
+			t.Fatalf("Binding error: %v", err)
+		}
+
+		// Type check
+		storage, err := typedef.NewStorage()
+		if err != nil {
+			t.Fatalf("Storage creation error: %v", err)
+		}
+		hierarchy := typedef.NewTypeHierarchy(storage)
+		checker := typechecker.NewTypeChecker(hierarchy, symbolTable, "test")
+		_ = checker.CheckAST(ast)
 	}
 	baselineTime := time.Since(start)
 
