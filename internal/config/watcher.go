@@ -251,8 +251,8 @@ func (w *ConfigWatcher) handleConfigChange(path string) {
 
 // reloadConfiguration reloads the configuration from all sources
 func (w *ConfigWatcher) reloadConfiguration() {
-	// Load new configuration
-	newConfig, err := LoadEffectiveConfig()
+	// Load new configuration without validation (we'll validate separately)
+	newConfig, err := LoadEffectiveConfigWithOptions(false)
 	if err != nil {
 		w.sendEvent(WatcherEvent{
 			Type:      EventConfigError,

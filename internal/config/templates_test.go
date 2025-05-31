@@ -41,11 +41,7 @@ func TestTemplateManager(t *testing.T) {
 description = "Basic PVM configuration"
 version = "1.0"
 
-[variables]
-perl_version = "5.38.0"
-build_jobs = "4"
-
-content = '''
+content = """
 [pvm]
 default_perl = "{{.perl_version}}"
 build_jobs = {{.build_jobs}}
@@ -53,7 +49,11 @@ run_tests = true
 
 [pvx]
 isolation_level = "medium"
-'''`
+"""
+
+[variables]
+perl_version = "5.38.0"
+build_jobs = "4"`
 
 		templatePath := filepath.Join(templatesDir, "basic.template.toml")
 		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
@@ -103,18 +103,23 @@ isolation_level = "medium"
 	})
 
 	t.Run("TemplateInheritance", func(t *testing.T) {
+		// Create templates directory
+		if err := os.MkdirAll(templatesDir, 0755); err != nil {
+			t.Fatalf("Failed to create templates directory: %v", err)
+		}
+
 		// Create parent template
 		parentContent := `name = "parent"
 description = "Parent template"
 
-content = '''
+content = """
 [pvm]
 default_perl = "{{.perl_version}}"
 run_tests = true
 
 [pvx]
 isolation_level = "medium"
-'''`
+"""`
 
 		parentPath := filepath.Join(templatesDir, "parent.template.toml")
 		if err := os.WriteFile(parentPath, []byte(parentContent), 0644); err != nil {
@@ -126,17 +131,33 @@ isolation_level = "medium"
 description = "Child template"
 inherits = "parent"
 
-content = '''
+content = """
 [pvm]
 build_jobs = {{.build_jobs}}
 
 [pvi]
 preferred_installer = "cpanm"
-'''`
+"""`
 
 		childPath := filepath.Join(templatesDir, "child.template.toml")
 		if err := os.WriteFile(childPath, []byte(childContent), 0644); err != nil {
 			t.Fatalf("Failed to write child template: %v", err)
+		}
+
+		// Clean up any existing templates to avoid interference
+		if err := os.RemoveAll(templatesDir); err != nil {
+			t.Fatalf("Failed to clean templates directory: %v", err)
+		}
+		if err := os.MkdirAll(templatesDir, 0755); err != nil {
+			t.Fatalf("Failed to recreate templates directory: %v", err)
+		}
+
+		// Re-write the parent and child templates
+		if err := os.WriteFile(parentPath, []byte(parentContent), 0644); err != nil {
+			t.Fatalf("Failed to re-write parent template: %v", err)
+		}
+		if err := os.WriteFile(childPath, []byte(childContent), 0644); err != nil {
+			t.Fatalf("Failed to re-write child template: %v", err)
 		}
 
 		// Reload templates
@@ -204,18 +225,23 @@ preferred_installer = "cpanm"
 	})
 
 	t.Run("TemplateFunctions", func(t *testing.T) {
+		// Create templates directory
+		if err := os.MkdirAll(templatesDir, 0755); err != nil {
+			t.Fatalf("Failed to create templates directory: %v", err)
+		}
+
 		// Create template that uses template functions
 		templateContent := `name = "functions"
 description = "Template with functions"
 
-content = '''
+content = """
 [pvm]
 default_perl = "{{upper .perl_version}}"
-download_mirror = "{{default "https://default.mirror.com" .mirror_url}}"
+download_mirror = "{{default \"https://default.mirror.com\" .mirror_url}}"
 
 [pvx]
 isolation_level = "{{lower .isolation_level}}"
-'''`
+"""`
 
 		templatePath := filepath.Join(templatesDir, "functions.template.toml")
 		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
@@ -293,6 +319,11 @@ isolation_level = "{{lower .isolation_level}}"
 	})
 
 	t.Run("ErrorCases", func(t *testing.T) {
+		// Create templates directory
+		if err := os.MkdirAll(templatesDir, 0755); err != nil {
+			t.Fatalf("Failed to create templates directory: %v", err)
+		}
+
 		// Test getting non-existent template
 		if _, err := tm.GetTemplate("non-existent"); err == nil {
 			t.Error("Expected error when getting non-existent template")

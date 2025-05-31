@@ -53,11 +53,14 @@ func NewTemplateManager(templatesDir string) *TemplateManager {
 			"trimPrefix": strings.TrimPrefix,
 			"trimSuffix": strings.TrimSuffix,
 			"replace":    strings.ReplaceAll,
-			"default": func(def string, val string) string {
-				if val == "" {
+			"default": func(def string, val interface{}) string {
+				if val == nil {
 					return def
 				}
-				return val
+				if str, ok := val.(string); ok && str != "" {
+					return str
+				}
+				return def
 			},
 			"env":       os.Getenv,
 			"expandEnv": os.ExpandEnv,
@@ -147,16 +150,17 @@ func (tm *TemplateManager) RenderTemplate(templateName string, variables map[str
 		return nil, err
 	}
 
-	// Resolve template inheritance
-	content, err := tm.resolveInheritance(template, variables)
+	// Resolve template inheritance with cycle detection
+	visited := make(map[string]bool)
+	content, err := tm.resolveInheritanceWithCycleDetection(template, variables, visited)
 	if err != nil {
 		return nil, errors.NewConfigError("T002",
 			"Failed to resolve template inheritance", err).
 			WithLocation("template:" + templateName)
 	}
 
-	// Merge template variables with provided variables
-	mergedVars := tm.mergeVariables(template.Variables, variables)
+	// Merge template variables from inheritance chain with provided variables
+	mergedVars := tm.mergeInheritanceVariables(template, variables)
 
 	// Render the template
 	tmpl, err := texttemplate.New(templateName).Funcs(tm.funcMap).Parse(content)
@@ -184,11 +188,29 @@ func (tm *TemplateManager) RenderTemplate(templateName string, variables map[str
 	return config, nil
 }
 
-// resolveInheritance resolves template inheritance chain
+// resolveInheritance resolves template inheritance chain (legacy wrapper)
 func (tm *TemplateManager) resolveInheritance(template *Template, variables map[string]string) (string, error) {
+	visited := make(map[string]bool)
+	return tm.resolveInheritanceWithCycleDetection(template, variables, visited)
+}
+
+// resolveInheritanceWithCycleDetection resolves template inheritance chain with cycle detection
+func (tm *TemplateManager) resolveInheritanceWithCycleDetection(template *Template, variables map[string]string, visited map[string]bool) (string, error) {
+	// Check for cycles
+	if visited[template.Name] {
+		return "", fmt.Errorf("circular template inheritance detected involving template '%s'", template.Name)
+	}
+
 	if template.Inherits == "" {
 		return template.Content, nil
 	}
+
+	// Mark this template as visited
+	visited[template.Name] = true
+	defer func() {
+		// Clean up after processing this branch
+		delete(visited, template.Name)
+	}()
 
 	// Get parent template
 	parent, err := tm.GetTemplate(template.Inherits)
@@ -197,7 +219,7 @@ func (tm *TemplateManager) resolveInheritance(template *Template, variables map[
 	}
 
 	// Recursively resolve parent inheritance
-	parentContent, err := tm.resolveInheritance(parent, variables)
+	parentContent, err := tm.resolveInheritanceWithCycleDetection(parent, variables, visited)
 	if err != nil {
 		return "", err
 	}
@@ -209,6 +231,13 @@ func (tm *TemplateManager) resolveInheritance(template *Template, variables map[
 
 // mergeTemplateContent merges parent and child template content
 func (tm *TemplateManager) mergeTemplateContent(parent, child string) (string, error) {
+	if parent == "" {
+		return child, nil
+	}
+	if child == "" {
+		return parent, nil
+	}
+
 	// Parse both templates to extract sections
 	parentSections, err := tm.parseTemplateSections(parent)
 	if err != nil {
@@ -220,17 +249,103 @@ func (tm *TemplateManager) mergeTemplateContent(parent, child string) (string, e
 		return "", fmt.Errorf("failed to parse child template: %w", err)
 	}
 
-	// Merge sections - child takes precedence
+	// Merge sections - child sections are merged with parent sections at field level
 	merged := make(map[string]string)
 	for section, content := range parentSections {
 		merged[section] = content
 	}
-	for section, content := range childSections {
-		merged[section] = content
+
+	// For each child section, merge with parent section if it exists
+	for section, childContent := range childSections {
+		if parentContent, exists := merged[section]; exists {
+			// Merge section content at field level
+			mergedContent, err := tm.mergeSectionContent(parentContent, childContent)
+			if err != nil {
+				return "", fmt.Errorf("failed to merge section %s: %w", section, err)
+			}
+			merged[section] = mergedContent
+		} else {
+			// No parent section, use child content as-is
+			merged[section] = childContent
+		}
 	}
 
 	// Reconstruct template content
 	return tm.reconstructTemplate(merged), nil
+}
+
+// mergeSectionContent merges content within the same TOML section
+func (tm *TemplateManager) mergeSectionContent(parent, child string) (string, error) {
+	// Extract the section header and content
+	parentLines := strings.Split(parent, "\n")
+	childLines := strings.Split(child, "\n")
+
+	var sectionHeader string
+	var parentFields []string
+	var childFields []string
+
+	// Parse parent section
+	for i, line := range parentLines {
+		if i == 0 && strings.HasPrefix(strings.TrimSpace(line), "[") {
+			sectionHeader = line
+		} else if strings.TrimSpace(line) != "" {
+			parentFields = append(parentFields, line)
+		}
+	}
+
+	// Parse child section and collect fields
+	for i, line := range childLines {
+		if i == 0 && strings.HasPrefix(strings.TrimSpace(line), "[") {
+			// Skip section header from child
+		} else if strings.TrimSpace(line) != "" {
+			childFields = append(childFields, line)
+		}
+	}
+
+	// Build merged section: header + parent fields + child fields
+	var result []string
+	if sectionHeader != "" {
+		result = append(result, sectionHeader)
+	}
+
+	// Add parent fields first
+	for _, field := range parentFields {
+		result = append(result, field)
+	}
+
+	// Add child fields (which will override parent fields with same key in TOML)
+	for _, field := range childFields {
+		result = append(result, field)
+	}
+
+	return strings.Join(result, "\n"), nil
+}
+
+// mergeConfigMaps recursively merges two configuration maps
+func (tm *TemplateManager) mergeConfigMaps(parent, child map[string]interface{}) map[string]interface{} {
+	merged := make(map[string]interface{})
+
+	// Start with parent values
+	for key, value := range parent {
+		merged[key] = value
+	}
+
+	// Override/merge with child values
+	for key, childValue := range child {
+		if parentValue, exists := merged[key]; exists {
+			// If both are maps, merge recursively
+			if parentMap, ok := parentValue.(map[string]interface{}); ok {
+				if childMap, ok := childValue.(map[string]interface{}); ok {
+					merged[key] = tm.mergeConfigMaps(parentMap, childMap)
+					continue
+				}
+			}
+		}
+		// Otherwise, child value overrides parent value
+		merged[key] = childValue
+	}
+
+	return merged
 }
 
 // parseTemplateSections parses template content into sections
@@ -298,6 +413,51 @@ func (tm *TemplateManager) mergeVariables(templateVars, providedVars map[string]
 	}
 
 	// Override with provided variables
+	for key, value := range providedVars {
+		merged[key] = value
+	}
+
+	return merged
+}
+
+// mergeInheritanceVariables merges variables from the entire inheritance chain
+func (tm *TemplateManager) mergeInheritanceVariables(template *Template, providedVars map[string]string) map[string]string {
+	visited := make(map[string]bool)
+	return tm.mergeInheritanceVariablesWithCycleDetection(template, providedVars, visited)
+}
+
+// mergeInheritanceVariablesWithCycleDetection merges variables with cycle detection
+func (tm *TemplateManager) mergeInheritanceVariablesWithCycleDetection(template *Template, providedVars map[string]string, visited map[string]bool) map[string]string {
+	merged := make(map[string]string)
+
+	// Check for cycles
+	if visited[template.Name] {
+		// Return empty map to avoid infinite recursion
+		return merged
+	}
+
+	// Mark this template as visited
+	visited[template.Name] = true
+	defer func() {
+		delete(visited, template.Name)
+	}()
+
+	// Recursively collect variables from parent templates first
+	if template.Inherits != "" {
+		if parent, err := tm.GetTemplate(template.Inherits); err == nil {
+			parentVars := tm.mergeInheritanceVariablesWithCycleDetection(parent, nil, visited)
+			for key, value := range parentVars {
+				merged[key] = value
+			}
+		}
+	}
+
+	// Add current template variables (child overrides parent)
+	for key, value := range template.Variables {
+		merged[key] = value
+	}
+
+	// Finally, override with provided variables (highest priority)
 	for key, value := range providedVars {
 		merged[key] = value
 	}

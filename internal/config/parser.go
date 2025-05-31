@@ -26,8 +26,26 @@ func ParseFile(path string) (*Config, error) {
 	return ParseBytes(data, path)
 }
 
+// ParseFileWithoutValidation parses a configuration file without validation
+func ParseFileWithoutValidation(path string) (*Config, error) {
+	// Read the file
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.NewConfigError("001",
+			"Failed to read configuration file", err).
+			WithLocation(path)
+	}
+
+	return ParseBytesWithOptions(data, path, false)
+}
+
 // ParseBytes parses a TOML configuration from a byte slice
 func ParseBytes(data []byte, source string) (*Config, error) {
+	return ParseBytesWithOptions(data, source, true)
+}
+
+// ParseBytesWithOptions parses a TOML configuration from a byte slice with options
+func ParseBytesWithOptions(data []byte, source string, validate bool) (*Config, error) {
 	// Create a new configuration with default values
 	config := NewDefaultConfig()
 
@@ -59,12 +77,14 @@ func ParseBytes(data []byte, source string) (*Config, error) {
 			WithLocation(source)
 	}
 
-	// Validate the configuration after interpolation
-	err = interpolationEngine.ValidateInterpolatedConfig(config)
-	if err != nil {
-		return nil, errors.NewConfigError("009",
-			"Configuration validation failed after interpolation", err).
-			WithLocation(source)
+	// Validate the configuration after interpolation (if enabled)
+	if validate {
+		err = interpolationEngine.ValidateInterpolatedConfig(config)
+		if err != nil {
+			return nil, errors.NewConfigError("009",
+				"Configuration validation failed after interpolation", err).
+				WithLocation(source)
+		}
 	}
 
 	return config, nil

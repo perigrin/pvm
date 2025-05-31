@@ -13,8 +13,9 @@ import (
 
 // Function variables to allow for easier testing
 var (
-	loadSystemConfig  = defaultLoadSystemConfig
-	loadProjectConfig = defaultLoadProjectConfig
+	loadSystemConfig                   = defaultLoadSystemConfig
+	loadProjectConfig                  = defaultLoadProjectConfig
+	loadProjectConfigWithoutValidation = defaultLoadProjectConfigWithoutValidation
 )
 
 // LoadEffectiveConfig loads the configuration from all sources and merges them
@@ -23,6 +24,11 @@ var (
 // 2. User configuration ($XDG_CONFIG_HOME/pvm/pvm.toml)
 // 3. System configuration (/etc/pvm/pvm.toml)
 func LoadEffectiveConfig() (*Config, error) {
+	return LoadEffectiveConfigWithOptions(true)
+}
+
+// LoadEffectiveConfigWithOptions loads config with validation control
+func LoadEffectiveConfigWithOptions(validate bool) (*Config, error) {
 	// Get XDG directories
 	dirs, err := xdg.GetDirs()
 	if err != nil {
@@ -40,7 +46,13 @@ func LoadEffectiveConfig() (*Config, error) {
 	// Load configurations
 	systemConfig, _ := loadSystemConfig()
 	userConfig, _ := loadUserConfig(dirs)
-	projectConfig, _ := loadProjectConfig()
+
+	var projectConfig *Config
+	if validate {
+		projectConfig, _ = loadProjectConfig()
+	} else {
+		projectConfig, _ = loadProjectConfigWithoutValidation()
+	}
 
 	// Merge configurations according to precedence
 	// System (lowest) <- User <- Project (highest)
@@ -142,6 +154,44 @@ func defaultLoadProjectConfig() (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// defaultLoadProjectConfigWithoutValidation loads project config without validation
+func defaultLoadProjectConfigWithoutValidation() (*Config, error) {
+	// Start from current directory
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return nil, errors.NewConfigError("103",
+			"Failed to determine current directory", err)
+	}
+
+	// Check for .pvm/pvm.toml in current directory and parents
+	config, err := findProjectConfigWithoutValidation(currentDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// findProjectConfigWithoutValidation recursively searches for .pvm/pvm.toml without validation
+func findProjectConfigWithoutValidation(dir string) (*Config, error) {
+	// Check for .pvm/pvm.toml
+	projectConfigPath := xdg.GetProjectConfigPath(dir)
+	if _, err := os.Stat(projectConfigPath); err == nil {
+		// Found project config, parse it without validation
+		return ParseFileWithoutValidation(projectConfigPath)
+	}
+
+	// Check if we've reached the filesystem root
+	parentDir := filepath.Dir(dir)
+	if parentDir == dir {
+		// Reached filesystem root, no project config found
+		return nil, nil
+	}
+
+	// Continue searching in parent directory
+	return findProjectConfigWithoutValidation(parentDir)
 }
 
 // findProjectConfig recursively searches for .pvm/pvm.toml in the given directory
