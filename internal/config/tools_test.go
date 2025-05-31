@@ -13,6 +13,14 @@ import (
 )
 
 func TestConfigManager_Show(t *testing.T) {
+	// Create temporary directory for test config
+	tempDir := t.TempDir()
+
+	// Set up environment to use temp directory
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", oldHome)
+
 	manager := NewConfigManager()
 
 	tests := []struct {
@@ -90,6 +98,11 @@ func TestConfigManager_Backup(t *testing.T) {
 	tempDir := t.TempDir()
 	backupDir := filepath.Join(tempDir, "backups")
 
+	// Set up environment to use temp directory
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", oldHome)
+
 	manager := NewConfigManager()
 
 	// Test backup (should work even if no config files exist)
@@ -122,6 +135,17 @@ func TestConfigManager_ListBackups(t *testing.T) {
 }
 
 func TestEnvironmentVariableExpansion(t *testing.T) {
+	// Set up test USER environment variable
+	oldUser := os.Getenv("USER")
+	os.Setenv("USER", "perigrin")
+	defer func() {
+		if oldUser == "" {
+			os.Unsetenv("USER")
+		} else {
+			os.Setenv("USER", oldUser)
+		}
+	}()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -275,6 +299,14 @@ func TestConfigAccessors(t *testing.T) {
 }
 
 func TestConfigManagerValidation(t *testing.T) {
+	// Create temporary directory for test config
+	tempDir := t.TempDir()
+
+	// Set up environment to use temp directory
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", oldHome)
+
 	manager := NewConfigManager()
 
 	// Test validation (should not error on default config)

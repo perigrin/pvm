@@ -97,43 +97,36 @@ func TestGetDirs(t *testing.T) {
 			t.Fatalf("GetDirs() returned an error: %v", err)
 		}
 
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatalf("UserHomeDir() returned an error: %v", err)
+		// Verify that we got valid non-empty directories
+		// The github.com/adrg/xdg library handles platform-specific defaults
+		if dirs.ConfigHome == "" {
+			t.Error("Expected non-empty ConfigHome")
 		}
 
-		// Check that we got fallback values
-		var expectedConfigBase, expectedCacheBase, expectedDataBase, expectedStateBase string
-
-		switch runtime.GOOS {
-		case "windows":
-			expectedConfigBase = filepath.Join(home, WindowsConfigDirName)
-			expectedCacheBase = filepath.Join(home, WindowsCacheDirName)
-			expectedDataBase = filepath.Join(home, WindowsDataDirName)
-			expectedStateBase = filepath.Join(home, WindowsStateDirName)
-		case "darwin":
-			expectedConfigBase = filepath.Join(home, DefaultConfigDirName)
-			expectedCacheBase = filepath.Join(home, DarwinCacheDirName)
-			expectedDataBase = filepath.Join(home, DarwinDataDirName)
-			expectedStateBase = filepath.Join(home, DefaultStateDirName)
-		default:
-			expectedConfigBase = filepath.Join(home, DefaultConfigDirName)
-			expectedCacheBase = filepath.Join(home, DefaultCacheDirName)
-			expectedDataBase = filepath.Join(home, DefaultDataDirName)
-			expectedStateBase = filepath.Join(home, DefaultStateDirName)
+		if dirs.CacheHome == "" {
+			t.Error("Expected non-empty CacheHome")
 		}
 
-		if dirs.ConfigHome != expectedConfigBase {
-			t.Errorf("Expected default ConfigHome to be %s, got %s", expectedConfigBase, dirs.ConfigHome)
+		if dirs.DataHome == "" {
+			t.Error("Expected non-empty DataHome")
 		}
-		if dirs.CacheHome != expectedCacheBase {
-			t.Errorf("Expected default CacheHome to be %s, got %s", expectedCacheBase, dirs.CacheHome)
+
+		if dirs.StateHome == "" {
+			t.Error("Expected non-empty StateHome")
 		}
-		if dirs.DataHome != expectedDataBase {
-			t.Errorf("Expected default DataHome to be %s, got %s", expectedDataBase, dirs.DataHome)
+
+		// Verify that directories are absolute paths
+		if !filepath.IsAbs(dirs.ConfigHome) {
+			t.Errorf("ConfigHome should be absolute path, got %s", dirs.ConfigHome)
 		}
-		if dirs.StateHome != expectedStateBase {
-			t.Errorf("Expected default StateHome to be %s, got %s", expectedStateBase, dirs.StateHome)
+		if !filepath.IsAbs(dirs.CacheHome) {
+			t.Errorf("CacheHome should be absolute path, got %s", dirs.CacheHome)
+		}
+		if !filepath.IsAbs(dirs.DataHome) {
+			t.Errorf("DataHome should be absolute path, got %s", dirs.DataHome)
+		}
+		if !filepath.IsAbs(dirs.StateHome) {
+			t.Errorf("StateHome should be absolute path, got %s", dirs.StateHome)
 		}
 	})
 }

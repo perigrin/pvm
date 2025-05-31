@@ -23,6 +23,7 @@ require (
 )
 
 require (
+	github.com/adrg/xdg v0.5.3
 	github.com/google/go-cmp v0.7.0
 	github.com/spf13/viper v1.20.1
 	gopkg.in/yaml.v3 v3.0.1
