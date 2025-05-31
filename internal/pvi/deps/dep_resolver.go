@@ -393,9 +393,7 @@ func findOrCreateConflict(result *DependencyResolutionResult, moduleName string)
 
 // CheckVersionConstraint checks if a version satisfies a constraint
 func (r *dependencyResolver) CheckVersionConstraint(version, constraint string) (bool, error) {
-	// This is a placeholder - a real implementation would parse and evaluate the constraint
-	// For example: ">= 1.0", "< 2.0", "== 1.2.3", etc.
-	return true, nil // Always return true for now
+	return CheckVersionConstraint(version, constraint)
 }
 
 // GetFlattenedDependencies returns a flattened list of dependencies

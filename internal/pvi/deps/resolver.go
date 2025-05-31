@@ -38,6 +38,7 @@ func NewDefaultResolver(cacheDir string, cacheTTL int) (DependencyResolver, erro
 
 // ResolveDependencies resolves dependencies for a module
 func (r *defaultResolver) ResolveDependencies(ctx context.Context, moduleName string, options *DependencyResolutionOptions) (*DependencyResolutionResult, error) {
+	fmt.Printf("[TRACE] defaultResolver.ResolveDependencies called for module: %s\n", moduleName)
 	// Use defaults if options not provided
 	if options == nil {
 		options = &DependencyResolutionOptions{
@@ -225,7 +226,9 @@ func (r *defaultResolver) resolveNodeDependencies(ctx context.Context, node *Dep
 		// Check if the dependency is already in the tree
 		// Strip .pm suffix if present for consistency
 		normalizedDepName := strings.TrimSuffix(dep.Name, ".pm")
+		fmt.Printf("[TRACE] Processing dependency %s (normalized: %s) with constraint %s from parent %s\n", dep.Name, normalizedDepName, dep.Version, node.Name)
 		existingNode, exists := result.Modules[normalizedDepName]
+		fmt.Printf("[TRACE] Dependency %s exists in tree: %t\n", normalizedDepName, exists)
 		if exists {
 			// Check for version constraints
 			if dep.Version != "" {
@@ -236,7 +239,9 @@ func (r *defaultResolver) resolveNodeDependencies(ctx context.Context, node *Dep
 				result.VersionConstraints[dep.Name][dep.Version] = true
 
 				// Check if the constraint is compatible with the existing version
+				fmt.Printf("[TRACE] Checking version constraint: %s (existing) against %s (constraint) for module %s\n", existingNode.Version, dep.Version, dep.Name)
 				isCompatible, err := r.CheckVersionConstraint(existingNode.Version, dep.Version)
+				fmt.Printf("[TRACE] Version constraint check result: isCompatible=%t, err=%v\n", isCompatible, err)
 				if err != nil {
 					if options.Verbose {
 						log.Warnf("Error checking version constraint for %s: %v", dep.Name, err)
@@ -244,6 +249,7 @@ func (r *defaultResolver) resolveNodeDependencies(ctx context.Context, node *Dep
 					result.Warnings = append(result.Warnings,
 						fmt.Sprintf("Error checking version constraint for %s: %v", dep.Name, err))
 				} else if !isCompatible {
+					fmt.Printf("[TRACE] CONFLICT DETECTED: Module %s version %s does not satisfy constraint %s required by %s\n", dep.Name, existingNode.Version, dep.Version, node.Name)
 					// Add conflict
 					conflict := findOrCreateConflict(result, dep.Name)
 					if conflict.Requirements == nil {
@@ -258,6 +264,8 @@ func (r *defaultResolver) resolveNodeDependencies(ctx context.Context, node *Dep
 					result.Warnings = append(result.Warnings,
 						fmt.Sprintf("Version conflict for %s: required %s by %s, got %s",
 							dep.Name, dep.Version, node.Name, existingNode.Version))
+				} else {
+					fmt.Printf("[TRACE] No conflict: Module %s version %s satisfies constraint %s\n", dep.Name, existingNode.Version, dep.Version)
 				}
 			}
 
@@ -321,6 +329,15 @@ func (r *defaultResolver) resolveNodeDependencies(ctx context.Context, node *Dep
 
 		// Add to the modules map
 		result.Modules[depName] = depNode
+
+		// Record the version constraint for this new module
+		if dep.Version != "" {
+			fmt.Printf("[TRACE] Recording constraint %s for new module %s\n", dep.Version, dep.Name)
+			if _, ok := result.VersionConstraints[dep.Name]; !ok {
+				result.VersionConstraints[dep.Name] = make(map[string]bool)
+			}
+			result.VersionConstraints[dep.Name][dep.Version] = true
+		}
 
 		// Recursively resolve this dependency's dependencies
 		err = r.resolveNodeDependencies(ctx, depNode, options, result)

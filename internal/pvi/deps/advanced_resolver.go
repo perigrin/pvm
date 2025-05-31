@@ -160,6 +160,7 @@ func (r *advancedResolver) ResolveDependenciesAdvanced(ctx context.Context, modu
 
 // ResolveDependencies performs advanced dependency resolution
 func (r *advancedResolver) ResolveDependencies(ctx context.Context, moduleName string, options *DependencyResolutionOptions) (*DependencyResolutionResult, error) {
+	fmt.Printf("[TRACE] AdvancedResolver.ResolveDependencies called for module: %s\n", moduleName)
 	// Use advanced options if available, otherwise create defaults
 	var advOptions *AdvancedResolutionOptions
 	if r.defaultAdvancedOptions != nil {
@@ -173,6 +174,7 @@ func (r *advancedResolver) ResolveDependencies(ctx context.Context, moduleName s
 			MaxConflictRetries:          3,
 			ParallelWorkers:             4,
 		}
+		fmt.Printf("[TRACE] Created default advanced options - ConflictStrategy: %d, OptimizationStrategy: %d\n", advOptions.ConflictStrategy, advOptions.OptimizationStrategy)
 	}
 
 	// Initialize resolution context
@@ -192,19 +194,34 @@ func (r *advancedResolver) ResolveDependencies(ctx context.Context, moduleName s
 
 	switch advOptions.OptimizationStrategy {
 	case OptimizeParallel:
+		fmt.Printf("[TRACE] Using OptimizeParallel strategy\n")
 		result, err = r.resolveParallel(ctx, moduleName, advOptions, resCtx)
 	case OptimizeMinimalTree:
+		fmt.Printf("[TRACE] Using OptimizeMinimalTree strategy\n")
 		result, err = r.resolveMinimal(ctx, moduleName, advOptions, resCtx)
 	case OptimizeSharedDependencies:
+		fmt.Printf("[TRACE] Using OptimizeSharedDependencies strategy\n")
 		result, err = r.resolveShared(ctx, moduleName, advOptions, resCtx)
 	default:
+		fmt.Printf("[TRACE] Using default/base resolver\n")
 		// Fall back to base resolver
 		result, err = r.baseResolver.ResolveDependencies(ctx, moduleName, options)
 	}
 
 	// Handle conflicts if any
 	if result != nil && len(result.Conflicts) > 0 {
+		fmt.Printf("[TRACE] Found %d conflicts, calling resolveConflicts\n", len(result.Conflicts))
+		for i, conflict := range result.Conflicts {
+			fmt.Printf("[TRACE] Conflict %d: Module=%s, Requirements=%v\n", i, conflict.Module, conflict.Requirements)
+		}
 		result, err = r.resolveConflicts(ctx, result, advOptions, resCtx)
+	} else {
+		fmt.Printf("[TRACE] No conflicts found (result=%v, conflicts=%d)\n", result != nil, func() int {
+			if result != nil {
+				return len(result.Conflicts)
+			}
+			return -1
+		}())
 	}
 
 	// Update metrics
@@ -388,19 +405,47 @@ func (r *advancedResolver) resolveMinimal(ctx context.Context, moduleName string
 
 // resolveShared performs shared dependency optimization
 func (r *advancedResolver) resolveShared(ctx context.Context, moduleName string, options *AdvancedResolutionOptions, resCtx *ResolutionContext) (*DependencyResolutionResult, error) {
+	fmt.Printf("[TRACE] resolveShared called for module: %s\n", moduleName)
 	// First get the full dependency tree
+	fmt.Printf("[TRACE] Calling baseResolver.ResolveDependencies\n")
 	result, err := r.baseResolver.ResolveDependencies(ctx, moduleName, options.DependencyResolutionOptions)
 	if err != nil {
+		fmt.Printf("[TRACE] baseResolver.ResolveDependencies failed: %v\n", err)
 		return nil, err
 	}
+	fmt.Printf("[TRACE] baseResolver.ResolveDependencies completed - Conflicts: %d, Modules: %d\n", len(result.Conflicts), len(result.Modules))
+	fmt.Printf("[TRACE] Version constraints collected: %v\n", result.VersionConstraints)
+
+	// Build constraint graph from collected constraints
+	fmt.Printf("[TRACE] Building constraint graph\n")
+	r.buildConstraintGraph(result, resCtx)
+	fmt.Printf("[TRACE] Constraint graph built: %v\n", resCtx.ConstraintGraph)
 
 	// Analyze dependency sharing opportunities
+	fmt.Printf("[TRACE] Analyzing sharing opportunities\n")
 	sharingOpportunities := r.analyzeSharingOpportunities(result)
+	fmt.Printf("[TRACE] Found sharing opportunities: %v\n", sharingOpportunities)
 
 	// Optimize for maximum sharing
+	fmt.Printf("[TRACE] Optimizing for sharing with conflict strategy: %d\n", options.ConflictStrategy)
 	optimizedVersions := r.optimizeForSharing(ctx, sharingOpportunities, resCtx, options)
 
+	// Also check for excluded versions on non-shared dependencies
+	if len(options.ExcludedVersions) > 0 {
+		fmt.Printf("[TRACE] Checking excluded versions for all modules\n")
+		excludedOptimized := r.optimizeExcludedVersions(ctx, result, resCtx, options)
+		// Merge the results
+		for module, version := range excludedOptimized {
+			if _, exists := optimizedVersions[module]; !exists {
+				optimizedVersions[module] = version
+			}
+		}
+	}
+
+	fmt.Printf("[TRACE] Optimized versions: %v\n", optimizedVersions)
+
 	// Rebuild tree with optimized versions
+	fmt.Printf("[TRACE] Rebuilding tree with optimized versions\n")
 	return r.rebuildWithVersions(ctx, result, optimizedVersions, options)
 }
 
@@ -610,16 +655,19 @@ func (r *advancedResolver) optimizeForSharing(ctx context.Context, opportunities
 
 	// For each shared dependency, find a version that works for all parents
 	for module, parents := range opportunities {
+		fmt.Printf("[TRACE] optimizeForSharing: processing module %s with parents %v\n", module, parents)
 		// Collect all constraints from parents
 		allConstraints := make([]*VersionConstraint, 0)
 		// Note: In a real implementation, we would check constraints specific to each parent
 		// For now, we just collect all constraints for the module
 		_ = parents // Mark as intentionally unused
+		fmt.Printf("[TRACE] optimizeForSharing: resCtx.ConstraintGraph = %v\n", resCtx.ConstraintGraph)
 		if constraints, ok := resCtx.ConstraintGraph[module]; ok {
 			for _, constraint := range constraints {
 				allConstraints = append(allConstraints, constraint)
 			}
 		}
+		fmt.Printf("[TRACE] optimizeForSharing: collected %d constraints for %s: %v\n", len(allConstraints), module, allConstraints)
 
 		// Find a version that satisfies all constraints
 		versions, err := options.Provider.GetModuleVersions(ctx, module)
@@ -627,10 +675,23 @@ func (r *advancedResolver) optimizeForSharing(ctx context.Context, opportunities
 			continue
 		}
 
-		// Prefer latest compatible version for sharing
-		sort.Sort(sort.Reverse(VersionSlice(versions)))
+		// Sort versions based on conflict strategy
+		switch options.ConflictStrategy {
+		case StrategyMinimalVersion:
+			fmt.Printf("[TRACE] Using minimal version strategy for %s\n", module)
+			sort.Sort(VersionSlice(versions)) // Ascending order (minimal first)
+		default:
+			fmt.Printf("[TRACE] Using latest compatible strategy for %s\n", module)
+			sort.Sort(sort.Reverse(VersionSlice(versions))) // Descending order (latest first)
+		}
 
 		for _, version := range versions {
+			// Check if version is excluded
+			if excluded, ok := options.ExcludedVersions[module]; ok && excluded[version] {
+				fmt.Printf("[TRACE] Skipping excluded version %s for module %s\n", version, module)
+				continue
+			}
+
 			allSatisfied := true
 			for _, constraint := range allConstraints {
 				if !r.checkConstraintsSatisfied(version, constraint) {
@@ -641,6 +702,69 @@ func (r *advancedResolver) optimizeForSharing(ctx context.Context, opportunities
 
 			if allSatisfied {
 				optimized[module] = version
+				break
+			}
+		}
+	}
+
+	return optimized
+}
+
+// optimizeExcludedVersions finds non-excluded versions for all modules with excluded versions
+func (r *advancedResolver) optimizeExcludedVersions(ctx context.Context, result *DependencyResolutionResult, resCtx *ResolutionContext, options *AdvancedResolutionOptions) map[string]string {
+	optimized := make(map[string]string)
+
+	// Check each module that has excluded versions
+	for moduleName, excludedVersions := range options.ExcludedVersions {
+		if _, exists := result.Modules[moduleName]; !exists {
+			continue // Module not in dependency tree
+		}
+
+		fmt.Printf("[TRACE] optimizeExcludedVersions: checking module %s with excluded versions: %v\n", moduleName, excludedVersions)
+
+		// Get available versions
+		versions, err := options.Provider.GetModuleVersions(ctx, moduleName)
+		if err != nil {
+			fmt.Printf("[TRACE] Failed to get versions for %s: %v\n", moduleName, err)
+			continue
+		}
+
+		// Get constraints for this module
+		var allConstraints []*VersionConstraint
+		if constraints, ok := resCtx.ConstraintGraph[moduleName]; ok {
+			for _, constraint := range constraints {
+				allConstraints = append(allConstraints, constraint)
+			}
+		}
+
+		// Sort based on conflict strategy (same logic as optimizeForSharing)
+		switch options.ConflictStrategy {
+		case StrategyMinimalVersion:
+			sort.Sort(VersionSlice(versions)) // Ascending order (minimal first)
+		default:
+			sort.Sort(sort.Reverse(VersionSlice(versions))) // Descending order (latest first)
+		}
+
+		// Find best non-excluded version
+		for _, version := range versions {
+			// Skip excluded versions
+			if excludedVersions[version] {
+				fmt.Printf("[TRACE] Skipping excluded version %s for module %s\n", version, moduleName)
+				continue
+			}
+
+			// Check if version satisfies all constraints
+			allSatisfied := true
+			for _, constraint := range allConstraints {
+				if !r.checkConstraintsSatisfied(version, constraint) {
+					allSatisfied = false
+					break
+				}
+			}
+
+			if allSatisfied {
+				fmt.Printf("[TRACE] Selected non-excluded version %s for module %s\n", version, moduleName)
+				optimized[moduleName] = version
 				break
 			}
 		}
