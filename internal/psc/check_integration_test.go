@@ -42,7 +42,7 @@ print "Count: $count\n";`,
 			expectErrors: 1,
 			expectOutput: []string{
 				"error:",
-				"Type mismatch",
+				"is not compatible with",
 				"help:",
 			},
 		},
@@ -51,12 +51,12 @@ print "Count: $count\n";`,
 			filename: "multiple.pl",
 			content: `use strict;
 my Int $count = "hello";
-my Str $name = 42;
+my Str $name = [];
 my Bool $flag = "not_bool";`,
 			expectErrors: 3,
 			expectOutput: []string{
 				"error:",
-				"Type mismatch",
+				"is not compatible with",
 			},
 		},
 		{
@@ -287,7 +287,7 @@ func TestStrictMode(t *testing.T) {
 	errorFile := filepath.Join(tempDir, "errors.pl")
 	content := `use strict;
 my Int $count = "hello";
-my Str $name = 42;`
+my Str $name = [];`
 
 	err := os.WriteFile(errorFile, []byte(content), 0644)
 	if err != nil {
