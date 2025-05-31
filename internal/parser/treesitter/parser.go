@@ -280,7 +280,11 @@ func (p *Parser) convertPerlTypeAnnotation(perlAnn *PerlTypeAnnotation, content 
 	case "variable":
 		kind = VarAnnotation
 	case "subroutine":
-		kind = SubParamAnnotation // Simplified for now
+		kind = SubParamAnnotation // Legacy support
+	case "subroutine_param":
+		kind = SubParamAnnotation
+	case "subroutine_return":
+		kind = SubReturnAnnotation
 	case "method":
 		kind = MethodParamAnnotation // Keep existing for backwards compatibility
 	case "method_parameter":

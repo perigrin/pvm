@@ -9,11 +9,7 @@ import (
 	"tamarou.com/pvm/internal/parser/treesitter"
 )
 
-// TestTreeSitterGrammarTypeRecognition is disabled for now due to interface issues
-// TODO: Fix interface types to properly test tree-sitter grammar recognition
-func TestTreeSitterGrammarTypeRecognition(t *testing.T) {
-	t.Skip("Skipping due to interface mismatches - need to test at lower level")
-}
+// TestTreeSitterGrammarTypeRecognition was removed as it was duplicate of TestTreeSitterTypeExpressionParsing
 
 // TestTreeSitterTypeExpressionParsing tests the ParseTypeExpression function directly
 func TestTreeSitterTypeExpressionParsing(t *testing.T) {

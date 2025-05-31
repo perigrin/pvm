@@ -129,9 +129,8 @@ type Names = ArrayRef[Str];
 	err = os.WriteFile(sampleFile, []byte(sampleContent), 0644)
 	require.NoError(t, err)
 
-	// Skip the test if tree-sitter-perl is not available
-	// Since we don't have a real tree-sitter-perl implementation yet, this will be skipped
-	t.Skip("Skipping test until tree-sitter-perl is fully implemented")
+	// Test the tree-sitter-perl integration
+	// Let's see if it works now!
 
 	// Create a parser
 	parser, err := NewParser(true)
