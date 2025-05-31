@@ -6,7 +6,7 @@ package parser
 import (
 	"path/filepath"
 	"testing"
-	
+
 	"tamarou.com/pvm/internal/ast"
 )
 
@@ -26,7 +26,7 @@ func TestClassDeclarationParsing(t *testing.T) {
 	// Test specific fixtures
 	testFiles := []string{
 		"basic_class_declarations.json",
-		"generic_class_declarations.json", 
+		"generic_class_declarations.json",
 		"class_inheritance.json",
 		"complex_inheritance_constraints.json",
 		"access_modifiers_visibility.json",
@@ -36,7 +36,7 @@ func TestClassDeclarationParsing(t *testing.T) {
 	for _, testFile := range testFiles {
 		t.Run(testFile, func(t *testing.T) {
 			testFixtureFile := filepath.Join(testDataDir, testFile)
-			
+
 			testCase, err := framework.LoadTestCase(testFixtureFile)
 			if err != nil {
 				t.Fatalf("Failed to load test fixture %s: %v", testFile, err)
@@ -102,7 +102,7 @@ func TestRoleDeclarationParsing(t *testing.T) {
 	for _, testFile := range testFiles {
 		t.Run(testFile, func(t *testing.T) {
 			testFixtureFile := filepath.Join(testDataDir, testFile)
-			
+
 			testCase, err := framework.LoadTestCase(testFixtureFile)
 			if err != nil {
 				t.Fatalf("Failed to load test fixture %s: %v", testFile, err)
@@ -146,7 +146,7 @@ func TestComprehensiveClassRoleIntegration(t *testing.T) {
 	framework.Verbose = testing.Verbose()
 
 	testFixtureFile := filepath.Join(testDataDir, "all_features_combined.json")
-	
+
 	testCase, err := framework.LoadTestCase(testFixtureFile)
 	if err != nil {
 		t.Fatalf("Failed to load comprehensive test fixture: %v", err)
@@ -506,7 +506,7 @@ func validateComprehensiveIntegration(t *testing.T, astResult *ast.AST) {
 // Helper functions to find AST nodes
 func findClassDeclaration(astResult *ast.AST, name string) *ast.ClassDecl {
 	var result *ast.ClassDecl
-	
+
 	walker := func(node ast.Node) bool {
 		if classDecl, ok := node.(*ast.ClassDecl); ok {
 			if classDecl.Name == name {
@@ -516,14 +516,14 @@ func findClassDeclaration(astResult *ast.AST, name string) *ast.ClassDecl {
 		}
 		return true // Continue walking
 	}
-	
+
 	walkAST(astResult.Root, walker)
 	return result
 }
 
 func findRoleDeclaration(astResult *ast.AST, name string) *ast.RoleDecl {
 	var result *ast.RoleDecl
-	
+
 	walker := func(node ast.Node) bool {
 		if roleDecl, ok := node.(*ast.RoleDecl); ok {
 			if roleDecl.Name == name {
@@ -533,7 +533,7 @@ func findRoleDeclaration(astResult *ast.AST, name string) *ast.RoleDecl {
 		}
 		return true // Continue walking
 	}
-	
+
 	walkAST(astResult.Root, walker)
 	return result
 }
@@ -542,13 +542,12 @@ func walkAST(node ast.Node, visitor func(ast.Node) bool) {
 	if node == nil {
 		return
 	}
-	
+
 	if !visitor(node) {
 		return
 	}
-	
+
 	for _, child := range node.Children() {
 		walkAST(child, visitor)
 	}
 }
-

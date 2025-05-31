@@ -17,13 +17,13 @@ import (
 
 // ToolIntegrationTest represents a test for parser integration with other tools
 type ToolIntegrationTest struct {
-	Name         string
-	Description  string
-	Program      string
-	ExpectedAST  bool // Whether program should produce valid AST
-	ExpectedTypes int // Expected number of type annotations
-	TestPSC      bool // Whether to test PSC integration
-	TestLSP      bool // Whether to test LSP integration
+	Name          string
+	Description   string
+	Program       string
+	ExpectedAST   bool // Whether program should produce valid AST
+	ExpectedTypes int  // Expected number of type annotations
+	TestPSC       bool // Whether to test PSC integration
+	TestLSP       bool // Whether to test LSP integration
 }
 
 // TestToolIntegration_PSCIntegration tests parser integration with PSC components
@@ -48,7 +48,7 @@ func TestToolIntegration_PSCIntegration(t *testing.T) {
 				if ast.TypeAnnotations != nil {
 					actualTypes := len(ast.TypeAnnotations)
 					if tc.ExpectedTypes > 0 {
-						assert.GreaterOrEqual(t, actualTypes, tc.ExpectedTypes, 
+						assert.GreaterOrEqual(t, actualTypes, tc.ExpectedTypes,
 							"Should have at least expected number of type annotations")
 					}
 					t.Logf("Found %d type annotations (expected >= %d)", actualTypes, tc.ExpectedTypes)
@@ -116,7 +116,7 @@ my Str $name = "test";
 class TestClass {
     field Str $field1;
     field Int $field2;
-    
+
     method test_method(Int $param) -> Str {
         return "result: $param";
     }
@@ -152,9 +152,9 @@ class TestClass {
 	firstAST := asts[0]
 	for i, ast := range asts[1:] {
 		assert.Equal(t, firstAST.Source, ast.Source, "Source should be consistent (run %d)", i+2)
-		
+
 		if firstAST.TypeAnnotations != nil && ast.TypeAnnotations != nil {
-			assert.Equal(t, len(firstAST.TypeAnnotations), len(ast.TypeAnnotations), 
+			assert.Equal(t, len(firstAST.TypeAnnotations), len(ast.TypeAnnotations),
 				"Type annotation count should be consistent (run %d)", i+2)
 		}
 	}
@@ -171,8 +171,8 @@ class TestClass {
 // TestToolIntegration_ErrorHandling tests that parser errors are useful for tools
 func TestToolIntegration_ErrorHandling(t *testing.T) {
 	errorPrograms := []struct {
-		name    string
-		program string
+		name        string
+		program     string
 		description string
 	}{
 		{
@@ -207,7 +207,7 @@ func TestToolIntegration_ErrorHandling(t *testing.T) {
 			// Even with errors, we might get partial AST
 			if ast != nil {
 				t.Logf("Got partial AST despite errors")
-				
+
 				// Test that tools can still extract some information
 				diagnostics := extractDiagnostics(t, ast)
 				t.Logf("Extracted %d diagnostics from error case", len(diagnostics))
@@ -215,7 +215,7 @@ func TestToolIntegration_ErrorHandling(t *testing.T) {
 
 			if err != nil {
 				t.Logf("Expected error for %s: %v", errorProg.description, err)
-				
+
 				// Verify error is informative
 				errorStr := err.Error()
 				assert.NotEmpty(t, errorStr, "Error message should not be empty")
@@ -296,7 +296,7 @@ use warnings;
 
 class Calculator {
     field Num $precision = 0.001;
-    
+
     method add(Num $a, Num $b) -> Num {
         return $a + $b;
     }
@@ -347,7 +347,7 @@ method new_method(Int $param) -> Int { return $param * 3; }
 
 func simulateTypeChecking(t *testing.T, ast *AST) map[string]interface{} {
 	result := map[string]interface{}{
-		"ast_valid": ast != nil,
+		"ast_valid":  ast != nil,
 		"has_source": ast != nil && ast.Source != "",
 	}
 
@@ -366,7 +366,7 @@ func extractPSCInfo(t *testing.T, ast *AST) map[string]interface{} {
 
 	info := map[string]interface{}{
 		"source_available": ast.Source != "",
-		"path_available": ast.Path != "",
+		"path_available":   ast.Path != "",
 	}
 
 	if ast.TypeAnnotations != nil {
@@ -387,8 +387,8 @@ func extractSymbols(t *testing.T, ast *AST) []map[string]interface{} {
 	// Simple symbol extraction simulation
 	lines := strings.Split(ast.Source, "\n")
 	for i, line := range lines {
-		if strings.Contains(line, "my ") || strings.Contains(line, "class ") || 
-		   strings.Contains(line, "method ") || strings.Contains(line, "field ") {
+		if strings.Contains(line, "my ") || strings.Contains(line, "class ") ||
+			strings.Contains(line, "method ") || strings.Contains(line, "field ") {
 			symbols = append(symbols, map[string]interface{}{
 				"line": i + 1,
 				"type": "declaration",
@@ -406,9 +406,9 @@ func extractHoverInfo(t *testing.T, ast *AST, line, column int) map[string]inter
 	}
 
 	return map[string]interface{}{
-		"line": line,
-		"column": column,
-		"has_content": true,
+		"line":          line,
+		"column":        column,
+		"has_content":   true,
 		"source_length": len(ast.Source),
 	}
 }
@@ -420,7 +420,7 @@ func extractCompletions(t *testing.T, ast *AST, line, column int) []string {
 
 	// Simple completion simulation
 	completions := []string{
-		"Int", "Str", "Bool", "Num", 
+		"Int", "Str", "Bool", "Num",
 		"ArrayRef", "HashRef", "CodeRef",
 		"class", "method", "field",
 	}
@@ -443,11 +443,11 @@ func extractDiagnostics(t *testing.T, ast *AST) []map[string]interface{} {
 	lines := strings.Split(ast.Source, "\n")
 	for i, line := range lines {
 		if strings.Contains(line, "=;") || strings.Contains(line, "||") ||
-		   strings.Contains(line, "[") && !strings.Contains(line, "]") {
+			strings.Contains(line, "[") && !strings.Contains(line, "]") {
 			diagnostics = append(diagnostics, map[string]interface{}{
-				"line": i + 1,
+				"line":     i + 1,
 				"severity": "error",
-				"message": "Potential syntax issue",
+				"message":  "Potential syntax issue",
 			})
 		}
 	}
@@ -457,18 +457,18 @@ func extractDiagnostics(t *testing.T, ast *AST) []map[string]interface{} {
 
 func generateComplexProgram(numClasses int) string {
 	var program strings.Builder
-	
+
 	program.WriteString("use v5.38;\nuse strict;\nuse warnings;\n\n")
-	
+
 	for i := 0; i < numClasses; i++ {
 		program.WriteString(fmt.Sprintf(`class Class%d {
     field Int $id_%d = %d;
     field Str $name_%d = "class_%d";
-    
+
     method get_id() -> Int {
         return $id_%d;
     }
-    
+
     method set_name(Str $name) -> Void {
         $name_%d = $name;
     }
@@ -476,7 +476,7 @@ func generateComplexProgram(numClasses int) string {
 
 `, i, i, i, i, i, i, i))
 	}
-	
+
 	return program.String()
 }
 
@@ -507,11 +507,11 @@ method calculate(Int $a, Int $b) -> Int {
 class UserService {
     field HashRef[Int, User] $cache = {};
     field Int $max_cache_size = 1000;
-    
+
     method get_user(Int $id) -> Optional[User] {
         return $cache->{$id};
     }
-    
+
     method add_user(User $user) -> Void {
         $cache->{$user->id} = $user;
     }
@@ -555,7 +555,7 @@ my Int $global_var = 42;
 
 class MyClass {
     field Str $name;
-    
+
     method get_name() -> Str {
         return $name;
     }

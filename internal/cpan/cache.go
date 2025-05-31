@@ -387,7 +387,7 @@ func (c *Cache) SetWithHTTPHeaders(key string, data interface{}, source string, 
 // GetCacheMetadata returns cache metadata for a key if it exists
 func (c *Cache) GetCacheMetadata(key string) (*cacheMetadata, bool) {
 	cachePath := c.getCachePath(key)
-	
+
 	// Check if the cache file exists
 	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
 		return nil, false
@@ -449,11 +449,11 @@ func (c *Cache) GetConditionalHeaders(key string) http.Header {
 	}
 
 	headers := make(http.Header)
-	
+
 	if metadata.ETag != "" {
 		headers.Set("If-None-Match", metadata.ETag)
 	}
-	
+
 	if metadata.LastModified != "" {
 		headers.Set("If-Modified-Since", metadata.LastModified)
 	}
@@ -464,7 +464,7 @@ func (c *Cache) GetConditionalHeaders(key string) http.Header {
 // calculateExpiration determines cache expiration from HTTP headers
 func (c *Cache) calculateExpiration(headers http.Header, now time.Time) time.Time {
 	cacheControl := headers.Get("Cache-Control")
-	
+
 	// Parse Cache-Control header for max-age
 	if cacheControl != "" {
 		for _, directive := range strings.Split(cacheControl, ",") {

@@ -209,7 +209,7 @@ func (t *PerlTree) processTypedVariableDeclaration(node *sitter.Node, annotation
 		case "type_expression":
 			// Extract the full type expression text instead of just identifier
 			typeName = t.getNodeText(child)
-			
+
 			// Check if the next child is an ERROR node containing package qualification
 			if i+1 < int(node.ChildCount()) {
 				nextChild := node.Child(uint(i + 1))
@@ -359,7 +359,6 @@ func (t *PerlTree) processSubroutineDeclaration(node *sitter.Node, annotations *
 		}
 	}
 }
-
 
 // processMethodDeclaration looks for type annotations in method declarations
 func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
@@ -608,15 +607,6 @@ func (t *PerlTree) GetPosition(node interface{}) PerlPosition {
 func (t *PerlTree) getNodeText(node *sitter.Node) string {
 	return t.GetNodeText(node)
 }
-
-
-
-
-
-
-
-
-
 
 // processTypeAssertion processes type assertion expressions like "$value as Type"
 func (t *PerlTree) processTypeAssertion(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {

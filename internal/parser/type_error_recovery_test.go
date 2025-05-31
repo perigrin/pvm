@@ -31,14 +31,14 @@ type ErrorTestSuite struct {
 func TestTypeErrorRecovery(t *testing.T) {
 	// Test basic error recovery functionality
 	recovery := NewTypeErrorRecovery()
-	
+
 	testCases := []struct {
-		name           string
-		source         string
-		position       ast.Position
-		context        string
-		expectedCode   TypeErrorCode
-		expectedMsg    string
+		name         string
+		source       string
+		position     ast.Position
+		context      string
+		expectedCode TypeErrorCode
+		expectedMsg  string
 	}{
 		{
 			name:         "missing_closing_bracket",
@@ -65,19 +65,19 @@ func TestTypeErrorRecovery(t *testing.T) {
 			expectedMsg:  "Incomplete type assertion - missing target type",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := recovery.RecoverFromTypeError(tc.source, tc.position, tc.context)
-			
+
 			if err.ErrorCode != tc.expectedCode {
 				t.Errorf("Expected error code %v, got %v", tc.expectedCode, err.ErrorCode)
 			}
-			
+
 			if err.Message != tc.expectedMsg {
 				t.Errorf("Expected message %q, got %q", tc.expectedMsg, err.Message)
 			}
-			
+
 			if err.Context != tc.context {
 				t.Errorf("Expected context %q, got %q", tc.context, err.Context)
 			}
@@ -92,25 +92,25 @@ func TestTypeErrorRecoveryFromFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read test file: %v", err)
 	}
-	
+
 	var testSuite ErrorTestSuite
 	if err := json.Unmarshal(data, &testSuite); err != nil {
 		t.Fatalf("Failed to parse test file: %v", err)
 	}
-	
+
 	recovery := NewTypeErrorRecovery()
-	
+
 	for _, tc := range testSuite.TestCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			position := ast.Position{Line: 1, Column: 1}
 			err := recovery.RecoverFromTypeError(tc.Input, position, tc.Context)
-			
+
 			// Map error codes to string names for comparison
 			expectedCode := getErrorCodeByName(tc.ExpectedError)
 			if err.ErrorCode != expectedCode {
 				t.Errorf("Expected error code %s (%v), got %v", tc.ExpectedError, expectedCode, err.ErrorCode)
 			}
-			
+
 			if err.Suggestion != tc.ExpectedSuggestion {
 				t.Errorf("Expected suggestion %q, got %q", tc.ExpectedSuggestion, err.Suggestion)
 			}
@@ -121,20 +121,20 @@ func TestTypeErrorRecoveryFromFile(t *testing.T) {
 func TestNestingDepthValidation(t *testing.T) {
 	recovery := NewTypeErrorRecovery()
 	position := ast.Position{Line: 1, Column: 1}
-	
+
 	// Test acceptable nesting depth
 	err := recovery.CheckNestingDepth(10, position)
 	if err != nil {
 		t.Errorf("Expected no error for depth 10, got: %v", err)
 	}
-	
+
 	// Test excessive nesting depth
 	err = recovery.CheckNestingDepth(25, position)
 	if err == nil {
 		t.Error("Expected error for depth 25, got nil")
 		return
 	}
-	
+
 	if err.ErrorCode != DeepNestingError {
 		t.Errorf("Expected DeepNestingError, got %v", err.ErrorCode)
 	}
@@ -142,7 +142,7 @@ func TestNestingDepthValidation(t *testing.T) {
 
 func TestSynchronizationPointFinding(t *testing.T) {
 	recovery := NewTypeErrorRecovery()
-	
+
 	testCases := []struct {
 		name     string
 		source   string
@@ -168,11 +168,11 @@ func TestSynchronizationPointFinding(t *testing.T) {
 			expected: ast.Position{Line: 1, Column: 24}, // After 'my'
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			syncPoint := recovery.FindSynchronizationPoint(tc.source, tc.position)
-			
+
 			if syncPoint.Column != tc.expected.Column {
 				t.Errorf("Expected column %d, got %d", tc.expected.Column, syncPoint.Column)
 			}
@@ -182,7 +182,7 @@ func TestSynchronizationPointFinding(t *testing.T) {
 
 func TestTypeExpressionValidation(t *testing.T) {
 	recovery := NewTypeErrorRecovery()
-	
+
 	testCases := []struct {
 		name         string
 		expr         *ast.TypeExpression
@@ -192,7 +192,7 @@ func TestTypeExpressionValidation(t *testing.T) {
 			name: "valid_union_type",
 			expr: &ast.TypeExpression{
 				BaseNode: ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 10}),
-				IsUnion: true,
+				IsUnion:  true,
 				UnionTypes: []*ast.TypeExpression{
 					{BaseNode: ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 3}), Name: "Int"},
 					{BaseNode: ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 5}, ast.Position{Line: 1, Column: 7}), Name: "Str"},
@@ -203,8 +203,8 @@ func TestTypeExpressionValidation(t *testing.T) {
 		{
 			name: "invalid_union_type_single",
 			expr: &ast.TypeExpression{
-				BaseNode: ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 3}),
-				IsUnion:   true,
+				BaseNode:   ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 3}),
+				IsUnion:    true,
 				UnionTypes: []*ast.TypeExpression{{BaseNode: ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 3}), Name: "Int"}},
 			},
 			expectedErrs: 1,
@@ -213,7 +213,7 @@ func TestTypeExpressionValidation(t *testing.T) {
 			name: "valid_parameterized_type",
 			expr: &ast.TypeExpression{
 				BaseNode: ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 12}),
-				Name: "ArrayRef",
+				Name:     "ArrayRef",
 				Parameters: []*ast.TypeExpression{
 					{BaseNode: ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 10}, ast.Position{Line: 1, Column: 12}), Name: "Int"},
 				},
@@ -224,7 +224,7 @@ func TestTypeExpressionValidation(t *testing.T) {
 			name: "invalid_parameterized_type_no_name",
 			expr: &ast.TypeExpression{
 				BaseNode: ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 5}),
-				Name:       "",
+				Name:     "",
 				Parameters: []*ast.TypeExpression{
 					{BaseNode: ast.NewBaseNode("type_expr", ast.Position{Line: 1, Column: 2}, ast.Position{Line: 1, Column: 4}), Name: "Int"},
 				},
@@ -232,11 +232,11 @@ func TestTypeExpressionValidation(t *testing.T) {
 			expectedErrs: 1,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			errors := recovery.ValidateTypeExpression(tc.expr, "test source")
-			
+
 			if len(errors) != tc.expectedErrs {
 				t.Errorf("Expected %d errors, got %d", tc.expectedErrs, len(errors))
 				for i, err := range errors {
@@ -256,10 +256,10 @@ func TestErrorStringFormatting(t *testing.T) {
 		ErrorCode:  InvalidUnionSyntaxError,
 		Source:     "source code",
 	}
-	
+
 	expected := "5:10: Test error message (in test context) - Try this fix"
 	actual := err.Error()
-	
+
 	if actual != expected {
 		t.Errorf("Expected error string %q, got %q", expected, actual)
 	}
@@ -289,7 +289,7 @@ func TestPositionTracking(t *testing.T) {
 			expected: ast.Position{Line: 2, Column: 4, Offset: 16},
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Calculate offset for given line/column
@@ -302,11 +302,11 @@ func TestPositionTracking(t *testing.T) {
 				} else {
 					currentLine += string(char)
 				}
-				
+
 				// If we're at the target position, check offset calculation
 				lineNum := len(lines) + 1
 				colNum := len(currentLine)
-				
+
 				if lineNum == tc.line && colNum == tc.column {
 					if i != tc.expected.Offset {
 						t.Errorf("Expected offset %d, got %d", tc.expected.Offset, i)
@@ -348,7 +348,7 @@ func BenchmarkErrorRecovery(b *testing.B) {
 	source := "my ArrayRef[Int $var;"
 	position := ast.Position{Line: 1, Column: 16}
 	context := "variable declaration"
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		recovery.RecoverFromTypeError(source, position, context)
@@ -358,7 +358,7 @@ func BenchmarkErrorRecovery(b *testing.B) {
 func BenchmarkNestingDepthCheck(b *testing.B) {
 	recovery := NewTypeErrorRecovery()
 	position := ast.Position{Line: 1, Column: 1}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		recovery.CheckNestingDepth(15, position)

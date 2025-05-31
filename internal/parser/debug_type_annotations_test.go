@@ -45,7 +45,7 @@ func TestDebugTypeAnnotations(t *testing.T) {
 
 			t.Logf("Input: %s", tc.input)
 			t.Logf("Type annotations count: %d", len(ast.TypeAnnotations))
-			
+
 			for i, annotation := range ast.TypeAnnotations {
 				t.Logf("  Annotation %d:", i)
 				t.Logf("    Kind: %v", annotation.Kind)

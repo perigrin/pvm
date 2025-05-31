@@ -10,7 +10,7 @@ import (
 
 func TestSubroutineParsing(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	// Set up parser - using the existing parser
 	parser, err := NewParser()
 	if err != nil {
@@ -20,17 +20,17 @@ func TestSubroutineParsing(t *testing.T) {
 
 	// Run all subroutine-related tests
 	metrics := framework.RunTestsByCategory(t, UntypedPerl)
-	
+
 	// Print summary for visibility
 	framework.PrintMetricsSummary(t, metrics)
-	
+
 	// Save metrics for tracking
 	metricsPath := filepath.Join("testdata", "reports", "subroutines_metrics.json")
 	err = framework.SaveMetricsReport(metrics, metricsPath)
 	if err != nil {
 		t.Logf("Warning: Failed to save metrics report: %v", err)
 	}
-	
+
 	// Require reasonable success rate
 	if metrics.TotalTests > 0 {
 		accuracy := float64(metrics.PassedTests) / float64(metrics.TotalTests) * 100
@@ -42,7 +42,7 @@ func TestSubroutineParsing(t *testing.T) {
 
 func TestBasicSubroutineDefinitions(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
@@ -65,7 +65,7 @@ func TestBasicSubroutineDefinitions(t *testing.T) {
 
 func TestAnonymousSubroutines(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
@@ -88,7 +88,7 @@ func TestAnonymousSubroutines(t *testing.T) {
 
 func TestSubroutineCalls(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
@@ -111,7 +111,7 @@ func TestSubroutineCalls(t *testing.T) {
 
 func TestMethodCalls(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
@@ -134,7 +134,7 @@ func TestMethodCalls(t *testing.T) {
 
 func TestSubroutineReferences(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)

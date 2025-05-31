@@ -152,7 +152,7 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 			return "", nil, errors.NewSystemError("001",
 				"Failed to determine XDG directories", err)
 		}
-		
+
 		// Create perl modules directory in XDG data directory
 		installDir = filepath.Join(dirs.DataDir, "perl", "modules")
 		log.Infof("Using default installation directory: %s", installDir)
@@ -166,11 +166,11 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 
 	// Set up local::lib environment variables
 	envVars := make(map[string]string)
-	
+
 	// Create lib and bin directories
 	libDir := filepath.Join(installDir, "lib", "perl5")
 	binDir := filepath.Join(installDir, "bin")
-	
+
 	if err := os.MkdirAll(libDir, 0755); err != nil {
 		return "", nil, errors.NewSystemError("003",
 			"Failed to create lib directory", err)
@@ -185,7 +185,7 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 	envVars["PERL_MB_OPT"] = fmt.Sprintf("--install_base '%s'", installDir)
 	envVars["PERL_MM_OPT"] = fmt.Sprintf("INSTALL_BASE=%s", installDir)
 	envVars["PERL5LIB"] = libDir
-	
+
 	// Update PATH to include bin directory
 	currentPath := os.Getenv("PATH")
 	if currentPath != "" {
@@ -273,7 +273,7 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 			"Failed to set up isolation environment",
 			err)
 	}
-	
+
 	// Update options to use the actual install directory
 	options.InstallDir = actualInstallDir
 

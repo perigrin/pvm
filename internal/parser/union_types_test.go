@@ -41,7 +41,7 @@ func TestUnionTypes(t *testing.T) {
 	overallAccuracy := float64(metrics.PassedTests) / float64(metrics.TotalTests) * 100
 
 	if overallAccuracy < expectedMinAccuracy {
-		t.Errorf("Union type accuracy %.1f%% is below expected minimum %.1f%%", 
+		t.Errorf("Union type accuracy %.1f%% is below expected minimum %.1f%%",
 			overallAccuracy, expectedMinAccuracy)
 	}
 
@@ -52,7 +52,7 @@ func TestUnionTypes(t *testing.T) {
 
 	// Log individual test results for debugging
 	if testing.Verbose() {
-		t.Logf("Union types test completed: %d total, %d passed, %d failed", 
+		t.Logf("Union types test completed: %d total, %d passed, %d failed",
 			metrics.TotalTests, metrics.PassedTests, metrics.FailedTests)
 	}
 }

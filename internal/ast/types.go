@@ -531,11 +531,11 @@ type TypeConstraint struct {
 type ConstraintKind int
 
 const (
-	TypeConstraintKind ConstraintKind = iota // T: SomeType
-	ProtocolConstraint                       // T does SomeRole
-	CapabilityConstraint                     // T can 'method'
-	ValueConstraint                          // $param > 0
-	VersionConstraint                        // T->VERSION >= 1.0
+	TypeConstraintKind   ConstraintKind = iota // T: SomeType
+	ProtocolConstraint                         // T does SomeRole
+	CapabilityConstraint                       // T can 'method'
+	ValueConstraint                            // $param > 0
+	VersionConstraint                          // T->VERSION >= 1.0
 )
 
 // TypeParameter represents a generic type parameter
@@ -547,23 +547,23 @@ type TypeParameter struct {
 
 // ParameterInfo represents detailed parameter information for methods
 type ParameterInfo struct {
-	Name       string           // parameter name
-	Type       *TypeExpression  // parameter type (optional)
-	Default    ExpressionNode   // default value (optional)
-	IsOptional bool             // optional parameter flag
-	IsNamed    bool             // named parameter flag (:$param)
-	IsVariadic bool             // variadic parameter flag (*@args)
-	Position   Position         // source position
+	Name       string          // parameter name
+	Type       *TypeExpression // parameter type (optional)
+	Default    ExpressionNode  // default value (optional)
+	IsOptional bool            // optional parameter flag
+	IsNamed    bool            // named parameter flag (:$param)
+	IsVariadic bool            // variadic parameter flag (*@args)
+	Position   Position        // source position
 }
 
 // MethodSignature represents a complete method signature
 type MethodSignature struct {
-	Name           string              // method name
-	TypeParameters []*TypeParameter    // generic type parameters
-	Parameters     []*ParameterInfo    // method parameters
-	ReturnType     *TypeExpression     // return type specification
-	Constraints    []*TypeConstraint   // type constraints
-	Position       Position            // source position
+	Name           string            // method name
+	TypeParameters []*TypeParameter  // generic type parameters
+	Parameters     []*ParameterInfo  // method parameters
+	ReturnType     *TypeExpression   // return type specification
+	Constraints    []*TypeConstraint // type constraints
+	Position       Position          // source position
 }
 
 // TypeVisitor defines an interface for visiting type information in AST
@@ -644,15 +644,15 @@ func (tw *TypeWalker) walkNode(node Node) error {
 
 // TypeInformation represents serializable type information from an AST
 type TypeInformation struct {
-	Variables       []*VariableTypeInfo     `json:"variables"`
-	Methods         []*MethodSignature      `json:"methods"`
-	Fields          []*FieldTypeInfo        `json:"fields"`
-	TypeAliases     []*TypeAliasInfo        `json:"type_aliases"`
-	TypeAssertions  []*TypeAssertionInfo    `json:"type_assertions"`
-	Classes         []*ClassTypeInfo        `json:"classes"`
-	Roles           []*RoleTypeInfo         `json:"roles"`
-	FilePath        string                  `json:"file_path"`
-	Timestamp       int64                   `json:"timestamp"`
+	Variables      []*VariableTypeInfo  `json:"variables"`
+	Methods        []*MethodSignature   `json:"methods"`
+	Fields         []*FieldTypeInfo     `json:"fields"`
+	TypeAliases    []*TypeAliasInfo     `json:"type_aliases"`
+	TypeAssertions []*TypeAssertionInfo `json:"type_assertions"`
+	Classes        []*ClassTypeInfo     `json:"classes"`
+	Roles          []*RoleTypeInfo      `json:"roles"`
+	FilePath       string               `json:"file_path"`
+	Timestamp      int64                `json:"timestamp"`
 }
 
 // ExtractTypeInformation extracts all type information from an AST for serialization

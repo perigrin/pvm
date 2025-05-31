@@ -14,24 +14,24 @@ import (
 
 // ConstraintTestSuite represents the test data format for constraint tests
 type ConstraintTestSuite struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Tests       []ConstraintTest  `json:"tests"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	Tests       []ConstraintTest `json:"tests"`
 }
 
 // ConstraintTest represents a single constraint test case
 type ConstraintTest struct {
-	Name                     string                   `json:"name,omitempty"`
-	Input                    string                   `json:"input"`
-	ExpectedTypeAnnotations  []ExpectedAnnotation     `json:"expected_type_annotations,omitempty"`
+	Name                    string               `json:"name,omitempty"`
+	Input                   string               `json:"input"`
+	ExpectedTypeAnnotations []ExpectedAnnotation `json:"expected_type_annotations,omitempty"`
 }
 
 // ExpectedAnnotation represents expected type annotation information
 type ExpectedAnnotation struct {
-	Kind        string                   `json:"kind"`
-	Item        string                   `json:"item"`
-	Type        string                   `json:"type"`
-	Constraints []ExpectedConstraint     `json:"constraints,omitempty"`
+	Kind        string               `json:"kind"`
+	Item        string               `json:"item"`
+	Type        string               `json:"type"`
+	Constraints []ExpectedConstraint `json:"constraints,omitempty"`
 }
 
 // ExpectedConstraint represents expected constraint information
@@ -217,10 +217,10 @@ func TestAdvancedConstraintParsing(t *testing.T) {
 
 func TestConstraintTestDataFiles(t *testing.T) {
 	framework := NewParserTestFramework(filepath.Join("testdata", "typed-perl", "advanced-constraints"))
-	
+
 	testFiles := []string{
 		"basic_type_constraints.json",
-		"multiple_constraints.json", 
+		"multiple_constraints.json",
 		"protocol_constraints.json",
 		"value_constraints.json",
 		"constraint_inheritance.json",
@@ -229,7 +229,7 @@ func TestConstraintTestDataFiles(t *testing.T) {
 	for _, filename := range testFiles {
 		t.Run(filename, func(t *testing.T) {
 			testPath := filepath.Join("testdata", "typed-perl", "advanced-constraints", filename)
-			
+
 			// Convert constraint test format to parser test case format
 			constraintTests, err := loadConstraintTestSuite(testPath)
 			if err != nil {
@@ -280,7 +280,7 @@ func TestConstraintParsingErrorRecovery(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "Invalid Constraint Syntax", 
+			name: "Invalid Constraint Syntax",
 			input: `method process<T>(T $input) where T does {
 				return $input;
 			}`,
@@ -305,7 +305,7 @@ func TestConstraintParsingErrorRecovery(t *testing.T) {
 	for _, tc := range errorCases {
 		t.Run(tc.name, func(t *testing.T) {
 			parsedAST, err := parser.ParseString(tc.input)
-			
+
 			if tc.expectError {
 				// For now, check that we either get an error or the AST contains errors
 				if err == nil && (parsedAST == nil || len(parsedAST.Errors) == 0) {

@@ -49,7 +49,7 @@ func TestComprehensiveIntegration_CompletePrograms(t *testing.T) {
 					t.Logf("Program content:\n%s", tc.Program)
 				}
 				require.NotNil(t, ast, "AST should not be nil for valid program")
-				
+
 				// Validate basic AST properties
 				assert.NotEmpty(t, ast.Source, "AST should preserve source")
 				assert.Equal(t, tc.Program, ast.Source, "Source should match input")
@@ -125,7 +125,7 @@ func TestComprehensiveIntegration_MixedTypedUntyped(t *testing.T) {
 				}
 				if ast != nil {
 					t.Logf("Successfully parsed mixed code program")
-					
+
 					// Verify both typed and untyped elements are handled
 					hasTypedElements := len(ast.TypeAnnotations) > 0
 					t.Logf("Program has typed elements: %v", hasTypedElements)
@@ -221,12 +221,12 @@ func TestComprehensiveIntegration_SaveResults(t *testing.T) {
 		parseTime := time.Since(startTime)
 
 		result := map[string]interface{}{
-			"name":        tc.Name,
-			"parse_time":  parseTime.String(),
-			"success":     err == nil && ast != nil,
+			"name":         tc.Name,
+			"parse_time":   parseTime.String(),
+			"success":      err == nil && ast != nil,
 			"program_size": len(tc.Program),
-			"line_count":  strings.Count(tc.Program, "\n") + 1,
-			"features":    tc.Features,
+			"line_count":   strings.Count(tc.Program, "\n") + 1,
+			"features":     tc.Features,
 		}
 
 		if err != nil {
@@ -388,24 +388,24 @@ class DataProcessor<T> where T: Serializable&Defined {
 
     method process_batch(ArrayRef[T] $items) -> ArrayRef[ProcessingResult<T>] {
         my @results;
-        
+
         for my $item (@{$items}) {
             # Validate item
             for my $name (keys %{$validators}) {
                 my $validator = $validators->{$name};
                 my $result = $validator->($item);
-                
+
                 if (ref $result && $result->isa('ValidationError')) {
                     push @results, $result;
                     next;
                 }
             }
-            
+
             # Process validated item
             my $processed = $processor->($item);
             push @results, $processed;
         }
-        
+
         return \@results;
     }
 
@@ -414,11 +414,11 @@ class DataProcessor<T> where T: Serializable&Defined {
             successful => [],
             failed => []
         );
-        
+
         while (@{$pending_items}) {
             my @batch = splice @{$pending_items}, 0, $batch_size;
             my $batch_results = $self->process_batch(\@batch);
-            
+
             for my $result (@{$batch_results}) {
                 if ($result->isa('Success')) {
                     push @{$results{successful}}, $result;
@@ -427,7 +427,7 @@ class DataProcessor<T> where T: Serializable&Defined {
                 }
             }
         }
-        
+
         return \%results;
     }
 }
@@ -459,7 +459,7 @@ method complex_processing_pipeline<T, U>(
 
     for my $item (@{$input_data}) {
         push @batch, $item;
-        
+
         if (@batch >= $batch_size) {
             my $results = $processor->process_batch(\@batch);
             push @all_results, @{$results};
@@ -500,7 +500,7 @@ type Listener<T> = Object&EventHandler<T>&Serializable;
 # Traits for event handling capabilities
 role EventEmitter {
     field ArrayRef[Listener<EventData>] $listeners = [];
-    
+
     method emit(EventData $data) -> ArrayRef[EventResult];
     method add_listener(Listener<EventData> $listener) -> Void;
     method remove_listener(Listener<EventData> $listener) -> Bool;
@@ -519,15 +519,15 @@ class EventManager does EventEmitter, EventLogger {
 
     method emit(EventData $data) -> ArrayRef[EventResult] {
         $self->log_event($data);
-        
+
         my @results;
-        
+
         # Process general listeners
         for my $listener (@{$listeners}) {
             my $result = $listener->($data);
             push @results, EventResult->new($result) if defined $result;
         }
-        
+
         # Process typed listeners
         if (exists $data->{type} && exists $typed_listeners->{$data->{type}}) {
             for my $listener (@{$typed_listeners->{$data->{type}}}) {
@@ -535,7 +535,7 @@ class EventManager does EventEmitter, EventLogger {
                 push @results, EventResult->new($result) if defined $result;
             }
         }
-        
+
         return \@results;
     }
 
@@ -566,7 +566,7 @@ method process_events_with_filtering<T>(
           !defined($timeout) || $timeout > 0 {
 
     my @filtered_events = grep { $filter->($_) } @{$events};
-    
+
     if (@filtered_events > $max_events) {
         @filtered_events = @filtered_events[0..$max_events-1];
     }
@@ -627,14 +627,14 @@ class NestedContainer<T, U> where T: Any, U: Serializable {
         ArrayRef[T] $items
     ) -> ArrayRef[Tuple[T, U]] {
         my @results;
-        
+
         for my $item (@{$items}) {
             my $transformed = $transformer->($item);
             for my $t_item (@{$transformed}) {
                 push @results, Tuple->new($item, $t_item);
             }
         }
-        
+
         $indexed_data->{$key} = \@results;
         return \@results;
     }
@@ -667,13 +667,13 @@ method ultra_complex_processing<A, B, C, D>(
 
                 for my $c_item (@{$c_array}) {
                     my $d_item = $second_transform->($c_item);
-                    
+
                     # Validate D item
                     for my $validator (@{$validators}) {
                         my $validation_result = $validator->($d_item);
                         next unless $validation_result;
                     }
-                    
+
                     push @c_d_tuples, Tuple->new($c_item, $d_item);
                 }
 
@@ -715,7 +715,7 @@ my Int $valid_after_errors = 100;
 
 class ValidClass {
     field Str $name;
-    
+
     method valid_method() -> Str {
         return $name;
     }
@@ -749,7 +749,7 @@ method process(ArrayRef[Int|Str] $input) -> HashRef[Bool|Str] {
 			Program: `
 class Container<T> where T: Serializable&Clonable {
     field ArrayRef[T] $items;
-    
+
     method add(T $item) -> Void where $item->can('clone') {
         push @{$items}, $item->clone();
     }
@@ -816,11 +816,11 @@ use warnings;
 # Typed wrapper around untyped library
 class TypedDumper {
     field Optional[Int] $indent;
-    
+
     method new(Optional[Int] $indent = undef) -> TypedDumper {
         return bless { indent => $indent }, __PACKAGE__;
     }
-    
+
     method dump_data(Any $data) -> Str {
         local $Data::Dumper::Indent = $indent // 1;
         return Dumper($data);
@@ -836,25 +836,25 @@ class TypedDumper {
 func generateLargeProgramTests() []ComprehensiveIntegrationTest {
 	// Generate a large program with many classes and methods
 	var program strings.Builder
-	
+
 	program.WriteString("use v5.38;\nuse strict;\nuse warnings;\n\n")
-	
+
 	// Generate many type definitions
 	for i := 0; i < 20; i++ {
 		program.WriteString(fmt.Sprintf("type Type%d = Int|Str;\n", i))
 	}
 	program.WriteString("\n")
-	
+
 	// Generate many classes
 	for i := 0; i < 10; i++ {
 		program.WriteString(fmt.Sprintf(`class Class%d {
     field Type%d $field_%d;
     field ArrayRef[Int] $array_%d = [];
-    
+
     method method_%d(Type%d $param) -> Type%d {
         return $param;
     }
-    
+
     method complex_method_%d(
         ArrayRef[Type%d] $input,
         HashRef[Int] $config
@@ -865,7 +865,7 @@ func generateLargeProgramTests() []ComprehensiveIntegrationTest {
 
 `, i, i%20, i, i, i, i%20, i%20, i, i%20, i%20))
 	}
-	
+
 	return []ComprehensiveIntegrationTest{
 		{
 			Name:        "large_generated_program",
@@ -901,7 +901,7 @@ class HTTPRequest {
     field Str $path;
     field Headers $headers;
     field Optional[Str] $body;
-    
+
     method new(HTTPMethod $method, Str $path, Headers $headers) -> HTTPRequest {
         return bless {
             method => $method,
@@ -915,7 +915,7 @@ class HTTPResponse {
     field StatusCode $status;
     field Headers $headers;
     field Optional[Str] $body;
-    
+
     method json_response(HashRef[Any] $data) -> HTTPResponse {
         $headers->{'Content-Type'} = 'application/json';
         $body = encode_json($data);
@@ -925,14 +925,14 @@ class HTTPResponse {
 
 class Controller {
     field HashRef[Str, CodeRef[HTTPRequest, HTTPResponse]] $routes = {};
-    
+
     method handle_request(HTTPRequest $request) -> HTTPResponse {
         my $route_key = $request->method . ' ' . $request->path;
-        
+
         if (exists $routes->{$route_key}) {
             return $routes->{$route_key}->($request);
         }
-        
+
         return HTTPResponse->new(404, {}, "Not Found");
     }
 }`,
@@ -961,26 +961,26 @@ role Repository<T> where T: Serializable {
 class BaseRepository<T> does Repository<T> where T: Serializable&Defined {
     field DBConnection $connection;
     field Str $table_name;
-    
+
     method find_by_id(Int $id) -> Optional[T] {
         my $query = "SELECT * FROM $table_name WHERE id = ?";
         my $result = $connection->execute($query, $id);
-        
+
         return undef unless $result && @{$result};
         return $self->map_row_to_entity($result->[0]);
     }
-    
+
     method find_where(WhereClause $conditions) -> ArrayRef[T] {
         my (@where_parts, @values);
-        
+
         for my $field (keys %{$conditions}) {
             push @where_parts, "$field = ?";
             push @values, $conditions->{$field};
         }
-        
+
         my $where_sql = join ' AND ', @where_parts;
         my $query = "SELECT * FROM $table_name WHERE $where_sql";
-        
+
         my $results = $connection->execute($query, @values);
         return [map { $self->map_row_to_entity($_) } @{$results}];
     }

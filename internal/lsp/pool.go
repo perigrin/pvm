@@ -22,19 +22,17 @@ type LSPPoolManager struct {
 	jsonRPCNotificationPool core.Pool[JSONRPCNotification]
 
 	// LSP basic type pools
-	positionPool                        core.Pool[Position]
-	rangePool                           core.Pool[Range]
-	locationPool                        core.Pool[Location]
+	positionPool core.Pool[Position]
+	rangePool    core.Pool[Range]
+	locationPool core.Pool[Location]
 
 	// Completion pools
-	completionItemPool    core.Pool[CompletionItem]
-	completionListPool    core.Pool[CompletionList]
+	completionItemPool core.Pool[CompletionItem]
+	completionListPool core.Pool[CompletionList]
 
 	// Diagnostic pools
-	diagnosticPool            core.Pool[Diagnostic]
-	publishDiagnosticsPool    core.Pool[PublishDiagnosticsParams]
-
-
+	diagnosticPool         core.Pool[Diagnostic]
+	publishDiagnosticsPool core.Pool[PublishDiagnosticsParams]
 
 	// Slice pools for collections
 	completionItemSlicePool *core.Pool[[]CompletionItem]
@@ -476,8 +474,6 @@ func (lpm *LSPPoolManager) getDiagnosticSlice() []Diagnostic {
 	return *s
 }
 
-
-
 // Pool warming methods
 
 // warmPools pre-allocates common LSP objects for better performance
@@ -638,7 +634,6 @@ func (lpm *LSPPoolManager) resetPublishDiagnosticsParams(params *PublishDiagnost
 		lpm.hooks.OnObjectReset("PublishDiagnosticsParams")
 	}
 }
-
 
 // Request tracking methods
 

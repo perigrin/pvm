@@ -14,7 +14,7 @@ import (
 func TestBasicExpressions(t *testing.T) {
 	testCategories := []string{
 		"arithmetic_operations",
-		"string_operations", 
+		"string_operations",
 		"logical_operations",
 		"comparison_operations",
 		"assignment_operations",
@@ -50,7 +50,7 @@ func runExpressionTestsFromFile(t *testing.T, testFile string) {
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
 			ast, err := parser.ParseString(testCase.Input)
-			
+
 			if testCase.ShouldError {
 				if err == nil {
 					t.Errorf("Expected error for input: %s", testCase.Input)
@@ -121,7 +121,7 @@ func validateArithmeticExpression(t *testing.T, stmt interface{}, testCase Parse
 	t.Logf("Validating arithmetic expression for: %s", testCase.Name)
 }
 
-// validateStringExpression checks string expression structure  
+// validateStringExpression checks string expression structure
 func validateStringExpression(t *testing.T, stmt interface{}, testCase ParserTestCase) {
 	// Basic validation that string operators are recognized
 	t.Logf("Validating string expression for: %s", testCase.Name)
@@ -191,7 +191,7 @@ func TestExpressionPrecedence(t *testing.T) {
 			expected: "$result = $a + ($b * $c);",
 		},
 		{
-			name:     "logical_precedence", 
+			name:     "logical_precedence",
 			input:    "$result = $a && $b || $c;",
 			expected: "$result = ($a && $b) || $c;",
 		},

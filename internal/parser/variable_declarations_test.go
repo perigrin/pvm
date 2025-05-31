@@ -11,7 +11,7 @@ import (
 func TestUntypedVariableDeclarations(t *testing.T) {
 	testDataDir := filepath.Join("testdata", "untyped-perl", "variables")
 	framework := NewParserTestFramework(testDataDir)
-	
+
 	// Set up parser
 	parser, err := NewParser()
 	if err != nil {
@@ -21,17 +21,17 @@ func TestUntypedVariableDeclarations(t *testing.T) {
 
 	// Run tests by category
 	metrics := framework.RunTestsByCategory(t, UntypedPerl)
-	
+
 	// Print summary
 	framework.PrintMetricsSummary(t, metrics)
-	
+
 	// Save metrics report
 	reportPath := filepath.Join("testdata", "reports", "variable_declarations_metrics.json")
 	err = framework.SaveMetricsReport(metrics, reportPath)
 	if err != nil {
 		t.Logf("Warning: Failed to save metrics report: %v", err)
 	}
-	
+
 	// Validate minimum accuracy
 	overallAccuracy := float64(metrics.PassedTests) / float64(metrics.TotalTests) * 100
 	if overallAccuracy < 90.0 {
@@ -86,9 +86,9 @@ func TestScalarDeclarations(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			testCase := framework.GenerateTestCase(tc.name, tc.input, 
+			testCase := framework.GenerateTestCase(tc.name, tc.input,
 				"Test scalar variable declaration: "+tc.name, UntypedPerl, tc.tags)
-			
+
 			success := framework.RunTestCase(t, testCase)
 			if !success {
 				t.Errorf("Scalar declaration test failed: %s", tc.name)
@@ -143,7 +143,7 @@ func TestArrayDeclarations(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testCase := framework.GenerateTestCase(tc.name, tc.input,
 				"Test array variable declaration: "+tc.name, UntypedPerl, tc.tags)
-			
+
 			success := framework.RunTestCase(t, testCase)
 			if !success {
 				t.Errorf("Array declaration test failed: %s", tc.name)
@@ -196,7 +196,7 @@ func TestHashDeclarations(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testCase := framework.GenerateTestCase(tc.name, tc.input,
 				"Test hash variable declaration: "+tc.name, UntypedPerl, tc.tags)
-			
+
 			success := framework.RunTestCase(t, testCase)
 			if !success {
 				t.Errorf("Hash declaration test failed: %s", tc.name)

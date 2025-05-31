@@ -298,7 +298,6 @@ func (s *Server) handleTextDocumentCodeAction(msg *JSONRPCMessage) error {
 
 // TODO: Legacy hover generation - replaced by language service
 
-
 // Helper functions for hover and completion
 
 func isWordChar(c byte) bool {
@@ -306,23 +305,7 @@ func isWordChar(c byte) bool {
 		(c >= '0' && c <= '9') || c == '_' || c == ':'
 }
 
-
-
-
-
-
-
 // Completion generators
-
-
-
-
-
-
-
-
-
-
 
 // Conversion helper functions between LSP and language service types
 
@@ -362,8 +345,6 @@ func convertToLSPHover(lsHover *ls.Hover) *Hover {
 
 	return hover
 }
-
-
 
 // convertToLSPLocation converts language service location to LSP location
 func convertToLSPLocation(lsLocation ls.Location) Location {

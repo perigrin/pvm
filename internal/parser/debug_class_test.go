@@ -1,4 +1,4 @@
-// ABOUTME: Debug test to see what AST nodes are created for class declarations  
+// ABOUTME: Debug test to see what AST nodes are created for class declarations
 // ABOUTME: Temporary file for debugging Step 20 implementation
 
 package parser
@@ -11,7 +11,7 @@ import (
 func TestDebugClassParsing(t *testing.T) {
 	input := `class User {
     field Str $name;
-    
+
     method new(Str $name) -> User {
         return bless { name => $name }, __PACKAGE__;
     }
@@ -40,7 +40,7 @@ func printASTNodes(t *testing.T, node interface{}, depth int) {
 	if node == nil {
 		return
 	}
-	
+
 	// Use type assertion to get ast.Node interface
 	if astNode, ok := node.(interface {
 		Type() string
@@ -49,7 +49,7 @@ func printASTNodes(t *testing.T, node interface{}, depth int) {
 	}); ok {
 		indent := strings.Repeat("  ", depth)
 		t.Logf("%s%s: %q", indent, astNode.Type(), astNode.Text())
-		
+
 		if children := astNode.Children(); children != nil {
 			for _, child := range children {
 				printASTNodes(t, child, depth+1)

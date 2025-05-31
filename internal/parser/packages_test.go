@@ -9,7 +9,7 @@ import (
 
 func TestPackageAndModuleConstructs(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	// Initialize the parser
 	parser, err := NewParser()
 	if err != nil {
@@ -19,7 +19,7 @@ func TestPackageAndModuleConstructs(t *testing.T) {
 
 	// Run package-specific tests
 	metrics := framework.RunTestsByCategory(t, UntypedPerl)
-	
+
 	// Print summary for debugging
 	framework.PrintMetricsSummary(t, metrics)
 
@@ -37,7 +37,7 @@ func TestPackageAndModuleConstructs(t *testing.T) {
 
 func TestSpecificPackageFeatures(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
-	
+
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)

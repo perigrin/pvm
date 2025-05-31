@@ -18,38 +18,38 @@ import (
 
 // CompatibilityTest represents a single backward compatibility test
 type CompatibilityTest struct {
-	Name              string   `json:"name"`
-	Description       string   `json:"description"`
-	InputCode         string   `json:"input_code"`
-	ShouldParse       bool     `json:"should_parse"`
-	ExpectedErrors    []string `json:"expected_errors,omitempty"`
-	ExpectedAST       *ast.AST `json:"expected_ast,omitempty"`
-	Category          string   `json:"category"`
-	Tags              []string `json:"tags"`
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	InputCode      string   `json:"input_code"`
+	ShouldParse    bool     `json:"should_parse"`
+	ExpectedErrors []string `json:"expected_errors,omitempty"`
+	ExpectedAST    *ast.AST `json:"expected_ast,omitempty"`
+	Category       string   `json:"category"`
+	Tags           []string `json:"tags"`
 }
 
 // CompatibilityResult represents the result of a compatibility test
 type CompatibilityResult struct {
-	TestName        string   `json:"test_name"`
-	ASTMatches      bool     `json:"ast_matches"`
-	ErrorsMatch     bool     `json:"errors_match"`
-	Compatible      bool     `json:"compatible"`
-	Differences     []string `json:"differences"`
-	ParseDuration   time.Duration `json:"parse_duration"`
-	MemoryUsed      int64    `json:"memory_used"`
-	ActualError     string   `json:"actual_error,omitempty"`
-	ExpectedError   string   `json:"expected_error,omitempty"`
+	TestName      string        `json:"test_name"`
+	ASTMatches    bool          `json:"ast_matches"`
+	ErrorsMatch   bool          `json:"errors_match"`
+	Compatible    bool          `json:"compatible"`
+	Differences   []string      `json:"differences"`
+	ParseDuration time.Duration `json:"parse_duration"`
+	MemoryUsed    int64         `json:"memory_used"`
+	ActualError   string        `json:"actual_error,omitempty"`
+	ExpectedError string        `json:"expected_error,omitempty"`
 }
 
 // CompatibilityReport aggregates compatibility test results
 type CompatibilityReport struct {
-	TotalTests       int                    `json:"total_tests"`
-	CompatibleTests  int                    `json:"compatible_tests"`
+	TotalTests        int                   `json:"total_tests"`
+	CompatibleTests   int                   `json:"compatible_tests"`
 	IncompatibleTests int                   `json:"incompatible_tests"`
-	CategoryResults  map[string]int         `json:"category_results"`
-	Results          []CompatibilityResult  `json:"results"`
-	Summary          string                 `json:"summary"`
-	Timestamp        time.Time              `json:"timestamp"`
+	CategoryResults   map[string]int        `json:"category_results"`
+	Results           []CompatibilityResult `json:"results"`
+	Summary           string                `json:"summary"`
+	Timestamp         time.Time             `json:"timestamp"`
 }
 
 // BackwardCompatibilityTester manages backward compatibility testing
@@ -80,22 +80,22 @@ func (bct *BackwardCompatibilityTester) GenerateCompatibilityTests() []*Compatib
 
 	// Category 1: Basic untyped Perl patterns
 	tests = append(tests, bct.generateBasicUntypedTests()...)
-	
+
 	// Category 2: Edge cases that might be affected by type parsing
 	tests = append(tests, bct.generateEdgeCaseTests()...)
-	
+
 	// Category 3: Variables that look like types
 	tests = append(tests, bct.generateTypeConflictTests()...)
-	
+
 	// Category 4: Complex expressions and operators
 	tests = append(tests, bct.generateComplexExpressionTests()...)
-	
+
 	// Category 5: String literals and heredocs with type-like content
 	tests = append(tests, bct.generateStringLiteralTests()...)
-	
+
 	// Category 6: Comments with type annotations
 	tests = append(tests, bct.generateCommentTests()...)
-	
+
 	// Category 7: Error cases that should produce same errors
 	tests = append(tests, bct.generateErrorCaseTests()...)
 
@@ -406,7 +406,7 @@ func (bct *BackwardCompatibilityTester) generateErrorCaseTests() []*Compatibilit
 		{
 			Name:        "incomplete_syntax_recovery",
 			Description: "Parser error recovery for incomplete syntax",
-			InputCode: `my $incomplete_syntax = `,
+			InputCode:   `my $incomplete_syntax = `,
 			ShouldParse: true, // Parser may recover from incomplete syntax
 			Category:    "error_cases",
 			Tags:        []string{"error_recovery"},
@@ -445,7 +445,7 @@ func (bct *BackwardCompatibilityTester) RunCompatibilityTest(t *testing.T, test 
 	if test.ShouldParse {
 		if enhancedErr != nil {
 			result.Compatible = false
-			result.Differences = append(result.Differences, 
+			result.Differences = append(result.Differences,
 				fmt.Sprintf("Expected parsing to succeed but got error: %v", enhancedErr))
 			result.ActualError = enhancedErr.Error()
 		}
@@ -483,7 +483,7 @@ func (bct *BackwardCompatibilityTester) RunCompatibilityTest(t *testing.T, test 
 	// If we have a baseline parser, compare AST structures
 	if bct.BaselineParser != nil && test.ShouldParse && enhancedAST != nil {
 		baselineAST, baselineErr := bct.BaselineParser.ParseString(test.InputCode)
-		
+
 		if baselineErr == nil && baselineAST != nil {
 			astMatch := bct.compareASTs(enhancedAST, baselineAST)
 			result.ASTMatches = astMatch
@@ -510,7 +510,7 @@ func (bct *BackwardCompatibilityTester) RunCompatibilityTest(t *testing.T, test 
 // RunAllCompatibilityTests executes all compatibility tests
 func (bct *BackwardCompatibilityTester) RunAllCompatibilityTests(t *testing.T) *CompatibilityReport {
 	tests := bct.GenerateCompatibilityTests()
-	
+
 	report := &CompatibilityReport{
 		TotalTests:      len(tests),
 		CategoryResults: make(map[string]int),
@@ -527,7 +527,7 @@ func (bct *BackwardCompatibilityTester) RunAllCompatibilityTests(t *testing.T) *
 				report.CompatibleTests++
 			} else {
 				report.IncompatibleTests++
-				t.Errorf("Compatibility test %s failed: %s", test.Name, 
+				t.Errorf("Compatibility test %s failed: %s", test.Name,
 					strings.Join(result.Differences, "; "))
 			}
 
@@ -631,7 +631,7 @@ func (bct *BackwardCompatibilityTester) validateASTStructure(t *testing.T, ast *
 	// (e.g., in strings or comments) as long as they don't affect functionality
 	// The key is that the code should parse and have a reasonable AST structure
 	if len(ast.TypeAnnotations) > 0 {
-		t.Logf("Test %s: Note: Found %d type annotations in untyped code (may be in strings/comments)", 
+		t.Logf("Test %s: Note: Found %d type annotations in untyped code (may be in strings/comments)",
 			testName, len(ast.TypeAnnotations))
 	}
 
@@ -644,9 +644,9 @@ func (bct *BackwardCompatibilityTester) SaveReport(report *CompatibilityReport) 
 		return fmt.Errorf("failed to create report directory: %w", err)
 	}
 
-	reportFile := filepath.Join(bct.ReportDir, fmt.Sprintf("compatibility_report_%s.json", 
+	reportFile := filepath.Join(bct.ReportDir, fmt.Sprintf("compatibility_report_%s.json",
 		report.Timestamp.Format("20060102_150405")))
-	
+
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal report: %w", err)

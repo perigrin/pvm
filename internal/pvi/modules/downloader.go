@@ -182,18 +182,18 @@ func downloadModule(options *DownloadOptions) (*DownloadResult, error) {
 	}
 
 	// Determine destination filename from distribution file path
-	log.Infof("Module info: Name=%s, Distribution=%s, DistributionVersion=%s, DistributionFile=%s", 
+	log.Infof("Module info: Name=%s, Distribution=%s, DistributionVersion=%s, DistributionFile=%s",
 		moduleInfo.Name, moduleInfo.Distribution, moduleInfo.DistributionVersion, moduleInfo.DistributionFile)
-	
+
 	filename := filepath.Base(moduleInfo.DistributionFile)
 	log.Debugf("Initial filename from DistributionFile: %s", filename)
-	
+
 	if filename == "" || filename == "." || filename == "/" {
 		// Use distribution and version if file path not available
 		filename = fmt.Sprintf("%s-%s.tar.gz", moduleInfo.Distribution, moduleInfo.DistributionVersion)
 		log.Debugf("Using fallback filename: %s", filename)
 	}
-	
+
 	// Additional safety check - ensure filename is not empty
 	if filename == "" {
 		filename = fmt.Sprintf("%s.tar.gz", moduleInfo.Name)

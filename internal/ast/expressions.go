@@ -45,11 +45,11 @@ func (le *LiteralExpr) IsExpression() bool {
 // Enhanced with type information context
 type VariableExpr struct {
 	*BaseNode
-	Name        string          // variable name
-	Sigil       string          // $, @, %
-	Package     string          // package qualification
+	Name         string          // variable name
+	Sigil        string          // $, @, %
+	Package      string          // package qualification
 	InferredType *TypeExpression // inferred type from context
-	DeclContext  *VarDecl       // reference to declaration if available
+	DeclContext  *VarDecl        // reference to declaration if available
 }
 
 // NewVariableExpr creates a new variable expression
@@ -81,7 +81,7 @@ type VariableReferenceInfo struct {
 	FullName     string          // full name with sigil
 	Package      string          // package qualification
 	InferredType *TypeExpression // inferred type
-	DeclContext  *VarDecl       // declaration context
+	DeclContext  *VarDecl        // declaration context
 	Position     Position        // source position
 }
 
@@ -256,10 +256,10 @@ func (hre *HashRefExpr) IsExpression() bool {
 // Enhanced with comprehensive type assertion information
 type TypeAssertionExpr struct {
 	*BaseNode
-	Expression   ExpressionNode  // expression being asserted
-	TargetType   *TypeExpression // target type
-	IsConditional bool           // whether this is a conditional assertion (as?)
-	Constraints  []*TypeConstraint // additional constraints
+	Expression    ExpressionNode    // expression being asserted
+	TargetType    *TypeExpression   // target type
+	IsConditional bool              // whether this is a conditional assertion (as?)
+	Constraints   []*TypeConstraint // additional constraints
 }
 
 // NewTypeAssertionExpr creates a new type assertion expression

@@ -41,7 +41,7 @@ func TestSimpleTypeAnnotations(t *testing.T) {
 	overallAccuracy := float64(metrics.PassedTests) / float64(metrics.TotalTests) * 100
 
 	if overallAccuracy < expectedMinAccuracy {
-		t.Errorf("Simple type annotation accuracy %.1f%% is below expected minimum %.1f%%", 
+		t.Errorf("Simple type annotation accuracy %.1f%% is below expected minimum %.1f%%",
 			overallAccuracy, expectedMinAccuracy)
 	}
 
@@ -59,39 +59,39 @@ func TestSpecificSimpleTypeAnnotations(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name     string
-		input    string
+		name                  string
+		input                 string
 		expectTypeAnnotations int
-		expectedTypes []string
-		expectedVars  []string
+		expectedTypes         []string
+		expectedVars          []string
 	}{
 		{
-			name:     "basic_built_in_types",
-			input:    "my Int $count = 42; my Str $name = \"test\";",
+			name:                  "basic_built_in_types",
+			input:                 "my Int $count = 42; my Str $name = \"test\";",
 			expectTypeAnnotations: 2,
-			expectedTypes: []string{"Int", "Str"},
-			expectedVars:  []string{"$count", "$name"},
+			expectedTypes:         []string{"Int", "Str"},
+			expectedVars:          []string{"$count", "$name"},
 		},
 		{
-			name:     "parameterized_types",
-			input:    "my ArrayRef[Int] @numbers = (1, 2, 3);",
+			name:                  "parameterized_types",
+			input:                 "my ArrayRef[Int] @numbers = (1, 2, 3);",
 			expectTypeAnnotations: 1,
-			expectedTypes: []string{"ArrayRef[Int]"},
-			expectedVars:  []string{"@numbers"},
+			expectedTypes:         []string{"ArrayRef[Int]"},
+			expectedVars:          []string{"@numbers"},
 		},
 		{
-			name:     "custom_types", 
-			input:    "my MyType $custom; my Package::Type $qualified;",
+			name:                  "custom_types",
+			input:                 "my MyType $custom; my Package::Type $qualified;",
 			expectTypeAnnotations: 2,
-			expectedTypes: []string{"MyType", "Package::Type"},
-			expectedVars:  []string{"$custom", "$qualified"},
+			expectedTypes:         []string{"MyType", "Package::Type"},
+			expectedVars:          []string{"$custom", "$qualified"},
 		},
 		{
-			name:     "scoping_keywords",
-			input:    "our Int $global; state Str $persistent;",
+			name:                  "scoping_keywords",
+			input:                 "our Int $global; state Str $persistent;",
 			expectTypeAnnotations: 2,
-			expectedTypes: []string{"Int", "Str"},
-			expectedVars:  []string{"$global", "$persistent"},
+			expectedTypes:         []string{"Int", "Str"},
+			expectedVars:          []string{"$global", "$persistent"},
 		},
 	}
 
@@ -108,7 +108,7 @@ func TestSpecificSimpleTypeAnnotations(t *testing.T) {
 
 			// Check type annotation count
 			if len(ast.TypeAnnotations) != tc.expectTypeAnnotations {
-				t.Errorf("Expected %d type annotations, got %d", 
+				t.Errorf("Expected %d type annotations, got %d",
 					tc.expectTypeAnnotations, len(ast.TypeAnnotations))
 			}
 
@@ -204,7 +204,7 @@ func TestBackwardCompatibilityWithUntypedCode(t *testing.T) {
 	// Should have exactly 2 type annotations (for the typed variables)
 	expectedAnnotations := 2
 	if len(ast.TypeAnnotations) != expectedAnnotations {
-		t.Errorf("Mixed code produced %d type annotations, expected %d", 
+		t.Errorf("Mixed code produced %d type annotations, expected %d",
 			len(ast.TypeAnnotations), expectedAnnotations)
 	}
 }

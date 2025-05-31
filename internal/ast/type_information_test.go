@@ -54,7 +54,7 @@ func TestTypeInformationExtraction(t *testing.T) {
 	// Test visitor functionality
 	visitor := &testTypeVisitor{}
 	walker := NewTypeWalker(visitor)
-	
+
 	// Create a simple AST structure for testing
 	walker.walkNode(varDecl)
 	walker.walkNode(methodDecl)
@@ -278,12 +278,12 @@ func TestFieldTypeInfo(t *testing.T) {
 
 // testTypeVisitor implements TypeVisitor for testing
 type testTypeVisitor struct {
-	variableCount   int
-	methodCount     int
-	fieldCount      int
-	assertionCount  int
-	typeExprCount   int
-	typeDeclCount   int
+	variableCount  int
+	methodCount    int
+	fieldCount     int
+	assertionCount int
+	typeExprCount  int
+	typeDeclCount  int
 }
 
 func (tv *testTypeVisitor) VisitTypeExpression(node *TypeExpression) error {

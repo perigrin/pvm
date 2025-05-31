@@ -48,7 +48,7 @@ func runControlFlowTestsFromFile(t *testing.T, testFile string) {
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
 			ast, err := parser.ParseString(testCase.Input)
-			
+
 			if testCase.ShouldError {
 				if err == nil {
 					t.Errorf("Expected error for input: %s", testCase.Input)
@@ -107,7 +107,7 @@ func validateControlFlowAST(t *testing.T, ast *AST, testCase ParserTestCase) {
 func validateConditionalStructure(t *testing.T, children []Node, testCase ParserTestCase) {
 	// Basic validation that conditional keywords are recognized
 	t.Logf("Validating conditional structure for: %s", testCase.Name)
-	
+
 	// Check for specific conditional patterns
 	for _, tag := range testCase.Tags {
 		switch tag {
@@ -131,7 +131,7 @@ func validateConditionalStructure(t *testing.T, children []Node, testCase Parser
 func validateLoopStructure(t *testing.T, children []Node, testCase ParserTestCase) {
 	// Basic validation that loop keywords are recognized
 	t.Logf("Validating loop structure for: %s", testCase.Name)
-	
+
 	// Check for specific loop patterns
 	for _, tag := range testCase.Tags {
 		switch tag {
@@ -159,7 +159,7 @@ func validateLoopStructure(t *testing.T, children []Node, testCase ParserTestCas
 func validateLoopControlStructure(t *testing.T, children []Node, testCase ParserTestCase) {
 	// Basic validation that loop control keywords are recognized
 	t.Logf("Validating loop control structure for: %s", testCase.Name)
-	
+
 	// Check for specific control patterns
 	for _, tag := range testCase.Tags {
 		switch tag {
@@ -181,7 +181,7 @@ func validateLoopControlStructure(t *testing.T, children []Node, testCase Parser
 func validateSwitchStructure(t *testing.T, children []Node, testCase ParserTestCase) {
 	// Basic validation that switch keywords are recognized
 	t.Logf("Validating switch structure for: %s", testCase.Name)
-	
+
 	// Check for specific switch patterns
 	for _, tag := range testCase.Tags {
 		switch tag {
@@ -205,7 +205,7 @@ func validateSwitchStructure(t *testing.T, children []Node, testCase ParserTestC
 func validateComplexControlFlow(t *testing.T, children []Node, testCase ParserTestCase) {
 	// Basic validation that complex patterns are recognized
 	t.Logf("Validating complex control flow for: %s", testCase.Name)
-	
+
 	// Check for specific complex patterns
 	for _, tag := range testCase.Tags {
 		switch tag {

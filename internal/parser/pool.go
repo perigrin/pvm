@@ -29,7 +29,7 @@ func NewParserPool() *ParserPool {
 	pp.pool.New = func() interface{} {
 		atomic.AddInt64(&pp.created, 1)
 		atomic.AddInt64(&pp.misses, 1)
-		
+
 		// Create a new parser directly (without using the pool to avoid recursion)
 		parser, err := NewParserDirect()
 		if err != nil {
@@ -38,27 +38,27 @@ func NewParserPool() *ParserPool {
 
 		return parser
 	}
-	
+
 	// Register with global memory stats
 	memory.RegisterPool(pp.asAnyPool())
-	
+
 	return pp
 }
 
 // Get retrieves a parser from the pool
 func (pp *ParserPool) Get() Parser {
 	atomic.AddInt64(&pp.gets, 1)
-	
+
 	item := pp.pool.Get()
 	if item == nil {
 		return nil
 	}
-	
+
 	parser := item.(Parser)
 	if parser != nil {
 		atomic.AddInt64(&pp.hits, 1)
 	}
-	
+
 	return parser
 }
 
@@ -67,13 +67,13 @@ func (pp *ParserPool) Put(parser Parser) {
 	if parser == nil {
 		return
 	}
-	
+
 	// Reset parser state if it has a reset method
 	// Note: Tree-sitter parsers don't need resetting as they're stateless
 	if resettable, ok := parser.(interface{ Reset() }); ok {
 		resettable.Reset()
 	}
-	
+
 	atomic.AddInt64(&pp.puts, 1)
 	pp.pool.Put(parser)
 }
@@ -85,7 +85,7 @@ func (pp *ParserPool) Stats() memory.PoolStats {
 	hits := atomic.LoadInt64(&pp.hits)
 	misses := atomic.LoadInt64(&pp.misses)
 	created := atomic.LoadInt64(&pp.created)
-	
+
 	return memory.PoolStats{
 		Gets:    uint64(gets),
 		Puts:    uint64(puts),
@@ -123,13 +123,13 @@ func ReturnParser(parser Parser) {
 // PooledParserFunc wraps a function to automatically manage parser pooling
 func PooledParserFunc[T any](fn func(Parser) (T, error)) (T, error) {
 	var zero T
-	
+
 	parser, err := NewPooledParser()
 	if err != nil {
 		return zero, err
 	}
 	defer ReturnParser(parser)
-	
+
 	return fn(parser)
 }
 

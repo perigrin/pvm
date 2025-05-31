@@ -12,17 +12,17 @@ import (
 func TestMethodFieldAnnotations(t *testing.T) {
 	testDataDir := filepath.Join("testdata", "typed-perl", "methods-fields")
 	framework := NewParserTestFramework(testDataDir)
-	
+
 	// Create a parser instance for testing
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
 	}
 	framework.Parser = parser
-	
+
 	testFiles := []string{
 		"basic_method_definitions.json",
-		"basic_field_declarations.json", 
+		"basic_field_declarations.json",
 		"complex_method_signatures.json",
 		"complex_field_types.json",
 		"class_context_methods.json",
@@ -30,10 +30,10 @@ func TestMethodFieldAnnotations(t *testing.T) {
 		"method_return_types.json",
 		"field_access_modifiers.json",
 	}
-	
+
 	totalTests := 0
 	passedTests := 0
-	
+
 	for _, testFile := range testFiles {
 		testPath := filepath.Join(testDataDir, testFile)
 		t.Run(testFile, func(t *testing.T) {
@@ -41,7 +41,7 @@ func TestMethodFieldAnnotations(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to load test cases from %s: %v", testFile, err)
 			}
-			
+
 			for _, testCase := range testCases {
 				t.Run(testCase.Name, func(t *testing.T) {
 					totalTests++
@@ -53,8 +53,8 @@ func TestMethodFieldAnnotations(t *testing.T) {
 			}
 		})
 	}
-	
-	t.Logf("Method and Field Annotation Tests: %d/%d passed (%.1f%%)", 
+
+	t.Logf("Method and Field Annotation Tests: %d/%d passed (%.1f%%)",
 		passedTests, totalTests, float64(passedTests)/float64(totalTests)*100)
 }
 
@@ -64,7 +64,7 @@ func TestMethodSignatureComponents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
 	}
-	
+
 	testCases := []struct {
 		name     string
 		input    string
@@ -80,7 +80,7 @@ func TestMethodSignatureComponents(t *testing.T) {
 		{
 			name:     "method_with_params",
 			input:    "method add(Int $a, Int $b) -> Int { return $a + $b; }",
-			wantType: "method_decl", 
+			wantType: "method_decl",
 			wantName: "add",
 		},
 		{
@@ -90,18 +90,18 @@ func TestMethodSignatureComponents(t *testing.T) {
 			wantName: "process",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ast, err := parser.ParseString(tc.input)
 			if err != nil {
 				t.Fatalf("Parse error: %v", err)
 			}
-			
+
 			if ast == nil || ast.Root == nil {
 				t.Fatal("Got nil AST or root")
 			}
-			
+
 			// Basic validation that we can parse method definitions
 			// More detailed AST validation would require deeper inspection
 			t.Logf("Successfully parsed %s", tc.name)
@@ -115,7 +115,7 @@ func TestFieldDeclarationComponents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
 	}
-	
+
 	testCases := []struct {
 		name  string
 		input string
@@ -137,18 +137,18 @@ func TestFieldDeclarationComponents(t *testing.T) {
 			input: "field private Str $secret = \"hidden\";",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ast, err := parser.ParseString(tc.input)
 			if err != nil {
 				t.Fatalf("Parse error for %s: %v", tc.name, err)
 			}
-			
+
 			if ast == nil || ast.Root == nil {
 				t.Fatal("Got nil AST or root")
 			}
-			
+
 			t.Logf("Successfully parsed %s", tc.name)
 		})
 	}

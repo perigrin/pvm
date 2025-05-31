@@ -18,7 +18,7 @@ import (
 func TestMetaCPANGetModuleInfo(t *testing.T) {
 	// Create a test server that returns a mock module response
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check the request  
+		// Check the request
 		assert.Equal(t, "/module/Test::Module", r.URL.Path, "URL path should match the module name")
 		assert.Equal(t, "GET", r.Method, "HTTP method should be GET")
 		assert.Equal(t, defaultUserAgent, r.Header.Get("User-Agent"), "User-Agent header should be set")

@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"tamarou.com/pvm/internal/ast"
 	"gopkg.in/yaml.v3"
+	"tamarou.com/pvm/internal/ast"
 )
 
 // TestCategory represents different categories of parser tests
@@ -54,9 +54,9 @@ type AccuracyMetrics struct {
 
 // Metric represents accuracy statistics for a specific dimension
 type Metric struct {
-	Total   int     `json:"total"`
-	Passed  int     `json:"passed"`
-	Failed  int     `json:"failed"`
+	Total    int     `json:"total"`
+	Passed   int     `json:"passed"`
+	Failed   int     `json:"failed"`
 	Accuracy float64 `json:"accuracy"`
 }
 
@@ -79,7 +79,7 @@ func NewParserTestFramework(testDataDir string) *ParserTestFramework {
 		// Log error but don't fail - tests will handle missing parser
 		fmt.Fprintf(os.Stderr, "Warning: Failed to create parser for test framework: %v\n", err)
 	}
-	
+
 	return &ParserTestFramework{
 		TestDataDir: testDataDir,
 		UpdateMode:  os.Getenv("UPDATE_BASELINES") == "1",
@@ -162,7 +162,7 @@ func (f *ParserTestFramework) LoadMarkdownTestCases(filePath string) ([]*ParserT
 	}
 
 	content := string(data)
-	
+
 	// Parse YAML frontmatter
 	metadata, content, err := f.parseMarkdownFrontmatter(content)
 	if err != nil {
@@ -181,7 +181,7 @@ func (f *ParserTestFramework) LoadMarkdownTestCases(filePath string) ([]*ParserT
 // parseMarkdownFrontmatter extracts YAML frontmatter from markdown content
 func (f *ParserTestFramework) parseMarkdownFrontmatter(content string) (*MarkdownTestMetadata, string, error) {
 	lines := strings.Split(content, "\n")
-	
+
 	if len(lines) < 3 || lines[0] != "---" {
 		// No frontmatter, return default metadata
 		return &MarkdownTestMetadata{}, content, nil
@@ -216,10 +216,10 @@ func (f *ParserTestFramework) parseMarkdownFrontmatter(content string) (*Markdow
 // parseMarkdownTestCases extracts test cases from markdown content
 func (f *ParserTestFramework) parseMarkdownTestCases(content string, metadata *MarkdownTestMetadata, filePath string) ([]*ParserTestCase, error) {
 	var testCases []*ParserTestCase
-	
+
 	// Split content into sections by headers
 	sections := f.splitMarkdownSections(content)
-	
+
 	for _, section := range sections {
 		testCase, err := f.parseMarkdownSection(section, metadata, filePath)
 		if err != nil {
@@ -251,19 +251,19 @@ type MarkdownCodeBlock struct {
 func (f *ParserTestFramework) splitMarkdownSections(content string) []MarkdownSection {
 	var sections []MarkdownSection
 	var currentSection *MarkdownSection
-	
+
 	scanner := bufio.NewScanner(strings.NewReader(content))
-	
+
 	for scanner.Scan() {
 		line := scanner.Text()
-		
+
 		// Check for header (## or #)
 		if strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "# ") {
 			// Save previous section
 			if currentSection != nil {
 				sections = append(sections, *currentSection)
 			}
-			
+
 			// Start new section
 			title := strings.TrimLeft(line, "# ")
 			currentSection = &MarkdownSection{
@@ -272,22 +272,22 @@ func (f *ParserTestFramework) splitMarkdownSections(content string) []MarkdownSe
 			}
 			continue
 		}
-		
+
 		if currentSection == nil {
 			continue
 		}
-		
+
 		// Check for HTML comments with metadata
 		if commentMatch := regexp.MustCompile(`<!-- (\w+): (.+) -->`).FindStringSubmatch(line); commentMatch != nil {
 			currentSection.Comments[commentMatch[1]] = commentMatch[2]
 			continue
 		}
-		
+
 		// Check for fenced code blocks
 		if strings.HasPrefix(line, "```") {
 			language := strings.TrimPrefix(line, "```")
 			var codeLines []string
-			
+
 			// Read until closing ```
 			for scanner.Scan() {
 				codeLine := scanner.Text()
@@ -296,25 +296,25 @@ func (f *ParserTestFramework) splitMarkdownSections(content string) []MarkdownSe
 				}
 				codeLines = append(codeLines, codeLine)
 			}
-			
+
 			currentSection.CodeBlocks = append(currentSection.CodeBlocks, MarkdownCodeBlock{
 				Language: language,
 				Content:  strings.Join(codeLines, "\n"),
 			})
 			continue
 		}
-		
+
 		// Regular content becomes description
 		if strings.TrimSpace(line) != "" && currentSection.Description == "" {
 			currentSection.Description = strings.TrimSpace(line)
 		}
 	}
-	
+
 	// Don't forget the last section
 	if currentSection != nil {
 		sections = append(sections, *currentSection)
 	}
-	
+
 	return sections
 }
 
@@ -328,18 +328,18 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 			break
 		}
 	}
-	
+
 	if perlCode == "" {
 		return nil, nil // Skip sections without Perl code
 	}
-	
+
 	// Generate test case name from title and file
 	name := f.generateTestCaseName(section.Title, filePath)
-	
+
 	// Parse error expectations from comments
 	shouldError := section.Comments["should_error"] == "true"
 	errorType := section.Comments["expected_error"]
-	
+
 	testCase := &ParserTestCase{
 		Name:        name,
 		Category:    metadata.Category,
@@ -350,7 +350,7 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 		Description: section.Description,
 		Tags:        metadata.Tags,
 	}
-	
+
 	return testCase, nil
 }
 
@@ -359,18 +359,18 @@ func (f *ParserTestFramework) generateTestCaseName(title, filePath string) strin
 	// Extract filename without extension
 	baseName := filepath.Base(filePath)
 	baseName = strings.TrimSuffix(baseName, filepath.Ext(baseName))
-	
+
 	// Convert title to snake_case
 	titleSlug := strings.ToLower(strings.ReplaceAll(title, " ", "_"))
 	titleSlug = regexp.MustCompile(`[^a-z0-9_]`).ReplaceAllString(titleSlug, "")
-	
+
 	return fmt.Sprintf("%s_%s", baseName, titleSlug)
 }
 
 // LoadTestCasesFromFile loads test cases from either JSON or Markdown format
 func (f *ParserTestFramework) LoadTestCasesFromFile(filePath string) ([]*ParserTestCase, error) {
 	ext := filepath.Ext(filePath)
-	
+
 	switch ext {
 	case ".json":
 		return f.LoadTestCases(filePath)
@@ -420,7 +420,7 @@ func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase
 			return false
 		}
 		if testCase.ErrorType != "" && !strings.Contains(err.Error(), testCase.ErrorType) {
-			t.Errorf("Test %s: Expected error type '%s' but got: %v", 
+			t.Errorf("Test %s: Expected error type '%s' but got: %v",
 				testCase.Name, testCase.ErrorType, err)
 			return false
 		}
@@ -439,10 +439,10 @@ func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase
 		t.Errorf("Test %s: Parser returned nil AST", testCase.Name)
 		return false
 	}
-	
+
 	// Debug: log what we got from the parser
 	if f.Verbose {
-		t.Logf("Test %s: AST Source='%s', TypeAnnotations count=%d", 
+		t.Logf("Test %s: AST Source='%s', TypeAnnotations count=%d",
 			testCase.Name, ast.Source, len(ast.TypeAnnotations))
 	}
 
@@ -692,7 +692,7 @@ func (f *ParserTestFramework) PrintMetricsSummary(t *testing.T, metrics *Accurac
 	overallAccuracy := float64(metrics.PassedTests) / float64(metrics.TotalTests) * 100
 
 	t.Logf("=== Parser Accuracy Report ===")
-	t.Logf("Overall: %d/%d tests passed (%.1f%% accuracy)", 
+	t.Logf("Overall: %d/%d tests passed (%.1f%% accuracy)",
 		metrics.PassedTests, metrics.TotalTests, overallAccuracy)
 	t.Logf("Parse time: %v", metrics.ParsingTime)
 

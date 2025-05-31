@@ -20,7 +20,7 @@ func BenchmarkParser_PerformanceRegression(b *testing.B) {
 
 	// Create performance test suite
 	suite := NewPerformanceTestSuite("", baselineDir, reportDir)
-	
+
 	// Create parser for testing
 	parser, err := NewParser()
 	if err != nil {
@@ -58,7 +58,7 @@ func TestParser_PerformanceValidation(t *testing.T) {
 
 	// Create performance test suite
 	suite := NewPerformanceTestSuite("", baselineDir, reportDir)
-	
+
 	// Create parser for testing
 	parser, err := NewParser()
 	if err != nil {
@@ -162,7 +162,7 @@ func TestParser_PerformanceBaselines(t *testing.T) {
 
 	// Create performance test suite
 	suite := NewPerformanceTestSuite("", baselineDir, reportDir)
-	
+
 	// Create parser for testing
 	parser, err := NewParser()
 	if err != nil {
@@ -194,33 +194,33 @@ func TestParser_StressTest(t *testing.T) {
 	}
 
 	stressTests := []struct {
-		name     string
-		code     string
-		maxTime  time.Duration
+		name      string
+		code      string
+		maxTime   time.Duration
 		maxMemory int64
 	}{
 		{
-			name: "deeply_nested_types",
-			code: generateDeeplyNestedTypes(20), // 20 levels deep
-			maxTime: 5 * time.Second,
+			name:      "deeply_nested_types",
+			code:      generateDeeplyNestedTypes(20), // 20 levels deep
+			maxTime:   5 * time.Second,
 			maxMemory: 100 * 1024 * 1024, // 100MB
 		},
 		{
-			name: "very_long_union",
-			code: generateLongUnionType(100), // 100 union members
-			maxTime: 5 * time.Second,
+			name:      "very_long_union",
+			code:      generateLongUnionType(100), // 100 union members
+			maxTime:   5 * time.Second,
 			maxMemory: 50 * 1024 * 1024, // 50MB
 		},
 		{
-			name: "massive_method_signature",
-			code: generateMassiveMethodSignature(200), // 200 parameters
-			maxTime: 5 * time.Second,
+			name:      "massive_method_signature",
+			code:      generateMassiveMethodSignature(200), // 200 parameters
+			maxTime:   5 * time.Second,
 			maxMemory: 50 * 1024 * 1024, // 50MB
 		},
 		{
-			name: "large_class_hierarchy",
-			code: generateLargeClassHierarchy(100), // 100 classes
-			maxTime: 10 * time.Second,
+			name:      "large_class_hierarchy",
+			code:      generateLargeClassHierarchy(100), // 100 classes
+			maxTime:   10 * time.Second,
 			maxMemory: 200 * 1024 * 1024, // 200MB
 		},
 	}
@@ -279,7 +279,7 @@ func generateLongUnionType(members int) string {
 		if i > 0 {
 			result += "|"
 		}
-		result += "Type" + string(rune('A' + (i % 26)))
+		result += "Type" + string(rune('A'+(i%26)))
 		if i >= 26 {
 			result += string(rune('0' + ((i / 26) % 10)))
 		}
@@ -294,7 +294,7 @@ func generateMassiveMethodSignature(paramCount int) string {
 		if i > 0 {
 			result += ", "
 		}
-		result += "Int $param" + string(rune('0' + (i % 10)))
+		result += "Int $param" + string(rune('0'+(i%10)))
 		if i >= 10 {
 			result += string(rune('A' + ((i / 10) % 26)))
 		}
@@ -306,12 +306,12 @@ func generateMassiveMethodSignature(paramCount int) string {
 func generateLargeClassHierarchy(classCount int) string {
 	result := ""
 	for i := 0; i < classCount; i++ {
-		result += "class TestClass" + string(rune('A' + (i % 26)))
+		result += "class TestClass" + string(rune('A'+(i%26)))
 		if i >= 26 {
 			result += string(rune('0' + ((i / 26) % 10)))
 		}
 		result += " {\n"
-		result += "    field Int $id" + string(rune('0' + (i % 10))) + ";\n"
+		result += "    field Int $id" + string(rune('0'+(i%10))) + ";\n"
 		result += "    field Str $name;\n"
 		result += "    method new() -> Self { return bless {}, __PACKAGE__; }\n"
 		result += "}\n\n"

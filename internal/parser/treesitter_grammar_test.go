@@ -20,43 +20,43 @@ func TestTreeSitterTypeExpressionParsing(t *testing.T) {
 	pos := treesitter.Position{Line: 1, Column: 1, Offset: 0}
 
 	testCases := []struct {
-		name  string
-		input string
+		name        string
+		input       string
 		expectError bool
 	}{
 		{
-			name:  "simple_type",
-			input: "Int",
+			name:        "simple_type",
+			input:       "Int",
 			expectError: false,
 		},
 		{
-			name:  "parameterized_single",
-			input: "ArrayRef[Int]",
+			name:        "parameterized_single",
+			input:       "ArrayRef[Int]",
 			expectError: false,
 		},
 		{
-			name:  "parameterized_multiple",
-			input: "Map[Str, Int]",
+			name:        "parameterized_multiple",
+			input:       "Map[Str, Int]",
 			expectError: false,
 		},
 		{
-			name:  "nested_parameterized",
-			input: "ArrayRef[ArrayRef[Int]]",
+			name:        "nested_parameterized",
+			input:       "ArrayRef[ArrayRef[Int]]",
 			expectError: false,
 		},
 		{
-			name:  "union_type",
-			input: "Int|Str",
+			name:        "union_type",
+			input:       "Int|Str",
 			expectError: false,
 		},
 		{
-			name:  "intersection_type",
-			input: "Object&Serializable",
+			name:        "intersection_type",
+			input:       "Object&Serializable",
 			expectError: false,
 		},
 		{
-			name:  "negation_type",
-			input: "!Undef",
+			name:        "negation_type",
+			input:       "!Undef",
 			expectError: false,
 		},
 	}
@@ -66,7 +66,7 @@ func TestTreeSitterTypeExpressionParsing(t *testing.T) {
 			t.Logf("Parsing type expression: %s", tc.input)
 
 			typeExpr, err := treesitter.ParseTypeExpression(tc.input, pos)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")

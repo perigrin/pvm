@@ -13,9 +13,9 @@ import (
 func main() {
 	// Get number of logical CPUs
 	cpus := runtime.NumCPU()
-	
+
 	// Add 1 for optimal parallelization (common practice)
 	parallelJobs := cpus + 1
-	
+
 	fmt.Print(parallelJobs)
 }

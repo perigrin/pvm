@@ -314,7 +314,6 @@ func (s *treeSitterScanner) createBasicToken(value string) Token {
 	)
 }
 
-
 // tokenIterator implements TokenIterator
 type tokenIterator struct {
 	tokens []Token

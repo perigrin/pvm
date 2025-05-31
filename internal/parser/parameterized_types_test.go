@@ -54,33 +54,33 @@ func TestSpecificParameterizedTypes(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name     string
-		input    string
+		name        string
+		input       string
 		description string
 	}{
 		{
-			name:     "basic_single_parameter",
-			input:    "my ArrayRef[Int] @numbers;",
+			name:        "basic_single_parameter",
+			input:       "my ArrayRef[Int] @numbers;",
 			description: "Basic parameterized type with single parameter",
 		},
 		{
-			name:     "multiple_parameters",
-			input:    "my Map[Str, Int] %mapping;",
+			name:        "multiple_parameters",
+			input:       "my Map[Str, Int] %mapping;",
 			description: "Parameterized type with multiple parameters",
 		},
 		{
-			name:     "nested_parameters",
-			input:    "my ArrayRef[ArrayRef[Int]] @matrix;",
+			name:        "nested_parameters",
+			input:       "my ArrayRef[ArrayRef[Int]] @matrix;",
 			description: "Nested parameterized types",
 		},
 		{
-			name:     "custom_parameterized",
-			input:    "my Container[MyType] $custom;",
+			name:        "custom_parameterized",
+			input:       "my Container[MyType] $custom;",
 			description: "Custom parameterized type",
 		},
 		{
-			name:     "whitespace_handling",
-			input:    "my ArrayRef[ Int ] @spaced;",
+			name:        "whitespace_handling",
+			input:       "my ArrayRef[ Int ] @spaced;",
 			description: "Parameterized type with whitespace in brackets",
 		},
 	}
@@ -89,7 +89,7 @@ func TestSpecificParameterizedTypes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("Testing: %s", tc.description)
 			t.Logf("Input: %s", tc.input)
-			
+
 			ast, err := parser.ParseString(tc.input)
 			if err != nil {
 				t.Logf("Parsing failed (expected for now): %v", err)
@@ -103,7 +103,7 @@ func TestSpecificParameterizedTypes(t *testing.T) {
 
 			t.Logf("Type annotations found: %d", len(ast.TypeAnnotations))
 			for i, annotation := range ast.TypeAnnotations {
-				t.Logf("  Annotation %d: %s :: %s", i, annotation.AnnotatedItem, 
+				t.Logf("  Annotation %d: %s :: %s", i, annotation.AnnotatedItem,
 					annotation.TypeExpression.String())
 			}
 		})
@@ -120,14 +120,14 @@ func TestParameterizedTypesDebug(t *testing.T) {
 	// Test how the parser currently handles bracket notation
 	testCases := []string{
 		"my ArrayRef[Int] @numbers;",
-		"my HashRef[Str] %config;", 
+		"my HashRef[Str] %config;",
 		"my Map[Str, Int] %mapping;",
 		"my ArrayRef[ArrayRef[Int]] @matrix;",
 	}
 
 	for _, input := range testCases {
 		t.Logf("\n--- Testing: %s ---", input)
-		
+
 		ast, err := parser.ParseString(input)
 		if err != nil {
 			t.Logf("Parse error: %v", err)

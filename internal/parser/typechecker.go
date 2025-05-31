@@ -1260,7 +1260,6 @@ func isStringLiteral(s string) bool {
 		(strings.HasPrefix(s, "`") && strings.HasSuffix(s, "`"))
 }
 
-
 // InferBinaryOperatorType infers the result type of a binary operator expression
 // This implements Phase 4: Operator Type Checking
 func (tc *TypeChecker) InferBinaryOperatorType(leftType, operator, rightType string) (string, error) {

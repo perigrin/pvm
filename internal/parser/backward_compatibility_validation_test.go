@@ -16,7 +16,7 @@ func TestBackwardCompatibility_ComprehensiveValidation(t *testing.T) {
 
 	// Create compatibility tester
 	tester := NewBackwardCompatibilityTester("", reportDir)
-	
+
 	// Create enhanced parser for testing
 	parser, err := NewParser()
 	if err != nil {
@@ -43,13 +43,13 @@ func TestBackwardCompatibility_ComprehensiveValidation(t *testing.T) {
 	actualCompatibility := float64(report.CompatibleTests) / float64(report.TotalTests) * 100
 
 	if actualCompatibility < compatibilityThreshold {
-		t.Errorf("Backward compatibility below threshold: %.1f%% < %.1f%%", 
+		t.Errorf("Backward compatibility below threshold: %.1f%% < %.1f%%",
 			actualCompatibility, compatibilityThreshold)
 	}
 
 	// Ensure no incompatible tests
 	if report.IncompatibleTests > 0 {
-		t.Errorf("Found %d incompatible tests - all untyped Perl code must remain compatible", 
+		t.Errorf("Found %d incompatible tests - all untyped Perl code must remain compatible",
 			report.IncompatibleTests)
 	}
 }
@@ -63,28 +63,28 @@ func TestBackwardCompatibility_PerformanceImpact(t *testing.T) {
 
 	// Test various untyped code patterns for performance impact
 	untypedTests := []struct {
-		name string
-		code string
+		name        string
+		code        string
 		maxDuration time.Duration
 	}{
 		{
-			name: "simple_variables",
-			code: `my $var = "value"; my @array = (1, 2, 3); my %hash = (key => "value");`,
+			name:        "simple_variables",
+			code:        `my $var = "value"; my @array = (1, 2, 3); my %hash = (key => "value");`,
 			maxDuration: 10 * time.Millisecond,
 		},
 		{
-			name: "simple_subroutines",
-			code: `sub test { my $param = shift; return $param * 2; }`,
+			name:        "simple_subroutines",
+			code:        `sub test { my $param = shift; return $param * 2; }`,
 			maxDuration: 10 * time.Millisecond,
 		},
 		{
-			name: "complex_expressions",
-			code: `my $result = ($a + $b) * ($c || 1) / ($d && $e);`,
+			name:        "complex_expressions",
+			code:        `my $result = ($a + $b) * ($c || 1) / ($d && $e);`,
 			maxDuration: 10 * time.Millisecond,
 		},
 		{
-			name: "control_structures",
-			code: `if ($x) { for my $i (1..10) { print $i; } }`,
+			name:        "control_structures",
+			code:        `if ($x) { for my $i (1..10) { print $i; } }`,
 			maxDuration: 10 * time.Millisecond,
 		},
 	}
@@ -117,23 +117,23 @@ func TestBackwardCompatibility_ErrorMessages(t *testing.T) {
 
 	// Test error cases that should produce consistent error messages
 	errorTests := []struct {
-		name string
-		code string
+		name        string
+		code        string
 		expectError bool
 	}{
 		{
-			name: "unclosed_string",
-			code: `my $var = "unclosed string`,
+			name:        "unclosed_string",
+			code:        `my $var = "unclosed string`,
 			expectError: false, // Parser may recover from this
 		},
 		{
-			name: "unclosed_parentheses",
-			code: `my @array = (1, 2, 3`,
+			name:        "unclosed_parentheses",
+			code:        `my @array = (1, 2, 3`,
 			expectError: false, // Parser may recover from this
 		},
 		{
-			name: "completely_invalid",
-			code: `}}}}{{{{`,
+			name:        "completely_invalid",
+			code:        `}}}}{{{{`,
 			expectError: false, // Parser has very good error recovery
 		},
 	}
@@ -141,7 +141,7 @@ func TestBackwardCompatibility_ErrorMessages(t *testing.T) {
 	for _, test := range errorTests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := parser.ParseString(test.code)
-			
+
 			if test.expectError {
 				if err == nil {
 					t.Errorf("Expected error for invalid syntax, but parsing succeeded")
@@ -149,7 +149,7 @@ func TestBackwardCompatibility_ErrorMessages(t *testing.T) {
 				}
 				errorMessage := err.Error()
 				t.Logf("Error message for %s: %s", test.name, errorMessage)
-				
+
 				if errorMessage == "" {
 					t.Errorf("Error message is empty")
 				}
@@ -173,8 +173,8 @@ func TestBackwardCompatibility_MixedTypedUntypedCode(t *testing.T) {
 	}
 
 	mixedCodeTests := []struct {
-		name string
-		code string
+		name        string
+		code        string
 		shouldParse bool
 	}{
 		{
@@ -341,12 +341,12 @@ sub simple_function {
 sub complex_function {
     my $self = shift;
     my %args = @_;
-    
+
     my $result = {};
     for my $key (keys %args) {
         $result->{$key} = process_value($args{$key});
     }
-    
+
     return $result;
 }
 

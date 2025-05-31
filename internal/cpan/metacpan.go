@@ -35,27 +35,27 @@ type MetaCPANProvider struct {
 
 // MetaCPANModuleInfo represents a module entry within the module array
 type MetaCPANModuleInfo struct {
-	Name      string  `json:"name"`
-	Version   string  `json:"version"`
-	Indexed   bool    `json:"indexed"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Indexed bool   `json:"indexed"`
 }
 
 // MetaCPANModule represents a module in the MetaCPAN API
 type MetaCPANModule struct {
-	Name             string                `json:"name"`           // This is the filename (e.g., "JSON.pm")
-	Version          string                `json:"version"`
-	AuthorID         string                `json:"author"`
-	Abstract         string                `json:"abstract"`
-	Description      string                `json:"description"`
-	Distribution     string                `json:"distribution"`
-	DistVersion      string                `json:"dist_version"`
-	DownloadURL      string                `json:"download_url"`
-	ReleaseDate      string                `json:"date"`
-	Status           string                `json:"status"`
-	Module           []MetaCPANModuleInfo  `json:"module"`         // Array of modules in this distribution
-	MetaData         MetaCPANMeta          `json:"metadata"`
-	Resources        MetaCPANResources     `json:"resources"`
-	Dependencies     []MetaCPANDependency  `json:"dependency"`
+	Name             string               `json:"name"` // This is the filename (e.g., "JSON.pm")
+	Version          string               `json:"version"`
+	AuthorID         string               `json:"author"`
+	Abstract         string               `json:"abstract"`
+	Description      string               `json:"description"`
+	Distribution     string               `json:"distribution"`
+	DistVersion      string               `json:"dist_version"`
+	DownloadURL      string               `json:"download_url"`
+	ReleaseDate      string               `json:"date"`
+	Status           string               `json:"status"`
+	Module           []MetaCPANModuleInfo `json:"module"` // Array of modules in this distribution
+	MetaData         MetaCPANMeta         `json:"metadata"`
+	Resources        MetaCPANResources    `json:"resources"`
+	Dependencies     []MetaCPANDependency `json:"dependency"`
 	StatsCPANTesters MetaCPANStats        `json:"stats"`
 	StatsRecent      MetaCPANStatsRecent  `json:"stats_recent"`
 }
@@ -234,7 +234,7 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 		cache, err = NewCache(p.cacheDir, p.cacheTTL)
 		if err == nil {
 			cacheKey = fmt.Sprintf("module_info_%s", moduleName)
-			
+
 			// Check if cache needs validation
 			if !cache.NeedsValidation(cacheKey) {
 				var cachedInfo ModuleInfo
@@ -265,7 +265,7 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 	// Set headers
 	req.Header.Set("User-Agent", p.userAgent)
 	req.Header.Set("Accept", "application/json")
-	
+
 	// Add conditional headers if we have cached data that needs validation
 	if cache != nil && cacheKey != "" {
 		if conditionalHeaders := cache.GetConditionalHeaders(cacheKey); conditionalHeaders != nil {
@@ -299,7 +299,7 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 				return &cachedInfo, nil
 			}
 		}
-		
+
 		// If we can't get cached data for some reason, treat as error
 		return nil, &ProviderError{
 			Source:     p.Name(),
@@ -309,7 +309,7 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 			StatusCode: resp.StatusCode,
 		}
 	}
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, &ProviderError{
 			Source:     p.Name(),
@@ -332,7 +332,6 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 		}
 	}
 
-
 	// Parse the JSON response
 	var module MetaCPANModule
 	if err := json.Unmarshal(body, &module); err != nil {
@@ -344,7 +343,7 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 			Err:     err,
 		}
 	}
-	
+
 	// Debug: log the parsed module info
 
 	// Get the primary module name from the module array
@@ -365,12 +364,12 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 			actualModuleVersion = module.Module[0].Version
 		}
 	}
-	
+
 	// Fallback to distribution name if no modules found
 	if actualModuleName == "" {
 		actualModuleName = module.Distribution
 	}
-	
+
 	// Use distribution version if module version is empty
 	if actualModuleVersion == "" {
 		actualModuleVersion = module.Version
@@ -378,13 +377,13 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 
 	// Convert to a generic ModuleInfo
 	info := &ModuleInfo{
-		Name:                actualModuleName,     // Use actual module name, not filename
-		Version:             actualModuleVersion,  // Use module version
+		Name:                actualModuleName,    // Use actual module name, not filename
+		Version:             actualModuleVersion, // Use module version
 		Author:              module.AuthorID,
 		Description:         module.Description,
 		Abstract:            module.Abstract,
 		Distribution:        module.Distribution,
-		DistributionVersion: module.Version,      // Use top-level version for distribution
+		DistributionVersion: module.Version, // Use top-level version for distribution
 		DistributionFile:    module.DownloadURL,
 		Documentation:       fmt.Sprintf("%s/pod/%s", metaCPANWebBaseURL, actualModuleName),
 		Downloads:           module.StatsRecent.Downloads,

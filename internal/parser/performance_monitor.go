@@ -16,17 +16,17 @@ import (
 
 // PerformanceMetrics tracks detailed performance metrics over time
 type PerformanceMetrics struct {
-	TestName          string            `json:"test_name"`
-	Timestamp         time.Time         `json:"timestamp"`
-	ParseDuration     time.Duration     `json:"parse_duration"`
-	MemoryUsage       int64             `json:"memory_usage"`
-	AllocCount        int64             `json:"alloc_count"`
-	GCCount           int64             `json:"gc_count"`
-	ParserType        string            `json:"parser_type"`
-	GitCommit         string            `json:"git_commit,omitempty"`
-	BenchmarkScore    float64           `json:"benchmark_score"`
-	ThroughputOpsPerSec float64         `json:"throughput_ops_per_sec"`
-	CustomMetrics     map[string]float64 `json:"custom_metrics,omitempty"`
+	TestName            string             `json:"test_name"`
+	Timestamp           time.Time          `json:"timestamp"`
+	ParseDuration       time.Duration      `json:"parse_duration"`
+	MemoryUsage         int64              `json:"memory_usage"`
+	AllocCount          int64              `json:"alloc_count"`
+	GCCount             int64              `json:"gc_count"`
+	ParserType          string             `json:"parser_type"`
+	GitCommit           string             `json:"git_commit,omitempty"`
+	BenchmarkScore      float64            `json:"benchmark_score"`
+	ThroughputOpsPerSec float64            `json:"throughput_ops_per_sec"`
+	CustomMetrics       map[string]float64 `json:"custom_metrics,omitempty"`
 }
 
 // PerformanceHistory stores historical performance data
@@ -37,14 +37,14 @@ type PerformanceHistory struct {
 
 // PerformanceTrend represents performance trend analysis
 type PerformanceTrend struct {
-	TestName           string        `json:"test_name"`
-	TrendDirection     string        `json:"trend_direction"` // "improving", "degrading", "stable"
-	TrendSlope         float64       `json:"trend_slope"`
-	ConfidenceLevel    float64       `json:"confidence_level"`
-	RecentAvgDuration  time.Duration `json:"recent_avg_duration"`
+	TestName              string        `json:"test_name"`
+	TrendDirection        string        `json:"trend_direction"` // "improving", "degrading", "stable"
+	TrendSlope            float64       `json:"trend_slope"`
+	ConfidenceLevel       float64       `json:"confidence_level"`
+	RecentAvgDuration     time.Duration `json:"recent_avg_duration"`
 	HistoricalAvgDuration time.Duration `json:"historical_avg_duration"`
-	PercentChange      float64       `json:"percent_change"`
-	LastUpdated        time.Time     `json:"last_updated"`
+	PercentChange         float64       `json:"percent_change"`
+	LastUpdated           time.Time     `json:"last_updated"`
 }
 
 // PerformanceResult represents a single performance test result
@@ -61,15 +61,15 @@ type PerformanceResult struct {
 
 // PerformanceSummary provides aggregate performance statistics
 type PerformanceSummary struct {
-	TotalTests        int           `json:"total_tests"`
-	PassedTests       int           `json:"passed_tests"`
-	FailedTests       int           `json:"failed_tests"`
-	TotalParseTime    time.Duration `json:"total_parse_time"`
-	AvgParseTime      time.Duration `json:"avg_parse_time"`
-	TotalMemoryUsed   int64         `json:"total_memory_used"`
-	AvgMemoryUsed     int64         `json:"avg_memory_used"`
-	RegressionsFound  int           `json:"regressions_found"`
-	ReportTimestamp   time.Time     `json:"report_timestamp"`
+	TotalTests       int           `json:"total_tests"`
+	PassedTests      int           `json:"passed_tests"`
+	FailedTests      int           `json:"failed_tests"`
+	TotalParseTime   time.Duration `json:"total_parse_time"`
+	AvgParseTime     time.Duration `json:"avg_parse_time"`
+	TotalMemoryUsed  int64         `json:"total_memory_used"`
+	AvgMemoryUsed    int64         `json:"avg_memory_used"`
+	RegressionsFound int           `json:"regressions_found"`
+	ReportTimestamp  time.Time     `json:"report_timestamp"`
 }
 
 // CustomPerformanceReport extends the base performance report with parser-specific data
@@ -143,7 +143,7 @@ func (pm *PerformanceMonitor) RecordMetrics(metrics PerformanceMetrics) error {
 // LoadHistory loads performance history for a test
 func (pm *PerformanceMonitor) LoadHistory(testName string) (*PerformanceHistory, error) {
 	historyFile := filepath.Join(pm.DataDir, "history", testName+".json")
-	
+
 	data, err := os.ReadFile(historyFile)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (pm *PerformanceMonitor) SaveHistory(history *PerformanceHistory) error {
 	}
 
 	historyFile := filepath.Join(historyDir, history.TestName+".json")
-	
+
 	data, err := json.MarshalIndent(history, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal history: %w", err)
@@ -180,24 +180,24 @@ func (pm *PerformanceMonitor) AnalyzeTrend(testName string) (*PerformanceTrend, 
 
 	if len(history.Metrics) < 2 {
 		return &PerformanceTrend{
-			TestName:        testName,
-			TrendDirection:  "insufficient_data",
-			LastUpdated:     time.Now(),
+			TestName:       testName,
+			TrendDirection: "insufficient_data",
+			LastUpdated:    time.Now(),
 		}, nil
 	}
 
 	// Calculate recent vs historical averages
 	recentCount := minInt(10, len(history.Metrics))
 	recentMetrics := history.Metrics[len(history.Metrics)-recentCount:]
-	
+
 	var recentAvg, historicalAvg time.Duration
-	
+
 	// Calculate recent average
 	for _, m := range recentMetrics {
 		recentAvg += m.ParseDuration
 	}
 	recentAvg /= time.Duration(len(recentMetrics))
-	
+
 	// Calculate historical average
 	for _, m := range history.Metrics {
 		historicalAvg += m.ParseDuration
@@ -245,10 +245,10 @@ func (pm *PerformanceMonitor) CheckForAlerts(metrics PerformanceMetrics) ([]Perf
 	// Calculate baseline (average of last 10 historical measurements, excluding current)
 	baselineCount := minInt(10, len(history.Metrics))
 	baselineMetrics := history.Metrics[len(history.Metrics)-baselineCount:]
-	
+
 	var baselineDuration time.Duration
 	var baselineMemory int64
-	
+
 	for _, m := range baselineMetrics {
 		baselineDuration += m.ParseDuration
 		baselineMemory += m.MemoryUsage
@@ -336,9 +336,9 @@ func (pm *PerformanceMonitor) SaveAlerts(alerts []PerformanceAlert) error {
 		return fmt.Errorf("failed to create alerts directory: %w", err)
 	}
 
-	alertsFile := filepath.Join(alertsDir, fmt.Sprintf("alerts_%s.json", 
+	alertsFile := filepath.Join(alertsDir, fmt.Sprintf("alerts_%s.json",
 		time.Now().Format("20060102_150405")))
-	
+
 	data, err := json.MarshalIndent(alerts, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal alerts: %w", err)
@@ -350,7 +350,7 @@ func (pm *PerformanceMonitor) SaveAlerts(alerts []PerformanceAlert) error {
 // GeneratePerformanceReport generates a comprehensive performance report
 func (pm *PerformanceMonitor) GeneratePerformanceReport() (*CustomPerformanceReport, error) {
 	historyDir := filepath.Join(pm.DataDir, "history")
-	
+
 	// Find all history files
 	files, err := filepath.Glob(filepath.Join(historyDir, "*.json"))
 	if err != nil {
@@ -464,18 +464,18 @@ func (pm *PerformanceMonitor) calculateConfidence(metrics []PerformanceMetrics) 
 
 func (pm *PerformanceMonitor) calculateSummaryFromResults(summary *PerformanceSummary, results []PerformanceResult, trends []PerformanceTrend) {
 	summary.TotalTests = len(results)
-	
+
 	for _, result := range results {
 		if result.Success {
 			summary.PassedTests++
 		} else {
 			summary.FailedTests++
 		}
-		
+
 		summary.TotalParseTime += result.ParseDuration
 		summary.TotalMemoryUsed += result.MemoryUsage
 	}
-	
+
 	if summary.TotalTests > 0 {
 		summary.AvgParseTime = summary.TotalParseTime / time.Duration(summary.TotalTests)
 		summary.AvgMemoryUsed = summary.TotalMemoryUsed / int64(summary.TotalTests)

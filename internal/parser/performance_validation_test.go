@@ -348,10 +348,10 @@ func TestParser_Concurrency(t *testing.T) {
 				}
 
 				result, err := parser.ParseString(testCode)
-				
+
 				// Return parser to pool
 				ReturnParser(parser)
-				
+
 				if err != nil {
 					errors <- err
 					return

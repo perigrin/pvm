@@ -135,7 +135,6 @@ func (tc *TypeChecker) populateTypesFromSymbolTable() {
 	}
 }
 
-
 // checkSymbolUsage checks for unused variables and shadowing warnings
 func (tc *TypeChecker) checkSymbolUsage() []error {
 	var warnings []error

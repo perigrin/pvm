@@ -187,7 +187,7 @@ func TestTypeHierarchy(t *testing.T) {
 	// TODO: Fix parameterized type compatibility checking in type hierarchy
 	// This should return an error but currently doesn't due to incomplete implementation
 	// assert.Error(t, hierarchy.CheckTypeCompatibility("ArrayRef[Int]", "ArrayRef[Str]"))
-	
+
 	// For now, we'll just test that the function doesn't crash
 	_ = hierarchy.CheckTypeCompatibility("ArrayRef[Int]", "ArrayRef[Str]")
 }

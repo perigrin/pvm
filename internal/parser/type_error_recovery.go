@@ -37,31 +37,31 @@ type TypeErrorCode int
 const (
 	// UnknownTypeError is for unrecognized errors
 	UnknownTypeError TypeErrorCode = iota
-	
+
 	// MissingClosingBracketError for parameterized types
 	MissingClosingBracketError
-	
+
 	// InvalidUnionSyntaxError for malformed union types
 	InvalidUnionSyntaxError
-	
+
 	// IncompleteTypeAssertionError for malformed 'as' expressions
 	IncompleteTypeAssertionError
-	
+
 	// InvalidParameterizedTypeError for malformed parameterized types
 	InvalidParameterizedTypeError
-	
+
 	// MissingTypeNameError for empty type annotations
 	MissingTypeNameError
-	
+
 	// InvalidWhereClauseError for malformed where constraints
 	InvalidWhereClauseError
-	
+
 	// InvalidIntersectionSyntaxError for malformed intersection types
 	InvalidIntersectionSyntaxError
-	
+
 	// InvalidNegationSyntaxError for malformed negation types
 	InvalidNegationSyntaxError
-	
+
 	// DeepNestingError for excessively nested types
 	DeepNestingError
 )
@@ -82,10 +82,10 @@ func (te *TypeError) Error() string {
 type TypeErrorRecovery struct {
 	// maxNestingDepth prevents stack overflow from deeply nested types
 	maxNestingDepth int
-	
+
 	// syncTokens are tokens where parsing can be safely resumed
 	syncTokens map[string]bool
-	
+
 	// currentDepth tracks current nesting depth
 	currentDepth int
 }
@@ -95,15 +95,15 @@ func NewTypeErrorRecovery() *TypeErrorRecovery {
 	return &TypeErrorRecovery{
 		maxNestingDepth: 20, // Reasonable limit for type nesting
 		syncTokens: map[string]bool{
-			";":  true, // End of statement
-			"{":  true, // Start of block
-			"}":  true, // End of block
-			"my": true, // Variable declaration
-			"our": true, // Variable declaration
-			"sub": true, // Subroutine
+			";":      true, // End of statement
+			"{":      true, // Start of block
+			"}":      true, // End of block
+			"my":     true, // Variable declaration
+			"our":    true, // Variable declaration
+			"sub":    true, // Subroutine
 			"method": true, // Method
-			"class": true, // Class
-			"role": true, // Role
+			"class":  true, // Class
+			"role":   true, // Role
 		},
 		currentDepth: 0,
 	}
@@ -113,7 +113,7 @@ func NewTypeErrorRecovery() *TypeErrorRecovery {
 func (ter *TypeErrorRecovery) RecoverFromTypeError(source string, position ast.Position, context string) *TypeError {
 	// Analyze the source to determine the type of error
 	errorCode, message, suggestion := ter.analyzeTypeError(source, position)
-	
+
 	return &TypeError{
 		Message:    message,
 		Position:   position,
@@ -131,76 +131,76 @@ func (ter *TypeErrorRecovery) analyzeTypeError(source string, position ast.Posit
 	if position.Line <= 0 || position.Line > len(lines) {
 		return UnknownTypeError, "Unknown type parsing error", "Check syntax"
 	}
-	
+
 	line := lines[position.Line-1]
-	
+
 	// Check for common error patterns in order of specificity
-	
+
 	// Deep nesting check
 	if strings.Count(line, "[") > 20 || strings.Count(line, "ArrayRef") > 10 {
 		return DeepNestingError,
 			"Type nesting too deep",
 			"Reduce type nesting to less than 20 levels"
 	}
-	
+
 	// Type assertion errors (highest priority for 'as' keyword)
-	if strings.Contains(line, " as ") && (strings.HasSuffix(strings.TrimSpace(line), "as") || 
+	if strings.Contains(line, " as ") && (strings.HasSuffix(strings.TrimSpace(line), "as") ||
 		strings.HasSuffix(strings.TrimSpace(line), "as ;")) {
 		return IncompleteTypeAssertionError,
 			"Incomplete type assertion - missing target type",
 			"Add the target type after 'as' keyword"
 	}
-	
+
 	// Negation syntax errors (before general pattern checks)
 	if strings.Contains(line, "!!") && containsTypeLikePattern(line) {
 		return InvalidNegationSyntaxError,
 			"Invalid negation type syntax - use single '!' before type",
 			"Change '!!' to '!' for negation types"
 	}
-	
+
 	// Missing closing bracket
 	if strings.Contains(line, "ArrayRef[") && !strings.Contains(line, "]") {
-		return MissingClosingBracketError, 
+		return MissingClosingBracketError,
 			"Missing closing bracket in parameterized type",
 			"Add closing ']' to complete the parameterized type"
 	}
-	
+
 	// Union syntax errors
 	if strings.Contains(line, "||") && containsTypeLikePattern(line) {
 		return InvalidUnionSyntaxError,
 			"Invalid union type syntax - use single '|' between types",
 			"Change '||' to '|' for union types"
 	}
-	
+
 	// Parameterized type errors
 	if strings.Contains(line, "ArrayRef[") && strings.Contains(line, "ArrayRef[ ") {
 		return InvalidParameterizedTypeError,
 			"Invalid parameterized type - unexpected space after '['",
 			"Remove space after '[' in parameterized type"
 	}
-	
+
 	// Where clause errors
 	if strings.Contains(line, "where") && strings.Contains(line, "where $") {
 		return InvalidWhereClauseError,
 			"Invalid where clause syntax",
 			"Use 'where Type: Constraint' syntax for type constraints"
 	}
-	
+
 	// Intersection syntax errors
 	if strings.Contains(line, "&&") && containsTypeLikePattern(line) {
 		return InvalidIntersectionSyntaxError,
 			"Invalid intersection type syntax - use single '&' between types",
 			"Change '&&' to '&' for intersection types"
 	}
-	
+
 	// Missing type name (lowest priority - most general)
-	if strings.Contains(line, "my ") && strings.Contains(line, "$") && 
-	   !containsValidTypeName(line) {
+	if strings.Contains(line, "my ") && strings.Contains(line, "$") &&
+		!containsValidTypeName(line) {
 		return MissingTypeNameError,
 			"Missing or invalid type name in variable declaration",
 			"Add a valid type name before the variable"
 	}
-	
+
 	return UnknownTypeError, "Syntax error in type expression", "Check type syntax"
 }
 
@@ -219,13 +219,13 @@ func containsValidTypeName(line string) bool {
 
 // containsTypeLikePattern checks if the line contains patterns that look like types
 func containsTypeLikePattern(line string) bool {
-	return containsValidTypeName(line) || 
-		   strings.Contains(line, "ArrayRef") ||
-		   strings.Contains(line, "HashRef") ||
-		   strings.Contains(line, "CodeRef") ||
-		   strings.Contains(line, "Undef") ||
-		   strings.Contains(line, "Object") ||
-		   strings.Contains(line, "Serializable")
+	return containsValidTypeName(line) ||
+		strings.Contains(line, "ArrayRef") ||
+		strings.Contains(line, "HashRef") ||
+		strings.Contains(line, "CodeRef") ||
+		strings.Contains(line, "Undef") ||
+		strings.Contains(line, "Object") ||
+		strings.Contains(line, "Serializable")
 }
 
 // CheckNestingDepth validates that type nesting doesn't exceed limits
@@ -248,13 +248,13 @@ func (ter *TypeErrorRecovery) FindSynchronizationPoint(source string, position a
 	if position.Line <= 0 || position.Line > len(lines) {
 		return position
 	}
-	
+
 	// Start from current position and look for sync tokens
 	for lineNum := position.Line; lineNum <= len(lines); lineNum++ {
 		if lineNum > len(lines) {
 			break
 		}
-		
+
 		line := lines[lineNum-1]
 		startCol := 0
 		if lineNum == position.Line {
@@ -264,7 +264,7 @@ func (ter *TypeErrorRecovery) FindSynchronizationPoint(source string, position a
 				startCol = 0
 			}
 		}
-		
+
 		// Find the earliest sync token
 		bestCol := -1
 		bestToken := ""
@@ -276,7 +276,7 @@ func (ter *TypeErrorRecovery) FindSynchronizationPoint(source string, position a
 				bestToken = token
 			}
 		}
-		
+
 		if bestCol != -1 {
 			// Found a synchronization point
 			actualCol := startCol + bestCol
@@ -287,7 +287,7 @@ func (ter *TypeErrorRecovery) FindSynchronizationPoint(source string, position a
 			}
 		}
 	}
-	
+
 	// If no sync point found, go to end of current line
 	if position.Line <= len(lines) {
 		line := lines[position.Line-1]
@@ -297,18 +297,18 @@ func (ter *TypeErrorRecovery) FindSynchronizationPoint(source string, position a
 			Offset: position.Offset + len(line) - position.Column,
 		}
 	}
-	
+
 	return position
 }
 
 // ValidateTypeExpression performs comprehensive validation of a type expression
 func (ter *TypeErrorRecovery) ValidateTypeExpression(expr *ast.TypeExpression, source string) []*TypeError {
 	var errors []*TypeError
-	
+
 	if expr == nil {
 		return errors
 	}
-	
+
 	// Check for deep nesting in parameterized types
 	depth := ter.calculateTypeDepth(expr)
 	// Only check depth if expr has valid position information
@@ -318,7 +318,7 @@ func (ter *TypeErrorRecovery) ValidateTypeExpression(expr *ast.TypeExpression, s
 			errors = append(errors, depthError)
 		}
 	}
-	
+
 	// Validate union types
 	if expr.IsUnion && len(expr.UnionTypes) < 2 {
 		errors = append(errors, &TypeError{
@@ -330,7 +330,7 @@ func (ter *TypeErrorRecovery) ValidateTypeExpression(expr *ast.TypeExpression, s
 			Source:     source,
 		})
 	}
-	
+
 	// Validate intersection types
 	if expr.IsIntersection && len(expr.IntersectionTypes) < 2 {
 		errors = append(errors, &TypeError{
@@ -342,7 +342,7 @@ func (ter *TypeErrorRecovery) ValidateTypeExpression(expr *ast.TypeExpression, s
 			Source:     source,
 		})
 	}
-	
+
 	// Validate parameterized types
 	if len(expr.Parameters) > 0 && expr.Name == "" {
 		errors = append(errors, &TypeError{
@@ -354,7 +354,7 @@ func (ter *TypeErrorRecovery) ValidateTypeExpression(expr *ast.TypeExpression, s
 			Source:     source,
 		})
 	}
-	
+
 	return errors
 }
 
@@ -363,9 +363,9 @@ func (ter *TypeErrorRecovery) calculateTypeDepth(expr *ast.TypeExpression) int {
 	if expr == nil {
 		return 0
 	}
-	
+
 	maxDepth := 1
-	
+
 	// Check parameters
 	for _, param := range expr.Parameters {
 		paramDepth := ter.calculateTypeDepth(param)
@@ -373,7 +373,7 @@ func (ter *TypeErrorRecovery) calculateTypeDepth(expr *ast.TypeExpression) int {
 			maxDepth = paramDepth + 1
 		}
 	}
-	
+
 	// Check union types
 	for _, unionType := range expr.UnionTypes {
 		unionDepth := ter.calculateTypeDepth(unionType)
@@ -381,7 +381,7 @@ func (ter *TypeErrorRecovery) calculateTypeDepth(expr *ast.TypeExpression) int {
 			maxDepth = unionDepth
 		}
 	}
-	
+
 	// Check intersection types
 	for _, intersectionType := range expr.IntersectionTypes {
 		intersectionDepth := ter.calculateTypeDepth(intersectionType)
@@ -389,7 +389,7 @@ func (ter *TypeErrorRecovery) calculateTypeDepth(expr *ast.TypeExpression) int {
 			maxDepth = intersectionDepth
 		}
 	}
-	
+
 	return maxDepth
 }
 

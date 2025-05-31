@@ -110,16 +110,16 @@ my Invalid||Type $bad;   // Double union operator
 `
 
 	ast, err := parser.ParseString(mixedCode)
-	
+
 	// Should not fail completely - should recover
 	if err != nil {
 		t.Logf("Parse completed with recovery: %v", err)
 	}
-	
+
 	if ast == nil {
 		t.Error("Expected partial AST from mixed valid/invalid code")
 	}
-	
+
 	if ast != nil {
 		t.Logf("Parsed AST with %d type annotations", len(ast.TypeAnnotations))
 		if len(ast.Errors) > 0 {
@@ -152,7 +152,7 @@ my ArrayRef[Bool] @flags;`
 		for i, ta := range ast.TypeAnnotations {
 			pos := ta.TypeExpression.Start()
 			t.Logf("Type annotation %d at line %d, column %d", i, pos.Line, pos.Column)
-			
+
 			// Validate position is reasonable
 			if pos.Line < 1 || pos.Line > 3 {
 				t.Errorf("Invalid line number %d for annotation %d", pos.Line, i)
@@ -196,7 +196,7 @@ func TestEnhancedParserCommonErrorFixes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test the fix logic directly
 			fixedContent, fixes := parser.fixCommonTypeErrors(tt.input)
-			
+
 			if len(fixes) == 0 {
 				t.Error("Expected at least one fix to be applied")
 			}
@@ -217,13 +217,13 @@ func TestEnhancedParserSegmentSplitting(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name            string
-		input           string
+		name             string
+		input            string
 		expectedSegments int
 	}{
 		{
-			name:            "simple_statements",
-			input:           "my Int $a; my Str $b; my Bool $c;",
+			name:             "simple_statements",
+			input:            "my Int $a; my Str $b; my Bool $c;",
 			expectedSegments: 3,
 		},
 		{
@@ -246,7 +246,7 @@ func TestEnhancedParserSegmentSplitting(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			segments := parser.splitIntoSegments(tc.input)
-			
+
 			if len(segments) != tc.expectedSegments {
 				t.Errorf("Expected %d segments, got %d", tc.expectedSegments, len(segments))
 				for i, seg := range segments {
@@ -291,12 +291,12 @@ func TestEnhancedParserDeepNestingHandling(t *testing.T) {
 	code := "my " + deepType + " $deep;"
 
 	ast, err := parser.ParseString(code)
-	
+
 	// Should handle gracefully (either parse or provide meaningful error)
 	if err != nil {
 		t.Logf("Deep nesting handled with error: %v", err)
 	}
-	
+
 	if ast != nil && len(ast.Errors) > 0 {
 		t.Logf("Deep nesting produced %d warnings/errors", len(ast.Errors))
 		for _, astErr := range ast.Errors {
@@ -328,28 +328,28 @@ my ArrayRef[Bool] @flags = [];`
 
 	// Test position accuracy by checking if positions correspond to actual content
 	lines := strings.Split(code, "\n")
-	
+
 	for _, ta := range ast.TypeAnnotations {
 		if ta.TypeExpression == nil {
 			continue
 		}
-		
+
 		pos := ta.TypeExpression.Start()
 		if pos.Line < 1 || pos.Line > len(lines) {
 			t.Errorf("Position line %d out of bounds (1-%d)", pos.Line, len(lines))
 			continue
 		}
-		
+
 		line := lines[pos.Line-1]
 		if pos.Column < 1 || pos.Column > len(line) {
 			t.Errorf("Position column %d out of bounds (1-%d) on line %d", pos.Column, len(line), pos.Line)
 			continue
 		}
-		
+
 		// Check if the position actually points to something type-related
 		remaining := line[pos.Column-1:]
 		if ta.TypeExpression.Name != "" && !strings.HasPrefix(remaining, ta.TypeExpression.Name) {
-			t.Logf("Position accuracy note: Expected %q at %d:%d, found %q", 
+			t.Logf("Position accuracy note: Expected %q at %d:%d, found %q",
 				ta.TypeExpression.Name, pos.Line, pos.Column, remaining[:min(10, len(remaining))])
 		}
 	}

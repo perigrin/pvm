@@ -119,7 +119,6 @@ func (p *LocalProvider) IsAvailable() bool {
 	return true // Local provider is always available
 }
 
-
 func init() {
 	// Register local provider
 	RegisterProvider("local", func(config EmbeddingConfig) (EmbeddingProvider, error) {

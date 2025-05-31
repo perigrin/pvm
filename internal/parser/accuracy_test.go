@@ -15,13 +15,13 @@ import (
 
 // BaselineAccuracy represents baseline accuracy measurements for the parser
 type BaselineAccuracy struct {
-	Timestamp        time.Time                 `json:"timestamp"`
-	ParserVersion    string                    `json:"parser_version"`
-	OverallAccuracy  float64                   `json:"overall_accuracy"`
-	CategoryAccuracy map[string]float64        `json:"category_accuracy"`
-	FeatureAccuracy  map[string]float64        `json:"feature_accuracy"`
-	PerformanceBaseline PerformanceBaseline    `json:"performance_baseline"`
-	TestCoverage     TestCoverageReport        `json:"test_coverage"`
+	Timestamp           time.Time           `json:"timestamp"`
+	ParserVersion       string              `json:"parser_version"`
+	OverallAccuracy     float64             `json:"overall_accuracy"`
+	CategoryAccuracy    map[string]float64  `json:"category_accuracy"`
+	FeatureAccuracy     map[string]float64  `json:"feature_accuracy"`
+	PerformanceBaseline PerformanceBaseline `json:"performance_baseline"`
+	TestCoverage        TestCoverageReport  `json:"test_coverage"`
 }
 
 // PerformanceBaseline tracks performance characteristics
@@ -34,10 +34,10 @@ type PerformanceBaseline struct {
 
 // TestCoverageReport tracks what language features are covered by tests
 type TestCoverageReport struct {
-	TotalFeatures    int                `json:"total_features"`
-	CoveredFeatures  int                `json:"covered_features"`
-	CoveragePercent  float64            `json:"coverage_percent"`
-	FeatureStatus    map[string]string  `json:"feature_status"` // "covered", "partial", "missing"
+	TotalFeatures     int               `json:"total_features"`
+	CoveredFeatures   int               `json:"covered_features"`
+	CoveragePercent   float64           `json:"coverage_percent"`
+	FeatureStatus     map[string]string `json:"feature_status"` // "covered", "partial", "missing"
 	UncoveredFeatures []string          `json:"uncovered_features"`
 }
 
@@ -90,13 +90,13 @@ func (am *AccuracyMeasurement) MeasureCurrentAccuracy(t *testing.T) (*BaselineAc
 	overallAccuracy := float64(metrics.PassedTests) / float64(metrics.TotalTests) * 100
 
 	baseline := &BaselineAccuracy{
-		Timestamp:        time.Now(),
-		ParserVersion:    "current", // TODO: get actual version
-		OverallAccuracy:  overallAccuracy,
-		CategoryAccuracy: categoryAccuracy,
-		FeatureAccuracy:  featureAccuracy,
+		Timestamp:           time.Now(),
+		ParserVersion:       "current", // TODO: get actual version
+		OverallAccuracy:     overallAccuracy,
+		CategoryAccuracy:    categoryAccuracy,
+		FeatureAccuracy:     featureAccuracy,
 		PerformanceBaseline: *perfBaseline,
-		TestCoverage:     *coverage,
+		TestCoverage:        *coverage,
 	}
 
 	return baseline, nil
@@ -174,27 +174,27 @@ func (am *AccuracyMeasurement) measureTestCoverage(t *testing.T) (*TestCoverageR
 		// Basic variables
 		"scalar_variables", "array_variables", "hash_variables",
 		"variable_scoping", "package_variables",
-		
+
 		// Type annotations
-		"simple_types", "parameterized_types", "union_types", 
+		"simple_types", "parameterized_types", "union_types",
 		"intersection_types", "negation_types", "type_assertions",
-		
+
 		// Expressions
 		"arithmetic_expressions", "string_expressions", "logical_expressions",
 		"comparison_expressions", "assignment_expressions",
-		
+
 		// Control flow
 		"if_statements", "while_loops", "for_loops", "foreach_loops",
 		"loop_control", "given_when",
-		
+
 		// Subroutines and methods
 		"subroutine_definitions", "subroutine_calls", "method_definitions",
 		"method_calls", "typed_parameters", "return_types",
-		
+
 		// Object-oriented features
 		"class_definitions", "role_definitions", "field_declarations",
 		"inheritance", "role_composition", "method_signatures",
-		
+
 		// Advanced features
 		"type_constraints", "generic_types", "complex_expressions",
 		"nested_types", "error_recovery",
@@ -414,7 +414,7 @@ func estimateTokenCount(code string) int {
 	// Simple token estimation based on whitespace and common separators
 	tokens := 0
 	inToken := false
-	
+
 	for _, char := range code {
 		if char == ' ' || char == '\t' || char == '\n' || char == ';' || char == '(' || char == ')' {
 			if inToken {
@@ -425,11 +425,11 @@ func estimateTokenCount(code string) int {
 			inToken = true
 		}
 	}
-	
+
 	if inToken {
 		tokens++
 	}
-	
+
 	return tokens
 }
 
@@ -441,7 +441,7 @@ func TestAccuracyMeasurement_Basic(t *testing.T) {
 	reportDir := "testdata/reports"
 
 	am := NewAccuracyMeasurement(testDataDir, baselineFile, reportDir)
-	
+
 	// Measure current accuracy
 	baseline, err := am.MeasureCurrentAccuracy(t)
 	if err != nil {
@@ -466,7 +466,7 @@ func TestAccuracyMeasurement_Basic(t *testing.T) {
 
 func TestAccuracyMeasurement_Performance(t *testing.T) {
 	am := NewAccuracyMeasurement("testdata", "testdata/perf_baseline.json", "testdata/reports")
-	
+
 	perf, err := am.measurePerformance(t)
 	if err != nil {
 		t.Errorf("Failed to measure performance: %v", err)
@@ -476,6 +476,6 @@ func TestAccuracyMeasurement_Performance(t *testing.T) {
 	t.Logf("Performance measurements:")
 	t.Logf("  Average parse time: %v", perf.AverageParseTime)
 	t.Logf("  Memory usage: %d bytes", perf.MemoryUsage)
-	t.Logf("  Throughput: %.1f lines/sec, %.1f tokens/sec", 
+	t.Logf("  Throughput: %.1f lines/sec, %.1f tokens/sec",
 		perf.ThroughputLPS, perf.ThroughputTPS)
 }

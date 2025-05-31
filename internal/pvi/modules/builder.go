@@ -520,14 +520,14 @@ func runCommandWithEnv(dir string, command []string, ctx context.Context, envVar
 	// Set up environment variables
 	env := os.Environ()
 	env = append(env, "PERL_MM_USE_DEFAULT=1") // Non-interactive installation
-	
+
 	// Add custom environment variables
 	for key, value := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
-	
+
 	cmd.Env = env
-	
+
 	// Log the command being run
 	log.Debugf("Running command in %s: %s", dir, strings.Join(command, " "))
 	if len(envVars) > 0 {
@@ -545,4 +545,3 @@ func runCommandWithEnv(dir string, command []string, ctx context.Context, envVar
 
 	return output, err
 }
-

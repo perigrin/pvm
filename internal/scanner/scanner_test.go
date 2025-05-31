@@ -358,7 +358,7 @@ func TestScanner_Position_Tracking(t *testing.T) {
 	if !foundLine1 {
 		t.Error("Expected tokens from line 1")
 	}
-	
+
 	// Note: Line tracking may not be fully implemented yet
 	if !foundLine2 {
 		t.Logf("Warning: No tokens found from line 2 - line tracking may need improvement")

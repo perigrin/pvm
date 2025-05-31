@@ -31,19 +31,19 @@ type PerformanceTest struct {
 
 // PerformanceBenchmarkBaseline represents baseline performance metrics for individual tests
 type PerformanceBenchmarkBaseline struct {
-	TestName       string        `json:"test_name"`
+	TestName         string        `json:"test_name"`
 	BaselineDuration time.Duration `json:"baseline_duration"`
-	BaselineMemory int64         `json:"baseline_memory"`
-	Timestamp      time.Time     `json:"timestamp"`
-	ParserType     string        `json:"parser_type"`
+	BaselineMemory   int64         `json:"baseline_memory"`
+	Timestamp        time.Time     `json:"timestamp"`
+	ParserType       string        `json:"parser_type"`
 }
 
 // PerformanceReport aggregates performance test results
 type PerformanceReport struct {
-	TestResults []PerformanceResult `json:"test_results"`
+	TestResults []PerformanceResult            `json:"test_results"`
 	Baselines   []PerformanceBenchmarkBaseline `json:"baselines"`
-	Summary     PerformanceSummary  `json:"summary"`
-	Timestamp   time.Time           `json:"timestamp"`
+	Summary     PerformanceSummary             `json:"summary"`
+	Timestamp   time.Time                      `json:"timestamp"`
 }
 
 // PerformanceSummary provides aggregate performance metrics
@@ -51,10 +51,10 @@ type PerformanceReport struct {
 
 // PerformanceTestSuite manages performance testing infrastructure
 type PerformanceTestSuite struct {
-	TestDataDir  string
-	BaselineDir  string
-	ReportDir    string
-	Parser       interface {
+	TestDataDir string
+	BaselineDir string
+	ReportDir   string
+	Parser      interface {
 		ParseString(string) (*ast.AST, error)
 		ParseFile(string) (*ast.AST, error)
 	}
@@ -123,7 +123,7 @@ my ComplexType $var;`,
 	// Generate large program simulation
 	var largeProgram strings.Builder
 	largeProgram.WriteString("package LargeTestModule;\nuse strict;\nuse warnings;\n\n")
-	
+
 	// 1000+ variable declarations with types
 	for i := 0; i < 1000; i++ {
 		largeProgram.WriteString(fmt.Sprintf("my Int $var%d = %d;\n", i, i))
@@ -153,7 +153,7 @@ method process%d(
 class TestClass%d {
     field Int $id = %d;
     field Str $name = "class%d";
-    
+
     method new(Int $id, Str $name) -> TestClass%d {
         return bless {id => $id, name => $name}, __PACKAGE__;
     }
@@ -172,7 +172,7 @@ class TestClass%d {
 	})
 
 	// Stress test patterns
-	
+
 	// Very deep type nesting
 	deepNesting := "my "
 	for i := 0; i < 10; i++ {
@@ -313,7 +313,7 @@ func (pts *PerformanceTestSuite) RunPerformanceTest(t *testing.T, test *Performa
 // RunAllPerformanceTests executes all performance tests
 func (pts *PerformanceTestSuite) RunAllPerformanceTests(t *testing.T) *PerformanceReport {
 	tests := pts.GeneratePerformanceTests()
-	
+
 	report := &PerformanceReport{
 		TestResults: make([]PerformanceResult, 0, len(tests)),
 		Timestamp:   time.Now(),
@@ -371,7 +371,7 @@ func (pts *PerformanceTestSuite) CheckForRegression(result *PerformanceResult, b
 // SaveBaselines saves current results as performance baselines
 func (pts *PerformanceTestSuite) SaveBaselines(results []PerformanceResult) error {
 	baselines := make([]PerformanceBenchmarkBaseline, len(results))
-	
+
 	for i, result := range results {
 		baselines[i] = PerformanceBenchmarkBaseline{
 			TestName:         result.TestName,
@@ -399,7 +399,7 @@ func (pts *PerformanceTestSuite) SaveBaselines(results []PerformanceResult) erro
 // LoadBaselines loads existing performance baselines
 func (pts *PerformanceTestSuite) LoadBaselines() ([]PerformanceBenchmarkBaseline, error) {
 	baselineFile := filepath.Join(pts.BaselineDir, "performance_baselines.json")
-	
+
 	data, err := os.ReadFile(baselineFile)
 	if err != nil {
 		return nil, err
@@ -417,9 +417,9 @@ func (pts *PerformanceTestSuite) SaveReport(report *PerformanceReport) error {
 		return fmt.Errorf("failed to create report directory: %w", err)
 	}
 
-	reportFile := filepath.Join(pts.ReportDir, fmt.Sprintf("performance_report_%s.json", 
+	reportFile := filepath.Join(pts.ReportDir, fmt.Sprintf("performance_report_%s.json",
 		report.Timestamp.Format("20060102_150405")))
-	
+
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal report: %w", err)
@@ -431,18 +431,18 @@ func (pts *PerformanceTestSuite) SaveReport(report *PerformanceReport) error {
 // calculateSummary calculates summary statistics for the performance report
 func (pts *PerformanceTestSuite) calculateSummary(summary *PerformanceSummary, results []PerformanceResult) {
 	summary.TotalTests = len(results)
-	
+
 	for _, result := range results {
 		if result.Success {
 			summary.PassedTests++
 		} else {
 			summary.FailedTests++
 		}
-		
+
 		summary.TotalParseTime += result.ParseDuration
 		summary.TotalMemoryUsed += result.MemoryUsage
 	}
-	
+
 	if summary.TotalTests > 0 {
 		summary.AvgParseTime = summary.TotalParseTime / time.Duration(summary.TotalTests)
 		summary.AvgMemoryUsed = summary.TotalMemoryUsed / int64(summary.TotalTests)
@@ -469,7 +469,7 @@ func (pts *PerformanceTestSuite) PrintPerformanceReport(t *testing.T, report *Pe
 		if !result.Success {
 			status = "FAIL"
 		}
-		t.Logf("  %s [%s]: Duration=%v, Memory=%d bytes, Error=%s", 
+		t.Logf("  %s [%s]: Duration=%v, Memory=%d bytes, Error=%s",
 			result.TestName, status, result.ParseDuration, result.MemoryUsage, result.Error)
 	}
 }

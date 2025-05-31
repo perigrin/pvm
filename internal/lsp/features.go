@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-
 // findReferences finds all references to a symbol at the given position
 func (s *Server) findReferences(doc *Document, pos Position, includeDeclaration bool) []Location {
 	// Extract the symbol at the position
@@ -164,8 +163,6 @@ func (s *Server) extractSymbolAtPosition(text string, pos Position) string {
 
 	return line[start:end]
 }
-
-
 
 func (s *Server) isDeclaration(line, symbol string) bool {
 	// Check if this line contains a declaration of the symbol
