@@ -16,6 +16,7 @@ repos:
       - id: go-imports
         exclude: ^vendor/
       - id: no-go-testing
+        exclude: ^(vendor/.*|internal/parser/test_framework.*\.go|test_infrastructure_validation\.go|internal/parser/markdown_test_loader_test\.go)$
       # golangci-lint and go-unit-tests disabled due to tree-sitter C dependencies
       # Use 'make test' and 'make' for complete validation
       - id: go-critic
