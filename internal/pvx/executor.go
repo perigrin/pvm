@@ -5,12 +5,14 @@ package pvx
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
@@ -156,6 +158,9 @@ type ExecutionOptions struct {
 
 	// Whether to automatically detect dependencies from use/require statements
 	AutoDetectDependencies bool
+
+	// Timeout for script execution (0 means no timeout)
+	Timeout time.Duration
 }
 
 // ExecuteResult contains the result of script execution
@@ -251,8 +256,20 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 		}
 	}
 
-	// Create the command to execute the script
-	cmd := exec.Command(perlExe, buildArguments(options)...)
+	// Set up timeout context
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if options.Timeout > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), options.Timeout)
+		defer cancel()
+	} else {
+		// Default timeout of 5 minutes for safety
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+	}
+
+	// Create the command to execute the script with timeout
+	cmd := exec.CommandContext(ctx, perlExe, buildArguments(options)...)
 
 	// Set environment variables
 	env, err := buildEnvironment(options)
@@ -285,6 +302,15 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 	// Check for execution errors
 	exitCode := 0
 	if err != nil {
+		// Check if this is a timeout error
+		if ctx.Err() == context.DeadlineExceeded {
+			cleanupIsolationDir(options)
+			return outputBuffer.String(), errors.NewExecutionError(
+				ErrExecutionFailed,
+				fmt.Sprintf("Script execution timed out after %v", options.Timeout),
+				err)
+		}
+
 		if exitError, ok := err.(*exec.ExitError); ok {
 			// Get the exit code if possible
 			if status, ok := exitError.Sys().(syscall.WaitStatus); ok {
@@ -1300,8 +1326,12 @@ func getPerlArchDir(perlPath string) (string, error) {
 		}
 	}
 
+	// Create context with timeout for perl command
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	// Run perl with the Config module to get the architecture directory
-	cmd := exec.Command(perlCmd, "-MConfig", "-e", "print $Config{archname}")
+	cmd := exec.CommandContext(ctx, perlCmd, "-MConfig", "-e", "print $Config{archname}")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 

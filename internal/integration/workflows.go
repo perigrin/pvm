@@ -417,6 +417,7 @@ func executeScript(options *WorkflowOptions, resolvedVersion *perl.ResolvedVersi
 		ForceVersion:   true, // Force fallback to system Perl when version not found
 		Verbose:        options.Verbose,
 		IsolationLevel: options.IsolationLevel,
+		Timeout:        30 * time.Second, // Set reasonable timeout for integration tests
 	}
 
 	output, err := pvx.ExecuteScript(execOptions)
