@@ -12,11 +12,14 @@ import (
 // MockReloadableComponent implements the Reloadable interface for testing
 type MockReloadableComponent struct {
 	name               string
-	configureCount     int
+	configureCount     int // Successful reconfigurations only
+	attemptCount       int // All reconfiguration attempts (including failures)
 	validateCount      int
 	lastConfig         *Config
 	shouldFailValidate bool
 	shouldFailReconfig bool
+	allowRollback      bool // Allow rollback even when shouldFailReconfig is true
+	rollbackBuildJobs  int  // BuildJobs value that indicates a rollback
 	mu                 sync.Mutex
 }
 
@@ -30,10 +33,23 @@ func (m *MockReloadableComponent) Reconfigure(config *Config) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Always increment attempt count to track all calls
+	m.attemptCount++
+
 	if m.shouldFailReconfig {
-		return fmt.Errorf("mock reconfigure failure for %s", m.name)
+		// Check if this is a rollback and we allow rollbacks
+		if m.allowRollback && m.rollbackBuildJobs > 0 && config.PVM.BuildJobs == m.rollbackBuildJobs {
+			// This is a rollback to the specified BuildJobs value, allow it
+			m.configureCount++
+			m.lastConfig = config
+			return nil
+		} else {
+			// Not a rollback or rollback not allowed, fail as requested
+			return fmt.Errorf("mock reconfigure failure for %s", m.name)
+		}
 	}
 
+	// Success case
 	m.configureCount++
 	m.lastConfig = config
 	return nil
@@ -68,10 +84,23 @@ func (m *MockReloadableComponent) SetShouldFailReconfig(fail bool) {
 	m.shouldFailReconfig = fail
 }
 
+func (m *MockReloadableComponent) SetAllowRollback(allow bool, rollbackBuildJobs int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.allowRollback = allow
+	m.rollbackBuildJobs = rollbackBuildJobs
+}
+
 func (m *MockReloadableComponent) GetConfigureCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.configureCount
+}
+
+func (m *MockReloadableComponent) GetAttemptCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.attemptCount
 }
 
 func (m *MockReloadableComponent) GetValidateCount() int {
@@ -217,8 +246,9 @@ func TestHotReloader_ReconfigurationFailureWithRollback(t *testing.T) {
 	comp1 := NewMockComponent("test-component-1")
 	comp2 := NewMockComponent("test-component-2")
 
-	// Make comp2 fail reconfiguration
+	// Make comp2 fail reconfiguration but allow rollback to BuildJobs = 4
 	comp2.SetShouldFailReconfig(true)
+	comp2.SetAllowRollback(true, 4)
 
 	if err := reloader.RegisterComponent(comp1); err != nil {
 		t.Fatalf("Failed to register component: %v", err)
@@ -345,8 +375,8 @@ func TestHotReloader_ComponentRetries(t *testing.T) {
 
 	// Should have attempted maxRetries + 1 times
 	expectedAttempts := opts.MaxRetries + 1
-	if comp.GetConfigureCount() != expectedAttempts {
-		t.Errorf("Expected %d reconfigure attempts, got %d", expectedAttempts, comp.GetConfigureCount())
+	if comp.GetAttemptCount() != expectedAttempts {
+		t.Errorf("Expected %d reconfigure attempts, got %d", expectedAttempts, comp.GetAttemptCount())
 	}
 }
 

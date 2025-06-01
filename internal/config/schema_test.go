@@ -113,7 +113,7 @@ func TestSchemaValidator(t *testing.T) {
 		errors = sv.ValidateConfig(config)
 		hasBuildJobsError := false
 		for _, err := range errors {
-			if strings.Contains(err.Error(), "build_jobs") && strings.Contains(err.Error(), "exceed") {
+			if strings.Contains(err.Error(), "build_jobs") && strings.Contains(err.Error(), "at most") {
 				hasBuildJobsError = true
 				break
 			}

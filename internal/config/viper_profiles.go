@@ -4,10 +4,12 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	texttemplate "text/template"
 
 	"github.com/spf13/viper"
 )
@@ -61,6 +63,43 @@ func (vpm *ViperProfileManager) ResolveProfileWithViper(profileName string, extr
 	profileViper, err := vpm.LoadProfile(profileName)
 	if err != nil {
 		return nil, err
+	}
+
+	// Check if profile uses a template and render it
+	if templateName := profileViper.GetString("template"); templateName != "" {
+		// Merge profile variables with extra variables
+		variables := make(map[string]string)
+		if profileViper.IsSet("variables") {
+			profileVariables := profileViper.GetStringMapString("variables")
+			for k, v := range profileVariables {
+				variables[k] = v
+			}
+		}
+		for k, v := range extraVariables {
+			variables[k] = v
+		}
+
+		// Get the template and render it to TOML text
+		template, err := vpm.templateManager.GetTemplate(templateName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get template %s for profile %s: %w", templateName, profileName, err)
+		}
+
+		// Render template content to TOML text
+		renderedTOML, err := vpm.renderTemplateToTOML(template, variables)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render template %s for profile %s: %w", templateName, profileName, err)
+		}
+
+		// Create new Viper instance with rendered config
+		templateViper := viper.New()
+		templateViper.SetConfigType("toml")
+		if err := templateViper.ReadConfig(strings.NewReader(renderedTOML)); err != nil {
+			return nil, fmt.Errorf("failed to parse rendered template: %w", err)
+		}
+
+		// Use the rendered config as the base
+		profileViper = templateViper
 	}
 
 	// Create a new Viper instance for the resolved configuration
@@ -321,4 +360,61 @@ func (vpm *ViperProfileManager) viperToConfig(v *viper.Viper) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// renderTemplateToTOML renders a template to TOML text
+func (vpm *ViperProfileManager) renderTemplateToTOML(template *Template, variables map[string]string) (string, error) {
+	// Since we can't access private methods, we'll duplicate the template rendering logic
+	// This is a simplified version that handles the basic case without inheritance
+
+	// Create template with function map (copied from TemplateManager)
+	funcMap := texttemplate.FuncMap{
+		"upper":      strings.ToUpper,
+		"lower":      strings.ToLower,
+		"title":      strings.ToTitle,
+		"join":       strings.Join,
+		"split":      strings.Split,
+		"contains":   strings.Contains,
+		"hasPrefix":  strings.HasPrefix,
+		"hasSuffix":  strings.HasSuffix,
+		"trimSpace":  strings.TrimSpace,
+		"trimPrefix": strings.TrimPrefix,
+		"trimSuffix": strings.TrimSuffix,
+		"replace":    strings.ReplaceAll,
+		"default": func(def string, val interface{}) string {
+			if val == nil {
+				return def
+			}
+			if str, ok := val.(string); ok && str != "" {
+				return str
+			}
+			return def
+		},
+	}
+
+	// Merge template variables with provided variables
+	mergedVars := make(map[string]string)
+	// Start with template variables (defaults)
+	if template.Variables != nil {
+		for key, value := range template.Variables {
+			mergedVars[key] = value
+		}
+	}
+	// Override with provided variables
+	for key, value := range variables {
+		mergedVars[key] = value
+	}
+
+	// Render the template
+	tmpl, err := texttemplate.New(template.Name).Funcs(funcMap).Parse(template.Content)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, mergedVars); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }

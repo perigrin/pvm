@@ -169,20 +169,23 @@ isolation_level = "high"`
 	})
 
 	t.Run("ProfileWithTemplate", func(t *testing.T) {
-		// Create templates directory and template
+		// Create templates and profiles directories
 		if err := os.MkdirAll(templatesDir, 0755); err != nil {
 			t.Fatalf("Failed to create templates directory: %v", err)
+		}
+		if err := os.MkdirAll(profilesDir, 0755); err != nil {
+			t.Fatalf("Failed to create profiles directory: %v", err)
 		}
 
 		templateContent := `name = "web-app"
 description = "Web application template"
 
 content = '''
-[pvm]
+[config.pvm]
 default_perl = "{{.perl_version}}"
 build_jobs = {{.build_jobs}}
 
-[pvx]
+[config.pvx]
 isolation_level = "{{.isolation_level}}"
 timeout = {{.timeout}}
 '''`

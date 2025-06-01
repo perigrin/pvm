@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"tamarou.com/pvm/internal/xdg"
 )
 
 func TestLoadEffectiveConfigPrecedence(t *testing.T) {
@@ -185,25 +187,49 @@ func TestInitUserConfig(t *testing.T) {
 	// Create a temporary directory for the test
 	testDir := t.TempDir()
 
-	// Set environment variables
-	oldConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	oldCacheHome := os.Getenv("XDG_CACHE_HOME")
-	oldDataHome := os.Getenv("XDG_DATA_HOME")
-	oldStateHome := os.Getenv("XDG_STATE_HOME")
-
-	// Restore environment variables after the test
+	// Save original xdg.GetDirs function
+	originalGetDirs := xdg.GetDirs
 	defer func() {
-		_ = os.Setenv("XDG_CONFIG_HOME", oldConfigHome)
-		_ = os.Setenv("XDG_CACHE_HOME", oldCacheHome)
-		_ = os.Setenv("XDG_DATA_HOME", oldDataHome)
-		_ = os.Setenv("XDG_STATE_HOME", oldStateHome)
+		xdg.GetDirs = originalGetDirs
 	}()
 
-	// Set environment variables for the test
-	_ = os.Setenv("XDG_CONFIG_HOME", testDir)
-	_ = os.Setenv("XDG_CACHE_HOME", filepath.Join(testDir, "cache"))
-	_ = os.Setenv("XDG_DATA_HOME", filepath.Join(testDir, "data"))
-	_ = os.Setenv("XDG_STATE_HOME", filepath.Join(testDir, "state"))
+	// Create a mock GetDirs function that returns test directories
+	xdg.GetDirs = func() (*xdg.Dirs, error) {
+		return &xdg.Dirs{
+			ConfigHome:         testDir,
+			CacheHome:          filepath.Join(testDir, "cache"),
+			DataHome:           filepath.Join(testDir, "data"),
+			StateHome:          filepath.Join(testDir, "state"),
+			ConfigDir:          filepath.Join(testDir, "pvm"),
+			CacheDir:           filepath.Join(testDir, "cache", "pvm"),
+			DataDir:            filepath.Join(testDir, "data", "pvm"),
+			StateDir:           filepath.Join(testDir, "state", "pvm"),
+			VersionsDir:        filepath.Join(testDir, "data", "pvm", "versions"),
+			SourcesDir:         filepath.Join(testDir, "cache", "pvm", "sources"),
+			ShimsDir:           filepath.Join(testDir, "data", "pvm", "shims"),
+			TypeDefinitionsDir: filepath.Join(testDir, "data", "pvm", "type_definitions"),
+			BuildDir:           filepath.Join(testDir, "cache", "pvm", "build"),
+			EnsureDirs: func() error {
+				dirs := []string{
+					filepath.Join(testDir, "pvm"),
+					filepath.Join(testDir, "cache", "pvm"),
+					filepath.Join(testDir, "data", "pvm"),
+					filepath.Join(testDir, "state", "pvm"),
+					filepath.Join(testDir, "data", "pvm", "versions"),
+					filepath.Join(testDir, "cache", "pvm", "sources"),
+					filepath.Join(testDir, "data", "pvm", "shims"),
+					filepath.Join(testDir, "data", "pvm", "type_definitions"),
+					filepath.Join(testDir, "cache", "pvm", "build"),
+				}
+				for _, dir := range dirs {
+					if err := os.MkdirAll(dir, 0755); err != nil {
+						return err
+					}
+				}
+				return nil
+			},
+		}, nil
+	}
 
 	// Initialize user config
 	err := InitUserConfig()

@@ -189,22 +189,13 @@ func (hr *HotReloader) handleConfigurationChange(newConfig *Config) {
 	}
 	hr.mu.Unlock()
 
-	// Validate new configuration with all components first
-	var validationErrors []error
+	// Validate new configuration with all components - stop at first failure
 	for name, component := range components {
 		if err := component.Validate(newConfig); err != nil {
-			validationErrors = append(validationErrors,
-				fmt.Errorf("component %s validation failed: %w", name, err))
+			// Validation failed, log error and stop immediately
+			fmt.Printf("Validation error: component %s validation failed: %v\n", name, err)
+			return
 		}
-	}
-
-	if len(validationErrors) > 0 {
-		// Validation failed, log errors and rollback
-		for _, err := range validationErrors {
-			fmt.Printf("Validation error: %v\n", err)
-		}
-		hr.rollbackConfiguration()
-		return
 	}
 
 	// Apply configuration to all components
@@ -221,12 +212,12 @@ func (hr *HotReloader) handleConfigurationChange(newConfig *Config) {
 	}
 
 	if len(reconfigErrors) > 0 {
-		// Some components failed, rollback all successful ones
+		// Some components failed, rollback all components for consistency
 		for _, err := range reconfigErrors {
 			fmt.Printf("Reconfiguration error: %v\n", err)
 		}
 
-		hr.rollbackSuccessfulComponents(successfulComponents, components)
+		hr.rollbackConfiguration()
 		return
 	}
 

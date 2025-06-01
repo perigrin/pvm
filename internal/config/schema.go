@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // SchemaField represents a configuration field schema
@@ -115,6 +116,10 @@ func (sv *SchemaValidator) validateField(value reflect.Value, schema *SchemaFiel
 		if fieldErrors := sv.validateObject(value, schema, fieldPath); len(fieldErrors) > 0 {
 			errors = append(errors, fieldErrors...)
 		}
+	case "duration":
+		if fieldErrors := sv.validateDuration(value, schema, fieldPath); len(fieldErrors) > 0 {
+			errors = append(errors, fieldErrors...)
+		}
 	default:
 		errors = append(errors, fmt.Errorf("unknown schema type '%s' for field '%s'", schema.Type, fieldPath))
 	}
@@ -202,6 +207,32 @@ func (sv *SchemaValidator) validateBool(value reflect.Value, schema *SchemaField
 	if value.Kind() != reflect.Bool {
 		errors = append(errors, fmt.Errorf("field '%s' must be a boolean", fieldPath))
 		return errors
+	}
+
+	return errors
+}
+
+// validateDuration validates time.Duration fields
+func (sv *SchemaValidator) validateDuration(value reflect.Value, schema *SchemaField, fieldPath string) []error {
+	var errors []error
+
+	// Check if it's a duration type
+	if value.Type().String() != "time.Duration" {
+		errors = append(errors, fmt.Errorf("field '%s' must be a duration", fieldPath))
+		return errors
+	}
+
+	// Convert duration to seconds for validation
+	durationVal := value.Int() / int64(time.Second)
+
+	// Check min value (must be positive for timeout)
+	if schema.MinValue != nil && float64(durationVal) < *schema.MinValue {
+		errors = append(errors, fmt.Errorf("field '%s' must be a positive duration, got %v seconds", fieldPath, durationVal))
+	}
+
+	// Check max value
+	if schema.MaxValue != nil && float64(durationVal) > *schema.MaxValue {
+		errors = append(errors, fmt.Errorf("field '%s' duration cannot exceed %v seconds, got %v", fieldPath, *schema.MaxValue, durationVal))
 	}
 
 	return errors
@@ -301,6 +332,11 @@ func (sv *SchemaValidator) matchesPattern(value, pattern string) bool {
 		return strings.HasSuffix(value, "MB") || strings.HasSuffix(value, "GB") ||
 			strings.HasSuffix(value, "KB") || strings.HasSuffix(value, "TB")
 	case "version":
+		// Allow special version aliases
+		if value == "latest" || value == "stable" {
+			return true
+		}
+		// Check numeric version format
 		parts := strings.Split(value, ".")
 		if len(parts) < 2 || len(parts) > 3 {
 			return false
@@ -322,6 +358,7 @@ func (sv *SchemaValidator) matchesPattern(value, pattern string) bool {
 // getBuiltinSchema returns the built-in configuration schema
 func getBuiltinSchema() *ConfigSchema {
 	minZero := 0.0
+	minPositive := 0.000001 // minimum positive value for durations
 	maxPort := 65535.0
 	maxTimeout := 3600.0
 	maxBuildJobs := 64.0
@@ -457,6 +494,14 @@ func getBuiltinSchema() *ConfigSchema {
 						Required:    false,
 						Description: "Embedding provider",
 						ValidValues: []interface{}{"openai", "voyageai", "huggingface"},
+					},
+					"request_timeout": {
+						Name:        "request_timeout",
+						Type:        "duration",
+						Required:    false,
+						Description: "Request timeout duration",
+						MinValue:    &minPositive,
+						MaxValue:    &maxTimeout,
 					},
 				},
 			},
