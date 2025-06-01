@@ -99,6 +99,14 @@ requires 'warnings';
 		t.Fatal("Server should not be nil")
 	}
 
+	// Start the server to trigger project discovery
+	ctx := context.Background()
+	err = server.Start(ctx)
+	if err != nil {
+		t.Fatalf("Failed to start MCP server: %v", err)
+	}
+	defer server.Stop(ctx)
+
 	// Test 1: Verify project discovery
 	projects := server.GetProjects()
 	if len(projects) == 0 {
@@ -191,8 +199,15 @@ func TestMCPServer_ConcurrentOperations(t *testing.T) {
 		t.Fatalf("Failed to create server: %v", err)
 	}
 
-	// Test concurrent request handling
+	// Start the server to enable performance manager
 	ctx := context.Background()
+	err = server.Start(ctx)
+	if err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+	defer server.Stop(ctx)
+
+	// Test concurrent request handling
 	numRequests := 5
 	results := make(chan error, numRequests)
 

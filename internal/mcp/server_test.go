@@ -39,6 +39,7 @@ func TestNewServer(t *testing.T) {
 					Port:                 3000,
 					Host:                 "localhost",
 					AutoDiscoverProjects: true,
+					EmbeddingProvider:    "local",
 				},
 			},
 			wantErr: false,
