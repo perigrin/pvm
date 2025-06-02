@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	chromem "github.com/philippgille/chromem-go"
@@ -123,6 +124,12 @@ func (e *Extractor) extractBlocksFromAST(ast *parser.AST, projectID, filePath st
 			}
 		case "package_declaration":
 			// Package declarations are captured for context, not as separate blocks
+		case "expression_stmt", "literal":
+			// Workaround: Check if this expression statement contains a typed subroutine
+			// that wasn't parsed correctly by tree-sitter
+			if block := e.extractTypedSubroutineFromExpressionWorkaround(node, projectID, filePath, baseFile, packageName, imports, ast.Source); block != nil {
+				blocks = append(blocks, block)
+			}
 		}
 		return true // Continue walking
 	})
@@ -409,6 +416,129 @@ func (e *Extractor) extractSubroutineNameWithSource(node parser.Node, source str
 	return ""
 }
 
+// extractTypedSubroutineFromExpressionWorkaround attempts to extract typed subroutines
+// from expression statements when tree-sitter fails to parse them correctly
+func (e *Extractor) extractTypedSubroutineFromExpressionWorkaround(node parser.Node, projectID, filePath, baseFile, packageName string, imports []string, source string) *CodeBlock {
+	// Extract text content from the node
+	text := e.extractNodeTextFromSource(node, source)
+	if text == "" {
+		text = node.Text()
+	}
+
+	// Check if this looks like a typed subroutine declaration
+	// Pattern: sub name(Type $param, ...) -> ReturnType {
+	if !strings.Contains(text, "sub ") {
+		return nil
+	}
+
+	// Use regex to match typed subroutine patterns
+	// This is a heuristic approach for the cases where tree-sitter fails
+	typedSubPattern := `sub\s+(\w+)\s*(?:\([^)]*\))?\s*(?:->\s*\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*\s*)?\s*\{`
+	re, err := regexp.Compile(typedSubPattern)
+	if err != nil {
+		return nil
+	}
+
+	matches := re.FindStringSubmatch(text)
+	if len(matches) < 2 {
+		return nil
+	}
+
+	subName := matches[1]
+	if subName == "" {
+		return nil
+	}
+
+	// Extract the full subroutine content by finding the matching closing brace
+	subIndex := strings.Index(text, "sub "+subName)
+	if subIndex == -1 {
+		return nil
+	}
+
+	// Find the opening brace
+	openBrace := strings.Index(text[subIndex:], "{")
+	if openBrace == -1 {
+		return nil
+	}
+	openBrace += subIndex
+
+	// Find the matching closing brace
+	braceCount := 1
+	pos := openBrace + 1
+	for pos < len(text) && braceCount > 0 {
+		switch text[pos] {
+		case '{':
+			braceCount++
+		case '}':
+			braceCount--
+		}
+		pos++
+	}
+
+	if braceCount != 0 {
+		// Couldn't find matching brace, take the whole text
+		pos = len(text)
+	}
+
+	content := text[subIndex:pos]
+
+	// Extract type information from the signature
+	typeInfo := make(map[string]string)
+	e.extractTypedParametersFromText(content, typeInfo)
+
+	return &CodeBlock{
+		ID:        fmt.Sprintf("%s/%s/sub/%s", projectID, baseFile, subName),
+		Content:   content,
+		Type:      "function",
+		Name:      subName,
+		File:      filePath,
+		StartLine: node.Start().Line,
+		EndLine:   node.End().Line,
+		TypeInfo:  typeInfo,
+		Imports:   imports,
+		Context:   packageName,
+	}
+}
+
+// extractTypedParametersFromText extracts type information from typed subroutine text
+func (e *Extractor) extractTypedParametersFromText(text string, typeInfo map[string]string) {
+	// Extract parameters from the signature part only (before the opening brace)
+	openBrace := strings.Index(text, "{")
+	if openBrace == -1 {
+		return // No function body found
+	}
+
+	signature := text[:openBrace]
+
+	// Pattern to match typed parameters: Type $var (within parentheses)
+	paramPattern := `(\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*)\s+\$(\w+)`
+	re, err := regexp.Compile(paramPattern)
+	if err != nil {
+		return
+	}
+
+	matches := re.FindAllStringSubmatch(signature, -1)
+	for _, match := range matches {
+		if len(match) >= 3 {
+			paramType := match[1]
+			paramName := "$" + match[2]
+			typeInfo[paramName] = paramType
+		}
+	}
+
+	// Extract return type: -> ReturnType
+	returnPattern := `->\s*(\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*)`
+	returnRe, err := regexp.Compile(returnPattern)
+	if err != nil {
+		return
+	}
+
+	returnMatch := returnRe.FindStringSubmatch(text)
+	if len(returnMatch) >= 2 {
+		typeInfo["return"] = returnMatch[1]
+	}
+}
+
 // extractNodeTextFromSource extracts text for a node using source and positions
 func (e *Extractor) extractNodeTextFromSource(node parser.Node, source string) string {
 	if source == "" {
@@ -426,25 +556,31 @@ func (e *Extractor) extractNodeTextFromSource(node parser.Node, source string) s
 	if start.Line == end.Line {
 		// Single line
 		line := lines[start.Line-1] // Lines are 1-indexed
-		if start.Column < len(line) && end.Column <= len(line) {
-			return line[start.Column:end.Column]
+		// Columns appear to be 1-indexed, so adjust by subtracting 1
+		startCol := start.Column - 1
+		endCol := end.Column - 1
+		if startCol >= 0 && startCol < len(line) && endCol >= 0 && endCol <= len(line) {
+			return line[startCol:endCol]
 		}
 	} else {
 		// Multi-line
 		var parts []string
 		for i := start.Line - 1; i < end.Line && i < len(lines); i++ {
 			line := lines[i]
-			if i == start.Line-1 {
-				// First line - start from column
-				if start.Column < len(line) {
-					parts = append(parts, line[start.Column:])
+			switch {
+			case i == start.Line-1:
+				// First line - start from column (adjust for 1-indexed)
+				startCol := start.Column - 1
+				if startCol >= 0 && startCol < len(line) {
+					parts = append(parts, line[startCol:])
 				}
-			} else if i == end.Line-1 {
-				// Last line - end at column
-				if end.Column <= len(line) {
-					parts = append(parts, line[:end.Column])
+			case i == end.Line-1:
+				// Last line - end at column (adjust for 1-indexed)
+				endCol := end.Column - 1
+				if endCol >= 0 && endCol <= len(line) {
+					parts = append(parts, line[:endCol])
 				}
-			} else {
+			default:
 				// Middle lines - full line
 				parts = append(parts, line)
 			}

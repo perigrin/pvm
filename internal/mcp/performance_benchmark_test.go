@@ -329,6 +329,13 @@ func createTestServer(tb testing.TB) *Server {
 		tb.Fatalf("Failed to create test server: %v", err)
 	}
 
+	// Start the server to properly initialize all components
+	ctx := context.Background()
+	err = server.Start(ctx)
+	if err != nil {
+		tb.Fatalf("Failed to start test server: %v", err)
+	}
+
 	return server
 }
 

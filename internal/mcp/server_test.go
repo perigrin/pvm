@@ -95,6 +95,7 @@ func TestProjectDiscovery(t *testing.T) {
 			Port:                 3000,
 			Host:                 "localhost",
 			AutoDiscoverProjects: true,
+			EmbeddingProvider:    "local",
 		},
 	}
 
@@ -154,8 +155,9 @@ func TestHasPerlFiles(t *testing.T) {
 	// Create server
 	cfg := &config.Config{
 		MCP: &config.MCPConfig{
-			Port: 3000,
-			Host: "localhost",
+			Port:              3000,
+			Host:              "localhost",
+			EmbeddingProvider: "local",
 		},
 	}
 
@@ -258,6 +260,7 @@ func TestServerMetrics(t *testing.T) {
 			Port:                 3000,
 			Host:                 "localhost",
 			AutoDiscoverProjects: true,
+			EmbeddingProvider:    "local",
 		},
 	}
 
@@ -345,6 +348,7 @@ print TestModule::increment($count);
 			Port:                 3000,
 			Host:                 "localhost",
 			AutoDiscoverProjects: true,
+			EmbeddingProvider:    "local",
 		},
 	}
 
@@ -421,6 +425,7 @@ func TestHandleAnalyzeCode_SingleFile(t *testing.T) {
 			Port:                 3000,
 			Host:                 "localhost",
 			AutoDiscoverProjects: false,
+			EmbeddingProvider:    "local",
 		},
 	}
 
