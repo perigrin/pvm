@@ -308,7 +308,7 @@ func (trp *TypeResolutionPool) getCachedResult(key string) *TypeResolutionResult
 	// Check TTL
 	if time.Since(result.CacheInfo.LastAccessed) > result.CacheInfo.TTL {
 		// Entry expired, remove it
-		go trp.evictCacheEntry(key)
+		go trp.evictCacheEntryAsync(key)
 		return nil
 	}
 
@@ -344,10 +344,8 @@ func (trp *TypeResolutionPool) cacheResult(key string, result *TypeResolutionRes
 }
 
 // evictCacheEntry removes an entry from cache
+// Note: Caller must hold cacheMu.Lock()
 func (trp *TypeResolutionPool) evictCacheEntry(key string) {
-	trp.cacheMu.Lock()
-	defer trp.cacheMu.Unlock()
-
 	if result, exists := trp.cache[key]; exists {
 		delete(trp.cache, key)
 		atomic.AddInt64(&trp.cacheSize, -result.CacheInfo.CacheSize)
@@ -357,6 +355,14 @@ func (trp *TypeResolutionPool) evictCacheEntry(key string) {
 			trp.hooks.OnCacheEviction(key, result)
 		}
 	}
+}
+
+// evictCacheEntryAsync removes an entry from cache asynchronously
+// This is safe to call while holding a read lock
+func (trp *TypeResolutionPool) evictCacheEntryAsync(key string) {
+	trp.cacheMu.Lock()
+	defer trp.cacheMu.Unlock()
+	trp.evictCacheEntry(key)
 }
 
 // evictLRUEntry removes the least recently used entry
