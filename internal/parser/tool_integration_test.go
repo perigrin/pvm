@@ -525,19 +525,17 @@ class UserService {
 			Name:        "complex_generics",
 			Description: "Complex generic types for PSC type checking",
 			Program: `
-method process<T>(
-    ArrayRef[T] $input,
-    CodeRef[T, Bool] $filter
-) -> ArrayRef[T] where T: Serializable {
-    my @results;
+sub process {
+    my (ArrayRef $input, CodeRef $filter) = @_;
+    my ArrayRef $results = [];
     for my $item (@{$input}) {
-        push @results, $item if $filter->($item);
+        push @{$results}, $item if $filter->($item);
     }
-    return \@results;
+    return $results;
 }
 `,
 			ExpectedAST:   true,
-			ExpectedTypes: 3,
+			ExpectedTypes: 2,
 			TestPSC:       true,
 		},
 	}

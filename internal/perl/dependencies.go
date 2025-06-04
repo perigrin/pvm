@@ -168,6 +168,9 @@ func (dc *DependencyChecker) checkLibraries(info *DependencyInfo) error {
 			}
 			if !found {
 				info.Missing = append(info.Missing, lib.name)
+				if hint := dc.getInstallHint(lib.name); hint != "" {
+					info.InstallHint[lib.name] = hint
+				}
 			}
 		}
 
