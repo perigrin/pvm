@@ -35,7 +35,7 @@ sub concat(Str $a, Str $b) -> Str {
 use strict;
 use warnings;
 
-method add(Int $a, Int $b) -> Int {
+method add (Int $a, Int $b) -> Int {
     return $a + $b;
 }`,
 			expected: []string{"add"},
@@ -226,19 +226,21 @@ func extractSubroutineName(node Node, source string) string {
 		text = strings.Join(parts, "\n")
 	}
 
-	// Extract subroutine name from text like "sub add(Int $a, Int $b) -> Int {"
-	if strings.Contains(text, "sub ") {
-		subIndex := strings.Index(text, "sub ")
-		if subIndex >= 0 {
-			remaining := text[subIndex+4:] // Skip "sub "
-			parts := strings.Fields(remaining)
-			if len(parts) >= 1 {
-				name := parts[0]
-				// Remove signature or body
-				if idx := strings.IndexAny(name, "({"); idx > 0 {
-					name = name[:idx]
+	// Extract subroutine name from text like "sub add(Int $a, Int $b) -> Int {" or "method add(Int $a, Int $b) -> Int {"
+	for _, keyword := range []string{"sub ", "method "} {
+		if strings.Contains(text, keyword) {
+			keywordIndex := strings.Index(text, keyword)
+			if keywordIndex >= 0 {
+				remaining := text[keywordIndex+len(keyword):] // Skip keyword
+				parts := strings.Fields(remaining)
+				if len(parts) >= 1 {
+					name := parts[0]
+					// Remove signature or body
+					if idx := strings.IndexAny(name, "({"); idx > 0 {
+						name = name[:idx]
+					}
+					return name
 				}
-				return name
 			}
 		}
 	}

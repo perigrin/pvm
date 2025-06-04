@@ -74,11 +74,27 @@ func (c *CleanPerlCompiler) SetOptions(options *CompilerOptions) {
 func (c *CleanPerlCompiler) stripTypeAnnotations(code string) string {
 	// Process line by line for better control
 	lines := strings.Split(code, "\n")
+	hasSignatures := false
+
 	for i, line := range lines {
+		// Check if this line contains a function signature
+		if strings.Contains(line, "sub ") && strings.Contains(line, "(") && strings.Contains(line, ")") {
+			funcPattern := regexp.MustCompile(`\bsub\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)`)
+			if funcPattern.MatchString(line) {
+				hasSignatures = true
+			}
+		}
 		lines[i] = c.cleanLine(line)
 	}
 
-	return strings.Join(lines, "\n")
+	result := strings.Join(lines, "\n")
+
+	// If we found signatures, prepend the feature pragma
+	if hasSignatures {
+		result = "use feature 'signatures';\n" + result
+	}
+
+	return result
 }
 
 // cleanLine removes type annotations from a single line
@@ -103,10 +119,11 @@ func (c *CleanPerlCompiler) cleanLine(line string) string {
 			funcName := parts[1]
 			params := parts[2]
 
-			// Clean parameters
+			// Extract parameter names (skip type annotations) for Perl 5.36+ signatures
 			paramPattern := regexp.MustCompile(`[A-Z][^$]*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
 			cleanParams := paramPattern.ReplaceAllString(params, `$1`)
 
+			// Keep signature syntax for Perl 5.36+ - just remove type annotations
 			return fmt.Sprintf("sub %s(%s)", funcName, cleanParams)
 		})
 	}

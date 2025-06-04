@@ -338,6 +338,7 @@ module.exports = grammar({
       field('name', $.bareword),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice($.prototype, $.signature)),
+      optional(field('return_type', $.method_return_type)),
       field('body', $.block),
     ),
 

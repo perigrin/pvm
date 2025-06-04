@@ -6,7 +6,6 @@ package parser
 import (
 	"io"
 	"sync"
-
 	"tamarou.com/pvm/internal/ast"
 )
 

@@ -509,6 +509,53 @@ func (bn *BaseNode) SetText(text string) {
 	bn.text = text
 }
 
+// TokenNode represents a structural token (punctuation, keywords, whitespace)
+// These nodes preserve the concrete syntax tree structure for formatting
+type TokenNode struct {
+	*BaseNode
+	TokenType TokenType
+}
+
+// TokenType represents the type of structural token
+type TokenType int
+
+const (
+	// Punctuation tokens
+	LeftBrace  TokenType = iota // {
+	RightBrace                  // }
+	LeftParen                   // (
+	RightParen                  // )
+	Semicolon                   // ;
+	Arrow                       // ->
+	Equals                      // =
+	Dollar                      // $
+
+	// Keywords
+	SubKeyword    // sub
+	MethodKeyword // method
+	MyKeyword     // my
+	FieldKeyword  // field
+
+	// Whitespace and formatting
+	Whitespace // spaces, tabs
+	Newline    // \n
+
+	// Other tokens
+	Identifier // variable names, type names
+	Number     // numeric literals
+	String     // string literals
+)
+
+// NewTokenNode creates a new token node
+func NewTokenNode(tokenType TokenType, text string, start, end Position) *TokenNode {
+	node := &TokenNode{
+		BaseNode:  NewBaseNode("token", start, end),
+		TokenType: tokenType,
+	}
+	node.SetText(text)
+	return node
+}
+
 // NodeVisitor defines a function that visits AST nodes
 // Used for AST traversal operations
 type NodeVisitor func(node Node) bool

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 
 	sitter "github.com/tree-sitter/go-tree-sitter"
@@ -732,26 +733,33 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 	start := ast.Position{
 		Line:   node.Start().Line,
 		Column: node.Start().Column,
+		Offset: node.Start().Offset,
 	}
 	end := ast.Position{
 		Line:   node.End().Line,
 		Column: node.End().Column,
+		Offset: node.End().Offset,
 	}
 
-	// Check if this is a variable declaration
 	nodeType := node.Type()
 	nodeText := node.Text()
 
-	// Handle variable declarations (my $var = value)
-	if nodeType == "assignment_expression" &&
-		(strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
-			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
-			strings.HasPrefix(strings.TrimSpace(nodeText), "state ")) {
-		return p.convertToVarDeclAST(nodeText, start, end)
+	// Skip type-related nodes entirely
+	if p.isTypeRelatedNode(nodeType) {
+		return nil
 	}
 
-	// For other nodes, create a generic statement or expression
-	// Convert children recursively
+	// Handle special cases that need custom processing
+	if nodeType == "typed_method_parameter" {
+		return p.convertTypedParameterToToken(nodeText, start, end)
+	}
+
+	// First, check if this is a structural token that should be preserved as a token
+	if tokenNode := p.convertToTokenNode(nodeType, nodeText, start, end); tokenNode != nil {
+		return tokenNode
+	}
+
+	// Convert children recursively - include ALL children to preserve CST structure
 	var children []ast.Node
 	for _, child := range node.Children() {
 		if childAST := p.convertToASTNode(child); childAST != nil {
@@ -759,46 +767,23 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 		}
 	}
 
-	// Create appropriate AST node based on type
-	switch nodeType {
-	case "class_statement":
-		return p.convertToClassDeclAST(node, start, end)
-	case "role_statement":
-		return p.convertToRoleDeclAST(node, start, end)
-	case "subroutine_declaration_statement":
-		return p.convertToSubDeclAST(node, start, end)
-	case "source_file":
-		// For the root source file, create a program node that doesn't create a new scope
-		// Convert all children to statements and create a ProgramStmt
-		var statements []ast.StatementNode
-		for _, child := range children {
-			if stmt, ok := child.(ast.StatementNode); ok {
-				statements = append(statements, stmt)
-			}
-		}
-
-		// Create program statement containing all top-level statements
-		return ast.NewProgramStmt(statements, start, end)
-	case "expression_statement":
-		// If the first child is already a statement (like VarDecl), return it directly
-		if len(children) > 0 {
-			if stmt, ok := children[0].(ast.StatementNode); ok {
-				return stmt
-			}
-			if expr, ok := children[0].(ast.ExpressionNode); ok {
-				return ast.NewExpressionStmt(expr, start, end)
-			}
-		}
-		// Fallback: create a literal expression from the text
-		return ast.NewExpressionStmt(
-			ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end),
-			start, end)
-	default:
-		// For other nodes, create a literal expression wrapped in expression statement
-		return ast.NewExpressionStmt(
-			ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end),
-			start, end)
+	// Handle higher-level constructs that need semantic processing
+	if nodeType == "assignment_expression" &&
+		(strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
+			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
+			strings.HasPrefix(strings.TrimSpace(nodeText), "state ")) {
+		return p.convertToVarDeclAST(nodeText, start, end)
 	}
+
+	// For nodes with children, create a container node that preserves structure
+	if len(children) > 0 {
+		return p.createContainerNode(nodeType, children, start, end)
+	}
+
+	// For leaf nodes without children, create a generic expression
+	return ast.NewExpressionStmt(
+		ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end),
+		start, end)
 }
 
 // convertToVarDeclAST converts a variable declaration text to ast.VarDecl
@@ -1610,4 +1595,101 @@ func (p *Parser) validateTypeSyntax(line string, lineNum int) error {
 	}
 
 	return nil
+}
+
+// convertToTokenNode converts structural tokens to AST token nodes
+func (p *Parser) convertToTokenNode(nodeType, nodeText string, start, end ast.Position) ast.Node {
+	// Map tree-sitter node types to our token types
+	switch nodeType {
+	case "{":
+		return ast.NewTokenNode(ast.LeftBrace, nodeText, start, end)
+	case "}":
+		return ast.NewTokenNode(ast.RightBrace, nodeText, start, end)
+	case "(":
+		return ast.NewTokenNode(ast.LeftParen, nodeText, start, end)
+	case ")":
+		return ast.NewTokenNode(ast.RightParen, nodeText, start, end)
+	case ";":
+		return ast.NewTokenNode(ast.Semicolon, nodeText, start, end)
+	case "->":
+		return ast.NewTokenNode(ast.Arrow, nodeText, start, end)
+	case "=":
+		return ast.NewTokenNode(ast.Equals, nodeText, start, end)
+	case "$":
+		return ast.NewTokenNode(ast.Dollar, nodeText, start, end)
+	case "sub":
+		return ast.NewTokenNode(ast.SubKeyword, nodeText, start, end)
+	case "method":
+		return ast.NewTokenNode(ast.MethodKeyword, nodeText, start, end)
+	case "my":
+		return ast.NewTokenNode(ast.MyKeyword, nodeText, start, end)
+	case "field":
+		return ast.NewTokenNode(ast.FieldKeyword, nodeText, start, end)
+	case "bareword", "varname", "identifier":
+		return ast.NewTokenNode(ast.Identifier, nodeText, start, end)
+	case "number":
+		return ast.NewTokenNode(ast.Number, nodeText, start, end)
+	case "string", "string_literal":
+		return ast.NewTokenNode(ast.String, nodeText, start, end)
+	default:
+		// Check for whitespace content
+		if strings.TrimSpace(nodeText) == "" && nodeText != "" {
+			if strings.Contains(nodeText, "\n") {
+				return ast.NewTokenNode(ast.Newline, nodeText, start, end)
+			} else {
+				return ast.NewTokenNode(ast.Whitespace, nodeText, start, end)
+			}
+		}
+		return nil // Not a token we want to preserve
+	}
+}
+
+// createContainerNode creates a container node that holds child tokens and preserves structure
+func (p *Parser) createContainerNode(nodeType string, children []ast.Node, start, end ast.Position) ast.Node {
+	// Create a BaseNode that can hold children and preserve the structure
+	container := ast.NewBaseNode(nodeType, start, end)
+
+	for _, child := range children {
+		container.AddChild(child)
+	}
+
+	// For source_file, just return the container with all children
+	if nodeType == "source_file" {
+		return container
+	}
+
+	// Return the container directly - it implements ast.Node
+	return container
+}
+
+// isTypeRelatedNode checks if a node represents type information that should be skipped
+func (p *Parser) isTypeRelatedNode(nodeType string) bool {
+	typeNodeTypes := map[string]bool{
+		"type_expression":    true,
+		"method_return_type": true,
+		// "typed_method_parameter" is handled specially - don't skip it entirely
+		"type_assertion":     true,
+		"type_declaration":   true,
+		"union_type":         true,
+		"intersection_type":  true,
+		"negation_type":      true,
+		"parameterized_type": true,
+	}
+	return typeNodeTypes[nodeType]
+}
+
+// convertTypedParameterToToken extracts just the variable name from a typed parameter
+func (p *Parser) convertTypedParameterToToken(paramText string, start, end ast.Position) ast.Node {
+	// Extract variable name from text like "Int $a" -> "$a"
+	// Use regex to find the variable name (starts with $)
+	varPattern := regexp.MustCompile(`\$[a-zA-Z_][a-zA-Z0-9_]*`)
+	match := varPattern.FindString(paramText)
+
+	if match != "" {
+		// Create a token node with just the variable name
+		return ast.NewTokenNode(ast.Identifier, match, start, end)
+	}
+
+	// Fallback - return the original text if no variable found
+	return ast.NewTokenNode(ast.Identifier, paramText, start, end)
 }

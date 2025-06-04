@@ -88,6 +88,17 @@ sub process_data {
 			// Verify we got blocks
 			assert.NotEmpty(t, blocks)
 
+			// Debug output for failing tests
+			if len(blocks) == 0 {
+				t.Logf("DEBUG: No blocks extracted for %s", filename)
+				t.Logf("DEBUG: File content:\n%s", content)
+			} else {
+				t.Logf("DEBUG: Found %d blocks for %s", len(blocks), filename)
+				for i, block := range blocks {
+					t.Logf("DEBUG: Block %d: Type=%s, Name=%s, Content=%q", i, block.Type, block.Name, truncateString(block.Content, 50))
+				}
+			}
+
 			// Check specific expectations based on file
 			switch filename {
 			case "simple_sub.pl":
@@ -103,6 +114,10 @@ sub process_data {
 			case "typed_sub.pl":
 				// Should find 2 typed subroutines
 				funcBlocks := filterBlocksByType(blocks, "function")
+				if len(funcBlocks) == 0 {
+					t.Logf("DEBUG: No function blocks found in typed_sub.pl")
+					t.Logf("DEBUG: All blocks: %+v", blocks)
+				}
 				assert.Len(t, funcBlocks, 2)
 
 				// Check type information
@@ -329,4 +344,11 @@ func extractNames(blocks []*CodeBlock) []string {
 		names = append(names, block.Name)
 	}
 	return names
+}
+
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }

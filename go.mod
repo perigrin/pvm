@@ -44,7 +44,6 @@ require (
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
-	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect

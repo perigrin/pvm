@@ -57,7 +57,7 @@ func NewCompilerRegistry() *CompilerRegistry {
 	}
 
 	// Register default compilers
-	registry.Register(NewCleanPerlCompiler())
+	registry.Register(NewASTCompiler()) // Use true AST compiler with fixed offsets
 	registry.Register(NewTypedPerlCompiler())
 
 	return registry

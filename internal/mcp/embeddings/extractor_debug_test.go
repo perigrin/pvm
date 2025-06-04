@@ -491,3 +491,119 @@ func getKeys(m map[string]int) []string {
 	}
 	return keys
 }
+
+// walkNodeCountTypes counts node types
+func walkNodeCountTypes(node parser.Node, counts map[string]int) {
+	if node == nil {
+		return
+	}
+
+	counts[node.Type()]++
+
+	for _, child := range node.Children() {
+		walkNodeCountTypes(child, counts)
+	}
+}
+
+func TestDebugTypedPerlAST(t *testing.T) {
+	typedCode := `#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub add(Int $a, Int $b) -> Int {
+    return $a + $b;
+}
+
+sub concat(Str $a, Str $b) -> Str {
+    return $a . $b;
+}`
+
+	t.Logf("Parsing typed Perl code:\n%s", typedCode)
+
+	result, err := parser.PooledParserFunc(func(p parser.Parser) (string, error) {
+		ast, err := p.ParseString(typedCode)
+		if err != nil {
+			return "", fmt.Errorf("parsing failed: %w", err)
+		}
+
+		var debugInfo strings.Builder
+		debugInfo.WriteString("Typed Perl AST Analysis:\n")
+		debugInfo.WriteString(fmt.Sprintf("Source length: %d\n", len(ast.Source)))
+		debugInfo.WriteString(fmt.Sprintf("Source: %q\n\n", ast.Source))
+
+		debugInfo.WriteString("Complete AST Structure (deeper analysis):\n")
+		depth := 0
+		walkNodeDebugDeep(ast.Root, &debugInfo, &depth, 0)
+
+		// Also try to extract text using source positions
+		debugInfo.WriteString("\nExtracting text using source positions:\n")
+		extractTextFromPositions(ast, &debugInfo)
+
+		return debugInfo.String(), nil
+	})
+
+	if err != nil {
+		t.Fatalf("Error during parsing: %v", err)
+	}
+
+	t.Logf("Typed Perl AST Debug Information:\n%s", result)
+
+	// Test what the extractor would see
+	t.Logf("\n--- Testing Extractor with Typed Perl ---")
+	extractorResult, err := parser.PooledParserFunc(func(p parser.Parser) (string, error) {
+		ast, err := p.ParseString(typedCode)
+		if err != nil {
+			return "", fmt.Errorf("parsing failed: %w", err)
+		}
+
+		var result strings.Builder
+
+		// Count node types
+		nodeTypes := make(map[string]int)
+		walkNodeCountTypes(ast.Root, nodeTypes)
+
+		result.WriteString("Node type counts:\n")
+		for nodeType, count := range nodeTypes {
+			result.WriteString(fmt.Sprintf("  %s: %d\n", nodeType, count))
+		}
+
+		// Look for specific types
+		targetTypes := []string{
+			"subroutine_declaration_statement",
+			"subroutine_declaration",
+			"sub_declaration",
+			"subroutine",
+			"sub",
+			"sub_decl",
+			"function_declaration",
+			"method_declaration_statement",
+			"method_declaration",
+		}
+
+		result.WriteString("\nLooking for subroutine-related node types:\n")
+		for _, targetType := range targetTypes {
+			count := 0
+			walkNodeForType(ast.Root, targetType, &count, &result)
+			if count == 0 {
+				result.WriteString(fmt.Sprintf("  Missing: %s\n", targetType))
+			}
+		}
+
+		// Get all found types
+		var allTypes []string
+		for nodeType := range nodeTypes {
+			allTypes = append(allTypes, nodeType)
+		}
+
+		result.WriteString("\nAll found node types: ")
+		result.WriteString(fmt.Sprintf("%v", allTypes))
+
+		return result.String(), nil
+	})
+
+	if err != nil {
+		t.Fatalf("Error during extractor analysis: %v", err)
+	}
+
+	t.Logf("Extractor analysis results:\n%s", extractorResult)
+}

@@ -9,13 +9,13 @@ import (
 
 // Generated diagnostic IDs for PSC
 const (
-	PSCTYPE_MISMATCH       = "TYPE_MISMATCH"       // Type mismatch in assignment
-	PSCUNDEFINED_VARIABLE  = "UNDEFINED_VARIABLE"  // Undefined variable
-	PSCUNUSED_VARIABLE     = "UNUSED_VARIABLE"     // Unused variable
-	PSCVARIABLE_SHADOWING  = "VARIABLE_SHADOWING"  // Variable shadowing
+	PSCTYPE_MISMATCH = "TYPE_MISMATCH" // Type mismatch in assignment
+	PSCUNDEFINED_VARIABLE = "UNDEFINED_VARIABLE" // Undefined variable
+	PSCUNUSED_VARIABLE = "UNUSED_VARIABLE" // Unused variable
+	PSCVARIABLE_SHADOWING = "VARIABLE_SHADOWING" // Variable shadowing
 	PSCINVALID_TYPE_SYNTAX = "INVALID_TYPE_SYNTAX" // Invalid type syntax
-	PSCDEPRECATED_SYNTAX   = "DEPRECATED_SYNTAX"   // Deprecated syntax
-	PSCPERFORMANCE_HINT    = "PERFORMANCE_HINT"    // Performance optimization available
+	PSCDEPRECATED_SYNTAX = "DEPRECATED_SYNTAX" // Deprecated syntax
+	PSCPERFORMANCE_HINT = "PERFORMANCE_HINT" // Performance optimization available
 )
 
 // DiagnosticSeverity represents the severity of a diagnostic

@@ -5,7 +5,6 @@ package binder
 
 import (
 	"sync"
-
 	"tamarou.com/pvm/internal/ast"
 )
 
