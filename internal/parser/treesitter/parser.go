@@ -767,6 +767,11 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 		}
 	}
 
+	// Handle subroutine declarations specifically
+	if nodeType == "subroutine_declaration_statement" {
+		return p.convertToSubDeclAST(node, start, end)
+	}
+
 	// Handle higher-level constructs that need semantic processing
 	if nodeType == "assignment_expression" &&
 		(strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||

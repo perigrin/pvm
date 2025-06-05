@@ -90,6 +90,11 @@ func (b *DefaultBinder) visitNode(node ast.Node) error {
 func (b *DefaultBinder) bindVariableDeclaration(node *ast.VarDecl) error {
 	// Process each variable in the declaration
 	for _, variable := range node.Variables {
+		// Skip invalid symbol names (likely parsing errors)
+		if !b.isValidSymbolName(variable.Name) {
+			continue
+		}
+
 		// Determine symbol kind from variable type
 		kind := b.getVariableSymbolKind(variable.Name)
 
@@ -456,4 +461,36 @@ func (b *DefaultBinder) stripSigil(name string) string {
 		return name[1:]
 	}
 	return name
+}
+
+// isValidSymbolName checks if a symbol name is valid for Perl
+func (b *DefaultBinder) isValidSymbolName(name string) bool {
+	if name == "" {
+		return false
+	}
+
+	// Strip sigil for validation
+	cleanName := b.stripSigil(name)
+	if cleanName == "" {
+		return false
+	}
+
+	// Check for invalid characters that suggest malformed parsing
+	// Valid Perl identifiers contain only alphanumeric characters, underscores, and colons
+	for _, char := range cleanName {
+		if !((char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '_' || char == ':') {
+			return false
+		}
+	}
+
+	// Check that first character is not a digit
+	firstChar := rune(cleanName[0])
+	if firstChar >= '0' && firstChar <= '9' {
+		return false
+	}
+
+	return true
 }
