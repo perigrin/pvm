@@ -326,7 +326,7 @@ func (ls *LanguageService) FindReferences(uri string, pos Position, includeDecla
 		// Split document text into lines for position-based text extraction
 		lines := strings.Split(doc.Text, "\n")
 
-		// Find all nodes that reference this symbol
+		// Find all nodes that reference this symbol, preferring leaf nodes
 		allNodes := []ast.Node{}
 		navigator.Walk(doc.AST.Root, func(node ast.Node) bool {
 			// Extract text from source using node positions since node.Text() is empty
@@ -334,23 +334,56 @@ func (ls *LanguageService) FindReferences(uri string, pos Position, includeDecla
 
 			// Check if this node contains the symbol we're looking for
 			if ls.nodeMatchesSymbolByText(nodeText, node.Type(), symbol) {
-				// Only add if not already in list
-				found := false
+				// Check if this is a leaf node or if we already have a more specific child
+				isLeafOrMostSpecific := true
+
+				// Remove any existing nodes that are ancestors of this node
+				filteredNodes := []ast.Node{}
 				for _, existing := range allNodes {
-					if existing.Start().Line == node.Start().Line && existing.Start().Column == node.Start().Column {
-						found = true
-						break
+					existingStart := existing.Start()
+					existingEnd := existing.End()
+					nodeStart := node.Start()
+					nodeEnd := node.End()
+
+					// If existing node contains this node, replace it with this more specific one
+					if existingStart.Line <= nodeStart.Line && existingEnd.Line >= nodeEnd.Line &&
+						existingStart.Column <= nodeStart.Column && existingEnd.Column >= nodeEnd.Column {
+						// Skip the existing node (this one is more specific)
+						continue
+					}
+
+					// If this node contains an existing node, don't add this one
+					if nodeStart.Line <= existingStart.Line && nodeEnd.Line >= existingEnd.Line &&
+						nodeStart.Column <= existingStart.Column && nodeEnd.Column >= existingEnd.Column {
+						isLeafOrMostSpecific = false
+					}
+
+					filteredNodes = append(filteredNodes, existing)
+				}
+
+				if isLeafOrMostSpecific {
+					// Check if already in filtered list by position
+					found := false
+					for _, existing := range filteredNodes {
+						if existing.Start().Line == node.Start().Line && existing.Start().Column == node.Start().Column {
+							found = true
+							break
+						}
+					}
+					if !found {
+						filteredNodes = append(filteredNodes, node)
 					}
 				}
-				if !found {
-					allNodes = append(allNodes, node)
-				}
+
+				allNodes = filteredNodes
 			}
 			return true
 		})
 
 		// Convert nodes to locations, separating declarations from references
 		var declarationLocation *Location
+		seenLocations := make(map[string]bool) // Deduplicate by position string
+
 		for _, node := range allNodes {
 			nodePos := node.Start()
 			// Extract the actual text to find the exact symbol position within the node
@@ -358,16 +391,27 @@ func (ls *LanguageService) FindReferences(uri string, pos Position, includeDecla
 			symbolStart, symbolEnd := ls.findSymbolInText(nodeText, symbol.Name)
 
 			if symbolStart >= 0 {
+				startLine := nodePos.Line - 1
+				startChar := nodePos.Column - 1 + symbolStart
+				endChar := nodePos.Column - 1 + symbolEnd
+
+				// Create a unique key for this location to avoid duplicates
+				locationKey := fmt.Sprintf("%d:%d:%d", startLine, startChar, endChar)
+				if seenLocations[locationKey] {
+					continue // Skip duplicate
+				}
+				seenLocations[locationKey] = true
+
 				location := Location{
 					URI: uri,
 					Range: Range{
 						Start: Position{
-							Line:      nodePos.Line - 1,
-							Character: nodePos.Column - 1 + symbolStart,
+							Line:      startLine,
+							Character: startChar,
 						},
 						End: Position{
-							Line:      nodePos.Line - 1,
-							Character: nodePos.Column - 1 + symbolEnd,
+							Line:      startLine,
+							Character: endChar,
 						},
 					},
 				}
@@ -375,8 +419,12 @@ func (ls *LanguageService) FindReferences(uri string, pos Position, includeDecla
 				// Check if this is the declaration by comparing positions
 				if symbol.Declaration != nil {
 					declPos := symbol.Declaration.Start()
+					// Both nodePos and declPos should be 1-based, so compare directly
+					// But allow some tolerance for exact position matching
 					if nodePos.Line == declPos.Line &&
-						nodePos.Column == declPos.Column {
+						(nodePos.Column == declPos.Column ||
+							// Allow for slight column differences (e.g., sigil position vs identifier position)
+							(nodePos.Column >= declPos.Column-1 && nodePos.Column <= declPos.Column+1)) {
 						// This is the declaration
 						if includeDeclaration {
 							declarationLocation = &location
@@ -435,16 +483,52 @@ func (ls *LanguageService) nodeMatchesSymbolByText(text, nodeType string, symbol
 	// Look for the symbol name in the text
 	symbolName := symbol.Name
 
-	// Check for variable references like $count, @count, %count
-	if strings.Contains(text, "$"+symbolName) ||
-		strings.Contains(text, "@"+symbolName) ||
-		strings.Contains(text, "%"+symbolName) {
-		return true
-	}
-
-	// Check for bare symbol name (subroutines, etc.)
-	if strings.Contains(text, symbolName) {
-		return true
+	// Only match specific node types to avoid duplicates from parent nodes
+	switch nodeType {
+	case "scalar_variable", "array_variable", "hash_variable", "variable_expression", "identifier", "scalar", "array", "hash":
+		// For variable nodes, match exact variable references
+		trimmedText := strings.TrimSpace(text)
+		if trimmedText == "$"+symbolName || trimmedText == "@"+symbolName ||
+			trimmedText == "%"+symbolName || trimmedText == "*"+symbolName {
+			return true
+		}
+		// Also match bare identifiers for subroutines
+		if trimmedText == symbolName {
+			return true
+		}
+	case "var_decl", "variable":
+		// For variable declaration nodes, check if they contain the variable
+		if strings.Contains(text, "$"+symbolName) || strings.Contains(text, "@"+symbolName) ||
+			strings.Contains(text, "%"+symbolName) || strings.Contains(text, "*"+symbolName) {
+			return true
+		}
+	case "sub_decl", "method_decl":
+		// For subroutine/method declarations, check if they contain the subroutine name
+		// The text might be "sub greet {" so we need to extract the name
+		if strings.Contains(text, "sub "+symbolName) || strings.Contains(text, "method "+symbolName) {
+			return true
+		}
+	case "subroutine_call", "method_call":
+		// For subroutine calls, match the call name
+		trimmedText := strings.TrimSpace(text)
+		// Remove parentheses if present
+		callName := strings.TrimSuffix(trimmedText, "()")
+		callName = strings.TrimSuffix(callName, "(")
+		callName = strings.TrimSpace(callName)
+		if callName == symbolName {
+			return true
+		}
+	default:
+		// For other node types, be more restrictive to avoid false matches
+		// Only match if the text is exactly the symbol (no extra content)
+		trimmedText := strings.TrimSpace(text)
+		if len(trimmedText) <= len(symbolName)+1 { // Allow for sigil
+			if trimmedText == "$"+symbolName || trimmedText == "@"+symbolName ||
+				trimmedText == "%"+symbolName || trimmedText == "*"+symbolName ||
+				trimmedText == symbolName {
+				return true
+			}
+		}
 	}
 
 	return false
