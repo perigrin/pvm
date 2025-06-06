@@ -265,7 +265,7 @@ my Str $name = "test";
 	require.NoError(t, err)
 
 	// Test checkFile function
-	errorCount, err := checkFile(tmpFile, false, false, false)
+	errorCount, err := checkFile(tmpFile, false, false, false, false)
 	assert.NoError(t, err)
 	// Note: The type checker may still find issues with complex type inference
 	// For now, we accept that strict type checking might find compatibility issues
@@ -287,7 +287,7 @@ my Str $name = 42;               # Type error
 	require.NoError(t, err)
 
 	// Test checkFile function
-	errorCount, err := checkFile(tmpFile, false, false, false)
+	errorCount, err := checkFile(tmpFile, false, false, false, false)
 	assert.NoError(t, err)
 	assert.Greater(t, errorCount, 0, "Invalid Perl file should have type errors")
 }
@@ -335,7 +335,7 @@ func TestCheckFileVerboseMode(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test verbose mode produces different output than non-verbose
-	errorCount, err := checkFile(tmpFile, false, true, false)
+	errorCount, err := checkFile(tmpFile, false, true, false, false)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, errorCount, "File should have no errors")
 	// Note: We can't easily test the actual verbose output without capturing stdout
@@ -349,7 +349,7 @@ func TestCheckFileStrictMode(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test strict mode (should not affect error count for valid file)
-	errorCount, err := checkFile(tmpFile, true, false, false)
+	errorCount, err := checkFile(tmpFile, true, false, false, false)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, errorCount, "Valid file should have no errors in strict mode")
 }
@@ -369,12 +369,12 @@ func TestMixedFileTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test that only Perl files are checked
-	errorCount, err := checkFile(tmpDir+"/test.pl", false, false, false)
+	errorCount, err := checkFile(tmpDir+"/test.pl", false, false, false, false)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, errorCount)
 
 	// Test that non-Perl files are skipped
-	errorCount, err = checkFile(tmpDir+"/readme.txt", false, false, false)
+	errorCount, err = checkFile(tmpDir+"/readme.txt", false, false, false, false)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, errorCount, "Non-Perl files should be skipped")
 }
@@ -394,7 +394,7 @@ func TestFilePermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test that permission errors are handled gracefully
-	_, err = checkFile(restrictedFile, false, false, false)
+	_, err = checkFile(restrictedFile, false, false, false, false)
 	assert.Error(t, err, "Should error when file is unreadable")
 }
 
@@ -405,7 +405,7 @@ func TestEmptyFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test empty file handling
-	errorCount, err := checkFile(tmpFile, false, false, false)
+	errorCount, err := checkFile(tmpFile, false, false, false, false)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, errorCount, "Empty file should have no errors")
 }
@@ -430,7 +430,7 @@ func TestLargePerlFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test large file handling
-	errorCount, err := checkFile(tmpFile, false, false, false)
+	errorCount, err := checkFile(tmpFile, false, false, false, false)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, errorCount, "Large valid file should have no errors")
 }

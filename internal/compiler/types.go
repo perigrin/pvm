@@ -3,6 +3,8 @@
 
 package compiler
 
+import "tamarou.com/pvm/internal/ast"
+
 // AST represents an Abstract Syntax Tree that can be compiled
 type AST interface {
 	// GetPath returns the source file path
@@ -13,6 +15,9 @@ type AST interface {
 
 	// GetContent returns the original source content if available
 	GetContent() (string, error)
+
+	// GetRootNode returns the root AST node if available
+	GetRootNode() (ast.Node, error)
 }
 
 // SimpleAST is a basic implementation of AST for testing
@@ -35,4 +40,9 @@ func (a *SimpleAST) IsValid() bool {
 // GetContent returns the source content
 func (a *SimpleAST) GetContent() (string, error) {
 	return a.Content, nil
+}
+
+// GetRootNode returns nil for SimpleAST (testing implementation)
+func (a *SimpleAST) GetRootNode() (ast.Node, error) {
+	return nil, NewCompilerError(ErrInvalidAST, "SimpleAST does not support root node access")
 }

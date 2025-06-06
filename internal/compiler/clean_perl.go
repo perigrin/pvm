@@ -37,8 +37,10 @@ func (c *CleanPerlCompiler) Validate(ast AST) error {
 		return NewCompilerError(ErrInvalidAST, "AST cannot be nil")
 	}
 
-	if ast.GetPath() == "" {
-		return NewCompilerError(ErrInvalidAST, "AST must have a valid file path")
+	// Check if we can get content either from source or file path
+	_, err := ast.GetContent()
+	if err != nil {
+		return NewCompilerError(ErrInvalidAST, "AST must have accessible source content").WithCause(err)
 	}
 
 	return nil
@@ -100,8 +102,9 @@ func (c *CleanPerlCompiler) stripTypeAnnotations(code string) string {
 // cleanLine removes type annotations from a single line
 func (c *CleanPerlCompiler) cleanLine(line string) string {
 	// Handle variable declarations
-	// Pattern: my Type $var or my Complex[Type[Nested]] $var
-	varPattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][^$]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
+	// Pattern: my Type $var or my Complex[Type, Type] $var
+	// Match type names with optional parameterized types (including commas and spaces)
+	varPattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][a-zA-Z0-9_:]*(?:\[[^\]]*\])*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
 	if varPattern.MatchString(line) {
 		line = varPattern.ReplaceAllString(line, `$1 $2`)
 	}
@@ -120,7 +123,7 @@ func (c *CleanPerlCompiler) cleanLine(line string) string {
 			params := parts[2]
 
 			// Extract parameter names (skip type annotations) for Perl 5.36+ signatures
-			paramPattern := regexp.MustCompile(`[A-Z][^$]*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
+			paramPattern := regexp.MustCompile(`[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
 			cleanParams := paramPattern.ReplaceAllString(params, `$1`)
 
 			// Keep signature syntax for Perl 5.36+ - just remove type annotations
@@ -130,14 +133,14 @@ func (c *CleanPerlCompiler) cleanLine(line string) string {
 
 	// Handle for loops
 	// Pattern: for my Type $var (@array)
-	forPattern := regexp.MustCompile(`\bfor\s+my\s+[A-Z][^$]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*\s+\([^)]+\))`)
+	forPattern := regexp.MustCompile(`\bfor\s+my\s+[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*\s+\([^)]+\))`)
 	if forPattern.MatchString(line) {
 		line = forPattern.ReplaceAllString(line, `for my $1`)
 	}
 
 	// Handle field declarations
 	// Pattern: field Type $field
-	fieldPattern := regexp.MustCompile(`\bfield\s+[A-Z][^$]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
+	fieldPattern := regexp.MustCompile(`\bfield\s+[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
 	if fieldPattern.MatchString(line) {
 		line = fieldPattern.ReplaceAllString(line, `field $1`)
 	}

@@ -35,8 +35,10 @@ func (c *TypedPerlCompiler) Validate(ast AST) error {
 		return NewCompilerError(ErrInvalidAST, "AST cannot be nil")
 	}
 
-	if ast.GetPath() == "" {
-		return NewCompilerError(ErrInvalidAST, "AST must have a valid file path")
+	// Check if we can get content either from source or file path
+	_, err := ast.GetContent()
+	if err != nil {
+		return NewCompilerError(ErrInvalidAST, "AST must have accessible source content").WithCause(err)
 	}
 
 	return nil

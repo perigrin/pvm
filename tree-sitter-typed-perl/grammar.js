@@ -591,7 +591,7 @@ module.exports = grammar({
       stringContent($, $._interpolated_string_content),
       field('operator', alias($._quotelike_end, '>'))
     ),
-    assignment_expression: $ => prec.right(TERMPREC.ASSIGNOP,
+    assignment_expression: $ => prec.right(TERMPREC.ASSIGNOP - 1,
       binop(
         choice( // _ASSIGNOP
           '=', '**=',
@@ -719,6 +719,25 @@ module.exports = grammar({
           field('variables', $._decl_variable_list)),
         optseq(':', optional(field('attributes', $.attrlist))))
     ),
+
+    typed_variable_declaration: $ => prec.left(TERMPREC.ASSIGNOP + 1, seq(
+      field('declarator', choice('my', 'our', 'state')),
+      field('type', $.type_expression),
+      field('name', $._variables),
+      optional(prec(TERMPREC.ASSIGNOP + 2, seq('=', field('value', $._simple_value)))),
+      $._semicolon
+    )),
+
+    // Simple values that don't include assignment expressions
+    _simple_value: $ => choice(
+      $.interpolated_string_literal,
+      $.string_literal,
+      $.number,
+      $._variables,
+      $.anonymous_array_expression,
+      $.anonymous_hash_expression,
+    ),
+
 
     _decl_variable_list: $ => paren_list_of(
       choice(
@@ -980,7 +999,8 @@ module.exports = grammar({
 
     // toke.c calls this a THING and that is such a generic unhelpful word,
     // we'll call it this instead
-    _literal: $ => choice(
+    // Give literals higher precedence than assignments to resolve conflicts
+    _literal: $ => prec(TERMPREC.ASSIGNOP + 1, choice(
       $.string_literal,
       $.interpolated_string_literal,
       $.command_string,
@@ -988,11 +1008,11 @@ module.exports = grammar({
       $.match_regexp,
       $.substitution_regexp,
       $.transliteration_expression,
-    ),
+    )),
 
     // we cast these into imaginary tokens to be quote chars with handedness
     _apostrophe: $ => alias($._single_quote, "'"),
-    _quotation_mark: $ => alias($._double_quote, "'"),
+    _quotation_mark: $ => alias($._double_quote, '"'),
     _backtick: $ => alias($._backtick_quote, "'"),
     _search_slash: $ => alias($._search_slash_quote, "'"),
     _quotelike_begin: $ => alias($._quotelike_begin_quote, "'"),
@@ -1014,12 +1034,9 @@ module.exports = grammar({
       $._quotelike_end
     ),
     interpolated_string_literal: $ => seq(
-      choice(
-        seq('qq', $._quotelike_begin),
-        $._quotation_mark
-      ),
-      optional(stringContent($, $._interpolated_string_content)),
-      $._quotelike_end
+      '"',
+      optional(alias(/[^"\\]+/, $.string_content)),
+      '"'
     ),
     // we make a copy of the relevant rules b/c this must be more constrained (or else TS
     // just explodes)
@@ -1311,13 +1328,7 @@ module.exports = grammar({
     _bareword: $ => choice($._identifier, /((::)|([a-zA-Z_]\w*))+/),
 
     // Type annotation extensions for Typed Perl
-    typed_variable_declaration: $ => seq(
-      field('declarator', choice('my', 'our', 'state')),
-      field('type', $.type_expression),
-      field('name', $._variables),
-      optional(seq('=', field('value', $._expr))),
-      $._semicolon
-    ),
+    // Note: typed_variable_declaration is now handled by the unified variable_declaration rule
 
     typed_field_declaration: $ => seq(
       'field',

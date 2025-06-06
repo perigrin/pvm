@@ -51,7 +51,7 @@ say "Name: $name";
 	stdout, _, err := env.RunPVM("psc", "check", "--verbose", typedPerlFile)
 	// PSC check is currently reporting false positives, so we just check that it runs
 	assert.NoError(t, err, "PSC check command should run without crashing")
-	assert.Contains(t, stdout, "Found 5 type annotations", "Should find type annotations")
+	assert.Contains(t, stdout, "Found 7 type annotations", "Should find type annotations")
 }
 
 func TestPSCTypeErrorDetection(t *testing.T) {

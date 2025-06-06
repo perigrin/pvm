@@ -43,8 +43,14 @@ func (a *ParserASTAdapter) GetContent() (string, error) {
 		return "", NewCompilerError(ErrInvalidAST, "AST is nil")
 	}
 
+	// First try to get content from the AST's Source field (for string parsing)
+	if a.ast.Source != "" {
+		return a.ast.Source, nil
+	}
+
+	// Fall back to reading from file if no source content is stored
 	if a.ast.Path == "" {
-		return "", NewCompilerError(ErrInvalidAST, "AST has no file path")
+		return "", NewCompilerError(ErrInvalidAST, "AST has no source content or file path")
 	}
 
 	content, err := os.ReadFile(a.ast.Path)
@@ -53,4 +59,15 @@ func (a *ParserASTAdapter) GetContent() (string, error) {
 	}
 
 	return string(content), nil
+}
+
+// GetRootNode returns the root AST node
+func (a *ParserASTAdapter) GetRootNode() (ast.Node, error) {
+	if a.ast == nil {
+		return nil, NewCompilerError(ErrInvalidAST, "adapter contains nil AST")
+	}
+	if a.ast.Root == nil {
+		return nil, NewCompilerError(ErrInvalidAST, "AST has no root node")
+	}
+	return a.ast.Root, nil
 }

@@ -84,17 +84,9 @@ func (c *ASTCompiler) SetOptions(options *CompilerOptions) {
 }
 
 // getRootNode extracts the root node from the AST adapter
-func (c *ASTCompiler) getRootNode(ast AST) (ast.Node, error) {
-	if adapter, ok := ast.(*ParserASTAdapter); ok {
-		if adapter.ast == nil {
-			return nil, NewCompilerError(ErrInvalidAST, "adapter contains nil AST")
-		}
-		if adapter.ast.Root == nil {
-			return nil, NewCompilerError(ErrInvalidAST, "AST has no root node")
-		}
-		return adapter.ast.Root, nil
-	}
-	return nil, NewCompilerError(ErrInvalidAST, "unsupported AST type")
+func (c *ASTCompiler) getRootNode(inputAST AST) (ast.Node, error) {
+	// Use the interface method to get the root node directly
+	return inputAST.GetRootNode()
 }
 
 // walkNode recursively walks an AST node and generates clean Perl
@@ -110,6 +102,12 @@ func (c *ASTCompiler) walkNode(node ast.Node) (string, error) {
 		return "", nil
 	}
 
+	// Handle ERROR nodes by extracting their source text
+	// This preserves content that the parser couldn't properly categorize
+	if nodeType == "ERROR" {
+		return c.extractNodeText(node), nil
+	}
+
 	// Handle token nodes - preserve their text directly
 	if tokenNode, ok := node.(*ast.TokenNode); ok {
 		return c.handleTokenNode(tokenNode)
@@ -123,8 +121,12 @@ func (c *ASTCompiler) walkNode(node ast.Node) (string, error) {
 		return c.handleMethod(node)
 	case "variable_declaration":
 		return c.handleVariable(node)
+	case "typed_variable_declaration":
+		return c.handleTypedVariable(node)
 	case "field_declaration":
 		return c.handleField(node)
+	case "block_stmt", "block":
+		return c.handleBlock(node)
 	default:
 		// For other nodes, process children and combine their text
 		return c.walkChildren(node)
@@ -134,15 +136,40 @@ func (c *ASTCompiler) walkNode(node ast.Node) (string, error) {
 // isTypeAnnotationNode checks if a node represents a type annotation
 func (c *ASTCompiler) isTypeAnnotationNode(nodeType string) bool {
 	typeNodes := map[string]bool{
-		"type_expression":        true,
+		// Basic type annotations
+		"type_expression": true,
+		"type_annotation": true,
+		"scalar_type":     true,
+		"array_type":      true,
+		"hash_type":       true,
+
+		// Method/function types
 		"method_return_type":     true,
 		"typed_method_parameter": true,
-		"type_assertion":         true,
-		"type_declaration":       true,
-		"union_type":             true,
-		"intersection_type":      true,
-		"negation_type":          true,
-		"parameterized_type":     true,
+		"return_type":            true,
+		"parameter_type":         true,
+
+		// Complex type constructs
+		"type_assertion":     true,
+		"type_declaration":   true,
+		"union_type":         true,
+		"intersection_type":  true,
+		"negation_type":      true,
+		"parameterized_type": true,
+
+		// Named types that start with capital letters (heuristic)
+		// These might be parsed as identifiers but represent types
+		"Int":      true,
+		"Str":      true,
+		"Bool":     true,
+		"Num":      true,
+		"ArrayRef": true,
+		"HashRef":  true,
+		"CodeRef":  true,
+		"Any":      true,
+		"Undef":    true,
+		"Maybe":    true,
+		"Union":    true,
 	}
 	return typeNodes[nodeType]
 }
@@ -190,10 +217,6 @@ func (c *ASTCompiler) walkChildren(node ast.Node) (string, error) {
 	// If no children or empty result, extract text directly
 	if len(children) == 0 || result.Len() == 0 {
 		text := c.extractNodeText(node)
-		// Check if this text contains method/subroutine declarations that need cleaning
-		if strings.Contains(text, "method ") || strings.Contains(text, "sub ") {
-			return c.cleanSubroutineText(text), nil
-		}
 		return text, nil
 	}
 
@@ -202,98 +225,307 @@ func (c *ASTCompiler) walkChildren(node ast.Node) (string, error) {
 
 // extractNodeText extracts the source text for a node using positions
 func (c *ASTCompiler) extractNodeText(node ast.Node) string {
+	// First try to use the node's Text() method directly
+	nodeText := node.Text()
+	if nodeText != "" {
+		return nodeText
+	}
+
+	// Fallback to position-based extraction if we have valid offsets
 	start := node.Start()
 	end := node.End()
 
-	if c.source == "" || start.Offset >= len(c.source) || end.Offset > len(c.source) {
-		// Fallback to node's Text() method
-		return node.Text()
+	if c.source != "" && start.Offset > 0 && end.Offset > start.Offset && end.Offset <= len(c.source) {
+		// Extract text using byte offsets
+		return c.source[start.Offset:end.Offset]
 	}
 
-	// Extract text using byte offsets
-	return c.source[start.Offset:end.Offset]
+	// If all else fails, return empty string
+	return ""
 }
 
-// handleSubroutine processes subroutine definitions with signature cleaning
+// handleSubroutine processes subroutine definitions by reconstructing from children
 func (c *ASTCompiler) handleSubroutine(node ast.Node) (string, error) {
-	// Extract the full subroutine text
-	text := c.extractNodeText(node)
-
-	// Use regex to clean the signature (reusing the working regex logic)
-	return c.cleanSubroutineText(text), nil
-}
-
-// handleVariable processes variable declarations
-func (c *ASTCompiler) handleVariable(node ast.Node) (string, error) {
-	text := c.extractNodeText(node)
-	return c.cleanVariableText(text), nil
-}
-
-// handleMethod processes method declarations (same as subroutines for now)
-func (c *ASTCompiler) handleMethod(node ast.Node) (string, error) {
-	// Methods use the same transformation logic as subroutines
-	text := c.extractNodeText(node)
-	return c.cleanSubroutineText(text), nil
-}
-
-// handleField processes field declarations
-func (c *ASTCompiler) handleField(node ast.Node) (string, error) {
-	text := c.extractNodeText(node)
-	return c.cleanFieldText(text), nil
-}
-
-// cleanSubroutineText cleans a subroutine definition (reusing regex logic)
-func (c *ASTCompiler) cleanSubroutineText(text string) string {
-	lines := strings.Split(text, "\n")
-	for i, line := range lines {
-		lines[i] = c.cleanSubroutineLine(line)
+	// Check if this is a SubDecl node with proper structure
+	if subDecl, ok := node.(*ast.SubDecl); ok {
+		return c.reconstructSubroutine(subDecl)
 	}
-	return strings.Join(lines, "\n")
+
+	// Fallback: Process children but skip type expression nodes
+	var parts []string
+
+	for _, child := range node.Children() {
+		childType := child.Type()
+
+		// Skip type-related nodes entirely
+		if c.isTypeAnnotationNode(childType) {
+			continue
+		}
+
+		// Process the remaining nodes
+		childText, err := c.walkNode(child)
+		if err != nil {
+			return "", err
+		}
+
+		if childText != "" {
+			parts = append(parts, childText)
+		}
+	}
+
+	// Reconstruct with proper spacing
+	return strings.Join(parts, " "), nil
 }
 
-// cleanSubroutineLine cleans a single line of subroutine/method text
-func (c *ASTCompiler) cleanSubroutineLine(line string) string {
-	// Handle function/method parameters (handle both sub and method keywords)
-	funcPattern := regexp.MustCompile(`\b(sub|method)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)`)
-	if funcPattern.MatchString(line) {
-		line = funcPattern.ReplaceAllStringFunc(line, func(match string) string {
-			parts := funcPattern.FindStringSubmatch(match)
-			if len(parts) != 4 { // Now we have 4 parts: full match, keyword, name, params
-				return match
+// reconstructSubroutine reconstructs a subroutine from its AST representation
+func (c *ASTCompiler) reconstructSubroutine(subDecl *ast.SubDecl) (string, error) {
+	// Try to extract the full subroutine text from source and remove only type annotations
+	if c.source != "" {
+		// Get the subroutine's complete text
+		fullText := c.extractNodeText(subDecl)
+		if fullText != "" {
+			// Remove type annotations from the signature and return type
+			// This is a simplified approach - just remove type names before variables
+			result := fullText
+
+			// Remove parameter type annotations (e.g., "Int $a" -> "$a")
+			result = regexp.MustCompile(`\b(my|our|state|Int|Str|Num|Bool|ArrayRef|HashRef|CodeRef|Any|Undef|Maybe)\s+(\$\w+)`).
+				ReplaceAllString(result, "$2")
+
+			// Remove return type annotations (e.g., "-> Int" -> "")
+			result = regexp.MustCompile(`\s*->\s*\w+\s*\{`).
+				ReplaceAllString(result, " {")
+
+			return result, nil
+		}
+	}
+
+	// Fallback: reconstruct from parts
+	var result strings.Builder
+
+	// Write 'sub' keyword
+	result.WriteString("sub")
+
+	// Write subroutine name
+	if subDecl.Name != "" {
+		result.WriteString(" ")
+		result.WriteString(subDecl.Name)
+	}
+
+	// Write parameters (without type annotations)
+	if len(subDecl.Parameters) > 0 {
+		result.WriteString("(")
+		for i, param := range subDecl.Parameters {
+			if i > 0 {
+				result.WriteString(", ")
 			}
-
-			keyword := parts[1]  // "sub" or "method"
-			funcName := parts[2] // function name
-			params := parts[3]   // parameters
-
-			// Extract parameter names (skip type annotations) for Perl 5.36+ signatures
-			paramPattern := regexp.MustCompile(`[A-Z][^$]*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
-			cleanParams := paramPattern.ReplaceAllString(params, `$1`)
-
-			// Keep signature syntax for Perl 5.36+ - just remove type annotations
-			return fmt.Sprintf("%s %s(%s)", keyword, funcName, cleanParams)
-		})
+			// Write parameter without type annotation
+			result.WriteString("$")
+			result.WriteString(param.Name)
+		}
+		result.WriteString(")")
 	}
 
-	// Clean up return type annotations
-	returnTypePattern := regexp.MustCompile(`\s*->\s*[A-Z][a-zA-Z_:]*(?:\[[^\]]*\])*`)
-	line = returnTypePattern.ReplaceAllString(line, "")
+	// Skip return type annotation (-> Type)
 
-	return line
+	// Write body
+	if subDecl.Body != nil {
+		result.WriteString(" ")
+		bodyText, err := c.walkNode(subDecl.Body)
+		if err != nil {
+			return "", err
+		}
+		result.WriteString(bodyText)
+	}
+
+	return result.String(), nil
 }
 
-// cleanVariableText cleans variable declarations
-func (c *ASTCompiler) cleanVariableText(text string) string {
-	// Handle variable declarations: my Type $var
-	varPattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][^$]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
-	return varPattern.ReplaceAllString(text, `$1 $2`)
+// handleVariable processes variable declarations by reconstructing from children
+func (c *ASTCompiler) handleVariable(node ast.Node) (string, error) {
+	// Process children but skip type expression nodes
+	var parts []string
+
+	for _, child := range node.Children() {
+		childType := child.Type()
+
+		// Skip type-related nodes entirely
+		if c.isTypeAnnotationNode(childType) {
+			continue
+		}
+
+		// Process the remaining nodes
+		childText, err := c.walkNode(child)
+		if err != nil {
+			return "", err
+		}
+
+		if childText != "" {
+			parts = append(parts, childText)
+		}
+	}
+
+	// Reconstruct with proper spacing
+	return strings.Join(parts, " "), nil
 }
 
-// cleanFieldText cleans field declarations
-func (c *ASTCompiler) cleanFieldText(text string) string {
-	// Handle field declarations: field Type $field
-	fieldPattern := regexp.MustCompile(`\bfield\s+[A-Z][^$]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
-	return fieldPattern.ReplaceAllString(text, `field $1`)
+// handleTypedVariable processes typed variable declarations by reconstructing from children
+func (c *ASTCompiler) handleTypedVariable(node ast.Node) (string, error) {
+	// Find and remove the type expression by reconstructing without it
+	var result strings.Builder
+
+	children := node.Children()
+	lastEnd := node.Start().Offset
+
+	for _, child := range children {
+		childType := child.Type()
+
+		// Skip type expression nodes
+		if childType == "type_expression" {
+			// Add everything before the type expression (including "my ")
+			if child.Start().Offset > lastEnd {
+				result.WriteString(c.source[lastEnd:child.Start().Offset])
+			}
+			// Skip to after the type expression
+			lastEnd = child.End().Offset
+			// Skip one space after the type if present
+			if lastEnd < len(c.source) && c.source[lastEnd] == ' ' {
+				lastEnd++
+			}
+			continue
+		}
+
+		// For other nodes, include them with surrounding whitespace
+		if child.Start().Offset > lastEnd {
+			result.WriteString(c.source[lastEnd:child.Start().Offset])
+		}
+
+		// Extract the node's text
+		childText := c.extractNodeText(child)
+		result.WriteString(childText)
+		lastEnd = child.End().Offset
+	}
+
+	// Add any remaining text after the last child
+	if lastEnd < node.End().Offset {
+		result.WriteString(c.source[lastEnd:node.End().Offset])
+	}
+
+	// If we couldn't extract properly, fall back to a simpler approach
+	if result.Len() == 0 {
+		// Process children and reconstruct
+		var parts []string
+		for _, child := range children {
+			if child.Type() == "type_expression" {
+				continue
+			}
+			text := c.extractNodeText(child)
+			if text != "" {
+				parts = append(parts, text)
+			}
+		}
+		return strings.Join(parts, " "), nil
+	}
+
+	return result.String(), nil
+}
+
+// handleMethod processes method declarations by reconstructing from children
+func (c *ASTCompiler) handleMethod(node ast.Node) (string, error) {
+	// Process children but skip type expression nodes
+	var parts []string
+
+	for _, child := range node.Children() {
+		childType := child.Type()
+
+		// Skip type-related nodes entirely
+		if c.isTypeAnnotationNode(childType) {
+			continue
+		}
+
+		// Process the remaining nodes
+		childText, err := c.walkNode(child)
+		if err != nil {
+			return "", err
+		}
+
+		if childText != "" {
+			parts = append(parts, childText)
+		}
+	}
+
+	// Reconstruct with proper spacing
+	return strings.Join(parts, " "), nil
+}
+
+// handleField processes field declarations by reconstructing from children
+func (c *ASTCompiler) handleField(node ast.Node) (string, error) {
+	// Process children but skip type expression nodes
+	var parts []string
+
+	for _, child := range node.Children() {
+		childType := child.Type()
+
+		// Skip type-related nodes entirely
+		if c.isTypeAnnotationNode(childType) {
+			continue
+		}
+
+		// Process the remaining nodes
+		childText, err := c.walkNode(child)
+		if err != nil {
+			return "", err
+		}
+
+		if childText != "" {
+			parts = append(parts, childText)
+		}
+	}
+
+	// Reconstruct with proper spacing
+	return strings.Join(parts, " "), nil
+}
+
+// handleBlock processes block statements with braces
+func (c *ASTCompiler) handleBlock(node ast.Node) (string, error) {
+	// Extract the block's source text directly to preserve formatting
+	blockText := c.extractNodeText(node)
+
+	// Debug: Check what we're getting
+	// fmt.Printf("DEBUG handleBlock: node type=%s, text='%s', start=%v, end=%v\n",
+	//     node.Type(), blockText, node.Start(), node.End())
+
+	// If we got the full block text with braces, return it
+	if blockText != "" {
+		// The block text should already include the braces and content
+		return blockText, nil
+	}
+
+	// Otherwise, reconstruct the block
+	var result strings.Builder
+	result.WriteString("{")
+
+	// Process block contents
+	children := node.Children()
+	if len(children) > 0 {
+		result.WriteString("\n")
+		for _, child := range children {
+			childText, err := c.walkNode(child)
+			if err != nil {
+				return "", err
+			}
+			if childText != "" {
+				result.WriteString("    ") // Indent block contents
+				result.WriteString(childText)
+				if !strings.HasSuffix(childText, "\n") {
+					result.WriteString("\n")
+				}
+			}
+		}
+	}
+
+	result.WriteString("}")
+	return result.String(), nil
 }
 
 // handleTokenNode processes token nodes for whitespace preservation

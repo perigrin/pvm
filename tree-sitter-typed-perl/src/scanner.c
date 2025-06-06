@@ -169,9 +169,101 @@ static bool scan_prototype(TSLexer *lexer, ScannerState *state) {
   return false;
 }
 
+// Reset quote state helper
+static void reset_quote_state(ScannerState *state) {
+  state->in_quotelike = false;
+  state->quote_char = 0;
+}
+
 bool tree_sitter_typed_perl_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid_symbols) {
   ScannerState *state = (ScannerState *)payload;
   if (!state) return false;
+
+
+  // DEFENSIVE: Always handle quote starts if parser expects them
+  if (valid_symbols[DOUBLE_QUOTE] && lexer->lookahead == '"') {
+    // Reset any inconsistent state
+    if (state->in_quotelike && state->quote_char != '"') {
+      reset_quote_state(state);
+    }
+
+    if (!state->in_quotelike) {
+      lexer->advance(lexer, false);
+      state->in_quotelike = true;
+      state->quote_char = '"';
+      lexer->result_symbol = DOUBLE_QUOTE;
+      return true;
+    }
+  }
+
+  // DEFENSIVE: Handle single quotes similarly
+  if (valid_symbols[SINGLE_QUOTE] && lexer->lookahead == '\'') {
+    if (state->in_quotelike && state->quote_char != '\'') {
+      reset_quote_state(state);
+    }
+
+    if (!state->in_quotelike) {
+      lexer->advance(lexer, false);
+      state->in_quotelike = true;
+      state->quote_char = '\'';
+      lexer->result_symbol = SINGLE_QUOTE;
+      return true;
+    }
+  }
+
+  // Handle quotelike end tokens (closing quotes)
+  if (valid_symbols[QUOTELIKE_END_QUOTE] && state->in_quotelike) {
+    if (lexer->lookahead == state->quote_char) {
+      lexer->advance(lexer, false);
+      state->in_quotelike = false;
+      state->quote_char = 0;
+      lexer->result_symbol = QUOTELIKE_END_QUOTE;
+      return true;
+    }
+  }
+
+  // DEFENSIVE: Reset state if parser lost track of string context
+  if (state->in_quotelike && !valid_symbols[Q_STRING_CONTENT] &&
+      !valid_symbols[QQ_STRING_CONTENT] && !valid_symbols[QUOTELIKE_END_QUOTE] &&
+      !valid_symbols[DOUBLE_QUOTE] && !valid_symbols[SINGLE_QUOTE]) {
+    reset_quote_state(state);
+  }
+
+  // Handle string content for qq strings (double quoted)
+  if (valid_symbols[QQ_STRING_CONTENT] && state->in_quotelike && state->quote_char == '"') {
+    bool found_content = false;
+    while (lexer->lookahead && lexer->lookahead != '"' && lexer->lookahead != '\\') {
+      lexer->advance(lexer, false);
+      found_content = true;
+    }
+    if (found_content) {
+      lexer->result_symbol = QQ_STRING_CONTENT;
+      return true;
+    }
+  }
+
+  // Handle string content for q strings (single quoted)
+  if (valid_symbols[Q_STRING_CONTENT] && state->in_quotelike && state->quote_char == '\'') {
+    bool found_content = false;
+    while (lexer->lookahead && lexer->lookahead != '\'' && lexer->lookahead != '\\') {
+      lexer->advance(lexer, false);
+      found_content = true;
+    }
+    if (found_content) {
+      lexer->result_symbol = Q_STRING_CONTENT;
+      return true;
+    }
+  }
+
+  // Handle escape sequences
+  if (valid_symbols[ESCAPE_SEQUENCE] && lexer->lookahead == '\\') {
+    lexer->advance(lexer, false);
+    if (lexer->lookahead) {
+      lexer->advance(lexer, false);
+      lexer->result_symbol = ESCAPE_SEQUENCE;
+      return true;
+    }
+  }
 
   // Debug: check if we're being asked for signature tokens
   if (valid_symbols[SIGNATURE_START]) {

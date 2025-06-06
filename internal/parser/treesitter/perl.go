@@ -300,6 +300,10 @@ func (t *PerlTree) processSubroutineDeclaration(node *sitter.Node, annotations *
 	// Extract subroutine name
 	var subName string
 
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing subroutine declaration with %d children\n", node.ChildCount())
+	}
+
 	// Walk through child nodes to find signature and return type
 	for i := 0; i < int(node.ChildCount()); i++ {
 		child := node.Child(uint(i))
@@ -307,55 +311,122 @@ func (t *PerlTree) processSubroutineDeclaration(node *sitter.Node, annotations *
 			continue
 		}
 
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Subroutine child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
 		switch child.Kind() {
 		case "bareword":
 			// This should be the subroutine name
 			subName = t.getNodeText(child)
+		case "signature":
+			// Process typed parameters in the signature
+			t.processSubroutineSignature(child, subName, annotations)
+		case "method_return_type":
+			// Process return type annotation
+			t.processSubroutineReturnType(child, subName, annotations)
+		}
+	}
+}
+
+// processSubroutineSignature handles signature nodes for typed subroutine parameters
+func (t *PerlTree) processSubroutineSignature(signatureNode *sitter.Node, subName string, annotations *[]*PerlTypeAnnotation) {
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing subroutine signature for %s with %d children\n", subName, signatureNode.ChildCount())
+	}
+
+	for i := 0; i < int(signatureNode.ChildCount()); i++ {
+		child := signatureNode.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Signature child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		if child.Kind() == "typed_method_parameter" {
+			t.processTypedSubroutineParameter(child, subName, annotations)
+		}
+	}
+}
+
+// processTypedSubroutineParameter processes individual typed subroutine parameters
+func (t *PerlTree) processTypedSubroutineParameter(paramNode *sitter.Node, subName string, annotations *[]*PerlTypeAnnotation) {
+	var paramName, typeName string
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing typed subroutine parameter for %s with %d children\n", subName, paramNode.ChildCount())
+	}
+
+	for i := 0; i < int(paramNode.ChildCount()); i++ {
+		child := paramNode.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Parameter child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "type_expression":
+			typeName = t.extractTypeExpression(child)
+		case "scalar", "array", "hash":
+			paramName = t.getNodeText(child)
 		}
 	}
 
-	// Create individual annotations for parameter types and return type
-	// This allows the stripper to remove them independently
-	if subName != "" {
-		// Create annotations for parameter types and return type
-		for i := 0; i < int(node.ChildCount()); i++ {
-			child := node.Child(uint(i))
-			if child == nil {
-				continue
-			}
+	if paramName != "" && typeName != "" {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Creating subroutine parameter annotation: %s for %s: %s\n", paramName, subName, typeName)
+		}
+		annotation := &PerlTypeAnnotation{
+			ItemName: paramName,
+			TypeName: typeName,
+			Kind:     "subroutine_param",
+			StartPos: int(paramNode.StartByte()),
+			EndPos:   int(paramNode.EndByte()),
+			Content:  t.getNodeText(paramNode),
+		}
+		*annotations = append(*annotations, annotation)
+	}
+}
 
-			if child.Kind() == "signature" {
-				// Process each ERROR node in the signature
-				for j := 0; j < int(child.ChildCount()); j++ {
-					sigChild := child.Child(uint(j))
-					if sigChild != nil && sigChild.Kind() == "ERROR" {
-						errorText := t.getNodeText(sigChild)
-						if len(errorText) > 0 && errorText[0] >= 'A' && errorText[0] <= 'Z' {
-							annotation := &PerlTypeAnnotation{
-								ItemName: fmt.Sprintf("%s_param", subName),
-								TypeName: errorText,
-								Kind:     "subroutine_param",
-								StartPos: int(sigChild.StartByte()),
-								EndPos:   int(sigChild.EndByte()),
-								Content:  errorText,
-							}
-							*annotations = append(*annotations, annotation)
-						}
-					}
+// processSubroutineReturnType processes subroutine return type annotations
+func (t *PerlTree) processSubroutineReturnType(returnTypeNode *sitter.Node, subName string, annotations *[]*PerlTypeAnnotation) {
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing subroutine return type for %s with %d children\n", subName, returnTypeNode.ChildCount())
+	}
+
+	for i := 0; i < int(returnTypeNode.ChildCount()); i++ {
+		child := returnTypeNode.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Return type child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		if child.Kind() == "type_expression" {
+			typeName := t.extractTypeExpression(child)
+
+			if typeName != "" {
+				if os.Getenv("DEBUG_PARSER") == "1" {
+					fmt.Printf("DEBUG: Creating subroutine return type annotation for %s: %s\n", subName, typeName)
 				}
-			} else if child.Kind() == "ERROR" && strings.HasPrefix(t.getNodeText(child), "->") {
-				// Return type annotation
-				errorText := t.getNodeText(child)
 				annotation := &PerlTypeAnnotation{
-					ItemName: fmt.Sprintf("%s_return", subName),
-					TypeName: strings.TrimSpace(strings.TrimPrefix(errorText, "->")),
+					ItemName: subName + "_return", // Unique identifier for return type
+					TypeName: typeName,
 					Kind:     "subroutine_return",
-					StartPos: int(child.StartByte()),
-					EndPos:   int(child.EndByte()),
-					Content:  errorText,
+					StartPos: int(returnTypeNode.StartByte()),
+					EndPos:   int(returnTypeNode.EndByte()),
+					Content:  t.getNodeText(returnTypeNode),
 				}
 				*annotations = append(*annotations, annotation)
 			}
+			break
 		}
 	}
 }
