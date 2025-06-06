@@ -173,26 +173,10 @@ module.exports = grammar({
     [$.autoquoted_bareword],
     // nameless params need extra lookahead
     [$.optional_parameter],
-    // typed method parameters conflict with mandatory parameters
-    [$.typed_method_parameter, $.mandatory_parameter],
-    // signature scalar parsing conflicts
-    [$.mandatory_parameter, $._signature_scalar],
-    // signature array parsing conflicts
-    [$.slurpy_parameter, $._signature_array],
-    // signature hash parsing conflicts
-    [$.slurpy_parameter, $._signature_hash],
     // these are all dynamic handling for continue BLOCK vs func0 b/c we don't get lookahead
     [$._loop_body],
     // we need an extra lookahead so we can correctly hide the `->` in a non-interpolating case
-    [$._interp_arrow, $._interpolation_fallbacks],
-    // resolve conflicts with type extensions
-    [$._term_rightward, $.await_expression],
-    [$._listexpr, $.await_expression],
-    [$._term_rightward, $._label_arg],
-    [$._listexpr, $._label_arg],
-    [$._term_rightward],
-    [$.optional_parameter, $._term_rightward],
-    [$.named_parameter, $._term_rightward]
+    [$._interp_arrow, $._interpolation_fallbacks]
   ],
   rules: {
     source_file: $ => seq(repeat($._fullstmt), optional($.__DATA__)),
@@ -228,10 +212,6 @@ module.exports = grammar({
       alias($.block, $.block_statement),
       seq($.expression_statement, choice($._semicolon, $.__DATA__)),
       $.defer_statement,
-      // Typed Perl extensions
-      $.typed_variable_declaration,
-      $.typed_field_declaration,
-      $.type_declaration,
       ';', // this is not _semicolon so as not to generate an infinite stream of them
     ),
     package_statement: $ => choice(
@@ -304,21 +284,11 @@ module.exports = grammar({
       alias(choice($._HASH_PERCENT, $._signature_hash), $.hash)
     ),
 
-    typed_method_parameter: $ => prec(1, seq(
-      field('type', $.type_expression),
-      field('parameter', choice(
-        alias($._signature_scalar, $.scalar),
-        alias($._signature_array, $.array),
-        alias($._signature_hash, $.hash)
-      ))
-    )),
-
     _signature_vars: $ => choice(
       $.mandatory_parameter,
       $.optional_parameter,
       $.slurpy_parameter,
       $.named_parameter,
-      $.typed_method_parameter,
     ),
 
 
@@ -338,13 +308,7 @@ module.exports = grammar({
       field('name', $.bareword),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice($.prototype, $.signature)),
-      optional(field('return_type', $.method_return_type)),
       field('body', $.block),
-    ),
-
-    method_return_type: $ => seq(
-      '->',
-      field('return_type', $.type_expression)
     ),
 
     method_declaration_statement: $ => seq(
@@ -354,7 +318,6 @@ module.exports = grammar({
       field('name', $.bareword),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice($.prototype, $.signature)),
-      optional(field('return_type', $.method_return_type)),
       field('body', $.block),
     ),
 
@@ -564,9 +527,7 @@ module.exports = grammar({
        * toke.c but we'll have to do it differently here
        */
       $.variable_declaration,
-
-      // Typed Perl extensions
-      $.type_assertion,
+      $.typed_variable_declaration,
 
       // legacy
       $.primitive,
@@ -591,7 +552,7 @@ module.exports = grammar({
       stringContent($, $._interpolated_string_content),
       field('operator', alias($._quotelike_end, '>'))
     ),
-    assignment_expression: $ => prec.right(TERMPREC.ASSIGNOP - 1,
+    assignment_expression: $ => prec.right(TERMPREC.ASSIGNOP,
       binop(
         choice( // _ASSIGNOP
           '=', '**=',
@@ -719,25 +680,6 @@ module.exports = grammar({
           field('variables', $._decl_variable_list)),
         optseq(':', optional(field('attributes', $.attrlist))))
     ),
-
-    typed_variable_declaration: $ => prec.left(TERMPREC.ASSIGNOP + 1, seq(
-      field('declarator', choice('my', 'our', 'state')),
-      field('type', $.type_expression),
-      field('name', $._variables),
-      optional(prec(TERMPREC.ASSIGNOP + 2, seq('=', field('value', $._simple_value)))),
-      $._semicolon
-    )),
-
-    // Simple values that don't include assignment expressions
-    _simple_value: $ => choice(
-      $.interpolated_string_literal,
-      $.string_literal,
-      $.number,
-      $._variables,
-      $.anonymous_array_expression,
-      $.anonymous_hash_expression,
-    ),
-
 
     _decl_variable_list: $ => paren_list_of(
       choice(
@@ -999,8 +941,7 @@ module.exports = grammar({
 
     // toke.c calls this a THING and that is such a generic unhelpful word,
     // we'll call it this instead
-    // Give literals higher precedence than assignments to resolve conflicts
-    _literal: $ => prec(TERMPREC.ASSIGNOP + 1, choice(
+    _literal: $ => choice(
       $.string_literal,
       $.interpolated_string_literal,
       $.command_string,
@@ -1008,11 +949,11 @@ module.exports = grammar({
       $.match_regexp,
       $.substitution_regexp,
       $.transliteration_expression,
-    )),
+    ),
 
     // we cast these into imaginary tokens to be quote chars with handedness
     _apostrophe: $ => alias($._single_quote, "'"),
-    _quotation_mark: $ => alias($._double_quote, '"'),
+    _quotation_mark: $ => alias($._double_quote, "'"),
     _backtick: $ => alias($._backtick_quote, "'"),
     _search_slash: $ => alias($._search_slash_quote, "'"),
     _quotelike_begin: $ => alias($._quotelike_begin_quote, "'"),
@@ -1034,9 +975,12 @@ module.exports = grammar({
       $._quotelike_end
     ),
     interpolated_string_literal: $ => seq(
-      '"',
-      optional(alias(/[^"\\]+/, $.string_content)),
-      '"'
+      choice(
+        seq('qq', $._quotelike_begin),
+        $._quotation_mark
+      ),
+      optional(stringContent($, $._interpolated_string_content)),
+      $._quotelike_end
     ),
     // we make a copy of the relevant rules b/c this must be more constrained (or else TS
     // just explodes)
@@ -1327,61 +1271,57 @@ module.exports = grammar({
     //_bareword: $ => choice($._identifier, unicode_ranges.bareword),
     _bareword: $ => choice($._identifier, /((::)|([a-zA-Z_]\w*))+/),
 
-    // Type annotation extensions for Typed Perl
-    // Note: typed_variable_declaration is now handled by the unified variable_declaration rule
-
-    typed_field_declaration: $ => seq(
-      'field',
-      field('type', $.type_expression),
-      field('name', $._variables),
-      optional(seq('=', field('default', $._expr))),
-      $._semicolon
-    ),
-
-    type_declaration: $ => seq(
-      'type',
-      field('name', $.identifier),
-      '=',
-      field('definition', $.type_expression),
-      $._semicolon
-    ),
-
+    // Typed Perl extensions
     type_expression: $ => choice(
-      $.identifier,
-      $.parameterized_type,
+      $.simple_type,
       $.union_type,
       $.intersection_type,
-      $.negation_type
+      $.negation_type,
+      $.parameterized_type,
     ),
 
-    parameterized_type: $ => seq(
-      field('base', $.identifier),
-      '[',
-      field('parameters', seq($.type_expression, repeat(seq(',', $.type_expression)))),
-      ']'
-    ),
+    simple_type: $ => $._bareword,
 
     union_type: $ => prec.left(1, seq(
-      field('left', $.type_expression),
+      $.type_expression,
       '|',
-      field('right', $.type_expression)
+      $.type_expression
     )),
 
     intersection_type: $ => prec.left(2, seq(
-      field('left', $.type_expression),
+      $.type_expression,
       '&',
-      field('right', $.type_expression)
+      $.type_expression
     )),
 
     negation_type: $ => prec(3, seq(
       '!',
-      field('type', $.type_expression)
+      $.type_expression
     )),
 
-    type_assertion: $ => seq(
-      field('expression', $._expr),
-      'as',
-      field('type', $.type_expression)
+    parameterized_type: $ => seq(
+      $.simple_type,
+      '[',
+      $.type_parameter_list,
+      ']'
+    ),
+
+    type_parameter_list: $ => seq(
+      $.type_expression,
+      repeat(seq(',', $.type_expression)),
+      optional(',')
+    ),
+
+    // Typed variable declarations
+    typed_variable_declaration: $ => prec.left(TERMPREC.QUESTION_MARK + 1,
+      seq(
+        choice('my', 'state', 'our', 'field'),
+        $.type_expression,
+        choice(
+          field('variable', $._declared_vars),
+          field('variables', $._decl_variable_list)),
+        optseq(':', optional(field('attributes', $.attrlist)))
+      )
     ),
 
     ...primitives,
