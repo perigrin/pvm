@@ -70,9 +70,9 @@ func (c *ASTCompiler) Compile(ast AST) (string, error) {
 			WithCause(err)
 	}
 
-	// Add feature pragma if signatures are detected and not already present
-	if c.hasSignatures(result) && !strings.Contains(result, "use feature 'signatures'") {
-		result = "use feature 'signatures';\n" + result
+	// Add v5.36 pragma if signatures are detected and not already present
+	if c.hasSignatures(result) && !strings.Contains(result, "use v5.36") && !strings.Contains(result, "use feature 'signatures'") {
+		result = "use v5.36;\n" + result
 	}
 
 	return result, nil

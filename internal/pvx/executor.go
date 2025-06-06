@@ -206,8 +206,6 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 			}
 			// Add auto-detected dependencies to required modules
 			options.RequiredModules = append(options.RequiredModules, autoDeps...)
-			// Enable auto-install if we have auto-detected dependencies
-			options.AutoInstallModules = true
 		}
 	}
 

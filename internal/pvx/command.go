@@ -218,9 +218,9 @@ func NewCommand() *cobra.Command {
 				log.Warnf("Read-only paths, read-write paths, and isolated output are only fully effective with high isolation")
 			}
 
-			// Set the no-install environment variable if needed
+			// Handle no-install flag
 			if noInstall {
-				options.Env["PVM_NO_INSTALL"] = "1"
+				options.AutoInstallModules = false
 			}
 
 			var output string

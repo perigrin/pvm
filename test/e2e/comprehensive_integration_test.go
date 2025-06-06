@@ -35,30 +35,28 @@ use v5.36;
 use strict;
 use warnings;
 
-# Class with typed fields and methods
-field Num $value = 0;
-field Str $name = "calculator";
-
 # Constructor with typed parameters
 sub new(Str $class, Num $initial_value = 0) -> Calculator {
-    my Calculator $self = bless {}, $class;
-    $self->{value} = $initial_value;
+    my Calculator $self = bless {
+        value => $initial_value,
+        name => "calculator"
+    }, $class;
     return $self;
 }
 
 # Typed method with union types
-method add(Int|Num $operand) -> Calculator {
-    $value += $operand;
+sub add(Calculator $self, Int|Num $operand) -> Calculator {
+    $self->{value} += $operand;
     return $self;
 }
 
-method multiply(Num $operand) -> Calculator {
-    $value *= $operand;
+sub multiply(Calculator $self, Num $operand) -> Calculator {
+    $self->{value} *= $operand;
     return $self;
 }
 
-method get_value() -> Num {
-    return $value;
+sub get_value(Calculator $self) -> Num {
+    return $self->{value};
 }
 
 # Complex type with array references
@@ -126,13 +124,25 @@ say "Integration test completed successfully";
 	// Step 3: Strip and execute
 	t.Log("Step 3: Stripping and executing...")
 	strippedScript := filepath.Join(projectDir, "test_calculator_stripped.pl")
+	strippedModule := filepath.Join(projectDir, "Calculator_stripped.pm")
+
+	// Strip the module first
+	helpers.AssertPVMSucceeds(t, env,
+		[]string{"psc", "strip", moduleFile, strippedModule},
+		"Module type stripping should succeed")
+
+	// Move the stripped module to replace the original
+	err = os.Rename(strippedModule, moduleFile)
+	require.NoError(t, err, "Should rename stripped module")
+
+	// Strip the script
 	helpers.AssertPVMSucceeds(t, env,
 		[]string{"psc", "strip", scriptFile, strippedScript},
 		"Type stripping should succeed")
 
 	systemPerl := helpers.FindSystemPerl()
 	stdout = helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", "--perl", systemPerl, strippedScript},
+		[]string{"pvx", "--perl", systemPerl, "--no-install", "--include-path", projectDir, strippedScript},
 		"Execution should succeed")
 
 	assert.Contains(t, stdout, "Calculator result: 30", "Should show correct calculation")

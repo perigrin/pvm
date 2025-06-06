@@ -91,9 +91,9 @@ func (c *CleanPerlCompiler) stripTypeAnnotations(code string) string {
 
 	result := strings.Join(lines, "\n")
 
-	// If we found signatures, prepend the feature pragma
+	// If we found signatures, prepend v5.36 which includes signatures
 	if hasSignatures {
-		result = "use feature 'signatures';\n" + result
+		result = "use v5.36;\n" + result
 	}
 
 	return result
