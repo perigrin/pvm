@@ -101,7 +101,18 @@ func (e *Extractor) extractBlocksFromAST(ast *parser.AST, projectID, filePath st
 
 	// Extract package/module context
 	packageName := e.extractPackageName(ast.Root)
+	// Also try direct source analysis for package name
+	if packageName == "main" && ast.Source != "" {
+		if srcPkg := e.extractPackageFromSource(ast.Source); srcPkg != "" {
+			packageName = srcPkg
+		}
+	}
+
 	imports := e.extractImports(ast.Root)
+	// Also try direct source analysis for imports
+	if len(imports) == 0 && ast.Source != "" {
+		imports = e.extractImportsFromSource(ast.Source)
+	}
 
 	// Walk the AST to find code blocks
 	e.walkNode(ast.Root, func(node parser.Node) bool {
@@ -130,9 +141,19 @@ func (e *Extractor) extractBlocksFromAST(ast *parser.AST, projectID, filePath st
 			if block := e.extractTypedSubroutineFromExpressionWorkaround(node, projectID, filePath, baseFile, packageName, imports, ast.Source); block != nil {
 				blocks = append(blocks, block)
 			}
+			// Workaround: Check if this contains a class or method declaration
+			if block := e.extractClassFromExpressionWorkaround(node, projectID, filePath, baseFile, packageName, imports, ast.Source); block != nil {
+				blocks = append(blocks, block)
+			}
+			if block := e.extractMethodFromExpressionWorkaround(node, projectID, filePath, baseFile, packageName, imports, ast.Source); block != nil {
+				blocks = append(blocks, block)
+			}
 		}
 		return true // Continue walking
 	})
+
+	// Add comprehensive file-level analysis for patterns tree-sitter missed
+	e.addMissedPatterns(ast.Source, &blocks, projectID, filePath, baseFile, packageName, imports)
 
 	// If no specific blocks found, create a file-level block
 	if len(blocks) == 0 && ast.Root != nil {
@@ -265,6 +286,11 @@ func (e *Extractor) extractSubroutineWithSource(node parser.Node, projectID, fil
 
 	// Extract content using source positions
 	content := e.extractNodeTextFromSource(node, source)
+
+	// If no type info from AST, try to extract from content text
+	if len(typeInfo) == 0 && content != "" {
+		e.extractTypedParametersFromText(content, typeInfo)
+	}
 
 	return &CodeBlock{
 		ID:        fmt.Sprintf("%s/%s/sub/%s", projectID, baseFile, name),
@@ -753,6 +779,345 @@ func BatchExtractAndConvert(extractor *Extractor, projectID string, filePaths []
 	}
 
 	return ConvertToDocuments(allBlocks), nil
+}
+
+// extractClassFromExpressionWorkaround attempts to extract class declarations
+// from expression statements when tree-sitter fails to parse them correctly
+func (e *Extractor) extractClassFromExpressionWorkaround(node parser.Node, projectID, filePath, baseFile, packageName string, imports []string, source string) *CodeBlock {
+	// Extract text content from the node
+	text := e.extractNodeTextFromSource(node, source)
+	if text == "" {
+		text = node.Text()
+	}
+
+	// Check if this looks like a class declaration
+	// Pattern: class ClassName {
+	if !strings.Contains(text, "class ") {
+		return nil
+	}
+
+	// Use regex to match class patterns
+	classPattern := `class\s+(\w+)\s*(?:\{|$)`
+	re, err := regexp.Compile(classPattern)
+	if err != nil {
+		return nil
+	}
+
+	matches := re.FindStringSubmatch(text)
+	if len(matches) < 2 {
+		return nil
+	}
+
+	className := matches[1]
+	if className == "" {
+		return nil
+	}
+
+	// Extract the full class content by finding the matching closing brace
+	classIndex := strings.Index(text, "class "+className)
+	if classIndex == -1 {
+		return nil
+	}
+
+	// Find the opening brace
+	openBrace := strings.Index(text[classIndex:], "{")
+	if openBrace == -1 {
+		// No opening brace found, just take the declaration line
+		lines := strings.Split(text, "\n")
+		if len(lines) > 0 {
+			return &CodeBlock{
+				ID:        fmt.Sprintf("%s/%s/class/%s", projectID, baseFile, className),
+				Content:   lines[0],
+				Type:      "class",
+				Name:      className,
+				File:      filePath,
+				StartLine: node.Start().Line,
+				EndLine:   node.Start().Line,
+				TypeInfo:  make(map[string]string),
+				Imports:   imports,
+				Context:   packageName,
+			}
+		}
+		return nil
+	}
+	openBrace += classIndex
+
+	// Find the matching closing brace
+	braceCount := 1
+	pos := openBrace + 1
+	for pos < len(text) && braceCount > 0 {
+		switch text[pos] {
+		case '{':
+			braceCount++
+		case '}':
+			braceCount--
+		}
+		pos++
+	}
+
+	if braceCount != 0 {
+		// Couldn't find matching brace, take the whole text
+		pos = len(text)
+	}
+
+	content := text[classIndex:pos]
+
+	return &CodeBlock{
+		ID:        fmt.Sprintf("%s/%s/class/%s", projectID, baseFile, className),
+		Content:   content,
+		Type:      "class",
+		Name:      className,
+		File:      filePath,
+		StartLine: node.Start().Line,
+		EndLine:   node.End().Line,
+		TypeInfo:  make(map[string]string),
+		Imports:   imports,
+		Context:   packageName,
+	}
+}
+
+// extractMethodFromExpressionWorkaround attempts to extract method declarations
+// from expression statements when tree-sitter fails to parse them correctly
+func (e *Extractor) extractMethodFromExpressionWorkaround(node parser.Node, projectID, filePath, baseFile, packageName string, imports []string, source string) *CodeBlock {
+	// Extract text content from the node
+	text := e.extractNodeTextFromSource(node, source)
+	if text == "" {
+		text = node.Text()
+	}
+
+	// Check if this looks like a method declaration
+	// Pattern: method methodName(...) -> ReturnType {
+	if !strings.Contains(text, "method ") {
+		return nil
+	}
+
+	// Use regex to match method patterns
+	methodPattern := `method\s+(\w+)\s*(?:\([^)]*\))?\s*(?:->\s*\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*\s*)?\s*\{`
+	re, err := regexp.Compile(methodPattern)
+	if err != nil {
+		return nil
+	}
+
+	matches := re.FindStringSubmatch(text)
+	if len(matches) < 2 {
+		return nil
+	}
+
+	methodName := matches[1]
+	if methodName == "" {
+		return nil
+	}
+
+	// Extract the full method content by finding the matching closing brace
+	methodIndex := strings.Index(text, "method "+methodName)
+	if methodIndex == -1 {
+		return nil
+	}
+
+	// Find the opening brace
+	openBrace := strings.Index(text[methodIndex:], "{")
+	if openBrace == -1 {
+		return nil
+	}
+	openBrace += methodIndex
+
+	// Find the matching closing brace
+	braceCount := 1
+	pos := openBrace + 1
+	for pos < len(text) && braceCount > 0 {
+		switch text[pos] {
+		case '{':
+			braceCount++
+		case '}':
+			braceCount--
+		}
+		pos++
+	}
+
+	if braceCount != 0 {
+		// Couldn't find matching brace, take the whole text
+		pos = len(text)
+	}
+
+	content := text[methodIndex:pos]
+
+	// Extract type information from the signature
+	typeInfo := make(map[string]string)
+	e.extractTypedParametersFromText(content, typeInfo)
+
+	return &CodeBlock{
+		ID:        fmt.Sprintf("%s/%s/method/%s", projectID, baseFile, methodName),
+		Content:   content,
+		Type:      "method",
+		Name:      methodName,
+		File:      filePath,
+		StartLine: node.Start().Line,
+		EndLine:   node.End().Line,
+		TypeInfo:  typeInfo,
+		Imports:   imports,
+		Context:   packageName,
+	}
+}
+
+// addMissedPatterns scans source code for patterns that tree-sitter failed to parse properly
+func (e *Extractor) addMissedPatterns(source string, blocks *[]*CodeBlock, projectID, filePath, baseFile, packageName string, imports []string) {
+	if source == "" {
+		return
+	}
+
+	lines := strings.Split(source, "\n")
+
+	// Track what we've already extracted to avoid duplicates
+	existingNames := make(map[string]bool)
+	for _, block := range *blocks {
+		existingNames[block.Type+":"+block.Name] = true
+	}
+
+	// Look for class declarations
+	classPattern := regexp.MustCompile(`^\s*class\s+(\w+)\s*(?:\{.*)?`)
+	for i, line := range lines {
+		if matches := classPattern.FindStringSubmatch(line); len(matches) >= 2 {
+			className := matches[1]
+			key := "class:" + className
+			if !existingNames[key] {
+				// Find the full class content
+				content := e.extractBlockContent(lines, i, "class "+className, "{", "}")
+				*blocks = append(*blocks, &CodeBlock{
+					ID:        fmt.Sprintf("%s/%s/class/%s", projectID, baseFile, className),
+					Content:   content,
+					Type:      "class",
+					Name:      className,
+					File:      filePath,
+					StartLine: i + 1,
+					EndLine:   i + 1 + strings.Count(content, "\n"),
+					TypeInfo:  make(map[string]string),
+					Imports:   imports,
+					Context:   packageName,
+				})
+				existingNames[key] = true
+			}
+		}
+	}
+
+	// Look for method declarations
+	methodPattern := regexp.MustCompile(`^\s*method\s+(\w+)\s*(?:\([^)]*\))?\s*(?:->\s*[\w\[\]|]+\s*)?\s*\{`)
+	for i, line := range lines {
+		if matches := methodPattern.FindStringSubmatch(line); len(matches) >= 2 {
+			methodName := matches[1]
+			key := "method:" + methodName
+			if !existingNames[key] {
+				// Find the full method content
+				content := e.extractBlockContent(lines, i, "method "+methodName, "{", "}")
+
+				// Extract type information
+				typeInfo := make(map[string]string)
+				e.extractTypedParametersFromText(content, typeInfo)
+
+				*blocks = append(*blocks, &CodeBlock{
+					ID:        fmt.Sprintf("%s/%s/method/%s", projectID, baseFile, methodName),
+					Content:   content,
+					Type:      "method",
+					Name:      methodName,
+					File:      filePath,
+					StartLine: i + 1,
+					EndLine:   i + 1 + strings.Count(content, "\n"),
+					TypeInfo:  typeInfo,
+					Imports:   imports,
+					Context:   packageName,
+				})
+				existingNames[key] = true
+			}
+		}
+	}
+}
+
+// extractBlockContent extracts a complete block (class, method, etc.) from source lines
+func (e *Extractor) extractBlockContent(lines []string, startLine int, startPattern, openBrace, closeBrace string) string {
+	if startLine >= len(lines) {
+		return ""
+	}
+
+	// Find the line with opening brace
+	openLine := startLine
+	openBraceIndex := -1
+	for i := startLine; i < len(lines); i++ {
+		if braceIdx := strings.Index(lines[i], openBrace); braceIdx >= 0 {
+			openLine = i
+			openBraceIndex = braceIdx
+			break
+		}
+		// If we don't find an opening brace within a few lines, just return the first line
+		if i-startLine > 3 {
+			return lines[startLine]
+		}
+	}
+
+	if openBraceIndex == -1 {
+		return lines[startLine]
+	}
+
+	// Count braces to find the matching closing brace
+	braceCount := 1
+	result := []string{}
+
+	// Add lines from start to opening brace line
+	for i := startLine; i <= openLine; i++ {
+		result = append(result, lines[i])
+	}
+
+	// Continue from the next line after opening brace
+	for i := openLine + 1; i < len(lines) && braceCount > 0; i++ {
+		line := lines[i]
+		result = append(result, line)
+
+		// Count braces in this line
+		for _, char := range line {
+			switch string(char) {
+			case openBrace:
+				braceCount++
+			case closeBrace:
+				braceCount--
+			}
+		}
+	}
+
+	return strings.Join(result, "\n")
+}
+
+// extractPackageFromSource extracts package name directly from source code
+func (e *Extractor) extractPackageFromSource(source string) string {
+	lines := strings.Split(source, "\n")
+	packagePattern := regexp.MustCompile(`^\s*package\s+([A-Za-z_][A-Za-z0-9_:]*)\s*;`)
+
+	for _, line := range lines {
+		if matches := packagePattern.FindStringSubmatch(line); len(matches) >= 2 {
+			return matches[1]
+		}
+	}
+	return ""
+}
+
+// extractImportsFromSource extracts import statements directly from source code
+func (e *Extractor) extractImportsFromSource(source string) []string {
+	var imports []string
+	seen := make(map[string]bool)
+	lines := strings.Split(source, "\n")
+	usePattern := regexp.MustCompile(`^\s*use\s+([A-Za-z_][A-Za-z0-9_:]*(?:::[A-Za-z_][A-Za-z0-9_:]*)*)`)
+
+	for _, line := range lines {
+		if matches := usePattern.FindStringSubmatch(line); len(matches) >= 2 {
+			module := matches[1]
+			// Remove version numbers or import lists
+			if spaceIdx := strings.Index(module, " "); spaceIdx > 0 {
+				module = module[:spaceIdx]
+			}
+			if !seen[module] && module != "" {
+				imports = append(imports, module)
+				seen[module] = true
+			}
+		}
+	}
+	return imports
 }
 
 // toString converts map[string]any to map[string]string for chromem metadata
