@@ -1,7 +1,7 @@
 === SYMBOLS ===
-subroutine add at 1:1
 subroutine greet at 5:1
 scalar result [lexical] at 9:1
 scalar message [lexical] at 10:1
+subroutine add at 1:1
 === TYPE ERRORS ===
 No type errors

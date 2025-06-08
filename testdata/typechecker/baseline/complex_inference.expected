@@ -1,7 +1,7 @@
 === SYMBOLS ===
+scalar hash [lexical] at 4:1
 scalar count [lexical] at 1:1
 scalar name [lexical] at 2:1
 scalar list [lexical] at 3:1
-scalar hash [lexical] at 4:1
 === TYPE ERRORS ===
 No type errors

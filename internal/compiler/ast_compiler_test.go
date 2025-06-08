@@ -36,9 +36,7 @@ print "Count: $count\n";`,
     return $a + $b;
 }`,
 			expected: `use v5.36;
-sub add($a, $b) {
-    return $a + $b;
-}`,
+sub add($a, $b) { return $a + $b; }`,
 		},
 		{
 			name: "complex_parameterized_types",
