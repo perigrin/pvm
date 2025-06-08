@@ -1,0 +1,52 @@
+Comprehensive Integration Test Results
+Generated: 2025-06-07T21:16:23Z
+
+Test: deeply_nested_generics
+  has_type_annotations: true
+  type_annotation_count: 6
+  name: deeply_nested_generics
+  parse_time: 16.682926ms
+  success: true
+  program_size: 2612
+  line_count: 88
+  features: [deep_nesting complex_generics multiple_type_parameters nested_parameterized_types]
+
+Test: error_recovery_test
+  parse_time: 2.180884ms
+  success: false
+  program_size: 500
+  line_count: 27
+  features: [error_recovery malformed_types mixed_valid_invalid]
+  error: InvalidUnionSyntaxError: line 10: invalid union syntax '||', use '|' for union types
+  name: error_recovery_test
+
+Test: complete_user_service
+  has_type_annotations: true
+  type_annotation_count: 31
+  name: complete_user_service
+  parse_time: 12.96464ms
+  success: true
+  program_size: 1882
+  line_count: 76
+  features: [types classes roles generics constraints inheritance]
+
+Test: complex_data_processor
+  program_size: 3545
+  line_count: 123
+  features: [generics constraints complex_methods parameterized_types unions complex_signatures]
+  has_type_annotations: true
+  type_annotation_count: 15
+  name: complex_data_processor
+  parse_time: 20.229646ms
+  success: true
+
+Test: event_system_with_traits
+  parse_time: 21.617093ms
+  success: true
+  program_size: 3335
+  line_count: 106
+  features: [intersection_types negation_types traits complex_constraints optional_parameters named_parameters]
+  has_type_annotations: true
+  type_annotation_count: 22
+  name: event_system_with_traits
+

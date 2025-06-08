@@ -68,7 +68,7 @@ func (tracker *SymbolUsageTracker) walkASTForUsage(node ast.Node) {
 
 	case *ast.VarDecl:
 		// Track variable declarations
-		for _, variable := range n.Variables {
+		for _, variable := range n.LogicalVariables() {
 			tracker.trackDeclaration(variable.FullName(), n.Start())
 		}
 

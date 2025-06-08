@@ -123,7 +123,8 @@ func (c *CleanPerlCompiler) cleanLine(line string) string {
 			params := parts[2]
 
 			// Extract parameter names (skip type annotations) for Perl 5.36+ signatures
-			paramPattern := regexp.MustCompile(`[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
+			// Pattern matches: Type $var or Type $var = default_value
+			paramPattern := regexp.MustCompile(`[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*(?:\s*=\s*[^,)]+)?)`)
 			cleanParams := paramPattern.ReplaceAllString(params, `$1`)
 
 			// Keep signature syntax for Perl 5.36+ - just remove type annotations

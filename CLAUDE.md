@@ -50,6 +50,12 @@ PSC requires tree-sitter integration which has additional dependencies:
 ## Tree-sitter Integration Principle
 - tree-sitter is integral to the system, we MUST NOT work around it
 
+## Problem-Solving Philosophy
+- **NEVER create workarounds** - If you find yourself needing a workaround, STOP
+- Think deeply about the root cause of the problem
+- If you can't find a proper solution, ask perigrin for advice
+- Workarounds create technical debt and mask the real issues that should be fixed
+
 ## Tree-sitter-typed-perl Integration
 
 The project uses a custom `tree-sitter-typed-perl` grammar that extends the standard Perl grammar with type annotations:
@@ -105,5 +111,10 @@ PSC commands (`psc strip`, `psc run`) use the compiler package for:
 - Stripping type annotations for execution on standard Perl
 - Converting typed Perl to untyped for CPAN distribution
 - Future: Adding multiple compilation targets (JavaScript, etc.)
+
+### Perl Version Output
+- The compiler outputs `use v5.36;` pragma for compatibility with modern Perl features
+- This enables signatures and other features needed by stripped code
+- Using v5.36 for broader compatibility with existing Perl installations
 
 ## Code Style Guidelines

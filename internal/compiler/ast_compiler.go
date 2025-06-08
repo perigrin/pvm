@@ -125,7 +125,7 @@ func (c *ASTCompiler) walkNode(node ast.Node) (string, error) {
 		return c.handleTypedVariable(node)
 	case "field_declaration":
 		return c.handleField(node)
-	case "block_stmt", "block":
+	case "block_stmt", "block", "BlockStmt":
 		return c.handleBlock(node)
 	default:
 		// For other nodes, process children and combine their text
@@ -180,6 +180,10 @@ func (c *ASTCompiler) walkChildren(node ast.Node) (string, error) {
 
 	children := node.Children()
 
+	// Check if this is a block node
+	nodeType := node.Type()
+	isBlock := nodeType == "block" || nodeType == "block_stmt"
+
 	// Process children with whitespace preservation
 	// First, collect all non-empty children with their output
 	type childInfo struct {
@@ -189,6 +193,13 @@ func (c *ASTCompiler) walkChildren(node ast.Node) (string, error) {
 	var processedChildren []childInfo
 
 	for _, child := range children {
+		childType := child.Type()
+		
+		// Skip structural tokens in blocks to prevent double formatting
+		if isBlock && (childType == "{" || childType == "}" || childType == ";") {
+			continue
+		}
+		
 		childText, err := c.walkNode(child)
 		if err != nil {
 			return "", err
@@ -203,7 +214,20 @@ func (c *ASTCompiler) walkChildren(node ast.Node) (string, error) {
 		}
 	}
 
-	// Now build the result with proper whitespace between non-empty children
+	// For block nodes, they should be handled by handleBlock, not here
+	if isBlock {
+		// This should not normally be reached - blocks should go through handleBlock
+		// Just return concatenated children without formatting
+		for i, childInfo := range processedChildren {
+			if i > 0 {
+				result.WriteString(" ")
+			}
+			result.WriteString(strings.TrimSpace(childInfo.text))
+		}
+		return result.String(), nil
+	}
+
+	// For non-block nodes, build the result with proper whitespace
 	for i, childInfo := range processedChildren {
 		if i > 0 {
 			// Extract whitespace between the previous and current non-empty children
@@ -250,6 +274,7 @@ func (c *ASTCompiler) handleSubroutine(node ast.Node) (string, error) {
 	if subDecl, ok := node.(*ast.SubDecl); ok {
 		return c.reconstructSubroutine(subDecl)
 	}
+	
 
 	// Fallback: Process children but skip type expression nodes
 	var parts []string
@@ -283,24 +308,26 @@ func (c *ASTCompiler) reconstructSubroutine(subDecl *ast.SubDecl) (string, error
 	if c.source != "" {
 		// Get the subroutine's complete text
 		fullText := c.extractNodeText(subDecl)
-		if fullText != "" {
+		if fullText != "" && false { // Disable regex approach
 			// Remove type annotations from the signature and return type
 			// This is a simplified approach - just remove type names before variables
 			result := fullText
 
-			// Remove parameter type annotations (e.g., "Int $a" -> "$a")
-			result = regexp.MustCompile(`\b(my|our|state|Int|Str|Num|Bool|ArrayRef|HashRef|CodeRef|Any|Undef|Maybe)\s+(\$\w+)`).
-				ReplaceAllString(result, "$2")
+			// Remove parameter type annotations (e.g., "Int $a" -> "$a" or "Int $a = 5" -> "$a = 5")
+			// Handle any type name (starting with capital letter) followed by variable and optional default
+			result = regexp.MustCompile(`\b[A-Z][a-zA-Z0-9_]*(?:\[[^\]]*\])?\s+(\$\w+(?:\s*=\s*[^,)]+)?)`).
+				ReplaceAllString(result, "$1")
 
-			// Remove return type annotations (e.g., "-> Int" -> "")
-			result = regexp.MustCompile(`\s*->\s*\w+\s*\{`).
-				ReplaceAllString(result, " {")
+			// Remove return type annotations (e.g., "-> Int" -> "" or "-> ArrayRef[Int]" -> "")
+			result = regexp.MustCompile(`\s*->\s*[A-Z][a-zA-Z0-9_]*(?:\[[^\]]*\])?\s*`).
+				ReplaceAllString(result, " ")
 
 			return result, nil
 		}
 	}
 
 	// Fallback: reconstruct from parts
+	
 	var result strings.Builder
 
 	// Write 'sub' keyword
@@ -313,15 +340,26 @@ func (c *ASTCompiler) reconstructSubroutine(subDecl *ast.SubDecl) (string, error
 	}
 
 	// Write parameters (without type annotations)
-	if len(subDecl.Parameters) > 0 {
+	logicalParams := subDecl.LogicalParameters()
+	if len(logicalParams) > 0 {
 		result.WriteString("(")
-		for i, param := range subDecl.Parameters {
+		for i, param := range logicalParams {
 			if i > 0 {
 				result.WriteString(", ")
 			}
 			// Write parameter without type annotation
 			result.WriteString("$")
 			result.WriteString(param.Name)
+			
+			// Include default value if present
+			if param.Default != nil {
+				result.WriteString(" = ")
+				defaultText, err := c.walkNode(param.Default)
+				if err != nil {
+					return "", err
+				}
+				result.WriteString(defaultText)
+			}
 		}
 		result.WriteString(")")
 	}
@@ -488,44 +526,50 @@ func (c *ASTCompiler) handleField(node ast.Node) (string, error) {
 
 // handleBlock processes block statements with braces
 func (c *ASTCompiler) handleBlock(node ast.Node) (string, error) {
-	// Extract the block's source text directly to preserve formatting
-	blockText := c.extractNodeText(node)
-
-	// Debug: Check what we're getting
-	// fmt.Printf("DEBUG handleBlock: node type=%s, text='%s', start=%v, end=%v\n",
-	//     node.Type(), blockText, node.Start(), node.End())
-
-	// If we got the full block text with braces, return it
-	if blockText != "" {
-		// The block text should already include the braces and content
-		return blockText, nil
-	}
-
-	// Otherwise, reconstruct the block
-	var result strings.Builder
-	result.WriteString("{")
-
-	// Process block contents
-	children := node.Children()
-	if len(children) > 0 {
-		result.WriteString("\n")
-		for _, child := range children {
-			childText, err := c.walkNode(child)
+	// Check if this is an ast.BlockStmt
+	if blockStmt, ok := node.(*ast.BlockStmt); ok {
+		logicalStmts := blockStmt.LogicalStatements()
+		// Process BlockStmt statements
+		var statements []string
+		for _, stmt := range logicalStmts {
+			stmtText, err := c.walkNode(stmt)
 			if err != nil {
 				return "", err
 			}
-			if childText != "" {
-				result.WriteString("    ") // Indent block contents
-				result.WriteString(childText)
-				if !strings.HasSuffix(childText, "\n") {
-					result.WriteString("\n")
+			stmtText = strings.TrimSpace(stmtText)
+			
+			if stmtText != "" {
+				// Don't add semicolons to statements that already have them
+				if !strings.HasSuffix(stmtText, ";") && !strings.HasSuffix(stmtText, "}") {
+					stmtText += ";"
 				}
+				statements = append(statements, stmtText)
 			}
 		}
+		
+		// Build the block with proper formatting
+		if len(statements) == 0 {
+			return "{ }", nil
+		}
+		
+		return "{ " + strings.Join(statements, " ") + " }", nil
 	}
-
-	result.WriteString("}")
-	return result.String(), nil
+	
+	// For tree-sitter block nodes, try to extract source text directly
+	nodeType := node.Type()
+	if nodeType == "block" || nodeType == "block_stmt" {
+		// Extract the source text directly
+		text := c.extractNodeText(node)
+		text = strings.TrimSpace(text)
+		
+		// If we got valid block text, return it directly
+		if text != "" && strings.HasPrefix(text, "{") && strings.HasSuffix(text, "}") {
+			return text, nil
+		}
+	}
+	
+	// For other nodes, just process children normally
+	return c.walkChildren(node)
 }
 
 // handleTokenNode processes token nodes for whitespace preservation

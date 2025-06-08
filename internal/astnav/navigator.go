@@ -121,7 +121,7 @@ func (n *Navigator) FindTypeAnnotations() []*ast.TypeAnnotation {
 		case *ast.VarDecl:
 			if typed.IsTyped() {
 				// Create type annotation from declaration
-				for _, variable := range typed.Variables {
+				for _, variable := range typed.LogicalVariables() {
 					annotation := &ast.TypeAnnotation{
 						AnnotatedItem:  variable.FullName(),
 						TypeExpression: typed.TypeExpr,
@@ -134,7 +134,7 @@ func (n *Navigator) FindTypeAnnotations() []*ast.TypeAnnotation {
 		case *ast.SubDecl:
 			if typed.IsTyped() {
 				// Add parameter annotations
-				for _, param := range typed.Parameters {
+				for _, param := range typed.LogicalParameters() {
 					if param.TypeExpr != nil {
 						annotation := &ast.TypeAnnotation{
 							AnnotatedItem:  param.Name,

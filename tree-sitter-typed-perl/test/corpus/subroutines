@@ -381,6 +381,66 @@ my extended async method stuff {};
     (block)))
 
 ================================================================================
+Typed Optional Parameters
+================================================================================
+sub typed_defaults (Str $name = "world", Int $count = 42) { }
+sub mixed_typed (Str $required, Int $optional = 0) { }
+sub complex_typed (ArrayRef[Int] $data = [1,2,3]) { }
+--------------------------------------------------------------------------------
+
+(source_file
+  (subroutine_declaration_statement
+    (bareword)
+    (signature
+      (optional_parameter
+        (type_expression
+          (simple_type))
+        (scalar
+          (varname))
+        (interpolated_string_literal
+          (string_content)))
+      (optional_parameter
+        (type_expression
+          (simple_type))
+        (scalar
+          (varname))
+        (number)))
+    (block))
+  (subroutine_declaration_statement
+    (bareword)
+    (signature
+      (mandatory_parameter
+        (type_expression
+          (simple_type))
+        (scalar
+          (varname)))
+      (optional_parameter
+        (type_expression
+          (simple_type))
+        (scalar
+          (varname))
+        (number)))
+    (block))
+  (subroutine_declaration_statement
+    (bareword)
+    (signature
+      (optional_parameter
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (simple_type)))))
+        (scalar
+          (varname))
+        (anonymous_array_expression
+          (list_expression
+            (number)
+            (number)
+            (number)))))
+    (block)))
+
+================================================================================
 lexical method calls experimental Object::Pad syntax
 ================================================================================
 $sner->&over_9000

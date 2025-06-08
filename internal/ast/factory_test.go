@@ -151,10 +151,10 @@ func TestNodeFactory_NewVarDecl(t *testing.T) {
 	if decl.DeclType != "my" {
 		t.Errorf("Expected declaration type 'my', got '%s'", decl.DeclType)
 	}
-	if len(decl.Variables) != 1 {
-		t.Errorf("Expected 1 variable, got %d", len(decl.Variables))
+	if len(decl.LogicalVariables()) != 1 {
+		t.Errorf("Expected 1 variable, got %d", len(decl.LogicalVariables()))
 	}
-	if decl.Variables[0] != variable {
+	if decl.LogicalVariables()[0] != variable {
 		t.Error("Expected variable to match")
 	}
 	if decl.TypeExpr != typeExpr {
@@ -182,8 +182,8 @@ func TestNodeFactory_NewBlockStmt(t *testing.T) {
 	if block == nil {
 		t.Fatal("Expected non-nil block statement")
 	}
-	if len(block.Statements) != 2 {
-		t.Errorf("Expected 2 statements, got %d", len(block.Statements))
+	if len(block.LogicalStatements()) != 2 {
+		t.Errorf("Expected 2 statements, got %d", len(block.LogicalStatements()))
 	}
 	if !block.IsStatement() {
 		t.Error("Expected IsStatement() to return true")

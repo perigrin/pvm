@@ -222,8 +222,8 @@ func validateGenericClassStructure(t *testing.T, astResult *ast.AST) {
 
 	// Validate generic methods use type parameters
 	for _, method := range classDecl.Methods {
-		if method.Name == "add" && len(method.Parameters) > 0 {
-			param := method.Parameters[0]
+		if method.Name == "add" && len(method.LogicalParameters()) > 0 {
+			param := method.LogicalParameters()[0]
 			if param.TypeExpr == nil {
 				t.Error("Expected generic method parameter to have type")
 			}

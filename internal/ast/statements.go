@@ -14,24 +14,40 @@ type StatementNode interface {
 // the global program context that can contain subroutines, classes, and statements
 type ProgramStmt struct {
 	*BaseNode
-	Statements []StatementNode
+	statements []StatementNode // Private - logical statements only
 }
 
 // NewProgramStmt creates a new program statement
 func NewProgramStmt(statements []StatementNode, start, end Position) *ProgramStmt {
 	stmt := &ProgramStmt{
 		BaseNode:   NewBaseNode("program_stmt", start, end),
-		Statements: statements,
+		statements: make([]StatementNode, 0),
 	}
 
-	// Add all statements as children
+	// Add statements using the new pattern
 	for _, s := range statements {
 		if s != nil {
-			stmt.AddChild(s)
+			stmt.AddStatement(s)
 		}
 	}
 
 	return stmt
+}
+
+// AddStatement adds a statement to the private collection
+func (ps *ProgramStmt) AddStatement(statement StatementNode) {
+	ps.statements = append(ps.statements, statement)
+	ps.AddChild(statement)
+}
+
+// LogicalStatements returns the logical statements
+func (ps *ProgramStmt) LogicalStatements() []StatementNode {
+	return ps.statements
+}
+
+// Statements returns logical statements (for backward compatibility)
+func (ps *ProgramStmt) Statements() []StatementNode {
+	return ps.statements
 }
 
 // IsStatement implements StatementNode interface
@@ -69,7 +85,7 @@ func (es *ExpressionStmt) IsStatement() bool {
 type VarDecl struct {
 	*BaseNode
 	DeclType    string          // "my", "our", "state"
-	Variables   []*VariableExpr // Variables being declared
+	variables   []*VariableExpr // Private - logical variables only
 	TypeExpr    *TypeExpression // Optional type annotation
 	Initializer ExpressionNode  // Optional initializer
 	Scope       string          // variable scope context
@@ -81,18 +97,20 @@ func NewVarDecl(declType string, vars []*VariableExpr, typeExpr *TypeExpression,
 	decl := &VarDecl{
 		BaseNode:    NewBaseNode("var_decl", start, end),
 		DeclType:    declType,
-		Variables:   vars,
+		variables:   make([]*VariableExpr, 0),
 		TypeExpr:    typeExpr,
 		Initializer: init,
 		Scope:       declType, // scope defaults to declaration type
 	}
 
-	// Add children
+	// Add variables using the new pattern
 	for _, v := range vars {
 		if v != nil {
-			decl.AddChild(v)
+			decl.AddVariable(v)
 		}
 	}
+
+	// Add children
 	if typeExpr != nil {
 		decl.AddChild(typeExpr)
 	}
@@ -101,6 +119,22 @@ func NewVarDecl(declType string, vars []*VariableExpr, typeExpr *TypeExpression,
 	}
 
 	return decl
+}
+
+// AddVariable adds a variable to the private collection
+func (vd *VarDecl) AddVariable(variable *VariableExpr) {
+	vd.variables = append(vd.variables, variable)
+	vd.AddChild(variable)
+}
+
+// LogicalVariables returns the logical variables
+func (vd *VarDecl) LogicalVariables() []*VariableExpr {
+	return vd.variables
+}
+
+// Variables returns logical variables (for backward compatibility)
+func (vd *VarDecl) Variables() []*VariableExpr {
+	return vd.variables
 }
 
 // GetTypeInfo returns comprehensive type information for this declaration
@@ -119,7 +153,7 @@ func (vd *VarDecl) GetTypeInfo() *VariableTypeInfo {
 // getVariableNames extracts variable names from the declaration
 func (vd *VarDecl) getVariableNames() []string {
 	var names []string
-	for _, v := range vd.Variables {
+	for _, v := range vd.LogicalVariables() {
 		if v != nil {
 			names = append(names, v.FullName())
 		}
@@ -153,7 +187,7 @@ func (vd *VarDecl) IsTyped() bool {
 type SubDecl struct {
 	*BaseNode
 	Name           string            // subroutine/method name
-	Parameters     []*Parameter      // parameter list
+	parameters     []*Parameter      // Private - logical parameters only
 	ReturnType     *TypeExpression   // return type annotation
 	Body           *BlockStmt        // subroutine body
 	IsMethod       bool              // true if this is a method
@@ -182,10 +216,17 @@ func NewSubDecl(name string, params []*Parameter, returnType *TypeExpression, bo
 	decl := &SubDecl{
 		BaseNode:   NewBaseNode("sub_decl", start, end),
 		Name:       name,
-		Parameters: params,
+		parameters: make([]*Parameter, 0),
 		ReturnType: returnType,
 		Body:       body,
 		IsMethod:   isMethod,
+	}
+
+	// Add parameters using the new pattern
+	for _, param := range params {
+		if param != nil {
+			decl.AddParameter(param)
+		}
 	}
 
 	// Add children
@@ -204,10 +245,25 @@ func NewSubDecl(name string, params []*Parameter, returnType *TypeExpression, bo
 	return decl
 }
 
+// AddParameter adds a parameter to the private collection
+func (sd *SubDecl) AddParameter(param *Parameter) {
+	sd.parameters = append(sd.parameters, param)
+}
+
+// LogicalParameters returns the logical parameters
+func (sd *SubDecl) LogicalParameters() []*Parameter {
+	return sd.parameters
+}
+
+// Parameters returns logical parameters (for backward compatibility)
+func (sd *SubDecl) Parameters() []*Parameter {
+	return sd.parameters
+}
+
 // buildMethodSignature creates a MethodSignature from the subroutine declaration
 func (sd *SubDecl) buildMethodSignature() *MethodSignature {
 	var paramInfos []*ParameterInfo
-	for _, param := range sd.Parameters {
+	for _, param := range sd.LogicalParameters() {
 		if param != nil {
 			paramInfos = append(paramInfos, &ParameterInfo{
 				Name:       param.Name,
@@ -249,7 +305,7 @@ func (sd *SubDecl) IsTyped() bool {
 	if sd.ReturnType != nil {
 		return true
 	}
-	for _, param := range sd.Parameters {
+	for _, param := range sd.LogicalParameters() {
 		if param.TypeExpr != nil {
 			return true
 		}
@@ -409,17 +465,19 @@ func (td *TypeDecl) IsStatement() bool {
 // BlockStmt represents block statements ({ ... })
 type BlockStmt struct {
 	*BaseNode
-	Statements []StatementNode
+	children   []Node          // Private - all tokens in order
+	statements []StatementNode // Private - cached logical statements
 }
 
 // NewBlockStmt creates a new block statement
 func NewBlockStmt(statements []StatementNode, start, end Position) *BlockStmt {
 	stmt := &BlockStmt{
 		BaseNode:   NewBaseNode("block_stmt", start, end),
-		Statements: statements,
+		children:   make([]Node, 0),
+		statements: make([]StatementNode, 0),
 	}
 
-	// Add all statements as children
+	// Add all statements using the new pattern
 	for _, s := range statements {
 		if s != nil {
 			stmt.AddChild(s)
@@ -427,6 +485,34 @@ func NewBlockStmt(statements []StatementNode, start, end Position) *BlockStmt {
 	}
 
 	return stmt
+}
+
+// AddChild handles adding to both collections appropriately
+func (bs *BlockStmt) AddChild(child Node) {
+	bs.children = append(bs.children, child)
+	
+	// If it's a statement, also cache it
+	if stmt, ok := child.(StatementNode); ok {
+		bs.statements = append(bs.statements, stmt)
+	}
+	
+	// Also add to BaseNode for backward compatibility
+	bs.BaseNode.AddChild(child)
+}
+
+// Children returns all nodes (implements Node interface)
+func (bs *BlockStmt) Children() []Node {
+	return bs.children
+}
+
+// LogicalStatements returns only the statement nodes
+func (bs *BlockStmt) LogicalStatements() []StatementNode {
+	return bs.statements
+}
+
+// Statements returns logical statements (for backward compatibility)
+func (bs *BlockStmt) Statements() []StatementNode {
+	return bs.statements
 }
 
 // IsStatement implements StatementNode interface

@@ -290,14 +290,14 @@ func (f *NodeFactory) NewVarDecl(declType string, vars []*VariableExpr, typeExpr
 	decl.BaseNode.start = start
 	decl.BaseNode.end = end
 	decl.DeclType = declType
-	decl.Variables = vars
+	decl.variables = make([]*VariableExpr, 0)
 	decl.TypeExpr = typeExpr
 	decl.Initializer = init
 
-	// Add children
+	// Add variables using the new pattern
 	for _, v := range vars {
 		if v != nil {
-			decl.AddChild(v)
+			decl.AddVariable(v)
 		}
 	}
 	if typeExpr != nil {
@@ -331,9 +331,12 @@ func (f *NodeFactory) NewBlockStmt(statements []StatementNode, start, end Positi
 	stmt.BaseNode.nodeType = "block_stmt"
 	stmt.BaseNode.start = start
 	stmt.BaseNode.end = end
-	stmt.Statements = statements
+	
+	// Initialize private fields
+	stmt.children = make([]Node, 0)
+	stmt.statements = make([]StatementNode, 0)
 
-	// Add children
+	// Add children using the new method
 	for _, s := range statements {
 		if s != nil {
 			stmt.AddChild(s)

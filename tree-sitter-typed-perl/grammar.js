@@ -173,6 +173,10 @@ module.exports = grammar({
     [$.autoquoted_bareword],
     // nameless params need extra lookahead
     [$.optional_parameter],
+    // add conflicts for parameter types vs signature vars
+    [$.mandatory_parameter, $._signature_scalar],
+    [$.slurpy_parameter, $._signature_array],
+    [$.slurpy_parameter, $._signature_hash],
     // these are all dynamic handling for continue BLOCK vs func0 b/c we don't get lookahead
     [$._loop_body],
     // we need an extra lookahead so we can correctly hide the `->` in a non-interpolating case
@@ -257,7 +261,13 @@ module.exports = grammar({
       $._semicolon
     ),
 
-    mandatory_parameter: $ => alias(choice('$', $._signature_scalar), $.scalar),
+    mandatory_parameter: $ => choice(
+      alias(choice('$', $._signature_scalar), $.scalar),
+      prec(1, seq(
+        $.type_expression,
+        alias($._signature_scalar, $.scalar)
+      ))
+    ),
     optional_parameter: $ => choice(
       seq(
         alias($._signature_scalar, $.scalar),
@@ -268,7 +278,13 @@ module.exports = grammar({
         alias('$', $.scalar),
         choice('=', '||=', '//='),
         field('default', optional($._term))
-      )
+      ),
+      prec(1, seq(
+        $.type_expression,
+        alias($._signature_scalar, $.scalar),
+        choice('=', '||=', '//='),
+        field('default', $._term)
+      ))
     ),
     named_parameter: $ => seq(
       ':',
@@ -285,8 +301,8 @@ module.exports = grammar({
     ),
 
     _signature_vars: $ => choice(
-      $.mandatory_parameter,
       $.optional_parameter,
+      $.mandatory_parameter,
       $.slurpy_parameter,
       $.named_parameter,
     ),

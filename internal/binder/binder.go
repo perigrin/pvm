@@ -89,7 +89,7 @@ func (b *DefaultBinder) visitNode(node ast.Node) error {
 // bindVariableDeclaration handles variable declarations (my, our, state)
 func (b *DefaultBinder) bindVariableDeclaration(node *ast.VarDecl) error {
 	// Process each variable in the declaration
-	for _, variable := range node.Variables {
+	for _, variable := range node.LogicalVariables() {
 		// Skip invalid symbol names (likely parsing errors)
 		if !b.isValidSymbolName(variable.Name) {
 			continue
@@ -158,7 +158,7 @@ func (b *DefaultBinder) bindSubroutineDeclaration(node *ast.SubDecl) error {
 	b.symbolTable.EnterScope(ScopeSubroutine, node)
 
 	// Bind parameters
-	for _, param := range node.Parameters {
+	for _, param := range node.LogicalParameters() {
 		if err := b.bindParameter(param); err != nil {
 			return err
 		}
@@ -203,7 +203,7 @@ func (b *DefaultBinder) bindMethodDeclaration(node *ast.MethodDecl) error {
 	b.symbolTable.EnterScope(ScopeMethod, node)
 
 	// Bind parameters (including implicit $self)
-	for _, param := range node.Parameters {
+	for _, param := range node.LogicalParameters() {
 		if err := b.bindParameter(param); err != nil {
 			return err
 		}
@@ -245,7 +245,7 @@ func (b *DefaultBinder) bindBlockStatement(node *ast.BlockStmt) error {
 	b.symbolTable.EnterScope(ScopeBlock, node)
 
 	// Bind all statements in block
-	for _, stmt := range node.Statements {
+	for _, stmt := range node.LogicalStatements() {
 		if err := b.visitNode(stmt); err != nil {
 			return err
 		}

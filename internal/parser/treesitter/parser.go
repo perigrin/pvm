@@ -756,7 +756,7 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 	}
 
 	// First, check if this is a structural token that should be preserved as a token
-	if tokenNode := p.convertToTokenNode(nodeType, nodeText, start, end); tokenNode != nil {
+	if tokenNode := p.convertToTokenNodeWithParams(nodeType, nodeText, start, end); tokenNode != nil {
 		return tokenNode
 	}
 
@@ -771,6 +771,16 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 	// Handle subroutine declarations specifically
 	if nodeType == "subroutine_declaration_statement" {
 		return p.convertToSubDeclAST(node, start, end)
+	}
+
+	// Handle class declarations specifically
+	if nodeType == "class_statement" {
+		return p.convertToClassDeclAST(node, start, end)
+	}
+
+	// Handle role declarations specifically
+	if nodeType == "role_statement" {
+		return p.convertToRoleDeclAST(node, start, end)
 	}
 
 	// Handle higher-level constructs that need semantic processing
@@ -1105,9 +1115,8 @@ func (p *Parser) convertToSubDeclAST(node Node, start, end ast.Position) ast.Nod
 				Column: child.End().Column,
 			}
 
-			// Parse block contents
-			blockStatements := p.parseBlockStatements(child)
-			body = ast.NewBlockStmt(blockStatements, blockStart, blockEnd)
+			// Parse block contents using new pattern
+			body = p.parseBlock(child, blockStart, blockEnd)
 		}
 	}
 
@@ -1119,11 +1128,36 @@ func (p *Parser) convertToSubDeclAST(node Node, start, end ast.Position) ast.Nod
 func (p *Parser) parseSignatureParams(signatureNode Node) []*ast.Parameter {
 	var params []*ast.Parameter
 
-	// The signature contains typed_method_parameter children
-	for _, child := range signatureNode.Children() {
-		if child.Type() == "typed_method_parameter" {
+	// The signature contains various parameter types
+	children := signatureNode.Children()
+	for _, child := range children {
+		childType := child.Type()
+		if p.debug {
+			fmt.Printf("DEBUG: Signature child type: %s, text: '%s'\n", childType, child.Text())
+		}
+		switch childType {
+		case "typed_method_parameter", "mandatory_parameter", "optional_parameter":
+			if p.debug {
+				fmt.Printf("DEBUG: Parsing parameter of type %s\n", childType)
+			}
 			param := p.parseTypedParameter(child)
 			if param != nil {
+				if p.debug {
+					fmt.Printf("DEBUG: Created parameter %s, default: %v\n", param.Name, param.Default != nil)
+				}
+				params = append(params, param)
+			}
+		case "scalar":
+			// Handle untyped parameters
+			paramName := strings.TrimPrefix(child.Text(), "$")
+			if paramName != "" {
+				param := &ast.Parameter{
+					Name: paramName,
+					Pos: ast.Position{
+						Line:   child.Start().Line,
+						Column: child.Start().Column,
+					},
+				}
 				params = append(params, param)
 			}
 		}
@@ -1136,10 +1170,16 @@ func (p *Parser) parseSignatureParams(signatureNode Node) []*ast.Parameter {
 func (p *Parser) parseTypedParameter(paramNode Node) *ast.Parameter {
 	var paramName string
 	var paramType *ast.TypeExpression
+	var defaultValue ast.ExpressionNode
+
+	// Handle different parameter node types
+	nodeType := paramNode.Type()
 
 	// typed_method_parameter has children: type_expression, scalar
+	// optional_parameter has children: type_expression?, scalar, default
 	for _, child := range paramNode.Children() {
-		switch child.Type() {
+		childType := child.Type()
+		switch childType {
 		case "type_expression":
 			// Extract the type name from the type_expression
 			paramType = p.parseTreeSitterTypeExpression(child)
@@ -1148,6 +1188,51 @@ func (p *Parser) parseTypedParameter(paramNode Node) *ast.Parameter {
 			varText := child.Text()
 			if len(varText) > 1 && varText[0] == '$' {
 				paramName = varText[1:] // Remove the $ sigil
+			}
+		case "interpolated_string_literal", "string_literal", "number", "integer":
+			// This is likely a default value for optional parameters
+			defaultValue = p.parseSimpleExpression(child)
+		case "anonymous_array_expression":
+			// This is an array literal default value
+			defaultValue = p.parseSimpleExpression(child)
+		}
+	}
+
+	// For optional parameters, extract the default value from the text
+	if nodeType == "optional_parameter" && defaultValue == nil {
+		paramText := paramNode.Text()
+		if p.debug {
+			fmt.Printf("DEBUG parseTypedParameter: optional_parameter text='%s'\n", paramText)
+		}
+		// Look for pattern: Type $var = value or $var = value
+		if equalPos := strings.Index(paramText, " = "); equalPos != -1 {
+			// Extract everything after " = "
+			defaultStr := strings.TrimSpace(paramText[equalPos+3:])
+			if p.debug {
+				fmt.Printf("DEBUG parseTypedParameter: found default value='%s'\n", defaultStr)
+			}
+			if defaultStr != "" {
+				// Create a simple literal expression for the default value
+				pos := ast.Position{
+					Line:   paramNode.Start().Line,
+					Column: paramNode.Start().Column,
+				}
+				// Determine the literal type based on the content
+				var literalKind ast.LiteralKind
+				if strings.HasPrefix(defaultStr, "\"") && strings.HasSuffix(defaultStr, "\"") {
+					literalKind = ast.StringLiteral
+				} else if strings.HasPrefix(defaultStr, "'") && strings.HasSuffix(defaultStr, "'") {
+					literalKind = ast.StringLiteral
+				} else if strings.Contains(defaultStr, ".") {
+					literalKind = ast.NumberLiteral
+				} else {
+					// Integers, booleans, etc.
+					literalKind = ast.NumberLiteral
+				}
+				defaultValue = ast.NewLiteralExpr(defaultStr, literalKind, pos, pos)
+				if p.debug {
+					fmt.Printf("DEBUG parseTypedParameter: created default value node\n")
+				}
 			}
 		}
 	}
@@ -1159,9 +1244,11 @@ func (p *Parser) parseTypedParameter(paramNode Node) *ast.Parameter {
 		}
 		// Create a Parameter struct directly since there's no NewParameter function
 		return &ast.Parameter{
-			Name:     paramName,
-			TypeExpr: paramType,
-			Pos:      pos,
+			Name:       paramName,
+			TypeExpr:   paramType,
+			Default:    defaultValue,
+			IsOptional: nodeType == "optional_parameter",
+			Pos:        pos,
 		}
 	}
 
@@ -1211,12 +1298,52 @@ func (p *Parser) parseTreeSitterTypeExpression(typeExprNode Node) *ast.TypeExpre
 	return ast.NewTypeExpression(typeName, nil, startPos, endPos)
 }
 
-// parseBlockStatements parses the statements inside a block
+// parseBlock parses a block using the new encapsulated pattern
+func (p *Parser) parseBlock(blockNode Node, start, end ast.Position) *ast.BlockStmt {
+	// Create empty block statement
+	block := ast.NewBlockStmt([]ast.StatementNode{}, start, end)
+
+	// Process each child node in the block
+	for _, child := range blockNode.Children() {
+		childType := child.Type()
+
+		// Skip structural tokens that shouldn't be statements
+		if childType == "{" || childType == "}" || childType == ";" {
+			// Create token node for structural elements
+			tokenNode := p.convertToTokenNode(child)
+			if tokenNode != nil {
+				block.AddChild(tokenNode)
+			}
+			continue
+		}
+
+		// Convert actual statements
+		if stmt := p.convertToStatement(child); stmt != nil {
+			block.AddChild(stmt)
+		} else {
+			// For non-statement nodes, try to convert to token
+			if tokenNode := p.convertToTokenNode(child); tokenNode != nil {
+				block.AddChild(tokenNode)
+			}
+		}
+	}
+
+	return block
+}
+
+// parseBlockStatements parses the statements inside a block (deprecated - use parseBlock)
 func (p *Parser) parseBlockStatements(blockNode Node) []ast.StatementNode {
 	var statements []ast.StatementNode
 
 	// Process each child node in the block
 	for _, child := range blockNode.Children() {
+		childType := child.Type()
+
+		// Skip structural tokens that shouldn't be statements
+		if childType == "{" || childType == "}" || childType == ";" {
+			continue
+		}
+
 		// Convert the child node to an AST statement
 		if stmt := p.convertToStatement(child); stmt != nil {
 			statements = append(statements, stmt)
@@ -1258,6 +1385,12 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 	case "return_expression":
 		// Parse return statements
 		return p.parseReturnStatement(node, start, end)
+	case "class_statement":
+		// Parse class declarations
+		return p.convertToClassDeclAST(node, start, end).(ast.StatementNode)
+	case "role_statement":
+		// Parse role declarations
+		return p.convertToRoleDeclAST(node, start, end).(ast.StatementNode)
 	default:
 		// For other statement types, create a generic expression statement
 		// using the node's text content
@@ -1280,6 +1413,41 @@ func (p *Parser) parseExpressionStatement(node Node, start, end ast.Position) as
 		return ast.NewExpressionStmt(expr, start, end)
 	}
 	return nil
+}
+
+// parseSimpleExpression parses a simple expression node (used for default values)
+func (p *Parser) parseSimpleExpression(node Node) ast.ExpressionNode {
+	if node == nil {
+		return nil
+	}
+
+	nodeType := node.Type()
+	nodeText := node.Text()
+	start := ast.Position{
+		Line:   node.Start().Line,
+		Column: node.Start().Column,
+		Offset: node.Start().Offset,
+	}
+	end := ast.Position{
+		Line:   node.End().Line,
+		Column: node.End().Column,
+		Offset: node.End().Offset,
+	}
+
+	// Handle different expression types
+	switch nodeType {
+	case "number", "integer":
+		return ast.NewLiteralExpr(nodeText, ast.NumberLiteral, start, end)
+	case "string", "string_literal":
+		return ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end)
+	case "scalar":
+		// Variable reference
+		varName := strings.TrimPrefix(nodeText, "$")
+		return ast.NewVariableExpr("", varName, start, end)
+	default:
+		// For other types, treat as literal
+		return ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end)
+	}
 }
 
 // parseVariableDeclaration parses a variable declaration statement
@@ -1325,15 +1493,25 @@ func (p *Parser) parseReturnStatement(node Node, start, end ast.Position) ast.St
 // processClassBlock processes the contents of a class block
 func (p *Parser) processClassBlock(blockNode Node, classDecl *ast.ClassDecl) {
 	for _, stmt := range blockNode.Children() {
-		// Process field declarations
-		if strings.Contains(stmt.Text(), "field ") {
-			if field := p.extractFieldDecl(stmt); field != nil {
-				classDecl.AddField(field)
+		switch stmt.Type() {
+		case "expression_statement":
+			// Check if the expression statement contains a typed variable declaration
+			for _, child := range stmt.Children() {
+				if child.Type() == "typed_variable_declaration" && strings.Contains(child.Text(), "field ") {
+					if field := p.extractFieldDecl(child); field != nil {
+						classDecl.AddField(field)
+					}
+				}
 			}
-		}
-
-		// Process method declarations
-		if strings.Contains(stmt.Text(), "method ") {
+		case "typed_variable_declaration":
+			// Direct typed variable declaration
+			if strings.Contains(stmt.Text(), "field ") {
+				if field := p.extractFieldDecl(stmt); field != nil {
+					classDecl.AddField(field)
+				}
+			}
+		case "method_declaration_statement":
+			// Method declaration
 			if method := p.extractMethodDecl(stmt); method != nil {
 				classDecl.AddMethod(method)
 			}
@@ -1344,15 +1522,25 @@ func (p *Parser) processClassBlock(blockNode Node, classDecl *ast.ClassDecl) {
 // processRoleBlock processes the contents of a role block
 func (p *Parser) processRoleBlock(blockNode Node, roleDecl *ast.RoleDecl) {
 	for _, stmt := range blockNode.Children() {
-		// Process field declarations
-		if strings.Contains(stmt.Text(), "field ") {
-			if field := p.extractFieldDecl(stmt); field != nil {
-				roleDecl.AddField(field)
+		switch stmt.Type() {
+		case "expression_statement":
+			// Check if the expression statement contains a typed variable declaration
+			for _, child := range stmt.Children() {
+				if child.Type() == "typed_variable_declaration" && strings.Contains(child.Text(), "field ") {
+					if field := p.extractFieldDecl(child); field != nil {
+						roleDecl.AddField(field)
+					}
+				}
 			}
-		}
-
-		// Process method declarations
-		if strings.Contains(stmt.Text(), "method ") {
+		case "typed_variable_declaration":
+			// Direct typed variable declaration
+			if strings.Contains(stmt.Text(), "field ") {
+				if field := p.extractFieldDecl(stmt); field != nil {
+					roleDecl.AddField(field)
+				}
+			}
+		case "method_declaration_statement":
+			// Method declaration
 			if method := p.extractMethodDecl(stmt); method != nil {
 				roleDecl.AddProvidedMethod(method)
 			}
@@ -1362,34 +1550,168 @@ func (p *Parser) processRoleBlock(blockNode Node, roleDecl *ast.RoleDecl) {
 
 // extractFieldDecl extracts a field declaration from a statement node
 func (p *Parser) extractFieldDecl(stmt Node) *ast.FieldDecl {
-	// Simple parsing - this would need to be enhanced for full parsing
-	text := stmt.Text()
-
-	// Basic pattern: field Type $name = value;
-	if !strings.HasPrefix(strings.TrimSpace(text), "field ") {
-		return nil
-	}
-
 	start := ast.Position{Line: stmt.Start().Line, Column: stmt.Start().Column}
 	end := ast.Position{Line: stmt.End().Line, Column: stmt.End().Column}
 
-	// Extract field name (simplified)
-	parts := strings.Fields(text)
-	if len(parts) < 3 {
+	var fieldName string
+	var typeExpr *ast.TypeExpression
+	var varExpr ast.ExpressionNode
+
+	// Handle typed_variable_declaration nodes specifically
+	if stmt.Type() == "typed_variable_declaration" {
+		for _, child := range stmt.Children() {
+			switch child.Type() {
+			case "type_expression":
+				// Extract type information
+				typeExpr = p.extractTypeExpression(child)
+			case "scalar":
+				// Extract variable name from scalar node
+				fieldName = p.extractVariableName(child)
+				if fieldName != "" {
+					varExpr = ast.NewVariableExpr(fieldName, "$", start, end)
+				}
+			}
+		}
+	} else if strings.Contains(stmt.Text(), "field ") {
+		// Fallback to text parsing for non-structured nodes
+		text := stmt.Text()
+		parts := strings.Fields(text)
+		if len(parts) >= 3 {
+			fieldName = strings.TrimPrefix(parts[2], "$")
+			varExpr = ast.NewVariableExpr(fieldName, "$", start, end)
+		}
+	}
+
+	if fieldName == "" {
 		return nil
 	}
 
-	fieldName := parts[2]                          // Should be $name
-	fieldName = strings.TrimPrefix(fieldName, "$") // Remove $
-
-	// Create variable expression for the field
-	varExpr := ast.NewVariableExpr(fieldName, "$", start, end)
-
-	// Create field declaration
-	return ast.NewFieldDecl(fieldName, nil, varExpr, nil, start, end)
+	// Type assert varExpr to *VariableExpr as required by NewFieldDecl
+	var varPtr *ast.VariableExpr
+	if ve, ok := varExpr.(*ast.VariableExpr); ok {
+		varPtr = ve
+	}
+	return ast.NewFieldDecl(fieldName, typeExpr, varPtr, nil, start, end)
 }
 
-// extractMethodDecl extracts a method declaration from a statement node
+// extractTypeExpression extracts type information from a type_expression node
+func (p *Parser) extractTypeExpression(node Node) *ast.TypeExpression {
+	if node == nil {
+		return nil
+	}
+
+	// For now, extract the base type from the text
+	// This could be enhanced to parse complex types like ArrayRef[Int]
+	typeText := strings.TrimSpace(node.Text())
+	if typeText == "" {
+		return nil
+	}
+
+	start := ast.Position{Line: node.Start().Line, Column: node.Start().Column}
+	end := ast.Position{Line: node.End().Line, Column: node.End().Column}
+
+	// Handle parameterized types like ArrayRef[Int] or Optional[Email]
+	if strings.Contains(typeText, "[") && strings.Contains(typeText, "]") {
+		openBracket := strings.Index(typeText, "[")
+		closeBracket := strings.LastIndex(typeText, "]")
+
+		if openBracket < closeBracket {
+			baseType := strings.TrimSpace(typeText[:openBracket])
+			paramText := strings.TrimSpace(typeText[openBracket+1 : closeBracket])
+
+			// Create parameterized type expression
+			var params []*ast.TypeExpression
+			if paramText != "" {
+				paramType := ast.NewTypeExpression(paramText, nil, start, end)
+				params = []*ast.TypeExpression{paramType}
+			}
+			return ast.NewTypeExpression(baseType, params, start, end)
+		}
+	}
+
+	// Simple type
+	return ast.NewTypeExpression(typeText, nil, start, end)
+}
+
+// extractVariableName extracts variable name from a scalar node
+func (p *Parser) extractVariableName(node Node) string {
+	if node == nil {
+		return ""
+	}
+
+	// Extract variable name from scalar node children
+	for _, child := range node.Children() {
+		if child.Type() != "$" && child.Type() != "token" {
+			text := strings.TrimSpace(child.Text())
+			if text != "$" && text != "" {
+				return text
+			}
+		}
+	}
+
+	// Fallback - extract from full text
+	text := strings.TrimSpace(node.Text())
+	return strings.TrimPrefix(text, "$")
+}
+
+// extractMethodParameters extracts parameters from a method signature node
+func (p *Parser) extractMethodParameters(sigNode Node) []*ast.Parameter {
+	var parameters []*ast.Parameter
+
+	if sigNode == nil {
+		return parameters
+	}
+
+	// Parse parameters from signature node
+	for _, child := range sigNode.Children() {
+		if child.Type() == "mandatory_parameter" {
+			param := p.extractParameter(child)
+			if param != nil {
+				parameters = append(parameters, param)
+			}
+		}
+	}
+
+	return parameters
+}
+
+// extractParameter extracts a single parameter from a parameter node
+func (p *Parser) extractParameter(paramNode Node) *ast.Parameter {
+	if paramNode == nil {
+		return nil
+	}
+
+	start := ast.Position{Line: paramNode.Start().Line, Column: paramNode.Start().Column}
+	end := ast.Position{Line: paramNode.End().Line, Column: paramNode.End().Column}
+
+	var paramName string
+	var typeExpr *ast.TypeExpression
+
+	// Extract type and name from parameter children
+	for _, child := range paramNode.Children() {
+		switch child.Type() {
+		case "type_expression":
+			typeExpr = p.extractTypeExpression(child)
+		case "scalar":
+			paramName = p.extractVariableName(child)
+		}
+	}
+
+	if paramName == "" {
+		return nil
+	}
+
+	// Create Parameter struct directly since there's no constructor
+	param := &ast.Parameter{
+		Name:       paramName,
+		TypeExpr:   typeExpr,
+		Variable:   ast.NewVariableExpr(paramName, "$", start, end),
+		Default:    nil,
+		IsOptional: false,
+	}
+	return param
+}
+
 // extractConstraintsFromText extracts constraint information from method or class signatures
 func (p *Parser) extractConstraintsFromText(text string) []*ast.TypeConstraint {
 	var constraints []*ast.TypeConstraint
@@ -1703,43 +2025,77 @@ func extractParameterFromValueConstraint(text string) string {
 }
 
 func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
-	// Simple parsing - this would need to be enhanced for full parsing
-	text := stmt.Text()
-
-	if !strings.Contains(text, "method ") {
-		return nil
-	}
-
 	start := ast.Position{Line: stmt.Start().Line, Column: stmt.Start().Column}
 	end := ast.Position{Line: stmt.End().Line, Column: stmt.End().Column}
 
+	var methodName string
+	var returnType *ast.TypeExpression
+	var parameters []*ast.Parameter
+	var block *ast.BlockStmt
+
+	// Handle method_declaration_statement nodes specifically
+	if stmt.Type() == "method_declaration_statement" {
+		// Extract method name from children
+		for _, child := range stmt.Children() {
+			if child.Type() == "bareword" {
+				methodName = strings.TrimSpace(child.Text())
+				break
+			}
+		}
+
+		for _, child := range stmt.Children() {
+			switch child.Type() {
+			case "token":
+				// Skip - already handled above
+			case "signature":
+				// Extract parameters from signature
+				parameters = p.extractMethodParameters(child)
+			case "block":
+				// Convert block to BlockStmt
+				if blockNode := p.convertToASTNode(child); blockNode != nil {
+					if bs, ok := blockNode.(*ast.BlockStmt); ok {
+						block = bs
+					}
+				}
+			}
+		}
+
+		// Look for return type after "->" in the method text
+		text := stmt.Text()
+		if arrowIndex := strings.Index(text, "->"); arrowIndex != -1 {
+			afterArrow := strings.TrimSpace(text[arrowIndex+2:])
+			if braceIndex := strings.Index(afterArrow, "{"); braceIndex != -1 {
+				returnTypeText := strings.TrimSpace(afterArrow[:braceIndex])
+				if returnTypeText != "" {
+					returnType = ast.NewTypeExpression(returnTypeText, nil, start, end)
+				}
+			}
+		}
+	} else if strings.Contains(stmt.Text(), "method ") {
+		// Fallback to text parsing for non-structured nodes
+		text := stmt.Text()
+		lines := strings.Split(text, "\n")
+		if len(lines) > 0 {
+			firstLine := strings.TrimSpace(lines[0])
+			parts := strings.Fields(firstLine)
+			if len(parts) >= 2 && parts[0] == "method" {
+				methodName = parts[1]
+				if strings.Contains(methodName, "(") {
+					methodName = strings.Split(methodName, "(")[0]
+				}
+			}
+		}
+	}
+
+	if methodName == "" {
+		return nil
+	}
+
 	// Extract constraints from the method signature
-	constraints := p.extractConstraintsFromText(text)
+	constraints := p.extractConstraintsFromText(stmt.Text())
 
-	// Extract method name (simplified)
-	lines := strings.Split(text, "\n")
-	if len(lines) == 0 {
-		return nil
-	}
-
-	firstLine := strings.TrimSpace(lines[0])
-	if !strings.HasPrefix(firstLine, "method ") {
-		return nil
-	}
-
-	// Parse method name from first line
-	parts := strings.Fields(firstLine)
-	if len(parts) < 2 {
-		return nil
-	}
-
-	methodName := parts[1]
-	if strings.Contains(methodName, "(") {
-		methodName = strings.Split(methodName, "(")[0]
-	}
-
-	// Create basic method declaration with constraints
-	methodDecl := ast.NewMethodDecl(methodName, nil, nil, nil, start, end)
+	// Create method declaration
+	methodDecl := ast.NewMethodDecl(methodName, parameters, returnType, block, start, end)
 	methodDecl.Constraints = constraints
 
 	return methodDecl
@@ -1818,8 +2174,28 @@ func (p *Parser) validateTypeSyntax(line string, lineNum int) error {
 	return nil
 }
 
-// convertToTokenNode converts structural tokens to AST token nodes
-func (p *Parser) convertToTokenNode(nodeType, nodeText string, start, end ast.Position) ast.Node {
+// convertToTokenNode converts a tree-sitter node to a token node
+func (p *Parser) convertToTokenNode(node Node) ast.Node {
+	if node == nil {
+		return nil
+	}
+
+	start := ast.Position{
+		Line:   node.Start().Line,
+		Column: node.Start().Column,
+		Offset: node.Start().Offset,
+	}
+	end := ast.Position{
+		Line:   node.End().Line,
+		Column: node.End().Column,
+		Offset: node.End().Offset,
+	}
+
+	return p.convertToTokenNodeWithParams(node.Type(), node.Text(), start, end)
+}
+
+// convertToTokenNodeWithParams converts structural tokens to AST token nodes
+func (p *Parser) convertToTokenNodeWithParams(nodeType, nodeText string, start, end ast.Position) ast.Node {
 	// Map tree-sitter node types to our token types
 	switch nodeType {
 	case "{":
