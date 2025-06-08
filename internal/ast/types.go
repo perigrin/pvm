@@ -106,7 +106,11 @@ func (a *AST) String() string {
 	var builder strings.Builder
 
 	builder.WriteString("AST {\n")
-	builder.WriteString("  Path: " + a.Path + "\n")
+	if a.Path == "" {
+		builder.WriteString("  Path:\n")
+	} else {
+		builder.WriteString("  Path: " + a.Path + "\n")
+	}
 	builder.WriteString("  Source length: ")
 	builder.WriteString(fmt.Sprintf("%d", len(a.Source)))
 	builder.WriteString(" characters\n")
@@ -135,7 +139,7 @@ func (a *AST) String() string {
 		builder.WriteString("\n")
 	}
 
-	builder.WriteString("}")
+	builder.WriteString("}\n")
 	return builder.String()
 }
 
