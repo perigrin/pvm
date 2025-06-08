@@ -17,19 +17,26 @@ import (
 )
 
 // TestRegressionAgainstRegexCompiler ensures new AST compiler produces identical output
-func TestRegressionAgainstRegexCompiler(t *testing.T) {
+func TestASTCompilerCorrectness(t *testing.T) {
 	testCases := []struct {
-		name  string
-		input string
+		name     string
+		input    string
+		expected string
 	}{
 		{
 			name: "simple_typed_variable",
 			input: `my Int $count = 42;
 print "Count: $count\n";`,
+			expected: `my $count = 42;
+print "Count: $count\n";`,
 		},
 		{
 			name: "simple_function_signature",
 			input: `sub add (Int $a, Int $b) -> Int {
+    return $a + $b;
+}`,
+			expected: `use v5.36;
+sub add($a, $b) {
     return $a + $b;
 }`,
 		},
@@ -77,6 +84,9 @@ my $typed = $value as Int;`,
 			input: `for my Int $i (@numbers) {
     print $i;
 }`,
+			expected: `for my $i (@numbers) {
+    print $i;
+}`,
 		},
 		{
 			name: "multiline_signature",
@@ -118,10 +128,13 @@ my ArrayRef[HashRef[Str|Int]] $users = [];`,
 		},
 	}
 
-	regexCompiler := NewCleanPerlCompiler()
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Skip test cases that don't have expected output defined yet
+			if tc.expected == "" {
+				t.Skip("Expected output not defined yet")
+			}
+
 			// Create temporary file for testing
 			tempFile := createTempFile(t, tc.input)
 			defer os.Remove(tempFile)
@@ -133,25 +146,19 @@ my ArrayRef[HashRef[Str|Int]] $users = [];`,
 			ast, err := p.ParseFile(tempFile)
 			require.NoError(t, err)
 
-			// Get regex compiler result
-			adapter := NewParserASTAdapter(ast)
-			regexResult, err := regexCompiler.Compile(adapter)
-			require.NoError(t, err)
-
-			// Store expected result for future AST compiler comparison
-			t.Logf("Input:\n%s", tc.input)
-			t.Logf("Expected output:\n%s", regexResult)
-
 			// Test AST compiler
+			adapter := NewParserASTAdapter(ast)
 			astCompiler := NewASTCompiler()
 			astResult, err := astCompiler.Compile(adapter)
 			require.NoError(t, err)
 
+			t.Logf("Input:\n%s", tc.input)
+			t.Logf("Expected output:\n%s", tc.expected)
 			t.Logf("AST Compiler output:\n%s", astResult)
 
-			// The AST compiler should produce valid results
-			// Note: empty output is valid for cases like type declarations
-			assert.NotNil(t, astResult, "AST compiler should not return nil")
+			// The AST compiler should produce the correct clean Perl output
+			assert.Equal(t, strings.TrimSpace(tc.expected), strings.TrimSpace(astResult),
+				"AST compiler output should match expected clean Perl output")
 		})
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/adrg/xdg"
 	"tamarou.com/pvm/internal/errors"
 )
 
@@ -53,11 +52,11 @@ type Dirs struct {
 func getDirsFunc() (*Dirs, error) {
 	dirs := &Dirs{}
 
-	// Use the proven xdg library for directory detection
-	dirs.ConfigHome = xdg.ConfigHome
-	dirs.CacheHome = xdg.CacheHome
-	dirs.DataHome = xdg.DataHome
-	dirs.StateHome = xdg.StateHome
+	// Read environment variables directly to support runtime changes
+	dirs.ConfigHome = getXDGConfigHome()
+	dirs.CacheHome = getXDGCacheHome()
+	dirs.DataHome = getXDGDataHome()
+	dirs.StateHome = getXDGStateHome()
 
 	// Set application-specific directories
 	dirs.ConfigDir = filepath.Join(dirs.ConfigHome, AppDirName)
@@ -130,6 +129,49 @@ func GetSystemConfigPath() string {
 }
 
 // Helper functions
+
+// getXDGConfigHome returns XDG_CONFIG_HOME or default
+func getXDGConfigHome() string {
+	if configHome := os.Getenv("XDG_CONFIG_HOME"); configHome != "" {
+		return configHome
+	}
+	return filepath.Join(getHomeDir(), ".config")
+}
+
+// getXDGCacheHome returns XDG_CACHE_HOME or default
+func getXDGCacheHome() string {
+	if cacheHome := os.Getenv("XDG_CACHE_HOME"); cacheHome != "" {
+		return cacheHome
+	}
+	return filepath.Join(getHomeDir(), ".cache")
+}
+
+// getXDGDataHome returns XDG_DATA_HOME or default
+func getXDGDataHome() string {
+	if dataHome := os.Getenv("XDG_DATA_HOME"); dataHome != "" {
+		return dataHome
+	}
+	return filepath.Join(getHomeDir(), ".local", "share")
+}
+
+// getXDGStateHome returns XDG_STATE_HOME or default
+func getXDGStateHome() string {
+	if stateHome := os.Getenv("XDG_STATE_HOME"); stateHome != "" {
+		return stateHome
+	}
+	return filepath.Join(getHomeDir(), ".local", "state")
+}
+
+// getHomeDir returns the user's home directory
+func getHomeDir() string {
+	if home := os.Getenv("HOME"); home != "" {
+		return home
+	}
+	if runtime.GOOS == "windows" {
+		return os.Getenv("USERPROFILE")
+	}
+	return "."
+}
 
 // ensureDir ensures that the directory exists
 func ensureDir(dir string) error {

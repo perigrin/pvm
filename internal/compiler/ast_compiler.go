@@ -104,8 +104,18 @@ func (c *ASTCompiler) walkNode(node ast.Node) (string, error) {
 
 	// Handle ERROR nodes by extracting their source text
 	// This preserves content that the parser couldn't properly categorize
+	// But we still need to strip type annotations for common patterns
 	if nodeType == "ERROR" {
-		return c.extractNodeText(node), nil
+		text := c.extractNodeText(node)
+		// Check if this looks like a typed for loop that failed to parse
+		if strings.Contains(text, "for my") && strings.Contains(text, "[") {
+			text = c.stripTypesFromForLoop(text)
+		}
+		// Also strip type annotations from variable declarations that failed to parse
+		if strings.Contains(text, "my ") && strings.Contains(text, "$") && strings.Contains(text, "[") {
+			text = c.stripTypesFromDeclaration(text)
+		}
+		return text, nil
 	}
 
 	// Handle token nodes - preserve their text directly
@@ -119,14 +129,18 @@ func (c *ASTCompiler) walkNode(node ast.Node) (string, error) {
 		return c.handleSubroutine(node)
 	case "method_declaration", "method_decl":
 		return c.handleMethod(node)
-	case "variable_declaration":
+	case "variable_declaration", "var_decl":
 		return c.handleVariable(node)
 	case "typed_variable_declaration":
 		return c.handleTypedVariable(node)
 	case "field_declaration":
 		return c.handleField(node)
+	case "for_statement", "for_loop", "for":
+		return c.handleForLoop(node)
 	case "block_stmt", "block", "BlockStmt":
 		return c.handleBlock(node)
+	case "interpolated_string_literal", "string_literal":
+		return c.handleStringLiteral(node)
 	default:
 		// For other nodes, process children and combine their text
 		return c.walkChildren(node)
@@ -194,12 +208,12 @@ func (c *ASTCompiler) walkChildren(node ast.Node) (string, error) {
 
 	for _, child := range children {
 		childType := child.Type()
-		
+
 		// Skip structural tokens in blocks to prevent double formatting
 		if isBlock && (childType == "{" || childType == "}" || childType == ";") {
 			continue
 		}
-		
+
 		childText, err := c.walkNode(child)
 		if err != nil {
 			return "", err
@@ -259,7 +273,7 @@ func (c *ASTCompiler) extractNodeText(node ast.Node) string {
 	start := node.Start()
 	end := node.End()
 
-	if c.source != "" && start.Offset > 0 && end.Offset > start.Offset && end.Offset <= len(c.source) {
+	if c.source != "" && start.Offset >= 0 && end.Offset > start.Offset && end.Offset <= len(c.source) {
 		// Extract text using byte offsets
 		return c.source[start.Offset:end.Offset]
 	}
@@ -274,7 +288,6 @@ func (c *ASTCompiler) handleSubroutine(node ast.Node) (string, error) {
 	if subDecl, ok := node.(*ast.SubDecl); ok {
 		return c.reconstructSubroutine(subDecl)
 	}
-	
 
 	// Fallback: Process children but skip type expression nodes
 	var parts []string
@@ -327,7 +340,7 @@ func (c *ASTCompiler) reconstructSubroutine(subDecl *ast.SubDecl) (string, error
 	}
 
 	// Fallback: reconstruct from parts
-	
+
 	var result strings.Builder
 
 	// Write 'sub' keyword
@@ -350,7 +363,7 @@ func (c *ASTCompiler) reconstructSubroutine(subDecl *ast.SubDecl) (string, error
 			// Write parameter without type annotation
 			result.WriteString("$")
 			result.WriteString(param.Name)
-			
+
 			// Include default value if present
 			if param.Default != nil {
 				result.WriteString(" = ")
@@ -381,7 +394,16 @@ func (c *ASTCompiler) reconstructSubroutine(subDecl *ast.SubDecl) (string, error
 
 // handleVariable processes variable declarations by reconstructing from children
 func (c *ASTCompiler) handleVariable(node ast.Node) (string, error) {
-	// Process children but skip type expression nodes
+	// Try to get the full source text first
+	nodeText := c.extractNodeText(node)
+	if nodeText != "" {
+		// Use a simple approach: extract the source and remove type annotations with regex
+		// This is a fallback when AST traversal doesn't work well
+		result := c.stripTypesFromDeclaration(nodeText)
+		return result, nil
+	}
+
+	// Fallback: Process children but skip type expression nodes
 	var parts []string
 
 	for _, child := range node.Children() {
@@ -405,6 +427,15 @@ func (c *ASTCompiler) handleVariable(node ast.Node) (string, error) {
 
 	// Reconstruct with proper spacing
 	return strings.Join(parts, " "), nil
+}
+
+// stripTypesFromDeclaration removes type annotations from a variable declaration
+func (c *ASTCompiler) stripTypesFromDeclaration(declaration string) string {
+	// Pattern: my Type $var = value; -> my $var = value;
+	// Handle parameterized types like ArrayRef[Int] too
+	pattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][a-zA-Z0-9_:\[\],\s]*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*(?:\s*=\s*.+?)?)(?:;|$)`)
+	result := pattern.ReplaceAllString(declaration, `$1 $2`)
+	return result
 }
 
 // handleTypedVariable processes typed variable declarations by reconstructing from children
@@ -537,7 +568,7 @@ func (c *ASTCompiler) handleBlock(node ast.Node) (string, error) {
 				return "", err
 			}
 			stmtText = strings.TrimSpace(stmtText)
-			
+
 			if stmtText != "" {
 				// Don't add semicolons to statements that already have them
 				if !strings.HasSuffix(stmtText, ";") && !strings.HasSuffix(stmtText, "}") {
@@ -546,30 +577,67 @@ func (c *ASTCompiler) handleBlock(node ast.Node) (string, error) {
 				statements = append(statements, stmtText)
 			}
 		}
-		
+
 		// Build the block with proper formatting
 		if len(statements) == 0 {
 			return "{ }", nil
 		}
-		
+
 		return "{ " + strings.Join(statements, " ") + " }", nil
 	}
-	
+
 	// For tree-sitter block nodes, try to extract source text directly
 	nodeType := node.Type()
 	if nodeType == "block" || nodeType == "block_stmt" {
 		// Extract the source text directly
 		text := c.extractNodeText(node)
 		text = strings.TrimSpace(text)
-		
+
 		// If we got valid block text, return it directly
 		if text != "" && strings.HasPrefix(text, "{") && strings.HasSuffix(text, "}") {
 			return text, nil
 		}
 	}
-	
+
 	// For other nodes, just process children normally
 	return c.walkChildren(node)
+}
+
+// handleStringLiteral processes string literals by preserving their exact content
+func (c *ASTCompiler) handleStringLiteral(node ast.Node) (string, error) {
+	// For string literals, we want to preserve the exact source text
+	// since there shouldn't be any type annotations to strip
+	nodeText := c.extractNodeText(node)
+	if nodeText != "" {
+		return nodeText, nil
+	}
+
+	// Fallback: process children normally
+	return c.walkChildren(node)
+}
+
+// handleForLoop processes for statements by removing type annotations from the loop variable
+func (c *ASTCompiler) handleForLoop(node ast.Node) (string, error) {
+	// Try to get the full source text first
+	nodeText := c.extractNodeText(node)
+	if nodeText != "" {
+		// Strip type annotations from for loop: for my Type $var -> for my $var
+		result := c.stripTypesFromForLoop(nodeText)
+		return result, nil
+	}
+
+	// Fallback: process children normally
+	return c.walkChildren(node)
+}
+
+// stripTypesFromForLoop removes type annotations from for loops
+func (c *ASTCompiler) stripTypesFromForLoop(forLoop string) string {
+	// Pattern: for my Type $var (@array) -> for my $var (@array)
+	// Handle parameterized types like HashRef[Str, Int] too
+	// More flexible pattern that captures variable and the rest after it
+	pattern := regexp.MustCompile(`\bfor\s+my\s+[A-Z][a-zA-Z0-9_:\[\],\s]*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*\s+\(.*)`)
+	result := pattern.ReplaceAllString(forLoop, `for my $1`)
+	return result
 }
 
 // handleTokenNode processes token nodes for whitespace preservation

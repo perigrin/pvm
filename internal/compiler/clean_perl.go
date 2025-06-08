@@ -1,5 +1,9 @@
 // ABOUTME: Clean Perl compiler that removes type annotations from AST
 // ABOUTME: Generates standard Perl code compatible with any Perl interpreter
+//
+// IMPORTANT: This file should NOT use regex patterns for cleaning code!
+// Regex-based cleaning is fragile and produces malformed output.
+// Use proper AST traversal and reconstruction instead.
 
 package compiler
 
@@ -134,9 +138,9 @@ func (c *CleanPerlCompiler) cleanLine(line string) string {
 
 	// Handle for loops
 	// Pattern: for my Type $var (@array)
-	forPattern := regexp.MustCompile(`\bfor\s+my\s+[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*\s+\([^)]+\))`)
+	forPattern := regexp.MustCompile(`\bfor\s+my\s+[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)\s+(\([^)]+\))`)
 	if forPattern.MatchString(line) {
-		line = forPattern.ReplaceAllString(line, `for my $1`)
+		line = forPattern.ReplaceAllString(line, `for my $1 $2`)
 	}
 
 	// Handle field declarations
