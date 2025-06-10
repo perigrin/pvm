@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/typechecker"
 )
 
@@ -276,4 +277,28 @@ func (ef *ErrorFormatter) colorize(text, color string) string {
 		return colorCode + text + colors["reset"]
 	}
 	return text
+}
+
+// FormatTypeParseError formats a TypeParseError using Rust-style formatting
+func (ef *ErrorFormatter) FormatTypeParseError(err *errors.TypeParseError, filePath string) string {
+	// Use the Rust-style formatter for consistent error presentation
+	rustFormatter := errors.NewRustStyleFormatter()
+	rustFormatter.ShowHelp = ef.showContext
+	rustFormatter.ShowContext = ef.showContext
+
+	return rustFormatter.FormatTypeParseError(err, filePath)
+}
+
+// FormatAnyError formats any error type, detecting TypeParseError vs TypeCheckError
+func (ef *ErrorFormatter) FormatAnyError(err error, filePath string) string {
+	switch e := err.(type) {
+	case *errors.TypeParseError:
+		return ef.FormatTypeParseError(e, filePath)
+	case *typechecker.TypeCheckError:
+		enhanced := ef.enhanceError(e)
+		return ef.formatEnhancedError(enhanced)
+	default:
+		// Fall back to simple error formatting
+		return fmt.Sprintf("error: %s\n", err.Error())
+	}
 }

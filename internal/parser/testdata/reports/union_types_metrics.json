@@ -1,13 +1,13 @@
 {
   "total_tests": 7,
-  "passed_tests": 7,
-  "failed_tests": 0,
+  "passed_tests": 3,
+  "failed_tests": 4,
   "category_metrics": {
     "typed-perl": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 4,
+      "accuracy": 42.857142857142854
     }
   },
   "feature_metrics": {
@@ -25,9 +25,9 @@
     },
     "custom-types": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "fields": {
       "total": 1,
@@ -43,15 +43,15 @@
     },
     "method-signatures": {
       "total": 2,
-      "passed": 2,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 1,
+      "accuracy": 50
     },
     "multi-way-unions": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "nested-contexts": {
       "total": 1,
@@ -61,15 +61,15 @@
     },
     "package-qualified": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "parameter-types": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "parameterized-types": {
       "total": 1,
@@ -79,27 +79,27 @@
     },
     "return-types": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "simple-unions": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "union-types": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 4,
+      "accuracy": 42.857142857142854
     },
     "variable-declarations": {
       "total": 4,
-      "passed": 4,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 3,
+      "accuracy": 25
     },
     "whitespace": {
       "total": 1,

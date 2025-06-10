@@ -382,7 +382,7 @@ func TestComplexTypeErrorRecovery(t *testing.T) {
 		{
 			name:          "Incomplete union type",
 			input:         "my ArrayRef[Int| $incomplete_union;",
-			expectedError: "incomplete union",
+			expectedError: "missing closing bracket",
 		},
 		{
 			name:          "Double comma in parameters",

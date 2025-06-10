@@ -34,7 +34,7 @@ func (c *ASTCompiler) Target() Target {
 }
 
 // Validate checks if the AST is suitable for compilation
-func (c *ASTCompiler) Validate(ast AST) error {
+func (c *ASTCompiler) Validate(ast *ast.AST) error {
 	if ast == nil {
 		return NewCompilerError(ErrInvalidAST, "AST cannot be nil")
 	}
@@ -42,7 +42,7 @@ func (c *ASTCompiler) Validate(ast AST) error {
 }
 
 // Compile converts an AST to clean Perl code using AST traversal
-func (c *ASTCompiler) Compile(ast AST) (string, error) {
+func (c *ASTCompiler) Compile(ast *ast.AST) (string, error) {
 	if err := c.Validate(ast); err != nil {
 		return "", err
 	}
@@ -62,6 +62,9 @@ func (c *ASTCompiler) Compile(ast AST) (string, error) {
 		return "", err
 	}
 
+	// Note: ERROR node checking should be handled by the parser, not the compiler.
+	// The compiler should only receive valid, successfully parsed ASTs.
+
 	// Walk the AST and generate clean Perl
 	result, err := c.walkNode(rootNode)
 	if err != nil {
@@ -69,6 +72,9 @@ func (c *ASTCompiler) Compile(ast AST) (string, error) {
 			fmt.Sprintf("failed to walk AST: %v", err)).
 			WithCause(err)
 	}
+
+	// Post-process the result to clean up any remaining type annotations
+	result = c.postProcessTypeAnnotations(result)
 
 	// Add v5.36 pragma if signatures are detected and not already present
 	if c.hasSignatures(result) && !strings.Contains(result, "use v5.36") && !strings.Contains(result, "use feature 'signatures'") {
@@ -83,9 +89,9 @@ func (c *ASTCompiler) SetOptions(options *CompilerOptions) {
 	c.options = options
 }
 
-// getRootNode extracts the root node from the AST adapter
-func (c *ASTCompiler) getRootNode(inputAST AST) (ast.Node, error) {
-	// Use the interface method to get the root node directly
+// getRootNode extracts the root node from the AST
+func (c *ASTCompiler) getRootNode(inputAST *ast.AST) (ast.Node, error) {
+	// Use the AST method to get the root node directly
 	return inputAST.GetRootNode()
 }
 
@@ -102,20 +108,13 @@ func (c *ASTCompiler) walkNode(node ast.Node) (string, error) {
 		return "", nil
 	}
 
-	// Handle ERROR nodes by extracting their source text
-	// This preserves content that the parser couldn't properly categorize
-	// But we still need to strip type annotations for common patterns
+	// ERROR nodes should have been caught at the top level and failed gracefully
+	// If we reach here with an ERROR node, something is wrong with our detection
 	if nodeType == "ERROR" {
 		text := c.extractNodeText(node)
-		// Check if this looks like a typed for loop that failed to parse
-		if strings.Contains(text, "for my") && strings.Contains(text, "[") {
-			text = c.stripTypesFromForLoop(text)
-		}
-		// Also strip type annotations from variable declarations that failed to parse
-		if strings.Contains(text, "my ") && strings.Contains(text, "$") && strings.Contains(text, "[") {
-			text = c.stripTypesFromDeclaration(text)
-		}
-		return text, nil
+		return "", NewCompilerError(ErrCompilationFailed,
+			fmt.Sprintf("Unexpected ERROR node encountered: %q. "+
+				"This should have been caught during initial AST validation.", text))
 	}
 
 	// Handle token nodes - preserve their text directly
@@ -131,6 +130,8 @@ func (c *ASTCompiler) walkNode(node ast.Node) (string, error) {
 		return c.handleMethod(node)
 	case "variable_declaration", "var_decl":
 		return c.handleVariable(node)
+	case "variable":
+		return c.handleSimpleVariable(node)
 	case "typed_variable_declaration":
 		return c.handleTypedVariable(node)
 	case "field_declaration":
@@ -141,6 +142,8 @@ func (c *ASTCompiler) walkNode(node ast.Node) (string, error) {
 		return c.handleBlock(node)
 	case "interpolated_string_literal", "string_literal":
 		return c.handleStringLiteral(node)
+	case "identifier":
+		return c.handleIdentifier(node)
 	default:
 		// For other nodes, process children and combine their text
 		return c.walkChildren(node)
@@ -289,30 +292,8 @@ func (c *ASTCompiler) handleSubroutine(node ast.Node) (string, error) {
 		return c.reconstructSubroutine(subDecl)
 	}
 
-	// Fallback: Process children but skip type expression nodes
-	var parts []string
-
-	for _, child := range node.Children() {
-		childType := child.Type()
-
-		// Skip type-related nodes entirely
-		if c.isTypeAnnotationNode(childType) {
-			continue
-		}
-
-		// Process the remaining nodes
-		childText, err := c.walkNode(child)
-		if err != nil {
-			return "", err
-		}
-
-		if childText != "" {
-			parts = append(parts, childText)
-		}
-	}
-
-	// Reconstruct with proper spacing
-	return strings.Join(parts, " "), nil
+	// Fallback: Use walkChildren which should preserve structure better
+	return c.walkChildren(node)
 }
 
 // reconstructSubroutine reconstructs a subroutine from its AST representation
@@ -394,48 +375,34 @@ func (c *ASTCompiler) reconstructSubroutine(subDecl *ast.SubDecl) (string, error
 
 // handleVariable processes variable declarations by reconstructing from children
 func (c *ASTCompiler) handleVariable(node ast.Node) (string, error) {
-	// Try to get the full source text first
-	nodeText := c.extractNodeText(node)
-	if nodeText != "" {
-		// Use a simple approach: extract the source and remove type annotations with regex
-		// This is a fallback when AST traversal doesn't work well
-		result := c.stripTypesFromDeclaration(nodeText)
-		return result, nil
-	}
-
-	// Fallback: Process children but skip type expression nodes
-	var parts []string
-
-	for _, child := range node.Children() {
-		childType := child.Type()
-
-		// Skip type-related nodes entirely
-		if c.isTypeAnnotationNode(childType) {
-			continue
-		}
-
-		// Process the remaining nodes
-		childText, err := c.walkNode(child)
-		if err != nil {
-			return "", err
-		}
-
-		if childText != "" {
-			parts = append(parts, childText)
-		}
-	}
-
-	// Reconstruct with proper spacing
-	return strings.Join(parts, " "), nil
+	// For most variable declarations, just use walkChildren which will
+	// delegate to handleSimpleVariable for the actual variable nodes
+	return c.walkChildren(node)
 }
 
-// stripTypesFromDeclaration removes type annotations from a variable declaration
-func (c *ASTCompiler) stripTypesFromDeclaration(declaration string) string {
-	// Pattern: my Type $var = value; -> my $var = value;
-	// Handle parameterized types like ArrayRef[Int] too
-	pattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][a-zA-Z0-9_:\[\],\s]*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*(?:\s*=\s*.+?)?)(?:;|$)`)
-	result := pattern.ReplaceAllString(declaration, `$1 $2`)
-	return result
+// handleSimpleVariable processes simple variable nodes with potential type annotations
+func (c *ASTCompiler) handleSimpleVariable(node ast.Node) (string, error) {
+	// Get the full text of the variable node
+	fullText := c.extractNodeText(node)
+
+	// Parse the variable declaration text to remove type annotations
+	// This handles patterns like "my Int $x = 42" -> "my $x = 42"
+	cleaned := c.cleanVariableDeclarationText(fullText)
+
+	return cleaned, nil
+}
+
+// handleIdentifier processes identifier nodes, filtering out type names
+func (c *ASTCompiler) handleIdentifier(node ast.Node) (string, error) {
+	text := c.extractNodeText(node)
+
+	// If this identifier looks like a type name, skip it
+	if c.looksLikeTypeName(text) {
+		return "", nil
+	}
+
+	// Otherwise, return the identifier text
+	return text, nil
 }
 
 // handleTypedVariable processes typed variable declarations by reconstructing from children
@@ -618,26 +585,8 @@ func (c *ASTCompiler) handleStringLiteral(node ast.Node) (string, error) {
 
 // handleForLoop processes for statements by removing type annotations from the loop variable
 func (c *ASTCompiler) handleForLoop(node ast.Node) (string, error) {
-	// Try to get the full source text first
-	nodeText := c.extractNodeText(node)
-	if nodeText != "" {
-		// Strip type annotations from for loop: for my Type $var -> for my $var
-		result := c.stripTypesFromForLoop(nodeText)
-		return result, nil
-	}
-
-	// Fallback: process children normally
+	// Use walkChildren which will skip type annotations but preserve structure
 	return c.walkChildren(node)
-}
-
-// stripTypesFromForLoop removes type annotations from for loops
-func (c *ASTCompiler) stripTypesFromForLoop(forLoop string) string {
-	// Pattern: for my Type $var (@array) -> for my $var (@array)
-	// Handle parameterized types like HashRef[Str, Int] too
-	// More flexible pattern that captures variable and the rest after it
-	pattern := regexp.MustCompile(`\bfor\s+my\s+[A-Z][a-zA-Z0-9_:\[\],\s]*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*\s+\(.*)`)
-	result := pattern.ReplaceAllString(forLoop, `for my $1`)
-	return result
 }
 
 // handleTokenNode processes token nodes for whitespace preservation
@@ -722,6 +671,65 @@ func (c *ASTCompiler) extractWhitespaceBefore(prevNode, currentNode ast.Node) st
 	}
 
 	return ""
+}
+
+// Note: ERROR node handling has been moved to the parser layer where it belongs.
+// The compiler should only receive valid, successfully parsed ASTs.
+
+// cleanVariableDeclarationText removes type annotations from variable declaration text
+func (c *ASTCompiler) cleanVariableDeclarationText(text string) string {
+	// Parse variable declaration text without regex
+	// Handle patterns like:
+	// - "my Int $x = 42" -> "my $x = 42"
+	// - "my Int $i" -> "my $i" (in for loops)
+
+	words := strings.Fields(text)
+	if len(words) < 3 {
+		// Not enough words to have a type annotation
+		return text
+	}
+
+	// Look for pattern: "my" + TypeName + "$variable" + optional rest
+	if words[0] == "my" && len(words) >= 3 {
+		// Check if second word looks like a type name and third word is a variable
+		if c.looksLikeTypeName(words[1]) && strings.HasPrefix(words[2], "$") {
+			// Remove the type name (second word)
+			result := words[0] // "my"
+			for i := 2; i < len(words); i++ {
+				result += " " + words[i]
+			}
+			return result
+		}
+	}
+
+	// Handle cases where the entire text needs type annotation removal
+	// Look for any pattern of TypeName followed by $variable
+	for i := 0; i < len(words)-1; i++ {
+		if c.looksLikeTypeName(words[i]) && strings.HasPrefix(words[i+1], "$") {
+			// Remove the type name at position i
+			var result []string
+			result = append(result, words[:i]...)   // Everything before type
+			result = append(result, words[i+1:]...) // Everything after type
+			return strings.Join(result, " ")
+		}
+	}
+
+	// If no type annotation pattern found, return original text
+	return text
+}
+
+// postProcessTypeAnnotations performs final cleanup of any remaining type annotations
+func (c *ASTCompiler) postProcessTypeAnnotations(code string) string {
+	// Split into lines and process each line
+	lines := strings.Split(code, "\n")
+	var result []string
+
+	for _, line := range lines {
+		cleanedLine := c.cleanVariableDeclarationText(line)
+		result = append(result, cleanedLine)
+	}
+
+	return strings.Join(result, "\n")
 }
 
 // hasSignatures checks if the generated code contains signatures

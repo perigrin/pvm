@@ -63,6 +63,36 @@ type AST struct {
 	Source string
 }
 
+// GetPath returns the source file path (compiler.AST interface)
+func (a *AST) GetPath() string {
+	return a.Path
+}
+
+// IsValid returns true if the AST is valid for compilation (compiler.AST interface)
+func (a *AST) IsValid() bool {
+	return len(a.Errors) == 0
+}
+
+// GetContent returns the original source content (compiler.AST interface)
+func (a *AST) GetContent() (string, error) {
+	if a.Source != "" {
+		return a.Source, nil
+	}
+	if a.Path == "" {
+		return "", fmt.Errorf("AST has no source content or file path")
+	}
+	// Could read from file here if needed, but typically Source should be populated
+	return "", fmt.Errorf("AST source content not available")
+}
+
+// GetRootNode returns the root AST node (compiler.AST interface)
+func (a *AST) GetRootNode() (Node, error) {
+	if a.Root == nil {
+		return nil, fmt.Errorf("AST has no root node")
+	}
+	return a.Root, nil
+}
+
 // AST implements Node interface to allow navigation
 func (a *AST) Type() string {
 	return "ast"

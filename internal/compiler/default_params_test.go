@@ -52,14 +52,13 @@ func TestCompilerStripDefaultParameters(t *testing.T) {
 
 			// Use the compiler to strip types
 			astCompiler := NewASTCompiler()
-			adapter := NewParserASTAdapter(astResult)
-			result, err := astCompiler.Compile(adapter)
+			result, err := astCompiler.Compile(astResult)
 			require.NoError(t, err)
 
 			// Normalize whitespace for comparison
 			expected := strings.TrimSpace(tt.expected)
 			actual := strings.TrimSpace(result)
-			
+
 			// Remove the "use v5.36;" pragma if present for comparison
 			if strings.HasPrefix(actual, "use v5.36;") {
 				actual = strings.TrimSpace(strings.TrimPrefix(actual, "use v5.36;"))

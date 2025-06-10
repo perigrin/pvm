@@ -1,13 +1,13 @@
 {
   "total_tests": 8,
-  "passed_tests": 8,
-  "failed_tests": 0,
+  "passed_tests": 7,
+  "failed_tests": 1,
   "category_metrics": {
     "typed-perl": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 7,
+      "failed": 1,
+      "accuracy": 87.5
     }
   },
   "feature_metrics": {
@@ -73,9 +73,9 @@
     },
     "custom-types": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "deep-nesting": {
       "total": 1,
@@ -97,9 +97,9 @@
     },
     "generics": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "method-signatures": {
       "total": 1,
@@ -121,15 +121,15 @@
     },
     "package-qualified": {
       "total": 1,
-      "passed": 1,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 0,
+      "failed": 1,
+      "accuracy": 0
     },
     "parameterized-types": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 7,
+      "failed": 1,
+      "accuracy": 87.5
     },
     "parameters": {
       "total": 1,

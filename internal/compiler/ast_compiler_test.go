@@ -31,6 +31,13 @@ print "Count: $count\n";`,
 print "Count: $count\n";`,
 		},
 		{
+			name: "simple_str_variable",
+			input: `my Str $name = "hello";
+print "Name: $name\n";`,
+			expected: `my $name = "hello";
+print "Name: $name\n";`,
+		},
+		{
 			name: "simple_function_signature",
 			input: `sub add (Int $a, Int $b) -> Int {
     return $a + $b;
@@ -145,9 +152,8 @@ my ArrayRef[HashRef[Str|Int]] $users = [];`,
 			require.NoError(t, err)
 
 			// Test AST compiler
-			adapter := NewParserASTAdapter(ast)
 			astCompiler := NewASTCompiler()
-			astResult, err := astCompiler.Compile(adapter)
+			astResult, err := astCompiler.Compile(ast)
 			require.NoError(t, err)
 
 			t.Logf("Input:\n%s", tc.input)

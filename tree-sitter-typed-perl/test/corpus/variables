@@ -409,3 +409,262 @@ glob access
       (glob_deref_expression
         (scalar
           (varname))))))
+
+================================================================================
+typed variable declarations - basic types
+================================================================================
+my Int $count = 42;
+my Str $name = "example";
+my Bool $flag = 1;
+my Num $pi = 3.14159;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (simple_type))
+        (scalar
+          (varname)))
+      (number)))
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (simple_type))
+        (scalar
+          (varname)))
+      (interpolated_string_literal
+        (string_content))))
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (simple_type))
+        (scalar
+          (varname)))
+      (number)))
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (simple_type))
+        (scalar
+          (varname)))
+      (number))))
+
+================================================================================
+typed variable declarations - parameterized types
+================================================================================
+my ArrayRef[Int] $numbers = [1, 2, 3];
+my HashRef[Str] $lookup = { key => "value" };
+my Optional[Str] $maybe_name;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (simple_type)))))
+        (scalar
+          (varname)))
+      (anonymous_array_expression
+        (list_expression
+          (number)
+          (number)
+          (number)))))
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (simple_type)))))
+        (scalar
+          (varname)))
+      (anonymous_hash_expression
+        (list_expression
+          (autoquoted_bareword)
+          (interpolated_string_literal
+            (string_content))))))
+  (expression_statement
+    (typed_variable_declaration
+      (type_expression
+        (parameterized_type
+          (simple_type)
+          (type_parameter_list
+            (type_expression
+              (simple_type)))))
+      (scalar
+        (varname)))))
+
+================================================================================
+typed variable declarations - union and intersection types
+================================================================================
+my Int|Str $flexible = 42;
+my Object&Serializable $complex;
+my !Undef $not_undef = "something";
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (union_type
+            (type_expression
+              (simple_type))
+            (type_expression
+              (simple_type))))
+        (scalar
+          (varname)))
+      (number)))
+  (expression_statement
+    (typed_variable_declaration
+      (type_expression
+        (intersection_type
+          (type_expression
+            (simple_type))
+          (type_expression
+            (simple_type))))
+      (scalar
+        (varname))))
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (negation_type
+            (type_expression
+              (simple_type))))
+        (scalar
+          (varname)))
+      (interpolated_string_literal
+        (string_content)))))
+
+================================================================================
+typed variable declarations - exact E2E test cases
+================================================================================
+my ArrayRef[Int] $numbers = [1, 2, 3, 4, 5];
+my HashRef[Str, Int] $scores = { alice => 95, bob => 87 };
+my Maybe[Str] $optional_name = undef;
+my Union[Int, Str] $flexible_value = 42;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (simple_type)))))
+        (scalar
+          (varname)))
+      (anonymous_array_expression
+        (list_expression
+          (number)
+          (number)
+          (number)
+          (number)
+          (number)))))
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (simple_type))
+              (type_expression
+                (simple_type)))))
+        (scalar
+          (varname)))
+      (anonymous_hash_expression
+        (list_expression
+          (autoquoted_bareword)
+          (list_expression
+            (number)
+            (autoquoted_bareword)
+            (number))))))
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (simple_type)))))
+        (scalar
+          (varname)))
+      (undef_expression)))
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (simple_type))
+              (type_expression
+                (simple_type)))))
+        (scalar
+          (varname)))
+      (number))))
+
+================================================================================
+typed variable declarations - complex nested cases
+================================================================================
+my ArrayRef[HashRef[Str, Int]] $complex_data = [];
+my HashRef[Str, ArrayRef[Int]] $complex_lookup = {};
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (parameterized_type
+                  (simple_type)
+                  (type_parameter_list
+                    (type_expression
+                      (simple_type))
+                    (type_expression
+                      (simple_type))))))))
+        (scalar
+          (varname)))
+      (anonymous_array_expression)))
+  (expression_statement
+    (assignment_expression
+      (typed_variable_declaration
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (simple_type))
+              (type_expression
+                (parameterized_type
+                  (simple_type)
+                  (type_parameter_list
+                    (type_expression
+                      (simple_type))))))))
+        (scalar
+          (varname)))
+      (anonymous_hash_expression))))

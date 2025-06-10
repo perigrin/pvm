@@ -218,18 +218,17 @@ func TestHotReloader_ValidationFailure(t *testing.T) {
 
 	reloader.handleConfigurationChange(newConfig)
 
-	// comp1 should have been validated but not reconfigured due to validation failure
-	if comp1.GetValidateCount() != 1 {
-		t.Errorf("Expected comp1 validate count 1, got %d", comp1.GetValidateCount())
+	// Due to map iteration order being random in Go, we can't predict which component
+	// gets validated first. However, we know that validation should stop at the first
+	// failure, so the total validation count should be exactly 1.
+	totalValidateCount := comp1.GetValidateCount() + comp2.GetValidateCount()
+	if totalValidateCount != 1 {
+		t.Errorf("Expected total validate count 1 (should stop at first failure), got %d", totalValidateCount)
 	}
 
+	// Neither component should be reconfigured due to validation failure
 	if comp1.GetConfigureCount() != 0 {
 		t.Errorf("Expected comp1 configure count 0, got %d", comp1.GetConfigureCount())
-	}
-
-	// comp2 should not have been validated or reconfigured due to comp1 failure
-	if comp2.GetValidateCount() != 0 {
-		t.Errorf("Expected comp2 validate count 0, got %d", comp2.GetValidateCount())
 	}
 
 	if comp2.GetConfigureCount() != 0 {

@@ -92,12 +92,15 @@ func ParseTypeExpression(text string, pos Position) (*ast.TypeExpression, error)
 // NewParser returns a new Parser instance using pooling for efficiency
 // This now uses pooled parsers by default for better performance and thread safety
 func NewParser() (Parser, error) {
-	// Use pooled parser for better performance and thread safety
-	return NewPooledParser()
+	// Use enhanced parser with type error identification
+	return NewEnhancedParser()
 }
 
 // NewParserDirect creates a new parser instance without pooling (for internal use)
 func NewParserDirect() (Parser, error) {
+	if os.Getenv("PARSER_DEBUG") != "" {
+		fmt.Printf("[PARSER_DEBUG] Creating new tree-sitter parser in NewParserDirect\n")
+	}
 	// For now, use tree-sitter parser directly since it has working type annotation extraction
 	// TODO: Integrate scanner-based parser with type annotation extraction
 	tsParser, err := treesitter.NewParser(false)

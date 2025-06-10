@@ -30,12 +30,19 @@ func TestImportSystemPerl(t *testing.T) {
 	defer env.Cleanup()
 
 	// Import system Perl or skip as TODO if not implemented
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"import-system"}, "System Perl import")
-	helpers.AssertStringContains(t, stdout, "Imported system Perl", "Import output does not indicate success")
+	stdout, stderr, err := env.RunPVM("import-system")
+	if err != nil {
+		t.Skipf("TODO: System Perl import not yet implemented\nCommand: pvm import-system\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+	helpers.AssertStringContains(t, stderr, "Successfully imported system Perl", "Import output does not indicate success")
 
 	// Check that system Perl is now listed
-	stdout = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"list"}, "Perl version listing")
-	helpers.AssertStringContains(t, stdout, "system", "System Perl not listed after import")
+	stdout, stderr, err = env.RunPVM("list", "--source")
+	if err != nil {
+		t.Skipf("TODO: Perl version listing not yet implemented\nCommand: pvm list --source\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+	output := stdout + stderr // Check both stdout and stderr for command output
+	helpers.AssertStringContains(t, output, "Source: system", "System Perl not listed after import")
 }
 
 // Test version switching functionality

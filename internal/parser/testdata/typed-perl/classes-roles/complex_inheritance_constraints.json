@@ -1,9 +1,0 @@
-{
-  "name": "complex_inheritance_constraints",
-  "category": "typed-perl",
-  "subcategory": "classes-roles",
-  "input": "class ProcessingQueue<T> : BaseQueue<T>\n    where T: Serializable&Processable {\n\n    field CodeRef[T, ProcessResult] $processor;\n    field ArrayRef[T] $pending = [];\n    field HashRef[Str, T] $processing = {};\n    field Int $max_concurrent = 5;\n\n    method process_all() -> ArrayRef[ProcessResult] {\n        my @results;\n        while (@{$pending} && keys %{$processing} < $max_concurrent) {\n            my $item = shift @{$pending};\n            my $id = $item->get_id();\n            $processing->{$id} = $item;\n            \n            my $result = $processor->($item);\n            delete $processing->{$id};\n            push @results, $result;\n        }\n        return \\@results;\n    }\n\n    method enqueue(T $item) -> Void where $item->can('get_id') {\n        push @{$pending}, $item;\n    }\n\n    method get_queue_status() -> QueueStatus {\n        return QueueStatus->new(\n            pending => scalar @{$pending},\n            processing => scalar keys %{$processing},\n            max_concurrent => $max_concurrent\n        );\n    }\n}",
-  "description": "Complex inheritance with multiple type constraints and method constraints",
-  "tags": ["complex-inheritance", "multiple-constraints", "intersection-types", "method-constraints"],
-  "should_error": false
-}

@@ -130,7 +130,8 @@ func PooledParserFunc[T any](fn func(Parser) (T, error)) (T, error) {
 	}
 	defer ReturnParser(parser)
 
-	return fn(parser)
+	result, err := fn(parser)
+	return result, err
 }
 
 // parserPoolAdapter adapts ParserPool to Pool[any] interface

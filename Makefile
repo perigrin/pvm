@@ -2,8 +2,8 @@
 .PHONY: build-dev build-release lint check fmt check-generate generate
 .PHONY: test-performance profile optimize performance-analysis
 
-# Define binaries
-BINARIES := pvm pvx pvi psc
+# Define binaries - we only build pvm, others are symlinks
+BINARIES := pvm
 BUILDDIR := build
 LIBDIR := lib
 
@@ -65,17 +65,15 @@ check-tools:
 	@echo "All tools are available"
 
 # Build rules for each binary
-pvm: $(BUILDDIR)
-	go build -mod=mod -tags="$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/pvm ./cmd/pvm
+pvm: LDFLAGS := $(DEBUG_LDFLAGS)
+pvm: $(BUILDDIR) tree-sitter
+	go build -mod=mod -tags="debug,noembed" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/pvm ./cmd/pvm
+	@echo "Creating symlinks for other components..."
+	cd $(BUILDDIR) && ./pvm symlinks create
 
-pvx: $(BUILDDIR)
-	go build -mod=mod -tags="$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/pvx ./cmd/pvx
-
-pvi: $(BUILDDIR)
-	go build -mod=mod -tags="$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/pvi ./cmd/pvi
-
-psc: $(BUILDDIR) tree-sitter
-	go build -mod=mod -tags="$(BUILD_TAGS)" -ldflags="$(LDFLAGS)" -o $(BUILDDIR)/psc ./cmd/psc
+# Legacy targets for backward compatibility - now just create symlinks
+pvx pvi psc: pvm
+	@echo "Using pvm binary with symlinks for $@"
 
 # Enhanced testing with gotestsum
 # Auto-detects CPU count for optimal parallelization
@@ -83,13 +81,35 @@ psc: $(BUILDDIR) tree-sitter
 test: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running tests with $$PARALLEL_JOBS parallel workers..."; \
-	gotestsum --format=short -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...
+	gotestsum --format=short --jsonfile=test-results.json -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
+	TEST_EXIT_CODE=$$?; \
+	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
+		echo ""; \
+		echo "📊 TEST SUMMARY REPORT"; \
+		echo "======================"; \
+		go run scripts/test_summary.go test-results.json; \
+		echo ""; \
+		echo "💡 TIP: Run 'make test-full' for comprehensive testing"; \
+		echo "💡 TIP: Run 'go test -v ./path/to/package -run TestName' for specific test debugging"; \
+	fi; \
+	exit $$TEST_EXIT_CODE
 
 # Full test suite for comprehensive validation (all tests including slow ones)
 test-full: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running full test suite with $$PARALLEL_JOBS parallel workers..."; \
-	gotestsum --format=standard-verbose -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...
+	gotestsum --format=standard-verbose --jsonfile=test-results-full.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...; \
+	TEST_EXIT_CODE=$$?; \
+	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
+		echo ""; \
+		echo "📊 COMPREHENSIVE TEST SUMMARY REPORT"; \
+		echo "===================================="; \
+		go run scripts/test_summary.go test-results-full.json; \
+	else \
+		echo ""; \
+		echo "🎉 ALL TESTS PASSING! Comprehensive test suite complete."; \
+	fi; \
+	exit $$TEST_EXIT_CODE
 
 # Legacy compatibility
 test-short: test
@@ -110,7 +130,7 @@ test-performance-baseline: tree-sitter install-tools
 	UPDATE_PERFORMANCE_BASELINE=1 go test -mod=mod -bench=BenchmarkParser_Performance -benchmem ./internal/parser/
 	UPDATE_PERFORMANCE_BASELINE=1 go test -mod=mod -bench=BenchmarkTypeChecker_Performance -benchmem ./internal/typechecker/
 
-# Coverage reporting  
+# Coverage reporting
 test-coverage: tree-sitter install-tools
 	@echo "Running tests with coverage..."
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
@@ -147,7 +167,7 @@ profile-performance: tree-sitter check-tools
 	@echo "Profiling performance bottlenecks..."
 	go run scripts/profile_performance.go
 
-# Complete test suite with all validations  
+# Complete test suite with all validations
 test-all: tree-sitter install-tools
 	@echo "Running complete test suite..."
 	make test-baselines
@@ -251,9 +271,8 @@ clean:
 # Install binaries
 install: $(BINARIES)
 	cp $(BUILDDIR)/pvm $(GOPATH)/bin/pvm
-	cp $(BUILDDIR)/pvx $(GOPATH)/bin/pvx
-	cp $(BUILDDIR)/pvi $(GOPATH)/bin/pvi
-	cp $(BUILDDIR)/psc $(GOPATH)/bin/psc
+	@echo "Creating symlinks in $(GOPATH)/bin..."
+	cd $(GOPATH)/bin && ./pvm symlinks create
 
 # Cross-compile for all platforms (development)
 cross-compile: tree-sitter
@@ -262,35 +281,33 @@ cross-compile: tree-sitter
 
 	# Linux AMD64
 	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-linux-amd64 ./cmd/pvm
-	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvx-linux-amd64 ./cmd/pvx
-	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvi-linux-amd64 ./cmd/pvi
+
+	# Linux ARM64
+	GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-linux-arm64 ./cmd/pvm
 
 	# macOS AMD64
 	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-darwin-amd64 ./cmd/pvm
-	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvx-darwin-amd64 ./cmd/pvx
-	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvi-darwin-amd64 ./cmd/pvi
 
 	# macOS ARM64
 	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-darwin-arm64 ./cmd/pvm
-	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvx-darwin-arm64 ./cmd/pvx
-	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvi-darwin-arm64 ./cmd/pvi
 
 	# Windows AMD64
 	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-windows-amd64.exe ./cmd/pvm
-	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvx-windows-amd64.exe ./cmd/pvx
-	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvi-windows-amd64.exe ./cmd/pvi
 
-	@echo "Cross-compilation complete. Binaries in $(BUILDDIR)/release/"
+	@echo "Cross-compilation complete. Single pvm binary for each platform in $(BUILDDIR)/release/"
+	@echo "Use 'pvm symlinks create' after installation to create pvx, pvi, psc symlinks"
 
 # Create release archives
 release: cross-compile
 	@echo "Creating release archives..."
 	cd $(BUILDDIR)/release && \
-	tar -czf pvm-linux-amd64.tar.gz pvm-linux-amd64 pvx-linux-amd64 pvi-linux-amd64 && \
-	tar -czf pvm-darwin-amd64.tar.gz pvm-darwin-amd64 pvx-darwin-amd64 pvi-darwin-amd64 && \
-	tar -czf pvm-darwin-arm64.tar.gz pvm-darwin-arm64 pvx-darwin-arm64 pvi-darwin-arm64 && \
-	zip pvm-windows-amd64.zip pvm-windows-amd64.exe pvx-windows-amd64.exe pvi-windows-amd64.exe
+	tar -czf pvm-linux-amd64.tar.gz pvm-linux-amd64 && \
+	tar -czf pvm-linux-arm64.tar.gz pvm-linux-arm64 && \
+	tar -czf pvm-darwin-amd64.tar.gz pvm-darwin-amd64 && \
+	tar -czf pvm-darwin-arm64.tar.gz pvm-darwin-arm64 && \
+	zip pvm-windows-amd64.zip pvm-windows-amd64.exe
 	@echo "Release archives created in $(BUILDDIR)/release/"
+	@echo "Each archive contains a single pvm binary - use 'pvm symlinks create' after installation"
 
 # Performance optimization targets
 test-performance: tree-sitter

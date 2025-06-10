@@ -5,6 +5,7 @@ package compiler
 
 import (
 	"fmt"
+	"tamarou.com/pvm/internal/ast"
 )
 
 // TypedPerlCompiler compiles AST to Perl code with type annotations preserved
@@ -30,7 +31,7 @@ func (c *TypedPerlCompiler) Target() Target {
 }
 
 // Validate checks if the AST is suitable for typed Perl compilation
-func (c *TypedPerlCompiler) Validate(ast AST) error {
+func (c *TypedPerlCompiler) Validate(ast *ast.AST) error {
 	if ast == nil {
 		return NewCompilerError(ErrInvalidAST, "AST cannot be nil")
 	}
@@ -45,7 +46,7 @@ func (c *TypedPerlCompiler) Validate(ast AST) error {
 }
 
 // Compile converts an AST to typed Perl code with type annotations preserved
-func (c *TypedPerlCompiler) Compile(ast AST) (string, error) {
+func (c *TypedPerlCompiler) Compile(ast *ast.AST) (string, error) {
 	if err := c.Validate(ast); err != nil {
 		return "", err
 	}

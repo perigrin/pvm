@@ -395,8 +395,7 @@ func StripAndExecute(scriptPath string, args []string, perlVersion string, verbo
 
 	// Strip type annotations using compiler
 	registry := compiler.NewCompilerRegistry()
-	astAdapter := compiler.NewParserASTAdapter(ast)
-	strippedCode, err := registry.Compile(astAdapter, compiler.TargetCleanPerl)
+	strippedCode, err := registry.Compile(ast, compiler.TargetCleanPerl)
 	if err != nil {
 		return "", errors.NewTypeError(
 			ErrIntegrationFailed,

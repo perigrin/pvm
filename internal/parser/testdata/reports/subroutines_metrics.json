@@ -1,1263 +1,1263 @@
 {
   "total_tests": 348,
-  "passed_tests": 348,
-  "failed_tests": 0,
+  "passed_tests": 258,
+  "failed_tests": 90,
   "category_metrics": {
     "untyped-perl": {
       "total": 348,
-      "passed": 348,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 258,
+      "failed": 90,
+      "accuracy": 74.13793103448276
     }
   },
   "feature_metrics": {
     "addition": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "and": {
       "total": 100,
-      "passed": 100,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 91,
+      "failed": 9,
+      "accuracy": 91
     },
     "anonymous": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 4,
+      "failed": 4,
+      "accuracy": 50
     },
     "arguments": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 5,
+      "accuracy": 37.5
     },
     "arithmetic": {
       "total": 118,
-      "passed": 118,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 107,
+      "failed": 11,
+      "accuracy": 90.67796610169492
     },
     "array": {
       "total": 157,
-      "passed": 157,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 126,
+      "failed": 31,
+      "accuracy": 80.2547770700637
     },
     "arrays": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 6,
+      "accuracy": 14.285714285714285
     },
     "arrow_notation": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 4,
+      "failed": 4,
+      "accuracy": 50
     },
     "assignment": {
       "total": 175,
-      "passed": 175,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 144,
+      "failed": 31,
+      "accuracy": 82.28571428571428
     },
     "attributes": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 4,
+      "failed": 4,
+      "accuracy": 50
     },
     "bare_block": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "base": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "basic": {
       "total": 103,
-      "passed": 103,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 89,
+      "failed": 14,
+      "accuracy": 86.40776699029125
     },
     "binary_operator": {
       "total": 112,
-      "passed": 112,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 103,
+      "failed": 9,
+      "accuracy": 91.96428571428571
     },
     "bit_manipulation": {
       "total": 97,
-      "passed": 97,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 88,
+      "failed": 9,
+      "accuracy": 90.72164948453609
     },
     "bitwise": {
       "total": 111,
-      "passed": 111,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 102,
+      "failed": 9,
+      "accuracy": 91.8918918918919
     },
     "block": {
       "total": 65,
-      "passed": 65,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 45,
+      "failed": 20,
+      "accuracy": 69.23076923076923
     },
     "blocks": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "break": {
       "total": 60,
-      "passed": 60,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 21,
+      "accuracy": 65
     },
     "c_style": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "calls": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 5,
+      "accuracy": 37.5
     },
     "chain": {
       "total": 60,
-      "passed": 60,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 40,
+      "failed": 20,
+      "accuracy": 66.66666666666666
     },
     "chained": {
       "total": 98,
-      "passed": 98,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 89,
+      "failed": 9,
+      "accuracy": 90.81632653061224
     },
     "cleanup": {
       "total": 60,
-      "passed": 60,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 40,
+      "failed": 20,
+      "accuracy": 66.66666666666666
     },
     "closure": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "code_references": {
       "total": 9,
-      "passed": 9,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 4,
+      "failed": 5,
+      "accuracy": 44.44444444444444
     },
     "comma": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "comparison": {
       "total": 115,
-      "passed": 115,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 103,
+      "failed": 12,
+      "accuracy": 89.56521739130436
     },
     "complement": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "complex": {
       "total": 203,
-      "passed": 203,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 150,
+      "failed": 53,
+      "accuracy": 73.89162561576354
     },
     "complex_expression": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "comprehensive": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "concatenation": {
       "total": 97,
-      "passed": 97,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 88,
+      "failed": 9,
+      "accuracy": 90.72164948453609
     },
     "conditional": {
       "total": 168,
-      "passed": 168,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 138,
+      "failed": 30,
+      "accuracy": 82.14285714285714
     },
     "context": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 6,
+      "accuracy": 14.285714285714285
     },
     "continue": {
       "total": 61,
-      "passed": 61,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 40,
+      "failed": 21,
+      "accuracy": 65.57377049180327
     },
     "control_flow": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "coroutine": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "declarations": {
       "total": 19,
-      "passed": 19,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 5,
+      "failed": 14,
+      "accuracy": 26.31578947368421
     },
     "decrement": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "default": {
       "total": 61,
-      "passed": 61,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 23,
+      "accuracy": 62.295081967213115
     },
     "default_variable": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "defined_or": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "definitions": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 5,
+      "accuracy": 37.5
     },
     "depth": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "dereferencing": {
       "total": 103,
-      "passed": 103,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 89,
+      "failed": 14,
+      "accuracy": 86.40776699029125
     },
     "dispatch": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "division": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "do_block": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "do_until": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "do_while": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "dynamic": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "edge-cases": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 6,
+      "accuracy": 14.285714285714285
     },
     "edge_cases": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 5,
+      "accuracy": 37.5
     },
     "else": {
       "total": 61,
-      "passed": 61,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 41,
+      "failed": 20,
+      "accuracy": 67.21311475409836
     },
     "elsif": {
       "total": 60,
-      "passed": 60,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 40,
+      "failed": 20,
+      "accuracy": 66.66666666666666
     },
     "equality": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "error_handling": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "eval": {
       "total": 61,
-      "passed": 61,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 22,
+      "accuracy": 63.934426229508205
     },
     "evaluation": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "event_loop": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "exception": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "explicit": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "exponentiation": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "expressions": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 6,
+      "accuracy": 14.285714285714285
     },
     "fallthrough": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "features": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "file_handle": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "file_test": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "flag_clearing": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "flag_setting": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "flag_toggling": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "for": {
       "total": 62,
-      "passed": 62,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 41,
+      "failed": 21,
+      "accuracy": 66.12903225806451
     },
     "foreach": {
       "total": 70,
-      "passed": 70,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 47,
+      "failed": 23,
+      "accuracy": 67.14285714285714
     },
     "function_call": {
       "total": 154,
-      "passed": 154,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 123,
+      "failed": 31,
+      "accuracy": 79.87012987012987
     },
     "function_calls": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "given": {
       "total": 69,
-      "passed": 69,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 31,
+      "accuracy": 55.072463768115945
     },
     "glob": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "greater_equal": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "greater_than": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "hash": {
       "total": 155,
-      "passed": 155,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 124,
+      "failed": 31,
+      "accuracy": 80
     },
     "hashes": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 5,
+      "accuracy": 28.57142857142857
     },
     "hexadecimal": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "identity": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "if": {
       "total": 69,
-      "passed": 69,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 48,
+      "failed": 21,
+      "accuracy": 69.56521739130434
     },
     "import": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "increment": {
       "total": 155,
-      "passed": 155,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 126,
+      "failed": 29,
+      "accuracy": 81.29032258064515
     },
     "indexing": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "inequality": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "infinite": {
       "total": 60,
-      "passed": 60,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 21,
+      "accuracy": 65
     },
     "inheritance": {
       "total": 11,
-      "passed": 11,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 9,
+      "accuracy": 18.181818181818183
     },
     "initialization": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "interpolation": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 85,
+      "failed": 10,
+      "accuracy": 89.47368421052632
     },
     "isa": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "iterator": {
       "total": 61,
-      "passed": 61,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 41,
+      "failed": 20,
+      "accuracy": 67.21311475409836
     },
     "key_access": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 85,
+      "failed": 10,
+      "accuracy": 89.47368421052632
     },
     "keys": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "labeled": {
       "total": 63,
-      "passed": 63,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 40,
+      "failed": 23,
+      "accuracy": 63.49206349206349
     },
     "last": {
       "total": 64,
-      "passed": 64,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 44,
+      "failed": 20,
+      "accuracy": 68.75
     },
     "left_shift": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "less_equal": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "less_than": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "list": {
       "total": 156,
-      "passed": 156,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 125,
+      "failed": 31,
+      "accuracy": 80.12820512820514
     },
     "literals": {
       "total": 97,
-      "passed": 97,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 11,
+      "accuracy": 88.65979381443299
     },
     "local": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "logical": {
       "total": 171,
-      "passed": 171,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 140,
+      "failed": 31,
+      "accuracy": 81.87134502923976
     },
     "loop": {
       "total": 72,
-      "passed": 72,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 49,
+      "failed": 23,
+      "accuracy": 68.05555555555556
     },
     "loop_control": {
       "total": 70,
-      "passed": 70,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 48,
+      "failed": 22,
+      "accuracy": 68.57142857142857
     },
     "low_precedence": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "mask": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "matching": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 85,
+      "failed": 10,
+      "accuracy": 89.47368421052632
     },
     "math": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "method_calls": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "methods": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 4,
+      "failed": 4,
+      "accuracy": 50
     },
     "minus": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "mixed": {
       "total": 157,
-      "passed": 157,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 125,
+      "failed": 32,
+      "accuracy": 79.61783439490446
     },
     "mixed_operators": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "modules": {
       "total": 13,
-      "passed": 13,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 11,
+      "accuracy": 15.384615384615385
     },
     "modulo": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "multiple": {
       "total": 154,
-      "passed": 154,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 125,
+      "failed": 29,
+      "accuracy": 81.16883116883116
     },
     "multiple_operators": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "multiplication": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "namespaces": {
       "total": 12,
-      "passed": 12,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 9,
+      "accuracy": 25
     },
     "naming": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 6,
+      "accuracy": 14.285714285714285
     },
     "nested": {
       "total": 161,
-      "passed": 161,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 129,
+      "failed": 32,
+      "accuracy": 80.12422360248446
     },
     "next": {
       "total": 62,
-      "passed": 62,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 41,
+      "failed": 21,
+      "accuracy": 66.12903225806451
     },
     "no_default": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "not": {
       "total": 97,
-      "passed": 97,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 88,
+      "failed": 9,
+      "accuracy": 90.72164948453609
     },
     "numeric": {
       "total": 103,
-      "passed": 103,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 93,
+      "failed": 10,
+      "accuracy": 90.29126213592234
     },
     "objects": {
       "total": 103,
-      "passed": 103,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 90,
+      "failed": 13,
+      "accuracy": 87.37864077669903
     },
     "optional": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "options": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "or": {
       "total": 99,
-      "passed": 99,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 90,
+      "failed": 9,
+      "accuracy": 90.9090909090909
     },
     "ordering": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "organization": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "outer": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "package-qualification": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 6,
+      "accuracy": 14.285714285714285
     },
     "packages": {
       "total": 18,
-      "passed": 18,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 4,
+      "failed": 14,
+      "accuracy": 22.22222222222222
     },
     "parallel": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "parent": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "parentheses": {
       "total": 97,
-      "passed": 97,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 88,
+      "failed": 9,
+      "accuracy": 90.72164948453609
     },
     "pattern": {
       "total": 60,
-      "passed": 60,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 22,
+      "accuracy": 63.33333333333333
     },
     "perl": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 7,
+      "accuracy": 30
     },
     "pipeline": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "plus": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "postfix": {
       "total": 158,
-      "passed": 158,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 129,
+      "failed": 29,
+      "accuracy": 81.64556962025317
     },
     "pragmas": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "precedence": {
       "total": 100,
-      "passed": 100,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 91,
+      "failed": 9,
+      "accuracy": 91
     },
     "prefix": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "progress": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "prototypes": {
       "total": 8,
-      "passed": 8,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 4,
+      "failed": 4,
+      "accuracy": 50
     },
     "qualification": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "quoting": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 85,
+      "failed": 10,
+      "accuracy": 89.47368421052632
     },
     "qw": {
       "total": 60,
-      "passed": 60,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 22,
+      "accuracy": 63.33333333333333
     },
     "range": {
       "total": 157,
-      "passed": 157,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 127,
+      "failed": 30,
+      "accuracy": 80.89171974522293
     },
     "recursive": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "redo": {
       "total": 61,
-      "passed": 61,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 40,
+      "failed": 21,
+      "accuracy": 65.57377049180327
     },
     "references": {
       "total": 104,
-      "passed": 104,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 90,
+      "failed": 14,
+      "accuracy": 86.53846153846155
     },
     "regex": {
       "total": 154,
-      "passed": 154,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 123,
+      "failed": 31,
+      "accuracy": 79.87012987012987
     },
     "repetition": {
       "total": 97,
-      "passed": 97,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 88,
+      "failed": 9,
+      "accuracy": 90.72164948453609
     },
     "require": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "restart": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "retry": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "return": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "right_shift": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "scalars": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 6,
+      "accuracy": 14.285714285714285
     },
     "scope": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "scoping": {
       "total": 9,
-      "passed": 9,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 7,
+      "accuracy": 22.22222222222222
     },
     "search": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "sequence": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "sequential": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "short_circuit": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "side_effects": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "simulation": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "single_line": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "slice": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "smartmatch": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "spaceship": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "special-vars": {
       "total": 7,
-      "passed": 7,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 1,
+      "failed": 6,
+      "accuracy": 14.285714285714285
     },
     "state": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "state_machine": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "statement_modifier": {
       "total": 60,
-      "passed": 60,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 40,
+      "failed": 20,
+      "accuracy": 66.66666666666666
     },
     "strict": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "string": {
       "total": 110,
-      "passed": 110,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 97,
+      "failed": 13,
+      "accuracy": 88.18181818181819
     },
     "subroutines": {
       "total": 14,
-      "passed": 14,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 6,
+      "failed": 8,
+      "accuracy": 42.857142857142854
     },
     "subtraction": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "switch": {
       "total": 68,
-      "passed": 68,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 30,
+      "accuracy": 55.88235294117647
     },
     "ternary": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 10,
+      "accuracy": 89.58333333333334
     },
     "three_way": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     },
     "tree": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "try_catch": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "unary_operator": {
       "total": 99,
-      "passed": 99,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 90,
+      "failed": 9,
+      "accuracy": 90.9090909090909
     },
     "undef_handling": {
       "total": 95,
-      "passed": 95,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 86,
+      "failed": 9,
+      "accuracy": 90.52631578947368
     },
     "underscore": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "unless": {
       "total": 62,
-      "passed": 62,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 42,
+      "failed": 20,
+      "accuracy": 67.74193548387096
     },
     "until": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "use": {
       "total": 11,
-      "passed": 11,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 8,
+      "accuracy": 27.27272727272727
     },
     "validation": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "value": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "variable_declaration": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 39,
+      "failed": 20,
+      "accuracy": 66.10169491525424
     },
     "variables": {
       "total": 117,
-      "passed": 117,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 89,
+      "failed": 28,
+      "accuracy": 76.06837606837607
     },
     "versions": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 3,
+      "failed": 7,
+      "accuracy": 30
     },
     "warnings": {
       "total": 10,
-      "passed": 10,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 2,
+      "failed": 8,
+      "accuracy": 20
     },
     "when": {
       "total": 69,
-      "passed": 69,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 31,
+      "accuracy": 55.072463768115945
     },
     "while": {
       "total": 68,
-      "passed": 68,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 44,
+      "failed": 24,
+      "accuracy": 64.70588235294117
     },
     "word_form": {
       "total": 97,
-      "passed": 97,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 88,
+      "failed": 9,
+      "accuracy": 90.72164948453609
     },
     "workers": {
       "total": 59,
-      "passed": 59,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 38,
+      "failed": 21,
+      "accuracy": 64.40677966101694
     },
     "xor": {
       "total": 96,
-      "passed": 96,
-      "failed": 0,
-      "accuracy": 100
+      "passed": 87,
+      "failed": 9,
+      "accuracy": 90.625
     }
   },
   "parsing_time": 0,

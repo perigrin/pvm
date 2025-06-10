@@ -5,12 +5,18 @@ package main
 
 import (
 	"tamarou.com/pvm/internal/cli"
+	"tamarou.com/pvm/internal/psc"
+	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/pvm"
+	"tamarou.com/pvm/internal/pvx"
 )
 
 func init() {
-	// Register PVM command
+	// Register all component commands for symlink support
 	cli.GlobalRegistry.Register(cli.ComponentPVM, pvm.NewCommand)
+	cli.GlobalRegistry.Register(cli.ComponentPSC, psc.NewCommand)
+	cli.GlobalRegistry.Register(cli.ComponentPVI, pvi.NewCommand)
+	cli.GlobalRegistry.Register(cli.ComponentPVX, pvx.NewCommand)
 }
 
 func main() {

@@ -996,7 +996,7 @@ func (mi *ModuleIntrospector) extractFrameworkAttribute(node Node, pattern *Fram
 		}
 
 		// Check for default value
-		if defaultMatch := regexp.MustCompile(`default\s*=>\s*(.+?)(?:,|\))`).FindStringSubmatch(text); len(defaultMatch) > 1 {
+		if defaultMatch := regexp.MustCompile(`default\s*=>\s*(.+?)(?:,|\)|$|\n)`).FindStringSubmatch(text); len(defaultMatch) > 1 {
 			attrInfo.HasDefault = true
 			attrInfo.DefaultValue = strings.TrimSpace(defaultMatch[1])
 		}

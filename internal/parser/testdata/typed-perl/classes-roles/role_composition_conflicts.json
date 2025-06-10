@@ -1,9 +1,0 @@
-{
-  "name": "role_composition_conflicts",
-  "category": "typed-perl",
-  "subcategory": "classes-roles",
-  "input": "role Drawable {\n    method draw() -> Void;\n    method get_bounds() -> Rectangle;\n}\n\nrole Clickable {\n    method on_click(Event $event) -> Void;\n    method get_bounds() -> Rectangle;  # Conflict with Drawable\n}\n\nrole Resizable {\n    method resize(Int $width, Int $height) -> Void;\n    method get_size() -> Size;\n}\n\nclass Widget does Drawable, Clickable, Resizable {\n    field Int $x = 0;\n    field Int $y = 0;\n    field Int $width = 100;\n    field Int $height = 50;\n\n    # Resolve conflict by implementing the conflicting method\n    method get_bounds() -> Rectangle {\n        return Rectangle->new($x, $y, $width, $height);\n    }\n\n    method draw() -> Void {\n        # Implementation for drawing\n    }\n\n    method on_click(Event $event) -> Void {\n        # Handle click event\n    }\n\n    method resize(Int $new_width, Int $new_height) -> Void {\n        $width = $new_width;\n        $height = $new_height;\n    }\n\n    method get_size() -> Size {\n        return Size->new($width, $height);\n    }\n}",
-  "description": "Role composition with method conflicts and resolution",
-  "tags": ["role-composition", "method-conflicts", "conflict-resolution", "multiple-roles"],
-  "should_error": false
-}

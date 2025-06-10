@@ -1,6 +1,6 @@
 === SYMBOLS ===
+scalar Int [lexical] at 1:1
 scalar Str [lexical] at 2:1
 scalar Bool [lexical] at 3:1
-scalar Int [lexical] at 1:1
 === TYPE ERRORS ===
 No type errors

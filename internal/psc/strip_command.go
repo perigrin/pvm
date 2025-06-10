@@ -52,21 +52,38 @@ Examples:
 				outputFile = args[1]
 			}
 
-			// Parse the file using parser pool for thread safety
-			ast, err := parser.PooledParserFunc(func(p parser.Parser) (*parser.AST, error) {
-				return p.ParseFile(inputFile)
-			})
+			// Use standard parser system
+			standardParser, err := parser.NewParser()
 			if err != nil {
+				return errors.NewTypeError(
+					ErrIntegrationFailed,
+					fmt.Sprintf("Failed to create parser: %v", err),
+					err).WithLocation(inputFile)
+			}
+
+			ast, err := standardParser.ParseFile(inputFile)
+			if err != nil {
+				// Check if this is a TypeParseError that should be formatted specially
+				if typeParseErr, ok := err.(*errors.TypeParseError); ok {
+					// Format using enhanced error formatter
+					formatter := NewErrorFormatter()
+					formattedError := formatter.FormatTypeParseError(typeParseErr, inputFile)
+					fmt.Fprintf(os.Stderr, "%s", formattedError)
+					return errors.NewTypeError(
+						ErrIntegrationFailed,
+						fmt.Sprintf("Failed to parse file %s (Type Error)", inputFile),
+						err).WithLocation(inputFile)
+				}
+
 				return errors.NewTypeError(
 					ErrIntegrationFailed,
 					fmt.Sprintf("Failed to parse file %s", inputFile),
 					err).WithLocation(inputFile)
 			}
 
-			// Use compiler to strip type annotations
-			registry := compiler.NewCompilerRegistry()
-			astAdapter := compiler.NewParserASTAdapter(ast)
-			result, err := registry.Compile(astAdapter, compiler.TargetCleanPerl)
+			// Use AST compiler to strip type annotations
+			astCompiler := compiler.NewASTCompiler()
+			result, err := astCompiler.Compile(ast)
 			if err != nil {
 				return errors.NewTypeError(
 					ErrIntegrationFailed,

@@ -118,3 +118,6 @@ PSC commands (`psc strip`, `psc run`) use the compiler package for:
 - Using v5.36 for broader compatibility with existing Perl installations
 
 ## Code Style Guidelines
+
+## Memory: AST Compilation
+- you MUST NOT use regular expressions to compile the AST, if it is an ERROR node raise an error, otherwise compile from the AST. If you see regular expression we need to fix the code

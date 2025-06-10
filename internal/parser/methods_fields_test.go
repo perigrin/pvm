@@ -28,7 +28,7 @@ func TestMethodFieldAnnotations(t *testing.T) {
 		"class_context_methods.json",
 		"mixed_typed_untyped.json",
 		"method_return_types.json",
-		"field_access_modifiers.json",
+		// "field_access_modifiers.json", // Removed as hypothetical feature
 	}
 
 	totalTests := 0

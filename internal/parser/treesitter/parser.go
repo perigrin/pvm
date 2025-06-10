@@ -4,6 +4,7 @@
 package treesitter
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -195,6 +196,8 @@ func NewParser(debug bool) (*Parser, error) {
 
 // ParseFile parses a Perl file and returns its AST
 func (p *Parser) ParseFile(path string) (*ast.AST, error) {
+	ctx := context.Background()
+
 	// Check if the file exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, errors.NewSystemError("001",
@@ -202,67 +205,22 @@ func (p *Parser) ParseFile(path string) (*ast.AST, error) {
 			WithLocation(path)
 	}
 
-	// Parse the file using a simplified approach until tree-sitter is integrated
-	tree, err := p.perlParser.ParseFile(path)
+	// Read the file content
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.NewSystemError("002",
-			"Failed to parse file", err).
+			"Failed to read file", err).
 			WithLocation(path)
 	}
 
-	// Extract type annotations from the tree
-	perlAnnotations, err := tree.FindTypeAnnotations()
+	// Use ParseString to ensure consistent behavior and validation
+	astResult, err := p.ParseStringWithContext(ctx, string(content))
 	if err != nil {
-		return nil, errors.NewSystemError("003",
-			"Failed to extract type annotations", err).
-			WithLocation(path)
+		return nil, err
 	}
 
-	// Convert PerlTypeAnnotations to TypeAnnotations
-	var typeAnnotations []*TypeAnnotation
-	for _, perlAnn := range perlAnnotations {
-		annotation, convErr := p.convertPerlTypeAnnotation(perlAnn, string(tree.Content))
-		if convErr != nil {
-			// Log the error but don't fail the parse
-			log.Debugf("Failed to convert annotation %s: %v", perlAnn.ItemName, convErr)
-			continue
-		}
-		typeAnnotations = append(typeAnnotations, annotation)
-	}
-
-	// Create an AST from the parse tree
-	// Convert tree-sitter root to our Node interface
-	var rootNode Node
-	if tree.Root() != nil {
-		rootNode = p.convertTreeSitterNode(tree.Root(), tree)
-	} else {
-		rootNode = newSimpleNode("root")
-	}
-
-	// Convert to proper ast.AST with ast.Node types
-	astRoot := p.convertToASTNode(rootNode)
-
-	// Convert type annotations to ast.TypeAnnotation
-	var astTypeAnnotations []*ast.TypeAnnotation
-	for _, ta := range typeAnnotations {
-		astTypeAnnotations = append(astTypeAnnotations, p.convertToASTTypeAnnotation(ta))
-	}
-	// Ensure slice is never nil, even if empty
-	if astTypeAnnotations == nil {
-		astTypeAnnotations = make([]*ast.TypeAnnotation, 0)
-	}
-
-	// Add constraint-based type annotations by scanning source text
-	constraintAnnotations := p.extractConstraintAnnotations(string(tree.Content))
-	astTypeAnnotations = append(astTypeAnnotations, constraintAnnotations...)
-
-	astResult := &ast.AST{
-		Source:          string(tree.Content),
-		Path:            path,
-		Root:            astRoot,
-		TypeAnnotations: astTypeAnnotations,
-		Errors:          []error{},
-	}
+	// Set the correct path in the result
+	astResult.Path = path
 
 	return astResult, nil
 }
@@ -546,7 +504,18 @@ func (p *Parser) splitParameters(paramStr string) []string {
 }
 
 // ParseString parses a string containing Perl code and returns its AST
+// ParseStringWithContext parses a Perl code string with context
+func (p *Parser) ParseStringWithContext(ctx context.Context, content string) (*ast.AST, error) {
+	return p.parseStringInternal(ctx, content)
+}
+
 func (p *Parser) ParseString(content string) (*ast.AST, error) {
+	ctx := context.Background()
+	return p.parseStringInternal(ctx, content)
+}
+
+// parseStringInternal contains the actual parsing logic
+func (p *Parser) parseStringInternal(ctx context.Context, content string) (*ast.AST, error) {
 	// Parse the string using tree-sitter
 	tree, err := p.perlParser.ParseString(content)
 	if err != nil {
@@ -598,20 +567,37 @@ func (p *Parser) ParseString(content string) (*ast.AST, error) {
 	constraintAnnotations := p.extractConstraintAnnotations(content)
 	astTypeAnnotations = append(astTypeAnnotations, constraintAnnotations...)
 
-	// Validate the parsed content for syntax errors
-	syntaxErrors := p.validateSyntax(content, astTypeAnnotations)
+	// Check for ERROR nodes in the tree-sitter parse result
+	if os.Getenv("PARSER_DEBUG") != "" {
+		fmt.Printf("[PARSER_DEBUG] Checking for ERROR nodes in content: %q\n", content)
+		fmt.Printf("[PARSER_DEBUG] AST root type: %s, text: %q\n", astRoot.Type(), astRoot.Text())
+	}
+	if errorNodes := p.findErrorNodes(astRoot); len(errorNodes) > 0 {
+		if os.Getenv("PARSER_DEBUG") != "" {
+			fmt.Printf("[PARSER_DEBUG] Found %d ERROR nodes\n", len(errorNodes))
+			for i, node := range errorNodes {
+				fmt.Printf("[PARSER_DEBUG] ERROR node %d: %q at %d:%d\n", i, node.Content, node.StartPoint.Line, node.StartPoint.Column)
+			}
+		}
+
+		// Try to identify specific type errors first
+		// Note: Type error identification should be handled at the parser layer, not tree-sitter layer
+		// For now, continue with generic tree-sitter errors
+
+		// Fall back to generic tree-sitter error formatting
+		errorMessage := p.formatParseErrors(errorNodes, "", content)
+		return nil, errors.NewSystemError("007", errorMessage, nil)
+	}
+	if os.Getenv("PARSER_DEBUG") != "" {
+		fmt.Printf("[PARSER_DEBUG] No ERROR nodes found\n")
+	}
 
 	// Create an AST from the parse tree
 	astResult := &ast.AST{
 		Source:          content,
 		Root:            astRoot,
 		TypeAnnotations: astTypeAnnotations,
-		Errors:          syntaxErrors,
-	}
-
-	// If there are syntax errors, return them
-	if len(syntaxErrors) > 0 {
-		return astResult, syntaxErrors[0] // Return the first error
+		Errors:          nil, // ERROR nodes are now handled above, no additional validation needed
 	}
 
 	return astResult, nil
@@ -2289,4 +2275,92 @@ func (p *Parser) convertTypedParameterToToken(paramText string, start, end ast.P
 
 	// Fallback - return the original text if no variable found
 	return ast.NewTokenNode(ast.Identifier, paramText, start, end)
+}
+
+// ErrorNodeInfo contains detailed information about an ERROR node
+type ErrorNodeInfo struct {
+	Node       ast.Node
+	Content    string
+	StartPoint ast.Position
+	EndPoint   ast.Position
+}
+
+// findErrorNodes recursively finds all ERROR nodes in the AST and returns detailed information
+func (p *Parser) findErrorNodes(node ast.Node) []ErrorNodeInfo {
+	var errors []ErrorNodeInfo
+
+	if node == nil {
+		return errors
+	}
+
+	if node.Type() == "ERROR" {
+		errors = append(errors, ErrorNodeInfo{
+			Node:       node,
+			Content:    node.Text(),
+			StartPoint: node.Start(),
+			EndPoint:   node.End(),
+		})
+	}
+
+	// Check children
+	for _, child := range node.Children() {
+		errors = append(errors, p.findErrorNodes(child)...)
+	}
+
+	return errors
+}
+
+// formatParseErrors creates Rust-style error messages for parse failures
+func (p *Parser) formatParseErrors(errorNodes []ErrorNodeInfo, filePath, sourceContent string) string {
+	var result strings.Builder
+
+	// Split source into lines for context display
+	lines := strings.Split(sourceContent, "\n")
+
+	result.WriteString(fmt.Sprintf("error[TSP001]: parse error (%d ERROR nodes detected)\n", len(errorNodes)))
+
+	for i, errNode := range errorNodes {
+		if i > 0 {
+			result.WriteString("\n")
+		}
+
+		lineNum := errNode.StartPoint.Line + 1  // Convert 0-based to 1-based
+		colNum := errNode.StartPoint.Column + 1 // Convert 0-based to 1-based
+
+		result.WriteString(fmt.Sprintf("  --> %s:%d:%d\n", filePath, lineNum, colNum))
+		result.WriteString("   |\n")
+
+		// Show the problematic line with context
+		if errNode.StartPoint.Line < len(lines) {
+			line := lines[errNode.StartPoint.Line]
+			result.WriteString(fmt.Sprintf("%2d | %s\n", lineNum, line))
+			result.WriteString("   | ")
+
+			// Add pointer to the exact error location
+			for i := 0; i < errNode.StartPoint.Column; i++ {
+				if i < len(line) && line[i] == '\t' {
+					result.WriteString("\t")
+				} else {
+					result.WriteString(" ")
+				}
+			}
+
+			// Add underline for the error span
+			errorLen := errNode.EndPoint.Column - errNode.StartPoint.Column
+			if errorLen <= 0 {
+				errorLen = 1
+			}
+			for i := 0; i < errorLen; i++ {
+				result.WriteString("^")
+			}
+
+			result.WriteString(fmt.Sprintf(" unexpected token: '%s'\n", errNode.Content))
+		}
+	}
+
+	result.WriteString("\n")
+	result.WriteString("note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.\n")
+	result.WriteString("      Please add test cases for this syntax to improve parser coverage.\n")
+
+	return result.String()
 }

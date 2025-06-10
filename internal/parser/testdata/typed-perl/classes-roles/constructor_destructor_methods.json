@@ -1,9 +1,0 @@
-{
-  "name": "constructor_destructor_methods",
-  "category": "typed-perl",
-  "subcategory": "classes-roles",
-  "input": "class Resource {\n    field Str $name;\n    field FileHandle $handle;\n    field Bool $is_open = 0;\n\n    method BUILD(Str $name, Optional[Str] $mode = 'r') -> Void {\n        $self->{name} = $name;\n        $self->{handle} = IO::File->new($name, $mode);\n        $self->{is_open} = defined $self->{handle};\n    }\n\n    method new(Str $name, Optional[Str] $mode = 'r') -> Resource {\n        my $self = bless {}, __PACKAGE__;\n        $self->BUILD($name, $mode);\n        return $self;\n    }\n\n    method DESTROY() -> Void {\n        $self->close() if $is_open;\n    }\n\n    method close() -> Bool {\n        return 0 unless $is_open;\n        my $result = $handle->close();\n        $is_open = 0;\n        return $result;\n    }\n\n    method read(Int $bytes) -> Optional[Str] {\n        return undef unless $is_open;\n        my $data;\n        my $read_bytes = $handle->read($data, $bytes);\n        return defined $read_bytes ? $data : undef;\n    }\n}",
-  "description": "Class with constructor, destructor, and lifecycle methods",
-  "tags": ["constructor", "destructor", "BUILD-method", "DESTROY-method", "lifecycle-management"],
-  "should_error": false
-}
