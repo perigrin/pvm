@@ -1,9 +1,0 @@
-{
-  "name": "multi_way_unions",
-  "category": "typed-perl",
-  "subcategory": "union-types",
-  "input": "my Int|Str|Bool $multi = \"text\";\nmy Num|ArrayRef|HashRef $complex;\nmy Int|Str|Bool|Undef $nullable = undef;",
-  "description": "Multi-way union types with three or more alternatives",
-  "tags": ["union-types", "multi-way-unions", "variable-declarations"],
-  "should_error": false
-}

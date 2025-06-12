@@ -1,9 +1,0 @@
-{
-  "name": "basic_field_declarations",
-  "category": "typed-perl",
-  "subcategory": "methods-fields",
-  "input": "field Int $count = 0;\nfield Str $name;\nfield Bool $is_active = 1;\nfield Num $rate = 3.14;",
-  "description": "Basic typed field declarations with and without initializers",
-  "tags": ["typed-fields", "field-declarations", "field-initialization"],
-  "should_error": false
-}

@@ -1,9 +1,0 @@
-{
-  "name": "basic_typed_variables",
-  "category": "typed-perl",
-  "subcategory": "simple-annotations",
-  "input": "my Int $count = 42;\nmy Str $name = \"example\";\nmy Bool $flag = 1;\nmy Num $pi = 3.14159;",
-  "description": "Basic typed variable declarations with built-in types",
-  "tags": ["typed-variables", "built-in-types", "variable-declarations"],
-  "should_error": false
-}

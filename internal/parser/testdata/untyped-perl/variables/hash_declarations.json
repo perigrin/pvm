@@ -1,9 +1,0 @@
-{
-  "name": "hash_declarations", 
-  "category": "untyped-perl",
-  "subcategory": "variables",
-  "description": "Test hash variable declarations with different scoping and assignment patterns",
-  "tags": ["variables", "hashes", "declarations", "scoping"],
-  "input": "my %simple_hash;\nmy %assigned = (key => 'value');\nour %package_hash;\n%Package::qualified = (a => 1, b => 2);",
-  "should_error": false
-}

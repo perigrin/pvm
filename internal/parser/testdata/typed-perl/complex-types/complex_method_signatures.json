@@ -1,9 +1,0 @@
-{
-  "name": "complex_method_signatures",
-  "category": "typed-perl",
-  "subcategory": "complex-types",
-  "input": "method transform(\n    ArrayRef[HashRef[Int|Str]] $input,\n    CodeRef[Str, Bool] $validator\n) -> HashRef[ArrayRef[Int]|Str] {\n    return {};\n}\n\nmethod process(\n    Map[Str, ArrayRef[Data|Error]] $complex_input,\n    Optional[Handler[Request|Response]] $handler\n) -> Result[Array[ProcessedData], ProcessingError] {\n    return success([]);\n}",
-  "description": "Complex method signatures with advanced parameter and return types",
-  "tags": ["method-signatures", "complex-types", "parameterized-returns"],
-  "should_error": false
-}

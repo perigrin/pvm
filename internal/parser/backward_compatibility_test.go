@@ -348,7 +348,7 @@ func (bct *BackwardCompatibilityTester) generateStringLiteralTests() []*Compatib
 			Description: "Heredocs containing type annotation syntax",
 			InputCode: `my $code = <<'END';
 my Int $typed_var = 42;
-method foo() -> Str { return "test"; }
+method foo() returns Str { return "test"; }
 field Bool $flag;
 type MyType = Int|Str;
 END
@@ -405,9 +405,9 @@ func (bct *BackwardCompatibilityTester) generateErrorCaseTests() []*Compatibilit
 	return []*CompatibilityTest{
 		{
 			Name:        "incomplete_syntax_recovery",
-			Description: "Parser error recovery for incomplete syntax",
+			Description: "Parser correctly rejects incomplete syntax",
 			InputCode:   `my $incomplete_syntax = `,
-			ShouldParse: true, // Parser may recover from incomplete syntax
+			ShouldParse: false, // Incomplete syntax should be a parse error
 			Category:    "error_cases",
 			Tags:        []string{"error_recovery"},
 		},

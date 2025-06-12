@@ -259,7 +259,7 @@ method m3 ($tings) { }
     body: (block))
   (method_declaration_statement
     name: (bareword)
-    (signature
+    signature: (signature
       (mandatory_parameter
         (scalar
           (varname))))
@@ -441,6 +441,43 @@ sub complex_typed (ArrayRef[Int] $data = [1,2,3]) { }
     (block)))
 
 ================================================================================
+Typed Slurpy Parameters
+================================================================================
+method with_typed_slurpy(Str @args) { }
+sub typed_array_param(Int @numbers) { }
+sub typed_hash_param(Str %config) { }
+--------------------------------------------------------------------------------
+
+(source_file
+  (method_declaration_statement
+    name: (bareword)
+    signature: (signature
+      (slurpy_parameter
+        (type_expression
+          (simple_type))
+        (array
+          (varname))))
+    body: (block))
+  (subroutine_declaration_statement
+    name: (bareword)
+    signature: (signature
+      (slurpy_parameter
+        (type_expression
+          (simple_type))
+        (array
+          (varname))))
+    body: (block))
+  (subroutine_declaration_statement
+    name: (bareword)
+    signature: (signature
+      (slurpy_parameter
+        (type_expression
+          (simple_type))
+        (hash
+          (varname))))
+    body: (block)))
+
+================================================================================
 lexical method calls experimental Object::Pad syntax
 ================================================================================
 $sner->&over_9000
@@ -451,3 +488,68 @@ $sner->&over_9000
       (scalar
         (varname))
       (method))))
+
+================================================================================
+Methods with return types - basic
+================================================================================
+method get_number() returns Int {
+    return 42;
+}
+
+method simple() returns Str {
+    return "hello";
+}
+--------------------------------------------------------------------------------
+
+(source_file
+  (method_declaration_statement
+    name: (bareword)
+    signature: (signature)
+    return_type: (type_expression
+      (simple_type))
+    body: (block
+      (expression_statement
+        (return_expression
+          (number)))))
+  (method_declaration_statement
+    name: (bareword)
+    signature: (signature)
+    return_type: (type_expression
+      (simple_type))
+    body: (block
+      (expression_statement
+        (return_expression
+          (interpolated_string_literal
+            content: (string_content)))))))
+
+================================================================================
+Methods with return types - parameterized
+================================================================================
+method process_list(ArrayRef[Int] $numbers) returns HashRef[Str] {
+    return {};
+}
+--------------------------------------------------------------------------------
+
+(source_file
+  (method_declaration_statement
+    name: (bareword)
+    signature: (signature
+      (mandatory_parameter
+        (type_expression
+          (parameterized_type
+            (simple_type)
+            (type_parameter_list
+              (type_expression
+                (simple_type)))))
+        (scalar
+          (varname))))
+    return_type: (type_expression
+      (parameterized_type
+        (simple_type)
+        (type_parameter_list
+          (type_expression
+            (simple_type)))))
+    body: (block
+      (expression_statement
+        (return_expression
+          (anonymous_hash_expression))))))

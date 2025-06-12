@@ -10,6 +10,7 @@ import (
 
 // TestSimpleTypeAnnotations tests the comprehensive simple type annotation coverage from Step 7
 func TestSimpleTypeAnnotations(t *testing.T) {
+	t.Skip("Simple type annotation tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
 	// Set up test framework
 	testDataDir := filepath.Join("testdata", "typed-perl", "simple-annotations")
 	framework := NewParserTestFramework(testDataDir)

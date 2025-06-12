@@ -33,7 +33,7 @@ func NewEnhancedParser() (Parser, error) {
 
 // ParseFile implements the Parser interface with enhanced error handling
 func (ep *enhancedParser) ParseFile(path string) (*ast.AST, error) {
-	ast, err := ep.tsParser.ParseFile(path)
+	astResult, err := ep.tsParser.ParseFile(path)
 	if err != nil {
 		// Check if this is a type-related error we can identify more specifically
 		if typeErr := ep.tryIdentifyTypeError(err, "", "file parsing"); typeErr != nil {
@@ -42,12 +42,26 @@ func (ep *enhancedParser) ParseFile(path string) (*ast.AST, error) {
 		// Return original error if not identified as type error
 		return nil, err
 	}
-	return ast, nil
+
+	// Even if parsing succeeded, check for malformed types in the AST
+	// This catches cases where tree-sitter partially parses malformed syntax
+	if astResult != nil && astResult.Root != nil {
+		// For file parsing, we need the content to analyze malformed types
+		content := ""
+		if astResult.Source != "" {
+			content = astResult.Source
+		}
+		if malformedErr := ep.errorIdentifier.IdentifyMalformedTypeInAST(astResult.Root, content); malformedErr != nil {
+			return nil, malformedErr
+		}
+	}
+
+	return astResult, nil
 }
 
 // ParseString implements the Parser interface with enhanced error handling
 func (ep *enhancedParser) ParseString(content string) (*ast.AST, error) {
-	ast, err := ep.tsParser.ParseString(content)
+	astResult, err := ep.tsParser.ParseString(content)
 	if err != nil {
 		// Check if this is a type-related error we can identify more specifically
 		if typeErr := ep.tryIdentifyTypeError(err, content, "string parsing"); typeErr != nil {
@@ -56,7 +70,18 @@ func (ep *enhancedParser) ParseString(content string) (*ast.AST, error) {
 		// Return original error if not identified as type error
 		return nil, err
 	}
-	return ast, nil
+
+	// TODO: Re-enable post-parsing AST validation once error identification is more precise
+	// Currently this is too aggressive and flags valid parses as errors
+	// Even if parsing succeeded, check for malformed types in the AST
+	// This catches cases where tree-sitter partially parses malformed syntax
+	// if astResult != nil && astResult.Root != nil {
+	//	if malformedErr := ep.errorIdentifier.IdentifyMalformedTypeInAST(astResult.Root, content); malformedErr != nil {
+	//		return nil, malformedErr
+	//	}
+	// }
+
+	return astResult, nil
 }
 
 // ParseReader implements the Parser interface with enhanced error handling

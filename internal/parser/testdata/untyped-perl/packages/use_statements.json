@@ -1,9 +1,0 @@
-{
-  "name": "use_statements",
-  "category": "untyped-perl",
-  "subcategory": "packages",
-  "description": "Test use statements with various import patterns",
-  "tags": ["packages", "use", "import", "modules"],
-  "input": "use strict;\nuse warnings;\nuse Data::Dumper;\nuse MyModule qw(function1 function2);\nuse AnotherModule 1.5 qw(:all);\nuse Parent::Module ();\nuse feature 'say';",
-  "should_error": false
-}

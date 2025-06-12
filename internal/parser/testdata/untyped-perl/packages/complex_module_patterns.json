@@ -1,9 +1,0 @@
-{
-  "name": "complex_module_patterns",
-  "category": "untyped-perl",
-  "subcategory": "packages",
-  "description": "Test complex module loading and package organization patterns",
-  "tags": ["packages", "modules", "complex", "organization", "blocks"],
-  "input": "{\n    package LocalPackage;\n    use parent 'BaseClass';\n\n    sub new {\n        my $class = shift;\n        return bless {}, $class;\n    }\n}\n\npackage main;\nuse LocalPackage;\n\n# Module with conditional loading\nBEGIN {\n    if ($ENV{DEBUG}) {\n        require Data::Dumper;\n        Data::Dumper->import('Dumper');\n    }\n}",
-  "should_error": false
-}

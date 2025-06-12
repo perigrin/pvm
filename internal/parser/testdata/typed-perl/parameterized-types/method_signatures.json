@@ -1,9 +1,0 @@
-{
-  "name": "method_signatures",
-  "category": "typed-perl",
-  "subcategory": "parameterized-types",
-  "input": "method process(ArrayRef[Str] $input) -> HashRef[Int] {\n  return {};\n}\n\nmethod transform(Map[Str, Int] $data) -> ArrayRef[Result[Str, Error]] {\n  return [];\n}",
-  "description": "Parameterized types in method signatures",
-  "tags": ["parameterized-types", "method-signatures", "parameters", "return-types"],
-  "should_error": false
-}

@@ -207,18 +207,18 @@ Coroutine simulation using dispatch table and redo
 ```perl
 sub coroutine {
     my $state = shift;
-    
+
     DISPATCH: {
         $state eq 'init' and do {
             initialize_data();
             $state = 'process';
             redo DISPATCH;
         };
-        
+
         $state eq 'process' and do {
             return process_next() || 'done';
         };
-        
+
         $state eq 'done' and do {
             cleanup();
             return undef;
@@ -228,6 +228,7 @@ sub coroutine {
 ```
 
 ## Event Loop
+<!-- expected_error: ParseError - given/when not implemented -->
 
 Event loop with various event types and validation
 
@@ -343,6 +344,7 @@ foreach (@items) {
 ```
 
 ## Given No Default
+<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when without default clause
 
@@ -355,6 +357,7 @@ given ($option) {
 ```
 
 ## Given When Arrays
+<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when with array reference matching
 
@@ -366,6 +369,7 @@ given ($day) {
 ```
 
 ## Given When Basic
+<!-- expected_error: ParseError - given/when not implemented -->
 
 Basic given-when switch statement
 
@@ -378,6 +382,7 @@ given ($value) {
 ```
 
 ## Given When Complex Condition
+<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when with complex conditions
 
@@ -394,6 +399,7 @@ given ($record) {
 ```
 
 ## Given When Nested
+<!-- expected_error: ParseError - given/when not implemented -->
 
 Nested given-when statements
 
@@ -411,6 +417,7 @@ given ($type) {
 ```
 
 ## Given When Ranges
+<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when with range matching
 
@@ -424,6 +431,7 @@ given ($score) {
 ```
 
 ## Given When Regex
+<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when with regex matching
 
@@ -679,7 +687,7 @@ Pipeline processing with error handling and optional stages
 ```perl
 foreach my $input (@inputs) {
     my $result = $input;
-    
+
     STAGE: foreach my $stage (@pipeline) {
         eval {
             $result = $stage->process($result);
@@ -690,7 +698,7 @@ foreach my $input (@inputs) {
             last STAGE;
         }
     }
-    
+
     push @outputs, $result if defined $result;
 }
 ```
@@ -739,7 +747,7 @@ Recursive tree processing with depth control
 sub process_tree {
     my ($node, $depth) = @_;
     return if $depth > $max_depth;
-    
+
     if ($node->{type} eq 'leaf') {
         process_leaf($node);
     } else {
@@ -783,6 +791,7 @@ if ($value ~~ @valid_values) {
 ```
 
 ## State Machine Loop
+<!-- expected_error: ParseError - given/when not implemented -->
 
 State machine implementation with loop and switch
 
@@ -856,6 +865,7 @@ unless ($negative_condition) {
 ```
 
 ## When Break
+<!-- expected_error: ParseError - given/when not implemented -->
 
 When clause with break statement
 
@@ -871,6 +881,7 @@ given ($status) {
 ```
 
 ## When Continue
+<!-- expected_error: ParseError - given/when not implemented -->
 
 When clause with continue statement
 

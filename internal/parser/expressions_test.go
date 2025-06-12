@@ -12,6 +12,7 @@ import (
 
 // TestBasicExpressions validates basic expression parsing using the test framework
 func TestBasicExpressions(t *testing.T) {
+	t.Skip("Expression tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
 	testCategories := []string{
 		"arithmetic_operations",
 		"string_operations",

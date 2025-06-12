@@ -1,9 +1,0 @@
-{
-  "name": "custom_types_unions",
-  "category": "typed-perl",
-  "subcategory": "union-types",
-  "input": "my MyClass|OtherClass $object;\nmy Package::Type1|Package::Type2 $qualified;\nmy UserType|SystemType|DefaultType $flexible;",
-  "description": "Union types with custom and package-qualified type names",
-  "tags": ["union-types", "custom-types", "package-qualified", "variable-declarations"],
-  "should_error": false
-}

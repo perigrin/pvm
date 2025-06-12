@@ -75,3 +75,23 @@ func TestRunMarkdownTestsByCategory(t *testing.T) {
 		t.Error("Expected to find some typed Perl tests")
 	}
 }
+
+func TestRunUntypedPerlMarkdownTests(t *testing.T) {
+	framework := NewParserTestFramework("testdata")
+
+	// Run tests from untyped perl markdown files
+	metrics := framework.RunTestsByCategory(t, UntypedPerl)
+	if metrics == nil {
+		t.Fatal("No metrics returned")
+	}
+
+	t.Logf("Untyped Perl test metrics:")
+	t.Logf("  Total: %d", metrics.TotalTests)
+	t.Logf("  Passed: %d", metrics.PassedTests)
+	t.Logf("  Failed: %d", metrics.FailedTests)
+
+	// We should have tests from expressions.md and control-flow.md
+	if metrics.TotalTests == 0 {
+		t.Error("Expected to find some untyped Perl tests")
+	}
+}

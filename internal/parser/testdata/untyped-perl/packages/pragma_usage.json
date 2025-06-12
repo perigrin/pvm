@@ -1,9 +1,0 @@
-{
-  "name": "pragma_usage",
-  "category": "untyped-perl",
-  "subcategory": "packages",
-  "description": "Test pragma usage patterns (strict, warnings, etc.)",
-  "tags": ["packages", "pragmas", "strict", "warnings", "features"],
-  "input": "use strict;\nuse warnings;\nuse strict 'vars';\nuse warnings 'all';\nno strict 'refs';\nno warnings 'uninitialized';\nuse feature qw(say switch);\nuse utf8;\nuse constant PI => 3.14159;",
-  "should_error": false
-}

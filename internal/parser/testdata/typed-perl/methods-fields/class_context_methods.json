@@ -1,9 +1,0 @@
-{
-  "name": "class_context_methods",
-  "category": "typed-perl",
-  "subcategory": "methods-fields",
-  "input": "class Calculator {\n    field Num $precision = 0.001;\n\n    method add(Num $a, Num $b) -> Num {\n        return $a + $b;\n    }\n\n    method get_precision() -> Num {\n        return $precision;\n    }\n\n    method set_precision(Num $new_precision) -> Void {\n        $precision = $new_precision;\n    }\n}",
-  "description": "Methods and fields within class context with type annotations",
-  "tags": ["class-context", "typed-methods", "typed-fields", "class-definitions"],
-  "should_error": false
-}

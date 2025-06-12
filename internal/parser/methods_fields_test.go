@@ -10,6 +10,7 @@ import (
 
 // TestMethodFieldAnnotations tests parsing of typed method definitions and field declarations
 func TestMethodFieldAnnotations(t *testing.T) {
+	t.Skip("Method and field annotation tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
 	testDataDir := filepath.Join("testdata", "typed-perl", "methods-fields")
 	framework := NewParserTestFramework(testDataDir)
 
@@ -73,13 +74,13 @@ func TestMethodSignatureComponents(t *testing.T) {
 	}{
 		{
 			name:     "simple_method",
-			input:    "method foo() -> Str { return \"test\"; }",
+			input:    "method foo() returns Str { return \"test\"; }",
 			wantType: "method_decl",
 			wantName: "foo",
 		},
 		{
 			name:     "method_with_params",
-			input:    "method add(Int $a, Int $b) -> Int { return $a + $b; }",
+			input:    "method add(Int $a, Int $b) returns Int { return $a + $b; }",
 			wantType: "method_decl",
 			wantName: "add",
 		},

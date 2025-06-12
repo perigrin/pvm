@@ -14,9 +14,22 @@ unrelated to the current work.
   - PVX: `make pvx`
   - PVI: `make pvi`
   - PSC: `make psc` (requires tree-sitter-typed-perl build first)
-- Test all: `make test`
+- Test all: `make test` (provides comprehensive test summary with failure breakdown by package)
 - Lint: `golangci-lint run`
 - Clean: `make clean`
+
+### Understanding Test Results
+
+**Always use `make test` for comprehensive test status** - it provides:
+- Overall statistics (Total/Passed/Failed/Skipped percentages)
+- Failure breakdown by package with specific failing test names
+- Current status: ~80.6% passing (3073/3811 tests)
+
+Individual package testing:
+- `go test ./internal/parser` - Parser functionality (main focus area)
+- `go test ./internal/compiler` - AST compilation
+- `go test ./internal/psc` - PSC command functionality
+- `go test ./test/e2e` - End-to-end integration tests
 
 ### Cross-Platform Build
 - Cross-compile all platforms: `make cross-compile`
@@ -118,6 +131,12 @@ PSC commands (`psc strip`, `psc run`) use the compiler package for:
 - Using v5.36 for broader compatibility with existing Perl installations
 
 ## Code Style Guidelines
+
+## Test Data Format Preference
+- **When encountering JSON-based test files, consider migrating them to Markdown format**
+- Markdown test files are more readable, easier to maintain, and support better documentation
+- The parser already has Markdown test infrastructure (see `test_framework.go` and `markdown_test_loader_test.go`)
+- JSON test collections make it difficult to skip individual test cases for unsupported features
 
 ## Memory: AST Compilation
 - you MUST NOT use regular expressions to compile the AST, if it is an ERROR node raise an error, otherwise compile from the AST. If you see regular expression we need to fix the code

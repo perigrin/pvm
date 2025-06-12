@@ -1,9 +1,0 @@
-{
-  "name": "mixed_typed_untyped",
-  "category": "typed-perl",
-  "subcategory": "simple-annotations",
-  "input": "my Int $typed_var = 42;\nmy $untyped_var = \"hello\";\nmy Str $another_typed = \"world\";\nmy @untyped_array = (1, 2, 3);\nmy ArrayRef[Int] @typed_array = (4, 5, 6);",
-  "description": "Mixed typed and untyped variable declarations in the same code",
-  "tags": ["typed-variables", "untyped-variables", "mixed-code", "backward-compatibility"],
-  "should_error": false
-}

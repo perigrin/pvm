@@ -1,9 +1,0 @@
-{
-  "name": "complex_expressions",
-  "category": "typed-perl",
-  "subcategory": "union-types",
-  "input": "my ArrayRef[Int|Str] @mixed_array;\nfield HashRef[Int|Bool] $mixed_hash;\nmy CodeRef[Int|Str, Bool|Undef] $flexible_function;",
-  "description": "Union types within complex type expressions like parameterized types",
-  "tags": ["union-types", "parameterized-types", "complex-expressions", "fields"],
-  "should_error": false
-}

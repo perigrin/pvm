@@ -1,9 +1,0 @@
-{
-  "name": "optional_annotations",
-  "category": "typed-perl",
-  "subcategory": "simple-annotations",
-  "input": "my Int $with_type;\nmy Str $also_typed = undef;\nmy Optional[Int] $maybe_int;\nmy Maybe[Str] $maybe_str;",
-  "description": "Type annotations including optional/maybe types and undefined values",
-  "tags": ["typed-variables", "optional-types", "maybe-types", "undefined"],
-  "should_error": false
-}

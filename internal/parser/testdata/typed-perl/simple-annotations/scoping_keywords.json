@@ -1,9 +1,0 @@
-{
-  "name": "scoping_keywords",
-  "category": "typed-perl",
-  "subcategory": "simple-annotations",
-  "input": "our Int $global_counter = 0;\nstate Str $persistent_cache = \"\";\nlocal Num $localized = 1.0;",
-  "description": "Type annotations with different scoping keywords (our, state, local)",
-  "tags": ["typed-variables", "scoping", "our", "state", "local"],
-  "should_error": false
-}

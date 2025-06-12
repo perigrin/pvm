@@ -1,9 +1,0 @@
-{
-  "name": "complex_variable_names",
-  "category": "untyped-perl", 
-  "subcategory": "variables",
-  "description": "Test variables with underscores, numbers, and package qualifiers",
-  "tags": ["variables", "naming", "package-qualification"],
-  "input": "my $var_with_underscores;\nmy $var123;\nmy $package_var;\n$Some::Package::qualified_var = \"test\";\nour $_private_var;\nmy $CamelCase_Var;",
-  "should_error": false
-}

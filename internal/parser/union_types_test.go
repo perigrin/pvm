@@ -10,6 +10,7 @@ import (
 
 // TestUnionTypes tests the comprehensive union type coverage from Step 10
 func TestUnionTypes(t *testing.T) {
+	t.Skip("Union type tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
 	// Set up test framework
 	testDataDir := filepath.Join("testdata", "typed-perl", "union-types")
 	framework := NewParserTestFramework(testDataDir)
@@ -108,7 +109,7 @@ func TestUnionTypeVariations(t *testing.T) {
 		},
 		{
 			name:        "method_return_union",
-			input:       "method test() -> Int|Str { }",
+			input:       "method test() returns Int|Str { }",
 			shouldError: false,
 			description: "Union type in method return type",
 		},

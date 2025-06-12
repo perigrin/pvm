@@ -180,7 +180,7 @@ module.exports = grammar({
     // these are all dynamic handling for continue BLOCK vs func0 b/c we don't get lookahead
     [$._loop_body],
     // we need an extra lookahead so we can correctly hide the `->` in a non-interpolating case
-    [$._interp_arrow, $._interpolation_fallbacks]
+    [$._interp_arrow, $._interpolation_fallbacks],
   ],
   rules: {
     source_file: $ => seq(repeat($._fullstmt), optional($.__DATA__)),
@@ -297,7 +297,15 @@ module.exports = grammar({
 
     slurpy_parameter: $ => choice(
       alias(choice('@', $._signature_array), $.array),
-      alias(choice($._HASH_PERCENT, $._signature_hash), $.hash)
+      alias(choice($._HASH_PERCENT, $._signature_hash), $.hash),
+      prec(1, seq(
+        $.type_expression,
+        alias($._signature_array, $.array)
+      )),
+      prec(1, seq(
+        $.type_expression,
+        alias($._signature_hash, $.hash)
+      ))
     ),
 
     _signature_vars: $ => choice(
@@ -323,7 +331,8 @@ module.exports = grammar({
       'sub',
       field('name', $.bareword),
       optseq(':', optional(field('attributes', $.attrlist))),
-      optional(choice($.prototype, $.signature)),
+      optional(choice(field('prototype', $.prototype), field('signature', $.signature))),
+      optional(seq('returns', field('return_type', $.type_expression))),
       field('body', $.block),
     ),
 
@@ -333,7 +342,8 @@ module.exports = grammar({
       'method',
       field('name', $.bareword),
       optseq(':', optional(field('attributes', $.attrlist))),
-      optional(choice($.prototype, $.signature)),
+      optional(choice(field('prototype', $.prototype), field('signature', $.signature))),
+      optional(seq('returns', field('return_type', $.type_expression))),
       field('body', $.block),
     ),
 
@@ -543,7 +553,6 @@ module.exports = grammar({
        * toke.c but we'll have to do it differently here
        */
       $.variable_declaration,
-      $.typed_variable_declaration,
 
       // legacy
       $.primitive,
@@ -691,6 +700,10 @@ module.exports = grammar({
     variable_declaration: $ => prec.left(TERMPREC.QUESTION_MARK + 1,
       seq(
         choice('my', 'state', 'our', 'field'),
+        optional(choice(
+          $.type_expression,
+          seq('(', $.type_expression, ')')
+        )),
         choice(
           field('variable', $._declared_vars),
           field('variables', $._decl_variable_list)),
@@ -1328,17 +1341,6 @@ module.exports = grammar({
       optional(',')
     ),
 
-    // Typed variable declarations
-    typed_variable_declaration: $ => prec.left(TERMPREC.QUESTION_MARK + 1,
-      seq(
-        choice('my', 'state', 'our', 'field'),
-        $.type_expression,
-        choice(
-          field('variable', $._declared_vars),
-          field('variables', $._decl_variable_list)),
-        optseq(':', optional(field('attributes', $.attrlist)))
-      )
-    ),
 
     ...primitives,
   }

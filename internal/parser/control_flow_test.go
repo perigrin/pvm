@@ -8,10 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"tamarou.com/pvm/internal/ast"
 )
 
 // TestControlFlowStructures validates control flow parsing using the test framework
 func TestControlFlowStructures(t *testing.T) {
+	t.Skip("Control flow tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
 	testCategories := []string{
 		"conditional_statements",
 		"loop_statements",
@@ -73,7 +76,7 @@ func runControlFlowTestsFromFile(t *testing.T, testFile string) {
 }
 
 // validateControlFlowAST performs basic validation of control flow AST structure
-func validateControlFlowAST(t *testing.T, ast *AST, testCase ParserTestCase) {
+func validateControlFlowAST(t *testing.T, ast *ast.AST, testCase ParserTestCase) {
 	if ast.Root == nil {
 		t.Errorf("AST root is nil for test case: %s", testCase.Name)
 		return
@@ -104,7 +107,7 @@ func validateControlFlowAST(t *testing.T, ast *AST, testCase ParserTestCase) {
 }
 
 // validateConditionalStructure checks conditional statement structure
-func validateConditionalStructure(t *testing.T, children []Node, testCase ParserTestCase) {
+func validateConditionalStructure(t *testing.T, children []ast.Node, testCase ParserTestCase) {
 	// Basic validation that conditional keywords are recognized
 	t.Logf("Validating conditional structure for: %s", testCase.Name)
 
@@ -128,7 +131,7 @@ func validateConditionalStructure(t *testing.T, children []Node, testCase Parser
 }
 
 // validateLoopStructure checks loop statement structure
-func validateLoopStructure(t *testing.T, children []Node, testCase ParserTestCase) {
+func validateLoopStructure(t *testing.T, children []ast.Node, testCase ParserTestCase) {
 	// Basic validation that loop keywords are recognized
 	t.Logf("Validating loop structure for: %s", testCase.Name)
 
@@ -156,7 +159,7 @@ func validateLoopStructure(t *testing.T, children []Node, testCase ParserTestCas
 }
 
 // validateLoopControlStructure checks loop control statement structure
-func validateLoopControlStructure(t *testing.T, children []Node, testCase ParserTestCase) {
+func validateLoopControlStructure(t *testing.T, children []ast.Node, testCase ParserTestCase) {
 	// Basic validation that loop control keywords are recognized
 	t.Logf("Validating loop control structure for: %s", testCase.Name)
 
@@ -178,7 +181,7 @@ func validateLoopControlStructure(t *testing.T, children []Node, testCase Parser
 }
 
 // validateSwitchStructure checks switch/given-when statement structure
-func validateSwitchStructure(t *testing.T, children []Node, testCase ParserTestCase) {
+func validateSwitchStructure(t *testing.T, children []ast.Node, testCase ParserTestCase) {
 	// Basic validation that switch keywords are recognized
 	t.Logf("Validating switch structure for: %s", testCase.Name)
 
@@ -202,7 +205,7 @@ func validateSwitchStructure(t *testing.T, children []Node, testCase ParserTestC
 }
 
 // validateComplexControlFlow checks complex control flow patterns
-func validateComplexControlFlow(t *testing.T, children []Node, testCase ParserTestCase) {
+func validateComplexControlFlow(t *testing.T, children []ast.Node, testCase ParserTestCase) {
 	// Basic validation that complex patterns are recognized
 	t.Logf("Validating complex control flow for: %s", testCase.Name)
 

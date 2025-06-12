@@ -12,7 +12,7 @@ func TestDebugClassParsing(t *testing.T) {
 	input := `class User {
     field Str $name;
 
-    method new(Str $name) -> User {
+    method new(Str $name) returns User {
         return bless { name => $name }, __PACKAGE__;
     }
 }`

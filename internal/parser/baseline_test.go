@@ -58,7 +58,7 @@ my ArrayRef[Int] $numbers = [1, 2, 3];`,
     return "Hello, $name!";
 }
 
-sub add(Int $a, Int $b) -> Int {
+sub add(Int $a, Int $b) returns Int {
     return $a + $b;
 }`,
 		},
@@ -174,11 +174,11 @@ my Int $count = 0;
 my ArrayRef[Str] $names = ["Alice", "Bob"];
 my HashRef[Int] $scores = {alice => 95, bob => 87};
 
-sub calculate(Int $a, Int $b) -> Int {
+sub calculate(Int $a, Int $b) returns Int {
     return $a + $b;
 }
 
-sub process_data(ArrayRef[HashRef[Any]] $data) -> ArrayRef[Int] {
+sub process_data(ArrayRef[HashRef[Any]] $data) returns ArrayRef[Int] {
     my @results;
     for my $item (@$data) {
         push @results, $item->{score} // 0;

@@ -95,7 +95,7 @@ if ($simple) { print "hello"; }`,
 		Description: "Simple type annotations on variables and methods",
 		InputCode: `my Int $typed_var = 42;
 my ArrayRef[Str] @typed_array = ("a", "b");
-method typed_method(Int $param) -> Str { return "$param"; }
+method typed_method(Int $param) returns Str { return "$param"; }
 field Bool $flag = 1;`,
 		MaxDuration: 150 * time.Millisecond,
 		MaxMemory:   2 * 1024 * 1024, // 2MB
@@ -111,7 +111,7 @@ field Bool $flag = 1;`,
 method complex_sig(
     ArrayRef[Object&Serializable] $input,
     CodeRef[Int, Bool|Str] $processor
-) -> HashRef[ArrayRef[Int]|ErrorCode] { return {}; }
+) returns HashRef[ArrayRef[Int]|ErrorCode] { return {}; }
 type ComplexType = ArrayRef[HashRef[Int|Str]|Boolean];
 my ComplexType $var;`,
 		MaxDuration: 500 * time.Millisecond,
@@ -141,7 +141,7 @@ my ComplexType $var;`,
 method process%d(
     ArrayRef[Int] $data,
     Optional[CodeRef[Int, Str]] $transformer = undef
-) -> Result[ArrayRef[Str], ErrorCode] {
+) returns Result[ArrayRef[Str], ErrorCode] {
     return Success->new([]);
 }
 `, i))
@@ -154,7 +154,7 @@ class TestClass%d {
     field Int $id = %d;
     field Str $name = "class%d";
 
-    method new(Int $id, Str $name) -> TestClass%d {
+    method new(Int $id, Str $name) returns TestClass%d {
         return bless {id => $id, name => $name}, __PACKAGE__;
     }
 }
@@ -223,7 +223,7 @@ class TestClass%d {
 		}
 		largeMethodSig.WriteString(fmt.Sprintf("Int $param%d", i))
 	}
-	largeMethodSig.WriteString(") -> Bool { return 1; }")
+	largeMethodSig.WriteString(") returns Bool { return 1; }")
 
 	tests = append(tests, &PerformanceTest{
 		Name:        "large_method_signature",

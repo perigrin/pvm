@@ -192,7 +192,7 @@ my ArrayRef[Str] @typed_array = ("a", "b");`,
     return $param;
 }
 
-method typed_method(Int $param) -> Str {
+method typed_method(Int $param) returns Str {
     return "$param";
 }`,
 			shouldParse: true,

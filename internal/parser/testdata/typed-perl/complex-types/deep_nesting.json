@@ -1,9 +1,0 @@
-{
-  "name": "deep_nesting",
-  "category": "typed-perl", 
-  "subcategory": "complex-types",
-  "input": "my ArrayRef[HashRef[ArrayRef[Int|Str]]] @deep_nested;\nmy Map[Str, ArrayRef[Tuple[Int, Bool|Str]]] %complex_map;\nmy Container[Wrapper[Inner[Data[Value]]]] $deeply_nested;",
-  "description": "Deeply nested parameterized types with complex combinations",
-  "tags": ["parameterized-types", "deep-nesting", "complex-combinations"],
-  "should_error": false
-}

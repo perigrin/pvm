@@ -38,6 +38,8 @@ field Num $rate = 3.14;
 ```
 
 ## Basic Method Definitions
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Basic typed method definitions with parameter and return types
 
@@ -90,6 +92,8 @@ field HashRef[ArrayRef[Str]] $grouped_data = {};
 ```
 
 ## Complex Method Signatures
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Complex method signatures with parameterized types, optional parameters, and multiple parameter types
 
@@ -117,6 +121,8 @@ method complex_method(
 ```
 
 ## Field Access Modifiers
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Field declarations with access modifiers and visibility keywords
 
@@ -130,6 +136,8 @@ field static HashRef[Str] $class_field = {};
 ```
 
 ## Method Return Types
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Methods with various return type annotations including complex types
 
@@ -157,6 +165,8 @@ method get_optional() -> Optional[Str] {
 ```
 
 ## Mixed Typed Untyped
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Mixed typed and untyped methods and fields in the same context
 

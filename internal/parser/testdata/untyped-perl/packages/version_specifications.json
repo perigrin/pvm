@@ -1,9 +1,0 @@
-{
-  "name": "version_specifications",
-  "category": "untyped-perl",
-  "subcategory": "packages",
-  "description": "Test version specifications in use statements and package declarations",
-  "tags": ["packages", "versions", "use", "perl"],
-  "input": "use 5.010;\nuse v5.12;\nuse 5.020;\nuse MyModule v1.2.3;\nuse AnotherModule 2.5;\npackage MyPackage v1.0.0;\nuse perl 5.032;",
-  "should_error": false
-}

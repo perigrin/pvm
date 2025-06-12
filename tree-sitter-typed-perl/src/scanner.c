@@ -854,6 +854,7 @@ bool tree_sitter_typed_perl_external_scanner_scan(void *payload, TSLexer *lexer,
     lexer->mark_end(lexer);
 
     int count = 0;
+    bool found_identifier = false;
 
     while (!lexer->eof(lexer)) {
       if (c == ')' && !count) {
@@ -863,10 +864,23 @@ bool tree_sitter_typed_perl_external_scanner_scan(void *payload, TSLexer *lexer,
         count--;
       else if (c == '(')
         count++;
-      else if (is_tsp_id_continue(c))
-        TOKEN(TOKEN_SIGNATURE_START);
+      else if (is_tsp_id_continue(c)) {
+        found_identifier = true;
+        break;
+      }
 
       ADVANCE_C;
+    }
+
+    // If we found identifier characters, it's definitely a signature
+    if (found_identifier) {
+      TOKEN(TOKEN_SIGNATURE_START);
+    }
+
+    // If only signature is valid (not prototype), treat empty parens as signature
+    // This handles method contexts where prototypes are not allowed
+    if (valid_symbols[TOKEN_SIGNATURE_START] && !valid_symbols[TOKEN_PROTOTYPE]) {
+      TOKEN(TOKEN_SIGNATURE_START);
     }
 
     // we gotta accept all the stuff that was in the prototype now

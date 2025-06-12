@@ -1,9 +1,0 @@
-{
-  "name": "custom_types",
-  "category": "typed-perl",
-  "subcategory": "simple-annotations",
-  "input": "my MyType $custom;\nmy Package::CustomType $qualified;\nmy UserClass $user = UserClass->new();",
-  "description": "Variable declarations with custom and package-qualified types",
-  "tags": ["typed-variables", "custom-types", "package-qualified"],
-  "should_error": false
-}

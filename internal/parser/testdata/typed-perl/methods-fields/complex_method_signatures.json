@@ -1,9 +1,0 @@
-{
-  "name": "complex_method_signatures",
-  "category": "typed-perl",
-  "subcategory": "methods-fields",
-  "input": "method process(ArrayRef[Str] $data, Bool $validate = 1) -> ArrayRef[Str] {\n    my @result = @{$data};\n    return \\@result;\n}\n\nmethod transform(HashRef[Int] $input, CodeRef $callback) -> HashRef[Int] {\n    my %result;\n    for my $key (keys %{$input}) {\n        $result{$key} = $callback->($input->{$key});\n    }\n    return \\%result;\n}\n\nmethod complex_method(\n    ArrayRef[HashRef[Int]] $data,\n    Optional[CodeRef] $processor,\n    Slurpy[Str] @extra_args\n) -> Bool {\n    return 1;\n}",
-  "description": "Complex method signatures with parameterized types, optional parameters, and multiple parameter types",
-  "tags": ["complex-methods", "parameterized-types", "optional-parameters", "method-signatures"],
-  "should_error": false
-}

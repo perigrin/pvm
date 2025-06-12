@@ -105,24 +105,24 @@ my %h = (6, 7);
 (source_file
   (expression_statement
     (assignment_expression
-      (variable_declaration
-        (scalar
+      left: (variable_declaration
+        variable: (scalar
           (varname)))
-      (number)))
+      right: (number)))
   (expression_statement
     (assignment_expression
-      (variable_declaration
-        (array
+      left: (variable_declaration
+        variable: (array
           (varname)))
-      (list_expression
+      right: (list_expression
         (number)
         (number))))
   (expression_statement
     (assignment_expression
-      (variable_declaration
-        (hash
+      left: (variable_declaration
+        variable: (hash
           (varname)))
-      (list_expression
+      right: (list_expression
         (number)
         (number)))))
 
@@ -242,19 +242,19 @@ $code->('args')(1)("and again")
     (coderef_call_expression
       (scalar
         (varname))
-      (string_literal
-        (string_content))))
+      arguments: (string_literal
+        content: (string_content))))
   (expression_statement
     (coderef_call_expression
       (coderef_call_expression
         (coderef_call_expression
           (scalar
             (varname))
-          (string_literal
-            (string_content)))
-        (number))
-      (interpolated_string_literal
-        (string_content)))))
+          arguments: (string_literal
+            content: (string_content)))
+        arguments: (number))
+      arguments: (interpolated_string_literal
+        content: (string_content)))))
 
 ================================================================================
 special vars
@@ -422,37 +422,37 @@ my Num $pi = 3.14159;
 (source_file
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (simple_type))
-        (scalar
+        variable: (scalar
           (varname)))
-      (number)))
+      right: (number)))
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (simple_type))
-        (scalar
+        variable: (scalar
           (varname)))
-      (interpolated_string_literal
-        (string_content))))
+      right: (interpolated_string_literal
+        content: (string_content))))
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (simple_type))
-        (scalar
+        variable: (scalar
           (varname)))
-      (number)))
+      right: (number)))
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (simple_type))
-        (scalar
+        variable: (scalar
           (varname)))
-      (number))))
+      right: (number))))
 
 ================================================================================
 typed variable declarations - parameterized types
@@ -465,45 +465,45 @@ my Optional[Str] $maybe_name;
 (source_file
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (parameterized_type
             (simple_type)
             (type_parameter_list
               (type_expression
                 (simple_type)))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (anonymous_array_expression
+      right: (anonymous_array_expression
         (list_expression
           (number)
           (number)
           (number)))))
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (parameterized_type
             (simple_type)
             (type_parameter_list
               (type_expression
                 (simple_type)))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (anonymous_hash_expression
+      right: (anonymous_hash_expression
         (list_expression
           (autoquoted_bareword)
           (interpolated_string_literal
-            (string_content))))))
+            content: (string_content))))))
   (expression_statement
-    (typed_variable_declaration
-      (type_expression
+    (variable_declaration
+      type: (type_expression
         (parameterized_type
           (simple_type)
           (type_parameter_list
             (type_expression
               (simple_type)))))
-      (scalar
+      variable: (scalar
         (varname)))))
 
 ================================================================================
@@ -517,37 +517,37 @@ my !Undef $not_undef = "something";
 (source_file
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (union_type
             (type_expression
               (simple_type))
             (type_expression
               (simple_type))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (number)))
+      right: (number)))
   (expression_statement
-    (typed_variable_declaration
-      (type_expression
+    (variable_declaration
+      type: (type_expression
         (intersection_type
           (type_expression
             (simple_type))
           (type_expression
             (simple_type))))
-      (scalar
+      variable: (scalar
         (varname))))
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (negation_type
             (type_expression
               (simple_type))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (interpolated_string_literal
-        (string_content)))))
+      right: (interpolated_string_literal
+        content: (string_content)))))
 
 ================================================================================
 typed variable declarations - exact E2E test cases
@@ -561,16 +561,16 @@ my Union[Int, Str] $flexible_value = 42;
 (source_file
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (parameterized_type
             (simple_type)
             (type_parameter_list
               (type_expression
                 (simple_type)))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (anonymous_array_expression
+      right: (anonymous_array_expression
         (list_expression
           (number)
           (number)
@@ -579,8 +579,8 @@ my Union[Int, Str] $flexible_value = 42;
           (number)))))
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (parameterized_type
             (simple_type)
             (type_parameter_list
@@ -588,9 +588,9 @@ my Union[Int, Str] $flexible_value = 42;
                 (simple_type))
               (type_expression
                 (simple_type)))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (anonymous_hash_expression
+      right: (anonymous_hash_expression
         (list_expression
           (autoquoted_bareword)
           (list_expression
@@ -599,20 +599,20 @@ my Union[Int, Str] $flexible_value = 42;
             (number))))))
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (parameterized_type
             (simple_type)
             (type_parameter_list
               (type_expression
                 (simple_type)))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (undef_expression)))
+      right: (undef_expression)))
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (parameterized_type
             (simple_type)
             (type_parameter_list
@@ -620,9 +620,9 @@ my Union[Int, Str] $flexible_value = 42;
                 (simple_type))
               (type_expression
                 (simple_type)))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (number))))
+      right: (number))))
 
 ================================================================================
 typed variable declarations - complex nested cases
@@ -634,8 +634,8 @@ my HashRef[Str, ArrayRef[Int]] $complex_lookup = {};
 (source_file
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (parameterized_type
             (simple_type)
             (type_parameter_list
@@ -647,13 +647,13 @@ my HashRef[Str, ArrayRef[Int]] $complex_lookup = {};
                       (simple_type))
                     (type_expression
                       (simple_type))))))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (anonymous_array_expression)))
+      right: (anonymous_array_expression)))
   (expression_statement
     (assignment_expression
-      (typed_variable_declaration
-        (type_expression
+      left: (variable_declaration
+        type: (type_expression
           (parameterized_type
             (simple_type)
             (type_parameter_list
@@ -665,6 +665,115 @@ my HashRef[Str, ArrayRef[Int]] $complex_lookup = {};
                   (type_parameter_list
                     (type_expression
                       (simple_type))))))))
-        (scalar
+        variable: (scalar
           (varname)))
-      (anonymous_hash_expression))))
+      right: (anonymous_hash_expression))))
+
+================================================================================
+Malformed type expressions - missing closing bracket
+================================================================================
+my ArrayRef[Int $var;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (variable_declaration
+      type: (type_expression
+        (parameterized_type
+          (simple_type)
+          (type_parameter_list
+            (type_expression
+              (simple_type)))
+          (MISSING "]")))
+      variable: (scalar
+        (varname)))))
+
+================================================================================
+Malformed type expressions - invalid union syntax
+================================================================================
+my Int||Str $bad_union;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (variable_declaration
+      type: (type_expression
+        (union_type
+          (type_expression
+            (simple_type))
+          (ERROR)
+          (type_expression
+            (simple_type))))
+      variable: (scalar
+        (varname)))))
+
+================================================================================
+Malformed type expressions - incomplete type assertion
+================================================================================
+my $val = $input as ;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (scalar
+        (varname))))
+  (ERROR))
+
+================================================================================
+Malformed type expressions - invalid parameterized spacing
+================================================================================
+my ArrayRef[ Int] $spaced;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (variable_declaration
+      type: (type_expression
+        (parameterized_type
+          (simple_type)
+          (type_parameter_list
+            (type_expression
+              (simple_type)))))
+      variable: (scalar
+        (varname)))))
+
+================================================================================
+Malformed type expressions - invalid intersection syntax
+================================================================================
+my Object&&Serializable $obj;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (variable_declaration
+      type: (type_expression
+        (intersection_type
+          (type_expression
+            (simple_type))
+          (ERROR)
+          (type_expression
+            (simple_type))))
+      variable: (scalar
+        (varname)))))
+
+================================================================================
+Malformed type expressions - invalid negation syntax
+================================================================================
+my !!Undef $not_undef;
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (variable_declaration
+      type: (type_expression
+        (negation_type
+          (type_expression
+            (negation_type
+              (type_expression
+                (simple_type))))))
+      variable: (scalar
+        (varname)))))

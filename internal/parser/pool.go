@@ -31,7 +31,7 @@ func NewParserPool() *ParserPool {
 		atomic.AddInt64(&pp.misses, 1)
 
 		// Create a new parser directly (without using the pool to avoid recursion)
-		parser, err := NewParserDirect()
+		parser, err := NewParser()
 		if err != nil {
 			return nil // This will cause Get() to return nil and caller should handle
 		}

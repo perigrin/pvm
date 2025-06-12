@@ -1,9 +1,0 @@
-{
-  "name": "scalar_declarations",
-  "category": "untyped-perl",
-  "subcategory": "variables",
-  "description": "Test scalar variable declarations with different scoping keywords",
-  "tags": ["variables", "scalars", "declarations", "scoping"],
-  "input": "my $simple;\nmy $assigned = 42;\nour $package_var;\nstate $persistent = \"initial\";\nlocal $localized;\n$Package::qualified = \"value\";",
-  "should_error": false
-}

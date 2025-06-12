@@ -35,7 +35,7 @@ sub concat(Str $a, Str $b) -> Str {
 use strict;
 use warnings;
 
-method add (Int $a, Int $b) -> Int {
+method add (Int $a, Int $b) returns Int {
     return $a + $b;
 }`,
 			expected: []string{"add"},
@@ -226,7 +226,7 @@ func extractSubroutineName(node Node, source string) string {
 		text = strings.Join(parts, "\n")
 	}
 
-	// Extract subroutine name from text like "sub add(Int $a, Int $b) -> Int {" or "method add(Int $a, Int $b) -> Int {"
+	// Extract subroutine name from text like "sub add(Int $a, Int $b) -> Int {" or "method add(Int $a, Int $b) returns Int {"
 	for _, keyword := range []string{"sub ", "method "} {
 		if strings.Contains(text, keyword) {
 			keywordIndex := strings.Index(text, keyword)

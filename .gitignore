@@ -19,8 +19,9 @@
 # Output of the go coverage tool
 *.out
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# Dependency directories
+vendor/
+!vendor/modules.txt
 
 # Go workspace file
 go.work
@@ -64,3 +65,16 @@ run_inference_tests.go
 
 # Binary tools
 bin/act
+
+# Debug and test files
+debug_*.go
+debug_*.pl
+test_*.pl
+test_*.go
+test-results.json
+test_output.txt
+
+# Test data directories
+internal/parser/testdata/input/
+internal/parser/testdata/integration-results/
+internal/typechecker/testdata/input/

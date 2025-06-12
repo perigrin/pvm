@@ -1,9 +1,0 @@
-{
-  "name": "complex_combinations",
-  "category": "typed-perl",
-  "subcategory": "parameterized-types",
-  "input": "my Map[Str, ArrayRef[HashRef[Int|Bool]]] $complex;\nmy Container[ArrayRef[MyType]|HashRef[OtherType]] $flexible;\nmy Result[Data[UserInfo], Error[ValidationFailure]] $nested_result;",
-  "description": "Complex combinations of parameterized types with unions and deep nesting",
-  "tags": ["parameterized-types", "complex-combinations", "unions", "deep-nesting"],
-  "should_error": false
-}

@@ -1,9 +1,0 @@
-{
-  "name": "simple_union_types",
-  "category": "typed-perl",
-  "subcategory": "union-types",
-  "input": "my Int|Str $flexible = 42;\nmy Bool|Undef $maybe_flag;\nmy Num|Str $mixed_value = \"text\";",
-  "description": "Simple union type expressions with two types",
-  "tags": ["union-types", "simple-unions", "variable-declarations"],
-  "should_error": false
-}

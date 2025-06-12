@@ -456,7 +456,7 @@ func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*P
 			}
 		case "signature":
 			t.processMethodSignature(child, methodName, annotations)
-		case "method_return_type":
+		case "return_type":
 			t.processMethodReturnType(child, methodName, annotations)
 		}
 	}
@@ -550,7 +550,7 @@ func (t *PerlTree) processMethodReturnType(returnTypeNode *sitter.Node, methodNa
 					fmt.Printf("DEBUG: Creating method return type annotation for %s: %s\n", methodName, typeName)
 				}
 				annotation := &PerlTypeAnnotation{
-					ItemName: methodName + "_return", // Unique identifier for return type
+					ItemName: methodName, // Use just the method name
 					TypeName: typeName,
 					Kind:     "method_return",
 					StartPos: int(returnTypeNode.StartByte()),

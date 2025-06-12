@@ -1,9 +1,0 @@
-{
-  "name": "all_features_combined",
-  "category": "typed-perl", 
-  "subcategory": "complex-types",
-  "input": "method complex_processing(\n    ArrayRef[HashRef[Int|Str]&!Undef] $validated_data,\n    (Processor[Request]|Handler[Response])&Configured $handler,\n    Optional[Logger[Info|Error]] $logger\n) -> Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] {\n    my $transformed = $validated_data as ArrayRef[Data&Processed];\n    return success($transformed->map(sub { process($_) }));\n}",
-  "description": "Complex combination of all type features: unions, intersections, negations, parameterized types, and assertions",
-  "tags": ["all-features", "complex-combinations", "method-signatures", "type-assertions"],
-  "should_error": false
-}

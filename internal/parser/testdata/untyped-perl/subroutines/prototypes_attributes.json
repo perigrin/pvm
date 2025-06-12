@@ -1,9 +1,0 @@
-{
-  "name": "prototypes_and_attributes",
-  "category": "untyped-perl",
-  "subcategory": "subroutines",
-  "description": "Test subroutine prototypes and attributes",
-  "tags": ["subroutines", "prototypes", "attributes"],
-  "input": "# Prototypes\nsub prototype_sub ($$) {\n    my ($a, $b) = @_;\n    return $a + $b;\n}\n\nsub arrayref_proto (\\@) {\n    my $arrayref = shift;\n    return @$arrayref;\n}\n\nsub optional_proto ($;$) {\n    my ($required, $optional) = @_;\n    return defined $optional ? $required + $optional : $required;\n}\n\n# Attributes\nsub attributed_sub : lvalue {\n    return $global_var;\n}\n\nsub multi_attr : method lvalue {\n    return $_[0]->{value};\n}\n\nsub const_sub : const {\n    return 42;\n}",
-  "should_error": false
-}

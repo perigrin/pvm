@@ -1,9 +1,0 @@
-{
-  "name": "negation_combinations", 
-  "category": "typed-perl",
-  "subcategory": "complex-types",
-  "input": "my ArrayRef[!Undef] @non_undef_array;\nmy HashRef[Str, !Empty] %non_empty_values;\nmy Optional[!Null&!Undef] $definitely_defined;",
-  "description": "Negation types combined with parameterized and intersection types",
-  "tags": ["negation-types", "parameterized-types", "intersection-types"],
-  "should_error": false
-}

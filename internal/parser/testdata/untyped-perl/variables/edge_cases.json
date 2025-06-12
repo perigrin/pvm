@@ -1,9 +1,0 @@
-{
-  "name": "variable_edge_cases",
-  "category": "untyped-perl",
-  "subcategory": "variables",
-  "description": "Test edge cases like empty declarations and special variable names",
-  "tags": ["variables", "edge-cases", "special-vars"],
-  "input": "my $;\nmy @;\nmy %;\nmy $$;\nmy $0;\nmy $var = undef;\nmy @empty = ();\nmy %empty = ();",
-  "should_error": false
-}

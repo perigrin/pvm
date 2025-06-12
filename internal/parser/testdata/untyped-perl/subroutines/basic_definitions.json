@@ -1,9 +1,0 @@
-{
-  "name": "basic_subroutine_definitions",
-  "category": "untyped-perl",
-  "subcategory": "subroutines",
-  "description": "Test basic subroutine definitions and simple subroutines",
-  "tags": ["subroutines", "definitions", "basic"],
-  "input": "sub simple_sub {\n    return \"result\";\n}\n\nsub with_params {\n    my ($first, $second) = @_;\n    return $first + $second;\n}\n\nsub no_body;\n\nsub Package::qualified_sub {\n    return 42;\n}",
-  "should_error": false
-}

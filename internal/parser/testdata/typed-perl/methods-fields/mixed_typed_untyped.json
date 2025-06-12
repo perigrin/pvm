@@ -1,9 +1,0 @@
-{
-  "name": "mixed_typed_untyped",
-  "category": "typed-perl",
-  "subcategory": "methods-fields",
-  "input": "# Mixed typed and untyped methods and fields\nfield Int $typed_field = 42;\nfield $untyped_field = \"hello\";\n\nmethod typed_method(Str $input) -> Str {\n    return uc($input);\n}\n\nsub untyped_sub {\n    my ($param) = @_;\n    return $param * 2;\n}\n\nmethod partially_typed($untyped, Int $typed) -> Str {\n    return \"$untyped: $typed\";\n}",
-  "description": "Mixed typed and untyped methods and fields in the same context",
-  "tags": ["mixed-typing", "backward-compatibility", "gradual-typing"],
-  "should_error": false
-}

@@ -1,9 +1,0 @@
-{
-  "name": "anonymous_subroutines",
-  "category": "untyped-perl",
-  "subcategory": "subroutines",
-  "description": "Test anonymous subroutine definitions and code references",
-  "tags": ["subroutines", "anonymous", "code_references"],
-  "input": "my $code_ref = sub {\n    my $param = shift;\n    return $param * 2;\n};\n\nmy $closure = sub {\n    my $x = shift;\n    return sub { return $x + shift };\n};\n\nmy $anon_with_params = sub {\n    my ($a, $b) = @_;\n    return $a . $b;\n};",
-  "should_error": false
-}

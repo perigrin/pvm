@@ -1,9 +1,0 @@
-{
-  "name": "parameterized_unions", 
-  "category": "typed-perl",
-  "subcategory": "complex-types",
-  "input": "my (ArrayRef[Int]|HashRef[Str]) $param_union;\nmy (Container[MyType]|Wrapper[OtherType]) $flexible;\nmy (Result[Data, Error]|Maybe[Value]) $outcome;",
-  "description": "Parameterized types within union expressions",
-  "tags": ["union-types", "parameterized-types", "parenthesized-unions"],
-  "should_error": false
-}

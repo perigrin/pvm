@@ -34,7 +34,7 @@ sub add(Int $a, Int $b) -> Int {
     return $a + $b;
 }
 
-method greet(Str $name) -> Str {
+method greet(Str $name) returns Str {
     return "Hello, $name!";
 }
 

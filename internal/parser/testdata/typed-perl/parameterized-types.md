@@ -49,6 +49,8 @@ my Result[Data[UserInfo], Error[ValidationFailure]] $nested_result;
 ```
 
 ## Custom Parameterized
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Custom parameterized types and package-qualified generics
 

@@ -12,3 +12,11 @@ src/*
 parser.c
 tree-sitter-perl.wasm
 log.html
+
+# Debug and test files
+debug_*.js
+debug_*.pl
+test_*.pl
+test_*.js
+final_test.pl
+test_output.txt

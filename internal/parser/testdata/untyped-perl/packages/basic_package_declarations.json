@@ -1,9 +1,0 @@
-{
-  "name": "basic_package_declarations",
-  "category": "untyped-perl",
-  "subcategory": "packages",
-  "description": "Test basic package declarations and namespace changes",
-  "tags": ["packages", "declarations", "namespaces"],
-  "input": "package MyPackage;\npackage MyPackage::Subspace;\npackage MyPackage 1.23;\npackage Local::Test::Package;",
-  "should_error": false
-}

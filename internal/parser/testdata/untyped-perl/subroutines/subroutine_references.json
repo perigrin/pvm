@@ -1,9 +1,0 @@
-{
-  "name": "subroutine_references",
-  "category": "untyped-perl",
-  "subcategory": "subroutines",
-  "description": "Test subroutine references and code reference handling",
-  "tags": ["subroutines", "references", "code_references", "dereferencing"],
-  "input": "# Subroutine references\nmy $sub_ref = \\&function_name;\nmy $qualified_ref = \\&Package::function;\n\n# Code reference calls\nmy $result1 = $sub_ref->();\nmy $result2 = $sub_ref->(1, 2, 3);\nmy $result3 = &$sub_ref;\nmy $result4 = &{$sub_ref}(42);\n\n# Anonymous subroutine references\nmy $anon_ref = sub { return shift * 2; };\nmy $doubled = $anon_ref->(21);\n\n# References to built-in functions\nmy $print_ref = \\&print;\nmy $map_ref = \\&map;\n\n# Complex reference operations\nmy @code_refs = (\\&func1, \\&func2, sub { 'anon' });\nmy $selected = $code_refs[1];\n$selected->();",
-  "should_error": false
-}

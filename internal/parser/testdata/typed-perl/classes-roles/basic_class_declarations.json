@@ -1,9 +1,0 @@
-{
-  "name": "basic_class_declarations",
-  "category": "typed-perl",
-  "subcategory": "classes-roles",
-  "input": "class User {\n    field Str $name;\n    field Int $age;\n    field Optional[Email] $email;\n\n    method new(Str $name, Int $age) -> User {\n        return bless {\n            name => $name,\n            age => $age\n        }, __PACKAGE__;\n    }\n\n    method get_name() -> Str {\n        return $name;\n    }\n}",
-  "description": "Basic class with typed fields and methods",
-  "tags": ["class-declaration", "typed-fields", "typed-methods", "constructor"],
-  "should_error": false
-}

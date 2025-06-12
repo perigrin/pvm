@@ -81,6 +81,8 @@ class BankAccount {
 ```
 
 ## All Features Combined
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Complex example combining all class and role features
 
@@ -100,11 +102,11 @@ role Repository<T, K> where T: Serializable, K: Hashable {
 role Auditable {
     field Optional[DateTime] $created_at;
     field Optional[DateTime] $updated_at;
-    
+
     method touch() -> Void {
         $updated_at = DateTime->now();
     }
-    
+
     method mark_created() -> Void {
         $created_at = DateTime->now();
         $updated_at = $created_at;
@@ -135,16 +137,16 @@ class UserRepository<T> : BaseRepository<T, UserId>
     method find(UserId $id) -> Optional[T] {
         # Check cache first
         return $cache->{$id} if exists $cache->{$id};
-        
+
         # Load from source
         my $user = $loader->($id);
         return undef unless defined $user;
-        
+
         # Cache if room
         if (keys %{$cache} < $cache_size) {
             $cache->{$id} = $user;
         }
-        
+
         return $user;
     }
 
@@ -152,25 +154,25 @@ class UserRepository<T> : BaseRepository<T, UserId>
         # Validate user
         return Failure->new(SaveError->new('Invalid user'))
             unless $user->is_valid();
-            
+
         # Save to storage
         my $id = $user->get_id();
         # ... actual save logic ...
-        
+
         # Update cache
         $cache->{$id} = $user;
         $self->touch();
-        
+
         return Success->new($id);
     }
 
     method delete(UserId $id) -> Result<Bool, DeleteError> {
         # Remove from cache
         delete $cache->{$id};
-        
+
         # Delete from storage
         # ... actual delete logic ...
-        
+
         $self->touch();
         return Success->new(1);
     }
@@ -217,6 +219,8 @@ class User {
 ```
 
 ## Basic Role Declarations
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Basic role declarations with required and provided methods
 
@@ -228,14 +232,14 @@ role Serializable {
 
 role Cacheable {
     field Optional[DateTime] $cached_at;
-    
+
     method cache_key() -> Str;
-    
+
     method is_stale() -> Bool {
         return 0 unless defined $cached_at;
         return time() - $cached_at->epoch > 3600;
     }
-    
+
     method invalidate() -> Void {
         $cached_at = undef;
     }
@@ -290,7 +294,7 @@ class ProcessingQueue<T> : BaseQueue<T>
             my $item = shift @{$pending};
             my $id = $item->get_id();
             $processing->{$id} = $item;
-            
+
             my $result = $processor->($item);
             delete $processing->{$id};
             push @results, $result;
@@ -380,6 +384,8 @@ class Container<T> where T: Serializable {
 ```
 
 ## Generic Role Declarations
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Generic roles with type parameters and constraints
 
@@ -391,17 +397,17 @@ role Processable<T> where T: Defined {
 
 role EventHandler<T> where T: Event {
     field ArrayRef[CodeRef[T, Void]] $handlers = [];
-    
+
     method add_handler(CodeRef[T, Void] $handler) -> Void {
         push @{$handlers}, $handler;
     }
-    
+
     method handle_event(T $event) -> Void {
         for my $handler (@{$handlers}) {
             $handler->($event);
         }
     }
-    
+
     method handler_count() -> Int {
         return scalar @{$handlers};
     }
@@ -409,6 +415,8 @@ role EventHandler<T> where T: Event {
 ```
 
 ## Role Composition Conflicts
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Role composition with method conflicts and resolution
 

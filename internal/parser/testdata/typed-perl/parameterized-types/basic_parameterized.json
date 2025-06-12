@@ -1,9 +1,0 @@
-{
-  "name": "basic_parameterized",
-  "category": "typed-perl",
-  "subcategory": "parameterized-types",
-  "input": "my ArrayRef[Int] @numbers;\nmy HashRef[Str] %strings;\nmy CodeRef[Int, Str] $function;",
-  "description": "Basic parameterized types with single type parameters",
-  "tags": ["parameterized-types", "basic-parameters", "ArrayRef", "HashRef", "CodeRef"],
-  "should_error": false
-}

@@ -1,9 +1,0 @@
-{
-  "name": "complex_assignments",
-  "category": "typed-perl",
-  "subcategory": "simple-annotations",
-  "input": "my Int $calculated = $base + $increment;\nmy Str $interpolated = \"Value: $count\";\nmy Bool $comparison = $a > $b;\nmy Num $result = $x * $y + $z;",
-  "description": "Type annotations with complex assignment expressions",
-  "tags": ["typed-variables", "complex-assignments", "expressions"],
-  "should_error": false
-}

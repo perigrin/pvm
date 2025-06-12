@@ -1,13 +1,13 @@
 {
   "total_tests": 348,
-  "passed_tests": 258,
-  "failed_tests": 90,
+  "passed_tests": 259,
+  "failed_tests": 89,
   "category_metrics": {
     "untyped-perl": {
       "total": 348,
-      "passed": 258,
-      "failed": 90,
-      "accuracy": 74.13793103448276
+      "passed": 259,
+      "failed": 89,
+      "accuracy": 74.42528735632183
     }
   },
   "feature_metrics": {
@@ -325,9 +325,9 @@
     },
     "edge-cases": {
       "total": 7,
-      "passed": 1,
-      "failed": 6,
-      "accuracy": 14.285714285714285
+      "passed": 2,
+      "failed": 5,
+      "accuracy": 28.57142857142857
     },
     "edge_cases": {
       "total": 8,
@@ -1081,9 +1081,9 @@
     },
     "special-vars": {
       "total": 7,
-      "passed": 1,
-      "failed": 6,
-      "accuracy": 14.285714285714285
+      "passed": 2,
+      "failed": 5,
+      "accuracy": 28.57142857142857
     },
     "state": {
       "total": 59,
@@ -1213,9 +1213,9 @@
     },
     "variables": {
       "total": 117,
-      "passed": 89,
-      "failed": 28,
-      "accuracy": 76.06837606837607
+      "passed": 90,
+      "failed": 27,
+      "accuracy": 76.92307692307693
     },
     "versions": {
       "total": 10,

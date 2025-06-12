@@ -113,9 +113,9 @@ func TestParser_MemoryStability(t *testing.T) {
 	testCodes := []string{
 		"my Int $simple = 42;",
 		"my ArrayRef[Str] $array = [];",
-		"method test(Int $a, Str $b) -> Bool { return 1; }",
+		"method test(Int $a, Str $b) returns Bool { return 1; }",
 		"type MyType = Int|Str; my MyType $var = 123;",
-		"class Test { field Int $id; method new() -> Test { return bless {}, __PACKAGE__; } }",
+		"class Test { field Int $id; method new() returns Test { return bless {}, __PACKAGE__; } }",
 	}
 
 	// Test for memory stability over many iterations
@@ -313,7 +313,7 @@ func generateLargeClassHierarchy(classCount int) string {
 		result += " {\n"
 		result += "    field Int $id" + string(rune('0'+(i%10))) + ";\n"
 		result += "    field Str $name;\n"
-		result += "    method new() -> Self { return bless {}, __PACKAGE__; }\n"
+		result += "    method new() returns Self { return bless {}, __PACKAGE__; }\n"
 		result += "}\n\n"
 	}
 	return result

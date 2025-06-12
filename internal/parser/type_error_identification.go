@@ -23,6 +23,399 @@ func NewTypeErrorIdentifier() *TypeErrorIdentifier {
 	}
 }
 
+// IdentifyMalformedTypeInAST analyzes a parsed AST to detect malformed type expressions
+// This catches cases where tree-sitter partially parses but creates structures with embedded ERROR nodes
+func (tei *TypeErrorIdentifier) IdentifyMalformedTypeInAST(node ast.Node, source string) *errors.TypeParseError {
+	if node == nil {
+		return nil
+	}
+
+	// Check if this node or its children contain ERROR nodes in type contexts
+	if errorNode := tei.findTypeContextError(node, source); errorNode != nil {
+		return errorNode
+	}
+
+	// Recursively check children
+	for _, child := range node.Children() {
+		if childError := tei.IdentifyMalformedTypeInAST(child, source); childError != nil {
+			return childError
+		}
+	}
+
+	return nil
+}
+
+// findTypeContextError looks for ERROR nodes in type-related contexts and classifies them
+func (tei *TypeErrorIdentifier) findTypeContextError(node ast.Node, source string) *errors.TypeParseError {
+	nodeType := node.Type()
+
+	// Check for ERROR nodes in typed variable declarations
+	if nodeType == "typed_variable_declaration" {
+		// First check for ERROR children
+		for _, child := range node.Children() {
+			if child.Type() == "ERROR" {
+				return tei.classifyTypedVarDeclError(node, child, source)
+			}
+		}
+
+		// Also check for malformed parameterized types (even if no ERROR nodes)
+		if malformedErr := tei.validateTypedVarDeclaration(node, source); malformedErr != nil {
+			return malformedErr
+		}
+	}
+
+	// Check for malformed assignment expressions and general syntax (like incomplete type assertions)
+	if nodeType == "assignment_expression" || nodeType == "expression_statement" ||
+		nodeType == "var_decl" || nodeType == "expression_stmt" {
+		if malformedErr := tei.validateGeneralSyntax(node, source); malformedErr != nil {
+			return malformedErr
+		}
+	}
+
+	// Check for ERROR nodes in type expressions
+	if nodeType == "type_expression" || nodeType == "parameterized_type" ||
+		nodeType == "union_type" || nodeType == "intersection_type" {
+		for _, child := range node.Children() {
+			if child.Type() == "ERROR" {
+				return tei.classifyTypeExpressionError(node, child, source)
+			}
+		}
+	}
+
+	// Check if this node itself is an ERROR in a type context
+	// For now, skip generic error classification entirely to avoid interfering
+	// with grammar development. Only handle specific error patterns in parent contexts.
+	if nodeType == "ERROR" {
+		// Don't classify ERROR nodes as generic type errors during grammar development
+		// Let the tree-sitter grammar issues be resolved separately
+		return nil
+	}
+
+	return nil
+}
+
+// validateTypedVarDeclaration checks for malformed typed variable declarations even without ERROR nodes
+func (tei *TypeErrorIdentifier) validateTypedVarDeclaration(node ast.Node, source string) *errors.TypeParseError {
+	position := node.Start()
+
+	// Get the text of the node from the source using its position
+	// Since tree-sitter nodes might not have text populated, extract from source
+	nodeText := tei.extractNodeText(node, source)
+
+	// Check for missing closing bracket in parameterized types
+	// Pattern: ArrayRef[Int but no closing ] before variable name
+	if strings.Contains(nodeText, "ArrayRef[") && !strings.Contains(nodeText, "]") {
+		// Look for pattern: ArrayRef[Type $var; (missing ])
+		if strings.Contains(nodeText, " $") || strings.Contains(nodeText, ";") {
+			return &errors.TypeParseError{
+				ErrorType:  "MissingClosingBracketError",
+				Message:    "Missing closing bracket in parameterized type",
+				Position:   position,
+				Suggestion: "Add closing ']' to complete the parameterized type",
+				Context:    "parameterized type in variable declaration",
+				ErrorCode:  errors.MissingClosingBracketError,
+				Source:     source,
+				SourceLine: tei.getSourceLine(source, position.Line),
+			}
+		}
+	}
+
+	// Check for missing closing bracket in HashRef types
+	if strings.Contains(nodeText, "HashRef[") && !strings.Contains(nodeText, "]") {
+		if strings.Contains(nodeText, " $") || strings.Contains(nodeText, ";") {
+			return &errors.TypeParseError{
+				ErrorType:  "MissingClosingBracketError",
+				Message:    "Missing closing bracket in parameterized type",
+				Position:   position,
+				Suggestion: "Add closing ']' to complete the parameterized type",
+				Context:    "parameterized type in variable declaration",
+				ErrorCode:  errors.MissingClosingBracketError,
+				Source:     source,
+				SourceLine: tei.getSourceLine(source, position.Line),
+			}
+		}
+	}
+
+	// Check for invalid union syntax (||)
+	if strings.Contains(nodeText, "||") {
+		return &errors.TypeParseError{
+			ErrorType:  "InvalidUnionSyntaxError",
+			Message:    "Invalid union type syntax - use single '|' between types",
+			Position:   position,
+			Suggestion: "Change '||' to '|' for union types",
+			Context:    "union type expression",
+			ErrorCode:  errors.InvalidUnionSyntaxError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	// Check for invalid intersection syntax (&&)
+	if strings.Contains(nodeText, "&&") {
+		return &errors.TypeParseError{
+			ErrorType:  "InvalidIntersectionSyntaxError",
+			Message:    "Invalid intersection type syntax - use single '&' between types",
+			Position:   position,
+			Suggestion: "Change '&&' to '&' for intersection types",
+			Context:    "intersection type expression",
+			ErrorCode:  errors.InvalidIntersectionSyntaxError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	// Check for invalid negation syntax (!!)
+	if strings.Contains(nodeText, "!!") {
+		return &errors.TypeParseError{
+			ErrorType:  "InvalidNegationSyntaxError",
+			Message:    "Invalid negation type syntax - use single '!' before type",
+			Position:   position,
+			Suggestion: "Change '!!' to '!' for negation types",
+			Context:    "negation type expression",
+			ErrorCode:  errors.InvalidNegationSyntaxError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	// Check for invalid parameterized spacing
+	if strings.Contains(nodeText, "[ ") && strings.Contains(nodeText, "]") {
+		return &errors.TypeParseError{
+			ErrorType:  "InvalidParameterizedTypeError",
+			Message:    "Invalid spacing in parameterized type",
+			Position:   position,
+			Suggestion: "Remove space after '[' in parameterized type",
+			Context:    "parameterized type in variable declaration",
+			ErrorCode:  errors.InvalidParameterizedTypeError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	return nil
+}
+
+// validateGeneralSyntax checks for malformed syntax patterns like incomplete type assertions
+func (tei *TypeErrorIdentifier) validateGeneralSyntax(node ast.Node, source string) *errors.TypeParseError {
+	position := node.Start()
+
+	// Get the text of the node from the source using its position
+	nodeText := tei.extractNodeText(node, source)
+
+	// Check for incomplete type assertion: "as ;" pattern or just "as " at end
+	if strings.Contains(nodeText, " as ;") || strings.Contains(nodeText, "as ;") {
+		return &errors.TypeParseError{
+			ErrorType:  "IncompleteTypeAssertionError",
+			Message:    "Incomplete type assertion - missing target type",
+			Position:   position,
+			Suggestion: "Add the target type after 'as' keyword",
+			Context:    "type assertion",
+			ErrorCode:  errors.IncompleteTypeAssertionError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	// Check for incomplete type assertion: "as " at end of node (fragment pattern)
+	if strings.HasSuffix(strings.TrimSpace(nodeText), "as") || strings.HasSuffix(strings.TrimSpace(nodeText), "as ") {
+		return &errors.TypeParseError{
+			ErrorType:  "IncompleteTypeAssertionError",
+			Message:    "Incomplete type assertion - missing target type",
+			Position:   position,
+			Suggestion: "Add the target type after 'as' keyword",
+			Context:    "type assertion",
+			ErrorCode:  errors.IncompleteTypeAssertionError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	return nil
+}
+
+// extractNodeText extracts the text content of a node from the source using its position
+func (tei *TypeErrorIdentifier) extractNodeText(node ast.Node, source string) string {
+	if node == nil {
+		return ""
+	}
+
+	start := node.Start()
+	end := node.End()
+
+	// Convert source to lines for easier extraction
+	lines := strings.Split(source, "\n")
+
+	// Handle single-line nodes
+	if start.Line == end.Line {
+		if start.Line-1 < len(lines) {
+			line := lines[start.Line-1]
+			if start.Column-1 < len(line) && end.Column <= len(line) {
+				return line[start.Column-1 : end.Column]
+			}
+		}
+		return ""
+	}
+
+	// Handle multi-line nodes
+	var result strings.Builder
+	for lineNum := start.Line; lineNum <= end.Line; lineNum++ {
+		if lineNum-1 >= len(lines) {
+			break
+		}
+		line := lines[lineNum-1]
+
+		if lineNum == start.Line {
+			// First line - start from start.Column
+			if start.Column-1 < len(line) {
+				result.WriteString(line[start.Column-1:])
+			}
+		} else if lineNum == end.Line {
+			// Last line - end at end.Column
+			if end.Column <= len(line) {
+				result.WriteString(line[:end.Column])
+			}
+		} else {
+			// Middle lines - take the whole line
+			result.WriteString(line)
+		}
+
+		// Add newline except for the last line
+		if lineNum < end.Line {
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
+}
+
+// isKnownMalformedPattern checks if the text matches clearly malformed patterns we should catch
+func (tei *TypeErrorIdentifier) isKnownMalformedPattern(nodeText, source string) bool {
+	// Only catch patterns that are definitely malformed, not complex valid syntax
+
+	// Missing closing brackets (clear error)
+	if (strings.Contains(nodeText, "ArrayRef[") || strings.Contains(nodeText, "HashRef[")) &&
+		!strings.Contains(nodeText, "]") && strings.Contains(nodeText, ";") {
+		return true
+	}
+
+	// Double operators (clear errors)
+	if strings.Contains(nodeText, "||") || strings.Contains(nodeText, "&&") || strings.Contains(nodeText, "!!") {
+		return true
+	}
+
+	// Incomplete type assertions (clear error)
+	if strings.Contains(nodeText, " as ;") || strings.HasSuffix(strings.TrimSpace(nodeText), " as") {
+		return true
+	}
+
+	// Invalid spacing in parameterized types (clear error)
+	if strings.Contains(nodeText, "[ ") && strings.Contains(nodeText, "]") {
+		return true
+	}
+
+	// Don't flag other patterns as malformed - they may be valid complex syntax
+	// that the grammar doesn't support yet
+	return false
+}
+
+// classifyTypedVarDeclError classifies errors within typed variable declarations
+func (tei *TypeErrorIdentifier) classifyTypedVarDeclError(parent, errorNode ast.Node, source string) *errors.TypeParseError {
+	parentText := parent.Text()
+	position := errorNode.Start()
+
+	// Missing closing bracket in parameterized types
+	if strings.Contains(parentText, "[") && !strings.Contains(parentText, "]") {
+		return &errors.TypeParseError{
+			ErrorType:  "MissingClosingBracketError",
+			Message:    "Missing closing bracket in parameterized type",
+			Position:   position,
+			Suggestion: "Add closing ']' to complete the parameterized type",
+			Context:    "parameterized type in variable declaration",
+			ErrorCode:  errors.MissingClosingBracketError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	// Invalid spacing in parameterized types
+	if strings.Contains(parentText, "[ ") {
+		return &errors.TypeParseError{
+			ErrorType:  "InvalidParameterizedTypeError",
+			Message:    "Invalid spacing in parameterized type",
+			Position:   position,
+			Suggestion: "Remove space after '[' in parameterized type",
+			Context:    "parameterized type in variable declaration",
+			ErrorCode:  errors.InvalidParameterizedTypeError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	return tei.classifyGenericTypeError(errorNode, source)
+}
+
+// classifyTypeExpressionError classifies errors within type expressions
+func (tei *TypeErrorIdentifier) classifyTypeExpressionError(parent, errorNode ast.Node, source string) *errors.TypeParseError {
+	parentText := parent.Text()
+	parentType := parent.Type()
+	position := errorNode.Start()
+
+	// Union type with invalid syntax
+	if parentType == "union_type" && strings.Contains(parentText, "||") {
+		return &errors.TypeParseError{
+			ErrorType:  "InvalidUnionSyntaxError",
+			Message:    "Invalid union type syntax - use single '|' between types",
+			Position:   position,
+			Suggestion: "Change '||' to '|' for union types",
+			Context:    "union type expression",
+			ErrorCode:  errors.InvalidUnionSyntaxError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	// Intersection type with invalid syntax
+	if parentType == "intersection_type" && strings.Contains(parentText, "&&") {
+		return &errors.TypeParseError{
+			ErrorType:  "InvalidIntersectionSyntaxError",
+			Message:    "Invalid intersection type syntax - use single '&' between types",
+			Position:   position,
+			Suggestion: "Change '&&' to '&' for intersection types",
+			Context:    "intersection type expression",
+			ErrorCode:  errors.InvalidIntersectionSyntaxError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
+	return tei.classifyGenericTypeError(errorNode, source)
+}
+
+// classifyGenericTypeError provides a fallback classification for unspecified type errors
+func (tei *TypeErrorIdentifier) classifyGenericTypeError(errorNode ast.Node, source string) *errors.TypeParseError {
+	position := errorNode.Start()
+
+	return &errors.TypeParseError{
+		ErrorType:  "UnknownTypeError",
+		Message:    "Syntax error in type expression",
+		Position:   position,
+		Suggestion: "Check type syntax for malformed expressions",
+		Context:    "type expression",
+		ErrorCode:  errors.UnknownTypeError,
+		Source:     source,
+		SourceLine: tei.getSourceLine(source, position.Line),
+	}
+}
+
+// getSourceLine extracts a specific line from source code
+func (tei *TypeErrorIdentifier) getSourceLine(source string, lineNum int) string {
+	lines := strings.Split(source, "\n")
+	if lineNum <= 0 || lineNum > len(lines) {
+		return ""
+	}
+	return lines[lineNum-1]
+}
+
 // IdentifyTypeError analyzes failed parse input to determine the specific type error
 func (tei *TypeErrorIdentifier) IdentifyTypeError(source string, position ast.Position, context string) *errors.TypeParseError {
 	// Extract the relevant portion of source around the error
@@ -146,7 +539,10 @@ func (tei *TypeErrorIdentifier) analyzeTypeError(line string, position ast.Posit
 
 // containsValidTypeName checks if the line contains a valid type name pattern
 func containsValidTypeName(line string) bool {
-	// Simple heuristic: look for capitalized words that could be type names
+	// Enhanced heuristic: look for capitalized words that could be type names
+	// Also handle complex type expressions with parentheses, brackets, etc.
+
+	// First try the simple approach - split by fields and look for capitalized words
 	words := strings.Fields(line)
 	for _, word := range words {
 		if len(word) > 0 && word[0] >= 'A' && word[0] <= 'Z' {
@@ -154,6 +550,26 @@ func containsValidTypeName(line string) bool {
 			return true
 		}
 	}
+
+	// For complex expressions, scan for capitalized sequences within the line
+	// This handles cases like "(ArrayRef[Int]|HashRef[Str])" where field splitting doesn't work
+	for i := 0; i < len(line); i++ {
+		if line[i] >= 'A' && line[i] <= 'Z' {
+			// Found start of potential type name, check if it's a complete word
+			j := i + 1
+			for j < len(line) && ((line[j] >= 'A' && line[j] <= 'Z') ||
+				(line[j] >= 'a' && line[j] <= 'z') ||
+				(line[j] >= '0' && line[j] <= '9') || line[j] == '_') {
+				j++
+			}
+			// If we found a sequence of 2+ characters starting with capital, it's likely a type
+			if j-i >= 2 {
+				return true
+			}
+			i = j - 1 // Continue scanning from where we left off
+		}
+	}
+
 	return false
 }
 

@@ -1,9 +1,0 @@
-{
-  "name": "variable_context_variations",
-  "category": "untyped-perl",
-  "subcategory": "variables", 
-  "description": "Test variable declarations in different contexts (statement, expression)",
-  "tags": ["variables", "context", "expressions"],
-  "input": "if (my $scoped = get_value()) { print $scoped; }\nfor my $iterator (1..10) { print $iterator; }\nwhile (my $line = <DATA>) { chomp $line; }",
-  "should_error": false
-}

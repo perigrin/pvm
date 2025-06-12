@@ -2036,6 +2036,9 @@ func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
 			case "signature":
 				// Extract parameters from signature
 				parameters = p.extractMethodParameters(child)
+			case "return_type":
+				// Extract return type from return_type node
+				returnType = p.parseReturnType(child)
 			case "block":
 				// Convert block to BlockStmt
 				if blockNode := p.convertToASTNode(child); blockNode != nil {
@@ -2046,17 +2049,7 @@ func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
 			}
 		}
 
-		// Look for return type after "->" in the method text
-		text := stmt.Text()
-		if arrowIndex := strings.Index(text, "->"); arrowIndex != -1 {
-			afterArrow := strings.TrimSpace(text[arrowIndex+2:])
-			if braceIndex := strings.Index(afterArrow, "{"); braceIndex != -1 {
-				returnTypeText := strings.TrimSpace(afterArrow[:braceIndex])
-				if returnTypeText != "" {
-					returnType = ast.NewTypeExpression(returnTypeText, nil, start, end)
-				}
-			}
-		}
+		// Return type is now properly extracted from return_type node above
 	} else if strings.Contains(stmt.Text(), "method ") {
 		// Fallback to text parsing for non-structured nodes
 		text := stmt.Text()

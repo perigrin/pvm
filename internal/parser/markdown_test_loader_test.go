@@ -82,13 +82,12 @@ func TestMarkdownErrorCaseLoader(t *testing.T) {
 func TestLoadTestCasesFromFile(t *testing.T) {
 	framework := NewParserTestFramework("testdata")
 
-	// Test both JSON and Markdown loading
+	// Test Markdown file loading and error cases
 	testCases := []struct {
 		file        string
 		expectError bool
 	}{
 		{"testdata/typed-perl/simple-annotations.md", false},
-		{"testdata/typed-perl/simple-annotations/basic_typed_variables.json", false},
 		{"testdata/nonexistent.md", true},
 		{"testdata/invalid.txt", true},
 	}
