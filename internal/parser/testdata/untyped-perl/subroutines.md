@@ -55,11 +55,21 @@ sub with_params {
     return $first + $second;
 }
 
-sub no_body;
-
 sub Package::qualified_sub {
     return 42;
 }
+```
+
+## Forward Declarations
+<!-- should_error: true -->
+<!-- expected_error: parse error -->
+
+Test forward declarations without bodies
+
+```perl
+sub no_body;
+sub another_forward;
+method forward_method;
 ```
 
 ## Complex Subroutines
@@ -70,11 +80,11 @@ Test complex subroutine patterns and edge cases
 # Nested subroutine definitions
 sub outer_function {
     my $param = shift;
-    
+
     my $inner = sub {
         return $param * 2;
     };
-    
+
     return $inner;
 }
 
@@ -96,9 +106,7 @@ sub context_sensitive {
     return wantarray ? ('list', 'result') : 'scalar result';
 }
 
-# Forward declarations
-sub forward_declared;
-
+# Forward declaration usage
 sub uses_forward {
     return forward_declared(42);
 }

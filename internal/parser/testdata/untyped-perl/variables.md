@@ -75,6 +75,8 @@ while (my $line = <DATA>) { chomp $line; }
 ```
 
 ## Variable Edge Cases
+<!-- should_error: true -->
+<!-- expected_error: parse error -->
 
 Test edge cases like empty declarations and special variable names
 
