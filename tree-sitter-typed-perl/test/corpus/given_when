@@ -160,8 +160,7 @@ given ($val) {
               arguments: (interpolated_string_literal
                 content: (string_content))))
           (expression_statement
-            (function_call_expression
-              function: (function)))))
+            (func0op_call_expression))))
       (when_clause
         condition: (number)
         body: (block

@@ -344,7 +344,6 @@ foreach (@items) {
 ```
 
 ## Given No Default
-<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when without default clause
 
@@ -357,7 +356,6 @@ given ($option) {
 ```
 
 ## Given When Arrays
-<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when with array reference matching
 
@@ -369,7 +367,6 @@ given ($day) {
 ```
 
 ## Given When Basic
-<!-- expected_error: ParseError - given/when not implemented -->
 
 Basic given-when switch statement
 
@@ -382,7 +379,6 @@ given ($value) {
 ```
 
 ## Given When Complex Condition
-<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when with complex conditions
 
@@ -399,7 +395,6 @@ given ($record) {
 ```
 
 ## Given When Nested
-<!-- expected_error: ParseError - given/when not implemented -->
 
 Nested given-when statements
 
@@ -417,7 +412,6 @@ given ($type) {
 ```
 
 ## Given When Ranges
-<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when with range matching
 
@@ -431,7 +425,6 @@ given ($score) {
 ```
 
 ## Given When Regex
-<!-- expected_error: ParseError - given/when not implemented -->
 
 Given-when with regex matching
 
