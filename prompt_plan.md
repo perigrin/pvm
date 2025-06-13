@@ -99,7 +99,7 @@ Use "our $Package::qualified;" as the test case.
 - **PARSING_FAILURE_PATTERNS.md**: Documents common parsing failures and solutions
 - Both tools support interactive mode, file input, and various output formats
 
-### Step 3: Add Given/When Grammar Rules
+### Step 3: Add Given/When Grammar Rules ✅ COMPLETED
 
 ```text
 I need to add support for Perl's given/when switch statement syntax to tree-sitter-typed-perl.
@@ -124,6 +124,14 @@ Please help me add these grammar rules:
 
 Ensure the rules integrate with existing expression and block rules.
 ```
+
+**COMPLETED**: Successfully implemented given/when/default grammar support:
+- Added `given_statement` rule with condition expression and special given_block body
+- Added `given_block` that accepts when_clause, default_clause, and regular statements
+- Added `when_clause` with condition expression and regular block body
+- Added `default_clause` with regular block body
+- Created comprehensive test corpus with basic, complex, nested, and break statement cases
+- All tests passing
 
 ### Step 4: Test Given/When Implementation
 

@@ -1,0 +1,227 @@
+================================================================================
+Basic given/when statement
+================================================================================
+given ($x) {
+    when (1) {
+        say "one";
+    }
+    when (2) {
+        say "two";
+    }
+    default {
+        say "other";
+    }
+}
+--------------------------------------------------------------------------------
+
+(source_file
+  (given_statement
+    condition: (scalar
+      (varname))
+    body: (block
+      (when_clause
+        condition: (number)
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content))))))
+      (when_clause
+        condition: (number)
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content))))))
+      (default_clause
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content)))))))))
+
+================================================================================
+Simple given without default
+================================================================================
+given ($value) {
+    when ("hello") { print "hi"; }
+    when ("bye") { print "goodbye"; }
+}
+--------------------------------------------------------------------------------
+
+(source_file
+  (given_statement
+    condition: (scalar
+      (varname))
+    body: (block
+      (when_clause
+        condition: (interpolated_string_literal
+          content: (string_content))
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content))))))
+      (when_clause
+        condition: (interpolated_string_literal
+          content: (string_content))
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content)))))))))
+
+================================================================================
+Given/when with complex expressions
+================================================================================
+given ($result) {
+    when ($_ > 100) {
+        say "big";
+    }
+    when ($_ < 10) {
+        say "small";
+    }
+    when ([50, 75, 100]) {
+        say "special";
+    }
+}
+--------------------------------------------------------------------------------
+
+(source_file
+  (given_statement
+    condition: (scalar
+      (varname))
+    body: (block
+      (when_clause
+        condition: (relational_expression
+          left: (scalar
+            (varname))
+          right: (number))
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content))))))
+      (when_clause
+        condition: (relational_expression
+          left: (scalar
+            (varname))
+          right: (number))
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content))))))
+      (when_clause
+        condition: (anonymous_array_expression
+          (list_expression
+            (number)
+            (number)
+            (number)))
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content)))))))))
+
+================================================================================
+Given/when with break statement
+================================================================================
+given ($val) {
+    when (1) {
+        print "one";
+        break;
+    }
+    when (2) {
+        print "two";
+    }
+}
+--------------------------------------------------------------------------------
+
+(source_file
+  (given_statement
+    condition: (scalar
+      (varname))
+    body: (block
+      (when_clause
+        condition: (number)
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content))))
+          (expression_statement
+            (function_call_expression
+              function: (function)))))
+      (when_clause
+        condition: (number)
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content)))))))))
+
+================================================================================
+Nested given/when statements
+================================================================================
+given ($x) {
+    when (1) {
+        given ($y) {
+            when ("a") { print "1a"; }
+            when ("b") { print "1b"; }
+        }
+    }
+    when (2) {
+        print "two";
+    }
+}
+--------------------------------------------------------------------------------
+
+(source_file
+  (given_statement
+    condition: (scalar
+      (varname))
+    body: (block
+      (when_clause
+        condition: (number)
+        body: (block
+          (given_statement
+            condition: (scalar
+              (varname))
+            body: (block
+              (when_clause
+                condition: (interpolated_string_literal
+                  content: (string_content))
+                body: (block
+                  (expression_statement
+                    (ambiguous_function_call_expression
+                      function: (function)
+                      arguments: (interpolated_string_literal
+                        content: (string_content))))))
+              (when_clause
+                condition: (interpolated_string_literal
+                  content: (string_content))
+                body: (block
+                  (expression_statement
+                    (ambiguous_function_call_expression
+                      function: (function)
+                      arguments: (interpolated_string_literal
+                        content: (string_content))))))))))
+      (when_clause
+        condition: (number)
+        body: (block
+          (expression_statement
+            (ambiguous_function_call_expression
+              function: (function)
+              arguments: (interpolated_string_literal
+                content: (string_content)))))))))

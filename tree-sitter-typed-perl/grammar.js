@@ -208,7 +208,7 @@ module.exports = grammar({
       $.method_declaration_statement,
       $.phaser_statement,
       $.conditional_statement,
-      /* TODO: given/when/default */
+      $.given_statement,
       $.loop_statement,
       $.cstyle_for_statement,
       $.for_statement,
@@ -392,6 +392,37 @@ module.exports = grammar({
         field('catch_block', $.block)),
       optseq('finally',
         field('finally_block', $.block)),
+    ),
+
+    given_statement: $ => seq(
+      'given',
+      '(',
+      field('condition', $._expr),
+      ')',
+      field('body', alias($.given_block, $.block)),
+    ),
+
+    given_block: $ => seq(
+      $._PERLY_BRACE_OPEN,
+      repeat(choice(
+        $.when_clause,
+        $.default_clause,
+        $._fullstmt,
+      )),
+      '}'
+    ),
+
+    when_clause: $ => seq(
+      'when',
+      '(',
+      field('condition', $._expr),
+      ')',
+      field('body', $.block),
+    ),
+
+    default_clause: $ => seq(
+      'default',
+      field('body', $.block),
     ),
 
     defer_statement: $ => seq(
