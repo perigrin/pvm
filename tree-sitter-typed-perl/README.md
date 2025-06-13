@@ -82,6 +82,35 @@ npm test
 npx tree-sitter test test/corpus/expressions
 ```
 
+### Debugging Grammar Issues
+
+Use the `debug_grammar.js` script for comprehensive grammar debugging:
+
+```bash
+# Debug specific code snippet
+./debug_grammar.js "our \$Package::qualified;"
+
+# Debug with verbose output
+./debug_grammar.js "my Int \$var = 42;" --verbose
+
+# Debug a file
+./debug_grammar.js -f test_file.pl
+
+# Interactive debugging mode
+./debug_grammar.js -i
+
+# Show token stream details
+./debug_grammar.js "complex code" --tokens
+```
+
+The debug script provides:
+- Parse tree visualization
+- Token stream analysis
+- Grammar rule coverage analysis
+- Error node identification
+- Type annotation feature detection
+- Interactive debugging session
+
 ### Queries
 
 Syntax highlighting and other editor features are defined in `queries/`:

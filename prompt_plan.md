@@ -4,14 +4,14 @@
 
 This plan addresses the resolution of 50 failing parser tests in the PVM project's tree-sitter-typed-perl grammar. The failures are caused by limitations in parsing valid untyped Perl constructs.
 
-**Current Status**: 
+**Current Status**:
 - Total Parser Tests: 908
-- Failing Tests: 50 
+- Failing Tests: 50
 - Pass Rate: 94.5%
 
 **Failure Categories**:
 1. Given/When Constructs (11 failures)
-2. Package-Qualified Variables (4 failures)  
+2. Package-Qualified Variables (4 failures)
 3. Control Flow Statements (35 failures)
 
 ## Implementation Phases
@@ -35,10 +35,10 @@ Ensure all fixes work together and maintain performance.
 
 ## Detailed Steps
 
-### Step 1: Create Test Infrastructure for Grammar Changes
+### Step 1: Create Test Infrastructure for Grammar Changes ✅ COMPLETED
 
 ```text
-I need to set up a test infrastructure for tree-sitter grammar changes in the PVM project. 
+I need to set up a test infrastructure for tree-sitter grammar changes in the PVM project.
 
 Context:
 - We have 50 failing parser tests due to grammar limitations
@@ -65,7 +65,13 @@ Please help me:
 The goal is to have a fast feedback loop for grammar development.
 ```
 
-### Step 2: Add Debugging Tools for Grammar Development
+**COMPLETED**: Test infrastructure successfully created with:
+- Test corpus file for untyped Perl fixes with multiple test cases
+- Helper script test_grammar.sh for quick testing
+- Documentation for tree-sitter test corpus
+- Package-qualified variable tests passing
+
+### Step 2: Add Debugging Tools for Grammar Development ✅ COMPLETED
 
 ```text
 I need debugging tools to understand why certain constructs fail to parse in tree-sitter-typed-perl.
@@ -86,6 +92,12 @@ Please help me:
 
 Use "our $Package::qualified;" as the test case.
 ```
+
+**COMPLETED**: Successfully created comprehensive debugging tools:
+- **debug_grammar.js**: Shows token streams, grammar rules, and detailed parsing analysis
+- **visualize_tree.js**: Visualizes parse trees with ERROR node highlighting in multiple formats
+- **PARSING_FAILURE_PATTERNS.md**: Documents common parsing failures and solutions
+- Both tools support interactive mode, file input, and various output formats
 
 ### Step 3: Add Given/When Grammar Rules
 
@@ -196,7 +208,7 @@ Please implement:
      $.qualified_name,
      $._ident_special
    ),
-   
+
    qualified_name: $ => seq(
      $._identifier,
      repeat1(seq('::', $._identifier))
