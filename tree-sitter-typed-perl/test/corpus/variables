@@ -51,6 +51,7 @@ my @a;
 my %h;
 my ($S, @A, %h);
 our $PackageVar;
+our $Package::qualified;
 --------------------------------------------------------------------------------
 
 (source_file
@@ -73,6 +74,10 @@ our $PackageVar;
       (array
         (varname))
       (hash
+        (varname))))
+  (expression_statement
+    (variable_declaration
+      (scalar
         (varname))))
   (expression_statement
     (variable_declaration

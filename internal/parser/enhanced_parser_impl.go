@@ -5,6 +5,7 @@ package parser
 
 import (
 	"io"
+	"regexp"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
@@ -121,8 +122,47 @@ func (ep *enhancedParser) isLikelyTypeError(err error, source string) bool {
 	// Check error message for indicators
 	errStr := err.Error()
 	if strings.Contains(errStr, "parse error") || strings.Contains(errStr, "ERROR nodes") {
-		// Check source for type-like patterns
-		return containsTypeLikePattern(source)
+		// Check source for type-like patterns, but be more specific
+		// Don't consider package-qualified variables as type errors
+		if strings.Contains(source, "::") && strings.Contains(source, "$") && 
+			(strings.HasPrefix(source, "our ") || strings.HasPrefix(source, "my ") || 
+			 strings.HasPrefix(source, "state ") || strings.HasPrefix(source, "local ")) {
+			// This looks like a package-qualified variable declaration, not a type error
+			return false
+		}
+		
+		// Check for actual type annotation patterns
+		return containsActualTypePattern(source)
 	}
+	return false
+}
+
+// containsActualTypePattern checks for patterns that indicate actual type annotations
+func containsActualTypePattern(source string) bool {
+	// Look for specific type annotation patterns
+	patterns := []string{
+		" as ",           // Type assertions
+		"ArrayRef[",      // Parameterized types
+		"HashRef[",       // Parameterized types
+		"Maybe[",         // Parameterized types
+		"|",              // Union types (but be careful of bitwise or)
+		"&",              // Intersection types (but be careful of bitwise and)
+		"!Undef",         // Negation types
+		"returns ",       // Method return types
+		"field ",         // Field declarations with types
+	}
+	
+	for _, pattern := range patterns {
+		if strings.Contains(source, pattern) {
+			return true
+		}
+	}
+	
+	// Check if it's a typed variable declaration (my Type $var)
+	// This regex looks for: <keyword> <CapitalizedWord> <$var>
+	if match, _ := regexp.MatchString(`\b(my|our|state|field)\s+[A-Z]\w*\s+\$`, source); match {
+		return true
+	}
+	
 	return false
 }

@@ -887,6 +887,7 @@ module.exports = grammar({
       $.block,
     ),
     varname: $ => choice(
+      seq($._identifier, repeat1(seq('::', $._identifier))),
       $._identifier,
       $._ident_special // TODO - not sure if we wanna make `my $1` error out
     ),

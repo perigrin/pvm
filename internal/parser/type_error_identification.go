@@ -64,6 +64,23 @@ func (tei *TypeErrorIdentifier) findTypeContextError(node ast.Node, source strin
 		}
 	}
 
+	// Skip validation for regular variable declarations (not typed)
+	// This prevents false positives on valid Perl constructs like "our $Package::qualified;"
+	if nodeType == "variable_declaration" {
+		// Only check if it has type_expression child
+		hasTypeExpression := false
+		for _, child := range node.Children() {
+			if child.Type() == "type_expression" {
+				hasTypeExpression = true
+				break
+			}
+		}
+		if !hasTypeExpression {
+			// Skip validation for untyped variable declarations
+			return nil
+		}
+	}
+
 	// Check for malformed assignment expressions and general syntax (like incomplete type assertions)
 	if nodeType == "assignment_expression" || nodeType == "expression_statement" ||
 		nodeType == "var_decl" || nodeType == "expression_stmt" {
@@ -89,6 +106,18 @@ func (tei *TypeErrorIdentifier) findTypeContextError(node ast.Node, source strin
 		// Don't classify ERROR nodes as generic type errors during grammar development
 		// Let the tree-sitter grammar issues be resolved separately
 		return nil
+	}
+
+	// Also check children for ERROR nodes in specific contexts
+	for _, child := range node.Children() {
+		if child.Type() == "ERROR" {
+			// Only classify as type error if we're in a clear type context
+			if nodeType == "type_expression" || nodeType == "parameterized_type" ||
+				nodeType == "union_type" || nodeType == "intersection_type" {
+				return tei.classifyTypeExpressionError(node, child, source)
+			}
+			// Otherwise, don't classify as type error
+		}
 	}
 
 	return nil
