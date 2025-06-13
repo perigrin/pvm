@@ -337,7 +337,10 @@ module.exports = grammar({
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice(field('prototype', $.prototype), field('signature', $.signature))),
       optional(seq('returns', field('return_type', $.type_expression))),
-      field('body', $.block),
+      choice(
+        field('body', $.block),
+        ';'  // Forward declaration
+      ),
     ),
 
     method_declaration_statement: $ => seq(
@@ -348,7 +351,10 @@ module.exports = grammar({
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice(field('prototype', $.prototype), field('signature', $.signature))),
       optional(seq('returns', field('return_type', $.type_expression))),
-      field('body', $.block),
+      choice(
+        field('body', $.block),
+        ';'  // Forward declaration
+      ),
     ),
 
     // perly.y's grammar just considers a phaser to be a `sub` with a special
