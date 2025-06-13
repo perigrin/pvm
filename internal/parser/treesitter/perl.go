@@ -178,7 +178,6 @@ func (t *PerlTree) traverseForTypeAnnotations(node *sitter.Node, annotations *[]
 	}
 }
 
-
 // processVariableDeclaration looks for type annotations in variable declarations
 func (t *PerlTree) processVariableDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
 	var varName, typeName string
@@ -191,7 +190,7 @@ func (t *PerlTree) processVariableDeclaration(node *sitter.Node, annotations *[]
 	// Note: grammar defines field('variable', ...) but no field name for type_expression
 	var typeNode *sitter.Node
 	variableNode := node.ChildByFieldName("variable")
-	
+
 	// Find type_expression node by iterating through children
 	for i := 0; i < int(node.ChildCount()); i++ {
 		child := node.Child(uint(i))
@@ -219,19 +218,19 @@ func (t *PerlTree) processVariableDeclaration(node *sitter.Node, annotations *[]
 		typeName = t.getNodeText(typeNode)
 	}
 
-	// Extract variable name from variable field  
+	// Extract variable name from variable field
 	if variableNode != nil {
 		varName = t.getNodeText(variableNode)
 	}
 
 	// Fall back to walking children if field access doesn't work or for legacy ERROR node handling
-	if (typeName == "" || varName == "") {
+	if typeName == "" || varName == "" {
 		if os.Getenv("DEBUG_PARSER") == "1" {
 			fmt.Printf("DEBUG: Field access failed, falling back to child walking\n")
 		}
-		
+
 		var errorTypeNode *sitter.Node
-		
+
 		for i := 0; i < int(node.ChildCount()); i++ {
 			child := node.Child(uint(i))
 			if child == nil {
@@ -260,7 +259,7 @@ func (t *PerlTree) processVariableDeclaration(node *sitter.Node, annotations *[]
 				}
 			}
 		}
-		
+
 		// For ERROR node case, use its position
 		if errorTypeNode != nil && typeName != "" && varName != "" {
 			if os.Getenv("DEBUG_PARSER") == "1" {

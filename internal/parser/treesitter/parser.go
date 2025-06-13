@@ -821,8 +821,31 @@ func (p *Parser) convertToASTTypeAnnotation(ta *TypeAnnotation) *ast.TypeAnnotat
 	// Convert the type annotation from tree-sitter format to ast format
 	astPos := ast.Position{Line: ta.Pos.Line, Column: ta.Pos.Column}
 
+	// Convert treesitter.AnnotationKind to ast.AnnotationKind
+	var astKind ast.AnnotationKind
+	switch ta.Kind {
+	case VarAnnotation:
+		astKind = ast.VarAnnotation
+	case SubParamAnnotation:
+		astKind = ast.SubParamAnnotation
+	case SubReturnAnnotation:
+		astKind = ast.SubReturnAnnotation
+	case MethodParamAnnotation:
+		astKind = ast.MethodParamAnnotation
+	case MethodReturnAnnotation:
+		astKind = ast.MethodReturnAnnotation
+	case AttrAnnotation:
+		astKind = ast.FieldAnnotation
+	case TypeDeclAnnotation:
+		astKind = ast.TypeDeclAnnotation
+	case TypeAssertionAnnotation:
+		astKind = ast.TypeAssertionAnnotation
+	default:
+		astKind = ast.VarAnnotation // Default fallback
+	}
+
 	return &ast.TypeAnnotation{
-		Kind:           ast.AnnotationKind(ta.Kind),
+		Kind:           astKind,
 		AnnotatedItem:  ta.AnnotatedItem,
 		TypeExpression: p.convertToASTTypeExpression(ta.TypeExpression),
 		Pos:            astPos,

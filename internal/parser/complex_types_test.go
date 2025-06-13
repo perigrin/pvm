@@ -203,7 +203,7 @@ func TestComplexTypeExpressions(t *testing.T) {
 			// Check for parsing errors
 			if test.ShouldError {
 				assert.Error(t, err, "Expected parsing to fail for %s", test.Name)
-				if len(test.ErrorMessages) > 0 {
+				if err != nil && len(test.ErrorMessages) > 0 {
 					for _, expectedError := range test.ErrorMessages {
 						assert.Contains(t, err.Error(), expectedError, "Expected error message not found")
 					}
