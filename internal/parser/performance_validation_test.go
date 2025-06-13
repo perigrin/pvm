@@ -1,5 +1,5 @@
-// ABOUTME: Performance validation tests for Step 4 of TypeScript-Go modernization
-// ABOUTME: Validates parsing performance, memory usage, and stability of new pipeline
+// ABOUTME: Performance validation tests for Step 6 of prompt_plan.md
+// ABOUTME: Validates parser performance and integration with PVM ecosystem components
 
 package parser
 
@@ -381,5 +381,282 @@ func TestParser_Concurrency(t *testing.T) {
 		t.Errorf("Found %d errors in concurrent parsing", errorCount)
 	} else {
 		t.Log("Concurrent parsing completed successfully")
+	}
+}
+
+// TestStep6_TypedPerlPerformanceValidation implements Step 6 from prompt_plan.md
+// This validates parser performance specifically for typed Perl features
+func TestStep6_TypedPerlPerformanceValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping Step 6 performance validation in short mode")
+	}
+
+	parser, err := NewParser()
+	if err != nil {
+		t.Fatalf("Failed to create parser: %v", err)
+	}
+
+	// Test cases for typed Perl features that were completed in Steps 1-5
+	testCases := []struct {
+		name        string
+		code        string
+		maxDuration time.Duration
+		description string
+	}{
+		{
+			name: "complex_method_signatures",
+			code: `method process(
+    ArrayRef[HashRef[Int|Str]] $data,
+    Optional[CodeRef[Int, Bool]] $validator = undef
+) returns Result[Map[Str, Array[Item]], ProcessingError] {
+    return Success->new({});
+}`,
+			maxDuration: 50 * time.Millisecond,
+			description: "Step 1: Complex method signature parsing",
+		},
+		{
+			name: "union_types_nested_contexts",
+			code: `my ArrayRef[Int|Str] $mixed_array;
+method func(Success|Error $result) returns Bool {
+    my Int|Str|Undef $value = $result->value;
+    return $value as Bool;
+}`,
+			maxDuration: 30 * time.Millisecond,
+			description: "Step 2: Union types in nested contexts",
+		},
+		{
+			name: "complex_type_assertions",
+			code: `my $data = fetch_data();
+my ArrayRef[HashRef[Int|Str]] $typed_data = $data as ArrayRef[HashRef[Int|Str]];
+my $result = process($typed_data) as (Success|Error)&Detailed;`,
+			maxDuration: 40 * time.Millisecond,
+			description: "Step 3: Complex type assertions",
+		},
+		{
+			name: "generic_class_declarations",
+			code: `class Container[T] {
+    field ArrayRef[T] $items = [];
+    method add(T $item) returns Int {
+        push @{$self->{items}}, $item;
+        return scalar @{$self->{items}};
+    }
+}
+
+class Cache[K: Hashable, V: Serializable] {
+    field HashMap[K, V] $data;
+}`,
+			maxDuration: 60 * time.Millisecond,
+			description: "Step 4: Generic class declarations",
+		},
+		{
+			name: "all_features_combined",
+			code: `package CompleteTypedPerl;
+use v5.36;
+
+type UserID = Int;
+type Result[T, E] = Success[T] | Error[E];
+
+class UserService[T: User] {
+    field HashRef[UserID, T] $users = {};
+
+    method find_user(UserID $id) returns Optional[T] {
+        return $self->{users}->{$id};
+    }
+
+    method add_user(T $user) returns Result[UserID, Str] {
+        my UserID $id = $user->id as UserID;
+        return Error->new("User exists") if exists $self->{users}->{$id};
+        $self->{users}->{$id} = $user;
+        return Success->new($id);
+    }
+}`,
+			maxDuration: 100 * time.Millisecond,
+			description: "Step 5: All typed Perl features combined",
+		},
+	}
+
+	// Run performance tests for each completed step
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Warm up
+			_, _ = parser.ParseString(tc.code)
+
+			// Measure performance
+			var totalDuration time.Duration
+			iterations := 10
+
+			for i := 0; i < iterations; i++ {
+				start := time.Now()
+				ast, err := parser.ParseString(tc.code)
+				duration := time.Since(start)
+				totalDuration += duration
+
+				if err != nil {
+					t.Fatalf("%s: Parse error: %v", tc.description, err)
+				}
+				if ast == nil {
+					t.Fatalf("%s: No AST generated", tc.description)
+				}
+			}
+
+			avgDuration := totalDuration / time.Duration(iterations)
+
+			// Verify performance meets requirements
+			if avgDuration > tc.maxDuration {
+				t.Errorf("%s: Average parse time %v exceeded limit %v",
+					tc.description, avgDuration, tc.maxDuration)
+			} else {
+				t.Logf("%s: ✓ Performance validated (avg: %v)", tc.description, avgDuration)
+			}
+		})
+	}
+}
+
+// TestStep6_IntegrationWithCompiler validates parser integration with compiler
+func TestStep6_IntegrationWithCompiler(t *testing.T) {
+	parser, err := NewParser()
+	if err != nil {
+		t.Fatalf("Failed to create parser: %v", err)
+	}
+
+	// Test complex typed Perl that exercises all features
+	complexCode := `package IntegrationTest;
+use v5.36;
+
+# Type definitions
+type UserData = HashRef[{
+    id => Int,
+    name => Str,
+    roles => ArrayRef[Str],
+    active => Bool
+}];
+
+# Generic result type
+class Result[T, E] {
+    field Optional[T] $value;
+    field Optional[E] $error;
+
+    method is_ok() returns Bool {
+        return defined $self->{value};
+    }
+}
+
+# Service with complex types
+class UserService {
+    field HashRef[Int, UserData] $users = {};
+
+    method create_user(
+        Str $name,
+        ArrayRef[Str] $roles = []
+    ) returns Result[Int, Str] {
+        my Int $id = int(rand(10000));
+
+        my UserData $user = {
+            id => $id,
+            name => $name,
+            roles => $roles,
+            active => 1
+        };
+
+        $self->{users}->{$id} = $user;
+        return Result->new(value => $id);
+    }
+
+    method find_users_with_role(Str $role) returns ArrayRef[UserData] {
+        return [
+            grep {
+                my ArrayRef[Str] $roles = $_->{roles} as ArrayRef[Str];
+                grep { $_ eq $role } @$roles
+            } values %{$self->{users}}
+        ];
+    }
+}
+
+1;`
+
+	// Parse the complex code
+	start := time.Now()
+	ast, err := parser.ParseString(complexCode)
+	parseDuration := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("Failed to parse integration test code: %v", err)
+	}
+
+	t.Logf("Parsed complex typed Perl in %v", parseDuration)
+
+	// Verify AST contains expected typed Perl elements
+	astStr := fmt.Sprintf("%v", ast)
+	expectedElements := []string{
+		"type_declaration",
+		"class_declaration",
+		"field_declaration",
+		"method_declaration",
+		"parameterized_type",
+		"union_type",
+		"type_assertion",
+	}
+
+	for _, elem := range expectedElements {
+		if !strings.Contains(astStr, elem) {
+			t.Errorf("AST missing expected element: %s", elem)
+		}
+	}
+
+	// Performance check
+	if parseDuration > 200*time.Millisecond {
+		t.Errorf("Integration test parsing too slow: %v", parseDuration)
+	}
+
+	t.Log("✓ Step 6: Performance and integration validation completed successfully")
+}
+
+// BenchmarkStep6_TypedPerlFeatures provides detailed benchmarks for typed Perl
+func BenchmarkStep6_TypedPerlFeatures(b *testing.B) {
+	parser, err := NewParser()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	benchmarks := []struct {
+		name string
+		code string
+	}{
+		{
+			name: "SimpleTypeAnnotation",
+			code: `my Int $x = 42;`,
+		},
+		{
+			name: "UnionType",
+			code: `my Int|Str $value;`,
+		},
+		{
+			name: "ParameterizedType",
+			code: `my ArrayRef[HashRef[Int]] $data;`,
+		},
+		{
+			name: "ComplexMethodSignature",
+			code: `method foo(ArrayRef[Int|Str] $arr, Optional[Bool] $flag = undef) returns HashRef[Str, Any] {}`,
+		},
+		{
+			name: "GenericClass",
+			code: `class Box[T: Comparable] { field T $value; }`,
+		},
+		{
+			name: "TypeAssertion",
+			code: `my $typed = $data as ArrayRef[HashRef[Int|Str]];`,
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := parser.ParseString(bm.code)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }

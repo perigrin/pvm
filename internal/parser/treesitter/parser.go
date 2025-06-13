@@ -2268,11 +2268,11 @@ func (p *Parser) isTypeRelatedNode(nodeType string) bool {
 		"method_return_type": true,
 		// "typed_method_parameter" is handled specially - don't skip it entirely
 		"type_assertion_expression": true,
-		"type_declaration":   true,
-		"union_type":         true,
-		"intersection_type":  true,
-		"negation_type":      true,
-		"parameterized_type": true,
+		"type_declaration":          true,
+		"union_type":                true,
+		"intersection_type":         true,
+		"negation_type":             true,
+		"parameterized_type":        true,
 	}
 	return typeNodeTypes[nodeType]
 }
