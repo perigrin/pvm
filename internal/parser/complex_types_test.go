@@ -84,9 +84,27 @@ func TestComplexTypeExpressions(t *testing.T) {
 				my (Container[MyType]|Wrapper[OtherType]) $flexible;
 				my (Result[Data, Error]|Maybe[Value]) $outcome;
 			`,
-			Description:   "Parameterized types within union expressions",
-			ShouldError:   true,
-			ErrorMessages: []string{"UnknownTypeError"},
+			Description: "Parameterized types within union expressions",
+			ExpectedTypes: []ExpectedTypeInfo{
+				{
+					Variable:     "$param_union",
+					TypeString:   "ArrayRef[Int]|HashRef[Str]",
+					IsUnion:      true,
+					NestingDepth: 2,
+				},
+				{
+					Variable:     "$flexible",
+					TypeString:   "Container[MyType]|Wrapper[OtherType]",
+					IsUnion:      true,
+					NestingDepth: 2,
+				},
+				{
+					Variable:     "$outcome",
+					TypeString:   "Result[Data, Error]|Maybe[Value]",
+					IsUnion:      true,
+					NestingDepth: 2,
+				},
+			},
 		},
 		{
 			Name: "Deep nesting combinations",
@@ -183,9 +201,23 @@ func TestComplexTypeExpressions(t *testing.T) {
 				my Map[Str, ArrayRef[HashRef[Tuple[Int, Result[Data[UserInfo], Error[ValidationFailure]]]]]] %extremely_nested;
 				my (A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T) $many_union_alternatives;
 			`,
-			Description:    "Stress testing with very deep nesting and many union alternatives",
-			ShouldError:    true,
-			ErrorMessages:  []string{"UnknownTypeError"},
+			Description: "Stress testing with very deep nesting and many union alternatives",
+			ExpectedTypes: []ExpectedTypeInfo{
+				{
+					Variable:        "%extremely_nested",
+					TypeString:      "Map[Str, ArrayRef[HashRef[Tuple[Int, Result[Data[UserInfo], Error[ValidationFailure]]]]]]",
+					IsParameterized: true,
+					ParamCount:      2,
+					NestingDepth:    7,
+				},
+				{
+					Variable:     "$many_union_alternatives",
+					TypeString:   "A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T",
+					IsUnion:      true,
+					UnionCount:   20,
+					NestingDepth: 1,
+				},
+			},
 			PerformanceMax: time.Second * 2,
 			MemoryLimitMB:  100,
 		},
