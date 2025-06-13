@@ -27,8 +27,6 @@ tags:
 ---
 
 # Basic Typed Variables
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Basic typed variable declarations with built-in types
 
@@ -40,8 +38,6 @@ my Num $pi = 3.14159;
 ```
 
 ## Complex Assignments
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Type annotations with complex assignment expressions
 
@@ -63,8 +59,6 @@ my UserClass $user = UserClass->new();
 ```
 
 ## Mixed Typed Untyped
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Mixed typed and untyped variable declarations in the same code
 
@@ -88,8 +82,6 @@ my Maybe[Str] $maybe_str;
 ```
 
 ## Scoping Keywords
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Type annotations with different scoping keywords (our, state, local)
 
@@ -100,8 +92,6 @@ local Num $localized = 1.0;
 ```
 
 ## Typed Arrays Hashes
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Typed array and hash declarations with basic parameterized types
 
@@ -112,8 +102,6 @@ my ArrayRef[Str] @strings = ("a", "b", "c");
 ```
 
 ## Whitespace Variations
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Type annotations with various whitespace patterns
 
