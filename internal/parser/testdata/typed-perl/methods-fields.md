@@ -121,8 +121,6 @@ method complex_method(
 ```
 
 ## Field Access Modifiers
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Field declarations with access modifiers and visibility keywords
 

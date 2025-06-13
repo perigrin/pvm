@@ -108,8 +108,6 @@ my Map[Str, Int|Undef] %optional_values;
 ```
 
 ## Parameterized Unions
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Parameterized types within union expressions
 
@@ -120,8 +118,6 @@ my (Result[Data, Error]|Maybe[Value]) $outcome;
 ```
 
 ## Stress Testing
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Stress testing with very deep nesting and many union alternatives
 

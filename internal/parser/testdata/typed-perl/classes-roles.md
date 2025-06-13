@@ -219,8 +219,6 @@ class User {
 ```
 
 ## Basic Role Declarations
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Basic role declarations with required and provided methods
 
@@ -415,8 +413,6 @@ role EventHandler<T> where T: Event {
 ```
 
 ## Role Composition Conflicts
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Role composition with method conflicts and resolution
 
