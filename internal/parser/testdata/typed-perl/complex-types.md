@@ -31,7 +31,7 @@ method complex_processing(
     ArrayRef[HashRef[Int|Str]&!Undef] $validated_data,
     (Processor[Request]|Handler[Response])&Configured $handler,
     Optional[Logger[Info|Error]] $logger
-) -> Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] {
+) returns Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] {
     my $transformed = $validated_data as ArrayRef[Data&Processed];
     return success($transformed->map(sub { process($_) }));
 }
@@ -45,14 +45,14 @@ Complex method signatures with advanced parameter and return types
 method transform(
     ArrayRef[HashRef[Int|Str]] $input,
     CodeRef[Str, Bool] $validator
-) -> HashRef[ArrayRef[Int]|Str] {
+) returns HashRef[ArrayRef[Int]|Str] {
     return {};
 }
 
 method process(
     Map[Str, ArrayRef[Data|Error]] $complex_input,
     Optional[Handler[Request|Response]] $handler
-) -> Result[Array[ProcessedData], ProcessingError] {
+) returns Result[Array[ProcessedData], ProcessingError] {
     return success([]);
 }
 ```

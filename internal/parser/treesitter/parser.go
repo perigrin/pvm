@@ -252,7 +252,7 @@ func (p *Parser) convertPerlTypeAnnotation(perlAnn *PerlTypeAnnotation, content 
 		kind = MethodReturnAnnotation
 	case "type_declaration":
 		kind = TypeDeclAnnotation
-	case "type_assertion":
+	case "type_assertion_expression":
 		kind = TypeAssertionAnnotation
 	default:
 		kind = VarAnnotation // Default fallback
@@ -2267,7 +2267,7 @@ func (p *Parser) isTypeRelatedNode(nodeType string) bool {
 		"type_expression":    true,
 		"method_return_type": true,
 		// "typed_method_parameter" is handled specially - don't skip it entirely
-		"type_assertion":     true,
+		"type_assertion_expression": true,
 		"type_declaration":   true,
 		"union_type":         true,
 		"intersection_type":  true,

@@ -73,11 +73,11 @@ field Optional[ArrayRef[Int]] $maybe_numbers;
 Parameterized types in method signatures
 
 ```perl
-method process(ArrayRef[Str] $input) -> HashRef[Int] {
+method process(ArrayRef[Str] $input) returns HashRef[Int] {
   return {};
 }
 
-method transform(Map[Str, Int] $data) -> ArrayRef[Result[Str, Error]] {
+method transform(Map[Str, Int] $data) returns ArrayRef[Result[Str, Error]] {
   return [];
 }
 ```

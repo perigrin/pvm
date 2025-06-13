@@ -44,15 +44,15 @@ field Num $rate = 3.14;
 Basic typed method definitions with parameter and return types
 
 ```perl
-method calculate(Int $a, Int $b) -> Int {
+method calculate(Int $a, Int $b) returns Int {
     return $a + $b;
 }
 
-method greet(Str $name) -> Str {
+method greet(Str $name) returns Str {
     return "Hello, $name!";
 }
 
-method is_valid(Bool $flag) -> Bool {
+method is_valid(Bool $flag) returns Bool {
     return $flag;
 }
 ```
@@ -65,15 +65,15 @@ Methods and fields within class context with type annotations
 class Calculator {
     field Num $precision = 0.001;
 
-    method add(Num $a, Num $b) -> Num {
+    method add(Num $a, Num $b) returns Num {
         return $a + $b;
     }
 
-    method get_precision() -> Num {
+    method get_precision() returns Num {
         return $precision;
     }
 
-    method set_precision(Num $new_precision) -> Void {
+    method set_precision(Num $new_precision) returns Void {
         $precision = $new_precision;
     }
 }
@@ -98,12 +98,12 @@ field HashRef[ArrayRef[Str]] $grouped_data = {};
 Complex method signatures with parameterized types, optional parameters, and multiple parameter types
 
 ```perl
-method process(ArrayRef[Str] $data, Bool $validate = 1) -> ArrayRef[Str] {
+method process(ArrayRef[Str] $data, Bool $validate = 1) returns ArrayRef[Str] {
     my @result = @{$data};
     return \@result;
 }
 
-method transform(HashRef[Int] $input, CodeRef $callback) -> HashRef[Int] {
+method transform(HashRef[Int] $input, CodeRef $callback) returns HashRef[Int] {
     my %result;
     for my $key (keys %{$input}) {
         $result{$key} = $callback->($input->{$key});
@@ -115,7 +115,7 @@ method complex_method(
     ArrayRef[HashRef[Int]] $data,
     Optional[CodeRef] $processor,
     Slurpy[Str] @extra_args
-) -> Bool {
+) returns Bool {
     return 1;
 }
 ```
@@ -140,24 +140,24 @@ field static HashRef[Str] $class_field = {};
 Methods with various return type annotations including complex types
 
 ```perl
-method get_number() -> Int {
+method get_number() returns Int {
     return 42;
 }
 
-method get_array() -> ArrayRef[Str] {
+method get_array() returns ArrayRef[Str] {
     return ["a", "b", "c"];
 }
 
-method get_hash() -> HashRef[Int] {
+method get_hash() returns HashRef[Int] {
     return { count => 5, total => 100 };
 }
 
-method get_nothing() -> Void {
+method get_nothing() returns Void {
     # Side effects only
     print "Done\n";
 }
 
-method get_optional() -> Optional[Str] {
+method get_optional() returns Optional[Str] {
     return undef;
 }
 ```
@@ -173,7 +173,7 @@ Mixed typed and untyped methods and fields in the same context
 field Int $typed_field = 42;
 field $untyped_field = "hello";
 
-method typed_method(Str $input) -> Str {
+method typed_method(Str $input) returns Str {
     return uc($input);
 }
 
@@ -182,7 +182,7 @@ sub untyped_sub {
     return $param * 2;
 }
 
-method partially_typed($untyped, Int $typed) -> Str {
+method partially_typed($untyped, Int $typed) returns Str {
     return "$untyped: $typed";
 }
 ```

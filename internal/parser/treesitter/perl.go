@@ -162,7 +162,7 @@ func (t *PerlTree) traverseForTypeAnnotations(node *sitter.Node, annotations *[]
 			fmt.Printf("DEBUG: Found type_declaration node\n")
 		}
 		t.processTypeDeclaration(node, annotations)
-	case "type_assertion":
+	case "type_assertion_expression":
 		if os.Getenv("DEBUG_PARSER") == "1" {
 			fmt.Printf("DEBUG: Found type_assertion node\n")
 		}

@@ -51,7 +51,7 @@ class BankAccount {
     field public Str $account_holder;
     field readonly DateTime $created_at;
 
-    method new(Str $holder, Str $number) -> BankAccount {
+    method new(Str $holder, Str $number) returns BankAccount {
         return bless {
             account_holder => $holder,
             account_number => $number,
@@ -60,21 +60,21 @@ class BankAccount {
         }, __PACKAGE__;
     }
 
-    method private validate_amount(Num $amount) -> Bool {
+    method private validate_amount(Num $amount) returns Bool {
         return $amount > 0;
     }
 
-    method public deposit(Num $amount) -> Bool {
+    method public deposit(Num $amount) returns Bool {
         return 0 unless $self->validate_amount($amount);
         $balance += $amount;
         return 1;
     }
 
-    method public get_balance() -> Num {
+    method public get_balance() returns Num {
         return $balance;
     }
 
-    method protected get_account_number() -> Str {
+    method protected get_account_number() returns Str {
         return $account_number;
     }
 }
@@ -93,9 +93,9 @@ type Result<T, E> = Success<T> | Failure<E>;
 
 # Generic role with constraints
 role Repository<T, K> where T: Serializable, K: Hashable {
-    method find(K $key) -> Optional[T];
-    method save(T $entity) -> Result<K, SaveError>;
-    method delete(K $key) -> Result<Bool, DeleteError>;
+    method find(K $key) returns Optional[T];
+    method save(T $entity) returns Result<K, SaveError>;
+    method delete(K $key) returns Result<Bool, DeleteError>;
 }
 
 # Role with provided implementations
@@ -103,11 +103,11 @@ role Auditable {
     field Optional[DateTime] $created_at;
     field Optional[DateTime] $updated_at;
 
-    method touch() -> Void {
+    method touch() returns Void {
         $updated_at = DateTime->now();
     }
 
-    method mark_created() -> Void {
+    method mark_created() returns Void {
         $created_at = DateTime->now();
         $updated_at = $created_at;
     }
@@ -127,14 +127,14 @@ class UserRepository<T> : BaseRepository<T, UserId>
         CodeRef[UserId, Optional[T]] $loader,
         :$table_name as Str = 'users',
         :$cache_size as Int = 1000
-    ) -> Void where $cache_size > 0 {
+    ) returns Void where $cache_size > 0 {
         $self->{loader} = $loader;
         $self->{table_name} = $table_name;
         $self->{cache_size} = $cache_size;
         $self->mark_created();
     }
 
-    method find(UserId $id) -> Optional[T] {
+    method find(UserId $id) returns Optional[T] {
         # Check cache first
         return $cache->{$id} if exists $cache->{$id};
 
@@ -150,7 +150,7 @@ class UserRepository<T> : BaseRepository<T, UserId>
         return $user;
     }
 
-    method save(T $user) -> Result<UserId, SaveError> {
+    method save(T $user) returns Result<UserId, SaveError> {
         # Validate user
         return Failure->new(SaveError->new('Invalid user'))
             unless $user->is_valid();
@@ -166,7 +166,7 @@ class UserRepository<T> : BaseRepository<T, UserId>
         return Success->new($id);
     }
 
-    method delete(UserId $id) -> Result<Bool, DeleteError> {
+    method delete(UserId $id) returns Result<Bool, DeleteError> {
         # Remove from cache
         delete $cache->{$id};
 
@@ -177,15 +177,15 @@ class UserRepository<T> : BaseRepository<T, UserId>
         return Success->new(1);
     }
 
-    method cache_key() -> UserId {
+    method cache_key() returns UserId {
         return UserId->new($table_name . '_cache');
     }
 
-    method clear_cache() -> Void {
+    method clear_cache() returns Void {
         %{$cache} = ();
     }
 
-    method get_cache_stats() -> HashRef[Str, Int] {
+    method get_cache_stats() returns HashRef[Str, Int] {
         return {
             size => scalar keys %{$cache},
             max_size => $cache_size,
@@ -205,14 +205,14 @@ class User {
     field Int $age;
     field Optional[Email] $email;
 
-    method new(Str $name, Int $age) -> User {
+    method new(Str $name, Int $age) returns User {
         return bless {
             name => $name,
             age => $age
         }, __PACKAGE__;
     }
 
-    method get_name() -> Str {
+    method get_name() returns Str {
         return $name;
     }
 }
@@ -224,21 +224,21 @@ Basic role declarations with required and provided methods
 
 ```perl
 role Serializable {
-    method serialize() -> Str;
-    method deserialize(Str $data) -> Self;
+    method serialize() returns Str;
+    method deserialize(Str $data) returns Self;
 }
 
 role Cacheable {
     field Optional[DateTime] $cached_at;
 
-    method cache_key() -> Str;
+    method cache_key() returns Str;
 
-    method is_stale() -> Bool {
+    method is_stale() returns Bool {
         return 0 unless defined $cached_at;
         return time() - $cached_at->epoch > 3600;
     }
 
-    method invalidate() -> Void {
+    method invalidate() returns Void {
         $cached_at = undef;
     }
 }
@@ -254,7 +254,7 @@ class Document : BaseDocument does Serializable, Cacheable {
     field DateTime $created;
     field Optional[UserRef] $author;
 
-    method serialize() -> Str {
+    method serialize() returns Str {
         return encode_json({
             content => $content,
             created => $created->iso8601,
@@ -262,7 +262,7 @@ class Document : BaseDocument does Serializable, Cacheable {
         });
     }
 
-    method deserialize(Str $data) -> Self {
+    method deserialize(Str $data) returns Self {
         my $decoded = decode_json($data);
         return __PACKAGE__->new(
             content => $decoded->{content},
@@ -286,7 +286,7 @@ class ProcessingQueue<T> : BaseQueue<T>
     field HashRef[Str, T] $processing = {};
     field Int $max_concurrent = 5;
 
-    method process_all() -> ArrayRef[ProcessResult] {
+    method process_all() returns ArrayRef[ProcessResult] {
         my @results;
         while (@{$pending} && keys %{$processing} < $max_concurrent) {
             my $item = shift @{$pending};
@@ -300,11 +300,11 @@ class ProcessingQueue<T> : BaseQueue<T>
         return \@results;
     }
 
-    method enqueue(T $item) -> Void where $item->can('get_id') {
+    method enqueue(T $item) returns Void where $item->can('get_id') {
         push @{$pending}, $item;
     }
 
-    method get_queue_status() -> QueueStatus {
+    method get_queue_status() returns QueueStatus {
         return QueueStatus->new(
             pending => scalar @{$pending},
             processing => scalar keys %{$processing},
@@ -324,30 +324,30 @@ class Resource {
     field FileHandle $handle;
     field Bool $is_open = 0;
 
-    method BUILD(Str $name, Optional[Str] $mode = 'r') -> Void {
+    method BUILD(Str $name, Optional[Str] $mode = 'r') returns Void {
         $self->{name} = $name;
         $self->{handle} = IO::File->new($name, $mode);
         $self->{is_open} = defined $self->{handle};
     }
 
-    method new(Str $name, Optional[Str] $mode = 'r') -> Resource {
+    method new(Str $name, Optional[Str] $mode = 'r') returns Resource {
         my $self = bless {}, __PACKAGE__;
         $self->BUILD($name, $mode);
         return $self;
     }
 
-    method DESTROY() -> Void {
+    method DESTROY() returns Void {
         $self->close() if $is_open;
     }
 
-    method close() -> Bool {
+    method close() returns Bool {
         return 0 unless $is_open;
         my $result = $handle->close();
         $is_open = 0;
         return $result;
     }
 
-    method read(Int $bytes) -> Optional[Str] {
+    method read(Int $bytes) returns Optional[Str] {
         return undef unless $is_open;
         my $data;
         my $read_bytes = $handle->read($data, $bytes);
@@ -364,15 +364,15 @@ Generic class with type parameters and constraints
 class Container<T> where T: Serializable {
     field ArrayRef[T] $items = [];
 
-    method add(T $item) -> Void {
+    method add(T $item) returns Void {
         push @{$items}, $item;
     }
 
-    method get_all() -> ArrayRef[T] {
+    method get_all() returns ArrayRef[T] {
         return $items;
     }
 
-    method find(CodeRef[T, Bool] $predicate) -> Optional[T] {
+    method find(CodeRef[T, Bool] $predicate) returns Optional[T] {
         for my $item (@{$items}) {
             return $item if $predicate->($item);
         }
@@ -389,24 +389,24 @@ Generic roles with type parameters and constraints
 
 ```perl
 role Processable<T> where T: Defined {
-    method process(T $input) -> ProcessResult;
-    method validate(T $input) -> Bool;
+    method process(T $input) returns ProcessResult;
+    method validate(T $input) returns Bool;
 }
 
 role EventHandler<T> where T: Event {
     field ArrayRef[CodeRef[T, Void]] $handlers = [];
 
-    method add_handler(CodeRef[T, Void] $handler) -> Void {
+    method add_handler(CodeRef[T, Void] $handler) returns Void {
         push @{$handlers}, $handler;
     }
 
-    method handle_event(T $event) -> Void {
+    method handle_event(T $event) returns Void {
         for my $handler (@{$handlers}) {
             $handler->($event);
         }
     }
 
-    method handler_count() -> Int {
+    method handler_count() returns Int {
         return scalar @{$handlers};
     }
 }
@@ -418,18 +418,18 @@ Role composition with method conflicts and resolution
 
 ```perl
 role Drawable {
-    method draw() -> Void;
-    method get_bounds() -> Rectangle;
+    method draw() returns Void;
+    method get_bounds() returns Rectangle;
 }
 
 role Clickable {
-    method on_click(Event $event) -> Void;
-    method get_bounds() -> Rectangle;  # Conflict with Drawable
+    method on_click(Event $event) returns Void;
+    method get_bounds() returns Rectangle;  # Conflict with Drawable
 }
 
 role Resizable {
-    method resize(Int $width, Int $height) -> Void;
-    method get_size() -> Size;
+    method resize(Int $width, Int $height) returns Void;
+    method get_size() returns Size;
 }
 
 class Widget does Drawable, Clickable, Resizable {
@@ -439,24 +439,24 @@ class Widget does Drawable, Clickable, Resizable {
     field Int $height = 50;
 
     # Resolve conflict by implementing the conflicting method
-    method get_bounds() -> Rectangle {
+    method get_bounds() returns Rectangle {
         return Rectangle->new($x, $y, $width, $height);
     }
 
-    method draw() -> Void {
+    method draw() returns Void {
         # Implementation for drawing
     }
 
-    method on_click(Event $event) -> Void {
+    method on_click(Event $event) returns Void {
         # Handle click event
     }
 
-    method resize(Int $new_width, Int $new_height) -> Void {
+    method resize(Int $new_width, Int $new_height) returns Void {
         $width = $new_width;
         $height = $new_height;
     }
 
-    method get_size() -> Size {
+    method get_size() returns Size {
         return Size->new($width, $height);
     }
 }

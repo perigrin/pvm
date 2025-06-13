@@ -45,7 +45,7 @@ my UserType|SystemType|DefaultType $flexible;
 Union types in method parameter and return type signatures
 
 ```perl
-method process(Int|Str $input) -> Bool|Str {
+method process(Int|Str $input) returns Bool|Str {
     if (ref $input) {
         return "Invalid";
     }
@@ -71,7 +71,7 @@ Union types in nested method signature contexts with complex parameters
 method complex(
     ArrayRef[Int|Str] $data,
     CodeRef|Undef $callback
-) -> HashRef[Bool|Str] {
+) returns HashRef[Bool|Str] {
     return {};
 }
 ```

@@ -225,11 +225,15 @@ module.exports = grammar({
     class_statement: $ => choice(
       seq('class',
         field('name', $.package),
+        optional(field('type_parameters', $.type_parameter_clause)),
+        optional(field('constraints', $.where_clause)),
         optional(field('version', $._version)),
         optseq(':', optional(field('attributes', $.attrlist))),
         $._semicolon),
       seq('class',
         field('name', $.package),
+        optional(field('type_parameters', $.type_parameter_clause)),
+        optional(field('constraints', $.where_clause)),
         optional(field('version', $._version)),
         optseq(':', optional(field('attributes', $.attrlist))),
         $.block),
@@ -516,6 +520,7 @@ module.exports = grammar({
       $.conditional_expression,
       $.refgen_expression,
       $.localization_expression,
+      $.type_assertion_expression,
       seq('(', $._expr, ')'),
       $.quoted_word_list,
       $.heredoc_token,
@@ -1301,6 +1306,12 @@ module.exports = grammar({
     _bareword: $ => choice($._identifier, /((::)|([a-zA-Z_]\w*))+/),
 
     // Typed Perl extensions
+    type_assertion_expression: $ => prec.left(TERMPREC.REQUIRE, seq(
+      field('operand', $._term),
+      field('operator', 'as'),
+      field('type', $.type_expression)
+    )),
+
     type_expression: $ => choice(
       $.simple_type,
       $.union_type,
@@ -1339,6 +1350,37 @@ module.exports = grammar({
       $.type_expression,
       repeat(seq(',', $.type_expression)),
       optional(',')
+    ),
+
+    type_parameter_clause: $ => seq(
+      '<',
+      $.type_identifier_list,
+      '>'
+    ),
+
+    type_identifier_list: $ => seq(
+      $.type_identifier,
+      repeat(seq(',', $.type_identifier)),
+      optional(',')
+    ),
+
+    type_identifier: $ => $._bareword,
+
+    where_clause: $ => seq(
+      'where',
+      $.type_constraint_list
+    ),
+
+    type_constraint_list: $ => seq(
+      $.type_constraint,
+      repeat(seq(',', $.type_constraint)),
+      optional(',')
+    ),
+
+    type_constraint: $ => seq(
+      $.type_identifier,
+      ':',
+      $.type_expression
     ),
 
 
