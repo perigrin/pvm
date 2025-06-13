@@ -228,7 +228,6 @@ sub coroutine {
 ```
 
 ## Event Loop
-<!-- expected_error: ParseError - given/when not implemented -->
 
 Event loop with various event types and validation
 
@@ -784,7 +783,6 @@ if ($value ~~ @valid_values) {
 ```
 
 ## State Machine Loop
-<!-- expected_error: ParseError - given/when not implemented -->
 
 State machine implementation with loop and switch
 
@@ -858,7 +856,6 @@ unless ($negative_condition) {
 ```
 
 ## When Break
-<!-- expected_error: ParseError - given/when not implemented -->
 
 When clause with break statement
 
@@ -874,7 +871,6 @@ given ($status) {
 ```
 
 ## When Continue
-<!-- expected_error: ParseError - given/when not implemented -->
 
 When clause with continue statement
 
