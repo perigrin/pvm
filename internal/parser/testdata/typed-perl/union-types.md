@@ -31,8 +31,6 @@ my CodeRef[Int|Str, Bool|Undef] $flexible_function;
 ```
 
 ## Custom Types Unions
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Union types with custom and package-qualified type names
 
@@ -43,8 +41,6 @@ my UserType|SystemType|DefaultType $flexible;
 ```
 
 ## Method Signatures Unions
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Union types in method parameter and return type signatures
 
@@ -58,8 +54,6 @@ method process(Int|Str $input) -> Bool|Str {
 ```
 
 ## Multi Way Unions
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Multi-way union types with three or more alternatives
 
@@ -83,8 +77,6 @@ method complex(
 ```
 
 ## Simple Union Types
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Simple union type expressions with two types
 

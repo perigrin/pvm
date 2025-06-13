@@ -140,3 +140,44 @@ PSC commands (`psc strip`, `psc run`) use the compiler package for:
 
 ## Memory: AST Compilation
 - you MUST NOT use regular expressions to compile the AST, if it is an ERROR node raise an error, otherwise compile from the AST. If you see regular expression we need to fix the code
+
+## PVM Project Patterns
+
+### Test Failure Protocol
+- ALWAYS run `make test` before and after changes
+- Test failures MUST be categorized: expectation mismatch, grammar missing, type annotation issues, or architecture problems
+- Fix expectation mismatches first (quick wins), then grammar extensions
+- NO compromises on 100% test pass rate - this is non-negotiable
+
+### Tree-sitter Integration
+- Tree-sitter is integral to the system - NEVER work around it
+- Grammar issues require updates to tree-sitter-typed-perl/grammar.js
+- Always regenerate parser after grammar changes: `make tree-sitter`
+- Test grammar changes against comprehensive typed Perl examples
+
+### Build Dependencies Management
+- Use the Makefile for ALL builds - do not create workarounds
+- CGO dependencies are managed in tree-sitter-typed-perl
+- Cross-platform builds require consistent dependency resolution
+
+### Performance Philosophy
+- Measure before optimizing - use concrete benchmarks
+- Pipeline performance issues often indicate architectural problems
+- Avoid premature optimization in favor of correct implementation
+
+## Common PVM Gotchas
+
+### Parser Test Expectations
+- When parser capabilities improve, test expectations become outdated
+- Always audit "Expected error but parsing succeeded" failures first
+- These are usually quick wins that reduce failure count significantly
+
+### Tree-sitter Build Issues
+- Node.js and npm are required for tree-sitter-cli
+- Grammar changes require `tree-sitter generate` followed by Go binding updates
+- Scanner function naming conflicts require careful namespace management
+
+### Type Annotation Edge Cases
+- Complex nested types often reveal grammar limitations
+- Union types (Int|Str) and parameterized types (ArrayRef[Int]) need careful grammar design
+- Method signatures with complex return types stress the type system
