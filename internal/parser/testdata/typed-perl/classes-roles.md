@@ -361,8 +361,6 @@ class Resource {
 ```
 
 ## Generic Class Declarations
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Generic class with type parameters and constraints
 
