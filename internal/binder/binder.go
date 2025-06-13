@@ -80,6 +80,9 @@ func (b *DefaultBinder) visitNode(node ast.Node) error {
 		return b.bindReturnStatement(n)
 	case ast.ExpressionNode:
 		return b.bindExpression(n)
+	case *ast.TypeExpression:
+		// Type expressions don't create symbols, they're just references
+		return nil
 	default:
 		// For other node types, recursively visit children
 		return b.visitChildren(node)

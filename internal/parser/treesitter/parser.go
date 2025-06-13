@@ -1484,9 +1484,35 @@ func (p *Parser) parseVariableDeclaration(node Node, start, end ast.Position) as
 
 // parseTypedVariableDeclaration parses a typed variable declaration statement
 func (p *Parser) parseTypedVariableDeclaration(node Node, start, end ast.Position) ast.StatementNode {
-	// For typed variables, we'll create a regular variable declaration for now
-	// The type information will be stripped by the compiler
-	return p.parseVariableDeclaration(node, start, end)
+	var declType string
+	var typeExpr *ast.TypeExpression
+	var variables []*ast.VariableExpr
+
+	// Process children to extract declaration type, type expression, and variables
+	for _, child := range node.Children() {
+		switch child.Type() {
+		case "my", "our", "state", "local":
+			declType = child.Text()
+		case "type_expression":
+			typeExpr = p.extractTypeExpression(child)
+		case "scalar", "array", "hash":
+			varName := p.extractVariableName(child)
+			if varName != "" {
+				sigil := child.Text()[:1] // Extract sigil ($, @, %)
+				varExpr := ast.NewVariableExpr(varName, sigil,
+					ast.Position{Line: child.Start().Line, Column: child.Start().Column},
+					ast.Position{Line: child.End().Line, Column: child.End().Column})
+				variables = append(variables, varExpr)
+			}
+		}
+	}
+
+	// If no variables found, return nil
+	if len(variables) == 0 {
+		return nil
+	}
+
+	return ast.NewVarDecl(declType, variables, typeExpr, nil, start, end)
 }
 
 // parseReturnStatement parses a return statement
