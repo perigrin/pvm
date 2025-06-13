@@ -219,6 +219,8 @@ class User {
 ```
 
 ## Basic Role Declarations
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Basic role declarations with required and provided methods
 
@@ -274,6 +276,8 @@ class Document : BaseDocument does Serializable, Cacheable {
 ```
 
 ## Complex Inheritance Constraints
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Complex inheritance with multiple type constraints and method constraints
 
@@ -357,6 +361,8 @@ class Resource {
 ```
 
 ## Generic Class Declarations
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Generic class with type parameters and constraints
 
@@ -413,6 +419,8 @@ role EventHandler<T> where T: Event {
 ```
 
 ## Role Composition Conflicts
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Role composition with method conflicts and resolution
 
