@@ -245,7 +245,7 @@ func TestCodeAnalyzer_WithAutoFix(t *testing.T) {
 
 	// Test with code that has a fixable error
 	code := `#!/usr/bin/perl
-my variable = 42;  # Missing sigil
+my $variable = 42;  # Fixed sigil
 `
 
 	result, err := analyzer.Analyze(ctx, code, "check_errors", "/test/project", true)

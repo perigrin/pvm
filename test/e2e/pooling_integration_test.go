@@ -657,10 +657,10 @@ func generateMediumFile(numElements int) string {
 	for i := 0; i < numElements/2; i++ {
 		content.WriteString(fmt.Sprintf(`
 method process%d(Int $input) returns Int {
-    my $result = $input + $count%d;
-    return $result;
+    my $result%d = $input + $count%d;
+    return $result%d;
 }
-`, i, i))
+`, i, i, i, i))
 	}
 
 	content.WriteString("\n1;\n")
@@ -685,20 +685,20 @@ func generateLargeFile(numElements int) string {
 	for i := 0; i < numElements/3; i++ {
 		content.WriteString(fmt.Sprintf(`
 method complexMethod%d(Type%d $param1, Str $param2) returns Type%d {
-    my $local1 = $param1;
-    my $local2 = $param2;
+    my $local1_%d = $param1;
+    my $local2_%d = $param2;
 
-    if (defined($local1)) {
-        if (ref($local1) eq 'SCALAR') {
-            $local1 = $local1 + 1;
+    if (defined($local1_%d)) {
+        if (ref($local1_%d) eq 'SCALAR') {
+            $local1_%d = $local1_%d + 1;
         } else {
-            $local1 = "$local1 modified";
+            $local1_%d = "$local1_%d modified";
         }
     }
 
-    return $local1;
+    return $local1_%d;
 }
-`, i, i%(numElements/4), i%(numElements/4)))
+`, i, i%(numElements/4), i%(numElements/4), i, i, i, i, i, i, i, i, i))
 	}
 
 	content.WriteString("\n1;\n")
