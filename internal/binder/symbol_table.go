@@ -90,7 +90,7 @@ func (st *SymbolTable) EnterScope(kind ScopeKind, node ast.Node) *Scope {
 		if st.CurrentScope != nil {
 			parentID = st.CurrentScope.ScopeID
 		}
-		log.Printf("[DEBUG] EnterScope: Created %s scope ID=%d (parent ID=%d)", 
+		log.Printf("[DEBUG] EnterScope: Created %s scope ID=%d (parent ID=%d)",
 			kind.String(), currentScopeID, parentID)
 	}
 
@@ -110,7 +110,7 @@ func (st *SymbolTable) ExitScope() *Scope {
 	if st.CurrentScope != nil && st.CurrentScope.Parent != nil {
 		// Debug logging
 		if DebugScoping {
-			log.Printf("[DEBUG] ExitScope: Leaving %s scope ID=%d, returning to parent ID=%d", 
+			log.Printf("[DEBUG] ExitScope: Leaving %s scope ID=%d, returning to parent ID=%d",
 				st.CurrentScope.Kind.String(), st.CurrentScope.ScopeID, st.CurrentScope.Parent.ScopeID)
 		}
 		st.CurrentScope = st.CurrentScope.Parent
@@ -136,7 +136,7 @@ func (st *SymbolTable) AddSymbol(symbol *Symbol) error {
 
 	// Debug logging
 	if DebugScoping {
-		log.Printf("[DEBUG] AddSymbol: Adding %s '%s' to %s scope ID=%d", 
+		log.Printf("[DEBUG] AddSymbol: Adding %s '%s' to %s scope ID=%d",
 			symbol.Kind.String(), symbol.Name, st.CurrentScope.Kind.String(), st.CurrentScope.ScopeID)
 	}
 
@@ -144,10 +144,10 @@ func (st *SymbolTable) AddSymbol(symbol *Symbol) error {
 	if existing, exists := st.CurrentScope.Symbols[symbol.Name]; exists {
 		// Debug logging for conflict
 		if DebugScoping {
-			log.Printf("[DEBUG] AddSymbol: CONFLICT! Symbol '%s' already exists in %s scope ID=%d", 
+			log.Printf("[DEBUG] AddSymbol: CONFLICT! Symbol '%s' already exists in %s scope ID=%d",
 				symbol.Name, st.CurrentScope.Kind.String(), st.CurrentScope.ScopeID)
 		}
-		
+
 		// Allow redeclaration in some cases (like our variables)
 		if !st.canRedeclare(existing, symbol) {
 			return NewBindingError(
@@ -363,4 +363,3 @@ func (flags SymbolFlags) String() string {
 
 	return strings.Join(parts, "|")
 }
-

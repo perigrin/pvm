@@ -21,8 +21,6 @@ tags:
 ---
 
 # All Features Combined
-<!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
 
 Complex combination of all type features: unions, intersections, negations, parameterized types, and assertions
 

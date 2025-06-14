@@ -50,7 +50,7 @@ method process1() {
 	// Create binder and bind
 	binder := NewBinder()
 	symbolTable, err := binder.BindAST(astTree)
-	
+
 	if err != nil {
 		t.Logf("=== BINDING ERROR OCCURRED ===")
 		t.Logf("Error: %v", err)
@@ -64,16 +64,16 @@ method process1() {
 	if symbolTable != nil {
 		t.Logf("=== SCOPE HIERARCHY ANALYSIS ===")
 		logScopeStructure(t, symbolTable.GlobalScope, 0)
-		
+
 		// Analyze the symbol table structure
 		t.Logf("=== SYMBOL TABLE ANALYSIS ===")
 		t.Logf("Total symbols: %d", len(symbolTable.Symbols))
-		
+
 		for name, symbols := range symbolTable.Symbols {
 			t.Logf("Symbol '%s': %d instances", name, len(symbols))
 			for i, symbol := range symbols {
-				t.Logf("  [%d] %s %s in %s scope ID=%d", 
-					i, symbol.Kind.String(), symbol.Name, 
+				t.Logf("  [%d] %s %s in %s scope ID=%d",
+					i, symbol.Kind.String(), symbol.Name,
 					symbol.Scope.Kind.String(), symbol.Scope.ScopeID)
 			}
 		}
@@ -92,7 +92,7 @@ func logASTStructure(t *testing.T, node interface{}, depth int) {
 
 	t.Logf("%sNode: %T", indent, node)
 
-	// Log method-specific information  
+	// Log method-specific information
 	switch n := node.(type) {
 	case *ast.MethodDecl:
 		t.Logf("%s  Method Name: %s", indent, n.Name)
@@ -122,9 +122,9 @@ func logScopeStructure(t *testing.T, scope *Scope, depth int) {
 		indent += "  "
 	}
 
-	t.Logf("%sScope ID=%d Kind=%s Symbols=%d", 
+	t.Logf("%sScope ID=%d Kind=%s Symbols=%d",
 		indent, scope.ScopeID, scope.Kind.String(), len(scope.Symbols))
-	
+
 	for name, symbol := range scope.Symbols {
 		t.Logf("%s  Symbol: %s %s", indent, symbol.Kind.String(), name)
 	}

@@ -322,7 +322,7 @@ func (st *SymbolTable) ExitScopeAdvanced() *Scope {
 			if st.CurrentScope.Parent != nil {
 				parentID = st.CurrentScope.Parent.ScopeID
 			}
-			log.Printf("[DEBUG] ExitScopeAdvanced: Leaving %s scope ID=%d, returning to parent ID=%d", 
+			log.Printf("[DEBUG] ExitScopeAdvanced: Leaving %s scope ID=%d, returning to parent ID=%d",
 				st.CurrentScope.Kind.String(), st.CurrentScope.ScopeID, parentID)
 		}
 

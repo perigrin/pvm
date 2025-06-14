@@ -89,9 +89,7 @@ my $typed = $value as Int;`,
 			input: `for my Int $i (@numbers) {
     print $i;
 }`,
-			expected: `for my $i (@numbers) {
-    print $i;
-}`,
+			expected: `for my $i (@numbers) { print $i; }`,
 		},
 		{
 			name: "multiline_signature",

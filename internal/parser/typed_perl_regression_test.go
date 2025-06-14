@@ -90,7 +90,8 @@ sub transform(Maybe[Str] $input) -> Union[Str, Undef] {
 				walkASTForSubDecl(ast.Root, func(node Node) bool {
 					if node.Type() == "sub_decl" ||
 						node.Type() == "subroutine_declaration_statement" ||
-						node.Type() == "method_declaration_statement" {
+						node.Type() == "method_declaration_statement" ||
+						node.Type() == "method_decl" {
 						subDeclNodes = append(subDeclNodes, node)
 					}
 					return true
