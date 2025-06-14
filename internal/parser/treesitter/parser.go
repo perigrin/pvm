@@ -759,6 +759,11 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 		return p.convertToSubDeclAST(node, start, end)
 	}
 
+	// Handle method declarations specifically
+	if nodeType == "method_declaration_statement" {
+		return p.extractMethodDecl(node)
+	}
+
 	// Handle class declarations specifically
 	if nodeType == "class_statement" {
 		return p.convertToClassDeclAST(node, start, end)
@@ -767,6 +772,11 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 	// Handle role declarations specifically
 	if nodeType == "role_statement" {
 		return p.convertToRoleDeclAST(node, start, end)
+	}
+
+	// Handle block statements specifically
+	if nodeType == "block" {
+		return p.parseBlock(node, start, end)
 	}
 
 	// Handle higher-level constructs that need semantic processing

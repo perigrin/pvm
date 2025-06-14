@@ -5,10 +5,17 @@ package binder
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
 )
+
+// Debug flag for scope tracking
+var DebugScoping = false
+
+// Global scope counter for unique IDs
+var scopeCounter int
 
 // NewSymbolTable creates a new symbol table with global scope
 func NewSymbolTable() *SymbolTable {
@@ -39,6 +46,10 @@ func NewSymbolTableWithPool(poolManager *SymbolPoolManager, packageName string) 
 
 // EnterScope creates and enters a new scope
 func (st *SymbolTable) EnterScope(kind ScopeKind, node ast.Node) *Scope {
+	// Assign unique scope ID
+	scopeCounter++
+	currentScopeID := scopeCounter
+
 	// Use pool manager to create scope if available
 	var scope *Scope
 	if st.PoolManager != nil {
@@ -47,6 +58,7 @@ func (st *SymbolTable) EnterScope(kind ScopeKind, node ast.Node) *Scope {
 			pos = node.Start()
 		}
 		scope = st.PoolManager.NewScope(kind, st.CurrentScope, node, pos)
+		scope.ScopeID = currentScopeID
 	} else {
 		// Fallback to direct allocation
 		scope = &Scope{
@@ -55,6 +67,7 @@ func (st *SymbolTable) EnterScope(kind ScopeKind, node ast.Node) *Scope {
 			Children: []*Scope{},
 			Symbols:  make(map[string]*Symbol),
 			Node:     node,
+			ScopeID:  currentScopeID,
 
 			// Initialize advanced fields
 			LocalSymbols:    make(map[string]*Symbol),
@@ -71,6 +84,16 @@ func (st *SymbolTable) EnterScope(kind ScopeKind, node ast.Node) *Scope {
 
 	scope.Package = st.Package
 
+	// Debug logging
+	if DebugScoping {
+		parentID := -1
+		if st.CurrentScope != nil {
+			parentID = st.CurrentScope.ScopeID
+		}
+		log.Printf("[DEBUG] EnterScope: Created %s scope ID=%d (parent ID=%d)", 
+			kind.String(), currentScopeID, parentID)
+	}
+
 	// Map AST node to scope
 	if node != nil {
 		st.Scopes[node] = scope
@@ -85,6 +108,11 @@ func (st *SymbolTable) EnterScope(kind ScopeKind, node ast.Node) *Scope {
 // ExitScope returns to parent scope
 func (st *SymbolTable) ExitScope() *Scope {
 	if st.CurrentScope != nil && st.CurrentScope.Parent != nil {
+		// Debug logging
+		if DebugScoping {
+			log.Printf("[DEBUG] ExitScope: Leaving %s scope ID=%d, returning to parent ID=%d", 
+				st.CurrentScope.Kind.String(), st.CurrentScope.ScopeID, st.CurrentScope.Parent.ScopeID)
+		}
 		st.CurrentScope = st.CurrentScope.Parent
 	}
 	return st.CurrentScope
@@ -106,8 +134,20 @@ func (st *SymbolTable) AddSymbol(symbol *Symbol) error {
 		return NewBindingError("no current scope for symbol", symbol.Name, symbol.Kind.String(), symbol.Position)
 	}
 
+	// Debug logging
+	if DebugScoping {
+		log.Printf("[DEBUG] AddSymbol: Adding %s '%s' to %s scope ID=%d", 
+			symbol.Kind.String(), symbol.Name, st.CurrentScope.Kind.String(), st.CurrentScope.ScopeID)
+	}
+
 	// Check for redeclaration in same scope
 	if existing, exists := st.CurrentScope.Symbols[symbol.Name]; exists {
+		// Debug logging for conflict
+		if DebugScoping {
+			log.Printf("[DEBUG] AddSymbol: CONFLICT! Symbol '%s' already exists in %s scope ID=%d", 
+				symbol.Name, st.CurrentScope.Kind.String(), st.CurrentScope.ScopeID)
+		}
+		
 		// Allow redeclaration in some cases (like our variables)
 		if !st.canRedeclare(existing, symbol) {
 			return NewBindingError(
@@ -168,7 +208,7 @@ func (st *SymbolTable) AddSymbolToPackageScope(symbol *Symbol) error {
 func (st *SymbolTable) canRedeclare(existing, new *Symbol) bool {
 	// Special handling for functions and methods - don't allow redeclaration if both are package symbols
 	if (existing.Kind == SymbolSubroutine || existing.Kind == SymbolMethod) &&
-	   (new.Kind == SymbolSubroutine || new.Kind == SymbolMethod) {
+		(new.Kind == SymbolSubroutine || new.Kind == SymbolMethod) {
 		if existing.Flags&SymbolFlagPackage != 0 && new.Flags&SymbolFlagPackage != 0 {
 			// Package functions/methods cannot be redeclared
 			return false
@@ -324,21 +364,3 @@ func (flags SymbolFlags) String() string {
 	return strings.Join(parts, "|")
 }
 
-func (kind ScopeKind) String() string {
-	switch kind {
-	case ScopeGlobal:
-		return "global"
-	case ScopePackage:
-		return "package"
-	case ScopeSubroutine:
-		return "subroutine"
-	case ScopeMethod:
-		return "method"
-	case ScopeBlock:
-		return "block"
-	case ScopeEval:
-		return "eval"
-	default:
-		return "unknown"
-	}
-}

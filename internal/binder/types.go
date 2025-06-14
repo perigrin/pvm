@@ -97,9 +97,35 @@ const (
 	ScopePackage                     // Package scope
 	ScopeSubroutine                  // Subroutine scope
 	ScopeMethod                      // Method scope
+	ScopeClass                       // Class scope
+	ScopeRole                        // Role scope
 	ScopeBlock                       // Block scope (if/while/for/etc)
 	ScopeEval                        // eval scope
 )
+
+// String returns the string representation of ScopeKind
+func (sk ScopeKind) String() string {
+	switch sk {
+	case ScopeGlobal:
+		return "Global"
+	case ScopePackage:
+		return "Package"
+	case ScopeSubroutine:
+		return "Subroutine"
+	case ScopeMethod:
+		return "Method"
+	case ScopeClass:
+		return "Class"
+	case ScopeRole:
+		return "Role"
+	case ScopeBlock:
+		return "Block"
+	case ScopeEval:
+		return "Eval"
+	default:
+		return "Unknown"
+	}
+}
 
 // Scope represents a lexical scope with symbol resolution
 type Scope struct {
@@ -110,6 +136,7 @@ type Scope struct {
 	Package  string             // Current package name
 	Node     ast.Node           // AST node that created this scope
 	Position ast.Position       // Source position of scope start
+	ScopeID  int                // Unique scope identifier for debugging
 
 	// Advanced scoping fields
 	LocalSymbols    map[string]*Symbol // Local dynamic symbols (restored on scope exit)

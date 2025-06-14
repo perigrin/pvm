@@ -509,12 +509,12 @@ func NewBlockStmt(statements []StatementNode, start, end Position) *BlockStmt {
 // AddChild handles adding to both collections appropriately
 func (bs *BlockStmt) AddChild(child Node) {
 	bs.children = append(bs.children, child)
-	
+
 	// If it's a statement, also cache it
 	if stmt, ok := child.(StatementNode); ok {
 		bs.statements = append(bs.statements, stmt)
 	}
-	
+
 	// Also add to BaseNode for backward compatibility
 	bs.BaseNode.AddChild(child)
 }

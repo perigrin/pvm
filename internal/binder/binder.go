@@ -4,6 +4,7 @@
 package binder
 
 import (
+	"log"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
@@ -55,6 +56,11 @@ func (b *DefaultBinder) BindAST(astTree *ast.AST) (*SymbolTable, error) {
 func (b *DefaultBinder) visitNode(node ast.Node) error {
 	if node == nil {
 		return nil
+	}
+
+	// Debug logging
+	if DebugScoping {
+		log.Printf("[DEBUG] visitNode: Visiting %T", node)
 	}
 
 	switch n := node.(type) {
@@ -145,7 +151,7 @@ func (b *DefaultBinder) bindSubroutineDeclaration(node *ast.SubDecl) error {
 	} else {
 		flags |= SymbolFlagPackage
 	}
-	
+
 	symbol := b.poolManager.NewSymbol(
 		node.Name,
 		SymbolSubroutine,
@@ -200,6 +206,11 @@ func (b *DefaultBinder) bindSubroutineDeclaration(node *ast.SubDecl) error {
 
 // bindMethodDeclaration handles method declarations
 func (b *DefaultBinder) bindMethodDeclaration(node *ast.MethodDecl) error {
+	// Debug logging
+	if DebugScoping {
+		log.Printf("[DEBUG] bindMethodDeclaration: Starting method '%s'", node.Name)
+	}
+
 	// Create symbol for the method using pool manager
 	// Set appropriate flags based on lexical scoping
 	flags := SymbolFlagMethod
@@ -208,7 +219,7 @@ func (b *DefaultBinder) bindMethodDeclaration(node *ast.MethodDecl) error {
 	} else {
 		flags |= SymbolFlagPackage
 	}
-	
+
 	symbol := b.poolManager.NewSymbol(
 		node.Name,
 		SymbolMethod,
@@ -239,6 +250,9 @@ func (b *DefaultBinder) bindMethodDeclaration(node *ast.MethodDecl) error {
 	}
 
 	// Enter method scope
+	if DebugScoping {
+		log.Printf("[DEBUG] bindMethodDeclaration: Entering method scope for '%s'", node.Name)
+	}
 	b.symbolTable.EnterScope(ScopeMethod, node)
 
 	// Bind parameters (including implicit $self)
@@ -250,8 +264,15 @@ func (b *DefaultBinder) bindMethodDeclaration(node *ast.MethodDecl) error {
 
 	// Bind body
 	if node.Body != nil {
+		if DebugScoping {
+			log.Printf("[DEBUG] bindMethodDeclaration: About to bind method body for '%s'", node.Name)
+		}
 		if err := b.visitNode(node.Body); err != nil {
 			return err
+		}
+	} else {
+		if DebugScoping {
+			log.Printf("[DEBUG] bindMethodDeclaration: Method '%s' has no body", node.Name)
 		}
 	}
 

@@ -4,6 +4,7 @@
 package binder
 
 import (
+	"log"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
@@ -315,6 +316,16 @@ func (ab *AdvancedBinder) ProcessPackageQualifiedAccess(qualifiedName string, ki
 // Enhanced ExitScope that handles local variable restoration
 func (st *SymbolTable) ExitScopeAdvanced() *Scope {
 	if st.CurrentScope != nil {
+		// Debug logging
+		if DebugScoping {
+			parentID := -1
+			if st.CurrentScope.Parent != nil {
+				parentID = st.CurrentScope.Parent.ScopeID
+			}
+			log.Printf("[DEBUG] ExitScopeAdvanced: Leaving %s scope ID=%d, returning to parent ID=%d", 
+				st.CurrentScope.Kind.String(), st.CurrentScope.ScopeID, parentID)
+		}
+
 		// Restore local symbols before exiting
 		st.RestoreLocalSymbols(st.CurrentScope)
 

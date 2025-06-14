@@ -8,10 +8,10 @@ import (
 )
 
 func TestLexicalFunctionScoping(t *testing.T) {
-	// Create pool manager and symbol table  
+	// Create pool manager and symbol table
 	poolManager := NewSymbolPoolManager(SymbolPoolHooks{})
 	symbolTable := NewSymbolTableWithPool(poolManager, "TestPackage")
-	
+
 	// Create binder
 	binder := NewBinderWithPool(poolManager)
 	binder.symbolTable = symbolTable

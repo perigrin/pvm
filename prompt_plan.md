@@ -176,11 +176,11 @@ Please create comprehensive tests:
    ```
 2. Nested method calls:
    ```perl
-   method outer() { 
+   method outer() {
        my $local = 1;
-       inner(); 
+       inner();
    }
-   method inner() { 
+   method inner() {
        my $local = 2;  # Should NOT conflict
    }
    ```
@@ -245,17 +245,27 @@ Please verify and fix:
 Test all scope combinations and fix any similar bugs.
 ```
 
-### Step 7: Implement My-Scoped Function/Method Support
+### Step 7: Implement My-Scoped Function/Method Support ✅ **COMPLETED**
 
 ```text
-I need to implement proper support for Perl's lexically scoped functions and methods.
+✅ COMPLETED: Lexical function/method scoping has been successfully implemented.
+
+Implementation Summary:
+- Added IsLexical field to SubDecl and MethodDecl AST structures
+- Added NewLexicalSubDecl() and NewLexicalMethodDecl() constructors
+- Updated binder logic to distinguish lexical vs package functions
+- Added SymbolFlagLexical and SymbolFlagPackage flags
+- Lexical functions added to current scope, package functions to global scope
+- Added AddSymbolToPackageScope() method for package symbol management
+- Updated canRedeclare() logic to prevent package function redeclaration
+- Added comprehensive TestLexicalFunctionScoping test suite
 
 Context:
 - Perl allows `my sub func {}` and `my method meth {}` declarations
 - These are scoped to the enclosing lexical block, not package
-- Current binder may not handle these correctly
+- Current binder now handles these correctly
 
-Please implement:
+Implementation completed:
 1. Detect lexical function/method declarations:
    - `my sub name { }` - lexically scoped subroutine
    - `my method name { }` - lexically scoped method
@@ -488,7 +498,7 @@ Please:
    ```
 3. Add comprehensive scoping test corpus:
    - Method isolation tests
-   - Block scoping tests  
+   - Block scoping tests
    - Package vs lexical tests
    - Nested scope tests
 4. Update test framework to use static files for correctness
@@ -574,7 +584,7 @@ Ensure the fix is properly documented and maintainable.
 ## Success Criteria
 
 1. **Method scope isolation**: Each method gets independent scope without conflicts
-2. **Proper Perl scoping**: Complete support for my/our/package/block/class scopes  
+2. **Proper Perl scoping**: Complete support for my/our/package/block/class scopes
 3. **Correct conflict detection**: Only flag actual redeclarations within same scope
 4. **100% test pass rate**: All existing tests pass, improved overall pass rate
 5. **Static test corpus**: Comprehensive scoping tests using markdown files
