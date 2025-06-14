@@ -1,13 +1,13 @@
 {
   "total_tests": 175,
-  "passed_tests": 174,
-  "failed_tests": 1,
+  "passed_tests": 175,
+  "failed_tests": 0,
   "category_metrics": {
     "untyped-perl": {
       "total": 175,
-      "passed": 174,
-      "failed": 1,
-      "accuracy": 99.42857142857143
+      "passed": 175,
+      "failed": 0,
+      "accuracy": 100
     }
   },
   "feature_metrics": {
@@ -25,15 +25,15 @@
     },
     "anonymous": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "arguments": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "arithmetic": {
       "total": 94,
@@ -55,9 +55,9 @@
     },
     "arrow_notation": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "assignment": {
       "total": 152,
@@ -67,9 +67,9 @@
     },
     "attributes": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "bare_block": {
       "total": 58,
@@ -85,9 +85,9 @@
     },
     "basic": {
       "total": 102,
-      "passed": 101,
-      "failed": 1,
-      "accuracy": 99.01960784313727
+      "passed": 102,
+      "failed": 0,
+      "accuracy": 100
     },
     "binary_operator": {
       "total": 94,
@@ -133,9 +133,9 @@
     },
     "calls": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "chain": {
       "total": 58,
@@ -163,9 +163,9 @@
     },
     "code_references": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "comma": {
       "total": 94,
@@ -187,9 +187,9 @@
     },
     "complex": {
       "total": 169,
-      "passed": 168,
-      "failed": 1,
-      "accuracy": 99.40828402366864
+      "passed": 169,
+      "failed": 0,
+      "accuracy": 100
     },
     "complex_expression": {
       "total": 58,
@@ -271,9 +271,9 @@
     },
     "definitions": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "depth": {
       "total": 58,
@@ -283,9 +283,9 @@
     },
     "dereferencing": {
       "total": 102,
-      "passed": 101,
-      "failed": 1,
-      "accuracy": 99.01960784313727
+      "passed": 102,
+      "failed": 0,
+      "accuracy": 100
     },
     "dispatch": {
       "total": 58,
@@ -331,9 +331,9 @@
     },
     "edge_cases": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "else": {
       "total": 58,
@@ -691,9 +691,9 @@
     },
     "methods": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "minus": {
       "total": 94,
@@ -787,9 +787,9 @@
     },
     "objects": {
       "total": 102,
-      "passed": 101,
-      "failed": 1,
-      "accuracy": 99.01960784313727
+      "passed": 102,
+      "failed": 0,
+      "accuracy": 100
     },
     "optional": {
       "total": 58,
@@ -913,9 +913,9 @@
     },
     "prototypes": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "qualification": {
       "total": 9,
@@ -955,9 +955,9 @@
     },
     "references": {
       "total": 102,
-      "passed": 101,
-      "failed": 1,
-      "accuracy": 99.01960784313727
+      "passed": 102,
+      "failed": 0,
+      "accuracy": 100
     },
     "regex": {
       "total": 152,
@@ -1117,9 +1117,9 @@
     },
     "subroutines": {
       "total": 8,
-      "passed": 7,
-      "failed": 1,
-      "accuracy": 87.5
+      "passed": 8,
+      "failed": 0,
+      "accuracy": 100
     },
     "subtraction": {
       "total": 94,
