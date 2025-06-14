@@ -61,8 +61,6 @@ sub Package::qualified_sub {
 ```
 
 ## Forward Declarations
-<!-- should_error: true -->
-<!-- expected_error: parse error -->
 
 Test forward declarations without bodies
 
