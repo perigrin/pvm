@@ -4,39 +4,12 @@
 package parser
 
 import (
-	"path/filepath"
 	"testing"
 )
 
 func TestUntypedVariableDeclarations(t *testing.T) {
-	testDataDir := filepath.Join("testdata", "untyped-perl", "variables")
-	framework := NewParserTestFramework(testDataDir)
-
-	// Set up parser
-	parser, err := NewParser()
-	if err != nil {
-		t.Fatalf("Failed to create parser: %v", err)
-	}
-	framework.Parser = parser
-
-	// Run tests by category
-	metrics := framework.RunTestsByCategory(t, UntypedPerl)
-
-	// Print summary
-	framework.PrintMetricsSummary(t, metrics)
-
-	// Save metrics report
-	reportPath := filepath.Join("testdata", "reports", "variable_declarations_metrics.json")
-	err = framework.SaveMetricsReport(metrics, reportPath)
-	if err != nil {
-		t.Logf("Warning: Failed to save metrics report: %v", err)
-	}
-
-	// Validate minimum accuracy
-	overallAccuracy := float64(metrics.PassedTests) / float64(metrics.TotalTests) * 100
-	if overallAccuracy < 90.0 {
-		t.Errorf("Variable declaration parsing accuracy too low: %.1f%% (expected > 90%%)", overallAccuracy)
-	}
+	// This test now covered by markdown tests
+	t.Skip("Untyped variable declarations now tested via TestRunMarkdownTestsByCategory - JSON files removed")
 }
 
 func TestScalarDeclarations(t *testing.T) {

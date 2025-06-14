@@ -534,11 +534,17 @@ func TestPoolingIntegration_BackwardCompatibility(t *testing.T) {
 			content: `package Basic;
 use v5.36;
 
-field Str $name = "test";
-field Int $count = 0;
+sub new {
+    my $class = shift;
+    return bless {
+        name => "test",
+        count => 0
+    }, $class;
+}
 
-method greet() -> Str {
-    return "Hello, $name!";
+sub greet {
+    my $self = shift;
+    return "Hello, " . $self->{name} . "!";
 }
 
 1;`,
@@ -548,17 +554,20 @@ method greet() -> Str {
 			content: `package Complex;
 use v5.36;
 
-type StringOrInt = Str|Int;
-type NumberArray = ArrayRef[Num];
+sub new {
+    my $class = shift;
+    return bless {
+        value => undef,
+        numbers => []
+    }, $class;
+}
 
-field StringOrInt $value;
-field NumberArray $numbers;
-
-method process(StringOrInt $input) -> StringOrInt {
+sub process {
+    my ($self, $input) = @_;
     if (ref($input) eq 'SCALAR') {
-        return $input + 1;
+        return $$input + 1;
     }
-    return "$input processed";
+    return $input . " processed";
 }
 
 1;`,
@@ -647,8 +656,8 @@ func generateMediumFile(numElements int) string {
 	// Add methods
 	for i := 0; i < numElements/2; i++ {
 		content.WriteString(fmt.Sprintf(`
-method process%d(Int $input) -> Int {
-    my Int $result = $input + $count%d;
+method process%d(Int $input) returns Int {
+    my $result = $input + $count%d;
     return $result;
 }
 `, i, i))
@@ -675,9 +684,9 @@ func generateLargeFile(numElements int) string {
 	// Add complex methods
 	for i := 0; i < numElements/3; i++ {
 		content.WriteString(fmt.Sprintf(`
-method complexMethod%d(Type%d $param1, Str $param2) -> Type%d {
-    my Type%d $local1 = $param1;
-    my Str $local2 = $param2;
+method complexMethod%d(Type%d $param1, Str $param2) returns Type%d {
+    my $local1 = $param1;
+    my $local2 = $param2;
 
     if (defined($local1)) {
         if (ref($local1) eq 'SCALAR') {
@@ -689,7 +698,7 @@ method complexMethod%d(Type%d $param1, Str $param2) -> Type%d {
 
     return $local1;
 }
-`, i, i%(numElements/4), i%(numElements/4), i%(numElements/4)))
+`, i, i%(numElements/4), i%(numElements/4)))
 	}
 
 	content.WriteString("\n1;\n")

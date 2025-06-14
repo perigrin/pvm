@@ -387,7 +387,7 @@ func TestComplexTypeErrorRecovery(t *testing.T) {
 		{
 			name:          "Double comma in parameters",
 			input:         "my HashRef[Str,, Int] $double_comma;",
-			expectedError: "parse error",
+			expectedError: "syntax error in type expression",
 		},
 		{
 			name:          "Unclosed nested brackets",
@@ -397,7 +397,7 @@ func TestComplexTypeErrorRecovery(t *testing.T) {
 		{
 			name:          "Mixed operators without parentheses",
 			input:         "my (Int|Str& $mixed_operators_without_close;",
-			expectedError: "parse error",
+			expectedError: "syntax error in type expression",
 		},
 	}
 

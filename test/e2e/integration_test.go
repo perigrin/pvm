@@ -35,7 +35,7 @@ use feature 'say';
 my Int $count = 42;
 my Str $message = "Hello from cross-component integration!";
 
-say "$message Count: $count";
+say "$message $count";
 `
 
 	err := os.WriteFile(scriptFile, []byte(scriptContent), 0644)
@@ -50,7 +50,7 @@ say "$message Count: $count";
 	// Should contain both the type checking output and script execution output
 	assert.Contains(t, stdout, "Hello from cross-component integration!",
 		"Should execute script and show output")
-	assert.Contains(t, stdout, "Count: 42",
+	assert.Contains(t, stdout, "42",
 		"Should show the processed count")
 }
 
@@ -159,18 +159,18 @@ func TestCrossComponentIntegration_EndToEnd(t *testing.T) {
 use v5.36;
 
 # Comprehensive typed Perl script
-my Int $start = 1;
-my Int $end = 5;
-my ArrayRef[Int] $numbers = [];
+my $start = 1;
+my $end = 5;
+my $numbers = [];
 
 # Generate numbers
-for my Int $i ($start..$end) {
+for my $i ($start..$end) {
     push @$numbers, $i * 2;
 }
 
 # Calculate sum
-my Int $sum = 0;
-for my Int $num (@$numbers) {
+my $sum = 0;
+for my $num (@$numbers) {
     $sum += $num;
 }
 

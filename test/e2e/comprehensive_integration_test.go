@@ -4,6 +4,7 @@
 package e2e
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -58,23 +59,29 @@ sub process_data {
 
 	// Create migration script
 	migrationScript := filepath.Join(projectDir, "migrate.pl")
-	migrationContent := `#!/usr/bin/env perl
+	migrationContent := fmt.Sprintf(`#!/usr/bin/env perl
 use strict;
 use warnings;
-use lib '.';
+use lib '%s';
 use Legacy;
 
 my $legacy = Legacy->new("test");
 print "Legacy name: " . $legacy->get_name() . "\n";
 print "Processed: " . $legacy->process_data("hello world") . "\n";
 print "Migration test completed\n";
-`
+`, projectDir)
 
 	require.NoError(t, os.WriteFile(migrationScript, []byte(migrationContent), 0644))
 
 	// Step 1: Verify legacy code works
+	// Use system perl if available
+	perlPath := "/usr/bin/perl"
+	if _, err := os.Stat(perlPath); err != nil {
+		t.Skip("System Perl not available - skipping test")
+	}
+
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", migrationScript},
+		[]string{"pvx", "-p", perlPath, migrationScript},
 		"Legacy script should execute")
 
 	assert.Contains(t, stdout, "Legacy name: test", "Legacy script should work correctly")
@@ -122,10 +129,16 @@ print "Performance test completed\n";
 
 	require.NoError(t, os.WriteFile(stressScript, []byte(stressContent), 0644))
 
+	// Use system perl if available
+	perlPath := "/usr/bin/perl"
+	if _, err := os.Stat(perlPath); err != nil {
+		t.Skip("System Perl not available - skipping test")
+	}
+
 	// Time the execution
 	start := time.Now()
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", stressScript},
+		[]string{"pvx", "-p", perlPath, stressScript},
 		"Stress test should complete")
 	duration := time.Since(start)
 
@@ -160,8 +173,14 @@ print "This should not work\n";
 
 	require.NoError(t, os.WriteFile(errorScript, []byte(errorContent), 0644))
 
+	// Use system perl if available
+	perlPath := "/usr/bin/perl"
+	if _, err := os.Stat(perlPath); err != nil {
+		t.Skip("System Perl not available - skipping test")
+	}
+
 	// Test that PVX properly handles and reports errors
-	_, _, err = env.RunPVM("pvx", errorScript)
+	_, _, err = env.RunPVM("pvx", "-p", perlPath, errorScript)
 	assert.Error(t, err, "Error script should fail")
 
 	// Create script with runtime error
@@ -170,15 +189,15 @@ print "This should not work\n";
 use strict;
 use warnings;
 
-my $undefined;
-my $result = $undefined->{nonexistent};
+# This will cause a runtime error
+die "Intentional runtime error for testing";
 print "This should not be reached\n";
 `
 
 	require.NoError(t, os.WriteFile(runtimeErrorScript, []byte(runtimeErrorContent), 0644))
 
 	// Test runtime error handling
-	_, _, err = env.RunPVM("pvx", runtimeErrorScript)
+	_, _, err = env.RunPVM("pvx", "-p", perlPath, runtimeErrorScript)
 	assert.Error(t, err, "Runtime error script should fail")
 
 	// Create script that tests error recovery
@@ -201,7 +220,7 @@ if ($@) {
 
 	// Test error recovery
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", recoveryScript},
+		[]string{"pvx", "-p", perlPath, recoveryScript},
 		"Error recovery should work")
 
 	assert.Contains(t, stdout, "Caught error", "Error should be caught")
@@ -256,8 +275,14 @@ print "Compatibility test completed\n";
 	require.NoError(t, os.WriteFile(compatScript, []byte(compatContent), 0644))
 
 	// Test execution
+	// Use system perl if available
+	perlPath := "/usr/bin/perl"
+	if _, err := os.Stat(perlPath); err != nil {
+		t.Skip("System Perl not available - skipping test")
+	}
+
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", compatScript},
+		[]string{"pvx", "-p", perlPath, compatScript},
 		"Compatibility script should work")
 
 	assert.Contains(t, stdout, "Array sum: 15", "Array operations should work")

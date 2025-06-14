@@ -560,6 +560,16 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 	if resolvedVersion.Source == perl.SystemPerlSource {
 		// Use the path from the system Perl detection
 		perlExe = resolvedVersion.Path
+	} else if resolvedVersion.Source == perl.UserConfig {
+		// For user config, we need to get the actual path from registry
+		versionInfo, err := perl.GetVersionInfo(resolvedVersion.Version)
+		if err == nil && versionInfo != nil {
+			// Use the installation path from the version info
+			perlExe = filepath.Join(versionInfo.InstallPath, "bin", "perl")
+		} else {
+			// If version info isn't available, try default path structure
+			perlExe = filepath.Join("/usr/local/pvm/perls", resolvedVersion.Version, "bin", "perl")
+		}
 	} else {
 		// For installed versions, get the installation info from the registry
 		versionInfo, err := perl.GetVersionInfo(resolvedVersion.Version)
@@ -569,7 +579,7 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 		} else {
 			// If version info isn't available or there's an error, use the path from the resolver
 			// This handles cases where the resolver has direct path information
-			if resolvedVersion.Path != "" {
+			if resolvedVersion.Path != "" && resolvedVersion.Path != "user configuration" {
 				perlExe = resolvedVersion.Path
 			} else {
 				// Fallback to a default path structure as a last resort

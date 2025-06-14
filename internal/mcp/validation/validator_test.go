@@ -18,11 +18,12 @@ func TestValidator_ValidateCode(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name         string
-		code         string
-		expectValid  bool
-		expectErrors int
-		expectTypes  int
+		name             string
+		code             string
+		expectValid      bool
+		expectErrors     int
+		expectTypes      int
+		expectParseError bool
 	}{
 		{
 			name: "valid typed code",
@@ -51,9 +52,10 @@ my NonExistentType $var = 42;
 			code: `#!/usr/bin/perl
 my variable = 42;
 `,
-			expectValid:  true, // Step 3 basic parsing doesn't catch this yet
-			expectErrors: 0,
-			expectTypes:  0,
+			expectValid:      false,
+			expectErrors:     0,
+			expectTypes:      0,
+			expectParseError: true, // Parser now correctly rejects invalid Perl syntax
 		},
 		{
 			name:         "empty code",
@@ -79,8 +81,13 @@ my HashRef[Str] $config = { name => "test" };
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := validator.ValidateCode(ctx, tt.code, "/test/project")
-			require.NoError(t, err)
 
+			if tt.expectParseError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectValid, result.Valid)
 			assert.Equal(t, tt.expectErrors, len(result.Errors))
 			assert.Equal(t, tt.expectTypes, len(result.TypeInfo))
