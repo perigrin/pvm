@@ -138,10 +138,18 @@ func (b *DefaultBinder) bindVariableDeclaration(node *ast.VarDecl) error {
 // bindSubroutineDeclaration handles subroutine declarations
 func (b *DefaultBinder) bindSubroutineDeclaration(node *ast.SubDecl) error {
 	// Create symbol for the subroutine using pool manager
+	// Set appropriate flags based on lexical scoping
+	flags := SymbolFlagNone
+	if node.IsLexical {
+		flags |= SymbolFlagLexical
+	} else {
+		flags |= SymbolFlagPackage
+	}
+	
 	symbol := b.poolManager.NewSymbol(
 		node.Name,
 		SymbolSubroutine,
-		SymbolFlagNone,
+		flags,
 		node,
 		node.Start(),
 	)
@@ -152,9 +160,19 @@ func (b *DefaultBinder) bindSubroutineDeclaration(node *ast.SubDecl) error {
 		symbol.Flags |= SymbolFlagTypeAnnotated
 	}
 
-	// Add to current scope
-	if err := b.symbolTable.AddSymbol(symbol); err != nil {
-		return err
+	// Add to appropriate scope:
+	// - Lexical subroutines go in current lexical scope
+	// - Package subroutines go in package scope
+	if node.IsLexical {
+		// Add to current lexical scope (current scope)
+		if err := b.symbolTable.AddSymbol(symbol); err != nil {
+			return err
+		}
+	} else {
+		// Add to package scope for regular subroutines
+		if err := b.symbolTable.AddSymbolToPackageScope(symbol); err != nil {
+			return err
+		}
 	}
 
 	// Enter subroutine scope
@@ -183,10 +201,18 @@ func (b *DefaultBinder) bindSubroutineDeclaration(node *ast.SubDecl) error {
 // bindMethodDeclaration handles method declarations
 func (b *DefaultBinder) bindMethodDeclaration(node *ast.MethodDecl) error {
 	// Create symbol for the method using pool manager
+	// Set appropriate flags based on lexical scoping
+	flags := SymbolFlagMethod
+	if node.IsLexical {
+		flags |= SymbolFlagLexical
+	} else {
+		flags |= SymbolFlagPackage
+	}
+	
 	symbol := b.poolManager.NewSymbol(
 		node.Name,
 		SymbolMethod,
-		SymbolFlagMethod,
+		flags,
 		node,
 		node.Start(),
 	)
@@ -197,9 +223,19 @@ func (b *DefaultBinder) bindMethodDeclaration(node *ast.MethodDecl) error {
 		symbol.Flags |= SymbolFlagTypeAnnotated
 	}
 
-	// Add to current scope
-	if err := b.symbolTable.AddSymbol(symbol); err != nil {
-		return err
+	// Add to appropriate scope:
+	// - Lexical methods go in current lexical scope
+	// - Package methods go in package scope
+	if node.IsLexical {
+		// Add to current lexical scope (current scope)
+		if err := b.symbolTable.AddSymbol(symbol); err != nil {
+			return err
+		}
+	} else {
+		// Add to package scope for regular methods
+		if err := b.symbolTable.AddSymbolToPackageScope(symbol); err != nil {
+			return err
+		}
 	}
 
 	// Enter method scope

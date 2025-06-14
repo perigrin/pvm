@@ -191,6 +191,7 @@ type SubDecl struct {
 	ReturnType     *TypeExpression   // return type annotation
 	Body           *BlockStmt        // subroutine body
 	IsMethod       bool              // true if this is a method
+	IsLexical      bool              // true if declared with 'my' (my sub/my method)
 	TypeParameters []*TypeParameter  // generic type parameters
 	Constraints    []*TypeConstraint // type constraints
 	Signature      *MethodSignature  // complete method signature info
@@ -220,6 +221,7 @@ func NewSubDecl(name string, params []*Parameter, returnType *TypeExpression, bo
 		ReturnType: returnType,
 		Body:       body,
 		IsMethod:   isMethod,
+		IsLexical:  false, // default to package scope
 	}
 
 	// Add parameters using the new pattern
@@ -242,6 +244,13 @@ func NewSubDecl(name string, params []*Parameter, returnType *TypeExpression, bo
 		decl.Signature = decl.buildMethodSignature()
 	}
 
+	return decl
+}
+
+// NewLexicalSubDecl creates a new lexically scoped subroutine declaration (my sub)
+func NewLexicalSubDecl(name string, params []*Parameter, returnType *TypeExpression, body *BlockStmt, isMethod bool, start, end Position) *SubDecl {
+	decl := NewSubDecl(name, params, returnType, body, isMethod, start, end)
+	decl.IsLexical = true
 	return decl
 }
 
@@ -321,6 +330,16 @@ type MethodDecl struct {
 // NewMethodDecl creates a new method declaration
 func NewMethodDecl(name string, params []*Parameter, returnType *TypeExpression, body *BlockStmt, start, end Position) *MethodDecl {
 	subDecl := NewSubDecl(name, params, returnType, body, true, start, end)
+	subDecl.nodeType = "method_decl"
+
+	return &MethodDecl{
+		SubDecl: subDecl,
+	}
+}
+
+// NewLexicalMethodDecl creates a new lexically scoped method declaration (my method)
+func NewLexicalMethodDecl(name string, params []*Parameter, returnType *TypeExpression, body *BlockStmt, start, end Position) *MethodDecl {
+	subDecl := NewLexicalSubDecl(name, params, returnType, body, true, start, end)
 	subDecl.nodeType = "method_decl"
 
 	return &MethodDecl{

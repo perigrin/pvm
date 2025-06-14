@@ -132,8 +132,49 @@ func (st *SymbolTable) AddSymbol(symbol *Symbol) error {
 	return nil
 }
 
-// canRedeclare determines if a symbol can be redeclared
+// AddSymbolToPackageScope adds a symbol to the global/package scope
+func (st *SymbolTable) AddSymbolToPackageScope(symbol *Symbol) error {
+	if st.GlobalScope == nil {
+		return NewBindingError("no global scope available", symbol.Name, symbol.Kind.String(), symbol.Position)
+	}
+
+	// Check for redeclaration in package scope
+	if existing, exists := st.GlobalScope.Symbols[symbol.Name]; exists {
+		// Allow redeclaration in some cases (like our variables)
+		if !st.canRedeclare(existing, symbol) {
+			return NewBindingError(
+				fmt.Sprintf("symbol '%s' already declared in package scope", symbol.Name),
+				symbol.Name,
+				symbol.Kind.String(),
+				symbol.Position,
+			)
+		}
+	}
+
+	// Set symbol's scope to global scope
+	symbol.Scope = st.GlobalScope
+	symbol.Package = st.Package
+
+	// Add to global scope
+	st.GlobalScope.Symbols[symbol.Name] = symbol
+
+	// Add to global symbol index
+	st.Symbols[symbol.Name] = append(st.Symbols[symbol.Name], symbol)
+
+	return nil
+}
+
+// canRedeclare determines if a symbol can be redeclare
 func (st *SymbolTable) canRedeclare(existing, new *Symbol) bool {
+	// Special handling for functions and methods - don't allow redeclaration if both are package symbols
+	if (existing.Kind == SymbolSubroutine || existing.Kind == SymbolMethod) &&
+	   (new.Kind == SymbolSubroutine || new.Kind == SymbolMethod) {
+		if existing.Flags&SymbolFlagPackage != 0 && new.Flags&SymbolFlagPackage != 0 {
+			// Package functions/methods cannot be redeclared
+			return false
+		}
+	}
+
 	// Allow our variables to be redeclared
 	if existing.Flags&SymbolFlagPackage != 0 && new.Flags&SymbolFlagPackage != 0 {
 		return true
