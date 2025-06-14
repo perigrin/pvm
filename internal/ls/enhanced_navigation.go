@@ -1,5 +1,13 @@
-// ABOUTME: Enhanced symbol navigation features for LSP integration
+// ABOUTME: Enhanced symbol navigation features for LSP integration (EXPERIMENTAL)
 // ABOUTME: Provides improved goto definition and find references using complete AST
+
+// EXPERIMENTAL FEATURE WARNING:
+// This enhanced navigation system requires complete symbol resolution
+// and may not work correctly until the following are implemented:
+// - Complete symbol binding across module boundaries
+// - Stable type information extraction
+// - Cross-module navigation infrastructure
+// TODO: Move to internal/experimental/ when dependencies are resolved
 
 package ls
 

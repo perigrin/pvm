@@ -1,5 +1,10 @@
-// ABOUTME: Enhanced LSP handlers that integrate the new type-aware features
+// ABOUTME: Enhanced LSP handlers that integrate the new type-aware features (EXPERIMENTAL)
 // ABOUTME: Provides improved navigation, completion, and diagnostics handling
+
+// EXPERIMENTAL FEATURE WARNING:
+// These enhanced LSP handlers depend on experimental language service features
+// and may not provide reliable results until the underlying type system is complete.
+// TODO: Stabilize when enhanced LS features are moved out of experimental status
 
 package lsp
 

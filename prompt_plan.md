@@ -71,17 +71,24 @@ All CLI framework components are integral to the system.
 ✅ Commit: 64b00e0 "Phase 2.1 complete: remove unused AST visitor pattern"
 ```
 
-### Step 2.2: Remove Unused CPAN Integration
+### Step 2.2: Remove Unused CPAN Integration ✅ COMPLETED
 **Target**: `internal/cpan/integration.go` - if superseded by newer implementation
 
 ```
-Audit internal/cpan/integration.go for actual usage:
-- Check if Integration, CPANMinus, SystemPerl types are used
-- Verify MetaCPANClient, RateLimiter, ModuleCache are needed
-- Look for imports and actual instantiation
+✅ COMPLETED: Removed unused CPAN integration layer from internal/cpan/integration.go:
+- Removed Integration, CPANMinus, SystemPerl, MetaCPANClient, RateLimiter, ModuleCache types
+- Removed Carton implementation and associated test file carton_test.go
+- Created internal/cpan/carton.go with only needed types (CPANFile, Requirement, etc.)
+- Verified that newer Provider interface-based implementation is actively used
+- Confirmed removal of ~1,540 lines of unused integration and test code
 
-Only remove if confirmed that newer CPAN implementation exists and works.
-Run integration tests: `make test-integration`
+✅ Verified newer implementation exists and works:
+- Current system uses cpan.Provider interface with MetaCPANProvider, CPANProvider, CustomProvider
+- All PVI commands use cpan.NewProvider() with provider options pattern
+- No imports or usage of removed legacy integration types found
+
+✅ Tested removal: All 2824 tests pass, build succeeds
+✅ Commit: 417fe2d "Phase 2.2 complete: remove unused CPAN integration"
 ```
 
 ## Phase 3: Advanced Language Server Features (Est. 800 lines)

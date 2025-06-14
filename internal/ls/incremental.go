@@ -1,5 +1,13 @@
-// ABOUTME: Incremental parsing and change detection for LSP performance optimization
+// ABOUTME: Incremental parsing and change detection for LSP performance optimization (EXPERIMENTAL)
 // ABOUTME: Provides intelligent change tracking and selective reprocessing for improved responsiveness
+
+// EXPERIMENTAL FEATURE WARNING:
+// This incremental analysis system is experimental and may cause instability
+// until the following are implemented:
+// - Stable dependency tracking between modules
+// - Reliable incremental type checking
+// - Proper cache invalidation strategies
+// TODO: Move to internal/experimental/ when dependencies are resolved
 
 package ls
 

@@ -1,5 +1,13 @@
-// ABOUTME: Enhanced diagnostics with type context and intelligent suggestions
+// ABOUTME: Enhanced diagnostics with type context and intelligent suggestions (EXPERIMENTAL)
 // ABOUTME: Provides rich error messages and quick fixes for type-related issues
+
+// EXPERIMENTAL FEATURE WARNING:
+// This enhanced diagnostics system requires complete type checking infrastructure
+// and may not provide accurate results until the following are implemented:
+// - Full type checking pipeline in the parser
+// - Complete type constraint validation
+// - Stable error recovery and suggestion generation
+// TODO: Move to internal/experimental/ when dependencies are resolved
 
 package ls
 

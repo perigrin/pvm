@@ -1,5 +1,13 @@
-// ABOUTME: Enhanced type-aware autocompletion for LSP integration
+// ABOUTME: Enhanced type-aware autocompletion for LSP integration (EXPERIMENTAL)
 // ABOUTME: Provides intelligent code completion based on type information and context
+
+// EXPERIMENTAL FEATURE WARNING:
+// This enhanced completion system requires a complete type inference pipeline
+// and may not function correctly until the following are implemented:
+// - Complete tree-sitter-typed-perl grammar support
+// - Full symbol binding and type resolution
+// - Stable cross-module type analysis
+// TODO: Move to internal/experimental/ when dependencies are resolved
 
 package ls
 
