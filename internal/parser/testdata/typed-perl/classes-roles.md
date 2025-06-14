@@ -81,6 +81,8 @@ class BankAccount {
 ```
 
 ## All Features Combined
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Complex example combining all class and role features
 
@@ -272,6 +274,8 @@ class Document : BaseDocument does Serializable, Cacheable {
 ```
 
 ## Complex Inheritance Constraints
+<!-- should_error: true -->
+<!-- expected_error: UnknownTypeError -->
 
 Complex inheritance with multiple type constraints and method constraints
 
