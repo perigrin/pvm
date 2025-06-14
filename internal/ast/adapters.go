@@ -1,4 +1,4 @@
-// ABOUTME: Factory functions for creating concrete AST nodes  
+// ABOUTME: Factory functions for creating concrete AST nodes
 // ABOUTME: Provides utilities for constructing typed AST structures
 
 package ast

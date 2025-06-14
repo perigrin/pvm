@@ -331,7 +331,7 @@ func (f *NodeFactory) NewBlockStmt(statements []StatementNode, start, end Positi
 	stmt.BaseNode.nodeType = "block_stmt"
 	stmt.BaseNode.start = start
 	stmt.BaseNode.end = end
-	
+
 	// Initialize private fields
 	stmt.children = make([]Node, 0)
 	stmt.statements = make([]StatementNode, 0)

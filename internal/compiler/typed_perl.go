@@ -5,6 +5,7 @@ package compiler
 
 import (
 	"fmt"
+
 	"tamarou.com/pvm/internal/ast"
 )
 
