@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/ast"
-	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -46,7 +45,7 @@ type MockAST struct {
 func (m *MockAST) RootNode() ast.Node { return m.Root }
 
 func TestNewInferenceEngine(t *testing.T) {
-	basetesting.SampleTypeCheckerTest(t)
+	// Removed sampling to enable test in regular runs
 	storage, err := typedef.NewStorage()
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
@@ -356,8 +355,8 @@ func TestGetInferredType(t *testing.T) {
 
 	// Test with no inference
 	inferredType, confidence := engine.GetInferredType("$unknown")
-	if inferredType != "Any" || confidence != 0.0 {
-		t.Errorf("Expected Any with 0.0 confidence for unknown variable, got %s with %f", inferredType, confidence)
+	if inferredType != "Unknown" || confidence != 0.0 {
+		t.Errorf("Expected Unknown with 0.0 confidence for unknown variable, got %s with %f", inferredType, confidence)
 	}
 
 	// Record an inference above threshold
@@ -373,8 +372,8 @@ func TestGetInferredType(t *testing.T) {
 	engine.recordInference("$var2", "Str", 0.5, InferenceFromPattern, pos)
 
 	inferredType, confidence = engine.GetInferredType("$var2")
-	if inferredType != "Any" || confidence != 0.0 {
-		t.Errorf("Expected Any with 0.0 confidence for below-threshold inference, got %s with %f", inferredType, confidence)
+	if inferredType != "Unknown" || confidence != 0.0 {
+		t.Errorf("Expected Unknown with 0.0 confidence for below-threshold inference, got %s with %f", inferredType, confidence)
 	}
 }
 

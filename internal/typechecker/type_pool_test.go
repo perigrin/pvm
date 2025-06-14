@@ -749,8 +749,8 @@ func TestTypePoolManager_ComplexWorkflow(t *testing.T) {
 
 	// Test inference engine functionality
 	inferredType, confidence := engine.GetInferredType("nonexistent")
-	if inferredType != "Any" || confidence != 0.0 {
-		t.Errorf("Expected type 'Any' with confidence 0.0, got %s with %f", inferredType, confidence)
+	if inferredType != "Unknown" || confidence != 0.0 {
+		t.Errorf("Expected type 'Unknown' with confidence 0.0, got %s with %f", inferredType, confidence)
 	}
 
 	// Add some type annotations

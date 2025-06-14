@@ -64,6 +64,9 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	// Any is the root type
 	h.addBuiltinType("Any", "Top type - all types are subtypes of Any", "scalar")
 
+	// Unknown represents untyped variables before inference
+	h.addBuiltinType("Unknown", "Unknown type for untyped variables", "scalar")
+
 	// Basic scalar types
 	h.addBuiltinType("Scalar", "Basic scalar value", "scalar")
 	h.addBuiltinType("Str", "String value", "scalar")
@@ -123,6 +126,9 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	h.addSubtypeRelation("Code", "Any")
 	h.addSubtypeRelation("Glob", "Any")
 	h.addSubtypeRelation("IO", "Any")
+
+	// Unknown can be assigned to Any but needs special handling
+	h.addSubtypeRelation("Unknown", "Any")
 
 	h.addSubtypeRelation("Str", "Scalar")
 	h.addSubtypeRelation("Num", "Str") // Numbers can be automatically stringified in Perl
@@ -373,6 +379,12 @@ func extractTypeAndParams(paramType string) (string, []string) {
 
 // CheckTypeCompatibility checks if two types are compatible (for assignment, etc.)
 func (h *TypeHierarchy) CheckTypeCompatibility(sourceType, targetType string) error {
+	// Special case: Unknown type inference
+	// Unknown assigned to a specific type should infer that type
+	if sourceType == "Unknown" {
+		return nil // Unknown can be assigned to any type (type inference)
+	}
+
 	// Check if source is a subtype of target
 	if h.IsSubtypeOf(sourceType, targetType) {
 		return nil

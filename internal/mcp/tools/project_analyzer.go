@@ -277,10 +277,10 @@ func (pa *ProjectAnalyzer) analyzeFile(ctx context.Context, filePath string) (*F
 		return nil, err
 	}
 
-	// Copy type information - only include actual type declarations, not variables
+	// Copy type information - include both type declarations and variable types
 	for name, typeDetail := range analysisResult.TypeInfo {
-		// Only count type declarations as "types" for project analysis
-		if typeDetail.Kind == "type_declaration" {
+		// Include type declarations and variable types for project analysis
+		if typeDetail.Kind == "type_declaration" || typeDetail.Kind == "variable" {
 			fileAnalysis.Types[name] = typeDetail
 		}
 	}
@@ -526,8 +526,14 @@ func (pa *ProjectAnalyzer) moduleMatchesFile(module string, filePath string) boo
 
 // isPublicType checks if a type name represents a public type
 func (pa *ProjectAnalyzer) isPublicType(typeName string) bool {
+	// Strip variable sigils ($, @, %) when checking for public types
+	name := typeName
+	if len(name) > 0 && (name[0] == '$' || name[0] == '@' || name[0] == '%') {
+		name = name[1:]
+	}
+
 	// In Perl, types starting with uppercase are typically public
-	if len(typeName) > 0 && typeName[0] >= 'A' && typeName[0] <= 'Z' {
+	if len(name) > 0 && name[0] >= 'A' && name[0] <= 'Z' {
 		return true
 	}
 	return false

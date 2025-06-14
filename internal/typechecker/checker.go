@@ -417,7 +417,7 @@ func (tc *TypeChecker) inferExpressionType(expression string) string {
 	}
 
 	// Default to unknown
-	return "Any"
+	return "Unknown"
 }
 
 // initializeValidationPatterns initializes the validation patterns for flow-sensitive analysis

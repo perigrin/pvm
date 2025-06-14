@@ -98,7 +98,15 @@ func (tc *TypeChecker) checkPossibleAssignment(text string, pos ast.Position, er
 	// Check if we know the type of this variable
 	varType, ok := tc.GetVariableType(varName)
 	if !ok {
-		// We don't know the type of this variable, so we can't check the assignment
+		// For untyped variables, infer type from the assignment
+		rightType := tc.inferExpressionType(rightSide)
+		if rightType != "" && rightType != "Unknown" {
+			// Record the inferred type for this variable
+			tc.VariableTypes[varName] = rightType
+			// No type compatibility check needed since we're inferring the type
+			return
+		}
+		// If we can't infer the type, we can't check the assignment
 		return
 	}
 

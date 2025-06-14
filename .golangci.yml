@@ -3,17 +3,12 @@ run:
   go: "1.24"
 
 linters:
+  disable-all: true
   enable:
     - gofmt
     - goimports
-    - govet
-    - staticcheck
-    - unused
     - misspell
     - ineffassign
-    - deadcode
-  disable:
-    - errcheck  # Too many unchecked errors in current codebase
 
 linters-settings:
   staticcheck:

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/philippgille/chromem-go"
+	chromem "github.com/philippgille/chromem-go"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/mcp/embeddings"
 )

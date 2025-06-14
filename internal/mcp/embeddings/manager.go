@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/philippgille/chromem-go"
+	chromem "github.com/philippgille/chromem-go"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 )

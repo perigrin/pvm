@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 	"tamarou.com/pvm/internal/ast"
 )
 

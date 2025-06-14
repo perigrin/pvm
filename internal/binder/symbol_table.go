@@ -6,6 +6,7 @@ package binder
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
@@ -261,6 +262,14 @@ func (st *SymbolTable) GetVisibleSymbols() []*Symbol {
 		}
 		current = current.Parent
 	}
+
+	// Sort symbols by position for deterministic output
+	sort.Slice(symbols, func(i, j int) bool {
+		if symbols[i].Position.Line != symbols[j].Position.Line {
+			return symbols[i].Position.Line < symbols[j].Position.Line
+		}
+		return symbols[i].Position.Column < symbols[j].Position.Column
+	})
 
 	return symbols
 }

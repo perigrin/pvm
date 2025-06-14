@@ -747,7 +747,7 @@ func (ie *InferenceEngine) getNodeType(node ast.Node) string {
 	if info, exists := ie.InferredTypes[node.Text()]; exists {
 		return info.Type
 	}
-	return "Any"
+	return "Unknown"
 }
 
 // GetInferredType returns the inferred type for a variable
@@ -757,7 +757,7 @@ func (ie *InferenceEngine) GetInferredType(varName string) (string, float64) {
 			return info.Type, info.Confidence
 		}
 	}
-	return "Any", 0.0
+	return "Unknown", 0.0
 }
 
 // GetAllInferredTypes returns all inferred types above confidence threshold

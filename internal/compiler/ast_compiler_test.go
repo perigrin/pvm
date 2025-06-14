@@ -133,9 +133,9 @@ my ArrayRef[HashRef[Str|Int]] $users = [];`,
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Skip test cases that don't have expected output defined yet
+			// Log when running test cases without expected output defined yet
 			if tc.expected == "" {
-				t.Skip("Expected output not defined yet")
+				t.Logf("Running test %s without expected output - will show actual output for review", tc.name)
 			}
 
 			// Create temporary file for testing
@@ -155,12 +155,19 @@ my ArrayRef[HashRef[Str|Int]] $users = [];`,
 			require.NoError(t, err)
 
 			t.Logf("Input:\n%s", tc.input)
-			t.Logf("Expected output:\n%s", tc.expected)
 			t.Logf("AST Compiler output:\n%s", astResult)
 
-			// The AST compiler should produce the correct clean Perl output
-			assert.Equal(t, strings.TrimSpace(tc.expected), strings.TrimSpace(astResult),
-				"AST compiler output should match expected clean Perl output")
+			// Only validate against expected output if it's defined
+			if tc.expected != "" {
+				t.Logf("Expected output:\n%s", tc.expected)
+				// The AST compiler should produce the correct clean Perl output
+				assert.Equal(t, strings.TrimSpace(tc.expected), strings.TrimSpace(astResult),
+					"AST compiler output should match expected clean Perl output")
+			} else {
+				// For tests without expected output, just ensure we got some output
+				assert.NotEmpty(t, strings.TrimSpace(astResult), "AST compiler should produce some output")
+				t.Logf("Test %s passed - produced output (expected output not yet defined)", tc.name)
+			}
 		})
 	}
 }

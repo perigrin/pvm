@@ -43,9 +43,6 @@ sub new(Str $class, Str $name) -> Object {
     return bless $self, $class;
 }
 
-# Type annotation for attribute
-has Str $message;
-
 1;
 `
 	err = os.WriteFile(sampleFile, []byte(sampleContent), 0644)

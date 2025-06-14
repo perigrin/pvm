@@ -14,7 +14,7 @@ import (
 )
 
 func TestTypeChecker_Baselines(t *testing.T) {
-	basetesting.SampleTypeCheckerTest(t)
+	// Removed sampling to enable test in regular runs
 	// Create processor function that type checks input and returns results
 	processor := func(input []byte) ([]byte, error) {
 		// Parse the input

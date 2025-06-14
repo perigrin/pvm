@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
+	toml "github.com/pelletier/go-toml/v2"
 	"tamarou.com/pvm/internal/errors"
 )
 

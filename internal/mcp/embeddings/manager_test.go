@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/philippgille/chromem-go"
+	chromem "github.com/philippgille/chromem-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tamarou.com/pvm/internal/log"

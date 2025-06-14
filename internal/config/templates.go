@@ -13,7 +13,7 @@ import (
 	"strings"
 	texttemplate "text/template"
 
-	"github.com/pelletier/go-toml/v2"
+	toml "github.com/pelletier/go-toml/v2"
 	"tamarou.com/pvm/internal/errors"
 )
 
