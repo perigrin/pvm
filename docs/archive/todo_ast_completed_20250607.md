@@ -37,7 +37,7 @@ Parameters []*Parameter // Public field with potential structural token contamin
 ```
 **Problematic Usage**:
 - `ast_compiler.go:343`: `for i, param := range subDecl.Parameters`
-- `navigator.go:137`: `for _, param := range typed.Parameters` 
+- `navigator.go:137`: `for _, param := range typed.Parameters`
 - `binder.go:161`: `for _, param := range node.Parameters`
 
 **Risk**: High - Parameter parsing involves commas, parentheses, default values
@@ -137,7 +137,7 @@ Fields          []*FieldDecl
 - [ ] **4.2** Implement appropriate access methods
 - [ ] **4.3** Update OOP-related code
 
-### Phase 5: RoleDecl (Low Priority)  
+### Phase 5: RoleDecl (Low Priority)
 - [ ] **5.1** Encapsulate RequiredMethods, ProvidedMethods, Fields
 - [ ] **5.2** Implement appropriate access methods
 - [ ] **5.3** Update role/trait system code
@@ -154,7 +154,7 @@ Fields          []*FieldDecl
 ## Success Criteria
 
 ✅ **Structural Separation**: Logical content and structural tokens properly separated
-✅ **API Consistency**: All statement types follow the same encapsulation pattern  
+✅ **API Consistency**: All statement types follow the same encapsulation pattern
 ✅ **Backward Compatibility**: Existing code works with new APIs
 ✅ **Source Preservation**: Source-to-source compilation preserves exact formatting
 ✅ **Performance**: No significant performance regressions

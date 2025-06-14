@@ -19,7 +19,7 @@ my Num $pi = 3.14159;
 
 **Supported Built-in Types:**
 - `Int` - Integer values
-- `Str` - String values  
+- `Str` - String values
 - `Bool` - Boolean values (0 or 1)
 - `Num` - Numeric values (including floats)
 - `ArrayRef` - Array references
@@ -222,7 +222,7 @@ class User {
     field Str $name;
     field Optional[Email] $email;
     field ArrayRef[Role] $roles = [];
-    
+
     method new(Int $id, Str $name, Optional[Email] $email = undef) -> User {
         return bless {
             id => $id,

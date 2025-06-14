@@ -83,7 +83,7 @@ This document describes the architecture and design decisions behind PVM's enhan
 ```go
 // New token types added
 TokenTypeKeyword    // for 'type' keyword
-TokenFieldKeyword   // for 'field' keyword  
+TokenFieldKeyword   // for 'field' keyword
 TokenMethodKeyword  // for 'method' keyword
 TokenAsKeyword      // for 'as' type assertion
 TokenWhereKeyword   // for 'where' constraints
@@ -107,7 +107,7 @@ TokenExclamation    // for '!' negation operator
 
 **Precedence Rules**:
 1. Negation (`!`) - highest precedence
-2. Intersection (`&`) - medium precedence  
+2. Intersection (`&`) - medium precedence
 3. Union (`|`) - lowest precedence
 4. Parentheses for grouping
 
@@ -203,7 +203,7 @@ type TypeError struct {
 
 **Benchmarking Results**:
 - Simple untyped code: ~7.6μs parse time
-- Basic type annotations: ~6.7μs parse time  
+- Basic type annotations: ~6.7μs parse time
 - Complex type expressions: ~9.1μs parse time
 - Large programs: ~1.1s for 1000+ variables, 100+ methods
 

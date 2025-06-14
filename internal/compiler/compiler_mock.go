@@ -5,6 +5,7 @@ package compiler
 
 import (
 	"sync"
+
 	"tamarou.com/pvm/internal/ast"
 )
 
