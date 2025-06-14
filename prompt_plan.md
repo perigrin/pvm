@@ -55,19 +55,20 @@ All CLI framework components are integral to the system.
 
 ## Phase 2: Legacy Navigation System (Est. 1,500 lines)
 
-### Step 2.1: Remove AST Visitor Pattern
+### Step 2.1: Remove AST Visitor Pattern ✅ COMPLETED
 **Target**: `internal/astnav/visitor.go` - unused visitor pattern implementation
 
 ```
-Remove the comprehensive AST visitor pattern in internal/astnav/visitor.go:
-- BaseVisitor with all Visit* methods
+✅ COMPLETED: Removed the comprehensive AST visitor pattern in internal/astnav/visitor.go:
+- BaseVisitor with all Visit* methods for 23 different AST node types
 - CollectVisitor, TransformVisitor, PrintVisitor implementations
 - WalkVisitor, WalkPrint utility functions
+- Removed ~304 lines of unused visitor pattern code
 
-Check if any tests or other code depends on these:
-`ag "BaseVisitor\|CollectVisitor\|WalkVisitor" --go`
-
-Keep the Navigator in internal/astnav/navigator.go as it may be used.
+✅ Verified no usage with: `ag "BaseVisitor\|CollectVisitor\|WalkVisitor" --go`
+✅ Tested removal: all 2851 tests pass, build succeeds
+✅ Kept Navigator in internal/astnav/navigator.go as it is actively used
+✅ Commit: 64b00e0 "Phase 2.1 complete: remove unused AST visitor pattern"
 ```
 
 ### Step 2.2: Remove Unused CPAN Integration
