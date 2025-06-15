@@ -479,3 +479,99 @@ type CodeAction struct {
 type WorkspaceEdit struct {
 	Changes map[string][]TextEdit `json:"changes"`
 }
+
+// Workspace Symbol
+
+// WorkspaceSymbolParams represents parameters for workspace/symbol
+type WorkspaceSymbolParams struct {
+	Query string `json:"query"`
+}
+
+// WorkspaceSymbol represents a workspace symbol
+type WorkspaceSymbol struct {
+	Name     string      `json:"name"`
+	Kind     SymbolKind  `json:"kind"`
+	Tags     []SymbolTag `json:"tags,omitempty"`
+	Location Location    `json:"location"`
+	Data     interface{} `json:"data,omitempty"`
+}
+
+// SymbolKind represents symbol kinds
+type SymbolKind int
+
+const (
+	SymbolKindFile          SymbolKind = 1
+	SymbolKindModule        SymbolKind = 2
+	SymbolKindNamespace     SymbolKind = 3
+	SymbolKindPackage       SymbolKind = 4
+	SymbolKindClass         SymbolKind = 5
+	SymbolKindMethod        SymbolKind = 6
+	SymbolKindProperty      SymbolKind = 7
+	SymbolKindField         SymbolKind = 8
+	SymbolKindConstructor   SymbolKind = 9
+	SymbolKindEnum          SymbolKind = 10
+	SymbolKindInterface     SymbolKind = 11
+	SymbolKindFunction      SymbolKind = 12
+	SymbolKindVariable      SymbolKind = 13
+	SymbolKindConstant      SymbolKind = 14
+	SymbolKindString        SymbolKind = 15
+	SymbolKindNumber        SymbolKind = 16
+	SymbolKindBoolean       SymbolKind = 17
+	SymbolKindArray         SymbolKind = 18
+	SymbolKindObject        SymbolKind = 19
+	SymbolKindKey           SymbolKind = 20
+	SymbolKindNull          SymbolKind = 21
+	SymbolKindEnumMember    SymbolKind = 22
+	SymbolKindStruct        SymbolKind = 23
+	SymbolKindEvent         SymbolKind = 24
+	SymbolKindOperator      SymbolKind = 25
+	SymbolKindTypeParameter SymbolKind = 26
+)
+
+// SymbolTag represents symbol tags
+type SymbolTag int
+
+const (
+	SymbolTagDeprecated SymbolTag = 1
+)
+
+// Inlay Hints
+
+// InlayHintParams represents parameters for textDocument/inlayHint
+type InlayHintParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Range        Range                  `json:"range"`
+}
+
+// InlayHint represents an inlay hint
+type InlayHint struct {
+	Position     Position       `json:"position"`
+	Label        string         `json:"label"`
+	Kind         InlayHintKind  `json:"kind,omitempty"`
+	TextEdits    []TextEdit     `json:"textEdits,omitempty"`
+	Tooltip      *MarkupContent `json:"tooltip,omitempty"`
+	PaddingLeft  bool           `json:"paddingLeft,omitempty"`
+	PaddingRight bool           `json:"paddingRight,omitempty"`
+	Data         interface{}    `json:"data,omitempty"`
+}
+
+// InlayHintKind represents inlay hint kinds
+type InlayHintKind int
+
+const (
+	InlayHintKindType      InlayHintKind = 1
+	InlayHintKindParameter InlayHintKind = 2
+)
+
+// Semantic Tokens
+
+// SemanticTokensParams represents parameters for textDocument/semanticTokens/full
+type SemanticTokensParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+}
+
+// SemanticTokens represents semantic tokens
+type SemanticTokens struct {
+	ResultID string   `json:"resultId,omitempty"`
+	Data     []uint32 `json:"data"`
+}

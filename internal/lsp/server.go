@@ -269,6 +269,8 @@ func (s *Server) dispatchMessage(msg *JSONRPCMessage) error {
 		return s.handleTextDocumentFormatting(msg)
 	case "textDocument/codeAction":
 		return s.handleTextDocumentCodeAction(msg)
+	case "workspace/symbol":
+		return s.handleWorkspaceSymbol(msg)
 	default:
 		return s.sendError(msg.ID, -32601, "Method not found", nil)
 	}

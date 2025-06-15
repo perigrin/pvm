@@ -274,9 +274,19 @@ func (s *Server) handleTextDocumentFormatting(msg *JSONRPCMessage) error {
 
 	s.logger.Printf("Formatting request for %s", params.TextDocument.URI)
 
-	// Formatting not yet implemented with language service
-	// Return empty edits for now
-	return s.sendResponse(msg.ID, []TextEdit{})
+	// Convert LSP formatting options to language service options
+	lsOptions := convertLSPFormattingOptions(params.Options)
+
+	// Get formatting edits from language service
+	edits, err := s.languageService.FormatDocument(params.TextDocument.URI, lsOptions)
+	if err != nil {
+		s.logger.Printf("Failed to format document: %v", err)
+		return s.sendResponse(msg.ID, []TextEdit{})
+	}
+
+	// Convert language service text edits to LSP text edits
+	lspEdits := convertToLSPTextEdits(edits)
+	return s.sendResponse(msg.ID, lspEdits)
 }
 
 // handleTextDocumentCodeAction handles the textDocument/codeAction request
@@ -291,9 +301,20 @@ func (s *Server) handleTextDocumentCodeAction(msg *JSONRPCMessage) error {
 		params.Range.Start.Line, params.Range.Start.Character,
 		params.Range.End.Line, params.Range.End.Character)
 
-	// Code actions not yet implemented with language service
-	// Return empty actions for now
-	return s.sendResponse(msg.ID, []CodeAction{})
+	// Convert LSP range and context to language service types
+	lsRange := convertLSPRangeForCodeActions(params.Range)
+	lsContext := convertLSPCodeActionContext(params.Context)
+
+	// Get code actions from language service
+	actions, err := s.languageService.GenerateCodeActions(params.TextDocument.URI, lsRange, lsContext)
+	if err != nil {
+		s.logger.Printf("Failed to generate code actions: %v", err)
+		return s.sendResponse(msg.ID, []CodeAction{})
+	}
+
+	// Convert language service code actions to LSP code actions
+	lspActions := convertToLSPCodeActions(actions)
+	return s.sendResponse(msg.ID, lspActions)
 }
 
 // TODO: Legacy hover generation - replaced by language service
@@ -383,4 +404,107 @@ func getClientName(clientInfo *ClientInfo) string {
 		return clientInfo.Name
 	}
 	return "Unknown"
+}
+
+// Conversion functions for code actions and formatting
+
+// convertLSPRangeForCodeActions converts LSP range to language service range
+func convertLSPRangeForCodeActions(lspRange Range) ls.Range {
+	return ls.Range{
+		Start: ls.Position{
+			Line:      lspRange.Start.Line,
+			Character: lspRange.Start.Character,
+		},
+		End: ls.Position{
+			Line:      lspRange.End.Line,
+			Character: lspRange.End.Character,
+		},
+	}
+}
+
+// convertLSPCodeActionContext converts LSP context to language service context
+func convertLSPCodeActionContext(lspContext CodeActionContext) ls.CodeActionContext {
+	var lsDiagnostics []ls.Diagnostic
+	for _, d := range lspContext.Diagnostics {
+		lsDiag := ls.Diagnostic{
+			Range: ls.Range{
+				Start: ls.Position{Line: d.Range.Start.Line, Character: d.Range.Start.Character},
+				End:   ls.Position{Line: d.Range.End.Line, Character: d.Range.End.Character},
+			},
+			Message: d.Message,
+		}
+		if d.Severity != nil {
+			severity := ls.DiagnosticSeverity(*d.Severity)
+			lsDiag.Severity = &severity
+		}
+		lsDiagnostics = append(lsDiagnostics, lsDiag)
+	}
+
+	return ls.CodeActionContext{
+		Diagnostics: lsDiagnostics,
+	}
+}
+
+// convertToLSPCodeActions converts language service code actions to LSP code actions
+func convertToLSPCodeActions(lsActions []ls.CodeAction) []CodeAction {
+	var lspActions []CodeAction
+	for _, action := range lsActions {
+		lspAction := CodeAction{
+			Title: action.Title,
+			Kind:  action.Kind,
+		}
+
+		if action.Edit != nil {
+			lspAction.Edit = &WorkspaceEdit{
+				Changes: make(map[string][]TextEdit),
+			}
+			for uri, edits := range action.Edit.Changes {
+				var lspEdits []TextEdit
+				for _, edit := range edits {
+					lspEdits = append(lspEdits, TextEdit{
+						Range: Range{
+							Start: Position{Line: edit.Range.Start.Line, Character: edit.Range.Start.Character},
+							End:   Position{Line: edit.Range.End.Line, Character: edit.Range.End.Character},
+						},
+						NewText: edit.NewText,
+					})
+				}
+				lspAction.Edit.Changes[uri] = lspEdits
+			}
+		}
+
+		if action.Command != nil {
+			lspAction.Command = &Command{
+				Title:     action.Command.Title,
+				Command:   action.Command.Command,
+				Arguments: action.Command.Arguments,
+			}
+		}
+
+		lspActions = append(lspActions, lspAction)
+	}
+	return lspActions
+}
+
+// convertLSPFormattingOptions converts LSP formatting options to language service options
+func convertLSPFormattingOptions(lspOptions FormattingOptions) ls.FormattingOptions {
+	return ls.FormattingOptions{
+		TabSize:      lspOptions.TabSize,
+		InsertSpaces: lspOptions.InsertSpaces,
+	}
+}
+
+// convertToLSPTextEdits converts language service text edits to LSP text edits
+func convertToLSPTextEdits(lsEdits []ls.TextEdit) []TextEdit {
+	var lspEdits []TextEdit
+	for _, edit := range lsEdits {
+		lspEdits = append(lspEdits, TextEdit{
+			Range: Range{
+				Start: Position{Line: edit.Range.Start.Line, Character: edit.Range.Start.Character},
+				End:   Position{Line: edit.Range.End.Line, Character: edit.Range.End.Character},
+			},
+			NewText: edit.NewText,
+		})
+	}
+	return lspEdits
 }

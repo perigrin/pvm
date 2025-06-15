@@ -1528,3 +1528,16 @@ func (ls *LanguageService) GetDocumentForDebug(uri string) (*Document, bool) {
 	doc, exists := ls.documents[uri]
 	return doc, exists
 }
+
+// FindSymbolAtPosition finds the symbol at a specific position in a document
+func (ls *LanguageService) FindSymbolAtPosition(uri string, pos Position) (*binder.Symbol, error) {
+	ls.mu.RLock()
+	doc, exists := ls.documents[uri]
+	ls.mu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("document not found: %s", uri)
+	}
+
+	return ls.findSymbolAtPosition(doc, pos), nil
+}
