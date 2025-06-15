@@ -11,13 +11,14 @@ import (
 
 // PSC Error codes for type checking
 const (
-	ErrTypeAnnotationMismatch = "810" // Type annotation doesn't match expected type
-	ErrTypeInferenceError     = "811" // Failed to infer type
-	ErrTypeValidationError    = "812" // Type validation error
-	ErrTypeAssignmentError    = "813" // Error in variable assignment
-	ErrTypeFunctionError      = "814" // Error in function parameter or return type
-	ErrTypeDeclarationError   = "815" // Error in type declaration
-	ErrTypeIncompatibleError  = "816" // Incompatible types in expression
+	ErrTypeAnnotationMismatch  = "810" // Type annotation doesn't match expected type
+	ErrTypeInferenceError      = "811" // Failed to infer type
+	ErrTypeValidationError     = "812" // Type validation error
+	ErrTypeAssignmentError     = "813" // Error in variable assignment
+	ErrTypeFunctionError       = "814" // Error in function parameter or return type
+	ErrTypeDeclarationError    = "815" // Error in type declaration
+	ErrTypeIncompatibleError   = "816" // Incompatible types in expression
+	ErrFieldEncapsulationError = "817" // Field encapsulation violation (hash-style access to class field)
 )
 
 // TypeCheckResult represents the result of type checking a file

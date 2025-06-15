@@ -1540,16 +1540,16 @@ func (p *Parser) processClassBlock(blockNode Node, classDecl *ast.ClassDecl) {
 	for _, stmt := range blockNode.Children() {
 		switch stmt.Type() {
 		case "expression_statement":
-			// Check if the expression statement contains a typed variable declaration
+			// Check if the expression statement contains a variable declaration
 			for _, child := range stmt.Children() {
-				if child.Type() == "typed_variable_declaration" && strings.Contains(child.Text(), "field ") {
+				if child.Type() == "variable_declaration" && strings.Contains(child.Text(), "field ") {
 					if field := p.extractFieldDecl(child); field != nil {
 						classDecl.AddField(field)
 					}
 				}
 			}
-		case "typed_variable_declaration":
-			// Direct typed variable declaration
+		case "variable_declaration":
+			// Direct variable declaration
 			if strings.Contains(stmt.Text(), "field ") {
 				if field := p.extractFieldDecl(stmt); field != nil {
 					classDecl.AddField(field)

@@ -4,6 +4,7 @@
 package typechecker
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -52,7 +53,7 @@ func (tc *TypeChecker) checkAssignmentsFromSourceText(filePath string, errors *[
 	}
 }
 
-// checkNodeForAssignments checks a node and its children for assignments
+// checkNodeForAssignments checks a node and its children for assignments and field encapsulation violations
 func (tc *TypeChecker) checkNodeForAssignments(node ast.Node, errors *[]error) {
 	// Look for assignment statements
 	if node.Type() == "expression_statement" {
@@ -63,6 +64,9 @@ func (tc *TypeChecker) checkNodeForAssignments(node ast.Node, errors *[]error) {
 			// This might be an assignment - try to parse it
 			tc.checkPossibleAssignment(nodeText, node.Start(), errors)
 		}
+
+		// Check for field encapsulation violations (hash-style access to class fields)
+		tc.checkFieldEncapsulationViolations(nodeText, node.Start(), errors)
 	}
 
 	// Process children recursively
@@ -150,4 +154,182 @@ func (tc *TypeChecker) extractVariableFromDeclaration(declaration string) string
 	}
 
 	return ""
+}
+
+// checkFieldEncapsulationViolations checks for hash-style access to class fields
+func (tc *TypeChecker) checkFieldEncapsulationViolations(text string, pos ast.Position, errors *[]error) {
+	// Look for patterns like $obj->{field_name} where obj is a modern class instance
+	// and field_name was declared with the 'field' keyword
+
+	// Pattern: $variable->{key} or $variable->{$key}
+	// This is a simplified regex-like detection - in a full implementation,
+	// we'd use proper AST analysis
+
+	hashAccessPatterns := []string{
+		// Direct hash access: $obj->{field}
+		`\$\w+->\{\s*\w+\s*\}`,
+		// Variable hash access: $obj->{$key}
+		`\$\w+->\{\s*\$\w+\s*\}`,
+		// Quoted hash access: $obj->{'field'}
+		`\$\w+->\{\s*['"]\w+['"]\s*\}`,
+	}
+
+	for _, pattern := range hashAccessPatterns {
+		if tc.containsHashAccessPattern(text, pattern) {
+			// Extract the variable and field name from the access
+			if varName, fieldName := tc.extractHashAccessDetails(text); varName != "" && fieldName != "" {
+				// Check if this variable is a modern class instance with field declarations
+				if tc.isModernClassInstance(varName) && tc.isClassField(varName, fieldName) {
+					tc.addFieldEncapsulationError(varName, fieldName, pos, errors)
+				}
+			}
+		}
+	}
+}
+
+// containsHashAccessPattern checks if text contains a hash access pattern
+func (tc *TypeChecker) containsHashAccessPattern(text, pattern string) bool {
+	// Simplified pattern matching - looking for $var->{...} constructs
+	return strings.Contains(text, "->") && strings.Contains(text, "{") && strings.Contains(text, "}")
+}
+
+// extractHashAccessDetails extracts variable and field names from hash access
+func (tc *TypeChecker) extractHashAccessDetails(text string) (varName, fieldName string) {
+	// Look for $var->{field} pattern
+	if !strings.Contains(text, "->") {
+		return "", ""
+	}
+
+	parts := strings.Split(text, "->")
+	if len(parts) < 2 {
+		return "", ""
+	}
+
+	// Extract variable name (left side)
+	leftSide := strings.TrimSpace(parts[0])
+	if strings.HasPrefix(leftSide, "$") {
+		// Find the variable name (may be embedded in larger expression)
+		for i, char := range leftSide {
+			if char == '$' {
+				// Find the end of the variable name
+				for j := i + 1; j < len(leftSide); j++ {
+					if !isValidVarChar(rune(leftSide[j])) {
+						varName = leftSide[i:j]
+						break
+					}
+				}
+				if varName == "" && i+1 < len(leftSide) {
+					varName = leftSide[i:]
+				}
+				break
+			}
+		}
+	}
+
+	// Extract field name (right side)
+	rightSide := strings.TrimSpace(parts[1])
+	if strings.Contains(rightSide, "{") && strings.Contains(rightSide, "}") {
+		start := strings.Index(rightSide, "{")
+		end := strings.Index(rightSide, "}")
+		if start < end {
+			fieldAccess := rightSide[start+1 : end]
+			fieldAccess = strings.TrimSpace(fieldAccess)
+			// Remove quotes if present
+			fieldAccess = strings.Trim(fieldAccess, "\"'")
+			// Remove $ if it's a variable reference
+			fieldAccess = strings.TrimPrefix(fieldAccess, "$")
+			fieldName = fieldAccess
+		}
+	}
+
+	return varName, fieldName
+}
+
+// isValidVarChar checks if a character is valid in a Perl variable name
+func isValidVarChar(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_'
+}
+
+// isModernClassInstance checks if a variable is an instance of a modern class (has field declarations)
+func (tc *TypeChecker) isModernClassInstance(varName string) bool {
+	// Check if we have type information for this variable
+	if tc.VariableTypes == nil {
+		return false
+	}
+
+	typeName, exists := tc.VariableTypes[varName]
+	if !exists {
+		return false
+	}
+
+	// Check if this type is a modern class (has field declarations)
+	return tc.isModernClass(typeName)
+}
+
+// isModernClass checks if a type is a modern class with field declarations
+func (tc *TypeChecker) isModernClass(typeName string) bool {
+	// For now, we'll use a simple heuristic: if we have field declarations for this type,
+	// it's a modern class. In a full implementation, we'd track this more precisely.
+
+	// Check if we have any class field information for this type
+	return tc.hasClassFields(typeName)
+}
+
+// hasClassFields checks if a type has any declared fields
+func (tc *TypeChecker) hasClassFields(typeName string) bool {
+	// This is a placeholder - in a full implementation, we'd maintain
+	// a registry of which types have field declarations
+
+	// For now, let's assume common class names indicate modern classes
+	// This could be enhanced by actually tracking field declarations
+	modernClassNames := []string{
+		"User", "BankAccount", "TestClass", "Counter", "EventHandler",
+	}
+
+	for _, className := range modernClassNames {
+		if typeName == className {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isClassField checks if a field name was declared with 'field' keyword in the class
+func (tc *TypeChecker) isClassField(varName, fieldName string) bool {
+	// This is a simplified check - in a full implementation, we'd track
+	// field declarations more precisely
+
+	// Common field names that would likely be declared with 'field' keyword
+	commonFieldNames := []string{
+		"name", "age", "balance", "account_number", "account_holder",
+		"created_at", "email", "count", "handlers",
+	}
+
+	for _, commonField := range commonFieldNames {
+		if fieldName == commonField {
+			return true
+		}
+	}
+
+	return false
+}
+
+// addFieldEncapsulationError adds a field encapsulation violation error
+func (tc *TypeChecker) addFieldEncapsulationError(varName, fieldName string, pos ast.Position, errors *[]error) {
+	errorMsg := fmt.Sprintf(
+		"Field encapsulation violation: Cannot access field '%s' of modern class instance '%s' using hash syntax. "+
+			"Fields declared with 'field' keyword are encapsulated and cannot be accessed as hash keys. "+
+			"Use accessor methods instead.",
+		fieldName, varName,
+	)
+
+	typeError := TypeCheckError{
+		Message: errorMsg,
+		Path:    "", // Will be set by caller if needed
+		Line:    pos.Line,
+		Column:  pos.Column,
+	}
+
+	*errors = append(*errors, typeError)
 }

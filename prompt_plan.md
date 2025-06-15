@@ -219,58 +219,72 @@ Add support for generic types with `<T>` syntax and `where` clause constraints.
 
 ## Phase 2: Advanced Language Features (High Priority)
 
-### Step 2.1: Class and Role Declarations
+### Step 2.1: Modern Class System Implementation
 
-**Goal**: Implement object-oriented programming support with modern Perl class/role syntax
+**Goal**: Complete implementation of modern Perl class/field/method syntax with full type system integration
+
+**Status**: 🔶 **IN PROGRESS** - Grammar and AST structures complete, need conversion layer and type system integration
 
 ```
-Add support for class and role declarations to complete the type system.
+Complete the modern class system implementation for new-style Perl classes (class/field/method syntax).
 
-**Context**: Class declaration syntax is not implemented (`internal/parser/classes_roles_test.go` skips - "grammar doesn't support class/role declarations").
+**Context**:
+- Grammar fully supports modern class syntax with 50/50 tests passing
+- AST structures (ClassDecl, FieldDecl, MethodDecl) are complete
+- Missing: Tree-sitter to internal AST conversion and type system integration
+- CRITICAL: Must distinguish between old blessed hash style vs new class/field style - they are incompatible
+
+**Two Perl Object Systems**:
+1. **Old blessed hash style**: `package Foo { sub new { bless {...}, $class } }` - Regular Perl code
+2. **New class/field style**: `class Foo { field $x; method new() {...} }` - Special syntax with field encapsulation
 
 **Requirements**:
-1. Extend grammar for class/role/field declarations
-2. Implement ClassTypeChecker with inheritance and composition
-3. Add method signature checking and dispatch validation
-4. Create role composition and conflict resolution
+1. ✅ Grammar support (COMPLETED - full modern class syntax supported)
+2. ❌ Implement tree-sitter to AST conversion for class statements
+3. ❌ Add ClassType integration with type system
+4. ❌ Implement method signature checking and dispatch validation
+5. 🚫 **DEFERRED**: Role composition (roles not yet core Perl feature)
 
 **Implementation**:
-1. Grammar extension for OOP constructs:
-   - Class declaration: `class MyClass { field $name; method greet() { ... } }`
-   - Role declaration: `role Drawable { method draw(); }`
-   - Inheritance: `class Circle does Drawable is Shape`
-   - Field declarations with types: `field Int $radius = 10;`
+1. **AST Conversion** (Priority 1):
+   - Fix conversion from tree-sitter `class_statement` nodes to internal `ClassDecl` AST
+   - Ensure `field $name` declarations become `FieldDecl` nodes with type info
+   - Convert `method` declarations to `MethodDecl` nodes with signatures
+   - Handle class inheritance (`class Child :isa(Parent)`)
 
-2. In `internal/typedef/classes.go`:
-   - Create ClassType and RoleType definitions
-   - Implement inheritance hierarchy validation
-   - Add method signature compatibility checking
-   - Support role composition and conflict resolution
+2. **Type System Integration** (Priority 2):
+   - Create ClassType in `internal/typedef/classes.go`
+   - Register classes as proper types in type registry
+   - Implement field access type checking (cannot access fields as hash keys)
+   - Add method resolution and dispatch validation
 
-3. Method and field analysis:
+3. **Method and Field Analysis** (Priority 3):
    - Field type checking and initialization validation
    - Method signature compatibility in inheritance
-   - Abstract method implementation verification
-   - Access control (public/private) enforcement
+   - Private vs public field access control
+   - Integration with existing generic type system
 
-4. Integration with type system:
-   - Object instantiation type checking
-   - Method call dispatch validation
-   - Role composition conflict detection
-   - Integration with generic types
+4. **Modern Class Semantics** (Priority 4):
+   - Enforce field encapsulation (no hash-style access to fields)
+   - Proper constructor/destructor handling
+   - BUILD/ADJUST phaser support
+   - Class-specific error messages
 
 **Test Requirements**:
-- Class and role declaration parsing
-- Inheritance hierarchy validation
-- Method signature compatibility checking
-- Role composition and conflict resolution
+- Modern class declaration parsing and AST conversion
+- Field encapsulation enforcement (no hash access)
+- Method signature and inheritance validation
 - Integration with existing type features
+- Clear distinction between old vs new object systems
 
 **Success Criteria**:
-- OOP syntax parses correctly
-- Inheritance and composition work as expected
-- Method dispatch is properly validated
-- Clear error messages for OOP violations
+- Modern class syntax converts correctly to internal AST
+- Type system recognizes classes as proper types
+- Field encapsulation is enforced
+- Method dispatch validation works
+- Clear error messages distinguish between object system styles
+
+**DEFERRED**: Role implementation will be addressed in a future step when roles become a core Perl feature.
 ```
 
 ### Step 2.2: Advanced Method Signatures

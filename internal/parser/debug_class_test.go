@@ -6,6 +6,8 @@ package parser
 import (
 	"strings"
 	"testing"
+
+	"tamarou.com/pvm/internal/ast"
 )
 
 func TestDebugClassParsing(t *testing.T) {
@@ -54,6 +56,48 @@ func printASTNodes(t *testing.T, node interface{}, depth int) {
 			for _, child := range children {
 				printASTNodes(t, child, depth+1)
 			}
+		}
+	}
+}
+func TestSimpleClassDebug(t *testing.T) {
+	input := `class User {
+    field Str $name;
+    field Int $age;
+
+    method new(Str $name, Int $age) returns User {
+        return bless { name => $name, age => $age }, __PACKAGE__;
+    }
+
+    method get_name() returns Str {
+        return $name;
+    }
+}`
+
+	parser, err := NewParser()
+	if err != nil {
+		t.Fatalf("Failed to create parser: %v", err)
+	}
+
+	astResult, err := parser.ParseString(input)
+	if err != nil {
+		t.Fatalf("Failed to parse input: %v", err)
+	}
+
+	if astResult == nil {
+		t.Fatal("Parser returned nil AST")
+	}
+
+	// Log AST structure
+	t.Logf("AST Root Type: %T", astResult.Root)
+	t.Logf("AST Root: %s", astResult.Root.Type())
+
+	// Check children of root node
+	children := astResult.Root.Children()
+	t.Logf("Root has %d children", len(children))
+	for i, child := range children {
+		t.Logf("Child %d: %T - %s", i, child, child.Type())
+		if classDecl, ok := child.(*ast.ClassDecl); ok {
+			t.Logf("Found ClassDecl: %s with %d fields and %d methods", classDecl.Name, len(classDecl.Fields), len(classDecl.Methods))
 		}
 	}
 }

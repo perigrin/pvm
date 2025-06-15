@@ -157,6 +157,11 @@ func (t *PerlTree) traverseForTypeAnnotations(node *sitter.Node, annotations *[]
 		t.processSubroutineDeclaration(node, annotations)
 	case "method_declaration_statement":
 		t.processMethodDeclaration(node, annotations)
+	case "class_statement":
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Found class_statement node\n")
+		}
+		t.processClassDeclaration(node, annotations)
 	case "type_declaration":
 		if os.Getenv("DEBUG_PARSER") == "1" {
 			fmt.Printf("DEBUG: Found type_declaration node\n")
@@ -638,6 +643,7 @@ type PerlTypeAnnotation struct {
 	StartPos int    // byte position
 	EndPos   int    // byte position
 	Content  string // original source text
+	Context  string // additional context like class name for fields
 	Children []*PerlTypeAnnotation
 }
 
@@ -726,6 +732,131 @@ func (t *PerlTree) processTypeAssertion(node *sitter.Node, annotations *[]*PerlT
 			EndPos:   int(node.EndByte()),
 		}
 
+		*annotations = append(*annotations, annotation)
+	}
+}
+
+// processClassDeclaration processes class declarations for type annotations
+func (t *PerlTree) processClassDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing class declaration with %d children\n", node.ChildCount())
+	}
+
+	var className string
+
+	// Extract class name and process class body for fields and methods
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Class child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "package":
+			// This should be the class name
+			if className == "" {
+				className = t.getNodeText(child)
+			}
+		case "block":
+			// Process the class body for fields and methods
+			t.processClassBlock(child, className, annotations)
+		}
+	}
+
+	// Create a class declaration annotation
+	if className != "" {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Creating class annotation: %s\n", className)
+		}
+
+		annotation := &PerlTypeAnnotation{
+			ItemName: className,
+			TypeName: "class",
+			Kind:     "class_declaration",
+			StartPos: int(node.StartByte()),
+			EndPos:   int(node.EndByte()),
+			Content:  t.getNodeText(node),
+		}
+		*annotations = append(*annotations, annotation)
+	}
+}
+
+// processClassBlock processes the contents of a class block for field and method declarations
+func (t *PerlTree) processClassBlock(node *sitter.Node, className string, annotations *[]*PerlTypeAnnotation) {
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing class block for %s with %d children\n", className, node.ChildCount())
+	}
+
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Class block child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "variable_declaration":
+			// This should be a field declaration - process it as a class field
+			t.processClassField(child, className, annotations)
+		case "method_declaration_statement":
+			// This is a method declaration - let the existing method processor handle it
+			t.processMethodDeclaration(child, annotations)
+		}
+	}
+}
+
+// processClassField processes field declarations within a class
+func (t *PerlTree) processClassField(node *sitter.Node, className string, annotations *[]*PerlTypeAnnotation) {
+	var fieldName, typeName string
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing class field for %s with %d children\n", className, node.ChildCount())
+	}
+
+	// Extract field name and type from variable declaration
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Field child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "type_expression":
+			typeName = t.extractTypeExpression(child)
+		case "scalar", "array", "hash":
+			fieldName = t.getNodeText(child)
+		case "keyword":
+			// Skip 'field' keyword
+			continue
+		}
+	}
+
+	// Create field annotation if we found both name and type
+	if fieldName != "" && typeName != "" {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Creating field annotation: %s::%s -> %s\n", className, fieldName, typeName)
+		}
+
+		annotation := &PerlTypeAnnotation{
+			ItemName: fieldName,
+			TypeName: typeName,
+			Kind:     "class_field",
+			StartPos: int(node.StartByte()),
+			EndPos:   int(node.EndByte()),
+			Content:  t.getNodeText(node),
+			Context:  className, // Store class name in context
+		}
 		*annotations = append(*annotations, annotation)
 	}
 }
