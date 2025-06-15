@@ -15,7 +15,7 @@ func TestNewSystemPerlManager(t *testing.T) {
 	if manager == nil {
 		t.Fatal("NewSystemPerlManager() returned nil")
 	}
-	
+
 	// Should have detected some distributions based on platform
 	if len(manager.availableDistributions) == 0 && len(manager.preferredDistributions) == 0 {
 		t.Log("No distributions detected - this is expected in test environments")
@@ -40,7 +40,7 @@ func TestPerlDistributionString(t *testing.T) {
 		{DistributionPlenv, "plenv"},
 		{PerlDistribution(999), "unknown"},
 	}
-	
+
 	for _, tc := range testCases {
 		result := tc.dist.String()
 		if result != tc.expected {
@@ -52,10 +52,10 @@ func TestPerlDistributionString(t *testing.T) {
 func TestDetectAvailableDistributions(t *testing.T) {
 	manager := &SystemPerlManager{}
 	manager.detectAvailableDistributions()
-	
+
 	// The results depend on what's actually installed on the system
 	// We can't assert specific distributions, but we can verify the logic
-	
+
 	switch runtime.GOOS {
 	case "windows":
 		// On Windows, might have choco, scoop, or winget
@@ -67,7 +67,7 @@ func TestDetectAvailableDistributions(t *testing.T) {
 		// On Linux, might have various package managers
 		t.Logf("Linux: detected %d distributions", len(manager.availableDistributions))
 	}
-	
+
 	// Check for cross-platform tools
 	if _, err := exec.LookPath("perlbrew"); err == nil {
 		found := false
@@ -86,7 +86,7 @@ func TestDetectAvailableDistributions(t *testing.T) {
 func TestSetPreferredDistributions(t *testing.T) {
 	manager := &SystemPerlManager{}
 	manager.setPreferredDistributions()
-	
+
 	switch runtime.GOOS {
 	case "windows":
 		if len(manager.preferredDistributions) == 0 {
@@ -112,12 +112,12 @@ func TestSetPreferredDistributions(t *testing.T) {
 
 func TestHasCommand(t *testing.T) {
 	manager := &SystemPerlManager{}
-	
+
 	// Test with a command that should exist
 	if !manager.hasCommand("echo") {
 		t.Error("hasCommand('echo') should return true")
 	}
-	
+
 	// Test with a command that shouldn't exist
 	if manager.hasCommand("definitely-not-a-real-command-12345") {
 		t.Error("hasCommand() should return false for non-existent commands")
@@ -126,10 +126,10 @@ func TestHasCommand(t *testing.T) {
 
 func TestDetectOrInstallPerl(t *testing.T) {
 	manager := NewSystemPerlManager()
-	
+
 	// Try to detect or install Perl
 	perl, err := manager.DetectOrInstallPerl()
-	
+
 	// If system Perl is already available, this should succeed
 	if existingPerl, existingErr := DetectSystemPerl(); existingErr == nil {
 		if err != nil {
@@ -150,22 +150,22 @@ func TestDetectOrInstallPerl(t *testing.T) {
 
 func TestInstallSystemPerl(t *testing.T) {
 	manager := NewSystemPerlManager()
-	
+
 	// Skip if no installation methods available
 	if len(manager.availableDistributions) == 0 {
 		t.Skip("No installation methods available in test environment")
 	}
-	
+
 	// Skip if system Perl already exists (don't want to reinstall)
 	if _, err := DetectSystemPerl(); err == nil {
 		t.Skip("System Perl already exists, skipping installation test")
 	}
-	
+
 	// Skip installation test in CI/automated environments
 	if os.Getenv("CI") != "" || os.Getenv("AUTOMATED_TESTING") != "" {
 		t.Skip("Skipping installation test in CI/automated environment")
 	}
-	
+
 	// This test would actually try to install Perl, which requires admin privileges
 	// and is not suitable for automated testing
 	t.Skip("Installation test requires admin privileges and is not suitable for automated testing")
@@ -173,13 +173,13 @@ func TestInstallSystemPerl(t *testing.T) {
 
 func TestValidateInstallation(t *testing.T) {
 	manager := &SystemPerlManager{}
-	
+
 	// Test with nil
 	err := manager.ValidateInstallation(nil)
 	if err == nil {
 		t.Error("ValidateInstallation(nil) should return error")
 	}
-	
+
 	// Test with non-existent path
 	badPerl := &SystemPerl{
 		Path:    "/definitely/not/a/real/path/perl",
@@ -189,7 +189,7 @@ func TestValidateInstallation(t *testing.T) {
 	if err == nil {
 		t.Error("ValidateInstallation() should fail for non-existent path")
 	}
-	
+
 	// Test with system Perl if available
 	if systemPerl, err := DetectSystemPerl(); err == nil {
 		err = manager.ValidateInstallation(systemPerl)
@@ -202,12 +202,12 @@ func TestValidateInstallation(t *testing.T) {
 func TestGetAvailableDistributions(t *testing.T) {
 	manager := NewSystemPerlManager()
 	distributions := manager.GetAvailableDistributions()
-	
+
 	// Should return the same as the internal field
 	if len(distributions) != len(manager.availableDistributions) {
 		t.Error("GetAvailableDistributions() length doesn't match internal field")
 	}
-	
+
 	for i, dist := range distributions {
 		if dist != manager.availableDistributions[i] {
 			t.Errorf("GetAvailableDistributions()[%d] = %v, expected %v", i, dist, manager.availableDistributions[i])
@@ -218,12 +218,12 @@ func TestGetAvailableDistributions(t *testing.T) {
 func TestGetPreferredDistributions(t *testing.T) {
 	manager := NewSystemPerlManager()
 	distributions := manager.GetPreferredDistributions()
-	
+
 	// Should return the same as the internal field
 	if len(distributions) != len(manager.preferredDistributions) {
 		t.Error("GetPreferredDistributions() length doesn't match internal field")
 	}
-	
+
 	for i, dist := range distributions {
 		if dist != manager.preferredDistributions[i] {
 			t.Errorf("GetPreferredDistributions()[%d] = %v, expected %v", i, dist, manager.preferredDistributions[i])
@@ -233,12 +233,12 @@ func TestGetPreferredDistributions(t *testing.T) {
 
 func TestCheckForUpdates(t *testing.T) {
 	manager := &SystemPerlManager{}
-	
+
 	hasUpdates, err := manager.CheckForUpdates()
 	if err != nil {
 		t.Errorf("CheckForUpdates() returned error: %v", err)
 	}
-	
+
 	// For now, this should always return false
 	if hasUpdates {
 		t.Error("CheckForUpdates() should return false (not implemented)")
@@ -251,24 +251,24 @@ func TestSystemPerlManagerIntegration(t *testing.T) {
 	if _, err := DetectSystemPerl(); err != nil {
 		t.Skip("System Perl not available for integration test")
 	}
-	
+
 	manager := NewSystemPerlManager()
-	
+
 	// Test full workflow
 	perl, err := manager.DetectOrInstallPerl()
 	if err != nil {
 		t.Fatalf("Integration test failed: %v", err)
 	}
-	
+
 	if perl == nil {
 		t.Fatal("Integration test returned nil Perl")
 	}
-	
+
 	// Validate the installation
 	err = manager.ValidateInstallation(perl)
 	if err != nil {
 		t.Errorf("Installation validation failed: %v", err)
 	}
-	
+
 	t.Logf("Integration test successful: Perl %s at %s", perl.Version, perl.Path)
 }

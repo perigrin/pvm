@@ -34,30 +34,30 @@ func SkipIfNoSystemPerl(t *testing.T) {
 	if HasSystemPerl() {
 		return // System Perl already available
 	}
-	
+
 	// Skip installation in CI/automated environments to avoid privilege issues
 	if os.Getenv("CI") != "" || os.Getenv("AUTOMATED_TESTING") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
 		t.Skip("System Perl not available and running in CI environment")
 	}
-	
+
 	// Skip installation if running tests with -short flag
 	if testing.Short() {
 		t.Skip("System Perl not available and running in short mode")
 	}
-	
+
 	// Try to install system Perl using SystemPerlManager
 	manager := perl.NewSystemPerlManager()
 	systemPerl, err := manager.DetectOrInstallPerl()
 	if err != nil {
 		t.Skipf("System Perl not available and installation failed: %v", err)
 	}
-	
+
 	// Validate the installation
 	err = manager.ValidateInstallation(systemPerl)
 	if err != nil {
 		t.Skipf("System Perl installation validation failed: %v", err)
 	}
-	
+
 	t.Logf("Successfully installed system Perl: %s at %s", systemPerl.Version, systemPerl.Path)
 }
 
@@ -68,30 +68,30 @@ func EnsureSystemPerl(t *testing.T) *perl.SystemPerl {
 	if systemPerl, err := perl.DetectSystemPerl(); err == nil {
 		return systemPerl
 	}
-	
+
 	// Skip installation in CI/automated environments to avoid privilege issues
 	if os.Getenv("CI") != "" || os.Getenv("AUTOMATED_TESTING") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
 		t.Fatal("System Perl not available and running in CI environment")
 	}
-	
+
 	// Skip installation if running tests with -short flag
 	if testing.Short() {
 		t.Fatal("System Perl not available and running in short mode")
 	}
-	
+
 	// Try to install system Perl using SystemPerlManager
 	manager := perl.NewSystemPerlManager()
 	systemPerl, err := manager.DetectOrInstallPerl()
 	if err != nil {
 		t.Fatalf("System Perl not available and installation failed: %v", err)
 	}
-	
+
 	// Validate the installation
 	err = manager.ValidateInstallation(systemPerl)
 	if err != nil {
 		t.Fatalf("System Perl installation validation failed: %v", err)
 	}
-	
+
 	t.Logf("Successfully ensured system Perl: %s at %s", systemPerl.Version, systemPerl.Path)
 	return systemPerl
 }

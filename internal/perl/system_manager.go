@@ -15,10 +15,10 @@ import (
 
 // System Perl installation error codes
 const (
-	ErrInstallationFailed   = "004" // Perl installation failed
-	ErrUnsupportedPlatform  = "005" // Platform not supported for installation
-	ErrInstallationTimeout  = "006" // Installation timeout
-	ErrDependencyMissing    = "007" // Required dependency missing
+	ErrInstallationFailed  = "004" // Perl installation failed
+	ErrUnsupportedPlatform = "005" // Platform not supported for installation
+	ErrInstallationTimeout = "006" // Installation timeout
+	ErrDependencyMissing   = "007" // Required dependency missing
 )
 
 // PerlDistribution represents different Perl distributions
@@ -72,7 +72,7 @@ func (d PerlDistribution) String() string {
 type SystemPerlManager struct {
 	// Available distributions on current platform
 	availableDistributions []PerlDistribution
-	
+
 	// Preferred distribution order
 	preferredDistributions []PerlDistribution
 }
@@ -101,13 +101,13 @@ func (m *SystemPerlManager) detectAvailableDistributions() {
 		if m.hasCommand("winget") {
 			available = append(available, DistributionStrawberry)
 		}
-		
+
 	case "darwin":
 		// Check for macOS package managers
 		if m.hasCommand("brew") {
 			available = append(available, DistributionHomebrew)
 		}
-		
+
 	case "linux":
 		// Check for Linux package managers
 		if m.hasCommand("apt") || m.hasCommand("apt-get") {
@@ -126,7 +126,7 @@ func (m *SystemPerlManager) detectAvailableDistributions() {
 			available = append(available, DistributionZypper)
 		}
 	}
-	
+
 	// Cross-platform tools
 	if m.hasCommand("perlbrew") {
 		available = append(available, DistributionPerlBrew)
@@ -185,7 +185,7 @@ func (m *SystemPerlManager) InstallSystemPerl() (*SystemPerl, error) {
 	// Find the best available distribution
 	var distribution PerlDistribution
 	var found bool
-	
+
 	for _, preferred := range m.preferredDistributions {
 		for _, available := range m.availableDistributions {
 			if preferred == available {
@@ -198,7 +198,7 @@ func (m *SystemPerlManager) InstallSystemPerl() (*SystemPerl, error) {
 			break
 		}
 	}
-	
+
 	if !found {
 		return nil, errors.NewVersionError(ErrUnsupportedPlatform,
 			fmt.Sprintf("No supported Perl installation method found for %s", runtime.GOOS), nil)
@@ -242,7 +242,7 @@ func (m *SystemPerlManager) installWithHomebrew() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to install Perl with Homebrew", err)
 	}
-	
+
 	// Detect the newly installed Perl
 	return DetectSystemPerl()
 }
@@ -257,7 +257,7 @@ func (m *SystemPerlManager) installStrawberryPerl() (*SystemPerl, error) {
 			return DetectSystemPerl()
 		}
 	}
-	
+
 	if m.hasCommand("scoop") {
 		cmd := exec.Command("scoop", "install", "perl")
 		err := cmd.Run()
@@ -265,7 +265,7 @@ func (m *SystemPerlManager) installStrawberryPerl() (*SystemPerl, error) {
 			return DetectSystemPerl()
 		}
 	}
-	
+
 	if m.hasCommand("winget") {
 		cmd := exec.Command("winget", "install", "StrawberryPerl.StrawberryPerl")
 		err := cmd.Run()
@@ -273,7 +273,7 @@ func (m *SystemPerlManager) installStrawberryPerl() (*SystemPerl, error) {
 			return DetectSystemPerl()
 		}
 	}
-	
+
 	return nil, errors.NewVersionError(ErrInstallationFailed,
 		"Failed to install Strawberry Perl on Windows", nil)
 }
@@ -287,7 +287,7 @@ func (m *SystemPerlManager) installWithApt() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to update package list with apt", err)
 	}
-	
+
 	// Install perl
 	cmd := exec.Command("sudo", "apt", "install", "-y", "perl")
 	err = cmd.Run()
@@ -295,7 +295,7 @@ func (m *SystemPerlManager) installWithApt() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to install Perl with apt", err)
 	}
-	
+
 	return DetectSystemPerl()
 }
 
@@ -307,7 +307,7 @@ func (m *SystemPerlManager) installWithDnf() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to install Perl with dnf", err)
 	}
-	
+
 	return DetectSystemPerl()
 }
 
@@ -319,7 +319,7 @@ func (m *SystemPerlManager) installWithYum() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to install Perl with yum", err)
 	}
-	
+
 	return DetectSystemPerl()
 }
 
@@ -331,7 +331,7 @@ func (m *SystemPerlManager) installWithPacman() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to install Perl with pacman", err)
 	}
-	
+
 	return DetectSystemPerl()
 }
 
@@ -343,7 +343,7 @@ func (m *SystemPerlManager) installWithZypper() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to install Perl with zypper", err)
 	}
-	
+
 	return DetectSystemPerl()
 }
 
@@ -356,7 +356,7 @@ func (m *SystemPerlManager) installWithPerlBrew() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to install Perl with perlbrew", err)
 	}
-	
+
 	// Switch to the newly installed perl
 	switchCmd := exec.Command("perlbrew", "switch", "perl-stable")
 	err = switchCmd.Run()
@@ -364,7 +364,7 @@ func (m *SystemPerlManager) installWithPerlBrew() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to switch to newly installed Perl with perlbrew", err)
 	}
-	
+
 	return DetectSystemPerl()
 }
 
@@ -377,7 +377,7 @@ func (m *SystemPerlManager) installWithPlenv() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"Failed to list available Perl versions with plenv", err)
 	}
-	
+
 	// Parse output to find latest stable version
 	lines := strings.Split(string(output), "\n")
 	var latestVersion string
@@ -387,12 +387,12 @@ func (m *SystemPerlManager) installWithPlenv() (*SystemPerl, error) {
 			latestVersion = line
 		}
 	}
-	
+
 	if latestVersion == "" {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			"No suitable Perl version found for plenv installation", nil)
 	}
-	
+
 	// Install the version
 	cmd := exec.Command("plenv", "install", latestVersion)
 	err = cmd.Run()
@@ -400,7 +400,7 @@ func (m *SystemPerlManager) installWithPlenv() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			fmt.Sprintf("Failed to install Perl %s with plenv", latestVersion), err)
 	}
-	
+
 	// Set as global version
 	globalCmd := exec.Command("plenv", "global", latestVersion)
 	err = globalCmd.Run()
@@ -408,7 +408,7 @@ func (m *SystemPerlManager) installWithPlenv() (*SystemPerl, error) {
 		return nil, errors.NewVersionError(ErrInstallationFailed,
 			fmt.Sprintf("Failed to set Perl %s as global with plenv", latestVersion), err)
 	}
-	
+
 	return DetectSystemPerl()
 }
 
@@ -428,13 +428,13 @@ func (m *SystemPerlManager) ValidateInstallation(perl *SystemPerl) error {
 		return errors.NewVersionError(ErrPerlExecFail,
 			"Cannot validate nil Perl installation", nil)
 	}
-	
+
 	// Check if the executable exists
 	if _, err := os.Stat(perl.Path); os.IsNotExist(err) {
 		return errors.NewVersionError(ErrPerlExecFail,
 			fmt.Sprintf("Perl executable not found at %s", perl.Path), err)
 	}
-	
+
 	// Try to run a simple perl command
 	cmd := exec.Command(perl.Path, "-e", "print 'OK'")
 	output, err := cmd.Output()
@@ -442,12 +442,12 @@ func (m *SystemPerlManager) ValidateInstallation(perl *SystemPerl) error {
 		return errors.NewVersionError(ErrPerlExecFail,
 			"Perl executable failed basic test", err)
 	}
-	
+
 	if string(output) != "OK" {
 		return errors.NewVersionError(ErrPerlExecFail,
 			fmt.Sprintf("Perl executable produced unexpected output: %s", string(output)), nil)
 	}
-	
+
 	return nil
 }
 

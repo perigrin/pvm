@@ -296,7 +296,7 @@ func TestParseComplexTypeExpressions(t *testing.T) {
 }
 
 func TestParseMethodTypeAnnotations(t *testing.T) {
-	t.Skip("Method return type annotations have tree-sitter parsing conflicts with empty parentheses - needs grammar fix")
+	// Method signature parsing conflicts should now be resolved with grammar fix
 	// Method type annotations are now implemented in tree-sitter parser
 
 	// Create a parser

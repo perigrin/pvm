@@ -14,7 +14,7 @@ import (
 // TestSystemPerlManagerDetection tests that SystemPerlManager can detect system Perl
 func TestSystemPerlManagerDetection(t *testing.T) {
 	manager := perl.NewSystemPerlManager()
-	
+
 	// Test detection
 	systemPerl, err := manager.DetectOrInstallPerl()
 	if err != nil {
@@ -26,37 +26,37 @@ func TestSystemPerlManagerDetection(t *testing.T) {
 		t.Errorf("SystemPerlManager.DetectOrInstallPerl() failed: %v", err)
 		return
 	}
-	
+
 	if systemPerl == nil {
 		t.Fatal("SystemPerlManager returned nil SystemPerl")
 	}
-	
+
 	// Validate the detected Perl
 	err = manager.ValidateInstallation(systemPerl)
 	if err != nil {
 		t.Errorf("System Perl validation failed: %v", err)
 	}
-	
+
 	t.Logf("Successfully detected system Perl: %s at %s", systemPerl.Version, systemPerl.Path)
 }
 
 // TestSystemPerlManagerPlatformDistributions tests platform-specific distribution detection
 func TestSystemPerlManagerPlatformDistributions(t *testing.T) {
 	manager := perl.NewSystemPerlManager()
-	
+
 	availableDistributions := manager.GetAvailableDistributions()
 	preferredDistributions := manager.GetPreferredDistributions()
-	
+
 	t.Logf("Available distributions: %d", len(availableDistributions))
 	for i, dist := range availableDistributions {
 		t.Logf("  %d. %s", i+1, dist.String())
 	}
-	
+
 	t.Logf("Preferred distributions: %d", len(preferredDistributions))
 	for i, dist := range preferredDistributions {
 		t.Logf("  %d. %s", i+1, dist.String())
 	}
-	
+
 	// Should have at least some preferences based on platform
 	if len(preferredDistributions) == 0 {
 		t.Error("No preferred distributions detected for current platform")
@@ -69,12 +69,12 @@ func TestSystemPerlHelperIntegration(t *testing.T) {
 	if !helpers.HasSystemPerl() {
 		t.Skip("System Perl not available for helper integration test")
 	}
-	
+
 	perlPath := helpers.FindSystemPerl()
 	if perlPath == "" {
 		t.Error("FindSystemPerl() returned empty path when HasSystemPerl() returned true")
 	}
-	
+
 	t.Logf("Helper found system Perl at: %s", perlPath)
 }
 
@@ -84,18 +84,18 @@ func TestSystemPerlEnforcement(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping enforcement test in short mode")
 	}
-	
+
 	// Skip in CI to avoid permission issues
 	if os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
 		t.Skip("Skipping enforcement test in CI environment")
 	}
-	
+
 	// Test the EnsureSystemPerl function
 	systemPerl := helpers.EnsureSystemPerl(t)
 	if systemPerl == nil {
 		t.Fatal("EnsureSystemPerl returned nil")
 	}
-	
+
 	t.Logf("EnsureSystemPerl succeeded: %s at %s", systemPerl.Version, systemPerl.Path)
 }
 
@@ -107,19 +107,19 @@ func TestSystemPerlValidation(t *testing.T) {
 	if err != nil {
 		t.Skipf("System Perl not available: %v", err)
 	}
-	
+
 	// Test validation
 	err = manager.ValidateInstallation(systemPerl)
 	if err != nil {
 		t.Errorf("System Perl validation failed: %v", err)
 	}
-	
+
 	// Test validation with invalid Perl
 	invalidPerl := &perl.SystemPerl{
 		Path:    "/definitely/not/a/real/perl/path",
 		Version: "5.999.999",
 	}
-	
+
 	err = manager.ValidateInstallation(invalidPerl)
 	if err == nil {
 		t.Error("Validation should fail for invalid Perl path")
@@ -129,16 +129,16 @@ func TestSystemPerlValidation(t *testing.T) {
 // TestSystemPerlUpdates tests the update checking functionality
 func TestSystemPerlUpdates(t *testing.T) {
 	manager := perl.NewSystemPerlManager()
-	
+
 	hasUpdates, err := manager.CheckForUpdates()
 	if err != nil {
 		t.Errorf("CheckForUpdates() failed: %v", err)
 	}
-	
+
 	// For now, this should always return false (not implemented)
 	if hasUpdates {
 		t.Error("CheckForUpdates() should return false (not yet implemented)")
 	}
-	
+
 	t.Log("Update checking works as expected (placeholder implementation)")
 }

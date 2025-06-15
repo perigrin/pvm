@@ -439,6 +439,7 @@ func (t *PerlTree) processSubroutineReturnType(returnTypeNode *sitter.Node, subN
 // processMethodDeclaration looks for type annotations in method declarations
 func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
 	var methodName string
+	var foundReturns bool
 
 	if os.Getenv("DEBUG_PARSER") == "1" {
 		fmt.Printf("DEBUG: Processing method declaration with %d children\n", node.ChildCount())
@@ -461,6 +462,14 @@ func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*P
 			}
 		case "signature":
 			t.processMethodSignature(child, methodName, annotations)
+		case "returns":
+			foundReturns = true
+		case "type_expression":
+			// If we've seen "returns" and now see a type_expression, this is the return type
+			if foundReturns {
+				t.processMethodReturnType(child, methodName, annotations)
+				foundReturns = false // Reset for next method
+			}
 		case "return_type":
 			t.processMethodReturnType(child, methodName, annotations)
 		}
@@ -537,34 +546,53 @@ func (t *PerlTree) processMethodReturnType(returnTypeNode *sitter.Node, methodNa
 		fmt.Printf("DEBUG: Processing method return type for %s with %d children\n", methodName, returnTypeNode.ChildCount())
 	}
 
-	for i := 0; i < int(returnTypeNode.ChildCount()); i++ {
-		child := returnTypeNode.Child(uint(i))
-		if child == nil {
-			continue
-		}
+	// The returnTypeNode is already the type_expression, so extract the type directly
+	typeName := t.extractTypeExpression(returnTypeNode)
 
+	if typeName != "" {
 		if os.Getenv("DEBUG_PARSER") == "1" {
-			fmt.Printf("DEBUG: Return type child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+			fmt.Printf("DEBUG: Creating method return type annotation for %s: %s\n", methodName, typeName)
 		}
-
-		if child.Kind() == "type_expression" {
-			typeName := t.extractTypeExpression(child)
-
-			if typeName != "" {
-				if os.Getenv("DEBUG_PARSER") == "1" {
-					fmt.Printf("DEBUG: Creating method return type annotation for %s: %s\n", methodName, typeName)
-				}
-				annotation := &PerlTypeAnnotation{
-					ItemName: methodName, // Use just the method name
-					TypeName: typeName,
-					Kind:     "method_return",
-					StartPos: int(returnTypeNode.StartByte()),
-					EndPos:   int(returnTypeNode.EndByte()),
-					Content:  t.getNodeText(returnTypeNode),
-				}
-				*annotations = append(*annotations, annotation)
+		annotation := &PerlTypeAnnotation{
+			ItemName: methodName, // Use just the method name
+			TypeName: typeName,
+			Kind:     "method_return",
+			StartPos: int(returnTypeNode.StartByte()),
+			EndPos:   int(returnTypeNode.EndByte()),
+			Content:  t.getNodeText(returnTypeNode),
+		}
+		*annotations = append(*annotations, annotation)
+	} else {
+		// Fallback: look for child type expressions
+		for i := 0; i < int(returnTypeNode.ChildCount()); i++ {
+			child := returnTypeNode.Child(uint(i))
+			if child == nil {
+				continue
 			}
-			break
+
+			if os.Getenv("DEBUG_PARSER") == "1" {
+				fmt.Printf("DEBUG: Return type child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+			}
+
+			if child.Kind() == "type_expression" {
+				typeName := t.extractTypeExpression(child)
+
+				if typeName != "" {
+					if os.Getenv("DEBUG_PARSER") == "1" {
+						fmt.Printf("DEBUG: Creating method return type annotation for %s: %s\n", methodName, typeName)
+					}
+					annotation := &PerlTypeAnnotation{
+						ItemName: methodName, // Use just the method name
+						TypeName: typeName,
+						Kind:     "method_return",
+						StartPos: int(returnTypeNode.StartByte()),
+						EndPos:   int(returnTypeNode.EndByte()),
+						Content:  t.getNodeText(returnTypeNode),
+					}
+					*annotations = append(*annotations, annotation)
+				}
+				break
+			}
 		}
 	}
 }

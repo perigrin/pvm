@@ -17,11 +17,11 @@ func TestComplexMethodSignatures(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name              string
-		code              string
-		expectParseError  bool
+		name               string
+		code               string
+		expectParseError   bool
 		expectedReturnType string
-		expectedParams    int
+		expectedParams     int
 	}{
 		{
 			name: "generic_method_signature",
@@ -99,18 +99,18 @@ func TestComplexMethodSignatures(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ast, err := parser.ParseString(tc.code)
-			
+
 			if tc.expectParseError {
 				if err == nil {
 					t.Errorf("Expected parse error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("Unexpected parse error: %v", err)
 			}
-			
+
 			if ast == nil {
 				t.Fatal("Got nil AST")
 			}
@@ -159,10 +159,10 @@ func TestMethodSignatureErrors(t *testing.T) {
 	}
 
 	errorCases := []struct {
-		name         string
-		code         string
+		name             string
+		code             string
 		expectParseError bool
-		errorType    string
+		errorType        string
 	}{
 		{
 			name: "unknown_parameter_type",
@@ -174,7 +174,7 @@ func TestMethodSignatureErrors(t *testing.T) {
 				}
 			`,
 			expectParseError: false, // Parser should handle unknown types
-			errorType:    "unknown type",
+			errorType:        "unknown type",
 		},
 		{
 			name: "method_with_complex_types",
@@ -186,7 +186,7 @@ func TestMethodSignatureErrors(t *testing.T) {
 				}
 			`,
 			expectParseError: false,
-			errorType:    "complex types should parse",
+			errorType:        "complex types should parse",
 		},
 		{
 			name: "method_without_type",
@@ -198,21 +198,21 @@ func TestMethodSignatureErrors(t *testing.T) {
 				}
 			`,
 			expectParseError: false, // This should parse (untyped parameter)
-			errorType:    "missing type",
+			errorType:        "missing type",
 		},
 	}
 
 	for _, tc := range errorCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ast, err := parser.ParseString(tc.code)
-			
+
 			if tc.expectParseError {
 				if err == nil {
 					t.Errorf("Expected parse error for %s but got none", tc.name)
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Logf("Parse error (may be expected): %v", err)
 				return
@@ -226,7 +226,7 @@ func TestMethodSignatureErrors(t *testing.T) {
 			// Just verify we can parse the method signature structure
 			t.Logf("Successfully parsed %s", tc.name)
 			for _, annotation := range ast.TypeAnnotations {
-				t.Logf("  Found annotation: %s -> %s (kind: %d)", 
+				t.Logf("  Found annotation: %s -> %s (kind: %d)",
 					annotation.AnnotatedItem, annotation.TypeExpression.String(), annotation.Kind)
 			}
 		})
@@ -241,9 +241,9 @@ func TestParameterizedTypeExpressions(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name         string
-		typeExpr     string
-		expectedBase string
+		name           string
+		typeExpr       string
+		expectedBase   string
 		expectedParams int
 	}{
 		{
@@ -379,7 +379,7 @@ func TestUnionTypeSupport(t *testing.T) {
 			// For now, just verify we can parse union types without error
 			// More sophisticated union type parsing would require grammar enhancements
 			t.Logf("Successfully parsed union type: %s", typeExpression.String())
-			
+
 			// Check if the type string contains the union components
 			typeStr := typeExpression.String()
 			for _, expected := range tc.expected {
@@ -390,4 +390,3 @@ func TestUnionTypeSupport(t *testing.T) {
 		})
 	}
 }
-
