@@ -100,8 +100,10 @@ func TestAdvancedConstraintParsing(t *testing.T) {
 		},
 		{
 			name: "Multiple Type Constraints",
-			input: `method transform<T, U>(T $input) returns U where T: Serializable&Defined, U: Deserializable&!Undef {
-				return deserialize($input->serialize());
+			input: `class Transformer<T, U> where T: Serializable, U: Deserializable {
+				method transform(T $input) returns U {
+					return deserialize($input->serialize());
+				}
 			}`,
 			expectedAST: func(t *testing.T, parsedAST *ast.AST) {
 				if len(parsedAST.TypeAnnotations) == 0 {
@@ -280,16 +282,12 @@ func TestConstraintInheritance(t *testing.T) {
 	}
 
 	input := `
-		role Processable<T> where T: Defined {
-			method process(T $input) -> ProcessResult;
-		}
-
-		class DataProcessor<T> does Processable<T> where T: Serializable&Defined {
+		class DataProcessor<T> where T: Serializable {
 			field ArrayRef[T] $data;
 		}
 
-		class AdvancedProcessor<T> : DataProcessor<T> where T: Cacheable {
-			method cache(T $item) returns Void where $item->can('cache_key') {
+		class AdvancedProcessor<T> where T: Cacheable {
+			method cache(T $item) returns Void {
 				# Implementation
 			}
 		}

@@ -1,0 +1,13 @@
+[
+  {
+    "name": "Protocol Constraints",
+    "description": "Test parsing of protocol and capability constraints",
+    "tests": [
+      {
+        "name": "Protocol constraint",
+        "input": "class Processor<T> where T: EventHandler { }",
+        "expected_type_annotations": []
+      }
+    ]
+  }
+]

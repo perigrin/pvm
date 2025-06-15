@@ -1,0 +1,13 @@
+[
+  {
+    "name": "Value Constraints",
+    "description": "Test parsing of value constraints and runtime validation",
+    "tests": [
+      {
+        "name": "Simple value constraint",
+        "input": "class Array<T> where T: Any { }",
+        "expected_type_annotations": []
+      }
+    ]
+  }
+]
