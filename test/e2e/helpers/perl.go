@@ -4,6 +4,7 @@
 package helpers
 
 import (
+	"os"
 	"os/exec"
 	"runtime"
 	"testing"
@@ -28,10 +29,71 @@ func HasSystemPerl() bool {
 }
 
 // SkipIfNoSystemPerl skips the test if no system Perl is available
+// Now attempts to install system Perl if not found (unless in CI environment)
 func SkipIfNoSystemPerl(t *testing.T) {
-	if !HasSystemPerl() {
-		t.Skip("System Perl not available")
+	if HasSystemPerl() {
+		return // System Perl already available
 	}
+	
+	// Skip installation in CI/automated environments to avoid privilege issues
+	if os.Getenv("CI") != "" || os.Getenv("AUTOMATED_TESTING") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
+		t.Skip("System Perl not available and running in CI environment")
+	}
+	
+	// Skip installation if running tests with -short flag
+	if testing.Short() {
+		t.Skip("System Perl not available and running in short mode")
+	}
+	
+	// Try to install system Perl using SystemPerlManager
+	manager := perl.NewSystemPerlManager()
+	systemPerl, err := manager.DetectOrInstallPerl()
+	if err != nil {
+		t.Skipf("System Perl not available and installation failed: %v", err)
+	}
+	
+	// Validate the installation
+	err = manager.ValidateInstallation(systemPerl)
+	if err != nil {
+		t.Skipf("System Perl installation validation failed: %v", err)
+	}
+	
+	t.Logf("Successfully installed system Perl: %s at %s", systemPerl.Version, systemPerl.Path)
+}
+
+// EnsureSystemPerl ensures system Perl is available, installing it if necessary
+// Returns the SystemPerl instance or fails the test
+func EnsureSystemPerl(t *testing.T) *perl.SystemPerl {
+	// Try to detect existing system Perl first
+	if systemPerl, err := perl.DetectSystemPerl(); err == nil {
+		return systemPerl
+	}
+	
+	// Skip installation in CI/automated environments to avoid privilege issues
+	if os.Getenv("CI") != "" || os.Getenv("AUTOMATED_TESTING") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
+		t.Fatal("System Perl not available and running in CI environment")
+	}
+	
+	// Skip installation if running tests with -short flag
+	if testing.Short() {
+		t.Fatal("System Perl not available and running in short mode")
+	}
+	
+	// Try to install system Perl using SystemPerlManager
+	manager := perl.NewSystemPerlManager()
+	systemPerl, err := manager.DetectOrInstallPerl()
+	if err != nil {
+		t.Fatalf("System Perl not available and installation failed: %v", err)
+	}
+	
+	// Validate the installation
+	err = manager.ValidateInstallation(systemPerl)
+	if err != nil {
+		t.Fatalf("System Perl installation validation failed: %v", err)
+	}
+	
+	t.Logf("Successfully ensured system Perl: %s at %s", systemPerl.Version, systemPerl.Path)
+	return systemPerl
 }
 
 // HasTreeSitter checks if the tree-sitter library is available
