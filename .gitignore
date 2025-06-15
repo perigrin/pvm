@@ -36,7 +36,7 @@ go.work
 .DS_Store
 Thumbs.db
 coverage.html
-build
+/build
 
 # Backup files
 *.bak
