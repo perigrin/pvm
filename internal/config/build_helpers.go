@@ -177,4 +177,3 @@ func ShouldCleanBeforeBuild(workingDir string) (bool, error) {
 
 	return buildConfig.CleanBeforeBuild, nil
 }
-

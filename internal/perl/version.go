@@ -295,7 +295,7 @@ func ResolveVersionAlias(alias string, aliases map[string]string) (string, error
 // Perl website or repository to get this information.
 func ResolveLatestStableVersion() (string, error) {
 	// Hardcoded for now - should be updated regularly
-	return "5.38.0", nil
+	return "5.40.2", nil
 }
 
 // ResolveLatestDevVersion returns the latest development Perl version

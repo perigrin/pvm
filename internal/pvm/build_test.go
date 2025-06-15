@@ -262,7 +262,6 @@ func TestBuildCommandIntegration(t *testing.T) {
 	}
 }
 
-
 func TestBuildCommandHelp(t *testing.T) {
 	cmd := NewBuildCommand()
 
@@ -291,10 +290,10 @@ func TestBuildCommandHelp(t *testing.T) {
 
 // Helper function to check if string contains substring
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || 
-		(len(s) > len(substr) && (s[:len(substr)] == substr || 
-		s[len(s)-len(substr):] == substr || 
-		indexOfSubstring(s, substr) >= 0)))
+	return len(s) >= len(substr) && (s == substr ||
+		(len(s) > len(substr) && (s[:len(substr)] == substr ||
+			s[len(s)-len(substr):] == substr ||
+			indexOfSubstring(s, substr) >= 0)))
 }
 
 func indexOfSubstring(s, substr string) int {
@@ -304,7 +303,7 @@ func indexOfSubstring(s, substr string) int {
 	if len(substr) > len(s) {
 		return -1
 	}
-	
+
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
 			return i

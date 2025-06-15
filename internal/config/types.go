@@ -293,12 +293,12 @@ type BuildDistributionConfig struct {
 func NewDefaultConfig() *Config {
 	return &Config{
 		PVM: &PVMConfig{
-			DefaultPerl:    "5.38.0",
+			DefaultPerl:    "5.40.2",
 			BuildJobs:      4,
 			DownloadMirror: "https://www.cpan.org/src/5.0",
 			RunTests:       true,
 			VersionAliases: map[string]string{
-				"latest": "5.38.0",
+				"latest": "5.40.2",
 				"stable": "5.36.0",
 			},
 		},

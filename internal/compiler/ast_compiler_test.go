@@ -252,8 +252,8 @@ print "Total: $total\n";`,
 
 // TestParserTestdataCompatibility ensures all parser test cases work with compiler
 func TestParserTestdataCompatibility(t *testing.T) {
-	// Load all test cases from internal/parser/testdata/typed-perl/
-	testdataDir := "../../internal/parser/testdata/typed-perl"
+	// Load all test cases from test/corpus/parser/typed-perl/
+	testdataDir := "../../test/corpus/parser/typed-perl"
 
 	err := filepath.Walk(testdataDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

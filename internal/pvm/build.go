@@ -31,14 +31,12 @@ The build command supports multiple modes:
 
 Examples:
   pvm build                    # Default distribution build
-  pvm build --inline          # Development build (.pmc files)  
+  pvm build --inline          # Development build (.pmc files)
   pvm build --check-only      # Type check without compilation
   pvm build --watch           # Continuous build
   pvm build --clean           # Clean build artifacts first`,
 		Args: cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return executeBuildCommand(cmd, args)
-		},
+		RunE: executeBuildCommand,
 	}
 
 	// Build mode flags

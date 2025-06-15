@@ -1,0 +1,9 @@
+AST {
+  Path:
+  Source length: 85 characters
+  Type Annotations:
+    VarAnnotation: $count :: Int at 1:1
+    VarAnnotation: $message :: Str at 2:1
+    VarAnnotation: $numbers :: ArrayRef[Int] at 3:1
+  Root: source_file
+}
