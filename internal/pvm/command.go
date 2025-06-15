@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/psc"
+	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/pvx"
 	"tamarou.com/pvm/internal/xdg"
 )
@@ -38,7 +38,9 @@ func NewCommand() *cobra.Command {
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
 		newDownloadCommand(),
-		newBuildCommand(),
+		newBuildCommand(),  // Now incorporates PSC functionality
+		newRunCommand(),    // New unified run command (incorporates PVX)
+		newModuleCommand(), // New unified module command (incorporates PVI)
 		newExecCommand(),
 		newUninstallCommand(),
 		newImportSystemCommand(),
@@ -47,11 +49,13 @@ func NewCommand() *cobra.Command {
 		newResolveCommand(),
 		newInitCommand(),
 		newShellCommand(),
-		newPVXCommand(),
-		newPSCCommand(),
 		newMCPCommand(),
 		newEnvCommand(),
 		newToolCommand(),
+
+		// Backward compatibility aliases
+		newPVXCommand(), // Alias to run command
+		newPSCCommand(), // Alias to build command
 
 		// These are implemented in their own files
 		newSymlinksCommand(), // from symlinks.go
@@ -892,28 +896,321 @@ func newResolveCommand() *cobra.Command {
 	}
 }
 
-// newPVXCommand creates a command for the PVX subcommand
+// newPVXCommand creates a PVX command for backward compatibility (alias to run)
 func newPVXCommand() *cobra.Command {
-	// Import the PVX command directly from the pvx package
-	pvxCommand := &cobra.Command{
-		Use:   "pvx",
-		Short: "Perl Version eXecutor",
-		Long:  "Executes Perl code in isolated environments",
+	// Get the PVX command from the PVX package
+	pvxCmd := pvx.NewCommand()
+
+	// Customize for backward compatibility
+	pvxCmd.Use = "pvx"
+	pvxCmd.Short = "Perl Version eXecutor - deprecated, use 'run'"
+	pvxCmd.Long = "Executes Perl code in isolated environments. Note: This command is deprecated, use 'pvm run' instead."
+
+	return pvxCmd
+}
+
+// isPerlVersion checks if a string looks like a Perl version
+func isPerlVersion(s string) bool {
+	// Simple heuristic: if it matches X.Y.Z format, it's likely a Perl version
+	if strings.Count(s, ".") >= 1 {
+		parts := strings.Split(s, ".")
+		if len(parts) >= 2 {
+			// Check if first part is numeric and looks like a major version
+			if len(parts[0]) > 0 && parts[0][0] >= '0' && parts[0][0] <= '9' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// buildPerlFromSource handles building Perl from source
+func buildPerlFromSource(cmd *cobra.Command, version string) error {
+	if version == "" {
+		return fmt.Errorf("version required for Perl source build")
 	}
 
-	// Instead of reimplementing the PVX command here, we'll get a fresh command
-	// from the pvx package and copy all its relevant properties
-	originalCmd := pvx.NewCommand()
+	// Get flags
+	sourceFile, err := cmd.Flags().GetString("source")
+	if err != nil {
+		return err
+	}
 
-	// Copy the Run function
-	pvxCommand.Run = originalCmd.Run
+	installDir, err := cmd.Flags().GetString("prefix")
+	if err != nil {
+		return err
+	}
 
-	// Copy all flags
-	originalCmd.Flags().VisitAll(func(flag *pflag.Flag) {
-		pvxCommand.Flags().AddFlag(flag)
-	})
+	buildJobs, err := cmd.Flags().GetInt("jobs")
+	if err != nil {
+		return err
+	}
 
-	return pvxCommand
+	runTests, err := cmd.Flags().GetBool("test")
+	if err != nil {
+		return err
+	}
+
+	cleanupBuildDir, err := cmd.Flags().GetBool("cleanup")
+	if err != nil {
+		return err
+	}
+
+	configureOptions, err := cmd.Flags().GetStringArray("configure-options")
+	if err != nil {
+		return err
+	}
+
+	// Create progress callback to display build progress
+	var currentStage perl.BuildProgressStage
+	progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
+		// Only print stage transition once
+		if stage != currentStage {
+			cmd.Printf("\n=== %s ===\n", stage.String())
+			currentStage = stage
+		}
+
+		// Print progress details
+		if details != "" {
+			// For compile and test stages, we get lots of output
+			// Only print lines with errors or warnings, or important milestones
+			if stage == perl.StageCompile || stage == perl.StageTest {
+				if strings.Contains(details, "ERROR") ||
+					strings.Contains(details, "WARNING") ||
+					strings.Contains(details, "warning:") ||
+					strings.Contains(details, "error:") ||
+					strings.Contains(details, "Done") ||
+					strings.Contains(details, "All tests successful") {
+					cmd.Println(details)
+				}
+			} else {
+				// For other stages, print all details
+				cmd.Println(details)
+			}
+		}
+
+		// If we have numeric progress, show a progress bar
+		if progress > 0 && stage < perl.StageDone {
+			width := 40
+			completeChars := int(float64(width) * progress)
+
+			// Format progress bar
+			progressBar := "["
+			for i := 0; i < width; i++ {
+				switch {
+				case i < completeChars:
+					progressBar += "="
+				case i == completeChars:
+					progressBar += ">"
+				default:
+					progressBar += " "
+				}
+			}
+			progressBar += "]"
+
+			// Clear line and show progress
+			fmt.Printf("\r%s %.1f%%                    ",
+				progressBar, progress*100)
+
+			if progress >= 1.0 {
+				fmt.Println()
+			}
+		}
+	}
+
+	// Create build options
+	options := &perl.BuildOptions{
+		Version:          version,
+		SourceFile:       sourceFile,
+		InstallDir:       installDir,
+		BuildJobs:        buildJobs,
+		RunTests:         runTests,
+		CleanupBuildDir:  cleanupBuildDir,
+		ConfigureOptions: configureOptions,
+		ProgressCallback: progressCallback,
+		Context:          cmd.Context(),
+	}
+
+	// Print build information
+	cmd.Printf("Building Perl %s from source...\n", version)
+
+	if sourceFile != "" {
+		cmd.Printf("Using source file: %s\n", sourceFile)
+	}
+
+	if installDir != "" {
+		cmd.Printf("Installation directory: %s\n", installDir)
+	}
+
+	if buildJobs > 0 {
+		cmd.Printf("Using %d parallel build jobs\n", buildJobs)
+	} else {
+		cmd.Printf("Using default number of build jobs\n")
+	}
+
+	if runTests {
+		cmd.Println("Will run tests after building")
+	}
+
+	if cleanupBuildDir {
+		cmd.Println("Will clean up build directory after installation")
+	}
+
+	// Start the build
+	result, err := perl.BuildPerl(options)
+	if err != nil {
+		cmd.Printf("\nBuild failed: %v\n", err)
+		return err
+	}
+
+	// Show build results
+	cmd.Printf("\nBuild completed successfully!\n")
+	cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
+	cmd.Printf("Total build time: %s\n", result.Duration.Round(time.Second))
+
+	// Show timing for each stage
+	cmd.Println("\nBuild stage timing:")
+	for stage, duration := range result.Stages {
+		cmd.Printf("  %-12s: %s\n", stage.String(), duration.Round(time.Second))
+	}
+
+	return nil
+}
+
+// buildProject handles building Perl projects (type checking, compilation)
+func buildProject(cmd *cobra.Command, target string) error {
+	// Get flags
+	checkOnly, err := cmd.Flags().GetBool("check-only")
+	if err != nil {
+		return err
+	}
+
+	inline, err := cmd.Flags().GetBool("inline")
+	if err != nil {
+		return err
+	}
+
+	watch, err := cmd.Flags().GetBool("watch")
+	if err != nil {
+		return err
+	}
+
+	outputDir, err := cmd.Flags().GetString("output")
+	if err != nil {
+		return err
+	}
+
+	clean, err := cmd.Flags().GetBool("clean")
+	if err != nil {
+		return err
+	}
+
+	// Determine what to build
+	if target == "" {
+		target = "." // Current directory
+	}
+
+	cmd.Printf("Building Perl project in %s...\n", target)
+
+	// For now, delegate to PSC for project builds
+	// This is a simplified implementation that will be enhanced in later steps
+	pscCmd := psc.NewCommand()
+
+	if checkOnly {
+		// Run type checking only
+		cmd.Println("Running type check...")
+
+		// Find a check subcommand
+		var checkCmd *cobra.Command
+		for _, subCmd := range pscCmd.Commands() {
+			if subCmd.Use == "check" {
+				checkCmd = subCmd
+				break
+			}
+		}
+
+		if checkCmd != nil {
+			// Set up args for PSC check command
+			if target == "." {
+				// Check all files in current directory
+				checkCmd.SetArgs([]string{"."})
+			} else {
+				checkCmd.SetArgs([]string{target})
+			}
+
+			return checkCmd.Execute()
+		} else {
+			return fmt.Errorf("type checking not available")
+		}
+	}
+
+	if watch {
+		// Find a watch subcommand
+		var watchCmd *cobra.Command
+		for _, subCmd := range pscCmd.Commands() {
+			if subCmd.Use == "watch" {
+				watchCmd = subCmd
+				break
+			}
+		}
+
+		if watchCmd != nil {
+			cmd.Println("Starting watch mode...")
+			if target == "." {
+				watchCmd.SetArgs([]string{"."})
+			} else {
+				watchCmd.SetArgs([]string{target})
+			}
+			return watchCmd.Execute()
+		} else {
+			return fmt.Errorf("watch mode not available")
+		}
+	}
+
+	// Default: run type check and compilation
+	cmd.Println("Running type check and compilation...")
+
+	// This is a placeholder for future build system functionality
+	// For now, just run type checking
+	var checkCmd *cobra.Command
+	for _, subCmd := range pscCmd.Commands() {
+		if subCmd.Use == "check" {
+			checkCmd = subCmd
+			break
+		}
+	}
+
+	if checkCmd != nil {
+		if target == "." {
+			checkCmd.SetArgs([]string{"."})
+		} else {
+			checkCmd.SetArgs([]string{target})
+		}
+
+		err := checkCmd.Execute()
+		if err != nil {
+			return err
+		}
+
+		cmd.Println("Type check passed!")
+
+		if inline {
+			cmd.Println("Note: .pmc generation will be implemented in a future version")
+		}
+
+		if outputDir != "" {
+			cmd.Printf("Note: Custom output directory '%s' will be supported in a future version\n", outputDir)
+		}
+
+		if clean {
+			cmd.Println("Note: Clean build functionality will be implemented in a future version")
+		}
+
+		cmd.Println("Project build completed!")
+		return nil
+	}
+
+	return fmt.Errorf("project build functionality not yet fully implemented")
 }
 
 // newSymlinksCommand is implemented in symlinks.go
@@ -1034,163 +1331,44 @@ func newShellCommand() *cobra.Command {
 
 func newBuildCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "build [version]",
-		Short: "Build Perl from source",
-		Long:  "Build and install a specific version of Perl from source code",
-		Args:  cobra.ExactArgs(1),
+		Use:   "build [target]",
+		Short: "Build Perl projects or Perl from source",
+		Long:  "Build Perl projects (type checking, compilation) or build Perl from source code",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			version := args[0]
+			// Determine build mode: project build (default) or Perl source build
+			var target string
+			if len(args) > 0 {
+				target = args[0]
+			}
 
-			// Get flags
-			sourceFile, err := cmd.Flags().GetString("source")
+			// Check if this is a Perl version (for source build) or project build
+			isSourceBuild, err := cmd.Flags().GetBool("from-source")
 			if err != nil {
 				return err
 			}
 
-			installDir, err := cmd.Flags().GetString("prefix")
-			if err != nil {
-				return err
-			}
-
-			buildJobs, err := cmd.Flags().GetInt("jobs")
-			if err != nil {
-				return err
-			}
-
-			runTests, err := cmd.Flags().GetBool("test")
-			if err != nil {
-				return err
-			}
-
-			cleanupBuildDir, err := cmd.Flags().GetBool("cleanup")
-			if err != nil {
-				return err
-			}
-
-			// Create a slice for configure options
-			configureOptions, err := cmd.Flags().GetStringArray("configure-options")
-			if err != nil {
-				return err
-			}
-
-			// Create progress callback to display build progress
-			var currentStage perl.BuildProgressStage
-			progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
-				// Only print stage transition once
-				if stage != currentStage {
-					cmd.Printf("\n=== %s ===\n", stage.String())
-					currentStage = stage
-				}
-
-				// Print progress details
-				if details != "" {
-					// For compile and test stages, we get lots of output
-					// Only print lines with errors or warnings, or important milestones
-					if stage == perl.StageCompile || stage == perl.StageTest {
-						if strings.Contains(details, "ERROR") ||
-							strings.Contains(details, "WARNING") ||
-							strings.Contains(details, "warning:") ||
-							strings.Contains(details, "error:") ||
-							strings.Contains(details, "Done") ||
-							strings.Contains(details, "All tests successful") {
-							cmd.Println(details)
-						}
-					} else {
-						// For other stages, print all details
-						cmd.Println(details)
-					}
-				}
-
-				// If we have numeric progress, show a progress bar
-				if progress > 0 && stage < perl.StageDone {
-					width := 40
-					completeChars := int(float64(width) * progress)
-
-					// Format progress bar
-					progressBar := "["
-					for i := 0; i < width; i++ {
-						switch {
-						case i < completeChars:
-							progressBar += "="
-						case i == completeChars:
-							progressBar += ">"
-						default:
-							progressBar += " "
-						}
-					}
-					progressBar += "]"
-
-					// Clear line and show progress
-					fmt.Printf("\r%s %.1f%%                    ",
-						progressBar, progress*100)
-
-					if progress >= 1.0 {
-						fmt.Println()
-					}
-				}
-			}
-
-			// Create build options
-			options := &perl.BuildOptions{
-				Version:          version,
-				SourceFile:       sourceFile,
-				InstallDir:       installDir,
-				BuildJobs:        buildJobs,
-				RunTests:         runTests,
-				CleanupBuildDir:  cleanupBuildDir,
-				ConfigureOptions: configureOptions,
-				ProgressCallback: progressCallback,
-				Context:          cmd.Context(),
-			}
-
-			// Print build information
-			cmd.Printf("Building Perl %s...\n", version)
-
-			if sourceFile != "" {
-				cmd.Printf("Using source file: %s\n", sourceFile)
-			}
-
-			if installDir != "" {
-				cmd.Printf("Installation directory: %s\n", installDir)
-			}
-
-			if buildJobs > 0 {
-				cmd.Printf("Using %d parallel build jobs\n", buildJobs)
+			if isSourceBuild || (target != "" && isPerlVersion(target)) {
+				// Perl source build
+				return buildPerlFromSource(cmd, target)
 			} else {
-				cmd.Printf("Using default number of build jobs\n")
+				// Project build (type checking, compilation)
+				return buildProject(cmd, target)
 			}
-
-			if runTests {
-				cmd.Println("Will run tests after building")
-			}
-
-			if cleanupBuildDir {
-				cmd.Println("Will clean up build directory after installation")
-			}
-
-			// Start the build
-			result, err := perl.BuildPerl(options)
-			if err != nil {
-				cmd.Printf("\nBuild failed: %v\n", err)
-				return err
-			}
-
-			// Show build results
-			cmd.Printf("\nBuild completed successfully!\n")
-			cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
-			cmd.Printf("Total build time: %s\n", result.Duration.Round(time.Second))
-
-			// Show timing for each stage
-			cmd.Println("\nBuild stage timing:")
-			for stage, duration := range result.Stages {
-				cmd.Printf("  %-12s: %s\n", stage.String(), duration.Round(time.Second))
-			}
-
-			return nil
 		},
 	}
 
-	// Add flags
+	// Add flags for both project and Perl source builds
+	cmd.Flags().Bool("from-source", false, "Build Perl from source (use when target is a Perl version)")
+
+	// Project build flags
+	cmd.Flags().Bool("check-only", false, "Only run type checking, don't compile")
+	cmd.Flags().Bool("inline", false, "Generate .pmc files for development")
+	cmd.Flags().Bool("watch", false, "Watch for changes and rebuild")
+	cmd.Flags().String("output", "", "Output directory for build artifacts")
+	cmd.Flags().Bool("clean", false, "Clean build artifacts before building")
+
+	// Perl source build flags
 	cmd.Flags().String("source", "", "Source archive file path (default: download or use cached)")
 	cmd.Flags().String("prefix", "", "Installation directory (default: XDG_DATA_HOME/pvm/versions/<version>)")
 	cmd.Flags().Int("jobs", 0, "Number of parallel build jobs (default: number of CPU cores)")
@@ -1201,15 +1379,41 @@ func newBuildCommand() *cobra.Command {
 	return cmd
 }
 
-// newPSCCommand creates a PSC command that delegates to the PSC package
+// newModuleCommand creates a unified module management command
+func newModuleCommand() *cobra.Command {
+	// Get the PVI command from the PVI package
+	pviCmd := pvi.NewCommand()
+
+	// Customize for integration with PVM
+	pviCmd.Use = "module"
+	pviCmd.Short = "Module management"
+	pviCmd.Long = "Manage CPAN modules and dependencies"
+
+	return pviCmd
+}
+
+// newRunCommand creates a unified run/execution command
+func newRunCommand() *cobra.Command {
+	// Get the PVX command from the PVX package
+	pvxCmd := pvx.NewCommand()
+
+	// Customize for integration with PVM
+	pvxCmd.Use = "run"
+	pvxCmd.Short = "Execute Perl code"
+	pvxCmd.Long = "Execute Perl code in isolated environments"
+
+	return pvxCmd
+}
+
+// newPSCCommand creates a PSC command that delegates to build command (backward compatibility)
 func newPSCCommand() *cobra.Command {
 	// Get the PSC command from the PSC package
 	pscCmd := psc.NewCommand()
 
 	// Customize for integration with PVM
 	pscCmd.Use = "psc"
-	pscCmd.Short = "Perl Script Compiler (Type Checking)"
-	pscCmd.Long = "Provides static type checking for Perl code with type annotations"
+	pscCmd.Short = "Perl Script Compiler (Type Checking) - deprecated, use 'build'"
+	pscCmd.Long = "Provides static type checking for Perl code with type annotations. Note: This command is deprecated, use 'pvm build' instead."
 
 	return pscCmd
 }
