@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
+
+	"tamarou.com/pvm/internal/platform"
 )
 
 // CreateSymlinks creates symlinks for all components based on the provided binary path
@@ -38,30 +39,13 @@ func CreateSymlinks(binaryPath string) (map[string]string, error) {
 		}
 
 		// Create the symlink path
-		var symlinkPath string
-		if runtime.GOOS == "windows" {
-			symlinkPath = filepath.Join(dir, component+".exe")
-		} else {
-			symlinkPath = filepath.Join(dir, component)
-		}
+		symlinkPath := filepath.Join(dir, platform.ExecutableName(component))
 
 		// Remove existing symlink if it exists
 		_ = os.Remove(symlinkPath) // Ignoring error as it's OK if the file doesn't exist
 
-		// Create the symlink
-		var err error
-		if runtime.GOOS == "windows" {
-			// Windows requires different handling - we copy the binary instead
-			// as creating symlinks requires admin privileges
-			err = os.Link(binaryPath, symlinkPath)
-			if err != nil {
-				// If hard link fails, try to copy the file
-				err = copyFile(binaryPath, symlinkPath)
-			}
-		} else {
-			// On Unix, we can create a symlink
-			err = os.Symlink(binaryPath, symlinkPath)
-		}
+		// Create the link (symlink on Unix, hard link/copy on Windows)
+		err := platform.CreateLink(binaryPath, symlinkPath)
 
 		if err != nil {
 			return symlinks, fmt.Errorf("failed to create symlink for %s: %v", component, err)
@@ -72,18 +56,6 @@ func CreateSymlinks(binaryPath string) (map[string]string, error) {
 	}
 
 	return symlinks, nil
-}
-
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
-	// Read the source file
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-
-	// Write to the destination file
-	return os.WriteFile(dst, data, 0755)
 }
 
 // VerifySymlinks checks if all symlinks for the different components exist
@@ -105,12 +77,7 @@ func VerifySymlinks(binaryPath string) map[string]bool {
 
 	// Check each component
 	for _, component := range components {
-		var symlinkPath string
-		if runtime.GOOS == "windows" {
-			symlinkPath = filepath.Join(dir, component+".exe")
-		} else {
-			symlinkPath = filepath.Join(dir, component)
-		}
+		symlinkPath := filepath.Join(dir, platform.ExecutableName(component))
 
 		// Check if the symlink exists
 		_, err := os.Stat(symlinkPath)

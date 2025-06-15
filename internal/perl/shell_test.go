@@ -437,10 +437,7 @@ func TestPerlVersionFile(t *testing.T) {
 
 // Test shell init check
 func TestCheckShellInit(t *testing.T) {
-	// Skip this test on non-Unix platforms
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows")
-	}
+	// This test works on all platforms with appropriate shell configurations
 
 	// Create a fake shell config file for testing
 	tmpDir, err := os.MkdirTemp("", "pvm-shell-init-test")
@@ -449,27 +446,48 @@ func TestCheckShellInit(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// Mock environment and user home directory
-	origHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", origHome) }()
-
-	// Create example shell config files
-	bashrcPath := filepath.Join(tmpDir, ".bashrc")
-	zshrcPath := filepath.Join(tmpDir, ".zshrc")
-	fishConfigDir := filepath.Join(tmpDir, ".config", "fish")
-	fishConfigPath := filepath.Join(fishConfigDir, "config.fish")
-
-	// Create fish config directory
-	if err := os.MkdirAll(fishConfigDir, 0755); err != nil {
-		t.Fatalf("Failed to create fish config directory: %v", err)
+	// Mock environment and user home directory (platform-specific)
+	var origHome string
+	var homeEnvVar string
+	if runtime.GOOS == "windows" {
+		homeEnvVar = "USERPROFILE"
+		origHome = os.Getenv("USERPROFILE")
+		_ = os.Setenv("USERPROFILE", tmpDir)
+	} else {
+		homeEnvVar = "HOME"
+		origHome = os.Getenv("HOME")
+		_ = os.Setenv("HOME", tmpDir)
 	}
+	defer func() { _ = os.Setenv(homeEnvVar, origHome) }()
 
-	// Create files with and without PVM initialization
-	files := map[string]string{
-		bashrcPath:     "# Bash config\nexport PATH=$PATH:/usr/local/bin\n",
-		zshrcPath:      "# Zsh config\neval \"$(pvm init)\"\n",
-		fishConfigPath: "# Fish config\nset -x PATH /usr/local/bin $PATH\n",
+	// Create platform-appropriate shell config files
+	var files map[string]string
+
+	if runtime.GOOS == "windows" {
+		// Windows shell configurations
+		powershellPath := filepath.Join(tmpDir, "Microsoft.PowerShell_profile.ps1")
+		cmdPath := filepath.Join(tmpDir, "pvm_init.bat")
+		files = map[string]string{
+			powershellPath: "# PowerShell config\n$env:PATH = \"$env:PATH;C:\\tools\\bin\"\n",
+			cmdPath:        "# CMD config\nREM PVM initialization would go here\n",
+		}
+	} else {
+		// Unix shell configurations
+		bashrcPath := filepath.Join(tmpDir, ".bashrc")
+		zshrcPath := filepath.Join(tmpDir, ".zshrc")
+		fishConfigDir := filepath.Join(tmpDir, ".config", "fish")
+		fishConfigPath := filepath.Join(fishConfigDir, "config.fish")
+
+		// Create fish config directory
+		if err := os.MkdirAll(fishConfigDir, 0755); err != nil {
+			t.Fatalf("Failed to create fish config directory: %v", err)
+		}
+
+		files = map[string]string{
+			bashrcPath:     "# Bash config\nexport PATH=$PATH:/usr/local/bin\n",
+			zshrcPath:      "# Zsh config\neval \"$(pvm init)\"\n",
+			fishConfigPath: "# Fish config\nset -x PATH /usr/local/bin $PATH\n",
+		}
 	}
 
 	for path, content := range files {
