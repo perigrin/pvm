@@ -38,11 +38,12 @@ func NewCommand() *cobra.Command {
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
 		newDownloadCommand(),
-		NewBuildCommand(),    // Unified build system with PSC integration
+		NewBuildCommand(),     // Unified build system with PSC integration
 		newBuildPerlCommand(), // Build Perl from source (split from old build command)
-		newRunCommand(),      // New unified run command (incorporates PVX)
-		newModuleCommand(),  // New unified module command (incorporates PVI)
-		newProjectCommand(), // New project management command
+		newRunCommand(),       // New unified run command (incorporates PVX)
+		newModuleCommand(),    // New unified module command (incorporates PVI)
+		newProjectCommand(),   // New project management command
+		newDevCommand(),       // Development environment command
 		newExecCommand(),
 		newUninstallCommand(),
 		newImportSystemCommand(),

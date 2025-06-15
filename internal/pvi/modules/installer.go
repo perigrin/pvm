@@ -14,6 +14,7 @@ import (
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/pvi/deps"
 	"tamarou.com/pvm/internal/xdg"
 )
@@ -111,6 +112,12 @@ type ModuleInstallOptions struct {
 
 	// Context for cancellation
 	Context context.Context
+
+	// Project context (nil means no project context)
+	ProjectContext *project.ProjectContext
+
+	// Force global installation even in project context
+	ForceGlobal bool
 }
 
 // ModuleInstallResult contains information about the installation
@@ -146,16 +153,23 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 	// Determine installation directory
 	installDir := options.InstallDir
 	if installDir == "" {
-		// Use XDG data directory for user-space installation
-		dirs, err := xdg.GetDirs()
-		if err != nil {
-			return "", nil, errors.NewSystemError("001",
-				"Failed to determine XDG directories", err)
-		}
+		// Check if we're in a project context and not forcing global installation
+		if options.ProjectContext != nil && options.ProjectContext.IsProject && !options.ForceGlobal {
+			// Install to project's local lib directory
+			installDir = filepath.Join(options.ProjectContext.RootDir, "lib")
+			log.Infof("Using project installation directory: %s", installDir)
+		} else {
+			// Use XDG data directory for user-space installation
+			dirs, err := xdg.GetDirs()
+			if err != nil {
+				return "", nil, errors.NewSystemError("001",
+					"Failed to determine XDG directories", err)
+			}
 
-		// Create perl modules directory in XDG data directory
-		installDir = filepath.Join(dirs.DataDir, "perl", "modules")
-		log.Infof("Using default installation directory: %s", installDir)
+			// Create perl modules directory in XDG data directory
+			installDir = filepath.Join(dirs.DataDir, "perl", "modules")
+			log.Infof("Using default installation directory: %s", installDir)
+		}
 	}
 
 	// Ensure installation directory exists
@@ -184,7 +198,31 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 	envVars["PERL_LOCAL_LIB_ROOT"] = installDir
 	envVars["PERL_MB_OPT"] = fmt.Sprintf("--install_base '%s'", installDir)
 	envVars["PERL_MM_OPT"] = fmt.Sprintf("INSTALL_BASE=%s", installDir)
-	envVars["PERL5LIB"] = libDir
+
+	// Set up PERL5LIB with project context awareness
+	perl5lib := libDir
+
+	// If we're in a project context, ensure project lib is also in the path
+	if options.ProjectContext != nil && options.ProjectContext.IsProject {
+		projectLib := filepath.Join(options.ProjectContext.RootDir, "lib", "perl5")
+		if projectLib != libDir {
+			// Add both the install lib and project lib to PERL5LIB
+			perl5lib = fmt.Sprintf("%s:%s", libDir, projectLib)
+		}
+
+		// Also include the project's root lib directory for project modules
+		projectRootLib := filepath.Join(options.ProjectContext.RootDir, "lib")
+		if projectRootLib != libDir && projectRootLib != projectLib {
+			perl5lib = fmt.Sprintf("%s:%s", perl5lib, projectRootLib)
+		}
+	}
+
+	// Check if there's an existing PERL5LIB and preserve it
+	if existingPerl5Lib := os.Getenv("PERL5LIB"); existingPerl5Lib != "" {
+		perl5lib = fmt.Sprintf("%s:%s", perl5lib, existingPerl5Lib)
+	}
+
+	envVars["PERL5LIB"] = perl5lib
 
 	// Update PATH to include bin directory
 	currentPath := os.Getenv("PATH")
@@ -243,6 +281,18 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 	// Set default context if not specified
 	if options.Context == nil {
 		options.Context = context.Background()
+	}
+
+	// Auto-detect project context if not provided
+	if options.ProjectContext == nil {
+		if projectCtx, err := project.GetCurrentProject(); err == nil {
+			options.ProjectContext = projectCtx
+			if projectCtx.IsProject {
+				log.Infof("Detected project context: %s (detected via %s)", projectCtx.RootDir, projectCtx.DetectionInfo)
+			}
+		} else {
+			log.Debugf("Failed to detect project context: %v", err)
+		}
 	}
 
 	// Ensure we have a provider
@@ -369,6 +419,8 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 				Provider:           options.Provider,
 				DependencyResolver: nil, // Avoid further dependency resolution
 				Context:            options.Context,
+				ProjectContext:     options.ProjectContext, // Pass along project context
+				ForceGlobal:        options.ForceGlobal,    // Pass along global preference
 			}
 
 			// Install the dependency
