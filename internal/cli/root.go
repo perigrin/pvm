@@ -73,10 +73,72 @@ func Execute(rootCmd *cobra.Command) {
 		}
 	}
 
+	// Enable command suggestions for typos
+	enableCommandSuggestions(rootCmd)
+
 	// Execute the command
 	if err := rootCmd.Execute(); err != nil {
+		// Check if it's an unknown command error and provide suggestions
+		if unknownCommandError, ok := err.(*UnknownCommandError); ok {
+			handleUnknownCommand(rootCmd, unknownCommandError)
+			os.Exit(1)
+		}
+
 		// Log the error using our structured logging
 		errors.LogError(err)
 		os.Exit(1)
 	}
+}
+
+// UnknownCommandError represents an unknown command error with the command name
+type UnknownCommandError struct {
+	Command string
+	Message string
+}
+
+func (e *UnknownCommandError) Error() string {
+	return e.Message
+}
+
+// enableCommandSuggestions sets up command suggestion handling
+func enableCommandSuggestions(rootCmd *cobra.Command) {
+	// Set up cobra's suggestion settings
+	rootCmd.SuggestionsMinimumDistance = 2
+	rootCmd.SilenceUsage = true // Don't show usage on errors
+
+	// Override the unknown command handling
+	origRunE := rootCmd.RunE
+	rootCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if origRunE != nil {
+			return origRunE(cmd, args)
+		}
+		return cmd.Help()
+	}
+}
+
+// handleUnknownCommand provides enhanced error handling for unknown commands
+func handleUnknownCommand(rootCmd *cobra.Command, err *UnknownCommandError) {
+	fmt.Fprintf(os.Stderr, "Error: unknown command '%s'\n\n", err.Command)
+
+	// Get available commands
+	availableCommands := []string{}
+	for _, cmd := range rootCmd.Commands() {
+		if !cmd.Hidden {
+			availableCommands = append(availableCommands, cmd.Name())
+		}
+	}
+
+	// Get suggestions using our enhanced suggestion system
+	suggestions := SuggestCommand(err.Command, availableCommands)
+
+	if len(suggestions) > 0 {
+		fmt.Fprintf(os.Stderr, "Did you mean?\n")
+		for _, suggestion := range suggestions {
+			fmt.Fprintf(os.Stderr, "  pvm %s\n", suggestion)
+		}
+		fmt.Fprintf(os.Stderr, "\n")
+	}
+
+	fmt.Fprintf(os.Stderr, "Run 'pvm help' for usage information\n")
+	fmt.Fprintf(os.Stderr, "Run 'pvm help workflows' for common workflows\n")
 }

@@ -1,0 +1,6 @@
+[project]
+name = "pvm"
+version = "0.01"
+
+[build]
+output_dir = "build"

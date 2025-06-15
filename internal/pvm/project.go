@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/perl"
@@ -28,18 +30,49 @@ type ProjectTemplate struct {
 	GitIgnore    []string          `json:"gitignore_additions"`
 }
 
+// HealthStatus represents the health status of a project component
+type HealthStatus string
+
+const (
+	HealthStatusHealthy  HealthStatus = "healthy"
+	HealthStatusWarning  HealthStatus = "warning"
+	HealthStatusCritical HealthStatus = "critical"
+	HealthStatusUnknown  HealthStatus = "unknown"
+)
+
+// HealthCheck represents a single health check result
+type HealthCheck struct {
+	Name       string       `json:"name"`
+	Status     HealthStatus `json:"status"`
+	Message    string       `json:"message"`
+	Details    string       `json:"details,omitempty"`
+	Suggestion string       `json:"suggestion,omitempty"`
+	CheckedAt  time.Time    `json:"checked_at"`
+}
+
+// ProjectHealth represents the overall project health
+type ProjectHealth struct {
+	OverallStatus HealthStatus  `json:"overall_status"`
+	Checks        []HealthCheck `json:"checks"`
+	Summary       string        `json:"summary"`
+	NextSteps     []string      `json:"next_steps"`
+	CheckedAt     time.Time     `json:"checked_at"`
+}
+
 // newProjectCommand creates the main project command with subcommands
 func newProjectCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "project",
-		Short: "Project management commands",
-		Long:  "Commands for initializing, managing, and working with Perl projects",
+		Use:     "project",
+		Short:   "Project management commands",
+		Long:    "Commands for initializing, managing, and working with Perl projects",
+		Aliases: []string{"proj"},
 	}
 
 	// Add project subcommands
 	cmd.AddCommand(
 		newProjectInitCommand(),
 		newProjectStatusCommand(),
+		newProjectDoctorCommand(),
 		newProjectTemplatesCommand(),
 	)
 
@@ -131,6 +164,31 @@ func newProjectStatusCommand() *cobra.Command {
 
 	// Add flags
 	cmd.Flags().Bool("json", false, "Output status in JSON format")
+
+	return cmd
+}
+
+// newProjectDoctorCommand creates the project doctor command
+func newProjectDoctorCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Run comprehensive project health checks",
+		Long: `Run comprehensive health checks for the project including:
+- Perl version compatibility
+- Dependency installation status
+- Build system health
+- Configuration validation
+- Development environment setup
+- Common issues detection`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runProjectDoctor(cmd)
+		},
+	}
+
+	// Add flags
+	cmd.Flags().Bool("json", false, "Output results in JSON format")
+	cmd.Flags().Bool("fix", false, "Attempt to automatically fix issues where possible")
+	cmd.Flags().Bool("verbose", false, "Show detailed information for all checks")
 
 	return cmd
 }
@@ -482,6 +540,29 @@ func showProjectStatus(cmd *cobra.Command) error {
 	return outputStatusHuman(cmd, ctx)
 }
 
+// runProjectDoctor runs comprehensive project health checks
+func runProjectDoctor(cmd *cobra.Command) error {
+	// Get project context
+	ctx, err := project.GetCurrentProject()
+	if err != nil {
+		return fmt.Errorf("failed to detect project: %w", err)
+	}
+
+	// Get flags
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	autofixEnabled, _ := cmd.Flags().GetBool("fix")
+	verbose, _ := cmd.Flags().GetBool("verbose")
+
+	// Run health checks
+	health := performHealthChecks(ctx, autofixEnabled)
+
+	if jsonOutput {
+		return outputHealthJSON(cmd, health)
+	}
+
+	return outputHealthHuman(cmd, health, verbose)
+}
+
 // outputStatusHuman outputs project status in human-readable format
 func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 	if !ctx.IsProject {
@@ -560,8 +641,86 @@ func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 
 // outputStatusJSON outputs project status in JSON format
 func outputStatusJSON(cmd *cobra.Command, ctx *project.ProjectContext) error {
-	// TODO: Implement JSON output
-	return fmt.Errorf("JSON output not yet implemented")
+	status := map[string]interface{}{
+		"is_project":     ctx.IsProject,
+		"root_dir":       ctx.RootDir,
+		"detection_info": ctx.DetectionInfo,
+		"perl_version":   ctx.PerlVersion,
+		"has_cpanfile":   ctx.HasCpanfile,
+		"local_lib_dir":  ctx.LocalLibDir,
+		"config_file":    ctx.ConfigFile,
+		"timestamp":      time.Now(),
+	}
+
+	data, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal status: %w", err)
+	}
+
+	cmd.Println(string(data))
+	return nil
+}
+
+// outputHealthJSON outputs health check results in JSON format
+func outputHealthJSON(cmd *cobra.Command, health *ProjectHealth) error {
+	data, err := json.MarshalIndent(health, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal health data: %w", err)
+	}
+
+	cmd.Println(string(data))
+	return nil
+}
+
+// outputHealthHuman outputs health check results in human-readable format
+func outputHealthHuman(cmd *cobra.Command, health *ProjectHealth, verbose bool) error {
+	cmd.Printf("Project Health Check\n")
+	cmd.Printf("===================\n\n")
+
+	// Overall status
+	statusColor := getStatusColor(health.OverallStatus)
+	cmd.Printf("Overall Status: %s%s%s\n", statusColor, health.OverallStatus, "\033[0m")
+	cmd.Printf("Summary: %s\n\n", health.Summary)
+
+	// Individual checks
+	cmd.Printf("Health Checks:\n")
+	for _, check := range health.Checks {
+		color := getStatusColor(check.Status)
+		status := fmt.Sprintf("%s%s%s", color, check.Status, "\033[0m")
+		cmd.Printf("  %-20s %s - %s\n", check.Name+":", status, check.Message)
+
+		if verbose && check.Details != "" {
+			cmd.Printf("    Details: %s\n", check.Details)
+		}
+
+		if check.Suggestion != "" {
+			cmd.Printf("    Suggestion: %s\n", check.Suggestion)
+		}
+	}
+
+	// Next steps
+	if len(health.NextSteps) > 0 {
+		cmd.Printf("\nRecommended Actions:\n")
+		for i, step := range health.NextSteps {
+			cmd.Printf("  %d. %s\n", i+1, step)
+		}
+	}
+
+	return nil
+}
+
+// getStatusColor returns ANSI color code for status
+func getStatusColor(status HealthStatus) string {
+	switch status {
+	case HealthStatusHealthy:
+		return "\033[32m" // Green
+	case HealthStatusWarning:
+		return "\033[33m" // Yellow
+	case HealthStatusCritical:
+		return "\033[31m" // Red
+	default:
+		return "\033[37m" // White
+	}
 }
 
 // showNextSteps shows what the user should do next after project initialization
@@ -711,4 +870,372 @@ func getUserTemplates() ([]ProjectTemplate, error) {
 	}
 
 	return templates, nil
+}
+
+// performHealthChecks runs all health checks for the project
+func performHealthChecks(ctx *project.ProjectContext, autofix bool) *ProjectHealth {
+	checks := []HealthCheck{}
+	nextSteps := []string{}
+
+	// Project detection check
+	checks = append(checks, checkProjectDetection(ctx))
+
+	// Perl version checks
+	checks = append(checks, checkPerlVersion(ctx, autofix)...)
+
+	// Dependencies checks
+	checks = append(checks, checkDependencies(ctx, autofix)...)
+
+	// Build system checks
+	checks = append(checks, checkBuildSystem(ctx)...)
+
+	// Configuration checks
+	checks = append(checks, checkConfiguration(ctx, autofix)...)
+
+	// Development environment checks
+	checks = append(checks, checkDevelopmentEnvironment(ctx)...)
+
+	// Determine overall status
+	overallStatus := HealthStatusHealthy
+	healthyCount := 0
+	warningCount := 0
+	criticalCount := 0
+
+	for _, check := range checks {
+		switch check.Status {
+		case HealthStatusHealthy:
+			healthyCount++
+		case HealthStatusWarning:
+			warningCount++
+			if overallStatus == HealthStatusHealthy {
+				overallStatus = HealthStatusWarning
+			}
+		case HealthStatusCritical:
+			criticalCount++
+			overallStatus = HealthStatusCritical
+		}
+
+		// Collect suggestions as next steps
+		if check.Suggestion != "" {
+			nextSteps = append(nextSteps, check.Suggestion)
+		}
+	}
+
+	// Generate summary
+	summary := fmt.Sprintf("%d checks passed, %d warnings, %d critical issues",
+		healthyCount, warningCount, criticalCount)
+
+	return &ProjectHealth{
+		OverallStatus: overallStatus,
+		Checks:        checks,
+		Summary:       summary,
+		NextSteps:     nextSteps,
+		CheckedAt:     time.Now(),
+	}
+}
+
+// checkProjectDetection verifies project detection is working
+func checkProjectDetection(ctx *project.ProjectContext) HealthCheck {
+	if !ctx.IsProject {
+		return HealthCheck{
+			Name:       "Project Detection",
+			Status:     HealthStatusCritical,
+			Message:    "No project detected in current directory",
+			Suggestion: "Run 'pvm project init' to initialize a new project",
+			CheckedAt:  time.Now(),
+		}
+	}
+
+	return HealthCheck{
+		Name:      "Project Detection",
+		Status:    HealthStatusHealthy,
+		Message:   fmt.Sprintf("Project detected via %s", ctx.DetectionInfo),
+		Details:   fmt.Sprintf("Root directory: %s", ctx.RootDir),
+		CheckedAt: time.Now(),
+	}
+}
+
+// checkPerlVersion checks Perl version consistency
+func checkPerlVersion(ctx *project.ProjectContext, autofix bool) []HealthCheck {
+	checks := []HealthCheck{}
+
+	// Check if .perl-version exists
+	if ctx.PerlVersion == "" {
+		check := HealthCheck{
+			Name:       "Perl Version File",
+			Status:     HealthStatusWarning,
+			Message:    "No .perl-version file found",
+			Suggestion: "Create .perl-version file to specify Perl version",
+			CheckedAt:  time.Now(),
+		}
+
+		if autofix {
+			if err := createPerlVersionFile(ctx.RootDir); err == nil {
+				check.Status = HealthStatusHealthy
+				check.Message = "Created .perl-version file with current Perl version"
+			}
+		}
+
+		checks = append(checks, check)
+		return checks
+	}
+
+	// Check if specified Perl version is installed
+	installedVersion, err := getInstalledPerlVersion()
+	if err != nil {
+		checks = append(checks, HealthCheck{
+			Name:      "Perl Installation",
+			Status:    HealthStatusCritical,
+			Message:   "Cannot detect installed Perl version",
+			Details:   err.Error(),
+			CheckedAt: time.Now(),
+		})
+		return checks
+	}
+
+	if installedVersion != ctx.PerlVersion {
+		checks = append(checks, HealthCheck{
+			Name:       "Perl Version Consistency",
+			Status:     HealthStatusWarning,
+			Message:    fmt.Sprintf("Project expects %s, but %s is installed", ctx.PerlVersion, installedVersion),
+			Suggestion: "Install the correct Perl version or update .perl-version",
+			CheckedAt:  time.Now(),
+		})
+	} else {
+		checks = append(checks, HealthCheck{
+			Name:      "Perl Version Consistency",
+			Status:    HealthStatusHealthy,
+			Message:   fmt.Sprintf("Perl version %s matches project requirement", installedVersion),
+			CheckedAt: time.Now(),
+		})
+	}
+
+	return checks
+}
+
+// checkDependencies checks dependency status
+func checkDependencies(ctx *project.ProjectContext, autofix bool) []HealthCheck {
+	checks := []HealthCheck{}
+
+	// Check if cpanfile exists
+	if !ctx.HasCpanfile {
+		checks = append(checks, HealthCheck{
+			Name:       "Dependencies File",
+			Status:     HealthStatusWarning,
+			Message:    "No cpanfile found",
+			Suggestion: "Create cpanfile to manage dependencies",
+			CheckedAt:  time.Now(),
+		})
+		return checks
+	}
+
+	// Check if local lib directory exists
+	if _, err := os.Stat(ctx.LocalLibDir); os.IsNotExist(err) {
+		check := HealthCheck{
+			Name:       "Local Library",
+			Status:     HealthStatusWarning,
+			Message:    "Local lib directory does not exist",
+			Suggestion: "Run 'pvm module install' to install dependencies",
+			CheckedAt:  time.Now(),
+		}
+
+		if autofix {
+			if err := os.MkdirAll(ctx.LocalLibDir, 0755); err == nil {
+				check.Status = HealthStatusHealthy
+				check.Message = "Created local lib directory"
+			}
+		}
+
+		checks = append(checks, check)
+	} else {
+		// Count installed modules
+		moduleCount := countInstalledModules(ctx.LocalLibDir)
+		checks = append(checks, HealthCheck{
+			Name:      "Local Library",
+			Status:    HealthStatusHealthy,
+			Message:   fmt.Sprintf("Local lib exists with %d modules", moduleCount),
+			Details:   fmt.Sprintf("Path: %s", ctx.LocalLibDir),
+			CheckedAt: time.Now(),
+		})
+	}
+
+	return checks
+}
+
+// checkBuildSystem checks build system health
+func checkBuildSystem(ctx *project.ProjectContext) []HealthCheck {
+	checks := []HealthCheck{}
+
+	// Check if build directory exists
+	buildDir := filepath.Join(ctx.RootDir, "build")
+	if _, err := os.Stat(buildDir); os.IsNotExist(err) {
+		checks = append(checks, HealthCheck{
+			Name:       "Build Artifacts",
+			Status:     HealthStatusWarning,
+			Message:    "No build artifacts found",
+			Suggestion: "Run 'pvm build' to create build artifacts",
+			CheckedAt:  time.Now(),
+		})
+	} else {
+		checks = append(checks, HealthCheck{
+			Name:      "Build Artifacts",
+			Status:    HealthStatusHealthy,
+			Message:   "Build directory exists",
+			Details:   fmt.Sprintf("Path: %s", buildDir),
+			CheckedAt: time.Now(),
+		})
+	}
+
+	// Check for PSC availability
+	if _, err := exec.LookPath("psc"); err != nil {
+		checks = append(checks, HealthCheck{
+			Name:       "PSC Type Checker",
+			Status:     HealthStatusWarning,
+			Message:    "PSC command not found in PATH",
+			Suggestion: "Ensure PSC is built and available in PATH",
+			CheckedAt:  time.Now(),
+		})
+	} else {
+		checks = append(checks, HealthCheck{
+			Name:      "PSC Type Checker",
+			Status:    HealthStatusHealthy,
+			Message:   "PSC command available",
+			CheckedAt: time.Now(),
+		})
+	}
+
+	return checks
+}
+
+// checkConfiguration checks configuration validity
+func checkConfiguration(ctx *project.ProjectContext, autofix bool) []HealthCheck {
+	checks := []HealthCheck{}
+
+	// Check if pvm.toml exists
+	if ctx.ConfigFile == "" {
+		check := HealthCheck{
+			Name:       "Project Configuration",
+			Status:     HealthStatusWarning,
+			Message:    "No pvm.toml configuration file",
+			Suggestion: "Create pvm.toml for project configuration",
+			CheckedAt:  time.Now(),
+		}
+
+		if autofix {
+			if err := createDefaultConfig(ctx.RootDir); err == nil {
+				check.Status = HealthStatusHealthy
+				check.Message = "Created default pvm.toml configuration"
+			}
+		}
+
+		checks = append(checks, check)
+	} else {
+		checks = append(checks, HealthCheck{
+			Name:      "Project Configuration",
+			Status:    HealthStatusHealthy,
+			Message:   "Configuration file exists",
+			Details:   fmt.Sprintf("Path: %s", ctx.ConfigFile),
+			CheckedAt: time.Now(),
+		})
+	}
+
+	return checks
+}
+
+// checkDevelopmentEnvironment checks development setup
+func checkDevelopmentEnvironment(ctx *project.ProjectContext) []HealthCheck {
+	checks := []HealthCheck{}
+
+	// Check if it's a git repository
+	gitDir := filepath.Join(ctx.RootDir, ".git")
+	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+		checks = append(checks, HealthCheck{
+			Name:       "Version Control",
+			Status:     HealthStatusWarning,
+			Message:    "Not a Git repository",
+			Suggestion: "Initialize Git repository for version control",
+			CheckedAt:  time.Now(),
+		})
+	} else {
+		checks = append(checks, HealthCheck{
+			Name:      "Version Control",
+			Status:    HealthStatusHealthy,
+			Message:   "Git repository initialized",
+			CheckedAt: time.Now(),
+		})
+	}
+
+	// Check for .gitignore
+	gitignorePath := filepath.Join(ctx.RootDir, ".gitignore")
+	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
+		checks = append(checks, HealthCheck{
+			Name:       "Git Ignore",
+			Status:     HealthStatusWarning,
+			Message:    "No .gitignore file",
+			Suggestion: "Create .gitignore to exclude build artifacts",
+			CheckedAt:  time.Now(),
+		})
+	} else {
+		checks = append(checks, HealthCheck{
+			Name:      "Git Ignore",
+			Status:    HealthStatusHealthy,
+			Message:   ".gitignore file exists",
+			CheckedAt: time.Now(),
+		})
+	}
+
+	return checks
+}
+
+// Helper functions for health checks
+
+func createPerlVersionFile(rootDir string) error {
+	version := getCurrentPerlVersion()
+	path := filepath.Join(rootDir, ".perl-version")
+	return os.WriteFile(path, []byte(version+"\n"), 0644)
+}
+
+func getInstalledPerlVersion() (string, error) {
+	cmd := exec.Command("perl", "-E", "say $^V")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	// Parse version from output like "v5.38.0"
+	versionStr := strings.TrimSpace(string(output))
+	if strings.HasPrefix(versionStr, "v") {
+		return versionStr[1:], nil
+	}
+	return versionStr, nil
+}
+
+func countInstalledModules(localLibDir string) int {
+	count := 0
+	perl5Dir := filepath.Join(localLibDir, "perl5")
+
+	filepath.Walk(perl5Dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if strings.HasSuffix(path, ".pm") {
+			count++
+		}
+		return nil
+	})
+
+	return count
+}
+
+func createDefaultConfig(rootDir string) error {
+	projectName := filepath.Base(rootDir)
+	config := fmt.Sprintf(`[project]
+name = "%s"
+version = "0.01"
+
+[build]
+output_dir = "build"
+`, projectName)
+	path := filepath.Join(rootDir, "pvm.toml")
+	return os.WriteFile(path, []byte(config), 0644)
 }

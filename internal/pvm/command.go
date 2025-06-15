@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/pvi"
@@ -44,6 +45,7 @@ func NewCommand() *cobra.Command {
 		newModuleCommand(),    // New unified module command (incorporates PVI)
 		newProjectCommand(),   // New project management command
 		newDevCommand(),       // Development environment command
+		newTestCommand(),      // Test execution command
 		newExecCommand(),
 		newUninstallCommand(),
 		newImportSystemCommand(),
@@ -55,6 +57,9 @@ func NewCommand() *cobra.Command {
 		newMCPCommand(),
 		newEnvCommand(),
 		newToolCommand(),
+
+		// Enhanced help system
+		cli.CreateHelpCommand(), // Context-aware help with workflow suggestions
 
 		// Shell aliases for convenience
 		newPVXCommand(), // Shell alias to run command
