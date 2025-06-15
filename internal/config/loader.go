@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/xdg"
 )
 
@@ -334,4 +335,96 @@ func InitProjectConfig(projectDir string) error {
 
 	// Save configuration
 	return SaveToFile(config, projectConfigPath)
+}
+
+// LoadEffectiveConfigWithProjectContext loads configuration using the new project detector
+func LoadEffectiveConfigWithProjectContext() (*Config, error) {
+	// Get current working directory
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, errors.NewConfigError("109",
+			"Failed to get current working directory", err)
+	}
+
+	// Use project detector to find project-aware config
+	return LoadEffectiveConfigForDirectory(wd)
+}
+
+// LoadEffectiveConfigForDirectory loads configuration for a specific directory using project detection
+func LoadEffectiveConfigForDirectory(dir string) (*Config, error) {
+	// Get XDG directories
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return nil, errors.NewConfigError("101",
+			"Failed to determine XDG directories", err)
+	}
+
+	// Ensure directories exist
+	err = dirs.EnsureDirs()
+	if err != nil {
+		return nil, errors.NewConfigError("102",
+			"Failed to create required directories", err)
+	}
+
+	// Load configurations
+	systemConfig, _ := loadSystemConfig()
+	userConfig, _ := loadUserConfig(dirs)
+
+	// Use project detector for project config
+	var projectConfig *Config
+	configPath, err := project.GetProjectAwareConfigPath(dir)
+	if err == nil && configPath != "" {
+		projectConfig, _ = ParseFile(configPath)
+	}
+
+	// Create empty result config
+	result := NewDefaultConfig()
+
+	// Apply configs in order of precedence (low to high)
+	if systemConfig != nil {
+		if systemConfig.PVM != nil {
+			mergePVMConfig(result.PVM, systemConfig.PVM)
+		}
+		if systemConfig.PVX != nil {
+			mergePVXConfig(result.PVX, systemConfig.PVX)
+		}
+		if systemConfig.PVI != nil {
+			mergePVIConfig(result.PVI, systemConfig.PVI)
+		}
+		if systemConfig.PSC != nil {
+			mergePSCConfig(result.PSC, systemConfig.PSC)
+		}
+	}
+
+	if userConfig != nil {
+		if userConfig.PVM != nil {
+			mergePVMConfig(result.PVM, userConfig.PVM)
+		}
+		if userConfig.PVX != nil {
+			mergePVXConfig(result.PVX, userConfig.PVX)
+		}
+		if userConfig.PVI != nil {
+			mergePVIConfig(result.PVI, userConfig.PVI)
+		}
+		if userConfig.PSC != nil {
+			mergePSCConfig(result.PSC, userConfig.PSC)
+		}
+	}
+
+	if projectConfig != nil {
+		if projectConfig.PVM != nil {
+			mergePVMConfig(result.PVM, projectConfig.PVM)
+		}
+		if projectConfig.PVX != nil {
+			mergePVXConfig(result.PVX, projectConfig.PVX)
+		}
+		if projectConfig.PVI != nil {
+			mergePVIConfig(result.PVI, projectConfig.PVI)
+		}
+		if projectConfig.PSC != nil {
+			mergePSCConfig(result.PSC, projectConfig.PSC)
+		}
+	}
+
+	return result, nil
 }
