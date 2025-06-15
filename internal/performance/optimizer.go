@@ -105,7 +105,7 @@ func (o *Optimizer) AnalyzePerformance() []Suggestion {
 // analyzeTimingMetrics checks for slow operations
 func (o *Optimizer) analyzeTimingMetrics() {
 	metrics := o.analyzer.GetMetrics()
-	
+
 	for name, metric := range metrics {
 		// Check for slow average times
 		if metric.AvgTime > o.thresholds.MaxParseTime {
@@ -138,7 +138,7 @@ func (o *Optimizer) analyzeTimingMetrics() {
 // analyzeMemoryUsage checks memory consumption
 func (o *Optimizer) analyzeMemoryUsage() {
 	memStats := o.analyzer.GetMemoryUsage()
-	
+
 	if int64(memStats.Alloc) > o.thresholds.MaxMemoryUsage {
 		o.addSuggestion(Suggestion{
 			Category:    "Memory",
@@ -173,7 +173,7 @@ func (o *Optimizer) analyzeCachePerformance() {
 
 	for i, cache := range caches {
 		stats := cache.Stats()
-		
+
 		// Check hit rate
 		if stats.HitRatio < o.thresholds.MinCacheHitRate && stats.HitCount+stats.MissCount > 10 {
 			o.addSuggestion(Suggestion{
@@ -205,7 +205,7 @@ func (o *Optimizer) analyzeCachePerformance() {
 // calculateImpact determines the impact level based on how much a value exceeds threshold
 func (o *Optimizer) calculateImpact(current, threshold time.Duration) ImpactLevel {
 	ratio := float64(current) / float64(threshold)
-	
+
 	switch {
 	case ratio > 5:
 		return CriticalImpact
@@ -295,7 +295,7 @@ func (o *Optimizer) generateSummary(suggestions []Suggestion, metrics map[string
 	for name, metric := range metrics {
 		totalOps += metric.Count
 		totalTime += metric.TotalTime
-		
+
 		if metric.AvgTime > slowestTime {
 			slowestTime = metric.AvgTime
 			slowestOp = name
@@ -335,9 +335,9 @@ func (o *Optimizer) generateSummary(suggestions []Suggestion, metrics map[string
 // OptimizeAutomatically applies automatic optimizations
 func (o *Optimizer) OptimizeAutomatically() []string {
 	var applied []string
-	
+
 	suggestions := o.AnalyzePerformance()
-	
+
 	for _, suggestion := range suggestions {
 		switch suggestion.Category {
 		case "Memory":
@@ -353,7 +353,7 @@ func (o *Optimizer) OptimizeAutomatically() []string {
 			}
 		}
 	}
-	
+
 	return applied
 }
 

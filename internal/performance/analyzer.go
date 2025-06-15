@@ -19,15 +19,15 @@ type Analyzer struct {
 
 // Metric represents a performance measurement
 type Metric struct {
-	Name       string
-	Count      int64
-	TotalTime  time.Duration
-	MinTime    time.Duration
-	MaxTime    time.Duration
-	AvgTime    time.Duration
-	LastTime   time.Duration
-	StartTime  time.Time
-	MemUsage   int64
+	Name           string
+	Count          int64
+	TotalTime      time.Duration
+	MinTime        time.Duration
+	MaxTime        time.Duration
+	AvgTime        time.Duration
+	LastTime       time.Duration
+	StartTime      time.Time
+	MemUsage       int64
 	GoroutineCount int
 }
 
@@ -56,20 +56,20 @@ func (a *Analyzer) StartMeasurement(name string) *MeasurementContext {
 	}
 
 	return &MeasurementContext{
-		analyzer:  a,
-		name:      name,
-		startTime: time.Now(),
-		startMem:  getCurrentMemoryUsage(),
+		analyzer:        a,
+		name:            name,
+		startTime:       time.Now(),
+		startMem:        getCurrentMemoryUsage(),
 		startGoroutines: runtime.NumGoroutine(),
 	}
 }
 
 // MeasurementContext tracks a single measurement
 type MeasurementContext struct {
-	analyzer  *Analyzer
-	name      string
-	startTime time.Time
-	startMem  int64
+	analyzer        *Analyzer
+	name            string
+	startTime       time.Time
+	startMem        int64
 	startGoroutines int
 }
 
@@ -90,14 +90,14 @@ func (mc *MeasurementContext) Finish() {
 	metric.Count++
 	metric.TotalTime += duration
 	metric.LastTime = duration
-	
+
 	if duration < metric.MinTime {
 		metric.MinTime = duration
 	}
 	if duration > metric.MaxTime {
 		metric.MaxTime = duration
 	}
-	
+
 	metric.AvgTime = metric.TotalTime / time.Duration(metric.Count)
 	metric.MemUsage += memUsage
 	metric.GoroutineCount += goroutineCount
@@ -112,14 +112,14 @@ func (a *Analyzer) GetMetrics() map[string]*Metric {
 	for name, metric := range a.metrics {
 		// Create a copy to avoid data races
 		result[name] = &Metric{
-			Name:       metric.Name,
-			Count:      metric.Count,
-			TotalTime:  metric.TotalTime,
-			MinTime:    metric.MinTime,
-			MaxTime:    metric.MaxTime,
-			AvgTime:    metric.AvgTime,
-			LastTime:   metric.LastTime,
-			MemUsage:   metric.MemUsage,
+			Name:           metric.Name,
+			Count:          metric.Count,
+			TotalTime:      metric.TotalTime,
+			MinTime:        metric.MinTime,
+			MaxTime:        metric.MaxTime,
+			AvgTime:        metric.AvgTime,
+			LastTime:       metric.LastTime,
+			MemUsage:       metric.MemUsage,
 			GoroutineCount: metric.GoroutineCount,
 		}
 	}
@@ -150,7 +150,7 @@ func (a *Analyzer) IsEnabled() bool {
 // GetSlowestOperations returns the N slowest operations by average time
 func (a *Analyzer) GetSlowestOperations(n int) []*Metric {
 	metrics := a.GetMetrics()
-	
+
 	var sortedMetrics []*Metric
 	for _, metric := range metrics {
 		sortedMetrics = append(sortedMetrics, metric)

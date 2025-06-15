@@ -12,22 +12,22 @@ import (
 
 // Cache provides high-performance caching with TTL and LRU eviction
 type Cache struct {
-	mu       sync.RWMutex
-	items    map[string]*CacheItem
-	access   []string // LRU order
-	maxSize  int
-	maxAge   time.Duration
-	hitCount int64
+	mu        sync.RWMutex
+	items     map[string]*CacheItem
+	access    []string // LRU order
+	maxSize   int
+	maxAge    time.Duration
+	hitCount  int64
 	missCount int64
 }
 
 // CacheItem represents a cached value with metadata
 type CacheItem struct {
-	Value     interface{}
-	CreatedAt time.Time
-	LastAccess time.Time
+	Value       interface{}
+	CreatedAt   time.Time
+	LastAccess  time.Time
 	AccessCount int64
-	Size       int64
+	Size        int64
 }
 
 // NewCache creates a new cache with specified max size and TTL
@@ -38,10 +38,10 @@ func NewCache(maxSize int, maxAge time.Duration) *Cache {
 		maxSize: maxSize,
 		maxAge:  maxAge,
 	}
-	
+
 	// Start cleanup goroutine
 	go cache.periodicCleanup()
-	
+
 	return cache
 }
 
@@ -155,7 +155,7 @@ type CacheStats struct {
 func (c *Cache) updateAccess(key string) {
 	// Remove from current position
 	c.removeFromAccess(key)
-	
+
 	// Add to front
 	c.access = append([]string{key}, c.access...)
 }
@@ -243,10 +243,10 @@ func HashKey(values ...interface{}) string {
 var (
 	// ParserCache caches parsing results
 	ParserCache = NewCache(1000, 30*time.Minute)
-	
+
 	// TypeCache caches type checking results
 	TypeCache = NewCache(500, 15*time.Minute)
-	
+
 	// FileCache caches file content and metadata
 	FileCache = NewCache(200, 10*time.Minute)
 )

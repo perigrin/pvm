@@ -37,7 +37,7 @@ func createPerformanceAnalyzeCommand() *cobra.Command {
 		Long:  "Analyze performance metrics and provide optimization suggestions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			suggestions := performance.AnalyzeGlobalPerformance()
-			
+
 			if len(suggestions) == 0 {
 				fmt.Println("✅ No performance issues detected")
 				return nil
@@ -106,7 +106,7 @@ func createPerformanceOptimizeCommand() *cobra.Command {
 			}
 
 			applied := performance.OptimizeGlobalPerformance()
-			
+
 			if len(applied) == 0 {
 				fmt.Println("✅ No automatic optimizations available")
 				return nil
