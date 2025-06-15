@@ -348,8 +348,9 @@ module.exports = grammar({
       subExtensions(),
       'method',
       field('name', $.bareword),
+      optional(field('type_parameters', seq('[', $.type_identifier_list, ']'))),
       optseq(':', optional(field('attributes', $.attrlist))),
-      optional(choice(field('prototype', $.prototype), field('signature', $.signature))),
+      optional(field('signature', $.signature)),  // Methods use signatures only, not prototypes
       optional(seq('returns', field('return_type', $.type_expression))),
       choice(
         field('body', $.block),
