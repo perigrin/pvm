@@ -1,0 +1,380 @@
+# ABOUTME: Automated cross-platform release workflow for PVM
+# ABOUTME: Triggered on tags and creates GitHub releases with binaries for all platforms
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0-rc2)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  GO_VERSION: '1.24.4'
+  NODE_VERSION: '20'
+
+jobs:
+  build-matrix:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux builds
+          - goos: linux
+            goarch: amd64
+            runner: ubuntu-latest
+            build_psc: true
+          - goos: linux
+            goarch: arm64
+            runner: ubuntu-latest
+            build_psc: false  # Skip PSC for ARM64 due to cross-compilation issues
+
+          # macOS builds
+          - goos: darwin
+            goarch: amd64
+            runner: macos-latest
+            build_psc: true
+          - goos: darwin
+            goarch: arm64
+            runner: macos-latest
+            build_psc: true
+
+          # Windows builds
+          - goos: windows
+            goarch: amd64
+            runner: windows-latest
+            build_psc: false  # Skip PSC on Windows due to tree-sitter CGO complexity
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Set up Node.js (for tree-sitter)
+      uses: actions/setup-node@v5
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install tree-sitter CLI
+      run: npm install -g tree-sitter-cli
+
+    - name: Install system dependencies (Linux)
+      if: matrix.runner == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gcc-aarch64-linux-gnu
+
+    - name: Install system dependencies (macOS)
+      if: matrix.runner == 'macos-latest'
+      run: |
+        # Ensure Xcode tools are available
+        xcode-select --install 2>/dev/null || true
+
+    - name: Install system dependencies (Windows)
+      if: matrix.runner == 'windows-latest'
+      run: |
+        # Install mingw for CGO
+        choco install mingw -y
+        refreshenv
+
+    - name: Set up cross-compilation (Linux ARM64)
+      if: matrix.goos == 'linux' && matrix.goarch == 'arm64'
+      run: |
+        echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+
+    - name: Build tree-sitter parser (if needed)
+      if: matrix.build_psc
+      run: |
+        make tree-sitter
+
+    - name: Get version info
+      id: version
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          TAG="${{ github.event.inputs.tag }}"
+        else
+          TAG=${GITHUB_REF#refs/tags/}
+        fi
+        VERSION=${TAG#v}
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+    - name: Build binaries
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: ${{ matrix.build_psc && '1' || '0' }}
+      shell: bash
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        BUILD_TIME="${{ steps.version.outputs.build_time }}"
+        COMMIT="${{ steps.version.outputs.commit }}"
+
+        LDFLAGS="-s -w -X 'tamarou.com/pvm/internal/version.Version=${VERSION}' -X 'tamarou.com/pvm/internal/version.BuildTime=${BUILD_TIME}' -X 'tamarou.com/pvm/internal/version.CommitHash=${COMMIT}'"
+
+        mkdir -p build/release
+
+        # Determine file extension
+        EXT=""
+        if [ "${{ matrix.goos }}" == "windows" ]; then
+          EXT=".exe"
+        fi
+
+        # Build core components (always available)
+        echo "Building pvm..."
+        go build -ldflags="$LDFLAGS" -o "build/release/pvm-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}" ./cmd/pvm
+
+        echo "Building pvi..."
+        go build -ldflags="$LDFLAGS" -o "build/release/pvi-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}" ./cmd/pvi
+
+        echo "Building pvx..."
+        go build -ldflags="$LDFLAGS" -o "build/release/pvx-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}" ./cmd/pvx
+
+        # Build PSC if supported on this platform
+        if [ "${{ matrix.build_psc }}" == "true" ]; then
+          echo "Building psc..."
+          go build -ldflags="$LDFLAGS" -o "build/release/psc-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}" ./cmd/psc
+        fi
+
+    - name: Test binaries
+      shell: bash
+      run: |
+        EXT=""
+        if [ "${{ matrix.goos }}" == "windows" ]; then
+          EXT=".exe"
+        fi
+
+        # Test that binaries work (if not cross-compiling)
+        if [ "${{ matrix.goos }}" == "${{ runner.os }}" ] || ( [ "${{ matrix.goos }}" == "linux" ] && [ "${{ runner.os }}" == "Linux" ] ); then
+          echo "Testing binaries..."
+          ./build/release/pvm-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+          ./build/release/pvi-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+          ./build/release/pvx-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+
+          if [ "${{ matrix.build_psc }}" == "true" ]; then
+            ./build/release/psc-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+          fi
+        else
+          echo "Skipping binary tests for cross-compiled artifacts"
+        fi
+
+    - name: Create platform archive
+      shell: bash
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        PLATFORM="${{ matrix.goos }}-${{ matrix.goarch }}"
+
+        cd build/release
+
+        # Determine archive format and file extension
+        if [ "${{ matrix.goos }}" == "windows" ]; then
+          ARCHIVE="pvm-${VERSION}-${PLATFORM}.zip"
+          EXT=".exe"
+
+          # Create zip archive for Windows
+          powershell -Command "Compress-Archive -Path pvm-${PLATFORM}${EXT}, pvi-${PLATFORM}${EXT}, pvx-${PLATFORM}${EXT} -DestinationPath ${ARCHIVE}"
+          if [ "${{ matrix.build_psc }}" == "true" ]; then
+            powershell -Command "Expand-Archive ${ARCHIVE} temp; Copy-Item psc-${PLATFORM}${EXT} temp/; Remove-Item ${ARCHIVE}; Compress-Archive -Path temp/* -DestinationPath ${ARCHIVE}; Remove-Item -Recurse temp"
+          fi
+        else
+          ARCHIVE="pvm-${VERSION}-${PLATFORM}.tar.gz"
+          EXT=""
+
+          # Create tar.gz archive for Unix-like systems
+          FILES="pvm-${PLATFORM}${EXT} pvi-${PLATFORM}${EXT} pvx-${PLATFORM}${EXT}"
+          if [ "${{ matrix.build_psc }}" == "true" ]; then
+            FILES="$FILES psc-${PLATFORM}${EXT}"
+          fi
+
+          tar -czf "$ARCHIVE" $FILES
+        fi
+
+        echo "Created archive: $ARCHIVE"
+        ls -la "$ARCHIVE"
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v5
+      with:
+        name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: build/release/*.tar.gz
+        if-no-files-found: ignore
+        retention-days: 30
+
+    - name: Upload Windows artifacts
+      if: matrix.goos == 'windows'
+      uses: actions/upload-artifact@v5
+      with:
+        name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: build/release/*.zip
+        retention-days: 30
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-matrix
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v5
+      with:
+        path: artifacts
+
+    - name: Get version info
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          TAG="${{ github.event.inputs.tag }}"
+          PRERELEASE="${{ github.event.inputs.prerelease }}"
+        else
+          TAG=${GITHUB_REF#refs/tags/}
+          # Auto-detect prerelease based on tag
+          if [[ "$TAG" =~ -rc[0-9]+$ ]] || [[ "$TAG" =~ -alpha[0-9]*$ ]] || [[ "$TAG" =~ -beta[0-9]*$ ]]; then
+            PRERELEASE="true"
+          else
+            PRERELEASE="false"
+          fi
+        fi
+        VERSION=${TAG#v}
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "prerelease=$PRERELEASE" >> $GITHUB_OUTPUT
+
+    - name: Organize release files
+      run: |
+        mkdir -p release-files
+        find artifacts -name "*.tar.gz" -o -name "*.zip" | while read file; do
+          cp "$file" release-files/
+        done
+        ls -la release-files/
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        TAG="${{ steps.version.outputs.tag }}"
+
+        # Get previous tag for changelog
+        PREV_TAG=$(git tag --sort=-version:refname | grep -v "$TAG" | head -n1 || echo "")
+
+        cat > release_notes.md << EOF
+        # PVM $TAG
+
+        ## 🚀 What's New
+
+        $(if [ -n "$PREV_TAG" ]; then
+          echo "### Changes since $PREV_TAG"
+          git log --pretty=format:"- %s" "$PREV_TAG..$TAG" | head -20
+        else
+          echo "First release of PVM (Perl Version Manager) with comprehensive typed Perl support."
+        fi)
+
+        ## 📦 Release Assets
+
+        This release includes binaries for multiple platforms:
+
+        ### Linux
+        - **Linux AMD64**: \`pvm-${VERSION}-linux-amd64.tar.gz\` (includes PSC with tree-sitter)
+        - **Linux ARM64**: \`pvm-${VERSION}-linux-arm64.tar.gz\` (PVM, PVI, PVX only)
+
+        ### macOS
+        - **macOS Intel**: \`pvm-${VERSION}-darwin-amd64.tar.gz\` (includes PSC)
+        - **macOS Apple Silicon**: \`pvm-${VERSION}-darwin-arm64.tar.gz\` (includes PSC)
+
+        ### Windows
+        - **Windows AMD64**: \`pvm-${VERSION}-windows-amd64.zip\` (PVM, PVI, PVX only)
+
+        ## 🔧 Installation
+
+        ### Linux/macOS
+        \`\`\`bash
+        # Download for your platform
+        wget https://github.com/perigrin/pvm/releases/download/$TAG/pvm-${VERSION}-linux-amd64.tar.gz
+        tar -xzf pvm-${VERSION}-linux-amd64.tar.gz
+
+        # Make binaries executable and test
+        chmod +x pvm-* pvi-* pvx-*
+        ./pvm-linux-amd64 version
+        \`\`\`
+
+        ### Windows
+        \`\`\`powershell
+        # Download and extract the ZIP file
+        # Run in PowerShell or Command Prompt
+        .\pvm-windows-amd64.exe version
+        \`\`\`
+
+        ## 🧪 Components
+
+        | Component | Description | Platforms |
+        |-----------|-------------|-----------|
+        | **pvm** | Main Perl version manager | All |
+        | **pvi** | Package installer with dependency management | All |
+        | **pvx** | Perl script executor with isolation | All |
+        | **psc** | Perl script compiler with type checking | Linux, macOS |
+
+        ## ⚠️ Notes
+
+        - **PSC** (Perl Script Compiler) requires tree-sitter and is not available on Windows or Linux ARM64 in this release
+        - Some advanced features require additional Perl modules to be installed
+        - $(if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then echo "This is a pre-release build - not recommended for production use"; else echo "This is a stable release suitable for production use"; fi)
+
+        ## 📋 Support
+
+        - **Documentation**: See the [README](https://github.com/perigrin/pvm/blob/main/README.md)
+        - **Issues**: Report bugs and feature requests via [GitHub Issues](https://github.com/perigrin/pvm/issues)
+        - **Discussions**: Join the conversation in [GitHub Discussions](https://github.com/perigrin/pvm/discussions)
+        EOF
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version.outputs.tag }}
+        name: PVM ${{ steps.version.outputs.tag }}
+        body_path: release_notes.md
+        files: release-files/*
+        prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+        generate_release_notes: false
+        make_latest: ${{ steps.version.outputs.prerelease == 'false' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update release summary
+      run: |
+        echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Tag**: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Pre-release**: ${{ steps.version.outputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Release Assets" >> $GITHUB_STEP_SUMMARY
+        ls -la release-files/ >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+        echo "- [Release Page](https://github.com/perigrin/pvm/releases/tag/${{ steps.version.outputs.tag }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [All Releases](https://github.com/perigrin/pvm/releases)" >> $GITHUB_STEP_SUMMARY
