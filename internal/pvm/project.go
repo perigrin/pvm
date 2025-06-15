@@ -461,7 +461,6 @@ proof/
 	return content
 }
 
-
 // showProjectStatus shows comprehensive project status
 func showProjectStatus(cmd *cobra.Command) error {
 	// Get project context
@@ -671,7 +670,7 @@ func listTemplates(cmd *cobra.Command) error {
 
 	cmd.Println()
 	cmd.Printf("To create a custom template, add a JSON file to:\n")
-	
+
 	dirs, err := xdg.GetDirs()
 	if err == nil {
 		cmd.Printf("%s\n", filepath.Join(dirs.ConfigDir, "templates"))

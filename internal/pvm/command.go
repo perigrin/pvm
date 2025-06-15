@@ -38,9 +38,9 @@ func NewCommand() *cobra.Command {
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
 		newDownloadCommand(),
-		newBuildCommand(),  // Now incorporates PSC functionality
-		newRunCommand(),    // New unified run command (incorporates PVX)
-		newModuleCommand(), // New unified module command (incorporates PVI)
+		newBuildCommand(),   // Now incorporates PSC functionality
+		newRunCommand(),     // New unified run command (incorporates PVX)
+		newModuleCommand(),  // New unified module command (incorporates PVI)
 		newProjectCommand(), // New project management command
 		newExecCommand(),
 		newUninstallCommand(),
