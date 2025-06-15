@@ -73,7 +73,7 @@ system_path = "/usr/bin/perl"
 
 	// Test that list command works even without migrated data
 	t.Log("Testing version list with old data...")
-	stdout, _, err = env.RunPVM("list")
+	_, _, err = env.RunPVM("list")
 	assert.NoError(t, err, "List should work even without existing data")
 	// Since we're in a test environment, system perl might not be detected
 	// Just check that the command runs without error
@@ -202,7 +202,7 @@ func TestMigrationCompatibility_EnvironmentVariables(t *testing.T) {
 	}
 
 	// Test that legacy variables don't break new functionality
-	stdout, _, err = env.RunPVM("list")
+	_, _, err = env.RunPVM("list")
 	assert.NoError(t, err, "List should work with legacy environment")
 	// The list might be empty in test environment, just check it doesn't fail
 }
@@ -468,12 +468,13 @@ func TestMigrationCompatibility_UpgradePath(t *testing.T) {
 
 	// Test that new PVM can coexist with old installation
 	t.Log("Testing upgrade coexistence...")
-	stdout, _, err := env.RunPVM("list")
+	_, _, err = env.RunPVM("list")
 	assert.NoError(t, err, "Should list versions with old installation present")
 	// Version list might be empty in test environment, just check command works
 
 	// Test data migration if supported
 	t.Log("Testing data preservation...")
+	var stdout string
 	stdout, _, err = env.RunPVM("config", "get", "xdg.data_dir")
 
 	if err == nil {

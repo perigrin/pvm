@@ -191,7 +191,7 @@ func TestUnionTypeCompatibilityChecking(t *testing.T) {
 	assert.Error(t, err)
 
 	// Test union to union compatibility
-	err = hierarchy.CheckTypeCompatibility("Union[Int, Bool]", "Union[Int, Str]")
+	_ = hierarchy.CheckTypeCompatibility("Union[Int, Bool]", "Union[Int, Str]")
 	// Int is compatible, Bool might not be compatible with Str
 	// This test depends on the exact subtype relationships
 }

@@ -78,3 +78,6 @@ test_output.txt
 internal/parser/testdata/input/
 internal/parser/testdata/integration-results/
 internal/typechecker/testdata/input/
+
+# Build artifacts
+tmp-golangci-build/

@@ -182,7 +182,6 @@ func (ie *InterpolationEngine) interpolateStringRecursive(input string, depth in
 
 	// Keep looping until no more substitutions are possible
 	for changed {
-		changed = false
 
 		// Find the first ${...} pattern
 		start := strings.Index(result, "${")

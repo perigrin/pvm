@@ -78,7 +78,6 @@ func parsePODMetadata(scanner *bufio.Scanner) (*ScriptMetadata, error) {
 		}
 
 		if line == "=end pvm" {
-			inPVMBlock = false
 			break
 		}
 
@@ -129,7 +128,6 @@ func parseCommentMetadata(scanner *bufio.Scanner) (*ScriptMetadata, error) {
 		}
 
 		if line == "# ///" {
-			inPVMBlock = false
 			break
 		}
 

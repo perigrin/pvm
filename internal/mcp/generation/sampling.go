@@ -120,7 +120,7 @@ func (c *SamplingClient) BatchSample(ctx context.Context, prompts []string, proj
 func (c *SamplingClient) generateMockResponse(request *SamplingRequest) *SamplingResponse {
 	// Generate appropriate mock responses based on prompt content
 	content := ""
-	confidence := 0.85
+	var confidence float64
 
 	switch {
 	case contains(request.Prompt, "missing sigil"):
