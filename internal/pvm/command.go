@@ -53,15 +53,20 @@ func NewCommand() *cobra.Command {
 		newEnvCommand(),
 		newToolCommand(),
 
-		// Backward compatibility aliases
-		newPVXCommand(), // Alias to run command
-		newPSCCommand(), // Alias to build command
+		// Shell aliases for convenience
+		newPVXCommand(), // Shell alias to run command
+		newPSCCommand(), // Shell alias to build command
 
 		// These are implemented in their own files
 		newSymlinksCommand(), // from symlinks.go
 		newConfigCommand(),   // from config.go
 		newPerlCommand(),     // from perl.go
 		newVersionCommand(),  // from version.go
+
+		// Hidden subcommands for help purposes only
+		newHelpOnlyPVICommand(),
+		newHelpOnlyPVXCommand(),
+		newHelpOnlyPSCCommand(),
 	)
 
 	return cmd
@@ -896,15 +901,15 @@ func newResolveCommand() *cobra.Command {
 	}
 }
 
-// newPVXCommand creates a PVX command for backward compatibility (alias to run)
+// newPVXCommand creates a PVX command as a shell alias to 'pvm run'
 func newPVXCommand() *cobra.Command {
 	// Get the PVX command from the PVX package
 	pvxCmd := pvx.NewCommand()
 
-	// Customize for backward compatibility
+	// Customize as shell alias
 	pvxCmd.Use = "pvx"
-	pvxCmd.Short = "Perl Version eXecutor - deprecated, use 'run'"
-	pvxCmd.Long = "Executes Perl code in isolated environments. Note: This command is deprecated, use 'pvm run' instead."
+	pvxCmd.Short = "Perl Version eXecutor (shell alias for 'pvm run')"
+	pvxCmd.Long = "Executes Perl code in isolated environments. This is a shell alias for 'pvm run' - you can use either 'pvx' or 'pvm run' interchangeably."
 
 	return pvxCmd
 }
@@ -1405,15 +1410,15 @@ func newRunCommand() *cobra.Command {
 	return pvxCmd
 }
 
-// newPSCCommand creates a PSC command that delegates to build command (backward compatibility)
+// newPSCCommand creates a PSC command as a shell alias to 'pvm build'
 func newPSCCommand() *cobra.Command {
 	// Get the PSC command from the PSC package
 	pscCmd := psc.NewCommand()
 
-	// Customize for integration with PVM
+	// Customize as shell alias
 	pscCmd.Use = "psc"
-	pscCmd.Short = "Perl Script Compiler (Type Checking) - deprecated, use 'build'"
-	pscCmd.Long = "Provides static type checking for Perl code with type annotations. Note: This command is deprecated, use 'pvm build' instead."
+	pscCmd.Short = "Perl Script Compiler (shell alias for 'pvm build')"
+	pscCmd.Long = "Provides static type checking for Perl code with type annotations. This is a shell alias for 'pvm build' - you can use either 'psc' or 'pvm build' interchangeably."
 
 	return pscCmd
 }
@@ -2066,4 +2071,34 @@ func removeToolShim(toolName string) error {
 		return os.Remove(shimPath)
 	}
 	return nil
+}
+
+// newHelpOnlyPVICommand creates a hidden PVI subcommand for help purposes only
+func newHelpOnlyPVICommand() *cobra.Command {
+	pviCmd := pvi.NewCommand()
+	pviCmd.Use = "pvi"
+	pviCmd.Hidden = true
+	pviCmd.Short = "Perl Version Installer (shell alias for 'pvm module')"
+	pviCmd.Long = "Manages CPAN modules for installed Perl versions. This is a shell alias for 'pvm module' - you can use either 'pvi' or 'pvm module' interchangeably."
+	return pviCmd
+}
+
+// newHelpOnlyPVXCommand creates a hidden PVX subcommand for help purposes only
+func newHelpOnlyPVXCommand() *cobra.Command {
+	pvxCmd := pvx.NewCommand()
+	pvxCmd.Use = "pvx"
+	pvxCmd.Hidden = true
+	pvxCmd.Short = "Perl Version eXecutor (shell alias for 'pvm run')"
+	pvxCmd.Long = "Executes Perl code in isolated environments. This is a shell alias for 'pvm run' - you can use either 'pvx' or 'pvm run' interchangeably."
+	return pvxCmd
+}
+
+// newHelpOnlyPSCCommand creates a hidden PSC subcommand for help purposes only
+func newHelpOnlyPSCCommand() *cobra.Command {
+	pscCmd := psc.NewCommand()
+	pscCmd.Use = "psc"
+	pscCmd.Hidden = true
+	pscCmd.Short = "Perl Script Compiler (shell alias for 'pvm build')"
+	pscCmd.Long = "Provides static type checking for Perl code with type annotations. This is a shell alias for 'pvm build' - you can use either 'psc' or 'pvm build' interchangeably."
+	return pscCmd
 }

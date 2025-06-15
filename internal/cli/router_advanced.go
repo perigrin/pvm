@@ -31,6 +31,17 @@ type InvocationInfo struct {
 
 // DetectInvocation returns detailed information about how the binary was invoked
 func DetectInvocation() *InvocationInfo {
+	// Handle empty args gracefully
+	if len(os.Args) == 0 {
+		return &InvocationInfo{
+			Component:   ComponentPVM,
+			Type:        InvocationFallback,
+			OriginalArg: "",
+			BinaryPath:  "",
+			Detected:    false,
+		}
+	}
+
 	// Get the executable path from args
 	exePath := os.Args[0]
 
