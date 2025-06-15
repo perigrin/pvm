@@ -4,10 +4,12 @@ This directory contains the comprehensive documentation for the PVM (Perl Versio
 
 ## Document Structure Overview
 
-The documentation is organized into **8 focused documents** designed to get experienced developers up to speed quickly on PVM's typed-Perl approach:
+The documentation is organized into **10 focused documents** designed to get experienced developers up to speed quickly on PVM's typed-Perl approach:
 
-### Core Specification
+### Core References
 - **[typed-perl-specification.md](typed-perl-specification.md)** - Complete technical specification for the typed-Perl type system
+- **[command-reference.md](command-reference.md)** - Comprehensive reference for all PVM commands and options
+- **[quick-reference.md](quick-reference.md)** - Fast lookup for common commands and workflows
 
 ### Workflow Guides
 - **[workflow-new-development.md](workflow-new-development.md)** - Using PVM for new projects from scratch
@@ -27,6 +29,9 @@ The documentation is organized into **8 focused documents** designed to get expe
 ### New to PVM?
 Start with **[quickstart.md](quickstart.md)** for immediate hands-on experience.
 
+### Need Command Help?
+Use **[quick-reference.md](quick-reference.md)** for common tasks or **[command-reference.md](command-reference.md)** for complete command documentation.
+
 ### Starting a New Project?
 Follow **[workflow-new-development.md](workflow-new-development.md)** for end-to-end guidance.
 
@@ -41,7 +46,7 @@ Read **[typed-perl-specification.md](typed-perl-specification.md)** for comprehe
 
 ## Document Status
 
-✅ **Complete**: All 8 focused documents have been successfully created and populated with content from the comprehensive documentation refactoring project.
+✅ **Complete**: All 10 focused documents have been successfully created and populated with content. Recent additions include comprehensive command reference and quick reference guides for improved discoverability.
 
 **Migration Completed:**
 - ✅ Step 3: Migrate typed-perl-specification.md
