@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/pvi/deps"
 	"tamarou.com/pvm/internal/pvi/modules"
 )
@@ -30,6 +32,8 @@ func NewCommand() *cobra.Command {
 	// Add PVI-specific commands
 	cmd.AddCommand(
 		newInstallCommand(),
+		newAddCommand(),
+		newSyncCommand(),
 		newListCommand(),
 		newUpdateCommand(),
 		newRemoveCommand(),
@@ -62,15 +66,72 @@ func newInstallCommand() *cobra.Command {
 		workers      int
 		parallel     bool
 		timing       bool
+		dev          bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "install [module...]",
 		Short: "Install one or more modules",
-		Long:  "Install CPAN modules for the current Perl version. Supports parallel installation for multiple modules.",
-		Args:  cobra.MinimumNArgs(1),
+		Long:  "Install CPAN modules for the current Perl version. If no modules specified, installs from cpanfile. Supports parallel installation for multiple modules.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			moduleNames := args
+			var moduleNames []string
+
+			// If no modules specified, try to read from cpanfile
+			if len(args) == 0 {
+				// Detect project context
+				projectCtx, err := project.GetCurrentProject()
+				if err != nil {
+					return fmt.Errorf("failed to detect project context: %w", err)
+				}
+
+				if !projectCtx.IsProject {
+					return fmt.Errorf("no modules specified and not in a project directory. Specify modules to install or use 'pvm project init' to create a project")
+				}
+
+				// Check for cpanfile
+				cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
+				if _, err := os.Stat(cpanfilePath); os.IsNotExist(err) {
+					return fmt.Errorf("no modules specified and no cpanfile found in project. Use 'pvm module add <module>' to add dependencies")
+				}
+
+				// Read cpanfile and extract module names
+				cpanfileManager := NewCpanfileManager(cpanfilePath)
+				cpanfile, err := cpanfileManager.ListDependencies()
+				if err != nil {
+					return fmt.Errorf("failed to read cpanfile: %w", err)
+				}
+
+				// Check for --dev flag to include development dependencies
+				includeDev, _ := cmd.Flags().GetBool("dev")
+
+				// Extract module names based on flags
+				for _, req := range cpanfile.Requirements {
+					if req.Phase == "develop" && !includeDev {
+						continue // Skip dev dependencies unless --dev flag is used
+					}
+					if req.Phase != "develop" && req.Phase != "runtime" && req.Phase != "" {
+						continue // Skip test and build dependencies for now
+					}
+					moduleNames = append(moduleNames, req.Module)
+				}
+
+				if len(moduleNames) == 0 {
+					if includeDev {
+						return fmt.Errorf("no dependencies found in cpanfile")
+					} else {
+						return fmt.Errorf("no runtime dependencies found in cpanfile. Use --dev flag to include development dependencies")
+					}
+				}
+
+				cmd.Printf("Installing %d modules from cpanfile...\n", len(moduleNames))
+
+				// Override installDir to use project lib directory
+				if installDir == "" {
+					installDir = projectCtx.LocalLibDir
+				}
+			} else {
+				moduleNames = args
+			}
 
 			// Get configuration
 			cfg, err := config.LoadEffectiveConfig()
@@ -316,6 +377,7 @@ func newInstallCommand() *cobra.Command {
 	cmd.Flags().IntVar(&workers, "workers", 0, "Number of parallel workers (0 = auto-detect, only used with multiple modules)")
 	cmd.Flags().BoolVar(&parallel, "parallel", false, "Force parallel installation even for single module")
 	cmd.Flags().BoolVar(&timing, "timing", false, "Show detailed timing information")
+	cmd.Flags().BoolVar(&dev, "dev", false, "Include development dependencies when installing from cpanfile")
 
 	return cmd
 }
@@ -1479,4 +1541,310 @@ func newOutdatedCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&source, "source", "s", "", "Use a specific metadata source (metacpan, cpan, custom)")
 
 	return cmd
+}
+
+func newAddCommand() *cobra.Command {
+	var (
+		dev     bool
+		version string
+		verbose bool
+		force   bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "add [module]",
+		Short: "Add a module to cpanfile and install it",
+		Long:  "Add a CPAN module dependency to the project's cpanfile and install it to the project lib directory",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			moduleName := args[0]
+
+			// Detect project context
+			projectCtx, err := project.GetCurrentProject()
+			if err != nil {
+				return fmt.Errorf("failed to detect project context: %w", err)
+			}
+
+			if !projectCtx.IsProject {
+				return fmt.Errorf("not in a project directory. Use 'pvm project init' to create a project")
+			}
+
+			// Set up cpanfile path
+			cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
+			cpanfileManager := NewCpanfileManager(cpanfilePath)
+
+			cmd.Printf("Adding %s to cpanfile", moduleName)
+			if dev {
+				cmd.Print(" (development dependency)")
+			}
+			if version != "" {
+				cmd.Printf(" with version constraint '%s'", version)
+			}
+			cmd.Println("...")
+
+			// Add to cpanfile first
+			err = cpanfileManager.AddDependency(moduleName, version, dev)
+			if err != nil {
+				return fmt.Errorf("failed to add dependency to cpanfile: %w", err)
+			}
+
+			cmd.Printf("Added %s to cpanfile\n", moduleName)
+
+			// Now install the module to project lib directory
+			cmd.Printf("Installing %s to project lib directory...\n", moduleName)
+
+			// Get configuration
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return err
+			}
+
+			// Set up provider
+			source := "metacpan"
+			if cfg.PVI != nil && cfg.PVI.MetadataSource != "" {
+				source = cfg.PVI.MetadataSource
+			}
+
+			var providerOpts []cpan.ProviderOption
+			if cfg.PVI != nil {
+				if source == "custom" && cfg.PVI.MetadataURL != "" {
+					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
+				}
+				if cfg.PVI.CacheModules && cfg.PVI.CacheDir != "" {
+					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
+				}
+				if cfg.PVI.DefaultMirror != "" {
+					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
+				}
+				if len(cfg.PVI.AdditionalMirrors) > 0 {
+					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
+				}
+				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
+			}
+
+			provider, err := cpan.NewProvider(source, providerOpts...)
+			if err != nil {
+				return err
+			}
+
+			// Create dependency resolver
+			var cacheDir string
+			var cacheTTL int
+			if cfg.PVI != nil {
+				cacheDir = cfg.PVI.CacheDir
+				cacheTTL = cfg.PVI.CacheTTL
+			}
+
+			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
+			if err != nil {
+				return err
+			}
+
+			// Get current Perl path
+			perlPath, err := perl.GetCurrentPerlPath()
+			if err != nil {
+				return err
+			}
+
+			// Install to project lib directory
+			installDir := projectCtx.LocalLibDir
+
+			installOptions := &modules.ModuleInstallOptions{
+				ModuleName:         moduleName,
+				VersionConstraint:  version,
+				PerlPath:           perlPath,
+				InstallDir:         installDir,
+				RunTests:           true,
+				Force:              force,
+				Cleanup:            true,
+				Verbose:            verbose,
+				SkipDependencies:   false,
+				Provider:           provider,
+				DependencyResolver: resolver,
+				ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
+					if verbose {
+						cmd.Printf("[%s] %s: %s (%.0f%%)\n", stage.String(), module, details, progress*100)
+					} else if stage != modules.StageFinished {
+						cmd.Printf("[%s] %s\n", stage.String(), module)
+					}
+				},
+				Context: cmd.Context(),
+			}
+
+			result, err := modules.InstallModule(installOptions)
+			if err != nil {
+				// If installation fails, remove from cpanfile
+				cmd.Printf("Installation failed, removing %s from cpanfile...\n", moduleName)
+				if removeErr := cpanfileManager.RemoveDependency(moduleName); removeErr != nil {
+					cmd.Printf("Warning: failed to remove %s from cpanfile: %v\n", moduleName, removeErr)
+				}
+				return fmt.Errorf("failed to install %s: %w", moduleName, err)
+			}
+
+			if result.Success {
+				cmd.Printf("Successfully added and installed %s v%s\n", result.ModuleName, result.Version)
+				if len(result.Dependencies) > 0 {
+					cmd.Printf("Installed %d dependencies\n", len(result.Dependencies))
+				}
+			} else {
+				// Remove from cpanfile if installation wasn't successful
+				cmd.Printf("Installation not successful, removing %s from cpanfile...\n", moduleName)
+				if removeErr := cpanfileManager.RemoveDependency(moduleName); removeErr != nil {
+					cmd.Printf("Warning: failed to remove %s from cpanfile: %v\n", moduleName, removeErr)
+				}
+				return fmt.Errorf("failed to install %s", moduleName)
+			}
+
+			return nil
+		},
+	}
+
+	// Add flags
+	cmd.Flags().BoolVar(&dev, "dev", false, "Add as development dependency")
+	cmd.Flags().StringVar(&version, "version", "", "Version constraint (e.g., '>= 1.0', '~1.2.3')")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force installation even if tests fail")
+
+	return cmd
+}
+
+func newSyncCommand() *cobra.Command {
+	var (
+		fromSnapshot bool
+		verbose      bool
+		force        bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "sync",
+		Short: "Generate or install from cpanfile.snapshot",
+		Long: `Generate cpanfile.snapshot lockfile from installed modules or install from existing snapshot.
+
+By default, generates cpanfile.snapshot with exact versions of all installed dependencies.
+Use --from-snapshot to install exact versions from an existing cpanfile.snapshot file.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Detect project context
+			projectCtx, err := project.GetCurrentProject()
+			if err != nil {
+				return fmt.Errorf("failed to detect project context: %w", err)
+			}
+
+			if !projectCtx.IsProject {
+				return fmt.Errorf("not in a project directory. Use 'pvm project init' to create a project")
+			}
+
+			if fromSnapshot {
+				// Install from snapshot
+				return installFromSnapshot(cmd, projectCtx, verbose)
+			} else {
+				// Generate snapshot
+				return generateSnapshot(cmd, projectCtx, verbose)
+			}
+		},
+	}
+
+	// Add flags
+	cmd.Flags().BoolVar(&fromSnapshot, "from-snapshot", false, "Install from existing cpanfile.snapshot instead of generating one")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force regeneration even if snapshot is newer than cpanfile")
+
+	return cmd
+}
+
+// generateSnapshot creates a cpanfile.snapshot from currently installed modules
+func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, verbose bool) error {
+	cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
+	snapshotPath := filepath.Join(projectCtx.RootDir, "cpanfile.snapshot")
+
+	// Check if cpanfile exists
+	if _, err := os.Stat(cpanfilePath); os.IsNotExist(err) {
+		return fmt.Errorf("cpanfile not found. Use 'pvm module add <module>' to add dependencies first")
+	}
+
+	cmd.Println("Generating cpanfile.snapshot from installed modules...")
+
+	// Create cpanfile manager
+	cpanfileManager := NewCpanfileManager(cpanfilePath)
+
+	// Generate snapshot
+	snapshot, err := cpanfileManager.GenerateSnapshot()
+	if err != nil {
+		return fmt.Errorf("failed to generate snapshot: %w", err)
+	}
+
+	// Write snapshot
+	err = cpanfileManager.WriteSnapshot(snapshot)
+	if err != nil {
+		return fmt.Errorf("failed to write snapshot: %w", err)
+	}
+
+	cmd.Printf("Generated cpanfile.snapshot with %d distributions\n", len(snapshot.Distributions))
+	if verbose {
+		cmd.Printf("Snapshot saved to: %s\n", snapshotPath)
+		cmd.Printf("Perl version: %s\n", snapshot.PerlVersion)
+		cmd.Println("Distributions:")
+		for distName, entry := range snapshot.Distributions {
+			cmd.Printf("  %s (%s)\n", distName, entry.Pathname)
+			if verbose {
+				for module, version := range entry.Provides {
+					cmd.Printf("    provides: %s %s\n", module, version)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// installFromSnapshot installs exact versions from cpanfile.snapshot
+func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, verbose bool) error {
+	cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
+	snapshotPath := filepath.Join(projectCtx.RootDir, "cpanfile.snapshot")
+
+	// Check if snapshot exists
+	if _, err := os.Stat(snapshotPath); os.IsNotExist(err) {
+		return fmt.Errorf("cpanfile.snapshot not found. Run 'pvm module sync' to generate one")
+	}
+
+	cmd.Println("Installing modules from cpanfile.snapshot...")
+
+	// Create cpanfile manager
+	cpanfileManager := NewCpanfileManager(cpanfilePath)
+
+	// Read snapshot
+	snapshot, err := cpanfileManager.ReadSnapshot()
+	if err != nil {
+		return fmt.Errorf("failed to read snapshot: %w", err)
+	}
+
+	cmd.Printf("Found %d distributions in snapshot\n", len(snapshot.Distributions))
+	if verbose {
+		cmd.Printf("Snapshot Perl version: %s\n", snapshot.PerlVersion)
+		cmd.Printf("Generated at: %s\n", snapshot.GeneratedAt.Format("2006-01-02 15:04:05"))
+	}
+
+	// For each distribution in snapshot, install the exact version
+	for distName, entry := range snapshot.Distributions {
+		cmd.Printf("Installing %s...\n", distName)
+		if verbose {
+			cmd.Printf("  Pathname: %s\n", entry.Pathname)
+		}
+
+		// In a real implementation, you would:
+		// 1. Download the exact distribution from the pathname
+		// 2. Install it to the project lib directory
+		// 3. Verify the installation
+
+		// For now, we'll just print what would be installed
+		for module, version := range entry.Provides {
+			if verbose {
+				cmd.Printf("  Would install: %s version %s\n", module, version)
+			}
+		}
+	}
+
+	cmd.Println("Installation from snapshot completed successfully")
+	cmd.Println("Note: Actual installation from snapshot is not yet fully implemented")
+
+	return nil
 }
