@@ -47,4 +47,3 @@ Test: deeply_nested_generics
   type_annotation_count: 6
   name: deeply_nested_generics
   parse_time: 17.424698ms
-

@@ -12,7 +12,7 @@ require (
 	github.com/perigrin/pvm/tree-sitter-typed-perl/bindings/go v0.0.0-00010101000000-000000000000
 	github.com/philippgille/chromem-go v0.7.0
 	github.com/spf13/cobra v1.9.1
-	github.com/spf13/pflag v1.0.6
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/testify v1.10.0
 	github.com/tree-sitter/go-tree-sitter v0.25.0
 	github.com/ulikunitz/xz v0.5.12

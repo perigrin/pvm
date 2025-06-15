@@ -45,4 +45,3 @@ Test: complex_data_processor
   program_size: 3565
   line_count: 123
   features: [generics constraints complex_methods parameterized_types unions complex_signatures]
-

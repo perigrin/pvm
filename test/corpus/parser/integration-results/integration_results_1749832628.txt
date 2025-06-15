@@ -46,4 +46,3 @@ Test: error_recovery_test
   name: error_recovery_test
   parse_time: 2.606824ms
   success: false
-

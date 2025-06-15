@@ -46,4 +46,3 @@ Test: error_recovery_test
   success: false
   program_size: 505
   line_count: 27
-

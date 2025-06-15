@@ -46,4 +46,3 @@ Test: event_system_with_traits
   success: false
   program_size: 3355
   line_count: 106
-

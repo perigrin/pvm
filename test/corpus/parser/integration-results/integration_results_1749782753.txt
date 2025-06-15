@@ -45,4 +45,3 @@ Test: complex_data_processor
   features: [generics constraints complex_methods parameterized_types unions complex_signatures]
   error: UnknownTypeError: Syntax error in type expression
   name: complex_data_processor
-

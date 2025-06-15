@@ -47,4 +47,3 @@ Test: event_system_with_traits
   features: [intersection_types negation_types traits complex_constraints optional_parameters named_parameters]
   error: UnknownTypeError: Syntax error in type expression
   name: event_system_with_traits
-

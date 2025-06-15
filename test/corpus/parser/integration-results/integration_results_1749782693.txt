@@ -45,4 +45,3 @@ Test: deeply_nested_generics
   features: [deep_nesting complex_generics multiple_type_parameters nested_parameterized_types]
   error: UnknownTypeError: Syntax error in type expression
   name: deeply_nested_generics
-

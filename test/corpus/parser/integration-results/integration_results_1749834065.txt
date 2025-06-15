@@ -46,4 +46,3 @@ Test: complex_data_processor
   type_annotation_count: 12
   name: complex_data_processor
   parse_time: 19.646607ms
-

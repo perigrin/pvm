@@ -45,4 +45,3 @@ Test: event_system_with_traits
   program_size: 3355
   line_count: 106
   features: [intersection_types negation_types traits complex_constraints optional_parameters named_parameters]
-

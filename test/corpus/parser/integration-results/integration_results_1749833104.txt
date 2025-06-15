@@ -46,4 +46,3 @@ Test: deeply_nested_generics
   parse_time: 17.805939ms
   success: false
   program_size: 2612
-

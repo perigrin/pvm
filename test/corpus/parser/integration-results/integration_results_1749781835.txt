@@ -45,4 +45,3 @@ Test: deeply_nested_generics
   error: UnknownTypeError: Syntax error in type expression
   name: deeply_nested_generics
   parse_time: 16.206746ms
-

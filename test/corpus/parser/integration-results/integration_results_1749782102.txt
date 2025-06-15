@@ -45,4 +45,3 @@ Test: error_recovery_test
   program_size: 505
   line_count: 27
   features: [error_recovery malformed_types mixed_valid_invalid]
-

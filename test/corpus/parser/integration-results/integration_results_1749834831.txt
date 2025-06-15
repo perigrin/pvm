@@ -46,4 +46,3 @@ Test: error_recovery_test
   error: UnknownTypeError: Syntax error in type expression
   name: error_recovery_test
   parse_time: 1.963098ms
-

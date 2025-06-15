@@ -45,4 +45,3 @@ Test: error_recovery_test
   features: [error_recovery malformed_types mixed_valid_invalid]
   error: UnknownTypeError: Syntax error in type expression
   name: error_recovery_test
-

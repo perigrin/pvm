@@ -38,6 +38,6 @@ The `corpus/parser/typed-perl/` directory contains the authoritative examples of
 # Browse syntax examples
 ls test/corpus/parser/typed-perl/
 # simple-annotations.md - Basic type annotations
-# classes-roles.md - Object-oriented features  
+# classes-roles.md - Object-oriented features
 # complex-types.md - Advanced type constructs
 ```

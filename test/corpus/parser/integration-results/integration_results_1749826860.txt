@@ -46,4 +46,3 @@ Test: complete_user_service
   name: complete_user_service
   parse_time: 12.477399ms
   success: false
-

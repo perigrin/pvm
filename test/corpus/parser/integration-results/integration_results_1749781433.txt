@@ -45,4 +45,3 @@ Test: error_recovery_test
   parse_time: 2.901953ms
   success: false
   program_size: 505
-

@@ -46,4 +46,3 @@ Test: complete_user_service
   features: [types classes roles generics constraints inheritance]
   error: UnknownTypeError: Syntax error in type expression
   name: complete_user_service
-

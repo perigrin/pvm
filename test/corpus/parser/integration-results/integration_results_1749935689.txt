@@ -47,4 +47,3 @@ Test: event_system_with_traits
   parse_time: 20.18513ms
   success: false
   program_size: 3355
-

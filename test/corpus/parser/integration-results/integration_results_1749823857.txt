@@ -46,4 +46,3 @@ Test: deeply_nested_generics
   success: false
   program_size: 2612
   line_count: 88
-

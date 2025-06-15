@@ -75,7 +75,7 @@ The grammar is defined in `grammar.js` and includes:
 Tests are located in `../test/corpus/tree-sitter/corpus/` and follow tree-sitter's test format:
 
 ```bash
-# Run all tests  
+# Run all tests
 npm test
 
 # Test specific files

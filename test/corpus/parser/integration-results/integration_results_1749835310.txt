@@ -46,4 +46,3 @@ Test: deeply_nested_generics
   program_size: 2612
   line_count: 88
   features: [deep_nesting complex_generics multiple_type_parameters nested_parameterized_types]
-
