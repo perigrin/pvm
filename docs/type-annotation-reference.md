@@ -143,11 +143,11 @@ my !Undef&Serializable $constrained;
 Methods can have typed parameters and return types:
 
 ```perl
-method calculate(Int $a, Int $b) -> Int {
+method calculate(Int $a, Int $b) returns Int {
     return $a + $b;
 }
 
-method greet(Str $name) -> Str {
+method greet(Str $name) returns Str {
     return "Hello, $name!";
 }
 ```
@@ -157,7 +157,7 @@ method greet(Str $name) -> Str {
 Parameters can have default values:
 
 ```perl
-method process(Str $input, Bool $validate = 1) -> ArrayRef[Str] {
+method process(Str $input, Bool $validate = 1) returns ArrayRef[Str] {
     my @result = split /,/, $input;
     return \@result;
 }
@@ -173,7 +173,7 @@ method configure(
     :$port as Int = 8080,
     :$ssl as Bool = 0,
     :$timeout as Optional[Num]
-) -> ConnectionConfig {
+) returns ConnectionConfig {
     return ConnectionConfig->new(
         host => $host,
         port => $port,
@@ -188,7 +188,7 @@ method configure(
 Methods can accept variable numbers of arguments:
 
 ```perl
-method sum(Int *@numbers) -> Int {
+method sum(Int *@numbers) returns Int {
     my $total = 0;
     $total += $_ for @numbers;
     return $total;
@@ -205,7 +205,7 @@ method complex_method<T>(
     Optional[CodeRef[T, Bool]] $validator = undef,
     :$timeout as Num = 30.0,
     Slurpy[Any] *@rest
-) -> Result[T, ProcessingError] where T: Serializable {
+) returns Result[T, ProcessingError] where T: Serializable {
     return success($input);
 }
 ```
@@ -223,7 +223,7 @@ class User {
     field Optional[Email] $email;
     field ArrayRef[Role] $roles = [];
 
-    method new(Int $id, Str $name, Optional[Email] $email = undef) -> User {
+    method new(Int $id, Str $name, Optional[Email] $email = undef) returns User {
         return bless {
             id => $id,
             name => $name,
@@ -242,11 +242,11 @@ Classes can be parameterized with type parameters:
 class Container<T> where T: Serializable {
     field ArrayRef[T] $items = [];
 
-    method add(T $item) -> Void {
+    method add(T $item) returns Void {
         push @{$items}, $item;
     }
 
-    method get_all() -> ArrayRef[T] {
+    method get_all() returns ArrayRef[T] {
         return $items;
     }
 }
@@ -258,14 +258,14 @@ Roles can specify typed method signatures:
 
 ```perl
 role Serializable {
-    method serialize() -> Str;
-    method deserialize(Str $data) -> Self;
+    method serialize() returns Str;
+    method deserialize(Str $data) returns Self;
 }
 
 role Cacheable<K> where K: Serializable {
     field Optional[DateTime] $cached_at;
-    method cache_key() -> K;
-    method is_stale() -> Bool;
+    method cache_key() returns K;
+    method is_stale() returns Bool;
 }
 ```
 
@@ -279,7 +279,7 @@ class Document : BaseDocument does Serializable, Cacheable<DocumentId> {
     field DateTime $created;
     field Optional[UserRef] $author;
 
-    method serialize() -> Str {
+    method serialize() returns Str {
         return encode_json({
             content => $content,
             created => $created->iso8601,
@@ -287,7 +287,7 @@ class Document : BaseDocument does Serializable, Cacheable<DocumentId> {
         });
     }
 
-    method cache_key() -> DocumentId {
+    method cache_key() returns DocumentId {
         return $self->id;
     }
 }
@@ -322,7 +322,7 @@ Type constraints add runtime validation using `where` clauses:
 my $validated = $input as (Int where { $_ > 0 });
 my $range = $number as (Num where { $_ >= 0 && $_ <= 100 });
 
-method process<T>(ArrayRef[T] $data) -> ArrayRef[T]
+method process<T>(ArrayRef[T] $data) returns ArrayRef[T]
     where T: Serializable {
     return $data;
 }
@@ -333,13 +333,13 @@ method process<T>(ArrayRef[T] $data) -> ArrayRef[T]
 Constraints can include multiple conditions:
 
 ```perl
-method transform<T, U>(T $input) -> U
+method transform<T, U>(T $input) returns U
     where T: Serializable&Defined,
           U: Deserializable&!Undef {
     return deserialize($input->serialize());
 }
 
-method handle<T>(T $object) -> ProcessResult
+method handle<T>(T $object) returns ProcessResult
     where T does EventHandler,
           T can 'process',
           T->VERSION >= 1.5 {
@@ -385,12 +385,12 @@ my Int $count = 0;
 my Str $name = "example";
 
 # Phase 2: Method signatures
-method calculate(Int $a, Int $b) -> Int {
+method calculate(Int $a, Int $b) returns Int {
     return $a + $b;
 }
 
 # Phase 3: Advanced features
-method process<T>(ArrayRef[T] $input) -> ArrayRef[T]
+method process<T>(ArrayRef[T] $input) returns ArrayRef[T]
     where T: Serializable {
     return $input->map(sub { $_->clone() });
 }

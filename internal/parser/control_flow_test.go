@@ -25,7 +25,7 @@ func TestControlFlowStructures(t *testing.T) {
 
 	for _, category := range testCategories {
 		t.Run(category, func(t *testing.T) {
-			testFile := filepath.Join("testdata", "untyped-perl", "control-flow", category+".json")
+			testFile := filepath.Join("../../test/corpus/parser", "untyped-perl", "control-flow", category+".json")
 			runControlFlowTestsFromFile(t, testFile)
 		})
 	}

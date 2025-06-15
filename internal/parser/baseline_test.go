@@ -28,7 +28,7 @@ func TestParser_Baselines(t *testing.T) {
 	}
 
 	// Create test suite
-	suite := basetesting.NewBaselineTestSuite("parser", "../../testdata/parser", processor)
+	suite := basetesting.NewBaselineTestSuite("parser", "../../test/corpus/parser", processor)
 
 	// Run all baseline tests
 	suite.RunAllTests(t)
@@ -112,7 +112,7 @@ my $method_call = $object->method($arg1, $arg2);`,
 }
 
 func BenchmarkParser_Performance(b *testing.B) {
-	monitor := basetesting.NewPerformanceMonitor("testdata/performance/parser")
+	monitor := basetesting.NewPerformanceMonitor("../../test/corpus/parser/performance/parser")
 	helper := basetesting.NewBenchmarkHelper(monitor)
 
 	// Simple script parsing

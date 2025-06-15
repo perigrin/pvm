@@ -11,7 +11,7 @@ import (
 // TestMethodFieldAnnotations tests parsing of typed method definitions and field declarations
 func TestMethodFieldAnnotations(t *testing.T) {
 	t.Skip("Method and field annotation tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
-	testDataDir := filepath.Join("testdata", "typed-perl", "methods-fields")
+	testDataDir := filepath.Join("../../test/corpus/parser", "typed-perl", "methods-fields")
 	framework := NewParserTestFramework(testDataDir)
 
 	// Create a parser instance for testing

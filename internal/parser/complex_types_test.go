@@ -421,7 +421,7 @@ func TestComplexTypeErrorRecovery(t *testing.T) {
 
 func TestComplexTypesFromTestData(t *testing.T) {
 	t.Skip("Complex types tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
-	testDataDir := filepath.Join("testdata", "typed-perl", "complex-types")
+	testDataDir := filepath.Join("../../test/corpus/parser", "typed-perl", "complex-types")
 
 	// Load test cases from JSON files
 	testFiles, err := filepath.Glob(filepath.Join(testDataDir, "*.json"))

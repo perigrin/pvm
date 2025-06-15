@@ -12,7 +12,7 @@ import (
 func TestSimpleTypeAnnotations(t *testing.T) {
 	t.Skip("Simple type annotation tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
 	// Set up test framework
-	testDataDir := filepath.Join("testdata", "typed-perl", "simple-annotations")
+	testDataDir := filepath.Join("../../test/corpus/parser", "typed-perl", "simple-annotations")
 	framework := NewParserTestFramework(testDataDir)
 	framework.Verbose = testing.Verbose()
 
@@ -30,7 +30,7 @@ func TestSimpleTypeAnnotations(t *testing.T) {
 	framework.PrintMetricsSummary(t, metrics)
 
 	// Save metrics report
-	reportsDir := filepath.Join("testdata", "reports")
+	reportsDir := filepath.Join("../../test/corpus/parser", "reports")
 	metricsPath := filepath.Join(reportsDir, "simple_annotations_metrics.json")
 	err = framework.SaveMetricsReport(metrics, metricsPath)
 	if err != nil {

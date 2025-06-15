@@ -31,7 +31,7 @@ my Bool $is_active = 1;
 my ArrayRef[Int] $numbers = [1, 2, 3, 4, 5];
 
 # Function with type annotations
-sub add_numbers(Int $a, Int $b) -> Int {
+sub add_numbers(Int $a, Int $b) returns Int {
     return $a + $b;
 }
 
@@ -82,11 +82,11 @@ class UserAccount {
     field Str $email;
     field Int $user_id;
 
-    method get_username() -> Str {
+    method get_username() returns Str {
         return $username;
     }
 
-    method is_valid_email() -> Bool {
+    method is_valid_email() returns Bool {
         return $email =~ /\A[^@\s]+@[^@\s]+\z/;
     }
 }
@@ -151,7 +151,7 @@ use JSON::XS;
 my Str $json_text = '{"name": "John", "age": 30}';
 my HashRef $data = decode_json($json_text);
 
-sub greet(Str $name, Int $age) -> Str {
+sub greet(Str $name, Int $age) returns Str {
     return "Hello $name, you are $age years old!";
 }
 
@@ -195,7 +195,7 @@ pvi install Module::Name  # Like cpanm but with type awareness
 ```perl
 use Result qw(Ok Err);
 
-sub divide(Num $a, Num $b) -> Result[Num, Str] {
+sub divide(Num $a, Num $b) returns Result[Num, Str] {
     return Err("Division by zero") if $b == 0;
     return Ok($a / $b);
 }
@@ -209,7 +209,7 @@ $result->match(
 
 ### Optional Values
 ```perl
-sub find_user(Str $username) -> Maybe[UserAccount] {
+sub find_user(Str $username) returns Maybe[UserAccount] {
     my $user = $db->find_user($username);
     return $user ? Some($user) : None();
 }

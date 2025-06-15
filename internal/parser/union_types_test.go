@@ -12,7 +12,7 @@ import (
 func TestUnionTypes(t *testing.T) {
 	t.Skip("Union type tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
 	// Set up test framework
-	testDataDir := filepath.Join("testdata", "typed-perl", "union-types")
+	testDataDir := filepath.Join("../../test/corpus/parser", "typed-perl", "union-types")
 	framework := NewParserTestFramework(testDataDir)
 	framework.Verbose = testing.Verbose()
 
@@ -30,7 +30,7 @@ func TestUnionTypes(t *testing.T) {
 	framework.PrintMetricsSummary(t, metrics)
 
 	// Save metrics report
-	reportsDir := filepath.Join("testdata", "reports")
+	reportsDir := filepath.Join("../../test/corpus/parser", "reports")
 	metricsPath := filepath.Join(reportsDir, "union_types_metrics.json")
 	err = framework.SaveMetricsReport(metrics, metricsPath)
 	if err != nil {

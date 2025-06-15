@@ -25,7 +25,7 @@ func TestBasicExpressions(t *testing.T) {
 
 	for _, category := range testCategories {
 		t.Run(category, func(t *testing.T) {
-			testFile := filepath.Join("testdata", "untyped-perl", "expressions", category+".json")
+			testFile := filepath.Join("../../test/corpus/parser", "untyped-perl", "expressions", category+".json")
 			runExpressionTestsFromFile(t, testFile)
 		})
 	}

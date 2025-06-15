@@ -8,7 +8,7 @@ import (
 )
 
 func TestMixedFormatDiscovery(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	testCases, err := framework.DiscoverTestCases()
 	if err != nil {
@@ -57,7 +57,7 @@ func TestMixedFormatDiscovery(t *testing.T) {
 }
 
 func TestRunMarkdownTestsByCategory(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	// Run tests from our markdown files specifically
 	metrics := framework.RunTestsByCategory(t, TypedPerl)
@@ -77,7 +77,7 @@ func TestRunMarkdownTestsByCategory(t *testing.T) {
 }
 
 func TestRunUntypedPerlMarkdownTests(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	// Run tests from untyped perl markdown files
 	metrics := framework.RunTestsByCategory(t, UntypedPerl)

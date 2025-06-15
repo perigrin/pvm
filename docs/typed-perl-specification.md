@@ -127,7 +127,7 @@ Any      (explicit polymorphic type)
 ### 2.5 Higher-Kinded Types
 
 1. **Type Constructors** - Types that take other types as parameters
-2. **Kind System** - Types have kinds: `Type`, `Type -> Type`, `(Type -> Type) -> Type`, etc.
+2. **Kind System** - Types have kinds: `Type`, `Type returns Type`, `(Type returns Type) returns Type`, etc.
 3. **HKT Examples** - `Monad[F]`, `Functor[F]`, where F is itself a type constructor
 
 ### 2.6 Typing Approaches
@@ -157,7 +157,7 @@ Any      (explicit polymorphic type)
 2. **Union Type Approach** - Functions with context-dependent returns have union return types
 3. **Context Resolution** - Assignment context determines which part of union applies:
    ```perl
-   sub get_data() -> List[Int]|Str { ... }
+   sub get_data() returns List[Int]|Str { ... }
    my @data = get_data();  # List[Int] part applies
    my $data = get_data();  # Str part applies
    ```
@@ -207,11 +207,11 @@ my Type %hash;
 ### 4.2 Function Signatures and Return Types
 
 ```perl
-sub function_name(ParamType1 $param1, ParamType2 $param2) -> ReturnType {
+sub function_name(ParamType1 $param1, ParamType2 $param2) returns ReturnType {
     # Implementation
 }
 
-method method_name(ParamType $param) -> ReturnType {
+method method_name(ParamType $param) returns ReturnType {
     # Implementation
 }
 ```
@@ -227,14 +227,14 @@ my HashRef[Str, Num] %grades;
 my ArrayRef[HashRef[Str, Num]] $records;
 
 # Type variables
-sub identity<T>(T $value) -> T {
+sub identity<T>(T $value) returns T {
     return $value;
 }
 
 # Variance annotations
 type Box<+T> = { value: T };  # Covariant: Box[Dog] is a subtype of Box[Animal]
-type Callback<-T> = CodeRef[(T) -> Void];  # Contravariant: Callback[Animal] is a subtype of Callback[Dog]
-type Mutable<T> = { get: () -> T, set: (T) -> Void };  # Invariant: no subtyping relationship
+type Callback<-T> = CodeRef[(T) returns Void];  # Contravariant: Callback[Animal] is a subtype of Callback[Dog]
+type Mutable<T> = { get: () returns T, set: (T) returns Void };  # Invariant: no subtyping relationship
 ```
 
 ### 4.4 Type Combinations
@@ -280,13 +280,13 @@ Type definition files have a `.ptd` extension and define types for existing modu
 # DBI.ptd
 package DBI {
     class DBI::db {
-        method prepare(Str $query) -> DBI::st;
-        method selectall_arrayref(Str $query) -> ArrayRef[ArrayRef[Scalar]];
+        method prepare(Str $query) returns DBI::st;
+        method selectall_arrayref(Str $query) returns ArrayRef[ArrayRef[Scalar]];
     }
 
     class DBI::st {
-        method execute(@params) -> Bool;
-        method fetchrow_array() -> List;
+        method execute(@params) returns Bool;
+        method fetchrow_array() returns List;
     }
 }
 ```

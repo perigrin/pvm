@@ -12,7 +12,7 @@ import (
 func TestParameterizedTypes(t *testing.T) {
 	t.Skip("Parameterized type tests now covered by TestRunMarkdownTestsByCategory - JSON files removed to avoid duplication")
 	// Set up test framework
-	testDataDir := filepath.Join("testdata", "typed-perl", "parameterized-types")
+	testDataDir := filepath.Join("../../test/corpus/parser", "typed-perl", "parameterized-types")
 	framework := NewParserTestFramework(testDataDir)
 	framework.Verbose = testing.Verbose()
 
@@ -30,7 +30,7 @@ func TestParameterizedTypes(t *testing.T) {
 	framework.PrintMetricsSummary(t, metrics)
 
 	// Save metrics report
-	reportsDir := filepath.Join("testdata", "reports")
+	reportsDir := filepath.Join("../../test/corpus/parser", "reports")
 	metricsPath := filepath.Join(reportsDir, "parameterized_types_metrics.json")
 	err = framework.SaveMetricsReport(metrics, metricsPath)
 	if err != nil {

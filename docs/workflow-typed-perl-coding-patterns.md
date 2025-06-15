@@ -91,12 +91,12 @@ my ArrayRef[HashRef[Str, Int|Str]] $table_data = [
 
 ```perl
 # Simple function with typed parameters and return
-sub calculate_discount(Num $price, Num $rate) -> Num {
+sub calculate_discount(Num $price, Num $rate) returns Num {
     return $price * ($rate / 100);
 }
 
 # Function with optional parameters using Maybe types
-sub format_name(Str $first, Maybe[Str] $middle, Str $last) -> Str {
+sub format_name(Str $first, Maybe[Str] $middle, Str $last) returns Str {
     my $full_name = $first;
     if (defined($middle)) {
         $full_name .= " $middle";
@@ -107,7 +107,7 @@ sub format_name(Str $first, Maybe[Str] $middle, Str $last) -> Str {
 
 # Function with complex parameter types
 sub process_orders(ArrayRef[HashRef[Str, Str|Int|Num]] $orders,
-                  HashRef[Str] $config) -> ArrayRef[HashRef] {
+                  HashRef[Str] $config) returns ArrayRef[HashRef] {
     my @processed;
     for my $order (@$orders) {
         my $processed_order = process_single_order($order, $config);
@@ -117,7 +117,7 @@ sub process_orders(ArrayRef[HashRef[Str, Str|Int|Num]] $orders,
 }
 
 # Higher-order function patterns
-sub map_transform(ArrayRef[Any] $array, CodeRef $transformer) -> ArrayRef[Any] {
+sub map_transform(ArrayRef[Any] $array, CodeRef $transformer) returns ArrayRef[Any] {
     my @result;
     for my $item (@$array) {
         push @result, $transformer->($item);
@@ -130,12 +130,12 @@ sub map_transform(ArrayRef[Any] $array, CodeRef $transformer) -> ArrayRef[Any] {
 
 ```perl
 # Object method with typed parameters and return
-method validate_email(Str $email) -> Bool {
+method validate_email(Str $email) returns Bool {
     return $email =~ /^[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}$/;
 }
 
 # Method with complex object interactions
-method merge_data(HashRef[Any] $new_data) -> Self {
+method merge_data(HashRef[Any] $new_data) returns Self {
     for my $key (keys %$new_data) {
         $self->{data}->{$key} = $new_data->{$key};
     }
@@ -143,13 +143,13 @@ method merge_data(HashRef[Any] $new_data) -> Self {
 }
 
 # Method returning Maybe type for safe operations
-method find_user(Int $user_id) -> Maybe[User] {
+method find_user(Int $user_id) returns Maybe[User] {
     my $user_data = $self->get_user_data($user_id);
     return defined($user_data) ? User->new($user_data) : undef;
 }
 
 # Method with callback parameter
-method process_async(CodeRef $callback, Maybe[HashRef] $options = undef) -> Promise {
+method process_async(CodeRef $callback, Maybe[HashRef] $options = undef) returns Promise {
     my $opts = $options // {};
     return $self->async_processor->process($callback, $opts);
 }
@@ -176,12 +176,12 @@ class User {
     }
 
     # Getter with return type annotation
-    method get_name() -> Str {
+    method get_name() returns Str {
         return $name;
     }
 
     # Setter with validation
-    method set_email(Maybe[Str] $new_email) -> Self {
+    method set_email(Maybe[Str] $new_email) returns Self {
         if (defined($new_email)) {
             die "Invalid email format" unless $self->validate_email($new_email);
         }
@@ -190,7 +190,7 @@ class User {
     }
 
     # Method with complex logic and flow-sensitive analysis
-    method get_display_name() -> Str {
+    method get_display_name() returns Str {
         my Maybe[Str] $display = $email;
         if (defined($display) && $display =~ /^([^@]+)/) {
             # Flow analysis knows $display is Str here
@@ -210,12 +210,12 @@ class Shape {
     field Num $y ;
 
     # Abstract method declaration
-    method calculate_area() -> Num {
+    method calculate_area() returns Num {
         die "Abstract method must be implemented";
     }
 
     # Concrete method available to subclasses
-    method move_to(Num $new_x, Num $new_y) -> Self {
+    method move_to(Num $new_x, Num $new_y) returns Self {
         $x = $new_x;
         $y = $new_y;
         return $self;
@@ -226,31 +226,31 @@ class Shape {
 class Circle isa Shape {
     field Num $radius ;
 
-    method calculate_area() -> Num {
+    method calculate_area() returns Num {
         return 3.14159 * $radius * $radius;
     }
 
-    method get_circumference() -> Num {
+    method get_circumference() returns Num {
         return 2 * 3.14159 * $radius;
     }
 }
 
 # Interface-like role pattern
 role Serializable {
-    method to_json() -> Str;
-    method from_json(Str $json) -> Self;
+    method to_json() returns Str;
+    method from_json(Str $json) returns Self;
 }
 
 class User does Serializable {
     field Str $name ;
     field Int $age ;
 
-    method to_json() -> Str {
+    method to_json() returns Str {
         my HashRef $data = { name => $name, age => $age };
         return encode_json($data);
     }
 
-    method from_json(Str $json) -> Self {
+    method from_json(Str $json) returns Self {
         my HashRef $data = decode_json($json);
         return $class->new(
             name => $data->{name},
@@ -270,28 +270,28 @@ class UserBuilder {
     field ArrayRef[Str] $roles = [];
     field Maybe[Str] $email = undef;
 
-    method with_name(Str $user_name) -> Self {
+    method with_name(Str $user_name) returns Self {
         $name = $user_name;
         return $self;
     }
 
-    method with_age(Int $user_age) -> Self {
+    method with_age(Int $user_age) returns Self {
         die "Age must be positive" if $user_age < 0;
         $age = $user_age;
         return $self;
     }
 
-    method with_email(Str $user_email) -> Self {
+    method with_email(Str $user_email) returns Self {
         $email = $user_email;
         return $self;
     }
 
-    method add_role(Str $role) -> Self {
+    method add_role(Str $role) returns Self {
         push @$roles, $role;
         return $self;
     }
 
-    method build() -> User {
+    method build() returns User {
         die "Name is required" unless defined($name);
         die "Age is required" unless defined($age);
 
@@ -306,7 +306,7 @@ class UserBuilder {
 
 # Factory pattern with type validation
 class UserFactory {
-    method create_from_data(HashRef[Any] $data) -> User {
+    method create_from_data(HashRef[Any] $data) returns User {
         my UserBuilder $builder = UserBuilder->new();
 
         # Type-safe data extraction with validation
@@ -328,7 +328,7 @@ class UserFactory {
         return $builder->build();
     }
 
-    method create_admin(Str $name, Str $email) -> User {
+    method create_admin(Str $name, Str $email) returns User {
         return UserBuilder->new()
             ->with_name($name)
             ->with_email($email)
@@ -346,7 +346,7 @@ class UserFactory {
 
 ```perl
 # Function composition with type safety
-sub compose(CodeRef $f, CodeRef $g) -> CodeRef {
+sub compose(CodeRef $f, CodeRef $g) returns CodeRef {
     return sub {
         my @args = @_;
         return $f->($g->(@args));
@@ -354,7 +354,7 @@ sub compose(CodeRef $f, CodeRef $g) -> CodeRef {
 }
 
 # Map operation with type preservation
-sub typed_map(ArrayRef[Any] $array, CodeRef $transform) -> ArrayRef[Any] {
+sub typed_map(ArrayRef[Any] $array, CodeRef $transform) returns ArrayRef[Any] {
     my @result;
     for my $item (@$array) {
         push @result, $transform->($item);
@@ -363,7 +363,7 @@ sub typed_map(ArrayRef[Any] $array, CodeRef $transform) -> ArrayRef[Any] {
 }
 
 # Filter operation with type-safe predicates
-sub typed_filter(ArrayRef[Any] $array, CodeRef $predicate) -> ArrayRef[Any] {
+sub typed_filter(ArrayRef[Any] $array, CodeRef $predicate) returns ArrayRef[Any] {
     my @result;
     for my $item (@$array) {
         push @result, $item if $predicate->($item);
@@ -372,7 +372,7 @@ sub typed_filter(ArrayRef[Any] $array, CodeRef $predicate) -> ArrayRef[Any] {
 }
 
 # Reduce operation with accumulator typing
-sub typed_reduce(ArrayRef[Any] $array, Any $initial, CodeRef $reducer) -> Any {
+sub typed_reduce(ArrayRef[Any] $array, Any $initial, CodeRef $reducer) returns Any {
     my $accumulator = $initial;
     for my $item (@$array) {
         $accumulator = $reducer->($accumulator, $item);
@@ -381,7 +381,7 @@ sub typed_reduce(ArrayRef[Any] $array, Any $initial, CodeRef $reducer) -> Any {
 }
 
 # Partial application with type preservation
-sub partial(CodeRef $func, @fixed_args) -> CodeRef {
+sub partial(CodeRef $func, @fixed_args) returns CodeRef {
     return sub {
         my @remaining_args = @_;
         return $func->(@fixed_args, @remaining_args);
@@ -411,7 +411,7 @@ class Result[T] {
     field Maybe[T] $value = undef;
     field Maybe[Str] $error = undef;
 
-    method success(T $val) -> Result[T] {
+    method success(T $val) returns Result[T] {
         return $class->new(
             is_success => 1,
             value      => $val,
@@ -419,7 +419,7 @@ class Result[T] {
         );
     }
 
-    method failure(Str $err) -> Result[T] {
+    method failure(Str $err) returns Result[T] {
         return $class->new(
             is_success => 0,
             value      => undef,
@@ -427,7 +427,7 @@ class Result[T] {
         );
     }
 
-    method map(CodeRef $transform) -> Result[Any] {
+    method map(CodeRef $transform) returns Result[Any] {
         return $self unless $is_success;
 
         my $transformed_value;
@@ -441,7 +441,7 @@ class Result[T] {
         return Result->success($transformed_value);
     }
 
-    method flat_map(CodeRef $transform) -> Result[Any] {
+    method flat_map(CodeRef $transform) returns Result[Any] {
         return $self unless $is_success;
 
         my Result $result;
@@ -455,19 +455,19 @@ class Result[T] {
         return $result;
     }
 
-    method get_or_else(T $default) -> T {
+    method get_or_else(T $default) returns T {
         return $is_success ? $value : $default;
     }
 }
 
 # Usage example with chained operations
-sub divide(Num $a, Num $b) -> Result[Num] {
+sub divide(Num $a, Num $b) returns Result[Num] {
     return $b == 0
         ? Result->failure("Division by zero")
         : Result->success($a / $b);
 }
 
-sub square_root(Num $x) -> Result[Num] {
+sub square_root(Num $x) returns Result[Num] {
     return $x < 0
         ? Result->failure("Cannot take square root of negative number")
         : Result->success(sqrt($x));
@@ -518,7 +518,7 @@ class UserService {
     field DatabaseConnection $db ;
     field Logger $logger ;
 
-    method create_user(HashRef[Any] $user_data) -> Result[User] {
+    method create_user(HashRef[Any] $user_data) returns Result[User] {
         eval {
             # Validate input data
             $self->validate_user_data($user_data);
@@ -548,7 +548,7 @@ class UserService {
         }
     }
 
-    method validate_user_data(HashRef[Any] $data) -> Void {
+    method validate_user_data(HashRef[Any] $data) returns Void {
         # Type-safe validation with detailed errors
         unless (exists $data->{name} && defined $data->{name}) {
             die ValidationException->new(
@@ -585,17 +585,17 @@ class UserService {
 
 ```perl
 # Safe hash access with Maybe types
-sub safe_get(HashRef[Any] $hash, Str $key) -> Maybe[Any] {
+sub safe_get(HashRef[Any] $hash, Str $key) returns Maybe[Any] {
     return exists $hash->{$key} ? $hash->{$key} : undef;
 }
 
 # Safe array access with bounds checking
-sub safe_array_get(ArrayRef[Any] $array, Int $index) -> Maybe[Any] {
+sub safe_array_get(ArrayRef[Any] $array, Int $index) returns Maybe[Any] {
     return ($index >= 0 && $index < @$array) ? $array->[$index] : undef;
 }
 
 # Chained safe access
-sub safe_get_nested(HashRef[Any] $data, ArrayRef[Str] $path) -> Maybe[Any] {
+sub safe_get_nested(HashRef[Any] $data, ArrayRef[Str] $path) returns Maybe[Any] {
     my $current = $data;
 
     for my $key (@$path) {
@@ -644,7 +644,7 @@ class ExpensiveResource {
     field Maybe[DatabaseConnection] $_connection = undef;
     field Str $connection_string ;
 
-    method get_connection() -> DatabaseConnection {
+    method get_connection() returns DatabaseConnection {
         # Lazy initialization with flow-sensitive refinement
         unless (defined($_connection)) {
             $_connection = DatabaseConnection->new($connection_string);
@@ -659,7 +659,7 @@ class ExpensiveResource {
 class MemoizedCalculator {
     field HashRef[Num] $_cache = {};
 
-    method fibonacci(Int $n) -> Num {
+    method fibonacci(Int $n) returns Num {
         # Type-safe cache key
         my Str $cache_key = "fib_$n";
 
@@ -692,11 +692,11 @@ class NumberIterator {
         $_current = $start;
     }
 
-    method has_next() -> Bool {
+    method has_next() returns Bool {
         return $_current <= $end;
     }
 
-    method next() -> Maybe[Int] {
+    method next() returns Maybe[Int] {
         return undef unless $self->has_next();
 
         my Int $value = $_current;
@@ -704,7 +704,7 @@ class NumberIterator {
         return $value;
     }
 
-    method to_array() -> ArrayRef[Int] {
+    method to_array() returns ArrayRef[Int] {
         my @result;
         while ($self->has_next()) {
             push @result, $self->next();
@@ -724,14 +724,14 @@ class TypedCache[K, V] {
     field Int $max_size = 1000;
     field Int $_access_count = 0;
 
-    method get(K $key) -> Maybe[V] {
+    method get(K $key) returns Maybe[V] {
         my Str $cache_key = $self->serialize_key($key);
         $_access_count++;
 
         return safe_get($_cache, $cache_key);
     }
 
-    method set(K $key, V $value) -> Void {
+    method set(K $key, V $value) returns Void {
         my Str $cache_key = $self->serialize_key($key);
 
         # Evict old entries if cache is full
@@ -742,11 +742,11 @@ class TypedCache[K, V] {
         $_cache->{$cache_key} = $value;
     }
 
-    method serialize_key(K $key) -> Str {
+    method serialize_key(K $key) returns Str {
         return $_serializer->($key);
     }
 
-    method evict_oldest() -> Void {
+    method evict_oldest() returns Void {
         # Simple FIFO eviction (could be enhanced with LRU)
         my @keys = keys %$_cache;
         my Str $oldest_key = shift @keys;
@@ -775,7 +775,7 @@ if (defined($value)) {
 ```perl
 # Test fixture with typed data
 class UserTestFixture {
-    method create_valid_user_data() -> HashRef[Str|Int] {
+    method create_valid_user_data() returns HashRef[Str|Int] {
         return {
             name  => "Test User",
             age   => 25,
@@ -783,7 +783,7 @@ class UserTestFixture {
         };
     }
 
-    method create_invalid_user_data() -> HashRef[Str|Int] {
+    method create_invalid_user_data() returns HashRef[Str|Int] {
         return {
             name  => "",  # Invalid: empty name
             age   => -5,  # Invalid: negative age
@@ -791,7 +791,7 @@ class UserTestFixture {
         };
     }
 
-    method create_test_users(Int $count) -> ArrayRef[User] {
+    method create_test_users(Int $count) returns ArrayRef[User] {
         my @users;
         for my $i (1..$count) {
             push @users, User->new(
@@ -805,7 +805,7 @@ class UserTestFixture {
 }
 
 # Type-safe assertion helpers
-sub assert_type(Any $value, Str $expected_type, Str $message = "") -> Void {
+sub assert_type(Any $value, Str $expected_type, Str $message = "") returns Void {
     my Str $actual_type = ref($value) || "SCALAR";
 
     if ($actual_type ne $expected_type) {
@@ -814,14 +814,14 @@ sub assert_type(Any $value, Str $expected_type, Str $message = "") -> Void {
     }
 }
 
-sub assert_result_success(Result[Any] $result, Str $message = "") -> Void {
+sub assert_result_success(Result[Any] $result, Str $message = "") returns Void {
     unless ($result->is_success) {
         my Str $error = $message || "Expected successful result";
         die "$error: " . ($result->error // "unknown error");
     }
 }
 
-sub assert_result_failure(Result[Any] $result, Str $message = "") -> Void {
+sub assert_result_failure(Result[Any] $result, Str $message = "") returns Void {
     if ($result->is_success) {
         my Str $error = $message || "Expected failed result";
         die "$error: got successful result instead";
@@ -867,17 +867,17 @@ class DatabaseRow {
     field HashRef[Any] $_data ;
     field ArrayRef[Str] $_columns ;
 
-    method get_string(Str $column) -> Maybe[Str] {
+    method get_string(Str $column) returns Maybe[Str] {
         my Maybe[Any] $value = safe_get($_data, $column);
         return defined($value) ? "$value" : undef;
     }
 
-    method get_int(Str $column) -> Maybe[Int] {
+    method get_int(Str $column) returns Maybe[Int] {
         my Maybe[Any] $value = safe_get($_data, $column);
         return defined($value) ? int($value) : undef;
     }
 
-    method get_bool(Str $column) -> Maybe[Bool] {
+    method get_bool(Str $column) returns Maybe[Bool] {
         my Maybe[Any] $value = safe_get($_data, $column);
         return undef unless defined($value);
         return $value ? 1 : 0;
@@ -888,7 +888,7 @@ class DatabaseRow {
 class UserRepository {
     field DatabaseConnection $db ;
 
-    method find_by_id(Int $user_id) -> Maybe[User] {
+    method find_by_id(Int $user_id) returns Maybe[User] {
         my Maybe[DatabaseRow] $row = $self->query_single(
             "SELECT * FROM users WHERE id = ?",
             [$user_id]
@@ -897,7 +897,7 @@ class UserRepository {
         return defined($row) ? $self->row_to_user($row) : undef;
     }
 
-    method find_by_email(Str $email) -> Maybe[User] {
+    method find_by_email(Str $email) returns Maybe[User] {
         my Maybe[DatabaseRow] $row = $self->query_single(
             "SELECT * FROM users WHERE email = ?",
             [$email]
@@ -906,7 +906,7 @@ class UserRepository {
         return defined($row) ? $self->row_to_user($row) : undef;
     }
 
-    method save(User $user) -> Result[Int] {
+    method save(User $user) returns Result[Int] {
         eval {
             if (defined($user->get_id())) {
                 return $self->update_user($user);
@@ -920,7 +920,7 @@ class UserRepository {
         }
     }
 
-    method row_to_user(DatabaseRow $row) -> User {
+    method row_to_user(DatabaseRow $row) returns User {
         return User->new(
             id    => $row->get_int("id"),
             name  => $row->get_string("name"),
@@ -939,15 +939,15 @@ class ApiClient {
     field Str $base_url ;
     field HashRef[Str] $_headers = {};
 
-    method get(Str $endpoint) -> Result[HashRef[Any]] {
+    method get(Str $endpoint) returns Result[HashRef[Any]] {
         return $self->request("GET", $endpoint);
     }
 
-    method post(Str $endpoint, HashRef[Any] $data) -> Result[HashRef[Any]] {
+    method post(Str $endpoint, HashRef[Any] $data) returns Result[HashRef[Any]] {
         return $self->request("POST", $endpoint, $data);
     }
 
-    method request(Str $method, Str $endpoint, Maybe[HashRef[Any]] $data = undef) -> Result[HashRef[Any]] {
+    method request(Str $method, Str $endpoint, Maybe[HashRef[Any]] $data = undef) returns Result[HashRef[Any]] {
         eval {
             my Str $url = $base_url . $endpoint;
             my HashRef[Any] $response = $self->http_request($method, $url, $data);
@@ -979,7 +979,7 @@ class ApiResponse[T] {
     field Maybe[Str] $error = undef;
     field HashRef[Any] $metadata = {};
 
-    method from_hash(HashRef[Any] $response_data, CodeRef $parser) -> ApiResponse[T] {
+    method from_hash(HashRef[Any] $response_data, CodeRef $parser) returns ApiResponse[T] {
         my Bool $success = $response_data->{success} // 0;
 
         if ($success) {
@@ -1040,14 +1040,14 @@ if (defined($user)) {
 
 ```perl
 # ✅ GOOD: Use Result types for operations that can fail
-method divide(Num $a, Num $b) -> Result[Num] {
+method divide(Num $a, Num $b) returns Result[Num] {
     return $b == 0
         ? Result->failure("Division by zero")
         : Result->success($a / $b);
 }
 
 # ❌ AVOID: Throwing exceptions for expected failures
-method divide(Num $a, Num $b) -> Num {
+method divide(Num $a, Num $b) returns Num {
     die "Division by zero" if $b == 0;  # Expected failure
     return $a / $b;
 }
@@ -1076,7 +1076,7 @@ die "Input failed: $@" if $@;
 # ✅ GOOD: Use lazy initialization for expensive resources
 field Maybe[DatabaseConnection] $_connection = undef;
 
-method get_connection() -> DatabaseConnection {
+method get_connection() returns DatabaseConnection {
     $_connection //= DatabaseConnection->new($self->connection_string);
     return $_connection;
 }
@@ -1085,7 +1085,7 @@ method get_connection() -> DatabaseConnection {
 field DatabaseConnection $connection = DatabaseConnection->new($connection_string);
 
 # ✅ GOOD: Use iterators for large datasets
-method process_large_dataset() -> Void {
+method process_large_dataset() returns Void {
     my Iterator[DataRow] $iterator = $self->get_data_iterator();
     while ($iterator->has_next()) {
         my DataRow $row = $iterator->next();
@@ -1094,7 +1094,7 @@ method process_large_dataset() -> Void {
 }
 
 # ❌ AVOID: Loading entire datasets into memory
-method process_large_dataset() -> Void {
+method process_large_dataset() returns Void {
     my ArrayRef[DataRow] $all_data = $self->get_all_data();  # Memory intensive
     for my $row (@$all_data) {
         $self->process_row($row);
@@ -1112,7 +1112,7 @@ class Container[T] {
     field ArrayRef[T] $_items = [];
     field Int $max_size = 100;
 
-    method add(T $item) -> Result[Void] {
+    method add(T $item) returns Result[Void] {
         if (@$_items >= $max_size) {
             return Result->failure("Container is full");
         }
@@ -1121,16 +1121,16 @@ class Container[T] {
         return Result->success(undef);
     }
 
-    method get(Int $index) -> Maybe[T] {
+    method get(Int $index) returns Maybe[T] {
         return safe_array_get($_items, $index);
     }
 
-    method map(CodeRef $transform) -> Container[Any] {
+    method map(CodeRef $transform) returns Container[Any] {
         my @transformed = map { $transform->($_) } @$_items;
         return Container->new(items => \@transformed);
     }
 
-    method filter(CodeRef $predicate) -> Container[T] {
+    method filter(CodeRef $predicate) returns Container[T] {
         my @filtered = grep { $predicate->($_) } @$_items;
         return Container->new(items => \@filtered);
     }
@@ -1155,19 +1155,19 @@ class OrderState {
 }
 
 class PendingState isa OrderState {
-    method can_transition_to(Str $state) -> Bool {
+    method can_transition_to(Str $state) returns Bool {
         return $state eq "confirmed" || $state eq "cancelled";
     }
 }
 
 class ConfirmedState isa OrderState {
-    method can_transition_to(Str $state) -> Bool {
+    method can_transition_to(Str $state) returns Bool {
         return $state eq "shipped" || $state eq "cancelled";
     }
 }
 
 class ShippedState isa OrderState {
-    method can_transition_to(Str $state) -> Bool {
+    method can_transition_to(Str $state) returns Bool {
         return $state eq "delivered";
     }
 }
@@ -1177,7 +1177,7 @@ class Order {
     field OrderState $state ;
     field ArrayRef[Str] $history = [];
 
-    method transition_to(Str $new_state) -> Result[Void] {
+    method transition_to(Str $new_state) returns Result[Void] {
         unless ($state->can_transition_to($new_state)) {
             return Result->failure(
                 "Cannot transition from " . ref($state) . " to $new_state"
@@ -1185,13 +1185,13 @@ class Order {
         }
 
         my OrderState $new_state_obj = $self->create_state($new_state);
-        push @$history, ref($state) . " -> " . ref($new_state_obj);
+        push @$history, ref($state) . " returns " . ref($new_state_obj);
         $state = $new_state_obj;
 
         return Result->success(undef);
     }
 
-    method create_state(Str $state_name) -> OrderState {
+    method create_state(Str $state_name) returns OrderState {
         given ($state_name) {
             when ("pending")   { return PendingState->new() }
             when ("confirmed") { return ConfirmedState->new() }

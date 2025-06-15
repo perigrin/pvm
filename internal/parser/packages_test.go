@@ -8,7 +8,7 @@ import (
 )
 
 func TestPackageAndModuleConstructs(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	// Initialize the parser
 	parser, err := NewParser()
@@ -36,7 +36,7 @@ func TestPackageAndModuleConstructs(t *testing.T) {
 }
 
 func TestSpecificPackageFeatures(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	parser, err := NewParser()
 	if err != nil {

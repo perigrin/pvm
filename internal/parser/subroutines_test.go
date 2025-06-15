@@ -9,7 +9,7 @@ import (
 )
 
 func TestSubroutineParsing(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	// Set up parser - using the existing parser
 	parser, err := NewParser()
@@ -25,7 +25,7 @@ func TestSubroutineParsing(t *testing.T) {
 	framework.PrintMetricsSummary(t, metrics)
 
 	// Save metrics for tracking
-	metricsPath := filepath.Join("testdata", "reports", "subroutines_metrics.json")
+	metricsPath := filepath.Join("../../test/corpus/parser", "reports", "subroutines_metrics.json")
 	err = framework.SaveMetricsReport(metrics, metricsPath)
 	if err != nil {
 		t.Logf("Warning: Failed to save metrics report: %v", err)
@@ -41,7 +41,7 @@ func TestSubroutineParsing(t *testing.T) {
 }
 
 func TestBasicSubroutineDefinitions(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	parser, err := NewParser()
 	if err != nil {
@@ -64,7 +64,7 @@ func TestBasicSubroutineDefinitions(t *testing.T) {
 }
 
 func TestAnonymousSubroutines(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	parser, err := NewParser()
 	if err != nil {
@@ -87,7 +87,7 @@ func TestAnonymousSubroutines(t *testing.T) {
 }
 
 func TestSubroutineCalls(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	parser, err := NewParser()
 	if err != nil {
@@ -110,7 +110,7 @@ func TestSubroutineCalls(t *testing.T) {
 }
 
 func TestMethodCalls(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	parser, err := NewParser()
 	if err != nil {
@@ -133,7 +133,7 @@ func TestMethodCalls(t *testing.T) {
 }
 
 func TestSubroutineReferences(t *testing.T) {
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 
 	parser, err := NewParser()
 	if err != nil {

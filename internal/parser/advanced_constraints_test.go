@@ -220,7 +220,7 @@ func TestAdvancedConstraintParsing(t *testing.T) {
 func TestConstraintTestDataFiles(t *testing.T) {
 	t.Skip("Advanced constraint syntax not yet implemented - skipping constraint test data files")
 
-	framework := NewParserTestFramework(filepath.Join("testdata", "typed-perl", "advanced-constraints"))
+	framework := NewParserTestFramework(filepath.Join("../../test/corpus/parser", "typed-perl", "advanced-constraints"))
 
 	testFiles := []string{
 		"basic_type_constraints.json",
@@ -232,7 +232,7 @@ func TestConstraintTestDataFiles(t *testing.T) {
 
 	for _, filename := range testFiles {
 		t.Run(filename, func(t *testing.T) {
-			testPath := filepath.Join("testdata", "typed-perl", "advanced-constraints", filename)
+			testPath := filepath.Join("../../test/corpus/parser", "typed-perl", "advanced-constraints", filename)
 
 			// Convert constraint test format to parser test case format
 			constraintTests, err := loadConstraintTestSuite(testPath)

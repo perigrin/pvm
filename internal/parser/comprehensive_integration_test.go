@@ -203,7 +203,7 @@ func TestComprehensiveIntegration_SaveResults(t *testing.T) {
 	}
 
 	// Create results directory
-	resultsDir := filepath.Join("testdata", "integration-results")
+	resultsDir := filepath.Join("../../test/corpus/parser", "integration-results")
 	err := os.MkdirAll(resultsDir, 0755)
 	require.NoError(t, err)
 

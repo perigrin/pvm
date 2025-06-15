@@ -50,7 +50,7 @@ func TestScalarDeclarations(t *testing.T) {
 		},
 	}
 
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
@@ -105,7 +105,7 @@ func TestArrayDeclarations(t *testing.T) {
 		},
 	}
 
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)
@@ -158,7 +158,7 @@ func TestHashDeclarations(t *testing.T) {
 		},
 	}
 
-	framework := NewParserTestFramework("testdata")
+	framework := NewParserTestFramework("../../test/corpus/parser")
 	parser, err := NewParser()
 	if err != nil {
 		t.Fatalf("Failed to create parser: %v", err)

@@ -14,7 +14,7 @@ func TestClassDeclarationParsing(t *testing.T) {
 	t.Skip("Class declaration syntax not yet implemented - skipping until grammar supports class/role declarations")
 
 	// Set up test framework
-	testDataDir := filepath.Join("testdata", "typed-perl", "classes-roles")
+	testDataDir := filepath.Join("../../test/corpus/parser", "typed-perl", "classes-roles")
 	framework := NewParserTestFramework(testDataDir)
 	framework.Verbose = testing.Verbose()
 
@@ -80,7 +80,7 @@ func TestClassDeclarationParsing(t *testing.T) {
 
 func TestRoleDeclarationParsing(t *testing.T) {
 	// Set up test framework
-	testDataDir := filepath.Join("testdata", "typed-perl", "classes-roles")
+	testDataDir := filepath.Join("../../test/corpus/parser", "typed-perl", "classes-roles")
 	framework := NewParserTestFramework(testDataDir)
 	framework.Verbose = testing.Verbose()
 

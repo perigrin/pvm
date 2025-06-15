@@ -72,14 +72,14 @@ The grammar is defined in `grammar.js` and includes:
 
 ### Testing
 
-Tests are located in `test/corpus/` and follow tree-sitter's test format:
+Tests are located in `../test/corpus/tree-sitter/corpus/` and follow tree-sitter's test format:
 
 ```bash
-# Run all tests
+# Run all tests  
 npm test
 
 # Test specific files
-npx tree-sitter test test/corpus/expressions
+npx tree-sitter test ../test/corpus/tree-sitter/corpus/expressions
 ```
 
 ### Debugging Grammar Issues
@@ -140,7 +140,7 @@ This parser is designed to integrate seamlessly with the PVM (Perl Version Manag
 - `src/` - Generated parser source (C code)
 - `bindings/` - Language bindings (Go, Node.js, Python, etc.)
 - `queries/` - Editor integration queries
-- `test/` - Test corpus and highlighting tests
+- `../test/corpus/tree-sitter/` - Test corpus and highlighting tests
 
 ## License
 
