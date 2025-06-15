@@ -38,8 +38,9 @@ func NewCommand() *cobra.Command {
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
 		newDownloadCommand(),
-		newBuildCommand(),   // Now incorporates PSC functionality
-		newRunCommand(),     // New unified run command (incorporates PVX)
+		NewBuildCommand(),    // Unified build system with PSC integration
+		newBuildPerlCommand(), // Build Perl from source (split from old build command)
+		newRunCommand(),      // New unified run command (incorporates PVX)
 		newModuleCommand(),  // New unified module command (incorporates PVI)
 		newProjectCommand(), // New project management command
 		newExecCommand(),
@@ -1083,141 +1084,7 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 	return nil
 }
 
-// buildProject handles building Perl projects (type checking, compilation)
-func buildProject(cmd *cobra.Command, target string) error {
-	// Get flags
-	checkOnly, err := cmd.Flags().GetBool("check-only")
-	if err != nil {
-		return err
-	}
-
-	inline, err := cmd.Flags().GetBool("inline")
-	if err != nil {
-		return err
-	}
-
-	watch, err := cmd.Flags().GetBool("watch")
-	if err != nil {
-		return err
-	}
-
-	outputDir, err := cmd.Flags().GetString("output")
-	if err != nil {
-		return err
-	}
-
-	clean, err := cmd.Flags().GetBool("clean")
-	if err != nil {
-		return err
-	}
-
-	// Determine what to build
-	if target == "" {
-		target = "." // Current directory
-	}
-
-	cmd.Printf("Building Perl project in %s...\n", target)
-
-	// For now, delegate to PSC for project builds
-	// This is a simplified implementation that will be enhanced in later steps
-	pscCmd := psc.NewCommand()
-
-	if checkOnly {
-		// Run type checking only
-		cmd.Println("Running type check...")
-
-		// Find a check subcommand
-		var checkCmd *cobra.Command
-		for _, subCmd := range pscCmd.Commands() {
-			if subCmd.Use == "check" {
-				checkCmd = subCmd
-				break
-			}
-		}
-
-		if checkCmd != nil {
-			// Set up args for PSC check command
-			if target == "." {
-				// Check all files in current directory
-				checkCmd.SetArgs([]string{"."})
-			} else {
-				checkCmd.SetArgs([]string{target})
-			}
-
-			return checkCmd.Execute()
-		} else {
-			return fmt.Errorf("type checking not available")
-		}
-	}
-
-	if watch {
-		// Find a watch subcommand
-		var watchCmd *cobra.Command
-		for _, subCmd := range pscCmd.Commands() {
-			if subCmd.Use == "watch" {
-				watchCmd = subCmd
-				break
-			}
-		}
-
-		if watchCmd != nil {
-			cmd.Println("Starting watch mode...")
-			if target == "." {
-				watchCmd.SetArgs([]string{"."})
-			} else {
-				watchCmd.SetArgs([]string{target})
-			}
-			return watchCmd.Execute()
-		} else {
-			return fmt.Errorf("watch mode not available")
-		}
-	}
-
-	// Default: run type check and compilation
-	cmd.Println("Running type check and compilation...")
-
-	// This is a placeholder for future build system functionality
-	// For now, just run type checking
-	var checkCmd *cobra.Command
-	for _, subCmd := range pscCmd.Commands() {
-		if subCmd.Use == "check" {
-			checkCmd = subCmd
-			break
-		}
-	}
-
-	if checkCmd != nil {
-		if target == "." {
-			checkCmd.SetArgs([]string{"."})
-		} else {
-			checkCmd.SetArgs([]string{target})
-		}
-
-		err := checkCmd.Execute()
-		if err != nil {
-			return err
-		}
-
-		cmd.Println("Type check passed!")
-
-		if inline {
-			cmd.Println("Note: .pmc generation will be implemented in a future version")
-		}
-
-		if outputDir != "" {
-			cmd.Printf("Note: Custom output directory '%s' will be supported in a future version\n", outputDir)
-		}
-
-		if clean {
-			cmd.Println("Note: Clean build functionality will be implemented in a future version")
-		}
-
-		cmd.Println("Project build completed!")
-		return nil
-	}
-
-	return fmt.Errorf("project build functionality not yet fully implemented")
-}
+// buildProject functionality moved to internal/pvm/build.go
 
 // newSymlinksCommand is implemented in symlinks.go
 
@@ -1335,44 +1202,18 @@ func newShellCommand() *cobra.Command {
 	return cmd
 }
 
-func newBuildCommand() *cobra.Command {
+// newBuildPerlCommand creates a command for building Perl from source (moved from old build command)
+func newBuildPerlCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "build [target]",
-		Short: "Build Perl projects or Perl from source",
-		Long:  "Build Perl projects (type checking, compilation) or build Perl from source code",
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "build-perl [version]",
+		Short: "Build Perl from source",
+		Long:  "Build and install Perl from source code",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Determine build mode: project build (default) or Perl source build
-			var target string
-			if len(args) > 0 {
-				target = args[0]
-			}
-
-			// Check if this is a Perl version (for source build) or project build
-			isSourceBuild, err := cmd.Flags().GetBool("from-source")
-			if err != nil {
-				return err
-			}
-
-			if isSourceBuild || (target != "" && isPerlVersion(target)) {
-				// Perl source build
-				return buildPerlFromSource(cmd, target)
-			} else {
-				// Project build (type checking, compilation)
-				return buildProject(cmd, target)
-			}
+			version := args[0]
+			return buildPerlFromSource(cmd, version)
 		},
 	}
-
-	// Add flags for both project and Perl source builds
-	cmd.Flags().Bool("from-source", false, "Build Perl from source (use when target is a Perl version)")
-
-	// Project build flags
-	cmd.Flags().Bool("check-only", false, "Only run type checking, don't compile")
-	cmd.Flags().Bool("inline", false, "Generate .pmc files for development")
-	cmd.Flags().Bool("watch", false, "Watch for changes and rebuild")
-	cmd.Flags().String("output", "", "Output directory for build artifacts")
-	cmd.Flags().Bool("clean", false, "Clean build artifacts before building")
 
 	// Perl source build flags
 	cmd.Flags().String("source", "", "Source archive file path (default: download or use cached)")

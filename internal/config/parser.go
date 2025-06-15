@@ -126,6 +126,16 @@ func MergeConfigs(configs ...*Config) *Config {
 		if config.PSC != nil {
 			mergePSCConfig(result.PSC, config.PSC)
 		}
+
+		// Merge Project config
+		if config.Project != nil {
+			mergeProjectConfig(result.Project, config.Project)
+		}
+
+		// Merge Build config
+		if config.Build != nil {
+			mergeBuildConfig(result.Build, config.Build)
+		}
 	}
 
 	return result
@@ -229,6 +239,117 @@ func mergePSCConfig(target, source *PSCConfig) {
 	if source.WatchExclude != nil {
 		target.WatchExclude = make([]string, len(source.WatchExclude))
 		copy(target.WatchExclude, source.WatchExclude)
+	}
+}
+
+func mergeProjectConfig(target, source *ProjectConfig) {
+	// For all fields, source takes precedence over target
+
+	// String fields
+	if source.Name != "" {
+		target.Name = source.Name
+	}
+	if source.Version != "" {
+		target.Version = source.Version
+	}
+	if source.PerlVersion != "" {
+		target.PerlVersion = source.PerlVersion
+	}
+	if source.Description != "" {
+		target.Description = source.Description
+	}
+	if source.License != "" {
+		target.License = source.License
+	}
+	if source.Homepage != "" {
+		target.Homepage = source.Homepage
+	}
+	if source.BugTracker != "" {
+		target.BugTracker = source.BugTracker
+	}
+	if source.Repository != "" {
+		target.Repository = source.Repository
+	}
+
+	// Array fields (replace entirely)
+	if source.Author != nil {
+		target.Author = make([]string, len(source.Author))
+		copy(target.Author, source.Author)
+	}
+}
+
+func mergeBuildConfig(target, source *BuildConfig) {
+	// For all fields, source takes precedence over target
+
+	// String fields
+	if source.Mode != "" {
+		target.Mode = source.Mode
+	}
+	if source.OutputDir != "" {
+		target.OutputDir = source.OutputDir
+	}
+
+	// Boolean fields (always merge)
+	target.CleanBeforeBuild = source.CleanBeforeBuild
+
+	// Nested config fields
+	if source.TypeCheck != nil {
+		if target.TypeCheck == nil {
+			target.TypeCheck = &BuildTypeCheckConfig{}
+		}
+		mergeBuildTypeCheckConfig(target.TypeCheck, source.TypeCheck)
+	}
+
+	if source.Files != nil {
+		if target.Files == nil {
+			target.Files = &BuildFilesConfig{}
+		}
+		mergeBuildFilesConfig(target.Files, source.Files)
+	}
+
+	if source.Distribution != nil {
+		if target.Distribution == nil {
+			target.Distribution = &BuildDistributionConfig{}
+		}
+		mergeBuildDistributionConfig(target.Distribution, source.Distribution)
+	}
+}
+
+func mergeBuildTypeCheckConfig(target, source *BuildTypeCheckConfig) {
+	// Boolean fields (always merge)
+	target.Strict = source.Strict
+	target.Experimental = source.Experimental
+
+	// String fields
+	if source.TargetPerl != "" {
+		target.TargetPerl = source.TargetPerl
+	}
+}
+
+func mergeBuildFilesConfig(target, source *BuildFilesConfig) {
+	// Array fields (replace entirely)
+	if source.Include != nil {
+		target.Include = make([]string, len(source.Include))
+		copy(target.Include, source.Include)
+	}
+	if source.Exclude != nil {
+		target.Exclude = make([]string, len(source.Exclude))
+		copy(target.Exclude, source.Exclude)
+	}
+	if source.WatchDirs != nil {
+		target.WatchDirs = make([]string, len(source.WatchDirs))
+		copy(target.WatchDirs, source.WatchDirs)
+	}
+}
+
+func mergeBuildDistributionConfig(target, source *BuildDistributionConfig) {
+	// Boolean fields (always merge)
+	target.IncludeTests = source.IncludeTests
+	target.IncludeScripts = source.IncludeScripts
+
+	// String fields
+	if source.Installer != "" {
+		target.Installer = source.Installer
 	}
 }
 

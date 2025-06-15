@@ -91,6 +91,9 @@ func LoadEffectiveConfigWithOptions(validate bool) (*Config, error) {
 		if userConfig.PSC != nil {
 			mergePSCConfig(result.PSC, userConfig.PSC)
 		}
+		if userConfig.Build != nil {
+			mergeBuildConfig(result.Build, userConfig.Build)
+		}
 	}
 
 	if projectConfig != nil {
@@ -105,6 +108,12 @@ func LoadEffectiveConfigWithOptions(validate bool) (*Config, error) {
 		}
 		if projectConfig.PSC != nil {
 			mergePSCConfig(result.PSC, projectConfig.PSC)
+		}
+		if projectConfig.Project != nil {
+			mergeProjectConfig(result.Project, projectConfig.Project)
+		}
+		if projectConfig.Build != nil {
+			mergeBuildConfig(result.Build, projectConfig.Build)
 		}
 	}
 
@@ -409,6 +418,9 @@ func LoadEffectiveConfigForDirectory(dir string) (*Config, error) {
 		if userConfig.PSC != nil {
 			mergePSCConfig(result.PSC, userConfig.PSC)
 		}
+		if userConfig.Build != nil {
+			mergeBuildConfig(result.Build, userConfig.Build)
+		}
 	}
 
 	if projectConfig != nil {
@@ -423,6 +435,12 @@ func LoadEffectiveConfigForDirectory(dir string) (*Config, error) {
 		}
 		if projectConfig.PSC != nil {
 			mergePSCConfig(result.PSC, projectConfig.PSC)
+		}
+		if projectConfig.Project != nil {
+			mergeProjectConfig(result.Project, projectConfig.Project)
+		}
+		if projectConfig.Build != nil {
+			mergeBuildConfig(result.Build, projectConfig.Build)
 		}
 	}
 

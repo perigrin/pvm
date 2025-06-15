@@ -24,6 +24,12 @@ type Config struct {
 
 	// MCP specific configuration
 	MCP *MCPConfig `toml:"mcp_server" json:"mcp_server"`
+
+	// Project configuration (only in project config files)
+	Project *ProjectConfig `toml:"project" json:"project"`
+
+	// Build configuration
+	Build *BuildConfig `toml:"build" json:"build"`
 }
 
 // PVMConfig represents configuration for the Perl Version Manager
@@ -194,6 +200,95 @@ type MCPConfig struct {
 	RequestTimeout time.Duration `toml:"request_timeout" json:"request_timeout"`
 }
 
+// ProjectConfig represents project-specific configuration (only in project config files)
+type ProjectConfig struct {
+	// Name is the project name
+	Name string `toml:"name" json:"name"`
+
+	// Version is the project version
+	Version string `toml:"version" json:"version"`
+
+	// PerlVersion is the required Perl version for this project
+	PerlVersion string `toml:"perl_version" json:"perl_version"`
+
+	// Description is a brief description of the project
+	Description string `toml:"description" json:"description"`
+
+	// Author information
+	Author []string `toml:"author" json:"author"`
+
+	// License specifies the project license
+	License string `toml:"license" json:"license"`
+
+	// Homepage URL for the project
+	Homepage string `toml:"homepage" json:"homepage"`
+
+	// BugTracker URL for issue reporting
+	BugTracker string `toml:"bug_tracker" json:"bug_tracker"`
+
+	// Repository URL
+	Repository string `toml:"repository" json:"repository"`
+}
+
+// BuildConfig represents build system configuration
+type BuildConfig struct {
+	// Mode specifies the default build mode
+	// Valid values: "distribution", "inline", "both"
+	Mode string `toml:"mode" json:"mode"`
+
+	// OutputDir specifies the build output directory
+	OutputDir string `toml:"output_dir" json:"output_dir"`
+
+	// CleanBeforeBuild specifies whether to clean output before building
+	CleanBeforeBuild bool `toml:"clean_before_build" json:"clean_before_build"`
+
+	// TypeCheck configuration
+	TypeCheck *BuildTypeCheckConfig `toml:"typecheck" json:"typecheck"`
+
+	// Files configuration
+	Files *BuildFilesConfig `toml:"files" json:"files"`
+
+	// Distribution configuration
+	Distribution *BuildDistributionConfig `toml:"distribution" json:"distribution"`
+}
+
+// BuildTypeCheckConfig represents type checking configuration
+type BuildTypeCheckConfig struct {
+	// Strict enables strict type checking
+	Strict bool `toml:"strict" json:"strict"`
+
+	// Experimental enables experimental type features
+	Experimental bool `toml:"experimental" json:"experimental"`
+
+	// TargetPerl specifies the target Perl version for type checking
+	TargetPerl string `toml:"target_perl" json:"target_perl"`
+}
+
+// BuildFilesConfig represents file handling configuration
+type BuildFilesConfig struct {
+	// Include specifies file patterns to include in builds
+	Include []string `toml:"include" json:"include"`
+
+	// Exclude specifies file patterns to exclude from builds
+	Exclude []string `toml:"exclude" json:"exclude"`
+
+	// WatchDirs specifies directories to watch in watch mode
+	WatchDirs []string `toml:"watch_dirs" json:"watch_dirs"`
+}
+
+// BuildDistributionConfig represents distribution build configuration
+type BuildDistributionConfig struct {
+	// IncludeTests specifies whether to include tests in distribution
+	IncludeTests bool `toml:"include_tests" json:"include_tests"`
+
+	// IncludeScripts specifies whether to include scripts in distribution
+	IncludeScripts bool `toml:"include_scripts" json:"include_scripts"`
+
+	// Installer specifies the installer type to generate
+	// Valid values: "ExtUtils::MakeMaker", "Module::Build", "Module::Install"
+	Installer string `toml:"installer" json:"installer"`
+}
+
 // NewDefaultConfig creates a new configuration with default values
 func NewDefaultConfig() *Config {
 	return &Config{
@@ -256,6 +351,30 @@ func NewDefaultConfig() *Config {
 			MaxConcurrentRequests:     10,
 			RequestTimeout:            30 * time.Second,
 		},
+		Project: &ProjectConfig{
+			PerlVersion: "5.36",
+			License:     "perl_5",
+		},
+		Build: &BuildConfig{
+			Mode:             "distribution",
+			OutputDir:        "build",
+			CleanBeforeBuild: true,
+			TypeCheck: &BuildTypeCheckConfig{
+				Strict:       false,
+				Experimental: false,
+				TargetPerl:   "5.36",
+			},
+			Files: &BuildFilesConfig{
+				Include:   []string{"lib/**/*.pm"},
+				Exclude:   []string{"local/**", "build/**", "**/.git/**"},
+				WatchDirs: []string{"lib", "script", "t"},
+			},
+			Distribution: &BuildDistributionConfig{
+				IncludeTests:   true,
+				IncludeScripts: true,
+				Installer:      "ExtUtils::MakeMaker",
+			},
+		},
 	}
 }
 
@@ -286,6 +405,16 @@ func (c *Config) Validate() []error {
 	// Add MCP validation
 	if c.MCP != nil {
 		errors = append(errors, c.MCP.Validate()...)
+	}
+
+	// Add Project validation
+	if c.Project != nil {
+		errors = append(errors, c.Project.Validate()...)
+	}
+
+	// Add Build validation
+	if c.Build != nil {
+		errors = append(errors, c.Build.Validate()...)
 	}
 
 	return errors
@@ -476,6 +605,141 @@ type ValidateError string
 // Error implements the error interface
 func (e ValidateError) Error() string {
 	return string(e)
+}
+
+// Validate checks if the Project configuration is valid
+func (c *ProjectConfig) Validate() []error {
+	var errors []error
+
+	// Validate PerlVersion format if provided
+	if c.PerlVersion != "" {
+		// Basic validation - should be in format like "5.36" or "5.36.0"
+		if !strings.Contains(c.PerlVersion, ".") {
+			errors = append(errors, ValidateError("PerlVersion should be in format like '5.36' or '5.36.0'"))
+		}
+	}
+
+	// Validate License if provided
+	validLicenses := map[string]bool{
+		"perl_5":       true,
+		"artistic_2":   true,
+		"apache_2_0":   true,
+		"mit":          true,
+		"bsd_3_clause": true,
+		"gpl_1":        true,
+		"gpl_2":        true,
+		"gpl_3":        true,
+		"lgpl_2_1":     true,
+		"lgpl_3_0":     true,
+	}
+
+	if c.License != "" && !validLicenses[c.License] {
+		errors = append(errors, ValidateError("License must be a valid license identifier"))
+	}
+
+	return errors
+}
+
+// Validate checks if the Build configuration is valid
+func (c *BuildConfig) Validate() []error {
+	var errors []error
+
+	// Validate Mode
+	validModes := map[string]bool{
+		"distribution": true,
+		"inline":       true,
+		"both":         true,
+	}
+
+	if c.Mode != "" && !validModes[c.Mode] {
+		errors = append(errors, ValidateError("Build mode must be one of: distribution, inline, both"))
+	}
+
+	// Validate OutputDir
+	if c.OutputDir == "" {
+		errors = append(errors, ValidateError("Build OutputDir cannot be empty"))
+	}
+
+	// Validate TypeCheck configuration
+	if c.TypeCheck != nil {
+		errors = append(errors, c.TypeCheck.Validate()...)
+	}
+
+	// Validate Files configuration
+	if c.Files != nil {
+		errors = append(errors, c.Files.Validate()...)
+	}
+
+	// Validate Distribution configuration
+	if c.Distribution != nil {
+		errors = append(errors, c.Distribution.Validate()...)
+	}
+
+	return errors
+}
+
+// Validate checks if the BuildTypeCheck configuration is valid
+func (c *BuildTypeCheckConfig) Validate() []error {
+	var errors []error
+
+	// Validate TargetPerl format if provided
+	if c.TargetPerl != "" {
+		// Basic validation - should be in format like "5.36" or "5.36.0"
+		if !strings.Contains(c.TargetPerl, ".") {
+			errors = append(errors, ValidateError("TypeCheck TargetPerl should be in format like '5.36' or '5.36.0'"))
+		}
+	}
+
+	return errors
+}
+
+// Validate checks if the BuildFiles configuration is valid
+func (c *BuildFilesConfig) Validate() []error {
+	var errors []error
+
+	// Validate Include patterns
+	for _, pattern := range c.Include {
+		if pattern == "" {
+			errors = append(errors, ValidateError("Build files include patterns cannot be empty"))
+			break
+		}
+	}
+
+	// Validate Exclude patterns
+	for _, pattern := range c.Exclude {
+		if pattern == "" {
+			errors = append(errors, ValidateError("Build files exclude patterns cannot be empty"))
+			break
+		}
+	}
+
+	// Validate WatchDirs
+	for _, dir := range c.WatchDirs {
+		if dir == "" {
+			errors = append(errors, ValidateError("Build files watch directories cannot be empty"))
+			break
+		}
+	}
+
+	return errors
+}
+
+// Validate checks if the BuildDistribution configuration is valid
+func (c *BuildDistributionConfig) Validate() []error {
+	var errors []error
+
+	// Validate Installer
+	validInstallers := map[string]bool{
+		"ExtUtils::MakeMaker": true,
+		"Module::Build":       true,
+		"Module::Install":     true,
+	}
+
+	if c.Installer != "" && !validInstallers[c.Installer] {
+		errors = append(errors, ValidateError("Build distribution installer must be one of: ExtUtils::MakeMaker, Module::Build, Module::Install"))
+	}
+
+	return errors
 }
 
 // Helper functions for validation
