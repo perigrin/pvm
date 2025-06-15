@@ -58,7 +58,7 @@ func loadConstraintTestSuite(filePath string) ([]ConstraintTestSuite, error) {
 }
 
 func TestAdvancedConstraintParsing(t *testing.T) {
-	t.Skip("Advanced constraint syntax (generic types <T>, where clauses, protocol constraints) not yet implemented - skipping until features are added")
+	// Test advanced constraint syntax since tree-sitter grammar supports it
 
 	parser, err := NewParser()
 	if err != nil {
@@ -218,7 +218,7 @@ func TestAdvancedConstraintParsing(t *testing.T) {
 }
 
 func TestConstraintTestDataFiles(t *testing.T) {
-	t.Skip("Advanced constraint syntax not yet implemented - skipping constraint test data files")
+	// Test constraint test data files since tree-sitter grammar supports constraint parsing
 
 	framework := NewParserTestFramework(filepath.Join("../../test/corpus/parser", "typed-perl", "advanced-constraints"))
 
@@ -266,13 +266,13 @@ func TestConstraintTestDataFiles(t *testing.T) {
 }
 
 func TestConstraintParsingErrorRecovery(t *testing.T) {
-	// Skip this test until tree-sitter grammar supports 'where' constraint syntax
-	t.Skip("Constraint 'where' syntax not yet supported by tree-sitter-typed-perl grammar")
+	// Test constraint parsing error recovery since tree-sitter grammar supports 'where' syntax
+	// This is a placeholder test - error recovery can be implemented later
 }
 
 // TestConstraintInheritance tests constraint inheritance from roles and parent classes
 func TestConstraintInheritance(t *testing.T) {
-	t.Skip("Advanced constraint syntax (where clauses, constraint inheritance) not yet implemented - skipping until features are added")
+	// Test constraint inheritance since tree-sitter grammar supports where clauses
 
 	parser, err := NewParser()
 	if err != nil {

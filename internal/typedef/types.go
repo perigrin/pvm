@@ -258,6 +258,21 @@ func (ut *UnionType) Equals(other *UnionType) bool {
 	return true
 }
 
+// GetName implements the Type interface for UnionType
+func (ut *UnionType) GetName() string {
+	return ut.String()
+}
+
+// IsCompatible implements the Type interface for UnionType
+func (ut *UnionType) IsCompatible(other Type) bool {
+	if other == nil {
+		return false
+	}
+
+	// For now, use simple name comparison
+	return ut.GetName() == other.GetName()
+}
+
 // IntersectionType represents an intersection type that must satisfy all member types
 type IntersectionType struct {
 	// Members are the types that make up this intersection
@@ -393,4 +408,19 @@ func (it *IntersectionType) Equals(other *IntersectionType) bool {
 		}
 	}
 	return true
+}
+
+// GetName implements the Type interface for IntersectionType
+func (it *IntersectionType) GetName() string {
+	return it.String()
+}
+
+// IsCompatible implements the Type interface for IntersectionType
+func (it *IntersectionType) IsCompatible(other Type) bool {
+	if other == nil {
+		return false
+	}
+
+	// For now, use simple name comparison
+	return it.GetName() == other.GetName()
 }
