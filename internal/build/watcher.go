@@ -67,28 +67,28 @@ type BuildResult struct {
 
 // BuildWatcher monitors file system for changes and triggers appropriate builds
 type BuildWatcher struct {
-	mu             sync.RWMutex
-	projectContext *project.ProjectContext
-	watchDirs      []string
-	patterns       []string
+	mu              sync.RWMutex
+	projectContext  *project.ProjectContext
+	watchDirs       []string
+	patterns        []string
 	excludePatterns []string
-	
+
 	// Build components
-	pscBuilder      *PSCBuilder
-	inlineBuilder   *InlineBuilder
-	distBuilder     *DistributionBuilder
-	
+	pscBuilder    *PSCBuilder
+	inlineBuilder *InlineBuilder
+	distBuilder   *DistributionBuilder
+
 	// Event handling
-	debounceDelay   time.Duration
-	eventQueue      chan FileChangeEvent
-	buildQueue      chan BuildEvent
-	resultChannel   chan BuildResult
-	
+	debounceDelay time.Duration
+	eventQueue    chan FileChangeEvent
+	buildQueue    chan BuildEvent
+	resultChannel chan BuildResult
+
 	// State tracking
-	fileModTimes    map[string]time.Time
-	lastBuildTime   time.Time
-	isWatching      bool
-	
+	fileModTimes  map[string]time.Time
+	lastBuildTime time.Time
+	isWatching    bool
+
 	// Cancellation
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -130,40 +130,40 @@ func NewBuildWatcher(projectCtx *project.ProjectContext, config *WatcherConfig) 
 	if config == nil {
 		config = DefaultWatcherConfig()
 	}
-	
+
 	// Create build components
 	pscBuilder, err := NewPSCBuilder(projectCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PSC builder: %w", err)
 	}
-	
+
 	inlineBuilder, err := NewInlineBuilder(projectCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inline builder: %w", err)
 	}
-	
+
 	distBuilder, err := NewDistributionBuilder(projectCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distribution builder: %w", err)
 	}
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &BuildWatcher{
 		projectContext:  projectCtx,
-		watchDirs:      config.WatchDirs,
-		patterns:       config.FilePatterns,
+		watchDirs:       config.WatchDirs,
+		patterns:        config.FilePatterns,
 		excludePatterns: config.ExcludePatterns,
-		pscBuilder:     pscBuilder,
-		inlineBuilder:  inlineBuilder,
-		distBuilder:    distBuilder,
-		debounceDelay:  config.DebounceDelay,
-		eventQueue:     make(chan FileChangeEvent, 100),
-		buildQueue:     make(chan BuildEvent, 10),
-		resultChannel:  make(chan BuildResult, 10),
-		fileModTimes:   make(map[string]time.Time),
-		ctx:           ctx,
-		cancel:        cancel,
+		pscBuilder:      pscBuilder,
+		inlineBuilder:   inlineBuilder,
+		distBuilder:     distBuilder,
+		debounceDelay:   config.DebounceDelay,
+		eventQueue:      make(chan FileChangeEvent, 100),
+		buildQueue:      make(chan BuildEvent, 10),
+		resultChannel:   make(chan BuildResult, 10),
+		fileModTimes:    make(map[string]time.Time),
+		ctx:             ctx,
+		cancel:          cancel,
 	}, nil
 }
 
@@ -171,23 +171,23 @@ func NewBuildWatcher(projectCtx *project.ProjectContext, config *WatcherConfig) 
 func (w *BuildWatcher) Start() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	
+
 	if w.isWatching {
 		return fmt.Errorf("watcher is already running")
 	}
-	
+
 	w.isWatching = true
-	
+
 	// Initialize file modification times
 	if err := w.initializeFileStates(); err != nil {
 		return fmt.Errorf("failed to initialize file states: %w", err)
 	}
-	
+
 	// Start goroutines
 	go w.fileWatcher()
 	go w.eventProcessor()
 	go w.buildProcessor()
-	
+
 	return nil
 }
 
@@ -195,14 +195,14 @@ func (w *BuildWatcher) Start() error {
 func (w *BuildWatcher) Stop() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	
+
 	if !w.isWatching {
 		return nil
 	}
-	
+
 	w.isWatching = false
 	w.cancel()
-	
+
 	return nil
 }
 
@@ -216,7 +216,7 @@ func (w *BuildWatcher) TriggerBuild(buildType BuildType, reason string) {
 	if !w.isWatching {
 		return
 	}
-	
+
 	select {
 	case w.buildQueue <- BuildEvent{
 		Type:      buildType,
@@ -234,28 +234,28 @@ func (w *BuildWatcher) initializeFileStates() error {
 		if !filepath.IsAbs(dir) {
 			dir = filepath.Join(w.projectContext.RootDir, dir)
 		}
-		
+
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			continue // Skip non-existent directories
 		}
-		
+
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			
+
 			if !info.IsDir() && w.shouldWatchFile(path) {
 				w.fileModTimes[path] = info.ModTime()
 			}
-			
+
 			return nil
 		})
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to walk directory %s: %w", dir, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -263,7 +263,7 @@ func (w *BuildWatcher) initializeFileStates() error {
 func (w *BuildWatcher) fileWatcher() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-w.ctx.Done():
@@ -280,40 +280,40 @@ func (w *BuildWatcher) checkForChanges() {
 		if !filepath.IsAbs(dir) {
 			dir = filepath.Join(w.projectContext.RootDir, dir)
 		}
-		
+
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			continue
 		}
-		
+
 		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() || !w.shouldWatchFile(path) {
 				return nil
 			}
-			
+
 			w.mu.Lock()
 			lastModTime, exists := w.fileModTimes[path]
 			w.mu.Unlock()
-			
+
 			if !exists {
 				// New file
 				w.mu.Lock()
 				w.fileModTimes[path] = info.ModTime()
 				w.mu.Unlock()
-				
+
 				w.sendFileEvent(path, "create")
 			} else if info.ModTime().After(lastModTime) {
 				// Modified file
 				w.mu.Lock()
 				w.fileModTimes[path] = info.ModTime()
 				w.mu.Unlock()
-				
+
 				w.sendFileEvent(path, "modify")
 			}
-			
+
 			return nil
 		})
 	}
-	
+
 	// Check for deleted files
 	w.mu.Lock()
 	var deletedFiles []string
@@ -326,7 +326,7 @@ func (w *BuildWatcher) checkForChanges() {
 		delete(w.fileModTimes, path)
 	}
 	w.mu.Unlock()
-	
+
 	for _, path := range deletedFiles {
 		w.sendFileEvent(path, "delete")
 	}
@@ -350,7 +350,7 @@ func (w *BuildWatcher) eventProcessor() {
 	var pendingEvents []FileChangeEvent
 	debounceTimer := time.NewTimer(w.debounceDelay)
 	debounceTimer.Stop()
-	
+
 	for {
 		select {
 		case <-w.ctx.Done():
@@ -360,11 +360,11 @@ func (w *BuildWatcher) eventProcessor() {
 				return // Channel closed
 			}
 			pendingEvents = append(pendingEvents, event)
-			
+
 			// Reset debounce timer
 			debounceTimer.Stop()
 			debounceTimer = time.NewTimer(w.debounceDelay)
-			
+
 		case <-debounceTimer.C:
 			if len(pendingEvents) > 0 {
 				w.processPendingEvents(pendingEvents)
@@ -379,42 +379,44 @@ func (w *BuildWatcher) processPendingEvents(events []FileChangeEvent) {
 	// Group events by type
 	var hasSourceChanges, hasTestChanges, hasConfigChanges bool
 	changedFiles := make(map[string]struct{})
-	
+
 	for _, event := range events {
 		changedFiles[event.Path] = struct{}{}
-		
-		if w.isSourceFile(event.Path) {
+
+		switch {
+		case w.isSourceFile(event.Path):
 			hasSourceChanges = true
-		} else if w.isTestFile(event.Path) {
+		case w.isTestFile(event.Path):
 			hasTestChanges = true
-		} else if w.isConfigFile(event.Path) {
+		case w.isConfigFile(event.Path):
 			hasConfigChanges = true
 		}
 	}
-	
+
 	// Determine build strategy
 	var buildType BuildType
 	var reason string
-	
-	if hasConfigChanges {
+
+	switch {
+	case hasConfigChanges:
 		buildType = BuildTypeFull
 		reason = "configuration changes detected"
-	} else if hasSourceChanges {
+	case hasSourceChanges:
 		buildType = BuildTypeInline
 		reason = "source file changes detected"
-	} else if hasTestChanges {
+	case hasTestChanges:
 		buildType = BuildTypeTypeCheck
 		reason = "test file changes detected"
-	} else {
+	default:
 		return // No relevant changes
 	}
-	
+
 	// Extract file list
 	var files []string
 	for file := range changedFiles {
 		files = append(files, file)
 	}
-	
+
 	// Queue build event
 	select {
 	case w.buildQueue <- BuildEvent{
@@ -441,7 +443,7 @@ func (w *BuildWatcher) buildProcessor() {
 				return // Channel closed
 			}
 			result := w.executeBuild(buildEvent)
-			
+
 			select {
 			case w.resultChannel <- result:
 			case <-w.ctx.Done():
@@ -456,19 +458,19 @@ func (w *BuildWatcher) buildProcessor() {
 // executeBuild performs the actual build operation
 func (w *BuildWatcher) executeBuild(event BuildEvent) BuildResult {
 	start := time.Now()
-	
+
 	result := BuildResult{
 		Type:      event.Type,
 		Files:     event.Files,
 		Timestamp: start,
 	}
-	
+
 	switch event.Type {
 	case BuildTypeTypeCheck:
 		pscResult, err := w.pscBuilder.TypeCheck(w.ctx, []string{w.projectContext.RootDir})
 		result.Success = err == nil && pscResult != nil && pscResult.Success
 		result.Error = err
-		
+
 	case BuildTypeInline:
 		// First type check, then build inline if successful
 		pscResult, err := w.pscBuilder.TypeCheck(w.ctx, []string{w.projectContext.RootDir})
@@ -477,18 +479,18 @@ func (w *BuildWatcher) executeBuild(event BuildEvent) BuildResult {
 			result.Error = err
 			break
 		}
-		
+
 		targetDirs := []string{filepath.Join(w.projectContext.RootDir, "lib")}
 		inlineResult, err := w.inlineBuilder.Build(w.ctx, targetDirs)
 		result.Success = err == nil && inlineResult != nil && inlineResult.Success
 		result.Error = err
-		
+
 	case BuildTypeDistribution:
 		// Full distribution build
 		distResult, err := w.distBuilder.Build(w.ctx, nil) // Pass nil for default options
 		result.Success = err == nil && distResult != nil && distResult.Success
 		result.Error = err
-		
+
 	case BuildTypeFull:
 		// Type check + inline + distribution
 		pscResult, err := w.pscBuilder.TypeCheck(w.ctx, []string{w.projectContext.RootDir})
@@ -497,7 +499,7 @@ func (w *BuildWatcher) executeBuild(event BuildEvent) BuildResult {
 			result.Error = err
 			break
 		}
-		
+
 		targetDirs := []string{filepath.Join(w.projectContext.RootDir, "lib")}
 		inlineResult, err := w.inlineBuilder.Build(w.ctx, targetDirs)
 		if err != nil || inlineResult == nil || !inlineResult.Success {
@@ -505,15 +507,15 @@ func (w *BuildWatcher) executeBuild(event BuildEvent) BuildResult {
 			result.Error = err
 			break
 		}
-		
+
 		distResult, err := w.distBuilder.Build(w.ctx, nil) // Pass nil for default options
 		result.Success = err == nil && distResult != nil && distResult.Success
 		result.Error = err
 	}
-	
+
 	result.Duration = time.Since(start)
 	w.lastBuildTime = time.Now()
-	
+
 	return result
 }
 
@@ -531,14 +533,14 @@ func (w *BuildWatcher) shouldWatchFile(path string) bool {
 			return false
 		}
 	}
-	
+
 	// Check include patterns
 	for _, pattern := range w.patterns {
 		if matched, _ := filepath.Match(pattern, filepath.Base(path)); matched {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
