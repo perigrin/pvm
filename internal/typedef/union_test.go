@@ -169,8 +169,6 @@ func TestUnionTypeParsingInHierarchy(t *testing.T) {
 
 // TestUnionTypeCompatibilityChecking tests compatibility checking with unions
 func TestUnionTypeCompatibilityChecking(t *testing.T) {
-	// Skip until type compatibility is fully implemented
-	t.Skip("Union type compatibility checking requires full type system implementation")
 
 	storage, err := NewStorageWithPath(t.TempDir())
 	require.NoError(t, err)
