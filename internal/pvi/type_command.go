@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -221,22 +222,26 @@ func newTypeGenerateCommand() *cobra.Command {
 			outputFile, _ := cmd.Flags().GetString("output")
 			autoSave, _ := cmd.Flags().GetBool("save")
 
-			// Create a minimal type definition
-			typeDef := &typedef.TypeDefinition{
-				Module:     moduleName,
-				Version:    "0.0.1", // This would be determined from the actual module
-				Generated:  time.Now(),
-				Maintainer: "PVI type generator",
-				Source:     "generated",
-				Types:      []typedef.TypeInfo{},
-				Packages:   []typedef.PackageInfo{},
-				Subs:       []typedef.SubInfo{},
-				Methods:    []typedef.MethodInfo{},
+			// Create a module analyzer
+			analyzer, err := NewModuleAnalyzer()
+			if err != nil {
+				return errors.NewSystemError("303",
+					"Failed to create module analyzer", err)
 			}
 
-			// TODO: In a future implementation, we would actually analyze the module
-			// to generate a more complete and accurate type definition.
-			// For now, we'll just create a placeholder.
+			// Try to find the module file
+			modulePath := findModuleFile(moduleName)
+			if modulePath == "" {
+				return errors.NewUserInputError(cli.PrefixPVI, "304",
+					fmt.Sprintf("Cannot locate module file for %s", moduleName), nil).
+					WithHint("Specify the full path to the .pm or .pl file")
+			}
+
+			// Analyze the module to generate type definition
+			typeDef, err := analyzer.AnalyzeModule(modulePath)
+			if err != nil {
+				return err
+			}
 
 			// Marshal to JSON with indentation
 			data, err := json.MarshalIndent(typeDef, "", "  ")
@@ -296,4 +301,49 @@ func newTypeGenerateCommand() *cobra.Command {
 	cmd.Flags().BoolP("save", "s", false, "Save the type definition")
 
 	return cmd
+}
+
+// findModuleFile attempts to locate a module file given a module name
+func findModuleFile(moduleName string) string {
+	// If it's already a file path, use it directly
+	if strings.HasSuffix(moduleName, ".pm") || strings.HasSuffix(moduleName, ".pl") {
+		if _, err := os.Stat(moduleName); err == nil {
+			return moduleName
+		}
+	}
+
+	// Convert module name to file path (e.g., Foo::Bar -> Foo/Bar.pm)
+	pathParts := strings.Split(moduleName, "::")
+	relativePath := strings.Join(pathParts, string(filepath.Separator)) + ".pm"
+
+	// Search in common locations
+	searchPaths := []string{
+		"lib/" + relativePath, // Standard lib structure
+		relativePath,          // Direct relative path
+	}
+
+	// Also check environment @INC equivalent locations
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		searchPaths = append(searchPaths,
+			filepath.Join(homeDir, ".perl5", "lib", relativePath),
+			filepath.Join(homeDir, "perl5", "lib", relativePath),
+		)
+	}
+
+	// Common system perl paths (simplified)
+	systemPaths := []string{
+		"/usr/share/perl5/" + relativePath,
+		"/usr/local/share/perl5/" + relativePath,
+		"/opt/perl/lib/" + relativePath,
+	}
+	searchPaths = append(searchPaths, systemPaths...)
+
+	// Search for the file
+	for _, searchPath := range searchPaths {
+		if _, err := os.Stat(searchPath); err == nil {
+			return searchPath
+		}
+	}
+
+	return "" // Not found
 }
