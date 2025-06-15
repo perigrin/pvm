@@ -146,11 +146,12 @@ func TestCrossplatformSymlinkCreation(t *testing.T) {
 		switch runtime.GOOS {
 		case "windows":
 			// On Windows, we expect a regular file (hard link or copy)
-			if info.Mode()&os.ModeSymlink != 0 {
+			switch {
+			case info.Mode()&os.ModeSymlink != 0:
 				t.Logf("Windows: %s is a symlink (unusual but acceptable)", component)
-			} else if info.Mode().IsRegular() {
+			case info.Mode().IsRegular():
 				t.Logf("Windows: %s is a regular file/hard link (expected)", component)
-			} else {
+			default:
 				t.Errorf("Windows: %s has unexpected file mode: %v", component, info.Mode())
 			}
 		default:

@@ -56,6 +56,7 @@ func NewCommand() *cobra.Command {
 		newShellCommand(),
 		newMCPCommand(),
 		newEnvCommand(),
+		createPerformanceCommand(),
 		newToolCommand(),
 
 		// Enhanced help system
