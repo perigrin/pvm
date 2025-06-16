@@ -99,8 +99,7 @@ jobs:
       run: |
         echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
-    - name: Build tree-sitter parser (if needed)
-      if: matrix.build_psc
+    - name: Build tree-sitter parser
       run: |
         make tree-sitter
 
