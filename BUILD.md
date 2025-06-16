@@ -125,7 +125,7 @@ make release
 
 This creates binaries for:
 - Linux: AMD64, ARM64
-- macOS: AMD64 (Intel), ARM64 (Apple Silicon)
+- macOS: ARM64 (Apple Silicon only)
 - Windows: AMD64
 
 ### Platform-Specific Notes
@@ -135,8 +135,8 @@ This creates binaries for:
 - PSC (Perl Script Compiler) disabled due to CGO complexity
 
 #### macOS
-- Native builds on both Intel and Apple Silicon
-- Full PSC support on both architectures
+- Native builds on Apple Silicon only (Intel Macs no longer supported)
+- Full PSC support on Apple Silicon
 
 #### Windows
 - PSC disabled due to tree-sitter CGO complexity

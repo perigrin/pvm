@@ -39,10 +39,6 @@ jobs:
             runner: ubuntu-latest
             goos: linux
             goarch: arm64
-          - platform: darwin-amd64
-            runner: macos-latest
-            goos: darwin
-            goarch: amd64
           - platform: darwin-arm64
             runner: macos-latest
             goos: darwin
@@ -215,7 +211,6 @@ jobs:
         - **Linux ARM64**: \`pvm-${VERSION}-linux-arm64.tar.gz\` (PVM, PVI, PVX only)
 
         ### macOS
-        - **macOS Intel**: \`pvm-${VERSION}-darwin-amd64.tar.gz\` (includes PSC)
         - **macOS Apple Silicon**: \`pvm-${VERSION}-darwin-arm64.tar.gz\` (includes PSC)
 
         ## 🔧 Installation
