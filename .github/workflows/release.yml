@@ -51,11 +51,7 @@ jobs:
             runner: macos-latest
             build_psc: true
 
-          # Windows builds
-          - goos: windows
-            goarch: amd64
-            runner: windows-latest
-            build_psc: false  # Skip PSC on Windows due to tree-sitter CGO complexity
+          # Windows builds - temporarily disabled, see GitHub issue for future support
 
     steps:
     - name: Checkout code
@@ -133,18 +129,11 @@ jobs:
 
         mkdir -p build/release
 
-        # Set CGO based on PSC support
-        if [ "${{ matrix.build_psc }}" == "true" ]; then
-          export CGO_ENABLED=1
-        else
-          export CGO_ENABLED=0
-        fi
+        # Set CGO enabled for all platforms (required for tree-sitter parser)
+        export CGO_ENABLED=1
 
-        # Determine file extension
+        # Determine file extension (no Windows support currently)
         EXT=""
-        if [ "${{ matrix.goos }}" == "windows" ]; then
-          EXT=".exe"
-        fi
 
         # Build core components (always available)
         echo "Building pvm..."
@@ -166,9 +155,6 @@ jobs:
       shell: bash
       run: |
         EXT=""
-        if [ "${{ matrix.goos }}" == "windows" ]; then
-          EXT=".exe"
-        fi
 
         # Test binaries on native platforms only
         case "${{ matrix.goos }}-${{ matrix.goarch }}" in
@@ -194,14 +180,6 @@ jobs:
               fi
             fi
             ;;
-          "windows-amd64")
-            if [ "${{ runner.os }}" == "Windows" ]; then
-              echo "Testing Windows binaries..."
-              ./build/release/pvm-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
-              ./build/release/pvi-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
-              ./build/release/pvx-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
-            fi
-            ;;
           *)
             echo "Skipping binary tests for cross-compiled ${{ matrix.goos }}-${{ matrix.goarch }}"
             ;;
@@ -215,29 +193,16 @@ jobs:
 
         cd build/release
 
-        # Determine archive format and file extension
-        if [ "${{ matrix.goos }}" == "windows" ]; then
-          ARCHIVE="pvm-${VERSION}-${PLATFORM}.zip"
-          EXT=".exe"
+        # Create tar.gz archive for Unix-like systems (no Windows support currently)
+        ARCHIVE="pvm-${VERSION}-${PLATFORM}.tar.gz"
+        EXT=""
 
-          # Create zip archive for Windows using 7z (available on GitHub runners)
-          FILES="pvm-${PLATFORM}${EXT} pvi-${PLATFORM}${EXT} pvx-${PLATFORM}${EXT}"
-          if [ "${{ matrix.build_psc }}" == "true" ]; then
-            FILES="$FILES psc-${PLATFORM}${EXT}"
-          fi
-          7z a "${ARCHIVE}" $FILES
-        else
-          ARCHIVE="pvm-${VERSION}-${PLATFORM}.tar.gz"
-          EXT=""
-
-          # Create tar.gz archive for Unix-like systems
-          FILES="pvm-${PLATFORM}${EXT} pvi-${PLATFORM}${EXT} pvx-${PLATFORM}${EXT}"
-          if [ "${{ matrix.build_psc }}" == "true" ]; then
-            FILES="$FILES psc-${PLATFORM}${EXT}"
-          fi
-
-          tar -czf "$ARCHIVE" $FILES
+        FILES="pvm-${PLATFORM}${EXT} pvi-${PLATFORM}${EXT} pvx-${PLATFORM}${EXT}"
+        if [ "${{ matrix.build_psc }}" == "true" ]; then
+          FILES="$FILES psc-${PLATFORM}${EXT}"
         fi
+
+        tar -czf "$ARCHIVE" $FILES
 
         echo "Created archive: $ARCHIVE"
         ls -la "$ARCHIVE"
@@ -250,13 +215,6 @@ jobs:
         if-no-files-found: ignore
         retention-days: 30
 
-    - name: Upload Windows artifacts
-      if: matrix.goos == 'windows'
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: build/release/*.zip
-        retention-days: 30
 
   create-release:
     name: Create GitHub Release
@@ -350,25 +308,20 @@ jobs:
         ./pvm-linux-amd64 version
         \`\`\`
 
-        ### Windows
-        \`\`\`powershell
-        # Download and extract the ZIP file
-        # Run in PowerShell or Command Prompt
-        .\pvm-windows-amd64.exe version
-        \`\`\`
 
         ## 🧪 Components
 
         | Component | Description | Platforms |
         |-----------|-------------|-----------|
-        | **pvm** | Main Perl version manager | All |
-        | **pvi** | Package installer with dependency management | All |
-        | **pvx** | Perl script executor with isolation | All |
+        | **pvm** | Main Perl version manager | Linux, macOS |
+        | **pvi** | Package installer with dependency management | Linux, macOS |
+        | **pvx** | Perl script executor with isolation | Linux, macOS |
         | **psc** | Perl script compiler with type checking | Linux, macOS |
 
         ## ⚠️ Notes
 
-        - **PSC** (Perl Script Compiler) requires tree-sitter and is not available on Windows or Linux ARM64 in this release
+        - **PSC** (Perl Script Compiler) requires tree-sitter and is not available on Linux ARM64 in this release
+        - **Windows support** is temporarily disabled - see GitHub issues for status
         - Some advanced features require additional Perl modules to be installed
         - $(if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then echo "This is a pre-release build - not recommended for production use"; else echo "This is a stable release suitable for production use"; fi)
 
