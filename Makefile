@@ -274,25 +274,28 @@ install: $(BINARIES)
 	@echo "Creating symlinks in $(GOPATH)/bin..."
 	cd $(GOPATH)/bin && ./pvm symlinks create
 
-# Cross-compile for all platforms (development)
+# Set version info for release builds
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+RELEASE_LDFLAGS = -s -w -X 'tamarou.com/pvm/internal/version.Version=$(VERSION)' -X 'tamarou.com/pvm/internal/version.BuildTime=$(BUILD_TIME)' -X 'tamarou.com/pvm/internal/version.CommitHash=$(COMMIT)'
+
+# Cross-compile for supported platforms
 cross-compile: tree-sitter
-	@echo "Cross-compiling for all platforms..."
+	@echo "Cross-compiling for supported platforms..."
 	mkdir -p $(BUILDDIR)/release
 
 	# Linux AMD64
-	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-linux-amd64 ./cmd/pvm
+	GOOS=linux GOARCH=amd64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-linux-amd64 ./cmd/pvm
 
-	# Linux ARM64
-	GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-linux-arm64 ./cmd/pvm
+	# Linux ARM64 (requires cross-compilation toolchain)
+	CC=aarch64-linux-gnu-gcc GOOS=linux GOARCH=arm64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-linux-arm64 ./cmd/pvm
 
 	# macOS AMD64
-	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-darwin-amd64 ./cmd/pvm
+	GOOS=darwin GOARCH=amd64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-darwin-amd64 ./cmd/pvm
 
 	# macOS ARM64
-	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-darwin-arm64 ./cmd/pvm
-
-	# Windows AMD64
-	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILDDIR)/release/pvm-windows-amd64.exe ./cmd/pvm
+	GOOS=darwin GOARCH=arm64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-darwin-arm64 ./cmd/pvm
 
 	@echo "Cross-compilation complete. Single pvm binary for each platform in $(BUILDDIR)/release/"
 	@echo "Use 'pvm symlinks create' after installation to create pvx, pvi, psc symlinks"
@@ -304,8 +307,7 @@ release: cross-compile
 	tar -czf pvm-linux-amd64.tar.gz pvm-linux-amd64 && \
 	tar -czf pvm-linux-arm64.tar.gz pvm-linux-arm64 && \
 	tar -czf pvm-darwin-amd64.tar.gz pvm-darwin-amd64 && \
-	tar -czf pvm-darwin-arm64.tar.gz pvm-darwin-arm64 && \
-	zip pvm-windows-amd64.zip pvm-windows-amd64.exe
+	tar -czf pvm-darwin-arm64.tar.gz pvm-darwin-arm64
 	@echo "Release archives created in $(BUILDDIR)/release/"
 	@echo "Each archive contains a single pvm binary - use 'pvm symlinks create' after installation"
 

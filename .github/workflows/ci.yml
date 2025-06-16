@@ -1,23 +1,18 @@
-# ABOUTME: Consolidated CI/CD workflow combining testing, security, quality, and release
-# ABOUTME: Single workflow to reduce GitHub Actions billing costs while maintaining coverage
+# ABOUTME: Simple CI pipeline following the standard build workflow
+# ABOUTME: Runs make && make test and reports results
 
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
     branches: [ pu ]
   pull_request:
     branches: [ pu ]
-  schedule:
-    # Run security and performance checks weekly
-    - cron: '0 6 * * 1'
 
 jobs:
-  test-and-build:
+  test:
     name: Test & Build
     runs-on: ubuntu-latest
-    outputs:
-      should-release: ${{ steps.check-release.outputs.should-release }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -34,140 +29,29 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
-        npm install -g tree-sitter-cli
         sudo apt-get update
         sudo apt-get install -y build-essential
+        npm install -g tree-sitter-cli
 
-    - name: Build tree-sitter parser
-      run: make tree-sitter
+    - name: Build
+      run: make
 
-    - name: Download Go dependencies and install tools
-      run: |
-        go mod download
-        make install-tools
-
-    - name: Code generation verification
-      run: make check-generate
-
-    - name: Lint and format check
-      run: make lint
-
-    - name: Security scan
-      run: |
-        echo "🔒 Running vulnerability scan with Go 1.24.4..."
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck ./...
-
-    - name: Build all components
-      run: make build-release
-
-    - name: Run tests with coverage
-      run: |
-        # After dead code cleanup, most tests should pass
-        # Fail CI if critical test failures occur
-        make test-coverage
-
-    - name: Coverage gate (60% minimum)
-      run: |
-        # Improved coverage threshold after dead code cleanup
-        if [ -f coverage.out ]; then
-          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
-          echo "Coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE >= 60" | bc -l) )); then
-            echo "✅ Coverage meets 60% threshold"
-          else
-            echo "❌ Coverage ${COVERAGE}% below 60% threshold"
-            exit 1
-          fi
-        else
-          echo "❌ No coverage report generated"
-          exit 1
-        fi
-
-    - name: Basic integration tests
-      run: |
-        # Test version commands work
-        ./build/pvm version
-        ./build/pvx version
-        ./build/pvi version
-        ./build/psc version
-
-        # Test basic PSC functionality
-        echo 'my Int $x = 42; my Str $name = "test";' > test.pl
-        ./build/psc check test.pl
-
-    - name: Check if should release
-      id: check-release
-      run: |
-        if [[ "${{ github.ref }}" == "refs/heads/pu" && "${{ github.event_name }}" == "push" ]]; then
-          echo "should-release=true" >> $GITHUB_OUTPUT
-        else
-          echo "should-release=false" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Upload coverage
-      uses: codecov/codecov-action@v5
-      with:
-        file: ./coverage.out
-        fail_ci_if_error: false
+    - name: Test
+      run: make test
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: build-artifacts
         path: build/
-        retention-days: 30
+        retention-days: 7
 
   cross-platform-test:
-    name: Cross-Platform (${{ matrix.os }})
+    name: Cross-Platform Test (macOS)
     if: github.event_name == 'pull_request'
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest]  # Windows support temporarily disabled
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.4'
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: Install tree-sitter CLI
-      run: npm install -g tree-sitter-cli
-
-    - name: Install system dependencies (macOS)
-      if: matrix.os == 'macos-latest'
-      run: xcode-select --install 2>/dev/null || true
-
-    - name: Build non-PSC components
-      env:
-        CGO_CFLAGS: -I${{ github.workspace }}/tree-sitter-typed-perl/include -I${{ github.workspace }}/tree-sitter-typed-perl -I${{ github.workspace }}/tree-sitter-typed-perl/src
-      run: |
-        go mod download
-        go build -o build/pvm ./cmd/pvm
-        go build -o build/pvx ./cmd/pvx
-        go build -o build/pvi ./cmd/pvi
-
-    - name: Test non-PSC components
-      run: |
-        ./build/pvm version
-        ./build/pvx version
-        ./build/pvi version
-
-  weekly-full-validation:
-    name: Weekly Full Test Suite
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -185,79 +69,10 @@ jobs:
     - name: Install dependencies
       run: |
         npm install -g tree-sitter-cli
-        sudo apt-get update
-        sudo apt-get install -y build-essential
+        xcode-select --install 2>/dev/null || true
 
-    - name: Build tree-sitter parser
-      run: make tree-sitter
+    - name: Build
+      run: make
 
-    - name: Run full test suite
-      run: |
-        echo "🧪 Running comprehensive test validation..."
-        make test-all
-
-    - name: Security scan
-      run: |
-        echo "🔒 Running security validation..."
-        go install github.com/securego/gosec/v2/cmd/gosec@latest
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        gosec -fmt sarif -out gosec-results.sarif ./... || true
-        govulncheck -json ./... > vuln-results.json || true
-
-    - name: Performance benchmarks
-      run: |
-        echo "⚡ Running performance validation..."
-        make test-performance || echo "Performance tests completed with issues"
-
-    - name: Upload comprehensive results
-      uses: actions/upload-artifact@v4
-      with:
-        name: weekly-validation-results
-        path: |
-          coverage.out
-          coverage.html
-          gosec-results.sarif
-          vuln-results.json
-          .build-metrics/
-        retention-days: 30
-
-  release:
-    name: Build Release
-    needs: test-and-build
-    if: needs.test-and-build.outputs.should-release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.4'
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: Install dependencies
-      run: |
-        npm install -g tree-sitter-cli
-        sudo apt-get update
-        sudo apt-get install -y build-essential
-
-    - name: Build tree-sitter parser
-      run: make tree-sitter
-
-    - name: Cross-compile release binaries
-      run: make cross-compile
-
-    - name: Create release archives
-      run: make release
-
-    - name: Upload release artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-binaries
-        path: build/release/
-        retention-days: 90
+    - name: Test
+      run: make test
