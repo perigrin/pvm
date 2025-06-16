@@ -10,6 +10,7 @@ package-lock.json
 *.o
 src/*
 !src/tsp_unicode.h
+!src/bsearch.h
 parser.c
 tree-sitter-perl.wasm
 log.html
