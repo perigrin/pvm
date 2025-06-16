@@ -124,15 +124,11 @@ make release
 ```
 
 This creates binaries for:
-- Linux: AMD64, ARM64
+- Linux: AMD64 only
 - macOS: ARM64 (Apple Silicon only)
 - Windows: AMD64
 
 ### Platform-Specific Notes
-
-#### Linux ARM64
-- Uses native ARM64 runners for compilation
-- Full PSC support with tree-sitter on native ARM64
 
 #### macOS
 - Native builds on Apple Silicon only (Intel Macs no longer supported)

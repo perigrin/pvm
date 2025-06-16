@@ -35,10 +35,6 @@ jobs:
             runner: ubuntu-latest
             goos: linux
             goarch: amd64
-          - platform: linux-arm64
-            runner: ubuntu-latest-arm64
-            goos: linux
-            goarch: arm64
           - platform: darwin-arm64
             runner: macos-latest
             goos: darwin
@@ -201,7 +197,6 @@ jobs:
 
         ### Linux
         - **Linux AMD64**: \`pvm-${VERSION}-linux-amd64.tar.gz\` (includes PSC with tree-sitter)
-        - **Linux ARM64**: \`pvm-${VERSION}-linux-arm64.tar.gz\` (includes PSC with tree-sitter)
 
         ### macOS
         - **macOS Apple Silicon**: \`pvm-${VERSION}-darwin-arm64.tar.gz\` (includes PSC)

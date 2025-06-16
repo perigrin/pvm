@@ -288,9 +288,6 @@ cross-compile: tree-sitter
 	# Linux AMD64
 	GOOS=linux GOARCH=amd64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-linux-amd64 ./cmd/pvm
 
-	# Linux ARM64 (native compilation)
-	GOOS=linux GOARCH=arm64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-linux-arm64 ./cmd/pvm
-
 	# macOS ARM64 (Apple Silicon)
 	GOOS=darwin GOARCH=arm64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-darwin-arm64 ./cmd/pvm
 
@@ -302,7 +299,6 @@ release: cross-compile
 	@echo "Creating release archives..."
 	cd $(BUILDDIR)/release && \
 	tar -czf pvm-linux-amd64.tar.gz pvm-linux-amd64 && \
-	tar -czf pvm-linux-arm64.tar.gz pvm-linux-arm64 && \
 	tar -czf pvm-darwin-arm64.tar.gz pvm-darwin-arm64
 	@echo "Release archives created in $(BUILDDIR)/release/"
 	@echo "Each archive contains a single pvm binary - use 'pvm symlinks create' after installation"
