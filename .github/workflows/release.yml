@@ -36,7 +36,7 @@ jobs:
             goos: linux
             goarch: amd64
           - platform: linux-arm64
-            runner: ubuntu-latest
+            runner: ubuntu-latest-arm64
             goos: linux
             goarch: arm64
           - platform: darwin-arm64
@@ -64,13 +64,10 @@ jobs:
         node-version: '20'
 
     - name: Install system dependencies (Linux)
-      if: matrix.runner == 'ubuntu-latest'
+      if: startsWith(matrix.runner, 'ubuntu-latest')
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential
-        if [ "${{ matrix.goarch }}" == "arm64" ]; then
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-        fi
         npm install -g tree-sitter-cli
 
     - name: Install system dependencies (macOS)
@@ -114,11 +111,7 @@ jobs:
         mkdir -p build/release
         LDFLAGS="-s -w -X 'tamarou.com/pvm/internal/version.Version=${VERSION}' -X 'tamarou.com/pvm/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)' -X 'tamarou.com/pvm/internal/version.CommitHash=${COMMIT}'"
 
-        if [ "${{ matrix.goarch }}" == "arm64" ] && [ "${{ matrix.goos }}" == "linux" ]; then
-          CC=aarch64-linux-gnu-gcc go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }} ./cmd/pvm
-        else
-          go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }} ./cmd/pvm
-        fi
+        go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }} ./cmd/pvm
 
     - name: Test binary
       run: |
@@ -208,7 +201,7 @@ jobs:
 
         ### Linux
         - **Linux AMD64**: \`pvm-${VERSION}-linux-amd64.tar.gz\` (includes PSC with tree-sitter)
-        - **Linux ARM64**: \`pvm-${VERSION}-linux-arm64.tar.gz\` (PVM, PVI, PVX only)
+        - **Linux ARM64**: \`pvm-${VERSION}-linux-arm64.tar.gz\` (includes PSC with tree-sitter)
 
         ### macOS
         - **macOS Apple Silicon**: \`pvm-${VERSION}-darwin-arm64.tar.gz\` (includes PSC)
@@ -237,7 +230,7 @@ jobs:
 
         ## ⚠️ Notes
 
-        - **PSC** (Perl Script Compiler) requires tree-sitter and is not available on Linux ARM64 in this release
+        - **PSC** (Perl Script Compiler) with tree-sitter support is available on all platforms
         - **Windows support** is temporarily disabled - see GitHub issues for status
         - Some advanced features require additional Perl modules to be installed
         - $(if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then echo "This is a pre-release build - not recommended for production use"; else echo "This is a stable release suitable for production use"; fi)

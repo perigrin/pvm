@@ -131,8 +131,8 @@ This creates binaries for:
 ### Platform-Specific Notes
 
 #### Linux ARM64
-- Uses cross-compilation with `gcc-aarch64-linux-gnu`
-- PSC (Perl Script Compiler) disabled due to CGO complexity
+- Uses native ARM64 runners for compilation
+- Full PSC support with tree-sitter on native ARM64
 
 #### macOS
 - Native builds on Apple Silicon only (Intel Macs no longer supported)

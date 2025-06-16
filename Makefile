@@ -288,8 +288,8 @@ cross-compile: tree-sitter
 	# Linux AMD64
 	GOOS=linux GOARCH=amd64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-linux-amd64 ./cmd/pvm
 
-	# Linux ARM64 (requires cross-compilation toolchain)
-	CC=aarch64-linux-gnu-gcc GOOS=linux GOARCH=arm64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-linux-arm64 ./cmd/pvm
+	# Linux ARM64 (native compilation)
+	GOOS=linux GOARCH=arm64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-linux-arm64 ./cmd/pvm
 
 	# macOS ARM64 (Apple Silicon)
 	GOOS=darwin GOARCH=arm64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-darwin-arm64 ./cmd/pvm
