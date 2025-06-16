@@ -93,13 +93,11 @@ jobs:
       run: |
         # Install mingw for CGO
         choco install mingw -y
-        refreshenv
 
     - name: Set up cross-compilation (Linux ARM64)
       if: matrix.goos == 'linux' && matrix.goarch == 'arm64'
       run: |
         echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-        echo "CGO_ENABLED=1" >> $GITHUB_ENV
 
     - name: Build tree-sitter parser (if needed)
       if: matrix.build_psc
@@ -125,7 +123,6 @@ jobs:
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: ${{ matrix.build_psc && '1' || '0' }}
       shell: bash
       run: |
         VERSION="${{ steps.version.outputs.version }}"
@@ -135,6 +132,13 @@ jobs:
         LDFLAGS="-s -w -X 'tamarou.com/pvm/internal/version.Version=${VERSION}' -X 'tamarou.com/pvm/internal/version.BuildTime=${BUILD_TIME}' -X 'tamarou.com/pvm/internal/version.CommitHash=${COMMIT}'"
 
         mkdir -p build/release
+
+        # Set CGO based on PSC support
+        if [ "${{ matrix.build_psc }}" == "true" ]; then
+          export CGO_ENABLED=1
+        else
+          export CGO_ENABLED=0
+        fi
 
         # Determine file extension
         EXT=""
@@ -166,19 +170,42 @@ jobs:
           EXT=".exe"
         fi
 
-        # Test that binaries work (if not cross-compiling)
-        if [ "${{ matrix.goos }}" == "${{ runner.os }}" ] || ( [ "${{ matrix.goos }}" == "linux" ] && [ "${{ runner.os }}" == "Linux" ] ); then
-          echo "Testing binaries..."
-          ./build/release/pvm-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
-          ./build/release/pvi-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
-          ./build/release/pvx-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
-
-          if [ "${{ matrix.build_psc }}" == "true" ]; then
-            ./build/release/psc-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
-          fi
-        else
-          echo "Skipping binary tests for cross-compiled artifacts"
-        fi
+        # Test binaries on native platforms only
+        case "${{ matrix.goos }}-${{ matrix.goarch }}" in
+          "linux-amd64")
+            if [ "${{ runner.os }}" == "Linux" ]; then
+              echo "Testing Linux AMD64 binaries..."
+              ./build/release/pvm-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              ./build/release/pvi-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              ./build/release/pvx-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              if [ "${{ matrix.build_psc }}" == "true" ]; then
+                ./build/release/psc-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              fi
+            fi
+            ;;
+          "darwin-amd64"|"darwin-arm64")
+            if [ "${{ runner.os }}" == "macOS" ]; then
+              echo "Testing macOS binaries..."
+              ./build/release/pvm-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              ./build/release/pvi-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              ./build/release/pvx-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              if [ "${{ matrix.build_psc }}" == "true" ]; then
+                ./build/release/psc-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              fi
+            fi
+            ;;
+          "windows-amd64")
+            if [ "${{ runner.os }}" == "Windows" ]; then
+              echo "Testing Windows binaries..."
+              ./build/release/pvm-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              ./build/release/pvi-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+              ./build/release/pvx-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} version
+            fi
+            ;;
+          *)
+            echo "Skipping binary tests for cross-compiled ${{ matrix.goos }}-${{ matrix.goarch }}"
+            ;;
+        esac
 
     - name: Create platform archive
       shell: bash
@@ -193,11 +220,12 @@ jobs:
           ARCHIVE="pvm-${VERSION}-${PLATFORM}.zip"
           EXT=".exe"
 
-          # Create zip archive for Windows
-          powershell -Command "Compress-Archive -Path pvm-${PLATFORM}${EXT}, pvi-${PLATFORM}${EXT}, pvx-${PLATFORM}${EXT} -DestinationPath ${ARCHIVE}"
+          # Create zip archive for Windows using 7z (available on GitHub runners)
+          FILES="pvm-${PLATFORM}${EXT} pvi-${PLATFORM}${EXT} pvx-${PLATFORM}${EXT}"
           if [ "${{ matrix.build_psc }}" == "true" ]; then
-            powershell -Command "Expand-Archive ${ARCHIVE} temp; Copy-Item psc-${PLATFORM}${EXT} temp/; Remove-Item ${ARCHIVE}; Compress-Archive -Path temp/* -DestinationPath ${ARCHIVE}; Remove-Item -Recurse temp"
+            FILES="$FILES psc-${PLATFORM}${EXT}"
           fi
+          7z a "${ARCHIVE}" $FILES
         else
           ARCHIVE="pvm-${VERSION}-${PLATFORM}.tar.gz"
           EXT=""
