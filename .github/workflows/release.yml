@@ -24,9 +24,33 @@ permissions:
   packages: write
 
 jobs:
-  build-and-release:
-    name: Build and Release
-    runs-on: ubuntu-latest
+  build-matrix:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-amd64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - platform: linux-arm64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
+          - platform: darwin-amd64
+            runner: macos-latest
+            goos: darwin
+            goarch: amd64
+          - platform: darwin-arm64
+            runner: macos-latest
+            goos: darwin
+            goarch: arm64
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -43,15 +67,21 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Install system dependencies
+    - name: Install system dependencies (Linux)
+      if: matrix.runner == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential gcc-aarch64-linux-gnu
+        sudo apt-get install -y build-essential
+        if [ "${{ matrix.goarch }}" == "arm64" ]; then
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+        fi
         npm install -g tree-sitter-cli
 
-    - name: Set up cross-compilation for ARM64
+    - name: Install system dependencies (macOS)
+      if: matrix.runner == 'macos-latest'
       run: |
-        echo "CC_FOR_TARGET_linux_arm64=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+        npm install -g tree-sitter-cli
+        xcode-select --install 2>/dev/null || true
 
     - name: Get version info
       id: version
@@ -74,18 +104,86 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "prerelease=$PRERELEASE" >> $GITHUB_OUTPUT
 
-    - name: Build release binaries
+    - name: Build tree-sitter
+      run: make tree-sitter
+
+    - name: Build binary
       env:
         VERSION: ${{ steps.version.outputs.version }}
         BUILD_TIME: ${{ steps.version.outputs.build_time }}
         COMMIT: ${{ github.sha }}
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
       run: |
-        make release
+        mkdir -p build/release
+        LDFLAGS="-s -w -X 'tamarou.com/pvm/internal/version.Version=${VERSION}' -X 'tamarou.com/pvm/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)' -X 'tamarou.com/pvm/internal/version.CommitHash=${COMMIT}'"
 
-    - name: Test binaries
+        if [ "${{ matrix.goarch }}" == "arm64" ] && [ "${{ matrix.goos }}" == "linux" ]; then
+          CC=aarch64-linux-gnu-gcc go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }} ./cmd/pvm
+        else
+          go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }} ./cmd/pvm
+        fi
+
+    - name: Test binary
       run: |
-        echo "Testing built binaries..."
-        ./build/release/pvm-linux-amd64 version
+        echo "Testing ${{ matrix.platform }} binary..."
+        ./build/release/pvm-${{ matrix.platform }} version
+
+    - name: Create archive
+      run: |
+        cd build/release
+        tar -czf pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz pvm-${{ matrix.platform }}
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: pvm-${{ matrix.platform }}
+        path: build/release/pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz
+        retention-days: 7
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-matrix
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Get version info
+      id: version
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          TAG="${{ github.event.inputs.tag }}"
+          PRERELEASE="${{ github.event.inputs.prerelease }}"
+        else
+          TAG=${GITHUB_REF#refs/tags/}
+          # Auto-detect prerelease based on tag
+          if [[ "$TAG" =~ -rc[0-9]+$ ]] || [[ "$TAG" =~ -alpha[0-9]*$ ]] || [[ "$TAG" =~ -beta[0-9]*$ ]]; then
+            PRERELEASE="true"
+          else
+            PRERELEASE="false"
+          fi
+        fi
+        VERSION=${TAG#v}
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "prerelease=$PRERELEASE" >> $GITHUB_OUTPUT
+
+    - name: Organize release files
+      run: |
+        mkdir -p release-files
+        find artifacts -name "*.tar.gz" | while read file; do
+          cp "$file" release-files/
+        done
+        ls -la release-files/
 
     - name: Generate release notes
       id: release_notes
@@ -162,7 +260,7 @@ jobs:
         tag_name: ${{ steps.version.outputs.tag }}
         name: PVM ${{ steps.version.outputs.tag }}
         body_path: release_notes.md
-        files: build/release/*.tar.gz
+        files: release-files/*
         prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
         generate_release_notes: false
         make_latest: ${{ steps.version.outputs.prerelease == 'false' }}
@@ -178,7 +276,7 @@ jobs:
         echo "**Pre-release**: ${{ steps.version.outputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📦 Release Assets" >> $GITHUB_STEP_SUMMARY
-        ls -la build/release/ >> $GITHUB_STEP_SUMMARY
+        ls -la release-files/ >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
         echo "- [Release Page](https://github.com/perigrin/pvm/releases/tag/${{ steps.version.outputs.tag }})" >> $GITHUB_STEP_SUMMARY
