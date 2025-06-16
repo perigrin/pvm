@@ -156,6 +156,8 @@ jobs:
       run: xcode-select --install 2>/dev/null || true
 
     - name: Build non-PSC components
+      env:
+        CGO_CFLAGS: -I${{ github.workspace }}/tree-sitter-typed-perl/include -I${{ github.workspace }}/tree-sitter-typed-perl -I${{ github.workspace }}/tree-sitter-typed-perl/src
       run: |
         go mod download
         go build -o build/pvm ./cmd/pvm

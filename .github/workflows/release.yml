@@ -122,6 +122,7 @@ jobs:
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
+        CGO_CFLAGS: -I${{ github.workspace }}/tree-sitter-typed-perl/include -I${{ github.workspace }}/tree-sitter-typed-perl -I${{ github.workspace }}/tree-sitter-typed-perl/src
       shell: bash
       run: |
         VERSION="${{ steps.version.outputs.version }}"

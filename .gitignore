@@ -81,3 +81,4 @@ internal/typechecker/testdata/input/
 
 # Build artifacts
 tmp-golangci-build/
+test-pvm

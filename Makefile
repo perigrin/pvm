@@ -26,7 +26,7 @@ all: build-dev
 
 # Set CGO flags for tree-sitter integration
 export CGO_ENABLED=1
-export CGO_CFLAGS=-I$(PWD)/tree-sitter-typed-perl/include -I$(PWD)/tree-sitter-typed-perl
+export CGO_CFLAGS=-I$(PWD)/tree-sitter-typed-perl/include -I$(PWD)/tree-sitter-typed-perl -I$(PWD)/tree-sitter-typed-perl/src
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)

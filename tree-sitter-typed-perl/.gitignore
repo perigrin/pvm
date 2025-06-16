@@ -9,6 +9,7 @@ package-lock.json
 *.so
 *.o
 src/*
+!src/tsp_unicode.h
 parser.c
 tree-sitter-perl.wasm
 log.html
