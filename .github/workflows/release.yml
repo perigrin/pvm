@@ -71,7 +71,7 @@ jobs:
         npm install -g tree-sitter-cli
 
     - name: Install system dependencies (macOS)
-      if: matrix.runner == 'macos-latest'
+      if: startsWith(matrix.runner, 'macos-')
       run: |
         npm install -g tree-sitter-cli
         xcode-select --install 2>/dev/null || true
