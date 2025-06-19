@@ -200,6 +200,7 @@ func setupUI(cmd *cobra.Command) {
 	// Create UI context based on command flags and environment
 	ctx := &ui.UIContext{
 		Writer:      writer,
+		ErrorWriter: os.Stderr, // Errors should always go to stderr
 		ColorMode:   ui.ColorAuto,
 		Quiet:       false, // TODO: Add quiet flag when needed
 		Verbose:     Verbose,

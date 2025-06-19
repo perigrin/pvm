@@ -21,6 +21,7 @@ func NewOutput(ctx *UIContext) *Output {
 	if ctx == nil {
 		ctx = &UIContext{
 			Writer:      os.Stdout,
+			ErrorWriter: os.Stderr,
 			ColorMode:   ColorAuto,
 			Quiet:       false,
 			Verbose:     false,
@@ -78,7 +79,11 @@ func (o *Output) Warning(message string, args ...interface{}) {
 func (o *Output) Error(message string, args ...interface{}) {
 	formatted := fmt.Sprintf(message, args...)
 	styled := o.styles.Error.Render("✗ ") + formatted
-	fmt.Fprintln(o.context.Writer, styled)
+	writer := o.context.ErrorWriter
+	if writer == nil {
+		writer = o.context.Writer
+	}
+	fmt.Fprintln(writer, styled)
 }
 
 // Debug displays a debug message (only if verbose mode is enabled)

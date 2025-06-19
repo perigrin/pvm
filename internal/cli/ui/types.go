@@ -39,6 +39,7 @@ func (l OutputLevel) String() string {
 // UIContext provides context for UI operations
 type UIContext struct {
 	Writer      io.Writer
+	ErrorWriter io.Writer // Separate writer for error messages
 	ColorMode   ColorMode
 	Quiet       bool
 	Verbose     bool
