@@ -45,11 +45,9 @@ func GetBuildInfo() map[string]string {
 	}
 }
 
-// PrintVersionInfo prints formatted version information
-func PrintVersionInfo(component string) {
-	fmt.Printf("%s %s\n", component, Version)
-	fmt.Printf("Build Time: %s\n", BuildTime)
-	fmt.Printf("Commit: %s\n", CommitHash)
-	fmt.Printf("Go Version: %s\n", runtime.Version())
-	fmt.Printf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+// GetVersionDisplay returns formatted version information as a string
+// This is used by CLI commands to display version info with UI styling
+func GetVersionDisplay(component string) string {
+	return fmt.Sprintf("%s %s\nBuild Time: %s\nCommit: %s\nGo Version: %s\nOS/Arch: %s/%s",
+		component, Version, BuildTime, CommitHash, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 }

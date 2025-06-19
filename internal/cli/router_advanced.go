@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/version"
 )
 
@@ -96,16 +97,19 @@ func DetectInvocation() *InvocationInfo {
 func PrintDebugInfo() {
 	info := DetectInvocation()
 
-	fmt.Println("PVM Ecosystem Debug Information:")
-	fmt.Println("--------------------------------")
-	fmt.Printf("Invoked as:       %s\n", info.OriginalArg)
-	fmt.Printf("Resolved path:    %s\n", info.BinaryPath)
-	fmt.Printf("Component:        %s\n", info.Component)
-	fmt.Printf("Invocation type:  %s\n", info.Type)
-	fmt.Printf("Detected:         %v\n", info.Detected)
-	fmt.Printf("Working dir:      %s\n", getWorkingDir())
-	fmt.Printf("Version:          %s\n", version.GetVersion())
-	fmt.Println("--------------------------------")
+	// Create UI instance for debug output
+	output := ui.NewDefaultOutput()
+
+	output.Header("PVM Ecosystem Debug Information")
+	output.KeyValue(map[string]string{
+		"Invoked as":      info.OriginalArg,
+		"Resolved path":   info.BinaryPath,
+		"Component":       info.Component,
+		"Invocation type": info.Type,
+		"Detected":        fmt.Sprintf("%v", info.Detected),
+		"Working dir":     getWorkingDir(),
+		"Version":         version.GetVersion(),
+	})
 }
 
 // getWorkingDir returns the current working directory or an error message
