@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
@@ -21,6 +22,9 @@ var (
 
 	// Debug mode flag
 	Debug bool
+
+	// Global UI instance for all commands
+	globalUI *ui.Output
 )
 
 // NewRootCommand creates a new root command for a component
@@ -59,7 +63,8 @@ func newVersionCommand(component string) *cobra.Command {
 			if showCurrent {
 				return showCurrentPerlVersion(cmd, component)
 			}
-			fmt.Println(version.ComponentVersion(component))
+			ui := GetUI(cmd)
+			ui.Println(version.ComponentVersion(component))
 			return nil
 		},
 	}
@@ -86,9 +91,12 @@ Examples:
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute(rootCmd *cobra.Command) {
-	// Setup command pre-run hook to configure logging
+	// Setup command pre-run hook to configure logging and UI
 	origPreRun := rootCmd.PersistentPreRun
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		// Initialize UI framework for this command execution
+		setupUI(cmd)
+
 		// Set log level based on flags
 		if Verbose {
 			log.SetGlobalLevel(log.LevelDebug)
@@ -150,7 +158,12 @@ func enableCommandSuggestions(rootCmd *cobra.Command) {
 
 // handleUnknownCommand provides enhanced error handling for unknown commands
 func handleUnknownCommand(rootCmd *cobra.Command, err *UnknownCommandError) {
-	fmt.Fprintf(os.Stderr, "Error: unknown command '%s'\n\n", err.Command)
+	// Get UI instance for error formatting
+	ui := GetUI(rootCmd)
+	ui.SetWriter(os.Stderr)
+
+	ui.Error("unknown command '%s'", err.Command)
+	ui.Println("")
 
 	// Get available commands
 	availableCommands := []string{}
@@ -164,15 +177,39 @@ func handleUnknownCommand(rootCmd *cobra.Command, err *UnknownCommandError) {
 	suggestions := SuggestCommand(err.Command, availableCommands)
 
 	if len(suggestions) > 0 {
-		fmt.Fprintf(os.Stderr, "Did you mean?\n")
+		ui.Info("Did you mean?")
 		for _, suggestion := range suggestions {
-			fmt.Fprintf(os.Stderr, "  pvm %s\n", suggestion)
+			ui.Printf("  pvm %s\n", suggestion)
 		}
-		fmt.Fprintf(os.Stderr, "\n")
+		ui.Println("")
 	}
 
-	fmt.Fprintf(os.Stderr, "Run 'pvm help' for usage information\n")
-	fmt.Fprintf(os.Stderr, "Run 'pvm help workflows' for common workflows\n")
+	ui.Info("Run 'pvm help' for usage information")
+	ui.Info("Run 'pvm help workflows' for common workflows")
+}
+
+// setupUI initializes the UI framework for the given command
+func setupUI(cmd *cobra.Command) {
+	// Create UI context based on command flags and environment
+	ctx := &ui.UIContext{
+		Writer:      os.Stdout,
+		ColorMode:   ui.ColorAuto,
+		Quiet:       false, // TODO: Add quiet flag when needed
+		Verbose:     Verbose,
+		Interactive: true, // TODO: Detect TTY
+	}
+
+	// Create and store the UI instance
+	globalUI = ui.NewOutput(ctx)
+}
+
+// GetUI returns the UI instance for the given command
+// If no UI instance exists, creates a default one
+func GetUI(cmd *cobra.Command) *ui.Output {
+	if globalUI == nil {
+		setupUI(cmd)
+	}
+	return globalUI
 }
 
 // showCurrentPerlVersion displays the currently active Perl version (legacy function)
@@ -182,9 +219,11 @@ func showCurrentPerlVersion(cmd *cobra.Command, component string) error {
 
 // showCurrentPerlVersionWithFlags displays the currently active Perl version with flag support
 func showCurrentPerlVersionWithFlags(cmd *cobra.Command, component string, bare bool) error {
+	ui := GetUI(cmd)
+	
 	// Only show current version for PVM component
 	if component != "pvm" {
-		fmt.Println(version.ComponentVersion(component))
+		ui.Println(version.ComponentVersion(component))
 		return nil
 	}
 
@@ -205,11 +244,11 @@ func showCurrentPerlVersionWithFlags(cmd *cobra.Command, component string, bare 
 		return fmt.Errorf("failed to format output: %w", err)
 	}
 
-	cmd.Print(output)
+	ui.Print(output)
 
 	// Add newline for non-bare output (bare output doesn't include newline)
 	if !bare && info.IsAvailable {
-		cmd.Println()
+		ui.Println()
 	}
 
 	return nil
