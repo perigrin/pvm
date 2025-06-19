@@ -65,7 +65,23 @@ func newVersionCommand(component string) *cobra.Command {
 				return showCurrentPerlVersion(cmd, component)
 			}
 			ui := GetUI(cmd)
-			ui.Println(version.ComponentVersion(component))
+
+			if Verbose {
+				// Show detailed version information in verbose mode
+				ui.Header(fmt.Sprintf("%s Version Information", component))
+
+				buildInfo := version.GetBuildInfo()
+				ui.KeyValue(map[string]string{
+					"Version":    buildInfo["version"],
+					"Build Time": buildInfo["buildTime"],
+					"Commit":     buildInfo["commitHash"],
+					"Go Version": buildInfo["goVersion"],
+					"OS/Arch":    fmt.Sprintf("%s/%s", buildInfo["os"], buildInfo["arch"]),
+				})
+			} else {
+				// Show simple version in normal mode
+				ui.Println(version.ComponentVersion(component))
+			}
 			return nil
 		},
 	}
