@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/cli"
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/typechecker"
@@ -43,6 +44,8 @@ Examples:
   psc check --strict script.pl     # Strict mode (warnings as errors)`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			strict, _ := cmd.Flags().GetBool("strict")
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			recursive, _ := cmd.Flags().GetBool("recursive")
@@ -64,17 +67,17 @@ Examples:
 
 				if info.IsDir() {
 					if recursive {
-						files, errors, err := checkDirectory(arg, strict, verbose, showInferred)
+						files, errors, err := checkDirectory(ui, arg, strict, verbose, showInferred)
 						if err != nil {
 							return err
 						}
 						totalFiles += files
 						totalErrors += errors
 					} else {
-						fmt.Printf("Skipping directory %s (use --recursive to check directories)\n", arg)
+						ui.Warning("Skipping directory %s (use --recursive to check directories)", arg)
 					}
 				} else {
-					errors, err := checkFile(arg, strict, verbose, showInferred, dumpAST)
+					errors, err := checkFile(ui, arg, strict, verbose, showInferred, dumpAST)
 					if err != nil {
 						return err
 					}
@@ -85,7 +88,11 @@ Examples:
 
 			// Print summary
 			if totalFiles > 1 {
-				fmt.Printf("\nChecked %d files, found %d type errors\n", totalFiles, totalErrors)
+				if totalErrors > 0 {
+					ui.Error("Checked %d files, found %d type errors", totalFiles, totalErrors)
+				} else {
+					ui.Success("Checked %d files, no type errors found", totalFiles)
+				}
 			}
 
 			// Exit with non-zero status if there were errors and strict mode is enabled
@@ -108,29 +115,29 @@ Examples:
 }
 
 // checkFile performs type checking on a single file
-func checkFile(filePath string, strict, verbose, showInferred, dumpAST bool) (int, error) {
+func checkFile(ui *ui.Output, filePath string, strict, verbose, showInferred, dumpAST bool) (int, error) {
 	if verbose {
-		fmt.Printf("Checking %s...\n", filePath)
+		ui.Info("Checking %s...", filePath)
 	}
 
 	// Check if the file is a Perl file
 	if !isPerlFileCheck(filePath) {
 		if verbose {
-			fmt.Printf("Skipping non-Perl file: %s\n", filePath)
+			ui.Warning("Skipping non-Perl file: %s", filePath)
 		}
 		return 0, nil
 	}
 
 	// If dumping AST, parse and dump the AST structure
 	if dumpAST {
-		fmt.Printf("=== AST DUMP for %s ===\n", filePath)
-		err := dumpASTStructure(filePath)
+		ui.SubHeader(fmt.Sprintf("AST DUMP for %s", filePath))
+		err := dumpASTStructure(ui, filePath)
 		if err != nil {
 			return 0, errors.NewSystemError("005",
 				"Failed to dump AST", err).
 				WithLocation(filePath)
 		}
-		fmt.Printf("=== END AST DUMP ===\n\n")
+		ui.Printf("=== END AST DUMP ===\n\n")
 	}
 
 	// Create a TypeCheck instance
@@ -156,33 +163,33 @@ func checkFile(filePath string, strict, verbose, showInferred, dumpAST bool) (in
 			// Less context in non-verbose mode
 			formatter.SetContextLines(1)
 		}
-		fmt.Print(formatter.FormatErrors(result.Errors))
+		ui.Printf("%s", formatter.FormatErrors(result.Errors))
 	}
 
 	if verbose {
-		fmt.Printf("Found %d type annotations in %s\n", len(result.TypeAnnotations), filePath)
+		ui.Info("Found %d type annotations in %s", len(result.TypeAnnotations), filePath)
 		for i, annotation := range result.TypeAnnotations {
-			fmt.Printf("  [%d] %s: %s (kind: %d)\n", i+1, annotation.AnnotatedItem, annotation.TypeExpression.String(), annotation.Kind)
+			ui.Printf("  [%d] %s: %s (kind: %d)\n", i+1, annotation.AnnotatedItem, annotation.TypeExpression.String(), annotation.Kind)
 		}
 	}
 
 	// Show inferred types if requested
 	if showInferred && len(result.RefinedTypes) > 0 {
-		fmt.Printf("\nInferred types in %s:\n", filePath)
+		ui.SubHeader(fmt.Sprintf("Inferred types in %s", filePath))
 		for varName, inferredType := range result.RefinedTypes {
-			fmt.Printf("  %s: %s\n", varName, inferredType)
+			ui.Printf("  %s: %s\n", varName, inferredType)
 		}
 	}
 
 	if len(result.Errors) == 0 && verbose {
-		fmt.Printf("✓ %s: No type errors found\n", filePath)
+		ui.Success("%s: No type errors found", filePath)
 	}
 
 	return len(result.Errors), nil
 }
 
 // checkDirectory recursively checks all Perl files in a directory
-func checkDirectory(dirPath string, strict, verbose, showInferred bool) (int, int, error) {
+func checkDirectory(ui *ui.Output, dirPath string, strict, verbose, showInferred bool) (int, int, error) {
 	totalFiles := 0
 	totalErrors := 0
 
@@ -192,7 +199,7 @@ func checkDirectory(dirPath string, strict, verbose, showInferred bool) (int, in
 		}
 
 		if !info.IsDir() && isPerlFileCheck(path) {
-			errors, err := checkFile(path, strict, verbose, showInferred, false) // Never dump AST in directory mode
+			errors, err := checkFile(ui, path, strict, verbose, showInferred, false) // Never dump AST in directory mode
 			if err != nil {
 				return err
 			}
@@ -213,7 +220,7 @@ func isPerlFileCheck(filePath string) bool {
 }
 
 // dumpASTStructure parses a file and dumps its AST structure for debugging
-func dumpASTStructure(filePath string) error {
+func dumpASTStructure(ui *ui.Output, filePath string) error {
 	// Parse the file using the parser
 	astTree, err := parser.PooledParserFunc(func(p parser.Parser) (*parser.AST, error) {
 		return p.ParseFile(filePath)
@@ -223,26 +230,26 @@ func dumpASTStructure(filePath string) error {
 	}
 
 	if astTree == nil || astTree.Root == nil {
-		fmt.Println("No AST root node found")
+		ui.Warning("No AST root node found")
 		return nil
 	}
 
 	// Dump the AST structure
-	fmt.Printf("Root node: %s\n", astTree.Root.Type())
-	dumpNode(astTree.Root, "", 0)
+	ui.Info("Root node: %s", astTree.Root.Type())
+	dumpNode(ui, astTree.Root, "", 0)
 
 	return nil
 }
 
 // dumpNode recursively dumps AST node information
-func dumpNode(node ast.Node, prefix string, depth int) {
+func dumpNode(ui *ui.Output, node ast.Node, prefix string, depth int) {
 	if node == nil {
 		return
 	}
 
 	// Limit depth to avoid excessive output
 	if depth > 10 {
-		fmt.Printf("%s... (max depth reached)\n", prefix)
+		ui.Printf("%s... (max depth reached)\n", prefix)
 		return
 	}
 
@@ -262,11 +269,11 @@ func dumpNode(node ast.Node, prefix string, depth int) {
 	text = strings.ReplaceAll(text, "\t", "\\t")
 
 	// Display node information
-	fmt.Printf("%s├─ %s [%d:%d-%d:%d]", prefix, nodeType, start.Line, start.Column, end.Line, end.Column)
+	ui.Printf("%s├─ %s [%d:%d-%d:%d]", prefix, nodeType, start.Line, start.Column, end.Line, end.Column)
 	if text != "" {
-		fmt.Printf(" %q", text)
+		ui.Printf(" %q", text)
 	}
-	fmt.Println()
+	ui.Printf("\n")
 
 	// Recursively dump children
 	children := node.Children()
@@ -276,10 +283,10 @@ func dumpNode(node ast.Node, prefix string, depth int) {
 	for i, child := range children {
 		isLast := i == len(children)-1
 		if isLast {
-			fmt.Printf("%s└─ ", prefix)
-			dumpNode(child, lastChildPrefix, depth+1)
+			ui.Printf("%s└─ ", prefix)
+			dumpNode(ui, child, lastChildPrefix, depth+1)
 		} else {
-			dumpNode(child, childPrefix, depth+1)
+			dumpNode(ui, child, childPrefix, depth+1)
 		}
 	}
 }

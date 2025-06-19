@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/errors"
 )
 
@@ -21,6 +22,7 @@ func newGenerateTypeCommand() *cobra.Command {
 		Long:  "Extract type annotations from a Perl file and generate a type definition",
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			filePath := args[0]
 
 			// Check if the file exists
@@ -59,7 +61,7 @@ func newGenerateTypeCommand() *cobra.Command {
 			// Check for errors in the result
 			if len(result.Errors) > 0 {
 				for _, err := range result.Errors {
-					fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+					ui.Warning("Warning: %v", err)
 				}
 			}
 
@@ -74,7 +76,7 @@ func newGenerateTypeCommand() *cobra.Command {
 						err,
 					)
 				}
-				fmt.Println(string(data))
+				ui.Println(string(data))
 			} else if outputFile != "" {
 				// Marshal to JSON with indentation
 				data, err := json.MarshalIndent(result.TypeDef, "", "  ")
@@ -103,12 +105,12 @@ func newGenerateTypeCommand() *cobra.Command {
 						WithLocation(outputFile)
 				}
 
-				fmt.Printf("Generated type definition for %s to %s\n", result.TypeDef.Module, outputFile)
+				ui.Success("Generated type definition for %s to %s", result.TypeDef.Module, outputFile)
 			}
 
 			// Report where the type definition was saved if applicable
 			if save && result.SavedPath != "" {
-				fmt.Printf("Type definition for %s saved to %s\n", result.TypeDef.Module, result.SavedPath)
+				ui.Success("Type definition for %s saved to %s", result.TypeDef.Module, result.SavedPath)
 			}
 
 			return nil
@@ -131,6 +133,7 @@ func newImportTypeCommand() *cobra.Command {
 		Long:  "Import a type definition from a JSON file into the type store",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			filePath := args[0]
 
 			// Check if the file exists
@@ -158,7 +161,7 @@ func newImportTypeCommand() *cobra.Command {
 					WithLocation(filePath)
 			}
 
-			fmt.Printf("Imported type definition from %s\n", filePath)
+			ui.Success("Imported type definition from %s", filePath)
 			return nil
 		},
 	}
