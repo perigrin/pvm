@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/mcp"
 )
@@ -56,9 +57,10 @@ func runMCPServer(cmd *cobra.Command, args []string) error {
 
 	// Validate configuration
 	if errors := cfg.Validate(); len(errors) > 0 {
-		cmd.PrintErrln("Configuration validation errors:")
+		ui := cli.GetUI(cmd)
+		ui.Error("Configuration validation errors:")
 		for _, err := range errors {
-			cmd.PrintErrln("  -", err)
+			ui.Error("  - %s", err.Error())
 		}
 		return fmt.Errorf("configuration validation failed")
 	}
@@ -80,24 +82,25 @@ func runMCPServer(cmd *cobra.Command, args []string) error {
 	// Start server in a goroutine
 	serverErrChan := make(chan error, 1)
 	go func() {
-		cmd.Printf("Starting MCP server on %s:%d\n", cfg.MCP.Host, cfg.MCP.Port)
-		cmd.Printf("Auto-discover projects: %v\n", cfg.MCP.AutoDiscoverProjects)
+		ui := cli.GetUI(cmd)
+		ui.Info("Starting MCP server on %s:%d", cfg.MCP.Host, cfg.MCP.Port)
+		ui.Info("Auto-discover projects: %v", cfg.MCP.AutoDiscoverProjects)
 
 		// Show discovered projects
 		projects := server.GetProjects()
 		if len(projects) > 0 {
-			cmd.Println("Discovered projects:")
+			ui.Info("Discovered projects:")
 			for path, proj := range projects {
-				cmd.Printf("  - %s (%s)\n", path, proj.ProjectType)
+				ui.Info("  - %s (%s)", path, proj.ProjectType)
 				if proj.HasVersion {
-					cmd.Printf("    Perl version: %s\n", proj.PerlVersion)
+					ui.Info("    Perl version: %s", proj.PerlVersion)
 				}
 			}
 		} else {
-			cmd.Println("No projects discovered in current directory tree")
+			ui.Info("No projects discovered in current directory tree")
 		}
 
-		cmd.Println("MCP server is ready to accept connections...")
+		ui.Info("MCP server is ready to accept connections...")
 
 		if err := server.Start(ctx); err != nil {
 			serverErrChan <- err
@@ -107,7 +110,8 @@ func runMCPServer(cmd *cobra.Command, args []string) error {
 	// Wait for shutdown signal or server error
 	select {
 	case <-sigChan:
-		cmd.Println("\nReceived shutdown signal, stopping MCP server...")
+		ui := cli.GetUI(cmd)
+		ui.Info("Received shutdown signal, stopping MCP server...")
 
 		// Create timeout context for graceful shutdown
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -118,11 +122,11 @@ func runMCPServer(cmd *cobra.Command, args []string) error {
 
 		// Wait for server to stop
 		if err := server.Stop(shutdownCtx); err != nil {
-			cmd.Printf("Error during server shutdown: %v\n", err)
+			ui.Error("Error during server shutdown: %v", err)
 			return err
 		}
 
-		cmd.Println("MCP server stopped gracefully")
+		ui.Success("MCP server stopped gracefully")
 		return nil
 
 	case err := <-serverErrChan:

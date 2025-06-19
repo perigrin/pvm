@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/build"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/project"
 )
 
@@ -157,8 +158,10 @@ func runDevEnvironment(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to create development environment: %w", err)
 	}
 
-	cmd.Printf("Starting development environment for project: %s\n", projectCtx.RootDir)
-	cmd.Printf("Press Ctrl+C to stop\n\n")
+	ui := cli.GetUI(cmd)
+	ui.Status(fmt.Sprintf("Starting development environment for project: %s", projectCtx.RootDir))
+	ui.Info("Press Ctrl+C to stop")
+	ui.Println()
 
 	// Set up signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -174,14 +177,14 @@ func runDevEnvironment(cmd *cobra.Command) error {
 
 	// Wait for shutdown signal
 	<-sigChan
-	cmd.Printf("\nShutting down development environment...\n")
+	ui.Status("Shutting down development environment...")
 
 	// Graceful shutdown
 	if err := devEnv.Stop(); err != nil {
-		cmd.Printf("Warning: Error during shutdown: %v\n", err)
+		ui.Warning("Error during shutdown: %v", err)
 	}
 
-	cmd.Printf("Development environment stopped.\n")
+	ui.Success("Development environment stopped.")
 	return nil
 }
 
@@ -279,6 +282,7 @@ func (d *DevEnvironment) Stop() error {
 
 // MonitorStatus monitors and displays service status
 func (d *DevEnvironment) MonitorStatus(cmd *cobra.Command, verbose bool) {
+	ui := cli.GetUI(cmd)
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -289,7 +293,7 @@ func (d *DevEnvironment) MonitorStatus(cmd *cobra.Command, verbose bool) {
 		case status := <-d.statusChan:
 			if verbose || status.LastEvent != "" {
 				timestamp := time.Now().Format("15:04:05")
-				cmd.Printf("[%s] %s: %s\n", timestamp, status.Name, status.LastEvent)
+				ui.Printf("[%s] %s: %s", timestamp, status.Name, status.LastEvent)
 			}
 		case <-ticker.C:
 			// Periodically show service status summary
@@ -302,19 +306,22 @@ func (d *DevEnvironment) MonitorStatus(cmd *cobra.Command, verbose bool) {
 
 // showStatusSummary displays a summary of all service statuses
 func (d *DevEnvironment) showStatusSummary(cmd *cobra.Command) {
+	ui := cli.GetUI(cmd)
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	cmd.Printf("\n=== Service Status ===\n")
+	ui.Println()
+	ui.Info("=== Service Status ===")
 	for _, service := range d.services {
 		status := service.Status()
 		statusIcon := "🔴"
 		if status.Running {
 			statusIcon = "🟢"
 		}
-		cmd.Printf("%s %s: %s\n", statusIcon, status.Name, status.LastEvent)
+		ui.Printf("%s %s: %s", statusIcon, status.Name, status.LastEvent)
 	}
-	cmd.Printf("======================\n\n")
+	ui.Info("======================")
+	ui.Println()
 }
 
 // NewBuildWatcherService creates a new build watcher service

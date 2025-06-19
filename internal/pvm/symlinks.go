@@ -50,9 +50,10 @@ func newSymlinksCreateCommand() *cobra.Command {
 			}
 
 			// Print results
-			cmd.Println("Created symlinks:")
+			ui := cli.GetUI(cmd)
+			ui.Success("Created symlinks:")
 			for component, path := range symlinks {
-				cmd.Printf("  %s -> %s\n", component, path)
+				ui.Info("  %s -> %s", component, path)
 			}
 
 			return nil
@@ -81,7 +82,9 @@ func newSymlinksVerifyCommand() *cobra.Command {
 			status := cli.VerifySymlinks(binaryPath)
 
 			// Print results
-			cmd.Printf("Symlinks status in %s:\n", dir)
+			ui := cli.GetUI(cmd)
+			ui.Info("Symlinks status in %s:", dir)
+			ui.Println()
 
 			allExists := true
 			for component, exists := range status {
@@ -90,11 +93,12 @@ func newSymlinksVerifyCommand() *cobra.Command {
 					status = "❌ Missing"
 					allExists = false
 				}
-				cmd.Printf("  %s: %s\n", component, status)
+				ui.Info("  %s: %s", component, status)
 			}
 
 			if !allExists {
-				cmd.Println("\nTo create missing symlinks, run: pvm symlinks create")
+				ui.Println()
+				ui.Info("To create missing symlinks, run: pvm symlinks create")
 			}
 
 			return nil
