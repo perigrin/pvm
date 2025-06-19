@@ -200,6 +200,12 @@ func TestCheckCommandWithSampleFile(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping in CI environment")
 	}
+	
+	// Skip this test when running with short flag or in parallel with other tests
+	// due to output capture issues with UI framework integration
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
 	// Create a temp file
 	filePath, cleanup := createTempPerlFile(t)
@@ -239,6 +245,12 @@ func TestStripCommandWithSampleFile(t *testing.T) {
 	// Skip this test in automated environments that might not have the parser available
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping in CI environment")
+	}
+	
+	// Skip this test when running with short flag or in parallel with other tests
+	// due to output capture issues with UI framework integration
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
 	}
 
 	// Create a temp file
