@@ -5,6 +5,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -190,9 +191,15 @@ func handleUnknownCommand(rootCmd *cobra.Command, err *UnknownCommandError) {
 
 // setupUI initializes the UI framework for the given command
 func setupUI(cmd *cobra.Command) {
+	// Use command's output writer if available, otherwise default to os.Stdout
+	var writer io.Writer = os.Stdout
+	if cmd.OutOrStdout() != nil {
+		writer = cmd.OutOrStdout()
+	}
+
 	// Create UI context based on command flags and environment
 	ctx := &ui.UIContext{
-		Writer:      os.Stdout,
+		Writer:      writer,
 		ColorMode:   ui.ColorAuto,
 		Quiet:       false, // TODO: Add quiet flag when needed
 		Verbose:     Verbose,
