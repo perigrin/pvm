@@ -382,8 +382,9 @@ func TestEnhancedProjectStatus(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "Project Status") {
-		t.Errorf("Expected project status output, got: %s", output)
+	// Check for project status content - the exact text may be styled with ANSI codes
+	if !strings.Contains(output, "Project Root:") {
+		t.Errorf("Expected project status output with 'Project Root:', got: %q", output)
 	}
 }
 
