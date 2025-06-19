@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/compiler"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
@@ -39,6 +40,8 @@ Examples:
   psc strip typed.pl clean.pl           # Write to file
   psc strip lib/MyModule.pm lib/clean/  # Process to directory`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			if len(args) == 0 {
 				return fmt.Errorf("expected a file to strip")
 			}
@@ -68,7 +71,7 @@ Examples:
 					// Format using enhanced error formatter
 					formatter := NewErrorFormatter()
 					formattedError := formatter.FormatTypeParseError(typeParseErr, inputFile)
-					fmt.Fprintf(os.Stderr, "%s", formattedError)
+					ui.Error("%s", formattedError)
 					return errors.NewTypeError(
 						ErrIntegrationFailed,
 						fmt.Sprintf("Failed to parse file %s (Type Error)", inputFile),
@@ -101,9 +104,9 @@ Examples:
 						err).WithLocation(outputFile)
 				}
 
-				fmt.Printf("Stripped type annotations from %s and wrote result to %s\n", inputFile, outputFile)
+				ui.Success("Stripped type annotations from %s and wrote result to %s", inputFile, outputFile)
 			} else {
-				fmt.Println(result)
+				ui.Println(result)
 			}
 
 			return nil

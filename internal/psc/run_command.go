@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
 )
@@ -18,6 +19,8 @@ func newRunCommand() *cobra.Command {
 		Short: "Type-check and execute a file",
 		Long:  "Perform type checking and then execute the Perl file if no errors are found",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			if len(args) == 0 {
 				return fmt.Errorf("expected a file to run")
 			}
@@ -76,12 +79,12 @@ func newRunCommand() *cobra.Command {
 				// Check if there were type errors
 				if len(checkResult.Errors) > 0 {
 					if verbose {
-						fmt.Printf("Type checking failed for %s\n", file)
+						ui.Error("Type checking failed for %s", file)
 						for _, err := range checkResult.Errors {
-							fmt.Printf("  %s:%d:%d: %s\n", err.Path, err.Line, err.Column, err.Message)
+							ui.Printf("  %s:%d:%d: %s\n", err.Path, err.Line, err.Column, err.Message)
 						}
 					} else {
-						fmt.Printf("Found %d type errors in %s\n", len(checkResult.Errors), file)
+						ui.Error("Found %d type errors in %s", len(checkResult.Errors), file)
 					}
 
 					return errors.NewTypeError(
@@ -91,7 +94,7 @@ func newRunCommand() *cobra.Command {
 				}
 
 				if verbose {
-					fmt.Printf("Type checking passed for %s\n", file)
+					ui.Success("Type checking passed for %s", file)
 				}
 			}
 
@@ -102,7 +105,7 @@ func newRunCommand() *cobra.Command {
 			}
 
 			// Print the output
-			fmt.Print(output)
+			ui.Printf("%s", output)
 			return nil
 		},
 	}
