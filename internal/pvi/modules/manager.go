@@ -236,10 +236,22 @@ type RemoveModuleOptions struct {
 	Context context.Context
 }
 
+// RemoveModuleResult contains the result of a module removal operation
+type RemoveModuleResult struct {
+	// Module name that was removed
+	ModuleName string
+
+	// Command output (for verbose mode)
+	Output string
+
+	// Success indicates if the removal was successful
+	Success bool
+}
+
 // RemoveModule uninstalls a Perl module
-func RemoveModule(options *RemoveModuleOptions) error {
+func RemoveModule(options *RemoveModuleOptions) (*RemoveModuleResult, error) {
 	if options == nil {
-		return errors.NewSystemError(
+		return nil, errors.NewSystemError(
 			ErrRemoveModuleFailed,
 			"No removal options provided",
 			nil)
@@ -260,14 +272,14 @@ func RemoveModule(options *RemoveModuleOptions) error {
 
 	modules, err := ListInstalledModules(listOptions)
 	if err != nil {
-		return errors.NewSystemError(
+		return nil, errors.NewSystemError(
 			ErrRemoveModuleFailed,
 			fmt.Sprintf("Failed to check if module %s is installed", options.ModuleName),
 			err)
 	}
 
 	if len(modules) == 0 {
-		return errors.NewSystemError(
+		return nil, errors.NewSystemError(
 			ErrRemoveModuleFailed,
 			fmt.Sprintf("Module %s is not installed", options.ModuleName),
 			nil)
@@ -275,7 +287,7 @@ func RemoveModule(options *RemoveModuleOptions) error {
 
 	// Check if it's a core module
 	if modules[0].CoreModule && !options.Force {
-		return errors.NewSystemError(
+		return nil, errors.NewSystemError(
 			ErrRemoveModuleFailed,
 			fmt.Sprintf("Cannot remove core module %s (use --force to override)", options.ModuleName),
 			nil)
@@ -283,7 +295,7 @@ func RemoveModule(options *RemoveModuleOptions) error {
 
 	// If there's no specific path found, we can't remove it
 	if modules[0].Path == "" {
-		return errors.NewSystemError(
+		return nil, errors.NewSystemError(
 			ErrRemoveModuleFailed,
 			fmt.Sprintf("Cannot determine installation path for module %s", options.ModuleName),
 			nil)
@@ -399,17 +411,20 @@ sub is_empty_dir {
 	cmd := exec.CommandContext(options.Context, options.PerlPath, "-e", script, options.ModuleName, fmt.Sprintf("%v", options.Verbose))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return errors.NewSystemError(
+		return nil, errors.NewSystemError(
 			ErrRemoveModuleFailed,
 			fmt.Sprintf("Failed to remove module %s: %s", options.ModuleName, string(output)),
 			err)
 	}
 
-	if options.Verbose {
-		fmt.Println(string(output))
+	// Return result with output for the caller to handle formatting
+	result := &RemoveModuleResult{
+		ModuleName: options.ModuleName,
+		Output:     string(output),
+		Success:    true,
 	}
 
-	return nil
+	return result, nil
 }
 
 // ModuleBundleInfo represents a bundle of modules for export/import

@@ -6,6 +6,7 @@ package pvi
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -36,6 +37,9 @@ type PVXIntegrationOptions struct {
 
 	// SkipTests whether to skip running tests during installation
 	SkipTests bool
+
+	// Output writer for status messages (optional, defaults to discarding output)
+	OutputWriter io.Writer
 }
 
 // PVXIntegrationResult contains the result of automatic module installation
@@ -71,14 +75,14 @@ func InstallModulesForPVX(options *PVXIntegrationOptions) (*PVXIntegrationResult
 	}
 
 	if len(options.RequiredModules) == 0 {
-		if options.Verbose {
-			fmt.Println("No modules required for installation")
+		if options.Verbose && options.OutputWriter != nil {
+			fmt.Fprintln(options.OutputWriter, "No modules required for installation")
 		}
 		return result, nil
 	}
 
-	if options.Verbose {
-		fmt.Printf("Installing %d required modules for Perl %s\n",
+	if options.Verbose && options.OutputWriter != nil {
+		fmt.Fprintf(options.OutputWriter, "Installing %d required modules for Perl %s\n",
 			len(options.RequiredModules), options.PerlVersion)
 	}
 
@@ -133,19 +137,25 @@ func InstallModulesForPVX(options *PVXIntegrationOptions) (*PVXIntegrationResult
 	// Process each required module
 	for _, moduleName := range options.RequiredModules {
 		if options.Verbose {
-			fmt.Printf("Processing module: %s\n", moduleName)
+			if options.OutputWriter != nil {
+				fmt.Fprintf(options.OutputWriter, "Processing module: %s\n", moduleName)
+			}
 		}
 
 		// Check if module is already installed
 		installed, err := isModuleInstalled(moduleName, perlPath)
 		if err != nil {
 			if options.Verbose {
-				fmt.Printf("Warning: Could not check if %s is installed: %v\n", moduleName, err)
+				if options.OutputWriter != nil {
+					fmt.Fprintf(options.OutputWriter, "Warning: Could not check if %s is installed: %v\n", moduleName, err)
+				}
 			}
 			// Continue with installation attempt
 		} else if installed {
 			if options.Verbose {
-				fmt.Printf("Module %s is already installed, skipping\n", moduleName)
+				if options.OutputWriter != nil {
+					fmt.Fprintf(options.OutputWriter, "Module %s is already installed, skipping\n", moduleName)
+				}
 			}
 			result.SkippedModules = append(result.SkippedModules, moduleName)
 			continue
@@ -158,23 +168,29 @@ func InstallModulesForPVX(options *PVXIntegrationOptions) (*PVXIntegrationResult
 			result.Errors = append(result.Errors, err)
 
 			if options.Verbose {
-				fmt.Printf("Failed to install module %s: %v\n", moduleName, err)
+				if options.OutputWriter != nil {
+					fmt.Fprintf(options.OutputWriter, "Failed to install module %s: %v\n", moduleName, err)
+				}
 			}
 		} else {
 			result.InstalledModules = append(result.InstalledModules, moduleName)
 
 			if options.Verbose {
-				fmt.Printf("Successfully installed module %s\n", moduleName)
+				if options.OutputWriter != nil {
+					fmt.Fprintf(options.OutputWriter, "Successfully installed module %s\n", moduleName)
+				}
 			}
 		}
 	}
 
 	// Summary
 	if options.Verbose {
-		fmt.Printf("Module installation complete:\n")
-		fmt.Printf("  Installed: %d modules\n", len(result.InstalledModules))
-		fmt.Printf("  Skipped: %d modules\n", len(result.SkippedModules))
-		fmt.Printf("  Failed: %d modules\n", len(result.FailedModules))
+		if options.OutputWriter != nil {
+			fmt.Fprintf(options.OutputWriter, "Module installation complete:\n")
+			fmt.Fprintf(options.OutputWriter, "  Installed: %d modules\n", len(result.InstalledModules))
+			fmt.Fprintf(options.OutputWriter, "  Skipped: %d modules\n", len(result.SkippedModules))
+			fmt.Fprintf(options.OutputWriter, "  Failed: %d modules\n", len(result.FailedModules))
+		}
 	}
 
 	return result, nil
@@ -215,7 +231,9 @@ func installSingleModule(moduleName, perlPath string, options *PVXIntegrationOpt
 	var lastErr error
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if options.Verbose && attempt > 1 {
-			fmt.Printf("Retry attempt %d/%d for module %s\n", attempt, maxRetries, moduleName)
+			if options.OutputWriter != nil {
+				fmt.Fprintf(options.OutputWriter, "Retry attempt %d/%d for module %s\n", attempt, maxRetries, moduleName)
+			}
 		}
 
 		// Attempt installation
@@ -240,7 +258,9 @@ func installSingleModule(moduleName, perlPath string, options *PVXIntegrationOpt
 		if options.Verbose {
 			installOptions.ProgressCallback = func(stage modules.InstallProgressStage, mod string, details string, progress float64) {
 				if details != "" {
-					fmt.Printf("  %s: %s\n", stage.String(), details)
+					if options.OutputWriter != nil {
+						fmt.Fprintf(options.OutputWriter, "  %s: %s\n", stage.String(), details)
+					}
 				}
 			}
 		}
@@ -264,7 +284,9 @@ func installSingleModule(moduleName, perlPath string, options *PVXIntegrationOpt
 		// If this is not the last attempt, wait before retrying
 		if attempt < maxRetries {
 			if options.Verbose {
-				fmt.Printf("Installation failed, will retry: %v\n", lastErr)
+				if options.OutputWriter != nil {
+					fmt.Fprintf(options.OutputWriter, "Installation failed, will retry: %v\n", lastErr)
+				}
 			}
 			time.Sleep(time.Second * 2) // Brief delay before retry
 		}
