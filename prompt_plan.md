@@ -1,804 +1,515 @@
-# PVM Completion Build Plan: Critical Missing Features
+# PVM Fang UI Integration Build Plan
 
 ## Overview
 
-This plan focuses on completing the most critical missing features in PVM to achieve production readiness. Based on comprehensive codebase analysis, the project is currently 97.1% test-passing with strategic feature gaps in core type system functionality, system integration, and advanced tooling.
+This plan outlines the step-by-step implementation of Fang UI integration across all PVM components. The goal is to replace all direct output (`fmt.Print*` and `cmd.Print*`) with beautiful, consistent Fang-powered styling across the entire CLI ecosystem.
 
 ## Target Architecture
 
-- **Flow-sensitive type analysis** - Advanced static analysis capabilities
-- **Complete type system** - Generics, constraints, classes/roles, union types
-- **System integration** - Automated Perl installation and version management
-- **Advanced tooling** - LSP enhancements, MCP code generation
-- **Production ready** - 100% test coverage, cross-platform reliability
+- **Global Fang Integration**: All user-facing output flows through Fang styling
+- **Clean Architecture**: Internal packages return structured data, CLI layer handles formatting
+- **Consistent Experience**: Beautiful output across all components (pvm, pvx, pvi, psc)
+- **Future-Proof**: Foundation for embedded documentation and enhanced UX
 
-## Critical Success Factors
+## Current State Analysis
 
-1. **Flow-sensitive analysis** is the highest impact feature (unlocks advanced static analysis)
-2. **Test-driven development** with 100% coverage for all new code
-3. **Incremental implementation** to maintain stability
-4. **Integration-first approach** - no orphaned code
-5. **Platform compatibility** for Windows, macOS, Linux
+- **353** `fmt.Print*` calls across internal packages
+- **447** `cmd.Print*` calls (Cobra output methods)
+- **4 components**: pvm, pvx, pvi, psc sharing CLI framework
+- **Sophisticated help system**: Context-aware help with project detection
+- **Component routing**: Single binary with symlink-based component detection
+
+## Architecture Principles
+
+1. **Separation of Concerns**: Internal packages return data, CLI formats output
+2. **Global Consistency**: All components use same Fang styling patterns
+3. **Incremental Safety**: Small, testable steps with immediate integration
+4. **Exception Handling**: LSP and MCP servers maintain protocol-specific formatting
 
 ---
 
-## Phase 1: Core Type System Foundation (Highest Priority)
+## Phase 1: Foundation Setup
 
-### Step 1.1: Flow-Sensitive Analysis Infrastructure ✅ **COMPLETED**
+### Step 1.1: Add Fang Dependency and Basic Structure
 
-**Goal**: Create the foundation for advanced type analysis with control flow tracking
-
-**Status**: ✅ **COMPLETED** - Flow-sensitive analysis infrastructure fully implemented in `internal/typechecker/flow.go`:
-- ControlFlowGraph construction with BasicBlocks and FlowEdges
-- FlowAnalyzer with data flow analysis using worklist algorithm
-- TypeState tracking for variables through program execution
-- Type refinement for conditional expressions (e.g., defined checks)
-- Support for all major control flow constructs (if/unless, loops, given/when)
-- Integration with existing TypeChecker infrastructure
-- Comprehensive test coverage for all flow analysis components
+**Goal**: Establish Fang dependency and create the CLI UI package structure
 
 ```
-Implement the core infrastructure for flow-sensitive type analysis in the typechecker package.
+Add Fang dependency to the project and create the basic internal/cli/ui package structure.
 
-**Context**: Currently `internal/typechecker/flow.go` contains only placeholder implementations. This is the most critical missing feature that would differentiate PVM from standard Perl tooling.
+**Context**: Starting Fang integration for PVM's CLI system. Need to add the dependency and create the foundational package structure that will house all Fang-powered UI components.
 
 **Requirements**:
-1. Create ControlFlowGraph struct to represent program control flow
-2. Implement TypeState tracking for variables through program execution
-3. Create FlowAnalyzer with methods for processing different statement types
-4. Add integration points in the main TypeChecker
+1. Add github.com/charmbracelet/fang dependency to go.mod
+2. Create internal/cli/ui package with basic structure
+3. Add initial interfaces and types for UI components
+4. Create basic output methods (Success, Error, Info, Warning)
+5. Add comprehensive tests for the new package
+6. Ensure all tests pass and package builds correctly
 
-**Implementation**:
-1. In `internal/typechecker/flow.go`:
-   - Replace placeholder `performFlowSensitiveAnalysis` with real implementation
-   - Add ControlFlowGraph struct with nodes and edges
-   - Implement TypeState struct to track variable types at program points
-   - Create FlowAnalyzer with visitor pattern for AST traversal
-
-2. Control flow graph construction:
-   - Handle sequential statements, conditionals, loops, function calls
-   - Create BasicBlock representation for straight-line code
-   - Build edges for control flow transitions
-   - Handle complex control structures (try/catch, given/when)
-
-3. Type state management:
-   - Track variable types at each program point
-   - Handle type refinement through conditionals (if defined $var)
-   - Implement type narrowing for union types
-   - Support type assertions and explicit type annotations
-
-4. Integration with existing typechecker:
-   - Modify main TypeChecker.CheckAST to use flow analysis
-   - Ensure compatibility with existing type checking
-   - Add configuration options for flow analysis strictness
-   - Provide detailed error messages with flow context
-
-**Test Requirements**:
-- Control flow graph construction for various Perl constructs
-- Type state tracking through conditional branches
-- Integration with existing type checking infrastructure
-- Performance testing with moderately sized codebases
-- Error reporting accuracy and clarity
+**Architecture**:
+- internal/cli/ui/output.go - Core output methods
+- internal/cli/ui/styles.go - Fang styling definitions
+- internal/cli/ui/types.go - Type definitions and interfaces
+- internal/cli/ui/output_test.go - Comprehensive tests
 
 **Success Criteria**:
-- Flow analysis detects type errors that basic checking misses
-- Performance impact is acceptable (< 2x slowdown)
-- Integration tests pass with flow analysis enabled
-- Clear error messages show flow-based reasoning
+- Fang dependency added and go.mod updated
+- internal/cli/ui package created with clean structure
+- Basic output methods implemented and tested
+- All existing tests continue to pass
+- Package builds without errors
 ```
 
-### Step 1.2: Union Type Compatibility System ✅ **COMPLETED**
+### Step 1.2: Create Core UI Framework
 
-**Goal**: Implement full union type support with compatibility checking and type narrowing
-
-**Status**: ✅ **COMPLETED** - Union type compatibility system fully implemented and enabled:
-- Complete union type parsing for both Union[A, B] and A|B syntax formats
-- Full compatibility checking between union and single types in both directions
-- Union-to-union compatibility validation with proper member checking
-- Type coercion rules and subtyping relationships fully working
-- Integration with existing type hierarchy and flow-sensitive analysis
-- Comprehensive test coverage (40+ test cases) for all compatibility scenarios
-- Performance optimizations with caching for frequently used operations
-- Clear error messages and proper integration with existing type system
+**Goal**: Implement the core UI framework with Fang styling patterns
 
 ```
-Complete the union type system to handle `Int|Str` syntax with proper compatibility checking.
+Implement the core UI framework within internal/cli/ui with essential Fang styling components.
 
-**Context**: Union types are parsed but compatibility checking is unimplemented (`internal/typedef/union_test.go` skips with "requires full type system implementation").
+**Context**: Building on the basic structure from Step 1.1, create the full UI framework that will be used by all CLI commands. This establishes the patterns that all subsequent output will use.
 
 **Requirements**:
-1. Implement UnionTypeChecker with compatibility matrix
-2. Add type narrowing through conditionals and assertions
-3. Create type coercion rules for union types
-4. Integrate with flow-sensitive analysis from Step 1.1
+1. Implement comprehensive output methods (Success, Error, Info, Warning, Debug)
+2. Create table and list formatting capabilities
+3. Add progress indicators and status displays
+4. Implement consistent color schemes and styling
+5. Add context-aware formatting options
+6. Create comprehensive test suite covering all functionality
+7. Add documentation for UI component usage
 
-**Implementation**:
-1. In `internal/typedef/union.go`:
-   - Complete UnionType.IsCompatible() implementation
-   - Add type narrowing logic for conditional expressions
-   - Implement coercion rules (when Int|Str can become Int)
-   - Handle nested union types (Int|Str|ArrayRef)
-
-2. Type compatibility matrix:
-   - Define compatibility rules between union and concrete types
-   - Handle subtyping relationships (Str is compatible with Str|Int)
-   - Implement least common supertype calculation
-   - Support negation types (!Undef) in unions
-
-3. Integration with type checker:
-   - Use union compatibility in assignment checking
-   - Apply type narrowing in conditional branches
-   - Handle function parameter and return type checking
-   - Support union types in generic type parameters
-
-4. Enhanced error reporting:
-   - Show which union member types are incompatible
-   - Suggest type assertions when narrowing needed
-   - Provide clear explanations for union type failures
-   - Integration with flow analysis context
-
-**Test Requirements**:
-- Union type parsing and validation
-- Compatibility checking between various type combinations
-- Type narrowing through conditionals and assertions
-- Integration with flow-sensitive analysis
-- Error message clarity and accuracy
+**Components**:
+- Enhanced output methods with Fang styling
+- Table formatter for structured data display
+- List formatter for enumeration display
+- Progress indicators for long-running operations
+- Status displays for command results
+- Consistent error formatting
 
 **Success Criteria**:
-- All union type tests pass with realistic examples
-- Type narrowing works correctly in conditional contexts
-- Performance impact is minimal
-- Error messages are helpful and actionable
+- All core UI methods implemented with Fang styling
+- Comprehensive test coverage (>95%)
+- Clear documentation for usage patterns
+- Consistent visual design across all output types
+- All tests pass including existing CLI tests
 ```
 
-### Step 1.3: Generic Type System and Constraints ✅ **COMPLETED**
+### Step 1.3: Integrate UI Framework with CLI Root
 
-**Goal**: Implement generic types with constraint support for advanced type checking
-
-**Status**: ✅ **COMPLETED** - Generic type system with constraints fully implemented:
-- Complete generic type infrastructure in `internal/typedef/generics.go` with Type interface
-- Support for type parameters, constraints, and type substitution
-- Multiple constraint kinds: trait, protocol, capability, and value constraints
-- Tree-sitter grammar already supports generic syntax (class/method declarations with `<T>` and `where` clauses)
-- Advanced constraint parsing tests enabled and mostly passing (97.0% test suite pass rate)
-- Integration with existing UnionType and IntersectionType via Type interface
-- Comprehensive test coverage for all generic type operations
-- Built-in constraint types (Serializable, Display, Clone, etc.)
+**Goal**: Wire the UI framework into the existing CLI infrastructure
 
 ```
-Add support for generic types with `<T>` syntax and `where` clause constraints.
+Integrate the new UI framework with the existing CLI root system and make it available to all commands.
 
-**Context**: Tree-sitter grammar already supports generic type syntax. Implementation needed in type system and parser integration.
+**Context**: The UI framework from Step 1.2 needs to be accessible from all CLI commands across all components. This step integrates it with the existing CLI infrastructure without breaking current functionality.
 
 **Requirements**:
-1. ✅ Extend tree-sitter-typed-perl grammar for generic syntax (Already implemented)
-2. ✅ Implement GenericTypeChecker with constraint validation
-3. ✅ Add type parameter substitution and inference
-4. ✅ Create constraint system with protocol/trait support
+1. Extend internal/cli/root.go to provide UI framework access
+2. Create UI context that flows through command execution
+3. Add UI methods to command context for easy access
+4. Ensure backward compatibility with existing commands
+5. Add integration tests for UI framework access
+6. Update CLI framework to use UI for internal messaging
 
-**Implementation**:
-1. ✅ Grammar support in `tree-sitter-typed-perl/grammar.js`:
-   - Generic type parameter syntax: `class Container<T>`, `method func<T>(T $param) -> T`
-   - Constraint syntax: `where T: Serializable`
-   - Type parameter clauses and constraint validation
-   - Fully working and tested
+**Integration Points**:
+- Modify cobra.Command execution context
+- Add UI framework to command pre-run setup
+- Provide UI access methods for all command implementations
+- Ensure UI context flows through nested command calls
 
-2. ✅ In `internal/typedef/generics.go`:
-   - GenericType struct with type parameters and constraints
-   - Complete constraint checking system with caching
-   - Type parameter substitution for instantiation
-   - Type interface with SimpleType, ParameterizedType, GenericType
-
-3. ✅ Constraint system:
-   - Built-in constraints (Serializable, Deserializable, Defined, Clonable, Display, Clone, Any, Cacheable)
-   - Protocol/trait constraint validation
-   - Constraint composition and validation
-   - Multiple constraint kinds (trait, protocol, capability, value)
-
-4. ✅ Integration with type checker:
-   - Generic type instantiation and checking
-   - Type parameter substitution
-   - Constraint satisfaction verification
-   - Comprehensive error reporting
-
-**Test Requirements**: ✅ **ALL COMPLETED**
-- Grammar parsing for generic syntax variations ✅
-- Constraint definition and checking ✅
-- Type parameter inference and substitution ✅
-- Integration with existing type system ✅
-- Complex generic type scenarios ✅
-
-**Success Criteria**: ✅ **ALL ACHIEVED**
-- Generic syntax parses correctly in tree-sitter ✅
-- Constraint checking infrastructure implemented ✅
-- Type substitution works for generic patterns ✅
-- Integration tests enabled (97.0% pass rate) ✅
+**Success Criteria**:
+- UI framework accessible from all command contexts
+- Backward compatibility maintained
+- Integration tests pass
+- No regression in existing CLI functionality
+- Clean API for commands to access UI methods
 ```
 
 ---
 
-## Phase 2: Advanced Language Features (High Priority)
+## Phase 2: Component Integration
 
-### Step 2.1: Modern Class System Implementation ✅ **COMPLETED**
+### Step 2.1: Convert PVM Component Output
 
-**Goal**: Complete implementation of modern Perl class/field/method syntax with full type system integration
-
-**Status**: ✅ **COMPLETED** - Modern class system implementation complete with field encapsulation enforcement
+**Goal**: Replace all direct output in PVM component with Fang UI calls
 
 ```
-Complete the modern class system implementation for new-style Perl classes (class/field/method syntax).
+Convert all fmt.Print* and cmd.Print* calls in the PVM component to use the new Fang UI framework.
 
-**Context**:
-- Grammar fully supports modern class syntax with 50/50 tests passing
-- AST structures (ClassDecl, FieldDecl, MethodDecl) are complete
-- Missing: Tree-sitter to internal AST conversion and type system integration
-- CRITICAL: Must distinguish between old blessed hash style vs new class/field style - they are incompatible
-
-**Two Perl Object Systems**:
-1. **Old blessed hash style**: `package Foo { sub new { bless {...}, $class } }` - Regular Perl code
-2. **New class/field style**: `class Foo { field $x; method new() {...} }` - Special syntax with field encapsulation
+**Context**: Starting with the main PVM component, systematically replace all direct output calls with Fang-styled equivalents. This serves as the proof of concept for the overall migration.
 
 **Requirements**:
-1. ✅ Grammar support (COMPLETED - full modern class syntax supported)
-2. ✅ Implement tree-sitter to AST conversion for class statements
-3. ✅ Add ClassType integration with type system
-4. ✅ Implement field encapsulation violation detection
-5. 🚫 **DEFERRED**: Role composition (roles not yet core Perl feature)
+1. Audit all output calls in internal/pvm/ package
+2. Replace fmt.Print* calls with appropriate UI methods
+3. Replace cmd.Print* calls with UI equivalents
+4. Update error handling to use UI error formatting
+5. Ensure all command output uses consistent styling
+6. Add tests for new UI output behavior
+7. Verify no regressions in PVM functionality
 
-**Implementation**:
-1. **AST Conversion** (Priority 1):
-   - Fix conversion from tree-sitter `class_statement` nodes to internal `ClassDecl` AST
-   - Ensure `field $name` declarations become `FieldDecl` nodes with type info
-   - Convert `method` declarations to `MethodDecl` nodes with signatures
-   - Handle class inheritance (`class Child :isa(Parent)`)
-
-2. **Type System Integration** (Priority 2):
-   - Create ClassType in `internal/typedef/classes.go`
-   - Register classes as proper types in type registry
-   - Implement field access type checking (cannot access fields as hash keys)
-   - Add method resolution and dispatch validation
-
-3. **Method and Field Analysis** (Priority 3):
-   - Field type checking and initialization validation
-   - Method signature compatibility in inheritance
-   - Private vs public field access control
-   - Integration with existing generic type system
-
-4. **Modern Class Semantics** (Priority 4):
-   - Enforce field encapsulation (no hash-style access to fields)
-   - Proper constructor/destructor handling
-   - BUILD/ADJUST phaser support
-   - Class-specific error messages
-
-**Test Requirements**:
-- Modern class declaration parsing and AST conversion
-- Field encapsulation enforcement (no hash access)
-- Method signature and inheritance validation
-- Integration with existing type features
-- Clear distinction between old vs new object systems
+**Target Files**:
+- internal/pvm/command.go (primary command definitions)
+- internal/pvm/build.go (build command output)
+- internal/pvm/perl.go (perl management output)
+- internal/pvm/project.go (project command output)
+- Other PVM-specific command files
 
 **Success Criteria**:
-- Modern class syntax converts correctly to internal AST
-- Type system recognizes classes as proper types
-- Field encapsulation is enforced
-- Method dispatch validation works
-- Clear error messages distinguish between object system styles
-
-**DEFERRED**: Role implementation will be addressed in a future step when roles become a core Perl feature.
+- All PVM output uses Fang UI styling
+- No direct fmt.Print* or cmd.Print* calls remain in PVM
+- Consistent visual design across all PVM commands
+- All PVM tests pass with new output system
+- Beautiful, styled output for all PVM operations
 ```
 
-### Step 2.2: Advanced Method Signatures ✅ **COMPLETED**
+### Step 2.2: Convert PVX Component Output
 
-**Goal**: Complete method signature parsing and validation with complex return types
-
-**Status**: ✅ **COMPLETED** - Method signature parsing conflicts resolved and comprehensive validation implemented
+**Goal**: Replace all direct output in PVX component with Fang UI calls
 
 ```
-Fix method signature parsing conflicts and implement comprehensive method type checking.
+Convert all fmt.Print* and cmd.Print* calls in the PVX component to use the Fang UI framework.
 
-**Context**: Method return type annotations have parsing conflicts (`internal/parser/parser_test.go:299` skips - "tree-sitter parsing conflicts with empty parentheses").
+**Context**: Applying the same output conversion process to the PVX (Perl Version eXecutor) component, ensuring consistent styling across execution and isolation features.
 
 **Requirements**:
-1. ✅ Fix grammar conflicts in method signature parsing
-2. ✅ Implement comprehensive method signature validation
-3. ✅ Add return type inference and checking
-4. ⚠️ Support complex method signatures with generics (basic support - full generics deferred)
+1. Audit all output calls in internal/pvx/ package
+2. Replace direct output calls with UI framework methods
+3. Update execution result displays to use styled output
+4. Ensure isolation level reporting uses consistent formatting
+5. Update error messages for execution failures
+6. Add comprehensive tests for UI integration
+7. Verify PVX functionality remains intact
 
-**Implementation**:
-1. ✅ Grammar fixes in tree-sitter-typed-perl:
-   - ✅ Resolved parsing conflicts with method signatures
-   - ✅ Support complex return types: `method func() returns ArrayRef[Int]`
-   - ✅ Handle parameterized types in signatures
-   - ✅ Fixed empty parentheses ambiguity by restricting methods to signatures only
+**Target Files**:
+- internal/pvx/command.go (PVX command definitions)
+- internal/pvx/executor.go (execution output and status)
+- internal/pvx/dependency_detection.go (dependency reporting)
+- internal/pvx/script_metadata.go (metadata display)
 
-2. ✅ Method signature validation:
-   - ✅ Parameter type checking and validation (`internal/typechecker/method_signatures.go`)
-   - ✅ Return type compatibility verification
-   - ✅ Method call site validation with argument checking
-   - ✅ Signature validation infrastructure
+**Success Criteria**:
+- All PVX output beautifully styled with Fang
+- Execution results clearly formatted and readable
+- Isolation level reporting visually consistent
+- Error messages use standard UI error formatting
+- All PVX tests pass with new output system
+```
 
-3. ✅ Advanced signature features:
-   - ✅ Complex parameterized types: `ArrayRef[HashRef[Int]]`
-   - ✅ Union types in signatures: `Int|Str|Bool`
-   - ✅ Nested parameterized types parsing
-   - ⚠️ Generic method signatures deferred pending full generics implementation
-   - ⚠️ Named parameters deferred (not core Perl yet)
+### Step 2.3: Convert PVI Component Output
 
-4. ✅ Integration with type checking:
-   - ✅ Method call site validation with proper error reporting
-   - ✅ Return type propagation for MethodReturnAnnotation
-   - ✅ Parameter passing verification with type compatibility
-   - ✅ Integration with class system (kind: 3 = MethodParamAnnotation, kind: 4 = MethodReturnAnnotation)
+**Goal**: Replace all direct output in PVI component with Fang UI calls
 
-**Test Requirements**: ✅ **ALL COMPLETED**
-- ✅ Method signature parsing accuracy (`TestComplexMethodSignatures`)
-- ✅ Type checking for various signature patterns (`TestParameterizedTypeExpressions`)
-- ✅ Return type inference and validation (`TestParseMethodTypeAnnotations`)
-- ✅ Union type support (`TestUnionTypeSupport`)
-- ✅ Comprehensive validation testing (`TestMethodSignatureValidator`)
+```
+Convert all fmt.Print* and cmd.Print* calls in the PVI component to use the Fang UI framework.
 
-**Success Criteria**: ✅ **ALL ACHIEVED**
-- ✅ All method signature parsing conflicts resolved
-- ✅ Comprehensive method type checking works
-- ✅ Integration with class system complete
-- ✅ Performance is acceptable for large codebases
-- ✅ TestParseMethodTypeAnnotations now passes (previously skipped)
+**Context**: Converting the PVI (Perl Version Installer) component to use Fang styling, with special attention to module installation progress, dependency resolution displays, and CPAN integration output.
+
+**Requirements**:
+1. Audit all output calls in internal/pvi/ package and subpackages
+2. Replace direct output with styled UI calls
+3. Enhance module installation progress displays
+4. Style dependency resolution output and conflict reporting
+5. Update CPAN integration messaging
+6. Improve error handling for installation failures
+7. Add comprehensive tests and verify functionality
+
+**Target Files**:
+- internal/pvi/command.go (PVI command definitions)
+- internal/pvi/modules/ package (installation and management)
+- internal/pvi/deps/ package (dependency resolution)
+- internal/pvi/analyzer.go (analysis output)
+
+**Success Criteria**:
+- Module installation progress beautifully displayed
+- Dependency resolution output clear and informative
+- Installation errors formatted consistently
+- All PVI functionality preserved and enhanced
+- Comprehensive test coverage maintained
+```
+
+### Step 2.4: Convert PSC Component Output
+
+**Goal**: Replace all direct output in PSC component with Fang UI calls
+
+```
+Convert all fmt.Print* and cmd.Print* calls in the PSC component to use the Fang UI framework.
+
+**Context**: Converting the PSC (Perl Script Compiler) component, focusing on compilation output, type checking results, error reporting, and static analysis displays.
+
+**Requirements**:
+1. Audit all output calls in internal/psc/ package
+2. Replace direct output with Fang UI styling
+3. Enhance compilation result displays
+4. Style type checking output and error reporting
+5. Improve static analysis result formatting
+6. Update error formatters to use UI framework
+7. Ensure all PSC tests pass with new output
+
+**Target Files**:
+- internal/psc/command.go (PSC command definitions)
+- internal/psc/check_command.go (type checking output)
+- internal/psc/error_formatter.go (error display formatting)
+- internal/psc/run_command.go (execution output)
+
+**Success Criteria**:
+- Type checking results clearly and beautifully displayed
+- Compilation errors formatted with consistent styling
+- Static analysis output visually appealing and informative
+- All PSC functionality enhanced by better output
+- Complete test coverage maintained
 ```
 
 ---
 
-## Phase 3: System Integration (Medium Priority)
+## Phase 3: System Integration
 
-### Step 3.1: System Perl Detection and Management ✅ **COMPLETED**
+### Step 3.1: Update Help System with Fang Styling
 
-**Goal**: Implement cross-platform system Perl detection and automated installation
-
-**Status**: ✅ **COMPLETED** - Cross-platform system Perl detection and automated installation fully implemented:
-- SystemPerlManager with comprehensive cross-platform installation support
-- Windows support via Chocolatey, Scoop, and winget package managers
-- macOS support via Homebrew with fallback to system package managers
-- Linux support for all major distributions (apt, dnf, yum, pacman, zypper)
-- Cross-platform version manager support (perlbrew, plenv)
-- Enhanced E2E test helpers with automatic Perl installation capabilities
-- Intelligent CI/automated environment detection with graceful fallbacks
-- Comprehensive validation and error handling for all installation methods
-- Full test coverage with integration tests for all manager functionality
-- Proper installation validation and system compatibility checking
+**Goal**: Enhance the sophisticated help system to use Fang styling
 
 ```
-Create robust system Perl integration to enable all skipped E2E tests.
+Update the existing context-aware help system in internal/cli/help.go to use Fang styling for beautiful, readable help output.
 
-**Context**: 25+ E2E tests skip due to missing system Perl automation (`test/e2e/helpers/assertions.go` SkipIfNoSystemPerl function).
+**Context**: PVM has a sophisticated help system with context awareness, workflow guidance, and command suggestions. This needs to be enhanced with Fang styling while preserving all existing functionality.
 
 **Requirements**:
-1. Implement cross-platform Perl detection and installation
-2. Create PerlVersionManager with automated installation
-3. Add system integration for major platforms
-4. Enable comprehensive E2E testing
+1. Update internal/cli/help.go to use UI framework
+2. Style help categories and command descriptions
+3. Enhance contextual help displays with better formatting
+4. Improve workflow guidance visual presentation
+5. Style command suggestions and error messages
+6. Add beautiful formatting for help categories
+7. Ensure help system tests pass with new styling
 
-**Implementation**:
-1. In `internal/perl/system_manager.go`:
-   - Create SystemPerlManager with detection logic
-   - Implement cross-platform installation (Windows, macOS, Linux)
-   - Add version validation and compatibility checking
-   - Support multiple Perl distributions (system, plenv, perlbrew)
-
-2. Platform-specific implementation:
-   - Windows: Strawberry Perl, ActivePerl detection/installation
-   - macOS: System perl, Homebrew, plenv integration
-   - Linux: Distribution packages, source compilation
-   - Docker: Container-based Perl environments
-
-3. Version management integration:
-   - Automatic version detection and validation
-   - Installation of missing versions
-   - Integration with .perl-version files
-   - Fallback to system Perl when appropriate
-
-4. E2E test enablement:
-   - Remove SkipIfNoSystemPerl guards from tests
-   - Add setup/teardown for test environments
-   - Create isolated test environments
-   - Validate cross-platform functionality
-
-**Test Requirements**:
-- Cross-platform Perl detection accuracy
-- Installation success across different environments
-- Version management and switching
-- E2E test reliability and isolation
-- Performance of detection and installation
+**Target Features**:
+- Context-aware help with better visual hierarchy
+- Styled workflow guidance and suggestions
+- Beautiful command categorization and descriptions
+- Enhanced "did you mean?" suggestions
+- Consistent styling across all help output
 
 **Success Criteria**:
-- All E2E tests run without system dependency skips
-- Cross-platform installation works reliably
-- Version management integrates seamlessly
-- Test suite runs in CI/CD environments
+- Help system output beautifully styled and more readable
+- All existing help functionality preserved and enhanced
+- Visual hierarchy makes help content easier to scan
+- Contextual information clearly highlighted
+- Help system tests pass with new UI integration
 ```
 
-### Step 3.2: Enhanced PVI Module Analysis ✅ **COMPLETED**
+### Step 3.2: Update Error Handling and Logging Integration
 
-**Goal**: Implement real module analysis for accurate type definition generation
-
-**Status**: ✅ **COMPLETED** - Real module analysis with AST-based type extraction fully implemented and working:
-- ModuleAnalyzer successfully analyzes Perl modules using AST traversal
-- Accurate extraction of package information, version, exports, classes, methods, and subroutines
-- Full support for modern class syntax with field and method detection
-- Type annotation parsing for parameters and return types
-- Export list analysis from @EXPORT and @EXPORT_OK declarations
-- Privacy detection for internal functions (_prefixed)
-- Integration with typedef storage system
-- Comprehensive test coverage with performance validation
-- Command-line interface working: `pvi type generate [module]`
+**Goal**: Integrate UI framework with error handling while preserving architecture
 
 ```
-Replace placeholder type generation in PVI with actual module analysis.
+Update error handling to use UI framework for user-facing error display while maintaining clean separation between internal error generation and display formatting.
 
-**Context**: PVI creates placeholder type definitions instead of analyzing modules (`internal/pvi/type_command.go:237-239` TODO comment).
+**Context**: Following the architecture principle that internal packages return structured errors and the CLI layer handles formatting. Update the CLI layer to use Fang styling for error display.
 
-**Requirements**: ✅ **ALL COMPLETED**
-1. ✅ Implement ModuleAnalyzer with AST-based analysis
-2. ✅ Create accurate type definition extraction
-3. ✅ Add dependency analysis and type propagation
-4. ✅ Integrate with existing type system
+**Requirements**:
+1. Update CLI error handling to use UI framework
+2. Preserve internal/errors package structure (no UI dependencies)
+3. Enhance error display formatting with Fang styling
+4. Ensure structured errors flow properly to UI layer
+5. Add beautiful error formatting for different error types
+6. Maintain all existing error handling functionality
+7. Verify error handling tests pass
 
-**Implementation**: ✅ **ALL COMPLETED**
-1. ✅ In `internal/pvi/analyzer.go`:
-   - ✅ ModuleAnalyzer using parser infrastructure (`NewModuleAnalyzer()`)
-   - ✅ AST traversal for type extraction (`extractTypeInformation()`)
-   - ✅ Symbol table construction for modules (`extractExportList()`)
-   - ✅ Support for complex module patterns (classes, methods, fields)
+**Architecture Preservation**:
+- internal/errors continues to return structured error data
+- CLI layer (internal/cli) handles UI formatting decisions
+- No UI dependencies introduced to internal packages
+- Clean separation of concerns maintained
 
-2. ✅ Type definition extraction:
-   - ✅ Extract function signatures and export lists (`extractSubroutineInfo()`)
-   - ✅ Identify class/role definitions and methods (`processClassStatement()`)
-   - ✅ Parse embedded documentation for type hints (type annotation processing)
-   - ✅ Handle complex Perl metaprogramming patterns (fallback source parsing)
+**Success Criteria**:
+- Errors beautifully formatted in CLI output
+- Internal error structure preserved and clean
+- No architectural violations introduced
+- All error handling functionality preserved
+- Enhanced user experience for error scenarios
+```
 
-3. ✅ Integration with type system:
-   - ✅ Generate accurate .typedef.json files (`AnalyzeModule()`)
-   - ✅ Support for complex type hierarchies (class inheritance)
-   - ✅ Integration with union types and generics (type parameter parsing)
-   - ✅ Cross-module type dependency resolution
+### Step 3.3: Update Component Routing and Global Framework
 
-4. ✅ Enhanced PVI workflow:
-   - ✅ Analyze modules before generating type definitions (`pvi type generate`)
-   - ✅ Update existing type definitions when modules change (`--save` flag)
-   - ✅ Validate type definition accuracy (comprehensive test suite)
-   - ✅ Provide analysis reports and statistics (JSON output format)
+**Goal**: Ensure all component routing and global CLI features use Fang styling
 
-**Test Requirements**: ✅ **ALL COMPLETED**
-- ✅ Accurate type extraction from real modules (`TestModuleAnalyzer_SimpleModule`)
-- ✅ Complex Perl pattern handling (`TestModuleAnalyzer_ClassModule`)
-- ✅ Type definition generation accuracy (`TestModuleAnalyzer_ModuleWithExports`)
-- ✅ Integration with type checking pipeline (type storage integration)
-- ✅ Performance with large module hierarchies (`TestModuleAnalyzer_PerformanceBaseline`)
+```
+Update the component routing system and global CLI framework features to use Fang styling consistently across all entry points.
 
-**Success Criteria**: ✅ **ALL ACHIEVED**
-- ✅ Generated type definitions are accurate and useful (verified with test module)
-- ✅ Analysis handles common Perl module patterns (classes, exports, methods)
-- ✅ Integration with type checker works seamlessly (typedef storage working)
-- ✅ Performance is acceptable for typical modules (< 5s for 100 subroutines)
+**Context**: PVM uses a sophisticated routing system where a single binary can act as pvm, pvx, pvi, or psc. Ensure all routing, version displays, and global features use consistent Fang styling.
 
-**Verification**: Successfully analyzed complex test module with:
-- Package declaration and version extraction
-- Export list detection (@EXPORT, @EXPORT_OK)
-- Class definitions with typed fields and methods
-- Method parameter and return type extraction
-- Privacy detection for internal functions
-- Full JSON type definition generation
+**Requirements**:
+1. Update internal/cli/router.go to use UI framework
+2. Style component detection and routing messages
+3. Update version displays across all components
+4. Enhance global flag handling and help
+5. Style debug output and diagnostic information
+6. Ensure consistent experience across all entry points
+7. Verify all routing functionality works correctly
+
+**Target Files**:
+- internal/cli/router.go (component routing)
+- internal/cli/root.go (global framework)
+- internal/version/version.go (version display)
+- Component-specific version commands
+
+**Success Criteria**:
+- Consistent Fang styling across all component entry points
+- Beautiful version displays and routing information
+- Enhanced debug output and diagnostics
+- All component routing functionality preserved
+- Seamless user experience regardless of entry point
 ```
 
 ---
 
-## Phase 4: Advanced Tooling (Medium Priority)
+## Phase 4: Testing and Integration
 
-### Step 4.1: LSP Advanced Features ✅ **COMPLETED**
+### Step 4.1: Comprehensive Integration Testing
 
-**Goal**: Complete LSP implementation with query system and auto-fix capabilities
-
-**Status**: ✅ **COMPLETED** - LSP advanced features fully implemented with comprehensive IDE integration:
-- Complete type query system in `internal/lsp/queries.go` with QueryTypeAtPosition, QuerySymbol, and GetAvailableSymbols
-- Enhanced auto-fix code actions for undefined variables and type mismatches
-- Extended LSP protocol support with workspace symbols, inlay hints, and semantic tokens infrastructure
-- Language service integration improvements with new FindSymbolAtPosition method
-- Proper LSP protocol compliance and conversion between types
-- All existing LSP tests pass and new functionality integrates seamlessly
+**Goal**: Create comprehensive integration tests for the complete Fang UI system
 
 ```
-Implement the missing LSP features to provide full IDE integration.
+Create comprehensive integration tests that verify the complete Fang UI integration works correctly across all components and scenarios.
 
-**Context**: LSP query system returns "not yet implemented" (`internal/lsp/queries.go:69,75`) and auto-fix generation is stubbed.
+**Context**: With all components converted to use Fang UI, create thorough integration tests that verify the system works end-to-end and provides consistent, beautiful output.
 
-**Requirements**: ✅ **ALL COMPLETED**
-1. ✅ Implement query system for type and symbol information
-2. ✅ Add auto-fix generation for common type errors
-3. ✅ Create enhanced formatting and refactoring tools
-4. ✅ Integrate with flow-sensitive analysis
+**Requirements**:
+1. Create integration tests for all component UI output
+2. Test cross-component consistency and styling
+3. Verify error handling UI integration works correctly
+4. Test help system UI enhancement functionality
+5. Create performance tests for UI rendering
+6. Add visual regression detection where possible
+7. Ensure all existing functionality preserved
 
-**Implementation**: ✅ **ALL COMPLETED**
-1. ✅ Query system in `internal/lsp/queries.go`:
-   - ✅ Implement type queries for hover information (QueryTypeAtPosition)
-   - ✅ Add symbol queries for go-to-definition (QuerySymbol)
-   - ✅ Create reference finding with type context (GetAvailableSymbols)
-   - ✅ Support for workspace symbol search (handleWorkspaceSymbol)
+**Test Categories**:
+- Component-specific UI output tests
+- Cross-component consistency verification
+- Error handling and display testing
+- Help system enhancement validation
+- Performance and rendering tests
+- Edge case and error condition testing
 
-2. ✅ Auto-fix generation:
-   - ✅ Type mismatch fixes with suggestions (generateAutoFixSuggestions)
-   - ✅ Variable declaration fixes for undefined variables
-   - ✅ Integration with existing language service code actions
-   - ✅ Proper workspace edit generation
-
-3. ✅ Enhanced features:
-   - ✅ Extended LSP protocol types (WorkspaceSymbol, SymbolKind, InlayHint, SemanticTokens)
-   - ✅ Workspace symbol search functionality
-   - ✅ Enhanced diagnostics integration
-   - ✅ Protocol-compliant message handling
-
-4. ✅ Integration with type system:
-   - ✅ Use language service for accurate symbol information
-   - ✅ Integration with existing symbol tables and AST navigation
-   - ✅ Proper type conversion between LSP and language service formats
-   - ✅ Maintained backward compatibility
-
-**Test Requirements**: ✅ **ALL COMPLETED**
-- ✅ Query system accuracy and performance (all LSP tests pass)
-- ✅ Auto-fix generation quality and safety (proper error handling)
-- ✅ IDE integration testing (LSP protocol compliance)
-- ✅ Real-world workflow validation (type-aware features)
-- ✅ Performance with large codebases (efficient symbol lookup)
-
-**Success Criteria**: ✅ **ALL ACHIEVED**
-- ✅ Full IDE integration works smoothly (complete LSP implementation)
-- ✅ Auto-fixes are accurate and helpful (variable declaration, type annotations)
-- ✅ Performance is acceptable for interactive use (efficient caching and lookup)
-- ✅ Integration with advanced type features complete (symbol analysis, workspace search)
+**Success Criteria**:
+- Comprehensive test coverage for all UI functionality
+- All integration tests pass consistently
+- Performance meets or exceeds previous implementation
+- Visual consistency verified across all components
+- No functional regressions detected
 ```
 
-### Step 4.2: MCP Code Generation ✅ **COMPLETED**
+### Step 4.2: Documentation and Usage Guidelines
 
-**Goal**: Implement AI-assisted code generation using PVM's type system
-
-**Status**: ✅ **COMPLETED** - MCP code generation system fully implemented with comprehensive test coverage:
-- Complete CodeGenerator implementation with type-aware generation
-- Collaborative sampling with validation loops and refinement
-- Generation templates for functions, classes, and tests
-- Full integration with PVM's type system for accurate generation
-- Memory management for maintaining context across sessions
-- Validation and auto-fix capabilities
-- 11 comprehensive tests covering all functionality
-- All test scenarios pass with realistic mock implementations
+**Goal**: Create comprehensive documentation for the Fang UI integration
 
 ```
-Complete the MCP code generation system with full integration.
+Create comprehensive documentation for the Fang UI integration, including usage guidelines, styling patterns, and examples for future development.
 
-**Context**: Complete interface exists but zero implementation (`internal/mcp/tools/generate.go` - 11 test functions skip with "not yet implemented").
+**Context**: Document the new UI framework architecture, provide clear guidelines for future development, and ensure the system is maintainable and extensible.
 
-**Requirements**: ✅ **ALL COMPLETED**
-1. ✅ Implement CodeGenerator with type-aware generation
-2. ✅ Add collaborative sampling with validation loops
-3. ✅ Create generation templates for functions, classes, tests
-4. ✅ Integrate with PVM's type system for accurate generation
+**Requirements**:
+1. Document the internal/cli/ui package API
+2. Create usage guidelines for adding new UI components
+3. Document styling patterns and consistency rules
+4. Provide examples of common UI operations
+5. Document integration patterns for new commands
+6. Create troubleshooting guide for common issues
+7. Update architectural documentation
 
-**Implementation**: ✅ **ALL COMPLETED**
-1. ✅ In `internal/mcp/tools/generate.go`:
-   - ✅ Complete CodeGenerator implementation with type-aware prompt generation
-   - ✅ Validation and fixing loops with iterative refinement
-   - ✅ Memory integration for learning and context preservation
-   - ✅ Support for function, class, and test generation workflows
+**Documentation Sections**:
+- UI Framework Architecture Overview
+- API Reference for internal/cli/ui
+- Styling Guidelines and Patterns
+- Integration Examples and Best Practices
+- Troubleshooting and Common Issues
+- Future Enhancement Guidelines
 
-2. ✅ Generation capabilities:
-   - ✅ Function generation with proper signatures and naming conventions
-   - ✅ Class/role generation with type annotations and patterns
-   - ✅ Test generation with type-aware assertions and frameworks
-   - ✅ Collaborative sampling with confidence scoring
+**Success Criteria**:
+- Complete API documentation for UI framework
+- Clear guidelines for future UI development
+- Examples demonstrate all major UI patterns
+- Troubleshooting guide covers common scenarios
+- Documentation integrated with existing project docs
+```
 
-3. ✅ Validation integration:
-   - ✅ Type checking validation using PVM's validation system
-   - ✅ Syntax and style validation with auto-fix suggestions
-   - ✅ Integration with project context and type information
-   - ✅ Auto-fixing for common generation errors
+### Step 4.3: Performance Optimization and Finalization
 
-4. ✅ Collaborative features:
-   - ✅ Memory system for learning from corrections (`generation.MemoryManager`)
-   - ✅ Context-aware prompt building with type context extraction
-   - ✅ Integration with sampling for quality improvement
-   - ✅ Decision tracking and rationale recording
+**Goal**: Optimize performance and finalize the Fang UI integration
 
-**Test Requirements**: ✅ **ALL COMPLETED**
-- ✅ Code generation accuracy and quality (11 comprehensive tests)
-- ✅ Validation loop effectiveness (`TestCodeGenerator_ValidateAndFix_WithErrors`)
-- ✅ Integration with type system (`TestCodeGenerator_Generate_*`)
-- ✅ Memory and learning functionality (`TestCodeGenerator_MemoryIntegration`)
-- ✅ Real-world generation scenarios (function/class/test workflows)
+```
+Optimize the performance of the Fang UI integration and finalize all aspects of the implementation for production readiness.
 
-**Success Criteria**: ✅ **ALL ACHIEVED**
-- ✅ Generated code is syntactically correct and well-typed
-- ✅ Validation catches and fixes common issues
-- ✅ Integration with development workflow is smooth
-- ✅ Learning improves generation quality over time through memory system
+**Context**: Complete the Fang integration by optimizing performance, addressing any remaining issues, and ensuring the system is production-ready with excellent performance characteristics.
+
+**Requirements**:
+1. Profile and optimize UI rendering performance
+2. Minimize memory usage and allocation overhead
+3. Optimize common UI operations for speed
+4. Address any remaining integration issues
+5. Finalize all styling and visual consistency
+6. Complete comprehensive testing and validation
+7. Prepare for production deployment
+
+**Optimization Areas**:
+- UI rendering and styling performance
+- Memory allocation and garbage collection
+- Startup time and command execution speed
+- Output buffer management and efficiency
+- Color and styling calculation optimization
+
+**Success Criteria**:
+- UI performance meets or exceeds previous implementation
+- Memory usage optimized and minimized
+- All styling consistent and visually appealing
+- Comprehensive testing completed successfully
+- System ready for production deployment
+- Beautiful, fast, consistent UI across all components
 ```
 
 ---
 
-## Phase 5: Production Readiness (Lower Priority)
+## Implementation Guidelines
 
-### Step 5.1: Cross-Platform Reliability ✅ **COMPLETED**
+### Development Principles
 
-**Goal**: Ensure 100% cross-platform compatibility and test coverage
+1. **Test-Driven Development**: Write tests before implementation
+2. **Incremental Integration**: Each step builds and integrates immediately
+3. **No Orphaned Code**: Every component wired into the system
+4. **Backward Compatibility**: Preserve all existing functionality
+5. **Clean Architecture**: Maintain separation of concerns
 
-**Status**: ✅ **COMPLETED** - Cross-platform reliability significantly improved:
-- Created comprehensive platform package for unified cross-platform operations
-- Enhanced symlinks handling with Windows-compatible hard links and file copying
-- Improved shell tests to work on Windows, macOS, and Linux without skips
-- Added platform-specific executable name and path handling
-- Implemented robust cross-platform file permission management
-- Reduced Windows CI skip conditions and improved test coverage
-- Added comprehensive cross-platform compatibility test suite
-- All symlink tests now pass on all platforms with appropriate fallbacks
+### Quality Standards
 
-```
-Eliminate platform-specific test skips and ensure full Windows/macOS/Linux support.
+- **Test Coverage**: >95% for all new code
+- **Performance**: No regression from current implementation
+- **Visual Consistency**: Unified design across all components
+- **Functional Preservation**: All existing features maintained
+- **Documentation**: Complete API and usage documentation
 
-**Context**: 7 tests skip due to platform limitations (Windows CI, symlink creation, file permissions).
+### Success Metrics
 
-**Requirements**:
-1. Fix Windows-specific issues in build and test systems
-2. Resolve symlink creation and file permission problems
-3. Ensure CI/CD compatibility across platforms
-4. Achieve 100% test pass rate on all platforms
-
-**Implementation**:
-1. Windows compatibility fixes:
-   - Fix symlink creation issues (`internal/cli/symlinks_test.go`)
-   - Resolve file permission problems
-   - Ensure path handling works correctly
-   - Add Windows-specific CI testing
-
-2. Cross-platform testing:
-   - Remove platform-specific test skips
-   - Add comprehensive CI matrix testing
-   - Validate functionality on all target platforms
-   - Performance testing across platforms
-
-3. Build system enhancements:
-   - Cross-platform build artifact generation
-   - Platform-specific installation packages
-   - Docker container support
-   - Distribution packaging for major platforms
-
-**Test Requirements**:
-- 100% test pass rate on Windows, macOS, Linux
-- CI/CD validation on all platforms
-- Real-world usage testing
-- Performance parity across platforms
-- Installation and deployment testing
-
-**Success Criteria**:
-- No platform-specific test skips remain
-- Full functionality on all supported platforms
-- CI/CD runs successfully on all platforms
-- Distribution packages work correctly
-```
-
-### Step 5.2: Performance Optimization ✅ **COMPLETED**
-
-**Goal**: Optimize performance for large codebases and production usage
-
-**Status**: ✅ **COMPLETED** - Comprehensive performance optimization system implemented:
-- Built complete performance analyzer with real-time metrics collection and measurement
-- Created intelligent caching system with TTL and LRU eviction policies
-- Implemented automated performance optimizer with bottleneck detection
-- Added comprehensive CLI interface for performance analysis and tuning
-- Created global performance monitoring and reporting capabilities
-- Integrated automated optimization suggestions with impact analysis
-- Built memory usage tracking and garbage collection optimization
-- Added cache hit rate analysis and optimization recommendations
-- Comprehensive test coverage (21 new tests) for all performance components
-- CLI commands available: `pvm perf analyze/report/optimize/reset`
-
-```
-Implement comprehensive performance optimizations and monitoring.
-
-**Context**: Performance tests skip in short mode, need production-grade performance for large projects.
-
-**Requirements**:
-1. Optimize type checking and flow analysis performance
-2. Implement intelligent caching throughout the system
-3. Add performance monitoring and regression detection
-4. Ensure scalability for large codebases
-
-**Implementation**:
-1. Type system optimization:
-   - Incremental type checking with dependency tracking
-   - Optimized flow analysis with early termination
-   - Smart cache invalidation for type information
-   - Parallel processing where appropriate
-
-2. Caching strategy:
-   - Parse result caching with content hashing
-   - Type information caching across sessions
-   - Build artifact caching and validation
-   - Configuration and project context caching
-
-3. Performance monitoring:
-   - Built-in performance profiling and metrics
-   - Regression detection with baseline comparisons
-   - Resource usage monitoring and reporting
-   - Bottleneck identification and optimization
-
-**Test Requirements**:
-- Performance benchmarks for all major operations
-- Memory usage validation and optimization
-- Large codebase testing and validation
-- Regression detection accuracy
-- Real-world performance validation
-
-**Success Criteria**:
-- Type checking performance is acceptable for large projects
-- Memory usage is reasonable and bounded
-- Performance regressions are caught automatically
-- System scales to enterprise-sized codebases
-```
+- **353 fmt.Print* calls** → **0 direct calls** (all via UI framework)
+- **447 cmd.Print* calls** → **0 direct calls** (all via UI framework)
+- **4 components** → **consistent beautiful styling**
+- **Existing tests** → **all pass with UI enhancement**
+- **User experience** → **significantly improved visual appeal**
 
 ---
 
-## Implementation Strategy
+## Risk Mitigation
 
-### Development Phases
+### Technical Risks
 
-**Phase 1 (8-10 weeks)**: Core Type System Foundation
-- Highest impact features that unlock advanced capabilities
-- Flow-sensitive analysis, union types, generics
-- Foundation for all other advanced features
+1. **Performance Impact**: Mitigated through careful optimization and profiling
+2. **Visual Inconsistency**: Prevented through comprehensive styling guidelines
+3. **Integration Complexity**: Reduced through incremental, tested implementation
+4. **Regression Introduction**: Prevented through comprehensive testing strategy
 
-**Phase 2 (4-6 weeks)**: Advanced Language Features
-- Complete type system with OOP support
-- Method signatures and complex type patterns
-- Production-ready type checking
+### Implementation Risks
 
-**Phase 3 (4-6 weeks)**: System Integration
-- Cross-platform Perl management
-- Real module analysis and type generation
-- Enable comprehensive testing
+1. **Scope Creep**: Controlled through focused, well-defined steps
+2. **Architecture Violation**: Prevented through clear separation of concerns
+3. **Testing Overhead**: Managed through automated testing and CI integration
+4. **Documentation Debt**: Addressed through concurrent documentation creation
 
-**Phase 4 (3-4 weeks)**: Advanced Tooling
-- LSP feature completion
-- MCP code generation system
-- Enhanced developer experience
-
-**Phase 5 (2-3 weeks)**: Production Readiness
-- Cross-platform reliability
-- Performance optimization
-- Enterprise-grade quality
-
-### Quality Gates
-
-**Each Step Must**:
-1. Include comprehensive test coverage (100% for new code)
-2. Maintain backward compatibility
-3. Pass all existing tests
-4. Include integration tests
-5. Document new functionality
-
-**Each Phase Must**:
-1. Achieve specific success criteria
-2. Demonstrate measurable improvement
-3. Maintain system stability
-4. Provide user value
-5. Set foundation for next phase
-
-### Risk Mitigation
-
-**Technical Risks**:
-- Flow analysis complexity → Start with simple cases, iterate
-- Grammar conflicts → Prototype changes, extensive testing
-- Performance impact → Benchmark early, optimize incrementally
-- Cross-platform issues → Test on all platforms continuously
-
-**Integration Risks**:
-- Breaking changes → Maintain backward compatibility
-- Test failures → Comprehensive test coverage required
-- Performance regression → Continuous performance monitoring
-- User experience → Validate workflows with real usage
-
-This plan provides a clear path to completing PVM's most critical missing features while maintaining quality, stability, and user value throughout the implementation process.
+This plan provides a comprehensive, step-by-step approach to implementing beautiful, consistent Fang UI integration across all PVM components while maintaining architectural integrity and functional completeness.
