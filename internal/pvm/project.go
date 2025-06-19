@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/xdg"
@@ -280,7 +281,8 @@ func initializeProject(cmd *cobra.Command, projectName, projectDir string, templ
 		if err := os.MkdirAll(absProjectDir, 0755); err != nil {
 			return fmt.Errorf("failed to create project directory: %w", err)
 		}
-		cmd.Printf("Created project directory: %s\n", projectDir)
+		ui := cli.GetUI(cmd)
+		ui.Success("Created project directory: %s", projectDir)
 	}
 
 	// Check if we're already in a project (unless force is used)
@@ -304,8 +306,9 @@ func initializeProject(cmd *cobra.Command, projectName, projectDir string, templ
 		return fmt.Errorf("failed to create directory structure: %w", err)
 	}
 
-	cmd.Printf("\nProject '%s' initialized successfully!\n", projectName)
-	cmd.Printf("Location: %s\n", absProjectDir)
+	ui := cli.GetUI(cmd)
+	ui.Success("Project '%s' initialized successfully!", projectName)
+	ui.Info("Location: %s", absProjectDir)
 
 	// Show next steps
 	showNextSteps(cmd, createDir, projectDir)
@@ -315,13 +318,15 @@ func initializeProject(cmd *cobra.Command, projectName, projectDir string, templ
 
 // createProjectFiles creates the necessary project configuration files
 func createProjectFiles(cmd *cobra.Command, projectDir, projectName string, template *ProjectTemplate) error {
+	ui := cli.GetUI(cmd)
+
 	// Create .perl-version file
 	perlVersion := getCurrentPerlVersion()
 	perlVersionPath := filepath.Join(projectDir, ".perl-version")
 	if err := os.WriteFile(perlVersionPath, []byte(perlVersion+"\n"), 0644); err != nil {
 		return fmt.Errorf("failed to create .perl-version: %w", err)
 	}
-	cmd.Printf("Created .perl-version (%s)\n", perlVersion)
+	ui.Success("Created .perl-version (%s)", perlVersion)
 
 	// Create cpanfile
 	cpanfileContent := generateCpanfile(projectName, template)
@@ -329,7 +334,7 @@ func createProjectFiles(cmd *cobra.Command, projectDir, projectName string, temp
 	if err := os.WriteFile(cpanfilePath, []byte(cpanfileContent), 0644); err != nil {
 		return fmt.Errorf("failed to create cpanfile: %w", err)
 	}
-	cmd.Printf("Created cpanfile\n")
+	ui.Success("Created cpanfile")
 
 	// Create pvm.toml
 	pvmTomlContent := generatePvmToml(projectName, perlVersion, template)
@@ -337,7 +342,7 @@ func createProjectFiles(cmd *cobra.Command, projectDir, projectName string, temp
 	if err := os.WriteFile(pvmTomlPath, []byte(pvmTomlContent), 0644); err != nil {
 		return fmt.Errorf("failed to create pvm.toml: %w", err)
 	}
-	cmd.Printf("Created pvm.toml\n")
+	ui.Success("Created pvm.toml")
 
 	// Create .gitignore
 	gitignoreContent := generateGitignore(template)
@@ -345,13 +350,14 @@ func createProjectFiles(cmd *cobra.Command, projectDir, projectName string, temp
 	if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
 		return fmt.Errorf("failed to create .gitignore: %w", err)
 	}
-	cmd.Printf("Created .gitignore\n")
+	ui.Success("Created .gitignore")
 
 	return nil
 }
 
 // createDirectoryStructure creates the standard project directory structure
 func createDirectoryStructure(cmd *cobra.Command, projectDir string, template *ProjectTemplate) error {
+	ui := cli.GetUI(cmd)
 	dirs := template.Directories
 
 	for _, dir := range dirs {
@@ -359,7 +365,7 @@ func createDirectoryStructure(cmd *cobra.Command, projectDir string, template *P
 		if err := os.MkdirAll(dirPath, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
-		cmd.Printf("Created directory: %s/\n", dir)
+		ui.Success("Created directory: %s/", dir)
 	}
 
 	return nil
@@ -565,76 +571,79 @@ func runProjectDoctor(cmd *cobra.Command) error {
 
 // outputStatusHuman outputs project status in human-readable format
 func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
+	ui := cli.GetUI(cmd)
+
 	if !ctx.IsProject {
-		cmd.Println("No project detected in current directory")
-		cmd.Println("Use 'pvm project init' to initialize a new project")
+		ui.Info("No project detected in current directory")
+		ui.Info("Use 'pvm project init' to initialize a new project")
 		return nil
 	}
 
-	cmd.Printf("Project Status\n")
-	cmd.Printf("==============\n\n")
+	ui.Header("Project Status")
+	ui.Println()
 
 	// Project information
-	cmd.Printf("Project Root: %s\n", ctx.RootDir)
-	cmd.Printf("Detected via: %s\n", ctx.DetectionInfo)
+	ui.Info("Project Root: %s", ctx.RootDir)
+	ui.Info("Detected via: %s", ctx.DetectionInfo)
 
 	// Perl version
 	if ctx.PerlVersion != "" {
-		cmd.Printf("Perl Version: %s\n", ctx.PerlVersion)
+		ui.Info("Perl Version: %s", ctx.PerlVersion)
 		// TODO: Check if this version is actually installed
 	} else {
-		cmd.Printf("Perl Version: not specified\n")
+		ui.Warning("Perl Version: not specified")
 	}
 
 	// Dependencies
 	if ctx.HasCpanfile {
-		cmd.Printf("Dependencies: cpanfile present\n")
+		ui.Info("Dependencies: cpanfile present")
 		// TODO: Check if dependencies are installed
 	} else {
-		cmd.Printf("Dependencies: no cpanfile\n")
+		ui.Warning("Dependencies: no cpanfile")
 	}
 
 	// Local lib
-	cmd.Printf("Local lib: %s\n", ctx.LocalLibDir)
+	ui.Info("Local lib: %s", ctx.LocalLibDir)
 	if _, err := os.Stat(ctx.LocalLibDir); err == nil {
-		cmd.Printf("  Status: exists\n")
+		ui.Info("  Status: exists")
 		// TODO: Count installed modules
 	} else {
-		cmd.Printf("  Status: not created\n")
+		ui.Warning("  Status: not created")
 	}
 
 	// Configuration
 	if ctx.ConfigFile != "" {
-		cmd.Printf("Configuration: %s\n", ctx.ConfigFile)
+		ui.Info("Configuration: %s", ctx.ConfigFile)
 	} else {
-		cmd.Printf("Configuration: no pvm.toml\n")
+		ui.Warning("Configuration: no pvm.toml")
 	}
 
 	// Build status
 	buildDir := filepath.Join(ctx.RootDir, "build")
 	if _, err := os.Stat(buildDir); err == nil {
-		cmd.Printf("Build artifacts: present\n")
+		ui.Info("Build artifacts: present")
 	} else {
-		cmd.Printf("Build artifacts: none\n")
+		ui.Info("Build artifacts: none")
 	}
 
 	// Git status
 	gitDir := filepath.Join(ctx.RootDir, ".git")
 	if _, err := os.Stat(gitDir); err == nil {
-		cmd.Printf("Git repository: yes\n")
+		ui.Info("Git repository: yes")
 	} else {
-		cmd.Printf("Git repository: no\n")
+		ui.Info("Git repository: no")
 	}
 
-	cmd.Printf("\nNext Steps:\n")
+	ui.Println()
+	ui.SubHeader("Next Steps:")
 	if !ctx.HasCpanfile {
-		cmd.Printf("- Add dependencies with 'pvm module add <module>'\n")
+		ui.Info("- Add dependencies with 'pvm module add <module>'")
 	}
 	if ctx.PerlVersion == "" {
-		cmd.Printf("- Set Perl version in .perl-version file\n")
+		ui.Info("- Set Perl version in .perl-version file")
 	}
-	cmd.Printf("- Install dependencies with 'pvm module install'\n")
-	cmd.Printf("- Run type check with 'pvm build --check-only'\n")
+	ui.Info("- Install dependencies with 'pvm module install'")
+	ui.Info("- Run type check with 'pvm build --check-only'")
 
 	return nil
 }
