@@ -220,10 +220,10 @@ func newInstallCommand() *cobra.Command {
 				DependencyResolver: resolver,
 				ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
 					if verbose {
-						cmd.Printf("[%s] %s: %s (%.0f%%)\n", stage.String(), module, details, progress*100)
+						ui.Debug("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
 					} else if stage != modules.StageFinished {
 						// Only show major stage transitions if not verbose
-						cmd.Printf("[%s] %s\n", stage.String(), module)
+						ui.Info("[%s] %s", stage.String(), module)
 					}
 				},
 				Context: cmd.Context(),
@@ -257,7 +257,7 @@ func newInstallCommand() *cobra.Command {
 				// Add progress callback for parallel installation
 				if verbose || timing {
 					parallelOptions.ProgressCallback = func(completed, total int, currentModule string, stage modules.InstallProgressStage) {
-						cmd.Printf("[%d/%d] %s: %s\n", completed, total, currentModule, stage.String())
+						ui.Progress(completed, total, fmt.Sprintf("%s: %s", currentModule, stage.String()))
 					}
 				}
 
@@ -412,6 +412,7 @@ func newListCommand() *cobra.Command {
 		Short: "List installed modules",
 		Long:  "List all installed CPAN modules for the current Perl version",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			// Process pattern from args if provided
 			if len(args) > 0 {
 				pattern = args[0]
@@ -442,7 +443,7 @@ func newListCommand() *cobra.Command {
 
 			// Display results
 			if len(moduleList) == 0 {
-				cmd.Println("No modules found")
+				ui.Info("No modules found")
 				return nil
 			}
 
@@ -454,46 +455,57 @@ func newListCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				cmd.Println(string(jsonData))
+				ui.Println(string(jsonData))
 
 			case "simple":
 				// Output as simple name/version
+				var simpleList []string
 				for _, module := range moduleList {
-					cmd.Printf("%s %s\n", module.Name, module.Version)
+					simpleList = append(simpleList, fmt.Sprintf("%s %s", module.Name, module.Version))
 				}
+				ui.List(simpleList)
 
 			default:
 				// Default tabular format
-				cmd.Printf("Found %d modules\n\n", len(moduleList))
+				ui.SubHeader(fmt.Sprintf("Found %d modules", len(moduleList)))
 
 				if verbose {
 					// Detailed format
 					for i, module := range moduleList {
-						cmd.Printf("[%d] %s (%s)\n", i+1, module.Name, module.Version)
+						ui.SubHeader(fmt.Sprintf("[%d] %s (%s)", i+1, module.Name, module.Version))
+
+						info := map[string]string{
+							"Path": module.Path,
+						}
+
 						if module.Description != "" {
-							cmd.Printf("    Description: %s\n", module.Description)
+							info["Description"] = module.Description
 						}
-						cmd.Printf("    Path: %s\n", module.Path)
+
 						if !module.InstallationTime.IsZero() {
-							cmd.Printf("    Installed: %s\n", module.InstallationTime.Format("2006-01-02 15:04:05"))
+							info["Installed"] = module.InstallationTime.Format("2006-01-02 15:04:05")
 						}
+
 						if module.CoreModule {
-							cmd.Printf("    Core Module: Yes\n")
+							info["Core Module"] = "Yes"
 						}
-						cmd.Println()
+
+						ui.KeyValue(info)
 					}
 				} else {
 					// Table format
-					cmd.Printf("%-40s %-15s %-10s\n", "Module", "Version", "Core Module")
-					cmd.Printf("%s\n", strings.Repeat("-", 68))
+					headers := []string{"Module", "Version", "Core Module"}
+					var rows [][]string
 
 					for _, module := range moduleList {
 						coreStatus := ""
 						if module.CoreModule {
 							coreStatus = "Yes"
 						}
-						cmd.Printf("%-40s %-15s %-10s\n", module.Name, module.Version, coreStatus)
+						rows = append(rows, []string{module.Name, module.Version, coreStatus})
 					}
+
+					ui.Table(headers, rows)
 				}
 			}
 
@@ -530,6 +542,7 @@ func newUpdateCommand() *cobra.Command {
 		Short: "Update modules",
 		Long:  "Update one or more CPAN modules to the latest version",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			// Check if at least one module is specified or --all flag is used
 			if len(args) == 0 && !all {
 				return fmt.Errorf("at least one module name must be provided or use --all flag")
@@ -626,7 +639,7 @@ func newUpdateCommand() *cobra.Command {
 					args = append(args, mod.Name)
 				}
 
-				cmd.Printf("Updating all %d installed modules...\n", len(args))
+				ui.Info("Updating all %d installed modules...", len(args))
 			}
 
 			// Update each module
@@ -649,51 +662,57 @@ func newUpdateCommand() *cobra.Command {
 					DependencyResolver: resolver,
 					ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
 						if verbose {
-							cmd.Printf("[%s] %s: %s (%.0f%%)\n", stage.String(), module, details, progress*100)
+							ui.Debug("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
 						} else if stage != modules.StageFinished {
 							// Only show major stage transitions if not verbose
-							cmd.Printf("[%s] %s\n", stage.String(), module)
+							ui.Info("[%s] %s", stage.String(), module)
 						}
 					},
 					Context: cmd.Context(),
 				}
 
 				// Update (install) the module
-				cmd.Printf("Updating module %s...\n", moduleName)
+				ui.Info("Updating module %s...", moduleName)
 				result, err := modules.InstallModule(installOptions)
 
 				if err != nil {
-					cmd.Printf("Failed to update %s: %v\n", moduleName, err)
+					ui.Error("Failed to update %s: %v", moduleName, err)
 					failCount++
 					continue
 				}
 
 				// Display result
 				if result.Success {
-					cmd.Printf("Successfully updated %s to v%s\n", result.ModuleName, result.Version)
+					ui.Success("Successfully updated %s to v%s", result.ModuleName, result.Version)
 					successCount++
 
 					// Show warnings if any
 					if len(result.Warnings) > 0 && verbose {
-						cmd.Println("Warnings:")
-						for _, warning := range result.Warnings {
-							cmd.Printf("  - %s\n", warning)
-						}
+						ui.ListWithOptions(uipkg.ListOptions{
+							Title: "Warnings",
+							Items: result.Warnings,
+						})
 					}
 				} else {
-					cmd.Printf("Failed to update %s\n", moduleName)
+					ui.Error("Failed to update %s", moduleName)
 					failCount++
 					if len(result.Errors) > 0 {
-						cmd.Println("Errors:")
-						for _, err := range result.Errors {
-							cmd.Printf("  - %s\n", err)
-						}
+						ui.ListWithOptions(uipkg.ListOptions{
+							Title: "Errors",
+							Items: result.Errors,
+						})
 					}
 				}
 			}
 
 			// Summary
-			cmd.Printf("\nUpdate summary: %d succeeded, %d failed\n", successCount, failCount)
+			summary := map[string]string{
+				"Succeeded": fmt.Sprintf("%d", successCount),
+				"Failed":    fmt.Sprintf("%d", failCount),
+			}
+			ui.SubHeader("Update Summary")
+			ui.KeyValue(summary)
+
 			if failCount > 0 {
 				return fmt.Errorf("%d module updates failed", failCount)
 			}
@@ -783,6 +802,8 @@ func newSearchCommand() *cobra.Command {
 		Long:  "Search for CPAN modules matching the given query",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Get configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
@@ -847,14 +868,22 @@ func newSearchCommand() *cobra.Command {
 			}
 
 			// Display the results
-			cmd.Printf("Search results for '%s' (%d of %d results from %s):\n\n",
+			ui.Info("Search results for '%s' (%d of %d results from %s)",
 				results.Query, len(results.Results), results.Total, results.Source)
 
+			// Create a formatted list of search results
+			var searchResults []string
 			for i, result := range results.Results {
-				cmd.Printf("[%d] %s (%s)\n", i+1, result.Name, result.Version)
-				cmd.Printf("    %s\n", result.Abstract)
-				cmd.Printf("    Author: %s | Released: %s\n\n",
-					result.Author, result.ReleaseDate.Format("2006-01-02"))
+				searchResults = append(searchResults,
+					fmt.Sprintf("[%d] %s (%s)\n    %s\n    Author: %s | Released: %s",
+						i+1, result.Name, result.Version, result.Abstract,
+						result.Author, result.ReleaseDate.Format("2006-01-02")))
+			}
+
+			if len(searchResults) > 0 {
+				ui.ListWithOptions(uipkg.ListOptions{
+					Items: searchResults,
+				})
 			}
 
 			return nil
@@ -889,6 +918,8 @@ func newDepsCommand() *cobra.Command {
 		Long:  "Display the dependencies for a CPAN module",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Options are already bound to the variables
 
 			// Get configuration
@@ -979,43 +1010,45 @@ func newDepsCommand() *cobra.Command {
 			// Display the results
 			if flat {
 				// Display as a flat list
-				cmd.Printf("Dependencies for %s:\n\n", moduleName)
+				ui.Info("Dependencies for %s:", moduleName)
 				deps := resolver.GetFlattenedDependencies(result)
+				var listItems []string
 				for _, dep := range deps {
 					if dep.IsRoot {
 						continue // Skip the root module
 					}
-					cmd.Printf("%s", dep.Name)
+					item := dep.Name
 					if dep.VersionConstraint != "" {
-						cmd.Printf(" (%s)", dep.VersionConstraint)
+						item += fmt.Sprintf(" (%s)", dep.VersionConstraint)
 					}
 					if dep.Phase != "" && dep.Phase != "runtime" {
-						cmd.Printf(" [%s]", dep.Phase)
+						item += fmt.Sprintf(" [%s]", dep.Phase)
 					}
-					cmd.Println()
+					listItems = append(listItems, item)
 				}
+				ui.List(listItems)
 			} else {
 				// Display as a tree
-				cmd.Printf("Dependency tree for %s:\n\n", moduleName)
+				ui.Info("Dependency tree for %s:", moduleName)
 				tree := resolver.PrintDependencyTree(result.Root)
-				cmd.Println(tree)
+				ui.Info("%s", tree)
 			}
 
 			// Display warnings and conflicts
 			if len(result.Warnings) > 0 {
-				cmd.Println("\nWarnings:")
-				for _, warning := range result.Warnings {
-					cmd.Printf("- %s\n", warning)
-				}
+				ui.Warning("Warnings:")
+				ui.List(result.Warnings)
 			}
 
 			if len(result.Conflicts) > 0 {
-				cmd.Println("\nVersion conflicts:")
+				ui.Error("Version conflicts:")
 				for _, conflict := range result.Conflicts {
-					cmd.Printf("- %s has conflicting requirements:\n", conflict.Module)
+					ui.Error("- %s has conflicting requirements:", conflict.Module)
+					var conflictItems []string
 					for constraint, requirers := range conflict.Requirements {
-						cmd.Printf("  - %s required by: %s\n", constraint, strings.Join(requirers, ", "))
+						conflictItems = append(conflictItems, fmt.Sprintf("  %s required by: %s", constraint, strings.Join(requirers, ", ")))
 					}
+					ui.List(conflictItems)
 				}
 			}
 
@@ -1052,6 +1085,7 @@ func newBundleCommand() *cobra.Command {
 		Long:  "Export the list of installed modules to a file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			outputPath := args[0]
 
 			// Get options from flags
@@ -1089,13 +1123,13 @@ func newBundleCommand() *cobra.Command {
 			}
 
 			// Export the bundle
-			cmd.Printf("Exporting modules to bundle file %s...\n", outputPath)
+			ui.Info("Exporting modules to bundle file %s...", outputPath)
 			err := modules.ExportModuleBundle(options)
 			if err != nil {
 				return err
 			}
 
-			cmd.Printf("Successfully exported modules to %s\n", outputPath)
+			ui.Success("Successfully exported modules to %s", outputPath)
 			return nil
 		},
 	}
@@ -1115,6 +1149,7 @@ func newBundleCommand() *cobra.Command {
 		Long:  "Install modules from a bundle file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			inputPath := args[0]
 
 			// Get configuration
@@ -1211,13 +1246,16 @@ func newBundleCommand() *cobra.Command {
 			}
 
 			// Display bundle info
-			cmd.Printf("Bundle: %s\n", bundle.Name)
-			if bundle.Description != "" {
-				cmd.Printf("Description: %s\n", bundle.Description)
+			bundleInfo := map[string]string{
+				"Bundle":       bundle.Name,
+				"Created":      bundle.Created.Format("2006-01-02 15:04:05"),
+				"Perl Version": bundle.PerlVersion,
+				"Modules":      fmt.Sprintf("%d", len(bundle.Modules)),
 			}
-			cmd.Printf("Created: %s\n", bundle.Created.Format("2006-01-02 15:04:05"))
-			cmd.Printf("Perl Version: %s\n", bundle.PerlVersion)
-			cmd.Printf("Modules: %d\n\n", len(bundle.Modules))
+			if bundle.Description != "" {
+				bundleInfo["Description"] = bundle.Description
+			}
+			ui.KeyValue(bundleInfo)
 
 			// Install each module
 			successCount := 0
@@ -1226,7 +1264,7 @@ func newBundleCommand() *cobra.Command {
 			for i, mod := range bundle.Modules {
 				// Skip optional modules if not explicitly requested
 				if mod.IsOptional {
-					cmd.Printf("Skipping optional module %s\n", mod.Name)
+					ui.Info("Skipping optional module %s", mod.Name)
 					continue
 				}
 
@@ -1245,45 +1283,52 @@ func newBundleCommand() *cobra.Command {
 					DependencyResolver: resolver,
 					ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
 						if verbose {
-							cmd.Printf("[%s] %s: %s (%.0f%%)\n", stage.String(), module, details, progress*100)
+							ui.Info("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
 						} else if stage != modules.StageFinished {
 							// Only show major stage transitions if not verbose
-							cmd.Printf("[%s] %s\n", stage.String(), module)
+							ui.Info("[%s] %s", stage.String(), module)
 						}
 					},
 					Context: cmd.Context(),
 				}
 
 				// Show progress
-				cmd.Printf("Installing module %s (%d/%d)...\n", mod.Name, i+1, len(bundle.Modules))
+				ui.Info("Installing module %s (%d/%d)...", mod.Name, i+1, len(bundle.Modules))
 
 				// Install the module
 				result, err := modules.InstallModule(installOptions)
 
 				if err != nil {
-					cmd.Printf("Failed to install %s: %v\n", mod.Name, err)
+					ui.Error("Failed to install %s: %v", mod.Name, err)
 					failCount++
 					continue
 				}
 
 				// Display result
 				if result.Success {
-					cmd.Printf("Successfully installed %s v%s\n", result.ModuleName, result.Version)
+					ui.Success("Successfully installed %s v%s", result.ModuleName, result.Version)
 					successCount++
 				} else {
-					cmd.Printf("Failed to install %s\n", mod.Name)
+					ui.Error("Failed to install %s", mod.Name)
 					failCount++
 					if len(result.Errors) > 0 {
-						cmd.Println("Errors:")
+						var errorList []string
 						for _, err := range result.Errors {
-							cmd.Printf("  - %s\n", err)
+							errorList = append(errorList, err)
 						}
+						ui.Error("Errors:")
+						ui.List(errorList)
 					}
 				}
 			}
 
 			// Summary
-			cmd.Printf("\nBundle import summary: %d succeeded, %d failed\n", successCount, failCount)
+			summaryInfo := map[string]string{
+				"Succeeded": fmt.Sprintf("%d", successCount),
+				"Failed":    fmt.Sprintf("%d", failCount),
+			}
+			ui.Info("Bundle import summary:")
+			ui.KeyValue(summaryInfo)
 			if failCount > 0 {
 				return fmt.Errorf("%d module installations failed", failCount)
 			}
@@ -1332,6 +1377,8 @@ func newMirrorCommand() *cobra.Command {
 		Short: "Set/get CPAN mirror",
 		Long:  "Set or display the current CPAN mirror URL",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Get configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
@@ -1345,23 +1392,31 @@ func newMirrorCommand() *cobra.Command {
 
 			// List current mirrors
 			if list || (len(args) == 0 && !add) {
-				cmd.Println("Current CPAN mirrors:")
+				ui.SubHeader("Current CPAN mirrors:")
+
+				mirrorInfo := map[string]string{}
 
 				// Show default mirror
 				if cfg.PVI.DefaultMirror != "" {
-					cmd.Printf("Default: %s\n", cfg.PVI.DefaultMirror)
+					mirrorInfo["Default"] = cfg.PVI.DefaultMirror
 				} else {
-					cmd.Println("Default: <not set> (using MetaCPAN API default)")
+					mirrorInfo["Default"] = "<not set> (using MetaCPAN API default)"
 				}
+
+				ui.KeyValue(mirrorInfo)
 
 				// Show additional mirrors
 				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					cmd.Println("\nAdditional mirrors:")
+					var additionalMirrors []string
 					for i, mirror := range cfg.PVI.AdditionalMirrors {
-						cmd.Printf("[%d] %s\n", i+1, mirror)
+						additionalMirrors = append(additionalMirrors, fmt.Sprintf("[%d] %s", i+1, mirror))
 					}
+					ui.ListWithOptions(uipkg.ListOptions{
+						Title: "Additional mirrors",
+						Items: additionalMirrors,
+					})
 				} else {
-					cmd.Println("\nNo additional mirrors configured.")
+					ui.Info("No additional mirrors configured.")
 				}
 
 				return nil
@@ -1380,11 +1435,11 @@ func newMirrorCommand() *cobra.Command {
 				if add {
 					// Add as additional mirror
 					cfg.PVI.AdditionalMirrors = append(cfg.PVI.AdditionalMirrors, mirrorURL)
-					cmd.Printf("Added %s as additional mirror\n", mirrorURL)
+					ui.Success("Added %s as additional mirror", mirrorURL)
 				} else {
 					// Set as default mirror
 					cfg.PVI.DefaultMirror = mirrorURL
-					cmd.Printf("Set %s as default mirror\n", mirrorURL)
+					ui.Success("Set %s as default mirror", mirrorURL)
 				}
 
 				// Save configuration
@@ -1422,6 +1477,8 @@ func newOutdatedCommand() *cobra.Command {
 		Short: "Show outdated modules",
 		Long:  "List installed modules that have newer versions available",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Process pattern from args if provided
 			if len(args) > 0 {
 				pattern = args[0]
@@ -1513,7 +1570,7 @@ func newOutdatedCommand() *cobra.Command {
 
 			// Display results
 			if len(outdatedModules) == 0 {
-				cmd.Println("All modules are up to date")
+				ui.Info("All modules are up to date")
 				return nil
 			}
 
@@ -1525,28 +1582,36 @@ func newOutdatedCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				cmd.Println(string(jsonData))
+				ui.Println(string(jsonData))
 
 			case "simple":
 				// Output as simple name/version
+				var simpleList []string
 				for _, module := range outdatedModules {
-					cmd.Printf("%s %s -> %s\n", module.Name, module.InstalledVersion, module.LatestVersion)
+					simpleList = append(simpleList, fmt.Sprintf("%s %s -> %s", module.Name, module.InstalledVersion, module.LatestVersion))
 				}
+				ui.List(simpleList)
 
 			default:
 				// Default tabular format
-				cmd.Printf("Found %d outdated modules\n\n", len(outdatedModules))
-				cmd.Printf("%-40s %-15s %-15s\n", "Module", "Installed", "Latest")
-				cmd.Printf("%s\n", strings.Repeat("-", 72))
+				ui.SubHeader(fmt.Sprintf("Found %d outdated modules", len(outdatedModules)))
 
+				headers := []string{"Module", "Installed", "Latest"}
+				var rows [][]string
 				for _, module := range outdatedModules {
-					cmd.Printf("%-40s %-15s %-15s\n", module.Name, module.InstalledVersion, module.LatestVersion)
+					rows = append(rows, []string{module.Name, module.InstalledVersion, module.LatestVersion})
 				}
+				ui.Table(headers, rows)
 
 				// Add update command hint
-				cmd.Println("\nTo update these modules, run:")
-				cmd.Println("  pvi update --all    # Update all outdated modules")
-				cmd.Println("  pvi update [module] # Update specific module")
+				updateHints := []string{
+					"pvi update --all    # Update all outdated modules",
+					"pvi update [module] # Update specific module",
+				}
+				ui.ListWithOptions(uipkg.ListOptions{
+					Title: "To update these modules, run:",
+					Items: updateHints,
+				})
 			}
 
 			return nil
@@ -1579,6 +1644,7 @@ func newAddCommand() *cobra.Command {
 		Long:  "Add a CPAN module dependency to the project's cpanfile and install it to the project lib directory",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			moduleName := args[0]
 
 			// Detect project context
@@ -1595,14 +1661,16 @@ func newAddCommand() *cobra.Command {
 			cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
 			cpanfileManager := NewCpanfileManager(cpanfilePath)
 
-			cmd.Printf("Adding %s to cpanfile", moduleName)
+			// Build the "Adding module" message
+			addMsg := fmt.Sprintf("Adding %s to cpanfile", moduleName)
 			if dev {
-				cmd.Print(" (development dependency)")
+				addMsg += " (development dependency)"
 			}
 			if version != "" {
-				cmd.Printf(" with version constraint '%s'", version)
+				addMsg += fmt.Sprintf(" with version constraint '%s'", version)
 			}
-			cmd.Println("...")
+			addMsg += "..."
+			ui.Info("%s", addMsg)
 
 			// Add to cpanfile first
 			err = cpanfileManager.AddDependency(moduleName, version, dev)
@@ -1610,10 +1678,10 @@ func newAddCommand() *cobra.Command {
 				return fmt.Errorf("failed to add dependency to cpanfile: %w", err)
 			}
 
-			cmd.Printf("Added %s to cpanfile\n", moduleName)
+			ui.Success("Added %s to cpanfile", moduleName)
 
 			// Now install the module to project lib directory
-			cmd.Printf("Installing %s to project lib directory...\n", moduleName)
+			ui.Info("Installing %s to project lib directory...", moduleName)
 
 			// Get configuration
 			cfg, err := config.LoadEffectiveConfig()
@@ -1685,9 +1753,9 @@ func newAddCommand() *cobra.Command {
 				DependencyResolver: resolver,
 				ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
 					if verbose {
-						cmd.Printf("[%s] %s: %s (%.0f%%)\n", stage.String(), module, details, progress*100)
+						ui.Debug("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
 					} else if stage != modules.StageFinished {
-						cmd.Printf("[%s] %s\n", stage.String(), module)
+						ui.Info("[%s] %s", stage.String(), module)
 					}
 				},
 				Context: cmd.Context(),
@@ -1696,23 +1764,23 @@ func newAddCommand() *cobra.Command {
 			result, err := modules.InstallModule(installOptions)
 			if err != nil {
 				// If installation fails, remove from cpanfile
-				cmd.Printf("Installation failed, removing %s from cpanfile...\n", moduleName)
+				ui.Warning("Installation failed, removing %s from cpanfile...", moduleName)
 				if removeErr := cpanfileManager.RemoveDependency(moduleName); removeErr != nil {
-					cmd.Printf("Warning: failed to remove %s from cpanfile: %v\n", moduleName, removeErr)
+					ui.Warning("Failed to remove %s from cpanfile: %v", moduleName, removeErr)
 				}
 				return fmt.Errorf("failed to install %s: %w", moduleName, err)
 			}
 
 			if result.Success {
-				cmd.Printf("Successfully added and installed %s v%s\n", result.ModuleName, result.Version)
+				ui.Success("Successfully added and installed %s v%s", result.ModuleName, result.Version)
 				if len(result.Dependencies) > 0 {
-					cmd.Printf("Installed %d dependencies\n", len(result.Dependencies))
+					ui.Info("Installed %d dependencies", len(result.Dependencies))
 				}
 			} else {
 				// Remove from cpanfile if installation wasn't successful
-				cmd.Printf("Installation not successful, removing %s from cpanfile...\n", moduleName)
+				ui.Warning("Installation not successful, removing %s from cpanfile...", moduleName)
 				if removeErr := cpanfileManager.RemoveDependency(moduleName); removeErr != nil {
-					cmd.Printf("Warning: failed to remove %s from cpanfile: %v\n", moduleName, removeErr)
+					ui.Warning("Failed to remove %s from cpanfile: %v", moduleName, removeErr)
 				}
 				return fmt.Errorf("failed to install %s", moduleName)
 			}
@@ -1775,6 +1843,7 @@ Use --from-snapshot to install exact versions from an existing cpanfile.snapshot
 
 // generateSnapshot creates a cpanfile.snapshot from currently installed modules
 func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, verbose bool) error {
+	ui := cli.GetUI(cmd)
 	cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
 	snapshotPath := filepath.Join(projectCtx.RootDir, "cpanfile.snapshot")
 
@@ -1783,7 +1852,7 @@ func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, ve
 		return fmt.Errorf("cpanfile not found. Use 'pvm module add <module>' to add dependencies first")
 	}
 
-	cmd.Println("Generating cpanfile.snapshot from installed modules...")
+	ui.Info("Generating cpanfile.snapshot from installed modules...")
 
 	// Create cpanfile manager
 	cpanfileManager := NewCpanfileManager(cpanfilePath)
@@ -1800,19 +1869,28 @@ func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, ve
 		return fmt.Errorf("failed to write snapshot: %w", err)
 	}
 
-	cmd.Printf("Generated cpanfile.snapshot with %d distributions\n", len(snapshot.Distributions))
+	ui.Success("Generated cpanfile.snapshot with %d distributions", len(snapshot.Distributions))
 	if verbose {
-		cmd.Printf("Snapshot saved to: %s\n", snapshotPath)
-		cmd.Printf("Perl version: %s\n", snapshot.PerlVersion)
-		cmd.Println("Distributions:")
+		snapshotInfo := map[string]string{
+			"Snapshot saved to": snapshotPath,
+			"Perl version":      snapshot.PerlVersion,
+		}
+		ui.KeyValue(snapshotInfo)
+
+		var distList []string
 		for distName, entry := range snapshot.Distributions {
-			cmd.Printf("  %s (%s)\n", distName, entry.Pathname)
+			distInfo := fmt.Sprintf("%s (%s)", distName, entry.Pathname)
 			if verbose {
 				for module, version := range entry.Provides {
-					cmd.Printf("    provides: %s %s\n", module, version)
+					distInfo += fmt.Sprintf("\n    provides: %s %s", module, version)
 				}
 			}
+			distList = append(distList, distInfo)
 		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Distributions",
+			Items: distList,
+		})
 	}
 
 	return nil
@@ -1820,6 +1898,7 @@ func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, ve
 
 // installFromSnapshot installs exact versions from cpanfile.snapshot
 func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, verbose bool) error {
+	ui := cli.GetUI(cmd)
 	cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
 	snapshotPath := filepath.Join(projectCtx.RootDir, "cpanfile.snapshot")
 
@@ -1828,7 +1907,7 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 		return fmt.Errorf("cpanfile.snapshot not found. Run 'pvm module sync' to generate one")
 	}
 
-	cmd.Println("Installing modules from cpanfile.snapshot...")
+	ui.Info("Installing modules from cpanfile.snapshot...")
 
 	// Create cpanfile manager
 	cpanfileManager := NewCpanfileManager(cpanfilePath)
@@ -1839,17 +1918,22 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 		return fmt.Errorf("failed to read snapshot: %w", err)
 	}
 
-	cmd.Printf("Found %d distributions in snapshot\n", len(snapshot.Distributions))
+	ui.Info("Found %d distributions in snapshot", len(snapshot.Distributions))
 	if verbose {
-		cmd.Printf("Snapshot Perl version: %s\n", snapshot.PerlVersion)
-		cmd.Printf("Generated at: %s\n", snapshot.GeneratedAt.Format("2006-01-02 15:04:05"))
+		snapshotInfo := map[string]string{
+			"Snapshot Perl version": snapshot.PerlVersion,
+			"Generated at":          snapshot.GeneratedAt.Format("2006-01-02 15:04:05"),
+		}
+		ui.KeyValue(snapshotInfo)
 	}
 
 	// For each distribution in snapshot, install the exact version
+	var installList []string
 	for distName, entry := range snapshot.Distributions {
-		cmd.Printf("Installing %s...\n", distName)
+		ui.Info("Installing %s...", distName)
+		installInfo := fmt.Sprintf("%s", distName)
 		if verbose {
-			cmd.Printf("  Pathname: %s\n", entry.Pathname)
+			installInfo += fmt.Sprintf(" (Pathname: %s)", entry.Pathname)
 		}
 
 		// In a real implementation, you would:
@@ -1857,16 +1941,24 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 		// 2. Install it to the project lib directory
 		// 3. Verify the installation
 
-		// For now, we'll just print what would be installed
+		// For now, we'll just collect what would be installed
 		for module, version := range entry.Provides {
 			if verbose {
-				cmd.Printf("  Would install: %s version %s\n", module, version)
+				installInfo += fmt.Sprintf("\n  Would install: %s version %s", module, version)
 			}
 		}
+		installList = append(installList, installInfo)
 	}
 
-	cmd.Println("Installation from snapshot completed successfully")
-	cmd.Println("Note: Actual installation from snapshot is not yet fully implemented")
+	if verbose && len(installList) > 0 {
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Installation Plan",
+			Items: installList,
+		})
+	}
+
+	ui.Success("Installation from snapshot completed successfully")
+	ui.Warning("Note: Actual installation from snapshot is not yet fully implemented")
 
 	return nil
 }
