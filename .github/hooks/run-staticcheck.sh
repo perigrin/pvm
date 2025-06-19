@@ -13,8 +13,12 @@ fi
 # Run staticcheck with reasonable settings for pre-commit
 echo "Running staticcheck static analyzer..."
 
+# Use staticcheck cache for better performance
+export STATICCHECK_CACHE=$(mktemp -d)
+trap "rm -rf $STATICCHECK_CACHE" EXIT
+
 # Run staticcheck but don't fail on findings - just report them
-if ! staticcheck ./...; then
+if ! staticcheck -cache "$STATICCHECK_CACHE" ./...; then
     echo ""
     echo "⚠️  staticcheck found issues (shown above)"
     echo "💡 Review the findings and fix issues before committing"
