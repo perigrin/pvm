@@ -61,7 +61,8 @@ func newConfigShowCommand() *cobra.Command {
 					"Failed to display configuration", err)
 			}
 
-			fmt.Println(output)
+			ui := cli.GetUI(cmd)
+			ui.Printf("%s", output)
 			return nil
 		},
 	}
@@ -119,7 +120,8 @@ func newConfigGetCommand() *cobra.Command {
 			}
 
 			// Print the value
-			fmt.Println(result)
+			ui := cli.GetUI(cmd)
+			ui.Printf("%v\n", result)
 			return nil
 		},
 	}
@@ -679,15 +681,16 @@ func newConfigValidateCommand() *cobra.Command {
 			// Validate with schema
 			validationErrors := validator.ValidateConfig(cfg)
 
+			ui := cli.GetUI(cmd)
 			if len(validationErrors) == 0 {
-				fmt.Println("Configuration is valid ✓")
+				ui.Success("Configuration is valid ✓")
 				return nil
 			}
 
 			// Report validation errors
-			fmt.Printf("Configuration validation failed with %d errors:\n", len(validationErrors))
+			ui.Error("Configuration validation failed with %d errors:", len(validationErrors))
 			for i, err := range validationErrors {
-				fmt.Printf("  %d. %s\n", i+1, err.Error())
+				ui.Error("  %d. %s", i+1, err.Error())
 			}
 
 			return errors.NewConfigError("200", "Configuration validation failed", nil)
@@ -726,14 +729,15 @@ func newConfigDiffCommand() *cobra.Command {
 			detector := config.NewConflictDetector()
 			conflicts := detector.DetectConflicts(compareConfig, effectiveConfig)
 
+			ui := cli.GetUI(cmd)
 			if len(conflicts) == 0 {
-				fmt.Println("No differences found")
+				ui.Info("No differences found")
 				return nil
 			}
 
-			fmt.Printf("Found %d differences:\n", len(conflicts))
+			ui.Info("Found %d differences:", len(conflicts))
 			for _, conflict := range conflicts {
-				fmt.Printf("  %s: %v → %v (%s)\n",
+				ui.Info("  %s: %v → %v (%s)",
 					conflict.Path,
 					conflict.TargetValue,
 					conflict.SourceValue,
@@ -972,7 +976,8 @@ func newConfigSourcesCommand() *cobra.Command {
 					"Failed to display configuration sources", err)
 			}
 
-			fmt.Print(output)
+			ui := cli.GetUI(cmd)
+			ui.Printf("%s", strings.TrimSpace(output))
 			return nil
 		},
 	}
@@ -1008,7 +1013,8 @@ func newConfigBackupCommand() *cobra.Command {
 					"Failed to backup configuration", err)
 			}
 
-			fmt.Printf("Configuration backed up to: %s\n", backupDir)
+			ui := cli.GetUI(cmd)
+			ui.Success("Configuration backed up to: %s", backupDir)
 			return nil
 		},
 	}
@@ -1034,7 +1040,8 @@ func newConfigRestoreCommand() *cobra.Command {
 					"Failed to restore configuration", err)
 			}
 
-			fmt.Printf("Configuration restored from: %s\n", backupFile)
+			ui := cli.GetUI(cmd)
+			ui.Success("Configuration restored from: %s", backupFile)
 			return nil
 		},
 	}
@@ -1070,14 +1077,15 @@ func newConfigListBackupsCommand() *cobra.Command {
 					"Failed to list backups", err)
 			}
 
+			ui := cli.GetUI(cmd)
 			if len(backups) == 0 {
-				fmt.Println("No backups found")
+				ui.Info("No backups found")
 				return nil
 			}
 
-			fmt.Printf("Available backups in %s:\n", backupDir)
+			ui.Info("Available backups in %s:", backupDir)
 			for _, backup := range backups {
-				fmt.Printf("  %s\n", backup)
+				ui.Info("  %s", backup)
 			}
 
 			return nil

@@ -286,11 +286,12 @@ func newInstallCommand() *cobra.Command {
 					progressBar += "]"
 
 					// Clear line and show progress
-					fmt.Printf("\r%s %.1f%%                    ",
+					ui := cli.GetUI(cmd)
+					ui.Printf("\r%s %.1f%%                    ",
 						progressBar, progress*100)
 
 					if progress >= 1.0 {
-						fmt.Println()
+						ui.Println()
 					}
 				}
 			}
@@ -930,11 +931,12 @@ func newDownloadCommand() *cobra.Command {
 					progressBar += "]"
 
 					// Clear line and show progress
-					fmt.Printf("\r%s %.1f%% (%d/%d bytes)                    ",
+					ui := cli.GetUI(cmd)
+					ui.Printf("\r%s %.1f%% (%d/%d bytes)                    ",
 						progressBar, percentage, transferred, total)
 
 					if done {
-						fmt.Println()
+						ui.Println()
 					}
 				}
 			}
@@ -1170,12 +1172,13 @@ func newRehashCommand() *cobra.Command {
 			}
 
 			// Show success message
-			fmt.Println("Shim executables rebuilt successfully.")
+			ui := cli.GetUI(cmd)
+			ui.Success("Shim executables rebuilt successfully.")
 
 			// Warn if PATH is not configured
 			if !pathConfigured {
-				cmd.Println("\nWarning: The shim directory is not in your PATH.")
-				cmd.Printf("To use pvm, add the following directory to your PATH:\n%s\n", shimDir)
+				ui.Warning("The shim directory is not in your PATH.")
+				ui.Printf("To use pvm, add the following directory to your PATH:\n%s\n", shimDir)
 
 				// Get the command to add to PATH
 				pathCmd, err := perl.GetPathConfigCommand()
@@ -1342,11 +1345,12 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 			progressBar += "]"
 
 			// Clear line and show progress
-			fmt.Printf("\r%s %.1f%%                    ",
+			ui := cli.GetUI(cmd)
+			ui.Printf("\r%s %.1f%%                    ",
 				progressBar, progress*100)
 
 			if progress >= 1.0 {
-				fmt.Println()
+				ui.Println()
 			}
 		}
 	}
@@ -1465,7 +1469,8 @@ func newInitCommand() *cobra.Command {
 			}
 
 			// Print the script to stdout (for eval)
-			fmt.Print(script)
+			ui := cli.GetUI(cmd)
+			ui.Printf("%s", script)
 			return nil
 		},
 	}
@@ -1495,7 +1500,8 @@ func newShellCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Println("Shell integration initialized")
+				ui := cli.GetUI(cmd)
+				ui.Success("Shell integration initialized")
 				return nil
 			},
 		},
@@ -2149,7 +2155,7 @@ func runTool(cmd *cobra.Command, toolName string, toolArgs []string) error {
 	}
 
 	// Print output
-	fmt.Print(output)
+	fmt.Print(output) // Keep as-is for tool output passthrough
 	return nil
 }
 
