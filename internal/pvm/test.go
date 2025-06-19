@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/pvx"
 )
@@ -55,6 +57,8 @@ func newTestCommand() *cobra.Command {
 		Short: "Run project tests",
 		Long:  "Run tests with project-aware environment setup and proper module paths",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Get flags
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			parallel, _ := cmd.Flags().GetBool("parallel")
@@ -79,7 +83,7 @@ func newTestCommand() *cobra.Command {
 				return fmt.Errorf("failed to detect project context: %w", err)
 			}
 			if !projectCtx.IsProject {
-				cmd.Println("Warning: Not in a project directory. Tests will run without project-specific configuration.")
+				ui.Warning("Not in a project directory. Tests will run without project-specific configuration.")
 			}
 
 			// Create test runner
@@ -99,24 +103,24 @@ func newTestCommand() *cobra.Command {
 			}
 
 			if len(testFiles) == 0 {
-				cmd.Println("No tests found.")
+				ui.Info("No tests found.")
 				if projectCtx.IsProject {
-					cmd.Printf("Looked in: %s\n", filepath.Join(projectCtx.RootDir, "t"))
+					ui.Info("Looked in: %s", filepath.Join(projectCtx.RootDir, "t"))
 				} else {
-					cmd.Println("Looked in: ./t")
+					ui.Info("Looked in: ./t")
 				}
 				return nil
 			}
 
 			// Execute tests
-			cmd.Printf("Running %d test(s)...\n", len(testFiles))
+			ui.Status(fmt.Sprintf("Running %d test(s)...", len(testFiles)))
 			summary, err := runner.ExecuteTests(testFiles)
 			if err != nil {
 				return fmt.Errorf("test execution failed: %w", err)
 			}
 
 			// Report results
-			runner.ReportResults(cmd, summary)
+			runner.ReportResults(ui, summary)
 
 			// Exit with appropriate code
 			if summary.FailedTests > 0 {
@@ -318,24 +322,28 @@ func (tr *TestRunner) parseTestCount(output string) int {
 }
 
 // ReportResults prints test execution results
-func (tr *TestRunner) ReportResults(cmd *cobra.Command, summary *TestSummary) {
-	cmd.Println()
-	cmd.Println("=== TEST RESULTS ===")
+func (tr *TestRunner) ReportResults(output *ui.Output, summary *TestSummary) {
+	output.Println("")
+	output.Header("TEST RESULTS")
 
 	// Show individual test results if verbose or if there are failures
 	if tr.Verbose || summary.FailedTests > 0 {
 		for _, result := range summary.Results {
-			status := "PASS"
-			if result.Failed {
-				status = "FAIL"
-			} else if result.Skipped {
-				status = "SKIP"
-			}
+			var status string
+			resultLine := fmt.Sprintf("%s (%s)", result.File, result.Duration.Round(time.Millisecond))
 
-			cmd.Printf("%-8s %s (%s)\n", status, result.File, result.Duration.Round(time.Millisecond))
+			switch {
+			case result.Failed:
+				status = "FAIL"
+			case result.Skipped:
+				status = "SKIP"
+			default:
+				status = "PASS"
+			}
+			output.Printf("%-8s %s\n", status, resultLine)
 
 			if result.Failed && result.Error != "" {
-				cmd.Printf("         Error: %s\n", result.Error)
+				output.Printf("         Error: %s\n", result.Error)
 			}
 
 			if tr.Verbose && result.Output != "" {
@@ -344,41 +352,42 @@ func (tr *TestRunner) ReportResults(cmd *cobra.Command, summary *TestSummary) {
 				maxLines := 5
 				if len(lines) > maxLines {
 					for i := 0; i < maxLines; i++ {
-						cmd.Printf("         %s\n", lines[i])
+						output.Printf("         %s\n", lines[i])
 					}
-					cmd.Printf("         ... (%d more lines)\n", len(lines)-maxLines)
+					output.Printf("         ... (%d more lines)\n", len(lines)-maxLines)
 				} else {
 					for _, line := range lines {
 						if strings.TrimSpace(line) != "" {
-							cmd.Printf("         %s\n", line)
+							output.Printf("         %s\n", line)
 						}
 					}
 				}
 			}
 		}
-		cmd.Println()
+		output.Println("")
 	}
 
 	// Summary statistics
-	cmd.Printf("Tests: %d total, %d passed, %d failed, %d skipped\n",
+	output.Info("Tests: %d total, %d passed, %d failed, %d skipped",
 		summary.TotalTests, summary.PassedTests, summary.FailedTests, summary.SkippedTests)
-	cmd.Printf("Time:  %s\n", summary.TotalTime.Round(time.Millisecond))
+	output.Info("Time:  %s", summary.TotalTime.Round(time.Millisecond))
 
 	// Show project context information
 	if tr.ProjectCtx.IsProject {
-		cmd.Printf("Project: %s\n", tr.ProjectCtx.RootDir)
+		output.Info("Project: %s", tr.ProjectCtx.RootDir)
 		if tr.ProjectCtx.PerlVersion != "" {
-			cmd.Printf("Perl version: %s\n", tr.ProjectCtx.PerlVersion)
+			output.Info("Perl version: %s", tr.ProjectCtx.PerlVersion)
 		}
 	}
 
 	// Final result
+	output.Println("")
 	switch {
 	case summary.FailedTests > 0:
-		cmd.Printf("\nResult: FAILED\n")
+		output.Error("Result: FAILED")
 	case summary.PassedTests > 0:
-		cmd.Printf("\nResult: PASSED\n")
+		output.Success("Result: PASSED")
 	default:
-		cmd.Printf("\nResult: NO TESTS RUN\n")
+		output.Warning("Result: NO TESTS RUN")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/perl"
@@ -40,17 +41,21 @@ func newVersionParseCommand() *cobra.Command {
 		Long:  "Parse a version string into its components",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			version, err := perl.ParseVersion(args[0])
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("Version:     %s\n", version.String())
-			fmt.Printf("Major:       %d\n", version.Major)
-			fmt.Printf("Minor:       %d\n", version.Minor)
-			fmt.Printf("Patch:       %d\n", version.Patch)
-			fmt.Printf("Development: %t\n", version.Dev)
-			fmt.Printf("Stable:      %t\n", version.IsStable())
+			ui.KeyValue(map[string]string{
+				"Version":     version.String(),
+				"Major":       fmt.Sprintf("%d", version.Major),
+				"Minor":       fmt.Sprintf("%d", version.Minor),
+				"Patch":       fmt.Sprintf("%d", version.Patch),
+				"Development": fmt.Sprintf("%t", version.Dev),
+				"Stable":      fmt.Sprintf("%t", version.IsStable()),
+			})
 
 			return nil
 		},
@@ -65,6 +70,8 @@ func newVersionCompareCommand() *cobra.Command {
 		Long:  "Compare two versions and determine their relationship",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			v1, err := perl.ParseVersion(args[0])
 			if err != nil {
 				return errors.NewVersionError("001",
@@ -88,7 +95,7 @@ func newVersionCompareCommand() *cobra.Command {
 				relationship = "equal to"
 			}
 
-			fmt.Printf("%s is %s %s\n", v1.String(), relationship, v2.String())
+			ui.Info("%s is %s %s", v1.String(), relationship, v2.String())
 			return nil
 		},
 	}
@@ -102,6 +109,8 @@ func newVersionSatisfiesCommand() *cobra.Command {
 		Long:  "Check if a version meets the specified version constraints",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			version, err := perl.ParseVersion(args[0])
 			if err != nil {
 				return errors.NewVersionError("003",
@@ -116,9 +125,9 @@ func newVersionSatisfiesCommand() *cobra.Command {
 
 			satisfies := constraints.Satisfies(version)
 			if satisfies {
-				fmt.Printf("%s satisfies %s\n", version.String(), constraints.String())
+				ui.Success("%s satisfies %s", version.String(), constraints.String())
 			} else {
-				fmt.Printf("%s does NOT satisfy %s\n", version.String(), constraints.String())
+				ui.Error("%s does NOT satisfy %s", version.String(), constraints.String())
 			}
 
 			return nil
@@ -134,6 +143,8 @@ func newVersionAliasCommand() *cobra.Command {
 		Long:  "Resolve a version alias to an actual version",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Load configuration to get aliases
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
@@ -157,7 +168,10 @@ func newVersionAliasCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Alias: %s\nVersion: %s\n", alias, version)
+			ui.KeyValue(map[string]string{
+				"Alias":   alias,
+				"Version": version,
+			})
 			return nil
 		},
 	}

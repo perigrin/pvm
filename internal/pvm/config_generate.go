@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/xdg"
 )
@@ -68,7 +69,7 @@ Examples:
 
 			// Handle list command
 			if listItems {
-				return listTemplatesAndProfiles(templateManager, profileManager)
+				return listTemplatesAndProfiles(cmd, templateManager, profileManager)
 			}
 
 			// Validate arguments
@@ -100,19 +101,20 @@ Examples:
 
 			// Generate configuration
 			var generatedConfig *config.Config
+			ui := cli.GetUI(cmd)
 
 			if templateName != "" {
 				generatedConfig, err = templateManager.RenderTemplate(templateName, parsedVariables)
 				if err != nil {
 					return fmt.Errorf("failed to render template '%s': %w", templateName, err)
 				}
-				fmt.Printf("Generated configuration from template '%s'\n", templateName)
+				ui.Info("Generated configuration from template '%s'", templateName)
 			} else {
 				generatedConfig, err = profileManager.ResolveProfile(profileName, parsedVariables)
 				if err != nil {
 					return fmt.Errorf("failed to resolve profile '%s': %w", profileName, err)
 				}
-				fmt.Printf("Generated configuration from profile '%s'\n", profileName)
+				ui.Info("Generated configuration from profile '%s'", profileName)
 			}
 
 			// Save to output file
@@ -120,7 +122,7 @@ Examples:
 				return fmt.Errorf("failed to save configuration: %w", err)
 			}
 
-			fmt.Printf("Configuration saved to '%s'\n", outputFile)
+			ui.Success("Configuration saved to '%s'", outputFile)
 			return nil
 		},
 	}
@@ -136,45 +138,47 @@ Examples:
 }
 
 // listTemplatesAndProfiles lists available templates and profiles
-func listTemplatesAndProfiles(templateManager *config.TemplateManager, profileManager *config.ProfileManager) error {
-	fmt.Println("Available Templates:")
+func listTemplatesAndProfiles(cmd *cobra.Command, templateManager *config.TemplateManager, profileManager *config.ProfileManager) error {
+	ui := cli.GetUI(cmd)
+
+	ui.Printf("Available Templates:\n")
 	templates := templateManager.ListTemplates()
 	if len(templates) == 0 {
-		fmt.Println("  (none)")
+		ui.Printf("  (none)\n")
 	} else {
 		for _, name := range templates {
 			template, _ := templateManager.GetTemplate(name)
-			fmt.Printf("  %s", name)
 			if template.Description != "" {
-				fmt.Printf(" - %s", template.Description)
+				ui.Printf("  %s - %s\n", name, template.Description)
+			} else {
+				ui.Printf("  %s\n", name)
 			}
-			fmt.Println()
 		}
 	}
 
-	fmt.Println("\nAvailable Profiles:")
+	ui.Printf("\nAvailable Profiles:\n")
 	profiles := profileManager.ListProfiles()
 	if len(profiles) == 0 {
-		fmt.Println("  (none)")
+		ui.Printf("  (none)\n")
 	} else {
 		for _, name := range profiles {
 			profile, _ := profileManager.GetProfile(name)
-			fmt.Printf("  %s (%s)", name, profile.Environment)
 			if profile.Description != "" {
-				fmt.Printf(" - %s", profile.Description)
+				ui.Printf("  %s (%s) - %s\n", name, profile.Environment, profile.Description)
+			} else {
+				ui.Printf("  %s (%s)\n", name, profile.Environment)
 			}
-			fmt.Println()
 		}
 	}
 
-	fmt.Println("\nEnvironments:")
+	ui.Printf("\nEnvironments:\n")
 	environments := profileManager.GetEnvironments()
 	if len(environments) == 0 {
-		fmt.Println("  (none)")
+		ui.Printf("  (none)\n")
 	} else {
 		for _, env := range environments {
 			envProfiles := profileManager.ListProfilesByEnvironment(env)
-			fmt.Printf("  %s: %v\n", env, envProfiles)
+			ui.Printf("  %s: %v\n", env, envProfiles)
 		}
 	}
 
