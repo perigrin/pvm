@@ -49,15 +49,14 @@ func newTypeListCommand() *cobra.Command {
 			}
 
 			// Print the list of modules
+			ui := cli.GetUI(cmd)
 			if len(modules) == 0 {
-				fmt.Println("No type definitions available.")
+				ui.Info("No type definitions available.")
 				return nil
 			}
 
-			fmt.Println("Available type definitions:")
-			for _, module := range modules {
-				fmt.Printf("  %s\n", module)
-			}
+			ui.SubHeader("Available type definitions:")
+			ui.List(modules)
 
 			return nil
 		},
@@ -99,19 +98,27 @@ func newTypeGetCommand() *cobra.Command {
 						err,
 					)
 				}
-				fmt.Println(string(data))
+				ui := cli.GetUI(cmd)
+				ui.Println(string(data))
 
 			case "summary":
 				// Print a summary of the type definition
-				fmt.Printf("Module: %s\n", typeDef.Module)
-				fmt.Printf("Version: %s\n", typeDef.Version)
-				fmt.Printf("Generated: %s\n", typeDef.Generated.Format(time.RFC3339))
-				fmt.Printf("Maintainer: %s\n", typeDef.Maintainer)
-				fmt.Printf("Source: %s\n", typeDef.Source)
-				fmt.Printf("Types: %d\n", len(typeDef.Types))
-				fmt.Printf("Packages: %d\n", len(typeDef.Packages))
-				fmt.Printf("Subroutines: %d\n", len(typeDef.Subs))
-				fmt.Printf("Methods: %d\n", len(typeDef.Methods))
+				ui := cli.GetUI(cmd)
+				ui.SubHeader(fmt.Sprintf("Type Definition Summary: %s", typeDef.Module))
+
+				// Create key-value pairs for display
+				info := map[string]string{
+					"Module":      typeDef.Module,
+					"Version":     typeDef.Version,
+					"Generated":   typeDef.Generated.Format(time.RFC3339),
+					"Maintainer":  typeDef.Maintainer,
+					"Source":      typeDef.Source,
+					"Types":       fmt.Sprintf("%d", len(typeDef.Types)),
+					"Packages":    fmt.Sprintf("%d", len(typeDef.Packages)),
+					"Subroutines": fmt.Sprintf("%d", len(typeDef.Subs)),
+					"Methods":     fmt.Sprintf("%d", len(typeDef.Methods)),
+				}
+				ui.KeyValue(info)
 
 			default:
 				return errors.NewUserInputError(cli.PrefixPVI, "101",
@@ -175,7 +182,8 @@ func newTypeAddCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Added type definition for %s\n", typeDef.Module)
+			ui := cli.GetUI(cmd)
+			ui.Success("Added type definition for %s", typeDef.Module)
 			return nil
 		},
 	}
@@ -204,7 +212,8 @@ func newTypeRemoveCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Removed type definition for %s\n", moduleName)
+			ui := cli.GetUI(cmd)
+			ui.Success("Removed type definition for %s", moduleName)
 			return nil
 		},
 	}
@@ -272,10 +281,12 @@ func newTypeGenerateCommand() *cobra.Command {
 						WithLocation(outputFile)
 				}
 
-				fmt.Printf("Generated type definition for %s to %s\n", moduleName, outputFile)
+				ui := cli.GetUI(cmd)
+				ui.Success("Generated type definition for %s to %s", moduleName, outputFile)
 			} else {
 				// Print to stdout
-				fmt.Println(string(data))
+				ui := cli.GetUI(cmd)
+				ui.Println(string(data))
 			}
 
 			// If auto-save is enabled, save the type definition
@@ -289,7 +300,8 @@ func newTypeGenerateCommand() *cobra.Command {
 					return err
 				}
 
-				fmt.Printf("Saved type definition for %s\n", moduleName)
+				ui := cli.GetUI(cmd)
+				ui.Success("Saved type definition for %s", moduleName)
 			}
 
 			return nil

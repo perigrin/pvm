@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
+	uipkg "tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/perl"
@@ -74,6 +76,7 @@ func newInstallCommand() *cobra.Command {
 		Short: "Install one or more modules",
 		Long:  "Install CPAN modules for the current Perl version. If no modules specified, installs from cpanfile. Supports parallel installation for multiple modules.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			var moduleNames []string
 
 			// If no modules specified, try to read from cpanfile
@@ -123,7 +126,7 @@ func newInstallCommand() *cobra.Command {
 					}
 				}
 
-				cmd.Printf("Installing %d modules from cpanfile...\n", len(moduleNames))
+				ui.Info("Installing %d modules from cpanfile...", len(moduleNames))
 
 				// Override installDir to use project lib directory
 				if installDir == "" {
@@ -232,9 +235,9 @@ func newInstallCommand() *cobra.Command {
 			if useParallel && len(moduleNames) > 1 {
 				// Parallel installation for multiple modules
 				if timing {
-					cmd.Printf("Installing %d modules in parallel with %d workers...\n", len(moduleNames), workers)
+					ui.Info("Installing %d modules in parallel with %d workers...", len(moduleNames), workers)
 				} else {
-					cmd.Printf("Installing %d modules in parallel...\n", len(moduleNames))
+					ui.Info("Installing %d modules in parallel...", len(moduleNames))
 				}
 
 				parallelOptions := &modules.ParallelInstallOptions{
@@ -263,44 +266,57 @@ func newInstallCommand() *cobra.Command {
 				duration := time.Since(startTime)
 
 				if err != nil {
-					cmd.Printf("Parallel installation failed: %v\n", err)
+					ui.Error("Parallel installation failed: %v", err)
 					return err
 				}
 
 				// Display results
-				cmd.Printf("\nInstallation Summary:\n")
-				cmd.Printf("  Modules: %d\n", len(moduleNames))
-				cmd.Printf("  Successful: %d\n", result.SuccessCount)
-				cmd.Printf("  Failed: %d\n", result.FailureCount)
-				if timing {
-					cmd.Printf("  Total time: %s\n", duration.Round(time.Millisecond))
-					cmd.Printf("  Average per module: %s\n", (duration / time.Duration(len(moduleNames))).Round(time.Millisecond))
+				ui.SubHeader("Installation Summary")
+				summary := map[string]string{
+					"Modules":    fmt.Sprintf("%d", len(moduleNames)),
+					"Successful": fmt.Sprintf("%d", result.SuccessCount),
+					"Failed":     fmt.Sprintf("%d", result.FailureCount),
 				}
+				if timing {
+					summary["Total time"] = duration.Round(time.Millisecond).String()
+					summary["Average per module"] = (duration / time.Duration(len(moduleNames))).Round(time.Millisecond).String()
+				}
+				ui.KeyValue(summary)
 
 				// Show successful installations
 				if len(result.Results) > 0 {
-					cmd.Println("\nSuccessful installations:")
+					var successList []string
 					for _, res := range result.Results {
 						if res.Success {
 							if timing {
-								cmd.Printf("  ✓ %s v%s (%s)\n", res.ModuleName, res.Version, res.Duration.Round(time.Millisecond))
+								successList = append(successList, fmt.Sprintf("✓ %s v%s (%s)", res.ModuleName, res.Version, res.Duration.Round(time.Millisecond)))
 							} else {
-								cmd.Printf("  ✓ %s v%s\n", res.ModuleName, res.Version)
+								successList = append(successList, fmt.Sprintf("✓ %s v%s", res.ModuleName, res.Version))
 							}
 						}
+					}
+					if len(successList) > 0 {
+						ui.ListWithOptions(uipkg.ListOptions{
+							Title: "Successful installations",
+							Items: successList,
+						})
 					}
 				}
 
 				// Show failures
 				if len(result.Failures) > 0 {
-					cmd.Println("\nFailed installations:")
+					var failureList []string
 					for _, failure := range result.Failures {
 						if timing {
-							cmd.Printf("  ✗ %s (%s): %v\n", failure.ModuleName, failure.Duration.Round(time.Millisecond), failure.Error)
+							failureList = append(failureList, fmt.Sprintf("✗ %s (%s): %v", failure.ModuleName, failure.Duration.Round(time.Millisecond), failure.Error))
 						} else {
-							cmd.Printf("  ✗ %s: %v\n", failure.ModuleName, failure.Error)
+							failureList = append(failureList, fmt.Sprintf("✗ %s: %v", failure.ModuleName, failure.Error))
 						}
 					}
+					ui.ListWithOptions(uipkg.ListOptions{
+						Title: "Failed installations",
+						Items: failureList,
+					})
 					return fmt.Errorf("%d modules failed to install", len(result.Failures))
 				}
 
@@ -309,50 +325,50 @@ func newInstallCommand() *cobra.Command {
 				moduleName := moduleNames[0]
 				installOptions.ModuleName = moduleName
 
-				cmd.Printf("Installing module %s...\n", moduleName)
+				ui.Info("Installing module %s...", moduleName)
 
 				startTime := time.Now()
 				result, err := modules.InstallModule(installOptions)
 				duration := time.Since(startTime)
 
 				if err != nil {
-					cmd.Printf("Failed to install %s: %v\n", moduleName, err)
+					ui.Error("Failed to install %s: %v", moduleName, err)
 					return err
 				}
 
 				// Display result
 				if result.Success {
 					if timing {
-						cmd.Printf("Successfully installed %s v%s (%s)\n", result.ModuleName, result.Version, duration.Round(time.Millisecond))
+						ui.Success("Successfully installed %s v%s (%s)", result.ModuleName, result.Version, duration.Round(time.Millisecond))
 					} else {
-						cmd.Printf("Successfully installed %s v%s\n", result.ModuleName, result.Version)
+						ui.Success("Successfully installed %s v%s", result.ModuleName, result.Version)
 					}
 
 					// Show installed dependencies count
 					if len(result.Dependencies) > 0 {
-						cmd.Printf("Installed %d dependencies\n", len(result.Dependencies))
+						ui.Info("Installed %d dependencies", len(result.Dependencies))
 					}
 
 					// Show warnings if any
 					if len(result.Warnings) > 0 && verbose {
-						cmd.Println("Warnings:")
-						for _, warning := range result.Warnings {
-							cmd.Printf("  - %s\n", warning)
-						}
+						ui.ListWithOptions(uipkg.ListOptions{
+							Title: "Warnings",
+							Items: result.Warnings,
+						})
 					}
 
 					if timing {
-						cmd.Printf("Total installation time: %s\n", duration.Round(time.Millisecond))
+						ui.Info("Total installation time: %s", duration.Round(time.Millisecond))
 					} else {
-						cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
+						ui.Info("Total installation time: %s", result.Duration.Round(time.Second))
 					}
 				} else {
-					cmd.Printf("Failed to install %s\n", moduleName)
+					ui.Error("Failed to install %s", moduleName)
 					if len(result.Errors) > 0 {
-						cmd.Println("Errors:")
-						for _, err := range result.Errors {
-							cmd.Printf("  - %s\n", err)
-						}
+						ui.ListWithOptions(uipkg.ListOptions{
+							Title: "Errors",
+							Items: result.Errors,
+						})
 					}
 					return fmt.Errorf("installation failed")
 				}
@@ -735,13 +751,19 @@ func newRemoveCommand() *cobra.Command {
 			}
 
 			// Remove the module
-			cmd.Printf("Removing module %s...\n", moduleName)
-			err := modules.RemoveModule(options)
+			ui := cli.GetUI(cmd)
+			ui.Info("Removing module %s...", moduleName)
+			result, err := modules.RemoveModule(options)
 			if err != nil {
 				return err
 			}
 
-			cmd.Printf("Successfully removed module %s\n", moduleName)
+			if result.Success {
+				ui.Success("Successfully removed module %s", result.ModuleName)
+				if verbose && result.Output != "" {
+					ui.Debug("Remove operation output:\n%s", result.Output)
+				}
+			}
 			return nil
 		},
 	}
