@@ -71,7 +71,7 @@ jobs:
         npm install -g tree-sitter-cli
 
     - name: Install system dependencies (macOS)
-      if: matrix.runner == 'macos-latest'
+      if: startsWith(matrix.runner, 'macos-')
       run: |
         npm install -g tree-sitter-cli
         xcode-select --install 2>/dev/null || true
@@ -117,6 +117,7 @@ jobs:
       run: |
         echo "Testing ${{ matrix.platform }} binary..."
         ./build/release/pvm-${{ matrix.platform }} version
+
 
     - name: Create archive
       run: |
@@ -208,7 +209,7 @@ jobs:
 
         ## 🔧 Installation
 
-        ### Linux/macOS
+        ### Linux
         \`\`\`bash
         # Download for your platform
         wget https://github.com/perigrin/pvm/releases/download/$TAG/pvm-${VERSION}-linux-amd64.tar.gz
@@ -218,6 +219,25 @@ jobs:
         chmod +x pvm-* pvi-* pvx-*
         ./pvm-linux-amd64 version
         \`\`\`
+
+        ### macOS
+        \`\`\`bash
+        # Download for your platform (Intel or Apple Silicon)
+        wget https://github.com/perigrin/pvm/releases/download/$TAG/pvm-${VERSION}-darwin-amd64.tar.gz
+        tar -xzf pvm-${VERSION}-darwin-amd64.tar.gz
+
+        # Make executable and remove quarantine flag
+        chmod +x pvm-darwin-amd64
+        xattr -d com.apple.quarantine pvm-darwin-amd64
+
+        # Test installation
+        ./pvm-darwin-amd64 version
+        \`\`\`
+
+        **⚠️ macOS Security Notice**: These binaries are unsigned. If you get a security warning:
+        1. **Right-click the binary** → **"Open"** → **"Open"** (bypasses Gatekeeper)
+        2. **Or use Terminal**: \`xattr -d com.apple.quarantine pvm-darwin-*\`
+        3. **Or temporarily disable Gatekeeper**: \`sudo spctl --master-disable\` (re-enable with \`--master-enable\`)
 
         ## 🧪 Components
 

@@ -1,3 +1,9 @@
+# Performance optimizations enabled:
+# - Fail fast for quicker feedback
+# - Default stages optimization
+# - Repository-level parallelization
+default_stages: [pre-commit]
+fail_fast: false
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.3.0
@@ -31,7 +37,17 @@ repos:
         language: system
         pass_filenames: false
         files: '\.go$'
+        # Only run on significant Go changes, not every commit
+        stages: [pre-push]
       # makefile-test-fast disabled - use 'make test' for comprehensive testing
+      - id: quick-go-check
+        name: 'Quick Go checks'
+        description: "Fast syntax, format, and import checks for regular commits"
+        entry: .github/hooks/run-quick-check.sh
+        language: script
+        pass_filenames: false
+        files: '\.go$'
+        stages: [pre-commit]  # Run on every commit for fast feedback
       - id: go-vet-custom
         name: 'go vet custom'
         description: "Runs go vet on the entire module (excluding tree-sitter)"
@@ -40,6 +56,8 @@ repos:
         pass_filenames: false
         files: '\.go$'
         exclude: ^(internal/parser/.*\.go|internal/psc/.*\.go|internal/typechecker/.*\.go|cmd/psc/.*\.go)$
+        # Cache results to avoid re-running on unchanged code
+        require_serial: false
       # gosec-security-scan temporarily disabled due to timeout issues
       # - id: gosec-security-scan
       #   name: 'gosec security scan'
@@ -55,6 +73,10 @@ repos:
         language: script
         pass_filenames: false
         files: '\.go$'
+        # Allow parallel execution with other hooks
+        require_serial: false
+        # Run less frequently - only on push or manual
+        stages: [pre-push, manual]
       - id: govulncheck
         name: 'vulnerability scan'
         description: "Runs govulncheck for Go vulnerabilities"
@@ -63,6 +85,9 @@ repos:
         language: system
         pass_filenames: false
         files: '(go\.mod|go\.sum|\.go)$'
+        # Run vulnerability checks less frequently
+        stages: [pre-push, manual]
+        require_serial: false
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v8.0.0
     hooks:
