@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/log"
 )
@@ -23,6 +24,8 @@ func NewCommand() *cobra.Command {
 		Short: "Perl Version eXecutor",
 		Long:  "Executes Perl code in isolated environments",
 		Run: func(cmd *cobra.Command, args []string) {
+			// Get UI instance for styled output
+			ui := cli.GetUI(cmd)
 			// Get flags
 			perlVersion, _ := cmd.Flags().GetString("perl")
 			rootDir, _ := cmd.Flags().GetString("root")
@@ -230,7 +233,7 @@ func NewCommand() *cobra.Command {
 				// Execute Perl code directly
 				log.Debugf("Executing Perl code: %s", executeCode)
 				options.InlineCode = executeCode
-				output, err = ExecuteInlineCode(options)
+				output, err = ExecuteInlineCode(options, ui)
 			case isToolName(args[0]):
 				// Execute a tool directly (like uvx)
 				toolName := args[0]
@@ -240,7 +243,7 @@ func NewCommand() *cobra.Command {
 				}
 
 				log.Debugf("Executing tool: %s", toolName)
-				output, err = ExecuteTool(options, toolName, toolArgs)
+				output, err = ExecuteTool(options, toolName, toolArgs, ui)
 			default:
 				// Execute a script file
 				scriptPath := args[0]
@@ -253,32 +256,32 @@ func NewCommand() *cobra.Command {
 				options.Args = scriptArgs
 
 				log.Debugf("Executing Perl script: %s", scriptPath)
-				output, err = ExecuteScript(options)
+				output, err = ExecuteScript(options, ui)
 			}
 
 			// If using isolated output and saveOutputDir is specified, copy generated files
 			if options.IsolatedOutput && options.SaveOutputDir != "" && err == nil {
 				if options.Verbose {
-					log.Infof("Attempting to save output files to %s", options.SaveOutputDir)
+					ui.Status(fmt.Sprintf("Saving output files to %s", options.SaveOutputDir))
 				}
 				savedFiles, saveErr := saveOutputFiles(options, options.SaveOutputDir)
 				if saveErr != nil {
-					log.Warnf("Failed to save output files: %v", saveErr)
+					ui.Warning("Failed to save output files: %v", saveErr)
 				} else if len(savedFiles) > 0 && options.Verbose {
-					log.Infof("Saved %d files to %s", len(savedFiles), options.SaveOutputDir)
+					ui.Success("Saved %d files to %s", len(savedFiles), options.SaveOutputDir)
 				}
 			} else if options.IsolatedOutput && options.SaveOutputDir == "" && options.Verbose {
-				log.Infof("Isolated output is enabled but no save directory was specified. Output files will be discarded after execution.")
+				ui.Info("Isolated output is enabled but no save directory was specified. Output files will be discarded after execution.")
 			}
 
 			// Print output regardless of error (may contain diagnostic information)
 			if output != "" {
-				fmt.Print(output)
+				ui.Printf("%s", output)
 			}
 
 			// Handle execution error
 			if err != nil {
-				log.Errorf("Execution failed: %v", err)
+				ui.Error("Execution failed: %v", err)
 				osExit(1)
 			}
 		},

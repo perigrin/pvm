@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/perl"
@@ -173,7 +174,12 @@ type ExecuteResult struct {
 }
 
 // ExecuteScript runs a Perl script with the specified options
-func ExecuteScript(options *ExecutionOptions) (string, error) {
+func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, error) {
+	// Get UI for user feedback (optional parameter for backward compatibility)
+	var ui *ui.Output
+	if len(uiOutput) > 0 && uiOutput[0] != nil {
+		ui = uiOutput[0]
+	}
 	if options == nil {
 		return "", errors.NewExecutionError(
 			ErrExecutionFailed,
@@ -191,10 +197,17 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 
 	// Auto-detect dependencies using PSC parsing if enabled (superior to manual metadata)
 	if options.AutoDetectDependencies {
+		if ui != nil && options.Verbose {
+			ui.Status("Analyzing script dependencies...")
+		}
 		autoDeps, err := AutoDetectDependenciesWithOptions(options.ScriptPath, false) // Filter out core modules
 		if err != nil {
 			if options.Verbose {
-				log.Infof("Could not auto-detect dependencies (continuing without): %v", err)
+				if ui != nil {
+					ui.Warning("Could not auto-detect dependencies (continuing without): %v", err)
+				} else {
+					log.Infof("Could not auto-detect dependencies (continuing without): %v", err)
+				}
 			}
 			autoDeps = []string{}
 		}
@@ -202,7 +215,12 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 		// Merge auto-detected dependencies with execution options
 		if len(autoDeps) > 0 {
 			if options.Verbose {
-				log.Infof("Auto-detected %d dependencies from script: %v", len(autoDeps), autoDeps)
+				if ui != nil {
+					ui.Info("Auto-detected %d dependencies from script", len(autoDeps))
+					ui.List(autoDeps)
+				} else {
+					log.Infof("Auto-detected %d dependencies from script: %v", len(autoDeps), autoDeps)
+				}
 			}
 			// Add auto-detected dependencies to required modules
 			options.RequiredModules = append(options.RequiredModules, autoDeps...)
@@ -217,7 +235,9 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 
 	// Install required modules using PVI if needed
 	if options.AutoInstallModules && len(options.RequiredModules) > 0 {
-		if options.Verbose {
+		if ui != nil {
+			ui.Status(fmt.Sprintf("Installing %d required modules using PVI", len(options.RequiredModules)))
+		} else if options.Verbose {
 			log.Infof("Installing %d required modules using PVI", len(options.RequiredModules))
 		}
 
@@ -249,8 +269,13 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 		}
 
 		if options.Verbose {
-			log.Infof("Successfully installed %d modules, skipped %d already installed",
-				len(installResult.InstalledModules), len(installResult.SkippedModules))
+			if ui != nil {
+				ui.Success("Successfully installed %d modules, skipped %d already installed",
+					len(installResult.InstalledModules), len(installResult.SkippedModules))
+			} else {
+				log.Infof("Successfully installed %d modules, skipped %d already installed",
+					len(installResult.InstalledModules), len(installResult.SkippedModules))
+			}
 		}
 	}
 
@@ -282,7 +307,11 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 		if _, err := os.Stat(outputDir); err == nil {
 			cmd.Dir = outputDir
 			if options.Verbose {
-				log.Infof("Setting script working directory to: %s", outputDir)
+				if ui != nil {
+					ui.Debug("Setting script working directory to: %s", outputDir)
+				} else {
+					log.Infof("Setting script working directory to: %s", outputDir)
+				}
 			}
 		}
 	}
@@ -336,7 +365,12 @@ func ExecuteScript(options *ExecutionOptions) (string, error) {
 }
 
 // ExecuteInlineCode runs Perl code directly with the specified options
-func ExecuteInlineCode(options *ExecutionOptions) (string, error) {
+func ExecuteInlineCode(options *ExecutionOptions, uiOutput ...*ui.Output) (string, error) {
+	// Get UI for user feedback (optional parameter for backward compatibility)
+	var ui *ui.Output
+	if len(uiOutput) > 0 && uiOutput[0] != nil {
+		ui = uiOutput[0]
+	}
 	if options == nil {
 		return "", errors.NewExecutionError(
 			ErrExecutionFailed,
@@ -381,7 +415,11 @@ func ExecuteInlineCode(options *ExecutionOptions) (string, error) {
 		if _, err := os.Stat(outputDir); err == nil {
 			cmd.Dir = outputDir
 			if options.Verbose {
-				log.Infof("Setting script working directory to: %s", outputDir)
+				if ui != nil {
+					ui.Debug("Setting script working directory to: %s", outputDir)
+				} else {
+					log.Infof("Setting script working directory to: %s", outputDir)
+				}
 			}
 		}
 	}
@@ -557,10 +595,11 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 
 	// Get the path to the Perl executable for the resolved version
 	var perlExe string
-	if resolvedVersion.Source == perl.SystemPerlSource {
+	switch resolvedVersion.Source {
+	case perl.SystemPerlSource:
 		// Use the path from the system Perl detection
 		perlExe = resolvedVersion.Path
-	} else if resolvedVersion.Source == perl.UserConfig {
+	case perl.UserConfig:
 		// For user config, we need to get the actual path from registry
 		versionInfo, err := perl.GetVersionInfo(resolvedVersion.Version)
 		if err == nil && versionInfo != nil {
@@ -570,7 +609,7 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 			// If version info isn't available, try default path structure
 			perlExe = filepath.Join("/usr/local/pvm/perls", resolvedVersion.Version, "bin", "perl")
 		}
-	} else {
+	default:
 		// For installed versions, get the installation info from the registry
 		versionInfo, err := perl.GetVersionInfo(resolvedVersion.Version)
 		if err == nil && versionInfo != nil {
@@ -1437,7 +1476,12 @@ fi
 }
 
 // ExecuteTool executes a Perl tool directly (similar to uvx)
-func ExecuteTool(options *ExecutionOptions, toolName string, toolArgs []string) (string, error) {
+func ExecuteTool(options *ExecutionOptions, toolName string, toolArgs []string, uiOutput ...*ui.Output) (string, error) {
+	// Get UI for user feedback (optional parameter for backward compatibility)
+	var ui *ui.Output
+	if len(uiOutput) > 0 && uiOutput[0] != nil {
+		ui = uiOutput[0]
+	}
 	// Create a temporary inline code that invokes the tool
 	// This allows us to leverage existing isolation infrastructure
 
@@ -1497,5 +1541,5 @@ func ExecuteTool(options *ExecutionOptions, toolName string, toolArgs []string) 
 	}
 
 	// Execute as inline code
-	return ExecuteInlineCode(options)
+	return ExecuteInlineCode(options, ui)
 }
