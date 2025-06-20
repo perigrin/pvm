@@ -11,6 +11,7 @@ import (
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
+	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/version"
 )
 
@@ -44,6 +45,7 @@ func NewRootCommand(name string, description string) *cobra.Command {
 func newVersionCommand(component string) *cobra.Command {
 	var showPVM bool
 	var bare bool
+	var showCurrent bool
 
 	cmd := &cobra.Command{
 		Use:   "version",
@@ -54,6 +56,9 @@ func newVersionCommand(component string) *cobra.Command {
 			if component == "pvm" && !showPVM {
 				return showCurrentPerlVersionWithFlags(cmd, component, bare)
 			}
+			if showCurrent {
+				return showCurrentPerlVersion(cmd, component)
+			}
 			fmt.Println(version.ComponentVersion(component))
 			return nil
 		},
@@ -63,6 +68,7 @@ func newVersionCommand(component string) *cobra.Command {
 	if component == "pvm" {
 		cmd.Flags().BoolVar(&showPVM, "pvm", false, "Show PVM version instead of active Perl version")
 		cmd.Flags().BoolVar(&bare, "bare", false, "Show only the version string (for scripting)")
+		cmd.Flags().BoolVar(&showCurrent, "current", false, "Show currently active Perl version")
 		cmd.Long = `Show the currently active Perl version.
 
 By default, this command shows which Perl version is currently active.
