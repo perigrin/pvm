@@ -289,7 +289,7 @@ func TestUIPerformance_CLICommandSpeed(t *testing.T) {
 	}{
 		{
 			name:    "PVM help command",
-			command: []string{"pvm", "--help"},
+			command: []string{"--help"},
 			maxTime: 3 * time.Second,
 		},
 		{
@@ -309,7 +309,7 @@ func TestUIPerformance_CLICommandSpeed(t *testing.T) {
 		},
 		{
 			name:    "PVM version command",
-			command: []string{"pvm", "--version"},
+			command: []string{"version"},
 			maxTime: 2 * time.Second,
 		},
 	}

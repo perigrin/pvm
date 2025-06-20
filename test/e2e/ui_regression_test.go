@@ -31,7 +31,7 @@ func TestUIRegression_FunctionalPreservation(t *testing.T) {
 	}{
 		{
 			name:          "PVM help command works",
-			command:       []string{"pvm", "--help"},
+			command:       []string{"--help"},
 			shouldSucceed: true,
 			contains:      []string{"Usage", "Commands"},
 		},
@@ -55,7 +55,7 @@ func TestUIRegression_FunctionalPreservation(t *testing.T) {
 		},
 		{
 			name:          "Version commands work",
-			command:       []string{"pvm", "--version"},
+			command:       []string{"version"},
 			shouldSucceed: true,
 			contains:      []string{},
 		},
@@ -102,7 +102,7 @@ func TestUIRegression_OutputFormatPreservation(t *testing.T) {
 	}{
 		{
 			name:    "Help output has proper structure",
-			command: []string{"pvm", "--help"},
+			command: []string{"--help"},
 			checkFn: func(t *testing.T, output string) {
 				lines := strings.Split(output, "\n")
 				assert.Greater(t, len(lines), 5, "Help should have multiple lines")
@@ -114,7 +114,7 @@ func TestUIRegression_OutputFormatPreservation(t *testing.T) {
 		},
 		{
 			name:    "Version output is not empty",
-			command: []string{"pvm", "--version"},
+			command: []string{"version"},
 			checkFn: func(t *testing.T, output string) {
 				assert.NotEmpty(t, strings.TrimSpace(output), "Version should not be empty")
 			},
@@ -326,12 +326,12 @@ print "Compatibility test\n";
 		},
 		{
 			name:    "Help system still works",
-			command: []string{"pvm", "--help"},
+			command: []string{"--help"},
 			setup:   func(t *testing.T) {},
 		},
 		{
 			name:    "Version system still works",
-			command: []string{"pvm", "--version"},
+			command: []string{"version"},
 			setup:   func(t *testing.T) {},
 		},
 	}
@@ -481,7 +481,7 @@ func TestUIRegression_QuietModePreservation(t *testing.T) {
 	}{
 		{
 			name:    "PVM help in quiet mode",
-			command: []string{"pvm", "--quiet", "--help"},
+			command: []string{"--quiet", "--help"},
 		},
 		{
 			name:    "PVX help in quiet mode",
@@ -519,7 +519,7 @@ func TestUIRegression_VerboseModePreservation(t *testing.T) {
 	}{
 		{
 			name:    "PVM help in verbose mode",
-			command: []string{"pvm", "--verbose", "--help"},
+			command: []string{"--verbose", "--help"},
 		},
 	}
 

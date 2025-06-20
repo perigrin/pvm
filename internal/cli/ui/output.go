@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss/v2"
 )
 
 // Output provides the main UI output functionality
@@ -49,8 +51,8 @@ func (o *Output) Info(message string, args ...interface{}) {
 	}
 
 	formatted := fmt.Sprintf(message, args...)
-	styled := o.styles.Info.Render("ℹ ") + formatted
-	fmt.Fprintln(o.context.Writer, styled)
+	styled := o.renderWithColorMode(o.styles.Info, "ℹ ") + formatted
+	o.safeWriteln(o.context.Writer, styled)
 }
 
 // Success displays a success message
@@ -60,8 +62,8 @@ func (o *Output) Success(message string, args ...interface{}) {
 	}
 
 	formatted := fmt.Sprintf(message, args...)
-	styled := o.styles.Success.Render("✓ ") + formatted
-	fmt.Fprintln(o.context.Writer, styled)
+	styled := o.renderWithColorMode(o.styles.Success, "✓ ") + formatted
+	o.safeWriteln(o.context.Writer, styled)
 }
 
 // Warning displays a warning message
@@ -71,19 +73,19 @@ func (o *Output) Warning(message string, args ...interface{}) {
 	}
 
 	formatted := fmt.Sprintf(message, args...)
-	styled := o.styles.Warning.Render("⚠ ") + formatted
-	fmt.Fprintln(o.context.Writer, styled)
+	styled := o.renderWithColorMode(o.styles.Warning, "⚠ ") + formatted
+	o.safeWriteln(o.context.Writer, styled)
 }
 
 // Error displays an error message
 func (o *Output) Error(message string, args ...interface{}) {
 	formatted := fmt.Sprintf(message, args...)
-	styled := o.styles.Error.Render("✗ ") + formatted
+	styled := o.renderWithColorMode(o.styles.Error, "✗ ") + formatted
 	writer := o.context.ErrorWriter
 	if writer == nil {
 		writer = o.context.Writer
 	}
-	fmt.Fprintln(writer, styled)
+	o.safeWriteln(writer, styled)
 }
 
 // Debug displays a debug message (only if verbose mode is enabled)
@@ -93,8 +95,8 @@ func (o *Output) Debug(message string, args ...interface{}) {
 	}
 
 	formatted := fmt.Sprintf(message, args...)
-	styled := o.styles.Debug.Render("🐛 ") + formatted
-	fmt.Fprintln(o.context.Writer, styled)
+	styled := o.renderWithColorMode(o.styles.Debug, "🐛 ") + formatted
+	o.safeWriteln(o.context.Writer, styled)
 }
 
 // Printf provides formatted output
@@ -103,7 +105,9 @@ func (o *Output) Printf(format string, args ...interface{}) {
 		return
 	}
 
-	fmt.Fprintf(o.context.Writer, format, args...)
+	if o.context.Writer != nil {
+		fmt.Fprintf(o.context.Writer, format, args...)
+	}
 }
 
 // Println provides line output
@@ -112,7 +116,9 @@ func (o *Output) Println(args ...interface{}) {
 		return
 	}
 
-	fmt.Fprintln(o.context.Writer, args...)
+	if o.context.Writer != nil {
+		fmt.Fprintln(o.context.Writer, args...)
+	}
 }
 
 // Table displays data in a table format
@@ -136,8 +142,8 @@ func (o *Output) TableWithOptions(opts TableOptions) {
 
 	if opts.Title != "" {
 		titleStyled := o.styles.SubHeader.Render(opts.Title)
-		fmt.Fprintln(o.context.Writer, titleStyled)
-		fmt.Fprintln(o.context.Writer)
+		o.safeWriteln(o.context.Writer, titleStyled)
+		o.safeWriteln(o.context.Writer, "")
 	}
 
 	// Calculate column widths
@@ -163,7 +169,7 @@ func (o *Output) TableWithOptions(opts TableOptions) {
 				headerRow.WriteString("  ")
 			}
 		}
-		fmt.Fprintln(o.context.Writer, headerRow.String())
+		o.safeWriteln(o.context.Writer, headerRow.String())
 
 		// Write separator
 		var separator strings.Builder
@@ -173,7 +179,7 @@ func (o *Output) TableWithOptions(opts TableOptions) {
 				separator.WriteString("  ")
 			}
 		}
-		fmt.Fprintln(o.context.Writer, separator.String())
+		o.safeWriteln(o.context.Writer, separator.String())
 	}
 
 	// Write rows
@@ -188,9 +194,9 @@ func (o *Output) TableWithOptions(opts TableOptions) {
 				}
 			}
 		}
-		fmt.Fprintln(o.context.Writer, rowStr.String())
+		o.safeWriteln(o.context.Writer, rowStr.String())
 	}
-	fmt.Fprintln(o.context.Writer) // Add spacing after table
+	o.safeWriteln(o.context.Writer, "") // Add spacing after table
 }
 
 // List displays items in a list format
@@ -214,24 +220,28 @@ func (o *Output) ListWithOptions(opts ListOptions) {
 
 	if opts.Title != "" {
 		titleStyled := o.styles.SubHeader.Render(opts.Title)
-		fmt.Fprintln(o.context.Writer, titleStyled)
-		fmt.Fprintln(o.context.Writer)
+		o.safeWriteln(o.context.Writer, titleStyled)
+		o.safeWriteln(o.context.Writer, "")
 	}
 
 	for i, item := range opts.Items {
 		if opts.Numbered {
 			number := o.styles.ListNumber.Render(fmt.Sprintf("%d.", i+1))
-			fmt.Fprintf(o.context.Writer, "%s %s\n", number, item)
+			if o.context.Writer != nil {
+				fmt.Fprintf(o.context.Writer, "%s %s\n", number, item)
+			}
 		} else {
 			bullet := opts.BulletChar
 			if bullet == "" {
 				bullet = "•"
 			}
 			bulletStyled := o.styles.ListBullet.Render(bullet)
-			fmt.Fprintf(o.context.Writer, "%s %s\n", bulletStyled, item)
+			if o.context.Writer != nil {
+				fmt.Fprintf(o.context.Writer, "%s %s\n", bulletStyled, item)
+			}
 		}
 	}
-	fmt.Fprintln(o.context.Writer) // Add spacing after list
+	o.safeWriteln(o.context.Writer, "") // Add spacing after list
 }
 
 // KeyValue displays key-value pairs
@@ -242,7 +252,9 @@ func (o *Output) KeyValue(pairs map[string]string) {
 
 	for key, value := range pairs {
 		keyStyled := o.styles.Bold.Render(key + ":")
-		fmt.Fprintf(o.context.Writer, "  %-20s %s\n", keyStyled, value)
+		if o.context.Writer != nil {
+			fmt.Fprintf(o.context.Writer, "  %-20s %s\n", keyStyled, value)
+		}
 	}
 }
 
@@ -253,7 +265,7 @@ func (o *Output) Status(message string) {
 	}
 
 	styled := o.styles.Info.Render("→ ") + message
-	fmt.Fprintln(o.context.Writer, styled)
+	o.safeWriteln(o.context.Writer, styled)
 }
 
 // Progress displays progress information
@@ -266,7 +278,7 @@ func (o *Output) Progress(current, total int, message string) {
 	progress := fmt.Sprintf("[%d/%d] (%d%%)", current, total, percentage)
 
 	styled := o.styles.Info.Render("⚡ ") + message + " " + o.styles.Muted.Render(progress)
-	fmt.Fprintln(o.context.Writer, styled)
+	o.safeWriteln(o.context.Writer, styled)
 }
 
 // Header displays a formatted header
@@ -276,7 +288,7 @@ func (o *Output) Header(title string) {
 	}
 
 	styled := o.styles.Header.Render(title)
-	fmt.Fprintln(o.context.Writer, styled)
+	o.safeWriteln(o.context.Writer, styled)
 }
 
 // SubHeader displays a formatted sub-header
@@ -286,7 +298,7 @@ func (o *Output) SubHeader(title string) {
 	}
 
 	styled := o.styles.SubHeader.Render(title)
-	fmt.Fprintln(o.context.Writer, styled)
+	o.safeWriteln(o.context.Writer, styled)
 }
 
 // Section displays a formatted section with content
@@ -296,8 +308,8 @@ func (o *Output) Section(title, content string) {
 	}
 
 	o.SubHeader(title)
-	fmt.Fprintln(o.context.Writer, content)
-	fmt.Fprintln(o.context.Writer) // Add spacing
+	o.safeWriteln(o.context.Writer, content)
+	o.safeWriteln(o.context.Writer, "") // Add spacing
 }
 
 // Box displays content in a bordered box
@@ -307,7 +319,7 @@ func (o *Output) Box(content string) {
 	}
 
 	styled := o.styles.Box.Render(content)
-	fmt.Fprintln(o.context.Writer, styled)
+	o.safeWriteln(o.context.Writer, styled)
 }
 
 // Markdown renders basic markdown-style content
@@ -321,7 +333,7 @@ func (o *Output) Markdown(content string) {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
-			fmt.Fprintln(o.context.Writer)
+			o.safeWriteln(o.context.Writer, "")
 			continue
 		}
 
@@ -330,15 +342,17 @@ func (o *Output) Markdown(content string) {
 		case strings.HasPrefix(line, "# "):
 			title := strings.TrimPrefix(line, "# ")
 			styled := o.styles.Header.Render(title)
-			fmt.Fprintln(o.context.Writer, styled)
+			o.safeWriteln(o.context.Writer, styled)
 		case strings.HasPrefix(line, "## "):
 			title := strings.TrimPrefix(line, "## ")
 			styled := o.styles.SubHeader.Render(title)
-			fmt.Fprintln(o.context.Writer, styled)
+			o.safeWriteln(o.context.Writer, styled)
 		case strings.HasPrefix(line, "- "):
 			item := strings.TrimPrefix(line, "- ")
 			bullet := o.styles.ListBullet.Render("•")
-			fmt.Fprintf(o.context.Writer, "%s %s\n", bullet, item)
+			if o.context.Writer != nil {
+				fmt.Fprintf(o.context.Writer, "%s %s\n", bullet, item)
+			}
 		default:
 			// Handle basic emphasis (this is simplified)
 			if strings.Contains(line, "**") && strings.Count(line, "**") >= 2 {
@@ -346,14 +360,18 @@ func (o *Output) Markdown(content string) {
 				parts := strings.Split(line, "**")
 				for i, part := range parts {
 					if i%2 == 1 {
-						fmt.Fprint(o.context.Writer, o.styles.Bold.Render(part))
+						if o.context.Writer != nil {
+							fmt.Fprint(o.context.Writer, o.styles.Bold.Render(part))
+						}
 					} else {
-						fmt.Fprint(o.context.Writer, part)
+						if o.context.Writer != nil {
+							fmt.Fprint(o.context.Writer, part)
+						}
 					}
 				}
-				fmt.Fprintln(o.context.Writer)
+				o.safeWriteln(o.context.Writer, "")
 			} else {
-				fmt.Fprintln(o.context.Writer, line)
+				o.safeWriteln(o.context.Writer, line)
 			}
 		}
 	}
@@ -377,10 +395,31 @@ func (o *Output) SetVerbose(verbose bool) {
 // SetColorMode sets the color mode
 func (o *Output) SetColorMode(mode ColorMode) {
 	o.context.ColorMode = mode
-	// TODO: Update styles based on color mode
 }
 
 // Context returns the current UI context
 func (o *Output) Context() *UIContext {
 	return o.context
+}
+
+// safeWrite writes to the writer if it's not nil, otherwise does nothing
+func (o *Output) safeWrite(writer io.Writer, message string) {
+	if writer != nil {
+		fmt.Fprint(writer, message)
+	}
+}
+
+// safeWriteln writes to the writer with newline if it's not nil, otherwise does nothing
+func (o *Output) safeWriteln(writer io.Writer, message string) {
+	if writer != nil {
+		fmt.Fprintln(writer, message)
+	}
+}
+
+// renderWithColorMode renders text with a style only if color mode allows it
+func (o *Output) renderWithColorMode(style lipgloss.Style, text string) string {
+	if o.context.ColorMode == ColorNever {
+		return text
+	}
+	return style.Render(text)
 }

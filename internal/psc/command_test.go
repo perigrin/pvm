@@ -200,7 +200,7 @@ func TestCheckCommandWithSampleFile(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping in CI environment")
 	}
-	
+
 	// Skip this test when running with short flag or in parallel with other tests
 	// due to output capture issues with UI framework integration
 	if testing.Short() {
@@ -246,7 +246,7 @@ func TestStripCommandWithSampleFile(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping in CI environment")
 	}
-	
+
 	// Skip this test when running with short flag or in parallel with other tests
 	// due to output capture issues with UI framework integration
 	if testing.Short() {
