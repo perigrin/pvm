@@ -248,7 +248,7 @@ func showCurrentPerlVersion(cmd *cobra.Command, component string) error {
 // showCurrentPerlVersionWithFlags displays the currently active Perl version with flag support
 func showCurrentPerlVersionWithFlags(cmd *cobra.Command, component string, bare bool) error {
 	ui := GetUI(cmd)
-	
+
 	// Only show current version for PVM component
 	if component != "pvm" {
 		ui.Println(version.ComponentVersion(component))
