@@ -243,3 +243,18 @@ func (s OperationStatus) String() string {
 
 // ProgressCallback is called to report operation progress
 type ProgressCallback func(operation string, current, total int, message string)
+
+// OutdatedModule represents a module with available updates
+type OutdatedModule struct {
+	// Name is the module name
+	Name string `json:"name"`
+
+	// CurrentVersion is the currently installed version
+	CurrentVersion string `json:"current_version"`
+
+	// LatestVersion is the latest available version
+	LatestVersion string `json:"latest_version"`
+
+	// CoreModule indicates if this is a Perl core module
+	CoreModule bool `json:"core_module,omitempty"`
+}

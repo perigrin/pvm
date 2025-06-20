@@ -1,915 +1,847 @@
-# PVI Command Refactor Build Plan
+# Tree-sitter-typed-perl Grammar Enhancement Plan
 
-## Overview
+## Project Overview
 
-This plan outlines the step-by-step refactoring of the large `internal/pvi/command.go` file (1964 lines) to extract shared functionality into reusable packages. The goal is to reduce code duplication, improve maintainability, and enable reuse across PVM components (pvm, pvx, psc).
+This plan implements the missing type annotation features in tree-sitter-typed-perl grammar (Issue #18) through test-driven development. The goal is to enable PSC static analysis by adding support for:
 
-## Target Architecture
-
-- **Modular Design**: Extract common functionality into focused packages
-- **Component Reuse**: Enable module management across all PVM components
-- **Clean Interfaces**: Well-defined APIs between extracted packages
-- **Maintainability**: Smaller, focused files that are easier to maintain
-- **Test Coverage**: Comprehensive testing for all extracted functionality
+- Type declarations (`type MyType = Int|Str`)
+- Union types (`Int|Str`)
+- Intersection types (`Object&Serializable`)
+- Negation types (`!Undef`)
+- Parameterized types (`ArrayRef[Int]`)
+- Type assertions (`$value as Int`)
+- Complex method signatures with types
+- Type constraints (where clauses)
 
 ## Current State Analysis
 
-- **1964 lines** in `internal/pvi/command.go`
-- **12 commands** with significant code duplication
-- **Repeated patterns**: Provider setup (50+ lines per command), progress tracking, module operations
-- **Limited reuse**: Module functionality locked within PVI component
-- **Complex dependencies**: Tight coupling between command logic and implementation
+**Working Features:**
+- Basic type annotations in variable declarations (`my Int $var`)
+- Simple parameterized types in variable context
+- Method signatures with basic types
 
-## Architecture Principles
+**Missing Features:**
+- Standalone type declarations (grammar has no `type_declaration` rule)
+- Union/intersection operators (`|`, `&`, `!`)
+- Complex type expressions with parentheses
+- Type assertion syntax (`as` operator)
+- Advanced parameterized type nesting
+- Type constraints and where clauses
 
-1. **Single Responsibility**: Each extracted package has a clear, focused purpose
-2. **Interface Segregation**: Clean APIs with minimal dependencies
-3. **Dependency Inversion**: Components depend on interfaces, not implementations
-4. **Open/Closed**: Extensible design for future enhancements
-5. **Test-Driven**: All extractions backed by comprehensive tests
+**Test Coverage:**
+- ~80.6% tests passing (3073/3811)
+- Many tests skip with "tree-sitter-typed-perl grammar doesn't support typed Perl features yet"
+- Existing test corpus has placeholder tests for missing features
 
----
+## Implementation Strategy
 
-## Phase 1: Foundation and Analysis
+### Phase 1: Foundation (Type Expression Infrastructure)
+Build the core type expression parsing infrastructure that all other features depend on.
 
-### Step 1.1: Code Analysis and Extraction Planning
+### Phase 2: Basic Type Features (Union/Intersection/Negation)
+Add support for combining types with operators.
 
-**Goal**: Thoroughly analyze the current codebase and create detailed extraction plans
+### Phase 3: Advanced Type Features (Parameterized/Nested)
+Handle complex type expressions with proper precedence.
 
-```
-Analyze the current internal/pvi/command.go file to identify extraction opportunities and create detailed plans for each phase of refactoring.
+### Phase 4: Type Declarations and Assertions
+Add standalone type declarations and type assertion syntax.
 
-**Context**: Before beginning extraction, we need a comprehensive understanding of the current code structure, dependencies, and duplication patterns. This analysis will guide the refactoring strategy.
-
-**Requirements**:
-1. Analyze all 12 commands in internal/pvi/command.go
-2. Identify common patterns and repeated code blocks
-3. Map dependencies between different parts of the code
-4. Identify provider setup duplication (50+ lines per command)
-5. Document current interfaces and their usage patterns
-6. Create detailed extraction plans for each target package
-7. Identify potential breaking changes and mitigation strategies
-
-**Analysis Areas**:
-- Command structure and common patterns
-- Provider setup and configuration logic
-- Module operation implementations
-- Progress tracking and UI patterns
-- Error handling and reporting mechanisms
-- Configuration and setup logic
-
-**Deliverables**:
-- Detailed code analysis report
-- Extraction roadmap with priorities
-- Interface design specifications
-- Risk assessment and mitigation plans
-- Test strategy for each extraction
-
-**Success Criteria**:
-- Complete understanding of current code structure
-- Clear roadmap for all extraction phases
-- Interface designs that minimize breaking changes
-- Comprehensive test strategy defined
-- All dependencies and interactions mapped
-```
-
-### Step 1.2: Create Core Module Management Interfaces
-
-**Goal**: Define the core interfaces that will guide the module management extraction
-
-```
-Create the fundamental interfaces and types that will be used across all module management operations, establishing the contract for the extracted packages.
-
-**Context**: Before extracting implementation code, establish clear interfaces that define how module management will work across components. This provides a stable foundation for the refactoring.
-
-**Requirements**:
-1. Create internal/modules/types.go with core interfaces
-2. Define ModuleManager interface for high-level operations
-3. Create ModuleInstaller interface for installation operations
-4. Define ProgressTracker interface for operation reporting
-5. Create ModuleFilter and ModuleQuery types
-6. Add comprehensive documentation for all interfaces
-7. Create basic test framework for interface compliance
-
-**Interface Design**:
-```go
-type ModuleManager interface {
-    List(ctx context.Context, filter ModuleFilter) ([]*Module, error)
-    Install(ctx context.Context, modules []string, opts InstallOptions) error
-    Remove(ctx context.Context, modules []string) error
-    Update(ctx context.Context, modules []string) error
-}
-
-type ModuleInstaller interface {
-    InstallModule(ctx context.Context, module string, opts InstallOptions) (*InstallResult, error)
-    InstallBatch(ctx context.Context, modules []string, opts InstallOptions) ([]*InstallResult, error)
-}
-
-type ProgressTracker interface {
-    Start(operation string, total int)
-    Update(current int, message string)
-    Finish(result *OperationResult)
-}
-```
-
-**Success Criteria**:
-- Clean, well-documented interfaces defined
-- Interface design reviewed and validated
-- Test framework ready for implementation testing
-- Documentation provides clear usage guidelines
-- Interfaces support all current PVI functionality
-```
-
-### Step 1.3: Extract Core Types and Data Structures
-
-**Goal**: Extract shared data structures and types into the new packages
-
-```
-Extract and consolidate the core data structures used across module management operations into well-organized type definitions.
-
-**Context**: Many commands share similar data structures for modules, installation results, and configuration. Extract these into shared packages to eliminate duplication.
-
-**Requirements**:
-1. Create internal/modules/types.go with core data structures
-2. Extract Module, InstallResult, and related types
-3. Create internal/dependencies/types.go for dependency structures
-4. Extract dependency resolution data structures
-5. Create internal/cli/progress/types.go for progress tracking
-6. Add JSON/YAML marshaling support where needed
-7. Create comprehensive tests for all type operations
-
-**Target Types**:
-- Module information and metadata
-- Installation and operation results
-- Progress tracking and status structures
-- Dependency resolution data
-- Filter and query structures
-- Configuration and option types
-
-**Success Criteria**:
-- All shared types extracted and well-documented
-- JSON/YAML marshaling working correctly
-- Type tests provide comprehensive coverage
-- No duplication between packages
-- Clean imports and dependencies established
-```
+### Phase 5: Integration and Validation
+Ensure all features work together and integrate with PSC.
 
 ---
 
-## Phase 2: Core Module Management Extraction
+## Detailed Implementation Plan
 
-### Step 2.1: Extract Module Installation Logic
+### Prompt 1: Establish Type Expression Foundation
 
-**Goal**: Extract core module installation functionality into internal/modules/installer.go
+**Context:** Currently the grammar has basic type annotation support but lacks a comprehensive type expression system. We need to establish the foundation for parsing complex type expressions.
 
-```
-Extract the core module installation logic from PVI commands into a dedicated, reusable package that can be used by all PVM components.
-
-**Context**: The install, add, and sync commands contain substantial shared logic for module installation. Extract this into a focused installer package that provides clean APIs for module installation operations.
-
-**Requirements**:
-1. Create internal/modules/installer.go with core installation logic
-2. Extract single module installation functionality
-3. Implement batch installation with parallel support
-4. Extract installation validation and verification
-5. Add comprehensive error handling and reporting
-6. Create progress tracking integration
-7. Add extensive test coverage for all installation scenarios
-
-**Implementation Structure**:
-```go
-type Installer struct {
-    provider cpan.Provider
-    tracker  progress.ProgressTracker
-    logger   *log.Logger
-}
-
-func (i *Installer) InstallModule(ctx context.Context, module string, opts InstallOptions) (*InstallResult, error)
-func (i *Installer) InstallBatch(ctx context.Context, modules []string, opts InstallOptions) ([]*InstallResult, error)
-func (i *Installer) ValidateInstallation(module string) error
-```
-
-**Migration Strategy**:
-- Extract without breaking existing commands
-- Update commands incrementally to use new installer
-- Maintain backward compatibility throughout process
-- Add integration tests for extracted functionality
-
-**Success Criteria**:
-- Installation logic extracted and working independently
-- All existing installation functionality preserved
-- Comprehensive test coverage for installation operations
-- Clean API that supports all current use cases
-- Performance maintained or improved
-```
-
-### Step 2.2: Extract Module Listing and Management
-
-**Goal**: Extract module listing, filtering, and management operations
+**Objective:** Create robust type expression parsing infrastructure that can handle precedence, associativity, and nesting.
 
 ```
-Extract the module listing, searching, and management functionality from various PVI commands into a dedicated manager package.
+You are implementing tree-sitter-typed-perl grammar enhancements for Issue #18. Your task is to establish the foundation for type expressions in the grammar.
 
-**Context**: The list, search, and outdated commands share significant functionality for module discovery, filtering, and management operations. Extract this into a reusable manager.
+CURRENT STATE:
+- Basic type annotations work in variable declarations (my Int $var)
+- Complex type expressions fail to parse
+- No unified type expression system
 
-**Requirements**:
-1. Create internal/modules/manager.go with listing functionality
-2. Extract module discovery and enumeration logic
-3. Implement filtering and search capabilities
-4. Extract outdated module detection
-5. Add module removal and cleanup operations
-6. Create comprehensive query and filter system
-7. Add thorough test coverage for all management operations
+TASK: Create comprehensive type expression infrastructure
 
-**Manager Capabilities**:
-```go
-type Manager struct {
-    provider cpan.Provider
-    logger   *log.Logger
-}
+REQUIREMENTS:
+1. Add `type_expr` rule that handles:
+   - Simple types (Int, Str, Bool)
+   - Qualified types (Package::Type)
+   - Parenthesized expressions ((Int|Str))
 
-func (m *Manager) ListInstalled(ctx context.Context, filter ModuleFilter) ([]*Module, error)
-func (m *Manager) SearchModules(ctx context.Context, query string) ([]*Module, error)
-func (m *Manager) FindOutdated(ctx context.Context) ([]*OutdatedModule, error)
-func (m *Manager) RemoveModule(ctx context.Context, module string) error
+2. Establish precedence for type operators (prepare for |, &, !)
+
+3. Create test cases covering:
+   - Simple type expressions: Int, Str, CustomType
+   - Qualified types: Package::Type, Foo::Bar::Baz
+   - Parenthesized expressions: (Int), ((Str))
+
+IMPLEMENTATION APPROACH:
+1. Add `type_expr` rule to grammar.js
+2. Update existing type annotation rules to use `type_expr`
+3. Create test file: test/corpus/type_expressions_foundation.txt
+4. Run tests and ensure no regressions
+
+TESTING REQUIREMENTS:
+- All existing tests must continue to pass
+- New test cases must parse correctly with proper AST structure
+- Use tree-sitter test to validate parsing
+
+DELIVERABLES:
+- Updated grammar.js with type_expr foundation
+- Test file with comprehensive type expression cases
+- Verified parsing with tree-sitter test
+- Documentation of any breaking changes
+
+Remember: This is the foundation - keep it simple and focused on basic type expression parsing. Complex operators come in later prompts.
 ```
 
-**Integration Points**:
-- Clean integration with installer package
-- Shared progress tracking across operations
-- Consistent error handling and reporting
-- Common filtering and query interfaces
+### Prompt 2: Implement Union Type Syntax
 
-**Success Criteria**:
-- All module management operations extracted
-- Consistent interfaces across all operations
-- Comprehensive filtering and search capabilities
-- All existing functionality preserved and enhanced
-- Extensive test coverage validates all operations
-```
+**Context:** With type expression foundation in place, we can now add union type support (`Int|Str`). This is one of the most critical missing features.
 
-### Step 2.3: Extract Parallel Installation Coordination
-
-**Goal**: Extract parallel installation coordination into internal/modules/parallel.go
+**Objective:** Add union type parsing with proper precedence and associativity.
 
 ```
-Extract the sophisticated parallel installation logic into a dedicated package that can coordinate complex multi-module operations efficiently.
+You are continuing tree-sitter-typed-perl grammar implementation. Your previous work established type_expr foundation. Now implement union type syntax.
 
-**Context**: PVI includes advanced parallel installation capabilities with dependency resolution, progress tracking, and error handling. Extract this into a reusable package for use across components.
+CURRENT STATE:
+- type_expr rule exists and handles basic types
+- Union types (Int|Str) not yet supported
+- Tests exist but skip due to missing grammar
 
-**Requirements**:
-1. Create internal/modules/parallel.go with coordination logic
-2. Extract parallel installation orchestration
-3. Implement dependency-aware installation ordering
-4. Add progress aggregation and reporting
-5. Extract error handling and rollback capabilities
-6. Create worker pool management
-7. Add comprehensive tests for parallel operations
+TASK: Implement union type syntax (Int|Str)
 
-**Parallel Coordinator**:
-```go
-type ParallelCoordinator struct {
-    installer    *Installer
-    maxWorkers   int
-    tracker      progress.ParallelTracker
-    logger       *log.Logger
-}
+REQUIREMENTS:
+1. Add union type operator `|` to type_expr with proper precedence
+2. Support chained unions: Int|Str|Bool
+3. Support parenthesized unions: (Int|Str)|Bool
+4. Maintain left-associativity: Int|Str|Bool = ((Int|Str)|Bool)
 
-func (pc *ParallelCoordinator) InstallModules(ctx context.Context, modules []string, opts InstallOptions) ([]*InstallResult, error)
-func (pc *ParallelCoordinator) ResolveDependencies(modules []string) (*DependencyGraph, error)
-func (pc *ParallelCoordinator) ExecuteInstallPlan(ctx context.Context, plan *InstallPlan) ([]*InstallResult, error)
+IMPLEMENTATION APPROACH:
+1. Add `union_type` rule using prec.left for associativity
+2. Update `type_expr` to include union_type
+3. Add comprehensive test cases in test/corpus/union_types.txt:
+   - Simple unions: Int|Str
+   - Chained unions: Int|Str|Bool
+   - Parenthesized: (Int|Str)|Bool
+   - In variable context: my Int|Str $var
+
+TESTING REQUIREMENTS:
+- Run existing test suite - no regressions allowed
+- New union type tests must pass 100%
+- Test AST structure with tree-sitter parse --debug
+- Verify precedence by testing: Int|Str|Bool parses as ((Int|Str)|Bool)
+
+VALIDATION STEPS:
+1. make tree-sitter (regenerate parser)
+2. tree-sitter test -f union_types
+3. make test (verify no regressions)
+4. Test manual parsing: echo "my Int|Str \$var;" | tree-sitter parse
+
+DELIVERABLES:
+- Updated grammar.js with union_type rule
+- Comprehensive union type test file
+- AST validation showing proper precedence
+- Performance check - no significant parsing slowdown
+
+Focus on union types only - intersection and negation come in the next prompts.
 ```
 
-**Coordination Features**:
-- Dependency-aware installation ordering
-- Worker pool management and load balancing
-- Progress aggregation across parallel operations
-- Error handling and partial failure recovery
-- Resource management and cleanup
+### Prompt 3: Add Intersection and Negation Types
 
-**Success Criteria**:
-- Parallel installation fully extracted and functional
-- Dependency resolution working correctly
-- Progress tracking aggregates properly across workers
-- Error handling provides clear failure information
-- Performance maintained or improved over current implementation
-```
+**Context:** Union types are now working. Next we need intersection (`Object&Serializable`) and negation (`!Undef`) types to complete the basic type operators.
 
----
-
-## Phase 3: CPAN Provider and Configuration Extraction
-
-### Step 3.1: Create CPAN Provider Builder Pattern
-
-**Goal**: Extract repetitive CPAN provider setup into builder pattern
+**Objective:** Implement intersection and negation type operators with correct precedence relationships.
 
 ```
-Create a clean builder pattern to eliminate the 50+ lines of repetitive provider setup code found in every PVI command.
+You are continuing tree-sitter-typed-perl grammar development. Union types (Int|Str) are now working. Implement intersection and negation type operators.
 
-**Context**: Every PVI command contains nearly identical provider setup logic with minor variations. Extract this into a reusable builder that simplifies provider creation and configuration.
+CURRENT STATE:
+- Union types (Int|Str) working correctly
+- Intersection types (Object&Serializable) not supported
+- Negation types (!Undef) not supported
+- Need proper precedence: ! > & > |
 
-**Requirements**:
-1. Create internal/cpan/builder.go with provider builder
-2. Extract common provider option building patterns
-3. Implement fluent builder interface for easy configuration
-4. Add configuration-based provider setup
-5. Extract mirror and cache configuration logic
-6. Create validation and error handling for provider setup
-7. Add comprehensive tests for all builder operations
+TASK: Add intersection (&) and negation (!) type operators
 
-**Builder Implementation**:
-```go
-type ProviderBuilder struct {
-    source     string
-    mirrors    []string
-    noCache    bool
-    options    []ProviderOption
-    config     *config.PVIConfig
-}
+REQUIREMENTS:
+1. Implement intersection types: Object&Serializable
+2. Implement negation types: !Undef
+3. Establish correct precedence: !Undef&Other|Another = ((!Undef)&Other)|Another
+4. Support complex combinations: !(Int|Str)&Object
 
-func NewProviderBuilder() *ProviderBuilder
-func (pb *ProviderBuilder) WithSource(source string) *ProviderBuilder
-func (pb *ProviderBuilder) WithConfig(cfg *config.PVIConfig) *ProviderBuilder
-func (pb *ProviderBuilder) WithMirrors(mirrors []string) *ProviderBuilder
-func (pb *ProviderBuilder) DisableCache() *ProviderBuilder
-func (pb *ProviderBuilder) Build() (cpan.Provider, error)
+PRECEDENCE RULES (high to low):
+- Negation (!): highest precedence, right-associative
+- Intersection (&): medium precedence, left-associative
+- Union (|): lowest precedence, left-associative
+
+IMPLEMENTATION APPROACH:
+1. Add `negation_type` rule with highest precedence
+2. Add `intersection_type` rule between negation and union
+3. Update type_expr precedence hierarchy
+4. Create comprehensive test cases
+
+TEST CASES REQUIRED:
+```perl
+# Basic intersection
+my Object&Serializable $obj;
+
+# Basic negation
+my !Undef $not_null;
+
+# Precedence testing
+my !Int&Str|Bool $complex;  # Should parse as (((!Int)&Str)|Bool)
+my !(Int|Str) $negated_union;
+my !Int|Str $negated_first;  # Should parse as ((!Int)|Str)
 ```
 
-**Usage Pattern**:
-Replace 50+ lines of setup with:
-```go
-provider, err := cpan.NewProviderBuilder().
-    WithConfig(cfg).
-    WithSource(source).
-    Build()
+TESTING REQUIREMENTS:
+1. Create test/corpus/intersection_negation_types.txt
+2. Test precedence with manual AST inspection
+3. Verify all existing tests still pass
+4. Test edge cases: !!, A&B&C, complex nesting
+
+VALIDATION STEPS:
+1. make tree-sitter
+2. tree-sitter test -f intersection_negation_types
+3. Test precedence: echo "my !Int&Str|Bool \$x;" | tree-sitter parse --debug
+4. make test (ensure no regressions)
+
+DELIVERABLES:
+- grammar.js with intersection_type and negation_type rules
+- Comprehensive test file covering all operator combinations
+- Precedence validation showing correct AST structure
+- Performance verification
+
+Focus on getting operator precedence exactly right - this is critical for correct type checking later.
 ```
 
-**Success Criteria**:
-- Provider setup reduced from 50+ lines to 3-5 lines per command
-- All existing provider functionality preserved
-- Builder pattern provides clean, readable API
-- Configuration integration working seamlessly
-- Comprehensive test coverage for all builder operations
-```
+### Prompt 4: Implement Parameterized Types
 
-### Step 3.2: Extract Configuration Management Helpers
+**Context:** Basic type operators are working. Now we need parameterized types (`ArrayRef[Int]`, `HashRef[Str, Int]`) which are essential for container types.
 
-**Goal**: Extract configuration resolution and management helpers
+**Objective:** Add parameterized type syntax with support for multiple parameters and nesting.
 
 ```
-Extract the common configuration resolution patterns into helper functions that provide consistent configuration handling across all commands.
+You are continuing tree-sitter-typed-perl grammar implementation. Basic type operators (|, &, !) are working. Now implement parameterized types.
 
-**Context**: Commands frequently need to resolve configuration values from multiple sources (flags, config files, defaults). Extract this logic into reusable helpers.
+CURRENT STATE:
+- Type operators (union, intersection, negation) working
+- Simple parameterized types may work in variable context
+- Complex parameterized types not fully supported
+- Nested parameterized types (ArrayRef[HashRef[Str, Int]]) fail
 
-**Requirements**:
-1. Create internal/config/resolution.go with helper functions
-2. Extract flag-to-config resolution patterns
-3. Implement default value resolution logic
-4. Add configuration validation helpers
-5. Extract environment variable handling
-6. Create configuration merging and priority logic
-7. Add comprehensive tests for configuration resolution
+TASK: Implement comprehensive parameterized type support
 
-**Resolution Helpers**:
-```go
-func ResolveStringValue(flagValue, configValue, defaultValue string) string
-func ResolveBoolValue(flagValue, configValue, defaultValue bool) bool
-func ResolveStringSlice(flagValue, configValue, defaultValue []string) []string
-func ValidateConfiguration(cfg *config.PVIConfig) error
-func GetEffectiveConfiguration(flagsChanged map[string]bool) (*config.PVIConfig, error)
+REQUIREMENTS:
+1. Single parameter types: ArrayRef[Int], Optional[Str]
+2. Multiple parameter types: HashRef[Str, Int], Result[Success, Error]
+3. Nested parameterized types: ArrayRef[HashRef[Str, Int]]
+4. Parameters can be any type expression: ArrayRef[Int|Str]
+
+IMPLEMENTATION APPROACH:
+1. Add `parameterized_type` rule with proper bracket handling
+2. Support parameter_list with comma separation
+3. Allow full type_expr as parameters (enables nesting)
+4. Handle whitespace properly in brackets
+
+GRAMMAR STRUCTURE:
+```javascript
+parameterized_type: $ => seq(
+  field('base_type', $.type_name),
+  '[',
+  field('parameters', $.type_parameter_list),
+  ']'
+),
+
+type_parameter_list: $ => seq(
+  $.type_expr,
+  repeat(seq(',', $.type_expr))
+),
 ```
 
-**Configuration Priority**:
-1. Command-line flags (highest priority)
-2. Configuration file values
-3. Environment variables
-4. Default values (lowest priority)
+TEST CASES REQUIRED:
+```perl
+# Single parameter
+my ArrayRef[Int] $numbers;
+my Optional[Str] $maybe_name;
 
-**Success Criteria**:
-- Configuration resolution logic extracted and reusable
-- Consistent priority handling across all commands
-- Clean APIs that eliminate repetitive configuration code
-- All existing configuration behavior preserved
-- Comprehensive test coverage for all resolution scenarios
+# Multiple parameters
+my HashRef[Str, Int] $scores;
+my Result[Success, Error] $result;
+
+# Nested parameterized
+my ArrayRef[HashRef[Str, Int]] $complex_data;
+my HashRef[Str, ArrayRef[Int]] $lookup;
+
+# Parameters with operators
+my ArrayRef[Int|Str] $mixed_array;
+my Optional[!Undef] $definitely_something;
 ```
 
-### Step 3.3: Extract Mirror and Cache Management
+TESTING REQUIREMENTS:
+1. Create test/corpus/parameterized_types.txt
+2. Test all nesting levels (at least 3 deep)
+3. Verify parameter parsing with type operators
+4. Ensure no regression in existing tests
 
-**Goal**: Extract mirror configuration and cache management functionality
+VALIDATION STEPS:
+1. make tree-sitter
+2. tree-sitter test -f parameterized_types
+3. Test complex case: echo "my ArrayRef[HashRef[Str, Int|Bool]] \$data;" | tree-sitter parse
+4. make test (full test suite)
 
-```
-Extract mirror configuration and cache management into dedicated helpers that provide consistent caching and mirror behavior across all operations.
+DELIVERABLES:
+- grammar.js with parameterized_type and type_parameter_list rules
+- Comprehensive test file covering all parameterization scenarios
+- AST validation for complex nested cases
+- Performance testing for deeply nested types
 
-**Context**: Multiple commands handle mirror configuration and cache management with similar patterns. Extract this into focused utilities.
-
-**Requirements**:
-1. Create internal/cpan/cache.go with cache management
-2. Extract cache validation and cleanup logic
-3. Create internal/cpan/mirrors.go with mirror configuration
-4. Extract mirror selection and validation
-5. Add cache directory management and cleanup
-6. Create mirror health checking and failover
-7. Add comprehensive tests for cache and mirror operations
-
-**Cache Management**:
-```go
-type CacheManager struct {
-    cacheDir string
-    logger   *log.Logger
-}
-
-func (cm *CacheManager) ValidateCache() error
-func (cm *CacheManager) CleanupCache(olderThan time.Duration) error
-func (cm *CacheManager) GetCacheStats() (*CacheStats, error)
+This is critical for PSC type checking - ensure parameterized types integrate properly with type operators.
 ```
 
-**Mirror Management**:
-```go
-type MirrorManager struct {
-    mirrors []string
-    timeout time.Duration
-    logger  *log.Logger
-}
+### Prompt 5: Add Type Assertion Syntax
 
-func (mm *MirrorManager) SelectBestMirror() (string, error)
-func (mm *MirrorManager) ValidateMirrors() ([]*MirrorStatus, error)
-func (mm *MirrorManager) GetMirrorHealth() (map[string]bool, error)
-```
+**Context:** Core type expressions are complete. Now we need type assertion syntax (`$value as Int`) which is essential for runtime type checking.
 
-**Success Criteria**:
-- Cache management extracted and consistently applied
-- Mirror selection logic reusable across commands
-- Cache cleanup and validation working correctly
-- Mirror health checking provides reliable failover
-- All cache and mirror functionality thoroughly tested
-```
-
----
-
-## Phase 4: Project and Dependency Management Extraction
-
-### Step 4.1: Extract cpanfile Management Operations
-
-**Goal**: Extract cpanfile operations into internal/dependencies/cpanfile.go
+**Objective:** Implement type assertion operator with proper precedence in expressions.
 
 ```
-Extract the comprehensive cpanfile management functionality into a dedicated package that can be reused for project-based dependency management.
+You are continuing tree-sitter-typed-perl grammar development. Core type expressions (unions, intersections, parameterized) are working. Now implement type assertion syntax.
 
-**Context**: The current cpanfile.go file in PVI contains substantial functionality for cpanfile parsing, modification, and management. Extract this into a shared package.
+CURRENT STATE:
+- All type expression features working (|, &, !, parameterized)
+- Type assertions ($value as Int) not supported
+- Need to integrate with existing expression parsing
 
-**Requirements**:
-1. Move and enhance internal/pvi/cpanfile.go to internal/dependencies/cpanfile.go
-2. Extract cpanfile parsing and writing operations
-3. Add cpanfile modification and dependency management
-4. Extract snapshot generation and validation
-5. Add dependency diff and comparison operations
-6. Create cpanfile format validation and linting
-7. Add comprehensive tests for all cpanfile operations
+TASK: Implement type assertion syntax ($value as Int)
 
-**Cpanfile Manager**:
-```go
-type CpanfileManager struct {
-    projectDir string
-    logger     *log.Logger
-}
+REQUIREMENTS:
+1. Add `as` operator for type assertions
+2. Support any expression as left operand: $var as Int, func() as Str
+3. Support any type expression as right operand: $val as Int|Str
+4. Proper precedence in expression hierarchy
 
-func (cm *CpanfileManager) LoadCpanfile() (*Cpanfile, error)
-func (cm *CpanfileManager) SaveCpanfile(cpanfile *Cpanfile) error
-func (cm *CpanfileManager) AddDependency(module string, version string, phase string) error
-func (cm *CpanfileManager) RemoveDependency(module string, phase string) error
-func (cm *CpanfileManager) GenerateSnapshot() (*Snapshot, error)
-func (cm *CpanfileManager) ValidateSnapshot(snapshot *Snapshot) error
+PRECEDENCE CONSIDERATIONS:
+- Should bind tighter than most operators but looser than postfix
+- Suggested precedence: between ARROW and UNOP
+- Left-associative: $a as Int as Str should error or warn
+
+IMPLEMENTATION APPROACH:
+1. Add `type_assertion_expression` rule to grammar
+2. Integrate with existing expression precedence
+3. Add to `_term` or appropriate expression level
+4. Handle edge cases (parentheses, operator precedence)
+
+GRAMMAR STRUCTURE:
+```javascript
+type_assertion_expression: $ => prec.left(TERMPREC.TYPE_AS, seq(
+  field('expression', $._expr),
+  'as',
+  field('type', $.type_expr)
+)),
 ```
 
-**Enhanced Functionality**:
-- Dependency version constraint validation
-- Snapshot comparison and diff generation
-- cpanfile format validation and suggestions
-- Integration with module installation operations
+TEST CASES REQUIRED:
+```perl
+# Basic assertions
+my $val = $input as Int;
+my $name = get_name() as Str;
 
-**Success Criteria**:
-- Cpanfile operations extracted and enhanced
-- Clean API for all cpanfile management tasks
-- Snapshot generation and validation working correctly
-- Integration with project context and module operations
-- Comprehensive test coverage for all cpanfile functionality
+# Complex type assertions
+my $data = $result as ArrayRef[Int];
+my $mixed = $value as Int|Str;
+
+# In expressions
+if ($input as Int > 42) { ... }
+return $data as HashRef[Str, Int];
+
+# Edge cases
+my $nested = ($value as Int) + 10;
+my $chain = func($x as Str) as Int;
 ```
 
-### Step 4.2: Extract Dependency Resolution Logic
+TESTING REQUIREMENTS:
+1. Create test/corpus/type_assertions.txt
+2. Test precedence with complex expressions
+3. Verify integration with existing expression parsing
+4. Test edge cases and error conditions
 
-**Goal**: Extract dependency resolution into internal/dependencies/resolver.go
+VALIDATION STEPS:
+1. make tree-sitter
+2. tree-sitter test -f type_assertions
+3. Test precedence: echo "my \$x = \$y as Int + 10;" | tree-sitter parse --debug
+4. make test (ensure no expression parsing regressions)
 
-```
-Extract the dependency resolution and conflict detection logic into a dedicated resolver that can coordinate complex dependency scenarios.
+DELIVERABLES:
+- grammar.js with type_assertion_expression rule
+- Comprehensive type assertion test file
+- Precedence validation with complex expressions
+- Integration verification with existing expression tests
 
-**Context**: PVI includes sophisticated dependency resolution with conflict detection and resolution suggestions. Extract this into a reusable resolver package.
-
-**Requirements**:
-1. Create internal/dependencies/resolver.go with resolution logic
-2. Extract dependency graph construction and analysis
-3. Implement conflict detection and resolution suggestions
-4. Add circular dependency detection and handling
-5. Extract version constraint resolution
-6. Create dependency pruning and optimization
-7. Add comprehensive tests for all resolution scenarios
-
-**Dependency Resolver**:
-```go
-type DependencyResolver struct {
-    provider cpan.Provider
-    logger   *log.Logger
-}
-
-func (dr *DependencyResolver) ResolveDependencies(modules []string) (*DependencyGraph, error)
-func (dr *DependencyResolver) DetectConflicts(graph *DependencyGraph) ([]*Conflict, error)
-func (dr *DependencyResolver) SuggestResolutions(conflicts []*Conflict) ([]*Resolution, error)
-func (dr *DependencyResolver) CreateInstallPlan(graph *DependencyGraph) (*InstallPlan, error)
+Critical: Type assertions must integrate smoothly with existing expression parsing without breaking anything.
 ```
 
-**Resolution Features**:
-- Transitive dependency resolution
-- Version constraint satisfaction
-- Conflict detection and reporting
-- Installation order optimization
-- Circular dependency detection
+### Prompt 6: Implement Type Declarations
 
-**Success Criteria**:
-- Dependency resolution extracted and working independently
-- Conflict detection provides clear, actionable information
-- Resolution suggestions help users resolve dependency issues
-- Install plan generation optimizes installation order
-- All resolution functionality thoroughly tested
-```
+**Context:** Type expressions and assertions are complete. Now we need standalone type declarations (`type MyType = Int|Str`) which are fundamental for type aliasing.
 
-### Step 4.3: Extract Bundle and Export Operations
-
-**Goal**: Extract bundle import/export functionality into internal/dependencies/bundle.go
+**Objective:** Add standalone type declaration syntax as top-level statements.
 
 ```
-Extract the bundle import and export operations into a dedicated package that handles module collection and distribution.
+You are continuing tree-sitter-typed-perl grammar implementation. Type expressions and assertions are working. Now implement standalone type declarations.
 
-**Context**: PVI includes bundle operations for exporting and importing module collections. Extract this into a reusable package for cross-environment module management.
+CURRENT STATE:
+- All type expression features complete (|, &, !, parameterized, assertions)
+- No support for standalone type declarations
+- Need top-level statement: type MyType = Int|Str;
 
-**Requirements**:
-1. Create internal/dependencies/bundle.go with bundle operations
-2. Extract bundle creation and export logic
-3. Add bundle import and installation functionality
-4. Extract bundle validation and verification
-5. Add bundle format standardization
-6. Create bundle dependency resolution
-7. Add comprehensive tests for all bundle operations
+TASK: Implement standalone type declaration syntax
 
-**Bundle Manager**:
-```go
-type BundleManager struct {
-    resolver *DependencyResolver
-    manager  *modules.Manager
-    logger   *log.Logger
-}
+REQUIREMENTS:
+1. Type declarations as statements: type MyType = Int|Str;
+2. Support any type expression as definition: type Complex = ArrayRef[Int|Str];
+3. Type names follow identifier rules
+4. Proper statement termination (semicolon)
 
-func (bm *BundleManager) CreateBundle(modules []string, options BundleOptions) (*Bundle, error)
-func (bm *BundleManager) ExportBundle(bundle *Bundle, filename string) error
-func (bm *BundleManager) ImportBundle(filename string) (*Bundle, error)
-func (bm *BundleManager) InstallBundle(bundle *Bundle, options InstallOptions) ([]*InstallResult, error)
-func (bm *BundleManager) ValidateBundle(bundle *Bundle) ([]*ValidationError, error)
+IMPLEMENTATION APPROACH:
+1. Add `type_declaration` rule as a statement type
+2. Add to top-level statement choices
+3. Support full type_expr as the definition
+4. Handle scope and visibility (if applicable)
+
+GRAMMAR STRUCTURE:
+```javascript
+type_declaration: $ => seq(
+  'type',
+  field('name', $.type_name),
+  '=',
+  field('definition', $.type_expr),
+  ';'
+),
+
+type_name: $ => $._identifier,
 ```
 
-**Bundle Features**:
-- Comprehensive module collection with dependencies
-- Cross-platform bundle compatibility
-- Bundle validation and integrity checking
-- Incremental bundle updates and synchronization
+TEST CASES REQUIRED:
+```perl
+# Basic type declarations
+type UserId = Int;
+type UserName = Str;
 
-**Success Criteria**:
-- Bundle operations extracted and working independently
-- Bundle format is standardized and validated
-- Import/export operations preserve all necessary information
-- Bundle installation integrates cleanly with module installer
-- All bundle functionality comprehensively tested
-```
+# Union type declarations
+type Flexible = Int|Str;
+type Status = Success|Error|Pending;
 
----
+# Complex type declarations
+type UserData = HashRef[Str, Int|Str];
+type ProcessResult = Result[Success, Error];
 
-## Phase 5: Progress Tracking and UI Standardization
+# Nested declarations
+type ComplexData = ArrayRef[HashRef[Str, Int|Str]];
+type Callback = CodeRef[Void, (Int, Str)];
 
-### Step 5.1: Extract Progress Tracking Framework
-
-**Goal**: Create standardized progress tracking in internal/cli/progress/
-
-```
-Extract the progress tracking patterns into a standardized framework that provides consistent progress reporting across all operations.
-
-**Context**: PVI commands use various progress tracking patterns that could be standardized. Extract these into a unified progress framework.
-
-**Requirements**:
-1. Create internal/cli/progress/tracker.go with progress interfaces
-2. Extract single operation progress tracking
-3. Add parallel operation progress aggregation
-4. Extract progress formatting and display logic
-5. Add progress persistence and recovery
-6. Create progress callback and notification system
-7. Add comprehensive tests for all progress functionality
-
-**Progress Framework**:
-```go
-type ProgressTracker interface {
-    Start(operation string, total int)
-    Update(current int, message string)
-    Finish(result *OperationResult)
-}
-
-type ParallelProgressTracker interface {
-    StartParallel(operations []string)
-    UpdateOperation(id string, status OperationStatus, message string)
-    FinishParallel(results []*OperationResult)
-}
-
-type ProgressReporter interface {
-    Subscribe(callback ProgressCallback)
-    Unsubscribe(callback ProgressCallback)
+# In package context
+package MyPackage {
+    type LocalType = Int;
 }
 ```
 
-**Progress Features**:
-- Real-time progress updates with UI integration
-- Parallel operation progress aggregation
-- Progress persistence for long-running operations
-- Customizable progress display formats
+TESTING REQUIREMENTS:
+1. Create test/corpus/type_declarations.txt
+2. Test as top-level statements
+3. Test in package/block contexts
+4. Verify proper statement parsing integration
 
-**Success Criteria**:
-- Progress tracking standardized across all operations
-- Parallel progress aggregation working correctly
-- Progress display integrates cleanly with Fang UI
-- Progress persistence enables operation recovery
-- All progress functionality thoroughly tested
+VALIDATION STEPS:
+1. make tree-sitter
+2. tree-sitter test -f type_declarations
+3. Test in context: echo "type MyType = Int|Str; my MyType \$var;" | tree-sitter parse
+4. make test (verify statement parsing integration)
+
+DELIVERABLES:
+- grammar.js with type_declaration rule
+- Comprehensive type declaration test file
+- Statement integration verification
+- Documentation of type declaration syntax
+
+This completes the core type system - type declarations enable full type aliasing for PSC.
 ```
 
-### Step 5.2: Extract Result Formatting and Display
+### Prompt 7: Add Complex Method Signature Support
 
-**Goal**: Extract result formatting into internal/cli/progress/formatting.go
+**Context:** Core type system is complete. Now we need to enhance method signatures to support complex type annotations including return types.
+
+**Objective:** Extend method signature parsing to handle complex typed parameters and return type annotations.
 
 ```
-Extract result formatting and display logic into standardized formatters that provide consistent output across all operations.
+You are completing tree-sitter-typed-perl grammar implementation. Core type system is working. Now enhance method signatures with complex type support.
 
-**Context**: Commands format results in various ways that could be standardized. Extract formatting logic into reusable formatters.
+CURRENT STATE:
+- Core type system complete (declarations, expressions, assertions)
+- Basic method signatures may work
+- Complex method signatures with return types not fully supported
+- Need: method foo(Int $x, Str $y) -> Bool { ... }
 
-**Requirements**:
-1. Create internal/cli/progress/formatting.go with formatters
-2. Extract installation result formatting
-3. Add module list formatting with various display modes
-4. Extract error formatting and display
-5. Add timing and performance result formatting
-6. Create summary and statistics formatting
-7. Add comprehensive tests for all formatting operations
+TASK: Implement comprehensive method signature type support
 
-**Result Formatters**:
-```go
-type ResultFormatter interface {
-    FormatInstallationResults(results []*InstallResult) []string
-    FormatModuleList(modules []*Module, format string) []string
-    FormatErrors(errors []*Error) []string
-    FormatSummary(summary *OperationSummary) []string
+REQUIREMENTS:
+1. Complex parameter types: method foo(ArrayRef[Int] $data) { ... }
+2. Return type annotations: method foo() -> Int { ... }
+3. Multiple typed parameters with defaults
+4. Optional parameters and slurpy parameters
+
+CURRENT SIGNATURE PARSING:
+Review existing signature parsing in grammar.js and extend it to handle:
+- Full type expressions in parameters
+- Return type syntax (-> Type)
+- Optional and slurpy parameters with types
+
+IMPLEMENTATION APPROACH:
+1. Extend parameter parsing to use full type_expr
+2. Add return type annotation support
+3. Handle parameter defaults with types
+4. Support slurpy parameters (@rest, %opts) with types
+
+GRAMMAR ENHANCEMENTS:
+```javascript
+// Extend existing signature rules
+typed_parameter: $ => seq(
+  field('type', $.type_expr),
+  field('variable', $._signature_scalar),
+  optional(seq('=', field('default_value', $._expr)))
+),
+
+return_type_annotation: $ => seq(
+  '->',
+  field('return_type', $.type_expr)
+),
+```
+
+TEST CASES REQUIRED:
+```perl
+# Complex parameter types
+method process_data(ArrayRef[Int] $numbers, HashRef[Str, Int] $lookup) { ... }
+
+# Return type annotations
+method get_count() -> Int { return 42; }
+method get_name() -> Str { return "example"; }
+
+# Combined parameter and return types
+method transform(ArrayRef[Int] $input) -> ArrayRef[Str] { ... }
+
+# Optional and default parameters
+method create_user(Str $name, Int $age = 0, Bool $active = 1) -> User { ... }
+
+# Slurpy parameters (if supported)
+method log_message(Str $message, %opts) { ... }
+method sum_numbers(Int @numbers) -> Int { ... }
+```
+
+TESTING REQUIREMENTS:
+1. Create test/corpus/complex_method_signatures.txt
+2. Test parameter type parsing
+3. Test return type parsing
+4. Test integration with method body parsing
+
+VALIDATION STEPS:
+1. make tree-sitter
+2. tree-sitter test -f complex_method_signatures
+3. Test complex case: echo "method foo(ArrayRef[Int] \$data) -> Bool { return 1; }" | tree-sitter parse
+4. make test (verify no method parsing regressions)
+
+DELIVERABLES:
+- Enhanced method signature parsing in grammar.js
+- Comprehensive method signature test file
+- Verification of parameter and return type integration
+- Performance check for complex signatures
+
+This enables PSC to perform comprehensive method signature analysis.
+```
+
+### Prompt 8: Add Type Constraints and Where Clauses
+
+**Context:** Method signatures are enhanced. The final major feature is type constraints and where clauses for generic programming support.
+
+**Objective:** Implement type constraints (where clauses) for generic type parameters.
+
+```
+You are completing the final major feature of tree-sitter-typed-perl grammar. All core type features are working. Now implement type constraints and where clauses.
+
+CURRENT STATE:
+- Complete type system (declarations, expressions, assertions)
+- Enhanced method signatures with return types
+- Type constraints (where clauses) not supported
+- Need: type Container[T] where T: Serializable = ...;
+
+TASK: Implement type constraints and where clauses
+
+REQUIREMENTS:
+1. Generic type parameters: type Container[T] = ...
+2. Type constraints: type Container[T] where T: Serializable = ...
+3. Multiple constraints: where T: Serialize, T: Clone
+4. Constraint inheritance: where T: Base & Trait
+
+NOTE: This is advanced functionality - implement basic where clause syntax first, full constraint checking comes later in PSC.
+
+IMPLEMENTATION APPROACH:
+1. Add generic type parameter support to type declarations
+2. Add where clause syntax
+3. Add constraint specifications
+4. Handle multiple constraints and inheritance
+
+GRAMMAR STRUCTURE:
+```javascript
+// Enhanced type declaration with constraints
+type_declaration: $ => seq(
+  'type',
+  field('name', $.type_name),
+  optional(field('parameters', $.type_parameter_declaration)),
+  optional(field('constraints', $.where_clause)),
+  '=',
+  field('definition', $.type_expr),
+  ';'
+),
+
+type_parameter_declaration: $ => seq(
+  '[',
+  sepBy1(',', $.type_parameter),
+  ']'
+),
+
+where_clause: $ => seq(
+  'where',
+  sepBy1(',', $.type_constraint)
+),
+
+type_constraint: $ => seq(
+  field('parameter', $.type_name),
+  ':',
+  field('bound', $.type_expr)
+),
+```
+
+TEST CASES REQUIRED:
+```perl
+# Basic generic types
+type Container[T] = ArrayRef[T];
+type Pair[A, B] = HashRef[A, B];
+
+# Simple constraints
+type Sortable[T] where T: Ord = ArrayRef[T];
+type Serializable[T] where T: Serialize = T;
+
+# Multiple constraints
+type Complex[T] where T: Clone, T: Serialize = Container[T];
+
+# Constraint inheritance
+type Advanced[T] where T: Base & Trait = T;
+
+# In method signatures (future)
+# method process[T](T $data) where T: Serializable -> T { ... }
+```
+
+TESTING REQUIREMENTS:
+1. Create test/corpus/type_constraints.txt
+2. Focus on parsing correctness, not semantic validation
+3. Test constraint syntax variations
+4. Verify integration with existing type declarations
+
+VALIDATION STEPS:
+1. make tree-sitter
+2. tree-sitter test -f type_constraints
+3. Test parsing: echo "type Container[T] where T: Serialize = ArrayRef[T];" | tree-sitter parse
+4. make test (full integration test)
+
+DELIVERABLES:
+- Enhanced type declaration parsing with constraints
+- Type constraint test file
+- Generic type parameter support
+- Documentation of constraint syntax
+
+This completes the core grammar features - PSC can now parse all typed Perl constructs.
+```
+
+### Prompt 9: Integration Testing and Performance Optimization
+
+**Context:** All major grammar features are implemented. Now we need comprehensive integration testing and performance optimization.
+
+**Objective:** Ensure all features work together correctly and optimize parsing performance.
+
+```
+You are completing tree-sitter-typed-perl grammar implementation. All major features are implemented. Now perform comprehensive integration testing and optimization.
+
+CURRENT STATE:
+- All major type features implemented
+- Individual feature tests passing
+- Need comprehensive integration testing
+- May have performance issues with complex types
+
+TASK: Integration testing and performance optimization
+
+REQUIREMENTS:
+1. Test all features working together
+2. Identify and fix performance bottlenecks
+3. Ensure no regressions in existing functionality
+4. Optimize for real-world code patterns
+
+INTEGRATION TEST SCENARIOS:
+1. Complex type declarations using all features
+2. Method signatures with complex types and constraints
+3. Type assertions with complex expressions
+4. Nested parameterized types with unions and intersections
+5. Real-world code patterns
+
+TEST CASES REQUIRED:
+```perl
+# Complex integration example
+type UserId = Int;
+type UserName = Str;
+type UserData = HashRef[Str, Int|Str];
+type UserResult[T] where T: Serialize = Result[T, Error];
+
+method create_user(
+    UserName $name,
+    ArrayRef[UserData] $data,
+    Optional[Bool] $active = 1
+) -> UserResult[User] {
+    my $user = $data as UserData;
+    return $user as UserResult[User];
 }
 
-type TableFormatter struct{}
-type ListFormatter struct{}
-type JSONFormatter struct{}
+# Stress test - deeply nested types
+type DeepNested = ArrayRef[HashRef[Str, ArrayRef[HashRef[Str, Int|Str]]]];
+method process_deep(DeepNested $data) -> DeepNested { ... }
 ```
 
-**Formatting Features**:
-- Multiple output formats (table, list, JSON)
-- Consistent error formatting and display
-- Performance and timing information display
-- Configurable verbosity levels
+PERFORMANCE OPTIMIZATION:
+1. Profile parsing time for complex types
+2. Optimize repetitive patterns in grammar
+3. Ensure reasonable performance for deeply nested types
+4. Test memory usage with large files
 
-**Success Criteria**:
-- Result formatting standardized across all commands
-- Multiple output formats available and consistent
-- Error formatting provides clear, actionable information
-- Performance display helps users understand operation efficiency
-- All formatting functionality thoroughly tested
+TESTING REQUIREMENTS:
+1. Create test/corpus/integration_comprehensive.txt
+2. Run performance tests on complex files
+3. Test against real-world typed Perl code
+4. Verify PSC integration still works
+
+VALIDATION STEPS:
+1. make tree-sitter
+2. tree-sitter test (all tests must pass)
+3. Performance test: time tree-sitter parse large_typed_file.pl
+4. make test (full project test suite)
+5. Test PSC integration: psc check sample_typed_file.pl
+
+DELIVERABLES:
+- Comprehensive integration test file
+- Performance optimization report
+- Any grammar fixes for edge cases discovered
+- Documentation of performance characteristics
+
+This ensures the grammar is production-ready for PSC integration.
 ```
 
-### Step 5.3: Integrate Progress with Module Operations
+### Prompt 10: Final Validation and Documentation
 
-**Goal**: Wire progress tracking into all extracted module operations
+**Context:** Grammar implementation is complete and tested. Final step is comprehensive validation and documentation updates.
 
-```
-Integrate the standardized progress tracking framework with all extracted module management operations to provide consistent progress reporting.
-
-**Context**: With progress tracking extracted and module operations extracted, integrate them to provide seamless progress reporting across all module operations.
-
-**Requirements**:
-1. Update module installer to use standardized progress tracking
-2. Integrate progress tracking with parallel installation
-3. Add progress reporting to module listing and search operations
-4. Update bundle operations to use progress tracking
-5. Integrate progress with dependency resolution operations
-6. Ensure all operations provide consistent progress information
-7. Add comprehensive integration tests for progress tracking
-
-**Integration Points**:
-- Module installation progress with download and install phases
-- Parallel installation progress aggregation
-- Dependency resolution progress reporting
-- Bundle operations progress tracking
-- Module search and listing progress for large operations
-
-**Progress Integration**:
-```go
-installer := modules.NewInstaller(provider, progress.NewTracker(ui), logger)
-coordinator := modules.NewParallelCoordinator(installer, maxWorkers, progress.NewParallelTracker(ui), logger)
-manager := modules.NewManager(provider, progress.NewTracker(ui), logger)
-```
-
-**Success Criteria**:
-- All module operations provide consistent progress reporting
-- Progress tracking integrates seamlessly with UI framework
-- Parallel operations aggregate progress correctly
-- Users receive clear, timely progress information
-- Integration testing validates all progress reporting
-```
-
----
-
-## Phase 6: Command Integration and Finalization
-
-### Step 6.1: Update PVI Commands to Use Extracted Packages
-
-**Goal**: Systematically update all PVI commands to use the extracted packages
+**Objective:** Perform final validation, update documentation, and prepare for PSC integration.
 
 ```
-Update each PVI command to use the extracted packages, dramatically reducing the size of command.go and eliminating code duplication.
+You are completing tree-sitter-typed-perl grammar implementation. All features are implemented and tested. Perform final validation and documentation updates.
 
-**Context**: With all functionality extracted into reusable packages, update the commands to use the new packages instead of embedded logic.
+CURRENT STATE:
+- All grammar features implemented and integration tested
+- Performance optimized
+- Need final validation and documentation updates
 
-**Requirements**:
-1. Update install command to use modules.Installer
-2. Update list command to use modules.Manager
-3. Update sync command to use dependencies.CpanfileManager
-4. Update bundle commands to use dependencies.BundleManager
-5. Update all commands to use cpan.ProviderBuilder
-6. Update progress tracking to use standardized framework
-7. Validate all command functionality is preserved
+TASK: Final validation and documentation completion
 
-**Command Updates**:
-```go
-// Before: 200+ lines of installation logic
-func newInstallCommand() *cobra.Command {
-    return &cobra.Command{
-        Use: "install",
-        Run: func(cmd *cobra.Command, args []string) {
-            provider, _ := cpan.NewProviderBuilder().WithConfig(cfg).Build()
-            installer := modules.NewInstaller(provider, progress.NewTracker(ui), logger)
-            results, err := installer.InstallBatch(ctx, args, options)
-            ui.FormatInstallationResults(results)
-        },
+REQUIREMENTS:
+1. Complete test suite validation (100% pass rate goal)
+2. Update PARSING_FAILURE_PATTERNS.md
+3. Update project documentation
+4. Validate PSC integration readiness
+
+VALIDATION CHECKLIST:
+1. All tree-sitter tests pass: tree-sitter test
+2. All project tests pass: make test
+3. Grammar generates without errors: tree-sitter generate
+4. No parsing regressions in existing code
+5. PSC can use new grammar features
+
+DOCUMENTATION UPDATES:
+1. Update PARSING_FAILURE_PATTERNS.md - remove resolved patterns
+2. Add new grammar features to documentation
+3. Update build instructions if needed
+4. Document any new dependencies or requirements
+
+PSC INTEGRATION VERIFICATION:
+1. Test PSC with new grammar features
+2. Verify static analysis works with new constructs
+3. Test error reporting for invalid syntax
+4. Confirm performance is acceptable
+
+FINAL TEST SCENARIOS:
+```perl
+# Everything working together
+type Result[T, E] where T: Clone, E: Debug = {
+    success: T,
+    error: Optional[E]
+};
+
+method process_data[T](
+    ArrayRef[T] $input,
+    CodeRef[Bool, T] $filter
+) -> Result[ArrayRef[T], ProcessError]
+where T: Serialize + Clone {
+    my $filtered = [];
+    for my $item (@$input) {
+        my $typed_item = $item as T;
+        if ($filter->($typed_item)) {
+            push @$filtered, $typed_item;
+        }
     }
+    return { success => $filtered, error => undef } as Result[ArrayRef[T], ProcessError];
 }
 ```
 
-**Migration Strategy**:
-- Update commands one at a time
-- Maintain backward compatibility during transition
-- Add integration tests for each updated command
-- Verify functionality preservation with existing tests
+DELIVERABLES:
+1. Final test validation report
+2. Updated PARSING_FAILURE_PATTERNS.md
+3. Updated project documentation
+4. PSC integration verification
+5. Performance benchmarks
+6. Any final grammar refinements
 
-**Success Criteria**:
-- All commands updated to use extracted packages
-- Command file size reduced significantly (target: <500 lines)
-- All existing functionality preserved
-- Integration tests validate all commands work correctly
-- Code duplication eliminated across commands
-```
+SUCCESS CRITERIA:
+- make test shows 100% pass rate for new features
+- No regressions in existing functionality
+- PSC can successfully parse all new type constructs
+- Grammar performance acceptable for production use
 
-### Step 6.2: Enable Cross-Component Module Management
-
-**Goal**: Make extracted packages available to other PVM components
-
-```
-Update other PVM components (pvm, pvx, psc) to use the extracted module management packages, enabling consistent module operations across the ecosystem.
-
-**Context**: With module management extracted, other components can now provide module management capabilities without duplicating PVI functionality.
-
-**Requirements**:
-1. Add module management to PVM component for version-specific modules
-2. Update PVX to use module installer for script dependencies
-3. Add module operations to PSC for type definition management
-4. Create component-specific wrappers where needed
-5. Update documentation for cross-component module management
-6. Add integration tests for cross-component usage
-7. Validate no regressions in any component
-
-**Cross-Component Integration**:
-```go
-// PVM: Version-specific module management
-pvm.AddCommand(newModuleCommand()) // Uses modules.Manager
-
-// PVX: Script dependency installation
-// Automatically install detected dependencies
-installer := modules.NewInstaller(provider, tracker, logger)
-installer.InstallBatch(ctx, dependencies, options)
-
-// PSC: Type definition module management
-// Install type definition modules for static analysis
-```
-
-**Component Wrappers**:
-- Component-specific configuration handling
-- Context-aware module management
-- Integration with component-specific workflows
-
-**Success Criteria**:
-- All components can perform module management operations
-- Module functionality consistent across components
-- Component-specific needs addressed with appropriate wrappers
-- No code duplication between components
-- Cross-component integration thoroughly tested
-```
-
-### Step 6.3: Performance Optimization and Validation
-
-**Goal**: Optimize performance of extracted packages and validate improvements
-
-```
-Optimize the performance of all extracted packages and validate that the refactoring has improved overall system performance and maintainability.
-
-**Context**: Complete the refactoring by optimizing performance, addressing any issues introduced during extraction, and validating the overall improvements.
-
-**Requirements**:
-1. Profile performance of all extracted packages
-2. Optimize critical paths for installation and resolution
-3. Minimize memory usage and allocations
-4. Validate performance improvements over original implementation
-5. Optimize parallel operations for maximum efficiency
-6. Address any performance regressions introduced
-7. Create performance benchmarks for ongoing validation
-
-**Optimization Areas**:
-- Module installation and dependency resolution performance
-- Memory usage in dependency graph construction
-- Parallel installation coordination and worker management
-- Progress tracking overhead and efficiency
-- Provider setup and configuration performance
-
-**Performance Validation**:
-- Benchmark critical operations before and after refactoring
-- Measure memory usage patterns and optimize allocations
-- Validate parallel installation scales effectively
-- Ensure progress tracking adds minimal overhead
-
-**Success Criteria**:
-- Performance maintained or improved over original implementation
-- Memory usage optimized and allocations minimized
-- Parallel operations scale effectively with available resources
-- Performance benchmarks establish baseline for future development
-- All performance optimizations validated through testing
+This completes Issue #18 - tree-sitter-typed-perl grammar is production-ready.
 ```
 
 ---
 
-## Implementation Guidelines
+## Summary
 
-### Development Principles
+This plan implements tree-sitter-typed-perl grammar enhancements through 10 iterative, test-driven prompts:
 
-1. **Test-Driven Development**: Write tests before implementation for all extracted functionality
-2. **Incremental Extraction**: Extract and integrate one package at a time
-3. **Interface-First Design**: Define clean interfaces before implementing packages
-4. **Backward Compatibility**: Preserve all existing functionality during extraction
-5. **Clean Dependencies**: Maintain minimal, well-defined dependencies between packages
+**Phase 1 (Foundation):** Prompts 1-2 establish type expression infrastructure and union types
+**Phase 2 (Operators):** Prompts 3-4 add intersection/negation operators and parameterized types
+**Phase 3 (Advanced):** Prompts 5-6 implement type assertions and declarations
+**Phase 4 (Complete):** Prompts 7-8 add method signatures and constraints
+**Phase 5 (Production):** Prompts 9-10 provide integration testing and final validation
 
-### Quality Standards
-
-- **Test Coverage**: >95% for all extracted packages
-- **Performance**: No regression from current implementation
-- **API Design**: Clean, intuitive interfaces with comprehensive documentation
-- **Code Reduction**: Target 60-70% reduction in command.go size
-- **Reusability**: Extracted packages usable across all PVM components
-
-### Success Metrics
-
-- **Command file size**: 1964 lines → <500 lines (75% reduction)
-- **Code duplication**: Eliminate 50+ line provider setup in every command
-- **Reusability**: Module management available to all 4 PVM components
-- **Maintainability**: Focused packages with single responsibilities
-- **Test coverage**: >95% for all extracted functionality
-
----
-
-## Risk Mitigation
-
-### Technical Risks
-
-1. **Performance Regression**: Mitigated through careful profiling and optimization
-2. **API Complexity**: Prevented through interface-first design and validation
-3. **Integration Issues**: Reduced through incremental extraction and testing
-4. **Dependency Management**: Controlled through clean interface design
-
-### Implementation Risks
-
-1. **Scope Creep**: Controlled through focused, well-defined extraction steps
-2. **Breaking Changes**: Prevented through backward compatibility requirements
-3. **Testing Overhead**: Managed through test-driven development approach
-4. **Documentation Debt**: Addressed through concurrent documentation creation
-
-This plan provides a comprehensive, step-by-step approach to refactoring the large PVI command file into focused, reusable packages that enhance maintainability and enable cross-component functionality while preserving all existing features and improving performance.
+Each prompt builds incrementally on previous work, maintains 100% test coverage, and includes comprehensive validation steps. The result enables PSC to perform meaningful static analysis on typed Perl code.
