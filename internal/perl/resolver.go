@@ -195,6 +195,31 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 
 // resolveExplicitVersion resolves an explicitly specified version
 func resolveExplicitVersion(version string, availableVersions []string, cfg *config.Config) (*ResolvedVersion, error) {
+	// Handle special "system" identifier
+	if version == "system" {
+		// Find the system Perl version that was imported
+		installedVersions, err := GetInstalledVersions()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, versionInfo := range installedVersions {
+			if versionInfo.Source == "system" {
+				return &ResolvedVersion{
+					Version: versionInfo.Version,
+					Source:  SystemPerlSource,
+					Path:    versionInfo.InstallPath,
+				}, nil
+			}
+		}
+
+		// If no system Perl is imported, return an error
+		return nil, errors.NewVersionError(
+			ErrUnsatisfiedVersion,
+			"System Perl not found. Use 'pvm import-system' to import it first.",
+			nil)
+	}
+
 	// Check if it's an alias and resolve if needed
 	var aliases map[string]string
 	if cfg != nil && cfg.PVM != nil {
