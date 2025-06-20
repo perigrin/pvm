@@ -33,6 +33,8 @@ func NewCommand() *cobra.Command {
 	cmd.AddCommand(
 		newInstallCommand(),
 		newUseCommand(),
+		newShUseCommand(),
+		newShEnvActivateCommand(),
 		newGlobalCommand(),
 		newLocalCommand(),
 		newVersionsCommand(),
@@ -231,20 +233,38 @@ func newUseCommand() *cobra.Command {
 		Long:  "Temporarily use a specific Perl version in the current shell session",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			version := args[0]
-
-			// Switch version using shell integration
-			err := perl.SwitchVersion(version, "shell")
-			if err != nil {
-				return err
-			}
-
-			// Success message
-			cmd.Printf("Using Perl %s in current shell\n", version)
-			cmd.Println("Note: This command only works properly when PVM's shell integration is set up")
-			cmd.Println("If you haven't set up shell integration, run 'pvm init' to get started")
-
+			cmd.Println("The 'pvm use' command requires shell integration to work properly.")
+			cmd.Println("Please ensure you have run 'eval \"$(pvm init)\"' in your shell.")
+			cmd.Println("The shell integration provides a 'pvm' function that handles version switching.")
 			return nil
+		},
+	}
+}
+
+func newShUseCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:    "sh-use [version]",
+		Short:  "Generate shell code to use a specific Perl version",
+		Long:   "Outputs shell commands to set environment variables for a specific Perl version",
+		Args:   cobra.ExactArgs(1),
+		Hidden: true, // Hide from help output as this is internal
+		RunE: func(cmd *cobra.Command, args []string) error {
+			version := args[0]
+			return perl.GenerateShellUse(version)
+		},
+	}
+}
+
+func newShEnvActivateCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:    "sh-env-activate [name]",
+		Short:  "Generate shell code to activate a named environment",
+		Long:   "Outputs shell commands to activate a named isolation environment",
+		Args:   cobra.ExactArgs(1),
+		Hidden: true, // Hide from help output as this is internal
+		RunE: func(cmd *cobra.Command, args []string) error {
+			envName := args[0]
+			return generateShellEnvActivate(envName)
 		},
 	}
 }
@@ -1395,11 +1415,14 @@ func newEnvCommand() *cobra.Command {
 		},
 		&cobra.Command{
 			Use:   "activate [name]",
-			Short: "Generate activation command for an environment",
-			Long:  "Output shell command to activate a named environment",
+			Short: "Activate a named environment in current shell",
+			Long:  "Activate a named isolation environment in the current shell session",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				return activateEnvironment(cmd, args[0])
+				cmd.Println("The 'pvm env activate' command requires shell integration to work properly.")
+				cmd.Println("Please ensure you have run 'eval \"$(pvm init)\"' in your shell.")
+				cmd.Println("The shell integration provides a 'pvm' function that handles environment activation.")
+				return nil
 			},
 		},
 		&cobra.Command{
@@ -1489,6 +1512,44 @@ func activateEnvironment(cmd *cobra.Command, envName string) error {
 	// Output the activation command
 	fmt.Printf("export PATH=\"%s:$PATH\"\n", binDir)
 	fmt.Printf("# Environment '%s' activated. Use 'deactivate' or start a new shell to deactivate.\n", envName)
+
+	return nil
+}
+
+// generateShellEnvActivate outputs shell commands to activate a named environment
+func generateShellEnvActivate(envName string) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	envPath := filepath.Join(dirs.DataDir, "environments", envName)
+
+	// Check if environment exists
+	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+		return fmt.Errorf("environment '%s' does not exist", envName)
+	}
+
+	binDir := filepath.Join(envPath, "bin")
+
+	// Detect shell type from environment
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+
+	// Extract shell name from full path
+	shellName := filepath.Base(shell)
+
+	// Generate shell-specific environment commands
+	switch shellName {
+	case "fish":
+		fmt.Printf("set -gx PATH %s $PATH\n", binDir)
+		fmt.Printf("echo \"Environment '%s' activated\"\n", envName)
+	default: // bash, zsh, sh
+		fmt.Printf("export PATH=\"%s:$PATH\"\n", binDir)
+		fmt.Printf("echo \"Environment '%s' activated\"\n", envName)
+	}
 
 	return nil
 }

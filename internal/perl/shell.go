@@ -401,6 +401,35 @@ func UseVersion(version string) error {
 	return nil
 }
 
+// GenerateShellUse outputs shell commands to set up the environment for a specific Perl version
+func GenerateShellUse(version string) error {
+	// Check if the version is valid
+	if err := ValidateVersion(version); err != nil {
+		return err
+	}
+
+	// Detect shell type from environment
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+
+	// Extract shell name from full path
+	shellName := filepath.Base(shell)
+
+	// Generate shell-specific environment commands
+	switch shellName {
+	case "fish":
+		fmt.Printf("set -gx PVM_PERL_VERSION %s\n", version)
+		fmt.Printf("echo \"Using Perl %s\"\n", version)
+	default: // bash, zsh, sh
+		fmt.Printf("export PVM_PERL_VERSION=%s\n", version)
+		fmt.Printf("echo \"Using Perl %s\"\n", version)
+	}
+
+	return nil
+}
+
 // validateVersionImpl is the actual implementation
 func validateVersionImpl(version string) error {
 	// If version is empty, return error
@@ -593,25 +622,46 @@ PVM_SHIMS_DIR="{{ .ShimsDir }}"
         *) export PATH="${PVM_SHIMS_DIR}:${PATH}" ;;
     esac
 
-    # Define shell functions for version switching
-    {{ .FunctionPrefix }}use() {
-        local version="$1"
-        if [ -z "$version" ]; then
-            echo "Usage: pvm use <version>"
-            return 1
+    # Define main pvm function that intercepts 'use' and 'env activate' commands
+    pvm() {
+        local command="$1"
+        if [ "$command" = "use" ]; then
+            # Handle 'pvm use' with shell integration
+            shift
+            local version="$1"
+            if [ -z "$version" ]; then
+                echo "Usage: pvm use <version>"
+                return 1
+            fi
+            # Use the sh-use command to generate shell code and eval it
+            eval "$("$PVM_EXEC" sh-use "$version")"
+        elif [ "$command" = "env" ] && [ "$2" = "activate" ]; then
+            # Handle 'pvm env activate' with shell integration
+            shift 2 # Remove 'env' and 'activate'
+            local env_name="$1"
+            if [ -z "$env_name" ]; then
+                echo "Usage: pvm env activate <name>"
+                return 1
+            fi
+            # Use the sh-env-activate command to generate shell code and eval it
+            eval "$("$PVM_EXEC" sh-env-activate "$env_name")"
+        else
+            # Delegate all other commands to the pvm binary
+            "$PVM_EXEC" "$@"
         fi
+    }
 
-        # Set version for current shell
-        export PVM_PERL_VERSION="$version"
-        echo "Using Perl $version"
+    # Define helper functions for backward compatibility
+    {{ .FunctionPrefix }}use() {
+        pvm use "$@"
     }
 
     {{ .FunctionPrefix }}local() {
-        "$PVM_EXEC" local "$@"
+        pvm local "$@"
     }
 
     {{ .FunctionPrefix }}global() {
-        "$PVM_EXEC" global "$@"
+        pvm global "$@"
     }
 
     # Create shell aliases
@@ -634,7 +684,7 @@ PVM_SHIMS_DIR="{{ .ShimsDir }}"
         # Check for .perl-version file in current directory
         if [ -f .perl-version ]; then
             local version=$(cat .perl-version)
-            [ -n "$version" ] && {{ .FunctionPrefix }}use "$version"
+            [ -n "$version" ] && pvm use "$version"
         fi
     }
 
@@ -644,7 +694,7 @@ PVM_SHIMS_DIR="{{ .ShimsDir }}"
         {{ .FunctionPrefix }}chpwd() {
             if [ -f .perl-version ]; then
                 local version=$(cat .perl-version)
-                [ -n "$version" ] && {{ .FunctionPrefix }}use "$version"
+                [ -n "$version" ] && pvm use "$version"
             fi
         }
 
