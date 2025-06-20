@@ -278,3 +278,186 @@ func TestInitProjectConfig(t *testing.T) {
 		t.Errorf("Expected error when initializing existing project config, got nil")
 	}
 }
+
+func TestUpdateConfigurationLoading(t *testing.T) {
+	// Create a temporary directory for testing
+	testDir := t.TempDir()
+	userDir := filepath.Join(testDir, "user")
+
+	if err := os.MkdirAll(filepath.Join(userDir, "pvm"), 0755); err != nil {
+		t.Fatalf("Failed to create user directory: %v", err)
+	}
+
+	// Create user config with update configuration
+	userConfigContent := `
+[pvm.update]
+auto_update_enabled = true
+auto_update_interval = "12h"
+repository = "custom/repo"
+channel = "beta"
+github_token = "test-token"
+backup_enabled = false
+auto_rollback_enabled = false
+check_prerelease = true
+notifications_enabled = false
+security_updates_only = true
+max_retries = 5
+timeout = "10m"
+skip_checksums = true
+`
+
+	userConfigPath := filepath.Join(userDir, "pvm", "pvm.toml")
+	if err := os.WriteFile(userConfigPath, []byte(userConfigContent), 0644); err != nil {
+		t.Fatalf("Failed to write user config file: %v", err)
+	}
+
+	// Mock XDG base directory
+	oldXDGConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	defer func() {
+		if oldXDGConfigHome != "" {
+			os.Setenv("XDG_CONFIG_HOME", oldXDGConfigHome)
+		} else {
+			os.Unsetenv("XDG_CONFIG_HOME")
+		}
+	}()
+	os.Setenv("XDG_CONFIG_HOME", userDir)
+
+	// Load configuration
+	config, err := LoadEffectiveConfig()
+	if err != nil {
+		t.Fatalf("LoadEffectiveConfig() returned an error: %v", err)
+	}
+
+	// Verify update configuration was loaded correctly
+	if config.PVM == nil {
+		t.Fatal("Expected PVM configuration to be loaded")
+	}
+
+	updateCfg := config.PVM.Update
+	if updateCfg == nil {
+		t.Fatal("Expected PVM update configuration to be loaded")
+	}
+
+	// Test all configuration fields
+	tests := []struct {
+		name     string
+		expected interface{}
+		actual   interface{}
+	}{
+		{"AutoUpdateEnabled", true, updateCfg.AutoUpdateEnabled},
+		{"AutoUpdateInterval", "12h", updateCfg.AutoUpdateInterval},
+		{"Repository", "custom/repo", updateCfg.Repository},
+		{"Channel", "beta", updateCfg.Channel},
+		{"GitHubToken", "test-token", updateCfg.GitHubToken},
+		{"BackupEnabled", false, updateCfg.BackupEnabled},
+		{"AutoRollbackEnabled", false, updateCfg.AutoRollbackEnabled},
+		{"CheckPrerelease", true, updateCfg.CheckPrerelease},
+		{"NotificationsEnabled", false, updateCfg.NotificationsEnabled},
+		{"SecurityUpdatesOnly", true, updateCfg.SecurityUpdatesOnly},
+		{"MaxRetries", 5, updateCfg.MaxRetries},
+		{"Timeout", "10m", updateCfg.Timeout},
+		{"SkipChecksums", true, updateCfg.SkipChecksums},
+	}
+
+	for _, test := range tests {
+		if test.actual != test.expected {
+			t.Errorf("Expected %s to be %v, got %v", test.name, test.expected, test.actual)
+		}
+	}
+}
+
+func TestUpdateConfigurationValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *PVMUpdateConfig
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "ValidConfiguration",
+			config: &PVMUpdateConfig{
+				AutoUpdateInterval: "24h",
+				Repository:         "owner/repo",
+				Channel:            "stable",
+				MaxRetries:         3,
+				Timeout:            "5m",
+			},
+			expectError: false,
+		},
+		{
+			name: "InvalidInterval",
+			config: &PVMUpdateConfig{
+				AutoUpdateInterval: "invalid",
+				Repository:         "owner/repo",
+				Channel:            "stable",
+			},
+			expectError: true,
+			errorMsg:    "AutoUpdateInterval must be a valid duration (e.g., '24h', '1h')",
+		},
+		{
+			name: "EmptyRepository",
+			config: &PVMUpdateConfig{
+				Repository: "",
+				Channel:    "stable",
+			},
+			expectError: true,
+			errorMsg:    "Repository cannot be empty",
+		},
+		{
+			name: "InvalidChannel",
+			config: &PVMUpdateConfig{
+				Repository: "owner/repo",
+				Channel:    "invalid",
+			},
+			expectError: true,
+			errorMsg:    "Channel must be one of: stable, beta, alpha, nightly, developer",
+		},
+		{
+			name: "NegativeRetries",
+			config: &PVMUpdateConfig{
+				Repository: "owner/repo",
+				Channel:    "stable",
+				MaxRetries: -1,
+			},
+			expectError: true,
+			errorMsg:    "MaxRetries cannot be negative",
+		},
+		{
+			name: "InvalidTimeout",
+			config: &PVMUpdateConfig{
+				Repository: "owner/repo",
+				Channel:    "stable",
+				Timeout:    "invalid",
+			},
+			expectError: true,
+			errorMsg:    "Timeout must be a valid duration (e.g., '5m', '30s')",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			errors := test.config.Validate()
+
+			if test.expectError {
+				if len(errors) == 0 {
+					t.Errorf("Expected validation error, but none occurred")
+				} else {
+					found := false
+					for _, err := range errors {
+						if err.Error() == test.errorMsg {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("Expected error message '%s', but got %v", test.errorMsg, errors)
+					}
+				}
+			} else {
+				if len(errors) > 0 {
+					t.Errorf("Expected no validation errors, but got: %v", errors)
+				}
+			}
+		})
+	}
+}

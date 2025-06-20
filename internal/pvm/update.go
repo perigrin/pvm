@@ -8,12 +8,26 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/updater"
 )
 
 // executeUpdateCommand implements the update command functionality
 func executeUpdateCommand(cmd *cobra.Command, args []string) error {
-	// Get flags
+	// Load configuration
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Get update configuration with defaults
+	updateCfg := cfg.PVM.Update
+	if updateCfg == nil {
+		// Use default config if no update config exists
+		updateCfg = config.NewDefaultConfig().PVM.Update
+	}
+
+	// Get flags (flags override configuration)
 	targetVersion, _ := cmd.Flags().GetString("version")
 	checkOnly, _ := cmd.Flags().GetBool("check")
 	force, _ := cmd.Flags().GetBool("force")
@@ -24,24 +38,48 @@ func executeUpdateCommand(cmd *cobra.Command, args []string) error {
 	token, _ := cmd.Flags().GetString("token")
 	ignoreInstallMethod, _ := cmd.Flags().GetBool("ignore-install-method")
 
+	// Determine effective GitHub token (flag overrides config)
+	effectiveToken := token
+	if effectiveToken == "" {
+		effectiveToken = updateCfg.GitHubToken
+	}
+
 	// Create updater
 	var updaterInstance *updater.Updater
-	if token != "" {
-		updaterInstance = updater.NewUpdaterWithToken(token)
+	if effectiveToken != "" {
+		updaterInstance = updater.NewUpdaterWithToken(effectiveToken)
 	} else {
 		updaterInstance = updater.NewUpdater()
 	}
 
-	// Configure update options
+	// Determine effective prerelease setting (flag overrides config)
+	effectivePrerelease := prerelease
+	if !cmd.Flags().Changed("prerelease") {
+		effectivePrerelease = updateCfg.CheckPrerelease
+	}
+
+	// Determine effective backup setting (flag overrides config)
+	effectiveBackup := !noBackup
+	if !cmd.Flags().Changed("no-backup") {
+		effectiveBackup = updateCfg.BackupEnabled
+	}
+
+	// Determine effective auto-rollback setting (flag overrides config)
+	effectiveAutoRollback := !noRollback
+	if !cmd.Flags().Changed("no-rollback") {
+		effectiveAutoRollback = updateCfg.AutoRollbackEnabled
+	}
+
+	// Configure update options with config defaults and flag overrides
 	opts := &updater.UpdateOptions{
 		TargetVersion:       targetVersion,
-		IncludePrerelease:   prerelease,
-		Repository:          "perigrin/pvm-dev",
-		GitHubToken:         token,
+		IncludePrerelease:   effectivePrerelease,
+		Repository:          updateCfg.Repository,
+		GitHubToken:         effectiveToken,
 		Force:               force,
 		DryRun:              dryRun,
-		Backup:              !noBackup,
-		AutoRollback:        !noRollback,
+		Backup:              effectiveBackup,
+		AutoRollback:        effectiveAutoRollback,
 		IgnoreInstallMethod: ignoreInstallMethod,
 		Context:             cmd.Context(),
 	}

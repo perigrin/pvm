@@ -54,6 +54,51 @@ type PVMConfig struct {
 
 	// VersionAliases maps aliases to actual version strings
 	VersionAliases map[string]string `toml:"version_aliases" json:"version_aliases"`
+
+	// Update configuration
+	Update *PVMUpdateConfig `toml:"update" json:"update"`
+}
+
+// PVMUpdateConfig represents configuration for PVM self-updater
+type PVMUpdateConfig struct {
+	// AutoUpdateEnabled specifies whether automatic update checking is enabled
+	AutoUpdateEnabled bool `toml:"auto_update_enabled" json:"auto_update_enabled"`
+
+	// AutoUpdateInterval specifies how often to check for updates (e.g., "24h", "1h")
+	AutoUpdateInterval string `toml:"auto_update_interval" json:"auto_update_interval"`
+
+	// Repository specifies the GitHub repository to check for updates
+	Repository string `toml:"repository" json:"repository"`
+
+	// Channel specifies the update channel (stable, beta, alpha, nightly, developer)
+	Channel string `toml:"channel" json:"channel"`
+
+	// GitHubToken specifies the GitHub token for higher API rate limits
+	GitHubToken string `toml:"github_token" json:"github_token"`
+
+	// BackupEnabled specifies whether to create backups before updating
+	BackupEnabled bool `toml:"backup_enabled" json:"backup_enabled"`
+
+	// AutoRollbackEnabled specifies whether to automatically rollback on failure
+	AutoRollbackEnabled bool `toml:"auto_rollback_enabled" json:"auto_rollback_enabled"`
+
+	// CheckPrerelease specifies whether to consider pre-release versions
+	CheckPrerelease bool `toml:"check_prerelease" json:"check_prerelease"`
+
+	// NotificationsEnabled specifies whether to show update notifications
+	NotificationsEnabled bool `toml:"notifications_enabled" json:"notifications_enabled"`
+
+	// SecurityUpdatesOnly specifies whether to only auto-update for security releases
+	SecurityUpdatesOnly bool `toml:"security_updates_only" json:"security_updates_only"`
+
+	// MaxRetries specifies maximum number of download retries
+	MaxRetries int `toml:"max_retries" json:"max_retries"`
+
+	// Timeout specifies timeout for download operations (e.g., "5m", "30s")
+	Timeout string `toml:"timeout" json:"timeout"`
+
+	// SkipChecksums specifies whether to skip checksum validation (not recommended)
+	SkipChecksums bool `toml:"skip_checksums" json:"skip_checksums"`
 }
 
 // PVXConfig represents configuration for the Perl Version eXecutor
@@ -301,6 +346,21 @@ func NewDefaultConfig() *Config {
 				"latest": "5.40.2",
 				"stable": "5.36.0",
 			},
+			Update: &PVMUpdateConfig{
+				AutoUpdateEnabled:    false,
+				AutoUpdateInterval:   "24h",
+				Repository:           "perigrin/pvm-dev",
+				Channel:              "stable",
+				GitHubToken:          "",
+				BackupEnabled:        true,
+				AutoRollbackEnabled:  true,
+				CheckPrerelease:      false,
+				NotificationsEnabled: true,
+				SecurityUpdatesOnly:  false,
+				MaxRetries:           3,
+				Timeout:              "5m",
+				SkipChecksums:        false,
+			},
 		},
 		PVX: &PVXConfig{
 			CacheModules:            true,
@@ -432,6 +492,55 @@ func (c *PVMConfig) Validate() []error {
 	// Validate DownloadMirror
 	if c.DownloadMirror == "" {
 		errors = append(errors, ValidateError("DownloadMirror cannot be empty"))
+	}
+
+	// Validate Update configuration
+	if c.Update != nil {
+		errors = append(errors, c.Update.Validate()...)
+	}
+
+	return errors
+}
+
+// Validate checks if the PVMUpdate configuration is valid
+func (c *PVMUpdateConfig) Validate() []error {
+	var errors []error
+
+	// Validate AutoUpdateInterval
+	if c.AutoUpdateInterval != "" {
+		if _, err := time.ParseDuration(c.AutoUpdateInterval); err != nil {
+			errors = append(errors, ValidateError("AutoUpdateInterval must be a valid duration (e.g., '24h', '1h')"))
+		}
+	}
+
+	// Validate Repository
+	if c.Repository == "" {
+		errors = append(errors, ValidateError("Repository cannot be empty"))
+	}
+
+	// Validate Channel
+	validChannels := map[string]bool{
+		"stable":    true,
+		"beta":      true,
+		"alpha":     true,
+		"nightly":   true,
+		"developer": true,
+	}
+
+	if c.Channel != "" && !validChannels[c.Channel] {
+		errors = append(errors, ValidateError("Channel must be one of: stable, beta, alpha, nightly, developer"))
+	}
+
+	// Validate MaxRetries
+	if c.MaxRetries < 0 {
+		errors = append(errors, ValidateError("MaxRetries cannot be negative"))
+	}
+
+	// Validate Timeout
+	if c.Timeout != "" {
+		if _, err := time.ParseDuration(c.Timeout); err != nil {
+			errors = append(errors, ValidateError("Timeout must be a valid duration (e.g., '5m', '30s')"))
+		}
 	}
 
 	return errors

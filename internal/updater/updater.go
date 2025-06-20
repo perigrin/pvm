@@ -20,6 +20,8 @@ type Updater struct {
 	downloader     *download.Downloader
 	replacer       *BinaryReplacer
 	rollbackMgr    *RollbackManager
+	recoveryMgr    *RecoveryManager
+	shellMgr       *ShellIntegrationManager
 }
 
 // NewUpdater creates a new updater instance
@@ -29,6 +31,8 @@ func NewUpdater() *Updater {
 		downloader:     download.NewDownloader(),
 		replacer:       NewBinaryReplacer(),
 		rollbackMgr:    NewRollbackManager(),
+		recoveryMgr:    NewRecoveryManager(),
+		shellMgr:       NewShellIntegrationManager(),
 	}
 }
 
@@ -39,6 +43,8 @@ func NewUpdaterWithToken(token string) *Updater {
 		downloader:     download.NewDownloader(),
 		replacer:       NewBinaryReplacer(),
 		rollbackMgr:    NewRollbackManager(),
+		recoveryMgr:    NewRecoveryManager(),
+		shellMgr:       NewShellIntegrationManager(),
 	}
 }
 
@@ -61,6 +67,9 @@ type UpdateOptions struct {
 	// Installation method handling
 	IgnoreInstallMethod bool // Ignore installation method and force self-update
 
+	// Shell integration
+	UpdateShellConfigs bool // Update shell configurations after replacement (default: true)
+
 	// Progress reporting
 	ProgressCallback func(stage UpdateStage, message string, progress float64)
 
@@ -71,10 +80,11 @@ type UpdateOptions struct {
 // DefaultUpdateOptions returns default update options
 func DefaultUpdateOptions() *UpdateOptions {
 	return &UpdateOptions{
-		Repository:   "perigrin/pvm-dev",
-		Backup:       true,
-		AutoRollback: true,
-		Context:      context.Background(),
+		Repository:         "perigrin/pvm-dev",
+		Backup:             true,
+		AutoRollback:       true,
+		UpdateShellConfigs: true,
+		Context:            context.Background(),
 	}
 }
 
@@ -89,6 +99,7 @@ const (
 	StageCreatingBackup
 	StageReplacing
 	StageValidatingUpdate
+	StageUpdatingShellConfigs
 	StageCleaningUp
 	StageRollingBack
 	StageDone
@@ -110,6 +121,8 @@ func (s UpdateStage) String() string {
 		return "Installing update"
 	case StageValidatingUpdate:
 		return "Validating installation"
+	case StageUpdatingShellConfigs:
+		return "Updating shell configurations"
 	case StageCleaningUp:
 		return "Cleaning up"
 	case StageRollingBack:
@@ -258,6 +271,20 @@ func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) {
 	downloadResult, err := u.downloader.Download(downloadOpts)
 	if err != nil {
 		result.Message = fmt.Sprintf("Failed to download update: %v", err)
+
+		// Attempt recovery for download failures
+		if opts.AutoRollback {
+			recoveryCtx := u.recoveryMgr.CreateRecoveryContext(currentPath, result.NewVersion, err)
+			if recoveryCtx.Scenario == ScenarioNetworkFailure || recoveryCtx.Scenario == ScenarioChecksumMismatch {
+				// Only attempt recovery for certain scenarios that make sense during download
+				recoveryResult, recoveryErr := u.recoveryMgr.PerformRecovery(recoveryCtx)
+				if recoveryErr == nil && recoveryResult.Success {
+					result.Message = fmt.Sprintf("Download failed but recovery succeeded: %s", recoveryResult.Message)
+					// Note: This might not actually complete the update, but it ensures system stability
+				}
+			}
+		}
+
 		return result, err
 	}
 
@@ -303,15 +330,31 @@ func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) {
 
 	replaceResult, err := u.replacer.ReplaceBinary(replaceOpts)
 	if err != nil {
-		// Auto-rollback if enabled
-		if opts.AutoRollback && backupPath != "" {
-			reportProgress(StageRollingBack, "Rolling back due to failure", 0.9)
-			rollbackErr := u.rollbackMgr.AutoRollback(currentPath)
-			if rollbackErr != nil {
-				result.Message = fmt.Sprintf("Update failed and rollback failed: %v (original error: %v)", rollbackErr, err)
-			} else {
+		// Attempt advanced recovery if enabled
+		if opts.AutoRollback {
+			reportProgress(StageRollingBack, "Attempting recovery", 0.9)
+
+			// Create recovery context
+			recoveryCtx := u.recoveryMgr.CreateRecoveryContext(currentPath, result.NewVersion, err)
+
+			// Attempt recovery
+			recoveryResult, recoveryErr := u.recoveryMgr.PerformRecovery(recoveryCtx)
+			if recoveryErr == nil && recoveryResult.Success {
 				result.RollbackPerformed = true
-				result.Message = fmt.Sprintf("Update failed, rolled back to previous version: %v", err)
+				result.Message = fmt.Sprintf("Update failed but recovery succeeded: %s", recoveryResult.Message)
+			} else {
+				// Fallback to simple rollback if recovery fails
+				if backupPath != "" {
+					rollbackErr := u.rollbackMgr.AutoRollback(currentPath)
+					if rollbackErr != nil {
+						result.Message = fmt.Sprintf("Update failed, recovery failed, and rollback failed: %v (recovery error: %v, original error: %v)", rollbackErr, recoveryErr, err)
+					} else {
+						result.RollbackPerformed = true
+						result.Message = fmt.Sprintf("Update failed, recovery failed, but simple rollback succeeded: %v", err)
+					}
+				} else {
+					result.Message = fmt.Sprintf("Update failed and recovery failed: %v (original error: %v)", recoveryErr, err)
+				}
 			}
 		} else {
 			result.Message = fmt.Sprintf("Update failed: %v", err)
@@ -329,18 +372,59 @@ func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) {
 	if err := u.rollbackMgr.ValidatePostRollback(currentPath); err != nil {
 		result.Message = fmt.Sprintf("Update validation failed: %v", err)
 
-		// Auto-rollback if enabled
-		if opts.AutoRollback && backupPath != "" {
-			reportProgress(StageRollingBack, "Rolling back due to validation failure", 0.95)
-			rollbackErr := u.rollbackMgr.AutoRollback(currentPath)
-			if rollbackErr != nil {
-				result.Message = fmt.Sprintf("Update validation failed and rollback failed: %v (original error: %v)", rollbackErr, err)
-			} else {
+		// Attempt advanced recovery if enabled
+		if opts.AutoRollback {
+			reportProgress(StageRollingBack, "Attempting recovery from validation failure", 0.95)
+
+			// Create recovery context for corrupted binary scenario
+			recoveryCtx := u.recoveryMgr.CreateRecoveryContext(currentPath, result.NewVersion, err)
+			recoveryCtx.Scenario = ScenarioCorruptedBinary
+
+			// Attempt recovery
+			recoveryResult, recoveryErr := u.recoveryMgr.PerformRecovery(recoveryCtx)
+			if recoveryErr == nil && recoveryResult.Success {
 				result.RollbackPerformed = true
-				result.Message = fmt.Sprintf("Update validation failed, rolled back to previous version: %v", err)
+				result.Message = fmt.Sprintf("Validation failed but recovery succeeded: %s", recoveryResult.Message)
+				// Recovery succeeded, continue with the update process
+			} else {
+				// Fallback to simple rollback if recovery fails
+				if backupPath != "" {
+					rollbackErr := u.rollbackMgr.AutoRollback(currentPath)
+					if rollbackErr != nil {
+						result.Message = fmt.Sprintf("Update validation failed, recovery failed, and rollback failed: %v (recovery error: %v, original error: %v)", rollbackErr, recoveryErr, err)
+					} else {
+						result.RollbackPerformed = true
+						result.Message = fmt.Sprintf("Update validation failed, recovery failed, but simple rollback succeeded: %v", err)
+					}
+				} else {
+					result.Message = fmt.Sprintf("Update validation failed and recovery failed: %v (original error: %v)", recoveryErr, err)
+				}
+				return result, err
+			}
+		} else {
+			return result, err
+		}
+	}
+
+	// Update shell configurations if enabled
+	if opts.UpdateShellConfigs {
+		reportProgress(StageUpdatingShellConfigs, "Updating shell configurations", 0.92)
+
+		shellResult, err := u.shellMgr.UpdateShellIntegration("", currentPath)
+		if err != nil {
+			// Shell integration failure is not critical - log warning but continue
+			fmt.Printf("Warning: Failed to update shell configurations: %v\n", err)
+		} else if len(shellResult.UpdatedShells) > 0 {
+			fmt.Printf("Updated %d shell configurations\n", len(shellResult.UpdatedShells))
+
+			// Add shell integration instructions to result message
+			if len(shellResult.Instructions) > 0 {
+				result.Message += "\n\nShell Integration:\n"
+				for _, instruction := range shellResult.Instructions {
+					result.Message += instruction + "\n"
+				}
 			}
 		}
-		return result, err
 	}
 
 	// Cleanup
@@ -355,6 +439,68 @@ func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) {
 		result.PreviousVersion, result.NewVersion)
 
 	return result, nil
+}
+
+// PerformRecovery attempts to recover from update failures
+func (u *Updater) PerformRecovery(targetPath string, failureError error) (*RecoveryResult, error) {
+	ctx := u.recoveryMgr.CreateRecoveryContext(targetPath, "", failureError)
+	return u.recoveryMgr.PerformRecovery(ctx)
+}
+
+// DiagnoseFailure attempts to determine the type of failure
+func (u *Updater) DiagnoseFailure(targetPath string, err error) RecoveryScenario {
+	return u.recoveryMgr.DiagnoseFailure(targetPath, err)
+}
+
+// GetRecoveryStatus provides information about available recovery options
+func (u *Updater) GetRecoveryStatus(targetPath string) (*RecoveryStatus, error) {
+	backups, err := u.recoveryMgr.backupManager.ListBackups()
+	if err != nil {
+		return nil, fmt.Errorf("checking recovery status: %w", err)
+	}
+
+	status := &RecoveryStatus{
+		AvailableBackups: len(backups),
+		RecoveryPossible: len(backups) > 0,
+	}
+
+	if len(backups) > 0 {
+		// Sort by creation time to find latest
+		for _, backup := range backups {
+			if status.LatestBackup.IsZero() || backup.CreatedAt.After(status.LatestBackup) {
+				status.LatestBackup = backup.CreatedAt
+			}
+		}
+	}
+
+	return status, nil
+}
+
+// RecoveryStatus provides information about recovery capabilities
+type RecoveryStatus struct {
+	AvailableBackups int       `json:"available_backups"`
+	RecoveryPossible bool      `json:"recovery_possible"`
+	LatestBackup     time.Time `json:"latest_backup,omitempty"`
+}
+
+// UpdateShellIntegration manually updates shell configurations
+func (u *Updater) UpdateShellIntegration(oldPath, newPath string) (*IntegrationResult, error) {
+	return u.shellMgr.UpdateShellIntegration(oldPath, newPath)
+}
+
+// GetShellStatus returns current shell integration status
+func (u *Updater) GetShellStatus() (*ShellStatus, error) {
+	return u.shellMgr.GetShellStatus()
+}
+
+// ValidateShellIntegration checks if shell integration is working
+func (u *Updater) ValidateShellIntegration(binaryPath string) error {
+	return u.shellMgr.ValidateShellIntegration(binaryPath)
+}
+
+// RestoreShellBackups restores shell configurations from backups
+func (u *Updater) RestoreShellBackups() error {
+	return u.shellMgr.RestoreShellBackups()
 }
 
 // Rollback performs a manual rollback to a previous version

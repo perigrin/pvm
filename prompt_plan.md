@@ -371,7 +371,7 @@ Build on Steps 1-4 to create the complete user-facing update functionality with 
 
 ---
 
-## Step 6: Advanced Features and Edge Cases
+## Step 6: Advanced Features and Edge Cases ✅ COMPLETED
 
 **Goal**: Implement advanced features and handle edge cases
 
@@ -390,35 +390,47 @@ Build on Steps 1-5 to add advanced functionality and handle all edge cases for p
 
 **Implementation Tasks**:
 
-1. **Package Manager Integration**:
-   - Detect Homebrew installations and delegate to `brew upgrade`
-   - Handle apt/dnf/pacman package manager installations
-   - Add warnings for unsupported installation methods
-   - Provide migration paths from package managers
+1. **Package Manager Integration**: ✅ COMPLETED
+   - ✅ Detect Homebrew installations and delegate to `brew upgrade`
+   - ✅ Handle apt/dnf/pacman package manager installations
+   - ✅ Add warnings for unsupported installation methods
+   - ✅ Provide migration paths from package managers
+   - ✅ Support Snap, Flatpak, Chocolatey, Scoop, Winget detection
+   - ✅ Platform-specific detection logic for Windows and Unix-like systems
 
-2. **Auto-Update Features**:
-   - Implement background update checking
-   - Add configurable update notifications
-   - Support update channels (stable, beta, alpha)
-   - Create update scheduling and preferences
+2. **Auto-Update Features**: ✅ COMPLETED
+   - ✅ Implement background update checking
+   - ✅ Add configurable update notifications
+   - ✅ Support update channels (stable, beta, alpha, nightly, developer)
+   - ✅ Create update scheduling and preferences
+   - ✅ Security and urgent update detection from release notes
+   - ✅ Auto-update command with enable/disable/config/check/status subcommands
 
-3. **Configuration Management**:
-   - Add update preferences and settings
-   - Implement configuration file handling
-   - Support user-specific update policies
-   - Add system-wide update configuration
+3. **Configuration Management**: ✅ COMPLETED
+   - ✅ Add update preferences and settings
+   - ✅ Implement configuration file handling
+   - ✅ Support user-specific update policies
+   - ✅ Add system-wide update configuration
+   - ✅ Support all update-related configuration keys in pvm config command
+   - ✅ Add template generation for common configurations
 
-4. **Advanced Error Recovery**:
-   - Implement comprehensive rollback scenarios
-   - Add recovery from corrupted downloads
-   - Handle partial update states
-   - Provide diagnostic and repair tools
+4. **Advanced Error Recovery**: ✅ COMPLETED
+   - ✅ Implement comprehensive rollback scenarios
+   - ✅ Add recovery from corrupted downloads
+   - ✅ Handle partial update states
+   - ✅ Provide diagnostic and repair tools
+   - ✅ Automatic failure scenario detection
+   - ✅ Multiple recovery strategies with fallback chains
+   - ✅ Integration with main update workflow
 
-5. **Shell Integration Updates**:
-   - Handle shell configuration updates after replacement
-   - Detect and update PATH modifications
-   - Refresh shell integration automatically
-   - Add compatibility with existing installations
+5. **Shell Integration Updates**: ✅ COMPLETED
+   - ✅ Handle shell configuration updates after replacement
+   - ✅ Detect and update PATH modifications
+   - ✅ Refresh shell integration automatically
+   - ✅ Add compatibility with existing installations
+   - ✅ Cross-platform shell detection (bash, zsh, fish, PowerShell)
+   - ✅ Backup and restore functionality for shell configs
+   - ✅ User instruction generation for manual activation
 
 **Testing Requirements**:
 - Homebrew detection and delegation

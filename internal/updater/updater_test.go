@@ -229,7 +229,7 @@ func TestInstallationMethodGetUpdateInstructions(t *testing.T) {
 			continue
 		}
 
-		if !contains(result, test.contains) {
+		if !testContains(result, test.contains) {
 			t.Errorf("Method %s instructions don't contain '%s': %s",
 				test.method.String(), test.contains, result)
 		}
@@ -237,7 +237,7 @@ func TestInstallationMethodGetUpdateInstructions(t *testing.T) {
 }
 
 // Helper function to check if string contains substring
-func contains(s, substr string) bool {
+func testContains(s, substr string) bool {
 	return len(s) >= len(substr) &&
 		(s == substr ||
 			(len(s) > len(substr) &&

@@ -180,6 +180,51 @@ func mergePVMConfig(target, source *PVMConfig) {
 			target.VersionAliases[key] = value
 		}
 	}
+
+	// Merge Update configuration
+	if source.Update != nil {
+		if target.Update == nil {
+			target.Update = &PVMUpdateConfig{}
+		}
+		mergePVMUpdateConfig(target.Update, source.Update)
+	}
+}
+
+func mergePVMUpdateConfig(target, source *PVMUpdateConfig) {
+	// For all fields, source takes precedence over target
+
+	// Boolean fields (always merge)
+	target.AutoUpdateEnabled = source.AutoUpdateEnabled
+	target.BackupEnabled = source.BackupEnabled
+	target.AutoRollbackEnabled = source.AutoRollbackEnabled
+	target.CheckPrerelease = source.CheckPrerelease
+	target.NotificationsEnabled = source.NotificationsEnabled
+	target.SecurityUpdatesOnly = source.SecurityUpdatesOnly
+	target.SkipChecksums = source.SkipChecksums
+
+	// String fields
+	if source.AutoUpdateInterval != "" {
+		target.AutoUpdateInterval = source.AutoUpdateInterval
+	}
+
+	if source.Repository != "" {
+		target.Repository = source.Repository
+	}
+
+	if source.Channel != "" {
+		target.Channel = source.Channel
+	}
+
+	if source.GitHubToken != "" {
+		target.GitHubToken = source.GitHubToken
+	}
+
+	if source.Timeout != "" {
+		target.Timeout = source.Timeout
+	}
+
+	// Integer fields (always merge)
+	target.MaxRetries = source.MaxRetries
 }
 
 func mergePVXConfig(target, source *PVXConfig) {

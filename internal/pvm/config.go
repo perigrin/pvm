@@ -1016,3 +1016,91 @@ func newConfigListBackupsCommand() *cobra.Command {
 
 	return cmd
 }
+
+// newConfigGenerateCommand creates a command to generate configuration templates
+func newConfigGenerateCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "generate [template]",
+		Short: "Generate configuration templates",
+		Long:  "Generate configuration templates for common use cases",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			template := "default"
+			if len(args) > 0 {
+				template = args[0]
+			}
+
+			var cfg *config.Config
+			switch template {
+			case "default":
+				cfg = config.NewDefaultConfig()
+			case "minimal":
+				cfg = &config.Config{
+					PVM: &config.PVMConfig{
+						DefaultPerl:    "5.40.2",
+						BuildJobs:      4,
+						DownloadMirror: "https://www.cpan.org/src/5.0",
+						RunTests:       true,
+						Update: &config.PVMUpdateConfig{
+							Repository:           "perigrin/pvm-dev",
+							Channel:              "stable",
+							BackupEnabled:        true,
+							AutoRollbackEnabled:  true,
+							NotificationsEnabled: true,
+							MaxRetries:           3,
+							Timeout:              "5m",
+						},
+					},
+				}
+			case "development":
+				cfg = config.NewDefaultConfig()
+				cfg.PVM.Update.Channel = "developer"
+				cfg.PVM.Update.CheckPrerelease = true
+				cfg.PVM.Update.AutoUpdateEnabled = true
+				cfg.PVM.Update.AutoUpdateInterval = "6h"
+			default:
+				return errors.NewUserInputError(cli.PrefixPVM, "301",
+					"Unknown template", nil).
+					WithHint("Available templates: default, minimal, development")
+			}
+
+			// Get format flag
+			format, _ := cmd.Flags().GetString("format")
+
+			// For templates, we'll just output the default TOML format for now
+			// since we need the formatting functions that don't exist yet
+			if format != "toml" {
+				return errors.NewUserInputError(cli.PrefixPVM, "306",
+					"Only TOML format is supported for templates currently", nil).
+					WithHint("Use --format toml or omit the flag")
+			}
+
+			// Save to temporary file and read back the TOML
+			tempFile, err := os.CreateTemp("", "pvm-config-template-*.toml")
+			if err != nil {
+				return errors.NewSystemError("303", "Failed to create temp file", err)
+			}
+			defer os.Remove(tempFile.Name())
+
+			// Save the generated config to temp file
+			if err := config.SaveToFile(cfg, tempFile.Name()); err != nil {
+				return errors.NewConfigError("304", "Failed to save template", err)
+			}
+			tempFile.Close()
+
+			// Read back the TOML content
+			content, err := os.ReadFile(tempFile.Name())
+			if err != nil {
+				return errors.NewConfigError("305", "Failed to read generated config", err)
+			}
+
+			fmt.Print(string(content))
+			return nil
+		},
+	}
+
+	// Add format flag
+	cmd.Flags().StringP("format", "f", "toml", "Output format (toml, json, yaml)")
+
+	return cmd
+}
