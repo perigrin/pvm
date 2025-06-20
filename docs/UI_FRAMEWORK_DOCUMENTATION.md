@@ -283,22 +283,22 @@ var DefaultTheme = Theme{
 ```go
 func myCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
-    
+
     // Show what we're doing
     ui.Info("Starting operation with %d arguments", len(args))
-    
+
     // Process each argument
     for _, arg := range args {
         ui.Status("Processing: %s", arg)
-        
+
         if err := processArgument(arg); err != nil {
             ui.Error("Failed to process %s: %v", arg, err)
             continue // Continue with other arguments
         }
-        
+
         ui.Success("Processed: %s", arg)
     }
-    
+
     ui.Success("Operation completed successfully")
     return nil
 }
@@ -308,24 +308,24 @@ func myCommand(cmd *cobra.Command, args []string) error {
 ```go
 func listCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
-    
+
     items, err := getItems()
     if err != nil {
         ui.Error("Failed to retrieve items: %v", err)
         return err
     }
-    
+
     if len(items) == 0 {
         ui.Warning("No items found")
         ui.Info("Use 'command create' to add items")
         return nil
     }
-    
+
     ui.Header(fmt.Sprintf("Found %d items", len(items)))
-    
+
     headers := []string{"Name", "Type", "Status", "Created"}
     rows := make([][]string, len(items))
-    
+
     for i, item := range items {
         rows[i] = []string{
             item.Name,
@@ -334,9 +334,9 @@ func listCommand(cmd *cobra.Command, args []string) error {
             item.Created.Format("2006-01-02"),
         }
     }
-    
+
     ui.Table(headers, rows)
-    
+
     if ui.Context().Verbose {
         ui.SubHeader("Summary")
         ui.KeyValue(map[string]string{
@@ -345,7 +345,7 @@ func listCommand(cmd *cobra.Command, args []string) error {
             "Last Updated":  time.Now().Format("2006-01-02 15:04:05"),
         })
     }
-    
+
     return nil
 }
 ```
@@ -357,24 +357,24 @@ func listCommand(cmd *cobra.Command, args []string) error {
 func batchProcess(ui *ui.Output, files []string) error {
     var failures []string
     successCount := 0
-    
+
     ui.Info("Processing %d files", len(files))
-    
+
     for i, file := range files {
         ui.Progress(i+1, len(files), "Processing files")
-        
+
         if err := processFile(file); err != nil {
             ui.Error("Failed to process %s: %v", file, err)
             failures = append(failures, file)
             continue
         }
-        
+
         successCount++
         if ui.Context().Verbose {
             ui.Success("Processed %s", file)
         }
     }
-    
+
     // Summary with appropriate message type
     if len(failures) > 0 {
         ui.Warning("Processing completed with errors:")
@@ -383,7 +383,7 @@ func batchProcess(ui *ui.Output, files []string) error {
     } else {
         ui.Success("Successfully processed all %d files", successCount)
     }
-    
+
     return nil
 }
 ```
@@ -397,24 +397,24 @@ func validateInput(ui *ui.Output, args []string) ([]string, error) {
         ui.Info("Use 'command --help' for more information")
         return nil, fmt.Errorf("missing arguments")
     }
-    
+
     var validArgs []string
-    
+
     for _, arg := range args {
         if !isValid(arg) {
             ui.Warning("Skipping invalid argument: %s", arg)
             continue
         }
-        
+
         validArgs = append(validArgs, arg)
     }
-    
+
     if len(validArgs) == 0 {
         ui.Error("No valid arguments found")
         ui.Info("Valid arguments must match pattern: %s", getValidPattern())
         return nil, fmt.Errorf("no valid arguments")
     }
-    
+
     ui.Info("Processing %d valid arguments", len(validArgs))
     return validArgs, nil
 }
@@ -426,11 +426,11 @@ func validateInput(ui *ui.Output, args []string) ([]string, error) {
 ```go
 func contextAwareOperation(ui *ui.Output) error {
     ui.Info("Starting complex operation")
-    
+
     // Basic information (always shown)
     config := loadConfiguration()
     ui.Info("Using configuration: %s", config.Name)
-    
+
     // Detailed information (verbose only)
     if ui.Context().Verbose {
         ui.SubHeader("Configuration Details")
@@ -440,14 +440,14 @@ func contextAwareOperation(ui *ui.Output) error {
             "Format":        config.Format,
             "Size":          fmt.Sprintf("%d bytes", config.Size),
         })
-        
+
         ui.SubHeader("Environment")
         env := getEnvironmentInfo()
         for key, value := range env {
             ui.Debug("%s: %s", key, value)
         }
     }
-    
+
     // Processing (with appropriate detail level)
     phases := getProcessingPhases()
     for i, phase := range phases {
@@ -456,17 +456,17 @@ func contextAwareOperation(ui *ui.Output) error {
         } else {
             ui.Progress(i+1, len(phases), "Processing")
         }
-        
+
         if err := executePhase(phase); err != nil {
             ui.Error("Phase %s failed: %v", phase.Name, err)
             return err
         }
-        
+
         if ui.Context().Verbose {
             ui.Success("Completed %s", phase.Name)
         }
     }
-    
+
     ui.Success("Operation completed successfully")
     return nil
 }
@@ -480,13 +480,13 @@ func quietModeAware(ui *ui.Output, critical bool) {
         ui.Error("Critical error occurred")
         ui.Info("System requires immediate attention")
     }
-    
+
     // Non-critical information (respects quiet mode)
     if !ui.Context().Quiet {
         ui.Info("Processing background tasks...")
         ui.Status("Cleaning temporary files...")
     }
-    
+
     // Important results (always shown)
     ui.Success("Operation completed")
 }
@@ -498,25 +498,25 @@ func quietModeAware(ui *ui.Output, critical bool) {
 ```go
 func pvmListVersions(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
-    
+
     ui.Header("Available Perl Versions")
-    
+
     versions, err := pvm.GetInstalledVersions()
     if err != nil {
         ui.Error("Failed to list versions: %v", err)
         return err
     }
-    
+
     if len(versions) == 0 {
         ui.Warning("No Perl versions installed")
         ui.Info("Install a version with: pvm install <version>")
         ui.Info("See available versions: pvm available")
         return nil
     }
-    
+
     headers := []string{"Version", "Status", "Location"}
     rows := make([][]string, len(versions))
-    
+
     for i, v := range versions {
         status := "Available"
         if v.IsCurrent() {
@@ -525,18 +525,18 @@ func pvmListVersions(cmd *cobra.Command, args []string) error {
         if v.IsSystem() {
             status = "System"
         }
-        
+
         rows[i] = []string{v.Version, status, v.Path}
     }
-    
+
     ui.Table(headers, rows)
-    
+
     if current, err := pvm.GetCurrentVersion(); err == nil {
         ui.Info("Current version: %s", current.Version)
     }
-    
+
     ui.Info("Switch versions with: pvm use <version>")
-    
+
     return nil
 }
 ```
@@ -546,9 +546,9 @@ func pvmListVersions(cmd *cobra.Command, args []string) error {
 func pvxRun(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
     scriptPath := args[0]
-    
+
     ui.Info("Executing script: %s", scriptPath)
-    
+
     // Dependency analysis
     ui.Status("Analyzing dependencies...")
     deps, err := pvx.AnalyzeDependencies(scriptPath)
@@ -556,13 +556,13 @@ func pvxRun(cmd *cobra.Command, args []string) error {
         ui.Error("Dependency analysis failed: %v", err)
         return err
     }
-    
+
     if len(deps.Missing) > 0 {
         ui.Warning("Missing dependencies detected:")
         ui.List(deps.Missing)
         ui.Info("Install missing dependencies with:")
         ui.Printf("  pvi install %s\n", strings.Join(deps.Missing, " "))
-        
+
         continueFlag, _ := cmd.Flags().GetBool("continue")
         if !continueFlag {
             ui.Error("Cannot execute without dependencies")
@@ -570,14 +570,14 @@ func pvxRun(cmd *cobra.Command, args []string) error {
             return fmt.Errorf("missing dependencies")
         }
     }
-    
+
     // Execution
     ui.Status("Executing script...")
     start := time.Now()
-    
+
     result, err := pvx.ExecuteScript(scriptPath, args[1:])
     duration := time.Since(start)
-    
+
     if err != nil {
         ui.Error("Script execution failed: %v", err)
         if ui.Context().Verbose && result.Stderr != "" {
@@ -586,9 +586,9 @@ func pvxRun(cmd *cobra.Command, args []string) error {
         }
         return err
     }
-    
+
     ui.Success("Script completed in %v", duration)
-    
+
     if ui.Context().Verbose {
         ui.SubHeader("Execution Details")
         ui.KeyValue(map[string]string{
@@ -596,13 +596,13 @@ func pvxRun(cmd *cobra.Command, args []string) error {
             "Duration":     duration.String(),
             "Memory Used":  fmt.Sprintf("%.1f MB", result.MemoryMB),
         })
-        
+
         if result.Stdout != "" {
             ui.SubHeader("Output")
             ui.Printf("%s", result.Stdout)
         }
     }
-    
+
     return nil
 }
 ```
@@ -620,24 +620,24 @@ func TestUIOutput(t *testing.T) {
         Verbose:   false,
     }
     output := ui.NewOutput(ctx)
-    
+
     // Test basic output
     output.Success("Test success message")
     output.Error("Test error message")
     output.Info("Test info message")
-    
+
     result := buf.String()
-    
+
     assert.Contains(t, result, "✓ Test success message")
     assert.Contains(t, result, "✗ Test error message")
     assert.Contains(t, result, "ℹ Test info message")
-    
+
     // Test structured output
     buf.Reset()
     headers := []string{"Col1", "Col2"}
     rows := [][]string{{"Val1", "Val2"}, {"Val3", "Val4"}}
     output.Table(headers, rows)
-    
+
     tableOutput := buf.String()
     assert.Contains(t, tableOutput, "Col1")
     assert.Contains(t, tableOutput, "Col2")
@@ -651,27 +651,27 @@ func TestUIOutput(t *testing.T) {
 func TestCommandIntegration(t *testing.T) {
     env := helpers.NewTestEnv(t)
     defer env.Cleanup()
-    
+
     // Test normal output
-    stdout := helpers.AssertPVMSucceeds(t, env, 
+    stdout := helpers.AssertPVMSucceeds(t, env,
         []string{"pvm", "version"}, "Version command should work")
-    
+
     assert.Contains(t, stdout, "PVM")
     assert.Regexp(t, `\d+\.\d+\.\d+`, stdout)
-    
+
     // Test verbose output
     verboseOut := helpers.AssertPVMSucceeds(t, env,
         []string{"pvm", "--verbose", "version"}, "Verbose version should work")
-    
+
     assert.Contains(t, verboseOut, "Version Information")
     assert.Contains(t, verboseOut, "Build Time")
     assert.Contains(t, verboseOut, "Commit")
     assert.Greater(t, len(verboseOut), len(stdout))
-    
+
     // Test error handling
     stderr := helpers.AssertPVMFails(t, env,
         []string{"pvm", "nonexistent"}, "Unknown command should fail")
-    
+
     assert.Contains(t, stderr, "✗ unknown command")
     assert.Contains(t, stderr, "Did you mean?")
 }
@@ -703,7 +703,7 @@ ui.Error("Critical error - always shown")
 
 // Debug UI context
 if ui.Context().Verbose {
-    ui.Debug("UI Context: Quiet=%v, Verbose=%v, ColorMode=%v", 
+    ui.Debug("UI Context: Quiet=%v, Verbose=%v, ColorMode=%v",
         ui.Context().Quiet, ui.Context().Verbose, ui.Context().ColorMode)
 }
 ```
@@ -817,13 +817,13 @@ func TestCommandWithUI(t *testing.T) {
         Quiet:     false,
         Verbose:   false,
     }
-    
+
     cmd := &cobra.Command{}
     cmd.SetContext(cli.WithUI(context.Background(), ui.NewOutput(ctx)))
-    
+
     err := runCommand(cmd, []string{"test"})
     assert.NoError(t, err)
-    
+
     output := buf.String()
     assert.Contains(t, output, "expected content")
 }

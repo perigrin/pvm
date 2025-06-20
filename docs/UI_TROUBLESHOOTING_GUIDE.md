@@ -211,7 +211,7 @@ func captureThirdPartyOutput(ui *ui.Output) error {
 
     // Read captured output
     output, _ := io.ReadAll(r)
-    
+
     // Display through UI framework
     ui.Info("Third-party output: %s", string(output))
     return nil
@@ -332,7 +332,7 @@ func TestOldCommand(t *testing.T) {
     w.Close()
     os.Stdout = old
     output, _ := io.ReadAll(r)
-    
+
     assert.Contains(t, string(output), "Expected message")
 }
 
@@ -345,12 +345,12 @@ func TestNewCommand(t *testing.T) {
         Quiet:     false,
         Verbose:   false,
     }
-    
+
     cmd := &cobra.Command{}
     cmd.SetContext(cli.WithUI(context.Background(), ui.NewOutput(ctx)))
-    
+
     runCommand(cmd, []string{"test"})
-    
+
     output := buf.String()
     assert.Contains(t, output, "Expected message")
 }
@@ -369,10 +369,10 @@ func setupTestCommand(t *testing.T) (*cobra.Command, *bytes.Buffer) {
         Verbose:     false,
         Interactive: false,
     }
-    
+
     cmd := &cobra.Command{}
     cmd.SetContext(cli.WithUI(context.Background(), ui.NewOutput(ctx)))
-    
+
     return cmd, &buf
 }
 ```
@@ -381,7 +381,7 @@ func setupTestCommand(t *testing.T) (*cobra.Command, *bytes.Buffer) {
 ```go
 // Update test expectations for styled output
 assert.Contains(t, output, "✓")  // Success symbol
-assert.Contains(t, output, "✗")  // Error symbol  
+assert.Contains(t, output, "✗")  // Error symbol
 assert.Contains(t, output, "ℹ")  // Info symbol
 assert.Contains(t, output, "⚠")  // Warning symbol
 
@@ -463,7 +463,7 @@ go tool pprof cpu.prof
 
 #### Memory Profiling
 ```bash
-# Generate memory profile  
+# Generate memory profile
 go test -memprofile=mem.prof -bench=. ./internal/cli/ui
 
 # Analyze memory usage
@@ -544,7 +544,7 @@ echo "✓ ✗ ⚠ ℹ 🐛 → ⚡"
 ```bash
 # Test different terminals
 gnome-terminal -e "pvm version"
-xterm -e "pvm version"  
+xterm -e "pvm version"
 konsole -e "pvm version"
 
 # Check terminfo

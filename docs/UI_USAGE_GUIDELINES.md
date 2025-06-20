@@ -44,17 +44,17 @@ package cmd
 
 func listVersionsCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
-    
+
     versions, err := pvm.GetInstalledVersions()
     if err != nil {
         ui.Error("Failed to get versions: %v", err)
         return err
     }
-    
+
     // Format and display using UI framework
     ui.Header("Installed Perl Versions")
     // ... rest of presentation logic
-    
+
     return nil
 }
 ```
@@ -68,10 +68,10 @@ Every PVM component follows the same integration pattern:
 func commandFunction(cmd *cobra.Command, args []string) error {
     // ALWAYS start with getting UI reference
     ui := cli.GetUI(cmd)
-    
+
     // Use UI for all output
     ui.Info("Starting operation...")
-    
+
     // Continue with business logic
     return nil
 }
@@ -81,7 +81,7 @@ func commandFunction(cmd *cobra.Command, args []string) error {
 ```go
 func commandWithErrorHandling(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
-    
+
     // Internal operation
     result, err := internal.DoSomething(args)
     if err != nil {
@@ -89,7 +89,7 @@ func commandWithErrorHandling(cmd *cobra.Command, args []string) error {
         ui.Error("Operation failed: %v", err)
         return err
     }
-    
+
     // Success feedback
     ui.Success("Operation completed successfully")
     return nil
@@ -100,32 +100,32 @@ func commandWithErrorHandling(cmd *cobra.Command, args []string) error {
 ```go
 func contextAwareCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
-    
+
     // Basic operation info
     ui.Info("Processing %d items", len(args))
-    
+
     // Verbose details
     if ui.Context().Verbose {
         ui.Debug("Detailed configuration: %+v", config)
     }
-    
+
     // Process with appropriate feedback
     for i, arg := range args {
         if !ui.Context().Quiet {
             ui.Progress(i+1, len(args), "Processing")
         }
-        
+
         // Process item
         if err := processItem(arg); err != nil {
             ui.Error("Failed to process %s: %v", arg, err)
             continue
         }
-        
+
         if ui.Context().Verbose {
             ui.Success("Processed %s", arg)
         }
     }
-    
+
     ui.Success("Completed processing")
     return nil
 }
@@ -147,7 +147,7 @@ ui.Success("Installed %d packages", count)
 ui.Success("Configuration updated")
 ```
 
-#### Error Messages  
+#### Error Messages
 Use `ui.Error()` for:
 - Operation failures
 - Critical issues
@@ -309,12 +309,12 @@ func quietModeExample(ui *ui.Output) {
     if criticalError {
         ui.Error("Critical system error")
     }
-    
+
     // Respect quiet mode for progress
     if !ui.Context().Quiet {
         ui.Progress(current, total, "Processing")
     }
-    
+
     // Always show final results
     ui.Success("Operation completed")
 }
@@ -332,20 +332,20 @@ func quietModeExample(ui *ui.Output) {
 // CORRECT - Add detail in verbose mode
 func verboseModeExample(ui *ui.Output) {
     ui.Info("Starting operation")
-    
+
     if ui.Context().Verbose {
         ui.Debug("Configuration: %+v", config)
         ui.Debug("Environment: %s", env)
         ui.Debug("Memory usage: %d MB", memoryMB)
     }
-    
+
     // ... process ...
-    
+
     if ui.Context().Verbose {
         ui.Debug("Processing completed in %v", duration)
         ui.Debug("Files processed: %d", fileCount)
     }
-    
+
     ui.Success("Operation completed")
 }
 ```
@@ -436,11 +436,11 @@ func TestCommandOutput(t *testing.T) {
         Verbose:   false,
     }
     output := ui.NewOutput(ctx)
-    
+
     // Test the operation
     err := performOperation(output, "test-input")
     assert.NoError(t, err)
-    
+
     // Verify output
     result := buf.String()
     assert.Contains(t, result, "✓")
@@ -459,9 +459,9 @@ func TestVerboseMode(t *testing.T) {
         Verbose:   true,
     }
     output := ui.NewOutput(ctx)
-    
+
     performOperation(output, "test")
-    
+
     result := buf.String()
     assert.Contains(t, result, "Debug:")
     assert.Greater(t, strings.Count(result, "\n"), 5)
@@ -476,9 +476,9 @@ func TestQuietMode(t *testing.T) {
         Verbose:   false,
     }
     output := ui.NewOutput(ctx)
-    
+
     performOperation(output, "test")
-    
+
     result := buf.String()
     assert.NotContains(t, result, "Processing")
     assert.Contains(t, result, "✓")  // Final result should show
@@ -492,19 +492,19 @@ func TestQuietMode(t *testing.T) {
 func TestCommandIntegration(t *testing.T) {
     env := helpers.NewTestEnv(t)
     defer env.Cleanup()
-    
+
     // Test normal execution
     stdout := helpers.AssertPVMSucceeds(t, env,
         []string{"pvm", "command", "arg"},
         "Command should succeed")
-    
+
     assert.Contains(t, stdout, "expected output")
-    
+
     // Test verbose mode
     verboseOut := helpers.AssertPVMSucceeds(t, env,
         []string{"pvm", "--verbose", "command", "arg"},
         "Verbose command should succeed")
-    
+
     assert.Greater(t, len(verboseOut), len(stdout))
     assert.Contains(t, verboseOut, "Debug:")
 }
@@ -531,23 +531,23 @@ func InternalOperation(path string) error {
 // CLI layer - format errors for display
 func cliCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
-    
+
     for _, arg := range args {
         if err := InternalOperation(arg); err != nil {
             // Use UI framework for error display
             ui.Error("Failed to process %s: %v", arg, err)
-            
+
             // Provide helpful suggestions
             if errors.IsUserInputError(err) {
                 ui.Info("Check that the file exists and is readable")
             }
-            
+
             continue
         }
-        
+
         ui.Success("Processed %s", arg)
     }
-    
+
     return nil
 }
 ```
@@ -558,18 +558,18 @@ func cliCommand(cmd *cobra.Command, args []string) error {
 ```go
 func robustOperation(ui *ui.Output) error {
     results, failures := processAllItems(items)
-    
+
     if len(failures) > 0 {
         ui.Warning("Operation completed with %d failures:", len(failures))
         for _, failure := range failures {
             ui.Error("Failed: %s - %v", failure.Item, failure.Error)
         }
-        ui.Info("Successfully processed: %d/%d items", 
+        ui.Info("Successfully processed: %d/%d items",
             len(results), len(items))
     } else {
         ui.Success("Successfully processed all %d items", len(results))
     }
-    
+
     return nil
 }
 ```
@@ -582,21 +582,21 @@ func robustOperation(ui *ui.Output) error {
 ```go
 func pvmListCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
-    
+
     ui.Header("Perl Version Manager")
-    
+
     versions, err := pvm.GetVersions()
     if err != nil {
         ui.Error("Failed to list versions: %v", err)
         return err
     }
-    
+
     if len(versions) == 0 {
         ui.Warning("No Perl versions installed")
         ui.Info("Install with: pvm install <version>")
         return nil
     }
-    
+
     // Display as table
     headers := []string{"Version", "Status", "Path"}
     rows := make([][]string, len(versions))
@@ -607,10 +607,10 @@ func pvmListCommand(cmd *cobra.Command, args []string) error {
         }
         rows[i] = []string{v.Version, status, v.Path}
     }
-    
+
     ui.Table(headers, rows)
     ui.Info("Use 'pvm use <version>' to switch versions")
-    
+
     return nil
 }
 ```
@@ -622,9 +622,9 @@ func pvmListCommand(cmd *cobra.Command, args []string) error {
 func pvxRunCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
     scriptPath := args[0]
-    
+
     ui.Info("Executing script: %s", scriptPath)
-    
+
     // Dependency analysis with progress
     ui.Status("Analyzing dependencies...")
     deps, err := pvx.AnalyzeDependencies(scriptPath)
@@ -632,28 +632,28 @@ func pvxRunCommand(cmd *cobra.Command, args []string) error {
         ui.Error("Dependency analysis failed: %v", err)
         return err
     }
-    
+
     if len(deps.Missing) > 0 {
         ui.Warning("Missing dependencies:")
         ui.List(deps.Missing)
-        ui.Info("Install with: pvi install %s", 
+        ui.Info("Install with: pvi install %s",
             strings.Join(deps.Missing, " "))
     }
-    
+
     // Execution with timing
     ui.Status("Executing script...")
     start := time.Now()
-    
+
     result, err := pvx.Execute(scriptPath, args[1:])
     duration := time.Since(start)
-    
+
     if err != nil {
         ui.Error("Execution failed: %v", err)
         return err
     }
-    
+
     ui.Success("Script completed in %v", duration)
-    
+
     if ui.Context().Verbose {
         ui.SubHeader("Execution Details")
         ui.KeyValue(map[string]string{
@@ -662,7 +662,7 @@ func pvxRunCommand(cmd *cobra.Command, args []string) error {
             "Memory":    fmt.Sprintf("%.1f MB", result.MemoryMB),
         })
     }
-    
+
     return nil
 }
 ```
@@ -674,16 +674,16 @@ func pvxRunCommand(cmd *cobra.Command, args []string) error {
 func pviInstallCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
     packageName := args[0]
-    
+
     ui.Header(fmt.Sprintf("Installing %s", packageName))
-    
+
     // Check existing installation
     if pvi.IsInstalled(packageName) {
         ui.Warning("Package %s is already installed", packageName)
         ui.Info("Use 'pvi upgrade %s' to upgrade", packageName)
         return nil
     }
-    
+
     // Multi-phase installation with progress
     phases := []struct {
         name string
@@ -693,17 +693,17 @@ func pviInstallCommand(cmd *cobra.Command, args []string) error {
         {"Resolving dependencies", func() error { return pvi.ResolveDeps(packageName) }},
         {"Installing", func() error { return pvi.Install(packageName) }},
     }
-    
+
     for i, phase := range phases {
         ui.Progress(i+1, len(phases), "Installation")
         ui.Status(phase.name + "...")
-        
+
         if err := phase.fn(); err != nil {
             ui.Error("%s failed: %v", phase.name, err)
             return err
         }
     }
-    
+
     ui.Success("Successfully installed %s", packageName)
     return nil
 }
@@ -716,15 +716,15 @@ func pviInstallCommand(cmd *cobra.Command, args []string) error {
 func pscCheckCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
     filePath := args[0]
-    
+
     ui.Info("Type checking %s", filePath)
-    
+
     result, err := psc.CheckTypes(filePath)
     if err != nil {
         ui.Error("Type checking failed: %v", err)
         return err
     }
-    
+
     // Display results with appropriate formatting
     if len(result.Errors) > 0 {
         ui.SubHeader("Type Errors")
@@ -735,16 +735,16 @@ func pscCheckCommand(cmd *cobra.Command, args []string) error {
     } else {
         ui.Success("No type errors found")
     }
-    
+
     // Verbose mode details
     if ui.Context().Verbose && len(result.Annotations) > 0 {
         ui.SubHeader("Type Annotations")
         for _, ann := range result.Annotations {
-            ui.Debug("%s: %s (line %d)", 
+            ui.Debug("%s: %s (line %d)",
                 ann.Variable, ann.Type, ann.Line)
         }
     }
-    
+
     return nil
 }
 ```
@@ -766,7 +766,7 @@ func pscCheckCommand(cmd *cobra.Command, args []string) error {
 // BEFORE - Direct output
 func oldCommand(cmd *cobra.Command, args []string) error {
     fmt.Printf("Processing %d files\n", len(args))
-    
+
     for _, file := range args {
         fmt.Printf("Processing: %s\n", file)
         if err := process(file); err != nil {
@@ -774,7 +774,7 @@ func oldCommand(cmd *cobra.Command, args []string) error {
             return err
         }
     }
-    
+
     fmt.Println("All files processed")
     return nil
 }
@@ -782,21 +782,21 @@ func oldCommand(cmd *cobra.Command, args []string) error {
 // AFTER - UI framework
 func newCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
-    
+
     ui.Info("Processing %d files", len(args))
-    
+
     for i, file := range args {
         ui.Progress(i+1, len(args), "Processing files")
         if err := process(file); err != nil {
             ui.Error("Failed to process %s: %v", file, err)
             return err
         }
-        
+
         if ui.Context().Verbose {
             ui.Success("Processed %s", file)
         }
     }
-    
+
     ui.Success("All files processed successfully")
     return nil
 }
