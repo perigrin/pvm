@@ -16,6 +16,7 @@ import (
 	"tamarou.com/pvm/internal/cli"
 	uipkg "tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/config"
+	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/pvi/deps"
@@ -34,12 +35,15 @@ func NewCommand() *cobra.Command {
 	cmd.AddCommand(
 		newInstallCommand(),
 		newSimplifiedInstallCommand(), // PROTOTYPE: Demonstrates refactored pattern
+		newListCommand(),
+		newSimplifiedListCommand(), // PROTOTYPE: Demonstrates refactored list pattern
+		newSearchCommand(),
+		newSimplifiedSearchCommand(), // PROTOTYPE: Demonstrates refactored search pattern
 		newAddCommand(),
 		newSyncCommand(),
-		newListCommand(),
 		newUpdateCommand(),
 		newRemoveCommand(),
-		newSearchCommand(),
+		newSimplifiedRemoveCommand(), // PROTOTYPE: Demonstrates refactored remove pattern
 		newDepsCommand(),
 		newBundleCommand(),
 		newTypeCommand(),
@@ -1804,6 +1808,126 @@ func newSimplifiedInstallCommand() *cobra.Command {
 	return cmd
 }
 
+// newSimplifiedListCommand demonstrates the refactored pattern for list command
+func newSimplifiedListCommand() *cobra.Command {
+	var (
+		pattern     string
+		includeCore bool
+		format      string
+		perlPath    string
+		verbose     bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "list-simple [pattern]",
+		Short: "List installed modules (simplified/refactored version)",
+		Long:  "Demonstrates the refactored list command using extracted helper functions.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
+			// Process pattern from args if provided (using helper logic)
+			if len(args) > 0 {
+				pattern = args[0]
+			}
+
+			// List modules using helper function
+			modules, err := listModules(perlPath, pattern, includeCore, cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			// Format and display results using helper function
+			return formatModuleList(ui, modules, format, verbose)
+		},
+	}
+
+	// Add flags
+	cmd.Flags().StringVar(&pattern, "pattern", "", "Filter modules by pattern")
+	cmd.Flags().BoolVar(&includeCore, "include-core", false, "Include Perl core modules")
+	cmd.Flags().StringVar(&format, "format", "", "Output format (json, simple, or default)")
+	cmd.Flags().StringVar(&perlPath, "perl", "", "Path to Perl interpreter")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+
+	return cmd
+}
+
+// newSimplifiedSearchCommand demonstrates the refactored pattern for search command
+func newSimplifiedSearchCommand() *cobra.Command {
+	var (
+		limit   int
+		source  string
+		noCache bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "search-simple [query]",
+		Short: "Search available modules (simplified/refactored version)",
+		Long:  "Demonstrates the refactored search command using extracted helper functions.",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
+			// Join the arguments into a query
+			query := strings.Join(args, " ")
+
+			// Search modules using helper function
+			results, err := searchModules(query, source, limit, noCache, cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			// Format and display results using helper function
+			formatSearchResults(ui, results)
+			return nil
+		},
+	}
+
+	// Add flags
+	cmd.Flags().IntVar(&limit, "limit", 20, "Limit number of results")
+	cmd.Flags().StringVar(&source, "source", "", "Search source")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "Disable caching")
+
+	return cmd
+}
+
+// newSimplifiedRemoveCommand demonstrates the refactored pattern for remove command
+func newSimplifiedRemoveCommand() *cobra.Command {
+	var (
+		force    bool
+		verbose  bool
+		perlPath string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "remove-simple [module]",
+		Short: "Remove a module (simplified/refactored version)",
+		Long:  "Demonstrates the refactored remove command using extracted helper functions.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+			moduleName := args[0]
+
+			ui.Info("Removing module %s...", moduleName)
+
+			// Remove module using helper function
+			err := removeModule(moduleName, perlPath, force, verbose, cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			ui.Success("Successfully removed module %s", moduleName)
+			return nil
+		},
+	}
+
+	// Add flags
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force removal")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	cmd.Flags().StringVar(&perlPath, "perl", "", "Path to Perl interpreter")
+
+	return cmd
+}
+
 // Helper functions for command simplification
 
 // resolveModuleNames determines which modules to install based on args or cpanfile
@@ -1929,6 +2053,174 @@ func displayInstallResults(ui *uipkg.Output, results []*pviModules.ModuleInstall
 			ui.List(failedList)
 		}
 		return fmt.Errorf("failed to install %d out of %d modules", failureCount, len(results))
+	}
+
+	return nil
+}
+
+// formatModuleList formats module list output in different formats
+func formatModuleList(ui *uipkg.Output, modules []*pviModules.InstalledModule, format string, verbose bool) error {
+	if len(modules) == 0 {
+		ui.Info("No modules found")
+		return nil
+	}
+
+	switch format {
+	case "json":
+		jsonData, err := json.MarshalIndent(modules, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to format JSON: %w", err)
+		}
+		ui.Println(string(jsonData))
+
+	case "simple":
+		var simpleList []string
+		for _, module := range modules {
+			simpleList = append(simpleList, fmt.Sprintf("%s %s", module.Name, module.Version))
+		}
+		ui.List(simpleList)
+
+	default:
+		// Default tabular format
+		ui.SubHeader(fmt.Sprintf("Found %d modules", len(modules)))
+
+		if verbose {
+			// Detailed format
+			for i, module := range modules {
+				ui.SubHeader(fmt.Sprintf("[%d] %s (%s)", i+1, module.Name, module.Version))
+
+				info := map[string]string{
+					"Path": module.Path,
+				}
+
+				if module.Description != "" {
+					info["Description"] = module.Description
+				}
+
+				if !module.InstallationTime.IsZero() {
+					info["Installed"] = module.InstallationTime.Format("2006-01-02 15:04:05")
+				}
+
+				if module.CoreModule {
+					info["Type"] = "Core Module"
+				}
+
+				ui.KeyValue(info)
+			}
+		} else {
+			// Simple tabular format
+			var modulesList []string
+			for _, module := range modules {
+				line := fmt.Sprintf("%-30s %s", module.Name, module.Version)
+				if module.CoreModule {
+					line += " (core)"
+				}
+				modulesList = append(modulesList, line)
+			}
+			ui.List(modulesList)
+		}
+	}
+
+	return nil
+}
+
+// listModules provides a simplified interface for module listing
+func listModules(perlPath, pattern string, includeCore bool, ctx context.Context) ([]*pviModules.InstalledModule, error) {
+	// Get current Perl path if not specified
+	if perlPath == "" {
+		var err error
+		perlPath, err = perl.GetCurrentPerlPath()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get Perl path: %w", err)
+		}
+	}
+
+	// Create options for listing modules
+	options := &pviModules.ModuleListOptions{
+		PerlPath:    perlPath,
+		Pattern:     pattern,
+		IncludeCore: includeCore,
+		Context:     ctx,
+	}
+
+	// List installed modules
+	return pviModules.ListInstalledModules(options)
+}
+
+// searchModules provides a simplified interface for module searching
+func searchModules(query, source string, limit int, noCache bool, ctx context.Context) (*cpan.SearchResults, error) {
+	// Load configuration
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Create provider using builder pattern
+	provider, err := NewProviderBuilder().
+		WithConfig(cfg).
+		WithSource(source).
+		WithNoCache(noCache).
+		BuildProvider()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	// Run the search
+	return provider.SearchModules(ctx, query, limit)
+}
+
+// formatSearchResults formats and displays search results
+func formatSearchResults(ui *uipkg.Output, results *cpan.SearchResults) {
+	ui.Info("Search results for '%s' (%d of %d results from %s)",
+		results.Query, len(results.Results), results.Total, results.Source)
+
+	if len(results.Results) == 0 {
+		ui.Info("No results found")
+		return
+	}
+
+	// Create a formatted list of search results
+	var searchResults []string
+	for i, result := range results.Results {
+		searchResults = append(searchResults,
+			fmt.Sprintf("[%d] %s (%s)\n    %s\n    Author: %s | Released: %s",
+				i+1, result.Name, result.Version, result.Abstract,
+				result.Author, result.ReleaseDate.Format("2006-01-02")))
+	}
+
+	ui.ListWithOptions(uipkg.ListOptions{
+		Items: searchResults,
+	})
+}
+
+// removeModule provides a simplified interface for module removal
+func removeModule(moduleName, perlPath string, force, verbose bool, ctx context.Context) error {
+	// Get current Perl path if not specified
+	if perlPath == "" {
+		var err error
+		perlPath, err = perl.GetCurrentPerlPath()
+		if err != nil {
+			return fmt.Errorf("failed to get Perl path: %w", err)
+		}
+	}
+
+	// Create options for removing module
+	options := &pviModules.RemoveModuleOptions{
+		ModuleName: moduleName,
+		PerlPath:   perlPath,
+		Force:      force,
+		Verbose:    verbose,
+		Context:    ctx,
+	}
+
+	// Remove the module
+	result, err := pviModules.RemoveModule(options)
+	if err != nil {
+		return err
+	}
+
+	if !result.Success {
+		return fmt.Errorf("failed to remove module %s", result.ModuleName)
 	}
 
 	return nil
