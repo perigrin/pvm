@@ -16,7 +16,6 @@ import (
 	"tamarou.com/pvm/internal/cli"
 	uipkg "tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/config"
-	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/pvi/deps"
@@ -136,68 +135,25 @@ func newInstallCommand() *cobra.Command {
 				moduleNames = args
 			}
 
-			// Get configuration
+			// Load configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
 			}
 
-			// Get options from flags and config
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
-			}
-
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider and resolver using builder pattern
+			result, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				WithResolver().
+				Build()
 			if err != nil {
 				return err
 			}
 
-			// Create the dependency resolver
-			var cacheDir string
-			var cacheTTL int
-
-			if cfg.PVI != nil && !noCache {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
+			provider := result.Provider
+			resolver := result.Resolver
 
 			// Get current Perl path
 			perlPath, err := perl.GetCurrentPerlPath()
@@ -548,20 +504,10 @@ func newUpdateCommand() *cobra.Command {
 				return fmt.Errorf("at least one module name must be provided or use --all flag")
 			}
 
-			// Get configuration
+			// Load configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
-			}
-
-			// Get options from flags and config
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
 			}
 
 			// Get current Perl path if not specified
@@ -572,52 +518,19 @@ func newUpdateCommand() *cobra.Command {
 				}
 			}
 
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider and resolver using builder pattern
+			result, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				WithResolver().
+				Build()
 			if err != nil {
 				return err
 			}
 
-			// Create the dependency resolver
-			var cacheDir string
-			var cacheTTL int
-
-			if cfg.PVI != nil && !noCache {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
+			provider := result.Provider
+			resolver := result.Resolver
 
 			// If --all flag is used, get a list of all installed modules
 			if all {
@@ -804,56 +717,22 @@ func newSearchCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ui := cli.GetUI(cmd)
 
-			// Get configuration
+			// Load configuration and get flags
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
 			}
 
-			// Get options from flags
 			limit, _ := cmd.Flags().GetInt("limit")
 			source, _ := cmd.Flags().GetString("source")
 			noCache, _ := cmd.Flags().GetBool("no-cache")
 
-			// If source is not provided, use the one from the configuration
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
-			}
-
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider using builder pattern
+			provider, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				BuildProvider()
 			if err != nil {
 				return err
 			}
@@ -922,68 +801,25 @@ func newDepsCommand() *cobra.Command {
 
 			// Options are already bound to the variables
 
-			// Get configuration
+			// Load configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
 			}
 
-			// If source is not provided, use the one from the configuration
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
-			}
-
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider and resolver using builder pattern
+			result, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				WithResolver().
+				Build()
 			if err != nil {
 				return err
 			}
 
-			// Create the dependency resolver
-			var cacheDir string
-			var cacheTTL int
-
-			if cfg.PVI != nil && !noCache {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
+			provider := result.Provider
+			resolver := result.Resolver
 
 			// Set up resolution options
 			options := &deps.DependencyResolutionOptions{
@@ -995,14 +831,14 @@ func newDepsCommand() *cobra.Command {
 				MaxDepth:     maxDepth,
 				Verbose:      verbose,
 				UseCache:     !noCache,
-				CacheTTL:     cacheTTL,
-				CacheDir:     cacheDir,
+				CacheTTL:     0,  // Will use resolver's cache settings
+				CacheDir:     "", // Will use resolver's cache settings
 				PerlVersion:  perlVersion,
 			}
 
 			// Resolve dependencies
 			moduleName := args[0]
-			result, err := resolver.ResolveDependencies(context.Background(), moduleName, options)
+			depResult, err := resolver.ResolveDependencies(context.Background(), moduleName, options)
 			if err != nil {
 				return err
 			}
@@ -1011,7 +847,7 @@ func newDepsCommand() *cobra.Command {
 			if flat {
 				// Display as a flat list
 				ui.Info("Dependencies for %s:", moduleName)
-				deps := resolver.GetFlattenedDependencies(result)
+				deps := resolver.GetFlattenedDependencies(depResult)
 				var listItems []string
 				for _, dep := range deps {
 					if dep.IsRoot {
@@ -1030,19 +866,19 @@ func newDepsCommand() *cobra.Command {
 			} else {
 				// Display as a tree
 				ui.Info("Dependency tree for %s:", moduleName)
-				tree := resolver.PrintDependencyTree(result.Root)
+				tree := resolver.PrintDependencyTree(depResult.Root)
 				ui.Info("%s", tree)
 			}
 
 			// Display warnings and conflicts
-			if len(result.Warnings) > 0 {
+			if len(depResult.Warnings) > 0 {
 				ui.Warning("Warnings:")
-				ui.List(result.Warnings)
+				ui.List(depResult.Warnings)
 			}
 
-			if len(result.Conflicts) > 0 {
+			if len(depResult.Conflicts) > 0 {
 				ui.Error("Version conflicts:")
-				for _, conflict := range result.Conflicts {
+				for _, conflict := range depResult.Conflicts {
 					ui.Error("- %s has conflicting requirements:", conflict.Module)
 					var conflictItems []string
 					for constraint, requirers := range conflict.Requirements {
@@ -1152,13 +988,12 @@ func newBundleCommand() *cobra.Command {
 			ui := cli.GetUI(cmd)
 			inputPath := args[0]
 
-			// Get configuration
+			// Load configuration and get flags
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
 			}
 
-			// Get options from flags
 			perlPath, _ := cmd.Flags().GetString("perl")
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			force, _ := cmd.Flags().GetBool("force")
@@ -1168,16 +1003,6 @@ func newBundleCommand() *cobra.Command {
 			installDir, _ := cmd.Flags().GetString("install-dir")
 			source, _ := cmd.Flags().GetString("source")
 
-			// Get options from flags and config
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
-			}
-
 			// Get current Perl path if not specified
 			if perlPath == "" {
 				perlPath, err = perl.GetCurrentPerlPath()
@@ -1186,52 +1011,19 @@ func newBundleCommand() *cobra.Command {
 				}
 			}
 
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider and resolver using builder pattern
+			result, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				WithResolver().
+				Build()
 			if err != nil {
 				return err
 			}
 
-			// Create the dependency resolver
-			var cacheDir string
-			var cacheTTL int
-
-			if cfg.PVI != nil && !noCache {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
+			provider := result.Provider
+			resolver := result.Resolver
 
 			// Read the bundle file to get the list of modules
 			bundleData, err := os.ReadFile(inputPath)
@@ -1484,20 +1276,10 @@ func newOutdatedCommand() *cobra.Command {
 				pattern = args[0]
 			}
 
-			// Get configuration
+			// Load configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
-			}
-
-			// Get options from flags and config
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
 			}
 
 			// Get current Perl path if not specified
@@ -1508,35 +1290,12 @@ func newOutdatedCommand() *cobra.Command {
 				}
 			}
 
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider using builder pattern
+			provider, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				BuildProvider()
 			if err != nil {
 				return err
 			}
@@ -1683,52 +1442,22 @@ func newAddCommand() *cobra.Command {
 			// Now install the module to project lib directory
 			ui.Info("Installing %s to project lib directory...", moduleName)
 
-			// Get configuration
+			// Load configuration and create provider/resolver
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
 			}
 
-			// Set up provider
-			source := "metacpan"
-			if cfg.PVI != nil && cfg.PVI.MetadataSource != "" {
-				source = cfg.PVI.MetadataSource
-			}
-
-			var providerOpts []cpan.ProviderOption
-			if cfg.PVI != nil {
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-				if cfg.PVI.CacheModules && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			result, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithResolver().
+				Build()
 			if err != nil {
 				return err
 			}
 
-			// Create dependency resolver
-			var cacheDir string
-			var cacheTTL int
-			if cfg.PVI != nil {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
+			provider := result.Provider
+			resolver := result.Resolver
 
 			// Get current Perl path
 			perlPath, err := perl.GetCurrentPerlPath()
@@ -1761,7 +1490,7 @@ func newAddCommand() *cobra.Command {
 				Context: cmd.Context(),
 			}
 
-			result, err := modules.InstallModule(installOptions)
+			installResult, err := modules.InstallModule(installOptions)
 			if err != nil {
 				// If installation fails, remove from cpanfile
 				ui.Warning("Installation failed, removing %s from cpanfile...", moduleName)
@@ -1771,10 +1500,10 @@ func newAddCommand() *cobra.Command {
 				return fmt.Errorf("failed to install %s: %w", moduleName, err)
 			}
 
-			if result.Success {
-				ui.Success("Successfully added and installed %s v%s", result.ModuleName, result.Version)
-				if len(result.Dependencies) > 0 {
-					ui.Info("Installed %d dependencies", len(result.Dependencies))
+			if installResult.Success {
+				ui.Success("Successfully added and installed %s v%s", installResult.ModuleName, installResult.Version)
+				if len(installResult.Dependencies) > 0 {
+					ui.Info("Installed %d dependencies", len(installResult.Dependencies))
 				}
 			} else {
 				// Remove from cpanfile if installation wasn't successful
