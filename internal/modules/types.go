@@ -129,6 +129,9 @@ type InstallOptions struct {
 
 	// Workers specifies the number of parallel workers
 	Workers int
+
+	// Context for cancellation and timeouts
+	Context context.Context
 }
 
 // InstallResult contains the result of a module installation
