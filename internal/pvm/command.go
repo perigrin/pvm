@@ -35,6 +35,8 @@ func NewCommand() *cobra.Command {
 		newUseCommand(),
 		newShUseCommand(),
 		newShEnvActivateCommand(),
+		newDetectVersionCommand(),
+		newShellInitCommand(),
 		newGlobalCommand(),
 		newLocalCommand(),
 		newVersionsCommand(),
@@ -265,6 +267,64 @@ func newShEnvActivateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			envName := args[0]
 			return generateShellEnvActivate(envName)
+		},
+	}
+}
+
+func newDetectVersionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "detect-version",
+		Short: "Find .perl-version file in current directory tree",
+		Long:  "Search for .perl-version file starting from current directory and walking up the directory tree",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return detectVersionFile(cmd)
+		},
+	}
+}
+
+func newShellInitCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "shell-init [shell]",
+		Short: "Generate shell integration code",
+		Long:  "Generate shell integration code for auto-switching and shell functions (alias for 'pvm init')",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var shell perl.ShellType
+			var err error
+
+			if len(args) > 0 {
+				// Parse shell type from argument
+				switch args[0] {
+				case "bash":
+					shell = perl.ShellBash
+				case "zsh":
+					shell = perl.ShellZsh
+				case "fish":
+					shell = perl.ShellFish
+				case "powershell":
+					shell = perl.ShellPowerShell
+				case "cmd":
+					shell = perl.ShellCmd
+				default:
+					return fmt.Errorf("unsupported shell: %s", args[0])
+				}
+			} else {
+				// Detect shell type automatically
+				shell, err = perl.DetectShell()
+				if err != nil {
+					return err
+				}
+			}
+
+			// Get shell script for the specified/detected shell
+			script, err := perl.GetCurrentShellScript(shell)
+			if err != nil {
+				return err
+			}
+
+			// Print the script to stdout (for eval)
+			fmt.Print(script)
+			return nil
 		},
 	}
 }
@@ -1514,6 +1574,47 @@ func activateEnvironment(cmd *cobra.Command, envName string) error {
 	fmt.Printf("# Environment '%s' activated. Use 'deactivate' or start a new shell to deactivate.\n", envName)
 
 	return nil
+}
+
+// detectVersionFile finds a .perl-version file by walking up the directory tree
+func detectVersionFile(cmd *cobra.Command) error {
+	wd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	versionFile, err := findVersionFile(wd)
+	if err != nil {
+		return err
+	}
+
+	if versionFile == "" {
+		return fmt.Errorf("no .perl-version file found in current directory tree")
+	}
+
+	cmd.Println(versionFile)
+	return nil
+}
+
+// findVersionFile walks up the directory tree looking for .perl-version file
+func findVersionFile(startDir string) (string, error) {
+	dir := startDir
+
+	for {
+		versionFile := filepath.Join(dir, ".perl-version")
+		if _, err := os.Stat(versionFile); err == nil {
+			return versionFile, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached root directory
+			break
+		}
+		dir = parent
+	}
+
+	return "", nil
 }
 
 // generateShellEnvActivate outputs shell commands to activate a named environment
