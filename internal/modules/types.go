@@ -65,32 +65,8 @@ type ProgressReporter interface {
 	Unsubscribe(callback ProgressCallback)
 }
 
-// Module represents a Perl module with metadata
-type Module struct {
-	// Name is the module name (e.g., "DBI")
-	Name string `json:"name"`
-
-	// Version is the module version
-	Version string `json:"version"`
-
-	// Description is a short description of the module
-	Description string `json:"description,omitempty"`
-
-	// Author is the module author
-	Author string `json:"author,omitempty"`
-
-	// Path is the filesystem path to the module
-	Path string `json:"path,omitempty"`
-
-	// InstallationTime is when the module was installed
-	InstallationTime time.Time `json:"installation_time,omitempty"`
-
-	// CoreModule indicates if this is a Perl core module
-	CoreModule bool `json:"core_module,omitempty"`
-
-	// Dependencies lists module dependencies
-	Dependencies []string `json:"dependencies,omitempty"`
-}
+// Module represents a Perl module with metadata (alias for InstalledModule for backward compatibility)
+type Module = InstalledModule
 
 // ModuleFilter defines criteria for filtering modules
 type ModuleFilter struct {
@@ -244,6 +220,9 @@ func (s OperationStatus) String() string {
 // ProgressCallback is called to report operation progress
 type ProgressCallback func(operation string, current, total int, message string)
 
+// InstallProgressCallback is called during module installation
+type InstallProgressCallback func(stage InstallProgressStage, moduleName string, details string, progress float64)
+
 // OutdatedModule represents a module with available updates
 type OutdatedModule struct {
 	// Name is the module name
@@ -257,4 +236,226 @@ type OutdatedModule struct {
 
 	// CoreModule indicates if this is a Perl core module
 	CoreModule bool `json:"core_module,omitempty"`
+}
+
+// InstallProgressStage represents a stage in the module installation process
+type InstallProgressStage int
+
+const (
+	// Module installation stages
+	StageResolving InstallProgressStage = iota
+	StageDownloading
+	StageExtracting
+	StageBuilding
+	StageTesting
+	StageInstallingModule
+	StageCleaningUp
+	StageFinished
+)
+
+// String returns a string representation of the installation stage
+func (s InstallProgressStage) String() string {
+	switch s {
+	case StageResolving:
+		return "Resolving dependencies"
+	case StageDownloading:
+		return "Downloading module"
+	case StageExtracting:
+		return "Extracting module"
+	case StageBuilding:
+		return "Building module"
+	case StageTesting:
+		return "Testing module"
+	case StageInstallingModule:
+		return "Installing module"
+	case StageCleaningUp:
+		return "Cleaning up"
+	case StageFinished:
+		return "Finished"
+	default:
+		return "Unknown"
+	}
+}
+
+// InstalledModule represents an installed Perl module (combines Module and InstalledModule types)
+type InstalledModule struct {
+	// Name is the module name (e.g., "DBI")
+	Name string `json:"name"`
+
+	// Version is the module version
+	Version string `json:"version"`
+
+	// Description is a short description of the module
+	Description string `json:"description,omitempty"`
+
+	// Author is the module author
+	Author string `json:"author,omitempty"`
+
+	// Path is the filesystem path to the module
+	Path string `json:"path,omitempty"`
+
+	// InstallationTime is when the module was installed
+	InstallationTime time.Time `json:"installation_time,omitempty"`
+
+	// CoreModule indicates if this is a Perl core module
+	CoreModule bool `json:"core_module,omitempty"`
+
+	// Dependencies lists module dependencies
+	Dependencies []string `json:"dependencies,omitempty"`
+
+	// PerlVersion is the Perl version this module was installed for
+	PerlVersion string `json:"perl_version,omitempty"`
+}
+
+// ModuleListOptions contains options for listing installed modules
+type ModuleListOptions struct {
+	// PerlPath is the path to the Perl interpreter to use
+	PerlPath string
+
+	// Pattern filters modules by name pattern
+	Pattern string
+
+	// IncludeCore includes Perl core modules
+	IncludeCore bool
+
+	// IncludeDev includes development dependencies
+	IncludeDev bool
+
+	// Phase filters by dependency phase (runtime, build, test, develop)
+	Phase string
+
+	// LatestOnly returns only the latest version of each module
+	LatestOnly bool
+
+	// Context for cancellation
+	Context context.Context
+}
+
+// SearchResult represents a module search result
+type SearchResult struct {
+	// Name is the module name
+	Name string `json:"name"`
+
+	// Version is the latest available version
+	Version string `json:"version"`
+
+	// Description is a short description
+	Description string `json:"description,omitempty"`
+
+	// Author information
+	Author string `json:"author,omitempty"`
+
+	// ReleaseDate when the module was last released
+	ReleaseDate time.Time `json:"release_date,omitempty"`
+
+	// Abstract provides a brief summary
+	Abstract string `json:"abstract,omitempty"`
+
+	// Distribution name
+	Distribution string `json:"distribution,omitempty"`
+}
+
+// DependencyInfo represents dependency information for a module
+type DependencyInfo struct {
+	// Name is the dependency module name
+	Name string `json:"name"`
+
+	// Version is the required version constraint
+	Version string `json:"version,omitempty"`
+
+	// Phase indicates the dependency phase (runtime, build, test, develop)
+	Phase string `json:"phase"`
+
+	// Relationship indicates the dependency relationship (requires, recommends, suggests)
+	Relationship string `json:"relationship"`
+
+	// Optional indicates if the dependency is optional
+	Optional bool `json:"optional,omitempty"`
+}
+
+// ModuleInstallOptions contains options for installing a module (consolidated version)
+type ModuleInstallOptions struct {
+	// ModuleName is the name of the module to install
+	ModuleName string
+
+	// VersionConstraint specifies version requirements
+	VersionConstraint string
+
+	// PerlPath is the path to the Perl interpreter
+	PerlPath string
+
+	// InstallDir is the target installation directory
+	InstallDir string
+
+	// Force installation even if tests fail
+	Force bool
+
+	// RunTests enables test execution during installation
+	RunTests bool
+
+	// SkipDependencies skips dependency installation
+	SkipDependencies bool
+
+	// Verbose enables detailed output
+	Verbose bool
+
+	// Cleanup removes build artifacts after installation
+	Cleanup bool
+
+	// Parallel enables parallel installation when applicable
+	Parallel bool
+
+	// Workers specifies the number of parallel workers
+	Workers int
+
+	// Provider is the CPAN provider to use
+	Provider interface{} // cpan.Provider - avoiding circular import
+
+	// DependencyResolver for resolving dependencies
+	DependencyResolver interface{} // deps.DependencyResolver - avoiding circular import
+
+	// ProgressCallback for reporting installation progress
+	ProgressCallback InstallProgressCallback
+
+	// Context for cancellation
+	Context context.Context
+}
+
+// BundleInfo represents a module bundle
+type BundleInfo struct {
+	// Name is the bundle name
+	Name string `json:"name"`
+
+	// Version is the bundle version
+	Version string `json:"version"`
+
+	// Description describes the bundle
+	Description string `json:"description,omitempty"`
+
+	// CreatedAt indicates when the bundle was created
+	CreatedAt time.Time `json:"created_at"`
+
+	// CreatedBy indicates who created the bundle
+	CreatedBy string `json:"created_by,omitempty"`
+
+	// Modules lists the modules in the bundle
+	Modules []*BundleModule `json:"modules"`
+
+	// PerlVersion indicates the target Perl version
+	PerlVersion string `json:"perl_version,omitempty"`
+}
+
+// BundleModule represents a module within a bundle
+type BundleModule struct {
+	// Name is the module name
+	Name string `json:"name"`
+
+	// Version is the specific version to install
+	Version string `json:"version"`
+
+	// Phase indicates the dependency phase
+	Phase string `json:"phase,omitempty"`
+
+	// Required indicates if this module is required
+	Required bool `json:"required,omitempty"`
 }
