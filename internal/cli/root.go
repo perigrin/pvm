@@ -225,7 +225,7 @@ func GetUI(cmd *cobra.Command) *ui.Output {
 // showCurrentPerlVersion displays the currently active Perl version
 func showCurrentPerlVersion(cmd *cobra.Command, component string) error {
 	ui := GetUI(cmd)
-	
+
 	// Only show current version for PVM component
 	if component != "pvm" {
 		ui.Println(version.ComponentVersion(component))
