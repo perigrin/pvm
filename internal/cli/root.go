@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
+	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/version"
 )
 
@@ -41,14 +42,27 @@ func NewRootCommand(name string, description string) *cobra.Command {
 
 // newVersionCommand creates a version command for the provided component
 func newVersionCommand(component string) *cobra.Command {
-	return &cobra.Command{
+	var showCurrent bool
+
+	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print version information",
 		Long:  "Print detailed version information about this component",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if showCurrent {
+				return showCurrentPerlVersion(cmd, component)
+			}
 			fmt.Println(version.ComponentVersion(component))
+			return nil
 		},
 	}
+
+	// Add --current flag for PVM component
+	if component == "pvm" {
+		cmd.Flags().BoolVar(&showCurrent, "current", false, "Show currently active Perl version")
+	}
+
+	return cmd
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -141,4 +155,27 @@ func handleUnknownCommand(rootCmd *cobra.Command, err *UnknownCommandError) {
 
 	fmt.Fprintf(os.Stderr, "Run 'pvm help' for usage information\n")
 	fmt.Fprintf(os.Stderr, "Run 'pvm help workflows' for common workflows\n")
+}
+
+// showCurrentPerlVersion displays the currently active Perl version
+func showCurrentPerlVersion(cmd *cobra.Command, component string) error {
+	// Only show current version for PVM component
+	if component != "pvm" {
+		fmt.Println(version.ComponentVersion(component))
+		return nil
+	}
+
+	// Try to resolve the current version using the standard resolution algorithm
+	resolvedVersion, err := perl.ResolveVersion(nil)
+	if err != nil {
+		return fmt.Errorf("failed to determine current Perl version: %w", err)
+	}
+
+	if resolvedVersion == nil {
+		cmd.Println("No Perl version is currently active")
+		return nil
+	}
+
+	cmd.Printf("%s (from %s)\n", resolvedVersion.Version, resolvedVersion.Source)
+	return nil
 }

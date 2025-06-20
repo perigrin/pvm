@@ -45,8 +45,8 @@ func TestVersionCommand(t *testing.T) {
 		t.Errorf("Expected command Use to be 'version', got %s", verCmd.Use)
 	}
 
-	if verCmd.Run == nil {
-		t.Error("Expected Run function to be set")
+	if verCmd.RunE == nil {
+		t.Error("Expected RunE function to be set")
 	}
 }
 

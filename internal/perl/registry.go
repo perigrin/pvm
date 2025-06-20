@@ -287,8 +287,8 @@ func GetVersionInfo(version string) (*VersionInfo, error) {
 	return &versionInfo, nil
 }
 
-// IsVersionInstalled checks if a specific version is installed
-func IsVersionInstalled(version string) (bool, error) {
+// isVersionInstalledFunc checks if a specific version is installed
+func isVersionInstalledFunc(version string) (bool, error) {
 	// Parse version to normalize format
 	parsedVersion, err := ParseVersion(version)
 	if err != nil {
@@ -309,6 +309,10 @@ func IsVersionInstalled(version string) (bool, error) {
 	_, exists := registry.Versions[normalizedVersion]
 	return exists, nil
 }
+
+// IsVersionInstalled is a variable that points to isVersionInstalledFunc,
+// allowing it to be replaced in tests
+var IsVersionInstalled = isVersionInstalledFunc
 
 // UninstallVersion removes a Perl version from the system
 func UninstallVersion(version string) error {

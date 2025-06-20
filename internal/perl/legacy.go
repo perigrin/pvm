@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"tamarou.com/pvm/internal/errors"
 )
@@ -45,6 +46,9 @@ type LegacyPerl struct {
 
 	// Is this the tool's current/default version?
 	IsDefault bool
+
+	// InstallTime is when the version was installed (derived from directory mtime)
+	InstallTime time.Time
 }
 
 // DetectPlenv checks for plenv installations and returns their paths
@@ -99,11 +103,20 @@ func DetectPlenv() ([]LegacyPerl, error) {
 			perlBin := filepath.Join(path, "bin", "perl")
 			if _, err := os.Stat(perlBin); err == nil {
 				isDefault := version == defaultVersion
+
+				// Get install time from directory modification time
+				dirInfo, err := os.Stat(path)
+				installTime := time.Now() // fallback
+				if err == nil {
+					installTime = dirInfo.ModTime()
+				}
+
 				installations = append(installations, LegacyPerl{
-					Path:      path,
-					Version:   version,
-					Source:    Plenv,
-					IsDefault: isDefault,
+					Path:        path,
+					Version:     version,
+					Source:      Plenv,
+					IsDefault:   isDefault,
+					InstallTime: installTime,
 				})
 			}
 
@@ -241,11 +254,19 @@ func DetectPerlbrew() ([]LegacyPerl, error) {
 				// Clean up the version name (perlbrew often uses names like perl-5.32.1)
 				cleanVersion := strings.TrimPrefix(versionName, "perl-")
 
+				// Get install time from directory modification time
+				dirInfo, err := os.Stat(path)
+				installTime := time.Now() // fallback
+				if err == nil {
+					installTime = dirInfo.ModTime()
+				}
+
 				installations = append(installations, LegacyPerl{
-					Path:      path,
-					Version:   cleanVersion,
-					Source:    Perlbrew,
-					IsDefault: isDefault,
+					Path:        path,
+					Version:     cleanVersion,
+					Source:      Perlbrew,
+					IsDefault:   isDefault,
+					InstallTime: installTime,
 				})
 			}
 
