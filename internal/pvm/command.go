@@ -43,14 +43,15 @@ func NewCommand() *cobra.Command {
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
 		newDownloadCommand(),
-		newUpdateCommand(),    // Self-updater functionality
-		NewBuildCommand(),     // Unified build system with PSC integration
-		newBuildPerlCommand(), // Build Perl from source (split from old build command)
-		newRunCommand(),       // New unified run command (incorporates PVX)
-		newModuleCommand(),    // New unified module command (incorporates PVI)
-		newProjectCommand(),   // New project management command
-		newDevCommand(),       // Development environment command
-		newTestCommand(),      // Test execution command
+		newUpdateCommand(),     // Self-updater functionality
+		newAutoUpdateCommand(), // Auto-update configuration and management
+		NewBuildCommand(),      // Unified build system with PSC integration
+		newBuildPerlCommand(),  // Build Perl from source (split from old build command)
+		newRunCommand(),        // New unified run command (incorporates PVX)
+		newModuleCommand(),     // New unified module command (incorporates PVI)
+		newProjectCommand(),    // New project management command
+		newDevCommand(),        // Development environment command
+		newTestCommand(),       // Test execution command
 		newExecCommand(),
 		newUninstallCommand(),
 		newImportSystemCommand(),
@@ -2167,6 +2168,45 @@ func newUpdateCommand() *cobra.Command {
 	cmd.Flags().Bool("prerelease", false, "Include pre-release versions")
 	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
 	cmd.Flags().Bool("ignore-install-method", false, "Force self-update regardless of installation method")
+
+	return cmd
+}
+
+// newAutoUpdateCommand creates the auto-update command
+func newAutoUpdateCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "auto-update [enable|disable|config|check|status] [args...]",
+		Short: "Manage automatic update checking",
+		Long: `Configure and manage automatic update checking for PVM.
+
+Subcommands:
+  enable                 Enable automatic update checking
+  disable                Disable automatic update checking
+  config <key> <value>   Configure auto-update settings
+  check                  Check for updates now
+  status                 Show current auto-update status
+
+Configuration keys:
+  channel                Update channel (stable, beta, alpha, nightly, developer)
+  interval               Check interval (e.g., 24h, 12h, 1h30m)
+  quiet                  Quiet mode (true/false)
+  auto-install           Auto-install updates (true/false)
+  repository             GitHub repository (owner/repo)
+  install-schedule       Installation schedule (days hour minute)
+
+Examples:
+  pvm auto-update enable
+  pvm auto-update config channel beta
+  pvm auto-update config interval 12h
+  pvm auto-update config install-schedule "sun,wed" 2 30
+  pvm auto-update check`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return executeAutoUpdateCommand(cmd, args)
+		},
+	}
+
+	// Add flags
+	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
 
 	return cmd
 }
