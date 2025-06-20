@@ -576,6 +576,10 @@ print "Script completed successfully\n";
 
 	// Test isolation level: high with custom environment variables
 	t.Run("EnvVars_high_with_custom", func(t *testing.T) {
+		// Set custom environment variable for this test
+		os.Setenv("MY_CUSTOM_VAR", "custom_value")
+		defer os.Unsetenv("MY_CUSTOM_VAR")
+
 		// First run with standard script - we don't need to verify its output
 		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
@@ -583,7 +587,7 @@ print "Script completed successfully\n";
 				"--isolation", "high",
 				"-p", perlPath,
 				"--verbose",
-				"-e", "MY_CUSTOM_VAR=custom_value",
+				"--preserve-env", "MY_CUSTOM_VAR",
 				scriptPath,
 			},
 			"PVX env vars with isolation level: high and custom var")
@@ -603,7 +607,7 @@ print "Script completed successfully\n";
 				"--isolation", "high",
 				"-p", perlPath,
 				"--verbose",
-				"-e", "MY_CUSTOM_VAR=custom_value",
+				"--preserve-env", "MY_CUSTOM_VAR",
 				customCheckScript,
 			},
 			"PVX with custom environment variable")
