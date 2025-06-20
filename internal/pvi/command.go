@@ -19,7 +19,7 @@ import (
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/pvi/deps"
-	"tamarou.com/pvm/internal/pvi/modules"
+	pviModules "tamarou.com/pvm/internal/pvi/modules"
 )
 
 // NewCommand creates a new PVI command
@@ -33,6 +33,7 @@ func NewCommand() *cobra.Command {
 	// Add PVI-specific commands
 	cmd.AddCommand(
 		newInstallCommand(),
+		newSimplifiedInstallCommand(), // PROTOTYPE: Demonstrates refactored pattern
 		newAddCommand(),
 		newSyncCommand(),
 		newListCommand(),
@@ -162,7 +163,7 @@ func newInstallCommand() *cobra.Command {
 			}
 
 			// Create installation options
-			installOptions := &modules.ModuleInstallOptions{
+			installOptions := &pviModules.ModuleInstallOptions{
 				ModuleName:         "", // Will be set per module later
 				VersionConstraint:  version,
 				PerlPath:           perlPath,
@@ -174,10 +175,10 @@ func newInstallCommand() *cobra.Command {
 				SkipDependencies:   skipDeps,
 				Provider:           provider,
 				DependencyResolver: resolver,
-				ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
+				ProgressCallback: func(stage pviModules.InstallProgressStage, module string, details string, progress float64) {
 					if verbose {
 						ui.Debug("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
-					} else if stage != modules.StageFinished {
+					} else if stage != pviModules.StageFinished {
 						// Only show major stage transitions if not verbose
 						ui.Info("[%s] %s", stage.String(), module)
 					}
@@ -196,8 +197,8 @@ func newInstallCommand() *cobra.Command {
 					ui.Info("Installing %d modules in parallel...", len(moduleNames))
 				}
 
-				parallelOptions := &modules.ParallelInstallOptions{
-					Modules:     make([]*modules.ModuleInstallOptions, len(moduleNames)),
+				parallelOptions := &pviModules.ParallelInstallOptions{
+					Modules:     make([]*pviModules.ModuleInstallOptions, len(moduleNames)),
 					Workers:     workers,
 					StopOnError: false,
 					Context:     cmd.Context(),
@@ -212,13 +213,13 @@ func newInstallCommand() *cobra.Command {
 
 				// Add progress callback for parallel installation
 				if verbose || timing {
-					parallelOptions.ProgressCallback = func(completed, total int, currentModule string, stage modules.InstallProgressStage) {
+					parallelOptions.ProgressCallback = func(completed, total int, currentModule string, stage pviModules.InstallProgressStage) {
 						ui.Progress(completed, total, fmt.Sprintf("%s: %s", currentModule, stage.String()))
 					}
 				}
 
 				startTime := time.Now()
-				result, err := modules.InstallModulesParallel(parallelOptions)
+				result, err := pviModules.InstallModulesParallel(parallelOptions)
 				duration := time.Since(startTime)
 
 				if err != nil {
@@ -284,7 +285,7 @@ func newInstallCommand() *cobra.Command {
 				ui.Info("Installing module %s...", moduleName)
 
 				startTime := time.Now()
-				result, err := modules.InstallModule(installOptions)
+				result, err := pviModules.InstallModule(installOptions)
 				duration := time.Since(startTime)
 
 				if err != nil {
@@ -384,7 +385,7 @@ func newListCommand() *cobra.Command {
 			}
 
 			// Create options for listing modules
-			options := &modules.ModuleListOptions{
+			options := &pviModules.ModuleListOptions{
 				PerlPath:    perlPath,
 				Pattern:     pattern,
 				IncludeCore: includeCore,
@@ -392,7 +393,7 @@ func newListCommand() *cobra.Command {
 			}
 
 			// List installed modules
-			moduleList, err := modules.ListInstalledModules(options)
+			moduleList, err := pviModules.ListInstalledModules(options)
 			if err != nil {
 				return err
 			}
@@ -534,14 +535,14 @@ func newUpdateCommand() *cobra.Command {
 
 			// If --all flag is used, get a list of all installed modules
 			if all {
-				options := &modules.ModuleListOptions{
+				options := &pviModules.ModuleListOptions{
 					PerlPath:    perlPath,
 					Pattern:     "",
 					IncludeCore: false, // Don't update core modules
 					Context:     cmd.Context(),
 				}
 
-				moduleList, err := modules.ListInstalledModules(options)
+				moduleList, err := pviModules.ListInstalledModules(options)
 				if err != nil {
 					return err
 				}
@@ -561,7 +562,7 @@ func newUpdateCommand() *cobra.Command {
 
 			for _, moduleName := range args {
 				// Create installation options for the update
-				installOptions := &modules.ModuleInstallOptions{
+				installOptions := &pviModules.ModuleInstallOptions{
 					ModuleName:         moduleName,
 					VersionConstraint:  version,
 					PerlPath:           perlPath,
@@ -573,10 +574,10 @@ func newUpdateCommand() *cobra.Command {
 					SkipDependencies:   skipDeps,
 					Provider:           provider,
 					DependencyResolver: resolver,
-					ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
+					ProgressCallback: func(stage pviModules.InstallProgressStage, module string, details string, progress float64) {
 						if verbose {
 							ui.Debug("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
-						} else if stage != modules.StageFinished {
+						} else if stage != pviModules.StageFinished {
 							// Only show major stage transitions if not verbose
 							ui.Info("[%s] %s", stage.String(), module)
 						}
@@ -586,7 +587,7 @@ func newUpdateCommand() *cobra.Command {
 
 				// Update (install) the module
 				ui.Info("Updating module %s...", moduleName)
-				result, err := modules.InstallModule(installOptions)
+				result, err := pviModules.InstallModule(installOptions)
 
 				if err != nil {
 					ui.Error("Failed to update %s: %v", moduleName, err)
@@ -674,7 +675,7 @@ func newRemoveCommand() *cobra.Command {
 			}
 
 			// Create options for removing module
-			options := &modules.RemoveModuleOptions{
+			options := &pviModules.RemoveModuleOptions{
 				ModuleName: moduleName,
 				PerlPath:   perlPath,
 				Force:      force,
@@ -685,7 +686,7 @@ func newRemoveCommand() *cobra.Command {
 			// Remove the module
 			ui := cli.GetUI(cmd)
 			ui.Info("Removing module %s...", moduleName)
-			result, err := modules.RemoveModule(options)
+			result, err := pviModules.RemoveModule(options)
 			if err != nil {
 				return err
 			}
@@ -947,7 +948,7 @@ func newBundleCommand() *cobra.Command {
 			}
 
 			// Create export options
-			options := &modules.ExportBundleOptions{
+			options := &pviModules.ExportBundleOptions{
 				OutputPath:      outputPath,
 				Name:            name,
 				Description:     description,
@@ -960,7 +961,7 @@ func newBundleCommand() *cobra.Command {
 
 			// Export the bundle
 			ui.Info("Exporting modules to bundle file %s...", outputPath)
-			err := modules.ExportModuleBundle(options)
+			err := pviModules.ExportModuleBundle(options)
 			if err != nil {
 				return err
 			}
@@ -1032,7 +1033,7 @@ func newBundleCommand() *cobra.Command {
 			}
 
 			// Parse the bundle
-			var bundle modules.ModuleBundleInfo
+			var bundle pviModules.ModuleBundleInfo
 			if err := json.Unmarshal(bundleData, &bundle); err != nil {
 				return fmt.Errorf("failed to parse bundle file: %w", err)
 			}
@@ -1061,7 +1062,7 @@ func newBundleCommand() *cobra.Command {
 				}
 
 				// Create installation options for the module
-				installOptions := &modules.ModuleInstallOptions{
+				installOptions := &pviModules.ModuleInstallOptions{
 					ModuleName:         mod.Name,
 					VersionConstraint:  mod.VersionConstraint,
 					PerlPath:           perlPath,
@@ -1073,10 +1074,10 @@ func newBundleCommand() *cobra.Command {
 					SkipDependencies:   skipDeps,
 					Provider:           provider,
 					DependencyResolver: resolver,
-					ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
+					ProgressCallback: func(stage pviModules.InstallProgressStage, module string, details string, progress float64) {
 						if verbose {
 							ui.Info("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
-						} else if stage != modules.StageFinished {
+						} else if stage != pviModules.StageFinished {
 							// Only show major stage transitions if not verbose
 							ui.Info("[%s] %s", stage.String(), module)
 						}
@@ -1088,7 +1089,7 @@ func newBundleCommand() *cobra.Command {
 				ui.Info("Installing module %s (%d/%d)...", mod.Name, i+1, len(bundle.Modules))
 
 				// Install the module
-				result, err := modules.InstallModule(installOptions)
+				result, err := pviModules.InstallModule(installOptions)
 
 				if err != nil {
 					ui.Error("Failed to install %s: %v", mod.Name, err)
@@ -1301,7 +1302,7 @@ func newOutdatedCommand() *cobra.Command {
 			}
 
 			// Create options for checking outdated modules
-			options := &modules.CheckOutdatedOptions{
+			options := &pviModules.CheckOutdatedOptions{
 				PerlPath:    perlPath,
 				Pattern:     pattern,
 				IncludeCore: includeCore,
@@ -1322,7 +1323,7 @@ func newOutdatedCommand() *cobra.Command {
 			}
 
 			// Check for outdated modules
-			outdatedModules, err := modules.CheckOutdatedModules(options, checkLatest)
+			outdatedModules, err := pviModules.CheckOutdatedModules(options, checkLatest)
 			if err != nil {
 				return err
 			}
@@ -1468,7 +1469,7 @@ func newAddCommand() *cobra.Command {
 			// Install to project lib directory
 			installDir := projectCtx.LocalLibDir
 
-			installOptions := &modules.ModuleInstallOptions{
+			installOptions := &pviModules.ModuleInstallOptions{
 				ModuleName:         moduleName,
 				VersionConstraint:  version,
 				PerlPath:           perlPath,
@@ -1480,17 +1481,17 @@ func newAddCommand() *cobra.Command {
 				SkipDependencies:   false,
 				Provider:           provider,
 				DependencyResolver: resolver,
-				ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
+				ProgressCallback: func(stage pviModules.InstallProgressStage, module string, details string, progress float64) {
 					if verbose {
 						ui.Debug("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
-					} else if stage != modules.StageFinished {
+					} else if stage != pviModules.StageFinished {
 						ui.Info("[%s] %s", stage.String(), module)
 					}
 				},
 				Context: cmd.Context(),
 			}
 
-			installResult, err := modules.InstallModule(installOptions)
+			installResult, err := pviModules.InstallModule(installOptions)
 			if err != nil {
 				// If installation fails, remove from cpanfile
 				ui.Warning("Installation failed, removing %s from cpanfile...", moduleName)
@@ -1688,6 +1689,247 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 
 	ui.Success("Installation from snapshot completed successfully")
 	ui.Warning("Note: Actual installation from snapshot is not yet fully implemented")
+
+	return nil
+}
+
+// newSimplifiedInstallCommand demonstrates the refactored pattern (PROTOTYPE)
+// This shows how the install command should look after full refactoring
+func newSimplifiedInstallCommand() *cobra.Command {
+	var (
+		verbose    bool
+		force      bool
+		skipTests  bool
+		skipDeps   bool
+		noCache    bool
+		installDir string
+		version    string
+		source     string
+		workers    int
+		parallel   bool
+		timing     bool
+		dev        bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "install-simple [module...]",
+		Short: "Install modules (simplified/refactored version)",
+		Long:  "Demonstrates the refactored install command using extracted packages.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
+			// Resolve modules to install (using helper function)
+			moduleNames, err := resolveModuleNames(args, dev)
+			if err != nil {
+				return err
+			}
+			ui.Info("Installing %d modules...", len(moduleNames))
+
+			// Load configuration and create provider/resolver
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return err
+			}
+
+			providerResult, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				WithResolver().
+				Build()
+			if err != nil {
+				return err
+			}
+
+			// Get current Perl path
+			perlPath, err := perl.GetCurrentPerlPath()
+			if err != nil {
+				return err
+			}
+
+			// TODO: This would use the extracted modules.Installer
+			// For now, demonstrate the pattern with existing PVI functionality
+			var results []*pviModules.ModuleInstallResult
+
+			for _, moduleName := range moduleNames {
+				// Create install options for each module
+				installOptions := &pviModules.ModuleInstallOptions{
+					ModuleName:         moduleName,
+					VersionConstraint:  version,
+					PerlPath:           perlPath,
+					InstallDir:         resolveInstallDir(installDir, args),
+					RunTests:           !skipTests,
+					Force:              force,
+					Cleanup:            true,
+					Verbose:            verbose,
+					SkipDependencies:   skipDeps,
+					Provider:           providerResult.Provider,
+					DependencyResolver: providerResult.Resolver,
+					Context:            cmd.Context(),
+				}
+
+				// Install module
+				result, err := pviModules.InstallModule(installOptions)
+				if err != nil {
+					ui.Error("Failed to install %s: %v", moduleName, err)
+					// Create a failed result for consistency
+					result = &pviModules.ModuleInstallResult{
+						ModuleName: moduleName,
+						Success:    false,
+						Errors:     []string{err.Error()},
+					}
+				}
+				results = append(results, result)
+			}
+
+			// Display results using helper function
+			return displayInstallResults(ui, results, timing)
+		},
+	}
+
+	// Add flags
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force installation even if tests fail")
+	cmd.Flags().BoolVar(&skipTests, "skip-tests", false, "Skip running tests during installation")
+	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "Disable caching")
+	cmd.Flags().StringVar(&installDir, "install-dir", "", "Installation directory")
+	cmd.Flags().StringVar(&version, "version", "", "Version constraint")
+	cmd.Flags().StringVar(&source, "source", "", "Package source")
+	cmd.Flags().IntVar(&workers, "workers", 4, "Number of parallel workers")
+	cmd.Flags().BoolVar(&parallel, "parallel", false, "Force parallel installation")
+	cmd.Flags().BoolVar(&timing, "timing", false, "Show timing information")
+	cmd.Flags().BoolVar(&dev, "dev", false, "Include development dependencies from cpanfile")
+
+	return cmd
+}
+
+// Helper functions for command simplification
+
+// resolveModuleNames determines which modules to install based on args or cpanfile
+func resolveModuleNames(args []string, includeDev bool) ([]string, error) {
+	if len(args) > 0 {
+		return args, nil
+	}
+
+	// Detect project context
+	projectCtx, err := project.GetCurrentProject()
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect project context: %w", err)
+	}
+
+	if !projectCtx.IsProject {
+		return nil, fmt.Errorf("no modules specified and not in a project directory. Specify modules to install or use 'pvm project init' to create a project")
+	}
+
+	// Check for cpanfile
+	cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
+	if _, err := os.Stat(cpanfilePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("no modules specified and no cpanfile found in project. Use 'pvm module add <module>' to add dependencies")
+	}
+
+	// Read cpanfile and extract module names
+	cpanfileManager := NewCpanfileManager(cpanfilePath)
+	cpanfile, err := cpanfileManager.ListDependencies()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read cpanfile: %w", err)
+	}
+
+	var moduleNames []string
+	for _, req := range cpanfile.Requirements {
+		if req.Phase == "develop" && !includeDev {
+			continue // Skip dev dependencies unless --dev flag is used
+		}
+		if req.Phase != "develop" && req.Phase != "runtime" && req.Phase != "" {
+			continue // Skip test and build dependencies for now
+		}
+		moduleNames = append(moduleNames, req.Module)
+	}
+
+	if len(moduleNames) == 0 {
+		if includeDev {
+			return nil, fmt.Errorf("no dependencies found in cpanfile")
+		} else {
+			return nil, fmt.Errorf("no runtime dependencies found in cpanfile. Use --dev flag to include development dependencies")
+		}
+	}
+
+	return moduleNames, nil
+}
+
+// resolveInstallDir determines the installation directory
+func resolveInstallDir(installDir string, args []string) string {
+	if installDir != "" {
+		return installDir
+	}
+
+	// If no modules specified, we're installing from cpanfile
+	if len(args) == 0 {
+		projectCtx, err := project.GetCurrentProject()
+		if err == nil && projectCtx.IsProject {
+			return projectCtx.LocalLibDir
+		}
+	}
+
+	return ""
+}
+
+// displayInstallResults formats and displays installation results
+func displayInstallResults(ui *uipkg.Output, results []*pviModules.ModuleInstallResult, timing bool) error {
+	var successCount, failureCount int
+	for _, result := range results {
+		if result.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+
+	// Display summary
+	ui.SubHeader("Installation Summary")
+	summary := map[string]string{
+		"Modules":    fmt.Sprintf("%d", len(results)),
+		"Successful": fmt.Sprintf("%d", successCount),
+		"Failed":     fmt.Sprintf("%d", failureCount),
+	}
+	ui.KeyValue(summary)
+
+	// Show successful installations
+	if successCount > 0 {
+		var successList []string
+		for _, res := range results {
+			if res.Success {
+				if timing {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s (%s)", res.ModuleName, res.Version, res.Duration.Round(time.Millisecond)))
+				} else {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s", res.ModuleName, res.Version))
+				}
+			}
+		}
+		if len(successList) > 0 {
+			ui.SubHeader("Successful Installations")
+			ui.List(successList)
+		}
+	}
+
+	// Show failed installations
+	if failureCount > 0 {
+		var failedList []string
+		for _, res := range results {
+			if !res.Success {
+				if len(res.Errors) > 0 {
+					failedList = append(failedList, fmt.Sprintf("✗ %s: %s", res.ModuleName, res.Errors[0]))
+				} else {
+					failedList = append(failedList, fmt.Sprintf("✗ %s: Installation failed", res.ModuleName))
+				}
+			}
+		}
+		if len(failedList) > 0 {
+			ui.SubHeader("Failed Installations")
+			ui.List(failedList)
+		}
+		return fmt.Errorf("failed to install %d out of %d modules", failureCount, len(results))
+	}
 
 	return nil
 }
