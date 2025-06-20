@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -123,15 +124,27 @@ func TestGetCurrentBinaryPath(t *testing.T) {
 	}
 }
 
-func TestDetectInstallationMethod(t *testing.T) {
+func TestDetectInstallationMethodBasic(t *testing.T) {
 	tests := []struct {
 		path     string
 		expected InstallationMethod
 	}{
-		{"/usr/local/bin/pvm", InstallationHomebrew}, // /usr/local/ is considered Homebrew
 		{"/opt/homebrew/bin/pvm", InstallationHomebrew},
-		{"/usr/bin/pvm", InstallationBinary},
+		{"/usr/bin/pvm", getExpectedForUsrBin()}, // /usr/bin is detected package manager
 		{"/home/user/.local/bin/pvm", InstallationBinary},
+	}
+
+	// Platform-specific test for /usr/local/bin
+	if runtime.GOOS == "darwin" {
+		tests = append(tests, struct {
+			path     string
+			expected InstallationMethod
+		}{"/usr/local/bin/pvm", InstallationHomebrew})
+	} else {
+		tests = append(tests, struct {
+			path     string
+			expected InstallationMethod
+		}{"/usr/local/bin/pvm", InstallationSystemPackage})
 	}
 
 	for _, test := range tests {

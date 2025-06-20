@@ -6,6 +6,7 @@ package updater
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -318,36 +319,113 @@ func GetCurrentBinaryPath() (string, error) {
 
 // DetectInstallationMethod determines how PVM was installed
 func DetectInstallationMethod(binaryPath string) (InstallationMethod, error) {
-	// Check for common package manager installation paths
 	lowerPath := strings.ToLower(binaryPath)
 
-	// Check for Homebrew (macOS and Linux)
-	if strings.Contains(lowerPath, "/homebrew/") ||
-		strings.Contains(lowerPath, "/usr/local/") ||
-		strings.Contains(lowerPath, "/opt/homebrew/") {
-		return InstallationHomebrew, nil
-	}
-
-	// Check for system package managers (Linux)
-	if strings.HasPrefix(lowerPath, "/usr/bin/") ||
-		strings.HasPrefix(lowerPath, "/usr/local/bin/") {
-		// Could be APT, YUM, or other system package manager
-		// For now, we'll classify as binary installation
+	// Platform-specific detection
+	switch runtime.GOOS {
+	case "windows":
+		return detectWindowsInstallationMethod(lowerPath)
+	case "darwin", "linux":
+		return detectUnixInstallationMethod(lowerPath)
+	default:
+		// Fallback for other platforms
 		return InstallationBinary, nil
 	}
+}
 
+// detectWindowsInstallationMethod detects installation method on Windows
+func detectWindowsInstallationMethod(lowerPath string) (InstallationMethod, error) {
 	// Check for Windows package managers
-	if runtime.GOOS == "windows" {
-		if strings.Contains(lowerPath, "chocolatey") {
-			return InstallationBinary, nil // Treat as binary for now
-		}
-		if strings.Contains(lowerPath, "scoop") {
-			return InstallationBinary, nil // Treat as binary for now
-		}
+	if strings.Contains(lowerPath, "chocolatey") {
+		return InstallationChocolatey, nil
+	}
+
+	if strings.Contains(lowerPath, "scoop") {
+		return InstallationScoop, nil
+	}
+
+	if strings.Contains(lowerPath, "windowsapps") || strings.Contains(lowerPath, "winget") {
+		return InstallationWinget, nil
+	}
+
+	// Check for standard Windows paths that suggest system installation
+	if strings.HasPrefix(lowerPath, "c:\\program files\\") ||
+		strings.HasPrefix(lowerPath, "c:\\program files (x86)\\") {
+		return InstallationSystemPackage, nil
 	}
 
 	// Default to binary installation
 	return InstallationBinary, nil
+}
+
+// detectUnixInstallationMethod detects installation method on Unix-like systems
+func detectUnixInstallationMethod(lowerPath string) (InstallationMethod, error) {
+	// Check for Homebrew first (most specific)
+	if strings.Contains(lowerPath, "/homebrew/") ||
+		strings.Contains(lowerPath, "/opt/homebrew/") ||
+		strings.Contains(lowerPath, "/usr/local/cellar/") {
+		return InstallationHomebrew, nil
+	}
+
+	// Check for Snap packages
+	if strings.Contains(lowerPath, "/snap/") {
+		return InstallationSnap, nil
+	}
+
+	// Check for Flatpak
+	if strings.Contains(lowerPath, "/flatpak/") ||
+		strings.Contains(lowerPath, "/.local/share/flatpak/") {
+		return InstallationFlatpak, nil
+	}
+
+	// Check for system package manager installations
+	if strings.HasPrefix(lowerPath, "/usr/bin/") {
+		// Detect specific package manager by checking which commands are available
+		return detectSpecificPackageManager()
+	}
+
+	// Check for /usr/local/bin (could be Homebrew on older macOS or manual install)
+	if strings.HasPrefix(lowerPath, "/usr/local/bin/") {
+		// On macOS, /usr/local/bin is typically Homebrew
+		// On Linux, could be manual install or system package
+		if runtime.GOOS == "darwin" {
+			return InstallationHomebrew, nil
+		}
+		return InstallationSystemPackage, nil
+	}
+
+	// Default to binary installation for other paths
+	return InstallationBinary, nil
+}
+
+// detectSpecificPackageManager tries to detect the specific package manager
+func detectSpecificPackageManager() (InstallationMethod, error) {
+	// Check for package manager commands in order of preference
+	packageManagers := []struct {
+		command string
+		method  InstallationMethod
+	}{
+		{"apt", InstallationAPT},
+		{"dnf", InstallationDNF},
+		{"yum", InstallationYum},
+		{"pacman", InstallationPacman},
+		{"snap", InstallationSnap},
+	}
+
+	for _, pm := range packageManagers {
+		if isCommandAvailable(pm.command) {
+			return pm.method, nil
+		}
+	}
+
+	// If no specific package manager is detected, return generic system package
+	return InstallationSystemPackage, nil
+}
+
+// isCommandAvailable checks if a command is available in PATH
+func isCommandAvailable(command string) bool {
+	_, err := exec.LookPath(command)
+	return err == nil
 }
 
 // InstallationMethod represents how PVM was installed
@@ -356,11 +434,16 @@ type InstallationMethod int
 const (
 	InstallationBinary InstallationMethod = iota
 	InstallationHomebrew
+	InstallationSystemPackage // Generic system package manager (APT, YUM, DNF, etc.)
 	InstallationAPT
 	InstallationYum
+	InstallationDNF
 	InstallationPacman
+	InstallationSnap
+	InstallationFlatpak
 	InstallationChocolatey
 	InstallationScoop
+	InstallationWinget
 )
 
 func (i InstallationMethod) String() string {
@@ -369,16 +452,26 @@ func (i InstallationMethod) String() string {
 		return "binary"
 	case InstallationHomebrew:
 		return "homebrew"
+	case InstallationSystemPackage:
+		return "system package"
 	case InstallationAPT:
 		return "apt"
 	case InstallationYum:
 		return "yum"
+	case InstallationDNF:
+		return "dnf"
 	case InstallationPacman:
 		return "pacman"
+	case InstallationSnap:
+		return "snap"
+	case InstallationFlatpak:
+		return "flatpak"
 	case InstallationChocolatey:
 		return "chocolatey"
 	case InstallationScoop:
 		return "scoop"
+	case InstallationWinget:
+		return "winget"
 	default:
 		return "unknown"
 	}
@@ -391,9 +484,13 @@ func (i InstallationMethod) CanSelfUpdate() bool {
 		return true
 	case InstallationHomebrew:
 		return false // Should use 'brew upgrade pvm' instead
-	case InstallationAPT, InstallationYum, InstallationPacman:
+	case InstallationSystemPackage, InstallationAPT, InstallationYum, InstallationDNF, InstallationPacman:
 		return false // Should use system package manager
-	case InstallationChocolatey, InstallationScoop:
+	case InstallationSnap:
+		return false // Should use 'snap refresh pvm'
+	case InstallationFlatpak:
+		return false // Should use 'flatpak update pvm'
+	case InstallationChocolatey, InstallationScoop, InstallationWinget:
 		return false // Should use respective package manager
 	default:
 		return false
@@ -407,16 +504,26 @@ func (i InstallationMethod) GetUpdateInstructions() string {
 		return "Use 'pvm update' to update to the latest version"
 	case InstallationHomebrew:
 		return "Use 'brew upgrade pvm' to update via Homebrew"
+	case InstallationSystemPackage:
+		return "Use your system package manager to update pvm"
 	case InstallationAPT:
 		return "Use 'sudo apt update && sudo apt upgrade pvm' to update via APT"
 	case InstallationYum:
 		return "Use 'sudo yum update pvm' to update via YUM"
+	case InstallationDNF:
+		return "Use 'sudo dnf update pvm' to update via DNF"
 	case InstallationPacman:
 		return "Use 'sudo pacman -Syu pvm' to update via Pacman"
+	case InstallationSnap:
+		return "Use 'sudo snap refresh pvm' to update via Snap"
+	case InstallationFlatpak:
+		return "Use 'flatpak update pvm' to update via Flatpak"
 	case InstallationChocolatey:
 		return "Use 'choco upgrade pvm' to update via Chocolatey"
 	case InstallationScoop:
 		return "Use 'scoop update pvm' to update via Scoop"
+	case InstallationWinget:
+		return "Use 'winget upgrade pvm' to update via Winget"
 	default:
 		return "Update method unknown for this installation"
 	}
