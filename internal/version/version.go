@@ -6,6 +6,7 @@ package version
 import (
 	"fmt"
 	"runtime"
+	"strings"
 )
 
 // Version is the current version of the PVM ecosystem
@@ -52,4 +53,139 @@ func PrintVersionInfo(component string) {
 	fmt.Printf("Commit: %s\n", CommitHash)
 	fmt.Printf("Go Version: %s\n", runtime.Version())
 	fmt.Printf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+}
+
+// GetCurrentVersion returns the current version as a SemanticVersion
+func GetCurrentVersion() (*SemanticVersion, error) {
+	return ParseVersion(Version)
+}
+
+// CheckForUpdates checks for available updates using the GitHub API
+func CheckForUpdates(opts *CheckOptions) (*VersionCheckResult, error) {
+	if opts == nil {
+		opts = DefaultCheckOptions()
+	}
+
+	result := &VersionCheckResult{
+		CurrentVersion: Version,
+	}
+
+	// Parse current version
+	currentVer, err := ParseVersion(Version)
+	if err != nil {
+		result.Error = fmt.Sprintf("invalid current version: %v", err)
+		return result, err
+	}
+
+	// Parse repository
+	parts := strings.Split(opts.Repository, "/")
+	if len(parts) != 2 {
+		result.Error = "invalid repository format, expected owner/repo"
+		return result, fmt.Errorf("invalid repository format: %s", opts.Repository)
+	}
+	owner, repo := parts[0], parts[1]
+
+	// Create GitHub client
+	var client *GitHubClient
+	if opts.GitHubToken != "" {
+		client = NewGitHubClientWithToken(opts.GitHubToken)
+	} else {
+		client = NewGitHubClient()
+	}
+
+	// Get latest release
+	var release *GitHubRelease
+	if opts.IncludePrerelease {
+		releases, err := client.GetReleases(owner, repo, true)
+		if err != nil {
+			result.Error = fmt.Sprintf("failed to fetch releases: %v", err)
+			return result, err
+		}
+		if len(releases) > 0 {
+			release = &releases[0] // First release is the latest
+		}
+	} else {
+		var err error
+		release, err = client.GetLatestRelease(owner, repo)
+		if err != nil {
+			result.Error = fmt.Sprintf("failed to fetch latest release: %v", err)
+			return result, err
+		}
+	}
+
+	if release == nil {
+		result.Error = "no releases found"
+		return result, fmt.Errorf("no releases found")
+	}
+
+	// Parse latest version
+	latestVer, err := ParseVersion(release.TagName)
+	if err != nil {
+		result.Error = fmt.Sprintf("invalid latest version: %v", err)
+		return result, err
+	}
+
+	// Fill in result
+	result.LatestVersion = release.TagName
+	result.UpdateAvailable = latestVer.IsNewer(currentVer)
+	result.IsPrerelease = latestVer.IsPrerelease()
+	result.ReleaseURL = release.HTMLURL
+	result.ReleaseNotes = release.Body
+	result.PublishedAt = release.PublishedAt
+
+	return result, nil
+}
+
+// GetUpdateInfo returns structured update information
+func GetUpdateInfo(opts *CheckOptions) (*UpdateInfo, error) {
+	if opts == nil {
+		opts = DefaultCheckOptions()
+	}
+
+	// Get current version
+	currentVer, err := GetCurrentVersion()
+	if err != nil {
+		return nil, fmt.Errorf("getting current version: %w", err)
+	}
+
+	// Check for updates
+	result, err := CheckForUpdates(opts)
+	if err != nil {
+		return nil, fmt.Errorf("checking for updates: %w", err)
+	}
+
+	// Parse latest version
+	latestVer, err := ParseVersion(result.LatestVersion)
+	if err != nil {
+		return nil, fmt.Errorf("parsing latest version: %w", err)
+	}
+
+	// Parse repository to get release info
+	parts := strings.Split(opts.Repository, "/")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid repository format: %s", opts.Repository)
+	}
+	owner, repo := parts[0], parts[1]
+
+	// Create GitHub client
+	var client *GitHubClient
+	if opts.GitHubToken != "" {
+		client = NewGitHubClientWithToken(opts.GitHubToken)
+	} else {
+		client = NewGitHubClient()
+	}
+
+	// Get release details
+	release, err := client.GetReleaseByTag(owner, repo, result.LatestVersion)
+	if err != nil {
+		return nil, fmt.Errorf("getting release details: %w", err)
+	}
+
+	return &UpdateInfo{
+		CurrentVersion: currentVer,
+		LatestVersion:  latestVer,
+		Release:        release,
+		UpdateNeeded:   result.UpdateAvailable,
+		IsPrerelease:   result.IsPrerelease,
+	}, nil
 }

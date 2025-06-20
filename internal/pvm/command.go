@@ -43,6 +43,7 @@ func NewCommand() *cobra.Command {
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
 		newDownloadCommand(),
+		newUpdateCommand(),    // Self-updater functionality
 		NewBuildCommand(),     // Unified build system with PSC integration
 		newBuildPerlCommand(), // Build Perl from source (split from old build command)
 		newRunCommand(),       // New unified run command (incorporates PVX)
@@ -2143,4 +2144,29 @@ func newHelpOnlyPSCCommand() *cobra.Command {
 	pscCmd.Short = "Perl Script Compiler (shell alias for 'pvm build')"
 	pscCmd.Long = "Provides static type checking for Perl code with type annotations. This is a shell alias for 'pvm build' - you can use either 'psc' or 'pvm build' interchangeably."
 	return pscCmd
+}
+
+// newUpdateCommand creates the update command for PVM self-updater
+func newUpdateCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "update",
+		Short: "Update PVM to the latest version",
+		Long:  "Update PVM to the latest version from GitHub releases",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return executeUpdateCommand(cmd, args)
+		},
+	}
+
+	// Add flags
+	cmd.Flags().String("version", "", "Update to a specific version")
+	cmd.Flags().Bool("check", false, "Check for updates without installing")
+	cmd.Flags().Bool("force", false, "Force update even if already up to date")
+	cmd.Flags().Bool("dry-run", false, "Show what would be updated without making changes")
+	cmd.Flags().Bool("no-backup", false, "Skip creating backup before update")
+	cmd.Flags().Bool("no-rollback", false, "Disable automatic rollback on failure")
+	cmd.Flags().Bool("prerelease", false, "Include pre-release versions")
+	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
+	cmd.Flags().Bool("ignore-install-method", false, "Force self-update regardless of installation method")
+
+	return cmd
 }
