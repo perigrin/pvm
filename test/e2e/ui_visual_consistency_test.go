@@ -27,7 +27,7 @@ func TestVisualConsistency_StylePatterns(t *testing.T) {
 		{
 			name: "Help command consistency",
 			commands: [][]string{
-				{"pvm", "--help"},
+				{"--help"},
 				{"pvx", "--help"},
 				{"pvi", "--help"},
 				{"psc", "--help"},
@@ -37,10 +37,7 @@ func TestVisualConsistency_StylePatterns(t *testing.T) {
 		{
 			name: "Version command consistency",
 			commands: [][]string{
-				{"pvm", "--version"},
-				{"pvx", "--version"},
-				{"pvi", "--version"},
-				{"psc", "--version"},
+				{"version"},
 			},
 			checkFor: []string{}, // Version format may vary but should not error
 		},

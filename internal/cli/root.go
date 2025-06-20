@@ -24,6 +24,9 @@ var (
 	// Debug mode flag
 	Debug bool
 
+	// Quiet mode flag
+	Quiet bool
+
 	// Global UI instance for all commands
 	globalUI *ui.Output
 )
@@ -39,6 +42,7 @@ func NewRootCommand(name string, description string) *cobra.Command {
 	// Add global flags
 	cmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.PersistentFlags().BoolVarP(&Debug, "debug", "d", false, "Enable debug mode")
+	cmd.PersistentFlags().BoolVarP(&Quiet, "quiet", "q", false, "Enable quiet mode")
 
 	// Add version command
 	cmd.AddCommand(newVersionCommand(name))
@@ -218,7 +222,7 @@ func setupUI(cmd *cobra.Command) {
 		Writer:      writer,
 		ErrorWriter: os.Stderr, // Errors should always go to stderr
 		ColorMode:   ui.ColorAuto,
-		Quiet:       false, // TODO: Add quiet flag when needed
+		Quiet:       Quiet,
 		Verbose:     Verbose,
 		Interactive: true, // TODO: Detect TTY
 	}

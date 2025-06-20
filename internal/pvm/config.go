@@ -224,7 +224,7 @@ func newConfigInitCommand() *cobra.Command {
 			case system:
 				// System-wide configuration
 				configPath := xdg.GetSystemConfigPath()
-				return initializeConfig(configPath)
+				return initializeConfig(cmd, configPath)
 			case project:
 				// Project-level configuration
 				cwd, err := os.Getwd()
@@ -251,7 +251,7 @@ func newConfigInitCommand() *cobra.Command {
 // Helper functions
 
 // initializeConfig initializes a configuration file at the specified path
-func initializeConfig(configPath string) error {
+func initializeConfig(cmd *cobra.Command, configPath string) error {
 	// Check if file exists
 	if _, err := os.Stat(configPath); err == nil {
 		return errors.NewUserInputError(cli.PrefixPVM, "105",
@@ -277,7 +277,8 @@ func initializeConfig(configPath string) error {
 		return err
 	}
 
-	fmt.Printf("Created configuration file: %s\n", configPath)
+	ui := cli.GetUI(cmd)
+	ui.Success("Created configuration file: %s", configPath)
 	return nil
 }
 

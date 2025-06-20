@@ -30,7 +30,7 @@ func TestUIFramework_ComponentConsistency(t *testing.T) {
 	}{
 		{
 			name:           "PVM help",
-			command:        []string{"pvm", "--help"},
+			command:        []string{"--help"},
 			expectContains: []string{"Usage:", "Commands:", "Flags:"},
 		},
 		{
@@ -144,7 +144,7 @@ func TestUIFramework_OutputModes(t *testing.T) {
 		}{
 			{
 				name:    "PVM help quiet",
-				command: []string{"pvm", "--quiet", "--help"},
+				command: []string{"--quiet", "--help"},
 			},
 			{
 				name:    "PVX help quiet",
@@ -171,7 +171,7 @@ func TestUIFramework_OutputModes(t *testing.T) {
 		}{
 			{
 				name:    "PVM help verbose",
-				command: []string{"pvm", "--verbose", "--help"},
+				command: []string{"--verbose", "--help"},
 			},
 		}
 
@@ -216,7 +216,7 @@ print "Performance test completed\n";
 	}{
 		{
 			name:    "PVM help performance",
-			command: []string{"pvm", "--help"},
+			command: []string{"--help"},
 			maxTime: 5 * time.Second,
 		},
 		{
@@ -399,32 +399,44 @@ print "Cross-component test\n";
 
 	// Test that components can be chained or used together
 	t.Run("Help consistency", func(t *testing.T) {
-		// All help commands should work and have consistent formatting
-		components := []string{"pvm", "pvx", "pvi", "psc"}
+		// Test root help command
+		stdout := helpers.AssertPVMSucceeds(t, env,
+			[]string{"--help"},
+			"pvm help should work")
+		assert.Contains(t, stdout, "Usage:",
+			"pvm help should contain usage information")
 
-		for _, comp := range components {
+		// Test subcommand help
+		subcommands := []string{"pvx", "pvi", "psc"}
+		for _, subcmd := range subcommands {
 			stdout := helpers.AssertPVMSucceeds(t, env,
-				[]string{comp, "--help"},
-				comp+" help should work")
+				[]string{subcmd, "--help"},
+				subcmd+" help should work")
 
 			// All help should contain Usage information
 			assert.Contains(t, stdout, "Usage:",
-				"%s help should contain usage information", comp)
+				"%s help should contain usage information", subcmd)
 		}
 	})
 
 	t.Run("Version consistency", func(t *testing.T) {
-		// All version commands should work and have consistent formatting
-		components := []string{"pvm", "pvx", "pvi", "psc"}
+		// Test root version command
+		stdout := helpers.AssertPVMSucceeds(t, env,
+			[]string{"version"},
+			"pvm version should work")
+		assert.NotEmpty(t, stdout,
+			"pvm version should produce output")
 
-		for _, comp := range components {
+		// Test subcommand version commands
+		subcommands := []string{"pvx", "pvi", "psc"}
+		for _, subcmd := range subcommands {
 			stdout := helpers.AssertPVMSucceeds(t, env,
-				[]string{comp, "--version"},
-				comp+" version should work")
+				[]string{subcmd, "version"},
+				subcmd+" version should work")
 
 			// Version output should not be empty
 			assert.NotEmpty(t, stdout,
-				"%s version should produce output", comp)
+				"%s version should produce output", subcmd)
 		}
 	})
 }
