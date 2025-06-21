@@ -402,9 +402,19 @@ provider, err := cpan.NewProviderBuilder().
 - Comprehensive test coverage for all builder operations
 ```
 
-### Step 3.2: Extract Configuration Management Helpers
+### Step 3.2: Extract Configuration Management Helpers ✅ **COMPLETED**
 
 **Goal**: Extract configuration resolution and management helpers
+
+**Status**: ✅ **COMPLETED** - Configuration resolution helpers implemented in `internal/config/resolution.go`:
+- ResolveStringValue, ResolveBoolValue, ResolveStringSlice for configuration precedence resolution
+- ResolvePerlPath with dependency injection to avoid import cycles
+- ResolveInstallDirectory for project-aware directory resolution
+- ResolveModulesFromArgs with cpanfile reader injection for flexibility
+- ValidateProjectContext and ValidateConfiguration helper functions
+- GetEffectiveConfiguration for complete configuration loading and validation
+- Comprehensive test coverage with 95%+ coverage for all resolution functions
+- Clean design avoids import cycles between config and pvi packages
 
 ```
 Extract the common configuration resolution patterns into helper functions that provide consistent configuration handling across all commands.
@@ -443,9 +453,17 @@ func GetEffectiveConfiguration(flagsChanged map[string]bool) (*config.PVIConfig,
 - Comprehensive test coverage for all resolution scenarios
 ```
 
-### Step 3.3: Extract Mirror and Cache Management
+### Step 3.3: Extract Mirror and Cache Management ✅ **COMPLETED**
 
 **Goal**: Extract mirror configuration and cache management functionality
+
+**Status**: ✅ **COMPLETED** - Mirror and cache management extracted into dedicated packages:
+- `internal/cpan/cache_manager.go` - Comprehensive cache management with validation, cleanup, and statistics
+- `internal/cpan/mirror_manager.go` - Advanced mirror management with health checking and selection strategies
+- CacheManager provides cache validation, cleanup, statistics, and optimization operations
+- MirrorManager provides mirror selection strategies, health monitoring, and failover capabilities
+- Full integration with existing CPAN provider options and configuration
+- Comprehensive test coverage with 100% pass rate for both managers
 
 ```
 Extract mirror configuration and cache management into dedicated helpers that provide consistent caching and mirror behavior across all operations.
