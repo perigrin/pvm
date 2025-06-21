@@ -11,12 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"tamarou.com/pvm/internal/cli/progress"
 	"tamarou.com/pvm/internal/cpan"
 )
 
 // DependencyResolver provides dependency resolution and conflict detection
 type DependencyResolver struct {
 	provider cpan.Provider
+	tracker  progress.Tracker
 	logger   *log.Logger
 	cache    *dependencyCache
 	options  ResolverOptions
@@ -53,9 +55,10 @@ const (
 )
 
 // NewDependencyResolver creates a new dependency resolver with the given provider
-func NewDependencyResolver(provider cpan.Provider, logger *log.Logger) *DependencyResolver {
+func NewDependencyResolver(provider cpan.Provider, tracker progress.Tracker, logger *log.Logger) *DependencyResolver {
 	return &DependencyResolver{
 		provider: provider,
+		tracker:  tracker,
 		logger:   logger,
 		cache:    newDependencyCache(),
 		options: ResolverOptions{
@@ -80,6 +83,22 @@ func (dr *DependencyResolver) ResolveDependencies(ctx context.Context, modules [
 	if len(modules) == 0 {
 		return &DependencyGraph{Nodes: make(map[string]*DependencyNode)}, nil
 	}
+
+	if dr.tracker != nil {
+		dr.tracker.Start(fmt.Sprintf("Resolving dependencies for %d modules", len(modules)), 1)
+		defer func() {
+			if dr.tracker.IsRunning() {
+				result := &progress.Result{
+					Operation: "resolve_dependencies",
+					Target:    fmt.Sprintf("%d modules", len(modules)),
+					Success:   false,
+				}
+				dr.tracker.Finish(result)
+			}
+		}()
+	}
+
+	startTime := time.Now()
 
 	graph := &DependencyGraph{
 		Nodes:     make(map[string]*DependencyNode),
@@ -111,7 +130,34 @@ func (dr *DependencyResolver) ResolveDependencies(ctx context.Context, modules [
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve conflicts: %w", err)
 		}
+
+		// Update progress tracker with success
+		duration := time.Since(startTime)
+		if dr.tracker != nil && dr.tracker.IsRunning() {
+			progressResult := &progress.Result{
+				Operation: "resolve_dependencies",
+				Target:    fmt.Sprintf("%d modules", len(modules)),
+				Success:   true,
+				Duration:  duration,
+				Message:   fmt.Sprintf("Resolved dependencies for %d modules with %d conflicts resolved", len(modules), len(conflicts)),
+			}
+			dr.tracker.Finish(progressResult)
+		}
+
 		return resolvedGraph, nil
+	}
+
+	// Update progress tracker with success
+	duration := time.Since(startTime)
+	if dr.tracker != nil && dr.tracker.IsRunning() {
+		progressResult := &progress.Result{
+			Operation: "resolve_dependencies",
+			Target:    fmt.Sprintf("%d modules", len(modules)),
+			Success:   true,
+			Duration:  duration,
+			Message:   fmt.Sprintf("Resolved dependencies for %d modules (%d total nodes)", len(modules), len(graph.Nodes)),
+		}
+		dr.tracker.Finish(progressResult)
 	}
 
 	return graph, nil

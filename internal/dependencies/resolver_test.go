@@ -82,7 +82,7 @@ func TestNewDependencyResolver(t *testing.T) {
 	provider := newMockProvider()
 	logger := log.New(os.Stdout, "", 0)
 
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 
 	if resolver.provider.Name() != provider.Name() {
 		t.Error("Provider not set correctly")
@@ -114,7 +114,7 @@ func TestResolverWithOptions(t *testing.T) {
 		MaxWorkers:       2,
 	}
 
-	resolver := NewDependencyResolver(provider, logger).WithOptions(options)
+	resolver := NewDependencyResolver(provider, nil, logger).WithOptions(options)
 
 	if resolver.options.CacheEnabled != false {
 		t.Error("Cache enabled should be configurable")
@@ -137,7 +137,7 @@ func TestResolveDependenciesSimple(t *testing.T) {
 	)
 	provider.addModule("ModuleB", "2.0.0")
 
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 	ctx := context.Background()
 
 	graph, err := resolver.ResolveDependencies(ctx, []string{"ModuleA"})
@@ -176,7 +176,7 @@ func TestResolveDependenciesEmpty(t *testing.T) {
 	provider := newMockProvider()
 	logger := log.New(os.Stdout, "", 0)
 
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 	ctx := context.Background()
 
 	graph, err := resolver.ResolveDependencies(ctx, []string{})
@@ -200,7 +200,7 @@ func TestResolveDependenciesMultipleRoots(t *testing.T) {
 	provider.addModule("ModuleA", "1.0.0")
 	provider.addModule("ModuleB", "2.0.0")
 
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 	ctx := context.Background()
 
 	graph, err := resolver.ResolveDependencies(ctx, []string{"ModuleA", "ModuleB"})
@@ -233,7 +233,7 @@ func TestDetectConflicts(t *testing.T) {
 
 	provider := newMockProvider()
 	logger := log.New(os.Stdout, "", 0)
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 
 	conflicts, err := resolver.DetectConflicts(graph)
 	if err != nil {
@@ -261,7 +261,7 @@ func TestDetectConflicts(t *testing.T) {
 func TestSuggestResolutions(t *testing.T) {
 	provider := newMockProvider()
 	logger := log.New(os.Stdout, "", 0)
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 
 	conflicts := []*Conflict{
 		{
@@ -312,7 +312,7 @@ func TestCreateInstallPlan(t *testing.T) {
 
 	provider := newMockProvider()
 	logger := log.New(os.Stdout, "", 0)
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 
 	plan, err := resolver.CreateInstallPlan(graph)
 	if err != nil {
@@ -346,7 +346,7 @@ func TestCreateInstallPlan(t *testing.T) {
 func TestCompareVersions(t *testing.T) {
 	provider := newMockProvider()
 	logger := log.New(os.Stdout, "", 0)
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 
 	tests := []struct {
 		v1       string
@@ -372,7 +372,7 @@ func TestCompareVersions(t *testing.T) {
 func TestFindLatestVersion(t *testing.T) {
 	provider := newMockProvider()
 	logger := log.New(os.Stdout, "", 0)
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 
 	versions := []string{"1.0.0", "2.0.0", "1.5.0", "1.10.0"}
 	latest := resolver.findLatestVersion(versions)
@@ -386,7 +386,7 @@ func TestFindLatestVersion(t *testing.T) {
 func TestFindMinimalVersion(t *testing.T) {
 	provider := newMockProvider()
 	logger := log.New(os.Stdout, "", 0)
-	resolver := NewDependencyResolver(provider, logger)
+	resolver := NewDependencyResolver(provider, nil, logger)
 
 	versions := []string{"1.0.0", "2.0.0", "1.5.0", "1.10.0"}
 	minimal := resolver.findMinimalVersion(versions)
@@ -468,7 +468,7 @@ func TestMaxDepthExceeded(t *testing.T) {
 		&cpan.Dependency{Name: "Module3", Version: "1.0.0"},
 	)
 
-	resolver := NewDependencyResolver(provider, logger).WithOptions(ResolverOptions{
+	resolver := NewDependencyResolver(provider, nil, logger).WithOptions(ResolverOptions{
 		MaxDepth: 1, // Very low depth limit
 	})
 
@@ -499,7 +499,7 @@ func TestConflictStrategies(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			resolver := NewDependencyResolver(provider, logger).WithOptions(ResolverOptions{
+			resolver := NewDependencyResolver(provider, nil, logger).WithOptions(ResolverOptions{
 				ConflictStrategy: test.strategy,
 			})
 

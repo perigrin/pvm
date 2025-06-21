@@ -16,7 +16,7 @@ func TestNewManager(t *testing.T) {
 	var provider cpan.Provider
 	logger := log.NewLogger(1, os.Stderr, "test")
 
-	manager := NewManager(provider, logger)
+	manager := NewManager(provider, nil, logger)
 
 	if manager == nil {
 		t.Fatal("NewManager returned nil")

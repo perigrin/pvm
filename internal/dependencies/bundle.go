@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"tamarou.com/pvm/internal/cli/progress"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/modules"
 )
@@ -64,11 +65,12 @@ type BundleEntry struct {
 type BundleManager struct {
 	resolver *DependencyResolver
 	manager  interface{} // TODO: Use proper manager interface
+	tracker  progress.Tracker
 	logger   *log.Logger
 }
 
 // NewBundleManager creates a new bundle manager
-func NewBundleManager(resolver *DependencyResolver, manager interface{}, logger *log.Logger) *BundleManager {
+func NewBundleManager(resolver *DependencyResolver, manager interface{}, tracker progress.Tracker, logger *log.Logger) *BundleManager {
 	if logger == nil {
 		logger = log.New(os.Stderr, "[BundleManager] ", log.LstdFlags)
 	}
@@ -76,6 +78,7 @@ func NewBundleManager(resolver *DependencyResolver, manager interface{}, logger 
 	return &BundleManager{
 		resolver: resolver,
 		manager:  manager,
+		tracker:  tracker,
 		logger:   logger,
 	}
 }
@@ -89,8 +92,23 @@ func (bm *BundleManager) CreateBundle(ctx context.Context, modules []string, opt
 			nil)
 	}
 
+	if bm.tracker != nil {
+		bm.tracker.Start(fmt.Sprintf("Creating bundle with %d modules", len(modules)), 1)
+		defer func() {
+			if bm.tracker.IsRunning() {
+				result := &progress.Result{
+					Operation: "create_bundle",
+					Target:    fmt.Sprintf("%d modules", len(modules)),
+					Success:   false,
+				}
+				bm.tracker.Finish(result)
+			}
+		}()
+	}
+
 	// Resolve dependencies if requested
 	var allModules []string
+	startTime := time.Now()
 	if options.IncludeDependencies {
 		graph, err := bm.resolver.ResolveDependencies(ctx, modules)
 		if err != nil {
@@ -171,6 +189,19 @@ func (bm *BundleManager) CreateBundle(ctx context.Context, modules []string, opt
 		Metadata:    options.Metadata,
 	}
 
+	// Update progress tracker with success
+	duration := time.Since(startTime)
+	if bm.tracker != nil && bm.tracker.IsRunning() {
+		progressResult := &progress.Result{
+			Operation: "create_bundle",
+			Target:    fmt.Sprintf("%d modules", len(modules)),
+			Success:   true,
+			Duration:  duration,
+			Message:   fmt.Sprintf("Created bundle '%s' with %d modules", bundle.Name, len(bundle.Modules)),
+		}
+		bm.tracker.Finish(progressResult)
+	}
+
 	return bundle, nil
 }
 
@@ -190,7 +221,22 @@ func (bm *BundleManager) ExportBundle(bundle *Bundle, options BundleExportOption
 			nil)
 	}
 
+	if bm.tracker != nil {
+		bm.tracker.Start(fmt.Sprintf("Exporting bundle to %s", options.OutputPath), 1)
+		defer func() {
+			if bm.tracker.IsRunning() {
+				result := &progress.Result{
+					Operation: "export_bundle",
+					Target:    options.OutputPath,
+					Success:   false,
+				}
+				bm.tracker.Finish(result)
+			}
+		}()
+	}
+
 	// Serialize bundle based on format
+	startTime := time.Now()
 	var data []byte
 	var err error
 
@@ -212,6 +258,19 @@ func (bm *BundleManager) ExportBundle(bundle *Bundle, options BundleExportOption
 		return fmt.Errorf("failed to write bundle to %s: %w", options.OutputPath, err)
 	}
 
+	// Update progress tracker with success
+	duration := time.Since(startTime)
+	if bm.tracker != nil && bm.tracker.IsRunning() {
+		progressResult := &progress.Result{
+			Operation: "export_bundle",
+			Target:    options.OutputPath,
+			Success:   true,
+			Duration:  duration,
+			Message:   fmt.Sprintf("Exported bundle with %d modules to %s", len(bundle.Modules), options.OutputPath),
+		}
+		bm.tracker.Finish(progressResult)
+	}
+
 	bm.logger.Printf("Exported bundle with %d modules to %s", len(bundle.Modules), options.OutputPath)
 	return nil
 }
@@ -225,7 +284,22 @@ func (bm *BundleManager) ImportBundle(bundlePath string) (*Bundle, error) {
 			nil)
 	}
 
+	if bm.tracker != nil {
+		bm.tracker.Start(fmt.Sprintf("Importing bundle from %s", bundlePath), 1)
+		defer func() {
+			if bm.tracker.IsRunning() {
+				result := &progress.Result{
+					Operation: "import_bundle",
+					Target:    bundlePath,
+					Success:   false,
+				}
+				bm.tracker.Finish(result)
+			}
+		}()
+	}
+
 	// Read bundle file
+	startTime := time.Now()
 	data, err := os.ReadFile(bundlePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read bundle from %s: %w", bundlePath, err)
@@ -235,6 +309,19 @@ func (bm *BundleManager) ImportBundle(bundlePath string) (*Bundle, error) {
 	var bundle Bundle
 	if err := json.Unmarshal(data, &bundle); err != nil {
 		return nil, fmt.Errorf("failed to parse bundle JSON: %w", err)
+	}
+
+	// Update progress tracker with success
+	duration := time.Since(startTime)
+	if bm.tracker != nil && bm.tracker.IsRunning() {
+		progressResult := &progress.Result{
+			Operation: "import_bundle",
+			Target:    bundlePath,
+			Success:   true,
+			Duration:  duration,
+			Message:   fmt.Sprintf("Imported bundle '%s' with %d modules", bundle.Name, len(bundle.Modules)),
+		}
+		bm.tracker.Finish(progressResult)
 	}
 
 	bm.logger.Printf("Imported bundle '%s' with %d modules from %s", bundle.Name, len(bundle.Modules), bundlePath)

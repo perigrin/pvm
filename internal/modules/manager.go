@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"tamarou.com/pvm/internal/cli/progress"
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
@@ -27,13 +28,15 @@ const (
 // Manager provides a unified interface for module management operations
 type Manager struct {
 	provider cpan.Provider
+	tracker  progress.Tracker
 	logger   *log.Logger
 }
 
 // NewManager creates a new module manager
-func NewManager(provider cpan.Provider, logger *log.Logger) *Manager {
+func NewManager(provider cpan.Provider, tracker progress.Tracker, logger *log.Logger) *Manager {
 	return &Manager{
 		provider: provider,
+		tracker:  tracker,
 		logger:   logger,
 	}
 }
@@ -83,8 +86,25 @@ func (m *Manager) List(ctx context.Context, filter ModuleFilter) ([]*Module, err
 
 // SearchModules searches for available modules matching the query
 func (m *Manager) SearchModules(ctx context.Context, query ModuleQuery) ([]*Module, error) {
+	if m.tracker != nil {
+		m.tracker.Start(fmt.Sprintf("Searching modules for '%s'", query.Query), 1)
+		defer func() {
+			if m.tracker.IsRunning() {
+				result := &progress.Result{
+					Operation: "search",
+					Target:    query.Query,
+					Success:   false,
+				}
+				m.tracker.Finish(result)
+			}
+		}()
+	}
+
 	// Use the provider to search modules
+	startTime := time.Now()
 	searchResults, err := m.provider.SearchModules(ctx, query.Query, query.Limit)
+	duration := time.Since(startTime)
+
 	if err != nil {
 		return nil, errors.NewSystemError(
 			ErrManagerSearchFailed,
@@ -104,11 +124,37 @@ func (m *Manager) SearchModules(ctx context.Context, query ModuleQuery) ([]*Modu
 		result = append(result, module)
 	}
 
+	// Update progress tracker with success
+	if m.tracker != nil && m.tracker.IsRunning() {
+		progressResult := &progress.Result{
+			Operation: "search",
+			Target:    query.Query,
+			Success:   true,
+			Duration:  duration,
+			Message:   fmt.Sprintf("Found %d modules matching '%s'", len(result), query.Query),
+		}
+		m.tracker.Finish(progressResult)
+	}
+
 	return result, nil
 }
 
 // FindOutdated finds installed modules that have newer versions available
 func (m *Manager) FindOutdated(ctx context.Context, filter ModuleFilter) ([]*OutdatedModule, error) {
+	if m.tracker != nil {
+		m.tracker.Start("Checking for outdated modules", 1)
+		defer func() {
+			if m.tracker.IsRunning() {
+				result := &progress.Result{
+					Operation: "check_outdated",
+					Target:    "modules",
+					Success:   false,
+				}
+				m.tracker.Finish(result)
+			}
+		}()
+	}
+
 	// Create check options
 	checkOptions := &modules.CheckOutdatedOptions{
 		PerlPath:    "", // Will be resolved
@@ -128,7 +174,10 @@ func (m *Manager) FindOutdated(ctx context.Context, filter ModuleFilter) ([]*Out
 	}
 
 	// Use existing PVI functionality to check outdated modules
+	startTime := time.Now()
 	outdatedModules, err := modules.CheckOutdatedModules(checkOptions, checkLatest)
+	duration := time.Since(startTime)
+
 	if err != nil {
 		return nil, errors.NewSystemError(
 			ErrManagerOutdatedFailed,
@@ -145,6 +194,18 @@ func (m *Manager) FindOutdated(ctx context.Context, filter ModuleFilter) ([]*Out
 			LatestVersion:  outdated.LatestVersion,
 			CoreModule:     false, // PVI OutdatedModuleInfo doesn't have CoreModule field
 		})
+	}
+
+	// Update progress tracker with success
+	if m.tracker != nil && m.tracker.IsRunning() {
+		progressResult := &progress.Result{
+			Operation: "check_outdated",
+			Target:    "modules",
+			Success:   true,
+			Duration:  duration,
+			Message:   fmt.Sprintf("Found %d outdated modules", len(result)),
+		}
+		m.tracker.Finish(progressResult)
 	}
 
 	return result, nil
