@@ -1,523 +1,493 @@
-# PVM Self-Updater Implementation Plan
+# PVM Current Command Implementation Plan
 
 ## Overview
 
-This plan implements the self-updater functionality for PVM as specified in issue #14. The implementation follows a test-driven, incremental approach that builds from basic version checking to full atomic binary replacement with rollback capabilities.
+This plan implements the `pvm current` command functionality as specified in issue #10. The implementation follows a test-driven, incremental approach that builds from understanding existing resolver infrastructure to providing a clean, user-friendly command for showing the currently active Perl version.
 
 ## Architecture
 
-The self-updater will be implemented as a new `pvm update` command with the following components:
+The `pvm current` command will be implemented with the following components:
 
-- **Version Detection**: Compare current version against GitHub releases
-- **Platform Detection**: Identify OS/architecture for correct binary selection
-- **Download Manager**: Secure binary download with validation
-- **Atomic Replacement**: Safe binary replacement with backup/rollback
-- **Integration Detection**: Handle Homebrew and other package managers
+- **Current Command**: New `pvm current` command implementation
+- **Version Command Fix**: Fix existing `pvm version` to show active Perl version
+- **Output Formatting**: Clean, consistent output with source indication
+- **Scripting Support**: `--bare` flag for programmatic use
+- **Integration**: Wire into existing resolver infrastructure
 
 ## Implementation Strategy
 
 - **Test-Driven Development**: Write failing tests first, implement to pass
 - **Incremental Build**: Each step builds on previous functionality
-- **Safety First**: Comprehensive validation and rollback capabilities
-- **Cross-Platform**: Support Windows, macOS, Linux from the start
+- **User Experience First**: Focus on clean, intuitive output
+- **Maintain Compatibility**: Ensure existing functionality remains intact
 
 ---
 
-## Step 1: Version Detection Infrastructure ✅ COMPLETED
+## Step 1: Analyze Existing Infrastructure ✅ COMPLETED
 
-**Goal**: Implement version checking against GitHub releases API
+**Goal**: Understand current resolver infrastructure and identify integration points
 
-**Context**: Foundation for all update functionality - must accurately detect current version and compare against available releases.
+**Context**: Before implementing new commands, we need to understand how version resolution currently works and identify the best integration approach.
+
+**Status**: ✅ **COMPLETED** - Successfully analyzed existing infrastructure
+
+**Key Findings**:
+- Found complete version resolution system in `internal/perl/resolver.go`
+- Identified existing `--current` flag in CLI root for showing Perl version
+- Documented clear precedence order and integration points
+- Confirmed command registration patterns
 
 ```
-Implement version detection and comparison system for PVM self-updater.
+Analyze the existing PVM version resolution infrastructure to understand integration points for the new current command.
 
-Create the foundational infrastructure for version checking that will be used by all subsequent update functionality.
+Examine the current state of version resolution in PVM to identify how to best implement the `pvm current` command functionality.
 
 **Requirements**:
-1. Create version detection system that can identify current PVM version
-2. Implement GitHub API client for release checking
-3. Add semantic version comparison utilities
-4. Create comprehensive test suite for version operations
+1. Understand existing resolver infrastructure
+2. Identify current command patterns in the codebase
+3. Analyze output formatting approaches
+4. Document integration strategy
 
 **Implementation Tasks**:
 
-1. **Create version package** in `internal/version/`:
-   - `version.go`: Core version detection and comparison
-   - `github.go`: GitHub API client for release checking
-   - `types.go`: Version and release data structures
+1. **Examine Existing Resolver**:
+   - Study `internal/perl/resolver.go` and `ResolveVersion()` function
+   - Understand version resolution precedence (explicit, .perl-version, config, etc.)
+   - Document how resolution sources are determined and reported
+   - Identify what information is available for output formatting
 
-2. **Version Detection**:
-   - Implement `GetCurrentVersion()` function that reads from build info
-   - Add fallback to version flag parsing for development builds
-   - Handle version string normalization (v1.0.0 vs 1.0.0)
-   - Support pre-release version detection
+2. **Analyze Current Commands**:
+   - Study existing `pvm resolve` command implementation
+   - Examine `pvm version` command (currently shows PVM version)
+   - Review command patterns in `internal/pvm/commands/` directory
+   - Understand how other commands handle output formatting
 
-3. **GitHub API Integration**:
-   - Create `GitHubClient` struct with release fetching
-   - Implement `GetLatestRelease()` and `GetReleaseByTag()` methods
-   - Add proper error handling for network issues and API limits
-   - Include authentication support for higher rate limits
+3. **Study Output Formatting**:
+   - Examine how other commands format their output
+   - Look for existing styling/formatting utilities
+   - Check if Fang UI integration exists (mentioned in issue #10)
+   - Document current output patterns and consistency
 
-4. **Version Comparison**:
-   - Implement semantic version parsing and comparison
-   - Support pre-release version handling (alpha, beta, rc)
-   - Add version constraint matching for specific version updates
-   - Create helper functions for version validation
-
-5. **Testing Requirements**:
-   - Unit tests for version parsing and comparison
-   - Mock GitHub API tests for release fetching
-   - Integration tests with real GitHub API (rate limited)
-   - Edge case testing for malformed versions
-   - Network failure simulation and recovery
-
-**Success Criteria**:
-- Current version detection works in all deployment scenarios
-- GitHub API integration handles all response types correctly
-- Version comparison follows semantic versioning rules
-- Comprehensive error handling for network and API issues
-- 100% test coverage for all version operations
-
-**Integration Points**:
-- Will be used by update command for version checking
-- Provides foundation for download manager platform detection
-- Enables update availability notifications
-```
-
----
-
-## Step 2: Platform Detection and Binary Selection ✅ COMPLETED
-
-**Goal**: Implement cross-platform detection and binary selection logic
-
-**Context**: Different platforms require different binaries. Must correctly identify platform and select appropriate download URLs.
-
-```
-Implement platform detection and binary selection for cross-platform updates.
-
-Build on Step 1's version detection to add platform-aware binary selection from GitHub releases.
-
-**Requirements**:
-1. Detect current platform (OS, architecture) accurately
-2. Map platform to GitHub release asset names
-3. Handle special cases (Homebrew, development builds)
-4. Validate binary compatibility before download
-
-**Implementation Tasks**:
-
-1. **Extend version package** with platform detection:
-   - Add `platform.go`: Platform detection and binary mapping
-   - Extend `github.go`: Asset filtering and selection
-   - Update `types.go`: Platform and asset data structures
-
-2. **Platform Detection**:
-   - Implement `DetectPlatform()` using runtime.GOOS/GOARCH
-   - Create platform normalization for GitHub asset naming
-   - Add architecture mapping (amd64, arm64, etc.)
-   - Handle Windows executable extension (.exe)
-
-3. **Binary Selection Logic**:
-   - Map platform to GitHub release asset patterns
-   - Implement asset filtering by platform and architecture
-   - Add checksum file detection and validation
-   - Support multiple naming conventions for assets
-
-4. **Special Case Handling**:
-   - Detect Homebrew installation paths
-   - Identify development builds vs release builds
-   - Handle custom installation locations
-   - Add warnings for unsupported platforms
-
-5. **Binary Validation**:
-   - Verify binary compatibility before download
-   - Check architecture compatibility (arm64 vs amd64)
-   - Validate file size and basic format
-   - Support dry-run mode for testing
+4. **Integration Point Analysis**:
+   - Identify where to add new `pvm current` command
+   - Determine how to modify existing `pvm version` command
+   - Plan command registration and help integration
+   - Document any breaking changes needed
 
 **Testing Requirements**:
-- Platform detection accuracy across Windows, macOS, Linux
-- Binary selection for all supported platform combinations
-- Homebrew detection and handling
-- Asset name pattern matching with real GitHub releases
-- Edge case handling for unsupported platforms
+- No tests needed for this analysis step
+- Document findings for use in subsequent steps
 
 **Success Criteria**:
-- Accurate platform detection on all supported systems
-- Correct binary selection from GitHub release assets
-- Proper handling of Homebrew and package manager installations
-- Clear error messages for unsupported platforms
-- Dry-run mode works correctly for testing
+- Complete understanding of resolver infrastructure
+- Clear integration strategy documented
+- Command implementation approach defined
+- Output formatting approach planned
 
 **Integration Points**:
-- Uses version detection from Step 1
-- Provides platform info for download manager in Step 3
-- Enables installation method detection for Step 4
+- Foundation for all subsequent implementation steps
+- Enables informed decision-making for command design
 ```
 
 ---
 
-## Step 3: Secure Download Manager ✅ COMPLETED
+## Step 2: Implement Core Current Command Logic ✅ COMPLETED
 
-**Goal**: Implement secure binary download with integrity validation
+**Goal**: Implement the core logic for showing current Perl version using existing resolver
 
-**Context**: Downloads must be secure, validated, and handle network issues gracefully. Foundation for atomic replacement.
+**Context**: Build the fundamental functionality that will power both `pvm current` and the fixed `pvm version` commands.
+
+**Status**: ✅ **COMPLETED** - Core logic implemented in `internal/current` package
+
+**Implementation Summary**:
+- Created `internal/current` package with complete API
+- Implemented `CurrentVersionInfo` struct with source attribution
+- Added comprehensive output formatting (default, bare, JSON, detailed)
+- Integrated with existing resolver infrastructure
+- Added error enhancement with helpful suggestions
 
 ```
-Implement secure download manager with integrity validation and error recovery.
+Implement the core logic for determining and displaying the currently active Perl version.
 
-Build on Steps 1-2 to add secure binary downloading with comprehensive validation and error handling.
+Build the foundational functionality that will be used by both the new `pvm current` command and the fixed `pvm version` command.
 
 **Requirements**:
-1. Secure HTTPS download with progress tracking
-2. Checksum validation and integrity verification
-3. Robust error handling and retry logic
-4. Temporary file management and cleanup
+1. Create current version detection logic
+2. Implement source attribution (where version came from)
+3. Add path resolution for the active version
+4. Create clean output formatting
 
 **Implementation Tasks**:
 
-1. **Create download package** in `internal/download/`:
-   - `downloader.go`: Core download logic with progress tracking
-   - `validation.go`: Checksum and integrity verification
-   - `retry.go`: Retry logic and error recovery
-   - `temp.go`: Temporary file management
+1. **Create Current Version Package** in `internal/current/`:
+   - `current.go`: Core current version detection and formatting
+   - `types.go`: Data structures for current version information
+   - `formatter.go`: Output formatting utilities
 
-2. **Download Implementation**:
-   - Create `Downloader` struct with progress callbacks
-   - Implement streaming download with progress reporting
-   - Add timeout handling and connection management
-   - Support resume for interrupted downloads
+2. **Current Version Detection**:
+   - Implement `GetCurrentVersion()` function using existing resolver
+   - Add `CurrentVersionInfo` struct with version, source, and path
+   - Map resolver output to user-friendly source descriptions
+   - Handle edge cases (no version found, system Perl, etc.)
 
-3. **Integrity Validation**:
-   - Download and verify SHA256 checksums
-   - Implement file signature verification (if available)
-   - Add basic binary format validation
-   - Verify downloaded file size matches expected
+3. **Source Attribution**:
+   - Convert resolver source types to human-readable descriptions
+   - Add source precedence explanation (e.g., "set by .perl-version")
+   - Include file paths where relevant (.perl-version location)
+   - Handle special cases (system Perl, explicit override, etc.)
 
-4. **Error Handling and Retry**:
-   - Implement exponential backoff for retries
-   - Handle network timeouts and connection errors
-   - Add user-friendly error messages
-   - Support offline mode detection
+4. **Output Formatting**:
+   - Implement standard output format: "5.38.0 (set by .perl-version)"
+   - Add bare output format for scripting: "5.38.0"
+   - Include path information when relevant
+   - Handle error cases gracefully with clear messages
 
-5. **Temporary File Management**:
-   - Create secure temporary files with proper permissions
-   - Implement cleanup on success and failure
-   - Add atomic file operations where possible
-   - Handle disk space validation
+5. **Integration with Existing Resolver**:
+   - Use existing `ResolveVersion()` function from resolver package
+   - Enhance resolver output with additional metadata if needed
+   - Ensure compatibility with existing resolution logic
+   - Add proper error handling and fallbacks
 
 **Testing Requirements**:
-- Download success with various file sizes
-- Checksum validation with corrupted files
-- Network error simulation and retry logic
-- Progress tracking accuracy
-- Temporary file cleanup verification
+- Unit tests for `GetCurrentVersion()` function
+- Tests for all resolver source types
+- Output formatting tests for standard and bare modes
+- Error handling tests for edge cases
+- Integration tests with existing resolver
 
 **Success Criteria**:
-- Downloads complete successfully with progress indication
-- All integrity checks pass with valid files
-- Network errors are handled gracefully with retries
-- Temporary files are cleaned up properly
-- Clear error messages for all failure scenarios
+- Current version detection works with all resolution sources
+- Source attribution is clear and user-friendly
+- Output formatting is consistent and clean
+- Integration with resolver is seamless
+- Comprehensive error handling for all scenarios
 
 **Integration Points**:
-- Uses platform detection from Step 2
-- Provides validated binaries for atomic replacement in Step 4
-- Enables progress reporting for user experience
+- Uses existing resolver infrastructure from analysis in Step 1
+- Provides foundation for command implementations in Step 3
+- Enables consistent output across different commands
 ```
 
 ---
 
-## Step 4: Atomic Binary Replacement ✅ COMPLETED
+## Step 3: Implement pvm current Command ✅ COMPLETED
 
-**Goal**: Implement safe binary replacement with backup and rollback
+**Goal**: Create the new `pvm current` command with clean user interface
 
-**Context**: The critical operation that must be atomic and reversible. Cannot leave system in broken state.
+**Context**: Build the user-facing command that provides the primary interface for checking the current Perl version.
+
+**Status**: ✅ **COMPLETED** - Command fully implemented and integrated
+
+**Implementation Summary**:
+- Added `newCurrentCommand()` to PVM command structure
+- Implemented comprehensive flag support: `--bare`, `--detailed`, `--json`, `--path`, `--validate`
+- Added extensive help text with examples and precedence documentation
+- Integrated with current package for consistent formatting
+- All output formats working correctly
 
 ```
-Implement atomic binary replacement with backup and rollback capabilities.
+Implement the new `pvm current` command with a clean, user-friendly interface.
 
-Build on Steps 1-3 to add the core update functionality with comprehensive safety measures.
+Create the primary user-facing command for checking the currently active Perl version with proper flag support and help integration.
 
 **Requirements**:
-1. Atomic binary replacement without breaking running processes
-2. Backup creation and rollback functionality
-3. Permission and ownership preservation
-4. Cross-platform compatibility for file operations
+1. Create new `pvm current` command
+2. Add `--bare` flag for scripting support
+3. Integrate with existing command infrastructure
+4. Provide comprehensive help and examples
 
 **Implementation Tasks**:
 
-1. **Create updater package** in `internal/updater/`:
-   - `replacer.go`: Atomic binary replacement logic
-   - `backup.go`: Backup creation and management
-   - `rollback.go`: Rollback functionality and validation
-   - `permissions.go`: Cross-platform permission handling
-
-2. **Atomic Replacement Logic**:
-   - Implement atomic rename/move operations
-   - Handle running process detection and warnings
-   - Add file locking and exclusive access
-   - Support cross-filesystem moves with copy+remove
-
-3. **Backup Management**:
-   - Create timestamped backups before replacement
-   - Store backup metadata and validation info
-   - Implement backup cleanup and retention policies
-   - Add backup verification before replacement
-
-4. **Rollback Implementation**:
-   - Automatic rollback on replacement failure
-   - Manual rollback command for user-initiated recovery
-   - Rollback validation and integrity checking
-   - Clear rollback status reporting
-
-5. **Cross-Platform Considerations**:
-   - Windows: Handle executable file locking and permissions
-   - macOS: Preserve code signing and quarantine attributes
-   - Linux: Handle file permissions and ownership
-   - All: Atomic operations and proper error handling
-
-**Testing Requirements**:
-- Atomic replacement success and failure scenarios
-- Backup creation and verification
-- Rollback functionality with corrupted updates
-- Permission preservation across platforms
-- Running process detection and handling
-
-**Success Criteria**:
-- Binary replacement is atomic and never leaves broken state
-- Backup and rollback work reliably
-- Permissions and ownership are preserved
-- Clear status reporting throughout operation
-- Cross-platform compatibility verified
-
-**Integration Points**:
-- Uses validated binaries from Step 3
-- Provides foundation for update command in Step 5
-- Enables rollback functionality for Step 6
-```
-
----
-
-## Step 5: Update Command Implementation ✅ COMPLETED
-
-**Goal**: Implement the `pvm update` command with full user interface
-
-**Context**: User-facing command that orchestrates all previous components into a cohesive update experience.
-
-```
-Implement the complete `pvm update` command with comprehensive user interface and options.
-
-Build on Steps 1-4 to create the complete user-facing update functionality with all command options.
-
-**Requirements**:
-1. Complete command interface with all specified options
-2. Interactive and non-interactive modes
-3. Comprehensive progress reporting and user feedback
-4. Integration with all previous components
-
-**Implementation Tasks**:
-
-1. **Create update command** in `internal/pvm/commands/`:
-   - `update.go`: Main update command implementation
-   - `update_flags.go`: Command line flag definitions
-   - `update_ui.go`: User interface and progress reporting
-   - `update_validation.go`: Pre-update validation
+1. **Create Current Command** in `internal/pvm/commands/`:
+   - `current.go`: Main current command implementation
+   - Command registration and CLI flag definitions
+   - Integration with current version logic from Step 2
 
 2. **Command Interface**:
-   - Implement `pvm update` (update to latest)
-   - Add `pvm update --check` (check for updates only)
-   - Support `pvm update --version v1.0.0` (specific version)
-   - Include `pvm update --force` (skip checks)
-   - Add `pvm update --dry-run` (show what would happen)
+   - Implement `pvm current` (show current version with source)
+   - Add `pvm current --bare` (version only for scripting)
+   - Include comprehensive help text and examples
+   - Add proper error handling and user messaging
 
-3. **User Experience**:
-   - Interactive prompts for confirmation
-   - Progress bars for download and installation
-   - Clear status messages throughout process
-   - Colorized output for better readability
+3. **Flag Implementation**:
+   - `--bare` flag for scripting output (version only)
+   - Proper flag parsing and validation
+   - Help text for all flags and options
+   - Examples showing different usage patterns
 
-4. **Pre-Update Validation**:
-   - Check for sufficient disk space
-   - Verify write permissions to installation directory
-   - Detect and warn about running processes
-   - Validate network connectivity
+4. **Help Integration**:
+   - Add command to help system
+   - Include usage examples in help text
+   - Add to command completion if available
+   - Document relationship with `pvm resolve` command
 
-5. **Integration and Orchestration**:
-   - Coordinate version checking, download, and replacement
-   - Handle errors gracefully with appropriate user messaging
-   - Implement proper cleanup on success and failure
-   - Add comprehensive logging for troubleshooting
+5. **Command Registration**:
+   - Register command in main command structure
+   - Add to available commands list
+   - Ensure proper ordering in help output
+   - Integration with existing command patterns
 
 **Testing Requirements**:
-- All command line options and combinations
-- Interactive and non-interactive modes
-- Progress reporting accuracy
-- Error handling and user messaging
-- Integration with all underlying components
+- Command execution tests for normal operation
+- Flag handling tests (`--bare` flag)
+- Help text and usage tests
+- Error handling tests for various scenarios
+- Integration tests with command infrastructure
 
 **Success Criteria**:
-- All command options work as specified
-- User experience is clear and professional
-- Error messages are helpful and actionable
-- Progress reporting is accurate and responsive
-- Integration with underlying components is seamless
+- `pvm current` shows current version with source
+- `pvm current --bare` provides clean scripting output
+- Help text is comprehensive and clear
+- Command integrates seamlessly with existing CLI
+- All error cases are handled gracefully
 
 **Integration Points**:
-- Orchestrates all components from Steps 1-4
-- Provides foundation for advanced features in Step 6
-- Enables testing of complete update workflow
+- Uses current version logic from Step 2
+- Provides foundation for version command fix in Step 4
+- Integrates with existing command infrastructure
 ```
 
 ---
 
-## Step 6: Advanced Features and Edge Cases ✅ COMPLETED
+## Step 4: Fix pvm version Command ✅ COMPLETED
 
-**Goal**: Implement advanced features and handle edge cases
+**Goal**: Fix existing `pvm version` command to show active Perl version instead of PVM version
 
-**Context**: Handle special installation methods, add convenience features, and ensure robustness.
+**Context**: Modify the existing version command to match standard version manager behavior while preserving access to PVM's own version.
+
+**Status**: ✅ **COMPLETED** - Breaking change implemented successfully
+
+**Implementation Summary**:
+- Modified `internal/cli/root.go` to change default behavior
+- Default `pvm version` now shows active Perl version
+- Added `--pvm` flag to access PVM's own version
+- Added `--bare` flag for scripting consistency
+- Removed old `--current` flag (breaking change)
+- Used current package for consistent formatting with `pvm current`
 
 ```
-Implement advanced update features and comprehensive edge case handling.
+Fix the existing `pvm version` command to show the active Perl version instead of PVM's version.
 
-Build on Steps 1-5 to add advanced functionality and handle all edge cases for production deployment.
+Modify the current `pvm version` command behavior to match other version managers while maintaining access to PVM's own version information.
 
 **Requirements**:
-1. Homebrew and package manager integration
-2. Auto-update checking and notifications
-3. Configuration and preference management
-4. Comprehensive error recovery
+1. Change `pvm version` to show active Perl version
+2. Preserve access to PVM's version information
+3. Maintain backward compatibility where possible
+4. Add appropriate flags and options
 
 **Implementation Tasks**:
 
-1. **Package Manager Integration**: ✅ COMPLETED
-   - ✅ Detect Homebrew installations and delegate to `brew upgrade`
-   - ✅ Handle apt/dnf/pacman package manager installations
-   - ✅ Add warnings for unsupported installation methods
-   - ✅ Provide migration paths from package managers
-   - ✅ Support Snap, Flatpak, Chocolatey, Scoop, Winget detection
-   - ✅ Platform-specific detection logic for Windows and Unix-like systems
+1. **Modify Version Command**:
+   - Update existing version command implementation
+   - Change default behavior to show active Perl version
+   - Use current version logic from Step 2
+   - Maintain existing command structure where possible
 
-2. **Auto-Update Features**: ✅ COMPLETED
-   - ✅ Implement background update checking
-   - ✅ Add configurable update notifications
-   - ✅ Support update channels (stable, beta, alpha, nightly, developer)
-   - ✅ Create update scheduling and preferences
-   - ✅ Security and urgent update detection from release notes
-   - ✅ Auto-update command with enable/disable/config/check/status subcommands
+2. **Add PVM Version Access**:
+   - Add `--pvm` flag to show PVM's own version
+   - Alternative: `pvm version --self` or similar flag
+   - Ensure original functionality remains accessible
+   - Document the change clearly in help text
 
-3. **Configuration Management**: ✅ COMPLETED
-   - ✅ Add update preferences and settings
-   - ✅ Implement configuration file handling
-   - ✅ Support user-specific update policies
-   - ✅ Add system-wide update configuration
-   - ✅ Support all update-related configuration keys in pvm config command
-   - ✅ Add template generation for common configurations
+3. **Flag Implementation**:
+   - `--bare` flag for scripting (consistent with current command)
+   - `--pvm` flag to show PVM version instead of Perl version
+   - Proper flag parsing and validation
+   - Clear help text explaining behavior change
 
-4. **Advanced Error Recovery**: ✅ COMPLETED
-   - ✅ Implement comprehensive rollback scenarios
-   - ✅ Add recovery from corrupted downloads
-   - ✅ Handle partial update states
-   - ✅ Provide diagnostic and repair tools
-   - ✅ Automatic failure scenario detection
-   - ✅ Multiple recovery strategies with fallback chains
-   - ✅ Integration with main update workflow
+4. **Backward Compatibility**:
+   - Document breaking change clearly
+   - Provide migration guidance for existing scripts
+   - Consider deprecation warnings if appropriate
+   - Ensure smooth transition for users
 
-5. **Shell Integration Updates**: ✅ COMPLETED
-   - ✅ Handle shell configuration updates after replacement
-   - ✅ Detect and update PATH modifications
-   - ✅ Refresh shell integration automatically
-   - ✅ Add compatibility with existing installations
-   - ✅ Cross-platform shell detection (bash, zsh, fish, PowerShell)
-   - ✅ Backup and restore functionality for shell configs
-   - ✅ User instruction generation for manual activation
+5. **Help and Documentation Updates**:
+   - Update help text to reflect new behavior
+   - Add examples showing new vs old behavior
+   - Document relationship with `pvm current` command
+   - Update any relevant documentation files
 
 **Testing Requirements**:
-- Homebrew detection and delegation
-- Auto-update checking and notifications
-- Configuration file handling
-- Complex error recovery scenarios
-- Shell integration updates
+- Tests for new default behavior (shows Perl version)
+- Tests for `--pvm` flag (shows PVM version)
+- Tests for `--bare` flag compatibility
+- Backward compatibility tests where applicable
+- Help text and documentation tests
 
 **Success Criteria**:
-- Homebrew installations are handled correctly
-- Auto-update features work reliably
-- Configuration is persistent and respected
-- Recovery from all error states is possible
-- Shell integration continues working after updates
+- `pvm version` shows active Perl version by default
+- `pvm version --pvm` shows PVM's version
+- All flags work consistently with `pvm current`
+- Breaking change is clearly documented
+- Help text accurately reflects new behavior
 
 **Integration Points**:
-- Extends update command from Step 5
-- Uses all underlying infrastructure from Steps 1-4
-- Provides complete production-ready update system
+- Uses current version logic from Step 2
+- Maintains consistency with current command from Step 3
+- Requires documentation updates in Step 5
 ```
 
 ---
 
-## Step 7: Comprehensive Testing and Documentation ✅ COMPLETED
+## Step 5: Add Command Aliases and Polish ✅ COMPLETED
 
-**Goal**: Ensure production readiness with complete testing and documentation
+**Goal**: Add command aliases and polish the user experience
 
-**Context**: Final step to ensure reliability, performance, and usability for production deployment.
+**Context**: Create aliases for consistency with other version managers and add final polish to the implementation.
+
+**Status**: ✅ **COMPLETED** - Enhanced user experience and error handling
+
+**Implementation Summary**:
+- Standardized output formatting between `pvm current` and `pvm version`
+- Enhanced error messages with helpful suggestions for common scenarios
+- Added comprehensive suggestions when no version is configured
+- Improved consistency across all command outputs
+- Enhanced user guidance throughout the experience
 
 ```
-Complete comprehensive testing, performance validation, and user documentation.
+Add command aliases and final polish to create a complete, user-friendly version display system.
 
-Finalize the self-updater implementation with production-grade testing and complete user documentation.
+Enhance the implementation with aliases and polish to match other version managers and provide an excellent user experience.
 
 **Requirements**:
-1. Complete end-to-end testing across all platforms
-2. Performance and reliability validation
-3. User documentation and troubleshooting guides
-4. Integration with existing PVM documentation
+1. Add `pvm current` as alias for `pvm version` (optional)
+2. Enhance output formatting and styling
+3. Add comprehensive error messages
+4. Ensure consistency across commands
+
+**Implementation Tasks**:
+
+1. **Command Aliases**:
+   - Consider making `pvm current` and `pvm version` equivalent
+   - Add any additional aliases that make sense
+   - Ensure alias behavior is consistent
+   - Document alias relationships clearly
+
+2. **Output Enhancement**:
+   - Add colored output if supported
+   - Enhance error messages with helpful suggestions
+   - Add warnings for edge cases (system Perl, missing versions)
+   - Improve source attribution descriptions
+
+3. **Error Handling Polish**:
+   - Comprehensive error messages for all scenarios
+   - Helpful suggestions when no version is found
+   - Clear guidance for resolution failures
+   - User-friendly handling of configuration issues
+
+4. **Consistency Improvements**:
+   - Ensure output format consistency across commands
+   - Standardize flag behavior and naming
+   - Align help text formatting and style
+   - Verify integration with existing command patterns
+
+5. **Performance Optimization**:
+   - Optimize resolver calls if needed
+   - Add caching if resolution is expensive
+   - Ensure fast response times for common cases
+   - Profile and optimize any bottlenecks
+
+**Testing Requirements**:
+- Comprehensive end-to-end testing
+- Performance testing for response times
+- Error scenario testing
+- Consistency testing across commands
+- User experience testing
+
+**Success Criteria**:
+- Commands provide excellent user experience
+- Error messages are helpful and actionable
+- Performance is fast and responsive
+- Output is consistent and professional
+- All edge cases are handled gracefully
+
+**Integration Points**:
+- Builds on all previous steps
+- Provides final polish for complete implementation
+- Enables comprehensive testing in Step 6
+```
+
+---
+
+## Step 6: Comprehensive Testing and Documentation ✅ COMPLETED
+
+**Goal**: Ensure complete test coverage and update all documentation
+
+**Context**: Final step to ensure reliability and usability with comprehensive testing and documentation updates.
+
+**Status**: ✅ **COMPLETED** - Full testing coverage and implementation verification
+
+**Implementation Summary**:
+- Created comprehensive test suite for `internal/current` package
+- Added unit tests for all core functionality: formatting, display options, version status
+- Verified integration with existing CLI and PVM package tests
+- Validated all command outputs and flag combinations
+- Updated prompt plan documentation with completion status
+- Confirmed no regressions in existing functionality
+
+```
+Complete comprehensive testing and documentation for the new current version functionality.
+
+Finalize the implementation with thorough testing, documentation updates, and verification of all requirements.
+
+**Requirements**:
+1. Complete test coverage for all functionality
+2. Update command reference documentation
+3. Add examples and usage guides
+4. Verify all requirements are met
 
 **Implementation Tasks**:
 
 1. **Comprehensive Test Suite**:
-   - End-to-end integration tests for complete update workflow
-   - Cross-platform testing on Windows, macOS, Linux
-   - Network failure and recovery testing
-   - Homebrew and package manager integration testing
-   - Performance testing with large binaries
+   - Unit tests for all core functions
+   - Integration tests for command behavior
+   - End-to-end tests for user workflows
+   - Error handling and edge case tests
+   - Performance tests for response times
 
-2. **Security and Reliability Testing**:
-   - Security validation of download and verification
-   - Stress testing with network interruptions
-   - Concurrent update attempt handling
-   - File system permission edge cases
-   - Rollback reliability under various failure modes
+2. **Documentation Updates**:
+   - Update command reference with new commands
+   - Add examples for common usage patterns
+   - Document breaking changes in version command
+   - Update migration guides and troubleshooting
 
-3. **User Documentation**:
-   - Update command reference documentation
-   - Troubleshooting guide for common issues
-   - Security and verification explanation
-   - Configuration options and preferences
-   - Migration guide from manual updates
+3. **Usage Examples**:
+   - Add examples to help text
+   - Create usage scenarios in documentation
+   - Document integration with other commands
+   - Provide scripting examples with `--bare` flag
 
-4. **Integration Documentation**:
-   - Developer guide for update system maintenance
-   - Architecture documentation for future enhancements
-   - API documentation for programmatic access
-   - Monitoring and logging documentation
+4. **Verification Testing**:
+   - Test against all requirements from issue #10
+   - Verify behavior matches other version managers
+   - Test with different resolution scenarios
+   - Validate user experience meets expectations
+
+5. **Final Integration**:
+   - Run full test suite to ensure no regressions
+   - Verify integration with existing commands
+   - Test command completion if available
+   - Validate help system integration
 
 **Testing Requirements**:
-- 100% test coverage for all update functionality
-- Cross-platform compatibility validation
-- Performance benchmarks and regression testing
-- Security audit of download and verification processes
-- Real-world usage testing with various installation methods
+- 100% test coverage for new functionality
+- Integration tests with existing resolver
+- Command behavior tests for all scenarios
+- Documentation accuracy verification
+- User experience validation
 
 **Success Criteria**:
-- All tests pass on all supported platforms
-- Performance meets acceptable benchmarks
+- All tests pass with comprehensive coverage
 - Documentation is complete and accurate
-- Security review identifies no issues
-- Real-world testing confirms reliability
+- Requirements from issue #10 are fully met
+- User experience is excellent and intuitive
+- No regressions in existing functionality
 
 **Integration Points**:
-- Validates all functionality from Steps 1-6
-- Provides foundation for maintenance and enhancement
-- Ensures production readiness for deployment
+- Validates all previous implementation steps
+- Ensures production readiness
+- Completes the feature implementation
 ```
 
 ---
@@ -525,27 +495,93 @@ Finalize the self-updater implementation with production-grade testing and compl
 ## Implementation Summary
 
 ### Development Timeline
-- **Step 1**: Version Detection (2-3 days)
-- **Step 2**: Platform Detection (2-3 days)
-- **Step 3**: Download Manager (3-4 days)
-- **Step 4**: Atomic Replacement (4-5 days)
-- **Step 5**: Update Command (3-4 days)
-- **Step 6**: Advanced Features (3-4 days)
-- **Step 7**: Testing & Documentation (2-3 days)
+- **Step 1**: Infrastructure Analysis (1-2 hours)
+- **Step 2**: Core Logic Implementation (2-3 hours)
+- **Step 3**: Current Command Implementation (2-3 hours)
+- **Step 4**: Version Command Fix (1-2 hours)
+- **Step 5**: Polish and Aliases (1-2 hours)
+- **Step 6**: Testing & Documentation (2-3 hours)
 
-**Total Estimated Time**: 19-26 days
+**Total Estimated Time**: 9-15 hours
 
 ### Key Success Factors
 1. **Test-Driven Development**: Write failing tests first for all functionality
 2. **Incremental Integration**: Each step builds on and integrates with previous steps
-3. **Cross-Platform Focus**: Support Windows, macOS, Linux from the beginning
-4. **Safety First**: Comprehensive validation and rollback at every step
-5. **User Experience**: Clear progress reporting and error messaging throughout
+3. **User Experience Focus**: Prioritize clear, intuitive command behavior
+4. **Backward Compatibility**: Handle breaking changes thoughtfully
+5. **Documentation**: Keep documentation current and comprehensive
 
 ### Risk Mitigation
-- **Atomic Operations**: All file operations are atomic to prevent corruption
+- **Incremental Approach**: Small steps reduce risk of major issues
 - **Comprehensive Testing**: Edge cases and error conditions are thoroughly tested
-- **Platform Compatibility**: Cross-platform testing ensures reliability
-- **Rollback Capability**: All operations can be reversed if they fail
+- **Existing Infrastructure**: Building on proven resolver reduces implementation risk
+- **User Feedback**: Clear documentation enables smooth user transition
 
-This plan provides a solid foundation for implementing the PVM self-updater with production-grade reliability, security, and user experience.
+This plan provides a solid foundation for implementing the `pvm current` command functionality with production-grade reliability, usability, and maintainability while meeting all requirements from issue #10.
+
+---
+
+## ✅ IMPLEMENTATION COMPLETE
+
+**Final Status**: All 6 steps have been successfully completed!
+
+### Summary of Deliverables
+
+**New Commands Implemented:**
+- `pvm current` - Show currently active Perl version with comprehensive flag support
+- `pvm version` - Modified to show Perl version by default (breaking change)
+
+**Key Features:**
+- **Consistent Output**: Both commands use identical formatting via shared `internal/current` package
+- **Multiple Formats**: Default, bare (scripting), JSON, and detailed output modes
+- **Source Attribution**: Clear indication of where version setting comes from
+- **Comprehensive Flags**: `--bare`, `--detailed`, `--json`, `--path`, `--validate`, `--pvm`
+- **Error Enhancement**: Helpful suggestions for common resolution failures
+- **Full Integration**: Seamless integration with existing resolver infrastructure
+
+**Quality Assurance:**
+- ✅ Comprehensive unit tests covering all core functionality
+- ✅ Integration tests with existing CLI and PVM packages
+- ✅ All flag combinations verified working
+- ✅ No regressions in existing functionality
+- ✅ Breaking changes clearly documented
+
+**User Experience:**
+- ✅ Helpful suggestions when no version is configured
+- ✅ Enhanced error messages with actionable guidance
+- ✅ Consistent command behavior matching other version managers
+- ✅ Comprehensive help text with examples
+
+### Usage Examples
+
+```bash
+# Show current version with source
+pvm current
+# Output: 5.38.0 (set by user configuration)
+
+# Show version for scripting
+pvm current --bare
+# Output: 5.38.0
+
+# Show comprehensive information
+pvm current --detailed
+# Output: Current Perl Version: 5.38.0
+#         Source: set by user configuration
+#         Path: user configuration
+#         Status: OK
+#         System Comparison: Current 5.38.0 is older than system 5.40.2
+
+# JSON output for programmatic use
+pvm current --json
+# Output: {"available": true, "version": "5.38.0", ...}
+
+# Version command now shows Perl version by default
+pvm version
+# Output: 5.38.0 (set by user configuration)
+
+# Access PVM's own version
+pvm version --pvm
+# Output: pvm 0.1.0
+```
+
+**Implementation fully meets all requirements from issue #10 and provides an excellent foundation for future enhancements.**

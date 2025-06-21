@@ -8,9 +8,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
-	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/version"
 )
 
@@ -42,24 +42,36 @@ func NewRootCommand(name string, description string) *cobra.Command {
 
 // newVersionCommand creates a version command for the provided component
 func newVersionCommand(component string) *cobra.Command {
-	var showCurrent bool
+	var showPVM bool
+	var bare bool
 
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print version information",
-		Long:  "Print detailed version information about this component",
+		Long:  "Print version information about Perl or PVM",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if showCurrent {
-				return showCurrentPerlVersion(cmd, component)
+			// For PVM component, default behavior is to show Perl version
+			if component == "pvm" && !showPVM {
+				return showCurrentPerlVersionWithFlags(cmd, component, bare)
 			}
 			fmt.Println(version.ComponentVersion(component))
 			return nil
 		},
 	}
 
-	// Add --current flag for PVM component
+	// Add flags for PVM component
 	if component == "pvm" {
-		cmd.Flags().BoolVar(&showCurrent, "current", false, "Show currently active Perl version")
+		cmd.Flags().BoolVar(&showPVM, "pvm", false, "Show PVM version instead of active Perl version")
+		cmd.Flags().BoolVar(&bare, "bare", false, "Show only the version string (for scripting)")
+		cmd.Long = `Show the currently active Perl version.
+
+By default, this command shows which Perl version is currently active.
+Use --pvm to show PVM's own version instead.
+
+Examples:
+  pvm version         # Show active Perl version (default)
+  pvm version --pvm   # Show PVM's version
+  pvm version --bare  # Show only version string for scripting`
 	}
 
 	return cmd
@@ -157,25 +169,42 @@ func handleUnknownCommand(rootCmd *cobra.Command, err *UnknownCommandError) {
 	fmt.Fprintf(os.Stderr, "Run 'pvm help workflows' for common workflows\n")
 }
 
-// showCurrentPerlVersion displays the currently active Perl version
+// showCurrentPerlVersion displays the currently active Perl version (legacy function)
 func showCurrentPerlVersion(cmd *cobra.Command, component string) error {
+	return showCurrentPerlVersionWithFlags(cmd, component, false)
+}
+
+// showCurrentPerlVersionWithFlags displays the currently active Perl version with flag support
+func showCurrentPerlVersionWithFlags(cmd *cobra.Command, component string, bare bool) error {
 	// Only show current version for PVM component
 	if component != "pvm" {
 		fmt.Println(version.ComponentVersion(component))
 		return nil
 	}
 
-	// Try to resolve the current version using the standard resolution algorithm
-	resolvedVersion, err := perl.ResolveVersion(nil)
+	// Use the current package for consistent formatting
+	info, err := current.GetCurrentVersion()
 	if err != nil {
-		return fmt.Errorf("failed to determine current Perl version: %w", err)
+		return fmt.Errorf("failed to get current version: %w", err)
 	}
 
-	if resolvedVersion == nil {
-		cmd.Println("No Perl version is currently active")
-		return nil
+	// Format output using the current package for consistency
+	options := current.DefaultDisplayOptions()
+	if bare {
+		options = current.BareDisplayOptions()
 	}
 
-	cmd.Printf("%s (from %s)\n", resolvedVersion.Version, resolvedVersion.Source)
+	output, err := current.FormatCurrentVersion(info, options)
+	if err != nil {
+		return fmt.Errorf("failed to format output: %w", err)
+	}
+
+	cmd.Print(output)
+
+	// Add newline for non-bare output (bare output doesn't include newline)
+	if !bare && info.IsAvailable {
+		cmd.Println()
+	}
+
 	return nil
 }
