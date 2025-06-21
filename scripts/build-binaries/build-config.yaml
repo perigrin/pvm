@@ -1,0 +1,193 @@
+# ABOUTME: Build configuration file for Perl binary builds
+# ABOUTME: Defines build flags, optimization settings, and package configuration
+
+# Build Configuration for Perl Binary Distribution
+build:
+  # Global build settings
+  parallel_jobs: auto  # 'auto' uses nproc/hw.ncpu, or specify number
+  run_tests: false     # Set to true to run Perl test suite (slower builds)
+  optimization_level: "-O2"
+
+  # Configure script options (passed to Perl's Configure script)
+  configure_opts: >
+    -Duserelocatableinc
+    -Duseshrplib
+    -Dvendorprefix=/usr/local
+    -Dsiteprefix=/usr/local
+
+  # Platform-specific overrides
+  platform_overrides:
+    linux-amd64:
+      configure_opts: >
+        -Duserelocatableinc
+        -Duseshrplib
+        -Dvendorprefix=/usr/local
+        -Dsiteprefix=/usr/local
+        -Dldflags=-Wl,-rpath,\$ORIGIN/../lib
+
+    darwin-amd64:
+      configure_opts: >
+        -Duserelocatableinc
+        -Duseshrplib
+        -Dvendorprefix=/usr/local
+        -Dsiteprefix=/usr/local
+        -Dldflags=-Wl,-rpath,@loader_path/../lib
+
+    darwin-arm64:
+      configure_opts: >
+        -Duserelocatableinc
+        -Duseshrplib
+        -Dvendorprefix=/usr/local
+        -Dsiteprefix=/usr/local
+        -Dldflags=-Wl,-rpath,@loader_path/../lib
+
+    windows-amd64:
+      configure_opts: >
+        -Duserelocatableinc
+        -Duseshrplib
+        -Dvendorprefix=C:/perl
+        -Dsiteprefix=C:/perl
+
+# Package configuration
+package:
+  # Files/directories to include in binary package
+  include:
+    - bin/
+    - lib/
+    - man/
+    - PERL_BUILD_INFO
+
+  # Files/directories to exclude from binary package
+  exclude:
+    - "*.a"           # Static libraries
+    - "**/.packlist"  # Packlist files
+    - "**/perllocal.pod" # Local pod files
+    - "man/man*/*.3*" # Detailed man pages (keep man1 for executables)
+    - "lib/perl5/*/pod/" # Pod documentation
+
+  # Compression settings
+  compression:
+    tar_gz:
+      level: 6        # Compression level (1-9)
+      options: "--exclude-vcs"
+    zip:
+      level: 6        # Compression level (1-9)
+      options: "-r"
+
+# Quality assurance settings
+qa:
+  # Basic smoke tests to run on built Perl
+  smoke_tests:
+    - command: "perl -v"
+      description: "Check Perl version"
+      expect_success: true
+
+    - command: "perl -e 'print \"Hello World\\n\"'"
+      description: "Basic Perl execution"
+      expect_output: "Hello World"
+
+    - command: "perl -e 'use strict; use warnings; print \"OK\\n\"'"
+      description: "Test pragma loading"
+      expect_output: "OK"
+
+    - command: "perl -MTest::More -e 'print \"Test::More available\\n\"'"
+      description: "Check core modules"
+      expect_success: true
+      optional: true
+
+  # Size limits for packages (in MB)
+  size_limits:
+    linux-amd64: 50
+    linux-arm64: 50
+    darwin-amd64: 60
+    darwin-arm64: 60
+    windows-amd64: 70
+
+# Metadata configuration
+metadata:
+  # Information to include in PERL_BUILD_INFO file
+  build_info:
+    - version
+    - platform
+    - build_date
+    - build_host
+    - compiler
+    - configure_options
+    - package_size
+    - checksum
+
+  # Additional files to create
+  additional_files:
+    - name: "README.txt"
+      content: |
+        Perl Binary Distribution
+        ========================
+
+        This is a pre-compiled Perl distribution for {platform}.
+
+        Version: {version}
+        Built: {build_date}
+
+        Installation:
+        1. Extract this archive to your desired location
+        2. Add the bin/ directory to your PATH
+        3. Run 'perl -v' to verify installation
+
+        For more information, visit: https://github.com/your-org/pvm
+
+    - name: "INSTALL.txt"
+      content: |
+        Installation Instructions
+        ========================
+
+        Quick Install:
+
+        Linux/macOS:
+        $ tar -xzf perl-{version}-{platform}.tar.gz
+        $ export PATH=$PWD/perl-{version}-{platform}/bin:$PATH
+
+        Windows:
+        1. Extract perl-{version}-{platform}.zip
+        2. Add perl-{version}-{platform}\bin to your PATH
+
+        Verification:
+        $ perl -v
+        $ perl -e "print \"Hello from Perl!\\n\""
+
+# Environment configuration for builds
+environment:
+  # Environment variables to set during build
+  variables:
+    PERL_MM_USE_DEFAULT: "1"
+    AUTOMATED_TESTING: "1"
+    NONINTERACTIVE_TESTING: "1"
+
+  # Path additions for build tools
+  path_additions:
+    - "/usr/local/bin"
+    - "/opt/local/bin"
+
+# Cache configuration
+cache:
+  # Enable caching of source downloads
+  source_cache: true
+  cache_directory: "~/.cache/pvm-build"
+
+  # Cache retention (in days)
+  retention:
+    source_archives: 30
+    build_artifacts: 7
+
+  # Maximum cache size (in GB)
+  max_size: 5
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARN, ERROR
+  file: "build.log"
+  console: true
+
+  # Log rotation
+  rotate:
+    max_files: 5
+    max_size: "10MB"

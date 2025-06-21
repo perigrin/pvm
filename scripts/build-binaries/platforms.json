@@ -1,0 +1,97 @@
+{
+  "platforms": {
+    "linux-amd64": {
+      "os": "linux",
+      "arch": "amd64",
+      "cc": "gcc",
+      "cflags": "-fPIC -O2",
+      "archive_ext": "tar.gz",
+      "binary_ext": "",
+      "description": "Linux AMD64 (x86_64)"
+    },
+    "linux-arm64": {
+      "os": "linux",
+      "arch": "arm64",
+      "cc": "aarch64-linux-gnu-gcc",
+      "cflags": "-fPIC -O2",
+      "archive_ext": "tar.gz",
+      "binary_ext": "",
+      "description": "Linux ARM64 (aarch64)"
+    },
+    "darwin-amd64": {
+      "os": "darwin",
+      "arch": "amd64",
+      "cc": "clang",
+      "cflags": "-arch x86_64 -O2 -mmacosx-version-min=10.12",
+      "archive_ext": "tar.gz",
+      "binary_ext": "",
+      "description": "macOS Intel (x86_64)"
+    },
+    "darwin-arm64": {
+      "os": "darwin",
+      "arch": "arm64",
+      "cc": "clang",
+      "cflags": "-arch arm64 -O2 -mmacosx-version-min=11.0",
+      "archive_ext": "tar.gz",
+      "binary_ext": "",
+      "description": "macOS Apple Silicon (ARM64)"
+    },
+    "windows-amd64": {
+      "os": "windows",
+      "arch": "amd64",
+      "cc": "gcc",
+      "cflags": "-O2",
+      "archive_ext": "zip",
+      "binary_ext": ".exe",
+      "description": "Windows AMD64 (x86_64)"
+    }
+  },
+  "build_requirements": {
+    "linux-amd64": {
+      "packages": ["build-essential", "curl", "jq"],
+      "docker_image": "ubuntu:20.04"
+    },
+    "linux-arm64": {
+      "packages": ["build-essential", "gcc-aarch64-linux-gnu", "curl", "jq"],
+      "docker_image": "ubuntu:20.04"
+    },
+    "darwin-amd64": {
+      "packages": ["xcode-select", "curl", "jq"],
+      "notes": "Requires Xcode command line tools"
+    },
+    "darwin-arm64": {
+      "packages": ["xcode-select", "curl", "jq"],
+      "notes": "Requires Xcode command line tools"
+    },
+    "windows-amd64": {
+      "packages": ["mingw-w64", "curl", "jq"],
+      "notes": "Cross-compilation from Linux using MinGW-w64"
+    }
+  },
+  "supported_perl_versions": [
+    "5.38.2",
+    "5.38.0",
+    "5.36.3",
+    "5.36.1",
+    "5.36.0",
+    "5.34.3",
+    "5.34.1",
+    "5.34.0"
+  ],
+  "default_configure_options": [
+    "-des",
+    "-Dusethreads",
+    "-Dusemultiplicity",
+    "-Duseperlio",
+    "-Duse64bitall",
+    "-Doptimize=-O2"
+  ],
+  "archive_naming": {
+    "pattern": "perl-{version}-{platform}.{ext}",
+    "examples": [
+      "perl-5.38.2-linux-amd64.tar.gz",
+      "perl-5.38.2-darwin-arm64.tar.gz",
+      "perl-5.38.2-windows-amd64.zip"
+    ]
+  }
+}
