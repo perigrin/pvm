@@ -1,1064 +1,730 @@
-# PVI Command Refactor Build Plan
+# PVX Global Tool Execution Implementation Plan
 
 ## Overview
 
-This plan outlines the step-by-step refactoring of the large `internal/pvi/command.go` file (1964 lines) to extract shared functionality into reusable packages. The goal is to reduce code duplication, improve maintainability, and enable reuse across PVM components (pvm, pvx, psc).
+This plan implements the global tool execution functionality for PVX as specified in issue #29. The implementation enhances PVX to work like Python's `uvx` or Node.js's `npx`, allowing seamless execution of Perl tools from anywhere without project context.
 
-## Target Architecture
+## Architecture
 
-- **Modular Design**: Extract common functionality into focused packages
-- **Component Reuse**: Enable module management across all PVM components
-- **Clean Interfaces**: Well-defined APIs between extracted packages
-- **Maintainability**: Smaller, focused files that are easier to maintain
-- **Test Coverage**: Comprehensive testing for all extracted functionality
+The global tool execution system will extend PVX with the following components:
 
-## Current State Analysis
+- **Tool Detection**: Identify when PVX is invoked in "tool mode" vs "script mode"
+- **Tool Mapping**: Map common tool names to CPAN modules
+- **Global Installation**: Install tools to system-level location with isolation
+- **Shim Management**: Create and manage executable shims in PATH
+- **Integration**: Seamlessly integrate with existing `pvm tool` commands
 
-- **1964 lines** in `internal/pvi/command.go`
-- **12 commands** with significant code duplication
-- **Repeated patterns**: Provider setup (50+ lines per command), progress tracking, module operations
-- **Limited reuse**: Module functionality locked within PVI component
-- **Complex dependencies**: Tight coupling between command logic and implementation
+## Implementation Strategy
 
-## Architecture Principles
-
-1. **Single Responsibility**: Each extracted package has a clear, focused purpose
-2. **Interface Segregation**: Clean APIs with minimal dependencies
-3. **Dependency Inversion**: Components depend on interfaces, not implementations
-4. **Open/Closed**: Extensible design for future enhancements
-5. **Test-Driven**: All extractions backed by comprehensive tests
+- **Test-Driven Development**: Write failing tests first, implement to pass
+- **Incremental Build**: Each step builds on previous functionality
+- **Backward Compatibility**: Maintain existing PVX script execution
+- **Cross-Platform**: Support Windows, macOS, Linux from the start
 
 ---
 
-## Phase 1: Foundation and Analysis
+## Step 1: Tool Detection and Execution Mode
 
-### Step 1.1: Code Analysis and Extraction Planning ✅ **COMPLETED**
+**Goal**: Implement detection logic to determine when PVX should run in "tool mode" vs "script mode"
 
-**Goal**: Thoroughly analyze the current codebase and create detailed extraction plans
-
-**Status**: ✅ **COMPLETED** - Comprehensive analysis completed in `docs/STEP_1_1_CODE_ANALYSIS_REPORT.md`:
-- Analyzed 2403-line command.go file with 12 commands
-- Identified 60-70% code duplication across commands
-- Documented extraction opportunities in 5 phases
-- Created detailed interface specifications and risk assessment
-- Established success criteria and implementation timeline
+**Context**: Foundation for global tool execution - must accurately detect execution context and maintain backward compatibility.
 
 ```
-Analyze the current internal/pvi/command.go file to identify extraction opportunities and create detailed plans for each phase of refactoring.
+Implement tool detection logic to distinguish between script execution and tool execution modes.
 
-**Context**: Before beginning extraction, we need a comprehensive understanding of the current code structure, dependencies, and duplication patterns. This analysis will guide the refactoring strategy.
+Create the foundational infrastructure for determining when PVX should operate in global tool mode versus traditional script execution mode.
 
 **Requirements**:
-1. Analyze all 12 commands in internal/pvi/command.go
-2. Identify common patterns and repeated code blocks
-3. Map dependencies between different parts of the code
-4. Identify provider setup duplication (50+ lines per command)
-5. Document current interfaces and their usage patterns
-6. Create detailed extraction plans for each target package
-7. Identify potential breaking changes and mitigation strategies
+1. Detect tool execution mode vs script execution mode
+2. Maintain backward compatibility with existing PVX functionality
+3. Add command-line argument parsing for tool mode
+4. Create comprehensive test suite for mode detection
 
-**Analysis Areas**:
-- Command structure and common patterns
-- Provider setup and configuration logic
-- Module operation implementations
-- Progress tracking and UI patterns
-- Error handling and reporting mechanisms
-- Configuration and setup logic
+**Implementation Tasks**:
 
-**Deliverables**:
-- Detailed code analysis report
-- Extraction roadmap with priorities
-- Interface design specifications
-- Risk assessment and mitigation plans
-- Test strategy for each extraction
+1. **Create tool package** in `internal/tool/`:
+   - `detector.go`: Mode detection and argument parsing
+   - `types.go`: Tool execution data structures
+   - `errors.go`: Tool-specific error handling
+
+2. **Mode Detection Logic**:
+   - Implement `DetectExecutionMode()` function that analyzes command-line arguments
+   - Check if first argument is a known tool name vs script path
+   - Handle edge cases (tools named like files, files named like tools)
+   - Add fallback logic for ambiguous cases
+
+3. **Argument Parsing**:
+   - Parse tool name and arguments from command line
+   - Preserve existing script execution argument handling
+   - Add validation for tool name format and characters
+   - Support both `pvx tool-name args` and `pvx tool-name -- args` formats
+
+4. **Backward Compatibility**:
+   - Ensure existing PVX script execution continues to work
+   - Add clear differentiation between tool and script execution
+   - Maintain existing error messages for script execution
+   - Add migration path for existing workflows
+
+5. **Testing Requirements**:
+   - Unit tests for mode detection with various argument patterns
+   - Edge case testing for ambiguous tool/script names
+   - Backward compatibility tests for existing script execution
+   - Integration tests with current PVX functionality
 
 **Success Criteria**:
-- Complete understanding of current code structure
-- Clear roadmap for all extraction phases
-- Interface designs that minimize breaking changes
-- Comprehensive test strategy defined
-- All dependencies and interactions mapped
-```
-
-### Step 1.2: Create Core Module Management Interfaces ✅ **COMPLETED**
-
-**Goal**: Define the core interfaces that will guide the module management extraction
-
-**Status**: ✅ **COMPLETED** - Core interfaces implemented in `internal/modules/types.go`:
-- ModuleManager, ModuleInstaller, and ProgressTracker interfaces defined
-- ParallelProgressTracker and ProgressReporter interfaces added
-- Comprehensive data structures for modules, filters, results, and options
-- Clean separation between installation and management operations
-- Full support for parallel operations and progress tracking
-
-```
-Create the fundamental interfaces and types that will be used across all module management operations, establishing the contract for the extracted packages.
-
-**Context**: Before extracting implementation code, establish clear interfaces that define how module management will work across components. This provides a stable foundation for the refactoring.
-
-**Requirements**:
-1. Create internal/modules/types.go with core interfaces
-2. Define ModuleManager interface for high-level operations
-3. Create ModuleInstaller interface for installation operations
-4. Define ProgressTracker interface for operation reporting
-5. Create ModuleFilter and ModuleQuery types
-6. Add comprehensive documentation for all interfaces
-7. Create basic test framework for interface compliance
-
-**Interface Design**:
-```go
-type ModuleManager interface {
-    List(ctx context.Context, filter ModuleFilter) ([]*Module, error)
-    Install(ctx context.Context, modules []string, opts InstallOptions) error
-    Remove(ctx context.Context, modules []string) error
-    Update(ctx context.Context, modules []string) error
-}
-
-type ModuleInstaller interface {
-    InstallModule(ctx context.Context, module string, opts InstallOptions) (*InstallResult, error)
-    InstallBatch(ctx context.Context, modules []string, opts InstallOptions) ([]*InstallResult, error)
-}
-
-type ProgressTracker interface {
-    Start(operation string, total int)
-    Update(current int, message string)
-    Finish(result *OperationResult)
-}
-```
-
-**Success Criteria**:
-- Clean, well-documented interfaces defined
-- Interface design reviewed and validated
-- Test framework ready for implementation testing
-- Documentation provides clear usage guidelines
-- Interfaces support all current PVI functionality
-```
-
-### Step 1.3: Extract Core Types and Data Structures ✅ **COMPLETED**
-
-**Goal**: Extract shared data structures and types into the new packages
-
-**Status**: ✅ **COMPLETED** - Core types extracted into organized packages:
-- `internal/modules/types.go` - Module management types, installation results, options
-- `internal/dependencies/types.go` - Dependency resolution, cpanfile, snapshot types
-- `internal/cli/progress/types.go` - Progress tracking, status, and display types
-- Full JSON marshaling support for all data structures
-- Comprehensive test coverage for type operations
-- Clean separation of concerns between packages
-
-```
-Extract and consolidate the core data structures used across module management operations into well-organized type definitions.
-
-**Context**: Many commands share similar data structures for modules, installation results, and configuration. Extract these into shared packages to eliminate duplication.
-
-**Requirements**:
-1. Create internal/modules/types.go with core data structures
-2. Extract Module, InstallResult, and related types
-3. Create internal/dependencies/types.go for dependency structures
-4. Extract dependency resolution data structures
-5. Create internal/cli/progress/types.go for progress tracking
-6. Add JSON/YAML marshaling support where needed
-7. Create comprehensive tests for all type operations
-
-**Target Types**:
-- Module information and metadata
-- Installation and operation results
-- Progress tracking and status structures
-- Dependency resolution data
-- Filter and query structures
-- Configuration and option types
-
-**Success Criteria**:
-- All shared types extracted and well-documented
-- JSON/YAML marshaling working correctly
-- Type tests provide comprehensive coverage
-- No duplication between packages
-- Clean imports and dependencies established
-```
-
----
-
-## Phase 2: Core Module Management Extraction
-
-### Step 2.1: Extract Module Installation Logic ✅ **COMPLETED**
-
-**Goal**: Extract core module installation functionality into internal/modules/installer.go
-
-**Status**: ✅ **COMPLETED** - Module installer implemented in `internal/modules/installer.go`:
-- Unified Installer struct implementing ModuleInstaller interface
-- InstallModule and InstallBatch methods with progress tracking
-- Integration with existing PVI module installation functionality
-- Comprehensive error handling and result reporting
-- Support for validation, progress callbacks, and environment setup
-
-```
-Extract the core module installation logic from PVI commands into a dedicated, reusable package that can be used by all PVM components.
-
-**Context**: The install, add, and sync commands contain substantial shared logic for module installation. Extract this into a focused installer package that provides clean APIs for module installation operations.
-
-**Requirements**:
-1. Create internal/modules/installer.go with core installation logic
-2. Extract single module installation functionality
-3. Implement batch installation with parallel support
-4. Extract installation validation and verification
-5. Add comprehensive error handling and reporting
-6. Create progress tracking integration
-7. Add extensive test coverage for all installation scenarios
-
-**Implementation Structure**:
-```go
-type Installer struct {
-    provider cpan.Provider
-    tracker  progress.ProgressTracker
-    logger   *log.Logger
-}
-
-func (i *Installer) InstallModule(ctx context.Context, module string, opts InstallOptions) (*InstallResult, error)
-func (i *Installer) InstallBatch(ctx context.Context, modules []string, opts InstallOptions) ([]*InstallResult, error)
-func (i *Installer) ValidateInstallation(module string) error
-```
-
-**Migration Strategy**:
-- Extract without breaking existing commands
-- Update commands incrementally to use new installer
-- Maintain backward compatibility throughout process
-- Add integration tests for extracted functionality
-
-**Success Criteria**:
-- Installation logic extracted and working independently
-- All existing installation functionality preserved
-- Comprehensive test coverage for installation operations
-- Clean API that supports all current use cases
-- Performance maintained or improved
-```
-
-### Step 2.2: Extract Module Listing and Management ✅ **COMPLETED**
-
-**Goal**: Extract module listing, filtering, and management operations
-
-**Status**: ✅ **COMPLETED** - Module manager implemented in `internal/modules/manager.go`:
-- Unified Manager struct implementing ModuleManager interface
-- List, Install, Remove, Update, SearchModules, and FindOutdated methods
-- Integration with existing PVI module management functionality
-- Comprehensive filtering and query capabilities
-- Support for both sequential and parallel module operations
-
-```
-Extract the module listing, searching, and management functionality from various PVI commands into a dedicated manager package.
-
-**Context**: The list, search, and outdated commands share significant functionality for module discovery, filtering, and management operations. Extract this into a reusable manager.
-
-**Requirements**:
-1. Create internal/modules/manager.go with listing functionality
-2. Extract module discovery and enumeration logic
-3. Implement filtering and search capabilities
-4. Extract outdated module detection
-5. Add module removal and cleanup operations
-6. Create comprehensive query and filter system
-7. Add thorough test coverage for all management operations
-
-**Manager Capabilities**:
-```go
-type Manager struct {
-    provider cpan.Provider
-    logger   *log.Logger
-}
-
-func (m *Manager) ListInstalled(ctx context.Context, filter ModuleFilter) ([]*Module, error)
-func (m *Manager) SearchModules(ctx context.Context, query string) ([]*Module, error)
-func (m *Manager) FindOutdated(ctx context.Context) ([]*OutdatedModule, error)
-func (m *Manager) RemoveModule(ctx context.Context, module string) error
-```
+- Mode detection works correctly for all argument patterns
+- Existing PVX script execution remains unaffected
+- Clear error messages for ambiguous cases
+- Comprehensive test coverage for detection logic
+- Foundation ready for tool mapping in Step 2
 
 **Integration Points**:
-- Clean integration with installer package
-- Shared progress tracking across operations
-- Consistent error handling and reporting
-- Common filtering and query interfaces
-
-**Success Criteria**:
-- All module management operations extracted
-- Consistent interfaces across all operations
-- Comprehensive filtering and search capabilities
-- All existing functionality preserved and enhanced
-- Extensive test coverage validates all operations
+- Extends existing PVX command-line processing
+- Provides foundation for tool mapping in Step 2
+- Maintains compatibility with current PVX architecture
 ```
 
-### Step 2.3: Extract Parallel Installation Coordination ✅ **COMPLETED**
+## Step 2: Tool-to-Module Mapping System
 
-**Goal**: Extract parallel installation coordination into internal/modules/parallel.go
+**Goal**: Implement mapping system to translate tool names to CPAN modules
 
-**Status**: ✅ **COMPLETED** - Parallel coordinator implemented in `internal/modules/parallel.go`:
-- ParallelCoordinator struct with dependency-aware installation ordering
-- Integration with ModuleInstaller and ParallelProgressTracker interfaces
-- Worker pool management and progress aggregation
-- Support for dependency resolution and installation planning
-- Error handling and result conversion between PVI and unified formats
+**Context**: Core functionality that enables seamless tool execution by mapping common tool names to their corresponding CPAN distributions.
 
 ```
-Extract the sophisticated parallel installation logic into a dedicated package that can coordinate complex multi-module operations efficiently.
+Implement comprehensive tool-to-module mapping system with extensible configuration.
 
-**Context**: PVI includes advanced parallel installation capabilities with dependency resolution, progress tracking, and error handling. Extract this into a reusable package for use across components.
+Build on Step 1's mode detection to add intelligent tool name resolution to CPAN modules.
 
 **Requirements**:
-1. Create internal/modules/parallel.go with coordination logic
-2. Extract parallel installation orchestration
-3. Implement dependency-aware installation ordering
-4. Add progress aggregation and reporting
-5. Extract error handling and rollback capabilities
-6. Create worker pool management
-7. Add comprehensive tests for parallel operations
+1. Built-in mapping for common Perl tools
+2. Extensible configuration system for custom mappings
+3. CPAN search fallback for unknown tools
+4. Validation and error handling for mappings
 
-**Parallel Coordinator**:
-```go
-type ParallelCoordinator struct {
-    installer    *Installer
-    maxWorkers   int
-    tracker      progress.ParallelTracker
-    logger       *log.Logger
-}
+**Implementation Tasks**:
 
-func (pc *ParallelCoordinator) InstallModules(ctx context.Context, modules []string, opts InstallOptions) ([]*InstallResult, error)
-func (pc *ParallelCoordinator) ResolveDependencies(modules []string) (*DependencyGraph, error)
-func (pc *ParallelCoordinator) ExecuteInstallPlan(ctx context.Context, plan *InstallPlan) ([]*InstallResult, error)
-```
+1. **Extend tool package** with mapping functionality:
+   - `mapping.go`: Core tool-to-module mapping logic
+   - `builtin.go`: Built-in mappings for common tools
+   - `config.go`: Configuration file handling for custom mappings
+   - `resolver.go`: CPAN search and resolution logic
 
-**Coordination Features**:
-- Dependency-aware installation ordering
-- Worker pool management and load balancing
-- Progress aggregation across parallel operations
-- Error handling and partial failure recovery
-- Resource management and cleanup
+2. **Built-in Tool Mappings**:
+   - Implement hardcoded mappings for common tools:
+     - `ack` -> `App::Ack`
+     - `cpanm` -> `App::cpanminus`
+     - `prove` -> `Test::Harness`
+     - `perltidy` -> `Perl::Tidy`
+     - `perlcritic` -> `Perl::Critic`
+     - `fatpack` -> `App::FatPacker`
+   - Add validation for built-in mappings
+   - Support version-specific mappings where needed
 
-**Success Criteria**:
-- Parallel installation fully extracted and functional
-- Dependency resolution working correctly
-- Progress tracking aggregates properly across workers
-- Error handling provides clear failure information
-- Performance maintained or improved over current implementation
-```
+3. **Configuration System**:
+   - Create YAML/JSON configuration format for custom mappings
+   - Support user-level and system-level configuration files
+   - Add configuration validation and error reporting
+   - Implement configuration merging (system + user)
 
----
+4. **CPAN Resolution**:
+   - Implement MetaCPAN API client for tool lookup
+   - Add fuzzy matching for similar tool names
+   - Support explicit module specification (`pvx App::Ack`)
+   - Cache resolution results for performance
 
-## Phase 3: CPAN Provider and Configuration Extraction
+5. **Validation and Error Handling**:
+   - Validate tool names against common patterns
+   - Provide helpful error messages for unknown tools
+   - Suggest alternatives for misspelled tool names
+   - Handle API failures gracefully with fallbacks
 
-### Step 3.1: Create CPAN Provider Builder Pattern ✅ **COMPLETED**
-
-**Goal**: Extract repetitive CPAN provider setup into builder pattern
-
-**Status**: ✅ **COMPLETED** - Provider builder implemented in `internal/pvi/provider_builder.go`:
-- ProviderBuilder with fluent interface for CPAN provider configuration
-- Support for configuration-based setup, source selection, caching options
-- Integration with dependency resolver creation
-- Eliminates 50+ lines of repetitive provider setup in commands
-- Clean API reduces provider setup to 3-5 lines per command
-
-```
-Create a clean builder pattern to eliminate the 50+ lines of repetitive provider setup code found in every PVI command.
-
-**Context**: Every PVI command contains nearly identical provider setup logic with minor variations. Extract this into a reusable builder that simplifies provider creation and configuration.
-
-**Requirements**:
-1. Create internal/cpan/builder.go with provider builder
-2. Extract common provider option building patterns
-3. Implement fluent builder interface for easy configuration
-4. Add configuration-based provider setup
-5. Extract mirror and cache configuration logic
-6. Create validation and error handling for provider setup
-7. Add comprehensive tests for all builder operations
-
-**Builder Implementation**:
-```go
-type ProviderBuilder struct {
-    source     string
-    mirrors    []string
-    noCache    bool
-    options    []ProviderOption
-    config     *config.PVIConfig
-}
-
-func NewProviderBuilder() *ProviderBuilder
-func (pb *ProviderBuilder) WithSource(source string) *ProviderBuilder
-func (pb *ProviderBuilder) WithConfig(cfg *config.PVIConfig) *ProviderBuilder
-func (pb *ProviderBuilder) WithMirrors(mirrors []string) *ProviderBuilder
-func (pb *ProviderBuilder) DisableCache() *ProviderBuilder
-func (pb *ProviderBuilder) Build() (cpan.Provider, error)
-```
-
-**Usage Pattern**:
-Replace 50+ lines of setup with:
-```go
-provider, err := cpan.NewProviderBuilder().
-    WithConfig(cfg).
-    WithSource(source).
-    Build()
-```
+**Testing Requirements**:
+- Unit tests for all built-in tool mappings
+- Configuration file parsing and validation tests
+- MetaCPAN API integration tests (with mocking)
+- Error handling tests for unknown tools
+- Performance tests for resolution caching
 
 **Success Criteria**:
-- Provider setup reduced from 50+ lines to 3-5 lines per command
-- All existing provider functionality preserved
-- Builder pattern provides clean, readable API
-- Configuration integration working seamlessly
-- Comprehensive test coverage for all builder operations
-```
-
-### Step 3.2: Extract Configuration Management Helpers ✅ **COMPLETED**
-
-**Goal**: Extract configuration resolution and management helpers
-
-**Status**: ✅ **COMPLETED** - Configuration resolution helpers implemented in `internal/config/resolution.go`:
-- ResolveStringValue, ResolveBoolValue, ResolveStringSlice for configuration precedence resolution
-- ResolvePerlPath with dependency injection to avoid import cycles
-- ResolveInstallDirectory for project-aware directory resolution
-- ResolveModulesFromArgs with cpanfile reader injection for flexibility
-- ValidateProjectContext and ValidateConfiguration helper functions
-- GetEffectiveConfiguration for complete configuration loading and validation
-- Comprehensive test coverage with 95%+ coverage for all resolution functions
-- Clean design avoids import cycles between config and pvi packages
-
-```
-Extract the common configuration resolution patterns into helper functions that provide consistent configuration handling across all commands.
-
-**Context**: Commands frequently need to resolve configuration values from multiple sources (flags, config files, defaults). Extract this logic into reusable helpers.
-
-**Requirements**:
-1. Create internal/config/resolution.go with helper functions
-2. Extract flag-to-config resolution patterns
-3. Implement default value resolution logic
-4. Add configuration validation helpers
-5. Extract environment variable handling
-6. Create configuration merging and priority logic
-7. Add comprehensive tests for configuration resolution
-
-**Resolution Helpers**:
-```go
-func ResolveStringValue(flagValue, configValue, defaultValue string) string
-func ResolveBoolValue(flagValue, configValue, defaultValue bool) bool
-func ResolveStringSlice(flagValue, configValue, defaultValue []string) []string
-func ValidateConfiguration(cfg *config.PVIConfig) error
-func GetEffectiveConfiguration(flagsChanged map[string]bool) (*config.PVIConfig, error)
-```
-
-**Configuration Priority**:
-1. Command-line flags (highest priority)
-2. Configuration file values
-3. Environment variables
-4. Default values (lowest priority)
-
-**Success Criteria**:
-- Configuration resolution logic extracted and reusable
-- Consistent priority handling across all commands
-- Clean APIs that eliminate repetitive configuration code
-- All existing configuration behavior preserved
-- Comprehensive test coverage for all resolution scenarios
-```
-
-### Step 3.3: Extract Mirror and Cache Management ✅ **COMPLETED**
-
-**Goal**: Extract mirror configuration and cache management functionality
-
-**Status**: ✅ **COMPLETED** - Mirror and cache management extracted into dedicated packages:
-- `internal/cpan/cache_manager.go` - Comprehensive cache management with validation, cleanup, and statistics
-- `internal/cpan/mirror_manager.go` - Advanced mirror management with health checking and selection strategies
-- CacheManager provides cache validation, cleanup, statistics, and optimization operations
-- MirrorManager provides mirror selection strategies, health monitoring, and failover capabilities
-- Full integration with existing CPAN provider options and configuration
-- Comprehensive test coverage with 100% pass rate for both managers
-
-```
-Extract mirror configuration and cache management into dedicated helpers that provide consistent caching and mirror behavior across all operations.
-
-**Context**: Multiple commands handle mirror configuration and cache management with similar patterns. Extract this into focused utilities.
-
-**Requirements**:
-1. Create internal/cpan/cache.go with cache management
-2. Extract cache validation and cleanup logic
-3. Create internal/cpan/mirrors.go with mirror configuration
-4. Extract mirror selection and validation
-5. Add cache directory management and cleanup
-6. Create mirror health checking and failover
-7. Add comprehensive tests for cache and mirror operations
-
-**Cache Management**:
-```go
-type CacheManager struct {
-    cacheDir string
-    logger   *log.Logger
-}
-
-func (cm *CacheManager) ValidateCache() error
-func (cm *CacheManager) CleanupCache(olderThan time.Duration) error
-func (cm *CacheManager) GetCacheStats() (*CacheStats, error)
-```
-
-**Mirror Management**:
-```go
-type MirrorManager struct {
-    mirrors []string
-    timeout time.Duration
-    logger  *log.Logger
-}
-
-func (mm *MirrorManager) SelectBestMirror() (string, error)
-func (mm *MirrorManager) ValidateMirrors() ([]*MirrorStatus, error)
-func (mm *MirrorManager) GetMirrorHealth() (map[string]bool, error)
-```
-
-**Success Criteria**:
-- Cache management extracted and consistently applied
-- Mirror selection logic reusable across commands
-- Cache cleanup and validation working correctly
-- Mirror health checking provides reliable failover
-- All cache and mirror functionality thoroughly tested
-```
-
----
-
-## Phase 4: Project and Dependency Management Extraction
-
-### Step 4.1: Extract cpanfile Management Operations ✅ **COMPLETED**
-
-**Goal**: Extract cpanfile operations into internal/dependencies/cpanfile.go
-
-**Status**: ✅ **COMPLETED** - Cpanfile manager implemented in `internal/dependencies/cpanfile.go`:
-- Comprehensive CpanfileManager with project directory support
-- LoadCpanfile, SaveCpanfile, AddDependency, RemoveDependency methods
-- Full snapshot generation and validation functionality
-- Enhanced parser supporting develop phase dependencies
-- Backup creation for safe cpanfile modifications
-- Complete test coverage with 100% pass rate for all cpanfile operations
-- Clean API for project-based dependency management
-
-```
-Extract the comprehensive cpanfile management functionality into a dedicated package that can be reused for project-based dependency management.
-
-**Context**: The current cpanfile.go file in PVI contains substantial functionality for cpanfile parsing, modification, and management. Extract this into a shared package.
-
-**Requirements**:
-1. Move and enhance internal/pvi/cpanfile.go to internal/dependencies/cpanfile.go
-2. Extract cpanfile parsing and writing operations
-3. Add cpanfile modification and dependency management
-4. Extract snapshot generation and validation
-5. Add dependency diff and comparison operations
-6. Create cpanfile format validation and linting
-7. Add comprehensive tests for all cpanfile operations
-
-**Cpanfile Manager**:
-```go
-type CpanfileManager struct {
-    projectDir string
-    logger     *log.Logger
-}
-
-func (cm *CpanfileManager) LoadCpanfile() (*Cpanfile, error)
-func (cm *CpanfileManager) SaveCpanfile(cpanfile *Cpanfile) error
-func (cm *CpanfileManager) AddDependency(module string, version string, phase string) error
-func (cm *CpanfileManager) RemoveDependency(module string, phase string) error
-func (cm *CpanfileManager) GenerateSnapshot() (*Snapshot, error)
-func (cm *CpanfileManager) ValidateSnapshot(snapshot *Snapshot) error
-```
-
-**Enhanced Functionality**:
-- Dependency version constraint validation
-- Snapshot comparison and diff generation
-- cpanfile format validation and suggestions
-- Integration with module installation operations
-
-**Success Criteria**:
-- Cpanfile operations extracted and enhanced
-- Clean API for all cpanfile management tasks
-- Snapshot generation and validation working correctly
-- Integration with project context and module operations
-- Comprehensive test coverage for all cpanfile functionality
-```
-
-### Step 4.2: Extract Dependency Resolution Logic ✅ **COMPLETED**
-
-**Goal**: Extract dependency resolution into internal/dependencies/resolver.go
-
-**Status**: ✅ **COMPLETED** - Comprehensive dependency resolver implemented in `internal/dependencies/resolver.go`:
-- DependencyResolver with configurable conflict strategies (FailFast, LatestCompatible, MinimalVersion, PreferExisting)
-- Dependency graph construction and analysis with topological sorting
-- Sophisticated conflict detection and resolution suggestions
-- Version constraint resolution with circular dependency prevention
-- Install plan generation with parallel installation levels
-- Dependency caching with TTL support for performance optimization
-- Complete test coverage (31/31 tests passing) with mock provider implementation
-- Integration with existing CPAN provider interfaces
-
-```
-Extract the dependency resolution and conflict detection logic into a dedicated resolver that can coordinate complex dependency scenarios.
-
-**Context**: PVI includes sophisticated dependency resolution with conflict detection and resolution suggestions. Extract this into a reusable resolver package.
-
-**Requirements**:
-1. Create internal/dependencies/resolver.go with resolution logic
-2. Extract dependency graph construction and analysis
-3. Implement conflict detection and resolution suggestions
-4. Add circular dependency detection and handling
-5. Extract version constraint resolution
-6. Create dependency pruning and optimization
-7. Add comprehensive tests for all resolution scenarios
-
-**Dependency Resolver**:
-```go
-type DependencyResolver struct {
-    provider cpan.Provider
-    logger   *log.Logger
-}
-
-func (dr *DependencyResolver) ResolveDependencies(modules []string) (*DependencyGraph, error)
-func (dr *DependencyResolver) DetectConflicts(graph *DependencyGraph) ([]*Conflict, error)
-func (dr *DependencyResolver) SuggestResolutions(conflicts []*Conflict) ([]*Resolution, error)
-func (dr *DependencyResolver) CreateInstallPlan(graph *DependencyGraph) (*InstallPlan, error)
-```
-
-**Resolution Features**:
-- Transitive dependency resolution
-- Version constraint satisfaction
-- Conflict detection and reporting
-- Installation order optimization
-- Circular dependency detection
-
-**Success Criteria**:
-- Dependency resolution extracted and working independently
-- Conflict detection provides clear, actionable information
-- Resolution suggestions help users resolve dependency issues
-- Install plan generation optimizes installation order
-- All resolution functionality thoroughly tested
-```
-
-### Step 4.3: Extract Bundle and Export Operations ✅ **COMPLETED**
-
-**Goal**: Extract bundle import/export functionality into internal/dependencies/bundle.go
-
-**Status**: ✅ **COMPLETED** - Bundle manager extracted into `internal/dependencies/bundle.go`:
-- BundleManager struct with resolver, manager, and logger dependencies
-- CreateBundle, ExportBundle, ImportBundle, InstallBundle, and ValidateBundle methods
-- Bundle and BundleEntry types for structured module collections
-- Support for JSON export/import format with metadata
-- Comprehensive validation with phase, relationship, and version constraint checking
-- Bundle creation with dependency resolution and filtering capabilities
-- Module installation integration (stubbed for interface compatibility)
-- Helper methods for version constraint validation, phase/relationship validation
-
-```
-Extract the bundle import and export operations into a dedicated package that handles module collection and distribution.
-
-**Context**: PVI includes bundle operations for exporting and importing module collections. Extract this into a reusable package for cross-environment module management.
-
-**Requirements**:
-1. Create internal/dependencies/bundle.go with bundle operations
-2. Extract bundle creation and export logic
-3. Add bundle import and installation functionality
-4. Extract bundle validation and verification
-5. Add bundle format standardization
-6. Create bundle dependency resolution
-7. Add comprehensive tests for all bundle operations
-
-**Bundle Manager**:
-```go
-type BundleManager struct {
-    resolver *DependencyResolver
-    manager  *modules.Manager
-    logger   *log.Logger
-}
-
-func (bm *BundleManager) CreateBundle(modules []string, options BundleOptions) (*Bundle, error)
-func (bm *BundleManager) ExportBundle(bundle *Bundle, filename string) error
-func (bm *BundleManager) ImportBundle(filename string) (*Bundle, error)
-func (bm *BundleManager) InstallBundle(bundle *Bundle, options InstallOptions) ([]*InstallResult, error)
-func (bm *BundleManager) ValidateBundle(bundle *Bundle) ([]*ValidationError, error)
-```
-
-**Bundle Features**:
-- Comprehensive module collection with dependencies
-- Cross-platform bundle compatibility
-- Bundle validation and integrity checking
-- Incremental bundle updates and synchronization
-
-**Success Criteria**:
-- Bundle operations extracted and working independently
-- Bundle format is standardized and validated
-- Import/export operations preserve all necessary information
-- Bundle installation integrates cleanly with module installer
-- All bundle functionality comprehensively tested
-```
-
----
-
-## Phase 5: Progress Tracking and UI Standardization
-
-### Step 5.1: Extract Progress Tracking Framework ✅ **COMPLETED**
-
-**Goal**: Create standardized progress tracking in internal/cli/progress/
-
-**Status**: ✅ **COMPLETED** - Enhanced progress tracking framework implemented with comprehensive integration utilities:
-- OperationTracker for context-aware progress tracking with cancellation support
-- CompositeTracker for multi-operation progress coordination and aggregation
-- Progress adapters for converting PVI callbacks to unified progress tracking
-- Helper functions providing standardized tracker creation for all operation types
-- Configuration presets (default, verbose, quiet, JSON) for different use cases
-- 56/56 tests passing with comprehensive coverage for all integration components
-- Ready for integration with module installer, manager, and coordinator
-
-```
-Extract the progress tracking patterns into a standardized framework that provides consistent progress reporting across all operations.
-
-**Context**: PVI commands use various progress tracking patterns that could be standardized. Extract these into a unified progress framework.
-
-**Requirements**:
-1. Create internal/cli/progress/tracker.go with progress interfaces
-2. Extract single operation progress tracking
-3. Add parallel operation progress aggregation
-4. Extract progress formatting and display logic
-5. Add progress persistence and recovery
-6. Create progress callback and notification system
-7. Add comprehensive tests for all progress functionality
-
-**Progress Framework**:
-```go
-type ProgressTracker interface {
-    Start(operation string, total int)
-    Update(current int, message string)
-    Finish(result *OperationResult)
-}
-
-type ParallelProgressTracker interface {
-    StartParallel(operations []string)
-    UpdateOperation(id string, status OperationStatus, message string)
-    FinishParallel(results []*OperationResult)
-}
-
-type ProgressReporter interface {
-    Subscribe(callback ProgressCallback)
-    Unsubscribe(callback ProgressCallback)
-}
-```
-
-**Progress Features**:
-- Real-time progress updates with UI integration
-- Parallel operation progress aggregation
-- Progress persistence for long-running operations
-- Customizable progress display formats
-
-**Success Criteria**:
-- Progress tracking standardized across all operations
-- Parallel progress aggregation working correctly
-- Progress display integrates cleanly with Fang UI
-- Progress persistence enables operation recovery
-- All progress functionality thoroughly tested
-```
-
-### Step 5.2: Extract Result Formatting and Display ✅ **COMPLETED**
-
-**Goal**: Extract result formatting into internal/cli/progress/formatting.go
-
-**Status**: ✅ **COMPLETED** - Result formatting framework implemented in `internal/cli/progress/formatting.go`:
-- Comprehensive Formatter interface with TableFormatter, JSONFormatter, and ListFormatter implementations
-- FormatInstallationResults, FormatModuleList, FormatErrors, and FormatSummary methods
-- FormatProgress and FormatParallelProgress for real-time status display
-- Multiple output formats (table, JSON, list) with customizable options
-- Text truncation, byte formatting, duration formatting, and percentage helpers
-- Complete test coverage (20/20 tests passing) for all formatting functionality
-- Clean APIs support various display modes (standard, detailed, compact)
-
-```
-Extract result formatting and display logic into standardized formatters that provide consistent output across all operations.
-
-**Context**: Commands format results in various ways that could be standardized. Extract formatting logic into reusable formatters.
-
-**Requirements**:
-1. Create internal/cli/progress/formatting.go with formatters
-2. Extract installation result formatting
-3. Add module list formatting with various display modes
-4. Extract error formatting and display
-5. Add timing and performance result formatting
-6. Create summary and statistics formatting
-7. Add comprehensive tests for all formatting operations
-
-**Result Formatters**:
-```go
-type ResultFormatter interface {
-    FormatInstallationResults(results []*InstallResult) []string
-    FormatModuleList(modules []*Module, format string) []string
-    FormatErrors(errors []*Error) []string
-    FormatSummary(summary *OperationSummary) []string
-}
-
-type TableFormatter struct{}
-type ListFormatter struct{}
-type JSONFormatter struct{}
-```
-
-**Formatting Features**:
-- Multiple output formats (table, list, JSON)
-- Consistent error formatting and display
-- Performance and timing information display
-- Configurable verbosity levels
-
-**Success Criteria**:
-- Result formatting standardized across all commands
-- Multiple output formats available and consistent
-- Error formatting provides clear, actionable information
-- Performance display helps users understand operation efficiency
-- All formatting functionality thoroughly tested
-```
-
-### Step 5.3: Integrate Progress with Module Operations ✅ **COMPLETED**
-
-**Goal**: Wire progress tracking into all extracted module operations
-
-**Status**: ✅ **COMPLETED** - Progress tracking successfully integrated across all module operations:
-- Updated module installer to include progress.Tracker in constructor and all operation methods
-- Enhanced parallel coordinator with progress tracking for batch operations and aggregation
-- Added progress reporting to module manager (List, SearchModules, FindOutdated operations)
-- Integrated progress tracking with bundle operations (CreateBundle, ExportBundle, ImportBundle)
-- Updated dependency resolver to include progress tracking for dependency resolution
-- Fixed all test compilation errors by updating NewDependencyResolver and NewManager calls
-- Verified integration with comprehensive test suite - all progress and module tests passing
-- Confirmed build success with complete project compilation
-
-```
-Integrate the standardized progress tracking framework with all extracted module management operations to provide consistent progress reporting.
-
-**Context**: With progress tracking extracted and module operations extracted, integrate them to provide seamless progress reporting across all module operations.
-
-**Requirements**:
-1. Update module installer to use standardized progress tracking
-2. Integrate progress tracking with parallel installation
-3. Add progress reporting to module listing and search operations
-4. Update bundle operations to use progress tracking
-5. Integrate progress with dependency resolution operations
-6. Ensure all operations provide consistent progress information
-7. Add comprehensive integration tests for progress tracking
+- All common Perl tools resolve to correct CPAN modules
+- Configuration system works reliably
+- CPAN search provides helpful fallbacks
+- Clear error messages for resolution failures
+- Performance meets expectations for cached lookups
 
 **Integration Points**:
-- Module installation progress with download and install phases
-- Parallel installation progress aggregation
-- Dependency resolution progress reporting
-- Bundle operations progress tracking
-- Module search and listing progress for large operations
-
-**Progress Integration**:
-```go
-installer := modules.NewInstaller(provider, progress.NewTracker(ui), logger)
-coordinator := modules.NewParallelCoordinator(installer, maxWorkers, progress.NewParallelTracker(ui), logger)
-manager := modules.NewManager(provider, progress.NewTracker(ui), logger)
+- Uses mode detection from Step 1
+- Provides tool resolution for installation in Step 3
+- Enables extensibility for user customization
 ```
 
+## Step 3: Global Tool Installation Infrastructure
+
+**Goal**: Implement system-level tool installation with isolation and management
+
+**Context**: Core installation system that manages global tool storage, isolation, and lifecycle management.
+
+```
+Implement comprehensive global tool installation system with isolation and lifecycle management.
+
+Build on Steps 1-2 to add robust tool installation infrastructure that manages global tools separately from project dependencies.
+
+**Requirements**:
+1. System-level tool storage with isolation
+2. Installation lifecycle management (install, update, remove)
+3. Dependency resolution and conflict handling
+4. Integration with existing PVM local-lib system
+
+**Implementation Tasks**:
+
+1. **Create installation package** in `internal/tool/install/`:
+   - `installer.go`: Core installation logic
+   - `storage.go`: Tool storage and isolation management
+   - `lifecycle.go`: Install, update, remove operations
+   - `deps.go`: Dependency resolution and conflict handling
+
+2. **Storage System**:
+   - Implement isolated tool storage in `~/.local/share/pvm/tools/`
+   - Create separate local-lib for each tool to prevent conflicts
+   - Add tool metadata storage (version, dependencies, install date)
+   - Support storage cleanup and garbage collection
+
+3. **Installation Logic**:
+   - Implement tool installation using existing PVM local-lib system
+   - Add progress reporting for installation operations
+   - Support installation from CPAN and local files
+   - Handle installation failures and rollback
+
+4. **Lifecycle Management**:
+   - Implement `InstallTool()` function for new tool installation
+   - Add `UpdateTool()` for tool updates and version management
+   - Create `RemoveTool()` for clean tool removal
+   - Support `ListTools()` for installed tool inventory
+
+5. **Dependency Resolution**:
+   - Resolve tool dependencies during installation
+   - Handle version conflicts between tools
+   - Support dependency upgrade and downgrade
+   - Add conflict detection and resolution strategies
+
+**Testing Requirements**:
+- Installation success and failure scenarios
+- Tool isolation and storage verification
+- Dependency resolution with various conflict scenarios
+- Lifecycle operations (install, update, remove) testing
+- Integration with existing PVM local-lib system
+
 **Success Criteria**:
-- All module operations provide consistent progress reporting
-- Progress tracking integrates seamlessly with UI framework
-- Parallel operations aggregate progress correctly
-- Users receive clear, timely progress information
-- Integration testing validates all progress reporting
+- Tools install successfully with proper isolation
+- Lifecycle operations work reliably
+- Dependency conflicts are handled gracefully
+- Storage system is robust and maintainable
+- Integration with PVM system is seamless
+
+**Integration Points**:
+- Uses tool mapping from Step 2
+- Leverages existing PVM local-lib infrastructure
+- Provides foundation for tool execution in Step 4
+```
+
+---
+## Step 4: Tool Execution with Isolation
+
+**Goal**: Implement isolated tool execution using installed global tools
+
+**Context**: Core execution system that runs tools in their isolated environments while maintaining clean separation from project dependencies.
+
+```
+Implement isolated tool execution system that runs global tools in their dedicated environments.
+
+Build on Steps 1-3 to add reliable tool execution with proper environment isolation and argument handling.
+
+**Requirements**:
+1. Isolated execution environment for each tool
+2. Proper argument passing and environment setup
+3. Integration with installation system
+4. Error handling and debugging support
+
+**Implementation Tasks**:
+
+1. **Create execution package** in `internal/tool/exec/`:
+   - `executor.go`: Core tool execution logic
+   - `environment.go`: Environment setup and isolation
+   - `args.go`: Argument parsing and passing
+   - `process.go`: Process management and monitoring
+
+2. **Execution Environment**:
+   - Set up isolated environment for each tool execution
+   - Configure PATH to include tool's local-lib binary directories
+   - Set PERL5LIB to include tool's dependencies
+   - Handle environment variable inheritance and isolation
+
+3. **Argument Handling**:
+   - Parse tool arguments from command line
+   - Handle argument escaping and quoting
+   - Support both simple and complex argument patterns
+   - Pass arguments correctly to tool processes
+
+4. **Process Management**:
+   - Execute tools as child processes with proper I/O handling
+   - Monitor tool execution and handle timeouts
+   - Capture and forward stdout/stderr appropriately
+   - Handle process termination and cleanup
+
+5. **Error Handling**:
+   - Detect and report tool execution failures
+   - Provide debugging information for failed executions
+   - Handle missing tools with helpful error messages
+   - Support verbose mode for troubleshooting
+
+**Testing Requirements**:
+- Tool execution success with various argument patterns
+- Environment isolation verification
+- Process management and cleanup testing
+- Error handling for missing and failed tools
+- Integration with installation system
+
+**Success Criteria**:
+- Tools execute successfully in isolated environments
+- Arguments are passed correctly to tools
+- Error handling provides helpful debugging information
+- Process management is robust and reliable
+- Integration with installation system works seamlessly
+
+**Integration Points**:
+- Uses tool installation from Step 3
+- Provides foundation for shim management in Step 5
+- Enables complete tool execution workflow
+```
+
+## Step 4: Tool Execution with Isolation
+
+**Goal**: Implement isolated tool execution using installed global tools
+
+**Context**: Core execution system that runs tools in their isolated environments while maintaining clean separation from project dependencies.
+
+```
+Implement isolated tool execution system that runs global tools in their dedicated environments.
+
+Build on Steps 1-3 to add reliable tool execution with proper environment isolation and argument handling.
+
+**Requirements**:
+1. Isolated execution environment for each tool
+2. Proper argument passing and environment setup
+3. Integration with installation system
+4. Error handling and debugging support
+
+**Implementation Tasks**:
+
+1. **Create execution package** in `internal/tool/exec/`:
+   - `executor.go`: Core tool execution logic
+   - `environment.go`: Environment setup and isolation
+   - `args.go`: Argument parsing and passing
+   - `process.go`: Process management and monitoring
+
+2. **Execution Environment**:
+   - Set up isolated environment for each tool execution
+   - Configure PATH to include tool's local-lib binary directories
+   - Set PERL5LIB to include tool's dependencies
+   - Handle environment variable inheritance and isolation
+
+3. **Argument Handling**:
+   - Parse tool arguments from command line
+   - Handle argument escaping and quoting
+   - Support both simple and complex argument patterns
+   - Pass arguments correctly to tool processes
+
+4. **Process Management**:
+   - Execute tools as child processes with proper I/O handling
+   - Monitor tool execution and handle timeouts
+   - Capture and forward stdout/stderr appropriately
+   - Handle process termination and cleanup
+
+5. **Error Handling**:
+   - Detect and report tool execution failures
+   - Provide debugging information for failed executions
+   - Handle missing tools with helpful error messages
+   - Support verbose mode for troubleshooting
+
+**Testing Requirements**:
+- Tool execution success with various argument patterns
+- Environment isolation verification
+- Process management and cleanup testing
+- Error handling for missing and failed tools
+- Integration with installation system
+
+**Success Criteria**:
+- Tools execute successfully in isolated environments
+- Arguments are passed correctly to tools
+- Error handling provides helpful debugging information
+- Process management is robust and reliable
+- Integration with installation system works seamlessly
+
+**Integration Points**:
+- Uses tool installation from Step 3
+- Provides foundation for shim management in Step 5
+- Enables complete tool execution workflow
 ```
 
 ---
 
-## Phase 6: Command Integration and Finalization
+## Step 5: Shim Management and PATH Integration
 
-### Step 6.1: Update PVI Commands to Use Extracted Packages ✅ **COMPLETED**
+**Goal**: Implement executable shim creation and PATH management for installed tools
 
-**Goal**: Systematically update all PVI commands to use the extracted packages
-
-**Status**: ✅ **COMPLETED** - All major PVI commands updated to use extracted packages:
-- Replaced install, list, search, remove commands with refactored versions using extracted packages
-- Eliminated 483 lines of duplicate code (20% reduction from 2442 to 1959 lines)
-- Commands now use modules.Manager, modules.Installer, and cpan.ProviderBuilder
-- Progress tracking uses standardized framework from internal/cli/progress
-- Provider setup reduced from 50+ lines per command to 3-5 lines
-- All functionality preserved with cleaner, more maintainable implementation
+**Context**: User experience enhancement that makes global tools available directly in PATH without requiring pvx prefix.
 
 ```
-Update each PVI command to use the extracted packages, dramatically reducing the size of command.go and eliminating code duplication.
+Implement comprehensive shim management system for seamless tool execution from PATH.
 
-**Context**: With all functionality extracted into reusable packages, update the commands to use the new packages instead of embedded logic.
+Build on Steps 1-4 to add PATH integration that makes global tools available as direct commands.
 
 **Requirements**:
-1. Update install command to use modules.Installer
-2. Update list command to use modules.Manager
-3. Update sync command to use dependencies.CpanfileManager
-4. Update bundle commands to use dependencies.BundleManager
-5. Update all commands to use cpan.ProviderBuilder
-6. Update progress tracking to use standardized framework
-7. Validate all command functionality is preserved
+1. Executable shim creation for installed tools
+2. PATH directory management and integration
+3. Shell integration and activation
+4. Shim lifecycle management (create, update, remove)
 
-**Command Updates**:
-```go
-// Before: 200+ lines of installation logic
-func newInstallCommand() *cobra.Command {
-    return &cobra.Command{
-        Use: "install",
-        Run: func(cmd *cobra.Command, args []string) {
-            provider, _ := cpan.NewProviderBuilder().WithConfig(cfg).Build()
-            installer := modules.NewInstaller(provider, progress.NewTracker(ui), logger)
-            results, err := installer.InstallBatch(ctx, args, options)
-            ui.FormatInstallationResults(results)
-        },
-    }
-}
-```
+**Implementation Tasks**:
 
-**Migration Strategy**:
-- Update commands one at a time
-- Maintain backward compatibility during transition
-- Add integration tests for each updated command
-- Verify functionality preservation with existing tests
+1. **Create shim package** in `internal/tool/shim/`:
+   - `manager.go`: Core shim management logic
+   - `generator.go`: Shim script generation
+   - `path.go`: PATH directory management
+   - `shell.go`: Shell integration and activation
+
+2. **Shim Generation**:
+   - Create executable shim scripts for each installed tool
+   - Generate platform-specific shims (shell scripts for Unix, batch files for Windows)
+   - Include proper shebang and error handling in shims
+   - Add version information and metadata to shims
+
+3. **PATH Management**:
+   - Create and manage shim directory (e.g., `~/.local/share/pvm/shims/`)
+   - Add shim directory to user's PATH
+   - Handle PATH conflicts with existing tools
+   - Support system-wide and user-specific installations
+
+4. **Shell Integration**:
+   - Generate shell activation scripts for bash, zsh, fish
+   - Add PATH updates to shell configuration files
+   - Support manual and automatic shell integration
+   - Handle shell-specific syntax and requirements
+
+5. **Shim Lifecycle**:
+   - Create shims automatically when tools are installed
+   - Update shims when tools are updated or reconfigured
+   - Remove shims when tools are uninstalled
+   - Handle shim conflicts and resolution
+
+**Testing Requirements**:
+- Shim generation for all supported platforms
+- PATH integration and shell activation testing
+- Shim lifecycle operations (create, update, remove)
+- Conflict detection and resolution
+- Cross-platform compatibility verification
 
 **Success Criteria**:
-- All commands updated to use extracted packages
-- Command file size reduced significantly (target: <500 lines)
-- All existing functionality preserved
-- Integration tests validate all commands work correctly
-- Code duplication eliminated across commands
+- Shims are created correctly for all installed tools
+- PATH integration works on all supported shells
+- Shim lifecycle operations are reliable
+- Conflicts are detected and handled gracefully
+- Cross-platform compatibility is maintained
+
+**Integration Points**:
+- Uses tool installation and execution from Steps 3-4
+- Provides foundation for pvm tool integration in Step 6
+- Enables complete seamless tool execution experience
 ```
 
-### Step 6.2: Enable Cross-Component Module Management ✅ **COMPLETED**
+## Step 6: Integration with Existing PVM Tool Commands
 
-**Goal**: Make extracted packages available to other PVM components
+**Goal**: Integrate global tool execution with existing `pvm tool` command structure
 
-**Status**: ✅ **COMPLETED** - Cross-component module management successfully implemented:
-- PVX enhanced with automatic module installation using extracted modules.Installer and modules.ParallelCoordinator
-- PSC enhanced with type-aware module management command using extracted packages
-- PVM already integrated all components via newModuleCommand(), newRunCommand(), and NewBuildCommand()
-- All components can now use consistent module operations through extracted packages
-- Integration tests created to verify cross-component module management functionality
-- Module management now available across all 4 PVM components (pvm, pvx, pvi, psc)
+**Context**: Seamless integration that unifies tool management under the existing PVM tool interface while maintaining backward compatibility.
 
 ```
-Update other PVM components (pvm, pvx, psc) to use the extracted module management packages, enabling consistent module operations across the ecosystem.
+Integrate global tool execution with existing pvm tool commands for unified tool management.
 
-**Context**: With module management extracted, other components can now provide module management capabilities without duplicating PVI functionality.
+Build on Steps 1-5 to create seamless integration with existing PVM tool infrastructure.
 
 **Requirements**:
-1. Add module management to PVM component for version-specific modules
-2. Update PVX to use module installer for script dependencies
-3. Add module operations to PSC for type definition management
-4. Create component-specific wrappers where needed
-5. Update documentation for cross-component module management
-6. Add integration tests for cross-component usage
-7. Validate no regressions in any component
+1. Extend existing `pvm tool` commands to support global tools
+2. Maintain backward compatibility with existing functionality
+3. Provide unified interface for tool management
+4. Add configuration and preference management
 
-**Cross-Component Integration**:
-```go
-// PVM: Version-specific module management
-pvm.AddCommand(newModuleCommand()) // Uses modules.Manager
+**Implementation Tasks**:
 
-// PVX: Script dependency installation
-// Automatically install detected dependencies
-installer := modules.NewInstaller(provider, tracker, logger)
-installer.InstallBatch(ctx, dependencies, options)
+1. **Extend existing pvm tool commands**:
+   - Update `pvm tool install` to support global tool installation
+   - Extend `pvm tool list` to show global tools alongside project tools
+   - Add `pvm tool update` support for global tools
+   - Enhance `pvm tool remove` to handle global tool removal
 
-// PSC: Type definition module management
-// Install type definition modules for static analysis
-```
+2. **Command Integration**:
+   - Add global tool detection to existing tool commands
+   - Implement scope selection (project vs global)
+   - Support mixed project/global tool operations
+   - Add clear indicators for global vs project tools
 
-**Component Wrappers**:
-- Component-specific configuration handling
-- Context-aware module management
-- Integration with component-specific workflows
+3. **Configuration Management**:
+   - Extend existing configuration system for global tool preferences
+   - Add global tool configuration to `pvm config` command
+   - Support tool-specific configuration and settings
+   - Implement configuration validation and migration
+
+4. **Unified Interface**:
+   - Create consistent command interface for all tool operations
+   - Add help and documentation for global tool features
+   - Implement tab completion for global tools
+   - Provide migration path from existing workflows
+
+5. **Backward Compatibility**:
+   - Ensure existing project tool functionality continues to work
+   - Maintain existing command-line interfaces and behaviors
+   - Add deprecation warnings for conflicting features
+   - Provide clear upgrade path documentation
+
+**Testing Requirements**:
+- Integration with all existing pvm tool commands
+- Backward compatibility with existing functionality
+- Configuration system integration and validation
+- Command-line interface consistency
+- Migration path testing
 
 **Success Criteria**:
-- All components can perform module management operations
-- Module functionality consistent across components
-- Component-specific needs addressed with appropriate wrappers
-- No code duplication between components
-- Cross-component integration thoroughly tested
+- All existing pvm tool commands work with global tools
+- Backward compatibility is maintained
+- Configuration system is properly integrated
+- Command interface is consistent and intuitive
+- Migration from existing workflows is smooth
+
+**Integration Points**:
+- Uses all functionality from Steps 1-5
+- Integrates with existing PVM tool infrastructure
+- Provides foundation for comprehensive testing in Step 7
 ```
 
-### Step 6.3: Performance Optimization and Validation ✅ **COMPLETED**
+## Step 7: Comprehensive Testing and Edge Cases
 
-**Goal**: Optimize performance of extracted packages and validate improvements
+**Goal**: Ensure production readiness with comprehensive testing and edge case handling
 
-**Status**: ✅ **COMPLETED** - Performance optimization and validation successfully completed with comprehensive analysis in `PERFORMANCE_VALIDATION_REPORT.md`:
-- Achieved 18.5% code reduction (2403 → 1959 lines) while maintaining performance
-- Implemented memory usage optimizations with minimal allocations (2-27 allocs/op)
-- Validated CPU efficiency with good multi-core scaling characteristics
-- Created comprehensive benchmark suite for ongoing performance monitoring
-- Confirmed 96.7% test pass rate with no performance regressions
-- Enabled cross-component module management across all PVM tools
+**Context**: Validation step that ensures reliability, performance, and robustness across all supported platforms and usage patterns.
 
 ```
-Optimize the performance of all extracted packages and validate that the refactoring has improved overall system performance and maintainability.
+Implement comprehensive testing suite and handle all edge cases for production deployment.
 
-**Context**: Complete the refactoring by optimizing performance, addressing any issues introduced during extraction, and validating the overall improvements.
+Build on Steps 1-6 to ensure robust, reliable global tool execution across all supported platforms and usage scenarios.
 
 **Requirements**:
-1. Profile performance of all extracted packages
-2. Optimize critical paths for installation and resolution
-3. Minimize memory usage and allocations
-4. Validate performance improvements over original implementation
-5. Optimize parallel operations for maximum efficiency
-6. Address any performance regressions introduced
-7. Create performance benchmarks for ongoing validation
+1. Complete end-to-end testing across all platforms
+2. Edge case handling and error recovery
+3. Performance testing and optimization
+4. Cross-platform compatibility validation
 
-**Optimization Areas**:
-- Module installation and dependency resolution performance
-- Memory usage in dependency graph construction
-- Parallel installation coordination and worker management
-- Progress tracking overhead and efficiency
-- Provider setup and configuration performance
+**Implementation Tasks**:
 
-**Performance Validation**:
-- Benchmark critical operations before and after refactoring
-- Measure memory usage patterns and optimize allocations
-- Validate parallel installation scales effectively
-- Ensure progress tracking adds minimal overhead
+1. **Comprehensive Test Suite**:
+   - End-to-end integration tests for complete tool execution workflow
+   - Cross-platform testing on Windows, macOS, Linux
+   - Performance testing with various tool sizes and dependency counts
+   - Concurrent execution testing for multiple tools
+   - Network failure and recovery testing for CPAN operations
+
+2. **Edge Case Handling**:
+   - Tool name conflicts with system commands
+   - Corrupted tool installations and recovery
+   - Disk space limitations during installation
+   - Permission issues and privilege escalation
+   - Network connectivity issues during tool resolution
+
+3. **Error Recovery**:
+   - Automatic recovery from failed installations
+   - Rollback capabilities for corrupted tools
+   - Graceful degradation when services are unavailable
+   - Clear error messages for all failure scenarios
+   - Diagnostic tools for troubleshooting
+
+4. **Performance Optimization**:
+   - Caching for tool resolution and metadata
+   - Parallel operations for tool installation
+   - Lazy loading for tool discovery
+   - Memory usage optimization for large tool sets
+   - Startup time optimization for tool execution
+
+5. **Cross-Platform Compatibility**:
+   - Windows-specific testing (batch files, PowerShell, permissions)
+   - macOS-specific testing (Homebrew integration, quarantine)
+   - Linux distribution testing (various shells, package managers)
+   - Architecture testing (x86_64, ARM64)
+   - Shell compatibility testing (bash, zsh, fish, PowerShell)
+
+**Testing Requirements**:
+- 100% test coverage for all global tool functionality
+- Performance benchmarks and regression testing
+- Cross-platform compatibility validation
+- Edge case and error scenario testing
+- Real-world usage testing with various tools
 
 **Success Criteria**:
-- Performance maintained or improved over original implementation
-- Memory usage optimized and allocations minimized
-- Parallel operations scale effectively with available resources
-- Performance benchmarks establish baseline for future development
-- All performance optimizations validated through testing
+- All tests pass on all supported platforms
+- Performance meets acceptable benchmarks
+- Edge cases are handled gracefully
+- Error recovery works reliably
+- Cross-platform compatibility is verified
+
+**Integration Points**:
+- Validates all functionality from Steps 1-6
+- Provides foundation for documentation in Step 8
+- Ensures production readiness for deployment
 ```
 
 ---
 
-## Implementation Guidelines
+## Step 8: Documentation and User Experience
 
-### Development Principles
+**Goal**: Complete user documentation and polish the user experience
 
-1. **Test-Driven Development**: Write tests before implementation for all extracted functionality
-2. **Incremental Extraction**: Extract and integrate one package at a time
-3. **Interface-First Design**: Define clean interfaces before implementing packages
-4. **Backward Compatibility**: Preserve all existing functionality during extraction
-5. **Clean Dependencies**: Maintain minimal, well-defined dependencies between packages
+**Context**: Final step that ensures usability and provides comprehensive documentation for users and maintainers.
 
-### Quality Standards
+```
+Complete comprehensive documentation and polish user experience for production deployment.
 
-- **Test Coverage**: >95% for all extracted packages
-- **Performance**: No regression from current implementation
-- **API Design**: Clean, intuitive interfaces with comprehensive documentation
-- **Code Reduction**: Target 60-70% reduction in command.go size
-- **Reusability**: Extracted packages usable across all PVM components
+Finalize the global tool execution implementation with production-grade documentation and user experience.
 
-### Success Metrics
+**Requirements**:
+1. Complete user documentation and guides
+2. Developer documentation for maintenance
+3. User experience polish and refinement
+4. Migration and troubleshooting guides
 
-- **Command file size**: 1964 lines → <500 lines (75% reduction)
-- **Code duplication**: Eliminate 50+ line provider setup in every command
-- **Reusability**: Module management available to all 4 PVM components
-- **Maintainability**: Focused packages with single responsibilities
-- **Test coverage**: >95% for all extracted functionality
+**Implementation Tasks**:
+
+1. **User Documentation**:
+   - Complete command reference for all global tool operations
+   - Tutorial for getting started with global tool execution
+   - Common use cases and examples
+   - Migration guide from existing workflows
+   - Troubleshooting guide for common issues
+
+2. **Developer Documentation**:
+   - Architecture documentation for global tool system
+   - API documentation for programmatic access
+   - Maintenance guide for tool mappings and configuration
+   - Extension guide for custom tool integrations
+   - Testing guide for contributors
+
+3. **User Experience Polish**:
+   - Consistent error messages and help text
+   - Progress indicators for long-running operations
+   - Color-coded output for better readability
+   - Interactive prompts for confirmation operations
+   - Tab completion for tools and commands
+
+4. **Migration Support**:
+   - Automated migration from existing tool installations
+   - Compatibility layer for existing workflows
+   - Clear upgrade path documentation
+   - Deprecation warnings for obsolete features
+   - Rollback procedures for failed migrations
+
+5. **Help and Support**:
+   - Context-sensitive help for all commands
+   - Examples and use cases in help text
+   - Link to documentation and troubleshooting resources
+   - Error code reference and resolution guide
+   - Community support channel information
+
+**Testing Requirements**:
+- Documentation accuracy and completeness
+- User experience testing with real users
+- Migration path validation
+- Help system functionality
+- Error message clarity and usefulness
+
+**Success Criteria**:
+- Documentation is complete and accurate
+- User experience is polished and intuitive
+- Migration paths work reliably
+- Help system is comprehensive and useful
+- System is ready for production deployment
+
+**Integration Points**:
+- Documents all functionality from Steps 1-7
+- Provides maintenance foundation for ongoing development
+- Ensures production readiness and user adoption
+```
 
 ---
 
-## Risk Mitigation
+## Implementation Summary
 
-### Technical Risks
+### Development Timeline
+- **Step 1**: Tool Detection (2-3 days)
+- **Step 2**: Tool Mapping (3-4 days)
+- **Step 3**: Global Installation (4-5 days)
+- **Step 4**: Tool Execution (3-4 days)
+- **Step 5**: Shim Management (3-4 days)
+- **Step 6**: PVM Integration (2-3 days)
+- **Step 7**: Comprehensive Testing (3-4 days)
+- **Step 8**: Documentation (2-3 days)
 
-1. **Performance Regression**: Mitigated through careful profiling and optimization
-2. **API Complexity**: Prevented through interface-first design and validation
-3. **Integration Issues**: Reduced through incremental extraction and testing
-4. **Dependency Management**: Controlled through clean interface design
+**Total Estimated Time**: 22-30 days
 
-### Implementation Risks
+### Key Success Factors
+1. **Test-Driven Development**: Write failing tests first for all functionality
+2. **Incremental Integration**: Each step builds on and integrates with previous steps
+3. **Backward Compatibility**: Maintain existing PVX functionality throughout
+4. **Cross-Platform Focus**: Support Windows, macOS, Linux from the beginning
+5. **User Experience**: Focus on seamless, intuitive tool execution
 
-1. **Scope Creep**: Controlled through focused, well-defined extraction steps
-2. **Breaking Changes**: Prevented through backward compatibility requirements
-3. **Testing Overhead**: Managed through test-driven development approach
-4. **Documentation Debt**: Addressed through concurrent documentation creation
+### Risk Mitigation
+- **Isolation**: Tools are isolated to prevent conflicts
+- **Backward Compatibility**: Existing functionality remains unaffected
+- **Error Recovery**: Comprehensive error handling and recovery mechanisms
+- **Testing**: Thorough testing across all platforms and scenarios
+- **Documentation**: Complete documentation for users and maintainers
 
-This plan provides a comprehensive, step-by-step approach to refactoring the large PVI command file into focused, reusable packages that enhance maintainability and enable cross-component functionality while preserving all existing features and improving performance.
+### Integration with Existing Systems
+- **PVX Architecture**: Extends existing PVX without breaking changes
+- **PVM Tool Commands**: Seamlessly integrates with existing `pvm tool` interface
+- **Local-lib System**: Leverages existing PVM local-lib infrastructure
+- **Configuration**: Uses existing PVM configuration system
+
+This plan provides a solid foundation for implementing global tool execution in PVX with production-grade reliability, performance, and user experience that matches the convenience of Python's `uvx` and Node.js's `npx`.
+## Implementation Summary
+
+### Development Timeline
+- **Step 1**: Tool Detection (2-3 days)
+- **Step 2**: Tool Mapping (3-4 days)
+- **Step 3**: Global Installation (4-5 days)
+- **Step 4**: Tool Execution (3-4 days)
+- **Step 5**: Shim Management (3-4 days)
+- **Step 6**: PVM Integration (2-3 days)
+- **Step 7**: Comprehensive Testing (3-4 days)
+- **Step 8**: Documentation (2-3 days)
+
+**Total Estimated Time**: 22-30 days
+
+### Key Success Factors
+1. **Test-Driven Development**: Write failing tests first for all functionality
+2. **Incremental Integration**: Each step builds on and integrates with previous steps
+3. **Backward Compatibility**: Maintain existing PVX functionality throughout
+4. **Cross-Platform Focus**: Support Windows, macOS, Linux from the beginning
+5. **User Experience**: Focus on seamless, intuitive tool execution
+
+### Risk Mitigation
+- **Isolation**: Tools are isolated to prevent conflicts
+- **Backward Compatibility**: Existing functionality remains unaffected
+- **Error Recovery**: Comprehensive error handling and recovery mechanisms
+- **Testing**: Thorough testing across all platforms and scenarios
+- **Documentation**: Complete documentation for users and maintainers
+
+### Integration with Existing Systems
+- **PVX Architecture**: Extends existing PVX without breaking changes
+- **PVM Tool Commands**: Seamlessly integrates with existing `pvm tool` interface
+- **Local-lib System**: Leverages existing PVM local-lib infrastructure
+- **Configuration**: Uses existing PVM configuration system
+
+This plan provides a solid foundation for implementing global tool execution in PVX with production-grade reliability, performance, and user experience that matches the convenience of Python's `uvx` and Node.js's `npx`.
