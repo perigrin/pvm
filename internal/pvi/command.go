@@ -17,6 +17,7 @@ import (
 	uipkg "tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
+	"tamarou.com/pvm/internal/modules"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/pvi/deps"
@@ -1751,43 +1752,47 @@ func newSimplifiedInstallCommand() *cobra.Command {
 				return err
 			}
 
-			// TODO: This would use the extracted modules.Installer
-			// For now, demonstrate the pattern with existing PVI functionality
-			var results []*pviModules.ModuleInstallResult
+			// Use the extracted modules system with parallel coordination
 
-			for _, moduleName := range moduleNames {
-				// Create install options for each module
-				installOptions := &pviModules.ModuleInstallOptions{
-					ModuleName:         moduleName,
-					VersionConstraint:  version,
-					PerlPath:           perlPath,
-					InstallDir:         resolveInstallDir(installDir, args),
-					RunTests:           !skipTests,
-					Force:              force,
-					Cleanup:            true,
-					Verbose:            verbose,
-					SkipDependencies:   skipDeps,
-					Provider:           providerResult.Provider,
-					DependencyResolver: providerResult.Resolver,
-					Context:            cmd.Context(),
-				}
+			// Create unified installer
+			installer := newModuleInstaller(
+				providerResult.Provider,
+				newProgressTracker(ui, verbose),
+			)
 
-				// Install module
-				result, err := pviModules.InstallModule(installOptions)
-				if err != nil {
-					ui.Error("Failed to install %s: %v", moduleName, err)
-					// Create a failed result for consistency
-					result = &pviModules.ModuleInstallResult{
-						ModuleName: moduleName,
-						Success:    false,
-						Errors:     []string{err.Error()},
-					}
-				}
-				results = append(results, result)
+			// Create parallel coordinator
+			coordinator := modules.NewParallelCoordinator(
+				installer,
+				workers,
+				newParallelProgressTracker(ui, verbose),
+			)
+
+			// Set up install options
+			installOptions := modules.InstallOptions{
+				PerlPath:          perlPath,
+				InstallDir:        resolveInstallDir(installDir, args),
+				VersionConstraint: version,
+				Force:             force,
+				RunTests:          !skipTests,
+				SkipDependencies:  skipDeps,
+				Verbose:           verbose,
+				Cleanup:           true,
+				Parallel:          parallel || len(moduleNames) > 1,
+				Workers:           workers,
+				Context:           cmd.Context(),
 			}
 
+			// Install modules using parallel coordinator
+			results, err := coordinator.InstallModules(cmd.Context(), moduleNames, installOptions)
+			if err != nil {
+				return fmt.Errorf("installation failed: %w", err)
+			}
+
+			// Convert unified results to PVI results for display compatibility
+			pviResults := convertUnifiedResultsToPVI(results)
+
 			// Display results using helper function
-			return displayInstallResults(ui, results, timing)
+			return displayInstallResults(ui, pviResults, timing)
 		},
 	}
 
@@ -2224,4 +2229,175 @@ func removeModule(moduleName, perlPath string, force, verbose bool, ctx context.
 	}
 
 	return nil
+}
+
+// Helper functions for modules integration
+
+// convertUnifiedResultsToPVI converts unified InstallResult to PVI ModuleInstallResult
+func convertUnifiedResultsToPVI(results []*modules.InstallResult) []*pviModules.ModuleInstallResult {
+	pviResults := make([]*pviModules.ModuleInstallResult, len(results))
+
+	for i, result := range results {
+		pviResult := &pviModules.ModuleInstallResult{
+			ModuleName:  result.ModuleName,
+			Version:     result.Version,
+			Success:     result.Success,
+			Warnings:    result.Warnings,
+			Errors:      result.Errors,
+			InstallPath: result.Path,
+			Duration:    result.Duration,
+		}
+
+		// Convert dependencies back to PVI format if needed
+		if len(result.Dependencies) > 0 {
+			pviResult.Dependencies = make([]*pviModules.ModuleInstallResult, len(result.Dependencies))
+			for j, depName := range result.Dependencies {
+				pviResult.Dependencies[j] = &pviModules.ModuleInstallResult{
+					ModuleName: depName,
+					Success:    true, // Assume dependencies were successful if listed
+				}
+			}
+		}
+
+		pviResults[i] = pviResult
+	}
+
+	return pviResults
+}
+
+// Placeholder progress tracker implementations
+// TODO: These should be moved to internal/modules/progress.go in Phase 5
+
+// mockProgressTracker provides a simple implementation of ProgressTracker
+type mockProgressTracker struct {
+	ui      *uipkg.Output
+	verbose bool
+}
+
+func (m *mockProgressTracker) Start(operation string, total int) {
+	if m.verbose {
+		m.ui.Info("Starting %s (%d items)", operation, total)
+	}
+}
+
+func (m *mockProgressTracker) Update(current int, message string) {
+	if m.verbose {
+		m.ui.Info("Progress: %s", message)
+	}
+}
+
+func (m *mockProgressTracker) Finish(result *modules.OperationResult) {
+	if result.Success {
+		m.ui.Info("Completed %s for %s", result.Operation, result.Target)
+	} else {
+		m.ui.Error("Failed %s for %s: %v", result.Operation, result.Target, result.Error)
+	}
+}
+
+// mockParallelProgressTracker provides a simple implementation of ParallelProgressTracker
+type mockParallelProgressTracker struct {
+	ui      *uipkg.Output
+	verbose bool
+}
+
+func (m *mockParallelProgressTracker) StartParallel(operations []string) {
+	if m.verbose {
+		m.ui.Info("Starting %d parallel operations", len(operations))
+	}
+}
+
+func (m *mockParallelProgressTracker) UpdateOperation(id string, status modules.OperationStatus, message string) {
+	if m.verbose {
+		m.ui.Info("[%s] %s", id, message)
+	}
+}
+
+func (m *mockParallelProgressTracker) FinishParallel(results []*modules.OperationResult) {
+	successful := 0
+	for _, result := range results {
+		if result.Success {
+			successful++
+		}
+	}
+	m.ui.Info("Completed %d/%d operations successfully", successful, len(results))
+}
+
+// Helper constructors for modules system integration
+// TODO: These should be moved to internal/modules/ constructors in Phase 5
+
+func newProgressTracker(ui *uipkg.Output, verbose bool) modules.ProgressTracker {
+	return &mockProgressTracker{ui: ui, verbose: verbose}
+}
+
+func newParallelProgressTracker(ui *uipkg.Output, verbose bool) modules.ParallelProgressTracker {
+	return &mockParallelProgressTracker{ui: ui, verbose: verbose}
+}
+
+func newModuleInstaller(provider interface{}, tracker modules.ProgressTracker) modules.ModuleInstaller {
+	// TODO: This should use the real modules.Installer
+	// For now, return a bridge to the existing PVI installer
+	return &pviInstallerBridge{provider: provider, tracker: tracker}
+}
+
+// pviInstallerBridge bridges the unified ModuleInstaller interface to existing PVI functionality
+type pviInstallerBridge struct {
+	provider interface{}
+	tracker  modules.ProgressTracker
+}
+
+func (p *pviInstallerBridge) InstallModule(ctx context.Context, module string, opts modules.InstallOptions) (*modules.InstallResult, error) {
+	// Convert options to PVI format
+	pviOpts := &pviModules.ModuleInstallOptions{
+		ModuleName:        module,
+		VersionConstraint: opts.VersionConstraint,
+		PerlPath:          opts.PerlPath,
+		InstallDir:        opts.InstallDir,
+		Force:             opts.Force,
+		RunTests:          opts.RunTests,
+		SkipDependencies:  opts.SkipDependencies,
+		Cleanup:           opts.Cleanup,
+		Verbose:           opts.Verbose,
+		Context:           ctx,
+	}
+
+	// Add provider if available
+	if provider, ok := p.provider.(cpan.Provider); ok {
+		pviOpts.Provider = provider
+	}
+
+	// Execute installation
+	result, err := pviModules.InstallModule(pviOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert result back to unified format
+	return &modules.InstallResult{
+		ModuleName: result.ModuleName,
+		Version:    result.Version,
+		Success:    result.Success,
+		Duration:   result.Duration,
+		Warnings:   result.Warnings,
+		Errors:     result.Errors,
+		Path:       result.InstallPath,
+	}, nil
+}
+
+func (p *pviInstallerBridge) InstallBatch(ctx context.Context, mods []string, opts modules.InstallOptions) ([]*modules.InstallResult, error) {
+	results := make([]*modules.InstallResult, len(mods))
+
+	for i, module := range mods {
+		result, err := p.InstallModule(ctx, module, opts)
+		if err != nil {
+			// Create failed result
+			result = &modules.InstallResult{
+				ModuleName: module,
+				Success:    false,
+				Errors:     []string{err.Error()},
+			}
+		}
+		results[i] = result
+	}
+
+	return results, nil
 }
