@@ -1,0 +1,460 @@
+# ABOUTME: GitHub Actions workflow for building Perl binaries across multiple platforms
+# ABOUTME: Automated binary building, packaging, and publishing to GitHub Releases
+
+name: Build Perl Binaries
+
+on:
+  # Manual trigger with perl version input
+  workflow_dispatch:
+    inputs:
+      perl_version:
+        description: 'Perl version to build (e.g., 5.38.2)'
+        required: true
+        type: string
+      platforms:
+        description: 'Platforms to build (comma-separated or "all")'
+        required: false
+        default: 'all'
+        type: string
+      create_release:
+        description: 'Create GitHub release for binaries'
+        required: false
+        default: true
+        type: boolean
+      skip_tests:
+        description: 'Skip Perl test suite (faster builds)'
+        required: false
+        default: true
+        type: boolean
+
+  # Scheduled builds for latest stable versions
+  schedule:
+    # Build binaries weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+env:
+  # Global environment variables
+  PERL_VERSION: ${{ github.event.inputs.perl_version || '5.38.2' }}
+  CREATE_RELEASE: ${{ github.event.inputs.create_release || 'true' }}
+  SKIP_TESTS: ${{ github.event.inputs.skip_tests || 'true' }}
+  BUILD_TIMEOUT: 120  # minutes
+
+jobs:
+  # Validate inputs and prepare build matrix
+  prepare:
+    name: Prepare Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      release_tag: ${{ steps.release.outputs.tag }}
+      release_name: ${{ steps.release.outputs.name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Validate Perl version
+        run: |
+          VERSION="${{ env.PERL_VERSION }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: Invalid Perl version format: $VERSION"
+            echo "Expected format: X.Y.Z (e.g., 5.38.2)"
+            exit 1
+          fi
+
+          # Check if version is supported
+          if ! jq -e ".supported_perl_versions | index(\"$VERSION\")" scripts/build-binaries/platforms.json > /dev/null; then
+            echo "WARNING: Perl version $VERSION not in supported list"
+            echo "Continuing anyway..."
+          fi
+
+      - name: Generate build matrix
+        id: matrix
+        run: |
+          PLATFORMS_INPUT="${{ github.event.inputs.platforms || 'all' }}"
+
+          if [[ "$PLATFORMS_INPUT" == "all" ]]; then
+            # Build for all supported platforms
+            MATRIX=$(jq -c '{platform: [.platforms | keys[]]}' scripts/build-binaries/platforms.json)
+          else
+            # Build for specified platforms
+            IFS=',' read -ra PLATFORM_ARRAY <<< "$PLATFORMS_INPUT"
+            PLATFORM_JSON=$(printf '%s\n' "${PLATFORM_ARRAY[@]}" | jq -R . | jq -s .)
+            MATRIX=$(jq -c --argjson platforms "$PLATFORM_JSON" '{platform: $platforms}' <<< '{}')
+          fi
+
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Generated matrix: $MATRIX"
+
+      - name: Prepare release information
+        id: release
+        run: |
+          TAG="perl-${{ env.PERL_VERSION }}"
+          NAME="Perl ${{ env.PERL_VERSION }} Binary Distribution"
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+
+          echo "Release tag: $TAG"
+          echo "Release name: $NAME"
+
+  # Build binaries for each platform
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ (matrix.platform == 'linux-amd64' && 'ubuntu-latest') || (matrix.platform == 'linux-arm64' && 'ubuntu-latest') || (matrix.platform == 'darwin-amd64' && 'macos-13') || (matrix.platform == 'darwin-arm64' && 'macos-14') || (matrix.platform == 'windows-amd64' && 'ubuntu-latest') || 'ubuntu-latest' }}
+    needs: prepare
+    timeout-minutes: ${{ fromJson(env.BUILD_TIMEOUT) }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up build environment (Linux)
+        if: startsWith(matrix.platform, 'linux')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl jq
+
+          # Install cross-compilation tools for ARM64
+          if [[ "${{ matrix.platform }}" == "linux-arm64" ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
+
+      - name: Set up build environment (macOS)
+        if: startsWith(matrix.platform, 'darwin')
+        run: |
+          # Install dependencies via Homebrew
+          brew install jq
+
+          # Ensure Xcode command line tools are available
+          xcode-select --install 2>/dev/null || true
+
+      - name: Set up build environment (Windows cross-compile)
+        if: startsWith(matrix.platform, 'windows')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64 curl jq
+
+      - name: Create build cache key
+        id: cache-key
+        run: |
+          # Create cache key based on Perl version and platform
+          CACHE_KEY="perl-source-${{ env.PERL_VERSION }}-${{ matrix.platform }}"
+          echo "key=$CACHE_KEY" >> $GITHUB_OUTPUT
+
+      - name: Cache Perl source
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/binaries/build
+          key: ${{ steps.cache-key.outputs.key }}
+          restore-keys: |
+            perl-source-${{ env.PERL_VERSION }}-
+
+      - name: Build Perl binary
+        run: |
+          # Set environment variables for build
+          export RUN_TESTS="${{ env.SKIP_TESTS == 'false' && 'true' || 'false' }}"
+          export VERBOSE=true
+
+          # Run the build script
+          scripts/build-binaries/build-perl.sh \
+            --version "${{ env.PERL_VERSION }}" \
+            --platform "${{ matrix.platform }}" \
+            --verbose
+        timeout-minutes: 90
+
+      - name: Verify binary package
+        run: |
+          # Check that the binary package was created
+          PACKAGE_NAME="perl-${{ env.PERL_VERSION }}-${{ matrix.platform }}"
+
+          # Determine archive extension
+          if [[ "${{ matrix.platform }}" == "windows-"* ]]; then
+            ARCHIVE_EXT="zip"
+          else
+            ARCHIVE_EXT="tar.gz"
+          fi
+
+          ARCHIVE_PATH="build/binaries/${PACKAGE_NAME}.${ARCHIVE_EXT}"
+          CHECKSUM_PATH="${ARCHIVE_PATH}.sha256"
+
+          # Verify files exist
+          if [[ ! -f "$ARCHIVE_PATH" ]]; then
+            echo "ERROR: Binary archive not found: $ARCHIVE_PATH"
+            exit 1
+          fi
+
+          if [[ ! -f "$CHECKSUM_PATH" ]]; then
+            echo "ERROR: Checksum file not found: $CHECKSUM_PATH"
+            exit 1
+          fi
+
+          # Verify checksum
+          echo "Verifying checksum..."
+          cd build/binaries
+
+          case "$(uname)" in
+            Linux)   sha256sum -c "$(basename "$CHECKSUM_PATH")" ;;
+            Darwin)  shasum -a 256 -c "$(basename "$CHECKSUM_PATH")" ;;
+          esac
+
+          # Display package info
+          echo "Package size: $(ls -lh "$ARCHIVE_PATH" | awk '{print $5}')"
+          echo "SHA256: $(cut -d' ' -f1 "$CHECKSUM_PATH")"
+
+      - name: Test binary package (quick smoke test)
+        run: |
+          # Extract and test the binary package
+          cd build/binaries
+          PACKAGE_NAME="perl-${{ env.PERL_VERSION }}-${{ matrix.platform }}"
+
+          if [[ "${{ matrix.platform }}" == "windows-"* ]]; then
+            unzip "${PACKAGE_NAME}.zip"
+          else
+            tar -xzf "${PACKAGE_NAME}.tar.gz"
+          fi
+
+          # Run basic smoke tests (skip for cross-compiled binaries)
+          if [[ "${{ matrix.platform }}" != "linux-arm64" && "${{ matrix.platform }}" != "windows-amd64" ]]; then
+            echo "Running smoke tests..."
+
+            PERL_BIN="${PACKAGE_NAME}/bin/perl"
+            if [[ "${{ matrix.platform }}" == "windows-"* ]]; then
+              PERL_BIN="${PACKAGE_NAME}/bin/perl.exe"
+            fi
+
+            # Test basic functionality
+            ./"$PERL_BIN" -v
+            ./"$PERL_BIN" -e 'print "Hello from Perl!\n"'
+            ./"$PERL_BIN" -e 'use strict; use warnings; print "Smoke test passed!\n"'
+          else
+            echo "Skipping smoke tests for cross-compiled binary"
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: perl-${{ env.PERL_VERSION }}-${{ matrix.platform }}
+          path: |
+            build/binaries/perl-${{ env.PERL_VERSION }}-${{ matrix.platform }}.*
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Generate build report
+        run: |
+          # Create build report
+          REPORT_FILE="build-report-${{ matrix.platform }}.json"
+          PACKAGE_NAME="perl-${{ env.PERL_VERSION }}-${{ matrix.platform }}"
+          ARCHIVE_PATH="build/binaries/${PACKAGE_NAME}.tar.gz"
+
+          if [[ "${{ matrix.platform }}" == "windows-"* ]]; then
+            ARCHIVE_PATH="build/binaries/${PACKAGE_NAME}.zip"
+          fi
+
+          cat > "$REPORT_FILE" << EOF
+          {
+            "perl_version": "${{ env.PERL_VERSION }}",
+            "platform": "${{ matrix.platform }}",
+            "build_date": "$(date -u '+%Y-%m-%d %H:%M:%S UTC')",
+            "build_runner": "${{ runner.os }}",
+            "package_name": "${PACKAGE_NAME}",
+            "package_size": $(stat -f%z "$ARCHIVE_PATH" 2>/dev/null || stat -c%s "$ARCHIVE_PATH"),
+            "checksum": "$(cut -d' ' -f1 "${ARCHIVE_PATH}.sha256")",
+            "build_duration": "${{ job.duration }}",
+            "tests_run": ${{ env.SKIP_TESTS == 'false' && 'true' || 'false' }}
+          }
+          EOF
+
+          echo "Build report created:"
+          cat "$REPORT_FILE"
+
+      - name: Upload build report
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-report-${{ matrix.platform }}
+          path: build-report-${{ matrix.platform }}.json
+          retention-days: 90
+
+  # Create GitHub release with all binaries
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [prepare, build]
+    if: success() && needs.prepare.outputs.release_tag != '' && github.event.inputs.create_release != 'false'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Prepare release assets
+        run: |
+          # Create release directory
+          mkdir -p release-assets
+
+          # Copy all binary packages and checksums
+          find release-artifacts -name "perl-${{ env.PERL_VERSION }}-*.tar.gz" -o -name "perl-${{ env.PERL_VERSION }}-*.zip" | while read file; do
+            cp "$file" release-assets/
+          done
+
+          find release-artifacts -name "perl-${{ env.PERL_VERSION }}-*.sha256" | while read file; do
+            cp "$file" release-assets/
+          done
+
+          # Generate master checksums file
+          cd release-assets
+          find . -name "*.tar.gz" -o -name "*.zip" | sort | while read file; do
+            if [[ -f "${file}.sha256" ]]; then
+              cat "${file}.sha256" >> CHECKSUMS.txt
+            fi
+          done
+
+          echo "Release assets prepared:"
+          ls -la
+
+      - name: Generate release notes
+        run: |
+          # Collect build reports
+          BUILD_REPORTS=""
+          find release-artifacts -name "build-report-*.json" | while read report; do
+            platform=$(basename "$report" .json | sed 's/build-report-//')
+            size=$(jq -r '.package_size' "$report" | numfmt --to=iec)
+            checksum=$(jq -r '.checksum' "$report" | cut -c1-12)
+
+            echo "- **${platform}**: ${size} (SHA256: ${checksum}...)" >> release-notes.tmp
+          done
+
+          # Create release notes
+          cat > release-notes.md << EOF
+          # Perl ${{ env.PERL_VERSION }} Binary Distribution
+
+          Pre-compiled Perl ${{ env.PERL_VERSION }} binaries for multiple platforms.
+
+          ## Quick Installation
+
+          ### Linux/macOS
+          \`\`\`bash
+          # Download and extract (replace PLATFORM with your platform)
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.release_tag }}/perl-${{ env.PERL_VERSION }}-PLATFORM.tar.gz
+          tar -xzf perl-${{ env.PERL_VERSION }}-PLATFORM.tar.gz
+          export PATH=\$PWD/perl-${{ env.PERL_VERSION }}-PLATFORM/bin:\$PATH
+          perl -v
+          \`\`\`
+
+          ### Windows
+          1. Download perl-${{ env.PERL_VERSION }}-windows-amd64.zip
+          2. Extract to desired location
+          3. Add bin/ directory to your PATH
+
+          ## Available Platforms
+
+          $(cat release-notes.tmp 2>/dev/null || echo "Platform information not available")
+
+          ## Verification
+
+          All binaries include SHA256 checksums for verification:
+          \`\`\`bash
+          # Verify checksum (Linux/macOS)
+          sha256sum -c perl-${{ env.PERL_VERSION }}-PLATFORM.tar.gz.sha256
+
+          # Or download master checksums file
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ needs.prepare.outputs.release_tag }}/CHECKSUMS.txt
+          \`\`\`
+
+          ## Build Information
+
+          - **Perl Version**: ${{ env.PERL_VERSION }}
+          - **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          - **Build Workflow**: ${{ github.workflow }} #${{ github.run_number }}
+          - **Tests Run**: ${{ env.SKIP_TESTS == 'false' && 'Yes' || 'No (for faster builds)' }}
+
+          ## Notes
+
+          - These binaries include threading support (\`-Dusethreads\`)
+          - Built with optimization level -O2
+          - Include shared library support where applicable
+          - Windows binaries built using cross-compilation with MinGW-w64
+
+          For issues or questions, please visit: https://github.com/${{ github.repository }}/issues
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.release_tag }}
+          name: ${{ needs.prepare.outputs.release_name }}
+          body_path: release-notes.md
+          files: |
+            release-assets/*
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update release summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Release Created**: [${{ needs.prepare.outputs.release_name }}](https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare.outputs.release_tag }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Assets Published:" >> $GITHUB_STEP_SUMMARY
+
+          cd release-assets
+          find . -name "*.tar.gz" -o -name "*.zip" | sort | while read file; do
+            size=$(ls -lh "$file" | awk '{print $5}')
+            echo "- \`$(basename "$file")\` (${size})" >> $GITHUB_STEP_SUMMARY
+          done
+
+  # Cleanup job for failed builds
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [prepare, build, release]
+    if: always()
+
+    steps:
+      - name: Clean up temporary artifacts on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Clean up artifacts if build failed
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+
+            for (const artifact of artifacts.data.artifacts) {
+              if (artifact.name.startsWith('perl-') && artifact.name.includes('${{ env.PERL_VERSION }}')) {
+                console.log(`Cleaning up artifact: ${artifact.name}`);
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+              }
+            }
+
+      - name: Build status summary
+        run: |
+          echo "## Build Status Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Perl Version**: ${{ env.PERL_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Result**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow Run**: [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
