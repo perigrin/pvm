@@ -102,10 +102,13 @@ type DependencyGraph struct {
 	// Nodes maps module names to their dependency information
 	Nodes map[string]*DependencyNode `json:"nodes"`
 
+	// RootNodes lists the initially requested modules
+	RootNodes []*DependencyNode `json:"root_nodes"`
+
 	// Edges represents dependency relationships
 	Edges []*DependencyEdge `json:"edges"`
 
-	// RootModules lists the initially requested modules
+	// RootModules lists the initially requested modules (legacy)
 	RootModules []string `json:"root_modules"`
 
 	// ResolutionTime is when the graph was resolved
@@ -119,6 +122,12 @@ type DependencyNode struct {
 
 	// Version is the resolved version
 	Version string `json:"version"`
+
+	// Dependencies lists the direct dependencies of this node
+	Dependencies []*DependencyNode `json:"dependencies"`
+
+	// Constraints lists version constraints applied to this node
+	Constraints []VersionConstraint `json:"constraints"`
 
 	// VersionConstraint is the original version constraint
 	VersionConstraint string `json:"version_constraint,omitempty"`
@@ -165,10 +174,19 @@ type Conflict struct {
 	// Module is the conflicting module name
 	Module string `json:"module"`
 
-	// RequiredVersions lists the conflicting version requirements
+	// Type indicates the type of conflict
+	Type ConflictType `json:"type"`
+
+	// Versions lists the conflicting versions
+	Versions []string `json:"versions"`
+
+	// Dependencies lists the dependencies that contribute to this conflict
+	Dependencies []*ConflictDependency `json:"dependencies"`
+
+	// RequiredVersions lists the conflicting version requirements (legacy)
 	RequiredVersions []string `json:"required_versions"`
 
-	// ConflictingModules lists the modules that have conflicting requirements
+	// ConflictingModules lists the modules that have conflicting requirements (legacy)
 	ConflictingModules []string `json:"conflicting_modules"`
 
 	// Severity indicates the conflict severity
@@ -216,8 +234,14 @@ func (s ConflictSeverity) String() string {
 
 // Resolution represents a suggested resolution for a dependency conflict
 type Resolution struct {
+	// Module is the module this resolution applies to
+	Module string `json:"module"`
+
 	// Conflict is the conflict being resolved
 	Conflict *Conflict `json:"conflict"`
+
+	// Suggested lists the suggested resolution options
+	Suggested []*ResolutionOption `json:"suggested"`
 
 	// Action is the suggested action
 	Action ResolutionAction `json:"action"`
@@ -279,7 +303,13 @@ func (a ResolutionAction) String() string {
 // InstallPlan represents a plan for installing modules with dependencies
 type InstallPlan struct {
 	// Modules lists modules to install in dependency order
-	Modules []*PlannedInstallation `json:"modules"`
+	Modules []*InstallPlanModule `json:"modules"`
+
+	// Dependencies maps module names to their dependencies
+	Dependencies map[string][]string `json:"dependencies"`
+
+	// Levels represents installation levels for parallel installation
+	Levels [][]string `json:"levels"`
 
 	// TotalModules is the total number of modules to install
 	TotalModules int `json:"total_modules"`
@@ -421,4 +451,74 @@ func (s ValidationSeverity) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+// Additional types for dependency resolution
+
+// VersionConstraint represents a version constraint for dependency resolution
+type VersionConstraint struct {
+	// Module is the module this constraint applies to
+	Module string `json:"module"`
+
+	// Constraint is the version constraint (e.g., ">= 2.0", "== 1.0")
+	Constraint string `json:"constraint"`
+
+	// Source is the module that requires this constraint
+	Source string `json:"source"`
+}
+
+// ConflictType represents the type of dependency conflict
+type ConflictType int
+
+const (
+	// ConflictTypeVersion represents a version conflict
+	ConflictTypeVersion ConflictType = iota
+
+	// ConflictTypeCircular represents a circular dependency
+	ConflictTypeCircular
+
+	// ConflictTypeMissing represents a missing dependency
+	ConflictTypeMissing
+)
+
+// ConflictDependency represents a dependency that contributes to a conflict
+type ConflictDependency struct {
+	// Dependant is the module that requires the dependency
+	Dependant string `json:"dependant"`
+
+	// Required is the version required
+	Required string `json:"required"`
+}
+
+// ResolutionOption represents a potential resolution for a conflict
+type ResolutionOption struct {
+	// Version is the suggested version
+	Version string `json:"version"`
+
+	// Description explains what this option does
+	Description string `json:"description"`
+
+	// Impact describes the impact of choosing this option
+	Impact ResolutionImpact `json:"impact"`
+}
+
+// ResolutionImpact describes the impact of a resolution choice
+type ResolutionImpact struct {
+	// AffectedModules is the number of modules affected by this resolution
+	AffectedModules int `json:"affected_modules"`
+
+	// BreakingChanges indicates if this resolution may introduce breaking changes
+	BreakingChanges bool `json:"breaking_changes"`
+}
+
+// InstallPlanModule represents a module in an install plan
+type InstallPlanModule struct {
+	// Name is the module name
+	Name string `json:"name"`
+
+	// Version is the version to install
+	Version string `json:"version"`
+
+	// Dependencies lists the module's dependencies
+	Dependencies []string `json:"dependencies"`
 }

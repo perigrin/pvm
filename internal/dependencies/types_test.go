@@ -134,7 +134,9 @@ func TestDependencyGraph_Basic(t *testing.T) {
 
 func TestInstallPlan_Basic(t *testing.T) {
 	plan := InstallPlan{
-		Modules:           []*PlannedInstallation{},
+		Modules:           []*InstallPlanModule{},
+		Dependencies:      make(map[string][]string),
+		Levels:            [][]string{},
 		TotalModules:      0,
 		EstimatedDuration: time.Minute * 5,
 		Conflicts:         []*Conflict{},
