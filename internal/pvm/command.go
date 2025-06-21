@@ -132,10 +132,107 @@ func newInstallCommand() *cobra.Command {
 				return err
 			}
 
+			// Get binary installation flags
+			binaryOnly, err := cmd.Flags().GetBool("binary-only")
+			if err != nil {
+				return err
+			}
+
+			preferBinary, err := cmd.Flags().GetBool("prefer-binary")
+			if err != nil {
+				return err
+			}
+
+			forceSource, err := cmd.Flags().GetBool("force-source")
+			if err != nil {
+				return err
+			}
+
+			// Validate mutually exclusive flags
+			if binaryOnly && forceSource {
+				return fmt.Errorf("--binary-only and --force-source are mutually exclusive")
+			}
+
 			if skipBuild {
 				cmd.Println("Skip-build specified but no import functionality implemented yet.")
 				cmd.Println("This will be implemented in a future version.")
 				return nil
+			}
+
+			// Check if binary installation is requested and available
+			if !forceSource && (binaryOnly || preferBinary) {
+				// Check if binary is available for this version and platform
+				available, err := perl.CheckBinaryAvailability(version, "")
+				if err != nil {
+					if binaryOnly {
+						return fmt.Errorf("failed to check binary availability: %w", err)
+					}
+					// For prefer-binary, continue to source installation
+					cmd.Printf("Warning: Failed to check binary availability, falling back to source: %v\n", err)
+				} else if available {
+					// Binary is available, attempt binary installation
+					cmd.Printf("Installing Perl %s from pre-compiled binary...\n", version)
+
+					// Create binary installation options
+					binaryOptions := &perl.BinaryInstallOptions{
+						Version:    version,
+						Platform:   "", // Use default platform
+						InstallDir: installDir,
+						ProgressCallback: func(total, transferred int64, done bool) {
+							// Simple progress reporting for binary download
+							if total > 0 {
+								percentage := float64(transferred) / float64(total) * 100
+								width := 40
+								completeChars := int(float64(width) * float64(transferred) / float64(total))
+
+								progressBar := "["
+								for i := 0; i < width; i++ {
+									switch {
+									case i < completeChars:
+										progressBar += "="
+									case i == completeChars:
+										progressBar += ">"
+									default:
+										progressBar += " "
+									}
+								}
+								progressBar += "]"
+
+								fmt.Printf("\r%s %.1f%% (%d/%d bytes)                    ",
+									progressBar, percentage, transferred, total)
+
+								if done {
+									fmt.Println()
+								}
+							}
+						},
+						Context: cmd.Context(),
+					}
+
+					// Attempt binary installation
+					result, err := perl.InstallFromBinary(binaryOptions)
+					if err != nil {
+						if binaryOnly {
+							return fmt.Errorf("binary installation failed: %w", err)
+						}
+						// For prefer-binary, fall back to source
+						cmd.Printf("Binary installation failed, falling back to source: %v\n", err)
+					} else {
+						// Binary installation succeeded
+						cmd.Printf("\nBinary installation completed successfully!\n")
+						cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
+						cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
+						if result.FromCache {
+							cmd.Println("Note: Installation was completed using cached binary")
+						}
+						return nil
+					}
+				} else if binaryOnly {
+					return fmt.Errorf("binary for Perl %s is not available for your platform", version)
+				} else {
+					// prefer-binary but not available, fall back to source
+					cmd.Printf("Binary for Perl %s not available, falling back to source installation\n", version)
+				}
 			}
 
 			// Build Perl using our build functionality
@@ -234,6 +331,11 @@ func newInstallCommand() *cobra.Command {
 	cmd.Flags().Int("jobs", 0, "Number of parallel build jobs (default: number of CPU cores)")
 	cmd.Flags().Bool("test", false, "Run Perl tests after building")
 	cmd.Flags().Bool("skip-build", false, "Skip build and import from existing installation")
+
+	// Binary installation flags
+	cmd.Flags().BoolP("binary-only", "B", false, "Install only from pre-compiled binary (fail if not available)")
+	cmd.Flags().Bool("prefer-binary", false, "Try binary first, fallback to source if binary unavailable")
+	cmd.Flags().Bool("force-source", false, "Force source compilation (skip binary check)")
 
 	return cmd
 }
