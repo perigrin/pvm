@@ -6,12 +6,12 @@ package pvx
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/log"
+	"tamarou.com/pvm/internal/tool"
 )
 
 // osExit allows for test mocking of os.Exit
@@ -20,9 +20,14 @@ var osExit = os.Exit
 // NewCommand creates a new PVX command
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "pvx [options] script.pl [args...]",
-		Short: "Perl Version eXecutor",
-		Long:  "Executes Perl code in isolated environments",
+		Use:                "pvx [options] script.pl [args...]",
+		Short:              "Perl Version eXecutor",
+		Long:               "Executes Perl code in isolated environments",
+		DisableFlagParsing: false,
+		DisableAutoGenTag:  true,
+		SilenceUsage:       true,
+		SilenceErrors:      true,
+		Args:               cobra.ArbitraryArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Get UI instance for styled output
 			ui := cli.GetUI(cmd)
@@ -228,35 +233,57 @@ func NewCommand() *cobra.Command {
 
 			var output string
 
-			switch {
-			case executeCode != "":
+			if executeCode != "" {
 				// Execute Perl code directly
 				log.Debugf("Executing Perl code: %s", executeCode)
 				options.InlineCode = executeCode
-				output, err = ExecuteInlineCode(options, ui)
-			case isToolName(args[0]):
-				// Execute a tool directly (like uvx)
-				toolName := args[0]
-				toolArgs := []string{}
-				if len(args) > 1 {
-					toolArgs = args[1:]
+				output, err = ExecuteInlineCode(options)
+			} else {
+				// Use the enhanced tool detector to determine execution mode
+				detector := tool.NewDetector()
+				detector.SetOptions(false, false) // Strict mode, prefer tool mode for ambiguous cases
+
+				detectionResult, detectionErr := detector.DetectExecutionMode(args)
+				if detectionErr != nil {
+					// Handle detection errors
+					if toolErr, ok := detectionErr.(*tool.ToolError); ok && toolErr.Code == tool.ErrAmbiguousMode {
+						log.Errorf("Ambiguous execution mode for '%s': %s", args[0], toolErr.Message)
+						if len(toolErr.Suggestions) > 0 {
+							log.Infof("Use one of these forms to clarify:")
+							for _, suggestion := range toolErr.Suggestions {
+								log.Infof("  pvx %s", suggestion)
+							}
+						}
+					} else {
+						log.Errorf("Failed to detect execution mode: %v", detectionErr)
+					}
+					osExit(1)
+					return
 				}
 
-				log.Debugf("Executing tool: %s", toolName)
-				output, err = ExecuteTool(options, toolName, toolArgs, ui)
-			default:
-				// Execute a script file
-				scriptPath := args[0]
-				scriptArgs := []string{}
-				if len(args) > 1 {
-					scriptArgs = args[1:]
+				if verbose {
+					log.Infof("Detected execution mode: %s (confidence: %.1f%%) - %s",
+						detectionResult.Mode, detectionResult.Confidence*100, detectionResult.Reason)
 				}
 
-				options.ScriptPath = scriptPath
-				options.Args = scriptArgs
-
-				log.Debugf("Executing Perl script: %s", scriptPath)
-				output, err = ExecuteScript(options, ui)
+				switch detectionResult.Mode {
+				case tool.ModeTool:
+					log.Debugf("Executing tool: %s", detectionResult.ToolName)
+					output, err = ExecuteTool(options, detectionResult.ToolName, detectionResult.Arguments)
+				case tool.ModeScript:
+					options.ScriptPath = detectionResult.ScriptPath
+					options.Args = detectionResult.Arguments
+					log.Debugf("Executing Perl script: %s", detectionResult.ScriptPath)
+					output, err = ExecuteScript(options)
+				case tool.ModeInline:
+					log.Debugf("Executing inline code: %s", detectionResult.InlineCode)
+					options.InlineCode = detectionResult.InlineCode
+					output, err = ExecuteInlineCode(options)
+				default:
+					log.Errorf("Unknown execution mode: %s", detectionResult.Mode)
+					osExit(1)
+					return
+				}
 			}
 
 			// If using isolated output and saveOutputDir is specified, copy generated files
@@ -322,28 +349,4 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().String("name", "", "Create a named persistent isolation environment")
 
 	return cmd
-}
-
-// isToolName determines if the given argument is a tool name rather than a script file
-func isToolName(arg string) bool {
-	// If it has a file extension or contains path separators, it's likely a script
-	if strings.Contains(arg, "/") || strings.Contains(arg, "\\") || strings.Contains(arg, ".") {
-		return false
-	}
-
-	// Check if it's a known Perl tool name
-	knownTools := []string{
-		"perl", "cpan", "prove", "perldoc", "h2ph", "h2xs", "enc2xs", "xsubpp",
-		"corelist", "cpanm", "plackup", "carton", "dzil", "perlcritic", "perltidy",
-	}
-
-	for _, tool := range knownTools {
-		if arg == tool {
-			return true
-		}
-	}
-
-	// If it doesn't look like a file path and we don't recognize it,
-	// assume it's a tool name (auto-discovery)
-	return true
 }
