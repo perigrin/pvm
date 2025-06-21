@@ -109,3 +109,26 @@ type ValidationError struct {
 func (v *ValidationError) Error() string {
 	return v.Reason
 }
+
+// ToolResolution represents the result of tool name resolution
+type ToolResolution struct {
+	ToolName    string
+	ModuleName  string
+	Source      string
+	Description string
+	Version     string
+	Executable  string
+}
+
+// ToolMappingInfo contains detailed information about a tool mapping
+type ToolMappingInfo struct {
+	Module      string
+	Description string
+	Category    string
+	Executable  string
+}
+
+// Resolver interface for tool resolution
+type Resolver interface {
+	SearchTool(toolName string) (*ToolResolution, error)
+}

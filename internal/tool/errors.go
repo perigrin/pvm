@@ -16,6 +16,7 @@ const (
 	ErrConfigInvalid    = "504" // Configuration is invalid
 	ErrMappingFailed    = "505" // Tool to module mapping failed
 	ErrValidationFailed = "506" // Tool validation failed
+	ErrInvalidMapping   = "507" // Invalid tool mapping
 )
 
 // ToolError represents a tool-specific error
@@ -133,5 +134,13 @@ func NewValidationError(field string, value string, reason string, suggestions [
 		Operation:   "validate",
 		Message:     message,
 		Suggestions: suggestions,
+	}
+}
+
+// NewToolError creates a new generic tool error
+func NewToolError(code string, message string) *ToolError {
+	return &ToolError{
+		Code:    code,
+		Message: message,
 	}
 }
