@@ -159,6 +159,9 @@ type InstallResult struct {
 
 	// Path is the installation path
 	Path string `json:"path,omitempty"`
+
+	// DryRun indicates this was a dry run (no actual installation)
+	DryRun bool `json:"dry_run,omitempty"`
 }
 
 // OperationResult represents the result of any module operation

@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/errors"
@@ -203,6 +204,103 @@ func (m *Manager) Install(ctx context.Context, moduleNames []string, opts Instal
 	}
 
 	return nil
+}
+
+// InstallModules installs one or more modules and returns detailed results
+func (m *Manager) InstallModules(ctx context.Context, moduleNames []string, opts InstallOptions) ([]*InstallResult, error) {
+	var results []*InstallResult
+
+	// Convert options to PVI install options
+	installOptions := &modules.ModuleInstallOptions{
+		PerlPath:          opts.PerlPath,
+		InstallDir:        opts.InstallDir,
+		VersionConstraint: opts.VersionConstraint,
+		Force:             opts.Force,
+		RunTests:          opts.RunTests,
+		SkipDependencies:  opts.SkipDependencies,
+		Verbose:           opts.Verbose,
+		Cleanup:           opts.Cleanup,
+		Provider:          m.provider,
+		Context:           ctx,
+	}
+
+	// Install modules (use parallel if multiple modules)
+	if len(moduleNames) > 1 && opts.Parallel {
+		// Create individual module options for each module
+		var moduleOptions []*modules.ModuleInstallOptions
+		for _, moduleName := range moduleNames {
+			moduleOpt := *installOptions // Copy base options
+			moduleOpt.ModuleName = moduleName
+			moduleOptions = append(moduleOptions, &moduleOpt)
+		}
+
+		parallelOptions := &modules.ParallelInstallOptions{
+			Modules: moduleOptions,
+			Workers: opts.Workers,
+			Context: ctx,
+		}
+
+		parallelResults, err := modules.InstallModulesParallel(parallelOptions)
+		if err != nil {
+			return nil, errors.NewSystemError(
+				ErrManagerInstallFailed,
+				fmt.Sprintf("Failed to install modules in parallel: %v", err),
+				err)
+		}
+
+		// Convert parallel results to unified format
+		for _, result := range parallelResults.Results {
+			var deps []string
+			for _, dep := range result.Dependencies {
+				deps = append(deps, dep.ModuleName)
+			}
+
+			results = append(results, &InstallResult{
+				ModuleName:   result.ModuleName,
+				Version:      result.Version,
+				Success:      result.Success,
+				Duration:     time.Duration(0), // Duration not available in this result
+				Dependencies: deps,
+				Warnings:     result.Warnings,
+				Errors:       result.Errors,
+				Path:         result.InstallPath,
+			})
+		}
+	} else {
+		// Install modules sequentially
+		for _, moduleName := range moduleNames {
+			installOptions.ModuleName = moduleName
+			result, err := modules.InstallModule(installOptions)
+			if err != nil {
+				// Create a failed result entry
+				results = append(results, &InstallResult{
+					ModuleName: moduleName,
+					Success:    false,
+					Errors:     []string{err.Error()},
+				})
+				continue
+			}
+
+			// Convert result to unified format
+			var deps []string
+			for _, dep := range result.Dependencies {
+				deps = append(deps, dep.ModuleName)
+			}
+
+			results = append(results, &InstallResult{
+				ModuleName:   result.ModuleName,
+				Version:      result.Version,
+				Success:      result.Success,
+				Duration:     time.Duration(0), // Duration not available in this result
+				Dependencies: deps,
+				Warnings:     result.Warnings,
+				Errors:       result.Errors,
+				Path:         result.InstallPath,
+			})
+		}
+	}
+
+	return results, nil
 }
 
 // Remove uninstalls the specified modules

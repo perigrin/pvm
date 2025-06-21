@@ -59,21 +59,18 @@ func NewCommand() *cobra.Command {
 
 func newInstallCommand() *cobra.Command {
 	var (
-		verbose      bool
-		force        bool
-		skipTests    bool
-		skipDeps     bool
-		noCache      bool
-		installDir   string
-		version      string
-		source       string
-		buildOnly    bool
-		installOnly  bool
-		keepBuildDir bool
-		workers      int
-		parallel     bool
-		timing       bool
-		dev          bool
+		verbose    bool
+		force      bool
+		skipTests  bool
+		skipDeps   bool
+		noCache    bool
+		installDir string
+		version    string
+		source     string
+		workers    int
+		parallel   bool
+		timing     bool
+		dev        bool
 	)
 
 	cmd := &cobra.Command{
@@ -147,19 +144,18 @@ func newInstallCommand() *cobra.Command {
 				return err
 			}
 
-			// Create provider and resolver using builder pattern
-			result, err := NewProviderBuilder().
+			// Create provider using builder pattern
+			provider, err := NewProviderBuilder().
 				WithConfig(cfg).
 				WithSource(source).
 				WithNoCache(noCache).
-				WithResolver().
 				Build()
 			if err != nil {
 				return err
 			}
 
-			provider := result.Provider
-			resolver := result.Resolver
+			// Create dependency resolver
+			resolver := deps.NewDependencyResolver()
 
 			// Get current Perl path
 			perlPath, err := perl.GetCurrentPerlPath()
@@ -167,7 +163,7 @@ func newInstallCommand() *cobra.Command {
 				return err
 			}
 
-			// Create installation options
+			// Create installation options using existing PVI modules
 			installOptions := &pviModules.ModuleInstallOptions{
 				ModuleName:         "", // Will be set per module later
 				VersionConstraint:  version,
@@ -175,32 +171,26 @@ func newInstallCommand() *cobra.Command {
 				InstallDir:         installDir,
 				RunTests:           !skipTests,
 				Force:              force,
-				Cleanup:            !keepBuildDir,
+				Cleanup:            true,
 				Verbose:            verbose,
 				SkipDependencies:   skipDeps,
-				Provider:           provider,
+				Provider:           provider.Provider,
 				DependencyResolver: resolver,
 				ProgressCallback: func(stage pviModules.InstallProgressStage, module string, details string, progress float64) {
 					if verbose {
 						ui.Debug("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
 					} else if stage != pviModules.StageFinished {
-						// Only show major stage transitions if not verbose
 						ui.Info("[%s] %s", stage.String(), module)
 					}
 				},
 				Context: cmd.Context(),
 			}
 
-			// Determine if we should use parallel installation
-			useParallel := parallel || len(moduleNames) > 1
+			startTime := time.Now()
 
-			if useParallel && len(moduleNames) > 1 {
-				// Parallel installation for multiple modules
-				if timing {
-					ui.Info("Installing %d modules in parallel with %d workers...", len(moduleNames), workers)
-				} else {
-					ui.Info("Installing %d modules in parallel...", len(moduleNames))
-				}
+			// Use parallel installation for multiple modules
+			if parallel || len(moduleNames) > 1 {
+				ui.Info("Installing %d modules in parallel...", len(moduleNames))
 
 				parallelOptions := &pviModules.ParallelInstallOptions{
 					Modules:     make([]*pviModules.ModuleInstallOptions, len(moduleNames)),
@@ -223,7 +213,6 @@ func newInstallCommand() *cobra.Command {
 					}
 				}
 
-				startTime := time.Now()
 				result, err := pviModules.InstallModulesParallel(parallelOptions)
 				duration := time.Since(startTime)
 
@@ -232,64 +221,18 @@ func newInstallCommand() *cobra.Command {
 					return err
 				}
 
-				// Display results
-				ui.SubHeader("Installation Summary")
-				summary := map[string]string{
-					"Modules":    fmt.Sprintf("%d", len(moduleNames)),
-					"Successful": fmt.Sprintf("%d", result.SuccessCount),
-					"Failed":     fmt.Sprintf("%d", result.FailureCount),
-				}
-				if timing {
-					summary["Total time"] = duration.Round(time.Millisecond).String()
-					summary["Average per module"] = (duration / time.Duration(len(moduleNames))).Round(time.Millisecond).String()
-				}
-				ui.KeyValue(summary)
+				// Display results with simplified function
+				displayPVIInstallationResults(ui, result, timing, duration)
 
-				// Show successful installations
-				if len(result.Results) > 0 {
-					var successList []string
-					for _, res := range result.Results {
-						if res.Success {
-							if timing {
-								successList = append(successList, fmt.Sprintf("✓ %s v%s (%s)", res.ModuleName, res.Version, res.Duration.Round(time.Millisecond)))
-							} else {
-								successList = append(successList, fmt.Sprintf("✓ %s v%s", res.ModuleName, res.Version))
-							}
-						}
-					}
-					if len(successList) > 0 {
-						ui.ListWithOptions(uipkg.ListOptions{
-							Title: "Successful installations",
-							Items: successList,
-						})
-					}
+				if result.FailureCount > 0 {
+					return fmt.Errorf("%d modules failed to install", result.FailureCount)
 				}
-
-				// Show failures
-				if len(result.Failures) > 0 {
-					var failureList []string
-					for _, failure := range result.Failures {
-						if timing {
-							failureList = append(failureList, fmt.Sprintf("✗ %s (%s): %v", failure.ModuleName, failure.Duration.Round(time.Millisecond), failure.Error))
-						} else {
-							failureList = append(failureList, fmt.Sprintf("✗ %s: %v", failure.ModuleName, failure.Error))
-						}
-					}
-					ui.ListWithOptions(uipkg.ListOptions{
-						Title: "Failed installations",
-						Items: failureList,
-					})
-					return fmt.Errorf("%d modules failed to install", len(result.Failures))
-				}
-
 			} else {
-				// Single module installation (original logic)
+				// Single module installation
 				moduleName := moduleNames[0]
 				installOptions.ModuleName = moduleName
-
 				ui.Info("Installing module %s...", moduleName)
 
-				startTime := time.Now()
 				result, err := pviModules.InstallModule(installOptions)
 				duration := time.Since(startTime)
 
@@ -306,7 +249,6 @@ func newInstallCommand() *cobra.Command {
 						ui.Success("Successfully installed %s v%s", result.ModuleName, result.Version)
 					}
 
-					// Show installed dependencies count
 					if len(result.Dependencies) > 0 {
 						ui.Info("Installed %d dependencies", len(result.Dependencies))
 					}
@@ -318,20 +260,8 @@ func newInstallCommand() *cobra.Command {
 							Items: result.Warnings,
 						})
 					}
-
-					if timing {
-						ui.Info("Total installation time: %s", duration.Round(time.Millisecond))
-					} else {
-						ui.Info("Total installation time: %s", result.Duration.Round(time.Second))
-					}
 				} else {
 					ui.Error("Failed to install %s", moduleName)
-					if len(result.Errors) > 0 {
-						ui.ListWithOptions(uipkg.ListOptions{
-							Title: "Errors",
-							Items: result.Errors,
-						})
-					}
 					return fmt.Errorf("installation failed")
 				}
 			}
@@ -349,9 +279,6 @@ func newInstallCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&installDir, "install-dir", "i", "", "Directory to install the module to")
 	cmd.Flags().StringVarP(&version, "version", "V", "", "Version constraint (e.g. '>= 1.0')")
 	cmd.Flags().StringVarP(&source, "source", "s", "", "Use a specific metadata source (metacpan, cpan, custom)")
-	cmd.Flags().BoolVar(&buildOnly, "build-only", false, "Only build the module, don't install it")
-	cmd.Flags().BoolVar(&installOnly, "install-only", false, "Only install the module, don't build it (assumes it's already built)")
-	cmd.Flags().BoolVar(&keepBuildDir, "keep-build-dir", false, "Keep the build directory after installation")
 	cmd.Flags().IntVar(&workers, "workers", 0, "Number of parallel workers (0 = auto-detect, only used with multiple modules)")
 	cmd.Flags().BoolVar(&parallel, "parallel", false, "Force parallel installation even for single module")
 	cmd.Flags().BoolVar(&timing, "timing", false, "Show detailed timing information")
@@ -2331,6 +2258,123 @@ func newProgressTracker(ui *uipkg.Output, verbose bool) modules.ProgressTracker 
 
 func newParallelProgressTracker(ui *uipkg.Output, verbose bool) modules.ParallelProgressTracker {
 	return &mockParallelProgressTracker{ui: ui, verbose: verbose}
+}
+
+// displayInstallationResults shows the results of a batch installation
+func displayInstallationResults(ui *uipkg.Output, results []*modules.InstallResult, timing bool, duration time.Duration) {
+	successful := 0
+	failed := 0
+
+	for _, result := range results {
+		if result.Success {
+			successful++
+		} else {
+			failed++
+		}
+	}
+
+	// Display summary
+	ui.SubHeader("Installation Summary")
+	summary := map[string]string{
+		"Modules":    fmt.Sprintf("%d", len(results)),
+		"Successful": fmt.Sprintf("%d", successful),
+		"Failed":     fmt.Sprintf("%d", failed),
+	}
+	if timing {
+		summary["Total time"] = duration.Round(time.Millisecond).String()
+		if len(results) > 0 {
+			summary["Average per module"] = (duration / time.Duration(len(results))).Round(time.Millisecond).String()
+		}
+	}
+	ui.KeyValue(summary)
+
+	// Show successful installations
+	if successful > 0 {
+		var successList []string
+		for _, result := range results {
+			if result.Success {
+				if timing {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s (%s)", result.ModuleName, result.Version, result.Duration.Round(time.Millisecond)))
+				} else {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s", result.ModuleName, result.Version))
+				}
+			}
+		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Successful installations",
+			Items: successList,
+		})
+	}
+
+	// Show failures
+	if failed > 0 {
+		var failureList []string
+		for _, result := range results {
+			if !result.Success {
+				if timing {
+					failureList = append(failureList, fmt.Sprintf("✗ %s (%s): %v", result.ModuleName, result.Duration.Round(time.Millisecond), strings.Join(result.Errors, "; ")))
+				} else {
+					failureList = append(failureList, fmt.Sprintf("✗ %s: %v", result.ModuleName, strings.Join(result.Errors, "; ")))
+				}
+			}
+		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Failed installations",
+			Items: failureList,
+		})
+	}
+}
+
+// displayPVIInstallationResults shows the results of a PVI parallel installation
+func displayPVIInstallationResults(ui *uipkg.Output, result *pviModules.ParallelInstallResult, timing bool, duration time.Duration) {
+	// Display summary
+	ui.SubHeader("Installation Summary")
+	summary := map[string]string{
+		"Modules":    fmt.Sprintf("%d", len(result.Results)),
+		"Successful": fmt.Sprintf("%d", result.SuccessCount),
+		"Failed":     fmt.Sprintf("%d", result.FailureCount),
+	}
+	if timing {
+		summary["Total time"] = duration.Round(time.Millisecond).String()
+		if len(result.Results) > 0 {
+			summary["Average per module"] = (duration / time.Duration(len(result.Results))).Round(time.Millisecond).String()
+		}
+	}
+	ui.KeyValue(summary)
+
+	// Show successful installations
+	if result.SuccessCount > 0 {
+		var successList []string
+		for _, res := range result.Results {
+			if res.Success {
+				if timing {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s (%s)", res.ModuleName, res.Version, res.Duration.Round(time.Millisecond)))
+				} else {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s", res.ModuleName, res.Version))
+				}
+			}
+		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Successful installations",
+			Items: successList,
+		})
+	}
+
+	// Show failures
+	if len(result.Failures) > 0 {
+		var failureList []string
+		for _, failure := range result.Failures {
+			if timing {
+				failureList = append(failureList, fmt.Sprintf("✗ %s (%s): %v", failure.ModuleName, failure.Duration.Round(time.Millisecond), failure.Error))
+			} else {
+				failureList = append(failureList, fmt.Sprintf("✗ %s: %v", failure.ModuleName, failure.Error))
+			}
+		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Failed installations",
+			Items: failureList,
+		})
+	}
 }
 
 func newModuleInstaller(provider interface{}, tracker modules.ProgressTracker) modules.ModuleInstaller {
