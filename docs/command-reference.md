@@ -89,6 +89,94 @@ List available Perl versions for installation.
 pvm available
 ```
 
+### pvm update
+Update PVM to the latest version or a specific version.
+
+```bash
+pvm update [options]
+```
+
+**Options:**
+- `--version <version>` - Update to specific version (e.g., v1.2.3)
+- `--check` - Check for updates without installing
+- `--prerelease` - Include pre-release versions
+- `--force` - Force update even if already up-to-date
+- `--dry-run` - Show what would be updated without making changes
+- `--no-backup` - Skip creating backup before update
+- `--no-rollback` - Disable automatic rollback on failure
+- `--token <token>` - GitHub API token for higher rate limits
+- `--ignore-install-method` - Bypass package manager detection
+
+**Examples:**
+```bash
+# Update to latest stable version
+pvm update
+
+# Check for updates without installing
+pvm update --check
+
+# Update to specific version
+pvm update --version v1.2.3
+
+# Update including pre-release versions
+pvm update --prerelease
+
+# Dry run to see what would be updated
+pvm update --dry-run
+
+# Force update with GitHub token
+pvm update --force --token ghp_xxxxxxxxxxxx
+```
+
+**Notes:**
+- Automatically detects installation method (Homebrew, binary, etc.)
+- Creates backup before update for rollback capability
+- Validates checksums and signatures for security
+- Updates shell integration after successful update
+- Automatic rollback occurs on update failure (disable with `--no-rollback`)
+- Manual rollback available through updater recovery system
+
+### pvm auto-update
+Manage automatic update checking and configuration.
+
+```bash
+pvm auto-update [subcommand] [options]
+```
+
+**Subcommands:**
+- `enable` - Enable automatic update checking
+- `disable` - Disable automatic update checking
+- `config` - Configure auto-update settings
+- `check` - Check for updates in background
+- `status` - Show auto-update configuration status
+
+**Options:**
+- `--token <token>` - GitHub API token for higher rate limits
+- `--channel <channel>` - Update channel (stable, beta, alpha, nightly, developer)
+- `--interval <hours>` - Check interval in hours (default: 24)
+- `--quiet` - Suppress notifications (default: false)
+
+**Examples:**
+```bash
+# Enable auto-update with default settings
+pvm auto-update enable
+
+# Configure auto-update channel and interval
+pvm auto-update config --channel beta --interval 12
+
+# Check current auto-update status
+pvm auto-update status
+
+# Manual background update check
+pvm auto-update check --quiet
+```
+
+**Notes:**
+- Auto-update only checks for updates, never installs automatically
+- Respects same installation method detection as manual updates
+- Notifications can be disabled with --quiet flag
+- Different channels provide access to pre-release versions
+
 ### pvm uninstall
 Remove a Perl version.
 
