@@ -4,6 +4,7 @@
 package platform
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -158,4 +159,47 @@ func MakeExecutable(path string) error {
 
 	// On Unix, set execute permission
 	return os.Chmod(path, 0755)
+}
+
+// GetPlatformTriple returns platform in "goos-goarch" format for binary distribution
+func GetPlatformTriple() string {
+	return fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+}
+
+// GetBinaryExtension returns the platform-specific binary extension
+func GetBinaryExtension() string {
+	if IsWindows() {
+		return ".exe"
+	}
+	return ""
+}
+
+// GetArchiveExtension returns the platform-specific archive format
+func GetArchiveExtension() string {
+	if IsWindows() {
+		return ".zip"
+	}
+	return ".tar.gz"
+}
+
+// IsSupportedPlatform validates if the platform/architecture combination is supported for binaries
+func IsSupportedPlatform() bool {
+	supportedPlatforms := map[string][]string{
+		"linux":   {"amd64", "arm64"},
+		"darwin":  {"amd64", "arm64"},
+		"windows": {"amd64"},
+	}
+
+	supportedArchs, exists := supportedPlatforms[runtime.GOOS]
+	if !exists {
+		return false
+	}
+
+	for _, arch := range supportedArchs {
+		if arch == runtime.GOARCH {
+			return true
+		}
+	}
+
+	return false
 }
