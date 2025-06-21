@@ -160,7 +160,9 @@ Build on Step 1's mode detection to add intelligent tool name resolution to CPAN
 - Enables extensibility for user customization
 ```
 
-## Step 3: Global Tool Installation Infrastructure
+---
+
+## Step 3: Global Tool Installation Infrastructure ✅ COMPLETED
 
 **Goal**: Implement system-level tool installation with isolation and management
 
@@ -299,11 +301,13 @@ Build on Steps 1-3 to add reliable tool execution with proper environment isolat
 - Enables complete tool execution workflow
 ```
 
-## Step 4: Tool Execution with Isolation
+## Step 4: Tool Execution with Isolation ✅ COMPLETED
 
 **Goal**: Implement isolated tool execution using installed global tools
 
 **Context**: Core execution system that runs tools in their isolated environments while maintaining clean separation from project dependencies.
+
+**Note**: Implemented with different architecture than originally planned - uses PVX's existing isolation infrastructure via inline code execution rather than separate execution package. This provides the same functionality with better code reuse and maintainability.
 
 ```
 Implement isolated tool execution system that runs global tools in their dedicated environments.
@@ -370,7 +374,7 @@ Build on Steps 1-3 to add reliable tool execution with proper environment isolat
 
 ---
 
-## Step 5: Shim Management and PATH Integration
+## Step 5: Shim Management and PATH Integration ✅ COMPLETED
 
 **Goal**: Implement executable shim creation and PATH management for installed tools
 
@@ -439,7 +443,9 @@ Build on Steps 1-4 to add PATH integration that makes global tools available as 
 - Enables complete seamless tool execution experience
 ```
 
-## Step 6: Integration with Existing PVM Tool Commands
+---
+
+## Step 6: Integration with Existing PVM Tool Commands ✅ COMPLETED
 
 **Goal**: Integrate global tool execution with existing `pvm tool` command structure
 
