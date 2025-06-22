@@ -51,6 +51,9 @@ type BinaryInstallOptions struct {
 
 	// Custom repository URL
 	RepoURL string
+
+	// Metrics collector for tracking installation performance (optional)
+	MetricsCollector *MetricsCollector
 }
 
 // BinaryInstallResult contains information about the binary installation
@@ -83,6 +86,19 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 		options = &BinaryInstallOptions{}
 	}
 
+	// Initialize metrics tracking if collector is provided
+	var metrics *InstallationMetrics
+	if options.MetricsCollector != nil {
+		metrics = NewInstallationMetrics()
+		metrics.Method = MethodBinary
+		defer func() {
+			if metrics != nil {
+				// Record the installation attempt
+				options.MetricsCollector.RecordInstallation(metrics)
+			}
+		}()
+	}
+
 	// Set default platform if not specified
 	if options.Platform == "" {
 		options.Platform = platform.GetPlatformTriple()
@@ -103,6 +119,12 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 	}
 	version := parsedVersion.String()
 
+	// Update metrics with version and platform
+	if metrics != nil {
+		metrics.Version = version
+		metrics.Platform = options.Platform
+	}
+
 	// Determine installation directory
 	installDir := options.InstallDir
 	if installDir == "" {
@@ -120,6 +142,11 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 		// Directory exists, check if it's a valid installation
 		perlBinary := filepath.Join(installDir, "bin", "perl")
 		if _, err := os.Stat(perlBinary); err == nil {
+			// Complete metrics for cached installation
+			if metrics != nil {
+				metrics.CacheHit = true
+				metrics.Complete(true, nil)
+			}
 			return &BinaryInstallResult{
 				Version:     version,
 				Platform:    options.Platform,
@@ -140,8 +167,29 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 		RepoURL:          options.RepoURL,
 	}
 
+	// Start download phase metrics tracking
+	if metrics != nil {
+		metrics.StartDownloadPhase()
+	}
+
 	downloadResult, err := DownloadPerlBinary(downloadOptions)
+
+	// Record download phase results
+	if metrics != nil {
+		downloadSize := int64(0)
+		downloadSuccess := err == nil
+		if downloadResult != nil {
+			downloadSize = downloadResult.Size
+			metrics.CacheHit = downloadResult.FromCache
+		}
+		metrics.RecordDownloadPhase(downloadSize, downloadSuccess)
+	}
 	if err != nil {
+		// Complete metrics for download failure
+		if metrics != nil {
+			errorMsg := fmt.Sprintf("Failed to download binary for Perl %s", version)
+			metrics.Complete(false, &errorMsg)
+		}
 		return nil, errors.NewVersionError(
 			ErrBinaryInstallFailed,
 			fmt.Sprintf("Failed to download binary for Perl %s", version),
@@ -151,6 +199,11 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 	// Create installation directory
 	err = os.MkdirAll(installDir, 0755)
 	if err != nil {
+		// Complete metrics for directory creation failure
+		if metrics != nil {
+			errorMsg := "Failed to create installation directory"
+			metrics.Complete(false, &errorMsg)
+		}
 		return nil, errors.NewSystemError(ErrBinaryInstallFailed,
 			"Failed to create installation directory", err).
 			WithLocation(installDir)
@@ -159,6 +212,11 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 	// Extract the binary archive
 	extractedSize, err := extractBinaryArchive(downloadResult.Path, installDir, options.Platform)
 	if err != nil {
+		// Complete metrics for extraction failure
+		if metrics != nil {
+			errorMsg := "Failed to extract binary archive"
+			metrics.Complete(false, &errorMsg)
+		}
 		// Clean up on failure
 		_ = os.RemoveAll(installDir)
 		return nil, err
@@ -167,6 +225,11 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 	// Verify installation
 	err = verifyBinaryInstallation(installDir, version)
 	if err != nil {
+		// Complete metrics for verification failure
+		if metrics != nil {
+			errorMsg := fmt.Sprintf("Binary installation verification failed for Perl %s", version)
+			metrics.Complete(false, &errorMsg)
+		}
 		// Clean up on failure
 		_ = os.RemoveAll(installDir)
 		return nil, errors.NewVersionError(
@@ -179,6 +242,11 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 	if runtime.GOOS != "windows" {
 		err = setBinaryPermissions(installDir)
 		if err != nil {
+			// Complete metrics for permission failure
+			if metrics != nil {
+				errorMsg := "Failed to set proper permissions on installed binary"
+				metrics.Complete(false, &errorMsg)
+			}
 			return nil, errors.NewSystemError(ErrBinaryPermissionFailed,
 				"Failed to set proper permissions on installed binary", err).
 				WithLocation(installDir)
@@ -198,6 +266,11 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 		// Don't fail the installation if registration fails, just warn
 		// The installation is still functional
 		fmt.Fprintf(os.Stderr, "Warning: Failed to register version %s: %v\n", version, err)
+	}
+
+	// Complete metrics for successful installation
+	if metrics != nil {
+		metrics.Complete(true, nil)
 	}
 
 	return &BinaryInstallResult{
