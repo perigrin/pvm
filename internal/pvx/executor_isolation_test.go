@@ -30,20 +30,20 @@ func TestIsolationLevelsCommand(t *testing.T) {
 		checkEnv       func(t *testing.T, env []string)
 	}{
 		{
-			name:           "IsolationNone",
-			isolationLevel: IsolationNone,
+			name:           "IsolationGlobal",
+			isolationLevel: IsolationGlobal,
 			checkEnv: func(t *testing.T, env []string) {
 				// Should not contain PERL_LOCAL_LIB_ROOT
 				for _, envVar := range env {
 					if strings.HasPrefix(envVar, "PERL_LOCAL_LIB_ROOT=") {
-						t.Errorf("IsolationNone should not set PERL_LOCAL_LIB_ROOT, but found: %s", envVar)
+						t.Errorf("IsolationGlobal should not set PERL_LOCAL_LIB_ROOT, but found: %s", envVar)
 					}
 				}
 			},
 		},
 		{
-			name:           "IsolationLow",
-			isolationLevel: IsolationLow,
+			name:           "IsolationLocal",
+			isolationLevel: IsolationLocal,
 			checkEnv: func(t *testing.T, env []string) {
 				// Should contain PERL_LOCAL_LIB_ROOT and preserve original PERL5LIB
 				foundLocalLib := false
@@ -54,13 +54,13 @@ func TestIsolationLevelsCommand(t *testing.T) {
 					}
 				}
 				if !foundLocalLib {
-					t.Errorf("IsolationLow should set PERL_LOCAL_LIB_ROOT, but not found in env")
+					t.Errorf("IsolationLocal should set PERL_LOCAL_LIB_ROOT, but not found in env")
 				}
 			},
 		},
 		{
-			name:           "IsolationMedium",
-			isolationLevel: IsolationMedium,
+			name:           "IsolationClean",
+			isolationLevel: IsolationClean,
 			checkEnv: func(t *testing.T, env []string) {
 				// Should only have PERL5LIB pointing to isolated directories
 				foundLocalLib := false
@@ -83,61 +83,14 @@ func TestIsolationLevelsCommand(t *testing.T) {
 				}
 
 				if !foundLocalLib {
-					t.Errorf("IsolationMedium should set PERL_LOCAL_LIB_ROOT, but not found in env")
+					t.Errorf("IsolationClean should set PERL_LOCAL_LIB_ROOT, but not found in env")
 				}
 				if !cleanPerl5Lib {
-					t.Errorf("IsolationMedium should have a clean PERL5LIB with isolation dirs")
+					t.Errorf("IsolationClean should have a clean PERL5LIB with isolation dirs")
 				}
 			},
 		},
-		{
-			name:           "IsolationHigh",
-			isolationLevel: IsolationHigh,
-			checkEnv: func(t *testing.T, env []string) {
-				// Should have minimal environment variables
-				essentialVars := map[string]bool{
-					"PATH":                true,
-					"HOME":                true,
-					"USER":                true,
-					"SHELL":               true,
-					"TMPDIR":              true,
-					"TERM":                true,
-					"PERL5LIB":            true,
-					"PERL_LOCAL_LIB_ROOT": true,
-					"PERL_MB_OPT":         true,
-					"PERL_MM_OPT":         true,
-				}
-
-				// Count the variables outside the essential set
-				nonEssentialCount := 0
-				for _, envVar := range env {
-					parts := strings.SplitN(envVar, "=", 2)
-					if len(parts) < 2 {
-						continue
-					}
-
-					key := parts[0]
-					if !essentialVars[key] && !strings.HasPrefix(key, "PVM_") {
-						nonEssentialCount++
-					}
-				}
-
-				// Should have fewer environment variables than the original environment
-				assert.Less(t, nonEssentialCount, 20, "IsolationHigh should have minimal non-essential variables")
-
-				// Should have PERL_LOCAL_LIB_ROOT
-				foundLocalLib := false
-				for _, envVar := range env {
-					if strings.HasPrefix(envVar, "PERL_LOCAL_LIB_ROOT=") {
-						foundLocalLib = true
-						break
-					}
-				}
-				if !foundLocalLib {
-					t.Errorf("IsolationHigh should set PERL_LOCAL_LIB_ROOT, but not found in env")
-				}
-			},
-		},
+		// Note: High isolation level was eliminated
 	}
 
 	// Run test cases
@@ -215,7 +168,7 @@ func TestLegacyIsolationFlag(t *testing.T) {
 	_, err = ExecuteScript(options)
 	require.NoError(t, err, "ExecuteScript failed")
 
-	// Should contain PERL_LOCAL_LIB_ROOT (indicating it was converted to IsolationLow)
+	// Should contain PERL_LOCAL_LIB_ROOT (indicating it was converted to IsolationLocal)
 	foundLocalLib := false
 	for _, envVar := range mockCmdEnv {
 		if strings.HasPrefix(envVar, "PERL_LOCAL_LIB_ROOT=") {
@@ -238,7 +191,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 	}{
 		{
 			name:           "BuildEnvironmentNone",
-			isolationLevel: IsolationNone,
+			isolationLevel: IsolationGlobal,
 			checkEnv: func(t *testing.T, env []string) {
 				originalEnvCount := len(os.Environ())
 				if len(env) < originalEnvCount {
@@ -249,7 +202,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 		},
 		{
 			name:           "BuildEnvironmentLow",
-			isolationLevel: IsolationLow,
+			isolationLevel: IsolationLocal,
 			checkEnv: func(t *testing.T, env []string) {
 				foundLocalLib := false
 				perl5libSet := false
@@ -273,7 +226,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 		},
 		{
 			name:           "BuildEnvironmentMedium",
-			isolationLevel: IsolationMedium,
+			isolationLevel: IsolationClean,
 			checkEnv: func(t *testing.T, env []string) {
 				foundLocalLib := false
 				perl5libSet := false
@@ -295,35 +248,7 @@ func TestEnvironmentBuilding(t *testing.T) {
 				}
 			},
 		},
-		{
-			name:           "BuildEnvironmentHigh",
-			isolationLevel: IsolationHigh,
-			checkEnv: func(t *testing.T, env []string) {
-				foundLocalLib := false
-				perl5libSet := false
-
-				for _, envVar := range env {
-					if strings.HasPrefix(envVar, "PERL_LOCAL_LIB_ROOT=") {
-						foundLocalLib = true
-					}
-					if strings.HasPrefix(envVar, "PERL5LIB=") {
-						perl5libSet = true
-					}
-				}
-
-				if !foundLocalLib {
-					t.Errorf("Expected PERL_LOCAL_LIB_ROOT to be set")
-				}
-				if !perl5libSet {
-					t.Errorf("Expected PERL5LIB to be set")
-				}
-
-				// Check that the environment is smaller than the original
-				if len(env) >= len(os.Environ()) {
-					t.Errorf("Expected high isolation to have fewer env vars than original")
-				}
-			},
-		},
+		// Note: High isolation level test was eliminated
 	}
 
 	for _, tc := range testCases {

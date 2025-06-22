@@ -139,7 +139,7 @@ func TestParseString(t *testing.T) {
 		build_jobs = 8
 
 		[pvx]
-		isolation_level = "high"
+		isolation_level = "clean"
 
 		[pvi]
 		preferred_installer = "cpanm"
@@ -161,8 +161,8 @@ func TestParseString(t *testing.T) {
 		t.Errorf("Expected BuildJobs = 8, got %d", config.PVM.BuildJobs)
 	}
 
-	if config.PVX.IsolationLevel != "high" {
-		t.Errorf("Expected IsolationLevel = 'high', got '%s'", config.PVX.IsolationLevel)
+	if config.PVX.IsolationLevel != "clean" {
+		t.Errorf("Expected IsolationLevel = 'clean', got '%s'", config.PVX.IsolationLevel)
 	}
 
 	if config.PVI.PreferredInstaller != "cpanm" {
@@ -195,8 +195,8 @@ func TestParseStringWithDefaults(t *testing.T) {
 		t.Errorf("Expected default BuildJobs = 4, got %d", config.PVM.BuildJobs)
 	}
 
-	if config.PVX.IsolationLevel != "medium" {
-		t.Errorf("Expected default IsolationLevel = 'medium', got '%s'", config.PVX.IsolationLevel)
+	if config.PVX.IsolationLevel != "clean" {
+		t.Errorf("Expected default IsolationLevel = 'clean', got '%s'", config.PVX.IsolationLevel)
 	}
 }
 
@@ -286,7 +286,7 @@ func TestParseFile(t *testing.T) {
 		build_jobs = 8
 
 		[pvx]
-		isolation_level = "high"
+		isolation_level = "clean"
 	`
 
 	err = os.WriteFile(tmpFile, []byte(tomlContent), 0644)
@@ -309,8 +309,8 @@ func TestParseFile(t *testing.T) {
 		t.Errorf("Expected BuildJobs = 8, got %d", config.PVM.BuildJobs)
 	}
 
-	if config.PVX.IsolationLevel != "high" {
-		t.Errorf("Expected IsolationLevel = 'high', got '%s'", config.PVX.IsolationLevel)
+	if config.PVX.IsolationLevel != "clean" {
+		t.Errorf("Expected IsolationLevel = 'clean', got '%s'", config.PVX.IsolationLevel)
 	}
 }
 
@@ -436,7 +436,7 @@ func TestSaveConfig(t *testing.T) {
 		build_jobs = 8
 
 		[pvx]
-		isolation_level = "high"
+		isolation_level = "clean"
 	`)
 
 	// Create a temporary directory
@@ -468,8 +468,8 @@ func TestSaveConfig(t *testing.T) {
 		t.Errorf("Expected BuildJobs = 8, got %d", loaded.PVM.BuildJobs)
 	}
 
-	if loaded.PVX.IsolationLevel != "high" {
-		t.Errorf("Expected IsolationLevel = 'high', got '%s'", loaded.PVX.IsolationLevel)
+	if loaded.PVX.IsolationLevel != "clean" {
+		t.Errorf("Expected IsolationLevel = 'clean', got '%s'", loaded.PVX.IsolationLevel)
 	}
 }
 

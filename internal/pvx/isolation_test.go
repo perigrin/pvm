@@ -14,6 +14,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+
+// isEssentialEnvVar checks if an environment variable is essential and should be preserved
+func isEssentialEnvVar(key string) bool {
+	essentialVars := map[string]bool{
+		"PATH":           true,
+		"HOME":           true,
+		"USER":           true,
+		"SHELL":          true,
+		"TERM":           true,
+		"PWD":            true,
+		"PERL5LIB":       true,
+		"PERL_LOCAL_LIB_ROOT": true,
+		"PERL_MB_OPT":    true,
+		"PERL_MM_OPT":    true,
+		"PVM_READONLY_PATHS":  true,
+		"PVM_READWRITE_PATHS": true,
+		"PVM_ISOLATED_OUTPUT": true,
+	}
+	return essentialVars[key]
+}
+
 // buildTestEnvironment is a simplified version of buildEnvironment used only for testing
 // It duplicates the key functionality but doesn't depend on getPerlArchDir which is hard to mock
 func buildTestEnvironment(options *ExecutionOptions) ([]string, error) {
@@ -65,7 +86,7 @@ func buildTestEnvironment(options *ExecutionOptions) ([]string, error) {
 	}
 
 	// If no isolation requested, return current environment
-	if options.IsolationLevel == "" || options.IsolationLevel == IsolationNone {
+	if options.IsolationLevel == "" || options.IsolationLevel == IsolationGlobal {
 		return env, nil
 	}
 
@@ -80,9 +101,33 @@ func buildTestEnvironment(options *ExecutionOptions) ([]string, error) {
 	siteDir := filepath.Join(isolationDir, "lib", "site_perl")
 	vendorDir := filepath.Join(isolationDir, "lib", "vendor_perl")
 
+	// Handle environment variable preservation when PreserveEnv is specified
+	if len(options.PreserveEnv) > 0 {
+		// Create a filtered environment with only preserved variables
+		preserveMap := make(map[string]bool)
+		for _, key := range options.PreserveEnv {
+			preserveMap[key] = true
+		}
+
+		filteredEnv := []string{}
+		for _, envVar := range env {
+			parts := strings.SplitN(envVar, "=", 2)
+			if len(parts) < 2 {
+				continue
+			}
+
+			// Keep preserved variables and essential system variables
+			if preserveMap[parts[0]] || isEssentialEnvVar(parts[0]) {
+				filteredEnv = append(filteredEnv, envVar)
+			}
+		}
+
+		env = filteredEnv
+	}
+
 	// Set up the environment based on isolation level
 	switch options.IsolationLevel {
-	case IsolationLow:
+	case IsolationLocal:
 		// Low isolation: Add local::lib equivalent while preserving existing PERL5LIB
 		perl5lib := fmt.Sprintf("%s:%s", libDir, archLibDir)
 
@@ -137,7 +182,7 @@ func buildTestEnvironment(options *ExecutionOptions) ([]string, error) {
 			env = append(env, fmt.Sprintf("PATH=%s", binDir))
 		}
 
-	case IsolationMedium:
+	case IsolationClean:
 		// Medium isolation: Clean PERL5LIB but preserve most environment variables
 		perl5lib := fmt.Sprintf("%s:%s:%s:%s",
 			libDir,
@@ -178,135 +223,22 @@ func buildTestEnvironment(options *ExecutionOptions) ([]string, error) {
 		if !pathFound {
 			env = append(env, fmt.Sprintf("PATH=%s", binDir))
 		}
+	}
 
-	case IsolationHigh:
-		// High isolation: Start with minimal environment and add only what's needed
-		// Create a clean environment with only essential variables
-		cleanEnv := []string{}
+	// Handle filesystem isolation environment variables
+	if len(options.ReadOnlyPaths) > 0 {
+		setEnvVar(&env, "PVM_READONLY_PATHS", strings.Join(options.ReadOnlyPaths, ":"))
+	}
 
-		// Copy only essential environment variables (non-exhaustive list)
-		essentialVars := []string{
-			"PATH",
-			"HOME",
-			"USER",
-			"SHELL",
-			"TMPDIR",
-			"TERM",
-		}
+	if len(options.ReadWritePaths) > 0 {
+		setEnvVar(&env, "PVM_READWRITE_PATHS", strings.Join(options.ReadWritePaths, ":"))
+	}
 
-		for _, key := range essentialVars {
-			for _, envVar := range env {
-				if strings.HasPrefix(envVar, key+"=") {
-					cleanEnv = append(cleanEnv, envVar)
-					break
-				}
-			}
-		}
-
-		// Add any preserved environment variables
-		for _, key := range options.PreserveEnv {
-			// Skip if it's already in essential vars
-			isEssential := false
-			for _, essential := range essentialVars {
-				if key == essential {
-					isEssential = true
-					break
-				}
-			}
-			if isEssential {
-				continue
-			}
-
-			// Find and add from original environment
-			for _, envVar := range env {
-				if strings.HasPrefix(envVar, key+"=") {
-					// Check if it should be cleared
-					if len(options.ClearEnv) > 0 {
-						shouldClear := false
-						for _, clearKey := range options.ClearEnv {
-							if key == clearKey {
-								shouldClear = true
-								break
-							}
-						}
-						if shouldClear {
-							continue
-						}
-					}
-
-					cleanEnv = append(cleanEnv, envVar)
-					break
-				}
-			}
-		}
-
-		// Add custom environment variables
-		for key, value := range options.Env {
-			setEnvVar(&cleanEnv, key, value)
-		}
-
-		// Set up enhanced filesystem isolation for high isolation mode
-		if options.IsolatedOutput {
-			// Create a temporary directory for script output
-			outputDir := filepath.Join(isolationDir, "output")
-			setEnvVar(&cleanEnv, "PVM_OUTPUT_DIR", outputDir)
-			setEnvVar(&cleanEnv, "PVM_ISOLATED_OUTPUT", "1")
-		}
-
-		// Configure filesystem access paths
-		if len(options.ReadOnlyPaths) > 0 {
-			readOnlyPathsStr := strings.Join(options.ReadOnlyPaths, ":")
-			setEnvVar(&cleanEnv, "PVM_READONLY_PATHS", readOnlyPathsStr)
-		}
-
-		if len(options.ReadWritePaths) > 0 {
-			readWritePathsStr := strings.Join(options.ReadWritePaths, ":")
-			setEnvVar(&cleanEnv, "PVM_READWRITE_PATHS", readWritePathsStr)
-		}
-
-		// Set PERL5LIB to include all the isolation directory paths
-		perl5lib := fmt.Sprintf("%s:%s:%s:%s",
-			libDir,
-			archLibDir,
-			siteDir,
-			vendorDir)
-
-		// Add any user-specified additional module paths
-		for _, path := range options.AdditionalModulePaths {
-			perl5lib = fmt.Sprintf("%s:%s", perl5lib, path)
-		}
-
-		setEnvVar(&cleanEnv, "PERL5LIB", perl5lib)
-
-		// Set up the local::lib equivalent environment variables
-		// Use the custom module path if provided, otherwise use the isolation directory
-		modulePath := isolationDir
-		if options.CustomModulePath != "" {
-			modulePath = options.CustomModulePath
-		}
-
-		setEnvVar(&cleanEnv, "PERL_LOCAL_LIB_ROOT", modulePath)
-		setEnvVar(&cleanEnv, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", modulePath))
-		setEnvVar(&cleanEnv, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", modulePath))
-
-		// Set PATH to include the bin directory first
-		pathFound := false
-		for i, existing := range cleanEnv {
-			if strings.HasPrefix(existing, "PATH=") {
-				currentPath := strings.TrimPrefix(existing, "PATH=")
-				cleanEnv[i] = fmt.Sprintf("PATH=%s:%s", binDir, currentPath)
-				pathFound = true
-				break
-			}
-		}
-
-		// Add new PATH if not found
-		if !pathFound {
-			cleanEnv = append(cleanEnv, fmt.Sprintf("PATH=%s", binDir))
-		}
-
-		// Use the clean environment instead of the original one
-		env = cleanEnv
+	if options.IsolatedOutput {
+		setEnvVar(&env, "PVM_ISOLATED_OUTPUT", "1")
+		// Ensure the output directory exists
+		outputDir := filepath.Join(isolationDir, "output")
+		os.MkdirAll(outputDir, 0755)
 	}
 
 	return env, nil
@@ -337,9 +269,9 @@ func TestEnhancedEnvironmentIsolation(t *testing.T) {
 	}{
 		{
 			name:           "NoIsolation",
-			isolationLevel: IsolationNone,
+			isolationLevel: IsolationGlobal,
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationNone,
+				IsolationLevel: IsolationGlobal,
 				IsolationDir:   tmpDir,
 				Verbose:        true,
 			},
@@ -373,9 +305,9 @@ func TestEnhancedEnvironmentIsolation(t *testing.T) {
 		},
 		{
 			name:           "LowIsolation",
-			isolationLevel: IsolationLow,
+			isolationLevel: IsolationLocal,
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationLow,
+				IsolationLevel: IsolationLocal,
 				IsolationDir:   tmpDir,
 				Verbose:        true,
 			},
@@ -416,9 +348,9 @@ func TestEnhancedEnvironmentIsolation(t *testing.T) {
 		},
 		{
 			name:           "MediumIsolation",
-			isolationLevel: IsolationMedium,
+			isolationLevel: IsolationClean,
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationMedium,
+				IsolationLevel: IsolationClean,
 				IsolationDir:   tmpDir,
 				Verbose:        true,
 			},
@@ -458,9 +390,9 @@ func TestEnhancedEnvironmentIsolation(t *testing.T) {
 		},
 		{
 			name:           "HighIsolation",
-			isolationLevel: IsolationHigh,
+			isolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationHigh,
+				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 				IsolationDir:   tmpDir,
 				PreserveEnv:    []string{"TEST_VAR_1", "TEST_VAR_2"},
 				Verbose:        true,
@@ -495,9 +427,9 @@ func TestEnhancedEnvironmentIsolation(t *testing.T) {
 		},
 		{
 			name:           "HighIsolationWithClearEnv",
-			isolationLevel: IsolationHigh,
+			isolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationHigh,
+				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 				IsolationDir:   tmpDir,
 				PreserveEnv:    []string{"TEST_VAR_1", "TEST_VAR_2"},
 				ClearEnv:       []string{"TEST_VAR_2"}, // This will override preservation
@@ -565,9 +497,9 @@ func TestModulePathIsolation(t *testing.T) {
 	}{
 		{
 			name:           "LowIsolationWithCustomModulePath",
-			isolationLevel: IsolationLow,
+			isolationLevel: IsolationLocal,
 			options: &ExecutionOptions{
-				IsolationLevel:        IsolationLow,
+				IsolationLevel:        IsolationLocal,
 				IsolationDir:          tmpDir,
 				CustomModulePath:      customModulePath,
 				AdditionalModulePaths: []string{additionalModulePath1, additionalModulePath2},
@@ -601,9 +533,9 @@ func TestModulePathIsolation(t *testing.T) {
 		},
 		{
 			name:           "HighIsolationWithCustomModulePath",
-			isolationLevel: IsolationHigh,
+			isolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 			options: &ExecutionOptions{
-				IsolationLevel:        IsolationHigh,
+				IsolationLevel:        IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 				IsolationDir:          tmpDir,
 				CustomModulePath:      customModulePath,
 				AdditionalModulePaths: []string{additionalModulePath1, additionalModulePath2},
@@ -665,7 +597,7 @@ func TestFilesystemIsolation(t *testing.T) {
 		{
 			name: "BasicHighIsolation",
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationHigh,
+				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 				IsolationDir:   tmpDir,
 				ReadOnlyPaths:  []string{"/usr", "/bin"},
 				ReadWritePaths: []string{"/tmp", "/home"},
@@ -682,7 +614,7 @@ func TestFilesystemIsolation(t *testing.T) {
 		{
 			name: "CustomPathsIsolation",
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationHigh,
+				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 				IsolationDir:   tmpDir,
 				ReadOnlyPaths:  []string{"/etc", "/opt"},
 				ReadWritePaths: []string{"/var/tmp", "/usr/local"},
@@ -699,7 +631,7 @@ func TestFilesystemIsolation(t *testing.T) {
 		{
 			name: "OutputOnlyIsolation",
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationHigh,
+				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 				IsolationDir:   tmpDir,
 				IsolatedOutput: true,
 				Verbose:        true,
@@ -712,7 +644,7 @@ func TestFilesystemIsolation(t *testing.T) {
 		{
 			name: "NoOutputIsolation",
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationHigh,
+				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 				IsolationDir:   tmpDir,
 				ReadOnlyPaths:  []string{"/usr", "/bin"},
 				ReadWritePaths: []string{"/tmp", "/home"},
@@ -835,7 +767,7 @@ func TestIsolationPersistence(t *testing.T) {
 
 	// First run with custom isolation directory
 	options1 := &ExecutionOptions{
-		IsolationLevel: IsolationMedium,
+		IsolationLevel: IsolationClean,
 		IsolationDir:   isolationDir,
 		Verbose:        true,
 	}
@@ -846,7 +778,7 @@ func TestIsolationPersistence(t *testing.T) {
 
 	// Second run with the same isolation directory
 	options2 := &ExecutionOptions{
-		IsolationLevel: IsolationMedium,
+		IsolationLevel: IsolationClean,
 		IsolationDir:   isolationDir,
 		Verbose:        true,
 	}
@@ -904,7 +836,7 @@ func TestCustomModuleIsolation(t *testing.T) {
 	}{
 		{
 			name:             "LowIsolationWithCustomModule",
-			isolationLevel:   IsolationLow,
+			isolationLevel:   IsolationLocal,
 			customModulePath: customModulePath,
 			additionalPaths:  []string{additionalPath1, additionalPath2},
 			expectedVars: []string{
@@ -915,7 +847,7 @@ func TestCustomModuleIsolation(t *testing.T) {
 		},
 		{
 			name:             "MediumIsolationWithCustomModule",
-			isolationLevel:   IsolationMedium,
+			isolationLevel:   IsolationClean,
 			customModulePath: customModulePath,
 			additionalPaths:  []string{additionalPath1},
 			expectedVars: []string{
@@ -926,7 +858,7 @@ func TestCustomModuleIsolation(t *testing.T) {
 		},
 		{
 			name:             "HighIsolationWithCustomModule",
-			isolationLevel:   IsolationHigh,
+			isolationLevel:   IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
 			customModulePath: customModulePath,
 			additionalPaths:  []string{},
 			expectedVars: []string{

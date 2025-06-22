@@ -213,18 +213,14 @@ func NewCommand() *cobra.Command {
 				}
 			} else if isolated {
 				// Backward compatibility: if --isolated flag is used without --isolation,
-				// default to low isolation
-				options.IsolationLevel = IsolationLow
+				// default to local isolation
+				options.IsolationLevel = IsolationLocal
 				if options.Verbose {
-					log.Infof("Using isolation level 'low' due to --isolated flag (legacy mode)")
+					log.Infof("Using isolation level 'local' due to --isolated flag (legacy mode)")
 				}
 			}
 
-			// Validate that high isolation features are only used with high isolation level
-			if options.IsolationLevel != IsolationHigh &&
-				(len(options.ReadOnlyPaths) > 0 || len(options.ReadWritePaths) > 0 || options.IsolatedOutput) {
-				log.Warnf("Read-only paths, read-write paths, and isolated output are only fully effective with high isolation")
-			}
+			// Note: Filesystem isolation features have been removed with the elimination of high isolation level
 
 			// Handle no-install flag
 			if noInstall {
@@ -322,16 +318,12 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().Bool("type-check", false, "Enable type checking before execution")
 	cmd.Flags().BoolP("verbose", "v", false, "Show additional output")
 	cmd.Flags().BoolP("force", "f", false, "Force using specified Perl version")
-	cmd.Flags().BoolP("isolated", "i", false, "Create an isolated environment for the script (deprecated, use --isolation=low instead)")
+	cmd.Flags().BoolP("isolated", "i", false, "Create an isolated environment for the script (deprecated, use --isolation=local instead)")
 	cmd.Flags().String("isolation-dir", "", "Specify the directory to use for isolation (default: auto-generated temp dir)")
-	cmd.Flags().String("isolation", "", "Set isolation level: none, low, medium, high")
+	cmd.Flags().String("isolation", "", "Set isolation level: global, local, clean")
 	cmd.Flags().Bool("no-cleanup", false, "Keep isolation directory after execution (default: cleanup)")
 
-	// Filesystem isolation flags
-	cmd.Flags().StringArray("ro-path", []string{}, "Add a read-only path for filesystem isolation (high isolation only, can be specified multiple times)")
-	cmd.Flags().StringArray("rw-path", []string{}, "Add a read-write path for filesystem isolation (high isolation only, can be specified multiple times)")
-	cmd.Flags().Bool("isolated-output", false, "Create a temporary directory for script output (high isolation only)")
-	cmd.Flags().String("save-output-dir", "", "Save generated files from isolated output to this directory")
+	// Note: Filesystem isolation flags removed with elimination of high isolation level
 
 	// Environment variable isolation flags
 	cmd.Flags().StringArray("preserve-env", []string{}, "Preserve specific environment variables in isolation (can be specified multiple times)")

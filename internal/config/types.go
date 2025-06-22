@@ -144,7 +144,7 @@ type PVXConfig struct {
 	CleanupAfter bool `toml:"cleanup_after" json:"cleanup_after"`
 
 	// IsolationLevel specifies the level of isolation for script execution
-	// Valid values: "none", "low", "medium", "high"
+	// Valid values: "global", "local", "clean"
 	IsolationLevel string `toml:"isolation_level" json:"isolation_level"`
 
 	// AlwaysInstallDeps specifies whether to automatically install missing dependencies
@@ -156,10 +156,10 @@ type PVXConfig struct {
 	// MaxMemory specifies the maximum memory usage (e.g., "512MB")
 	MaxMemory string `toml:"max_memory" json:"max_memory"`
 
-	// IsolationReadOnlyPaths specifies paths that should be read-only in high isolation mode
+	// IsolationReadOnlyPaths specifies paths that should be read-only in clean isolation mode
 	IsolationReadOnlyPaths []string `toml:"isolation_ro_paths" json:"isolation_ro_paths"`
 
-	// IsolationReadWritePaths specifies paths that should be read-write in high isolation mode
+	// IsolationReadWritePaths specifies paths that should be read-write in clean isolation mode
 	IsolationReadWritePaths []string `toml:"isolation_rw_paths" json:"isolation_rw_paths"`
 
 	// IsolatedOutput specifies whether to create an isolated output directory
@@ -412,7 +412,7 @@ func NewDefaultConfig() *Config {
 		PVX: &PVXConfig{
 			CacheModules:            true,
 			CleanupAfter:            true,
-			IsolationLevel:          "medium",
+			IsolationLevel:          "clean",
 			AlwaysInstallDeps:       true,
 			Timeout:                 300,
 			MaxMemory:               "512MB",
@@ -652,14 +652,13 @@ func (c *PVXConfig) Validate() []error {
 
 	// Validate IsolationLevel
 	validLevels := map[string]bool{
-		"none":   true,
-		"low":    true,
-		"medium": true,
-		"high":   true,
+		"global": true,
+		"local":  true,
+		"clean":  true,
 	}
 
 	if c.IsolationLevel != "" && !validLevels[c.IsolationLevel] {
-		errors = append(errors, ValidateError("IsolationLevel must be one of: none, low, medium, high"))
+		errors = append(errors, ValidateError("IsolationLevel must be one of: global, local, clean"))
 	}
 
 	// Validate Timeout

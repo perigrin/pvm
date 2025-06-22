@@ -48,7 +48,7 @@ build_jobs = {{.build_jobs}}
 run_tests = true
 
 [pvx]
-isolation_level = "medium"
+isolation_level = "clean"
 """
 
 [variables]
@@ -118,7 +118,7 @@ default_perl = "{{.perl_version}}"
 run_tests = true
 
 [pvx]
-isolation_level = "medium"
+isolation_level = "clean"
 """`
 
 		parentPath := filepath.Join(templatesDir, "parent.template.toml")
@@ -257,7 +257,7 @@ isolation_level = "{{lower .isolation_level}}"
 		// Render template with functions
 		variables := map[string]string{
 			"perl_version":    "5.38.0",
-			"isolation_level": "HIGH",
+			"isolation_level": "clean",
 			// mirror_url intentionally not set to test default function
 		}
 		config, err := tm.RenderTemplate("functions", variables)
@@ -272,8 +272,8 @@ isolation_level = "{{lower .isolation_level}}"
 		if config.PVM.DownloadMirror != "https://default.mirror.com" {
 			t.Errorf("Expected DownloadMirror 'https://default.mirror.com' (default function), got '%s'", config.PVM.DownloadMirror)
 		}
-		if config.PVX.IsolationLevel != "high" {
-			t.Errorf("Expected IsolationLevel 'high' (lower function), got '%s'", config.PVX.IsolationLevel)
+		if config.PVX.IsolationLevel != "clean" {
+			t.Errorf("Expected IsolationLevel 'clean' (lower function), got '%s'", config.PVX.IsolationLevel)
 		}
 	})
 

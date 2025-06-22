@@ -169,9 +169,9 @@ func ExecuteWithTypeChecking(options *TypeCheckedExecutionOptions) (*TypeChecked
 	}
 
 	// Prepare execution options for PVX
-	isolationLevel := pvx.IsolationMedium
+	isolationLevel := pvx.IsolationClean
 	if options.DisableIsolation {
-		isolationLevel = pvx.IsolationNone
+		isolationLevel = pvx.IsolationGlobal
 	}
 
 	// Set up environment variables
