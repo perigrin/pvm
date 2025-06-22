@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/typechecker"
 )
 
@@ -81,7 +82,7 @@ my Str $another_typed = $untyped_var;`,
 			}
 
 			// Test the complete check workflow
-			errorCount, err := checkFile(testFile, false, false, false, false)
+			errorCount, err := checkFile(ui.NewDefaultOutput(), testFile, false, false, false, false)
 			if err != nil {
 				t.Fatalf("checkFile failed: %v", err)
 			}
@@ -163,7 +164,7 @@ my Int $bad = "error";
 	}
 
 	// Test recursive checking
-	totalFiles, totalErrors, err := checkDirectory(tempDir, false, false, false)
+	totalFiles, totalErrors, err := checkDirectory(ui.NewDefaultOutput(), tempDir, false, false, false)
 	if err != nil {
 		t.Fatalf("checkDirectory failed: %v", err)
 	}
@@ -227,7 +228,7 @@ func TestCheckCommandErrorHandling(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			filePath := tt.setup()
 
-			_, err := checkFile(filePath, false, false, false, false)
+			_, err := checkFile(ui.NewDefaultOutput(), filePath, false, false, false, false)
 
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got none")
@@ -266,7 +267,7 @@ func TestPerformanceWithLargeFile(t *testing.T) {
 	}
 
 	// Test that large file can be checked without timeout or memory issues
-	errorCount, err := checkFile(largeFile, false, true, false, false) // Use verbose for more info
+	errorCount, err := checkFile(ui.NewDefaultOutput(), largeFile, false, true, false, false) // Use verbose for more info
 	if err != nil {
 		t.Fatalf("Failed to check large file: %v", err)
 	}
@@ -295,7 +296,7 @@ my Str $name = [];`
 	}
 
 	// Test non-strict mode (should not exit with error)
-	errorCount, err := checkFile(errorFile, false, false, false, false)
+	errorCount, err := checkFile(ui.NewDefaultOutput(), errorFile, false, false, false, false)
 	if err != nil {
 		t.Errorf("Non-strict mode should not return error: %v", err)
 	}
@@ -306,7 +307,7 @@ my Str $name = [];`
 
 	// Test strict mode - we can't directly test os.Exit, but we can verify
 	// that the error count is properly returned for strict mode logic
-	errorCountStrict, err := checkFile(errorFile, true, false, false, false)
+	errorCountStrict, err := checkFile(ui.NewDefaultOutput(), errorFile, true, false, false, false)
 	if err != nil {
 		t.Errorf("Strict mode should not return error from checkFile: %v", err)
 	}
@@ -333,7 +334,7 @@ my Str $name = "hello";`
 
 	// Test verbose mode - we can't easily capture stdout in unit tests,
 	// but we can verify the function completes without error
-	errorCount, err := checkFile(testFile, false, true, false, false)
+	errorCount, err := checkFile(ui.NewDefaultOutput(), testFile, false, true, false, false)
 	if err != nil {
 		t.Errorf("Verbose mode failed: %v", err)
 	}
@@ -367,7 +368,7 @@ func TestFileExtensionFiltering(t *testing.T) {
 	}
 
 	// Test recursive checking to see which files are processed
-	totalFiles, totalErrors, err := checkDirectory(tempDir, false, false, false)
+	totalFiles, totalErrors, err := checkDirectory(ui.NewDefaultOutput(), tempDir, false, false, false)
 	if err != nil {
 		t.Fatalf("checkDirectory failed: %v", err)
 	}

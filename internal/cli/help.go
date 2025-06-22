@@ -498,7 +498,11 @@ Without a topic, shows contextual help based on your current project state.`,
 						return targetCmd.Help()
 					}
 				}
-				return fmt.Errorf("unknown help topic: %s\n\nAvailable topics: workflows, getting-started, troubleshooting, next", topic)
+				ui := GetUI(cmd)
+				ui.Error("unknown help topic: %s", topic)
+				ui.Println("")
+				ui.Info("Available topics: workflows, getting-started, troubleshooting, next")
+				return fmt.Errorf("unknown help topic: %s", topic)
 			}
 		},
 	}
@@ -508,51 +512,56 @@ Without a topic, shows contextual help based on your current project state.`,
 
 // showContextualHelp displays help content based on current context
 func showContextualHelp(cmd *cobra.Command, helpManager *HelpManager) error {
+	ui := GetUI(cmd)
 	categories := helpManager.GetContextualHelp()
 
 	// Show project context
 	if helpManager.projectContext != nil && helpManager.projectContext.IsProject {
-		cmd.Printf("📁 Project Context: %s (detected via %s)\n\n",
+		ui.Info("📁 Project Context: %s (detected via %s)",
 			helpManager.projectContext.RootDir,
 			helpManager.projectContext.DetectionInfo)
+		ui.Println("")
 	} else {
-		cmd.Println("📁 Context: Not in a Perl project directory")
-		cmd.Println()
+		ui.Info("📁 Context: Not in a Perl project directory")
+		ui.Println("")
 	}
 
 	// Show each category
 	for _, category := range categories {
-		cmd.Printf("## %s\n", category.Name)
-		cmd.Printf("%s\n\n", category.Description)
+		ui.SubHeader(category.Name)
+		ui.Println(category.Description)
+		ui.Println("")
 
+		// Format commands as a structured list
+		commandItems := make([]string, 0, len(category.Commands))
 		for _, suggestion := range category.Commands {
-			cmd.Printf("  %-25s %s\n", suggestion.Command, suggestion.Description)
+			commandLine := fmt.Sprintf("%-25s %s", suggestion.Command, suggestion.Description)
 			if suggestion.Relevance != "" {
-				cmd.Printf("  %-25s └─ %s\n", "", suggestion.Relevance)
+				commandLine += "\n" + fmt.Sprintf("%25s └─ %s", "", suggestion.Relevance)
 			}
+			commandItems = append(commandItems, commandLine)
 		}
-		cmd.Println()
+		ui.List(commandItems)
 	}
 
 	// Show next steps
-	cmd.Println("💡 Suggested next steps:")
+	ui.SubHeader("💡 Suggested next steps")
 	suggestions := helpManager.SuggestNextSteps()
-	for _, suggestion := range suggestions {
-		cmd.Printf("   • %s\n", suggestion)
-	}
+	ui.List(suggestions)
 
-	cmd.Printf("\nFor more detailed help: pvm help workflows\n")
-	cmd.Printf("For command-specific help: pvm [command] --help\n")
+	ui.Info("For more detailed help: pvm help workflows")
+	ui.Info("For command-specific help: pvm [command] --help")
 
 	return nil
 }
 
 // showWorkflowHelp displays workflow-specific help
 func showWorkflowHelp(cmd *cobra.Command, helpManager *HelpManager) error {
+	ui := GetUI(cmd)
 	workflows := helpManager.GetWorkflowHelp()
 
-	cmd.Println("# Common PVM Workflows")
-	cmd.Println()
+	ui.Header("Common PVM Workflows")
+	ui.Println("")
 
 	// Order workflows logically
 	workflowOrder := []string{
@@ -565,8 +574,8 @@ func showWorkflowHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 
 	for _, workflowKey := range workflowOrder {
 		if content, exists := workflows[workflowKey]; exists {
-			cmd.Printf("## %s\n", strings.Title(strings.ReplaceAll(workflowKey, "-", " ")))
-			cmd.Print(content)
+			title := strings.Title(strings.ReplaceAll(workflowKey, "-", " "))
+			ui.Section(title, strings.TrimSpace(content))
 		}
 	}
 
@@ -575,125 +584,137 @@ func showWorkflowHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 
 // showGettingStartedHelp displays new user onboarding help
 func showGettingStartedHelp(cmd *cobra.Command, helpManager *HelpManager) error {
-	cmd.Print(`# Getting Started with PVM
+	ui := GetUI(cmd)
 
-PVM (Perl Version Manager) provides modern tooling for Perl development with TypeScript-quality developer experience.
+	ui.Header("Getting Started with PVM")
+	ui.Println("")
+	ui.Println("PVM (Perl Version Manager) provides modern tooling for Perl development with TypeScript-quality developer experience.")
+	ui.Println("")
 
-## First Time Setup
+	ui.SubHeader("First Time Setup")
+	setupSteps := []string{
+		"Verify installation: pvm version",
+		"Install a Perl version:\n   pvm available          # See available versions\n   pvm install 5.38.0     # Install modern Perl",
+		"Set up shell integration: pvm init               # Follow the instructions",
+	}
+	for i, step := range setupSteps {
+		ui.Printf("%d. %s\n", i+1, step)
+	}
 
-1. Verify installation:
-   pvm version
+	ui.SubHeader("Create Your First Project")
+	projectSteps := []string{
+		"Initialize a new project:\n   pvm project init my-app\n   cd my-app",
+		"Add dependencies:\n   pvm module add DBI\n   pvm module add Test::More --dev",
+		"Install dependencies: pvm module install",
+		"Start development: pvm dev",
+	}
+	for i, step := range projectSteps {
+		ui.Printf("%d. %s\n", i+1, step)
+	}
 
-2. Install a Perl version:
-   pvm available          # See available versions
-   pvm install 5.38.0     # Install modern Perl
+	ui.SubHeader("Key Concepts")
+	concepts := []string{
+		"**Project Context**: PVM automatically detects projects via .perl-version, cpanfile, or pvm.toml",
+		"**Module Management**: Use 'pvm module' commands for dependency management",
+		"**Build System**: 'pvm build' provides type checking and distribution creation",
+		"**Development Mode**: 'pvm dev' watches files and provides instant feedback",
+	}
+	ui.List(concepts)
 
-3. Set up shell integration:
-   pvm init               # Follow the instructions
-
-## Create Your First Project
-
-1. Initialize a new project:
-   pvm project init my-app
-   cd my-app
-
-2. Add dependencies:
-   pvm module add DBI
-   pvm module add Test::More --dev
-
-3. Install dependencies:
-   pvm module install
-
-4. Start development:
-   pvm dev
-
-## Key Concepts
-
-- **Project Context**: PVM automatically detects projects via .perl-version, cpanfile, or pvm.toml
-- **Module Management**: Use 'pvm module' commands for dependency management
-- **Build System**: 'pvm build' provides type checking and distribution creation
-- **Development Mode**: 'pvm dev' watches files and provides instant feedback
-
-## Need Help?
-
-- Check project status: pvm project status
-- Get contextual help: pvm help
-- See workflows: pvm help workflows
-- Diagnose issues: pvm project doctor
-
-`)
+	ui.SubHeader("Need Help?")
+	helpCommands := []string{
+		"Check project status: pvm project status",
+		"Get contextual help: pvm help",
+		"See workflows: pvm help workflows",
+		"Diagnose issues: pvm project doctor",
+	}
+	ui.List(helpCommands)
 
 	return nil
 }
 
 // showTroubleshootingHelp displays troubleshooting help
 func showTroubleshootingHelp(cmd *cobra.Command, helpManager *HelpManager) error {
-	cmd.Print(`# Troubleshooting PVM Issues
+	ui := GetUI(cmd)
 
-## Common Issues and Solutions
+	ui.Header("Troubleshooting PVM Issues")
+	ui.Println("")
 
-### Project Detection Issues
-- Problem: PVM doesn't recognize your project
-- Solution: Add a .perl-version file or cpanfile to your project root
-- Command: echo "5.38.0" > .perl-version
+	ui.SubHeader("Common Issues and Solutions")
+	ui.Println("")
 
-### Module Installation Issues
-- Problem: Modules fail to install
-- Solution: Check if you're in a project and have proper permissions
-- Commands: pvm project status, pvm project doctor
+	// Project Detection Issues
+	ui.Warning("Project Detection Issues")
+	ui.Info("Problem: PVM doesn't recognize your project")
+	ui.Success("Solution: Add a .perl-version file or cpanfile to your project root")
+	ui.Printf("Command: echo \"5.38.0\" > .perl-version\n")
+	ui.Println("")
 
-### Build Issues
-- Problem: Build fails with type errors
-- Solution: Check PSC configuration and fix type annotations
-- Commands: pvm build --check-only, pvm project doctor
+	// Module Installation Issues
+	ui.Warning("Module Installation Issues")
+	ui.Info("Problem: Modules fail to install")
+	ui.Success("Solution: Check if you're in a project and have proper permissions")
+	ui.Printf("Commands: pvm project status, pvm project doctor\n")
+	ui.Println("")
 
-### Environment Issues
-- Problem: Wrong Perl version being used
-- Solution: Check version resolution and shell integration
-- Commands: pvm resolve, pvm shell setup
+	// Build Issues
+	ui.Warning("Build Issues")
+	ui.Info("Problem: Build fails with type errors")
+	ui.Success("Solution: Check PSC configuration and fix type annotations")
+	ui.Printf("Commands: pvm build --check-only, pvm project doctor\n")
+	ui.Println("")
 
-## Diagnostic Commands
+	// Environment Issues
+	ui.Warning("Environment Issues")
+	ui.Info("Problem: Wrong Perl version being used")
+	ui.Success("Solution: Check version resolution and shell integration")
+	ui.Printf("Commands: pvm resolve, pvm shell setup\n")
+	ui.Println("")
 
-Check overall project health:
-  pvm project doctor
+	ui.SubHeader("Diagnostic Commands")
+	diagnosticCommands := []string{
+		"Check overall project health: pvm project doctor",
+		"View detailed project status: pvm project status --json",
+		"Check dependency status: pvm module status",
+		"Verify Perl version resolution: pvm resolve",
+	}
+	ui.List(diagnosticCommands)
 
-View detailed project status:
-  pvm project status --json
-
-Check dependency status:
-  pvm module status
-
-Verify Perl version resolution:
-  pvm resolve
-
-## Getting Help
-
-If you're still having issues:
-
-1. Check the project status: pvm project status
-2. Run the doctor: pvm project doctor --fix
-3. Check verbose output: pvm --verbose [command]
-4. Report issues at: https://github.com/anthropics/claude-code/issues
-`)
+	ui.SubHeader("Getting Help")
+	ui.Println("If you're still having issues:")
+	ui.Println("")
+	helpSteps := []string{
+		"Check the project status: pvm project status",
+		"Run the doctor: pvm project doctor --fix",
+		"Check verbose output: pvm --verbose [command]",
+		"Report issues at: https://github.com/anthropics/claude-code/issues",
+	}
+	for i, step := range helpSteps {
+		ui.Printf("%d. %s\n", i+1, step)
+	}
 
 	return nil
 }
 
 // showNextStepsHelp displays suggested next steps
 func showNextStepsHelp(cmd *cobra.Command, helpManager *HelpManager) error {
+	ui := GetUI(cmd)
 	suggestions := helpManager.SuggestNextSteps()
 
-	cmd.Println("💡 Suggested next steps based on your current context:")
-	cmd.Println()
+	ui.Header("💡 Suggested next steps based on your current context")
+	ui.Println("")
 
 	for i, suggestion := range suggestions {
-		cmd.Printf("%d. %s\n", i+1, suggestion)
+		ui.Printf("%d. %s\n", i+1, suggestion)
 	}
 
-	cmd.Println("\nFor more guidance:")
-	cmd.Println("  pvm help workflows     # See common development workflows")
-	cmd.Println("  pvm help getting-started # New user guide")
-	cmd.Println("  pvm project status     # Check current project state")
+	ui.SubHeader("For more guidance")
+	moreHelp := []string{
+		"pvm help workflows     # See common development workflows",
+		"pvm help getting-started # New user guide",
+		"pvm project status     # Check current project state",
+	}
+	ui.List(moreHelp)
 
 	return nil
 }

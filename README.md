@@ -150,6 +150,11 @@ See [Configuration Guide](docs/configuration.md) for more details.
 
 ## Documentation
 
+### UI Framework
+- **[UI Framework Documentation](docs/ui_framework.md)** - Complete API reference and architecture for beautiful CLI output
+- **[UI Examples](docs/ui_examples.md)** - Practical usage examples for all UI components
+- **[UI Migration Guide](docs/ui_migration_guide.md)** - Step-by-step migration from direct output to styled UI
+
 ### Architecture and Development
 - **[Architecture Overview](docs/architecture-overview.md)** - Complete system architecture with TypeScript-Go patterns
 - **[Developer Guide](docs/developer-guide.md)** - Working with the modernized compiler pipeline

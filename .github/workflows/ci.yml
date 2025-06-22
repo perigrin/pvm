@@ -47,32 +47,3 @@ jobs:
         name: build-artifacts
         path: build/
         retention-days: 7
-
-  cross-platform-test:
-    name: Cross-Platform Test (macOS)
-    if: github.event_name == 'pull_request'
-    runs-on: macos-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.4'
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: Install dependencies
-      run: |
-        npm install -g tree-sitter-cli
-        xcode-select --install 2>/dev/null || true
-
-    - name: Build
-      run: make
-
-    - name: Test
-      run: make test

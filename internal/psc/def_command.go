@@ -47,6 +47,8 @@ func newDefListCommand() *cobra.Command {
 		Short: "List available type definitions",
 		Long:  "List all available type definitions for Perl modules",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Create a new storage instance
 			storage, err := typedef.NewStorage()
 			if err != nil {
@@ -61,18 +63,19 @@ func newDefListCommand() *cobra.Command {
 
 			// Print the list of modules
 			if len(modules) == 0 {
-				fmt.Println("No type definitions available.")
-				fmt.Println("Use 'psc def generate' to generate type definitions for modules.")
+				ui.Warning("No type definitions available.")
+				ui.Info("Use 'psc def generate' to generate type definitions for modules.")
 				return nil
 			}
 
-			fmt.Println("Available type definitions:")
+			ui.Header("Available type definitions:")
 			for _, module := range modules {
-				fmt.Printf("  %s\n", module)
+				ui.Printf("  %s\n", module)
 			}
 
-			fmt.Println("\nUse 'psc def generate [module]' to generate new type definitions.")
-			fmt.Println("Use 'psc check [file]' to type-check Perl files.")
+			ui.Printf("\n")
+			ui.Info("Use 'psc def generate [module]' to generate new type definitions.")
+			ui.Info("Use 'psc check [file]' to type-check Perl files.")
 
 			return nil
 		},
@@ -87,6 +90,8 @@ func newDefGenerateCommand() *cobra.Command {
 		Long:  "Generate type definitions for a Perl module",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			moduleName := args[0]
 			version, _ := cmd.Flags().GetString("version")
 			outputFile, _ := cmd.Flags().GetString("output")
@@ -108,14 +113,14 @@ func newDefGenerateCommand() *cobra.Command {
 
 			// Extract module type information using enhanced introspection
 			if verbose {
-				fmt.Printf("Analyzing module %s using enhanced introspection...\n", moduleName)
+				ui.Status(fmt.Sprintf("Analyzing module %s using enhanced introspection...", moduleName))
 			}
 
 			moduleTypes, err := analyzeModuleTypes(moduleName)
 			if err != nil {
 				if verbose {
-					fmt.Printf("Warning: Could not fully analyze module: %v\n", err)
-					fmt.Println("Generating a basic type definition instead.")
+					ui.Warning("Could not fully analyze module: %v", err)
+					ui.Info("Generating a basic type definition instead.")
 				}
 			} else if moduleTypes != nil {
 				// Successfully analyzed - use the enhanced type definition
@@ -125,10 +130,10 @@ func newDefGenerateCommand() *cobra.Command {
 					methodCount := len(typeDef.Methods)
 					typeCount := len(typeDef.Types)
 					pkgCount := len(typeDef.Packages)
-					fmt.Printf("Successfully analyzed module %s:\n", moduleName)
-					fmt.Printf("  - Found %d packages\n", pkgCount)
-					fmt.Printf("  - Found %d types\n", typeCount)
-					fmt.Printf("  - Found %d methods\n", methodCount)
+					ui.Success("Successfully analyzed module %s:", moduleName)
+					ui.Printf("  - Found %d packages\n", pkgCount)
+					ui.Printf("  - Found %d types\n", typeCount)
+					ui.Printf("  - Found %d methods\n", methodCount)
 				}
 			}
 
@@ -172,10 +177,10 @@ func newDefGenerateCommand() *cobra.Command {
 						WithLocation(outputFile)
 				}
 
-				fmt.Printf("Generated type definition for %s to %s\n", moduleName, outputFile)
+				ui.Success("Generated type definition for %s to %s", moduleName, outputFile)
 			} else {
 				// Print to stdout
-				fmt.Println(string(data))
+				ui.Println(string(data))
 			}
 
 			// If save flag is set, save the type definition
@@ -189,7 +194,7 @@ func newDefGenerateCommand() *cobra.Command {
 					return err
 				}
 
-				fmt.Printf("Saved type definition for %s to type registry\n", moduleName)
+				ui.Success("Saved type definition for %s to type registry", moduleName)
 			}
 
 			return nil
@@ -212,6 +217,7 @@ func newDefImportCommand() *cobra.Command {
 		Long:  "Import type definitions from a file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			filePath := args[0]
 
 			// Check if the file exists
@@ -250,7 +256,7 @@ func newDefImportCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Imported type definition for %s\n", typeDef.Module)
+			ui.Success("Imported type definition for %s", typeDef.Module)
 			return nil
 		},
 	}
@@ -264,6 +270,7 @@ func newDefExportCommand() *cobra.Command {
 		Long:  "Export type definitions to a file",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			moduleName := args[0]
 			outputFile := args[1]
 
@@ -306,7 +313,7 @@ func newDefExportCommand() *cobra.Command {
 					WithLocation(outputFile)
 			}
 
-			fmt.Printf("Exported type definition for %s to %s\n", moduleName, outputFile)
+			ui.Success("Exported type definition for %s to %s", moduleName, outputFile)
 			return nil
 		},
 	}
@@ -320,6 +327,7 @@ func newDefInstallCommand() *cobra.Command {
 		Long:  "Install type definitions for a CPAN module",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			moduleName := args[0]
 			forceGenerate, _ := cmd.Flags().GetBool("force")
 			verbose, _ := cmd.Flags().GetBool("verbose")
@@ -333,7 +341,7 @@ func newDefInstallCommand() *cobra.Command {
 			// Check if the type definition already exists
 			_, err = storage.Load(moduleName)
 			if err == nil && !forceGenerate {
-				fmt.Printf("Type definition for %s already exists. Use --force to regenerate.\n", moduleName)
+				ui.Warning("Type definition for %s already exists. Use --force to regenerate.", moduleName)
 				return nil
 			}
 
@@ -352,14 +360,14 @@ func newDefInstallCommand() *cobra.Command {
 
 			// Extract module type information using enhanced introspection
 			if verbose {
-				fmt.Printf("Analyzing module %s using enhanced introspection...\n", moduleName)
+				ui.Status(fmt.Sprintf("Analyzing module %s using enhanced introspection...", moduleName))
 			}
 
 			moduleTypes, err := analyzeModuleTypes(moduleName)
 			if err != nil {
 				if verbose {
-					fmt.Printf("Warning: Could not fully analyze module: %v\n", err)
-					fmt.Println("Generating a basic type definition instead.")
+					ui.Warning("Could not fully analyze module: %v", err)
+					ui.Info("Generating a basic type definition instead.")
 				}
 			} else if moduleTypes != nil {
 				// Successfully analyzed - use the enhanced type definition
@@ -369,10 +377,10 @@ func newDefInstallCommand() *cobra.Command {
 					methodCount := len(typeDef.Methods)
 					typeCount := len(typeDef.Types)
 					pkgCount := len(typeDef.Packages)
-					fmt.Printf("Successfully analyzed module %s:\n", moduleName)
-					fmt.Printf("  - Found %d packages\n", pkgCount)
-					fmt.Printf("  - Found %d types\n", typeCount)
-					fmt.Printf("  - Found %d methods\n", methodCount)
+					ui.Success("Successfully analyzed module %s:", moduleName)
+					ui.Printf("  - Found %d packages\n", pkgCount)
+					ui.Printf("  - Found %d types\n", typeCount)
+					ui.Printf("  - Found %d methods\n", methodCount)
 				}
 			}
 
@@ -392,13 +400,15 @@ func newDefInstallCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Installed type definition for %s\n", moduleName)
+			ui.Success("Installed type definition for %s", moduleName)
 
 			// Add instructions for using the type definition
-			fmt.Printf("\nYou can now use the type definition in your Perl code:\n\n")
-			fmt.Printf("use %s : typed;\n\n", moduleName)
-			fmt.Printf("Or check your code with:\n\n")
-			fmt.Printf("psc check your_script.pl\n")
+			ui.Printf("\n")
+			ui.SubHeader("Usage Instructions:")
+			ui.Printf("You can now use the type definition in your Perl code:\n\n")
+			ui.Printf("use %s : typed;\n\n", moduleName)
+			ui.Printf("Or check your code with:\n\n")
+			ui.Printf("psc check your_script.pl\n")
 
 			return nil
 		},

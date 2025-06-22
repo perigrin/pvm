@@ -40,6 +40,7 @@ Examples:
 		newRunCommand(),
 		newWatchCommand(),
 		newDefCommand(),
+		newModuleCommand(), // Type-aware module management
 		// Add new type definition commands for PSC-PVI integration
 		newGenerateTypeCommand(),
 		newImportTypeCommand(),

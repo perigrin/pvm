@@ -13,12 +13,15 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
+	uipkg "tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
+	"tamarou.com/pvm/internal/modules"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/pvi/deps"
-	"tamarou.com/pvm/internal/pvi/modules"
+	pviModules "tamarou.com/pvm/internal/pvi/modules"
 )
 
 // NewCommand creates a new PVI command
@@ -32,12 +35,12 @@ func NewCommand() *cobra.Command {
 	// Add PVI-specific commands
 	cmd.AddCommand(
 		newInstallCommand(),
+		newListCommand(),
+		newSearchCommand(),
 		newAddCommand(),
 		newSyncCommand(),
-		newListCommand(),
 		newUpdateCommand(),
 		newRemoveCommand(),
-		newSearchCommand(),
 		newDepsCommand(),
 		newBundleCommand(),
 		newTypeCommand(),
@@ -49,451 +52,6 @@ func NewCommand() *cobra.Command {
 }
 
 // Placeholder commands, to be implemented later
-
-func newInstallCommand() *cobra.Command {
-	var (
-		verbose      bool
-		force        bool
-		skipTests    bool
-		skipDeps     bool
-		noCache      bool
-		installDir   string
-		version      string
-		source       string
-		buildOnly    bool
-		installOnly  bool
-		keepBuildDir bool
-		workers      int
-		parallel     bool
-		timing       bool
-		dev          bool
-	)
-
-	cmd := &cobra.Command{
-		Use:   "install [module...]",
-		Short: "Install one or more modules",
-		Long:  "Install CPAN modules for the current Perl version. If no modules specified, installs from cpanfile. Supports parallel installation for multiple modules.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			var moduleNames []string
-
-			// If no modules specified, try to read from cpanfile
-			if len(args) == 0 {
-				// Detect project context
-				projectCtx, err := project.GetCurrentProject()
-				if err != nil {
-					return fmt.Errorf("failed to detect project context: %w", err)
-				}
-
-				if !projectCtx.IsProject {
-					return fmt.Errorf("no modules specified and not in a project directory. Specify modules to install or use 'pvm project init' to create a project")
-				}
-
-				// Check for cpanfile
-				cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
-				if _, err := os.Stat(cpanfilePath); os.IsNotExist(err) {
-					return fmt.Errorf("no modules specified and no cpanfile found in project. Use 'pvm module add <module>' to add dependencies")
-				}
-
-				// Read cpanfile and extract module names
-				cpanfileManager := NewCpanfileManager(cpanfilePath)
-				cpanfile, err := cpanfileManager.ListDependencies()
-				if err != nil {
-					return fmt.Errorf("failed to read cpanfile: %w", err)
-				}
-
-				// Check for --dev flag to include development dependencies
-				includeDev, _ := cmd.Flags().GetBool("dev")
-
-				// Extract module names based on flags
-				for _, req := range cpanfile.Requirements {
-					if req.Phase == "develop" && !includeDev {
-						continue // Skip dev dependencies unless --dev flag is used
-					}
-					if req.Phase != "develop" && req.Phase != "runtime" && req.Phase != "" {
-						continue // Skip test and build dependencies for now
-					}
-					moduleNames = append(moduleNames, req.Module)
-				}
-
-				if len(moduleNames) == 0 {
-					if includeDev {
-						return fmt.Errorf("no dependencies found in cpanfile")
-					} else {
-						return fmt.Errorf("no runtime dependencies found in cpanfile. Use --dev flag to include development dependencies")
-					}
-				}
-
-				cmd.Printf("Installing %d modules from cpanfile...\n", len(moduleNames))
-
-				// Override installDir to use project lib directory
-				if installDir == "" {
-					installDir = projectCtx.LocalLibDir
-				}
-			} else {
-				moduleNames = args
-			}
-
-			// Get configuration
-			cfg, err := config.LoadEffectiveConfig()
-			if err != nil {
-				return err
-			}
-
-			// Get options from flags and config
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
-			}
-
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
-			if err != nil {
-				return err
-			}
-
-			// Create the dependency resolver
-			var cacheDir string
-			var cacheTTL int
-
-			if cfg.PVI != nil && !noCache {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
-
-			// Get current Perl path
-			perlPath, err := perl.GetCurrentPerlPath()
-			if err != nil {
-				return err
-			}
-
-			// Create installation options
-			installOptions := &modules.ModuleInstallOptions{
-				ModuleName:         "", // Will be set per module later
-				VersionConstraint:  version,
-				PerlPath:           perlPath,
-				InstallDir:         installDir,
-				RunTests:           !skipTests,
-				Force:              force,
-				Cleanup:            !keepBuildDir,
-				Verbose:            verbose,
-				SkipDependencies:   skipDeps,
-				Provider:           provider,
-				DependencyResolver: resolver,
-				ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
-					if verbose {
-						cmd.Printf("[%s] %s: %s (%.0f%%)\n", stage.String(), module, details, progress*100)
-					} else if stage != modules.StageFinished {
-						// Only show major stage transitions if not verbose
-						cmd.Printf("[%s] %s\n", stage.String(), module)
-					}
-				},
-				Context: cmd.Context(),
-			}
-
-			// Determine if we should use parallel installation
-			useParallel := parallel || len(moduleNames) > 1
-
-			if useParallel && len(moduleNames) > 1 {
-				// Parallel installation for multiple modules
-				if timing {
-					cmd.Printf("Installing %d modules in parallel with %d workers...\n", len(moduleNames), workers)
-				} else {
-					cmd.Printf("Installing %d modules in parallel...\n", len(moduleNames))
-				}
-
-				parallelOptions := &modules.ParallelInstallOptions{
-					Modules:     make([]*modules.ModuleInstallOptions, len(moduleNames)),
-					Workers:     workers,
-					StopOnError: false,
-					Context:     cmd.Context(),
-				}
-
-				// Create module options for each module
-				for i, moduleName := range moduleNames {
-					moduleOpts := *installOptions // Copy base options
-					moduleOpts.ModuleName = moduleName
-					parallelOptions.Modules[i] = &moduleOpts
-				}
-
-				// Add progress callback for parallel installation
-				if verbose || timing {
-					parallelOptions.ProgressCallback = func(completed, total int, currentModule string, stage modules.InstallProgressStage) {
-						cmd.Printf("[%d/%d] %s: %s\n", completed, total, currentModule, stage.String())
-					}
-				}
-
-				startTime := time.Now()
-				result, err := modules.InstallModulesParallel(parallelOptions)
-				duration := time.Since(startTime)
-
-				if err != nil {
-					cmd.Printf("Parallel installation failed: %v\n", err)
-					return err
-				}
-
-				// Display results
-				cmd.Printf("\nInstallation Summary:\n")
-				cmd.Printf("  Modules: %d\n", len(moduleNames))
-				cmd.Printf("  Successful: %d\n", result.SuccessCount)
-				cmd.Printf("  Failed: %d\n", result.FailureCount)
-				if timing {
-					cmd.Printf("  Total time: %s\n", duration.Round(time.Millisecond))
-					cmd.Printf("  Average per module: %s\n", (duration / time.Duration(len(moduleNames))).Round(time.Millisecond))
-				}
-
-				// Show successful installations
-				if len(result.Results) > 0 {
-					cmd.Println("\nSuccessful installations:")
-					for _, res := range result.Results {
-						if res.Success {
-							if timing {
-								cmd.Printf("  ✓ %s v%s (%s)\n", res.ModuleName, res.Version, res.Duration.Round(time.Millisecond))
-							} else {
-								cmd.Printf("  ✓ %s v%s\n", res.ModuleName, res.Version)
-							}
-						}
-					}
-				}
-
-				// Show failures
-				if len(result.Failures) > 0 {
-					cmd.Println("\nFailed installations:")
-					for _, failure := range result.Failures {
-						if timing {
-							cmd.Printf("  ✗ %s (%s): %v\n", failure.ModuleName, failure.Duration.Round(time.Millisecond), failure.Error)
-						} else {
-							cmd.Printf("  ✗ %s: %v\n", failure.ModuleName, failure.Error)
-						}
-					}
-					return fmt.Errorf("%d modules failed to install", len(result.Failures))
-				}
-
-			} else {
-				// Single module installation (original logic)
-				moduleName := moduleNames[0]
-				installOptions.ModuleName = moduleName
-
-				cmd.Printf("Installing module %s...\n", moduleName)
-
-				startTime := time.Now()
-				result, err := modules.InstallModule(installOptions)
-				duration := time.Since(startTime)
-
-				if err != nil {
-					cmd.Printf("Failed to install %s: %v\n", moduleName, err)
-					return err
-				}
-
-				// Display result
-				if result.Success {
-					if timing {
-						cmd.Printf("Successfully installed %s v%s (%s)\n", result.ModuleName, result.Version, duration.Round(time.Millisecond))
-					} else {
-						cmd.Printf("Successfully installed %s v%s\n", result.ModuleName, result.Version)
-					}
-
-					// Show installed dependencies count
-					if len(result.Dependencies) > 0 {
-						cmd.Printf("Installed %d dependencies\n", len(result.Dependencies))
-					}
-
-					// Show warnings if any
-					if len(result.Warnings) > 0 && verbose {
-						cmd.Println("Warnings:")
-						for _, warning := range result.Warnings {
-							cmd.Printf("  - %s\n", warning)
-						}
-					}
-
-					if timing {
-						cmd.Printf("Total installation time: %s\n", duration.Round(time.Millisecond))
-					} else {
-						cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
-					}
-				} else {
-					cmd.Printf("Failed to install %s\n", moduleName)
-					if len(result.Errors) > 0 {
-						cmd.Println("Errors:")
-						for _, err := range result.Errors {
-							cmd.Printf("  - %s\n", err)
-						}
-					}
-					return fmt.Errorf("installation failed")
-				}
-			}
-
-			return nil
-		},
-	}
-
-	// Add flags for the install command
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force installation even if tests fail")
-	cmd.Flags().BoolVar(&skipTests, "skip-tests", false, "Skip running tests")
-	cmd.Flags().BoolVar(&skipDeps, "skip-dependencies", false, "Skip installation of dependencies")
-	cmd.Flags().BoolVar(&noCache, "no-cache", false, "Disable caching for this installation")
-	cmd.Flags().StringVarP(&installDir, "install-dir", "i", "", "Directory to install the module to")
-	cmd.Flags().StringVarP(&version, "version", "V", "", "Version constraint (e.g. '>= 1.0')")
-	cmd.Flags().StringVarP(&source, "source", "s", "", "Use a specific metadata source (metacpan, cpan, custom)")
-	cmd.Flags().BoolVar(&buildOnly, "build-only", false, "Only build the module, don't install it")
-	cmd.Flags().BoolVar(&installOnly, "install-only", false, "Only install the module, don't build it (assumes it's already built)")
-	cmd.Flags().BoolVar(&keepBuildDir, "keep-build-dir", false, "Keep the build directory after installation")
-	cmd.Flags().IntVar(&workers, "workers", 0, "Number of parallel workers (0 = auto-detect, only used with multiple modules)")
-	cmd.Flags().BoolVar(&parallel, "parallel", false, "Force parallel installation even for single module")
-	cmd.Flags().BoolVar(&timing, "timing", false, "Show detailed timing information")
-	cmd.Flags().BoolVar(&dev, "dev", false, "Include development dependencies when installing from cpanfile")
-
-	return cmd
-}
-
-func newListCommand() *cobra.Command {
-	var (
-		pattern     string
-		includeCore bool
-		format      string
-		perlPath    string
-		verbose     bool
-	)
-
-	cmd := &cobra.Command{
-		Use:   "list [pattern]",
-		Short: "List installed modules",
-		Long:  "List all installed CPAN modules for the current Perl version",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// Process pattern from args if provided
-			if len(args) > 0 {
-				pattern = args[0]
-			}
-
-			// Get current Perl path if not specified
-			if perlPath == "" {
-				var err error
-				perlPath, err = perl.GetCurrentPerlPath()
-				if err != nil {
-					return err
-				}
-			}
-
-			// Create options for listing modules
-			options := &modules.ModuleListOptions{
-				PerlPath:    perlPath,
-				Pattern:     pattern,
-				IncludeCore: includeCore,
-				Context:     cmd.Context(),
-			}
-
-			// List installed modules
-			moduleList, err := modules.ListInstalledModules(options)
-			if err != nil {
-				return err
-			}
-
-			// Display results
-			if len(moduleList) == 0 {
-				cmd.Println("No modules found")
-				return nil
-			}
-
-			// Format output
-			switch format {
-			case "json":
-				// Output as JSON
-				jsonData, err := json.MarshalIndent(moduleList, "", "  ")
-				if err != nil {
-					return err
-				}
-				cmd.Println(string(jsonData))
-
-			case "simple":
-				// Output as simple name/version
-				for _, module := range moduleList {
-					cmd.Printf("%s %s\n", module.Name, module.Version)
-				}
-
-			default:
-				// Default tabular format
-				cmd.Printf("Found %d modules\n\n", len(moduleList))
-
-				if verbose {
-					// Detailed format
-					for i, module := range moduleList {
-						cmd.Printf("[%d] %s (%s)\n", i+1, module.Name, module.Version)
-						if module.Description != "" {
-							cmd.Printf("    Description: %s\n", module.Description)
-						}
-						cmd.Printf("    Path: %s\n", module.Path)
-						if !module.InstallationTime.IsZero() {
-							cmd.Printf("    Installed: %s\n", module.InstallationTime.Format("2006-01-02 15:04:05"))
-						}
-						if module.CoreModule {
-							cmd.Printf("    Core Module: Yes\n")
-						}
-						cmd.Println()
-					}
-				} else {
-					// Table format
-					cmd.Printf("%-40s %-15s %-10s\n", "Module", "Version", "Core Module")
-					cmd.Printf("%s\n", strings.Repeat("-", 68))
-
-					for _, module := range moduleList {
-						coreStatus := ""
-						if module.CoreModule {
-							coreStatus = "Yes"
-						}
-						cmd.Printf("%-40s %-15s %-10s\n", module.Name, module.Version, coreStatus)
-					}
-				}
-			}
-
-			return nil
-		},
-	}
-
-	// Add flags
-	cmd.Flags().StringVarP(&pattern, "pattern", "p", "", "Pattern to filter modules by name")
-	cmd.Flags().BoolVarP(&includeCore, "include-core", "c", false, "Include core modules")
-	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, simple, json)")
-	cmd.Flags().StringVar(&perlPath, "perl", "", "Path to the perl executable to use")
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed module information")
-
-	return cmd
-}
 
 func newUpdateCommand() *cobra.Command {
 	var (
@@ -514,25 +72,16 @@ func newUpdateCommand() *cobra.Command {
 		Short: "Update modules",
 		Long:  "Update one or more CPAN modules to the latest version",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			// Check if at least one module is specified or --all flag is used
 			if len(args) == 0 && !all {
 				return fmt.Errorf("at least one module name must be provided or use --all flag")
 			}
 
-			// Get configuration
+			// Load configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
-			}
-
-			// Get options from flags and config
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
 			}
 
 			// Get current Perl path if not specified
@@ -543,63 +92,30 @@ func newUpdateCommand() *cobra.Command {
 				}
 			}
 
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider and resolver using builder pattern
+			result, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				WithResolver().
+				Build()
 			if err != nil {
 				return err
 			}
 
-			// Create the dependency resolver
-			var cacheDir string
-			var cacheTTL int
-
-			if cfg.PVI != nil && !noCache {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
+			provider := result.Provider
+			resolver := result.Resolver
 
 			// If --all flag is used, get a list of all installed modules
 			if all {
-				options := &modules.ModuleListOptions{
+				options := &pviModules.ModuleListOptions{
 					PerlPath:    perlPath,
 					Pattern:     "",
 					IncludeCore: false, // Don't update core modules
 					Context:     cmd.Context(),
 				}
 
-				moduleList, err := modules.ListInstalledModules(options)
+				moduleList, err := pviModules.ListInstalledModules(options)
 				if err != nil {
 					return err
 				}
@@ -610,7 +126,7 @@ func newUpdateCommand() *cobra.Command {
 					args = append(args, mod.Name)
 				}
 
-				cmd.Printf("Updating all %d installed modules...\n", len(args))
+				ui.Info("Updating all %d installed modules...", len(args))
 			}
 
 			// Update each module
@@ -619,7 +135,7 @@ func newUpdateCommand() *cobra.Command {
 
 			for _, moduleName := range args {
 				// Create installation options for the update
-				installOptions := &modules.ModuleInstallOptions{
+				installOptions := &pviModules.ModuleInstallOptions{
 					ModuleName:         moduleName,
 					VersionConstraint:  version,
 					PerlPath:           perlPath,
@@ -631,53 +147,59 @@ func newUpdateCommand() *cobra.Command {
 					SkipDependencies:   skipDeps,
 					Provider:           provider,
 					DependencyResolver: resolver,
-					ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
+					ProgressCallback: func(stage pviModules.InstallProgressStage, module string, details string, progress float64) {
 						if verbose {
-							cmd.Printf("[%s] %s: %s (%.0f%%)\n", stage.String(), module, details, progress*100)
-						} else if stage != modules.StageFinished {
+							ui.Debug("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
+						} else if stage != pviModules.StageFinished {
 							// Only show major stage transitions if not verbose
-							cmd.Printf("[%s] %s\n", stage.String(), module)
+							ui.Info("[%s] %s", stage.String(), module)
 						}
 					},
 					Context: cmd.Context(),
 				}
 
 				// Update (install) the module
-				cmd.Printf("Updating module %s...\n", moduleName)
-				result, err := modules.InstallModule(installOptions)
+				ui.Info("Updating module %s...", moduleName)
+				result, err := pviModules.InstallModule(installOptions)
 
 				if err != nil {
-					cmd.Printf("Failed to update %s: %v\n", moduleName, err)
+					ui.Error("Failed to update %s: %v", moduleName, err)
 					failCount++
 					continue
 				}
 
 				// Display result
 				if result.Success {
-					cmd.Printf("Successfully updated %s to v%s\n", result.ModuleName, result.Version)
+					ui.Success("Successfully updated %s to v%s", result.ModuleName, result.Version)
 					successCount++
 
 					// Show warnings if any
 					if len(result.Warnings) > 0 && verbose {
-						cmd.Println("Warnings:")
-						for _, warning := range result.Warnings {
-							cmd.Printf("  - %s\n", warning)
-						}
+						ui.ListWithOptions(uipkg.ListOptions{
+							Title: "Warnings",
+							Items: result.Warnings,
+						})
 					}
 				} else {
-					cmd.Printf("Failed to update %s\n", moduleName)
+					ui.Error("Failed to update %s", moduleName)
 					failCount++
 					if len(result.Errors) > 0 {
-						cmd.Println("Errors:")
-						for _, err := range result.Errors {
-							cmd.Printf("  - %s\n", err)
-						}
+						ui.ListWithOptions(uipkg.ListOptions{
+							Title: "Errors",
+							Items: result.Errors,
+						})
 					}
 				}
 			}
 
 			// Summary
-			cmd.Printf("\nUpdate summary: %d succeeded, %d failed\n", successCount, failCount)
+			summary := map[string]string{
+				"Succeeded": fmt.Sprintf("%d", successCount),
+				"Failed":    fmt.Sprintf("%d", failCount),
+			}
+			ui.SubHeader("Update Summary")
+			ui.KeyValue(summary)
+
 			if failCount > 0 {
 				return fmt.Errorf("%d module updates failed", failCount)
 			}
@@ -697,152 +219,6 @@ func newUpdateCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&source, "source", "s", "", "Use a specific metadata source (metacpan, cpan, custom)")
 	cmd.Flags().StringVar(&perlPath, "perl", "", "Path to the perl executable to use")
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "Update all installed modules")
-
-	return cmd
-}
-
-func newRemoveCommand() *cobra.Command {
-	var (
-		force    bool
-		verbose  bool
-		perlPath string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "remove [module]",
-		Short: "Remove a module",
-		Long:  "Remove a CPAN module from the current Perl version",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			moduleName := args[0]
-
-			// Get current Perl path if not specified
-			if perlPath == "" {
-				var err error
-				perlPath, err = perl.GetCurrentPerlPath()
-				if err != nil {
-					return err
-				}
-			}
-
-			// Create options for removing module
-			options := &modules.RemoveModuleOptions{
-				ModuleName: moduleName,
-				PerlPath:   perlPath,
-				Force:      force,
-				Verbose:    verbose,
-				Context:    cmd.Context(),
-			}
-
-			// Remove the module
-			cmd.Printf("Removing module %s...\n", moduleName)
-			err := modules.RemoveModule(options)
-			if err != nil {
-				return err
-			}
-
-			cmd.Printf("Successfully removed module %s\n", moduleName)
-			return nil
-		},
-	}
-
-	// Add flags
-	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force removal even if module is a core module")
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	cmd.Flags().StringVar(&perlPath, "perl", "", "Path to the perl executable to use")
-
-	return cmd
-}
-
-func newSearchCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "search [query]",
-		Short: "Search available modules",
-		Long:  "Search for CPAN modules matching the given query",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get configuration
-			cfg, err := config.LoadEffectiveConfig()
-			if err != nil {
-				return err
-			}
-
-			// Get options from flags
-			limit, _ := cmd.Flags().GetInt("limit")
-			source, _ := cmd.Flags().GetString("source")
-			noCache, _ := cmd.Flags().GetBool("no-cache")
-
-			// If source is not provided, use the one from the configuration
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
-			}
-
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
-			if err != nil {
-				return err
-			}
-
-			// Join the arguments into a query
-			query := strings.Join(args, " ")
-
-			// Run the search
-			results, err := provider.SearchModules(context.Background(), query, limit)
-			if err != nil {
-				return err
-			}
-
-			// Display the results
-			cmd.Printf("Search results for '%s' (%d of %d results from %s):\n\n",
-				results.Query, len(results.Results), results.Total, results.Source)
-
-			for i, result := range results.Results {
-				cmd.Printf("[%d] %s (%s)\n", i+1, result.Name, result.Version)
-				cmd.Printf("    %s\n", result.Abstract)
-				cmd.Printf("    Author: %s | Released: %s\n\n",
-					result.Author, result.ReleaseDate.Format("2006-01-02"))
-			}
-
-			return nil
-		},
-	}
-
-	// Add flags
-	cmd.Flags().IntP("limit", "l", 20, "Limit the number of results")
-	cmd.Flags().StringP("source", "s", "", "Use a specific metadata source (metacpan, cpan, custom)")
-	cmd.Flags().Bool("no-cache", false, "Disable caching for this search")
 
 	return cmd
 }
@@ -867,70 +243,29 @@ func newDepsCommand() *cobra.Command {
 		Long:  "Display the dependencies for a CPAN module",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Options are already bound to the variables
 
-			// Get configuration
+			// Load configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
 			}
 
-			// If source is not provided, use the one from the configuration
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
-			}
-
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider and resolver using builder pattern
+			result, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				WithResolver().
+				Build()
 			if err != nil {
 				return err
 			}
 
-			// Create the dependency resolver
-			var cacheDir string
-			var cacheTTL int
-
-			if cfg.PVI != nil && !noCache {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
+			provider := result.Provider
+			resolver := result.Resolver
 
 			// Set up resolution options
 			options := &deps.DependencyResolutionOptions{
@@ -942,14 +277,14 @@ func newDepsCommand() *cobra.Command {
 				MaxDepth:     maxDepth,
 				Verbose:      verbose,
 				UseCache:     !noCache,
-				CacheTTL:     cacheTTL,
-				CacheDir:     cacheDir,
+				CacheTTL:     0,  // Will use resolver's cache settings
+				CacheDir:     "", // Will use resolver's cache settings
 				PerlVersion:  perlVersion,
 			}
 
 			// Resolve dependencies
 			moduleName := args[0]
-			result, err := resolver.ResolveDependencies(context.Background(), moduleName, options)
+			depResult, err := resolver.ResolveDependencies(context.Background(), moduleName, options)
 			if err != nil {
 				return err
 			}
@@ -957,43 +292,45 @@ func newDepsCommand() *cobra.Command {
 			// Display the results
 			if flat {
 				// Display as a flat list
-				cmd.Printf("Dependencies for %s:\n\n", moduleName)
-				deps := resolver.GetFlattenedDependencies(result)
+				ui.Info("Dependencies for %s:", moduleName)
+				deps := resolver.GetFlattenedDependencies(depResult)
+				var listItems []string
 				for _, dep := range deps {
 					if dep.IsRoot {
 						continue // Skip the root module
 					}
-					cmd.Printf("%s", dep.Name)
+					item := dep.Name
 					if dep.VersionConstraint != "" {
-						cmd.Printf(" (%s)", dep.VersionConstraint)
+						item += fmt.Sprintf(" (%s)", dep.VersionConstraint)
 					}
 					if dep.Phase != "" && dep.Phase != "runtime" {
-						cmd.Printf(" [%s]", dep.Phase)
+						item += fmt.Sprintf(" [%s]", dep.Phase)
 					}
-					cmd.Println()
+					listItems = append(listItems, item)
 				}
+				ui.List(listItems)
 			} else {
 				// Display as a tree
-				cmd.Printf("Dependency tree for %s:\n\n", moduleName)
-				tree := resolver.PrintDependencyTree(result.Root)
-				cmd.Println(tree)
+				ui.Info("Dependency tree for %s:", moduleName)
+				tree := resolver.PrintDependencyTree(depResult.Root)
+				ui.Info("%s", tree)
 			}
 
 			// Display warnings and conflicts
-			if len(result.Warnings) > 0 {
-				cmd.Println("\nWarnings:")
-				for _, warning := range result.Warnings {
-					cmd.Printf("- %s\n", warning)
-				}
+			if len(depResult.Warnings) > 0 {
+				ui.Warning("Warnings:")
+				ui.List(depResult.Warnings)
 			}
 
-			if len(result.Conflicts) > 0 {
-				cmd.Println("\nVersion conflicts:")
-				for _, conflict := range result.Conflicts {
-					cmd.Printf("- %s has conflicting requirements:\n", conflict.Module)
+			if len(depResult.Conflicts) > 0 {
+				ui.Error("Version conflicts:")
+				for _, conflict := range depResult.Conflicts {
+					ui.Error("- %s has conflicting requirements:", conflict.Module)
+					var conflictItems []string
 					for constraint, requirers := range conflict.Requirements {
-						cmd.Printf("  - %s required by: %s\n", constraint, strings.Join(requirers, ", "))
+						conflictItems = append(conflictItems, fmt.Sprintf("  %s required by: %s", constraint, strings.Join(requirers, ", ")))
 					}
+					ui.List(conflictItems)
 				}
 			}
 
@@ -1030,6 +367,7 @@ func newBundleCommand() *cobra.Command {
 		Long:  "Export the list of installed modules to a file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			outputPath := args[0]
 
 			// Get options from flags
@@ -1055,7 +393,7 @@ func newBundleCommand() *cobra.Command {
 			}
 
 			// Create export options
-			options := &modules.ExportBundleOptions{
+			options := &pviModules.ExportBundleOptions{
 				OutputPath:      outputPath,
 				Name:            name,
 				Description:     description,
@@ -1067,13 +405,13 @@ func newBundleCommand() *cobra.Command {
 			}
 
 			// Export the bundle
-			cmd.Printf("Exporting modules to bundle file %s...\n", outputPath)
-			err := modules.ExportModuleBundle(options)
+			ui.Info("Exporting modules to bundle file %s...", outputPath)
+			err := pviModules.ExportModuleBundle(options)
 			if err != nil {
 				return err
 			}
 
-			cmd.Printf("Successfully exported modules to %s\n", outputPath)
+			ui.Success("Successfully exported modules to %s", outputPath)
 			return nil
 		},
 	}
@@ -1093,15 +431,15 @@ func newBundleCommand() *cobra.Command {
 		Long:  "Install modules from a bundle file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			inputPath := args[0]
 
-			// Get configuration
+			// Load configuration and get flags
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
 			}
 
-			// Get options from flags
 			perlPath, _ := cmd.Flags().GetString("perl")
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			force, _ := cmd.Flags().GetBool("force")
@@ -1111,16 +449,6 @@ func newBundleCommand() *cobra.Command {
 			installDir, _ := cmd.Flags().GetString("install-dir")
 			source, _ := cmd.Flags().GetString("source")
 
-			// Get options from flags and config
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
-			}
-
 			// Get current Perl path if not specified
 			if perlPath == "" {
 				perlPath, err = perl.GetCurrentPerlPath()
@@ -1129,52 +457,19 @@ func newBundleCommand() *cobra.Command {
 				}
 			}
 
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider and resolver using builder pattern
+			result, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				WithResolver().
+				Build()
 			if err != nil {
 				return err
 			}
 
-			// Create the dependency resolver
-			var cacheDir string
-			var cacheTTL int
-
-			if cfg.PVI != nil && !noCache {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
+			provider := result.Provider
+			resolver := result.Resolver
 
 			// Read the bundle file to get the list of modules
 			bundleData, err := os.ReadFile(inputPath)
@@ -1183,19 +478,22 @@ func newBundleCommand() *cobra.Command {
 			}
 
 			// Parse the bundle
-			var bundle modules.ModuleBundleInfo
+			var bundle pviModules.ModuleBundleInfo
 			if err := json.Unmarshal(bundleData, &bundle); err != nil {
 				return fmt.Errorf("failed to parse bundle file: %w", err)
 			}
 
 			// Display bundle info
-			cmd.Printf("Bundle: %s\n", bundle.Name)
-			if bundle.Description != "" {
-				cmd.Printf("Description: %s\n", bundle.Description)
+			bundleInfo := map[string]string{
+				"Bundle":       bundle.Name,
+				"Created":      bundle.Created.Format("2006-01-02 15:04:05"),
+				"Perl Version": bundle.PerlVersion,
+				"Modules":      fmt.Sprintf("%d", len(bundle.Modules)),
 			}
-			cmd.Printf("Created: %s\n", bundle.Created.Format("2006-01-02 15:04:05"))
-			cmd.Printf("Perl Version: %s\n", bundle.PerlVersion)
-			cmd.Printf("Modules: %d\n\n", len(bundle.Modules))
+			if bundle.Description != "" {
+				bundleInfo["Description"] = bundle.Description
+			}
+			ui.KeyValue(bundleInfo)
 
 			// Install each module
 			successCount := 0
@@ -1204,12 +502,12 @@ func newBundleCommand() *cobra.Command {
 			for i, mod := range bundle.Modules {
 				// Skip optional modules if not explicitly requested
 				if mod.IsOptional {
-					cmd.Printf("Skipping optional module %s\n", mod.Name)
+					ui.Info("Skipping optional module %s", mod.Name)
 					continue
 				}
 
 				// Create installation options for the module
-				installOptions := &modules.ModuleInstallOptions{
+				installOptions := &pviModules.ModuleInstallOptions{
 					ModuleName:         mod.Name,
 					VersionConstraint:  mod.VersionConstraint,
 					PerlPath:           perlPath,
@@ -1221,47 +519,54 @@ func newBundleCommand() *cobra.Command {
 					SkipDependencies:   skipDeps,
 					Provider:           provider,
 					DependencyResolver: resolver,
-					ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
+					ProgressCallback: func(stage pviModules.InstallProgressStage, module string, details string, progress float64) {
 						if verbose {
-							cmd.Printf("[%s] %s: %s (%.0f%%)\n", stage.String(), module, details, progress*100)
-						} else if stage != modules.StageFinished {
+							ui.Info("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
+						} else if stage != pviModules.StageFinished {
 							// Only show major stage transitions if not verbose
-							cmd.Printf("[%s] %s\n", stage.String(), module)
+							ui.Info("[%s] %s", stage.String(), module)
 						}
 					},
 					Context: cmd.Context(),
 				}
 
 				// Show progress
-				cmd.Printf("Installing module %s (%d/%d)...\n", mod.Name, i+1, len(bundle.Modules))
+				ui.Info("Installing module %s (%d/%d)...", mod.Name, i+1, len(bundle.Modules))
 
 				// Install the module
-				result, err := modules.InstallModule(installOptions)
+				result, err := pviModules.InstallModule(installOptions)
 
 				if err != nil {
-					cmd.Printf("Failed to install %s: %v\n", mod.Name, err)
+					ui.Error("Failed to install %s: %v", mod.Name, err)
 					failCount++
 					continue
 				}
 
 				// Display result
 				if result.Success {
-					cmd.Printf("Successfully installed %s v%s\n", result.ModuleName, result.Version)
+					ui.Success("Successfully installed %s v%s", result.ModuleName, result.Version)
 					successCount++
 				} else {
-					cmd.Printf("Failed to install %s\n", mod.Name)
+					ui.Error("Failed to install %s", mod.Name)
 					failCount++
 					if len(result.Errors) > 0 {
-						cmd.Println("Errors:")
+						var errorList []string
 						for _, err := range result.Errors {
-							cmd.Printf("  - %s\n", err)
+							errorList = append(errorList, err)
 						}
+						ui.Error("Errors:")
+						ui.List(errorList)
 					}
 				}
 			}
 
 			// Summary
-			cmd.Printf("\nBundle import summary: %d succeeded, %d failed\n", successCount, failCount)
+			summaryInfo := map[string]string{
+				"Succeeded": fmt.Sprintf("%d", successCount),
+				"Failed":    fmt.Sprintf("%d", failCount),
+			}
+			ui.Info("Bundle import summary:")
+			ui.KeyValue(summaryInfo)
 			if failCount > 0 {
 				return fmt.Errorf("%d module installations failed", failCount)
 			}
@@ -1310,6 +615,8 @@ func newMirrorCommand() *cobra.Command {
 		Short: "Set/get CPAN mirror",
 		Long:  "Set or display the current CPAN mirror URL",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Get configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
@@ -1323,23 +630,31 @@ func newMirrorCommand() *cobra.Command {
 
 			// List current mirrors
 			if list || (len(args) == 0 && !add) {
-				cmd.Println("Current CPAN mirrors:")
+				ui.SubHeader("Current CPAN mirrors:")
+
+				mirrorInfo := map[string]string{}
 
 				// Show default mirror
 				if cfg.PVI.DefaultMirror != "" {
-					cmd.Printf("Default: %s\n", cfg.PVI.DefaultMirror)
+					mirrorInfo["Default"] = cfg.PVI.DefaultMirror
 				} else {
-					cmd.Println("Default: <not set> (using MetaCPAN API default)")
+					mirrorInfo["Default"] = "<not set> (using MetaCPAN API default)"
 				}
+
+				ui.KeyValue(mirrorInfo)
 
 				// Show additional mirrors
 				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					cmd.Println("\nAdditional mirrors:")
+					var additionalMirrors []string
 					for i, mirror := range cfg.PVI.AdditionalMirrors {
-						cmd.Printf("[%d] %s\n", i+1, mirror)
+						additionalMirrors = append(additionalMirrors, fmt.Sprintf("[%d] %s", i+1, mirror))
 					}
+					ui.ListWithOptions(uipkg.ListOptions{
+						Title: "Additional mirrors",
+						Items: additionalMirrors,
+					})
 				} else {
-					cmd.Println("\nNo additional mirrors configured.")
+					ui.Info("No additional mirrors configured.")
 				}
 
 				return nil
@@ -1358,11 +673,11 @@ func newMirrorCommand() *cobra.Command {
 				if add {
 					// Add as additional mirror
 					cfg.PVI.AdditionalMirrors = append(cfg.PVI.AdditionalMirrors, mirrorURL)
-					cmd.Printf("Added %s as additional mirror\n", mirrorURL)
+					ui.Success("Added %s as additional mirror", mirrorURL)
 				} else {
 					// Set as default mirror
 					cfg.PVI.DefaultMirror = mirrorURL
-					cmd.Printf("Set %s as default mirror\n", mirrorURL)
+					ui.Success("Set %s as default mirror", mirrorURL)
 				}
 
 				// Save configuration
@@ -1400,25 +715,17 @@ func newOutdatedCommand() *cobra.Command {
 		Short: "Show outdated modules",
 		Long:  "List installed modules that have newer versions available",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
 			// Process pattern from args if provided
 			if len(args) > 0 {
 				pattern = args[0]
 			}
 
-			// Get configuration
+			// Load configuration
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
-			}
-
-			// Get options from flags and config
-			if source == "" && cfg.PVI != nil {
-				source = cfg.PVI.MetadataSource
-			}
-
-			// Default to metacpan if still not set
-			if source == "" {
-				source = "metacpan"
 			}
 
 			// Get current Perl path if not specified
@@ -1429,41 +736,18 @@ func newOutdatedCommand() *cobra.Command {
 				}
 			}
 
-			// Build the provider options
-			var providerOpts []cpan.ProviderOption
-
-			// Add options based on configuration
-			if cfg.PVI != nil {
-				// Set base URL if custom source and URL provided
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-
-				// Set cache settings if caching is enabled and not disabled by flag
-				if cfg.PVI.CacheModules && !noCache && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-
-				// Set mirrors
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-
-				// Set network access
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			// Create the provider
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			// Create provider using builder pattern
+			provider, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				BuildProvider()
 			if err != nil {
 				return err
 			}
 
 			// Create options for checking outdated modules
-			options := &modules.CheckOutdatedOptions{
+			options := &pviModules.CheckOutdatedOptions{
 				PerlPath:    perlPath,
 				Pattern:     pattern,
 				IncludeCore: includeCore,
@@ -1484,14 +768,14 @@ func newOutdatedCommand() *cobra.Command {
 			}
 
 			// Check for outdated modules
-			outdatedModules, err := modules.CheckOutdatedModules(options, checkLatest)
+			outdatedModules, err := pviModules.CheckOutdatedModules(options, checkLatest)
 			if err != nil {
 				return err
 			}
 
 			// Display results
 			if len(outdatedModules) == 0 {
-				cmd.Println("All modules are up to date")
+				ui.Info("All modules are up to date")
 				return nil
 			}
 
@@ -1503,28 +787,36 @@ func newOutdatedCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				cmd.Println(string(jsonData))
+				ui.Println(string(jsonData))
 
 			case "simple":
 				// Output as simple name/version
+				var simpleList []string
 				for _, module := range outdatedModules {
-					cmd.Printf("%s %s -> %s\n", module.Name, module.InstalledVersion, module.LatestVersion)
+					simpleList = append(simpleList, fmt.Sprintf("%s %s -> %s", module.Name, module.InstalledVersion, module.LatestVersion))
 				}
+				ui.List(simpleList)
 
 			default:
 				// Default tabular format
-				cmd.Printf("Found %d outdated modules\n\n", len(outdatedModules))
-				cmd.Printf("%-40s %-15s %-15s\n", "Module", "Installed", "Latest")
-				cmd.Printf("%s\n", strings.Repeat("-", 72))
+				ui.SubHeader(fmt.Sprintf("Found %d outdated modules", len(outdatedModules)))
 
+				headers := []string{"Module", "Installed", "Latest"}
+				var rows [][]string
 				for _, module := range outdatedModules {
-					cmd.Printf("%-40s %-15s %-15s\n", module.Name, module.InstalledVersion, module.LatestVersion)
+					rows = append(rows, []string{module.Name, module.InstalledVersion, module.LatestVersion})
 				}
+				ui.Table(headers, rows)
 
 				// Add update command hint
-				cmd.Println("\nTo update these modules, run:")
-				cmd.Println("  pvi update --all    # Update all outdated modules")
-				cmd.Println("  pvi update [module] # Update specific module")
+				updateHints := []string{
+					"pvi update --all    # Update all outdated modules",
+					"pvi update [module] # Update specific module",
+				}
+				ui.ListWithOptions(uipkg.ListOptions{
+					Title: "To update these modules, run:",
+					Items: updateHints,
+				})
 			}
 
 			return nil
@@ -1557,6 +849,7 @@ func newAddCommand() *cobra.Command {
 		Long:  "Add a CPAN module dependency to the project's cpanfile and install it to the project lib directory",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			moduleName := args[0]
 
 			// Detect project context
@@ -1573,14 +866,16 @@ func newAddCommand() *cobra.Command {
 			cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
 			cpanfileManager := NewCpanfileManager(cpanfilePath)
 
-			cmd.Printf("Adding %s to cpanfile", moduleName)
+			// Build the "Adding module" message
+			addMsg := fmt.Sprintf("Adding %s to cpanfile", moduleName)
 			if dev {
-				cmd.Print(" (development dependency)")
+				addMsg += " (development dependency)"
 			}
 			if version != "" {
-				cmd.Printf(" with version constraint '%s'", version)
+				addMsg += fmt.Sprintf(" with version constraint '%s'", version)
 			}
-			cmd.Println("...")
+			addMsg += "..."
+			ui.Info("%s", addMsg)
 
 			// Add to cpanfile first
 			err = cpanfileManager.AddDependency(moduleName, version, dev)
@@ -1588,57 +883,27 @@ func newAddCommand() *cobra.Command {
 				return fmt.Errorf("failed to add dependency to cpanfile: %w", err)
 			}
 
-			cmd.Printf("Added %s to cpanfile\n", moduleName)
+			ui.Success("Added %s to cpanfile", moduleName)
 
 			// Now install the module to project lib directory
-			cmd.Printf("Installing %s to project lib directory...\n", moduleName)
+			ui.Info("Installing %s to project lib directory...", moduleName)
 
-			// Get configuration
+			// Load configuration and create provider/resolver
 			cfg, err := config.LoadEffectiveConfig()
 			if err != nil {
 				return err
 			}
 
-			// Set up provider
-			source := "metacpan"
-			if cfg.PVI != nil && cfg.PVI.MetadataSource != "" {
-				source = cfg.PVI.MetadataSource
-			}
-
-			var providerOpts []cpan.ProviderOption
-			if cfg.PVI != nil {
-				if source == "custom" && cfg.PVI.MetadataURL != "" {
-					providerOpts = append(providerOpts, cpan.WithBaseURL(cfg.PVI.MetadataURL))
-				}
-				if cfg.PVI.CacheModules && cfg.PVI.CacheDir != "" {
-					providerOpts = append(providerOpts, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-				}
-				if cfg.PVI.DefaultMirror != "" {
-					providerOpts = append(providerOpts, cpan.WithMirror(cfg.PVI.DefaultMirror))
-				}
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
-					providerOpts = append(providerOpts, cpan.WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
-				}
-				providerOpts = append(providerOpts, cpan.WithDisableNetwork(cfg.PVI.DisableNetwork))
-			}
-
-			provider, err := cpan.NewProvider(source, providerOpts...)
+			result, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithResolver().
+				Build()
 			if err != nil {
 				return err
 			}
 
-			// Create dependency resolver
-			var cacheDir string
-			var cacheTTL int
-			if cfg.PVI != nil {
-				cacheDir = cfg.PVI.CacheDir
-				cacheTTL = cfg.PVI.CacheTTL
-			}
-
-			resolver, err := deps.NewDefaultResolver(cacheDir, cacheTTL)
-			if err != nil {
-				return err
-			}
+			provider := result.Provider
+			resolver := result.Resolver
 
 			// Get current Perl path
 			perlPath, err := perl.GetCurrentPerlPath()
@@ -1649,7 +914,7 @@ func newAddCommand() *cobra.Command {
 			// Install to project lib directory
 			installDir := projectCtx.LocalLibDir
 
-			installOptions := &modules.ModuleInstallOptions{
+			installOptions := &pviModules.ModuleInstallOptions{
 				ModuleName:         moduleName,
 				VersionConstraint:  version,
 				PerlPath:           perlPath,
@@ -1661,36 +926,36 @@ func newAddCommand() *cobra.Command {
 				SkipDependencies:   false,
 				Provider:           provider,
 				DependencyResolver: resolver,
-				ProgressCallback: func(stage modules.InstallProgressStage, module string, details string, progress float64) {
+				ProgressCallback: func(stage pviModules.InstallProgressStage, module string, details string, progress float64) {
 					if verbose {
-						cmd.Printf("[%s] %s: %s (%.0f%%)\n", stage.String(), module, details, progress*100)
-					} else if stage != modules.StageFinished {
-						cmd.Printf("[%s] %s\n", stage.String(), module)
+						ui.Debug("[%s] %s: %s (%.0f%%)", stage.String(), module, details, progress*100)
+					} else if stage != pviModules.StageFinished {
+						ui.Info("[%s] %s", stage.String(), module)
 					}
 				},
 				Context: cmd.Context(),
 			}
 
-			result, err := modules.InstallModule(installOptions)
+			installResult, err := pviModules.InstallModule(installOptions)
 			if err != nil {
 				// If installation fails, remove from cpanfile
-				cmd.Printf("Installation failed, removing %s from cpanfile...\n", moduleName)
+				ui.Warning("Installation failed, removing %s from cpanfile...", moduleName)
 				if removeErr := cpanfileManager.RemoveDependency(moduleName); removeErr != nil {
-					cmd.Printf("Warning: failed to remove %s from cpanfile: %v\n", moduleName, removeErr)
+					ui.Warning("Failed to remove %s from cpanfile: %v", moduleName, removeErr)
 				}
 				return fmt.Errorf("failed to install %s: %w", moduleName, err)
 			}
 
-			if result.Success {
-				cmd.Printf("Successfully added and installed %s v%s\n", result.ModuleName, result.Version)
-				if len(result.Dependencies) > 0 {
-					cmd.Printf("Installed %d dependencies\n", len(result.Dependencies))
+			if installResult.Success {
+				ui.Success("Successfully added and installed %s v%s", installResult.ModuleName, installResult.Version)
+				if len(installResult.Dependencies) > 0 {
+					ui.Info("Installed %d dependencies", len(installResult.Dependencies))
 				}
 			} else {
 				// Remove from cpanfile if installation wasn't successful
-				cmd.Printf("Installation not successful, removing %s from cpanfile...\n", moduleName)
+				ui.Warning("Installation not successful, removing %s from cpanfile...", moduleName)
 				if removeErr := cpanfileManager.RemoveDependency(moduleName); removeErr != nil {
-					cmd.Printf("Warning: failed to remove %s from cpanfile: %v\n", moduleName, removeErr)
+					ui.Warning("Failed to remove %s from cpanfile: %v", moduleName, removeErr)
 				}
 				return fmt.Errorf("failed to install %s", moduleName)
 			}
@@ -1753,6 +1018,7 @@ Use --from-snapshot to install exact versions from an existing cpanfile.snapshot
 
 // generateSnapshot creates a cpanfile.snapshot from currently installed modules
 func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, verbose bool) error {
+	ui := cli.GetUI(cmd)
 	cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
 	snapshotPath := filepath.Join(projectCtx.RootDir, "cpanfile.snapshot")
 
@@ -1761,7 +1027,7 @@ func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, ve
 		return fmt.Errorf("cpanfile not found. Use 'pvm module add <module>' to add dependencies first")
 	}
 
-	cmd.Println("Generating cpanfile.snapshot from installed modules...")
+	ui.Info("Generating cpanfile.snapshot from installed modules...")
 
 	// Create cpanfile manager
 	cpanfileManager := NewCpanfileManager(cpanfilePath)
@@ -1778,19 +1044,28 @@ func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, ve
 		return fmt.Errorf("failed to write snapshot: %w", err)
 	}
 
-	cmd.Printf("Generated cpanfile.snapshot with %d distributions\n", len(snapshot.Distributions))
+	ui.Success("Generated cpanfile.snapshot with %d distributions", len(snapshot.Distributions))
 	if verbose {
-		cmd.Printf("Snapshot saved to: %s\n", snapshotPath)
-		cmd.Printf("Perl version: %s\n", snapshot.PerlVersion)
-		cmd.Println("Distributions:")
+		snapshotInfo := map[string]string{
+			"Snapshot saved to": snapshotPath,
+			"Perl version":      snapshot.PerlVersion,
+		}
+		ui.KeyValue(snapshotInfo)
+
+		var distList []string
 		for distName, entry := range snapshot.Distributions {
-			cmd.Printf("  %s (%s)\n", distName, entry.Pathname)
+			distInfo := fmt.Sprintf("%s (%s)", distName, entry.Pathname)
 			if verbose {
 				for module, version := range entry.Provides {
-					cmd.Printf("    provides: %s %s\n", module, version)
+					distInfo += fmt.Sprintf("\n    provides: %s %s", module, version)
 				}
 			}
+			distList = append(distList, distInfo)
 		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Distributions",
+			Items: distList,
+		})
 	}
 
 	return nil
@@ -1798,6 +1073,7 @@ func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, ve
 
 // installFromSnapshot installs exact versions from cpanfile.snapshot
 func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, verbose bool) error {
+	ui := cli.GetUI(cmd)
 	cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
 	snapshotPath := filepath.Join(projectCtx.RootDir, "cpanfile.snapshot")
 
@@ -1806,7 +1082,7 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 		return fmt.Errorf("cpanfile.snapshot not found. Run 'pvm module sync' to generate one")
 	}
 
-	cmd.Println("Installing modules from cpanfile.snapshot...")
+	ui.Info("Installing modules from cpanfile.snapshot...")
 
 	// Create cpanfile manager
 	cpanfileManager := NewCpanfileManager(cpanfilePath)
@@ -1817,17 +1093,22 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 		return fmt.Errorf("failed to read snapshot: %w", err)
 	}
 
-	cmd.Printf("Found %d distributions in snapshot\n", len(snapshot.Distributions))
+	ui.Info("Found %d distributions in snapshot", len(snapshot.Distributions))
 	if verbose {
-		cmd.Printf("Snapshot Perl version: %s\n", snapshot.PerlVersion)
-		cmd.Printf("Generated at: %s\n", snapshot.GeneratedAt.Format("2006-01-02 15:04:05"))
+		snapshotInfo := map[string]string{
+			"Snapshot Perl version": snapshot.PerlVersion,
+			"Generated at":          snapshot.GeneratedAt.Format("2006-01-02 15:04:05"),
+		}
+		ui.KeyValue(snapshotInfo)
 	}
 
 	// For each distribution in snapshot, install the exact version
+	var installList []string
 	for distName, entry := range snapshot.Distributions {
-		cmd.Printf("Installing %s...\n", distName)
+		ui.Info("Installing %s...", distName)
+		installInfo := fmt.Sprintf("%s", distName)
 		if verbose {
-			cmd.Printf("  Pathname: %s\n", entry.Pathname)
+			installInfo += fmt.Sprintf(" (Pathname: %s)", entry.Pathname)
 		}
 
 		// In a real implementation, you would:
@@ -1835,16 +1116,844 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 		// 2. Install it to the project lib directory
 		// 3. Verify the installation
 
-		// For now, we'll just print what would be installed
+		// For now, we'll just collect what would be installed
 		for module, version := range entry.Provides {
 			if verbose {
-				cmd.Printf("  Would install: %s version %s\n", module, version)
+				installInfo += fmt.Sprintf("\n  Would install: %s version %s", module, version)
 			}
+		}
+		installList = append(installList, installInfo)
+	}
+
+	if verbose && len(installList) > 0 {
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Installation Plan",
+			Items: installList,
+		})
+	}
+
+	ui.Success("Installation from snapshot completed successfully")
+	ui.Warning("Note: Actual installation from snapshot is not yet fully implemented")
+
+	return nil
+}
+
+// newInstallCommand implements the refactored install command using extracted packages
+func newInstallCommand() *cobra.Command {
+	var (
+		verbose    bool
+		force      bool
+		skipTests  bool
+		skipDeps   bool
+		noCache    bool
+		installDir string
+		version    string
+		source     string
+		workers    int
+		parallel   bool
+		timing     bool
+		dev        bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "install [module...]",
+		Short: "Install one or more modules",
+		Long:  "Install CPAN modules for the current Perl version. If no modules specified, installs from cpanfile. Supports parallel installation for multiple modules.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
+			// Resolve modules to install (using helper function)
+			moduleNames, err := resolveModuleNames(args, dev)
+			if err != nil {
+				return err
+			}
+			ui.Info("Installing %d modules...", len(moduleNames))
+
+			// Load configuration and create provider/resolver
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return err
+			}
+
+			providerResult, err := NewProviderBuilder().
+				WithConfig(cfg).
+				WithSource(source).
+				WithNoCache(noCache).
+				WithResolver().
+				Build()
+			if err != nil {
+				return err
+			}
+
+			// Get current Perl path
+			perlPath, err := perl.GetCurrentPerlPath()
+			if err != nil {
+				return err
+			}
+
+			// Use the extracted modules system with parallel coordination
+
+			// Create unified installer
+			installer := newModuleInstaller(
+				providerResult.Provider,
+				newProgressTracker(ui, verbose),
+			)
+
+			// Create parallel coordinator
+			coordinator := modules.NewParallelCoordinator(
+				installer,
+				workers,
+				newParallelProgressTracker(ui, verbose),
+			)
+
+			// Set up install options
+			installOptions := modules.InstallOptions{
+				PerlPath:          perlPath,
+				InstallDir:        resolveInstallDir(installDir, args),
+				VersionConstraint: version,
+				Force:             force,
+				RunTests:          !skipTests,
+				SkipDependencies:  skipDeps,
+				Verbose:           verbose,
+				Cleanup:           true,
+				Parallel:          parallel || len(moduleNames) > 1,
+				Workers:           workers,
+				Context:           cmd.Context(),
+			}
+
+			// Install modules using parallel coordinator
+			results, err := coordinator.InstallModules(cmd.Context(), moduleNames, installOptions)
+			if err != nil {
+				return fmt.Errorf("installation failed: %w", err)
+			}
+
+			// Convert unified results to PVI results for display compatibility
+			pviResults := convertUnifiedResultsToPVI(results)
+
+			// Display results using helper function
+			return displayInstallResults(ui, pviResults, timing)
+		},
+	}
+
+	// Add flags
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force installation even if tests fail")
+	cmd.Flags().BoolVar(&skipTests, "skip-tests", false, "Skip running tests during installation")
+	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "Disable caching")
+	cmd.Flags().StringVar(&installDir, "install-dir", "", "Installation directory")
+	cmd.Flags().StringVar(&version, "version", "", "Version constraint")
+	cmd.Flags().StringVar(&source, "source", "", "Package source")
+	cmd.Flags().IntVar(&workers, "workers", 4, "Number of parallel workers")
+	cmd.Flags().BoolVar(&parallel, "parallel", false, "Force parallel installation")
+	cmd.Flags().BoolVar(&timing, "timing", false, "Show timing information")
+	cmd.Flags().BoolVar(&dev, "dev", false, "Include development dependencies from cpanfile")
+
+	return cmd
+}
+
+// newListCommand implements the refactored list command using extracted packages
+func newListCommand() *cobra.Command {
+	var (
+		pattern     string
+		includeCore bool
+		format      string
+		perlPath    string
+		verbose     bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "list [pattern]",
+		Short: "List installed modules",
+		Long:  "List installed CPAN modules for the current Perl version. Optionally filter by pattern.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
+			// Process pattern from args if provided (using helper logic)
+			if len(args) > 0 {
+				pattern = args[0]
+			}
+
+			// List modules using helper function
+			modules, err := listModules(perlPath, pattern, includeCore, cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			// Format and display results using helper function
+			return formatModuleList(ui, modules, format, verbose)
+		},
+	}
+
+	// Add flags
+	cmd.Flags().StringVar(&pattern, "pattern", "", "Filter modules by pattern")
+	cmd.Flags().BoolVar(&includeCore, "include-core", false, "Include Perl core modules")
+	cmd.Flags().StringVar(&format, "format", "", "Output format (json, simple, or default)")
+	cmd.Flags().StringVar(&perlPath, "perl", "", "Path to Perl interpreter")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+
+	return cmd
+}
+
+// newSearchCommand implements the refactored search command using extracted packages
+func newSearchCommand() *cobra.Command {
+	var (
+		limit   int
+		source  string
+		noCache bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "search [query]",
+		Short: "Search available modules",
+		Long:  "Search for CPAN modules matching the given query.",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+
+			// Join the arguments into a query
+			query := strings.Join(args, " ")
+
+			// Search modules using helper function
+			results, err := searchModules(query, source, limit, noCache, cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			// Format and display results using helper function
+			formatSearchResults(ui, results)
+			return nil
+		},
+	}
+
+	// Add flags
+	cmd.Flags().IntVar(&limit, "limit", 20, "Limit number of results")
+	cmd.Flags().StringVar(&source, "source", "", "Search source")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "Disable caching")
+
+	return cmd
+}
+
+// newRemoveCommand implements the refactored remove command using extracted packages
+func newRemoveCommand() *cobra.Command {
+	var (
+		force    bool
+		verbose  bool
+		perlPath string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "remove [module]",
+		Short: "Remove a module",
+		Long:  "Remove installed CPAN modules for the current Perl version.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
+			moduleName := args[0]
+
+			ui.Info("Removing module %s...", moduleName)
+
+			// Remove module using helper function
+			err := removeModule(moduleName, perlPath, force, verbose, cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			ui.Success("Successfully removed module %s", moduleName)
+			return nil
+		},
+	}
+
+	// Add flags
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force removal")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	cmd.Flags().StringVar(&perlPath, "perl", "", "Path to Perl interpreter")
+
+	return cmd
+}
+
+// Helper functions for command simplification
+
+// resolveModuleNames determines which modules to install based on args or cpanfile
+func resolveModuleNames(args []string, includeDev bool) ([]string, error) {
+	if len(args) > 0 {
+		return args, nil
+	}
+
+	// Detect project context
+	projectCtx, err := project.GetCurrentProject()
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect project context: %w", err)
+	}
+
+	if !projectCtx.IsProject {
+		return nil, fmt.Errorf("no modules specified and not in a project directory. Specify modules to install or use 'pvm project init' to create a project")
+	}
+
+	// Check for cpanfile
+	cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
+	if _, err := os.Stat(cpanfilePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("no modules specified and no cpanfile found in project. Use 'pvm module add <module>' to add dependencies")
+	}
+
+	// Read cpanfile and extract module names
+	cpanfileManager := NewCpanfileManager(cpanfilePath)
+	cpanfile, err := cpanfileManager.ListDependencies()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read cpanfile: %w", err)
+	}
+
+	var moduleNames []string
+	for _, req := range cpanfile.Requirements {
+		if req.Phase == "develop" && !includeDev {
+			continue // Skip dev dependencies unless --dev flag is used
+		}
+		if req.Phase != "develop" && req.Phase != "runtime" && req.Phase != "" {
+			continue // Skip test and build dependencies for now
+		}
+		moduleNames = append(moduleNames, req.Module)
+	}
+
+	if len(moduleNames) == 0 {
+		if includeDev {
+			return nil, fmt.Errorf("no dependencies found in cpanfile")
+		} else {
+			return nil, fmt.Errorf("no runtime dependencies found in cpanfile. Use --dev flag to include development dependencies")
 		}
 	}
 
-	cmd.Println("Installation from snapshot completed successfully")
-	cmd.Println("Note: Actual installation from snapshot is not yet fully implemented")
+	return moduleNames, nil
+}
+
+// resolveInstallDir determines the installation directory
+func resolveInstallDir(installDir string, args []string) string {
+	if installDir != "" {
+		return installDir
+	}
+
+	// If no modules specified, we're installing from cpanfile
+	if len(args) == 0 {
+		projectCtx, err := project.GetCurrentProject()
+		if err == nil && projectCtx.IsProject {
+			return projectCtx.LocalLibDir
+		}
+	}
+
+	return ""
+}
+
+// displayInstallResults formats and displays installation results
+func displayInstallResults(ui *uipkg.Output, results []*pviModules.ModuleInstallResult, timing bool) error {
+	var successCount, failureCount int
+	for _, result := range results {
+		if result.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+
+	// Display summary
+	ui.SubHeader("Installation Summary")
+	summary := map[string]string{
+		"Modules":    fmt.Sprintf("%d", len(results)),
+		"Successful": fmt.Sprintf("%d", successCount),
+		"Failed":     fmt.Sprintf("%d", failureCount),
+	}
+	ui.KeyValue(summary)
+
+	// Show successful installations
+	if successCount > 0 {
+		var successList []string
+		for _, res := range results {
+			if res.Success {
+				if timing {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s (%s)", res.ModuleName, res.Version, res.Duration.Round(time.Millisecond)))
+				} else {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s", res.ModuleName, res.Version))
+				}
+			}
+		}
+		if len(successList) > 0 {
+			ui.SubHeader("Successful Installations")
+			ui.List(successList)
+		}
+	}
+
+	// Show failed installations
+	if failureCount > 0 {
+		var failedList []string
+		for _, res := range results {
+			if !res.Success {
+				if len(res.Errors) > 0 {
+					failedList = append(failedList, fmt.Sprintf("✗ %s: %s", res.ModuleName, res.Errors[0]))
+				} else {
+					failedList = append(failedList, fmt.Sprintf("✗ %s: Installation failed", res.ModuleName))
+				}
+			}
+		}
+		if len(failedList) > 0 {
+			ui.SubHeader("Failed Installations")
+			ui.List(failedList)
+		}
+		return fmt.Errorf("failed to install %d out of %d modules", failureCount, len(results))
+	}
 
 	return nil
+}
+
+// formatModuleList formats module list output in different formats
+func formatModuleList(ui *uipkg.Output, modules []*pviModules.InstalledModule, format string, verbose bool) error {
+	if len(modules) == 0 {
+		ui.Info("No modules found")
+		return nil
+	}
+
+	switch format {
+	case "json":
+		jsonData, err := json.MarshalIndent(modules, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to format JSON: %w", err)
+		}
+		ui.Println(string(jsonData))
+
+	case "simple":
+		var simpleList []string
+		for _, module := range modules {
+			simpleList = append(simpleList, fmt.Sprintf("%s %s", module.Name, module.Version))
+		}
+		ui.List(simpleList)
+
+	default:
+		// Default tabular format
+		ui.SubHeader(fmt.Sprintf("Found %d modules", len(modules)))
+
+		if verbose {
+			// Detailed format
+			for i, module := range modules {
+				ui.SubHeader(fmt.Sprintf("[%d] %s (%s)", i+1, module.Name, module.Version))
+
+				info := map[string]string{
+					"Path": module.Path,
+				}
+
+				if module.Description != "" {
+					info["Description"] = module.Description
+				}
+
+				if !module.InstallationTime.IsZero() {
+					info["Installed"] = module.InstallationTime.Format("2006-01-02 15:04:05")
+				}
+
+				if module.CoreModule {
+					info["Type"] = "Core Module"
+				}
+
+				ui.KeyValue(info)
+			}
+		} else {
+			// Simple tabular format
+			var modulesList []string
+			for _, module := range modules {
+				line := fmt.Sprintf("%-30s %s", module.Name, module.Version)
+				if module.CoreModule {
+					line += " (core)"
+				}
+				modulesList = append(modulesList, line)
+			}
+			ui.List(modulesList)
+		}
+	}
+
+	return nil
+}
+
+// listModules provides a simplified interface for module listing
+func listModules(perlPath, pattern string, includeCore bool, ctx context.Context) ([]*pviModules.InstalledModule, error) {
+	// Get current Perl path if not specified
+	if perlPath == "" {
+		var err error
+		perlPath, err = perl.GetCurrentPerlPath()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get Perl path: %w", err)
+		}
+	}
+
+	// Create options for listing modules
+	options := &pviModules.ModuleListOptions{
+		PerlPath:    perlPath,
+		Pattern:     pattern,
+		IncludeCore: includeCore,
+		Context:     ctx,
+	}
+
+	// List installed modules
+	return pviModules.ListInstalledModules(options)
+}
+
+// searchModules provides a simplified interface for module searching
+func searchModules(query, source string, limit int, noCache bool, ctx context.Context) (*cpan.SearchResults, error) {
+	// Load configuration
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Create provider using builder pattern
+	provider, err := NewProviderBuilder().
+		WithConfig(cfg).
+		WithSource(source).
+		WithNoCache(noCache).
+		BuildProvider()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	// Run the search
+	return provider.SearchModules(ctx, query, limit)
+}
+
+// formatSearchResults formats and displays search results
+func formatSearchResults(ui *uipkg.Output, results *cpan.SearchResults) {
+	ui.Info("Search results for '%s' (%d of %d results from %s)",
+		results.Query, len(results.Results), results.Total, results.Source)
+
+	if len(results.Results) == 0 {
+		ui.Info("No results found")
+		return
+	}
+
+	// Create a formatted list of search results
+	var searchResults []string
+	for i, result := range results.Results {
+		searchResults = append(searchResults,
+			fmt.Sprintf("[%d] %s (%s)\n    %s\n    Author: %s | Released: %s",
+				i+1, result.Name, result.Version, result.Abstract,
+				result.Author, result.ReleaseDate.Format("2006-01-02")))
+	}
+
+	ui.ListWithOptions(uipkg.ListOptions{
+		Items: searchResults,
+	})
+}
+
+// removeModule provides a simplified interface for module removal
+func removeModule(moduleName, perlPath string, force, verbose bool, ctx context.Context) error {
+	// Get current Perl path if not specified
+	if perlPath == "" {
+		var err error
+		perlPath, err = perl.GetCurrentPerlPath()
+		if err != nil {
+			return fmt.Errorf("failed to get Perl path: %w", err)
+		}
+	}
+
+	// Create options for removing module
+	options := &pviModules.RemoveModuleOptions{
+		ModuleName: moduleName,
+		PerlPath:   perlPath,
+		Force:      force,
+		Verbose:    verbose,
+		Context:    ctx,
+	}
+
+	// Remove the module
+	result, err := pviModules.RemoveModule(options)
+	if err != nil {
+		return err
+	}
+
+	if !result.Success {
+		return fmt.Errorf("failed to remove module %s", result.ModuleName)
+	}
+
+	return nil
+}
+
+// Helper functions for modules integration
+
+// convertUnifiedResultsToPVI converts unified InstallResult to PVI ModuleInstallResult
+func convertUnifiedResultsToPVI(results []*modules.InstallResult) []*pviModules.ModuleInstallResult {
+	pviResults := make([]*pviModules.ModuleInstallResult, len(results))
+
+	for i, result := range results {
+		pviResult := &pviModules.ModuleInstallResult{
+			ModuleName:  result.ModuleName,
+			Version:     result.Version,
+			Success:     result.Success,
+			Warnings:    result.Warnings,
+			Errors:      result.Errors,
+			InstallPath: result.Path,
+			Duration:    result.Duration,
+		}
+
+		// Convert dependencies back to PVI format if needed
+		if len(result.Dependencies) > 0 {
+			pviResult.Dependencies = make([]*pviModules.ModuleInstallResult, len(result.Dependencies))
+			for j, depName := range result.Dependencies {
+				pviResult.Dependencies[j] = &pviModules.ModuleInstallResult{
+					ModuleName: depName,
+					Success:    true, // Assume dependencies were successful if listed
+				}
+			}
+		}
+
+		pviResults[i] = pviResult
+	}
+
+	return pviResults
+}
+
+// Placeholder progress tracker implementations
+// TODO: These should be moved to internal/modules/progress.go in Phase 5
+
+// mockProgressTracker provides a simple implementation of ProgressTracker
+type mockProgressTracker struct {
+	ui      *uipkg.Output
+	verbose bool
+}
+
+func (m *mockProgressTracker) Start(operation string, total int) {
+	if m.verbose {
+		m.ui.Info("Starting %s (%d items)", operation, total)
+	}
+}
+
+func (m *mockProgressTracker) Update(current int, message string) {
+	if m.verbose {
+		m.ui.Info("Progress: %s", message)
+	}
+}
+
+func (m *mockProgressTracker) Finish(result *modules.OperationResult) {
+	if result.Success {
+		m.ui.Info("Completed %s for %s", result.Operation, result.Target)
+	} else {
+		m.ui.Error("Failed %s for %s: %v", result.Operation, result.Target, result.Error)
+	}
+}
+
+// mockParallelProgressTracker provides a simple implementation of ParallelProgressTracker
+type mockParallelProgressTracker struct {
+	ui      *uipkg.Output
+	verbose bool
+}
+
+func (m *mockParallelProgressTracker) StartParallel(operations []string) {
+	if m.verbose {
+		m.ui.Info("Starting %d parallel operations", len(operations))
+	}
+}
+
+func (m *mockParallelProgressTracker) UpdateOperation(id string, status modules.OperationStatus, message string) {
+	if m.verbose {
+		m.ui.Info("[%s] %s", id, message)
+	}
+}
+
+func (m *mockParallelProgressTracker) FinishParallel(results []*modules.OperationResult) {
+	successful := 0
+	for _, result := range results {
+		if result.Success {
+			successful++
+		}
+	}
+	m.ui.Info("Completed %d/%d operations successfully", successful, len(results))
+}
+
+// Helper constructors for modules system integration
+// TODO: These should be moved to internal/modules/ constructors in Phase 5
+
+func newProgressTracker(ui *uipkg.Output, verbose bool) modules.ProgressTracker {
+	return &mockProgressTracker{ui: ui, verbose: verbose}
+}
+
+func newParallelProgressTracker(ui *uipkg.Output, verbose bool) modules.ParallelProgressTracker {
+	return &mockParallelProgressTracker{ui: ui, verbose: verbose}
+}
+
+// displayInstallationResults shows the results of a batch installation
+func displayInstallationResults(ui *uipkg.Output, results []*modules.InstallResult, timing bool, duration time.Duration) {
+	successful := 0
+	failed := 0
+
+	for _, result := range results {
+		if result.Success {
+			successful++
+		} else {
+			failed++
+		}
+	}
+
+	// Display summary
+	ui.SubHeader("Installation Summary")
+	summary := map[string]string{
+		"Modules":    fmt.Sprintf("%d", len(results)),
+		"Successful": fmt.Sprintf("%d", successful),
+		"Failed":     fmt.Sprintf("%d", failed),
+	}
+	if timing {
+		summary["Total time"] = duration.Round(time.Millisecond).String()
+		if len(results) > 0 {
+			summary["Average per module"] = (duration / time.Duration(len(results))).Round(time.Millisecond).String()
+		}
+	}
+	ui.KeyValue(summary)
+
+	// Show successful installations
+	if successful > 0 {
+		var successList []string
+		for _, result := range results {
+			if result.Success {
+				if timing {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s (%s)", result.ModuleName, result.Version, result.Duration.Round(time.Millisecond)))
+				} else {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s", result.ModuleName, result.Version))
+				}
+			}
+		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Successful installations",
+			Items: successList,
+		})
+	}
+
+	// Show failures
+	if failed > 0 {
+		var failureList []string
+		for _, result := range results {
+			if !result.Success {
+				if timing {
+					failureList = append(failureList, fmt.Sprintf("✗ %s (%s): %v", result.ModuleName, result.Duration.Round(time.Millisecond), strings.Join(result.Errors, "; ")))
+				} else {
+					failureList = append(failureList, fmt.Sprintf("✗ %s: %v", result.ModuleName, strings.Join(result.Errors, "; ")))
+				}
+			}
+		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Failed installations",
+			Items: failureList,
+		})
+	}
+}
+
+// displayPVIInstallationResults shows the results of a PVI parallel installation
+func displayPVIInstallationResults(ui *uipkg.Output, result *pviModules.ParallelInstallResult, timing bool, duration time.Duration) {
+	// Display summary
+	ui.SubHeader("Installation Summary")
+	summary := map[string]string{
+		"Modules":    fmt.Sprintf("%d", len(result.Results)),
+		"Successful": fmt.Sprintf("%d", result.SuccessCount),
+		"Failed":     fmt.Sprintf("%d", result.FailureCount),
+	}
+	if timing {
+		summary["Total time"] = duration.Round(time.Millisecond).String()
+		if len(result.Results) > 0 {
+			summary["Average per module"] = (duration / time.Duration(len(result.Results))).Round(time.Millisecond).String()
+		}
+	}
+	ui.KeyValue(summary)
+
+	// Show successful installations
+	if result.SuccessCount > 0 {
+		var successList []string
+		for _, res := range result.Results {
+			if res.Success {
+				if timing {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s (%s)", res.ModuleName, res.Version, res.Duration.Round(time.Millisecond)))
+				} else {
+					successList = append(successList, fmt.Sprintf("✓ %s v%s", res.ModuleName, res.Version))
+				}
+			}
+		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Successful installations",
+			Items: successList,
+		})
+	}
+
+	// Show failures
+	if len(result.Failures) > 0 {
+		var failureList []string
+		for _, failure := range result.Failures {
+			if timing {
+				failureList = append(failureList, fmt.Sprintf("✗ %s (%s): %v", failure.ModuleName, failure.Duration.Round(time.Millisecond), failure.Error))
+			} else {
+				failureList = append(failureList, fmt.Sprintf("✗ %s: %v", failure.ModuleName, failure.Error))
+			}
+		}
+		ui.ListWithOptions(uipkg.ListOptions{
+			Title: "Failed installations",
+			Items: failureList,
+		})
+	}
+}
+
+func newModuleInstaller(provider interface{}, tracker modules.ProgressTracker) modules.ModuleInstaller {
+	// TODO: This should use the real modules.Installer
+	// For now, return a bridge to the existing PVI installer
+	return &pviInstallerBridge{provider: provider, tracker: tracker}
+}
+
+// pviInstallerBridge bridges the unified ModuleInstaller interface to existing PVI functionality
+type pviInstallerBridge struct {
+	provider interface{}
+	tracker  modules.ProgressTracker
+}
+
+func (p *pviInstallerBridge) InstallModule(ctx context.Context, module string, opts modules.InstallOptions) (*modules.InstallResult, error) {
+	// Convert options to PVI format
+	pviOpts := &pviModules.ModuleInstallOptions{
+		ModuleName:        module,
+		VersionConstraint: opts.VersionConstraint,
+		PerlPath:          opts.PerlPath,
+		InstallDir:        opts.InstallDir,
+		Force:             opts.Force,
+		RunTests:          opts.RunTests,
+		SkipDependencies:  opts.SkipDependencies,
+		Cleanup:           opts.Cleanup,
+		Verbose:           opts.Verbose,
+		Context:           ctx,
+	}
+
+	// Add provider if available
+	if provider, ok := p.provider.(cpan.Provider); ok {
+		pviOpts.Provider = provider
+	}
+
+	// Execute installation
+	result, err := pviModules.InstallModule(pviOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert result back to unified format
+	return &modules.InstallResult{
+		ModuleName: result.ModuleName,
+		Version:    result.Version,
+		Success:    result.Success,
+		Duration:   result.Duration,
+		Warnings:   result.Warnings,
+		Errors:     result.Errors,
+		Path:       result.InstallPath,
+	}, nil
+}
+
+func (p *pviInstallerBridge) InstallBatch(ctx context.Context, mods []string, opts modules.InstallOptions) ([]*modules.InstallResult, error) {
+	results := make([]*modules.InstallResult, len(mods))
+
+	for i, module := range mods {
+		result, err := p.InstallModule(ctx, module, opts)
+		if err != nil {
+			// Create failed result
+			result = &modules.InstallResult{
+				ModuleName: module,
+				Success:    false,
+				Errors:     []string{err.Error()},
+			}
+		}
+		results[i] = result
+	}
+
+	return results, nil
 }

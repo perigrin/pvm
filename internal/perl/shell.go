@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"text/template"
+	"time"
 
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/xdg"
@@ -132,6 +133,13 @@ func CreateShellInitScripts() error {
 			ErrShellInitFailed,
 			"Failed to create shell integration directory",
 			err)
+	}
+
+	// Bootstrap from plenv if available
+	err = bootstrapFromPlenv()
+	if err != nil {
+		// Log but don't fail - plenv bootstrap is optional
+		// TODO: Consider adding debug logging here
 	}
 
 	// Initialize template data
@@ -846,3 +854,52 @@ set PATH=%PVM_SHIMS_DIR%;%PATH%
 :: Message
 echo PVM environment initialized
 `
+
+// bootstrapFromPlenv attempts to bootstrap PVM from existing plenv installations
+func bootstrapFromPlenv() error {
+	// Check if plenv is available
+	if !isPlenvAvailable() {
+		return nil // Not an error - plenv is optional
+	}
+
+	// Get all plenv-managed Perl versions
+	plenvVersions, err := getPlenvVersions()
+	if err != nil {
+		return err // Return error to indicate bootstrap failed
+	}
+
+	if len(plenvVersions) == 0 {
+		return nil // No versions to import
+	}
+
+	// Import each plenv version into PVM registry
+	for _, pv := range plenvVersions {
+		// Skip system version - it should be handled separately
+		if pv.IsSystem {
+			continue
+		}
+
+		// Create a SystemPerl for this plenv version
+		perl, err := extractPerlInfo(pv.Path, false)
+		if err != nil {
+			// Skip versions that can't be processed
+			continue
+		}
+
+		// Register this version in PVM
+		registryEntry := VersionInfo{
+			Version:     perl.Version,
+			InstallPath: filepath.Dir(filepath.Dir(pv.Path)), // Go from /path/to/version/bin/perl to /path/to/version
+			InstallTime: time.Now(),
+			Source:      "plenv",
+		}
+
+		err = RegisterVersion(registryEntry)
+		if err != nil {
+			// Continue with other versions if one fails
+			continue
+		}
+	}
+
+	return nil
+}

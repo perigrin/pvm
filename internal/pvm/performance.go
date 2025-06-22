@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/performance"
 )
 
@@ -38,24 +39,26 @@ func createPerformanceAnalyzeCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			suggestions := performance.AnalyzeGlobalPerformance()
 
+			ui := cli.GetUI(cmd)
 			if len(suggestions) == 0 {
-				fmt.Println("✅ No performance issues detected")
+				ui.Success("No performance issues detected")
 				return nil
 			}
 
-			fmt.Printf("🔍 Found %d performance suggestions:\n\n", len(suggestions))
+			ui.Info("Found %d performance suggestions:", len(suggestions))
+			ui.Println()
 
 			for i, suggestion := range suggestions {
-				fmt.Printf("%d. [%s] %s\n", i+1, suggestion.Impact, suggestion.Description)
-				fmt.Printf("   Category: %s\n", suggestion.Category)
-				fmt.Printf("   Action: %s\n", suggestion.Action)
+				ui.Printf("%d. [%s] %s\n", i+1, suggestion.Impact, suggestion.Description)
+				ui.Printf("   Category: %s\n", suggestion.Category)
+				ui.Printf("   Action: %s\n", suggestion.Action)
 				if suggestion.Current != nil {
-					fmt.Printf("   Current: %v\n", suggestion.Current)
+					ui.Printf("   Current: %v\n", suggestion.Current)
 				}
 				if suggestion.Target != nil {
-					fmt.Printf("   Target: %v\n", suggestion.Target)
+					ui.Printf("   Target: %v\n", suggestion.Target)
 				}
-				fmt.Println()
+				ui.Println()
 			}
 
 			return nil
@@ -99,22 +102,23 @@ func createPerformanceOptimizeCommand() *cobra.Command {
 		Short: "Apply performance optimizations",
 		Long:  "Apply automatic performance optimizations",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			if !autoApply {
-				fmt.Println("⚠️  Use --auto to apply automatic optimizations")
-				fmt.Println("Run 'pvm perf analyze' to see suggestions first")
+				ui.Warning("Use --auto to apply automatic optimizations")
+				ui.Info("Run 'pvm perf analyze' to see suggestions first")
 				return nil
 			}
 
 			applied := performance.OptimizeGlobalPerformance()
 
 			if len(applied) == 0 {
-				fmt.Println("✅ No automatic optimizations available")
+				ui.Success("No automatic optimizations available")
 				return nil
 			}
 
-			fmt.Printf("🚀 Applied %d optimizations:\n", len(applied))
+			ui.Success("Applied %d optimizations:", len(applied))
 			for _, optimization := range applied {
-				fmt.Printf("  • %s\n", optimization)
+				ui.Printf("  • %s\n", optimization)
 			}
 
 			return nil
@@ -134,7 +138,8 @@ func createPerformanceResetCommand() *cobra.Command {
 		Long:  "Clear all collected performance metrics",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			performance.ResetGlobalMetrics()
-			fmt.Println("✅ Performance metrics reset")
+			ui := cli.GetUI(cmd)
+			ui.Success("Performance metrics reset")
 			return nil
 		},
 	}

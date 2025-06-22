@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/build"
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/project"
 )
@@ -222,7 +223,8 @@ func parseBuildOptions(cmd *cobra.Command, projectCtx *project.ProjectContext) (
 
 // executeTypeCheckBuild performs type checking only
 func executeTypeCheckBuild(ctx context.Context, cmd *cobra.Command, projectCtx *project.ProjectContext, options *BuildOptions) error {
-	cmd.Println("Type checking Perl project...")
+	ui := cli.GetUI(cmd)
+	ui.Status("Type checking Perl project...")
 
 	// Create PSC builder
 	pscBuilder, err := build.NewPSCBuilder(projectCtx)
@@ -240,23 +242,24 @@ func executeTypeCheckBuild(ctx context.Context, cmd *cobra.Command, projectCtx *
 	duration := time.Since(start)
 
 	// Report results
-	cmd.Printf("Type checked %d files in %s\n", result.FilesChecked, duration.Round(time.Millisecond))
+	ui.Info("Type checked %d files in %s", result.FilesChecked, duration.Round(time.Millisecond))
 
 	if len(result.TypeErrors) > 0 {
-		cmd.Printf("Found %d type errors:\n", len(result.TypeErrors))
+		ui.Error("Found %d type errors:", len(result.TypeErrors))
 		for _, typeErr := range result.TypeErrors {
-			cmd.Printf("  %s:%d:%d - %s\n", typeErr.File, typeErr.Line, typeErr.Column, typeErr.Message)
+			ui.Error("  %s:%d:%d - %s", typeErr.File, typeErr.Line, typeErr.Column, typeErr.Message)
 		}
 		return fmt.Errorf("type checking failed with %d errors", len(result.TypeErrors))
 	}
 
-	cmd.Println("Type checking passed!")
+	ui.Success("Type checking passed!")
 	return nil
 }
 
 // executeInlineBuild performs development build with .pmc generation
 func executeInlineBuild(ctx context.Context, cmd *cobra.Command, projectCtx *project.ProjectContext, options *BuildOptions) error {
-	cmd.Println("Building inline development version...")
+	ui := cli.GetUI(cmd)
+	ui.Status("Building inline development version...")
 
 	// Create inline builder
 	inlineBuilder, err := build.NewInlineBuilder(projectCtx)
@@ -266,10 +269,10 @@ func executeInlineBuild(ctx context.Context, cmd *cobra.Command, projectCtx *pro
 
 	// Clean if requested
 	if options.Clean {
-		cmd.Println("Cleaning existing .pmc files...")
+		ui.Status("Cleaning existing .pmc files...")
 		targetDirs := []string{filepath.Join(options.ProjectRoot, "lib")}
 		if err := inlineBuilder.Clean(ctx, targetDirs); err != nil {
-			cmd.Printf("Warning: failed to clean .pmc files: %v\n", err)
+			ui.Warning("Failed to clean .pmc files: %v", err)
 		}
 	}
 
@@ -285,31 +288,32 @@ func executeInlineBuild(ctx context.Context, cmd *cobra.Command, projectCtx *pro
 
 	// Report results
 	if !result.Success {
-		cmd.Printf("Inline build failed after %s\n", duration.Round(time.Millisecond))
+		ui.Error("Inline build failed after %s", duration.Round(time.Millisecond))
 		if len(result.TypeErrors) > 0 {
-			cmd.Printf("Type errors found:\n")
+			ui.Error("Type errors found:")
 			for _, typeErr := range result.TypeErrors {
-				cmd.Printf("  %s:%d:%d - %s\n", typeErr.File, typeErr.Line, typeErr.Column, typeErr.Message)
+				ui.Error("  %s:%d:%d - %s", typeErr.File, typeErr.Line, typeErr.Column, typeErr.Message)
 			}
 		}
 		if len(result.BuildErrors) > 0 {
-			cmd.Printf("Build errors:\n")
+			ui.Error("Build errors:")
 			for _, buildErr := range result.BuildErrors {
-				cmd.Printf("  %s\n", buildErr)
+				ui.Error("  %s", buildErr)
 			}
 		}
 		return fmt.Errorf("inline build failed")
 	}
 
-	cmd.Printf("Inline build completed in %s\n", duration.Round(time.Millisecond))
-	cmd.Printf("Processed %d files, generated %d .pmc files\n", result.FilesProcessed, result.PmcGenerated)
-	cmd.Println("Development build ready!")
+	ui.Success("Inline build completed in %s", duration.Round(time.Millisecond))
+	ui.Info("Processed %d files, generated %d .pmc files", result.FilesProcessed, result.PmcGenerated)
+	ui.Success("Development build ready!")
 	return nil
 }
 
 // executeDistributionBuild performs full distribution build
 func executeDistributionBuild(ctx context.Context, cmd *cobra.Command, projectCtx *project.ProjectContext, options *BuildOptions) error {
-	cmd.Println("Building CPAN distribution...")
+	ui := cli.GetUI(cmd)
+	ui.Status("Building CPAN distribution...")
 
 	// Create distribution builder
 	distBuilder, err := build.NewDistributionBuilder(projectCtx)
@@ -319,9 +323,9 @@ func executeDistributionBuild(ctx context.Context, cmd *cobra.Command, projectCt
 
 	// Clean if requested
 	if options.Clean {
-		cmd.Println("Cleaning build directory...")
+		ui.Status("Cleaning build directory...")
 		if err := distBuilder.Clean(options.OutputDir); err != nil {
-			cmd.Printf("Warning: failed to clean build directory: %v\n", err)
+			ui.Warning("Failed to clean build directory: %v", err)
 		}
 	}
 
@@ -348,37 +352,38 @@ func executeDistributionBuild(ctx context.Context, cmd *cobra.Command, projectCt
 
 	// Report results
 	if !result.Success {
-		cmd.Printf("Distribution build failed after %s\n", duration.Round(time.Millisecond))
+		ui.Error("Distribution build failed after %s", duration.Round(time.Millisecond))
 		if len(result.TypeErrors) > 0 {
-			cmd.Printf("Type errors found:\n")
+			ui.Error("Type errors found:")
 			for _, typeErr := range result.TypeErrors {
-				cmd.Printf("  %s:%d:%d - %s\n", typeErr.File, typeErr.Line, typeErr.Column, typeErr.Message)
+				ui.Error("  %s:%d:%d - %s", typeErr.File, typeErr.Line, typeErr.Column, typeErr.Message)
 			}
 		}
 		if len(result.BuildErrors) > 0 {
-			cmd.Printf("Build errors:\n")
+			ui.Error("Build errors:")
 			for _, buildErr := range result.BuildErrors {
-				cmd.Printf("  %s\n", buildErr)
+				ui.Error("  %s", buildErr)
 			}
 		}
 		return fmt.Errorf("distribution build failed")
 	}
 
-	cmd.Printf("Distribution build completed in %s\n", duration.Round(time.Millisecond))
-	cmd.Printf("Processed %d files\n", result.FilesProcessed)
+	ui.Success("Distribution build completed in %s", duration.Round(time.Millisecond))
+	ui.Info("Processed %d files", result.FilesProcessed)
 	if result.MetadataGenerated {
-		cmd.Println("Generated CPAN metadata files")
+		ui.Success("Generated CPAN metadata files")
 	}
-	cmd.Printf("Distribution ready: %s\n", result.BuildDir)
+	ui.Success("Distribution ready: %s", result.BuildDir)
 	if result.DistributionName != "" {
-		cmd.Printf("Distribution name: %s\n", result.DistributionName)
+		ui.Info("Distribution name: %s", result.DistributionName)
 	}
 	return nil
 }
 
 // executeWatchBuild performs continuous build with file watching
 func executeWatchBuild(ctx context.Context, cmd *cobra.Command, projectCtx *project.ProjectContext, options *BuildOptions) error {
-	cmd.Println("Starting watch mode...")
+	ui := cli.GetUI(cmd)
+	ui.Status("Starting watch mode...")
 
 	// Create watcher configuration
 	watchConfig := build.DefaultWatcherConfig()
@@ -427,8 +432,8 @@ func executeWatchBuild(ctx context.Context, cmd *cobra.Command, projectCtx *proj
 	}
 	defer watcher.Stop()
 
-	cmd.Printf("Watching directories: %v\n", watchConfig.WatchDirs)
-	cmd.Println("Press Ctrl+C to stop watching...")
+	ui.Info("Watching directories: %v", watchConfig.WatchDirs)
+	ui.Info("Press Ctrl+C to stop watching...")
 
 	// Monitor build results
 	for {
@@ -437,13 +442,13 @@ func executeWatchBuild(ctx context.Context, cmd *cobra.Command, projectCtx *proj
 			return nil
 		case result := <-watcher.Results():
 			if result.Success {
-				cmd.Printf("[%s] %s build completed (%s) - %d files\n",
+				ui.Success("[%s] %s build completed (%s) - %d files",
 					result.Timestamp.Format("15:04:05"),
 					result.Type.String(),
 					result.Duration.Round(time.Millisecond),
 					len(result.Files))
 			} else {
-				cmd.Printf("[%s] %s build failed (%s): %v\n",
+				ui.Error("[%s] %s build failed (%s): %v",
 					result.Timestamp.Format("15:04:05"),
 					result.Type.String(),
 					result.Duration.Round(time.Millisecond),

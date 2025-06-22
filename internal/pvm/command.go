@@ -19,6 +19,7 @@ import (
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/pvx"
+	"tamarou.com/pvm/internal/version"
 	"tamarou.com/pvm/internal/xdg"
 )
 
@@ -154,8 +155,9 @@ func newInstallCommand() *cobra.Command {
 			}
 
 			if skipBuild {
-				cmd.Println("Skip-build specified but no import functionality implemented yet.")
-				cmd.Println("This will be implemented in a future version.")
+				ui := cli.GetUI(cmd)
+				ui.Warning("Skip-build specified but no import functionality implemented yet.")
+				ui.Info("This will be implemented in a future version.")
 				return nil
 			}
 
@@ -236,14 +238,15 @@ func newInstallCommand() *cobra.Command {
 			}
 
 			// Build Perl using our build functionality
-			cmd.Printf("Installing Perl %s...\n", version)
+			ui := cli.GetUI(cmd)
+			ui.Info("Installing Perl %s...", version)
 
 			// Create progress callback to display build progress
 			var currentStage perl.BuildProgressStage
 			progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
 				// Only print stage transition once
 				if stage != currentStage {
-					cmd.Printf("\n=== %s ===\n", stage.String())
+					ui.Header(stage.String())
 					currentStage = stage
 				}
 
@@ -258,11 +261,17 @@ func newInstallCommand() *cobra.Command {
 							strings.Contains(details, "error:") ||
 							strings.Contains(details, "Done") ||
 							strings.Contains(details, "All tests successful") {
-							cmd.Println(details)
+							if strings.Contains(details, "ERROR") || strings.Contains(details, "error:") { //nolint:gocritic
+								ui.Error("%s", details)
+							} else if strings.Contains(details, "WARNING") || strings.Contains(details, "warning:") {
+								ui.Warning("%s", details)
+							} else {
+								ui.Info("%s", details)
+							}
 						}
 					} else {
 						// For other stages, print all details
-						cmd.Println(details)
+						ui.Info("%s", details)
 					}
 				}
 
@@ -286,11 +295,12 @@ func newInstallCommand() *cobra.Command {
 					progressBar += "]"
 
 					// Clear line and show progress
-					fmt.Printf("\r%s %.1f%%                    ",
+					ui := cli.GetUI(cmd)
+					ui.Printf("\r%s %.1f%%                    ",
 						progressBar, progress*100)
 
 					if progress >= 1.0 {
-						fmt.Println()
+						ui.Println()
 					}
 				}
 			}
@@ -310,14 +320,14 @@ func newInstallCommand() *cobra.Command {
 			// Start the build
 			result, err := perl.BuildPerl(options)
 			if err != nil {
-				cmd.Printf("\nInstallation failed: %v\n", err)
+				ui.Error("Installation failed: %v", err)
 				return err
 			}
 
 			// Show build results
-			cmd.Printf("\nInstallation completed successfully!\n")
-			cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
-			cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
+			ui.Success("Installation completed successfully!")
+			ui.Info("Perl %s installed at: %s", result.Version, result.InstallPath)
+			ui.Info("Total installation time: %s", result.Duration.Round(time.Second))
 
 			// The registration is now handled automatically in the BuildPerl function
 
@@ -457,8 +467,9 @@ func newGlobalCommand() *cobra.Command {
 			}
 
 			// Success message
-			cmd.Printf("Global Perl version set to %s\n", version)
-			cmd.Println("This is now the default version when no other version is specified")
+			ui := cli.GetUI(cmd)
+			ui.Success("Global Perl version set to %s", version)
+			ui.Info("This is now the default version when no other version is specified")
 
 			return nil
 		},
@@ -487,9 +498,10 @@ func newLocalCommand() *cobra.Command {
 			}
 
 			// Success message
-			cmd.Printf("Local Perl version set to %s for %s\n", version, dir)
-			cmd.Println("This version will be used in this directory and its subdirectories")
-			cmd.Println("Note: Shell integration must be set up for automatic switching to work")
+			ui := cli.GetUI(cmd)
+			ui.Success("Local Perl version set to %s for %s", version, dir)
+			ui.Info("This version will be used in this directory and its subdirectories")
+			ui.Info("Note: Shell integration must be set up for automatic switching to work")
 
 			return nil
 		},
@@ -615,9 +627,11 @@ func newVersionsCommand() *cobra.Command {
 				return err
 			}
 
+			ui := cli.GetUI(cmd)
+
 			// Check if we have any installed versions
 			if len(installedVersions) == 0 {
-				cmd.Println("No versions installed. Use 'pvm install <version>' to install a version.")
+				ui.Warning("No versions installed. Use 'pvm install <version>' to install a version.")
 				return nil
 			}
 
@@ -633,7 +647,7 @@ func newVersionsCommand() *cobra.Command {
 			}
 
 			// Display installed versions
-			cmd.Println("Installed Perl versions:")
+			ui.Header("Installed Perl versions:")
 			for i, versionInfo := range installedVersions {
 				// Add decoration for special versions
 				decoration := ""
@@ -653,30 +667,30 @@ func newVersionsCommand() *cobra.Command {
 					case "system":
 						sourceIndicator = " (system)"
 					}
-					cmd.Printf("  %s%s%s\n", versionInfo.Version, decoration, sourceIndicator)
+					ui.Printf("  %s%s%s", versionInfo.Version, decoration, sourceIndicator)
 					continue
 				}
 
 				// Detailed output
-				cmd.Printf("  %s%s\n", versionInfo.Version, decoration)
+				ui.Printf("  %s%s", versionInfo.Version, decoration)
 
 				if showPath {
-					cmd.Printf("    Path: %s\n", versionInfo.InstallPath)
+					ui.Info("    Path: %s", versionInfo.InstallPath)
 				}
 
 				if showSource {
-					cmd.Printf("    Source: %s\n", versionInfo.Source)
-					cmd.Printf("    Installed: %s\n", versionInfo.InstallTime.Format("2006-01-02 15:04:05"))
+					ui.Info("    Source: %s", versionInfo.Source)
+					ui.Info("    Installed: %s", versionInfo.InstallTime.Format("2006-01-02 15:04:05"))
 				}
 
 				// Add a separator between versions for detailed output
 				if i < len(installedVersions)-1 && (showPath || showSource) {
-					cmd.Println()
+					ui.Println("")
 				}
 			}
 
 			// Add a hint about current/active version
-			cmd.Println("\nNote: Use 'pvm current' to show the currently active Perl version.")
+			ui.Info("Note: Use 'pvm current' to show the currently active Perl version.")
 
 			return nil
 		},
@@ -702,9 +716,11 @@ func newListCommand() *cobra.Command {
 				return err
 			}
 
+			ui := cli.GetUI(cmd)
+
 			// Check if we have any installed versions
 			if len(installedVersions) == 0 {
-				cmd.Println("No versions installed. Use 'pvm install <version>' to install a version.")
+				ui.Warning("No versions installed. Use 'pvm install <version>' to install a version.")
 				return nil
 			}
 
@@ -720,7 +736,7 @@ func newListCommand() *cobra.Command {
 			}
 
 			// Display installed versions
-			cmd.Println("Installed Perl versions:")
+			ui.Header("Installed Perl versions:")
 			for i, versionInfo := range installedVersions {
 				// Add decoration for special versions
 				decoration := ""
@@ -740,30 +756,30 @@ func newListCommand() *cobra.Command {
 					case "system":
 						sourceIndicator = " (system)"
 					}
-					cmd.Printf("  %s%s%s\n", versionInfo.Version, decoration, sourceIndicator)
+					ui.Printf("  %s%s%s", versionInfo.Version, decoration, sourceIndicator)
 					continue
 				}
 
 				// Detailed output
-				cmd.Printf("  %s%s\n", versionInfo.Version, decoration)
+				ui.Printf("  %s%s", versionInfo.Version, decoration)
 
 				if showPath {
-					cmd.Printf("    Path: %s\n", versionInfo.InstallPath)
+					ui.Info("    Path: %s", versionInfo.InstallPath)
 				}
 
 				if showSource {
-					cmd.Printf("    Source: %s\n", versionInfo.Source)
-					cmd.Printf("    Installed: %s\n", versionInfo.InstallTime.Format("2006-01-02 15:04:05"))
+					ui.Info("    Source: %s", versionInfo.Source)
+					ui.Info("    Installed: %s", versionInfo.InstallTime.Format("2006-01-02 15:04:05"))
 				}
 
 				// Add a separator between versions for detailed output
 				if i < len(installedVersions)-1 && (showPath || showSource) {
-					cmd.Println()
+					ui.Println("")
 				}
 			}
 
 			// Add a hint about current/active version
-			cmd.Println("\nNote: Use 'pvm current' to show the currently active Perl version.")
+			ui.Info("Note: Use 'pvm current' to show the currently active Perl version.")
 
 			return nil
 		},
@@ -810,7 +826,8 @@ func newAvailableCommand() *cobra.Command {
 			devVersions := []string{"5.39.0"}
 
 			// Display header
-			cmd.Println("Available Perl versions:")
+			ui := cli.GetUI(cmd)
+			ui.Header("Available Perl versions:")
 
 			// Group versions by major.minor
 			groupedVersions := make(map[string][]string)
@@ -831,17 +848,17 @@ func newAvailableCommand() *cobra.Command {
 			}
 
 			// Add development versions separately
-			cmd.Println("\nDevelopment versions:")
+			ui.SubHeader("Development versions:")
 			for _, version := range devVersions {
 				installed := ""
 				if installedMap[version] {
 					installed = " (installed)"
 				}
-				cmd.Printf("  %s%s\n", version, installed)
+				ui.Printf("  %s%s", version, installed)
 			}
 
 			// Display stable versions by group
-			cmd.Println("\nStable versions:")
+			ui.SubHeader("Stable versions:")
 
 			// Sort groups (we could use a proper version sorting here)
 			// But for this simple listing, the natural string sort will work reasonably well
@@ -861,17 +878,17 @@ func newAvailableCommand() *cobra.Command {
 				}
 
 				// Display group versions
-				cmd.Printf("  %s series:\n", groupKey)
+				ui.Info("  %s series:", groupKey)
 				for _, version := range versions {
 					installed := ""
 					if installedMap[version] {
 						installed = " (installed)"
 					}
-					cmd.Printf("    %s%s\n", version, installed)
+					ui.Printf("    %s%s", version, installed)
 				}
 			}
 
-			cmd.Println("\nUse 'pvm install <version>' to install a specific version.")
+			ui.Info("Use 'pvm install <version>' to install a specific version.")
 			return nil
 		},
 	}
@@ -930,11 +947,12 @@ func newDownloadCommand() *cobra.Command {
 					progressBar += "]"
 
 					// Clear line and show progress
-					fmt.Printf("\r%s %.1f%% (%d/%d bytes)                    ",
+					ui := cli.GetUI(cmd)
+					ui.Printf("\r%s %.1f%% (%d/%d bytes)                    ",
 						progressBar, percentage, transferred, total)
 
 					if done {
-						fmt.Println()
+						ui.Println()
 					}
 				}
 			}
@@ -950,10 +968,11 @@ func newDownloadCommand() *cobra.Command {
 			}
 
 			// Start the download
-			cmd.Printf("Downloading Perl %s...\n", version)
+			ui := cli.GetUI(cmd)
+			ui.Info("Downloading Perl %s...", version)
 
 			if mirror != "" {
-				cmd.Printf("Using mirror: %s\n", mirror)
+				ui.Info("Using mirror: %s", mirror)
 			}
 
 			// Perform the download
@@ -964,15 +983,15 @@ func newDownloadCommand() *cobra.Command {
 
 			// Show download results
 			if result.FromCache {
-				cmd.Printf("Loaded from cache: %s\n", result.Path)
+				ui.Success("Loaded from cache: %s", result.Path)
 			} else {
-				cmd.Printf("Download complete: %s\n", result.Path)
-				cmd.Printf("Download size: %d bytes\n", result.Size)
-				cmd.Printf("Download time: %s\n", result.Duration.Round(time.Millisecond))
+				ui.Success("Download complete: %s", result.Path)
+				ui.Info("Download size: %d bytes", result.Size)
+				ui.Info("Download time: %s", result.Duration.Round(time.Millisecond))
 			}
 
 			if result.Checksum != "" {
-				cmd.Printf("SHA-256: %s\n", result.Checksum)
+				ui.Info("SHA-256: %s", result.Checksum)
 			}
 
 			return nil
@@ -993,8 +1012,9 @@ func newExecCommand() *cobra.Command {
 		Short: "Execute a command with a specific version",
 		Long:  "Execute a command using a specific Perl version",
 		Run: func(cmd *cobra.Command, args []string) {
+			ui := cli.GetUI(cmd)
 			if len(args) < 2 {
-				cmd.PrintErrln("Usage: pvm exec [version] [command]")
+				ui.Error("Usage: pvm exec [version] [command]")
 				return
 			}
 
@@ -1003,7 +1023,7 @@ func newExecCommand() *cobra.Command {
 
 			err := execCommand(cmd, version, command)
 			if err != nil {
-				cmd.PrintErrln("Error:", err)
+				ui.Error("Error: %v", err)
 				os.Exit(1)
 			}
 		},
@@ -1032,32 +1052,33 @@ func newUninstallCommand() *cobra.Command {
 			}
 
 			// Get confirmation unless force flag is used
+			ui := cli.GetUI(cmd)
 			if !force {
-				cmd.Printf("Are you sure you want to uninstall Perl %s? [y/N] ", version)
+				ui.Printf("Are you sure you want to uninstall Perl %s? [y/N] ", version)
 				var response string
 				_, _ = fmt.Scanln(&response)
 
 				response = strings.ToLower(strings.TrimSpace(response))
 				if response != "y" && response != "yes" {
-					cmd.Println("Uninstall cancelled.")
+					ui.Info("Uninstall cancelled.")
 					return nil
 				}
 			}
 
 			// If this is a system Perl, warn the user
 			if versionInfo.Source == "system" {
-				cmd.Println("Note: This is a system Perl installation.")
-				cmd.Println("The installation will be unregistered from PVM but the actual files will not be removed.")
+				ui.Warning("Note: This is a system Perl installation.")
+				ui.Info("The installation will be unregistered from PVM but the actual files will not be removed.")
 			}
 
 			// Perform the uninstallation
-			cmd.Printf("Uninstalling Perl %s...\n", version)
+			ui.Info("Uninstalling Perl %s...", version)
 			err = perl.UninstallVersion(version)
 			if err != nil {
 				return err
 			}
 
-			cmd.Printf("Perl %s has been uninstalled.\n", version)
+			ui.Success("Perl %s has been uninstalled.", version)
 			return nil
 		},
 	}
@@ -1110,20 +1131,21 @@ func newImportCommand() *cobra.Command {
 
 // importFromLegacyTool implements the logic for importing from a legacy tool
 func importFromLegacyTool(cmd *cobra.Command, tool perl.LegacyToolType) error {
-	cmd.Printf("Detecting %s installations...\n", tool)
+	ui := cli.GetUI(cmd)
+	ui.Info("Detecting %s installations...", tool)
 
 	installations, err := perl.ImportFromLegacyTool(tool)
 	if err != nil {
 		return err
 	}
 
-	cmd.Printf("Found %d %s installation(s):\n", len(installations), tool)
+	ui.Success("Found %d %s installation(s):", len(installations), tool)
 	for i, inst := range installations {
 		defaultMark := ""
 		if inst.IsDefault {
 			defaultMark = " (default)"
 		}
-		cmd.Printf("%d. %s%s at %s\n", i+1, inst.Version, defaultMark, inst.Path)
+		ui.Printf("%d. %s%s at %s", i+1, inst.Version, defaultMark, inst.Path)
 	}
 
 	// In a real implementation, here we would:
@@ -1132,16 +1154,16 @@ func importFromLegacyTool(cmd *cobra.Command, tool perl.LegacyToolType) error {
 	// 3. Register them in PVM's internal database
 	// But for now, we'll just report what was found
 
-	cmd.Println("\nNote: This command currently only detects installations.")
-	cmd.Println("Actual import functionality will be implemented in a future version.")
+	ui.Warning("Note: This command currently only detects installations.")
+	ui.Info("Actual import functionality will be implemented in a future version.")
 
 	// If it's perlbrew, also show aliases
 	if tool == perl.Perlbrew {
 		aliases, err := perl.GetPerlbrewAliases()
 		if err == nil && len(aliases) > 0 {
-			cmd.Println("\nPerlbrew aliases detected:")
+			ui.SubHeader("Perlbrew aliases detected:")
 			for alias, target := range aliases {
-				cmd.Printf("  %s -> %s\n", alias, target)
+				ui.Printf("  %s -> %s", alias, target)
 			}
 		}
 	}
@@ -1155,7 +1177,8 @@ func newRehashCommand() *cobra.Command {
 		Short: "Rebuild shim executables",
 		Long:  "Rebuild shim executables for all installed Perl versions",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cmd.Println("Rebuilding shim executables...")
+			ui := cli.GetUI(cmd)
+			ui.Info("Rebuilding shim executables...")
 
 			// Call rehash function
 			err := perl.Rehash()
@@ -1170,17 +1193,18 @@ func newRehashCommand() *cobra.Command {
 			}
 
 			// Show success message
-			fmt.Println("Shim executables rebuilt successfully.")
+			ui.Success("Shim executables rebuilt successfully.")
 
 			// Warn if PATH is not configured
 			if !pathConfigured {
-				cmd.Println("\nWarning: The shim directory is not in your PATH.")
-				cmd.Printf("To use pvm, add the following directory to your PATH:\n%s\n", shimDir)
+				ui.Warning("The shim directory is not in your PATH.")
+				ui.Printf("To use pvm, add the following directory to your PATH:\n%s\n", shimDir)
 
 				// Get the command to add to PATH
 				pathCmd, err := perl.GetPathConfigCommand()
 				if err == nil {
-					cmd.Printf("\nYou can do this with the following command:\n%s\n", pathCmd)
+					ui.Info("You can do this with the following command:")
+					ui.Printf("%s", pathCmd)
 				}
 			}
 
@@ -1197,6 +1221,7 @@ func newResolveCommand() *cobra.Command {
 		Short: "Resolve a Perl version",
 		Long:  "Resolve a Perl version based on the version resolution algorithm",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ui := cli.GetUI(cmd)
 			var explicitVersion string
 			if len(args) > 0 {
 				explicitVersion = args[0]
@@ -1212,9 +1237,9 @@ func newResolveCommand() *cobra.Command {
 				if path == "" {
 					path = "N/A"
 				}
-				cmd.Printf("Resolved version: %s\n", version.Version)
-				cmd.Printf("Source: %s\n", version.Source)
-				cmd.Printf("Path: %s\n", path)
+				ui.Success("Resolved version: %s", version.Version)
+				ui.Info("Source: %s", version.Source)
+				ui.Info("Path: %s", path)
 			}
 
 			resolved, err := perl.ResolveVersion(options)
@@ -1238,6 +1263,9 @@ func newPVXCommand() *cobra.Command {
 	pvxCmd.Use = "pvx"
 	pvxCmd.Short = "Perl Version eXecutor (shell alias for 'pvm run')"
 	pvxCmd.Long = "Executes Perl code in isolated environments. This is a shell alias for 'pvm run' - you can use either 'pvx' or 'pvm run' interchangeably."
+
+	// Add version subcommand
+	pvxCmd.AddCommand(newComponentVersionCommand("pvx"))
 
 	return pvxCmd
 }
@@ -1295,11 +1323,12 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 	}
 
 	// Create progress callback to display build progress
+	ui := cli.GetUI(cmd)
 	var currentStage perl.BuildProgressStage
 	progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
 		// Only print stage transition once
 		if stage != currentStage {
-			cmd.Printf("\n=== %s ===\n", stage.String())
+			ui.Header(stage.String())
 			currentStage = stage
 		}
 
@@ -1314,11 +1343,17 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 					strings.Contains(details, "error:") ||
 					strings.Contains(details, "Done") ||
 					strings.Contains(details, "All tests successful") {
-					cmd.Println(details)
+					if strings.Contains(details, "ERROR") || strings.Contains(details, "error:") { //nolint:gocritic
+						ui.Error("%s", details)
+					} else if strings.Contains(details, "WARNING") || strings.Contains(details, "warning:") {
+						ui.Warning("%s", details)
+					} else {
+						ui.Info("%s", details)
+					}
 				}
 			} else {
 				// For other stages, print all details
-				cmd.Println(details)
+				ui.Info("%s", details)
 			}
 		}
 
@@ -1342,11 +1377,12 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 			progressBar += "]"
 
 			// Clear line and show progress
-			fmt.Printf("\r%s %.1f%%                    ",
+			ui := cli.GetUI(cmd)
+			ui.Printf("\r%s %.1f%%                    ",
 				progressBar, progress*100)
 
 			if progress >= 1.0 {
-				fmt.Println()
+				ui.Println()
 			}
 		}
 	}
@@ -1365,46 +1401,46 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 	}
 
 	// Print build information
-	cmd.Printf("Building Perl %s from source...\n", version)
+	ui.Info("Building Perl %s from source...", version)
 
 	if sourceFile != "" {
-		cmd.Printf("Using source file: %s\n", sourceFile)
+		ui.Info("Using source file: %s", sourceFile)
 	}
 
 	if installDir != "" {
-		cmd.Printf("Installation directory: %s\n", installDir)
+		ui.Info("Installation directory: %s", installDir)
 	}
 
 	if buildJobs > 0 {
-		cmd.Printf("Using %d parallel build jobs\n", buildJobs)
+		ui.Info("Using %d parallel build jobs", buildJobs)
 	} else {
-		cmd.Printf("Using default number of build jobs\n")
+		ui.Info("Using default number of build jobs")
 	}
 
 	if runTests {
-		cmd.Println("Will run tests after building")
+		ui.Info("Will run tests after building")
 	}
 
 	if cleanupBuildDir {
-		cmd.Println("Will clean up build directory after installation")
+		ui.Info("Will clean up build directory after installation")
 	}
 
 	// Start the build
 	result, err := perl.BuildPerl(options)
 	if err != nil {
-		cmd.Printf("\nBuild failed: %v\n", err)
+		ui.Error("Build failed: %v", err)
 		return err
 	}
 
 	// Show build results
-	cmd.Printf("\nBuild completed successfully!\n")
-	cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
-	cmd.Printf("Total build time: %s\n", result.Duration.Round(time.Second))
+	ui.Success("Build completed successfully!")
+	ui.Info("Perl %s installed at: %s", result.Version, result.InstallPath)
+	ui.Info("Total build time: %s", result.Duration.Round(time.Second))
 
 	// Show timing for each stage
-	cmd.Println("\nBuild stage timing:")
+	ui.SubHeader("Build stage timing:")
 	for stage, duration := range result.Stages {
-		cmd.Printf("  %-12s: %s\n", stage.String(), duration.Round(time.Second))
+		ui.Printf("  %-12s: %s", stage.String(), duration.Round(time.Second))
 	}
 
 	return nil
@@ -1465,7 +1501,8 @@ func newInitCommand() *cobra.Command {
 			}
 
 			// Print the script to stdout (for eval)
-			fmt.Print(script)
+			ui := cli.GetUI(cmd)
+			ui.Printf("%s", script)
 			return nil
 		},
 	}
@@ -1495,7 +1532,8 @@ func newShellCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Println("Shell integration initialized")
+				ui := cli.GetUI(cmd)
+				ui.Success("Shell integration initialized")
 				return nil
 			},
 		},
@@ -1598,6 +1636,9 @@ func newPSCCommand() *cobra.Command {
 	pscCmd.Use = "psc"
 	pscCmd.Short = "Perl Script Compiler (shell alias for 'pvm build')"
 	pscCmd.Long = "Provides static type checking for Perl code with type annotations. This is a shell alias for 'pvm build' - you can use either 'psc' or 'pvm build' interchangeably."
+
+	// Add version subcommand
+	pscCmd.AddCommand(newComponentVersionCommand("psc"))
 
 	return pscCmd
 }
@@ -2149,7 +2190,7 @@ func runTool(cmd *cobra.Command, toolName string, toolArgs []string) error {
 	}
 
 	// Print output
-	fmt.Print(output)
+	fmt.Print(output) // Keep as-is for tool output passthrough
 	return nil
 }
 
@@ -2341,6 +2382,13 @@ func newHelpOnlyPVICommand() *cobra.Command {
 	pviCmd.Hidden = true
 	pviCmd.Short = "Perl Version Installer (shell alias for 'pvm module')"
 	pviCmd.Long = "Manages CPAN modules for installed Perl versions. This is a shell alias for 'pvm module' - you can use either 'pvi' or 'pvm module' interchangeably."
+
+	// Add custom help function with Fang styling
+	setupStyledHelp(pviCmd, "PVI")
+
+	// Add version subcommand
+	pviCmd.AddCommand(newComponentVersionCommand("pvi"))
+
 	return pviCmd
 }
 
@@ -2351,6 +2399,13 @@ func newHelpOnlyPVXCommand() *cobra.Command {
 	pvxCmd.Hidden = true
 	pvxCmd.Short = "Perl Version eXecutor (shell alias for 'pvm run')"
 	pvxCmd.Long = "Executes Perl code in isolated environments. This is a shell alias for 'pvm run' - you can use either 'pvx' or 'pvm run' interchangeably."
+
+	// Add custom help function with Fang styling
+	setupStyledHelp(pvxCmd, "PVX")
+
+	// Add version subcommand
+	pvxCmd.AddCommand(newComponentVersionCommand("pvx"))
+
 	return pvxCmd
 }
 
@@ -2361,7 +2416,103 @@ func newHelpOnlyPSCCommand() *cobra.Command {
 	pscCmd.Hidden = true
 	pscCmd.Short = "Perl Script Compiler (shell alias for 'pvm build')"
 	pscCmd.Long = "Provides static type checking for Perl code with type annotations. This is a shell alias for 'pvm build' - you can use either 'psc' or 'pvm build' interchangeably."
+
+	// Add custom help function with Fang styling
+	setupStyledHelp(pscCmd, "PSC")
+
+	// Add version subcommand
+	pscCmd.AddCommand(newComponentVersionCommand("psc"))
+
 	return pscCmd
+}
+
+// newComponentVersionCommand creates a version command for a specific component
+func newComponentVersionCommand(component string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print version information",
+		Long:  fmt.Sprintf("Print detailed version information about the %s component", component),
+		Run: func(cmd *cobra.Command, args []string) {
+			ui := cli.GetUI(cmd)
+
+			if cli.Verbose {
+				// Show detailed version information in verbose mode
+				ui.Header(fmt.Sprintf("%s Version Information", strings.ToUpper(component)))
+
+				buildInfo := version.GetBuildInfo()
+				ui.KeyValue(map[string]string{
+					"Version":    buildInfo["version"],
+					"Build Time": buildInfo["buildTime"],
+					"Commit":     buildInfo["commitHash"],
+					"Go Version": buildInfo["goVersion"],
+					"OS/Arch":    fmt.Sprintf("%s/%s", buildInfo["os"], buildInfo["arch"]),
+				})
+			} else {
+				// Show simple version in normal mode
+				ui.Println(version.ComponentVersion(component))
+			}
+		},
+	}
+}
+
+// setupStyledHelp configures a command to use Fang-styled help output
+func setupStyledHelp(cmd *cobra.Command, componentName string) {
+	// Override the help function to use styled output
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		ui := cli.GetUI(cmd)
+
+		// Help should always be shown, even in quiet mode
+		originalQuiet := ui.Context().Quiet
+		ui.SetQuiet(false)
+		defer ui.SetQuiet(originalQuiet)
+
+		// Header with component name
+		ui.Header(fmt.Sprintf("%s - %s", componentName, cmd.Short))
+		ui.Println("")
+
+		// Usage section
+		if cmd.Use != "" {
+			ui.SubHeader("Usage:")
+			ui.Printf("  %s\n", cmd.Use)
+			ui.Println("")
+		}
+
+		// Description section
+		if cmd.Long != "" {
+			ui.SubHeader("Description:")
+			ui.Printf("  %s\n", cmd.Long)
+			ui.Println("")
+		}
+
+		// Commands section
+		commands := cmd.Commands()
+		if len(commands) > 0 {
+			ui.SubHeader("Available Commands:")
+			for _, subCmd := range commands {
+				if !subCmd.Hidden {
+					ui.Printf("  %-15s %s\n", subCmd.Name(), subCmd.Short)
+				}
+			}
+			ui.Println("")
+		}
+
+		// Flags section
+		if cmd.HasAvailableFlags() {
+			ui.SubHeader("Flags:")
+			ui.Printf("%s", cmd.Flags().FlagUsages())
+			ui.Println("")
+		}
+
+		// Global flags section
+		if cmd.HasAvailableInheritedFlags() {
+			ui.SubHeader("Global Flags:")
+			ui.Printf("%s", cmd.InheritedFlags().FlagUsages())
+			ui.Println("")
+		}
+
+		// Footer with additional help
+		ui.Info("Use \"%s [command] --help\" for more information about a command.", cmd.CommandPath())
+	})
 }
 
 // newUpdateCommand creates the update command for PVM self-updater

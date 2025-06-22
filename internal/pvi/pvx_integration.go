@@ -6,16 +6,112 @@ package pvi
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"strings"
-	"time"
 
+	"tamarou.com/pvm/internal/cli/progress"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/log"
+	"tamarou.com/pvm/internal/modules"
 	"tamarou.com/pvm/internal/perl"
-	"tamarou.com/pvm/internal/pvi/deps"
-	"tamarou.com/pvm/internal/pvi/modules"
 )
+
+// pvxProgressTracker implements progress.Tracker for PVX integration
+type pvxProgressTracker struct {
+	writer  io.Writer
+	verbose bool
+	status  *progress.Status
+	running bool
+}
+
+func (t *pvxProgressTracker) Start(operation string, total int) {
+	t.status = &progress.Status{
+		Operation: operation,
+		Total:     total,
+		Current:   0,
+		Message:   "Starting",
+	}
+	t.running = true
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "Starting %s for %d items\n", operation, total)
+	}
+}
+
+func (t *pvxProgressTracker) Update(current int, message string) {
+	if t.status != nil {
+		t.status.Current = current
+		t.status.Message = message
+	}
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "[%d] %s\n", current, message)
+	}
+}
+
+func (t *pvxProgressTracker) Finish(result *progress.Result) {
+	t.running = false
+	if t.verbose && t.writer != nil && result != nil {
+		if result.Success {
+			fmt.Fprintf(t.writer, "Completed %s successfully\n", result.Operation)
+		} else {
+			fmt.Fprintf(t.writer, "Failed %s: %s\n", result.Operation, result.Message)
+		}
+	}
+}
+
+func (t *pvxProgressTracker) SetTotal(total int) {
+	if t.status != nil {
+		t.status.Total = total
+	}
+}
+
+func (t *pvxProgressTracker) SetMessage(message string) {
+	if t.status != nil {
+		t.status.Message = message
+	}
+}
+
+func (t *pvxProgressTracker) IsRunning() bool {
+	return t.running
+}
+
+func (t *pvxProgressTracker) GetProgress() *progress.Status {
+	if t.status == nil {
+		return &progress.Status{
+			Operation: "unknown",
+			Total:     0,
+			Current:   0,
+			Message:   "Not started",
+		}
+	}
+	return t.status
+}
+
+// pvxParallelProgressTracker implements modules.ParallelProgressTracker for PVX integration
+type pvxParallelProgressTracker struct {
+	writer  io.Writer
+	verbose bool
+}
+
+func (t *pvxParallelProgressTracker) StartParallel(operations []string) {
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "Starting parallel operations: %v\n", operations)
+	}
+}
+
+func (t *pvxParallelProgressTracker) UpdateOperation(id string, status modules.OperationStatus, message string) {
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "[%s] %s\n", id, message)
+	}
+}
+
+func (t *pvxParallelProgressTracker) FinishParallel(results []*modules.OperationResult) {
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "Completed parallel operations: %d results\n", len(results))
+	}
+}
 
 // PVXIntegrationOptions contains options for automatic module installation
 type PVXIntegrationOptions struct {
@@ -36,6 +132,9 @@ type PVXIntegrationOptions struct {
 
 	// SkipTests whether to skip running tests during installation
 	SkipTests bool
+
+	// Output writer for status messages (optional, defaults to discarding output)
+	OutputWriter io.Writer
 }
 
 // PVXIntegrationResult contains the result of automatic module installation
@@ -71,14 +170,14 @@ func InstallModulesForPVX(options *PVXIntegrationOptions) (*PVXIntegrationResult
 	}
 
 	if len(options.RequiredModules) == 0 {
-		if options.Verbose {
-			fmt.Println("No modules required for installation")
+		if options.Verbose && options.OutputWriter != nil {
+			fmt.Fprintln(options.OutputWriter, "No modules required for installation")
 		}
 		return result, nil
 	}
 
-	if options.Verbose {
-		fmt.Printf("Installing %d required modules for Perl %s\n",
+	if options.Verbose && options.OutputWriter != nil {
+		fmt.Fprintf(options.OutputWriter, "Installing %d required modules for Perl %s\n",
 			len(options.RequiredModules), options.PerlVersion)
 	}
 
@@ -102,23 +201,17 @@ func InstallModulesForPVX(options *PVXIntegrationOptions) (*PVXIntegrationResult
 		)
 	}
 
-	// Set up CPAN provider
+	// Create provider using builder pattern (extracted package)
 	source := "metacpan" // Default to MetaCPAN
 	if cfg.PVI != nil && cfg.PVI.MetadataSource != "" {
 		source = cfg.PVI.MetadataSource
 	}
 
-	var providerOptions []cpan.ProviderOption
-	if cfg.PVI != nil {
-		if cfg.PVI.DefaultMirror != "" {
-			providerOptions = append(providerOptions, cpan.WithBaseURL(cfg.PVI.DefaultMirror))
-		}
-		if cfg.PVI.CacheDir != "" && cfg.PVI.CacheTTL > 0 {
-			providerOptions = append(providerOptions, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
-		}
-	}
-
-	provider, err := cpan.NewProvider(source, providerOptions...)
+	providerResult, err := NewProviderBuilder().
+		WithConfig(cfg).
+		WithSource(source).
+		WithResolver().
+		Build()
 	if err != nil {
 		return result, errors.NewModuleError(
 			"PVI-904",
@@ -127,156 +220,113 @@ func InstallModulesForPVX(options *PVXIntegrationOptions) (*PVXIntegrationResult
 		)
 	}
 
-	// Set up dependency resolver
-	resolver := deps.NewDependencyResolver()
+	// Use the extracted modules system for installation
 
-	// Process each required module
-	for _, moduleName := range options.RequiredModules {
-		if options.Verbose {
-			fmt.Printf("Processing module: %s\n", moduleName)
+	// Create progress tracker that outputs to PVX's writer
+	var tracker progress.Tracker
+	if options.OutputWriter != nil {
+		tracker = &pvxProgressTracker{
+			writer:  options.OutputWriter,
+			verbose: options.Verbose,
 		}
+	} else {
+		tracker = progress.NewNullTracker()
+	}
 
-		// Check if module is already installed
-		installed, err := isModuleInstalled(moduleName, perlPath)
-		if err != nil {
-			if options.Verbose {
-				fmt.Printf("Warning: Could not check if %s is installed: %v\n", moduleName, err)
-			}
-			// Continue with installation attempt
-		} else if installed {
-			if options.Verbose {
-				fmt.Printf("Module %s is already installed, skipping\n", moduleName)
-			}
-			result.SkippedModules = append(result.SkippedModules, moduleName)
-			continue
+	// Create logger for installer
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "PVX-Integration")
+
+	// Create unified installer (extracted package)
+	installer := modules.NewInstaller(
+		providerResult.Provider,
+		providerResult.Resolver,
+		tracker,
+		logger,
+	)
+
+	// Create parallel progress tracker
+	var parallelTracker modules.ParallelProgressTracker
+	if options.OutputWriter != nil {
+		parallelTracker = &pvxParallelProgressTracker{
+			writer:  options.OutputWriter,
+			verbose: options.Verbose,
 		}
+	} else {
+		parallelTracker = &pvxParallelProgressTracker{
+			writer:  nil,
+			verbose: false,
+		}
+	}
 
-		// Attempt to install the module
-		err = installSingleModule(moduleName, perlPath, options, provider, resolver)
-		if err != nil {
-			result.FailedModules = append(result.FailedModules, moduleName)
-			result.Errors = append(result.Errors, err)
+	// Create parallel coordinator for batch installation
+	coordinator := modules.NewParallelCoordinator(
+		installer,
+		2, // Use only 2 workers for PVX to avoid overwhelming the system
+		parallelTracker,
+	)
 
-			if options.Verbose {
-				fmt.Printf("Failed to install module %s: %v\n", moduleName, err)
+	// Set up install options using extracted modules types
+	installOptions := modules.InstallOptions{
+		PerlPath:          perlPath,
+		InstallDir:        options.InstallDir,
+		VersionConstraint: "", // No version constraint for PVX
+		Force:             false,
+		RunTests:          !options.SkipTests,
+		SkipDependencies:  false, // Install dependencies for PVX
+		Verbose:           options.Verbose,
+		Cleanup:           true,
+		Parallel:          len(options.RequiredModules) > 1,
+		Workers:           2,
+		Context:           context.Background(),
+	}
+
+	// Install modules using parallel coordinator
+	installResults, err := coordinator.InstallModules(context.Background(), options.RequiredModules, installOptions)
+	if err != nil {
+		return result, errors.NewModuleError(
+			"PVI-905",
+			fmt.Sprintf("Failed to install modules for PVX: %v", err),
+			err,
+		)
+	}
+
+	// Convert unified results to PVX results
+	for _, installResult := range installResults {
+		if installResult.Success {
+			result.InstalledModules = append(result.InstalledModules, installResult.ModuleName)
+			if options.Verbose && options.OutputWriter != nil {
+				fmt.Fprintf(options.OutputWriter, "Successfully installed module %s v%s\n",
+					installResult.ModuleName, installResult.Version)
 			}
 		} else {
-			result.InstalledModules = append(result.InstalledModules, moduleName)
-
-			if options.Verbose {
-				fmt.Printf("Successfully installed module %s\n", moduleName)
+			result.FailedModules = append(result.FailedModules, installResult.ModuleName)
+			// Combine all errors into a single error message
+			errorMsg := strings.Join(installResult.Errors, "; ")
+			if errorMsg == "" {
+				errorMsg = "installation failed"
+			}
+			result.Errors = append(result.Errors, fmt.Errorf("%s", errorMsg))
+			if options.Verbose && options.OutputWriter != nil {
+				fmt.Fprintf(options.OutputWriter, "Failed to install module %s: %s\n",
+					installResult.ModuleName, errorMsg)
 			}
 		}
 	}
 
 	// Summary
 	if options.Verbose {
-		fmt.Printf("Module installation complete:\n")
-		fmt.Printf("  Installed: %d modules\n", len(result.InstalledModules))
-		fmt.Printf("  Skipped: %d modules\n", len(result.SkippedModules))
-		fmt.Printf("  Failed: %d modules\n", len(result.FailedModules))
+		if options.OutputWriter != nil {
+			fmt.Fprintf(options.OutputWriter, "Module installation complete:\n")
+			fmt.Fprintf(options.OutputWriter, "  Installed: %d modules\n", len(result.InstalledModules))
+			fmt.Fprintf(options.OutputWriter, "  Skipped: %d modules\n", len(result.SkippedModules))
+			fmt.Fprintf(options.OutputWriter, "  Failed: %d modules\n", len(result.FailedModules))
+		}
 	}
 
 	return result, nil
 }
 
-// isModuleInstalled checks if a module is already installed
-func isModuleInstalled(moduleName, perlPath string) (bool, error) {
-	// Use the module manager to check installation status
-	listOptions := &modules.ModuleListOptions{
-		PerlPath:    perlPath,
-		Pattern:     moduleName,
-		IncludeCore: true,
-		Context:     context.Background(),
-	}
-
-	installedModules, err := modules.ListInstalledModules(listOptions)
-	if err != nil {
-		return false, err
-	}
-
-	// Check if the module appears in the installed list
-	for _, mod := range installedModules {
-		if normalizeModuleName(mod.Name) == normalizeModuleName(moduleName) {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-// installSingleModule installs a single module with retry logic
-func installSingleModule(moduleName, perlPath string, options *PVXIntegrationOptions, provider cpan.Provider, resolver deps.DependencyResolver) error {
-	maxRetries := options.MaxRetries
-	if maxRetries <= 0 {
-		maxRetries = 3 // Default retry count
-	}
-
-	var lastErr error
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		if options.Verbose && attempt > 1 {
-			fmt.Printf("Retry attempt %d/%d for module %s\n", attempt, maxRetries, moduleName)
-		}
-
-		// Attempt installation
-		installOptions := &modules.ModuleInstallOptions{
-			ModuleName:         moduleName,
-			PerlPath:           perlPath,
-			RunTests:           !options.SkipTests,
-			Force:              false,
-			Cleanup:            true,
-			Verbose:            options.Verbose,
-			SkipDependencies:   false,
-			Provider:           provider,
-			DependencyResolver: resolver,
-			Context:            context.Background(),
-		}
-
-		if options.InstallDir != "" {
-			installOptions.InstallDir = options.InstallDir
-		}
-
-		// Add progress callback if verbose
-		if options.Verbose {
-			installOptions.ProgressCallback = func(stage modules.InstallProgressStage, mod string, details string, progress float64) {
-				if details != "" {
-					fmt.Printf("  %s: %s\n", stage.String(), details)
-				}
-			}
-		}
-
-		installResult, err := modules.InstallModule(installOptions)
-		if err == nil && installResult.Success {
-			// Success
-			return nil
-		}
-
-		if err != nil {
-			lastErr = err
-		} else {
-			lastErr = errors.NewModuleError(
-				"PVI-904",
-				fmt.Sprintf("Module installation failed: %v", installResult.Errors),
-				nil,
-			)
-		}
-
-		// If this is not the last attempt, wait before retrying
-		if attempt < maxRetries {
-			if options.Verbose {
-				fmt.Printf("Installation failed, will retry: %v\n", lastErr)
-			}
-			time.Sleep(time.Second * 2) // Brief delay before retry
-		}
-	}
-
-	// All attempts failed
-	return errors.NewModuleError(
-		"PVI-904",
-		fmt.Sprintf("Failed to install module %s after %d attempts", moduleName, maxRetries),
-		lastErr,
-	)
-}
+// Helper functions for PVX integration
 
 // normalizeModuleName normalizes module names for comparison
 func normalizeModuleName(name string) string {

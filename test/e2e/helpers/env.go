@@ -12,6 +12,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"tamarou.com/pvm/internal/cli"
+	"tamarou.com/pvm/internal/psc"
+	"tamarou.com/pvm/internal/pvi"
+	"tamarou.com/pvm/internal/pvm"
+	"tamarou.com/pvm/internal/pvx"
 )
 
 // Flag to preserve test environments for debugging
@@ -112,6 +118,10 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	// Set up test environment
 	env.setEnvironment()
 
+	// Import system Perl to ensure it's available for version resolution
+	// This ensures tests have a working Perl environment
+	env.importSystemPerl()
+
 	return env
 }
 
@@ -205,6 +215,9 @@ func (e *TestEnv) setEnvironment() {
 
 	// Unset PERL_VERSION to start clean
 	_ = os.Unsetenv("PERL_VERSION")
+
+	// Ensure plenv uses system version for consistent test environment
+	_ = os.Setenv("PLENV_VERSION", "system")
 }
 
 // Cleanup removes the test environment
@@ -238,6 +251,9 @@ func (e *TestEnv) RunPVM(args ...string) (string, string, error) {
 
 	cmd.Stdout = &e.Stdout
 	cmd.Stderr = &e.Stderr
+
+	// Inherit environment to ensure system Perl detection works
+	cmd.Env = os.Environ()
 
 	err := cmd.Run()
 
@@ -364,4 +380,55 @@ func (e *TestEnv) CopyFile(src, dst string) error {
 	}
 
 	return nil
+}
+
+// RunPVMCommand runs a PVM command using the internal CLI framework instead of the binary
+func (e *TestEnv) RunPVMCommand(args ...string) (string, string, error) {
+	// Reset global state to prevent test interference
+	cli.ResetGlobalState()
+
+	// Set up component registry (use global registry)
+	cli.GlobalRegistry.Register(cli.ComponentPVM, pvm.NewCommand)
+	cli.GlobalRegistry.Register(cli.ComponentPSC, psc.NewCommand)
+	cli.GlobalRegistry.Register(cli.ComponentPVI, pvi.NewCommand)
+	cli.GlobalRegistry.Register(cli.ComponentPVX, pvx.NewCommand)
+
+	// Create root command
+	rootCmd := cli.CreateRootCommand(cli.ComponentPVM)
+
+	// Capture output
+	var stdout, stderr bytes.Buffer
+	rootCmd.SetOut(&stdout)
+	rootCmd.SetErr(&stderr)
+
+	// Set arguments
+	rootCmd.SetArgs(args)
+
+	// Execute command
+	err := rootCmd.Execute()
+
+	return stdout.String(), stderr.String(), err
+}
+
+// importSystemPerl imports system Perl during test environment setup
+func (e *TestEnv) importSystemPerl() {
+	// Reset global state to prevent test interference
+	cli.ResetGlobalState()
+
+	// Register components in global registry
+	cli.GlobalRegistry.Register(cli.ComponentPVM, pvm.NewCommand)
+	cli.GlobalRegistry.Register(cli.ComponentPSC, psc.NewCommand)
+	cli.GlobalRegistry.Register(cli.ComponentPVI, pvi.NewCommand)
+	cli.GlobalRegistry.Register(cli.ComponentPVX, pvx.NewCommand)
+
+	// Run import-system command
+	rootCmd := cli.CreateRootCommand(cli.ComponentPVM)
+	rootCmd.SetArgs([]string{"import-system"})
+
+	// Capture output but ignore errors for test setup
+	var stdout, stderr bytes.Buffer
+	rootCmd.SetOut(&stdout)
+	rootCmd.SetErr(&stderr)
+
+	_ = rootCmd.Execute()
 }

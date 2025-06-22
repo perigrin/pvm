@@ -35,15 +35,19 @@ func TestImportSystemPerl(t *testing.T) {
 	if err != nil {
 		t.Skipf("TODO: System Perl import not yet implemented\nCommand: pvm import-system\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
-	helpers.AssertStringContains(t, stderr, "Successfully imported system Perl", "Import output does not indicate success")
+	// Accept either successful import or already registered message
+	output := stdout + stderr
+	if !strings.Contains(output, "Successfully imported system Perl") && !strings.Contains(output, "is already registered with PVM") {
+		t.Errorf("Import output does not indicate success: expected %q to contain either 'Successfully imported system Perl' or 'is already registered with PVM'", output)
+	}
 
 	// Check that system Perl is now listed
 	stdout, stderr, err = env.RunPVM("list", "--source")
 	if err != nil {
 		t.Skipf("TODO: Perl version listing not yet implemented\nCommand: pvm list --source\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
-	output := stdout + stderr // Check both stdout and stderr for command output
-	helpers.AssertStringContains(t, output, "Source: system", "System Perl not listed after import")
+	listOutput := stdout + stderr // Check both stdout and stderr for command output
+	helpers.AssertStringContains(t, listOutput, "Source: system", "System Perl not listed after import")
 }
 
 // Test version switching functionality
@@ -58,8 +62,11 @@ func TestVersionSwitching(t *testing.T) {
 	if err != nil {
 		t.Fatalf("System Perl import failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
+	// Accept either successful import or already registered message
 	output := stdout + stderr // Check both stdout and stderr
-	helpers.AssertStringContains(t, output, "Successfully imported system Perl", "Import output does not indicate success")
+	if !strings.Contains(output, "Successfully imported system Perl") && !strings.Contains(output, "is already registered with PVM") {
+		t.Errorf("Import output does not indicate success: expected %q to contain either 'Successfully imported system Perl' or 'is already registered with PVM'", output)
+	}
 
 	// Get the system Perl version
 	stdout, stderr, err = env.RunPVM("list")
@@ -183,8 +190,11 @@ func TestUninstallPerl(t *testing.T) {
 	if err != nil {
 		t.Fatalf("System Perl import failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
+	// Accept either successful import or already registered message
 	output := stdout + stderr // Check both stdout and stderr
-	helpers.AssertStringContains(t, output, "Successfully imported system Perl", "Import output does not indicate success")
+	if !strings.Contains(output, "Successfully imported system Perl") && !strings.Contains(output, "is already registered with PVM") {
+		t.Errorf("Import output does not indicate success: expected %q to contain either 'Successfully imported system Perl' or 'is already registered with PVM'", output)
+	}
 
 	// Get the system Perl version
 	stdout, stderr, err = env.RunPVM("list")

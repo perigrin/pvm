@@ -45,3 +45,9 @@ func (r *CommandRegistry) CreateCommand(name string) (*cobra.Command, bool) {
 
 // GlobalRegistry is the global command registry
 var GlobalRegistry = NewCommandRegistry()
+
+// ResetGlobalRegistry resets the global registry to a clean state
+// This is useful for testing to prevent state leakage between tests
+func ResetGlobalRegistry() {
+	GlobalRegistry = NewCommandRegistry()
+}
