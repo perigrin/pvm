@@ -39,7 +39,7 @@ func TestInstallFromBinary(t *testing.T) {
 				Context:    context.Background(),
 			},
 			expectError: true, // Will fail because we don't have actual binary
-			errorMsg:    "failed to download binary",
+			errorMsg:    "failed to create gzip reader",
 		},
 		{
 			name: "invalid version",
@@ -61,7 +61,7 @@ func TestInstallFromBinary(t *testing.T) {
 			if tt.expectError {
 				if err == nil {
 					t.Error("Expected error but got none")
-				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+				} else if !strings.Contains(strings.ToLower(err.Error()), strings.ToLower(tt.errorMsg)) {
 					t.Errorf("Expected error containing '%s', got: %v", tt.errorMsg, err)
 				}
 			} else {

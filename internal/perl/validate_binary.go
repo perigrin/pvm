@@ -264,11 +264,12 @@ func testPerlExecution(perlPath string) (float64, string, []string, error) {
 	// Test simple script execution
 	cmd = exec.Command(perlPath, "-e", "print 'Hello World'")
 	output, err = cmd.Output()
-	if err != nil {
+	switch {
+	case err != nil:
 		warnings = append(warnings, fmt.Sprintf("Simple script execution failed: %v", err))
-	} else if string(output) != "Hello World" {
+	case string(output) != "Hello World":
 		warnings = append(warnings, "Simple script output is incorrect")
-	} else {
+	default:
 		score += 0.2 // Simple script works
 	}
 
@@ -284,17 +285,59 @@ func extractVersionFromOutput(output string) string {
 			// Try to extract version number (e.g., "v5.38.0", "5.38.0")
 			words := strings.Fields(line)
 			for _, word := range words {
-				if strings.HasPrefix(word, "v") {
-					return strings.TrimPrefix(word, "v")
+				// Remove common punctuation and parentheses
+				cleanWord := strings.Trim(word, "(),")
+
+				if strings.HasPrefix(cleanWord, "v") && len(cleanWord) > 1 {
+					version := strings.TrimPrefix(cleanWord, "v")
+					if isValidVersionPattern(version) {
+						return version
+					}
 				}
+
 				// Look for patterns like "5.xx.x"
-				if len(word) > 0 && word[0] >= '5' && word[0] <= '9' && strings.Contains(word, ".") {
-					return word
+				if isValidVersionPattern(cleanWord) {
+					return cleanWord
 				}
 			}
 		}
 	}
 	return ""
+}
+
+// isValidVersionPattern checks if a string looks like a valid Perl version
+func isValidVersionPattern(s string) bool {
+	if len(s) < 3 { // Minimum "5.0"
+		return false
+	}
+
+	// Must start with a digit (typically 5 for Perl)
+	if s[0] < '0' || s[0] > '9' {
+		return false
+	}
+
+	// Must contain at least one dot
+	if !strings.Contains(s, ".") {
+		return false
+	}
+
+	// Check format: digits, dots, and maybe more digits
+	for i, char := range s {
+		if char != '.' && (char < '0' || char > '9') {
+			return false
+		}
+		// First character after dot should be a digit
+		if i > 0 && s[i-1] == '.' && (char < '0' || char > '9') {
+			return false
+		}
+	}
+
+	// Shouldn't end with a dot
+	if strings.HasSuffix(s, ".") {
+		return false
+	}
+
+	return true
 }
 
 // runBinaryBenchmarks runs performance benchmarks on the Perl installation
