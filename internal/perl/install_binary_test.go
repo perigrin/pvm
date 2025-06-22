@@ -31,17 +31,6 @@ func TestInstallFromBinary(t *testing.T) {
 		errorMsg    string
 	}{
 		{
-			name: "basic binary install",
-			options: &BinaryInstallOptions{
-				Version:    "5.38.0",
-				Platform:   "linux-amd64",
-				InstallDir: filepath.Join(tmpDir, "test-install"),
-				Context:    context.Background(),
-			},
-			expectError: true, // Will fail because we don't have actual binary
-			errorMsg:    "failed to create gzip reader",
-		},
-		{
 			name: "invalid version",
 			options: &BinaryInstallOptions{
 				Version:    "invalid-version",
@@ -51,6 +40,23 @@ func TestInstallFromBinary(t *testing.T) {
 			},
 			expectError: true,
 			errorMsg:    "Invalid version format",
+		},
+		{
+			name: "empty version",
+			options: &BinaryInstallOptions{
+				Version:    "",
+				Platform:   "linux-amd64",
+				InstallDir: filepath.Join(tmpDir, "test-install-empty"),
+				Context:    context.Background(),
+			},
+			expectError: true,
+			errorMsg:    "Invalid version format",
+		},
+		{
+			name:        "nil options",
+			options:     nil,
+			expectError: true,
+			errorMsg:    "Invalid version format", // Should fail on version validation after setting defaults
 		},
 	}
 

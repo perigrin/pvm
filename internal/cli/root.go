@@ -13,7 +13,6 @@ import (
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
-	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/version"
 )
 
@@ -272,7 +271,7 @@ func showCurrentPerlVersionWithFlags(cmd *cobra.Command, component string, bare 
 		return fmt.Errorf("failed to format output: %w", err)
 	}
 
-	ui.Print(output)
+	ui.Printf("%s", output)
 
 	// Add newline for non-bare output (bare output doesn't include newline)
 	if !bare && info.IsAvailable {

@@ -99,7 +99,7 @@ func AssertCommandFails(t *testing.T, env *TestEnv, command string, args []strin
 // AssertPVMSucceeds checks if a PVM command succeeds
 func AssertPVMSucceeds(t *testing.T, env *TestEnv, args []string, message string) string {
 	t.Helper()
-	stdout, stderr, err := env.RunPVM(args...)
+	stdout, stderr, err := env.RunPVMCommand(args...)
 	if err != nil {
 		t.Errorf("%s: pvm %v failed: %v\nStdout: %s\nStderr: %s",
 			message, args, err, stdout, stderr)
@@ -110,7 +110,7 @@ func AssertPVMSucceeds(t *testing.T, env *TestEnv, args []string, message string
 // AssertPVMFails checks if a PVM command fails
 func AssertPVMFails(t *testing.T, env *TestEnv, args []string, message string) string {
 	t.Helper()
-	stdout, stderr, err := env.RunPVM(args...)
+	stdout, stderr, err := env.RunPVMCommand(args...)
 	if err == nil {
 		t.Errorf("%s: pvm %v succeeded but should have failed\nStdout: %s\nStderr: %s",
 			message, args, stdout, stderr)
