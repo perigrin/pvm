@@ -313,7 +313,7 @@ func DiscoverAllPerlsWithPlenv() ([]*SystemPerl, error) {
 	// If plenv is available, get all plenv-managed versions
 	if isPlenvAvailable() {
 		// Get the current active version first
-		currentVersion, _ := getCurrentPlenvVersion()
+		currentVersion, currentVersionErr := getCurrentPlenvVersion()
 
 		plenvVersions, err := getPlenvVersions()
 		if err == nil {
@@ -327,6 +327,21 @@ func DiscoverAllPerlsWithPlenv() ([]*SystemPerl, error) {
 				// Mark as primary if it's the current active plenv version
 				perl.IsPrimary = (pv.Version == currentVersion)
 				allPerls = append(allPerls, perl)
+			}
+
+			// If we couldn't determine the current version but have plenv-managed Perls,
+			// mark the first one as primary to ensure we have a primary Perl
+			if currentVersionErr != nil && len(allPerls) > 0 {
+				foundPrimary := false
+				for _, perl := range allPerls {
+					if perl.IsPrimary {
+						foundPrimary = true
+						break
+					}
+				}
+				if !foundPrimary {
+					allPerls[0].IsPrimary = true
+				}
 			}
 		}
 	}
@@ -347,6 +362,19 @@ func DiscoverAllPerlsWithPlenv() ([]*SystemPerl, error) {
 				allPerls = append(allPerls, additional)
 			}
 		}
+	}
+
+	// Ensure we have at least one primary Perl
+	// If no Perl is marked as primary, mark the first one as primary
+	foundPrimary := false
+	for _, perl := range allPerls {
+		if perl.IsPrimary {
+			foundPrimary = true
+			break
+		}
+	}
+	if !foundPrimary && len(allPerls) > 0 {
+		allPerls[0].IsPrimary = true
 	}
 
 	return allPerls, nil

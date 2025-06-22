@@ -30,6 +30,16 @@ var (
 	globalUI *ui.Output
 )
 
+// ResetGlobalState resets all global CLI state
+// This is useful for testing to prevent state leakage between tests
+func ResetGlobalState() {
+	Verbose = false
+	Debug = false
+	Quiet = false
+	globalUI = nil
+	ResetGlobalRegistry()
+}
+
 // NewRootCommand creates a new root command for a component
 func NewRootCommand(name string, description string) *cobra.Command {
 	cmd := &cobra.Command{
