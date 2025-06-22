@@ -262,13 +262,17 @@ func TestResolveInstallDirectory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Always change to temp directory to ensure we're not in the main project
+			if err := os.Chdir(tempDir); err != nil {
+				t.Fatalf("Failed to change to temp directory: %v", err)
+			}
+
 			if tt.setupProject {
 				// Create .pvm directory to simulate project
 				pvmDir := filepath.Join(tempDir, ".pvm")
 				if err := os.MkdirAll(pvmDir, 0755); err != nil {
 					t.Fatalf("Failed to create .pvm directory: %v", err)
 				}
-				os.Chdir(tempDir)
 			}
 
 			result, err := ResolveInstallDirectory(tt.flagValue, []string{})

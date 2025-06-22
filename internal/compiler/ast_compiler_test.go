@@ -358,8 +358,14 @@ func validatePerlSyntax(code string) error {
 	}
 	tempFile.Close()
 
+	// Get a reliable perl path instead of depending on system environment
+	perlPath, err := getTestPerlPath()
+	if err != nil {
+		return fmt.Errorf("failed to get perl path: %v", err)
+	}
+
 	// Use perl -c to check syntax
-	cmd := exec.Command("perl", "-c", tempFile.Name())
+	cmd := exec.Command(perlPath, "-c", tempFile.Name())
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("perl syntax error: %s\nCode:\n%s", string(output), code)
@@ -380,7 +386,44 @@ func executePerlCode(code string) (string, error) {
 	}
 	tempFile.Close()
 
-	cmd := exec.Command("perl", tempFile.Name())
+	// Get a reliable perl path instead of depending on system environment
+	perlPath, err := getTestPerlPath()
+	if err != nil {
+		return "", fmt.Errorf("failed to get perl path: %v", err)
+	}
+
+	cmd := exec.Command(perlPath, tempFile.Name())
 	output, err := cmd.Output()
 	return string(output), err
+}
+
+// getTestPerlPath returns a reliable perl path for testing, avoiding environment dependencies
+func getTestPerlPath() (string, error) {
+	// First try to find system perl directly in standard locations
+	standardPaths := []string{
+		"/usr/bin/perl",
+		"/usr/local/bin/perl",
+		"/opt/perl/bin/perl",
+	}
+
+	for _, path := range standardPaths {
+		if _, err := os.Stat(path); err == nil {
+			// Verify this perl works by checking version
+			cmd := exec.Command(path, "-v")
+			if err := cmd.Run(); err == nil {
+				return path, nil
+			}
+		}
+	}
+
+	// If no standard paths work, try the PATH but with explicit command
+	if perlPath, err := exec.LookPath("perl"); err == nil {
+		// Test it works
+		cmd := exec.Command(perlPath, "-v")
+		if err := cmd.Run(); err == nil {
+			return perlPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("no working perl installation found for testing")
 }

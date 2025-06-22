@@ -81,7 +81,7 @@ pvx pvi psc: pvm
 test: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running tests with $$PARALLEL_JOBS parallel workers..."; \
-	gotestsum --format=short --jsonfile=test-results.json -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
+	PLENV_VERSION= gotestsum --format=short --jsonfile=test-results.json -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
 	TEST_EXIT_CODE=$$?; \
 	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo ""; \

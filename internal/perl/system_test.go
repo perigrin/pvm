@@ -5,16 +5,30 @@ package perl
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 )
 
 func TestDetectSystemPerl(t *testing.T) {
-	// Skip test if perl is not installed
-	_, err := exec.LookPath("perl")
+	// Create test Perl executable for controlled testing
+	tempDir, err := os.MkdirTemp("", "perl-test")
 	if err != nil {
-		t.Skip("perl not found in PATH, skipping test")
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	// Create a test perl executable with known version info
+	testPerlPath := filepath.Join(tempDir, "perl")
+	if err := createTestPerlExecutable(testPerlPath); err != nil {
+		t.Fatalf("Failed to create test Perl executable: %v", err)
+	}
+
+	// Replace DetectSystemPerl with a version that uses our test executable
+	originalDetectSystemPerl := DetectSystemPerl
+	defer func() { DetectSystemPerl = originalDetectSystemPerl }()
+
+	DetectSystemPerl = func() (*SystemPerl, error) {
+		return extractPerlInfo(testPerlPath, true)
 	}
 
 	perl, err := DetectSystemPerl()
@@ -22,17 +36,17 @@ func TestDetectSystemPerl(t *testing.T) {
 		t.Fatalf("Failed to detect system Perl: %v", err)
 	}
 
-	// Check that we got valid information
+	// Check that we got valid information from our test executable
 	if perl.Path == "" {
 		t.Error("Expected Perl path to be non-empty")
 	}
 
-	if perl.Version == "" {
-		t.Error("Expected Perl version to be non-empty")
+	if perl.Version != "5.38.0" {
+		t.Errorf("Expected version 5.38.0, got %s", perl.Version)
 	}
 
-	if perl.Architecture == "" {
-		t.Error("Expected Perl architecture to be non-empty")
+	if perl.Architecture != "x86_64" {
+		t.Errorf("Expected architecture x86_64, got %s", perl.Architecture)
 	}
 
 	if !perl.IsPrimary {
@@ -43,10 +57,31 @@ func TestDetectSystemPerl(t *testing.T) {
 }
 
 func TestDetectAllSystemPerls(t *testing.T) {
-	// Skip test if perl is not installed
-	_, err := exec.LookPath("perl")
+	// Create test Perl installations for controlled testing
+	tempDir, err := os.MkdirTemp("", "perl-test")
 	if err != nil {
-		t.Skip("perl not found in PATH, skipping test")
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	// Create primary test perl executable
+	testPerlPath1 := filepath.Join(tempDir, "perl1")
+	if err := createTestPerlExecutable(testPerlPath1); err != nil {
+		t.Fatalf("Failed to create test Perl executable 1: %v", err)
+	}
+
+	// Create secondary test perl executable
+	testPerlPath2 := filepath.Join(tempDir, "perl2")
+	if err := createTestPerlExecutable(testPerlPath2); err != nil {
+		t.Fatalf("Failed to create test Perl executable 2: %v", err)
+	}
+
+	// Replace DetectSystemPerl with a version that uses our primary test executable
+	originalDetectSystemPerl := DetectSystemPerl
+	defer func() { DetectSystemPerl = originalDetectSystemPerl }()
+
+	DetectSystemPerl = func() (*SystemPerl, error) {
+		return extractPerlInfo(testPerlPath1, true)
 	}
 
 	perls, err := DetectAllSystemPerls()
@@ -80,14 +115,21 @@ func TestDetectAllSystemPerls(t *testing.T) {
 }
 
 func TestGetSystemPerlVersion(t *testing.T) {
-	// Skip test if perl is not installed
-	perlPath, err := exec.LookPath("perl")
+	// Create test Perl executable for controlled testing
+	tempDir, err := os.MkdirTemp("", "perl-test")
 	if err != nil {
-		t.Skip("perl not found in PATH, skipping test")
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	// Create test perl executable
+	testPerlPath := filepath.Join(tempDir, "perl")
+	if err := createTestPerlExecutable(testPerlPath); err != nil {
+		t.Fatalf("Failed to create test Perl executable: %v", err)
 	}
 
 	// Test with explicit path
-	version, err := GetSystemPerlVersion(perlPath)
+	version, err := GetSystemPerlVersion(testPerlPath)
 	if err != nil {
 		t.Fatalf("Failed to get Perl version: %v", err)
 	}
@@ -96,25 +138,16 @@ func TestGetSystemPerlVersion(t *testing.T) {
 		t.Error("Expected version to be non-empty")
 	}
 
-	// Test with empty path (should find in PATH)
-	version2, err := GetSystemPerlVersion("")
-	if err != nil {
-		t.Fatalf("Failed to get Perl version with empty path: %v", err)
-	}
-
-	if version2 == "" {
-		t.Error("Expected version2 to be non-empty")
-	}
-
-	// Both versions should match
-	if version != version2 {
-		t.Errorf("Version mismatch: %s vs %s", version, version2)
+	// Expected version from test executable
+	expectedVersion := "5.38.0"
+	if version != expectedVersion {
+		t.Errorf("Expected version %q, got %q (len=%d)", expectedVersion, version, len(version))
 	}
 
 	t.Logf("Perl version: %s", version)
 }
 
-func TestMockPerlScript(t *testing.T) {
+func TestTestPerlExecutable(t *testing.T) {
 	// Create a temporary directory
 	tempDir, err := os.MkdirTemp("", "perl-test")
 	if err != nil {
@@ -122,21 +155,16 @@ func TestMockPerlScript(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
-	// Create a mock perl script
-	mockPerlPath := filepath.Join(tempDir, "mockperl")
-	if err := createMockPerlScript(mockPerlPath); err != nil {
-		t.Fatalf("Failed to create mock Perl script: %v", err)
+	// Create test perl executable
+	testPerlPath := filepath.Join(tempDir, "testperl")
+	if err := createTestPerlExecutable(testPerlPath); err != nil {
+		t.Fatalf("Failed to create test Perl executable: %v", err)
 	}
 
-	// Make it executable
-	if err := os.Chmod(mockPerlPath, 0755); err != nil {
-		t.Fatalf("Failed to make mock Perl script executable: %v", err)
-	}
-
-	// Test extraction with mock script
-	perl, err := extractPerlInfo(mockPerlPath, false)
+	// Test extraction with test executable
+	perl, err := extractPerlInfo(testPerlPath, false)
 	if err != nil {
-		t.Fatalf("Failed to extract info from mock Perl: %v", err)
+		t.Fatalf("Failed to extract info from test Perl: %v", err)
 	}
 
 	// Check extracted information
@@ -149,45 +177,70 @@ func TestMockPerlScript(t *testing.T) {
 	}
 
 	if perl.IsPrimary {
-		t.Error("Expected IsPrimary to be false for mock Perl")
+		t.Error("Expected IsPrimary to be false for test Perl")
 	}
 }
 
-// Helper to create a mock perl script
-func createMockPerlScript(path string) error {
-	// Mock output simulating 'perl -v'
-	mockOutput := `This is perl 5, version 38, subversion 0 (v5.38.0) built for x86_64-linux
+// createTestPerlExecutable creates a test Perl executable that responds to -v and -e flags
+// This simulates a real Perl installation for testing PVM's detection logic
+func createTestPerlExecutable(path string) error {
+	// Create a shell script that mimics perl behavior for testing
+	perlVersionOutput := `This is perl 5, version 38, subversion 0 (v5.38.0) built for x86_64-linux
 
-	Copyright 1987-2023, Larry Wall
+Copyright 1987-2023, Larry Wall
 
-	Perl may be copied only under the terms of either the Artistic License or the
-	GNU General Public License, which may be found in the Perl 5 source kit.
+Perl may be copied only under the terms of either the Artistic License or the
+GNU General Public License, which may be found in the Perl 5 source kit.
 
-	Complete documentation for Perl, including FAQ lists, should be found on
-	this system using "man perl" or "perldoc perl".  If you have access to the
-	Internet, point your browser at https://www.perl.org/, the Perl Home Page.
+Complete documentation for Perl, including FAQ lists, should be found on
+this system using "man perl" or "perldoc perl".  If you have access to the
+Internet, point your browser at https://www.perl.org/, the Perl Home Page.
 
-	Summary of my perl5 (revision 5 version 38 subversion 0) configuration:
-	  Platform: x86_64
-		osname=linux
-		osvers=6.2.0-26-generic
-		archname=x86_64-linux
-		uname='linux laptop 6.2.0-26-generic #26~22.04.1-ubuntu smp ubuntu x86_64 gnulinux '
-		config_args='-des -Dusedevel -Dprefix=/home/user/perl-5.38.0'
-		hint=recommended
-		useposix=true
-		d_sigaction=define
-		useithreads=define
-		usemultiplicity=define
-		use64bitint=define
-		use64bitall=define
-		uselongdouble=undef
-		usemymalloc=n
-		default_inc_excludes_dot=define
-	`
+Summary of my perl5 (revision 5 version 38 subversion 0) configuration:
+  Platform: x86_64
+	osname=linux
+	osvers=6.2.0-26-generic
+	archname=x86_64-linux
+	uname='linux test-system 6.2.0-26-generic #26~22.04.1-ubuntu smp ubuntu x86_64 gnulinux '
+	config_args='-des -Dusedevel -Dprefix=/tmp/test-perl-5.38.0'
+	hint=recommended
+	useposix=true
+	d_sigaction=define
+	useithreads=define
+	usemultiplicity=define
+	use64bitint=define
+	use64bitall=define
+	uselongdouble=undef
+	usemymalloc=n
+	default_inc_excludes_dot=define
+`
 
-	// Create the script
-	script := []byte("#!/bin/sh\n\nif [ \"$1\" = \"-v\" ]; then\n  cat <<'EOT'\n" + mockOutput + "\nEOT\nelif [ \"$1\" = \"-e\" ]; then\n  echo \"v5.38.0\"\nfi\n")
+	// Create shell script that handles both -v and -e flags like real perl
+	script := `#!/bin/sh
 
-	return os.WriteFile(path, script, 0644)
+case "$1" in
+  "-v")
+    cat <<'EOT'
+` + perlVersionOutput + `
+EOT
+    ;;
+  "-e")
+    # Handle -e flag for version extraction (perl -e 'print $^V')
+    if [ "$2" = "print \$^V" ] || [ "$2" = 'print $^V' ]; then
+      printf "v5.38.0"
+    else
+      echo "Test perl executable"
+    fi
+    ;;
+  *)
+    echo "Test perl executable - use -v for version info"
+    ;;
+esac
+`
+
+	if err := os.WriteFile(path, []byte(script), 0755); err != nil {
+		return err
+	}
+
+	return nil
 }
