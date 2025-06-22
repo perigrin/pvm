@@ -167,10 +167,35 @@ func (a *AST) String() string {
 		builder.WriteString("  Root: ")
 		builder.WriteString(a.Root.Type())
 		builder.WriteString("\n")
+
+		// Add tree structure to help with debugging and tests
+		builder.WriteString("  Tree Structure:\n")
+		a.writeNodeTree(&builder, a.Root, 2)
 	}
 
 	builder.WriteString("}\n")
 	return builder.String()
+}
+
+// writeNodeTree recursively writes the tree structure to the builder
+func (a *AST) writeNodeTree(builder *strings.Builder, node Node, depth int) {
+	if node == nil {
+		return
+	}
+
+	// Write indentation
+	for i := 0; i < depth; i++ {
+		builder.WriteString(" ")
+	}
+
+	// Write node type
+	builder.WriteString(node.Type())
+	builder.WriteString("\n")
+
+	// Recursively write children
+	for _, child := range node.Children() {
+		a.writeNodeTree(builder, child, depth+2)
+	}
 }
 
 // TypeAnnotation represents a type annotation in the code

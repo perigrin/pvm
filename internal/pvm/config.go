@@ -288,6 +288,10 @@ func isStringKey(section, key string) bool {
 			key == "download_mirror" ||
 			key == "patches_dir" ||
 			key == "compiler"
+	case "pvm.binary":
+		return key == "default_install_method" ||
+			key == "timeout" ||
+			key == "bandwidth_limit"
 	case "pvx":
 		return key == "isolation_level" ||
 			key == "max_memory" ||
@@ -306,6 +310,10 @@ func isIntKey(section, key string) bool {
 	switch section {
 	case "pvm":
 		return key == "build_jobs"
+	case "pvm.binary":
+		return key == "cache_retention_days" ||
+			key == "max_cache_size" ||
+			key == "max_retries"
 	case "pvx":
 		return key == "timeout"
 	}
@@ -316,6 +324,9 @@ func isBoolKey(section, key string) bool {
 	switch section {
 	case "pvm":
 		return key == "run_tests"
+	case "pvm.binary":
+		return key == "verify_checksums" ||
+			key == "parallel_downloads"
 	case "pvx":
 		return key == "cache_modules" ||
 			key == "cleanup_after" ||
@@ -338,6 +349,8 @@ func isStringSliceKey(section, key string) bool {
 	switch section {
 	case "psc":
 		return key == "watch_exclude"
+	case "pvm.binary":
+		return key == "binary_mirrors"
 	case "pvx":
 		return key == "isolation_ro_paths" ||
 			key == "isolation_rw_paths" ||
@@ -362,6 +375,14 @@ func updateConfigValue(cfg *config.Config, section, key, value string) error {
 			cfg.PVM = &config.PVMConfig{}
 		}
 		return updatePVMValue(cfg.PVM, key, value)
+	case "pvm.binary":
+		if cfg.PVM == nil {
+			cfg.PVM = &config.PVMConfig{}
+		}
+		if cfg.PVM.Binary == nil {
+			cfg.PVM.Binary = &config.PVMBinaryConfig{}
+		}
+		return updatePVMBinaryValue(cfg.PVM.Binary, key, value)
 	case "pvx":
 		if cfg.PVX == nil {
 			cfg.PVX = &config.PVXConfig{}
@@ -588,6 +609,55 @@ func parseStringSlice(value string) []string {
 	}
 
 	return filteredItems
+}
+
+// updatePVMBinaryValue updates a binary configuration value based on its type
+func updatePVMBinaryValue(cfg *config.PVMBinaryConfig, key, value string) error {
+	switch key {
+	case "default_install_method":
+		cfg.DefaultInstallMethod = value
+	case "binary_mirrors":
+		cfg.BinaryMirrors = parseStringSlice(value)
+	case "cache_retention_days":
+		var err error
+		cfg.CacheRetentionDays, err = parseInt(value)
+		if err != nil {
+			return err
+		}
+	case "max_cache_size":
+		var err error
+		cfg.MaxCacheSize, err = parseInt(value)
+		if err != nil {
+			return err
+		}
+	case "verify_checksums":
+		var err error
+		cfg.VerifyChecksums, err = parseBool(value)
+		if err != nil {
+			return err
+		}
+	case "parallel_downloads":
+		var err error
+		cfg.ParallelDownloads, err = parseBool(value)
+		if err != nil {
+			return err
+		}
+	case "max_retries":
+		var err error
+		cfg.MaxRetries, err = parseInt(value)
+		if err != nil {
+			return err
+		}
+	case "timeout":
+		cfg.Timeout = value
+	case "bandwidth_limit":
+		cfg.BandwidthLimit = value
+	default:
+		return errors.NewUserInputError(cli.PrefixPVM, "113",
+			"Unknown binary configuration key", nil).
+			WithHint("Use 'pvm config show' to see all available keys")
+	}
+	return nil
 }
 
 // newConfigValidateCommand creates a command to validate configuration

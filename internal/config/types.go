@@ -57,6 +57,40 @@ type PVMConfig struct {
 
 	// Update configuration
 	Update *PVMUpdateConfig `toml:"update" json:"update"`
+
+	// Binary distribution configuration
+	Binary *PVMBinaryConfig `toml:"binary" json:"binary"`
+}
+
+// PVMBinaryConfig represents configuration for binary distribution support
+type PVMBinaryConfig struct {
+	// DefaultInstallMethod specifies the default installation method
+	// Valid values: "binary", "source", "prefer-binary"
+	DefaultInstallMethod string `toml:"default_install_method" json:"default_install_method"`
+
+	// BinaryMirrors specifies list of mirror URLs for binary downloads
+	BinaryMirrors []string `toml:"binary_mirrors" json:"binary_mirrors"`
+
+	// CacheRetentionDays specifies the binary cache cleanup policy in days
+	CacheRetentionDays int `toml:"cache_retention_days" json:"cache_retention_days"`
+
+	// MaxCacheSize specifies the maximum cache size in GB
+	MaxCacheSize int `toml:"max_cache_size" json:"max_cache_size"`
+
+	// VerifyChecksums specifies whether to verify checksums for binary downloads
+	VerifyChecksums bool `toml:"verify_checksums" json:"verify_checksums"`
+
+	// ParallelDownloads specifies whether to enable parallel downloading
+	ParallelDownloads bool `toml:"parallel_downloads" json:"parallel_downloads"`
+
+	// MaxRetries specifies maximum number of download retries
+	MaxRetries int `toml:"max_retries" json:"max_retries"`
+
+	// Timeout specifies timeout for download operations (e.g., "5m", "30s")
+	Timeout string `toml:"timeout" json:"timeout"`
+
+	// BandwidthLimit specifies bandwidth limit for downloads (e.g., "10MB", "1GB")
+	BandwidthLimit string `toml:"bandwidth_limit" json:"bandwidth_limit"`
 }
 
 // PVMUpdateConfig represents configuration for PVM self-updater
@@ -361,6 +395,19 @@ func NewDefaultConfig() *Config {
 				Timeout:              "5m",
 				SkipChecksums:        false,
 			},
+			Binary: &PVMBinaryConfig{
+				DefaultInstallMethod: "source",
+				BinaryMirrors: []string{
+					"https://github.com/perigrin/pvm-dev/releases/download",
+				},
+				CacheRetentionDays: 30,
+				MaxCacheSize:       5,
+				VerifyChecksums:    true,
+				ParallelDownloads:  true,
+				MaxRetries:         3,
+				Timeout:            "10m",
+				BandwidthLimit:     "",
+			},
 		},
 		PVX: &PVXConfig{
 			CacheModules:            true,
@@ -541,6 +588,59 @@ func (c *PVMUpdateConfig) Validate() []error {
 		if _, err := time.ParseDuration(c.Timeout); err != nil {
 			errors = append(errors, ValidateError("Timeout must be a valid duration (e.g., '5m', '30s')"))
 		}
+	}
+
+	return errors
+}
+
+// Validate checks if the PVMBinary configuration is valid
+func (c *PVMBinaryConfig) Validate() []error {
+	var errors []error
+
+	// Validate DefaultInstallMethod
+	validMethods := map[string]bool{
+		"binary":        true,
+		"source":        true,
+		"prefer-binary": true,
+	}
+
+	if c.DefaultInstallMethod != "" && !validMethods[c.DefaultInstallMethod] {
+		errors = append(errors, ValidateError("DefaultInstallMethod must be one of: binary, source, prefer-binary"))
+	}
+
+	// Validate BinaryMirrors
+	for _, mirror := range c.BinaryMirrors {
+		if mirror == "" {
+			errors = append(errors, ValidateError("BinaryMirrors cannot contain empty URLs"))
+			break
+		}
+	}
+
+	// Validate CacheRetentionDays
+	if c.CacheRetentionDays < 0 {
+		errors = append(errors, ValidateError("CacheRetentionDays cannot be negative"))
+	}
+
+	// Validate MaxCacheSize
+	if c.MaxCacheSize < 0 {
+		errors = append(errors, ValidateError("MaxCacheSize cannot be negative"))
+	}
+
+	// Validate MaxRetries
+	if c.MaxRetries < 0 {
+		errors = append(errors, ValidateError("MaxRetries cannot be negative"))
+	}
+
+	// Validate Timeout
+	if c.Timeout != "" {
+		if _, err := time.ParseDuration(c.Timeout); err != nil {
+			errors = append(errors, ValidateError("Timeout must be a valid duration (e.g., '5m', '30s')"))
+		}
+	}
+
+	// Validate BandwidthLimit format if provided
+	if c.BandwidthLimit != "" && !isValidMemoryFormat(c.BandwidthLimit) {
+		errors = append(errors, ValidateError("BandwidthLimit must be in format like '10MB' or '1GB'"))
 	}
 
 	return errors

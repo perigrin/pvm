@@ -2,4 +2,18 @@ AST {
   Path:
   Source length: 71 characters
   Root: source_file
+  Tree Structure:
+  source_file
+    expression_statement
+      var_decl
+        variable
+    token
+    expression_statement
+      var_decl
+        variable
+    token
+    expression_statement
+      var_decl
+        variable
+    token
 }

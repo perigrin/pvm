@@ -6,4 +6,18 @@ AST {
     VarAnnotation: $message :: Str at 2:1
     VarAnnotation: $numbers :: ArrayRef[Int] at 3:1
   Root: source_file
+  Tree Structure:
+  source_file
+    expression_statement
+      var_decl
+        variable
+    token
+    expression_statement
+      var_decl
+        variable
+    token
+    expression_statement
+      var_decl
+        variable
+    token
 }
