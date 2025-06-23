@@ -4,6 +4,8 @@
 package pvm
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -1625,6 +1627,107 @@ func installPerlFromBuild(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// isArchive checks if the given path is an archive file
+func isArchive(path string) bool {
+	if strings.HasSuffix(strings.ToLower(path), ".tar.gz") {
+		return true
+	}
+	if strings.HasSuffix(strings.ToLower(path), ".tgz") {
+		return true
+	}
+	return false
+}
+
+// extractArchive extracts a tar.gz archive to the specified directory
+func extractArchive(archivePath, destDir string) error {
+	// Open the archive file
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %w", err)
+	}
+	defer file.Close()
+
+	// Create gzip reader
+	gzReader, err := gzip.NewReader(file)
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzReader.Close()
+
+	// Create tar reader
+	tarReader := tar.NewReader(gzReader)
+
+	// Extract files
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar header: %w", err)
+		}
+
+		// Calculate destination path
+		destPath := filepath.Join(destDir, header.Name)
+
+		// Ensure path is within destination directory (security check)
+		if !strings.HasPrefix(destPath, filepath.Clean(destDir)+string(os.PathSeparator)) {
+			return fmt.Errorf("archive contains invalid path: %s", header.Name)
+		}
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			// Create directory
+			err = os.MkdirAll(destPath, os.FileMode(header.Mode))
+			if err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", destPath, err)
+			}
+		case tar.TypeReg:
+			// Create file
+			err = extractFile(tarReader, destPath, os.FileMode(header.Mode))
+			if err != nil {
+				return fmt.Errorf("failed to extract file %s: %w", destPath, err)
+			}
+		case tar.TypeSymlink:
+			// Create symlink
+			err = os.Symlink(header.Linkname, destPath)
+			if err != nil {
+				return fmt.Errorf("failed to create symlink %s: %w", destPath, err)
+			}
+		default:
+			// Skip unsupported file types
+			continue
+		}
+	}
+
+	return nil
+}
+
+// extractFile extracts a single file from tar reader
+func extractFile(reader io.Reader, destPath string, mode os.FileMode) error {
+	// Ensure parent directory exists
+	parentDir := filepath.Dir(destPath)
+	err := os.MkdirAll(parentDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	// Create the file
+	file, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Copy data
+	_, err = io.Copy(file, reader)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // copyDirectory recursively copies a directory
 func copyDirectory(src, dst string) error {
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
@@ -1843,8 +1946,8 @@ func newBuildPerlCommand() *cobra.Command {
 func newInstallPerlCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install-perl",
-		Short: "Install Perl from build directory",
-		Long:  "Install Perl from a previously built directory into PVM's version management system",
+		Short: "Install Perl from build directory or archive",
+		Long:  "Install Perl from a previously built directory or archive (.tar.gz) into PVM's version management system",
 		RunE:  installPerlFromBuild,
 	}
 

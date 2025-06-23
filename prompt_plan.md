@@ -153,7 +153,7 @@ BuildPerl function to conditionally skip installation and version registration.
 Added comprehensive test coverage. All 4306 tests pass at 100% rate.
 ```
 
-#### Step 5: Install-Perl Command Foundation
+#### Step 5: Install-Perl Command Foundation ✅ COMPLETED
 
 ```
 Create new `install-perl` command that can install Perl from build directories. This establishes the install-only command without adding complex features yet.
@@ -178,6 +178,11 @@ Success criteria:
 - Progress reporting shows installation status
 - Validation prevents installation of incomplete builds
 - All tests pass including new install-perl tests
+
+COMPLETED: Added newInstallPerlCommand() function with --from-build, --version, and --force flags.
+Implemented installPerlFromBuild() function with complete installation logic including directory
+validation, version detection, registry integration, and comprehensive directory copying.
+Added test coverage for command flag parsing. All 4311 tests pass at 100% rate.
 ```
 
 #### Step 6: Archive Installation Support
