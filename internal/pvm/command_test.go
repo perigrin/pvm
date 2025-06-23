@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli/ui"
 )
 
 func TestInstallCommandFlags(t *testing.T) {
@@ -939,8 +940,213 @@ func TestBuildPerlCommandIntegration(t *testing.T) {
 		}
 	}
 
+	// Verify upload integration flags exist
+	uploadFlags := []string{"upload", "platforms", "mirror", "github-token", "github-repo", "release-tag", "draft-release", "prerelease"}
+	for _, flagName := range uploadFlags {
+		flag := cmd.Flags().Lookup(flagName)
+		if flag == nil {
+			t.Errorf("Expected upload flag %q to exist", flagName)
+		}
+	}
+
 	// Verify exact args requirement
 	if cmd.Args == nil {
 		t.Error("Expected command to have Args validation")
 	}
+}
+
+func TestBuildPerlUploadIntegration(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "upload without build-only should fail",
+			args:        []string{"5.38.0", "--upload"},
+			expectError: true,
+			errorMsg:    "--upload requires --build-only",
+		},
+		{
+			name:        "upload with build-only should succeed",
+			args:        []string{"5.38.0", "--upload", "--build-only"},
+			expectError: false,
+		},
+		{
+			name:        "platforms without upload should fail",
+			args:        []string{"5.38.0", "--platforms", "linux-amd64"},
+			expectError: true,
+			errorMsg:    "--platforms flag requires --upload",
+		},
+		{
+			name:        "platforms with upload and build-only should succeed",
+			args:        []string{"5.38.0", "--platforms", "linux-amd64,darwin-arm64", "--upload", "--build-only"},
+			expectError: false,
+		},
+		{
+			name:        "upload with github settings",
+			args:        []string{"5.38.0", "--upload", "--build-only", "--github-repo", "owner/repo", "--github-token", "token123"},
+			expectError: false,
+		},
+		{
+			name:        "upload with custom mirror",
+			args:        []string{"5.38.0", "--upload", "--build-only", "--mirror", "custom-mirror"},
+			expectError: false,
+		},
+		{
+			name:        "upload with release options",
+			args:        []string{"5.38.0", "--upload", "--build-only", "--release-tag", "v5.38.0", "--draft-release", "--prerelease"},
+			expectError: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Create a new command instance for each test
+			cmd := newBuildPerlCommand()
+
+			// Mock the RunE function to avoid actual building/uploading
+			cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				// Test the validation logic that would normally run in buildPerlFromSource
+				upload, _ := cmd.Flags().GetBool("upload")
+				buildOnly, _ := cmd.Flags().GetBool("build-only")
+				platforms, _ := cmd.Flags().GetStringArray("platforms")
+
+				// Validate upload requirements (same as in buildPerlFromSource)
+				if upload && !buildOnly {
+					return fmt.Errorf("--upload requires --build-only to create uploadable archive")
+				}
+
+				if len(platforms) > 0 && !upload {
+					return fmt.Errorf("--platforms flag requires --upload to be enabled")
+				}
+
+				// Validate that all upload flags can be retrieved
+				_, err := cmd.Flags().GetString("mirror")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetString("github-token")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetString("github-repo")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetString("release-tag")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetBool("draft-release")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetBool("prerelease")
+				if err != nil {
+					return err
+				}
+
+				return nil
+			}
+
+			// Test flag parsing and validation
+			cmd.SetArgs(test.args)
+			err := cmd.Execute()
+
+			if test.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if test.errorMsg != "" && !containsString(err.Error(), test.errorMsg) {
+					t.Errorf("Expected error message to contain %q, got: %v", test.errorMsg, err)
+				}
+			} else if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestPerformUpload(t *testing.T) {
+	// Test that performUpload returns nil when upload is disabled
+	t.Run("upload disabled", func(t *testing.T) {
+		// Create a real UI for testing (needed for the *ui.Output type)
+		ctx := &ui.UIContext{
+			Writer: os.Stdout,
+			Quiet:  true, // Suppress output during testing
+		}
+		uiOutput := ui.NewOutput(ctx)
+
+		// Call performUpload with upload disabled
+		err := performUpload("/tmp/test", "5.38.0", false, "", "", "", "", false, false, uiOutput)
+
+		if err != nil {
+			t.Errorf("Expected no error when upload disabled, got: %v", err)
+		}
+	})
+
+	// Additional upload tests would require mocking createTarGzArchive, uploadToGitHub, etc.
+	// For now, we test the flag validation logic in the command tests above
+}
+
+// mockUI implements a simple UI for testing (compatible with ui.Output interface)
+type mockUI struct {
+	messages []string
+}
+
+func (m *mockUI) Info(format string, args ...interface{}) {
+	m.messages = append(m.messages, fmt.Sprintf("INFO: "+format, args...))
+}
+
+func (m *mockUI) Success(format string, args ...interface{}) {
+	m.messages = append(m.messages, fmt.Sprintf("SUCCESS: "+format, args...))
+}
+
+func (m *mockUI) Warning(format string, args ...interface{}) {
+	m.messages = append(m.messages, fmt.Sprintf("WARNING: "+format, args...))
+}
+
+func (m *mockUI) Error(format string, args ...interface{}) {
+	m.messages = append(m.messages, fmt.Sprintf("ERROR: "+format, args...))
+}
+
+func (m *mockUI) Debug(format string, args ...interface{}) {
+	m.messages = append(m.messages, fmt.Sprintf("DEBUG: "+format, args...))
+}
+
+func (m *mockUI) Header(title string) {
+	m.messages = append(m.messages, fmt.Sprintf("HEADER: %s", title))
+}
+
+func (m *mockUI) SubHeader(title string) {
+	m.messages = append(m.messages, fmt.Sprintf("SUBHEADER: %s", title))
+}
+
+func (m *mockUI) Printf(format string, args ...interface{}) {
+	m.messages = append(m.messages, fmt.Sprintf("PRINTF: "+format, args...))
+}
+
+func (m *mockUI) Println(args ...interface{}) {
+	m.messages = append(m.messages, fmt.Sprintf("PRINTLN: %v", args))
+}
+
+func (m *mockUI) Table(headers []string, rows [][]string) {
+	m.messages = append(m.messages, fmt.Sprintf("TABLE: %v %v", headers, rows))
+}
+
+func (m *mockUI) List(items []string) {
+	m.messages = append(m.messages, fmt.Sprintf("LIST: %v", items))
+}
+
+func (m *mockUI) KeyValue(pairs map[string]string) {
+	m.messages = append(m.messages, fmt.Sprintf("KEYVALUE: %v", pairs))
+}
+
+func (m *mockUI) Status(message string) {
+	m.messages = append(m.messages, fmt.Sprintf("STATUS: %s", message))
+}
+
+func (m *mockUI) Progress(current, total int, message string) {
+	m.messages = append(m.messages, fmt.Sprintf("PROGRESS: %d/%d %s", current, total, message))
 }

@@ -1465,6 +1465,56 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 		return err
 	}
 
+	// Get upload flags
+	upload, err := cmd.Flags().GetBool("upload")
+	if err != nil {
+		return err
+	}
+
+	platforms, err := cmd.Flags().GetStringArray("platforms")
+	if err != nil {
+		return err
+	}
+
+	mirror, err := cmd.Flags().GetString("mirror")
+	if err != nil {
+		return err
+	}
+
+	githubToken, err := cmd.Flags().GetString("github-token")
+	if err != nil {
+		return err
+	}
+
+	githubRepo, err := cmd.Flags().GetString("github-repo")
+	if err != nil {
+		return err
+	}
+
+	releaseTag, err := cmd.Flags().GetString("release-tag")
+	if err != nil {
+		return err
+	}
+
+	draftRelease, err := cmd.Flags().GetBool("draft-release")
+	if err != nil {
+		return err
+	}
+
+	prerelease, err := cmd.Flags().GetBool("prerelease")
+	if err != nil {
+		return err
+	}
+
+	// Validate upload requirements
+	if upload && !buildOnly {
+		return fmt.Errorf("--upload requires --build-only to create uploadable archive")
+	}
+
+	if len(platforms) > 0 && !upload {
+		return fmt.Errorf("--platforms flag requires --upload to be enabled")
+	}
+
 	// Create progress callback to display build progress
 	var currentStage perl.BuildProgressStage
 	progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
@@ -1600,6 +1650,88 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 	ui.SubHeader("Build stage timing:")
 	for stage, duration := range result.Stages {
 		ui.Printf("  %-12s: %s", stage.String(), duration.Round(time.Second))
+	}
+
+	// Handle upload if requested
+	if upload && buildOnly {
+		ui.SubHeader("Uploading binary...")
+
+		// Handle multiple platforms
+		if len(platforms) > 0 {
+			ui.Info("Building and uploading for multiple platforms: %s", strings.Join(platforms, ", "))
+
+			// For platform matrix, we need to rebuild for each platform
+			// This is a simplified implementation - in a real scenario, you'd use cross-compilation
+			ui.Warning("Multi-platform build not yet implemented - uploading current platform only")
+		}
+
+		// Perform upload using the existing upload-binary logic
+		err := performUpload(result.InstallPath, result.Version, upload, mirror, githubToken, githubRepo, releaseTag, draftRelease, prerelease, ui)
+		if err != nil {
+			ui.Error("Upload failed: %v", err)
+			return fmt.Errorf("build succeeded but upload failed: %w", err)
+		}
+
+		ui.Success("Build and upload completed successfully!")
+	}
+
+	return nil
+}
+
+// performUpload handles the upload integration for build-perl --upload
+func performUpload(buildPath, version string, upload bool, mirror, githubToken, githubRepo, releaseTag string, draftRelease, prerelease bool, ui *ui.Output) error {
+	if !upload {
+		return nil
+	}
+
+	// Auto-detect platform
+	platform := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+
+	ui.Info("Preparing upload for version %s, platform %s", version, platform)
+
+	// Create archive from build directory
+	archiveName := fmt.Sprintf("perl-%s-%s.tar.gz", version, platform)
+
+	ui.Info("Creating archive: %s", archiveName)
+	if err := createTarGzArchive(buildPath, archiveName); err != nil {
+		return fmt.Errorf("failed to create archive: %w", err)
+	}
+
+	// Clean up archive after upload
+	defer func() {
+		if err := os.Remove(archiveName); err != nil {
+			ui.Warning("Failed to clean up archive %s: %v", archiveName, err)
+		}
+	}()
+
+	// Handle GitHub upload
+	if githubRepo != "" {
+		if githubToken == "" {
+			return fmt.Errorf("GitHub token required for GitHub uploads (use --github-token)")
+		}
+
+		if releaseTag == "" {
+			releaseTag = fmt.Sprintf("perl-%s", version)
+		}
+
+		ui.Info("Uploading to GitHub: %s", githubRepo)
+		ui.Info("Release tag: %s", releaseTag)
+
+		if err := uploadToGitHub(archiveName, githubRepo, githubToken, releaseTag, draftRelease, prerelease, ui); err != nil {
+			return fmt.Errorf("GitHub upload failed: %w", err)
+		}
+
+		ui.Success("Successfully uploaded to GitHub")
+	}
+
+	// Handle custom mirror uploads
+	if mirror != "" || (githubRepo == "" && mirror == "") {
+		ui.Info("Uploading to custom mirrors...")
+		timeout := 10 * time.Minute // Default timeout
+		if err := uploadToCustomMirrors(archiveName, version, platform, mirror, false, 3, timeout, ui); err != nil {
+			return fmt.Errorf("custom mirror upload failed: %w", err)
+		}
+		ui.Success("Successfully uploaded to custom mirrors")
 	}
 
 	return nil
@@ -2155,6 +2287,16 @@ func newBuildPerlCommand() *cobra.Command {
 	cmd.Flags().Bool("cleanup", true, "Clean up build directory after installation")
 	cmd.Flags().Bool("build-only", false, "Build Perl without installing (creates relocatable build in output directory)")
 	cmd.Flags().StringArray("configure-options", nil, "Additional options to pass to Configure (can be specified multiple times)")
+
+	// Upload integration flags
+	cmd.Flags().Bool("upload", false, "Upload built binary after successful build (requires --build-only)")
+	cmd.Flags().StringArray("platforms", nil, "Build for multiple platforms (e.g., linux-amd64,darwin-arm64)")
+	cmd.Flags().String("mirror", "", "Specific mirror to upload to (default: all configured mirrors)")
+	cmd.Flags().String("github-token", "", "GitHub API token for upload authentication")
+	cmd.Flags().String("github-repo", "", "GitHub repository for upload (format: owner/repo)")
+	cmd.Flags().String("release-tag", "", "GitHub release tag (created if doesn't exist)")
+	cmd.Flags().Bool("draft-release", false, "Create release as draft when uploading")
+	cmd.Flags().Bool("prerelease", false, "Mark release as prerelease when uploading")
 
 	return cmd
 }
