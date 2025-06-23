@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 )
@@ -96,6 +97,38 @@ type MirrorConfig struct {
 
 	// Custom headers to send with requests
 	Headers map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
+
+	// URL template for custom URL patterns
+	URLTemplate string `json:"url_template,omitempty" yaml:"url_template,omitempty"`
+
+	// Version mapping for custom version names
+	VersionMapping map[string]string `json:"version_mapping,omitempty" yaml:"version_mapping,omitempty"`
+
+	// Authentication configuration
+	Auth *MirrorAuth `json:"auth,omitempty" yaml:"auth,omitempty"`
+}
+
+// MirrorAuth represents authentication configuration for mirrors
+type MirrorAuth struct {
+	// Authentication type (none, basic, bearer, api-key, oauth2)
+	Type string
+
+	// Basic authentication
+	Username string
+	Password string
+
+	// Bearer token authentication
+	Token string
+
+	// API key authentication
+	APIKey       string
+	APIKeyHeader string
+
+	// OAuth2 authentication (placeholder for future implementation)
+	OAuth2ClientID     string
+	OAuth2ClientSecret string
+	OAuth2TokenURL     string
+	OAuth2Scopes       []string
 }
 
 // MirrorHealth contains health status for a mirror
@@ -296,17 +329,32 @@ func (mm *MirrorManager) GenerateMirrorURL(mirror MirrorConfig, version, platfor
 		archiveExt = ".zip"
 	}
 
-	filename := fmt.Sprintf("perl-%s-%s%s", parsedVersion.String(), platform, archiveExt)
+	// Apply version mapping if configured
+	mappedVersion := parsedVersion.String()
+	if mirror.VersionMapping != nil {
+		if mapped, exists := mirror.VersionMapping[parsedVersion.String()]; exists {
+			mappedVersion = mapped
+		}
+	}
+
+	filename := fmt.Sprintf("perl-%s-%s%s", mappedVersion, platform, archiveExt)
+
+	// Use custom URL template if provided
+	if mirror.URLTemplate != "" {
+		return mm.generateURLFromTemplate(mirror.URLTemplate, baseURL, mappedVersion, platform, filename, archiveExt)
+	}
+
+	// Use default URL patterns based on mirror type
 
 	switch mirror.Type {
 	case MirrorTypeGitHubReleases:
-		return fmt.Sprintf("%s/perl-%s/%s", baseURL, parsedVersion.String(), filename), nil
+		return fmt.Sprintf("%s/perl-%s/%s", baseURL, mappedVersion, filename), nil
 
 	case MirrorTypeJSDelivr:
-		return fmt.Sprintf("%s/perl-%s/%s", baseURL, parsedVersion.String(), filename), nil
+		return fmt.Sprintf("%s/perl-%s/%s", baseURL, mappedVersion, filename), nil
 
 	case MirrorTypeCloudflareR2, MirrorTypeDirectURL:
-		return fmt.Sprintf("%s/perl-%s/%s", baseURL, parsedVersion.String(), filename), nil
+		return fmt.Sprintf("%s/perl-%s/%s", baseURL, mappedVersion, filename), nil
 
 	default:
 		return "", errors.NewSystemError(ErrMirrorConfigInvalid,
@@ -350,7 +398,10 @@ func (mm *MirrorManager) CheckMirrorHealth(mirror MirrorConfig) *MirrorHealth {
 	// Add custom headers
 	for key, value := range mirror.Headers {
 		req.Header.Set(key, value)
+
 	}
+	// Add authentication headers
+	mm.addAuthHeaders(req, mirror.Auth)
 
 	// Use mirror-specific client with timeout
 	client := &http.Client{Timeout: mirror.Timeout}
@@ -552,4 +603,140 @@ func (mm *MirrorManager) DownloadWithMirrorFailover(version, platform string, op
 	// All mirrors failed
 	return nil, errors.NewSystemError(ErrAllMirrorsFailed,
 		fmt.Sprintf("All mirrors failed, last error: %v", lastErr), lastErr)
+}
+
+// NewMirrorManagerFromConfig creates a mirror manager from PVM configuration
+func NewMirrorManagerFromConfig(cfg *config.Config) *MirrorManager {
+	mirrors := ConvertConfigToMirrors(cfg)
+	return NewMirrorManagerWithConfig(mirrors)
+}
+
+// ConvertConfigToMirrors converts PVM configuration to internal mirror format
+func ConvertConfigToMirrors(cfg *config.Config) []MirrorConfig {
+	var mirrors []MirrorConfig
+
+	// Add default mirrors first
+	mirrors = append(mirrors, DefaultMirrors...)
+
+	// Add custom mirrors from configuration
+	if cfg != nil && cfg.PVM != nil && cfg.PVM.Binary != nil {
+		for _, customMirror := range cfg.PVM.Binary.CustomMirrors {
+			if customMirror == nil {
+				continue
+			}
+
+			mirror := convertCustomMirrorConfig(customMirror)
+			mirrors = append(mirrors, mirror)
+		}
+	}
+
+	return mirrors
+}
+
+// convertCustomMirrorConfig converts a single custom mirror configuration
+func convertCustomMirrorConfig(customMirror *config.PVMCustomMirrorConfig) MirrorConfig {
+	// Parse timeout
+	timeout := 30 * time.Second
+	if customMirror.Timeout != "" {
+		if duration, err := time.ParseDuration(customMirror.Timeout); err == nil {
+			timeout = duration
+		}
+	}
+
+	// Set default values
+	maxRetries := customMirror.MaxRetries
+	if maxRetries == 0 {
+		maxRetries = 3
+	}
+
+	mirror := MirrorConfig{
+		Name:           customMirror.Name,
+		Type:           customMirror.Type,
+		BaseURL:        customMirror.BaseURL,
+		Priority:       customMirror.Priority,
+		Enabled:        customMirror.Enabled,
+		Timeout:        timeout,
+		MaxRetries:     maxRetries,
+		HealthCheck:    customMirror.HealthCheck,
+		Headers:        customMirror.Headers,
+		URLTemplate:    customMirror.URLTemplate,
+		VersionMapping: customMirror.VersionMapping,
+	}
+
+	// Convert authentication configuration
+	if customMirror.Auth != nil {
+		mirror.Auth = convertAuthConfig(customMirror.Auth)
+	}
+
+	return mirror
+}
+
+// convertAuthConfig converts authentication configuration
+func convertAuthConfig(auth *config.PVMCustomMirrorAuth) *MirrorAuth {
+	mirrorAuth := &MirrorAuth{
+		Type:         auth.Type,
+		Username:     auth.Username,
+		Password:     auth.Password,
+		Token:        auth.Token,
+		APIKey:       auth.APIKey,
+		APIKeyHeader: auth.APIKeyHeader,
+	}
+
+	// Set default API key header
+	if mirrorAuth.APIKeyHeader == "" && mirrorAuth.APIKey != "" {
+		mirrorAuth.APIKeyHeader = "X-API-Key"
+	}
+
+	// Convert OAuth2 configuration if present
+	if auth.OAuth2 != nil {
+		mirrorAuth.OAuth2ClientID = auth.OAuth2.ClientID
+		mirrorAuth.OAuth2ClientSecret = auth.OAuth2.ClientSecret
+		mirrorAuth.OAuth2TokenURL = auth.OAuth2.TokenURL
+		mirrorAuth.OAuth2Scopes = auth.OAuth2.Scopes
+	}
+
+	return mirrorAuth
+}
+
+// generateURLFromTemplate generates a URL using the provided template
+func (mm *MirrorManager) generateURLFromTemplate(template, baseURL, version, platform, filename, ext string) (string, error) {
+	// Replace template variables
+	url := template
+	url = strings.ReplaceAll(url, "{base_url}", baseURL)
+	url = strings.ReplaceAll(url, "{version}", version)
+	url = strings.ReplaceAll(url, "{platform}", platform)
+	url = strings.ReplaceAll(url, "{filename}", filename)
+	url = strings.ReplaceAll(url, "{ext}", ext)
+
+	return url, nil
+}
+
+// addAuthHeaders adds authentication headers to HTTP requests
+func (mm *MirrorManager) addAuthHeaders(req *http.Request, auth *MirrorAuth) {
+	if auth == nil {
+		return
+	}
+
+	switch auth.Type {
+	case "basic":
+		if auth.Username != "" && auth.Password != "" {
+			req.SetBasicAuth(auth.Username, auth.Password)
+		}
+	case "bearer":
+		if auth.Token != "" {
+			req.Header.Set("Authorization", "Bearer "+auth.Token)
+		}
+	case "api-key":
+		if auth.APIKey != "" {
+			header := auth.APIKeyHeader
+			if header == "" {
+				header = "X-API-Key"
+			}
+			req.Header.Set(header, auth.APIKey)
+		}
+	case "oauth2":
+		// OAuth2 implementation would require token exchange
+		// For now, this is a placeholder for future implementation
+		log.Warnf("OAuth2 authentication not yet implemented for mirror requests")
+	}
 }

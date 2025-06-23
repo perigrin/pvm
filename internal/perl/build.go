@@ -106,6 +106,9 @@ type BuildOptions struct {
 	// CleanupBuildDir indicates whether to clean up the build directory after installation
 	CleanupBuildDir bool
 
+	// BuildOnly indicates whether to build without installing (creates relocatable build)
+	BuildOnly bool
+
 	// ProgressCallback is called to report progress
 	ProgressCallback BuildProgressCallback `json:"-"`
 
@@ -337,6 +340,7 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	configureOptions := []string{
 		"-des",                                 // Default options, no interactive prompts
 		"-Dusethreads",                         // Enable threads
+		"-Duserelocatableinc",                  // Enable relocatable @INC for binary portability
 		fmt.Sprintf("-Dprefix=%s", installDir), // Installation directory
 	}
 
@@ -344,7 +348,7 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	configureOptions = append(configureOptions, options.ConfigureOptions...)
 
 	// Add platform-specific configure options
-	platformOptions, err := getPlatformConfigureOptions()
+	platformOptions, err := getPlatformConfigureOptions(options.BuildOnly)
 	if err != nil {
 		return nil, errors.NewVersionError(
 			ErrInvalidBuildOptions,
@@ -452,28 +456,31 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 		}
 	}
 
-	// Start installation
-	updateStage(StageInstall, "Installing Perl", 0.0)
+	// Install only if BuildOnly is false
+	if !options.BuildOnly {
+		// Start installation
+		updateStage(StageInstall, "Installing Perl", 0.0)
 
-	// Run make install
-	installErr := runCommandWithProgress(
-		srcDir,
-		"make",
-		[]string{"install"},
-		options.Context,
-		func(line string) {
-			if options.ProgressCallback != nil {
-				options.ProgressCallback(StageInstall, line, 0.5)
-			}
-		},
-	)
+		// Run make install
+		installErr := runCommandWithProgress(
+			srcDir,
+			"make",
+			[]string{"install"},
+			options.Context,
+			func(line string) {
+				if options.ProgressCallback != nil {
+					options.ProgressCallback(StageInstall, line, 0.5)
+				}
+			},
+		)
 
-	if installErr != nil {
-		return nil, errors.NewVersionError(
-			ErrInstallFailed,
-			"Installation failed",
-			installErr).
-			WithLocation(srcDir)
+		if installErr != nil {
+			return nil, errors.NewVersionError(
+				ErrInstallFailed,
+				"Installation failed",
+				installErr).
+				WithLocation(srcDir)
+		}
 	}
 
 	// Clean up if requested
@@ -492,19 +499,25 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	}
 
 	// Done
-	updateStage(StageDone, "Installation completed", 1.0)
+	if options.BuildOnly {
+		updateStage(StageDone, "Build completed", 1.0)
+	} else {
+		updateStage(StageDone, "Installation completed", 1.0)
+	}
 
 	// Update final timing
 	result.Duration = time.Since(startTime)
 
-	// Register the installed Perl version
-	err = RegisterVersionAfterBuild(result, "pvm")
-	if err != nil {
-		// Log the error but don't fail the build
-		if options.ProgressCallback != nil {
-			options.ProgressCallback(StageDone,
-				fmt.Sprintf("Warning: Failed to register Perl version: %v", err),
-				1.0)
+	// Register the installed Perl version only if not build-only
+	if !options.BuildOnly {
+		err = RegisterVersionAfterBuild(result, "pvm")
+		if err != nil {
+			// Log the error but don't fail the build
+			if options.ProgressCallback != nil {
+				options.ProgressCallback(StageDone,
+					fmt.Sprintf("Warning: Failed to register Perl version: %v", err),
+					1.0)
+			}
 		}
 	}
 
@@ -732,19 +745,25 @@ func doRunCommandWithProgress(
 }
 
 // getPlatformConfigureOptions returns platform-specific options for the Configure script
-func getPlatformConfigureOptions() ([]string, error) {
+func getPlatformConfigureOptions(buildOnly bool) ([]string, error) {
 	options := []string{}
 
 	switch runtime.GOOS {
 	case "darwin":
 		// macOS-specific options
-		options = append(options,
-			"-Duseshrplib",          // Build shared libperl
+		baseOptions := []string{
 			"-Dusedtrace",           // Enable dtrace support
 			"-Dusethreads",          // Enable threads
 			"-Duselargefiles",       // Enable large file support
 			"-Dccflags=-DHAS_TIMES", // Fix for macOS time handling
-		)
+		}
+
+		// Only add shared library support if not doing relocatable build
+		if !buildOnly {
+			baseOptions = append(baseOptions, "-Duseshrplib") // Build shared libperl
+		}
+
+		options = append(options, baseOptions...)
 
 		// Check if we're on Apple Silicon (arm64)
 		if runtime.GOARCH == "arm64" {
@@ -756,22 +775,34 @@ func getPlatformConfigureOptions() ([]string, error) {
 
 	case "linux":
 		// Linux-specific options
-		options = append(options,
-			"-Duseshrplib",       // Build shared libperl
+		baseOptions := []string{
 			"-Duselargefiles",    // Enable large file support
 			"-Dcccdlflags=-fPIC", // Position-independent code for shared libs
-		)
+		}
+
+		// Only add shared library support if not doing relocatable build
+		if !buildOnly {
+			baseOptions = append(baseOptions, "-Duseshrplib") // Build shared libperl
+		}
+
+		options = append(options, baseOptions...)
 
 	case "windows":
 		// Windows-specific options
 		// Note: Building Perl on Windows is complex and may require
 		// different approaches depending on the build environment
 		// For simplicity, we'll assume using MinGW/MSYS2 here
-		options = append(options,
-			"-Duseshrplib",  // Build shared libperl
+		baseOptions := []string{
 			"-Duseithreads", // Use POSIX threads
 			"-Dcc=gcc",      // Use gcc compiler
-		)
+		}
+
+		// Only add shared library support if not doing relocatable build
+		if !buildOnly {
+			baseOptions = append(baseOptions, "-Duseshrplib") // Build shared libperl
+		}
+
+		options = append(options, baseOptions...)
 	}
 
 	return options, nil
