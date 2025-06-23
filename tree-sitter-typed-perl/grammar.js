@@ -744,8 +744,8 @@ module.exports = grammar({
       seq(
         choice('my', 'state', 'our', 'field'),
         optional(choice(
-          $.type_expression,
-          seq('(', $.type_expression, ')')
+          field('type', $.type_expression),
+          seq('(', field('type', $.type_expression), ')')
         )),
         choice(
           field('variable', $._declared_vars),
