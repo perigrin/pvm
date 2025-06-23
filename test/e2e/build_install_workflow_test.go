@@ -56,6 +56,29 @@ func TestBuildInstallWorkflow_BuildOnly(t *testing.T) {
 	}
 }
 
+func TestBuildInstallWorkflow_BuildOnlyFlagValidation(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Create a temporary output directory
+	outputDir := filepath.Join(env.RootDir, "perl-build-output")
+
+	// Test that --build-only flag is properly recognized and validated
+	// Use an invalid version to trigger quick failure after flag parsing
+	_, stderr, err := env.RunPVM("build-perl", "999.999.999", "--build-only", "--output-dir", outputDir)
+
+	// Should fail due to invalid version, but after flag parsing succeeds
+	require.Error(t, err, "Should fail with invalid version")
+
+	// Verify the flags were parsed and processed correctly
+	require.Contains(t, stderr, "build-only", "Should indicate build-only mode was recognized")
+	require.Contains(t, stderr, outputDir, "Should indicate output directory was recognized")
+
+	// Should NOT contain flag parsing errors
+	assert.NotContains(t, stderr, "unknown flag", "Should not have flag parsing errors")
+	assert.NotContains(t, stderr, "invalid flag", "Should not have flag parsing errors")
+}
+
 func TestBuildInstallWorkflow_InstallFromBuild(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
