@@ -373,9 +373,11 @@ func ImportSystemPerl() error {
 	}
 
 	// Create version info
+	// For system perl, InstallPath should be the directory containing the perl executable
+	installPath := filepath.Dir(systemPerl.Path)
 	versionInfo := VersionInfo{
 		Version:     systemPerl.Version,
-		InstallPath: systemPerl.Path,
+		InstallPath: installPath,
 		InstallTime: time.Now(),
 		Source:      "system",
 	}

@@ -182,6 +182,14 @@ func (e *TestEnv) setEnvironment() {
 	_ = os.Setenv("XDG_CACHE_HOME", e.CacheHome)
 	_ = os.Setenv("XDG_STATE_HOME", e.StateHome)
 
+	// Preserve plenv location if it exists in the original HOME
+	if originalHome := e.OriginalEnv["HOME"]; originalHome != "" {
+		plenvRoot := filepath.Join(originalHome, ".plenv")
+		if _, err := os.Stat(plenvRoot); err == nil {
+			_ = os.Setenv("PLENV_ROOT", plenvRoot)
+		}
+	}
+
 	// Add PVM bin and shims directories to PATH
 	path := fmt.Sprintf("%s:%s:%s", e.PVMBinDir, e.PVMShimsDir, os.Getenv("PATH"))
 	_ = os.Setenv("PATH", path)
@@ -431,4 +439,34 @@ func (e *TestEnv) importSystemPerl() {
 	rootCmd.SetErr(&stderr)
 
 	_ = rootCmd.Execute()
+}
+
+// RunPVXWithCleanIsolation runs PVX with clean isolation for reliable test environments
+// This provides a consistent, clean module environment that's perfect for e2e tests
+func (e *TestEnv) RunPVXWithCleanIsolation(args ...string) (string, string, error) {
+	// Prepend clean isolation flags to the arguments
+	pvxArgs := []string{"pvx", "--isolation", "clean", "--verbose"}
+	pvxArgs = append(pvxArgs, args...)
+	return e.RunPVM(pvxArgs...)
+}
+
+// RunPVXScriptWithCleanIsolation runs a Perl script using PVX with clean isolation
+// This ensures the script runs in a clean module environment without system interference
+func (e *TestEnv) RunPVXScriptWithCleanIsolation(scriptPath string, scriptArgs ...string) (string, string, error) {
+	args := []string{scriptPath}
+	args = append(args, scriptArgs...)
+	return e.RunPVXWithCleanIsolation(args...)
+}
+
+// RunPVXToolWithCleanIsolation runs a Perl tool using PVX with clean isolation
+// Uses the -- separator to properly separate PVX flags from tool arguments
+func (e *TestEnv) RunPVXToolWithCleanIsolation(toolName string, toolArgs ...string) (string, string, error) {
+	args := []string{"--", toolName}
+	args = append(args, toolArgs...)
+	return e.RunPVXWithCleanIsolation(args...)
+}
+
+// RunPVXInlineWithCleanIsolation runs inline Perl code using PVX with clean isolation
+func (e *TestEnv) RunPVXInlineWithCleanIsolation(code string) (string, string, error) {
+	return e.RunPVXWithCleanIsolation("-e", code)
 }
