@@ -20,8 +20,7 @@ on:
         type: boolean
 
 permissions:
-  contents: write
-  packages: write
+  contents: write  # Required for creating releases and tags
 
 jobs:
   build-matrix:
@@ -83,6 +82,13 @@ jobs:
         if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
           TAG="${{ github.event.inputs.tag }}"
           PRERELEASE="${{ github.event.inputs.prerelease }}"
+
+          # Validate tag format for security
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+            echo "❌ Invalid tag format: $TAG"
+            echo "Tag must match pattern: v1.0.0 or v1.0.0-rc1"
+            exit 1
+          fi
         else
           TAG=${GITHUB_REF#refs/tags/}
           # Auto-detect prerelease based on tag
@@ -153,6 +159,13 @@ jobs:
         if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
           TAG="${{ github.event.inputs.tag }}"
           PRERELEASE="${{ github.event.inputs.prerelease }}"
+
+          # Validate tag format for security
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+            echo "❌ Invalid tag format: $TAG"
+            echo "Tag must match pattern: v1.0.0 or v1.0.0-rc1"
+            exit 1
+          fi
         else
           TAG=${GITHUB_REF#refs/tags/}
           # Auto-detect prerelease based on tag
@@ -263,17 +276,30 @@ jobs:
         EOF
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.version.outputs.tag }}
-        name: PVM ${{ steps.version.outputs.tag }}
-        body_path: release_notes.md
-        files: release-files/*
-        prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
-        generate_release_notes: false
-        make_latest: ${{ steps.version.outputs.prerelease == 'false' }}
+      run: |
+        # Validate tag format for security
+        TAG="${{ steps.version.outputs.tag }}"
+        if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+          echo "❌ Invalid tag format: $TAG"
+          exit 1
+        fi
+
+        # Prepare release flags
+        RELEASE_FLAGS=""
+        if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then
+          RELEASE_FLAGS="--prerelease"
+        else
+          RELEASE_FLAGS="--latest"
+        fi
+
+        # Create release using official GitHub CLI
+        gh release create "$TAG" \
+          --title "PVM $TAG" \
+          --notes-file release_notes.md \
+          $RELEASE_FLAGS \
+          release-files/*
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ github.token }}
 
     - name: Update release summary
       run: |
