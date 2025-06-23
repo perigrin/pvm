@@ -534,14 +534,88 @@ func TestBuildPerlRelocatableOptions(t *testing.T) {
 	assert.Equal(t, version, result.Version)
 
 	// Verify relocatable configure option is included
-	assert.Contains(t, capturedConfigureArgs, "-Duserelocatableinc", 
+	assert.Contains(t, capturedConfigureArgs, "-Duserelocatableinc",
 		"Configure options should include -Duserelocatableinc for relocatable builds")
-	
+
 	// Verify other expected default options are still present
 	assert.Contains(t, capturedConfigureArgs, "-des")
 	assert.Contains(t, capturedConfigureArgs, "-Dusethreads")
-	
+
 	// Verify prefix option is present
 	prefixOption := fmt.Sprintf("-Dprefix=%s", filepath.Join(dirs.VersionsDir, version))
 	assert.Contains(t, capturedConfigureArgs, prefixOption)
+}
+
+// TestBuildPerlCustomOutputDirectory tests building Perl with a custom output directory
+func TestBuildPerlCustomOutputDirectory(t *testing.T) {
+	// Setup test environment
+	dirs, tempDir := setupTestDirs(t)
+
+	// Create a custom output directory
+	customOutputDir := filepath.Join(tempDir, "custom-perl-output")
+	err := os.MkdirAll(customOutputDir, 0755)
+	require.NoError(t, err)
+
+	// Save original extraction function and mock it
+	originalExtractArchiveFunc := extractArchiveFunc
+	t.Cleanup(func() {
+		extractArchiveFunc = originalExtractArchiveFunc
+	})
+	extractArchiveFunc = mockExtraction(t, tempDir)
+
+	// Create a mock source archive
+	version := "5.36.0"
+	archivePath := createMockArchive(t, dirs, version)
+
+	// Capture configure arguments to verify custom prefix
+	var capturedConfigureArgs []string
+	runCommandWithProgressFunc = func(
+		dir string,
+		command string,
+		args []string,
+		ctx context.Context,
+		progressCb func(line string),
+	) error {
+		// Capture configure command arguments
+		if command == "./Configure" {
+			capturedConfigureArgs = args
+		}
+
+		// Report progress for testing the callback
+		if progressCb != nil {
+			progressCb(fmt.Sprintf("Mock progress for %s", command))
+		}
+		return nil
+	}
+
+	// Create build options with custom output directory
+	options := &BuildOptions{
+		Version:         version,
+		SourceFile:      archivePath,
+		InstallDir:      customOutputDir, // This is what gets set when --output-dir is used
+		BuildJobs:       1,
+		RunTests:        false,
+		CleanupBuildDir: true,
+		Context:         context.Background(),
+	}
+
+	// Run the build
+	result, err := BuildPerl(options)
+
+	// Verify results
+	require.NoError(t, err)
+	assert.Equal(t, version, result.Version)
+	assert.Equal(t, customOutputDir, result.InstallPath)
+
+	// Verify that the custom output directory was used as the prefix
+	prefixOption := fmt.Sprintf("-Dprefix=%s", customOutputDir)
+	assert.Contains(t, capturedConfigureArgs, prefixOption,
+		"Configure options should include custom output directory as prefix")
+
+	// Verify other expected default options are still present
+	assert.Contains(t, capturedConfigureArgs, "-des")
+	assert.Contains(t, capturedConfigureArgs, "-Dusethreads")
+
+	// Verify the custom output directory exists and was used
+	assert.DirExists(t, customOutputDir)
 }

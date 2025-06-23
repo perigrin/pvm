@@ -359,8 +359,8 @@ func newInstallCommand() *cobra.Command {
 	cmd.Flags().Bool("skip-build", false, "Skip build and import from existing installation")
 
 	// Binary installation flags
-	cmd.Flags().BoolP("binary-only", "B", false, "Install only from pre-compiled binary (fail if not available)")
-	cmd.Flags().Bool("prefer-binary", false, "Try binary first, fallback to source if binary unavailable")
+	cmd.Flags().Bool("binary-only", false, "Install only from pre-compiled binary (fail if not available)")
+	cmd.Flags().BoolP("prefer-binary", "B", false, "Try binary first, fallback to source if binary unavailable")
 	cmd.Flags().Bool("force-source", false, "Force source compilation (skip binary check)")
 
 	return cmd
@@ -1320,6 +1320,11 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 		return err
 	}
 
+	outputDir, err := cmd.Flags().GetString("output-dir")
+	if err != nil {
+		return err
+	}
+
 	buildJobs, err := cmd.Flags().GetInt("jobs")
 	if err != nil {
 		return err
@@ -1399,11 +1404,18 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 		}
 	}
 
+	// Determine final installation directory
+	// If --output-dir is specified, it takes precedence over --prefix
+	finalInstallDir := installDir
+	if outputDir != "" {
+		finalInstallDir = outputDir
+	}
+
 	// Create build options
 	options := &perl.BuildOptions{
 		Version:          version,
 		SourceFile:       sourceFile,
-		InstallDir:       installDir,
+		InstallDir:       finalInstallDir,
 		BuildJobs:        buildJobs,
 		RunTests:         runTests,
 		CleanupBuildDir:  cleanupBuildDir,
@@ -1419,7 +1431,9 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 		ui.Info("Using source file: %s", sourceFile)
 	}
 
-	if installDir != "" {
+	if outputDir != "" {
+		ui.Info("Output directory: %s", outputDir)
+	} else if installDir != "" {
 		ui.Info("Installation directory: %s", installDir)
 	}
 
@@ -1605,6 +1619,7 @@ func newBuildPerlCommand() *cobra.Command {
 	// Perl source build flags
 	cmd.Flags().String("source", "", "Source archive file path (default: download or use cached)")
 	cmd.Flags().String("prefix", "", "Installation directory (default: XDG_DATA_HOME/pvm/versions/<version>)")
+	cmd.Flags().String("output-dir", "", "Build output directory (default: uses prefix for installation)")
 	cmd.Flags().Int("jobs", 0, "Number of parallel build jobs (default: number of CPU cores)")
 	cmd.Flags().Bool("test", false, "Run Perl tests after building")
 	cmd.Flags().Bool("cleanup", true, "Clean up build directory after installation")
