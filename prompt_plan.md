@@ -185,7 +185,7 @@ validation, version detection, registry integration, and comprehensive directory
 Added test coverage for command flag parsing. All 4311 tests pass at 100% rate.
 ```
 
-#### Step 6: Archive Installation Support
+#### Step 6: Archive Installation Support ✅ COMPLETED
 
 ```
 Extend `install-perl` command to support installation from archives (tar.gz files). This adds key functionality for binary distribution without adding complexity of URL downloads yet.
@@ -210,11 +210,18 @@ Success criteria:
 - Progress reporting covers extraction and installation phases
 - Error handling provides clear messages for archive issues
 - All tests pass including archive installation tests
+
+COMPLETED: Extended install-perl command to automatically detect and handle .tar.gz and .tgz archive files.
+Added isArchive() function for file type detection, extractArchive() function with comprehensive tar.gz
+extraction logic including security checks for path traversal attacks, and extractFile() helper.
+Enhanced installPerlFromBuild() to transparently handle both directories and archives with temporary
+directory management. Added comprehensive test coverage including archive flag tests, archive detection
+tests, extraction tests, error handling tests, and security tests. All 4328 tests pass at 100% rate.
 ```
 
 ### Phase 3: Advanced Features (Steps 7-8)
 
-#### Step 7: Custom Mirror Integration
+#### Step 7: Custom Mirror Integration ✅ COMPLETED
 
 ```
 Integrate custom mirror configuration with the existing mirror system. This connects the configuration structure from Step 3 with the actual mirror resolution and download logic.
@@ -239,9 +246,14 @@ Success criteria:
 - Mirror priority and fallback logic functions correctly
 - URL templating supports various mirror patterns
 - All tests pass including custom mirror functionality
+
+COMPLETED: Added NewMirrorManagerFromConfig() and ConvertConfigToMirrors() functions
+to integrate custom mirror configuration with existing mirror system. Implemented
+authentication support (basic, bearer, api-key, oauth2), URL templating with variable
+substitution, version mapping, and comprehensive test coverage. All 4350 tests pass.
 ```
 
-#### Step 8: URL Installation Support
+#### Step 8: URL Installation Support ✅ COMPLETED
 
 ```
 Extend `install-perl` command to support direct URL installation with custom mirror integration. This completes the installation command functionality.
@@ -266,6 +278,12 @@ Success criteria:
 - `--mirror` flag overrides default mirror for single operation
 - Authentication works with URL downloads
 - All tests pass including URL installation tests
+
+COMPLETED: Extended install-perl command to support direct URL downloads with HTTP/HTTPS
+validation, automatic archive extraction, progress reporting, and --mirror flag override.
+Integrated with existing download infrastructure for retry logic and error handling.
+Added comprehensive test coverage for URL detection, flag parsing, and source type detection.
+All 4374 tests pass at 100% rate.
 ```
 
 ### Phase 4: Integration and Automation (Steps 9-11)

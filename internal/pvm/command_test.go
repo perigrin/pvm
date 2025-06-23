@@ -509,3 +509,438 @@ func createMaliciousTarGz(archivePath string) error {
 func containsString(str, substr string) bool {
 	return strings.Contains(str, substr)
 }
+
+func TestIsURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{
+			name:     "HTTP URL",
+			path:     "http://example.com/perl.tar.gz",
+			expected: true,
+		},
+		{
+			name:     "HTTPS URL",
+			path:     "https://github.com/releases/perl-5.38.0.tar.gz",
+			expected: true,
+		},
+		{
+			name:     "Local file path",
+			path:     "/path/to/perl.tar.gz",
+			expected: false,
+		},
+		{
+			name:     "Relative file path",
+			path:     "./perl.tar.gz",
+			expected: false,
+		},
+		{
+			name:     "FTP URL (not supported)",
+			path:     "ftp://example.com/perl.tar.gz",
+			expected: false,
+		},
+		{
+			name:     "File URL (not supported)",
+			path:     "file:///path/to/perl.tar.gz",
+			expected: false,
+		},
+		{
+			name:     "Empty string",
+			path:     "",
+			expected: false,
+		},
+		{
+			name:     "Invalid URL",
+			path:     "not-a-url",
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := isURL(test.path)
+			if result != test.expected {
+				t.Errorf("isURL(%q) = %v, expected %v", test.path, result, test.expected)
+			}
+		})
+	}
+}
+
+func TestInstallPerlCommandURLFlags(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "URL as positional argument",
+			args:        []string{"https://example.com/perl.tar.gz"},
+			expectError: false,
+		},
+		{
+			name:        "URL with from-build flag",
+			args:        []string{"--from-build", "https://example.com/perl.tar.gz"},
+			expectError: false,
+		},
+		{
+			name:        "URL with mirror override",
+			args:        []string{"https://example.com/perl.tar.gz", "--mirror", "https://custom-mirror.com"},
+			expectError: false,
+		},
+		{
+			name:        "URL with version override",
+			args:        []string{"https://example.com/perl.tar.gz", "--version", "5.38.0"},
+			expectError: false,
+		},
+		{
+			name:        "URL with force flag",
+			args:        []string{"https://example.com/perl.tar.gz", "--force"},
+			expectError: false,
+		},
+		{
+			name:        "URL with all flags",
+			args:        []string{"https://example.com/perl.tar.gz", "--mirror", "https://custom.com", "--version", "5.38.0", "--force"},
+			expectError: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Create a new command instance for each test
+			cmd := newInstallPerlCommand()
+
+			// Mock the RunE function to avoid actual installation
+			originalRunE := cmd.RunE
+			cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				// Validate that flags can be retrieved without error
+				_, err := cmd.Flags().GetString("from-build")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetString("version")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetBool("force")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetString("mirror")
+				if err != nil {
+					return err
+				}
+				return nil
+			}
+
+			// Test flag parsing
+			cmd.SetArgs(test.args)
+			err := cmd.Execute()
+
+			if test.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if test.errorMsg != "" && !containsString(err.Error(), test.errorMsg) {
+					t.Errorf("Expected error message to contain %q, got: %v", test.errorMsg, err)
+				}
+			} else if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			// Restore the original RunE function
+			cmd.RunE = originalRunE
+		})
+	}
+}
+
+func TestInstallPerlSourceTypeDetection(t *testing.T) {
+	tests := []struct {
+		name         string
+		source       string
+		expectedType string
+	}{
+		{
+			name:         "HTTP URL",
+			source:       "http://example.com/perl.tar.gz",
+			expectedType: "URL",
+		},
+		{
+			name:         "HTTPS URL",
+			source:       "https://github.com/releases/perl-5.38.0.tar.gz",
+			expectedType: "URL",
+		},
+		{
+			name:         "tar.gz archive",
+			source:       "/path/to/perl.tar.gz",
+			expectedType: "archive",
+		},
+		{
+			name:         "tgz archive",
+			source:       "/path/to/perl.tgz",
+			expectedType: "archive",
+		},
+		{
+			name:         "directory",
+			source:       "/path/to/perl-build",
+			expectedType: "directory",
+		},
+		{
+			name:         "current directory",
+			source:       ".",
+			expectedType: "directory",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var detectedType string
+			switch {
+			case isURL(test.source):
+				detectedType = "URL"
+			case isArchive(test.source):
+				detectedType = "archive"
+			default:
+				detectedType = "directory"
+			}
+
+			if detectedType != test.expectedType {
+				t.Errorf("Source %q detected as %q, expected %q", test.source, detectedType, test.expectedType)
+			}
+		})
+	}
+}
+
+func TestInstallPerlCommandIntegration(t *testing.T) {
+	// Create a new command instance
+	cmd := newInstallPerlCommand()
+
+	// Verify the command structure
+	if cmd.Use != "install-perl" {
+		t.Errorf("Expected command use to be 'install-perl', got %q", cmd.Use)
+	}
+
+	if !containsString(cmd.Short, "archive") || !containsString(cmd.Short, "URL") {
+		t.Errorf("Expected command short description to mention both archive and URL support, got %q", cmd.Short)
+	}
+
+	if !containsString(cmd.Long, "URL") {
+		t.Errorf("Expected command long description to mention URL support, got %q", cmd.Long)
+	}
+
+	// Verify flags exist
+	flags := []string{"from-build", "version", "force", "mirror"}
+	for _, flagName := range flags {
+		flag := cmd.Flags().Lookup(flagName)
+		if flag == nil {
+			t.Errorf("Expected flag %q to exist", flagName)
+		}
+	}
+
+	// Verify mirror flag is a string flag
+	mirrorFlag := cmd.Flags().Lookup("mirror")
+	if mirrorFlag.Value.Type() != "string" {
+		t.Errorf("Expected mirror flag to be string type, got %q", mirrorFlag.Value.Type())
+	}
+}
+
+func TestExtractVersionFromURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		expected string
+	}{
+		{
+			name:     "Standard Perl archive",
+			url:      "https://example.com/perl-5.38.0.tar.gz",
+			expected: "5.38.0",
+		},
+		{
+			name:     "Perl archive with v prefix",
+			url:      "https://github.com/releases/perl-v5.38.0.tar.gz",
+			expected: "5.38.0",
+		},
+		{
+			name:     "Version with v prefix only",
+			url:      "https://example.com/v5.38.0.tar.gz",
+			expected: "5.38.0",
+		},
+		{
+			name:     "Version only",
+			url:      "https://example.com/5.38.0.tar.gz",
+			expected: "5.38.0",
+		},
+		{
+			name:     "Complex path",
+			url:      "https://example.com/sources/perl/perl-5.36.1.tar.bz2",
+			expected: "5.36.1",
+		},
+		{
+			name:     "No version in URL",
+			url:      "https://example.com/perl-source.tar.gz",
+			expected: "",
+		},
+		{
+			name:     "Invalid URL",
+			url:      "not-a-url",
+			expected: "",
+		},
+		{
+			name:     "tgz extension",
+			url:      "https://example.com/perl-5.40.0.tgz",
+			expected: "5.40.0",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := extractVersionFromURL(test.url)
+			if result != test.expected {
+				t.Errorf("extractVersionFromURL(%q) = %q, expected %q", test.url, result, test.expected)
+			}
+		})
+	}
+}
+
+func TestBuildPerlCommandURLSupport(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "URL as positional argument",
+			args:        []string{"https://example.com/perl-5.38.0.tar.gz"},
+			expectError: false,
+		},
+		{
+			name:        "Version as positional argument",
+			args:        []string{"5.38.0"},
+			expectError: false,
+		},
+		{
+			name:        "URL with build-only flag",
+			args:        []string{"https://example.com/perl.tar.gz", "--build-only"},
+			expectError: false,
+		},
+		{
+			name:        "URL with output directory",
+			args:        []string{"https://example.com/perl.tar.gz", "--output-dir", "/tmp/perl-build"},
+			expectError: false,
+		},
+		{
+			name:        "URL with configure options",
+			args:        []string{"https://example.com/perl.tar.gz", "--configure-options", "-Dusethreads"},
+			expectError: false,
+		},
+		{
+			name:        "No arguments",
+			args:        []string{},
+			expectError: true,
+			errorMsg:    "accepts 1 arg(s), received 0",
+		},
+		{
+			name:        "Too many arguments",
+			args:        []string{"5.38.0", "extra"},
+			expectError: true,
+			errorMsg:    "accepts 1 arg(s), received 2",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Create a new command instance for each test
+			cmd := newBuildPerlCommand()
+
+			// Mock the RunE function to avoid actual building
+			originalRunE := cmd.RunE
+			cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				// Validate that flags can be retrieved without error
+				_, err := cmd.Flags().GetString("source")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetString("prefix")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetString("output-dir")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetInt("jobs")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetBool("test")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetBool("cleanup")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetBool("build-only")
+				if err != nil {
+					return err
+				}
+				_, err = cmd.Flags().GetStringArray("configure-options")
+				if err != nil {
+					return err
+				}
+				return nil
+			}
+
+			// Test flag parsing
+			cmd.SetArgs(test.args)
+			err := cmd.Execute()
+
+			if test.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if test.errorMsg != "" && !containsString(err.Error(), test.errorMsg) {
+					t.Errorf("Expected error message to contain %q, got: %v", test.errorMsg, err)
+				}
+			} else if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			// Restore the original RunE function
+			cmd.RunE = originalRunE
+		})
+	}
+}
+
+func TestBuildPerlCommandIntegration(t *testing.T) {
+	// Create a new command instance
+	cmd := newBuildPerlCommand()
+
+	// Verify the command structure
+	if cmd.Use != "build-perl [version|URL]" {
+		t.Errorf("Expected command use to be 'build-perl [version|URL]', got %q", cmd.Use)
+	}
+
+	if !containsString(cmd.Short, "URL") {
+		t.Errorf("Expected command short description to mention URL support, got %q", cmd.Short)
+	}
+
+	if !containsString(cmd.Long, "URL") {
+		t.Errorf("Expected command long description to mention URL support, got %q", cmd.Long)
+	}
+
+	// Verify required flags exist
+	requiredFlags := []string{"source", "prefix", "output-dir", "jobs", "test", "cleanup", "build-only", "configure-options"}
+	for _, flagName := range requiredFlags {
+		flag := cmd.Flags().Lookup(flagName)
+		if flag == nil {
+			t.Errorf("Expected flag %q to exist", flagName)
+		}
+	}
+
+	// Verify exact args requirement
+	if cmd.Args == nil {
+		t.Error("Expected command to have Args validation")
+	}
+}

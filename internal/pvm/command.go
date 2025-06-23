@@ -6,11 +6,14 @@ package pvm
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -20,6 +23,7 @@ import (
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/current"
+	"tamarou.com/pvm/internal/download"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/pvi"
@@ -72,16 +76,17 @@ func NewCommand() *cobra.Command {
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
 		newDownloadCommand(),
-		newUpdateCommand(),      // Self-updater functionality
-		newAutoUpdateCommand(),  // Auto-update configuration and management
-		NewBuildCommand(),       // Unified build system with PSC integration
-		newBuildPerlCommand(),   // Build Perl from source (split from old build command)
-		newInstallPerlCommand(), // Install Perl from build directories
-		newRunCommand(),         // New unified run command (incorporates PVX)
-		newModuleCommand(),      // New unified module command (incorporates PVI)
-		newProjectCommand(),     // New project management command
-		newDevCommand(),         // Development environment command
-		newTestCommand(),        // Test execution command
+		newUpdateCommand(),       // Self-updater functionality
+		newAutoUpdateCommand(),   // Auto-update configuration and management
+		NewBuildCommand(),        // Unified build system with PSC integration
+		newBuildPerlCommand(),    // Build Perl from source (split from old build command)
+		newInstallPerlCommand(),  // Install Perl from build directories
+		newUploadBinaryCommand(), // Upload binary archives to mirrors
+		newRunCommand(),          // New unified run command (incorporates PVX)
+		newModuleCommand(),       // New unified module command (incorporates PVI)
+		newProjectCommand(),      // New project management command
+		newDevCommand(),          // Development environment command
+		newTestCommand(),         // Test execution command
 		newExecCommand(),
 		newUninstallCommand(),
 		newImportSystemCommand(),
@@ -1308,16 +1313,121 @@ func isPerlVersion(s string) bool {
 	return false
 }
 
+// extractVersionFromURL attempts to extract a version number from a URL filename
+func extractVersionFromURL(downloadURL string) string {
+	// Parse the URL to get the filename
+	u, err := url.Parse(downloadURL)
+	if err != nil {
+		return ""
+	}
+
+	filename := filepath.Base(u.Path)
+
+	// Common patterns for Perl source archives:
+	// perl-5.38.0.tar.gz, perl-5.38.0.tar.bz2, perl-5.38.0.tgz
+	// Also handle: v5.38.0.tar.gz, 5.38.0.tar.gz
+	patterns := []string{
+		`perl-(\d+\.\d+\.\d+)`,
+		`perl-v(\d+\.\d+\.\d+)`,
+		`v(\d+\.\d+\.\d+)`,
+		`(\d+\.\d+\.\d+)`,
+	}
+
+	for _, pattern := range patterns {
+		re := regexp.MustCompile(pattern)
+		matches := re.FindStringSubmatch(filename)
+		if len(matches) > 1 {
+			return matches[1]
+		}
+	}
+
+	return ""
+}
+
+// extractVersionFromArchive attempts to extract version from archive contents
+func extractVersionFromArchive(archivePath string) (string, error) {
+	// Open the archive and look for version indicators
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// For tar.gz files, check the top-level directory name
+	if strings.HasSuffix(strings.ToLower(archivePath), ".tar.gz") ||
+		strings.HasSuffix(strings.ToLower(archivePath), ".tgz") {
+
+		gzReader, err := gzip.NewReader(file)
+		if err != nil {
+			return "", err
+		}
+		defer gzReader.Close()
+
+		tarReader := tar.NewReader(gzReader)
+
+		// Read the first entry to get the top-level directory
+		header, err := tarReader.Next()
+		if err != nil {
+			return "", err
+		}
+
+		// Extract version from top-level directory name (e.g., "perl-5.38.0/")
+		dirName := strings.Split(header.Name, "/")[0]
+		return extractVersionFromURL(dirName), nil
+	}
+
+	return "", fmt.Errorf("unsupported archive format")
+}
+
 // buildPerlFromSource handles building Perl from source
-func buildPerlFromSource(cmd *cobra.Command, version string) error {
-	if version == "" {
-		return fmt.Errorf("version required for Perl source build")
+func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
+	if versionOrURL == "" {
+		return fmt.Errorf("version or URL required for Perl source build")
 	}
 
 	// Get flags
 	sourceFile, err := cmd.Flags().GetString("source")
 	if err != nil {
 		return err
+	}
+
+	// Get UI for progress reporting
+	ui := cli.GetUI(cmd)
+
+	// Handle URL downloads
+	var actualVersion string
+	var actualSourceFile string
+	var tempDownloadFile string
+
+	if isURL(versionOrURL) {
+		ui.Info("Detected URL: %s", versionOrURL)
+
+		// Download the URL to a temporary file
+		tempDownloadFile, err = downloadFromURL(versionOrURL, "", ui)
+		if err != nil {
+			return fmt.Errorf("failed to download source from URL: %w", err)
+		}
+		defer os.Remove(tempDownloadFile)
+
+		// Use the downloaded file as the source
+		actualSourceFile = tempDownloadFile
+
+		// Try to extract version from URL filename
+		actualVersion = extractVersionFromURL(versionOrURL)
+		if actualVersion == "" {
+			// If we can't extract version from URL, try to extract from archive
+			actualVersion, err = extractVersionFromArchive(tempDownloadFile)
+			if err != nil {
+				ui.Warning("Could not detect version from URL or archive contents")
+				actualVersion = "custom"
+			}
+		}
+
+		ui.Info("Detected version: %s", actualVersion)
+	} else {
+		// Traditional version-based or local file build
+		actualVersion = versionOrURL
+		actualSourceFile = sourceFile
 	}
 
 	installDir, err := cmd.Flags().GetString("prefix")
@@ -1356,7 +1466,6 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 	}
 
 	// Create progress callback to display build progress
-	ui := cli.GetUI(cmd)
 	var currentStage perl.BuildProgressStage
 	progressCallback := func(stage perl.BuildProgressStage, details string, progress float64) {
 		// Only print stage transition once
@@ -1423,8 +1532,8 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 
 	// Create build options
 	options := &perl.BuildOptions{
-		Version:          version,
-		SourceFile:       sourceFile,
+		Version:          actualVersion,
+		SourceFile:       actualSourceFile,
 		InstallDir:       finalInstallDir,
 		BuildJobs:        buildJobs,
 		RunTests:         runTests,
@@ -1436,10 +1545,10 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 	}
 
 	// Print build information
-	ui.Info("Building Perl %s from source...", version)
+	ui.Info("Building Perl %s from source...", actualVersion)
 
-	if sourceFile != "" {
-		ui.Info("Using source file: %s", sourceFile)
+	if actualSourceFile != "" {
+		ui.Info("Using source file: %s", actualSourceFile)
 	}
 
 	if outputDir != "" {
@@ -1496,7 +1605,58 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 	return nil
 }
 
-// installPerlFromBuild installs Perl from a build directory
+// isURL checks if the given path is a URL
+func isURL(path string) bool {
+	u, err := url.Parse(path)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https")
+}
+
+// downloadFromURL downloads a file from URL to temporary directory
+func downloadFromURL(downloadURL, mirrorOverride string, uiOutput *ui.Output) (string, error) {
+	uiOutput.Info("Downloading from URL: %s", downloadURL)
+
+	// Create temporary file for download
+	tmpFile, err := os.CreateTemp("", "pvm-install-*.tar.gz")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	// Create downloader
+	downloader := download.NewDownloader()
+
+	// Set up progress callback
+	progressCallback := func(total, transferred int64, done bool) {
+		if total > 0 {
+			percentage := float64(transferred) / float64(total) * 100
+			uiOutput.Info("Download progress: %.1f%% (%d/%d bytes)", percentage, transferred, total)
+		} else {
+			uiOutput.Info("Downloaded: %d bytes", transferred)
+		}
+	}
+
+	// Download the file
+	options := &download.DownloadOptions{
+		URL:              downloadURL,
+		DestinationPath:  tmpFile.Name(),
+		ProgressCallback: progressCallback,
+		Context:          context.Background(),
+		Resume:           true,
+		MaxRetries:       3,
+		RetryDelay:       2 * time.Second,
+	}
+
+	result, err := downloader.Download(options)
+	if err != nil {
+		os.Remove(tmpFile.Name())
+		return "", fmt.Errorf("failed to download from URL: %w", err)
+	}
+
+	uiOutput.Success("Download completed successfully (%d bytes)", result.Size)
+	return tmpFile.Name(), nil
+}
+
+// installPerlFromBuild installs Perl from a build directory, archive, or URL
 func installPerlFromBuild(cmd *cobra.Command, args []string) error {
 	// Get flags
 	buildDir, err := cmd.Flags().GetString("from-build")
@@ -1514,31 +1674,88 @@ func installPerlFromBuild(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Determine source directory
-	var sourceDir string
+	mirrorOverride, err := cmd.Flags().GetString("mirror")
+	if err != nil {
+		return err
+	}
+
+	// Determine source (URL, archive, or directory)
+	var source string
 	switch {
 	case buildDir != "":
-		sourceDir = buildDir
+		source = buildDir
 	case len(args) > 0:
-		sourceDir = args[0]
+		source = args[0]
 	default:
-		return fmt.Errorf("no build directory specified - use --from-build flag or provide directory as argument")
+		return fmt.Errorf("no source specified - use --from-build flag or provide directory/archive/URL as argument")
 	}
 
 	// Get UI for progress reporting
 	ui := cli.GetUI(cmd)
 
-	ui.Info("Installing Perl from build directory: %s", sourceDir)
+	// Handle different source types
+	var sourceDir string
+	var tempDir string
+	var downloadedFile string
 
-	// Validate the build directory contains a complete Perl installation
-	ui.Info("Validating build directory...")
+	switch {
+	case isURL(source):
+		ui.Info("Installing Perl from URL: %s", source)
+
+		// Download from URL
+		downloadedFile, err = downloadFromURL(source, mirrorOverride, ui)
+		if err != nil {
+			return fmt.Errorf("failed to download from URL: %w", err)
+		}
+		defer os.Remove(downloadedFile)
+
+		// Extract the downloaded archive
+		tempDir, err = os.MkdirTemp("", "pvm-install-extract-*")
+		if err != nil {
+			return fmt.Errorf("failed to create temporary directory: %w", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		ui.Info("Extracting downloaded archive...")
+		err = extractArchive(downloadedFile, tempDir)
+		if err != nil {
+			return fmt.Errorf("failed to extract downloaded archive: %w", err)
+		}
+
+		sourceDir = tempDir
+
+	case isArchive(source):
+		ui.Info("Installing Perl from archive: %s", source)
+
+		// Extract the archive
+		tempDir, err = os.MkdirTemp("", "pvm-install-extract-*")
+		if err != nil {
+			return fmt.Errorf("failed to create temporary directory: %w", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		ui.Info("Extracting archive...")
+		err = extractArchive(source, tempDir)
+		if err != nil {
+			return fmt.Errorf("failed to extract archive: %w", err)
+		}
+
+		sourceDir = tempDir
+
+	default:
+		ui.Info("Installing Perl from build directory: %s", source)
+		sourceDir = source
+	}
+
+	// Validate the source directory contains a complete Perl installation
+	ui.Info("Validating Perl installation...")
 	valid, warnings, err := perl.ValidateBinaryInstallation(sourceDir)
 	if err != nil {
-		return fmt.Errorf("failed to validate build directory: %w", err)
+		return fmt.Errorf("failed to validate Perl installation: %w", err)
 	}
 
 	if !valid {
-		return fmt.Errorf("build directory does not contain a valid Perl installation")
+		return fmt.Errorf("source does not contain a valid Perl installation")
 	}
 
 	// Print any warnings
@@ -1555,8 +1772,8 @@ func installPerlFromBuild(cmd *cobra.Command, args []string) error {
 	detectedVersion := versionOverride
 	if detectedVersion == "" {
 		ui.Info("Detecting Perl version...")
-		cmd := exec.Command(perlPath, "-e", "print $^V")
-		output, err := cmd.Output()
+		execCmd := exec.Command(perlPath, "-e", "print $^V")
+		output, err := execCmd.Output()
 		if err != nil {
 			return fmt.Errorf("failed to detect Perl version: %w", err)
 		}
@@ -1598,7 +1815,7 @@ func installPerlFromBuild(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create installation directory: %w", err)
 	}
 
-	// Copy the build directory to the installation directory
+	// Copy the source directory to the installation directory
 	ui.Info("Copying Perl installation...")
 	err = copyDirectory(sourceDir, installDir)
 	if err != nil {
@@ -1919,13 +2136,13 @@ func newShellCommand() *cobra.Command {
 // newBuildPerlCommand creates a command for building Perl from source (moved from old build command)
 func newBuildPerlCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "build-perl [version]",
-		Short: "Build Perl from source",
-		Long:  "Build and install Perl from source code",
+		Use:   "build-perl [version|URL]",
+		Short: "Build Perl from source, URL, or version",
+		Long:  "Build and install Perl from source code, direct URL, or official version release",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			version := args[0]
-			return buildPerlFromSource(cmd, version)
+			versionOrURL := args[0]
+			return buildPerlFromSource(cmd, versionOrURL)
 		},
 	}
 
@@ -1946,8 +2163,8 @@ func newBuildPerlCommand() *cobra.Command {
 func newInstallPerlCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install-perl",
-		Short: "Install Perl from build directory or archive",
-		Long:  "Install Perl from a previously built directory or archive (.tar.gz) into PVM's version management system",
+		Short: "Install Perl from build directory, archive, or URL",
+		Long:  "Install Perl from a previously built directory, archive (.tar.gz), or direct URL into PVM's version management system",
 		RunE:  installPerlFromBuild,
 	}
 
@@ -1955,6 +2172,7 @@ func newInstallPerlCommand() *cobra.Command {
 	cmd.Flags().String("from-build", "", "Install from build directory")
 	cmd.Flags().String("version", "", "Override version detection (optional)")
 	cmd.Flags().Bool("force", false, "Force installation even if version already exists")
+	cmd.Flags().String("mirror", "", "Override mirror for URL downloads")
 
 	return cmd
 }
@@ -3426,4 +3644,385 @@ func shimStatus(cmd *cobra.Command) error {
 	}
 
 	return nil
+}
+
+// newUploadBinaryCommand creates the upload-binary command
+func newUploadBinaryCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "upload-binary [directory]",
+		Short: "Upload binary archives to GitHub releases and custom mirrors",
+		Long: `Upload built Perl binaries to distribution mirrors.
+
+Supports uploading to:
+- GitHub releases with authentication
+- Custom mirrors configured in PVM settings
+- Direct HTTP endpoints with various authentication methods
+
+The command can create archives from build directories or upload existing archives.`,
+		Args: cobra.ExactArgs(1),
+		RunE: uploadBinaryCommand,
+	}
+
+	// Upload target configuration
+	cmd.Flags().String("version", "", "Perl version for upload (auto-detected if not specified)")
+	cmd.Flags().String("platform", "", "Target platform (auto-detected if not specified)")
+	cmd.Flags().String("mirror", "", "Specific mirror to upload to (default: all configured mirrors)")
+	cmd.Flags().String("archive", "", "Upload existing archive file instead of creating from directory")
+
+	// GitHub-specific options
+	cmd.Flags().String("github-token", "", "GitHub API token for authentication")
+	cmd.Flags().String("github-repo", "", "GitHub repository (format: owner/repo)")
+	cmd.Flags().String("release-tag", "", "GitHub release tag (created if doesn't exist)")
+	cmd.Flags().Bool("draft-release", false, "Create release as draft")
+	cmd.Flags().Bool("prerelease", false, "Mark release as prerelease")
+
+	// Archive creation options
+	cmd.Flags().Bool("create-archive", true, "Create archive from directory")
+	cmd.Flags().String("output-archive", "", "Output path for created archive")
+	cmd.Flags().String("compression", "gz", "Compression type: gz, bz2, xz")
+
+	// Upload behavior
+	cmd.Flags().Bool("verify-upload", true, "Verify upload by downloading and checking")
+	cmd.Flags().Bool("force", false, "Force upload even if version already exists")
+	cmd.Flags().Int("max-retries", 3, "Maximum upload retry attempts")
+	cmd.Flags().String("timeout", "10m", "Upload timeout")
+
+	return cmd
+}
+
+// uploadBinaryCommand implements the upload-binary command functionality
+func uploadBinaryCommand(cmd *cobra.Command, args []string) error {
+	ui := cli.GetUI(cmd)
+	sourcePath := args[0]
+
+	// Get flags
+	version, _ := cmd.Flags().GetString("version")
+	platform, _ := cmd.Flags().GetString("platform")
+	mirror, _ := cmd.Flags().GetString("mirror")
+	archivePath, _ := cmd.Flags().GetString("archive")
+	createArchive, _ := cmd.Flags().GetBool("create-archive")
+	outputArchive, _ := cmd.Flags().GetString("output-archive")
+	githubToken, _ := cmd.Flags().GetString("github-token")
+	githubRepo, _ := cmd.Flags().GetString("github-repo")
+	releaseTag, _ := cmd.Flags().GetString("release-tag")
+	draftRelease, _ := cmd.Flags().GetBool("draft-release")
+	prerelease, _ := cmd.Flags().GetBool("prerelease")
+	verifyUpload, _ := cmd.Flags().GetBool("verify-upload")
+	force, _ := cmd.Flags().GetBool("force")
+	maxRetries, _ := cmd.Flags().GetInt("max-retries")
+	timeoutStr, _ := cmd.Flags().GetString("timeout")
+
+	// Parse timeout
+	timeout, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		return fmt.Errorf("invalid timeout format: %w", err)
+	}
+
+	// Validate inputs
+	if archivePath != "" && createArchive {
+		return fmt.Errorf("cannot specify both --archive and --create-archive")
+	}
+
+	if archivePath == "" && !createArchive {
+		return fmt.Errorf("must specify either --archive or --create-archive")
+	}
+
+	// Auto-detect platform if not specified
+	if platform == "" {
+		platform = fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+	}
+
+	ui.Info("Starting binary upload process...")
+	ui.Info("Source: %s", sourcePath)
+	ui.Info("Platform: %s", platform)
+
+	var finalArchivePath string
+
+	// Handle archive creation or use existing archive
+	if createArchive {
+		// Validate source directory
+		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+			return fmt.Errorf("source directory does not exist: %s", sourcePath)
+		}
+
+		// Auto-detect version if not specified
+		if version == "" {
+			detectedVersion, err := detectVersionFromDirectory(sourcePath)
+			if err != nil {
+				return fmt.Errorf("failed to detect version from directory: %w", err)
+			}
+			version = detectedVersion
+			ui.Info("Detected version: %s", version)
+		}
+
+		// Create archive
+		if outputArchive == "" {
+			outputArchive = fmt.Sprintf("perl-%s-%s.tar.gz", version, platform)
+		}
+
+		ui.Info("Creating archive: %s", outputArchive)
+		if err := createTarGzArchive(sourcePath, outputArchive); err != nil {
+			return fmt.Errorf("failed to create archive: %w", err)
+		}
+
+		finalArchivePath = outputArchive
+	} else {
+		finalArchivePath = archivePath
+
+		// Validate archive exists
+		if _, err := os.Stat(finalArchivePath); os.IsNotExist(err) {
+			return fmt.Errorf("archive file does not exist: %s", finalArchivePath)
+		}
+
+		// Auto-detect version from archive name if not specified
+		if version == "" {
+			detectedVersion := detectVersionFromArchiveName(finalArchivePath)
+			if detectedVersion == "" {
+				return fmt.Errorf("could not detect version from archive name, please specify --version")
+			}
+			version = detectedVersion
+			ui.Info("Detected version from archive name: %s", version)
+		}
+	}
+
+	ui.Info("Archive ready: %s", finalArchivePath)
+
+	// Handle GitHub upload
+	if githubRepo != "" {
+		if githubToken == "" {
+			return fmt.Errorf("GitHub token required for GitHub uploads (use --github-token)")
+		}
+
+		if releaseTag == "" {
+			releaseTag = fmt.Sprintf("perl-%s", version)
+		}
+
+		ui.Info("Uploading to GitHub: %s", githubRepo)
+		ui.Info("Release tag: %s", releaseTag)
+
+		if err := uploadToGitHub(finalArchivePath, githubRepo, githubToken, releaseTag, draftRelease, prerelease, ui); err != nil {
+			return fmt.Errorf("GitHub upload failed: %w", err)
+		}
+
+		ui.Success("Successfully uploaded to GitHub")
+	}
+
+	// Handle custom mirror uploads
+	if mirror != "" || (githubRepo == "" && mirror == "") {
+		ui.Info("Uploading to custom mirrors...")
+		if err := uploadToCustomMirrors(finalArchivePath, version, platform, mirror, force, maxRetries, timeout, ui); err != nil {
+			return fmt.Errorf("custom mirror upload failed: %w", err)
+		}
+		ui.Success("Successfully uploaded to custom mirrors")
+	}
+
+	// Verify upload if requested
+	if verifyUpload {
+		ui.Info("Verifying uploads...")
+		if err := verifyUploadedBinary(finalArchivePath, version, platform, ui); err != nil {
+			ui.Warning("Upload verification failed: %v", err)
+			ui.Warning("Binary was uploaded but verification failed - please check manually")
+		} else {
+			ui.Success("Upload verification successful")
+		}
+	}
+
+	ui.Success("Binary upload completed successfully")
+	return nil
+}
+
+// detectVersionFromDirectory detects Perl version from a build directory
+func detectVersionFromDirectory(dir string) (string, error) {
+	// Look for version information in typical Perl build locations
+
+	// Try to find perl binary and get version
+	perlBin := filepath.Join(dir, "bin", "perl")
+	if _, err := os.Stat(perlBin); err == nil {
+		// Run perl -v to get version
+		cmd := exec.Command(perlBin, "-v")
+		output, err := cmd.Output()
+		if err == nil {
+			// Parse version from output (e.g., "This is perl 5, version 38, subversion 0")
+			lines := strings.Split(string(output), "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "This is perl") {
+					// Extract version using regex
+					re := regexp.MustCompile(`version\s+(\d+),\s+subversion\s+(\d+)`)
+					matches := re.FindStringSubmatch(line)
+					if len(matches) >= 3 {
+						return fmt.Sprintf("5.%s.%s", matches[1], matches[2]), nil
+					}
+				}
+			}
+		}
+	}
+
+	// Try to find version in directory name
+	dirName := filepath.Base(dir)
+	if strings.Contains(dirName, "perl-") {
+		parts := strings.Split(dirName, "perl-")
+		if len(parts) > 1 {
+			version := parts[1]
+			// Remove any trailing platform info
+			if idx := strings.Index(version, "-"); idx != -1 {
+				version = version[:idx]
+			}
+			return version, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not detect version from directory")
+}
+
+// detectVersionFromArchiveName detects version from archive filename
+func detectVersionFromArchiveName(filename string) string {
+	base := filepath.Base(filename)
+
+	// Remove extensions
+	base = strings.TrimSuffix(base, ".tar.gz")
+	base = strings.TrimSuffix(base, ".tgz")
+
+	// Look for perl-version pattern
+	if strings.HasPrefix(base, "perl-") {
+		parts := strings.Split(base, "-")
+		if len(parts) >= 2 {
+			// Return the version part (should be parts[1])
+			version := parts[1]
+			// Handle case where platform is also in the name
+			if len(parts) > 2 {
+				// Check if parts[2] looks like a platform (contains os/arch info)
+				if strings.Contains(parts[2], "linux") || strings.Contains(parts[2], "darwin") ||
+					strings.Contains(parts[2], "windows") || strings.Contains(parts[2], "amd64") ||
+					strings.Contains(parts[2], "arm64") {
+					return version
+				}
+			}
+			return version
+		}
+	}
+
+	return ""
+}
+
+// createTarGzArchive creates a tar.gz archive from a directory
+func createTarGzArchive(sourceDir, outputPath string) error {
+	// Create output file
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create archive file: %w", err)
+	}
+	defer file.Close()
+
+	// Create gzip writer
+	gzipWriter := gzip.NewWriter(file)
+	defer gzipWriter.Close()
+
+	// Create tar writer
+	tarWriter := tar.NewWriter(gzipWriter)
+	defer tarWriter.Close()
+
+	// Walk the source directory
+	return filepath.Walk(sourceDir, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Get relative path
+		relPath, err := filepath.Rel(sourceDir, filePath)
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		// Create tar header
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+
+		// Set the name to the relative path
+		header.Name = relPath
+
+		// Write header
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+
+		// Write file content for regular files
+		if info.Mode().IsRegular() {
+			file, err := os.Open(filePath)
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+
+			_, err = io.Copy(tarWriter, file)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+// uploadToGitHub uploads an archive to GitHub releases
+func uploadToGitHub(archivePath, repo, token, releaseTag string, draft, prerelease bool, ui *ui.Output) error {
+	// This is a simplified implementation - in a real scenario you'd use the GitHub API
+	ui.Info("GitHub upload functionality not yet implemented")
+	ui.Info("Would upload %s to %s with tag %s", archivePath, repo, releaseTag)
+
+	// TODO: Implement actual GitHub API integration
+	// - Create release if it doesn't exist
+	// - Upload asset to release
+	// - Set draft/prerelease flags
+
+	return fmt.Errorf("GitHub upload not yet implemented - this is a placeholder")
+}
+
+// uploadToCustomMirrors uploads to configured custom mirrors
+func uploadToCustomMirrors(archivePath, version, platform, specificMirror string, force bool, maxRetries int, timeout time.Duration, ui *ui.Output) error {
+	// This is a simplified implementation - in a real scenario you'd:
+	// 1. Load PVM configuration to get custom mirrors
+	// 2. Filter by specificMirror if provided
+	// 3. For each mirror, perform upload with authentication
+	// 4. Handle retries and timeouts
+
+	ui.Info("Custom mirror upload functionality not yet implemented")
+	ui.Info("Would upload %s (version %s, platform %s)", archivePath, version, platform)
+
+	if specificMirror != "" {
+		ui.Info("Target mirror: %s", specificMirror)
+	} else {
+		ui.Info("Target: all configured custom mirrors")
+	}
+
+	// TODO: Implement actual custom mirror upload
+	// - Load configuration
+	// - Authenticate with mirrors
+	// - Upload with retry logic
+
+	return fmt.Errorf("custom mirror upload not yet implemented - this is a placeholder")
+}
+
+// verifyUploadedBinary verifies that an uploaded binary can be downloaded and matches
+func verifyUploadedBinary(originalPath, version, platform string, ui *ui.Output) error {
+	// This is a simplified implementation - in a real scenario you'd:
+	// 1. Download the binary from the uploaded location
+	// 2. Compare checksums or file contents
+	// 3. Optionally test that the binary works
+
+	ui.Info("Upload verification functionality not yet implemented")
+	ui.Info("Would verify uploaded binary for version %s, platform %s", version, platform)
+
+	// TODO: Implement actual verification
+	// - Download from mirrors
+	// - Compare checksums
+	// - Test binary functionality
+
+	return fmt.Errorf("upload verification not yet implemented - this is a placeholder")
 }
