@@ -332,7 +332,7 @@ func TestBuildPerlFailedConfigure(t *testing.T) {
 // TestBuildPerlPlatformOptions tests platform-specific configure options
 func TestBuildPerlPlatformOptions(t *testing.T) {
 	// Get platform-specific configure options
-	options, err := getPlatformConfigureOptions()
+	options, err := getPlatformConfigureOptions(false)
 
 	// Verify results
 	require.NoError(t, err)

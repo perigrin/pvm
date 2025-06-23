@@ -348,7 +348,7 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	configureOptions = append(configureOptions, options.ConfigureOptions...)
 
 	// Add platform-specific configure options
-	platformOptions, err := getPlatformConfigureOptions()
+	platformOptions, err := getPlatformConfigureOptions(options.BuildOnly)
 	if err != nil {
 		return nil, errors.NewVersionError(
 			ErrInvalidBuildOptions,
@@ -745,19 +745,25 @@ func doRunCommandWithProgress(
 }
 
 // getPlatformConfigureOptions returns platform-specific options for the Configure script
-func getPlatformConfigureOptions() ([]string, error) {
+func getPlatformConfigureOptions(buildOnly bool) ([]string, error) {
 	options := []string{}
 
 	switch runtime.GOOS {
 	case "darwin":
 		// macOS-specific options
-		options = append(options,
-			"-Duseshrplib",          // Build shared libperl
+		baseOptions := []string{
 			"-Dusedtrace",           // Enable dtrace support
 			"-Dusethreads",          // Enable threads
 			"-Duselargefiles",       // Enable large file support
 			"-Dccflags=-DHAS_TIMES", // Fix for macOS time handling
-		)
+		}
+
+		// Only add shared library support if not doing relocatable build
+		if !buildOnly {
+			baseOptions = append(baseOptions, "-Duseshrplib") // Build shared libperl
+		}
+
+		options = append(options, baseOptions...)
 
 		// Check if we're on Apple Silicon (arm64)
 		if runtime.GOARCH == "arm64" {
@@ -769,22 +775,34 @@ func getPlatformConfigureOptions() ([]string, error) {
 
 	case "linux":
 		// Linux-specific options
-		options = append(options,
-			"-Duseshrplib",       // Build shared libperl
+		baseOptions := []string{
 			"-Duselargefiles",    // Enable large file support
 			"-Dcccdlflags=-fPIC", // Position-independent code for shared libs
-		)
+		}
+
+		// Only add shared library support if not doing relocatable build
+		if !buildOnly {
+			baseOptions = append(baseOptions, "-Duseshrplib") // Build shared libperl
+		}
+
+		options = append(options, baseOptions...)
 
 	case "windows":
 		// Windows-specific options
 		// Note: Building Perl on Windows is complex and may require
 		// different approaches depending on the build environment
 		// For simplicity, we'll assume using MinGW/MSYS2 here
-		options = append(options,
-			"-Duseshrplib",  // Build shared libperl
+		baseOptions := []string{
 			"-Duseithreads", // Use POSIX threads
 			"-Dcc=gcc",      // Use gcc compiler
-		)
+		}
+
+		// Only add shared library support if not doing relocatable build
+		if !buildOnly {
+			baseOptions = append(baseOptions, "-Duseshrplib") // Build shared libperl
+		}
+
+		options = append(options, baseOptions...)
 	}
 
 	return options, nil
