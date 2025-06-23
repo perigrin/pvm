@@ -322,7 +322,7 @@ version detection functions, and placeholder upload functions for GitHub and
 custom mirrors. Added complete test coverage with 4406/4408 tests passing.
 ```
 
-#### Step 10: Build-Upload Integration
+#### Step 10: Build-Upload Integration ✅ COMPLETED
 
 ```
 Add `--upload` flag to `build-perl` command to enable direct build-and-upload workflow. This streamlines the binary publishing process.
@@ -347,6 +347,12 @@ Success criteria:
 - Upload can be disabled for testing (build-only)
 - Configuration supports default upload targets
 - All tests pass including integrated workflow tests
+
+COMPLETED: Added --upload flag and comprehensive upload integration to build-perl command.
+Implemented performUpload function that integrates with existing upload-binary logic.
+Added validation requiring --build-only with --upload, platform matrix support foundation,
+and comprehensive test coverage for flag validation and integration scenarios.
+All 4418 tests pass at 100% rate.
 ```
 
 #### Step 11: GitHub Actions Workflow
