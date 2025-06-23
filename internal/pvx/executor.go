@@ -973,6 +973,9 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 	// Store the isolation directory in options for potential cleanup
 	options.IsolationDir = isolationDir
 
+	// Set PVM_ISOLATION_DIR environment variable for scripts to use
+	setEnvVar(&env, "PVM_ISOLATION_DIR", isolationDir)
+
 	// Generate shims for named environments
 	if options.EnvName != "" {
 		err := generateEnvironmentShims(options, isolationDir)
