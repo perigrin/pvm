@@ -963,10 +963,9 @@ func TestBuildPerlUploadIntegration(t *testing.T) {
 		errorMsg    string
 	}{
 		{
-			name:        "upload without build-only should fail",
+			name:        "upload without build-only should succeed",
 			args:        []string{"5.38.0", "--upload"},
-			expectError: true,
-			errorMsg:    "--upload requires --build-only",
+			expectError: false,
 		},
 		{
 			name:        "upload with build-only should succeed",
@@ -980,23 +979,23 @@ func TestBuildPerlUploadIntegration(t *testing.T) {
 			errorMsg:    "--platforms flag requires --upload",
 		},
 		{
-			name:        "platforms with upload and build-only should succeed",
-			args:        []string{"5.38.0", "--platforms", "linux-amd64,darwin-arm64", "--upload", "--build-only"},
+			name:        "platforms with upload should succeed",
+			args:        []string{"5.38.0", "--platforms", "linux-amd64,darwin-arm64", "--upload"},
 			expectError: false,
 		},
 		{
 			name:        "upload with github settings",
-			args:        []string{"5.38.0", "--upload", "--build-only", "--github-repo", "owner/repo", "--github-token", "token123"},
+			args:        []string{"5.38.0", "--upload", "--github-repo", "owner/repo", "--github-token", "token123"},
 			expectError: false,
 		},
 		{
 			name:        "upload with custom mirror",
-			args:        []string{"5.38.0", "--upload", "--build-only", "--mirror", "custom-mirror"},
+			args:        []string{"5.38.0", "--upload", "--mirror", "custom-mirror"},
 			expectError: false,
 		},
 		{
 			name:        "upload with release options",
-			args:        []string{"5.38.0", "--upload", "--build-only", "--release-tag", "v5.38.0", "--draft-release", "--prerelease"},
+			args:        []string{"5.38.0", "--upload", "--release-tag", "v5.38.0", "--draft-release", "--prerelease"},
 			expectError: false,
 		},
 	}
@@ -1010,13 +1009,9 @@ func TestBuildPerlUploadIntegration(t *testing.T) {
 			cmd.RunE = func(cmd *cobra.Command, args []string) error {
 				// Test the validation logic that would normally run in buildPerlFromSource
 				upload, _ := cmd.Flags().GetBool("upload")
-				buildOnly, _ := cmd.Flags().GetBool("build-only")
 				platforms, _ := cmd.Flags().GetStringArray("platforms")
 
-				// Validate upload requirements (same as in buildPerlFromSource)
-				if upload && !buildOnly {
-					return fmt.Errorf("--upload requires --build-only to create uploadable archive")
-				}
+				// Upload is available without build-only requirement
 
 				if len(platforms) > 0 && !upload {
 					return fmt.Errorf("--platforms flag requires --upload to be enabled")

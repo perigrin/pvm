@@ -1506,10 +1506,7 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 		return err
 	}
 
-	// Validate upload requirements
-	if upload && !buildOnly {
-		return fmt.Errorf("--upload requires --build-only to create uploadable archive")
-	}
+	// Upload is available without build-only requirement
 
 	if len(platforms) > 0 && !upload {
 		return fmt.Errorf("--platforms flag requires --upload to be enabled")
@@ -1653,7 +1650,7 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 	}
 
 	// Handle upload if requested
-	if upload && buildOnly {
+	if upload {
 		ui.SubHeader("Uploading binary...")
 
 		// Handle multiple platforms
@@ -2289,7 +2286,7 @@ func newBuildPerlCommand() *cobra.Command {
 	cmd.Flags().StringArray("configure-options", nil, "Additional options to pass to Configure (can be specified multiple times)")
 
 	// Upload integration flags
-	cmd.Flags().Bool("upload", false, "Upload built binary after successful build (requires --build-only)")
+	cmd.Flags().Bool("upload", false, "Upload built binary after successful build")
 	cmd.Flags().StringArray("platforms", nil, "Build for multiple platforms (e.g., linux-amd64,darwin-arm64)")
 	cmd.Flags().String("mirror", "", "Specific mirror to upload to (default: all configured mirrors)")
 	cmd.Flags().String("github-token", "", "GitHub API token for upload authentication")
