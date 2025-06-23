@@ -379,7 +379,7 @@ func TestIsolationEnvironment(t *testing.T) {
 	options := &ExecutionOptions{
 		IsolationDir:   isolationDir,
 		Env:            map[string]string{},
-		IsolationLevel: IsolationLow,
+		IsolationLevel: IsolationLocal,
 	}
 
 	// Create isolation directory

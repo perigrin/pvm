@@ -14,20 +14,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 // isEssentialEnvVar checks if an environment variable is essential and should be preserved
 func isEssentialEnvVar(key string) bool {
 	essentialVars := map[string]bool{
-		"PATH":           true,
-		"HOME":           true,
-		"USER":           true,
-		"SHELL":          true,
-		"TERM":           true,
-		"PWD":            true,
-		"PERL5LIB":       true,
+		"PATH":                true,
+		"HOME":                true,
+		"USER":                true,
+		"SHELL":               true,
+		"TERM":                true,
+		"PWD":                 true,
+		"PERL5LIB":            true,
 		"PERL_LOCAL_LIB_ROOT": true,
-		"PERL_MB_OPT":    true,
-		"PERL_MM_OPT":    true,
+		"PERL_MB_OPT":         true,
+		"PERL_MM_OPT":         true,
 		"PVM_READONLY_PATHS":  true,
 		"PVM_READWRITE_PATHS": true,
 		"PVM_ISOLATED_OUTPUT": true,
@@ -390,9 +389,9 @@ func TestEnhancedEnvironmentIsolation(t *testing.T) {
 		},
 		{
 			name:           "HighIsolation",
-			isolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+			isolationLevel: IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+				IsolationLevel: IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 				IsolationDir:   tmpDir,
 				PreserveEnv:    []string{"TEST_VAR_1", "TEST_VAR_2"},
 				Verbose:        true,
@@ -427,9 +426,9 @@ func TestEnhancedEnvironmentIsolation(t *testing.T) {
 		},
 		{
 			name:           "HighIsolationWithClearEnv",
-			isolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+			isolationLevel: IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+				IsolationLevel: IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 				IsolationDir:   tmpDir,
 				PreserveEnv:    []string{"TEST_VAR_1", "TEST_VAR_2"},
 				ClearEnv:       []string{"TEST_VAR_2"}, // This will override preservation
@@ -533,9 +532,9 @@ func TestModulePathIsolation(t *testing.T) {
 		},
 		{
 			name:           "HighIsolationWithCustomModulePath",
-			isolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+			isolationLevel: IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 			options: &ExecutionOptions{
-				IsolationLevel:        IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+				IsolationLevel:        IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 				IsolationDir:          tmpDir,
 				CustomModulePath:      customModulePath,
 				AdditionalModulePaths: []string{additionalModulePath1, additionalModulePath2},
@@ -597,7 +596,7 @@ func TestFilesystemIsolation(t *testing.T) {
 		{
 			name: "BasicHighIsolation",
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+				IsolationLevel: IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 				IsolationDir:   tmpDir,
 				ReadOnlyPaths:  []string{"/usr", "/bin"},
 				ReadWritePaths: []string{"/tmp", "/home"},
@@ -614,7 +613,7 @@ func TestFilesystemIsolation(t *testing.T) {
 		{
 			name: "CustomPathsIsolation",
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+				IsolationLevel: IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 				IsolationDir:   tmpDir,
 				ReadOnlyPaths:  []string{"/etc", "/opt"},
 				ReadWritePaths: []string{"/var/tmp", "/usr/local"},
@@ -631,7 +630,7 @@ func TestFilesystemIsolation(t *testing.T) {
 		{
 			name: "OutputOnlyIsolation",
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+				IsolationLevel: IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 				IsolationDir:   tmpDir,
 				IsolatedOutput: true,
 				Verbose:        true,
@@ -644,7 +643,7 @@ func TestFilesystemIsolation(t *testing.T) {
 		{
 			name: "NoOutputIsolation",
 			options: &ExecutionOptions{
-				IsolationLevel: IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+				IsolationLevel: IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 				IsolationDir:   tmpDir,
 				ReadOnlyPaths:  []string{"/usr", "/bin"},
 				ReadWritePaths: []string{"/tmp", "/home"},
@@ -858,7 +857,7 @@ func TestCustomModuleIsolation(t *testing.T) {
 		},
 		{
 			name:             "HighIsolationWithCustomModule",
-			isolationLevel:   IsolationClean /* Note: High isolation level was eliminated, using clean instead */,
+			isolationLevel:   IsolationClean, /* Note: High isolation level was eliminated, using clean instead */
 			customModulePath: customModulePath,
 			additionalPaths:  []string{},
 			expectedVars: []string{

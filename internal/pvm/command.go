@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/psc"
@@ -30,6 +31,18 @@ import (
 func init() {
 	// Set up version checking integration between current and perl packages
 	current.SetVersionChecker(perl.IsVersionInstalled)
+}
+
+// logCompileDetails logs build details with appropriate level based on content
+func logCompileDetails(ui *ui.Output, details string) {
+	switch {
+	case strings.Contains(details, "ERROR") || strings.Contains(details, "error:"):
+		ui.Error("%s", details)
+	case strings.Contains(details, "WARNING") || strings.Contains(details, "warning:"):
+		ui.Warning("%s", details)
+	default:
+		ui.Info("%s", details)
+	}
 }
 
 // NewCommand creates a new PVM command
@@ -168,7 +181,7 @@ func newInstallCommand() *cobra.Command {
 			if !forceSource && (binaryOnly || preferBinary) {
 				// Check if binary is available for this version and platform
 				available, err := perl.CheckBinaryAvailability(version, "")
-				if err != nil {
+				if err != nil { //nolint:gocritic // Complex binary installation logic requires if-else chain
 					if binaryOnly {
 						return fmt.Errorf("failed to check binary availability: %w", err)
 					}
@@ -264,13 +277,7 @@ func newInstallCommand() *cobra.Command {
 							strings.Contains(details, "error:") ||
 							strings.Contains(details, "Done") ||
 							strings.Contains(details, "All tests successful") {
-							if strings.Contains(details, "ERROR") || strings.Contains(details, "error:") { //nolint:gocritic
-								ui.Error("%s", details)
-							} else if strings.Contains(details, "WARNING") || strings.Contains(details, "warning:") {
-								ui.Warning("%s", details)
-							} else {
-								ui.Info("%s", details)
-							}
+							logCompileDetails(ui, details)
 						}
 					} else {
 						// For other stages, print all details
@@ -1093,7 +1100,7 @@ func newUninstallCommand() *cobra.Command {
 }
 
 func newImportSystemCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "import-system",
 		Short: "Import system Perl installation",
 		Long:  "Import the system Perl installation into PVM registry",
@@ -1101,6 +1108,8 @@ func newImportSystemCommand() *cobra.Command {
 			return importSystemPerl(cmd)
 		},
 	}
+	cmd.Flags().Bool("force", false, "Force re-import even if already registered")
+	return cmd
 }
 
 func newImportCommand() *cobra.Command {
@@ -1346,13 +1355,7 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 					strings.Contains(details, "error:") ||
 					strings.Contains(details, "Done") ||
 					strings.Contains(details, "All tests successful") {
-					if strings.Contains(details, "ERROR") || strings.Contains(details, "error:") { //nolint:gocritic
-						ui.Error("%s", details)
-					} else if strings.Contains(details, "WARNING") || strings.Contains(details, "warning:") {
-						ui.Warning("%s", details)
-					} else {
-						ui.Info("%s", details)
-					}
+					logCompileDetails(ui, details)
 				}
 			} else {
 				// For other stages, print all details
@@ -1723,20 +1726,34 @@ func importSystemPerl(cmd *cobra.Command) error {
 
 	cmd.Printf("Found system Perl %s at %s\n", systemPerl.Version, systemPerl.Path)
 
+	// Check force flag
+	force, _ := cmd.Flags().GetBool("force")
+
 	// Check if this version is already registered
 	installed, err := perl.IsVersionInstalled(systemPerl.Version)
 	if err != nil {
 		return fmt.Errorf("failed to check if version is installed: %w", err)
 	}
-	if installed {
+	if installed && !force {
 		cmd.Printf("System Perl %s is already registered with PVM\n", systemPerl.Version)
 		return nil
 	}
 
-	// Register the system Perl by creating a VersionInfo entry
+	// If forcing and already installed, uninstall first
+	if installed && force {
+		cmd.Printf("Force re-importing system Perl %s\n", systemPerl.Version)
+		err = perl.UninstallVersion(systemPerl.Version)
+		if err != nil {
+			return fmt.Errorf("failed to uninstall existing registration: %w", err)
+		}
+	}
+
+	// Register the system Perl using the corrected install path logic
+	// For system perl, InstallPath should be the directory containing the perl executable
+	installPath := filepath.Dir(systemPerl.Path)
 	versionInfo := perl.VersionInfo{
 		Version:     systemPerl.Version,
-		InstallPath: systemPerl.Path,
+		InstallPath: installPath,
 		InstallTime: time.Now(),
 		Source:      "system",
 	}
@@ -2255,7 +2272,7 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 	// Use PVX to install the tool in an isolated environment
 	options := &pvx.ExecutionOptions{
 		PerlVersion:    "", // Use default
-		IsolationLevel: pvx.IsolationLow,
+		IsolationLevel: pvx.IsolationLocal,
 		IsolationDir:   toolEnvDir,
 		EnvName:        fmt.Sprintf("tool-%s", toolName),
 		NoCleanup:      true,
@@ -2333,7 +2350,7 @@ func runTool(cmd *cobra.Command, toolName string, toolArgs []string) error {
 	// Use PVX to execute the tool directly
 	options := &pvx.ExecutionOptions{
 		PerlVersion:    "", // Use default
-		IsolationLevel: pvx.IsolationLow,
+		IsolationLevel: pvx.IsolationLocal,
 		NoCleanup:      false, // Clean up for temporary runs
 	}
 
@@ -2506,7 +2523,7 @@ func upgradeTool(cmd *cobra.Command, toolName string, global bool) error {
 	// Use PVX to upgrade the tool
 	options := &pvx.ExecutionOptions{
 		PerlVersion:    "", // Use default
-		IsolationLevel: pvx.IsolationLow,
+		IsolationLevel: pvx.IsolationLocal,
 		IsolationDir:   toolEnvDir,
 		EnvName:        fmt.Sprintf("tool-%s", toolName),
 		NoCleanup:      true,
