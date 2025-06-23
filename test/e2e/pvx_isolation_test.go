@@ -141,16 +141,16 @@ print "\nScript completed successfully\n";
 		helpers.AssertStringContains(t, result, "Script completed successfully",
 			"Script should complete successfully")
 
-		// Low isolation doesn't set isolation environment variables
+		// Local isolation doesn't set isolation environment variables
 		helpers.AssertStringContains(t, result, "PVM_ISOLATION_LEVEL: not set",
-			"Isolation level should not be set in low isolation")
+			"Isolation level should not be set in local isolation")
 
 		// Check that PERL5LIB contains isolation directory
 		helpers.AssertStringContains(t, result, "PERL5LIB:",
 			"Script should show PERL5LIB environment variable")
 	})
 
-	// Test isolation level: medium
+	// Test isolation level: clean
 	t.Run("IsolationClean", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{"pvx", "--isolation", "clean", "-p", perlPath, "--verbose", scriptPath},
@@ -169,7 +169,7 @@ print "\nScript completed successfully\n";
 			"Script should show PERL5LIB environment variable")
 	})
 
-	// Note: High isolation level has been eliminated - test skipped
+	// Note: High isolation level has been eliminated and replaced with clean - test skipped
 }
 
 // TestPVXCleanupBehavior tests the mediumup behavior of PVX
@@ -181,7 +181,7 @@ func TestPVXCleanupBehavior(t *testing.T) {
 	perlPath := "/usr/bin/perl"
 	_, err := os.Stat(perlPath)
 	if os.IsNotExist(err) {
-		helpers.SkipTODO(t, "System Perl installation (required for mediumup tests)")
+		helpers.SkipTODO(t, "System Perl installation (required for cleanup tests)")
 		return
 	}
 
@@ -192,7 +192,7 @@ func TestPVXCleanupBehavior(t *testing.T) {
 		t.Fatalf("Failed to create script directory: %v", err)
 	}
 
-	scriptPath := filepath.Join(scriptDir, "mediumup_test_script.pl")
+	scriptPath := filepath.Join(scriptDir, "cleanup_test_script.pl")
 	scriptContent := `
 print "Script running...\n";
 my $isolationDir = $ENV{PVM_ISOLATION_DIR} || "unknown";
@@ -210,12 +210,12 @@ print "Script completed successfully\n";
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
-				"--isolation", "high",
+				"--isolation", "clean",
 				"-p", perlPath,
 				"--verbose",
 				scriptPath,
 			},
-			"PVX with auto mediumup")
+			"PVX with auto cleanup")
 
 		// Extract the isolation directory path from the output
 		var isolationDir string
@@ -237,7 +237,7 @@ print "Script completed successfully\n";
 			return
 		}
 
-		// Verify the isolation directory doesn't exist after execution (it should be mediumed up)
+		// Verify the isolation directory doesn't exist after execution (it should be cleaned up)
 		_, err := os.Stat(isolationDir)
 		if err == nil {
 			t.Errorf("Isolation directory still exists after execution: %s", isolationDir)
@@ -252,13 +252,13 @@ print "Script completed successfully\n";
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
-				"--isolation", "high",
+				"--isolation", "clean",
 				"-p", perlPath,
 				"--verbose",
-				"--no-mediumup",
+				"--no-cleanup",
 				scriptPath,
 			},
-			"PVX with no mediumup")
+			"PVX with no cleanup")
 
 		// Extract the isolation directory path from the output
 		var isolationDir string
@@ -269,8 +269,8 @@ print "Script completed successfully\n";
 				isolationDir = strings.TrimPrefix(line, "Created isolation directory: ")
 			case strings.HasPrefix(line, "Isolation directory: ") && !strings.Contains(line, "unknown"):
 				isolationDir = strings.TrimPrefix(line, "Isolation directory: ")
-			case strings.HasPrefix(line, "Isolation directory retained (--no-mediumup): "):
-				isolationDir = strings.TrimPrefix(line, "Isolation directory retained (--no-mediumup): ")
+			case strings.HasPrefix(line, "Isolation directory retained (--no-cleanup): "):
+				isolationDir = strings.TrimPrefix(line, "Isolation directory retained (--no-cleanup): ")
 			}
 			if isolationDir != "" {
 				break
@@ -282,17 +282,17 @@ print "Script completed successfully\n";
 			return
 		}
 
-		// Verify the isolation directory still exists after execution (mediumup disabled)
+		// Verify the isolation directory still exists after execution (cleanup disabled)
 		_, err := os.Stat(isolationDir)
 		if err != nil {
 			if os.IsNotExist(err) {
-				t.Errorf("Isolation directory was mediumed up despite --no-mediumup flag: %s", isolationDir)
+				t.Errorf("Isolation directory was cleaned up despite --no-cleanup flag: %s", isolationDir)
 			} else {
 				t.Errorf("Error checking isolation directory: %v", err)
 			}
 		} else {
 			// Cleanup the directory manually since we told PVX not to
-			t.Logf("Manually mediuming up isolation directory: %s", isolationDir)
+			t.Logf("Manually cleaning up isolation directory: %s", isolationDir)
 			_ = os.RemoveAll(isolationDir)
 		}
 	})
@@ -310,7 +310,7 @@ print "Script completed successfully\n";
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
-				"--isolation", "high",
+				"--isolation", "clean",
 				"-p", perlPath,
 				"--verbose",
 				"--isolation-dir", customIsolationDir,
@@ -386,52 +386,52 @@ print "Script completed successfully\n";
 
 	// Test environment variable handling with different isolation levels
 
-	// Test isolation level: none (should pass all environment variables)
-	t.Run("EnvVars_none", func(t *testing.T) {
+	// Test isolation level: global (should pass all environment variables)
+	t.Run("EnvVars_global", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-			[]string{"pvx", "--isolation", "none", "-p", perlPath, "--verbose", scriptPath},
-			"PVX env vars with isolation level: none")
+			[]string{"pvx", "--isolation", "global", "-p", perlPath, "--verbose", scriptPath},
+			"PVX env vars with isolation level: global")
 
 		helpers.AssertStringContains(t, result, "Script completed successfully",
 			"Script should complete successfully")
 
 		// All environment variables should be passed through
 		helpers.AssertStringContains(t, result, "TEST_VAR: test_value",
-			"TEST_VAR should be passed through at isolation level: none")
+			"TEST_VAR should be passed through at isolation level: global")
 		helpers.AssertStringContains(t, result, "TEST_VAR2: test_value2",
-			"TEST_VAR2 should be passed through at isolation level: none")
+			"TEST_VAR2 should be passed through at isolation level: global")
 		helpers.AssertStringContains(t, result, "TEST_VAR3: test_value3",
-			"TEST_VAR3 should be passed through at isolation level: none")
+			"TEST_VAR3 should be passed through at isolation level: global")
 
 		// HOME should match test environment
 		helpers.AssertStringContains(t, result, "HOME: "+env.HomeDir,
-			"HOME should match test environment at isolation level: none")
+			"HOME should match test environment at isolation level: global")
 	})
 
-	// Test isolation level: low (should pass all environment variables)
-	t.Run("EnvVars_low", func(t *testing.T) {
+	// Test isolation level: local (should pass all environment variables)
+	t.Run("EnvVars_local", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-			[]string{"pvx", "--isolation", "low", "-p", perlPath, "--verbose", scriptPath},
-			"PVX env vars with isolation level: low")
+			[]string{"pvx", "--isolation", "local", "-p", perlPath, "--verbose", scriptPath},
+			"PVX env vars with isolation level: local")
 
 		helpers.AssertStringContains(t, result, "Script completed successfully",
 			"Script should complete successfully")
 
 		// All environment variables should be passed through
 		helpers.AssertStringContains(t, result, "TEST_VAR: test_value",
-			"TEST_VAR should be passed through at isolation level: low")
+			"TEST_VAR should be passed through at isolation level: local")
 		helpers.AssertStringContains(t, result, "TEST_VAR2: test_value2",
-			"TEST_VAR2 should be passed through at isolation level: low")
+			"TEST_VAR2 should be passed through at isolation level: local")
 		helpers.AssertStringContains(t, result, "TEST_VAR3: test_value3",
-			"TEST_VAR3 should be passed through at isolation level: low")
+			"TEST_VAR3 should be passed through at isolation level: local")
 
 		// HOME should match test environment
 		helpers.AssertStringContains(t, result, "HOME: "+env.HomeDir,
-			"HOME should match test environment at isolation level: low")
+			"HOME should match test environment at isolation level: local")
 
 		// PERL5LIB should be modified
 		helpers.AssertStringContains(t, result, "PERL5LIB:",
-			"PERL5LIB should be set at isolation level: low")
+			"PERL5LIB should be set at isolation level: local")
 	})
 
 	// Test isolation level: clean (should still pass most environment variables)
@@ -460,46 +460,46 @@ print "Script completed successfully\n";
 			"PERL5LIB should be set at isolation level: clean")
 	})
 
-	// Test isolation level: high with preserved variables
-	t.Run("EnvVars_high_with_preserved", func(t *testing.T) {
+	// Test isolation level: clean with preserved variables
+	t.Run("EnvVars_clean_with_preserved", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
-				"--isolation", "high",
+				"--isolation", "clean",
 				"-p", perlPath,
 				"--verbose",
 				"--preserve-env", "TEST_VAR",
 				"--preserve-env", "TEST_VAR2",
 				scriptPath,
 			},
-			"PVX env vars with isolation level: high and preserved vars")
+			"PVX env vars with isolation level: clean and preserved vars")
 
 		helpers.AssertStringContains(t, result, "Script completed successfully",
 			"Script should complete successfully")
 
 		// Only preserved environment variables should be passed through
 		helpers.AssertStringContains(t, result, "TEST_VAR: test_value",
-			"TEST_VAR should be preserved at isolation level: high")
+			"TEST_VAR should be preserved at isolation level: clean")
 		helpers.AssertStringContains(t, result, "TEST_VAR2: test_value2",
-			"TEST_VAR2 should be preserved at isolation level: high")
+			"TEST_VAR2 should be preserved at isolation level: clean")
 
 		// Non-preserved custom var should not be present
 		helpers.AssertStringContains(t, result, "TEST_VAR3:",
-			"TEST_VAR3 should be empty at isolation level: high")
+			"TEST_VAR3 should be empty at isolation level: clean")
 
 		// Essential variables like HOME should still be present
 		helpers.AssertStringContains(t, result, "HOME:",
-			"HOME should be present at isolation level: high")
+			"HOME should be present at isolation level: clean")
 		helpers.AssertStringContains(t, result, "USER:",
-			"USER should be present at isolation level: high")
+			"USER should be present at isolation level: clean")
 	})
 
-	// Test isolation level: high with clear-env
-	t.Run("EnvVars_high_with_clear", func(t *testing.T) {
+	// Test isolation level: clean with clear-env
+	t.Run("EnvVars_clean_with_clear", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
-				"--isolation", "high",
+				"--isolation", "clean",
 				"-p", perlPath,
 				"--verbose",
 				"--preserve-env", "TEST_VAR",
@@ -507,20 +507,20 @@ print "Script completed successfully\n";
 				"--clear-env", "TEST_VAR2", // This should override the preservation
 				scriptPath,
 			},
-			"PVX env vars with isolation level: high, preserved and cleared vars")
+			"PVX env vars with isolation level: clean, preserved and cleared vars")
 
 		helpers.AssertStringContains(t, result, "Script completed successfully",
 			"Script should complete successfully")
 
 		// Only TEST_VAR should be preserved; TEST_VAR2 should be cleared
 		helpers.AssertStringContains(t, result, "TEST_VAR: test_value",
-			"TEST_VAR should be preserved at isolation level: high")
+			"TEST_VAR should be preserved at isolation level: clean")
 		helpers.AssertStringContains(t, result, "TEST_VAR2:",
-			"TEST_VAR2 should be empty at isolation level: high (cleared)")
+			"TEST_VAR2 should be empty at isolation level: clean (cleared)")
 	})
 
-	// Test isolation level: high with custom environment variables
-	t.Run("EnvVars_high_with_custom", func(t *testing.T) {
+	// Test isolation level: clean with custom environment variables
+	t.Run("EnvVars_clean_with_custom", func(t *testing.T) {
 		// Set custom environment variable for this test
 		os.Setenv("MY_CUSTOM_VAR", "custom_value")
 		defer os.Unsetenv("MY_CUSTOM_VAR")
@@ -529,13 +529,13 @@ print "Script completed successfully\n";
 		_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
-				"--isolation", "high",
+				"--isolation", "clean",
 				"-p", perlPath,
 				"--verbose",
 				"--preserve-env", "MY_CUSTOM_VAR",
 				scriptPath,
 			},
-			"PVX env vars with isolation level: high and custom var")
+			"PVX env vars with isolation level: clean and custom var")
 
 		// Write custom script to check the environment variable
 		customCheckScript := filepath.Join(scriptDir, "custom_var_check.pl")
@@ -549,7 +549,7 @@ print "Script completed successfully\n";
 		customOutput := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{
 				"pvx",
-				"--isolation", "high",
+				"--isolation", "clean",
 				"-p", perlPath,
 				"--verbose",
 				"--preserve-env", "MY_CUSTOM_VAR",
