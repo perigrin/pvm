@@ -28,7 +28,7 @@ func TestInstallCommandFlags(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "short binary only flag",
+			name:        "short prefer binary flag",
 			args:        []string{"-B", "5.38.0"},
 			expectError: false,
 		},
@@ -71,11 +71,11 @@ func TestInstallCommandFlags(t *testing.T) {
 
 				// Test specific flag combinations
 				switch tt.name {
-				case "binary only flag", "short binary only flag":
+				case "binary only flag":
 					if !binaryOnly {
 						t.Error("Expected binary-only flag to be true")
 					}
-				case "prefer binary flag":
+				case "prefer binary flag", "short prefer binary flag":
 					if !preferBinary {
 						t.Error("Expected prefer-binary flag to be true")
 					}
