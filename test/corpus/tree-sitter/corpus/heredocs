@@ -134,7 +134,7 @@ EOF
 (source_file
   (expression_statement
     (variable_declaration
-      (scalar
+      variable: (scalar
         (varname))))
   (expression_statement
     (ambiguous_function_call_expression
