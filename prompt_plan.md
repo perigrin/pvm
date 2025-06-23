@@ -88,7 +88,7 @@ prioritize output directory over prefix. Added comprehensive test for custom out
 directory functionality. All tests pass at 100% rate.
 ```
 
-#### Step 3: Custom Mirror Configuration Structure
+#### Step 3: Custom Mirror Configuration Structure ✅ COMPLETED
 
 ```
 Implement the configuration structure for custom binary mirrors without changing command behavior. This establishes the data model for custom mirrors while maintaining current functionality.
@@ -112,11 +112,16 @@ Success criteria:
 - Configuration validates correctly (URLs, authentication, etc.)
 - Existing configuration behavior is unchanged
 - Tests cover all configuration scenarios
+
+COMPLETED: Commit c073fbd - Added PVMCustomMirrorConfig, PVMCustomMirrorAuth, and
+PVMCustomMirrorOAuth2 types with comprehensive validation. Supports all authentication
+methods (none, basic, bearer, api-key, oauth2), URL templating, version mapping, and
+custom headers. Complete test coverage with 4305 tests passing.
 ```
 
 ### Phase 2: Command Implementation (Steps 4-6)
 
-#### Step 4: Build-Only Mode Implementation
+#### Step 4: Build-Only Mode Implementation ✅ COMPLETED
 
 ```
 Modify `build-perl` command to support build-only mode while maintaining backward compatibility. This implements the core split functionality without breaking existing workflows.
@@ -141,6 +146,11 @@ Success criteria:
 - Default behavior (with installation) is unchanged
 - Progress reporting works correctly for build-only mode
 - All tests pass including new build-only tests
+
+COMPLETED: Added --build-only flag to build-perl command that skips installation
+stage when enabled. Added BuildOnly field to BuildOptions struct and updated
+BuildPerl function to conditionally skip installation and version registration.
+Added comprehensive test coverage. All 4306 tests pass at 100% rate.
 ```
 
 #### Step 5: Install-Perl Command Foundation

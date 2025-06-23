@@ -5,9 +5,11 @@ package pvm
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -68,15 +70,16 @@ func NewCommand() *cobra.Command {
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
 		newDownloadCommand(),
-		newUpdateCommand(),     // Self-updater functionality
-		newAutoUpdateCommand(), // Auto-update configuration and management
-		NewBuildCommand(),      // Unified build system with PSC integration
-		newBuildPerlCommand(),  // Build Perl from source (split from old build command)
-		newRunCommand(),        // New unified run command (incorporates PVX)
-		newModuleCommand(),     // New unified module command (incorporates PVI)
-		newProjectCommand(),    // New project management command
-		newDevCommand(),        // Development environment command
-		newTestCommand(),       // Test execution command
+		newUpdateCommand(),      // Self-updater functionality
+		newAutoUpdateCommand(),  // Auto-update configuration and management
+		NewBuildCommand(),       // Unified build system with PSC integration
+		newBuildPerlCommand(),   // Build Perl from source (split from old build command)
+		newInstallPerlCommand(), // Install Perl from build directories
+		newRunCommand(),         // New unified run command (incorporates PVX)
+		newModuleCommand(),      // New unified module command (incorporates PVI)
+		newProjectCommand(),     // New project management command
+		newDevCommand(),         // Development environment command
+		newTestCommand(),        // Test execution command
 		newExecCommand(),
 		newUninstallCommand(),
 		newImportSystemCommand(),
@@ -1345,6 +1348,11 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 		return err
 	}
 
+	buildOnly, err := cmd.Flags().GetBool("build-only")
+	if err != nil {
+		return err
+	}
+
 	// Create progress callback to display build progress
 	ui := cli.GetUI(cmd)
 	var currentStage perl.BuildProgressStage
@@ -1420,6 +1428,7 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 		RunTests:         runTests,
 		CleanupBuildDir:  cleanupBuildDir,
 		ConfigureOptions: configureOptions,
+		BuildOnly:        buildOnly,
 		ProgressCallback: progressCallback,
 		Context:          cmd.Context(),
 	}
@@ -1447,8 +1456,16 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 		ui.Info("Will run tests after building")
 	}
 
+	if buildOnly {
+		ui.Info("Build-only mode: Perl will be built without installation")
+	}
+
 	if cleanupBuildDir {
-		ui.Info("Will clean up build directory after installation")
+		if buildOnly {
+			ui.Info("Will clean up build directory after build")
+		} else {
+			ui.Info("Will clean up build directory after installation")
+		}
 	}
 
 	// Start the build
@@ -1459,8 +1476,13 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 	}
 
 	// Show build results
-	ui.Success("Build completed successfully!")
-	ui.Info("Perl %s installed at: %s", result.Version, result.InstallPath)
+	if buildOnly {
+		ui.Success("Build completed successfully!")
+		ui.Info("Perl %s built at: %s", result.Version, result.InstallPath)
+	} else {
+		ui.Success("Build completed successfully!")
+		ui.Info("Perl %s installed at: %s", result.Version, result.InstallPath)
+	}
 	ui.Info("Total build time: %s", result.Duration.Round(time.Second))
 
 	// Show timing for each stage
@@ -1470,6 +1492,194 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 	}
 
 	return nil
+}
+
+// installPerlFromBuild installs Perl from a build directory
+func installPerlFromBuild(cmd *cobra.Command, args []string) error {
+	// Get flags
+	buildDir, err := cmd.Flags().GetString("from-build")
+	if err != nil {
+		return err
+	}
+
+	versionOverride, err := cmd.Flags().GetString("version")
+	if err != nil {
+		return err
+	}
+
+	force, err := cmd.Flags().GetBool("force")
+	if err != nil {
+		return err
+	}
+
+	// Determine source directory
+	var sourceDir string
+	switch {
+	case buildDir != "":
+		sourceDir = buildDir
+	case len(args) > 0:
+		sourceDir = args[0]
+	default:
+		return fmt.Errorf("no build directory specified - use --from-build flag or provide directory as argument")
+	}
+
+	// Get UI for progress reporting
+	ui := cli.GetUI(cmd)
+
+	ui.Info("Installing Perl from build directory: %s", sourceDir)
+
+	// Validate the build directory contains a complete Perl installation
+	ui.Info("Validating build directory...")
+	valid, warnings, err := perl.ValidateBinaryInstallation(sourceDir)
+	if err != nil {
+		return fmt.Errorf("failed to validate build directory: %w", err)
+	}
+
+	if !valid {
+		return fmt.Errorf("build directory does not contain a valid Perl installation")
+	}
+
+	// Print any warnings
+	for _, warning := range warnings {
+		ui.Warning("%s", warning)
+	}
+
+	// Detect version from the Perl executable
+	perlPath := filepath.Join(sourceDir, "bin", "perl")
+	if runtime.GOOS == "windows" {
+		perlPath = filepath.Join(sourceDir, "bin", "perl.exe")
+	}
+
+	detectedVersion := versionOverride
+	if detectedVersion == "" {
+		ui.Info("Detecting Perl version...")
+		cmd := exec.Command(perlPath, "-e", "print $^V")
+		output, err := cmd.Output()
+		if err != nil {
+			return fmt.Errorf("failed to detect Perl version: %w", err)
+		}
+
+		versionStr := strings.TrimSpace(string(output))
+		// Convert from v5.38.0 format to 5.38.0
+		if strings.HasPrefix(versionStr, "v") {
+			versionStr = versionStr[1:]
+		}
+		detectedVersion = versionStr
+	}
+
+	ui.Info("Detected Perl version: %s", detectedVersion)
+
+	// Check if version already exists
+	if !force {
+		installed, err := perl.IsVersionInstalled(detectedVersion)
+		if err != nil {
+			return fmt.Errorf("failed to check if version is installed: %w", err)
+		}
+		if installed {
+			return fmt.Errorf("version %s is already installed - use --force to override", detectedVersion)
+		}
+	}
+
+	// Determine installation directory
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return fmt.Errorf("failed to get XDG directories: %w", err)
+	}
+
+	installDir := filepath.Join(dirs.DataDir, "versions", detectedVersion)
+
+	ui.Info("Installing to: %s", installDir)
+
+	// Create installation directory
+	err = os.MkdirAll(installDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create installation directory: %w", err)
+	}
+
+	// Copy the build directory to the installation directory
+	ui.Info("Copying Perl installation...")
+	err = copyDirectory(sourceDir, installDir)
+	if err != nil {
+		return fmt.Errorf("failed to copy Perl installation: %w", err)
+	}
+
+	// Register the version in PVM registry
+	ui.Info("Registering version with PVM...")
+	versionInfo := perl.VersionInfo{
+		Version:     detectedVersion,
+		InstallPath: installDir,
+		InstallTime: time.Now(),
+		Source:      "install-perl",
+	}
+
+	err = perl.RegisterVersion(versionInfo)
+	if err != nil {
+		// Clean up on registration failure
+		os.RemoveAll(installDir)
+		return fmt.Errorf("failed to register version: %w", err)
+	}
+
+	ui.Success("Successfully installed Perl %s", detectedVersion)
+	ui.Info("Installation path: %s", installDir)
+
+	return nil
+}
+
+// copyDirectory recursively copies a directory
+func copyDirectory(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Calculate destination path
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		dstPath := filepath.Join(dst, relPath)
+
+		if info.IsDir() {
+			// Create directory
+			return os.MkdirAll(dstPath, info.Mode())
+		} else {
+			// Copy file
+			return copyFile(path, dstPath, info.Mode())
+		}
+	})
+}
+
+// copyFile copies a single file with permissions
+func copyFile(src, dst string, mode os.FileMode) error {
+	// Create destination directory if it doesn't exist
+	dstDir := filepath.Dir(dst)
+	err := os.MkdirAll(dstDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	// Open source file
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	// Create destination file
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	// Copy content
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return err
+	}
+
+	// Set permissions
+	return os.Chmod(dst, mode)
 }
 
 // buildProject functionality moved to internal/pvm/build.go
@@ -1623,7 +1833,25 @@ func newBuildPerlCommand() *cobra.Command {
 	cmd.Flags().Int("jobs", 0, "Number of parallel build jobs (default: number of CPU cores)")
 	cmd.Flags().Bool("test", false, "Run Perl tests after building")
 	cmd.Flags().Bool("cleanup", true, "Clean up build directory after installation")
+	cmd.Flags().Bool("build-only", false, "Build Perl without installing (creates relocatable build in output directory)")
 	cmd.Flags().StringArray("configure-options", nil, "Additional options to pass to Configure (can be specified multiple times)")
+
+	return cmd
+}
+
+// newInstallPerlCommand creates a new install-perl command
+func newInstallPerlCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "install-perl",
+		Short: "Install Perl from build directory",
+		Long:  "Install Perl from a previously built directory into PVM's version management system",
+		RunE:  installPerlFromBuild,
+	}
+
+	// Installation source flags
+	cmd.Flags().String("from-build", "", "Install from build directory")
+	cmd.Flags().String("version", "", "Override version detection (optional)")
+	cmd.Flags().Bool("force", false, "Force installation even if version already exists")
 
 	return cmd
 }

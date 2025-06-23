@@ -128,3 +128,68 @@ func TestInstallCommandFlagValidation(t *testing.T) {
 	// Restore original RunE
 	cmd.RunE = originalRunE
 }
+
+func TestInstallPerlCommandFlags(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		args        []string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "from-build flag",
+			args:        []string{"--from-build", "/path/to/build"},
+			expectError: false,
+		},
+		{
+			name:        "version override",
+			args:        []string{"--from-build", "/path/to/build", "--version", "5.38.0"},
+			expectError: false,
+		},
+		{
+			name:        "force flag",
+			args:        []string{"--from-build", "/path/to/build", "--force"},
+			expectError: false,
+		},
+		{
+			name:        "directory as argument",
+			args:        []string{"/path/to/build"},
+			expectError: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Create a new command instance for each test
+			cmd := newInstallPerlCommand()
+
+			// Replace the RunE function to avoid actual execution
+			originalRunE := cmd.RunE
+			cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				return nil
+			}
+
+			// Set arguments
+			cmd.SetArgs(test.args)
+
+			// Execute command
+			err := cmd.Execute()
+
+			if test.expectError && err == nil {
+				t.Errorf("Expected error but got none")
+			} else if !test.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if test.expectError && err != nil && test.errorMsg != "" {
+				if err.Error() != test.errorMsg {
+					t.Errorf("Expected error message %q, got %q", test.errorMsg, err.Error())
+				}
+			}
+
+			// Restore original RunE
+			cmd.RunE = originalRunE
+		})
+	}
+}

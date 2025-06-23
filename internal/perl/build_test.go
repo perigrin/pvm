@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -618,4 +619,125 @@ func TestBuildPerlCustomOutputDirectory(t *testing.T) {
 
 	// Verify the custom output directory exists and was used
 	assert.DirExists(t, customOutputDir)
+}
+
+// TestBuildPerlBuildOnlyMode tests build-only mode that skips installation
+func TestBuildPerlBuildOnlyMode(t *testing.T) {
+	// Setup test environment
+	dirs, tempDir := setupTestDirs(t)
+
+	// Save original extraction function and mock it
+	originalExtractArchiveFunc := extractArchiveFunc
+	t.Cleanup(func() {
+		extractArchiveFunc = originalExtractArchiveFunc
+	})
+	extractArchiveFunc = mockExtraction(t, tempDir)
+
+	// Create a mock source archive
+	version := "5.36.0"
+	archivePath := createMockArchive(t, dirs, version)
+	outputDir := filepath.Join(tempDir, "build-output", version)
+
+	// Track which commands were called
+	var calledCommands []string
+	runCommandWithProgressFunc = func(
+		dir string,
+		command string,
+		args []string,
+		ctx context.Context,
+		progressCb func(line string),
+	) error {
+		// Record command with args for better tracking
+		cmdWithArgs := command
+		if len(args) > 0 {
+			cmdWithArgs = fmt.Sprintf("%s %s", command, strings.Join(args, " "))
+		}
+		calledCommands = append(calledCommands, cmdWithArgs)
+
+		// Report progress for testing the callback
+		if progressCb != nil {
+			progressCb(fmt.Sprintf("Mock progress for %s", command))
+		}
+		return nil
+	}
+
+	// Track progress calls to verify install stage is NOT called
+	var progressStages []BuildProgressStage
+	var progressDetails []string
+	progressCallback := func(stage BuildProgressStage, details string, progress float64) {
+		progressStages = append(progressStages, stage)
+		progressDetails = append(progressDetails, details)
+	}
+
+	// Create build options with BuildOnly enabled
+	options := &BuildOptions{
+		Version:          version,
+		SourceFile:       archivePath,
+		InstallDir:       outputDir,
+		BuildJobs:        2,
+		RunTests:         true,
+		CleanupBuildDir:  true,
+		BuildOnly:        true, // This is the key flag being tested
+		ProgressCallback: progressCallback,
+		Context:          context.Background(),
+	}
+
+	// Run the build
+	result, err := BuildPerl(options)
+
+	// Verify results
+	require.NoError(t, err)
+	assert.Equal(t, version, result.Version)
+	assert.Equal(t, outputDir, result.InstallPath)
+
+	// Verify that make install was NOT called
+	foundMakeInstall := false
+	for _, cmd := range calledCommands {
+		if strings.Contains(cmd, "make install") {
+			foundMakeInstall = true
+			break
+		}
+	}
+	assert.False(t, foundMakeInstall, "Build-only mode should not run 'make install'")
+
+	// Verify expected commands were called (Configure, make, make test)
+	foundConfigure := false
+	foundMake := false
+	foundMakeTest := false
+
+	for _, cmd := range calledCommands {
+		if strings.HasPrefix(cmd, "./Configure") {
+			foundConfigure = true
+		}
+		if strings.HasPrefix(cmd, "make -j") {
+			foundMake = true
+		}
+		if strings.HasPrefix(cmd, "make test") {
+			foundMakeTest = true
+		}
+	}
+
+	assert.True(t, foundConfigure, "Should run Configure command")
+	assert.True(t, foundMake, "Should run make command")
+	assert.True(t, foundMakeTest, "Should run make test command")
+
+	// Verify progress reporting - install stage should NOT be present
+	assert.Contains(t, progressStages, StageExtract)
+	assert.Contains(t, progressStages, StageConfigure)
+	assert.Contains(t, progressStages, StageCompile)
+	assert.Contains(t, progressStages, StageTest)
+	assert.NotContains(t, progressStages, StageInstall,
+		"Build-only mode should not report install stage")
+	assert.Contains(t, progressStages, StageCleanup)
+	assert.Contains(t, progressStages, StageDone)
+
+	// Verify the "Build completed" message appears instead of "Installation completed"
+	foundBuildCompleted := false
+	for _, detail := range progressDetails {
+		if detail == "Build completed" {
+			foundBuildCompleted = true
+			break
+		}
+	}
+	assert.True(t, foundBuildCompleted, "Build-only mode should report 'Build completed'")
 }

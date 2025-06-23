@@ -106,6 +106,9 @@ type BuildOptions struct {
 	// CleanupBuildDir indicates whether to clean up the build directory after installation
 	CleanupBuildDir bool
 
+	// BuildOnly indicates whether to build without installing (creates relocatable build)
+	BuildOnly bool
+
 	// ProgressCallback is called to report progress
 	ProgressCallback BuildProgressCallback `json:"-"`
 
@@ -453,28 +456,31 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 		}
 	}
 
-	// Start installation
-	updateStage(StageInstall, "Installing Perl", 0.0)
+	// Install only if BuildOnly is false
+	if !options.BuildOnly {
+		// Start installation
+		updateStage(StageInstall, "Installing Perl", 0.0)
 
-	// Run make install
-	installErr := runCommandWithProgress(
-		srcDir,
-		"make",
-		[]string{"install"},
-		options.Context,
-		func(line string) {
-			if options.ProgressCallback != nil {
-				options.ProgressCallback(StageInstall, line, 0.5)
-			}
-		},
-	)
+		// Run make install
+		installErr := runCommandWithProgress(
+			srcDir,
+			"make",
+			[]string{"install"},
+			options.Context,
+			func(line string) {
+				if options.ProgressCallback != nil {
+					options.ProgressCallback(StageInstall, line, 0.5)
+				}
+			},
+		)
 
-	if installErr != nil {
-		return nil, errors.NewVersionError(
-			ErrInstallFailed,
-			"Installation failed",
-			installErr).
-			WithLocation(srcDir)
+		if installErr != nil {
+			return nil, errors.NewVersionError(
+				ErrInstallFailed,
+				"Installation failed",
+				installErr).
+				WithLocation(srcDir)
+		}
 	}
 
 	// Clean up if requested
@@ -493,19 +499,25 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	}
 
 	// Done
-	updateStage(StageDone, "Installation completed", 1.0)
+	if options.BuildOnly {
+		updateStage(StageDone, "Build completed", 1.0)
+	} else {
+		updateStage(StageDone, "Installation completed", 1.0)
+	}
 
 	// Update final timing
 	result.Duration = time.Since(startTime)
 
-	// Register the installed Perl version
-	err = RegisterVersionAfterBuild(result, "pvm")
-	if err != nil {
-		// Log the error but don't fail the build
-		if options.ProgressCallback != nil {
-			options.ProgressCallback(StageDone,
-				fmt.Sprintf("Warning: Failed to register Perl version: %v", err),
-				1.0)
+	// Register the installed Perl version only if not build-only
+	if !options.BuildOnly {
+		err = RegisterVersionAfterBuild(result, "pvm")
+		if err != nil {
+			// Log the error but don't fail the build
+			if options.ProgressCallback != nil {
+				options.ProgressCallback(StageDone,
+					fmt.Sprintf("Warning: Failed to register Perl version: %v", err),
+					1.0)
+			}
 		}
 	}
 
