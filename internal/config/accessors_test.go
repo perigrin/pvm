@@ -7,13 +7,13 @@ import (
 
 func TestGetString(t *testing.T) {
 	// Create a test configuration
-	config, _ := ParseString(`
+	config, err := ParseString(`
 		[pvm]
 		default_perl = "5.36.0"
 		download_mirror = "https://example.com/perl"
 
 		[pvx]
-		isolation_level = "high"
+		isolation_level = "clean"
 
 		[pvi]
 		preferred_installer = "cpanm"
@@ -21,6 +21,12 @@ func TestGetString(t *testing.T) {
 		[psc]
 		type_definitions_path = "$XDG_DATA_HOME/pvm/types"
 	`)
+	if err != nil {
+		t.Fatalf("Failed to parse configuration: %v", err)
+	}
+	if config == nil {
+		t.Fatalf("Configuration is nil")
+	}
 
 	// Test getting string values
 	tests := []struct {
@@ -30,7 +36,7 @@ func TestGetString(t *testing.T) {
 	}{
 		{"pvm", "default_perl", "5.36.0"},
 		{"pvm", "download_mirror", "https://example.com/perl"},
-		{"pvx", "isolation_level", "high"},
+		{"pvx", "isolation_level", "clean"},
 		{"pvi", "preferred_installer", "cpanm"},
 		{"psc", "type_definitions_path", "$XDG_DATA_HOME/pvm/types"},
 		// Test non-existent key
@@ -64,13 +70,16 @@ func TestGetString(t *testing.T) {
 
 func TestGetInt(t *testing.T) {
 	// Create a test configuration
-	config, _ := ParseString(`
+	config, err := ParseString(`
 		[pvm]
 		build_jobs = 8
 
 		[pvx]
 		timeout = 300
 	`)
+	if err != nil {
+		t.Fatalf("Failed to parse configuration: %v", err)
+	}
 
 	// Test getting integer values
 	tests := []struct {
@@ -95,7 +104,7 @@ func TestGetInt(t *testing.T) {
 
 func TestGetBool(t *testing.T) {
 	// Create a test configuration
-	config, _ := ParseString(`
+	config, err := ParseString(`
 		[pvm]
 		run_tests = true
 
@@ -109,6 +118,9 @@ func TestGetBool(t *testing.T) {
 		[psc]
 		strict_mode = true
 	`)
+	if err != nil {
+		t.Fatalf("Failed to parse configuration: %v", err)
+	}
 
 	// Test getting boolean values
 	tests := []struct {
@@ -136,10 +148,13 @@ func TestGetBool(t *testing.T) {
 
 func TestGetStringSlice(t *testing.T) {
 	// Create a test configuration
-	config, _ := ParseString(`
+	config, err := ParseString(`
 		[psc]
 		watch_exclude = ["**/node_modules/**", "**/.git/**"]
 	`)
+	if err != nil {
+		t.Fatalf("Failed to parse configuration: %v", err)
+	}
 
 	// Test getting string slice values
 	watchExclude := config.GetStringSlice("psc", "watch_exclude")
@@ -164,10 +179,13 @@ func TestGetStringSlice(t *testing.T) {
 
 func TestGetStringMap(t *testing.T) {
 	// Create a test configuration
-	config, _ := ParseString(`
+	config, err := ParseString(`
 		[pvm]
 		version_aliases = { latest = "5.38.0", stable = "5.36.0" }
 	`)
+	if err != nil {
+		t.Fatalf("Failed to parse configuration: %v", err)
+	}
 
 	// Test getting string map values
 	versionAliases := config.GetStringMap("pvm", "version_aliases")

@@ -62,6 +62,19 @@ func GetComponentDescription(component string) string {
 // CreateRootCommand creates the appropriate root command based on the component
 func CreateRootCommand(component string) *cobra.Command {
 	description := GetComponentDescription(component)
+
+	// Special handling for PVX - it should be the root command, not a subcommand
+	if component == ComponentPVX {
+		provider, exists := GlobalRegistry.Get(component)
+		if exists {
+			// Return the PVX command directly as the root command
+			pvxCmd := provider()
+			// Add version information to the description
+			pvxCmd.Long = pvxCmd.Long + "\n\nVersion: " + version.GetVersion()
+			return pvxCmd
+		}
+	}
+
 	rootCmd := NewRootCommand(component, description)
 
 	// Add component-specific initialization here

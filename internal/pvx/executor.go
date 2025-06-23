@@ -43,35 +43,32 @@ type IsolationLevel string
 
 // Available isolation levels
 const (
-	// IsolationNone runs the script with no isolation, using the system's Perl environment
-	IsolationNone IsolationLevel = "none"
+	// IsolationGlobal uses the system's Perl environment completely
+	// - No isolation directory created
+	// - Uses system modules and environment as-is
+	// - Should be explicit opt-in, never default
+	IsolationGlobal IsolationLevel = "global"
 
-	// IsolationLow creates a minimal isolation layer with local::lib equivalent
+	// IsolationLocal creates local module installation capability
 	// - Uses existing Perl environment, but allows installing modules locally
+	// - Adds isolation directory to PERL5LIB (preserves system modules)
 	// - Inherits all environment variables
-	// - Has full access to the filesystem
-	IsolationLow IsolationLevel = "low"
+	// - Default for project development work
+	IsolationLocal IsolationLevel = "local"
 
-	// IsolationMedium provides stronger isolation by restricting module access
-	// - Creates a clean PERL5LIB environment
+	// IsolationClean provides clean module environment
+	// - Creates clean PERL5LIB environment (no system modules)
 	// - Still inherits most environment variables
-	// - Has full access to the filesystem but restricted module installation
-	IsolationMedium IsolationLevel = "medium"
-
-	// IsolationHigh creates the strongest isolation possible without containers
-	// - Creates a clean environment with minimal environment variables
-	// - Restricts module access to only the isolation directory
-	// - Restricts filesystem access to specified paths where possible
-	// - Creates a more robust isolation for running untrusted code
-	IsolationHigh IsolationLevel = "high"
+	// - Only isolation directory modules available
+	// - Default for tool execution and testing
+	IsolationClean IsolationLevel = "clean"
 )
 
 // All valid isolation levels
 var ValidIsolationLevels = map[IsolationLevel]bool{
-	IsolationNone:   true,
-	IsolationLow:    true,
-	IsolationMedium: true,
-	IsolationHigh:   true,
+	IsolationGlobal: true,
+	IsolationLocal:  true,
+	IsolationClean:  true,
 }
 
 // ExecutionOptions contains options for script execution
@@ -89,7 +86,7 @@ type ExecutionOptions struct {
 	Env map[string]string
 
 	// Environment variables to preserve in isolation
-	// This is useful for preserving specific environment variables in high isolation mode
+	// This is useful for preserving specific environment variables when using PreserveEnv filtering
 	PreserveEnv []string
 
 	// Environment variables to clear/remove for isolation
@@ -126,15 +123,15 @@ type ExecutionOptions struct {
 	// Name for persistent isolation environment
 	EnvName string
 
-	// ReadOnly paths for filesystem isolation - only applicable for high isolation mode
+	// ReadOnly paths for filesystem isolation - creates PVM_READONLY_PATHS environment variable
 	// Any directories in this list will be accessible for reading but not writing
 	ReadOnlyPaths []string
 
-	// ReadWrite paths for filesystem isolation - only applicable for high isolation mode
+	// ReadWrite paths for filesystem isolation - creates PVM_READWRITE_PATHS environment variable
 	// Any directories in this list will be accessible for both reading and writing
 	ReadWritePaths []string
 
-	// Whether to create a temporary directory for script output - only applicable for high isolation mode
+	// Whether to create a temporary directory for script output - creates PVM_ISOLATED_OUTPUT environment variable
 	// When set to true, a temporary directory will be created and set as the working directory
 	IsolatedOutput bool
 
@@ -301,20 +298,7 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 	}
 	cmd.Env = env
 
-	// Set the working directory for high isolation with isolated output
-	if options.IsolationLevel == IsolationHigh && options.IsolatedOutput && options.IsolationDir != "" {
-		outputDir := filepath.Join(options.IsolationDir, "output")
-		if _, err := os.Stat(outputDir); err == nil {
-			cmd.Dir = outputDir
-			if options.Verbose {
-				if ui != nil {
-					ui.Debug("Setting script working directory to: %s", outputDir)
-				} else {
-					log.Infof("Setting script working directory to: %s", outputDir)
-				}
-			}
-		}
-	}
+	// Note: Working directory setup for isolated output was removed - output directory is created separately
 
 	// Configure output capture
 	var outputBuffer bytes.Buffer
@@ -366,11 +350,7 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 
 // ExecuteInlineCode runs Perl code directly with the specified options
 func ExecuteInlineCode(options *ExecutionOptions, uiOutput ...*ui.Output) (string, error) {
-	// Get UI for user feedback (optional parameter for backward compatibility)
-	var ui *ui.Output
-	if len(uiOutput) > 0 && uiOutput[0] != nil {
-		ui = uiOutput[0]
-	}
+	// Note: UI parameter preserved for backward compatibility but currently unused
 	if options == nil {
 		return "", errors.NewExecutionError(
 			ErrExecutionFailed,
@@ -409,20 +389,7 @@ func ExecuteInlineCode(options *ExecutionOptions, uiOutput ...*ui.Output) (strin
 	}
 	cmd.Env = env
 
-	// Set the working directory for high isolation with isolated output
-	if options.IsolationLevel == IsolationHigh && options.IsolatedOutput && options.IsolationDir != "" {
-		outputDir := filepath.Join(options.IsolationDir, "output")
-		if _, err := os.Stat(outputDir); err == nil {
-			cmd.Dir = outputDir
-			if options.Verbose {
-				if ui != nil {
-					ui.Debug("Setting script working directory to: %s", outputDir)
-				} else {
-					log.Infof("Setting script working directory to: %s", outputDir)
-				}
-			}
-		}
-	}
+	// Note: Working directory setup for isolated output was removed - output directory is created separately
 
 	// Configure output capture
 	var outputBuffer bytes.Buffer
@@ -476,7 +443,7 @@ func cleanupIsolationDir(options *ExecutionOptions) {
 	// Skip if no isolation directory was created
 	if options.IsolationDir == "" ||
 		options.IsolationLevel == "" ||
-		options.IsolationLevel == IsolationNone {
+		options.IsolationLevel == IsolationGlobal {
 		return
 	}
 
@@ -614,7 +581,13 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 		versionInfo, err := perl.GetVersionInfo(resolvedVersion.Version)
 		if err == nil && versionInfo != nil {
 			// Use the installation path from the version info
-			perlExe = filepath.Join(versionInfo.InstallPath, "bin", "perl")
+			if versionInfo.Source == "system" {
+				// For system perl, InstallPath is the bin directory, so just append "perl"
+				perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+			} else {
+				// For PVM-installed versions, InstallPath is the installation root
+				perlExe = filepath.Join(versionInfo.InstallPath, "bin", "perl")
+			}
 		} else {
 			// If version info isn't available or there's an error, use the path from the resolver
 			// This handles cases where the resolver has direct path information
@@ -733,9 +706,9 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 		}
 	}
 
-	// If legacy isolation flag is set, default to low isolation
+	// If legacy isolation flag is set, default to local isolation
 	if options.Isolated && options.IsolationLevel == "" {
-		options.IsolationLevel = IsolationLow
+		options.IsolationLevel = IsolationLocal
 	}
 
 	// Validate isolation level
@@ -746,10 +719,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			nil)
 	}
 
-	// If no isolation requested, return current environment
-	if options.IsolationLevel == "" || options.IsolationLevel == IsolationNone {
+	// If global isolation requested, return current environment
+	if options.IsolationLevel == IsolationGlobal {
 		if options.Verbose {
-			log.Infof("Using no isolation - script will run in the current environment")
+			log.Infof("Using global isolation - script will run in the current environment")
 		}
 		return env, nil
 	}
@@ -850,8 +823,8 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 	// Create the standard directories
 	dirsToCreate := []string{libDir, archLibDir, binDir}
 
-	// If medium or high isolation, create more complete directory structure
-	if options.IsolationLevel == IsolationMedium || options.IsolationLevel == IsolationHigh {
+	// If clean isolation, create more complete directory structure
+	if options.IsolationLevel == IsolationClean {
 		dirsToCreate = append(dirsToCreate,
 			siteDir,
 			vendorDir,
@@ -876,10 +849,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 
 	// Set up the environment based on isolation level
 	switch options.IsolationLevel {
-	case IsolationLow:
-		// Low isolation: Add local::lib equivalent while preserving existing PERL5LIB
+	case IsolationLocal:
+		// Local isolation: Add local::lib equivalent while preserving existing PERL5LIB
 		if options.Verbose {
-			log.Infof("Using low isolation - preserving environment but adding local module paths")
+			log.Infof("Using local isolation - preserving environment but adding local module paths")
 		}
 
 		perl5lib := fmt.Sprintf("%s:%s", libDir, archLibDir)
@@ -941,10 +914,10 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			env = append(env, fmt.Sprintf("PATH=%s", binDir))
 		}
 
-	case IsolationMedium:
-		// Medium isolation: Clean PERL5LIB but preserve most environment variables
+	case IsolationClean:
+		// Clean isolation: Clean PERL5LIB but preserve most environment variables
 		if options.Verbose {
-			log.Infof("Using medium isolation - preserving most environment but cleaning PERL5LIB")
+			log.Infof("Using clean isolation - preserving most environment but cleaning PERL5LIB")
 		}
 
 		// Set PERL5LIB to include all the isolation directory paths
@@ -995,211 +968,13 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 			env = append(env, fmt.Sprintf("PATH=%s", binDir))
 		}
 
-	case IsolationHigh:
-		// High isolation: Start with minimal environment and add only what's needed
-		if options.Verbose {
-			log.Infof("Using high isolation - starting with minimal environment")
-		}
-
-		// Create a clean environment with only essential variables
-		cleanEnv := []string{}
-
-		// Copy only essential environment variables (non-exhaustive list)
-		essentialVars := []string{
-			"PATH",
-			"HOME",
-			"USER",
-			"SHELL",
-			"TMPDIR",
-			"TERM",
-			"LANG",
-			"LC_ALL",
-			"HOSTNAME",
-			"LOGNAME",
-		}
-
-		// Add essential environment variables
-		for _, key := range essentialVars {
-			for _, envVar := range env {
-				if strings.HasPrefix(envVar, key+"=") {
-					cleanEnv = append(cleanEnv, envVar)
-					if options.Verbose {
-						log.Debugf("Preserving essential environment variable: %s", key)
-					}
-					break
-				}
-			}
-		}
-
-		// Add any preserved environment variables that aren't already in essential list
-		if len(options.PreserveEnv) > 0 {
-			if options.Verbose {
-				log.Infof("Preserving user-specified environment variables: %v", options.PreserveEnv)
-			}
-
-			for _, key := range options.PreserveEnv {
-				// Skip if it's already in essential vars
-				isEssential := false
-				for _, essential := range essentialVars {
-					if key == essential {
-						isEssential = true
-						break
-					}
-				}
-				if isEssential {
-					continue
-				}
-
-				// Skip if it should be cleared
-				if len(options.ClearEnv) > 0 {
-					shouldClear := false
-					for _, clearKey := range options.ClearEnv {
-						if key == clearKey {
-							shouldClear = true
-							break
-						}
-					}
-					if shouldClear {
-						if options.Verbose {
-							log.Debugf("Skipping preservation of environment variable %s (in clear list)", key)
-						}
-						continue
-					}
-				}
-
-				// Find and add from original environment
-				for _, envVar := range env {
-					if strings.HasPrefix(envVar, key+"=") {
-						cleanEnv = append(cleanEnv, envVar)
-						if options.Verbose {
-							log.Debugf("Preserving user-specified environment variable: %s", key)
-						}
-						break
-					}
-				}
-			}
-		}
-
-		// Add custom environment variables
-		for key, value := range options.Env {
-			setEnvVar(&cleanEnv, key, value)
-			if options.Verbose {
-				log.Debugf("Setting custom environment variable: %s=%s", key, value)
-			}
-		}
-
-		// Set isolation environment variables first, so scripts know the isolation level
-		setEnvVar(&cleanEnv, "PVM_ISOLATION_LEVEL", string(options.IsolationLevel))
-		setEnvVar(&cleanEnv, "PVM_ISOLATION_DIR", isolationDir)
-
-		// Set up enhanced filesystem isolation for high isolation mode
-		if options.IsolatedOutput {
-			// Create a temporary directory for script output
-			outputDir := filepath.Join(isolationDir, "output")
-			if err := os.MkdirAll(outputDir, 0755); err != nil {
-				return nil, errors.NewExecutionError(
-					ErrExecutionFailed,
-					fmt.Sprintf("Failed to create output directory at %s", outputDir),
-					err)
-			}
-
-			// Set as the working directory for the script
-			setEnvVar(&cleanEnv, "PVM_OUTPUT_DIR", outputDir)
-			setEnvVar(&cleanEnv, "PVM_ISOLATED_OUTPUT", "1")
-
-			// Also set current working directory to the output directory
-			// This will make the script write files to the isolated output directory by default
-			setEnvVar(&cleanEnv, "PWD", outputDir)
-
-			if options.Verbose {
-				log.Infof("Created isolated output directory: %s", outputDir)
-				// Create a test file to verify permissions
-				testFilePath := filepath.Join(outputDir, "test_permission.txt")
-				err := os.WriteFile(testFilePath, []byte("Permission test file\n"), 0644)
-				if err != nil {
-					log.Warnf("Failed to create test file in output directory: %v", err)
-				} else {
-					log.Infof("Successfully created test file in output directory")
-					_ = os.Remove(testFilePath) // Clean up test file
-				}
-			}
-		}
-
-		// Configure filesystem access paths
-		if len(options.ReadOnlyPaths) > 0 {
-			readOnlyPathsStr := strings.Join(options.ReadOnlyPaths, ":")
-			setEnvVar(&cleanEnv, "PVM_READONLY_PATHS", readOnlyPathsStr)
-
-			if options.Verbose {
-				log.Infof("Set read-only paths: %s", readOnlyPathsStr)
-			}
-		}
-
-		if len(options.ReadWritePaths) > 0 {
-			readWritePathsStr := strings.Join(options.ReadWritePaths, ":")
-			setEnvVar(&cleanEnv, "PVM_READWRITE_PATHS", readWritePathsStr)
-
-			if options.Verbose {
-				log.Infof("Set read-write paths: %s", readWritePathsStr)
-			}
-		}
-
-		// Set PERL5LIB to include all the isolation directory paths
-		perl5lib := fmt.Sprintf("%s:%s:%s:%s",
-			libDir,
-			archLibDir,
-			siteDir,
-			vendorDir)
-
-		// Add any user-specified additional module paths
-		for _, path := range options.AdditionalModulePaths {
-			perl5lib = fmt.Sprintf("%s:%s", perl5lib, path)
-			if options.Verbose {
-				log.Infof("Adding module path to PERL5LIB: %s", path)
-			}
-		}
-
-		setEnvVar(&cleanEnv, "PERL5LIB", perl5lib)
-
-		// Set up the local::lib equivalent environment variables
-
-		// Use the custom module path if provided, otherwise use the isolation directory
-		modulePath := isolationDir
-		if options.CustomModulePath != "" {
-			modulePath = options.CustomModulePath
-			if options.Verbose {
-				log.Infof("Using custom module path: %s", modulePath)
-			}
-		}
-
-		setEnvVar(&cleanEnv, "PERL_LOCAL_LIB_ROOT", modulePath)
-		setEnvVar(&cleanEnv, "PERL_MB_OPT", fmt.Sprintf("--install_base '%s'", modulePath))
-		setEnvVar(&cleanEnv, "PERL_MM_OPT", fmt.Sprintf("INSTALL_BASE=%s", modulePath))
-
-		// Set PATH to include the bin directory first
-		pathFound := false
-		for i, existing := range cleanEnv {
-			if strings.HasPrefix(existing, "PATH=") {
-				currentPath := strings.TrimPrefix(existing, "PATH=")
-				cleanEnv[i] = fmt.Sprintf("PATH=%s:%s", binDir, currentPath)
-				pathFound = true
-				break
-			}
-		}
-
-		// Add PATH if not found
-		if !pathFound {
-			cleanEnv = append(cleanEnv, fmt.Sprintf("PATH=%s", binDir))
-		}
-
-		// Environment variables already set earlier
-
-		// Use the clean environment instead of the original one
-		env = cleanEnv
 	}
 
 	// Store the isolation directory in options for potential cleanup
 	options.IsolationDir = isolationDir
+
+	// Set PVM_ISOLATION_DIR environment variable for scripts to use
+	setEnvVar(&env, "PVM_ISOLATION_DIR", isolationDir)
 
 	// Generate shims for named environments
 	if options.EnvName != "" {

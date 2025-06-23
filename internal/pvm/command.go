@@ -14,11 +14,15 @@ import (
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/pvx"
+	"tamarou.com/pvm/internal/tool"
+	"tamarou.com/pvm/internal/tool/install"
+	"tamarou.com/pvm/internal/tool/shim"
 	"tamarou.com/pvm/internal/version"
 	"tamarou.com/pvm/internal/xdg"
 )
@@ -27,6 +31,18 @@ import (
 func init() {
 	// Set up version checking integration between current and perl packages
 	current.SetVersionChecker(perl.IsVersionInstalled)
+}
+
+// logCompileDetails logs build details with appropriate level based on content
+func logCompileDetails(ui *ui.Output, details string) {
+	switch {
+	case strings.Contains(details, "ERROR") || strings.Contains(details, "error:"):
+		ui.Error("%s", details)
+	case strings.Contains(details, "WARNING") || strings.Contains(details, "warning:"):
+		ui.Warning("%s", details)
+	default:
+		ui.Info("%s", details)
+	}
 }
 
 // NewCommand creates a new PVM command
@@ -165,75 +181,81 @@ func newInstallCommand() *cobra.Command {
 			if !forceSource && (binaryOnly || preferBinary) {
 				// Check if binary is available for this version and platform
 				available, err := perl.CheckBinaryAvailability(version, "")
+
+				// Handle error case first
 				if err != nil {
 					if binaryOnly {
 						return fmt.Errorf("failed to check binary availability: %w", err)
 					}
 					// For prefer-binary, continue to source installation
 					cmd.Printf("Warning: Failed to check binary availability, falling back to source: %v\n", err)
-				} else if available {
-					// Binary is available, attempt binary installation
-					cmd.Printf("Installing Perl %s from pre-compiled binary...\n", version)
+				} else {
+					// No error, determine strategy based on availability and preference
+					switch {
+					case available:
+						// Binary is available, attempt binary installation
+						cmd.Printf("Installing Perl %s from pre-compiled binary...\n", version)
 
-					// Create binary installation options
-					binaryOptions := &perl.BinaryInstallOptions{
-						Version:    version,
-						Platform:   "", // Use default platform
-						InstallDir: installDir,
-						ProgressCallback: func(total, transferred int64, done bool) {
-							// Simple progress reporting for binary download
-							if total > 0 {
-								percentage := float64(transferred) / float64(total) * 100
-								width := 40
-								completeChars := int(float64(width) * float64(transferred) / float64(total))
+						// Create binary installation options
+						binaryOptions := &perl.BinaryInstallOptions{
+							Version:    version,
+							Platform:   "", // Use default platform
+							InstallDir: installDir,
+							ProgressCallback: func(total, transferred int64, done bool) {
+								// Simple progress reporting for binary download
+								if total > 0 {
+									percentage := float64(transferred) / float64(total) * 100
+									width := 40
+									completeChars := int(float64(width) * float64(transferred) / float64(total))
 
-								progressBar := "["
-								for i := 0; i < width; i++ {
-									switch {
-									case i < completeChars:
-										progressBar += "="
-									case i == completeChars:
-										progressBar += ">"
-									default:
-										progressBar += " "
+									progressBar := "["
+									for i := 0; i < width; i++ {
+										switch {
+										case i < completeChars:
+											progressBar += "="
+										case i == completeChars:
+											progressBar += ">"
+										default:
+											progressBar += " "
+										}
+									}
+									progressBar += "]"
+
+									fmt.Printf("\r%s %.1f%% (%d/%d bytes)                    ",
+										progressBar, percentage, transferred, total)
+
+									if done {
+										fmt.Println()
 									}
 								}
-								progressBar += "]"
+							},
+							Context: cmd.Context(),
+						}
 
-								fmt.Printf("\r%s %.1f%% (%d/%d bytes)                    ",
-									progressBar, percentage, transferred, total)
-
-								if done {
-									fmt.Println()
-								}
+						// Attempt binary installation
+						result, err := perl.InstallFromBinary(binaryOptions)
+						if err != nil {
+							if binaryOnly {
+								return fmt.Errorf("binary installation failed: %w", err)
 							}
-						},
-						Context: cmd.Context(),
-					}
-
-					// Attempt binary installation
-					result, err := perl.InstallFromBinary(binaryOptions)
-					if err != nil {
-						if binaryOnly {
-							return fmt.Errorf("binary installation failed: %w", err)
+							// For prefer-binary, fall back to source
+							cmd.Printf("Binary installation failed, falling back to source: %v\n", err)
+						} else {
+							// Binary installation succeeded
+							cmd.Printf("\nBinary installation completed successfully!\n")
+							cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
+							cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
+							if result.FromCache {
+								cmd.Println("Note: Installation was completed using cached binary")
+							}
+							return nil
 						}
-						// For prefer-binary, fall back to source
-						cmd.Printf("Binary installation failed, falling back to source: %v\n", err)
-					} else {
-						// Binary installation succeeded
-						cmd.Printf("\nBinary installation completed successfully!\n")
-						cmd.Printf("Perl %s installed at: %s\n", result.Version, result.InstallPath)
-						cmd.Printf("Total installation time: %s\n", result.Duration.Round(time.Second))
-						if result.FromCache {
-							cmd.Println("Note: Installation was completed using cached binary")
-						}
-						return nil
+					case binaryOnly:
+						return fmt.Errorf("binary for Perl %s is not available for your platform", version)
+					default:
+						// prefer-binary but not available, fall back to source
+						cmd.Printf("Binary for Perl %s not available, falling back to source installation\n", version)
 					}
-				} else if binaryOnly {
-					return fmt.Errorf("binary for Perl %s is not available for your platform", version)
-				} else {
-					// prefer-binary but not available, fall back to source
-					cmd.Printf("Binary for Perl %s not available, falling back to source installation\n", version)
 				}
 			}
 
@@ -261,13 +283,7 @@ func newInstallCommand() *cobra.Command {
 							strings.Contains(details, "error:") ||
 							strings.Contains(details, "Done") ||
 							strings.Contains(details, "All tests successful") {
-							if strings.Contains(details, "ERROR") || strings.Contains(details, "error:") { //nolint:gocritic
-								ui.Error("%s", details)
-							} else if strings.Contains(details, "WARNING") || strings.Contains(details, "warning:") {
-								ui.Warning("%s", details)
-							} else {
-								ui.Info("%s", details)
-							}
+							logCompileDetails(ui, details)
 						}
 					} else {
 						// For other stages, print all details
@@ -1090,7 +1106,7 @@ func newUninstallCommand() *cobra.Command {
 }
 
 func newImportSystemCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "import-system",
 		Short: "Import system Perl installation",
 		Long:  "Import the system Perl installation into PVM registry",
@@ -1098,6 +1114,8 @@ func newImportSystemCommand() *cobra.Command {
 			return importSystemPerl(cmd)
 		},
 	}
+	cmd.Flags().Bool("force", false, "Force re-import even if already registered")
+	return cmd
 }
 
 func newImportCommand() *cobra.Command {
@@ -1343,13 +1361,7 @@ func buildPerlFromSource(cmd *cobra.Command, version string) error {
 					strings.Contains(details, "error:") ||
 					strings.Contains(details, "Done") ||
 					strings.Contains(details, "All tests successful") {
-					if strings.Contains(details, "ERROR") || strings.Contains(details, "error:") { //nolint:gocritic
-						ui.Error("%s", details)
-					} else if strings.Contains(details, "WARNING") || strings.Contains(details, "warning:") {
-						ui.Warning("%s", details)
-					} else {
-						ui.Info("%s", details)
-					}
+					logCompileDetails(ui, details)
 				}
 			} else {
 				// For other stages, print all details
@@ -1720,20 +1732,34 @@ func importSystemPerl(cmd *cobra.Command) error {
 
 	cmd.Printf("Found system Perl %s at %s\n", systemPerl.Version, systemPerl.Path)
 
+	// Check force flag
+	force, _ := cmd.Flags().GetBool("force")
+
 	// Check if this version is already registered
 	installed, err := perl.IsVersionInstalled(systemPerl.Version)
 	if err != nil {
 		return fmt.Errorf("failed to check if version is installed: %w", err)
 	}
-	if installed {
+	if installed && !force {
 		cmd.Printf("System Perl %s is already registered with PVM\n", systemPerl.Version)
 		return nil
 	}
 
-	// Register the system Perl by creating a VersionInfo entry
+	// If forcing and already installed, uninstall first
+	if installed && force {
+		cmd.Printf("Force re-importing system Perl %s\n", systemPerl.Version)
+		err = perl.UninstallVersion(systemPerl.Version)
+		if err != nil {
+			return fmt.Errorf("failed to uninstall existing registration: %w", err)
+		}
+	}
+
+	// Register the system Perl using the corrected install path logic
+	// For system perl, InstallPath should be the directory containing the perl executable
+	installPath := filepath.Dir(systemPerl.Path)
 	versionInfo := perl.VersionInfo{
 		Version:     systemPerl.Version,
-		InstallPath: systemPerl.Path,
+		InstallPath: installPath,
 		InstallTime: time.Now(),
 		Source:      "system",
 	}
@@ -2034,61 +2060,125 @@ func newToolCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tool",
 		Short: "Manage tool installations",
-		Long:  "Commands for installing, running, and managing Perl tools",
+		Long:  "Commands for installing, running, and managing Perl tools globally and per-project",
 	}
 
-	cmd.AddCommand(
-		&cobra.Command{
-			Use:   "install [tool[@version]]",
-			Short: "Install a tool",
-			Long:  "Install a Perl tool (module) and make it available as a command",
-			Args:  cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return installTool(cmd, args[0])
-			},
+	// Add --global flag to the parent command
+	cmd.PersistentFlags().Bool("global", false, "Operate on global tools instead of project tools")
+
+	installCmd := &cobra.Command{
+		Use:   "install [tool[@version]]",
+		Short: "Install a tool",
+		Long:  "Install a Perl tool (module) and make it available as a command. Use --global for system-wide installation.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			global, _ := cmd.Flags().GetBool("global")
+			return installTool(cmd, args[0], global)
 		},
-		&cobra.Command{
-			Use:   "run [tool] [args...]",
-			Short: "Run a tool",
-			Long:  "Run a Perl tool without installing it permanently",
-			Args:  cobra.MinimumNArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runTool(cmd, args[0], args[1:])
-			},
+	}
+
+	runCmd := &cobra.Command{
+		Use:   "run [tool] [args...]",
+		Short: "Run a tool",
+		Long:  "Run a Perl tool without installing it permanently. Automatically detects global tools.",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTool(cmd, args[0], args[1:])
 		},
-		&cobra.Command{
-			Use:   "list",
-			Short: "List installed tools",
-			Long:  "List all installed tools and their versions",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return listTools(cmd)
-			},
+	}
+
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List installed tools",
+		Long:  "List all installed tools and their versions. Use --global to show only global tools.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			global, _ := cmd.Flags().GetBool("global")
+			return listTools(cmd, global)
 		},
-		&cobra.Command{
-			Use:   "upgrade [tool]",
-			Short: "Upgrade a tool",
-			Long:  "Upgrade an installed tool to the latest version",
-			Args:  cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return upgradeTool(cmd, args[0])
-			},
+	}
+
+	upgradeCmd := &cobra.Command{
+		Use:   "upgrade [tool]",
+		Short: "Upgrade a tool",
+		Long:  "Upgrade an installed tool to the latest version. Use --global for global tools.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			global, _ := cmd.Flags().GetBool("global")
+			return upgradeTool(cmd, args[0], global)
 		},
-		&cobra.Command{
-			Use:   "uninstall [tool]",
-			Short: "Uninstall a tool",
-			Long:  "Remove an installed tool",
-			Args:  cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return uninstallTool(cmd, args[0])
-			},
+	}
+
+	uninstallCmd := &cobra.Command{
+		Use:   "uninstall [tool]",
+		Short: "Uninstall a tool",
+		Long:  "Remove an installed tool. Use --global for global tools.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			global, _ := cmd.Flags().GetBool("global")
+			return uninstallTool(cmd, args[0], global)
 		},
-	)
+	}
+
+	// Add shim management commands
+	shimCmd := &cobra.Command{
+		Use:   "shim",
+		Short: "Manage PATH shims for tools",
+		Long:  "Commands for managing PATH shims that make global tools available as direct commands",
+	}
+
+	shimInstallCmd := &cobra.Command{
+		Use:   "install",
+		Short: "Install shell integration for shims",
+		Long:  "Add shim directory to your shell's PATH configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			force, _ := cmd.Flags().GetBool("force")
+			shell, _ := cmd.Flags().GetString("shell")
+			position, _ := cmd.Flags().GetString("position")
+			return installShimIntegration(cmd, shell, position, force)
+		},
+	}
+	shimInstallCmd.Flags().Bool("force", false, "Force reinstallation even if already installed")
+	shimInstallCmd.Flags().String("shell", "", "Target shell (auto-detected if not specified)")
+	shimInstallCmd.Flags().String("position", "after-system", "Position in PATH: first, last, after-system")
+
+	shimRemoveCmd := &cobra.Command{
+		Use:   "remove",
+		Short: "Remove shell integration for shims",
+		Long:  "Remove shim directory from your shell's PATH configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			shell, _ := cmd.Flags().GetString("shell")
+			return removeShimIntegration(cmd, shell)
+		},
+	}
+	shimRemoveCmd.Flags().String("shell", "", "Target shell (auto-detected if not specified)")
+
+	shimListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List installed shims",
+		Long:  "Show all tools that have shims available in PATH",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return listShims(cmd)
+		},
+	}
+
+	shimStatusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show shim integration status",
+		Long:  "Display information about shim PATH integration and conflicts",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return shimStatus(cmd)
+		},
+	}
+
+	shimCmd.AddCommand(shimInstallCmd, shimRemoveCmd, shimListCmd, shimStatusCmd)
+
+	cmd.AddCommand(installCmd, runCmd, listCmd, upgradeCmd, uninstallCmd, shimCmd)
 
 	return cmd
 }
 
 // installTool installs a tool and creates a shim for it
-func installTool(cmd *cobra.Command, toolSpec string) error {
+func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 	// Parse tool specification (tool@version or just tool)
 	parts := strings.Split(toolSpec, "@")
 	toolName := parts[0]
@@ -2097,7 +2187,71 @@ func installTool(cmd *cobra.Command, toolSpec string) error {
 		version = parts[1]
 	}
 
-	cmd.Printf("Installing tool '%s'", toolName)
+	if global {
+		// Use global tool installation infrastructure
+		cmd.Printf("Installing global tool '%s'", toolName)
+		if version != "" {
+			cmd.Printf(" (version %s)", version)
+		}
+		cmd.Println("...")
+
+		// Initialize tool mapping to resolve tool name to module
+		mapping := tool.NewToolMapping()
+
+		// Resolve tool to module name
+		resolution, err := mapping.ResolveToolToModule(toolName)
+		if err != nil {
+			return fmt.Errorf("failed to resolve tool '%s' to module: %w", toolName, err)
+		}
+
+		// Create installation options
+		options := &install.InstallOptions{
+			ToolName:          toolName,
+			ModuleName:        resolution.ModuleName,
+			VersionConstraint: version,
+			Force:             false,
+			Verbose:           true,
+			Context:           cmd.Context(),
+		}
+
+		// Use global installer
+		installer, err := install.NewToolInstaller()
+		if err != nil {
+			return fmt.Errorf("failed to create installer: %w", err)
+		}
+
+		result, err := installer.InstallTool(options)
+		if err != nil {
+			return fmt.Errorf("failed to install global tool '%s': %w", toolName, err)
+		}
+
+		cmd.Printf("Successfully installed global tool '%s' -> %s\n", toolName, result.InstallPath)
+
+		// Create shim for the tool
+		shimManager, err := shim.NewManager()
+		if err != nil {
+			cmd.Printf("Warning: Failed to create shim manager: %v\n", err)
+		} else {
+			toolInfo := &tool.ToolInfo{
+				Name:        toolName,
+				Module:      resolution.ModuleName,
+				Version:     result.Version,
+				Description: resolution.Description,
+				InstallDate: time.Now(),
+			}
+
+			if err := shimManager.CreateShim(toolName, toolInfo); err != nil {
+				cmd.Printf("Warning: Failed to create shim for '%s': %v\n", toolName, err)
+			} else {
+				cmd.Printf("Created shim in PATH for command '%s'\n", toolName)
+			}
+		}
+
+		return nil
+	}
+
+	// Legacy project-local tool installation (keep existing behavior for backward compatibility)
+	cmd.Printf("Installing project tool '%s'", toolName)
 	if version != "" {
 		cmd.Printf(" (version %s)", version)
 	}
@@ -2124,7 +2278,7 @@ func installTool(cmd *cobra.Command, toolSpec string) error {
 	// Use PVX to install the tool in an isolated environment
 	options := &pvx.ExecutionOptions{
 		PerlVersion:    "", // Use default
-		IsolationLevel: pvx.IsolationLow,
+		IsolationLevel: pvx.IsolationLocal,
 		IsolationDir:   toolEnvDir,
 		EnvName:        fmt.Sprintf("tool-%s", toolName),
 		NoCleanup:      true,
@@ -2177,10 +2331,32 @@ exec { 'cpanm' } 'cpanm', '%s';
 
 // runTool runs a tool temporarily without installing it
 func runTool(cmd *cobra.Command, toolName string, toolArgs []string) error {
+	// Use tool detector to determine how to handle this tool
+	detector := tool.NewDetector()
+
+	// Check if this is a known tool or should be treated as a script
+	mode, err := detector.DetectExecutionMode(append([]string{toolName}, toolArgs...))
+	if err != nil {
+		return fmt.Errorf("failed to detect execution mode for '%s': %w", toolName, err)
+	}
+
+	if mode.Mode == tool.ModeTool {
+		// Initialize tool mapping to resolve tool name to module
+		mapping := tool.NewToolMapping()
+
+		// Try to resolve tool to module name
+		module, err := mapping.ResolveToolToModule(toolName)
+		if err == nil {
+			cmd.Printf("Running tool '%s' (module: %s)...\n", toolName, module)
+		} else {
+			cmd.Printf("Running tool '%s'...\n", toolName)
+		}
+	}
+
 	// Use PVX to execute the tool directly
 	options := &pvx.ExecutionOptions{
 		PerlVersion:    "", // Use default
-		IsolationLevel: pvx.IsolationLow,
+		IsolationLevel: pvx.IsolationLocal,
 		NoCleanup:      false, // Clean up for temporary runs
 	}
 
@@ -2195,7 +2371,65 @@ func runTool(cmd *cobra.Command, toolName string, toolArgs []string) error {
 }
 
 // listTools lists all installed tools
-func listTools(cmd *cobra.Command) error {
+func listTools(cmd *cobra.Command, global bool) error {
+	if global {
+		// List global tools using the global tool infrastructure
+		storage, err := install.NewToolStorage()
+		if err != nil {
+			return fmt.Errorf("failed to initialize storage: %w", err)
+		}
+		tools, err := storage.ListTools()
+		if err != nil {
+			return fmt.Errorf("failed to list global tools: %w", err)
+		}
+
+		if len(tools) == 0 {
+			cmd.Println("No global tools installed.")
+			return nil
+		}
+
+		cmd.Println("Installed global tools:")
+		for _, tool := range tools {
+			cmd.Printf("  %s", tool.ToolName)
+			if tool.Version != "" {
+				cmd.Printf(" (%s)", tool.Version)
+			}
+			if !tool.InstallDate.IsZero() {
+				cmd.Printf(" - installed: %s", tool.InstallDate.Format("2006-01-02 15:04:05"))
+			}
+			cmd.Println()
+		}
+
+		return nil
+	}
+
+	// List both global and project tools for unified view
+	cmd.Println("Tool Inventory:")
+	cmd.Println()
+
+	// First, list global tools
+	storage, err := install.NewToolStorage()
+	if err != nil {
+		return fmt.Errorf("failed to initialize storage: %w", err)
+	}
+	globalTools, err := storage.ListTools()
+	if err == nil && len(globalTools) > 0 {
+		cmd.Println("Global tools:")
+		for _, tool := range globalTools {
+			cmd.Printf("  %s", tool.ToolName)
+			if tool.Version != "" {
+				cmd.Printf(" (%s)", tool.Version)
+			}
+			cmd.Printf(" [global]")
+			if !tool.InstallDate.IsZero() {
+				cmd.Printf(" - %s", tool.InstallDate.Format("2006-01-02 15:04:05"))
+			}
+			cmd.Println()
+		}
+		cmd.Println()
+	}
+
+	// Then, list project/legacy tools
 	dirs, err := xdg.GetDirs()
 	if err != nil {
 		return err
@@ -2205,7 +2439,9 @@ func listTools(cmd *cobra.Command) error {
 
 	// Check if tools directory exists
 	if _, err := os.Stat(toolsDir); os.IsNotExist(err) {
-		cmd.Println("No tools installed.")
+		if len(globalTools) == 0 {
+			cmd.Println("No tools installed.")
+		}
 		return nil
 	}
 
@@ -2215,29 +2451,66 @@ func listTools(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to read tools directory: %w", err)
 	}
 
-	if len(entries) == 0 {
-		cmd.Println("No tools installed.")
-		return nil
-	}
-
-	cmd.Println("Installed tools:")
-	for _, entry := range entries {
-		if entry.IsDir() {
-			toolPath := filepath.Join(toolsDir, entry.Name())
-			info, err := os.Stat(toolPath)
-			if err == nil {
-				cmd.Printf("  %s (installed: %s)\n", entry.Name(), info.ModTime().Format("2006-01-02 15:04:05"))
-			} else {
-				cmd.Printf("  %s\n", entry.Name())
+	if len(entries) > 0 {
+		cmd.Println("Project tools:")
+		for _, entry := range entries {
+			if entry.IsDir() {
+				toolPath := filepath.Join(toolsDir, entry.Name())
+				info, err := os.Stat(toolPath)
+				if err == nil {
+					cmd.Printf("  %s [project] - %s\n", entry.Name(), info.ModTime().Format("2006-01-02 15:04:05"))
+				} else {
+					cmd.Printf("  %s [project]\n", entry.Name())
+				}
 			}
 		}
+	} else if len(globalTools) == 0 {
+		cmd.Println("No tools installed.")
 	}
 
 	return nil
 }
 
 // upgradeTool upgrades an installed tool to the latest version
-func upgradeTool(cmd *cobra.Command, toolName string) error {
+func upgradeTool(cmd *cobra.Command, toolName string, global bool) error {
+	if global {
+		// Use global tool infrastructure for upgrade
+		cmd.Printf("Upgrading global tool '%s'...\n", toolName)
+
+		// Initialize installer
+		installer, err := install.NewToolInstaller()
+		if err != nil {
+			return fmt.Errorf("failed to create installer: %w", err)
+		}
+
+		// Initialize tool mapping to resolve tool name to module
+		mapping := tool.NewToolMapping()
+		resolution, err := mapping.ResolveToolToModule(toolName)
+		if err != nil {
+			return fmt.Errorf("failed to resolve tool '%s' to module: %w", toolName, err)
+		}
+
+		// Create upgrade options (force reinstall with latest version)
+		options := &install.InstallOptions{
+			ToolName:          toolName,
+			ModuleName:        resolution.ModuleName,
+			VersionConstraint: "", // Latest version
+			Force:             true,
+			Verbose:           true,
+			Context:           cmd.Context(),
+		}
+
+		// Execute upgrade
+		result, err := installer.InstallTool(options)
+		if err != nil {
+			return fmt.Errorf("failed to upgrade global tool '%s': %w", toolName, err)
+		}
+
+		cmd.Printf("Successfully upgraded global tool '%s' -> %s\n", toolName, result.InstallPath)
+		return nil
+	}
+
+	// Legacy project tool upgrade
 	dirs, err := xdg.GetDirs()
 	if err != nil {
 		return err
@@ -2248,15 +2521,15 @@ func upgradeTool(cmd *cobra.Command, toolName string) error {
 
 	// Check if tool is installed
 	if _, err := os.Stat(toolEnvDir); os.IsNotExist(err) {
-		return fmt.Errorf("tool '%s' is not installed", toolName)
+		return fmt.Errorf("project tool '%s' is not installed", toolName)
 	}
 
-	cmd.Printf("Upgrading tool '%s'...\n", toolName)
+	cmd.Printf("Upgrading project tool '%s'...\n", toolName)
 
 	// Use PVX to upgrade the tool
 	options := &pvx.ExecutionOptions{
 		PerlVersion:    "", // Use default
-		IsolationLevel: pvx.IsolationLow,
+		IsolationLevel: pvx.IsolationLocal,
 		IsolationDir:   toolEnvDir,
 		EnvName:        fmt.Sprintf("tool-%s", toolName),
 		NoCleanup:      true,
@@ -2287,12 +2560,54 @@ exec { 'cpanm' } 'cpanm', '--force', '%s';
 		return fmt.Errorf("failed to upgrade tool '%s': %w", toolName, err)
 	}
 
-	cmd.Printf("Tool '%s' upgraded successfully\n", toolName)
+	cmd.Printf("Project tool '%s' upgraded successfully\n", toolName)
 	return nil
 }
 
 // uninstallTool removes an installed tool
-func uninstallTool(cmd *cobra.Command, toolName string) error {
+func uninstallTool(cmd *cobra.Command, toolName string, global bool) error {
+	if global {
+		// Use global tool infrastructure for uninstall
+		// Confirm removal
+		cmd.Printf("Are you sure you want to uninstall global tool '%s'? [y/N] ", toolName)
+		var response string
+		_, _ = fmt.Scanln(&response)
+
+		response = strings.ToLower(strings.TrimSpace(response))
+		if response != "y" && response != "yes" {
+			cmd.Println("Global tool uninstall cancelled.")
+			return nil
+		}
+
+		// Initialize storage and remove the global tool
+		storage, err := install.NewToolStorage()
+		if err != nil {
+			return fmt.Errorf("failed to initialize storage: %w", err)
+		}
+
+		// Remove the global tool
+		err = storage.RemoveTool(toolName)
+		if err != nil {
+			return fmt.Errorf("failed to remove global tool '%s': %w", toolName, err)
+		}
+
+		// Remove shim for the tool
+		shimManager, err := shim.NewManager()
+		if err != nil {
+			cmd.Printf("Warning: Failed to create shim manager: %v\n", err)
+		} else {
+			if err := shimManager.RemoveShim(toolName); err != nil {
+				cmd.Printf("Warning: Failed to remove shim for '%s': %v\n", toolName, err)
+			} else {
+				cmd.Printf("Removed shim for command '%s'\n", toolName)
+			}
+		}
+
+		cmd.Printf("Global tool '%s' has been uninstalled.\n", toolName)
+		return nil
+	}
+
+	// Legacy project tool uninstall
 	dirs, err := xdg.GetDirs()
 	if err != nil {
 		return err
@@ -2303,30 +2618,30 @@ func uninstallTool(cmd *cobra.Command, toolName string) error {
 
 	// Check if tool is installed
 	if _, err := os.Stat(toolEnvDir); os.IsNotExist(err) {
-		return fmt.Errorf("tool '%s' is not installed", toolName)
+		return fmt.Errorf("project tool '%s' is not installed", toolName)
 	}
 
 	// Confirm removal
-	cmd.Printf("Are you sure you want to uninstall tool '%s'? [y/N] ", toolName)
+	cmd.Printf("Are you sure you want to uninstall project tool '%s'? [y/N] ", toolName)
 	var response string
 	_, _ = fmt.Scanln(&response)
 
 	response = strings.ToLower(strings.TrimSpace(response))
 	if response != "y" && response != "yes" {
-		cmd.Println("Tool uninstall cancelled.")
+		cmd.Println("Project tool uninstall cancelled.")
 		return nil
 	}
 
 	// Remove the tool directory
 	err = os.RemoveAll(toolEnvDir)
 	if err != nil {
-		return fmt.Errorf("failed to remove tool '%s': %w", toolName, err)
+		return fmt.Errorf("failed to remove project tool '%s': %w", toolName, err)
 	}
 
 	// Remove shim if it exists
 	removeToolShim(toolName)
 
-	cmd.Printf("Tool '%s' has been uninstalled.\n", toolName)
+	cmd.Printf("Project tool '%s' has been uninstalled.\n", toolName)
 	return nil
 }
 
@@ -2577,4 +2892,192 @@ Examples:
 	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
 
 	return cmd
+}
+
+// Shim management functions
+
+// installShimIntegration installs shell integration for shims
+func installShimIntegration(cmd *cobra.Command, shell, position string, force bool) error {
+	shimManager, err := shim.NewManager()
+	if err != nil {
+		return fmt.Errorf("failed to create shim manager: %w", err)
+	}
+
+	shimDir := shimManager.GetShimDirectory()
+	integrator := shim.NewShellIntegrator(shimDir)
+
+	// Auto-detect shell if not provided
+	if shell == "" {
+		shell = shim.DetectShellType()
+		cmd.Printf("Auto-detected shell: %s\n", shell)
+	}
+
+	// Parse position
+	var pos shim.PathPosition
+	switch position {
+	case "first":
+		pos = shim.PathPositionFirst
+	case "last":
+		pos = shim.PathPositionLast
+	case "after-system":
+		pos = shim.PathPositionAfterSystem
+	default:
+		return fmt.Errorf("invalid position '%s': must be first, last, or after-system", position)
+	}
+
+	// Check if already installed
+	if !force {
+		installed, err := integrator.IsShellIntegrationInstalled(shell)
+		if err != nil {
+			return fmt.Errorf("failed to check installation status: %w", err)
+		}
+		if installed {
+			cmd.Printf("Shell integration for %s is already installed. Use --force to reinstall.\n", shell)
+			return nil
+		}
+	}
+
+	// Install integration
+	if err := integrator.InstallShellIntegration(shell, pos); err != nil {
+		return fmt.Errorf("failed to install shell integration: %w", err)
+	}
+
+	cmd.Printf("Successfully installed shell integration for %s\n", shell)
+	cmd.Printf("Shim directory: %s\n", shimDir)
+	cmd.Printf("Restart your shell or run: source ~/.<shell>rc\n")
+
+	return nil
+}
+
+// removeShimIntegration removes shell integration for shims
+func removeShimIntegration(cmd *cobra.Command, shell string) error {
+	shimManager, err := shim.NewManager()
+	if err != nil {
+		return fmt.Errorf("failed to create shim manager: %w", err)
+	}
+
+	shimDir := shimManager.GetShimDirectory()
+	integrator := shim.NewShellIntegrator(shimDir)
+
+	// Auto-detect shell if not provided
+	if shell == "" {
+		shell = shim.DetectShellType()
+		cmd.Printf("Auto-detected shell: %s\n", shell)
+	}
+
+	// Check if installed
+	installed, err := integrator.IsShellIntegrationInstalled(shell)
+	if err != nil {
+		return fmt.Errorf("failed to check installation status: %w", err)
+	}
+	if !installed {
+		cmd.Printf("Shell integration for %s is not installed.\n", shell)
+		return nil
+	}
+
+	// Remove integration
+	if err := integrator.RemoveShellIntegration(shell); err != nil {
+		return fmt.Errorf("failed to remove shell integration: %w", err)
+	}
+
+	cmd.Printf("Successfully removed shell integration for %s\n", shell)
+	cmd.Printf("Restart your shell for changes to take effect.\n")
+
+	return nil
+}
+
+// listShims lists all installed shims
+func listShims(cmd *cobra.Command) error {
+	shimManager, err := shim.NewManager()
+	if err != nil {
+		return fmt.Errorf("failed to create shim manager: %w", err)
+	}
+
+	shims, err := shimManager.ListShims()
+	if err != nil {
+		return fmt.Errorf("failed to list shims: %w", err)
+	}
+
+	if len(shims) == 0 {
+		cmd.Println("No shims installed.")
+		return nil
+	}
+
+	cmd.Printf("Installed shims (%d):\n", len(shims))
+	for _, shimName := range shims {
+		cmd.Printf("  %s\n", shimName)
+	}
+
+	shimDir := shimManager.GetShimDirectory()
+	cmd.Printf("\nShim directory: %s\n", shimDir)
+
+	return nil
+}
+
+// shimStatus shows the status of shim integration
+func shimStatus(cmd *cobra.Command) error {
+	shimManager, err := shim.NewManager()
+	if err != nil {
+		return fmt.Errorf("failed to create shim manager: %w", err)
+	}
+
+	shimDir := shimManager.GetShimDirectory()
+	pathManager := shim.NewPathManager(shimDir)
+	integrator := shim.NewShellIntegrator(shimDir)
+
+	cmd.Printf("Shim Status Report\n")
+	cmd.Printf("==================\n\n")
+
+	cmd.Printf("Shim directory: %s\n", shimDir)
+
+	// Check if shim directory is in PATH
+	inPath := pathManager.IsInPath()
+	cmd.Printf("In PATH: %t\n", inPath)
+
+	if inPath {
+		precedence, err := pathManager.GetPrecedence()
+		if err == nil {
+			cmd.Printf("PATH precedence: %d (lower is higher priority)\n", precedence)
+		}
+	}
+
+	// Check shell integration status
+	shell := shim.DetectShellType()
+	cmd.Printf("Detected shell: %s\n", shell)
+
+	installed, err := integrator.IsShellIntegrationInstalled(shell)
+	if err != nil {
+		cmd.Printf("Shell integration: error checking (%v)\n", err)
+	} else {
+		cmd.Printf("Shell integration: %t\n", installed)
+	}
+
+	// List shims
+	shims, err := shimManager.ListShims()
+	if err != nil {
+		cmd.Printf("Shims: error listing (%v)\n", err)
+	} else {
+		cmd.Printf("Shims installed: %d\n", len(shims))
+	}
+
+	// Check for conflicts
+	if len(shims) > 0 {
+		conflicts, err := pathManager.FindConflicts(shims)
+		switch {
+		case err != nil:
+			cmd.Printf("PATH conflicts: error checking (%v)\n", err)
+		case len(conflicts) > 0:
+			cmd.Printf("\nPATH Conflicts:\n")
+			for toolName, conflictPaths := range conflicts {
+				cmd.Printf("  %s: conflicts with %d other executables\n", toolName, len(conflictPaths))
+				for _, conflictPath := range conflictPaths {
+					cmd.Printf("    %s\n", conflictPath)
+				}
+			}
+		default:
+			cmd.Printf("PATH conflicts: none\n")
+		}
+	}
+
+	return nil
 }

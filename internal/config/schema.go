@@ -410,7 +410,7 @@ func getBuiltinSchema() *ConfigSchema {
 						Type:        "string",
 						Required:    false,
 						Description: "Script execution isolation level",
-						ValidValues: []interface{}{"none", "low", "medium", "high"},
+						ValidValues: []interface{}{"global", "local", "clean"},
 					},
 					"timeout": {
 						Name:        "timeout",

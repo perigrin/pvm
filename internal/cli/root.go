@@ -176,11 +176,16 @@ func enableCommandSuggestions(rootCmd *cobra.Command) {
 	rootCmd.SuggestionsMinimumDistance = 2
 	rootCmd.SilenceUsage = true // Don't show usage on errors
 
-	// Override the unknown command handling
+	// Override the unknown command handling, but preserve existing Run/RunE functions
 	origRunE := rootCmd.RunE
+	origRun := rootCmd.Run
 	rootCmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if origRunE != nil {
 			return origRunE(cmd, args)
+		}
+		if origRun != nil {
+			origRun(cmd, args)
+			return nil
 		}
 		return cmd.Help()
 	}

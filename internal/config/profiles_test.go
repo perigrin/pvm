@@ -131,7 +131,7 @@ default_perl = "5.36.0"
 build_jobs = 8
 
 [config.pvx]
-isolation_level = "high"`
+isolation_level = "clean"`
 
 		prodPath := filepath.Join(profilesDir, "production.profile.toml")
 		if err := os.WriteFile(prodPath, []byte(prodContent), 0644); err != nil {
@@ -163,8 +163,8 @@ isolation_level = "high"`
 		if config.PVX.CacheModules != true {
 			t.Errorf("Expected CacheModules true (from base), got %v", config.PVX.CacheModules)
 		}
-		if config.PVX.IsolationLevel != "high" {
-			t.Errorf("Expected IsolationLevel 'high' (from production), got '%s'", config.PVX.IsolationLevel)
+		if config.PVX.IsolationLevel != "clean" {
+			t.Errorf("Expected IsolationLevel 'clean' (from production), got '%s'", config.PVX.IsolationLevel)
 		}
 	})
 
@@ -209,7 +209,7 @@ template = "web-app"
 [variables]
 perl_version = "5.38.0"
 build_jobs = "6"
-isolation_level = "medium"
+isolation_level = "clean"
 timeout = "900"`
 
 		profilePath := filepath.Join(profilesDir, "web-dev.profile.toml")
@@ -236,8 +236,8 @@ timeout = "900"`
 		if config.PVM.BuildJobs != 6 {
 			t.Errorf("Expected BuildJobs 6, got %d", config.PVM.BuildJobs)
 		}
-		if config.PVX.IsolationLevel != "medium" {
-			t.Errorf("Expected IsolationLevel 'medium', got '%s'", config.PVX.IsolationLevel)
+		if config.PVX.IsolationLevel != "clean" {
+			t.Errorf("Expected IsolationLevel 'clean', got '%s'", config.PVX.IsolationLevel)
 		}
 		if config.PVX.Timeout != 900 {
 			t.Errorf("Expected Timeout 900, got %d", config.PVX.Timeout)
@@ -387,7 +387,7 @@ inherits = ["circular1"]`
 		variables := map[string]string{
 			"perl_version":    "5.38.0",
 			"build_jobs":      "4",
-			"isolation_level": "high",
+			"isolation_level": "clean",
 			"timeout":         "1200",
 		}
 

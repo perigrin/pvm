@@ -45,7 +45,7 @@ print format_message($greeting, $number) . "\n";
 		Verbose:           false,
 		GenerateTypeDefs:  true,
 		SaveTypeDefs:      false,
-		IsolationLevel:    pvx.IsolationLow,
+		IsolationLevel:    pvx.IsolationLocal,
 		SkipModuleInstall: true, // Skip for testing
 	}
 
@@ -199,7 +199,7 @@ print "$message\n";
 		ScriptPath:      testScript,
 		Verbose:         false,
 		RequiredModules: []string{"JSON", "YAML"}, // Common modules for testing
-		IsolationLevel:  pvx.IsolationMedium,
+		IsolationLevel:  pvx.IsolationClean,
 	}
 
 	result, err := CompleteWorkflow(options)
@@ -248,7 +248,7 @@ print "Testing custom Perl version\n";
 		PerlVersion:    "system", // Use system Perl
 		Verbose:        false,
 		SkipTypeCheck:  true, // Skip for simpler test
-		IsolationLevel: pvx.IsolationNone,
+		IsolationLevel: pvx.IsolationGlobal,
 	}
 
 	result, err := CompleteWorkflow(options)

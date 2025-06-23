@@ -278,7 +278,7 @@ func ExecutionWorkflow(scriptPath string, perlVersion string, verbose bool) (*Wo
 		PerlVersion:    perlVersion,
 		Verbose:        verbose,
 		SkipTypeCheck:  true, // Only execute, don't type check
-		IsolationLevel: pvx.IsolationMedium,
+		IsolationLevel: pvx.IsolationClean,
 	}
 
 	return CompleteWorkflow(options)
@@ -292,7 +292,7 @@ func DevelopmentWorkflow(scriptPath string, perlVersion string) (*WorkflowResult
 		Verbose:          true,
 		GenerateTypeDefs: true,
 		SaveTypeDefs:     true,
-		IsolationLevel:   pvx.IsolationLow,
+		IsolationLevel:   pvx.IsolationLocal,
 	}
 
 	return CompleteWorkflow(options)
@@ -568,7 +568,7 @@ print "Numbers: " . join(", ", @$numbers) . "\n";
 		Verbose:          false, // Keep quiet for validation
 		GenerateTypeDefs: true,
 		SaveTypeDefs:     false, // Don't save for validation
-		IsolationLevel:   pvx.IsolationMedium,
+		IsolationLevel:   pvx.IsolationClean,
 	}
 
 	return CompleteWorkflow(options)

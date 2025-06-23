@@ -250,7 +250,7 @@ func (tr *TestRunner) ExecuteSingleTest(testFile string) (*SingleTestResult, err
 	// Set up execution options for project-aware test execution
 	options := &pvx.ExecutionOptions{
 		PerlVersion:    perlVersion,
-		IsolationLevel: pvx.IsolationLow, // Use low isolation for tests
+		IsolationLevel: pvx.IsolationLocal, // Use local isolation for tests
 		ScriptPath:     testFile,
 		Verbose:        tr.Verbose,
 	}
