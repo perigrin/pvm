@@ -4,6 +4,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -62,6 +63,88 @@ type PVMConfig struct {
 	Binary *PVMBinaryConfig `toml:"binary" json:"binary"`
 }
 
+// PVMCustomMirrorConfig represents a custom mirror with authentication
+type PVMCustomMirrorConfig struct {
+	// Name is a human-readable identifier for this mirror
+	Name string `toml:"name" json:"name"`
+
+	// Type specifies the mirror type (github-releases, jsdelivr, cloudflare-r2, direct)
+	Type string `toml:"type" json:"type"`
+
+	// BaseURL is the base URL for the mirror
+	BaseURL string `toml:"base_url" json:"base_url"`
+
+	// Priority determines mirror selection order (lower = higher priority)
+	Priority int `toml:"priority" json:"priority"`
+
+	// Enabled specifies whether this mirror is active
+	Enabled bool `toml:"enabled" json:"enabled"`
+
+	// Timeout specifies request timeout for this mirror (e.g., "30s", "2m")
+	Timeout string `toml:"timeout" json:"timeout"`
+
+	// MaxRetries specifies maximum retry attempts for this mirror
+	MaxRetries int `toml:"max_retries" json:"max_retries"`
+
+	// HealthCheck specifies health check path relative to BaseURL
+	HealthCheck string `toml:"health_check" json:"health_check"`
+
+	// Authentication configuration for private mirrors
+	Auth *PVMCustomMirrorAuth `toml:"auth" json:"auth"`
+
+	// Headers specifies custom HTTP headers to send with requests
+	Headers map[string]string `toml:"headers" json:"headers"`
+
+	// URLTemplate specifies custom URL template for version/platform mapping
+	// Variables: {version}, {platform}, {filename}, {ext}
+	// Default: "{base_url}/perl-{version}/{filename}"
+	URLTemplate string `toml:"url_template" json:"url_template"`
+
+	// VersionMapping maps PVM versions to custom build versions
+	// Example: {"5.38.0": "5.38.0-custom1", "5.40.0": "5.40.0-patched"}
+	VersionMapping map[string]string `toml:"version_mapping" json:"version_mapping"`
+}
+
+// PVMCustomMirrorAuth represents authentication configuration for custom mirrors
+type PVMCustomMirrorAuth struct {
+	// Type specifies the authentication method
+	// Valid values: "none", "basic", "bearer", "api-key", "oauth2"
+	Type string `toml:"type" json:"type"`
+
+	// Username for basic authentication
+	Username string `toml:"username" json:"username"`
+
+	// Password for basic authentication (consider using environment variables)
+	Password string `toml:"password" json:"password"`
+
+	// Token for bearer token authentication
+	Token string `toml:"token" json:"token"`
+
+	// APIKey for API key authentication
+	APIKey string `toml:"api_key" json:"api_key"`
+
+	// APIKeyHeader specifies the header name for API key (default: "X-API-Key")
+	APIKeyHeader string `toml:"api_key_header" json:"api_key_header"`
+
+	// OAuth2 configuration
+	OAuth2 *PVMCustomMirrorOAuth2 `toml:"oauth2" json:"oauth2"`
+}
+
+// PVMCustomMirrorOAuth2 represents OAuth2 authentication configuration
+type PVMCustomMirrorOAuth2 struct {
+	// ClientID for OAuth2 authentication
+	ClientID string `toml:"client_id" json:"client_id"`
+
+	// ClientSecret for OAuth2 authentication
+	ClientSecret string `toml:"client_secret" json:"client_secret"`
+
+	// TokenURL for OAuth2 token endpoint
+	TokenURL string `toml:"token_url" json:"token_url"`
+
+	// Scopes for OAuth2 authentication
+	Scopes []string `toml:"scopes" json:"scopes"`
+}
+
 // PVMBinaryConfig represents configuration for binary distribution support
 type PVMBinaryConfig struct {
 	// DefaultInstallMethod specifies the default installation method
@@ -70,6 +153,9 @@ type PVMBinaryConfig struct {
 
 	// BinaryMirrors specifies list of mirror URLs for binary downloads
 	BinaryMirrors []string `toml:"binary_mirrors" json:"binary_mirrors"`
+
+	// CustomMirrors specifies custom mirror configurations with authentication
+	CustomMirrors []*PVMCustomMirrorConfig `toml:"custom_mirrors" json:"custom_mirrors"`
 
 	// CacheRetentionDays specifies the binary cache cleanup policy in days
 	CacheRetentionDays int `toml:"cache_retention_days" json:"cache_retention_days"`
@@ -400,6 +486,7 @@ func NewDefaultConfig() *Config {
 				BinaryMirrors: []string{
 					"https://github.com/perigrin/pvm-dev/releases/download",
 				},
+				CustomMirrors:      []*PVMCustomMirrorConfig{},
 				CacheRetentionDays: 30,
 				MaxCacheSize:       5,
 				VerifyChecksums:    true,
@@ -546,6 +633,11 @@ func (c *PVMConfig) Validate() []error {
 		errors = append(errors, c.Update.Validate()...)
 	}
 
+	// Validate Binary configuration
+	if c.Binary != nil {
+		errors = append(errors, c.Binary.Validate()...)
+	}
+
 	return errors
 }
 
@@ -641,6 +733,17 @@ func (c *PVMBinaryConfig) Validate() []error {
 	// Validate BandwidthLimit format if provided
 	if c.BandwidthLimit != "" && !isValidMemoryFormat(c.BandwidthLimit) {
 		errors = append(errors, ValidateError("BandwidthLimit must be in format like '10MB' or '1GB'"))
+	}
+
+	// Validate CustomMirrors
+	for i, mirror := range c.CustomMirrors {
+		if mirror != nil {
+			if mirrorErrors := mirror.Validate(); len(mirrorErrors) > 0 {
+				for _, err := range mirrorErrors {
+					errors = append(errors, ValidateError(fmt.Sprintf("CustomMirrors[%d]: %s", i, err.Error())))
+				}
+			}
+		}
 	}
 
 	return errors
@@ -955,4 +1058,151 @@ func (c *BuildDistributionConfig) Validate() []error {
 func isValidMemoryFormat(memory string) bool {
 	return strings.HasSuffix(memory, "MB") || strings.HasSuffix(memory, "GB") ||
 		strings.HasSuffix(memory, "KB") || strings.HasSuffix(memory, "TB")
+}
+
+// Validate checks if the PVMCustomMirrorConfig is valid
+func (c *PVMCustomMirrorConfig) Validate() []error {
+	var errors []error
+
+	// Validate Name
+	if c.Name == "" {
+		errors = append(errors, ValidateError("Name cannot be empty"))
+	}
+
+	// Validate Type
+	validTypes := map[string]bool{
+		"github-releases": true,
+		"jsdelivr":        true,
+		"cloudflare-r2":   true,
+		"direct":          true,
+	}
+	if c.Type != "" && !validTypes[c.Type] {
+		errors = append(errors, ValidateError("Type must be one of: github-releases, jsdelivr, cloudflare-r2, direct"))
+	}
+
+	// Validate BaseURL
+	if c.BaseURL == "" {
+		errors = append(errors, ValidateError("BaseURL cannot be empty"))
+	} else if !strings.HasPrefix(c.BaseURL, "http://") && !strings.HasPrefix(c.BaseURL, "https://") {
+		errors = append(errors, ValidateError("BaseURL must start with http:// or https://"))
+	}
+
+	// Validate Priority
+	if c.Priority < 0 {
+		errors = append(errors, ValidateError("Priority cannot be negative"))
+	}
+
+	// Validate Timeout format if provided
+	if c.Timeout != "" {
+		if _, err := time.ParseDuration(c.Timeout); err != nil {
+			errors = append(errors, ValidateError("Timeout must be a valid duration (e.g., '30s', '2m')"))
+		}
+	}
+
+	// Validate MaxRetries
+	if c.MaxRetries < 0 {
+		errors = append(errors, ValidateError("MaxRetries cannot be negative"))
+	}
+
+	// Validate Headers
+	for key, value := range c.Headers {
+		if key == "" {
+			errors = append(errors, ValidateError("Header keys cannot be empty"))
+			break
+		}
+		if value == "" {
+			errors = append(errors, ValidateError("Header values cannot be empty"))
+			break
+		}
+	}
+
+	// Validate VersionMapping
+	for key, value := range c.VersionMapping {
+		if key == "" {
+			errors = append(errors, ValidateError("VersionMapping keys cannot be empty"))
+			break
+		}
+		if value == "" {
+			errors = append(errors, ValidateError("VersionMapping values cannot be empty"))
+			break
+		}
+	}
+
+	// Validate Auth configuration
+	if c.Auth != nil {
+		errors = append(errors, c.Auth.Validate()...)
+	}
+
+	return errors
+}
+
+// Validate checks if the PVMCustomMirrorAuth is valid
+func (c *PVMCustomMirrorAuth) Validate() []error {
+	var errors []error
+
+	// Validate Type
+	validTypes := map[string]bool{
+		"none":    true,
+		"basic":   true,
+		"bearer":  true,
+		"api-key": true,
+		"oauth2":  true,
+	}
+	if c.Type != "" && !validTypes[c.Type] {
+		errors = append(errors, ValidateError("Auth type must be one of: none, basic, bearer, api-key, oauth2"))
+	}
+
+	// Validate type-specific fields
+	switch c.Type {
+	case "basic":
+		if c.Username == "" {
+			errors = append(errors, ValidateError("Username is required for basic authentication"))
+		}
+		if c.Password == "" {
+			errors = append(errors, ValidateError("Password is required for basic authentication"))
+		}
+	case "bearer":
+		if c.Token == "" {
+			errors = append(errors, ValidateError("Token is required for bearer authentication"))
+		}
+	case "api-key":
+		if c.APIKey == "" {
+			errors = append(errors, ValidateError("APIKey is required for api-key authentication"))
+		}
+		// APIKeyHeader has default, so it's optional
+	case "oauth2":
+		if c.OAuth2 == nil {
+			errors = append(errors, ValidateError("OAuth2 configuration is required for oauth2 authentication"))
+		} else {
+			errors = append(errors, c.OAuth2.Validate()...)
+		}
+	}
+
+	return errors
+}
+
+// Validate checks if the PVMCustomMirrorOAuth2 is valid
+func (c *PVMCustomMirrorOAuth2) Validate() []error {
+	var errors []error
+
+	// Validate ClientID
+	if c.ClientID == "" {
+		errors = append(errors, ValidateError("ClientID cannot be empty for OAuth2"))
+	}
+
+	// Validate ClientSecret
+	if c.ClientSecret == "" {
+		errors = append(errors, ValidateError("ClientSecret cannot be empty for OAuth2"))
+	}
+
+	// Validate TokenURL
+	if c.TokenURL == "" {
+		errors = append(errors, ValidateError("TokenURL cannot be empty for OAuth2"))
+	} else if !strings.HasPrefix(c.TokenURL, "http://") && !strings.HasPrefix(c.TokenURL, "https://") {
+		errors = append(errors, ValidateError("TokenURL must start with http:// or https://"))
+	}
+
+	// Scopes are optional, no validation needed
+
+	return errors
 }
