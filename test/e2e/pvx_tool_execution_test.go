@@ -23,14 +23,10 @@ func TestPVXToolDetectionAndExecution(t *testing.T) {
 		helpers.SkipTODO(t, "System Perl import failed - no Perl available for testing")
 	}
 
-	// Set up a working Perl path since system import may have path issues
-	workingPerlPath := "/home/perigrin/.plenv/versions/5.40.2/bin/perl"
-	if _, err := os.Stat(workingPerlPath); os.IsNotExist(err) {
-		// Fallback to system perl paths
-		workingPerlPath = "/usr/bin/perl"
-		if _, err := os.Stat(workingPerlPath); os.IsNotExist(err) {
-			helpers.SkipTODO(t, "No working Perl installation found")
-		}
+	// Use proper Perl detection instead of hardcoded paths
+	workingPerlPath := helpers.FindSystemPerl()
+	if workingPerlPath == "" {
+		helpers.SkipTODO(t, "No working Perl installation found")
 	}
 
 	t.Run("inline_code_execution", func(t *testing.T) {
