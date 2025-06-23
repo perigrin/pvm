@@ -337,6 +337,7 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	configureOptions := []string{
 		"-des",                                 // Default options, no interactive prompts
 		"-Dusethreads",                         // Enable threads
+		"-Duserelocatableinc",                  // Enable relocatable @INC for binary portability
 		fmt.Sprintf("-Dprefix=%s", installDir), // Installation directory
 	}
 
