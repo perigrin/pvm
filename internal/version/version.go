@@ -19,6 +19,10 @@ var BuildTime = "unknown"
 // CommitHash is set at build time via ldflags
 var CommitHash = "unknown"
 
+// GitHubToken is set at build time via ldflags for release access
+// This token has minimal read-only permissions for releases
+var GitHubToken = ""
+
 // GetVersion returns the current version string
 func GetVersion() string {
 	return Version

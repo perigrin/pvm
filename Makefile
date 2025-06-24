@@ -278,7 +278,8 @@ install: $(BINARIES)
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
-RELEASE_LDFLAGS = -s -w -X 'tamarou.com/pvm/internal/version.Version=$(VERSION)' -X 'tamarou.com/pvm/internal/version.BuildTime=$(BUILD_TIME)' -X 'tamarou.com/pvm/internal/version.CommitHash=$(COMMIT)'
+GITHUB_TOKEN ?=
+RELEASE_LDFLAGS = -s -w -X 'tamarou.com/pvm/internal/version.Version=$(VERSION)' -X 'tamarou.com/pvm/internal/version.BuildTime=$(BUILD_TIME)' -X 'tamarou.com/pvm/internal/version.CommitHash=$(COMMIT)' -X 'tamarou.com/pvm/internal/version.GitHubToken=$(GITHUB_TOKEN)'
 
 # Cross-compile for supported platforms
 cross-compile: tree-sitter

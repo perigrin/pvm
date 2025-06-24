@@ -469,7 +469,7 @@ func NewDefaultConfig() *Config {
 			Update: &PVMUpdateConfig{
 				AutoUpdateEnabled:    false,
 				AutoUpdateInterval:   "24h",
-				Repository:           "perigrin/pvm-dev",
+				Repository:           "perigrin/pvm",
 				Channel:              "stable",
 				GitHubToken:          "",
 				BackupEnabled:        true,
@@ -484,7 +484,7 @@ func NewDefaultConfig() *Config {
 			Binary: &PVMBinaryConfig{
 				DefaultInstallMethod: "source",
 				BinaryMirrors: []string{
-					"https://github.com/perigrin/pvm-dev/releases/download",
+					"https://github.com/perigrin/pvm/releases/download",
 				},
 				CustomMirrors:      []*PVMCustomMirrorConfig{},
 				CacheRetentionDays: 30,

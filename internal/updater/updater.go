@@ -80,7 +80,8 @@ type UpdateOptions struct {
 // DefaultUpdateOptions returns default update options
 func DefaultUpdateOptions() *UpdateOptions {
 	return &UpdateOptions{
-		Repository:         "perigrin/pvm-dev",
+		Repository:         "perigrin/pvm",
+		GitHubToken:        version.GitHubToken, // Use build-time token if available
 		Backup:             true,
 		AutoRollback:       true,
 		UpdateShellConfigs: true,
