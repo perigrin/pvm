@@ -61,7 +61,7 @@ jobs:
         run: |
           if [[ "${{ github.event.inputs.perl_versions }}" == "latest2" ]]; then
             # Get the 2 most recent stable versions
-            VERSIONS=$(./pvm available --format=json | jq -r '.stable | keys | sort_by(.) | reverse | .[0:2] | @csv' | tr -d '"')
+            VERSIONS=$(./pvm available --format=json | jq -r '[.[] | select(.type == "stable") | .version] | sort_by(.) | reverse | .[0:2] | join(",")')
           else
             VERSIONS="${{ github.event.inputs.perl_versions }}"
           fi
