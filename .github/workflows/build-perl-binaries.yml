@@ -26,8 +26,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Get the latest release tag (including pre-releases)
+          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Using release: $LATEST_TAG"
+
           # Download the linux-amd64 release asset
-          gh release download --repo ${{ github.repository }} --pattern "*linux-amd64.tar.gz"
+          gh release download "$LATEST_TAG" --repo ${{ github.repository }} --pattern "*linux-amd64.tar.gz"
 
           # Extract and make executable
           tar -xzf pvm-*-linux-amd64.tar.gz
@@ -93,8 +97,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Get the latest release tag (including pre-releases)
+          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Using release: $LATEST_TAG"
+
           # Download the release asset for the current platform
-          gh release download --repo ${{ github.repository }} --pattern "*${{ matrix.platform }}.tar.gz"
+          gh release download "$LATEST_TAG" --repo ${{ github.repository }} --pattern "*${{ matrix.platform }}.tar.gz"
 
           # Extract and make executable
           tar -xzf pvm-*-${{ matrix.platform }}.tar.gz
