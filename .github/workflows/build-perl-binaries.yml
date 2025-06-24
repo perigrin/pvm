@@ -92,7 +92,8 @@ jobs:
             ]
           }')
 
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          # Output the matrix as a single line for GitHub Actions
+          echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
           echo "Generated matrix:"
           echo "$MATRIX" | jq .
 
