@@ -8,7 +8,7 @@ PVM brings modern type safety to Perl through gradual typing while preserving fu
 
 ### Option 1: Build from Source (Recommended)
 ```bash
-git clone https://github.com/your-username/pvm.git
+git clone https://github.com/perigrin/pvm.git
 cd pvm
 make
 ```
@@ -74,7 +74,7 @@ Create `user.pl`:
 
 ```perl
 #!/usr/bin/perl
-use v5.38;
+use v5.36;
 use experimental 'class';
 
 class UserAccount {
