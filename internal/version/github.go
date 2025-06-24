@@ -84,7 +84,7 @@ func (g *GitHubClient) GetLatestRelease(owner, repo string) (*GitHubRelease, err
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		// No stable release found, check if there are any pre-releases
+		// No stable release found, fallback to latest release (including pre-releases)
 		releases, err := g.GetReleases(owner, repo, true)
 		if err != nil {
 			return nil, fmt.Errorf("no stable releases found and failed to check for pre-releases: %w", err)
@@ -94,21 +94,21 @@ func (g *GitHubClient) GetLatestRelease(owner, repo string) (*GitHubRelease, err
 			return nil, fmt.Errorf("no releases found for repository %s/%s", owner, repo)
 		}
 
-		// Find the latest pre-release
-		var latestPrerelease *GitHubRelease
+		// Find the latest release (including pre-releases)
+		var latestRelease *GitHubRelease
 		for i := range releases {
-			if releases[i].Prerelease && !releases[i].Draft {
-				if latestPrerelease == nil || releases[i].CreatedAt.After(latestPrerelease.CreatedAt) {
-					latestPrerelease = &releases[i]
+			if !releases[i].Draft {
+				if latestRelease == nil || releases[i].CreatedAt.After(latestRelease.CreatedAt) {
+					latestRelease = &releases[i]
 				}
 			}
 		}
 
-		if latestPrerelease != nil {
-			return nil, fmt.Errorf("no stable releases available, only pre-releases found (latest: %s). Use --prerelease flag to update to pre-release versions", latestPrerelease.TagName)
+		if latestRelease != nil {
+			return latestRelease, nil
 		}
 
-		return nil, fmt.Errorf("no stable releases found for repository %s/%s", owner, repo)
+		return nil, fmt.Errorf("no non-draft releases found for repository %s/%s", owner, repo)
 	}
 
 	if resp.StatusCode != http.StatusOK {
