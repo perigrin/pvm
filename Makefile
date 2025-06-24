@@ -57,11 +57,21 @@ install-tools:
 
 check-tools:
 	@echo "Checking development tools..."
-	@command -v stringer >/dev/null 2>&1 || (echo "stringer not found, run 'make install-tools'" && exit 1)
-	@command -v moq >/dev/null 2>&1 || (echo "moq not found, run 'make install-tools'" && exit 1)
-	@command -v gotestsum >/dev/null 2>&1 || (echo "gotestsum not found, run 'make install-tools'" && exit 1)
-	@command -v staticcheck >/dev/null 2>&1 || (echo "staticcheck not found, run 'make install-tools'" && exit 1)
-	@command -v govulncheck >/dev/null 2>&1 || (echo "govulncheck not found, run 'make install-tools'" && exit 1)
+	@GOBIN_PATH=$$(go env GOPATH)/bin; \
+	if [ ! -z "$$(go env GOBIN)" ]; then \
+		GOBIN_PATH=$$(go env GOBIN); \
+	fi; \
+	missing_tools=""; \
+	[ -f "$$GOBIN_PATH/stringer" ] || missing_tools="$$missing_tools stringer"; \
+	[ -f "$$GOBIN_PATH/moq" ] || missing_tools="$$missing_tools moq"; \
+	[ -f "$$GOBIN_PATH/gotestsum" ] || missing_tools="$$missing_tools gotestsum"; \
+	[ -f "$$GOBIN_PATH/staticcheck" ] || missing_tools="$$missing_tools staticcheck"; \
+	[ -f "$$GOBIN_PATH/govulncheck" ] || missing_tools="$$missing_tools govulncheck"; \
+	if [ ! -z "$$missing_tools" ]; then \
+		echo "Missing tools:$$missing_tools"; \
+		echo "Installing missing tools automatically..."; \
+		$(MAKE) install-tools; \
+	fi
 	@echo "All tools are available"
 
 # Build rules for each binary
@@ -81,7 +91,7 @@ pvx pvi psc: pvm
 test: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running tests with $$PARALLEL_JOBS parallel workers..."; \
-	PLENV_VERSION= gotestsum --format=short --jsonfile=test-results.json -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
+	PLENV_VERSION= go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results.json -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
 	TEST_EXIT_CODE=$$?; \
 	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo ""; \
@@ -98,7 +108,7 @@ test: tree-sitter install-tools
 test-full: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running full test suite with $$PARALLEL_JOBS parallel workers..."; \
-	gotestsum --format=standard-verbose --jsonfile=test-results-full.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...; \
+	go run gotest.tools/gotestsum@latest --format=standard-verbose --jsonfile=test-results-full.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...; \
 	TEST_EXIT_CODE=$$?; \
 	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo ""; \
@@ -117,13 +127,13 @@ test-short: test
 # Baseline testing for regression prevention
 test-baselines: tree-sitter install-tools
 	@echo "Running baseline tests..."
-	gotestsum --format=short -- -mod=mod -run=TestParser_Baselines ./internal/parser/
-	gotestsum --format=short -- -mod=mod -run=TestTypeChecker_Baselines ./internal/typechecker/
+	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod -run=TestParser_Baselines ./internal/parser/
+	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod -run=TestTypeChecker_Baselines ./internal/typechecker/
 
 test-baselines-update: tree-sitter install-tools
 	@echo "Updating baseline tests..."
-	UPDATE_BASELINES=1 gotestsum --format=short -- -mod=mod -run=TestParser_Baselines ./internal/parser/
-	UPDATE_BASELINES=1 gotestsum --format=short -- -mod=mod -run=TestTypeChecker_Baselines ./internal/typechecker/
+	UPDATE_BASELINES=1 go run gotest.tools/gotestsum@latest --format=short -- -mod=mod -run=TestParser_Baselines ./internal/parser/
+	UPDATE_BASELINES=1 go run gotest.tools/gotestsum@latest --format=short -- -mod=mod -run=TestTypeChecker_Baselines ./internal/typechecker/
 
 test-performance-baseline: tree-sitter install-tools
 	@echo "Updating performance baselines..."
@@ -135,7 +145,7 @@ test-coverage: tree-sitter install-tools
 	@echo "Running tests with coverage..."
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Using $$PARALLEL_JOBS parallel workers for coverage..."; \
-	gotestsum --format=short -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS -coverprofile=coverage.out -covermode=atomic ./...
+	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS -coverprofile=coverage.out -covermode=atomic ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report saved to coverage.html"
 
@@ -144,7 +154,7 @@ test-coverage-full: tree-sitter install-tools
 	@echo "Running full test suite with coverage..."
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Using $$PARALLEL_JOBS parallel workers for full coverage..."; \
-	gotestsum --format=short -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS -coverprofile=coverage.out -covermode=atomic ./...
+	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS -coverprofile=coverage.out -covermode=atomic ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Full coverage report saved to coverage.html"
 
@@ -156,7 +166,7 @@ test-coverage-report: test-coverage
 test-integration: tree-sitter install-tools
 	@echo "Running integration tests..."
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
-	gotestsum --format=short -- -mod=mod -tags=integration -parallel=$$PARALLEL_JOBS ./test/e2e/
+	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod -tags=integration -parallel=$$PARALLEL_JOBS ./test/e2e/
 
 # Performance optimization targets
 optimize-performance: tree-sitter check-tools
@@ -185,14 +195,14 @@ test-novendor: tree-sitter
 	go test -mod=mod -v ./...
 
 # Run specific component tests
-test-scanner: tree-sitter
-	gotestsum --format=short -- -mod=mod ./internal/scanner/...
+test-scanner: tree-sitter install-tools
+	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod ./internal/scanner/...
 
-test-parser: tree-sitter
-	gotestsum --format=short -- -mod=mod ./internal/parser/...
+test-parser: tree-sitter install-tools
+	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod ./internal/parser/...
 
-test-ast: tree-sitter
-	gotestsum --format=short -- -mod=mod ./internal/ast/... ./internal/astnav/...
+test-ast: tree-sitter install-tools
+	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod ./internal/ast/... ./internal/astnav/...
 
 # Benchmarking
 bench: tree-sitter
