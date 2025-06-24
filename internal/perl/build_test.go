@@ -332,23 +332,27 @@ func TestBuildPerlFailedConfigure(t *testing.T) {
 // TestBuildPerlPlatformOptions tests platform-specific configure options
 func TestBuildPerlPlatformOptions(t *testing.T) {
 	// Get platform-specific configure options
-	options, err := getPlatformConfigureOptions(false)
+	options, err := getPlatformConfigureOptions()
 
 	// Verify results
 	require.NoError(t, err)
 	assert.NotEmpty(t, options)
 
-	// Check that platform-specific options are present
+	// Check that basic platform-specific options are present
+	// Advanced options like shared libs are now handled at command level
 	switch runtime.GOOS {
 	case "darwin":
-		assert.Contains(t, options, "-Duseshrplib")
 		assert.Contains(t, options, "-Dusedtrace")
-	case "linux":
-		assert.Contains(t, options, "-Duseshrplib")
 		assert.Contains(t, options, "-Duselargefiles")
+		// -Duseshrplib is now handled at command level
+	case "linux":
+		assert.Contains(t, options, "-Duselargefiles")
+		assert.Contains(t, options, "-Dcccdlflags=-fPIC")
+		// -Duseshrplib is now handled at command level
 	case "windows":
-		assert.Contains(t, options, "-Duseshrplib")
 		assert.Contains(t, options, "-Duseithreads")
+		assert.Contains(t, options, "-Dcc=gcc")
+		// -Duseshrplib is now handled at command level
 	}
 }
 
@@ -485,7 +489,7 @@ func TestBuildPerlWithDefaults(t *testing.T) {
 	assert.NotZero(t, result.Duration)
 }
 
-// TestBuildPerlRelocatableOptions tests that relocatable configure options are included
+// TestBuildPerlRelocatableOptions tests that relocatable configure options are included for upload builds
 func TestBuildPerlRelocatableOptions(t *testing.T) {
 	// Setup test environment
 	dirs, tempDir := setupTestDirs(t)
@@ -516,15 +520,16 @@ func TestBuildPerlRelocatableOptions(t *testing.T) {
 		return nil
 	}
 
-	// Create build options
+	// Create build options with relocatable configure option
 	options := &BuildOptions{
-		Version:         version,
-		SourceFile:      archivePath,
-		InstallDir:      filepath.Join(dirs.VersionsDir, version),
-		BuildJobs:       2,
-		RunTests:        false,
-		CleanupBuildDir: false,
-		Context:         context.Background(),
+		Version:          version,
+		SourceFile:       archivePath,
+		InstallDir:       filepath.Join(dirs.VersionsDir, version),
+		BuildJobs:        2,
+		RunTests:         false,
+		CleanupBuildDir:  false,
+		ConfigureOptions: []string{"-Duserelocatableinc"}, // Enable relocatable builds
+		Context:          context.Background(),
 	}
 
 	// Run the build
@@ -536,7 +541,74 @@ func TestBuildPerlRelocatableOptions(t *testing.T) {
 
 	// Verify relocatable configure option is included
 	assert.Contains(t, capturedConfigureArgs, "-Duserelocatableinc",
-		"Configure options should include -Duserelocatableinc for relocatable builds")
+		"Configure options should include -Duserelocatableinc when explicitly specified")
+
+	// Verify other expected default options are still present
+	assert.Contains(t, capturedConfigureArgs, "-des")
+	assert.Contains(t, capturedConfigureArgs, "-Dusethreads")
+
+	// Verify prefix option is present
+	prefixOption := fmt.Sprintf("-Dprefix=%s", filepath.Join(dirs.VersionsDir, version))
+	assert.Contains(t, capturedConfigureArgs, prefixOption)
+}
+
+// TestBuildPerlNonRelocatableDefault tests that relocatable builds are NOT enabled by default
+func TestBuildPerlNonRelocatableDefault(t *testing.T) {
+	// Setup test environment
+	dirs, tempDir := setupTestDirs(t)
+
+	// Save original extraction function and mock it
+	originalExtractArchiveFunc := extractArchiveFunc
+	t.Cleanup(func() {
+		extractArchiveFunc = originalExtractArchiveFunc
+	})
+	extractArchiveFunc = mockExtraction(t, tempDir)
+
+	// Create a mock source archive
+	version := "5.36.0"
+	archivePath := createMockArchive(t, dirs, version)
+
+	// Capture configure options
+	var capturedConfigureArgs []string
+	runCommandWithProgressFunc = func(
+		dir string,
+		command string,
+		args []string,
+		ctx context.Context,
+		progressCb func(line string),
+	) error {
+		if command == "./Configure" {
+			capturedConfigureArgs = args
+		}
+		return nil
+	}
+
+	// Create build options with shared library support (default behavior)
+	options := &BuildOptions{
+		Version:          version,
+		SourceFile:       archivePath,
+		InstallDir:       filepath.Join(dirs.VersionsDir, version),
+		BuildJobs:        2,
+		RunTests:         false,
+		CleanupBuildDir:  false,
+		ConfigureOptions: []string{"-Duseshrplib"}, // Enable shared library support
+		Context:          context.Background(),
+	}
+
+	// Run the build
+	result, err := BuildPerl(options)
+
+	// Verify results
+	require.NoError(t, err)
+	assert.Equal(t, version, result.Version)
+
+	// Verify relocatable configure option is NOT included
+	assert.NotContains(t, capturedConfigureArgs, "-Duserelocatableinc",
+		"Configure options should NOT include -Duserelocatableinc when not specified")
+
+	// Verify shared library support IS included when explicitly specified
+	assert.Contains(t, capturedConfigureArgs, "-Duseshrplib",
+		"Configure options should include -Duseshrplib when explicitly specified")
 
 	// Verify other expected default options are still present
 	assert.Contains(t, capturedConfigureArgs, "-des")

@@ -1460,6 +1460,17 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 		return err
 	}
 
+	// Get Perl configuration flags
+	relocatable, err := cmd.Flags().GetBool("relocatable")
+	if err != nil {
+		return err
+	}
+
+	sharedLib, err := cmd.Flags().GetBool("shared-lib")
+	if err != nil {
+		return err
+	}
+
 	buildOnly, err := cmd.Flags().GetBool("build-only")
 	if err != nil {
 		return err
@@ -1510,6 +1521,26 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 
 	if len(platforms) > 0 && !upload {
 		return fmt.Errorf("--platforms flag requires --upload to be enabled")
+	}
+
+	// Automatically enable relocatable builds for upload
+	if upload && !relocatable {
+		relocatable = true
+		ui.Info("Upload mode enabled - automatically enabling relocatable builds")
+	}
+
+	// Build final configure options with Perl configuration
+	finalConfigureOptions := make([]string, len(configureOptions))
+	copy(finalConfigureOptions, configureOptions)
+
+	// Add relocatable @INC if requested
+	if relocatable {
+		finalConfigureOptions = append(finalConfigureOptions, "-Duserelocatableinc")
+	}
+
+	// Add shared library support if requested and not conflicting with relocatable
+	if sharedLib && !relocatable {
+		finalConfigureOptions = append(finalConfigureOptions, "-Duseshrplib")
 	}
 
 	// Create progress callback to display build progress
@@ -1585,7 +1616,7 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 		BuildJobs:        buildJobs,
 		RunTests:         runTests,
 		CleanupBuildDir:  cleanupBuildDir,
-		ConfigureOptions: configureOptions,
+		ConfigureOptions: finalConfigureOptions,
 		BuildOnly:        buildOnly,
 		ProgressCallback: progressCallback,
 		Context:          cmd.Context(),
@@ -1616,6 +1647,16 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 
 	if buildOnly {
 		ui.Info("Build-only mode: Perl will be built without installation")
+	}
+
+	// Show Perl configuration options being used
+	if relocatable {
+		ui.Info("Relocatable build enabled: Perl will use relocatable @INC")
+	}
+	if sharedLib && !relocatable {
+		ui.Info("Shared library build enabled: Will build libperl.so")
+	} else if !sharedLib {
+		ui.Info("Static build: Will not build shared libperl")
 	}
 
 	if cleanupBuildDir {
@@ -2284,6 +2325,10 @@ func newBuildPerlCommand() *cobra.Command {
 	cmd.Flags().Bool("cleanup", true, "Clean up build directory after installation")
 	cmd.Flags().Bool("build-only", false, "Build Perl without installing (creates relocatable build in output directory)")
 	cmd.Flags().StringArray("configure-options", nil, "Additional options to pass to Configure (can be specified multiple times)")
+
+	// Perl configuration flags
+	cmd.Flags().Bool("relocatable", false, "Build relocatable Perl (enables -Duserelocatableinc)")
+	cmd.Flags().Bool("shared-lib", true, "Build shared libperl (enables -Duseshrplib)")
 
 	// Upload integration flags
 	cmd.Flags().Bool("upload", false, "Upload built binary after successful build")

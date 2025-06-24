@@ -343,16 +343,12 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 		fmt.Sprintf("-Dprefix=%s", installDir), // Installation directory
 	}
 
-	// Add relocatable @INC only for build-only mode (binary distribution)
-	if options.BuildOnly {
-		configureOptions = append(configureOptions, "-Duserelocatableinc")
-	}
-
+	// All Perl-specific configure options are now passed explicitly via ConfigureOptions
 	// Add user-specified configure options
 	configureOptions = append(configureOptions, options.ConfigureOptions...)
 
-	// Add platform-specific configure options
-	platformOptions, err := getPlatformConfigureOptions(options.BuildOnly)
+	// Add platform-specific configure options (basic defaults only)
+	platformOptions, err := getPlatformConfigureOptions()
 	if err != nil {
 		return nil, errors.NewVersionError(
 			ErrInvalidBuildOptions,
@@ -748,26 +744,20 @@ func doRunCommandWithProgress(
 	return err
 }
 
-// getPlatformConfigureOptions returns platform-specific options for the Configure script
-func getPlatformConfigureOptions(buildOnly bool) ([]string, error) {
+// getPlatformConfigureOptions returns basic platform-specific options for the Configure script
+// Advanced options like relocatable builds and shared libraries are handled at the command level
+func getPlatformConfigureOptions() ([]string, error) {
 	options := []string{}
 
 	switch runtime.GOOS {
 	case "darwin":
-		// macOS-specific options
-		baseOptions := []string{
+		// macOS-specific options (basic platform defaults only)
+		options = append(options, []string{
 			"-Dusedtrace",           // Enable dtrace support
 			"-Dusethreads",          // Enable threads
 			"-Duselargefiles",       // Enable large file support
 			"-Dccflags=-DHAS_TIMES", // Fix for macOS time handling
-		}
-
-		// Only add shared library support if not doing relocatable build
-		if !buildOnly {
-			baseOptions = append(baseOptions, "-Duseshrplib") // Build shared libperl
-		}
-
-		options = append(options, baseOptions...)
+		}...)
 
 		// Check if we're on Apple Silicon (arm64)
 		if runtime.GOARCH == "arm64" {
@@ -778,35 +768,21 @@ func getPlatformConfigureOptions(buildOnly bool) ([]string, error) {
 		}
 
 	case "linux":
-		// Linux-specific options
-		baseOptions := []string{
+		// Linux-specific options (basic platform defaults only)
+		options = append(options, []string{
 			"-Duselargefiles",    // Enable large file support
 			"-Dcccdlflags=-fPIC", // Position-independent code for shared libs
-		}
-
-		// Only add shared library support if not doing relocatable build
-		if !buildOnly {
-			baseOptions = append(baseOptions, "-Duseshrplib") // Build shared libperl
-		}
-
-		options = append(options, baseOptions...)
+		}...)
 
 	case "windows":
-		// Windows-specific options
+		// Windows-specific options (basic platform defaults only)
 		// Note: Building Perl on Windows is complex and may require
 		// different approaches depending on the build environment
 		// For simplicity, we'll assume using MinGW/MSYS2 here
-		baseOptions := []string{
+		options = append(options, []string{
 			"-Duseithreads", // Use POSIX threads
 			"-Dcc=gcc",      // Use gcc compiler
-		}
-
-		// Only add shared library support if not doing relocatable build
-		if !buildOnly {
-			baseOptions = append(baseOptions, "-Duseshrplib") // Build shared libperl
-		}
-
-		options = append(options, baseOptions...)
+		}...)
 	}
 
 	return options, nil
