@@ -83,6 +83,34 @@ func (g *GitHubClient) GetLatestRelease(owner, repo string) (*GitHubRelease, err
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound {
+		// No stable release found, check if there are any pre-releases
+		releases, err := g.GetReleases(owner, repo, true)
+		if err != nil {
+			return nil, fmt.Errorf("no stable releases found and failed to check for pre-releases: %w", err)
+		}
+
+		if len(releases) == 0 {
+			return nil, fmt.Errorf("no releases found for repository %s/%s", owner, repo)
+		}
+
+		// Find the latest pre-release
+		var latestPrerelease *GitHubRelease
+		for i := range releases {
+			if releases[i].Prerelease && !releases[i].Draft {
+				if latestPrerelease == nil || releases[i].CreatedAt.After(latestPrerelease.CreatedAt) {
+					latestPrerelease = &releases[i]
+				}
+			}
+		}
+
+		if latestPrerelease != nil {
+			return nil, fmt.Errorf("no stable releases available, only pre-releases found (latest: %s). Use --prerelease flag to update to pre-release versions", latestPrerelease.TagName)
+		}
+
+		return nil, fmt.Errorf("no stable releases found for repository %s/%s", owner, repo)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
