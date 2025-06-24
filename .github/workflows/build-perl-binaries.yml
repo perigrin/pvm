@@ -44,13 +44,13 @@ jobs:
 
           # List extracted files for debugging
           echo "Extracted files:"
-          ls -la pvm-* 2>/dev/null || echo "No pvm-* files found"
+          ls -la pvm-linux-amd64 2>/dev/null || echo "No pvm-linux-amd64 found"
 
-          chmod +x pvm-*
+          chmod +x pvm-linux-amd64
 
           # Rename for easy access
           echo "Renaming binary..."
-          mv pvm-* pvm
+          mv pvm-linux-amd64 pvm
 
           # Verify it works
           echo "Testing pvm..."
@@ -128,13 +128,13 @@ jobs:
 
           # List extracted files for debugging
           echo "Extracted files:"
-          ls -la pvm-* 2>/dev/null || echo "No pvm-* files found"
+          ls -la pvm-${{ matrix.platform }} 2>/dev/null || echo "No pvm-${{ matrix.platform }} found"
 
-          chmod +x pvm-*
+          chmod +x pvm-${{ matrix.platform }}
 
           # Rename for easy access
           echo "Renaming binary..."
-          mv pvm-* pvm
+          mv pvm-${{ matrix.platform }} pvm
 
           # Verify it works
           echo "Testing pvm..."
