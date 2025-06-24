@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -79,6 +80,30 @@ func CreateRootCommand(component string) *cobra.Command {
 
 	// Add component-specific initialization here
 	rootCmd.Long = rootCmd.Long + "\n\nVersion: " + version.GetVersion()
+
+	// Special handling for PVM component to support standard version flags
+	if component == ComponentPVM {
+		// Add --version flag (without short form to avoid conflict with -v verbose)
+		var showVersion bool
+		rootCmd.Flags().BoolVar(&showVersion, "version", false, "Show PVM version")
+
+		// Override the pre-run to handle version flag
+		origPreRun := rootCmd.PreRun
+		rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
+			if showVersion {
+				fmt.Println(version.GetVersion())
+				os.Exit(0)
+			}
+			// Handle -v as version for root command only (no subcommands)
+			if len(args) == 0 && Verbose {
+				fmt.Println(version.GetVersion())
+				os.Exit(0)
+			}
+			if origPreRun != nil {
+				origPreRun(cmd, args)
+			}
+		}
+	}
 
 	// Look up registered commands for this component
 	provider, exists := GlobalRegistry.Get(component)
