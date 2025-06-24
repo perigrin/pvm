@@ -31,16 +31,29 @@ jobs:
           echo "Using release: $LATEST_TAG"
 
           # Download the linux-amd64 release asset
+          echo "Downloading release assets..."
           gh release download "$LATEST_TAG" --repo ${{ github.repository }} --pattern "*linux-amd64.tar.gz"
 
+          # List downloaded files for debugging
+          echo "Downloaded files:"
+          ls -la *.tar.gz 2>/dev/null || echo "No tar.gz files found"
+
           # Extract and make executable
-          tar -xzf pvm-*-linux-amd64.tar.gz
+          echo "Extracting archive..."
+          tar -xzf *-linux-amd64.tar.gz
+
+          # List extracted files for debugging
+          echo "Extracted files:"
+          ls -la pvm-* 2>/dev/null || echo "No pvm-* files found"
+
           chmod +x pvm-*
 
-          # Create symlink for easy access
-          ln -s pvm-* pvm
+          # Rename for easy access
+          echo "Renaming binary..."
+          mv pvm-* pvm
 
           # Verify it works
+          echo "Testing pvm..."
           ./pvm version
 
       - name: Get Perl versions
@@ -102,16 +115,29 @@ jobs:
           echo "Using release: $LATEST_TAG"
 
           # Download the release asset for the current platform
+          echo "Downloading release assets..."
           gh release download "$LATEST_TAG" --repo ${{ github.repository }} --pattern "*${{ matrix.platform }}.tar.gz"
 
+          # List downloaded files for debugging
+          echo "Downloaded files:"
+          ls -la *.tar.gz 2>/dev/null || echo "No tar.gz files found"
+
           # Extract and make executable
-          tar -xzf pvm-*-${{ matrix.platform }}.tar.gz
+          echo "Extracting archive..."
+          tar -xzf *-${{ matrix.platform }}.tar.gz
+
+          # List extracted files for debugging
+          echo "Extracted files:"
+          ls -la pvm-* 2>/dev/null || echo "No pvm-* files found"
+
           chmod +x pvm-*
 
-          # Create symlink for easy access
-          ln -s pvm-* pvm
+          # Rename for easy access
+          echo "Renaming binary..."
+          mv pvm-* pvm
 
           # Verify it works
+          echo "Testing pvm..."
           ./pvm version
 
       - name: Build and upload Perl binary
