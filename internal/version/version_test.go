@@ -80,8 +80,8 @@ func TestDefaultCheckOptions(t *testing.T) {
 		t.Error("expected IncludePrerelease to be false")
 	}
 
-	if opts.Repository != "perigrin/pvm-dev" {
-		t.Errorf("expected Repository to be perigrin/pvm-dev, got %s", opts.Repository)
+	if opts.Repository != "perigrin/pvm" {
+		t.Errorf("expected Repository to be perigrin/pvm, got %s", opts.Repository)
 	}
 
 	if opts.Timeout != 30*time.Second {

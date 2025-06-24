@@ -52,8 +52,8 @@ func TestDefaultUpdateOptions(t *testing.T) {
 		t.Fatal("DefaultUpdateOptions returned nil")
 	}
 
-	if opts.Repository != "perigrin/pvm-dev" {
-		t.Errorf("Expected repository 'perigrin/pvm-dev', got '%s'", opts.Repository)
+	if opts.Repository != "perigrin/pvm" {
+		t.Errorf("Expected repository 'perigrin/pvm', got '%s'", opts.Repository)
 	}
 
 	if !opts.Backup {
