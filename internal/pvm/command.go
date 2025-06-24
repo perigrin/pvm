@@ -7,6 +7,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -824,6 +825,12 @@ func newAvailableCommand() *cobra.Command {
 		Short: "List available Perl versions",
 		Long:  "List all Perl versions available for installation",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get format flag
+			format, err := cmd.Flags().GetString("format")
+			if err != nil {
+				return err
+			}
+
 			// Get the currently installed versions
 			installedVersions, err := perl.GetInstalledVersions()
 			if err != nil {
@@ -851,7 +858,45 @@ func newAvailableCommand() *cobra.Command {
 			// Current development version
 			devVersions := []string{"5.39.0"}
 
-			// Display header
+			// Handle JSON format
+			if format == "json" {
+				type VersionInfo struct {
+					Version   string `json:"version"`
+					Installed bool   `json:"installed"`
+					Type      string `json:"type"` // "stable" or "development"
+				}
+
+				var versionInfos []VersionInfo
+
+				// Add stable versions
+				for _, version := range stableVersions {
+					versionInfos = append(versionInfos, VersionInfo{
+						Version:   version,
+						Installed: installedMap[version],
+						Type:      "stable",
+					})
+				}
+
+				// Add development versions
+				for _, version := range devVersions {
+					versionInfos = append(versionInfos, VersionInfo{
+						Version:   version,
+						Installed: installedMap[version],
+						Type:      "development",
+					})
+				}
+
+				// Output JSON
+				jsonData, err := json.MarshalIndent(versionInfos, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %w", err)
+				}
+
+				fmt.Println(string(jsonData))
+				return nil
+			}
+
+			// Default text output
 			ui := cli.GetUI(cmd)
 			ui.Header("Available Perl versions:")
 
@@ -918,6 +963,10 @@ func newAvailableCommand() *cobra.Command {
 			return nil
 		},
 	}
+
+	// Add format flag
+	cmd.Flags().StringP("format", "f", "text", "Output format (text or json)")
+
 	return cmd
 }
 
