@@ -22,18 +22,29 @@ jobs:
       versions: ${{ steps.versions.outputs.versions }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Download latest PVM release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Download the linux-amd64 release asset
+          gh release download --repo ${{ github.repository }} --pattern "*linux-amd64.tar.gz"
 
-      - name: Build PVM
-        run: make pvm
+          # Extract and make executable
+          tar -xzf pvm-*-linux-amd64.tar.gz
+          chmod +x pvm-*
+
+          # Create symlink for easy access
+          ln -s pvm-* pvm
+
+          # Verify it works
+          ./pvm version
 
       - name: Get Perl versions
         id: versions
         run: |
           if [[ "${{ github.event.inputs.perl_versions }}" == "latest2" ]]; then
             # Get the 2 most recent stable versions
-            VERSIONS=$(./build/pvm available --format=json | jq -r '.stable | keys | sort_by(.) | reverse | .[0:2] | @csv' | tr -d '"')
+            VERSIONS=$(./pvm available --format=json | jq -r '.stable | keys | sort_by(.) | reverse | .[0:2] | @csv' | tr -d '"')
           else
             VERSIONS="${{ github.event.inputs.perl_versions }}"
           fi
@@ -78,17 +89,28 @@ jobs:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Download latest PVM release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Download the release asset for the current platform
+          gh release download --repo ${{ github.repository }} --pattern "*${{ matrix.platform }}.tar.gz"
 
-      - name: Build PVM
-        run: make pvm
+          # Extract and make executable
+          tar -xzf pvm-*-${{ matrix.platform }}.tar.gz
+          chmod +x pvm-*
+
+          # Create symlink for easy access
+          ln -s pvm-* pvm
+
+          # Verify it works
+          ./pvm version
 
       - name: Build and upload Perl binary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./build/pvm build-perl ${{ matrix.version }} --upload \
+          ./pvm build-perl ${{ matrix.version }} --upload \
             --platforms ${{ matrix.platform }} \
             --github-repo ${{ github.repository }} \
             --github-token "$GITHUB_TOKEN"
