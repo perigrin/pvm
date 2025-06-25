@@ -2,21 +2,18 @@
 category: typed-perl
 subcategory: simple-annotations
 tags:
-    - typed-variables
-    - built-in-types
-    - variable-declarations
+    - variables
+    - compilation-outcomes
 type_check: true
 ---
 
-# Basic Typed Variables
+# Example With Compilation Outcomes
 
-Basic typed variable declarations with built-in types
+Basic variable declaration with type annotations and expected compilation outcomes.
 
 ```perl
 my Int $count = 42;
 my Str $name = "example";
-my Bool $flag = 1;
-my Num $pi = 3.14159;
 ```
 
 # Expected AST
@@ -26,23 +23,13 @@ my Num $pi = 3.14159;
 ```
 AST {
   Path:
-  Source length: 86 characters
+  Source length: 46 characters
   Type Annotations:
     VarAnnotation: $count :: Int at 1:1
     VarAnnotation: $name :: Str at 2:1
-    VarAnnotation: $flag :: Bool at 3:1
-    VarAnnotation: $pi :: Num at 4:1
   Root: source_file
   Tree Structure:
   source_file
-    expression_statement
-      var_decl
-        variable
-    token
-    expression_statement
-      var_decl
-        variable
-    token
     expression_statement
       var_decl
         variable
@@ -59,12 +46,10 @@ AST {
 ```
 AST {
   Path:
-  Source length: 86 characters
+  Source length: 46 characters
   Type Annotations:
     VarAnnotation: $count :: Int at 1:1
     VarAnnotation: $name :: Str at 2:1
-    VarAnnotation: $flag :: Bool at 3:1
-    VarAnnotation: $pi :: Num at 4:1
   Root: source_file
   Tree Structure:
   source_file
@@ -76,42 +61,33 @@ AST {
       var_decl
         variable
     token
-    expression_statement
-      var_decl
-        variable
-    token
-    expression_statement
-      var_decl
-        variable
-    token
 }
 ```
-
 
 # Expected Compilation Outcomes
 
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $count = 42;
 my $name = "example";
-my $flag = 1;
-my $pi = 3.14159;
 ```
 
 ## Typed Perl Output
 
 ```perl
+use v5.36;
 my Int $count = 42;
 my Str $name = "example";
-my Bool $flag = 1;
-my Num $pi = 3.14159;
 ```
 
 ## Inferred Perl Output
 
 ```perl
-# Type inference not yet fully implemented
+use v5.36;
+my Int $count = 42;
+my Str $name = "example";
 ```
 
 # Expected Type Errors

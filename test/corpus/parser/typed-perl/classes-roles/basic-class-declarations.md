@@ -128,6 +128,45 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ return bless {
+            name => $name,
+            age => $age
+        }, __PACKAGE__; }{ return $name; }
+```
+
+## Typed Perl Output
+
+```perl
+class User {
+    field Str $name;
+    field Int $age;
+    field Optional[Email] $email;
+
+    method new(Str $name, Int $age) returns User {
+        return bless {
+            name => $name,
+            age => $age
+        }, __PACKAGE__;
+    }
+
+    method get_name() returns Str {
+        return $name;
+    }
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

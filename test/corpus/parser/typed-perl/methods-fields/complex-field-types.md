@@ -321,6 +321,35 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+field $numbers = [];
+field $config = {};
+field $formatter;
+field $items;
+field $grouped_data = {};
+```
+
+## Typed Perl Output
+
+```perl
+field ArrayRef[Int] $numbers = [];
+field HashRef[Str] $config = {};
+field CodeRef[Int, Str] $formatter;
+field ArrayRef[MyType] $items;
+field HashRef[ArrayRef[Str]] $grouped_data = {};
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

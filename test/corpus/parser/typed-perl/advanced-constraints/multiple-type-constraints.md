@@ -45,6 +45,27 @@ AST {
 }
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+class Handler<T> where T: Serializable&Defined { }
+```
+
+## Typed Perl Output
+
+```perl
+class Handler<T> where T: Serializable&Defined { }
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

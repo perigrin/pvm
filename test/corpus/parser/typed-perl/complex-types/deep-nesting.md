@@ -324,6 +324,31 @@ source_file
   token
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my @deep_nested;
+my %complex_map;
+my $deeply_nested;
+```
+
+## Typed Perl Output
+
+```perl
+my ArrayRef[HashRef[ArrayRef[Int|Str]]] @deep_nested;
+my Map[Str, ArrayRef[Tuple[Int, Bool|Str]]] %complex_map;
+my Container[Wrapper[Inner[Data[Value]]]] $deeply_nested;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

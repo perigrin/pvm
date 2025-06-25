@@ -220,6 +220,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my %mapping;
+my $triple;
+my $complex_func;
+```
+
+## Typed Perl Output
+
+```perl
+my Map[Str, Int] %mapping;
+my Tuple[Int, Str, Bool] $triple;
+my Function[Int, Str, Bool] $complex_func;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

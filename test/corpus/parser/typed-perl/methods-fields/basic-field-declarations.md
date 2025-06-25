@@ -161,6 +161,33 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+field $count = 0;
+field $name;
+field $is_active = 1;
+field $rate = 3.14;
+```
+
+## Typed Perl Output
+
+```perl
+field Int $count = 0;
+field Str $name;
+field Bool $is_active = 1;
+field Num $rate = 3.14;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

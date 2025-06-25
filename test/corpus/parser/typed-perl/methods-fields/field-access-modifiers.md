@@ -295,6 +295,37 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+# Different field visibility patterns
+field $public_field = 1;
+field $private_field = "secret";
+field $protected_field = 0;
+field readonly $readonly_field = [1, 2, 3];
+field static $class_field = {};
+```
+
+## Typed Perl Output
+
+```perl
+# Different field visibility patterns
+field Int $public_field = 1;
+field private Str $private_field = "secret";
+field protected Bool $protected_field = 0;
+field readonly ArrayRef[Int] $readonly_field = [1, 2, 3];
+field static HashRef[Str] $class_field = {};
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

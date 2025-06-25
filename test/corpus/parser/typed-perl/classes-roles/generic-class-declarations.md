@@ -132,6 +132,46 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ push @{$items}, $item; }{ return $items; }{ for my $item (@{$items}) {
+            return $item if $predicate->($item);
+        } return undef; }
+```
+
+## Typed Perl Output
+
+```perl
+class Container<T> where T: Serializable {
+    field ArrayRef[T] $items = [];
+
+    method add(T $item) returns Void {
+        push @{$items}, $item;
+    }
+
+    method get_all() returns ArrayRef[T] {
+        return $items;
+    }
+
+    method find(CodeRef[T, Bool] $predicate) returns Optional[T] {
+        for my $item (@{$items}) {
+            return $item if $predicate->($item);
+        }
+        return undef;
+    }
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

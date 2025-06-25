@@ -148,6 +148,46 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ return 42; }{ return ["a", "b", "c"]; }{ return { count => 5, total => 100 } }{ # Side effects only; print "Done\n"; }{ return undef; }
+```
+
+## Typed Perl Output
+
+```perl
+method get_number() returns Int {
+    return 42;
+}
+
+method get_array() returns ArrayRef[Str] {
+    return ["a", "b", "c"];
+}
+
+method get_hash() returns HashRef[Int] {
+    return { count => 5, total => 100 };
+}
+
+method get_nothing() returns Void {
+    # Side effects only
+    print "Done\n";
+}
+
+method get_optional() returns Optional[Str] {
+    return undef;
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

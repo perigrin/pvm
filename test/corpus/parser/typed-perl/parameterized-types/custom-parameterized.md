@@ -177,6 +177,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $custom_container;
+my $qualified;
+my $result;
+```
+
+## Typed Perl Output
+
+```perl
+my Container[MyType] $custom_container;
+my Package::Generic[Int] $qualified;
+my Result[UserData, ErrorCode] $result;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

@@ -182,6 +182,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my @numbers;
+my %strings;
+my $function;
+```
+
+## Typed Perl Output
+
+```perl
+my ArrayRef[Int] @numbers;
+my HashRef[Str] %strings;
+my CodeRef[Int, Str] $function;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

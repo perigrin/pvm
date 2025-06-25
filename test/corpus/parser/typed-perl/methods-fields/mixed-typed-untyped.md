@@ -183,6 +183,52 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+# Mixed typed and untyped methods and fields
+field $typed_field = 42;
+field $untyped_field = "hello";{ return uc($input); } 
+ 
+ 
+
+ 
+ 
+
+
+sub untyped_sub { my ($param) = @_; return $param * 2; }{ return "$untyped: $typed"; }
+```
+
+## Typed Perl Output
+
+```perl
+# Mixed typed and untyped methods and fields
+field Int $typed_field = 42;
+field $untyped_field = "hello";
+
+method typed_method(Str $input) returns Str {
+    return uc($input);
+}
+
+sub untyped_sub {
+    my ($param) = @_;
+    return $param * 2;
+}
+
+method partially_typed($untyped, Int $typed) returns Str {
+    return "$untyped: $typed";
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

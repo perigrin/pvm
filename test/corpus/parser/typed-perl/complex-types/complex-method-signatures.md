@@ -71,6 +71,39 @@ source_file
       token
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ return {} }{ return success([]); }
+```
+
+## Typed Perl Output
+
+```perl
+method transform(
+    ArrayRef[HashRef[Int|Str]] $input,
+    CodeRef[Str, Bool] $validator
+) returns HashRef[ArrayRef[Int]|Str] {
+    return {};
+}
+
+method process(
+    Map[Str, ArrayRef[Data|Error]] $complex_input,
+    Optional[Handler[Request|Response]] $handler
+) returns Result[Array[ProcessedData], ProcessingError] {
+    return success([]);
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

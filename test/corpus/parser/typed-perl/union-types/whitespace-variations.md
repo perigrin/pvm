@@ -239,6 +239,37 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $spaced;
+my $compact;
+my $extra_spaced;
+my 
+ 
+ $multiline;
+```
+
+## Typed Perl Output
+
+```perl
+my Int | Str $spaced;
+my Int|Str|Bool $compact;
+my  Num  |  Str  |  Bool  $extra_spaced;
+my Int|
+    Str|
+    Bool $multiline;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

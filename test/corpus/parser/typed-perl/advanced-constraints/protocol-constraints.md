@@ -45,6 +45,27 @@ AST {
 }
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+class Processor<T> where T: EventHandler { }
+```
+
+## Typed Perl Output
+
+```perl
+class Processor<T> where T: EventHandler { }
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

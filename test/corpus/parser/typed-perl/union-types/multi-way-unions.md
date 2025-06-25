@@ -116,6 +116,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $multi = "text";
+my $complex;
+my $nullable = undef;
+```
+
+## Typed Perl Output
+
+```perl
+my Int|Str|Bool $multi = "text";
+my Num|ArrayRef|HashRef $complex;
+my Int|Str|Bool|Undef $nullable = undef;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

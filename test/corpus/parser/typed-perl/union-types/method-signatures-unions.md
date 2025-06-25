@@ -72,6 +72,34 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ if (ref $input) {
+        return "Invalid";
+    } return 1; }
+```
+
+## Typed Perl Output
+
+```perl
+method process(Int|Str $input) returns Bool|Str {
+    if (ref $input) {
+        return "Invalid";
+    }
+    return 1;
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

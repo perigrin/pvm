@@ -102,6 +102,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $flexible = 42;
+my $maybe_flag;
+my $mixed_value = "text";
+```
+
+## Typed Perl Output
+
+```perl
+my Int|Str $flexible = 42;
+my Bool|Undef $maybe_flag;
+my Num|Str $mixed_value = "text";
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

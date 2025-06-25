@@ -123,6 +123,51 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+use v5.36;
+role Serializable {
+    method serialize() returns Str;
+    method deserialize(Str $data) returns Self;
+}
+
+{ return 0 unless defined $cached_at; return time() - $cached_at->epoch > 3600; }{ $cached_at = undef; }
+```
+
+## Typed Perl Output
+
+```perl
+role Serializable {
+    method serialize() returns Str;
+    method deserialize(Str $data) returns Self;
+}
+
+role Cacheable {
+    field Optional[DateTime] $cached_at;
+
+    method cache_key() returns Str;
+
+    method is_stale() returns Bool {
+        return 0 unless defined $cached_at;
+        return time() - $cached_at->epoch > 3600;
+    }
+
+    method invalidate() returns Void {
+        $cached_at = undef;
+    }
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

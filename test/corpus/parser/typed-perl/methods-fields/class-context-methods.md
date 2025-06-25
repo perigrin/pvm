@@ -127,6 +127,41 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ return $a + $b; }{ return $precision; }{ $precision = $new_precision; }
+```
+
+## Typed Perl Output
+
+```perl
+class Calculator {
+    field Num $precision = 0.001;
+
+    method add(Num $a, Num $b) returns Num {
+        return $a + $b;
+    }
+
+    method get_precision() returns Num {
+        return $precision;
+    }
+
+    method set_precision(Num $new_precision) returns Void {
+        $precision = $new_precision;
+    }
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

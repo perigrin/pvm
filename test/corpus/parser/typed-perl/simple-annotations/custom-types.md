@@ -100,6 +100,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $custom;
+my $qualified;
+my $user = UserClass->new();
+```
+
+## Typed Perl Output
+
+```perl
+my MyType $custom;
+my Package::CustomType $qualified;
+my UserClass $user = UserClass->new();
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

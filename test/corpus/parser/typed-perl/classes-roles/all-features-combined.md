@@ -141,6 +141,121 @@ This comprehensive test case is expected to fail parsing due to multiple unsuppo
 
 The parser correctly rejects this advanced syntax.
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+# Compilation failed: Error: failed to parse file /tmp/tmpgabtjb_y.pl: SYS-007: error[TSP001]: parse error (4 ERROR nodes detected)
+  --> :2:2
+   |
+ 2 | type UserId = Int where { $_ > 0 };
+   |  ^ unexpected token: ''
+
+  --> :7:17
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                 ^^^^^^^^^^^^^^ unexpected token: ''
+
+  --> :7:45
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                                             ^ unexpected token: ''
+
+  --> :65:59
+   |
+65 |         # Validate user
+   |                                                           ^ unexpected token: ''
+
+note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
+      Please add test cases for this syntax to improve parser coverage.
+ (System Error)
+2025-06-25T05:32:39Z [ERROR] [psc] Error: failed to parse file /tmp/tmpgabtjb_y.pl: SYS-007: error[TSP001]: parse error (4 ERROR nodes detected)
+  --> :2:2
+   |
+ 2 | type UserId = Int where { $_ > 0 };
+   |  ^ unexpected token: ''
+
+  --> :7:17
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                 ^^^^^^^^^^^^^^ unexpected token: ''
+
+  --> :7:45
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                                             ^ unexpected token: ''
+
+  --> :65:59
+   |
+65 |         # Validate user
+   |                                                           ^ unexpected token: ''
+
+note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
+      Please add test cases for this syntax to improve parser coverage.
+ (System Error)
+```
+
+## Typed Perl Output
+
+```perl
+# Compilation failed: Error: failed to parse file /tmp/tmpgabtjb_y.pl: SYS-007: error[TSP001]: parse error (4 ERROR nodes detected)
+  --> :2:2
+   |
+ 2 | type UserId = Int where { $_ > 0 };
+   |  ^ unexpected token: ''
+
+  --> :7:17
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                 ^^^^^^^^^^^^^^ unexpected token: ''
+
+  --> :7:45
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                                             ^ unexpected token: ''
+
+  --> :65:59
+   |
+65 |         # Validate user
+   |                                                           ^ unexpected token: ''
+
+note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
+      Please add test cases for this syntax to improve parser coverage.
+ (System Error)
+2025-06-25T05:32:39Z [ERROR] [psc] Error: failed to parse file /tmp/tmpgabtjb_y.pl: SYS-007: error[TSP001]: parse error (4 ERROR nodes detected)
+  --> :2:2
+   |
+ 2 | type UserId = Int where { $_ > 0 };
+   |  ^ unexpected token: ''
+
+  --> :7:17
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                 ^^^^^^^^^^^^^^ unexpected token: ''
+
+  --> :7:45
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                                             ^ unexpected token: ''
+
+  --> :65:59
+   |
+65 |         # Validate user
+   |                                                           ^ unexpected token: ''
+
+note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
+      Please add test cases for this syntax to improve parser coverage.
+ (System Error)
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

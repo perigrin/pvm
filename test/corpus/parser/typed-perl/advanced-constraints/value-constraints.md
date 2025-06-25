@@ -45,6 +45,27 @@ AST {
 }
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+class Array<T> where T: Any { }
+```
+
+## Typed Perl Output
+
+```perl
+class Array<T> where T: Any { }
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

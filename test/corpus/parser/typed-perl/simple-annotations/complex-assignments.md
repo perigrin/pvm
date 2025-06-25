@@ -87,6 +87,33 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $calculated = $base + $increment;
+my $interpolated = "Value: $count";
+my $comparison = $a > $b;
+my $result = $x * $y + $z;
+```
+
+## Typed Perl Output
+
+```perl
+my Int $calculated = $base + $increment;
+my Str $interpolated = "Value: $count";
+my Bool $comparison = $a > $b;
+my Num $result = $x * $y + $z;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

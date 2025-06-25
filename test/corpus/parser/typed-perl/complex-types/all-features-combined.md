@@ -61,6 +61,34 @@ source_file
       token
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ my $transformed = $validated_data as ArrayRef[Data&Processed]; return success($transformed->map(sub { process($_) })); }
+```
+
+## Typed Perl Output
+
+```perl
+method complex_processing(
+    ArrayRef[HashRef[Int|Str]&!Undef] $validated_data,
+    (Processor[Request]|Handler[Response])&Configured $handler,
+    Optional[Logger[Info|Error]] $logger
+) returns Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] {
+    my $transformed = $validated_data as ArrayRef[Data&Processed];
+    return success($transformed->map(sub { process($_) }));
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

@@ -57,6 +57,31 @@ source_file
   token
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $result = $data as ArrayRef[HashRef[Int|Bool]];
+my $complex = ($input->process()) as Map[Str, ArrayRef[MyType]];
+my $transformed = $obj->convert() as Result[Data[User], Error[String]];
+```
+
+## Typed Perl Output
+
+```perl
+my $result = $data as ArrayRef[HashRef[Int|Bool]];
+my $complex = ($input->process()) as Map[Str, ArrayRef[MyType]];
+my $transformed = $obj->convert() as Result[Data[User], Error[String]];
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

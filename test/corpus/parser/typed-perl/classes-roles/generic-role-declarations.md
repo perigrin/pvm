@@ -136,6 +136,56 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+use v5.36;
+role Processable<T> where T: Defined {
+    method process(T $input) returns ProcessResult;
+    method validate(T $input) returns Bool;
+}
+
+{ push @{$handlers}, $handler; }{ for my $handler (@{$handlers}) {
+            $handler->($event);
+        } }{ return scalar @{$handlers} }
+```
+
+## Typed Perl Output
+
+```perl
+role Processable<T> where T: Defined {
+    method process(T $input) returns ProcessResult;
+    method validate(T $input) returns Bool;
+}
+
+role EventHandler<T> where T: Event {
+    field ArrayRef[CodeRef[T, Void]] $handlers = [];
+
+    method add_handler(CodeRef[T, Void] $handler) returns Void {
+        push @{$handlers}, $handler;
+    }
+
+    method handle_event(T $event) returns Void {
+        for my $handler (@{$handlers}) {
+            $handler->($event);
+        }
+    }
+
+    method handler_count() returns Int {
+        return scalar @{$handlers};
+    }
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

@@ -252,6 +252,31 @@ source_file
   token
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my @complex_array;
+my %nested_complex;
+my %optional_values;
+```
+
+## Typed Perl Output
+
+```perl
+my ArrayRef[Int|Str|Bool] @complex_array;
+my HashRef[ArrayRef[Int]|HashRef[Str]] %nested_complex;
+my Map[Str, Int|Undef] %optional_values;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

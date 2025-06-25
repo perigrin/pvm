@@ -231,6 +231,37 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my @spaced;
+my %compact;
+my %loose;
+my 
+ 
+ @multiline;
+```
+
+## Typed Perl Output
+
+```perl
+my ArrayRef[ Int ] @spaced;
+my HashRef[Str] %compact;
+my Map[ Str , Int ] %loose;
+my ArrayRef[
+  Int
+] @multiline;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

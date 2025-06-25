@@ -221,6 +221,64 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ return bless {
+            account_holder => $holder,
+            account_number => $number,
+            balance => 0.0,
+            created_at => DateTime->now()
+        }, __PACKAGE__; }{ return $amount > 0; }{ return 0 unless $self->validate_amount($amount); $balance += $amount; return 1; }{ return $balance; }{ return $account_number; }
+```
+
+## Typed Perl Output
+
+```perl
+class BankAccount {
+    field private Num $balance = 0.0;
+    field protected Str $account_number;
+    field public Str $account_holder;
+    field readonly DateTime $created_at;
+
+    method new(Str $holder, Str $number) returns BankAccount {
+        return bless {
+            account_holder => $holder,
+            account_number => $number,
+            balance => 0.0,
+            created_at => DateTime->now()
+        }, __PACKAGE__;
+    }
+
+    method private validate_amount(Num $amount) returns Bool {
+        return $amount > 0;
+    }
+
+    method public deposit(Num $amount) returns Bool {
+        return 0 unless $self->validate_amount($amount);
+        $balance += $amount;
+        return 1;
+    }
+
+    method public get_balance() returns Num {
+        return $balance;
+    }
+
+    method protected get_account_number() returns Str {
+        return $account_number;
+    }
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

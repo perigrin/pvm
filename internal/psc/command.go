@@ -37,6 +37,8 @@ Examples:
 	cmd.AddCommand(
 		newCheckTypeCommand(), // Use the enhanced type checking command
 		newParseCommand(),     // Parse files with various output formats
+		newCompileCommand(),   // Compile between different Perl variants
+		newInferCommand(),     // Type inference and annotation generation
 		newStripCommand(),
 		newRunCommand(),
 		newWatchCommand(),

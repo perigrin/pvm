@@ -228,6 +228,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my @matrix;
+my %grouped_strings;
+my @array_of_hashes;
+```
+
+## Typed Perl Output
+
+```perl
+my ArrayRef[ArrayRef[Int]] @matrix;
+my HashRef[ArrayRef[Str]] %grouped_strings;
+my ArrayRef[HashRef[Int]] @array_of_hashes;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

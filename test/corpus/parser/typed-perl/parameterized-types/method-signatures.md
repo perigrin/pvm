@@ -87,6 +87,33 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ return {} }{ return []; }
+```
+
+## Typed Perl Output
+
+```perl
+method process(ArrayRef[Str] $input) returns HashRef[Int] {
+  return {};
+}
+
+method transform(Map[Str, Int] $data) returns ArrayRef[Result[Str, Error]] {
+  return [];
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

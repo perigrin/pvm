@@ -111,6 +111,37 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ return $a + $b; }{ return "Hello, $name!"; }{ return $flag; }
+```
+
+## Typed Perl Output
+
+```perl
+method calculate(Int $a, Int $b) returns Int {
+    return $a + $b;
+}
+
+method greet(Str $name) returns Str {
+    return "Hello, $name!";
+}
+
+method is_valid(Bool $flag) returns Bool {
+    return $flag;
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

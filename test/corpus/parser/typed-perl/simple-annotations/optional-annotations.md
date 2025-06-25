@@ -160,6 +160,33 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $with_type;
+my $also_typed = undef;
+my $maybe_int;
+my $maybe_str;
+```
+
+## Typed Perl Output
+
+```perl
+my Int $with_type;
+my Str $also_typed = undef;
+my Optional[Int] $maybe_int;
+my Maybe[Str] $maybe_str;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

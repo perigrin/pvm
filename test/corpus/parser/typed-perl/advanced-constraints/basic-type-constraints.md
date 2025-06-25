@@ -47,6 +47,27 @@ AST {
 }
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+class Container<T> where T: Serializable { }
+```
+
+## Typed Perl Output
+
+```perl
+class Container<T> where T: Serializable { }
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

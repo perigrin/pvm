@@ -137,6 +137,48 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ my @result = @{$data} return \@result; }{ my %result; for my $key (keys %{$input}) {
+        $result{$key} = $callback->($input->{$key});
+    } return \%result; }{ return 1; }
+```
+
+## Typed Perl Output
+
+```perl
+method process(ArrayRef[Str] $data, Bool $validate = 1) returns ArrayRef[Str] {
+    my @result = @{$data};
+    return \@result;
+}
+
+method transform(HashRef[Int] $input, CodeRef $callback) returns HashRef[Int] {
+    my %result;
+    for my $key (keys %{$input}) {
+        $result{$key} = $callback->($input->{$key});
+    }
+    return \%result;
+}
+
+method complex_method(
+    ArrayRef[HashRef[Int]] $data,
+    Optional[CodeRef] $processor,
+    Slurpy[Str] @extra_args
+) returns Bool {
+    return 1;
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

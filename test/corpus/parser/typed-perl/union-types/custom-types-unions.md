@@ -168,6 +168,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $object;
+my $qualified;
+my $flexible;
+```
+
+## Typed Perl Output
+
+```perl
+my MyClass|OtherClass $object;
+my Package::Type1|Package::Type2 $qualified;
+my UserType|SystemType|DefaultType $flexible;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

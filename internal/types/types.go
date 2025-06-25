@@ -63,7 +63,16 @@ func (b *BasicType) Equals(other Type) bool {
 
 // CompatibleWith checks if this basic type is compatible with another type
 func (b *BasicType) CompatibleWith(other Type) bool {
-	return b.Equals(other)
+	if b.Equals(other) {
+		return true
+	}
+	
+	// Check if the other type is a union that contains this type
+	if union, ok := other.(*UnionType); ok {
+		return union.ContainsType(b)
+	}
+	
+	return false
 }
 
 // IsBasic returns true for basic types
@@ -113,7 +122,18 @@ func (p *ParameterizedType) Equals(other Type) bool {
 
 // CompatibleWith checks if this parameterized type is compatible with another type
 func (p *ParameterizedType) CompatibleWith(other Type) bool {
-	return p.Equals(other)
+	if p.Equals(other) {
+		return true
+	}
+	
+	// Check if other is the same parameterized type with compatible parameter
+	if otherParam, ok := other.(*ParameterizedType); ok {
+		if p.name == otherParam.name {
+			return p.parameter.CompatibleWith(otherParam.parameter)
+		}
+	}
+	
+	return false
 }
 
 // IsBasic returns false for parameterized types

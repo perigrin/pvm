@@ -96,6 +96,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+our $global_counter = 0;
+state $persistent_cache = "";
+local $localized = 1.0;
+```
+
+## Typed Perl Output
+
+```perl
+our Int $global_counter = 0;
+state Str $persistent_cache = "";
+local Num $localized = 1.0;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

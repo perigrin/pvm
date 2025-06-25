@@ -48,6 +48,24 @@ type ParserTestCase struct {
 	ExpectedTypeErrors     string       `json:"expected_type_errors,omitempty"`
 	ExpectedASTBeforeInfer string       `json:"expected_ast_before_infer,omitempty"`
 	ExpectedASTAfterInfer  string       `json:"expected_ast_after_infer,omitempty"`
+
+	// Compilation outcome expectations
+	ExpectedCompilationOutcomes *CompilationOutcomes `json:"expected_compilation_outcomes,omitempty"`
+}
+
+// CompilationOutcomes represents expected outputs for all compilation targets
+type CompilationOutcomes struct {
+	// ExpectedCleanPerl is the expected output for TargetCleanPerl
+	ExpectedCleanPerl string `json:"expected_clean_perl,omitempty"`
+
+	// ExpectedTypedPerl is the expected output for TargetTypedPerl
+	ExpectedTypedPerl string `json:"expected_typed_perl,omitempty"`
+
+	// ExpectedInferredPerl is the expected output for TargetInferredTypeAnnotations
+	ExpectedInferredPerl string `json:"expected_inferred_perl,omitempty"`
+
+	// CompilationErrors tracks expected compilation errors for each target
+	CompilationErrors map[string]string `json:"compilation_errors,omitempty"`
 }
 
 // AccuracyMetrics tracks parser accuracy across different dimensions
@@ -271,6 +289,46 @@ func (f *ParserTestFramework) parseMarkdownTestCases(content string, metadata *M
 					}
 				}
 
+				// Check for Expected Compilation Outcomes
+				if strings.Contains(titleLower, "expected compilation outcomes") || 
+				   strings.Contains(titleLower, "compilation outcomes") {
+					if f.Verbose {
+						println("DEBUG: Found compilation outcomes section:", nextSection.Title)
+					}
+					
+					// Collect all subsections that are part of compilation outcomes
+					allSections := []MarkdownSection{nextSection}
+					
+					// Look ahead for compilation outcome subsections
+					for k := j + 1; k < len(sections); k++ {
+						subsection := sections[k]
+						subsectionTitle := strings.ToLower(subsection.Title)
+						
+						// Check if this is a compilation outcome subsection
+						if strings.Contains(subsectionTitle, "clean") ||
+						   strings.Contains(subsectionTitle, "typed") ||
+						   strings.Contains(subsectionTitle, "inferred") ||
+						   strings.Contains(subsectionTitle, "perl output") {
+							allSections = append(allSections, subsection)
+							if f.Verbose {
+								println("DEBUG: Adding subsection to compilation outcomes:", subsection.Title)
+							}
+						} else if f.sectionHasPerlCode(subsection) || 
+							     strings.Contains(subsectionTitle, "expected") {
+							// Stop when we hit another major section
+							break
+						}
+					}
+					
+					outcomes, err := f.parseCompilationOutcomesFromSections(allSections)
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse compilation outcomes: %w", err)
+					}
+					testCase.ExpectedCompilationOutcomes = outcomes
+				} else if f.Verbose {
+					println("DEBUG: Section not matching compilation outcomes:", nextSection.Title, "->", titleLower)
+				}
+
 				// Stop looking when we hit another test case (section with Perl code)
 				if f.sectionHasPerlCode(nextSection) {
 					break
@@ -298,6 +356,7 @@ type MarkdownSection struct {
 // MarkdownCodeBlock represents a fenced code block
 type MarkdownCodeBlock struct {
 	Language string
+	Info     string // Additional info from the code fence (like `perl clean` or `perl inferred`)
 	Content  string
 }
 
@@ -889,4 +948,228 @@ func (f *ParserTestFramework) PrintMetricsSummary(t *testing.T, metrics *Accurac
 			t.Logf("  %s: %d/%d (%.1f%%)", feature, metric.Passed, metric.Total, metric.Accuracy)
 		}
 	}
+}
+
+// parseCompilationOutcomes parses a markdown section containing expected compilation outcomes
+func (f *ParserTestFramework) parseCompilationOutcomes(section MarkdownSection) (*CompilationOutcomes, error) {
+	outcomes := &CompilationOutcomes{
+		CompilationErrors: make(map[string]string),
+	}
+
+	// Debug output for development
+	if f.Verbose {
+		println("DEBUG: Parsing compilation outcomes section")
+		println("DEBUG: Section title:", section.Title)
+		println("DEBUG: Section description length:", len(section.Description))
+		println("DEBUG: Number of code blocks:", len(section.CodeBlocks))
+	}
+
+	// Parse each subsection within the compilation outcomes section
+	for _, codeBlock := range section.CodeBlocks {
+		// Look for labeled code blocks or subsections
+		switch {
+		case strings.Contains(strings.ToLower(codeBlock.Language), "clean") ||
+		     strings.Contains(strings.ToLower(codeBlock.Info), "clean"):
+			outcomes.ExpectedCleanPerl = strings.TrimSpace(codeBlock.Content)
+
+		case strings.Contains(strings.ToLower(codeBlock.Language), "typed") ||
+		     strings.Contains(strings.ToLower(codeBlock.Info), "typed"):
+			outcomes.ExpectedTypedPerl = strings.TrimSpace(codeBlock.Content)
+
+		case strings.Contains(strings.ToLower(codeBlock.Language), "inferred") ||
+		     strings.Contains(strings.ToLower(codeBlock.Info), "inferred"):
+			outcomes.ExpectedInferredPerl = strings.TrimSpace(codeBlock.Content)
+
+		case codeBlock.Language == "perl" || codeBlock.Language == "":
+			// Default Perl code block - try to determine type from context or preceding text
+			// For now, assume it's the inferred output if no other context
+			if outcomes.ExpectedInferredPerl == "" {
+				outcomes.ExpectedInferredPerl = strings.TrimSpace(codeBlock.Content)
+			}
+		}
+	}
+
+	// Parse any subsections within the compilation outcomes section
+	// Look for markdown subsections like "## Clean Perl Output", "## Typed Perl Output", etc.
+	content := section.Description
+	if content != "" {
+		outcomes = f.parseCompilationOutcomesFromText(content, outcomes)
+	}
+
+	return outcomes, nil
+}
+
+// parseCompilationOutcomesFromSections parses compilation outcomes from multiple sections
+func (f *ParserTestFramework) parseCompilationOutcomesFromSections(sections []MarkdownSection) (*CompilationOutcomes, error) {
+	outcomes := &CompilationOutcomes{
+		CompilationErrors: make(map[string]string),
+	}
+
+	for _, section := range sections {
+		titleLower := strings.ToLower(section.Title)
+		
+		if f.Verbose {
+			println("DEBUG: Processing section:", section.Title, "with", len(section.CodeBlocks), "code blocks")
+		}
+
+		// Process code blocks in this section
+		for _, codeBlock := range section.CodeBlocks {
+			codeContent := strings.TrimSpace(codeBlock.Content)
+			if codeContent == "" {
+				continue
+			}
+
+			// Determine which target based on section title
+			switch {
+			case strings.Contains(titleLower, "clean") || strings.Contains(titleLower, "untyped"):
+				outcomes.ExpectedCleanPerl = codeContent
+				if f.Verbose {
+					println("DEBUG: Set clean Perl output")
+				}
+			case strings.Contains(titleLower, "typed") && !strings.Contains(titleLower, "inferred"):
+				outcomes.ExpectedTypedPerl = codeContent
+				if f.Verbose {
+					println("DEBUG: Set typed Perl output")
+				}
+			case strings.Contains(titleLower, "inferred"):
+				outcomes.ExpectedInferredPerl = codeContent
+				if f.Verbose {
+					println("DEBUG: Set inferred Perl output")
+				}
+			default:
+				// Fall back to the general parsing logic
+				if f.Verbose {
+					println("DEBUG: Using fallback parsing for section:", section.Title)
+				}
+			}
+		}
+	}
+
+	return outcomes, nil
+}
+
+// parseCompilationOutcomesFromText parses compilation outcomes from markdown text with subsections
+func (f *ParserTestFramework) parseCompilationOutcomesFromText(content string, outcomes *CompilationOutcomes) *CompilationOutcomes {
+	lines := strings.Split(content, "\n")
+	var currentSection string
+	var currentContent []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		
+		// Check for subsection headers
+		if strings.HasPrefix(trimmed, "##") || strings.HasPrefix(trimmed, "###") {
+			// Process previous section if any
+			f.processCompilationSection(currentSection, currentContent, outcomes)
+			
+			// Start new section
+			currentSection = strings.ToLower(trimmed)
+			currentContent = []string{}
+		} else if strings.HasPrefix(trimmed, "```") {
+			// Handle code blocks within subsections
+			if len(currentContent) > 0 && strings.HasSuffix(currentContent[len(currentContent)-1], "```") {
+				// End of code block
+				continue
+			}
+			// Start of code block
+			currentContent = append(currentContent, trimmed)
+		} else if len(currentContent) > 0 {
+			// Inside a code block or section
+			currentContent = append(currentContent, line)
+		}
+	}
+
+	// Process final section
+	f.processCompilationSection(currentSection, currentContent, outcomes)
+
+	return outcomes
+}
+
+// processCompilationSection processes a single compilation outcome section
+func (f *ParserTestFramework) processCompilationSection(sectionHeader string, content []string, outcomes *CompilationOutcomes) {
+	if sectionHeader == "" || len(content) == 0 {
+		return
+	}
+
+	// Remove code block markers and extract content
+	var perlCode []string
+	inCodeBlock := false
+	
+	for _, line := range content {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			inCodeBlock = !inCodeBlock
+			continue
+		}
+		if inCodeBlock {
+			perlCode = append(perlCode, line)
+		}
+	}
+
+	codeContent := strings.TrimSpace(strings.Join(perlCode, "\n"))
+	if codeContent == "" {
+		return
+	}
+
+	// Determine which target this section is for
+	switch {
+	case strings.Contains(sectionHeader, "clean") || strings.Contains(sectionHeader, "untyped"):
+		outcomes.ExpectedCleanPerl = codeContent
+	case strings.Contains(sectionHeader, "typed") && !strings.Contains(sectionHeader, "inferred"):
+		outcomes.ExpectedTypedPerl = codeContent
+	case strings.Contains(sectionHeader, "inferred"):
+		outcomes.ExpectedInferredPerl = codeContent
+	case strings.Contains(sectionHeader, "error"):
+		// Handle compilation errors
+		if outcomes.CompilationErrors == nil {
+			outcomes.CompilationErrors = make(map[string]string)
+		}
+		// Try to determine which target this error is for
+		if strings.Contains(sectionHeader, "clean") {
+			outcomes.CompilationErrors["clean_perl"] = codeContent
+		} else if strings.Contains(sectionHeader, "typed") {
+			outcomes.CompilationErrors["typed_perl"] = codeContent
+		} else if strings.Contains(sectionHeader, "inferred") {
+			outcomes.CompilationErrors["inferred_typed_perl"] = codeContent
+		}
+	}
+}
+
+// ValidateCompilationOutcomes validates actual compilation results against expected outcomes
+func (f *ParserTestFramework) ValidateCompilationOutcomes(testCase *ParserTestCase, ast *ast.AST) []error {
+	var errors []error
+
+	if testCase.ExpectedCompilationOutcomes == nil {
+		// No compilation outcomes expected, skip validation
+		return nil
+	}
+
+	outcomes := testCase.ExpectedCompilationOutcomes
+
+	// Validate each compilation target
+	if outcomes.ExpectedCleanPerl != "" {
+		if err := f.validateCompilationTarget(ast, "clean_perl", outcomes.ExpectedCleanPerl); err != nil {
+			errors = append(errors, fmt.Errorf("clean Perl compilation validation failed: %w", err))
+		}
+	}
+
+	if outcomes.ExpectedTypedPerl != "" {
+		if err := f.validateCompilationTarget(ast, "typed_perl", outcomes.ExpectedTypedPerl); err != nil {
+			errors = append(errors, fmt.Errorf("typed Perl compilation validation failed: %w", err))
+		}
+	}
+
+	if outcomes.ExpectedInferredPerl != "" {
+		if err := f.validateCompilationTarget(ast, "inferred_typed_perl", outcomes.ExpectedInferredPerl); err != nil {
+			errors = append(errors, fmt.Errorf("inferred typed Perl compilation validation failed: %w", err))
+		}
+	}
+
+	return errors
+}
+
+// validateCompilationTarget validates a single compilation target
+func (f *ParserTestFramework) validateCompilationTarget(ast *ast.AST, target string, expected string) error {
+	// This would need to be implemented with the actual compiler registry
+	// For now, return a placeholder implementation
+	return fmt.Errorf("compilation validation not yet implemented for target: %s", target)
 }

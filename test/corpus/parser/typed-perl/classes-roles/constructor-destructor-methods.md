@@ -264,6 +264,61 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ $self->{name} = $name; $self->{handle} = $mode); $self->{is_open} = defined $self->{handle} }{ my $self = bless {}, __PACKAGE__; $self->BUILD($name, $mode); return $self; }{ $self->close() if $is_open; }{ return 0 unless $is_open; my $result = $handle->close(); $is_open = 0; return $result; }{ return undef unless $is_open; my $data; my $read_bytes = $handle->read($data, $bytes); return defined $read_bytes ? $data : undef; }
+```
+
+## Typed Perl Output
+
+```perl
+class Resource {
+    field Str $name;
+    field FileHandle $handle;
+    field Bool $is_open = 0;
+
+    method BUILD(Str $name, Optional[Str] $mode = 'r') returns Void {
+        $self->{name} = $name;
+        $self->{handle} = IO::File->new($name, $mode);
+        $self->{is_open} = defined $self->{handle};
+    }
+
+    method new(Str $name, Optional[Str] $mode = 'r') returns Resource {
+        my $self = bless {}, __PACKAGE__;
+        $self->BUILD($name, $mode);
+        return $self;
+    }
+
+    method DESTROY() returns Void {
+        $self->close() if $is_open;
+    }
+
+    method close() returns Bool {
+        return 0 unless $is_open;
+        my $result = $handle->close();
+        $is_open = 0;
+        return $result;
+    }
+
+    method read(Int $bytes) returns Optional[Str] {
+        return undef unless $is_open;
+        my $data;
+        my $read_bytes = $handle->read($data, $bytes);
+        return defined $read_bytes ? $data : undef;
+    }
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

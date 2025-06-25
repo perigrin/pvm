@@ -146,9 +146,30 @@ func (li *LiteralInferrer) inferArrayLiteralType(elements []string) *types.TypeI
 	}
 
 	if !allSameType {
-		// Mixed types - reduce confidence and use generic type
-		confidence = 0.50
-		elementTypeInfo = types.NewTypeInfo(types.NewStrType(), confidence, types.SourceLiteral)
+		// Mixed types - create union type
+		confidence = 0.70
+		elementTypes := make([]types.Type, 0)
+		seenTypes := make(map[string]bool)
+		
+		// Collect unique types from all elements
+		for _, element := range elements {
+			elemTypeInfo := li.InferLiteralType(element)
+			typeStr := elemTypeInfo.Type.String()
+			if !seenTypes[typeStr] {
+				seenTypes[typeStr] = true
+				elementTypes = append(elementTypes, elemTypeInfo.Type)
+			}
+		}
+		
+		// Create union type if we have multiple distinct types
+		var unionType types.Type
+		if len(elementTypes) > 1 {
+			unionType = types.NewUnionType(elementTypes...)
+		} else {
+			unionType = elementTypes[0]
+		}
+		
+		elementTypeInfo = types.NewTypeInfo(unionType, confidence, types.SourceLiteral)
 	}
 
 	arrayType := types.NewArrayRefType(elementTypeInfo.Type)
@@ -180,9 +201,30 @@ func (li *LiteralInferrer) inferHashLiteralType(values []string) *types.TypeInfo
 	}
 
 	if !allSameType {
-		// Mixed types - reduce confidence and use generic type
-		confidence = 0.50
-		valueTypeInfo = types.NewTypeInfo(types.NewStrType(), confidence, types.SourceLiteral)
+		// Mixed types - create union type
+		confidence = 0.70
+		valueTypes := make([]types.Type, 0)
+		seenTypes := make(map[string]bool)
+		
+		// Collect unique types from all values
+		for _, value := range values {
+			valTypeInfo := li.InferLiteralType(value)
+			typeStr := valTypeInfo.Type.String()
+			if !seenTypes[typeStr] {
+				seenTypes[typeStr] = true
+				valueTypes = append(valueTypes, valTypeInfo.Type)
+			}
+		}
+		
+		// Create union type if we have multiple distinct types
+		var unionType types.Type
+		if len(valueTypes) > 1 {
+			unionType = types.NewUnionType(valueTypes...)
+		} else {
+			unionType = valueTypes[0]
+		}
+		
+		valueTypeInfo = types.NewTypeInfo(unionType, confidence, types.SourceLiteral)
 	}
 
 	hashType := types.NewHashRefType(valueTypeInfo.Type)

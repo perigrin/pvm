@@ -206,6 +206,31 @@ source_file
   token
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my @non_undef_array;
+my %non_empty_values;
+my $definitely_defined;
+```
+
+## Typed Perl Output
+
+```perl
+my ArrayRef[!Undef] @non_undef_array;
+my HashRef[Str, !Empty] %non_empty_values;
+my Optional[!Null&!Undef] $definitely_defined;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

@@ -66,6 +66,32 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ return {} }
+```
+
+## Typed Perl Output
+
+```perl
+method complex(
+    ArrayRef[Int|Str] $data,
+    CodeRef|Undef $callback
+) returns HashRef[Bool|Str] {
+    return {};
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

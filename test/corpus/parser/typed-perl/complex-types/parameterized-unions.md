@@ -263,6 +263,31 @@ source_file
   token
 ```
 
-## Expected Type Errors
+#
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my () $param_union;
+my () $flexible;
+my ( ) $outcome;
+```
+
+## Typed Perl Output
+
+```perl
+my (ArrayRef[Int]|HashRef[Str]) $param_union;
+my (Container[MyType]|Wrapper[OtherType]) $flexible;
+my (Result[Data, Error]|Maybe[Value]) $outcome;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
 
 (none)

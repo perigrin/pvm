@@ -148,6 +148,42 @@ func (itpc *InferredTypedPerlCompiler) Compile(inputAST *ast.AST) (string, error
 	return compiler.compileNode(inputAST.Root)
 }
 
+// CompileInferred generates typed Perl code from an already-inferred AST with type information
+func (itpc *InferredTypedPerlCompiler) CompileInferred(inferredAST ast.InferredAST) (string, error) {
+	// Validate input
+	if inferredAST == nil {
+		return "", &CompilerError{
+			Code:    "INVALID_AST",
+			Message: "InferredAST cannot be nil",
+		}
+	}
+
+	if !inferredAST.IsValid() {
+		return "", &CompilerError{
+			Code:    "INVALID_AST",
+			Message: "InferredAST is not valid",
+		}
+	}
+
+	// Create node compiler with the pre-inferred AST
+	compiler := &nodeCompiler{
+		inferredAST:         inferredAST,
+		annotationGenerator: itpc.annotationGenerator,
+		options:             itpc.options,
+	}
+
+	// Get root node and compile
+	rootNode, err := inferredAST.GetRootNode()
+	if err != nil {
+		return "", &CompilerError{
+			Code:    "INVALID_ROOT",
+			Message: fmt.Sprintf("Failed to get root node: %v", err),
+		}
+	}
+
+	return compiler.compileNode(rootNode)
+}
+
 // nodeCompiler handles compilation of individual AST nodes
 type nodeCompiler struct {
 	inferredAST         ast.InferredAST

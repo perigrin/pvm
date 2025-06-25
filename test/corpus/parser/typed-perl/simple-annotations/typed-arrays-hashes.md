@@ -77,6 +77,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my ArrayRef[Int] @numbers = (1, 2, 3);
+my HashRef[Str] %config = (key => 'value');
+my ArrayRef[Str] @strings = ("a", "b", "c");
+```
+
+## Typed Perl Output
+
+```perl
+my ArrayRef[Int] @numbers = (1, 2, 3);
+my HashRef[Str] %config = (key => 'value');
+my ArrayRef[Str] @strings = ("a", "b", "c");
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

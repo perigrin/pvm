@@ -158,6 +158,112 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+use v5.36;
+role Drawable {
+    method draw() returns Void;
+    method get_bounds() returns Rectangle;
+}
+
+role Clickable {
+    method on_click(Event $event) returns Void;
+    method get_bounds() returns Rectangle;  # Conflict with Drawable
+}
+
+role Resizable {
+method resize(Int $width, $height) returns Void;
+    method get_size() returns Size;
+}
+
+class Widget does Drawable, Clickable, Resizable {
+field $x = 0;
+field $y = 0;
+field $width = 100;
+field $height = 50;
+
+    # Resolve conflict by implementing the conflicting method
+    method get_bounds() returns Rectangle {
+return $y, $width, $height);
+    }
+
+    method draw() returns Void {
+        # Implementation for drawing
+    }
+
+    method on_click(Event $event) returns Void {
+        # Handle click event
+    }
+
+method resize(Int $new_width, $new_height) returns Void {
+        $width = $new_width;
+        $height = $new_height;
+    }
+
+    method get_size() returns Size {
+return $height);
+    }
+}
+```
+
+## Typed Perl Output
+
+```perl
+role Drawable {
+    method draw() returns Void;
+    method get_bounds() returns Rectangle;
+}
+
+role Clickable {
+    method on_click(Event $event) returns Void;
+    method get_bounds() returns Rectangle;  # Conflict with Drawable
+}
+
+role Resizable {
+    method resize(Int $width, Int $height) returns Void;
+    method get_size() returns Size;
+}
+
+class Widget does Drawable, Clickable, Resizable {
+    field Int $x = 0;
+    field Int $y = 0;
+    field Int $width = 100;
+    field Int $height = 50;
+
+    # Resolve conflict by implementing the conflicting method
+    method get_bounds() returns Rectangle {
+        return Rectangle->new($x, $y, $width, $height);
+    }
+
+    method draw() returns Void {
+        # Implementation for drawing
+    }
+
+    method on_click(Event $event) returns Void {
+        # Handle click event
+    }
+
+    method resize(Int $new_width, Int $new_height) returns Void {
+        $width = $new_width;
+        $height = $new_height;
+    }
+
+    method get_size() returns Size {
+        return Size->new($width, $height);
+    }
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

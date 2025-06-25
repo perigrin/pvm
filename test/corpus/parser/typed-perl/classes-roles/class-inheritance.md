@@ -137,6 +137,56 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{ return encode_json({
+            content => $content,
+            created => $created->iso8601,
+            author => $author ? $author->id : undef
+        }); }{ my $decoded = decode_json($data); return __PACKAGE__->new(
+            content => $decoded->{content},
+            created => DateTime->from_epoch(epoch => $decoded->{created}),
+            author => $decoded->{author} ? UserRef->new(id => $decoded->{author}) : undef
+        ); }
+```
+
+## Typed Perl Output
+
+```perl
+class Document : BaseDocument does Serializable, Cacheable {
+    field Str $content;
+    field DateTime $created;
+    field Optional[UserRef] $author;
+
+    method serialize() returns Str {
+        return encode_json({
+            content => $content,
+            created => $created->iso8601,
+            author => $author ? $author->id : undef
+        });
+    }
+
+    method deserialize(Str $data) returns Self {
+        my $decoded = decode_json($data);
+        return __PACKAGE__->new(
+            content => $decoded->{content},
+            created => DateTime->from_epoch(epoch => $decoded->{created}),
+            author => $decoded->{author} ? UserRef->new(id => $decoded->{author}) : undef
+        );
+    }
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

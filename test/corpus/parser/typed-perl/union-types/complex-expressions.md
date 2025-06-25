@@ -237,6 +237,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my @mixed_array;
+field $mixed_hash;
+my $flexible_function;
+```
+
+## Typed Perl Output
+
+```perl
+my ArrayRef[Int|Str] @mixed_array;
+field HashRef[Int|Bool] $mixed_hash;
+my CodeRef[Int|Str, Bool|Undef] $flexible_function;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

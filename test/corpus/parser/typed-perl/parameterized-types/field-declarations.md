@@ -208,6 +208,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+field $objects;
+field $nested_data;
+field $maybe_numbers;
+```
+
+## Typed Perl Output
+
+```perl
+field ArrayRef[MyClass] $objects;
+field HashRef[ArrayRef[Str]] $nested_data;
+field Optional[ArrayRef[Int]] $maybe_numbers;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

@@ -117,6 +117,33 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $spaced = 42;
+my $tabbed="test";
+my Int$compact=100;
+my   ArrayRef[Str]   @loose_array   =   ();
+```
+
+## Typed Perl Output
+
+```perl
+my  Int  $spaced = 42;
+my	Str	$tabbed="test";
+my Int$compact=100;
+my   ArrayRef[Str]   @loose_array   =   ();
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```

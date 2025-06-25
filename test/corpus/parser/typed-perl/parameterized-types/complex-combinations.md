@@ -325,6 +325,31 @@ AST {
 }
 ```
 
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+my $complex;
+my $flexible;
+my $nested_result;
+```
+
+## Typed Perl Output
+
+```perl
+my Map[Str, ArrayRef[HashRef[Int|Bool]]] $complex;
+my Container[ArrayRef[MyType]|HashRef[OtherType]] $flexible;
+my Result[Data[UserInfo], Error[ValidationFailure]] $nested_result;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
 # Expected Type Errors
 
 ```
