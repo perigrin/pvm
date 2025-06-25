@@ -43,6 +43,11 @@ func NewBoolType() Type {
 	return &BasicType{name: "Bool"}
 }
 
+// NewNumType creates a new Num type for floating-point numbers
+func NewNumType() Type {
+	return &BasicType{name: "Num"}
+}
+
 // String returns the string representation of the basic type
 func (b *BasicType) String() string {
 	return b.name
