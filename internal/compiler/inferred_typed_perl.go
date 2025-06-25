@@ -16,10 +16,10 @@ import (
 type InferredTypedPerlCompiler struct {
 	// Formatter for generating type annotations
 	formatter TypeFormatter
-	
+
 	// Annotation generator for creating type annotations
 	annotationGenerator *AnnotationGenerator
-	
+
 	// Options for compilation behavior
 	options InferredCompilerOptions
 }
@@ -28,19 +28,19 @@ type InferredTypedPerlCompiler struct {
 type InferredCompilerOptions struct {
 	// ConfidenceThreshold sets minimum confidence for including type annotations
 	ConfidenceThreshold float64
-	
+
 	// AnnotationStyle sets the formatting style for annotations
 	AnnotationStyle FormattingStyle
-	
+
 	// PreserveComments controls whether original comments are preserved
 	PreserveComments bool
-	
+
 	// PreserveFormatting controls whether original formatting is preserved
 	PreserveFormatting bool
-	
+
 	// IncludeUncertainTypes controls whether low-confidence types are included as comments
 	IncludeUncertainTypes bool
-	
+
 	// VerboseOutput includes additional debugging information
 	VerboseOutput bool
 }
@@ -48,7 +48,7 @@ type InferredCompilerOptions struct {
 // NewInferredTypedPerlCompiler creates a new inferred typed Perl compiler
 func NewInferredTypedPerlCompiler() *InferredTypedPerlCompiler {
 	formatter := NewTypeFormatter()
-	
+
 	return &InferredTypedPerlCompiler{
 		formatter:           formatter,
 		annotationGenerator: NewAnnotationGenerator(formatter),
@@ -71,9 +71,9 @@ func NewInferredTypedPerlCompilerWithOptions(options InferredCompilerOptions) *I
 		UseShortTypeNames:         options.AnnotationStyle == StyleCompact,
 		PreferComments:            options.IncludeUncertainTypes,
 	}
-	
+
 	formatter := NewTypeFormatterWithOptions(formatterOptions)
-	
+
 	annotationOptions := AnnotationOptions{
 		AnnotateVariables: true,
 		AnnotateMethods:   true,
@@ -83,7 +83,7 @@ func NewInferredTypedPerlCompilerWithOptions(options InferredCompilerOptions) *I
 		PreferredStyle:    options.AnnotationStyle,
 		ContextAware:      true,
 	}
-	
+
 	return &InferredTypedPerlCompiler{
 		formatter:           formatter,
 		annotationGenerator: NewAnnotationGeneratorWithOptions(formatter, annotationOptions),
@@ -104,14 +104,14 @@ func (itpc *InferredTypedPerlCompiler) Validate(ast *ast.AST) error {
 			Message: "AST cannot be nil",
 		}
 	}
-	
+
 	if ast.Root == nil {
 		return &CompilerError{
 			Code:    "INVALID_AST",
 			Message: "AST must have a root node",
 		}
 	}
-	
+
 	return nil
 }
 
@@ -121,7 +121,7 @@ func (itpc *InferredTypedPerlCompiler) Compile(inputAST *ast.AST) (string, error
 	if err := itpc.Validate(inputAST); err != nil {
 		return "", err
 	}
-	
+
 	// Perform type inference on the AST
 	inferenceEngine := inference.NewTypeInferenceEngine()
 	inferredAST, err := inferenceEngine.InferTypes(inputAST)
@@ -131,20 +131,20 @@ func (itpc *InferredTypedPerlCompiler) Compile(inputAST *ast.AST) (string, error
 			Message: fmt.Sprintf("Type inference failed: %v", err),
 		}
 	}
-	
+
 	// Check for inference errors
 	if errors := inferenceEngine.GetInferenceErrors(); len(errors) > 0 && itpc.options.VerboseOutput {
 		// Include inference errors as comments in verbose mode
 		// For now, we'll continue compilation despite errors
 	}
-	
+
 	// Compile the AST with type annotations
 	compiler := &nodeCompiler{
 		inferredAST:         inferredAST,
 		annotationGenerator: itpc.annotationGenerator,
 		options:             itpc.options,
 	}
-	
+
 	return compiler.compileNode(inputAST.Root)
 }
 
@@ -173,7 +173,7 @@ func (nc *nodeCompiler) compileNode(node ast.Node) (string, error) {
 	if node == nil {
 		return "", nil
 	}
-	
+
 	switch n := node.(type) {
 	case *ast.ProgramStmt:
 		return nc.compileProgramStmt(n)
@@ -210,10 +210,10 @@ func (nc *nodeCompiler) compileNode(node ast.Node) (string, error) {
 // compileProgramStmt compiles a program statement
 func (nc *nodeCompiler) compileProgramStmt(node *ast.ProgramStmt) (string, error) {
 	var parts []string
-	
+
 	// Add Perl version pragma for modern features
 	parts = append(parts, "use v5.36;")
-	
+
 	// Compile all statements
 	for _, stmt := range node.Statements() {
 		compiled, err := nc.compileNode(stmt)
@@ -224,7 +224,7 @@ func (nc *nodeCompiler) compileProgramStmt(node *ast.ProgramStmt) (string, error
 			parts = append(parts, compiled)
 		}
 	}
-	
+
 	return strings.Join(parts, "\n"), nil
 }
 
@@ -232,12 +232,12 @@ func (nc *nodeCompiler) compileProgramStmt(node *ast.ProgramStmt) (string, error
 func (nc *nodeCompiler) compileVarDecl(node *ast.VarDecl) (string, error) {
 	// Get type information for this variable
 	typeInfo := nc.getNodeTypeInfo(node)
-	
+
 	if typeInfo != nil && typeInfo.Confidence >= nc.options.ConfidenceThreshold {
 		// Generate annotated variable declaration
 		return nc.annotationGenerator.GenerateVariableAnnotation(node, typeInfo), nil
 	}
-	
+
 	// Fall back to basic variable declaration
 	return nc.compileBasicVarDecl(node)
 }
@@ -246,17 +246,17 @@ func (nc *nodeCompiler) compileVarDecl(node *ast.VarDecl) (string, error) {
 func (nc *nodeCompiler) compileBasicVarDecl(node *ast.VarDecl) (string, error) {
 	var parts []string
 	parts = append(parts, node.DeclType) // my, our, state
-	
+
 	// Add variable names
 	var varNames []string
 	for _, variable := range node.Variables() {
 		varNames = append(varNames, variable.FullName())
 	}
-	
+
 	if len(varNames) > 0 {
 		parts = append(parts, strings.Join(varNames, ", "))
 	}
-	
+
 	// Add initializer if present
 	if node.Initializer != nil {
 		parts = append(parts, "=")
@@ -266,7 +266,7 @@ func (nc *nodeCompiler) compileBasicVarDecl(node *ast.VarDecl) (string, error) {
 		}
 		parts = append(parts, initCode)
 	}
-	
+
 	return strings.Join(parts, " ") + ";", nil
 }
 
@@ -277,26 +277,26 @@ func (nc *nodeCompiler) compileSubDecl(node *ast.SubDecl) (string, error) {
 		methodDecl := &ast.MethodDecl{SubDecl: node}
 		return nc.compileMethodDecl(methodDecl)
 	}
-	
+
 	var parts []string
-	
+
 	// Add sub keyword
 	if node.IsLexical {
 		parts = append(parts, "my sub")
 	} else {
 		parts = append(parts, "sub")
 	}
-	
+
 	// Add name
 	parts = append(parts, node.Name)
-	
+
 	// Add parameters
 	paramList, err := nc.compileParameters(node.Parameters())
 	if err != nil {
 		return "", err
 	}
 	parts = append(parts, fmt.Sprintf("(%s)", paramList))
-	
+
 	// Add return type if present and confident
 	if node.ReturnType != nil {
 		typeInfo := nc.getNodeTypeInfo(node)
@@ -305,7 +305,7 @@ func (nc *nodeCompiler) compileSubDecl(node *ast.SubDecl) (string, error) {
 			parts = append(parts, "->", returnTypeStr)
 		}
 	}
-	
+
 	// Add body
 	if node.Body != nil {
 		bodyCode, err := nc.compileNode(node.Body)
@@ -314,7 +314,7 @@ func (nc *nodeCompiler) compileSubDecl(node *ast.SubDecl) (string, error) {
 		}
 		parts = append(parts, bodyCode)
 	}
-	
+
 	return strings.Join(parts, " "), nil
 }
 
@@ -322,12 +322,12 @@ func (nc *nodeCompiler) compileSubDecl(node *ast.SubDecl) (string, error) {
 func (nc *nodeCompiler) compileMethodDecl(node *ast.MethodDecl) (string, error) {
 	// Get method signature information
 	signature := nc.buildMethodSignatureInfo(node.SubDecl)
-	
+
 	if signature != nil && signature.OverallConfidence >= nc.options.ConfidenceThreshold {
 		// Generate annotated method signature
 		return nc.annotationGenerator.GenerateMethodAnnotation(node, signature), nil
 	}
-	
+
 	// Fall back to basic method declaration
 	return nc.compileBasicMethodDecl(node)
 }
@@ -335,23 +335,23 @@ func (nc *nodeCompiler) compileMethodDecl(node *ast.MethodDecl) (string, error) 
 // compileBasicMethodDecl compiles a method declaration without type annotations
 func (nc *nodeCompiler) compileBasicMethodDecl(node *ast.MethodDecl) (string, error) {
 	var parts []string
-	
+
 	// Add method keyword
 	if node.IsLexical {
 		parts = append(parts, "my method")
 	} else {
 		parts = append(parts, "method")
 	}
-	
+
 	// Add name and parameters
 	parts = append(parts, node.Name)
-	
+
 	paramList, err := nc.compileParameters(node.Parameters())
 	if err != nil {
 		return "", err
 	}
 	parts = append(parts, fmt.Sprintf("(%s)", paramList))
-	
+
 	// Add body
 	if node.Body != nil {
 		bodyCode, err := nc.compileNode(node.Body)
@@ -360,7 +360,7 @@ func (nc *nodeCompiler) compileBasicMethodDecl(node *ast.MethodDecl) (string, er
 		}
 		parts = append(parts, bodyCode)
 	}
-	
+
 	return strings.Join(parts, " "), nil
 }
 
@@ -368,12 +368,12 @@ func (nc *nodeCompiler) compileBasicMethodDecl(node *ast.MethodDecl) (string, er
 func (nc *nodeCompiler) compileFieldDecl(node *ast.FieldDecl) (string, error) {
 	// Get type information for this field
 	typeInfo := nc.getNodeTypeInfo(node)
-	
+
 	if typeInfo != nil && typeInfo.Confidence >= nc.options.ConfidenceThreshold {
 		// Generate annotated field declaration
 		return nc.annotationGenerator.GenerateFieldAnnotation(node, typeInfo), nil
 	}
-	
+
 	// Fall back to basic field declaration
 	return nc.compileBasicFieldDecl(node)
 }
@@ -382,13 +382,13 @@ func (nc *nodeCompiler) compileFieldDecl(node *ast.FieldDecl) (string, error) {
 func (nc *nodeCompiler) compileBasicFieldDecl(node *ast.FieldDecl) (string, error) {
 	var parts []string
 	parts = append(parts, "field")
-	
+
 	if node.Variable != nil {
 		parts = append(parts, node.Variable.FullName())
 	} else {
 		parts = append(parts, "$"+node.Name)
 	}
-	
+
 	// Add initializer if present
 	if node.Initializer != nil {
 		parts = append(parts, "=")
@@ -398,31 +398,31 @@ func (nc *nodeCompiler) compileBasicFieldDecl(node *ast.FieldDecl) (string, erro
 		}
 		parts = append(parts, initCode)
 	}
-	
+
 	return strings.Join(parts, " ") + ";", nil
 }
 
 // compileParameters compiles a list of parameters
 func (nc *nodeCompiler) compileParameters(params []*ast.Parameter) (string, error) {
 	var paramStrs []string
-	
+
 	for _, param := range params {
 		paramStr := ""
-		
+
 		// Add type annotation if present and confident
 		if param.TypeExpr != nil {
 			// For parameters, we'll use a simplified approach since Parameter doesn't implement Node
 			// In a real implementation, we'd need to track parameter type info differently
 			paramStr += param.TypeExpr.String() + " "
 		}
-		
+
 		// Add parameter variable
 		if param.Variable != nil {
 			paramStr += param.Variable.FullName()
 		} else {
 			paramStr += "$" + param.Name
 		}
-		
+
 		// Add default value if present
 		if param.Default != nil {
 			defaultCode, err := nc.compileNode(param.Default)
@@ -431,10 +431,10 @@ func (nc *nodeCompiler) compileParameters(params []*ast.Parameter) (string, erro
 			}
 			paramStr += " = " + defaultCode
 		}
-		
+
 		paramStrs = append(paramStrs, paramStr)
 	}
-	
+
 	return strings.Join(paramStrs, ", "), nil
 }
 
@@ -443,13 +443,13 @@ func (nc *nodeCompiler) buildMethodSignatureInfo(node *ast.SubDecl) *MethodSigna
 	var params []ParameterInfo
 	totalConfidence := 0.0
 	confidenceCount := 0
-	
+
 	for _, param := range node.Parameters() {
 		paramInfo := ParameterInfo{
 			Name:       param.Name,
 			IsOptional: param.IsOptional,
 		}
-		
+
 		// Get type information if available
 		// For parameters, we'll use a simplified approach since Parameter doesn't implement Node
 		// In a real implementation, we'd need to track parameter type info differently
@@ -460,16 +460,16 @@ func (nc *nodeCompiler) buildMethodSignatureInfo(node *ast.SubDecl) *MethodSigna
 		} else {
 			paramInfo.Confidence = 0.0
 		}
-		
+
 		params = append(params, paramInfo)
 	}
-	
+
 	// Calculate overall confidence
 	overallConfidence := 0.0
 	if confidenceCount > 0 {
 		overallConfidence = totalConfidence / float64(confidenceCount)
 	}
-	
+
 	// Get return type information
 	var returnType types.Type
 	returnConfidence := 0.0
@@ -479,7 +479,7 @@ func (nc *nodeCompiler) buildMethodSignatureInfo(node *ast.SubDecl) *MethodSigna
 			returnConfidence = typeInfo.Confidence
 		}
 	}
-	
+
 	return &MethodSignatureInfo{
 		Parameters:        params,
 		ReturnType:        returnType,
@@ -494,7 +494,7 @@ func (nc *nodeCompiler) buildMethodSignatureInfo(node *ast.SubDecl) *MethodSigna
 func (nc *nodeCompiler) compileBlockStmt(node *ast.BlockStmt) (string, error) {
 	var parts []string
 	parts = append(parts, "{")
-	
+
 	for _, stmt := range node.Statements() {
 		compiled, err := nc.compileNode(stmt)
 		if err != nil {
@@ -504,7 +504,7 @@ func (nc *nodeCompiler) compileBlockStmt(node *ast.BlockStmt) (string, error) {
 			parts = append(parts, "  "+compiled)
 		}
 	}
-	
+
 	parts = append(parts, "}")
 	return strings.Join(parts, "\n"), nil
 }
@@ -523,19 +523,19 @@ func (nc *nodeCompiler) compileReturnStmt(node *ast.ReturnStmt) (string, error) 
 	if node.Value == nil {
 		return "return;", nil
 	}
-	
+
 	compiled, err := nc.compileNode(node.Value)
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Add type annotation for return value if configured
 	typeInfo := nc.getNodeTypeInfo(node)
 	annotation := ""
 	if typeInfo != nil {
 		annotation = nc.annotationGenerator.GenerateReturnAnnotation(node, typeInfo)
 	}
-	
+
 	return "return " + compiled + ";" + annotation, nil
 }
 
@@ -545,14 +545,14 @@ func (nc *nodeCompiler) compileIfStmt(node *ast.IfStmt) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	thenStmt, err := nc.compileNode(node.ThenStmt)
 	if err != nil {
 		return "", err
 	}
-	
+
 	result := fmt.Sprintf("if (%s) %s", condition, thenStmt)
-	
+
 	if node.ElseStmt != nil {
 		elseStmt, err := nc.compileNode(node.ElseStmt)
 		if err != nil {
@@ -560,7 +560,7 @@ func (nc *nodeCompiler) compileIfStmt(node *ast.IfStmt) (string, error) {
 		}
 		result += " else " + elseStmt
 	}
-	
+
 	return result, nil
 }
 
@@ -570,12 +570,12 @@ func (nc *nodeCompiler) compileWhileStmt(node *ast.WhileStmt) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	body, err := nc.compileNode(node.Body)
 	if err != nil {
 		return "", err
 	}
-	
+
 	return fmt.Sprintf("while (%s) %s", condition, body), nil
 }
 
@@ -585,43 +585,43 @@ func (nc *nodeCompiler) compileForStmt(node *ast.ForStmt) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	iterable, err := nc.compileNode(node.Iterable)
 	if err != nil {
 		return "", err
 	}
-	
+
 	body, err := nc.compileNode(node.Body)
 	if err != nil {
 		return "", err
 	}
-	
+
 	return fmt.Sprintf("for %s (%s) %s", iterator, iterable, body), nil
 }
 
 // compileUseStmt compiles a use statement
 func (nc *nodeCompiler) compileUseStmt(node *ast.UseStmt) (string, error) {
 	result := "use " + node.Module
-	
+
 	if node.Version != "" {
 		result += " " + node.Version
 	}
-	
+
 	if len(node.Imports) > 0 {
 		result += " qw(" + strings.Join(node.Imports, " ") + ")"
 	}
-	
+
 	return result + ";", nil
 }
 
 // compilePackageStmt compiles a package statement
 func (nc *nodeCompiler) compilePackageStmt(node *ast.PackageStmt) (string, error) {
 	result := "package " + node.Name
-	
+
 	if node.Version != "" {
 		result += " " + node.Version
 	}
-	
+
 	return result + ";", nil
 }
 
@@ -629,7 +629,7 @@ func (nc *nodeCompiler) compilePackageStmt(node *ast.PackageStmt) (string, error
 func (nc *nodeCompiler) compileGenericNode(node ast.Node) (string, error) {
 	// For nodes we don't handle specifically, compile children and join with spaces
 	var parts []string
-	
+
 	for _, child := range node.Children() {
 		compiled, err := nc.compileNode(child)
 		if err != nil {
@@ -639,6 +639,6 @@ func (nc *nodeCompiler) compileGenericNode(node ast.Node) (string, error) {
 			parts = append(parts, compiled)
 		}
 	}
-	
+
 	return strings.Join(parts, " "), nil
 }

@@ -97,14 +97,14 @@ func (at *ASTTraverser) visitNode(node ast.Node, inferredAST ast.InferredAST) er
 func (at *ASTTraverser) handleLiteralNode(node ast.Node, inferredAST ast.InferredAST) error {
 	// Extract literal value from node text
 	literalValue := node.Text()
-	
+
 	// Infer type using literal inferrer
 	typeInfo := at.literalInferrer.InferLiteralType(literalValue)
-	
+
 	// Generate unique node ID
-	nodeID := fmt.Sprintf("literal_%s_%d_%d", 
+	nodeID := fmt.Sprintf("literal_%s_%d_%d",
 		sanitizeNodeID(literalValue), node.Start().Line, node.Start().Column)
-	
+
 	// Attach type information
 	return inferredAST.AttachTypeInfo(nodeID, typeInfo)
 }
@@ -112,29 +112,29 @@ func (at *ASTTraverser) handleLiteralNode(node ast.Node, inferredAST ast.Inferre
 // handleVariableNode handles variable reference nodes
 func (at *ASTTraverser) handleVariableNode(node ast.Node, inferredAST ast.InferredAST) error {
 	variableName := extractVariableName(node.Text())
-	
+
 	// Look up variable type in scope stack
 	typeInfo := at.lookupVariableType(variableName)
-	
+
 	if typeInfo != nil {
 		// Variable type found in scope
-		nodeID := fmt.Sprintf("variable_%s_%d_%d", 
+		nodeID := fmt.Sprintf("variable_%s_%d_%d",
 			variableName, node.Start().Line, node.Start().Column)
-		
+
 		// Slightly reduce confidence for variable references
 		adjustedTypeInfo := types.NewTypeInfo(
-			typeInfo.Type, 
-			typeInfo.Confidence * 0.95, 
+			typeInfo.Type,
+			typeInfo.Confidence*0.95,
 			types.SourceVariable)
-		
+
 		return inferredAST.AttachTypeInfo(nodeID, adjustedTypeInfo)
 	}
-	
+
 	// Variable not found - add error but continue
 	at.engine.AddInferenceError(NewInferenceError(
 		fmt.Sprintf("variable_%s", variableName),
 		fmt.Sprintf("Unknown variable: %s", variableName)))
-	
+
 	return nil
 }
 
@@ -164,7 +164,7 @@ func (at *ASTTraverser) handleBlockNode(node ast.Node, inferredAST ast.InferredA
 	// Push new scope for block
 	at.pushScope()
 	defer at.popScope()
-	
+
 	// Traverse all children in the new scope
 	return at.traverseChildren(node, inferredAST)
 }

@@ -34,24 +34,24 @@ func NewLiteralInferrer() *LiteralInferrer {
 func (li *LiteralInferrer) InferLiteralType(literalValue string) *types.TypeInfo {
 	// Clean up the literal value
 	cleaned := strings.TrimSpace(literalValue)
-	
+
 	// Try to infer type based on patterns
 	if li.intPattern.MatchString(cleaned) {
 		return li.inferIntegerType(cleaned)
 	}
-	
+
 	if li.floatPattern.MatchString(cleaned) {
 		return li.inferNumericType(cleaned)
 	}
-	
+
 	if li.stringPattern.MatchString(cleaned) {
 		return li.inferStringType(cleaned)
 	}
-	
+
 	if li.booleanPattern.MatchString(cleaned) {
 		return li.inferBooleanType(cleaned)
 	}
-	
+
 	// Default to string type for unknown literals
 	return li.inferStringType(cleaned)
 }
@@ -59,55 +59,55 @@ func (li *LiteralInferrer) InferLiteralType(literalValue string) *types.TypeInfo
 // inferIntegerType creates type info for integer literals
 func (li *LiteralInferrer) inferIntegerType(value string) *types.TypeInfo {
 	intType := types.NewIntType()
-	
+
 	// High confidence for clear integer patterns
 	confidence := 0.95
-	
+
 	// Reduce confidence for very large numbers that might overflow
 	if len(value) > 10 {
 		confidence = 0.85
 	}
-	
+
 	return types.NewTypeInfo(intType, confidence, types.SourceLiteral)
 }
 
 // inferNumericType creates type info for floating-point literals
 func (li *LiteralInferrer) inferNumericType(value string) *types.TypeInfo {
 	numType := types.NewNumType()
-	
+
 	// High confidence for clear float patterns
 	confidence := 0.95
-	
+
 	// Validate that it's actually a valid float
 	if _, err := strconv.ParseFloat(value, 64); err != nil {
 		confidence = 0.70 // Lower confidence if parsing fails
 	}
-	
+
 	return types.NewTypeInfo(numType, confidence, types.SourceLiteral)
 }
 
 // inferStringType creates type info for string literals
 func (li *LiteralInferrer) inferStringType(value string) *types.TypeInfo {
 	strType := types.NewStrType()
-	
+
 	confidence := 0.95
-	
+
 	// Check if it's a quoted string
 	if li.stringPattern.MatchString(value) {
 		confidence = 0.98 // Very high confidence for quoted strings
 	} else {
 		confidence = 0.80 // Lower confidence for unquoted strings
 	}
-	
+
 	return types.NewTypeInfo(strType, confidence, types.SourceLiteral)
 }
 
 // inferBooleanType creates type info for boolean literals
 func (li *LiteralInferrer) inferBooleanType(value string) *types.TypeInfo {
 	boolType := types.NewBoolType()
-	
+
 	confidence := 0.90
-	
+
 	// Perl's truthiness is complex, so be more conservative
 	switch strings.ToLower(value) {
 	case "1", "true":
@@ -117,7 +117,7 @@ func (li *LiteralInferrer) inferBooleanType(value string) *types.TypeInfo {
 	default:
 		confidence = 0.75
 	}
-	
+
 	return types.NewTypeInfo(boolType, confidence, types.SourceLiteral)
 }
 
@@ -128,15 +128,15 @@ func (li *LiteralInferrer) inferArrayLiteralType(elements []string) *types.TypeI
 		arrayType := types.NewArrayRefType(types.NewStrType()) // Default to Str
 		return types.NewTypeInfo(arrayType, 0.60, types.SourceLiteral)
 	}
-	
+
 	// Infer element type from first element
 	firstElement := elements[0]
 	elementTypeInfo := li.InferLiteralType(firstElement)
-	
+
 	// Check if all elements have the same type
 	confidence := elementTypeInfo.Confidence
 	allSameType := true
-	
+
 	for _, element := range elements[1:] {
 		elemTypeInfo := li.InferLiteralType(element)
 		if !elemTypeInfo.Type.Equals(elementTypeInfo.Type) {
@@ -144,13 +144,13 @@ func (li *LiteralInferrer) inferArrayLiteralType(elements []string) *types.TypeI
 			break
 		}
 	}
-	
+
 	if !allSameType {
 		// Mixed types - reduce confidence and use generic type
 		confidence = 0.50
 		elementTypeInfo = types.NewTypeInfo(types.NewStrType(), confidence, types.SourceLiteral)
 	}
-	
+
 	arrayType := types.NewArrayRefType(elementTypeInfo.Type)
 	return types.NewTypeInfo(arrayType, confidence, types.SourceLiteral)
 }
@@ -162,15 +162,15 @@ func (li *LiteralInferrer) inferHashLiteralType(values []string) *types.TypeInfo
 		hashType := types.NewHashRefType(types.NewStrType()) // Default to Str
 		return types.NewTypeInfo(hashType, 0.60, types.SourceLiteral)
 	}
-	
+
 	// Infer value type from first value
 	firstValue := values[0]
 	valueTypeInfo := li.InferLiteralType(firstValue)
-	
+
 	// Check if all values have the same type
 	confidence := valueTypeInfo.Confidence
 	allSameType := true
-	
+
 	for _, value := range values[1:] {
 		valTypeInfo := li.InferLiteralType(value)
 		if !valTypeInfo.Type.Equals(valueTypeInfo.Type) {
@@ -178,13 +178,13 @@ func (li *LiteralInferrer) inferHashLiteralType(values []string) *types.TypeInfo
 			break
 		}
 	}
-	
+
 	if !allSameType {
 		// Mixed types - reduce confidence and use generic type
 		confidence = 0.50
 		valueTypeInfo = types.NewTypeInfo(types.NewStrType(), confidence, types.SourceLiteral)
 	}
-	
+
 	hashType := types.NewHashRefType(valueTypeInfo.Type)
 	return types.NewTypeInfo(hashType, confidence, types.SourceLiteral)
 }

@@ -131,7 +131,7 @@ func TestASTTypeAdapter(t *testing.T) {
 		// Add type information
 		intType := types.NewIntType()
 		typeInfo := types.NewTypeInfo(intType, 0.90, types.SourceLiteral)
-		
+
 		err := adapter.AttachTypeInfo("count_var", typeInfo)
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)

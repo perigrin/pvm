@@ -4,6 +4,7 @@
 package compiler
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 
 func TestInferredTypedPerlCompiler(t *testing.T) {
 	compiler := NewInferredTypedPerlCompiler()
-	
+
 	tests := []struct {
 		name     string
 		testFunc func(t *testing.T)
@@ -31,7 +32,7 @@ func TestInferredTypedPerlCompiler(t *testing.T) {
 			}
 		}},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, tt.testFunc)
 	}
@@ -39,7 +40,7 @@ func TestInferredTypedPerlCompiler(t *testing.T) {
 
 func TestCompilerRegistryIntegration(t *testing.T) {
 	registry := NewCompilerRegistry()
-	
+
 	t.Run("New target is registered", func(t *testing.T) {
 		compiler, exists := registry.GetCompiler(TargetInferredTypeAnnotations)
 		if !exists {
@@ -49,7 +50,7 @@ func TestCompilerRegistryIntegration(t *testing.T) {
 			t.Error("TargetInferredTypeAnnotations compiler is nil")
 		}
 	})
-	
+
 	t.Run("Available targets include new target", func(t *testing.T) {
 		targets := registry.AvailableTargets()
 		found := false
@@ -67,7 +68,7 @@ func TestCompilerRegistryIntegration(t *testing.T) {
 
 func TestCompilerValidation(t *testing.T) {
 	compiler := NewInferredTypedPerlCompiler()
-	
+
 	tests := []struct {
 		name        string
 		ast         *ast.AST
@@ -98,28 +99,27 @@ func TestCompilerValidation(t *testing.T) {
 			expectError: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := compiler.Validate(tt.ast)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Error("Expected validation error, got nil")
 					return
 				}
-				
-				if compErr, ok := err.(*CompilerError); ok {
+
+				var compErr *CompilerError
+				if errors.As(err, &compErr) {
 					if compErr.Code != tt.errorCode {
 						t.Errorf("Expected error code %s, got %s", tt.errorCode, compErr.Code)
 					}
 				} else {
 					t.Errorf("Expected CompilerError, got %T", err)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no validation error, got %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("Expected no validation error, got %v", err)
 			}
 		})
 	}
@@ -127,8 +127,8 @@ func TestCompilerValidation(t *testing.T) {
 
 func TestCompilerOptions(t *testing.T) {
 	tests := []struct {
-		name    string
-		options InferredCompilerOptions
+		name     string
+		options  InferredCompilerOptions
 		testFunc func(t *testing.T, compiler *InferredTypedPerlCompiler)
 	}{
 		{
@@ -186,7 +186,7 @@ func TestCompilerOptions(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			compiler := NewInferredTypedPerlCompilerWithOptions(tt.options)
@@ -198,21 +198,21 @@ func TestCompilerOptions(t *testing.T) {
 func TestBasicCompilation(t *testing.T) {
 	// Create a simple AST for testing
 	programStmt := ast.NewProgramStmt([]ast.StatementNode{}, ast.Position{}, ast.Position{})
-	
+
 	testAST := &ast.AST{
 		Path: "test.pl",
 		Root: programStmt,
 	}
-	
+
 	compiler := NewInferredTypedPerlCompiler()
-	
+
 	t.Run("Basic program compilation", func(t *testing.T) {
 		result, err := compiler.Compile(testAST)
 		if err != nil {
 			t.Errorf("Compilation failed: %v", err)
 			return
 		}
-		
+
 		// Should include Perl version pragma
 		if !strings.Contains(result, "use v5.36;") {
 			t.Error("Expected Perl version pragma in output")
@@ -224,19 +224,19 @@ func TestVariableDeclarationCompilation(t *testing.T) {
 	// Create a variable declaration AST
 	varExpr := ast.NewVariableExpr("count", "$", ast.Position{}, ast.Position{})
 	typeExpr := ast.NewTypeExpression("Int", nil, ast.Position{}, ast.Position{})
-	
+
 	varDecl := ast.NewVarDecl("my", []*ast.VariableExpr{varExpr}, typeExpr, nil, ast.Position{}, ast.Position{})
 	programStmt := ast.NewProgramStmt([]ast.StatementNode{varDecl}, ast.Position{}, ast.Position{})
-	
+
 	testAST := &ast.AST{
 		Path: "test.pl",
 		Root: programStmt,
 	}
-	
+
 	tests := []struct {
-		name              string
-		options           InferredCompilerOptions
-		expectedContains  []string
+		name                string
+		options             InferredCompilerOptions
+		expectedContains    []string
 		expectedNotContains []string
 	}{
 		{
@@ -256,23 +256,23 @@ func TestVariableDeclarationCompilation(t *testing.T) {
 			expectedContains: []string{"use v5.36;", "my"},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			compiler := NewInferredTypedPerlCompilerWithOptions(tt.options)
 			result, err := compiler.Compile(testAST)
-			
+
 			if err != nil {
 				t.Errorf("Compilation failed: %v", err)
 				return
 			}
-			
+
 			for _, expected := range tt.expectedContains {
 				if !strings.Contains(result, expected) {
 					t.Errorf("Expected result to contain '%s', got: %s", expected, result)
 				}
 			}
-			
+
 			for _, notExpected := range tt.expectedNotContains {
 				if strings.Contains(result, notExpected) {
 					t.Errorf("Expected result NOT to contain '%s', got: %s", notExpected, result)
@@ -285,18 +285,18 @@ func TestVariableDeclarationCompilation(t *testing.T) {
 func TestMethodCompilation(t *testing.T) {
 	// Note: This is a simplified test since full AST construction with all type information
 	// would require integration with the parser and inference engine
-	
+
 	compiler := NewInferredTypedPerlCompiler()
-	
+
 	// Test that the compiler can handle method compilation without panicking
 	t.Run("Method signature info building", func(t *testing.T) {
 		// Create a simple SubDecl for testing
 		subDecl := ast.NewSubDecl("test_method", []*ast.Parameter{}, nil, nil, true, ast.Position{}, ast.Position{})
-		
+
 		nodeCompiler := &nodeCompiler{
 			options: compiler.options,
 		}
-		
+
 		// This should not panic
 		signature := nodeCompiler.buildMethodSignatureInfo(subDecl)
 		if signature == nil {
@@ -307,7 +307,7 @@ func TestMethodCompilation(t *testing.T) {
 
 func TestCompilerErrorHandling(t *testing.T) {
 	compiler := NewInferredTypedPerlCompiler()
-	
+
 	tests := []struct {
 		name          string
 		ast           *ast.AST
@@ -327,17 +327,18 @@ func TestCompilerErrorHandling(t *testing.T) {
 			expectedError: "INVALID_AST",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := compiler.Compile(tt.ast)
-			
+
 			if err == nil {
 				t.Error("Expected compilation error, got nil")
 				return
 			}
-			
-			if compErr, ok := err.(*CompilerError); ok {
+
+			var compErr *CompilerError
+			if errors.As(err, &compErr) {
 				if !strings.Contains(compErr.Code, tt.expectedError) {
 					t.Errorf("Expected error code to contain '%s', got '%s'", tt.expectedError, compErr.Code)
 				}
@@ -350,41 +351,41 @@ func TestCompilerErrorHandling(t *testing.T) {
 
 func TestCompilerIntegrationWithRegistry(t *testing.T) {
 	registry := NewCompilerRegistry()
-	
+
 	// Create a simple test AST
 	programStmt := ast.NewProgramStmt([]ast.StatementNode{}, ast.Position{}, ast.Position{})
 	testAST := &ast.AST{
 		Path: "test.pl",
 		Root: programStmt,
 	}
-	
+
 	t.Run("Compile with registry", func(t *testing.T) {
 		result, err := registry.Compile(testAST, TargetInferredTypeAnnotations)
-		
+
 		if err != nil {
 			t.Errorf("Registry compilation failed: %v", err)
 			return
 		}
-		
+
 		if !strings.Contains(result, "use v5.36;") {
 			t.Error("Expected Perl version pragma in registry compilation output")
 		}
 	})
-	
+
 	t.Run("Compile with options", func(t *testing.T) {
 		options := &CompilerOptions{
 			PreserveComments:   true,
 			PreserveFormatting: true,
 			StrictMode:         false,
 		}
-		
+
 		result, err := registry.CompileWithOptions(testAST, TargetInferredTypeAnnotations, options)
-		
+
 		if err != nil {
 			t.Errorf("Registry compilation with options failed: %v", err)
 			return
 		}
-		
+
 		if result == "" {
 			t.Error("Expected non-empty compilation result")
 		}

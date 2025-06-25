@@ -16,7 +16,7 @@ const (
 
 	// TargetTypedPerl produces Perl code with type annotations preserved
 	TargetTypedPerl Target = "typed_perl"
-	
+
 	// TargetInferredTypeAnnotations produces Perl code with inferred type annotations
 	TargetInferredTypeAnnotations Target = "inferred_typed_perl"
 )

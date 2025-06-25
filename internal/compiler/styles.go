@@ -4,9 +4,6 @@
 package compiler
 
 import (
-	"fmt"
-	"strings"
-
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -100,71 +97,6 @@ func NewCommentOnlyStyleFormatter() *CommentOnlyStyleFormatter {
 	}
 }
 
-// FormatMethodSignature formats a method signature with type annotations
-func (f *basicTypeFormatter) FormatMethodSignature(methodName string, params []ParameterInfo, returnType types.Type, style FormattingStyle) string {
-	var paramStrs []string
-	
-	for _, param := range params {
-		if f.ShouldIncludeAnnotation(param.Confidence, f.options.ConfidenceThreshold) {
-			typeStr := f.formatTypeString(param.Type)
-			paramStrs = append(paramStrs, fmt.Sprintf("%s %s", typeStr, param.Name))
-		} else {
-			paramStrs = append(paramStrs, param.Name)
-		}
-	}
-	
-	paramList := strings.Join(paramStrs, ", ")
-	
-	// Format return type if confident enough
-	if returnType != nil && f.ShouldIncludeAnnotation(0.8, f.options.ConfidenceThreshold) {
-		returnTypeStr := f.formatTypeString(returnType)
-		switch style {
-		case StyleVerbose:
-			return fmt.Sprintf("sub %s(%s) -> %s", methodName, paramList, returnTypeStr)
-		case StyleCompact:
-			return fmt.Sprintf("sub %s(%s):%s", methodName, paramList, returnTypeStr)
-		default:
-			return fmt.Sprintf("sub %s(%s) # returns %s", methodName, paramList, returnTypeStr)
-		}
-	}
-	
-	return fmt.Sprintf("sub %s(%s)", methodName, paramList)
-}
-
-// FormatFieldDeclaration formats a field declaration with type annotation
-func (f *basicTypeFormatter) FormatFieldDeclaration(fieldName string, fieldType types.Type, confidence float64, style FormattingStyle) string {
-	if !f.ShouldIncludeAnnotation(confidence, f.options.ConfidenceThreshold) {
-		if f.options.PreferComments && confidence > 0.4 {
-			return fmt.Sprintf("field %s; %s", fieldName, f.FormatConfidenceComment(confidence))
-		}
-		return fmt.Sprintf("field %s;", fieldName)
-	}
-	
-	typeStr := f.formatTypeString(fieldType)
-	
-	switch style {
-	case StyleVerbose:
-		comment := ""
-		if f.options.IncludeConfidenceComments {
-			comment = " " + f.FormatConfidenceComment(confidence)
-		}
-		return fmt.Sprintf("field %s %s;%s", typeStr, fieldName, comment)
-		
-	case StyleCompact:
-		return fmt.Sprintf("field %s %s;", typeStr, fieldName)
-		
-	case StyleCommentOnly:
-		comment := fmt.Sprintf("# field type: %s", typeStr)
-		if f.options.IncludeConfidenceComments {
-			comment += fmt.Sprintf(" (%.0f%%)", confidence*100)
-		}
-		return fmt.Sprintf("field %s; %s", fieldName, comment)
-		
-	default: // StyleInline
-		return fmt.Sprintf("field %s %s;", typeStr, fieldName)
-	}
-}
-
 // ParameterInfo holds information about a method parameter
 type ParameterInfo struct {
 	Name       string
@@ -177,16 +109,16 @@ type ParameterInfo struct {
 type StylePreferences struct {
 	// DefaultStyle is the preferred style for most annotations
 	DefaultStyle FormattingStyle
-	
+
 	// VariableStyle is the style for variable declarations
 	VariableStyle FormattingStyle
-	
+
 	// MethodStyle is the style for method signatures
 	MethodStyle FormattingStyle
-	
+
 	// FieldStyle is the style for field declarations
 	FieldStyle FormattingStyle
-	
+
 	// UncertaintyStyle is how to handle low-confidence inferences
 	UncertaintyStyle FormattingStyle
 }

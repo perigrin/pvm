@@ -21,22 +21,22 @@ type AnnotationGenerator struct {
 type AnnotationOptions struct {
 	// AnnotateVariables controls whether variable declarations get annotations
 	AnnotateVariables bool
-	
+
 	// AnnotateMethods controls whether method signatures get annotations
 	AnnotateMethods bool
-	
+
 	// AnnotateFields controls whether field declarations get annotations
 	AnnotateFields bool
-	
+
 	// AnnotateReturns controls whether return statements get type comments
 	AnnotateReturns bool
-	
+
 	// MinConfidence sets minimum confidence for any annotation
 	MinConfidence float64
-	
+
 	// PreferredStyle sets the default formatting style
 	PreferredStyle FormattingStyle
-	
+
 	// ContextAware enables context-sensitive annotation decisions
 	ContextAware bool
 }
@@ -75,7 +75,7 @@ func (ag *AnnotationGenerator) GenerateVariableAnnotation(node *ast.VarDecl, typ
 		}
 		return ag.generateFallbackAnnotation(varName, typeInfo)
 	}
-	
+
 	style := ag.determineStyleForContext("variable", typeInfo.Confidence)
 	// Get first variable name from VarDecl
 	varName := ""
@@ -90,9 +90,9 @@ func (ag *AnnotationGenerator) GenerateMethodAnnotation(node *ast.MethodDecl, si
 	if !ag.options.AnnotateMethods {
 		return ag.generateBasicMethodSignature(node.Name, signature.Parameters)
 	}
-	
+
 	style := ag.determineStyleForContext("method", signature.OverallConfidence)
-	
+
 	// Format parameters with type information
 	var paramStrs []string
 	for _, param := range signature.Parameters {
@@ -103,9 +103,9 @@ func (ag *AnnotationGenerator) GenerateMethodAnnotation(node *ast.MethodDecl, si
 			paramStrs = append(paramStrs, param.Name)
 		}
 	}
-	
+
 	paramList := strings.Join(paramStrs, ", ")
-	
+
 	// Add return type if confident enough
 	if signature.ReturnType != nil && signature.ReturnConfidence >= ag.options.MinConfidence {
 		returnTypeStr := signature.ReturnType.String()
@@ -120,7 +120,7 @@ func (ag *AnnotationGenerator) GenerateMethodAnnotation(node *ast.MethodDecl, si
 			return fmt.Sprintf("sub %s(%s) # -> %s", node.Name, paramList, returnTypeStr)
 		}
 	}
-	
+
 	return fmt.Sprintf("sub %s(%s)", node.Name, paramList)
 }
 
@@ -129,17 +129,11 @@ func (ag *AnnotationGenerator) GenerateFieldAnnotation(node *ast.FieldDecl, type
 	if !ag.options.AnnotateFields || typeInfo.Confidence < ag.options.MinConfidence {
 		return ag.generateFallbackFieldAnnotation(node.Name, typeInfo)
 	}
-	
+
 	style := ag.determineStyleForContext("field", typeInfo.Confidence)
-	
-	// Use the formatter's field declaration method if available
-	if bf, ok := ag.formatter.(*basicTypeFormatter); ok {
-		return bf.FormatFieldDeclaration(node.Name, typeInfo.Type, typeInfo.Confidence, style)
-	}
-	
-	// Fallback to basic formatting
-	typeStr := typeInfo.Type.String()
-	return fmt.Sprintf("field %s %s;", typeStr, node.Name)
+
+	// Use the formatter's field declaration method
+	return ag.formatter.FormatFieldDeclaration(node.Name, typeInfo.Type, typeInfo.Confidence, style)
 }
 
 // GenerateReturnAnnotation generates annotation for a return statement
@@ -147,9 +141,9 @@ func (ag *AnnotationGenerator) GenerateReturnAnnotation(node *ast.ReturnStmt, ty
 	if !ag.options.AnnotateReturns || typeInfo.Confidence < ag.options.MinConfidence {
 		return "" // No annotation for returns by default
 	}
-	
+
 	style := ag.determineStyleForContext("return", typeInfo.Confidence)
-	
+
 	switch style {
 	case StyleVerbose:
 		return fmt.Sprintf(" # returns %s (confidence: %.0f%%)", typeInfo.Type.String(), typeInfo.Confidence*100)
@@ -167,12 +161,12 @@ func (ag *AnnotationGenerator) determineStyleForContext(context string, confiden
 	if !ag.options.ContextAware {
 		return ag.options.PreferredStyle
 	}
-	
+
 	// High confidence: use preferred style
 	if confidence >= 0.9 {
 		return ag.options.PreferredStyle
 	}
-	
+
 	// Medium confidence: use more verbose style for clarity
 	if confidence >= 0.7 {
 		if ag.options.PreferredStyle == StyleCompact {
@@ -180,7 +174,7 @@ func (ag *AnnotationGenerator) determineStyleForContext(context string, confiden
 		}
 		return ag.options.PreferredStyle
 	}
-	
+
 	// Low confidence: prefer comments
 	return StyleCommentOnly
 }
@@ -224,16 +218,16 @@ type MethodSignatureInfo struct {
 type AnnotationContext struct {
 	// NodeType indicates the type of AST node being annotated
 	NodeType string
-	
+
 	// Depth indicates nesting depth in the AST
 	Depth int
-	
+
 	// ParentContext provides information about parent nodes
 	ParentContext map[string]interface{}
-	
+
 	// LocalScope indicates if this is in a local scope
 	LocalScope bool
-	
+
 	// IsPublic indicates if this declaration is publicly visible
 	IsPublic bool
 }

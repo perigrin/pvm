@@ -12,7 +12,7 @@ import (
 
 func TestTypeFormatter(t *testing.T) {
 	formatter := NewTypeFormatter()
-	
+
 	tests := []struct {
 		name     string
 		testFunc func(t *testing.T)
@@ -26,7 +26,7 @@ func TestTypeFormatter(t *testing.T) {
 			var _ TypeFormatter = formatter
 		}},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, tt.testFunc)
 	}
@@ -34,14 +34,14 @@ func TestTypeFormatter(t *testing.T) {
 
 func TestBasicTypeAnnotationGeneration(t *testing.T) {
 	formatter := NewTypeFormatter()
-	
+
 	tests := []struct {
-		name           string
-		varName        string
-		varType        types.Type
-		confidence     float64
-		expectedStyle  FormattingStyle
-		shouldContain  []string
+		name             string
+		varName          string
+		varType          types.Type
+		confidence       float64
+		expectedStyle    FormattingStyle
+		shouldContain    []string
 		shouldNotContain []string
 	}{
 		{
@@ -69,26 +69,26 @@ func TestBasicTypeAnnotationGeneration(t *testing.T) {
 			shouldContain: []string{"my", "ArrayRef[Int]", "$items"},
 		},
 		{
-			name:              "Low confidence should use comments",
-			varName:           "$uncertain",
-			varType:           types.NewStrType(),
-			confidence:        0.45,
-			expectedStyle:     StyleCommentOnly,
-			shouldContain:     []string{"my", "$uncertain", "#"},
-			shouldNotContain:  []string{"Str $uncertain"},
+			name:             "Low confidence should use comments",
+			varName:          "$uncertain",
+			varType:          types.NewStrType(),
+			confidence:       0.45,
+			expectedStyle:    StyleCommentOnly,
+			shouldContain:    []string{"my", "$uncertain", "#"},
+			shouldNotContain: []string{"Str $uncertain"},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := formatter.FormatVariableDeclaration(tt.varName, tt.varType, tt.confidence, tt.expectedStyle)
-			
+
 			for _, expected := range tt.shouldContain {
 				if !strings.Contains(result, expected) {
 					t.Errorf("Expected result to contain '%s', got: %s", expected, result)
 				}
 			}
-			
+
 			for _, notExpected := range tt.shouldNotContain {
 				if strings.Contains(result, notExpected) {
 					t.Errorf("Expected result NOT to contain '%s', got: %s", notExpected, result)
@@ -101,10 +101,10 @@ func TestBasicTypeAnnotationGeneration(t *testing.T) {
 func TestConfidenceBasedAnnotationDecisions(t *testing.T) {
 	// Test with different confidence thresholds
 	tests := []struct {
-		name              string
-		confidence        float64
-		threshold         float64
-		shouldInclude     bool
+		name          string
+		confidence    float64
+		threshold     float64
+		shouldInclude bool
 	}{
 		{"High confidence above threshold", 0.9, 0.7, true},
 		{"Medium confidence above threshold", 0.75, 0.7, true},
@@ -112,14 +112,14 @@ func TestConfidenceBasedAnnotationDecisions(t *testing.T) {
 		{"Very low confidence", 0.3, 0.7, false},
 		{"Exact threshold", 0.7, 0.7, true},
 	}
-	
+
 	formatter := NewTypeFormatter()
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := formatter.ShouldIncludeAnnotation(tt.confidence, tt.threshold)
 			if result != tt.shouldInclude {
-				t.Errorf("Expected ShouldIncludeAnnotation(%f, %f) = %v, got %v", 
+				t.Errorf("Expected ShouldIncludeAnnotation(%f, %f) = %v, got %v",
 					tt.confidence, tt.threshold, tt.shouldInclude, result)
 			}
 		})
@@ -133,7 +133,7 @@ func TestMultipleFormattingStyles(t *testing.T) {
 		Confidence: 0.85,
 		Source:     types.SourceLiteral,
 	}
-	
+
 	tests := []struct {
 		name                string
 		style               FormattingStyle
@@ -151,9 +151,9 @@ func TestMultipleFormattingStyles(t *testing.T) {
 			expectedContains: []string{"Int"},
 		},
 		{
-			name:                "Compact style",
-			style:               StyleCompact,
-			expectedContains:    []string{"Int"},
+			name:             "Compact style",
+			style:            StyleCompact,
+			expectedContains: []string{"Int"},
 		},
 		{
 			name:             "Comment only style",
@@ -161,17 +161,17 @@ func TestMultipleFormattingStyles(t *testing.T) {
 			expectedContains: []string{"#", "type:", "Int"},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := formatter.FormatTypeAnnotation(typeInfo, tt.style)
-			
+
 			for _, expected := range tt.expectedContains {
 				if !strings.Contains(result, expected) {
 					t.Errorf("Style %s: expected result to contain '%s', got: %s", tt.style, expected, result)
 				}
 			}
-			
+
 			for _, notExpected := range tt.expectedNotContains {
 				if strings.Contains(result, notExpected) {
 					t.Errorf("Style %s: expected result NOT to contain '%s', got: %s", tt.style, notExpected, result)
@@ -183,11 +183,11 @@ func TestMultipleFormattingStyles(t *testing.T) {
 
 func TestConfidenceCommentFormatting(t *testing.T) {
 	formatter := NewTypeFormatter()
-	
+
 	tests := []struct {
-		name              string
-		confidence        float64
-		expectedContains  []string
+		name             string
+		confidence       float64
+		expectedContains []string
 	}{
 		{
 			name:             "High confidence comment",
@@ -210,11 +210,11 @@ func TestConfidenceCommentFormatting(t *testing.T) {
 			expectedContains: []string{"#", "uncertain", "35%"},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := formatter.FormatConfidenceComment(tt.confidence)
-			
+
 			for _, expected := range tt.expectedContains {
 				if !strings.Contains(result, expected) {
 					t.Errorf("Expected confidence comment to contain '%s', got: %s", expected, result)
@@ -226,7 +226,7 @@ func TestConfidenceCommentFormatting(t *testing.T) {
 
 func TestComplexTypeFormatting(t *testing.T) {
 	formatter := NewTypeFormatter()
-	
+
 	tests := []struct {
 		name         string
 		varType      types.Type
@@ -243,11 +243,11 @@ func TestComplexTypeFormatting(t *testing.T) {
 			expectedType: "HashRef[ArrayRef[Str]]",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := formatter.FormatVariableDeclaration("$var", tt.varType, 0.9, StyleInline)
-			
+
 			if !strings.Contains(result, tt.expectedType) {
 				t.Errorf("Expected complex type formatting to contain '%s', got: %s", tt.expectedType, result)
 			}
@@ -257,8 +257,8 @@ func TestComplexTypeFormatting(t *testing.T) {
 
 func TestFormatterOptions(t *testing.T) {
 	tests := []struct {
-		name    string
-		options FormatterOptions
+		name     string
+		options  FormatterOptions
 		testFunc func(t *testing.T, formatter TypeFormatter)
 	}{
 		{
@@ -290,7 +290,7 @@ func TestFormatterOptions(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			formatter := NewTypeFormatterWithOptions(tt.options)
@@ -302,13 +302,13 @@ func TestFormatterOptions(t *testing.T) {
 func TestAnnotationGenerator(t *testing.T) {
 	formatter := NewTypeFormatter()
 	generator := NewAnnotationGenerator(formatter)
-	
+
 	t.Run("Generator creation", func(t *testing.T) {
 		if generator == nil {
 			t.Error("NewAnnotationGenerator() returned nil")
 		}
 	})
-	
+
 	// Note: More comprehensive annotation generator tests would require
 	// actual AST nodes, which would be integration tests
 }

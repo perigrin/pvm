@@ -140,7 +140,7 @@ func TestVariablePropagation(t *testing.T) {
 
 		// Simulate variable type propagation
 		intType := types.NewIntType()
-		
+
 		// Variable $x gets type from literal
 		xTypeInfo := types.NewTypeInfo(intType, 0.95, types.SourceLiteral)
 		inferredAST.AttachTypeInfo("variable_x", xTypeInfo)
@@ -202,14 +202,14 @@ func TestConfidenceScoring(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			confidence := engine.CalculateConfidence(tt.source, nil)
-			
+
 			if confidence != tt.expectedConfidence {
 				t.Errorf("Expected confidence %f, got %f", tt.expectedConfidence, confidence)
 			}
 
 			// Test confidence level categorization
 			typeInfo := types.NewTypeInfo(types.NewIntType(), confidence, tt.source)
-			
+
 			switch tt.confidenceLevel {
 			case "high":
 				if !typeInfo.IsHighConfidence() {
@@ -253,7 +253,7 @@ func TestErrorCollection(t *testing.T) {
 
 	t.Run("Error reporting format", func(t *testing.T) {
 		engine := NewTypeInferenceEngine()
-		
+
 		// Test that we can add and retrieve errors
 		testError := NewInferenceError("test_node", "Test error message")
 		engine.AddInferenceError(testError)

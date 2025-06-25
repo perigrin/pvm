@@ -20,7 +20,7 @@ type ASTTypeAdapter struct {
 	// Type information storage
 	typeInfo map[string]*types.TypeInfo
 
-	// Type constraint storage  
+	// Type constraint storage
 	constraints map[string]types.TypeConstraint
 }
 

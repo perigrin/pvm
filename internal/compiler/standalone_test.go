@@ -120,7 +120,7 @@ func TestCompilerRegistry_Standalone(t *testing.T) {
 	if !hasTypedPerl {
 		t.Error("TargetTypedPerl should be available")
 	}
-	
+
 	if !hasInferredTypedPerl {
 		t.Error("TargetInferredTypeAnnotations should be available")
 	}

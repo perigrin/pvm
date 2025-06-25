@@ -102,7 +102,7 @@ func runParseCommand(ui *ui.Output, filePath, format, outputPath string) error {
 		if err != nil {
 			return fmt.Errorf("failed to write output file: %w", err)
 		}
-		ui.Success(fmt.Sprintf("Output written to %s", outputPath))
+		ui.Success("Output written to %s", outputPath)
 	} else {
 		fmt.Print(content)
 	}

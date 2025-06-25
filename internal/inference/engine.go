@@ -82,7 +82,7 @@ func (bie *basicInferenceEngine) InferTypes(inputAST *ast.AST) (ast.InferredAST,
 	if err := traverser.TraverseAndInfer(inputAST, inferredAST); err != nil {
 		return inferredAST, err
 	}
-	
+
 	return inferredAST, nil
 }
 
