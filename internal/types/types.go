@@ -25,38 +25,68 @@ type Type interface {
 
 // BasicType represents a basic scalar type
 type BasicType struct {
-	name string
+	Name string
 }
 
 // NewIntType creates a new Int type
 func NewIntType() Type {
-	return &BasicType{name: "Int"}
+	return &BasicType{Name: "Int"}
 }
 
 // NewStrType creates a new Str type
 func NewStrType() Type {
-	return &BasicType{name: "Str"}
+	return &BasicType{Name: "Str"}
 }
 
 // NewBoolType creates a new Bool type
 func NewBoolType() Type {
-	return &BasicType{name: "Bool"}
+	return &BasicType{Name: "Bool"}
 }
 
 // NewNumType creates a new Num type for floating-point numbers
 func NewNumType() Type {
-	return &BasicType{name: "Num"}
+	return &BasicType{Name: "Num"}
+}
+
+// NewRefType creates a new Ref type for references
+func NewRefType() Type {
+	return &BasicType{Name: "Ref"}
+}
+
+// NewAnyType creates a new Any type for untyped values
+func NewAnyType() Type {
+	return &BasicType{Name: "Any"}
+}
+
+// NewScalarType creates a new Scalar type for scalar values
+func NewScalarType() Type {
+	return &BasicType{Name: "Scalar"}
+}
+
+// NewItemType creates a new Item type for any item
+func NewItemType() Type {
+	return &BasicType{Name: "Item"}
+}
+
+// NewArrayRefAnyType creates a new ArrayRef type (unparameterized, defaults to Any)
+func NewArrayRefAnyType() Type {
+	return &BasicType{Name: "ArrayRef"}
+}
+
+// NewHashRefAnyType creates a new HashRef type (unparameterized, defaults to Any)
+func NewHashRefAnyType() Type {
+	return &BasicType{Name: "HashRef"}
 }
 
 // String returns the string representation of the basic type
 func (b *BasicType) String() string {
-	return b.name
+	return b.Name
 }
 
 // Equals checks if this basic type equals another type
 func (b *BasicType) Equals(other Type) bool {
 	if otherBasic, ok := other.(*BasicType); ok {
-		return b.name == otherBasic.name
+		return b.Name == otherBasic.Name
 	}
 	return false
 }
@@ -66,12 +96,12 @@ func (b *BasicType) CompatibleWith(other Type) bool {
 	if b.Equals(other) {
 		return true
 	}
-	
+
 	// Check if the other type is a union that contains this type
 	if union, ok := other.(*UnionType); ok {
 		return union.ContainsType(b)
 	}
-	
+
 	return false
 }
 
@@ -125,14 +155,14 @@ func (p *ParameterizedType) CompatibleWith(other Type) bool {
 	if p.Equals(other) {
 		return true
 	}
-	
+
 	// Check if other is the same parameterized type with compatible parameter
 	if otherParam, ok := other.(*ParameterizedType); ok {
 		if p.name == otherParam.name {
 			return p.parameter.CompatibleWith(otherParam.parameter)
 		}
 	}
-	
+
 	return false
 }
 

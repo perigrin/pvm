@@ -150,7 +150,7 @@ func (li *LiteralInferrer) inferArrayLiteralType(elements []string) *types.TypeI
 		confidence = 0.70
 		elementTypes := make([]types.Type, 0)
 		seenTypes := make(map[string]bool)
-		
+
 		// Collect unique types from all elements
 		for _, element := range elements {
 			elemTypeInfo := li.InferLiteralType(element)
@@ -160,7 +160,7 @@ func (li *LiteralInferrer) inferArrayLiteralType(elements []string) *types.TypeI
 				elementTypes = append(elementTypes, elemTypeInfo.Type)
 			}
 		}
-		
+
 		// Create union type if we have multiple distinct types
 		var unionType types.Type
 		if len(elementTypes) > 1 {
@@ -168,7 +168,7 @@ func (li *LiteralInferrer) inferArrayLiteralType(elements []string) *types.TypeI
 		} else {
 			unionType = elementTypes[0]
 		}
-		
+
 		elementTypeInfo = types.NewTypeInfo(unionType, confidence, types.SourceLiteral)
 	}
 
@@ -205,7 +205,7 @@ func (li *LiteralInferrer) inferHashLiteralType(values []string) *types.TypeInfo
 		confidence = 0.70
 		valueTypes := make([]types.Type, 0)
 		seenTypes := make(map[string]bool)
-		
+
 		// Collect unique types from all values
 		for _, value := range values {
 			valTypeInfo := li.InferLiteralType(value)
@@ -215,7 +215,7 @@ func (li *LiteralInferrer) inferHashLiteralType(values []string) *types.TypeInfo
 				valueTypes = append(valueTypes, valTypeInfo.Type)
 			}
 		}
-		
+
 		// Create union type if we have multiple distinct types
 		var unionType types.Type
 		if len(valueTypes) > 1 {
@@ -223,7 +223,7 @@ func (li *LiteralInferrer) inferHashLiteralType(values []string) *types.TypeInfo
 		} else {
 			unionType = valueTypes[0]
 		}
-		
+
 		valueTypeInfo = types.NewTypeInfo(unionType, confidence, types.SourceLiteral)
 	}
 

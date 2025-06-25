@@ -250,7 +250,7 @@ sub with_params { my ($first, $second) = @_; return $first + $second; }
 sub Package::qualified_sub { return 42; }
 sub no_body
 sub another_forward
- 
+
 # Nested subroutine definitions
 sub outer_function { my $param = shift; my $inner = sub {
         return $param * 2;

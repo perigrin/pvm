@@ -5,6 +5,19 @@ package types
 
 import "fmt"
 
+// ConstraintType represents different types of constraints
+type ConstraintType int
+
+const (
+	ConstraintAssignment ConstraintType = iota
+	ConstraintFunctionCall
+	ConstraintTruthiness
+	ConstraintEquality
+	ConstraintComparison
+	ConstraintDefinedness
+	ConstraintReference
+)
+
 // TypeConstraint represents a constraint between types
 type TypeConstraint interface {
 	// Validate checks if the constraint is satisfied
@@ -153,4 +166,65 @@ func (cs *ConstraintSet) GetConstraints() []TypeConstraint {
 // Size returns the number of constraints in the set
 func (cs *ConstraintSet) Size() int {
 	return len(cs.constraints)
+}
+
+// GeneralConstraint represents a general constraint with type and description
+type GeneralConstraint struct {
+	constraintType ConstraintType
+	description    string
+	confidence     float64
+}
+
+// NewTypeConstraint creates a new general type constraint
+func NewTypeConstraint(constraintType ConstraintType, description string, confidence float64) *GeneralConstraint {
+	return &GeneralConstraint{
+		constraintType: constraintType,
+		description:    description,
+		confidence:     confidence,
+	}
+}
+
+// Validate checks if the general constraint is satisfied
+func (gc *GeneralConstraint) Validate() error {
+	// General constraints are always considered valid for now
+	// Real implementation would perform specific validation based on constraint type
+	return nil
+}
+
+// String returns a string representation of the general constraint
+func (gc *GeneralConstraint) String() string {
+	return fmt.Sprintf("Constraint[%s]: %s (confidence: %.2f)",
+		gc.constraintTypeName(), gc.description, gc.confidence)
+}
+
+// GetSourceType returns nil for general constraints
+func (gc *GeneralConstraint) GetSourceType() Type {
+	return nil
+}
+
+// GetTargetType returns nil for general constraints
+func (gc *GeneralConstraint) GetTargetType() Type {
+	return nil
+}
+
+// constraintTypeName returns the name of the constraint type
+func (gc *GeneralConstraint) constraintTypeName() string {
+	switch gc.constraintType {
+	case ConstraintAssignment:
+		return "Assignment"
+	case ConstraintFunctionCall:
+		return "FunctionCall"
+	case ConstraintTruthiness:
+		return "Truthiness"
+	case ConstraintEquality:
+		return "Equality"
+	case ConstraintComparison:
+		return "Comparison"
+	case ConstraintDefinedness:
+		return "Definedness"
+	case ConstraintReference:
+		return "Reference"
+	default:
+		return "Unknown"
+	}
 }

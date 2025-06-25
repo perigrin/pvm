@@ -240,8 +240,8 @@ AST {
 my @spaced;
 my %compact;
 my %loose;
-my 
- 
+my
+
  @multiline;
 ```
 

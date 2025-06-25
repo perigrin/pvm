@@ -79,7 +79,7 @@ The parser correctly rejects this syntax with parse errors.
 
   --> :3:28
    |
- 3 | 
+ 3 |
    |                            ^^^^^^^^^^^ unexpected token: ''
 
 note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
@@ -98,7 +98,7 @@ note: This indicates Perl syntax that is not yet supported by the tree-sitter gr
 
   --> :3:28
    |
- 3 | 
+ 3 |
    |                            ^^^^^^^^^^^ unexpected token: ''
 
 note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
@@ -122,7 +122,7 @@ note: This indicates Perl syntax that is not yet supported by the tree-sitter gr
 
   --> :3:28
    |
- 3 | 
+ 3 |
    |                            ^^^^^^^^^^^ unexpected token: ''
 
 note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
@@ -141,7 +141,7 @@ note: This indicates Perl syntax that is not yet supported by the tree-sitter gr
 
   --> :3:28
    |
- 3 | 
+ 3 |
    |                            ^^^^^^^^^^^ unexpected token: ''
 
 note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.

@@ -191,12 +191,12 @@ AST {
 ```perl
 # Mixed typed and untyped methods and fields
 field $typed_field = 42;
-field $untyped_field = "hello";{ return uc($input); } 
- 
- 
+field $untyped_field = "hello";{ return uc($input); }
 
- 
- 
+
+
+
+
 
 
 sub untyped_sub { my ($param) = @_; return $param * 2; }{ return "$untyped: $typed"; }

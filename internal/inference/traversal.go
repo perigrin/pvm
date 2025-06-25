@@ -140,9 +140,28 @@ func (at *ASTTraverser) handleVariableNode(node ast.Node, inferredAST ast.Inferr
 
 // handleAssignmentNode handles variable assignment nodes
 func (at *ASTTraverser) handleAssignmentNode(node ast.Node, inferredAST ast.InferredAST) error {
-	// For now, just traverse children
-	// Real implementation would analyze assignment patterns
-	return at.traverseChildren(node, inferredAST)
+	children := node.Children()
+	if len(children) < 3 {
+		// Invalid assignment - just traverse children
+		return at.traverseChildren(node, inferredAST)
+	}
+
+	lhs := children[0]      // Left-hand side
+	operator := children[1] // Assignment operator
+	rhs := children[2]      // Right-hand side
+
+	// Handle different types of assignments
+	switch operator.Text() {
+	case "=":
+		return at.handleSimpleAssignment(lhs, rhs, inferredAST)
+	case "+=", "-=", "*=", "/=", "%=":
+		return at.handleCompoundAssignment(lhs, rhs, operator.Text(), inferredAST)
+	case ".=":
+		return at.handleStringAssignment(lhs, rhs, inferredAST)
+	default:
+		// Unknown assignment operator - just traverse children
+		return at.traverseChildren(node, inferredAST)
+	}
 }
 
 // handleDeclarationNode handles variable declaration nodes
@@ -240,4 +259,269 @@ func extractVariableName(nodeText string) string {
 		return nodeText[1:]
 	}
 	return nodeText
+}
+
+// Assignment handling methods
+
+// handleSimpleAssignment handles simple assignment (=)
+func (at *ASTTraverser) handleSimpleAssignment(lhs, rhs ast.Node, inferredAST ast.InferredAST) error {
+	// First, analyze the right-hand side to determine its type
+	if err := at.visitNode(rhs, inferredAST); err != nil {
+		return err
+	}
+
+	// Infer the type of the RHS
+	rhsType := at.inferNodeType(rhs, inferredAST)
+
+	// Handle different types of left-hand side
+	switch lhs.Type() {
+	case "variable":
+		return at.assignToVariable(lhs, rhsType, inferredAST)
+	case "array_access":
+		return at.assignToArrayElement(lhs, rhsType, inferredAST)
+	case "hash_access":
+		return at.assignToHashElement(lhs, rhsType, inferredAST)
+	default:
+		// For unknown LHS types, just traverse
+		return at.visitNode(lhs, inferredAST)
+	}
+}
+
+// handleCompoundAssignment handles compound assignments (+=, -=, etc.)
+func (at *ASTTraverser) handleCompoundAssignment(lhs, rhs ast.Node, operator string, inferredAST ast.InferredAST) error {
+	// Analyze both sides
+	if err := at.visitNode(lhs, inferredAST); err != nil {
+		return err
+	}
+	if err := at.visitNode(rhs, inferredAST); err != nil {
+		return err
+	}
+
+	// Determine result type based on operator
+	lhsType := at.inferNodeType(lhs, inferredAST)
+
+	var resultType types.Type
+	switch operator {
+	case "+=", "-=", "*=", "/=", "%=":
+		// Arithmetic operations result in numeric type
+		resultType = types.NewNumType()
+	default:
+		// For unknown operators, use LHS type
+		resultType = lhsType
+	}
+
+	// Assign the result type back to LHS
+	if lhs.Type() == "variable" {
+		return at.assignToVariable(lhs, resultType, inferredAST)
+	}
+
+	return nil
+}
+
+// handleStringAssignment handles string concatenation assignment (.=)
+func (at *ASTTraverser) handleStringAssignment(lhs, rhs ast.Node, inferredAST ast.InferredAST) error {
+	// Analyze both sides
+	if err := at.visitNode(lhs, inferredAST); err != nil {
+		return err
+	}
+	if err := at.visitNode(rhs, inferredAST); err != nil {
+		return err
+	}
+
+	// String concatenation always results in string type
+	resultType := types.NewStrType()
+
+	// Assign string type to LHS
+	if lhs.Type() == "variable" {
+		return at.assignToVariable(lhs, resultType, inferredAST)
+	}
+
+	return nil
+}
+
+// assignToVariable assigns a type to a variable
+func (at *ASTTraverser) assignToVariable(varNode ast.Node, varType types.Type, inferredAST ast.InferredAST) error {
+	variableName := extractVariableName(varNode.Text())
+
+	// Create type info with good confidence for assignments
+	typeInfo := types.NewTypeInfo(varType, 0.90, types.SourceVariable)
+
+	// Add to current scope
+	at.addVariableToScope(variableName, typeInfo)
+
+	// Create node ID and attach type info
+	nodeID := fmt.Sprintf("variable_%s_%d_%d",
+		variableName, varNode.Start().Line, varNode.Start().Column)
+
+	return inferredAST.AttachTypeInfo(nodeID, typeInfo)
+}
+
+// assignToArrayElement assigns a type to an array element
+func (at *ASTTraverser) assignToArrayElement(arrayAccess ast.Node, elementType types.Type, inferredAST ast.InferredAST) error {
+	// This would update the array's element type information
+	// For now, just traverse the array access
+	return at.visitNode(arrayAccess, inferredAST)
+}
+
+// assignToHashElement assigns a type to a hash element
+func (at *ASTTraverser) assignToHashElement(hashAccess ast.Node, valueType types.Type, inferredAST ast.InferredAST) error {
+	// This would update the hash's value type information
+	// For now, just traverse the hash access
+	return at.visitNode(hashAccess, inferredAST)
+}
+
+// inferNodeType infers the type of a node based on previous analysis
+func (at *ASTTraverser) inferNodeType(node ast.Node, inferredAST ast.InferredAST) types.Type {
+	switch node.Type() {
+	case "literal":
+		// Use literal inference
+		literalInferrer := NewLiteralInferrer()
+		typeInfo := literalInferrer.InferLiteralType(node.Text())
+		return typeInfo.Type
+
+	case "variable":
+		// Look up in scope stack
+		variableName := extractVariableName(node.Text())
+		if typeInfo := at.lookupVariableType(variableName); typeInfo != nil {
+			return typeInfo.Type
+		}
+		// Default to string if unknown
+		return types.NewStrType()
+
+	case "function_call":
+		// Use function signature inference if available
+		children := node.Children()
+		if len(children) > 0 {
+			functionName := extractFunctionName(children[0])
+			return at.inferFunctionReturnType(functionName)
+		}
+		return types.NewStrType()
+
+	case "binary_expression":
+		// Infer based on operator
+		return at.inferBinaryExpressionType(node, inferredAST)
+
+	case "array_literal":
+		// Array literals become array references
+		elementType := at.inferArrayElementType(node, inferredAST)
+		return types.NewArrayRefType(elementType)
+
+	case "hash_literal":
+		// Hash literals become hash references
+		valueType := at.inferHashValueType(node, inferredAST)
+		return types.NewHashRefType(valueType)
+
+	default:
+		// Default to string for unknown node types
+		return types.NewStrType()
+	}
+}
+
+// inferFunctionReturnType infers the return type of a function call
+func (at *ASTTraverser) inferFunctionReturnType(functionName string) types.Type {
+	// Built-in function return types
+	builtinTypes := map[string]types.Type{
+		"length":  types.NewIntType(),
+		"substr":  types.NewStrType(),
+		"index":   types.NewIntType(),
+		"sprintf": types.NewStrType(),
+		"printf":  types.NewIntType(),
+		"chomp":   types.NewIntType(),
+		"split":   types.NewArrayRefType(types.NewStrType()),
+		"join":    types.NewStrType(),
+		"defined": types.NewBoolType(),
+		"exists":  types.NewBoolType(),
+		"ref":     types.NewStrType(),
+	}
+
+	if returnType, exists := builtinTypes[functionName]; exists {
+		return returnType
+	}
+
+	// Default return type for unknown functions
+	return types.NewStrType()
+}
+
+// inferBinaryExpressionType infers the type of a binary expression
+func (at *ASTTraverser) inferBinaryExpressionType(node ast.Node, inferredAST ast.InferredAST) types.Type {
+	children := node.Children()
+	if len(children) < 3 {
+		return types.NewStrType()
+	}
+
+	operator := children[1].Text()
+
+	switch operator {
+	case "+", "-", "*", "/", "%", "**":
+		// Arithmetic operators return numeric values
+		return types.NewNumType()
+	case ".", "x":
+		// String operators return strings
+		return types.NewStrType()
+	case "==", "!=", "<", ">", "<=", ">=", "eq", "ne", "lt", "gt", "le", "ge":
+		// Comparison operators return boolean
+		return types.NewBoolType()
+	case "&&", "||", "and", "or":
+		// Logical operators return one of their operands
+		// For simplicity, analyze both and create union
+		leftType := at.inferNodeType(children[0], inferredAST)
+		rightType := at.inferNodeType(children[2], inferredAST)
+		return types.NewUnionType(leftType, rightType)
+	case "=~", "!~":
+		// Regex operators return boolean
+		return types.NewBoolType()
+	default:
+		return types.NewStrType()
+	}
+}
+
+// inferArrayElementType infers the element type of an array literal
+func (at *ASTTraverser) inferArrayElementType(arrayNode ast.Node, inferredAST ast.InferredAST) types.Type {
+	var elementTypes []types.Type
+
+	// Analyze each element
+	for _, child := range arrayNode.Children() {
+		if child.Type() == "," {
+			continue // Skip comma separators
+		}
+		elementType := at.inferNodeType(child, inferredAST)
+		elementTypes = append(elementTypes, elementType)
+	}
+
+	if len(elementTypes) == 0 {
+		return types.NewStrType() // Default element type
+	}
+
+	if len(elementTypes) == 1 {
+		return elementTypes[0]
+	}
+
+	// Multiple types - create union
+	return types.NewUnionType(elementTypes...)
+}
+
+// inferHashValueType infers the value type of a hash literal
+func (at *ASTTraverser) inferHashValueType(hashNode ast.Node, inferredAST ast.InferredAST) types.Type {
+	var valueTypes []types.Type
+
+	// Hash literals have key => value pairs
+	children := hashNode.Children()
+	for i := 0; i < len(children); i += 3 { // key, =>, value pattern
+		if i+2 < len(children) {
+			valueNode := children[i+2]
+			valueType := at.inferNodeType(valueNode, inferredAST)
+			valueTypes = append(valueTypes, valueType)
+		}
+	}
+
+	if len(valueTypes) == 0 {
+		return types.NewStrType() // Default value type
+	}
+
+	if len(valueTypes) == 1 {
+		return valueTypes[0]
+	}
+
+	// Multiple types - create union
+	return types.NewUnionType(valueTypes...)
 }

@@ -33,6 +33,12 @@ type basicInferenceEngine struct {
 
 	// Configuration options
 	options InferenceOptions
+
+	// Quality controller for confidence scoring and validation
+	qualityController *QualityController
+
+	// Conflict detector for resolving type conflicts
+	conflictDetector *ConflictDetector
 }
 
 // InferenceOptions holds configuration for the inference engine
@@ -49,21 +55,29 @@ type InferenceOptions struct {
 
 // NewTypeInferenceEngine creates a new basic inference engine
 func NewTypeInferenceEngine() TypeInferenceEngine {
+	qualityOptions := DefaultQualityOptions()
 	return &basicInferenceEngine{
 		errors: make([]InferenceError, 0),
 		options: InferenceOptions{
 			EnableFlowAnalysis:        false, // Start simple
-			MinConfidenceThreshold:    0.5,
+			MinConfidenceThreshold:    qualityOptions.MinConfidenceThreshold,
 			EnableVariablePropagation: true,
 		},
+		qualityController: NewQualityController(qualityOptions),
+		conflictDetector:  NewConflictDetector(),
 	}
 }
 
 // NewTypeInferenceEngineWithOptions creates an engine with custom options
 func NewTypeInferenceEngineWithOptions(options InferenceOptions) TypeInferenceEngine {
+	qualityOptions := DefaultQualityOptions()
+	qualityOptions.MinConfidenceThreshold = options.MinConfidenceThreshold
+
 	return &basicInferenceEngine{
-		errors:  make([]InferenceError, 0),
-		options: options,
+		errors:            make([]InferenceError, 0),
+		options:           options,
+		qualityController: NewQualityController(qualityOptions),
+		conflictDetector:  NewConflictDetector(),
 	}
 }
 
@@ -88,28 +102,8 @@ func (bie *basicInferenceEngine) InferTypes(inputAST *ast.AST) (ast.InferredAST,
 
 // CalculateConfidence calculates confidence score based on inference source
 func (bie *basicInferenceEngine) CalculateConfidence(source types.TypeSource, context map[string]interface{}) float64 {
-	// Base confidence scores by source type
-	baseConfidences := map[types.TypeSource]float64{
-		types.SourceLiteral:   0.95, // Very high confidence for literals
-		types.SourceVariable:  0.85, // High confidence for variable declarations
-		types.SourceParameter: 0.70, // Medium-high confidence for parameters
-		types.SourceReturn:    0.75, // Medium-high confidence for returns
-		types.SourceContext:   0.60, // Medium confidence for context inference
-		types.SourceExternal:  0.90, // High confidence for external type info
-	}
-
-	baseConfidence, exists := baseConfidences[source]
-	if !exists {
-		return 0.50 // Default medium confidence
-	}
-
-	// TODO: Adjust confidence based on context
-	// For example:
-	// - Reduce confidence if there are conflicting type hints
-	// - Increase confidence if multiple sources agree
-	// - Consider code complexity and nesting levels
-
-	return baseConfidence
+	// Use the quality controller for sophisticated confidence calculation
+	return bie.qualityController.CalculateConfidence(source, context)
 }
 
 // GetInferenceErrors returns collected errors

@@ -113,9 +113,9 @@ func TestUnionType(t *testing.T) {
 func TestIntersectionType(t *testing.T) {
 	// For testing, we'll need some mock types that can have meaningful intersections
 	// In real Perl, this might be like Object&Serializable
-	objectType := &BasicType{name: "Object"}
-	serializableType := &BasicType{name: "Serializable"}
-	readableType := &BasicType{name: "Readable"}
+	objectType := &BasicType{Name: "Object"}
+	serializableType := &BasicType{Name: "Serializable"}
+	readableType := &BasicType{Name: "Readable"}
 
 	t.Run("creation and string representation", func(t *testing.T) {
 		intersection := NewIntersectionType(objectType, serializableType)

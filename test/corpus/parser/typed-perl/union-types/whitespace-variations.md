@@ -248,8 +248,8 @@ AST {
 my $spaced;
 my $compact;
 my $extra_spaced;
-my 
- 
+my
+
  $multiline;
 ```
 

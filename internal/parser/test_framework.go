@@ -290,36 +290,36 @@ func (f *ParserTestFramework) parseMarkdownTestCases(content string, metadata *M
 				}
 
 				// Check for Expected Compilation Outcomes
-				if strings.Contains(titleLower, "expected compilation outcomes") || 
-				   strings.Contains(titleLower, "compilation outcomes") {
+				if strings.Contains(titleLower, "expected compilation outcomes") ||
+					strings.Contains(titleLower, "compilation outcomes") {
 					if f.Verbose {
 						println("DEBUG: Found compilation outcomes section:", nextSection.Title)
 					}
-					
+
 					// Collect all subsections that are part of compilation outcomes
 					allSections := []MarkdownSection{nextSection}
-					
+
 					// Look ahead for compilation outcome subsections
 					for k := j + 1; k < len(sections); k++ {
 						subsection := sections[k]
 						subsectionTitle := strings.ToLower(subsection.Title)
-						
+
 						// Check if this is a compilation outcome subsection
 						if strings.Contains(subsectionTitle, "clean") ||
-						   strings.Contains(subsectionTitle, "typed") ||
-						   strings.Contains(subsectionTitle, "inferred") ||
-						   strings.Contains(subsectionTitle, "perl output") {
+							strings.Contains(subsectionTitle, "typed") ||
+							strings.Contains(subsectionTitle, "inferred") ||
+							strings.Contains(subsectionTitle, "perl output") {
 							allSections = append(allSections, subsection)
 							if f.Verbose {
 								println("DEBUG: Adding subsection to compilation outcomes:", subsection.Title)
 							}
-						} else if f.sectionHasPerlCode(subsection) || 
-							     strings.Contains(subsectionTitle, "expected") {
+						} else if f.sectionHasPerlCode(subsection) ||
+							strings.Contains(subsectionTitle, "expected") {
 							// Stop when we hit another major section
 							break
 						}
 					}
-					
+
 					outcomes, err := f.parseCompilationOutcomesFromSections(allSections)
 					if err != nil {
 						return nil, fmt.Errorf("failed to parse compilation outcomes: %w", err)
@@ -969,15 +969,15 @@ func (f *ParserTestFramework) parseCompilationOutcomes(section MarkdownSection) 
 		// Look for labeled code blocks or subsections
 		switch {
 		case strings.Contains(strings.ToLower(codeBlock.Language), "clean") ||
-		     strings.Contains(strings.ToLower(codeBlock.Info), "clean"):
+			strings.Contains(strings.ToLower(codeBlock.Info), "clean"):
 			outcomes.ExpectedCleanPerl = strings.TrimSpace(codeBlock.Content)
 
 		case strings.Contains(strings.ToLower(codeBlock.Language), "typed") ||
-		     strings.Contains(strings.ToLower(codeBlock.Info), "typed"):
+			strings.Contains(strings.ToLower(codeBlock.Info), "typed"):
 			outcomes.ExpectedTypedPerl = strings.TrimSpace(codeBlock.Content)
 
 		case strings.Contains(strings.ToLower(codeBlock.Language), "inferred") ||
-		     strings.Contains(strings.ToLower(codeBlock.Info), "inferred"):
+			strings.Contains(strings.ToLower(codeBlock.Info), "inferred"):
 			outcomes.ExpectedInferredPerl = strings.TrimSpace(codeBlock.Content)
 
 		case codeBlock.Language == "perl" || codeBlock.Language == "":
@@ -1007,7 +1007,7 @@ func (f *ParserTestFramework) parseCompilationOutcomesFromSections(sections []Ma
 
 	for _, section := range sections {
 		titleLower := strings.ToLower(section.Title)
-		
+
 		if f.Verbose {
 			println("DEBUG: Processing section:", section.Title, "with", len(section.CodeBlocks), "code blocks")
 		}
@@ -1056,12 +1056,12 @@ func (f *ParserTestFramework) parseCompilationOutcomesFromText(content string, o
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		
+
 		// Check for subsection headers
 		if strings.HasPrefix(trimmed, "##") || strings.HasPrefix(trimmed, "###") {
 			// Process previous section if any
 			f.processCompilationSection(currentSection, currentContent, outcomes)
-			
+
 			// Start new section
 			currentSection = strings.ToLower(trimmed)
 			currentContent = []string{}
@@ -1094,7 +1094,7 @@ func (f *ParserTestFramework) processCompilationSection(sectionHeader string, co
 	// Remove code block markers and extract content
 	var perlCode []string
 	inCodeBlock := false
-	
+
 	for _, line := range content {
 		if strings.HasPrefix(strings.TrimSpace(line), "```") {
 			inCodeBlock = !inCodeBlock

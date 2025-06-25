@@ -91,7 +91,7 @@ func (u *UnionType) CompatibleWith(other Type) bool {
 		}
 		return true
 	}
-	
+
 	// A union is compatible with a single type if any of its types are compatible
 	for _, t := range u.types {
 		if t.CompatibleWith(other) {
