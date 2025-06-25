@@ -214,7 +214,7 @@ func runInferCommand(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// Write to stdout
-		fmt.Print(result)
+		cmd.Print(result)
 	}
 
 	// Report any inference errors or warnings
