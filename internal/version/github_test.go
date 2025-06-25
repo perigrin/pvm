@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 )
@@ -376,6 +377,125 @@ func TestGetLatestRelease_Integration(t *testing.T) {
 	if release.HTMLURL == "" {
 		t.Error("expected HTMLURL to be non-empty")
 	}
+}
+
+func TestGitHubClient_CreateRelease(t *testing.T) {
+	t.Run("SuccessfulCreate", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != "POST" {
+				t.Errorf("expected POST, got %s", r.Method)
+			}
+			if r.URL.Path != "/repos/owner/repo/releases" {
+				t.Errorf("unexpected path: %s", r.URL.Path)
+			}
+			if r.Header.Get("Content-Type") != "application/json" {
+				t.Errorf("unexpected Content-Type: %s", r.Header.Get("Content-Type"))
+			}
+
+			mockRelease := GitHubRelease{
+				ID:         12345,
+				TagName:    "v1.0.0",
+				Name:       "Test Release",
+				Body:       "Test release body",
+				Draft:      false,
+				Prerelease: false,
+				CreatedAt:  time.Now(),
+				HTMLURL:    "https://github.com/owner/repo/releases/tag/v1.0.0",
+			}
+
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(mockRelease)
+		}))
+		defer server.Close()
+
+		client := NewGitHubClientWithToken("test-token")
+		client.baseURL = server.URL
+
+		release, err := client.CreateRelease("owner", "repo", "v1.0.0", "Test Release", "Test release body", false, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if release.ID != 12345 {
+			t.Errorf("expected ID 12345, got %d", release.ID)
+		}
+		if release.TagName != "v1.0.0" {
+			t.Errorf("expected TagName v1.0.0, got %s", release.TagName)
+		}
+	})
+
+	t.Run("ReleaseAlreadyExists", func(t *testing.T) {
+		callCount := 0
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			callCount++
+			if r.Method == "POST" && callCount == 1 {
+				// First call - create release fails with 422
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				w.Write([]byte(`{"message": "Validation Failed"}`))
+			} else if r.Method == "GET" && callCount == 2 {
+				// Second call - get existing release
+				release := GitHubRelease{
+					ID:      12345,
+					TagName: "v1.0.0",
+					Name:    "Existing Release",
+				}
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(release)
+			}
+		}))
+		defer server.Close()
+
+		client := NewGitHubClientWithToken("test-token")
+		client.baseURL = server.URL
+
+		release, err := client.CreateRelease("owner", "repo", "v1.0.0", "Test Release", "Test release body", false, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if release.ID != 12345 {
+			t.Errorf("expected ID 12345, got %d", release.ID)
+		}
+		if release.Name != "Existing Release" {
+			t.Errorf("expected Name 'Existing Release', got %s", release.Name)
+		}
+	})
+}
+
+func TestGitHubClient_UploadReleaseAsset(t *testing.T) {
+	t.Run("BasicTest", func(t *testing.T) {
+		// Create a test file
+		tempDir := t.TempDir()
+		testFile := tempDir + "/test.tar.gz"
+		testContent := []byte("test archive content")
+		if err := os.WriteFile(testFile, testContent, 0644); err != nil {
+			t.Fatalf("failed to create test file: %v", err)
+		}
+
+		// Test that the function at least validates input correctly
+		client := NewGitHubClientWithToken("test-token")
+
+		// This will fail because we don't have a real server, but we can test input validation
+		_, err := client.UploadReleaseAsset("owner", "repo", 12345, testFile, "test.tar.gz")
+		if err == nil {
+			t.Fatal("expected error for non-real GitHub API call")
+		}
+		// The error should mention making request or GitHub API, not file opening
+		if contains(err.Error(), "opening file") {
+			t.Errorf("unexpected error type - should not be file opening error: %v", err)
+		}
+	})
+
+	t.Run("FileNotFound", func(t *testing.T) {
+		client := NewGitHubClientWithToken("test-token")
+
+		_, err := client.UploadReleaseAsset("owner", "repo", 12345, "/nonexistent/file.tar.gz", "file.tar.gz")
+		if err == nil {
+			t.Fatal("expected error for nonexistent file")
+		}
+		if !contains(err.Error(), "opening file") {
+			t.Errorf("expected error to mention opening file, got: %v", err)
+		}
+	})
 }
 
 // Helper function to check if string contains substring

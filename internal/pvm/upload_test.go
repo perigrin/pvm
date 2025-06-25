@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tamarou.com/pvm/internal/cli/ui"
 )
 
 func TestNewUploadBinaryCommand(t *testing.T) {
@@ -188,4 +189,26 @@ func TestUploadBinaryCommand_FlagParsing(t *testing.T) {
 
 	timeout, _ := cmd.Flags().GetString("timeout")
 	assert.Equal(t, "15m", timeout)
+}
+
+func TestUploadToGitHub_InputValidation(t *testing.T) {
+	ui := ui.NewDefaultOutput()
+
+	t.Run("EmptyToken", func(t *testing.T) {
+		err := uploadToGitHub("/path/to/archive.tar.gz", "owner/repo", "", "v1.0.0", false, false, ui)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "GitHub token is required")
+	})
+
+	t.Run("InvalidRepoFormat", func(t *testing.T) {
+		err := uploadToGitHub("/path/to/archive.tar.gz", "invalid-repo", "token", "v1.0.0", false, false, ui)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "repository must be in format 'owner/repo'")
+	})
+
+	t.Run("NonexistentFile", func(t *testing.T) {
+		err := uploadToGitHub("/nonexistent/file.tar.gz", "owner/repo", "token", "v1.0.0", false, false, ui)
+		assert.Error(t, err)
+		// Error will come from GitHub client when trying to open the file
+	})
 }

@@ -36,6 +36,7 @@ Examples:
 	// Add PSC-specific commands
 	cmd.AddCommand(
 		newCheckTypeCommand(), // Use the enhanced type checking command
+		newParseCommand(),     // Parse files with various output formats
 		newStripCommand(),
 		newRunCommand(),
 		newWatchCommand(),

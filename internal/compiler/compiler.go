@@ -16,6 +16,9 @@ const (
 
 	// TargetTypedPerl produces Perl code with type annotations preserved
 	TargetTypedPerl Target = "typed_perl"
+	
+	// TargetInferredTypeAnnotations produces Perl code with inferred type annotations
+	TargetInferredTypeAnnotations Target = "inferred_typed_perl"
 )
 
 // Compiler interface defines the contract for AST-to-code compilation
@@ -59,6 +62,7 @@ func NewCompilerRegistry() *CompilerRegistry {
 	// Register default compilers
 	registry.Register(NewASTCompiler()) // Use AST-based compiler (proper approach)
 	registry.Register(NewTypedPerlCompiler())
+	registry.Register(NewInferredTypedPerlCompiler())
 
 	return registry
 }

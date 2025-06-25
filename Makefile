@@ -1,6 +1,6 @@
 .PHONY: all test clean install tree-sitter vendor cross-compile release install-tools check-tools
 .PHONY: build-dev build-release lint check fmt check-generate generate
-.PHONY: test-performance profile optimize performance-analysis
+.PHONY: test-performance profile optimize performance-analysis test-repository-consistency
 
 # Define binaries - we only build pvm, others are symlinks
 BINARIES := pvm
@@ -197,6 +197,16 @@ test-novendor: tree-sitter
 # Run specific component tests
 test-scanner: tree-sitter install-tools
 	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod ./internal/scanner/...
+
+# Run repository consistency tests to prevent configuration regressions
+test-repository-consistency:
+	@echo "Running repository consistency tests..."
+	go run gotest.tools/gotestsum@latest --format=short -- \
+		./internal/config \
+		./internal/updater \
+		./internal/version \
+		-run="RepositoryConsistency"
+	@echo "✅ Repository consistency tests passed"
 
 test-parser: tree-sitter install-tools
 	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod ./internal/parser/...

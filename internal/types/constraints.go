@@ -37,7 +37,7 @@ func NewAssignmentConstraint(sourceType, targetType Type) TypeConstraint {
 // Validate checks if the assignment is valid
 func (ac *AssignmentConstraint) Validate() error {
 	if !ac.sourceType.CompatibleWith(ac.targetType) {
-		return fmt.Errorf("type mismatch: cannot assign %s to %s", 
+		return fmt.Errorf("type mismatch: cannot assign %s to %s",
 			ac.sourceType.String(), ac.targetType.String())
 	}
 	return nil
@@ -60,9 +60,9 @@ func (ac *AssignmentConstraint) GetTargetType() Type {
 
 // FunctionCallConstraint represents a constraint for function calls
 type FunctionCallConstraint struct {
-	argumentTypes   []Type
-	parameterTypes  []Type
-	returnType      Type
+	argumentTypes  []Type
+	parameterTypes []Type
+	returnType     Type
 }
 
 // NewFunctionCallConstraint creates a new function call constraint

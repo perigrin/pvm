@@ -1,0 +1,50 @@
+Comprehensive Integration Test Results
+Generated: 2025-06-24T20:27:22Z
+
+Test: complete_user_service
+  line_count: 76
+  features: [types classes roles generics constraints inheritance]
+  error: UnknownTypeError: Syntax error in type expression
+  name: complete_user_service
+  parse_time: 12.380665ms
+  success: false
+  program_size: 1912
+
+Test: complex_data_processor
+  name: complex_data_processor
+  parse_time: 22.136933ms
+  success: true
+  program_size: 3565
+  line_count: 123
+  features: [generics constraints complex_methods parameterized_types unions complex_signatures]
+  has_type_annotations: true
+  type_annotation_count: 18
+
+Test: event_system_with_traits
+  line_count: 106
+  features: [intersection_types negation_types traits complex_constraints optional_parameters named_parameters]
+  error: UnknownTypeError: Syntax error in type expression
+  name: event_system_with_traits
+  parse_time: 20.619774ms
+  success: false
+  program_size: 3355
+
+Test: deeply_nested_generics
+  success: true
+  program_size: 2612
+  line_count: 88
+  features: [deep_nesting complex_generics multiple_type_parameters nested_parameterized_types]
+  has_type_annotations: true
+  type_annotation_count: 7
+  name: deeply_nested_generics
+  parse_time: 18.462064ms
+
+Test: error_recovery_test
+  parse_time: 2.308126ms
+  success: false
+  program_size: 505
+  line_count: 27
+  features: [error_recovery malformed_types mixed_valid_invalid]
+  error: UnknownTypeError: Syntax error in type expression
+  name: error_recovery_test
+

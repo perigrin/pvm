@@ -50,6 +50,15 @@ func executeUpdateCommand(cmd *cobra.Command, args []string) error {
 		updaterInstance = updater.NewUpdaterWithToken(effectiveToken)
 	} else {
 		updaterInstance = updater.NewUpdater()
+		// Warn about GitHub token requirement for private repositories
+		cmd.Printf("Warning: No GitHub token configured.\n")
+		cmd.Printf("A GitHub token is required to access releases from private repositories.\n")
+		cmd.Printf("To configure authentication:\n")
+		cmd.Printf("  1. Use --token flag: pvm update --token YOUR_TOKEN\n")
+		cmd.Printf("  2. Set environment variable: export GITHUB_TOKEN=YOUR_TOKEN\n")
+		cmd.Printf("  3. Configure permanently in ~/.config/pvm/config.toml:\n")
+		cmd.Printf("     [pvm.update]\n")
+		cmd.Printf("     github_token = \"${GITHUB_TOKEN}\"\n\n")
 	}
 
 	// Determine effective prerelease setting (flag overrides config)

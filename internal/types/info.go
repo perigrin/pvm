@@ -86,7 +86,7 @@ func (ti *TypeInfo) WithContext(key string, value interface{}) *TypeInfo {
 
 // String returns a string representation of the TypeInfo
 func (ti *TypeInfo) String() string {
-	return fmt.Sprintf("%s (confidence: %.2f, source: %s)", 
+	return fmt.Sprintf("%s (confidence: %.2f, source: %s)",
 		ti.Type.String(), ti.Confidence, ti.Source)
 }
 

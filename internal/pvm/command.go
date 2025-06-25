@@ -4205,16 +4205,63 @@ func createTarGzArchive(sourceDir, outputPath string) error {
 
 // uploadToGitHub uploads an archive to GitHub releases
 func uploadToGitHub(archivePath, repo, token, releaseTag string, draft, prerelease bool, ui *ui.Output) error {
-	// This is a simplified implementation - in a real scenario you'd use the GitHub API
-	ui.Info("GitHub upload functionality not yet implemented")
-	ui.Info("Would upload %s to %s with tag %s", archivePath, repo, releaseTag)
+	if token == "" {
+		return fmt.Errorf("GitHub token is required for upload")
+	}
 
-	// TODO: Implement actual GitHub API integration
-	// - Create release if it doesn't exist
-	// - Upload asset to release
-	// - Set draft/prerelease flags
+	// Parse repository owner/name
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 {
+		return fmt.Errorf("repository must be in format 'owner/repo', got: %s", repo)
+	}
+	owner, repoName := parts[0], parts[1]
 
-	return fmt.Errorf("GitHub upload not yet implemented - this is a placeholder")
+	// Create GitHub client
+	client := version.NewGitHubClientWithToken(token)
+
+	ui.Info("Uploading %s to GitHub repository %s", archivePath, repo)
+
+	// Check if release exists, create if it doesn't
+	ui.Info("Checking for existing release %s", releaseTag)
+	release, err := client.GetReleaseByTag(owner, repoName, releaseTag)
+	if err != nil {
+		ui.Info("Release %s not found, creating new release", releaseTag)
+
+		// Generate release name and body
+		releaseName := fmt.Sprintf("Perl %s", strings.TrimPrefix(releaseTag, "v"))
+		releaseBody := fmt.Sprintf("Perl version %s binary release", strings.TrimPrefix(releaseTag, "v"))
+
+		release, err = client.CreateRelease(owner, repoName, releaseTag, releaseName, releaseBody, draft, prerelease)
+		if err != nil {
+			return fmt.Errorf("failed to create release: %w", err)
+		}
+		ui.Success("Created release %s", releaseTag)
+	} else {
+		ui.Info("Found existing release %s", releaseTag)
+	}
+
+	// Extract filename from path
+	filename := filepath.Base(archivePath)
+
+	// Check if asset already exists
+	for _, asset := range release.Assets {
+		if asset.Name == filename {
+			ui.Warning("Asset %s already exists in release %s", filename, releaseTag)
+			return fmt.Errorf("asset %s already exists in release (use --force to overwrite)", filename)
+		}
+	}
+
+	// Upload the asset
+	ui.Info("Uploading asset %s", filename)
+	asset, err := client.UploadReleaseAsset(owner, repoName, release.ID, archivePath, filename)
+	if err != nil {
+		return fmt.Errorf("failed to upload asset: %w", err)
+	}
+
+	ui.Success("Successfully uploaded %s to GitHub release %s", filename, releaseTag)
+	ui.Info("Download URL: %s", asset.BrowserDownloadURL)
+
+	return nil
 }
 
 // uploadToCustomMirrors uploads to configured custom mirrors
