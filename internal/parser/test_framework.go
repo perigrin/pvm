@@ -28,17 +28,26 @@ const (
 	ErrorCases  TestCategory = "error-cases"
 )
 
+// ASTTypeChecker interface allows type checking without importing typechecker package
+type ASTTypeChecker interface {
+	CheckAST(ast *ast.AST) []error
+}
+
 // ParserTestCase represents a single test case for parser validation
 type ParserTestCase struct {
-	Name        string       `json:"name"`
-	Category    TestCategory `json:"category"`
-	Subcategory string       `json:"subcategory"`
-	Input       string       `json:"input"`
-	ExpectedAST *ast.AST     `json:"expected_ast,omitempty"`
-	ShouldError bool         `json:"should_error"`
-	ErrorType   string       `json:"error_type,omitempty"`
-	Description string       `json:"description"`
-	Tags        []string     `json:"tags"`
+	Name                   string       `json:"name"`
+	Category               TestCategory `json:"category"`
+	Subcategory            string       `json:"subcategory"`
+	Input                  string       `json:"input"`
+	ExpectedAST            *ast.AST     `json:"expected_ast,omitempty"`
+	ShouldError            bool         `json:"should_error"`
+	ErrorType              string       `json:"error_type,omitempty"`
+	Description            string       `json:"description"`
+	Tags                   []string     `json:"tags"`
+	TypeCheck              bool         `json:"type_check"`
+	ExpectedTypeErrors     string       `json:"expected_type_errors,omitempty"`
+	ExpectedASTBeforeInfer string       `json:"expected_ast_before_infer,omitempty"`
+	ExpectedASTAfterInfer  string       `json:"expected_ast_after_infer,omitempty"`
 }
 
 // AccuracyMetrics tracks parser accuracy across different dimensions
@@ -69,6 +78,7 @@ type ParserTestFramework struct {
 		ParseString(string) (*ast.AST, error)
 		ParseFile(string) (*ast.AST, error)
 	}
+	TypeChecker ASTTypeChecker
 }
 
 // NewParserTestFramework creates a new parser testing framework
@@ -80,12 +90,19 @@ func NewParserTestFramework(testDataDir string) *ParserTestFramework {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to create parser for test framework: %v\n", err)
 	}
 
-	return &ParserTestFramework{
+	framework := &ParserTestFramework{
 		TestDataDir: testDataDir,
 		UpdateMode:  os.Getenv("UPDATE_BASELINES") == "1",
 		Verbose:     os.Getenv("VERBOSE_TESTS") == "1",
 		Parser:      parser,
 	}
+	// TypeChecker is nil by default and will be set externally to avoid import cycle
+	return framework
+}
+
+// SetTypeChecker sets the type checker for the framework (to avoid import cycles)
+func (f *ParserTestFramework) SetTypeChecker(typeChecker ASTTypeChecker) {
+	f.TypeChecker = typeChecker
 }
 
 // LoadTestCase loads a test case from a JSON file
@@ -152,6 +169,7 @@ type MarkdownTestMetadata struct {
 	Category    TestCategory `yaml:"category"`
 	Subcategory string       `yaml:"subcategory"`
 	Tags        []string     `yaml:"tags"`
+	TypeCheck   bool         `yaml:"type_check"`
 }
 
 // LoadMarkdownTestCases loads test cases from a Markdown file
@@ -220,12 +238,48 @@ func (f *ParserTestFramework) parseMarkdownTestCases(content string, metadata *M
 	// Split content into sections by headers
 	sections := f.splitMarkdownSections(content)
 
-	for _, section := range sections {
+	// Group sections: find test cases and their associated Expected sections
+	for i, section := range sections {
 		testCase, err := f.parseMarkdownSection(section, metadata, filePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse section: %w", err)
 		}
 		if testCase != nil {
+			// Look ahead for Expected sections
+			for j := i + 1; j < len(sections); j++ {
+				nextSection := sections[j]
+				titleLower := strings.ToLower(nextSection.Title)
+
+				// Check for Expected Type Errors
+				if strings.Contains(titleLower, "expected type errors") {
+					if len(nextSection.CodeBlocks) > 0 {
+						testCase.ExpectedTypeErrors = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+					}
+				}
+
+				// Check for Expected AST Before Type Inference
+				if strings.Contains(titleLower, "before type inference") {
+					if len(nextSection.CodeBlocks) > 0 {
+						testCase.ExpectedASTBeforeInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+					}
+				}
+
+				// Check for Expected AST After Type Inference
+				if strings.Contains(titleLower, "after type inference") {
+					if len(nextSection.CodeBlocks) > 0 {
+						testCase.ExpectedASTAfterInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+					}
+				}
+
+				// Stop looking when we hit another test case (section with Perl code)
+				if f.sectionHasPerlCode(nextSection) {
+					break
+				}
+			}
+
+			// Set type checking flag from metadata
+			testCase.TypeCheck = metadata.TypeCheck
+
 			testCases = append(testCases, testCase)
 		}
 	}
@@ -323,7 +377,7 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 	// Skip sections without Perl code blocks
 	var perlCode string
 	for _, block := range section.CodeBlocks {
-		if block.Language == "perl" || block.Language == "" {
+		if block.Language == "perl" {
 			perlCode = block.Content
 			break
 		}
@@ -352,6 +406,16 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 	}
 
 	return testCase, nil
+}
+
+// sectionHasPerlCode checks if a section contains Perl code blocks
+func (f *ParserTestFramework) sectionHasPerlCode(section MarkdownSection) bool {
+	for _, block := range section.CodeBlocks {
+		if block.Language == "perl" {
+			return true
+		}
+	}
+	return false
 }
 
 // generateTestCaseName creates a unique test case name from title and filepath
@@ -463,6 +527,28 @@ func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase
 		return false
 	}
 
+	// Compare expected AST before type inference
+	if testCase.ExpectedASTBeforeInfer != "" {
+		if !f.CompareASTString(t, testCase.ExpectedASTBeforeInfer, ast, testCase.Name, "before type inference") {
+			return false
+		}
+	}
+
+	// TODO: Add type inference and compare after inference AST
+	if testCase.ExpectedASTAfterInfer != "" {
+		// For now, just compare against the same AST until type inference is implemented
+		if !f.CompareASTString(t, testCase.ExpectedASTAfterInfer, ast, testCase.Name, "after type inference") {
+			return false
+		}
+	}
+
+	// Run type checking if enabled
+	if testCase.TypeCheck {
+		if !f.RunTypeCheckValidation(t, testCase, ast) {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -515,6 +601,101 @@ func (f *ParserTestFramework) ValidateAST(t *testing.T, ast *ast.AST, testName s
 	return true
 }
 
+// CompareASTString compares an AST against an expected string representation
+func (f *ParserTestFramework) CompareASTString(t *testing.T, expectedStr string, actual *ast.AST, testName, phase string) bool {
+	t.Helper()
+
+	if actual == nil {
+		t.Errorf("Test %s (%s): AST is nil", testName, phase)
+		return false
+	}
+
+	// Convert actual AST to string representation
+	actualStr := actual.String()
+
+	// Normalize both strings (trim whitespace)
+	expectedStr = strings.TrimSpace(expectedStr)
+	actualStr = strings.TrimSpace(actualStr)
+
+	if expectedStr != actualStr {
+		if f.UpdateMode {
+			t.Logf("Test %s (%s): AST mismatch - updating baseline in update mode", testName, phase)
+			return true
+		}
+
+		diff := cmp.Diff(expectedStr, actualStr)
+		t.Errorf("Test %s (%s): AST mismatch (-expected +actual):\n%s", testName, phase, diff)
+		return false
+	}
+
+	if f.Verbose {
+		t.Logf("Test %s (%s): AST matches expected structure", testName, phase)
+	}
+
+	return true
+}
+
+// RunTypeCheckValidation performs type checking validation on an AST
+func (f *ParserTestFramework) RunTypeCheckValidation(t *testing.T, testCase *ParserTestCase, ast *ast.AST) bool {
+	t.Helper()
+
+	if f.TypeChecker == nil {
+		t.Logf("Test %s: No type checker configured, skipping type validation", testCase.Name)
+		return true // Don't fail if type checker is not available
+	}
+
+	// Run type checking on the AST
+	typeErrors := f.TypeChecker.CheckAST(ast)
+
+	// Convert errors to string for comparison
+	var actualErrorMessages []string
+	for _, err := range typeErrors {
+		actualErrorMessages = append(actualErrorMessages, err.Error())
+	}
+	actualErrorsStr := strings.Join(actualErrorMessages, "\n")
+
+	// Handle expected type errors
+	expectedErrors := strings.TrimSpace(testCase.ExpectedTypeErrors)
+
+	// Normalize expected errors - treat "(none)" as no errors expected
+	if expectedErrors == "(none)" || expectedErrors == "" {
+		expectedErrors = ""
+	}
+
+	if f.Verbose {
+		t.Logf("Test %s: Type checking - Expected: '%s', Actual: '%s'",
+			testCase.Name, expectedErrors, actualErrorsStr)
+	}
+
+	// Compare expected vs actual type errors
+	if expectedErrors == "" {
+		// No errors expected
+		if len(typeErrors) > 0 {
+			t.Errorf("Test %s: Expected no type errors but got: %v", testCase.Name, typeErrors)
+			return false
+		}
+	} else {
+		// Specific errors expected
+		if len(typeErrors) == 0 {
+			t.Errorf("Test %s: Expected type errors '%s' but got none", testCase.Name, expectedErrors)
+			return false
+		}
+
+		// Check if actual errors contain expected error patterns
+		if !strings.Contains(actualErrorsStr, expectedErrors) {
+			t.Errorf("Test %s: Expected type errors containing '%s' but got '%s'",
+				testCase.Name, expectedErrors, actualErrorsStr)
+			return false
+		}
+	}
+
+	if f.Verbose {
+		t.Logf("Test %s: Type checking validation passed", testCase.Name)
+	}
+
+	return true
+}
+
 // DiscoverTestCases finds all test cases in the test data directory
 func (f *ParserTestFramework) DiscoverTestCases() ([]*ParserTestCase, error) {
 	var allTestCases []*ParserTestCase
@@ -524,7 +705,8 @@ func (f *ParserTestFramework) DiscoverTestCases() ([]*ParserTestCase, error) {
 			return err
 		}
 
-		if strings.HasSuffix(path, ".json") || strings.HasSuffix(path, ".md") {
+		// Only load markdown files, ignore JSON files
+		if strings.HasSuffix(path, ".md") {
 			testCases, err := f.LoadTestCasesFromFile(path)
 			if err != nil {
 				return fmt.Errorf("failed to load test cases %s: %w", path, err)

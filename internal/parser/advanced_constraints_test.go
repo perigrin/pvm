@@ -6,7 +6,6 @@ package parser
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"tamarou.com/pvm/internal/ast"
@@ -220,51 +219,15 @@ func TestAdvancedConstraintParsing(t *testing.T) {
 }
 
 func TestConstraintTestDataFiles(t *testing.T) {
-	// Test constraint test data files since tree-sitter grammar supports constraint parsing
-
-	framework := NewParserTestFramework(filepath.Join("../../test/corpus/parser", "typed-perl", "advanced-constraints"))
-
-	testFiles := []string{
-		"basic_type_constraints.json",
-		"multiple_constraints.json",
-		"protocol_constraints.json",
-		"value_constraints.json",
-		"constraint_inheritance.json",
-	}
-
-	for _, filename := range testFiles {
-		t.Run(filename, func(t *testing.T) {
-			testPath := filepath.Join("../../test/corpus/parser", "typed-perl", "advanced-constraints", filename)
-
-			// Convert constraint test format to parser test case format
-			constraintTests, err := loadConstraintTestSuite(testPath)
-			if err != nil {
-				t.Fatalf("Failed to load constraint test suite %s: %v", filename, err)
-			}
-
-			for _, constraintTest := range constraintTests {
-				for _, test := range constraintTest.Tests {
-					// Convert to ParserTestCase format
-					testCase := &ParserTestCase{
-						Name:        test.Name,
-						Category:    TypedPerl,
-						Subcategory: "advanced-constraints",
-						Input:       test.Input,
-						ShouldError: false,
-						Description: constraintTest.Description,
-						Tags:        []string{"constraints", "typed-perl"},
-					}
-
-					t.Run(test.Name, func(t *testing.T) {
-						success := framework.RunTestCase(t, testCase)
-						if !success {
-							t.Errorf("Constraint test case failed: %s", test.Name)
-						}
-					})
-				}
-			}
-		})
-	}
+	// NOTE: Constraint test data has been migrated from JSON to Markdown format.
+	// These tests are now covered by TestRunMarkdownTestsByCategory in test_framework.go
+	// which automatically discovers and runs all markdown test files including:
+	// - basic-type-constraints.md
+	// - constraint-inheritance.md
+	// - multiple-type-constraints.md
+	// - protocol-constraints.md
+	// - value-constraints.md
+	t.Skip("Constraint tests migrated to markdown format and covered by TestRunMarkdownTestsByCategory")
 }
 
 func TestConstraintParsingErrorRecovery(t *testing.T) {

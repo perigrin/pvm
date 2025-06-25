@@ -195,6 +195,14 @@ class UserRepository<T> : BaseRepository<T, UserId>
 }
 ```
 
+## Minimal Empty Class
+
+Simplest possible class declaration
+
+```perl
+class Foo {}
+```
+
 ## Basic Class Declarations
 
 Basic class with typed fields and methods
