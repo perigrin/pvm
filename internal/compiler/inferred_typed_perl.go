@@ -97,6 +97,7 @@ func (itpc *InferredTypedPerlCompiler) Target() Target {
 }
 
 // Validate checks if the AST is suitable for compilation with this compiler
+//
 //nolint:sloppyTypeAssert // Function intentionally uses type assertions for interface-to-concrete conversions
 func (itpc *InferredTypedPerlCompiler) Validate(inputAST AST) error {
 	if inputAST == nil {
