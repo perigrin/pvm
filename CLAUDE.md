@@ -141,6 +141,25 @@ PSC commands (`psc strip`, `psc run`) use the compiler package for:
 ## Memory: AST Compilation
 - you MUST NOT use regular expressions to compile the AST, if it is an ERROR node raise an error, otherwise compile from the AST. If you see regular expression we need to fix the code
 
+## Repository Configuration Protection
+
+**Critical**: The PVM update system must point to the correct GitHub repository (`perigrin/pvm`), not `perigrin/pvm-dev`.
+
+### Regression Protection Tests
+- `make test-repository-consistency` - Runs all repository consistency tests
+- Tests verify all default configurations point to `perigrin/pvm`
+- Tests detect common regression patterns like `pvm-dev`, `your-username`, placeholder URLs
+- Tests ensure consistency across all packages (config, updater, version)
+
+### Files Protected
+- `internal/config/types.go` - Default update repository and binary mirrors
+- `internal/updater/updater.go` - Updater default options
+- `internal/updater/auto_update.go` - Auto-update defaults
+- `internal/version/types.go` - Version check defaults
+- `internal/pvm/config.go` - PVM config defaults
+
+**If repository configuration tests fail, DO NOT bypass them - fix the underlying configuration issue.**
+
 ## PVM Project Patterns
 
 ### Test Failure Protocol

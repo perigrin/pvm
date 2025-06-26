@@ -1121,7 +1121,7 @@ func newConfigGenerateCommand() *cobra.Command {
 						DownloadMirror: "https://www.cpan.org/src/5.0",
 						RunTests:       true,
 						Update: &config.PVMUpdateConfig{
-							Repository:           "perigrin/pvm-dev",
+							Repository:           "perigrin/pvm",
 							Channel:              "stable",
 							BackupEnabled:        true,
 							AutoRollbackEnabled:  true,

@@ -39,8 +39,8 @@ func TestCompilerRegistry_Basic(t *testing.T) {
 
 	// Test that default compilers are registered
 	targets := registry.AvailableTargets()
-	if len(targets) != 2 {
-		t.Errorf("Expected 2 targets, got %d", len(targets))
+	if len(targets) != 3 {
+		t.Errorf("Expected 3 targets, got %d", len(targets))
 	}
 
 	// Test getting clean Perl compiler

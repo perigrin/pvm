@@ -4,8 +4,6 @@
 package errors
 
 import (
-	"fmt"
-
 	"tamarou.com/pvm/internal/ast"
 )
 
@@ -36,10 +34,12 @@ type TypeParseError struct {
 	SourceLine string
 }
 
-// Error implements the error interface with a simple format
-// Real formatting should be done by consumers (CLI, LSP, etc.)
+// Error implements the error interface with Rust-style formatting
+// Provides detailed error information with source context
 func (tpe *TypeParseError) Error() string {
-	return fmt.Sprintf("%s: %s", tpe.ErrorType, tpe.Message)
+	// Use Rust-style formatter for detailed output
+	formatter := NewRustStyleFormatter()
+	return formatter.FormatTypeParseError(tpe, "<input>")
 }
 
 // TypeErrorCode represents specific type error categories

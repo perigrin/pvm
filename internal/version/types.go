@@ -39,7 +39,6 @@ func DefaultCheckOptions() *CheckOptions {
 	return &CheckOptions{
 		IncludePrerelease: false,
 		Repository:        "perigrin/pvm", // Default repository
-		GitHubToken:       GitHubToken,    // Use build-time token if available
 		Timeout:           30 * time.Second,
 	}
 }

@@ -92,13 +92,14 @@ func TestCompilerRegistry_Standalone(t *testing.T) {
 
 	// Test that default compilers are registered
 	targets := registry.AvailableTargets()
-	if len(targets) != 2 {
-		t.Errorf("Expected 2 targets, got %d", len(targets))
+	if len(targets) != 3 {
+		t.Errorf("Expected 3 targets, got %d", len(targets))
 	}
 
-	// Verify both expected targets are present
+	// Verify all expected targets are present
 	hasCleanPerl := false
 	hasTypedPerl := false
+	hasInferredTypedPerl := false
 
 	for _, target := range targets {
 		if target == TargetCleanPerl {
@@ -106,6 +107,9 @@ func TestCompilerRegistry_Standalone(t *testing.T) {
 		}
 		if target == TargetTypedPerl {
 			hasTypedPerl = true
+		}
+		if target == TargetInferredTypeAnnotations {
+			hasInferredTypedPerl = true
 		}
 	}
 
@@ -115,6 +119,10 @@ func TestCompilerRegistry_Standalone(t *testing.T) {
 
 	if !hasTypedPerl {
 		t.Error("TargetTypedPerl should be available")
+	}
+
+	if !hasInferredTypedPerl {
+		t.Error("TargetInferredTypeAnnotations should be available")
 	}
 
 	// Test getting compilers

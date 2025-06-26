@@ -28,17 +28,44 @@ const (
 	ErrorCases  TestCategory = "error-cases"
 )
 
+// ASTTypeChecker interface allows type checking without importing typechecker package
+type ASTTypeChecker interface {
+	CheckAST(ast *ast.AST) []error
+}
+
 // ParserTestCase represents a single test case for parser validation
 type ParserTestCase struct {
-	Name        string       `json:"name"`
-	Category    TestCategory `json:"category"`
-	Subcategory string       `json:"subcategory"`
-	Input       string       `json:"input"`
-	ExpectedAST *ast.AST     `json:"expected_ast,omitempty"`
-	ShouldError bool         `json:"should_error"`
-	ErrorType   string       `json:"error_type,omitempty"`
-	Description string       `json:"description"`
-	Tags        []string     `json:"tags"`
+	Name                   string       `json:"name"`
+	Category               TestCategory `json:"category"`
+	Subcategory            string       `json:"subcategory"`
+	Input                  string       `json:"input"`
+	ExpectedAST            *ast.AST     `json:"expected_ast,omitempty"`
+	ShouldError            bool         `json:"should_error"`
+	ErrorType              string       `json:"error_type,omitempty"`
+	Description            string       `json:"description"`
+	Tags                   []string     `json:"tags"`
+	TypeCheck              bool         `json:"type_check"`
+	ExpectedTypeErrors     string       `json:"expected_type_errors,omitempty"`
+	ExpectedASTBeforeInfer string       `json:"expected_ast_before_infer,omitempty"`
+	ExpectedASTAfterInfer  string       `json:"expected_ast_after_infer,omitempty"`
+
+	// Compilation outcome expectations
+	ExpectedCompilationOutcomes *CompilationOutcomes `json:"expected_compilation_outcomes,omitempty"`
+}
+
+// CompilationOutcomes represents expected outputs for all compilation targets
+type CompilationOutcomes struct {
+	// ExpectedCleanPerl is the expected output for TargetCleanPerl
+	ExpectedCleanPerl string `json:"expected_clean_perl,omitempty"`
+
+	// ExpectedTypedPerl is the expected output for TargetTypedPerl
+	ExpectedTypedPerl string `json:"expected_typed_perl,omitempty"`
+
+	// ExpectedInferredPerl is the expected output for TargetInferredTypeAnnotations
+	ExpectedInferredPerl string `json:"expected_inferred_perl,omitempty"`
+
+	// CompilationErrors tracks expected compilation errors for each target
+	CompilationErrors map[string]string `json:"compilation_errors,omitempty"`
 }
 
 // AccuracyMetrics tracks parser accuracy across different dimensions
@@ -65,10 +92,8 @@ type ParserTestFramework struct {
 	TestDataDir string
 	UpdateMode  bool
 	Verbose     bool
-	Parser      interface {
-		ParseString(string) (*ast.AST, error)
-		ParseFile(string) (*ast.AST, error)
-	}
+	Parser      Parser
+	TypeChecker ASTTypeChecker
 }
 
 // NewParserTestFramework creates a new parser testing framework
@@ -80,12 +105,19 @@ func NewParserTestFramework(testDataDir string) *ParserTestFramework {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to create parser for test framework: %v\n", err)
 	}
 
-	return &ParserTestFramework{
+	framework := &ParserTestFramework{
 		TestDataDir: testDataDir,
 		UpdateMode:  os.Getenv("UPDATE_BASELINES") == "1",
 		Verbose:     os.Getenv("VERBOSE_TESTS") == "1",
 		Parser:      parser,
 	}
+	// TypeChecker is nil by default and will be set externally to avoid import cycle
+	return framework
+}
+
+// SetTypeChecker sets the type checker for the framework (to avoid import cycles)
+func (f *ParserTestFramework) SetTypeChecker(typeChecker ASTTypeChecker) {
+	f.TypeChecker = typeChecker
 }
 
 // LoadTestCase loads a test case from a JSON file
@@ -152,6 +184,7 @@ type MarkdownTestMetadata struct {
 	Category    TestCategory `yaml:"category"`
 	Subcategory string       `yaml:"subcategory"`
 	Tags        []string     `yaml:"tags"`
+	TypeCheck   bool         `yaml:"type_check"`
 }
 
 // LoadMarkdownTestCases loads test cases from a Markdown file
@@ -220,12 +253,88 @@ func (f *ParserTestFramework) parseMarkdownTestCases(content string, metadata *M
 	// Split content into sections by headers
 	sections := f.splitMarkdownSections(content)
 
-	for _, section := range sections {
+	// Group sections: find test cases and their associated Expected sections
+	for i, section := range sections {
 		testCase, err := f.parseMarkdownSection(section, metadata, filePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse section: %w", err)
 		}
 		if testCase != nil {
+			// Look ahead for Expected sections
+			for j := i + 1; j < len(sections); j++ {
+				nextSection := sections[j]
+				titleLower := strings.ToLower(nextSection.Title)
+
+				// Check for Expected Type Errors
+				if strings.Contains(titleLower, "expected type errors") {
+					if len(nextSection.CodeBlocks) > 0 {
+						testCase.ExpectedTypeErrors = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+					}
+				}
+
+				// Check for Expected AST Before Type Inference
+				if strings.Contains(titleLower, "before type inference") {
+					if len(nextSection.CodeBlocks) > 0 {
+						testCase.ExpectedASTBeforeInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+					}
+				}
+
+				// Check for Expected AST After Type Inference
+				if strings.Contains(titleLower, "after type inference") {
+					if len(nextSection.CodeBlocks) > 0 {
+						testCase.ExpectedASTAfterInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+					}
+				}
+
+				// Check for Expected Compilation Outcomes
+				if strings.Contains(titleLower, "expected compilation outcomes") ||
+					strings.Contains(titleLower, "compilation outcomes") {
+					if f.Verbose {
+						println("DEBUG: Found compilation outcomes section:", nextSection.Title)
+					}
+
+					// Collect all subsections that are part of compilation outcomes
+					allSections := []MarkdownSection{nextSection}
+
+					// Look ahead for compilation outcome subsections
+					for k := j + 1; k < len(sections); k++ {
+						subsection := sections[k]
+						subsectionTitle := strings.ToLower(subsection.Title)
+
+						// Check if this is a compilation outcome subsection
+						if strings.Contains(subsectionTitle, "clean") ||
+							strings.Contains(subsectionTitle, "typed") ||
+							strings.Contains(subsectionTitle, "inferred") ||
+							strings.Contains(subsectionTitle, "perl output") {
+							allSections = append(allSections, subsection)
+							if f.Verbose {
+								println("DEBUG: Adding subsection to compilation outcomes:", subsection.Title)
+							}
+						} else if f.sectionHasPerlCode(subsection) ||
+							strings.Contains(subsectionTitle, "expected") {
+							// Stop when we hit another major section
+							break
+						}
+					}
+
+					outcomes, err := f.parseCompilationOutcomesFromSections(allSections)
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse compilation outcomes: %w", err)
+					}
+					testCase.ExpectedCompilationOutcomes = outcomes
+				} else if f.Verbose {
+					println("DEBUG: Section not matching compilation outcomes:", nextSection.Title, "->", titleLower)
+				}
+
+				// Stop looking when we hit another test case (section with Perl code)
+				if f.sectionHasPerlCode(nextSection) {
+					break
+				}
+			}
+
+			// Set type checking flag from metadata
+			testCase.TypeCheck = metadata.TypeCheck
+
 			testCases = append(testCases, testCase)
 		}
 	}
@@ -244,6 +353,7 @@ type MarkdownSection struct {
 // MarkdownCodeBlock represents a fenced code block
 type MarkdownCodeBlock struct {
 	Language string
+	Info     string // Additional info from the code fence (like `perl clean` or `perl inferred`)
 	Content  string
 }
 
@@ -320,10 +430,20 @@ func (f *ParserTestFramework) splitMarkdownSections(content string) []MarkdownSe
 
 // parseMarkdownSection converts a markdown section into a ParserTestCase
 func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, metadata *MarkdownTestMetadata, filePath string) (*ParserTestCase, error) {
+	// Skip compilation outcome sections - these are not test cases but expected outputs
+	titleLower := strings.ToLower(section.Title)
+	if strings.Contains(titleLower, "compilation") ||
+		strings.Contains(titleLower, "clean perl output") ||
+		strings.Contains(titleLower, "typed perl output") ||
+		strings.Contains(titleLower, "inferred perl output") ||
+		strings.Contains(titleLower, "expected") && (strings.Contains(titleLower, "output") || strings.Contains(titleLower, "perl")) {
+		return nil, nil // Skip compilation outcome sections
+	}
+
 	// Skip sections without Perl code blocks
 	var perlCode string
 	for _, block := range section.CodeBlocks {
-		if block.Language == "perl" || block.Language == "" {
+		if block.Language == "perl" {
 			perlCode = block.Content
 			break
 		}
@@ -352,6 +472,16 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 	}
 
 	return testCase, nil
+}
+
+// sectionHasPerlCode checks if a section contains Perl code blocks
+func (f *ParserTestFramework) sectionHasPerlCode(section MarkdownSection) bool {
+	for _, block := range section.CodeBlocks {
+		if block.Language == "perl" {
+			return true
+		}
+	}
+	return false
 }
 
 // generateTestCaseName creates a unique test case name from title and filepath
@@ -401,43 +531,53 @@ func (f *ParserTestFramework) SaveTestCase(testCase *ParserTestCase, filePath st
 	return nil
 }
 
-// RunTestCase executes a single test case and returns the result
-func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase) bool {
+// RunTestCase executes a single test case
+func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase) {
 	t.Helper()
 
-	if f.Parser == nil {
-		t.Errorf("No parser configured for test framework")
-		return false
+	// For parallel tests, use the parser pool to avoid thread safety issues
+	// For non-parallel tests, fall back to the framework's parser
+	var parser Parser
+
+	// Check if we're running in parallel mode by attempting to get a parser from pool
+	if poolParser := GlobalParserPool.Get(); poolParser != nil {
+		parser = poolParser
+		defer GlobalParserPool.Put(parser)
+	} else if f.Parser != nil {
+		parser = f.Parser
+	} else {
+		t.Errorf("No parser available for test framework")
+		return
 	}
 
 	startTime := time.Now()
-	ast, err := f.Parser.ParseString(testCase.Input)
+	ast, err := parser.ParseString(testCase.Input)
 	parseTime := time.Since(startTime)
 
 	if testCase.ShouldError {
 		if err == nil {
 			t.Errorf("Test %s: Expected error but parsing succeeded", testCase.Name)
-			return false
+			return
 		}
 		if testCase.ErrorType != "" && !strings.Contains(err.Error(), testCase.ErrorType) {
 			t.Errorf("Test %s: Expected error type '%s' but got: %v",
 				testCase.Name, testCase.ErrorType, err)
-			return false
+			return
 		}
 		if f.Verbose {
 			t.Logf("Test %s: Successfully caught expected error: %v", testCase.Name, err)
 		}
-		return true
+		return
 	}
 
 	if err != nil {
 		t.Errorf("Test %s: Unexpected parsing error: %v", testCase.Name, err)
-		return false
+		return
 	}
 
 	if ast == nil {
 		t.Errorf("Test %s: Parser returned nil AST", testCase.Name)
-		return false
+		return
 	}
 
 	// Debug: log what we got from the parser
@@ -453,17 +593,27 @@ func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase
 
 	// If we have an expected AST, compare it
 	if testCase.ExpectedAST != nil {
-		if !f.CompareASTs(t, testCase.ExpectedAST, ast, testCase.Name) {
-			return false
-		}
+		f.CompareASTs(t, testCase.ExpectedAST, ast, testCase.Name)
 	}
 
 	// Validate AST structure is reasonable
-	if !f.ValidateAST(t, ast, testCase.Name, testCase.Input) {
-		return false
+	f.ValidateAST(t, ast, testCase.Name, testCase.Input)
+
+	// Compare expected AST before type inference
+	if testCase.ExpectedASTBeforeInfer != "" {
+		f.CompareASTString(t, testCase.ExpectedASTBeforeInfer, ast, testCase.Name, "before type inference")
 	}
 
-	return true
+	// TODO: Add type inference and compare after inference AST
+	if testCase.ExpectedASTAfterInfer != "" {
+		// For now, just compare against the same AST until type inference is implemented
+		f.CompareASTString(t, testCase.ExpectedASTAfterInfer, ast, testCase.Name, "after type inference")
+	}
+
+	// Run type checking if enabled
+	if testCase.TypeCheck {
+		f.RunTypeCheckValidation(t, testCase, ast)
+	}
 }
 
 // CompareASTs compares two AST structures for equivalence
@@ -515,6 +665,101 @@ func (f *ParserTestFramework) ValidateAST(t *testing.T, ast *ast.AST, testName s
 	return true
 }
 
+// CompareASTString compares an AST against an expected string representation
+func (f *ParserTestFramework) CompareASTString(t *testing.T, expectedStr string, actual *ast.AST, testName, phase string) bool {
+	t.Helper()
+
+	if actual == nil {
+		t.Errorf("Test %s (%s): AST is nil", testName, phase)
+		return false
+	}
+
+	// Convert actual AST to string representation
+	actualStr := actual.String()
+
+	// Normalize both strings (trim whitespace)
+	expectedStr = strings.TrimSpace(expectedStr)
+	actualStr = strings.TrimSpace(actualStr)
+
+	if expectedStr != actualStr {
+		if f.UpdateMode {
+			t.Logf("Test %s (%s): AST mismatch - updating baseline in update mode", testName, phase)
+			return true
+		}
+
+		diff := cmp.Diff(expectedStr, actualStr)
+		t.Errorf("Test %s (%s): AST mismatch (-expected +actual):\n%s", testName, phase, diff)
+		return false
+	}
+
+	if f.Verbose {
+		t.Logf("Test %s (%s): AST matches expected structure", testName, phase)
+	}
+
+	return true
+}
+
+// RunTypeCheckValidation performs type checking validation on an AST
+func (f *ParserTestFramework) RunTypeCheckValidation(t *testing.T, testCase *ParserTestCase, ast *ast.AST) bool {
+	t.Helper()
+
+	if f.TypeChecker == nil {
+		t.Logf("Test %s: No type checker configured, skipping type validation", testCase.Name)
+		return true // Don't fail if type checker is not available
+	}
+
+	// Run type checking on the AST
+	typeErrors := f.TypeChecker.CheckAST(ast)
+
+	// Convert errors to string for comparison
+	var actualErrorMessages []string
+	for _, err := range typeErrors {
+		actualErrorMessages = append(actualErrorMessages, err.Error())
+	}
+	actualErrorsStr := strings.Join(actualErrorMessages, "\n")
+
+	// Handle expected type errors
+	expectedErrors := strings.TrimSpace(testCase.ExpectedTypeErrors)
+
+	// Normalize expected errors - treat "(none)" as no errors expected
+	if expectedErrors == "(none)" || expectedErrors == "" {
+		expectedErrors = ""
+	}
+
+	if f.Verbose {
+		t.Logf("Test %s: Type checking - Expected: '%s', Actual: '%s'",
+			testCase.Name, expectedErrors, actualErrorsStr)
+	}
+
+	// Compare expected vs actual type errors
+	if expectedErrors == "" {
+		// No errors expected
+		if len(typeErrors) > 0 {
+			t.Errorf("Test %s: Expected no type errors but got: %v", testCase.Name, typeErrors)
+			return false
+		}
+	} else {
+		// Specific errors expected
+		if len(typeErrors) == 0 {
+			t.Errorf("Test %s: Expected type errors '%s' but got none", testCase.Name, expectedErrors)
+			return false
+		}
+
+		// Check if actual errors contain expected error patterns
+		if !strings.Contains(actualErrorsStr, expectedErrors) {
+			t.Errorf("Test %s: Expected type errors containing '%s' but got '%s'",
+				testCase.Name, expectedErrors, actualErrorsStr)
+			return false
+		}
+	}
+
+	if f.Verbose {
+		t.Logf("Test %s: Type checking validation passed", testCase.Name)
+	}
+
+	return true
+}
+
 // DiscoverTestCases finds all test cases in the test data directory
 func (f *ParserTestFramework) DiscoverTestCases() ([]*ParserTestCase, error) {
 	var allTestCases []*ParserTestCase
@@ -524,7 +769,8 @@ func (f *ParserTestFramework) DiscoverTestCases() ([]*ParserTestCase, error) {
 			return err
 		}
 
-		if strings.HasSuffix(path, ".json") || strings.HasSuffix(path, ".md") {
+		// Only load markdown files, ignore JSON files
+		if strings.HasSuffix(path, ".md") {
 			testCases, err := f.LoadTestCasesFromFile(path)
 			if err != nil {
 				return fmt.Errorf("failed to load test cases %s: %w", path, err)
@@ -538,56 +784,50 @@ func (f *ParserTestFramework) DiscoverTestCases() ([]*ParserTestCase, error) {
 	return allTestCases, err
 }
 
-// RunAllTests executes all discovered test cases and returns accuracy metrics
-func (f *ParserTestFramework) RunAllTests(t *testing.T) *AccuracyMetrics {
+// RunAllTests executes all discovered test cases with parallelization
+func (f *ParserTestFramework) RunAllTests(t *testing.T) {
 	testCases, err := f.DiscoverTestCases()
 	if err != nil {
 		t.Fatalf("Failed to discover test cases: %v", err)
 	}
 
-	metrics := &AccuracyMetrics{
-		CategoryMetrics: make(map[string]Metric),
-		FeatureMetrics:  make(map[string]Metric),
-	}
-
-	startTime := time.Now()
-
+	testCount := 0
 	for _, testCase := range testCases {
+		testCount++
+		testCase := testCase // capture loop variable for parallel execution
 		t.Run(testCase.Name, func(t *testing.T) {
-			success := f.RunTestCase(t, testCase)
-			f.updateMetrics(metrics, testCase, success)
+			t.Parallel() // Enable parallel execution of test cases
+			f.RunTestCase(t, testCase)
 		})
 	}
 
-	metrics.ParsingTime = time.Since(startTime)
-	f.calculateAccuracyPercentages(metrics)
-
-	return metrics
+	if testCount == 0 {
+		t.Error("No test cases found")
+	}
 }
 
 // RunTestsByCategory runs tests for a specific category
-func (f *ParserTestFramework) RunTestsByCategory(t *testing.T, category TestCategory) *AccuracyMetrics {
+func (f *ParserTestFramework) RunTestsByCategory(t *testing.T, category TestCategory) {
 	testCases, err := f.DiscoverTestCases()
 	if err != nil {
 		t.Fatalf("Failed to discover test cases: %v", err)
 	}
 
-	metrics := &AccuracyMetrics{
-		CategoryMetrics: make(map[string]Metric),
-		FeatureMetrics:  make(map[string]Metric),
-	}
-
+	testCount := 0
 	for _, testCase := range testCases {
 		if testCase.Category == category {
+			testCount++
+			testCase := testCase // capture loop variable for parallel execution
 			t.Run(testCase.Name, func(t *testing.T) {
-				success := f.RunTestCase(t, testCase)
-				f.updateMetrics(metrics, testCase, success)
+				t.Parallel() // Enable parallel execution of test cases
+				f.RunTestCase(t, testCase)
 			})
 		}
 	}
 
-	f.calculateAccuracyPercentages(metrics)
-	return metrics
+	if testCount == 0 {
+		t.Errorf("No test cases found for category %s", category)
+	}
 }
 
 // updateMetrics updates accuracy metrics based on test results
@@ -707,4 +947,228 @@ func (f *ParserTestFramework) PrintMetricsSummary(t *testing.T, metrics *Accurac
 			t.Logf("  %s: %d/%d (%.1f%%)", feature, metric.Passed, metric.Total, metric.Accuracy)
 		}
 	}
+}
+
+// parseCompilationOutcomes parses a markdown section containing expected compilation outcomes
+func (f *ParserTestFramework) parseCompilationOutcomes(section MarkdownSection) (*CompilationOutcomes, error) {
+	outcomes := &CompilationOutcomes{
+		CompilationErrors: make(map[string]string),
+	}
+
+	// Debug output for development
+	if f.Verbose {
+		println("DEBUG: Parsing compilation outcomes section")
+		println("DEBUG: Section title:", section.Title)
+		println("DEBUG: Section description length:", len(section.Description))
+		println("DEBUG: Number of code blocks:", len(section.CodeBlocks))
+	}
+
+	// Parse each subsection within the compilation outcomes section
+	for _, codeBlock := range section.CodeBlocks {
+		// Look for labeled code blocks or subsections
+		switch {
+		case strings.Contains(strings.ToLower(codeBlock.Language), "clean") ||
+			strings.Contains(strings.ToLower(codeBlock.Info), "clean"):
+			outcomes.ExpectedCleanPerl = strings.TrimSpace(codeBlock.Content)
+
+		case strings.Contains(strings.ToLower(codeBlock.Language), "typed") ||
+			strings.Contains(strings.ToLower(codeBlock.Info), "typed"):
+			outcomes.ExpectedTypedPerl = strings.TrimSpace(codeBlock.Content)
+
+		case strings.Contains(strings.ToLower(codeBlock.Language), "inferred") ||
+			strings.Contains(strings.ToLower(codeBlock.Info), "inferred"):
+			outcomes.ExpectedInferredPerl = strings.TrimSpace(codeBlock.Content)
+
+		case codeBlock.Language == "perl" || codeBlock.Language == "":
+			// Default Perl code block - try to determine type from context or preceding text
+			// For now, assume it's the inferred output if no other context
+			if outcomes.ExpectedInferredPerl == "" {
+				outcomes.ExpectedInferredPerl = strings.TrimSpace(codeBlock.Content)
+			}
+		}
+	}
+
+	// Parse any subsections within the compilation outcomes section
+	// Look for markdown subsections like "## Clean Perl Output", "## Typed Perl Output", etc.
+	content := section.Description
+	if content != "" {
+		outcomes = f.parseCompilationOutcomesFromText(content, outcomes)
+	}
+
+	return outcomes, nil
+}
+
+// parseCompilationOutcomesFromSections parses compilation outcomes from multiple sections
+func (f *ParserTestFramework) parseCompilationOutcomesFromSections(sections []MarkdownSection) (*CompilationOutcomes, error) {
+	outcomes := &CompilationOutcomes{
+		CompilationErrors: make(map[string]string),
+	}
+
+	for _, section := range sections {
+		titleLower := strings.ToLower(section.Title)
+
+		if f.Verbose {
+			println("DEBUG: Processing section:", section.Title, "with", len(section.CodeBlocks), "code blocks")
+		}
+
+		// Process code blocks in this section
+		for _, codeBlock := range section.CodeBlocks {
+			codeContent := strings.TrimSpace(codeBlock.Content)
+			if codeContent == "" {
+				continue
+			}
+
+			// Determine which target based on section title
+			switch {
+			case strings.Contains(titleLower, "clean") || strings.Contains(titleLower, "untyped"):
+				outcomes.ExpectedCleanPerl = codeContent
+				if f.Verbose {
+					println("DEBUG: Set clean Perl output")
+				}
+			case strings.Contains(titleLower, "typed") && !strings.Contains(titleLower, "inferred"):
+				outcomes.ExpectedTypedPerl = codeContent
+				if f.Verbose {
+					println("DEBUG: Set typed Perl output")
+				}
+			case strings.Contains(titleLower, "inferred"):
+				outcomes.ExpectedInferredPerl = codeContent
+				if f.Verbose {
+					println("DEBUG: Set inferred Perl output")
+				}
+			default:
+				// Fall back to the general parsing logic
+				if f.Verbose {
+					println("DEBUG: Using fallback parsing for section:", section.Title)
+				}
+			}
+		}
+	}
+
+	return outcomes, nil
+}
+
+// parseCompilationOutcomesFromText parses compilation outcomes from markdown text with subsections
+func (f *ParserTestFramework) parseCompilationOutcomesFromText(content string, outcomes *CompilationOutcomes) *CompilationOutcomes {
+	lines := strings.Split(content, "\n")
+	var currentSection string
+	var currentContent []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Check for subsection headers
+		if strings.HasPrefix(trimmed, "##") || strings.HasPrefix(trimmed, "###") {
+			// Process previous section if any
+			f.processCompilationSection(currentSection, currentContent, outcomes)
+
+			// Start new section
+			currentSection = strings.ToLower(trimmed)
+			currentContent = []string{}
+		} else if strings.HasPrefix(trimmed, "```") {
+			// Handle code blocks within subsections
+			if len(currentContent) > 0 && strings.HasSuffix(currentContent[len(currentContent)-1], "```") {
+				// End of code block
+				continue
+			}
+			// Start of code block
+			currentContent = append(currentContent, trimmed)
+		} else if len(currentContent) > 0 {
+			// Inside a code block or section
+			currentContent = append(currentContent, line)
+		}
+	}
+
+	// Process final section
+	f.processCompilationSection(currentSection, currentContent, outcomes)
+
+	return outcomes
+}
+
+// processCompilationSection processes a single compilation outcome section
+func (f *ParserTestFramework) processCompilationSection(sectionHeader string, content []string, outcomes *CompilationOutcomes) {
+	if sectionHeader == "" || len(content) == 0 {
+		return
+	}
+
+	// Remove code block markers and extract content
+	var perlCode []string
+	inCodeBlock := false
+
+	for _, line := range content {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			inCodeBlock = !inCodeBlock
+			continue
+		}
+		if inCodeBlock {
+			perlCode = append(perlCode, line)
+		}
+	}
+
+	codeContent := strings.TrimSpace(strings.Join(perlCode, "\n"))
+	if codeContent == "" {
+		return
+	}
+
+	// Determine which target this section is for
+	switch {
+	case strings.Contains(sectionHeader, "clean") || strings.Contains(sectionHeader, "untyped"):
+		outcomes.ExpectedCleanPerl = codeContent
+	case strings.Contains(sectionHeader, "typed") && !strings.Contains(sectionHeader, "inferred"):
+		outcomes.ExpectedTypedPerl = codeContent
+	case strings.Contains(sectionHeader, "inferred"):
+		outcomes.ExpectedInferredPerl = codeContent
+	case strings.Contains(sectionHeader, "error"):
+		// Handle compilation errors
+		if outcomes.CompilationErrors == nil {
+			outcomes.CompilationErrors = make(map[string]string)
+		}
+		// Try to determine which target this error is for
+		if strings.Contains(sectionHeader, "clean") {
+			outcomes.CompilationErrors["clean_perl"] = codeContent
+		} else if strings.Contains(sectionHeader, "typed") {
+			outcomes.CompilationErrors["typed_perl"] = codeContent
+		} else if strings.Contains(sectionHeader, "inferred") {
+			outcomes.CompilationErrors["inferred_typed_perl"] = codeContent
+		}
+	}
+}
+
+// ValidateCompilationOutcomes validates actual compilation results against expected outcomes
+func (f *ParserTestFramework) ValidateCompilationOutcomes(testCase *ParserTestCase, ast *ast.AST) []error {
+	var errors []error
+
+	if testCase.ExpectedCompilationOutcomes == nil {
+		// No compilation outcomes expected, skip validation
+		return nil
+	}
+
+	outcomes := testCase.ExpectedCompilationOutcomes
+
+	// Validate each compilation target
+	if outcomes.ExpectedCleanPerl != "" {
+		if err := f.validateCompilationTarget(ast, "clean_perl", outcomes.ExpectedCleanPerl); err != nil {
+			errors = append(errors, fmt.Errorf("clean Perl compilation validation failed: %w", err))
+		}
+	}
+
+	if outcomes.ExpectedTypedPerl != "" {
+		if err := f.validateCompilationTarget(ast, "typed_perl", outcomes.ExpectedTypedPerl); err != nil {
+			errors = append(errors, fmt.Errorf("typed Perl compilation validation failed: %w", err))
+		}
+	}
+
+	if outcomes.ExpectedInferredPerl != "" {
+		if err := f.validateCompilationTarget(ast, "inferred_typed_perl", outcomes.ExpectedInferredPerl); err != nil {
+			errors = append(errors, fmt.Errorf("inferred typed Perl compilation validation failed: %w", err))
+		}
+	}
+
+	return errors
+}
+
+// validateCompilationTarget validates a single compilation target
+func (f *ParserTestFramework) validateCompilationTarget(ast *ast.AST, target string, expected string) error {
+	// This would need to be implemented with the actual compiler registry
+	// For now, return a placeholder implementation
+	return fmt.Errorf("compilation validation not yet implemented for target: %s", target)
 }

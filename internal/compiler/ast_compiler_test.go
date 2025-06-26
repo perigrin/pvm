@@ -229,8 +229,7 @@ print "Total: $total\n";`,
 			ast, err := p.ParseFile(tempFile)
 			require.NoError(t, err)
 
-			adapter := NewParserASTAdapter(ast)
-			cleanPerl, err := compiler.Compile(adapter)
+			cleanPerl, err := compiler.Compile(ast)
 			require.NoError(t, err)
 
 			// Debug: Show generated Perl
@@ -316,8 +315,7 @@ print greet("World") . "\n";`,
 			ast, err := p.ParseFile(tempFile)
 			require.NoError(t, err)
 
-			adapter := NewParserASTAdapter(ast)
-			cleanPerl, err := compiler.Compile(adapter)
+			cleanPerl, err := compiler.Compile(ast)
 			require.NoError(t, err)
 
 			// Execute the compiled clean version and compare against expected output

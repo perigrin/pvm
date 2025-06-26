@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"tamarou.com/pvm/internal/current"
 )
 
 // CleanPerlCompiler compiles AST to clean Perl code without type annotations
@@ -56,19 +58,33 @@ func (c *CleanPerlCompiler) Compile(ast AST) (string, error) {
 		return "", err
 	}
 
-	// Get the original content from AST
-	content, err := ast.GetContent()
+	// Get the source content directly and apply regex-based cleaning
+	// This is a pragmatic approach until proper AST traversal is implemented
+	source, err := ast.GetContent()
 	if err != nil {
-		return "", NewCompilerError(ErrCompilationFailed,
-			fmt.Sprintf("failed to get source content: %v", err)).
-			WithLocation(ast.GetPath(), 0, 0).
-			WithCause(err)
+		return "", NewCompilerError(ErrCompilationFailed, "failed to get source content").WithCause(err)
 	}
 
-	// Strip type annotations using regex patterns
-	cleanCode := c.stripTypeAnnotations(content)
+	// Check if source is empty
+	if source == "" {
+		return "", NewCompilerError(ErrCompilationFailed, "source content is empty")
+	}
 
-	return cleanCode, nil
+	// Clean type annotations using regex patterns
+	result := c.stripTypeAnnotations(source)
+
+	// Replace hard-coded Perl version with PVM-managed version
+	result, err = c.updatePerlVersion(result)
+	if err != nil {
+		return "", err
+	}
+
+	// Check if result is empty
+	if result == "" {
+		return "", NewCompilerError(ErrCompilationFailed, "compilation result is empty")
+	}
+
+	return result, nil
 }
 
 // SetOptions updates the compiler options
@@ -76,39 +92,68 @@ func (c *CleanPerlCompiler) SetOptions(options *CompilerOptions) {
 	c.options = options
 }
 
+// updatePerlVersion replaces hard-coded Perl version with PVM-managed version
+func (c *CleanPerlCompiler) updatePerlVersion(code string) (string, error) {
+	// Get the PVM-managed Perl version
+	currentVersion, err := current.GetCurrentVersion()
+	if err != nil {
+		// Fallback to v5.36 if we can't get current version
+		currentVersion = &current.CurrentVersionInfo{Version: "5.36"}
+	}
+
+	// Replace hard-coded version pragmas with PVM-managed version
+	lines := strings.Split(code, "\n")
+	foundVersionPragma := false
+
+	for i, line := range lines {
+		// Look for existing version pragmas
+		if strings.HasPrefix(strings.TrimSpace(line), "use v") {
+			// Replace with PVM-managed version
+			lines[i] = fmt.Sprintf("use v%s;", currentVersion.Version)
+			foundVersionPragma = true
+			break
+		}
+	}
+
+	// If no version pragma exists, add one at the beginning
+	// This is required because clean Perl output uses signature syntax
+	if !foundVersionPragma {
+		// Insert after shebang if present, otherwise at the beginning
+		insertIndex := 0
+		if len(lines) > 0 && strings.HasPrefix(lines[0], "#!") {
+			insertIndex = 1
+		}
+
+		// Create new slice with version pragma inserted
+		newLines := make([]string, 0, len(lines)+1)
+		newLines = append(newLines, lines[:insertIndex]...)
+		newLines = append(newLines, fmt.Sprintf("use v%s;", currentVersion.Version))
+		newLines = append(newLines, lines[insertIndex:]...)
+
+		lines = newLines
+	}
+
+	return strings.Join(lines, "\n"), nil
+}
+
 // stripTypeAnnotations removes type annotations using regex patterns
 func (c *CleanPerlCompiler) stripTypeAnnotations(code string) string {
 	// Process line by line for better control
 	lines := strings.Split(code, "\n")
-	hasSignatures := false
 
 	for i, line := range lines {
-		// Check if this line contains a function signature
-		if strings.Contains(line, "sub ") && strings.Contains(line, "(") && strings.Contains(line, ")") {
-			funcPattern := regexp.MustCompile(`\bsub\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)`)
-			if funcPattern.MatchString(line) {
-				hasSignatures = true
-			}
-		}
 		lines[i] = c.cleanLine(line)
 	}
 
 	result := strings.Join(lines, "\n")
-
-	// If we found signatures, prepend v5.36 which includes signatures
-	if hasSignatures {
-		result = "use v5.36;\n" + result
-	}
-
 	return result
 }
 
 // cleanLine removes type annotations from a single line
 func (c *CleanPerlCompiler) cleanLine(line string) string {
 	// Handle variable declarations
-	// Pattern: my Type $var or my Complex[Type, Type] $var
-	// Match type names with optional parameterized types (including commas and spaces)
-	varPattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][a-zA-Z0-9_:]*(?:\[[^\]]*\])*\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
+	// Pattern: my Type $var, my Type @var, my Type %var or my Complex[Type, Type] $var
+	varPattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][a-zA-Z0-9_:]*(?:\[[^\]]*\])*\s+([\$@%][a-zA-Z_][a-zA-Z0-9_]*)`)
 	if varPattern.MatchString(line) {
 		line = varPattern.ReplaceAllString(line, `$1 $2`)
 	}

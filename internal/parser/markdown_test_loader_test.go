@@ -11,8 +11,8 @@ import (
 func TestMarkdownTestCaseLoader(t *testing.T) {
 	framework := NewParserTestFramework("../../test/corpus/parser")
 
-	// Test loading simple-annotations.md
-	testFile := filepath.Join("../../test/corpus/parser", "typed-perl", "simple-annotations.md")
+	// Test loading basic-typed-variables.md from simple-annotations directory
+	testFile := filepath.Join("../../test/corpus/parser", "typed-perl", "simple-annotations", "basic-typed-variables.md")
 	testCases, err := framework.LoadMarkdownTestCases(testFile)
 	if err != nil {
 		t.Fatalf("Failed to load markdown test cases: %v", err)
@@ -87,7 +87,7 @@ func TestLoadTestCasesFromFile(t *testing.T) {
 		file        string
 		expectError bool
 	}{
-		{"../../test/corpus/parser/typed-perl/simple-annotations.md", false},
+		{"../../test/corpus/parser/typed-perl/simple-annotations/basic-typed-variables.md", false},
 		{"../../test/corpus/parser/nonexistent.md", true},
 		{"../../test/corpus/parser/invalid.txt", true},
 	}

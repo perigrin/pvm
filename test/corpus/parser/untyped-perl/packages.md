@@ -189,3 +189,211 @@ use AnotherModule 2.5;
 package MyPackage v1.0.0;
 use perl 5.032;
 ```
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+package MyPackage;
+package MyPackage::Subspace;
+package MyPackage 1.23;
+package Local::Test::Package;
+{
+ package LocalPackage;
+ use parent 'BaseClass';
+
+ sub new { my $class = shift; return bless {}, $class; }
+}
+
+package main;
+use LocalPackage;
+
+# Module with conditional loading
+BEGIN { if ($ENV{DEBUG}) {
+        require Data::Dumper;
+        Data::Dumper->import('Dumper');
+    } }
+#!/usr/bin/perl
+use v5.20;
+use strict;
+use warnings;
+
+# Package declarations
+package MyPackage;
+package MyPackage::Subspace;
+package MyPackage 1.23;
+
+# Module imports
+use Data::Dumper;
+use MyModule qw(function1 function2);
+use AnotherModule 1.5 qw(:all);
+require;
+
+# Package qualification
+$ = "value";
+MyPackage::function();
+my $ref = \&MyPackage::function;
+
+# Complex patterns
+{
+ package LocalPackage;
+ use parent 'BaseClass';
+
+ sub new { my $class = shift; return bless {}, $class; }
+}
+
+# Version specifications
+use 5.010;
+use MyModule v1.2.3;
+package TestPackage v2.0.0;
+use parent 'BaseClass';
+use base qw(Base1 Base2);
+use parent qw(Parent::Class Another::Parent);
+our @ISA = qw(BaseClass);
+push @, 'Mixin::Class';
+$ = "value";
+@ = (1, 2, 3);
+% = (key => 'value');
+our $;
+my $ref = \&MyPackage::function;
+$main::global = "in main";
+use strict;
+use warnings;
+use strict 'vars';
+use warnings 'all';
+no strict 'refs';
+no warnings 'uninitialized';
+use feature qw(say switch);
+use utf8;
+use constant PI => 3.14159;
+require;
+require 'module.pl';
+require v5.10;
+require 5.010;
+require;
+use strict;
+use warnings;
+use Data::Dumper;
+use MyModule qw(function1 function2);
+use AnotherModule 1.5 qw(:all);
+use Parent::Module ();
+use feature 'say';
+use 5.010;
+use v5.12;
+use 5.020;
+use MyModule v1.2.3;
+use AnotherModule 2.5;
+package MyPackage v1.0.0;
+use perl 5.032;
+```
+
+## Typed Perl Output
+
+```perl
+package MyPackage;
+package MyPackage::Subspace;
+package MyPackage 1.23;
+package Local::Test::Package;
+{
+    package LocalPackage;
+    use parent 'BaseClass';
+
+    sub new {
+        my $class = shift;
+        return bless {}, $class;
+    }
+}
+
+package main;
+use LocalPackage;
+
+# Module with conditional loading
+BEGIN {
+    if ($ENV{DEBUG}) {
+        require Data::Dumper;
+        Data::Dumper->import('Dumper');
+    }
+}
+#!/usr/bin/perl
+use v5.20;
+use strict;
+use warnings;
+
+# Package declarations
+package MyPackage;
+package MyPackage::Subspace;
+package MyPackage 1.23;
+
+# Module imports
+use Data::Dumper;
+use MyModule qw(function1 function2);
+use AnotherModule 1.5 qw(:all);
+require DynamicModule;
+
+# Package qualification
+$MyPackage::variable = "value";
+MyPackage::function();
+my $ref = \&MyPackage::function;
+
+# Complex patterns
+{
+    package LocalPackage;
+    use parent 'BaseClass';
+
+    sub new {
+        my $class = shift;
+        return bless {}, $class;
+    }
+}
+
+# Version specifications
+use 5.010;
+use MyModule v1.2.3;
+package TestPackage v2.0.0;
+use parent 'BaseClass';
+use base qw(Base1 Base2);
+use parent qw(Parent::Class Another::Parent);
+our @ISA = qw(BaseClass);
+push @ISA, 'Mixin::Class';
+$MyPackage::variable = "value";
+@Package::array = (1, 2, 3);
+%Other::Package::hash = (key => 'value');
+our $Package::qualified;
+my $ref = \&MyPackage::function;
+$main::global = "in main";
+use strict;
+use warnings;
+use strict 'vars';
+use warnings 'all';
+no strict 'refs';
+no warnings 'uninitialized';
+use feature qw(say switch);
+use utf8;
+use constant PI => 3.14159;
+require DynamicModule;
+require 'module.pl';
+require v5.10;
+require 5.010;
+require Module::Name;
+use strict;
+use warnings;
+use Data::Dumper;
+use MyModule qw(function1 function2);
+use AnotherModule 1.5 qw(:all);
+use Parent::Module ();
+use feature 'say';
+use 5.010;
+use v5.12;
+use 5.020;
+use MyModule v1.2.3;
+use AnotherModule 2.5;
+package MyPackage v1.0.0;
+use perl 5.032;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```

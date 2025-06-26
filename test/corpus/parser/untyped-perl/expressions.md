@@ -843,3 +843,209 @@ Word form of logical OR with lower precedence
 ```perl
 $or_result = $x or $y;
 ```
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+$total += $increment;
+$value = $array[$index + 1] + $matrix[$row][$col];
+$result = $a + $b;
+$var = $value;
+$result = $a / $b;
+$result = $a * $b;
+$result = $a - $b;
+$bit_cleared = $flags & ~(1 << $bit_number);
+$bit_set = $flags | (1 << $bit_number);
+$bit_toggled = $flags ^ (1 << $bit_number);
+$result = $a & $b;
+$flags &= $mask;
+$result = ~$value;
+$result = $a | $b;
+$flags |= $bits;
+$result = $a | $b & $c ^ $d;
+$masked = $value & 0xFF00;
+$result = $a ^ $b;
+$flags ^= $toggle;
+$a = $b = $c = $value;
+$ordered = $a < $b && $b < $c && $c < $d;
+$valid = $a && $b && $c && $d;
+$result = ($operation1, $operation2, $final_value);
+$check = $value > 0 && $count <= 100 && $name ne '';
+$result = $a + $b * $c / $d - $e % $f;
+$flags = ($a & $mask) | ($b << 4) | (~$c & 0xFF);
+$result = ($a && $b) || ($c && !$d) || $e;
+$result = ($prefix . $name) x 3 . $suffix;
+$value = $input || $default_value;
+$result = ((($a + $b) * ($c - $d)) / (($e + $f) || 1));
+$result = $value // $default;
+$value //= $default;
+$total /= $divisor;
+$power = $base ** $exponent;
+$total **= $exponent;
+$result = sqrt($value) + sin($angle * 3.14159 / 180);
+$total = $hash{$key} * $config{'multiplier'} + $defaults{rate};
+$message = "Hello $name, your score is $score";
+$result = $value << $positions;
+$value <<= $positions;
+($first, $second, @rest) = split /,/, $csv_line;
+$and_result = $a && $b;
+$flag &&= $condition;
+$not_result = !$condition;
+$or_result = $x || $y;
+$value ||= $default;
+$result = ($a > 0) && ($b < 100) || ($c == 0);
+$result = $objectmethod($arg) + $othercalculate($x, $y);
+$result = ($num == 42) && ($str eq 'hello');
+$result = ($str . '_' . $num) eq ($prefix . ($count + 1));
+$result = $a and $b || $c && $d or $e;
+$total %= $modulus;
+$remainder = $dividend % $divisor;
+($a, $b, $c) = ($x, $y, $z);
+$total *= $multiplier;
+$grade = $score >= 90 ? 'A' : $score >= 80 ? 'B' : $score >= 70 ? 'C' : 'F';
+$equal = $a == $b;
+$greater_eq = $a >= $b;
+$greater = $a > $b;
+$not_equal = $a != $b;
+$less_eq = $a <= $b;
+$less = $a < $b;
+$result = 42 + 3.14 + 1e5 + 0xFF;
+$cmp_result = $a <=> $b;
+$result = ($a + $b) * ($c - $d) / ($e || 1);
+$result = $array[$counter++] + $hash{$key++};
+$result = --$counter * ++$multiplier;
+$in_range = ($min <= $value) && ($value <= $max);
+@numbers = ($start .. $end);
+$same_ref = $ref1 == $ref2;
+$sum = ${$scalar_ref} + @{$array_ref} + keys %{$hash_ref};
+$valid = ($input =~ /\d/) && ($email =~ /@\.\w/);
+$result = $value >> $positions;
+$value >>= $positions;
+@subset = @array[$start .. $end];
+$cmp_result = $left cmp $right;
+$combined = $first . $second;
+$message .= $suffix;
+$equal = $left eq $right;
+$greater_eq = $left ge $right;
+$greater = $left gt $right;
+$not_equal = $left ne $right;
+$less_eq = $left le $right;
+$less = $left lt $right;
+$result = 'single' . "double" . `backtick` . qq{quoted};
+$repeated = $string x $count;
+$pattern x= $count;
+$total -= $decrement;
+$result = $condition ? $true_value : $false_value;
+$result = -$value;
+$result = +$value;
+$and_result = $a and $b;
+$not_result = not $condition;
+$or_result = $x or $y;
+```
+
+## Typed Perl Output
+
+```perl
+$total += $increment;
+$value = $array[$index + 1] + $matrix[$row][$col];
+$result = $a + $b;
+$var = $value;
+$result = $a / $b;
+$result = $a * $b;
+$result = $a - $b;
+$bit_cleared = $flags & ~(1 << $bit_number);
+$bit_set = $flags | (1 << $bit_number);
+$bit_toggled = $flags ^ (1 << $bit_number);
+$result = $a & $b;
+$flags &= $mask;
+$result = ~$value;
+$result = $a | $b;
+$flags |= $bits;
+$result = $a | $b & $c ^ $d;
+$masked = $value & 0xFF00;
+$result = $a ^ $b;
+$flags ^= $toggle;
+$a = $b = $c = $value;
+$ordered = $a < $b && $b < $c && $c < $d;
+$valid = $a && $b && $c && $d;
+$result = ($operation1, $operation2, $final_value);
+$check = $value > 0 && $count <= 100 && $name ne '';
+$result = $a + $b * $c / $d - $e % $f;
+$flags = ($a & $mask) | ($b << 4) | (~$c & 0xFF);
+$result = ($a && $b) || ($c && !$d) || $e;
+$result = ($prefix . $name) x 3 . $suffix;
+$value = $input || $default_value;
+$result = ((($a + $b) * ($c - $d)) / (($e + $f) || 1));
+$result = $value // $default;
+$value //= $default;
+$total /= $divisor;
+$power = $base ** $exponent;
+$total **= $exponent;
+$result = sqrt($value) + sin($angle * 3.14159 / 180);
+$total = $hash{$key} * $config{'multiplier'} + $defaults{rate};
+$message = "Hello $name, your score is $score";
+$result = $value << $positions;
+$value <<= $positions;
+($first, $second, @rest) = split /,/, $csv_line;
+$and_result = $a && $b;
+$flag &&= $condition;
+$not_result = !$condition;
+$or_result = $x || $y;
+$value ||= $default;
+$result = ($a > 0) && ($b < 100) || ($c == 0);
+$result = $object->method($arg) + $other->calculate($x, $y);
+$result = ($num == 42) && ($str eq 'hello');
+$result = ($str . '_' . $num) eq ($prefix . ($count + 1));
+$result = $a and $b || $c && $d or $e;
+$total %= $modulus;
+$remainder = $dividend % $divisor;
+($a, $b, $c) = ($x, $y, $z);
+$total *= $multiplier;
+$grade = $score >= 90 ? 'A' : $score >= 80 ? 'B' : $score >= 70 ? 'C' : 'F';
+$equal = $a == $b;
+$greater_eq = $a >= $b;
+$greater = $a > $b;
+$not_equal = $a != $b;
+$less_eq = $a <= $b;
+$less = $a < $b;
+$result = 42 + 3.14 + 1e5 + 0xFF;
+$cmp_result = $a <=> $b;
+$result = ($a + $b) * ($c - $d) / ($e || 1);
+$result = $array[$counter++] + $hash{$key++};
+$result = --$counter * ++$multiplier;
+$in_range = ($min <= $value) && ($value <= $max);
+@numbers = ($start .. $end);
+$same_ref = $ref1 == $ref2;
+$sum = ${$scalar_ref} + @{$array_ref} + keys %{$hash_ref};
+$valid = ($input =~ /^\d+$/) && ($email =~ /@\w+\.\w+$/);
+$result = $value >> $positions;
+$value >>= $positions;
+@subset = @array[$start .. $end];
+$cmp_result = $left cmp $right;
+$combined = $first . $second;
+$message .= $suffix;
+$equal = $left eq $right;
+$greater_eq = $left ge $right;
+$greater = $left gt $right;
+$not_equal = $left ne $right;
+$less_eq = $left le $right;
+$less = $left lt $right;
+$result = 'single' . "double" . `backtick` . qq{quoted};
+$repeated = $string x $count;
+$pattern x= $count;
+$total -= $decrement;
+$result = $condition ? $true_value : $false_value;
+$result = -$value;
+$result = +$value;
+$and_result = $a and $b;
+$not_result = not $condition;
+$or_result = $x or $y;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```

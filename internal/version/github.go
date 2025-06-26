@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 )
 
 // GitHubRelease represents a GitHub release
 type GitHubRelease struct {
+	ID          int64         `json:"id"`
 	TagName     string        `json:"tag_name"`
 	Name        string        `json:"name"`
 	Body        string        `json:"body"`
@@ -208,4 +211,110 @@ func (g *GitHubClient) GetReleases(owner, repo string, includePrerelease bool) (
 	}
 
 	return releases, nil
+}
+
+// CreateRelease creates a new GitHub release
+func (g *GitHubClient) CreateRelease(owner, repo, tag, name, body string, draft, prerelease bool) (*GitHubRelease, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/releases", g.baseURL, owner, repo)
+
+	// Prepare release data
+	releaseData := map[string]interface{}{
+		"tag_name":   tag,
+		"name":       name,
+		"body":       body,
+		"draft":      draft,
+		"prerelease": prerelease,
+	}
+
+	jsonData, err := json.Marshal(releaseData)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling release data: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	if g.token != "" {
+		req.Header.Set("Authorization", "token "+g.token)
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("making request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnprocessableEntity {
+		// Release may already exist, try to get it
+		existing, err := g.GetReleaseByTag(owner, repo, tag)
+		if err == nil {
+			return existing, nil
+		}
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var release GitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	return &release, nil
+}
+
+// UploadReleaseAsset uploads a file as an asset to a GitHub release
+func (g *GitHubClient) UploadReleaseAsset(owner, repo string, releaseID int64, filePath, fileName string) (*GitHubAsset, error) {
+	// Read the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("opening file: %w", err)
+	}
+	defer file.Close()
+
+	// Get file info for size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("getting file info: %w", err)
+	}
+
+	// Construct upload URL
+	uploadURL := fmt.Sprintf("https://uploads.github.com/repos/%s/%s/releases/%d/assets", owner, repo, releaseID)
+	uploadURL += "?name=" + url.QueryEscape(fileName)
+
+	req, err := http.NewRequest("POST", uploadURL, file)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	if g.token != "" {
+		req.Header.Set("Authorization", "token "+g.token)
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/gzip")
+	req.ContentLength = fileInfo.Size()
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("making request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var asset GitHubAsset
+	if err := json.NewDecoder(resp.Body).Decode(&asset); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	return &asset, nil
 }

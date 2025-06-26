@@ -1,0 +1,263 @@
+---
+category: typed-perl
+subcategory: classes-roles
+tags:
+    - comprehensive
+    - multiple-inheritance
+    - multiple-roles
+    - generic-classes
+    - BUILD-method
+    - DESTROY-method
+    - complex-inheritance
+    - interface-implementation
+    - lifecycle-management
+type_check: true
+---
+
+# All Features Combined
+<!-- should_error: true -->
+<!-- expected_error: error[TSP001] -->
+
+Complex example combining all class and role features
+
+```perl
+# Type definitions
+type UserId = Int where { $_ > 0 };
+type Result<T, E> = Success<T> | Failure<E>;
+
+# Generic role with constraints
+role Repository<T, K> where T: Serializable, K: Hashable {
+    method find(K $key) returns Optional[T];
+    method save(T $entity) returns Result<K, SaveError>;
+    method delete(K $key) returns Result<Bool, DeleteError>;
+}
+
+# Role with provided implementations
+role Auditable {
+    field Optional[DateTime] $created_at;
+    field Optional[DateTime] $updated_at;
+
+    method touch() returns Void {
+        $updated_at = DateTime->now();
+    }
+
+    method mark_created() returns Void {
+        $created_at = DateTime->now();
+        $updated_at = $created_at;
+    }
+}
+
+# Complex class with all features
+class UserRepository<T> : BaseRepository<T, UserId>
+    does Repository<T, UserId>, Auditable, Cacheable<UserId>
+    where T: User&Serializable {
+
+    field private HashRef[UserId, T] $cache = {};
+    field protected CodeRef[UserId, Optional[T]] $loader;
+    field public Int $cache_size = 1000;
+    field readonly Str $table_name;
+
+    method BUILD(
+        CodeRef[UserId, Optional[T]] $loader,
+        :$table_name as Str = 'users',
+        :$cache_size as Int = 1000
+    ) returns Void where $cache_size > 0 {
+        $self->{loader} = $loader;
+        $self->{table_name} = $table_name;
+        $self->{cache_size} = $cache_size;
+        $self->mark_created();
+    }
+
+    method find(UserId $id) returns Optional[T] {
+        # Check cache first
+        return $cache->{$id} if exists $cache->{$id};
+
+        # Load from source
+        my $user = $loader->($id);
+        return undef unless defined $user;
+
+        # Cache if room
+        if (keys %{$cache} < $cache_size) {
+            $cache->{$id} = $user;
+        }
+
+        return $user;
+    }
+
+    method save(T $user) returns Result<UserId, SaveError> {
+        # Validate user
+        return Failure->new(SaveError->new('Invalid user'))
+            unless $user->is_valid();
+
+        # Save to storage
+        my $id = $user->get_id();
+        # ... actual save logic ...
+
+        # Update cache
+        $cache->{$id} = $user;
+        $self->touch();
+
+        return Success->new($id);
+    }
+
+    method delete(UserId $id) returns Result<Bool, DeleteError> {
+        # Remove from cache
+        delete $cache->{$id};
+
+        # Delete from storage
+        # ... actual delete logic ...
+
+        $self->touch();
+        return Success->new(1);
+    }
+
+    method cache_key() returns UserId {
+        return UserId->new($table_name . '_cache');
+    }
+
+    method clear_cache() returns Void {
+        %{$cache} = ();
+    }
+
+    method get_cache_stats() returns HashRef[Str, Int] {
+        return {
+            size => scalar keys %{$cache},
+            max_size => $cache_size,
+            hit_rate => $self->calculate_hit_rate()
+        };
+    }
+}
+```
+
+# Expected Parse Error
+
+This comprehensive test case is expected to fail parsing due to multiple unsupported syntax features:
+- Type definitions with constraints: `type UserId = Int where { $_ > 0 }`
+- Union types: `Success<T> | Failure<E>`
+- Multiple type constraints: `T: Serializable, K: Hashable`
+- Intersection types: `T: User&Serializable`
+- Named parameters: `:$table_name as Str`
+- Method constraints: `where $cache_size > 0`
+
+The parser correctly rejects this advanced syntax.
+
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+# Compilation failed: Error: failed to parse file /tmp/tmpgabtjb_y.pl: SYS-007: error[TSP001]: parse error (4 ERROR nodes detected)
+  --> :2:2
+   |
+ 2 | type UserId = Int where { $_ > 0 };
+   |  ^ unexpected token: ''
+
+  --> :7:17
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                 ^^^^^^^^^^^^^^ unexpected token: ''
+
+  --> :7:45
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                                             ^ unexpected token: ''
+
+  --> :65:59
+   |
+65 |         # Validate user
+   |                                                           ^ unexpected token: ''
+
+note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
+      Please add test cases for this syntax to improve parser coverage.
+ (System Error)
+2025-06-25T05:32:39Z [ERROR] [psc] Error: failed to parse file /tmp/tmpgabtjb_y.pl: SYS-007: error[TSP001]: parse error (4 ERROR nodes detected)
+  --> :2:2
+   |
+ 2 | type UserId = Int where { $_ > 0 };
+   |  ^ unexpected token: ''
+
+  --> :7:17
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                 ^^^^^^^^^^^^^^ unexpected token: ''
+
+  --> :7:45
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                                             ^ unexpected token: ''
+
+  --> :65:59
+   |
+65 |         # Validate user
+   |                                                           ^ unexpected token: ''
+
+note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
+      Please add test cases for this syntax to improve parser coverage.
+ (System Error)
+```
+
+## Typed Perl Output
+
+```perl
+# Compilation failed: Error: failed to parse file /tmp/tmpgabtjb_y.pl: SYS-007: error[TSP001]: parse error (4 ERROR nodes detected)
+  --> :2:2
+   |
+ 2 | type UserId = Int where { $_ > 0 };
+   |  ^ unexpected token: ''
+
+  --> :7:17
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                 ^^^^^^^^^^^^^^ unexpected token: ''
+
+  --> :7:45
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                                             ^ unexpected token: ''
+
+  --> :65:59
+   |
+65 |         # Validate user
+   |                                                           ^ unexpected token: ''
+
+note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
+      Please add test cases for this syntax to improve parser coverage.
+ (System Error)
+2025-06-25T05:32:39Z [ERROR] [psc] Error: failed to parse file /tmp/tmpgabtjb_y.pl: SYS-007: error[TSP001]: parse error (4 ERROR nodes detected)
+  --> :2:2
+   |
+ 2 | type UserId = Int where { $_ > 0 };
+   |  ^ unexpected token: ''
+
+  --> :7:17
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                 ^^^^^^^^^^^^^^ unexpected token: ''
+
+  --> :7:45
+   |
+ 7 |     method find(K $key) returns Optional[T];
+   |                                             ^ unexpected token: ''
+
+  --> :65:59
+   |
+65 |         # Validate user
+   |                                                           ^ unexpected token: ''
+
+note: This indicates Perl syntax that is not yet supported by the tree-sitter grammar.
+      Please add test cases for this syntax to improve parser coverage.
+ (System Error)
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```
+
+# Expected Type Errors
+
+```
+Parse error: unsupported syntax for advanced type system features
+```

@@ -34,7 +34,7 @@ func (c *ASTCompiler) Target() Target {
 }
 
 // Validate checks if the AST is suitable for compilation
-func (c *ASTCompiler) Validate(ast *ast.AST) error {
+func (c *ASTCompiler) Validate(ast AST) error {
 	if ast == nil {
 		return NewCompilerError(ErrInvalidAST, "AST cannot be nil")
 	}
@@ -42,7 +42,7 @@ func (c *ASTCompiler) Validate(ast *ast.AST) error {
 }
 
 // Compile converts an AST to clean Perl code using AST traversal
-func (c *ASTCompiler) Compile(ast *ast.AST) (string, error) {
+func (c *ASTCompiler) Compile(ast AST) (string, error) {
 	if err := c.Validate(ast); err != nil {
 		return "", err
 	}
@@ -90,7 +90,7 @@ func (c *ASTCompiler) SetOptions(options *CompilerOptions) {
 }
 
 // getRootNode extracts the root node from the AST
-func (c *ASTCompiler) getRootNode(inputAST *ast.AST) (ast.Node, error) {
+func (c *ASTCompiler) getRootNode(inputAST AST) (ast.Node, error) {
 	// Use the AST method to get the root node directly
 	return inputAST.GetRootNode()
 }

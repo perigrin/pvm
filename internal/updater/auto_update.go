@@ -76,7 +76,7 @@ func DefaultAutoUpdateConfig() *AutoUpdateConfig {
 		CheckInterval:     24 * time.Hour, // Check daily
 		Channel:           ChannelStable,
 		NotificationDelay: 4 * time.Hour, // Wait 4 hours between notifications
-		Repository:        "perigrin/pvm-dev",
+		Repository:        "perigrin/pvm",
 		QuietMode:         false,
 		AutoInstall:       false,
 		InstallationTime: AutoInstallSchedule{

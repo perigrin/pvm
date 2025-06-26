@@ -895,3 +895,635 @@ while (my $line = <$fh>) {
     process($line);
 }
 ```
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+{
+ my $x = calculate();
+ last if $x > 100;
+ process($x);
+}
+if ($condition) { do_something(); }
+until ($done) { continue_processing(); }
+while ($condition) { process(); }
+if (($a > 0) && ($b < 100) || ($c == $d)) { complex_action(); }
+foreach my $batch (@batches) { foreach my $item (@{$batch}) {
+        next if $item->{skip};
+        my $result = process($item);
+        if ($result->{error}) {
+            log_error($result->{error});
+            next;
+        }
+        last if $result->{complete};
+    } }
+if (my $result = function_call()) { process($result); }
+if ($error) { return $error_value; }
+return $success_value;
+while ($condition) { process(); } continue { cleanup(); update_condition(); }
+sub coroutine { my $state = shift; DISPATCH: {
+        $state eq 'init' and do {
+            initialize_data();
+            $state = 'process';
+            redo DISPATCH;
+        };
+
+        $state eq 'process' and do {
+            return process_next() || 'done';
+        };
+
+        $state eq 'done' and do {
+            cleanup();
+            return undef;
+        };
+    } }
+while (my $event = get_next_event()) { given ($event->{type}) {
+        when ('timer') {
+            handle_timer($event);
+            continue;
+        }
+        when ('input') {
+            unless (validate_input($event)) {
+                log_invalid_input($event);
+                next;
+            }
+            process_input($event);
+        }
+        when ('shutdown') {
+            cleanup_and_exit();
+            last;
+        }
+        default {
+            log_unknown_event($event);
+        }
+    } }
+eval { risky_operation(); 1; } or do { my $error = $@ || 'Unknown error'; handle_error($error); };
+for (my $i = 0; $i < $max; $i++) { handle($i); }
+for my $item (qw(apple banana cherry)) { print "$item\n"; }
+for my $i (0..$max) { handle($i); }
+foreach my $item (@items) { process($item); } continue { log_progress(); }
+foreach my $item (@list) { process($item); }
+foreach my $key (keys %hash) { process($key, $hash{$key}); }
+foreach (@items) { process($_); }
+given ($option) { when ('verbose') { $verbose = 1; } when ('quiet') { $quiet = 1; } when ('debug') { $debug = 1; } }
+given ($day) { when ([qw(sat sun)]) { print "weekend"; } when ([qw(mon tue wed thu fri)]) { print "weekday"; } }
+given ($value) { when (1) { print "one"; } when (2) { print "two"; } default { print "other"; } }
+given ($record) { when ($_->{type} eq 'user' && $_->{active}) {
+        process_active_user($_);
+    } when ($_->{type} eq 'admin') {
+        process_admin($_);
+    } default { process_unknown($_); } }
+given ($type) { when ('user') {
+        given ($action) {
+            when ('create') { create_user(); }
+            when ('delete') { delete_user(); }
+            default { invalid_action(); }
+        }
+    } when ('admin') { admin_action(); } }
+given ($score) { when (90..100) { print "A"; } when (80..89)  { print "B"; } when (70..79)  { print "C"; } default        { print "F"; } }
+given ($input) { when (/^\d+$/) { print "number"; } when (/^[a-zA-Z]+$/) { print "letters"; } when (/^\s*$/) { print "empty"; } default { print "mixed"; } }
+if ($condition) { do_something(); } elsif ($other) { do_other(); } else { do_default(); }
+while (1) { handle_request(); last if $shutdown; }
+my $iterator = sub {
+    state @items = (1..10);
+    state $index = 0;
+    return if $index >= @items;
+    return $items[$index++];
+};
+
+while (defined(my $item = $iterator->())) { process($item); }
+: foreach my $item (@items) { foreach my $prop (@properties) {
+        if ($item->{$prop} eq $target) {
+            $found = $item;
+            last SEARCH;
+        }
+    } }
+: for my $i (1..10) { for my $j (1..10) {
+        next OUTER if ($i * $j > 50);
+        print "$i x $j = ", $i * $j, "\n";
+    } }
+: while ($attempts < $max_attempts) { my $result = try_operation(); if ($result eq 'retry') {
+        $attempts++;
+        redo RETRY;
+    } return $result; }
+foreach my $item (@list) { process($item); last if stop_condition($item); }
+my $result = do {
+    for my $item (@items) {
+        if ($item->{target}) {
+            last $item->{value};
+        }
+    }
+    'default';
+};
+foreach my $file (glob("*.txt")) { process_file($file); }
+if ($a) { first(); } elsif ($b) { second(); } elsif ($c) { third(); } else { default(); }
+if ($outer) { if ($inner) {
+        nested_action();
+    } else {
+        inner_else();
+    } } else { outer_else(); }
+for my $outer (@outer_list) { foreach my $inner (@{$outer->{items}}) {
+        if ($inner->{valid}) {
+            process($inner);
+        }
+    } }
+if ($enabled) { foreach my $item (@items) {
+        if ($item->{process}) {
+            while (my $data = $item->next()) {
+                last if process_data($data);
+            }
+        }
+    } }
+foreach my $item (@list) { next if skip_condition($item); process($item); }
+for my $file (@files) { next unless -f $file; process_file($file); }
+my @workers = ();
+for my $i (1..$num_workers) { push @workers, {
+        id => $i,
+        status => 'idle',
+        task => undef
+    } }
+
+while (@tasks || grep { $_->{status} eq 'busy'; } @workers) { foreach my $worker (@workers) {
+        if ($worker->{status} eq 'idle' && @tasks) {
+            $worker->{task} = shift @tasks;
+            $worker->{status} = 'busy';
+        } elsif ($worker->{status} eq 'busy') {
+            if (task_complete($worker->{task})) {
+                finish_task($worker->{task});
+                $worker->{status} = 'idle';
+                $worker->{task} = undef;
+            }
+        }
+    } sleep(0.1); # simulate time passage; }
+foreach my $input (@inputs) { my $result = $input; STAGE: foreach my $stage (@pipeline) {
+        eval {
+            $result = $stage->process($result);
+        };
+        if ($@) {
+            log_error("Stage failed: $@");
+            next STAGE if $stage->{optional};
+            last STAGE;
+        }
+    } push @outputs, $result if defined $result; }
+do_something() if $condition;
+execute() unless $skip;
+do { attempt(); } until ($success);
+do { process(); } while ($continue);
+sub process_tree { my ($node, $depth) = @_; return if $depth > $max_depth; if ($node->{type} eq 'leaf') {
+        process_leaf($node);
+    } else {
+        foreach my $child (@{$node->{children}}) {
+            process_tree($child, $depth + 1);
+        }
+    } }
+while ($condition) { my $input = get_input(); redo if invalid($input); process($input); }
+if ($condition) { single_statement(); }
+if ($value ~~ @valid_values) { process($value); } elsif ($value ~~ /pattern/) { handle_pattern($value); }
+my $state = 'start';
+while (1) { given ($state) {
+        when ('start') {
+            initialize();
+            $state = 'process';
+        }
+        when ('process') {
+            if (process_item()) {
+                $state = 'finish';
+            } else {
+                $state = 'error';
+            }
+        }
+        when ('error') {
+            handle_error();
+            $state = 'start';
+        }
+        when ('finish') {
+            finalize();
+            last;
+        }
+    } }
+{
+ local $@;
+ eval { dangerous_operation(); };
+ if ($@) { handle_exception($@); } else { success_handler(); }
+ # cleanup always runs
+ cleanup();
+}
+unless ($condition) { when_false(); } else { when_true(); }
+unless ($negative_condition) { execute(); }
+given ($status) { when ('active') {
+        process_active();
+        break;
+    } when ('inactive') { process_inactive(); } default { handle_unknown(); } }
+given ($value) { when ($_ > 0) {
+        print "positive";
+        continue;
+    } when ($_ % 2 == 0) { print "even"; } when ($_ % 2 == 1) { print "odd"; } }
+while (my $line = <$fh>) { chomp $line; process($line); }
+```
+
+## Typed Perl Output
+
+```perl
+{
+    my $x = calculate();
+    last if $x > 100;
+    process($x);
+}
+if ($condition) {
+    do_something();
+}
+until ($done) {
+    continue_processing();
+}
+while ($condition) {
+    process();
+}
+if (($a > 0) && ($b < 100) || ($c == $d)) {
+    complex_action();
+}
+foreach my $batch (@batches) {
+    foreach my $item (@{$batch}) {
+        next if $item->{skip};
+        my $result = process($item);
+        if ($result->{error}) {
+            log_error($result->{error});
+            next;
+        }
+        last if $result->{complete};
+    }
+}
+if (my $result = function_call()) {
+    process($result);
+}
+if ($error) {
+    return $error_value;
+}
+return $success_value;
+while ($condition) {
+    process();
+} continue {
+    cleanup();
+    update_condition();
+}
+sub coroutine {
+    my $state = shift;
+
+    DISPATCH: {
+        $state eq 'init' and do {
+            initialize_data();
+            $state = 'process';
+            redo DISPATCH;
+        };
+
+        $state eq 'process' and do {
+            return process_next() || 'done';
+        };
+
+        $state eq 'done' and do {
+            cleanup();
+            return undef;
+        };
+    }
+}
+while (my $event = get_next_event()) {
+    given ($event->{type}) {
+        when ('timer') {
+            handle_timer($event);
+            continue;
+        }
+        when ('input') {
+            unless (validate_input($event)) {
+                log_invalid_input($event);
+                next;
+            }
+            process_input($event);
+        }
+        when ('shutdown') {
+            cleanup_and_exit();
+            last;
+        }
+        default {
+            log_unknown_event($event);
+        }
+    }
+}
+eval {
+    risky_operation();
+    1;
+} or do {
+    my $error = $@ || 'Unknown error';
+    handle_error($error);
+};
+for (my $i = 0; $i < $max; $i++) {
+    handle($i);
+}
+for my $item (qw(apple banana cherry)) {
+    print "$item\n";
+}
+for my $i (0..$max) {
+    handle($i);
+}
+foreach my $item (@items) {
+    process($item);
+} continue {
+    log_progress();
+}
+foreach my $item (@list) {
+    process($item);
+}
+foreach my $key (keys %hash) {
+    process($key, $hash{$key});
+}
+foreach (@items) {
+    process($_);
+}
+given ($option) {
+    when ('verbose') { $verbose = 1; }
+    when ('quiet') { $quiet = 1; }
+    when ('debug') { $debug = 1; }
+}
+given ($day) {
+    when ([qw(sat sun)]) { print "weekend"; }
+    when ([qw(mon tue wed thu fri)]) { print "weekday"; }
+}
+given ($value) {
+    when (1) { print "one"; }
+    when (2) { print "two"; }
+    default { print "other"; }
+}
+given ($record) {
+    when ($_->{type} eq 'user' && $_->{active}) {
+        process_active_user($_);
+    }
+    when ($_->{type} eq 'admin') {
+        process_admin($_);
+    }
+    default { process_unknown($_); }
+}
+given ($type) {
+    when ('user') {
+        given ($action) {
+            when ('create') { create_user(); }
+            when ('delete') { delete_user(); }
+            default { invalid_action(); }
+        }
+    }
+    when ('admin') { admin_action(); }
+}
+given ($score) {
+    when (90..100) { print "A"; }
+    when (80..89)  { print "B"; }
+    when (70..79)  { print "C"; }
+    default        { print "F"; }
+}
+given ($input) {
+    when (/^\d+$/) { print "number"; }
+    when (/^[a-zA-Z]+$/) { print "letters"; }
+    when (/^\s*$/) { print "empty"; }
+    default { print "mixed"; }
+}
+if ($condition) {
+    do_something();
+} elsif ($other) {
+    do_other();
+} else {
+    do_default();
+}
+while (1) {
+    handle_request();
+    last if $shutdown;
+}
+my $iterator = sub {
+    state @items = (1..10);
+    state $index = 0;
+    return if $index >= @items;
+    return $items[$index++];
+};
+
+while (defined(my $item = $iterator->())) {
+    process($item);
+}
+SEARCH: foreach my $item (@items) {
+    foreach my $prop (@properties) {
+        if ($item->{$prop} eq $target) {
+            $found = $item;
+            last SEARCH;
+        }
+    }
+}
+OUTER: for my $i (1..10) {
+    for my $j (1..10) {
+        next OUTER if ($i * $j > 50);
+        print "$i x $j = ", $i * $j, "\n";
+    }
+}
+RETRY: while ($attempts < $max_attempts) {
+    my $result = try_operation();
+    if ($result eq 'retry') {
+        $attempts++;
+        redo RETRY;
+    }
+    return $result;
+}
+foreach my $item (@list) {
+    process($item);
+    last if stop_condition($item);
+}
+my $result = do {
+    for my $item (@items) {
+        if ($item->{target}) {
+            last $item->{value};
+        }
+    }
+    'default';
+};
+foreach my $file (glob("*.txt")) {
+    process_file($file);
+}
+if ($a) {
+    first();
+} elsif ($b) {
+    second();
+} elsif ($c) {
+    third();
+} else {
+    default();
+}
+if ($outer) {
+    if ($inner) {
+        nested_action();
+    } else {
+        inner_else();
+    }
+} else {
+    outer_else();
+}
+for my $outer (@outer_list) {
+    foreach my $inner (@{$outer->{items}}) {
+        if ($inner->{valid}) {
+            process($inner);
+        }
+    }
+}
+if ($enabled) {
+    foreach my $item (@items) {
+        if ($item->{process}) {
+            while (my $data = $item->next()) {
+                last if process_data($data);
+            }
+        }
+    }
+}
+foreach my $item (@list) {
+    next if skip_condition($item);
+    process($item);
+}
+for my $file (@files) {
+    next unless -f $file;
+    process_file($file);
+}
+my @workers = ();
+for my $i (1..$num_workers) {
+    push @workers, {
+        id => $i,
+        status => 'idle',
+        task => undef
+    };
+}
+
+while (@tasks || grep { $_->{status} eq 'busy' } @workers) {
+    foreach my $worker (@workers) {
+        if ($worker->{status} eq 'idle' && @tasks) {
+            $worker->{task} = shift @tasks;
+            $worker->{status} = 'busy';
+        } elsif ($worker->{status} eq 'busy') {
+            if (task_complete($worker->{task})) {
+                finish_task($worker->{task});
+                $worker->{status} = 'idle';
+                $worker->{task} = undef;
+            }
+        }
+    }
+    sleep(0.1); # simulate time passage
+}
+foreach my $input (@inputs) {
+    my $result = $input;
+
+    STAGE: foreach my $stage (@pipeline) {
+        eval {
+            $result = $stage->process($result);
+        };
+        if ($@) {
+            log_error("Stage failed: $@");
+            next STAGE if $stage->{optional};
+            last STAGE;
+        }
+    }
+
+    push @outputs, $result if defined $result;
+}
+do_something() if $condition;
+execute() unless $skip;
+do {
+    attempt();
+} until ($success);
+do {
+    process();
+} while ($continue);
+sub process_tree {
+    my ($node, $depth) = @_;
+    return if $depth > $max_depth;
+
+    if ($node->{type} eq 'leaf') {
+        process_leaf($node);
+    } else {
+        foreach my $child (@{$node->{children}}) {
+            process_tree($child, $depth + 1);
+        }
+    }
+}
+while ($condition) {
+    my $input = get_input();
+    redo if invalid($input);
+    process($input);
+}
+if ($condition) { single_statement(); }
+if ($value ~~ @valid_values) {
+    process($value);
+} elsif ($value ~~ /pattern/) {
+    handle_pattern($value);
+}
+my $state = 'start';
+while (1) {
+    given ($state) {
+        when ('start') {
+            initialize();
+            $state = 'process';
+        }
+        when ('process') {
+            if (process_item()) {
+                $state = 'finish';
+            } else {
+                $state = 'error';
+            }
+        }
+        when ('error') {
+            handle_error();
+            $state = 'start';
+        }
+        when ('finish') {
+            finalize();
+            last;
+        }
+    }
+}
+{
+    local $@;
+    eval {
+        dangerous_operation();
+    };
+    if ($@) {
+        handle_exception($@);
+    } else {
+        success_handler();
+    }
+    # cleanup always runs
+    cleanup();
+}
+unless ($condition) {
+    when_false();
+} else {
+    when_true();
+}
+unless ($negative_condition) {
+    execute();
+}
+given ($status) {
+    when ('active') {
+        process_active();
+        break;
+    }
+    when ('inactive') { process_inactive(); }
+    default { handle_unknown(); }
+}
+given ($value) {
+    when ($_ > 0) {
+        print "positive";
+        continue;
+    }
+    when ($_ % 2 == 0) { print "even"; }
+    when ($_ % 2 == 1) { print "odd"; }
+}
+while (my $line = <$fh>) {
+    chomp $line;
+    process($line);
+}
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```

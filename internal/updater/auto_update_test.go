@@ -27,8 +27,8 @@ func TestDefaultAutoUpdateConfig(t *testing.T) {
 		t.Errorf("Expected stable channel by default, got %v", config.Channel)
 	}
 
-	if config.Repository != "perigrin/pvm-dev" {
-		t.Errorf("Expected repository perigrin/pvm-dev, got %s", config.Repository)
+	if config.Repository != "perigrin/pvm" {
+		t.Errorf("Expected repository perigrin/pvm, got %s", config.Repository)
 	}
 
 	if config.AutoInstall {
