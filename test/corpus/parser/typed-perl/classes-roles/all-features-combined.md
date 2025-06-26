@@ -16,7 +16,7 @@ type_check: true
 
 # All Features Combined
 <!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
+<!-- expected_error: error[TSP001] -->
 
 Complex example combining all class and role features
 

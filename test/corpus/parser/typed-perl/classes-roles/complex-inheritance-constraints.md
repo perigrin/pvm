@@ -11,7 +11,7 @@ type_check: true
 
 # Complex Inheritance Constraints
 <!-- should_error: true -->
-<!-- expected_error: UnknownTypeError -->
+<!-- expected_error: error[TSP001] -->
 
 Complex inheritance with multiple type constraints and method constraints
 
