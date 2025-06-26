@@ -92,10 +92,7 @@ type ParserTestFramework struct {
 	TestDataDir string
 	UpdateMode  bool
 	Verbose     bool
-	Parser      interface {
-		ParseString(string) (*ast.AST, error)
-		ParseFile(string) (*ast.AST, error)
-	}
+	Parser      Parser
 	TypeChecker ASTTypeChecker
 }
 
@@ -534,43 +531,53 @@ func (f *ParserTestFramework) SaveTestCase(testCase *ParserTestCase, filePath st
 	return nil
 }
 
-// RunTestCase executes a single test case and returns the result
-func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase) bool {
+// RunTestCase executes a single test case
+func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase) {
 	t.Helper()
 
-	if f.Parser == nil {
-		t.Errorf("No parser configured for test framework")
-		return false
+	// For parallel tests, use the parser pool to avoid thread safety issues
+	// For non-parallel tests, fall back to the framework's parser
+	var parser Parser
+
+	// Check if we're running in parallel mode by attempting to get a parser from pool
+	if poolParser := GlobalParserPool.Get(); poolParser != nil {
+		parser = poolParser
+		defer GlobalParserPool.Put(parser)
+	} else if f.Parser != nil {
+		parser = f.Parser
+	} else {
+		t.Errorf("No parser available for test framework")
+		return
 	}
 
 	startTime := time.Now()
-	ast, err := f.Parser.ParseString(testCase.Input)
+	ast, err := parser.ParseString(testCase.Input)
 	parseTime := time.Since(startTime)
 
 	if testCase.ShouldError {
 		if err == nil {
 			t.Errorf("Test %s: Expected error but parsing succeeded", testCase.Name)
-			return false
+			return
 		}
 		if testCase.ErrorType != "" && !strings.Contains(err.Error(), testCase.ErrorType) {
 			t.Errorf("Test %s: Expected error type '%s' but got: %v",
 				testCase.Name, testCase.ErrorType, err)
-			return false
+			return
 		}
 		if f.Verbose {
 			t.Logf("Test %s: Successfully caught expected error: %v", testCase.Name, err)
 		}
-		return true
+		return
 	}
 
 	if err != nil {
 		t.Errorf("Test %s: Unexpected parsing error: %v", testCase.Name, err)
-		return false
+		return
 	}
 
 	if ast == nil {
 		t.Errorf("Test %s: Parser returned nil AST", testCase.Name)
-		return false
+		return
 	}
 
 	// Debug: log what we got from the parser
@@ -586,39 +593,27 @@ func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase
 
 	// If we have an expected AST, compare it
 	if testCase.ExpectedAST != nil {
-		if !f.CompareASTs(t, testCase.ExpectedAST, ast, testCase.Name) {
-			return false
-		}
+		f.CompareASTs(t, testCase.ExpectedAST, ast, testCase.Name)
 	}
 
 	// Validate AST structure is reasonable
-	if !f.ValidateAST(t, ast, testCase.Name, testCase.Input) {
-		return false
-	}
+	f.ValidateAST(t, ast, testCase.Name, testCase.Input)
 
 	// Compare expected AST before type inference
 	if testCase.ExpectedASTBeforeInfer != "" {
-		if !f.CompareASTString(t, testCase.ExpectedASTBeforeInfer, ast, testCase.Name, "before type inference") {
-			return false
-		}
+		f.CompareASTString(t, testCase.ExpectedASTBeforeInfer, ast, testCase.Name, "before type inference")
 	}
 
 	// TODO: Add type inference and compare after inference AST
 	if testCase.ExpectedASTAfterInfer != "" {
 		// For now, just compare against the same AST until type inference is implemented
-		if !f.CompareASTString(t, testCase.ExpectedASTAfterInfer, ast, testCase.Name, "after type inference") {
-			return false
-		}
+		f.CompareASTString(t, testCase.ExpectedASTAfterInfer, ast, testCase.Name, "after type inference")
 	}
 
 	// Run type checking if enabled
 	if testCase.TypeCheck {
-		if !f.RunTypeCheckValidation(t, testCase, ast) {
-			return false
-		}
+		f.RunTypeCheckValidation(t, testCase, ast)
 	}
-
-	return true
 }
 
 // CompareASTs compares two AST structures for equivalence
@@ -789,56 +784,50 @@ func (f *ParserTestFramework) DiscoverTestCases() ([]*ParserTestCase, error) {
 	return allTestCases, err
 }
 
-// RunAllTests executes all discovered test cases and returns accuracy metrics
-func (f *ParserTestFramework) RunAllTests(t *testing.T) *AccuracyMetrics {
+// RunAllTests executes all discovered test cases with parallelization
+func (f *ParserTestFramework) RunAllTests(t *testing.T) {
 	testCases, err := f.DiscoverTestCases()
 	if err != nil {
 		t.Fatalf("Failed to discover test cases: %v", err)
 	}
 
-	metrics := &AccuracyMetrics{
-		CategoryMetrics: make(map[string]Metric),
-		FeatureMetrics:  make(map[string]Metric),
-	}
-
-	startTime := time.Now()
-
+	testCount := 0
 	for _, testCase := range testCases {
+		testCount++
+		testCase := testCase // capture loop variable for parallel execution
 		t.Run(testCase.Name, func(t *testing.T) {
-			success := f.RunTestCase(t, testCase)
-			f.updateMetrics(metrics, testCase, success)
+			t.Parallel() // Enable parallel execution of test cases
+			f.RunTestCase(t, testCase)
 		})
 	}
 
-	metrics.ParsingTime = time.Since(startTime)
-	f.calculateAccuracyPercentages(metrics)
-
-	return metrics
+	if testCount == 0 {
+		t.Error("No test cases found")
+	}
 }
 
 // RunTestsByCategory runs tests for a specific category
-func (f *ParserTestFramework) RunTestsByCategory(t *testing.T, category TestCategory) *AccuracyMetrics {
+func (f *ParserTestFramework) RunTestsByCategory(t *testing.T, category TestCategory) {
 	testCases, err := f.DiscoverTestCases()
 	if err != nil {
 		t.Fatalf("Failed to discover test cases: %v", err)
 	}
 
-	metrics := &AccuracyMetrics{
-		CategoryMetrics: make(map[string]Metric),
-		FeatureMetrics:  make(map[string]Metric),
-	}
-
+	testCount := 0
 	for _, testCase := range testCases {
 		if testCase.Category == category {
+			testCount++
+			testCase := testCase // capture loop variable for parallel execution
 			t.Run(testCase.Name, func(t *testing.T) {
-				success := f.RunTestCase(t, testCase)
-				f.updateMetrics(metrics, testCase, success)
+				t.Parallel() // Enable parallel execution of test cases
+				f.RunTestCase(t, testCase)
 			})
 		}
 	}
 
-	f.calculateAccuracyPercentages(metrics)
-	return metrics
+	if testCount == 0 {
+		t.Errorf("No test cases found for category %s", category)
+	}
 }
 
 // updateMetrics updates accuracy metrics based on test results

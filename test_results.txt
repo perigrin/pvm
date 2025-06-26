@@ -1,0 +1,78 @@
+Building tree-sitter-typed-perl parser...
+cd tree-sitter-typed-perl && make generate
+make[1]: Entering directory '/home/perigrin/dev/pvm/tree-sitter-typed-perl'
+make[1]: Nothing to be done for 'generate'.
+make[1]: Leaving directory '/home/perigrin/dev/pvm/tree-sitter-typed-perl'
+Tree-sitter-typed-perl build complete
+Installing development tools...
+go install golang.org/x/tools/cmd/stringer@latest
+go install github.com/matryer/moq@latest
+go install gotest.tools/gotestsum@latest
+go install honnef.co/go/tools/cmd/staticcheck@latest
+go install golang.org/x/vuln/cmd/govulncheck@latest
+go install golang.org/x/tools/cmd/godoc@latest
+Development tools installed successfully
+Running tests with 25 parallel workers...
+∅  cmd/pvi
+∅  cmd/psc (1ms)
+∅  cmd/pvm
+∅  cmd/pvx
+✓  cmd/release-manager (cached)
+✓  internal/astnav (cached)
+✓  internal/ast (cached)
+✓  internal/binder (cached)
+✓  internal/cli/ui (cached)
+✓  internal/cli/progress (cached)
+✓  internal/cli (cached)
+∅  internal/diagnostics
+✓  internal/core (cached)
+✓  internal/log (cached)
+✓  internal/download (cached)
+✓  internal/current (cached)
+✓  internal/errors (cached)
+✓  internal/dependencies (cached)
+✓  internal/inference (cached)
+✓  internal/cpan (cached)
+✓  internal/integration (cached)
+✓  internal/config (cached)
+✓  internal/ls (cached)
+✓  internal/lsp (cached)
+✓  internal/build (1.03s)
+✖  internal/compiler (1.843s)
+✓  internal/mcp/generation (cached)
+✓  internal/memory (cached)
+✓  internal/monitoring (cached)
+∅  internal/parallel
+✓  internal/mcp/validation (cached)
+✓  internal/modules (cached)
+✓  internal/mcp (cached)
+✓  internal/mcp/tools (cached)
+✓  internal/mcp/embeddings (cached)
+✓  internal/performance (cached)
+✓  internal/platform (cached)
+✓  internal/project (cached)
+✓  internal/pvi/deps (cached)
+✓  internal/pvi (cached)
+✓  internal/pvi/modules (cached)
+✓  internal/parser/treesitter (96ms)
+∅  internal/testing (1ms)
+∅  scripts
+✓  internal/scanner (cached)
+✓  internal/xdg (cached)
+✓  internal/tool/shim (cached)
+✓  internal/tool/install (cached)
+✓  internal/perl (cached)
+✓  internal/pvx (cached)
+✓  internal/types (cached)
+✓  internal/traits (cached)
+✓  internal/typedef (cached)
+✓  internal/version (cached)
+✓  internal/typechecker (cached)
+✓  internal/tool (cached)
+✓  internal/updater (657ms)
+✓  internal/pvm (948ms)
+✖  internal/psc (1.549s)
+∅  test/e2e/helpers
+✓  test/integration (cached)
+✖  internal/parser (3.501s)
+✓  test (5.828s)

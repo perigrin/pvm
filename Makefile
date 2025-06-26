@@ -41,7 +41,7 @@ vendor:
 # Build tree-sitter-typed-perl library
 tree-sitter: $(LIBDIR)
 	@echo "Building tree-sitter-typed-perl parser..."
-	cd tree-sitter-typed-perl && $(MAKE) generate
+	cd tree-sitter-typed-perl && $(MAKE) generate && $(MAKE) all
 	@echo "Tree-sitter-typed-perl build complete"
 
 # Tool management

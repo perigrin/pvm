@@ -283,7 +283,7 @@ func runCompileCommand(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// Write to stdout
-		fmt.Print(result)
+		fmt.Fprint(cmd.OutOrStdout(), result)
 	}
 
 	if showProgress {

@@ -48,7 +48,7 @@ Examples:
 			format, _ := cmd.Flags().GetString("format")
 			output, _ := cmd.Flags().GetString("output")
 
-			return runParseCommand(ui, filePath, format, output)
+			return runParseCommand(cmd, ui, filePath, format, output)
 		},
 	}
 
@@ -60,7 +60,7 @@ Examples:
 }
 
 // runParseCommand executes the parse command with the specified format
-func runParseCommand(ui *ui.Output, filePath, format, outputPath string) error {
+func runParseCommand(cmd *cobra.Command, ui *ui.Output, filePath, format, outputPath string) error {
 	// Verify file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return fmt.Errorf("file does not exist: %s", filePath)
@@ -104,7 +104,7 @@ func runParseCommand(ui *ui.Output, filePath, format, outputPath string) error {
 		}
 		ui.Success("Output written to %s", outputPath)
 	} else {
-		fmt.Print(content)
+		fmt.Fprint(cmd.OutOrStdout(), content)
 	}
 
 	return nil

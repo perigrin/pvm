@@ -12,7 +12,7 @@ tags:
 Malformed complex type expressions that should produce helpful error messages
 
 <!-- should_error: true -->
-<!-- expected_error: error[TSP001] -->
+<!-- expected_error: error[TSP002] -->
 
 ```perl
 my ArrayRef[Int| $incomplete_union;

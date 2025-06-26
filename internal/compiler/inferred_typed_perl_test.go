@@ -196,12 +196,14 @@ func TestCompilerOptions(t *testing.T) {
 }
 
 func TestBasicCompilation(t *testing.T) {
-	// Create a simple AST for testing
+	// Create a simple AST for testing with source content
+	sourceCode := "#!/usr/bin/perl\nuse v5.36;\nprint \"Hello, World!\\n\";"
 	programStmt := ast.NewProgramStmt([]ast.StatementNode{}, ast.Position{}, ast.Position{})
 
 	testAST := &ast.AST{
-		Path: "test.pl",
-		Root: programStmt,
+		Path:   "test.pl",
+		Source: sourceCode,
+		Root:   programStmt,
 	}
 
 	compiler := NewInferredTypedPerlCompiler()
@@ -229,8 +231,9 @@ func TestVariableDeclarationCompilation(t *testing.T) {
 	programStmt := ast.NewProgramStmt([]ast.StatementNode{varDecl}, ast.Position{}, ast.Position{})
 
 	testAST := &ast.AST{
-		Path: "test.pl",
-		Root: programStmt,
+		Path:   "test.pl",
+		Source: "my Int $count = 0;", // Basic variable declaration source
+		Root:   programStmt,
 	}
 
 	tests := []struct {
@@ -353,10 +356,12 @@ func TestCompilerIntegrationWithRegistry(t *testing.T) {
 	registry := NewCompilerRegistry()
 
 	// Create a simple test AST
+	sourceCode := "print \"Hello, World!\\n\";"
 	programStmt := ast.NewProgramStmt([]ast.StatementNode{}, ast.Position{}, ast.Position{})
 	testAST := &ast.AST{
-		Path: "test.pl",
-		Root: programStmt,
+		Path:   "test.pl",
+		Source: sourceCode,
+		Root:   programStmt,
 	}
 
 	t.Run("Compile with registry", func(t *testing.T) {

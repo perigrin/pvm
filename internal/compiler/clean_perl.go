@@ -98,18 +98,39 @@ func (c *CleanPerlCompiler) updatePerlVersion(code string) (string, error) {
 	currentVersion, err := current.GetCurrentVersion()
 	if err != nil {
 		// Fallback to v5.36 if we can't get current version
-		return code, nil
+		currentVersion = &current.CurrentVersionInfo{Version: "5.36"}
 	}
 
 	// Replace hard-coded version pragmas with PVM-managed version
 	lines := strings.Split(code, "\n")
+	foundVersionPragma := false
+
 	for i, line := range lines {
 		// Look for existing version pragmas
 		if strings.HasPrefix(strings.TrimSpace(line), "use v") {
 			// Replace with PVM-managed version
 			lines[i] = fmt.Sprintf("use v%s;", currentVersion.Version)
+			foundVersionPragma = true
 			break
 		}
+	}
+
+	// If no version pragma exists, add one at the beginning
+	// This is required because clean Perl output uses signature syntax
+	if !foundVersionPragma {
+		// Insert after shebang if present, otherwise at the beginning
+		insertIndex := 0
+		if len(lines) > 0 && strings.HasPrefix(lines[0], "#!") {
+			insertIndex = 1
+		}
+
+		// Create new slice with version pragma inserted
+		newLines := make([]string, 0, len(lines)+1)
+		newLines = append(newLines, lines[:insertIndex]...)
+		newLines = append(newLines, fmt.Sprintf("use v%s;", currentVersion.Version))
+		newLines = append(newLines, lines[insertIndex:]...)
+
+		lines = newLines
 	}
 
 	return strings.Join(lines, "\n"), nil
