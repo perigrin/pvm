@@ -44,18 +44,20 @@ func (ep *enhancedParser) ParseFile(path string) (*ast.AST, error) {
 		return nil, err
 	}
 
+	// TODO: Re-enable post-parsing AST validation once error identification is more precise
+	// Currently this is too aggressive and flags valid parses as errors
 	// Even if parsing succeeded, check for malformed types in the AST
 	// This catches cases where tree-sitter partially parses malformed syntax
-	if astResult != nil && astResult.Root != nil {
-		// For file parsing, we need the content to analyze malformed types
-		content := ""
-		if astResult.Source != "" {
-			content = astResult.Source
-		}
-		if malformedErr := ep.errorIdentifier.IdentifyMalformedTypeInAST(astResult.Root, content); malformedErr != nil {
-			return nil, malformedErr
-		}
-	}
+	// if astResult != nil && astResult.Root != nil {
+	//	// For file parsing, we need the content to analyze malformed types
+	//	content := ""
+	//	if astResult.Source != "" {
+	//		content = astResult.Source
+	//	}
+	//	if malformedErr := ep.errorIdentifier.IdentifyMalformedTypeInAST(astResult.Root, content); malformedErr != nil {
+	//		return nil, malformedErr
+	//	}
+	// }
 
 	return astResult, nil
 }

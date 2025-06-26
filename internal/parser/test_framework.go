@@ -433,6 +433,16 @@ func (f *ParserTestFramework) splitMarkdownSections(content string) []MarkdownSe
 
 // parseMarkdownSection converts a markdown section into a ParserTestCase
 func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, metadata *MarkdownTestMetadata, filePath string) (*ParserTestCase, error) {
+	// Skip compilation outcome sections - these are not test cases but expected outputs
+	titleLower := strings.ToLower(section.Title)
+	if strings.Contains(titleLower, "compilation") ||
+		strings.Contains(titleLower, "clean perl output") ||
+		strings.Contains(titleLower, "typed perl output") ||
+		strings.Contains(titleLower, "inferred perl output") ||
+		strings.Contains(titleLower, "expected") && (strings.Contains(titleLower, "output") || strings.Contains(titleLower, "perl")) {
+		return nil, nil // Skip compilation outcome sections
+	}
+
 	// Skip sections without Perl code blocks
 	var perlCode string
 	for _, block := range section.CodeBlocks {

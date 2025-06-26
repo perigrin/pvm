@@ -901,35 +901,9 @@ func (p *Parser) convertToASTTypeExpression(te *TypeExpression) *ast.TypeExpress
 
 // ParseTypeExpression parses a type expression string and returns a TypeExpression
 func ParseTypeExpression(text string, pos Position) (*TypeExpression, error) {
-	// Parse in order of precedence: parameterized types (brackets) first, then operators
+	// Parse in order of precedence: operators first (union, intersection, negation), then parameterized types
 
-	// Check for parameterized types (Type[Param1, Param2, ...]) - highest precedence
-	if strings.Contains(text, "[") && strings.HasSuffix(text, "]") {
-		openBracket := strings.Index(text, "[")
-		baseType := strings.TrimSpace(text[:openBracket])
-		paramsText := text[openBracket+1 : len(text)-1]
-
-		// Split parameters by comma, handling nested brackets
-		paramsList := splitParams(paramsText)
-		params := make([]*TypeExpression, len(paramsList))
-
-		for i, paramText := range paramsList {
-			paramExpr, err := ParseTypeExpression(strings.TrimSpace(paramText), pos)
-			if err != nil {
-				return nil, err
-			}
-			params[i] = paramExpr
-		}
-
-		return &TypeExpression{
-			BaseType:       baseType,
-			Parameters:     params,
-			OriginalString: text,
-			Pos:            pos,
-		}, nil
-	}
-
-	// Check for union types (Type1|Type2) - only at top level
+	// Check for union types (Type1|Type2) - highest precedence for operators
 	if containsTopLevelOperator(text, "|") {
 		unionParts := splitTopLevelOperator(text, "|")
 		unionTypes := make([]*TypeExpression, len(unionParts))
@@ -981,6 +955,32 @@ func ParseTypeExpression(text string, pos Position) (*TypeExpression, error) {
 		return &TypeExpression{
 			IsNegation:     true,
 			NegatedType:    negatedType,
+			OriginalString: text,
+			Pos:            pos,
+		}, nil
+	}
+
+	// Check for parameterized types (Type[Param1, Param2, ...]) after operators
+	if strings.Contains(text, "[") && strings.HasSuffix(text, "]") {
+		openBracket := strings.Index(text, "[")
+		baseType := strings.TrimSpace(text[:openBracket])
+		paramsText := text[openBracket+1 : len(text)-1]
+
+		// Split parameters by comma, handling nested brackets
+		paramsList := splitParams(paramsText)
+		params := make([]*TypeExpression, len(paramsList))
+
+		for i, paramText := range paramsList {
+			paramExpr, err := ParseTypeExpression(strings.TrimSpace(paramText), pos)
+			if err != nil {
+				return nil, err
+			}
+			params[i] = paramExpr
+		}
+
+		return &TypeExpression{
+			BaseType:       baseType,
+			Parameters:     params,
 			OriginalString: text,
 			Pos:            pos,
 		}, nil

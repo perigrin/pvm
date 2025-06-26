@@ -97,15 +97,24 @@ func (itpc *InferredTypedPerlCompiler) Target() Target {
 }
 
 // Validate checks if the AST is suitable for compilation with this compiler
-func (itpc *InferredTypedPerlCompiler) Validate(ast AST) error {
-	if ast == nil {
+//nolint:sloppyTypeAssert // Function intentionally uses type assertions for interface-to-concrete conversions
+func (itpc *InferredTypedPerlCompiler) Validate(inputAST AST) error {
+	if inputAST == nil {
 		return &CompilerError{
 			Code:    "INVALID_AST",
 			Message: "AST cannot be nil",
 		}
 	}
 
-	root, err := ast.GetRootNode()
+	// Handle typed nil case (common Go interface gotcha)
+	if concreteAST, ok := inputAST.(*ast.AST); ok && concreteAST == nil {
+		return &CompilerError{
+			Code:    "INVALID_AST",
+			Message: "AST cannot be nil",
+		}
+	}
+
+	root, err := inputAST.GetRootNode()
 	if err != nil || root == nil {
 		return &CompilerError{
 			Code:    "INVALID_AST",
