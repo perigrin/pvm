@@ -5,8 +5,6 @@ package compiler
 
 import (
 	"sync"
-
-	"tamarou.com/pvm/internal/ast"
 )
 
 // Ensure, that CompilerMock does implement Compiler.
@@ -19,13 +17,13 @@ var _ Compiler = &CompilerMock{}
 //
 //		// make and configure a mocked Compiler
 //		mockedCompiler := &CompilerMock{
-//			CompileFunc: func(astMoqParam *ast.AST) (string, error) {
+//			CompileFunc: func(ast AST) (string, error) {
 //				panic("mock out the Compile method")
 //			},
 //			TargetFunc: func() Target {
 //				panic("mock out the Target method")
 //			},
-//			ValidateFunc: func(astMoqParam *ast.AST) error {
+//			ValidateFunc: func(ast AST) error {
 //				panic("mock out the Validate method")
 //			},
 //		}
@@ -36,28 +34,28 @@ var _ Compiler = &CompilerMock{}
 //	}
 type CompilerMock struct {
 	// CompileFunc mocks the Compile method.
-	CompileFunc func(astMoqParam *ast.AST) (string, error)
+	CompileFunc func(ast AST) (string, error)
 
 	// TargetFunc mocks the Target method.
 	TargetFunc func() Target
 
 	// ValidateFunc mocks the Validate method.
-	ValidateFunc func(astMoqParam *ast.AST) error
+	ValidateFunc func(ast AST) error
 
 	// calls tracks calls to the methods.
 	calls struct {
 		// Compile holds details about calls to the Compile method.
 		Compile []struct {
-			// AstMoqParam is the astMoqParam argument value.
-			AstMoqParam *ast.AST
+			// Ast is the ast argument value.
+			Ast AST
 		}
 		// Target holds details about calls to the Target method.
 		Target []struct {
 		}
 		// Validate holds details about calls to the Validate method.
 		Validate []struct {
-			// AstMoqParam is the astMoqParam argument value.
-			AstMoqParam *ast.AST
+			// Ast is the ast argument value.
+			Ast AST
 		}
 	}
 	lockCompile  sync.RWMutex
@@ -66,19 +64,19 @@ type CompilerMock struct {
 }
 
 // Compile calls CompileFunc.
-func (mock *CompilerMock) Compile(astMoqParam *ast.AST) (string, error) {
+func (mock *CompilerMock) Compile(ast AST) (string, error) {
 	if mock.CompileFunc == nil {
 		panic("CompilerMock.CompileFunc: method is nil but Compiler.Compile was just called")
 	}
 	callInfo := struct {
-		AstMoqParam *ast.AST
+		Ast AST
 	}{
-		AstMoqParam: astMoqParam,
+		Ast: ast,
 	}
 	mock.lockCompile.Lock()
 	mock.calls.Compile = append(mock.calls.Compile, callInfo)
 	mock.lockCompile.Unlock()
-	return mock.CompileFunc(astMoqParam)
+	return mock.CompileFunc(ast)
 }
 
 // CompileCalls gets all the calls that were made to Compile.
@@ -86,10 +84,10 @@ func (mock *CompilerMock) Compile(astMoqParam *ast.AST) (string, error) {
 //
 //	len(mockedCompiler.CompileCalls())
 func (mock *CompilerMock) CompileCalls() []struct {
-	AstMoqParam *ast.AST
+	Ast AST
 } {
 	var calls []struct {
-		AstMoqParam *ast.AST
+		Ast AST
 	}
 	mock.lockCompile.RLock()
 	calls = mock.calls.Compile
@@ -125,19 +123,19 @@ func (mock *CompilerMock) TargetCalls() []struct {
 }
 
 // Validate calls ValidateFunc.
-func (mock *CompilerMock) Validate(astMoqParam *ast.AST) error {
+func (mock *CompilerMock) Validate(ast AST) error {
 	if mock.ValidateFunc == nil {
 		panic("CompilerMock.ValidateFunc: method is nil but Compiler.Validate was just called")
 	}
 	callInfo := struct {
-		AstMoqParam *ast.AST
+		Ast AST
 	}{
-		AstMoqParam: astMoqParam,
+		Ast: ast,
 	}
 	mock.lockValidate.Lock()
 	mock.calls.Validate = append(mock.calls.Validate, callInfo)
 	mock.lockValidate.Unlock()
-	return mock.ValidateFunc(astMoqParam)
+	return mock.ValidateFunc(ast)
 }
 
 // ValidateCalls gets all the calls that were made to Validate.
@@ -145,10 +143,10 @@ func (mock *CompilerMock) Validate(astMoqParam *ast.AST) error {
 //
 //	len(mockedCompiler.ValidateCalls())
 func (mock *CompilerMock) ValidateCalls() []struct {
-	AstMoqParam *ast.AST
+	Ast AST
 } {
 	var calls []struct {
-		AstMoqParam *ast.AST
+		Ast AST
 	}
 	mock.lockValidate.RLock()
 	calls = mock.calls.Validate

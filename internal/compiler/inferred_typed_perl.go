@@ -97,7 +97,7 @@ func (itpc *InferredTypedPerlCompiler) Target() Target {
 }
 
 // Validate checks if the AST is suitable for compilation with this compiler
-func (itpc *InferredTypedPerlCompiler) Validate(ast *ast.AST) error {
+func (itpc *InferredTypedPerlCompiler) Validate(ast AST) error {
 	if ast == nil {
 		return &CompilerError{
 			Code:    "INVALID_AST",
@@ -105,7 +105,8 @@ func (itpc *InferredTypedPerlCompiler) Validate(ast *ast.AST) error {
 		}
 	}
 
-	if ast.Root == nil {
+	root, err := ast.GetRootNode()
+	if err != nil || root == nil {
 		return &CompilerError{
 			Code:    "INVALID_AST",
 			Message: "AST must have a root node",
@@ -116,7 +117,7 @@ func (itpc *InferredTypedPerlCompiler) Validate(ast *ast.AST) error {
 }
 
 // Compile converts an AST with inferred type information to typed Perl code
-func (itpc *InferredTypedPerlCompiler) Compile(inputAST *ast.AST) (string, error) {
+func (itpc *InferredTypedPerlCompiler) Compile(inputAST AST) (string, error) {
 	// Validate input
 	if err := itpc.Validate(inputAST); err != nil {
 		return "", err
@@ -124,28 +125,23 @@ func (itpc *InferredTypedPerlCompiler) Compile(inputAST *ast.AST) (string, error
 
 	// Perform type inference on the AST
 	inferenceEngine := inference.NewTypeInferenceEngine()
-	inferredAST, err := inferenceEngine.InferTypes(inputAST)
-	if err != nil {
-		return "", &CompilerError{
-			Code:    "INFERENCE_FAILED",
-			Message: fmt.Sprintf("Type inference failed: %v", err),
+	// TODO: Update inference engine to use compiler.AST interface
+	// For now, we assume inputAST is *ast.AST since that's the only implementation
+	//nolint:sloppyTypeAssert // Type assertion from interface to concrete type is intentional
+	if astImpl, ok := inputAST.(*ast.AST); ok {
+		inferredAST, err := inferenceEngine.InferTypes(astImpl)
+		if err != nil {
+			return "", &CompilerError{
+				Code:    "INFERENCE_FAILED",
+				Message: fmt.Sprintf("Type inference failed: %v", err),
+			}
 		}
+		return itpc.CompileInferred(inferredAST)
 	}
-
-	// Check for inference errors
-	if errors := inferenceEngine.GetInferenceErrors(); len(errors) > 0 && itpc.options.VerboseOutput {
-		// Include inference errors as comments in verbose mode
-		// For now, we'll continue compilation despite errors
+	return "", &CompilerError{
+		Code:    "INVALID_AST_TYPE",
+		Message: "AST must be *ast.AST for type inference",
 	}
-
-	// Compile the AST with type annotations
-	compiler := &nodeCompiler{
-		inferredAST:         inferredAST,
-		annotationGenerator: itpc.annotationGenerator,
-		options:             itpc.options,
-	}
-
-	return compiler.compileNode(inputAST.Root)
 }
 
 // CompileInferred generates typed Perl code from an already-inferred AST with type information
@@ -177,9 +173,34 @@ func (itpc *InferredTypedPerlCompiler) CompileInferred(inferredAST ast.InferredA
 
 	// For integration testing, start with adding the pragma and preserving most content
 	// TODO: Add actual type inference annotations based on inferredAST.GetAllTypeInfo()
-	result := "use v5.36;\n" + content
+	result := itpc.addPerlVersionPragma(content)
 
 	return result, nil
+}
+
+// addPerlVersionPragma adds the Perl version pragma after the shebang line (if present)
+func (itpc *InferredTypedPerlCompiler) addPerlVersionPragma(content string) string {
+	lines := strings.Split(content, "\n")
+	if len(lines) == 0 {
+		return "use v5.36;\n" + content
+	}
+
+	// Check if first line is a shebang
+	if strings.HasPrefix(lines[0], "#!") {
+		// Insert pragma after shebang
+		if len(lines) == 1 {
+			return lines[0] + "\nuse v5.36;"
+		}
+		// Insert after first line
+		newLines := make([]string, 0, len(lines)+1)
+		newLines = append(newLines, lines[0])
+		newLines = append(newLines, "use v5.36;")
+		newLines = append(newLines, lines[1:]...)
+		return strings.Join(newLines, "\n")
+	}
+
+	// No shebang, prepend pragma
+	return "use v5.36;\n" + content
 }
 
 // nodeCompiler handles compilation of individual AST nodes

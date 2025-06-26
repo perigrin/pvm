@@ -901,12 +901,37 @@ func (p *Parser) convertToASTTypeExpression(te *TypeExpression) *ast.TypeExpress
 
 // ParseTypeExpression parses a type expression string and returns a TypeExpression
 func ParseTypeExpression(text string, pos Position) (*TypeExpression, error) {
-	// This is a simplified implementation that would need to be enhanced
-	// to handle more complex type expressions including unions and intersections
+	// Parse in order of precedence: parameterized types (brackets) first, then operators
 
-	// Check for union types (Type1|Type2)
-	if strings.Contains(text, "|") {
-		unionParts := strings.Split(text, "|")
+	// Check for parameterized types (Type[Param1, Param2, ...]) - highest precedence
+	if strings.Contains(text, "[") && strings.HasSuffix(text, "]") {
+		openBracket := strings.Index(text, "[")
+		baseType := strings.TrimSpace(text[:openBracket])
+		paramsText := text[openBracket+1 : len(text)-1]
+
+		// Split parameters by comma, handling nested brackets
+		paramsList := splitParams(paramsText)
+		params := make([]*TypeExpression, len(paramsList))
+
+		for i, paramText := range paramsList {
+			paramExpr, err := ParseTypeExpression(strings.TrimSpace(paramText), pos)
+			if err != nil {
+				return nil, err
+			}
+			params[i] = paramExpr
+		}
+
+		return &TypeExpression{
+			BaseType:       baseType,
+			Parameters:     params,
+			OriginalString: text,
+			Pos:            pos,
+		}, nil
+	}
+
+	// Check for union types (Type1|Type2) - only at top level
+	if containsTopLevelOperator(text, "|") {
+		unionParts := splitTopLevelOperator(text, "|")
 		unionTypes := make([]*TypeExpression, len(unionParts))
 
 		for i, part := range unionParts {
@@ -925,9 +950,9 @@ func ParseTypeExpression(text string, pos Position) (*TypeExpression, error) {
 		}, nil
 	}
 
-	// Check for intersection types (Type1&Type2)
-	if strings.Contains(text, "&") {
-		intersectionParts := strings.Split(text, "&")
+	// Check for intersection types (Type1&Type2) - only at top level
+	if containsTopLevelOperator(text, "&") {
+		intersectionParts := splitTopLevelOperator(text, "&")
 		intersectionTypes := make([]*TypeExpression, len(intersectionParts))
 
 		for i, part := range intersectionParts {
@@ -961,38 +986,53 @@ func ParseTypeExpression(text string, pos Position) (*TypeExpression, error) {
 		}, nil
 	}
 
-	// Check for parameterized types (Type[Param1, Param2, ...])
-	if strings.Contains(text, "[") && strings.HasSuffix(text, "]") {
-		openBracket := strings.Index(text, "[")
-		baseType := strings.TrimSpace(text[:openBracket])
-		paramsText := text[openBracket+1 : len(text)-1]
-
-		// Split parameters by comma, handling nested brackets
-		paramsList := splitParams(paramsText)
-		params := make([]*TypeExpression, len(paramsList))
-
-		for i, paramText := range paramsList {
-			paramExpr, err := ParseTypeExpression(strings.TrimSpace(paramText), pos)
-			if err != nil {
-				return nil, err
-			}
-			params[i] = paramExpr
-		}
-
-		return &TypeExpression{
-			BaseType:       baseType,
-			Parameters:     params,
-			OriginalString: text,
-			Pos:            pos,
-		}, nil
-	}
-
 	// Simple type
 	return &TypeExpression{
 		BaseType:       text,
 		OriginalString: text,
 		Pos:            pos,
 	}, nil
+}
+
+// containsTopLevelOperator checks if the text contains the operator at the top level (not inside brackets)
+func containsTopLevelOperator(text, operator string) bool {
+	bracketDepth := 0
+	for i, char := range text {
+		switch char {
+		case '[':
+			bracketDepth++
+		case ']':
+			bracketDepth--
+		default:
+			if bracketDepth == 0 && strings.HasPrefix(text[i:], operator) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// splitTopLevelOperator splits text by operator only at the top level (not inside brackets)
+func splitTopLevelOperator(text, operator string) []string {
+	var parts []string
+	bracketDepth := 0
+	lastSplit := 0
+
+	for i, char := range text {
+		switch char {
+		case '[':
+			bracketDepth++
+		case ']':
+			bracketDepth--
+		default:
+			if bracketDepth == 0 && strings.HasPrefix(text[i:], operator) {
+				parts = append(parts, text[lastSplit:i])
+				lastSplit = i + len(operator)
+			}
+		}
+	}
+	parts = append(parts, text[lastSplit:])
+	return parts
 }
 
 // splitParams splits a parameter list by comma, handling nested brackets

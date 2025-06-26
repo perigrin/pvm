@@ -5,8 +5,6 @@
 
 package compiler
 
-import "tamarou.com/pvm/internal/ast"
-
 // Target represents a compilation target type
 type Target string
 
@@ -24,13 +22,13 @@ const (
 // Compiler interface defines the contract for AST-to-code compilation
 type Compiler interface {
 	// Compile converts an AST to source code for the target format
-	Compile(ast *ast.AST) (string, error)
+	Compile(ast AST) (string, error)
 
 	// Target returns the compilation target this compiler supports
 	Target() Target
 
 	// Validate checks if the AST is suitable for compilation with this compiler
-	Validate(ast *ast.AST) error
+	Validate(ast AST) error
 }
 
 // CompilerOptions holds configuration options for compilation
@@ -60,7 +58,7 @@ func NewCompilerRegistry() *CompilerRegistry {
 	}
 
 	// Register default compilers
-	registry.Register(NewASTCompiler()) // Use AST-based compiler (proper approach)
+	registry.Register(NewCleanPerlCompiler()) // Use proper AST-based clean compiler
 	registry.Register(NewTypedPerlCompiler())
 	registry.Register(NewInferredTypedPerlCompiler())
 
@@ -88,7 +86,7 @@ func (r *CompilerRegistry) AvailableTargets() []Target {
 }
 
 // CompileWithOptions compiles an AST using the specified target and options
-func (r *CompilerRegistry) CompileWithOptions(ast *ast.AST, target Target, options *CompilerOptions) (string, error) {
+func (r *CompilerRegistry) CompileWithOptions(ast AST, target Target, options *CompilerOptions) (string, error) {
 	compiler, exists := r.GetCompiler(target)
 	if !exists {
 		return "", &CompilerError{
@@ -105,7 +103,7 @@ func (r *CompilerRegistry) CompileWithOptions(ast *ast.AST, target Target, optio
 }
 
 // Compile compiles an AST using the specified target with default options
-func (r *CompilerRegistry) Compile(ast *ast.AST, target Target) (string, error) {
+func (r *CompilerRegistry) Compile(ast AST, target Target) (string, error) {
 	return r.CompileWithOptions(ast, target, &CompilerOptions{
 		PreserveComments:   true,
 		PreserveFormatting: true,
