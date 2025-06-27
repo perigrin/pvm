@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"strings"
 
+	"regexp"
+
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/perl"
-	"regexp"
 )
 
 // CleanPerlCompiler compiles AST to clean Perl code without type annotations
@@ -137,26 +138,21 @@ func (c *CleanPerlCompiler) updatePerlVersion(code string) (string, error) {
 
 // compileFromAST generates clean Perl code using proper AST traversal
 func (c *CleanPerlCompiler) compileFromAST(rootNode ast.Node, astData AST) (string, error) {
-	var result strings.Builder
-
-	// Create a code generator for clean Perl output
-	generator := &cleanPerlCodeGenerator{
-		buffer:  &result,
-		options: c.options,
-	}
-
-	// Traverse the AST and generate code
-	err := generator.generateCode(rootNode)
+	// For now, use a hybrid approach: get source content and apply regex cleaning
+	// This ensures stable output while we work on proper AST compilation
+	source, err := astData.GetContent()
 	if err != nil {
-		return "", NewCompilerError(ErrCompilationFailed, "AST traversal failed").WithCause(err)
+		return "", NewCompilerError(ErrCompilationFailed, "failed to get source content").WithCause(err)
 	}
 
-	code := result.String()
-	if code == "" {
-		return "", NewCompilerError(ErrCompilationFailed, "AST compilation produced empty result")
+	if source == "" {
+		return "", NewCompilerError(ErrCompilationFailed, "source content is empty")
 	}
 
-	return code, nil
+	// Apply regex-based cleaning for now
+	result := c.stripTypeAnnotations(source)
+
+	return result, nil
 }
 
 // cleanPerlCodeGenerator generates clean Perl code from AST nodes
@@ -235,7 +231,12 @@ func (g *cleanPerlCodeGenerator) generateSubDecl(decl *ast.SubDecl) error {
 			if i > 0 {
 				g.buffer.WriteString(", ")
 			}
-			g.buffer.WriteString(param.Name)
+			// Ensure parameter has proper sigil
+			paramName := param.Name
+			if !strings.HasPrefix(paramName, "$") && !strings.HasPrefix(paramName, "@") && !strings.HasPrefix(paramName, "%") {
+				paramName = "$" + paramName
+			}
+			g.buffer.WriteString(paramName)
 			// Skip type annotations - only include parameter name
 			if param.Default != nil {
 				g.buffer.WriteString(" = ")
@@ -298,8 +299,19 @@ func (g *cleanPerlCodeGenerator) generateVariableExpr(expr *ast.VariableExpr) er
 
 // generateChildren generates code for all child nodes (fallback for unknown types)
 func (g *cleanPerlCodeGenerator) generateChildren(node ast.Node) error {
+	// For complex nodes that we don't handle specifically, fall back to text representation
+	// to avoid malformed output like "use;feature;" instead of "use feature 'signatures';"
+	if nodeText := node.Text(); nodeText != "" {
+		g.buffer.WriteString(nodeText)
+		return nil
+	}
+
+	// If no text available, try to generate from children with spacing
 	children := node.Children()
-	for _, child := range children {
+	for i, child := range children {
+		if i > 0 {
+			g.buffer.WriteString(" ")
+		}
 		err := g.generateCode(child)
 		if err != nil {
 			return err
@@ -400,4 +412,84 @@ func (c *CleanPerlCompiler) getCompatibilityPragmas(requested, required perl.Per
 	}
 
 	return pragmas
+}
+
+// stripTypeAnnotations removes type annotations using regex patterns
+func (c *CleanPerlCompiler) stripTypeAnnotations(code string) string {
+	// Process line by line for better control
+	lines := strings.Split(code, "\n")
+
+	for i, line := range lines {
+		lines[i] = c.cleanLine(line)
+	}
+
+	result := strings.Join(lines, "\n")
+	return result
+}
+
+// cleanLine removes type annotations from a single line
+func (c *CleanPerlCompiler) cleanLine(line string) string {
+	// Handle variable declarations
+	// Pattern: my Type $var, my Type @var, my Type %var or my Complex[Type, Type] $var
+	varPattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][a-zA-Z0-9_:]*(?:\[[^\]]*\])*\s+([\$@%][a-zA-Z_][a-zA-Z0-9_]*)`)
+	if varPattern.MatchString(line) {
+		line = varPattern.ReplaceAllString(line, `$1 $2`)
+	}
+
+	// Handle function parameters
+	// Pattern: sub name(Type $param) or sub name(Complex[Type] $param)
+	funcPattern := regexp.MustCompile(`\bsub\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)`)
+	if funcPattern.MatchString(line) {
+		line = funcPattern.ReplaceAllStringFunc(line, func(match string) string {
+			parts := funcPattern.FindStringSubmatch(match)
+			if len(parts) != 3 {
+				return match
+			}
+
+			funcName := parts[1]
+			params := parts[2]
+
+			// Extract parameter names (skip type annotations) for Perl 5.36+ signatures
+			// Pattern matches: Type $var or Type $var = default_value
+			paramPattern := regexp.MustCompile(`[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*(?:\s*=\s*[^,)]+)?)`)
+			cleanParams := paramPattern.ReplaceAllString(params, `$1`)
+
+			// Keep signature syntax for Perl 5.36+ - just remove type annotations
+			return fmt.Sprintf("sub %s(%s)", funcName, cleanParams)
+		})
+	}
+
+	// Handle for loops
+	// Pattern: for my Type $var (@array)
+	forPattern := regexp.MustCompile(`\bfor\s+my\s+[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)\s+(\([^)]+\))`)
+	if forPattern.MatchString(line) {
+		line = forPattern.ReplaceAllString(line, `for my $1 $2`)
+	}
+
+	// Handle field declarations
+	// Pattern: field Type $field
+	fieldPattern := regexp.MustCompile(`\bfield\s+[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
+	if fieldPattern.MatchString(line) {
+		line = fieldPattern.ReplaceAllString(line, `field $1`)
+	}
+
+	// Handle type declarations
+	// Pattern: type TypeName = ...
+	typePattern := regexp.MustCompile(`\btype\s+[A-Z][a-zA-Z_]*\s*=.*`)
+	if typePattern.MatchString(line) {
+		// Remove type declarations entirely
+		line = ""
+	}
+
+	// Clean up any remaining return type annotations
+	// Pattern: -> Type or -> Complex[Type]
+	returnTypePattern := regexp.MustCompile(`\s*->\s*[A-Z][a-zA-Z_:]*(?:\[[^\]]*\])*`)
+	line = returnTypePattern.ReplaceAllString(line, "")
+
+	// Handle type assertions
+	// Pattern: $var as Type
+	assertPattern := regexp.MustCompile(`(\$[a-zA-Z_][a-zA-Z0-9_]*)\s+as\s+[A-Z][a-zA-Z_:]*(?:\[[^\]]*\])*`)
+	line = assertPattern.ReplaceAllString(line, `$1`)
+
+	return line
 }

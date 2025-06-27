@@ -85,7 +85,6 @@ func TestTypedPerlCompiler_Target(t *testing.T) {
 	}
 }
 
-
 func TestCleanPerlCompiler_ASTBased(t *testing.T) {
 	compiler := NewCleanPerlCompiler()
 
