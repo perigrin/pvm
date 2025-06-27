@@ -4,7 +4,10 @@
 package compiler
 
 import (
+	"strings"
 	"testing"
+
+	"tamarou.com/pvm/internal/ast"
 )
 
 func TestCompilerError(t *testing.T) {
@@ -82,47 +85,69 @@ func TestTypedPerlCompiler_Target(t *testing.T) {
 	}
 }
 
-func TestCleanPerlCompiler_StripLine(t *testing.T) {
+
+func TestCleanPerlCompiler_ASTBased(t *testing.T) {
 	compiler := NewCleanPerlCompiler()
 
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{
-			input:    "my Int $x = 42;",
-			expected: "my $x = 42;",
-		},
-		{
-			input:    "my Str $name = 'test';",
-			expected: "my $name = 'test';",
-		},
-		{
-			input:    "sub greet(Str $name) -> Str {",
-			expected: "sub greet($name) {",
-		},
-		{
-			input:    "field HashRef[Int] $data;",
-			expected: "field $data;",
-		},
-		{
-			input:    "for my Int $i (1..10) {",
-			expected: "for my $i (1..10) {",
-		},
-		{
-			input:    "type MyType = Int|Str;",
-			expected: "",
-		},
-		{
-			input:    "my $regular = 123;",
-			expected: "my $regular = 123;",
-		},
-	}
+	t.Run("Variable declaration with type annotation", func(t *testing.T) {
+		// Create a simple AST with a typed variable declaration
+		// my Int $count = 42;
 
-	for _, test := range tests {
-		result := compiler.cleanLine(test.input)
-		if result != test.expected {
-			t.Errorf("For input '%s', expected '%s', got '%s'", test.input, test.expected, result)
+		// Create variable expression
+		countVar := ast.NewVariableExpr("count", "$", ast.Position{Line: 1, Column: 8}, ast.Position{Line: 1, Column: 14})
+
+		// Create literal expression for initializer
+		literal := ast.NewLiteralExpr("42", ast.NumberLiteral, ast.Position{Line: 1, Column: 17}, ast.Position{Line: 1, Column: 19})
+
+		// Create type expression (this will be stripped in clean output)
+		typeExpr := ast.NewTypeExpression("Int", nil, ast.Position{Line: 1, Column: 4}, ast.Position{Line: 1, Column: 7})
+
+		// Create variable declaration
+		varDecl := ast.NewVarDecl("my", []*ast.VariableExpr{countVar}, typeExpr, literal, ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 19})
+
+		// Create program with the declaration
+		program := ast.NewProgramStmt([]ast.StatementNode{varDecl}, ast.Position{Line: 1, Column: 1}, ast.Position{Line: 1, Column: 19})
+
+		// Create AST
+		testAST := &ast.AST{
+			Path:   "test.pl",
+			Root:   program,
+			Source: "my Int $count = 42;",
 		}
-	}
+
+		// Compile using AST-based approach
+		result, err := compiler.Compile(testAST)
+		if err != nil {
+			t.Fatalf("Compilation failed: %v", err)
+		}
+
+		// Should generate clean Perl without type annotation
+		// Note: version will be PVM-managed, not hardcoded
+		if !strings.Contains(result, "my $count = 42;") {
+			t.Errorf("Expected result to contain 'my $count = 42;', got '%s'", result)
+		}
+
+		if !strings.HasPrefix(result, "use v") {
+			t.Errorf("Expected result to start with version pragma, got '%s'", result)
+		}
+	})
+
+	t.Run("Requires proper AST", func(t *testing.T) {
+		// Test that SimpleAST without root node fails appropriately
+		simpleAST := &SimpleAST{
+			Path:    "test.pl",
+			Content: "my Int $name = \"test\";",
+			Valid:   true,
+		}
+
+		_, err := compiler.Compile(simpleAST)
+		if err == nil {
+			t.Fatal("Expected compilation to fail for SimpleAST without proper AST root node")
+		}
+
+		// Should get a clear error message about requiring proper AST
+		if !strings.Contains(err.Error(), "proper AST required") {
+			t.Errorf("Expected error about requiring proper AST, got: %v", err)
+		}
+	})
 }

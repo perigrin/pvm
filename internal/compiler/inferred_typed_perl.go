@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
+	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/inference"
 	"tamarou.com/pvm/internal/types"
 )
@@ -108,6 +109,7 @@ func (itpc *InferredTypedPerlCompiler) Validate(inputAST AST) error {
 	}
 
 	// Handle typed nil case (common Go interface gotcha)
+	//nolint:sloppyTypeAssert // Type assertion from interface to concrete type is intentional
 	if concreteAST, ok := inputAST.(*ast.AST); ok && concreteAST == nil {
 		return &CompilerError{
 			Code:    "INVALID_AST",
@@ -190,27 +192,36 @@ func (itpc *InferredTypedPerlCompiler) CompileInferred(inferredAST ast.InferredA
 
 // addPerlVersionPragma adds the Perl version pragma after the shebang line (if present)
 func (itpc *InferredTypedPerlCompiler) addPerlVersionPragma(content string) string {
+	// Get the PVM-managed Perl version
+	currentVersion, err := current.GetCurrentVersion()
+	if err != nil {
+		// Fallback to v5.36 if we can't get current version
+		currentVersion = &current.CurrentVersionInfo{Version: "5.36"}
+	}
+
+	pragma := fmt.Sprintf("use v%s;", currentVersion.Version)
+
 	lines := strings.Split(content, "\n")
 	if len(lines) == 0 {
-		return "use v5.36;\n" + content
+		return pragma + "\n" + content
 	}
 
 	// Check if first line is a shebang
 	if strings.HasPrefix(lines[0], "#!") {
 		// Insert pragma after shebang
 		if len(lines) == 1 {
-			return lines[0] + "\nuse v5.36;"
+			return lines[0] + "\n" + pragma
 		}
 		// Insert after first line
 		newLines := make([]string, 0, len(lines)+1)
 		newLines = append(newLines, lines[0])
-		newLines = append(newLines, "use v5.36;")
+		newLines = append(newLines, pragma)
 		newLines = append(newLines, lines[1:]...)
 		return strings.Join(newLines, "\n")
 	}
 
 	// No shebang, prepend pragma
-	return "use v5.36;\n" + content
+	return pragma + "\n" + content
 }
 
 // nodeCompiler handles compilation of individual AST nodes
@@ -303,8 +314,13 @@ func (nc *nodeCompiler) compileNode(node ast.Node) (string, error) {
 func (nc *nodeCompiler) compileProgramStmt(node *ast.ProgramStmt) (string, error) {
 	var parts []string
 
-	// Add Perl version pragma for modern features
-	parts = append(parts, "use v5.36;")
+	// Add Perl version pragma for modern features using PVM-managed version
+	currentVersion, err := current.GetCurrentVersion()
+	if err != nil {
+		// Fallback to v5.36 if we can't get current version
+		currentVersion = &current.CurrentVersionInfo{Version: "5.36"}
+	}
+	parts = append(parts, fmt.Sprintf("use v%s;", currentVersion.Version))
 
 	// Compile all statements
 	for _, stmt := range node.Statements() {
@@ -741,8 +757,13 @@ func (nc *nodeCompiler) compileGenericNode(node ast.Node) (string, error) {
 func (nc *nodeCompiler) compileSourceFile(node ast.Node) (string, error) {
 	var parts []string
 
-	// Add Perl version pragma for modern features
-	parts = append(parts, "use v5.36;")
+	// Add Perl version pragma for modern features using PVM-managed version
+	currentVersion, err := current.GetCurrentVersion()
+	if err != nil {
+		// Fallback to v5.36 if we can't get current version
+		currentVersion = &current.CurrentVersionInfo{Version: "5.36"}
+	}
+	parts = append(parts, fmt.Sprintf("use v%s;", currentVersion.Version))
 
 	// Compile all children nodes
 	for _, child := range node.Children() {
