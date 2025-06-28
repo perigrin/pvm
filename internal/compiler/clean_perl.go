@@ -5,9 +5,8 @@ package compiler
 
 import (
 	"fmt"
-	"strings"
-
 	"regexp"
+	"strings"
 
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/current"
@@ -138,21 +137,137 @@ func (c *CleanPerlCompiler) updatePerlVersion(code string) (string, error) {
 
 // compileFromAST generates clean Perl code using proper AST traversal
 func (c *CleanPerlCompiler) compileFromAST(rootNode ast.Node, astData AST) (string, error) {
-	// For now, use a hybrid approach: get source content and apply regex cleaning
-	// This ensures stable output while we work on proper AST compilation
-	source, err := astData.GetContent()
+	var result strings.Builder
+
+	// Create a code generator for clean Perl output
+	generator := &cleanPerlCodeGenerator{
+		buffer:  &result,
+		options: c.options,
+	}
+
+	// Traverse the AST and generate code without type annotations
+	err := generator.generateCode(rootNode)
 	if err != nil {
-		return "", NewCompilerError(ErrCompilationFailed, "failed to get source content").WithCause(err)
+		return "", NewCompilerError(ErrCompilationFailed, "AST traversal failed").WithCause(err)
 	}
 
-	if source == "" {
-		return "", NewCompilerError(ErrCompilationFailed, "source content is empty")
+	code := result.String()
+
+	// If AST generation produced no output, fall back to source-based approach
+	// This handles cases where AST nodes might not implement required methods yet
+	if code == "" || strings.TrimSpace(code) == "" {
+		source, err := astData.GetContent()
+		if err != nil {
+			return "", NewCompilerError(ErrCompilationFailed, "failed to get source content for fallback").WithCause(err)
+		}
+
+		// Use text-based processing as fallback - still better than regex for simple cases
+		return c.processSourceText(source), nil
 	}
 
-	// Apply regex-based cleaning for now
-	result := c.stripTypeAnnotations(source)
+	return code, nil
+}
 
-	return result, nil
+// processSourceText handles basic type stripping for fallback cases
+func (c *CleanPerlCompiler) processSourceText(source string) string {
+	// Simple text processing for common type annotation patterns
+	lines := strings.Split(source, "\n")
+	for i, line := range lines {
+		originalLine := line
+		line = strings.TrimSpace(line)
+
+		// Handle typed variable declarations: "my Type $var" or "my Complex[Type] $var"
+		if strings.HasPrefix(line, "my ") && strings.Contains(line, " $") {
+			// Find the $ that starts the variable name
+			dollarIdx := strings.Index(line, "$")
+			if dollarIdx > 3 { // Must be after "my "
+				// Extract everything from "my " + variable onwards
+				beforeDollar := "my "
+				afterDollar := strings.TrimSpace(line[dollarIdx:])
+				newLine := beforeDollar + afterDollar
+				lines[i] = newLine
+				continue
+			}
+		}
+
+		// Handle function signatures: "sub name (Type $param) -> ReturnType {"
+		if strings.HasPrefix(line, "sub ") && strings.Contains(line, "(") {
+			// Clean function signature and remove return type annotation
+			if idx := strings.Index(line, "("); idx != -1 {
+				if endIdx := strings.Index(line[idx:], ")"); endIdx != -1 {
+					params := line[idx+1 : idx+endIdx]
+					cleanParams := c.cleanFunctionParams(params)
+
+					// Handle return type annotation: "-> Type"
+					remaining := line[idx+endIdx+1:]
+					if returnTypeIdx := strings.Index(remaining, "->"); returnTypeIdx != -1 {
+						// Find the end of return type (before '{' or end of line)
+						afterArrow := remaining[returnTypeIdx+2:]
+						if braceIdx := strings.Index(afterArrow, "{"); braceIdx != -1 {
+							// Keep everything after the return type
+							remaining = " " + strings.TrimSpace(afterArrow[braceIdx:])
+						} else {
+							// No opening brace, just remove the return type
+							remaining = ""
+						}
+					}
+
+					newLine := line[:idx+1] + cleanParams + ")" + remaining
+					lines[i] = newLine
+					continue
+				}
+			}
+		}
+
+		// Handle for loops: "for my Type $var"
+		if strings.HasPrefix(line, "for my ") && strings.Contains(line, " $") {
+			parts := strings.Fields(line)
+			if len(parts) >= 4 && strings.HasPrefix(parts[3], "$") {
+				// Reconstruct: "for my $var ..."
+				newLine := "for my " + strings.Join(parts[3:], " ")
+				lines[i] = newLine
+				continue
+			}
+		}
+
+		// Keep original line if no changes made
+		lines[i] = originalLine
+	}
+	return strings.Join(lines, "\n")
+}
+
+// cleanFunctionParams removes type annotations from function parameters
+func (c *CleanPerlCompiler) cleanFunctionParams(params string) string {
+	if strings.TrimSpace(params) == "" {
+		return params
+	}
+
+	// Split by comma and clean each parameter
+	parts := strings.Split(params, ",")
+	cleanParts := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// Look for pattern: "Type $var" or "Complex[Type] $var = default"
+		// Need to handle complex types that might contain spaces or brackets
+
+		// Find the $ that starts the variable name
+		dollarIdx := strings.Index(part, "$")
+		if dollarIdx >= 0 {
+			// Everything from $ onwards is the clean parameter
+			cleanParam := strings.TrimSpace(part[dollarIdx:])
+			cleanParts = append(cleanParts, cleanParam)
+		} else {
+			// No $ found, might be a parameter without type annotation
+			cleanParts = append(cleanParts, part)
+		}
+	}
+
+	return strings.Join(cleanParts, ", ")
 }
 
 // cleanPerlCodeGenerator generates clean Perl code from AST nodes
@@ -412,84 +527,4 @@ func (c *CleanPerlCompiler) getCompatibilityPragmas(requested, required perl.Per
 	}
 
 	return pragmas
-}
-
-// stripTypeAnnotations removes type annotations using regex patterns
-func (c *CleanPerlCompiler) stripTypeAnnotations(code string) string {
-	// Process line by line for better control
-	lines := strings.Split(code, "\n")
-
-	for i, line := range lines {
-		lines[i] = c.cleanLine(line)
-	}
-
-	result := strings.Join(lines, "\n")
-	return result
-}
-
-// cleanLine removes type annotations from a single line
-func (c *CleanPerlCompiler) cleanLine(line string) string {
-	// Handle variable declarations
-	// Pattern: my Type $var, my Type @var, my Type %var or my Complex[Type, Type] $var
-	varPattern := regexp.MustCompile(`\b(my|our|state)\s+[A-Z][a-zA-Z0-9_:]*(?:\[[^\]]*\])*\s+([\$@%][a-zA-Z_][a-zA-Z0-9_]*)`)
-	if varPattern.MatchString(line) {
-		line = varPattern.ReplaceAllString(line, `$1 $2`)
-	}
-
-	// Handle function parameters
-	// Pattern: sub name(Type $param) or sub name(Complex[Type] $param)
-	funcPattern := regexp.MustCompile(`\bsub\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)`)
-	if funcPattern.MatchString(line) {
-		line = funcPattern.ReplaceAllStringFunc(line, func(match string) string {
-			parts := funcPattern.FindStringSubmatch(match)
-			if len(parts) != 3 {
-				return match
-			}
-
-			funcName := parts[1]
-			params := parts[2]
-
-			// Extract parameter names (skip type annotations) for Perl 5.36+ signatures
-			// Pattern matches: Type $var or Type $var = default_value
-			paramPattern := regexp.MustCompile(`[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*(?:\s*=\s*[^,)]+)?)`)
-			cleanParams := paramPattern.ReplaceAllString(params, `$1`)
-
-			// Keep signature syntax for Perl 5.36+ - just remove type annotations
-			return fmt.Sprintf("sub %s(%s)", funcName, cleanParams)
-		})
-	}
-
-	// Handle for loops
-	// Pattern: for my Type $var (@array)
-	forPattern := regexp.MustCompile(`\bfor\s+my\s+[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)\s+(\([^)]+\))`)
-	if forPattern.MatchString(line) {
-		line = forPattern.ReplaceAllString(line, `for my $1 $2`)
-	}
-
-	// Handle field declarations
-	// Pattern: field Type $field
-	fieldPattern := regexp.MustCompile(`\bfield\s+[A-Z][a-zA-Z0-9_:\[\]]+\s+(\$[a-zA-Z_][a-zA-Z0-9_]*)`)
-	if fieldPattern.MatchString(line) {
-		line = fieldPattern.ReplaceAllString(line, `field $1`)
-	}
-
-	// Handle type declarations
-	// Pattern: type TypeName = ...
-	typePattern := regexp.MustCompile(`\btype\s+[A-Z][a-zA-Z_]*\s*=.*`)
-	if typePattern.MatchString(line) {
-		// Remove type declarations entirely
-		line = ""
-	}
-
-	// Clean up any remaining return type annotations
-	// Pattern: -> Type or -> Complex[Type]
-	returnTypePattern := regexp.MustCompile(`\s*->\s*[A-Z][a-zA-Z_:]*(?:\[[^\]]*\])*`)
-	line = returnTypePattern.ReplaceAllString(line, "")
-
-	// Handle type assertions
-	// Pattern: $var as Type
-	assertPattern := regexp.MustCompile(`(\$[a-zA-Z_][a-zA-Z0-9_]*)\s+as\s+[A-Z][a-zA-Z_:]*(?:\[[^\]]*\])*`)
-	line = assertPattern.ReplaceAllString(line, `$1`)
-
-	return line
 }
