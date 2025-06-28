@@ -50,29 +50,38 @@ sub add($a, $b) { return $a + $b; }`,
 			input: `sub process (ArrayRef[HashRef[Str]] $data) -> Result[Bool] {
     return 1;
 }`,
+			expected: `sub process { return 1; }`,
 		},
 		{
 			name: "mixed_typed_untyped_params",
 			input: `sub mixed (Int $typed, $untyped, Str $another) -> Void {
     return;
 }`,
+			expected: `use v5.36;
+sub mixed($typed, $untyped, $another) { return; }`,
 		},
 		{
 			name: "nested_union_types",
 			input: `sub complex (Union[Str, Union[Int, Bool]] $param) -> Str {
     return "result";
 }`,
+			expected: `use v5.36;
+sub complex($param) { return "result"; }`,
 		},
 		{
 			name: "intersection_and_negation",
 			input: `sub validate (Object&Serializable $obj, !Undef $config) -> Bool {
     return 1;
 }`,
+			expected: `use v5.36;
+sub validate($obj, $config) { return 1; }`,
 		},
 		{
 			name: "field_declarations",
 			input: `field Int $count;
 field ArrayRef[Str] $items;`,
+			expected: `field $count;
+field $items;`,
 		},
 		{
 			name: "type_declarations",
@@ -82,6 +91,8 @@ type UserData = HashRef[Str];`,
 		{
 			name: "type_assertions",
 			input: `my $value = get_value();
+my $typed = $value as Int;`,
+			expected: `my $value = get_value();
 my $typed = $value as Int;`,
 		},
 		{
@@ -100,12 +111,16 @@ my $typed = $value as Int;`,
 ) -> Bool {
     return 1;
 }`,
+			expected: `use v5.36;
+sub multiline($first, $second, $third) { return 1; }`,
 		},
 		{
 			name: "attributes_with_signature",
 			input: `sub tagged :lvalue :const (Int $value) -> Int {
     return $value;
 }`,
+			expected: `use v5.36;
+sub tagged($value) { return $value; }`,
 		},
 		{
 			name: "method_declaration",
@@ -117,17 +132,22 @@ my $typed = $value as Int;`,
 			name: "field_with_initialization",
 			input: `field Int $counter = 0;
 field HashRef[Str] $config = {};`,
+			expected: `field $counter = 0;
+field $config = {};`,
 		},
 		{
 			name: "complex_typed_variables",
 			input: `my ComplexTypes $self = bless {}, $class;
 my ArrayRef[HashRef[Str|Int]] $users = [];`,
+			expected: `my $self = bless {}, $class;
+my $users = [];`,
 		},
 		{
 			name: "for_loop_with_complex_types",
 			input: `for my UserId $id (keys %$config) {
     my HashRef[Str|Int] $user_info = {};
 }`,
+			expected: `for my $id (keys %$config) { my HashRef[Str|Int] $user_info = {} }`,
 		},
 	}
 
@@ -214,8 +234,6 @@ print "Total: $total\n";`,
 		},
 	}
 
-	compiler := NewCleanPerlCompiler()
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create temporary file
@@ -229,7 +247,7 @@ print "Total: $total\n";`,
 			ast, err := p.ParseFile(tempFile)
 			require.NoError(t, err)
 
-			cleanPerl, err := compiler.Compile(ast)
+			cleanPerl, err := NewCleanPerlCompiler().Compile(ast)
 			require.NoError(t, err)
 
 			// Debug: Show generated Perl
@@ -301,8 +319,6 @@ print greet("World") . "\n";`,
 		},
 	}
 
-	compiler := NewCleanPerlCompiler()
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Compile typed version to clean Perl
@@ -315,7 +331,7 @@ print greet("World") . "\n";`,
 			ast, err := p.ParseFile(tempFile)
 			require.NoError(t, err)
 
-			cleanPerl, err := compiler.Compile(ast)
+			cleanPerl, err := NewCleanPerlCompiler().Compile(ast)
 			require.NoError(t, err)
 
 			// Execute the compiled clean version and compare against expected output

@@ -27,6 +27,7 @@ all: build-dev
 # Set CGO flags for tree-sitter integration
 export CGO_ENABLED=1
 export CGO_CFLAGS=-I$(PWD)/tree-sitter-typed-perl/include -I$(PWD)/tree-sitter-typed-perl -I$(PWD)/tree-sitter-typed-perl/src
+export CGO_LDFLAGS=-L$(PWD)/tree-sitter-typed-perl -Wl,-rpath,$(PWD)/tree-sitter-typed-perl
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
@@ -91,7 +92,7 @@ pvx pvi psc: pvm
 test: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running tests with $$PARALLEL_JOBS parallel workers..."; \
-	PLENV_VERSION= go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results.json -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PLENV_VERSION= go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results.json -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
 	TEST_EXIT_CODE=$$?; \
 	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo ""; \
@@ -108,7 +109,7 @@ test: tree-sitter install-tools
 test-full: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running full test suite with $$PARALLEL_JOBS parallel workers..."; \
-	go run gotest.tools/gotestsum@latest --format=standard-verbose --jsonfile=test-results-full.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH go run gotest.tools/gotestsum@latest --format=standard-verbose --jsonfile=test-results-full.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...; \
 	TEST_EXIT_CODE=$$?; \
 	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo ""; \
