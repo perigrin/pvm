@@ -139,19 +139,26 @@ func (c *CleanPerlCompiler) updatePerlVersion(code string) (string, error) {
 func (c *CleanPerlCompiler) compileFromAST(rootNode ast.Node, astData AST) (string, error) {
 	var result strings.Builder
 
+	// Get source content for text extraction
+	source, err := astData.GetContent()
+	if err != nil {
+		return "", NewCompilerError(ErrCompilationFailed, "failed to get source content for AST traversal").WithCause(err)
+	}
+
 	// Create a code generator for clean Perl output
 	generator := &cleanPerlCodeGenerator{
 		buffer:  &result,
 		options: c.options,
+		source:  source,
 	}
 
 	// Traverse the AST and generate code without type annotations
-	err := generator.generateCode(rootNode)
-	if err != nil {
+	genErr := generator.generateCode(rootNode)
+	if genErr != nil {
 		// AST generation failed, fall back to source-based approach
 		source, sourceErr := astData.GetContent()
 		if sourceErr != nil {
-			return "", NewCompilerError(ErrCompilationFailed, "AST traversal failed and source content unavailable").WithCause(err)
+			return "", NewCompilerError(ErrCompilationFailed, "AST traversal failed and source content unavailable").WithCause(genErr)
 		}
 		return c.processSourceText(source), nil
 	}
@@ -279,7 +286,8 @@ func (c *CleanPerlCompiler) cleanFunctionParams(params string) string {
 type cleanPerlCodeGenerator struct {
 	buffer  *strings.Builder
 	options *CompilerOptions
-	depth   int // for indentation
+	source  string // source text for node text extraction
+	depth   int    // for indentation
 }
 
 // generateCode recursively generates code for an AST node
@@ -288,29 +296,188 @@ func (g *cleanPerlCodeGenerator) generateCode(node ast.Node) error {
 		return nil
 	}
 
-	switch n := node.(type) {
-	case *ast.VarDecl:
-		return g.generateVarDecl(n)
-	case *ast.SubDecl:
-		return g.generateSubDecl(n)
-	case *ast.ExpressionStmt:
-		return g.generateExpressionStmt(n)
-	case *ast.ProgramStmt:
-		return g.generateProgramStmt(n)
-	case *ast.LiteralExpr:
-		return g.generateLiteralExpr(n)
-	case *ast.VariableExpr:
-		return g.generateVariableExpr(n)
-	case ast.StatementNode:
-		// Handle other statement types by generating their children
-		return g.generateChildren(node)
-	case ast.ExpressionNode:
-		// Handle other expression types by generating their children
-		return g.generateChildren(node)
-	default:
-		// For unknown node types, try to generate from children
-		return g.generateChildren(node)
+	nodeType := node.Type()
+
+	// Skip type annotation nodes entirely (like ASTCompiler does)
+	if g.isTypeAnnotationNode(nodeType) {
+		return nil
 	}
+
+	// Handle token nodes - preserve their text directly
+	if tokenNode, ok := node.(*ast.TokenNode); ok {
+		return g.handleTokenNode(tokenNode)
+	}
+
+	// Use semantic node handling like ASTCompiler
+	return g.handleNodeSemantics(node)
+}
+
+// isTypeAnnotationNode checks if a node represents a type annotation
+func (g *cleanPerlCodeGenerator) isTypeAnnotationNode(nodeType string) bool {
+	typeNodes := map[string]bool{
+		// Basic type annotations
+		"type_expression": true,
+		"type_annotation": true,
+		"scalar_type":     true,
+		"array_type":      true,
+		"hash_type":       true,
+
+		// Method/function types
+		"method_return_type":     true,
+		"typed_method_parameter": true,
+		"return_type":            true,
+		"parameter_type":         true,
+
+		// Complex type constructs
+		"type_assertion":     true,
+		"type_declaration":   true,
+		"union_type":         true,
+		"intersection_type":  true,
+		"negation_type":      true,
+		"parameterized_type": true,
+
+		// Named types that start with capital letters (heuristic)
+		// These might be parsed as identifiers but represent types
+		"Int":      true,
+		"Str":      true,
+		"Bool":     true,
+		"Num":      true,
+		"ArrayRef": true,
+		"HashRef":  true,
+		"CodeRef":  true,
+		"Any":      true,
+		"Undef":    true,
+		"Maybe":    true,
+		"Union":    true,
+	}
+	return typeNodes[nodeType]
+}
+
+// handleTokenNode processes token nodes
+func (g *cleanPerlCodeGenerator) handleTokenNode(tokenNode *ast.TokenNode) error {
+	// Extract text directly for token nodes
+	text := tokenNode.Text()
+	g.buffer.WriteString(text)
+	return nil
+}
+
+// handleVariableDeclaration processes variable declarations
+func (g *cleanPerlCodeGenerator) handleVariableDeclaration(node ast.Node) error {
+	// Check if it's a typed VarDecl we can handle directly
+	if varDecl, ok := node.(*ast.VarDecl); ok {
+		return g.generateVarDecl(varDecl)
+	}
+
+	// Otherwise use generic var_decl handling for parsed ASTs
+	return g.generateGenericVarDecl(node)
+}
+
+// handleSubroutineDeclaration processes subroutine declarations
+func (g *cleanPerlCodeGenerator) handleSubroutineDeclaration(node ast.Node) error {
+	// Check if it's a typed SubDecl we can handle directly
+	if subDecl, ok := node.(*ast.SubDecl); ok {
+		return g.generateSubDecl(subDecl)
+	}
+
+	// Otherwise use generic sub_decl handling
+	return g.generateGenericSubDecl(node)
+}
+
+// handleFunctionCall processes function calls
+func (g *cleanPerlCodeGenerator) handleFunctionCall(node ast.Node) error {
+	// For function calls, just walk children normally
+	return g.walkChildren(node)
+}
+
+// handleStringLiteral processes string literals
+func (g *cleanPerlCodeGenerator) handleStringLiteral(node ast.Node) error {
+	// For string literals, preserve exact text
+	text := g.extractNodeText(node)
+	if text != "" {
+		g.buffer.WriteString(text)
+		return nil
+	}
+	return g.walkChildren(node)
+}
+
+// handleLiteral processes literal expressions
+func (g *cleanPerlCodeGenerator) handleLiteral(node ast.Node) error {
+	// Check if it's a typed LiteralExpr we can handle directly
+	if literalExpr, ok := node.(*ast.LiteralExpr); ok {
+		g.buffer.WriteString(literalExpr.Value)
+		return nil
+	}
+
+	// For other literal nodes, try to extract text
+	text := g.extractNodeText(node)
+	if text != "" {
+		g.buffer.WriteString(text)
+		return nil
+	}
+	return g.walkChildren(node)
+}
+
+// walkChildren walks all children of a node
+func (g *cleanPerlCodeGenerator) walkChildren(node ast.Node) error {
+	children := node.Children()
+
+	// Collect valid children (non-type-annotation children)
+	var validChildren []ast.Node
+	for _, child := range children {
+		childType := child.Type()
+		// Skip type annotations
+		if g.isTypeAnnotationNode(childType) {
+			continue
+		}
+		validChildren = append(validChildren, child)
+	}
+
+	// Process valid children with appropriate spacing
+	for i, child := range validChildren {
+		if i > 0 {
+			// Add space between valid children
+			g.buffer.WriteString(" ")
+		}
+
+		err := g.generateCode(child)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// cleanVariableDeclarationText removes type annotations from variable declaration text
+func (g *cleanPerlCodeGenerator) cleanVariableDeclarationText(text string) string {
+	// Handle patterns like "my Int $x = 42" -> "my $x = 42"
+	words := strings.Fields(text)
+	if len(words) < 3 {
+		return text
+	}
+
+	// Look for pattern: "my" + TypeName + "$variable" + optional rest
+	if words[0] == "my" && len(words) >= 3 {
+		// Check if second word looks like a type name and third word is a variable
+		if g.looksLikeTypeName(words[1]) && strings.HasPrefix(words[2], "$") {
+			// Remove the type name (second word)
+			result := words[0] // "my"
+			for i := 2; i < len(words); i++ {
+				result += " " + words[i]
+			}
+			return result
+		}
+	}
+
+	return text
+}
+
+// looksLikeTypeName checks if a string looks like a type name
+func (g *cleanPerlCodeGenerator) looksLikeTypeName(identifier string) bool {
+	if len(identifier) == 0 {
+		return false
+	}
+	firstChar := identifier[0]
+	return firstChar >= 'A' && firstChar <= 'Z'
 }
 
 // generateVarDecl generates clean variable declarations (without type annotations)
@@ -447,6 +614,166 @@ func (g *cleanPerlCodeGenerator) generateChildren(node ast.Node) error {
 		return nil
 	}
 
+	return nil
+}
+
+// extractNodeText extracts the source text covered by a node (like ASTCompiler does)
+func (g *cleanPerlCodeGenerator) extractNodeText(node ast.Node) string {
+	// First try to use the node's Text() method directly
+	nodeText := node.Text()
+	if nodeText != "" {
+		return nodeText
+	}
+
+	// Fallback to position-based extraction if we have valid offsets
+	start := node.Start()
+	end := node.End()
+
+	if g.source != "" && start.Offset >= 0 && end.Offset > start.Offset && end.Offset <= len(g.source) {
+		// Extract text using byte offsets
+		return g.source[start.Offset:end.Offset]
+	}
+
+	// If all else fails, return empty string
+	return ""
+}
+
+// handleNodeSemantics processes nodes based on their semantic meaning (like ASTCompiler)
+func (g *cleanPerlCodeGenerator) handleNodeSemantics(node ast.Node) error {
+	nodeType := node.Type()
+
+	// Handle based on semantic type, not text manipulation
+	switch nodeType {
+	case "var_decl", "variable_declaration":
+		return g.handleVariableDeclaration(node)
+	case "subroutine_definition", "sub_decl":
+		return g.handleSubroutineDeclaration(node)
+	case "ambiguous_function_call_expression":
+		return g.handleFunctionCall(node)
+	case "interpolated_string_literal", "string_literal":
+		return g.handleStringLiteral(node)
+	case "literal":
+		return g.handleLiteral(node)
+	case "source_file":
+		return g.generateSourceFile(node)
+	case "expression_statement":
+		return g.generateExpressionStatement(node)
+	case "token":
+		return g.generateToken(node)
+	default:
+		// For unknown types, walk children
+		return g.walkChildren(node)
+	}
+}
+
+// generateGenericVarDecl handles variable declarations when not a specific *ast.VarDecl type
+func (g *cleanPerlCodeGenerator) generateGenericVarDecl(node ast.Node) error {
+	// Extract the source text for this node and clean it
+	text := g.extractNodeText(node)
+	if text != "" {
+		cleaned := g.cleanVariableDeclarationText(text)
+		g.buffer.WriteString(cleaned)
+		// Don't double-add semicolons if they're already present
+		if !strings.HasSuffix(strings.TrimSpace(cleaned), ";") {
+			g.buffer.WriteString(";")
+		}
+		return nil
+	}
+
+	// Fallback to children processing if no text available
+	children := node.Children()
+
+	// Collect valid children (non-type-annotation children)
+	var validChildren []ast.Node
+	for _, child := range children {
+		childType := child.Type()
+		// Skip type annotations
+		if g.isTypeAnnotationNode(childType) {
+			continue
+		}
+		validChildren = append(validChildren, child)
+	}
+
+	// Process valid children with appropriate spacing
+	for i, child := range validChildren {
+		if i > 0 {
+			g.buffer.WriteString(" ")
+		}
+
+		err := g.generateCode(child)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Add semicolon if we generated content
+	if len(validChildren) > 0 {
+		g.buffer.WriteString(";")
+	}
+	return nil
+}
+
+// generateGenericSubDecl handles subroutine declarations when not a specific *ast.SubDecl type
+func (g *cleanPerlCodeGenerator) generateGenericSubDecl(node ast.Node) error {
+	// For generic sub_decl nodes, process children while stripping type annotations
+	children := node.Children()
+	for i, child := range children {
+		if i > 0 {
+			g.buffer.WriteString(" ")
+		}
+
+		childType := child.Type()
+		// Skip type annotations and return types
+		if childType == "type_expression" || childType == "type_annotation" ||
+			childType == "method_return_type" || childType == "return_type" {
+			continue
+		}
+
+		err := g.generateCode(child)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// generateExpressionStatement handles expression_statement nodes
+func (g *cleanPerlCodeGenerator) generateExpressionStatement(node ast.Node) error {
+	// Process all children of the expression statement
+	children := node.Children()
+	for _, child := range children {
+		err := g.generateCode(child)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// generateSourceFile handles source_file root nodes
+func (g *cleanPerlCodeGenerator) generateSourceFile(node ast.Node) error {
+	// Process all top-level statements
+	children := node.Children()
+	for i, child := range children {
+		if i > 0 && child.Type() != "token" {
+			g.buffer.WriteString("\n")
+		}
+		err := g.generateCode(child)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// generateToken handles token nodes
+func (g *cleanPerlCodeGenerator) generateToken(node ast.Node) error {
+	// For token nodes, include their text unless they're type-related
+	text := node.Text()
+	// Skip certain tokens that are just whitespace or type-related
+	if text == "\n" || text == ";" {
+		g.buffer.WriteString(text)
+	}
 	return nil
 }
 
