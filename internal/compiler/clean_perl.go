@@ -148,7 +148,12 @@ func (c *CleanPerlCompiler) compileFromAST(rootNode ast.Node, astData AST) (stri
 	// Traverse the AST and generate code without type annotations
 	err := generator.generateCode(rootNode)
 	if err != nil {
-		return "", NewCompilerError(ErrCompilationFailed, "AST traversal failed").WithCause(err)
+		// AST generation failed, fall back to source-based approach
+		source, sourceErr := astData.GetContent()
+		if sourceErr != nil {
+			return "", NewCompilerError(ErrCompilationFailed, "AST traversal failed and source content unavailable").WithCause(err)
+		}
+		return c.processSourceText(source), nil
 	}
 
 	code := result.String()
@@ -296,6 +301,12 @@ func (g *cleanPerlCodeGenerator) generateCode(node ast.Node) error {
 		return g.generateLiteralExpr(n)
 	case *ast.VariableExpr:
 		return g.generateVariableExpr(n)
+	case ast.StatementNode:
+		// Handle other statement types by generating their children
+		return g.generateChildren(node)
+	case ast.ExpressionNode:
+		// Handle other expression types by generating their children
+		return g.generateChildren(node)
 	default:
 		// For unknown node types, try to generate from children
 		return g.generateChildren(node)
@@ -414,24 +425,28 @@ func (g *cleanPerlCodeGenerator) generateVariableExpr(expr *ast.VariableExpr) er
 
 // generateChildren generates code for all child nodes (fallback for unknown types)
 func (g *cleanPerlCodeGenerator) generateChildren(node ast.Node) error {
-	// For complex nodes that we don't handle specifically, fall back to text representation
-	// to avoid malformed output like "use;feature;" instead of "use feature 'signatures';"
+	// Try to generate from children first (this allows us to strip type annotations)
+	children := node.Children()
+	if len(children) > 0 {
+		for i, child := range children {
+			if i > 0 {
+				g.buffer.WriteString(" ")
+			}
+			err := g.generateCode(child)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Only fall back to node text if there are no children
+	// Note: This preserves original text which may include type annotations
 	if nodeText := node.Text(); nodeText != "" {
 		g.buffer.WriteString(nodeText)
 		return nil
 	}
 
-	// If no text available, try to generate from children with spacing
-	children := node.Children()
-	for i, child := range children {
-		if i > 0 {
-			g.buffer.WriteString(" ")
-		}
-		err := g.generateCode(child)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
