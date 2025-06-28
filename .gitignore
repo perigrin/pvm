@@ -82,3 +82,9 @@ internal/typechecker/testdata/input/
 # Build artifacts
 tmp-golangci-build/
 test-pvm
+
+# Cache files and temporary data
+**/\$XDG_CACHE_HOME/
+**/*.tar.gz
+internal/integration/\$XDG_CACHE_HOME/
+internal/pvm/*.tar.gz
