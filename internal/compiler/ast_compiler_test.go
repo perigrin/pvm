@@ -27,7 +27,8 @@ func TestASTCompilerCorrectness(t *testing.T) {
 			name: "simple_typed_variable",
 			input: `my Int $count = 42;
 print "Count: $count\n";`,
-			expected: `my $count = 42;
+			expected: `use v5.36;
+my $count = 42;
 print "Count: $count\n";`,
 		},
 		{
