@@ -91,6 +91,16 @@ func NewTypedPerlCompilerUnified() *PerlCompiler {
 	return NewPerlCompiler(TargetTypedPerl)
 }
 
+// NewOptimizedCleanPerlCompiler creates an optimized caching compiler for clean Perl
+func NewOptimizedCleanPerlCompiler() *CachingPerlCompiler {
+	return NewCachingCleanPerlCompiler(500) // Default cache size of 500 entries
+}
+
+// NewOptimizedTypedPerlCompiler creates an optimized caching compiler for typed Perl
+func NewOptimizedTypedPerlCompiler() *CachingPerlCompiler {
+	return NewCachingTypedPerlCompiler(500) // Default cache size of 500 entries
+}
+
 // Target returns the compilation target
 func (c *PerlCompiler) Target() Target {
 	return c.target
