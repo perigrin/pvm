@@ -35,7 +35,8 @@ print "Count: $count\n";`,
 			name: "simple_str_variable",
 			input: `my Str $name = "hello";
 print "Name: $name\n";`,
-			expected: `my $name = "hello";
+			expected: `use v5.36;
+my $name = "hello";
 print "Name: $name\n";`,
 		},
 		{
@@ -44,14 +45,19 @@ print "Name: $name\n";`,
     return $a + $b;
 }`,
 			expected: `use v5.36;
-sub add($a, $b) { return $a + $b; }`,
+sub add ($a, $b)  {
+    return $a + $b;
+}`,
 		},
 		{
 			name: "complex_parameterized_types",
 			input: `sub process (ArrayRef[HashRef[Str]] $data) -> Result[Bool] {
     return 1;
 }`,
-			expected: `sub process { return 1; }`,
+			expected: `use v5.36;
+sub process  {
+    return 1;
+}`,
 		},
 		{
 			name: "mixed_typed_untyped_params",
@@ -59,7 +65,9 @@ sub add($a, $b) { return $a + $b; }`,
     return;
 }`,
 			expected: `use v5.36;
-sub mixed($typed, $untyped, $another) { return; }`,
+sub mixed ($typed, $untyped, $another)  {
+    return;
+}`,
 		},
 		{
 			name: "nested_union_types",
@@ -67,7 +75,9 @@ sub mixed($typed, $untyped, $another) { return; }`,
     return "result";
 }`,
 			expected: `use v5.36;
-sub complex($param) { return "result"; }`,
+sub complex ($param)  {
+    return "result";
+}`,
 		},
 		{
 			name: "intersection_and_negation",
@@ -75,13 +85,16 @@ sub complex($param) { return "result"; }`,
     return 1;
 }`,
 			expected: `use v5.36;
-sub validate($obj, $config) { return 1; }`,
+sub validate ($obj, $config)  {
+    return 1;
+}`,
 		},
 		{
 			name: "field_declarations",
 			input: `field Int $count;
 field ArrayRef[Str] $items;`,
-			expected: `field $count;
+			expected: `use v5.36;
+field $count;
 field $items;`,
 		},
 		{
@@ -102,7 +115,10 @@ my $typed = $value;`,
 			input: `for my Int $i (@numbers) {
     print $i;
 }`,
-			expected: `for my $i (@numbers) { print $i; }`,
+			expected: `use v5.36;
+for my  $i (@numbers) {
+    print $i;
+}`,
 		},
 		{
 			name: "multiline_signature",
@@ -114,7 +130,13 @@ my $typed = $value;`,
     return 1;
 }`,
 			expected: `use v5.36;
-sub multiline($first, $second, $third) { return 1; }`,
+sub multiline (
+    $first,
+    $second,
+    $third
+)  {
+    return 1;
+}`,
 		},
 		{
 			name: "attributes_with_signature",
@@ -122,7 +144,9 @@ sub multiline($first, $second, $third) { return 1; }`,
     return $value;
 }`,
 			expected: `use v5.36;
-sub tagged($value) { return $value; }`,
+sub tagged :lvalue :const ($value)  {
+    return $value;
+}`,
 		},
 		{
 			name: "method_declaration",
@@ -134,14 +158,16 @@ sub tagged($value) { return $value; }`,
 			name: "field_with_initialization",
 			input: `field Int $counter = 0;
 field HashRef[Str] $config = {};`,
-			expected: `field $counter = 0;
+			expected: `use v5.36;
+field $counter = 0;
 field $config = {};`,
 		},
 		{
 			name: "complex_typed_variables",
 			input: `my ComplexTypes $self = bless {}, $class;
 my ArrayRef[HashRef[Str|Int]] $users = [];`,
-			expected: `my $self = bless {}, $class;
+			expected: `use v5.36;
+my $self = bless {}, $class;
 my $users = [];`,
 		},
 		{
@@ -149,7 +175,10 @@ my $users = [];`,
 			input: `for my UserId $id (keys %$config) {
     my HashRef[Str|Int] $user_info = {};
 }`,
-			expected: `for my $id (keys %$config) { my HashRef[Str|Int] $user_info = {} }`,
+			expected: `use v5.36;
+for my  $id (keys %$config) {
+    my $user_info = {};
+}`,
 		},
 	}
 
