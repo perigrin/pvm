@@ -92,8 +92,9 @@ type UserData = HashRef[Str];`,
 			name: "type_assertions",
 			input: `my $value = get_value();
 my $typed = $value as Int;`,
-			expected: `my $value = get_value();
-my $typed = $value as Int;`,
+			expected: `use v5.36;
+my $value = get_value();
+my $typed = $value;`,
 		},
 		{
 			name: "for_loop_with_types",
@@ -169,9 +170,9 @@ my $users = [];`,
 			ast, err := p.ParseFile(tempFile)
 			require.NoError(t, err)
 
-			// Test AST compiler
-			astCompiler := NewASTCompiler()
-			astResult, err := astCompiler.Compile(ast)
+			// Test unified compiler (CST-based)
+			unifiedCompiler := NewCleanPerlCompilerUnified()
+			astResult, err := unifiedCompiler.Compile(ast)
 			require.NoError(t, err)
 
 			t.Logf("Input:\n%s", tc.input)
@@ -247,7 +248,9 @@ print "Total: $total\n";`,
 			ast, err := p.ParseFile(tempFile)
 			require.NoError(t, err)
 
-			cleanPerl, err := NewCleanPerlCompiler().Compile(ast)
+			// Use unified compiler from registry
+			registry := NewCompilerRegistry()
+			cleanPerl, err := registry.Compile(ast, TargetCleanPerl)
 			require.NoError(t, err)
 
 			// Debug: Show generated Perl

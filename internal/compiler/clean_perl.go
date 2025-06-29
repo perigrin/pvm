@@ -14,11 +14,14 @@ import (
 )
 
 // CleanPerlCompiler compiles AST to clean Perl code without type annotations
+// Deprecated: Use NewCleanPerlCompilerUnified() from perl_compiler.go instead.
+// This legacy compiler uses the old AST-based approach and will be removed in a future version.
 type CleanPerlCompiler struct {
 	options *CompilerOptions
 }
 
 // NewCleanPerlCompiler creates a new clean Perl compiler
+// Deprecated: Use NewCleanPerlCompilerUnified() instead for better CST-based compilation.
 func NewCleanPerlCompiler() *CleanPerlCompiler {
 	return &CleanPerlCompiler{
 		options: &CompilerOptions{
