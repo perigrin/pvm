@@ -671,19 +671,7 @@ func (g *cleanPerlCodeGenerator) handleNodeSemantics(node ast.Node) error {
 
 // generateGenericVarDecl handles variable declarations when not a specific *ast.VarDecl type
 func (g *cleanPerlCodeGenerator) generateGenericVarDecl(node ast.Node) error {
-	// Extract the source text for this node and clean it
-	text := g.extractNodeText(node)
-	if text != "" {
-		cleaned := g.cleanVariableDeclarationText(text)
-		g.buffer.WriteString(cleaned)
-		// Don't double-add semicolons if they're already present
-		if !strings.HasSuffix(strings.TrimSpace(cleaned), ";") {
-			g.buffer.WriteString(";")
-		}
-		return nil
-	}
-
-	// Fallback to children processing if no text available
+	// Use AST-based processing as primary approach to handle all type annotation scenarios properly
 	children := node.Children()
 
 	// Collect valid children (non-type-annotation children)

@@ -261,6 +261,11 @@ func (ca *CSTAnalyzer) IsTypeAnnotationNode(node *sitter.Node) bool {
 		NodeTypeExpression,
 		NodeSimpleType,
 		NodeTypeAssertion,
+		"parameterized_type",
+		"union_type",
+		"type_parameter_list",
+		"intersection_type",
+		"negation_type",
 	}
 
 	for _, nodeType := range typeNodes {

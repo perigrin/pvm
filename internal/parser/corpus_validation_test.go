@@ -344,8 +344,8 @@ func validateCompilationOutputs(t *testing.T, testCase *ParserTestCase, ast *ast
 func validateCleanPerlOutput(t *testing.T, testCase *ParserTestCase, ast *ast.AST) {
 	t.Helper()
 
-	// Create CleanPerlCompiler
-	cleanCompiler := compiler.NewCleanPerlCompiler()
+	// Create CleanPerlCompiler (use unified compiler for better type handling)
+	cleanCompiler := compiler.NewCleanPerlCompilerUnified()
 
 	// Compile to clean Perl
 	actualOutput, err := cleanCompiler.Compile(ast)

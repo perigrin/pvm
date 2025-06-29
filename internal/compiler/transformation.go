@@ -51,6 +51,7 @@ func NewCSTTransformer(content []byte, options TransformationOptions) *CSTTransf
 		&VariableDeclarationCleanupRule{},
 		&TypeAssertionCleanupRule{},
 		&MethodParameterCleanupRule{},
+		&MethodDeclarationRemovalRule{},
 		&SubroutineReturnTypeRule{},
 		&ForLoopTypedVariableRule{},
 		&ErrorNodeCleanupRule{},
@@ -303,6 +304,34 @@ func (r *MethodParameterCleanupRule) Transform(node *sitter.Node, content []byte
 
 func (r *MethodParameterCleanupRule) Description() string {
 	return "Handles method parameters by removing type annotations while preserving parameter names"
+}
+
+// MethodDeclarationRemovalRule removes method declarations entirely, keeping only the body
+type MethodDeclarationRemovalRule struct{}
+
+func (r *MethodDeclarationRemovalRule) CanTransform(node *sitter.Node) bool {
+	return node.Kind() == "method_decl" || node.Kind() == "method_declaration" || node.Kind() == "method_declaration_statement"
+}
+
+func (r *MethodDeclarationRemovalRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
+	// For method declarations, extract only the block statement (method body)
+	// This transforms: method name(params) returns Type { body }
+	// Into:            { body }
+
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child.Kind() == "block_stmt" || child.Kind() == "block" || child.Kind() == "compound_statement" {
+			// Found the method body - transform it recursively
+			return transformer.transformNode(child)
+		}
+	}
+
+	// If no block found, return empty (shouldn't happen for valid methods)
+	return "", nil
+}
+
+func (r *MethodDeclarationRemovalRule) Description() string {
+	return "Removes method declarations entirely, keeping only the method body"
 }
 
 // PreservationRule is a catch-all rule that preserves nodes as-is
