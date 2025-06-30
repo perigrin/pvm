@@ -897,7 +897,7 @@ func (p *Parser) convertToASTTypeExpression(te *TypeExpression) *ast.TypeExpress
 		}
 		fullTypeName = te.BaseType + "[" + strings.Join(paramNames, ",") + "]"
 	}
-	
+
 	astTypeExpr := ast.NewTypeExpression(fullTypeName, astParams, astPos, astPos)
 	astTypeExpr.IsUnion = te.IsUnion
 	astTypeExpr.IsIntersection = te.IsIntersection
@@ -1713,7 +1713,7 @@ func (p *Parser) extractTypeExpression(node Node) *ast.TypeExpression {
 		if openBracket < closeBracket {
 			paramText := strings.TrimSpace(typeText[openBracket+1 : closeBracket])
 
-			// Create parameterized type expression  
+			// Create parameterized type expression
 			var params []*ast.TypeExpression
 			if paramText != "" {
 				paramType := ast.NewTypeExpression(paramText, nil, start, end)

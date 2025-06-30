@@ -748,21 +748,21 @@ func (r *ClassConstraintPreservationRule) Transform(node *sitter.Node, content [
 func (r *ClassConstraintPreservationRule) isInClassConstraint(node *sitter.Node) bool {
 	// A more aggressive approach: if we're in a class context and there's "where" anywhere
 	// in the source around this position, assume it's a class constraint
-	
+
 	current := node
 	for current != nil {
 		kind := current.Kind()
-		
+
 		// Check for class declaration context at any level
-		if kind == "class_declaration" || kind == "class_decl" || 
-		   strings.Contains(kind, "class") {
+		if kind == "class_declaration" || kind == "class_decl" ||
+			strings.Contains(kind, "class") {
 			// We're in a class context - now check if there's constraint syntax
 			return r.hasConstraintSyntaxNearby(current)
 		}
-		
+
 		current = current.Parent()
 	}
-	
+
 	return false
 }
 
@@ -776,9 +776,9 @@ func (r *ClassConstraintPreservationRule) containsConstraintKeywords(node *sitte
 	if node == nil {
 		return false
 	}
-	
+
 	kind := node.Kind()
-	
+
 	// Check current node
 	if kind == "where" || kind == "bareword" || kind == "identifier" {
 		// For bareword/identifier nodes, we can't easily check content without the source
@@ -787,7 +787,7 @@ func (r *ClassConstraintPreservationRule) containsConstraintKeywords(node *sitte
 			return true
 		}
 	}
-	
+
 	// Check all children recursively
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
@@ -795,7 +795,7 @@ func (r *ClassConstraintPreservationRule) containsConstraintKeywords(node *sitte
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -863,7 +863,7 @@ func normalizeWhitespaceAfterTypeRemoval(code string) string {
 // isVariableDeclarationContext determines if empty lines are between variable declarations
 func isVariableDeclarationContext(prev, next string) bool {
 	// Check if previous line looks like start of variable declaration
-	prevIsVarStart := strings.HasPrefix(prev, "my ") || strings.HasPrefix(prev, "our ") || 
+	prevIsVarStart := strings.HasPrefix(prev, "my ") || strings.HasPrefix(prev, "our ") ||
 		strings.HasPrefix(prev, "local ") || prev == "my" || prev == "our" || prev == "local"
 
 	// Check if next line looks like variable name
