@@ -34,8 +34,8 @@ AST {
     VarAnnotation: $compact :: Int|Str|Bool at 2:1
     VarAnnotation: $extra_spaced :: Num  |  Str  |  Bool at 3:1
     VarAnnotation: $multiline :: Int|
-            Str|
-            Bool at 4:1
+    Str|
+    Bool at 4:1
   Root: source_file
   Tree Structure:
   source_file
@@ -142,8 +142,8 @@ AST {
     VarAnnotation: $compact :: Int|Str|Bool at 2:1
     VarAnnotation: $extra_spaced :: Num  |  Str  |  Bool at 3:1
     VarAnnotation: $multiline :: Int|
-            Str|
-            Bool at 4:1
+    Str|
+    Bool at 4:1
   Root: source_file
   Tree Structure:
   source_file
