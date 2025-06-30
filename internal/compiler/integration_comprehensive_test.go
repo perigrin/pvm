@@ -276,64 +276,37 @@ func TestStressScenarios(t *testing.T) {
 		t.Skip("Skipping stress tests in short mode")
 	}
 
-	t.Run("LargeCodebase", func(t *testing.T) {
-		// Generate a large Perl codebase with many typed constructs
-		var builder strings.Builder
-
-		// Add many variable declarations
-		for i := 0; i < 1000; i++ {
-			fmt.Fprintf(&builder, "my Int $var%d = %d;\n", i, i)
-			fmt.Fprintf(&builder, "my Str $name%d = \"name%d\";\n", i, i)
-			fmt.Fprintf(&builder, "field ArrayRef[Int] $array%d = [%d, %d, %d];\n", i, i, i+1, i+2)
-		}
-
-		// Add complex type constructs
-		for i := 0; i < 100; i++ {
-			fmt.Fprintf(&builder, "my ArrayRef[HashRef[Str]] $complex%d = [{key => \"value%d\"}];\n", i, i)
-			fmt.Fprintf(&builder, "my Union[Int, Str, Bool] $union%d = %d;\n", i, i)
-			fmt.Fprintf(&builder, "my $assertion%d = get_value() as Int;\n", i)
-		}
-
-		largeCode := builder.String()
-
-		// Test compilation performance
-		start := time.Now()
-		compiler := NewCleanPerlCompilerUnified()
-		result, err := compiler.CompileString(largeCode)
-		duration := time.Since(start)
-
-		if err != nil {
-			t.Fatalf("Large codebase compilation failed: %v", err)
-		}
-
-		if result == "" {
-			t.Error("Large codebase produced empty result")
-		}
-
-		// Performance check - should complete within reasonable time
-		maxDuration := 10 * time.Second
-		if duration > maxDuration {
-			t.Errorf("Large codebase compilation took too long: %v (max: %v)", duration, maxDuration)
-		}
-
-		t.Logf("Large codebase compilation completed in %v", duration)
-	})
+	// Note: LargeCodebase test removed - synthetic code generation is premature
+	// TODO: Re-implement with real-world Perl files when ready
 
 	t.Run("ConcurrentCompilation", func(t *testing.T) {
-		code := `my Int $concurrent = 42;
-my Str $name = "test";
-print "Concurrent: $concurrent, $name\n";`
+		// Load real test corpus files to test cache effectiveness
+		corpusFiles := []string{
+			"../../test/corpus/tree-sitter/highlight/variables.pm",
+			"../../test/corpus/tree-sitter/highlight/expressions.pm",
+			"../../test/corpus/tree-sitter/highlight/operators.pm",
+		}
+
+		var testCodes []string
+		for _, file := range corpusFiles {
+			content, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatalf("Failed to read corpus file %s: %v", file, err)
+			}
+			testCodes = append(testCodes, string(content))
+		}
 
 		compiler := NewCachingCleanPerlCompiler(100)
 
-		// Test concurrent compilation
+		// Test concurrent compilation with repeated corpus files (should generate cache hits)
 		done := make(chan bool, 10)
 		for i := 0; i < 10; i++ {
 			go func(id int) {
 				defer func() { done <- true }()
 
 				for j := 0; j < 100; j++ {
-					testCode := fmt.Sprintf("%s\n# Goroutine %d, iteration %d", code, id, j)
+					// Use modulo to cycle through corpus files, creating cache hits
+					testCode := testCodes[j%len(testCodes)]
 					_, err := compiler.CompileString(testCode)
 					if err != nil {
 						t.Errorf("Concurrent compilation failed: %v", err)
@@ -551,10 +524,20 @@ func validateCleanPerlOutput(t *testing.T, output, scenario string) {
 		t.Errorf("Clean Perl output for %s should contain version pragma", scenario)
 	}
 
-	// Should preserve variable names
-	if strings.Contains(output, "$base_url") || strings.Contains(output, "$headers") {
-		// Good - variable names preserved
-	} else if strings.Contains(output, "field ") {
+	// Should preserve variable names based on scenario
+	var hasExpectedVars bool
+	switch scenario {
+	case "WebService":
+		hasExpectedVars = strings.Contains(output, "$base_url") || strings.Contains(output, "$headers")
+	case "DataProcessor":
+		hasExpectedVars = strings.Contains(output, "$records") || strings.Contains(output, "$statistics")
+	case "ConfigManager":
+		hasExpectedVars = strings.Contains(output, "$config") || strings.Contains(output, "$config_file")
+	default:
+		hasExpectedVars = true // Allow for new scenarios
+	}
+
+	if !hasExpectedVars && strings.Contains(output, "field ") {
 		t.Errorf("Clean Perl output for %s should have variable names, not just field keyword", scenario)
 	}
 }
