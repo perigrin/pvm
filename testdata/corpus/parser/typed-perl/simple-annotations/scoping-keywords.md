@@ -31,6 +31,7 @@ AST {
   Type Annotations:
     VarAnnotation: $global_counter :: Int at 1:1
     VarAnnotation: $persistent_cache :: Str at 2:1
+    VarAnnotation: $localized :: Num at 3:1
   Root: source_file
   Tree Structure:
   source_file
@@ -68,6 +69,7 @@ AST {
   Type Annotations:
     VarAnnotation: $global_counter :: Int at 1:1
     VarAnnotation: $persistent_cache :: Str at 2:1
+    VarAnnotation: $localized :: Num at 3:1
   Root: source_file
   Tree Structure:
   source_file
@@ -102,6 +104,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 our $global_counter = 0;
 state $persistent_cache = "";
 local $localized = 1.0;

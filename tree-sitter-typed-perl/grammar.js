@@ -742,7 +742,7 @@ module.exports = grammar({
 
     variable_declaration: $ => prec.left(TERMPREC.QUESTION_MARK + 1,
       seq(
-        choice('my', 'state', 'our', 'field'),
+        choice('my', 'state', 'our', 'field', 'local'),
         optional(choice(
           field('type', $.type_expression),
           seq('(', field('type', $.type_expression), ')')
@@ -761,7 +761,7 @@ module.exports = grammar({
     ),
 
     localization_expression: $ =>
-      prec(TERMPREC.UNOP, seq(choice('local', 'dynamically'), $._term)),
+      prec(TERMPREC.UNOP, seq('dynamically', $._term)),
 
     // this has negative prec b/c it's only if the parens weren't eaten elsewhere
     stub_expression: $ => prec(-1, seq('(', ')')),
