@@ -99,7 +99,7 @@ print "Total: $total\n";`,
 
 // TestCompilerCorpus tests compiler using corpus files
 func TestCompilerCorpus(t *testing.T) {
-	corpusDir := "../../test/corpus/compiler"
+	corpusDir := "../../testdata/corpus/compiler"
 
 	// Check if corpus directory exists, if not skip the test
 	if _, err := os.Stat(corpusDir); os.IsNotExist(err) {
@@ -168,8 +168,8 @@ func TestCompilerCorpus(t *testing.T) {
 
 // TestParserTestdataCompatibility ensures all parser test cases work with compiler
 func TestParserTestdataCompatibility(t *testing.T) {
-	// Load all test cases from test/corpus/parser/typed-perl/
-	testdataDir := "../../test/corpus/parser/typed-perl"
+	// Load all test cases from testdata/corpus/parser/typed-perl/
+	testdataDir := "../../testdata/corpus/parser/typed-perl"
 
 	err := filepath.Walk(testdataDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

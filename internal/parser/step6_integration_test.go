@@ -421,7 +421,7 @@ func saveBaseline(t *testing.T, results map[string]Step6PerformanceMetrics) {
 	t.Helper()
 
 	// Create baseline directory
-	baselineDir := filepath.Join("../../test/corpus/parser", "performance", "baselines")
+	baselineDir := filepath.Join("../../testdata/corpus/parser", "performance", "baselines")
 	err := os.MkdirAll(baselineDir, 0755)
 	require.NoError(t, err)
 

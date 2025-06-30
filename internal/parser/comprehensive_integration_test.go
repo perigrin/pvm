@@ -211,7 +211,7 @@ func TestComprehensiveIntegration_SaveResults(t *testing.T) {
 	}
 
 	// Create results directory
-	resultsDir := filepath.Join("../../test/corpus/parser", "integration-results")
+	resultsDir := filepath.Join("../../testdata/corpus/parser", "integration-results")
 	err := os.MkdirAll(resultsDir, 0755)
 	require.NoError(t, err)
 
@@ -848,7 +848,7 @@ class TypedDumper {
 // NOTE: This function generates synthetic code and should be replaced with corpus files
 func generateLargeProgramTests() []ComprehensiveIntegrationTest {
 	// Load large program from corpus file instead of generating synthetic code
-	// TODO: Create test/corpus/integration/large-generated-program.md
+	// TODO: Create testdata/corpus/integration/large-generated-program.md
 
 	// For now, return empty slice to disable synthetic generation
 	// This eliminates the synthetic code generation pattern
@@ -970,7 +970,7 @@ class BaseRepository<T> does Repository<T> where T: Serializable&Defined {
 
 // TestIntegrationCorpus tests integration scenarios using corpus files
 func TestIntegrationCorpus(t *testing.T) {
-	corpusDir := "../../test/corpus/integration"
+	corpusDir := "../../testdata/corpus/integration"
 
 	// Check if corpus directory exists, if not skip the test
 	if _, err := os.Stat(corpusDir); os.IsNotExist(err) {

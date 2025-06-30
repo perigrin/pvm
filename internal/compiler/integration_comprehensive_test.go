@@ -282,9 +282,9 @@ func TestStressScenarios(t *testing.T) {
 	t.Run("ConcurrentCompilation", func(t *testing.T) {
 		// Load real test corpus files to test cache effectiveness
 		corpusFiles := []string{
-			"../../test/corpus/tree-sitter/highlight/variables.pm",
-			"../../test/corpus/tree-sitter/highlight/expressions.pm",
-			"../../test/corpus/tree-sitter/highlight/operators.pm",
+			"../../testdata/corpus/tree-sitter/highlight/variables.pm",
+			"../../testdata/corpus/tree-sitter/highlight/expressions.pm",
+			"../../testdata/corpus/tree-sitter/highlight/operators.pm",
 		}
 
 		var testCodes []string

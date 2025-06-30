@@ -888,7 +888,17 @@ func (p *Parser) convertToASTTypeExpression(te *TypeExpression) *ast.TypeExpress
 		astIntersectionTypes = append(astIntersectionTypes, p.convertToASTTypeExpression(intersectionType))
 	}
 
-	astTypeExpr := ast.NewTypeExpression(te.BaseType, astParams, astPos, astPos)
+	// Reconstruct full type name including parameters
+	fullTypeName := te.BaseType
+	if len(astParams) > 0 {
+		var paramNames []string
+		for _, param := range astParams {
+			paramNames = append(paramNames, param.Name)
+		}
+		fullTypeName = te.BaseType + "[" + strings.Join(paramNames, ",") + "]"
+	}
+	
+	astTypeExpr := ast.NewTypeExpression(fullTypeName, astParams, astPos, astPos)
 	astTypeExpr.IsUnion = te.IsUnion
 	astTypeExpr.IsIntersection = te.IsIntersection
 	astTypeExpr.IsNegation = te.IsNegation
@@ -1541,7 +1551,7 @@ func (p *Parser) parseTypedVariableDeclaration(node Node, start, end ast.Positio
 	// Process children to extract declaration type, type expression, and variables
 	for _, child := range node.Children() {
 		switch child.Type() {
-		case "my", "our", "state", "local":
+		case "my", "our", "state", "local", "field":
 			declType = child.Text()
 		case "type_expression":
 			typeExpr = p.extractTypeExpression(child)
@@ -1701,16 +1711,16 @@ func (p *Parser) extractTypeExpression(node Node) *ast.TypeExpression {
 		closeBracket := strings.LastIndex(typeText, "]")
 
 		if openBracket < closeBracket {
-			baseType := strings.TrimSpace(typeText[:openBracket])
 			paramText := strings.TrimSpace(typeText[openBracket+1 : closeBracket])
 
-			// Create parameterized type expression
+			// Create parameterized type expression  
 			var params []*ast.TypeExpression
 			if paramText != "" {
 				paramType := ast.NewTypeExpression(paramText, nil, start, end)
 				params = []*ast.TypeExpression{paramType}
 			}
-			return ast.NewTypeExpression(baseType, params, start, end)
+			// Use full typeText as name (e.g., "ArrayRef[MyClass]")
+			return ast.NewTypeExpression(typeText, params, start, end)
 		}
 	}
 
@@ -1928,10 +1938,8 @@ func (p *Parser) extractConstraintAnnotations(content string) []*ast.TypeAnnotat
 			annotations = append(annotations, p.extractMethodConstraintAnnotations(line, lineNum+1)...)
 		}
 
-		// Look for field declarations
-		if strings.Contains(line, "field ") && strings.Contains(line, " $") {
-			annotations = append(annotations, p.extractFieldAnnotations(line, lineNum+1)...)
-		}
+		// Note: Field declarations are now handled by regular variable parsing logic
+		// No special field annotation processing needed - field is just a scope keyword like my
 
 		// Look for class declarations with constraints
 		if strings.Contains(line, "class ") && strings.Contains(line, " where ") {
