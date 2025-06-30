@@ -48,7 +48,7 @@ func TestCompilerError_Standalone(t *testing.T) {
 }
 
 func TestCleanPerlCompiler_Basic(t *testing.T) {
-	compiler := NewCleanPerlCompiler()
+	compiler := NewCleanPerlCompilerUnified()
 
 	// Test target
 	if compiler.Target() != TargetCleanPerl {

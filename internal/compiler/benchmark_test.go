@@ -65,7 +65,7 @@ print "Count: $count, Name: $name\n";`
 	})
 
 	b.Run("Legacy", func(b *testing.B) {
-		compiler := NewCleanPerlCompiler()
+		compiler := NewCleanPerlCompilerUnified()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			// Create temporary CST-based AST for comparison

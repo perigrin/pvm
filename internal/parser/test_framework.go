@@ -185,6 +185,7 @@ type MarkdownTestMetadata struct {
 	Subcategory string       `yaml:"subcategory"`
 	Tags        []string     `yaml:"tags"`
 	TypeCheck   bool         `yaml:"type_check"`
+	ShouldError bool         `yaml:"should_error"`
 }
 
 // LoadMarkdownTestCases loads test cases from a Markdown file
@@ -456,8 +457,8 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 	// Generate test case name from title and file
 	name := f.generateTestCaseName(section.Title, filePath)
 
-	// Parse error expectations from comments
-	shouldError := section.Comments["should_error"] == "true"
+	// Parse error expectations from metadata and comments
+	shouldError := metadata.ShouldError || section.Comments["should_error"] == "true"
 	errorType := section.Comments["expected_error"]
 
 	testCase := &ParserTestCase{

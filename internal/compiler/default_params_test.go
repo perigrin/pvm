@@ -38,7 +38,7 @@ func TestCompilerStripDefaultParameters(t *testing.T) {
 		{
 			name:     "strip return type with defaults",
 			input:    `sub add(Int $a, Int $b = 0) -> Int { return $a + $b; }`,
-			expected: `sub add($a, $b = 0) { return $a + $b; }`,
+			expected: `sub add($a, $b = 0)  { return $a + $b; }`,
 		},
 	}
 
@@ -51,7 +51,7 @@ func TestCompilerStripDefaultParameters(t *testing.T) {
 			require.NoError(t, err)
 
 			// Use the compiler to strip types
-			astCompiler := NewASTCompiler()
+			astCompiler := NewCleanPerlCompilerUnified()
 			result, err := astCompiler.Compile(astResult)
 			require.NoError(t, err)
 

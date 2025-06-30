@@ -16,212 +16,9 @@ import (
 	"tamarou.com/pvm/internal/parser"
 )
 
-// TestRegressionAgainstRegexCompiler ensures new AST compiler produces identical output
-func TestASTCompilerCorrectness(t *testing.T) {
-	testCases := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name: "simple_typed_variable",
-			input: `my Int $count = 42;
-print "Count: $count\n";`,
-			expected: `use v5.36;
-my $count = 42;
-print "Count: $count\n";`,
-		},
-		{
-			name: "simple_str_variable",
-			input: `my Str $name = "hello";
-print "Name: $name\n";`,
-			expected: `use v5.36;
-my $name = "hello";
-print "Name: $name\n";`,
-		},
-		{
-			name: "simple_function_signature",
-			input: `sub add (Int $a, Int $b) -> Int {
-    return $a + $b;
-}`,
-			expected: `use v5.36;
-sub add ($a, $b)  {
-    return $a + $b;
-}`,
-		},
-		{
-			name: "complex_parameterized_types",
-			input: `sub process (ArrayRef[HashRef[Str]] $data) -> Result[Bool] {
-    return 1;
-}`,
-			expected: `use v5.36;
-sub process  {
-    return 1;
-}`,
-		},
-		{
-			name: "mixed_typed_untyped_params",
-			input: `sub mixed (Int $typed, $untyped, Str $another) -> Void {
-    return;
-}`,
-			expected: `use v5.36;
-sub mixed ($typed, $untyped, $another)  {
-    return;
-}`,
-		},
-		{
-			name: "nested_union_types",
-			input: `sub complex (Union[Str, Union[Int, Bool]] $param) -> Str {
-    return "result";
-}`,
-			expected: `use v5.36;
-sub complex ($param)  {
-    return "result";
-}`,
-		},
-		{
-			name: "intersection_and_negation",
-			input: `sub validate (Object&Serializable $obj, !Undef $config) -> Bool {
-    return 1;
-}`,
-			expected: `use v5.36;
-sub validate ($obj, $config)  {
-    return 1;
-}`,
-		},
-		{
-			name: "field_declarations",
-			input: `field Int $count;
-field ArrayRef[Str] $items;`,
-			expected: `use v5.36;
-field $count;
-field $items;`,
-		},
-		{
-			name: "type_declarations",
-			input: `type UserId = Int;
-type UserData = HashRef[Str];`,
-		},
-		{
-			name: "type_assertions",
-			input: `my $value = get_value();
-my $typed = $value as Int;`,
-			expected: `use v5.36;
-my $value = get_value();
-my $typed = $value;`,
-		},
-		{
-			name: "for_loop_with_types",
-			input: `for my Int $i (@numbers) {
-    print $i;
-}`,
-			expected: `use v5.36;
-for my  $i (@numbers) {
-    print $i;
-}`,
-		},
-		{
-			name: "multiline_signature",
-			input: `sub multiline (
-    Int $first,
-    Str $second,
-    ArrayRef[Int] $third
-) -> Bool {
-    return 1;
-}`,
-			expected: `use v5.36;
-sub multiline (
-    $first,
-    $second,
-    $third
-)  {
-    return 1;
-}`,
-		},
-		{
-			name: "attributes_with_signature",
-			input: `sub tagged :lvalue :const (Int $value) -> Int {
-    return $value;
-}`,
-			expected: `use v5.36;
-sub tagged :lvalue :const ($value)  {
-    return $value;
-}`,
-		},
-		{
-			name: "method_declaration",
-			input: `method add_user(UserId $id, HashRef[Str] $data) -> Bool {
-    return 1;
-}`,
-		},
-		{
-			name: "field_with_initialization",
-			input: `field Int $counter = 0;
-field HashRef[Str] $config = {};`,
-			expected: `use v5.36;
-field $counter = 0;
-field $config = {};`,
-		},
-		{
-			name: "complex_typed_variables",
-			input: `my ComplexTypes $self = bless {}, $class;
-my ArrayRef[HashRef[Str|Int]] $users = [];`,
-			expected: `use v5.36;
-my $self = bless {}, $class;
-my $users = [];`,
-		},
-		{
-			name: "for_loop_with_complex_types",
-			input: `for my UserId $id (keys %$config) {
-    my HashRef[Str|Int] $user_info = {};
-}`,
-			expected: `use v5.36;
-for my  $id (keys %$config) {
-    my $user_info = {};
-}`,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Log when running test cases without expected output defined yet
-			if tc.expected == "" {
-				t.Logf("Running test %s without expected output - will show actual output for review", tc.name)
-			}
-
-			// Create temporary file for testing
-			tempFile := createTempFile(t, tc.input)
-			defer os.Remove(tempFile)
-
-			// Parse the file
-			p, err := parser.NewParser()
-			require.NoError(t, err)
-
-			ast, err := p.ParseFile(tempFile)
-			require.NoError(t, err)
-
-			// Test unified compiler (CST-based)
-			unifiedCompiler := NewCleanPerlCompilerUnified()
-			astResult, err := unifiedCompiler.Compile(ast)
-			require.NoError(t, err)
-
-			t.Logf("Input:\n%s", tc.input)
-			t.Logf("AST Compiler output:\n%s", astResult)
-
-			// Only validate against expected output if it's defined
-			if tc.expected != "" {
-				t.Logf("Expected output:\n%s", tc.expected)
-				// The AST compiler should produce the correct clean Perl output
-				assert.Equal(t, strings.TrimSpace(tc.expected), strings.TrimSpace(astResult),
-					"AST compiler output should match expected clean Perl output")
-			} else {
-				// For tests without expected output, just ensure we got some output
-				assert.NotEmpty(t, strings.TrimSpace(astResult), "AST compiler should produce some output")
-				t.Logf("Test %s passed - produced output (expected output not yet defined)", tc.name)
-			}
-		})
-	}
-}
+// NOTE: The old hardcoded AST compiler test was successfully replaced by
+// the corpus-based TestCompilerCorpus test which provides better maintainability
+// and easier addition of new test cases.
 
 // TestExecutionValidation ensures generated Perl is syntactically valid and executable
 func TestExecutionValidation(t *testing.T) {
@@ -300,6 +97,75 @@ print "Total: $total\n";`,
 	}
 }
 
+// TestCompilerCorpus tests compiler using corpus files
+func TestCompilerCorpus(t *testing.T) {
+	corpusDir := "../../test/corpus/compiler"
+
+	// Check if corpus directory exists, if not skip the test
+	if _, err := os.Stat(corpusDir); os.IsNotExist(err) {
+		t.Skip("Compiler corpus directory not found, skipping corpus-based tests")
+		return
+	}
+
+	// Create test framework
+	framework := parser.NewParserTestFramework(corpusDir)
+
+	// Walk through all markdown files in corpus directory
+	err := filepath.Walk(corpusDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Process .md files containing test cases
+		if strings.HasSuffix(path, ".md") {
+			t.Run(filepath.Base(path), func(t *testing.T) {
+				// Load test cases from markdown file
+				testCases, err := framework.LoadMarkdownTestCases(path)
+				require.NoError(t, err, "Failed to load test cases from %s", path)
+
+				for _, testCase := range testCases {
+					t.Run(testCase.Name, func(t *testing.T) {
+
+						// Create temporary file for testing
+						tempFile := createTempFile(t, testCase.Input)
+						defer os.Remove(tempFile)
+
+						// Parse the file
+						p, err := parser.NewParser()
+						require.NoError(t, err)
+
+						ast, err := p.ParseFile(tempFile)
+						require.NoError(t, err)
+
+						// Test unified compiler (CST-based)
+						unifiedCompiler := NewCleanPerlCompilerUnified()
+						astResult, err := unifiedCompiler.Compile(ast)
+						require.NoError(t, err)
+
+						// Check if we have expected clean Perl output
+						if testCase.ExpectedCompilationOutcomes != nil && testCase.ExpectedCompilationOutcomes.ExpectedCleanPerl != "" {
+							expectedClean := strings.TrimSpace(testCase.ExpectedCompilationOutcomes.ExpectedCleanPerl)
+							actualClean := strings.TrimSpace(astResult)
+
+							assert.Equal(t, expectedClean, actualClean,
+								"Compiler output should match expected clean Perl output for test case: %s", testCase.Name)
+						} else {
+							// For tests without expected output, just ensure we got some output
+							assert.NotEmpty(t, strings.TrimSpace(astResult),
+								"Compiler should produce some output for test case: %s", testCase.Name)
+							t.Logf("Test %s passed - produced output (expected output not yet defined)", testCase.Name)
+						}
+					})
+				}
+			})
+		}
+
+		return nil
+	})
+
+	require.NoError(t, err, "Failed to walk corpus directory")
+}
+
 // TestParserTestdataCompatibility ensures all parser test cases work with compiler
 func TestParserTestdataCompatibility(t *testing.T) {
 	// Load all test cases from test/corpus/parser/typed-perl/
@@ -364,7 +230,7 @@ print greet("World") . "\n";`,
 			ast, err := p.ParseFile(tempFile)
 			require.NoError(t, err)
 
-			cleanPerl, err := NewCleanPerlCompiler().Compile(ast)
+			cleanPerl, err := NewCleanPerlCompilerUnified().Compile(ast)
 			require.NoError(t, err)
 
 			// Execute the compiled clean version and compare against expected output
