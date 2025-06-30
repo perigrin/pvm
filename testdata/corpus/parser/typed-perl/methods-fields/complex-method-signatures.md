@@ -143,6 +143,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 { my @result = @{$data} return \@result; }{ my %result; for my $key (keys %{$input}) {
         $result{$key} = $callback->($input->{$key});
     } return \%result; }{ return 1; }

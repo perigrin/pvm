@@ -264,6 +264,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 { $self->{name} = $name; $self->{handle} = $mode); $self->{is_open} = defined $self->{handle} }{ my $self = bless {}, __PACKAGE__; $self->BUILD($name, $mode); return $self; }{ $self->close() if $is_open; }{ return 0 unless $is_open; my $result = $handle->close(); $is_open = 0; return $result; }{ return undef unless $is_open; my $data; my $read_bytes = $handle->read($data, $bytes); return defined $read_bytes ? $data : undef; }
 ```
 

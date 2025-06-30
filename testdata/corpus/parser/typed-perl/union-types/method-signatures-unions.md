@@ -78,6 +78,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 { if (ref $input) {
         return "Invalid";
     } return 1; }

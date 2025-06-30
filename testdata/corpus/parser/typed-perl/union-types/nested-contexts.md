@@ -72,6 +72,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 { return {} }
 ```
 

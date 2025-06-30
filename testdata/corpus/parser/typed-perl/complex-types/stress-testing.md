@@ -778,6 +778,7 @@ source_file
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my %extremely_nested;
 my () $many_union_alternatives;
 my $very_deep;

@@ -108,6 +108,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $flexible = 42;
 my $maybe_flag;
 my $mixed_value = "text";

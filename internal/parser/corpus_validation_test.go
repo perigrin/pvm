@@ -5,6 +5,7 @@ package parser
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -182,7 +183,7 @@ func validateTypeAnnotations(t *testing.T, testCase *ParserTestCase, actualAST *
 	for _, ann := range actualAnnotations {
 		typeName := ""
 		if ann.TypeExpression != nil {
-			typeName = ann.TypeExpression.Name
+			typeName = ann.TypeExpression.String()
 		}
 		t.Logf("  %s :: %s (kind: %d)", ann.AnnotatedItem, typeName, ann.Kind)
 	}
@@ -217,7 +218,7 @@ func validateASTString(t *testing.T, testName string, actualAST *ast.AST, expect
 		actualAnn := actualAnnotations[i]
 		actualTypeName := ""
 		if actualAnn.TypeExpression != nil {
-			actualTypeName = actualAnn.TypeExpression.Name
+			actualTypeName = actualAnn.TypeExpression.String()
 		}
 
 		if actualAnn.AnnotatedItem != expectedAnn.Variable || actualTypeName != expectedAnn.TypeName {
@@ -266,36 +267,26 @@ type ExpectedAnnotation struct {
 func parseExpectedAnnotations(astString string) []ExpectedAnnotation {
 	var annotations []ExpectedAnnotation
 
-	lines := strings.Split(astString, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	// Use a regex to find annotation patterns that may span multiple lines
+	// Pattern: "Annotation:" followed by variable " :: " type " at " position
+	// The (?s) flag enables . to match newlines for multiline types
+	annotationPattern := `(?s)(\w*Annotation:)\s*([^\:]+?)\s*::\s*(.*?)\s+at\s+\d+:\d+`
+	re := regexp.MustCompile(annotationPattern)
 
-		// Look for any annotation line (VarAnnotation, FieldAnnotation, MethodReturnAnnotation, etc.)
-		if strings.Contains(line, "Annotation:") && strings.Contains(line, " :: ") {
-			// Parse: "VarAnnotation: $count :: Int at 1:1"
-			// Find the first " :: " that separates variable from type (not :: within type names)
-			separatorIndex := strings.Index(line, " :: ")
-			if separatorIndex != -1 {
-				// Extract variable name from first part, removing any annotation prefix
-				varPart := strings.TrimSpace(line[:separatorIndex])
-				// Remove any "*Annotation:" prefix
-				if colonIndex := strings.Index(varPart, "Annotation:"); colonIndex != -1 {
-					varPart = strings.TrimSpace(varPart[colonIndex+11:]) // +11 for "Annotation:"
-				}
-				varPart = strings.TrimSpace(varPart)
+	matches := re.FindAllStringSubmatch(astString, -1)
+	for _, match := range matches {
+		if len(match) >= 4 {
+			// Extract variable name (match[2]) and type name (match[3])
+			varPart := strings.TrimSpace(match[2])
+			typePart := strings.TrimSpace(match[3])
 
-				// Extract type name from second part (after " :: " but before " at ")
-				typePart := strings.TrimSpace(line[separatorIndex+4:]) // +4 for " :: "
-				if atIndex := strings.Index(typePart, " at "); atIndex != -1 {
-					typePart = typePart[:atIndex]
-				}
-				typePart = strings.TrimSpace(typePart)
+			// Clean up multiline types by preserving the structure but normalizing whitespace
+			typePart = strings.ReplaceAll(typePart, "\n", "\n")
 
-				annotations = append(annotations, ExpectedAnnotation{
-					Variable: varPart,
-					TypeName: typePart,
-				})
-			}
+			annotations = append(annotations, ExpectedAnnotation{
+				Variable: varPart,
+				TypeName: typePart,
+			})
 		}
 	}
 

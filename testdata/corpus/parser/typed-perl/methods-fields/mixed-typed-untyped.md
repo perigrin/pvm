@@ -185,6 +185,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 # Mixed typed and untyped methods and fields
 field $typed_field = 42;
 field $untyped_field = "hello";{ return uc($input); }

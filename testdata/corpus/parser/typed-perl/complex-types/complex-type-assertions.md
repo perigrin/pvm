@@ -63,6 +63,7 @@ source_file
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $result = $data as ArrayRef[HashRef[Int|Bool]];
 my $complex = ($input->process()) as Map[Str, ArrayRef[MyType]];
 my $transformed = $obj->convert() as Result[Data[User], Error[String]];

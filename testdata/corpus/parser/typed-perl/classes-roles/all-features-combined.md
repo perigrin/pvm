@@ -147,6 +147,7 @@ The parser correctly rejects this advanced syntax.
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 # Compilation failed: Error: failed to parse file /tmp/tmpgabtjb_y.pl: SYS-007: error[TSP001]: parse error (4 ERROR nodes detected)
   --> :2:2
    |

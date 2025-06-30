@@ -106,6 +106,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $custom;
 my $qualified;
 my $user = UserClass->new();

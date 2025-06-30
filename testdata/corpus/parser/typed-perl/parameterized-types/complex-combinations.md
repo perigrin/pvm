@@ -331,6 +331,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $complex;
 my $flexible;
 my $nested_result;

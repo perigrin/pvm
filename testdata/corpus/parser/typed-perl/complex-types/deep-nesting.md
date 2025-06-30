@@ -330,6 +330,7 @@ source_file
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my @deep_nested;
 my %complex_map;
 my $deeply_nested;

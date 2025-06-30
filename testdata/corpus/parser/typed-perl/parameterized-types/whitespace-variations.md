@@ -237,12 +237,11 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my @spaced;
 my %compact;
 my %loose;
-my
-
- @multiline;
+my @multiline;
 ```
 
 ## Typed Perl Output

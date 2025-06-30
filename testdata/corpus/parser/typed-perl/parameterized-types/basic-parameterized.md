@@ -188,6 +188,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my @numbers;
 my %strings;
 my $function;

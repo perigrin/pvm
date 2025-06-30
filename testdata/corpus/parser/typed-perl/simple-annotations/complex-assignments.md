@@ -93,6 +93,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $calculated = $base + $increment;
 my $interpolated = "Value: $count";
 my $comparison = $a > $b;

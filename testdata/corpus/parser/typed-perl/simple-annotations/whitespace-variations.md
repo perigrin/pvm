@@ -123,6 +123,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $spaced = 42;
 my $tabbed="test";
 my Int$compact=100;

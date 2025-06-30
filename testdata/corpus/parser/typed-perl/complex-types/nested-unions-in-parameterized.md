@@ -258,6 +258,7 @@ source_file
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my @complex_array;
 my %nested_complex;
 my %optional_values;

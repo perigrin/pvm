@@ -234,6 +234,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my @matrix;
 my %grouped_strings;
 my @array_of_hashes;

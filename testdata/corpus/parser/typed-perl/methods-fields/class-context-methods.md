@@ -131,6 +131,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 { return $a + $b; }{ return $precision; }{ $precision = $new_precision; }
 ```
 

@@ -174,6 +174,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $object;
 my $qualified;
 my $flexible;

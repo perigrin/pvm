@@ -51,6 +51,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 class Processor<T> where T: EventHandler { }
 ```
 

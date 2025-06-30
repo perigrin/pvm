@@ -269,6 +269,7 @@ source_file
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my () $param_union;
 my () $flexible;
 my ( ) $outcome;

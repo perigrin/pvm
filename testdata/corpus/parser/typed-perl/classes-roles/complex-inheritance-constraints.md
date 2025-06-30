@@ -66,6 +66,7 @@ The parser correctly rejects this syntax with parse errors.
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 # Compilation failed: Error: failed to parse file /tmp/tmp6ca0doyi.pl: SYS-007: error[TSP001]: parse error (3 ERROR nodes detected)
   --> :2:2
    |

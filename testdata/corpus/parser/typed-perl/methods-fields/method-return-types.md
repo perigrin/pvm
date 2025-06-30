@@ -154,6 +154,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 { return 42; }{ return ["a", "b", "c"]; }{ return { count => 5, total => 100 } }{ # Side effects only; print "Done\n"; }{ return undef; }
 ```
 

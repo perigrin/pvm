@@ -101,6 +101,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $typed_var = 42;
 my $untyped_var = "hello";
 my $another_typed = "world";

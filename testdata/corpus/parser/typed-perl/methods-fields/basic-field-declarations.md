@@ -159,6 +159,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 field $count = 0;
 field $name;
 field $is_active = 1;

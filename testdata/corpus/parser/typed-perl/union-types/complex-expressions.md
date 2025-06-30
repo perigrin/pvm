@@ -241,6 +241,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my @mixed_array;
 field $mixed_hash;
 my $flexible_function;

@@ -212,6 +212,7 @@ source_file
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my @non_undef_array;
 my %non_empty_values;
 my $definitely_defined;

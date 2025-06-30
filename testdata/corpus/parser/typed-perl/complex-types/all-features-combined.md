@@ -67,6 +67,7 @@ source_file
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 { my $transformed = $validated_data as ArrayRef[Data&Processed]; return success($transformed->map(sub { process($_) })); }
 ```
 

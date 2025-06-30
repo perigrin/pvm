@@ -137,6 +137,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 { return encode_json({
             content => $content,
             created => $created->iso8601,

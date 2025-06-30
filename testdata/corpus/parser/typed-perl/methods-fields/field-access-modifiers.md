@@ -291,6 +291,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 # Different field visibility patterns
 field $public_field = 1;
 field $private_field = "secret";

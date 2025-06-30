@@ -244,6 +244,7 @@ source_file
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my @serializable_list;
 my %defined_arrays;
 my $safe_container;

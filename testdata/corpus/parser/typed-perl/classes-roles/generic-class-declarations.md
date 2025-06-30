@@ -136,6 +136,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 { push @{$items}, $item; }{ return $items; }{ for my $item (@{$items}) {
             return $item if $predicate->($item);
         } return undef; }

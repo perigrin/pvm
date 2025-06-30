@@ -93,6 +93,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 my $count = 42;
 my $name = "example";
 my $flag = 1;

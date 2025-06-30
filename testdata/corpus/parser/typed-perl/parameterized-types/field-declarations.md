@@ -208,6 +208,7 @@ AST {
 ## Clean Perl Output
 
 ```perl
+use v5.36;
 field $objects;
 field $nested_data;
 field $maybe_numbers;
