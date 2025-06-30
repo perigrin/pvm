@@ -15,7 +15,7 @@ import (
 // TestCorpusValidation runs comprehensive validation of all corpus files
 // This test validates that corpus files with expected outputs actually produce those outputs
 func TestCorpusValidation(t *testing.T) {
-	framework := NewParserTestFramework("../../test/corpus/parser")
+	framework := NewParserTestFramework("../../testdata/corpus/parser")
 
 	// Discover all test cases from corpus
 	testCases, err := framework.DiscoverTestCases()
@@ -58,7 +58,7 @@ func TestCorpusValidation(t *testing.T) {
 
 // TestSpecificCorpusFiles tests specific important corpus files individually
 func TestSpecificCorpusFiles(t *testing.T) {
-	framework := NewParserTestFramework("../../test/corpus/parser")
+	framework := NewParserTestFramework("../../testdata/corpus/parser")
 
 	// Critical corpus files that must work correctly
 	criticalFiles := []string{
@@ -74,7 +74,7 @@ func TestSpecificCorpusFiles(t *testing.T) {
 		t.Run(filepath.Base(file), func(t *testing.T) {
 			t.Parallel()
 
-			fullPath := filepath.Join("../../test/corpus/parser", file)
+			fullPath := filepath.Join("../../testdata/corpus/parser", file)
 			testCases, err := framework.LoadMarkdownTestCases(fullPath)
 			if err != nil {
 				t.Fatalf("Failed to load critical corpus file %s: %v", file, err)
@@ -270,18 +270,22 @@ func parseExpectedAnnotations(astString string) []ExpectedAnnotation {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 
-		// Look for lines like "VarAnnotation: $count :: Int at 1:1"
-		if strings.HasPrefix(line, "VarAnnotation:") {
+		// Look for any annotation line (VarAnnotation, FieldAnnotation, MethodReturnAnnotation, etc.)
+		if strings.Contains(line, "Annotation:") && strings.Contains(line, " :: ") {
 			// Parse: "VarAnnotation: $count :: Int at 1:1"
-			parts := strings.Split(line, "::")
-			if len(parts) >= 2 {
-				// Extract variable name from first part
-				varPart := strings.TrimSpace(parts[0])
-				varPart = strings.TrimPrefix(varPart, "VarAnnotation:")
+			// Find the first " :: " that separates variable from type (not :: within type names)
+			separatorIndex := strings.Index(line, " :: ")
+			if separatorIndex != -1 {
+				// Extract variable name from first part, removing any annotation prefix
+				varPart := strings.TrimSpace(line[:separatorIndex])
+				// Remove any "*Annotation:" prefix
+				if colonIndex := strings.Index(varPart, "Annotation:"); colonIndex != -1 {
+					varPart = strings.TrimSpace(varPart[colonIndex+11:]) // +11 for "Annotation:"
+				}
 				varPart = strings.TrimSpace(varPart)
 
-				// Extract type name from second part (before "at")
-				typePart := strings.TrimSpace(parts[1])
+				// Extract type name from second part (after " :: " but before " at ")
+				typePart := strings.TrimSpace(line[separatorIndex+4:]) // +4 for " :: "
 				if atIndex := strings.Index(typePart, " at "); atIndex != -1 {
 					typePart = typePart[:atIndex]
 				}
