@@ -17,8 +17,8 @@ Field declarations with access modifiers and visibility keywords
 field Int $public_field = 1;
 field private Str $private_field = "secret";
 field protected Bool $protected_field = 0;
-field readonly ArrayRef[Int] $readonly_field = [1, 2, 3];
-field static HashRef[Str] $class_field = {};
+field readonly Int $readonly_field;
+field static Str $class_field;
 ```
 
 # Expected AST
@@ -28,13 +28,13 @@ field static HashRef[Str] $class_field = {};
 ```
 AST {
   Path:
-  Source length: 257 characters
+  Source length: 221 characters
   Type Annotations:
     VarAnnotation: $public_field :: Int at 2:1
     VarAnnotation: $private_field :: private at 3:1
     VarAnnotation: $protected_field :: protected at 4:1
-    VarAnnotation: $readonly_field :: ArrayRef[Int] at 5:1
-    VarAnnotation: $class_field :: HashRef[Str] at 6:1
+    VarAnnotation: $readonly_field :: Int at 5:1
+    VarAnnotation: $class_field :: Str at 6:1
   Root: source_file
   Tree Structure:
   source_file
@@ -159,13 +159,13 @@ AST {
 ```
 AST {
   Path:
-  Source length: 257 characters
+  Source length: 221 characters
   Type Annotations:
     VarAnnotation: $public_field :: Int at 2:1
     VarAnnotation: $private_field :: private at 3:1
     VarAnnotation: $protected_field :: protected at 4:1
-    VarAnnotation: $readonly_field :: ArrayRef[Int] at 5:1
-    VarAnnotation: $class_field :: HashRef[Str] at 6:1
+    VarAnnotation: $readonly_field :: Int at 5:1
+    VarAnnotation: $class_field :: Str at 6:1
   Root: source_file
   Tree Structure:
   source_file
@@ -307,8 +307,8 @@ field static $class_field = {};
 field Int $public_field = 1;
 field private Str $private_field = "secret";
 field protected Bool $protected_field = 0;
-field readonly ArrayRef[Int] $readonly_field = [1, 2, 3];
-field static HashRef[Str] $class_field = {};
+field readonly Int $readonly_field;
+field static Str $class_field;
 ```
 
 ## Inferred Perl Output

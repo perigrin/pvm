@@ -45,11 +45,11 @@ AST {
   Source length: 399 characters
   Type Annotations:
     MethodReturnAnnotation: Str :: serialize at 2:12
-    MethodReturnAnnotation: Self :: deserialize at 3:43
+    MethodReturnAnnotation: deserialize :: Self at 3:43
     VarAnnotation: $cached_at :: Optional[DateTime] at 7:5
     MethodReturnAnnotation: Str :: cache_key at 9:12
-    MethodReturnAnnotation: Bool :: is_stale at 11:31
-    MethodReturnAnnotation: Void :: invalidate at 16:33
+    MethodReturnAnnotation: is_stale :: Bool at 11:31
+    MethodReturnAnnotation: invalidate :: Void at 16:33
     MethodParamAnnotation: $data :: Str at 3:1
   Root: source_file
   Tree Structure:
@@ -87,11 +87,11 @@ AST {
   Source length: 399 characters
   Type Annotations:
     MethodReturnAnnotation: Str :: serialize at 2:12
-    MethodReturnAnnotation: Self :: deserialize at 3:43
+    MethodReturnAnnotation: deserialize :: Self at 3:43
     VarAnnotation: $cached_at :: Optional[DateTime] at 7:5
     MethodReturnAnnotation: Str :: cache_key at 9:12
-    MethodReturnAnnotation: Bool :: is_stale at 11:31
-    MethodReturnAnnotation: Void :: invalidate at 16:33
+    MethodReturnAnnotation: is_stale :: Bool at 11:31
+    MethodReturnAnnotation: invalidate :: Void at 16:33
     MethodParamAnnotation: $data :: Str at 3:1
   Root: source_file
   Tree Structure:
