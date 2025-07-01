@@ -439,12 +439,13 @@ func (t *PerlTree) processSubroutineReturnType(returnTypeNode *sitter.Node, subN
 // processMethodDeclaration looks for type annotations in method declarations
 func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
 	var methodName string
-	var foundReturns bool
+	var returnTypeNode *sitter.Node
 
 	if os.Getenv("DEBUG_PARSER") == "1" {
 		fmt.Printf("DEBUG: Processing method declaration with %d children\n", node.ChildCount())
 	}
 
+	// First pass: identify the method name and potential return type
 	for i := 0; i < int(node.ChildCount()); i++ {
 		child := node.Child(uint(i))
 		if child == nil {
@@ -459,17 +460,51 @@ func (t *PerlTree) processMethodDeclaration(node *sitter.Node, annotations *[]*P
 		case "bareword":
 			if methodName == "" {
 				methodName = t.getNodeText(child)
+				if os.Getenv("DEBUG_PARSER") == "1" {
+					fmt.Printf("DEBUG: Found method name: %s\n", methodName)
+				}
 			}
+		case "type_expression":
+			// Check if this type_expression appears before the method name
+			// If so, it's the return type
+			if methodName == "" && returnTypeNode == nil {
+				returnTypeNode = child
+				if os.Getenv("DEBUG_PARSER") == "1" {
+					fmt.Printf("DEBUG: Found return type before method name: %s\n", t.getNodeText(child))
+				}
+			}
+		}
+	}
+
+	// Process the return type if we found one before the method name
+	if returnTypeNode != nil && methodName != "" {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Processing pre-name return type for method %s\n", methodName)
+		}
+		t.processMethodReturnType(returnTypeNode, methodName, annotations)
+	}
+
+	// Check for postfix return type using field access
+	if methodName != "" {
+		postfixReturnType := node.ChildByFieldName("postfix_return_type")
+		if postfixReturnType != nil {
+			if os.Getenv("DEBUG_PARSER") == "1" {
+				fmt.Printf("DEBUG: Found postfix_return_type field for method %s: %s\n", methodName, t.getNodeText(postfixReturnType))
+			}
+			t.processMethodReturnType(postfixReturnType, methodName, annotations)
+		}
+	}
+
+	// Second pass: process other elements
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		switch child.Kind() {
 		case "signature":
 			t.processMethodSignature(child, methodName, annotations)
-		case "returns":
-			foundReturns = true
-		case "type_expression":
-			// If we've seen "returns" and now see a type_expression, this is the return type
-			if foundReturns {
-				t.processMethodReturnType(child, methodName, annotations)
-				foundReturns = false // Reset for next method
-			}
 		case "return_type":
 			t.processMethodReturnType(child, methodName, annotations)
 		}
