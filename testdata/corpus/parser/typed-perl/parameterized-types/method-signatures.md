@@ -14,7 +14,7 @@ type_check: true
 Parameterized types in method signatures
 
 ```perl
-method process(ArrayRef[Str] $input) returns HashRef[Int] {
+method HashRef[Int] process(ArrayRef[Str] $input) {
   return {};
 }
 
@@ -94,13 +94,19 @@ AST {
 
 ```perl
 use v5.36;
-{ return {} }{ return []; }
+method process($input) {
+  return {};
+}
+
+method transform($data) {
+  return [];
+}
 ```
 
 ## Typed Perl Output
 
 ```perl
-method process(ArrayRef[Str] $input) returns HashRef[Int] {
+method HashRef[Int] process(ArrayRef[Str] $input) {
   return {};
 }
 

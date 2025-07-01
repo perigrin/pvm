@@ -14,7 +14,7 @@ type_check: true
 Union types in method parameter and return type signatures
 
 ```perl
-method process(Int|Str $input) returns Bool|Str {
+method Bool|Str process(Int|Str $input) {
     if (ref $input) {
         return "Invalid";
     }
@@ -29,9 +29,9 @@ method process(Int|Str $input) returns Bool|Str {
 ```
 AST {
   Path:
-  Source length: 119 characters
+  Source length: 111 characters
   Type Annotations:
-    MethodReturnAnnotation: process :: Bool|Str at 1:40
+    MethodReturnAnnotation: process :: Bool|Str at 1:8
     MethodParamAnnotation: $input :: Int|Str at 1:1
   Root: source_file
   Tree Structure:
@@ -53,9 +53,9 @@ AST {
 ```
 AST {
   Path:
-  Source length: 119 characters
+  Source length: 111 characters
   Type Annotations:
-    MethodReturnAnnotation: process :: Bool|Str at 1:40
+    MethodReturnAnnotation: process :: Bool|Str at 1:8
     MethodParamAnnotation: $input :: Int|Str at 1:1
   Root: source_file
   Tree Structure:
@@ -79,15 +79,18 @@ AST {
 
 ```perl
 use v5.36;
-{ if (ref $input) {
+method process($input) {
+    if (ref $input) {
         return "Invalid";
-    } return 1; }
+    }
+    return 1;
+}
 ```
 
 ## Typed Perl Output
 
 ```perl
-method process(Int|Str $input) returns Bool|Str {
+method Bool|Str process(Int|Str $input) {
     if (ref $input) {
         return "Invalid";
     }

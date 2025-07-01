@@ -24,12 +24,12 @@ role Cacheable {
 
     method cache_key() returns Str;
 
-    method is_stale() returns Bool {
+    method Bool is_stale() {
         return 0 unless defined $cached_at;
         return time() - $cached_at->epoch > 3600;
     }
 
-    method invalidate() returns Void {
+    method Void invalidate() {
         $cached_at = undef;
     }
 }
@@ -42,14 +42,14 @@ role Cacheable {
 ```
 AST {
   Path:
-  Source length: 415 characters
+  Source length: 399 characters
   Type Annotations:
-    MethodReturnAnnotation: serialize :: Str at 2:32
-    MethodReturnAnnotation: deserialize :: Self at 3:43
+    MethodReturnAnnotation: Str :: serialize at 2:12
+    MethodReturnAnnotation: Self :: deserialize at 3:43
     VarAnnotation: $cached_at :: Optional[DateTime] at 7:5
-    MethodReturnAnnotation: cache_key :: Str at 9:32
-    MethodReturnAnnotation: is_stale :: Bool at 11:31
-    MethodReturnAnnotation: invalidate :: Void at 16:33
+    MethodReturnAnnotation: Str :: cache_key at 9:12
+    MethodReturnAnnotation: Bool :: is_stale at 11:31
+    MethodReturnAnnotation: Void :: invalidate at 16:33
     MethodParamAnnotation: $data :: Str at 3:1
   Root: source_file
   Tree Structure:
@@ -84,14 +84,14 @@ AST {
 ```
 AST {
   Path:
-  Source length: 415 characters
+  Source length: 399 characters
   Type Annotations:
-    MethodReturnAnnotation: serialize :: Str at 2:32
-    MethodReturnAnnotation: deserialize :: Self at 3:43
+    MethodReturnAnnotation: Str :: serialize at 2:12
+    MethodReturnAnnotation: Self :: deserialize at 3:43
     VarAnnotation: $cached_at :: Optional[DateTime] at 7:5
-    MethodReturnAnnotation: cache_key :: Str at 9:32
-    MethodReturnAnnotation: is_stale :: Bool at 11:31
-    MethodReturnAnnotation: invalidate :: Void at 16:33
+    MethodReturnAnnotation: Str :: cache_key at 9:12
+    MethodReturnAnnotation: Bool :: is_stale at 11:31
+    MethodReturnAnnotation: Void :: invalidate at 16:33
     MethodParamAnnotation: $data :: Str at 3:1
   Root: source_file
   Tree Structure:
@@ -149,12 +149,12 @@ role Cacheable {
 
     method cache_key() returns Str;
 
-    method is_stale() returns Bool {
+    method Bool is_stale() {
         return 0 unless defined $cached_at;
         return time() - $cached_at->epoch > 3600;
     }
 
-    method invalidate() returns Void {
+    method Void invalidate() {
         $cached_at = undef;
     }
 }

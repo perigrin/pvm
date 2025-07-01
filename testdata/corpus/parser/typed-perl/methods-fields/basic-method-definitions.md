@@ -14,15 +14,15 @@ type_check: true
 Basic typed method definitions with parameter and return types
 
 ```perl
-method calculate(Int $a, Int $b) returns Int {
+method Int calculate(Int $a, Int $b) {
     return $a + $b;
 }
 
-method greet(Str $name) returns Str {
+method Str greet(Str $name) {
     return "Hello, $name!";
 }
 
-method is_valid(Bool $flag) returns Bool {
+method Bool is_valid(Bool $flag) {
     return $flag;
 }
 ```
@@ -118,25 +118,31 @@ AST {
 
 ```perl
 use v5.36;
-method calculate($a, $b) { return $a + $b; }
+method calculate($a, $b) {
+    return $a + $b;
+}
 
-method greet($name) { return "Hello, $name!"; }
+method greet($name) {
+    return "Hello, $name!";
+}
 
-method is_valid($flag) { return $flag; }
+method is_valid($flag) {
+    return $flag;
+}
 ```
 
 ## Typed Perl Output
 
 ```perl
-method calculate(Int $a, Int $b) returns Int {
+method Int calculate(Int $a, Int $b) {
     return $a + $b;
 }
 
-method greet(Str $name) returns Str {
+method Str greet(Str $name) {
     return "Hello, $name!";
 }
 
-method is_valid(Bool $flag) returns Bool {
+method Bool is_valid(Bool $flag) {
     return $flag;
 }
 ```

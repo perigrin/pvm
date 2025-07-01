@@ -35,24 +35,24 @@ class Widget does Drawable, Clickable, Resizable {
     field Int $height = 50;
 
     # Resolve conflict by implementing the conflicting method
-    method get_bounds() returns Rectangle {
+    method Rectangle get_bounds() {
         return Rectangle->new($x, $y, $width, $height);
     }
 
-    method draw() returns Void {
+    method Void draw() {
         # Implementation for drawing
     }
 
-    method on_click(Event $event) returns Void {
+    method Void on_click(Event $event) {
         # Handle click event
     }
 
-    method resize(Int $new_width, Int $new_height) returns Void {
+    method Void resize(Int $new_width, Int $new_height) {
         $width = $new_width;
         $height = $new_height;
     }
 
-    method get_size() returns Size {
+    method Size get_size() {
         return Size->new($width, $height);
     }
 }
@@ -67,12 +67,12 @@ AST {
   Path:
   Source length: 1047 characters
   Type Annotations:
-    MethodReturnAnnotation: draw :: Void at 2:27
-    MethodReturnAnnotation: get_bounds :: Rectangle at 3:33
+    MethodReturnAnnotation: Void :: draw at 2:27
+    MethodReturnAnnotation: Rectangle :: get_bounds at 3:33
     MethodReturnAnnotation: on_click :: Void at 7:43
     MethodReturnAnnotation: get_bounds :: Rectangle at 8:33
     MethodReturnAnnotation: resize :: Void at 12:52
-    MethodReturnAnnotation: get_size :: Size at 13:31
+    MethodReturnAnnotation: Size :: get_size at 13:31
     VarAnnotation: Widget :: class at 16:1
     VarAnnotation: $x :: Int at 17:5
     VarAnnotation: $y :: Int at 18:5
@@ -112,12 +112,12 @@ AST {
   Path:
   Source length: 1047 characters
   Type Annotations:
-    MethodReturnAnnotation: draw :: Void at 2:27
-    MethodReturnAnnotation: get_bounds :: Rectangle at 3:33
+    MethodReturnAnnotation: Void :: draw at 2:27
+    MethodReturnAnnotation: Rectangle :: get_bounds at 3:33
     MethodReturnAnnotation: on_click :: Void at 7:43
     MethodReturnAnnotation: get_bounds :: Rectangle at 8:33
     MethodReturnAnnotation: resize :: Void at 12:52
-    MethodReturnAnnotation: get_size :: Size at 13:31
+    MethodReturnAnnotation: Size :: get_size at 13:31
     VarAnnotation: Widget :: class at 16:1
     VarAnnotation: $x :: Int at 17:5
     VarAnnotation: $y :: Int at 18:5
@@ -179,24 +179,24 @@ field $width = 100;
 field $height = 50;
 
     # Resolve conflict by implementing the conflicting method
-    method get_bounds() returns Rectangle {
+    method Rectangle get_bounds() {
 return $y, $width, $height);
     }
 
-    method draw() returns Void {
+    method Void draw() {
         # Implementation for drawing
     }
 
-    method on_click(Event $event) returns Void {
+    method Void on_click(Event $event) {
         # Handle click event
     }
 
-method resize(Int $new_width, $new_height) returns Void {
+method Void resize(Int $new_width, $new_height) {
         $width = $new_width;
         $height = $new_height;
     }
 
-    method get_size() returns Size {
+    method Size get_size() {
 return $height);
     }
 }
@@ -227,24 +227,24 @@ class Widget does Drawable, Clickable, Resizable {
     field Int $height = 50;
 
     # Resolve conflict by implementing the conflicting method
-    method get_bounds() returns Rectangle {
+    method Rectangle get_bounds() {
         return Rectangle->new($x, $y, $width, $height);
     }
 
-    method draw() returns Void {
+    method Void draw() {
         # Implementation for drawing
     }
 
-    method on_click(Event $event) returns Void {
+    method Void on_click(Event $event) {
         # Handle click event
     }
 
-    method resize(Int $new_width, Int $new_height) returns Void {
+    method Void resize(Int $new_width, Int $new_height) {
         $width = $new_width;
         $height = $new_height;
     }
 
-    method get_size() returns Size {
+    method Size get_size() {
         return Size->new($width, $height);
     }
 }

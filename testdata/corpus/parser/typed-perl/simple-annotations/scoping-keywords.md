@@ -44,18 +44,18 @@ AST {
         variable
     token
     expression_statement
-      localization_expression
-        expression_stmt
-          literal
-        ambiguous_function_call_expression
+      assignment_expression
+        variable_declaration
           expression_stmt
             literal
-          assignment_expression
-            scalar
-              token
-              token
+          type_expression
+            expression_stmt
+              literal
+          scalar
             token
             token
+        token
+        token
     token
 }
 ```
@@ -82,18 +82,18 @@ AST {
         variable
     token
     expression_statement
-      localization_expression
-        expression_stmt
-          literal
-        ambiguous_function_call_expression
+      assignment_expression
+        variable_declaration
           expression_stmt
             literal
-          assignment_expression
-            scalar
-              token
-              token
+          type_expression
+            expression_stmt
+              literal
+          scalar
             token
             token
+        token
+        token
     token
 }
 ```
