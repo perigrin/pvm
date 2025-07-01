@@ -19,14 +19,14 @@ class User {
     field Int $age;
     field Optional[Email] $email;
 
-    method new(Str $name, Int $age) returns User {
+    method User new(Str $name, Int $age) {
         return bless {
             name => $name,
             age => $age
         }, __PACKAGE__;
     }
 
-    method get_name() returns Str {
+    method Str get_name() {
         return $name;
     }
 }
@@ -39,16 +39,16 @@ class User {
 ```
 AST {
   Path:
-  Source length: 310 characters
+  Source length: 294 characters
   Type Annotations:
-    MethodReturnAnnotation: new :: User at 6:45
-    MethodReturnAnnotation: get_name :: Str at 13:31
+    MethodReturnAnnotation: new :: User at 6:12
+    MethodReturnAnnotation: get_name :: Str at 13:12
     VarAnnotation: User :: class at 1:1
     VarAnnotation: $name :: Str at 2:5
     VarAnnotation: $age :: Int at 3:5
     VarAnnotation: $email :: Optional[Email] at 4:5
-    MethodReturnAnnotation: new :: User at 6:45
-    MethodReturnAnnotation: get_name :: Str at 13:31
+    MethodReturnAnnotation: new :: User at 6:12
+    MethodReturnAnnotation: get_name :: Str at 13:12
     MethodParamAnnotation: $name :: Str at 6:1
     MethodParamAnnotation: $age :: Int at 6:1
   Root: source_file
@@ -83,16 +83,16 @@ AST {
 ```
 AST {
   Path:
-  Source length: 310 characters
+  Source length: 294 characters
   Type Annotations:
-    MethodReturnAnnotation: new :: User at 6:45
-    MethodReturnAnnotation: get_name :: Str at 13:31
+    MethodReturnAnnotation: new :: User at 6:12
+    MethodReturnAnnotation: get_name :: Str at 13:12
     VarAnnotation: User :: class at 1:1
     VarAnnotation: $name :: Str at 2:5
     VarAnnotation: $age :: Int at 3:5
     VarAnnotation: $email :: Optional[Email] at 4:5
-    MethodReturnAnnotation: new :: User at 6:45
-    MethodReturnAnnotation: get_name :: Str at 13:31
+    MethodReturnAnnotation: new :: User at 6:12
+    MethodReturnAnnotation: get_name :: Str at 13:12
     MethodParamAnnotation: $name :: Str at 6:1
     MethodParamAnnotation: $age :: Int at 6:1
   Root: source_file
@@ -148,14 +148,14 @@ class User {
     field Int $age;
     field Optional[Email] $email;
 
-    method new(Str $name, Int $age) returns User {
+    method User new(Str $name, Int $age) {
         return bless {
             name => $name,
             age => $age
         }, __PACKAGE__;
     }
 
-    method get_name() returns Str {
+    method Str get_name() {
         return $name;
     }
 }

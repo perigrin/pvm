@@ -33,8 +33,8 @@ AST {
     VarAnnotation: $public_field :: Int at 2:1
     VarAnnotation: $private_field :: private at 3:1
     VarAnnotation: $protected_field :: protected at 4:1
-    VarAnnotation: $readonly_field :: Int at 5:1
-    VarAnnotation: $class_field :: Str at 6:1
+    VarAnnotation: $readonly_field :: readonly at 5:1
+    VarAnnotation: $class_field :: static at 6:1
   Root: source_file
   Tree Structure:
   source_file
@@ -164,8 +164,8 @@ AST {
     VarAnnotation: $public_field :: Int at 2:1
     VarAnnotation: $private_field :: private at 3:1
     VarAnnotation: $protected_field :: protected at 4:1
-    VarAnnotation: $readonly_field :: Int at 5:1
-    VarAnnotation: $class_field :: Str at 6:1
+    VarAnnotation: $readonly_field :: readonly at 5:1
+    VarAnnotation: $class_field :: static at 6:1
   Root: source_file
   Tree Structure:
   source_file
