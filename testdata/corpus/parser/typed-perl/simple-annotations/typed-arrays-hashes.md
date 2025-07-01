@@ -84,9 +84,9 @@ AST {
 
 ```perl
 use v5.36;
-my ArrayRef[Int] @numbers = (1, 2, 3);
-my HashRef[Str] %config = (key => 'value');
-my ArrayRef[Str] @strings = ("a", "b", "c");
+my @numbers = (1, 2, 3);
+my %config = (key => 'value');
+my @strings = ("a", "b", "c");
 ```
 
 ## Typed Perl Output

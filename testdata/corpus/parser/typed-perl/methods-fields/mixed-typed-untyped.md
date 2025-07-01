@@ -188,7 +188,9 @@ AST {
 use v5.36;
 # Mixed typed and untyped methods and fields
 field $typed_field = 42;
-field $untyped_field = "hello";{ return uc($input); }
+field $untyped_field = "hello";
+
+method typed_method($input) { return uc($input); }
 
 
 
@@ -196,7 +198,12 @@ field $untyped_field = "hello";{ return uc($input); }
 
 
 
-sub untyped_sub { my ($param) = @_; return $param * 2; }{ return "$untyped: $typed"; }
+sub untyped_sub {
+    my ($param) = @_;
+    return $param * 2;
+}
+
+method partially_typed($untyped, $typed) { return "$untyped: $typed"; }
 ```
 
 ## Typed Perl Output

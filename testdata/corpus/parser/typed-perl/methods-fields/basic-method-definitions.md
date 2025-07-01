@@ -118,7 +118,11 @@ AST {
 
 ```perl
 use v5.36;
-{ return $a + $b; }{ return "Hello, $name!"; }{ return $flag; }
+method calculate($a, $b) { return $a + $b; }
+
+method greet($name) { return "Hello, $name!"; }
+
+method is_valid($flag) { return $flag; }
 ```
 
 ## Typed Perl Output

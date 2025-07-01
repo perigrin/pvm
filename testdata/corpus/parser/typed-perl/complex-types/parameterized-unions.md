@@ -270,9 +270,9 @@ source_file
 
 ```perl
 use v5.36;
-my () $param_union;
-my () $flexible;
-my ( ) $outcome;
+my $param_union;
+my $flexible;
+my $outcome;
 ```
 
 ## Typed Perl Output

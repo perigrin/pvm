@@ -155,7 +155,15 @@ AST {
 
 ```perl
 use v5.36;
-{ return 42; }{ return ["a", "b", "c"]; }{ return { count => 5, total => 100 } }{ # Side effects only; print "Done\n"; }{ return undef; }
+method get_number() { return 42; }
+
+method get_array() { return ["a", "b", "c"]; }
+
+method get_hash() { return { count => 5, total => 100 }; }
+
+method get_nothing() { # Side effects only print "Done\n"; }
+
+method get_optional() { return undef; }
 ```
 
 ## Typed Perl Output

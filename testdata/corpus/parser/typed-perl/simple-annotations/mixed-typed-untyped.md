@@ -106,7 +106,7 @@ my $typed_var = 42;
 my $untyped_var = "hello";
 my $another_typed = "world";
 my @untyped_array = (1, 2, 3);
-my ArrayRef[Int] @typed_array = (4, 5, 6);
+my @typed_array = (4, 5, 6);
 ```
 
 ## Typed Perl Output

@@ -53,7 +53,7 @@ func NewCSTTransformer(content []byte, options TransformationOptions) *CSTTransf
 		&VariableDeclarationCleanupRule{},
 		&TypeAssertionCleanupRule{},
 		&MethodParameterCleanupRule{},
-		&MethodDeclarationRemovalRule{},
+		&MethodDeclarationCleanupRule{},
 		&SubroutineReturnTypeRule{},
 		&ForLoopTypedVariableRule{},
 		&ErrorNodeCleanupRule{},
@@ -201,34 +201,7 @@ func (r *VariableDeclarationCleanupRule) Transform(node *sitter.Node, content []
 					result.WriteString(whitespace)
 				}
 
-				// Preserve opening parenthesis
-				result.WriteString("(")
-
-				// Determine if we should add space inside parentheses based on original content
-				typeContent := string(content[nextChild.StartByte():nextChild.EndByte()])
-				// Only add space for content with commas (like "Result[Data, Error]")
-				hasCommaSpaces := strings.Contains(typeContent, ", ")
-
-				if hasCommaSpaces {
-					// If the original type had comma-separated elements, add a single space inside empty parentheses
-					result.WriteString(" ")
-				}
-
-				// Skip the type_expression content but preserve closing parenthesis
-				// (no closing space needed - we want "( )" not "(  )")
-
-				// Preserve closing parenthesis
-				result.WriteString(")")
-
-				// Add space after closing parenthesis (there should be one in the original)
-				if afterChild.EndByte() < uint(len(content)) {
-					// Look ahead to see if there's whitespace after the )
-					nextChar := afterChild.EndByte()
-					if nextChar < uint(len(content)) && content[nextChar] == ' ' {
-						result.WriteString(" ")
-					}
-				}
-
+				// For variable declarations with union types, completely remove the parenthesized type
 				// Skip all three tokens: (, type_expression, )
 				skipUntil = afterChild.EndByte()
 				lastEnd = skipUntil
@@ -299,17 +272,43 @@ func (r *TypeAssertionCleanupRule) Transform(node *sitter.Node, content []byte, 
 		return transformer.getNodeText(node), nil
 	}
 
-	// Find the expression part (before "as")
+	// Strategy: Find all children before the "as" keyword and reconstruct the expression
+	var expressionParts []string
+	foundAs := false
+
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if child != nil && child.Kind() != NodeAs && child.Kind() != NodeTypeExpression {
-			// This should be the expression we want to keep
-			return transformer.transformNode(child)
+		if child == nil {
+			continue
+		}
+
+		if child.Kind() == NodeAs || child.Kind() == "as" {
+			foundAs = true
+			break
+		}
+
+		// Skip type expressions but include everything else
+		if child.Kind() != NodeTypeExpression {
+			transformed, err := transformer.transformNode(child)
+			if err != nil {
+				return "", err
+			}
+			expressionParts = append(expressionParts, transformed)
 		}
 	}
 
-	// Fallback to original text if we can't parse it
-	return transformer.getNodeText(node), nil
+	if foundAs && len(expressionParts) > 0 {
+		return strings.Join(expressionParts, ""), nil
+	}
+
+	// Fallback: try to find the expression before "as" in the original text
+	nodeText := transformer.getNodeText(node)
+	if asIndex := strings.Index(nodeText, " as "); asIndex > 0 {
+		return strings.TrimSpace(nodeText[:asIndex]), nil
+	}
+
+	// Last resort fallback
+	return nodeText, nil
 }
 
 func (r *TypeAssertionCleanupRule) Description() string {
@@ -353,90 +352,28 @@ func (r *MethodParameterCleanupRule) Description() string {
 	return "Handles method parameters by removing type annotations while preserving parameter names"
 }
 
-// MethodDeclarationRemovalRule removes method declarations entirely, keeping only the body
-type MethodDeclarationRemovalRule struct{}
+// MethodDeclarationCleanupRule preserves method structure but removes type annotations
+type MethodDeclarationCleanupRule struct{}
 
-func (r *MethodDeclarationRemovalRule) CanTransform(node *sitter.Node) bool {
+func (r *MethodDeclarationCleanupRule) CanTransform(node *sitter.Node) bool {
 	return node.Kind() == "method_decl" || node.Kind() == "method_declaration" || node.Kind() == "method_declaration_statement"
 }
 
-func (r *MethodDeclarationRemovalRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
-	// For method declarations, extract only the block statement (method body)
-	// This transforms: method name(params) returns Type { body }
-	// Into:            { body }
+func (r *MethodDeclarationCleanupRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
+	// For method declarations, preserve the method structure but remove type annotations
+	// This transforms: method name(Type $param) returns ReturnType { body }
+	// Into:            method name($param) { body }
 
-	for i := uint(0); i < node.ChildCount(); i++ {
-		child := node.Child(i)
-		if child.Kind() == "block_stmt" || child.Kind() == "block" || child.Kind() == "compound_statement" {
-			// Found the method body - transform it and compact the output
-			blockContent, err := transformer.transformNode(child)
-			if err != nil {
-				return "", err
-			}
-
-			// Compact the block content to match expected test format
-			// Remove extra whitespace while preserving structure
-			return r.compactBlockContent(blockContent), nil
-		}
+	if !transformer.options.RemoveTypeNodes {
+		return transformer.transformWithWhitespace(node)
 	}
 
-	// If no block found, return empty (shouldn't happen for valid methods)
-	return "", nil
+	// Use the default transformation which should handle type removal via other rules
+	return transformer.transformWithWhitespace(node)
 }
 
-func (r *MethodDeclarationRemovalRule) Description() string {
-	return "Removes method declarations entirely, keeping only the method body"
-}
-
-// compactBlockContent compacts block content to match expected test format
-func (r *MethodDeclarationRemovalRule) compactBlockContent(blockContent string) string {
-	// Remove extra whitespace and normalize to single-line format
-	// This matches the expected corpus test format like "{ return $a + $b; }"
-
-	lines := strings.Split(blockContent, "\n")
-	var compactedLines []string
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" {
-			compactedLines = append(compactedLines, trimmed)
-		}
-	}
-
-	// Join with single spaces
-	if len(compactedLines) == 0 {
-		return "{}"
-	}
-
-	// For simple blocks, keep them compact
-	result := strings.Join(compactedLines, " ")
-
-	// Handle specific test expectations: remove trailing semicolon from simple return statements
-	// This matches expected test format for method bodies
-	if result == "return {};" {
-		result = "return {}"
-	}
-
-	// Don't modify the content - it's already properly formatted
-	// Just ensure we have proper outer block structure
-	switch {
-	case !strings.HasPrefix(result, "{"):
-		result = "{ " + result + " }"
-	case strings.HasPrefix(result, "{ ") && strings.HasSuffix(result, " }"):
-		// Already properly formatted
-		return result
-	case strings.HasPrefix(result, "{") && strings.HasSuffix(result, "}"):
-		// Need to add spaces around outer braces only
-		inner := result[1 : len(result)-1]
-		inner = strings.TrimSpace(inner)
-		if inner != "" {
-			result = "{ " + inner + " }"
-		} else {
-			result = "{}"
-		}
-	}
-
-	return result
+func (r *MethodDeclarationCleanupRule) Description() string {
+	return "Preserves method structure while removing type annotations"
 }
 
 // PreservationRule is a catch-all rule that preserves nodes as-is

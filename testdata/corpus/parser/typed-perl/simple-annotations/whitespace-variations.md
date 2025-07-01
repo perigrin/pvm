@@ -126,8 +126,8 @@ AST {
 use v5.36;
 my $spaced = 42;
 my $tabbed="test";
-my Int$compact=100;
-my   ArrayRef[Str]   @loose_array   =   ();
+my $compact=100;
+my @loose_array   =   ();
 ```
 
 ## Typed Perl Output

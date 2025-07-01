@@ -129,10 +129,15 @@ AST {
 
 ```perl
 use v5.36;
-{ return bless {
-            name => $name,
-            age => $age
-        }, __PACKAGE__; }{ return $name; }
+class User {
+    field $name;
+    field $age;
+    field $email;
+
+    method new($name, $age) { return bless { name => $name, age => $age }, __PACKAGE__; }
+
+    method get_name() { return $name; }
+}
 ```
 
 ## Typed Perl Output
