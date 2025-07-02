@@ -8,8 +8,10 @@ import (
 	"os"
 	"strings"
 
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/parser/treesitter"
 	"tamarou.com/pvm/internal/typedef"
 )
 
@@ -48,6 +50,7 @@ type TypeCheck struct {
 
 	// EnableTypeInference controls whether type inference is enabled
 	EnableTypeInference bool
+
 }
 
 // NewTypeCheck creates a new TypeCheck instance
@@ -158,11 +161,11 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	// Extract module name from the file path
 	moduleName := extractModuleNameFromPath(path)
 
-	// NEW PIPELINE: Source → Parser → Binder → Checker
-	// Step 1: Bind symbols using the binder
-	symbolTable, err := tc.Binder.BindAST(ast)
+	// NEW PIPELINE: Source → Parser → CST Binder → Checker
+	// Step 1: Bind symbols using CST-based binding
+	symbolTable, err := tc.bindWithCST(path, ast)
 	if err != nil {
-		return nil, fmt.Errorf("symbol binding failed: %w", err)
+		return nil, fmt.Errorf("CST symbol binding failed: %w", err)
 	}
 
 	// Step 2: Create a type checker with symbol table
@@ -271,4 +274,27 @@ func (tc *TypeCheck) CheckFile(path string) (*TypeCheckResult, error) {
 	tc.manageCacheSize()
 
 	return result, nil
+}
+
+// bindWithCST performs symbol binding using CST instead of AST for better accuracy
+func (tc *TypeCheck) bindWithCST(path string, ast *parser.AST) (*binder.SymbolTable, error) {
+	// Read the source file content
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read source file: %w", err)
+	}
+
+	// Parse with tree-sitter to get CST
+	tsParser := sitter.NewParser()
+	tsParser.SetLanguage(treesitter.Language())
+
+	tree := tsParser.Parse(content, nil)
+	if tree == nil {
+		return nil, fmt.Errorf("failed to parse file with tree-sitter")
+	}
+
+	root := tree.RootNode()
+
+	// Use CST binding with type annotations from the AST
+	return tc.Binder.BindCST(root, content, ast.TypeAnnotations)
 }

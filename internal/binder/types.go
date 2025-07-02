@@ -8,6 +8,7 @@ package binder
 import (
 	"fmt"
 
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/ast"
 )
 
@@ -159,17 +160,17 @@ type SymbolTable struct {
 	ExportedSymbols map[string]*Symbol      // Symbols exported by this module
 	DynamicSymbols  map[string]*Symbol      // Dynamically created symbols
 
+	// Type annotations from parser (for CST-based binding)
+	TypeAnnotations []*ast.TypeAnnotation // Type annotations extracted from CST
+
 	// Pool manager for efficient memory allocation
 	PoolManager *SymbolPoolManager // Pool manager for symbols and scopes
 }
 
 // Binder interface defines the symbol binding operations
 type Binder interface {
-	// Bind performs symbol binding on an AST
-	Bind(node ast.Node) (*SymbolTable, error)
-
-	// BindAST performs symbol binding on a parsed AST
-	BindAST(astTree *ast.AST) (*SymbolTable, error)
+	// BindCST performs symbol binding directly on tree-sitter CST
+	BindCST(root *sitter.Node, content []byte, typeAnnotations []*ast.TypeAnnotation) (*SymbolTable, error)
 }
 
 // SymbolResolver interface for resolving symbols in different contexts

@@ -4,8 +4,8 @@
 package binder
 
 import (
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"sync"
-
 	"tamarou.com/pvm/internal/ast"
 )
 
@@ -19,11 +19,8 @@ var _ Binder = &BinderMock{}
 //
 //		// make and configure a mocked Binder
 //		mockedBinder := &BinderMock{
-//			BindFunc: func(node ast.Node) (*SymbolTable, error) {
-//				panic("mock out the Bind method")
-//			},
-//			BindASTFunc: func(astTree *ast.AST) (*SymbolTable, error) {
-//				panic("mock out the BindAST method")
+//			BindCSTFunc: func(root *sitter.Node, content []byte, typeAnnotations []*ast.TypeAnnotation) (*SymbolTable, error) {
+//				panic("mock out the BindCST method")
 //			},
 //		}
 //
@@ -32,90 +29,61 @@ var _ Binder = &BinderMock{}
 //
 //	}
 type BinderMock struct {
-	// BindFunc mocks the Bind method.
-	BindFunc func(node ast.Node) (*SymbolTable, error)
-
-	// BindASTFunc mocks the BindAST method.
-	BindASTFunc func(astTree *ast.AST) (*SymbolTable, error)
+	// BindCSTFunc mocks the BindCST method.
+	BindCSTFunc func(root *sitter.Node, content []byte, typeAnnotations []*ast.TypeAnnotation) (*SymbolTable, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// Bind holds details about calls to the Bind method.
-		Bind []struct {
-			// Node is the node argument value.
-			Node ast.Node
-		}
-		// BindAST holds details about calls to the BindAST method.
-		BindAST []struct {
-			// AstTree is the astTree argument value.
-			AstTree *ast.AST
+		// BindCST holds details about calls to the BindCST method.
+		BindCST []struct {
+			// Root is the root argument value.
+			Root *sitter.Node
+			// Content is the content argument value.
+			Content []byte
+			// TypeAnnotations is the typeAnnotations argument value.
+			TypeAnnotations []*ast.TypeAnnotation
 		}
 	}
-	lockBind    sync.RWMutex
-	lockBindAST sync.RWMutex
+	lockBindCST sync.RWMutex
 }
 
-// Bind calls BindFunc.
-func (mock *BinderMock) Bind(node ast.Node) (*SymbolTable, error) {
-	if mock.BindFunc == nil {
-		panic("BinderMock.BindFunc: method is nil but Binder.Bind was just called")
+// BindCST calls BindCSTFunc.
+func (mock *BinderMock) BindCST(root *sitter.Node, content []byte, typeAnnotations []*ast.TypeAnnotation) (*SymbolTable, error) {
+	if mock.BindCSTFunc == nil {
+		panic("BinderMock.BindCSTFunc: method is nil but Binder.BindCST was just called")
 	}
 	callInfo := struct {
-		Node ast.Node
+		Root            *sitter.Node
+		Content         []byte
+		TypeAnnotations []*ast.TypeAnnotation
 	}{
-		Node: node,
+		Root:            root,
+		Content:         content,
+		TypeAnnotations: typeAnnotations,
 	}
-	mock.lockBind.Lock()
-	mock.calls.Bind = append(mock.calls.Bind, callInfo)
-	mock.lockBind.Unlock()
-	return mock.BindFunc(node)
+	mock.lockBindCST.Lock()
+	mock.calls.BindCST = append(mock.calls.BindCST, callInfo)
+	mock.lockBindCST.Unlock()
+	return mock.BindCSTFunc(root, content, typeAnnotations)
 }
 
-// BindCalls gets all the calls that were made to Bind.
+// BindCSTCalls gets all the calls that were made to BindCST.
 // Check the length with:
 //
-//	len(mockedBinder.BindCalls())
-func (mock *BinderMock) BindCalls() []struct {
-	Node ast.Node
+//	len(mockedBinder.BindCSTCalls())
+func (mock *BinderMock) BindCSTCalls() []struct {
+	Root            *sitter.Node
+	Content         []byte
+	TypeAnnotations []*ast.TypeAnnotation
 } {
 	var calls []struct {
-		Node ast.Node
+		Root            *sitter.Node
+		Content         []byte
+		TypeAnnotations []*ast.TypeAnnotation
 	}
-	mock.lockBind.RLock()
-	calls = mock.calls.Bind
-	mock.lockBind.RUnlock()
-	return calls
-}
-
-// BindAST calls BindASTFunc.
-func (mock *BinderMock) BindAST(astTree *ast.AST) (*SymbolTable, error) {
-	if mock.BindASTFunc == nil {
-		panic("BinderMock.BindASTFunc: method is nil but Binder.BindAST was just called")
-	}
-	callInfo := struct {
-		AstTree *ast.AST
-	}{
-		AstTree: astTree,
-	}
-	mock.lockBindAST.Lock()
-	mock.calls.BindAST = append(mock.calls.BindAST, callInfo)
-	mock.lockBindAST.Unlock()
-	return mock.BindASTFunc(astTree)
-}
-
-// BindASTCalls gets all the calls that were made to BindAST.
-// Check the length with:
-//
-//	len(mockedBinder.BindASTCalls())
-func (mock *BinderMock) BindASTCalls() []struct {
-	AstTree *ast.AST
-} {
-	var calls []struct {
-		AstTree *ast.AST
-	}
-	mock.lockBindAST.RLock()
-	calls = mock.calls.BindAST
-	mock.lockBindAST.RUnlock()
+	mock.lockBindCST.RLock()
+	calls = mock.calls.BindCST
+	mock.lockBindCST.RUnlock()
 	return calls
 }
 

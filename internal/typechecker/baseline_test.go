@@ -7,30 +7,54 @@ import (
 	"strings"
 	"testing"
 
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/parser/treesitter"
 	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/internal/typedef"
 )
+
+// Helper function to bind symbols using CST and return both symbol table and AST
+func bindWithCSTAndAST(inputCode string) (*binder.SymbolTable, *parser.AST, error) {
+	// Parse the input code with both parsers
+	p, err := parser.NewParser()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ast, err := p.ParseString(inputCode)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Parse with tree-sitter for CST
+	tsParser := sitter.NewParser()
+	tsParser.SetLanguage(treesitter.Language())
+	contentBytes := []byte(inputCode)
+	tree := tsParser.Parse(contentBytes, nil)
+	if tree == nil {
+		return nil, nil, err
+	}
+
+	// Bind symbols using CST
+	b := binder.NewBinder()
+	symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, ast.TypeAnnotations)
+	return symbolTable, ast, err
+}
+
+// Helper function to bind symbols using CST
+func bindWithCST(inputCode string) (*binder.SymbolTable, error) {
+	symbolTable, _, err := bindWithCSTAndAST(inputCode)
+	return symbolTable, err
+}
 
 func TestTypeChecker_Baselines(t *testing.T) {
 	// Removed sampling to enable test in regular runs
 	// Create processor function that type checks input and returns results
 	processor := func(input []byte) ([]byte, error) {
-		// Parse the input
-		p, err := parser.NewParser()
-		if err != nil {
-			return nil, err
-		}
-
-		ast, err := p.ParseString(string(input))
-		if err != nil {
-			return nil, err
-		}
-
-		// Bind symbols
-		b := binder.NewBinder()
-		symbolTable, err := b.BindAST(ast)
+		// Bind symbols using CST
+		symbolTable, ast, err := bindWithCSTAndAST(string(input))
 		if err != nil {
 			return nil, err
 		}
@@ -134,20 +158,8 @@ if (defined $maybe_count) {
 	}
 
 	processor := func(input []byte) ([]byte, error) {
-		// Parse the input
-		p, err := parser.NewParser()
-		if err != nil {
-			return nil, err
-		}
-
-		ast, err := p.ParseString(string(input))
-		if err != nil {
-			return nil, err
-		}
-
-		// Bind symbols
-		b := binder.NewBinder()
-		symbolTable, err := b.BindAST(ast)
+		// Bind symbols using CST
+		symbolTable, ast, err := bindWithCSTAndAST(string(input))
 		if err != nil {
 			return nil, err
 		}
@@ -191,19 +203,8 @@ func BenchmarkTypeChecker_Performance(b *testing.B) {
 
 	// Simple type checking
 	helper.BenchmarkTypeChecker(b, "simple_types", func() error {
-		p, err := parser.NewParser()
-		if err != nil {
-			return err
-		}
-
 		script := `my Int $x = 42; my Str $y = "hello";`
-		ast, err := p.ParseString(script)
-		if err != nil {
-			return err
-		}
-
-		binder := binder.NewBinder()
-		symbolTable, err := binder.BindAST(ast)
+		symbolTable, ast, err := bindWithCSTAndAST(script)
 		if err != nil {
 			return err
 		}
@@ -217,11 +218,6 @@ func BenchmarkTypeChecker_Performance(b *testing.B) {
 
 	// Complex type checking
 	helper.BenchmarkTypeChecker(b, "complex_types", func() error {
-		p, err := parser.NewParser()
-		if err != nil {
-			return err
-		}
-
 		script := `
 my ArrayRef[HashRef[Int|Str]] $data = [
     {name => "Alice", age => 30},
@@ -238,13 +234,7 @@ sub process(ArrayRef[HashRef[Any]] $input) -> HashRef[Int] {
 
 my $processed = process($data);`
 
-		ast, err := p.ParseString(script)
-		if err != nil {
-			return err
-		}
-
-		binder := binder.NewBinder()
-		symbolTable, err := binder.BindAST(ast)
+		symbolTable, ast, err := bindWithCSTAndAST(script)
 		if err != nil {
 			return err
 		}
@@ -258,11 +248,6 @@ my $processed = process($data);`
 
 	// Type inference benchmarking
 	helper.BenchmarkTypeChecker(b, "inference", func() error {
-		p, err := parser.NewParser()
-		if err != nil {
-			return err
-		}
-
 		script := `
 my $count = 0;
 my $list = [];
@@ -276,13 +261,7 @@ for my $i (1..100) {
 
 my $result = $count + @$list + keys %$hash;`
 
-		ast, err := p.ParseString(script)
-		if err != nil {
-			return err
-		}
-
-		binder := binder.NewBinder()
-		symbolTable, err := binder.BindAST(ast)
+		symbolTable, ast, err := bindWithCSTAndAST(script)
 		if err != nil {
 			return err
 		}

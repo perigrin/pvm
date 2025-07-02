@@ -1,7 +1,13 @@
 // ABOUTME: Advanced symbol binding features for Perl's complex scoping scenarios.
 // ABOUTME: Handles closures, dynamic scoping, module imports, and package qualification.
+// NOTE: Currently disabled as it depends on old AST binding methods that have been removed
+
+// TODO: Update AdvancedBinder to work with CST binding instead of AST binding
 
 package binder
+
+// Temporarily comment out AdvancedBinder until it can be updated for CST binding
+/*
 
 import (
 	"log"
@@ -341,3 +347,4 @@ func (st *SymbolTable) ExitScopeAdvanced() *Scope {
 	}
 	return st.CurrentScope
 }
+*/
