@@ -260,15 +260,15 @@ func TestPoolingIntegration_LSPOperations(t *testing.T) {
 	content := `package TestModule;
 use v5.36;
 
-field Str $name;
-field Int $count = 0;
+my Str $name = "test";
+my Int $count = 0;
 
-method greet(Str $greeting) -> Str {
+sub greet(Str $greeting) returns Str {
     return "$greeting, $name!";
 }
 
-method increment() -> Int {
-    $count++;
+sub increment() returns Int {
+    $count = $count + 1;
     return $count;
 }
 

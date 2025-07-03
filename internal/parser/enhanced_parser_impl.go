@@ -106,7 +106,9 @@ func (ep *enhancedParser) tryIdentifyTypeError(originalErr error, source, contex
 	}
 
 	// Check if the error appears to be type-related
-	if !ep.isLikelyTypeError(originalErr, source) {
+	isTypeError := ep.isLikelyTypeError(originalErr, source)
+
+	if !isTypeError {
 		return nil
 	}
 
@@ -169,11 +171,17 @@ func (ep *enhancedParser) looksLikeCompleteFile(source string) bool {
 	// Check if it contains multiple lines with Perl statements
 	lines := strings.Split(trimmed, "\n")
 	statementCount := 0
+	typeExpressionCount := 0
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue // Skip empty lines and comments
+		}
+
+		// Check if this looks like a type expression (malformed or otherwise)
+		if strings.HasPrefix(line, "my ") && containsTypePatterns(line) {
+			typeExpressionCount++
 		}
 
 		// Count lines that look like Perl statements
@@ -190,8 +198,30 @@ func (ep *enhancedParser) looksLikeCompleteFile(source string) bool {
 		}
 	}
 
+	// If most lines look like type expressions, it's probably a type fragment, not a complete file
+	if typeExpressionCount >= 3 && typeExpressionCount >= statementCount/2 {
+		return false
+	}
+
 	// If we have multiple statement-like lines, it's probably a complete file
 	return statementCount >= 2
+}
+
+// containsTypePatterns checks if a line contains type-related patterns
+func containsTypePatterns(line string) bool {
+	typePatterns := []string{
+		"ArrayRef[", "HashRef[", "Container[", "Map[", "Wrapper[",
+		"|", "&", "!", // Type operators
+		"[", "]", // Brackets for parameterized types
+	}
+
+	for _, pattern := range typePatterns {
+		if strings.Contains(line, pattern) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // containsActualTypePattern checks for patterns that indicate actual type annotations
