@@ -629,20 +629,20 @@ func (r *SubroutineReturnTypeRule) CanTransform(node *sitter.Node) bool {
 func (r *SubroutineReturnTypeRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
 	// Check if this ERROR node actually contains return type syntax
 	nodeText := transformer.getNodeText(node)
-	if !strings.Contains(nodeText, "->") {
+	if !strings.Contains(nodeText, "->") && !strings.Contains(nodeText, "returns ") {
 		// Not a return type, let other rules handle it
 		return nodeText, nil
 	}
 
-	// For subroutine return types (-> Type), remove entirely if removing types
+	// For subroutine return types (-> Type or returns Type), remove entirely if removing types
 	if transformer.options.RemoveTypeNodes {
-		return "", nil // Remove the entire -> Type construct
+		return "", nil // Remove the entire return type construct
 	}
 	return nodeText, nil
 }
 
 func (r *SubroutineReturnTypeRule) Description() string {
-	return "Removes subroutine return type annotations (-> Type)"
+	return "Removes subroutine return type annotations (-> Type or returns Type)"
 }
 
 // ForLoopTypedVariableRule handles typed variables in for loops

@@ -124,6 +124,13 @@ func (ep *enhancedParser) isLikelyTypeError(err error, source string) bool {
 	// Check error message for indicators
 	errStr := err.Error()
 	if strings.Contains(errStr, "parse error") || strings.Contains(errStr, "ERROR nodes") {
+		// Check if this looks like a complete Perl file rather than just a type expression
+		if ep.looksLikeCompleteFile(source) {
+			// Don't classify complete file parse failures as type errors
+			// These should be handled as general parsing failures
+			return false
+		}
+
 		// Check source for type-like patterns, but be more specific
 		// Don't consider package-qualified variables as type errors
 		if strings.Contains(source, "::") && strings.Contains(source, "$") &&
@@ -137,6 +144,54 @@ func (ep *enhancedParser) isLikelyTypeError(err error, source string) bool {
 		return containsActualTypePattern(source)
 	}
 	return false
+}
+
+// looksLikeCompleteFile checks if the source appears to be a complete Perl file
+// rather than just a type expression fragment
+func (ep *enhancedParser) looksLikeCompleteFile(source string) bool {
+	// Trim leading/trailing whitespace for analysis
+	trimmed := strings.TrimSpace(source)
+
+	// Check for clear indicators of complete files
+	completeFilePatterns := []string{
+		"package ",     // Package declarations
+		"use v",        // Version pragmas
+		"use strict",   // Common pragmas
+		"use warnings", // Common pragmas
+	}
+
+	for _, pattern := range completeFilePatterns {
+		if strings.HasPrefix(trimmed, pattern) {
+			return true
+		}
+	}
+
+	// Check if it contains multiple lines with Perl statements
+	lines := strings.Split(trimmed, "\n")
+	statementCount := 0
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue // Skip empty lines and comments
+		}
+
+		// Count lines that look like Perl statements
+		if strings.HasSuffix(line, ";") ||
+			strings.HasSuffix(line, "{") ||
+			strings.HasSuffix(line, "}") ||
+			strings.HasPrefix(line, "package ") ||
+			strings.HasPrefix(line, "use ") ||
+			strings.HasPrefix(line, "sub ") ||
+			strings.HasPrefix(line, "method ") ||
+			strings.HasPrefix(line, "class ") ||
+			strings.HasPrefix(line, "role ") {
+			statementCount++
+		}
+	}
+
+	// If we have multiple statement-like lines, it's probably a complete file
+	return statementCount >= 2
 }
 
 // containsActualTypePattern checks for patterns that indicate actual type annotations
