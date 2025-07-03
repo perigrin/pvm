@@ -1,6 +1,6 @@
 === SYMBOLS ===
+scalar active :: Bool [lexical|typed] at 1:1
 scalar count :: Int [lexical|typed] at 1:1
 scalar name :: Str [lexical|typed] at 1:1
-scalar active :: Bool [lexical|typed] at 1:1
 === TYPE ERRORS ===
 No type errors

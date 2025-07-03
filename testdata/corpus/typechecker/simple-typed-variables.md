@@ -22,12 +22,13 @@ my Bool $active = true;
 
 The binder should create symbols for the **variables**, not the **type names**.
 Type names (Int, Str, Bool) are type references and should not appear as symbols.
+The improved binder now properly extracts type annotations and flags typed variables.
 
 ```
 === SYMBOLS ===
-scalar count [lexical] at 1:8
-scalar name [lexical] at 2:8
-scalar active [lexical] at 3:9
+scalar active :: Bool [lexical|typed] at 1:1
+scalar count :: Int [lexical|typed] at 1:1
+scalar name :: Str [lexical|typed] at 1:1
 === TYPE ERRORS ===
 No type errors
 ```

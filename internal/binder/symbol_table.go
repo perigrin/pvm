@@ -272,7 +272,11 @@ func (st *SymbolTable) GetVisibleSymbols() []*Symbol {
 		if symbols[i].Position.Line != symbols[j].Position.Line {
 			return symbols[i].Position.Line < symbols[j].Position.Line
 		}
-		return symbols[i].Position.Column < symbols[j].Position.Column
+		if symbols[i].Position.Column != symbols[j].Position.Column {
+			return symbols[i].Position.Column < symbols[j].Position.Column
+		}
+		// When positions are identical, sort by symbol name for stable ordering
+		return symbols[i].Name < symbols[j].Name
 	})
 
 	return symbols
