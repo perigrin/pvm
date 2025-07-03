@@ -4,9 +4,6 @@
 package binder
 
 import (
-	"fmt"
-	"strings"
-
 	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/ast"
 )
@@ -45,39 +42,9 @@ func (b *DefaultBinder) BindCST(root *sitter.Node, content []byte, typeAnnotatio
 	return b.cstBinder.BindCST(root, content, typeAnnotations)
 }
 
-// Bind performs symbol binding on an AST node
-func (b *DefaultBinder) Bind(node ast.Node) (*SymbolTable, error) {
-	// Create a new symbol table
-	symbolTable := NewSymbolTableWithPool(b.poolManager, "main")
-
-	// Basic AST node handling for test compatibility
-	if node != nil {
-		// Check if this is a use statement (simplified check)
-		nodeStr := fmt.Sprintf("%T", node)
-		if strings.Contains(nodeStr, "UseStmt") || strings.Contains(nodeStr, "Use") {
-			// Create an import symbol for the test
-			importSymbol := &Symbol{
-				Name:     "Test::Module",
-				Kind:     SymbolImport,
-				Flags:    SymbolFlagImported,
-				Position: ast.Position{Line: 1, Column: 1},
-			}
-			symbolTable.AddSymbol(importSymbol)
-
-			// Register a module symbol table for the test
-			moduleTable := NewSymbolTableWithPool(b.poolManager, "Test::Module")
-			symbolTable.ImportModule("Test::Module", moduleTable)
-		}
-	}
-
-	return symbolTable, nil
-}
-
-// BindAST performs symbol binding on an AST node (alternative to Bind)
-func (b *DefaultBinder) BindAST(node ast.Node) (*SymbolTable, error) {
-	// This is the same as Bind but with a different name for compatibility
-	return b.Bind(node)
-}
+// Note: AST-based binding methods removed in favor of CST-based binding only.
+// All binding now goes through BindCST() for consistency and better integration
+// with tree-sitter parsing infrastructure.
 
 // getVariableSymbolKind determines the symbol kind for a variable
 func (b *DefaultBinder) getVariableSymbolKind(name string) SymbolKind {
@@ -105,16 +72,4 @@ func (b *DefaultBinder) stripSigil(name string) string {
 		return name[1:]
 	}
 	return name
-}
-
-// bindSubroutineDeclaration binds a subroutine declaration
-func (b *DefaultBinder) bindSubroutineDeclaration(node ast.Node) error {
-	// Placeholder implementation for testing
-	return nil
-}
-
-// bindMethodDeclaration binds a method declaration
-func (b *DefaultBinder) bindMethodDeclaration(node ast.Node) error {
-	// Placeholder implementation for testing
-	return nil
 }

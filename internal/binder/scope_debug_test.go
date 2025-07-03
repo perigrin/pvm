@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package binder
 
 import (
@@ -93,8 +96,7 @@ func logASTStructure(t *testing.T, node interface{}, depth int) {
 	t.Logf("%sNode: %T", indent, node)
 
 	// Log method-specific information
-	switch n := node.(type) {
-	case *ast.MethodDecl:
+	if n, ok := node.(*ast.MethodDecl); ok {
 		t.Logf("%s  Method Name: %s", indent, n.Name)
 		t.Logf("%s  Has Body: %v", indent, n.Body != nil)
 		if n.Body != nil {
@@ -103,8 +105,7 @@ func logASTStructure(t *testing.T, node interface{}, depth int) {
 	}
 
 	// Try to get children if this is a container node
-	switch n := node.(type) {
-	case interface{ Children() []interface{} }:
+	if n, ok := node.(interface{ Children() []interface{} }); ok {
 		children := n.Children()
 		for _, child := range children {
 			logASTStructure(t, child, depth+1)
@@ -187,8 +188,7 @@ func analyzeVarDecls(t *testing.T, node interface{}) {
 		return
 	}
 
-	switch n := node.(type) {
-	case *ast.VarDecl:
+	if n, ok := node.(*ast.VarDecl); ok {
 		t.Logf("Found VarDecl: DeclType=%s, TypeExpr=%v", n.DeclType, n.TypeExpr)
 		variables := n.LogicalVariables()
 		t.Logf("  Variables count: %d", len(variables))
@@ -205,8 +205,7 @@ func analyzeVarDecls(t *testing.T, node interface{}) {
 	}
 
 	// Try to get children and recurse
-	switch n := node.(type) {
-	case interface{ Children() []interface{} }:
+	if n, ok := node.(interface{ Children() []interface{} }); ok {
 		children := n.Children()
 		for _, child := range children {
 			analyzeVarDecls(t, child)

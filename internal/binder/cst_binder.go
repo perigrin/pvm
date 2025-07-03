@@ -15,7 +15,8 @@ import (
 type CSTBinder struct {
 	symbolTable *SymbolTable
 	poolManager *SymbolPoolManager
-	content     []byte // Original source content for text extraction
+	content     []byte       // Original source content for text extraction
+	currentNode *sitter.Node // Current CST node being processed
 }
 
 // NewCSTBinder creates a new CST-based binder
@@ -94,6 +95,9 @@ func (b *CSTBinder) bindCSTVariableDeclaration(node *sitter.Node) error {
 	if DebugScoping {
 		log.Printf("[DEBUG] bindCSTVariableDeclaration: Processing '%s'", nodeText)
 	}
+
+	// Set current node for type annotation extraction
+	b.currentNode = node
 
 	// Extract declaration type and variables from CST
 	declType := b.extractDeclType(node)
@@ -237,17 +241,75 @@ func (b *CSTBinder) extractDeclType(node *sitter.Node) string {
 	}
 }
 
-// findTypeAnnotationForVariable finds the type annotation for a given variable
+// findTypeAnnotationForVariable finds the type annotation for a given variable in the current CST context
 func (b *CSTBinder) findTypeAnnotationForVariable(varName string) string {
-	if b.symbolTable.TypeAnnotations == nil {
+	// For CST-based binding, we need to extract type annotations directly from the current node
+	// This is called during processing of a variable_declaration node
+	if b.currentNode == nil {
 		return ""
 	}
 
-	// Look through type annotations to find one matching this variable
-	for _, annotation := range b.symbolTable.TypeAnnotations {
-		if annotation.AnnotatedItem == varName && annotation.Kind == ast.VarAnnotation {
-			if annotation.TypeExpression != nil {
-				return annotation.TypeExpression.String()
+	// Look for type expression nodes in the current variable declaration
+	return b.extractTypeFromCSTNode(b.currentNode, varName)
+}
+
+// extractTypeFromCSTNode extracts type annotation for a variable from CST node
+func (b *CSTBinder) extractTypeFromCSTNode(node *sitter.Node, varName string) string {
+	if node == nil {
+		return ""
+	}
+
+	// For variable declarations like "my Int $var = 42;", we need to find
+	// the type expression that precedes the variable
+	return b.findTypeExpressionInDeclaration(node, varName)
+}
+
+// findTypeExpressionInDeclaration finds the type expression for a variable in a declaration node
+func (b *CSTBinder) findTypeExpressionInDeclaration(node *sitter.Node, varName string) string {
+	if node == nil {
+		return ""
+	}
+
+	// Look for type_expression nodes in the current declaration
+	var typeExpr string
+	var currentVar string
+
+	// Traverse children to find pattern: type_expression followed by variable
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		nodeType := child.Kind()
+		nodeText := b.getNodeText(child)
+
+		if DebugScoping {
+			log.Printf("[DEBUG] findTypeExpressionInDeclaration: Examining child %d: type='%s', text='%s'", i, nodeType, nodeText)
+		}
+
+		// If we find a type_expression, remember it
+		if nodeType == "type_expression" {
+			typeExpr = nodeText
+			if DebugScoping {
+				log.Printf("[DEBUG] findTypeExpressionInDeclaration: Found type expression: '%s'", typeExpr)
+			}
+		}
+
+		// If we find a variable that matches our target, return the last type expression we found
+		if (nodeType == "scalar" || nodeType == "array" || nodeType == "hash") && nodeText == varName {
+			currentVar = nodeText
+			if DebugScoping {
+				log.Printf("[DEBUG] findTypeExpressionInDeclaration: Found target variable '%s', returning type '%s'", currentVar, typeExpr)
+			}
+			return typeExpr
+		}
+
+		// Recurse into children if this isn't a terminal node
+		if child.ChildCount() > 0 {
+			result := b.findTypeExpressionInDeclaration(child, varName)
+			if result != "" {
+				return result
 			}
 		}
 	}
