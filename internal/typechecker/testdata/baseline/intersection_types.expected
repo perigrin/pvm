@@ -1,3 +1,5 @@
 === SYMBOLS ===
+scalar data :: Object&Serializable [lexical|typed] at 1:1
+scalar list :: ArrayRef&Iterable [lexical|typed] at 1:1
 === TYPE ERRORS ===
 No type errors

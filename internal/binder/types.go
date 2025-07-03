@@ -144,6 +144,7 @@ type Scope struct {
 	SavedValues     map[string]*Symbol // Saved symbol values for local restoration
 	ImportedModules map[string]string  // Module imports in this scope
 	CapturedSymbols []*Symbol          // Symbols captured by this scope (for closures)
+	ExportedSymbols map[string]*Symbol // Symbols exported from this scope (for modules)
 }
 
 // SymbolTable manages all symbols and scopes for a compilation unit

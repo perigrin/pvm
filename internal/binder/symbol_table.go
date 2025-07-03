@@ -300,6 +300,251 @@ func (st *SymbolTable) SetPackage(packageName string) {
 	}
 }
 
+// CreatePackageQualifiedSymbol creates a symbol with package qualification
+func (st *SymbolTable) CreatePackageQualifiedSymbol(packageName, name string, kind SymbolKind, flags SymbolFlags) *Symbol {
+	qualifiedName := packageName + "::" + name
+
+	symbol := &Symbol{
+		Name:          name,
+		QualifiedName: qualifiedName,
+		Kind:          kind,
+		Flags:         flags | SymbolFlagPackageQualified,
+		Package:       packageName,
+		Position:      ast.Position{Line: 1, Column: 1},
+	}
+
+	return symbol
+}
+
+// ResolvePackageSymbol resolves a symbol within a specific package
+func (st *SymbolTable) ResolvePackageSymbol(packageName, name string, kind SymbolKind) *Symbol {
+	// Look for package-qualified symbol first
+	if symbols, exists := st.Symbols[name]; exists {
+		for _, symbol := range symbols {
+			if symbol.Package == packageName && symbol.Kind == kind {
+				return symbol
+			}
+		}
+	}
+
+	return nil
+}
+
+// ResolveWithPackageQualification resolves a symbol with package qualification fallback
+func (st *SymbolTable) ResolveWithPackageQualification(name string, kind SymbolKind) *Symbol {
+	// First try local resolution
+	if symbol := st.ResolveSymbol(name, kind); symbol != nil {
+		return symbol
+	}
+
+	// Then try current package
+	return st.ResolvePackageSymbol(st.Package, name, kind)
+}
+
+// ExportSymbol marks a symbol as exported from a module
+func (st *SymbolTable) ExportSymbol(symbol *Symbol) error {
+	if symbol == nil {
+		return NewBindingError("cannot export nil symbol", "", "", ast.Position{})
+	}
+
+	symbol.Flags |= SymbolFlagExported
+
+	// Add to module's export list if we have one
+	if st.CurrentScope != nil {
+		if st.CurrentScope.ExportedSymbols == nil {
+			st.CurrentScope.ExportedSymbols = make(map[string]*Symbol)
+		}
+		st.CurrentScope.ExportedSymbols[symbol.Name] = symbol
+	}
+
+	return nil
+}
+
+// ImportModule imports symbols from another module
+func (st *SymbolTable) ImportModule(moduleName string, moduleTable *SymbolTable) error {
+	if st.CurrentScope == nil {
+		return NewBindingError("no current scope for import", moduleName, "module", ast.Position{})
+	}
+
+	// Record the import
+	if st.CurrentScope.ImportedModules == nil {
+		st.CurrentScope.ImportedModules = make(map[string]string)
+	}
+	st.CurrentScope.ImportedModules[moduleName] = moduleName
+
+	// Store the module's symbol table
+	if st.ModuleSymbols == nil {
+		st.ModuleSymbols = make(map[string]*SymbolTable)
+	}
+	st.ModuleSymbols[moduleName] = moduleTable
+
+	return nil
+}
+
+// GetModuleSymbolTable returns the symbol table for a specific module
+func (st *SymbolTable) GetModuleSymbolTable(moduleName string) *SymbolTable {
+	if st.ModuleSymbols != nil {
+		return st.ModuleSymbols[moduleName]
+	}
+	return nil
+}
+
+// ResolveImportedSymbol resolves a symbol that was imported from another module
+func (st *SymbolTable) ResolveImportedSymbol(moduleName, name string, kind SymbolKind) *Symbol {
+	// Get the module's symbol table
+	moduleTable := st.GetModuleSymbolTable(moduleName)
+	if moduleTable == nil {
+		return nil
+	}
+
+	// Look for the symbol in the module's exported symbols
+	if moduleTable.ExportedSymbols != nil {
+		if symbol, exists := moduleTable.ExportedSymbols[name]; exists && symbol.Kind == kind {
+			return symbol
+		}
+	}
+
+	return nil
+}
+
+// CreateAlias creates an alias symbol that references another symbol
+func (st *SymbolTable) CreateAlias(aliasName string, target *Symbol) *Symbol {
+	if target == nil {
+		return nil
+	}
+
+	alias := &Symbol{
+		Name:           aliasName,
+		QualifiedName:  aliasName,
+		Kind:           target.Kind,
+		Flags:          SymbolFlagAlias,
+		Package:        st.Package,
+		Position:       ast.Position{Line: 1, Column: 1},
+		Type:           target.Type,
+		OriginalSymbol: target,
+	}
+
+	return alias
+}
+
+// CaptureSymbol captures a symbol from an outer scope for closure use
+func (st *SymbolTable) CaptureSymbol(symbol *Symbol, capturingScope *Scope) error {
+	if symbol == nil {
+		return NewBindingError("cannot capture nil symbol", "", "", ast.Position{})
+	}
+
+	if capturingScope == nil {
+		capturingScope = st.CurrentScope
+	}
+
+	if capturingScope == nil {
+		return NewBindingError("no current scope for capture", symbol.Name, symbol.Kind.String(), symbol.Position)
+	}
+
+	// Mark symbol as captured
+	symbol.Flags |= SymbolFlagClosure | SymbolFlagUpvalue
+
+	// Add to capturing scope's captured symbols list
+	if capturingScope.CapturedSymbols == nil {
+		capturingScope.CapturedSymbols = []*Symbol{}
+	}
+	capturingScope.CapturedSymbols = append(capturingScope.CapturedSymbols, symbol)
+
+	// Record the capturing relationship
+	if symbol.CapturedBy == nil {
+		symbol.CapturedBy = []*Scope{}
+	}
+	symbol.CapturedBy = append(symbol.CapturedBy, capturingScope)
+
+	return nil
+}
+
+// CreateLocalSymbol processes a symbol for local scope semantics
+func (st *SymbolTable) CreateLocalSymbol(symbol *Symbol) error {
+	if symbol == nil {
+		return NewBindingError("cannot create nil local symbol", "", "", ast.Position{})
+	}
+
+	if st.CurrentScope == nil {
+		return NewBindingError("no current scope for local symbol", symbol.Name, symbol.Kind.String(), symbol.Position)
+	}
+
+	// Mark as local
+	symbol.Flags |= SymbolFlagLocal
+
+	// Store the original value if symbol exists in current scope
+	if existing, exists := st.CurrentScope.Symbols[symbol.Name]; exists {
+		if st.CurrentScope.SavedValues == nil {
+			st.CurrentScope.SavedValues = make(map[string]*Symbol)
+		}
+		st.CurrentScope.SavedValues[symbol.Name] = existing
+	}
+
+	// Add to local symbols tracking
+	if st.CurrentScope.LocalSymbols == nil {
+		st.CurrentScope.LocalSymbols = make(map[string]*Symbol)
+	}
+	st.CurrentScope.LocalSymbols[symbol.Name] = symbol
+
+	// Add to symbol table
+	return st.AddSymbol(symbol)
+}
+
+// ExitScopeAdvanced exits scope with local symbol restoration
+func (st *SymbolTable) ExitScopeAdvanced() *Scope {
+	if st.CurrentScope == nil {
+		return nil
+	}
+
+	// Restore saved symbol values for local symbols
+	if st.CurrentScope.SavedValues != nil {
+		for name, savedSymbol := range st.CurrentScope.SavedValues {
+			if st.CurrentScope.Parent != nil {
+				st.CurrentScope.Parent.Symbols[name] = savedSymbol
+			}
+		}
+	}
+
+	return st.ExitScope()
+}
+
+// CreateDynamicSymbol creates a symbol with dynamic characteristics
+func (st *SymbolTable) CreateDynamicSymbol(name string, kind SymbolKind, flags SymbolFlags) *Symbol {
+	symbol := &Symbol{
+		Name:          name,
+		QualifiedName: name,
+		Kind:          kind,
+		Flags:         SymbolFlagDynamic | flags,
+		Package:       st.Package,
+		Position:      ast.Position{Line: 1, Column: 1},
+	}
+
+	// Add to dynamic symbols tracking
+	if st.DynamicSymbols == nil {
+		st.DynamicSymbols = make(map[string]*Symbol)
+	}
+	st.DynamicSymbols[name] = symbol
+
+	return symbol
+}
+
+// AnalyzeClosureCapture analyzes which symbols are captured by closures
+func (st *SymbolTable) AnalyzeClosureCapture(scope *Scope) []*Symbol {
+	if scope == nil {
+		scope = st.CurrentScope
+	}
+
+	if scope == nil || scope.CapturedSymbols == nil {
+		return []*Symbol{}
+	}
+
+	// Return copy of captured symbols
+	result := make([]*Symbol, len(scope.CapturedSymbols))
+	copy(result, scope.CapturedSymbols)
+
+	return result
+}
+
 // String methods for debugging
 func (kind SymbolKind) String() string {
 	switch kind {
