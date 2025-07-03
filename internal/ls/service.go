@@ -182,7 +182,7 @@ func (ls *LanguageService) UpdateDocument(uri, text string, version int) error {
 		ls.monitor.RecordCacheMiss()
 		var err error
 		bindStart := time.Now()
-		
+
 		// Parse with tree-sitter for CST binding
 		tsParser := sitter.NewParser()
 		tsParser.SetLanguage(treesitter.Language())
@@ -192,7 +192,7 @@ func (ls *LanguageService) UpdateDocument(uri, text string, version int) error {
 			bindOp.CompleteWithError(fmt.Errorf("failed to parse with tree-sitter"))
 			return fmt.Errorf("failed to parse with tree-sitter")
 		}
-		
+
 		symbolTable, err = ls.binder.BindCST(tree.RootNode(), contentBytes, ast.TypeAnnotations)
 		bindDuration := time.Since(bindStart)
 

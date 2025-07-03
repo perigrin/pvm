@@ -6,7 +6,7 @@ package binder
 import (
 	"fmt"
 	"strings"
-	
+
 	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/ast"
 )
@@ -63,7 +63,7 @@ func (b *DefaultBinder) Bind(node ast.Node) (*SymbolTable, error) {
 				Position: ast.Position{Line: 1, Column: 1},
 			}
 			symbolTable.AddSymbol(importSymbol)
-			
+
 			// Register a module symbol table for the test
 			moduleTable := NewSymbolTableWithPool(b.poolManager, "Test::Module")
 			symbolTable.ImportModule("Test::Module", moduleTable)
@@ -84,7 +84,7 @@ func (b *DefaultBinder) getVariableSymbolKind(name string) SymbolKind {
 	if len(name) == 0 {
 		return SymbolScalar
 	}
-	
+
 	switch name[0] {
 	case '$':
 		return SymbolScalar

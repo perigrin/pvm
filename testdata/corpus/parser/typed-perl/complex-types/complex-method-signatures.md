@@ -14,10 +14,10 @@ tags:
 Complex method signatures with advanced parameter and return types
 
 ```perl
-method transform(
+method HashRef[ArrayRef[Int]|Str] transform(
     ArrayRef[HashRef[Int|Str]] $input,
     CodeRef[Str, Bool] $validator
-) returns HashRef[ArrayRef[Int]|Str] {
+) {
     return {};
 }
 
@@ -78,16 +78,28 @@ source_file
 
 ```perl
 use v5.36;
-{ return {} }{ return success([]); }
+method transform(
+    $input,
+    $validator
+) {
+    return {};
+}
+
+method process(
+    $complex_input,
+    $handler
+) {
+    return success([]);
+}
 ```
 
 ## Typed Perl Output
 
 ```perl
-method transform(
+method HashRef[ArrayRef[Int]|Str] transform(
     ArrayRef[HashRef[Int|Str]] $input,
     CodeRef[Str, Bool] $validator
-) returns HashRef[ArrayRef[Int]|Str] {
+) {
     return {};
 }
 

@@ -17,7 +17,7 @@ Mixed typed and untyped methods and fields in the same context
 field Int $typed_field = 42;
 field $untyped_field = "hello";
 
-method typed_method(Str $input) returns Str {
+method Str typed_method(Str $input) {
     return uc($input);
 }
 
@@ -26,7 +26,7 @@ sub untyped_sub {
     return $param * 2;
 }
 
-method partially_typed($untyped, Int $typed) returns Str {
+method Str partially_typed($untyped, Int $typed) {
     return "$untyped: $typed";
 }
 ```
@@ -38,11 +38,11 @@ method partially_typed($untyped, Int $typed) returns Str {
 ```
 AST {
   Path:
-  Source length: 336 characters
+  Source length: 320 characters
   Type Annotations:
     VarAnnotation: $typed_field :: Int at 2:1
-    MethodReturnAnnotation: typed_method :: Str at 5:41
-    MethodReturnAnnotation: partially_typed :: Str at 14:54
+    MethodReturnAnnotation: typed_method :: Str at 5:8
+    MethodReturnAnnotation: partially_typed :: Str at 14:8
     MethodParamAnnotation: $input :: Str at 5:1
     MethodParamAnnotation: $typed :: Int at 14:1
   Root: source_file
@@ -111,11 +111,11 @@ AST {
 ```
 AST {
   Path:
-  Source length: 336 characters
+  Source length: 320 characters
   Type Annotations:
     VarAnnotation: $typed_field :: Int at 2:1
-    MethodReturnAnnotation: typed_method :: Str at 5:41
-    MethodReturnAnnotation: partially_typed :: Str at 14:54
+    MethodReturnAnnotation: typed_method :: Str at 5:8
+    MethodReturnAnnotation: partially_typed :: Str at 14:8
     MethodParamAnnotation: $input :: Str at 5:1
     MethodParamAnnotation: $typed :: Int at 14:1
   Root: source_file
@@ -190,7 +190,9 @@ use v5.36;
 field $typed_field = 42;
 field $untyped_field = "hello";
 
-method typed_method($input) { return uc($input); }
+method typed_method($input) {
+    return uc($input);
+}
 
 
 
@@ -203,7 +205,9 @@ sub untyped_sub {
     return $param * 2;
 }
 
-method partially_typed($untyped, $typed) { return "$untyped: $typed"; }
+method partially_typed($untyped, $typed) {
+    return "$untyped: $typed";
+}
 ```
 
 ## Typed Perl Output
@@ -213,7 +217,7 @@ method partially_typed($untyped, $typed) { return "$untyped: $typed"; }
 field Int $typed_field = 42;
 field $untyped_field = "hello";
 
-method typed_method(Str $input) returns Str {
+method Str typed_method(Str $input) {
     return uc($input);
 }
 
@@ -222,7 +226,7 @@ sub untyped_sub {
     return $param * 2;
 }
 
-method partially_typed($untyped, Int $typed) returns Str {
+method Str partially_typed($untyped, Int $typed) {
     return "$untyped: $typed";
 }
 ```

@@ -18,7 +18,7 @@ class Document : BaseDocument does Serializable, Cacheable {
     field DateTime $created;
     field Optional[UserRef] $author;
 
-    method serialize() returns Str {
+    method Str serialize() {
         return encode_json({
             content => $content,
             created => $created->iso8601,
@@ -26,7 +26,7 @@ class Document : BaseDocument does Serializable, Cacheable {
         });
     }
 
-    method deserialize(Str $data) returns Self {
+    method Self deserialize(Str $data) {
         my $decoded = decode_json($data);
         return __PACKAGE__->new(
             content => $decoded->{content},
@@ -44,16 +44,16 @@ class Document : BaseDocument does Serializable, Cacheable {
 ```
 AST {
   Path:
-  Source length: 715 characters
+  Source length: 699 characters
   Type Annotations:
-    MethodReturnAnnotation: serialize :: Str at 6:32
-    MethodReturnAnnotation: deserialize :: Self at 14:43
+    MethodReturnAnnotation: serialize :: Str at 6:12
+    MethodReturnAnnotation: deserialize :: Self at 14:12
     VarAnnotation: Document :: class at 1:1
     VarAnnotation: $content :: Str at 2:5
     VarAnnotation: $created :: DateTime at 3:5
     VarAnnotation: $author :: Optional[UserRef] at 4:5
-    MethodReturnAnnotation: serialize :: Str at 6:32
-    MethodReturnAnnotation: deserialize :: Self at 14:43
+    MethodReturnAnnotation: serialize :: Str at 6:12
+    MethodReturnAnnotation: deserialize :: Self at 14:12
     MethodParamAnnotation: $data :: Str at 14:1
   Root: source_file
   Tree Structure:
@@ -90,16 +90,16 @@ AST {
 ```
 AST {
   Path:
-  Source length: 715 characters
+  Source length: 699 characters
   Type Annotations:
-    MethodReturnAnnotation: serialize :: Str at 6:32
-    MethodReturnAnnotation: deserialize :: Self at 14:43
+    MethodReturnAnnotation: serialize :: Str at 6:12
+    MethodReturnAnnotation: deserialize :: Self at 14:12
     VarAnnotation: Document :: class at 1:1
     VarAnnotation: $content :: Str at 2:5
     VarAnnotation: $created :: DateTime at 3:5
     VarAnnotation: $author :: Optional[UserRef] at 4:5
-    MethodReturnAnnotation: serialize :: Str at 6:32
-    MethodReturnAnnotation: deserialize :: Self at 14:43
+    MethodReturnAnnotation: serialize :: Str at 6:12
+    MethodReturnAnnotation: deserialize :: Self at 14:12
     MethodParamAnnotation: $data :: Str at 14:1
   Root: source_file
   Tree Structure:
@@ -138,15 +138,28 @@ AST {
 
 ```perl
 use v5.36;
-{ return encode_json({
+class Document : BaseDocument does Serializable, Cacheable {
+    field $content;
+    field $created;
+    field $author;
+
+    method serialize() {
+        return encode_json({
             content => $content,
             created => $created->iso8601,
             author => $author ? $author->id : undef
-        }); }{ my $decoded = decode_json($data); return __PACKAGE__->new(
+        });
+    }
+
+    method deserialize($data) {
+        my $decoded = decode_json($data);
+        return __PACKAGE__->new(
             content => $decoded->{content},
             created => DateTime->from_epoch(epoch => $decoded->{created}),
             author => $decoded->{author} ? UserRef->new(id => $decoded->{author}) : undef
-        ); }
+        );
+    }
+}
 ```
 
 ## Typed Perl Output
@@ -157,7 +170,7 @@ class Document : BaseDocument does Serializable, Cacheable {
     field DateTime $created;
     field Optional[UserRef] $author;
 
-    method serialize() returns Str {
+    method Str serialize() {
         return encode_json({
             content => $content,
             created => $created->iso8601,
@@ -165,7 +178,7 @@ class Document : BaseDocument does Serializable, Cacheable {
         });
     }
 
-    method deserialize(Str $data) returns Self {
+    method Self deserialize(Str $data) {
         my $decoded = decode_json($data);
         return __PACKAGE__->new(
             content => $decoded->{content},

@@ -17,15 +17,15 @@ Methods and fields within class context with type annotations
 class Calculator {
     field Num $precision = 0.001;
 
-    method add(Num $a, Num $b) returns Num {
+    method Num add(Num $a, Num $b) {
         return $a + $b;
     }
 
-    method get_precision() returns Num {
+    method Num get_precision() {
         return $precision;
     }
 
-    method set_precision(Num $new_precision) returns Void {
+    method Void set_precision(Num $new_precision) {
         $precision = $new_precision;
     }
 }
@@ -38,16 +38,16 @@ class Calculator {
 ```
 AST {
   Path:
-  Source length: 309 characters
+  Source length: 285 characters
   Type Annotations:
-    MethodReturnAnnotation: add :: Num at 4:40
-    MethodReturnAnnotation: get_precision :: Num at 8:36
-    MethodReturnAnnotation: set_precision :: Void at 12:54
+    MethodReturnAnnotation: add :: Num at 4:12
+    MethodReturnAnnotation: get_precision :: Num at 8:12
+    MethodReturnAnnotation: set_precision :: Void at 12:12
     VarAnnotation: Calculator :: class at 1:1
     VarAnnotation: $precision :: Num at 2:5
-    MethodReturnAnnotation: add :: Num at 4:40
-    MethodReturnAnnotation: get_precision :: Num at 8:36
-    MethodReturnAnnotation: set_precision :: Void at 12:54
+    MethodReturnAnnotation: add :: Num at 4:12
+    MethodReturnAnnotation: get_precision :: Num at 8:12
+    MethodReturnAnnotation: set_precision :: Void at 12:12
     MethodParamAnnotation: $a :: Num at 4:1
     MethodParamAnnotation: $b :: Num at 4:1
     MethodParamAnnotation: $new_precision :: Num at 12:1
@@ -84,16 +84,16 @@ AST {
 ```
 AST {
   Path:
-  Source length: 309 characters
+  Source length: 285 characters
   Type Annotations:
-    MethodReturnAnnotation: add :: Num at 4:40
-    MethodReturnAnnotation: get_precision :: Num at 8:36
-    MethodReturnAnnotation: set_precision :: Void at 12:54
+    MethodReturnAnnotation: add :: Num at 4:12
+    MethodReturnAnnotation: get_precision :: Num at 8:12
+    MethodReturnAnnotation: set_precision :: Void at 12:12
     VarAnnotation: Calculator :: class at 1:1
     VarAnnotation: $precision :: Num at 2:5
-    MethodReturnAnnotation: add :: Num at 4:40
-    MethodReturnAnnotation: get_precision :: Num at 8:36
-    MethodReturnAnnotation: set_precision :: Void at 12:54
+    MethodReturnAnnotation: add :: Num at 4:12
+    MethodReturnAnnotation: get_precision :: Num at 8:12
+    MethodReturnAnnotation: set_precision :: Void at 12:12
     MethodParamAnnotation: $a :: Num at 4:1
     MethodParamAnnotation: $b :: Num at 4:1
     MethodParamAnnotation: $new_precision :: Num at 12:1
@@ -132,7 +132,21 @@ AST {
 
 ```perl
 use v5.36;
-{ return $a + $b; }{ return $precision; }{ $precision = $new_precision; }
+class Calculator {
+    field $precision = 0.001;
+
+    method add($a, $b) {
+        return $a + $b;
+    }
+
+    method get_precision() {
+        return $precision;
+    }
+
+    method set_precision($new_precision) {
+        $precision = $new_precision;
+    }
+}
 ```
 
 ## Typed Perl Output
@@ -141,15 +155,15 @@ use v5.36;
 class Calculator {
     field Num $precision = 0.001;
 
-    method add(Num $a, Num $b) returns Num {
+    method Num add(Num $a, Num $b) {
         return $a + $b;
     }
 
-    method get_precision() returns Num {
+    method Num get_precision() {
         return $precision;
     }
 
-    method set_precision(Num $new_precision) returns Void {
+    method Void set_precision(Num $new_precision) {
         $precision = $new_precision;
     }
 }

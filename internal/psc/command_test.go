@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"tamarou.com/pvm/internal/cli"
 )
 
 // TestNewCommand ensures the main PSC command is properly configured
@@ -148,6 +149,9 @@ say "Result: " . add($x, 5);
 
 // executeCommand is a helper function to execute a command for testing
 func executeCommand(t *testing.T, cmd *cobra.Command, args ...string) (string, error) {
+	// Reset global CLI state to prevent test pollution
+	cli.ResetGlobalState()
+
 	// Save original stdout and stderr
 	oldOut := os.Stdout
 	oldErr := os.Stderr
@@ -164,6 +168,8 @@ func executeCommand(t *testing.T, cmd *cobra.Command, args ...string) (string, e
 	defer func() {
 		os.Stdout = oldOut
 		os.Stderr = oldErr
+		// Reset global state again after test to prevent pollution
+		cli.ResetGlobalState()
 	}()
 
 	// Set args

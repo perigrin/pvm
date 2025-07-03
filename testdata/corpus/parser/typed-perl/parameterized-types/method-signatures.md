@@ -30,9 +30,9 @@ method transform(Map[Str, Int] $data) returns ArrayRef[Result[Str, Error]] {
 ```
 AST {
   Path:
-  Source length: 167 characters
+  Source length: 159 characters
   Type Annotations:
-    MethodReturnAnnotation: process :: HashRef[Int] at 1:46
+    MethodReturnAnnotation: process :: HashRef[Int] at 1:8
     MethodReturnAnnotation: transform :: ArrayRef[Result[Str, Error]] at 5:47
     MethodParamAnnotation: $input :: ArrayRef[Str] at 1:1
     MethodParamAnnotation: $data :: Int] at 5:1
@@ -61,9 +61,9 @@ AST {
 ```
 AST {
   Path:
-  Source length: 167 characters
+  Source length: 159 characters
   Type Annotations:
-    MethodReturnAnnotation: process :: HashRef[Int] at 1:46
+    MethodReturnAnnotation: process :: HashRef[Int] at 1:8
     MethodReturnAnnotation: transform :: ArrayRef[Result[Str, Error]] at 5:47
     MethodParamAnnotation: $input :: ArrayRef[Str] at 1:1
     MethodParamAnnotation: $data :: Int] at 5:1

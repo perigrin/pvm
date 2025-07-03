@@ -251,7 +251,7 @@ my $typed = $value as ArrayRef[Str];
 
 #### Method Signatures
 ```perl
-method process(Int $a, Str $b) -> Bool {
+method Bool process(Int $a, Str $b) {
     return $a > length($b);
 }
 ```

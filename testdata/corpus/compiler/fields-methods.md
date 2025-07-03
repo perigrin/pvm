@@ -49,10 +49,10 @@ field $config = {};
 
 # Method Declaration
 
-Method with typed parameters - currently not fully supported in compiler
+Method with typed parameters
 
 ```perl
-method add_user(UserId $id, HashRef[Str] $data) -> Bool {
+method Bool add_user(UserId $id, HashRef[Str] $data) {
     return 1;
 }
 ```
@@ -63,7 +63,9 @@ method add_user(UserId $id, HashRef[Str] $data) -> Bool {
 
 ```perl
 use v5.36;
-{ return 1; }
+method add_user($id, $data) {
+    return 1;
+}
 ```
 
 # Multiline Signature
@@ -71,11 +73,11 @@ use v5.36;
 Function with multiline signature
 
 ```perl
-sub multiline (
+sub Bool multiline (
     Int $first,
     Str $second,
     ArrayRef[Int] $third
-) -> Bool {
+) {
     return 1;
 }
 ```
@@ -90,7 +92,7 @@ sub multiline (
     $first,
     $second,
     $third
-)  {
+) {
     return 1;
 }
 ```
@@ -100,7 +102,7 @@ sub multiline (
 Function with attributes and typed signature
 
 ```perl
-sub tagged :lvalue :const (Int $value) -> Int {
+sub Int tagged :lvalue :const (Int $value) {
     return $value;
 }
 ```
@@ -111,7 +113,7 @@ sub tagged :lvalue :const (Int $value) -> Int {
 
 ```perl
 use v5.36;
-sub tagged :lvalue :const ($value)  {
+sub tagged :lvalue :const ($value) {
     return $value;
 }
 ```

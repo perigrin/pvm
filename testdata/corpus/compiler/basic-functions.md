@@ -13,7 +13,7 @@ type_check: false
 Basic function with typed parameters
 
 ```perl
-sub add (Int $a, Int $b) -> Int {
+sub Int add (Int $a, Int $b) {
     return $a + $b;
 }
 ```
@@ -24,7 +24,7 @@ sub add (Int $a, Int $b) -> Int {
 
 ```perl
 use v5.36;
-sub add ($a, $b)  {
+sub add ($a, $b) {
     return $a + $b;
 }
 ```

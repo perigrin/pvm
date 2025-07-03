@@ -181,6 +181,8 @@ module.exports = grammar({
     [$._loop_body],
     // we need an extra lookahead so we can correctly hide the `->` in a non-interpolating case
     [$._interp_arrow, $._interpolation_fallbacks],
+    // conflict between bareword and simple_type in sub/method declarations
+    [$.bareword, $.simple_type],
   ],
   rules: {
     source_file: $ => seq(repeat($._fullstmt), optional($.__DATA__)),
@@ -333,10 +335,10 @@ module.exports = grammar({
       optional(field('lexical', 'my')),
       subExtensions(),
       'sub',
+      optional(field('return_type', $.type_expression)),
       field('name', $.bareword),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice(field('prototype', $.prototype), field('signature', $.signature))),
-      optional(seq('returns', field('return_type', $.type_expression))),
       choice(
         field('body', $.block),
         ';'  // Forward declaration
@@ -347,11 +349,12 @@ module.exports = grammar({
       optional(field('lexical', 'my')),
       subExtensions(),
       'method',
+      optional(field('return_type', $.type_expression)),
       field('name', $.bareword),
       optional(field('type_parameters', seq('[', $.type_identifier_list, ']'))),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(field('signature', $.signature)),  // Methods use signatures only, not prototypes
-      optional(seq('returns', field('return_type', $.type_expression))),
+      optional(seq('returns', field('postfix_return_type', $.type_expression))),  // Support "returns Type" syntax
       choice(
         field('body', $.block),
         ';'  // Forward declaration
@@ -710,6 +713,7 @@ module.exports = grammar({
     anonymous_subroutine_expression: $ => seq(
       subExtensions(),
       'sub',
+      optional(field('return_type', $.type_expression)),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice($.prototype, $.signature)),
       field('body', $.block),
@@ -718,6 +722,7 @@ module.exports = grammar({
     anonymous_method_expression: $ => seq(
       subExtensions(),
       'method',
+      optional(field('return_type', $.type_expression)),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice($.prototype, $.signature)),
       field('body', $.block),

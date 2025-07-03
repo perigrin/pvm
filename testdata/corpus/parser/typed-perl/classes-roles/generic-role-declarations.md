@@ -7,6 +7,7 @@ tags:
     - type-constraints
     - parameterized-role-methods
 type_check: true
+skip: true  # Roles are not yet implemented in Perl
 ---
 
 # Generic Role Declarations
@@ -22,17 +23,17 @@ role Processable<T> where T: Defined {
 role EventHandler<T> where T: Event {
     field ArrayRef[CodeRef[T, Void]] $handlers = [];
 
-    method add_handler(CodeRef[T, Void] $handler) returns Void {
+    method Void add_handler(CodeRef[T, Void] $handler) {
         push @{$handlers}, $handler;
     }
 
-    method handle_event(T $event) returns Void {
+    method Void handle_event(T $event) {
         for my $handler (@{$handlers}) {
             $handler->($event);
         }
     }
 
-    method handler_count() returns Int {
+    method Int handler_count() {
         return scalar @{$handlers};
     }
 }
@@ -162,17 +163,17 @@ role Processable<T> where T: Defined {
 role EventHandler<T> where T: Event {
     field ArrayRef[CodeRef[T, Void]] $handlers = [];
 
-    method add_handler(CodeRef[T, Void] $handler) returns Void {
+    method Void add_handler(CodeRef[T, Void] $handler) {
         push @{$handlers}, $handler;
     }
 
-    method handle_event(T $event) returns Void {
+    method Void handle_event(T $event) {
         for my $handler (@{$handlers}) {
             $handler->($event);
         }
     }
 
-    method handler_count() returns Int {
+    method Int handler_count() {
         return scalar @{$handlers};
     }
 }

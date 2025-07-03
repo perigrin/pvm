@@ -24,7 +24,7 @@ class ProcessingQueue<T> : BaseQueue<T>
     field HashRef[Str, T] $processing = {};
     field Int $max_concurrent = 5;
 
-    method process_all() returns ArrayRef[ProcessResult] {
+    method ArrayRef[ProcessResult] process_all() {
         my @results;
         while (@{$pending} && keys %{$processing} < $max_concurrent) {
             my $item = shift @{$pending};
@@ -42,7 +42,7 @@ class ProcessingQueue<T> : BaseQueue<T>
         push @{$pending}, $item;
     }
 
-    method get_queue_status() returns QueueStatus {
+    method QueueStatus get_queue_status() {
         return QueueStatus->new(
             pending => scalar @{$pending},
             processing => scalar keys %{$processing},

@@ -134,9 +134,16 @@ class User {
     field $age;
     field $email;
 
-    method new($name, $age) { return bless { name => $name, age => $age }, __PACKAGE__; }
+    method new($name, $age) {
+        return bless {
+            name => $name,
+            age => $age
+        }, __PACKAGE__;
+    }
 
-    method get_name() { return $name; }
+    method get_name() {
+        return $name;
+    }
 }
 ```
 

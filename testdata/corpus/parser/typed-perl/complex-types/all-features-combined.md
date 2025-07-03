@@ -68,7 +68,14 @@ source_file
 
 ```perl
 use v5.36;
-{ my $transformed = $validated_data as ArrayRef[Data&Processed]; return success($transformed->map(sub { process($_) })); }
+method complex_processing(
+    $validated_data,
+    (|)&$handler,
+    $logger
+) {
+    my $transformed = $validated_data;
+    return success($transformed->map(sub { process($_) }));
+}
 ```
 
 ## Typed Perl Output

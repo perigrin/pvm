@@ -187,7 +187,7 @@ func (i *Introspector) AnalyzeModule(module *ast.Module) (*TypeDefinition, error
 
 ```perl
 # Inference engine understands context-dependent returns
-sub get_data() -> List[Str]|Int {
+sub List[Str]|Int get_data() {
     my @data = ("foo", "bar", "baz");
     return @data;  # Returns List[Str] in list context, Int in scalar context
 }

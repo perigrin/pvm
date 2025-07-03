@@ -20,30 +20,30 @@ class Resource {
     field FileHandle $handle;
     field Bool $is_open = 0;
 
-    method BUILD(Str $name, Optional[Str] $mode = 'r') returns Void {
+    method Void BUILD(Str $name, Optional[Str] $mode = 'r') {
         $self->{name} = $name;
         $self->{handle} = IO::File->new($name, $mode);
         $self->{is_open} = defined $self->{handle};
     }
 
-    method new(Str $name, Optional[Str] $mode = 'r') returns Resource {
+    method Resource new(Str $name, Optional[Str] $mode = 'r') {
         my $self = bless {}, __PACKAGE__;
         $self->BUILD($name, $mode);
         return $self;
     }
 
-    method DESTROY() returns Void {
+    method Void DESTROY() {
         $self->close() if $is_open;
     }
 
-    method close() returns Bool {
+    method Bool close() {
         return 0 unless $is_open;
         my $result = $handle->close();
         $is_open = 0;
         return $result;
     }
 
-    method read(Int $bytes) returns Optional[Str] {
+    method Optional[Str] read(Int $bytes) {
         return undef unless $is_open;
         my $data;
         my $read_bytes = $handle->read($data, $bytes);
@@ -59,22 +59,22 @@ class Resource {
 ```
 AST {
   Path:
-  Source length: 953 characters
+  Source length: 913 characters
   Type Annotations:
-    MethodReturnAnnotation: BUILD :: Void at 6:64
-    MethodReturnAnnotation: new :: Resource at 12:62
-    MethodReturnAnnotation: DESTROY :: Void at 18:30
-    MethodReturnAnnotation: close :: Bool at 22:28
-    MethodReturnAnnotation: read :: Optional[Str] at 29:37
+    MethodReturnAnnotation: BUILD :: Void at 6:12
+    MethodReturnAnnotation: new :: Resource at 12:12
+    MethodReturnAnnotation: DESTROY :: Void at 18:12
+    MethodReturnAnnotation: close :: Bool at 22:12
+    MethodReturnAnnotation: read :: Optional[Str] at 29:12
     VarAnnotation: Resource :: class at 1:1
     VarAnnotation: $name :: Str at 2:5
     VarAnnotation: $handle :: FileHandle at 3:5
     VarAnnotation: $is_open :: Bool at 4:5
-    MethodReturnAnnotation: BUILD :: Void at 6:64
-    MethodReturnAnnotation: new :: Resource at 12:62
-    MethodReturnAnnotation: DESTROY :: Void at 18:30
-    MethodReturnAnnotation: close :: Bool at 22:28
-    MethodReturnAnnotation: read :: Optional[Str] at 29:37
+    MethodReturnAnnotation: BUILD :: Void at 6:12
+    MethodReturnAnnotation: new :: Resource at 12:12
+    MethodReturnAnnotation: DESTROY :: Void at 18:12
+    MethodReturnAnnotation: close :: Bool at 22:12
+    MethodReturnAnnotation: read :: Optional[Str] at 29:12
     MethodParamAnnotation: $name :: Str at 6:1
     MethodParamAnnotation: 'r' :: Optional[Str] at 6:1
     MethodParamAnnotation: $name :: Str at 12:1
@@ -161,22 +161,22 @@ AST {
 ```
 AST {
   Path:
-  Source length: 953 characters
+  Source length: 913 characters
   Type Annotations:
-    MethodReturnAnnotation: BUILD :: Void at 6:64
-    MethodReturnAnnotation: new :: Resource at 12:62
-    MethodReturnAnnotation: DESTROY :: Void at 18:30
-    MethodReturnAnnotation: close :: Bool at 22:28
-    MethodReturnAnnotation: read :: Optional[Str] at 29:37
+    MethodReturnAnnotation: BUILD :: Void at 6:12
+    MethodReturnAnnotation: new :: Resource at 12:12
+    MethodReturnAnnotation: DESTROY :: Void at 18:12
+    MethodReturnAnnotation: close :: Bool at 22:12
+    MethodReturnAnnotation: read :: Optional[Str] at 29:12
     VarAnnotation: Resource :: class at 1:1
     VarAnnotation: $name :: Str at 2:5
     VarAnnotation: $handle :: FileHandle at 3:5
     VarAnnotation: $is_open :: Bool at 4:5
-    MethodReturnAnnotation: BUILD :: Void at 6:64
-    MethodReturnAnnotation: new :: Resource at 12:62
-    MethodReturnAnnotation: DESTROY :: Void at 18:30
-    MethodReturnAnnotation: close :: Bool at 22:28
-    MethodReturnAnnotation: read :: Optional[Str] at 29:37
+    MethodReturnAnnotation: BUILD :: Void at 6:12
+    MethodReturnAnnotation: new :: Resource at 12:12
+    MethodReturnAnnotation: DESTROY :: Void at 18:12
+    MethodReturnAnnotation: close :: Bool at 22:12
+    MethodReturnAnnotation: read :: Optional[Str] at 29:12
     MethodParamAnnotation: $name :: Str at 6:1
     MethodParamAnnotation: 'r' :: Optional[Str] at 6:1
     MethodParamAnnotation: $name :: Str at 12:1
@@ -265,7 +265,41 @@ AST {
 
 ```perl
 use v5.36;
-{ $self->{name} = $name; $self->{handle} = $mode); $self->{is_open} = defined $self->{handle} }{ my $self = bless {}, __PACKAGE__; $self->BUILD($name, $mode); return $self; }{ $self->close() if $is_open; }{ return 0 unless $is_open; my $result = $handle->close(); $is_open = 0; return $result; }{ return undef unless $is_open; my $data; my $read_bytes = $handle->read($data, $bytes); return defined $read_bytes ? $data : undef; }
+class Resource {
+    field $name;
+    field $handle;
+    field $is_open = 0;
+
+    method BUILD($name, $mode = 'r') {
+        $self->{name} = $name;
+        $self->{handle} = IO::File->new($name, $mode);
+        $self->{is_open} = defined $self->{handle};
+    }
+
+    method new($name, $mode = 'r') {
+        my $self = bless {}, __PACKAGE__;
+        $self->BUILD($name, $mode);
+        return $self;
+    }
+
+    method DESTROY() {
+        $self->close() if $is_open;
+    }
+
+    method close() {
+        return 0 unless $is_open;
+        my $result = $handle->close();
+        $is_open = 0;
+        return $result;
+    }
+
+    method read($bytes) {
+        return undef unless $is_open;
+        my $data;
+        my $read_bytes = $handle->read($data, $bytes);
+        return defined $read_bytes ? $data : undef;
+    }
+}
 ```
 
 ## Typed Perl Output
@@ -276,30 +310,30 @@ class Resource {
     field FileHandle $handle;
     field Bool $is_open = 0;
 
-    method BUILD(Str $name, Optional[Str] $mode = 'r') returns Void {
+    method Void BUILD(Str $name, Optional[Str] $mode = 'r') {
         $self->{name} = $name;
         $self->{handle} = IO::File->new($name, $mode);
         $self->{is_open} = defined $self->{handle};
     }
 
-    method new(Str $name, Optional[Str] $mode = 'r') returns Resource {
+    method Resource new(Str $name, Optional[Str] $mode = 'r') {
         my $self = bless {}, __PACKAGE__;
         $self->BUILD($name, $mode);
         return $self;
     }
 
-    method DESTROY() returns Void {
+    method Void DESTROY() {
         $self->close() if $is_open;
     }
 
-    method close() returns Bool {
+    method Bool close() {
         return 0 unless $is_open;
         my $result = $handle->close();
         $is_open = 0;
         return $result;
     }
 
-    method read(Int $bytes) returns Optional[Str] {
+    method Optional[Str] read(Int $bytes) {
         return undef unless $is_open;
         my $data;
         my $read_bytes = $handle->read($data, $bytes);

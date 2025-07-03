@@ -345,12 +345,12 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(trim format_currency);
 
-sub trim(Str $str) returns Str {
+sub Str trim(Str $str) {
     $str =~ s/^\s+|\s+$//g;
     return $str;
 }
 
-sub format_currency(Num $amount, Str $symbol = '$') returns Str {
+sub Str format_currency(Num $amount, Str $symbol = '$') {
     return sprintf("%s%.2f", $symbol, $amount);
 }
 
@@ -375,21 +375,21 @@ Gradually enhance type coverage:
 
 **Level 1: Function Signatures Only**
 ```perl
-sub process_data($data) returns HashRef {
+sub HashRef process_data($data) {
     # Implementation unchanged
 }
 ```
 
 **Level 2: Add Parameter Types**
 ```perl
-sub process_data(ArrayRef[HashRef] $data) returns HashRef[Str, Any] {
+sub HashRef[Str, Any] process_data(ArrayRef[HashRef] $data) {
     # Implementation unchanged
 }
 ```
 
 **Level 3: Add Variable Types**
 ```perl
-sub process_data(ArrayRef[HashRef] $data) returns HashRef[Str, Any] {
+sub HashRef[Str, Any] process_data(ArrayRef[HashRef] $data) {
     my Int $count = 0;
     my ArrayRef[Str] $errors = [];
 
@@ -399,7 +399,7 @@ sub process_data(ArrayRef[HashRef] $data) returns HashRef[Str, Any] {
 
 **Level 4: Leverage Flow-Sensitive Analysis**
 ```perl
-sub process_data(Maybe[ArrayRef[HashRef]] $data) returns HashRef[Str, Any] {
+sub HashRef[Str, Any] process_data(Maybe[ArrayRef[HashRef]] $data) {
     return { error => "No data provided" } unless defined($data);
 
     # Here $data is automatically refined to ArrayRef[HashRef]
@@ -538,7 +538,7 @@ sub calculate_price {
 }
 
 # Eventually migrate to typed version
-sub calculate_price(Num $base, Num $tax_rate, Num $discount) returns Num {
+sub Num calculate_price(Num $base, Num $tax_rate, Num $discount) {
     return $base * (1 + $tax_rate) * (1 - $discount);
 }
 ```
@@ -576,7 +576,7 @@ Migrated (Step 1 - Add type annotations):
 package MyApp::User;
 use v5.38;
 
-sub new(Str $class, Str :$name, Str :$email, Int :$id, Bool :$active = 1) returns MyApp::User {
+sub MyApp::User new(Str $class, Str :$name, Str :$email, Int :$id, Bool :$active = 1) {
     my $self = {
         id => $id,
         name => $name,
@@ -586,15 +586,15 @@ sub new(Str $class, Str :$name, Str :$email, Int :$id, Bool :$active = 1) return
     return bless $self, $class;
 }
 
-sub get_name(MyApp::User $self) returns Str {
+sub Str get_name(MyApp::User $self) {
     return $self->{name};
 }
 
-sub set_name(MyApp::User $self, Str $name) returns Void {
+sub Void set_name(MyApp::User $self, Str $name) {
     $self->{name} = $name;
 }
 
-sub is_active(MyApp::User $self) returns Bool {
+sub Bool is_active(MyApp::User $self) {
     return $self->{active};
 }
 
@@ -613,9 +613,9 @@ class MyApp::User {
     field Str $email :param;
     field Bool $active :param = 1;
 
-    method get_name() returns Str { return $name; }
-    method set_name(Str $new_name) returns Void { $name = $new_name; }
-    method is_active() returns Bool { return $active; }
+    method Str get_name() { return $name; }
+    method Void set_name(Str $new_name) { $name = $new_name; }
+    method Bool is_active() { return $active; }
 }
 
 1;
@@ -654,15 +654,15 @@ class MyApp::Person {
     field Int $age :param = 0;
     field ArrayRef[Str] $skills :param = [];
 
-    method introduce() returns Str {
+    method Str introduce() {
         return "Hi, I'm $name and I'm $age years old.";
     }
 
-    method add_skill(Str $skill) returns Void {
+    method Void add_skill(Str $skill) {
         push @$skills, $skill;
     }
 
-    method get_skills() returns ArrayRef[Str] {
+    method ArrayRef[Str] get_skills() {
         return $skills;
     }
 }
@@ -720,7 +720,7 @@ type ProcessedOrder = {
     processed_at: Int
 };
 
-sub process_orders(ArrayRef[Order] $orders) returns ArrayRef[ProcessedOrder] {
+sub ArrayRef[ProcessedOrder] process_orders(ArrayRef[Order] $orders) {
     my ArrayRef[ProcessedOrder] $processed = [];
 
     for my Order $order (@$orders) {
@@ -766,7 +766,7 @@ type UserRecord = {
     email: Str
 };
 
-sub get_user_by_id(DBI::db $dbh, Int $user_id) returns Maybe[UserRecord] {
+sub Maybe[UserRecord] get_user_by_id(DBI::db $dbh, Int $user_id) {
     my $sth = $dbh->prepare("SELECT id, name, email FROM users WHERE id = ?");
     $sth->execute($user_id);
 

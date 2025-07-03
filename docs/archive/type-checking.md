@@ -34,11 +34,11 @@ my HashRef[Str, Int] %ages;    # Hash with parameterized type annotation
 ### Function Parameters and Returns
 
 ```perl
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-method calculate(Num $value) -> HashRef[Str, Num] {
+method HashRef[Str, Num] calculate(Num $value) {
     return { result => $value * 2 };
 }
 ```

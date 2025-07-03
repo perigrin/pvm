@@ -177,10 +177,10 @@ Implementation:
 2. Create comprehensive test examples:
    ```perl
    class TestClass {
-       method simple() -> Str { }
+       method Str simple() { }
        method with_params(Str $name, Int $age) { }
-       method full_syntax(HashRef[Str] $data) -> ArrayRef[Int] { }
-       method mixed($regular, Typed $typed) -> Bool { }
+       method ArrayRef[Int] full_syntax(HashRef[Str] $data) { }
+       method Bool mixed($regular, Typed $typed) { }
    }
    ```
 

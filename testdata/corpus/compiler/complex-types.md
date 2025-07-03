@@ -14,7 +14,7 @@ type_check: false
 Function with complex parameterized types
 
 ```perl
-sub process (ArrayRef[HashRef[Str]] $data) -> Result[Bool] {
+sub Result[Bool] process (ArrayRef[HashRef[Str]] $data) {
     return 1;
 }
 ```
@@ -25,7 +25,7 @@ sub process (ArrayRef[HashRef[Str]] $data) -> Result[Bool] {
 
 ```perl
 use v5.36;
-sub process  {
+sub process ($data) {
     return 1;
 }
 ```
@@ -35,7 +35,7 @@ sub process  {
 Function with nested union types
 
 ```perl
-sub complex (Union[Str, Union[Int, Bool]] $param) -> Str {
+sub Str complex (Union[Str, Union[Int, Bool]] $param) {
     return "result";
 }
 ```
@@ -46,7 +46,7 @@ sub complex (Union[Str, Union[Int, Bool]] $param) -> Str {
 
 ```perl
 use v5.36;
-sub complex ($param)  {
+sub complex ($param) {
     return "result";
 }
 ```
@@ -56,7 +56,7 @@ sub complex ($param)  {
 Function with intersection and negation types
 
 ```perl
-sub validate (Object&Serializable $obj, !Undef $config) -> Bool {
+sub Bool validate (Object&Serializable $obj, !Undef $config) {
     return 1;
 }
 ```
@@ -67,7 +67,7 @@ sub validate (Object&Serializable $obj, !Undef $config) -> Bool {
 
 ```perl
 use v5.36;
-sub validate ($obj, $config)  {
+sub validate ($obj, $config) {
     return 1;
 }
 ```

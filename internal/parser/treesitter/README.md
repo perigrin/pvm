@@ -93,14 +93,14 @@ The grammar extension adds support for the following syntax:
 
 2. **Subroutine Declarations**:
    ```perl
-   sub add(Int $a, Int $b) -> Int {
+   sub Int add(Int $a, Int $b) {
        return $a + $b;
    }
    ```
 
 3. **Method Declarations**:
    ```perl
-   method greet(Str $name) -> Str {
+   method Str greet(Str $name) {
        return "Hello, $name!";
    }
    ```

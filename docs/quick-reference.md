@@ -129,11 +129,11 @@ my HashRef[Int] $scores = { alice => 95, bob => 87 };
 
 ### Functions
 ```perl
-sub add(Int $a, Int $b) returns Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-sub maybe_find(Str $key) returns Maybe[Str] {
+sub Maybe[Str] maybe_find(Str $key) {
     # Can return Str or undef
 }
 ```
@@ -144,7 +144,7 @@ class User {
     field Str $name :param;
     field Int $age :param;
 
-    method display() returns Str {
+    method Str display() {
         return "$name (age $age)";
     }
 }

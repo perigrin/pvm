@@ -17,15 +17,15 @@ Generic class with type parameters and constraints
 class Container<T> where T: Serializable {
     field ArrayRef[T] $items = [];
 
-    method add(T $item) returns Void {
+    method Void add(T $item) {
         push @{$items}, $item;
     }
 
-    method get_all() returns ArrayRef[T] {
+    method ArrayRef[T] get_all() {
         return $items;
     }
 
-    method find(CodeRef[T, Bool] $predicate) returns Optional[T] {
+    method Optional[T] find(CodeRef[T, Bool] $predicate) {
         for my $item (@{$items}) {
             return $item if $predicate->($item);
         }
@@ -41,16 +41,16 @@ class Container<T> where T: Serializable {
 ```
 AST {
   Path:
-  Source length: 419 characters
+  Source length: 395 characters
   Type Annotations:
-    MethodReturnAnnotation: add :: Void at 4:33
-    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:30
-    MethodReturnAnnotation: find :: Optional[T] at 12:54
+    MethodReturnAnnotation: add :: Void at 4:12
+    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:12
+    MethodReturnAnnotation: find :: Optional[T] at 12:12
     VarAnnotation: Container :: class at 1:1
     VarAnnotation: $items :: ArrayRef[T] at 2:5
-    MethodReturnAnnotation: add :: Void at 4:33
-    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:30
-    MethodReturnAnnotation: find :: Optional[T] at 12:54
+    MethodReturnAnnotation: add :: Void at 4:12
+    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:12
+    MethodReturnAnnotation: find :: Optional[T] at 12:12
     MethodParamAnnotation: $item :: T at 4:1
     MethodParamAnnotation: $predicate :: Bool] at 12:1
   Root: source_file
@@ -88,16 +88,16 @@ AST {
 ```
 AST {
   Path:
-  Source length: 419 characters
+  Source length: 395 characters
   Type Annotations:
-    MethodReturnAnnotation: add :: Void at 4:33
-    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:30
-    MethodReturnAnnotation: find :: Optional[T] at 12:54
+    MethodReturnAnnotation: add :: Void at 4:12
+    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:12
+    MethodReturnAnnotation: find :: Optional[T] at 12:12
     VarAnnotation: Container :: class at 1:1
     VarAnnotation: $items :: ArrayRef[T] at 2:5
-    MethodReturnAnnotation: add :: Void at 4:33
-    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:30
-    MethodReturnAnnotation: find :: Optional[T] at 12:54
+    MethodReturnAnnotation: add :: Void at 4:12
+    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:12
+    MethodReturnAnnotation: find :: Optional[T] at 12:12
     MethodParamAnnotation: $item :: T at 4:1
     MethodParamAnnotation: $predicate :: Bool] at 12:1
   Root: source_file
@@ -137,9 +137,24 @@ AST {
 
 ```perl
 use v5.36;
-{ push @{$items}, $item; }{ return $items; }{ for my $item (@{$items}) {
+class Container<T> where T: Serializable {
+    field ArrayRef[T] $items = [];
+
+    method Void add(T $item) {
+        push @{$items}, $item;
+    }
+
+    method ArrayRef[T] get_all() {
+        return $items;
+    }
+
+    method Optional[T] find(CodeRef[T, Bool] $predicate) {
+        for my $item (@{$items}) {
             return $item if $predicate->($item);
-        } return undef; }
+        }
+        return undef;
+    }
+}
 ```
 
 ## Typed Perl Output
@@ -148,15 +163,15 @@ use v5.36;
 class Container<T> where T: Serializable {
     field ArrayRef[T] $items = [];
 
-    method add(T $item) returns Void {
+    method Void add(T $item) {
         push @{$items}, $item;
     }
 
-    method get_all() returns ArrayRef[T] {
+    method ArrayRef[T] get_all() {
         return $items;
     }
 
-    method find(CodeRef[T, Bool] $predicate) returns Optional[T] {
+    method Optional[T] find(CodeRef[T, Bool] $predicate) {
         for my $item (@{$items}) {
             return $item if $predicate->($item);
         }

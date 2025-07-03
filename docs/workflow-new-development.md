@@ -230,15 +230,15 @@ class UserAccount {
         return $self;
     }
 
-    method get_username() returns Str {
+    method Str get_username() {
         return $username;
     }
 
-    method is_valid_email() returns Bool {
+    method Bool is_valid_email() {
         return $email =~ /\A[^@\s]+@[^@\s]+\z/;
     }
 
-    method _generate_user_id() returns Int {
+    method Int _generate_user_id() {
         return int(rand(1000000));
     }
 }
@@ -275,14 +275,14 @@ my ArrayRef[HashRef[Str, Any]] $records = [
 
 **Simple Functions**
 ```perl
-sub calculate_tax(Num $amount, Num $rate) returns Num {
+sub Num calculate_tax(Num $amount, Num $rate) {
     return $amount * $rate;
 }
 ```
 
 **Context-Aware Functions**
 ```perl
-sub get_user_data(Int $user_id) returns HashRef[Str, Any]|ArrayRef[HashRef] {
+sub HashRef[Str, Any]|ArrayRef[HashRef] get_user_data(Int $user_id) {
     my $data = fetch_user($user_id);
 
     # Return single hash in scalar context, array in list context
@@ -292,7 +292,7 @@ sub get_user_data(Int $user_id) returns HashRef[Str, Any]|ArrayRef[HashRef] {
 
 **Error Handling Patterns**
 ```perl
-sub safe_divide(Num $a, Num $b) returns Num|Undef {
+sub Num|Undef safe_divide(Num $a, Num $b) {
     return undef if $b == 0;
     return $a / $b;
 }
@@ -352,7 +352,7 @@ use Moose;  # Type checker applies Moose.ptd definitions
 Leverage PVM's intelligent type refinement:
 
 ```perl
-sub process_input(Maybe[Str] $input) returns Str {
+sub Str process_input(Maybe[Str] $input) {
     # Flow-sensitive analysis understands this pattern
     if (defined($input)) {
         # $input is now typed as Str, not Maybe[Str]
@@ -362,7 +362,7 @@ sub process_input(Maybe[Str] $input) returns Str {
     return "DEFAULT";
 }
 
-sub handle_data(Any $data) returns ArrayRef[Str] {
+sub ArrayRef[Str] handle_data(Any $data) {
     if (ref($data) eq 'ARRAY') {
         # $data is now typed as ArrayRef
         return $data;
@@ -536,7 +536,7 @@ class DatabaseManager {
     field Str $username;
     field Str $password;
 
-    method connect(Str $dsn, Str $username, Str $password) returns Bool {
+    method Bool connect(Str $dsn, Str $username, Str $password) {
         $self->{dsn} = $dsn;
         $self->{username} = $username;
         $self->{password} = $password;
@@ -545,7 +545,7 @@ class DatabaseManager {
         return defined($dbh);
     }
 
-    method execute_query(Str $sql, ArrayRef[Any] $params = []) returns ArrayRef[HashRef] {
+    method ArrayRef[HashRef] execute_query(Str $sql, ArrayRef[Any] $params = []) {
         die "Not connected" unless defined($dbh);
 
         my $sth = $dbh->prepare($sql);
@@ -584,7 +584,7 @@ class APIClient {
         return $self;
     }
 
-    method get(Str $endpoint) returns HashRef|ArrayRef {
+    method HashRef|ArrayRef get(Str $endpoint) {
         my Str $url = $base_url . $endpoint;
         my $response = $http->get($url);
 
@@ -593,7 +593,7 @@ class APIClient {
         return $json->decode($response->{content});
     }
 
-    method post(Str $endpoint, HashRef $data) returns HashRef {
+    method HashRef post(Str $endpoint, HashRef $data) {
         my Str $url = $base_url . $endpoint;
         my Str $json_data = $json->encode($data);
 
@@ -622,7 +622,7 @@ class Config {
     field HashRef[Any] $config = {};
     field Bool $loaded = 0;
 
-    method load_from_file(Str $filename) returns Bool {
+    method Bool load_from_file(Str $filename) {
         return 0 unless -f $filename;
 
         open my $fh, '<', $filename or return 0;
@@ -642,21 +642,21 @@ class Config {
         return 1;
     }
 
-    method get(Str $key, Any $default = undef) returns Any {
+    method Any get(Str $key, Any $default = undef) {
         return $config->{$key} // $default;
     }
 
-    method get_string(Str $key, Str $default = "") returns Str {
+    method Str get_string(Str $key, Str $default = "") {
         my $value = $self->get($key, $default);
         return "$value";  # Ensure string context
     }
 
-    method get_int(Str $key, Int $default = 0) returns Int {
+    method Int get_int(Str $key, Int $default = 0) {
         my $value = $self->get($key, $default);
         return int($value);
     }
 
-    method is_loaded() returns Bool {
+    method Bool is_loaded() {
         return $loaded;
     }
 }
@@ -677,34 +677,34 @@ class Result {
     field Any $value = undef;
     field Str $error = "";
 
-    method success(Any $value) returns Result {
+    method Result success(Any $value) {
         return Result->new(success => 1, value => $value);
     }
 
-    method error(Str $error) returns Result {
+    method Result error(Str $error) {
         return Result->new(success => 0, error => $error);
     }
 
-    method is_success() returns Bool {
+    method Bool is_success() {
         return $success;
     }
 
-    method is_error() returns Bool {
+    method Bool is_error() {
         return !$success;
     }
 
-    method unwrap() returns Any {
+    method Any unwrap() {
         die "Result is error: $error" if $self->is_error();
         return $value;
     }
 
-    method unwrap_or(Any $default) returns Any {
+    method Any unwrap_or(Any $default) {
         return $self->is_success() ? $value : $default;
     }
 }
 
 # Usage example
-sub divide(Num $a, Num $b) returns Result {
+sub Result divide(Num $a, Num $b) {
     return Result->error("Division by zero") if $b == 0;
     return Result->success($a / $b);
 }

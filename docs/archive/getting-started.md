@@ -104,7 +104,7 @@ my Str $name = "Alice";
 my ArrayRef[Int] $numbers = [1, 2, 3, 4, 5];
 
 # Function with type annotations
-sub greet(Str $name, Int $age) -> Str {
+sub Str greet(Str $name, Int $age) {
     return "Hello $name, you are $age years old!";
 }
 
@@ -236,7 +236,7 @@ use v5.36;
 field Str $name;
 field Int $version = 1;
 
-method greet() -> Str {
+method Str greet() {
     return "Hello from $name v$version";
 }
 
@@ -306,7 +306,7 @@ my Maybe[Str] $optional = undef;
 $optional = "now has a value";
 
 # Function signatures
-sub process_data(ArrayRef[HashRef[Str, Any]] $records) -> Int {
+sub Int process_data(ArrayRef[HashRef[Str, Any]] $records) {
     return scalar @$records;
 }
 ```

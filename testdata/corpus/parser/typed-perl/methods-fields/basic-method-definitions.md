@@ -34,11 +34,11 @@ method Bool is_valid(Bool $flag) {
 ```
 AST {
   Path:
-  Source length: 178 characters
+  Source length: 177 characters
   Type Annotations:
     MethodReturnAnnotation: calculate :: Int at 1:8
     MethodReturnAnnotation: greet :: Str at 5:8
-    MethodReturnAnnotation: is_valid :: Bool at 9:37
+    MethodReturnAnnotation: is_valid :: Bool at 9:8
     MethodParamAnnotation: $a :: Int at 1:1
     MethodParamAnnotation: $b :: Int at 1:1
     MethodParamAnnotation: $name :: Str at 5:1
@@ -75,11 +75,11 @@ AST {
 ```
 AST {
   Path:
-  Source length: 178 characters
+  Source length: 177 characters
   Type Annotations:
     MethodReturnAnnotation: calculate :: Int at 1:8
     MethodReturnAnnotation: greet :: Str at 5:8
-    MethodReturnAnnotation: is_valid :: Bool at 9:37
+    MethodReturnAnnotation: is_valid :: Bool at 9:8
     MethodParamAnnotation: $a :: Int at 1:1
     MethodParamAnnotation: $b :: Int at 1:1
     MethodParamAnnotation: $name :: Str at 5:1

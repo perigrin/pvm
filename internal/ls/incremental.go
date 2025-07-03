@@ -346,7 +346,7 @@ func (ls *LanguageService) reparseAffectedRegions(doc *Document, changes []Docum
 func (ls *LanguageService) updateSymbolTableIncrementally(ast *ast.AST, existingSymbols *binder.SymbolTable, changes []DocumentChange, text string) (*binder.SymbolTable, error) {
 	// For now, do a full symbol binding but track the intent for incremental
 	// A full implementation would update only affected scopes and symbols
-	
+
 	// Parse with tree-sitter for CST binding
 	tsParser := sitter.NewParser()
 	tsParser.SetLanguage(treesitter.Language())
@@ -355,7 +355,7 @@ func (ls *LanguageService) updateSymbolTableIncrementally(ast *ast.AST, existing
 	if tree == nil {
 		return nil, fmt.Errorf("failed to parse with tree-sitter")
 	}
-	
+
 	return ls.binder.BindCST(tree.RootNode(), contentBytes, ast.TypeAnnotations)
 }
 

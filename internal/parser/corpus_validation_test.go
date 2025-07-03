@@ -66,7 +66,7 @@ func TestSpecificCorpusFiles(t *testing.T) {
 		"typed-perl/simple-annotations/basic-typed-variables.md",
 		"typed-perl/simple-annotations/whitespace-variations.md",
 		"typed-perl/union-types/simple-union-types.md",
-		"typed-perl/parameterized-types/basic-parameterized-types.md",
+		"typed-perl/parameterized-types/basic-parameterized.md",
 	}
 
 	for _, file := range criticalFiles {

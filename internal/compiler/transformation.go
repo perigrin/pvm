@@ -111,6 +111,83 @@ func (ct *CSTTransformer) TransformChildren(node *sitter.Node) (string, error) {
 	return result.String(), nil
 }
 
+// transformWithCleanWhitespace transforms a node with smart whitespace handling for removed elements
+func (ct *CSTTransformer) transformWithCleanWhitespace(node *sitter.Node) (string, error) {
+	if node == nil {
+		return "", nil
+	}
+
+	var result strings.Builder
+	lastEnd := node.StartByte()
+
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+
+		// Check for "returns" keyword followed by type expression
+		if ct.getNodeText(child) == "returns" && i+1 < node.ChildCount() {
+			nextChild := node.Child(i + 1)
+			if nextChild != nil && nextChild.Kind() == NodeTypeExpression {
+				// Skip both "returns" keyword and the following type expression
+				lastEnd = nextChild.EndByte()
+				continue
+			}
+		}
+
+		// Check for leading return type in method declarations (method ReturnType name pattern)
+		if ct.options.RemoveTypeNodes && i > 0 {
+			prevChild := node.Child(i - 1)
+			if prevChild != nil && ct.getNodeText(prevChild) == "method" &&
+				child.Kind() == NodeTypeExpression {
+				// Add a single space to separate method from the next element (method name)
+				result.WriteString(" ")
+				// Skip the leading return type after "method" keyword
+				lastEnd = child.EndByte()
+				// Skip any whitespace immediately after the type to avoid double spacing
+				for lastEnd < uint(len(ct.content)) && (ct.content[lastEnd] == ' ' || ct.content[lastEnd] == '\t') {
+					lastEnd++
+				}
+				continue
+			}
+		}
+
+		// Transform the child first to see if it will be empty (removed)
+		childResult, err := ct.transformNode(child)
+		if err != nil {
+			return "", err
+		}
+
+		// If the child was removed (empty result), handle whitespace carefully
+		if strings.TrimSpace(childResult) == "" {
+			// Don't add the whitespace before this removed element
+			lastEnd = child.EndByte()
+			continue
+		}
+
+		// Add whitespace before this child, but normalize multiple spaces to single space
+		if child.StartByte() > lastEnd {
+			whitespace := string(ct.content[lastEnd:child.StartByte()])
+			if strings.TrimSpace(whitespace) == "" && len(whitespace) > 0 {
+				result.WriteString(" ") // Normalize to single space
+			} else if strings.TrimSpace(whitespace) != "" {
+				result.WriteString(whitespace) // Keep non-whitespace content
+			}
+		}
+
+		result.WriteString(childResult)
+		lastEnd = child.EndByte()
+	}
+
+	// Add any trailing content
+	if lastEnd < node.EndByte() {
+		result.Write(ct.content[lastEnd:node.EndByte()])
+	}
+
+	return result.String(), nil
+}
+
 // getNodeText extracts text content from a tree-sitter node
 func (ct *CSTTransformer) getNodeText(node *sitter.Node) string {
 	if node == nil || ct.content == nil {
@@ -368,8 +445,8 @@ func (r *MethodDeclarationCleanupRule) Transform(node *sitter.Node, content []by
 		return transformer.transformWithWhitespace(node)
 	}
 
-	// Use the default transformation which should handle type removal via other rules
-	return transformer.transformWithWhitespace(node)
+	// Use the specialized method transformation that handles whitespace properly
+	return transformer.transformWithCleanWhitespace(node)
 }
 
 func (r *MethodDeclarationCleanupRule) Description() string {

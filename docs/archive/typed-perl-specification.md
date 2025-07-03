@@ -120,7 +120,7 @@ Any      (explicit polymorphic type)
 2. **Union Type Approach** - Functions with context-dependent returns have union return types
 3. **Context Resolution** - Assignment context determines which part of union applies:
    ```perl
-   sub get_data() -> List[Int]|Str { ... }
+   sub List[Int]|Str get_data() { ... }
    my @data = get_data();  # List[Int] part applies
    my $data = get_data();  # Str part applies
    ```
@@ -166,11 +166,11 @@ my Type %hash;
 ### 4.2 Function Signatures and Return Types
 
 ```perl
-sub function_name(ParamType1 $param1, ParamType2 $param2) -> ReturnType {
+sub ReturnType function_name(ParamType1 $param1, ParamType2 $param2) {
     # Implementation
 }
 
-method method_name(ParamType $param) -> ReturnType {
+method ReturnType method_name(ParamType $param) {
     # Implementation
 }
 ```
@@ -186,7 +186,7 @@ my HashRef[Str, Num] %grades;
 my ArrayRef[HashRef[Str, Num]] $records;
 
 # Type variables
-sub identity<T>(T $value) -> T {
+sub T identity<T>(T $value) {
     return $value;
 }
 

@@ -14,24 +14,24 @@ type_check: true
 Methods with various return type annotations including complex types
 
 ```perl
-method get_number() returns Int {
+method Int get_number() {
     return 42;
 }
 
-method get_array() returns ArrayRef[Str] {
+method ArrayRef[Str] get_array() {
     return ["a", "b", "c"];
 }
 
-method get_hash() returns HashRef[Int] {
+method HashRef[Int] get_hash() {
     return { count => 5, total => 100 };
 }
 
-method get_nothing() returns Void {
+method Void get_nothing() {
     # Side effects only
     print "Done\n";
 }
 
-method get_optional() returns Optional[Str] {
+method Optional[Str] get_optional() {
     return undef;
 }
 ```
@@ -43,13 +43,13 @@ method get_optional() returns Optional[Str] {
 ```
 AST {
   Path:
-  Source length: 359 characters
+  Source length: 319 characters
   Type Annotations:
-    MethodReturnAnnotation: get_number :: Int at 1:29
-    MethodReturnAnnotation: get_array :: ArrayRef[Str] at 5:28
-    MethodReturnAnnotation: get_hash :: HashRef[Int] at 9:27
-    MethodReturnAnnotation: get_nothing :: Void at 13:30
-    MethodReturnAnnotation: get_optional :: Optional[Str] at 18:31
+    MethodReturnAnnotation: get_number :: Int at 1:8
+    MethodReturnAnnotation: get_array :: ArrayRef[Str] at 5:8
+    MethodReturnAnnotation: get_hash :: HashRef[Int] at 9:8
+    MethodReturnAnnotation: get_nothing :: Void at 13:8
+    MethodReturnAnnotation: get_optional :: Optional[Str] at 18:8
   Root: source_file
   Tree Structure:
   source_file
@@ -98,13 +98,13 @@ AST {
 ```
 AST {
   Path:
-  Source length: 359 characters
+  Source length: 319 characters
   Type Annotations:
-    MethodReturnAnnotation: get_number :: Int at 1:29
-    MethodReturnAnnotation: get_array :: ArrayRef[Str] at 5:28
-    MethodReturnAnnotation: get_hash :: HashRef[Int] at 9:27
-    MethodReturnAnnotation: get_nothing :: Void at 13:30
-    MethodReturnAnnotation: get_optional :: Optional[Str] at 18:31
+    MethodReturnAnnotation: get_number :: Int at 1:8
+    MethodReturnAnnotation: get_array :: ArrayRef[Str] at 5:8
+    MethodReturnAnnotation: get_hash :: HashRef[Int] at 9:8
+    MethodReturnAnnotation: get_nothing :: Void at 13:8
+    MethodReturnAnnotation: get_optional :: Optional[Str] at 18:8
   Root: source_file
   Tree Structure:
   source_file
@@ -155,38 +155,49 @@ AST {
 
 ```perl
 use v5.36;
-method get_number() { return 42; }
+method get_number() {
+    return 42;
+}
 
-method get_array() { return ["a", "b", "c"]; }
+method get_array() {
+    return ["a", "b", "c"];
+}
 
-method get_hash() { return { count => 5, total => 100 }; }
+method get_hash() {
+    return { count => 5, total => 100 };
+}
 
-method get_nothing() { # Side effects only print "Done\n"; }
+method get_nothing() {
+    # Side effects only
+    print "Done\n";
+}
 
-method get_optional() { return undef; }
+method get_optional() {
+    return undef;
+}
 ```
 
 ## Typed Perl Output
 
 ```perl
-method get_number() returns Int {
+method Int get_number() {
     return 42;
 }
 
-method get_array() returns ArrayRef[Str] {
+method ArrayRef[Str] get_array() {
     return ["a", "b", "c"];
 }
 
-method get_hash() returns HashRef[Int] {
+method HashRef[Int] get_hash() {
     return { count => 5, total => 100 };
 }
 
-method get_nothing() returns Void {
+method Void get_nothing() {
     # Side effects only
     print "Done\n";
 }
 
-method get_optional() returns Optional[Str] {
+method Optional[Str] get_optional() {
     return undef;
 }
 ```

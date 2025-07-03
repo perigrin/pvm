@@ -7,6 +7,7 @@ tags:
     - provided-methods
     - basic
 type_check: true
+skip: true  # Roles are not yet implemented in Perl
 ---
 
 # Basic Role Declarations
@@ -129,11 +130,24 @@ AST {
 ```perl
 use v5.36;
 role Serializable {
-    method serialize() returns Str;
-    method deserialize(Str $data) returns Self;
+    method serialize();
+    method deserialize($data);
 }
 
-{ return 0 unless defined $cached_at; return time() - $cached_at->epoch > 3600; }{ $cached_at = undef; }
+role Cacheable {
+    field $cached_at;
+
+    method cache_key();
+
+    method is_stale() {
+        return 0 unless defined $cached_at;
+        return time() - $cached_at->epoch > 3600;
+    }
+
+    method invalidate() {
+        $cached_at = undef;
+    }
+}
 ```
 
 ## Typed Perl Output

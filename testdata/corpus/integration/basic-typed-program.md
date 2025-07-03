@@ -24,7 +24,7 @@ my Str $name = "example";
 my Bool $active = 1;
 
 # Simple function with types
-sub process_user(Int $id, Str $name) -> Str {
+sub Str process_user(Int $id, Str $name) {
     return "User $id: $name";
 }
 

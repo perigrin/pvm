@@ -110,7 +110,7 @@ func runTypeCheckerCorpusTest(t *testing.T, filepath string) {
 
 	// Compare expected vs actual
 	if actualOutput != expectedOutput {
-		t.Errorf("Symbol table mismatch:\n--- Expected ---\n%s\n--- Actual ---\n%s\n--- End ---", 
+		t.Errorf("Symbol table mismatch:\n--- Expected ---\n%s\n--- Actual ---\n%s\n--- End ---",
 			expectedOutput, actualOutput)
 	}
 }
@@ -130,8 +130,8 @@ func extractExpectedSymbolTable(content string) string {
 		}
 
 		// Stop at next section
-		if inSymbolSection && strings.HasPrefix(line, "# ") && 
-		   !strings.Contains(line, "Expected Symbol Table") {
+		if inSymbolSection && strings.HasPrefix(line, "# ") &&
+			!strings.Contains(line, "Expected Symbol Table") {
 			break
 		}
 
@@ -141,7 +141,7 @@ func extractExpectedSymbolTable(content string) string {
 				inCodeBlock = true
 				continue
 			}
-			// End of code block  
+			// End of code block
 			if strings.HasPrefix(line, "```") && inCodeBlock {
 				break
 			}

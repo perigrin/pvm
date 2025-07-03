@@ -50,7 +50,6 @@ type TypeCheck struct {
 
 	// EnableTypeInference controls whether type inference is enabled
 	EnableTypeInference bool
-
 }
 
 // NewTypeCheck creates a new TypeCheck instance

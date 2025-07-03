@@ -512,11 +512,11 @@ REQUIREMENTS:
 TEST EXAMPLES TO COVER:
 ```perl
 # Typed method definitions
-method calculate(Int $a, Int $b) -> Int {
+method Int calculate(Int $a, Int $b) {
     return $a + $b;
 }
 
-method process(Str $input, Bool $validate = 1) -> ArrayRef[Str] {
+method ArrayRef[Str] process(Str $input, Bool $validate = 1) {
     my @result = split /,/, $input;
     return \@result;
 }
@@ -530,21 +530,21 @@ field ArrayRef[MyType] $items;
 class Calculator {
     field Num $precision = 0.001;
 
-    method add(Num $a, Num $b) -> Num {
+    method Num add(Num $a, Num $b) {
         return $a + $b;
     }
 
-    method get_precision() -> Num {
+    method Num get_precision() {
         return $precision;
     }
 }
 
 # Complex parameter types
-method complex_method(
+method Bool complex_method(
     HashRef[ArrayRef[Int]] $data,
     CodeRef $callback,
     Optional[Str] $name
-) -> Bool {
+) {
     return 1;
 }
 ```
@@ -669,7 +669,7 @@ my Int|Str|Bool $multi = "text";
 my Num|ArrayRef|HashRef $complex;
 
 # Method signatures with unions
-method process(Int|Str $input) -> Bool|Str {
+method Bool|Str process(Int|Str $input) {
     if (ref $input) {
         return "Invalid";
     }
@@ -689,10 +689,10 @@ my ArrayRef[Int|Str] @mixed_array;
 field HashRef[Int|Bool] $mixed_hash;
 
 # Nested contexts
-method complex(
+method HashRef[Bool|Str] complex(
     ArrayRef[Int|Str] $data,
     CodeRef|Undef $callback
-) -> HashRef[Bool|Str] {
+) {
     return {};
 }
 ```
@@ -762,7 +762,7 @@ my Container[MyType] $custom_container;
 my Package::Generic[Int] $qualified;
 
 # Method signatures
-method process(ArrayRef[Str] $input) -> HashRef[Int] {
+method HashRef[Int] process(ArrayRef[Str] $input) {
     my %result;
     return \%result;
 }
@@ -1018,10 +1018,10 @@ my ArrayRef[HashRef[ArrayRef[Int|Str]]] @deep_nested;
 my Map[Str, ArrayRef[Tuple[Int, Bool|Str]]] %complex_map;
 
 # Complex method signatures
-method transform(
+method HashRef[ArrayRef[Int]|Str] transform(
     ArrayRef[HashRef[Int|Str]] $input,
     CodeRef[Str, Bool] $validator
-) -> HashRef[ArrayRef[Int]|Str] {
+) {
     return {};
 }
 
@@ -1192,10 +1192,10 @@ my Int|Str&Defined $complex;  # (Int|(Str&Defined))
 my (Int|Str)&Defined $grouped;
 
 # Method signatures with advanced types
-method process(
+method ArrayRef[Int|Str]&Defined process(
     Object&Serializable $input,
     !Undef $required
-) -> ArrayRef[Int|Str]&Defined {
+) {
     return [];
 }
 
@@ -1357,12 +1357,12 @@ method process(
 }
 
 # Named parameters
-method configure(
+method ConnectionConfig configure(
     :$host as Str,
     :$port as Int = 8080,
     :$ssl as Bool = 0,
     :$timeout as Optional[Num]
-) -> ConnectionConfig {
+) {
     return ConnectionConfig->new;
 }
 
@@ -1375,7 +1375,7 @@ method map<T, U>(
 }
 
 # Variadic parameters
-method sum(Int *@numbers) -> Int {
+method Int sum(Int *@numbers) {
     my $total = 0;
     $total += $_ for @numbers;
     return $total;
@@ -1471,14 +1471,14 @@ class User {
     field Int $age;
     field Optional[Email] $email;
 
-    method new(Str $name, Int $age) -> User {
+    method User new(Str $name, Int $age) {
         return bless {
             name => $name,
             age => $age
         }, __PACKAGE__;
     }
 
-    method get_name() -> Str {
+    method Str get_name() {
         return $name;
     }
 }
@@ -1487,11 +1487,11 @@ class User {
 class Container<T> where T: Serializable {
     field ArrayRef[T] $items = [];
 
-    method add(T $item) -> Void {
+    method Void add(T $item) {
         push @{$items}, $item;
     }
 
-    method get_all() -> ArrayRef[T] {
+    method ArrayRef[T] get_all() {
         return $items;
     }
 }
@@ -1508,7 +1508,7 @@ class Document : BaseDocument does Serializable, Cacheable {
     field DateTime $created;
     field Optional[UserRef] $author;
 
-    method serialize() -> Str {
+    method Str serialize() {
         return encode_json({
             content => $content,
             created => $created->iso8601,
@@ -1524,7 +1524,7 @@ class ProcessingQueue<T> : BaseQueue<T>
     field CodeRef[T, ProcessResult] $processor;
     field ArrayRef[T] $pending = [];
 
-    method process_all() -> ArrayRef[ProcessResult] {
+    method ArrayRef[ProcessResult] process_all() {
         return [ map { $processor->($_) } @{$pending} ];
     }
 }
@@ -1753,7 +1753,7 @@ class User does Serializable, Cacheable<UserId> {
     field Email $email;
     field ArrayRef[Role] $roles = [];
 
-    method new(UserId $id, Str $name, Email $email) -> User {
+    method User new(UserId $id, Str $name, Email $email) {
         return bless {
             id => $id,
             name => $name,
@@ -1766,7 +1766,7 @@ class User does Serializable, Cacheable<UserId> {
         push @{$roles}, $role;
     }
 
-    method serialize() -> Str {
+    method Str serialize() {
         return encode_json({
             id => $id,
             name => $name,
@@ -1775,7 +1775,7 @@ class User does Serializable, Cacheable<UserId> {
         });
     }
 
-    method cache_key() -> UserId {
+    method UserId cache_key() {
         return $id;
     }
 }
@@ -1785,7 +1785,7 @@ class UserService<T> where T: User&Cacheable<UserId> {
     field HashRef[UserId, T] $cache = {};
     field CodeRef[UserId, Optional[T]] $loader;
 
-    method new(CodeRef[UserId, Optional[T]] $loader) -> UserService<T> {
+    method UserService<T> new(CodeRef[UserId, Optional[T]] $loader) {
         return bless { cache => {}, loader => $loader }, __PACKAGE__;
     }
 
@@ -1804,7 +1804,7 @@ class UserService<T> where T: User&Cacheable<UserId> {
         return Success->new($user);
     }
 
-    method invalidate(UserId $id) -> Void {
+    method Void invalidate(UserId $id) {
         delete $cache->{$id};
     }
 }
@@ -1901,14 +1901,14 @@ sub simple_function { return 42; }
 # 2. Basic type annotations
 my Int $typed_var = 42;
 my ArrayRef[Str] @typed_array = ("a", "b");
-method typed_method(Int $param) -> Str { return "$param"; }
+method Str typed_method(Int $param) { return "$param"; }
 
 # 3. Complex type expressions
 my ArrayRef[HashRef[Int|Str]] @complex;
-method complex_sig(
+method HashRef[ArrayRef[Int]|ErrorCode] complex_sig(
     ArrayRef[Object&Serializable] $input,
     CodeRef[Int, Bool|Str] $processor
-) -> HashRef[ArrayRef[Int]|ErrorCode] { return {}; }
+) { return {}; }
 
 # 4. Large program simulation (generated test)
 # - 1000+ variable declarations with types
@@ -2053,7 +2053,7 @@ my $complex = $obj->method() + $other->as() * $value;
 # Heredocs and string literals with type-like content
 my $code = <<'END';
 my Int $typed_var = 42;
-method foo() -> Str { return "test"; }
+method Str foo() { return "test"; }
 END
 
 # Comments with type annotations
@@ -2203,7 +2203,7 @@ my Int $count = 0;
 my Str $name = "example";
 
 # Phase 2: Add method type signatures
-method calculate(Int $a, Int $b) -> Int {
+method Int calculate(Int $a, Int $b) {
     return $a + $b;
 }
 
@@ -2219,7 +2219,7 @@ class DataProcessor<T> does Cacheable
 
     field ArrayRef[T] $items = [];
 
-    method add(T $item) -> Void {
+    method Void add(T $item) {
         push @{$items}, $item;
     }
 }

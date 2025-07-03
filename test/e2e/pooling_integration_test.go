@@ -91,7 +91,7 @@ func TestPoolingIntegration_MemoryUsageValidation(t *testing.T) {
 			require.NoError(t, err)
 			tree := tsParser.Parse(contentBytes, nil)
 			require.NotNil(t, tree)
-			
+
 			symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 			require.NoError(t, err)
 			require.NotNil(t, symbolTable)
@@ -207,7 +207,7 @@ func TestPoolingIntegration_ConcurrentUsage(t *testing.T) {
 					errChan <- fmt.Errorf("worker %d: failed to parse with tree-sitter file %d", workerID, i)
 					return
 				}
-				
+
 				symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 				if err != nil {
 					errChan <- fmt.Errorf("worker %d: failed to bind file %d: %w", workerID, i, err)
@@ -407,7 +407,7 @@ func TestPoolingIntegration_StressTest(t *testing.T) {
 		require.NoError(t, err)
 		tree := tsParser.Parse(contentBytes, nil)
 		require.NotNil(t, tree)
-		
+
 		symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 		require.NoError(t, err)
 
@@ -508,7 +508,7 @@ func TestPoolingIntegration_MemoryLeakDetection(t *testing.T) {
 		require.NoError(t, err)
 		tree := tsParser.Parse(contentBytes, nil)
 		require.NotNil(t, tree)
-		
+
 		symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 		require.NoError(t, err)
 
@@ -657,7 +657,7 @@ sub increment {
 			require.NoError(t, err)
 			tree := tsParser.Parse(contentBytes, nil)
 			require.NotNil(t, tree)
-			
+
 			symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 			require.NoError(t, err)
 			require.NotNil(t, symbolTable)

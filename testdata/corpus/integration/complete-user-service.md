@@ -47,7 +47,7 @@ class User does Serializable, Cacheable<UserId> {
     field Email $email;
     field ArrayRef[Role] $roles = [];
 
-    method new(UserId $id, Str $name, Email $email) returns User {
+    method User new(UserId $id, Str $name, Email $email) {
         return bless {
             id => $id,
             name => $name,
@@ -60,7 +60,7 @@ class User does Serializable, Cacheable<UserId> {
         push @{$roles}, $role;
     }
 
-    method serialize() returns Str {
+    method Str serialize() {
         return encode_json({
             id => $id,
             name => $name,
@@ -69,7 +69,7 @@ class User does Serializable, Cacheable<UserId> {
         });
     }
 
-    method cache_key() returns UserId {
+    method UserId cache_key() {
         return $id;
     }
 }
@@ -79,7 +79,7 @@ class UserService<T> where T: User&Cacheable<UserId> {
     field HashRef[UserId, T] $cache = {};
     field CodeRef[UserId, Optional[T]] $loader;
 
-    method new(CodeRef[UserId, Optional[T]] $loader) returns UserService<T> {
+    method UserService<T> new(CodeRef[UserId, Optional[T]] $loader) {
         return bless { cache => {}, loader => $loader }, __PACKAGE__;
     }
 

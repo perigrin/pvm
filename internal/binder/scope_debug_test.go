@@ -133,3 +133,83 @@ func logScopeStructure(t *testing.T, scope *Scope, depth int) {
 		logScopeStructure(t, child, depth+1)
 	}
 }
+
+func TestIntSymbolDebug(t *testing.T) {
+	// Enable debug mode
+	DebugScoping = true
+	defer func() { DebugScoping = false }()
+
+	// Test the problematic code with two Int variables
+	code := `my Int $var1 = 1;
+my Int $var2 = 2;`
+
+	t.Logf("=== DEBUGGING INT SYMBOL REDECLARATION ===")
+	t.Logf("Testing code:\n%s", code)
+
+	// Parse the code
+	p, err := parser.NewParser()
+	if err != nil {
+		t.Fatalf("Failed to create parser: %v", err)
+	}
+
+	astTree, err := p.ParseString(code)
+	if err != nil {
+		t.Fatalf("Failed to parse code: %v", err)
+	}
+
+	// Debug: print AST structure
+	t.Logf("AST Root: %T", astTree.Root)
+	if astTree.Root != nil {
+		logASTStructure(t, astTree.Root, 0)
+	}
+
+	t.Logf("=== STARTING SYMBOL BINDING ===")
+
+	// Let's inspect what variables are in each VarDecl
+	if astTree.Root != nil {
+		t.Logf("=== ANALYZING VARDECL CONTENTS ===")
+		analyzeVarDecls(t, astTree.Root)
+	}
+
+	// Bind symbols - this should fail with "Int already declared"
+	binder := NewBinder()
+	symbolTable, err := binder.BindAST(astTree)
+	if err != nil {
+		t.Logf("Expected error occurred: %v", err)
+		// This is expected, but let's see what the debug output shows
+	} else {
+		t.Logf("Symbol table: %v", symbolTable)
+	}
+}
+
+func analyzeVarDecls(t *testing.T, node interface{}) {
+	if node == nil {
+		return
+	}
+
+	switch n := node.(type) {
+	case *ast.VarDecl:
+		t.Logf("Found VarDecl: DeclType=%s, TypeExpr=%v", n.DeclType, n.TypeExpr)
+		variables := n.LogicalVariables()
+		t.Logf("  Variables count: %d", len(variables))
+		for i, v := range variables {
+			if v != nil {
+				t.Logf("  Variable[%d]: Name='%s', FullName='%s'", i, v.Name, v.FullName())
+			} else {
+				t.Logf("  Variable[%d]: nil", i)
+			}
+		}
+		if n.TypeExpr != nil {
+			t.Logf("  TypeExpr: %s", n.TypeExpr.String())
+		}
+	}
+
+	// Try to get children and recurse
+	switch n := node.(type) {
+	case interface{ Children() []interface{} }:
+		children := n.Children()
+		for _, child := range children {
+			analyzeVarDecls(t, child)
+		}
+	}
+}

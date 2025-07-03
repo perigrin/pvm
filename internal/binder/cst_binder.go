@@ -53,7 +53,7 @@ func (b *CSTBinder) visitCSTNode(node *sitter.Node) error {
 	}
 
 	nodeType := node.Kind()
-	
+
 	// Debug logging
 	if DebugScoping {
 		log.Printf("[DEBUG] visitCSTNode: Visiting %s", nodeType)
@@ -90,7 +90,7 @@ func (b *CSTBinder) visitCSTNode(node *sitter.Node) error {
 // bindCSTVariableDeclaration handles variable declarations from CST
 func (b *CSTBinder) bindCSTVariableDeclaration(node *sitter.Node) error {
 	nodeText := b.getNodeText(node)
-	
+
 	if DebugScoping {
 		log.Printf("[DEBUG] bindCSTVariableDeclaration: Processing '%s'", nodeText)
 	}
@@ -163,10 +163,10 @@ type VariableInfo struct {
 // extractVariablesFromCST extracts variable information directly from CST node
 func (b *CSTBinder) extractVariablesFromCST(node *sitter.Node) []VariableInfo {
 	var variables []VariableInfo
-	
+
 	// Look for scalar, array, hash children that represent variables
 	b.findVariableNodesInCST(node, &variables)
-	
+
 	return variables
 }
 
@@ -177,11 +177,11 @@ func (b *CSTBinder) findVariableNodesInCST(node *sitter.Node, variables *[]Varia
 	}
 
 	nodeType := node.Kind()
-	
+
 	// Check if this node represents a variable
 	if nodeType == "scalar" || nodeType == "array" || nodeType == "hash" {
 		text := b.getNodeText(node)
-		
+
 		// Only include if it starts with a sigil and looks like a variable
 		if len(text) > 1 && (text[0] == '$' || text[0] == '@' || text[0] == '%') {
 			// Skip if this looks like a built-in type name
@@ -192,7 +192,7 @@ func (b *CSTBinder) findVariableNodesInCST(node *sitter.Node, variables *[]Varia
 					Line:   1, // TODO: Calculate from byte position
 					Column: 1,
 				})
-				
+
 				if DebugScoping {
 					log.Printf("[DEBUG] findVariableNodesInCST: Found variable '%s'", text)
 				}
@@ -222,18 +222,19 @@ func (b *CSTBinder) extractDeclType(node *sitter.Node) string {
 			return child.Kind()
 		}
 	}
-	
+
 	// Fallback: extract from text
 	text := b.getNodeText(node)
-	if strings.HasPrefix(text, "my ") {
+	switch {
+	case strings.HasPrefix(text, "my "):
 		return "my"
-	} else if strings.HasPrefix(text, "our ") {
+	case strings.HasPrefix(text, "our "):
 		return "our"
-	} else if strings.HasPrefix(text, "state ") {
+	case strings.HasPrefix(text, "state "):
 		return "state"
+	default:
+		return "my" // Default
 	}
-	
-	return "my" // Default
 }
 
 // findTypeAnnotationForVariable finds the type annotation for a given variable
@@ -250,7 +251,7 @@ func (b *CSTBinder) findTypeAnnotationForVariable(varName string) string {
 			}
 		}
 	}
-	
+
 	return ""
 }
 
@@ -259,27 +260,163 @@ func (b *CSTBinder) getNodeText(node *sitter.Node) string {
 	if node == nil || b.content == nil {
 		return ""
 	}
-	
+
 	start := node.StartByte()
 	end := node.EndByte()
-	
+
 	if start >= uint(len(b.content)) || end > uint(len(b.content)) {
 		return ""
 	}
-	
+
 	return string(b.content[start:end])
+}
+
+// extractSubroutineName extracts the subroutine name from a subroutine declaration node
+func (b *CSTBinder) extractSubroutineName(node *sitter.Node) string {
+	if node == nil {
+		return ""
+	}
+
+	// Look for the name field in the subroutine declaration
+	// The grammar defines: field('name', $.bareword)
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		childType := child.Kind()
+
+		// Look for bareword nodes that contain the subroutine name
+		if childType == "bareword" {
+			return b.getNodeText(child)
+		}
+
+		// Alternative: look for identifier nodes
+		if childType == "identifier" {
+			return b.getNodeText(child)
+		}
+	}
+
+	return ""
+}
+
+// extractMethodName extracts the method name from a method declaration node
+func (b *CSTBinder) extractMethodName(node *sitter.Node) string {
+	if node == nil {
+		return ""
+	}
+
+	// Look for the name field in the method declaration
+	// Similar to subroutine declarations: field('name', $.bareword)
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		childType := child.Kind()
+
+		// Look for bareword nodes that contain the method name
+		if childType == "bareword" {
+			return b.getNodeText(child)
+		}
+
+		// Alternative: look for identifier nodes
+		if childType == "identifier" {
+			return b.getNodeText(child)
+		}
+	}
+
+	return ""
 }
 
 // Placeholder implementations for other binding methods
 // These will be implemented as we convert each node type
 
 func (b *CSTBinder) bindCSTSubroutineDeclaration(node *sitter.Node) error {
-	// TODO: Implement CST-based subroutine binding
+	nodeText := b.getNodeText(node)
+
+	if DebugScoping {
+		log.Printf("[DEBUG] bindCSTSubroutineDeclaration: Processing '%s'", nodeText)
+	}
+
+	// Extract subroutine name from CST
+	subName := b.extractSubroutineName(node)
+	if subName == "" {
+		// No valid subroutine name found, continue with children
+		return b.visitCSTChildren(node)
+	}
+
+	if DebugScoping {
+		log.Printf("[DEBUG] bindCSTSubroutineDeclaration: Found subroutine '%s'", subName)
+	}
+
+	// Get position from the node
+	position := ast.Position{Line: int(node.StartPosition().Row) + 1, Column: int(node.StartPosition().Column) + 1}
+
+	// Create symbol using pool manager
+	symbol := b.poolManager.NewSymbol(
+		subName,
+		SymbolSubroutine,
+		SymbolFlagNone,
+		nil, // No AST node for CST-based binding
+		position,
+	)
+
+	// Add to symbol table
+	if err := b.symbolTable.AddSymbol(symbol); err != nil {
+		return err
+	}
+
+	if DebugScoping {
+		log.Printf("[DEBUG] bindCSTSubroutineDeclaration: Created symbol '%s' (%s)", symbol.Name, symbol.Kind.String())
+	}
+
+	// Visit children for parameters, body, etc.
 	return b.visitCSTChildren(node)
 }
 
 func (b *CSTBinder) bindCSTMethodDeclaration(node *sitter.Node) error {
-	// TODO: Implement CST-based method binding
+	nodeText := b.getNodeText(node)
+
+	if DebugScoping {
+		log.Printf("[DEBUG] bindCSTMethodDeclaration: Processing '%s'", nodeText)
+	}
+
+	// Extract method name from CST
+	methodName := b.extractMethodName(node)
+	if methodName == "" {
+		// No valid method name found, continue with children
+		return b.visitCSTChildren(node)
+	}
+
+	if DebugScoping {
+		log.Printf("[DEBUG] bindCSTMethodDeclaration: Found method '%s'", methodName)
+	}
+
+	// Get position from the node
+	position := ast.Position{Line: int(node.StartPosition().Row) + 1, Column: int(node.StartPosition().Column) + 1}
+
+	// Create symbol using pool manager
+	symbol := b.poolManager.NewSymbol(
+		methodName,
+		SymbolMethod,
+		SymbolFlagNone,
+		nil, // No AST node for CST-based binding
+		position,
+	)
+
+	// Add to symbol table
+	if err := b.symbolTable.AddSymbol(symbol); err != nil {
+		return err
+	}
+
+	if DebugScoping {
+		log.Printf("[DEBUG] bindCSTMethodDeclaration: Created symbol '%s' (%s)", symbol.Name, symbol.Kind.String())
+	}
+
+	// Visit children for parameters, body, etc.
 	return b.visitCSTChildren(node)
 }
 
@@ -291,13 +428,13 @@ func (b *CSTBinder) bindCSTPackageDeclaration(node *sitter.Node) error {
 func (b *CSTBinder) bindCSTBlockStatement(node *sitter.Node) error {
 	// Enter block scope
 	b.symbolTable.EnterScope(ScopeBlock, nil)
-	
+
 	// Bind all children in block
 	err := b.visitCSTChildren(node)
-	
+
 	// Exit block scope
 	b.symbolTable.ExitScope()
-	
+
 	return err
 }
 
@@ -348,34 +485,34 @@ func (b *CSTBinder) visitCSTChildren(node *sitter.Node) error {
 // isBuiltinTypeName checks if a name is a built-in type that shouldn't be treated as a variable
 func (b *CSTBinder) isBuiltinTypeName(name string) bool {
 	builtinTypes := map[string]bool{
-		"Int":        true,
-		"Str":        true,
-		"Num":        true,
-		"Bool":       true,
-		"ArrayRef":   true,
-		"HashRef":    true,
-		"CodeRef":    true,
-		"ScalarRef":  true,
-		"Optional":   true,
-		"Void":       true,
-		"Any":        true,
-		"Undef":      true,
-		"Object":     true,
-		"DateTime":   true,
-		"Map":        true,
-		"Array":      true,
-		"Hash":       true,
-		"Scalar":     true,
-		"Ref":        true,
-		"Tuple":      true,
-		"Union":      true,
-		"Result":     true,
-		"Maybe":      true,
-		"Either":     true,
-		"List":       true,
-		"Set":        true,
-		"IO":         true,
-		"File":       true,
+		"Int":       true,
+		"Str":       true,
+		"Num":       true,
+		"Bool":      true,
+		"ArrayRef":  true,
+		"HashRef":   true,
+		"CodeRef":   true,
+		"ScalarRef": true,
+		"Optional":  true,
+		"Void":      true,
+		"Any":       true,
+		"Undef":     true,
+		"Object":    true,
+		"DateTime":  true,
+		"Map":       true,
+		"Array":     true,
+		"Hash":      true,
+		"Scalar":    true,
+		"Ref":       true,
+		"Tuple":     true,
+		"Union":     true,
+		"Result":    true,
+		"Maybe":     true,
+		"Either":    true,
+		"List":      true,
+		"Set":       true,
+		"IO":        true,
+		"File":      true,
 	}
 	return builtinTypes[name]
 }

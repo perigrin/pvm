@@ -144,9 +144,26 @@ AST {
 
 ```perl
 use v5.36;
-{ my @result = @{$data} return \@result; }{ my %result; for my $key (keys %{$input}) {
+method process($data, $validate = 1) {
+    my @result = @{$data};
+    return \@result;
+}
+
+method transform($input, $callback) {
+    my %result;
+    for my $key (keys %{$input}) {
         $result{$key} = $callback->($input->{$key});
-    } return \%result; }{ return 1; }
+    }
+    return \%result;
+}
+
+method complex_method(
+    $data,
+    $processor,
+    @extra_args
+) {
+    return 1;
+}
 ```
 
 ## Typed Perl Output

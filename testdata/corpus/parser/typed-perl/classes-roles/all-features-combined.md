@@ -37,11 +37,11 @@ role Auditable {
     field Optional[DateTime] $created_at;
     field Optional[DateTime] $updated_at;
 
-    method touch() returns Void {
+    method Void touch() {
         $updated_at = DateTime->now();
     }
 
-    method mark_created() returns Void {
+    method Void mark_created() {
         $created_at = DateTime->now();
         $updated_at = $created_at;
     }
@@ -52,10 +52,10 @@ class UserRepository<T> : BaseRepository<T, UserId>
     does Repository<T, UserId>, Auditable, Cacheable<UserId>
     where T: User&Serializable {
 
-    field private HashRef[UserId, T] $cache = {};
-    field protected CodeRef[UserId, Optional[T]] $loader;
-    field public Int $cache_size = 1000;
-    field readonly Str $table_name;
+    field HashRef[UserId, T] $cache = {};
+    field CodeRef[UserId, Optional[T]] $loader;
+    field Int $cache_size = 1000;
+    field Str $table_name;
 
     method BUILD(
         CodeRef[UserId, Optional[T]] $loader,
@@ -68,7 +68,7 @@ class UserRepository<T> : BaseRepository<T, UserId>
         $self->mark_created();
     }
 
-    method find(UserId $id) returns Optional[T] {
+    method Optional[T] find(UserId $id) {
         # Check cache first
         return $cache->{$id} if exists $cache->{$id};
 
@@ -111,15 +111,15 @@ class UserRepository<T> : BaseRepository<T, UserId>
         return Success->new(1);
     }
 
-    method cache_key() returns UserId {
+    method UserId cache_key() {
         return UserId->new($table_name . '_cache');
     }
 
-    method clear_cache() returns Void {
+    method Void clear_cache() {
         %{$cache} = ();
     }
 
-    method get_cache_stats() returns HashRef[Str, Int] {
+    method HashRef[Str, Int] get_cache_stats() {
         return {
             size => scalar keys %{$cache},
             max_size => $cache_size,

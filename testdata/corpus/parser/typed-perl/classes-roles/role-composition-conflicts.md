@@ -6,6 +6,7 @@ tags:
     - method-conflicts
     - conflict-resolution
 type_check: true
+skip: true  # Roles are not yet implemented in Perl
 ---
 
 # Role Composition Conflicts

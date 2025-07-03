@@ -162,7 +162,7 @@ func (st *SymbolTable) AddSymbol(symbol *Symbol) error {
 
 	// Set symbol's scope
 	symbol.Scope = st.CurrentScope
-	
+
 	// Only set package if not already set (for package-qualified symbols)
 	if symbol.Package == "" {
 		symbol.Package = st.Package
@@ -578,19 +578,19 @@ func (st *SymbolTable) AnalyzeClosureCapture(scope *Scope) []*Symbol {
 		if symbol.Scope != scope && symbol.Scope != nil {
 			// This symbol is from an outer scope - it's captured
 			symbol.Flags |= SymbolFlagClosure | SymbolFlagUpvalue
-			
+
 			// Add to captured symbols list
 			if scope.CapturedSymbols == nil {
 				scope.CapturedSymbols = []*Symbol{}
 			}
 			scope.CapturedSymbols = append(scope.CapturedSymbols, symbol)
-			
+
 			// Record the capturing relationship
 			if symbol.CapturedBy == nil {
 				symbol.CapturedBy = []*Scope{}
 			}
 			symbol.CapturedBy = append(symbol.CapturedBy, scope)
-			
+
 			capturedSymbols = append(capturedSymbols, symbol)
 		}
 	}

@@ -186,6 +186,7 @@ type MarkdownTestMetadata struct {
 	Tags        []string     `yaml:"tags"`
 	TypeCheck   bool         `yaml:"type_check"`
 	ShouldError bool         `yaml:"should_error"`
+	Skip        bool         `yaml:"skip"`
 }
 
 // LoadMarkdownTestCases loads test cases from a Markdown file
@@ -439,6 +440,11 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 		strings.Contains(titleLower, "inferred perl output") ||
 		strings.Contains(titleLower, "expected") && (strings.Contains(titleLower, "output") || strings.Contains(titleLower, "perl")) {
 		return nil, nil // Skip compilation outcome sections
+	}
+
+	// Skip tests marked as skip in metadata
+	if metadata != nil && metadata.Skip {
+		return nil, nil // Skip tests marked with skip: true
 	}
 
 	// Skip sections without Perl code blocks
