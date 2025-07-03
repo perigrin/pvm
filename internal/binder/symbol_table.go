@@ -162,7 +162,11 @@ func (st *SymbolTable) AddSymbol(symbol *Symbol) error {
 
 	// Set symbol's scope
 	symbol.Scope = st.CurrentScope
-	symbol.Package = st.Package
+	
+	// Only set package if not already set (for package-qualified symbols)
+	if symbol.Package == "" {
+		symbol.Package = st.Package
+	}
 
 	// Add to current scope
 	st.CurrentScope.Symbols[symbol.Name] = symbol
@@ -313,13 +317,26 @@ func (st *SymbolTable) CreatePackageQualifiedSymbol(packageName, name string, ki
 		Position:      ast.Position{Line: 1, Column: 1},
 	}
 
+	// Add to symbol table
+	st.AddSymbol(symbol)
+
 	return symbol
 }
 
 // ResolvePackageSymbol resolves a symbol within a specific package
 func (st *SymbolTable) ResolvePackageSymbol(packageName, name string, kind SymbolKind) *Symbol {
-	// Look for package-qualified symbol first
+	// Look for symbol by simple name first
 	if symbols, exists := st.Symbols[name]; exists {
+		for _, symbol := range symbols {
+			if symbol.Package == packageName && symbol.Kind == kind {
+				return symbol
+			}
+		}
+	}
+
+	// Also try looking for qualified name
+	qualifiedName := packageName + "::" + name
+	if symbols, exists := st.Symbols[qualifiedName]; exists {
 		for _, symbol := range symbols {
 			if symbol.Package == packageName && symbol.Kind == kind {
 				return symbol
@@ -332,6 +349,16 @@ func (st *SymbolTable) ResolvePackageSymbol(packageName, name string, kind Symbo
 
 // ResolveWithPackageQualification resolves a symbol with package qualification fallback
 func (st *SymbolTable) ResolveWithPackageQualification(name string, kind SymbolKind) *Symbol {
+	// Check if name is already package-qualified (contains ::)
+	if strings.Contains(name, "::") {
+		parts := strings.Split(name, "::")
+		if len(parts) == 2 {
+			packageName := parts[0]
+			symbolName := parts[1]
+			return st.ResolvePackageSymbol(packageName, symbolName, kind)
+		}
+	}
+
 	// First try local resolution
 	if symbol := st.ResolveSymbol(name, kind); symbol != nil {
 		return symbol
@@ -349,7 +376,13 @@ func (st *SymbolTable) ExportSymbol(symbol *Symbol) error {
 
 	symbol.Flags |= SymbolFlagExported
 
-	// Add to module's export list if we have one
+	// Add to symbol table's export list
+	if st.ExportedSymbols == nil {
+		st.ExportedSymbols = make(map[string]*Symbol)
+	}
+	st.ExportedSymbols[symbol.Name] = symbol
+
+	// Also add to current scope's export list if we have one
 	if st.CurrentScope != nil {
 		if st.CurrentScope.ExportedSymbols == nil {
 			st.CurrentScope.ExportedSymbols = make(map[string]*Symbol)
@@ -472,8 +505,8 @@ func (st *SymbolTable) CreateLocalSymbol(symbol *Symbol) error {
 	// Mark as local
 	symbol.Flags |= SymbolFlagLocal
 
-	// Store the original value if symbol exists in current scope
-	if existing, exists := st.CurrentScope.Symbols[symbol.Name]; exists {
+	// Store the original value if symbol exists in scope chain
+	if existing := st.ResolveSymbol(symbol.Name, symbol.Kind); existing != nil {
 		if st.CurrentScope.SavedValues == nil {
 			st.CurrentScope.SavedValues = make(map[string]*Symbol)
 		}
@@ -534,15 +567,52 @@ func (st *SymbolTable) AnalyzeClosureCapture(scope *Scope) []*Symbol {
 		scope = st.CurrentScope
 	}
 
-	if scope == nil || scope.CapturedSymbols == nil {
+	if scope == nil {
 		return []*Symbol{}
 	}
 
-	// Return copy of captured symbols
-	result := make([]*Symbol, len(scope.CapturedSymbols))
-	copy(result, scope.CapturedSymbols)
+	var capturedSymbols []*Symbol
 
-	return result
+	// Check for symbols in this scope that belong to outer scopes
+	for _, symbol := range scope.Symbols {
+		if symbol.Scope != scope && symbol.Scope != nil {
+			// This symbol is from an outer scope - it's captured
+			symbol.Flags |= SymbolFlagClosure | SymbolFlagUpvalue
+			
+			// Add to captured symbols list
+			if scope.CapturedSymbols == nil {
+				scope.CapturedSymbols = []*Symbol{}
+			}
+			scope.CapturedSymbols = append(scope.CapturedSymbols, symbol)
+			
+			// Record the capturing relationship
+			if symbol.CapturedBy == nil {
+				symbol.CapturedBy = []*Scope{}
+			}
+			symbol.CapturedBy = append(symbol.CapturedBy, scope)
+			
+			capturedSymbols = append(capturedSymbols, symbol)
+		}
+	}
+
+	// Also include already explicitly captured symbols
+	if scope.CapturedSymbols != nil {
+		for _, symbol := range scope.CapturedSymbols {
+			// Avoid duplicates
+			found := false
+			for _, captured := range capturedSymbols {
+				if captured == symbol {
+					found = true
+					break
+				}
+			}
+			if !found {
+				capturedSymbols = append(capturedSymbols, symbol)
+			}
+		}
+	}
+
+	return capturedSymbols
 }
 
 // String methods for debugging
