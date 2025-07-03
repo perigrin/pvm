@@ -177,7 +177,7 @@ my Str $message = "Hello, World!";
 my Int $count = 42;
 my Bool $flag = 1;
 
-sub greet(Str $name) returns Str {
+sub Str greet(Str $name) {
     return "Hello, $name!";
 }
 
@@ -212,7 +212,9 @@ say "Count: $count";
 	assert.NotContains(t, strippedStr, "Str $", "Should not contain Str type annotations")
 	assert.NotContains(t, strippedStr, "Int $", "Should not contain Int type annotations")
 	assert.NotContains(t, strippedStr, "Bool $", "Should not contain Bool type annotations")
-	assert.NotContains(t, strippedStr, ") returns ", "Should not contain return type annotations")
+	assert.NotContains(t, strippedStr, "sub Str ", "Should not contain return type annotations")
+	assert.NotContains(t, strippedStr, "sub Int ", "Should not contain return type annotations")
+	assert.NotContains(t, strippedStr, "sub Bool ", "Should not contain return type annotations")
 
 	// Should still contain core logic
 	assert.Contains(t, strippedStr, "my $message = \"Hello, World!\";", "Should contain variable assignments")
