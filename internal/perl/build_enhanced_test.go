@@ -282,12 +282,12 @@ func TestCommandRunner(t *testing.T) {
 		t.Errorf("Expected output to contain 'hello', got: %s", output)
 	}
 
-	// Test command with progress
+	// Test command with progress - use a command that definitely produces multiple lines
 	var lines []string
 	_, err = runner.RunWithProgress(
 		".",
-		"echo",
-		[]string{"-e", "line1\nline2\nline3"},
+		"sh",
+		[]string{"-c", "echo line1; echo line2; echo line3"},
 		context.Background(),
 		func(line string, isError bool) {
 			lines = append(lines, line)
@@ -297,8 +297,9 @@ func TestCommandRunner(t *testing.T) {
 		t.Fatalf("Failed to run command with progress: %v", err)
 	}
 	if len(lines) == 0 {
-		t.Error("Expected progress callbacks")
+		t.Errorf("Expected progress callbacks, got %d lines", len(lines))
 	}
+	t.Logf("Progress test captured %d lines: %v", len(lines), lines)
 
 	// Test command timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
