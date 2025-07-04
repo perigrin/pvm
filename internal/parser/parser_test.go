@@ -11,7 +11,7 @@ import (
 
 // TestParserByCategory runs all parser tests organized by category with full parallelization
 func TestParserByCategory(t *testing.T) {
-	framework := NewParserTestFramework("../../test/corpus/parser")
+	framework := NewParserTestFramework("../../testdata/corpus/parser")
 
 	// Initialize parser
 	parser, err := NewParser()
@@ -43,7 +43,7 @@ func TestParserByCategory(t *testing.T) {
 
 // TestSpecificFeatures runs targeted tests for specific parsing features
 func TestSpecificFeatures(t *testing.T) {
-	framework := NewParserTestFramework("../../test/corpus/parser")
+	framework := NewParserTestFramework("../../testdata/corpus/parser")
 
 	parser, err := NewParser()
 	if err != nil {
@@ -243,7 +243,7 @@ func TestErrorRecovery(t *testing.T) {
 
 // TestMarkdownTestDiscovery validates the test discovery mechanism
 func TestMarkdownTestDiscovery(t *testing.T) {
-	framework := NewParserTestFramework("../../test/corpus/parser")
+	framework := NewParserTestFramework("../../testdata/corpus/parser")
 
 	t.Run("discovery_statistics", func(t *testing.T) {
 		testCases, err := framework.DiscoverTestCases()
@@ -277,7 +277,7 @@ func TestMarkdownTestDiscovery(t *testing.T) {
 
 	t.Run("markdown_loading", func(t *testing.T) {
 		// Test loading a specific markdown file
-		testFile := filepath.Join("../../test/corpus/parser", "typed-perl", "simple-annotations", "basic-typed-variables.md")
+		testFile := filepath.Join("../../testdata/corpus/parser", "typed-perl", "simple-annotations", "basic-typed-variables.md")
 		testCases, err := framework.LoadMarkdownTestCases(testFile)
 		if err != nil {
 			t.Fatalf("Failed to load markdown test cases: %v", err)

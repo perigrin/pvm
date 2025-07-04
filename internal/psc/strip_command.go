@@ -84,9 +84,9 @@ Examples:
 					err).WithLocation(inputFile)
 			}
 
-			// Use AST compiler to strip type annotations
-			astCompiler := compiler.NewASTCompiler()
-			result, err := astCompiler.Compile(ast)
+			// Use unified compiler to strip type annotations
+			cleanCompiler := compiler.NewCleanPerlCompilerUnified()
+			result, err := cleanCompiler.Compile(ast)
 			if err != nil {
 				return errors.NewTypeError(
 					ErrIntegrationFailed,

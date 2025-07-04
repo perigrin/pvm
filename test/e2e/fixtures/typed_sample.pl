@@ -23,12 +23,12 @@ my Maybe[Int] $optional_count = 10;
 my Union[Int, Str] $flexible_value = "hello";
 
 # Function with type annotations
-sub add_numbers(Int $a, Int $b) -> Int {
+sub Int add_numbers(Int $a, Int $b) {
     return $a + $b;
 }
 
 # Function with complex parameter types
-sub calculate_average(ArrayRef[Int] $numbers) -> Num {
+sub Num calculate_average(ArrayRef[Int] $numbers) {
     my Int $sum = 0;
     my Int $count = 0;
 
@@ -41,7 +41,7 @@ sub calculate_average(ArrayRef[Int] $numbers) -> Num {
 }
 
 # Function with Maybe parameter
-sub greet_user(Maybe[Str] $name) -> Str {
+sub Str greet_user(Maybe[Str] $name) {
     if (defined($name)) {
         return "Hello, $name!";
     } else {
@@ -50,7 +50,7 @@ sub greet_user(Maybe[Str] $name) -> Str {
 }
 
 # Method with type annotations (simplified class syntax)
-sub new(Str $class, Str $name, Int $age) -> Object {
+sub Object new(Str $class, Str $name, Int $age) {
     my HashRef[Str, Any] $self = {
         name => $name,
         age => $age,
@@ -60,12 +60,12 @@ sub new(Str $class, Str $name, Int $age) -> Object {
 }
 
 # Method with typed parameters
-sub add_score(Object $self, Str $subject, Int $score) -> Void {
+sub Void add_score(Object $self, Str $subject, Int $score) {
     $self->{scores}->{$subject} = $score;
 }
 
 # Method with typed return value
-sub get_average_score(Object $self) -> Num {
+sub Num get_average_score(Object $self) {
     my HashRef[Str, Int] $scores = $self->{scores};
     my @values = values %$scores;
 
@@ -73,7 +73,7 @@ sub get_average_score(Object $self) -> Num {
 }
 
 # Flow-sensitive type checking examples
-sub process_input(Union[Int, Str] $input) -> Str {
+sub Str process_input(Union[Int, Str] $input) {
     if ($input =~ /^\d+$/) {
         # Here $input is refined to be numeric
         my Int $num = int($input);
@@ -85,7 +85,7 @@ sub process_input(Union[Int, Str] $input) -> Str {
 }
 
 # Pattern matching with type refinement
-sub validate_and_process(Str $input) -> Union[Int, Str] {
+sub Union[Int, Str] validate_and_process(Str $input) {
     if ($input =~ /^(\d+)$/) {
         # $1 is captured as string but we know it's numeric
         return int($1);
@@ -95,7 +95,7 @@ sub validate_and_process(Str $input) -> Union[Int, Str] {
 }
 
 # Reference type checking
-sub process_reference(Scalar $ref) -> Str {
+sub Str process_reference(Scalar $ref) {
     if (ref($ref) eq 'ARRAY') {
         # $ref refined to ArrayRef
         return "Array with " . scalar(@$ref) . " elements";

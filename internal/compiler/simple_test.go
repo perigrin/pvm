@@ -72,7 +72,7 @@ func TestCompilerRegistry_Basic(t *testing.T) {
 }
 
 func TestCleanPerlCompiler_Target(t *testing.T) {
-	compiler := NewCleanPerlCompiler()
+	compiler := NewCleanPerlCompilerUnified()
 	if compiler.Target() != TargetCleanPerl {
 		t.Errorf("Expected target %s, got %s", TargetCleanPerl, compiler.Target())
 	}
@@ -86,7 +86,7 @@ func TestTypedPerlCompiler_Target(t *testing.T) {
 }
 
 func TestCleanPerlCompiler_ASTBased(t *testing.T) {
-	compiler := NewCleanPerlCompiler()
+	compiler := NewCleanPerlCompilerUnified()
 
 	t.Run("Variable declaration with type annotation", func(t *testing.T) {
 		// Create a simple AST with a typed variable declaration
@@ -131,22 +131,22 @@ func TestCleanPerlCompiler_ASTBased(t *testing.T) {
 		}
 	})
 
-	t.Run("Requires proper AST", func(t *testing.T) {
-		// Test that SimpleAST without root node fails appropriately
+	t.Run("Handles SimpleAST by re-parsing", func(t *testing.T) {
+		// Test that SimpleAST without root node gets handled by re-parsing content
 		simpleAST := &SimpleAST{
 			Path:    "test.pl",
 			Content: "my Int $name = \"test\";",
 			Valid:   true,
 		}
 
-		_, err := compiler.Compile(simpleAST)
-		if err == nil {
-			t.Fatal("Expected compilation to fail for SimpleAST without proper AST root node")
+		result, err := compiler.Compile(simpleAST)
+		if err != nil {
+			t.Fatalf("Unexpected compilation failure: %v", err)
 		}
 
-		// Should get a clear error message about requiring proper AST
-		if !strings.Contains(err.Error(), "proper AST required") {
-			t.Errorf("Expected error about requiring proper AST, got: %v", err)
+		// Should successfully compile by re-parsing the content
+		if !strings.Contains(result, "my $name = \"test\";") {
+			t.Errorf("Expected result to contain cleaned variable declaration, got: %v", result)
 		}
 	})
 }

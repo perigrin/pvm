@@ -66,6 +66,7 @@ const (
 	ErrInvalidAST        = "INVALID_AST"
 	ErrCompilationFailed = "COMPILATION_FAILED"
 	ErrUnsupportedNode   = "UNSUPPORTED_NODE"
+	ErrUnsupportedTarget = "UNSUPPORTED_TARGET"
 	ErrTypeError         = "TYPE_ERROR"
 	ErrSyntaxError       = "SYNTAX_ERROR"
 )

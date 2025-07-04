@@ -6,6 +6,7 @@ package parser
 import (
 	"io"
 	"os"
+	"strings"
 
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/scanner"
@@ -164,8 +165,8 @@ func (p *TokenBasedParser) parseTypeAnnotationFromTokens(tokens []scanner.Token,
 
 	keyword := tokens[start]
 
-	// Simple pattern matching for "my Type $var"
-	if keyword.Type() == scanner.TokenMy && start+2 < len(tokens) {
+	// Simple pattern matching for "my Type $var" or "field Type $var"
+	if (keyword.Type() == scanner.TokenMy || keyword.Type() == scanner.TokenField) && start+2 < len(tokens) {
 		typeToken := tokens[start+1]
 		varToken := tokens[start+2]
 
@@ -176,9 +177,21 @@ func (p *TokenBasedParser) parseTypeAnnotationFromTokens(tokens []scanner.Token,
 				Offset: typeToken.Position().Offset,
 			}
 
+			// Extract the full type string from the source content
+			typeString := p.extractFullTypeString(tokens, start+1, content)
+			typeExpr, err := ParseTypeExpression(typeString, Position{
+				Line:   pos.Line,
+				Column: pos.Column,
+				Offset: pos.Offset,
+			})
+			if err != nil {
+				// Fallback to simple parsing if complex parsing fails
+				typeExpr = p.parseTypeExpressionFromToken(typeToken)
+			}
+
 			return &ast.TypeAnnotation{
 				AnnotatedItem:  varToken.Value(),
-				TypeExpression: p.parseTypeExpressionFromToken(typeToken),
+				TypeExpression: typeExpr,
 				Pos:            pos,
 				Kind:           ast.VarAnnotation,
 			}
@@ -187,6 +200,37 @@ func (p *TokenBasedParser) parseTypeAnnotationFromTokens(tokens []scanner.Token,
 
 	// TODO: Add more sophisticated pattern matching for other annotation types
 	return nil
+}
+
+// extractFullTypeString extracts the complete type string including parameters from source content
+func (p *TokenBasedParser) extractFullTypeString(tokens []scanner.Token, typeStart int, content string) string {
+	if typeStart >= len(tokens) {
+		return ""
+	}
+
+	typeToken := tokens[typeStart]
+
+	// Find the end of the type expression by looking for the variable token
+	// We need to find the type string between the type token and variable token
+	if typeStart+1 >= len(tokens) {
+		return typeToken.Value()
+	}
+
+	varToken := tokens[typeStart+1]
+
+	// Extract substring from type token start to just before variable token
+	typeStartOffset := typeToken.Position().Offset
+	varStartOffset := varToken.Position().Offset
+
+	if typeStartOffset >= 0 && varStartOffset > typeStartOffset && varStartOffset <= len(content) {
+		typeSubstring := content[typeStartOffset:varStartOffset]
+		// Trim whitespace and clean up the type string
+		typeSubstring = strings.TrimSpace(typeSubstring)
+		return typeSubstring
+	}
+
+	// Fallback to just the token value
+	return typeToken.Value()
 }
 
 // parseTypeExpressionFromToken creates a TypeExpression from a token

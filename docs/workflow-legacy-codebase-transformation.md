@@ -182,17 +182,17 @@ sub truncate {
 }
 
 # After transformation
-sub trim(Str $str) -> Str {
+sub Str trim(Str $str) {
     $str =~ s/^\s+|\s+$//g;
     return $str;
 }
 
-sub truncate(Str $str, Int $length) -> Str {
+sub Str truncate(Str $str, Int $length) {
     return length($str) > $length ? substr($str, 0, $length) . '...' : $str;
 }
 
 # Gradual introduction of Maybe types
-sub safe_trim(Maybe[Str] $str) -> Maybe[Str] {
+sub Maybe[Str] safe_trim(Maybe[Str] $str) {
     return undef unless defined($str);
     $str =~ s/^\s+|\s+$//g;
     return $str;
@@ -208,20 +208,20 @@ Define interfaces for major components before internal implementation:
 package DataProcessor;
 
 # Interface definition with types
-method process_records(ArrayRef[HashRef[Str, Any]] $records) -> ProcessingResult {
+method ProcessingResult process_records(ArrayRef[HashRef[Str, Any]] $records) {
     # Implementation comes later
 }
 
-method validate_record(HashRef[Str, Any] $record) -> ValidationResult {
+method ValidationResult validate_record(HashRef[Str, Any] $record) {
     # Implementation comes later
 }
 
-method format_output(ProcessingResult $result, Str $format) -> Str {
+method Str format_output(ProcessingResult $result, Str $format) {
     # Implementation comes later
 }
 
 # Phase 2: Implement with type safety
-method process_records(ArrayRef[HashRef[Str, Any]] $records) -> ProcessingResult {
+method ProcessingResult process_records(ArrayRef[HashRef[Str, Any]] $records) {
     my @processed;
     my @errors;
 
@@ -257,7 +257,7 @@ use parent 'Database::LegacyConnection';
 # sub get_user { ... } # Returns various types based on context
 
 # New typed interface
-method find_user_by_id(Int $user_id) -> Maybe[User] {
+method Maybe[User] find_user_by_id(Int $user_id) {
     # Call legacy method with proper error handling
     my $result = eval { $self->SUPER::get_user($user_id) };
 
@@ -273,7 +273,7 @@ method find_user_by_id(Int $user_id) -> Maybe[User] {
     return undef;
 }
 
-method find_users_by_criteria(SearchCriteria $criteria) -> ArrayRef[User] {
+method ArrayRef[User] find_users_by_criteria(SearchCriteria $criteria) {
     my $legacy_results = eval { $self->SUPER::search_users($criteria->to_legacy_format()) };
 
     return [] if $@ || !defined($legacy_results);
@@ -289,7 +289,7 @@ method find_users_by_criteria(SearchCriteria $criteria) -> ArrayRef[User] {
 }
 
 # Private conversion method
-method _convert_legacy_user(Any $legacy_data) -> Maybe[User] {
+method Maybe[User] _convert_legacy_user(Any $legacy_data) {
     # Handle various legacy formats
     if (ref($legacy_data) eq 'HASH') {
         return User->new($legacy_data) if $legacy_data->{id};
@@ -334,11 +334,11 @@ class OrderState {
 }
 
 class PendingOrderState isa OrderState {
-    method can_transition_to(Str $new_state) -> Bool {
+    method Bool can_transition_to(Str $new_state) {
         return $new_state eq 'confirmed' || $new_state eq 'failed';
     }
 
-    method process(Order $order, OrderProcessor $processor) -> OrderState {
+    method OrderState process(Order $order, OrderProcessor $processor) {
         if ($processor->validate_payment($order)) {
             $processor->send_confirmation($order);
             return ConfirmedOrderState->new();
@@ -349,11 +349,11 @@ class PendingOrderState isa OrderState {
 }
 
 class ConfirmedOrderState isa OrderState {
-    method can_transition_to(Str $new_state) -> Bool {
+    method Bool can_transition_to(Str $new_state) {
         return $new_state eq 'shipped' || $new_state eq 'cancelled';
     }
 
-    method process(Order $order, OrderProcessor $processor) -> OrderState {
+    method OrderState process(Order $order, OrderProcessor $processor) {
         if ($processor->can_ship($order)) {
             $processor->ship_order($order);
             return ShippedOrderState->new();
@@ -366,7 +366,7 @@ class Order {
     field OrderState $state ;
     field HashRef[Any] $data ;
 
-    method transition_to(Str $new_state, OrderProcessor $processor) -> Bool {
+    method Bool transition_to(Str $new_state, OrderProcessor $processor) {
         if ($state->can_transition_to($new_state)) {
             $state = $state->process($self, $processor);
             return 1;
@@ -399,11 +399,11 @@ sub process_user_data {
 
 # Modern: Typed data structures with clear contracts
 class UserDataProcessor {
-    method process_user_list(ArrayRef[UserData] $users) -> ArrayRef[ProcessedUser] {
+    method ArrayRef[ProcessedUser] process_user_list(ArrayRef[UserData] $users) {
         return [map { $self->process_single_user($_) } @$users];
     }
 
-    method process_single_user(UserData $user) -> ProcessedUser {
+    method ProcessedUser process_single_user(UserData $user) {
         return ProcessedUser->new(
             id => $user->get_id(),
             processed_data => $self->transform_data($user->get_data()),
@@ -411,7 +411,7 @@ class UserDataProcessor {
         );
     }
 
-    method process_user_by_id(UserId $id) -> Maybe[ProcessedUser] {
+    method Maybe[ProcessedUser] process_user_by_id(UserId $id) {
         my Maybe[UserData] $user_data = $self->user_repository->find_by_id($id);
 
         if (defined($user_data)) {
@@ -446,14 +446,14 @@ class OperationResult[T] {
     field Maybe[Str] $error_message = undef;
     field Maybe[ErrorCode] $error_code = undef;
 
-    method success(T $val) -> OperationResult[T] {
+    method OperationResult[T] success(T $val) {
         return $class->new(
             success => 1,
             value => $val
         );
     }
 
-    method failure(Str $message, Maybe[ErrorCode] $code = undef) -> OperationResult[T] {
+    method OperationResult[T] failure(Str $message, Maybe[ErrorCode] $code = undef) {
         return $class->new(
             success => 0,
             error_message => $message,
@@ -461,7 +461,7 @@ class OperationResult[T] {
         );
     }
 
-    method map(CodeRef $transform) -> OperationResult[Any] {
+    method OperationResult[Any] map(CodeRef $transform) {
         return $self unless $success;
 
         my $transformed_value;
@@ -478,7 +478,7 @@ class OperationResult[T] {
 }
 
 class ModernOperations {
-    method safe_operation(Str $input) -> OperationResult[ProcessedData] {
+    method OperationResult[ProcessedData] safe_operation(Str $input) {
         # Validation
         return OperationResult->failure("Input is required", ErrorCode::INVALID_INPUT)
             if !defined($input) || $input eq '';
@@ -542,7 +542,7 @@ class CacheConfig {
     field Str $size ;  # e.g., "100MB"
     field Int $ttl ;
 
-    method get_size_bytes() -> Int {
+    method Int get_size_bytes() {
         if ($size =~ /^(\d+)(MB|KB|GB)$/) {
             my ($num, $unit) = ($1, $2);
             return $num * 1024 * 1024 if $unit eq 'MB';
@@ -557,14 +557,14 @@ class ApplicationConfig {
     field DatabaseConfig $database ;
     field CacheConfig $cache ;
 
-    method from_hash(HashRef[Any] $config_data) -> ApplicationConfig {
+    method ApplicationConfig from_hash(HashRef[Any] $config_data) {
         return $class->new(
             database => DatabaseConfig->new($config_data->{database}),
             cache => CacheConfig->new($config_data->{cache})
         );
     }
 
-    method validate() -> ArrayRef[Str] {
+    method ArrayRef[Str] validate() {
         my @errors;
 
         eval { $database->BUILD({}) };
@@ -707,7 +707,7 @@ class FeatureFlags {
     field HashRef[Bool] $_flags = {};
     field Str $environment ;
 
-    method is_enabled(Str $feature_name) -> Bool {
+    method Bool is_enabled(Str $feature_name) {
         # Check environment-specific overrides
         my $env_key = "${feature_name}_${environment}";
         return $_flags->{$env_key} if exists $_flags->{$env_key};
@@ -716,7 +716,7 @@ class FeatureFlags {
         return $_flags->{$feature_name} // 0;
     }
 
-    method enable_for_percentage(Str $feature_name, Int $percentage, Str $user_id) -> Bool {
+    method Bool enable_for_percentage(Str $feature_name, Int $percentage, Str $user_id) {
         # Consistent percentage rollout based on user ID
         my $hash = substr(sha256_hex($user_id . $feature_name), 0, 8);
         my $user_percentage = hex($hash) % 100;
@@ -729,7 +729,7 @@ class FeatureFlags {
 class UserService {
     field FeatureFlags $feature_flags ;
 
-    method process_user(User $user) -> ProcessedUser {
+    method ProcessedUser process_user(User $user) {
         if ($feature_flags->is_enabled('typed_user_processing')) {
             return $self->typed_user_processing($user);
         } else {
@@ -737,7 +737,7 @@ class UserService {
         }
     }
 
-    method typed_user_processing(User $user) -> ProcessedUser {
+    method ProcessedUser typed_user_processing(User $user) {
         # New typed implementation
         return ProcessedUser->new(
             id => $user->get_id(),
@@ -746,7 +746,7 @@ class UserService {
         );
     }
 
-    method legacy_user_processing(HashRef[Any] $user_data) -> ProcessedUser {
+    method ProcessedUser legacy_user_processing(HashRef[Any] $user_data) {
         # Wrapped legacy implementation
         my $legacy_result = $self->old_process_user($user_data);
 
@@ -804,14 +804,14 @@ use DateTime;
 class MigrationTracker {
     field DBI $dbh ;
 
-    method record_file_migration(Str $file_path, Str $migration_type, Int $lines_converted) -> Void {
+    method Void record_file_migration(Str $file_path, Str $migration_type, Int $lines_converted) {
         $dbh->do(qq{
             INSERT INTO migration_log (file_path, migration_type, lines_converted, migrated_at)
             VALUES (?, ?, ?, ?)
         }, undef, $file_path, $migration_type, $lines_converted, DateTime->now());
     }
 
-    method get_migration_stats() -> HashRef[Any] {
+    method HashRef[Any] get_migration_stats() {
         my $stats = $dbh->selectall_hashref(qq{
             SELECT
                 migration_type,
@@ -825,7 +825,7 @@ class MigrationTracker {
         return $stats;
     }
 
-    method get_recent_migrations(Int $days = 7) -> ArrayRef[HashRef[Any]] {
+    method ArrayRef[HashRef[Any]] get_recent_migrations(Int $days = 7) {
         my $cutoff = DateTime->now()->subtract(days => $days);
 
         return $dbh->selectall_arrayref(qq{
@@ -855,7 +855,7 @@ class PerformanceComparator {
     field Any $typed_implementation ;
     field ArrayRef[Any] $test_data ;
 
-    method run_comparison() -> HashRef[Any] {
+    method HashRef[Any] run_comparison() {
         my Memory::Usage $mu = Memory::Usage->new();
 
         # Memory usage comparison
@@ -909,14 +909,14 @@ use warnings;
 
 # Quality metrics for transformation progress
 class TransformationMetrics {
-    method calculate_type_coverage() -> Num {
+    method Num calculate_type_coverage() {
         my $total_functions = $self->count_total_functions();
         my $typed_functions = $self->count_typed_functions();
 
         return $total_functions > 0 ? ($typed_functions / $total_functions) * 100 : 0;
     }
 
-    method calculate_error_reduction() -> HashRef[Any] {
+    method HashRef[Any] calculate_error_reduction() {
         my $before_errors = $self->get_legacy_error_count();
         my $after_errors = $self->get_current_error_count();
 
@@ -928,7 +928,7 @@ class TransformationMetrics {
         };
     }
 
-    method calculate_maintainability_score() -> Int {
+    method Int calculate_maintainability_score() {
         my $score = 0;
 
         # Type coverage (40% of score)

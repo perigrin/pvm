@@ -13,12 +13,15 @@ package ls
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/parser/treesitter"
 )
 
 // TextDocumentContentChangeEvent represents a content change in a document
@@ -204,7 +207,7 @@ func (ls *LanguageService) performIncrementalUpdate(uri, newText string, version
 	// Update symbol table incrementally
 	if doc.AST != nil {
 		bindOp := ls.monitor.StartOperation(context.TODO(), "incremental_bind")
-		symbolTable, err := ls.updateSymbolTableIncrementally(doc.AST, existingDoc.SymbolTable, changes)
+		symbolTable, err := ls.updateSymbolTableIncrementally(doc.AST, existingDoc.SymbolTable, changes, newText)
 		if err != nil {
 			bindOp.CompleteWithError(err)
 			// Fall back to full update
@@ -340,10 +343,20 @@ func (ls *LanguageService) reparseAffectedRegions(doc *Document, changes []Docum
 }
 
 // updateSymbolTableIncrementally updates the symbol table with minimal changes
-func (ls *LanguageService) updateSymbolTableIncrementally(ast *ast.AST, existingSymbols *binder.SymbolTable, changes []DocumentChange) (*binder.SymbolTable, error) {
+func (ls *LanguageService) updateSymbolTableIncrementally(ast *ast.AST, existingSymbols *binder.SymbolTable, changes []DocumentChange, text string) (*binder.SymbolTable, error) {
 	// For now, do a full symbol binding but track the intent for incremental
 	// A full implementation would update only affected scopes and symbols
-	return ls.binder.BindAST(ast)
+
+	// Parse with tree-sitter for CST binding
+	tsParser := sitter.NewParser()
+	tsParser.SetLanguage(treesitter.Language())
+	contentBytes := []byte(text)
+	tree := tsParser.Parse(contentBytes, nil)
+	if tree == nil {
+		return nil, fmt.Errorf("failed to parse with tree-sitter")
+	}
+
+	return ls.binder.BindCST(tree.RootNode(), contentBytes, ast.TypeAnnotations)
 }
 
 // updateTypeCheckingIncrementally updates type checking for affected regions only

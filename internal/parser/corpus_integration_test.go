@@ -134,15 +134,15 @@ func TestPSCCorpusTypedVariables(t *testing.T) {
 func extractTypedPerlCorpusTests() ([]CorpusTestCase, error) {
 	var testCases []CorpusTestCase
 
-	// Look for corpus files in test/corpus/tree-sitter
-	corpusDir := "../../test/corpus/tree-sitter/corpus"
+	// Look for corpus files in testdata/corpus/tree-sitter
+	corpusDir := "../../testdata/corpus/tree-sitter/corpus"
 	if _, err := os.Stat(corpusDir); os.IsNotExist(err) {
 		// Try relative to project root
-		corpusDir = "./test/corpus/tree-sitter/corpus"
+		corpusDir = "./testdata/corpus/tree-sitter/corpus"
 		if _, err := os.Stat(corpusDir); os.IsNotExist(err) {
 			// Try absolute path from working directory
 			if wd, err := os.Getwd(); err == nil {
-				corpusDir = filepath.Join(wd, "../../test/corpus/tree-sitter/corpus")
+				corpusDir = filepath.Join(wd, "../../testdata/corpus/tree-sitter/corpus")
 				if _, err := os.Stat(corpusDir); os.IsNotExist(err) {
 					return nil, fmt.Errorf("tree-sitter corpus directory not found")
 				}

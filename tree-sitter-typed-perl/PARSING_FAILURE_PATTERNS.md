@@ -57,19 +57,19 @@ Add dedicated given/when rules to the grammar.
 
 ### Pattern
 ```perl
-method foo() -> Int { ... }
-sub bar() :returns(Str) { ... }
+method Int foo() { ... }
+sub Str bar() { ... }
 ```
 
 ### Issue
-The arrow syntax for return types not fully supported in method signatures.
+Return type syntax requires placement immediately after the sub/method keyword.
 
 ### Symptoms
 - ERROR node after parameter list
 - Return type not recognized
 
 ### Solution
-Extend method_signature to handle return type syntax.
+Place return type immediately after sub/method keyword, not after parameters.
 
 ## 4. Complex Type Expressions in Assertions
 

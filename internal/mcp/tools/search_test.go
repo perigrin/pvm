@@ -118,8 +118,8 @@ sub calculate_sum(Int $a, Int $b) : Int {
     return $a + $b;
 }
 
-sub get_items() : ArrayRef[Str] {
-    return ["item1", "item2", "item3"];
+sub get_count() : Int {
+    return 42;
 }
 `
 	if err := os.WriteFile(testFile, []byte(testCode), 0644); err != nil {

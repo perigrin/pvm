@@ -126,9 +126,9 @@ PSC commands (`psc strip`, `psc run`) use the compiler package for:
 - Future: Adding multiple compilation targets (JavaScript, etc.)
 
 ### Perl Version Output
-- The compiler outputs `use v5.36;` pragma for compatibility with modern Perl features
-- This enables signatures and other features needed by stripped code
-- Using v5.36 for broader compatibility with existing Perl installations
+- The compiler outputs `use v{version};` pragma using the currently configured Perl version from PVM
+- This ensures compatibility with the user's selected Perl version and enables required features
+- Version is dynamically determined rather than hard-coded, respecting PVM's version management
 
 ## Code Style Guidelines
 

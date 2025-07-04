@@ -11,10 +11,12 @@ import (
 	"sync"
 	"time"
 
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/astnav"
 	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/parser/treesitter"
 )
 
 // LanguageService provides language analysis and editor features
@@ -180,7 +182,18 @@ func (ls *LanguageService) UpdateDocument(uri, text string, version int) error {
 		ls.monitor.RecordCacheMiss()
 		var err error
 		bindStart := time.Now()
-		symbolTable, err = ls.binder.BindAST(ast)
+
+		// Parse with tree-sitter for CST binding
+		tsParser := sitter.NewParser()
+		tsParser.SetLanguage(treesitter.Language())
+		contentBytes := []byte(text)
+		tree := tsParser.Parse(contentBytes, nil)
+		if tree == nil {
+			bindOp.CompleteWithError(fmt.Errorf("failed to parse with tree-sitter"))
+			return fmt.Errorf("failed to parse with tree-sitter")
+		}
+
+		symbolTable, err = ls.binder.BindCST(tree.RootNode(), contentBytes, ast.TypeAnnotations)
 		bindDuration := time.Since(bindStart)
 
 		if err != nil {

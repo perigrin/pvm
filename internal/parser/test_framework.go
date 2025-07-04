@@ -185,6 +185,8 @@ type MarkdownTestMetadata struct {
 	Subcategory string       `yaml:"subcategory"`
 	Tags        []string     `yaml:"tags"`
 	TypeCheck   bool         `yaml:"type_check"`
+	ShouldError bool         `yaml:"should_error"`
+	Skip        bool         `yaml:"skip"`
 }
 
 // LoadMarkdownTestCases loads test cases from a Markdown file
@@ -440,6 +442,11 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 		return nil, nil // Skip compilation outcome sections
 	}
 
+	// Skip tests marked as skip in metadata
+	if metadata != nil && metadata.Skip {
+		return nil, nil // Skip tests marked with skip: true
+	}
+
 	// Skip sections without Perl code blocks
 	var perlCode string
 	for _, block := range section.CodeBlocks {
@@ -456,8 +463,8 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 	// Generate test case name from title and file
 	name := f.generateTestCaseName(section.Title, filePath)
 
-	// Parse error expectations from comments
-	shouldError := section.Comments["should_error"] == "true"
+	// Parse error expectations from metadata and comments
+	shouldError := metadata.ShouldError || section.Comments["should_error"] == "true"
 	errorType := section.Comments["expected_error"]
 
 	testCase := &ParserTestCase{

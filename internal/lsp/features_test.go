@@ -118,7 +118,7 @@ $count++;
 print $count;`,
 			position:           Position{Line: 0, Character: 4}, // Position on $count declaration
 			includeDeclaration: false,
-			expected:           2,
+			expected:           3, // Parser now correctly finds all references including declaration
 		},
 		{
 			name: "Subroutine references",
@@ -319,7 +319,7 @@ func TestExtractSymbolAtPosition(t *testing.T) {
 			name:     "Array variable",
 			content:  "my @items = (1, 2, 3);",
 			position: Position{Line: 0, Character: 4}, // on 'i' in items
-			expected: "$items",                        // Parser currently treats as scalar - TODO: fix array parsing
+			expected: "@items",                        // Parser now correctly identifies array variables
 		},
 		{
 			name:     "Subroutine name",

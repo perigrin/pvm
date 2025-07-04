@@ -135,8 +135,8 @@ $a || $b    # Any, Any → Bool
 **TDD Implementation:**
 ```perl
 # Function signature validation:
-sub add(Int $a, Int $b) -> Int { return $a + $b; }
-method getName() -> Str { return $self->{name}; }
+sub Int add(Int $a, Int $b) { return $a + $b; }
+method Str getName() { return $self->{name}; }
 
 # Call-site type checking:
 my $result = add(1, 2);      # Valid - Int, Int
@@ -257,7 +257,7 @@ Fixed getNodeText() implementation and validation patterns working correctly.
 **TDD Implementation:**
 ```perl
 # Context-dependent return types:
-sub get_data() -> List[Int]|Str { ... }
+sub List[Int]|Str get_data() { ... }
 
 my @array_context = get_data();  # List[Int] applies
 my $scalar_context = get_data(); # Str applies
@@ -287,7 +287,7 @@ Complete context-sensitive type system with built-in and user-defined functions,
 **TDD Implementation:**
 ```perl
 # Generic functions:
-sub identity<T>(T $value) -> T { return $value; }
+sub T identity<T>(T $value) { return $value; }
 my $str_result = identity("hello");  # T = Str
 my $int_result = identity(42);       # T = Int
 

@@ -8,11 +8,14 @@ import (
 )
 
 // TypedPerlCompiler compiles AST to Perl code with type annotations preserved
+// Deprecated: Use NewTypedPerlCompilerUnified() from perl_compiler.go instead.
+// This legacy compiler uses the old AST-based approach and will be removed in a future version.
 type TypedPerlCompiler struct {
 	options *CompilerOptions
 }
 
 // NewTypedPerlCompiler creates a new typed Perl compiler
+// Deprecated: Use NewTypedPerlCompilerUnified() instead for better CST-based compilation.
 func NewTypedPerlCompiler() *TypedPerlCompiler {
 	return &TypedPerlCompiler{
 		options: &CompilerOptions{

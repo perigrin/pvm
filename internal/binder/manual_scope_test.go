@@ -101,7 +101,8 @@ func TestDirectMethodScopeIsolation(t *testing.T) {
 
 	// Log final scope structure
 	t.Logf("=== FINAL SCOPE HIERARCHY ===")
-	logScopeStructure(t, symbolTable.GlobalScope, 0)
+	// TODO: Re-implement logScopeStructure helper function
+	// logScopeStructure(t, symbolTable.GlobalScope, 0)
 }
 
 // Helper to count method scopes in hierarchy

@@ -65,12 +65,12 @@ sub goodbye {
 use strict;
 use warnings;
 
-sub process(ArrayRef[Str] $items, HashRef[Int] $counts) -> Bool {
+sub process(ArrayRef[Str] $items, HashRef[Int] $counts) : Bool {
     return 1;
 }
 
-sub transform(Maybe[Str] $input) -> Union[Str, Undef] {
-    return $input // undef;
+sub transform(Str $input) : Str {
+    return $input;
 }`,
 			expected: []string{"process", "transform"},
 		},

@@ -15,10 +15,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/ls"
 	"tamarou.com/pvm/internal/memory"
 	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/parser/treesitter"
 	"tamarou.com/pvm/internal/typechecker"
 	"tamarou.com/pvm/internal/typedef"
 	"tamarou.com/pvm/test/e2e/helpers"
@@ -82,7 +84,15 @@ func TestPoolingIntegration_MemoryUsageValidation(t *testing.T) {
 
 			// Perform symbol binding
 			b := binder.NewBinder()
-			symbolTable, err := b.BindAST(astResult)
+			// Parse with tree-sitter for CST binding
+			tsParser := sitter.NewParser()
+			tsParser.SetLanguage(treesitter.Language())
+			contentBytes, err := os.ReadFile(testFile)
+			require.NoError(t, err)
+			tree := tsParser.Parse(contentBytes, nil)
+			require.NotNil(t, tree)
+
+			symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 			require.NoError(t, err)
 			require.NotNil(t, symbolTable)
 
@@ -184,7 +194,21 @@ func TestPoolingIntegration_ConcurrentUsage(t *testing.T) {
 
 				// Bind symbols
 				b := binder.NewBinder()
-				symbolTable, err := b.BindAST(astResult)
+				// Parse with tree-sitter for CST binding
+				tsParser := sitter.NewParser()
+				tsParser.SetLanguage(treesitter.Language())
+				contentBytes, err := os.ReadFile(testFile)
+				if err != nil {
+					errChan <- fmt.Errorf("worker %d: failed to read file %d: %w", workerID, i, err)
+					return
+				}
+				tree := tsParser.Parse(contentBytes, nil)
+				if tree == nil {
+					errChan <- fmt.Errorf("worker %d: failed to parse with tree-sitter file %d", workerID, i)
+					return
+				}
+
+				symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 				if err != nil {
 					errChan <- fmt.Errorf("worker %d: failed to bind file %d: %w", workerID, i, err)
 					return
@@ -239,12 +263,12 @@ use v5.36;
 field Str $name;
 field Int $count = 0;
 
-method greet(Str $greeting) -> Str {
+sub Str greet(Str $greeting) {
     return "$greeting, $name!";
 }
 
-method increment() -> Int {
-    $count++;
+sub Int increment() {
+    $count = $count + 1;
     return $count;
 }
 
@@ -376,7 +400,15 @@ func TestPoolingIntegration_StressTest(t *testing.T) {
 
 		// Bind
 		b := binder.NewBinder()
-		symbolTable, err := b.BindAST(astResult)
+		// Parse with tree-sitter for CST binding
+		tsParser := sitter.NewParser()
+		tsParser.SetLanguage(treesitter.Language())
+		contentBytes, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+		tree := tsParser.Parse(contentBytes, nil)
+		require.NotNil(t, tree)
+
+		symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 		require.NoError(t, err)
 
 		// Type check
@@ -469,7 +501,15 @@ func TestPoolingIntegration_MemoryLeakDetection(t *testing.T) {
 		require.NoError(t, err)
 
 		b := binder.NewBinder()
-		symbolTable, err := b.BindAST(astResult)
+		// Parse with tree-sitter for CST binding
+		tsParser := sitter.NewParser()
+		tsParser.SetLanguage(treesitter.Language())
+		contentBytes, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+		tree := tsParser.Parse(contentBytes, nil)
+		require.NotNil(t, tree)
+
+		symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 		require.NoError(t, err)
 
 		store, err := typedef.NewStorage()
@@ -610,7 +650,15 @@ sub increment {
 
 			// Symbol binding should work
 			b := binder.NewBinder()
-			symbolTable, err := b.BindAST(astResult)
+			// Parse with tree-sitter for CST binding
+			tsParser := sitter.NewParser()
+			tsParser.SetLanguage(treesitter.Language())
+			contentBytes, err := os.ReadFile(testFile)
+			require.NoError(t, err)
+			tree := tsParser.Parse(contentBytes, nil)
+			require.NotNil(t, tree)
+
+			symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, astResult.TypeAnnotations)
 			require.NoError(t, err)
 			require.NotNil(t, symbolTable)
 

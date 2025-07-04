@@ -106,7 +106,9 @@ func (ep *enhancedParser) tryIdentifyTypeError(originalErr error, source, contex
 	}
 
 	// Check if the error appears to be type-related
-	if !ep.isLikelyTypeError(originalErr, source) {
+	isTypeError := ep.isLikelyTypeError(originalErr, source)
+
+	if !isTypeError {
 		return nil
 	}
 
@@ -124,6 +126,13 @@ func (ep *enhancedParser) isLikelyTypeError(err error, source string) bool {
 	// Check error message for indicators
 	errStr := err.Error()
 	if strings.Contains(errStr, "parse error") || strings.Contains(errStr, "ERROR nodes") {
+		// Check if this looks like a complete Perl file rather than just a type expression
+		if ep.looksLikeCompleteFile(source) {
+			// Don't classify complete file parse failures as type errors
+			// These should be handled as general parsing failures
+			return false
+		}
+
 		// Check source for type-like patterns, but be more specific
 		// Don't consider package-qualified variables as type errors
 		if strings.Contains(source, "::") && strings.Contains(source, "$") &&
@@ -136,6 +145,82 @@ func (ep *enhancedParser) isLikelyTypeError(err error, source string) bool {
 		// Check for actual type annotation patterns
 		return containsActualTypePattern(source)
 	}
+	return false
+}
+
+// looksLikeCompleteFile checks if the source appears to be a complete Perl file
+// rather than just a type expression fragment
+func (ep *enhancedParser) looksLikeCompleteFile(source string) bool {
+	// Trim leading/trailing whitespace for analysis
+	trimmed := strings.TrimSpace(source)
+
+	// Check for clear indicators of complete files
+	completeFilePatterns := []string{
+		"package ",     // Package declarations
+		"use v",        // Version pragmas
+		"use strict",   // Common pragmas
+		"use warnings", // Common pragmas
+	}
+
+	for _, pattern := range completeFilePatterns {
+		if strings.HasPrefix(trimmed, pattern) {
+			return true
+		}
+	}
+
+	// Check if it contains multiple lines with Perl statements
+	lines := strings.Split(trimmed, "\n")
+	statementCount := 0
+	typeExpressionCount := 0
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue // Skip empty lines and comments
+		}
+
+		// Check if this looks like a type expression (malformed or otherwise)
+		if strings.HasPrefix(line, "my ") && containsTypePatterns(line) {
+			typeExpressionCount++
+		}
+
+		// Count lines that look like Perl statements
+		if strings.HasSuffix(line, ";") ||
+			strings.HasSuffix(line, "{") ||
+			strings.HasSuffix(line, "}") ||
+			strings.HasPrefix(line, "package ") ||
+			strings.HasPrefix(line, "use ") ||
+			strings.HasPrefix(line, "sub ") ||
+			strings.HasPrefix(line, "method ") ||
+			strings.HasPrefix(line, "class ") ||
+			strings.HasPrefix(line, "role ") {
+			statementCount++
+		}
+	}
+
+	// If most lines look like type expressions, it's probably a type fragment, not a complete file
+	if typeExpressionCount >= 3 && typeExpressionCount >= statementCount/2 {
+		return false
+	}
+
+	// If we have multiple statement-like lines, it's probably a complete file
+	return statementCount >= 2
+}
+
+// containsTypePatterns checks if a line contains type-related patterns
+func containsTypePatterns(line string) bool {
+	typePatterns := []string{
+		"ArrayRef[", "HashRef[", "Container[", "Map[", "Wrapper[",
+		"|", "&", "!", // Type operators
+		"[", "]", // Brackets for parameterized types
+	}
+
+	for _, pattern := range typePatterns {
+		if strings.Contains(line, pattern) {
+			return true
+		}
+	}
+
 	return false
 }
 

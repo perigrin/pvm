@@ -1,0 +1,27 @@
+{
+  "generic_class": {
+    "average_time": 1580,
+    "max_time": 30000000,
+    "iterations": 100
+  },
+  "method_with_types": {
+    "average_time": 1912,
+    "max_time": 20000000,
+    "iterations": 100
+  },
+  "parameterized_type": {
+    "average_time": 1652,
+    "max_time": 15000000,
+    "iterations": 100
+  },
+  "simple_typed_variable": {
+    "average_time": 1165,
+    "max_time": 5000000,
+    "iterations": 100
+  },
+  "union_type_variable": {
+    "average_time": 1287,
+    "max_time": 10000000,
+    "iterations": 100
+  }
+}

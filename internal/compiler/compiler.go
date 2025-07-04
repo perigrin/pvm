@@ -57,10 +57,10 @@ func NewCompilerRegistry() *CompilerRegistry {
 		compilers: make(map[Target]Compiler),
 	}
 
-	// Register default compilers
-	registry.Register(NewCleanPerlCompiler()) // Use proper AST-based clean compiler
-	registry.Register(NewTypedPerlCompiler())
-	registry.Register(NewInferredTypedPerlCompiler())
+	// Register unified compilers (CST-based, replacing legacy AST-based compilers)
+	registry.Register(NewCleanPerlCompilerUnified())
+	registry.Register(NewTypedPerlCompilerUnified())
+	registry.Register(NewInferredTypedPerlCompiler()) // Keep this one as-is for now
 
 	return registry
 }

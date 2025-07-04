@@ -15,8 +15,10 @@ import (
 	"strings"
 	"time"
 
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/parser/treesitter"
 	"tamarou.com/pvm/internal/typechecker"
 	"tamarou.com/pvm/internal/typedef"
 )
@@ -176,7 +178,7 @@ func profileParser(config ProfileConfig) ProfileResult {
 	p, err := parser.NewParser()
 	if err != nil {
 		log.Printf("Error: Failed to create parser: %v", err)
-		return
+		return ProfileResult{}
 	}
 
 	for i := 0; i < config.SampleSize; i++ {
@@ -257,7 +259,7 @@ func profileBinder(config ProfileConfig) ProfileResult {
 	p, err := parser.NewParser()
 	if err != nil {
 		log.Printf("Error: Failed to create parser: %v", err)
-		return
+		return ProfileResult{}
 	}
 
 	b := binder.NewBinder()
@@ -274,7 +276,17 @@ func profileBinder(config ProfileConfig) ProfileResult {
 				continue
 			}
 
-			_, err = b.BindAST(ast)
+			// Parse with tree-sitter for CST binding
+			tsParser := sitter.NewParser()
+			tsParser.SetLanguage(treesitter.Language())
+			contentBytes := []byte(string(content))
+			tree := tsParser.Parse(contentBytes, nil)
+			if tree == nil {
+				log.Printf("Warning: tree-sitter parse failed in %s", testFile)
+				continue
+			}
+
+			_, err = b.BindCST(tree.RootNode(), contentBytes, ast.TypeAnnotations)
 			if err != nil {
 				log.Printf("Warning: bind error in %s: %v", testFile, err)
 			}
@@ -343,7 +355,7 @@ func profileTypeChecker(config ProfileConfig) ProfileResult {
 	p, err := parser.NewParser()
 	if err != nil {
 		log.Printf("Error: Failed to create parser: %v", err)
-		return
+		return ProfileResult{}
 	}
 
 	b := binder.NewBinder()
@@ -360,7 +372,17 @@ func profileTypeChecker(config ProfileConfig) ProfileResult {
 				continue
 			}
 
-			symbolTable, err := b.BindAST(ast)
+			// Parse with tree-sitter for CST binding
+			tsParser := sitter.NewParser()
+			tsParser.SetLanguage(treesitter.Language())
+			contentBytes := []byte(string(content))
+			tree := tsParser.Parse(contentBytes, nil)
+			if tree == nil {
+				log.Printf("Warning: tree-sitter parse failed in %s", testFile)
+				continue
+			}
+
+			symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, ast.TypeAnnotations)
 			if err != nil {
 				continue
 			}
@@ -453,7 +475,17 @@ func profileIntegratedPipeline(config ProfileConfig) ProfileResult {
 			}
 
 			b := binder.NewBinder()
-			symbolTable, err := b.BindAST(ast)
+			// Parse with tree-sitter for CST binding
+			tsParser := sitter.NewParser()
+			tsParser.SetLanguage(treesitter.Language())
+			contentBytes := []byte(string(content))
+			tree := tsParser.Parse(contentBytes, nil)
+			if tree == nil {
+				log.Printf("Warning: tree-sitter parse failed in %s", testFile)
+				continue
+			}
+
+			symbolTable, err := b.BindCST(tree.RootNode(), contentBytes, ast.TypeAnnotations)
 			if err != nil {
 				continue
 			}

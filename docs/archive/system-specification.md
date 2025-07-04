@@ -739,16 +739,16 @@ our Int @counts;
 state HashRef[Str] $cache;
 
 # Subroutine declarations
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-sub process(Str $input, @options) -> ArrayRef[HashRef] {
+sub ArrayRef[HashRef] process(Str $input, @options) {
     # Implementation
 }
 
 # Complex types
 my Str|Undef $name;
-sub validate(Any $value) -> Bool { ... }
+sub Bool validate(Any $value) { ... }
 my ArrayRef[HashRef[Str]] $complex_data;
 ```

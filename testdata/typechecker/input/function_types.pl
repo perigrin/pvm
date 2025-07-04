@@ -1,8 +1,8 @@
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-sub greet(Str $name) -> Str {
+sub Str greet(Str $name) {
     return "Hello, $name!";
 }
 

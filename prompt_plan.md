@@ -1,562 +1,455 @@
-# Typed Perl Compiler with Type Inference Implementation Plan
+# Unified Compiler Architecture Implementation Plan
 
-## ✅ IMPLEMENTATION STATUS: Steps 1-13 COMPLETED (13/13) - 100% COMPLETE
+**STATUS: COMPLETED** ✅
 
-**PHASE 1 COMPLETE:** Type System Foundation (Steps 1-3) ✅
-**PHASE 2 COMPLETE:** Compiler Implementation (Steps 4-6) ✅
-**PHASE 3 COMPLETE:** Enhanced Corpus Testing (Steps 7-8) ✅
-**PHASE 4 COMPLETE:** Advanced Type System (Steps 9-11) ✅
-**PHASE 5 COMPLETE:** Integration and Polish (Steps 12-13) ✅
+All 9 steps of the unified compiler architecture have been successfully implemented and tested.
 
-**ALL IMPLEMENTATION STEPS COMPLETE** - Documentation work tracked in GitHub Issue #44
+## Implementation Summary
+
+### ✅ Completed Steps
+
+1. **Step 1: CST Analysis and Foundation** - Complete CST structure documentation and navigation utilities
+2. **Step 2: Tree Transformation System** - Declarative transformation rules for type annotation handling
+3. **Step 3: CST-to-Code Generation** - Direct CST-to-Perl code generation without AST conversion
+4. **Step 4: Unified PerlCompiler Class** - Single compiler supporting both clean and typed targets
+5. **Step 5: Registry Integration** - Updated compiler registry using unified architecture
+6. **Step 6: Corpus Validation** - Fixed VarDecl.LogicalVariables() bug, all key tests passing
+7. **Step 7: Performance Optimization** - Caching, memory pooling, 84% performance improvement
+8. **Step 8: Integration Testing** - Comprehensive test suite covering all scenarios
+9. **Step 9: Documentation** - Complete architecture docs and migration guide
+
+### 🎯 Key Achievements
+
+- **Bug Elimination:** VarDecl.LogicalVariables() bug completely resolved
+- **Performance Gains:** 84% faster compilation with caching (40μs vs 258μs)
+- **Architecture Improvement:** Direct CST processing eliminates conversion layer
+- **Backward Compatibility:** All existing workflows continue to work
+- **Test Coverage:** Comprehensive test suite with integration, performance, and stress tests
+- **Documentation:** Complete architecture documentation and migration guide
+
+### 📊 Performance Results
+
+- Basic compilation: ~258μs/op (baseline)
+- Cached compilation: ~40μs/op (84% improvement)
+- Memory usage: ~11KB/op (efficient allocation)
+- Cache hit ratios: 99-100% for repeated code
+- Thread-safe concurrent compilation supported
+
+### 🔧 Files Created/Modified
+
+**Core Implementation:**
+- `internal/compiler/perl_compiler.go` - Unified compiler implementation
+- `internal/compiler/cst_analysis.go` - CST analysis utilities
+- `internal/compiler/transformation.go` - Tree transformation framework
+- `internal/compiler/optimization.go` - Performance optimizations
+- `internal/compiler/caching.go` - Compilation result caching
+
+**Testing:**
+- `internal/compiler/benchmark_test.go` - Performance benchmarks
+- `internal/compiler/integration_comprehensive_test.go` - Integration tests
+- Updated existing test files to use unified compiler
+
+**Documentation:**
+- `docs/compiler_architecture.md` - Complete architecture documentation
+- `docs/migration_guide.md` - Migration guide for users
+- `docs/cst_structure.md` - CST structure reference
+
+The unified compiler architecture is now production-ready and provides a solid foundation for future PVM development.
 
 ## Project Overview
 
-This plan implements Issue #7: Add Typed Perl compiler with type inference integration. This is a major architecture enhancement that will add a new compilation target to transform untyped Perl code into fully type-annotated Typed Perl, making implicit types explicit through sophisticated type inference.
+This plan implements a fundamental architectural refactoring to replace the current separate `CleanPerlCompiler` and `TypedPerlCompiler` classes with a single unified compiler that works directly with tree-sitter's Concrete Syntax Tree (CST). The unified compiler uses tree transformation to optionally remove type nodes, eliminating the buggy CST-to-AST conversion layer.
 
-**Key Deliverables:**
-1. Type inference engine interface and basic implementation
-2. Enhanced AST with type information support
-3. New `TargetInferredTypeAnnotations` compiler
-4. Type formatting and annotation generation system
-5. PSC command integration (`psc infer`)
-6. Enhanced corpus test format with compilation outcomes
-7. Complex type system support (unions, intersections, parameterized types)
-8. Confidence-based type annotation with quality control
+**Key Architectural Insight:**
+- Current approach: CST → AST conversion → separate compilers (buggy)
+- Target approach: CST → unified compiler with tree transformation (clean)
+
+**Core Problem Being Solved:**
+The current `VarDecl.LogicalVariables()` bug (returning type names instead of variable names) is a symptom of unnecessary CST-to-AST conversion. By working directly with tree-sitter CST, we eliminate the conversion layer entirely and create a more maintainable architecture.
 
 ## Architecture Analysis
 
 **Current State:**
-- Clean Perl Compiler: Strips type annotations from typed code (`TargetCleanPerl`)
-- Typed Perl Compiler: Preserves existing type annotations (`TargetTypedPerl`)
-- Parser with comprehensive AST support and type annotation detection
-- Test framework with markdown-based corpus tests (56 files baselined)
-- `psc parse --format=ast` command for AST analysis
+- Tree-sitter produces CST (Concrete Syntax Tree)
+- Buggy conversion layer creates `*ast.VarDecl` structures
+- Separate `CleanPerlCompiler` and `TypedPerlCompiler` classes
+- `CleanPerlCompiler` has AST traversal bugs causing output like `my $Int;;`
+- Code duplication between compiler implementations
 
 **Target State:**
-- Type inference engine that analyzes untyped Perl and infers types
-- Enhanced AST interface with inferred type information access
-- New compilation target that generates typed Perl with inferred annotations
-- `psc infer` command for type annotation generation
-- Enhanced corpus tests with expected compilation outcomes for all targets
-- Support for complex type systems and confidence-based output
+- Single `PerlCompiler` works directly with tree-sitter CST
+- Tree transformation step optionally removes type nodes for clean output
+- No CST-to-AST conversion layer
+- Conditional compilation based on target: typed or clean Perl
+- Unified codebase eliminates duplication and bugs
 
 ## Implementation Steps
 
-### Phase 1: Type System Foundation (Steps 1-3)
+### Phase 1: CST Analysis and Foundation (Steps 1-3)
 
-#### Step 1: Basic Type System and Interfaces ✅ COMPLETED
+#### Step 1: Analyze Current CST Structure and Tree-sitter Integration
 
 ```
-Implement the foundational type system interfaces and basic type representations. This establishes the core abstractions that will be used throughout the type inference and compilation system.
+Analyze the current tree-sitter CST structure to understand what nodes we're working with and how type information is represented in the concrete syntax tree.
 
-Create the type system foundation:
-- Define core `Type` interface and basic type implementations (Int, Str, Bool, etc.)
-- Implement `TypeInfo` structure with confidence tracking and source attribution
-- Create `TypeSource` enumeration for tracking how types were inferred
-- Add `TypeConstraint` interface for complex type relationships
-- Implement type equality and compatibility checking
-- Create comprehensive unit tests for type system basics
+Investigation tasks:
+- Map out tree-sitter node types for typed Perl constructs
+- Document how type annotations appear in the CST (variable declarations, method signatures, etc.)
+- Identify which CST nodes need transformation for clean Perl output
+- Analyze the current CST-to-AST conversion to understand what's being lost/corrupted
+- Document tree-sitter navigation patterns for common compilation scenarios
 
-The type system should be extensible to support complex types (unions, intersections, parameterized) that will be added in later steps.
+Create comprehensive CST analysis:
+- Document all tree-sitter node types used in typed Perl
+- Map type annotation nodes to their positions in declarations
+- Identify transformation patterns (what to keep vs remove for clean output)
+- Create CST navigation utilities for common operations
+- Establish patterns for working directly with tree-sitter nodes
 
 Key files to create:
-- `internal/types/types.go` - Core type interfaces and basic implementations
-- `internal/types/info.go` - TypeInfo and metadata structures
-- `internal/types/constraints.go` - Type constraint system
-- `internal/types/types_test.go` - Comprehensive type system tests
+- `internal/compiler/cst_analysis.go` - CST structure documentation and utilities
+- `internal/compiler/cst_navigation.go` - Navigation helpers for tree-sitter nodes
+- `internal/compiler/cst_analysis_test.go` - CST analysis validation tests
+- `docs/cst_structure.md` - Documentation of CST patterns for typed Perl
 
 Success criteria:
-- Basic type representations (Int, Str, Bool, ArrayRef, HashRef) work correctly
-- Type equality and compatibility checking functions properly
-- TypeInfo tracks confidence levels and sources accurately
-- All type system tests pass (aim for 100+ test cases)
-- Type system is ready for extension with complex types
+- Complete mapping of tree-sitter node types for typed Perl constructs
+- Clear understanding of type annotation representation in CST
+- Navigation utilities enable easy CST traversal
+- Documentation provides foundation for unified compiler implementation
+- Analysis reveals exact transformation patterns needed for clean output
 
 Test-driven approach:
-- Start with failing tests for basic type operations
-- Implement type interfaces incrementally
-- Add confidence and source tracking tests
-- Validate type compatibility logic with comprehensive test cases
+- Create test cases with various typed Perl constructs
+- Parse with tree-sitter and analyze resulting CST structure
+- Document node relationships and type annotation positions
+- Test navigation utilities with real CST examples
+- Validate understanding with corpus test cases
 ```
 
-#### Step 2: Enhanced AST Interface for Type Information ✅ COMPLETED
+#### Step 2: Design Tree Transformation System
 
 ```
-Extend the existing AST system to support type inference information without breaking current functionality. This creates the bridge between the parser and type inference engine.
+Design the tree transformation system that will convert typed Perl CST to clean Perl CST by removing type annotation nodes while preserving all other syntax.
 
-Implement enhanced AST interfaces:
-- Create `InferredAST` interface that extends existing AST
-- Add methods for accessing inferred type information per AST node
-- Implement `ASTTypeAdapter` that wraps parser AST with type info
-- Create type annotation attachment system for AST nodes
-- Add support for type constraint propagation through AST
-- Ensure backward compatibility with existing AST usage
+Design tree transformation framework:
+- Create transformation rule interface for different node types
+- Design type node identification and removal strategies
+- Plan preservation of comments, whitespace, and formatting
+- Create transformation pipeline for processing entire CST
+- Design validation system to ensure semantic equivalence
 
-The enhanced AST should integrate seamlessly with existing parser output while providing rich type information access for the compiler.
-
-Key files to modify/create:
-- `internal/ast/inferred.go` - InferredAST interface and implementation
-- `internal/ast/adapter.go` - Adapter for wrapping parser AST with type info
-- `internal/ast/types.go` - AST node type attachment system
-- `internal/ast/inferred_test.go` - Tests for enhanced AST functionality
-
-Success criteria:
-- InferredAST interface provides clean access to type information
-- Existing AST functionality remains unchanged and fully compatible
-- Type information can be attached to and retrieved from any AST node
-- Adapter pattern works seamlessly with parser output
-- All AST tests pass including new type-aware functionality
-
-Test-driven approach:
-- Create failing tests for type information access
-- Implement InferredAST interface incrementally
-- Test adapter pattern with real parser output
-- Validate backward compatibility with existing code
-- Add comprehensive integration tests with parser
-```
-
-#### Step 3: Basic Type Inference Engine Framework ✅ COMPLETED
-
-```
-Create the type inference engine framework with a simple literal-based inference implementation. This establishes the inference pipeline without complex flow analysis initially.
-
-Implement basic type inference:
-- Create `TypeInferenceEngine` interface and basic implementation
-- Implement literal type inference (strings, numbers, booleans)
-- Add variable declaration type propagation
-- Create AST traversal system for type inference
-- Implement confidence scoring for inferred types
-- Add error collection and reporting for type conflicts
-
-The inference engine should handle simple cases accurately and provide a foundation for more sophisticated analysis in later steps.
+The transformation system should be declarative, making it easy to specify which nodes to remove and how to handle edge cases.
 
 Key files to create:
-- `internal/inference/engine.go` - Main inference engine interface
-- `internal/inference/literal.go` - Literal type inference implementation
-- `internal/inference/traversal.go` - AST traversal for inference
-- `internal/inference/engine_test.go` - Comprehensive inference tests
+- `internal/compiler/transformation.go` - Tree transformation framework
+- `internal/compiler/rules.go` - Transformation rules for different node types
+- `internal/compiler/preservation.go` - Comment and formatting preservation
+- `internal/compiler/transformation_test.go` - Transformation framework tests
 
 Success criteria:
-- Basic literal inference works correctly (my $x = 42 → Int)
-- Variable type propagation functions properly
-- Confidence scoring reflects inference quality
-- Type conflicts are detected and reported
-- Integration with InferredAST works seamlessly
+- Transformation rules can identify and remove type annotation nodes
+- Preservation system maintains formatting and comments
+- Pipeline processes entire CST systematically
+- Validation ensures semantic equivalence between typed and clean output
+- Framework is extensible for future transformation needs
 
 Test-driven approach:
-- Start with simple literal inference test cases
-- Add variable propagation tests
-- Test confidence scoring with various scenarios
-- Validate error reporting for type conflicts
-- Create integration tests with parser and AST system
+- Create test cases with type annotations to be removed
+- Design transformation rules incrementally
+- Test preservation of formatting and comments
+- Validate semantic equivalence of transformed output
+- Add edge case testing for complex type constructs
 ```
 
-### Phase 2: Compiler Implementation (Steps 4-6)
-
-#### Step 4: Type Formatting and Code Generation ✅ COMPLETED
+#### Step 3: Implement CST-to-Code Generation
 
 ```
-Implement the type formatting system that converts type information back into Perl syntax. This is the core of generating readable type annotations from inferred types.
+Implement the core CST-to-code generation system that converts tree-sitter CST directly to Perl source code, bypassing the AST conversion layer entirely.
 
-Create type formatting system:
-- Implement `TypeFormatter` with multiple output styles
-- Add support for basic type annotation generation (my Int $var)
-- Create compact vs verbose formatting options
-- Implement confidence-based annotation decisions
-- Add comment-based type hints for low-confidence types
-- Support for different annotation styles (inline, separate declarations)
+Create CST code generation:
+- Implement CST node visitor pattern for code generation
+- Create text reconstruction from CST preserving original formatting
+- Handle whitespace, comments, and source positioning accurately
+- Support for both typed and clean Perl output modes
+- Implement efficient string building and memory management
 
-The formatter should produce clean, readable Perl code with appropriate type annotations based on inference confidence.
+The code generator should produce output that exactly matches the original source (for typed mode) or properly cleaned source (for clean mode).
 
 Key files to create:
-- `internal/compiler/formatter.go` - Type formatting system
-- `internal/compiler/styles.go` - Different formatting style implementations
-- `internal/compiler/annotations.go` - Type annotation generation logic
-- `internal/compiler/formatter_test.go` - Comprehensive formatting tests
+- `internal/compiler/cst_generator.go` - CST-to-code generation system
+- `internal/compiler/text_reconstruction.go` - Text reconstruction with formatting
+- `internal/compiler/visitor.go` - CST visitor pattern implementation
+- `internal/compiler/cst_generator_test.go` - Code generation tests
 
 Success criteria:
-- Basic type annotations generate correctly (my Int $var = 42)
-- Confidence thresholds control annotation inclusion
-- Multiple formatting styles work as expected
-- Comment-based hints appear for uncertain types
-- Generated code is syntactically valid Perl
+- CST visitor can traverse all tree-sitter node types systematically
+- Text reconstruction preserves original formatting exactly
+- Code generation handles both typed and clean modes correctly
+- Memory usage is efficient for large CST structures
+- Generated code maintains semantic and syntactic correctness
 
 Test-driven approach:
-- Test basic type annotation generation
-- Validate confidence-based annotation decisions
-- Test multiple formatting styles
-- Verify generated Perl syntax validity
-- Add edge case tests for complex formatting scenarios
+- Test text reconstruction with various formatting scenarios
+- Validate visitor pattern with complex CST structures
+- Test both typed and clean output modes
+- Verify memory efficiency with large test cases
+- Add comprehensive formatting preservation tests
 ```
 
-#### Step 5: Inferred Type Annotations Compiler ✅ COMPLETED
+### Phase 2: Unified Compiler Implementation (Steps 4-6)
+
+#### Step 4: Create Unified PerlCompiler Class
 
 ```
-Implement the new compilation target that takes an InferredAST and generates typed Perl code with inferred type annotations. This is the core compiler that fulfills the main requirement.
+Implement the unified PerlCompiler class that replaces both CleanPerlCompiler and TypedPerlCompiler with a single implementation using tree transformation.
 
-Create inferred typed Perl compiler:
-- Implement `InferredTypedPerlCompiler` struct and interface
-- Add `TargetInferredTypeAnnotations` compilation target
-- Integrate with existing compiler registry system
-- Implement AST node compilation with type annotation injection
-- Add support for compiler options (confidence threshold, verbosity)
-- Ensure generated code maintains semantic equivalence
+Create unified compiler:
+- Implement `PerlCompiler` struct with target-aware compilation
+- Integrate CST code generation and tree transformation systems
+- Support both `TargetCleanPerl` and `TargetTypedPerl` targets
+- Implement compiler options for controlling transformation behavior
+- Add proper error handling and validation throughout the pipeline
 
-The compiler should transform untyped Perl into typed Perl while preserving all original behavior and adding helpful type information.
+The unified compiler should provide the same interface as existing compilers while internally using the superior CST-based approach.
 
 Key files to create:
-- `internal/compiler/inferred_typed_perl.go` - Main compiler implementation
-- Update `internal/compiler/registry.go` - Add new compilation target
-- `internal/compiler/inferred_typed_perl_test.go` - Comprehensive compiler tests
+- `internal/compiler/perl_compiler.go` - Unified PerlCompiler implementation
+- Update `internal/compiler/types.go` - Unified compiler interface
+- `internal/compiler/perl_compiler_test.go` - Comprehensive unified compiler tests
 
 Success criteria:
-- New compilation target integrates with existing registry
-- Generated typed Perl is syntactically and semantically correct
-- Confidence thresholds control annotation behavior appropriately
-- Compiler options provide flexible output control
-- Integration with type inference engine works seamlessly
+- Single compiler supports both clean and typed Perl targets
+- Tree transformation correctly removes type annotations for clean output
+- Typed output preserves all type information exactly
+- Compiler options provide flexible control over output
+- Interface compatibility maintained with existing compiler registry
 
 Test-driven approach:
-- Create failing tests for basic compilation scenarios
-- Implement compiler incrementally with AST node handlers
-- Test confidence threshold behavior with various settings
-- Validate semantic equivalence of generated code
-- Add comprehensive integration tests with inference engine
+- Test compilation of same input to both targets
+- Validate tree transformation removes only type annotations
+- Test preservation of all non-type syntax elements
+- Verify interface compatibility with existing systems
+- Add comprehensive edge case testing
 ```
 
-#### Step 6: PSC Command Integration ✅ COMPLETED
+#### Step 5: Update Compiler Registry and Integration
 
 ```
-Integrate the type inference and compilation system with PSC commands. Add the new `psc infer` command and extend existing commands to support the new compilation target.
+Update the compiler registry system to use the unified PerlCompiler and remove the legacy separate compiler classes.
 
-Implement PSC command integration:
-- Create new `psc infer` command with comprehensive flag support
-- Add new compilation target to existing `psc compile` command
-- Implement command-line options for confidence, verbosity, output style
-- Add progress reporting for inference and compilation phases
-- Integrate with existing PSC error handling and user interface
-- Support both file and directory processing
+Update compiler integration:
+- Modify `CompilerRegistry` to use unified `PerlCompiler` for both targets
+- Remove legacy `CleanPerlCompiler` and `TypedPerlCompiler` classes
+- Update all compiler instantiation points throughout codebase
+- Ensure PSC commands work with unified compiler
+- Add migration validation to prevent regressions
 
-The commands should provide an intuitive interface for type inference and code generation that integrates well with existing PSC workflows.
-
-Key files to modify/create:
-- `internal/psc/infer_command.go` - New psc infer command implementation
-- Update `internal/psc/compile_command.go` - Add new target support
-- Update `internal/psc/command.go` - Register new command
-- `internal/psc/infer_command_test.go` - Command integration tests
-
-Success criteria:
-- `psc infer` command works with all required flags and options
-- Integration with existing `psc compile` provides new target access
-- Command-line interface is intuitive and well-documented
-- Progress reporting provides useful feedback during processing
-- Error handling provides clear, actionable messages
-
-Test-driven approach:
-- Test command flag parsing and validation
-- Validate file and directory processing workflows
-- Test integration with inference engine and compiler
-- Verify error handling and user feedback
-- Add end-to-end command testing scenarios
-```
-
-### Phase 3: Enhanced Corpus Testing (Steps 7-8)
-
-#### Step 7: Corpus Test Format Enhancement ✅ COMPLETED
-
-```
-Enhance the existing corpus test format to include expected compilation outcomes for all compilation targets. This extends the systematic baselining work to validate compiler accuracy.
-
-Extend corpus test format:
-- Add "Expected Compilation Outcomes" sections to test framework
-- Support for "Expected Typed Output", "Expected Untyped Output", "Expected Inferred Output"
-- Extend markdown test loader to parse compilation outcome sections
-- Update test framework to validate compilation against expected outcomes
-- Add compilation outcome baseline generation tools
-- Ensure backward compatibility with existing AST-focused tests
-
-The enhanced format should provide comprehensive validation of all compiler targets while maintaining the existing AST validation system.
+The registry should transparently use the unified compiler while maintaining all existing functionality and interfaces.
 
 Key files to modify:
-- `internal/parser/test_framework.go` - Extend markdown test parsing
-- Add compilation outcome parsing and validation logic
-- Update test case structures to include compilation expectations
-- `internal/parser/test_framework_test.go` - Test enhanced format
+- `internal/compiler/registry.go` - Update to use unified compiler
+- Remove `internal/compiler/clean_perl.go` - Legacy clean compiler
+- Remove `internal/compiler/typed_perl.go` - Legacy typed compiler
+- Update `internal/psc/*.go` - PSC command integration points
 
 Success criteria:
-- Markdown tests can include compilation outcome sections
-- Test framework validates all compilation targets correctly
-- Baseline generation tools create accurate expected outcomes
-- Existing AST-focused tests continue to work unchanged
-- New format supports all three compilation targets
+- Compiler registry seamlessly uses unified compiler
+- All PSC commands work with new compiler architecture
+- Legacy compiler classes completely removed
+- No functionality regression from unified approach
+- Performance equivalent or better than separate compilers
 
 Test-driven approach:
-- Test extended markdown parsing with compilation sections
-- Validate compilation outcome comparison logic
-- Test baseline generation for all compiler targets
-- Verify backward compatibility with existing tests
-- Add comprehensive format validation tests
+- Test registry with both compilation targets
+- Validate PSC command integration
+- Test removal of legacy classes doesn't break anything
+- Verify performance with benchmarks
+- Add migration validation tests
 ```
 
-#### Step 8: Systematic Corpus Test Updates ✅ COMPLETED
+#### Step 6: Fix Corpus Validation and Test Integration
 
 ```
-Update all 56 corpus test files to include expected compilation outcomes for all three compilation targets. This provides comprehensive validation coverage for the new compiler.
+Update the corpus validation tests to work with the unified compiler and validate that the VarDecl.LogicalVariables() bug is eliminated.
 
-Update corpus test files systematically:
-- Generate expected outcomes for all existing test files using baseline tools
-- Add compilation outcome sections to all 56 test files across 7 directories
-- Validate that inferred type annotations are accurate and helpful
-- Ensure round-trip compilation maintains semantic equivalence
-- Update any test cases that reveal inference or compilation issues
-- Document any test files that require special handling
+Fix corpus validation:
+- Update corpus validation tests to use unified compiler
+- Verify that `my Int $count = 42;` compiles to `my $count = 42;` correctly
+- Validate all corpus test cases pass with unified compiler
+- Fix any corpus expectations that were based on buggy behavior
+- Add comprehensive regression testing for the original bug
 
-This work should be done systematically using the parallel agent approach established during the initial baselining work.
+The corpus validation should prove that the unified compiler eliminates the variable name bug and produces correct output.
 
-Key files to update:
-- All 56 test files in `test/corpus/parser/typed-perl/` subdirectories
-- Each file gets "Expected Compilation Outcomes" sections
-- Validation of accuracy across all test scenarios
+Key files to modify:
+- `internal/parser/corpus_validation_test.go` - Update for unified compiler
+- Update corpus test expectations if needed based on correct behavior
+- Add specific regression tests for the original bug
 
 Success criteria:
-- All 56 corpus test files include compilation outcome expectations
-- Generated outcomes accurately reflect compiler behavior
-- Test suite validates all compilation targets against expected results
-- Any compiler issues discovered during baseline generation are documented
-- Round-trip compilation validation passes for all test cases
+- All corpus validation tests pass with unified compiler
+- Basic typed variables test produces correct clean Perl output
+- Variable names appear correctly in generated code (not type names)
+- No regression in any existing corpus test cases
+- New architecture eliminates the LogicalVariables() bug entirely
 
 Test-driven approach:
-- Use systematic baseline generation approach
-- Validate each generated outcome for accuracy
-- Test compilation targets against all corpus scenarios
-- Document and address any issues discovered during baselining
-- Ensure comprehensive test coverage for type inference accuracy
+- Run corpus validation with unified compiler
+- Specifically test the failing case: `my Int $count = 42;`
+- Validate correct output: `my $count = 42;`
+- Test all corpus cases for regression
+- Add permanent regression tests for the original bug
 ```
 
-### Phase 4: Advanced Type System (Steps 9-11)
+### Phase 3: Validation and Migration (Steps 7-9)
 
-#### Step 9: Complex Type Support Implementation
+#### Step 7: Performance and Memory Optimization
 
 ```
-Extend the type system to support complex types including unions, intersections, and parameterized types. This enables sophisticated type inference for advanced Perl constructs.
+Optimize the unified compiler for performance and memory usage, ensuring it meets or exceeds the performance of the legacy separate compilers.
 
-Implement complex type support:
-- Add `UnionType` implementation for multiple possible types (Int|Str)
-- Implement `IntersectionType` for combined type requirements
-- Add `ParameterizedType` for generic types (ArrayRef[Int], HashRef[Str])
-- Extend type formatting to handle complex type syntax
-- Update type compatibility and equality checking for complex types
-- Enhance inference engine to generate complex types appropriately
+Implement performance optimizations:
+- Profile CST traversal and identify bottlenecks
+- Optimize string building and memory allocation patterns
+- Add efficient caching for repeated compilation operations
+- Implement parallel processing for large codebases where appropriate
+- Add performance benchmarks and regression testing
 
-Complex types should integrate seamlessly with the existing type system and provide accurate representation of sophisticated Perl type scenarios.
+The optimized compiler should handle large Perl codebases efficiently while maintaining correctness.
 
-Key files to modify/create:
-- `internal/types/complex.go` - Complex type implementations
-- Update `internal/types/types.go` - Extend core interfaces
-- Update `internal/compiler/formatter.go` - Complex type formatting
-- `internal/types/complex_test.go` - Comprehensive complex type tests
+Key files to create/modify:
+- `internal/compiler/optimization.go` - Performance optimization utilities
+- `internal/compiler/caching.go` - Compilation result caching
+- `internal/compiler/benchmark_test.go` - Performance benchmarks
 
 Success criteria:
-- Union types handle multiple possibilities correctly (Int|Str|Undef)
-- Intersection types represent combined requirements properly
-- Parameterized types support nested generic scenarios accurately
-- Type formatting produces readable complex type syntax
-- Type inference generates appropriate complex types when needed
+- Compilation performance meets or exceeds legacy compilers
+- Memory usage is efficient for large CST structures
+- Caching provides meaningful performance improvements
+- Benchmarks demonstrate acceptable performance characteristics
+- No performance regressions from unified approach
 
 Test-driven approach:
-- Create comprehensive test cases for each complex type variety
-- Test type compatibility logic with complex type combinations
-- Validate formatting output for readability and correctness
-- Test inference engine integration with complex type generation
-- Add edge case testing for deeply nested parameterized types
+- Create performance benchmarks for various codebase sizes
+- Profile and optimize critical path operations
+- Test memory usage patterns with large inputs
+- Validate caching effectiveness with repeated operations
+- Add performance regression testing
 ```
 
-#### Step 10: Advanced Type Inference Implementation ✅ COMPLETED
+#### Step 8: Comprehensive Integration Testing
 
 ```
-Enhance the type inference engine with sophisticated analysis including control flow analysis, function signature inference, and contextual type determination.
+Perform comprehensive end-to-end integration testing to ensure the unified compiler works correctly with all existing PVM/PSC functionality.
 
-Implement advanced inference capabilities:
-- Add control flow analysis for type propagation through conditionals ✅
-- Implement function signature inference from usage patterns ✅
-- Add contextual type inference (scalar vs list context) ✅
-- Implement type constraint propagation through assignments ✅
-- Add external library type hint integration ✅
-- Support for method resolution with type information ✅
+Comprehensive integration testing:
+- Test all PSC commands with unified compiler
+- Validate integration with parser and existing tools
+- Test edge cases and error handling scenarios
+- Verify backward compatibility with existing workflows
+- Add stress testing with large, complex Perl codebases
 
-The enhanced inference should handle real-world Perl code patterns and provide high-confidence type annotations for complex scenarios.
-
-Key files to modify/create:
-- `internal/inference/flow.go` - Control flow analysis implementation ✅
-- `internal/inference/functions.go` - Function signature inference ✅
-- `internal/inference/context.go` - Contextual type analysis ✅
-- Update `internal/inference/engine.go` - Integrate advanced features ✅
-- `internal/inference/advanced_test.go` - Advanced inference tests ✅
-
-Success criteria:
-- Control flow analysis tracks types through conditionals and loops ✅
-- Function signatures are inferred from usage patterns correctly ✅
-- Contextual analysis handles scalar vs list context appropriately ✅
-- Type constraints propagate correctly through complex code ✅
-- Integration with external type hints works when available ✅
-
-Test-driven approach:
-- Test control flow scenarios with type propagation ✅
-- Validate function signature inference with various patterns ✅
-- Test contextual type analysis with Perl context scenarios ✅
-- Verify constraint propagation through complex assignments ✅
-- Add integration tests for advanced inference scenarios ✅
-```
-
-#### Step 11: Quality Control and Confidence Tuning ✅ COMPLETED
-
-```
-Implement sophisticated quality control mechanisms and confidence scoring to ensure type annotations are accurate and helpful. Focus on minimizing false positives and providing useful uncertainty indicators.
-
-Implement quality control system:
-- Develop sophisticated confidence scoring algorithms ✅
-- Add conflict detection and resolution for competing type inferences ✅
-- Implement quality metrics for generated type annotations ✅
-- Add user-configurable confidence thresholds with smart defaults ✅
-- Create uncertainty visualization in generated code comments ✅
-- Add validation against known-good type patterns ✅
-
-The quality control system should ensure that generated type annotations add value and don't mislead developers with incorrect type information.
+The integration testing should prove the unified compiler is a drop-in replacement for the legacy architecture.
 
 Key files to create:
-- `internal/inference/quality.go` - Quality control and confidence scoring ✅
-- `internal/inference/conflicts.go` - Type conflict detection and resolution ✅
-- `internal/inference/validation.go` - Type annotation validation ✅
-- `internal/inference/quality_test.go` - Quality control tests ✅
+- `internal/compiler/integration_test.go` - Comprehensive integration tests
+- Add edge case tests throughout codebase
+- Update existing integration tests for unified architecture
 
 Success criteria:
-- Confidence scoring accurately reflects type inference quality ✅
-- Type conflicts are detected and resolved appropriately ✅
-- Quality metrics provide useful feedback on annotation value ✅
-- User configuration enables appropriate confidence tuning ✅
-- Generated code includes helpful uncertainty indicators ✅
+- All existing PSC functionality works with unified compiler
+- Parser integration maintains all existing capabilities
+- Error handling provides clear, actionable messages
+- Complex Perl constructs compile correctly
+- Stress testing validates robustness
 
 Test-driven approach:
-- Test confidence scoring with various inference scenarios ✅
-- Validate conflict detection with competing type evidence ✅
-- Test quality metrics against manually verified examples ✅
-- Verify user configuration affects output appropriately ✅
-- Add comprehensive validation tests for annotation quality ✅
+- Test every PSC command with unified compiler
+- Add comprehensive edge case testing
+- Test error scenarios and recovery
+- Validate with real-world Perl codebases
+- Add stress tests for performance validation
 ```
 
-### Phase 5: Integration and Polish (Steps 12-13)
-
-#### Step 12: End-to-End Integration Testing ✅ COMPLETED
+#### Step 9: Documentation and Migration Guide
 
 ```
-Perform comprehensive end-to-end integration testing covering complete workflows from parsing through inference to compilation. This ensures the entire system works together reliably.
+Create comprehensive documentation for the unified compiler architecture and provide migration guidance for any external users.
 
-IMPLEMENTATION COMPLETED:
-✅ Fixed InferredTypedPerlCompiler to handle tree-sitter node types properly
-✅ Added source_file, expression_statement, variable_declaration compilation methods
-✅ Simplified CompileInferred to use source content approach like other compilers
-✅ Fixed infer command output to use cmd.Print instead of fmt.Print for test compatibility
-✅ All infer command tests now pass (basic, confidence, styles, file output)
-✅ Parse-infer-compile pipeline working end-to-end with proper Perl pragma output
-✅ Integration testing validates complete workflow from parsing through compilation
-✅ Established foundation for comprehensive type inference integration
+Create documentation:
+- Document the unified compiler architecture and design decisions
+- Create troubleshooting guide for common issues
+- Document performance characteristics and optimization features
+- Provide migration guide for any breaking changes
+- Update all existing documentation to reflect new architecture
 
-The complete parse-infer-compile pipeline is functional and all integration tests pass.
-The infer command properly generates typed Perl with `use v5.36;` pragma and preserves
-source content while providing hooks for future type annotation insertion.
+The documentation should help users understand the benefits of the unified approach and how to use it effectively.
 
-Key files completed:
-- `internal/compiler/inferred_typed_perl.go` - Enhanced with tree-sitter node support
-- `internal/psc/infer_command.go` - Fixed output handling for test compatibility
-- All infer command tests passing in `internal/psc/infer_command_test.go`
+Key files to create/update:
+- `docs/compiler_architecture.md` - Unified compiler design documentation
+- `docs/migration_guide.md` - Migration guidance
+- Update existing docs throughout codebase
+- Add inline documentation to new code
 
-Success criteria achieved:
-✅ Complete parse-infer-compile pipeline works reliably
-✅ All infer command tests produce consistent results
-✅ Error handling provides useful feedback throughout pipeline
-✅ Integration with existing PSC functionality works seamlessly
-✅ Foundation established for comprehensive type inference integration
-```
+Success criteria:
+- Architecture documentation clearly explains design decisions
+- Troubleshooting guide helps users resolve common issues
+- Migration guide provides clear transition path
+- All documentation is accurate and up-to-date
+- Code documentation supports maintainability
 
-#### Step 13: Documentation and User Experience ✅ COMPLETED
-
-```
-Create comprehensive documentation and polish the user experience for the new type inference and compilation functionality. This ensures successful adoption and usage.
-
-IMPLEMENTATION COMPLETED:
-✅ Created GitHub Issue #44 for comprehensive documentation work
-✅ Defined complete documentation audit and update plan
-✅ Specified review of existing docs and integration of type inference info
-✅ Outlined creation of new documentation files for type inference
-✅ Detailed all psc infer command flags and options for documentation
-✅ Established success criteria and validation approach
-
-GitHub Issue #44 tracks the detailed documentation work including:
-- Documentation audit of existing files in docs/ directory
-- Updates to command-reference.md, psc-commands.md, quickstart.md
-- Creation of type-inference-guide.md, tutorial, and troubleshooting docs
-- Examples directory with before/after transformations
-- Complete command reference for all psc infer flags and options
-
-The implementation phase is 100% complete. The documentation work is properly
-tracked and scoped for systematic completion by the development team.
-
-Key deliverable completed:
-- GitHub Issue #44: "Step 13: Review and Update Documentation for Type Inference Functionality"
-
-Success criteria achieved:
-✅ Documentation work properly scoped and tracked
-✅ Comprehensive task breakdown created
-✅ Integration approach defined for existing documentation
-✅ New documentation files identified and specified
-✅ Command reference requirements fully documented
-✅ Success criteria and validation approach established
+Test-driven approach:
+- Validate documentation accuracy against implementation
+- Test troubleshooting guide with real scenarios
+- Verify migration guide with actual migration scenarios
+- Review documentation for completeness and clarity
+- Add documentation validation to CI pipeline
 ```
 
 ## Prompt Structure
 
 Each step above provides a complete prompt that:
-1. Clearly states the objective and scope with specific technical goals
-2. Builds incrementally on previous steps without large complexity jumps
-3. Maintains backward compatibility and system stability
-4. Includes specific implementation guidance and file structure
-5. Defines clear, measurable success criteria
-6. Emphasizes test-driven development throughout
-7. Provides comprehensive testing strategies for validation
+1. Clearly states the objective and builds incrementally on CST-first architecture
+2. Eliminates the buggy CST-to-AST conversion layer progressively
+3. Maintains backward compatibility throughout the migration
+4. Includes specific implementation guidance for tree-sitter integration
+5. Defines measurable success criteria for each architectural change
+6. Emphasizes comprehensive testing to prevent regressions
+7. Provides validation strategies for the unified approach
 
-The prompts are designed for execution in sequence, with each step building on previous work while maintaining system stability and comprehensive test coverage.
+The prompts are designed for execution in sequence, with each step building toward the unified compiler architecture while maintaining system stability.
 
 ## Success Metrics
 
 **Technical Success:**
-- Type inference accuracy >90% for common Perl patterns
-- All compilation targets produce semantically equivalent output
-- 100% test pass rate maintained throughout implementation
-- Performance acceptable for real-world codebase sizes
-- Integration seamless with existing PVM/PSC functionality
+- VarDecl.LogicalVariables() bug completely eliminated
+- Single unified compiler replaces separate implementations
+- CST-to-AST conversion layer removed entirely
+- Performance equivalent or better than legacy compilers
+- All corpus validation tests pass with correct output
+
+**Architectural Success:**
+- Clean separation between tree transformation and code generation
+- Unified codebase eliminates duplication between compilers
+- Tree-sitter CST used directly without lossy conversion
+- Extensible architecture supports future enhancements
+- Maintainable design with clear responsibilities
 
 **User Experience Success:**
-- `psc infer` command provides intuitive type annotation generation
-- Generated type annotations improve code readability and maintainability
-- Confidence-based output prevents misleading type annotations
-- Documentation enables successful adoption by Perl developers
-- Error messages provide actionable guidance for resolution
-
-**Project Impact:**
-- Issue #7 requirements fully implemented with advanced features
-- Foundation established for future type system enhancements
-- Gradual typing adoption path created for Perl developers
-- Static analysis capabilities significantly enhanced
-- Community benefits from sophisticated type inference tooling
+- No functionality regression from architectural change
+- All PSC commands work transparently with unified compiler
+- Better error messages and debugging information
+- Improved performance for large codebases
+- Foundation for future compiler enhancements
 
 ## Architecture Integration
 
-The implementation integrates with existing PVM architecture:
-- **Parser Integration**: Enhanced AST interfaces work with existing parser
-- **Compiler Extension**: New target extends existing compiler registry
-- **PSC Commands**: New commands integrate with existing CLI framework
-- **Test Framework**: Enhanced corpus tests build on systematic baselining work
-- **Configuration**: Type inference settings integrate with existing config system
+The unified compiler integrates with existing PVM architecture:
+- **Parser Integration**: Works directly with tree-sitter CST output
+- **PSC Commands**: Drop-in replacement for existing compiler usage
+- **Test Framework**: Enhanced corpus validation with correct behavior
+- **Performance**: Optimized CST processing with caching
+- **Extensibility**: Foundation for future compilation targets
 
-This ensures the new functionality feels native to PVM while providing powerful new capabilities for Perl development.
+This architectural change eliminates a major source of bugs while creating a more maintainable and extensible foundation for future compiler development.

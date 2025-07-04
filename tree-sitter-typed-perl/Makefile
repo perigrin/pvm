@@ -70,6 +70,7 @@ lib$(LANGUAGE_NAME).$(SOEXT): $(OBJS)
 ifneq ($(STRIP),)
 	$(STRIP) $@
 endif
+	ln -sf lib$(LANGUAGE_NAME).$(SOEXT) lib$(LANGUAGE_NAME).$(SOEXTVER_MAJOR)
 
 $(LANGUAGE_NAME).pc: bindings/c/$(LANGUAGE_NAME).pc.in
 	sed  -e 's|@URL@|$(PARSER_URL)|' \
