@@ -66,65 +66,81 @@ func NewGitHubClientWithToken(token string) *GitHubClient {
 	return client
 }
 
-// GetLatestRelease fetches the latest release for the repository
+// GetLatestRelease fetches the latest PVM release for the repository, filtering out non-PVM releases
 func (g *GitHubClient) GetLatestRelease(owner, repo string) (*GitHubRelease, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", g.baseURL, owner, repo)
-
-	req, err := http.NewRequest("GET", url, nil)
+	// Always use GetReleases to avoid confusion with non-PVM releases
+	// The /releases/latest endpoint may return Perl binary releases instead of PVM releases
+	releases, err := g.GetReleases(owner, repo, true)
 	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
+		return nil, fmt.Errorf("failed to fetch releases: %w", err)
 	}
 
-	if g.token != "" {
-		req.Header.Set("Authorization", "token "+g.token)
+	if len(releases) == 0 {
+		return nil, fmt.Errorf("no releases found for repository %s/%s", owner, repo)
 	}
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-	resp, err := g.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("making request: %w", err)
+	// Filter for PVM releases only (exclude Perl binary releases)
+	var pvmReleases []GitHubRelease
+	for _, release := range releases {
+		if g.isPVMRelease(release.TagName) {
+			pvmReleases = append(pvmReleases, release)
+		}
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound {
-		// No stable release found, fallback to latest release (including pre-releases)
-		releases, err := g.GetReleases(owner, repo, true)
-		if err != nil {
-			return nil, fmt.Errorf("no stable releases found and failed to check for pre-releases: %w", err)
+	if len(pvmReleases) == 0 {
+		return nil, fmt.Errorf("no PVM releases found for repository %s/%s", owner, repo)
+	}
+
+	// Find the latest PVM release (prefer stable over pre-release)
+	var latestStable *GitHubRelease
+	var latestPrerelease *GitHubRelease
+
+	for i := range pvmReleases {
+		release := &pvmReleases[i]
+		if release.Draft {
+			continue // Skip draft releases
 		}
 
-		if len(releases) == 0 {
-			return nil, fmt.Errorf("no releases found for repository %s/%s", owner, repo)
-		}
-
-		// Find the latest release (including pre-releases)
-		var latestRelease *GitHubRelease
-		for i := range releases {
-			if !releases[i].Draft {
-				if latestRelease == nil || releases[i].CreatedAt.After(latestRelease.CreatedAt) {
-					latestRelease = &releases[i]
-				}
+		if !release.Prerelease {
+			// Stable release
+			if latestStable == nil || release.CreatedAt.After(latestStable.CreatedAt) {
+				latestStable = release
+			}
+		} else {
+			// Pre-release
+			if latestPrerelease == nil || release.CreatedAt.After(latestPrerelease.CreatedAt) {
+				latestPrerelease = release
 			}
 		}
-
-		if latestRelease != nil {
-			return latestRelease, nil
-		}
-
-		return nil, fmt.Errorf("no non-draft releases found for repository %s/%s", owner, repo)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+	// Prefer stable release, fallback to latest pre-release
+	if latestStable != nil {
+		return latestStable, nil
+	}
+	if latestPrerelease != nil {
+		return latestPrerelease, nil
 	}
 
-	var release GitHubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return nil, fmt.Errorf("decoding response: %w", err)
-	}
+	return nil, fmt.Errorf("no published PVM releases found for repository %s/%s", owner, repo)
+}
 
-	return &release, nil
+// isPVMRelease determines if a release tag represents a PVM release (not a Perl binary release)
+func (g *GitHubClient) isPVMRelease(tagName string) bool {
+	// PVM releases typically start with "v" (e.g., "v1.0.0", "v1.0.0-rc22")
+	// Exclude Perl binary releases which start with "perl-" (e.g., "perl-5.38.0")
+	if strings.HasPrefix(tagName, "perl-") {
+		return false
+	}
+	if strings.HasPrefix(tagName, "v") {
+		return true
+	}
+	// Also accept releases that start with "PVM" for older releases
+	if strings.HasPrefix(tagName, "PVM") {
+		return true
+	}
+	// Exclude any other patterns that don't look like PVM releases
+	return false
 }
 
 // GetReleaseByTag fetches a specific release by tag
