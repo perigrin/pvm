@@ -30,7 +30,7 @@ my Bool $is_active = 1;
 my ArrayRef[Int] $numbers = [1, 2, 3, 4, 5];
 
 # Function with type annotations
-sub add_numbers(Int $a, Int $b) returns Int {
+sub Int add_numbers(Int $a, Int $b) {
     return $a + $b;
 }
 
@@ -77,11 +77,11 @@ class UserAccount {
     field Str $email;
     field Int $user_id;
 
-    method get_username() returns Str {
+    method Str get_username() {
         return $username;
     }
 
-    method is_valid_email() returns Bool {
+    method Bool is_valid_email() {
         return $email =~ /\A[^@\s]+@[^@\s]+\z/;
     }
 }
@@ -144,7 +144,7 @@ use JSON::XS;
 my Str $json_text = '{"name": "John", "age": 30}';
 my HashRef $data = decode_json($json_text);
 
-sub greet(Str $name, Int $age) returns Str {
+sub Str greet(Str $name, Int $age) {
     return "Hello $name, you are $age years old!";
 }
 

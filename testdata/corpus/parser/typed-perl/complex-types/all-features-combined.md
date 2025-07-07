@@ -17,11 +17,11 @@ tags:
 Complex combination of all type features: unions, intersections, negations, parameterized types, and assertions
 
 ```perl
-method complex_processing(
+method Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] complex_processing(
     ArrayRef[HashRef[Int|Str]&!Undef] $validated_data,
     (Processor[Request]|Handler[Response])&Configured $handler,
     Optional[Logger[Info|Error]] $logger
-) returns Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] {
+) {
     my $transformed = $validated_data as ArrayRef[Data&Processed];
     return success($transformed->map(sub { process($_) }));
 }
@@ -81,11 +81,11 @@ method complex_processing(
 ## Typed Perl Output
 
 ```perl
-method complex_processing(
+method Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] complex_processing(
     ArrayRef[HashRef[Int|Str]&!Undef] $validated_data,
     (Processor[Request]|Handler[Response])&Configured $handler,
     Optional[Logger[Info|Error]] $logger
-) returns Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] {
+) {
     my $transformed = $validated_data as ArrayRef[Data&Processed];
     return success($transformed->map(sub { process($_) }));
 }

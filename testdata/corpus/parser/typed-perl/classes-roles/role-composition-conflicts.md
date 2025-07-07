@@ -15,13 +15,13 @@ Role composition with method conflicts and resolution
 
 ```perl
 role Drawable {
-    method draw() returns Void;
-    method get_bounds() returns Rectangle;
+    method Void draw();
+    method Rectangle get_bounds();
 }
 
 role Clickable {
-    method on_click(Event $event) returns Void;
-    method get_bounds() returns Rectangle;  # Conflict with Drawable
+    method Void on_click(Event $event);
+    method Rectangle get_bounds();  # Conflict with Drawable
 }
 
 role Resizable {
@@ -159,13 +159,13 @@ AST {
 ```perl
 use v5.36;
 role Drawable {
-    method draw() returns Void;
-    method get_bounds() returns Rectangle;
+    method Void draw();
+    method Rectangle get_bounds();
 }
 
 role Clickable {
-    method on_click(Event $event) returns Void;
-    method get_bounds() returns Rectangle;  # Conflict with Drawable
+    method Void on_click(Event $event);
+    method Rectangle get_bounds();  # Conflict with Drawable
 }
 
 role Resizable {
@@ -207,13 +207,13 @@ return $height);
 
 ```perl
 role Drawable {
-    method draw() returns Void;
-    method get_bounds() returns Rectangle;
+    method Void draw();
+    method Rectangle get_bounds();
 }
 
 role Clickable {
-    method on_click(Event $event) returns Void;
-    method get_bounds() returns Rectangle;  # Conflict with Drawable
+    method Void on_click(Event $event);
+    method Rectangle get_bounds();  # Conflict with Drawable
 }
 
 role Resizable {

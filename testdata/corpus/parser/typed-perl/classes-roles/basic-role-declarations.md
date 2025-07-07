@@ -16,14 +16,14 @@ Basic role declarations with required and provided methods
 
 ```perl
 role Serializable {
-    method serialize() returns Str;
-    method deserialize(Str $data) returns Self;
+    method Str serialize();
+    method Self deserialize(Str $data);
 }
 
 role Cacheable {
     field Optional[DateTime] $cached_at;
 
-    method cache_key() returns Str;
+    method Str cache_key();
 
     method Bool is_stale() {
         return 0 unless defined $cached_at;
@@ -154,14 +154,14 @@ role Cacheable {
 
 ```perl
 role Serializable {
-    method serialize() returns Str;
-    method deserialize(Str $data) returns Self;
+    method Str serialize();
+    method Self deserialize(Str $data);
 }
 
 role Cacheable {
     field Optional[DateTime] $cached_at;
 
-    method cache_key() returns Str;
+    method Str cache_key();
 
     method Bool is_stale() {
         return 0 unless defined $cached_at;

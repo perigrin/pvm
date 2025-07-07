@@ -16,8 +16,8 @@ Generic roles with type parameters and constraints
 
 ```perl
 role Processable<T> where T: Defined {
-    method process(T $input) returns ProcessResult;
-    method validate(T $input) returns Bool;
+    method ProcessResult process(T $input);
+    method Bool validate(T $input);
 }
 
 role EventHandler<T> where T: Event {
@@ -143,8 +143,8 @@ AST {
 ```perl
 use v5.36;
 role Processable<T> where T: Defined {
-    method process(T $input) returns ProcessResult;
-    method validate(T $input) returns Bool;
+    method ProcessResult process(T $input);
+    method Bool validate(T $input);
 }
 
 { push @{$handlers}, $handler; }{ for my $handler (@{$handlers}) {
@@ -156,8 +156,8 @@ role Processable<T> where T: Defined {
 
 ```perl
 role Processable<T> where T: Defined {
-    method process(T $input) returns ProcessResult;
-    method validate(T $input) returns Bool;
+    method ProcessResult process(T $input);
+    method Bool validate(T $input);
 }
 
 role EventHandler<T> where T: Event {

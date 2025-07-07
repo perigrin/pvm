@@ -18,7 +18,7 @@ method HashRef[Int] process(ArrayRef[Str] $input) {
   return {};
 }
 
-method transform(Map[Str, Int] $data) returns ArrayRef[Result[Str, Error]] {
+method ArrayRef[Result[Str, Error]] transform(Map[Str, Int] $data) {
   return [];
 }
 ```
@@ -110,7 +110,7 @@ method HashRef[Int] process(ArrayRef[Str] $input) {
   return {};
 }
 
-method transform(Map[Str, Int] $data) returns ArrayRef[Result[Str, Error]] {
+method ArrayRef[Result[Str, Error]] transform(Map[Str, Int] $data) {
   return [];
 }
 ```

@@ -704,7 +704,7 @@ func generateMediumFile(numElements int) string {
 	// Add methods
 	for i := 0; i < numElements/2; i++ {
 		content.WriteString(fmt.Sprintf(`
-method process%d(Int $input) returns Int {
+method Int process%d(Int $input) {
     my $result%d = $input + $count%d;
     return $result%d;
 }
@@ -732,7 +732,7 @@ func generateLargeFile(numElements int) string {
 	// Add complex methods
 	for i := 0; i < numElements/3; i++ {
 		content.WriteString(fmt.Sprintf(`
-method complexMethod%d(Type%d $param1, Str $param2) returns Type%d {
+method Type%d complexMethod%d(Type%d $param1, Str $param2) {
     my $local1_%d = $param1;
     my $local2_%d = $param2;
 

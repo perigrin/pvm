@@ -38,7 +38,7 @@ class ProcessingQueue<T> : BaseQueue<T>
         return \@results;
     }
 
-    method enqueue(T $item) returns Void where $item->can('get_id') {
+    method Void enqueue(T $item) where $item->can('get_id') {
         push @{$pending}, $item;
     }
 

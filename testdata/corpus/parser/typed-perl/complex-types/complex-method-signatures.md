@@ -4,7 +4,7 @@ subcategory: complex-types
 type_check: true
 tags:
     - method-signatures
-    - parameterized-returns
+    - parameterized-return-types
     - complex-types
     - parameterized-types
 ---
@@ -21,10 +21,10 @@ method HashRef[ArrayRef[Int]|Str] transform(
     return {};
 }
 
-method process(
+method Result[Array[ProcessedData], ProcessingError] process(
     Map[Str, ArrayRef[Data|Error]] $complex_input,
     Optional[Handler[Request|Response]] $handler
-) returns Result[Array[ProcessedData], ProcessingError] {
+) {
     return success([]);
 }
 ```
@@ -103,10 +103,10 @@ method HashRef[ArrayRef[Int]|Str] transform(
     return {};
 }
 
-method process(
+method Result[Array[ProcessedData], ProcessingError] process(
     Map[Str, ArrayRef[Data|Error]] $complex_input,
     Optional[Handler[Request|Response]] $handler
-) returns Result[Array[ProcessedData], ProcessingError] {
+) {
     return success([]);
 }
 ```

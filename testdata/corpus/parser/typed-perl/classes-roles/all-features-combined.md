@@ -27,9 +27,9 @@ type Result<T, E> = Success<T> | Failure<E>;
 
 # Generic role with constraints
 role Repository<T, K> where T: Serializable, K: Hashable {
-    method find(K $key) returns Optional[T];
-    method save(T $entity) returns Result<K, SaveError>;
-    method delete(K $key) returns Result<Bool, DeleteError>;
+    method Optional[T] find(K $key);
+    method Result<K, SaveError> save(T $entity);
+    method Result<Bool, DeleteError> delete(K $key);
 }
 
 # Role with provided implementations
@@ -156,12 +156,12 @@ use v5.36;
 
   --> :7:17
    |
- 7 |     method find(K $key) returns Optional[T];
+ 7 |     method Optional[T] find(K $key);
    |                 ^^^^^^^^^^^^^^ unexpected token: ''
 
   --> :7:45
    |
- 7 |     method find(K $key) returns Optional[T];
+ 7 |     method Optional[T] find(K $key);
    |                                             ^ unexpected token: ''
 
   --> :65:59
@@ -180,12 +180,12 @@ note: This indicates Perl syntax that is not yet supported by the tree-sitter gr
 
   --> :7:17
    |
- 7 |     method find(K $key) returns Optional[T];
+ 7 |     method Optional[T] find(K $key);
    |                 ^^^^^^^^^^^^^^ unexpected token: ''
 
   --> :7:45
    |
- 7 |     method find(K $key) returns Optional[T];
+ 7 |     method Optional[T] find(K $key);
    |                                             ^ unexpected token: ''
 
   --> :65:59
@@ -209,12 +209,12 @@ note: This indicates Perl syntax that is not yet supported by the tree-sitter gr
 
   --> :7:17
    |
- 7 |     method find(K $key) returns Optional[T];
+ 7 |     method Optional[T] find(K $key);
    |                 ^^^^^^^^^^^^^^ unexpected token: ''
 
   --> :7:45
    |
- 7 |     method find(K $key) returns Optional[T];
+ 7 |     method Optional[T] find(K $key);
    |                                             ^ unexpected token: ''
 
   --> :65:59
@@ -233,12 +233,12 @@ note: This indicates Perl syntax that is not yet supported by the tree-sitter gr
 
   --> :7:17
    |
- 7 |     method find(K $key) returns Optional[T];
+ 7 |     method Optional[T] find(K $key);
    |                 ^^^^^^^^^^^^^^ unexpected token: ''
 
   --> :7:45
    |
- 7 |     method find(K $key) returns Optional[T];
+ 7 |     method Optional[T] find(K $key);
    |                                             ^ unexpected token: ''
 
   --> :65:59

@@ -15,12 +15,12 @@ type_check: true
 Complex method signatures with parameterized types, optional parameters, and multiple parameter types
 
 ```perl
-method process(ArrayRef[Str] $data, Bool $validate = 1) returns ArrayRef[Str] {
+method ArrayRef[Str] process(ArrayRef[Str] $data, Bool $validate = 1) {
     my @result = @{$data};
     return \@result;
 }
 
-method transform(HashRef[Int] $input, CodeRef $callback) returns HashRef[Int] {
+method HashRef[Int] transform(HashRef[Int] $input, CodeRef $callback) {
     my %result;
     for my $key (keys %{$input}) {
         $result{$key} = $callback->($input->{$key});
@@ -28,11 +28,11 @@ method transform(HashRef[Int] $input, CodeRef $callback) returns HashRef[Int] {
     return \%result;
 }
 
-method complex_method(
+method Bool complex_method(
     ArrayRef[HashRef[Int]] $data,
     Optional[CodeRef] $processor,
     Slurpy[Str] @extra_args
-) returns Bool {
+) {
     return 1;
 }
 ```
@@ -157,7 +157,7 @@ method transform($input, $callback) {
     return \%result;
 }
 
-method complex_method(
+method Bool complex_method(
     $data,
     $processor,
     @extra_args
@@ -169,12 +169,12 @@ method complex_method(
 ## Typed Perl Output
 
 ```perl
-method process(ArrayRef[Str] $data, Bool $validate = 1) returns ArrayRef[Str] {
+method ArrayRef[Str] process(ArrayRef[Str] $data, Bool $validate = 1) {
     my @result = @{$data};
     return \@result;
 }
 
-method transform(HashRef[Int] $input, CodeRef $callback) returns HashRef[Int] {
+method HashRef[Int] transform(HashRef[Int] $input, CodeRef $callback) {
     my %result;
     for my $key (keys %{$input}) {
         $result{$key} = $callback->($input->{$key});
@@ -182,11 +182,11 @@ method transform(HashRef[Int] $input, CodeRef $callback) returns HashRef[Int] {
     return \%result;
 }
 
-method complex_method(
+method Bool complex_method(
     ArrayRef[HashRef[Int]] $data,
     Optional[CodeRef] $processor,
     Slurpy[Str] @extra_args
-) returns Bool {
+) {
     return 1;
 }
 ```
