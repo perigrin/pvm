@@ -70,15 +70,10 @@ AST {
     VarAnnotation: $name :: Str at 2:5
     VarAnnotation: $handle :: FileHandle at 3:5
     VarAnnotation: $is_open :: Bool at 4:5
-    MethodReturnAnnotation: BUILD :: Void at 6:12
-    MethodReturnAnnotation: new :: Resource at 12:12
-    MethodReturnAnnotation: DESTROY :: Void at 18:12
-    MethodReturnAnnotation: close :: Bool at 22:12
-    MethodReturnAnnotation: read :: Optional[Str] at 29:12
     MethodParamAnnotation: $name :: Str at 6:1
-    MethodParamAnnotation: 'r' :: Optional[Str] at 6:1
+    MethodParamAnnotation: $mode :: Optional[Str] at 6:1
     MethodParamAnnotation: $name :: Str at 12:1
-    MethodParamAnnotation: 'r' :: Optional[Str] at 12:1
+    MethodParamAnnotation: $mode :: Optional[Str] at 12:1
     MethodParamAnnotation: $bytes :: Int at 29:1
   Root: source_file
   Tree Structure:
@@ -172,15 +167,10 @@ AST {
     VarAnnotation: $name :: Str at 2:5
     VarAnnotation: $handle :: FileHandle at 3:5
     VarAnnotation: $is_open :: Bool at 4:5
-    MethodReturnAnnotation: BUILD :: Void at 6:12
-    MethodReturnAnnotation: new :: Resource at 12:12
-    MethodReturnAnnotation: DESTROY :: Void at 18:12
-    MethodReturnAnnotation: close :: Bool at 22:12
-    MethodReturnAnnotation: read :: Optional[Str] at 29:12
     MethodParamAnnotation: $name :: Str at 6:1
-    MethodParamAnnotation: 'r' :: Optional[Str] at 6:1
+    MethodParamAnnotation: $mode :: Optional[Str] at 6:1
     MethodParamAnnotation: $name :: Str at 12:1
-    MethodParamAnnotation: 'r' :: Optional[Str] at 12:1
+    MethodParamAnnotation: $mode :: Optional[Str] at 12:1
     MethodParamAnnotation: $bytes :: Int at 29:1
   Root: source_file
   Tree Structure:

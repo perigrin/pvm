@@ -354,6 +354,8 @@ func (t *PerlTree) processSubroutineSignature(signatureNode *sitter.Node, subNam
 			t.processTypedSubroutineParameter(child, subName, annotations)
 		} else if child.Kind() == "optional_parameter" {
 			t.processOptionalSubroutineParameter(child, subName, annotations)
+		} else if child.Kind() == "mandatory_parameter" {
+			t.processTypedSubroutineParameter(child, subName, annotations)
 		}
 	}
 }
@@ -581,6 +583,8 @@ func (t *PerlTree) processMethodSignature(signatureNode *sitter.Node, methodName
 			t.processTypedMethodParameter(child, methodName, annotations)
 		} else if child.Kind() == "optional_parameter" {
 			t.processOptionalMethodParameter(child, methodName, annotations)
+		} else if child.Kind() == "mandatory_parameter" {
+			t.processTypedMethodParameter(child, methodName, annotations)
 		}
 	}
 }
