@@ -40,7 +40,7 @@ method Bool complex_method(ArrayRef[HashRef[Int]] $data, Optional[CodeRef] $proc
 ```
 AST {
   Path:
-  Source length: 496 characters
+  Source length: 449 characters
   Type Annotations:
     MethodReturnAnnotation: process :: ArrayRef[Str] at 1:8
     MethodReturnAnnotation: transform :: HashRef[Int] at 1:8
@@ -51,7 +51,6 @@ AST {
     MethodParamAnnotation: $callback :: CodeRef at 1:1
     MethodParamAnnotation: $data :: ArrayRef[HashRef[Int]] at 1:1
     MethodParamAnnotation: $processor :: Optional[CodeRef] at 1:1
-    MethodParamAnnotation: 1 :: Bool at 1:1
   Root: source_file
   Tree Structure:
   source_file
@@ -92,7 +91,7 @@ AST {
 ```
 AST {
   Path:
-  Source length: 496 characters
+  Source length: 449 characters
   Type Annotations:
     MethodReturnAnnotation: process :: ArrayRef[Str] at 1:8
     MethodReturnAnnotation: transform :: HashRef[Int] at 1:8
@@ -103,7 +102,6 @@ AST {
     MethodParamAnnotation: $callback :: CodeRef at 1:1
     MethodParamAnnotation: $data :: ArrayRef[HashRef[Int]] at 1:1
     MethodParamAnnotation: $processor :: Optional[CodeRef] at 1:1
-    MethodParamAnnotation: 1 :: Bool at 1:1
   Root: source_file
   Tree Structure:
   source_file
