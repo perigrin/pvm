@@ -1,0 +1,29 @@
+run:
+  timeout: 10m
+  go: "1.24"
+
+linters:
+  disable-all: true
+  enable:
+    - gofmt
+    - goimports
+    - misspell
+    - ineffassign
+    - typecheck
+
+linters-settings:
+  staticcheck:
+    checks: ["all", "-SA9003"]  # Disable empty branch warnings
+
+issues:
+  exclude-rules:
+    # Disable errcheck for test files
+    - path: _test\.go
+      linters:
+        - errcheck
+    # Disable errcheck for main functions
+    - path: cmd/
+      linters:
+        - errcheck
+  max-issues-per-linter: 0
+  max-same-issues: 0

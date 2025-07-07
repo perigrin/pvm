@@ -537,9 +537,9 @@ func setBinaryPermissions(installDir string) error {
 			err = os.Chmod(path, 0755)
 		} else {
 			// Check if file should be executable
-			relPath, err := filepath.Rel(installDir, path)
-			if err != nil {
-				return err
+			relPath, relErr := filepath.Rel(installDir, path)
+			if relErr != nil {
+				return relErr
 			}
 
 			// Files in bin/ should be executable

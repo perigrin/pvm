@@ -174,9 +174,9 @@ func runCompileCommand(cmd *cobra.Command, args []string) error {
 		}
 		engine := inference.NewTypeInferenceEngineWithOptions(inferenceOptions)
 
-		inferredAST, err := engine.InferTypes(ast)
-		if err != nil {
-			return fmt.Errorf("type inference failed: %w", err)
+		inferredAST, inferErr := engine.InferTypes(ast)
+		if inferErr != nil {
+			return fmt.Errorf("type inference failed: %w", inferErr)
 		}
 
 		// Report inference statistics

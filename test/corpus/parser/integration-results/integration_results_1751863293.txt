@@ -1,0 +1,67 @@
+Comprehensive Integration Test Results
+Generated: 2025-07-07T04:41:33Z
+
+Test: error_recovery_test
+  features: [error_recovery malformed_types mixed_valid_invalid]
+  error: error[TSP001]: Syntax error in type expression
+  --> <input>:7:1
+   |
+ 7 | my ArrayRef[Int $broken_type = [];
+
+help: Check type syntax
+
+  name: error_recovery_test
+  parse_time: 4.333162ms
+  success: false
+  program_size: 505
+  line_count: 27
+
+Test: complete_user_service
+  program_size: 1912
+  line_count: 76
+  features: [types classes roles generics constraints inheritance]
+  error: error[TSP001]: Syntax error in type expression
+  --> <input>:8:1
+   |
+ 8 | type Result<T, E> = Success<T> | Failure<E>;
+
+help: Check type syntax
+
+  name: complete_user_service
+  parse_time: 42.629408ms
+  success: false
+
+Test: complex_data_processor
+  line_count: 123
+  features: [generics constraints complex_methods parameterized_types unions complex_signatures]
+  has_type_annotations: true
+  type_annotation_count: 18
+  name: complex_data_processor
+  parse_time: 74.076817ms
+  success: true
+  program_size: 3565
+
+Test: event_system_with_traits
+  name: event_system_with_traits
+  parse_time: 87.163721ms
+  success: false
+  program_size: 3355
+  line_count: 106
+  features: [intersection_types negation_types traits complex_constraints optional_parameters named_parameters]
+  error: error[TSP001]: Syntax error in type expression
+  --> <input>:9:1
+   |
+ 9 | type EventData = HashRef[Str, Any]&!Undef;
+
+help: Check type syntax
+
+
+Test: deeply_nested_generics
+  line_count: 88
+  features: [deep_nesting complex_generics multiple_type_parameters nested_parameterized_types]
+  has_type_annotations: true
+  type_annotation_count: 7
+  name: deeply_nested_generics
+  parse_time: 43.202962ms
+  success: true
+  program_size: 2612

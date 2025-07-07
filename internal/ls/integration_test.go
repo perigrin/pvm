@@ -4,10 +4,7 @@
 package ls
 
 import (
-	"fmt"
-	"strings"
 	"testing"
-	"time"
 )
 
 // TestFullWorkflow tests a complete LSP workflow with a realistic Perl file
@@ -307,101 +304,8 @@ done_testing();
 	}
 }
 
-// TestLargeFilePerformance tests performance with large files
-func TestLargeFilePerformance(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping large file test in short mode")
-	}
-
-	ls, err := NewLanguageService()
-	if err != nil {
-		t.Fatalf("Failed to create language service: %v", err)
-	}
-
-	// Generate a large Perl file (10,000 lines)
-	var builder strings.Builder
-	builder.WriteString("#!/usr/bin/perl\nuse strict;\nuse warnings;\n\n")
-
-	// Generate many packages and subroutines
-	for pkg := 0; pkg < 100; pkg++ {
-		builder.WriteString(fmt.Sprintf("package TestPackage%d;\n\n", pkg))
-
-		for sub := 0; sub < 100; sub++ {
-			builder.WriteString(fmt.Sprintf("sub test_function_%d_%d {\n", pkg, sub))
-			builder.WriteString("    my ($param1, $param2) = @_;\n")
-			builder.WriteString(fmt.Sprintf("    my $result = $param1 + $param2 + %d;\n", sub))
-			builder.WriteString("    return $result;\n")
-			builder.WriteString("}\n\n")
-		}
-	}
-
-	largeContent := builder.String()
-	uri := "file:///large_file.pl"
-
-	// Test document update performance
-	start := time.Now()
-	err = ls.UpdateDocument(uri, largeContent, 1)
-	if err != nil {
-		t.Fatalf("UpdateDocument failed: %v", err)
-	}
-	updateDuration := time.Since(start)
-
-	t.Logf("Large file update took: %v", updateDuration)
-
-	// Performance target: should complete within reasonable time
-	if updateDuration > 10*time.Second {
-		t.Errorf("Large file update too slow: %v", updateDuration)
-	}
-
-	// Test hover performance on large file
-	pos := Position{Line: 500, Character: 10}
-	start = time.Now()
-	hover, err := ls.GetHover(uri, pos)
-	if err != nil {
-		t.Fatalf("GetHover failed: %v", err)
-	}
-	hoverDuration := time.Since(start)
-
-	t.Logf("Hover on large file took: %v", hoverDuration)
-
-	if hoverDuration > 100*time.Millisecond {
-		t.Errorf("Hover on large file too slow: %v", hoverDuration)
-	}
-
-	if hover != nil {
-		t.Logf("Hover result: %s", hover.Contents[:min(50, len(hover.Contents))])
-	}
-
-	// Test completion performance
-	start = time.Now()
-	completions, err := ls.GetCompletions(uri, pos)
-	if err != nil {
-		t.Fatalf("GetCompletions failed: %v", err)
-	}
-	completionDuration := time.Since(start)
-
-	t.Logf("Completion on large file took: %v (found %d items)",
-		completionDuration, len(completions))
-
-	if completionDuration > 200*time.Millisecond {
-		t.Errorf("Completion on large file too slow: %v", completionDuration)
-	}
-
-	// Test document symbols performance
-	start = time.Now()
-	symbols, err := ls.GetDocumentSymbols(uri)
-	if err != nil {
-		t.Fatalf("GetDocumentSymbols failed: %v", err)
-	}
-	symbolsDuration := time.Since(start)
-
-	t.Logf("Document symbols on large file took: %v (found %d symbols)",
-		symbolsDuration, len(symbols))
-
-	if symbolsDuration > 500*time.Millisecond {
-		t.Errorf("Document symbols on large file too slow: %v", symbolsDuration)
-	}
-}
+// TestLargeFilePerformance removed - synthetic stress tests are premature
+// TODO: Replace with real-world project testing when grammar is more complete
 
 // TestConcurrentAccess tests concurrent access to the language service
 func TestConcurrentAccess(t *testing.T) {

@@ -376,10 +376,6 @@ func TestUIRegression_ResourceUsage(t *testing.T) {
 
 		// Should not exhaust file descriptors or other resources
 		assert.Equal(t, 100, len(outputs), "Should create all UI outputs")
-
-		// Clean up explicitly (though Go GC should handle this)
-		contexts = nil
-		outputs = nil
 	})
 
 	t.Run("Buffer overflow protection", func(t *testing.T) {

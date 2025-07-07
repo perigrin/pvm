@@ -90,8 +90,7 @@ func (li *LiteralInferrer) inferNumericType(value string) *types.TypeInfo {
 func (li *LiteralInferrer) inferStringType(value string) *types.TypeInfo {
 	strType := types.NewStrType()
 
-	confidence := 0.95
-
+	var confidence float64
 	// Check if it's a quoted string
 	if li.stringPattern.MatchString(value) {
 		confidence = 0.98 // Very high confidence for quoted strings
@@ -106,8 +105,7 @@ func (li *LiteralInferrer) inferStringType(value string) *types.TypeInfo {
 func (li *LiteralInferrer) inferBooleanType(value string) *types.TypeInfo {
 	boolType := types.NewBoolType()
 
-	confidence := 0.90
-
+	var confidence float64
 	// Perl's truthiness is complex, so be more conservative
 	switch strings.ToLower(value) {
 	case "1", "true":

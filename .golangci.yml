@@ -1,28 +1,44 @@
+version: "2"
 run:
-  timeout: 10m
   go: "1.24"
-
 linters:
-  disable-all: true
+  default: none
+  enable:
+    - ineffassign
+    - misspell
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -SA9003
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test\.go
+      - linters:
+          - errcheck
+        path: cmd/
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
   enable:
     - gofmt
     - goimports
-    - misspell
-    - ineffassign
-
-linters-settings:
-  staticcheck:
-    checks: ["all", "-SA9003"]  # Disable empty branch warnings
-
-issues:
-  exclude-rules:
-    # Disable errcheck for test files
-    - path: _test\.go
-      linters:
-        - errcheck
-    # Disable errcheck for main functions
-    - path: cmd/
-      linters:
-        - errcheck
-  max-issues-per-linter: 0
-  max-same-issues: 0
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

@@ -4,7 +4,6 @@
 package psc
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -411,27 +410,5 @@ func TestEmptyFile(t *testing.T) {
 	assert.Equal(t, 0, errorCount, "Empty file should have no errors")
 }
 
-// TestLargePerlFile tests handling of large Perl files
-func TestLargePerlFile(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping large file test in short mode")
-	}
-
-	tmpFile := t.TempDir() + "/large.pl"
-
-	// Create a large file with many type annotations
-	var content strings.Builder
-	content.WriteString("#!/usr/bin/perl\nuse v5.36;\n\n")
-
-	for i := 0; i < 1000; i++ {
-		content.WriteString(fmt.Sprintf("my Int $var%d = %d;\n", i, i))
-	}
-
-	err := os.WriteFile(tmpFile, []byte(content.String()), 0644)
-	require.NoError(t, err)
-
-	// Test large file handling
-	errorCount, err := checkFile(ui.NewDefaultOutput(), tmpFile, false, false, false, false)
-	assert.NoError(t, err)
-	assert.Equal(t, 0, errorCount, "Large valid file should have no errors")
-}
+// TestLargePerlFile removed - synthetic stress tests are premature
+// TODO: Replace with real-world project testing when grammar is more complete

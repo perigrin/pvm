@@ -254,7 +254,7 @@ say $message;
 		"psc check should either succeed or provide meaningful error")
 
 	// Test that psc help works
-	stdout, stderr, err = env.RunPVM("psc", "help")
+	stdout, _, err = env.RunPVM("psc", "help")
 	assert.NoError(t, err, "psc help should work")
 	assert.Contains(t, stdout, "check", "Help should mention check command")
 	assert.Contains(t, stdout, "strip", "Help should mention strip command")

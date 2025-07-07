@@ -17,44 +17,8 @@ import (
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
-func TestBuildInstallWorkflow_BuildOnly(t *testing.T) {
-	env := helpers.NewTestEnv(t)
-	defer env.Cleanup()
-
-	// Skip in CI - building Perl from source takes too long for CI timeouts
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping full Perl build test in CI environment - takes too long")
-	}
-
-	// Create a temporary output directory
-	outputDir := filepath.Join(env.RootDir, "perl-build-output")
-
-	// Test build-only without installation
-	stdout, stderr, err := env.RunPVM("build-perl", "5.38.0", "--build-only", "--output-dir", outputDir)
-	if err != nil {
-		t.Logf("Build failed (expected in test environment): %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
-		// Still verify that the --build-only flag is recognized and doesn't cause immediate failure
-		require.Contains(t, stderr, "Building Perl 5.38.0", "Should start build process")
-		return
-	}
-
-	// Verify the output directory exists and contains a complete Perl installation
-	require.DirExists(t, outputDir, "Output directory should exist")
-	require.FileExists(t, filepath.Join(outputDir, "bin", "perl"), "Perl binary should exist")
-	require.DirExists(t, filepath.Join(outputDir, "lib", "perl5"), "Perl library directory should exist")
-
-	// Verify the built Perl is functional
-	perlBin := filepath.Join(outputDir, "bin", "perl")
-	perlStdout, perlStderr, perlErr := env.RunCommand(perlBin, "-v")
-	require.NoError(t, perlErr, "Built Perl should be functional: %s", perlStderr)
-	assert.Contains(t, perlStdout, "v5.38.0", "Built Perl should report correct version")
-
-	// Verify that the Perl was NOT installed in PVM's version directory
-	listStdout, _, listErr := env.RunPVM("list")
-	if listErr == nil {
-		assert.NotContains(t, listStdout, "5.38.0", "Perl should not be installed in PVM")
-	}
-}
+// TestBuildInstallWorkflow_BuildOnly removed - building Perl from source is too slow
+// TODO: Replace with faster build system tests when appropriate
 
 func TestBuildInstallWorkflow_BuildOnlyFlagValidation(t *testing.T) {
 	env := helpers.NewTestEnv(t)

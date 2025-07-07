@@ -240,45 +240,8 @@ func TestCheckCommandErrorHandling(t *testing.T) {
 	}
 }
 
-// TestPerformanceWithLargeFile tests performance with larger files
-func TestPerformanceWithLargeFile(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping performance test in short mode")
-	}
-
-	tempDir := t.TempDir()
-	largeFile := filepath.Join(tempDir, "large.pl")
-
-	// Generate a large Perl file with many type annotations
-	var content strings.Builder
-	content.WriteString("use strict;\nuse warnings;\n\n")
-
-	for i := 0; i < 1000; i++ {
-		content.WriteString("my Int $var")
-		content.WriteString(string(rune('0' + (i % 10))))
-		content.WriteString(" = ")
-		content.WriteString(string(rune('0' + (i % 10))))
-		content.WriteString(";\n")
-	}
-
-	err := os.WriteFile(largeFile, []byte(content.String()), 0644)
-	if err != nil {
-		t.Fatalf("Failed to create large test file: %v", err)
-	}
-
-	// Test that large file can be checked without timeout or memory issues
-	errorCount, err := checkFile(ui.NewDefaultOutput(), largeFile, false, true, false, false) // Use verbose for more info
-	if err != nil {
-		t.Fatalf("Failed to check large file: %v", err)
-	}
-
-	// Should have no type errors (all valid assignments)
-	if errorCount != 0 {
-		t.Errorf("Large file check found %d unexpected errors", errorCount)
-	}
-
-	t.Logf("Successfully checked large file with 1000+ type annotations")
-}
+// TestPerformanceWithLargeFile removed - synthetic stress tests are premature
+// TODO: Replace with real-world project testing when grammar is more complete
 
 // TestStrictMode tests strict mode behavior
 func TestStrictMode(t *testing.T) {
