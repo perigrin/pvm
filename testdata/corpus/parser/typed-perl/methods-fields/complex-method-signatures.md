@@ -28,7 +28,7 @@ method HashRef[Int] transform(HashRef[Int] $input, CodeRef $callback) {
     return \%result;
 }
 
-method Bool complex_method(ArrayRef[HashRef[Int]] $data, Optional[CodeRef] $processor, Slurpy[Str] @extra_args) {
+method Bool complex_method(ArrayRef[HashRef[Int]] $data, Optional[CodeRef] $processor) {
     return 1;
 }
 ```
@@ -51,6 +51,7 @@ AST {
     MethodParamAnnotation: $callback :: CodeRef at 1:1
     MethodParamAnnotation: $data :: ArrayRef[HashRef[Int]] at 1:1
     MethodParamAnnotation: $processor :: Optional[CodeRef] at 1:1
+    MethodParamAnnotation: 1 :: Bool at 1:1
   Root: source_file
   Tree Structure:
   source_file
@@ -102,6 +103,7 @@ AST {
     MethodParamAnnotation: $callback :: CodeRef at 1:1
     MethodParamAnnotation: $data :: ArrayRef[HashRef[Int]] at 1:1
     MethodParamAnnotation: $processor :: Optional[CodeRef] at 1:1
+    MethodParamAnnotation: 1 :: Bool at 1:1
   Root: source_file
   Tree Structure:
   source_file
@@ -157,11 +159,7 @@ method transform($input, $callback) {
     return \%result;
 }
 
-method Bool complex_method(
-    $data,
-    $processor,
-    @extra_args
-) {
+method complex_method($data, $processor) {
     return 1;
 }
 ```
@@ -182,7 +180,7 @@ method HashRef[Int] transform(HashRef[Int] $input, CodeRef $callback) {
     return \%result;
 }
 
-method Bool complex_method(ArrayRef[HashRef[Int]] $data, Optional[CodeRef] $processor, Slurpy[Str] @extra_args) {
+method Bool complex_method(ArrayRef[HashRef[Int]] $data, Optional[CodeRef] $processor) {
     return 1;
 }
 ```

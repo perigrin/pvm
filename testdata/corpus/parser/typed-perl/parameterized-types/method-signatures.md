@@ -33,9 +33,9 @@ AST {
   Source length: 159 characters
   Type Annotations:
     MethodReturnAnnotation: process :: HashRef[Int] at 1:8
-    MethodReturnAnnotation: transform :: ArrayRef[Result[Str, Error]] at 5:47
+    MethodReturnAnnotation: transform :: ArrayRef[Result[Str, Error]] at 1:8
     MethodParamAnnotation: $input :: ArrayRef[Str] at 1:1
-    MethodParamAnnotation: $data :: Int] at 5:1
+    MethodParamAnnotation: $data :: Map[Str, Int] at 1:1
   Root: source_file
   Tree Structure:
   source_file
@@ -64,9 +64,9 @@ AST {
   Source length: 159 characters
   Type Annotations:
     MethodReturnAnnotation: process :: HashRef[Int] at 1:8
-    MethodReturnAnnotation: transform :: ArrayRef[Result[Str, Error]] at 5:47
+    MethodReturnAnnotation: transform :: ArrayRef[Result[Str, Error]] at 1:8
     MethodParamAnnotation: $input :: ArrayRef[Str] at 1:1
-    MethodParamAnnotation: $data :: Int] at 5:1
+    MethodParamAnnotation: $data :: Map[Str, Int] at 1:1
   Root: source_file
   Tree Structure:
   source_file
