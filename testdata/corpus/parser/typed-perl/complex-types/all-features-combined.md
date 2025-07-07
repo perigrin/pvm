@@ -17,11 +17,7 @@ tags:
 Complex combination of all type features: unions, intersections, negations, parameterized types, and assertions
 
 ```perl
-method Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] complex_processing(
-    ArrayRef[HashRef[Int|Str]&!Undef] $validated_data,
-    (Processor[Request]|Handler[Response])&Configured $handler,
-    Optional[Logger[Info|Error]] $logger
-) {
+method Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] complex_processing(ArrayRef[HashRef[Int|Str]&!Undef] $validated_data, (Processor[Request]|Handler[Response])&Configured $handler, Optional[Logger[Info|Error]] $logger) {
     my $transformed = $validated_data as ArrayRef[Data&Processed];
     return success($transformed->map(sub { process($_) }));
 }
@@ -68,11 +64,7 @@ source_file
 
 ```perl
 use v5.36;
-method complex_processing(
-    $validated_data,
-    (|)&$handler,
-    $logger
-) {
+method complex_processing($validated_data, (|)&$handler, $logger) {
     my $transformed = $validated_data;
     return success($transformed->map(sub { process($_) }));
 }
@@ -81,11 +73,7 @@ method complex_processing(
 ## Typed Perl Output
 
 ```perl
-method Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] complex_processing(
-    ArrayRef[HashRef[Int|Str]&!Undef] $validated_data,
-    (Processor[Request]|Handler[Response])&Configured $handler,
-    Optional[Logger[Info|Error]] $logger
-) {
+method Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Detailed] complex_processing(ArrayRef[HashRef[Int|Str]&!Undef] $validated_data, (Processor[Request]|Handler[Response])&Configured $handler, Optional[Logger[Info|Error]] $logger) {
     my $transformed = $validated_data as ArrayRef[Data&Processed];
     return success($transformed->map(sub { process($_) }));
 }

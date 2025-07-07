@@ -28,11 +28,7 @@ method HashRef[Int] transform(HashRef[Int] $input, CodeRef $callback) {
     return \%result;
 }
 
-method Bool complex_method(
-    ArrayRef[HashRef[Int]] $data,
-    Optional[CodeRef] $processor,
-    Slurpy[Str] @extra_args
-) {
+method Bool complex_method(ArrayRef[HashRef[Int]] $data, Optional[CodeRef] $processor, Slurpy[Str] @extra_args) {
     return 1;
 }
 ```
@@ -46,13 +42,15 @@ AST {
   Path:
   Source length: 496 characters
   Type Annotations:
-    MethodReturnAnnotation: process :: ArrayRef[Str] at 1:65
-    MethodReturnAnnotation: transform :: HashRef[Int] at 6:66
-    MethodReturnAnnotation: complex_method :: Bool at 18:11
+    MethodReturnAnnotation: process :: ArrayRef[Str] at 1:8
+    MethodReturnAnnotation: transform :: HashRef[Int] at 1:8
+    MethodReturnAnnotation: complex_method :: Bool at 1:8
     MethodParamAnnotation: $data :: ArrayRef[Str] at 1:1
-    MethodParamAnnotation: 1 :: Bool at 1:1
-    MethodParamAnnotation: $input :: HashRef[Int] at 6:1
-    MethodParamAnnotation: $callback :: CodeRef at 6:1
+    MethodParamAnnotation: $validate :: Bool at 1:1
+    MethodParamAnnotation: $input :: HashRef[Int] at 1:1
+    MethodParamAnnotation: $callback :: CodeRef at 1:1
+    MethodParamAnnotation: $data :: ArrayRef[HashRef[Int]] at 1:1
+    MethodParamAnnotation: $processor :: Optional[CodeRef] at 1:1
   Root: source_file
   Tree Structure:
   source_file
@@ -95,13 +93,15 @@ AST {
   Path:
   Source length: 496 characters
   Type Annotations:
-    MethodReturnAnnotation: process :: ArrayRef[Str] at 1:65
-    MethodReturnAnnotation: transform :: HashRef[Int] at 6:66
-    MethodReturnAnnotation: complex_method :: Bool at 18:11
+    MethodReturnAnnotation: process :: ArrayRef[Str] at 1:8
+    MethodReturnAnnotation: transform :: HashRef[Int] at 1:8
+    MethodReturnAnnotation: complex_method :: Bool at 1:8
     MethodParamAnnotation: $data :: ArrayRef[Str] at 1:1
-    MethodParamAnnotation: 1 :: Bool at 1:1
-    MethodParamAnnotation: $input :: HashRef[Int] at 6:1
-    MethodParamAnnotation: $callback :: CodeRef at 6:1
+    MethodParamAnnotation: $validate :: Bool at 1:1
+    MethodParamAnnotation: $input :: HashRef[Int] at 1:1
+    MethodParamAnnotation: $callback :: CodeRef at 1:1
+    MethodParamAnnotation: $data :: ArrayRef[HashRef[Int]] at 1:1
+    MethodParamAnnotation: $processor :: Optional[CodeRef] at 1:1
   Root: source_file
   Tree Structure:
   source_file
@@ -182,11 +182,7 @@ method HashRef[Int] transform(HashRef[Int] $input, CodeRef $callback) {
     return \%result;
 }
 
-method Bool complex_method(
-    ArrayRef[HashRef[Int]] $data,
-    Optional[CodeRef] $processor,
-    Slurpy[Str] @extra_args
-) {
+method Bool complex_method(ArrayRef[HashRef[Int]] $data, Optional[CodeRef] $processor, Slurpy[Str] @extra_args) {
     return 1;
 }
 ```

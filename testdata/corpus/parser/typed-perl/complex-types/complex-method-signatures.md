@@ -14,17 +14,11 @@ tags:
 Complex method signatures with advanced parameter and return types
 
 ```perl
-method HashRef[ArrayRef[Int]|Str] transform(
-    ArrayRef[HashRef[Int|Str]] $input,
-    CodeRef[Str, Bool] $validator
-) {
+method HashRef[ArrayRef[Int]|Str] transform(ArrayRef[HashRef[Int|Str]] $input, CodeRef[Str, Bool] $validator) {
     return {};
 }
 
-method Result[Array[ProcessedData], ProcessingError] process(
-    Map[Str, ArrayRef[Data|Error]] $complex_input,
-    Optional[Handler[Request|Response]] $handler
-) {
+method Result[Array[ProcessedData], ProcessingError] process(Map[Str, ArrayRef[Data|Error]] $complex_input, Optional[Handler[Request|Response]] $handler) {
     return success([]);
 }
 ```
@@ -78,17 +72,11 @@ source_file
 
 ```perl
 use v5.36;
-method transform(
-    $input,
-    $validator
-) {
+method transform($input, $validator) {
     return {};
 }
 
-method process(
-    $complex_input,
-    $handler
-) {
+method process($complex_input, $handler) {
     return success([]);
 }
 ```
@@ -96,17 +84,11 @@ method process(
 ## Typed Perl Output
 
 ```perl
-method HashRef[ArrayRef[Int]|Str] transform(
-    ArrayRef[HashRef[Int|Str]] $input,
-    CodeRef[Str, Bool] $validator
-) {
+method HashRef[ArrayRef[Int]|Str] transform(ArrayRef[HashRef[Int|Str]] $input, CodeRef[Str, Bool] $validator) {
     return {};
 }
 
-method Result[Array[ProcessedData], ProcessingError] process(
-    Map[Str, ArrayRef[Data|Error]] $complex_input,
-    Optional[Handler[Request|Response]] $handler
-) {
+method Result[Array[ProcessedData], ProcessingError] process(Map[Str, ArrayRef[Data|Error]] $complex_input, Optional[Handler[Request|Response]] $handler) {
     return success([]);
 }
 ```

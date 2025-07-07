@@ -492,11 +492,11 @@ $sner->&over_9000
 ================================================================================
 Methods with return types - basic
 ================================================================================
-method get_number() returns Int {
+method Int get_number() {
     return 42;
 }
 
-method simple() returns Str {
+method Str simple() {
     return "hello";
 }
 --------------------------------------------------------------------------------
@@ -525,7 +525,7 @@ method simple() returns Str {
 ================================================================================
 Methods with return types - parameterized
 ================================================================================
-method process_list(ArrayRef[Int] $numbers) returns HashRef[Str] {
+method HashRef[Str] process_list(ArrayRef[Int] $numbers) {
     return {};
 }
 --------------------------------------------------------------------------------

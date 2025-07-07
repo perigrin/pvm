@@ -57,11 +57,7 @@ class UserRepository<T> : BaseRepository<T, UserId>
     field Int $cache_size = 1000;
     field Str $table_name;
 
-    method BUILD(
-        CodeRef[UserId, Optional[T]] $loader,
-        :$table_name as Str = 'users',
-        :$cache_size as Int = 1000
-    ) returns Void where $cache_size > 0 {
+    method Void BUILD(CodeRef[UserId, Optional[T]] $loader, :$table_name as Str = 'users', :$cache_size as Int = 1000) where $cache_size > 0 {
         $self->{loader} = $loader;
         $self->{table_name} = $table_name;
         $self->{cache_size} = $cache_size;

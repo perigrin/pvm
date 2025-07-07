@@ -14,10 +14,7 @@ type_check: true
 Union types in nested method signature contexts with complex parameters
 
 ```perl
-method HashRef[Bool|Str] complex(
-    ArrayRef[Int|Str] $data,
-    CodeRef|Undef $callback
-) {
+method HashRef[Bool|Str] complex(ArrayRef[Int|Str] $data, CodeRef|Undef $callback) {
     return {};
 }
 ```
@@ -32,6 +29,8 @@ AST {
   Source length: 111 characters
   Type Annotations:
     MethodReturnAnnotation: complex :: HashRef[Bool|Str] at 1:8
+    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
+    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
   Root: source_file
   Tree Structure:
   source_file
@@ -53,6 +52,8 @@ AST {
   Source length: 111 characters
   Type Annotations:
     MethodReturnAnnotation: complex :: HashRef[Bool|Str] at 1:8
+    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
+    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
   Root: source_file
   Tree Structure:
   source_file
@@ -73,10 +74,7 @@ AST {
 
 ```perl
 use v5.36;
-method complex(
-    $data,
-    $callback
-) {
+method complex($data, $callback) {
     return {};
 }
 ```
@@ -84,10 +82,7 @@ method complex(
 ## Typed Perl Output
 
 ```perl
-method HashRef[Bool|Str] complex(
-    ArrayRef[Int|Str] $data,
-    CodeRef|Undef $callback
-) {
+method HashRef[Bool|Str] complex(ArrayRef[Int|Str] $data, CodeRef|Undef $callback) {
     return {};
 }
 ```
