@@ -197,6 +197,76 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 		return fmt.Sprintf("Optional[%s]", params[0]), nil
 	}
 
+	h.parameterizedTypes["Map"] = func(params []string) (string, error) {
+		if len(params) != 2 {
+			return "", fmt.Errorf("Map requires exactly two type parameters")
+		}
+		return fmt.Sprintf("Map[%s, %s]", params[0], params[1]), nil
+	}
+
+	h.parameterizedTypes["Tuple"] = func(params []string) (string, error) {
+		if len(params) < 2 {
+			return "", fmt.Errorf("Tuple requires at least two type parameters")
+		}
+		return fmt.Sprintf("Tuple[%s]", strings.Join(params, ", ")), nil
+	}
+
+	h.parameterizedTypes["Function"] = func(params []string) (string, error) {
+		if len(params) < 1 {
+			return "", fmt.Errorf("Function requires at least one type parameter")
+		}
+		return fmt.Sprintf("Function[%s]", strings.Join(params, ", ")), nil
+	}
+
+	h.parameterizedTypes["Result"] = func(params []string) (string, error) {
+		if len(params) != 2 {
+			return "", fmt.Errorf("Result requires exactly two type parameters")
+		}
+		return fmt.Sprintf("Result[%s, %s]", params[0], params[1]), nil
+	}
+
+	h.parameterizedTypes["CodeRef"] = func(params []string) (string, error) {
+		if len(params) < 1 {
+			return "", fmt.Errorf("CodeRef requires at least one type parameter")
+		}
+		return fmt.Sprintf("CodeRef[%s]", strings.Join(params, ", ")), nil
+	}
+
+	h.parameterizedTypes["Array"] = func(params []string) (string, error) {
+		if len(params) != 1 {
+			return "", fmt.Errorf("Array requires exactly one type parameter")
+		}
+		return fmt.Sprintf("Array[%s]", params[0]), nil
+	}
+
+	h.parameterizedTypes["Success"] = func(params []string) (string, error) {
+		if len(params) != 1 {
+			return "", fmt.Errorf("Success requires exactly one type parameter")
+		}
+		return fmt.Sprintf("Success[%s]", params[0]), nil
+	}
+
+	h.parameterizedTypes["Error"] = func(params []string) (string, error) {
+		if len(params) != 1 {
+			return "", fmt.Errorf("Error requires exactly one type parameter")
+		}
+		return fmt.Sprintf("Error[%s]", params[0]), nil
+	}
+
+	h.parameterizedTypes["Enum"] = func(params []string) (string, error) {
+		if len(params) < 1 {
+			return "", fmt.Errorf("Enum requires at least one type parameter")
+		}
+		return fmt.Sprintf("Enum[%s]", strings.Join(params, ", ")), nil
+	}
+
+	h.parameterizedTypes["Container"] = func(params []string) (string, error) {
+		if len(params) != 1 {
+			return "", fmt.Errorf("Container requires exactly one type parameter")
+		}
+		return fmt.Sprintf("Container[%s]", params[0]), nil
+	}
+
 	h.parameterizedTypes["List"] = func(params []string) (string, error) {
 		if len(params) != 1 {
 			return "", fmt.Errorf("List requires exactly one type parameter")

@@ -352,6 +352,8 @@ func (t *PerlTree) processSubroutineSignature(signatureNode *sitter.Node, subNam
 
 		if child.Kind() == "typed_method_parameter" {
 			t.processTypedSubroutineParameter(child, subName, annotations)
+		} else if child.Kind() == "optional_parameter" {
+			t.processOptionalSubroutineParameter(child, subName, annotations)
 		}
 	}
 }
@@ -385,6 +387,54 @@ func (t *PerlTree) processTypedSubroutineParameter(paramNode *sitter.Node, subNa
 	if paramName != "" && typeName != "" {
 		if os.Getenv("DEBUG_PARSER") == "1" {
 			fmt.Printf("DEBUG: Creating subroutine parameter annotation: %s for %s: %s\n", paramName, subName, typeName)
+		}
+		annotation := &PerlTypeAnnotation{
+			ItemName: paramName,
+			TypeName: typeName,
+			Kind:     "subroutine_param",
+			StartPos: int(paramNode.StartByte()),
+			EndPos:   int(paramNode.EndByte()),
+			Content:  t.getNodeText(paramNode),
+		}
+		*annotations = append(*annotations, annotation)
+	}
+}
+
+// processOptionalSubroutineParameter processes optional subroutine parameters with default values
+func (t *PerlTree) processOptionalSubroutineParameter(paramNode *sitter.Node, subName string, annotations *[]*PerlTypeAnnotation) {
+	var paramName, typeName string
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing optional subroutine parameter for %s with %d children\n", subName, paramNode.ChildCount())
+	}
+
+	for i := 0; i < int(paramNode.ChildCount()); i++ {
+		child := paramNode.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Optional subroutine parameter child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "type_expression":
+			typeName = t.extractTypeExpression(child)
+		case "scalar", "array", "hash":
+			paramName = t.getNodeText(child)
+		case "=":
+			// Skip the assignment operator
+			continue
+		case "number", "string", "bareword":
+			// Skip default values - we don't need them for type annotation
+			continue
+		}
+	}
+
+	if paramName != "" && typeName != "" {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Creating optional subroutine parameter annotation: %s for %s: %s\n", paramName, subName, typeName)
 		}
 		annotation := &PerlTypeAnnotation{
 			ItemName: paramName,
@@ -529,6 +579,8 @@ func (t *PerlTree) processMethodSignature(signatureNode *sitter.Node, methodName
 
 		if child.Kind() == "typed_method_parameter" {
 			t.processTypedMethodParameter(child, methodName, annotations)
+		} else if child.Kind() == "optional_parameter" {
+			t.processOptionalMethodParameter(child, methodName, annotations)
 		}
 	}
 }
@@ -562,6 +614,54 @@ func (t *PerlTree) processTypedMethodParameter(paramNode *sitter.Node, methodNam
 	if paramName != "" && typeName != "" {
 		if os.Getenv("DEBUG_PARSER") == "1" {
 			fmt.Printf("DEBUG: Creating method parameter annotation: %s for %s: %s\n", paramName, methodName, typeName)
+		}
+		annotation := &PerlTypeAnnotation{
+			ItemName: paramName,
+			TypeName: typeName,
+			Kind:     "method_parameter",
+			StartPos: int(paramNode.StartByte()),
+			EndPos:   int(paramNode.EndByte()),
+			Content:  t.getNodeText(paramNode),
+		}
+		*annotations = append(*annotations, annotation)
+	}
+}
+
+// processOptionalMethodParameter processes optional method parameters with default values
+func (t *PerlTree) processOptionalMethodParameter(paramNode *sitter.Node, methodName string, annotations *[]*PerlTypeAnnotation) {
+	var paramName, typeName string
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing optional method parameter for %s with %d children\n", methodName, paramNode.ChildCount())
+	}
+
+	for i := 0; i < int(paramNode.ChildCount()); i++ {
+		child := paramNode.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Optional parameter child %d: %s (text: %s)\n", i, child.Kind(), t.getNodeText(child))
+		}
+
+		switch child.Kind() {
+		case "type_expression":
+			typeName = t.extractTypeExpression(child)
+		case "scalar", "array", "hash":
+			paramName = t.getNodeText(child)
+		case "=":
+			// Skip the assignment operator
+			continue
+		case "number", "string", "bareword":
+			// Skip default values - we don't need them for type annotation
+			continue
+		}
+	}
+
+	if paramName != "" && typeName != "" {
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Creating optional method parameter annotation: %s for %s: %s\n", paramName, methodName, typeName)
 		}
 		annotation := &PerlTypeAnnotation{
 			ItemName: paramName,

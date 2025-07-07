@@ -67,7 +67,7 @@ func TestGetLatestRelease_Success(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/repos/owner/repo/releases/latest" {
+		if r.URL.Path != "/repos/owner/repo/releases" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 
@@ -76,7 +76,7 @@ func TestGetLatestRelease_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockRelease)
+		json.NewEncoder(w).Encode([]GitHubRelease{mockRelease})
 	}))
 	defer server.Close()
 
@@ -116,7 +116,7 @@ func TestGetLatestRelease_WithToken(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mockRelease)
+		json.NewEncoder(w).Encode([]GitHubRelease{mockRelease})
 	}))
 	defer server.Close()
 
