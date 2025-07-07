@@ -13,6 +13,11 @@ on:
         default: 'latest2'
         type: string
 
+# Required permissions for GitHub token to create releases and upload assets
+permissions:
+  contents: write    # Required to create releases and upload assets
+  actions: read      # Required to read workflow artifacts (if needed)
+
 jobs:
   # Get latest Perl versions and prepare matrix
   prepare:
