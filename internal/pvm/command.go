@@ -844,8 +844,16 @@ func newAvailableCommand() *cobra.Command {
 				installedMap[info.Version] = true
 			}
 
-			// Create MetaCPAN provider to fetch latest Perl versions
-			provider, err := cpan.NewMetaCPANProvider()
+			// Get cache directory for MetaCPAN data
+			dirs, err := xdg.GetDirs()
+			if err != nil {
+				return fmt.Errorf("failed to get XDG directories: %w", err)
+			}
+
+			// Create MetaCPAN provider with 72-hour cache TTL
+			provider, err := cpan.NewMetaCPANProvider(
+				cpan.WithCache(dirs.CacheDir, 72), // 72 hours
+			)
 			if err != nil {
 				// Fallback to hardcoded versions if MetaCPAN is unavailable
 				ui := cli.GetUI(cmd)
