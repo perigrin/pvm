@@ -855,21 +855,14 @@ func newAvailableCommand() *cobra.Command {
 				cpan.WithCache(dirs.CacheDir, 72), // 72 hours
 			)
 			if err != nil {
-				// Fallback to hardcoded versions if MetaCPAN is unavailable
-				ui := cli.GetUI(cmd)
-				ui.Warning("Unable to connect to MetaCPAN, using cached version list")
-				return useHardcodedVersions(cmd, installedMap, format)
+				return fmt.Errorf("failed to create MetaCPAN provider: %w", err)
 			}
 
-			// Fetch available Perl versions from MetaCPAN
+			// Fetch available Perl versions from MetaCPAN (with cache fallback)
 			ctx := context.Background()
 			stableVersions, err := provider.GetPerlCoreVersions(ctx)
 			if err != nil {
-				// Fallback to hardcoded versions if API call fails
-				ui := cli.GetUI(cmd)
-				ui.Warning("Failed to fetch versions from MetaCPAN: %v", err)
-				ui.Warning("Using cached version list")
-				return useHardcodedVersions(cmd, installedMap, format)
+				return fmt.Errorf("failed to fetch Perl versions from MetaCPAN: %w", err)
 			}
 
 			// For now, we don't fetch development versions from MetaCPAN
@@ -986,130 +979,6 @@ func newAvailableCommand() *cobra.Command {
 	cmd.Flags().StringP("format", "f", "text", "Output format (text or json)")
 
 	return cmd
-}
-
-// useHardcodedVersions provides a fallback when MetaCPAN is unavailable
-func useHardcodedVersions(cmd *cobra.Command, installedMap map[string]bool, format string) error {
-	// Define common stable Perl versions (5.10.0 through latest)
-	// This is a fallback list when MetaCPAN is unavailable
-	stableVersions := []string{
-		"5.40.0", "5.38.2", "5.38.0", "5.36.3", "5.36.1", "5.36.0", "5.34.3", "5.34.1", "5.34.0",
-		"5.32.1", "5.32.0", "5.30.3", "5.30.2", "5.30.1", "5.30.0",
-		"5.28.3", "5.28.2", "5.28.1", "5.28.0", "5.26.3", "5.26.2", "5.26.1", "5.26.0",
-		"5.24.4", "5.24.3", "5.24.2", "5.24.1", "5.24.0", "5.22.4", "5.22.3", "5.22.2", "5.22.1", "5.22.0",
-		"5.20.3", "5.20.2", "5.20.1", "5.20.0", "5.18.4", "5.18.3", "5.18.2", "5.18.1", "5.18.0",
-		"5.16.3", "5.16.2", "5.16.1", "5.16.0", "5.14.4", "5.14.3", "5.14.2", "5.14.1", "5.14.0",
-		"5.12.5", "5.12.4", "5.12.3", "5.12.2", "5.12.1", "5.12.0", "5.10.1", "5.10.0",
-	}
-
-	// Current development version
-	devVersions := []string{"5.41.0"}
-
-	// Handle JSON format
-	if format == "json" {
-		type VersionInfo struct {
-			Version   string `json:"version"`
-			Installed bool   `json:"installed"`
-			Type      string `json:"type"` // "stable" or "development"
-		}
-
-		var versionInfos []VersionInfo
-
-		// Add stable versions
-		for _, version := range stableVersions {
-			versionInfos = append(versionInfos, VersionInfo{
-				Version:   version,
-				Installed: installedMap[version],
-				Type:      "stable",
-			})
-		}
-
-		// Add development versions
-		for _, version := range devVersions {
-			versionInfos = append(versionInfos, VersionInfo{
-				Version:   version,
-				Installed: installedMap[version],
-				Type:      "development",
-			})
-		}
-
-		// Output JSON
-		jsonData, err := json.MarshalIndent(versionInfos, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal JSON: %w", err)
-		}
-
-		fmt.Println(string(jsonData))
-		return nil
-	}
-
-	// Default text output
-	ui := cli.GetUI(cmd)
-	ui.Header("Available Perl versions:")
-
-	// Group versions by major.minor
-	groupedVersions := make(map[string][]string)
-
-	// Add stable versions to groups
-	for _, version := range stableVersions {
-		// Parse version to get major.minor
-		parsedVersion, err := perl.ParseVersion(version)
-		if err != nil {
-			continue // Skip invalid versions
-		}
-
-		// Create group key (e.g., "5.38")
-		groupKey := fmt.Sprintf("%d.%d", parsedVersion.Major, parsedVersion.Minor)
-
-		// Add to group
-		groupedVersions[groupKey] = append(groupedVersions[groupKey], version)
-	}
-
-	// Add development versions separately
-	if len(devVersions) > 0 {
-		ui.SubHeader("Development versions:")
-		for _, version := range devVersions {
-			installed := ""
-			if installedMap[version] {
-				installed = " (installed)"
-			}
-			ui.Printf("  %s%s", version, installed)
-		}
-	}
-
-	// Display stable versions by group
-	ui.SubHeader("Stable versions:")
-
-	// Sort groups (we could use a proper version sorting here)
-	// But for this simple listing, the natural string sort will work reasonably well
-	groupKeys := make([]string, 0, len(groupedVersions))
-	for key := range groupedVersions {
-		groupKeys = append(groupKeys, key)
-	}
-	// Note: This would be better with a custom sort
-
-	// Display groups
-	for _, groupKey := range groupKeys {
-		versions := groupedVersions[groupKey]
-
-		// Skip empty groups
-		if len(versions) == 0 {
-			continue
-		}
-
-		// Display group versions
-		ui.Info("  %s series:", groupKey)
-		for _, version := range versions {
-			installed := ""
-			if installedMap[version] {
-				installed = " (installed)"
-			}
-			ui.Printf("    %s%s", version, installed)
-		}
-	}
-
-	ui.Info("Use 'pvm install <version>' to install a specific version.")
-	return nil
 }
 
 func newDownloadCommand() *cobra.Command {
