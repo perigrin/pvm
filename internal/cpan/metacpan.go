@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -929,6 +930,194 @@ func (p *MetaCPANProvider) IsCoreModule(ctx context.Context, moduleName string, 
 	// For modules not in our basic list, we can't determine core status
 	// without additional API calls or Module::CoreList integration
 	return false, nil
+}
+
+// GetPerlCoreVersions retrieves available Perl core versions from MetaCPAN
+func (p *MetaCPANProvider) GetPerlCoreVersions(ctx context.Context) ([]string, error) {
+	if p.disableNetwork {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "network_disabled",
+			Message: "Network access is disabled",
+		}
+	}
+
+	// Check cache first
+	if p.cacheDir != "" {
+		cache, err := NewCache(p.cacheDir, p.cacheTTL)
+		if err == nil {
+			cacheKey := "perl_core_versions"
+			var cachedVersions []string
+			if cache.Get(cacheKey, &cachedVersions) {
+				return cachedVersions, nil
+			}
+		}
+	}
+
+	// Query MetaCPAN for Perl core releases
+	// Use the release endpoint to search for distributions named "perl"
+	endpoint := "/release/_search?q=distribution:perl&fields=version,date&size=100&sort=date:desc"
+	requestURL := p.baseURL + endpoint
+
+	// Make the request
+	req, err := http.NewRequestWithContext(ctx, "GET", requestURL, nil)
+	if err != nil {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "request_creation_failed",
+			Message: "Failed to create request",
+			URL:     requestURL,
+			Err:     err,
+		}
+	}
+
+	// Set headers
+	req.Header.Set("User-Agent", p.userAgent)
+	req.Header.Set("Accept", "application/json")
+
+	// Execute the request
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "request_failed",
+			Message: "Failed to execute request",
+			URL:     requestURL,
+			Err:     err,
+		}
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Check status code
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ProviderError{
+			Source:     p.Name(),
+			Code:       "http_error",
+			Message:    fmt.Sprintf("HTTP error: %d", resp.StatusCode),
+			URL:        requestURL,
+			StatusCode: resp.StatusCode,
+		}
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "read_failed",
+			Message: "Failed to read response body",
+			URL:     requestURL,
+			Err:     err,
+		}
+	}
+
+	// Parse the JSON response
+	var searchResponse struct {
+		Hits struct {
+			Hits []struct {
+				Fields struct {
+					Version string `json:"version"`
+					Date    string `json:"date"`
+				} `json:"fields"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+
+	if err := json.Unmarshal(body, &searchResponse); err != nil {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "parse_failed",
+			Message: "Failed to parse JSON response",
+			URL:     requestURL,
+			Err:     err,
+		}
+	}
+
+	// Extract versions and filter for stable releases
+	versions := make([]string, 0)
+	seen := make(map[string]bool)
+
+	for _, hit := range searchResponse.Hits.Hits {
+		version := hit.Fields.Version
+		// Convert MetaCPAN version format (5.042000) to standard format (5.42.0)
+		standardVersion := convertMetaCPANVersion(version)
+		// Filter out development versions (odd minor versions like 5.39.x)
+		// and ensure we only include valid versions
+		if standardVersion != "" && !seen[standardVersion] && isStablePerlVersion(standardVersion) {
+			seen[standardVersion] = true
+			versions = append(versions, standardVersion)
+		}
+	}
+
+	// Save to cache
+	if p.cacheDir != "" {
+		cache, err := NewCache(p.cacheDir, p.cacheTTL)
+		if err == nil {
+			cacheKey := "perl_core_versions"
+			_ = cache.Set(cacheKey, versions, p.Name())
+		}
+	}
+
+	return versions, nil
+}
+
+// convertMetaCPANVersion converts MetaCPAN version format to standard format
+// Examples: 5.042000 -> 5.42.0, 5.040001 -> 5.40.1, 5.038003 -> 5.38.3
+func convertMetaCPANVersion(metacpanVersion string) string {
+	// MetaCPAN uses format like "5.042000" for Perl versions
+	// We need to convert this to "5.42.0" format
+
+	// Match MetaCPAN version format: major.minorrevision where revision is 3 digits
+	re := regexp.MustCompile(`^(\d+)\.(\d{3})(\d{3})$`)
+	matches := re.FindStringSubmatch(metacpanVersion)
+
+	if len(matches) != 4 {
+		// If it doesn't match MetaCPAN format, return as-is
+		return metacpanVersion
+	}
+
+	major := matches[1]
+	minorStr := matches[2]
+	revisionStr := matches[3]
+
+	// Convert minor and revision to integers to remove leading zeros
+	minor := 0
+	revision := 0
+
+	if _, err := fmt.Sscanf(minorStr, "%d", &minor); err != nil {
+		return metacpanVersion
+	}
+
+	if _, err := fmt.Sscanf(revisionStr, "%d", &revision); err != nil {
+		return metacpanVersion
+	}
+
+	// Return in standard format
+	return fmt.Sprintf("%s.%d.%d", major, minor, revision)
+}
+
+// isStablePerlVersion determines if a version string represents a stable Perl release
+func isStablePerlVersion(version string) bool {
+	// Parse version string to check if it's a stable release
+	// Stable versions have even minor version numbers (5.38.x, 5.36.x, etc.)
+	// Development versions have odd minor version numbers (5.39.x, 5.37.x, etc.)
+
+	// Simple regex to match version pattern
+	re := regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)$`)
+	matches := re.FindStringSubmatch(version)
+
+	if len(matches) != 4 {
+		return false
+	}
+
+	// Convert minor version to int
+	minor := 0
+	if _, err := fmt.Sscanf(matches[2], "%d", &minor); err != nil {
+		return false
+	}
+
+	// Stable versions have even minor version numbers
+	return minor%2 == 0
 }
 
 // calculateRating calculates a rating for a module based on CPAN Testers results
