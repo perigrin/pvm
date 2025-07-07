@@ -31,6 +31,8 @@ AST {
     MethodReturnAnnotation: complex :: HashRef[Bool|Str] at 1:8
     MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
     MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
+    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
+    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
   Root: source_file
   Tree Structure:
   source_file
@@ -52,6 +54,8 @@ AST {
   Source length: 111 characters
   Type Annotations:
     MethodReturnAnnotation: complex :: HashRef[Bool|Str] at 1:8
+    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
+    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
     MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
     MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
   Root: source_file

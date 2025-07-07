@@ -132,7 +132,33 @@ func (t *PerlTree) FindTypeAnnotations() ([]*PerlTypeAnnotation, error) {
 	root := t.Tree.RootNode()
 	t.traverseForTypeAnnotations(root, &annotations)
 
+	// Deduplicate annotations to prevent duplicate parameter annotations
+	annotations = t.deduplicateAnnotations(annotations)
+
 	return annotations, nil
+}
+
+// deduplicateAnnotations removes duplicate type annotations while preserving order
+func (t *PerlTree) deduplicateAnnotations(annotations []*PerlTypeAnnotation) []*PerlTypeAnnotation {
+	seen := make(map[string]bool)
+	var result []*PerlTypeAnnotation
+
+	for _, ann := range annotations {
+		// Create a unique key based on annotated item, type, and kind
+		key := fmt.Sprintf("%s::%s::%s", ann.ItemName, ann.TypeName, ann.Kind)
+
+		if !seen[key] {
+			seen[key] = true
+			result = append(result, ann)
+		} else {
+			// Debug output to see what duplicates are being removed
+			if os.Getenv("DEBUG_PARSER") == "1" {
+				fmt.Printf("DEBUG: Removing duplicate annotation: %s\n", key)
+			}
+		}
+	}
+
+	return result
 }
 
 // traverseForTypeAnnotations recursively traverses the tree looking for type annotations

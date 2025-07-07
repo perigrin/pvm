@@ -48,12 +48,11 @@ AST {
   Type Annotations:
     MethodReturnAnnotation: serialize :: Str at 6:12
     MethodReturnAnnotation: deserialize :: Self at 14:12
+    MethodParamAnnotation: $data :: Str at 14:1
     VarAnnotation: Document :: class at 1:1
     VarAnnotation: $content :: Str at 2:5
     VarAnnotation: $created :: DateTime at 3:5
     VarAnnotation: $author :: Optional[UserRef] at 4:5
-    MethodReturnAnnotation: serialize :: Str at 6:12
-    MethodReturnAnnotation: deserialize :: Self at 14:12
     MethodParamAnnotation: $data :: Str at 14:1
   Root: source_file
   Tree Structure:
@@ -94,12 +93,11 @@ AST {
   Type Annotations:
     MethodReturnAnnotation: serialize :: Str at 6:12
     MethodReturnAnnotation: deserialize :: Self at 14:12
+    MethodParamAnnotation: $data :: Str at 14:1
     VarAnnotation: Document :: class at 1:1
     VarAnnotation: $content :: Str at 2:5
     VarAnnotation: $created :: DateTime at 3:5
     VarAnnotation: $author :: Optional[UserRef] at 4:5
-    MethodReturnAnnotation: serialize :: Str at 6:12
-    MethodReturnAnnotation: deserialize :: Self at 14:12
     MethodParamAnnotation: $data :: Str at 14:1
   Root: source_file
   Tree Structure:
