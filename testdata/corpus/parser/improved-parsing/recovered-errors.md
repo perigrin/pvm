@@ -21,3 +21,27 @@ my ArrayRef[Int $var;
 ```perl
 my ArrayRef[ Int] $spaced;
 ```
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+use v5.36;
+my $var;
+my $spaced;
+```
+
+## Typed Perl Output
+
+```perl
+use v5.36;
+my ArrayRef[Int $var;
+my ArrayRef[ Int] $spaced;
+```
+
+## Inferred Perl Output
+
+```perl
+# Type inference not yet fully implemented
+```

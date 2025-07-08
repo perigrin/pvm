@@ -33,3 +33,23 @@ my $val = $input as ;
 ```perl
 my Object&&Serializable $obj;
 ```
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+## Typed Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+## Inferred Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```

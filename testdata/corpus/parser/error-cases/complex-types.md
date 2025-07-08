@@ -21,3 +21,23 @@ my Container[Wrapper[Missing $unclosed_nested;
 my (Int|Str& $mixed_operators_without_close;
 my Map[Str ArrayRef[Int]] $missing_comma_in_params;
 ```
+
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+## Typed Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+## Inferred Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```

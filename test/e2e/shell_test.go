@@ -16,8 +16,11 @@ func TestShellInit(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Run shell init command or skip as TODO if not implemented
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"shell", "init"}, "Shell initialization")
+	// Run shell init command
+	stdout, stderr, err := env.RunPVM("shell", "init")
+	if err != nil {
+		t.Fatalf("Shell initialization failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
 
 	// If we get here, the command succeeded, so run the normal assertions
 	helpers.AssertStringContains(t, stdout, "Shell integration initialized",
@@ -44,15 +47,18 @@ func TestBashIntegration(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// First run shell init or skip as TODO if not implemented
-	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"shell", "init"}, "Shell initialization")
+	// First run shell init
+	_, stderr, err := env.RunPVM("shell", "init")
+	if err != nil {
+		t.Fatalf("Shell initialization failed\nError: %v\nStderr: %s", err, stderr)
+	}
 
 	// Source the bash script
 	bashScript := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")
 
 	// Check if the bash script exists before continuing
-	if _, err := os.Stat(bashScript); os.IsNotExist(err) {
-		helpers.SkipTODO(t, "Bash shell integration script")
+	if _, statErr := os.Stat(bashScript); os.IsNotExist(statErr) {
+		t.Fatalf("Bash shell integration script not found at %s", bashScript)
 	}
 
 	// Create a test bash script that sources the pvm bash script and tests functionality
@@ -72,7 +78,7 @@ if echo $PATH | grep -q "` + env.PVMShimsDir + `"; then
     echo "PATH includes shims directory"
 fi
 `
-	err := os.WriteFile(testScript, []byte(scriptContent), 0755)
+	err = os.WriteFile(testScript, []byte(scriptContent), 0755)
 	if err != nil {
 		t.Fatalf("Failed to create test bash script: %v", err)
 	}
@@ -106,12 +112,15 @@ func TestPerlVersionFileDetection(t *testing.T) {
 	}
 
 	// Initialize shell integration
-	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"shell", "init"}, "Shell initialization")
+	_, stderr, err := env.RunPVM("shell", "init")
+	if err != nil {
+		t.Fatalf("Shell initialization failed\nError: %v\nStderr: %s", err, stderr)
+	}
 
 	// Look for the bash script
 	bashScript := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")
-	if _, err := os.Stat(bashScript); os.IsNotExist(err) {
-		helpers.SkipTODO(t, "Bash shell integration script")
+	if _, statErr := os.Stat(bashScript); os.IsNotExist(statErr) {
+		t.Fatalf("Bash shell integration script not found at %s", bashScript)
 	}
 
 	// Create a test bash script that sources the pvm bash script and changes to the home directory

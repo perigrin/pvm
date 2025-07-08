@@ -30,10 +30,10 @@ func TestImportSystemPerl(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Import system Perl or skip as TODO if not implemented
+	// Import system Perl
 	stdout, stderr, err := env.RunPVM("import-system")
 	if err != nil {
-		t.Skipf("TODO: System Perl import not yet implemented\nCommand: pvm import-system\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+		t.Fatalf("System Perl import failed\nCommand: pvm import-system\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
 	// Accept either successful import or already registered message
 	output := stdout + stderr
@@ -44,7 +44,7 @@ func TestImportSystemPerl(t *testing.T) {
 	// Check that system Perl is now listed
 	stdout, stderr, err = env.RunPVM("list", "--source")
 	if err != nil {
-		t.Skipf("TODO: Perl version listing not yet implemented\nCommand: pvm list --source\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+		t.Fatalf("Perl version listing failed\nCommand: pvm list --source\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
 	listOutput := stdout + stderr // Check both stdout and stderr for command output
 	helpers.AssertStringContains(t, listOutput, "Source: system", "System Perl not listed after import")

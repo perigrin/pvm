@@ -15,8 +15,11 @@ func TestConfigShowCommand(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Run config show command or skip as TODO if not implemented
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"config", "show"}, "Configuration display")
+	// Run config show command
+	stdout, stderr, err := env.RunPVM("config", "show")
+	if err != nil {
+		t.Fatalf("Configuration display failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
 
 	// Check that output contains expected sections
 	helpers.AssertStringContains(t, stdout, "[pvm]", "Config output missing PVM section")
@@ -28,9 +31,11 @@ func TestConfigGetCommand(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Get a config value or skip as TODO if not implemented
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"config", "get", "pvm.download_mirror"},
-		"Configuration value retrieval")
+	// Get a config value
+	stdout, stderr, err := env.RunPVM("config", "get", "pvm.download_mirror")
+	if err != nil {
+		t.Fatalf("Configuration value retrieval failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
 
 	// Check that output contains a value (likely https://www.cpan.org/src/5.0)
 	if stdout == "" {
@@ -43,14 +48,18 @@ func TestConfigSetCommand(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Set a config value or skip as TODO if not implemented
+	// Set a config value
 	testValue := "5.36.0"
-	_ = helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"config", "set", "pvm.default_perl", testValue},
-		"Configuration value setting")
+	_, stderr, err := env.RunPVM("config", "set", "pvm.default_perl", testValue)
+	if err != nil {
+		t.Fatalf("Configuration value setting failed\nError: %v\nStderr: %s", err, stderr)
+	}
 
 	// Get the value to verify it was set
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"config", "get", "pvm.default_perl"},
-		"Configuration value retrieval")
+	stdout, stderr, err := env.RunPVM("config", "get", "pvm.default_perl")
+	if err != nil {
+		t.Fatalf("Configuration value retrieval failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
 
 	// Check that the value was set correctly
 	helpers.AssertStringContains(t, stdout, testValue,
