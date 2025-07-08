@@ -42,9 +42,9 @@ AST {
   Type Annotations:
     VarAnnotation: $typed_field :: Int at 2:1
     MethodReturnAnnotation: typed_method :: Str at 5:8
+    MethodParamAnnotation: $input :: Str at 5:25
     MethodReturnAnnotation: partially_typed :: Str at 14:8
-    MethodParamAnnotation: $input :: Str at 5:1
-    MethodParamAnnotation: $typed :: Int at 14:1
+    MethodParamAnnotation: $typed :: Int at 14:38
   Root: source_file
   Tree Structure:
   source_file
@@ -115,9 +115,9 @@ AST {
   Type Annotations:
     VarAnnotation: $typed_field :: Int at 2:1
     MethodReturnAnnotation: typed_method :: Str at 5:8
+    MethodParamAnnotation: $input :: Str at 5:25
     MethodReturnAnnotation: partially_typed :: Str at 14:8
-    MethodParamAnnotation: $input :: Str at 5:1
-    MethodParamAnnotation: $typed :: Int at 14:1
+    MethodParamAnnotation: $typed :: Int at 14:38
   Root: source_file
   Tree Structure:
   source_file

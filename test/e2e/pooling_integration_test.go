@@ -746,7 +746,7 @@ method Type%d complexMethod%d(Type%d $param1, Str $param2) {
 
     return $local1_%d;
 }
-`, i, i%(numElements/4), i%(numElements/4), i, i, i, i, i, i, i, i, i))
+`, i%(numElements/4), i, i%(numElements/4), i, i, i, i, i, i, i, i, i))
 	}
 
 	content.WriteString("\n1;\n")

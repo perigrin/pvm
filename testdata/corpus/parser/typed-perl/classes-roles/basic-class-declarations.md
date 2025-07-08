@@ -42,15 +42,13 @@ AST {
   Source length: 294 characters
   Type Annotations:
     MethodReturnAnnotation: new :: User at 6:12
+    MethodParamAnnotation: $name :: Str at 6:21
+    MethodParamAnnotation: $age :: Int at 6:32
     MethodReturnAnnotation: get_name :: Str at 13:12
     VarAnnotation: User :: class at 1:1
     VarAnnotation: $name :: Str at 2:5
     VarAnnotation: $age :: Int at 3:5
     VarAnnotation: $email :: Optional[Email] at 4:5
-    MethodReturnAnnotation: new :: User at 6:12
-    MethodReturnAnnotation: get_name :: Str at 13:12
-    MethodParamAnnotation: $name :: Str at 6:1
-    MethodParamAnnotation: $age :: Int at 6:1
   Root: source_file
   Tree Structure:
   source_file
@@ -86,15 +84,13 @@ AST {
   Source length: 294 characters
   Type Annotations:
     MethodReturnAnnotation: new :: User at 6:12
+    MethodParamAnnotation: $name :: Str at 6:21
+    MethodParamAnnotation: $age :: Int at 6:32
     MethodReturnAnnotation: get_name :: Str at 13:12
     VarAnnotation: User :: class at 1:1
     VarAnnotation: $name :: Str at 2:5
     VarAnnotation: $age :: Int at 3:5
     VarAnnotation: $email :: Optional[Email] at 4:5
-    MethodReturnAnnotation: new :: User at 6:12
-    MethodReturnAnnotation: get_name :: Str at 13:12
-    MethodParamAnnotation: $name :: Str at 6:1
-    MethodParamAnnotation: $age :: Int at 6:1
   Root: source_file
   Tree Structure:
   source_file

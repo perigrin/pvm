@@ -79,7 +79,7 @@ func TestComplexMethodSignatures(t *testing.T) {
 			`,
 			expectParseError:   false,
 			expectedReturnType: "Int",
-			expectedParams:     0, // TODO: Multi-line method parameters not yet parsed correctly
+			expectedParams:     3, // Multi-line method parameters now parsed correctly
 		},
 		{
 			name: "nested_parameterized_types",

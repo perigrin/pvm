@@ -26,13 +26,11 @@ method HashRef[Bool|Str] complex(ArrayRef[Int|Str] $data, CodeRef|Undef $callbac
 ```
 AST {
   Path:
-  Source length: 111 characters
+  Source length: 101 characters
   Type Annotations:
     MethodReturnAnnotation: complex :: HashRef[Bool|Str] at 1:8
-    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
-    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
-    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
-    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
+    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:34
+    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:59
   Root: source_file
   Tree Structure:
   source_file
@@ -51,13 +49,11 @@ AST {
 ```
 AST {
   Path:
-  Source length: 111 characters
+  Source length: 101 characters
   Type Annotations:
     MethodReturnAnnotation: complex :: HashRef[Bool|Str] at 1:8
-    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
-    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
-    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:1
-    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:1
+    MethodParamAnnotation: $data :: ArrayRef[Int|Str] at 1:34
+    MethodParamAnnotation: $callback :: CodeRef|Undef at 1:59
   Root: source_file
   Tree Structure:
   source_file

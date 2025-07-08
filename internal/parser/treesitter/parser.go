@@ -1928,13 +1928,9 @@ func (p *Parser) extractConstraintAnnotations(content string) []*ast.TypeAnnotat
 	for lineNum, line := range lines {
 		line = strings.TrimSpace(line)
 
-		// Look for method signatures with constraints
+		// ONLY look for method signatures with constraints (where clauses)
+		// Basic type annotations are already handled by the tree-sitter parser
 		if strings.Contains(line, "method ") && strings.Contains(line, " where ") {
-			annotations = append(annotations, p.extractMethodConstraintAnnotations(line, lineNum+1)...)
-		}
-
-		// Look for method signatures without constraints (to extract basic type annotations)
-		if strings.Contains(line, "method ") && !strings.Contains(line, " where ") {
 			annotations = append(annotations, p.extractMethodConstraintAnnotations(line, lineNum+1)...)
 		}
 

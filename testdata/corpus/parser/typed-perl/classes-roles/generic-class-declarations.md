@@ -44,15 +44,12 @@ AST {
   Source length: 395 characters
   Type Annotations:
     MethodReturnAnnotation: add :: Void at 4:12
+    MethodParamAnnotation: $item :: T at 4:21
     MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:12
     MethodReturnAnnotation: find :: Optional[T] at 12:12
+    MethodParamAnnotation: $predicate :: CodeRef[T, Bool] at 12:29
     VarAnnotation: Container :: class at 1:1
     VarAnnotation: $items :: ArrayRef[T] at 2:5
-    MethodReturnAnnotation: add :: Void at 4:12
-    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:12
-    MethodReturnAnnotation: find :: Optional[T] at 12:12
-    MethodParamAnnotation: $item :: T at 4:1
-    MethodParamAnnotation: $predicate :: Bool] at 12:1
   Root: source_file
   Tree Structure:
   source_file
@@ -91,15 +88,12 @@ AST {
   Source length: 395 characters
   Type Annotations:
     MethodReturnAnnotation: add :: Void at 4:12
+    MethodParamAnnotation: $item :: T at 4:21
     MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:12
     MethodReturnAnnotation: find :: Optional[T] at 12:12
+    MethodParamAnnotation: $predicate :: CodeRef[T, Bool] at 12:29
     VarAnnotation: Container :: class at 1:1
     VarAnnotation: $items :: ArrayRef[T] at 2:5
-    MethodReturnAnnotation: add :: Void at 4:12
-    MethodReturnAnnotation: get_all :: ArrayRef[T] at 8:12
-    MethodReturnAnnotation: find :: Optional[T] at 12:12
-    MethodParamAnnotation: $item :: T at 4:1
-    MethodParamAnnotation: $predicate :: Bool] at 12:1
   Root: source_file
   Tree Structure:
   source_file

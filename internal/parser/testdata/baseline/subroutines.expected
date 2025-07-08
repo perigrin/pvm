@@ -1,6 +1,9 @@
 AST {
   Path:
   Source length: 123 characters
+  Type Annotations:
+    SubParamAnnotation: $a :: Int at 6:9
+    SubParamAnnotation: $b :: Int at 6:17
   Root: source_file
   Tree Structure:
   source_file

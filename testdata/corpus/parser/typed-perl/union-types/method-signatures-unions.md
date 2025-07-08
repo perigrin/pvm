@@ -32,8 +32,7 @@ AST {
   Source length: 111 characters
   Type Annotations:
     MethodReturnAnnotation: process :: Bool|Str at 1:8
-    MethodParamAnnotation: $input :: Int|Str at 1:1
-    MethodParamAnnotation: $input :: Int|Str at 1:1
+    MethodParamAnnotation: $input :: Int|Str at 1:25
   Root: source_file
   Tree Structure:
   source_file
@@ -57,8 +56,7 @@ AST {
   Source length: 111 characters
   Type Annotations:
     MethodReturnAnnotation: process :: Bool|Str at 1:8
-    MethodParamAnnotation: $input :: Int|Str at 1:1
-    MethodParamAnnotation: $input :: Int|Str at 1:1
+    MethodParamAnnotation: $input :: Int|Str at 1:25
   Root: source_file
   Tree Structure:
   source_file

@@ -37,12 +37,12 @@ AST {
   Source length: 177 characters
   Type Annotations:
     MethodReturnAnnotation: calculate :: Int at 1:8
+    MethodParamAnnotation: $a :: Int at 1:22
+    MethodParamAnnotation: $b :: Int at 1:30
     MethodReturnAnnotation: greet :: Str at 5:8
+    MethodParamAnnotation: $name :: Str at 5:18
     MethodReturnAnnotation: is_valid :: Bool at 9:8
-    MethodParamAnnotation: $a :: Int at 1:1
-    MethodParamAnnotation: $b :: Int at 1:1
-    MethodParamAnnotation: $name :: Str at 5:1
-    MethodParamAnnotation: $flag :: Bool at 9:1
+    MethodParamAnnotation: $flag :: Bool at 9:22
   Root: source_file
   Tree Structure:
   source_file
@@ -78,12 +78,12 @@ AST {
   Source length: 177 characters
   Type Annotations:
     MethodReturnAnnotation: calculate :: Int at 1:8
+    MethodParamAnnotation: $a :: Int at 1:22
+    MethodParamAnnotation: $b :: Int at 1:30
     MethodReturnAnnotation: greet :: Str at 5:8
+    MethodParamAnnotation: $name :: Str at 5:18
     MethodReturnAnnotation: is_valid :: Bool at 9:8
-    MethodParamAnnotation: $a :: Int at 1:1
-    MethodParamAnnotation: $b :: Int at 1:1
-    MethodParamAnnotation: $name :: Str at 5:1
-    MethodParamAnnotation: $flag :: Bool at 9:1
+    MethodParamAnnotation: $flag :: Bool at 9:22
   Root: source_file
   Tree Structure:
   source_file

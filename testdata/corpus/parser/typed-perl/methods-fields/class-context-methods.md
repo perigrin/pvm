@@ -41,16 +41,13 @@ AST {
   Source length: 285 characters
   Type Annotations:
     MethodReturnAnnotation: add :: Num at 4:12
+    MethodParamAnnotation: $a :: Num at 4:20
+    MethodParamAnnotation: $b :: Num at 4:28
     MethodReturnAnnotation: get_precision :: Num at 8:12
     MethodReturnAnnotation: set_precision :: Void at 12:12
+    MethodParamAnnotation: $new_precision :: Num at 12:31
     VarAnnotation: Calculator :: class at 1:1
     VarAnnotation: $precision :: Num at 2:5
-    MethodReturnAnnotation: add :: Num at 4:12
-    MethodReturnAnnotation: get_precision :: Num at 8:12
-    MethodReturnAnnotation: set_precision :: Void at 12:12
-    MethodParamAnnotation: $a :: Num at 4:1
-    MethodParamAnnotation: $b :: Num at 4:1
-    MethodParamAnnotation: $new_precision :: Num at 12:1
   Root: source_file
   Tree Structure:
   source_file
@@ -87,16 +84,13 @@ AST {
   Source length: 285 characters
   Type Annotations:
     MethodReturnAnnotation: add :: Num at 4:12
+    MethodParamAnnotation: $a :: Num at 4:20
+    MethodParamAnnotation: $b :: Num at 4:28
     MethodReturnAnnotation: get_precision :: Num at 8:12
     MethodReturnAnnotation: set_precision :: Void at 12:12
+    MethodParamAnnotation: $new_precision :: Num at 12:31
     VarAnnotation: Calculator :: class at 1:1
     VarAnnotation: $precision :: Num at 2:5
-    MethodReturnAnnotation: add :: Num at 4:12
-    MethodReturnAnnotation: get_precision :: Num at 8:12
-    MethodReturnAnnotation: set_precision :: Void at 12:12
-    MethodParamAnnotation: $a :: Num at 4:1
-    MethodParamAnnotation: $b :: Num at 4:1
-    MethodParamAnnotation: $new_precision :: Num at 12:1
   Root: source_file
   Tree Structure:
   source_file
