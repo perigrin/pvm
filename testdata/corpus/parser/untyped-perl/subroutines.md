@@ -250,7 +250,7 @@ my $map_ref = \&map;
 
 # Complex reference operations
 my @code_refs = (\&func1, \&func2, sub { 'anon' });
-my $selected = $;
+my $selected = $code_refs[1];
 $selected->();
 ```
 
