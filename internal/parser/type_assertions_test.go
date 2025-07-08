@@ -142,7 +142,7 @@ func TestComplexTypeAssertions(t *testing.T) {
 }
 
 func TestTypeConstraints(t *testing.T) {
-	t.Skip("Type constraint syntax (where clauses) not yet implemented - skipping until grammar supports constraint parsing")
+	// Note: Testing to see if constraint syntax is now supported
 
 	parser, err := NewParser()
 	if err != nil {

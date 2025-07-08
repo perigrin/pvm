@@ -585,9 +585,7 @@ class UserService {
 
 	t.Logf("Parsed complex typed Perl in %v", parseDuration)
 
-	// Skip AST verification since the grammar doesn't support these features yet
-	// TODO: Re-enable when tree-sitter grammar supports typed Perl features
-	t.Skip("Skipping AST verification - tree-sitter grammar doesn't support typed Perl features yet")
+	// AST verification: Now enabled since recent grammar improvements support typed Perl features
 
 	// Performance check
 	if parseDuration > 200*time.Millisecond {
