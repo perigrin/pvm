@@ -220,7 +220,7 @@ my $map_ref = \&map;
 
 # Complex reference operations
 my @code_refs = (\&func1, \&func2, sub { 'anon' });
-my $selected = $code_refs[1];
+my $selected = $;
 $selected->();
 ```
 
@@ -250,7 +250,7 @@ my $map_ref = \&map;
 
 # Complex reference operations
 my @code_refs = (\&func1, \&func2, sub { 'anon' });
-my $selected = $code_refs[1];
+my $selected = $;
 $selected->();
 ```
 
@@ -277,7 +277,7 @@ my $map_ref = \&map;
 
 # Complex reference operations
 my @code_refs = (\&func1, \&func2, sub { 'anon' });
-my $selected = $code_refs[1];
+my $selected = $;
 $selected->();
 ```
 

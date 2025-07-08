@@ -13,7 +13,7 @@ Basic array operations and assignments
 
 ```perl
 my @numbers = (1, 2, 3, 4, 5);
-my $first = $numbers[0];
+my $first = $;
 my $count = @numbers;
 push @numbers, 6;
 ```
@@ -25,7 +25,7 @@ push @numbers, 6;
 ```perl
 use v5.36;
 my @numbers = (1, 2, 3, 4, 5);
-my $first = $numbers[0];
+my $first = $;
 my $count = @numbers;
 push @numbers, 6;
 ```
@@ -34,7 +34,7 @@ push @numbers, 6;
 
 ```perl
 my @numbers = (1, 2, 3, 4, 5);
-my $first = $numbers[0];
+my $first = $;
 my $count = @numbers;
 push @numbers, 6;
 ```
