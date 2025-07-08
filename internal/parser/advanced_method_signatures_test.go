@@ -146,11 +146,6 @@ func TestComplexMethodSignatures(t *testing.T) {
 	}
 }
 
-// TestMethodSignatureValidation tests the method signature validation logic
-func TestMethodSignatureValidation(t *testing.T) {
-	t.Skip("Method signature validation requires separate testing to avoid import cycles")
-}
-
 // TestMethodSignatureErrors tests error cases in method signature parsing
 func TestMethodSignatureErrors(t *testing.T) {
 	parser, err := NewParser()

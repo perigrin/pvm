@@ -422,12 +422,6 @@ func TestMergeSpecificConfigs(t *testing.T) {
 	}
 }
 
-func TestMergeConfigs(t *testing.T) {
-	// SKIPPING THIS TEST - our approach is different now
-	// We directly merge configs in LoadEffectiveConfig rather than using MergeConfigs
-	t.Skip("MergeConfigs function not used - direct merging preferred")
-}
-
 func TestSaveConfig(t *testing.T) {
 	// Create a configuration to save
 	config, _ := ParseString(`

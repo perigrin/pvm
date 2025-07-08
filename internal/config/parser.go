@@ -95,52 +95,6 @@ func ParseString(data string) (*Config, error) {
 	return ParseBytes([]byte(data), "string")
 }
 
-// MergeConfigs merges multiple configurations according to priority
-// Later configs in the list take precedence over earlier ones
-func MergeConfigs(configs ...*Config) *Config {
-	// Start with default configuration
-	result := NewDefaultConfig()
-
-	// Merge each config in order
-	for _, config := range configs {
-		if config == nil {
-			continue
-		}
-
-		// Merge PVM config
-		if config.PVM != nil {
-			mergePVMConfig(result.PVM, config.PVM)
-		}
-
-		// Merge PVX config
-		if config.PVX != nil {
-			mergePVXConfig(result.PVX, config.PVX)
-		}
-
-		// Merge PVI config
-		if config.PVI != nil {
-			mergePVIConfig(result.PVI, config.PVI)
-		}
-
-		// Merge PSC config
-		if config.PSC != nil {
-			mergePSCConfig(result.PSC, config.PSC)
-		}
-
-		// Merge Project config
-		if config.Project != nil {
-			mergeProjectConfig(result.Project, config.Project)
-		}
-
-		// Merge Build config
-		if config.Build != nil {
-			mergeBuildConfig(result.Build, config.Build)
-		}
-	}
-
-	return result
-}
-
 // Helper functions for merging configurations
 
 func mergePVMConfig(target, source *PVMConfig) {
