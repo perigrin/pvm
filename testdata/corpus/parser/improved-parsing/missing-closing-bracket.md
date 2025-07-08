@@ -1,16 +1,16 @@
 ---
 category: improved-parsing
 subcategory: recovered-errors
-tags: [error-recovery, improved-grammar, parameterized-spaces]
+tags: [error-recovery, improved-grammar, missing-bracket]
 ---
 
-# Invalid Parameterized Space
+# Missing Closing Bracket
 
 <!-- should_error: false -->
-<!-- Note: Parser now accepts spaces in parameterized types -->
+<!-- Note: Parser now recovers from missing closing bracket in parameterized types -->
 
 ```perl
-my ArrayRef[ Int] $spaced;
+my ArrayRef[Int $var;
 ```
 
 # Expected Compilation Outcomes
@@ -19,14 +19,14 @@ my ArrayRef[ Int] $spaced;
 
 ```perl
 use v5.36;
-my $spaced;
+my $var;
 ```
 
 ## Typed Perl Output
 
 ```perl
 use v5.36;
-my ArrayRef[ Int] $spaced;
+my ArrayRef[Int $var;
 ```
 
 ## Inferred Perl Output
