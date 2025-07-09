@@ -97,6 +97,7 @@ func NewCommand() *cobra.Command {
 		newResolveCommand(),
 		newInitCommand(),
 		newShellCommand(),
+		newCompletionCommand(),
 		newMCPCommand(),
 		newEnvCommand(),
 		createPerformanceCommand(),

@@ -717,6 +717,13 @@ PVM_SHIMS_DIR="{{ .ShimsDir }}"
 # Initialize PVM
 {{ .FunctionPrefix }}init
 
+# Set up completion
+if [ -n "$ZSH_VERSION" ]; then
+    eval "$(${PVM_EXEC} completion zsh 2>/dev/null || true)"
+else
+    eval "$(${PVM_EXEC} completion bash 2>/dev/null || true)"
+fi
+
 # Output message
 echo "PVM environment initialized"
 `
@@ -773,6 +780,9 @@ end
 
 # Initialize PVM
 {{ .FunctionPrefix }}init
+
+# Set up completion
+eval (${PVM_EXEC} completion fish 2>/dev/null; or true)
 
 # Output message
 echo "PVM environment initialized"
@@ -832,6 +842,13 @@ function {{ .FunctionPrefix }}Init {
 
 # Initialize PVM
 {{ .FunctionPrefix }}Init
+
+# Set up completion
+try {
+    Invoke-Expression (& "$PVM_EXEC" completion powershell 2>$null)
+} catch {
+    # Ignore completion setup errors
+}
 
 # Output message
 Write-Host "PVM environment initialized"

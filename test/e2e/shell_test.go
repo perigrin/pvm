@@ -162,5 +162,47 @@ func TestShellSetup(t *testing.T) {
 
 // TestShellCompletion tests shell completion functionality
 func TestShellCompletion(t *testing.T) {
-	helpers.SkipTODO(t, "Shell completion functionality")
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Test completion command for different shells
+	shells := []string{"bash", "zsh", "fish", "powershell"}
+
+	for _, shell := range shells {
+		t.Run(shell, func(t *testing.T) {
+			// Run completion command
+			stdout, stderr, err := env.RunPVM("completion", shell)
+			if err != nil {
+				t.Fatalf("Completion command failed for %s\nError: %v\nStdout: %s\nStderr: %s", shell, err, stdout, stderr)
+			}
+
+			// Check that output is not empty
+			if stdout == "" {
+				t.Errorf("Completion command for %s returned empty output", shell)
+			}
+
+			// Check shell-specific content
+			switch shell {
+			case "bash":
+				helpers.AssertStringContains(t, stdout, "_pvm_completion", "Bash completion should contain completion function")
+				helpers.AssertStringContains(t, stdout, "complete -F", "Bash completion should contain complete command")
+			case "zsh":
+				helpers.AssertStringContains(t, stdout, "#compdef pvm", "Zsh completion should contain compdef directive")
+				helpers.AssertStringContains(t, stdout, "_pvm()", "Zsh completion should contain completion function")
+			case "fish":
+				helpers.AssertStringContains(t, stdout, "complete -c pvm", "Fish completion should contain complete commands")
+			case "powershell":
+				helpers.AssertStringContains(t, stdout, "Register-ArgumentCompleter", "PowerShell completion should contain Register-ArgumentCompleter")
+			}
+		})
+	}
+
+	// Test invalid shell
+	t.Run("invalid_shell", func(t *testing.T) {
+		stdout, stderr, err := env.RunPVM("completion", "invalid")
+		if err == nil {
+			t.Errorf("Expected error for invalid shell, but command succeeded\nStdout: %s\nStderr: %s", stdout, stderr)
+		}
+		helpers.AssertStringContains(t, stderr, "unsupported shell", "Error should mention unsupported shell")
+	})
 }
