@@ -157,7 +157,32 @@ echo "PVM_PERL_VERSION=${PVM_PERL_VERSION}"
 
 // TestShellSetup tests the shell setup command
 func TestShellSetup(t *testing.T) {
-	helpers.SkipTODO(t, "Shell setup functionality")
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Test shell setup command
+	stdout, stderr, err := env.RunPVM("shell", "setup")
+	if err != nil {
+		t.Fatalf("Shell setup command failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	// The command uses cmd.Println which goes to stdout, but let's check both stdout and stderr
+	output := stdout
+	if output == "" && stderr != "" {
+		output = stderr
+	}
+
+	// Check that output contains setup information
+	if output == "" {
+		t.Fatalf("Shell setup command returned empty output\nStdout: %q\nStderr: %q", stdout, stderr)
+	}
+
+	// Should detect shell and provide setup instructions
+	// Common patterns that should appear in setup instructions
+	helpers.AssertStringContains(t, output, "shell integration", "Should mention shell integration")
+	helpers.AssertStringContains(t, output, "setting up", "Should mention setup process")
+	helpers.AssertStringContains(t, output, "pvm init", "Should mention pvm init command")
+	helpers.AssertStringContains(t, output, "eval", "Should contain eval command in instructions")
 }
 
 // TestShellCompletion tests shell completion functionality
