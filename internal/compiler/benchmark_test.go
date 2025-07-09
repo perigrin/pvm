@@ -354,7 +354,6 @@ func TestMemoryLeaks(t *testing.T) {
 		memGrowth = after.Alloc - before.Alloc
 	} else {
 		// Memory actually decreased due to GC - this is good, not a leak
-		memGrowth = 0
 		t.Logf("Memory test passed: memory decreased by %d bytes (GC occurred)", before.Alloc-after.Alloc)
 		return
 	}
