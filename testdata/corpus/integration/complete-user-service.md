@@ -56,7 +56,7 @@ class User does Serializable, Cacheable<UserId> {
         }, __PACKAGE__;
     }
 
-    method add_role(Role $role) returns Void where $role->is_valid() {
+    method Void add_role(Role $role) where $role->is_valid() {
         push @{$roles}, $role;
     }
 
@@ -83,7 +83,7 @@ class UserService<T> where T: User&Cacheable<UserId> {
         return bless { cache => {}, loader => $loader }, __PACKAGE__;
     }
 
-    method get(UserId $id) returns Result<T, Str> {
+    method Result<T, Str> get(UserId $id) {
         if (exists $cache->{$id} && !$cache->{$id}->is_stale()) {
             return Success->new($cache->{$id});
         }
@@ -219,7 +219,7 @@ class User does Serializable, Cacheable<UserId> {
         }, __PACKAGE__;
     }
 
-    method add_role(Role $role) returns Void where $role->is_valid() {
+    method Void add_role(Role $role) where $role->is_valid() {
         push @{$roles}, $role;
     }
 
@@ -246,7 +246,7 @@ class UserService<T> where T: User&Cacheable<UserId> {
         return bless { cache => {}, loader => $loader }, __PACKAGE__;
     }
 
-    method get(UserId $id) returns Result<T, Str> {
+    method Result<T, Str> get(UserId $id) {
         if (exists $cache->{$id} && !$cache->{$id}->is_stale()) {
             return Success->new($cache->{$id});
         }

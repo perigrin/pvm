@@ -80,7 +80,7 @@ class UserRepository<T> : BaseRepository<T, UserId>
         return $user;
     }
 
-    method save(T $user) returns Result<UserId, SaveError> {
+    method Result<UserId, SaveError> save(T $user) {
         # Validate user
         return Failure->new(SaveError->new('Invalid user'))
             unless $user->is_valid();
@@ -96,7 +96,7 @@ class UserRepository<T> : BaseRepository<T, UserId>
         return Success->new($id);
     }
 
-    method delete(UserId $id) returns Result<Bool, DeleteError> {
+    method Result<Bool, DeleteError> delete(UserId $id) {
         # Remove from cache
         delete $cache->{$id};
 
