@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/parser"
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 // TestPSCCommandsIntegration tests all PSC commands with unified compiler
@@ -271,10 +272,7 @@ func TestBackwardCompatibility(t *testing.T) {
 
 // TestStressScenarios tests with large, complex codebases
 func TestStressScenarios(t *testing.T) {
-	// Skip stress tests in short mode
-	if testing.Short() {
-		t.Skip("Skipping stress tests in short mode")
-	}
+	basetesting.SkipUnlessStress(t, "compiler stress test scenarios")
 
 	// Note: LargeCodebase test removed - synthetic code generation is premature
 	// TODO: Re-implement with real-world Perl files when ready

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 func TestInferCommand(t *testing.T) {
@@ -239,10 +241,7 @@ func TestInferCommandHelp(t *testing.T) {
 }
 
 func TestInferCommandIntegration(t *testing.T) {
-	// Skip integration test in short mode
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	basetesting.SkipUnlessIntegration(t, "PSC infer command integration test")
 
 	// Create a more complex test file to verify end-to-end functionality
 	tempDir, err := os.MkdirTemp("", "psc_infer_integration")

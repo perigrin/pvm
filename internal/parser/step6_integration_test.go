@@ -14,13 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tamarou.com/pvm/internal/compiler"
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 // TestStep6_PerformanceBaseline creates and validates performance baselines
 func TestStep6_PerformanceBaseline(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping baseline generation in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "Step 6 performance baseline generation")
 
 	parser, err := NewParser()
 	require.NoError(t, err, "Failed to create parser")
@@ -108,9 +107,7 @@ func TestStep6_PerformanceBaseline(t *testing.T) {
 
 // TestStep6_RealWorldPerformance tests parser with real-world typed Perl code
 func TestStep6_RealWorldPerformance(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping real-world tests in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "Step 6 real-world performance tests")
 
 	parser, err := NewParser()
 	require.NoError(t, err)

@@ -10,6 +10,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 func TestNewGitHubClient(t *testing.T) {
@@ -353,9 +355,7 @@ func TestGitHubClient_InvalidJSON(t *testing.T) {
 
 // Integration test - only runs with GITHUB_INTEGRATION_TEST=1
 func TestGetLatestRelease_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
+	basetesting.SkipUnlessIntegration(t, "GitHub API integration test")
 
 	// This test makes a real API call to GitHub
 	// We'll use the Go repository as it's stable and public

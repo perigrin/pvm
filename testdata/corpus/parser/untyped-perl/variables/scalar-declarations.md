@@ -2,20 +2,24 @@
 category: untyped-perl
 subcategory: variables
 tags:
-    - scalar
+    - scalars
     - declarations
-    - my
+    - scoping
+    - package-qualification
     - variables
 ---
 
 # Scalar Declarations
 
-Basic scalar variable declarations
+Test scalar variable declarations with different scoping keywords
 
 ```perl
-my $name = "example";
-my $count = 42;
-my $flag = 1;
+my $simple;
+my $assigned = 42;
+our $package_var;
+state $persistent = "initial";
+local $localized;
+$Package::qualified = "value";
 ```
 
 # Expected Compilation Outcomes
@@ -24,27 +28,27 @@ my $flag = 1;
 
 ```perl
 use v5.36;
-my $name = "example";
-my $count = 42;
-my $flag = 1;
+my $simple;
+my $assigned = 42;
+our $package_var;
+state $persistent = "initial";
+local $localized;
+$Package::qualified = "value";
 ```
 
 ## Typed Perl Output
 
 ```perl
-my $name = "example";
-my $count = 42;
-my $flag = 1;
+my $simple;
+my $assigned = 42;
+our $package_var;
+state $persistent = "initial";
+local $localized;
+$Package::qualified = "value";
 ```
 
 ## Inferred Perl Output
 
 ```perl
 # Type inference not yet fully implemented
-```
-
-# Expected Type Errors
-
-```
-(none)
 ```

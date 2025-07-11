@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 func TestTokenPoolManager_CreateToken(t *testing.T) {
@@ -338,9 +340,7 @@ func TestScannerWithPooling(t *testing.T) {
 }
 
 func TestTokenPoolManager_PerformanceComparison(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping performance test in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "token pool performance comparison")
 
 	const iterations = 10000
 
@@ -385,9 +385,7 @@ func TestTokenPoolManager_PerformanceComparison(t *testing.T) {
 }
 
 func TestTokenPoolManager_LargeFileSimulation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping large file test in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "large file simulation test")
 
 	poolManager := NewTokenPoolManager(TokenPoolHooks{})
 	defer poolManager.Reset()

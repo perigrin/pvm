@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tamarou.com/pvm/internal/cli/ui"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
@@ -188,9 +189,7 @@ func TestUIFramework_OutputModes(t *testing.T) {
 
 // TestUIFramework_PerformanceImpact tests that UI framework doesn't significantly impact performance
 func TestUIFramework_PerformanceImpact(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Performance test skipped in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "UI framework performance impact test")
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()

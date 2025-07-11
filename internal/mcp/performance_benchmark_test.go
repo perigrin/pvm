@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/config"
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 // BenchmarkMCPServer_HealthCheck measures health check performance
@@ -111,9 +112,7 @@ func BenchmarkMCPServer_ConcurrentRequests(b *testing.B) {
 
 // Performance regression tests
 func TestMCPServer_PerformanceRegression(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping performance regression test in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "MCP server performance regression test")
 
 	server := createTestServer(t)
 	defer shutdownTestServer(server, t)
@@ -172,9 +171,7 @@ func TestMCPServer_PerformanceRegression(t *testing.T) {
 
 // Memory usage regression test
 func TestMCPServer_MemoryUsage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping memory usage test in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "MCP server memory usage test")
 
 	server := createTestServer(t)
 	defer shutdownTestServer(server, t)
@@ -242,9 +239,7 @@ func TestMCPServer_MemoryUsage(t *testing.T) {
 
 // Goroutine leak detection test
 func TestMCPServer_GoroutineLeak(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping goroutine leak test in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "MCP server goroutine leak test")
 
 	server := createTestServer(t)
 

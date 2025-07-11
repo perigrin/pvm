@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"tamarou.com/pvm/internal/cli"
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 // TestNewCommand ensures the main PSC command is properly configured
@@ -209,9 +210,7 @@ func TestCheckCommandWithSampleFile(t *testing.T) {
 
 	// Skip this test when running with short flag or in parallel with other tests
 	// due to output capture issues with UI framework integration
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	basetesting.SkipUnlessIntegration(t, "PSC command integration test")
 
 	// Create a temp file
 	filePath, cleanup := createTempPerlFile(t)
@@ -255,9 +254,7 @@ func TestStripCommandWithSampleFile(t *testing.T) {
 
 	// Skip this test when running with short flag or in parallel with other tests
 	// due to output capture issues with UI framework integration
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	basetesting.SkipUnlessIntegration(t, "PSC command integration test")
 
 	// Create a temp file
 	filePath, cleanup := createTempPerlFile(t)

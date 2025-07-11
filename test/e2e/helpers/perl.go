@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/perl"
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 // FindSystemPerl finds the system Perl executable path
@@ -41,7 +42,7 @@ func SkipIfNoSystemPerl(t *testing.T) {
 	}
 
 	// Skip installation if running tests with -short flag
-	if testing.Short() {
+	if !basetesting.ShouldRunLongRunningTests() {
 		t.Skip("System Perl not available and running in short mode")
 	}
 
@@ -75,7 +76,7 @@ func EnsureSystemPerl(t *testing.T) *perl.SystemPerl {
 	}
 
 	// Skip installation if running tests with -short flag
-	if testing.Short() {
+	if !basetesting.ShouldRunLongRunningTests() {
 		t.Fatal("System Perl not available and running in short mode")
 	}
 

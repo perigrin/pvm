@@ -2,20 +2,22 @@
 category: untyped-perl
 subcategory: variables
 tags:
-    - hash
+    - hashes
     - declarations
-    - my
+    - package-qualification
+    - scoping
     - variables
 ---
 
 # Hash Declarations
 
-Basic hash variable declarations
+Test hash variable declarations with different scoping and assignment patterns
 
 ```perl
-my %person = (name => "John", age => 30);
-my %config = ("debug" => 1, "verbose" => 0);
-my %empty = ();
+my %simple_hash;
+my %assigned = (key => 'value');
+our %package_hash;
+%Package::qualified = (a => 1, b => 2);
 ```
 
 # Expected Compilation Outcomes
@@ -24,27 +26,23 @@ my %empty = ();
 
 ```perl
 use v5.36;
-my %person = (name => "John", age => 30);
-my %config = ("debug" => 1, "verbose" => 0);
-my %empty = ();
+my %simple_hash;
+my %assigned = (key => 'value');
+our %package_hash;
+%Package::qualified = (a => 1, b => 2);
 ```
 
 ## Typed Perl Output
 
 ```perl
-my %person = (name => "John", age => 30);
-my %config = ("debug" => 1, "verbose" => 0);
-my %empty = ();
+my %simple_hash;
+my %assigned = (key => 'value');
+our %package_hash;
+%Package::qualified = (a => 1, b => 2);
 ```
 
 ## Inferred Perl Output
 
 ```perl
 # Type inference not yet fully implemented
-```
-
-# Expected Type Errors
-
-```
-(none)
 ```

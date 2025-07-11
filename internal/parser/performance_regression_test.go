@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 // BenchmarkParser_PerformanceRegression runs comprehensive performance benchmarks
@@ -46,10 +48,7 @@ func BenchmarkParser_PerformanceRegression(b *testing.B) {
 
 // TestParser_PerformanceValidation validates parser performance meets requirements
 func TestParser_PerformanceValidation(t *testing.T) {
-	// Skip if running in short mode
-	if testing.Short() {
-		t.Skip("Skipping performance validation in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "parser performance validation")
 
 	// Create test directories
 	tempDir := t.TempDir()
@@ -101,9 +100,7 @@ func TestParser_PerformanceValidation(t *testing.T) {
 
 // TestParser_MemoryStability tests for memory leaks and stability
 func TestParser_MemoryStability(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping memory stability test in short mode")
-	}
+	basetesting.SkipUnlessLongRunning(t, "parser memory stability test")
 
 	parser, err := NewParser()
 	if err != nil {
@@ -184,9 +181,7 @@ func TestParser_PerformanceBaselines(t *testing.T) {
 
 // TestParser_StressTest performs stress testing with extreme inputs
 func TestParser_StressTest(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping stress test in short mode")
-	}
+	basetesting.SkipUnlessStress(t, "parser stress test with extreme inputs")
 
 	parser, err := NewParser()
 	if err != nil {

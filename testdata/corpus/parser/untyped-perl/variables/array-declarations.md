@@ -2,20 +2,22 @@
 category: untyped-perl
 subcategory: variables
 tags:
-    - array
+    - arrays
     - declarations
-    - my
+    - package-qualification
+    - scoping
     - variables
 ---
 
 # Array Declarations
 
-Basic array variable declarations
+Test array variable declarations with different scoping and assignment patterns
 
 ```perl
-my @items = ("apple", "banana", "cherry");
-my @numbers = (1, 2, 3, 4, 5);
-my @empty = ();
+my @simple_array;
+my @assigned = (1, 2, 3);
+our @package_array;
+@Package::qualified = qw(a b c);
 ```
 
 # Expected Compilation Outcomes
@@ -24,27 +26,23 @@ my @empty = ();
 
 ```perl
 use v5.36;
-my @items = ("apple", "banana", "cherry");
-my @numbers = (1, 2, 3, 4, 5);
-my @empty = ();
+my @simple_array;
+my @assigned = (1, 2, 3);
+our @package_array;
+@Package::qualified = qw(a b c);
 ```
 
 ## Typed Perl Output
 
 ```perl
-my @items = ("apple", "banana", "cherry");
-my @numbers = (1, 2, 3, 4, 5);
-my @empty = ();
+my @simple_array;
+my @assigned = (1, 2, 3);
+our @package_array;
+@Package::qualified = qw(a b c);
 ```
 
 ## Inferred Perl Output
 
 ```perl
 # Type inference not yet fully implemented
-```
-
-# Expected Type Errors
-
-```
-(none)
 ```

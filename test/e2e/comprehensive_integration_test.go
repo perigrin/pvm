@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
@@ -89,7 +90,7 @@ print "Migration test completed\n";
 
 	// Step 2: Gradually add types (simulated - would be manual process)
 	// For now just verify we can analyze the legacy code
-	if !testing.Short() {
+	if basetesting.ShouldRunLongRunningTests() {
 		helpers.AssertPVMSucceedsOrSkipTODO(t, env,
 			[]string{"psc", "check", legacyFile},
 			"Legacy code analysis")
@@ -97,9 +98,7 @@ print "Migration test completed\n";
 }
 
 func TestComprehensiveIntegration_PerformanceStress(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Performance stress test skipped in short mode")
-	}
+	basetesting.SkipUnlessStress(t, "comprehensive performance stress test")
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()

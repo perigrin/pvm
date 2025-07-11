@@ -14,7 +14,27 @@ tags: [error-recovery, syntax-errors, type-parsing]
 my Int||Str $bad_union;
 ```
 
-## Incomplete Type Assertion
+## Expected Compilation Outcomes
+
+### Clean Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+### Typed Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+### Inferred Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+# Incomplete Type Assertion
 
 <!-- should_error: true -->
 <!-- expected_error: error[TSP004] -->
@@ -24,7 +44,27 @@ my Int||Str $bad_union;
 my $val = $input as ;
 ```
 
-## Invalid Intersection Syntax
+## Expected Compilation Outcomes
+
+### Clean Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+### Typed Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+### Inferred Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+# Invalid Intersection Syntax
 
 <!-- should_error: true -->
 <!-- expected_error: error[TSP008] -->
@@ -34,21 +74,21 @@ my $val = $input as ;
 my Object&&Serializable $obj;
 ```
 
-# Expected Compilation Outcomes
+## Expected Compilation Outcomes
 
-## Clean Perl Output
-
-```perl
-# Error: Invalid type syntax - parsing should fail
-```
-
-## Typed Perl Output
+### Clean Perl Output
 
 ```perl
 # Error: Invalid type syntax - parsing should fail
 ```
 
-## Inferred Perl Output
+### Typed Perl Output
+
+```perl
+# Error: Invalid type syntax - parsing should fail
+```
+
+### Inferred Perl Output
 
 ```perl
 # Error: Invalid type syntax - parsing should fail

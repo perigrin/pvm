@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
@@ -152,9 +153,7 @@ func TestVersionSwitching(t *testing.T) {
 // TestInstallPerl tests installing a Perl version
 // This test is slow and should be skipped with -short flag
 func TestInstallPerl(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping Perl installation test in short mode")
-	}
+	basetesting.SkipUnlessLongRunning(t, "Perl installation test")
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -176,9 +175,7 @@ func TestInstallPerl(t *testing.T) {
 // TestUninstallPerl tests uninstalling a Perl version
 // This test depends on system Perl import and is also slow
 func TestUninstallPerl(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping Perl uninstallation test in short mode")
-	}
+	basetesting.SkipUnlessLongRunning(t, "Perl uninstallation test")
 
 	helpers.SkipIfNoSystemPerl(t)
 

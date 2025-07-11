@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/ast"
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 // Benchmark parsing performance with different parser types
@@ -387,9 +388,7 @@ func TestParser_Concurrency(t *testing.T) {
 // TestStep6_TypedPerlPerformanceValidation implements Step 6 from prompt_plan.md
 // This validates parser performance specifically for typed Perl features
 func TestStep6_TypedPerlPerformanceValidation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping Step 6 performance validation in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "Step 6 typed Perl performance validation")
 
 	parser, err := NewParser()
 	if err != nil {

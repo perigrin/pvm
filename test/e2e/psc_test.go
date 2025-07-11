@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tamarou.com/pvm/internal/parser"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
@@ -235,7 +236,7 @@ say "Sum: $sum";
 
 	// Step 4: Verify the stripped Perl is syntactically correct
 	t.Log("Step 4: Syntax checking stripped Perl...")
-	if !testing.Short() {
+	if basetesting.ShouldRunLongRunningTests() {
 		// Only run perl syntax check if not in short mode
 		stdout, stderr, err := env.RunCommand("perl", "-c", strippedFile)
 		if err == nil {

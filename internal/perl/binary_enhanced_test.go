@@ -508,9 +508,14 @@ func BenchmarkBandwidthLimiter(b *testing.B) {
 	}
 }
 
-// Enhanced binary installation tests
-func TestEnhancedBinaryInstallation(t *testing.T) {
-	t.Skip("Enhanced binary installation features not fully implemented yet")
+// Enhanced binary installation tests removed - tracked in GitHub issue #56
+// These tests require complete enhanced installation system implementation
+// including custom build options, parallel installation, and build management
+//
+// See: https://github.com/perigrin/pvm/issues/56
+// "Implement enhanced Perl binary installation and build management"
+func TestEnhancedBinaryInstallation_Removed(t *testing.T) {
+	t.Skip("Removed - tracked in issue #56")
 	tmpDir := t.TempDir()
 	installDir := filepath.Join(tmpDir, "perl-install")
 
@@ -654,8 +659,9 @@ Binary build 3203 [299195] provided by ActiveState http://www.ActiveState.com`,
 	}
 }
 
-func TestEnhancedInstallationIntegration(t *testing.T) {
-	t.Skip("Enhanced installation integration features not fully implemented yet")
+// Enhanced installation integration tests removed - tracked in GitHub issue #56
+func TestEnhancedInstallationIntegration_Removed(t *testing.T) {
+	t.Skip("Removed - tracked in issue #56")
 	tmpDir := t.TempDir()
 
 	// Test complete installation workflow with enhanced features

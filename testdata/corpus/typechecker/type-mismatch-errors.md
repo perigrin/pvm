@@ -41,6 +41,32 @@ Variable $number: declared as Int, assigned Str (ERROR)
 Variable $text: declared as Str, assigned Int (ERROR)
 ```
 
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+use v5.36;
+my $number = 42;
+my $text = "hello";
+
+# These should cause type errors
+$number = "not a number";
+$text = 123;
+```
+
+## Typed Perl Output
+
+```perl
+use v5.36;
+my Int $number = 42;
+my Str $text = "hello";
+
+# These should cause type errors
+$number = "not a number";
+$text = 123;
+```
+
 # Test Notes
 
 This test verifies that the type checker properly detects assignment

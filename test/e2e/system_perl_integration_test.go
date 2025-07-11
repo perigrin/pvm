@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/perl"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
@@ -80,10 +81,7 @@ func TestSystemPerlHelperIntegration(t *testing.T) {
 
 // TestSystemPerlEnforcement tests the strict enforcement of system Perl
 func TestSystemPerlEnforcement(t *testing.T) {
-	// Skip in short mode to avoid long installation times
-	if testing.Short() {
-		t.Skip("Skipping enforcement test in short mode")
-	}
+	basetesting.SkipUnlessLongRunning(t, "system Perl enforcement test")
 
 	// Skip in CI to avoid permission issues
 	if os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != "" {

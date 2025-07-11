@@ -13,14 +13,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"tamarou.com/pvm/internal/cli/ui"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
 // TestUIPerformance_BasicOperations tests performance of basic UI operations
 func TestUIPerformance_BasicOperations(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Performance test skipped in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "basic UI operations performance test")
 
 	var buf bytes.Buffer
 	ctx := &ui.UIContext{
@@ -107,9 +106,7 @@ func TestUIPerformance_BasicOperations(t *testing.T) {
 
 // TestUIPerformance_StructuredOutput tests performance of complex structured output
 func TestUIPerformance_StructuredOutput(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Performance test skipped in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "basic UI operations performance test")
 
 	var buf bytes.Buffer
 	ctx := &ui.UIContext{
@@ -183,9 +180,7 @@ func TestUIPerformance_StructuredOutput(t *testing.T) {
 
 // TestUIPerformance_MemoryUsage tests memory efficiency of UI operations
 func TestUIPerformance_MemoryUsage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Performance test skipped in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "basic UI operations performance test")
 
 	t.Run("Memory usage during operations", func(t *testing.T) {
 		var buf bytes.Buffer
@@ -274,9 +269,7 @@ func TestUIPerformance_MemoryUsage(t *testing.T) {
 
 // TestUIPerformance_CLICommandSpeed tests real CLI command performance
 func TestUIPerformance_CLICommandSpeed(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Performance test skipped in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "basic UI operations performance test")
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -340,9 +333,7 @@ func TestUIPerformance_CLICommandSpeed(t *testing.T) {
 
 // TestUIPerformance_ConcurrentAccess tests UI framework under concurrent access
 func TestUIPerformance_ConcurrentAccess(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Performance test skipped in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "basic UI operations performance test")
 
 	t.Run("Concurrent UI operations", func(t *testing.T) {
 		var buf bytes.Buffer
@@ -401,9 +392,7 @@ func TestUIPerformance_ConcurrentAccess(t *testing.T) {
 
 // TestUIPerformance_LargeOutput tests handling of very large output
 func TestUIPerformance_LargeOutput(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Performance test skipped in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "basic UI operations performance test")
 
 	var buf bytes.Buffer
 	ctx := &ui.UIContext{
@@ -462,9 +451,7 @@ func TestUIPerformance_LargeOutput(t *testing.T) {
 
 // TestUIPerformance_ColorModeImpact tests performance impact of different color modes
 func TestUIPerformance_ColorModeImpact(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Performance test skipped in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "basic UI operations performance test")
 
 	colorModes := []struct {
 		name string

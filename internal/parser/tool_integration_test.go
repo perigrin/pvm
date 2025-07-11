@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 // ToolIntegrationTest represents a test for parser integration with other tools
@@ -227,9 +228,7 @@ func TestToolIntegration_ErrorHandling(t *testing.T) {
 
 // TestToolIntegration_PerformanceWithTools tests parser performance in tool contexts
 func TestToolIntegration_PerformanceWithTools(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping performance tests in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "tool integration performance tests")
 
 	// Create a moderately complex program
 	program := generateComplexProgram(50) // 50 classes

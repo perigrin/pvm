@@ -369,8 +369,8 @@ func (f *ParserTestFramework) splitMarkdownSections(content string) []MarkdownSe
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Check for header (## or #)
-		if strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "# ") {
+		// Check for header (###, ##, or #)
+		if strings.HasPrefix(line, "### ") || strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "# ") {
 			// Save previous section
 			if currentSection != nil {
 				sections = append(sections, *currentSection)

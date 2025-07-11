@@ -1,6 +1,6 @@
 .PHONY: all test clean install tree-sitter vendor cross-compile release install-tools check-tools
 .PHONY: build-dev build-release lint check fmt check-generate generate
-.PHONY: test-performance profile optimize performance-analysis test-repository-consistency
+.PHONY: test-performance test-stress test-integration test-unit profile optimize performance-analysis test-repository-consistency
 
 # Define binaries - we only build pvm, others are symlinks
 BINARIES := pvm
@@ -92,7 +92,7 @@ pvx pvi psc: pvm
 test: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running tests with $$PARALLEL_JOBS parallel workers..."; \
-	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PLENV_VERSION= go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results.json -- -mod=mod -short -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PLENV_VERSION= PVM_TEST_MODE=integration go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results.json -- -mod=mod -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
 	TEST_EXIT_CODE=$$?; \
 	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo ""; \
@@ -109,7 +109,7 @@ test: tree-sitter install-tools
 test-full: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running full test suite with $$PARALLEL_JOBS parallel workers..."; \
-	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH go run gotest.tools/gotestsum@latest --format=standard-verbose --jsonfile=test-results-full.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PVM_TEST_MODE=full go run gotest.tools/gotestsum@latest --format=standard-verbose --jsonfile=test-results-full.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...; \
 	TEST_EXIT_CODE=$$?; \
 	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo ""; \
@@ -325,8 +325,29 @@ release: cross-compile
 	@echo "Release archives created in $(BUILDDIR)/release/"
 	@echo "Each archive contains a single pvm binary - use 'pvm symlinks create' after installation"
 
+# Test mode targets for different types of testing
+test-unit: tree-sitter install-tools
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	echo "Running unit tests only with $$PARALLEL_JOBS parallel workers..."; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PVM_TEST_MODE=unit go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results-unit.json -- -mod=mod -timeout=2m -parallel=$$PARALLEL_JOBS ./...
+
+test-integration: tree-sitter install-tools
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	echo "Running integration tests with $$PARALLEL_JOBS parallel workers..."; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PVM_TEST_MODE=integration go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results-integration.json -- -mod=mod -timeout=5m -parallel=$$PARALLEL_JOBS ./...
+
+test-performance: tree-sitter install-tools
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	echo "Running performance tests with $$PARALLEL_JOBS parallel workers..."; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PVM_TEST_MODE=performance go run gotest.tools/gotestsum@latest --format=standard-verbose --jsonfile=test-results-performance.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...
+
+test-stress: tree-sitter install-tools
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	echo "Running stress tests with $$PARALLEL_JOBS parallel workers..."; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PVM_TEST_MODE=stress go run gotest.tools/gotestsum@latest --format=standard-verbose --jsonfile=test-results-stress.json -- -mod=mod -timeout=15m -parallel=$$PARALLEL_JOBS ./...
+
 # Performance optimization targets
-test-performance: tree-sitter
+test-benchmarks: tree-sitter
 	@echo "🚀 Running performance benchmarks..."
 	go test -bench=BenchmarkParser_Performance -benchmem ./internal/parser/ -run=^$
 

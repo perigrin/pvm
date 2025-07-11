@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
@@ -116,9 +117,7 @@ say "LSP test completed";
 }
 
 func TestLSPIntegration_PerformanceAndResponsiveness(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping LSP performance test in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "LSP integration performance and responsiveness test")
 
 	helpers.SkipIfNoTreeSitter(t)
 	env := helpers.NewTestEnv(t)

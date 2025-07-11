@@ -41,6 +41,26 @@ Variable $name: type Str (inferred from annotation)
 Variable $active: type Bool (inferred from annotation)
 ```
 
+# Expected Compilation Outcomes
+
+## Clean Perl Output
+
+```perl
+use v5.36;
+my $count = 42;
+my $name = "Alice";
+my $active = true;
+```
+
+## Typed Perl Output
+
+```perl
+use v5.36;
+my Int $count = 42;
+my Str $name = "Alice";
+my Bool $active = true;
+```
+
 # Test Notes
 
 This test verifies the core symbol binding fix where built-in type names

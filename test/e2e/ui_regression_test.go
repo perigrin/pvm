@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tamarou.com/pvm/internal/cli/ui"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
@@ -349,9 +350,7 @@ print "Compatibility test\n";
 
 // TestUIRegression_ResourceUsage tests that UI doesn't consume excessive resources
 func TestUIRegression_ResourceUsage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Resource usage test skipped in short mode")
-	}
+	basetesting.SkipUnlessPerformance(t, "UI resource usage regression test")
 
 	t.Run("File descriptor usage", func(t *testing.T) {
 		// Create many UI contexts to test file descriptor usage

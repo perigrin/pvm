@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
@@ -199,9 +200,7 @@ say "This should not execute";
 }
 
 func TestComponentInteraction_PVI_PVX_ModuleInstallation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping module installation test in short mode")
-	}
+	basetesting.SkipUnlessLongRunning(t, "PVI/PVX module installation integration test")
 
 	helpers.SkipIfNoSystemPerl(t)
 	env := helpers.NewTestEnv(t)

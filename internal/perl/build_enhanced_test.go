@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/log"
+	basetesting "tamarou.com/pvm/internal/testing"
 )
 
 func TestBuildManager_ValidateBuildOptions(t *testing.T) {
@@ -393,9 +394,7 @@ func TestGetPlatformSpecificNotes(t *testing.T) {
 
 // Integration test for build process (requires mock implementation)
 func TestBuildManagerIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	basetesting.SkipUnlessIntegration(t, "Perl build manager integration test")
 
 	// This would test the full build process with mocked components
 	// For now, just ensure the build manager can be created

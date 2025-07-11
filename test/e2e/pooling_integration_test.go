@@ -21,6 +21,7 @@ import (
 	"tamarou.com/pvm/internal/memory"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/parser/treesitter"
+	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/internal/typechecker"
 	"tamarou.com/pvm/internal/typedef"
 	"tamarou.com/pvm/test/e2e/helpers"
@@ -355,9 +356,7 @@ sub Int increment() {
 
 // TestPoolingIntegration_StressTest performs stress testing with large codebases
 func TestPoolingIntegration_StressTest(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping stress test in short mode")
-	}
+	basetesting.SkipUnlessStress(t, "pooling integration stress test")
 
 	helpers.SkipIfNoSystemPerl(t)
 	helpers.SkipIfNoTreeSitter(t)
@@ -461,9 +460,7 @@ func TestPoolingIntegration_StressTest(t *testing.T) {
 
 // TestPoolingIntegration_MemoryLeakDetection validates no memory leaks in long-running sessions
 func TestPoolingIntegration_MemoryLeakDetection(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping memory leak test in short mode")
-	}
+	basetesting.SkipUnlessLongRunning(t, "pooling integration memory leak detection")
 
 	helpers.SkipIfNoSystemPerl(t)
 	helpers.SkipIfNoTreeSitter(t)
