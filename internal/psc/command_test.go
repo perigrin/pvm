@@ -203,11 +203,6 @@ func executeCommand(t *testing.T, cmd *cobra.Command, args ...string) (string, e
 // TestCheckCommandWithSampleFile tests the actual functionality of the check command
 // This is an integration test that depends on the parser
 func TestCheckCommandWithSampleFile(t *testing.T) {
-	// Skip this test in automated environments that might not have the parser available
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping in CI environment")
-	}
-
 	// Skip this test when running with short flag or in parallel with other tests
 	// due to output capture issues with UI framework integration
 	basetesting.SkipUnlessIntegration(t, "PSC command integration test")
@@ -222,8 +217,7 @@ func TestCheckCommandWithSampleFile(t *testing.T) {
 	// Execute the command
 	output, err := executeCommand(t, rootCmd, "check", "--verbose", filePath)
 
-	// We might get an error due to missing parser in CI, but we should check the output
-	// to make sure command processing works properly
+	// Check the output to make sure command processing works properly
 	if err == nil {
 		assert.Contains(t, output, "type annotations")
 		// Note: Currently array literal [1, 2, 3] is inferred as 'Any' instead of ArrayRef[Int]
@@ -247,11 +241,6 @@ func TestCheckCommandWithSampleFile(t *testing.T) {
 
 // TestStripCommandWithSampleFile tests the actual functionality of the strip command
 func TestStripCommandWithSampleFile(t *testing.T) {
-	// Skip this test in automated environments that might not have the parser available
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping in CI environment")
-	}
-
 	// Skip this test when running with short flag or in parallel with other tests
 	// due to output capture issues with UI framework integration
 	basetesting.SkipUnlessIntegration(t, "PSC command integration test")
@@ -266,7 +255,7 @@ func TestStripCommandWithSampleFile(t *testing.T) {
 	// Execute the command
 	output, err := executeCommand(t, rootCmd, "strip", filePath)
 
-	// We might get an error due to missing parser in CI, but we should check the output
+	// Check the output for expected behavior
 	if err == nil {
 		// Verify type annotations were stripped (spaces may be left behind after stripping)
 		assert.NotContains(t, output, "Int $x")
@@ -320,11 +309,6 @@ func TestCommandErrorHandling(t *testing.T) {
 
 // TestFlowSensitiveFlags tests the flow-sensitive analysis flags
 func TestFlowSensitiveFlags(t *testing.T) {
-	// Skip this test in automated environments that might not have the parser available
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping in CI environment")
-	}
-
 	// Create a temp file
 	filePath, cleanup := createTempPerlFile(t)
 	defer cleanup()
