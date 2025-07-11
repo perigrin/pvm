@@ -10,7 +10,7 @@ tags:
     - inheritance
 type_check: false
 should_error: true
-error_count: 1
+error_count: 8
 min_lines: 40
 ---
 

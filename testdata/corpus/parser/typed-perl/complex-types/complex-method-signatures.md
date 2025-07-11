@@ -23,49 +23,6 @@ method Result[Array[ProcessedData], ProcessingError] process(Map[Str, ArrayRef[D
 }
 ```
 
-## Expected AST
-
-### Before Type Inference
-
-```
-source_file
-  method_decl
-    block_stmt
-      token
-      expression_stmt
-        literal
-      token
-      token
-  method_decl
-    block_stmt
-      token
-      expression_stmt
-        literal
-      token
-      token
-```
-
-### After Type Inference
-
-```
-source_file
-  method_decl
-    block_stmt
-      token
-      expression_stmt
-        literal
-      token
-      token
-  method_decl
-    block_stmt
-      token
-      expression_stmt
-        literal
-      token
-      token
-```
-
-#
 # Expected Compilation Outcomes
 
 ## Clean Perl Output

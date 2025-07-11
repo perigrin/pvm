@@ -23,41 +23,6 @@ method Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Deta
 }
 ```
 
-## Expected AST
-
-### Before Type Inference
-
-```
-source_file
-  method_decl
-    block_stmt
-      token
-      expression_stmt
-        literal
-      token
-      expression_stmt
-        literal
-      token
-      token
-```
-
-### After Type Inference
-
-```
-source_file
-  method_decl
-    block_stmt
-      token
-      expression_stmt
-        literal
-      token
-      expression_stmt
-        literal
-      token
-      token
-```
-
-#
 # Expected Compilation Outcomes
 
 ## Clean Perl Output

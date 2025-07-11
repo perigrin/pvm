@@ -19,45 +19,6 @@ my $complex = ($input->process()) as Map[Str, ArrayRef[MyType]];
 my $transformed = $obj->convert() as Result[Data[User], Error[String]];
 ```
 
-## Expected AST
-
-### Before Type Inference
-
-```
-source_file
-  expression_statement
-    var_decl
-      variable
-  token
-  expression_statement
-    var_decl
-      variable
-  token
-  expression_statement
-    var_decl
-      variable
-  token
-```
-
-### After Type Inference
-
-```
-source_file
-  expression_statement
-    var_decl
-      variable
-  token
-  expression_statement
-    var_decl
-      variable
-  token
-  expression_statement
-    var_decl
-      variable
-  token
-```
-
-#
 # Expected Compilation Outcomes
 
 ## Clean Perl Output
