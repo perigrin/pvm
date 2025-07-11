@@ -32,11 +32,11 @@ sub goodbye {
 use strict;
 use warnings;
 
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-sub concat(Str $a, Str $b) -> Str {
+sub Str concat(Str $a, Str $b) {
     return $a . $b;
 }
 `,

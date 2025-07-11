@@ -459,18 +459,20 @@ func (e *Extractor) extractTypedSubroutineFromExpressionWorkaround(node parser.N
 
 	// Use regex to match typed subroutine patterns
 	// This is a heuristic approach for the cases where tree-sitter fails
-	typedSubPattern := `sub\s+(\w+)\s*(?:\([^)]*\))?\s*(?:->\s*\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*\s*)?\s*\{`
+	// Match both new prefix syntax: sub ReturnType name(...) { and old arrow syntax: sub name(...) -> ReturnType {
+	typedSubPattern := `sub\s+(?:(\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*)\s+)?(\w+)\s*(?:\([^)]*\))?\s*(?:->\s*\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*\s*)?\s*\{`
 	re, err := regexp.Compile(typedSubPattern)
 	if err != nil {
 		return nil
 	}
 
 	matches := re.FindStringSubmatch(text)
-	if len(matches) < 2 {
+	if len(matches) < 3 {
 		return nil
 	}
 
-	subName := matches[1]
+	// matches[1] = return type (optional), matches[2] = subroutine name
+	subName := matches[2]
 	if subName == "" {
 		return nil
 	}
@@ -552,7 +554,19 @@ func (e *Extractor) extractTypedParametersFromText(text string, typeInfo map[str
 		}
 	}
 
-	// Extract return type: -> ReturnType
+	// Extract return type from prefix syntax: sub ReturnType name(...)
+	// First try the new prefix syntax
+	prefixReturnPattern := `sub\s+(\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*)\s+\w+\s*\(`
+	prefixRe, err := regexp.Compile(prefixReturnPattern)
+	if err == nil {
+		prefixMatch := prefixRe.FindStringSubmatch(signature)
+		if len(prefixMatch) >= 2 {
+			typeInfo["return"] = prefixMatch[1]
+			return // Found prefix syntax, don't look for arrow syntax
+		}
+	}
+
+	// Fall back to old arrow syntax: -> ReturnType (for backward compatibility)
 	returnPattern := `->\s*(\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*)`
 	returnRe, err := regexp.Compile(returnPattern)
 	if err != nil {

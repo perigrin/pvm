@@ -45,23 +45,23 @@ sub new(Str $class) -> Calculator {
 }
 
 # Basic arithmetic operations
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-sub multiply(Int $a, Int $b) -> Int {
+sub Int multiply(Int $a, Int $b) {
     return $a * $b;
 }
 
-sub divide(Int $a, Int $b) -> Int {
+sub Int divide(Int $a, Int $b) {
     return int($a / $b);
 }
 
-sub get_precision() -> Int {
+sub Int get_precision() {
     return $precision;
 }
 
-sub set_precision(Int $new_precision) -> Int {
+sub Int set_precision(Int $new_precision) {
     $precision = $new_precision;
     return $precision;
 }

@@ -78,7 +78,7 @@ func TestSpecificFeatures(t *testing.T) {
 		},
 		{
 			name:        "typed_method",
-			input:       "method process(Str $input) returns Int { return length($input); }",
+			input:       "method Int process(Str $input) { return length($input); }",
 			shouldError: false,
 			category:    TypedPerl,
 		},

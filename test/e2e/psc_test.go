@@ -80,7 +80,7 @@ my Int $count = "not a number";  # TYPE ERROR: String assigned to Int
 my Str $name = 42;               # TYPE ERROR: Number assigned to Str
 
 # Function with type mismatch
-sub add_numbers(Int $a, Int $b) -> Int {
+sub Int add_numbers(Int $a, Int $b) {
     return "not a number";       # TYPE ERROR: String returned from Int function
 }
 
@@ -122,7 +122,7 @@ my ArrayRef[Int] $numbers = [1, 2, 3, 4, 5];
 my HashRef[Str, Int] $scores = { alice => 95, bob => 87 };
 
 # Function with type annotations
-sub add_numbers(Int $a, Int $b) -> Int {
+sub Int add_numbers(Int $a, Int $b) {
     return $a + $b;
 }
 

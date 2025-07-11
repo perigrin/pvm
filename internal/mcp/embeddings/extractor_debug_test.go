@@ -377,17 +377,18 @@ func walkNodeExtractText(node parser.Node, lines []string, debug *strings.Builde
 			var parts []string
 			for i := start.Line - 1; i < end.Line && i < len(lines); i++ {
 				line := lines[i]
-				if i == start.Line-1 {
+				switch {
+				case i == start.Line-1:
 					// First line - start from column
 					if start.Column < len(line) {
 						parts = append(parts, line[start.Column:])
 					}
-				} else if i == end.Line-1 {
+				case i == end.Line-1:
 					// Last line - end at column
 					if end.Column <= len(line) {
 						parts = append(parts, line[:end.Column])
 					}
-				} else {
+				default:
 					// Middle lines - full line
 					parts = append(parts, line)
 				}
@@ -510,11 +511,11 @@ func TestDebugTypedPerlAST(t *testing.T) {
 use strict;
 use warnings;
 
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-sub concat(Str $a, Str $b) -> Str {
+sub Str concat(Str $a, Str $b) {
     return $a . $b;
 }`
 

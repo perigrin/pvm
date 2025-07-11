@@ -42,7 +42,7 @@ func main() {
 my Str $name = "test";
 my ArrayRef[Int] $numbers = [1, 2, 3, 4, 5];
 
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 

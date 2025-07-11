@@ -29,7 +29,7 @@ my Str $name = "test";
 my ArrayRef[Int] @items = (1, 2, 3);
 my HashRef[Str] %config = (debug => "yes", verbose => "no");
 
-sub process_item(Int $item) -> Int {
+sub Int process_item(Int $item) {
     return $item * 2;
 }
 

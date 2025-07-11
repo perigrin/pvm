@@ -132,11 +132,11 @@ my $hash = {a => 1, b => 2};  # Should infer HashRef[Int]`,
 		},
 		{
 			name: "function_types",
-			input: `sub add(Int $a, Int $b) -> Int {
+			input: `sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-sub greet(Str $name) -> Str {
+sub Str greet(Str $name) {
     return "Hello, $name!";
 }
 

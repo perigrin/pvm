@@ -284,7 +284,7 @@ my Int $count = 42;
 my Str $name = "test";
 my ArrayRef[Int] $numbers = [1, 2, 3];
 
-sub calculate(Int $a, Int $b) -> Int {
+sub Int calculate(Int $a, Int $b) {
     my Int $result = $a + $b;
     return $result;
 }
@@ -404,10 +404,10 @@ func TestStep6_TypedPerlPerformanceValidation(t *testing.T) {
 	}{
 		{
 			name: "complex_method_signatures",
-			code: `method process(
+			code: `method Result[Map[Str, Array[Item]], ProcessingError] process(
     ArrayRef[HashRef[Int|Str]] $data,
     Optional[CodeRef[Int, Bool]] $validator = undef
-) returns Result[Map[Str, Array[Item]], ProcessingError] {
+) {
     return Success->new({});
 }`,
 			maxDuration: 50 * time.Millisecond,
@@ -416,7 +416,7 @@ func TestStep6_TypedPerlPerformanceValidation(t *testing.T) {
 		{
 			name: "union_types_nested_contexts",
 			code: `my ArrayRef[Int|Str] $mixed_array;
-method func(Success|Error $result) returns Bool {
+method Bool func(Success|Error $result) {
     my Int|Str|Undef $value = $result->value;
     return $value as Bool;
 }`,
@@ -435,7 +435,7 @@ my $result = process($typed_data) as (Success|Error)&Detailed;`,
 			name: "generic_class_declarations",
 			code: `class Container[T] {
     field ArrayRef[T] $items = [];
-    method add(T $item) returns Int {
+    method Int add(T $item) {
         push @{$self->{items}}, $item;
         return scalar @{$self->{items}};
     }
@@ -458,11 +458,11 @@ type Result[T, E] = Success[T] | Error[E];
 class UserService[T: User] {
     field HashRef[UserID, T] $users = {};
 
-    method find_user(UserID $id) returns Optional[T] {
+    method Optional[T] find_user(UserID $id) {
         return $self->{users}->{$id};
     }
 
-    method add_user(T $user) returns Result[UserID, Str] {
+    method Result[UserID, Str] add_user(T $user) {
         my UserID $id = $user->id as UserID;
         return Error->new("User exists") if exists $self->{users}->{$id};
         $self->{users}->{$id} = $user;
@@ -535,7 +535,7 @@ class Result[T, E] {
     field Optional[T] $value;
     field Optional[E] $error;
 
-    method is_ok() returns Bool {
+    method Bool is_ok() {
         return defined $self->{value};
     }
 }
@@ -544,10 +544,10 @@ class Result[T, E] {
 class UserService {
     field HashRef[Int, UserData] $users = {};
 
-    method create_user(
+    method Result[Int, Str] create_user(
         Str $name,
         ArrayRef[Str] $roles = []
-    ) returns Result[Int, Str] {
+    ) {
         my Int $id = int(rand(10000));
 
         my UserData $user = {
@@ -561,7 +561,7 @@ class UserService {
         return Result->new(value => $id);
     }
 
-    method find_users_with_role(Str $role) returns ArrayRef[UserData] {
+    method ArrayRef[UserData] find_users_with_role(Str $role) {
         return [
             grep {
                 my ArrayRef[Str] $roles = $_->{roles} as ArrayRef[Str];
@@ -619,7 +619,7 @@ func BenchmarkStep6_TypedPerlFeatures(b *testing.B) {
 		},
 		{
 			name: "ComplexMethodSignature",
-			code: `method foo(ArrayRef[Int|Str] $arr, Optional[Bool] $flag = undef) returns HashRef[Str, Any] {}`,
+			code: `method HashRef[Str, Any] foo(ArrayRef[Int|Str] $arr, Optional[Bool] $flag = undef) {}`,
 		},
 		{
 			name: "GenericClass",

@@ -27,7 +27,7 @@ func TestComplexMethodSignatures(t *testing.T) {
 			name: "generic_method_signature",
 			code: `
 				class Container {
-					method get[T](Int $index) returns T {
+					method T get[T](Int $index) {
 						return $self->{items}->[$index];
 					}
 				}
@@ -40,7 +40,7 @@ func TestComplexMethodSignatures(t *testing.T) {
 			name: "union_type_parameters",
 			code: `
 				class Processor {
-					method process(Int|Str $input) returns Bool {
+					method Bool process(Int|Str $input) {
 						return defined $input;
 					}
 				}
@@ -53,7 +53,7 @@ func TestComplexMethodSignatures(t *testing.T) {
 			name: "complex_parameterized_types",
 			code: `
 				class DataManager {
-					method store(ArrayRef[HashRef[Str]] $data) returns HashRef[Int] {
+					method HashRef[Int] store(ArrayRef[HashRef[Str]] $data) {
 						my HashRef[Int] $result = {};
 						return $result;
 					}
@@ -67,11 +67,11 @@ func TestComplexMethodSignatures(t *testing.T) {
 			name: "multiple_complex_parameters",
 			code: `
 				class Aggregator {
-					method aggregate(
+					method Int aggregate(
 						ArrayRef[Int] $numbers,
 						CodeRef $reducer,
 						Int $initial_value
-					) returns Int {
+					) {
 						my Int $result = $initial_value;
 						return $result;
 					}
@@ -85,7 +85,7 @@ func TestComplexMethodSignatures(t *testing.T) {
 			name: "nested_parameterized_types",
 			code: `
 				class NestedContainer {
-					method get_nested(ArrayRef[ArrayRef[HashRef[Str]]] $matrix) returns Str {
+					method Str get_nested(ArrayRef[ArrayRef[HashRef[Str]]] $matrix) {
 						return "";
 					}
 				}
@@ -163,7 +163,7 @@ func TestMethodSignatureErrors(t *testing.T) {
 			name: "unknown_parameter_type",
 			code: `
 				class Test {
-					method test(UnknownType $param) returns Str {
+					method Str test(UnknownType $param) {
 						return "";
 					}
 				}
@@ -175,7 +175,7 @@ func TestMethodSignatureErrors(t *testing.T) {
 			name: "method_with_complex_types",
 			code: `
 				class Test {
-					method test(ArrayRef[HashRef[Int]] $param) returns Str {
+					method Str test(ArrayRef[HashRef[Int]] $param) {
 						return "";
 					}
 				}
@@ -187,7 +187,7 @@ func TestMethodSignatureErrors(t *testing.T) {
 			name: "method_without_type",
 			code: `
 				class Test {
-					method test($param) returns Str {
+					method Str test($param) {
 						return "";
 					}
 				}
@@ -265,7 +265,7 @@ func TestParameterizedTypeExpressions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			code := fmt.Sprintf(`
 				class Test {
-					method test(%s $param) returns Str {
+					method Str test(%s $param) {
 						return "";
 					}
 				}
@@ -342,7 +342,7 @@ func TestUnionTypeSupport(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			code := fmt.Sprintf(`
 				class Test {
-					method test(%s $param) returns Bool {
+					method Bool test(%s $param) {
 						return defined $param;
 					}
 				}

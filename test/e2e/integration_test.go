@@ -122,7 +122,7 @@ my Int $counter = 0;
 my Str $name = "Test";
 
 # Function signature
-sub increment(Int $value) -> Int {
+sub Int increment(Int $value) {
     return $value + 1;
 }
 

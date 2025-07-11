@@ -41,12 +41,12 @@ sub new(Str $class) -> SimpleTypes {
 }
 
 # Simple function with types
-sub add_numbers(Int $a, Int $b) -> Int {
+sub Int add_numbers(Int $a, Int $b) {
     return $a + $b;
 }
 
 # Basic typed operations
-sub multiply_numbers(Int $a, Int $b) -> Int {
+sub Int multiply_numbers(Int $a, Int $b) {
     return $a * $b;
 }
 

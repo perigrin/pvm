@@ -307,7 +307,7 @@ Fix method signature parsing conflicts and implement comprehensive method type c
 **Implementation**:
 1. ✅ Grammar fixes in tree-sitter-typed-perl:
    - ✅ Resolved parsing conflicts with method signatures
-   - ✅ Support complex return types: `method func() returns ArrayRef[Int]`
+   - ✅ Support complex return types: `method ArrayRef[Int] func()`
    - ✅ Handle parameterized types in signatures
    - ✅ Fixed empty parentheses ambiguity by restricting methods to signatures only
 

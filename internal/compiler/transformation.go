@@ -440,7 +440,7 @@ func (r *MethodDeclarationCleanupRule) CanTransform(node *sitter.Node) bool {
 
 func (r *MethodDeclarationCleanupRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
 	// For method declarations, preserve the method structure but remove type annotations
-	// This transforms: method name(Type $param) returns ReturnType { body }
+	// This transforms: method ReturnType name(Type $param) { body }
 	// Into:            method name($param) { body }
 
 	if !transformer.options.RemoveTypeNodes {

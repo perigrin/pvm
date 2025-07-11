@@ -31,12 +31,12 @@ my Str $name = "Example";
 my ArrayRef[Int] $numbers = [1, 2, 3];
 
 # Type annotation for subroutine parameters and return
-sub add_numbers(Int $a, Int $b) -> Int {
+sub Int add_numbers(Int $a, Int $b) {
     return $a + $b;
 }
 
 # Type annotation for method
-sub new(Str $class, Str $name) -> Object {
+sub Object new(Str $class, Str $name) {
     my $self = {
         name => $name,
     };
@@ -112,7 +112,7 @@ my Int $counter = 0;
 my Str $name = "Test";
 
 # Function signature
-sub increment(Int $value) -> Int {
+sub Int increment(Int $value) {
     return $value + 1;
 }
 

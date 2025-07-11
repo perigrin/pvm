@@ -95,7 +95,7 @@ print "$name: $count\n";`,
 my Str $name = "test";
 my ArrayRef[Int] $numbers = [1, 2, 3, 4, 5];
 
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
@@ -106,7 +106,7 @@ my $result = add($count, 10);`,
 			strings.Repeat(`my Int $var_%d = %d;
 my Str $msg_%d = "message_%d";
 
-sub process_%d(Int $input) -> Int {
+sub Int process_%d(Int $input) {
     return $input * 2 + 1;
 }
 

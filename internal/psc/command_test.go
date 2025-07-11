@@ -115,7 +115,7 @@ use v5.36;
 my Int $x = 10;
 my Str $name = "Test";
 
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 

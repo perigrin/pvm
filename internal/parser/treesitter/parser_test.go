@@ -112,11 +112,11 @@ my Int $count = 0;
 my Str $name = "Example";
 my ArrayRef[Int] $numbers = [1, 2, 3];
 
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-method greet(Str $name) returns Str {
+method Str greet(Str $name) {
     return "Hello, $name!";
 }
 

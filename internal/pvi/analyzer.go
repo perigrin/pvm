@@ -358,9 +358,9 @@ func (ma *ModuleAnalyzer) processTypeAnnotation(annotation *ast.TypeAnnotation) 
 func (ma *ModuleAnalyzer) extractSubroutineInfo(text string) *typedef.SubInfo {
 	// Match various subroutine patterns
 	patterns := []string{
-		`sub\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:returns?\s+([A-Za-z_][A-Za-z0-9_:\[\]|]*))?\s*{`,
-		`sub\s+([A-Za-z_][A-Za-z0-9_]*)\s*{`,
-		`sub\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*{`,
+		`sub\s+([A-Za-z_][A-Za-z0-9_:\[\]|]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*{`, // New prefix syntax: sub ReturnType name(params)
+		`sub\s+([A-Za-z_][A-Za-z0-9_]*)\s*{`,                                                // Simple: sub name
+		`sub\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*{`,                                  // Typed params: sub name(params)
 	}
 
 	for _, pattern := range patterns {
@@ -368,21 +368,31 @@ func (ma *ModuleAnalyzer) extractSubroutineInfo(text string) *typedef.SubInfo {
 		matches := subRegex.FindStringSubmatch(text)
 
 		if len(matches) > 1 {
-			subName := matches[1]
+			// Handle different patterns based on the matched regex
+			var subName string
 			parameters := []typedef.ParamInfo{}
 			returns := []typedef.ReturnInfo{}
 
-			// Extract parameters if present
-			if len(matches) > 2 && matches[2] != "" {
-				parameters = ma.parseParameters(matches[2])
-			}
-
-			// Extract return type if present
-			if len(matches) > 3 && matches[3] != "" {
-				returns = append(returns, typedef.ReturnInfo{
-					Type:        matches[3],
-					Description: fmt.Sprintf("Return value of %s", subName),
-				})
+			if pattern == patterns[0] { // New prefix syntax: sub ReturnType name(params)
+				// Group 1: return type, Group 2: name, Group 3: parameters
+				if len(matches) > 2 {
+					subName = matches[2]
+				}
+				if len(matches) > 3 && matches[3] != "" {
+					parameters = ma.parseParameters(matches[3])
+				}
+				if len(matches) > 1 && matches[1] != "" {
+					returns = append(returns, typedef.ReturnInfo{
+						Type:        matches[1],
+						Description: fmt.Sprintf("Return value of %s", subName),
+					})
+				}
+			} else {
+				// Other patterns: Group 1: name, Group 2: parameters (if present)
+				subName = matches[1]
+				if len(matches) > 2 && matches[2] != "" {
+					parameters = ma.parseParameters(matches[2])
+				}
 			}
 
 			return &typedef.SubInfo{
@@ -402,36 +412,59 @@ func (ma *ModuleAnalyzer) extractSubroutineInfo(text string) *typedef.SubInfo {
 
 // extractMethodInfo extracts method information from text
 func (ma *ModuleAnalyzer) extractMethodInfo(text string) *typedef.MethodInfo {
-	// Match method patterns
-	methodRegex := regexp.MustCompile(`method\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:returns?\s+([A-Za-z_][A-Za-z0-9_:\[\]|]*))?\s*{`)
-	matches := methodRegex.FindStringSubmatch(text)
+	// Match method patterns - try new prefix syntax first, then old syntax
+	patterns := []string{
+		`method\s+([A-Za-z_][A-Za-z0-9_:\[\]|]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*{`,                 // New prefix syntax: method ReturnType name(params)
+		`method\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:returns?\s+([A-Za-z_][A-Za-z0-9_:\[\]|]*))?\s*{`, // Old syntax: method name(params) returns ReturnType
+		`method\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*{`,                                                  // Simple: method name(params)
+	}
 
-	if len(matches) > 1 {
-		methodName := matches[1]
-		parameters := []typedef.ParamInfo{}
-		returns := []typedef.ReturnInfo{}
+	for _, pattern := range patterns {
+		methodRegex := regexp.MustCompile(pattern)
+		matches := methodRegex.FindStringSubmatch(text)
 
-		// Extract parameters
-		if len(matches) > 2 && matches[2] != "" {
-			parameters = ma.parseParameters(matches[2])
-		}
+		if len(matches) > 1 {
+			var methodName string
+			parameters := []typedef.ParamInfo{}
+			returns := []typedef.ReturnInfo{}
 
-		// Extract return type
-		if len(matches) > 3 && matches[3] != "" {
-			returns = append(returns, typedef.ReturnInfo{
-				Type:        matches[3],
-				Description: fmt.Sprintf("Return value of %s", methodName),
-			})
-		}
+			if pattern == patterns[0] { // New prefix syntax: method ReturnType name(params)
+				// Group 1: return type, Group 2: name, Group 3: parameters
+				if len(matches) > 2 {
+					methodName = matches[2]
+				}
+				if len(matches) > 3 && matches[3] != "" {
+					parameters = ma.parseParameters(matches[3])
+				}
+				if len(matches) > 1 && matches[1] != "" {
+					returns = append(returns, typedef.ReturnInfo{
+						Type:        matches[1],
+						Description: fmt.Sprintf("Return value of %s", methodName),
+					})
+				}
+			} else {
+				// Old syntax patterns: Group 1: name, Group 2: parameters, Group 3: return type (if present)
+				methodName = matches[1]
+				if len(matches) > 2 && matches[2] != "" {
+					parameters = ma.parseParameters(matches[2])
+				}
+				if len(matches) > 3 && matches[3] != "" {
+					returns = append(returns, typedef.ReturnInfo{
+						Type:        matches[3],
+						Description: fmt.Sprintf("Return value of %s", methodName),
+					})
+				}
+			}
 
-		return &typedef.MethodInfo{
-			Name:        methodName,
-			Description: fmt.Sprintf("Method %s", methodName),
-			Parameters:  parameters,
-			Returns:     returns,
-			Throws:      []string{},
-			IsPrivate:   ma.isPrivateSymbol(methodName),
-			IsStatic:    false,
+			return &typedef.MethodInfo{
+				Name:        methodName,
+				Description: fmt.Sprintf("Method %s", methodName),
+				Parameters:  parameters,
+				Returns:     returns,
+				Throws:      []string{},
+				IsPrivate:   ma.isPrivateSymbol(methodName),
+				IsStatic:    false,
+			}
 		}
 	}
 
@@ -662,17 +695,36 @@ func (ma *ModuleAnalyzer) extractVersionFromLine(line string) {
 }
 
 func (ma *ModuleAnalyzer) extractSubFromLine(line string) {
-	subRegex := regexp.MustCompile(`sub\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s*{?`)
-	matches := subRegex.FindStringSubmatch(line)
+	// Try new prefix syntax first: sub ReturnType name(params)
+	prefixRegex := regexp.MustCompile(`sub\s+([A-Za-z_][A-Za-z0-9_:\[\]|]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s*{?`)
+	matches := prefixRegex.FindStringSubmatch(line)
 
-	if len(matches) > 1 {
-		subName := matches[1]
+	var subName string
+	var returns []typedef.ReturnInfo
 
+	if len(matches) > 2 {
+		// New prefix syntax found
+		returnType := matches[1]
+		subName = matches[2]
+		returns = append(returns, typedef.ReturnInfo{
+			Type:        returnType,
+			Description: fmt.Sprintf("Return value of %s", subName),
+		})
+	} else {
+		// Fall back to old syntax: sub name(params)
+		oldRegex := regexp.MustCompile(`sub\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s*{?`)
+		oldMatches := oldRegex.FindStringSubmatch(line)
+		if len(oldMatches) > 1 {
+			subName = oldMatches[1]
+		}
+	}
+
+	if subName != "" {
 		subInfo := typedef.SubInfo{
 			Name:        subName,
 			Description: fmt.Sprintf("Subroutine %s", subName),
 			Parameters:  []typedef.ParamInfo{},
-			Returns:     []typedef.ReturnInfo{},
+			Returns:     returns,
 			Throws:      []string{},
 			IsMethod:    false,
 			IsPrivate:   ma.isPrivateSymbol(subName),
@@ -714,25 +766,45 @@ func (ma *ModuleAnalyzer) extractClassFromLine(line string) {
 }
 
 func (ma *ModuleAnalyzer) extractMethodFromLine(line string) {
-	methodRegex := regexp.MustCompile(`method\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:returns?\s+([A-Za-z_][A-Za-z0-9_:\[\]|]*))?\s*{?`)
-	matches := methodRegex.FindStringSubmatch(line)
+	// Try new prefix syntax first: method ReturnType name(params)
+	prefixRegex := regexp.MustCompile(`method\s+([A-Za-z_][A-Za-z0-9_:\[\]|]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*{?`)
+	matches := prefixRegex.FindStringSubmatch(line)
 
-	if len(matches) > 1 {
-		methodName := matches[1]
-		parameters := []typedef.ParamInfo{}
-		returns := []typedef.ReturnInfo{}
+	var methodName string
+	var parameters []typedef.ParamInfo
+	var returns []typedef.ReturnInfo
 
-		if len(matches) > 2 && matches[2] != "" {
-			parameters = ma.parseParametersFromString(matches[2])
-		}
-
+	if len(matches) > 2 {
+		// New prefix syntax found
+		returnType := matches[1]
+		methodName = matches[2]
 		if len(matches) > 3 && matches[3] != "" {
-			returns = append(returns, typedef.ReturnInfo{
-				Type:        matches[3],
-				Description: fmt.Sprintf("Return value of %s", methodName),
-			})
+			parameters = ma.parseParametersFromString(matches[3])
 		}
+		returns = append(returns, typedef.ReturnInfo{
+			Type:        returnType,
+			Description: fmt.Sprintf("Return value of %s", methodName),
+		})
+	} else {
+		// Fall back to old syntax: method name(params) returns ReturnType
+		oldRegex := regexp.MustCompile(`method\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:returns?\s+([A-Za-z_][A-Za-z0-9_:\[\]|]*))?\s*{?`)
+		oldMatches := oldRegex.FindStringSubmatch(line)
 
+		if len(oldMatches) > 1 {
+			methodName = oldMatches[1]
+			if len(oldMatches) > 2 && oldMatches[2] != "" {
+				parameters = ma.parseParametersFromString(oldMatches[2])
+			}
+			if len(oldMatches) > 3 && oldMatches[3] != "" {
+				returns = append(returns, typedef.ReturnInfo{
+					Type:        oldMatches[3],
+					Description: fmt.Sprintf("Return value of %s", methodName),
+				})
+			}
+		}
+	}
+
+	if methodName != "" {
 		methodInfo := typedef.MethodInfo{
 			Name:        methodName,
 			Description: fmt.Sprintf("Method %s", methodName),

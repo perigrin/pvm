@@ -47,7 +47,7 @@ func TestStep6_PerformanceBaseline(t *testing.T) {
 		},
 		{
 			name: "method_with_types",
-			code: `method calculate(Int $x, Int $y) returns Int {
+			code: `method Int calculate(Int $x, Int $y) {
     return $x + $y;
 }`,
 			expectedMaxTime: 20 * time.Millisecond,
@@ -56,7 +56,7 @@ func TestStep6_PerformanceBaseline(t *testing.T) {
 			name: "generic_class",
 			code: `class Container[T] {
     field T $value;
-    method get() returns T { return $self->{value}; }
+    method T get() { return $self->{value}; }
 }`,
 			expectedMaxTime: 30 * time.Millisecond,
 		},
@@ -146,7 +146,7 @@ class UserController {
     field Int $next_id = 1;
 
     # Create new user
-    method create_user(HashRef $params) returns APIResponse[UserData] {
+    method APIResponse[UserData] create_user(HashRef $params) {
         # Validate input
         my Email $email = $params->{email} as Email
             or return $self->error_response("Invalid email");
@@ -189,7 +189,7 @@ class UserController {
     }
 
     # Find user by ID
-    method find_user(UserID $id) returns APIResponse[UserData] {
+    method APIResponse[UserData] find_user(UserID $id) {
         my Optional[UserData] $user = $self->{users}->{$id};
 
         return defined $user
@@ -201,7 +201,7 @@ class UserController {
     method update_user(
         UserID $id,
         HashRef $updates
-    ) returns APIResponse[UserData] {
+    ) -> APIResponse[UserData] {
         my Optional[UserData] $user = $self->{users}->{$id};
 
         return $self->error_response("User not found")
@@ -228,7 +228,7 @@ class UserController {
         Int $page = 1,
         Int $per_page = 20,
         Optional[UserRole] $role = undef
-    ) returns APIResponse[ArrayRef[UserData]] {
+    ) -> APIResponse[ArrayRef[UserData]] {
         my ArrayRef[UserData] $all_users = [values %{$self->{users}}];
 
         # Filter by role if specified
@@ -266,7 +266,7 @@ class UserController {
     }
 
     # Helper methods
-    method success_response(Any $data) returns APIResponse[Any] {
+    method APIResponse[Any] success_response(Any $data) {
         return {
             success => 1,
             data => $data,
@@ -275,7 +275,7 @@ class UserController {
         };
     }
 
-    method error_response(Str $error) returns APIResponse[Any] {
+    method APIResponse[Any] error_response(Str $error) {
         return {
             success => 0,
             data => undef,
@@ -336,7 +336,7 @@ func TestStep6_CompilerIntegrationPerformance(t *testing.T) {
 			name: "simple_module",
 			code: `package Simple;
 my Int $x = 42;
-sub foo() returns Int { return $x; }
+sub Int foo() { return $x; }
 1;`,
 		},
 		{
@@ -345,7 +345,7 @@ sub foo() returns Int { return $x; }
     field Int $count = 0;
     field ArrayRef[Str] $items = [];
 
-    method add(Str $item) returns Int {
+    method Int add(Str $item) {
         push @{$self->{items}}, $item;
         return ++$self->{count};
     }
@@ -360,7 +360,7 @@ type Handler = CodeRef[Any, Result[Any, Str]];
 class Service {
     field Handler $handler;
 
-    method process(Any $input) returns Result[Any, Str] {
+    method Result[Any, Str] process(Any $input) {
         return $self->{handler}->($input);
     }
 }

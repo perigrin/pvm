@@ -45,7 +45,7 @@ sub simple_method {
     return "Hello, $param!";
 }
 
-sub typed_method(Str $input) returns Str {
+sub Str typed_method(Str $input) {
     return "Processed: $input";
 }
 
@@ -151,7 +151,7 @@ class TestClass {
         return $self;
     }
 
-    method get_name() returns Str {
+    method Str get_name() {
         return $self->{name};
     }
 

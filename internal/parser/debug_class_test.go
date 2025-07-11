@@ -14,7 +14,7 @@ func TestDebugClassParsing(t *testing.T) {
 	input := `class User {
     field Str $name;
 
-    method new(Str $name) returns User {
+    method User new(Str $name) {
         return bless { name => $name }, __PACKAGE__;
     }
 }`
@@ -64,11 +64,11 @@ func TestSimpleClassDebug(t *testing.T) {
     field Str $name;
     field Int $age;
 
-    method new(Str $name, Int $age) returns User {
+    method User new(Str $name, Int $age) {
         return bless { name => $name, age => $age }, __PACKAGE__;
     }
 
-    method get_name() returns Str {
+    method Str get_name() {
         return $name;
     }
 }`

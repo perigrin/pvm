@@ -30,7 +30,7 @@ func TestExecutionValidation(t *testing.T) {
 		{
 			name: "simple_function_execution",
 			input: `use feature 'signatures';
-sub add (Int $a, Int $b) -> Int {
+sub Int add (Int $a, Int $b) {
     return $a + $b;
 }
 
@@ -47,7 +47,7 @@ print "$message: $count\n";`,
 		},
 		{
 			name: "complex_data_structures",
-			input: `sub process_data (ArrayRef[Int] $numbers) -> Int {
+			input: `sub Int process_data (ArrayRef[Int] $numbers) {
     my Int $sum = 0;
     for my Int $num (@$numbers) {
         $sum += $num;
@@ -200,7 +200,7 @@ func TestSemanticEquivalence(t *testing.T) {
 	}{
 		{
 			name: "simple_arithmetic",
-			typed: `sub calculate (Int $x, Int $y) -> Int {
+			typed: `sub Int calculate (Int $x, Int $y) {
     return $x * 2 + $y;
 }
 

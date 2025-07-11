@@ -30,11 +30,11 @@ my Int $count = 0;
 my Str $name = "Example";
 my ArrayRef[Int] $numbers = [1, 2, 3];
 
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-method greet(Str $name) returns Str {
+method Str greet(Str $name) {
     return "Hello, $name!";
 }
 
@@ -85,7 +85,7 @@ func BenchmarkParseMediumFile(b *testing.B) {
 		mediumContent.WriteString(fmt.Sprintf("my Str $name%d = \"Example%d\";\n", i, i))
 		mediumContent.WriteString(fmt.Sprintf("my ArrayRef[Int] $numbers%d = [%d, %d, %d];\n\n", i, i, i+1, i+2))
 
-		mediumContent.WriteString(fmt.Sprintf("sub add%d(Int $a, Int $b) -> Int {\n", i))
+		mediumContent.WriteString(fmt.Sprintf("sub Int add%d(Int $a, Int $b) {\n", i))
 		mediumContent.WriteString("    return $a + $b;\n")
 		mediumContent.WriteString("}\n\n")
 	}
@@ -131,7 +131,7 @@ func BenchmarkParseLargeFile(b *testing.B) {
 		largeContent.WriteString(fmt.Sprintf("my Str $name%d = \"Example%d\";\n", i, i))
 		largeContent.WriteString(fmt.Sprintf("my ArrayRef[Int] $numbers%d = [%d, %d, %d];\n\n", i, i, i+1, i+2))
 
-		largeContent.WriteString(fmt.Sprintf("sub add%d(Int $a, Int $b) -> Int {\n", i))
+		largeContent.WriteString(fmt.Sprintf("sub Int add%d(Int $a, Int $b) {\n", i))
 		largeContent.WriteString("    return $a + $b;\n")
 		largeContent.WriteString("}\n\n")
 	}

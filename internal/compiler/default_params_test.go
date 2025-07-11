@@ -37,8 +37,8 @@ func TestCompilerStripDefaultParameters(t *testing.T) {
 		},
 		{
 			name:     "strip return type with defaults",
-			input:    `sub add(Int $a, Int $b = 0) -> Int { return $a + $b; }`,
-			expected: `sub add($a, $b = 0)  { return $a + $b; }`,
+			input:    `sub Int add(Int $a, Int $b = 0) { return $a + $b; }`,
+			expected: `sub add($a, $b = 0) { return $a + $b; }`,
 		},
 	}
 

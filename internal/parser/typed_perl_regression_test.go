@@ -20,7 +20,7 @@ func TestTypedPerlSubroutineParsing(t *testing.T) {
 use strict;
 use warnings;
 
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
@@ -35,7 +35,7 @@ sub concat(Str $a, Str $b) -> Str {
 use strict;
 use warnings;
 
-method add (Int $a, Int $b) returns Int {
+method Int add(Int $a, Int $b) {
     return $a + $b;
 }`,
 			expected: []string{"add"},
@@ -50,7 +50,7 @@ sub hello {
     print "Hello\n";
 }
 
-sub add(Int $a, Int $b) -> Int {
+sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
@@ -116,8 +116,6 @@ sub transform(Str $input) : Str {
 			// Check that we found the expected number of subroutines
 			if len(result) != len(tt.expected) {
 				t.Errorf("Expected %d subroutines, found %d", len(tt.expected), len(result))
-				t.Logf("Expected: %v", tt.expected)
-				t.Logf("Found: %v", result)
 
 				// Debug: Show what node types we actually found
 				debugResult, _ := PooledParserFunc(func(p Parser) (string, error) {
@@ -227,7 +225,7 @@ func extractSubroutineName(node Node, source string) string {
 		text = strings.Join(parts, "\n")
 	}
 
-	// Extract subroutine name from text like "sub add(Int $a, Int $b) -> Int {" or "method add(Int $a, Int $b) returns Int {"
+	// Extract subroutine name from text like "sub Int add(Int $a, Int $b) {" or "method Int add(Int $a, Int $b) {"
 	for _, keyword := range []string{"sub ", "method "} {
 		if strings.Contains(text, keyword) {
 			keywordIndex := strings.Index(text, keyword)
@@ -235,12 +233,32 @@ func extractSubroutineName(node Node, source string) string {
 				remaining := text[keywordIndex+len(keyword):] // Skip keyword
 				parts := strings.Fields(remaining)
 				if len(parts) >= 1 {
-					name := parts[0]
-					// Remove signature or body
-					if idx := strings.IndexAny(name, "({"); idx > 0 {
-						name = name[:idx]
+					// Check if first part contains function parameter syntax (untyped)
+					if strings.ContainsAny(parts[0], "(") {
+						// Untyped subroutine with params: "sub name(...)"
+						name := parts[0]
+						if idx := strings.IndexAny(name, "({"); idx > 0 {
+							name = name[:idx]
+						}
+						return name
+					} else if len(parts) >= 2 && parts[1] == "{" {
+						// Untyped subroutine without params: "sub name {"
+						return parts[0]
+					} else if len(parts) >= 2 && strings.ContainsAny(parts[1], "(") {
+						// Typed subroutine: "sub ReturnType name(...)"
+						name := parts[1]
+						if idx := strings.IndexAny(name, "({"); idx > 0 {
+							name = name[:idx]
+						}
+						return name
+					} else {
+						// Fallback: first part is the name
+						name := parts[0]
+						if idx := strings.IndexAny(name, "({"); idx > 0 {
+							name = name[:idx]
+						}
+						return name
 					}
-					return name
 				}
 			}
 		}

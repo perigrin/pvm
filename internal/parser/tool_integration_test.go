@@ -118,7 +118,7 @@ class TestClass {
     field Str $field1;
     field Int $field2;
 
-    method test_method(Int $param) returns Str {
+    method Str test_method(Int $param) {
         return "result: $param";
     }
 }
@@ -296,7 +296,7 @@ use warnings;
 class Calculator {
     field Num $precision = 0.001;
 
-    method add(Num $a, Num $b) returns Num {
+    method Num add(Num $a, Num $b) {
         return $a + $b;
     }
 }
@@ -307,7 +307,7 @@ my $old_var = "legacy";
 my Int $new_var = 42;
 
 sub old_function { return shift() * 2; }
-method new_method(Int $param) returns Int { return $param * 3; }
+method Int new_method(Int $param) { return $param * 3; }
 `,
 	}
 
@@ -464,11 +464,11 @@ func generateComplexProgram(numClasses int) string {
     field Int $id_%d = %d;
     field Str $name_%d = "class_%d";
 
-    method get_id() returns Int {
+    method Int get_id() {
         return $id_%d;
     }
 
-    method set_name(Str $name) returns Void {
+    method Void set_name(Str $name) {
         $name_%d = $name;
     }
 }
@@ -491,7 +491,7 @@ my Int $count = 42;
 my Str $name = "test";
 my ArrayRef[Int] @numbers = (1, 2, 3);
 
-method calculate(Int $a, Int $b) returns Int {
+method Int calculate(Int $a, Int $b) {
     return $a + $b;
 }
 `,
@@ -507,11 +507,11 @@ class UserService {
     field HashRef[Int, User] $cache = {};
     field Int $max_cache_size = 1000;
 
-    method get_user(Int $id) returns Optional[User] {
+    method Optional[User] get_user(Int $id) {
         return $cache->{$id};
     }
 
-    method add_user(User $user) returns Void {
+    method Void add_user(User $user) {
         $cache->{$user->id} = $user;
     }
 }
@@ -553,7 +553,7 @@ my Int $global_var = 42;
 class MyClass {
     field Str $name;
 
-    method get_name() returns Str {
+    method Str get_name() {
         return $name;
     }
 }
@@ -574,7 +574,7 @@ sub legacy_function {
 my ArrayRef[HashRef[Int]] @complex_data;
 my CodeRef[Str, Bool] $validator = sub { length(shift) > 0 };
 
-method validate_data(ArrayRef[Str] $input) returns ArrayRef[Bool] {
+method ArrayRef[Bool] validate_data(ArrayRef[Str] $input) {
     return [map { $validator->($_) } @{$input}];
 }
 `,

@@ -345,7 +345,7 @@ print "Old module test completed\n";
 	gradualModuleFile := filepath.Join(moduleDir, "GradualModule.pm")
 	gradualContent := strings.Replace(oldModuleContent,
 		"sub get_count {",
-		"sub get_count() -> Int {", 1)
+		"sub Int get_count() {", 1)
 	gradualContent = strings.Replace(gradualContent,
 		"package OldModule;",
 		"package GradualModule;", 1)

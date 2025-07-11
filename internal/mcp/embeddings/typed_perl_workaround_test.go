@@ -18,7 +18,7 @@ func TestExtractTypedParametersFromText(t *testing.T) {
 	}{
 		{
 			name: "simple_typed_parameters",
-			text: "sub add(Int $a, Int $b) -> Int { return $a + $b; }",
+			text: "sub Int add(Int $a, Int $b) { return $a + $b; }",
 			expected: map[string]string{
 				"$a":     "Int",
 				"$b":     "Int",
@@ -82,7 +82,7 @@ func TestTypedSubroutineRegexPattern(t *testing.T) {
 	}{
 		{
 			name:     "simple_typed_sub",
-			text:     "sub add(Int $a, Int $b) -> Int {\n    return $a + $b;\n}",
+			text:     "sub Int add(Int $a, Int $b) {\n    return $a + $b;\n}",
 			expected: true,
 			subName:  "add",
 		},
@@ -113,18 +113,20 @@ func TestTypedSubroutineRegexPattern(t *testing.T) {
 	// Test the regex pattern directly
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			typedSubPattern := `sub\s+(\w+)\s*(?:\([^)]*\))?\s*(?:->\s*\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*\s*)?\s*\{`
+			// Match both new prefix syntax: sub ReturnType name(...) { and old arrow syntax: sub name(...) -> ReturnType {
+			typedSubPattern := `sub\s+(?:(\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*)\s+)?(\w+)\s*(?:\([^)]*\))?\s*(?:->\s*\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*\s*)?\s*\{`
 			re, err := regexp.Compile(typedSubPattern)
 			assert.NoError(t, err)
 
 			matches := re.FindStringSubmatch(tt.text)
 			if tt.expected {
-				assert.True(t, len(matches) >= 2, "Expected to match subroutine pattern")
-				if len(matches) >= 2 {
-					assert.Equal(t, tt.subName, matches[1], "Subroutine name mismatch")
+				assert.True(t, len(matches) >= 3, "Expected to match subroutine pattern")
+				if len(matches) >= 3 {
+					// matches[1] = return type (optional), matches[2] = subroutine name
+					assert.Equal(t, tt.subName, matches[2], "Subroutine name mismatch")
 				}
 			} else {
-				assert.True(t, len(matches) < 2, "Expected NOT to match subroutine pattern")
+				assert.True(t, len(matches) < 3, "Expected NOT to match subroutine pattern")
 			}
 		})
 	}
