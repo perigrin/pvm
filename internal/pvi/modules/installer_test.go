@@ -4,19 +4,146 @@
 package modules
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/project"
 )
 
 // Test helper functions for module installer testing
 
+// createMockProvider creates a mock CPAN provider for testing
+func createMockProvider() *cpan.ProviderMock {
+	return &cpan.ProviderMock{
+		GetModuleInfoFunc: func(ctx context.Context, moduleName string) (*cpan.ModuleInfo, error) {
+			if moduleName == "Test::Module" {
+				return &cpan.ModuleInfo{
+					Name:    "Test::Module",
+					Version: "1.0.0",
+					Author:  "TEST",
+				}, nil
+			}
+			return nil, &cpan.ProviderError{
+				Source:  "mock",
+				Code:    "MODULE_NOT_FOUND",
+				Message: "Module not found",
+			}
+		},
+		SearchModulesFunc: func(ctx context.Context, query string, limit int) (*cpan.SearchResults, error) {
+			return &cpan.SearchResults{
+				Query:   query,
+				Total:   1,
+				Results: []*cpan.SearchResult{},
+				Source:  "mock",
+			}, nil
+		},
+		GetDependenciesFunc: func(ctx context.Context, moduleName string) ([]*cpan.Dependency, error) {
+			return []*cpan.Dependency{}, nil
+		},
+		GetModuleVersionsFunc: func(ctx context.Context, moduleName string) ([]string, error) {
+			return []string{"1.0.0"}, nil
+		},
+		GetAuthorInfoFunc: func(ctx context.Context, authorID string) (map[string]interface{}, error) {
+			return map[string]interface{}{"name": "Test Author"}, nil
+		},
+		IsCoreModuleFunc: func(ctx context.Context, moduleName string, perlVersion string) (bool, error) {
+			return false, nil
+		},
+		NameFunc: func() string {
+			return "mock"
+		},
+		BaseURLFunc: func() string {
+			return "https://mock.cpan.org"
+		},
+	}
+}
+
 // TestInstallModule_Basic tests basic functionality of the module installer
 func TestInstallModule_Basic(t *testing.T) {
-	t.Skip("Mock expectations may be inconsistent with implementation changes - skipping")
+	// Save original function variables
+	origDownloadModule := DownloadModule
+	origExtractModuleArchive := ExtractModuleArchive
+	origBuildAndInstallModule := BuildAndInstallModule
+
+	// Restore original functions after test
+	defer func() {
+		DownloadModule = origDownloadModule
+		ExtractModuleArchive = origExtractModuleArchive
+		BuildAndInstallModule = origBuildAndInstallModule
+	}()
+
+	// Set up mocks
+	DownloadModule = func(options *DownloadOptions) (*DownloadResult, error) {
+		return &DownloadResult{
+			Path:       "/tmp/test-module.tar.gz",
+			ModuleName: "Test::Module",
+			Version:    "1.0.0",
+			Size:       12345,
+		}, nil
+	}
+
+	ExtractModuleArchive = func(archivePath, targetDir string, ctx context.Context) (*ExtractionResult, error) {
+		return &ExtractionResult{
+			ExtractedDir: "/tmp/extracted/Test-Module-1.0.0",
+			ModuleName:   "Test::Module",
+			ArchivePath:  archivePath,
+			Distribution: "Test-Module-1.0.0",
+		}, nil
+	}
+
+	BuildAndInstallModule = func(options *ModuleBuildOptions) (*ModuleBuildResult, error) {
+		return &ModuleBuildResult{
+			ModuleName:   "Test::Module",
+			Distribution: "Test-Module-1.0.0",
+			Success:      true,
+			Installed:    true,
+			Warnings:     []string{},
+			Errors:       []string{},
+		}, nil
+	}
+
+	// Create a mock provider
+	mockProvider := createMockProvider()
+
+	// Create install options
+	options := &ModuleInstallOptions{
+		ModuleName:       "Test::Module",
+		Provider:         mockProvider,
+		SkipDependencies: true, // Skip dependencies for basic test
+		Verbose:          false,
+	}
+
+	// Execute installation
+	result, err := InstallModule(options)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("InstallModule should not return error: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("InstallModule should return a result")
+	}
+
+	if !result.Success {
+		t.Errorf("Installation should be successful, errors: %v", result.Errors)
+	}
+
+	if result.ModuleName != "Test::Module" {
+		t.Errorf("Expected module name 'Test::Module', got '%s'", result.ModuleName)
+	}
+
+	if result.Version != "1.0.0" {
+		t.Errorf("Expected version '1.0.0', got '%s'", result.Version)
+	}
+
+	if len(result.Errors) > 0 {
+		t.Errorf("Expected no errors, got: %v", result.Errors)
+	}
 }
 
 // TestSetupIsolationEnvironment_ProjectContext tests project-aware installation directory setup

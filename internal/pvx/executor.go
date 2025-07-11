@@ -564,8 +564,9 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 	var perlExe string
 	switch resolvedVersion.Source {
 	case perl.SystemPerlSource:
-		// Use the path from the system Perl detection
-		perlExe = resolvedVersion.Path
+		// For system Perl, construct the full path to the executable
+		// resolvedVersion.Path contains the directory (e.g., /usr/bin)
+		perlExe = filepath.Join(resolvedVersion.Path, "perl")
 	case perl.UserConfig:
 		// For user config, we need to get the actual path from registry
 		versionInfo, err := perl.GetVersionInfo(resolvedVersion.Version)

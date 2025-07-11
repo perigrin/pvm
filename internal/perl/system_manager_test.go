@@ -4,7 +4,6 @@
 package perl
 
 import (
-	"os"
 	"os/exec"
 	"runtime"
 	"testing"
@@ -156,19 +155,48 @@ func TestInstallSystemPerl(t *testing.T) {
 		t.Skip("No installation methods available in test environment")
 	}
 
-	// Skip if system Perl already exists (don't want to reinstall)
-	if _, err := DetectSystemPerl(); err == nil {
-		t.Skip("System Perl already exists, skipping installation test")
+	// Test the installation logic without actually installing
+	// This tests the decision-making logic of the installation process
+
+	// Test 1: Check if system Perl already exists
+	existingPerl, existingErr := DetectSystemPerl()
+	if existingErr == nil {
+		// System Perl exists - test that installation correctly detects this
+		t.Logf("System Perl exists at %s (version %s)", existingPerl.Path, existingPerl.Version)
+
+		// The installation should recognize existing Perl and not attempt reinstall
+		perl, err := manager.DetectOrInstallPerl()
+		if err != nil {
+			t.Errorf("DetectOrInstallPerl failed when system Perl exists: %v", err)
+		}
+		if perl == nil {
+			t.Error("DetectOrInstallPerl returned nil when system Perl exists")
+		}
+		if perl.Path != existingPerl.Path {
+			t.Errorf("DetectOrInstallPerl returned different path: got %s, expected %s", perl.Path, existingPerl.Path)
+		}
+		return
 	}
 
-	// Skip installation test in CI/automated environments
-	if os.Getenv("CI") != "" || os.Getenv("AUTOMATED_TESTING") != "" {
-		t.Skip("Skipping installation test in CI/automated environment")
+	// Test 2: System Perl does not exist - test installation logic
+	t.Logf("System Perl not detected, testing installation logic")
+
+	// Since we can't actually install Perl in a test environment, we'll test that
+	// the installation process properly handles the case where installation would be needed
+
+	// Check that we have at least one preferred distribution
+	preferredDistributions := manager.GetPreferredDistributions()
+	if len(preferredDistributions) == 0 {
+		t.Error("No preferred distributions found - installation logic requires at least one")
 	}
 
-	// This test would actually try to install Perl, which requires admin privileges
-	// and is not suitable for automated testing
-	t.Skip("Installation test requires admin privileges and is not suitable for automated testing")
+	// Check that the manager correctly identifies available installation methods
+	availableDistributions := manager.GetAvailableDistributions()
+	t.Logf("Available distributions: %v", availableDistributions)
+
+	// The actual installation would be attempted here, but we can't test that
+	// without admin privileges. Instead, we verify the preconditions are met.
+	t.Logf("Installation logic test passed - would attempt to install using %v", preferredDistributions)
 }
 
 func TestValidateInstallation(t *testing.T) {

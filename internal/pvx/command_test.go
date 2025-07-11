@@ -6,11 +6,13 @@ package pvx
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tamarou.com/pvm/internal/cli"
 )
 
 func TestPVXCommand(t *testing.T) {
@@ -35,12 +37,39 @@ func TestPVXCommand(t *testing.T) {
 	})
 
 	t.Run("IntegrationWithExecutor", func(t *testing.T) {
-		t.Skip("Skipping integration test until proper mocking can be set up")
+		// Reset global UI state first
+		cli.ResetGlobalState()
+
 		// Create a temporary script
 		tempDir := t.TempDir()
 		scriptPath := filepath.Join(tempDir, "test.pl")
 		err := os.WriteFile(scriptPath, []byte(`print "Hello from PVX CLI";`), 0755)
 		require.NoError(t, err)
+
+		// Set up mocks for the executor
+		origExecCommand := execCommand
+		origResolvePerlExecutable := resolvePerlExecutable
+
+		defer func() {
+			execCommand = origExecCommand
+			resolvePerlExecutable = origResolvePerlExecutable
+			// Reset global UI state
+			cli.ResetGlobalState()
+		}()
+
+		// Mock command execution
+		execCommand = func(cmd *exec.Cmd) error {
+			// Write mock output
+			if cmd.Stdout != nil {
+				cmd.Stdout.Write([]byte("Hello from PVX CLI"))
+			}
+			return nil
+		}
+
+		// Mock perl executable resolution
+		resolvePerlExecutable = func(options *ExecutionOptions) (string, error) {
+			return "/usr/bin/perl", nil
+		}
 
 		// Create a new PVX command
 		cmd := NewCommand()
@@ -66,10 +95,40 @@ func TestPVXCommand(t *testing.T) {
 		// Should succeed
 		require.NoError(t, err)
 		assert.Equal(t, 0, exitCode, "Exit code should be 0")
+
+		// Verify the mock output was captured
+		assert.Contains(t, output.String(), "Hello from PVX CLI")
 	})
 
 	t.Run("InlineCodeExecution", func(t *testing.T) {
-		t.Skip("Skipping inline code test until proper mocking can be set up")
+		// Reset global UI state first
+		cli.ResetGlobalState()
+
+		// Set up mocks for the executor
+		origExecCommand := execCommand
+		origResolvePerlExecutable := resolvePerlExecutable
+
+		defer func() {
+			execCommand = origExecCommand
+			resolvePerlExecutable = origResolvePerlExecutable
+			// Reset global UI state
+			cli.ResetGlobalState()
+		}()
+
+		// Mock command execution
+		execCommand = func(cmd *exec.Cmd) error {
+			// Write mock output
+			if cmd.Stdout != nil {
+				cmd.Stdout.Write([]byte("Hello from inline Perl!"))
+			}
+			return nil
+		}
+
+		// Mock perl executable resolution
+		resolvePerlExecutable = func(options *ExecutionOptions) (string, error) {
+			return "/usr/bin/perl", nil
+		}
+
 		// Create a new PVX command
 		cmd := NewCommand()
 
@@ -94,6 +153,9 @@ func TestPVXCommand(t *testing.T) {
 		// Should succeed
 		require.NoError(t, err)
 		assert.Equal(t, 0, exitCode, "Exit code should be 0")
+
+		// Verify the mock output was captured
+		assert.Contains(t, output.String(), "Hello from inline Perl!")
 	})
 }
 

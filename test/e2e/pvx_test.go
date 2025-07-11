@@ -103,9 +103,10 @@ print "Perl version: $^V\n";
 	}
 
 	// Run with explicit version flag
-	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-		[]string{"pvx", "-p", "system", scriptPath},
-		"PVX execution with specific version")
+	stdout, stderr, err := env.RunPVM("pvx", "-p", "system", scriptPath)
+	if err != nil {
+		t.Fatalf("PVX execution with specific version failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
 
 	helpers.AssertStringContains(t, stdout, "Perl version:",
 		"Output should contain Perl version information")
