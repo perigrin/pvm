@@ -438,6 +438,9 @@ func (f *ParserTestFramework) parseMarkdownSection(section MarkdownSection, meta
 		strings.Contains(titleLower, "clean perl output") ||
 		strings.Contains(titleLower, "typed perl output") ||
 		strings.Contains(titleLower, "inferred perl output") ||
+		titleLower == "clean perl" ||
+		titleLower == "typed perl" ||
+		titleLower == "inferred perl" ||
 		strings.Contains(titleLower, "expected") && (strings.Contains(titleLower, "output") || strings.Contains(titleLower, "perl")) {
 		return nil, nil // Skip compilation outcome sections
 	}
