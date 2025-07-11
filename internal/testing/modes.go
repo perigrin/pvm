@@ -69,14 +69,14 @@ func ShouldRunLongRunningTests() bool {
 // SkipUnlessPerformance skips test unless performance mode is enabled
 func SkipUnlessPerformance(t *testing.T, reason string) {
 	if !ShouldRunPerformanceTests() {
-		t.Skipf("Performance test skipped (set PVM_TEST_MODE=performance to run): %s", reason)
+		t.Skipf("Performance test skipped (run 'make test-performance' or 'make test-full' to run): %s", reason)
 	}
 }
 
 // SkipUnlessStress skips test unless stress mode is enabled
 func SkipUnlessStress(t *testing.T, reason string) {
 	if !ShouldRunStressTests() {
-		t.Skipf("Stress test skipped (set PVM_TEST_MODE=stress to run): %s", reason)
+		t.Skipf("Stress test skipped (run 'make test-stress' or 'make test-full' to run): %s", reason)
 	}
 }
 
@@ -90,7 +90,7 @@ func SkipUnlessIntegration(t *testing.T, reason string) {
 // SkipUnlessLongRunning skips test unless long-running tests are enabled
 func SkipUnlessLongRunning(t *testing.T, reason string) {
 	if !ShouldRunLongRunningTests() {
-		t.Skipf("Long-running test skipped (set PVM_TEST_MODE=performance|stress|full to run): %s", reason)
+		t.Skipf("Long-running test skipped (run 'make test-full' to run): %s", reason)
 	}
 }
 
@@ -120,7 +120,8 @@ func GetSampleRate() float64 {
 //   PVM_TEST_SAMPLE_RATE=0.1   - Run only 10% of tests (for quick sampling)
 //
 // Usage Examples:
-//   make test                           # Default: integration tests
-//   PVM_TEST_MODE=performance make test # Include performance tests
-//   PVM_TEST_MODE=full make test        # Run everything
+//   make test                           # Default: integration tests (~1.4 min)
+//   make test-performance               # Include performance tests
+//   make test-stress                    # Include stress tests
+//   make test-full                      # Run everything (~3.8 min)
 //   PVM_TEST_SAMPLE_RATE=0.1 make test  # Quick 10% sample
