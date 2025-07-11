@@ -72,7 +72,7 @@ sub attributed_sub : lvalue {
 }
 
 sub multi_attr : method lvalue {
-    return $->{value};
+    return $_[0]->{value};
 }
 
 sub const_sub : const {

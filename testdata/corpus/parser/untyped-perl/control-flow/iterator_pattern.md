@@ -35,7 +35,7 @@ my $iterator = sub {
     state @items = (1..10);
     state $index = 0;
     return if $index >= @items;
-    return $;
+    return $items[$index++];
 };
 
 while (defined(my $item = $iterator->())) {

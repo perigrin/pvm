@@ -813,6 +813,13 @@ func cleanRemainingTypeAnnotations(code string) string {
 	complexTypePattern := regexp.MustCompile(`\b(?:ArrayRef|HashRef|CodeRef|Maybe|Optional|Union|Intersection)\[[^\]]*\]`)
 	code = complexTypePattern.ReplaceAllString(code, "")
 
+	// Pattern to match parenthesized union/intersection types like (Type1|Type2)&SomeType
+	// This should become (|)& to preserve the structure but remove the type names
+	// CRITICAL: Must NOT match qw() quoted word lists or method parameter lists
+	// Only match parentheses that contain union types (with | operator) and proper type patterns
+	parenthesizedUnionPattern := regexp.MustCompile(`\((?:[A-Z]\w*(?:\[[^\]]*\])?)\|(?:[A-Z]\w*(?:\[[^\]]*\])?(?:\|[A-Z]\w*(?:\[[^\]]*\])?)*)\)`)
+	code = parenthesizedUnionPattern.ReplaceAllString(code, "(|)")
+
 	return code
 }
 
