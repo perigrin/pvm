@@ -57,7 +57,9 @@ func NewCSTTransformer(content []byte, options TransformationOptions) *CSTTransf
 		&SubroutineReturnTypeRule{},
 		&ForLoopTypedVariableRule{},
 		&ErrorNodeCleanupRule{},
-		&PreservationRule{}, // Catch-all rule that preserves everything else
+		&SliceExpressionRule{},        // Handle slice expressions specifically
+		&ArrayElementExpressionRule{}, // Handle array element expressions specifically
+		&PreservationRule{},           // Catch-all rule that preserves everything else
 	}
 
 	return transformer
@@ -535,6 +537,40 @@ func (r *PreservationRule) Description() string {
 	return "Preserves nodes by recursively transforming their children"
 }
 
+// SliceExpressionRule handles slice expressions (@array[...])
+type SliceExpressionRule struct{}
+
+func (r *SliceExpressionRule) CanTransform(node *sitter.Node) bool {
+	return node != nil && node.Kind() == "slice_expression"
+}
+
+func (r *SliceExpressionRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
+	// For slice expressions, we want to preserve the entire expression as-is
+	// These are standard Perl syntax and should not be modified
+	return transformer.getNodeText(node), nil
+}
+
+func (r *SliceExpressionRule) Description() string {
+	return "Preserves array slice expressions (@array[...]) without modification"
+}
+
+// ArrayElementExpressionRule handles array element expressions ($array[...])
+type ArrayElementExpressionRule struct{}
+
+func (r *ArrayElementExpressionRule) CanTransform(node *sitter.Node) bool {
+	return node != nil && node.Kind() == "array_element_expression"
+}
+
+func (r *ArrayElementExpressionRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
+	// For array element expressions, we want to preserve the entire expression as-is
+	// These are standard Perl syntax and should not be modified
+	return transformer.getNodeText(node), nil
+}
+
+func (r *ArrayElementExpressionRule) Description() string {
+	return "Preserves array element expressions ($array[...]) without modification"
+}
+
 // TransformationResult contains the result of a CST transformation
 type TransformationResult struct {
 	TransformedCode string   // The transformed Perl code
@@ -772,7 +808,9 @@ func cleanRemainingTypeAnnotations(code string) string {
 
 	// Pattern to match any remaining standalone type expressions with brackets
 	// This catches complex parameterized types that slipped through
-	complexTypePattern := regexp.MustCompile(`\b\w+\[[^\]]*\]`)
+	// BUT avoid matching array indexing expressions like $array[1] or @array[1]
+	// Type annotations typically appear in specific contexts like variable declarations
+	complexTypePattern := regexp.MustCompile(`\b(?:ArrayRef|HashRef|CodeRef|Maybe|Optional|Union|Intersection)\[[^\]]*\]`)
 	code = complexTypePattern.ReplaceAllString(code, "")
 
 	return code
