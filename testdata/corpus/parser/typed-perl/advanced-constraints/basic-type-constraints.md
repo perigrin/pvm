@@ -15,39 +15,6 @@ Test basic type constraint parsing with where clauses
 class Container<T> where T: Serializable { }
 ```
 
-## Expected AST
-
-### Before Type Inference
-
-```
-AST {
-  Path:
-  Source length: 50 characters
-  Type Annotations:
-    VarAnnotation: Handler :: class at 1:1
-  Root: source_file
-  Tree Structure:
-  source_file
-    class_decl
-}
-```
-
-### After Type Inference
-
-```
-AST {
-  Path:
-  Source length: 50 characters
-  Type Annotations:
-    VarAnnotation: Handler :: class at 1:1
-  Root: source_file
-  Tree Structure:
-  source_file
-    class_decl
-}
-```
-
-#
 # Expected Compilation Outcomes
 
 ## Clean Perl Output

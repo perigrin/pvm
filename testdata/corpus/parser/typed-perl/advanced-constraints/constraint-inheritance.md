@@ -16,39 +16,6 @@ Test constraint inheritance from roles and parent classes
 class Base<T> where T: Defined { }
 ```
 
-## Expected AST
-
-### Before Type Inference
-
-```
-AST {
-  Path:
-  Source length: 44 characters
-  Type Annotations:
-    VarAnnotation: Processor :: class at 1:1
-  Root: source_file
-  Tree Structure:
-  source_file
-    class_decl
-}
-```
-
-### After Type Inference
-
-```
-AST {
-  Path:
-  Source length: 44 characters
-  Type Annotations:
-    VarAnnotation: Processor :: class at 1:1
-  Root: source_file
-  Tree Structure:
-  source_file
-    class_decl
-}
-```
-
-#
 # Expected Compilation Outcomes
 
 ## Clean Perl Output
