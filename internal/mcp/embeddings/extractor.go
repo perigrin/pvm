@@ -125,12 +125,12 @@ func (e *Extractor) extractBlocksFromAST(ast *parser.AST, projectID, filePath st
 			if block := e.extractSubroutine(node, projectID, filePath, baseFile, packageName, imports); block != nil {
 				blocks = append(blocks, block)
 			}
-		case "method_declaration_statement", "method_declaration":
-			if block := e.extractMethod(node, projectID, filePath, baseFile, packageName, imports); block != nil {
+		case "method_declaration_statement", "method_declaration", "method_decl":
+			if block := e.extractMethodWithSource(node, projectID, filePath, baseFile, packageName, imports, ast.Source); block != nil {
 				blocks = append(blocks, block)
 			}
-		case "class_declaration":
-			if block := e.extractClass(node, projectID, filePath, baseFile, packageName, imports); block != nil {
+		case "class_declaration", "class_decl":
+			if block := e.extractClassWithSource(node, projectID, filePath, baseFile, packageName, imports, ast.Source); block != nil {
 				blocks = append(blocks, block)
 			}
 		case "package_declaration":
@@ -331,6 +331,39 @@ func (e *Extractor) extractMethod(node parser.Node, projectID, filePath, baseFil
 	}
 }
 
+// extractMethodWithSource extracts a method block with source access for text extraction
+func (e *Extractor) extractMethodWithSource(node parser.Node, projectID, filePath, baseFile, packageName string, imports []string, source string) *CodeBlock {
+	// Extract method name using source
+	name := e.extractMethodNameWithSource(node, source)
+	if name == "" {
+		return nil
+	}
+
+	// Extract type information
+	typeInfo := e.extractMethodTypes(node)
+
+	// Extract content using source positions
+	content := e.extractNodeTextFromSource(node, source)
+
+	// If no type info from AST, try to extract from content text
+	if len(typeInfo) == 0 && content != "" {
+		e.extractTypedParametersFromText(content, typeInfo)
+	}
+
+	return &CodeBlock{
+		ID:        fmt.Sprintf("%s/%s/method/%s", projectID, baseFile, name),
+		Content:   content,
+		Type:      "method",
+		Name:      name,
+		File:      filePath,
+		StartLine: node.Start().Line,
+		EndLine:   node.End().Line,
+		TypeInfo:  typeInfo,
+		Imports:   imports,
+		Context:   packageName,
+	}
+}
+
 // extractClass extracts a class block
 func (e *Extractor) extractClass(node parser.Node, projectID, filePath, baseFile, packageName string, imports []string) *CodeBlock {
 	// Extract class name
@@ -342,6 +375,31 @@ func (e *Extractor) extractClass(node parser.Node, projectID, filePath, baseFile
 	return &CodeBlock{
 		ID:        fmt.Sprintf("%s/%s/class/%s", projectID, baseFile, name),
 		Content:   node.Text(),
+		Type:      "class",
+		Name:      name,
+		File:      filePath,
+		StartLine: node.Start().Line,
+		EndLine:   node.End().Line,
+		TypeInfo:  make(map[string]string), // TODO: Extract field types
+		Imports:   imports,
+		Context:   packageName,
+	}
+}
+
+// extractClassWithSource extracts a class block with source access for text extraction
+func (e *Extractor) extractClassWithSource(node parser.Node, projectID, filePath, baseFile, packageName string, imports []string, source string) *CodeBlock {
+	// Extract class name using source
+	name := e.extractClassNameWithSource(node, source)
+	if name == "" {
+		return nil
+	}
+
+	// Extract content using source positions
+	content := e.extractNodeTextFromSource(node, source)
+
+	return &CodeBlock{
+		ID:        fmt.Sprintf("%s/%s/class/%s", projectID, baseFile, name),
+		Content:   content,
 		Type:      "class",
 		Name:      name,
 		File:      filePath,
@@ -663,6 +721,53 @@ func (e *Extractor) extractMethodName(node parser.Node) string {
 	return ""
 }
 
+// extractMethodNameWithSource extracts method name using source text
+func (e *Extractor) extractMethodNameWithSource(node parser.Node, source string) string {
+	// Try the regular method first
+	if name := e.extractMethodName(node); name != "" {
+		return name
+	}
+
+	// If that fails, extract from source using position
+	text := e.extractNodeTextFromSource(node, source)
+
+	// Handle the case where text might not start with "method " due to position offset
+	// Look for "ethod " (missing 'm') or "method " anywhere in the text
+	patterns := []string{"method ", "ethod "}
+	for _, pattern := range patterns {
+		if strings.Contains(text, pattern) {
+			// Find pattern and extract the next word
+			patternIndex := strings.Index(text, pattern)
+			if patternIndex >= 0 {
+				remaining := text[patternIndex+len(pattern):] // Skip pattern
+				parts := strings.Fields(remaining)
+				if len(parts) >= 1 {
+					// Check if first part is a type (starts with capital) and skip it
+					name := parts[0]
+					if len(parts) >= 2 && isTypeName(parts[0]) {
+						name = parts[1] // Skip type, use the next word as method name
+					}
+					// Remove signature or body
+					if idx := strings.IndexAny(name, "({"); idx > 0 {
+						name = name[:idx]
+					}
+					return name
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// isTypeName checks if a string looks like a type name (starts with capital letter)
+func isTypeName(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	return s[0] >= 'A' && s[0] <= 'Z'
+}
+
 func (e *Extractor) extractClassName(node parser.Node) string {
 	// Look for class name in children
 	for _, child := range node.Children() {
@@ -677,6 +782,41 @@ func (e *Extractor) extractClassName(node parser.Node) string {
 		parts := strings.Fields(text)
 		if len(parts) >= 2 {
 			return parts[1]
+		}
+	}
+
+	return ""
+}
+
+// extractClassNameWithSource extracts class name using source text
+func (e *Extractor) extractClassNameWithSource(node parser.Node, source string) string {
+	// Try the regular method first
+	if name := e.extractClassName(node); name != "" {
+		return name
+	}
+
+	// If that fails, extract from source using position
+	text := e.extractNodeTextFromSource(node, source)
+
+	// Handle the case where text might not start with "class " due to position offset
+	// Look for "lass " (missing 'c') or "class " anywhere in the text
+	patterns := []string{"class ", "lass "}
+	for _, pattern := range patterns {
+		if strings.Contains(text, pattern) {
+			// Find pattern and extract the next word
+			patternIndex := strings.Index(text, pattern)
+			if patternIndex >= 0 {
+				remaining := text[patternIndex+len(pattern):] // Skip pattern
+				parts := strings.Fields(remaining)
+				if len(parts) >= 1 {
+					name := parts[0]
+					// Remove body start
+					if idx := strings.IndexAny(name, "{"); idx > 0 {
+						name = name[:idx]
+					}
+					return name
+				}
+			}
 		}
 	}
 
