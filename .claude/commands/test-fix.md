@@ -1,4 +1,4 @@
-1. Run `make test` to identify current failing tests and get comprehensive failure breakdown
+1. Run `make test-full` to identify current failing tests and get comprehensive failure breakdown
 2. Categorize failures by type:
    - **Expectation mismatch**: "Expected error but parsing succeeded" (quick wins)
    - **Grammar missing**: ERROR nodes, unexpected tokens, unsupported constructs
