@@ -49,6 +49,10 @@ type Server struct {
 	performanceManager *PerformanceManager
 	degradationManager *DegradationManager
 	circuitManager     *CircuitBreakerManager
+
+	// Resource management components
+	resourceManager  *ResourceManager
+	resourcesHandler *ResourcesHandler
 }
 
 // ServerMetrics tracks server performance and usage statistics
@@ -208,6 +212,10 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	// Get circuit breaker manager from performance manager
 	circuitManager := performanceManager.GetCircuitManager()
 
+	// Create resource manager and handler
+	resourceManager := NewResourceManager(".", true) // Use current directory as project path
+	resourcesHandler := NewResourcesHandler(resourceManager)
+
 	pvmServer := &Server{
 		config:             cfg.MCP,
 		mcpServer:          mcpServer,
@@ -231,6 +239,8 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		performanceManager: performanceManager,
 		degradationManager: degradationManager,
 		circuitManager:     circuitManager,
+		resourceManager:    resourceManager,
+		resourcesHandler:   resourcesHandler,
 	}
 
 	// Register health checkers
@@ -251,6 +261,12 @@ func (s *Server) Start(ctx context.Context) error {
 		if err := s.discoverProjects(); err != nil {
 			return fmt.Errorf("failed to discover projects: %w", err)
 		}
+	}
+
+	// Initialize resource manager
+	if err := s.resourceManager.Initialize(ctx); err != nil {
+		s.logger.Warningf("Failed to initialize resource manager: %v", err)
+		// Don't fail server startup if resource initialization fails
 	}
 
 	// Start performance and health monitoring
@@ -1371,6 +1387,7 @@ func (s *Server) registerHealthCheckers() {
 	s.healthMonitor.RegisterChecker("sampling_client", NewSamplingHealthChecker(s.samplingClient))
 	s.healthMonitor.RegisterChecker("circuit_breakers", NewBreakersHealthChecker(s.circuitManager))
 	s.healthMonitor.RegisterChecker("degradation_manager", s.degradationManager)
+	s.healthMonitor.RegisterChecker("resource_manager", NewResourceManagerHealthChecker(s.resourceManager))
 }
 
 // registerHealthTools registers health and monitoring tools

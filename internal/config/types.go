@@ -363,6 +363,93 @@ type MCPConfig struct {
 
 	// RequestTimeout specifies the timeout for requests
 	RequestTimeout time.Duration `toml:"request_timeout" json:"request_timeout"`
+
+	// Sampling configuration for real MCP integration
+	Sampling *MCPSamplingConfig `toml:"sampling" json:"sampling"`
+
+	// Authentication configuration
+	Auth *MCPAuthConfig `toml:"auth" json:"auth"`
+
+	// Circuit breaker configuration
+	CircuitBreaker *MCPCircuitBreakerConfig `toml:"circuit_breaker" json:"circuit_breaker"`
+}
+
+// MCPSamplingConfig represents configuration for MCP sampling
+type MCPSamplingConfig struct {
+	// Mode specifies the sampling mode: "real" or "mock"
+	Mode string `toml:"mode" json:"mode"`
+
+	// Enabled specifies whether sampling is enabled
+	Enabled bool `toml:"enabled" json:"enabled"`
+
+	// Endpoint specifies the MCP server endpoint for real mode
+	Endpoint string `toml:"endpoint" json:"endpoint"`
+
+	// MaxTokens specifies the maximum tokens for sampling requests
+	MaxTokens int `toml:"max_tokens" json:"max_tokens"`
+
+	// Temperature specifies the temperature for sampling
+	Temperature float64 `toml:"temperature" json:"temperature"`
+
+	// TopP specifies the top-p value for sampling
+	TopP float64 `toml:"top_p" json:"top_p"`
+
+	// SystemPrompt specifies the default system prompt
+	SystemPrompt string `toml:"system_prompt" json:"system_prompt"`
+
+	// MaxRetries specifies the maximum number of retries for failed requests
+	MaxRetries int `toml:"max_retries" json:"max_retries"`
+
+	// Timeout specifies the timeout for sampling requests
+	Timeout time.Duration `toml:"timeout" json:"timeout"`
+}
+
+// MCPAuthConfig represents authentication configuration for MCP
+type MCPAuthConfig struct {
+	// Type specifies the authentication type: "none", "apikey", "oauth"
+	Type string `toml:"type" json:"type"`
+
+	// APIKey specifies the API key for apikey authentication
+	APIKey string `toml:"api_key" json:"api_key"`
+
+	// TokenFile specifies the file containing the authentication token
+	TokenFile string `toml:"token_file" json:"token_file"`
+
+	// OAuth configuration
+	OAuth *MCPOAuthConfig `toml:"oauth" json:"oauth"`
+}
+
+// MCPOAuthConfig represents OAuth configuration for MCP
+type MCPOAuthConfig struct {
+	// ClientID specifies the OAuth client ID
+	ClientID string `toml:"client_id" json:"client_id"`
+
+	// ClientSecret specifies the OAuth client secret
+	ClientSecret string `toml:"client_secret" json:"client_secret"`
+
+	// AuthURL specifies the authorization server URL
+	AuthURL string `toml:"auth_url" json:"auth_url"`
+
+	// TokenURL specifies the token endpoint URL
+	TokenURL string `toml:"token_url" json:"token_url"`
+
+	// Scopes specifies the OAuth scopes to request
+	Scopes []string `toml:"scopes" json:"scopes"`
+}
+
+// MCPCircuitBreakerConfig represents circuit breaker configuration
+type MCPCircuitBreakerConfig struct {
+	// Enabled specifies whether the circuit breaker is enabled
+	Enabled bool `toml:"enabled" json:"enabled"`
+
+	// FailureThreshold specifies the failure threshold for opening the circuit
+	FailureThreshold int `toml:"failure_threshold" json:"failure_threshold"`
+
+	// Timeout specifies the timeout for circuit breaker operations
+	Timeout time.Duration `toml:"timeout" json:"timeout"`
+
+	// ResetTimeout specifies the reset timeout for the circuit breaker
+	ResetTimeout time.Duration `toml:"reset_timeout" json:"reset_timeout"`
 }
 
 // ProjectConfig represents project-specific configuration (only in project config files)
