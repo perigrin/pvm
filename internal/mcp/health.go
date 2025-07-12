@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -286,6 +287,13 @@ type SamplingHealthChecker struct {
 	client interface{} // Will be *generation.SamplingClient
 }
 
+// SamplingClientHealthInterface defines the health check interface for sampling clients
+type SamplingClientHealthInterface interface {
+	HealthCheck(ctx context.Context) error
+	IsEnabled() bool
+	GetMode() interface{} // Returns SamplingMode, but using interface{} to avoid import cycles
+}
+
 // NewSamplingHealthChecker creates a new sampling health checker
 func NewSamplingHealthChecker(client interface{}) *SamplingHealthChecker {
 	return &SamplingHealthChecker{client: client}
@@ -305,16 +313,266 @@ func (s *SamplingHealthChecker) HealthCheck(ctx context.Context) ComponentStatus
 		}
 	}
 
-	// TODO: Add actual health check logic:
-	// - Test sampling request capability
-	// - Check connection to MCP sampling endpoint
-	// - Verify response parsing
+	// Try to cast to the health check interface
+	healthClient, ok := s.client.(SamplingClientHealthInterface)
+	if !ok {
+		return ComponentStatus{
+			Name:      "sampling_client",
+			Status:    StatusDegraded,
+			Message:   "Sampling client does not support health checks",
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Check if sampling is enabled
+	if !healthClient.IsEnabled() {
+		return ComponentStatus{
+			Name:      "sampling_client",
+			Status:    StatusDegraded,
+			Message:   "Sampling is disabled",
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Perform actual health check
+	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	err := healthClient.HealthCheck(healthCtx)
+	if err != nil {
+		status := StatusUnhealthy
+		message := fmt.Sprintf("Sampling health check failed: %v", err)
+
+		// Determine if this is a degraded or unhealthy state
+		errorStr := err.Error()
+		if contains(errorStr, "circuit breaker") || contains(errorStr, "timeout") {
+			status = StatusDegraded
+			message = fmt.Sprintf("Sampling degraded: %v", err)
+		}
+
+		return ComponentStatus{
+			Name:      "sampling_client",
+			Status:    status,
+			Message:   message,
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Determine message based on mode
+	mode := healthClient.GetMode()
+	message := "Sampling client is operational"
+	if mode != nil {
+		if modeStr, ok := mode.(string); ok && modeStr == "mock" {
+			message = "Sampling client is operational (mock mode)"
+		} else {
+			message = "Sampling client is operational (real MCP mode)"
+		}
+	}
 
 	return ComponentStatus{
 		Name:      "sampling_client",
 		Status:    StatusHealthy,
-		Message:   "Sampling client is operational",
+		Message:   message,
 		LastCheck: time.Now(),
 		Duration:  time.Since(start),
 	}
+}
+
+// MCPClientHealthChecker checks real MCP client health
+type MCPClientHealthChecker struct {
+	client interface{} // Will be *client.MCPClient
+}
+
+// MCPClientHealthInterface defines the health check interface for MCP clients
+type MCPClientHealthInterface interface {
+	HealthCheck(ctx context.Context) error
+	IsConnected() bool
+	GetCapabilities() interface{} // Returns *MCPCapabilities, but using interface{} to avoid import cycles
+}
+
+// NewMCPClientHealthChecker creates a new MCP client health checker
+func NewMCPClientHealthChecker(client interface{}) *MCPClientHealthChecker {
+	return &MCPClientHealthChecker{client: client}
+}
+
+// HealthCheck performs health check for MCP client
+func (m *MCPClientHealthChecker) HealthCheck(ctx context.Context) ComponentStatus {
+	start := time.Now()
+
+	if m.client == nil {
+		return ComponentStatus{
+			Name:      "mcp_client",
+			Status:    StatusUnhealthy,
+			Message:   "MCP client is not initialized",
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Try to cast to the health check interface
+	healthClient, ok := m.client.(MCPClientHealthInterface)
+	if !ok {
+		return ComponentStatus{
+			Name:      "mcp_client",
+			Status:    StatusDegraded,
+			Message:   "MCP client does not support health checks",
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Check connection status
+	if !healthClient.IsConnected() {
+		return ComponentStatus{
+			Name:      "mcp_client",
+			Status:    StatusUnhealthy,
+			Message:   "MCP client is not connected",
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Perform actual health check
+	healthCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	err := healthClient.HealthCheck(healthCtx)
+	if err != nil {
+		status := StatusUnhealthy
+		message := fmt.Sprintf("MCP client health check failed: %v", err)
+
+		// Determine if this is a degraded or unhealthy state
+		errorStr := err.Error()
+		if contains(errorStr, "circuit breaker") || contains(errorStr, "timeout") {
+			status = StatusDegraded
+			message = fmt.Sprintf("MCP client degraded: %v", err)
+		}
+
+		return ComponentStatus{
+			Name:      "mcp_client",
+			Status:    status,
+			Message:   message,
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Get capabilities information
+	capabilities := healthClient.GetCapabilities()
+	message := "MCP client is connected and operational"
+	if capabilities != nil {
+		message = "MCP client is connected with full capabilities"
+	}
+
+	return ComponentStatus{
+		Name:      "mcp_client",
+		Status:    StatusHealthy,
+		Message:   message,
+		LastCheck: time.Now(),
+		Duration:  time.Since(start),
+	}
+}
+
+// ResourceManagerHealthChecker checks resource manager health
+type ResourceManagerHealthChecker struct {
+	manager interface{} // Will be *ResourceManager
+}
+
+// ResourceManagerHealthInterface defines the health check interface for resource managers
+type ResourceManagerHealthInterface interface {
+	IsEnabled() bool
+	RefreshResources(ctx context.Context) error
+}
+
+// NewResourceManagerHealthChecker creates a new resource manager health checker
+func NewResourceManagerHealthChecker(manager interface{}) *ResourceManagerHealthChecker {
+	return &ResourceManagerHealthChecker{manager: manager}
+}
+
+// HealthCheck performs health check for resource manager
+func (r *ResourceManagerHealthChecker) HealthCheck(ctx context.Context) ComponentStatus {
+	start := time.Now()
+
+	if r.manager == nil {
+		return ComponentStatus{
+			Name:      "resource_manager",
+			Status:    StatusUnhealthy,
+			Message:   "Resource manager is not initialized",
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Try to cast to the health check interface
+	healthManager, ok := r.manager.(ResourceManagerHealthInterface)
+	if !ok {
+		return ComponentStatus{
+			Name:      "resource_manager",
+			Status:    StatusDegraded,
+			Message:   "Resource manager does not support health checks",
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Check if resource management is enabled
+	if !healthManager.IsEnabled() {
+		return ComponentStatus{
+			Name:      "resource_manager",
+			Status:    StatusDegraded,
+			Message:   "Resource management is disabled",
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	// Perform actual health check by trying to refresh resources
+	healthCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	err := healthManager.RefreshResources(healthCtx)
+	if err != nil {
+		status := StatusUnhealthy
+		message := fmt.Sprintf("Resource manager health check failed: %v", err)
+
+		// Determine if this is a degraded or unhealthy state
+		errorStr := err.Error()
+		if contains(errorStr, "permission denied") || contains(errorStr, "timeout") {
+			status = StatusDegraded
+			message = fmt.Sprintf("Resource manager degraded: %v", err)
+		}
+
+		return ComponentStatus{
+			Name:      "resource_manager",
+			Status:    status,
+			Message:   message,
+			LastCheck: time.Now(),
+			Duration:  time.Since(start),
+		}
+	}
+
+	return ComponentStatus{
+		Name:      "resource_manager",
+		Status:    StatusHealthy,
+		Message:   "Resource manager is operational",
+		LastCheck: time.Now(),
+		Duration:  time.Since(start),
+	}
+}
+
+// Helper function to check if string contains substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
