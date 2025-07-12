@@ -17,13 +17,16 @@ import (
 	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/parser/treesitter"
+	"tamarou.com/pvm/internal/typechecker"
+	"tamarou.com/pvm/internal/typedef"
 )
 
 // LanguageService provides language analysis and editor features
 type LanguageService struct {
-	binder  binder.Binder
-	checker *parser.TypeCheck
-	// Note: Using parser pool instead of shared instance for thread safety
+	binder             binder.Binder
+	incrementalChecker *typechecker.IncrementalTypeChecker
+	hierarchy          *typedef.TypeHierarchy
+	// Note: Using incremental type checker for enhanced performance
 
 	// Document cache
 	documents map[string]*Document
@@ -105,17 +108,38 @@ const (
 func NewLanguageService() (*LanguageService, error) {
 	b := binder.NewBinder()
 
-	checker, err := parser.NewTypeCheck()
+	// Create type storage for incremental type checking
+	typeStorage, err := typedef.NewStorage()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create type storage: %w", err)
 	}
 
+	// Create type hierarchy for incremental type checking
+	hierarchy := typedef.NewTypeHierarchy(typeStorage)
+
+	// Create symbol table for type checking
+	symbolTable := binder.NewSymbolTable()
+
+	// Create incremental type checker with optimized configuration for LSP
+	config := typechecker.IncrementalConfig{
+		EnableDeltaTracking:       true,
+		EnableCaching:             true,
+		EnableDependencyTracking:  true,
+		CacheInvalidationStrategy: "precise", // Use precise invalidation for LSP responsiveness
+		MaxCachedFiles:            1000,
+		DeltaRetentionTime:        24 * time.Hour,
+		EnableFileWatching:        false, // LSP handles file change notifications
+	}
+
+	incrementalChecker := typechecker.NewIncrementalTypeChecker(hierarchy, symbolTable, "lsp_module", config)
+
 	return &LanguageService{
-		binder:    b,
-		checker:   checker,
-		documents: make(map[string]*Document),
-		cache:     NewDocumentCache(),
-		monitor:   NewPerformanceMonitor(),
+		binder:             b,
+		incrementalChecker: incrementalChecker,
+		hierarchy:          hierarchy,
+		documents:          make(map[string]*Document),
+		cache:              NewDocumentCache(),
+		monitor:            NewPerformanceMonitor(),
 	}, nil
 }
 
@@ -212,21 +236,14 @@ func (ls *LanguageService) UpdateDocument(uri, text string, version int) error {
 	doc.SymbolTable = symbolTable
 	doc.SymbolHash = ls.cache.HashContent(fmt.Sprintf("%p", symbolTable)) // Simple symbol table hash
 
-	// Type checking with performance monitoring
-	typeCheckOp := ls.monitor.StartOperation(context.Background(), "typecheck")
+	// Incremental type checking with performance monitoring
+	typeCheckOp := ls.monitor.StartOperation(context.Background(), "incremental_typecheck")
 	errors := ls.cache.GetTypeCheckResult(uri, contentHash, doc.SymbolHash)
 	if errors == nil {
 		ls.monitor.RecordCacheMiss()
-		tempPath, err := ls.writeToTempFile(uri, text)
-		if err != nil {
-			typeCheckOp.CompleteWithError(err)
-			doc.SymbolTable = symbolTable
-			ls.documents[uri] = doc
-			return err
-		}
 
 		typeCheckStart := time.Now()
-		result, err := ls.checker.CheckFile(tempPath)
+		result, err := ls.incrementalChecker.CheckFileIncremental(uri, []byte(text), doc.AST)
 		typeCheckDuration := time.Since(typeCheckStart)
 
 		if err != nil {
@@ -236,8 +253,17 @@ func (ls *LanguageService) UpdateDocument(uri, text string, version int) error {
 			return err
 		}
 
-		if result != nil {
-			errors = result.Errors
+		// Convert TypeCheckResult errors to parser.TypeCheckError for compatibility
+		if result != nil && result.Errors != nil {
+			errors = make([]parser.TypeCheckError, len(result.Errors))
+			for i, tcErr := range result.Errors {
+				errors[i] = parser.TypeCheckError{
+					Message: tcErr.Message,
+					Path:    tcErr.Path,
+					Line:    tcErr.Line,
+					Column:  tcErr.Column,
+				}
+			}
 		} else {
 			errors = []parser.TypeCheckError{}
 		}

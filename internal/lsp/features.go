@@ -4,7 +4,9 @@
 package lsp
 
 import (
+	"bytes"
 	"fmt"
+	"os/exec"
 	"strings"
 )
 
@@ -61,9 +63,24 @@ func (s *Server) findReferences(doc *Document, pos Position, includeDeclaration 
 
 // formatDocument formats the entire document
 func (s *Server) formatDocument(doc *Document, options FormattingOptions) []TextEdit {
-	// For now, we'll implement basic formatting
-	// TODO: Integrate with perltidy or implement more sophisticated formatting
+	// Try perltidy formatting first, fallback to basic formatting
+	if formattedText, err := s.formatWithPerltidy(doc.Text, options); err == nil {
+		// Perltidy succeeded, return the formatted result as a single edit
+		if formattedText != doc.Text {
+			return []TextEdit{
+				{
+					Range: Range{
+						Start: Position{Line: 0, Character: 0},
+						End:   s.getDocumentEnd(doc.Text),
+					},
+					NewText: formattedText,
+				},
+			}
+		}
+		return []TextEdit{} // No changes needed
+	}
 
+	// Fallback to basic line-by-line formatting
 	edits := []TextEdit{}
 	lines := strings.Split(doc.Text, "\n")
 
@@ -81,6 +98,87 @@ func (s *Server) formatDocument(doc *Document, options FormattingOptions) []Text
 	}
 
 	return edits
+}
+
+// formatWithPerltidy formats Perl code using perltidy
+func (s *Server) formatWithPerltidy(text string, options FormattingOptions) (string, error) {
+	// Check if perltidy is available
+	if !s.isPerltidyAvailable() {
+		return "", fmt.Errorf("perltidy not available")
+	}
+
+	// Create perltidy command with appropriate options
+	args := s.buildPerltidyArgs(options)
+	cmd := exec.Command("perltidy", args...)
+
+	// Set up input and output
+	var stdout, stderr bytes.Buffer
+	cmd.Stdin = strings.NewReader(text)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	// Run perltidy
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("perltidy failed: %v, stderr: %s", err, stderr.String())
+	}
+
+	return stdout.String(), nil
+}
+
+// isPerltidyAvailable checks if perltidy command is available
+func (s *Server) isPerltidyAvailable() bool {
+	_, err := exec.LookPath("perltidy")
+	return err == nil
+}
+
+// buildPerltidyArgs builds command line arguments for perltidy based on formatting options
+func (s *Server) buildPerltidyArgs(options FormattingOptions) []string {
+	args := []string{
+		"--standard-output",       // Output to stdout
+		"--standard-error-output", // Error to stderr
+		"--no-backup-files",       // Don't create backup files
+	}
+
+	// Configure indentation
+	if options.TabSize > 0 {
+		args = append(args, fmt.Sprintf("--indent-columns=%d", options.TabSize))
+	}
+
+	// Configure whether to use tabs or spaces
+	if options.InsertSpaces {
+		args = append(args, "--tabs") // Use spaces (perltidy default with --tabs is actually spaces)
+	} else {
+		args = append(args, "--entab-leading-whitespace=4") // Use tabs for leading whitespace
+	}
+
+	// Add other formatting preferences
+	args = append(args,
+		"--maximum-line-length=120",     // Reasonable line length
+		"--paren-tightness=1",           // Moderate paren tightness
+		"--brace-tightness=1",           // Moderate brace tightness
+		"--square-bracket-tightness=1",  // Moderate bracket tightness
+		"--continuation-indentation=2",  // Continuation indentation
+		"--closing-token-indentation=0", // Standard closing token indentation
+		"--comma-arrow-breakpoints=3",   // Smart comma-arrow breakpoints
+	)
+
+	return args
+}
+
+// getDocumentEnd returns the end position of the document
+func (s *Server) getDocumentEnd(text string) Position {
+	lines := strings.Split(text, "\n")
+	if len(lines) == 0 {
+		return Position{Line: 0, Character: 0}
+	}
+
+	lastLineIndex := len(lines) - 1
+	lastLineLength := len(lines[lastLineIndex])
+
+	return Position{
+		Line:      lastLineIndex,
+		Character: lastLineLength,
+	}
 }
 
 // generateCodeActions generates code actions for the given range and context
@@ -265,15 +363,236 @@ func (s *Server) generateUndefinedVariableFix(doc *Document, diag Diagnostic) []
 }
 
 func (s *Server) generateTypeMismatchFix(doc *Document, diag Diagnostic) []CodeAction {
-	actions := []CodeAction{}
+	var actions []CodeAction
 
-	// TODO: Implement type mismatch fixes
-	// This could include:
-	// - Adding type conversions
-	// - Changing variable types
-	// - Adding type annotations
+	// Extract type mismatch information from diagnostic message
+	// Common patterns: "Expected Int, got Str", "Type mismatch: cannot assign Str to Int variable"
+	message := diag.Message
+
+	// Parse expected and actual types from error message
+	expectedType, actualType, ok := s.parseTypeMismatchMessage(message)
+	if !ok {
+		return actions
+	}
+
+	// Get the range where the error occurred
+	errorRange := diag.Range
+	errorText := s.getTextInRange(doc.Text, errorRange)
+
+	// Generate different types of fixes
+
+	// Fix 1: Add explicit type conversion
+	if conversionFix := s.generateTypeConversionFix(expectedType, actualType, errorRange, errorText); conversionFix != nil {
+		actions = append(actions, *conversionFix)
+	}
+
+	// Fix 2: Change variable declaration type
+	if varTypeFix := s.generateVariableTypeChangeFix(doc, expectedType, actualType, errorRange); varTypeFix != nil {
+		actions = append(actions, *varTypeFix)
+	}
+
+	// Fix 3: Add type annotation
+	if annotationFix := s.generateAddTypeAnnotationFix(expectedType, errorRange, errorText); annotationFix != nil {
+		actions = append(actions, *annotationFix)
+	}
+
+	// Fix 4: Cast using 'as' operator
+	if castFix := s.generateTypeAssertionFix(expectedType, actualType, errorRange, errorText); castFix != nil {
+		actions = append(actions, *castFix)
+	}
 
 	return actions
+}
+
+// Helper methods for type mismatch fixes
+
+func (s *Server) parseTypeMismatchMessage(message string) (expectedType, actualType string, ok bool) {
+	// Parse common error message patterns
+
+	// Pattern 1: "Expected Int, got Str"
+	if strings.Contains(message, "Expected") && strings.Contains(message, ", got ") {
+		parts := strings.Split(message, "Expected ")
+		if len(parts) > 1 {
+			remainder := parts[1]
+			gotIndex := strings.Index(remainder, ", got ")
+			if gotIndex > 0 {
+				expectedType = strings.TrimSpace(remainder[:gotIndex])
+				actualType = strings.TrimSpace(remainder[gotIndex+6:])
+				// Clean up any trailing punctuation
+				actualType = strings.TrimSuffix(actualType, ".")
+				actualType = strings.TrimSuffix(actualType, ",")
+				return expectedType, actualType, true
+			}
+		}
+	}
+
+	// Pattern 2: "Type mismatch: cannot assign Str to Int variable"
+	if strings.Contains(message, "cannot assign") && strings.Contains(message, " to ") {
+		assignIndex := strings.Index(message, "cannot assign ")
+		toIndex := strings.Index(message, " to ")
+		if assignIndex >= 0 && toIndex > assignIndex {
+			actualType = strings.TrimSpace(message[assignIndex+14 : toIndex])
+			remainder := message[toIndex+4:]
+			varIndex := strings.Index(remainder, " variable")
+			if varIndex >= 0 {
+				expectedType = strings.TrimSpace(remainder[:varIndex])
+			} else {
+				expectedType = strings.TrimSpace(remainder)
+			}
+			return expectedType, actualType, true
+		}
+	}
+
+	// Pattern 3: "Type error: Int required but Str provided"
+	if strings.Contains(message, " required but ") && strings.Contains(message, " provided") {
+		requiredIndex := strings.Index(message, " required but ")
+		providedIndex := strings.Index(message, " provided")
+		if requiredIndex > 0 && providedIndex > requiredIndex {
+			// Find the start of the expected type
+			prefix := message[:requiredIndex]
+			words := strings.Fields(prefix)
+			if len(words) > 0 {
+				expectedType = words[len(words)-1]
+			}
+			actualType = strings.TrimSpace(message[requiredIndex+14 : providedIndex])
+			return expectedType, actualType, true
+		}
+	}
+
+	return "", "", false
+}
+
+func (s *Server) generateTypeConversionFix(expectedType, actualType string, errorRange Range, errorText string) *CodeAction {
+	// Generate conversion functions based on common type pairs
+	var conversionExpr string
+
+	switch {
+	case expectedType == "Int" && actualType == "Str":
+		conversionExpr = fmt.Sprintf("int(%s)", errorText)
+	case expectedType == "Str" && actualType == "Int":
+		conversionExpr = fmt.Sprintf("\"$%s\"", errorText)
+	case expectedType == "Num" && actualType == "Str":
+		conversionExpr = fmt.Sprintf("0 + %s", errorText)
+	case expectedType == "Bool" && (actualType == "Int" || actualType == "Str"):
+		conversionExpr = fmt.Sprintf("!!%s", errorText)
+	case strings.HasPrefix(expectedType, "ArrayRef") && actualType == "Array":
+		conversionExpr = fmt.Sprintf("\\@{%s}", errorText)
+	case strings.HasPrefix(expectedType, "HashRef") && actualType == "Hash":
+		conversionExpr = fmt.Sprintf("\\%%{%s}", errorText)
+	default:
+		// Generic conversion attempt
+		conversionExpr = fmt.Sprintf("%s(%s)", expectedType, errorText)
+	}
+
+	if conversionExpr == "" {
+		return nil
+	}
+
+	return &CodeAction{
+		Title: fmt.Sprintf("Convert %s to %s", actualType, expectedType),
+		Kind:  "quickfix",
+		Edit: &WorkspaceEdit{
+			Changes: map[string][]TextEdit{
+				"": {
+					{
+						Range:   errorRange,
+						NewText: conversionExpr,
+					},
+				},
+			},
+		},
+	}
+}
+
+func (s *Server) generateVariableTypeChangeFix(doc *Document, expectedType, actualType string, errorRange Range) *CodeAction {
+	// Find the variable declaration that needs type change
+	// This is a simplified implementation - in practice, you'd need AST analysis
+	lines := strings.Split(doc.Text, "\n")
+
+	// Look backwards for variable declarations
+	for i := errorRange.Start.Line; i >= 0 && i >= errorRange.Start.Line-10; i-- {
+		if i >= len(lines) {
+			continue
+		}
+		line := lines[i]
+
+		// Look for patterns like "my $var" or "my Type $var"
+		if strings.Contains(line, "my ") {
+			// Simple pattern matching - could be improved with AST
+			if strings.Contains(line, "$") {
+				// Check if this line contains a type annotation
+				if strings.Contains(line, fmt.Sprintf(" %s ", actualType)) {
+					// Replace the type
+					newLine := strings.Replace(line, fmt.Sprintf(" %s ", actualType), fmt.Sprintf(" %s ", expectedType), 1)
+					return &CodeAction{
+						Title: fmt.Sprintf("Change variable type from %s to %s", actualType, expectedType),
+						Kind:  "quickfix",
+						Edit: &WorkspaceEdit{
+							Changes: map[string][]TextEdit{
+								"": {
+									{
+										Range: Range{
+											Start: Position{Line: i, Character: 0},
+											End:   Position{Line: i, Character: len(line)},
+										},
+										NewText: newLine,
+									},
+								},
+							},
+						},
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) generateAddTypeAnnotationFix(expectedType string, errorRange Range, errorText string) *CodeAction {
+	// Add type annotation to variable declaration
+	// Look for variable patterns and suggest adding type annotation
+
+	if strings.HasPrefix(errorText, "my $") {
+		// Pattern: "my $var" -> "my Type $var"
+		newText := strings.Replace(errorText, "my $", fmt.Sprintf("my %s $", expectedType), 1)
+		return &CodeAction{
+			Title: fmt.Sprintf("Add %s type annotation", expectedType),
+			Kind:  "quickfix",
+			Edit: &WorkspaceEdit{
+				Changes: map[string][]TextEdit{
+					"": {
+						{
+							Range:   errorRange,
+							NewText: newText,
+						},
+					},
+				},
+			},
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) generateTypeAssertionFix(expectedType, actualType string, errorRange Range, errorText string) *CodeAction {
+	// Generate type assertion using 'as' operator
+	assertionExpr := fmt.Sprintf("(%s as %s)", errorText, expectedType)
+
+	return &CodeAction{
+		Title: fmt.Sprintf("Assert type as %s", expectedType),
+		Kind:  "quickfix",
+		Edit: &WorkspaceEdit{
+			Changes: map[string][]TextEdit{
+				"": {
+					{
+						Range:   errorRange,
+						NewText: assertionExpr,
+					},
+				},
+			},
+		},
+	}
 }
 
 func (s *Server) generateExtractVariableEdits(doc *Document, rng Range, text string) []TextEdit {
