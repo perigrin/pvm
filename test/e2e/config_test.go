@@ -222,7 +222,7 @@ func TestConfigInit(t *testing.T) {
 	helpers.AssertFileContains(t, userConfigPath, "download_mirror", "Config should contain download_mirror")
 
 	// Test that running init again fails (file already exists)
-	stdout, stderr, err = env.RunPVM("config", "init")
+	_, stderr, err = env.RunPVM("config", "init")
 	if err == nil {
 		t.Fatal("Config init should fail when file already exists")
 	}
@@ -261,7 +261,7 @@ func TestConfigInit(t *testing.T) {
 	helpers.AssertFileContains(t, projectConfigPath, "default_perl", "Project config should contain default_perl")
 
 	// Test that running project init again fails (file already exists)
-	stdout, stderr, err = env.RunPVM("config", "init", "--project")
+	_, stderr, err = env.RunPVM("config", "init", "--project")
 	if err == nil {
 		t.Fatal("Project config init should fail when file already exists")
 	}
