@@ -14,12 +14,12 @@ The parser is designed to handle Perl code with type annotations in the followin
 
 2. **Subroutine Declarations**:
    - Parameter types: `sub name(Type $param, AnotherType @array)`
-   - Return types: `sub name() -> ReturnType`
-   - Combined: `sub name(Type $param) -> ReturnType`
+   - Return types: `sub ReturnType name()`
+   - Combined: `sub ReturnType name(Type $param)`
 
 3. **Method Declarations**:
-   - In regular packages: `sub method(Type $self, Type $param) -> ReturnType`
-   - In class syntax: `method name(Type $param) -> ReturnType`
+   - In regular packages: `sub ReturnType method(Type $self, Type $param)`
+   - In class syntax: `method ReturnType name(Type $param)`
 
 4. **Attribute Declarations**:
    - In class syntax: `field Type $attribute`

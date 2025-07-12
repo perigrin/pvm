@@ -25,11 +25,11 @@ const (
 	VarAnnotation AnnotationKind = iota
 	// SubParamAnnotation is for subroutine parameter annotations like "sub name(Type $param)"
 	SubParamAnnotation
-	// SubReturnAnnotation is for subroutine return annotations like "sub name() -> ReturnType"
+	// SubReturnAnnotation is for subroutine return annotations like "sub ReturnType name()"
 	SubReturnAnnotation
 	// MethodParamAnnotation is for method parameter annotations like "method name(Type $param)"
 	MethodParamAnnotation
-	// MethodReturnAnnotation is for method return annotations like "method name() -> ReturnType"
+	// MethodReturnAnnotation is for method return annotations like "method ReturnType name()"
 	MethodReturnAnnotation
 	// AttrAnnotation is for attribute annotations like "field Type $attr"
 	AttrAnnotation

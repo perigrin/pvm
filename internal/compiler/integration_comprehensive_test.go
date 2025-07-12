@@ -42,7 +42,7 @@ print "Result: $result\n";`,
 		},
 		{
 			name: "PSC Check Command (Typed)",
-			code: `method validate(Int $input) -> Bool {
+			code: `method Bool validate(Int $input) {
     return $input > 0;
 }
 my Bool $valid = validate(42);`,
@@ -94,7 +94,7 @@ func TestParserIntegration(t *testing.T) {
 		`my Int $simple = 42;`,
 		`field Str $field_var = "test";`,
 		`my ArrayRef[Int] $array = [1, 2, 3];`,
-		`method process(Str $input) -> Int { return length($input); }`,
+		`method Int process(Str $input) { return length($input); }`,
 		`my $assertion = get_value() as Str;`,
 	}
 
@@ -368,19 +368,19 @@ use v5.36;
 field Str $base_url;
 field HashRef[Str] $headers;
 
-method new(Str $url, HashRef[Str] $hdrs) -> Self {
+method Self new(Str $url, HashRef[Str] $hdrs) {
     $base_url = $url;
     $headers = $hdrs;
     return bless {}, __PACKAGE__;
 }
 
-method get(Str $endpoint) -> Str {
+method Str get(Str $endpoint) {
     my Str $url = "$base_url/$endpoint";
     my HashRef[Any] $response = http_get($url, $headers);
     return $response->{body} as Str;
 }
 
-method post(Str $endpoint, HashRef[Any] $data) -> HashRef[Any] {
+method HashRef[Any] post(Str $endpoint, HashRef[Any] $data) {
     my Str $url = "$base_url/$endpoint";
     my Str $json = encode_json($data);
     return http_post($url, $json, $headers);
@@ -391,7 +391,7 @@ method post(Str $endpoint, HashRef[Any] $data) -> HashRef[Any] {
 field ArrayRef[HashRef[Str]] $records;
 field HashRef[Int] $statistics;
 
-method process_data(ArrayRef[HashRef[Any]] $input) -> ArrayRef[HashRef[Str]] {
+method ArrayRef[HashRef[Str]] process_data(ArrayRef[HashRef[Any]] $input) {
     my ArrayRef[HashRef[Str]] $processed = [];
 
     for my HashRef[Any] $record (@$input) {
@@ -408,7 +408,7 @@ method process_data(ArrayRef[HashRef[Any]] $input) -> ArrayRef[HashRef[Str]] {
     return $processed;
 }
 
-method calculate_stats() -> HashRef[Int] {
+method HashRef[Int] calculate_stats() {
     my Int $total = scalar(@$records);
     my Int $valid = 0;
 
@@ -428,7 +428,7 @@ method calculate_stats() -> HashRef[Int] {
 field HashRef[Union[Str, Int, Bool]] $config;
 field Str $config_file;
 
-method load_config(Str $file) -> Bool {
+method Bool load_config(Str $file) {
     $config_file = $file;
 
     my Str $content = read_file($file);
@@ -439,11 +439,11 @@ method load_config(Str $file) -> Bool {
     return defined($config);
 }
 
-method get(Str $key) -> Union[Str, Int, Bool] {
+method Union[Str, Int, Bool] get(Str $key) {
     return $config->{$key} // undef;
 }
 
-method set(Str $key, Union[Str, Int, Bool] $value) -> Void {
+method Void set(Str $key, Union[Str, Int, Bool] $value) {
     $config->{$key} = $value;
     save_config();
 }`,

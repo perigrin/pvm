@@ -195,7 +195,7 @@ Rich symbol information displayed on hover:
 
 **Information Provided:**
 - **Symbol type**: Variable, subroutine, method, package
-- **Type annotation**: `my Int $var`, `sub (Str, Int) -> Bool`
+- **Type annotation**: `my Int $var`, `sub Bool name(Str, Int)`
 - **Declaration location**: File and line number
 - **Scope context**: Lexical, package, or dynamic scope
 - **Documentation**: POD comments when available

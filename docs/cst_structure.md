@@ -184,9 +184,9 @@ mandatory_parameter [12:18]
 
 ### Issue 1: Method Return Types
 
-**Problem:** Return type syntax `-> Type` creates ERROR nodes
+**Problem:** Prefix return type syntax should be supported
 
-**Source:** `method hello() -> Str { ... }`
+**Source:** `method Str hello() { ... }`
 
 **CST:**
 ```

@@ -284,7 +284,7 @@ func generateLongUnionType(members int) string {
 }
 
 func generateMassiveMethodSignature(paramCount int) string {
-	result := "method massive_method("
+	result := "method Bool massive_method("
 	for i := 0; i < paramCount; i++ {
 		if i > 0 {
 			result += ", "
@@ -294,7 +294,7 @@ func generateMassiveMethodSignature(paramCount int) string {
 			result += string(rune('A' + ((i / 10) % 26)))
 		}
 	}
-	result += ") -> Bool { return 1; }"
+	result += ") { return 1; }"
 	return result
 }
 

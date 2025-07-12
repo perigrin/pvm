@@ -259,6 +259,20 @@ func (tei *TypeErrorIdentifier) validateGeneralSyntax(node ast.Node, source stri
 		}
 	}
 
+	// Check for arrow syntax patterns (method name() -> Type or sub name() -> Type)
+	if tei.containsArrowSyntax(nodeText) {
+		return &errors.TypeParseError{
+			ErrorType:  "ArrowSyntaxError",
+			Message:    "Arrow syntax is not supported",
+			Position:   position,
+			Suggestion: tei.suggestCorrectSyntax(nodeText),
+			Context:    "method or subroutine declaration",
+			ErrorCode:  errors.ArrowSyntaxError,
+			Source:     source,
+			SourceLine: tei.getSourceLine(source, position.Line),
+		}
+	}
+
 	return nil
 }
 
@@ -489,6 +503,14 @@ func (tei *TypeErrorIdentifier) analyzeTypeError(line string, position ast.Posit
 			"DeepNestingError"
 	}
 
+	// Arrow syntax error check (high priority)
+	if tei.containsArrowSyntax(line) {
+		return errors.ArrowSyntaxError,
+			"Arrow syntax is not supported",
+			tei.suggestCorrectSyntax(line),
+			"ArrowSyntaxError"
+	}
+
 	// Type assertion errors (highest priority for 'as' keyword)
 	if strings.Contains(line, " as ") && (strings.HasSuffix(strings.TrimSpace(line), "as") ||
 		strings.HasSuffix(strings.TrimSpace(line), "as ;")) {
@@ -611,6 +633,30 @@ func containsTypeLikePattern(line string) bool {
 		strings.Contains(line, "Undef") ||
 		strings.Contains(line, "Object") ||
 		strings.Contains(line, "Serializable")
+}
+
+// containsArrowSyntax checks if the text contains arrow syntax patterns
+func (tei *TypeErrorIdentifier) containsArrowSyntax(text string) bool {
+	// Look for patterns like "method name() -> Type" or "sub name() -> Type"
+	if strings.Contains(text, " -> ") {
+		// Check if it's in a method or sub context
+		return strings.Contains(text, "method ") || strings.Contains(text, "sub ")
+	}
+	return false
+}
+
+// suggestCorrectSyntax suggests the correct syntax based on arrow syntax pattern
+func (tei *TypeErrorIdentifier) suggestCorrectSyntax(text string) string {
+	if strings.Contains(text, "method ") {
+		if strings.Contains(text, "()") {
+			return "Use 'method Type name()' instead of 'method name() -> Type'"
+		}
+		return "Use 'method Type name(ParamType $param)' instead of 'method name(ParamType $param) -> Type'"
+	}
+	if strings.Contains(text, "sub ") {
+		return "Use 'sub name()' or 'method Type name()' instead of 'sub name() -> Type'"
+	}
+	return "Use 'method Type name()' instead of 'method name() -> Type'"
 }
 
 // IdentifyTreeSitterError analyzes tree-sitter parse failures and converts them to specific type errors

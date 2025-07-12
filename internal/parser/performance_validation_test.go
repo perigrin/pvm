@@ -18,7 +18,7 @@ import (
 func BenchmarkParser_SmallFile(b *testing.B) {
 	testCode := `my Int $count = 42;
 my Str $name = "test";
-sub greet(Str $name) -> Str {
+sub Str greet(Str $name) {
     return "Hello, " . $name;
 }`
 
@@ -68,9 +68,9 @@ func BenchmarkParser_MediumFile(b *testing.B) {
 		builder.WriteString("42;\n")
 
 		if i%5 == 0 {
-			builder.WriteString("sub func")
+			builder.WriteString("sub Str func")
 			builder.WriteString(strings.Repeat("b", i%10))
-			builder.WriteString("(Int $param) -> Str {\n")
+			builder.WriteString("(Int $param) {\n")
 			builder.WriteString("    my Str $result = \"value\";\n")
 			builder.WriteString("    return $result;\n}\n\n")
 		}
@@ -113,7 +113,7 @@ func BenchmarkParser_MediumFile(b *testing.B) {
 func TestParser_MemoryUsage(t *testing.T) {
 	testCode := `my Int $count = 42;
 my Str $name = "test";
-sub greet(Str $name) -> Str {
+sub Str greet(Str $name) {
     return "Hello, " . $name;
 }`
 
@@ -240,7 +240,7 @@ func TestParser_Stability(t *testing.T) {
 	testCodes := []string{
 		"my Int $simple = 42;",
 		"my ArrayRef[Str] $array = [];",
-		"sub func(Int $a, Str $b) -> Bool { return 1; }",
+		"sub Bool func(Int $a, Str $b) { return 1; }",
 		"type MyType = Int|Str;",
 		"my MyType $var = 123;",
 	}
@@ -289,7 +289,7 @@ sub Int calculate(Int $a, Int $b) {
     return $result;
 }
 
-sub greet(Str $name) -> Str {
+sub Str greet(Str $name) {
     return "Hello, " . $name;
 }
 

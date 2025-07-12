@@ -64,6 +64,11 @@ func (ep *enhancedParser) ParseFile(path string) (*ast.AST, error) {
 
 // ParseString implements the Parser interface with enhanced error handling
 func (ep *enhancedParser) ParseString(content string) (*ast.AST, error) {
+	// Pre-parse validation for arrow syntax - check before tree-sitter parsing
+	if arrowErr := ep.validateArrowSyntax(content); arrowErr != nil {
+		return nil, arrowErr
+	}
+
 	astResult, err := ep.tsParser.ParseString(content)
 	if err != nil {
 		// Check if this is a type-related error we can identify more specifically
@@ -252,4 +257,34 @@ func containsActualTypePattern(source string) bool {
 	}
 
 	return false
+}
+
+// validateArrowSyntax checks for arrow syntax patterns in the source and returns errors if found
+func (ep *enhancedParser) validateArrowSyntax(source string) *errors.TypeParseError {
+	lines := strings.Split(source, "\n")
+	for lineNum, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Check for arrow syntax patterns
+		if ep.errorIdentifier.containsArrowSyntax(line) {
+			position := ast.Position{
+				Line:   lineNum + 1,
+				Column: 1,
+			}
+			return &errors.TypeParseError{
+				ErrorType:  "ArrowSyntaxError",
+				Message:    "Arrow syntax is not supported",
+				Position:   position,
+				Suggestion: ep.errorIdentifier.suggestCorrectSyntax(line),
+				Context:    "method or subroutine declaration",
+				ErrorCode:  errors.ArrowSyntaxError,
+				Source:     source,
+				SourceLine: line,
+			}
+		}
+	}
+	return nil
 }

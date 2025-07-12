@@ -12,7 +12,7 @@ func TestTypeInformationExtraction(t *testing.T) {
 	// Create a sample AST with type information
 	ast := &AST{
 		Path:   "test.pl",
-		Source: "my Int $count = 42; method foo(Str $input) -> Bool { return 1; }",
+		Source: "my Int $count = 42; method Bool foo(Str $input) { return 1; }",
 	}
 
 	// Create some typed nodes

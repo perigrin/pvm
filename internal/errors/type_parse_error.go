@@ -75,4 +75,7 @@ const (
 
 	// DeepNestingError for excessively nested types
 	DeepNestingError
+
+	// ArrowSyntaxError for unsupported arrow syntax in method/sub declarations
+	ArrowSyntaxError
 )

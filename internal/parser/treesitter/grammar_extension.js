@@ -38,7 +38,7 @@ module.exports.rules = {
     ),
 
     // Add a rule for method declarations with type annotations
-    // Example: method name(Type $param) -> ReturnType { ... }
+    // Example: method ReturnType name(Type $param) { ... }
     _method_declaration: ($, original) => choice(
       seq(
         'method',

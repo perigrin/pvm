@@ -4,8 +4,8 @@
 
 We need to implement parsing support for method type annotations in the PVM (Perl Version Manager) type system. This includes:
 - Method parameter types: `method foo(Type $param)`
-- Method return types: `method foo() -> ReturnType`
-- Combined syntax: `method foo(Type $param) -> ReturnType`
+- Method return types: `method ReturnType foo()`
+- Combined syntax: `method ReturnType foo(Type $param)`
 
 ## High-Level Architecture
 
@@ -96,7 +96,7 @@ Deliverable: Updated grammar.js with typed method parameter support that passes 
 ```text
 Implement tree-sitter grammar rules for method return type annotations.
 
-Context: We need to add support for method return type syntax like `method foo() -> ReturnType` and `method bar(Type $param) -> ReturnType`.
+Context: We need to add support for method return type syntax like `method ReturnType foo()` and `method ReturnType bar(Type $param)`.
 
 Current State:
 - Method declarations support signatures but not return types
@@ -133,9 +133,9 @@ Implementation:
    ```
 
 3. Test with examples:
-   - `method foo() -> Str`
-   - `method bar(Type $param) -> ReturnType`
-   - `method baz() -> ArrayRef[Int]` (complex return types)
+   - `method Str foo()`
+   - `method ReturnType bar(Type $param)`
+   - `method ArrayRef[Int] baz()` (complex return types)
 
 Testing:
 - Create test cases for various return type syntax patterns

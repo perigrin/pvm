@@ -198,10 +198,10 @@ class UserController {
     }
 
     # Update user
-    method update_user(
+    method APIResponse[UserData] update_user(
         UserID $id,
         HashRef $updates
-    ) -> APIResponse[UserData] {
+    ) {
         my Optional[UserData] $user = $self->{users}->{$id};
 
         return $self->error_response("User not found")
@@ -224,11 +224,11 @@ class UserController {
     }
 
     # List users with pagination
-    method list_users(
+    method APIResponse[ArrayRef[UserData]] list_users(
         Int $page = 1,
         Int $per_page = 20,
         Optional[UserRole] $role = undef
-    ) -> APIResponse[ArrayRef[UserData]] {
+    ) {
         my ArrayRef[UserData] $all_users = [values %{$self->{users}}];
 
         # Filter by role if specified

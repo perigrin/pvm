@@ -354,7 +354,6 @@ module.exports = grammar({
       optional(field('type_parameters', seq('[', $.type_identifier_list, ']'))),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(field('signature', $.signature)),  // Methods use signatures only, not prototypes
-      optional(seq('returns', field('postfix_return_type', $.type_expression))),  // Support "returns Type" syntax
       choice(
         field('body', $.block),
         ';'  // Forward declaration

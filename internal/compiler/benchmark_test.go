@@ -248,10 +248,10 @@ my Maybe[Object] $optional = undef;`,
 my $typed = $value as Int;
 my $converted = convert($data) as ArrayRef[Str];`,
 
-		"MethodSignatures": `method calculate(Int $a, Int $b) -> Int {
+		"MethodSignatures": `method Int calculate(Int $a, Int $b) {
     return $a + $b;
 }
-method process(ArrayRef[Str] $items) -> HashRef[Int] {
+method HashRef[Int] process(ArrayRef[Str] $items) {
     return {};
 }`,
 	}

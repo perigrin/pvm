@@ -48,7 +48,7 @@ class Point {
     field Num $x;
     field Num $y;
 
-    method distance(Point $other) -> Num {
+    method Num distance(Point $other) {
         my $dx = $self->x - $other->x;
         my $dy = $self->y - $other->y;
         return sqrt($dx * $dx + $dy * $dy);

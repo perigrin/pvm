@@ -24,7 +24,7 @@ sub Int add(Int $a, Int $b) {
     return $a + $b;
 }
 
-sub concat(Str $a, Str $b) -> Str {
+sub Str concat(Str $a, Str $b) {
     return $a . $b;
 }`,
 			expected: []string{"add", "concat"},

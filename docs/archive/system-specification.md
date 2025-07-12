@@ -364,13 +364,13 @@ Type definitions for modules are stored in Perl Type Definition (ptd) files:
 # DBI.ptd
 package DBI {
     class DBI::db {
-        method prepare(Str $query) -> DBI::st;
-        method selectall_arrayref(Str $query) -> ArrayRef[ArrayRef[Scalar]];
+        method DBI::st prepare(Str $query);
+        method ArrayRef[ArrayRef[Scalar]] selectall_arrayref(Str $query);
     }
 
     class DBI::st {
-        method execute(@params) -> Bool;
-        method fetchrow_array() -> List;
+        method Bool execute(@params);
+        method List fetchrow_array();
     }
 }
 ```
@@ -387,12 +387,12 @@ PSC requires extending the existing Tree-sitter grammar for Perl to support type
 
 2. **Subroutine Declarations**:
    - Parameter types: `sub name(Type $param, AnotherType @array)`
-   - Return types: `sub name() -> ReturnType`
-   - Combined: `sub name(Type $param) -> ReturnType`
+   - Return types: `sub ReturnType name()`
+   - Combined: `sub ReturnType name(Type $param)`
 
 3. **Method Declarations**:
-   - In regular packages: `sub method(Type $self, Type $param) -> ReturnType`
-   - In class syntax: `method name(Type $param) -> ReturnType`
+   - In regular packages: `sub ReturnType method(Type $self, Type $param)`
+   - In class syntax: `method ReturnType name(Type $param)`
 
 4. **Attribute Declarations**:
    - In class syntax: `field Type $attribute`

@@ -70,7 +70,7 @@ This document describes the architecture and design decisions behind PVM's enhan
 
 **Enhancements**:
 - Recognizes type keywords (`Int`, `Str`, `Bool`, etc.)
-- Tokenizes type operators (`|`, `&`, `!`, `->`, `as`)
+- Tokenizes type operators (`|`, `&`, `!`, `as`)
 - Handles bracket notation for parameterized types
 - Context-aware tokenization (types vs. variables)
 
@@ -88,7 +88,6 @@ TokenMethodKeyword  // for 'method' keyword
 TokenAsKeyword      // for 'as' type assertion
 TokenWhereKeyword   // for 'where' constraints
 TokenPipe           // for '|' union operator
-TokenArrow          // for '->' return type annotation
 TokenAmpersand      // for '&' intersection operator
 TokenExclamation    // for '!' negation operator
 ```

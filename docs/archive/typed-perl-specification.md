@@ -237,13 +237,13 @@ Type definition files have a `.ptd` extension and define types for existing modu
 # DBI.ptd
 package DBI {
     class DBI::db {
-        method prepare(Str $query) -> DBI::st;
-        method selectall_arrayref(Str $query) -> ArrayRef[ArrayRef[Scalar]];
+        method DBI::st prepare(Str $query);
+        method ArrayRef[ArrayRef[Scalar]] selectall_arrayref(Str $query);
     }
 
     class DBI::st {
-        method execute(@params) -> Bool;
-        method fetchrow_array() -> List;
+        method Bool execute(@params);
+        method List fetchrow_array();
     }
 }
 ```

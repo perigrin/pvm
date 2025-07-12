@@ -14,7 +14,7 @@ This parser extends the standard Perl grammar to handle type annotations, includ
 - Negation types: `!Undef`
 - Parameterized types: `ArrayRef[Int]`
 - Type assertions: `$value as Int`
-- Method signatures: `method name(Str $param) -> Int`
+- Method signatures: `method Int name(Str $param)`
 
 ## Getting Started
 

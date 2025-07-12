@@ -30,8 +30,9 @@ Typed Perl is a **gradual, bidirectional type system with flow-sensitive analysi
 6. [Implementation Requirements](#6-implementation-requirements)
 7. [Type Checking Rules](#7-type-checking-rules)
 8. [Error Handling](#8-error-handling)
-9. [Future Extensions](#9-future-extensions)
-10. [Appendices](#appendices)
+9. [Migration from Legacy Syntax](#9-migration-from-legacy-syntax)
+10. [Future Extensions](#10-future-extensions)
+11. [Appendices](#appendices)
 
 ---
 
@@ -206,7 +207,7 @@ my Type %hash;
 
 ### 4.2 Function Signatures and Return Types
 
-**Design Decision**: Return types are placed immediately after the `sub`/`method` keyword, not after parameters. This eliminates the need for a `returns` keyword and simplifies the transformation pipeline.
+**Design Decision**: Return types are placed immediately after the `sub`/`method` keyword, not after parameters. This is the **only supported syntax** for method return types.
 
 ```perl
 sub ReturnType function_name(ParamType1 $param1, ParamType2 $param2) {
@@ -218,11 +219,17 @@ method ReturnType method_name(ParamType $param) {
 }
 ```
 
+**Syntax Standards**:
+- ✅ **Supported**: `method ReturnType name(params)` - Return type after keyword
+- ❌ **Not Supported**: `method name(params) -> ReturnType` - Arrow syntax is not implemented
+- ⚠️ **Deprecated**: `method name(params) returns ReturnType` - Legacy syntax, prefer above
+
 **Rationale**: This syntax design provides several benefits:
 1. **Simplified Transformation**: Type stripping only requires removing type expression nodes
 2. **Consistent Pattern**: All type annotations become simple type expressions
 3. **Familiar Syntax**: Similar to C/Java where return type precedes function name
 4. **No Special Keywords**: Eliminates the need for a `returns` keyword
+5. **Parser Simplicity**: Avoids complex grammar rules for multiple syntax variations
 
 ### 4.3 Generic Type Syntax
 
@@ -417,17 +424,56 @@ The type system maintains its own registry of type information, separate from Pe
 3. **Expected vs. Actual** - What type was expected vs. what was found
 4. **Suggestions** - Potential fixes or clarifications
 
-## 9. Future Extensions
+## 9. Migration from Legacy Syntax
 
-### 9.1 Path-Sensitive Analysis
+### 9.1 Deprecated Syntax Migration
+
+If you have existing code using legacy syntax, migrate as follows:
+
+**From deprecated `returns` syntax**:
+```perl
+# Old (deprecated)
+method calculate(Int $a, Int $b) returns Int {
+    return $a + $b;
+}
+
+# New (preferred)
+method Int calculate(Int $a, Int $b) {
+    return $a + $b;
+}
+```
+
+**Arrow syntax is not supported**:
+```perl
+# Not supported - will cause parse errors
+method calculate(Int $a, Int $b) -> Int {  # ❌ This will not parse
+    return $a + $b;
+}
+
+# Use this instead
+method Int calculate(Int $a, Int $b) {     # ✅ Correct syntax
+    return $a + $b;
+}
+```
+
+### 9.2 Migration Strategy
+
+1. **Automated Search**: Use `grep -r "returns\s" --include="*.pl" --include="*.pm"` to find deprecated syntax
+2. **Systematic Replacement**: Convert one method at a time to verify functionality
+3. **Testing**: Ensure all tests pass after syntax updates
+4. **Style Consistency**: Update all methods in a file simultaneously for consistency
+
+## 10. Future Extensions
+
+### 10.1 Path-Sensitive Analysis
 
 Future versions will track relationships between variables, understanding that conditions on one variable may imply conditions on related variables.
 
-### 9.2 Custom Validation Patterns
+### 10.2 Custom Validation Patterns
 
 A future extension will allow registering custom validation patterns for type refinement.
 
-### 9.3 Performance Optimizations
+### 10.3 Performance Optimizations
 
 Later versions will focus on performance improvements once the core functionality is stable and correct.
 

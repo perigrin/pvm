@@ -642,6 +642,14 @@ func (e *Extractor) extractMethodName(node parser.Node) string {
 	// Fallback: try to extract from text
 	text := node.Text()
 	if strings.HasPrefix(text, "method ") {
+		// Handle both prefix typed syntax (method Type name) and untyped syntax (method name)
+		methodPattern := `method\s+(?:(?:\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*)\s+)?(\w+)\s*(?:\([^)]*\))?\s*\{`
+		if re, err := regexp.Compile(methodPattern); err == nil {
+			if matches := re.FindStringSubmatch(text); len(matches) >= 2 {
+				return matches[1]
+			}
+		}
+		// Fallback to simple parsing for untyped methods
 		parts := strings.Fields(text)
 		if len(parts) >= 2 {
 			name := parts[1]
@@ -900,13 +908,14 @@ func (e *Extractor) extractMethodFromExpressionWorkaround(node parser.Node, proj
 	}
 
 	// Check if this looks like a method declaration
-	// Pattern: method methodName(...) -> ReturnType {
+	// Pattern: method ReturnType methodName(...) {
 	if !strings.Contains(text, "method ") {
 		return nil
 	}
 
-	// Use regex to match method patterns
-	methodPattern := `method\s+(\w+)\s*(?:\([^)]*\))?\s*(?:->\s*\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*\s*)?\s*\{`
+	// Use regex to match method patterns - both prefix typed and untyped syntax
+	// Matches: method Name(...) or method ReturnType Name(...)
+	methodPattern := `method\s+(?:(?:\w+(?:\[.*?\])?(?:\|\w+(?:\[.*?\])?)*)\s+)?(\w+)\s*(?:\([^)]*\))?\s*\{`
 	re, err := regexp.Compile(methodPattern)
 	if err != nil {
 		return nil
@@ -923,7 +932,8 @@ func (e *Extractor) extractMethodFromExpressionWorkaround(node parser.Node, proj
 	}
 
 	// Extract the full method content by finding the matching closing brace
-	methodIndex := strings.Index(text, "method "+methodName)
+	// Find the method declaration (handling both typed and untyped methods)
+	methodIndex := strings.Index(text, "method ")
 	if methodIndex == -1 {
 		return nil
 	}

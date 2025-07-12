@@ -108,10 +108,10 @@ field Bool $flag = 1;`,
 		Name:        "complex_type_expressions",
 		Description: "Complex type expressions with unions, intersections, and parameterized types",
 		InputCode: `my ArrayRef[HashRef[Int|Str]] @complex;
-method complex_sig(
+method HashRef[ArrayRef[Int]|ErrorCode] complex_sig(
     ArrayRef[Object&Serializable] $input,
     CodeRef[Int, Bool|Str] $processor
-) -> HashRef[ArrayRef[Int]|ErrorCode] { return {}; }
+) { return {}; }
 type ComplexType = ArrayRef[HashRef[Int|Str]|Boolean];
 my ComplexType $var;`,
 		MaxDuration: 500 * time.Millisecond,
@@ -138,10 +138,10 @@ my ComplexType $var;`,
 	// 100+ method definitions with complex signatures
 	for i := 0; i < 100; i++ {
 		largeProgram.WriteString(fmt.Sprintf(`
-method process%d(
+method Result[ArrayRef[Str], ErrorCode] process%d(
     ArrayRef[Int] $data,
     Optional[CodeRef[Int, Str]] $transformer = undef
-) -> Result[ArrayRef[Str], ErrorCode] {
+) {
     return Success->new([]);
 }
 `, i))
@@ -216,14 +216,14 @@ class TestClass%d {
 
 	// Large method signatures
 	var largeMethodSig strings.Builder
-	largeMethodSig.WriteString("method large_method(")
+	largeMethodSig.WriteString("method Bool large_method(")
 	for i := 0; i < 50; i++ {
 		if i > 0 {
 			largeMethodSig.WriteString(", ")
 		}
 		largeMethodSig.WriteString(fmt.Sprintf("Int $param%d", i))
 	}
-	largeMethodSig.WriteString(") -> Bool { return 1; }")
+	largeMethodSig.WriteString(") { return 1; }")
 
 	tests = append(tests, &PerformanceTest{
 		Name:        "large_method_signature",

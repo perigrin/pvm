@@ -140,7 +140,7 @@ my !Undef&Serializable $constrained;
 
 ### Basic Method Types
 
-Methods can have typed parameters and return types:
+Methods can have typed parameters and return types using the **only supported syntax**:
 
 ```perl
 method Int calculate(Int $a, Int $b) {
@@ -151,6 +151,11 @@ method Str greet(Str $name) {
     return "Hello, $name!";
 }
 ```
+
+**Syntax Standards**:
+- ✅ **Supported**: `method ReturnType name(params)` - Return type after keyword
+- ❌ **Not Supported**: `method name(params) -> ReturnType` - Arrow syntax is not implemented
+- ⚠️ **Deprecated**: `method name(params) returns ReturnType` - Legacy syntax, prefer above
 
 ### Optional Parameters
 
@@ -493,6 +498,34 @@ Popular editors support PVM type annotations through:
 
 ## Migration Guide
 
+### Syntax Migration
+
+**From deprecated `returns` syntax**:
+```perl
+# Old (deprecated)
+method process(ArrayRef[Str] $data) returns ProcessResult {
+    # Implementation
+}
+
+# New (preferred)
+method ProcessResult process(ArrayRef[Str] $data) {
+    # Implementation
+}
+```
+
+**Arrow syntax is not supported**:
+```perl
+# Not supported - will cause parse errors
+method process(ArrayRef[Str] $data) -> ProcessResult {  # ❌ Parse error
+    # Implementation
+}
+
+# Use this instead
+method ProcessResult process(ArrayRef[Str] $data) {     # ✅ Correct
+    # Implementation
+}
+```
+
 ### Existing Projects
 
 To add type annotations to existing projects:
@@ -501,6 +534,7 @@ To add type annotations to existing projects:
 2. **Use gradual typing**: Mix typed and untyped code as needed
 3. **Focus on interfaces**: Type public APIs before internal implementation
 4. **Add constraints incrementally**: Start with basic types, add constraints later
+5. **Update syntax**: Convert any legacy `returns` syntax to preferred format
 
 ### Testing Strategy
 
@@ -510,6 +544,7 @@ When adding type annotations:
 2. **Add type-specific tests**: Test type constraints and assertions
 3. **Test mixed scenarios**: Ensure typed and untyped code interact correctly
 4. **Performance testing**: Verify type annotations don't degrade performance
+5. **Syntax validation**: Ensure all method signatures use supported syntax
 
 ## Conclusion
 

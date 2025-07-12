@@ -30,14 +30,14 @@ type Result<T, E> = Success<T> | Failure<E>;
 
 # Role definitions
 role Serializable {
-    method serialize() -> Str;
-    method deserialize(Str $data) -> Self;
+    method Str serialize();
+    method Self deserialize(Str $data);
 }
 
 role Cacheable<K> where K: Serializable {
     field Optional[DateTime] $cached_at;
-    method cache_key() -> K;
-    method is_stale() -> Bool;
+    method K cache_key();
+    method Bool is_stale();
 }
 
 # User class
@@ -193,14 +193,14 @@ type Result<T, E> = Success<T> | Failure<E>;
 
 # Role definitions
 role Serializable {
-    method serialize() -> Str;
-    method deserialize(Str $data) -> Self;
+    method Str serialize();
+    method Self deserialize(Str $data);
 }
 
 role Cacheable<K> where K: Serializable {
     field Optional[DateTime] $cached_at;
-    method cache_key() -> K;
-    method is_stale() -> Bool;
+    method K cache_key();
+    method Bool is_stale();
 }
 
 # User class

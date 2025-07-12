@@ -105,7 +105,7 @@ func TestTypedSubroutineRegexPattern(t *testing.T) {
 		},
 		{
 			name:     "method_not_sub",
-			text:     "method process(Int $x) -> Str { return \"$x\"; }",
+			text:     "method Str process(Int $x) { return \"$x\"; }",
 			expected: false,
 		},
 	}

@@ -152,7 +152,7 @@ func TestScanner_ScanString_MethodAnnotations(t *testing.T) {
 		t.Fatalf("Failed to create scanner: %v", err)
 	}
 
-	content := `method process(Str $input) -> Int { }`
+	content := `method Int process(Str $input) { }`
 
 	iter, err := scanner.ScanString(content)
 	if err != nil {
@@ -177,23 +177,23 @@ func TestScanner_ScanString_MethodAnnotations(t *testing.T) {
 		t.Errorf("Expected at least 4 tokens for method signature, got %d", len(tokens))
 	}
 
-	// Check for method keyword (may be TokenIdentifier)
+	// Check for method keyword and type annotation (prefix syntax)
 	foundMethod := false
-	foundArrow := false
+	foundReturnType := false
 	for _, token := range tokens {
 		if token.Value() == "method" {
 			foundMethod = true
 		}
-		if token.Value() == "->" {
-			foundArrow = true
+		if token.Value() == "Int" {
+			foundReturnType = true
 		}
 	}
 
 	if !foundMethod {
 		t.Error("Expected to find 'method' keyword")
 	}
-	if !foundArrow {
-		t.Error("Expected to find '->' arrow for return type")
+	if !foundReturnType {
+		t.Error("Expected to find 'Int' return type annotation")
 	}
 }
 
