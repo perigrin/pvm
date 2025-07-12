@@ -10,19 +10,23 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli/docs"
 	"tamarou.com/pvm/internal/project"
 )
 
 // HelpManager provides enhanced help functionality
 type HelpManager struct {
 	projectContext *project.ProjectContext
+	docManager     docs.DocumentManager
 }
 
 // NewHelpManager creates a new help manager with current project context
 func NewHelpManager() *HelpManager {
 	projectCtx, _ := project.GetCurrentProject()
+	docManager, _ := docs.NewDocumentManager()
 	return &HelpManager{
 		projectContext: projectCtx,
+		docManager:     docManager,
 	}
 }
 
@@ -460,6 +464,176 @@ func hasTestDirectory() bool {
 	return false
 }
 
+// GetDocumentationHelp returns help content for embedded documentation
+func (h *HelpManager) GetDocumentationHelp() []HelpCategory {
+	if !h.docManager.IsAvailable() {
+		return []HelpCategory{
+			{
+				Name:        "Documentation (Offline)",
+				Description: "Documentation is not available offline in development builds",
+				Commands: []CommandSuggestion{
+					{
+						Command:     "Online documentation",
+						Description: "View documentation online at GitHub",
+						Example:     "https://github.com/perigrin/pvm/blob/pu/docs/",
+						Relevance:   "Full documentation available online",
+					},
+				},
+			},
+		}
+	}
+
+	categories := h.docManager.GetCategories()
+	helpCategories := make([]HelpCategory, 0, len(categories))
+
+	for _, category := range categories {
+		docs, err := h.docManager.GetDocumentsByCategory(category)
+		if err != nil {
+			continue
+		}
+
+		commands := make([]CommandSuggestion, 0, len(docs))
+		for _, doc := range docs {
+			commands = append(commands, CommandSuggestion{
+				Command:     fmt.Sprintf("pvm help docs %s", doc.Name),
+				Description: doc.Description,
+				Example:     fmt.Sprintf("pvm help docs %s", doc.Name),
+				Relevance:   fmt.Sprintf("View %s documentation", doc.Name),
+			})
+		}
+
+		helpCategories = append(helpCategories, HelpCategory{
+			Name:        fmt.Sprintf("Documentation - %s", category),
+			Description: fmt.Sprintf("%s documentation topics", category),
+			Commands:    commands,
+		})
+	}
+
+	return helpCategories
+}
+
+// ShowDocument displays a specific document
+func (h *HelpManager) ShowDocument(name string) error {
+	if !h.docManager.IsAvailable() {
+		fmt.Printf("Documentation is not available offline.\n")
+		fmt.Printf("View online: https://github.com/perigrin/pvm/blob/pu/docs/%s.md\n", name)
+		return nil
+	}
+
+	content, err := h.docManager.GetDocument(name)
+	if err != nil {
+		// Try to find similar documents
+		docs, listErr := h.docManager.ListDocuments()
+		if listErr == nil {
+			var suggestions []string
+			for _, doc := range docs {
+				if strings.Contains(strings.ToLower(doc.Name), strings.ToLower(name)) ||
+					strings.Contains(strings.ToLower(name), strings.ToLower(doc.Name)) {
+					suggestions = append(suggestions, doc.Name)
+				}
+			}
+			if len(suggestions) > 0 {
+				fmt.Printf("Document '%s' not found. Did you mean:\n", name)
+				for _, suggestion := range suggestions {
+					fmt.Printf("  pvm help docs %s\n", suggestion)
+				}
+				return nil
+			}
+		}
+		return fmt.Errorf("document not found: %s", name)
+	}
+
+	// Display the document content
+	displayName := strings.ReplaceAll(name, "-", " ")
+	if len(displayName) > 0 {
+		displayName = strings.ToUpper(displayName[:1]) + strings.ToLower(displayName[1:])
+	}
+	fmt.Printf("# %s\n\n", displayName)
+	fmt.Print(string(content))
+	return nil
+}
+
+// SearchDocuments searches for documents containing the query
+func (h *HelpManager) SearchDocuments(query string) error {
+	if !h.docManager.IsAvailable() {
+		fmt.Printf("Documentation search is not available offline.\n")
+		fmt.Printf("Search online: https://github.com/perigrin/pvm/search?q=%s&type=wiki\n", query)
+		return nil
+	}
+
+	results, err := h.docManager.SearchDocuments(query)
+	if err != nil {
+		return fmt.Errorf("search failed: %w", err)
+	}
+
+	if len(results) == 0 {
+		fmt.Printf("No documents found matching '%s'\n", query)
+		return nil
+	}
+
+	fmt.Printf("Found %d document(s) matching '%s':\n\n", len(results), query)
+	for i, result := range results {
+		if i >= 10 { // Limit results
+			fmt.Printf("... and %d more results\n", len(results)-i)
+			break
+		}
+
+		fmt.Printf("## %s (%s)\n", result.Document.Name, result.Document.Category)
+		fmt.Printf("%s\n", result.Document.Description)
+		fmt.Printf("Command: pvm help docs %s\n", result.Document.Name)
+
+		if len(result.Matches) > 0 {
+			fmt.Printf("Matches:\n")
+			for j, match := range result.Matches {
+				if j >= 3 { // Limit matches per document
+					break
+				}
+				fmt.Printf("  • %s\n", match)
+			}
+		}
+		fmt.Println()
+	}
+
+	return nil
+}
+
+// ListDocuments lists all available documents
+func (h *HelpManager) ListDocuments() error {
+	if !h.docManager.IsAvailable() {
+		fmt.Printf("Documentation is not available offline.\n")
+		fmt.Printf("View online: https://github.com/perigrin/pvm/blob/pu/docs/\n")
+		return nil
+	}
+
+	docs, err := h.docManager.ListDocuments()
+	if err != nil {
+		return fmt.Errorf("failed to list documents: %w", err)
+	}
+
+	if len(docs) == 0 {
+		fmt.Printf("No documentation available.\n")
+		return nil
+	}
+
+	fmt.Printf("Available Documentation (%d documents):\n\n", len(docs))
+
+	currentCategory := ""
+	for _, doc := range docs {
+		if doc.Category != currentCategory {
+			currentCategory = doc.Category
+			fmt.Printf("## %s\n", currentCategory)
+		}
+		fmt.Printf("  %-25s %s\n", doc.Name, doc.Description)
+		fmt.Printf("  %-25s Command: pvm help docs %s\n", "", doc.Name)
+		fmt.Println()
+	}
+
+	fmt.Printf("Use 'pvm help docs <name>' to view specific documentation.\n")
+	fmt.Printf("Use 'pvm help docs search <query>' to search documentation.\n")
+
+	return nil
+}
+
 // CreateHelpCommand creates the enhanced help command
 func CreateHelpCommand() *cobra.Command {
 	helpCmd := &cobra.Command{
@@ -472,6 +646,9 @@ Available topics:
   getting-started - New user onboarding
   troubleshooting - Diagnostic and problem-solving commands
   next          - Suggested next steps based on current context
+  docs          - List embedded documentation (if available)
+  docs <name>   - View specific documentation
+  docs search <query> - Search documentation
 
 Without a topic, shows contextual help based on your current project state.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -491,6 +668,8 @@ Without a topic, shows contextual help based on your current project state.`,
 				return showTroubleshootingHelp(cmd, helpManager)
 			case "next":
 				return showNextStepsHelp(cmd, helpManager)
+			case "docs":
+				return showDocumentationHelp(cmd, helpManager, args[1:])
 			default:
 				// Fall back to default cobra help behavior for specific commands
 				if rootCmd := cmd.Root(); rootCmd != nil {
@@ -501,7 +680,7 @@ Without a topic, shows contextual help based on your current project state.`,
 				ui := GetUI(cmd)
 				ui.Error("unknown help topic: %s", topic)
 				ui.Println("")
-				ui.Info("Available topics: workflows, getting-started, troubleshooting, next")
+				ui.Info("Available topics: workflows, getting-started, troubleshooting, next, docs")
 				return fmt.Errorf("unknown help topic: %s", topic)
 			}
 		},
@@ -799,4 +978,27 @@ func calculateSimilarity(s1, s2 string) float64 {
 
 	// Weight positional matches more heavily
 	return (positionalSimilarity * 0.7) + (characterSimilarity * 0.3)
+}
+
+// showDocumentationHelp handles documentation-related help commands
+func showDocumentationHelp(cmd *cobra.Command, helpManager *HelpManager, args []string) error {
+	if len(args) == 0 {
+		// List all documentation
+		return helpManager.ListDocuments()
+	}
+
+	subCommand := args[0]
+	switch subCommand {
+	case "search":
+		if len(args) < 2 {
+			fmt.Printf("Usage: pvm help docs search <query>\n")
+			return fmt.Errorf("search query required")
+		}
+		query := strings.Join(args[1:], " ")
+		return helpManager.SearchDocuments(query)
+	default:
+		// Treat as document name
+		docName := subCommand
+		return helpManager.ShowDocument(docName)
+	}
 }
