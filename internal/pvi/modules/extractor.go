@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"tamarou.com/pvm/internal/errors"
@@ -23,6 +24,14 @@ const (
 	ErrBadArchiveFormat = "PVI-4102" // Unsupported or corrupted archive format
 	ErrBuildDirFailed   = "PVI-4103" // Failed to create build directory
 )
+
+// DirectoryCandidate represents a potential root directory
+type DirectoryCandidate struct {
+	Path         string
+	HasBuildFile bool
+	BuildFile    string
+	Priority     int
+}
 
 // ExtractionResult contains information about the extracted module
 type ExtractionResult struct {
@@ -85,9 +94,9 @@ func extractModuleArchive(archivePath, targetDir string, ctx context.Context) (*
 	// Create tar reader
 	tr := tar.NewReader(gzr)
 
-	// Keep track of the root directory
-	var rootDir string
+	// Keep track of potential root directories
 	seenDirs := make(map[string]bool)
+	allEntries := make(map[string]tar.Header)
 
 	// Extract each file
 	for {
@@ -130,12 +139,10 @@ func extractModuleArchive(archivePath, targetDir string, ctx context.Context) (*
 			continue
 		}
 
-		// Track directories - detect root directory
-		if filepath.Dir(name) == "." && header.Typeflag == tar.TypeDir {
-			rootDir = name
-		}
+		// Store all entries for later analysis
+		allEntries[name] = *header
 
-		// Remember all top-level directories we see
+		// Track all top-level directories
 		dirName := strings.Split(name, string(os.PathSeparator))[0]
 		if dirName != "" && !seenDirs[dirName] {
 			seenDirs[dirName] = true
@@ -193,6 +200,19 @@ func extractModuleArchive(archivePath, targetDir string, ctx context.Context) (*
 			}
 
 		case tar.TypeSymlink:
+			// Sanitize symlink target for security
+			linkTarget := sanitizePath(header.Linkname)
+			if linkTarget == "" {
+				log.Warnf("Skipping unsafe symlink target: %s", header.Linkname)
+				continue
+			}
+
+			// Ensure symlink target is relative (prevent absolute path attacks)
+			if filepath.IsAbs(linkTarget) {
+				log.Warnf("Skipping absolute symlink target: %s", header.Linkname)
+				continue
+			}
+
 			// Create parent directory if doesn't exist
 			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 				return nil, errors.NewSystemError(
@@ -202,8 +222,8 @@ func extractModuleArchive(archivePath, targetDir string, ctx context.Context) (*
 					WithLocation(filepath.Dir(target))
 			}
 
-			// Create symlink
-			if err := os.Symlink(header.Linkname, target); err != nil {
+			// Create symlink with sanitized target
+			if err := os.Symlink(linkTarget, target); err != nil {
 				return nil, errors.NewSystemError(
 					ErrExtractionFailed,
 					"Failed to create symlink",
@@ -213,12 +233,13 @@ func extractModuleArchive(archivePath, targetDir string, ctx context.Context) (*
 		}
 	}
 
-	// If we couldn't determine the root directory, use the first one we saw
-	if rootDir == "" && len(seenDirs) > 0 {
-		for dir := range seenDirs {
-			rootDir = dir
-			break
-		}
+	// Determine the best root directory using improved logic
+	rootDir, err := selectBestRootDirectory(targetDir, seenDirs, allEntries)
+	if err != nil {
+		return nil, errors.NewSystemError(
+			ErrExtractionFailed,
+			"Failed to determine root directory",
+			err).WithLocation(targetDir)
 	}
 
 	// Get the extracted directory path
@@ -253,12 +274,9 @@ func sanitizePath(path string) string {
 	// Convert to platform-specific path separator
 	path = filepath.FromSlash(path)
 
-	// Remove any root component
-	path = filepath.Join(filepath.SplitList(path)...)
-
-	// Handle Absolute paths
+	// Reject absolute paths for security
 	if filepath.IsAbs(path) {
-		path = path[1:]
+		return ""
 	}
 
 	// Handle ../
@@ -266,7 +284,83 @@ func sanitizePath(path string) string {
 		return ""
 	}
 
+	// Clean the path to handle any remaining irregularities
+	path = filepath.Clean(path)
+
+	// Double-check - reject any path that's still absolute after cleaning
+	if filepath.IsAbs(path) {
+		return ""
+	}
+
 	return path
+}
+
+// selectBestRootDirectory analyzes potential root directories and selects the best one
+func selectBestRootDirectory(targetDir string, seenDirs map[string]bool, allEntries map[string]tar.Header) (string, error) {
+	if len(seenDirs) == 0 {
+		return "", fmt.Errorf("no directories found in archive")
+	}
+
+	// Build system files in priority order
+	buildFiles := []string{
+		"Build.PL",    // Module::Build (highest priority)
+		"Makefile.PL", // ExtUtils::MakeMaker
+		"Makefile",    // Pre-built Makefile (lowest priority)
+	}
+
+	// Create candidates for each potential root directory
+	var candidates []DirectoryCandidate
+	for dirName := range seenDirs {
+		candidate := DirectoryCandidate{
+			Path:     dirName,
+			Priority: 0, // Default priority
+		}
+
+		// Check if this directory contains build system files
+		for i, buildFile := range buildFiles {
+			buildPath := filepath.Join(dirName, buildFile)
+			if _, exists := allEntries[buildPath]; exists {
+				candidate.HasBuildFile = true
+				candidate.BuildFile = buildFile
+				// Higher priority for preferred build systems (Build.PL = 300, Makefile.PL = 200, Makefile = 100)
+				candidate.Priority = 300 - (i * 100)
+				break
+			}
+		}
+
+		candidates = append(candidates, candidate)
+	}
+
+	// Sort candidates by priority (highest first), then alphabetically for deterministic behavior
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Priority != candidates[j].Priority {
+			return candidates[i].Priority > candidates[j].Priority
+		}
+		return candidates[i].Path < candidates[j].Path
+	})
+
+	// Select the best candidate
+	selected := candidates[0]
+
+	// Log the selection decision for debugging
+	log.Debugf("Root directory selection for %s:", targetDir)
+	log.Debugf("  Found %d potential directories:", len(candidates))
+	for _, candidate := range candidates {
+		if candidate.HasBuildFile {
+			log.Debugf("    %s (build file: %s, priority: %d)", candidate.Path, candidate.BuildFile, candidate.Priority)
+		} else {
+			log.Debugf("    %s (no build file, priority: %d)", candidate.Path, candidate.Priority)
+		}
+	}
+	log.Debugf("  Selected: %s", selected.Path)
+
+	// Warn if we're selecting a directory without build files
+	if !selected.HasBuildFile {
+		log.Warnf("Selected root directory '%s' does not contain build system files (Build.PL, Makefile.PL, Makefile)", selected.Path)
+		log.Warnf("This may cause build failures - consider checking archive structure")
+	}
+
+	return selected.Path, nil
 }
 
 // DetectBuildSystem determines the build system used by a module
