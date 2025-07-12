@@ -12,7 +12,7 @@ import (
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
-	"tamarou.com/pvm/internal/pvi/modules" // Import PVI modules for existing functionality
+	pviModules "tamarou.com/pvm/internal/pvi/modules"
 )
 
 // Error codes for module management operations
@@ -27,32 +27,40 @@ const (
 
 // Manager provides a unified interface for module management operations
 type Manager struct {
-	provider cpan.Provider
-	tracker  progress.Tracker
-	logger   *log.Logger
+	provider   cpan.Provider
+	tracker    progress.Tracker
+	logger     *log.Logger
+	pviService PVIModuleService
 }
 
-// NewManager creates a new module manager
-func NewManager(provider cpan.Provider, tracker progress.Tracker, logger *log.Logger) *Manager {
+// NewManager creates a new module manager with dependency injection
+func NewManager(provider cpan.Provider, tracker progress.Tracker, logger *log.Logger, pviService PVIModuleService) *Manager {
 	return &Manager{
-		provider: provider,
-		tracker:  tracker,
-		logger:   logger,
+		provider:   provider,
+		tracker:    tracker,
+		logger:     logger,
+		pviService: pviService,
 	}
+}
+
+// NewManagerWithDefaults creates a new module manager with default PVI service
+// This provides a convenient constructor for production use while maintaining testability
+func NewManagerWithDefaults(provider cpan.Provider, tracker progress.Tracker, logger *log.Logger) *Manager {
+	return NewManager(provider, tracker, logger, NewRealPVIService())
 }
 
 // List returns modules matching the given filter
 func (m *Manager) List(ctx context.Context, filter ModuleFilter) ([]*Module, error) {
 	// Convert filter to PVI module list options
-	listOptions := &modules.ModuleListOptions{
+	listOptions := &pviModules.ModuleListOptions{
 		PerlPath:    "", // Will be resolved by the listing function
 		Pattern:     filter.Pattern,
 		IncludeCore: filter.IncludeCore,
 		Context:     ctx,
 	}
 
-	// Get installed modules using existing PVI functionality
-	installedModules, err := modules.ListInstalledModules(listOptions)
+	// Get installed modules using injected PVI service
+	installedModules, err := m.pviService.ListInstalled(listOptions)
 	if err != nil {
 		return nil, errors.NewSystemError(
 			ErrManagerListFailed,
@@ -156,7 +164,7 @@ func (m *Manager) FindOutdated(ctx context.Context, filter ModuleFilter) ([]*Out
 	}
 
 	// Create check options
-	checkOptions := &modules.CheckOutdatedOptions{
+	checkOptions := &pviModules.CheckOutdatedOptions{
 		PerlPath:    "", // Will be resolved
 		Pattern:     filter.Pattern,
 		IncludeCore: filter.IncludeCore,
@@ -173,9 +181,9 @@ func (m *Manager) FindOutdated(ctx context.Context, filter ModuleFilter) ([]*Out
 		return moduleInfo.Version, nil
 	}
 
-	// Use existing PVI functionality to check outdated modules
+	// Use injected PVI service to check outdated modules
 	startTime := time.Now()
-	outdatedModules, err := modules.CheckOutdatedModules(checkOptions, checkLatest)
+	outdatedModules, err := m.pviService.CheckOutdated(checkOptions, checkLatest)
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -214,7 +222,7 @@ func (m *Manager) FindOutdated(ctx context.Context, filter ModuleFilter) ([]*Out
 // Install installs one or more modules with the given options
 func (m *Manager) Install(ctx context.Context, moduleNames []string, opts InstallOptions) error {
 	// Convert options to PVI install options
-	installOptions := &modules.ModuleInstallOptions{
+	installOptions := &pviModules.ModuleInstallOptions{
 		PerlPath:          opts.PerlPath,
 		InstallDir:        opts.InstallDir,
 		VersionConstraint: opts.VersionConstraint,
@@ -230,20 +238,20 @@ func (m *Manager) Install(ctx context.Context, moduleNames []string, opts Instal
 	// Install modules (use parallel if multiple modules)
 	if len(moduleNames) > 1 && opts.Parallel {
 		// Create individual module options for each module
-		var moduleOptions []*modules.ModuleInstallOptions
+		var moduleOptions []*pviModules.ModuleInstallOptions
 		for _, moduleName := range moduleNames {
 			moduleOpt := *installOptions // Copy base options
 			moduleOpt.ModuleName = moduleName
 			moduleOptions = append(moduleOptions, &moduleOpt)
 		}
 
-		parallelOptions := &modules.ParallelInstallOptions{
+		parallelOptions := &pviModules.ParallelInstallOptions{
 			Modules: moduleOptions,
 			Workers: opts.Workers,
 			Context: ctx,
 		}
 
-		_, err := modules.InstallModulesParallel(parallelOptions)
+		_, err := m.pviService.InstallModulesParallel(parallelOptions)
 		if err != nil {
 			return errors.NewSystemError(
 				ErrManagerInstallFailed,
@@ -254,7 +262,7 @@ func (m *Manager) Install(ctx context.Context, moduleNames []string, opts Instal
 		// Install modules sequentially
 		for _, moduleName := range moduleNames {
 			installOptions.ModuleName = moduleName
-			_, err := modules.InstallModule(installOptions)
+			_, err := m.pviService.InstallModule(installOptions)
 			if err != nil {
 				return errors.NewSystemError(
 					ErrManagerInstallFailed,
@@ -272,7 +280,7 @@ func (m *Manager) InstallModules(ctx context.Context, moduleNames []string, opts
 	var results []*InstallResult
 
 	// Convert options to PVI install options
-	installOptions := &modules.ModuleInstallOptions{
+	installOptions := &pviModules.ModuleInstallOptions{
 		PerlPath:          opts.PerlPath,
 		InstallDir:        opts.InstallDir,
 		VersionConstraint: opts.VersionConstraint,
@@ -288,20 +296,20 @@ func (m *Manager) InstallModules(ctx context.Context, moduleNames []string, opts
 	// Install modules (use parallel if multiple modules)
 	if len(moduleNames) > 1 && opts.Parallel {
 		// Create individual module options for each module
-		var moduleOptions []*modules.ModuleInstallOptions
+		var moduleOptions []*pviModules.ModuleInstallOptions
 		for _, moduleName := range moduleNames {
 			moduleOpt := *installOptions // Copy base options
 			moduleOpt.ModuleName = moduleName
 			moduleOptions = append(moduleOptions, &moduleOpt)
 		}
 
-		parallelOptions := &modules.ParallelInstallOptions{
+		parallelOptions := &pviModules.ParallelInstallOptions{
 			Modules: moduleOptions,
 			Workers: opts.Workers,
 			Context: ctx,
 		}
 
-		parallelResults, err := modules.InstallModulesParallel(parallelOptions)
+		parallelResults, err := m.pviService.InstallModulesParallel(parallelOptions)
 		if err != nil {
 			return nil, errors.NewSystemError(
 				ErrManagerInstallFailed,
@@ -331,7 +339,7 @@ func (m *Manager) InstallModules(ctx context.Context, moduleNames []string, opts
 		// Install modules sequentially
 		for _, moduleName := range moduleNames {
 			installOptions.ModuleName = moduleName
-			result, err := modules.InstallModule(installOptions)
+			result, err := m.pviService.InstallModule(installOptions)
 			if err != nil {
 				// Create a failed result entry
 				results = append(results, &InstallResult{
@@ -367,12 +375,12 @@ func (m *Manager) InstallModules(ctx context.Context, moduleNames []string, opts
 // Remove uninstalls the specified modules
 func (m *Manager) Remove(ctx context.Context, moduleNames []string) error {
 	for _, moduleName := range moduleNames {
-		removeOptions := &modules.RemoveModuleOptions{
+		removeOptions := &pviModules.RemoveModuleOptions{
 			ModuleName: moduleName,
 			Context:    ctx,
 		}
 
-		_, err := modules.RemoveModule(removeOptions)
+		_, err := m.pviService.RemoveModule(removeOptions)
 		if err != nil {
 			return errors.NewSystemError(
 				ErrManagerRemoveFailed,
@@ -398,7 +406,7 @@ func (m *Manager) Update(ctx context.Context, moduleNames []string) error {
 		}
 
 		// Install the latest version (this effectively updates it)
-		installOptions := &modules.ModuleInstallOptions{
+		installOptions := &pviModules.ModuleInstallOptions{
 			ModuleName:        moduleName,
 			VersionConstraint: moduleInfo.Version,
 			Provider:          m.provider,
@@ -406,7 +414,7 @@ func (m *Manager) Update(ctx context.Context, moduleNames []string) error {
 			Force:             true, // Force to overwrite existing version
 		}
 
-		_, err = modules.InstallModule(installOptions)
+		_, err = m.pviService.InstallModule(installOptions)
 		if err != nil {
 			return errors.NewSystemError(
 				ErrManagerUpdateFailed,
