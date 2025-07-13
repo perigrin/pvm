@@ -36,7 +36,14 @@ override CFLAGS += -I$(SRC_DIR) -std=c11 -fPIC
 
 # OS-specific bits
 ifeq ($(OS),Windows_NT)
-	$(error "Windows is not supported")
+	SOEXT = dll
+	SOEXTVER_MAJOR = $(SONAME_MAJOR).dll
+	SOEXTVER = $(SONAME_MAJOR).$(SONAME_MINOR).dll
+	LINKSHARED := $(LINKSHARED)-shared -Wl,
+	ifneq ($(ADDITIONAL_LIBS),)
+	LINKSHARED := $(LINKSHARED)$(ADDITIONAL_LIBS),
+	endif
+	LINKSHARED := $(LINKSHARED)--out-implib,lib$(LANGUAGE_NAME).dll.a
 else ifeq ($(shell uname),Darwin)
 	SOEXT = dylib
 	SOEXTVER_MAJOR = $(SONAME_MAJOR).dylib
