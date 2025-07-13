@@ -43,6 +43,13 @@ const (
 	ChecksumBufferSize        = 64 * 1024 // 64KB buffer for streaming checksum
 )
 
+// setGitHubAuthIfAvailable sets GitHub authentication header if GH_TOKEN is available
+func setGitHubAuthIfAvailable(req *http.Request) {
+	if token := os.Getenv("GH_TOKEN"); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+}
+
 // BinaryDownloadOptions contains options for downloading Perl binaries
 type BinaryDownloadOptions struct {
 	// Version to download
@@ -467,6 +474,7 @@ func getRemoteFileInfo(url string, ctx context.Context) (contentLength int64, su
 	if err != nil {
 		return 0, false, err
 	}
+	setGitHubAuthIfAvailable(req)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -493,6 +501,7 @@ func downloadSingle(url, destPath string, options *BinaryDownloadOptions) (*enha
 	if err != nil {
 		return nil, err
 	}
+	setGitHubAuthIfAvailable(req)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -589,6 +598,7 @@ func resumeDownload(url, destPath string, existingSize, contentLength int64, opt
 	if err != nil {
 		return nil, err
 	}
+	setGitHubAuthIfAvailable(req)
 
 	// Set Range header for resuming
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-", existingSize))
@@ -771,6 +781,7 @@ func downloadChunk(url, chunkPath string, start, end int64, tracker *downloadPro
 	if err != nil {
 		return err
 	}
+	setGitHubAuthIfAvailable(req)
 
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
 
