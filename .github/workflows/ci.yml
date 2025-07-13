@@ -114,6 +114,8 @@ jobs:
         node-version: '20'
 
     - name: Install system dependencies
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         npm install -g tree-sitter-cli
 
