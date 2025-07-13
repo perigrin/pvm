@@ -119,7 +119,8 @@ jobs:
 
         # Use existing PVM release to install pre-compiled Perl
         echo "Installing PVM to manage Perl versions..."
-        curl -fsSL https://github.com/perigrin/pvm/releases/download/v1.0.0-rc25/pvm-darwin-arm64.tar.gz | tar -xz
+        gh release download v1.0.0-rc25 --pattern "pvm-darwin-arm64.tar.gz" --repo perigrin/pvm
+        tar -xzf pvm-darwin-arm64.tar.gz
         sudo mv pvm /usr/local/bin/
 
         # Install pre-compiled Perl 5.40 (much faster than compiling)
