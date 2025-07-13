@@ -94,7 +94,7 @@ $(SRC_DIR)/parser.c: grammar.js
 	@echo "Copying parser.c to root for Go bindings..."
 	cp $(SRC_DIR)/parser.c parser.c
 	@echo "Updating scanner function names for typed_perl namespace..."
-	sed -i 's/tree_sitter_perl_external_scanner/tree_sitter_typed_perl_external_scanner/g' $(SRC_DIR)/scanner.c || true
+	sed -i.bak 's/tree_sitter_perl_external_scanner/tree_sitter_typed_perl_external_scanner/g' $(SRC_DIR)/scanner.c && rm -f $(SRC_DIR)/scanner.c.bak || true
 
 install: all
 	install -d '$(DESTDIR)$(INCLUDEDIR)'/tree_sitter '$(DESTDIR)$(PCLIBDIR)' '$(DESTDIR)$(LIBDIR)'
