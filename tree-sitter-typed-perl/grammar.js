@@ -314,17 +314,10 @@ module.exports = grammar({
       ))
     ),
 
-    variadic_parameter: $ => seq(
-      optional(field('type', $.type_expression)),
-      '...',
-      field('variable', choice($._signature_scalar, $._signature_array))
-    ),
-
     _signature_vars: $ => choice(
       $.optional_parameter,
       $.mandatory_parameter,
       $.slurpy_parameter,
-      $.variadic_parameter,
       $.named_parameter,
     ),
 
