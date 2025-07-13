@@ -797,7 +797,7 @@ module.exports = grammar({
       prec.left(TERMPREC.REQUIRE, seq('require', field('version', $._version))),
 
     func0op_call_expression: $ =>
-      seq(field('function', $._func0op), optseq('(', ')')),
+      prec.left(seq(field('function', $._func0op), optseq('(', ')'))),
 
     func1op_call_expression: $ =>
       prec.left(TERMPREC.UNOP, seq(
@@ -1388,6 +1388,12 @@ module.exports = grammar({
       $.type_parameter_list,
       ']'
     ),
+
+    // tuple_type: $ => prec(4, seq(
+    //   '(',
+    //   $.type_parameter_list,
+    //   ')'
+    // )),
 
     type_parameter_list: $ => seq(
       $.type_expression,
