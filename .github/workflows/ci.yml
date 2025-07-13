@@ -128,7 +128,7 @@ jobs:
         tar -xzf pvm-*-darwin-arm64.tar.gz
         sudo mv pvm-darwin-arm64 /usr/local/bin/pvm
 
-        # Install pre-compiled Perl 5.40 (much faster than compiling)
+        # Install pre-compiled Perl 5.40 (now with GitHub auth support)
         pvm install --prefer-binary 5.40.0
 
         # Initialize PVM shell integration and use Perl 5.40.0
