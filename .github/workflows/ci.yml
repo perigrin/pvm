@@ -130,10 +130,13 @@ jobs:
 
         # Install pre-compiled Perl 5.40 (much faster than compiling)
         pvm install --prefer-binary 5.40.0
+
+        # Initialize PVM shell integration and use Perl 5.40.0
+        eval "$(pvm init)"
         pvm use 5.40.0
 
         # Ensure PVM-managed perl is in PATH
-        echo "$HOME/.pvm/perls/5.40.0/bin" >> $GITHUB_PATH
+        echo "$HOME/.local/share/pvm/versions/5.40.0/bin" >> $GITHUB_PATH
 
     - name: Build
       run: make
