@@ -116,6 +116,8 @@ jobs:
     - name: Install system dependencies
       run: |
         npm install -g tree-sitter-cli
+        # Install modern Perl for compatibility with v5.36 features
+        brew install perl
 
     - name: Build
       run: make
