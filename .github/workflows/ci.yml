@@ -116,10 +116,18 @@ jobs:
     - name: Install system dependencies
       run: |
         npm install -g tree-sitter-cli
-        # Install modern Perl for compatibility with v5.36 features
-        brew install perl
-        # Add brew perl to PATH to override system perl
-        echo "/opt/homebrew/bin" >> $GITHUB_PATH
+
+        # Use existing PVM release to install compatible Perl
+        echo "Installing PVM to manage Perl versions..."
+        curl -fsSL https://github.com/perigrin/pvm/releases/download/v0.3.0/pvm-darwin-arm64.tar.gz | tar -xz
+        sudo mv pvm /usr/local/bin/
+
+        # Install Perl 5.36 via PVM for test compatibility
+        pvm install 5.36.0
+        pvm use 5.36.0
+
+        # Ensure PVM-managed perl is in PATH
+        echo "$HOME/.pvm/perls/5.36.0/bin" >> $GITHUB_PATH
 
     - name: Build
       run: make
