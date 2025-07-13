@@ -40,6 +40,7 @@ Examples:
 		newCompileCommand(),   // Compile between different Perl variants
 		newInferCommand(),     // Type inference and annotation generation
 		newStripCommand(),
+		newFormatCommand(), // Format code using transformation pipelines
 		newRunCommand(),
 		newWatchCommand(),
 		newDefCommand(),
