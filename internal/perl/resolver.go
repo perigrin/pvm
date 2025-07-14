@@ -206,22 +206,24 @@ func resolveExplicitVersion(version string, availableVersions []string, cfg *con
 
 		for _, versionInfo := range installedVersions {
 			if versionInfo.Source == "system" {
-				// For system perl, use the InstallPath directly if it points to perl executable
-				var perlExe string
+				// For system perl, InstallPath is the directory containing the perl executable
+				// We need to construct the full path to the executable
+				var perlPath string
 				if filepath.Base(versionInfo.InstallPath) == "perl" || filepath.Base(versionInfo.InstallPath) == "perl.exe" {
-					perlExe = versionInfo.InstallPath
+					// If InstallPath already points to the perl executable, use it directly
+					perlPath = versionInfo.InstallPath
 				} else {
-					// InstallPath is likely the bin directory, append perl
-					perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+					// Otherwise, construct the path by joining the directory with "perl"
+					perlPath = filepath.Join(versionInfo.InstallPath, "perl")
 					if runtime.GOOS == "windows" {
-						perlExe = filepath.Join(versionInfo.InstallPath, "perl.exe")
+						perlPath = filepath.Join(versionInfo.InstallPath, "perl.exe")
 					}
 				}
 
 				return &ResolvedVersion{
 					Version: versionInfo.Version,
 					Source:  SystemPerlSource,
-					Path:    perlExe,
+					Path:    perlPath,
 				}, nil
 			}
 		}

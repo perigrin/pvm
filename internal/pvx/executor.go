@@ -564,10 +564,10 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 	// Get the path to the Perl executable for the resolved version
 	var perlExe string
 	if resolvedVersion.Path != "" {
-		// Use the path provided by the resolver (system perl case)
+		// Use the path provided by the resolver (system perl and other cases that provide full paths)
 		perlExe = resolvedVersion.Path
 	} else {
-		// Resolve the perl executable path for installed versions
+		// Resolve the perl executable path for installed versions that don't provide paths
 		switch resolvedVersion.Source {
 		case perl.SystemPerlSource:
 			// This should not happen since system perl resolver provides the path
