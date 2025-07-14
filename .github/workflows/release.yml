@@ -130,6 +130,9 @@ jobs:
         fi
 
         echo "Building binary: $BINARY_NAME for ${{ matrix.goos }}/${{ matrix.goarch }}"
+
+        # Build with full functionality (PSC included) using purego tree-sitter
+        echo "Building with full PSC support via purego tree-sitter integration"
         go build -ldflags="$LDFLAGS" -o build/release/$BINARY_NAME ./cmd/pvm
 
     - name: Test binary
@@ -327,6 +330,8 @@ jobs:
         2. **Add to PATH**: Move \`pvm-windows-amd64.exe\` to a directory in your PATH or add its location to PATH
         3. **PowerShell Execution Policy**: You may need to run \`Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser\`
 
+        **✅ Windows Full Support**: All PVM features including PSC (type checking) are now available on Windows via purego tree-sitter integration.
+
         ## 🧪 Components
 
         | Component | Description | Platforms |
@@ -338,8 +343,9 @@ jobs:
 
         ## ⚠️ Notes
 
-        - **PSC** (Perl Script Compiler) with tree-sitter support is available on all platforms
-        - **Windows support** is now enabled via purego integration (cross-compiled from Linux)
+        - **PSC** (Perl Script Compiler) with purego tree-sitter support is available on all platforms
+        - **Full cross-platform support** for all PVM features including type checking
+        - **Windows support** includes complete PSC functionality via purego tree-sitter integration
         - Some advanced features require additional Perl modules to be installed
         - $(if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then echo "This is a pre-release build - not recommended for production use"; else echo "This is a stable release suitable for production use"; fi)
 
