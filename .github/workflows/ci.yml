@@ -145,7 +145,17 @@ jobs:
       run: make
 
     - name: Test
-      run: make test
+      run: |
+        echo "=== Debugging Perl Environment ==="
+        echo "PATH: $PATH"
+        echo "which perl: $(which perl || echo 'not found')"
+        echo "perl version: $(perl --version 2>/dev/null || echo 'perl not accessible')"
+        echo "PVM current: $(pvm current 2>/dev/null || echo 'pvm not accessible')"
+        echo "Direct Perl test: $($HOME/.local/share/pvm/versions/5.42.0/bin/perl --version 2>/dev/null || echo 'direct path failed')"
+        echo "=== Running Tests ==="
+        eval "$(pvm init)"
+        pvm use 5.42.0
+        make test
 
     - name: Upload macOS build artifacts
       uses: actions/upload-artifact@v4
