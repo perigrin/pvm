@@ -42,6 +42,11 @@ jobs:
             runner: macos-latest
             goos: darwin
             goarch: arm64
+          - platform: windows-amd64
+            runner: ubuntu-latest
+            goos: windows
+            goarch: amd64
+            cross_compile: true
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
@@ -118,24 +123,71 @@ jobs:
         mkdir -p build/release
         LDFLAGS="-s -w -X 'tamarou.com/pvm/internal/version.Version=${VERSION}' -X 'tamarou.com/pvm/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)' -X 'tamarou.com/pvm/internal/version.CommitHash=${COMMIT}' -X 'tamarou.com/pvm/internal/version.GitHubToken=${GITHUB_TOKEN}'"
 
-        go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }} ./cmd/pvm
+        # Determine binary name (add .exe for Windows)
+        BINARY_NAME="pvm-${{ matrix.platform }}"
+        if [[ "${{ matrix.goos }}" == "windows" ]]; then
+          BINARY_NAME="${BINARY_NAME}.exe"
+        fi
+
+        echo "Building binary: $BINARY_NAME for ${{ matrix.goos }}/${{ matrix.goarch }}"
+        go build -ldflags="$LDFLAGS" -o build/release/$BINARY_NAME ./cmd/pvm
 
     - name: Test binary
+      if: matrix.cross_compile != true
       run: |
         echo "Testing ${{ matrix.platform }} binary..."
         ./build/release/pvm-${{ matrix.platform }} version
+
+    - name: Validate Windows cross-compiled binary
+      if: matrix.cross_compile == true && matrix.goos == 'windows'
+      run: |
+        echo "Validating Windows cross-compiled binary..."
+        BINARY="build/release/pvm-${{ matrix.platform }}.exe"
+        if [[ ! -f "$BINARY" ]]; then
+          echo "❌ Windows binary not found: $BINARY"
+          exit 1
+        fi
+        echo "✅ Windows binary exists: $BINARY"
+        echo "Binary size: $(stat -c%s "$BINARY") bytes"
+        echo "File type: $(file "$BINARY")"
+
+        # Verify it's a Windows PE executable
+        if file "$BINARY" | grep -q "PE32+.*Windows"; then
+          echo "✅ Confirmed Windows PE executable"
+        else
+          echo "❌ Not a valid Windows PE executable"
+          exit 1
+        fi
 
 
     - name: Create archive
       run: |
         cd build/release
-        tar -czf pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz pvm-${{ matrix.platform }}
+
+        # Determine binary name (add .exe for Windows)
+        BINARY_NAME="pvm-${{ matrix.platform }}"
+        if [[ "${{ matrix.goos }}" == "windows" ]]; then
+          BINARY_NAME="${BINARY_NAME}.exe"
+        fi
+
+        echo "Creating archive for binary: $BINARY_NAME"
+
+        # Create different archive formats for different platforms
+        if [[ "${{ matrix.goos }}" == "windows" ]]; then
+          # Create ZIP archive for Windows
+          zip pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.zip $BINARY_NAME
+        else
+          # Create tar.gz archive for Unix-like systems
+          tar -czf pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz $BINARY_NAME
+        fi
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: pvm-${{ matrix.platform }}
-        path: build/release/pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz
+        path: |
+          build/release/pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz
+          build/release/pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.zip
         retention-days: 7
 
   create-release:
@@ -184,9 +236,11 @@ jobs:
     - name: Organize release files
       run: |
         mkdir -p release-files
-        find artifacts -name "*.tar.gz" | while read file; do
+        # Copy both tar.gz and zip files
+        find artifacts -name "*.tar.gz" -o -name "*.zip" | while read file; do
           cp "$file" release-files/
         done
+        echo "Release files prepared:"
         ls -la release-files/
 
     - name: Generate release notes
@@ -221,6 +275,9 @@ jobs:
         - **macOS Intel**: \`pvm-${VERSION}-darwin-amd64.tar.gz\` (includes PSC)
         - **macOS Apple Silicon**: \`pvm-${VERSION}-darwin-arm64.tar.gz\` (includes PSC)
 
+        ### Windows
+        - **Windows AMD64**: \`pvm-${VERSION}-windows-amd64.zip\` (includes PSC with purego tree-sitter)
+
         ## 🔧 Installation
 
         ### Linux
@@ -253,19 +310,36 @@ jobs:
         2. **Or use Terminal**: \`xattr -d com.apple.quarantine pvm-darwin-*\`
         3. **Or temporarily disable Gatekeeper**: \`sudo spctl --master-disable\` (re-enable with \`--master-enable\`)
 
+        ### Windows
+        \`\`\`powershell
+        # Download the Windows release
+        Invoke-WebRequest -Uri "https://github.com/perigrin/pvm/releases/download/$TAG/pvm-${VERSION}-windows-amd64.zip" -OutFile "pvm-${VERSION}-windows-amd64.zip"
+
+        # Extract the archive
+        Expand-Archive -Path "pvm-${VERSION}-windows-amd64.zip" -DestinationPath "."
+
+        # Test installation
+        .\pvm-windows-amd64.exe version
+        \`\`\`
+
+        **⚠️ Windows Security Notice**: These binaries are unsigned. Windows may show a security warning:
+        1. **Windows Defender SmartScreen**: Click **"More info"** → **"Run anyway"**
+        2. **Add to PATH**: Move \`pvm-windows-amd64.exe\` to a directory in your PATH or add its location to PATH
+        3. **PowerShell Execution Policy**: You may need to run \`Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser\`
+
         ## 🧪 Components
 
         | Component | Description | Platforms |
         |-----------|-------------|-----------|
-        | **pvm** | Main Perl version manager | Linux, macOS |
-        | **pvi** | Package installer with dependency management | Linux, macOS |
-        | **pvx** | Perl script executor with isolation | Linux, macOS |
-        | **psc** | Perl script compiler with type checking | Linux, macOS |
+        | **pvm** | Main Perl version manager | Linux, macOS, Windows |
+        | **pvi** | Package installer with dependency management | Linux, macOS, Windows |
+        | **pvx** | Perl script executor with isolation | Linux, macOS, Windows |
+        | **psc** | Perl script compiler with type checking | Linux, macOS, Windows |
 
         ## ⚠️ Notes
 
         - **PSC** (Perl Script Compiler) with tree-sitter support is available on all platforms
-        - **Windows support** is temporarily disabled - see GitHub issues for status
+        - **Windows support** is now enabled via purego integration (cross-compiled from Linux)
         - Some advanced features require additional Perl modules to be installed
         - $(if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then echo "This is a pre-release build - not recommended for production use"; else echo "This is a stable release suitable for production use"; fi)
 
