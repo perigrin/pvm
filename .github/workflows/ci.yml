@@ -74,9 +74,11 @@ jobs:
         brew install tree-sitter
         # Install latest PVM release to manage Perl
         LATEST_PVM=$(gh release list --repo perigrin/pvm --limit 1 --json tagName --jq '.[0].tagName')
-        curl -L "https://github.com/perigrin/pvm/releases/download/${LATEST_PVM}/pvm-darwin-arm64.tar.gz" | tar xz
-        chmod +x pvm-darwin-arm64
-        sudo mv pvm-darwin-arm64 /usr/local/bin/pvm
+        echo "Latest PVM version: $LATEST_PVM"
+        # Download and extract PVM binary using versioned filename
+        curl -L "https://github.com/perigrin/pvm/releases/download/${LATEST_PVM}/pvm-${LATEST_PVM}-darwin-arm64.tar.gz" | tar xz
+        chmod +x "pvm-${LATEST_PVM}-darwin-arm64"
+        sudo mv "pvm-${LATEST_PVM}-darwin-arm64" /usr/local/bin/pvm
         # Install Perl 5.40.0 using PVM with GitHub authentication
         pvm install --prefer-binary 5.40.0
         pvm use 5.40.0
