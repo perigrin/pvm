@@ -1,5 +1,5 @@
-# ABOUTME: Simple CI pipeline following the standard build workflow
-# ABOUTME: Runs make && make test and reports results
+# ABOUTME: Multi-platform CI pipeline testing Linux and macOS
+# ABOUTME: Tests with both system Perl (Linux) and PVM-managed Perl (macOS)
 
 name: CI
 
@@ -10,8 +10,8 @@ on:
     branches: [ pu ]
 
 jobs:
-  test:
-    name: Test & Build
+  test-linux:
+    name: Test & Build (Linux)
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -44,6 +44,52 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build-artifacts
+        name: build-artifacts-linux
+        path: build/
+        retention-days: 7
+
+  test-macos:
+    name: Test & Build (macOS)
+    runs-on: macos-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.4'
+
+    - name: Set up Node.js (for tree-sitter)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install system dependencies
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        brew install tree-sitter
+        # Install latest PVM release to manage Perl
+        LATEST_PVM=$(gh release list --repo perigrin/pvm --limit 1 --json tagName --jq '.[0].tagName')
+        curl -L "https://github.com/perigrin/pvm/releases/download/${LATEST_PVM}/pvm-darwin-arm64.tar.gz" | tar xz
+        chmod +x pvm-darwin-arm64
+        sudo mv pvm-darwin-arm64 /usr/local/bin/pvm
+        # Install Perl 5.40.0 using PVM with GitHub authentication
+        pvm install --prefer-binary 5.40.0
+        pvm use 5.40.0
+
+    - name: Build
+      run: make
+
+    - name: Test
+      run: make test
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts-macos
         path: build/
         retention-days: 7
