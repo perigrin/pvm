@@ -131,12 +131,13 @@ jobs:
         # Install latest Perl using binary distribution (RC26+ has GH_TOKEN support)
         echo "Checking available Perl versions..."
         pvm available
-        echo "Filtering for stable versions..."
-        LATEST_PERL=$(pvm available | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+        echo "Filtering for stable versions (working around formatting issues)..."
+        # Extract version numbers from the broken formatting
+        LATEST_PERL=$(pvm available | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
         echo "Latest Perl detected: '$LATEST_PERL'"
         if [ -z "$LATEST_PERL" ]; then
-          echo "No stable Perl versions found, using 5.40.2 as fallback"
-          LATEST_PERL="5.40.2"
+          echo "No stable Perl versions found, trying 5.42.0 first, then 5.40.2 fallback"
+          LATEST_PERL="5.42.0"
         fi
         pvm install --prefer-binary "$LATEST_PERL"
 
