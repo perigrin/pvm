@@ -129,16 +129,9 @@ jobs:
         sudo mv pvm-darwin-arm64 /usr/local/bin/pvm
 
         # Install latest Perl using binary distribution (RC26+ has GH_TOKEN support)
-        echo "Checking available Perl versions..."
-        pvm available
-        echo "Filtering for stable versions (working around formatting issues)..."
-        # Extract version numbers from the broken formatting
-        LATEST_PERL=$(pvm available | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-        echo "Latest Perl detected: '$LATEST_PERL'"
-        if [ -z "$LATEST_PERL" ]; then
-          echo "No stable Perl versions found, trying 5.42.0 first, then 5.40.2 fallback"
-          LATEST_PERL="5.42.0"
-        fi
+        # Use 5.42.0 directly since it has binaries and parsing is broken (Issue #73)
+        LATEST_PERL="5.42.0"
+        echo "Using Perl $LATEST_PERL (latest with binaries available)"
         pvm install --prefer-binary "$LATEST_PERL"
 
         # Initialize PVM shell integration and use latest Perl
