@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -562,15 +563,73 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 
 	// Get the path to the Perl executable for the resolved version
 	var perlExe string
-	// The resolver now always provides the path to the perl executable
-	if resolvedVersion.Path == "" {
-		return "", errors.NewExecutionError(
-			ErrVersionNotFound,
-			"Resolver did not provide perl executable path for version "+resolvedVersion.Version,
-			nil)
-	}
+	if resolvedVersion.Path != "" {
+		// Use the path provided by the resolver (system perl case)
+		perlExe = resolvedVersion.Path
+	} else {
+		// Resolve the perl executable path for installed versions
+		switch resolvedVersion.Source {
+		case perl.SystemPerlSource:
+			// This should not happen since system perl resolver provides the path
+			return "", errors.NewExecutionError(
+				ErrVersionNotFound,
+				"System perl resolver did not provide executable path",
+				nil)
+		default:
+			// For installed versions, get the installation info from the registry
+			versionInfo, err := perl.GetVersionInfo(resolvedVersion.Version)
+			if err != nil {
+				// If ForceVersion is enabled and we can't find the version, fall back to system Perl
+				if options.ForceVersion {
+					systemPerl, sysErr := perl.DetectSystemPerl()
+					if sysErr == nil {
+						perlExe = systemPerl.Path
+						break // Skip the rest of the switch case
+					}
+				}
+				return "", errors.NewExecutionError(
+					ErrVersionNotFound,
+					"Failed to get version info for "+resolvedVersion.Version,
+					err)
+			}
 
-	perlExe = resolvedVersion.Path
+			if versionInfo == nil {
+				// If ForceVersion is enabled and version not found, fall back to system Perl
+				if options.ForceVersion {
+					systemPerl, sysErr := perl.DetectSystemPerl()
+					if sysErr == nil {
+						perlExe = systemPerl.Path
+						break // Skip the rest of the switch case
+					}
+				}
+				return "", errors.NewExecutionError(
+					ErrVersionNotFound,
+					"Version not found in registry: "+resolvedVersion.Version,
+					nil)
+			}
+
+			// Construct the path to the Perl executable based on the source
+			if versionInfo.Source == "system" {
+				// For system perl, InstallPath is the directory containing the perl executable
+				// Check if InstallPath already points to the perl executable
+				if filepath.Base(versionInfo.InstallPath) == "perl" || filepath.Base(versionInfo.InstallPath) == "perl.exe" {
+					perlExe = versionInfo.InstallPath
+				} else {
+					// InstallPath is the bin directory, append perl
+					perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+					if runtime.GOOS == "windows" {
+						perlExe = filepath.Join(versionInfo.InstallPath, "perl.exe")
+					}
+				}
+			} else {
+				// For PVM-installed versions, InstallPath is the installation root
+				perlExe = filepath.Join(versionInfo.InstallPath, "bin", "perl")
+				if runtime.GOOS == "windows" {
+					perlExe = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+				}
+			}
+		}
+	}
 
 	// If we're forcing a version but it doesn't exist, fall back to system Perl
 	fileErr := func() error {

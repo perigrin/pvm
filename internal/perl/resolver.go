@@ -206,11 +206,18 @@ func resolveExplicitVersion(version string, availableVersions []string, cfg *con
 
 		for _, versionInfo := range installedVersions {
 			if versionInfo.Source == "system" {
-				// Get the proper perl executable path
-				perlExe, err := getPerlExecutablePath(versionInfo.Version)
-				if err != nil {
-					continue // Try next version if this one fails
+				// For system perl, use the InstallPath directly if it points to perl executable
+				var perlExe string
+				if filepath.Base(versionInfo.InstallPath) == "perl" || filepath.Base(versionInfo.InstallPath) == "perl.exe" {
+					perlExe = versionInfo.InstallPath
+				} else {
+					// InstallPath is likely the bin directory, append perl
+					perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+					if runtime.GOOS == "windows" {
+						perlExe = filepath.Join(versionInfo.InstallPath, "perl.exe")
+					}
 				}
+
 				return &ResolvedVersion{
 					Version: versionInfo.Version,
 					Source:  SystemPerlSource,
@@ -253,16 +260,10 @@ func resolveExplicitVersion(version string, availableVersions []string, cfg *con
 			nil)
 	}
 
-	// Get the proper perl executable path
-	perlExe, err := getPerlExecutablePath(resolvedVersion)
-	if err != nil {
-		return nil, err
-	}
-
 	return &ResolvedVersion{
 		Version: resolvedVersion,
 		Source:  ExplicitVersion,
-		Path:    perlExe,
+		Path:    "", // Path will be resolved by the executor
 	}, nil
 }
 
@@ -304,16 +305,10 @@ func resolveFromPerlVersionFile(projectDir string, availableVersions []string, c
 			nil)
 	}
 
-	// Get the proper perl executable path
-	perlExe, err := getPerlExecutablePath(resolvedVersion)
-	if err != nil {
-		return nil, err
-	}
-
 	return &ResolvedVersion{
 		Version: resolvedVersion,
 		Source:  ProjectVersionFile,
-		Path:    perlExe,
+		Path:    "", // Path will be resolved by the executor
 	}, nil
 }
 
@@ -377,16 +372,10 @@ func resolveFromProjectConfig(projectDir string, availableVersions []string, cfg
 			nil)
 	}
 
-	// Get the proper perl executable path
-	perlExe, err := getPerlExecutablePath(resolvedVersion)
-	if err != nil {
-		return nil, err
-	}
-
 	return &ResolvedVersion{
 		Version: resolvedVersion,
 		Source:  ProjectConfig,
-		Path:    perlExe,
+		Path:    "", // Path will be resolved by the executor
 	}, nil
 }
 
@@ -413,16 +402,10 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 				nil)
 		}
 
-		// Get the proper perl executable path
-		perlExe, err := getPerlExecutablePath(resolvedVersion)
-		if err != nil {
-			return nil, err
-		}
-
 		return &ResolvedVersion{
 			Version: resolvedVersion,
 			Source:  EnvironmentVariable,
-			Path:    perlExe,
+			Path:    "", // Path will be resolved by the executor
 		}, nil
 	}
 
@@ -452,16 +435,10 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 				nil)
 		}
 
-		// Get the proper perl executable path
-		perlExe, err := getPerlExecutablePath(resolvedVersion)
-		if err != nil {
-			return nil, err
-		}
-
 		return &ResolvedVersion{
 			Version: resolvedVersion,
 			Source:  EnvironmentVariable,
-			Path:    perlExe,
+			Path:    "", // Path will be resolved by the executor
 		}, nil
 	}
 
@@ -495,16 +472,10 @@ func resolveFromUserConfig(cfg *config.Config, availableVersions []string) (*Res
 			nil)
 	}
 
-	// Get the proper perl executable path
-	perlExe, err := getPerlExecutablePath(resolvedVersion)
-	if err != nil {
-		return nil, err
-	}
-
 	return &ResolvedVersion{
 		Version: resolvedVersion,
 		Source:  UserConfig,
-		Path:    perlExe,
+		Path:    "", // Path will be resolved by the executor
 	}, nil
 }
 
