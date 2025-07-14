@@ -131,9 +131,16 @@ jobs:
 
         echo "Building binary: $BINARY_NAME for ${{ matrix.goos }}/${{ matrix.goarch }}"
 
-        # Build with full functionality (PSC included) using purego tree-sitter
-        echo "Building with full PSC support via purego tree-sitter integration"
-        go build -ldflags="$LDFLAGS" -o build/release/$BINARY_NAME ./cmd/pvm
+        # Windows builds currently exclude tree-sitter functionality due to incomplete purego migration
+        # TODO: Complete purego tree-sitter migration for full Windows PSC support
+        if [[ "${{ matrix.goos }}" == "windows" ]]; then
+          echo "⚠️  Building Windows binary without PSC (tree-sitter) support"
+          echo "   This is temporary until full purego tree-sitter migration is complete"
+          # Build without tree-sitter dependencies using build tags
+          go build -tags=no_treesitter -ldflags="$LDFLAGS" -o build/release/$BINARY_NAME ./cmd/pvm
+        else
+          go build -ldflags="$LDFLAGS" -o build/release/$BINARY_NAME ./cmd/pvm
+        fi
 
     - name: Test binary
       if: matrix.cross_compile != true
@@ -279,7 +286,7 @@ jobs:
         - **macOS Apple Silicon**: \`pvm-${VERSION}-darwin-arm64.tar.gz\` (includes PSC)
 
         ### Windows
-        - **Windows AMD64**: \`pvm-${VERSION}-windows-amd64.zip\` (includes PSC with purego tree-sitter)
+        - **Windows AMD64**: \`pvm-${VERSION}-windows-amd64.zip\` ⚠️ _(PSC temporarily disabled)_
 
         ## 🔧 Installation
 
@@ -330,7 +337,7 @@ jobs:
         2. **Add to PATH**: Move \`pvm-windows-amd64.exe\` to a directory in your PATH or add its location to PATH
         3. **PowerShell Execution Policy**: You may need to run \`Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser\`
 
-        **✅ Windows Full Support**: All PVM features including PSC (type checking) are now available on Windows via purego tree-sitter integration.
+        **⚠️ Windows Feature Notice**: PSC (type checking) is temporarily unavailable on Windows pending complete purego tree-sitter migration. All other PVM features work normally.
 
         ## 🧪 Components
 
@@ -339,13 +346,13 @@ jobs:
         | **pvm** | Main Perl version manager | Linux, macOS, Windows |
         | **pvi** | Package installer with dependency management | Linux, macOS, Windows |
         | **pvx** | Perl script executor with isolation | Linux, macOS, Windows |
-        | **psc** | Perl script compiler with type checking | Linux, macOS, Windows |
+        | **psc** | Perl script compiler with type checking | Linux, macOS _(Windows: coming soon)_ |
 
         ## ⚠️ Notes
 
-        - **PSC** (Perl Script Compiler) with purego tree-sitter support is available on all platforms
-        - **Full cross-platform support** for all PVM features including type checking
-        - **Windows support** includes complete PSC functionality via purego tree-sitter integration
+        - **PSC** (Perl Script Compiler) with tree-sitter support is available on Linux and macOS
+        - **Windows PSC support** is temporarily disabled pending complete purego tree-sitter migration
+        - **Core PVM features** (version management, installation, execution) work fully on Windows
         - Some advanced features require additional Perl modules to be installed
         - $(if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then echo "This is a pre-release build - not recommended for production use"; else echo "This is a stable release suitable for production use"; fi)
 
