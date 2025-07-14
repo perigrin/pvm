@@ -44,51 +44,9 @@ jobs:
         PVM_TEST_MODE: unit
       run: make test
 
-    - name: Cross-compile Windows binaries
-      run: |
-        echo "Cross-compiling Windows binaries from Linux..."
-        mkdir -p build/windows
-
-        # Test purego bindings cross-compilation (should work)
-        echo "Testing purego bindings cross-compilation..."
-        GOOS=windows GOARCH=amd64 go build -C tree-sitter-typed-perl/bindings/go
-        echo "✅ Purego bindings cross-compile successfully"
-
-        # Create Windows test binary
-        echo "Creating minimal Windows test program..."
-        cat > build/windows/test_purego.go << 'EOF'
-        package main
-
-        import (
-            "fmt"
-            "os"
-            tree_sitter_typed_perl "github.com/perigrin/pvm/tree-sitter-typed-perl/bindings/go"
-        )
-
-        func main() {
-            fmt.Println("Testing purego tree-sitter integration on Windows...")
-
-            // Test library loading
-            ptr := tree_sitter_typed_perl.Language()
-            if ptr == nil {
-                fmt.Println("❌ Failed to load tree-sitter language")
-                os.Exit(1)
-            }
-
-            fmt.Println("✅ Successfully loaded tree-sitter-typed-perl via purego")
-            fmt.Printf("Language pointer: %p\n", ptr)
-        }
-        EOF
-
-        # Cross-compile the test program
-        cd build/windows && GOOS=windows GOARCH=amd64 go build -o test_purego.exe test_purego.go
-
-    - name: Upload cross-compiled Windows artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-cross-compiled
-        path: build/windows/
-        retention-days: 1
+    # Note: Windows cross-compilation disabled due to CGO dependencies
+    # CGO tree-sitter bindings cannot cross-compile to Windows from Linux
+    # See issue #38 for Windows support progress
 
     - name: Upload Linux build artifacts
       uses: actions/upload-artifact@v4
@@ -175,44 +133,5 @@ jobs:
         path: build/
         retention-days: 7
 
-  test-windows:
-    name: Test Windows Cross-Compiled Binaries
-    runs-on: windows-latest
-    needs: test-linux
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.4'
-
-    - name: Download cross-compiled Windows binaries
-      uses: actions/download-artifact@v4
-      with:
-        name: windows-cross-compiled
-        path: windows-test/
-
-    - name: Test purego bindings compilation on Windows
-      run: |
-        echo "Testing purego bindings compilation on Windows..."
-        go build -C tree-sitter-typed-perl/bindings/go
-        echo "✅ Purego bindings compile successfully on Windows"
-
-    - name: Test cross-compiled binary execution
-      run: |
-        echo "Testing cross-compiled Windows binary with purego integration..."
-        echo "Windows environment info:"
-        echo "Go version: $(go version)"
-        echo "Architecture: $env:PROCESSOR_ARCHITECTURE"
-
-        # List what we downloaded
-        echo "Downloaded artifacts:"
-        ls windows-test/
-
-        # The test binary will fail without DLL, but validates the cross-compilation worked
-        echo "Cross-compiled binary structure validated"
-        echo "✅ Windows cross-compilation pipeline working"
+  # test-windows job removed - no Windows cross-compilation with CGO
+  # Windows support is tracked in issue #38
