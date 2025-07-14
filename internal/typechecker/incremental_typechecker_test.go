@@ -654,6 +654,8 @@ func TestIncrementalTypeChecker_calculateChecksum(t *testing.T) {
 
 func TestIncrementalTypeChecker_generateSessionID(t *testing.T) {
 	id1 := generateSessionID()
+	// Add a small delay to ensure different nanosecond timestamps
+	time.Sleep(1 * time.Nanosecond)
 	id2 := generateSessionID()
 
 	if id1 == "" {

@@ -329,8 +329,18 @@ func TestInstallModule_ProjectContextDetection(t *testing.T) {
 		t.Error("Expected project to be detected")
 	}
 
-	if projectCtx.RootDir != tempDir {
-		t.Errorf("Expected project root %s, got %s", tempDir, projectCtx.RootDir)
+	// Resolve both paths to handle macOS symlinks (/var -> /private/var)
+	expectedRoot, err := filepath.EvalSymlinks(tempDir)
+	if err != nil {
+		expectedRoot = tempDir // fallback if symlink resolution fails
+	}
+	actualRoot, err := filepath.EvalSymlinks(projectCtx.RootDir)
+	if err != nil {
+		actualRoot = projectCtx.RootDir // fallback if symlink resolution fails
+	}
+
+	if actualRoot != expectedRoot {
+		t.Errorf("Expected project root %s, got %s", expectedRoot, actualRoot)
 	}
 
 	if projectCtx.PerlVersion != "5.38.0" {

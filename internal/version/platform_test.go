@@ -319,6 +319,7 @@ func TestGetUpdateAsset(t *testing.T) {
 		Assets: []GitHubAsset{
 			{Name: "pvm-linux-amd64", Size: 1000},
 			{Name: "pvm-darwin-amd64", Size: 1200},
+			{Name: "pvm-darwin-arm64", Size: 1300}, // Add ARM64 macOS support
 			{Name: "pvm-windows-amd64.exe", Size: 1400},
 		},
 	}
