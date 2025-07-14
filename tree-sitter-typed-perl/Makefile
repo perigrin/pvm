@@ -36,14 +36,7 @@ override CFLAGS += -I$(SRC_DIR) -std=c11 -fPIC
 
 # OS-specific bits
 ifeq ($(OS),Windows_NT)
-	SOEXT = dll
-	SOEXTVER_MAJOR = $(SONAME_MAJOR).dll
-	SOEXTVER = $(SONAME_MAJOR).$(SONAME_MINOR).dll
-	LINKSHARED := $(LINKSHARED)-shared -Wl,
-	ifneq ($(ADDITIONAL_LIBS),)
-	LINKSHARED := $(LINKSHARED)$(ADDITIONAL_LIBS),
-	endif
-	LINKSHARED := $(LINKSHARED)--out-implib,lib$(LANGUAGE_NAME).dll.a
+	$(error "Windows is not supported")
 else ifeq ($(shell uname),Darwin)
 	SOEXT = dylib
 	SOEXTVER_MAJOR = $(SONAME_MAJOR).dylib
@@ -94,7 +87,7 @@ $(SRC_DIR)/parser.c: grammar.js
 	@echo "Copying parser.c to root for Go bindings..."
 	cp $(SRC_DIR)/parser.c parser.c
 	@echo "Updating scanner function names for typed_perl namespace..."
-	sed -i.bak 's/tree_sitter_perl_external_scanner/tree_sitter_typed_perl_external_scanner/g' $(SRC_DIR)/scanner.c && rm -f $(SRC_DIR)/scanner.c.bak || true
+	sed -i 's/tree_sitter_perl_external_scanner/tree_sitter_typed_perl_external_scanner/g' $(SRC_DIR)/scanner.c || true
 
 install: all
 	install -d '$(DESTDIR)$(INCLUDEDIR)'/tree_sitter '$(DESTDIR)$(PCLIBDIR)' '$(DESTDIR)$(LIBDIR)'
