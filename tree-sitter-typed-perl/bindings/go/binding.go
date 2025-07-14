@@ -1,8 +1,7 @@
 package tree_sitter_typed_perl
 
 // #cgo CFLAGS: -std=c11 -fPIC -I../../src
-// #cgo linux LDFLAGS: -L../../ -l:libtree-sitter-typed-perl.a
-// #cgo darwin LDFLAGS: ../../libtree-sitter-typed-perl.a
+// #cgo LDFLAGS: -L../../ -ltree-sitter-typed-perl
 // #include <tree_sitter/parser.h>
 // extern const TSLanguage *tree_sitter_typed_perl(void);
 import "C"
