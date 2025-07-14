@@ -39,6 +39,9 @@ jobs:
       run: make
 
     - name: Test
+      env:
+        # Skip integration tests to avoid GitHub API rate limiting
+        PVM_TEST_MODE: unit
       run: make test
 
     - name: Cross-compile Windows binaries
@@ -145,6 +148,11 @@ jobs:
       run: make
 
     - name: Test
+      env:
+        # Explicitly set PATH to include PVM-managed Perl
+        PATH: ${{ env.HOME }}/.local/share/pvm/versions/5.42.0/bin:${{ env.PATH }}
+        # Skip integration tests to avoid GitHub API rate limiting
+        PVM_TEST_MODE: unit
       run: |
         echo "=== Debugging Perl Environment ==="
         echo "PATH: $PATH"
@@ -152,9 +160,11 @@ jobs:
         echo "perl version: $(perl --version 2>/dev/null || echo 'perl not accessible')"
         echo "PVM current: $(pvm current 2>/dev/null || echo 'pvm not accessible')"
         echo "Direct Perl test: $($HOME/.local/share/pvm/versions/5.42.0/bin/perl --version 2>/dev/null || echo 'direct path failed')"
-        echo "=== Running Tests ==="
+        echo "=== Re-initializing PVM Environment ==="
         eval "$(pvm init)"
         pvm use 5.42.0
+        echo "After PVM init - which perl: $(which perl)"
+        echo "=== Running Tests ==="
         make test
 
     - name: Upload macOS build artifacts
