@@ -24,10 +24,8 @@ build-release: $(BUILDDIR) $(LIBDIR) tree-sitter $(BINARIES)
 # Default target
 all: build-dev
 
-# Set CGO flags for tree-sitter integration
+# CGO still needed for go-tree-sitter package (TODO: replace with full purego solution)
 export CGO_ENABLED=1
-export CGO_CFLAGS=-I$(PWD)/tree-sitter-typed-perl/include -I$(PWD)/tree-sitter-typed-perl -I$(PWD)/tree-sitter-typed-perl/src
-export CGO_LDFLAGS=-L$(PWD)/tree-sitter-typed-perl -Wl,-rpath,$(PWD)/tree-sitter-typed-perl
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
@@ -39,10 +37,10 @@ $(LIBDIR):
 vendor:
 	go mod vendor
 
-# Build tree-sitter-typed-perl library
+# Build tree-sitter-typed-perl shared library for purego
 tree-sitter: $(LIBDIR)
 	@echo "Building tree-sitter-typed-perl parser..."
-	cd tree-sitter-typed-perl && $(MAKE) generate && $(MAKE) libtree-sitter-typed-perl.a
+	cd tree-sitter-typed-perl && $(MAKE) generate && $(MAKE) all
 	@echo "Tree-sitter-typed-perl build complete"
 
 # Tool management

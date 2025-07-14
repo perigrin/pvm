@@ -312,7 +312,16 @@ func executePerlCode(code string) (string, error) {
 
 // getTestPerlPath returns a reliable perl path for testing, avoiding environment dependencies
 func getTestPerlPath() (string, error) {
-	// First try to find system perl directly in standard locations
+	// First try to use perl from PATH (which should include PVM-managed Perl)
+	if perlPath, err := exec.LookPath("perl"); err == nil {
+		// Test it works and check version
+		cmd := exec.Command(perlPath, "-v")
+		if err := cmd.Run(); err == nil {
+			return perlPath, nil
+		}
+	}
+
+	// Fallback to standard system locations if PATH doesn't work
 	standardPaths := []string{
 		"/usr/bin/perl",
 		"/usr/local/bin/perl",
@@ -326,15 +335,6 @@ func getTestPerlPath() (string, error) {
 			if err := cmd.Run(); err == nil {
 				return path, nil
 			}
-		}
-	}
-
-	// If no standard paths work, try the PATH but with explicit command
-	if perlPath, err := exec.LookPath("perl"); err == nil {
-		// Test it works
-		cmd := exec.Command(perlPath, "-v")
-		if err := cmd.Run(); err == nil {
-			return perlPath, nil
 		}
 	}
 
