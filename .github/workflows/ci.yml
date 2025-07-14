@@ -149,13 +149,14 @@ jobs:
 
     - name: Test
       env:
-        # Explicitly set PATH to include PVM-managed Perl
-        PATH: ${{ env.HOME }}/.local/share/pvm/versions/5.42.0/bin:${{ env.PATH }}
         # Skip integration tests to avoid GitHub API rate limiting
         PVM_TEST_MODE: unit
       run: |
         echo "=== Debugging Perl Environment ==="
+        # Fix PATH to include PVM binary and PVM-managed Perl
+        export PATH="/usr/local/bin:$HOME/.local/share/pvm/versions/5.42.0/bin:$PATH"
         echo "PATH: $PATH"
+        echo "which pvm: $(which pvm || echo 'not found')"
         echo "which perl: $(which perl || echo 'not found')"
         echo "perl version: $(perl --version 2>/dev/null || echo 'perl not accessible')"
         echo "PVM current: $(pvm current 2>/dev/null || echo 'pvm not accessible')"
