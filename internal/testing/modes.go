@@ -66,6 +66,23 @@ func ShouldRunLongRunningTests() bool {
 	return mode == ModePerformance || mode == ModeStress || mode == ModeFull
 }
 
+// ShouldMockExternalAPIs checks if external API calls should be mocked
+func ShouldMockExternalAPIs() bool {
+	// Check for explicit environment variable to enable mocking
+	if mock := os.Getenv("PVM_MOCK_EXTERNAL_APIS"); mock != "" {
+		return strings.ToLower(mock) == "true" || mock == "1"
+	}
+
+	// Mock external APIs by default in CI environments
+	if os.Getenv("CI") != "" {
+		return true
+	}
+
+	// Don't mock in unit-only mode (mocking is for integration tests)
+	mode := GetTestMode()
+	return mode != ModeUnit
+}
+
 // SkipUnlessPerformance skips test unless performance mode is enabled
 func SkipUnlessPerformance(t *testing.T, reason string) {
 	if !ShouldRunPerformanceTests() {
@@ -118,6 +135,7 @@ func GetSampleRate() float64 {
 //   PVM_TEST_MODE=stress       - Run stress tests + unit/integration
 //   PVM_TEST_MODE=full         - Run all tests including performance + stress
 //   PVM_TEST_SAMPLE_RATE=0.1   - Run only 10% of tests (for quick sampling)
+//   PVM_MOCK_EXTERNAL_APIS=true - Mock external API calls to avoid rate limiting
 //
 // Usage Examples:
 //   make test                           # Default: integration tests (~1.4 min)
@@ -125,3 +143,4 @@ func GetSampleRate() float64 {
 //   make test-stress                    # Include stress tests
 //   make test-full                      # Run everything (~3.8 min)
 //   PVM_TEST_SAMPLE_RATE=0.1 make test  # Quick 10% sample
+//   PVM_MOCK_EXTERNAL_APIS=true make test # Mock external APIs (auto-enabled in CI)

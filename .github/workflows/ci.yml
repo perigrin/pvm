@@ -40,6 +40,9 @@ jobs:
 
     - name: Test
       run: make test
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PVM_MOCK_EXTERNAL_APIS: true
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -78,6 +81,9 @@ jobs:
 
     - name: Test
       run: make test
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PVM_MOCK_EXTERNAL_APIS: true
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
