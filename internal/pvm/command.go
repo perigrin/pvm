@@ -908,6 +908,20 @@ func newAvailableCommand() *cobra.Command {
 				return nil
 			}
 
+			// Handle plain format (machine-readable: one version per line, no formatting)
+			if format == "plain" {
+				// Output development versions first
+				for _, version := range devVersions {
+					fmt.Println(version)
+				}
+
+				// Output stable versions
+				for _, version := range stableVersions {
+					fmt.Println(version)
+				}
+				return nil
+			}
+
 			// Default text output
 			ui := cli.GetUI(cmd)
 			ui.Header("Available Perl versions:")
@@ -932,16 +946,22 @@ func newAvailableCommand() *cobra.Command {
 
 			// Add development versions separately
 			ui.SubHeader("Development versions:")
-			for _, version := range devVersions {
-				installed := ""
-				if installedMap[version] {
-					installed = " (installed)"
+			if len(devVersions) == 0 {
+				ui.Println("  (none)")
+			} else {
+				for _, version := range devVersions {
+					installed := ""
+					if installedMap[version] {
+						installed = " (installed)"
+					}
+					ui.Println("  " + version + installed)
 				}
-				ui.Printf("  %s%s", version, installed)
 			}
+			ui.Println("") // Add spacing after development versions
 
 			// Display stable versions by group
 			ui.SubHeader("Stable versions:")
+			ui.Println("") // Add spacing after stable versions header
 
 			// Sort groups (we could use a proper version sorting here)
 			// But for this simple listing, the natural string sort will work reasonably well
@@ -967,8 +987,9 @@ func newAvailableCommand() *cobra.Command {
 					if installedMap[version] {
 						installed = " (installed)"
 					}
-					ui.Printf("    %s%s", version, installed)
+					ui.Println("   " + version + installed)
 				}
+				ui.Println("") // Add spacing after each series
 			}
 
 			ui.Info("Use 'pvm install <version>' to install a specific version.")
@@ -977,7 +998,7 @@ func newAvailableCommand() *cobra.Command {
 	}
 
 	// Add format flag
-	cmd.Flags().StringP("format", "f", "text", "Output format (text or json)")
+	cmd.Flags().StringP("format", "f", "text", "Output format (text, json, or plain)")
 
 	return cmd
 }
