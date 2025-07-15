@@ -412,3 +412,68 @@ C<VERSION: 4.10>
 C<EXE_FILES: >
 
 =back
+=head2 Tue Jul 15 22:06:35 2025: C<Module> L<JSON|JSON>
+
+=over 4
+
+=item *
+
+C<installed into: /home/perigrin/dev/pvm/test/e2e/lib/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 4.10>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Tue Jul 15 22:06:35 2025: C<Module> L<JSON|JSON>
+
+=over 4
+
+=item *
+
+C<installed into: /home/perigrin/dev/pvm/test/e2e/lib/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 4.10>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Tue Jul 15 22:08:29 2025: C<Module> L<JSON|JSON>
+
+=over 4
+
+=item *
+
+C<installed into: /home/perigrin/dev/pvm/test/e2e/lib/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 4.10>
+
+=item *
+
+C<EXE_FILES: >
+
+=back

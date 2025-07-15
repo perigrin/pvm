@@ -56,3 +56,21 @@ func TestAvailableCommand_HelpText(t *testing.T) {
 	}
 	assert.Contains(t, flag.Usage, "plain", "Flag help should mention plain format")
 }
+
+func TestAvailableCommand_FormatValidation(t *testing.T) {
+	cmd := newAvailableCommand()
+
+	// Test valid formats
+	validFormats := []string{"text", "json", "plain"}
+	for _, format := range validFormats {
+		cmd.SetArgs([]string{"--format", format})
+		err := cmd.ParseFlags([]string{"--format", format})
+		assert.NoError(t, err, "Valid format %s should not cause parse error", format)
+	}
+
+	// Test invalid format (we can't easily test execution without network calls,
+	// but we can test that the flag accepts the value)
+	cmd.SetArgs([]string{"--format", "invalid"})
+	err := cmd.ParseFlags([]string{"--format", "invalid"})
+	assert.NoError(t, err, "Flag parsing should succeed even for invalid format values")
+}

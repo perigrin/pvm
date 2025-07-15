@@ -833,6 +833,20 @@ func newAvailableCommand() *cobra.Command {
 				return err
 			}
 
+			// Validate format flag
+			validFormats := []string{"text", "json", "plain"}
+			isValid := false
+			for _, valid := range validFormats {
+				if format == valid {
+					isValid = true
+					break
+				}
+			}
+			if !isValid {
+				return fmt.Errorf("invalid format '%s'. Valid formats: %s",
+					format, strings.Join(validFormats, ", "))
+			}
+
 			// Get the currently installed versions
 			installedVersions, err := perl.GetInstalledVersions()
 			if err != nil {
