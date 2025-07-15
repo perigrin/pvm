@@ -12,15 +12,17 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"tamarou.com/pvm/internal/errors"
 )
 
 // System Perl detection error codes
 const (
-	ErrNoSystemPerl     = "001" // No system Perl found
-	ErrVersionParseFail = "002" // Failed to parse Perl version
-	ErrPerlExecFail     = "003" // Failed to execute Perl
+	ErrNoSystemPerl                 = "001" // No system Perl found
+	ErrVersionParseFail             = "002" // Failed to parse Perl version
+	ErrPerlExecFail                 = "003" // Failed to execute Perl
+	ErrSystemPerlRegistrationFailed = "004" // Failed to register system Perl
 )
 
 // SystemPerl represents information about a system-installed Perl
@@ -474,4 +476,52 @@ func resolvePerlbrewPerl(perlPath string) (string, error) {
 
 	// If we can't resolve perlbrew properly, fallback to system perl
 	return findSystemPerlDirectly()
+}
+
+// AutoImportSystemPerl automatically imports system Perl into the registry
+// This is used during first-run scenarios when no Perl versions are available
+func AutoImportSystemPerl() error {
+	// Detect system Perl
+	systemPerl, err := DetectSystemPerl()
+	if err != nil {
+		return errors.NewVersionError(
+			ErrNoSystemPerl,
+			"Failed to detect system Perl for auto-import",
+			err)
+	}
+
+	// Check if this version is already registered
+	isRegistered, err := IsVersionInstalled(systemPerl.Version)
+	if err != nil {
+		return err
+	}
+	if isRegistered {
+		// Already registered, nothing to do
+		return nil
+	}
+
+	// Calculate proper install path - handle both /usr/bin/perl and /opt/perl/bin/perl cases
+	installPath := filepath.Dir(systemPerl.Path)
+	if filepath.Base(installPath) == "bin" {
+		installPath = filepath.Dir(installPath)
+	}
+
+	// Create version info for registry
+	versionInfo := VersionInfo{
+		Version:     systemPerl.Version,
+		InstallPath: installPath,
+		Source:      "system",
+		InstallTime: time.Now(),
+	}
+
+	// Register the version
+	err = RegisterVersion(versionInfo)
+	if err != nil {
+		return errors.NewVersionError(
+			ErrSystemPerlRegistrationFailed,
+			fmt.Sprintf("Failed to register auto-imported system Perl %s", systemPerl.Version),
+			err)
+	}
+
+	return nil
 }

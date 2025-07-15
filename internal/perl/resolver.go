@@ -124,11 +124,38 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 		availableVersions = options.AvailableVersions
 	}
 
+	// Auto-import on first run if no versions are available
+	if len(availableVersions) == 0 {
+		// Always try auto-import of legacy versions (plenv/perlbrew) first
+		// This ensures plenv/perlbrew versions are available even if system Perl exists
+		results, err := AutoImportLegacyVersions()
+		if err == nil && results.TotalImported > 0 {
+			// Rebuild available versions list with imported versions
+			for _, result := range results.PlenvImports {
+				availableVersions = append(availableVersions, result.Version)
+			}
+			for _, result := range results.PerlbrewImports {
+				availableVersions = append(availableVersions, result.Version)
+			}
+		}
+
+		// If still no versions, try system Perl auto-import
+		if len(availableVersions) == 0 {
+			systemPerl, detectErr := DetectSystemPerl()
+			if detectErr == nil && systemPerl != nil {
+				err := AutoImportSystemPerl()
+				if err == nil {
+					availableVersions = append(availableVersions, systemPerl.Version)
+				}
+			}
+		}
+	}
+
 	// Verify we have some available versions
 	if len(availableVersions) == 0 {
 		return nil, errors.NewVersionError(
 			ErrNoVersionsAvailable,
-			"No Perl versions available",
+			"No Perl versions available. Install with 'pvm install <version>' or check system Perl availability.",
 			nil)
 	}
 
