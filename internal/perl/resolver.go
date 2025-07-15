@@ -126,17 +126,16 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 
 	// Auto-import on first run if no versions are available
 	if len(availableVersions) == 0 {
-		// Try auto-import of legacy versions (plenv/perlbrew) first
-		if ShouldAutoImport() {
-			results, err := AutoImportLegacyVersions()
-			if err == nil && results.TotalImported > 0 {
-				// Rebuild available versions list with imported versions
-				for _, result := range results.PlenvImports {
-					availableVersions = append(availableVersions, result.Version)
-				}
-				for _, result := range results.PerlbrewImports {
-					availableVersions = append(availableVersions, result.Version)
-				}
+		// Always try auto-import of legacy versions (plenv/perlbrew) first
+		// This ensures plenv/perlbrew versions are available even if system Perl exists
+		results, err := AutoImportLegacyVersions()
+		if err == nil && results.TotalImported > 0 {
+			// Rebuild available versions list with imported versions
+			for _, result := range results.PlenvImports {
+				availableVersions = append(availableVersions, result.Version)
+			}
+			for _, result := range results.PerlbrewImports {
+				availableVersions = append(availableVersions, result.Version)
 			}
 		}
 
@@ -147,7 +146,6 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 				err := AutoImportSystemPerl()
 				if err == nil {
 					availableVersions = append(availableVersions, systemPerl.Version)
-					// Note: User feedback should be handled by the caller, not library code
 				}
 			}
 		}
