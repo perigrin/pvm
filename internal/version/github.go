@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -49,14 +51,21 @@ type GitHubClient struct {
 	token      string // Optional for higher rate limits
 }
 
-// NewGitHubClient creates a new GitHub API client
+// NewGitHubClient creates a new GitHub API client with automatic token detection
 func NewGitHubClient() *GitHubClient {
-	return &GitHubClient{
+	client := &GitHubClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		baseURL: "https://api.github.com",
 	}
+
+	// Automatically use GITHUB_TOKEN environment variable if available
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		client.token = token
+	}
+
+	return client
 }
 
 // NewGitHubClientWithToken creates a new GitHub API client with authentication
@@ -64,6 +73,67 @@ func NewGitHubClientWithToken(token string) *GitHubClient {
 	client := NewGitHubClient()
 	client.token = token
 	return client
+}
+
+// doRequestWithRetry executes an HTTP request with exponential backoff for rate limiting
+func (g *GitHubClient) doRequestWithRetry(req *http.Request, maxRetries int) (*http.Response, error) {
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		resp, err := g.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		// Check for rate limiting (403 with specific message)
+		if resp.StatusCode == http.StatusForbidden {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			bodyStr := string(body)
+
+			// Check if this is a rate limit error
+			if strings.Contains(bodyStr, "rate limit exceeded") || strings.Contains(bodyStr, "API rate limit") {
+				// Check if we can determine retry time from headers
+				resetTime := resp.Header.Get("X-RateLimit-Reset")
+
+				// Calculate backoff time
+				var backoffTime time.Duration
+				if resetTime != "" {
+					if resetTimestamp, err := strconv.ParseInt(resetTime, 10, 64); err == nil {
+						backoffTime = time.Until(time.Unix(resetTimestamp, 0))
+						// Cap backoff at 5 minutes
+						if backoffTime > 5*time.Minute {
+							backoffTime = 5 * time.Minute
+						}
+					}
+				}
+
+				// Fall back to exponential backoff if no reset time
+				if backoffTime <= 0 {
+					backoffTime = time.Duration(math.Pow(2, float64(attempt))) * time.Second
+				}
+
+				// Don't retry on last attempt
+				if attempt == maxRetries-1 {
+					return nil, fmt.Errorf("GitHub API rate limit exceeded after %d attempts: %s", maxRetries, bodyStr)
+				}
+
+				// Wait before retry
+				time.Sleep(backoffTime)
+				continue
+			}
+
+			// Not a rate limit error, recreate response and return
+			return &http.Response{
+				StatusCode: resp.StatusCode,
+				Header:     resp.Header,
+				Body:       io.NopCloser(strings.NewReader(bodyStr)),
+			}, nil
+		}
+
+		// Success or other error, return as-is
+		return resp, nil
+	}
+
+	return nil, fmt.Errorf("max retries exceeded")
 }
 
 // GetLatestRelease fetches the latest PVM release for the repository, filtering out non-PVM releases
@@ -162,7 +232,7 @@ func (g *GitHubClient) GetReleaseByTag(owner, repo, tag string) (*GitHubRelease,
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-	resp, err := g.httpClient.Do(req)
+	resp, err := g.doRequestWithRetry(req, 3)
 	if err != nil {
 		return nil, fmt.Errorf("making request: %w", err)
 	}
@@ -199,7 +269,7 @@ func (g *GitHubClient) GetReleases(owner, repo string, includePrerelease bool) (
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-	resp, err := g.httpClient.Do(req)
+	resp, err := g.doRequestWithRetry(req, 3)
 	if err != nil {
 		return nil, fmt.Errorf("making request: %w", err)
 	}

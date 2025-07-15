@@ -16,6 +16,18 @@ import (
 )
 
 func TestNewGitHubClient(t *testing.T) {
+	// Save original environment
+	originalToken := os.Getenv("GITHUB_TOKEN")
+	defer func() {
+		if originalToken != "" {
+			os.Setenv("GITHUB_TOKEN", originalToken)
+		} else {
+			os.Unsetenv("GITHUB_TOKEN")
+		}
+	}()
+
+	// Test without environment variable
+	os.Unsetenv("GITHUB_TOKEN")
 	client := NewGitHubClient()
 
 	if client == nil {
@@ -32,6 +44,32 @@ func TestNewGitHubClient(t *testing.T) {
 
 	if client.httpClient == nil {
 		t.Error("expected httpClient to be created")
+	}
+}
+
+func TestNewGitHubClient_WithEnvironmentToken(t *testing.T) {
+	// Save original environment
+	originalToken := os.Getenv("GITHUB_TOKEN")
+	defer func() {
+		if originalToken != "" {
+			os.Setenv("GITHUB_TOKEN", originalToken)
+		} else {
+			os.Unsetenv("GITHUB_TOKEN")
+		}
+	}()
+
+	// Test with environment variable
+	testToken := "test-env-token"
+	os.Setenv("GITHUB_TOKEN", testToken)
+
+	client := NewGitHubClient()
+
+	if client == nil {
+		t.Fatal("expected client to be created")
+	}
+
+	if client.token != testToken {
+		t.Errorf("expected token to be %s, got %s", testToken, client.token)
 	}
 }
 
@@ -358,11 +396,6 @@ func TestGitHubClient_InvalidJSON(t *testing.T) {
 func TestGetLatestRelease_Integration(t *testing.T) {
 	basetesting.SkipUnlessIntegration(t, "GitHub API integration test")
 
-	// This test makes a real API call to GitHub to test the underlying HTTP functionality
-	// Instead of testing GetLatestRelease (which filters for PVM releases), we'll test GetReleases
-	// which provides broader coverage of the GitHub API integration
-	client := NewGitHubClient()
-
 	// Test repositories that are known to have releases (not necessarily PVM releases)
 	testRepos := []struct {
 		owner string
@@ -373,6 +406,14 @@ func TestGetLatestRelease_Integration(t *testing.T) {
 		{"golang", "go", "Go repository - has releases"},
 		{"torvalds", "linux", "Linux kernel - has releases"},
 	}
+
+	// Use authentication to avoid rate limiting
+	t.Log("Making authenticated API calls to external repositories")
+
+	// This test makes a real API call to GitHub to test the underlying HTTP functionality
+	// Instead of testing GetLatestRelease (which filters for PVM releases), we'll test GetReleases
+	// which provides broader coverage of the GitHub API integration
+	client := NewGitHubClient()
 
 	var lastErr error
 	for _, testRepo := range testRepos {
