@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/platform"
 	"tamarou.com/pvm/internal/xdg"
@@ -33,7 +34,7 @@ const (
 
 // Binary download constants
 const (
-	DefaultBinaryRepo         = "https://github.com/example/pvm/releases/download"
+	DefaultBinaryRepo         = "https://github.com/perigrin/pvm/releases/download"
 	BinaryMaxRetries          = 3
 	BinaryRetryDelay          = 2 * time.Second
 	DefaultChunkSize          = 8 * 1024 * 1024  // 8MB chunks for parallel downloads
@@ -871,7 +872,44 @@ func downloadBinaryFile(url, destPath string, options *BinaryDownloadOptions) er
 
 // CheckBinaryAvailability checks if a binary is available for the specified version and platform
 func CheckBinaryAvailability(version, platform string) (bool, error) {
+	// Try to load configuration to use configured mirrors
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		// If config loading fails, fall back to default
+		return CheckBinaryAvailabilityWithRepo(DefaultBinaryRepo, version, platform)
+	}
+
+	// Check if PVM Binary config is available
+	if cfg.PVM != nil && cfg.PVM.Binary != nil && len(cfg.PVM.Binary.BinaryMirrors) > 0 {
+		return CheckBinaryAvailabilityWithMirrors(cfg.PVM.Binary.BinaryMirrors, version, platform)
+	}
+
+	// Fall back to default if no mirrors configured
 	return CheckBinaryAvailabilityWithRepo(DefaultBinaryRepo, version, platform)
+}
+
+// CheckBinaryAvailabilityWithMirrors checks binary availability using configured mirrors with failover
+func CheckBinaryAvailabilityWithMirrors(mirrors []string, version, platform string) (bool, error) {
+	if len(mirrors) == 0 {
+		// Fall back to default if no mirrors configured
+		return CheckBinaryAvailabilityWithRepo(DefaultBinaryRepo, version, platform)
+	}
+
+	// Try each mirror in order
+	for _, mirror := range mirrors {
+		available, err := CheckBinaryAvailabilityWithRepo(mirror, version, platform)
+		if err != nil {
+			// If there's an error, try the next mirror
+			continue
+		}
+		if available {
+			// Binary found in this mirror
+			return true, nil
+		}
+	}
+
+	// Binary not found in any mirror
+	return false, nil
 }
 
 // CheckBinaryAvailabilityWithRepo checks binary availability with custom repo
@@ -895,8 +933,17 @@ func CheckBinaryAvailabilityWithRepo(repoURL, version, platformTriple string) (b
 		Timeout: 10 * time.Second,
 	}
 
-	// Make a HEAD request to check if binary exists
-	resp, err := client.Head(url)
+	// Create HEAD request to check if binary exists
+	req, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return false, err
+	}
+
+	// Add GitHub authentication if available
+	setGitHubAuthIfAvailable(req)
+
+	// Make the request
+	resp, err := client.Do(req)
 	if err != nil {
 		// Network error - return false but don't fail (allow graceful fallback)
 		return false, nil
