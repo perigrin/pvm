@@ -111,14 +111,14 @@ func TestHelpManager_SuggestNextSteps(t *testing.T) {
 	// Should suggest project initialization
 	hasInitSuggestion := false
 	for _, suggestion := range suggestions {
-		if strings.Contains(suggestion, "pvm project init") {
+		if strings.Contains(suggestion, "pvm workspace init") {
 			hasInitSuggestion = true
 			break
 		}
 	}
 
 	if !hasInitSuggestion {
-		t.Error("Expected project initialization suggestion for non-project directory")
+		t.Error("Expected workspace initialization suggestion for non-workspace directory")
 	}
 }
 
@@ -170,8 +170,8 @@ func TestHelpManager_GetWorkflowHelp(t *testing.T) {
 
 	// Check content quality
 	if content, exists := workflows["new-project"]; exists {
-		if !strings.Contains(content, "pvm project init") {
-			t.Error("new-project workflow should mention pvm project init")
+		if !strings.Contains(content, "pvm workspace init") {
+			t.Error("new-project workflow should mention pvm workspace init")
 		}
 	}
 }

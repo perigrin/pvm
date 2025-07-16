@@ -134,7 +134,7 @@ func runDevEnvironment(cmd *cobra.Command) error {
 	}
 
 	if !projectCtx.IsProject {
-		return fmt.Errorf("not in a project directory - use 'pvm project init' to initialize a project")
+		return fmt.Errorf("not in a workspace directory - use 'pvm workspace init' to initialize a workspace")
 	}
 
 	// Get flags

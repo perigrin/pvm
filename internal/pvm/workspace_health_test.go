@@ -1,4 +1,4 @@
-// ABOUTME: Tests for project health check functionality
+// ABOUTME: Tests for workspace health check functionality
 // ABOUTME: Validates health checks, doctor command, and auto-fix capabilities
 
 package pvm
@@ -12,18 +12,19 @@ import (
 	"testing"
 	"time"
 
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/project"
 )
 
-func TestProjectDoctorCommand(t *testing.T) {
+func TestWorkspaceDoctorCommand(t *testing.T) {
 	tempDir := t.TempDir()
 	oldWd, _ := os.Getwd()
 	defer os.Chdir(oldWd)
 
-	// Test 1: No project detected
+	// Test 1: No workspace detected
 	os.Chdir(tempDir)
 
-	cmd := newProjectDoctorCommand()
+	cmd := newWorkspaceDoctorCommand()
 	cmd.SetArgs([]string{})
 
 	var buf bytes.Buffer
@@ -36,7 +37,7 @@ func TestProjectDoctorCommand(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "No project detected") {
+	if !strings.Contains(output, "No workspace detected") {
 		t.Errorf("Expected output to mention no project detected, got: %s", output)
 	}
 
@@ -45,7 +46,7 @@ func TestProjectDoctorCommand(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, ".perl-version"), []byte("5.38.0\n"), 0644)
 
 	buf.Reset()
-	cmd = newProjectDoctorCommand()
+	cmd = newWorkspaceDoctorCommand()
 	cmd.SetArgs([]string{})
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
@@ -71,7 +72,7 @@ func TestProjectDoctorJSON(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, ".perl-version"), []byte("5.38.0\n"), 0644)
 	os.WriteFile(filepath.Join(tempDir, "cpanfile"), []byte("requires 'strict';\n"), 0644)
 
-	cmd := newProjectDoctorCommand()
+	cmd := newWorkspaceDoctorCommand()
 	cmd.SetArgs([]string{"--json"})
 
 	var buf bytes.Buffer
@@ -84,7 +85,7 @@ func TestProjectDoctorJSON(t *testing.T) {
 	}
 
 	// Validate JSON output
-	var health ProjectHealth
+	var health WorkspaceHealth
 	err = json.Unmarshal(buf.Bytes(), &health)
 	if err != nil {
 		t.Fatalf("Failed to parse JSON output: %v", err)
@@ -105,7 +106,7 @@ func TestProjectDoctorAutofix(t *testing.T) {
 	defer os.Chdir(oldWd)
 	os.Chdir(tempDir)
 
-	cmd := newProjectDoctorCommand()
+	cmd := newWorkspaceDoctorCommand()
 	cmd.SetArgs([]string{"--fix"})
 
 	var buf bytes.Buffer
@@ -358,6 +359,9 @@ func TestCheckDevelopmentEnvironment(t *testing.T) {
 }
 
 func TestEnhancedProjectStatus(t *testing.T) {
+	// Reset CLI global state to prevent interference from other tests
+	cli.ResetGlobalState()
+
 	tempDir := t.TempDir()
 	oldWd, _ := os.Getwd()
 	defer os.Chdir(oldWd)
@@ -369,7 +373,7 @@ func TestEnhancedProjectStatus(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, "pvm.toml"), []byte("[project]\nname = \"test\"\n"), 0644)
 	os.MkdirAll(filepath.Join(tempDir, "lib"), 0755)
 
-	cmd := newProjectStatusCommand()
+	cmd := newWorkspaceStatusCommand()
 	cmd.SetArgs([]string{})
 
 	var buf bytes.Buffer
@@ -382,9 +386,9 @@ func TestEnhancedProjectStatus(t *testing.T) {
 	}
 
 	output := buf.String()
-	// Check for project status content - the exact text may be styled with ANSI codes
-	if !strings.Contains(output, "Project Root:") {
-		t.Errorf("Expected project status output with 'Project Root:', got: %q", output)
+	// Check for workspace status content - the exact text may be styled with ANSI codes
+	if !strings.Contains(output, "Workspace Root:") {
+		t.Errorf("Expected workspace status output with 'Workspace Root:', got: %q", output)
 	}
 }
 
@@ -397,7 +401,7 @@ func TestProjectStatusJSON(t *testing.T) {
 	// Create a basic project
 	os.WriteFile(filepath.Join(tempDir, ".perl-version"), []byte("5.38.0\n"), 0644)
 
-	cmd := newProjectStatusCommand()
+	cmd := newWorkspaceStatusCommand()
 	cmd.SetArgs([]string{"--json"})
 
 	var buf bytes.Buffer
@@ -444,8 +448,8 @@ func TestHealthCheckStructures(t *testing.T) {
 		t.Error("HealthCheck status not set correctly")
 	}
 
-	// Test ProjectHealth creation
-	health := ProjectHealth{
+	// Test WorkspaceHealth creation
+	health := WorkspaceHealth{
 		OverallStatus: HealthStatusWarning,
 		Checks:        []HealthCheck{check},
 		Summary:       "1 warning found",
@@ -454,15 +458,15 @@ func TestHealthCheckStructures(t *testing.T) {
 	}
 
 	if health.OverallStatus != HealthStatusWarning {
-		t.Error("ProjectHealth overall status not set correctly")
+		t.Error("WorkspaceHealth overall status not set correctly")
 	}
 
 	if len(health.Checks) != 1 {
-		t.Error("ProjectHealth checks not set correctly")
+		t.Error("WorkspaceHealth checks not set correctly")
 	}
 
 	if len(health.NextSteps) != 1 {
-		t.Error("ProjectHealth next steps not set correctly")
+		t.Error("WorkspaceHealth next steps not set correctly")
 	}
 }
 

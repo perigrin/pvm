@@ -86,7 +86,7 @@ func NewCommand() *cobra.Command {
 		newUploadBinaryCommand(), // Upload binary archives to mirrors
 		newRunCommand(),          // New unified run command (incorporates PVX)
 		newModuleCommand(),       // New unified module command (incorporates PVI)
-		newProjectCommand(),      // New project management command
+		newWorkspaceCommand(),    // New workspace management command
 		newDevCommand(),          // Development environment command
 		newTestCommand(),         // Test execution command
 		newExecCommand(),

@@ -859,7 +859,7 @@ func newAddCommand() *cobra.Command {
 			}
 
 			if !projectCtx.IsProject {
-				return fmt.Errorf("not in a project directory. Use 'pvm project init' to create a project")
+				return fmt.Errorf("not in a project directory. Use 'pvm workspace init' to create a project")
 			}
 
 			// Set up cpanfile path
@@ -995,7 +995,7 @@ Use --from-snapshot to install exact versions from an existing cpanfile.snapshot
 			}
 
 			if !projectCtx.IsProject {
-				return fmt.Errorf("not in a project directory. Use 'pvm project init' to create a project")
+				return fmt.Errorf("not in a project directory. Use 'pvm workspace init' to create a project")
 			}
 
 			if fromSnapshot {
@@ -1387,7 +1387,7 @@ func resolveModuleNames(args []string, includeDev bool) ([]string, error) {
 	}
 
 	if !projectCtx.IsProject {
-		return nil, fmt.Errorf("no modules specified and not in a project directory. Specify modules to install or use 'pvm project init' to create a project")
+		return nil, fmt.Errorf("no modules specified and not in a project directory. Specify modules to install or use 'pvm workspace init' to create a project")
 	}
 
 	// Check for cpanfile

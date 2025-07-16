@@ -54,11 +54,11 @@ func (h *HelpManager) GetContextualHelp() []HelpCategory {
 
 	// Project-specific categories
 	if h.projectContext != nil && h.projectContext.IsProject {
-		categories = append(categories, h.getProjectWorkflowCategory())
+		categories = append(categories, h.getWorkspaceWorkflowCategory())
 		categories = append(categories, h.getBuildAndTestCategory())
 		categories = append(categories, h.getModuleManagementCategory())
 	} else {
-		categories = append(categories, h.getProjectSetupCategory())
+		categories = append(categories, h.getWorkspaceSetupCategory())
 		categories = append(categories, h.getPerlVersionManagementCategory())
 	}
 
@@ -88,17 +88,17 @@ func (h *HelpManager) getGettingStartedCategory() HelpCategory {
 	// Add project-specific getting started
 	if h.projectContext != nil && h.projectContext.IsProject {
 		commands = append(commands, CommandSuggestion{
-			Command:     "pvm project status",
-			Description: "Show current project status",
-			Example:     "pvm project status",
-			Relevance:   "Check project health and configuration",
+			Command:     "pvm workspace status",
+			Description: "Show current workspace status",
+			Example:     "pvm workspace status",
+			Relevance:   "Check workspace health and configuration",
 		})
 	} else {
 		commands = append(commands, CommandSuggestion{
-			Command:     "pvm project init",
-			Description: "Initialize a new Perl project",
-			Example:     "pvm project init my-app",
-			Relevance:   "Start a new project with PVM",
+			Command:     "pvm workspace init",
+			Description: "Initialize a new Perl workspace",
+			Example:     "pvm workspace init my-app",
+			Relevance:   "Start a new workspace with PVM",
 		})
 	}
 
@@ -109,8 +109,8 @@ func (h *HelpManager) getGettingStartedCategory() HelpCategory {
 	}
 }
 
-// getProjectWorkflowCategory provides project-specific workflow commands
-func (h *HelpManager) getProjectWorkflowCategory() HelpCategory {
+// getWorkspaceWorkflowCategory provides workspace-specific workflow commands
+func (h *HelpManager) getWorkspaceWorkflowCategory() HelpCategory {
 	commands := []CommandSuggestion{
 		{
 			Command:     "pvm dev",
@@ -143,7 +143,7 @@ func (h *HelpManager) getProjectWorkflowCategory() HelpCategory {
 
 	return HelpCategory{
 		Name:        "Project Workflow",
-		Description: "Commands for working within your Perl project",
+		Description: "Commands for working within your Perl workspace",
 		Commands:    commands,
 	}
 }
@@ -211,26 +211,26 @@ func (h *HelpManager) getModuleManagementCategory() HelpCategory {
 	}
 }
 
-// getProjectSetupCategory provides project setup commands for non-project directories
-func (h *HelpManager) getProjectSetupCategory() HelpCategory {
+// getWorkspaceSetupCategory provides workspace setup commands for non-workspace directories
+func (h *HelpManager) getWorkspaceSetupCategory() HelpCategory {
 	commands := []CommandSuggestion{
 		{
-			Command:     "pvm project init",
-			Description: "Initialize a new Perl project in current directory",
-			Example:     "pvm project init",
-			Relevance:   "You're not in a project directory",
+			Command:     "pvm workspace init",
+			Description: "Initialize a new Perl workspace in current directory",
+			Example:     "pvm workspace init",
+			Relevance:   "You're not in a workspace directory",
 		},
 		{
-			Command:     "pvm project init my-app",
-			Description: "Create a new project directory",
-			Example:     "pvm project init my-app",
-			Relevance:   "Start a new project from scratch",
+			Command:     "pvm workspace init my-app",
+			Description: "Create a new workspace directory",
+			Example:     "pvm workspace init my-app",
+			Relevance:   "Start a new workspace from scratch",
 		},
 	}
 
 	return HelpCategory{
 		Name:        "Project Setup",
-		Description: "Commands for setting up new Perl projects",
+		Description: "Commands for setting up new Perl workspaces",
 		Commands:    commands,
 	}
 }
@@ -269,25 +269,25 @@ func (h *HelpManager) getPerlVersionManagementCategory() HelpCategory {
 func (h *HelpManager) getTroubleshootingCategory() HelpCategory {
 	commands := []CommandSuggestion{
 		{
-			Command:     "pvm project doctor",
-			Description: "Check project health and suggest fixes",
-			Example:     "pvm project doctor",
+			Command:     "pvm workspace doctor",
+			Description: "Check workspace health and suggest fixes",
+			Example:     "pvm workspace doctor",
 			Relevance:   "Diagnose common issues",
 		},
 		{
-			Command:     "pvm project doctor --fix",
-			Description: "Automatically fix common project issues",
-			Example:     "pvm project doctor --fix",
+			Command:     "pvm workspace doctor --fix",
+			Description: "Automatically fix common workspace issues",
+			Example:     "pvm workspace doctor --fix",
 			Relevance:   "Resolve problems automatically",
 		},
 	}
 
 	if h.projectContext != nil && h.projectContext.IsProject {
 		commands = append(commands, CommandSuggestion{
-			Command:     "pvm project status --json",
-			Description: "Get detailed project status in JSON format",
-			Example:     "pvm project status --json",
-			Relevance:   "Programmatic access to project information",
+			Command:     "pvm workspace status --json",
+			Description: "Get detailed workspace status in JSON format",
+			Example:     "pvm workspace status --json",
+			Relevance:   "Programmatic access to workspace information",
 		})
 	}
 
@@ -305,7 +305,7 @@ func (h *HelpManager) GetWorkflowHelp() map[string]string {
 Creating a New Perl Project:
 
 1. Initialize the project:
-   pvm project init my-app
+   pvm workspace init my-app
    cd my-app
 
 2. Add dependencies:
@@ -324,8 +324,8 @@ This sets up a complete project with dependency management and development tools
 		"existing-project": `
 Working with an Existing Project:
 
-1. Check project status:
-   pvm project status
+1. Check workspace status:
+   pvm workspace status
 
 2. Install dependencies:
    pvm module install
@@ -343,7 +343,7 @@ The dev command provides file watching, automatic builds, and test running.
 Developing a CPAN Module:
 
 1. Initialize with module template:
-   pvm project init --template=module My::Module
+   pvm workspace init --template=module My::Module
 
 2. Set up distribution metadata:
    # Edit pvm.toml to configure author, license, etc.
@@ -412,7 +412,7 @@ func (h *HelpManager) SuggestNextSteps() []string {
 
 	if h.projectContext == nil || !h.projectContext.IsProject {
 		suggestions = append(suggestions,
-			"Initialize a new project: pvm project init",
+			"Initialize a new workspace: pvm workspace init",
 			"Check available Perl versions: pvm available",
 			"Install a Perl version: pvm install 5.38.0",
 		)
@@ -446,7 +446,7 @@ func (h *HelpManager) SuggestNextSteps() []string {
 	}
 
 	suggestions = append(suggestions,
-		"Check project status: pvm project status",
+		"Check workspace status: pvm workspace status",
 		"Build project: pvm build",
 	)
 
@@ -701,7 +701,7 @@ func showContextualHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 			helpManager.projectContext.DetectionInfo)
 		ui.Println("")
 	} else {
-		ui.Info("📁 Context: Not in a Perl project directory")
+		ui.Info("📁 Context: Not in a Perl workspace directory")
 		ui.Println("")
 	}
 
@@ -782,7 +782,7 @@ func showGettingStartedHelp(cmd *cobra.Command, helpManager *HelpManager) error 
 
 	ui.SubHeader("Create Your First Project")
 	projectSteps := []string{
-		"Initialize a new project:\n   pvm project init my-app\n   cd my-app",
+		"Initialize a new workspace:\n   pvm workspace init my-app\n   cd my-app",
 		"Add dependencies:\n   pvm module add DBI\n   pvm module add Test::More --dev",
 		"Install dependencies: pvm module install",
 		"Start development: pvm dev",
@@ -802,10 +802,10 @@ func showGettingStartedHelp(cmd *cobra.Command, helpManager *HelpManager) error 
 
 	ui.SubHeader("Need Help?")
 	helpCommands := []string{
-		"Check project status: pvm project status",
+		"Check workspace status: pvm workspace status",
 		"Get contextual help: pvm help",
 		"See workflows: pvm help workflows",
-		"Diagnose issues: pvm project doctor",
+		"Diagnose issues: pvm workspace doctor",
 	}
 	ui.List(helpCommands)
 
@@ -833,14 +833,14 @@ func showTroubleshootingHelp(cmd *cobra.Command, helpManager *HelpManager) error
 	ui.Warning("Module Installation Issues")
 	ui.Info("Problem: Modules fail to install")
 	ui.Success("Solution: Check if you're in a project and have proper permissions")
-	ui.Printf("Commands: pvm project status, pvm project doctor\n")
+	ui.Printf("Commands: pvm workspace status, pvm workspace doctor\n")
 	ui.Println("")
 
 	// Build Issues
 	ui.Warning("Build Issues")
 	ui.Info("Problem: Build fails with type errors")
 	ui.Success("Solution: Check PSC configuration and fix type annotations")
-	ui.Printf("Commands: pvm build --check-only, pvm project doctor\n")
+	ui.Printf("Commands: pvm build --check-only, pvm workspace doctor\n")
 	ui.Println("")
 
 	// Environment Issues
@@ -852,8 +852,8 @@ func showTroubleshootingHelp(cmd *cobra.Command, helpManager *HelpManager) error
 
 	ui.SubHeader("Diagnostic Commands")
 	diagnosticCommands := []string{
-		"Check overall project health: pvm project doctor",
-		"View detailed project status: pvm project status --json",
+		"Check overall workspace health: pvm workspace doctor",
+		"View detailed workspace status: pvm workspace status --json",
 		"Check dependency status: pvm module status",
 		"Verify Perl version resolution: pvm resolve",
 	}
@@ -863,8 +863,8 @@ func showTroubleshootingHelp(cmd *cobra.Command, helpManager *HelpManager) error
 	ui.Println("If you're still having issues:")
 	ui.Println("")
 	helpSteps := []string{
-		"Check the project status: pvm project status",
-		"Run the doctor: pvm project doctor --fix",
+		"Check the workspace status: pvm workspace status",
+		"Run the doctor: pvm workspace doctor --fix",
 		"Check verbose output: pvm --verbose [command]",
 		"Report issues at: https://github.com/anthropics/claude-code/issues",
 	}
@@ -891,7 +891,7 @@ func showNextStepsHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 	moreHelp := []string{
 		"pvm help workflows     # See common development workflows",
 		"pvm help getting-started # New user guide",
-		"pvm project status     # Check current project state",
+		"pvm workspace status     # Check current project state",
 	}
 	ui.List(moreHelp)
 

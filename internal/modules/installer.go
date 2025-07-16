@@ -192,7 +192,7 @@ func RequireProjectContext() (*project.ProjectContext, error) {
 	if !projectCtx.IsProject {
 		return nil, errors.NewSystemError(
 			ErrInstallerProjectFailed,
-			"Not in a project directory. Use 'pvm project init' to create a project",
+			"Not in a workspace directory. Use 'pvm workspace init' to create a workspace",
 			nil)
 	}
 

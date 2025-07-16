@@ -16,7 +16,7 @@ pvm install 5.38.0
 pvm global 5.38.0
 
 # Initialize new project
-pvm project init my-app
+pvm workspace init my-app
 cd my-app
 ```
 
@@ -87,7 +87,7 @@ pvm build --clean
 
 ### 1. New Project
 ```bash
-pvm project init my-app
+pvm workspace init my-app
 cd my-app
 pvm config set project.perl_version 5.38.0 --project
 pvm module add Test::More --dev
@@ -96,8 +96,8 @@ pvm module add Test::More --dev
 ### 2. Existing Project
 ```bash
 cd existing-project
-pvm project init .
-pvm project doctor --fix
+pvm workspace init .
+pvm workspace doctor --fix
 pvm module install
 ```
 
@@ -173,10 +173,10 @@ psc check --fix lib/
 ### Module Issues
 ```bash
 # Check project health
-pvm project doctor
+pvm workspace doctor
 
 # Fix common issues
-pvm project doctor --fix
+pvm workspace doctor --fix
 
 # Reinstall dependencies
 rm -rf lib/ && pvm module install
@@ -285,7 +285,7 @@ pvm mcp-server &  # Start language server
 
 ### Debugging
 - Use `--verbose` flags for detailed output
-- Use `pvm project doctor` for health checks
+- Use `pvm workspace doctor` for health checks
 - Use `pvm config validate` for configuration issues
 
 ---

@@ -93,7 +93,7 @@ _pvm_completion() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Main commands
-    local commands="install use versions list available current local global init shell completion uninstall update build run module project dev test exec import rehash resolve mcp"
+    local commands="install use versions list available current local global init shell completion uninstall update build run module workspace ws dev test exec import rehash resolve mcp"
 
     # Subcommands for specific commands
     case "$prev" in
@@ -119,8 +119,8 @@ _pvm_completion() {
             COMPREPLY=($(compgen -W "install remove list search update outdated" -- "$cur"))
             return 0
             ;;
-        project)
-            COMPREPLY=($(compgen -W "init build test run" -- "$cur"))
+        workspace|ws)
+            COMPREPLY=($(compgen -W "init status doctor templates" -- "$cur"))
             return 0
             ;;
         *)
@@ -200,9 +200,9 @@ _pvm() {
                     _arguments \
                         '1: :(install remove list search update outdated)'
                     ;;
-                project)
+                workspace|ws)
                     _arguments \
-                        '1: :(init build test run)'
+                        '1: :(init status doctor templates)'
                     ;;
                 *)
                     _files
@@ -237,7 +237,8 @@ complete -c pvm -f -a 'update' -d 'Update PVM'
 complete -c pvm -f -a 'build' -d 'Build commands'
 complete -c pvm -f -a 'run' -d 'Run scripts/modules'
 complete -c pvm -f -a 'module' -d 'Module management'
-complete -c pvm -f -a 'project' -d 'Project management'
+complete -c pvm -f -a 'workspace' -d 'Workspace management'
+complete -c pvm -f -a 'ws' -d 'Workspace management'
 complete -c pvm -f -a 'dev' -d 'Development environment'
 complete -c pvm -f -a 'test' -d 'Test execution'
 complete -c pvm -f -a 'exec' -d 'Execute commands'
@@ -262,8 +263,8 @@ complete -c pvm -f -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish
 # Module subcommands
 complete -c pvm -f -n '__fish_seen_subcommand_from module' -a 'install remove list search update outdated'
 
-# Project subcommands
-complete -c pvm -f -n '__fish_seen_subcommand_from project' -a 'init build test run'
+# Workspace subcommands
+complete -c pvm -f -n '__fish_seen_subcommand_from workspace ws' -a 'init status doctor templates'
 `, nil
 }
 
@@ -282,7 +283,7 @@ Register-ArgumentCompleter -Native -CommandName pvm -ScriptBlock {
     $commands = @(
         'install', 'use', 'versions', 'list', 'available', 'current', 'local', 'global',
         'init', 'shell', 'completion', 'uninstall', 'update', 'build', 'run', 'module',
-        'project', 'dev', 'test', 'exec', 'import', 'rehash', 'resolve', 'mcp'
+        'workspace', 'ws', 'dev', 'test', 'exec', 'import', 'rehash', 'resolve', 'mcp'
     )
 
     # If we're completing the first argument (command)
@@ -336,8 +337,8 @@ Register-ArgumentCompleter -Native -CommandName pvm -ScriptBlock {
                 [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
             }
         }
-        'project' {
-            $subcommands = @('init', 'build', 'test', 'run')
+        { $_ -eq 'workspace' -or $_ -eq 'ws' } {
+            $subcommands = @('init', 'status', 'doctor', 'templates')
             $subcommands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
                 [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
             }

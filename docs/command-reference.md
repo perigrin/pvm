@@ -330,13 +330,13 @@ pvm config generate --profile development --var perl_version=5.38.0
 
 ---
 
-## Project Management
+## Workspace Management
 
-### pvm project init
+### pvm workspace init
 Initialize a new project with templates and scaffolding.
 
 ```bash
-pvm project init [project-name]
+pvm workspace init [workspace-name]
 ```
 
 **Options:**
@@ -345,16 +345,16 @@ pvm project init [project-name]
 
 **Examples:**
 ```bash
-pvm project init my-app
-pvm project init web-service --template web
-pvm project init . --force  # Initialize in current directory
+pvm workspace init my-app
+pvm workspace init web-service --template web
+pvm workspace init . --force  # Initialize in current directory
 ```
 
-### pvm project status
+### pvm workspace status
 Show comprehensive project status and health information.
 
 ```bash
-pvm project status
+pvm workspace status
 ```
 
 **Options:**
@@ -367,11 +367,11 @@ pvm project status
 - Build status
 - Configuration validation
 
-### pvm project doctor
+### pvm workspace doctor
 Run comprehensive health checks with optional auto-fixing.
 
 ```bash
-pvm project doctor
+pvm workspace doctor
 ```
 
 **Options:**
@@ -386,11 +386,11 @@ pvm project doctor
 - Build artifacts currency
 - Project structure validation
 
-### pvm project templates
+### pvm workspace templates
 List available project templates.
 
 ```bash
-pvm project templates
+pvm workspace templates
 ```
 
 ---
