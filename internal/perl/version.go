@@ -4,11 +4,14 @@
 package perl
 
 import (
+	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
+	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/errors"
 )
 
@@ -279,7 +282,7 @@ func ResolveVersionAlias(alias string, aliases map[string]string) (string, error
 	case "dev", "latest-dev":
 		return ResolveLatestDevVersion()
 	case "latest":
-		return ResolveLatestVersion()
+		return ResolveLatestStableVersion() // Latest stable for install latest
 	case "system":
 		return GetSystemVersionString()
 	}
@@ -291,23 +294,87 @@ func ResolveVersionAlias(alias string, aliases map[string]string) (string, error
 }
 
 // ResolveLatestStableVersion returns the latest stable Perl version
-// Currently this is hardcoded, but in the future, it could query the
-// Perl website or repository to get this information.
+// Fetches from MetaCPAN API dynamically
 func ResolveLatestStableVersion() (string, error) {
-	// Hardcoded for now - should be updated regularly
-	return "5.40.2", nil
+	return resolveLatestVersionWithDev(false)
 }
 
 // ResolveLatestDevVersion returns the latest development Perl version
 func ResolveLatestDevVersion() (string, error) {
-	// Hardcoded for now - should be updated regularly
-	return "5.39.0", nil
+	return resolveLatestVersionWithDev(true)
 }
 
 // ResolveLatestVersion returns the latest Perl version (stable or dev)
 func ResolveLatestVersion() (string, error) {
-	// Typically the latest dev version
-	return ResolveLatestDevVersion()
+	return resolveLatestVersionWithDev(true)
+}
+
+// resolveLatestVersionWithDev fetches the latest version from MetaCPAN with dev support
+func resolveLatestVersionWithDev(includeDev bool) (string, error) {
+	// Create MetaCPAN provider
+	provider, err := cpan.NewMetaCPANProvider()
+	if err != nil {
+		// Fallback to hardcoded values on error
+		if includeDev {
+			return "5.39.0", nil // Latest dev fallback
+		}
+		return "5.40.2", nil // Latest stable fallback
+	}
+
+	// Fetch versions with dev support
+	ctx := context.Background()
+	versions, err := provider.GetPerlCoreVersionsWithDev(ctx, includeDev)
+	if err != nil {
+		// Fallback to hardcoded values on error
+		if includeDev {
+			return "5.39.0", nil // Latest dev fallback
+		}
+		return "5.40.2", nil // Latest stable fallback
+	}
+
+	if len(versions) == 0 {
+		// Fallback to hardcoded values if no versions found
+		if includeDev {
+			return "5.39.0", nil // Latest dev fallback
+		}
+		return "5.40.2", nil // Latest stable fallback
+	}
+
+	// Sort versions to find the latest
+	sortedVersions := make([]PerlVersion, 0, len(versions))
+	for _, versionStr := range versions {
+		version, err := ParseVersion(versionStr)
+		if err != nil {
+			continue // Skip invalid versions
+		}
+		sortedVersions = append(sortedVersions, version)
+	}
+
+	if len(sortedVersions) == 0 {
+		// Fallback to hardcoded values if no valid versions found
+		if includeDev {
+			return "5.39.0", nil // Latest dev fallback
+		}
+		return "5.40.2", nil // Latest stable fallback
+	}
+
+	// Sort to find the latest version
+	sort.Slice(sortedVersions, func(i, j int) bool {
+		return sortedVersions[i].Compare(sortedVersions[j]) > 0
+	})
+
+	// Filter by dev status if needed
+	for _, version := range sortedVersions {
+		if includeDev || !version.Dev {
+			return version.String(), nil
+		}
+	}
+
+	// Fallback to hardcoded values if no matching versions found
+	if includeDev {
+		return "5.39.0", nil // Latest dev fallback
+	}
+	return "5.40.2", nil // Latest stable fallback
 }
 
 // GetSystemVersionString returns the version of the system Perl as a string

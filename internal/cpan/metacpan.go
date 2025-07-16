@@ -932,8 +932,8 @@ func (p *MetaCPANProvider) IsCoreModule(ctx context.Context, moduleName string, 
 	return false, nil
 }
 
-// GetPerlCoreVersions retrieves available Perl core versions from MetaCPAN
-func (p *MetaCPANProvider) GetPerlCoreVersions(ctx context.Context) ([]string, error) {
+// GetPerlCoreVersionsWithDev retrieves available Perl core versions from MetaCPAN with optional development version support
+func (p *MetaCPANProvider) GetPerlCoreVersionsWithDev(ctx context.Context, includeDev bool) ([]string, error) {
 	if p.disableNetwork {
 		return nil, &ProviderError{
 			Source:  p.Name(),
@@ -946,7 +946,7 @@ func (p *MetaCPANProvider) GetPerlCoreVersions(ctx context.Context) ([]string, e
 	if p.cacheDir != "" {
 		cache, err := NewCache(p.cacheDir, p.cacheTTL)
 		if err == nil {
-			cacheKey := "perl_core_versions"
+			cacheKey := fmt.Sprintf("perl_core_versions_dev_%t", includeDev)
 			var cachedVersions []string
 			if cache.Get(cacheKey, &cachedVersions) {
 				return cachedVersions, nil
@@ -1041,11 +1041,13 @@ func (p *MetaCPANProvider) GetPerlCoreVersions(ctx context.Context) ([]string, e
 		version := hit.Fields.Version
 		// Convert MetaCPAN version format (5.042000) to standard format (5.42.0)
 		standardVersion := convertMetaCPANVersion(version)
-		// Filter out development versions (odd minor versions like 5.39.x)
-		// and ensure we only include valid versions
-		if standardVersion != "" && !seen[standardVersion] && isStablePerlVersion(standardVersion) {
-			seen[standardVersion] = true
-			versions = append(versions, standardVersion)
+		// Filter versions based on includeDev parameter
+		if standardVersion != "" && !seen[standardVersion] {
+			// Include stable versions always, dev versions only if includeDev is true
+			if includeDev || isStablePerlVersion(standardVersion) {
+				seen[standardVersion] = true
+				versions = append(versions, standardVersion)
+			}
 		}
 	}
 
@@ -1053,12 +1055,17 @@ func (p *MetaCPANProvider) GetPerlCoreVersions(ctx context.Context) ([]string, e
 	if p.cacheDir != "" {
 		cache, err := NewCache(p.cacheDir, p.cacheTTL)
 		if err == nil {
-			cacheKey := "perl_core_versions"
+			cacheKey := fmt.Sprintf("perl_core_versions_dev_%t", includeDev)
 			_ = cache.Set(cacheKey, versions, p.Name())
 		}
 	}
 
 	return versions, nil
+}
+
+// GetPerlCoreVersions retrieves available Perl core versions from MetaCPAN (stable versions only)
+func (p *MetaCPANProvider) GetPerlCoreVersions(ctx context.Context) ([]string, error) {
+	return p.GetPerlCoreVersionsWithDev(ctx, false)
 }
 
 // convertMetaCPANVersion converts MetaCPAN version format to standard format
