@@ -130,10 +130,45 @@ func newInstallCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install [version]",
 		Short: "Install a Perl version",
-		Long:  "Download and install a specific version of Perl",
-		Args:  cobra.ExactArgs(1),
+		Long: `Download and install a specific version of Perl.
+
+Version can be:
+  - Specific version: 5.38.2, 5.40.0
+  - Latest stable: latest (installs most recent stable version)
+  - Latest dev: latest-dev (installs most recent development version)
+  - Latest with dev: latest --include-dev (installs absolute latest, including dev)
+
+Examples:
+  pvm install 5.38.2        # Install specific version
+  pvm install latest        # Install latest stable version
+  pvm install latest-dev    # Install latest development version
+  pvm install latest --include-dev  # Install absolute latest (including dev)`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
+
+			// Get include-dev flag
+			includeDev, err := cmd.Flags().GetBool("include-dev")
+			if err != nil {
+				return err
+			}
+
+			// Resolve version aliases (latest, latest-dev, etc.)
+			resolvedVersion, err := perl.ResolveVersionAlias(version, map[string]string{})
+			if err != nil {
+				return fmt.Errorf("failed to resolve version alias: %w", err)
+			}
+
+			// If using --include-dev with "latest", resolve to latest dev version
+			if includeDev && (version == "latest" || version == "@latest") {
+				resolvedVersion, err = perl.ResolveLatestDevVersion()
+				if err != nil {
+					return fmt.Errorf("failed to resolve latest dev version: %w", err)
+				}
+			}
+
+			// Update version to resolved version
+			version = resolvedVersion
 
 			// Get flags (same as build command)
 			sourceFile, err := cmd.Flags().GetString("source")
@@ -374,6 +409,9 @@ func newInstallCommand() *cobra.Command {
 	cmd.Flags().Bool("binary-only", false, "Install only from pre-compiled binary (fail if not available)")
 	cmd.Flags().BoolP("prefer-binary", "B", false, "Try binary first, fallback to source if binary unavailable")
 	cmd.Flags().Bool("force-source", false, "Force source compilation (skip binary check)")
+
+	// Development version support
+	cmd.Flags().Bool("include-dev", false, "Include development versions when resolving 'latest' (e.g., 'latest --include-dev')")
 
 	return cmd
 }
@@ -824,10 +862,24 @@ func newAvailableCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "available",
 		Short: "List available Perl versions",
-		Long:  "List all Perl versions available for installation",
+		Long: `List all Perl versions available for installation.
+
+By default, only stable versions are shown. Use --include-dev to also show development versions.
+
+Examples:
+  pvm available                    # Show stable versions only
+  pvm available --include-dev      # Show both stable and development versions
+  pvm available --format=json     # JSON output format
+  pvm available --format=plain    # Plain text, one version per line`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get format flag
 			format, err := cmd.Flags().GetString("format")
+			if err != nil {
+				return err
+			}
+
+			// Get include-dev flag
+			includeDev, err := cmd.Flags().GetBool("include-dev")
 			if err != nil {
 				return err
 			}
@@ -874,14 +926,35 @@ func newAvailableCommand() *cobra.Command {
 
 			// Fetch available Perl versions from MetaCPAN (with cache fallback)
 			ctx := context.Background()
+
+			// Fetch stable versions
 			stableVersions, err := provider.GetPerlCoreVersions(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to fetch Perl versions from MetaCPAN: %w", err)
 			}
 
-			// For now, we don't fetch development versions from MetaCPAN
-			// as they may not be reliably available in the same way
-			devVersions := []string{}
+			// Fetch development versions if requested
+			var devVersions []string
+			if includeDev {
+				allVersions, err := provider.GetPerlCoreVersionsWithDev(ctx, true)
+				if err != nil {
+					return fmt.Errorf("failed to fetch development versions from MetaCPAN: %w", err)
+				}
+
+				// Filter out stable versions to get only dev versions
+				stableMap := make(map[string]bool)
+				for _, version := range stableVersions {
+					stableMap[version] = true
+				}
+
+				for _, version := range allVersions {
+					if !stableMap[version] {
+						devVersions = append(devVersions, version)
+					}
+				}
+			} else {
+				devVersions = []string{}
+			}
 
 			// Handle JSON format
 			if format == "json" {
@@ -957,20 +1030,22 @@ func newAvailableCommand() *cobra.Command {
 				groupedVersions[groupKey] = append(groupedVersions[groupKey], version)
 			}
 
-			// Add development versions separately
-			ui.SubHeader("Development versions:")
-			if len(devVersions) == 0 {
-				ui.Println("  (none)")
-			} else {
-				for _, version := range devVersions {
-					installed := ""
-					if installedMap[version] {
-						installed = " (installed)"
+			// Add development versions separately (only if includeDev is true)
+			if includeDev {
+				ui.SubHeader("Development versions:")
+				if len(devVersions) == 0 {
+					ui.Println("  (none)")
+				} else {
+					for _, version := range devVersions {
+						installed := ""
+						if installedMap[version] {
+							installed = " (installed)"
+						}
+						ui.Println("  " + version + installed)
 					}
-					ui.Println("  " + version + installed)
 				}
+				ui.Println("") // Add spacing after development versions
 			}
-			ui.Println("") // Add spacing after development versions
 
 			// Display stable versions by group
 			ui.SubHeader("Stable versions:")
@@ -1006,12 +1081,18 @@ func newAvailableCommand() *cobra.Command {
 			}
 
 			ui.Info("Use 'pvm install <version>' to install a specific version.")
+			if !includeDev {
+				ui.Info("Use 'pvm available --include-dev' to also show development versions.")
+			}
 			return nil
 		},
 	}
 
 	// Add format flag
 	cmd.Flags().StringP("format", "f", "text", "Output format (text, json, or plain)")
+
+	// Add include-dev flag
+	cmd.Flags().Bool("include-dev", false, "Include development versions in output")
 
 	return cmd
 }

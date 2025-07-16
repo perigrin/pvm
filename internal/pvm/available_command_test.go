@@ -15,7 +15,7 @@ func TestAvailableCommand_CommandSetup(t *testing.T) {
 	// Test command metadata
 	assert.Equal(t, "available", cmd.Use)
 	assert.Equal(t, "List available Perl versions", cmd.Short)
-	assert.Equal(t, "List all Perl versions available for installation", cmd.Long)
+	assert.Contains(t, cmd.Long, "List all Perl versions available for installation")
 
 	// Test that RunE function is set
 	assert.NotNil(t, cmd.RunE, "RunE function should be set")
@@ -47,7 +47,7 @@ func TestAvailableCommand_HelpText(t *testing.T) {
 	// Test command metadata
 	assert.Equal(t, "available", cmd.Use)
 	assert.Equal(t, "List available Perl versions", cmd.Short)
-	assert.Equal(t, "List all Perl versions available for installation", cmd.Long)
+	assert.Contains(t, cmd.Long, "List all Perl versions available for installation")
 
 	// Test flag help text
 	flag := cmd.Flags().Lookup("format")
