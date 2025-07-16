@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/project"
 )
 
@@ -358,6 +359,9 @@ func TestCheckDevelopmentEnvironment(t *testing.T) {
 }
 
 func TestEnhancedProjectStatus(t *testing.T) {
+	// Reset CLI global state to prevent interference from other tests
+	cli.ResetGlobalState()
+
 	tempDir := t.TempDir()
 	oldWd, _ := os.Getwd()
 	defer os.Chdir(oldWd)
