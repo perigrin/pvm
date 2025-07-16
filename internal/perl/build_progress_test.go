@@ -216,6 +216,7 @@ func TestParseMakeProgress(t *testing.T) {
 	// Test parsing compilation indicators
 	calc.stageProgress = 0.0
 	calc.totalLines = 0
+	calc.currentLines = 0
 	result = calc.ParseMakeProgress("CC some_file.c")
 	if !result {
 		t.Error("Expected ParseMakeProgress to return true for CC pattern")
@@ -227,6 +228,7 @@ func TestParseMakeProgress(t *testing.T) {
 	// Test parsing linking indicators
 	calc.stageProgress = 0.0
 	calc.totalLines = 0
+	calc.currentLines = 0
 	result = calc.ParseMakeProgress("LD perl")
 	if !result {
 		t.Error("Expected ParseMakeProgress to return true for LD pattern")
