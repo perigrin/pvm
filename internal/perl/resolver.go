@@ -27,7 +27,7 @@ const (
 	ExplicitVersion     ResolutionSource = "explicit"       // Explicitly specified version
 	ProjectVersionFile  ResolutionSource = "project_file"   // Project .perl-version file
 	ProjectConfig       ResolutionSource = "project_config" // Project .pvm/pvm.toml
-	EnvironmentVariable ResolutionSource = "env_var"        // Environment variable (PLENV_VERSION, PERLBREW_PERL)
+	EnvironmentVariable ResolutionSource = "env_var"        // Environment variable (PVM_PERL_VERSION, PLENV_VERSION, PERLBREW_PERL)
 	UserConfig          ResolutionSource = "user_config"    // User configuration
 	SystemPerlSource    ResolutionSource = "system_perl"    // System Perl installation
 )
@@ -75,7 +75,7 @@ var OnVersionResolved func(version *ResolvedVersion)
 // 1. Explicitly specified version
 // 2. Project-local .perl-version file
 // 3. Project-local .pvm/pvm.toml
-// 4. Environment variables (PLENV_VERSION, PERLBREW_PERL)
+// 4. Environment variables (PVM_PERL_VERSION, PLENV_VERSION, PERLBREW_PERL)
 // 5. User-level configuration
 // 6. System Perl
 func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
@@ -408,7 +408,36 @@ func resolveFromProjectConfig(projectDir string, availableVersions []string, cfg
 
 // resolveFromEnvironment checks environment variables for version specifications
 func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*ResolvedVersion, error) {
-	// Check for PLENV_VERSION environment variable (higher precedence)
+	// Check for PVM_PERL_VERSION environment variable (highest precedence)
+	// This is set by the shell integration `pvm use` command
+	if versionStr := os.Getenv("PVM_PERL_VERSION"); versionStr != "" {
+		// Check if it's an alias and resolve if needed
+		var aliases map[string]string
+		if cfg != nil && cfg.PVM != nil {
+			aliases = cfg.PVM.VersionAliases
+		}
+
+		resolvedVersion, err := ResolveVersionAlias(versionStr, aliases)
+		if err != nil {
+			return nil, err
+		}
+
+		// Check if the version is available
+		if !IsVersionAvailable(resolvedVersion, availableVersions) {
+			return nil, errors.NewVersionError(
+				ErrUnsatisfiedVersion,
+				"Version in PVM_PERL_VERSION is not available: "+resolvedVersion,
+				nil)
+		}
+
+		return &ResolvedVersion{
+			Version: resolvedVersion,
+			Source:  EnvironmentVariable,
+			Path:    "", // Path will be resolved by the executor
+		}, nil
+	}
+
+	// Check for PLENV_VERSION environment variable (lower precedence)
 	if versionStr := os.Getenv("PLENV_VERSION"); versionStr != "" {
 		// Check if it's an alias and resolve if needed
 		var aliases map[string]string

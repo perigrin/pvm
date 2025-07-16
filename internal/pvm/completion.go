@@ -212,7 +212,7 @@ _pvm() {
     esac
 }
 
-_pvm "$@"
+compdef _pvm pvm
 `, nil
 }
 

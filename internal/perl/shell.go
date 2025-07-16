@@ -58,6 +58,9 @@ type ShellScriptData struct {
 
 	// Whether the shell supports advanced features
 	SupportsAdvanced bool
+
+	// Conflict warnings for other version managers
+	ConflictWarnings string
 }
 
 // Returns whether the script is for a Windows shell
@@ -149,6 +152,7 @@ func CreateShellInitScripts() error {
 		ConfigDir:        dirs.ConfigDir,
 		FunctionPrefix:   "pvm_",
 		SupportsAdvanced: true,
+		ConflictWarnings: generateConflictWarnings(),
 	}
 
 	// Generate scripts for each supported shell
@@ -609,6 +613,51 @@ func GetShellInitInstructions(shellType ShellType) string {
 // These functions are already defined in legacy.go
 // Using them directly from there
 
+// detectVersionManagerConflicts checks for other version managers in PATH
+// that might conflict with PVM and returns a list of detected conflicts
+func detectVersionManagerConflicts() []string {
+	var conflicts []string
+
+	// Split PATH into directories
+	pathDirs := strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
+
+	// Check for plenv shims directory
+	for _, dir := range pathDirs {
+		if strings.Contains(dir, "plenv") && strings.Contains(dir, "shims") {
+			conflicts = append(conflicts, "plenv ("+dir+")")
+		}
+		if strings.Contains(dir, "perlbrew") && (strings.Contains(dir, "bin") || strings.Contains(dir, "perl")) {
+			conflicts = append(conflicts, "perlbrew ("+dir+")")
+		}
+	}
+
+	return conflicts
+}
+
+// generateConflictWarnings creates shell script code to warn about version manager conflicts
+func generateConflictWarnings() string {
+	conflicts := detectVersionManagerConflicts()
+	if len(conflicts) == 0 {
+		return ""
+	}
+
+	var warnings strings.Builder
+	warnings.WriteString("    # Check for potential version manager conflicts\n")
+	warnings.WriteString("    if [ \"$PVM_SUPPRESS_WARNINGS\" != \"1\" ]; then\n")
+	warnings.WriteString("        echo \"⚠️  PVM detected other Perl version managers in PATH:\"\n")
+
+	for _, conflict := range conflicts {
+		warnings.WriteString(fmt.Sprintf("        echo \"   - %s\"\n", conflict))
+	}
+
+	warnings.WriteString("        echo \"   PVM shims should take precedence, but conflicts may occur.\"\n")
+	warnings.WriteString("        echo \"   To suppress this warning: export PVM_SUPPRESS_WARNINGS=1\"\n")
+	warnings.WriteString("        echo\n")
+	warnings.WriteString("    fi\n")
+
+	return warnings.String()
+}
+
 // Shell script templates for different shell types
 
 // Bash/Zsh shell script template
@@ -630,6 +679,7 @@ PVM_SHIMS_DIR="{{ .ShimsDir }}"
         *) export PATH="${PVM_SHIMS_DIR}:${PATH}" ;;
     esac
 
+{{ .ConflictWarnings }}
     # Define main pvm function that intercepts 'use' and 'env activate' commands
     pvm() {
         local command="$1"

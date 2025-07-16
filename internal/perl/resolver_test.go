@@ -37,7 +37,7 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	}
 
 	// Save original environment variables
-	for _, name := range []string{"PLENV_VERSION", "PERLBREW_PERL"} {
+	for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
 		env.origEnv[name] = os.Getenv(name)
 	}
 
@@ -301,19 +301,36 @@ func TestResolveEnvironmentVariables(t *testing.T) {
 
 	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
 
-	// Test PLENV_VERSION (higher precedence)
-	_ = os.Setenv("PLENV_VERSION", "5.38.0")
-	_ = os.Setenv("PERLBREW_PERL", "perl-5.36.0")
-
 	options := &ResolutionOptions{
 		AvailableVersions:   availableVersions,
 		SkipLocal:           true, // Skip project-local checks
 		SkipVersionResolved: true,
 	}
 
+	// Test PVM_PERL_VERSION (highest precedence)
+	_ = os.Setenv("PVM_PERL_VERSION", "5.34.1")
+	_ = os.Setenv("PLENV_VERSION", "5.38.0")
+	_ = os.Setenv("PERLBREW_PERL", "perl-5.36.0")
+
 	resolved, err := ResolveVersion(options)
 	if err != nil {
-		t.Fatalf("Failed to resolve from environment variables: %v", err)
+		t.Fatalf("Failed to resolve from PVM_PERL_VERSION: %v", err)
+	}
+
+	if resolved.Version != "5.34.1" {
+		t.Errorf("Expected version 5.34.1 from PVM_PERL_VERSION (highest precedence), got %s", resolved.Version)
+	}
+
+	if resolved.Source != EnvironmentVariable {
+		t.Errorf("Expected source EnvironmentVariable, got %s", resolved.Source)
+	}
+
+	// Test PLENV_VERSION (middle precedence)
+	_ = os.Unsetenv("PVM_PERL_VERSION")
+
+	resolved, err = ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve from PLENV_VERSION: %v", err)
 	}
 
 	if resolved.Version != "5.38.0" {
@@ -324,7 +341,7 @@ func TestResolveEnvironmentVariables(t *testing.T) {
 		t.Errorf("Expected source EnvironmentVariable, got %s", resolved.Source)
 	}
 
-	// Test PERLBREW_PERL (lower precedence)
+	// Test PERLBREW_PERL (lowest precedence)
 	_ = os.Unsetenv("PLENV_VERSION")
 
 	resolved, err = ResolveVersion(options)
