@@ -51,8 +51,8 @@ type HealthCheck struct {
 	CheckedAt  time.Time    `json:"checked_at"`
 }
 
-// ProjectHealth represents the overall project health
-type ProjectHealth struct {
+// WorkspaceHealth represents the overall project health
+type WorkspaceHealth struct {
 	OverallStatus HealthStatus  `json:"overall_status"`
 	Checks        []HealthCheck `json:"checks"`
 	Summary       string        `json:"summary"`
@@ -60,28 +60,28 @@ type ProjectHealth struct {
 	CheckedAt     time.Time     `json:"checked_at"`
 }
 
-// newProjectCommand creates the main project command with subcommands
-func newProjectCommand() *cobra.Command {
+// newWorkspaceCommand creates the main workspace command with subcommands
+func newWorkspaceCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "project",
-		Short:   "Project management commands",
-		Long:    "Commands for initializing, managing, and working with Perl projects",
-		Aliases: []string{"proj"},
+		Use:     "workspace",
+		Short:   "Workspace management commands",
+		Long:    "Commands for initializing, managing, and working with Perl workspaces",
+		Aliases: []string{"ws"},
 	}
 
-	// Add project subcommands
+	// Add workspace subcommands
 	cmd.AddCommand(
-		newProjectInitCommand(),
-		newProjectStatusCommand(),
-		newProjectDoctorCommand(),
-		newProjectTemplatesCommand(),
+		newWorkspaceInitCommand(),
+		newWorkspaceStatusCommand(),
+		newWorkspaceDoctorCommand(),
+		newWorkspaceTemplatesCommand(),
 	)
 
 	return cmd
 }
 
-// newProjectInitCommand creates the project init command
-func newProjectInitCommand() *cobra.Command {
+// newWorkspaceInitCommand creates the project init command
+func newWorkspaceInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init [project-name]",
 		Short: "Initialize a new Perl project",
@@ -93,7 +93,7 @@ If no name is provided, initializes in the current directory.
 This command creates:
 - .perl-version file with current/default Perl version
 - cpanfile for dependency management
-- pvm.toml for project configuration
+- pvm.toml for workspace configuration
 - Standard directory structure (lib/, t/, script/)
 - .gitignore with PVM-specific ignores`,
 		Args: cobra.MaximumNArgs(1),
@@ -141,14 +141,14 @@ This command creates:
 	}
 
 	// Add flags
-	cmd.Flags().String("template", "minimal", "Project template to use (run 'pvm project templates' to list available)")
-	cmd.Flags().Bool("force", false, "Initialize even if directory is not empty or project files exist")
+	cmd.Flags().String("template", "minimal", "Workspace template to use (run 'pvm workspace templates' to list available)")
+	cmd.Flags().Bool("force", false, "Initialize even if directory is not empty or workspace files exist")
 
 	return cmd
 }
 
-// newProjectStatusCommand creates the project status command
-func newProjectStatusCommand() *cobra.Command {
+// newWorkspaceStatusCommand creates the project status command
+func newWorkspaceStatusCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show project status and health",
@@ -159,7 +159,7 @@ func newProjectStatusCommand() *cobra.Command {
 - Build artifacts status
 - Configuration health`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return showProjectStatus(cmd)
+			return showWorkspaceStatus(cmd)
 		},
 	}
 
@@ -169,8 +169,8 @@ func newProjectStatusCommand() *cobra.Command {
 	return cmd
 }
 
-// newProjectDoctorCommand creates the project doctor command
-func newProjectDoctorCommand() *cobra.Command {
+// newWorkspaceDoctorCommand creates the project doctor command
+func newWorkspaceDoctorCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Run comprehensive project health checks",
@@ -182,7 +182,7 @@ func newProjectDoctorCommand() *cobra.Command {
 - Development environment setup
 - Common issues detection`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runProjectDoctor(cmd)
+			return runWorkspaceDoctor(cmd)
 		},
 	}
 
@@ -194,8 +194,8 @@ func newProjectDoctorCommand() *cobra.Command {
 	return cmd
 }
 
-// newProjectTemplatesCommand creates the project templates command
-func newProjectTemplatesCommand() *cobra.Command {
+// newWorkspaceTemplatesCommand creates the project templates command
+func newWorkspaceTemplatesCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "templates",
 		Short: "List available project templates",
@@ -316,7 +316,7 @@ func initializeProject(cmd *cobra.Command, projectName, projectDir string, templ
 	return nil
 }
 
-// createProjectFiles creates the necessary project configuration files
+// createProjectFiles creates the necessary workspace configuration files
 func createProjectFiles(cmd *cobra.Command, projectDir, projectName string, template *ProjectTemplate) error {
 	ui := cli.GetUI(cmd)
 
@@ -525,12 +525,12 @@ proof/
 	return content
 }
 
-// showProjectStatus shows comprehensive project status
-func showProjectStatus(cmd *cobra.Command) error {
-	// Get project context
+// showWorkspaceStatus shows comprehensive workspace status
+func showWorkspaceStatus(cmd *cobra.Command) error {
+	// Get workspace context
 	ctx, err := project.GetCurrentProject()
 	if err != nil {
-		return fmt.Errorf("failed to detect project: %w", err)
+		return fmt.Errorf("failed to detect workspace: %w", err)
 	}
 
 	// Check JSON output flag
@@ -546,12 +546,12 @@ func showProjectStatus(cmd *cobra.Command) error {
 	return outputStatusHuman(cmd, ctx)
 }
 
-// runProjectDoctor runs comprehensive project health checks
-func runProjectDoctor(cmd *cobra.Command) error {
-	// Get project context
+// runWorkspaceDoctor runs comprehensive workspace health checks
+func runWorkspaceDoctor(cmd *cobra.Command) error {
+	// Get workspace context
 	ctx, err := project.GetCurrentProject()
 	if err != nil {
-		return fmt.Errorf("failed to detect project: %w", err)
+		return fmt.Errorf("failed to detect workspace: %w", err)
 	}
 
 	// Get flags
@@ -574,8 +574,8 @@ func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 	ui := cli.GetUI(cmd)
 
 	if !ctx.IsProject {
-		ui.Info("No project detected in current directory")
-		ui.Info("Use 'pvm project init' to initialize a new project")
+		ui.Info("No workspace detected in current directory")
+		ui.Info("Use 'pvm workspace init' to initialize a new workspace")
 		return nil
 	}
 
@@ -671,7 +671,7 @@ func outputStatusJSON(cmd *cobra.Command, ctx *project.ProjectContext) error {
 }
 
 // outputHealthJSON outputs health check results in JSON format
-func outputHealthJSON(cmd *cobra.Command, health *ProjectHealth) error {
+func outputHealthJSON(cmd *cobra.Command, health *WorkspaceHealth) error {
 	data, err := json.MarshalIndent(health, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal health data: %w", err)
@@ -682,8 +682,8 @@ func outputHealthJSON(cmd *cobra.Command, health *ProjectHealth) error {
 }
 
 // outputHealthHuman outputs health check results in human-readable format
-func outputHealthHuman(cmd *cobra.Command, health *ProjectHealth, verbose bool) error {
-	cmd.Printf("Project Health Check\n")
+func outputHealthHuman(cmd *cobra.Command, health *WorkspaceHealth, verbose bool) error {
+	cmd.Printf("Workspace Health Check\n")
 	cmd.Printf("===================\n\n")
 
 	// Overall status
@@ -741,10 +741,10 @@ func showNextSteps(cmd *cobra.Command, createdDir bool, projectDir string) {
 	}
 
 	cmd.Printf("  pvm module install          # Install dependencies\n")
-	cmd.Printf("  pvm project status          # Check project health\n")
+	cmd.Printf("  pvm workspace status        # Check workspace health\n")
 	cmd.Printf("  pvm build --check-only      # Run type checking\n")
 	cmd.Printf("\nLearn more:\n")
-	cmd.Printf("  pvm help project            # Project management commands\n")
+	cmd.Printf("  pvm help workspace          # Workspace management commands\n")
 	cmd.Printf("  pvm help module             # Module management commands\n")
 	cmd.Printf("  pvm help build              # Build system commands\n")
 }
@@ -882,7 +882,7 @@ func getUserTemplates() ([]ProjectTemplate, error) {
 }
 
 // performHealthChecks runs all health checks for the project
-func performHealthChecks(ctx *project.ProjectContext, autofix bool) *ProjectHealth {
+func performHealthChecks(ctx *project.ProjectContext, autofix bool) *WorkspaceHealth {
 	checks := []HealthCheck{}
 	nextSteps := []string{}
 
@@ -934,7 +934,7 @@ func performHealthChecks(ctx *project.ProjectContext, autofix bool) *ProjectHeal
 	summary := fmt.Sprintf("%d checks passed, %d warnings, %d critical issues",
 		healthyCount, warningCount, criticalCount)
 
-	return &ProjectHealth{
+	return &WorkspaceHealth{
 		OverallStatus: overallStatus,
 		Checks:        checks,
 		Summary:       summary,
@@ -947,16 +947,16 @@ func performHealthChecks(ctx *project.ProjectContext, autofix bool) *ProjectHeal
 func checkProjectDetection(ctx *project.ProjectContext) HealthCheck {
 	if !ctx.IsProject {
 		return HealthCheck{
-			Name:       "Project Detection",
+			Name:       "Workspace Detection",
 			Status:     HealthStatusCritical,
-			Message:    "No project detected in current directory",
-			Suggestion: "Run 'pvm project init' to initialize a new project",
+			Message:    "No workspace detected in current directory",
+			Suggestion: "Run 'pvm workspace init' to initialize a new workspace",
 			CheckedAt:  time.Now(),
 		}
 	}
 
 	return HealthCheck{
-		Name:      "Project Detection",
+		Name:      "Workspace Detection",
 		Status:    HealthStatusHealthy,
 		Message:   fmt.Sprintf("Project detected via %s", ctx.DetectionInfo),
 		Details:   fmt.Sprintf("Root directory: %s", ctx.RootDir),
@@ -1123,10 +1123,10 @@ func checkConfiguration(ctx *project.ProjectContext, autofix bool) []HealthCheck
 	// Check if pvm.toml exists
 	if ctx.ConfigFile == "" {
 		check := HealthCheck{
-			Name:       "Project Configuration",
+			Name:       "Workspace Configuration",
 			Status:     HealthStatusWarning,
 			Message:    "No pvm.toml configuration file",
-			Suggestion: "Create pvm.toml for project configuration",
+			Suggestion: "Create pvm.toml for workspace configuration",
 			CheckedAt:  time.Now(),
 		}
 
@@ -1140,7 +1140,7 @@ func checkConfiguration(ctx *project.ProjectContext, autofix bool) []HealthCheck
 		checks = append(checks, check)
 	} else {
 		checks = append(checks, HealthCheck{
-			Name:      "Project Configuration",
+			Name:      "Workspace Configuration",
 			Status:    HealthStatusHealthy,
 			Message:   "Configuration file exists",
 			Details:   fmt.Sprintf("Path: %s", ctx.ConfigFile),

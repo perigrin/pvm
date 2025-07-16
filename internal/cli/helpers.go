@@ -67,7 +67,7 @@ func SetupCommandEnvironment(cmd *cobra.Command, requireProject bool) (*CommandE
 		if !projectCtx.IsProject {
 			return nil, errors.NewSystemError(
 				ErrHelperProjectFailed,
-				"Not in a project directory. Use 'pvm project init' to create a project",
+				"Not in a workspace directory. Use 'pvm workspace init' to create a workspace",
 				nil)
 		}
 	} else {

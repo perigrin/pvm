@@ -77,7 +77,7 @@ func ValidateProjectContext() (*project.ProjectContext, error) {
 	}
 
 	if !projectCtx.IsProject {
-		return nil, fmt.Errorf("not in a project directory. Use 'pvm project init' to create a project")
+		return nil, fmt.Errorf("not in a workspace directory. Use 'pvm workspace init' to create a workspace")
 	}
 
 	return projectCtx, nil
