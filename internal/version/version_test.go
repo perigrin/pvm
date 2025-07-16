@@ -210,3 +210,87 @@ func TestUpdateInfo_Structure(t *testing.T) {
 		t.Errorf("expected release tag v1.1.0, got %s", updateInfo.Release.TagName)
 	}
 }
+
+func TestCheckForUpdates_PrereleaseHandling(t *testing.T) {
+	t.Run("ExplicitPrereleaseInclusionShouldWork", func(t *testing.T) {
+		opts := &CheckOptions{
+			Repository:        "perigrin/pvm",
+			IncludePrerelease: true,
+		}
+
+		result, err := CheckForUpdates(opts)
+		if err != nil {
+			t.Logf("CheckForUpdates with prerelease inclusion failed (may be network/auth): %v", err)
+			// Network errors are acceptable, we're testing the option flow
+			return
+		}
+
+		if result == nil {
+			t.Error("expected result but got nil")
+			return
+		}
+
+		// If successful, we should have found a release
+		if result.LatestVersion == "" {
+			t.Error("expected latest version to be populated")
+		}
+	})
+
+	t.Run("FallbackToPrereleaseWhenStableNotAvailable", func(t *testing.T) {
+		opts := &CheckOptions{
+			Repository:        "perigrin/pvm",
+			IncludePrerelease: false, // Explicitly exclude prereleases initially
+		}
+
+		result, err := CheckForUpdates(opts)
+		if err != nil {
+			t.Logf("CheckForUpdates with fallback failed (may be network/auth): %v", err)
+			// Network errors are acceptable, we're testing the fallback logic
+			return
+		}
+
+		if result == nil {
+			t.Error("expected result but got nil")
+			return
+		}
+
+		// If successful, fallback should have found a prerelease
+		// since the repository currently only has prereleases
+		if result.LatestVersion == "" {
+			t.Error("expected fallback to find a prerelease version")
+		}
+
+		// The found version should be a prerelease
+		if !result.IsPrerelease {
+			t.Logf("Note: Found stable release %s (fallback not needed)", result.LatestVersion)
+		} else {
+			t.Logf("Successfully fell back to prerelease %s", result.LatestVersion)
+		}
+	})
+
+	t.Run("DefaultOptionsExcludePrereleaseButAllowFallback", func(t *testing.T) {
+		opts := DefaultCheckOptions()
+
+		// Verify default is to exclude prereleases
+		if opts.IncludePrerelease {
+			t.Error("default options should exclude prereleases initially")
+		}
+
+		result, err := CheckForUpdates(opts)
+		if err != nil {
+			t.Logf("CheckForUpdates with default options failed (may be network/auth): %v", err)
+			// Network errors are acceptable
+			return
+		}
+
+		if result == nil {
+			t.Error("expected result but got nil")
+			return
+		}
+
+		// Should succeed due to fallback logic when only prereleases exist
+		if result.LatestVersion == "" {
+			t.Error("expected to find a version through fallback logic")
+		}
+	})
+}

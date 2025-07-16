@@ -115,6 +115,21 @@ func CheckForUpdates(opts *CheckOptions) (*VersionCheckResult, error) {
 		}
 	}
 
+	// Fallback: if no stable releases found and we weren't including prereleases,
+	// retry with prereleases included to provide graceful degradation
+	if release == nil && !opts.IncludePrerelease {
+		releases, err := client.GetReleases(owner, repo, true)
+		if err == nil && len(releases) > 0 {
+			// Filter for PVM releases and find the latest prerelease
+			for _, r := range releases {
+				if client.isPVMRelease(r.TagName) && !r.Draft {
+					release = &r
+					break // First PVM release is the latest
+				}
+			}
+		}
+	}
+
 	if release == nil {
 		result.Error = "no releases found"
 		return result, fmt.Errorf("no releases found")

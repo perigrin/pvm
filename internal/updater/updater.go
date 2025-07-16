@@ -81,6 +81,7 @@ type UpdateOptions struct {
 func DefaultUpdateOptions() *UpdateOptions {
 	return &UpdateOptions{
 		Repository:         "perigrin/pvm",
+		IncludePrerelease:  true, // Include prereleases by default since stable releases may not be available
 		Backup:             true,
 		AutoRollback:       true,
 		UpdateShellConfigs: true,
