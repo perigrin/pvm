@@ -579,11 +579,11 @@ func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 		return nil
 	}
 
-	ui.Header("Project Status")
+	ui.Header("Workspace Status")
 	ui.Println()
 
-	// Project information
-	ui.Info("Project Root: %s", ctx.RootDir)
+	// Workspace information
+	ui.Info("Workspace Root: %s", ctx.RootDir)
 	ui.Info("Detected via: %s", ctx.DetectionInfo)
 
 	// Perl version

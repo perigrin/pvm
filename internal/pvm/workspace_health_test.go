@@ -382,9 +382,9 @@ func TestEnhancedProjectStatus(t *testing.T) {
 	}
 
 	output := buf.String()
-	// Check for project status content - the exact text may be styled with ANSI codes
-	if !strings.Contains(output, "Project Root:") {
-		t.Errorf("Expected project status output with 'Project Root:', got: %q", output)
+	// Check for workspace status content - the exact text may be styled with ANSI codes
+	if !strings.Contains(output, "Workspace Root:") {
+		t.Errorf("Expected workspace status output with 'Workspace Root:', got: %q", output)
 	}
 }
 
