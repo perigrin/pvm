@@ -76,6 +76,151 @@ func (s BuildProgressStage) String() string {
 // BuildProgressCallback is called to report progress during the build process
 type BuildProgressCallback func(stage BuildProgressStage, details string, progress float64)
 
+// BuildProgressCalculator handles progress calculation across build stages
+type BuildProgressCalculator struct {
+	// Stage weights define how much of the total progress each stage represents
+	stageWeights map[BuildProgressStage]float64
+	// Current stage being processed
+	currentStage BuildProgressStage
+	// Progress within current stage (0.0 to 1.0)
+	stageProgress float64
+	// Total lines processed for line-based progress estimation
+	totalLines   int
+	currentLines int
+	// Start time for time-based progress estimation
+	stageStartTime         time.Time
+	estimatedStageDuration time.Duration
+}
+
+// NewBuildProgressCalculator creates a new progress calculator
+func NewBuildProgressCalculator() *BuildProgressCalculator {
+	// Define stage weights based on typical build times
+	// These represent the percentage of total build time each stage usually takes
+	weights := map[BuildProgressStage]float64{
+		StageExtract:   0.05, // 5% - Quick extraction
+		StageConfigure: 0.15, // 15% - Configure can be slow
+		StageCompile:   0.60, // 60% - Compilation is the longest
+		StageTest:      0.15, // 15% - Testing takes time
+		StageInstall:   0.05, // 5% - Installation is usually quick
+		StageCleanup:   0.0,  // 0% - Cleanup is instant
+	}
+
+	return &BuildProgressCalculator{
+		stageWeights:   weights,
+		currentStage:   StageExtract,
+		stageProgress:  0.0,
+		stageStartTime: time.Now(),
+	}
+}
+
+// SetStage sets the current stage and resets stage progress
+func (calc *BuildProgressCalculator) SetStage(stage BuildProgressStage) {
+	calc.currentStage = stage
+	calc.stageProgress = 0.0
+	calc.totalLines = 0
+	calc.currentLines = 0
+	calc.stageStartTime = time.Now()
+
+	// Set estimated duration based on stage
+	switch stage {
+	case StageConfigure:
+		calc.estimatedStageDuration = 2 * time.Minute
+	case StageCompile:
+		calc.estimatedStageDuration = 10 * time.Minute
+	case StageTest:
+		calc.estimatedStageDuration = 5 * time.Minute
+	case StageInstall:
+		calc.estimatedStageDuration = 1 * time.Minute
+	default:
+		calc.estimatedStageDuration = 30 * time.Second
+	}
+}
+
+// UpdateStageProgress updates progress within the current stage
+func (calc *BuildProgressCalculator) UpdateStageProgress(progress float64) {
+	// Ensure progress is within bounds
+	if progress < 0.0 {
+		progress = 0.0
+	} else if progress > 1.0 {
+		progress = 1.0
+	}
+	calc.stageProgress = progress
+}
+
+// UpdateTimeBasedProgress updates progress based on elapsed time
+func (calc *BuildProgressCalculator) UpdateTimeBasedProgress() {
+	elapsed := time.Since(calc.stageStartTime)
+	if calc.estimatedStageDuration > 0 {
+		progress := float64(elapsed) / float64(calc.estimatedStageDuration)
+		if progress > 0.95 {
+			progress = 0.95 // Cap at 95% to avoid reaching 100% before completion
+		}
+		calc.UpdateStageProgress(progress)
+	}
+}
+
+// UpdateLineBasedProgress updates progress based on line count
+func (calc *BuildProgressCalculator) UpdateLineBasedProgress() {
+	calc.currentLines++
+	if calc.totalLines > 0 {
+		progress := float64(calc.currentLines) / float64(calc.totalLines)
+		calc.UpdateStageProgress(progress)
+	}
+}
+
+// GetOverallProgress calculates the overall progress across all stages
+func (calc *BuildProgressCalculator) GetOverallProgress() float64 {
+	overallProgress := 0.0
+
+	// Add completed stages
+	for stage := StageExtract; stage < calc.currentStage; stage++ {
+		if weight, exists := calc.stageWeights[stage]; exists {
+			overallProgress += weight
+		}
+	}
+
+	// Add current stage progress
+	if weight, exists := calc.stageWeights[calc.currentStage]; exists {
+		overallProgress += weight * calc.stageProgress
+	}
+
+	return overallProgress
+}
+
+// ParseMakeProgress attempts to parse progress from make output
+func (calc *BuildProgressCalculator) ParseMakeProgress(line string) bool {
+	// Look for percentage indicators in make output
+	if strings.Contains(line, "[100%]") {
+		calc.UpdateStageProgress(1.0)
+		return true
+	}
+
+	// Look for percentage patterns like "[45%]"
+	if strings.Contains(line, "[") && strings.Contains(line, "%]") {
+		start := strings.Index(line, "[") + 1
+		end := strings.Index(line, "%]")
+		if start > 0 && end > start {
+			percentStr := line[start:end]
+			if percent, err := strconv.ParseFloat(percentStr, 64); err == nil {
+				calc.UpdateStageProgress(percent / 100.0)
+				return true
+			}
+		}
+	}
+
+	// Look for "CC " or "LD " patterns to estimate compilation progress
+	if strings.Contains(line, "CC ") || strings.Contains(line, "LD ") {
+		// Initialize totalLines if not set (estimated based on typical Perl build)
+		if calc.totalLines == 0 {
+			calc.totalLines = 100 // Rough estimate for typical Perl compilation
+		}
+		calc.UpdateLineBasedProgress()
+		return true
+	}
+
+	return false
+}
+
 // BuildOptions contains options for building Perl
 type BuildOptions struct {
 	// Version to build (used to identify source archive)
@@ -169,6 +314,9 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	stageTimes := make(map[BuildProgressStage]time.Duration)
 	stageStartTime := startTime
 
+	// Create progress calculator
+	progressCalc := NewBuildProgressCalculator()
+
 	// Function to update stage timing and report progress
 	updateStage := func(stage BuildProgressStage, details string, progress float64) {
 		// Update timing for the previous stage if any
@@ -180,9 +328,23 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 		// Reset stage start time
 		stageStartTime = time.Now()
 
+		// Update progress calculator
+		progressCalc.SetStage(stage)
+		progressCalc.UpdateStageProgress(progress)
+
 		// Report progress if callback is set
 		if options.ProgressCallback != nil {
-			options.ProgressCallback(stage, details, progress)
+			overallProgress := progressCalc.GetOverallProgress()
+			options.ProgressCallback(stage, details, overallProgress)
+		}
+	}
+
+	// Function to report stage progress updates
+	reportStageProgress := func(details string, stageProgress float64) {
+		progressCalc.UpdateStageProgress(stageProgress)
+		if options.ProgressCallback != nil {
+			overallProgress := progressCalc.GetOverallProgress()
+			options.ProgressCallback(progressCalc.currentStage, details, overallProgress)
 		}
 	}
 
@@ -364,8 +526,21 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 		configureOptions,
 		options.Context,
 		func(line string) {
+			// Update progress based on configure output
+			if strings.Contains(line, "Checking") || strings.Contains(line, "Looking") {
+				// Use time-based progress for configure stage
+				progressCalc.UpdateTimeBasedProgress()
+			} else if strings.Contains(line, "config.sh") || strings.Contains(line, "Makefile") {
+				// Configure is near completion
+				reportStageProgress(line, 0.9)
+			} else {
+				// Use time-based progress as fallback
+				progressCalc.UpdateTimeBasedProgress()
+			}
+
 			if options.ProgressCallback != nil {
-				options.ProgressCallback(StageConfigure, line, 0.5)
+				overallProgress := progressCalc.GetOverallProgress()
+				options.ProgressCallback(StageConfigure, line, overallProgress)
 			}
 		},
 	)
@@ -394,23 +569,20 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 		[]string{fmt.Sprintf("-j%d", jobs)},
 		options.Context,
 		func(line string) {
+			// Try to parse progress from make output
+			if !progressCalc.ParseMakeProgress(line) {
+				// If no percentage found, use time-based progress
+				progressCalc.UpdateTimeBasedProgress()
+			}
+
+			// Special handling for linking stage (usually near end)
+			if strings.Contains(line, "LD ") || strings.Contains(line, "linking") {
+				reportStageProgress(line, 0.95)
+			}
+
 			if options.ProgressCallback != nil {
-				// Parse progress from make output (approximate)
-				progress := 0.0
-				if strings.Contains(line, "[100%]") {
-					progress = 1.0
-				} else if strings.Contains(line, "[") && strings.Contains(line, "%]") {
-					// Extract percentage from line like "[45%]"
-					start := strings.Index(line, "[") + 1
-					end := strings.Index(line, "%]")
-					if start > 0 && end > start {
-						percentStr := line[start:end]
-						if percent, err := strconv.ParseFloat(percentStr, 64); err == nil {
-							progress = percent / 100.0
-						}
-					}
-				}
-				options.ProgressCallback(StageCompile, line, progress)
+				overallProgress := progressCalc.GetOverallProgress()
+				options.ProgressCallback(StageCompile, line, overallProgress)
 			}
 		},
 	)
@@ -433,16 +605,23 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 			[]string{"test"},
 			options.Context,
 			func(line string) {
+				// Parse progress from test output
+				if strings.Contains(line, "All tests successful") {
+					reportStageProgress(line, 1.0)
+				} else if strings.Contains(line, "test") && strings.Contains(line, "..") {
+					// Count individual test completions
+					progressCalc.UpdateLineBasedProgress()
+				} else if strings.Contains(line, "PASS") || strings.Contains(line, "ok") {
+					// Test passed
+					progressCalc.UpdateLineBasedProgress()
+				} else {
+					// Use time-based progress as fallback
+					progressCalc.UpdateTimeBasedProgress()
+				}
+
 				if options.ProgressCallback != nil {
-					// Parse progress from test output (approximate)
-					progress := 0.0
-					if strings.Contains(line, "All tests successful") {
-						progress = 1.0
-					} else if strings.Contains(line, "test") && strings.Contains(line, "..") {
-						// Very rough estimate based on test count
-						progress = 0.5
-					}
-					options.ProgressCallback(StageTest, line, progress)
+					overallProgress := progressCalc.GetOverallProgress()
+					options.ProgressCallback(StageTest, line, overallProgress)
 				}
 			},
 		)
@@ -468,8 +647,21 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 			[]string{"install"},
 			options.Context,
 			func(line string) {
+				// Parse progress from install output
+				if strings.Contains(line, "Installing") || strings.Contains(line, "cp ") {
+					// Count file installations
+					progressCalc.UpdateLineBasedProgress()
+				} else if strings.Contains(line, "make install") {
+					// Installation starting
+					reportStageProgress(line, 0.1)
+				} else {
+					// Use time-based progress as fallback
+					progressCalc.UpdateTimeBasedProgress()
+				}
+
 				if options.ProgressCallback != nil {
-					options.ProgressCallback(StageInstall, line, 0.5)
+					overallProgress := progressCalc.GetOverallProgress()
+					options.ProgressCallback(StageInstall, line, overallProgress)
 				}
 			},
 		)

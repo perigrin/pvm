@@ -58,12 +58,16 @@ func (t *SimpleTracker) Update(current int, message string) {
 	}
 
 	now := time.Now()
+	previousPercentage := t.status.Percentage
 	t.status.Current = current
 	t.status.Message = message
 	t.status.ElapsedTime = now.Sub(t.status.StartTime)
 
 	if t.status.Total > 0 {
 		t.status.Percentage = float64(current) / float64(t.status.Total) * 100.0
+
+		// Apply bounds checking to prevent stuck progress
+		t.status.Percentage = t.applyProgressBounds(t.status.Percentage, previousPercentage, now)
 
 		// Calculate estimated remaining time
 		if current > 0 {
@@ -75,6 +79,40 @@ func (t *SimpleTracker) Update(current int, message string) {
 
 	t.status.Stage = "processing"
 	t.notifyCallbacks()
+}
+
+// applyProgressBounds applies bounds checking to prevent stuck progress
+func (t *SimpleTracker) applyProgressBounds(newPercentage, previousPercentage float64, now time.Time) float64 {
+	// Ensure progress doesn't go backwards
+	if newPercentage < previousPercentage {
+		newPercentage = previousPercentage
+	}
+
+	// Detect stuck progress (no change for more than 30 seconds)
+	if newPercentage == previousPercentage {
+		if t.status.lastProgressChange.IsZero() {
+			t.status.lastProgressChange = now
+		} else if now.Sub(t.status.lastProgressChange) > 30*time.Second {
+			// Force minimum progress advancement (0.1% per 30 seconds)
+			newPercentage = previousPercentage + 0.1
+			if newPercentage > 95.0 {
+				newPercentage = 95.0 // Cap at 95% to avoid false completion
+			}
+			t.status.lastProgressChange = now
+		}
+	} else {
+		// Progress changed, reset the timer
+		t.status.lastProgressChange = now
+	}
+
+	// Ensure percentage stays within bounds
+	if newPercentage < 0.0 {
+		newPercentage = 0.0
+	} else if newPercentage > 100.0 {
+		newPercentage = 100.0
+	}
+
+	return newPercentage
 }
 
 // Finish completes the operation with final result
