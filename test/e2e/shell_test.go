@@ -214,6 +214,8 @@ func TestShellCompletion(t *testing.T) {
 			case "zsh":
 				helpers.AssertStringContains(t, stdout, "#compdef pvm", "Zsh completion should contain compdef directive")
 				helpers.AssertStringContains(t, stdout, "_pvm()", "Zsh completion should contain completion function")
+				helpers.AssertStringContains(t, stdout, "compdef _pvm pvm", "Zsh completion should register function with compdef")
+				helpers.AssertStringDoesNotContain(t, stdout, "_pvm \"$@\"", "Zsh completion should not call function immediately")
 			case "fish":
 				helpers.AssertStringContains(t, stdout, "complete -c pvm", "Fish completion should contain complete commands")
 			case "powershell":
@@ -230,4 +232,47 @@ func TestShellCompletion(t *testing.T) {
 		}
 		helpers.AssertStringContains(t, stderr, "unsupported shell", "Error should mention unsupported shell")
 	})
+}
+
+// TestShellConflictDetection tests detection of conflicting version managers
+func TestShellConflictDetection(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Create a mock plenv shims directory in PATH to simulate a conflict
+	mockPlenvShims := filepath.Join(env.HomeDir, "plenv-shims")
+	err := os.MkdirAll(mockPlenvShims, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create mock plenv shims directory: %v", err)
+	}
+
+	// Modify PATH to include the mock plenv shims
+	originalPath := os.Getenv("PATH")
+	newPath := mockPlenvShims + string(os.PathListSeparator) + originalPath
+	err = os.Setenv("PATH", newPath)
+	if err != nil {
+		t.Fatalf("Failed to set PATH: %v", err)
+	}
+	defer func() {
+		_ = os.Setenv("PATH", originalPath)
+	}()
+
+	// Run shell init command which should detect the conflict
+	stdout, stderr, err := env.RunPVM("shell", "init")
+	if err != nil {
+		t.Fatalf("Shell initialization failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	// Check that shell scripts were created
+	shellDir := filepath.Join(env.PVMDataDir, "shell")
+	bashScript := filepath.Join(shellDir, "pvm.bash")
+	helpers.AssertFileExists(t, bashScript, "Bash shell script not created")
+
+	// Check if the bash script contains conflict warnings
+	helpers.AssertFileContains(t, bashScript, "PVM detected other Perl version managers",
+		"Bash script should contain conflict detection warnings")
+	helpers.AssertFileContains(t, bashScript, "plenv",
+		"Bash script should specifically mention plenv conflict")
+	helpers.AssertFileContains(t, bashScript, "PVM_SUPPRESS_WARNINGS",
+		"Bash script should mention suppression option")
 }
