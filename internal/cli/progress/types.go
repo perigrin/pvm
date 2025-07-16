@@ -95,6 +95,9 @@ type Status struct {
 
 	// SubOperation represents any sub-operation being performed
 	SubOperation string `json:"sub_operation,omitempty"`
+
+	// lastProgressChange tracks when progress last changed (for bounds checking)
+	lastProgressChange time.Time `json:"-"`
 }
 
 // ParallelStatus represents the status of parallel operations
