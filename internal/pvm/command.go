@@ -100,7 +100,6 @@ func NewCommand() *cobra.Command {
 		newCompletionCommand(),
 		newMCPCommand(),
 		newEnvCommand(),
-		createPerformanceCommand(),
 		newToolCommand(),
 
 		// Enhanced help system
@@ -1154,10 +1153,11 @@ func newExecCommand() *cobra.Command {
 
 func newUninstallCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "uninstall [version]",
-		Short: "Remove a Perl version",
-		Long:  "Uninstall a specific version of Perl",
-		Args:  cobra.ExactArgs(1),
+		Use:     "uninstall [version]",
+		Aliases: []string{"rm"},
+		Short:   "Remove a Perl version",
+		Long:    "Uninstall a specific version of Perl",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
 
