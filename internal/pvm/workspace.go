@@ -751,14 +751,7 @@ func showNextSteps(cmd *cobra.Command, createdDir bool, projectDir string) {
 
 // loadTemplate loads a template by name, checking user templates first, then embedded templates
 func loadTemplate(name string) (ProjectTemplate, error) {
-	// First try to load from user templates
-	template, err := loadUserTemplate(name)
-	if err == nil {
-		return template, nil
-	}
-
-	// Fall back to embedded templates
-	return getEmbeddedTemplate(name)
+	return loadTemplateWithVariables(name, "example")
 }
 
 // loadTemplateWithVariables loads a template with project-specific variables
@@ -770,15 +763,15 @@ func loadTemplateWithVariables(name, projectName string) (ProjectTemplate, error
 	}
 
 	// Fall back to embedded templates with variables
+	return loadEmbeddedTemplateWithVariables(name, projectName)
+}
+
+// loadEmbeddedTemplateWithVariables loads an embedded template with project-specific variables
+func loadEmbeddedTemplateWithVariables(name, projectName string) (ProjectTemplate, error) {
 	manager := NewEmbeddedTemplateManager()
+	variables := NewTemplateVariables(projectName)
 
-	// Create template variables
-	variables := map[string]interface{}{
-		"ProjectName": projectName,
-		"Version":     "0.01",
-	}
-
-	template, err = manager.LoadEmbeddedTemplate(name, variables)
+	template, err := manager.LoadEmbeddedTemplate(name, variables)
 	if err != nil {
 		return ProjectTemplate{}, fmt.Errorf("unknown template: %s", name)
 	}
@@ -809,20 +802,7 @@ func loadUserTemplate(name string) (ProjectTemplate, error) {
 
 // getEmbeddedTemplate returns an embedded template
 func getEmbeddedTemplate(name string) (ProjectTemplate, error) {
-	manager := NewEmbeddedTemplateManager()
-
-	// Create template variables
-	variables := map[string]interface{}{
-		"ProjectName": "example", // Default project name for template loading
-		"Version":     "0.01",    // Default version
-	}
-
-	template, err := manager.LoadEmbeddedTemplate(name, variables)
-	if err != nil {
-		return ProjectTemplate{}, fmt.Errorf("unknown template: %s", name)
-	}
-
-	return template, nil
+	return loadEmbeddedTemplateWithVariables(name, "example")
 }
 
 // listTemplates lists all available templates

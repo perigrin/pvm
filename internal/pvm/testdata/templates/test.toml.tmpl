@@ -1,0 +1,18 @@
+# Test template
+name = "test"
+description = "Test template for {{.ProjectName}}"
+
+[directories]
+create = ["lib", "t"]
+
+[dependencies]
+# Core pragmas (strict, warnings, utf8) are built-in to Perl
+
+[config]
+project_name = "{{.ProjectName}}"
+version = "{{.Version}}"
+web_port = {{.WebPort | default "8080"}}
+database_url = "{{.DatabaseURL}}"
+
+[gitignore_additions]
+entries = ["*.tmp"]

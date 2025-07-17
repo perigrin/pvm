@@ -17,6 +17,34 @@ import (
 // Global embedded filesystem - will be initialized from main package
 var GlobalTemplatesFS embed.FS
 
+// TemplateVariables represents the structured set of variables available to templates
+type TemplateVariables struct {
+	ProjectName string
+	Version     string
+	WebPort     string
+	DatabaseURL string
+}
+
+// ToMap converts TemplateVariables to a map for template execution
+func (tv TemplateVariables) ToMap() map[string]interface{} {
+	return map[string]interface{}{
+		"ProjectName": tv.ProjectName,
+		"Version":     tv.Version,
+		"WebPort":     tv.WebPort,
+		"DatabaseURL": tv.DatabaseURL,
+	}
+}
+
+// NewTemplateVariables creates a new TemplateVariables with sensible defaults
+func NewTemplateVariables(projectName string) TemplateVariables {
+	return TemplateVariables{
+		ProjectName: projectName,
+		Version:     "0.01",
+		WebPort:     "3000",
+		DatabaseURL: "sqlite:db/app.db",
+	}
+}
+
 // EmbeddedTemplateManager manages embedded project templates
 type EmbeddedTemplateManager struct {
 	templatesFS embed.FS
@@ -75,7 +103,7 @@ func (etm *EmbeddedTemplateManager) ListEmbeddedTemplates() ([]string, error) {
 }
 
 // LoadEmbeddedTemplate loads and renders an embedded template
-func (etm *EmbeddedTemplateManager) LoadEmbeddedTemplate(name string, variables map[string]interface{}) (ProjectTemplate, error) {
+func (etm *EmbeddedTemplateManager) LoadEmbeddedTemplate(name string, variables TemplateVariables) (ProjectTemplate, error) {
 	templatePath := filepath.Join("assets/templates", name+".toml.tmpl")
 
 	// Read template content
@@ -91,7 +119,7 @@ func (etm *EmbeddedTemplateManager) LoadEmbeddedTemplate(name string, variables 
 	}
 
 	var buf strings.Builder
-	if err := tmpl.Execute(&buf, variables); err != nil {
+	if err := tmpl.Execute(&buf, variables.ToMap()); err != nil {
 		return ProjectTemplate{}, fmt.Errorf("failed to execute template '%s': %w", name, err)
 	}
 
@@ -131,10 +159,8 @@ func (etm *EmbeddedTemplateManager) LoadEmbeddedTemplate(name string, variables 
 // GetEmbeddedTemplateDescription returns the description of an embedded template
 func (etm *EmbeddedTemplateManager) GetEmbeddedTemplateDescription(name string) (string, error) {
 	// Load template with minimal variables to get description
-	template, err := etm.LoadEmbeddedTemplate(name, map[string]interface{}{
-		"ProjectName": "example",
-		"Version":     "0.01",
-	})
+	variables := NewTemplateVariables("example")
+	template, err := etm.LoadEmbeddedTemplate(name, variables)
 	if err != nil {
 		return "", err
 	}

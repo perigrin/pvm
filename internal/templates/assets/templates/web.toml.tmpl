@@ -1,44 +1,49 @@
-# Web application template with Mojolicious
+# Web application template with Dancer2
 name = "web"
-description = "Web application template with Mojolicious and common tools"
+description = "Web application template with Dancer2 and common tools"
 
 [directories]
 create = [
     "lib",
     "t",
-    "templates",
+    "views",
     "public",
     "public/css",
     "public/js",
-    "script"
+    "public/images",
+    "config",
+    "bin"
 ]
 
 [dependencies]
-Mojolicious = ">= 9.0"
+Dancer2 = ""
+"Template::Toolkit" = ""
 DBI = ""
 "DBD::SQLite" = ""
-"Mojo::Pg" = ""
-strict = ""
-warnings = ""
-utf8 = ""
+"DBIx::Class" = ""
+# Core pragmas (strict, warnings, utf8) are built-in to Perl
 
 [dev_dependencies]
 "Perl::Critic" = ""
 "Perl::Tidy" = ""
 "Plack::Test" = ""
+"Test::WWW::Mechanize::PSGI" = ""
 
 [test_dependencies]
 "Test::More" = ">= 0.98"
 "Test::Exception" = ""
-"Test::Mojo" = ""
+"HTTP::Request::Common" = ""
+"Test::WWW::Mechanize::PSGI" = ""
 
 [config]
 web_port = {{.WebPort | default "3000"}}
 database_url = "{{.DatabaseURL | default "sqlite:db/app.db"}}"
+template_engine = "template_toolkit"
 
 [gitignore_additions]
 entries = [
     "db/*.db",
     "sessions/",
-    "log/"
+    "logs/",
+    "config/environments/production.yml"
 ]
