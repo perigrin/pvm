@@ -53,6 +53,9 @@ tree-sitter-typed-perl/node-types.json
 
 # Test artifacts
 test/e2e/test_output_file.txt
+test/e2e/lib/
+test/e2e/lib/lib/perl5/
+test/e2e/lib/man/
 
 # Temporary and miscellaneous files
 lib.c
@@ -88,3 +91,108 @@ test-pvm
 **/*.tar.gz
 internal/integration/\$XDG_CACHE_HOME/
 internal/pvm/*.tar.gz
+
+# Cache and local directories
+.cache/
+.local/
+**/.cache/
+**/.local/
+internal/config/.cache/
+internal/config/.local/
+
+# Test project directories
+test-auto-import/
+test-project/
+test/corpus/parser/input/
+test/corpus/parser/integration-results/
+testdata/corpus/parser/input/
+testdata/corpus/parser/integration-results/
+
+# Performance and profiling files
+performance-profiles/
+*.prof
+*.pprof
+*.mem
+*.cpu
+
+# Security-sensitive files
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+*.cert
+*.der
+
+# Environment and secrets
+.env
+.env.*
+.secrets
+.auth
+.token
+.credentials
+
+# SSH keys
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+known_hosts
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cloud provider config
+.aws/
+.gcp/
+.azure/
+service-account*.json
+
+# Additional tree-sitter build artifacts
+tree-sitter-typed-perl/build/
+tree-sitter-typed-perl/node_modules/
+tree-sitter-typed-perl/package-lock.json
+tree-sitter-typed-perl/libtree-sitter-typed-perl.so.1
+tree-sitter-typed-perl/typed-perl.so
+tree-sitter-typed-perl/tree-sitter-perl.pc
+tree-sitter-typed-perl/libtree-sitter-typed-perl.a
+tree-sitter-typed-perl/src/scanner.o
+tree-sitter-typed-perl/src/parser.o
+tree-sitter-typed-perl/src/scanner-upstream.o
+libtree-sitter-typed-perl.so
+
+# JavaScript and Node.js files
+yarn.lock
+package-lock.json
+
+# Go workspace files
+go.work.sum
+
+# Additional backup files
+*.backup
+*.orig
+*.rej
+*.patch
+*.go.backup
+
+# Enhanced IDE files
+.vscode/settings.json
+.vscode/launch.json
+.idea/workspace.xml
+.idea/tasks.xml
+
+# Documentation files (generated)
+*.3pm
+perllocal.pod
+
+# Additional Perl installation files
+lib/lib/perl5/
+lib/man/
+
+# Core dumps and debug files
+core
+core.*
+*.dump
+*.dmp

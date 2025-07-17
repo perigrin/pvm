@@ -95,6 +95,76 @@ func TestInstallCommandFlags(t *testing.T) {
 	}
 }
 
+func TestVersionsCommand_FormatFlag(t *testing.T) {
+	cmd := newVersionsCommand()
+
+	// Test that format flag exists
+	flag := cmd.Flags().Lookup("format")
+	if flag == nil {
+		t.Fatal("Format flag should exist")
+	}
+
+	// Test default value
+	if flag.DefValue != "text" {
+		t.Errorf("Default format should be 'text', got '%s'", flag.DefValue)
+	}
+
+	// Test short flag
+	shortFlag := cmd.Flags().ShorthandLookup("f")
+	if shortFlag == nil {
+		t.Fatal("Short format flag should exist")
+	}
+	if shortFlag != flag {
+		t.Error("Short flag should be the same as long flag")
+	}
+}
+
+func TestVersionsCommand_FormatValidation(t *testing.T) {
+	cmd := newVersionsCommand()
+
+	// Test valid formats
+	validFormats := []string{"text", "json"}
+	for _, format := range validFormats {
+		cmd.SetArgs([]string{"--format", format})
+		err := cmd.ParseFlags([]string{"--format", format})
+		if err != nil {
+			t.Errorf("Valid format %s should not cause parse error: %v", format, err)
+		}
+	}
+
+	// Test invalid format (we can't easily test execution without installed versions,
+	// but we can test that the flag accepts the value)
+	cmd.SetArgs([]string{"--format", "invalid"})
+	err := cmd.ParseFlags([]string{"--format", "invalid"})
+	if err != nil {
+		t.Errorf("Flag parsing should succeed even for invalid format values: %v", err)
+	}
+}
+
+func TestVersionsCommand_HelpText(t *testing.T) {
+	cmd := newVersionsCommand()
+
+	// Test command metadata
+	if cmd.Use != "versions" {
+		t.Errorf("Command use should be 'versions', got '%s'", cmd.Use)
+	}
+	if cmd.Short != "List installed versions" {
+		t.Errorf("Command short should be 'List installed versions', got '%s'", cmd.Short)
+	}
+	if !strings.Contains(cmd.Long, "List all installed Perl versions") {
+		t.Error("Command long should contain 'List all installed Perl versions'")
+	}
+
+	// Test flag help text
+	flag := cmd.Flags().Lookup("format")
+	if flag == nil {
+		t.Fatal("Format flag should exist")
+	}
+	if !strings.Contains(flag.Usage, "json") {
+		t.Error("Flag help should mention json format")
+	}
+}
+
 func TestInstallCommandFlagValidation(t *testing.T) {
 	// Test the validation logic without executing the command
 	cmd := newInstallCommand()

@@ -696,14 +696,6 @@ func newVersionsCommand() *cobra.Command {
 				return err
 			}
 
-			ui := cli.GetUI(cmd)
-
-			// Check if we have any installed versions
-			if len(installedVersions) == 0 {
-				ui.Warning("No versions installed. Use 'pvm install <version>' to install a version.")
-				return nil
-			}
-
 			// Get flags
 			showPath, err := cmd.Flags().GetBool("paths")
 			if err != nil {
@@ -715,7 +707,101 @@ func newVersionsCommand() *cobra.Command {
 				return err
 			}
 
-			// Display installed versions
+			format, err := cmd.Flags().GetString("format")
+			if err != nil {
+				return err
+			}
+
+			// Validate format flag
+			validFormats := []string{"text", "json"}
+			isValid := false
+			for _, valid := range validFormats {
+				if format == valid {
+					isValid = true
+					break
+				}
+			}
+			if !isValid {
+				return fmt.Errorf("invalid format '%s'. Valid formats: %s", format, strings.Join(validFormats, ", "))
+			}
+
+			// Check if we have any installed versions
+			if len(installedVersions) == 0 {
+				if format == "json" {
+					// Output empty JSON array for no versions
+					type CommandOutput struct {
+						Command   string      `json:"command"`
+						Timestamp string      `json:"timestamp"`
+						Data      interface{} `json:"data"`
+					}
+
+					output := CommandOutput{
+						Command:   "pvm versions",
+						Timestamp: time.Now().Format("2006-01-02T15:04:05Z07:00"),
+						Data:      []interface{}{},
+					}
+
+					jsonData, err := json.MarshalIndent(output, "", "  ")
+					if err != nil {
+						return fmt.Errorf("failed to marshal JSON: %w", err)
+					}
+
+					fmt.Println(string(jsonData))
+					return nil
+				}
+
+				ui := cli.GetUI(cmd)
+				ui.Warning("No versions installed. Use 'pvm install <version>' to install a version.")
+				return nil
+			}
+
+			// Handle JSON format
+			if format == "json" {
+				type VersionInfo struct {
+					Version     string `json:"version"`
+					InstallPath string `json:"install_path"`
+					Source      string `json:"source"`
+					InstallTime string `json:"install_time"`
+					IsLatest    bool   `json:"is_latest"`
+				}
+
+				type CommandOutput struct {
+					Command   string        `json:"command"`
+					Timestamp string        `json:"timestamp"`
+					Data      []VersionInfo `json:"data"`
+				}
+
+				var versionInfos []VersionInfo
+
+				// Convert installed versions to JSON format
+				for i, versionInfo := range installedVersions {
+					versionInfos = append(versionInfos, VersionInfo{
+						Version:     versionInfo.Version,
+						InstallPath: versionInfo.InstallPath,
+						Source:      versionInfo.Source,
+						InstallTime: versionInfo.InstallTime.Format("2006-01-02T15:04:05Z07:00"),
+						IsLatest:    i == 0, // First version is latest
+					})
+				}
+
+				output := CommandOutput{
+					Command:   "pvm versions",
+					Timestamp: time.Now().Format("2006-01-02T15:04:05Z07:00"),
+					Data:      versionInfos,
+				}
+
+				// Output JSON
+				jsonData, err := json.MarshalIndent(output, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %w", err)
+				}
+
+				fmt.Println(string(jsonData))
+				return nil
+			}
+
+			// Default text output
+			ui := cli.GetUI(cmd)
 			ui.Header("Installed Perl versions:")
 			for i, versionInfo := range installedVersions {
 				// Add decoration for special versions
@@ -768,6 +854,7 @@ func newVersionsCommand() *cobra.Command {
 	// Add flags
 	cmd.Flags().Bool("paths", false, "Show installation paths")
 	cmd.Flags().Bool("source", false, "Show source and installation time")
+	cmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 
 	return cmd
 }

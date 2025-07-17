@@ -28,6 +28,7 @@ func TestNewCheckTypeCommand(t *testing.T) {
 	assert.NotNil(t, cmd.Flags().Lookup("strict"))
 	assert.NotNil(t, cmd.Flags().Lookup("verbose"))
 	assert.NotNil(t, cmd.Flags().Lookup("recursive"))
+	assert.NotNil(t, cmd.Flags().Lookup("format"))
 
 	// Test flag defaults
 	strict, err := cmd.Flags().GetBool("strict")
@@ -41,6 +42,10 @@ func TestNewCheckTypeCommand(t *testing.T) {
 	recursive, err := cmd.Flags().GetBool("recursive")
 	assert.NoError(t, err)
 	assert.False(t, recursive)
+
+	format, err := cmd.Flags().GetString("format")
+	assert.NoError(t, err)
+	assert.Equal(t, "text", format)
 }
 
 // TestIsPerlFileCheck tests the Perl file detection
@@ -135,6 +140,10 @@ func TestCommandShortFlags(t *testing.T) {
 	flag = cmd.Flags().ShorthandLookup("r")
 	assert.NotNil(t, flag, "Short flag 'r' should exist for recursive")
 	assert.Equal(t, "recursive", flag.Name)
+
+	flag = cmd.Flags().ShorthandLookup("f")
+	assert.NotNil(t, flag, "Short flag 'f' should exist for format")
+	assert.Equal(t, "format", flag.Name)
 }
 
 // TestCommandHelpText tests the command help text
@@ -412,3 +421,53 @@ func TestEmptyFile(t *testing.T) {
 
 // TestLargePerlFile removed - synthetic stress tests are premature
 // TODO: Replace with real-world project testing when grammar is more complete
+
+// TestCheckCommand_FormatFlag tests the format flag functionality
+func TestCheckCommand_FormatFlag(t *testing.T) {
+	cmd := newCheckTypeCommand()
+
+	// Test that format flag exists
+	flag := cmd.Flags().Lookup("format")
+	assert.NotNil(t, flag, "Format flag should exist")
+
+	// Test default value
+	assert.Equal(t, "text", flag.DefValue, "Default format should be 'text'")
+
+	// Test short flag
+	shortFlag := cmd.Flags().ShorthandLookup("f")
+	assert.NotNil(t, shortFlag, "Short format flag should exist")
+	assert.Equal(t, flag, shortFlag, "Short flag should be the same as long flag")
+}
+
+// TestCheckCommand_FormatValidation tests format flag validation
+func TestCheckCommand_FormatValidation(t *testing.T) {
+	cmd := newCheckTypeCommand()
+
+	// Test valid formats
+	validFormats := []string{"text", "json"}
+	for _, format := range validFormats {
+		cmd.SetArgs([]string{"test.pl", "--format", format})
+		err := cmd.ParseFlags([]string{"test.pl", "--format", format})
+		assert.NoError(t, err, "Valid format %s should not cause parse error", format)
+	}
+
+	// Test invalid format (we can't easily test execution without proper files,
+	// but we can test that the flag accepts the value)
+	cmd.SetArgs([]string{"test.pl", "--format", "invalid"})
+	err := cmd.ParseFlags([]string{"test.pl", "--format", "invalid"})
+	assert.NoError(t, err, "Flag parsing should succeed even for invalid format values")
+}
+
+// TestCheckCommand_FormatHelpText tests format flag help text
+func TestCheckCommand_FormatHelpText(t *testing.T) {
+	cmd := newCheckTypeCommand()
+
+	// Test flag help text
+	flag := cmd.Flags().Lookup("format")
+	assert.NotNil(t, flag, "Format flag should exist")
+	assert.Contains(t, flag.Usage, "json", "Flag help should mention json format")
+	assert.Contains(t, flag.Usage, "text", "Flag help should mention text format")
+
+	// Test that example mentions JSON format
+	assert.Contains(t, cmd.Long, "--format json", "Command help should contain JSON format example")
+}
