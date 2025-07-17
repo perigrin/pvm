@@ -124,8 +124,8 @@ This command creates:
 				return err
 			}
 
-			// Load the template
-			template, err := loadTemplate(templateName)
+			// Load the template with project variables
+			template, err := loadTemplateWithVariables(templateName, projectName)
 			if err != nil {
 				return fmt.Errorf("failed to load template '%s': %w", templateName, err)
 			}
@@ -749,16 +749,34 @@ func showNextSteps(cmd *cobra.Command, createdDir bool, projectDir string) {
 	cmd.Printf("  pvm help build              # Build system commands\n")
 }
 
-// loadTemplate loads a template by name, checking user templates first, then built-in
+// loadTemplate loads a template by name, checking user templates first, then embedded templates
 func loadTemplate(name string) (ProjectTemplate, error) {
+	return loadTemplateWithVariables(name, "example")
+}
+
+// loadTemplateWithVariables loads a template with project-specific variables
+func loadTemplateWithVariables(name, projectName string) (ProjectTemplate, error) {
 	// First try to load from user templates
 	template, err := loadUserTemplate(name)
 	if err == nil {
 		return template, nil
 	}
 
-	// Fall back to built-in templates
-	return getBuiltinTemplate(name)
+	// Fall back to embedded templates with variables
+	return loadEmbeddedTemplateWithVariables(name, projectName)
+}
+
+// loadEmbeddedTemplateWithVariables loads an embedded template with project-specific variables
+func loadEmbeddedTemplateWithVariables(name, projectName string) (ProjectTemplate, error) {
+	manager := NewEmbeddedTemplateManager()
+	variables := NewTemplateVariables(projectName)
+
+	template, err := manager.LoadEmbeddedTemplate(name, variables)
+	if err != nil {
+		return ProjectTemplate{}, fmt.Errorf("unknown template: %s", name)
+	}
+
+	return template, nil
 }
 
 // loadUserTemplate loads a template from the user's XDG config directory
@@ -782,33 +800,9 @@ func loadUserTemplate(name string) (ProjectTemplate, error) {
 	return template, nil
 }
 
-// getBuiltinTemplate returns a built-in template
-func getBuiltinTemplate(name string) (ProjectTemplate, error) {
-	switch name {
-	case "minimal":
-		return ProjectTemplate{
-			Name:        "minimal",
-			Description: "Minimal Perl project with basic structure",
-			Directories: []string{"lib", "t"},
-			Dependencies: map[string]string{
-				"strict":   "",
-				"warnings": "",
-				"utf8":     "",
-			},
-			DevDeps: map[string]string{
-				"Perl::Critic": "",
-				"Perl::Tidy":   "",
-			},
-			TestDeps: map[string]string{
-				"Test::More":      ">= 0.98",
-				"Test::Exception": "",
-			},
-			Config:    map[string]any{},
-			GitIgnore: []string{},
-		}, nil
-	default:
-		return ProjectTemplate{}, fmt.Errorf("unknown template: %s", name)
-	}
+// getEmbeddedTemplate returns an embedded template
+func getEmbeddedTemplate(name string) (ProjectTemplate, error) {
+	return loadEmbeddedTemplateWithVariables(name, "example")
 }
 
 // listTemplates lists all available templates
@@ -816,13 +810,18 @@ func listTemplates(cmd *cobra.Command) error {
 	cmd.Println("Available project templates:")
 	cmd.Println()
 
-	// List built-in templates
+	// List embedded templates
 	cmd.Println("Built-in templates:")
-	builtinTemplates := []string{"minimal"}
-	for _, name := range builtinTemplates {
-		template, err := getBuiltinTemplate(name)
+	manager := NewEmbeddedTemplateManager()
+	embeddedTemplates, err := manager.ListEmbeddedTemplates()
+	if err != nil {
+		return fmt.Errorf("failed to list embedded templates: %w", err)
+	}
+
+	for _, name := range embeddedTemplates {
+		description, err := manager.GetEmbeddedTemplateDescription(name)
 		if err == nil {
-			cmd.Printf("  %-12s - %s\n", name, template.Description)
+			cmd.Printf("  %-12s - %s\n", name, description)
 		}
 	}
 

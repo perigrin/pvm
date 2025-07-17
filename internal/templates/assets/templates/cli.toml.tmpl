@@ -1,0 +1,39 @@
+# CLI application template
+name = "cli"
+description = "Command-line application template with Getopt::Long"
+
+[directories]
+create = [
+    "lib",
+    "t",
+    "script",
+    "share"
+]
+
+[dependencies]
+"Getopt::Long" = ""
+"Pod::Usage" = ""
+"File::Spec" = ""
+"File::Basename" = ""
+# Core pragmas (strict, warnings, utf8) are built-in to Perl
+
+[dev_dependencies]
+"Perl::Critic" = ""
+"Perl::Tidy" = ""
+"Pod::Coverage" = ""
+
+[test_dependencies]
+"Test::More" = ">= 0.98"
+"Test::Exception" = ""
+"Test::Script" = ""
+
+[config]
+app_name = "{{.ProjectName}}"
+version = "{{.Version | default "0.01"}}"
+
+[gitignore_additions]
+entries = [
+    "*.tar.gz",
+    "share/man/",
+    "blib/"
+]
