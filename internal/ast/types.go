@@ -6,6 +6,7 @@
 package ast
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -129,6 +130,60 @@ func (a *AST) Parent() Node {
 
 func (a *AST) SetParent(parent Node) {
 	// AST is the root, cannot set parent
+}
+
+// MarshalJSON implements json.Marshaler interface for AST
+func (a *AST) MarshalJSON() ([]byte, error) {
+	type astJSON struct {
+		Path            string                `json:"path"`
+		Root            *nodeJSON             `json:"root,omitempty"`
+		TypeAnnotations []*typeAnnotationJSON `json:"type_annotations"`
+		Errors          []string              `json:"errors"`
+		SourceLength    int                   `json:"source_length"`
+	}
+
+	// Convert errors to strings
+	var errorStrings []string
+	if len(a.Errors) == 0 {
+		errorStrings = []string{}
+	} else {
+		for _, err := range a.Errors {
+			errorStrings = append(errorStrings, err.Error())
+		}
+	}
+
+	// Convert type annotations
+	var typeAnnotations []*typeAnnotationJSON
+	if len(a.TypeAnnotations) == 0 {
+		typeAnnotations = []*typeAnnotationJSON{}
+	} else {
+		for _, ta := range a.TypeAnnotations {
+			typeAnnotations = append(typeAnnotations, &typeAnnotationJSON{
+				AnnotatedItem:  ta.AnnotatedItem,
+				TypeExpression: ta.TypeExpression,
+				Position:       ta.Pos,
+				Kind:           ta.Kind.String(),
+			})
+		}
+	}
+
+	// Convert root node
+	var rootJSON *nodeJSON
+	if a.Root != nil {
+		rootJSON = nodeToJSON(a.Root)
+	}
+
+	jsonBytes, err := json.Marshal(astJSON{
+		Path:            a.Path,
+		Root:            rootJSON,
+		TypeAnnotations: typeAnnotations,
+		Errors:          errorStrings,
+		SourceLength:    len(a.Source),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal AST to JSON: %w", err)
+	}
+	return jsonBytes, nil
 }
 
 // String returns a string representation of the AST for baseline testing
@@ -819,4 +874,141 @@ func (tie *typeInformationExtractor) VisitTypeDeclaration(node *TypeDecl) error 
 		tie.typeInfo.TypeAliases = append(tie.typeInfo.TypeAliases, info)
 	}
 	return nil
+}
+
+// JSON marshaling helper types and functions
+
+// nodeJSON represents a JSON-serializable node structure
+type nodeJSON struct {
+	Type     string      `json:"type"`
+	Start    Position    `json:"start"`
+	End      Position    `json:"end"`
+	Text     string      `json:"text,omitempty"`
+	Children []*nodeJSON `json:"children,omitempty"`
+
+	// Node-specific fields (will be populated based on node type)
+	Value    interface{} `json:"value,omitempty"`
+	Operator string      `json:"operator,omitempty"`
+	Name     string      `json:"name,omitempty"`
+	Sigil    string      `json:"sigil,omitempty"`
+	DeclType string      `json:"decl_type,omitempty"`
+	Package  string      `json:"package,omitempty"`
+	Method   bool        `json:"method,omitempty"`
+	Prefix   bool        `json:"prefix,omitempty"`
+	Kind     string      `json:"kind,omitempty"`
+}
+
+// typeAnnotationJSON represents a JSON-serializable type annotation
+type typeAnnotationJSON struct {
+	AnnotatedItem  string          `json:"annotated_item"`
+	TypeExpression *TypeExpression `json:"type_expression,omitempty"`
+	Position       Position        `json:"position"`
+	Kind           string          `json:"kind"`
+}
+
+// nodeToJSON converts a Node to JSON-serializable format
+// This avoids circular references by excluding parent pointers
+func nodeToJSON(node Node) *nodeJSON {
+	if node == nil {
+		return nil
+	}
+
+	// Create base node JSON
+	nodeJS := &nodeJSON{
+		Type:  node.Type(),
+		Start: node.Start(),
+		End:   node.End(),
+		Text:  node.Text(),
+	}
+
+	// Add children (recursively)
+	for _, child := range node.Children() {
+		if child != nil {
+			nodeJS.Children = append(nodeJS.Children, nodeToJSON(child))
+		}
+	}
+
+	// Add type-specific fields
+	switch n := node.(type) {
+	case *AssignmentExpr:
+		nodeJS.Operator = n.Operator
+	case *BinaryExpr:
+		nodeJS.Operator = n.Operator
+	case *CallExpr:
+		nodeJS.Method = n.Method
+	case *ClassDecl:
+		nodeJS.Name = n.Name
+	case *FieldDecl:
+		nodeJS.Name = n.Name
+	case *LiteralExpr:
+		nodeJS.Value = n.Value
+		nodeJS.Kind = literalKindToString(n.Kind)
+	case *MethodDecl:
+		nodeJS.Name = n.Name
+	case *PackageStmt:
+		nodeJS.Name = n.Name
+	case *RoleDecl:
+		nodeJS.Name = n.Name
+	case *SubDecl:
+		nodeJS.Name = n.Name
+	case *TypeAssertionExpr:
+		// Type assertion has an expression and a type
+		nodeJS.Name = n.TargetType.String()
+	case *TypeDecl:
+		nodeJS.Name = n.Name
+	case *TypeExpression:
+		nodeJS.Name = n.Name
+		nodeJS.Kind = typeExpressionKindToString(n.Kind)
+	case *UnaryExpr:
+		nodeJS.Operator = n.Operator
+		nodeJS.Prefix = n.Prefix
+	case *UseStmt:
+		nodeJS.Name = n.Module
+	case *VarDecl:
+		nodeJS.DeclType = n.DeclType
+		nodeJS.Package = n.Package
+	case *VariableExpr:
+		nodeJS.Name = n.Name
+		nodeJS.Sigil = n.Sigil
+		nodeJS.Package = n.Package
+	}
+
+	return nodeJS
+}
+
+// Helper functions to convert enums to strings
+func literalKindToString(kind LiteralKind) string {
+	switch kind {
+	case StringLiteral:
+		return "string"
+	case NumberLiteral:
+		return "number"
+	case BooleanLiteral:
+		return "boolean"
+	case UndefLiteral:
+		return "undef"
+	case RegexLiteral:
+		return "regex"
+	default:
+		return "unknown"
+	}
+}
+
+func typeExpressionKindToString(kind TypeExpressionKind) string {
+	switch kind {
+	case SimpleTypeKind:
+		return "simple"
+	case UnionTypeKind:
+		return "union"
+	case IntersectionTypeKind:
+		return "intersection"
+	case NegationTypeKind:
+		return "negation"
+	case ParameterizedTypeKind:
+		return "parameterized"
+	case ConstrainedTypeKind:
+		return "constrained"
+	default:
+		return "unknown"
+	}
 }

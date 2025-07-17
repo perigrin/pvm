@@ -4,6 +4,7 @@
 package psc
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -61,9 +62,9 @@ Examples:
 
 // runParseCommand executes the parse command with the specified format
 func runParseCommand(cmd *cobra.Command, ui *ui.Output, filePath, format, outputPath string) error {
-	// Verify file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return fmt.Errorf("file does not exist: %s", filePath)
+	// Validate input file
+	if err := validateInputFile(filePath); err != nil {
+		return fmt.Errorf("invalid input file: %w", err)
 	}
 
 	// Parse the file
@@ -198,8 +199,16 @@ func generateASTOutput(ast *ast.AST) string {
 
 // generateJSONOutput creates a JSON representation of the AST
 func generateJSONOutput(ast *ast.AST) (string, error) {
-	// TODO: Implement JSON serialization of AST
-	return "JSON output not yet implemented", nil
+	if ast == nil {
+		return "", fmt.Errorf("AST is nil")
+	}
+
+	jsonBytes, err := json.MarshalIndent(ast, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal AST to JSON: %v", err)
+	}
+
+	return string(jsonBytes), nil
 }
 
 // generateSummaryOutput creates a brief summary of the parse results
@@ -240,4 +249,24 @@ func generateTags(ast *ast.AST) []string {
 	}
 
 	return tags
+}
+
+// validateInputFile validates the input file for security and size constraints
+func validateInputFile(filePath string) error {
+	// Check if file exists
+	stat, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("file does not exist: %s", filePath)
+	}
+	if err != nil {
+		return fmt.Errorf("cannot access file: %w", err)
+	}
+
+	// Check file size to prevent memory exhaustion (100MB limit)
+	const maxFileSize = 100 * 1024 * 1024 // 100MB
+	if stat.Size() > maxFileSize {
+		return fmt.Errorf("file too large: %d bytes (limit: %d bytes)", stat.Size(), maxFileSize)
+	}
+
+	return nil
 }

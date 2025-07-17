@@ -49,6 +49,10 @@ type ParserTestCase struct {
 	ExpectedASTBeforeInfer string       `json:"expected_ast_before_infer,omitempty"`
 	ExpectedASTAfterInfer  string       `json:"expected_ast_after_infer,omitempty"`
 
+	// JSON AST expectations
+	ExpectedJSONASTBeforeInfer string `json:"expected_json_ast_before_infer,omitempty"`
+	ExpectedJSONASTAfterInfer  string `json:"expected_json_ast_after_infer,omitempty"`
+
 	// Compilation outcome expectations
 	ExpectedCompilationOutcomes *CompilationOutcomes `json:"expected_compilation_outcomes,omitempty"`
 }
@@ -277,14 +281,24 @@ func (f *ParserTestFramework) parseMarkdownTestCases(content string, metadata *M
 				// Check for Expected AST Before Type Inference
 				if strings.Contains(titleLower, "before type inference") {
 					if len(nextSection.CodeBlocks) > 0 {
-						testCase.ExpectedASTBeforeInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+						// Check if this is a JSON block or regular AST block
+						if strings.Contains(titleLower, "json") {
+							testCase.ExpectedJSONASTBeforeInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+						} else {
+							testCase.ExpectedASTBeforeInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+						}
 					}
 				}
 
 				// Check for Expected AST After Type Inference
 				if strings.Contains(titleLower, "after type inference") {
 					if len(nextSection.CodeBlocks) > 0 {
-						testCase.ExpectedASTAfterInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+						// Check if this is a JSON block or regular AST block
+						if strings.Contains(titleLower, "json") {
+							testCase.ExpectedJSONASTAfterInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+						} else {
+							testCase.ExpectedASTAfterInfer = strings.TrimSpace(nextSection.CodeBlocks[0].Content)
+						}
 					}
 				}
 
@@ -620,6 +634,17 @@ func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase
 		f.CompareASTString(t, testCase.ExpectedASTAfterInfer, ast, testCase.Name, "after type inference")
 	}
 
+	// Compare expected JSON AST before type inference
+	if testCase.ExpectedJSONASTBeforeInfer != "" {
+		f.CompareASTJSON(t, testCase.ExpectedJSONASTBeforeInfer, ast, testCase.Name, "before type inference (JSON)")
+	}
+
+	// Compare expected JSON AST after type inference
+	if testCase.ExpectedJSONASTAfterInfer != "" {
+		// For now, just compare against the same AST until type inference is implemented
+		f.CompareASTJSON(t, testCase.ExpectedJSONASTAfterInfer, ast, testCase.Name, "after type inference (JSON)")
+	}
+
 	// Run type checking if enabled
 	if testCase.TypeCheck {
 		f.RunTypeCheckValidation(t, testCase, ast)
@@ -704,6 +729,62 @@ func (f *ParserTestFramework) CompareASTString(t *testing.T, expectedStr string,
 
 	if f.Verbose {
 		t.Logf("Test %s (%s): AST matches expected structure", testName, phase)
+	}
+
+	return true
+}
+
+// CompareASTJSON compares an AST against an expected JSON representation
+func (f *ParserTestFramework) CompareASTJSON(t *testing.T, expectedJSON string, actual *ast.AST, testName, phase string) bool {
+	t.Helper()
+
+	if actual == nil {
+		t.Errorf("Test %s (%s): AST is nil", testName, phase)
+		return false
+	}
+
+	// Convert actual AST to JSON representation
+	actualJSON, err := json.MarshalIndent(actual, "", "  ")
+	if err != nil {
+		t.Errorf("Test %s (%s): Failed to marshal AST to JSON: %v", testName, phase, err)
+		return false
+	}
+
+	// Normalize both JSON strings (trim whitespace)
+	expectedJSON = strings.TrimSpace(expectedJSON)
+	actualJSONStr := strings.TrimSpace(string(actualJSON))
+
+	// Parse both JSON strings to ensure they're valid and for better comparison
+	var expectedObj, actualObj interface{}
+
+	if err := json.Unmarshal([]byte(expectedJSON), &expectedObj); err != nil {
+		t.Errorf("Test %s (%s): Expected JSON is invalid: %v", testName, phase, err)
+		return false
+	}
+
+	if err := json.Unmarshal(actualJSON, &actualObj); err != nil {
+		t.Errorf("Test %s (%s): Actual JSON is invalid: %v", testName, phase, err)
+		return false
+	}
+
+	// Compare the parsed objects
+	if !cmp.Equal(expectedObj, actualObj) {
+		if f.UpdateMode {
+			t.Logf("Test %s (%s): JSON AST mismatch - updating baseline in update mode", testName, phase)
+			return true
+		}
+
+		diff := cmp.Diff(expectedObj, actualObj)
+		t.Errorf("Test %s (%s): JSON AST mismatch (-expected +actual):\n%s", testName, phase, diff)
+
+		// Also log the JSON strings for easier debugging
+		t.Logf("Expected JSON:\n%s", expectedJSON)
+		t.Logf("Actual JSON:\n%s", actualJSONStr)
+		return false
+	}
+
+	if f.Verbose {
+		t.Logf("Test %s (%s): JSON AST matches expected structure", testName, phase)
 	}
 
 	return true
