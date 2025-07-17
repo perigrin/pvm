@@ -261,6 +261,155 @@ func TestFilterAssets(t *testing.T) {
 	}
 }
 
+func TestIsAssetMatch(t *testing.T) {
+	tests := []struct {
+		name      string
+		assetName string
+		pattern   string
+		expected  bool
+	}{
+		{
+			name:      "Simple exact match",
+			assetName: "pvm-darwin-arm64",
+			pattern:   "pvm-darwin-arm64",
+			expected:  true,
+		},
+		{
+			name:      "Versioned asset name",
+			assetName: "pvm-1.0.0-rc30-darwin-arm64.tar.gz",
+			pattern:   "pvm-darwin-arm64",
+			expected:  true,
+		},
+		{
+			name:      "Versioned asset name - Linux",
+			assetName: "pvm-1.0.0-rc30-linux-amd64.tar.gz",
+			pattern:   "pvm-linux-amd64",
+			expected:  true,
+		},
+		{
+			name:      "Versioned asset name - Windows",
+			assetName: "pvm-1.0.0-rc30-windows-amd64.exe.zip",
+			pattern:   "pvm-windows-amd64",
+			expected:  true,
+		},
+		{
+			name:      "Complex version number",
+			assetName: "pvm-2.1.0-beta.1-darwin-arm64.tar.gz",
+			pattern:   "pvm-darwin-arm64",
+			expected:  true,
+		},
+		{
+			name:      "Non-matching OS",
+			assetName: "pvm-1.0.0-rc30-linux-amd64.tar.gz",
+			pattern:   "pvm-darwin-arm64",
+			expected:  false,
+		},
+		{
+			name:      "Non-matching architecture",
+			assetName: "pvm-1.0.0-rc30-darwin-amd64.tar.gz",
+			pattern:   "pvm-darwin-arm64",
+			expected:  false,
+		},
+		{
+			name:      "Wrong tool name",
+			assetName: "pvx-1.0.0-rc30-darwin-arm64.tar.gz",
+			pattern:   "pvm-darwin-arm64",
+			expected:  false,
+		},
+		{
+			name:      "Invalid pattern",
+			assetName: "some-file.tar.gz",
+			pattern:   "invalid-pattern",
+			expected:  false,
+		},
+		{
+			name:      "Asset with extra suffixes",
+			assetName: "pvm-1.0.0-rc30-darwin-arm64-signed.tar.gz",
+			pattern:   "pvm-darwin-arm64",
+			expected:  true,
+		},
+		{
+			name:      "Asset with build metadata",
+			assetName: "pvm-1.0.0-rc30+build.123-darwin-arm64.tar.gz",
+			pattern:   "pvm-darwin-arm64",
+			expected:  true,
+		},
+		{
+			name:      "Substring false positive",
+			assetName: "some-pvm-darwin-arm64-tool",
+			pattern:   "pvm-darwin-arm64",
+			expected:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isAssetMatch(tt.assetName, tt.pattern)
+			if result != tt.expected {
+				t.Errorf("isAssetMatch(%q, %q) = %v, expected %v",
+					tt.assetName, tt.pattern, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFilterAssetsWithVersionedNames(t *testing.T) {
+	// Test with realistic versioned asset names like those in actual GitHub releases
+	assets := []GitHubAsset{
+		{Name: "pvm-1.0.0-rc30-linux-amd64.tar.gz", Size: 1000},
+		{Name: "pvm-1.0.0-rc30-linux-arm64.tar.gz", Size: 1100},
+		{Name: "pvm-1.0.0-rc30-darwin-amd64.tar.gz", Size: 1200},
+		{Name: "pvm-1.0.0-rc30-darwin-arm64.tar.gz", Size: 1300},
+		{Name: "pvm-1.0.0-rc30-windows-amd64.exe.zip", Size: 1400},
+		{Name: "checksums.txt", Size: 100},
+		{Name: "README.md", Size: 200},
+	}
+
+	tests := []struct {
+		name     string
+		platform Platform
+		expected int
+	}{
+		{
+			name:     "Linux AMD64 with versioned assets",
+			platform: Platform{OS: "linux", Architecture: "amd64"},
+			expected: 1,
+		},
+		{
+			name:     "Darwin ARM64 with versioned assets",
+			platform: Platform{OS: "darwin", Architecture: "arm64"},
+			expected: 1,
+		},
+		{
+			name:     "Windows AMD64 with versioned assets",
+			platform: Platform{OS: "windows", Architecture: "amd64", Extension: ".exe"},
+			expected: 1,
+		},
+		{
+			name:     "Unsupported platform with versioned assets",
+			platform: Platform{OS: "freebsd", Architecture: "amd64"},
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FilterAssets(assets, &tt.platform)
+			if len(result) != tt.expected {
+				t.Errorf("Expected %d assets, got %d", tt.expected, len(result))
+			}
+
+			// Verify correct asset was selected
+			if tt.expected == 1 && len(result) > 0 {
+				expectedPattern := tt.platform.AssetPattern()
+				if !isAssetMatch(result[0].Name, expectedPattern) {
+					t.Errorf("Expected asset name %s to match pattern %s", result[0].Name, expectedPattern)
+				}
+			}
+		})
+	}
+}
+
 func TestSelectBestAsset(t *testing.T) {
 	assets := []GitHubAsset{
 		{Name: "pvm-linux-amd64", Size: 1000},

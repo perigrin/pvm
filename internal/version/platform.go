@@ -5,6 +5,8 @@ package version
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"runtime"
 	"strings"
 )
@@ -14,6 +16,13 @@ type Platform struct {
 	OS           string // Operating system (windows, darwin, linux)
 	Architecture string // Architecture (amd64, arm64, etc.)
 	Extension    string // Executable extension (.exe on Windows, empty elsewhere)
+}
+
+// debugLog prints debug messages only when PVM_DEBUG environment variable is set
+func debugLog(format string, args ...interface{}) {
+	if os.Getenv("PVM_DEBUG") != "" {
+		log.Printf("[DEBUG] "+format, args...)
+	}
 }
 
 // DetectPlatform detects the current platform
@@ -28,6 +37,7 @@ func DetectPlatform() *Platform {
 		platform.Extension = ".exe"
 	}
 
+	debugLog("DetectPlatform: Detected platform %s", platform.String())
 	return platform
 }
 
@@ -68,6 +78,7 @@ func (p *Platform) AssetPattern() string {
 		pattern += p.Extension
 	}
 
+	debugLog("AssetPattern: Generated pattern '%s' for platform %s", pattern, p.String())
 	return pattern
 }
 
@@ -167,14 +178,74 @@ func FilterAssets(assets []GitHubAsset, platform *Platform) []GitHubAsset {
 	pattern := platform.AssetPattern()
 	var matches []GitHubAsset
 
+	debugLog("FilterAssets: Looking for pattern '%s' in %d assets", pattern, len(assets))
+	for i, asset := range assets {
+		debugLog("FilterAssets: Asset %d: %s", i, asset.Name)
+	}
+
 	for _, asset := range assets {
-		// Check if asset name matches our platform pattern
-		if strings.Contains(asset.Name, pattern) {
+		// Check if asset name matches our platform pattern using improved logic
+		matched := isAssetMatch(asset.Name, pattern)
+		debugLog("FilterAssets: '%s' matches pattern '%s': %t", asset.Name, pattern, matched)
+
+		if matched {
 			matches = append(matches, asset)
 		}
 	}
 
+	debugLog("FilterAssets: Found %d matches for platform %s", len(matches), platform.String())
 	return matches
+}
+
+// isAssetMatch checks if an asset name matches the platform pattern
+// This handles versioned asset names like "pvm-1.0.0-rc30-darwin-arm64.tar.gz"
+func isAssetMatch(assetName, pattern string) bool {
+	// Extract the platform part from the pattern (everything after "pvm-")
+	if !strings.HasPrefix(pattern, "pvm-") {
+		return false
+	}
+
+	// Asset must also start with "pvm-"
+	if !strings.HasPrefix(assetName, "pvm-") {
+		return false
+	}
+
+	platformPart := pattern[4:] // Remove "pvm-" prefix
+
+	// Try exact match first (for simple asset names like "pvm-darwin-arm64")
+	if assetName == pattern {
+		return true
+	}
+
+	// Handle versioned asset names
+	// Pattern: pvm-darwin-arm64
+	// Asset: pvm-1.0.0-rc30-darwin-arm64.tar.gz
+
+	// Ensure the platform part is properly delimited
+	// Look for pattern like "pvm-*-darwin-arm64" or "pvm-darwin-arm64"
+	parts := strings.Split(assetName, "-")
+	if len(parts) >= 3 {
+		// Reconstruct platform from the last parts
+		// For "pvm-1.0.0-rc30-darwin-arm64.tar.gz", parts would be:
+		// ["pvm", "1.0.0", "rc30", "darwin", "arm64.tar.gz"]
+		platformParts := strings.Split(platformPart, "-")
+		if len(platformParts) == 2 { // e.g., ["darwin", "arm64"]
+			os, arch := platformParts[0], platformParts[1]
+
+			// Find the OS and check if arch follows
+			for i, part := range parts {
+				if part == os && i+1 < len(parts) {
+					nextPart := parts[i+1]
+					// Handle arch with extension (e.g., "arm64.tar.gz")
+					if strings.HasPrefix(nextPart, arch) {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 // SelectBestAsset selects the best asset for the current platform
@@ -182,7 +253,13 @@ func SelectBestAsset(assets []GitHubAsset, platform *Platform) (*GitHubAsset, er
 	filtered := FilterAssets(assets, platform)
 
 	if len(filtered) == 0 {
-		return nil, fmt.Errorf("no assets found for platform %s", platform.String())
+		// Include available assets in error message for debugging
+		var assetNames []string
+		for _, asset := range assets {
+			assetNames = append(assetNames, asset.Name)
+		}
+		return nil, fmt.Errorf("no assets found for platform %s (pattern: %s). Available assets: %v",
+			platform.String(), platform.AssetPattern(), assetNames)
 	}
 
 	// For now, just return the first match
