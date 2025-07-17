@@ -4,10 +4,12 @@
 package psc
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/ast"
@@ -17,6 +19,23 @@ import (
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/typechecker"
 )
+
+// CheckResult represents the result of type checking a file
+type CheckResult struct {
+	File     string       `json:"file"`
+	Status   string       `json:"status"` // "success", "error", "skipped"
+	Errors   []CheckError `json:"errors,omitempty"`
+	Warnings []CheckError `json:"warnings,omitempty"`
+	Error    string       `json:"error,omitempty"` // For file-level errors
+}
+
+// CheckError represents a single type check error or warning
+type CheckError struct {
+	Line     int    `json:"line"`
+	Column   int    `json:"column"`
+	Message  string `json:"message"`
+	Severity string `json:"severity"` // "error", "warning"
+}
 
 // newCheckTypeCommand creates a command to check types in Perl files
 func newCheckTypeCommand() *cobra.Command {
@@ -51,10 +70,25 @@ Examples:
 			recursive, _ := cmd.Flags().GetBool("recursive")
 			showInferred, _ := cmd.Flags().GetBool("show-inferred")
 			dumpAST, _ := cmd.Flags().GetBool("dump-ast")
+			format, _ := cmd.Flags().GetString("format")
+
+			// Validate format flag
+			validFormats := []string{"text", "json"}
+			isValid := false
+			for _, valid := range validFormats {
+				if format == valid {
+					isValid = true
+					break
+				}
+			}
+			if !isValid {
+				return fmt.Errorf("invalid format '%s'. Valid formats: %s", format, strings.Join(validFormats, ", "))
+			}
 
 			// Process each argument
 			totalFiles := 0
 			totalErrors := 0
+			var allCheckResults []CheckResult
 
 			for _, arg := range args {
 				// Check if it's a file or directory
@@ -67,26 +101,63 @@ Examples:
 
 				if info.IsDir() {
 					if recursive {
-						files, errors, err := checkDirectory(ui, arg, strict, verbose, showInferred)
+						files, errors, results, err := checkDirectoryWithResults(ui, arg, strict, verbose, showInferred, format)
 						if err != nil {
 							return err
 						}
 						totalFiles += files
 						totalErrors += errors
+						allCheckResults = append(allCheckResults, results...)
 					} else {
-						ui.Warning("Skipping directory %s (use --recursive to check directories)", arg)
+						if format == "json" {
+							allCheckResults = append(allCheckResults, CheckResult{
+								File:   arg,
+								Status: "skipped",
+								Error:  "Directory skipped (use --recursive to check directories)",
+							})
+						} else {
+							ui.Warning("Skipping directory %s (use --recursive to check directories)", arg)
+						}
 					}
 				} else {
-					errors, err := checkFile(ui, arg, strict, verbose, showInferred, dumpAST)
+					errors, result, err := checkFileWithResults(ui, arg, strict, verbose, showInferred, dumpAST, format)
 					if err != nil {
 						return err
 					}
 					totalFiles++
 					totalErrors += errors
+					allCheckResults = append(allCheckResults, result)
 				}
 			}
 
-			// Print summary
+			// Handle JSON output
+			if format == "json" {
+				type CommandOutput struct {
+					Command      string        `json:"command"`
+					Timestamp    string        `json:"timestamp"`
+					FilesChecked int           `json:"files_checked"`
+					ErrorsFound  int           `json:"errors_found"`
+					Results      []CheckResult `json:"results"`
+				}
+
+				output := CommandOutput{
+					Command:      "psc check",
+					Timestamp:    time.Now().Format("2006-01-02T15:04:05Z07:00"),
+					FilesChecked: totalFiles,
+					ErrorsFound:  totalErrors,
+					Results:      allCheckResults,
+				}
+
+				jsonData, err := json.MarshalIndent(output, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %w", err)
+				}
+
+				fmt.Println(string(jsonData))
+				return nil
+			}
+
+			// Print summary for text format
 			if totalFiles > 1 {
 				if totalErrors > 0 {
 					ui.Error("Checked %d files, found %d type errors", totalFiles, totalErrors)
@@ -110,8 +181,157 @@ Examples:
 	cmd.Flags().BoolP("recursive", "r", false, "Recursively check directories")
 	cmd.Flags().BoolP("show-inferred", "i", false, "Show inferred types")
 	cmd.Flags().Bool("dump-ast", false, "Dump AST structure for debugging")
+	cmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 
 	return cmd
+}
+
+// checkFileWithResults performs type checking on a single file and returns structured results
+func checkFileWithResults(ui *ui.Output, filePath string, strict, verbose, showInferred, dumpAST bool, format string) (int, CheckResult, error) {
+	result := CheckResult{
+		File:   filePath,
+		Status: "success",
+	}
+
+	// Check if the file is a Perl file
+	if !isPerlFileCheck(filePath) {
+		if verbose && format == "text" {
+			ui.Warning("Skipping non-Perl file: %s", filePath)
+		}
+		result.Status = "skipped"
+		result.Error = "Not a Perl file"
+		return 0, result, nil
+	}
+
+	// If dumping AST, parse and dump the AST structure
+	if dumpAST && format == "text" {
+		ui.SubHeader(fmt.Sprintf("AST DUMP for %s", filePath))
+		err := dumpASTStructure(ui, filePath)
+		if err != nil {
+			result.Status = "error"
+			result.Error = fmt.Sprintf("Failed to dump AST: %v", err)
+			return 0, result, errors.NewSystemError("005",
+				"Failed to dump AST", err).
+				WithLocation(filePath)
+		}
+		ui.Printf("=== END AST DUMP ===\n\n")
+	}
+
+	// Create a TypeCheck instance
+	tc, err := typechecker.NewTypeCheck()
+	if err != nil {
+		result.Status = "error"
+		result.Error = fmt.Sprintf("Failed to create type checker: %v", err)
+		return 0, result, errors.NewSystemError("006",
+			"Failed to create type checker", err).
+			WithLocation(filePath)
+	}
+
+	// Check the file
+	checkResult, err := tc.CheckFile(filePath)
+	if err != nil {
+		result.Status = "error"
+		result.Error = fmt.Sprintf("Failed to check file: %v", err)
+		return 0, result, errors.NewSystemError("007",
+			"Failed to check file", err).
+			WithLocation(filePath)
+	}
+
+	// Convert errors to structured format
+	for _, err := range checkResult.Errors {
+		result.Errors = append(result.Errors, CheckError{
+			Line:     err.Line,
+			Column:   err.Column,
+			Message:  err.Message,
+			Severity: "error",
+		})
+	}
+
+	// Update status based on errors
+	if len(result.Errors) > 0 {
+		result.Status = "error"
+	}
+
+	// Text format output
+	if format == "text" {
+		if verbose {
+			ui.Info("Checking %s...", filePath)
+		}
+
+		// Print errors with enhanced formatting
+		if len(checkResult.Errors) > 0 {
+			formatter := NewErrorFormatter()
+			if !verbose {
+				// Less context in non-verbose mode
+				formatter.SetContextLines(1)
+			}
+			ui.Printf("%s", formatter.FormatErrors(checkResult.Errors))
+		}
+
+		if verbose {
+			ui.Info("Found %d type annotations in %s", len(checkResult.TypeAnnotations), filePath)
+			for i, annotation := range checkResult.TypeAnnotations {
+				ui.Printf("  [%d] %s: %s (kind: %d)\n", i+1, annotation.AnnotatedItem, annotation.TypeExpression.String(), annotation.Kind)
+			}
+		}
+
+		// Show inferred types if requested
+		if showInferred && len(checkResult.RefinedTypes) > 0 {
+			ui.SubHeader(fmt.Sprintf("Inferred types in %s", filePath))
+			for varName, inferredType := range checkResult.RefinedTypes {
+				ui.Printf("  %s: %s\n", varName, inferredType)
+			}
+		}
+
+		if len(checkResult.Errors) == 0 && verbose {
+			ui.Success("%s: No type errors found", filePath)
+		}
+	}
+
+	return len(checkResult.Errors), result, nil
+}
+
+// checkDirectoryWithResults recursively checks all Perl files in a directory and returns structured results
+func checkDirectoryWithResults(ui *ui.Output, dirPath string, strict, verbose, showInferred bool, format string) (int, int, []CheckResult, error) {
+	totalFiles := 0
+	totalErrors := 0
+	var results []CheckResult
+
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			result := CheckResult{
+				File:   path,
+				Status: "error",
+				Error:  fmt.Sprintf("Failed to access file: %v", err),
+			}
+			results = append(results, result)
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Check if it's a Perl file
+		if !isPerlFileCheck(path) {
+			return nil
+		}
+
+		// Check the file
+		errorCount, result, err := checkFileWithResults(ui, path, strict, verbose, showInferred, false, format)
+		if err != nil {
+			return err
+		}
+
+		totalFiles++
+		totalErrors += errorCount
+		results = append(results, result)
+
+		return nil
+	})
+
+	return totalFiles, totalErrors, results, err
 }
 
 // checkFile performs type checking on a single file
