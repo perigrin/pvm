@@ -1,0 +1,49 @@
+# PVM specific
+/build/
+*.pmc
+local/
+.pvm/
+
+# Perl specific
+/blib/
+/_build/
+cover_db/
+inc/
+Build
+!Build/
+Build.bat
+.last_cover_stats
+/Makefile
+/Makefile.old
+/MANIFEST.bak
+/META.yml
+/META.json
+/MYMETA.*
+nytprof.out
+/pm_to_blib
+*.o
+*.bs
+/_eumm/
+
+# Common files
+*~
+*.bak
+*.orig
+*.rej
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+/cover_db/
+proof/
+
+# Template-specific
+db/*.db
+sessions/
+log/

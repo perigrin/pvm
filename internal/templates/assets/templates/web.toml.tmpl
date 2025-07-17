@@ -1,0 +1,44 @@
+# Web application template with Mojolicious
+name = "web"
+description = "Web application template with Mojolicious and common tools"
+
+[directories]
+create = [
+    "lib",
+    "t",
+    "templates",
+    "public",
+    "public/css",
+    "public/js",
+    "script"
+]
+
+[dependencies]
+Mojolicious = ">= 9.0"
+DBI = ""
+"DBD::SQLite" = ""
+"Mojo::Pg" = ""
+strict = ""
+warnings = ""
+utf8 = ""
+
+[dev_dependencies]
+"Perl::Critic" = ""
+"Perl::Tidy" = ""
+"Plack::Test" = ""
+
+[test_dependencies]
+"Test::More" = ">= 0.98"
+"Test::Exception" = ""
+"Test::Mojo" = ""
+
+[config]
+web_port = {{.WebPort | default "3000"}}
+database_url = "{{.DatabaseURL | default "sqlite:db/app.db"}}"
+
+[gitignore_additions]
+entries = [
+    "db/*.db",
+    "sessions/",
+    "log/"
+]

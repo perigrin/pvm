@@ -1,0 +1,15 @@
+[project]
+name = "test-web-project"
+version = "0.01"
+perl_version = "5.38.2"
+
+[dependencies]
+cpanfile = "cpanfile"
+local_lib = "lib"
+
+[build]
+output_dir = "build"
+
+# Template-specific configuration
+web_port = 3000
+database_url = sqlite:db/app.db

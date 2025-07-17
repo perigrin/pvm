@@ -9,9 +9,13 @@ import (
 	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/pvm"
 	"tamarou.com/pvm/internal/pvx"
+	"tamarou.com/pvm/internal/templates"
 )
 
 func init() {
+	// Initialize global embedded filesystem
+	pvm.GlobalTemplatesFS = templates.FS
+
 	// Register all component commands for symlink support
 	cli.GlobalRegistry.Register(cli.ComponentPVM, pvm.NewCommand)
 	cli.GlobalRegistry.Register(cli.ComponentPSC, psc.NewCommand)
