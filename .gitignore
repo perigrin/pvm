@@ -53,6 +53,9 @@ tree-sitter-typed-perl/node-types.json
 
 # Test artifacts
 test/e2e/test_output_file.txt
+test/e2e/lib/
+test/e2e/lib/lib/perl5/
+test/e2e/lib/man/
 
 # Temporary and miscellaneous files
 lib.c
