@@ -64,6 +64,7 @@ func newVersionCommand(component string) *cobra.Command {
 	var showPVM bool
 	var bare bool
 	var showCurrent bool
+	var detailed bool
 
 	cmd := &cobra.Command{
 		Use:   "version",
@@ -79,7 +80,11 @@ func newVersionCommand(component string) *cobra.Command {
 			}
 			ui := GetUI(cmd)
 
-			if Verbose {
+			switch {
+			case detailed:
+				// Show detailed version information with release notes
+				return showDetailedVersionInfo(cmd, component, ui)
+			case Verbose:
 				// Show detailed version information in verbose mode
 				ui.Header(fmt.Sprintf("%s Version Information", component))
 
@@ -91,7 +96,7 @@ func newVersionCommand(component string) *cobra.Command {
 					"Go Version": buildInfo["goVersion"],
 					"OS/Arch":    fmt.Sprintf("%s/%s", buildInfo["os"], buildInfo["arch"]),
 				})
-			} else {
+			default:
 				// Show simple version in normal mode
 				ui.Println(version.ComponentVersion(component))
 			}
@@ -104,15 +109,17 @@ func newVersionCommand(component string) *cobra.Command {
 		cmd.Flags().BoolVar(&showPVM, "pvm", false, "Show PVM version instead of active Perl version")
 		cmd.Flags().BoolVar(&bare, "bare", false, "Show only the version string (for scripting)")
 		cmd.Flags().BoolVar(&showCurrent, "current", false, "Show currently active Perl version")
+		cmd.Flags().BoolVar(&detailed, "detailed", false, "Show detailed version information with release notes")
 		cmd.Long = `Show the currently active Perl version.
 
 By default, this command shows which Perl version is currently active.
 Use --pvm to show PVM's own version instead.
 
 Examples:
-  pvm version         # Show active Perl version (default)
-  pvm version --pvm   # Show PVM's version
-  pvm version --bare  # Show only version string for scripting`
+  pvm version             # Show active Perl version (default)
+  pvm version --pvm       # Show PVM's version
+  pvm version --bare      # Show only version string for scripting
+  pvm version --detailed  # Show detailed version with release notes`
 	}
 
 	return cmd
@@ -291,6 +298,44 @@ func showCurrentPerlVersionWithFlags(cmd *cobra.Command, component string, bare 
 	// Add newline for non-bare output (bare output doesn't include newline)
 	if !bare && info.IsAvailable {
 		ui.Println()
+	}
+
+	return nil
+}
+
+// showDetailedVersionInfo displays detailed version information with release notes
+func showDetailedVersionInfo(cmd *cobra.Command, component string, ui *ui.Output) error {
+	// Show basic version information
+	ui.Header(fmt.Sprintf("%s Detailed Version Information", component))
+
+	buildInfo := version.GetBuildInfo()
+	ui.KeyValue(map[string]string{
+		"Version":    buildInfo["version"],
+		"Build Time": buildInfo["buildTime"],
+		"Commit":     buildInfo["commitHash"],
+		"Go Version": buildInfo["goVersion"],
+		"OS/Arch":    fmt.Sprintf("%s/%s", buildInfo["os"], buildInfo["arch"]),
+	})
+
+	// Only show release notes for PVM component
+	if component != "pvm" {
+		return nil
+	}
+
+	// Get release notes for the current version
+	client := version.NewGitHubClient()
+	releaseInfo, err := client.GetReleaseByTag("perigrin", "pvm", buildInfo["version"])
+	if err != nil {
+		ui.Warning("Could not fetch release notes: %v", err)
+		return nil
+	}
+
+	// Display release notes with glow formatting
+	if releaseInfo.Body != "" {
+		ui.SubHeader("Release Notes")
+		ui.GlowMarkdown(releaseInfo.Body)
+	} else {
+		ui.Info("No release notes available for version %s", buildInfo["version"])
 	}
 
 	return nil

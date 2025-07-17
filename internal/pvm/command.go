@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/cli/ui"
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/download"
@@ -80,6 +81,8 @@ func NewCommand() *cobra.Command {
 		newDownloadCommand(),
 		newUpdateCommand(),       // Self-updater functionality
 		newAutoUpdateCommand(),   // Auto-update configuration and management
+		newReleaseNotesCommand(), // View release notes with glow formatting
+		newChangelogCommand(),    // View changelog with glow formatting
 		NewBuildCommand(),        // Unified build system with PSC integration
 		newBuildPerlCommand(),    // Build Perl from source (split from old build command)
 		newInstallPerlCommand(),  // Install Perl from build directories
@@ -4433,4 +4436,172 @@ func verifyUploadedBinary(originalPath, version, platform string, ui *ui.Output)
 	// - Test binary functionality
 
 	return fmt.Errorf("upload verification not yet implemented - this is a placeholder")
+}
+
+// newReleaseNotesCommand creates a command for viewing release notes
+func newReleaseNotesCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "release-notes [version]",
+		Short: "View release notes for PVM versions",
+		Long:  "View release notes for PVM versions with enhanced formatting using glow",
+		RunE:  executeReleaseNotesCommand,
+	}
+
+	cmd.Flags().Bool("latest", false, "Show latest release notes")
+	cmd.Flags().Bool("prerelease", false, "Include pre-release versions")
+	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
+
+	return cmd
+}
+
+// executeReleaseNotesCommand implements the release notes command functionality
+func executeReleaseNotesCommand(cmd *cobra.Command, args []string) error {
+	// Create UI instance for enhanced output
+	uiOutput := ui.NewDefaultOutput()
+
+	// Get flags
+	latest, _ := cmd.Flags().GetBool("latest")
+	prerelease, _ := cmd.Flags().GetBool("prerelease")
+	token, _ := cmd.Flags().GetString("token")
+
+	// Load configuration for GitHub token
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Determine effective GitHub token
+	effectiveToken := token
+	if effectiveToken == "" && cfg.PVM.Update != nil {
+		effectiveToken = cfg.PVM.Update.GitHubToken
+	}
+
+	// Create check options
+	checkOpts := &version.CheckOptions{
+		IncludePrerelease: prerelease,
+		Repository:        "perigrin/pvm",
+		GitHubToken:       effectiveToken,
+	}
+
+	// Determine which version to show
+	var targetVersion string
+	if latest || len(args) == 0 {
+		// Get latest version
+		result, err := version.CheckForUpdates(checkOpts)
+		if err != nil {
+			return fmt.Errorf("failed to check for updates: %w", err)
+		}
+		targetVersion = result.LatestVersion
+	} else {
+		targetVersion = args[0]
+	}
+
+	// Create GitHub client
+	var client *version.GitHubClient
+	if effectiveToken != "" {
+		client = version.NewGitHubClientWithToken(effectiveToken)
+	} else {
+		client = version.NewGitHubClient()
+	}
+
+	// Get release information
+	releaseInfo, err := client.GetReleaseByTag("perigrin", "pvm", targetVersion)
+	if err != nil {
+		return fmt.Errorf("failed to get release information for version %s: %w", targetVersion, err)
+	}
+
+	// Display release notes
+	uiOutput.Header(fmt.Sprintf("Release Notes for PVM %s", targetVersion))
+
+	if releaseInfo.Body == "" {
+		uiOutput.Info("No release notes available for version %s", targetVersion)
+		return nil
+	}
+
+	// Use glow to render the release notes
+	uiOutput.GlowMarkdown(releaseInfo.Body)
+
+	return nil
+}
+
+// newChangelogCommand creates a command for viewing changelog
+func newChangelogCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "changelog",
+		Short: "View PVM changelog",
+		Long:  "View PVM changelog with enhanced formatting using glow",
+		RunE:  executeChangelogCommand,
+	}
+
+	cmd.Flags().Int("limit", 10, "Number of recent releases to show")
+	cmd.Flags().Bool("prerelease", false, "Include pre-release versions")
+	cmd.Flags().String("token", "", "GitHub token for higher API rate limits")
+
+	return cmd
+}
+
+// executeChangelogCommand implements the changelog command functionality
+func executeChangelogCommand(cmd *cobra.Command, args []string) error {
+	// Create UI instance for enhanced output
+	uiOutput := ui.NewDefaultOutput()
+
+	// Get flags
+	limit, _ := cmd.Flags().GetInt("limit")
+	prerelease, _ := cmd.Flags().GetBool("prerelease")
+	token, _ := cmd.Flags().GetString("token")
+
+	// Load configuration for GitHub token
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Determine effective GitHub token
+	effectiveToken := token
+	if effectiveToken == "" && cfg.PVM.Update != nil {
+		effectiveToken = cfg.PVM.Update.GitHubToken
+	}
+
+	// Create GitHub client
+	var client *version.GitHubClient
+	if effectiveToken != "" {
+		client = version.NewGitHubClientWithToken(effectiveToken)
+	} else {
+		client = version.NewGitHubClient()
+	}
+
+	// Get recent releases
+	releases, err := client.GetReleases("perigrin", "pvm", prerelease)
+	if err != nil {
+		return fmt.Errorf("failed to get recent releases: %w", err)
+	}
+
+	if len(releases) == 0 {
+		uiOutput.Info("No releases found")
+		return nil
+	}
+
+	// Limit the number of releases displayed
+	if limit > 0 && len(releases) > limit {
+		releases = releases[:limit]
+	}
+
+	// Display changelog header
+	uiOutput.Header("PVM Changelog")
+
+	// Display each release
+	for _, release := range releases {
+		uiOutput.SubHeader(fmt.Sprintf("Version %s", release.TagName))
+
+		if release.Body == "" {
+			uiOutput.Info("No release notes available")
+		} else {
+			uiOutput.GlowMarkdown(release.Body)
+		}
+
+		// Add separator between releases
+		cmd.Println()
+	}
+
+	return nil
 }

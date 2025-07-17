@@ -377,6 +377,19 @@ func (o *Output) Markdown(content string) {
 	}
 }
 
+// GlowMarkdown renders markdown content using glow if available, otherwise falls back to basic markdown
+func (o *Output) GlowMarkdown(content string) {
+	if o.context.Quiet {
+		return
+	}
+
+	renderer := NewGlowRenderer(o)
+	if err := renderer.RenderMarkdown(content); err != nil {
+		o.Debug("Failed to render markdown with glow: %v", err)
+		// Fallback is handled within RenderMarkdown
+	}
+}
+
 // SetWriter changes the output writer
 func (o *Output) SetWriter(w io.Writer) {
 	o.context.Writer = w

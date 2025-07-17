@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli/docs"
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/project"
 )
 
@@ -543,13 +544,21 @@ func (h *HelpManager) ShowDocument(name string) error {
 		return fmt.Errorf("document not found: %s", name)
 	}
 
-	// Display the document content
+	// Display the document content with glow formatting
 	displayName := strings.ReplaceAll(name, "-", " ")
 	if len(displayName) > 0 {
 		displayName = strings.ToUpper(displayName[:1]) + strings.ToLower(displayName[1:])
 	}
-	fmt.Printf("# %s\n\n", displayName)
-	fmt.Print(string(content))
+
+	// Create UI instance for enhanced markdown display
+	uiOutput := ui.NewDefaultOutput()
+
+	// Create properly formatted markdown content
+	markdownContent := fmt.Sprintf("# %s\n\n%s", displayName, string(content))
+
+	// Use glow to render the documentation
+	uiOutput.GlowMarkdown(markdownContent)
+
 	return nil
 }
 
