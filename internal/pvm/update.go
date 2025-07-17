@@ -8,12 +8,16 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/updater"
 )
 
 // executeUpdateCommand implements the update command functionality
 func executeUpdateCommand(cmd *cobra.Command, args []string) error {
+	// Create UI instance for enhanced output
+	uiOutput := ui.NewDefaultOutput()
+
 	// Load configuration
 	cfg, err := config.LoadEffectiveConfig()
 	if err != nil {
@@ -140,8 +144,8 @@ func executeUpdateCommand(cmd *cobra.Command, args []string) error {
 				updateInfo.CurrentVersion.String(),
 				updateInfo.LatestVersion.String())
 			if updateInfo.Release != nil && updateInfo.Release.Body != "" {
-				cmd.Println("\nRelease notes:")
-				cmd.Println(updateInfo.Release.Body)
+				uiOutput.SubHeader("Release Notes")
+				uiOutput.GlowMarkdown(updateInfo.Release.Body)
 			}
 		} else {
 			cmd.Println("PVM is up to date")
@@ -168,8 +172,8 @@ func executeUpdateCommand(cmd *cobra.Command, args []string) error {
 
 	// Show release notes if available
 	if updateInfo.Release != nil && updateInfo.Release.Body != "" && !dryRun {
-		cmd.Println("\nRelease notes:")
-		cmd.Println(updateInfo.Release.Body)
+		uiOutput.SubHeader("Release Notes")
+		uiOutput.GlowMarkdown(updateInfo.Release.Body)
 		cmd.Println()
 	}
 
