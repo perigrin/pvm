@@ -45,3 +45,63 @@ while (my $line = <$fh>) {
 ```perl
 # Type inference not yet fully implemented
 ```
+
+# Expected AST
+
+## Text Format
+
+```
+source_file
+  loop_statement
+    expression_stmt
+      literal
+    token
+    assignment_expression
+      var_decl
+        variable
+      expression_stmt
+        literal
+      expression_stmt
+        literal
+    token
+    block_stmt
+      token
+      expression_stmt
+        literal
+      token
+      expression_stmt
+        literal
+      token
+      token
+```
+
+## JSON Format
+
+```json
+{
+  "path": "/tmp/while_with_assignment.pl",
+  "root": {
+    "type": "source_file",
+    "children": [
+      {
+        "type": "loop_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "while",
+                "kind": "string"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "type_annotations": [],
+  "errors": [],
+  "source_length": 67
+}
+```

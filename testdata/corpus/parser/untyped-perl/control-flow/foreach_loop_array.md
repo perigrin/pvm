@@ -41,3 +41,61 @@ foreach my $item (@list) {
 ```perl
 # Type inference not yet fully implemented
 ```
+
+# Expected AST
+
+## Text Format
+
+```
+source_file
+  for_statement
+    expression_stmt
+      literal
+    token
+    scalar
+      token
+      token
+    token
+    array
+      expression_stmt
+        literal
+      token
+    token
+    block_stmt
+      token
+      expression_stmt
+        literal
+      token
+      token
+```
+
+## JSON Format
+
+```json
+{
+  "path": "/tmp/foreach_loop_array.pl",
+  "root": {
+    "type": "source_file",
+    "children": [
+      {
+        "type": "for_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "foreach",
+                "kind": "string"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "type_annotations": [],
+  "errors": [],
+  "source_length": 49
+}
+```

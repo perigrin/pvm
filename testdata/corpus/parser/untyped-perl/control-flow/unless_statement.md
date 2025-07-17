@@ -40,3 +40,56 @@ unless ($negative_condition) {
 ```perl
 # Type inference not yet fully implemented
 ```
+
+# Expected AST
+
+## Text Format
+
+```
+source_file
+  conditional_statement
+    expression_stmt
+      literal
+    token
+    scalar
+      token
+      token
+    token
+    block_stmt
+      token
+      expression_stmt
+        literal
+      token
+      token
+```
+
+## JSON Format
+
+```json
+{
+  "path": "/tmp/unless_statement.pl",
+  "root": {
+    "type": "source_file",
+    "children": [
+      {
+        "type": "conditional_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "unless",
+                "kind": "string"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "type_annotations": [],
+  "errors": [],
+  "source_length": 46
+}
+```

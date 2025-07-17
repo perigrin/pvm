@@ -18,6 +18,25 @@ method calculate() -> Int {
 }
 ```
 
+### Expected AST
+
+#### Text Format
+
+```
+Parse error: SYS-007: error[TSP001]: parse error (ERROR nodes detected)
+Arrow syntax is not supported in the current grammar.
+```
+
+#### JSON Format
+
+```json
+{
+  "error": "SYS-007: error[TSP001]: parse error (ERROR nodes detected)",
+  "message": "Arrow syntax is not supported in the current grammar",
+  "ast": null
+}
+```
+
 ### Expected Compilation Outcomes
 
 #### Clean Perl Output
@@ -47,6 +66,25 @@ method calculate() -> Int {
 ```perl
 sub process() -> Str {
     return "processed";
+}
+```
+
+### Expected AST
+
+#### Text Format
+
+```
+Parse error: SYS-007: error[TSP001]: parse error (ERROR nodes detected)
+Arrow syntax is not supported in the current grammar.
+```
+
+#### JSON Format
+
+```json
+{
+  "error": "SYS-007: error[TSP001]: parse error (ERROR nodes detected)",
+  "message": "Arrow syntax is not supported in the current grammar",
+  "ast": null
 }
 ```
 
@@ -82,6 +120,25 @@ method greet(Str $name) -> Str {
 }
 ```
 
+### Expected AST
+
+#### Text Format
+
+```
+Parse error: SYS-007: error[TSP001]: parse error (ERROR nodes detected)
+Arrow syntax is not supported in the current grammar.
+```
+
+#### JSON Format
+
+```json
+{
+  "error": "SYS-007: error[TSP001]: parse error (ERROR nodes detected)",
+  "message": "Arrow syntax is not supported in the current grammar",
+  "ast": null
+}
+```
+
 ### Expected Compilation Outcomes
 
 #### Clean Perl Output
@@ -111,6 +168,25 @@ method greet(Str $name) -> Str {
 ```perl
 method get_data() -> ArrayRef[HashRef[Str, Int]] {
     return [];
+}
+```
+
+### Expected AST
+
+#### Text Format
+
+```
+Parse error: SYS-007: error[TSP001]: parse error (ERROR nodes detected)
+Arrow syntax is not supported in the current grammar.
+```
+
+#### JSON Format
+
+```json
+{
+  "error": "SYS-007: error[TSP001]: parse error (ERROR nodes detected)",
+  "message": "Arrow syntax is not supported in the current grammar",
+  "ast": null
 }
 ```
 
