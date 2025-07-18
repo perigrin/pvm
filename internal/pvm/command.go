@@ -590,9 +590,9 @@ user configuration, etc.).
 
 The version resolution follows this precedence order:
 1. Explicitly specified version
-2. Project-local .perl-version file
-3. Project-local .pvm/pvm.toml
-4. Environment variables (PLENV_VERSION, PERLBREW_PERL)
+2. Environment variables (PVM_PERL_VERSION, PLENV_VERSION, PERLBREW_PERL)
+3. Project-local .perl-version file
+4. Project-local .pvm/pvm.toml
 5. User-level configuration
 6. System Perl
 
