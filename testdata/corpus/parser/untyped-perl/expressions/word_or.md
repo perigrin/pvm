@@ -36,7 +36,29 @@ $or_result = $x or $y;
 # Type inference not yet fully implemented
 ```
 
-## Expected AST
+## Text AST
+
+```
+source_file
+  expression_statement
+    lowprec_logical_expression
+      assignment_expression
+        scalar
+          token
+          token
+        token
+        scalar
+          token
+          token
+      expression_stmt
+        literal
+      scalar
+        token
+        token
+  token
+```
+
+## JSON AST
 
 ```json
 {

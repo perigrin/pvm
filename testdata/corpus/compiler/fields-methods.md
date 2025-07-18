@@ -117,3 +117,20 @@ sub tagged :lvalue :const ($value) {
     return $value;
 }
 ```
+
+## Text AST
+
+**Note**: Field declarations, method signatures, and function attributes with typed parameters are not yet supported by the tree-sitter grammar. This syntax would currently produce parse errors and cannot generate a meaningful AST.
+
+```
+(parse error - field/method syntax not supported)
+```
+
+## JSON AST
+
+```json
+{
+  "error": "Field declarations and method signatures not yet supported by grammar",
+  "note": "This syntax requires grammar extensions for: field declarations (field Type $name), method declarations (method Type name(params)), and function attributes with typed signatures"
+}
+```

@@ -48,6 +48,287 @@ AST {
 }
 ```
 
+## Text AST
+
+```
+AST {
+  Path: /tmp/method-signatures-unions.pl
+  Source length: 112 characters
+  Type Annotations:
+    MethodReturnAnnotation: process :: Bool|Str at 1:8
+    MethodParamAnnotation: $input :: Int|Str at 1:25
+  Root: source_file
+  Tree Structure:
+  source_file
+    method_decl
+      block_stmt
+        token
+        expression_stmt
+          literal
+        expression_stmt
+          literal
+        token
+        token
+}
+```
+
+## JSON AST
+
+```json
+{
+  "path": "/tmp/method-signatures-unions.pl",
+  "root": {
+    "type": "source_file",
+    "start": {
+      "Line": 1,
+      "Column": 1,
+      "Offset": 0
+    },
+    "end": {
+      "Line": 7,
+      "Column": 1,
+      "Offset": 112
+    },
+    "children": [
+      {
+        "type": "method_decl",
+        "start": {
+          "Line": 1,
+          "Column": 1,
+          "Offset": 0
+        },
+        "end": {
+          "Line": 6,
+          "Column": 2,
+          "Offset": 0
+        },
+        "children": [
+          {
+            "type": "block_stmt",
+            "start": {
+              "Line": 1,
+              "Column": 41,
+              "Offset": 40
+            },
+            "end": {
+              "Line": 6,
+              "Column": 2,
+              "Offset": 111
+            },
+            "children": [
+              {
+                "type": "token",
+                "start": {
+                  "Line": 1,
+                  "Column": 41,
+                  "Offset": 40
+                },
+                "end": {
+                  "Line": 1,
+                  "Column": 42,
+                  "Offset": 41
+                },
+                "text": "{"
+              },
+              {
+                "type": "expression_stmt",
+                "start": {
+                  "Line": 2,
+                  "Column": 5,
+                  "Offset": 46
+                },
+                "end": {
+                  "Line": 4,
+                  "Column": 6,
+                  "Offset": 95
+                },
+                "children": [
+                  {
+                    "type": "literal",
+                    "start": {
+                      "Line": 2,
+                      "Column": 5,
+                      "Offset": 46
+                    },
+                    "end": {
+                      "Line": 4,
+                      "Column": 6,
+                      "Offset": 95
+                    },
+                    "value": "if (ref $input) {\n        return \"Invalid\";\n    }",
+                    "kind": "string"
+                  }
+                ]
+              },
+              {
+                "type": "expression_stmt",
+                "start": {
+                  "Line": 5,
+                  "Column": 5,
+                  "Offset": 100
+                },
+                "end": {
+                  "Line": 5,
+                  "Column": 13,
+                  "Offset": 108
+                },
+                "children": [
+                  {
+                    "type": "literal",
+                    "start": {
+                      "Line": 5,
+                      "Column": 5,
+                      "Offset": 100
+                    },
+                    "end": {
+                      "Line": 5,
+                      "Column": 13,
+                      "Offset": 108
+                    },
+                    "value": "return 1",
+                    "kind": "string"
+                  }
+                ]
+              },
+              {
+                "type": "token",
+                "start": {
+                  "Line": 5,
+                  "Column": 13,
+                  "Offset": 108
+                },
+                "end": {
+                  "Line": 5,
+                  "Column": 14,
+                  "Offset": 109
+                },
+                "text": ";"
+              },
+              {
+                "type": "token",
+                "start": {
+                  "Line": 6,
+                  "Column": 1,
+                  "Offset": 110
+                },
+                "end": {
+                  "Line": 6,
+                  "Column": 2,
+                  "Offset": 111
+                },
+                "text": "}"
+              }
+            ]
+          }
+        ],
+        "name": "process"
+      }
+    ]
+  },
+  "type_annotations": [
+    {
+      "annotated_item": "process",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Bool|Str",
+        "Parameters": null,
+        "IsUnion": true,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": [
+          {
+            "Kind": 0,
+            "Name": "Bool",
+            "Parameters": null,
+            "IsUnion": false,
+            "IsIntersection": false,
+            "IsNegation": false,
+            "UnionTypes": null,
+            "IntersectionTypes": null,
+            "NegatedType": null,
+            "Constraint": null,
+            "OriginalString": "Bool"
+          },
+          {
+            "Kind": 0,
+            "Name": "Str",
+            "Parameters": null,
+            "IsUnion": false,
+            "IsIntersection": false,
+            "IsNegation": false,
+            "UnionTypes": null,
+            "IntersectionTypes": null,
+            "NegatedType": null,
+            "Constraint": null,
+            "OriginalString": "Str"
+          }
+        ],
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "Bool|Str"
+      },
+      "position": {
+        "Line": 1,
+        "Column": 8,
+        "Offset": 0
+      },
+      "kind": "MethodReturnAnnotation"
+    },
+    {
+      "annotated_item": "$input",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Int|Str",
+        "Parameters": null,
+        "IsUnion": true,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": [
+          {
+            "Kind": 0,
+            "Name": "Int",
+            "Parameters": null,
+            "IsUnion": false,
+            "IsIntersection": false,
+            "IsNegation": false,
+            "UnionTypes": null,
+            "IntersectionTypes": null,
+            "NegatedType": null,
+            "Constraint": null,
+            "OriginalString": "Int"
+          },
+          {
+            "Kind": 0,
+            "Name": "Str",
+            "Parameters": null,
+            "IsUnion": false,
+            "IsIntersection": false,
+            "IsNegation": false,
+            "UnionTypes": null,
+            "IntersectionTypes": null,
+            "NegatedType": null,
+            "Constraint": null,
+            "OriginalString": "Str"
+          }
+        ],
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "Int|Str"
+      },
+      "position": {
+        "Line": 1,
+        "Column": 25,
+        "Offset": 0
+      },
+      "kind": "MethodParamAnnotation"
+    }
+  ],
+  "source_length": 112
+}
+```
+
 ## After Type Inference
 
 ```

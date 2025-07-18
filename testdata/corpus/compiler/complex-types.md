@@ -111,3 +111,20 @@ for my  $id (keys %$config) {
     my $user_info = {};
 }
 ```
+
+## Text AST
+
+**Note**: Complex parameterized types, union types, intersection types, and function signatures are not yet supported by the tree-sitter grammar. This syntax would currently produce parse errors and cannot generate a meaningful AST.
+
+```
+(parse error - complex type syntax not supported)
+```
+
+## JSON AST
+
+```json
+{
+  "error": "Complex type syntax not yet supported by grammar",
+  "note": "This syntax requires grammar extensions for: parameterized types (ArrayRef[Type]), union types (Type|Type), intersection types (Type&Type), negation types (!Type), and complex function signatures"
+}
+```

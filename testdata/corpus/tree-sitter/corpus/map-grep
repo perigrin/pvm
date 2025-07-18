@@ -1,11 +1,12 @@
 ================================================================================
-map - BLOCK form
-================================================================================
 map { +"\L$_"  => 1 } @array;      # perl guesses BLOCK. right
+================================================================================
 map { ; "\L$_" => 1 } @array;      # this also works
 map { ( "\L$_" => 1 ) } @array;    # as does this
 map { lc($_) => 1 } @array;        # and this.
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -64,15 +65,49 @@ map { lc($_) => 1 } @array;        # and this.
         (varname))))
   (comment))
 
-================================================================================
-map - EXPR form
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 149,
+      "duration": {
+        "nanos": 593436,
+        "secs": 0
+      },
+      "end": {
+        "column": 46,
+        "row": 2
+      },
+      "file": "/tmp/test_684702011.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 map +( lc($_) => 1 ), @array;      # this is EXPR and works!
+================================================================================
 map +{ lc($_) => 1 }, @array;      # EXPR, so needs comma at end
 map { "\L$_"   => 1 }, @array;     # perl guesses EXPR; SURPRISE!
 map { even_this   => $_ }, @array;     # perl guesses EXPR; slightly more SURPRISE!
 # thanks perldoc, for all the examples!
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -123,13 +158,47 @@ map { even_this   => $_ }, @array;     # perl guesses EXPR; slightly more SURPRI
   (comment)
   (comment))
 
-================================================================================
-map - goshdarn parens
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 254,
+      "duration": {
+        "nanos": 1213925,
+        "secs": 0
+      },
+      "end": {
+        "column": 39,
+        "row": 3
+      },
+      "file": "/tmp/test_3850228352.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 %hash = map ( lc($_), 1 ), @array;         # evaluates to (1, @array)
+================================================================================
 # NOTE - this is ACTUALLY correct; the @array will not touch that hash, b/c it's not part
 # of the assignment
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -148,14 +217,48 @@ map - goshdarn parens
   (comment)
   (comment))
 
-================================================================================
-map - different LISTs
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 109,
+      "duration": {
+        "nanos": 78197,
+        "secs": 0
+      },
+      "end": {
+        "column": 19,
+        "row": 1
+      },
+      "file": "/tmp/test_2411392245.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 map { lc($_) => 1 } 1, 2, 3;
+================================================================================
 map +(lc($_) => 1 ), 1, 2, 3;
 map { lc($_) => 1 } (1, 2, 3);
 map +(lc($_) => 1 ), (1, 2), 3;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -210,12 +313,46 @@ map +(lc($_) => 1 ), (1, 2), 3;
           (number))
         (number)))))
 
-================================================================================
-sort - with and without a BLOCK
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 92,
+      "duration": {
+        "nanos": 431220,
+        "secs": 0
+      },
+      "end": {
+        "column": 31,
+        "row": 2
+      },
+      "file": "/tmp/test_1188148490.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 sort 1, 2, 3;
+================================================================================
 sort { $a <=> $b } 1, 2, 3;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -238,16 +375,50 @@ sort { $a <=> $b } 1, 2, 3;
         (number)
         (number)))))
 
-================================================================================
-sort SUBNAME
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 27,
+      "duration": {
+        "nanos": 734184,
+        "secs": 0
+      },
+      "end": {
+        "column": 27,
+        "row": 0
+      },
+      "file": "/tmp/test_3623978417.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 sort some_routine 1, 2, 3;
+================================================================================
 sort still_SUBNAME(1, 2, 3);
 sort +returns_list(1, 2, 3);
 sort list_returning_func, 1, 2, 3;
 sort $subref 1;
 sort $not_subref, 1;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -291,3 +462,36 @@ sort $not_subref, 1;
         (scalar
           (varname))
         (number)))))
+
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 129,
+      "duration": {
+        "nanos": 857745,
+        "secs": 0
+      },
+      "end": {
+        "column": 20,
+        "row": 4
+      },
+      "file": "/tmp/test_3365283387.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

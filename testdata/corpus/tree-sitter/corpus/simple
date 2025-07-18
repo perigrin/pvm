@@ -1,32 +1,58 @@
 ================================================================================
-basic comment
-================================================================================
 # this is a comment
---------------------------------------------------------------------------------
-
-(source_file
-  (comment))
-
 ================================================================================
-Multiple lines are a single comment group
-================================================================================
-# this is a comment
 # split across
 # multiple lines
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (comment)
   (comment)
   (comment))
 
-================================================================================
-data section - basic
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 31,
+      "duration": {
+        "nanos": 102762,
+        "secs": 0
+      },
+      "end": {
+        "column": 16,
+        "row": 1
+      },
+      "file": "/tmp/test_32455675.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 1 + 1;
+================================================================================
 __DATA__
 $this = not `code`
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -36,34 +62,136 @@ $this = not `code`
   (eof_marker)
   (data_section))
 
-================================================================================
-data section - ctrl-d
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 27,
+      "duration": {
+        "nanos": 114153,
+        "secs": 0
+      },
+      "end": {
+        "column": 18,
+        "row": 1
+      },
+      "file": "/tmp/test_630555708.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 
+================================================================================
 $this = not `code`
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (eof_marker))
 
-================================================================================
-data section - ctrl-z
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 18,
+      "duration": {
+        "nanos": 169049,
+        "secs": 0
+      },
+      "end": {
+        "column": 18,
+        "row": 0
+      },
+      "file": "/tmp/test_719113179.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 1 
+================================================================================
 $this = not `code`
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
     (number))
   (eof_marker))
 
-================================================================================
-data section anywhere
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 18,
+      "duration": {
+        "nanos": 241075,
+        "secs": 0
+      },
+      "end": {
+        "column": 18,
+        "row": 0
+      },
+      "file": "/tmp/test_1398154070.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 1 + 2 __END__ this is ignored too
+================================================================================
 $this = not `code`
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -73,52 +201,47 @@ $this = not `code`
   (eof_marker)
   (data_section))
 
-================================================================================
-data section, but not in strings
-================================================================================
-'this is not a __DATA__ section'
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (string_literal
-      (string_content))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 18,
+      "duration": {
+        "nanos": 243739,
+        "secs": 0
+      },
+      "end": {
+        "column": 18,
+        "row": 0
+      },
+      "file": "/tmp/test_3674341437.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-maths! higher prec
-================================================================================
-2 * 4 ** 5;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (binary_expression
-      left: (number)
-      right: (binary_expression
-        left: (number)
-        right: (number)))))
-
-================================================================================
-maths: same prec - left assoc
-================================================================================
-3 x 5 % 2;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (binary_expression
-      left: (binary_expression
-        left: (number)
-        right: (number))
-      right: (number))))
-
-================================================================================
-unary prefixes!
 ================================================================================
 !3;
+================================================================================
 ~0;
 ~.0;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -131,36 +254,82 @@ unary prefixes!
     (unary_expression
       (number))))
 
-================================================================================
-yadayada operator
-================================================================================
-...
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (yadayada)))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 8,
+      "duration": {
+        "nanos": 195223,
+        "secs": 0
+      },
+      "end": {
+        "column": 4,
+        "row": 1
+      },
+      "file": "/tmp/test_3837396139.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-unicode whitespace
-================================================================================
-'several hair spaces'   ;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (string_literal
-      (string_content))))
-
-================================================================================
-booleans
 ================================================================================
 true;
+================================================================================
 false;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
     (boolean))
   (expression_statement
     (boolean)))
+
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 6,
+      "duration": {
+        "nanos": 167883,
+        "secs": 0
+      },
+      "end": {
+        "column": 6,
+        "row": 0
+      },
+      "file": "/tmp/test_3135606455.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

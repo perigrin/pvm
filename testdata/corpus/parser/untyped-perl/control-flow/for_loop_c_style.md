@@ -46,7 +46,7 @@ for (my $i = 0; $i < $max; $i++) {
 
 # Expected AST
 
-## Text Format
+## Text AST
 
 ```
 source_file
@@ -84,7 +84,7 @@ source_file
       token
 ```
 
-## JSON Format
+## JSON AST
 
 ```json
 {

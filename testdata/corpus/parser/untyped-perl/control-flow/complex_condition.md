@@ -45,7 +45,7 @@ if (($a > 0) && ($b < 100) || ($c == $d)) {
 
 # Expected AST
 
-## Text Format
+## Text AST
 
 ```
 source_file
@@ -91,7 +91,7 @@ source_file
       token
 ```
 
-## JSON Format
+## JSON AST
 
 ```json
 {

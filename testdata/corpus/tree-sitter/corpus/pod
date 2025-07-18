@@ -1,8 +1,6 @@
 ================================================================================
-POD
-================================================================================
 =head1 NAME
-
+================================================================================
 Foo
 
 =cut
@@ -15,6 +13,8 @@ Foo
 5678;
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (pod)
   (expression_statement
@@ -23,12 +23,46 @@ Foo
   (expression_statement
     (number)))
 
-================================================================================
-not confused by leading whitespace
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 43,
+      "duration": {
+        "nanos": 202368,
+        "secs": 0
+      },
+      "end": {
+        "column": 5,
+        "row": 9
+      },
+      "file": "/tmp/test_2006879738.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 my $x
-  =head1() ;
+================================================================================
+=head1() ;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -39,11 +73,43 @@ my $x
       (function_call_expression
         (function)))))
 
-================================================================================
-POD can appear anywhere within an expression
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 10,
+      "duration": {
+        "nanos": 89029,
+        "secs": 0
+      },
+      "end": {
+        "column": 10,
+        "row": 0
+      },
+      "file": "/tmp/test_3036621767.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 my $total =
-  1 +
+================================================================================
+1 +
 
 =head1 TITLE
 
@@ -51,6 +117,8 @@ my $total =
 
   2;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -62,3 +130,36 @@ my $total =
         (number)
         (pod)
         (number)))))
+
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 29,
+      "duration": {
+        "nanos": 188215,
+        "secs": 0
+      },
+      "end": {
+        "column": 4,
+        "row": 6
+      },
+      "file": "/tmp/test_1057491299.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

@@ -1,8 +1,7 @@
 ================================================================================
-Basic given/when statement
-================================================================================
 given ($x) {
-    when (1) {
+================================================================================
+when (1) {
         say "one";
     }
     when (2) {
@@ -13,6 +12,8 @@ given ($x) {
     }
 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (given_statement
@@ -43,14 +44,20 @@ given ($x) {
               arguments: (interpolated_string_literal
                 content: (string_content)))))))))
 
-================================================================================
-Simple given without default
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 given ($value) {
-    when ("hello") { print "hi"; }
+================================================================================
+when ("hello") { print "hi"; }
     when ("bye") { print "goodbye"; }
 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (given_statement
@@ -76,11 +83,15 @@ given ($value) {
               arguments: (interpolated_string_literal
                 content: (string_content)))))))))
 
-================================================================================
-Given/when with complex expressions
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 given ($result) {
-    when ($_ > 100) {
+================================================================================
+when ($_ > 100) {
         say "big";
     }
     when ($_ < 10) {
@@ -91,6 +102,8 @@ given ($result) {
     }
 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (given_statement
@@ -132,11 +145,15 @@ given ($result) {
               arguments: (interpolated_string_literal
                 content: (string_content)))))))))
 
-================================================================================
-Given/when with break statement
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 given ($val) {
-    when (1) {
+================================================================================
+when (1) {
         print "one";
         break;
     }
@@ -145,6 +162,8 @@ given ($val) {
     }
 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (given_statement
@@ -170,11 +189,15 @@ given ($val) {
               arguments: (interpolated_string_literal
                 content: (string_content)))))))))
 
-================================================================================
-Nested given/when statements
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 given ($x) {
-    when (1) {
+================================================================================
+when (1) {
         given ($y) {
             when ("a") { print "1a"; }
             when ("b") { print "1b"; }
@@ -185,6 +208,8 @@ given ($x) {
     }
 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (given_statement
@@ -224,3 +249,8 @@ given ($x) {
               function: (function)
               arguments: (interpolated_string_literal
                 content: (string_content)))))))))
+
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:

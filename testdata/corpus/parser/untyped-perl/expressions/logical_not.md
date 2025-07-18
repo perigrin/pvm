@@ -38,7 +38,29 @@ $not_result = !$condition;
 # Type inference not yet fully implemented
 ```
 
-## Expected AST
+## Text AST
+
+```
+source_file
+  expression_statement
+    assignment_expression
+      scalar
+        token
+        token
+      token
+      refgen_expression
+        expression_stmt
+          literal
+        unary_expression
+          expression_stmt
+            literal
+          scalar
+            token
+            token
+  token
+```
+
+## JSON AST
 
 ```json
 {
@@ -59,19 +81,30 @@ $not_result = !$condition;
             },
             {"type": "token", "text": "="},
             {
-              "type": "unary_expression",
+              "type": "refgen_expression",
               "children": [
                 {
                   "type": "expression_stmt",
                   "children": [
-                    {"type": "literal", "value": "!", "kind": "string"}
+                    {"type": "literal", "value": "\\", "kind": "string"}
                   ]
                 },
                 {
-                  "type": "scalar",
+                  "type": "unary_expression",
                   "children": [
-                    {"type": "token", "text": "$"},
-                    {"type": "token", "text": "condition"}
+                    {
+                      "type": "expression_stmt",
+                      "children": [
+                        {"type": "literal", "value": "!", "kind": "string"}
+                      ]
+                    },
+                    {
+                      "type": "scalar",
+                      "children": [
+                        {"type": "token", "text": "$"},
+                        {"type": "token", "text": "condition"}
+                      ]
+                    }
                   ]
                 }
               ]

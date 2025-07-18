@@ -44,7 +44,7 @@ foreach my $item (@list) {
 
 # Expected AST
 
-## Text Format
+## Text AST
 
 ```
 source_file
@@ -69,7 +69,7 @@ source_file
       token
 ```
 
-## JSON Format
+## JSON AST
 
 ```json
 {
