@@ -1,0 +1,1 @@
+my Container[MyType] $custom;

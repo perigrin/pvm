@@ -12,12 +12,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"tamarou.com/pvm/internal/errors"
-	"tamarou.com/pvm/internal/xdg"
 )
 
 // Cache represents a disk-based cache for CPAN metadata
@@ -70,30 +70,64 @@ type cacheEntry struct {
 	Data interface{} `json:"data"`
 }
 
+// expandEnvironmentVariables expands environment variables in configuration values
+func expandEnvironmentVariables(value string) string {
+	if value == "" {
+		return value
+	}
+
+	// Handle cases where the entire value is a single variable like $VAR or ${VAR}
+	if strings.HasPrefix(value, "$") && !strings.Contains(value[1:], "$") {
+		envVar := value[1:]
+		// Check for complex expressions like ${VAR}
+		if strings.HasPrefix(envVar, "{") && strings.HasSuffix(envVar, "}") {
+			envVar = envVar[1 : len(envVar)-1]
+			// Entire value is ${VAR}
+			envValue, exists := os.LookupEnv(envVar)
+			if exists {
+				return envValue
+			}
+			return value
+		}
+		// Check if this is a simple $VAR without any other characters
+		if !strings.ContainsAny(envVar, "/\\:. ") {
+			envValue, exists := os.LookupEnv(envVar)
+			if exists {
+				return envValue
+			}
+			return value
+		}
+	}
+
+	// Handle embedded variables like /path/$VAR/subdir
+	re := regexp.MustCompile(`\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)`)
+	return re.ReplaceAllStringFunc(value, func(match string) string {
+		var envVar string
+		if strings.HasPrefix(match, "${") {
+			// ${VAR} format
+			envVar = match[2 : len(match)-1]
+		} else {
+			// $VAR format
+			envVar = match[1:]
+		}
+
+		envValue, exists := os.LookupEnv(envVar)
+		if exists {
+			return envValue
+		}
+		return match // Return original if env var not found
+	})
+}
+
 // NewCache creates a new Cache with the given directory and TTL
 func NewCache(cacheDir string, ttl int) (*Cache, error) {
 
-	// If cacheDir starts with $XDG_CACHE_HOME, expand it
-	if len(cacheDir) >= 14 && cacheDir[0:14] == "$XDG_CACHE_HOME" {
-		xdgCacheHome := os.Getenv("XDG_CACHE_HOME")
-		if xdgCacheHome == "" {
-			dirs, err := xdg.GetDirs()
-			if err != nil {
-				return nil, errors.NewSystemError("101", "Failed to get XDG directories", err)
-			}
-			xdgCacheHome = dirs.CacheHome
-		}
-		cacheDir = filepath.Join(xdgCacheHome, cacheDir[15:]) // Skip the / in $XDG_CACHE_HOME/
-	}
+	// Expand any environment variables in the cache directory path
+	cacheDir = expandEnvironmentVariables(cacheDir)
 
 	// Create the cache directory if it doesn't exist
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return nil, errors.NewSystemError("102", "Failed to create cache directory", err)
-	}
-
-	// Only update the path if it was successfully expanded
-	if len(cacheDir) >= 14 && len(os.Getenv("XDG_CACHE_HOME")) > 0 {
-		cacheDir = filepath.Join(os.Getenv("XDG_CACHE_HOME"), "cpan-test")
 	}
 
 	return &Cache{
@@ -101,6 +135,11 @@ func NewCache(cacheDir string, ttl int) (*Cache, error) {
 		ttl:      ttl,
 		locks:    make(map[string]*sync.Mutex),
 	}, nil
+}
+
+// CacheDir returns the cache directory path
+func (c *Cache) CacheDir() string {
+	return c.cacheDir
 }
 
 // getCachePath returns the path to the cache file for the given key

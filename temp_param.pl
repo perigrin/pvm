@@ -1,0 +1,1 @@
+my MyType $custom;

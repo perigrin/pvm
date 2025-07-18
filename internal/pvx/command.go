@@ -36,6 +36,7 @@ func NewCommand() *cobra.Command {
 			rootDir, _ := cmd.Flags().GetString("root")
 			typeCheck, _ := cmd.Flags().GetBool("type-check")
 			verbose, _ := cmd.Flags().GetBool("verbose")
+			quiet, _ := cmd.Flags().GetBool("quiet")
 			executeCode, _ := cmd.Flags().GetString("execute")
 			forceVersion, _ := cmd.Flags().GetBool("force")
 			noInstall, _ := cmd.Flags().GetBool("no-install")
@@ -83,6 +84,7 @@ func NewCommand() *cobra.Command {
 				RootDir:      rootDir,
 				TypeCheck:    typeCheck,
 				Verbose:      verbose,
+				Quiet:        quiet,
 				ForceVersion: forceVersion,
 				Env:          make(map[string]string),
 				Isolated:     isolated,
@@ -317,6 +319,7 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().String("root", "", "Set environment root directory")
 	cmd.Flags().Bool("type-check", false, "Enable type checking before execution")
 	cmd.Flags().BoolP("verbose", "v", false, "Show additional output")
+	cmd.Flags().BoolP("quiet", "q", false, "Suppress all non-error output")
 	cmd.Flags().BoolP("force", "f", false, "Force using specified Perl version")
 	cmd.Flags().BoolP("isolated", "i", false, "Create an isolated environment for the script (deprecated, use --isolation=local instead)")
 	cmd.Flags().String("isolation-dir", "", "Specify the directory to use for isolation (default: auto-generated temp dir)")
