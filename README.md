@@ -9,22 +9,41 @@ The PVM Ecosystem provides a comprehensive suite of tools for Perl development w
 - **PVI (Perl Version Installer)** - Module installer with type-aware dependency management
 - **PVX (Perl Version eXecutor)** - Isolated script execution with dependency resolution
 
-## Key Features
+## 🔧 Installation
 
-🚀 **8x Performance Potential** - Modernized compiler pipeline with 12.3x integration improvements
-🧠 **Symbol-Aware LSP** - TypeScript-quality language server with accurate navigation
-🔍 **Enhanced Diagnostics** - Context-aware error messages with actionable suggestions
-🏗️ **Modern Build System** - Code generation, baseline testing, and performance monitoring
-📊 **Production Ready** - Comprehensive testing, CI/CD integration, and observability
+### Linux
+```bash
+# Download for your platform
+wget https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-linux-amd64.tar.gz
+tar -xzf pvm-1.0.0-rc32-linux-amd64.tar.gz
 
-## Quick Start
-
-**New to PVM?** Check out the [Getting Started Guide](docs/quickstart.md) for immediate hands-on experience.
-
-**Architecture:** PVM uses a modernized TypeScript-Go inspired pipeline:
+# Make binaries executable and test
+chmod +x pvm-* pvi-* pvx-*
+./pvm-linux-amd64 version
 ```
-Source → Scanner → Parser → Binder → Checker → Compiler → Output
+
+### macOS
+```bash
+# Download for your platform (Intel or Apple Silicon)
+wget https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-darwin-amd64.tar.gz
+tar -xzf pvm-1.0.0-rc32-darwin-amd64.tar.gz
+
+# Make executable and remove quarantine flag
+chmod +x pvm-darwin-amd64
+xattr -d com.apple.quarantine pvm-darwin-amd64
+
+# Test installation
+./pvm-darwin-amd64 version
 ```
+
+**⚠️ macOS Security Notice**: These binaries are unsigned. If you get a security warning:
+1. **Right-click the binary** → **"Open"** → **"Open"** (bypasses Gatekeeper)
+2. **Or use Terminal**: `xattr -d com.apple.quarantine pvm-darwin-*`
+3. **Or temporarily disable Gatekeeper**: `sudo spctl --master-disable` (re-enable with `--master-enable`)
+
+## New to PVM? 
+
+Check out the [Getting Started Guide](docs/quickstart.md) for immediate hands-on experience.
 
 **Enhanced Features:**
 - 🐪 Manage multiple Perl versions seamlessly
