@@ -38,6 +38,17 @@ type VersionConsistencyTestConfig struct {
 func AssertVersionConsistency(t *testing.T, env *TestEnv, config *VersionConsistencyTestConfig) {
 	t.Helper()
 
+	// Save original working directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current working directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Errorf("Failed to restore original working directory %s: %v", originalDir, err)
+		}
+	}()
+
 	// Setup test environment based on config
 	setupVersionEnvironment(t, env, config)
 

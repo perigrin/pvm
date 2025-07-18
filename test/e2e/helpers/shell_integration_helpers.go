@@ -66,6 +66,17 @@ func SetupShellIntegrationTest(t *testing.T, env *TestEnv, config *ShellIntegrat
 func RunShellIntegrationTest(t *testing.T, env *TestEnv, config *ShellIntegrationTestConfig) (string, error) {
 	t.Helper()
 
+	// Save original working directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current working directory: %w", err)
+	}
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Errorf("Failed to restore original working directory %s: %v", originalDir, err)
+		}
+	}()
+
 	// Setup test environment
 	if err := SetupShellIntegrationTest(t, env, config); err != nil {
 		return "", err
