@@ -147,7 +147,22 @@ func (e *TestEnv) buildPVM() error {
 	}
 
 	// Set the binary path to the built location
-	e.PVMBinary = filepath.Join(projectRoot, "build", "pvm")
+	builtBinary := filepath.Join(projectRoot, "build", "pvm")
+
+	// Copy the built binary to the test environment's bin directory
+	// This ensures the shell integration can find it via PATH
+	testBinary := filepath.Join(e.PVMBinDir, "pvm")
+	if err := e.CopyFile(builtBinary, testBinary); err != nil {
+		return fmt.Errorf("failed to copy PVM binary to test environment: %w", err)
+	}
+
+	// Make sure the copied binary is executable
+	if err := os.Chmod(testBinary, 0755); err != nil {
+		return fmt.Errorf("failed to make test binary executable: %w", err)
+	}
+
+	// Use the copied binary for test execution
+	e.PVMBinary = testBinary
 
 	return nil
 }
