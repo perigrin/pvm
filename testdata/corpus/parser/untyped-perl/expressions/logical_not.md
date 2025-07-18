@@ -37,3 +37,83 @@ $not_result = !$condition;
 ```perl
 # Type inference not yet fully implemented
 ```
+
+## Text AST
+
+```
+source_file
+  expression_statement
+    assignment_expression
+      scalar
+        token
+        token
+      token
+      refgen_expression
+        expression_stmt
+          literal
+        unary_expression
+          expression_stmt
+            literal
+          scalar
+            token
+            token
+  token
+```
+
+## JSON AST
+
+```json
+{
+  "type": "source_file",
+  "children": [
+    {
+      "type": "expression_statement",
+      "children": [
+        {
+          "type": "assignment_expression",
+          "children": [
+            {
+              "type": "scalar",
+              "children": [
+                {"type": "token", "text": "$"},
+                {"type": "token", "text": "not_result"}
+              ]
+            },
+            {"type": "token", "text": "="},
+            {
+              "type": "refgen_expression",
+              "children": [
+                {
+                  "type": "expression_stmt",
+                  "children": [
+                    {"type": "literal", "value": "\\", "kind": "string"}
+                  ]
+                },
+                {
+                  "type": "unary_expression",
+                  "children": [
+                    {
+                      "type": "expression_stmt",
+                      "children": [
+                        {"type": "literal", "value": "!", "kind": "string"}
+                      ]
+                    },
+                    {
+                      "type": "scalar",
+                      "children": [
+                        {"type": "token", "text": "$"},
+                        {"type": "token", "text": "condition"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {"type": "token", "text": ";"}
+  ]
+}
+```

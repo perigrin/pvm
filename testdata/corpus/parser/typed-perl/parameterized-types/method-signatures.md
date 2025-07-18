@@ -121,6 +121,23 @@ method ArrayRef[Result[Str, Error]] transform(Map[Str, Int] $data) {
 # Type inference not yet fully implemented
 ```
 
+## Text AST
+
+**Note**: Method signatures with parameterized return types and typed parameters are not yet supported by the tree-sitter grammar. This syntax would currently produce parse errors and cannot generate a meaningful AST.
+
+```
+(parse error - method signatures not supported)
+```
+
+## JSON AST
+
+```json
+{
+  "error": "Method signatures with parameterized types not yet supported by grammar",
+  "note": "This syntax requires grammar extensions for: method declarations with return types, parameterized types (Type[Param]), and typed method parameters"
+}
+```
+
 # Expected Type Errors
 
 ```

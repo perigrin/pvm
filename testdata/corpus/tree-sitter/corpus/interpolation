@@ -1,9 +1,10 @@
 ================================================================================
-Fancy indirob interpolation
-================================================================================
 "${\$obj->method}";
+================================================================================
 "@{[1,2,3]}";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -29,13 +30,47 @@ Fancy indirob interpolation
                   (number)
                   (number))))))))))
 
-================================================================================
-Array element interpolation
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 13,
+      "duration": {
+        "nanos": 576578,
+        "secs": 0
+      },
+      "end": {
+        "column": 13,
+        "row": 0
+      },
+      "file": "/tmp/test_182539658.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "an array $elem[0]";
+================================================================================
 "an array $elem->[1] deref";
 "an deep $elem->[1][0] deref";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -62,13 +97,47 @@ Array element interpolation
             (number))
           (number))))))
 
-================================================================================
-Hash element interpolation
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 59,
+      "duration": {
+        "nanos": 630306,
+        "secs": 0
+      },
+      "end": {
+        "column": 30,
+        "row": 1
+      },
+      "file": "/tmp/test_687765257.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "a $hash{key}";
+================================================================================
 "an $hash->{key} deref";
 "an deep $hash->{key}{deref}";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -95,12 +164,46 @@ Hash element interpolation
             (autoquoted_bareword))
           (autoquoted_bareword))))))
 
-================================================================================
-Method calls don't interpolate
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 55,
+      "duration": {
+        "nanos": 442769,
+        "secs": 0
+      },
+      "end": {
+        "column": 30,
+        "row": 1
+      },
+      "file": "/tmp/test_3377440659.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "this is not a $method->call";
+================================================================================
 "this is not a $method->$call";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -116,16 +219,50 @@ Method calls don't interpolate
         (scalar
           (varname))))))
 
-================================================================================
-Space skips interpolation
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 31,
+      "duration": {
+        "nanos": 199836,
+        "secs": 0
+      },
+      "end": {
+        "column": 31,
+        "row": 0
+      },
+      "file": "/tmp/test_350055232.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "an array $elem [0]";
+================================================================================
 "an array $elem ->[1] deref";
 "an array $elem-> [1] deref and a slice $slice->@ [1..10]";
 "an array $elem->
 [1] deref";
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (interpolated_string_literal
@@ -150,13 +287,47 @@ Space skips interpolation
         (scalar
           (varname))))))
 
-================================================================================
-Slice interpolation
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 119,
+      "duration": {
+        "nanos": 571924,
+        "secs": 0
+      },
+      "end": {
+        "column": 11,
+        "row": 3
+      },
+      "file": "/tmp/test_582133591.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "a plain @ary[0,1]";
+================================================================================
 "a hash slice @hash{key}";
 "and now postfix $aryref->@[0,1,2]";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -186,12 +357,46 @@ Slice interpolation
             (number)
             (number)))))))
 
-================================================================================
-Postfix star interpolation
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 63,
+      "duration": {
+        "nanos": 394245,
+        "secs": 0
+      },
+      "end": {
+        "column": 36,
+        "row": 1
+      },
+      "file": "/tmp/test_2641873920.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "a $scalaref->$* and an unrolled $aryref->@*";
+================================================================================
 "but $not-> $* or $here->$ *"
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -213,15 +418,49 @@ Postfix star interpolation
         (scalar
           (varname))))))
 
-================================================================================
-Punctuation vars that interpolate
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 29,
+      "duration": {
+        "nanos": 240456,
+        "secs": 0
+      },
+      "end": {
+        "column": 29,
+        "row": 0
+      },
+      "file": "/tmp/test_901662758.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "$+";
+================================================================================
 "$(";
 "$!";
 "@+";
 "@-";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -250,13 +489,47 @@ Punctuation vars that interpolate
         (array
           (varname))))))
 
-================================================================================
-Punctuation vars that do not interpolate
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 23,
+      "duration": {
+        "nanos": 141796,
+        "secs": 0
+      },
+      "end": {
+        "column": 5,
+        "row": 3
+      },
+      "file": "/tmp/test_1109216359.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "@(";
+================================================================================
 "@)";
 "@";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -269,12 +542,46 @@ Punctuation vars that do not interpolate
     (interpolated_string_literal
       (string_content))))
 
-================================================================================
-braced vars do not subscript
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 10,
+      "duration": {
+        "nanos": 112280,
+        "secs": 0
+      },
+      "end": {
+        "column": 4,
+        "row": 1
+      },
+      "file": "/tmp/test_2906920409.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "${herro}[not an index]";
+================================================================================
 "@{herro}[not an index]";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -288,13 +595,47 @@ braced vars do not subscript
         (array
           (varname))))))
 
-================================================================================
-Nested quotes! (#98)
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 25,
+      "duration": {
+        "nanos": 134255,
+        "secs": 0
+      },
+      "end": {
+        "column": 25,
+        "row": 0
+      },
+      "file": "/tmp/test_2583734865.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 qq(things ${\q(and $shtuff)} and $shtuff);
+================================================================================
 s[things ${\q{hello}} ][ ${\q[hi again]}];
 print "$test{'value'}";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -334,3 +675,36 @@ print "$test{'value'}";
               (varname))
             (string_literal
               (string_content))))))))
+
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 66,
+      "duration": {
+        "nanos": 313366,
+        "secs": 0
+      },
+      "end": {
+        "column": 23,
+        "row": 1
+      },
+      "file": "/tmp/test_1076515086.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

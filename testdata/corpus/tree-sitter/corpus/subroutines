@@ -1,11 +1,12 @@
 ================================================================================
-Small declaration
-================================================================================
 sub foo
+================================================================================
 {
   123;
 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (subroutine_declaration_statement
@@ -14,28 +15,48 @@ sub foo
       (expression_statement
         (number)))))
 
-================================================================================
-Small anonymous
-================================================================================
-sub { $x };
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (anonymous_subroutine_expression
-      (block
-        (expression_statement
-          (scalar
-            (varname)))))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 10,
+      "duration": {
+        "nanos": 170799,
+        "secs": 0
+      },
+      "end": {
+        "column": 1,
+        "row": 2
+      },
+      "file": "/tmp/test_3697692703.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-Attributes on named subs
 ================================================================================
 sub abc :lvalue { }
+================================================================================
 sub def :lvalue const { }
 sub ghi :lvalue :const { }
 sub jkl : { }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (subroutine_declaration_statement
@@ -64,14 +85,48 @@ sub jkl : { }
     (bareword)
     (block)))
 
-================================================================================
-Attributes on anonymous subs
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 66,
+      "duration": {
+        "nanos": 434561,
+        "secs": 0
+      },
+      "end": {
+        "column": 13,
+        "row": 2
+      },
+      "file": "/tmp/test_713908546.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 sub :lvalue {};
+================================================================================
 sub :lvalue const {};
 sub :lvalue :const {};
 sub : {};
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -100,15 +155,49 @@ sub : {};
     (anonymous_subroutine_expression
       (block))))
 
-================================================================================
-Attributes with values
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 54,
+      "duration": {
+        "nanos": 349859,
+        "secs": 0
+      },
+      "end": {
+        "column": 9,
+        "row": 2
+      },
+      "file": "/tmp/test_3044362231.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 sub abc :title(Boo!) { }
+================================================================================
 sub def :title(Boo(here)) { }
 sub ghi :title(Boo\(is fine) { }
 
 sub :title(Boo!) { }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (subroutine_declaration_statement
@@ -140,13 +229,47 @@ sub :title(Boo!) { }
           (attribute_value)))
       (block))))
 
-================================================================================
-Prototypes
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 84,
+      "duration": {
+        "nanos": 321945,
+        "secs": 0
+      },
+      "end": {
+        "column": 20,
+        "row": 3
+      },
+      "file": "/tmp/test_3309037670.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 sub foo0 () { }
+================================================================================
 sub foo1 ($) { }
 sub fooN (@) { }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (subroutine_declaration_statement
@@ -162,13 +285,47 @@ sub fooN (@) { }
     (prototype)
     (block)))
 
-================================================================================
-Signatures
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 33,
+      "duration": {
+        "nanos": 231297,
+        "secs": 0
+      },
+      "end": {
+        "column": 16,
+        "row": 1
+      },
+      "file": "/tmp/test_3282872633.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 sub bar1 ($arg) { }
+================================================================================
 sub bar3 ($one = 1, $two = 2, $three = ($one + $two)) { }
 sub barN ($x, $y, @z) { }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (subroutine_declaration_statement
@@ -212,32 +369,48 @@ sub barN ($x, $y, @z) { }
           (varname))))
     (block)))
 
-================================================================================
-Attribute plus signature
-================================================================================
-sub f :attr ($sig) {}
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (subroutine_declaration_statement
-    (bareword)
-    (attrlist
-      (attribute
-        (attribute_name)))
-    (signature
-      (mandatory_parameter
-        (scalar
-          (varname))))
-    (block)))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 83,
+      "duration": {
+        "nanos": 832757,
+        "secs": 0
+      },
+      "end": {
+        "column": 25,
+        "row": 1
+      },
+      "file": "/tmp/test_644851783.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-Methods
 ================================================================================
 method m1 { 123; }
+================================================================================
 method { "anon" };
 method m2 :lvalue { }
 method m3 ($tings) { }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (method_declaration_statement
@@ -265,23 +438,46 @@ method m3 ($tings) { }
           (varname))))
     body: (block)))
 
-================================================================================
-Lexical named sub
-================================================================================
-my sub abc { }
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (subroutine_declaration_statement
-    (bareword)
-    (block)))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 63,
+      "duration": {
+        "nanos": 244431,
+        "secs": 0
+      },
+      "end": {
+        "column": 22,
+        "row": 2
+      },
+      "file": "/tmp/test_1022098233.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-Funkier Signatures
 ================================================================================
 sub unnamed ($thing, $, $=, @) {}
+================================================================================
 sub named_params (:$red, :$blue) {}
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (subroutine_declaration_statement
@@ -308,39 +504,47 @@ sub named_params (:$red, :$blue) {}
           (varname))))
     (block)))
 
-================================================================================
-Recursive Signatures
-================================================================================
-sub but_why ($cb = sub ($arg) { say $arg }) {}
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (subroutine_declaration_statement
-    (bareword)
-    (signature
-      (optional_parameter
-        (scalar
-          (varname))
-        (anonymous_subroutine_expression
-          (signature
-            (mandatory_parameter
-              (scalar
-                (varname))))
-          (block
-            (expression_statement
-              (ambiguous_function_call_expression
-                (function)
-                (scalar
-                  (varname))))))))
-    (block)))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 35,
+      "duration": {
+        "nanos": 137261,
+        "secs": 0
+      },
+      "end": {
+        "column": 35,
+        "row": 0
+      },
+      "file": "/tmp/test_3313586375.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-async/await
 ================================================================================
 async sub ($thing) {
-  await $thing->promise;
+================================================================================
+await $thing->promise;
 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -357,14 +561,20 @@ async sub ($thing) {
                 (varname))
               (method))))))))
 
-================================================================================
-extended sub/method
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 extended sub thingy {}
+================================================================================
 my extended method stuff {};
 my async extended method stuff {};
 my extended async method stuff {};
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (subroutine_declaration_statement
@@ -380,13 +590,47 @@ my extended async method stuff {};
     (bareword)
     (block)))
 
-================================================================================
-Typed Optional Parameters
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 98,
+      "duration": {
+        "nanos": 164759,
+        "secs": 0
+      },
+      "end": {
+        "column": 34,
+        "row": 2
+      },
+      "file": "/tmp/test_1800111267.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 sub typed_defaults (Str $name = "world", Int $count = 42) { }
+================================================================================
 sub mixed_typed (Str $required, Int $optional = 0) { }
 sub complex_typed (ArrayRef[Int] $data = [1,2,3]) { }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (subroutine_declaration_statement
@@ -440,13 +684,47 @@ sub complex_typed (ArrayRef[Int] $data = [1,2,3]) { }
             (number)))))
     (block)))
 
-================================================================================
-Typed Slurpy Parameters
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 108,
+      "duration": {
+        "nanos": 270480,
+        "secs": 0
+      },
+      "end": {
+        "column": 53,
+        "row": 1
+      },
+      "file": "/tmp/test_797678847.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 method with_typed_slurpy(Str @args) { }
+================================================================================
 sub typed_array_param(Int @numbers) { }
 sub typed_hash_param(Str %config) { }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (method_declaration_statement
@@ -477,29 +755,51 @@ sub typed_hash_param(Str %config) { }
           (varname))))
     body: (block)))
 
-================================================================================
-lexical method calls experimental Object::Pad syntax
-================================================================================
-$sner->&over_9000
---------------------------------------------------------------------------------
-(source_file
-  (expression_statement
-    (method_call_expression
-      (scalar
-        (varname))
-      (method))))
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 77,
+      "duration": {
+        "nanos": 170090,
+        "secs": 0
+      },
+      "end": {
+        "column": 37,
+        "row": 1
+      },
+      "file": "/tmp/test_3732756959.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
 ================================================================================
-Methods with return types - basic
-================================================================================
 method Int get_number() {
-    return 42;
+================================================================================
+return 42;
 }
 
 method Str simple() {
     return "hello";
 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (method_declaration_statement
@@ -522,13 +822,19 @@ method Str simple() {
           (interpolated_string_literal
             content: (string_content)))))))
 
-================================================================================
-Methods with return types - parameterized
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 method HashRef[Str] process_list(ArrayRef[Int] $numbers) {
-    return {};
+================================================================================
+return {};
 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (method_declaration_statement
@@ -553,3 +859,8 @@ method HashRef[Str] process_list(ArrayRef[Int] $numbers) {
       (expression_statement
         (return_expression
           (anonymous_hash_expression))))))
+
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:

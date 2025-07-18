@@ -1,13 +1,14 @@
 ================================================================================
-integers
-================================================================================
 123;
+================================================================================
 077;
 0xDEADBEEF;
 0b11011011011;
 1234567890198;
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (number))
@@ -20,29 +21,97 @@ integers
   (expression_statement
     (number)))
 
-================================================================================
-floats
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 46,
+      "duration": {
+        "nanos": 102809,
+        "secs": 0
+      },
+      "end": {
+        "column": 14,
+        "row": 3
+      },
+      "file": "/tmp/test_2389057613.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 111_111e99_99;
+================================================================================
 111_111e-99_99;
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (number))
   (expression_statement
     (number)))
 
-================================================================================
-'' strings
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 15,
+      "duration": {
+        "nanos": 96264,
+        "secs": 0
+      },
+      "end": {
+        "column": 15,
+        "row": 0
+      },
+      "file": "/tmp/test_1953843849.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 'hello';
+================================================================================
 'a\'string';
 'a\\string';
 '\n is literal';
 'a string with a final \\';
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (string_literal
@@ -63,14 +132,48 @@ floats
       (string_content
         (escape_sequence)))))
 
-================================================================================
-q() strings
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 70,
+      "duration": {
+        "nanos": 175698,
+        "secs": 0
+      },
+      "end": {
+        "column": 27,
+        "row": 3
+      },
+      "file": "/tmp/test_11155176.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 q(hello);
+================================================================================
 q(a 'string');
 q(a (string) here);
 q"literal $without interpolation";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -86,16 +189,50 @@ q"literal $without interpolation";
     (string_literal
       (string_content))))
 
-================================================================================
-"" strings
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 69,
+      "duration": {
+        "nanos": 419195,
+        "secs": 0
+      },
+      "end": {
+        "column": 34,
+        "row": 2
+      },
+      "file": "/tmp/test_786930398.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "hello";
+================================================================================
 "a\"string";
 "a\\string";
 "a string w/ a final \\";
 "a string with\nlinefeed";
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (interpolated_string_literal
@@ -117,27 +254,47 @@ q"literal $without interpolation";
       (string_content
         (escape_sequence)))))
 
-================================================================================
-"" strings - no runaway barewords (fix when ambiguous funcs hit)
-================================================================================
-BAREWORD"string"
+## JSON AST
 
---------------------------------------------------------------------------------
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 78,
+      "duration": {
+        "nanos": 607543,
+        "secs": 0
+      },
+      "end": {
+        "column": 26,
+        "row": 3
+      },
+      "file": "/tmp/test_159100281.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-(source_file
-  (expression_statement
-    (ambiguous_function_call_expression
-      (function)
-      (interpolated_string_literal
-        (string_content)))))
-
-================================================================================
-qq() strings
 ================================================================================
 qq(hello);
+================================================================================
 qq(a 'string');
 qq(a (string) here);
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -150,15 +307,49 @@ qq(a (string) here);
     (interpolated_string_literal
       (string_content))))
 
-================================================================================
-quotelike strings - tricky delimeters
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 36,
+      "duration": {
+        "nanos": 148372,
+        "secs": 0
+      },
+      "end": {
+        "column": 20,
+        "row": 1
+      },
+      "file": "/tmp/test_4100595022.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 q#hello#;
+================================================================================
 q # this is a comment
    (hello);
 # another comment so this can fail properly
 q\backslashes\;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -173,14 +364,48 @@ q\backslashes\;
     (string_literal
       (string_content))))
 
-================================================================================
-Interpolation in "" strings
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 93,
+      "duration": {
+        "nanos": 156184,
+        "secs": 0
+      },
+      "end": {
+        "column": 15,
+        "row": 3
+      },
+      "file": "/tmp/test_3186786325.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 "with $scalar";
+================================================================================
 "even with a $ space after";
 "with @array";
 qq'with $scalar in single-quotes';
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -204,10 +429,42 @@ qq'with $scalar in single-quotes';
         (scalar
           (varname))))))
 
-================================================================================
-qw() lists
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 78,
+      "duration": {
+        "nanos": 388145,
+        "secs": 0
+      },
+      "end": {
+        "column": 34,
+        "row": 2
+      },
+      "file": "/tmp/test_2258106054.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 qw( a b c );
+================================================================================
 qw();
 qw/ 1 2 /;
 qw/ literal\nslash-n /;
@@ -216,6 +473,8 @@ qw| double escape \\|;
 qw/ hello \/ goodbye /;
 qw\ backslashes \;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -244,13 +503,47 @@ qw\ backslashes \;
     (quoted_word_list
       (string_content))))
 
-================================================================================
-`` strings
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 132,
+      "duration": {
+        "nanos": 322522,
+        "secs": 0
+      },
+      "end": {
+        "column": 18,
+        "row": 6
+      },
+      "file": "/tmp/test_1972642819.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 `command`;
+================================================================================
 `command with (parens)`;
 `command with $interpolation`;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -265,14 +558,48 @@ qw\ backslashes \;
         (scalar
           (varname))))))
 
-================================================================================
-qx() strings
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 55,
+      "duration": {
+        "nanos": 206671,
+        "secs": 0
+      },
+      "end": {
+        "column": 30,
+        "row": 1
+      },
+      "file": "/tmp/test_3302926182.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 qx(command);
+================================================================================
 qx(command with (parens));
 qx(command with $interpolation);
 qx'command with no $interpolation';
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -289,3 +616,36 @@ qx'command with no $interpolation';
   (expression_statement
     (command_string
       (string_content))))
+
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 95,
+      "duration": {
+        "nanos": 311347,
+        "secs": 0
+      },
+      "end": {
+        "column": 35,
+        "row": 2
+      },
+      "file": "/tmp/test_2159980356.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

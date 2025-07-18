@@ -177,6 +177,67 @@ AST {
 }
 ```
 
+## JSON AST
+
+```json
+{
+  "path": "custom-parameterized.pl",
+  "root": {
+    "type": "source_file",
+    "start": {"Line": 1, "Column": 1, "Offset": 0},
+    "end": {"Line": 1, "Column": 30, "Offset": 29},
+    "children": [
+      {
+        "type": "expression_statement",
+        "start": {"Line": 1, "Column": 1, "Offset": 0},
+        "end": {"Line": 1, "Column": 29, "Offset": 28},
+        "children": [
+          {
+            "type": "variable_declaration",
+            "start": {"Line": 1, "Column": 1, "Offset": 0},
+            "end": {"Line": 1, "Column": 29, "Offset": 28},
+            "children": [
+              {
+                "type": "type_expression",
+                "start": {"Line": 1, "Column": 4, "Offset": 3},
+                "end": {"Line": 1, "Column": 21, "Offset": 20},
+                "children": [
+                  {
+                    "type": "parameterized_type",
+                    "start": {"Line": 1, "Column": 4, "Offset": 3},
+                    "end": {"Line": 1, "Column": 21, "Offset": 20}
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "type_annotations": [
+    {
+      "annotated_item": "$custom",
+      "type_expression": {
+        "Kind": 4,
+        "Name": "Container[MyType]",
+        "Parameters": [
+          {
+            "Kind": 0,
+            "Name": "MyType",
+            "OriginalString": "MyType"
+          }
+        ],
+        "OriginalString": "Container[MyType]"
+      },
+      "position": {"Line": 1, "Column": 1, "Offset": 0},
+      "kind": "VarAnnotation"
+    }
+  ],
+  "errors": [],
+  "source_length": 29
+}
+```
 
 # Expected Compilation Outcomes
 

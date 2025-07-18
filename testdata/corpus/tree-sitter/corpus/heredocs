@@ -1,7 +1,6 @@
 ================================================================================
-Non-quoted heredoc
-================================================================================
 print(<<TINGS, 'other content');
+================================================================================
 this is just $content
   TINGS here (or even \nTINGS here) does not end it\
 TINGS
@@ -9,6 +8,8 @@ TINGS
 This type does no $interp
 RAW
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -29,10 +30,14 @@ RAW
   (heredoc_content
     (heredoc_end)))
 
-================================================================================
-Quoted heredocs
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 <<  "$STOP";
+================================================================================
 please $STOP doing \\ silly things
 $STOP
 <<  '  CRAZY';
@@ -40,6 +45,8 @@ you'd think this is just
 CRAZY, but you'd be \n $wrong
   CRAZY
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -54,13 +61,47 @@ CRAZY, but you'd be \n $wrong
   (heredoc_content
     (heredoc_end)))
 
-================================================================================
-Command heredocs
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 118,
+      "duration": {
+        "nanos": 194209,
+        "secs": 0
+      },
+      "end": {
+        "column": 7,
+        "row": 5
+      },
+      "file": "/tmp/test_4273468748.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 << `BASH`;
+================================================================================
 :(){ :|:& };:
 BASH
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -68,11 +109,15 @@ BASH
   (heredoc_content
     (heredoc_end)))
 
-================================================================================
-Indented heredocs
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 <<~SIMPLE;
-   This is indented
+================================================================================
+This is indented
    SIMPLE
 <<~    "QUOTED";
     Guess what?
@@ -83,6 +128,8 @@ Indented heredocs
     LOLWUT
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (heredoc_token))
@@ -99,10 +146,42 @@ Indented heredocs
   (heredoc_content
     (heredoc_end)))
 
-================================================================================
-Insane heredocs
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 163,
+      "duration": {
+        "nanos": 296953,
+        "secs": 0
+      },
+      "end": {
+        "column": 10,
+        "row": 8
+      },
+      "file": "/tmp/test_3776280725.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 <<'WUT\'\n?';
+================================================================================
 this is intersting
 WUT'\n?
 <<"WHY?$CUZ";
@@ -110,6 +189,8 @@ WUT'\n?
 WHY?$CUZ
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (heredoc_token))
@@ -122,14 +203,20 @@ WHY?$CUZ
       (varname))
     (heredoc_end)))
 
-================================================================================
-heredocs after a statement (gh#92)
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 my $ting;
+================================================================================
 print <<EOF;
 $tings --tings
 EOF
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -145,16 +232,50 @@ EOF
       (varname))
     (heredoc_end)))
 
-================================================================================
-weird heredoc interpolation (gh#133)
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 31,
+      "duration": {
+        "nanos": 299088,
+        "secs": 0
+      },
+      "end": {
+        "column": 3,
+        "row": 2
+      },
+      "file": "/tmp/test_6966934.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 <<EOF;
+================================================================================
 @
 EOF
 <<EOF;
 $sner->
 EOF
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -168,16 +289,55 @@ EOF
       (varname))
     (heredoc_end)))
 
-================================================================================
-utf8 heredoc delims
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 <<עד_כאן;
+================================================================================
 this is just plain old דברים!
 עד_כאן
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
     (heredoc_token))
   (heredoc_content
     (heredoc_end)))
+
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 46,
+      "duration": {
+        "nanos": 215284,
+        "secs": 0
+      },
+      "end": {
+        "column": 11,
+        "row": 1
+      },
+      "file": "/tmp/test_3594425646.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

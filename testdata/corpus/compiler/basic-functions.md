@@ -28,3 +28,20 @@ sub add ($a, $b) {
     return $a + $b;
 }
 ```
+
+## Text AST
+
+**Note**: Function signatures with type annotations are not yet supported by the tree-sitter grammar. This syntax would currently produce parse errors and cannot generate a meaningful AST.
+
+```
+(parse error - function signatures not supported)
+```
+
+## JSON AST
+
+```json
+{
+  "error": "Function signatures with type annotations not yet supported by grammar",
+  "note": "This syntax requires grammar extension for sub return types and typed parameters"
+}
+```

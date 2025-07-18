@@ -1,13 +1,14 @@
 ================================================================================
-basic vars
-================================================================================
 $s;
+================================================================================
 $namespace::s;
 @a;
 $#a;
 %h;
 *g;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -29,24 +30,42 @@ $#a;
     (glob
       (varname))))
 
-================================================================================
-vars in expressions
-================================================================================
-$one + $two;
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (binary_expression
-      (scalar
-        (varname))
-      (scalar
-        (varname)))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 31,
+      "duration": {
+        "nanos": 224867,
+        "secs": 0
+      },
+      "end": {
+        "column": 3,
+        "row": 4
+      },
+      "file": "/tmp/test_2542844145.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-variable declarations
 ================================================================================
 my $s;
+================================================================================
 my @a;
 my %h;
 my ($S, @A, %h);
@@ -54,6 +73,8 @@ our $PackageVar;
 our $Package::qualified;
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (variable_declaration
@@ -84,28 +105,47 @@ our $Package::qualified;
       (scalar
         (varname)))))
 
-================================================================================
-variable declarations including undef
-================================================================================
-my ($x, undef, $z);
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (variable_declaration
-      (scalar
-        (varname))
-      (undef_expression)
-      (scalar
-        (varname)))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 72,
+      "duration": {
+        "nanos": 899797,
+        "secs": 0
+      },
+      "end": {
+        "column": 24,
+        "row": 4
+      },
+      "file": "/tmp/test_1513531425.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-variable declarations with initialiser
 ================================================================================
 my $s = 123;
+================================================================================
 my @a = (4, 5);
 my %h = (6, 7);
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -131,13 +171,47 @@ my %h = (6, 7);
         (number)
         (number)))))
 
-================================================================================
-variable declarations with attributes
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 31,
+      "duration": {
+        "nanos": 297197,
+        "secs": 0
+      },
+      "end": {
+        "column": 15,
+        "row": 1
+      },
+      "file": "/tmp/test_2399159196.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 my $s :shared;
+================================================================================
 my @a :lock;
 my ($S, @A, %h) :MyAttr(foo);
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -167,14 +241,48 @@ my ($S, @A, %h) :MyAttr(foo);
           (attribute_name)
           (attribute_value))))))
 
-================================================================================
-array elements
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 42,
+      "duration": {
+        "nanos": 197123,
+        "secs": 0
+      },
+      "end": {
+        "column": 29,
+        "row": 1
+      },
+      "file": "/tmp/test_2274672139.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 $a[123];
+================================================================================
 $aref->[123];
 $a[1][2][3];
 $a->$#*;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -201,13 +309,47 @@ $a->$#*;
       (scalar
         (varname)))))
 
-================================================================================
-hash elements
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 35,
+      "duration": {
+        "nanos": 770635,
+        "secs": 0
+      },
+      "end": {
+        "column": 8,
+        "row": 2
+      },
+      "file": "/tmp/test_138146429.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 $h{123};
+================================================================================
 $href->{123};
 $h{1}{2}{3};
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -230,13 +372,47 @@ $h{1}{2}{3};
         key: (number))
       key: (number))))
 
-================================================================================
-coderef calls
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 26,
+      "duration": {
+        "nanos": 264578,
+        "secs": 0
+      },
+      "end": {
+        "column": 12,
+        "row": 1
+      },
+      "file": "/tmp/test_1053898397.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 $code->();
+================================================================================
 $code->('args');
 $code->('args')(1)("and again")
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -261,16 +437,50 @@ $code->('args')(1)("and again")
       arguments: (interpolated_string_literal
         content: (string_content)))))
 
-================================================================================
-special vars
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 48,
+      "duration": {
+        "nanos": 536451,
+        "secs": 0
+      },
+      "end": {
+        "column": 31,
+        "row": 1
+      },
+      "file": "/tmp/test_2338987105.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 $1;
+================================================================================
 $^X;
 $!;
 $^_;
 ${^_arbitrary_VAR};
 ${^Foo};
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -292,15 +502,49 @@ ${^Foo};
     (scalar
       (varname))))
 
-================================================================================
-Double dollar edge cases
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 42,
+      "duration": {
+        "nanos": 570691,
+        "secs": 0
+      },
+      "end": {
+        "column": 8,
+        "row": 4
+      },
+      "file": "/tmp/test_1371086866.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 $$;
+================================================================================
 # symbols are invalid names
 $$:;
 $$';
 $[;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -320,14 +564,20 @@ $[;
     (scalar
       (varname))))
 
-================================================================================
-crazy vars
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 $::application;
+================================================================================
 $::::var;
 %overload::;
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (scalar
@@ -339,26 +589,47 @@ $::::var;
     (hash
       (varname))))
 
-================================================================================
-hash parsing precedence
-================================================================================
-random_function %hash;
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (ambiguous_function_call_expression
-      (function)
-      (hash
-        (varname)))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 22,
+      "duration": {
+        "nanos": 85810,
+        "secs": 0
+      },
+      "end": {
+        "column": 12,
+        "row": 1
+      },
+      "file": "/tmp/test_247928271.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-unicode vars!
 ================================================================================
 $שלום;
+================================================================================
 %こんにちは;
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (expression_statement
     (scalar
@@ -367,13 +638,47 @@ $שלום;
     (hash
       (varname))))
 
-================================================================================
-amper subs
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 17,
+      "duration": {
+        "nanos": 313430,
+        "secs": 0
+      },
+      "end": {
+        "column": 17,
+        "row": 0
+      },
+      "file": "/tmp/test_1462258281.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 &function_call;
+================================================================================
 \&function_ref;
 $amper_derefed->&*;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -389,40 +694,48 @@ $amper_derefed->&*;
       (scalar
         (varname)))))
 
-================================================================================
-glob access
-================================================================================
-*foo{THING}, *foo{$dynamic_thing}, $var->*{THING}, $var->**;
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (list_expression
-      (glob_slot_expression
-        (glob
-          (varname))
-        (autoquoted_bareword))
-      (glob_slot_expression
-        (glob
-          (varname))
-        (scalar
-          (varname)))
-      (glob_slot_expression
-        (scalar
-          (varname))
-        (autoquoted_bareword))
-      (glob_deref_expression
-        (scalar
-          (varname))))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 35,
+      "duration": {
+        "nanos": 148361,
+        "secs": 0
+      },
+      "end": {
+        "column": 19,
+        "row": 1
+      },
+      "file": "/tmp/test_3850885151.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-typed variable declarations - basic types
 ================================================================================
 my Int $count = 42;
+================================================================================
 my Str $name = "example";
 my Bool $flag = 1;
 my Num $pi = 3.14159;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -459,13 +772,47 @@ my Num $pi = 3.14159;
           (varname)))
       right: (number))))
 
-================================================================================
-typed variable declarations - parameterized types
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 66,
+      "duration": {
+        "nanos": 225439,
+        "secs": 0
+      },
+      "end": {
+        "column": 21,
+        "row": 2
+      },
+      "file": "/tmp/test_2938856684.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 my ArrayRef[Int] $numbers = [1, 2, 3];
+================================================================================
 my HashRef[Str] $lookup = { key => "value" };
 my Optional[Str] $maybe_name;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -511,13 +858,47 @@ my Optional[Str] $maybe_name;
       variable: (scalar
         (varname)))))
 
-================================================================================
-typed variable declarations - union and intersection types
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 75,
+      "duration": {
+        "nanos": 676287,
+        "secs": 0
+      },
+      "end": {
+        "column": 29,
+        "row": 1
+      },
+      "file": "/tmp/test_3317989551.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 my Int|Str $flexible = 42;
+================================================================================
 my Object&Serializable $complex;
 my !Undef $not_undef = "something";
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -554,14 +935,48 @@ my !Undef $not_undef = "something";
       right: (interpolated_string_literal
         content: (string_content)))))
 
-================================================================================
-typed variable declarations - exact E2E test cases
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 68,
+      "duration": {
+        "nanos": 188049,
+        "secs": 0
+      },
+      "end": {
+        "column": 35,
+        "row": 1
+      },
+      "file": "/tmp/test_2176578956.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 my ArrayRef[Int] $numbers = [1, 2, 3, 4, 5];
+================================================================================
 my HashRef[Str, Int] $scores = { alice => 95, bob => 87 };
 my Maybe[Str] $optional_name = undef;
 my Union[Int, Str] $flexible_value = 42;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -629,12 +1044,46 @@ my Union[Int, Str] $flexible_value = 42;
           (varname)))
       right: (number))))
 
-================================================================================
-typed variable declarations - complex nested cases
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 137,
+      "duration": {
+        "nanos": 576018,
+        "secs": 0
+      },
+      "end": {
+        "column": 40,
+        "row": 2
+      },
+      "file": "/tmp/test_4082227284.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 my ArrayRef[HashRef[Str, Int]] $complex_data = [];
+================================================================================
 my HashRef[Str, ArrayRef[Int]] $complex_lookup = {};
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -674,111 +1123,35 @@ my HashRef[Str, ArrayRef[Int]] $complex_lookup = {};
           (varname)))
       right: (anonymous_hash_expression))))
 
-================================================================================
-Malformed type expressions - missing closing bracket
-================================================================================
-my ArrayRef[Int $var;
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (variable_declaration
-      type: (type_expression
-        (parameterized_type
-          (simple_type)
-          (type_parameter_list
-            (type_expression
-              (simple_type)))
-          (MISSING "]")))
-      variable: (scalar
-        (varname)))))
-
-================================================================================
-Malformed type expressions - invalid union syntax
-================================================================================
-my Int||Str $bad_union;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (variable_declaration
-      type: (type_expression
-        (union_type
-          (type_expression
-            (simple_type))
-          (ERROR)
-          (type_expression
-            (simple_type))))
-      variable: (scalar
-        (varname)))))
-
-================================================================================
-Malformed type expressions - incomplete type assertion
-================================================================================
-my $val = $input as ;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (assignment_expression
-      left: (variable_declaration
-        variable: (scalar
-          (varname)))
-      right: (scalar
-        (varname))))
-  (ERROR))
-
-================================================================================
-Malformed type expressions - invalid parameterized spacing
-================================================================================
-my ArrayRef[ Int] $spaced;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (variable_declaration
-      type: (type_expression
-        (parameterized_type
-          (simple_type)
-          (type_parameter_list
-            (type_expression
-              (simple_type)))))
-      variable: (scalar
-        (varname)))))
-
-================================================================================
-Malformed type expressions - invalid intersection syntax
-================================================================================
-my Object&&Serializable $obj;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (variable_declaration
-      type: (type_expression
-        (intersection_type
-          (type_expression
-            (simple_type))
-          (ERROR)
-          (type_expression
-            (simple_type))))
-      variable: (scalar
-        (varname)))))
-
-================================================================================
-Malformed type expressions - invalid negation syntax
-================================================================================
-my !!Undef $not_undef;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (variable_declaration
-      type: (type_expression
-        (negation_type
-          (type_expression
-            (negation_type
-              (type_expression
-                (simple_type))))))
-      variable: (scalar
-        (varname)))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 52,
+      "duration": {
+        "nanos": 268765,
+        "secs": 0
+      },
+      "end": {
+        "column": 52,
+        "row": 0
+      },
+      "file": "/tmp/test_1784744357.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

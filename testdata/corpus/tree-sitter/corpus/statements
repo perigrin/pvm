@@ -1,10 +1,11 @@
 ================================================================================
-use VERSION;
-================================================================================
 use 5.014;
+================================================================================
 use v5;
 use v5.14;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (use_version_statement
@@ -14,12 +15,46 @@ use v5.14;
   (use_version_statement
     (version)))
 
-================================================================================
-use MODULE;
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 18,
+      "duration": {
+        "nanos": 165599,
+        "secs": 0
+      },
+      "end": {
+        "column": 10,
+        "row": 1
+      },
+      "file": "/tmp/test_3912687705.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 use strict;
+================================================================================
 use List::Util 1.23;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (use_statement
@@ -28,70 +63,46 @@ use List::Util 1.23;
     module: (package)
     version: (number)))
 
-================================================================================
-expression as statement
-================================================================================
-123;
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (number)))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 20,
+      "duration": {
+        "nanos": 361012,
+        "secs": 0
+      },
+      "end": {
+        "column": 20,
+        "row": 0
+      },
+      "file": "/tmp/test_1619835388.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-postfix if
-================================================================================
-123 if 45;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (postfix_conditional_expression
-      (number)
-      (number))))
-
-================================================================================
-postfix unless
-================================================================================
-123 unless 45;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (postfix_conditional_expression
-      (number)
-      (number))))
-
-================================================================================
-postfix while
-================================================================================
-123 while 45;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (postfix_loop_expression
-      (number)
-      (number))))
-
-================================================================================
-postfix until
-================================================================================
-123 until 45;
---------------------------------------------------------------------------------
-
-(source_file
-  (expression_statement
-    (postfix_loop_expression
-      (number)
-      (number))))
-
-================================================================================
-postfix for
 ================================================================================
 123 for 45;
+================================================================================
 123 foreach 45;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -103,122 +114,47 @@ postfix for
       (number)
       (number))))
 
-================================================================================
-block if
-================================================================================
-if(1) { 123; }
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (conditional_statement
-    (number)
-    (block
-      (expression_statement
-        (number)))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 15,
+      "duration": {
+        "nanos": 119824,
+        "secs": 0
+      },
+      "end": {
+        "column": 15,
+        "row": 0
+      },
+      "file": "/tmp/test_812453958.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-block if/else
-================================================================================
-if(1) { 123; } else { 456; }
---------------------------------------------------------------------------------
-
-(source_file
-  (conditional_statement
-    (number)
-    (block
-      (expression_statement
-        (number)))
-    (else
-      (block
-        (expression_statement
-          (number))))))
-
-================================================================================
-block if/elsif
-================================================================================
-if(1) { 123; } elsif(2) { 456; }
---------------------------------------------------------------------------------
-
-(source_file
-  (conditional_statement
-    (number)
-    (block
-      (expression_statement
-        (number)))
-    (elsif
-      (number)
-      (block
-        (expression_statement
-          (number))))))
-
-================================================================================
-block if/elsif/else
-================================================================================
-if(1) { 123; } elsif(2) { 456; } else { 789; }
---------------------------------------------------------------------------------
-
-(source_file
-  (conditional_statement
-    (number)
-    (block
-      (expression_statement
-        (number)))
-    (elsif
-      (number)
-      (block
-        (expression_statement
-          (number)))
-      (else
-        (block
-          (expression_statement
-            (number)))))))
-
-================================================================================
-block unless
-================================================================================
-unless(1) { 123; }
---------------------------------------------------------------------------------
-
-(source_file
-  (conditional_statement
-    (number)
-    (block
-      (expression_statement
-        (number)))))
-
-================================================================================
-block while
-================================================================================
-while(1) { 123; }
---------------------------------------------------------------------------------
-
-(source_file
-  (loop_statement
-    (number)
-    (block
-      (expression_statement
-        (number)))))
-
-================================================================================
-block until
-================================================================================
-until(1) { 123; }
---------------------------------------------------------------------------------
-
-(source_file
-  (loop_statement
-    (number)
-    (block
-      (expression_statement
-        (number)))))
-
-================================================================================
-for (LIST) BLOCK
 ================================================================================
 for (1, 2, 3) { 456; }
+================================================================================
 foreach (1, 2, 3) { 456; }
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (for_statement
     (list_expression
@@ -237,13 +173,47 @@ foreach (1, 2, 3) { 456; }
       (expression_statement
         (number)))))
 
-================================================================================
-for VAR (LIST) BLOCK
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 26,
+      "duration": {
+        "nanos": 282151,
+        "secs": 0
+      },
+      "end": {
+        "column": 26,
+        "row": 0
+      },
+      "file": "/tmp/test_2173949790.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 for $V (1, 2, 3) { 456; }
+================================================================================
 foreach $V (1, 2, 3) { 456; }
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (for_statement
     (scalar
@@ -266,15 +236,49 @@ foreach $V (1, 2, 3) { 456; }
       (expression_statement
         (number)))))
 
-================================================================================
-for SCOPE VAR (LIST) BLOCK
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 29,
+      "duration": {
+        "nanos": 544483,
+        "secs": 0
+      },
+      "end": {
+        "column": 29,
+        "row": 0
+      },
+      "file": "/tmp/test_2383138678.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 for my $x (1, 2, 3) { 456; }
+================================================================================
 foreach my $x (1, 2, 3) { 456; }
 foreach our $x (1, 2, 3) { 456; }
 foreach state $x (1, 2, 3) { 456; }
 --------------------------------------------------------------------------------
 
+## Text AST
+
 (source_file
   (for_statement
     variable: (scalar
@@ -317,31 +321,47 @@ foreach state $x (1, 2, 3) { 456; }
       (expression_statement
         (number)))))
 
-================================================================================
-for my (VARS) (LIST) BLOCK
-================================================================================
-foreach my ($k, $v) (%hash) { 456; }
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (for_statement
-    (scalar
-      (varname))
-    (scalar
-      (varname))
-    (hash
-      (varname))
-    (block
-      (expression_statement
-        (number)))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 102,
+      "duration": {
+        "nanos": 220103,
+        "secs": 0
+      },
+      "end": {
+        "column": 35,
+        "row": 2
+      },
+      "file": "/tmp/test_1510662105.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-continue BLOCK
 ================================================================================
 while ($power_level > 9000) { $power_level-- } continue { say 'HOW CAN IT BE?' }
+================================================================================
 continue;
 while ($p) {} continue => 1;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (loop_statement
@@ -371,39 +391,47 @@ while ($p) {} continue => 1;
       (autoquoted_bareword)
       (number))))
 
-================================================================================
-C-style for
-================================================================================
-for (my $i = 0; $i < 10; $i++) { 123; }
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (cstyle_for_statement
-    initialiser: (expression_statement
-      (assignment_expression
-        left: (variable_declaration
-          variable: (scalar
-            (varname)))
-        right: (number)))
-    condition: (expression_statement
-      (relational_expression
-        left: (scalar
-          (varname))
-        right: (number)))
-    iterator: (postinc_expression
-      operand: (scalar
-        (varname)))
-    block: (block
-      (expression_statement
-        (number)))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 38,
+      "duration": {
+        "nanos": 279464,
+        "secs": 0
+      },
+      "end": {
+        "column": 28,
+        "row": 1
+      },
+      "file": "/tmp/test_1769090898.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-try / catch
 ================================================================================
 use feature 'try';
+================================================================================
 try { A(); } catch($e) { B(); }
 try { A(); } catch($e) { B(); } finally { C(); }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (use_statement
@@ -437,14 +465,48 @@ try { A(); } catch($e) { B(); } finally { C(); }
         (function_call_expression
           (function))))))
 
-================================================================================
-Extended try / catch of Syntax::Keyword::Try
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 80,
+      "duration": {
+        "nanos": 891821,
+        "secs": 0
+      },
+      "end": {
+        "column": 48,
+        "row": 1
+      },
+      "file": "/tmp/test_2682023554.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 use Syntax::Keyword::Try;
+================================================================================
 try { A(); } catch { B(); }
 try { A(); } catch($e isa Class) { B(); }
 try { A(); } finally { C(); }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (use_statement
@@ -481,12 +543,46 @@ try { A(); } finally { C(); }
         (function_call_expression
           (function))))))
 
-================================================================================
-Defer
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 99,
+      "duration": {
+        "nanos": 552928,
+        "secs": 0
+      },
+      "end": {
+        "column": 29,
+        "row": 2
+      },
+      "file": "/tmp/test_425119029.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 use feature 'defer';
+================================================================================
 defer { A(); }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (use_statement
@@ -499,16 +595,50 @@ defer { A(); }
         (function_call_expression
           (function))))))
 
-================================================================================
-package;
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 14,
+      "duration": {
+        "nanos": 183892,
+        "secs": 0
+      },
+      "end": {
+        "column": 14,
+        "row": 0
+      },
+      "file": "/tmp/test_458641203.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 package AAA;
+================================================================================
 package BBB 1.23;
 package CCC { }
 package DDD 4.56 { }
 package :: { }
 package ::butwhy:::::: { }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (package_statement
@@ -530,13 +660,47 @@ package ::butwhy:::::: { }
     (package)
     (block)))
 
-================================================================================
-Labels
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 96,
+      "duration": {
+        "nanos": 382563,
+        "secs": 0
+      },
+      "end": {
+        "column": 26,
+        "row": 4
+      },
+      "file": "/tmp/test_2497366926.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 FOO: 123;
+================================================================================
 LOOP: foreach (@list) { }
 ITEM: while(@items) { }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (statement_label
@@ -556,12 +720,46 @@ ITEM: while(@items) { }
         (varname))
       block: (block))))
 
-================================================================================
-phasers
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 49,
+      "duration": {
+        "nanos": 274895,
+        "secs": 0
+      },
+      "end": {
+        "column": 23,
+        "row": 1
+      },
+      "file": "/tmp/test_3486110313.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 BEGIN { 123; }
+================================================================================
 END { 456; }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (phaser_statement
@@ -573,13 +771,47 @@ END { 456; }
       (expression_statement
         (number)))))
 
-================================================================================
-bare blocks
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 12,
+      "duration": {
+        "nanos": 222949,
+        "secs": 0
+      },
+      "end": {
+        "column": 12,
+        "row": 0
+      },
+      "file": "/tmp/test_3388518170.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 { 123; }
+================================================================================
 { 456; }
 { { 789; } }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (block_statement
@@ -593,10 +825,42 @@ bare blocks
       (expression_statement
         (number)))))
 
-================================================================================
-Class syntax
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 21,
+      "duration": {
+        "nanos": 482284,
+        "secs": 0
+      },
+      "end": {
+        "column": 12,
+        "row": 1
+      },
+      "file": "/tmp/test_1865080058.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 use feature 'class';
+================================================================================
 role Ting v9001 {
   BUILD (:$named_arg) { }
 }
@@ -605,8 +869,9 @@ class Example :isa(BaseClass) {
   ADJUST :params { $x++; }
   method y { 456; }
 }
-
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (use_statement
@@ -653,3 +918,36 @@ class Example :isa(BaseClass) {
         (block
           (expression_statement
             (number)))))))
+
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 155,
+      "duration": {
+        "nanos": 516578,
+        "secs": 0
+      },
+      "end": {
+        "column": 1,
+        "row": 7
+      },
+      "file": "/tmp/test_2552957569.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

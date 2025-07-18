@@ -61,6 +61,139 @@ my Str $name = "Alice";
 my Bool $active = true;
 ```
 
+## Text AST
+
+```
+source_file
+  expression_statement
+    var_decl
+      variable
+  token
+  expression_statement
+    var_decl
+      variable
+  token
+  expression_statement
+    var_decl
+      variable
+  token
+```
+
+## JSON AST
+
+```json
+{
+  "path": "simple-typed-variables.pl",
+  "root": {
+    "type": "source_file",
+    "start": {"Line": 1, "Column": 1, "Offset": 0},
+    "end": {"Line": 4, "Column": 1, "Offset": 68},
+    "children": [
+      {
+        "type": "expression_statement",
+        "start": {"Line": 1, "Column": 1, "Offset": 0},
+        "end": {"Line": 1, "Column": 19, "Offset": 18},
+        "children": [
+          {
+            "type": "var_decl",
+            "start": {"Line": 1, "Column": 1, "Offset": 0},
+            "end": {"Line": 1, "Column": 19, "Offset": 18},
+            "children": [
+              {
+                "type": "variable",
+                "start": {"Line": 1, "Column": 1, "Offset": 0},
+                "end": {"Line": 1, "Column": 19, "Offset": 18},
+                "name": "Int",
+                "sigil": "$"
+              }
+            ],
+            "decl_type": "my"
+          }
+        ]
+      },
+      {
+        "type": "expression_statement",
+        "start": {"Line": 2, "Column": 1, "Offset": 20},
+        "end": {"Line": 2, "Column": 23, "Offset": 42},
+        "children": [
+          {
+            "type": "var_decl",
+            "start": {"Line": 2, "Column": 1, "Offset": 20},
+            "end": {"Line": 2, "Column": 23, "Offset": 42},
+            "children": [
+              {
+                "type": "variable",
+                "start": {"Line": 2, "Column": 1, "Offset": 20},
+                "end": {"Line": 2, "Column": 23, "Offset": 42},
+                "name": "Str",
+                "sigil": "$"
+              }
+            ],
+            "decl_type": "my"
+          }
+        ]
+      },
+      {
+        "type": "expression_statement",
+        "start": {"Line": 3, "Column": 1, "Offset": 44},
+        "end": {"Line": 3, "Column": 23, "Offset": 66},
+        "children": [
+          {
+            "type": "var_decl",
+            "start": {"Line": 3, "Column": 1, "Offset": 44},
+            "end": {"Line": 3, "Column": 23, "Offset": 66},
+            "children": [
+              {
+                "type": "variable",
+                "start": {"Line": 3, "Column": 1, "Offset": 44},
+                "end": {"Line": 3, "Column": 23, "Offset": 66},
+                "name": "Bool",
+                "sigil": "$"
+              }
+            ],
+            "decl_type": "my"
+          }
+        ]
+      }
+    ]
+  },
+  "type_annotations": [
+    {
+      "annotated_item": "$count",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Int",
+        "OriginalString": "Int"
+      },
+      "position": {"Line": 1, "Column": 1, "Offset": 0},
+      "kind": "VarAnnotation"
+    },
+    {
+      "annotated_item": "$name",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Str",
+        "OriginalString": "Str"
+      },
+      "position": {"Line": 2, "Column": 1, "Offset": 0},
+      "kind": "VarAnnotation"
+    },
+    {
+      "annotated_item": "$active",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Bool",
+        "OriginalString": "Bool"
+      },
+      "position": {"Line": 3, "Column": 1, "Offset": 0},
+      "kind": "VarAnnotation"
+    }
+  ],
+  "errors": [],
+  "source_length": 68
+}
+```
+
 # Test Notes
 
 This test verifies the core symbol binding fix where built-in type names

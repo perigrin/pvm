@@ -76,6 +76,534 @@ AST {
 }
 ```
 
+## JSON AST
+
+```json
+{
+  "path": "/tmp/test_code_3.pl",
+  "root": {
+    "type": "source_file",
+    "start": {
+      "Line": 1,
+      "Column": 1,
+      "Offset": 0
+    },
+    "end": {
+      "Line": 15,
+      "Column": 2,
+      "Offset": 285
+    },
+    "children": [
+      {
+        "type": "class_decl",
+        "start": {
+          "Line": 1,
+          "Column": 1,
+          "Offset": 0
+        },
+        "end": {
+          "Line": 15,
+          "Column": 2,
+          "Offset": 285
+        },
+        "children": [
+          {
+            "type": "method_decl",
+            "start": {
+              "Line": 4,
+              "Column": 5,
+              "Offset": 0
+            },
+            "end": {
+              "Line": 6,
+              "Column": 6,
+              "Offset": 0
+            },
+            "children": [
+              {
+                "type": "block_stmt",
+                "start": {
+                  "Line": 4,
+                  "Column": 36,
+                  "Offset": 89
+                },
+                "end": {
+                  "Line": 6,
+                  "Column": 6,
+                  "Offset": 120
+                },
+                "children": [
+                  {
+                    "type": "token",
+                    "start": {
+                      "Line": 4,
+                      "Column": 36,
+                      "Offset": 89
+                    },
+                    "end": {
+                      "Line": 4,
+                      "Column": 37,
+                      "Offset": 90
+                    },
+                    "text": "{"
+                  },
+                  {
+                    "type": "expression_stmt",
+                    "start": {
+                      "Line": 5,
+                      "Column": 9,
+                      "Offset": 99
+                    },
+                    "end": {
+                      "Line": 5,
+                      "Column": 23,
+                      "Offset": 113
+                    },
+                    "children": [
+                      {
+                        "type": "literal",
+                        "start": {
+                          "Line": 5,
+                          "Column": 9,
+                          "Offset": 99
+                        },
+                        "end": {
+                          "Line": 5,
+                          "Column": 23,
+                          "Offset": 113
+                        },
+                        "value": "return $a + $b",
+                        "kind": "string"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "token",
+                    "start": {
+                      "Line": 5,
+                      "Column": 23,
+                      "Offset": 113
+                    },
+                    "end": {
+                      "Line": 5,
+                      "Column": 24,
+                      "Offset": 114
+                    },
+                    "text": ";"
+                  },
+                  {
+                    "type": "token",
+                    "start": {
+                      "Line": 6,
+                      "Column": 5,
+                      "Offset": 119
+                    },
+                    "end": {
+                      "Line": 6,
+                      "Column": 6,
+                      "Offset": 120
+                    },
+                    "text": "}"
+                  }
+                ]
+              }
+            ],
+            "name": "add"
+          },
+          {
+            "type": "method_decl",
+            "start": {
+              "Line": 8,
+              "Column": 5,
+              "Offset": 0
+            },
+            "end": {
+              "Line": 10,
+              "Column": 6,
+              "Offset": 0
+            },
+            "children": [
+              {
+                "type": "block_stmt",
+                "start": {
+                  "Line": 8,
+                  "Column": 32,
+                  "Offset": 153
+                },
+                "end": {
+                  "Line": 10,
+                  "Column": 6,
+                  "Offset": 187
+                },
+                "children": [
+                  {
+                    "type": "token",
+                    "start": {
+                      "Line": 8,
+                      "Column": 32,
+                      "Offset": 153
+                    },
+                    "end": {
+                      "Line": 8,
+                      "Column": 33,
+                      "Offset": 154
+                    },
+                    "text": "{"
+                  },
+                  {
+                    "type": "expression_stmt",
+                    "start": {
+                      "Line": 9,
+                      "Column": 9,
+                      "Offset": 163
+                    },
+                    "end": {
+                      "Line": 9,
+                      "Column": 26,
+                      "Offset": 180
+                    },
+                    "children": [
+                      {
+                        "type": "literal",
+                        "start": {
+                          "Line": 9,
+                          "Column": 9,
+                          "Offset": 163
+                        },
+                        "end": {
+                          "Line": 9,
+                          "Column": 26,
+                          "Offset": 180
+                        },
+                        "value": "return $precision",
+                        "kind": "string"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "token",
+                    "start": {
+                      "Line": 9,
+                      "Column": 26,
+                      "Offset": 180
+                    },
+                    "end": {
+                      "Line": 9,
+                      "Column": 27,
+                      "Offset": 181
+                    },
+                    "text": ";"
+                  },
+                  {
+                    "type": "token",
+                    "start": {
+                      "Line": 10,
+                      "Column": 5,
+                      "Offset": 186
+                    },
+                    "end": {
+                      "Line": 10,
+                      "Column": 6,
+                      "Offset": 187
+                    },
+                    "text": "}"
+                  }
+                ]
+              }
+            ],
+            "name": "get_precision"
+          },
+          {
+            "type": "method_decl",
+            "start": {
+              "Line": 12,
+              "Column": 5,
+              "Offset": 0
+            },
+            "end": {
+              "Line": 14,
+              "Column": 6,
+              "Offset": 0
+            },
+            "children": [
+              {
+                "type": "block_stmt",
+                "start": {
+                  "Line": 12,
+                  "Column": 51,
+                  "Offset": 239
+                },
+                "end": {
+                  "Line": 14,
+                  "Column": 6,
+                  "Offset": 283
+                },
+                "children": [
+                  {
+                    "type": "token",
+                    "start": {
+                      "Line": 12,
+                      "Column": 51,
+                      "Offset": 239
+                    },
+                    "end": {
+                      "Line": 12,
+                      "Column": 52,
+                      "Offset": 240
+                    },
+                    "text": "{"
+                  },
+                  {
+                    "type": "expression_stmt",
+                    "start": {
+                      "Line": 13,
+                      "Column": 9,
+                      "Offset": 249
+                    },
+                    "end": {
+                      "Line": 13,
+                      "Column": 36,
+                      "Offset": 276
+                    },
+                    "children": [
+                      {
+                        "type": "literal",
+                        "start": {
+                          "Line": 13,
+                          "Column": 9,
+                          "Offset": 249
+                        },
+                        "end": {
+                          "Line": 13,
+                          "Column": 36,
+                          "Offset": 276
+                        },
+                        "value": "$precision = $new_precision",
+                        "kind": "string"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "token",
+                    "start": {
+                      "Line": 13,
+                      "Column": 36,
+                      "Offset": 276
+                    },
+                    "end": {
+                      "Line": 13,
+                      "Column": 37,
+                      "Offset": 277
+                    },
+                    "text": ";"
+                  },
+                  {
+                    "type": "token",
+                    "start": {
+                      "Line": 14,
+                      "Column": 5,
+                      "Offset": 282
+                    },
+                    "end": {
+                      "Line": 14,
+                      "Column": 6,
+                      "Offset": 283
+                    },
+                    "text": "}"
+                  }
+                ]
+              }
+            ],
+            "name": "set_precision"
+          }
+        ],
+        "name": "Calculator"
+      }
+    ]
+  },
+  "type_annotations": [
+    {
+      "annotated_item": "add",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Num",
+        "Parameters": null,
+        "IsUnion": false,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": null,
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "Num"
+      },
+      "position": {
+        "Line": 4,
+        "Column": 12,
+        "Offset": 0
+      },
+      "kind": "MethodReturnAnnotation"
+    },
+    {
+      "annotated_item": "$a",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Num",
+        "Parameters": null,
+        "IsUnion": false,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": null,
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "Num"
+      },
+      "position": {
+        "Line": 4,
+        "Column": 20,
+        "Offset": 0
+      },
+      "kind": "MethodParamAnnotation"
+    },
+    {
+      "annotated_item": "$b",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Num",
+        "Parameters": null,
+        "IsUnion": false,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": null,
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "Num"
+      },
+      "position": {
+        "Line": 4,
+        "Column": 28,
+        "Offset": 0
+      },
+      "kind": "MethodParamAnnotation"
+    },
+    {
+      "annotated_item": "get_precision",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Num",
+        "Parameters": null,
+        "IsUnion": false,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": null,
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "Num"
+      },
+      "position": {
+        "Line": 8,
+        "Column": 12,
+        "Offset": 0
+      },
+      "kind": "MethodReturnAnnotation"
+    },
+    {
+      "annotated_item": "set_precision",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Void",
+        "Parameters": null,
+        "IsUnion": false,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": null,
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "Void"
+      },
+      "position": {
+        "Line": 12,
+        "Column": 12,
+        "Offset": 0
+      },
+      "kind": "MethodReturnAnnotation"
+    },
+    {
+      "annotated_item": "$new_precision",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Num",
+        "Parameters": null,
+        "IsUnion": false,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": null,
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "Num"
+      },
+      "position": {
+        "Line": 12,
+        "Column": 31,
+        "Offset": 0
+      },
+      "kind": "MethodParamAnnotation"
+    },
+    {
+      "annotated_item": "Calculator",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "class",
+        "Parameters": null,
+        "IsUnion": false,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": null,
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "class"
+      },
+      "position": {
+        "Line": 1,
+        "Column": 1,
+        "Offset": 0
+      },
+      "kind": "VarAnnotation"
+    },
+    {
+      "annotated_item": "$precision",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "Num",
+        "Parameters": null,
+        "IsUnion": false,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": null,
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "Num"
+      },
+      "position": {
+        "Line": 2,
+        "Column": 5,
+        "Offset": 0
+      },
+      "kind": "VarAnnotation"
+    }
+  ],
+  "errors": [],
+  "source_length": 285
+}
+```
+
 ## After Type Inference
 
 ```

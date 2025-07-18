@@ -1,9 +1,10 @@
 ================================================================================
-do { STMT; }
-================================================================================
 do { 1; 2; };
+================================================================================
 do { 3; 4 };
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -21,25 +22,17 @@ do { 3; 4 };
         (expression_statement
           (number))))))
 
-================================================================================
-do FILENAME
-================================================================================
-do './explode.pl';
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (eval_expression
-      (filename
-        (string_literal
-          (string_content))))))
+Error: tree-sitter parse timed out
 
-================================================================================
-eval STRING
 ================================================================================
 eval $x;
+================================================================================
 eval 'die $x';
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -51,12 +44,46 @@ eval 'die $x';
       (string_literal
         (string_content)))))
 
-================================================================================
-eval BLOCK
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 14,
+      "duration": {
+        "nanos": 1350972,
+        "secs": 0
+      },
+      "end": {
+        "column": 14,
+        "row": 0
+      },
+      "file": "/tmp/test_453237307.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 eval { $x };
+================================================================================
 eval { die $x };
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -74,26 +101,47 @@ eval { die $x };
             (scalar
               (varname))))))))
 
-================================================================================
-Anonymous array
-================================================================================
-[ 1, 2 ];
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (anonymous_array_expression
-      (list_expression
-        (number)
-        (number)))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 16,
+      "duration": {
+        "nanos": 435766,
+        "secs": 0
+      },
+      "end": {
+        "column": 16,
+        "row": 0
+      },
+      "file": "/tmp/test_1569773833.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-Blocks that look like hashes
 ================================================================================
 { rand, 7 }
+================================================================================
 { qr/thing/, 5 }
 { 1 + 2, 3 }
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (block_statement
@@ -115,14 +163,48 @@ Blocks that look like hashes
           (number))
         (number)))))
 
-================================================================================
-Anonymous hash
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 29,
+      "duration": {
+        "nanos": 534734,
+        "secs": 0
+      },
+      "end": {
+        "column": 12,
+        "row": 1
+      },
+      "file": "/tmp/test_2043390904.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 { 1, 2 };
+================================================================================
 { ting => 2 };
 {};
 +{ rand, 7 };
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -144,13 +226,47 @@ Anonymous hash
           (func1op_call_expression)
           (number))))))
 
-================================================================================
-Assignment
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 32,
+      "duration": {
+        "nanos": 607094,
+        "secs": 0
+      },
+      "end": {
+        "column": 13,
+        "row": 2
+      },
+      "file": "/tmp/test_1856700924.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 $var = 123;
+================================================================================
 $var = 12 + 34;
 $var = 12, 34;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -173,12 +289,46 @@ $var = 12, 34;
         (number))
       (number))))
 
-================================================================================
-Anonymous Slices
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 30,
+      "duration": {
+        "nanos": 213479,
+        "secs": 0
+      },
+      "end": {
+        "column": 14,
+        "row": 1
+      },
+      "file": "/tmp/test_1195450596.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 (1, 2, 3)[0];
+================================================================================
 qw/one two/[0];
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -194,15 +344,49 @@ qw/one two/[0];
         content: (string_content))
       (number))))
 
-================================================================================
-Slices
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 15,
+      "duration": {
+        "nanos": 273274,
+        "secs": 0
+      },
+      "end": {
+        "column": 15,
+        "row": 0
+      },
+      "file": "/tmp/test_3661955544.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 @ary[0,1];
+================================================================================
 @hash{qw/key1 key2/};
 $aryref->@[0,1];
 [0,1]->@[0];
 $hashref->@{qw/key1 key2/};
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -239,15 +423,49 @@ $hashref->@{qw/key1 key2/};
       (quoted_word_list
         content: (string_content)))))
 
-================================================================================
-Keyval Slices
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 79,
+      "duration": {
+        "nanos": 514769,
+        "secs": 0
+      },
+      "end": {
+        "column": 27,
+        "row": 3
+      },
+      "file": "/tmp/test_2140264351.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 %ary[0,1];
+================================================================================
 %hash{qw/key1 key2/};
 $aryref->%[0,1];
 [0,1]->%[0];
 $hashref->%{qw/key1 key2/};
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -284,22 +502,46 @@ $hashref->%{qw/key1 key2/};
       (quoted_word_list
         content: (string_content)))))
 
-================================================================================
-Stub
-================================================================================
-();
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (stub_expression)))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 79,
+      "duration": {
+        "nanos": 478812,
+        "secs": 0
+      },
+      "end": {
+        "column": 27,
+        "row": 3
+      },
+      "file": "/tmp/test_133249399.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-Scalar deref
 ================================================================================
 $$sref;
+================================================================================
 $sref->$*;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -312,12 +554,46 @@ $sref->$*;
       (scalar
         (varname)))))
 
-================================================================================
-Array deref
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 10,
+      "duration": {
+        "nanos": 253309,
+        "secs": 0
+      },
+      "end": {
+        "column": 10,
+        "row": 0
+      },
+      "file": "/tmp/test_1241957249.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 @$aref;
+================================================================================
 $aref->@*;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -330,12 +606,46 @@ $aref->@*;
       (scalar
         (varname)))))
 
-================================================================================
-Hash deref
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 10,
+      "duration": {
+        "nanos": 249341,
+        "secs": 0
+      },
+      "end": {
+        "column": 10,
+        "row": 0
+      },
+      "file": "/tmp/test_3881721398.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 %$href;
+================================================================================
 $href->%*;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -348,24 +658,46 @@ $href->%*;
       (scalar
         (varname)))))
 
-================================================================================
-Amper deref
-================================================================================
-$cref->&*;
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (amper_deref_expression
-      (scalar
-        (varname)))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 10,
+      "duration": {
+        "nanos": 201820,
+        "secs": 0
+      },
+      "end": {
+        "column": 10,
+        "row": 0
+      },
+      "file": "/tmp/test_4232522788.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-Glob deref
 ================================================================================
 *$gref;
+================================================================================
 $gref->**;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -378,12 +710,46 @@ $gref->**;
       (scalar
         (varname)))))
 
-================================================================================
-require EXPR
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 10,
+      "duration": {
+        "nanos": 176691,
+        "secs": 0
+      },
+      "end": {
+        "column": 10,
+        "row": 0
+      },
+      "file": "/tmp/test_2847448321.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 require Your::Face;
+================================================================================
 require v5.26;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -393,13 +759,47 @@ require v5.26;
     (require_version_expression
       (version))))
 
-================================================================================
-Loopex
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 14,
+      "duration": {
+        "nanos": 337919,
+        "secs": 0
+      },
+      "end": {
+        "column": 14,
+        "row": 0
+      },
+      "file": "/tmp/test_1474749621.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 next;
+================================================================================
 last LOOP;
 redo;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -410,23 +810,46 @@ redo;
   (expression_statement
     (loopex_expression)))
 
-================================================================================
-goto
-================================================================================
-goto LABEL;
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (goto_expression
-      (label))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 16,
+      "duration": {
+        "nanos": 195882,
+        "secs": 0
+      },
+      "end": {
+        "column": 5,
+        "row": 1
+      },
+      "file": "/tmp/test_41629503.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-undef
 ================================================================================
 undef;
+================================================================================
 undef $var;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -436,14 +859,48 @@ undef $var;
       (scalar
         (varname)))))
 
-================================================================================
-local and dynamically
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 11,
+      "duration": {
+        "nanos": 247821,
+        "secs": 0
+      },
+      "end": {
+        "column": 11,
+        "row": 0
+      },
+      "file": "/tmp/test_911663182.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 local $var;
+================================================================================
 local $arr[$idx];
 local $hash{$key};
 dynamically $SIG{INT} = sub { ... };
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -476,13 +933,19 @@ dynamically $SIG{INT} = sub { ... };
           (expression_statement
             (yadayada)))))))
 
-================================================================================
-return
+## JSON AST
+
+Error running tree-sitter: exit status 1
+Stderr:
+
 ================================================================================
 return;
+================================================================================
 return 1, 2, 3;
 return 1, 2, 3 or die("never reached");
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -504,3 +967,36 @@ return 1, 2, 3 or die("never reached");
         (function)
         (interpolated_string_literal
           (string_content))))))
+
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 55,
+      "duration": {
+        "nanos": 421353,
+        "secs": 0
+      },
+      "end": {
+        "column": 39,
+        "row": 1
+      },
+      "file": "/tmp/test_583383973.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

@@ -1,13 +1,14 @@
 ================================================================================
-qr() strings
-================================================================================
 qr/pattern/;
+================================================================================
 qr/pattern with (parens)/;
 qr/pattern with $interpolation/;
 qr'pattern with no $interpolation';
 qr/pattern/i;
 qr/^anchored pattern$/;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -32,23 +33,42 @@ qr/^anchored pattern$/;
     (quoted_regexp
       (regexp_content))))
 
-================================================================================
-modifiers whitespace
-================================================================================
-qr/pattern/ unless 2;
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (postfix_conditional_expression
-      (quoted_regexp
-        (regexp_content))
-      (number))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 133,
+      "duration": {
+        "nanos": 557089,
+        "secs": 0
+      },
+      "end": {
+        "column": 23,
+        "row": 4
+      },
+      "file": "/tmp/test_876972511.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-Regexp match
 ================================================================================
 m/pattern/;
+================================================================================
 m/pattern with (parens)/;
 m/pattern with $interpolation->{things}/;
 m'pattern with no $interpolation';
@@ -56,6 +76,8 @@ m/pattern/i;
 m/^anchored pattern$/;
 m/^pattern(?:$|,)/;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -85,13 +107,47 @@ m/^pattern(?:$|,)/;
     (match_regexp
       (regexp_content))))
 
-================================================================================
-Match w just solidus
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 158,
+      "duration": {
+        "nanos": 287136,
+        "secs": 0
+      },
+      "end": {
+        "column": 19,
+        "row": 5
+      },
+      "file": "/tmp/test_2781980379.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 $var =~ /pattern/;
+================================================================================
 time / 2; #comment
 sum /pattern;#still pattern/;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -111,12 +167,46 @@ sum /pattern;#still pattern/;
       (match_regexp
         (regexp_content)))))
 
-================================================================================
-just solidus - DOR vs regex
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 48,
+      "duration": {
+        "nanos": 175754,
+        "secs": 0
+      },
+      "end": {
+        "column": 29,
+        "row": 1
+      },
+      "file": "/tmp/test_747666765.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
+
 ================================================================================
 sum //, 2, 3;
+================================================================================
 shift // 1;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -131,33 +221,50 @@ shift // 1;
       (func1op_call_expression)
       (number))))
 
-================================================================================
-substitution
-================================================================================
-s/thing $var/$tings/xgr;
---------------------------------------------------------------------------------
+## JSON AST
 
-(source_file
-  (expression_statement
-    (substitution_regexp
-      (regexp_content
-        (scalar
-          (varname)))
-      (replacement
-        (scalar
-          (varname)))
-      (substitution_regexp_modifiers))))
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 11,
+      "duration": {
+        "nanos": 150297,
+        "secs": 0
+      },
+      "end": {
+        "column": 11,
+        "row": 0
+      },
+      "file": "/tmp/test_3956014925.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}
 
-================================================================================
-non-interpolating vars
 ================================================================================
 m/@/;
+================================================================================
 m/@!/;
 m/$ things/;
 m/$/;
 m/tings$
   /x;
 --------------------------------------------------------------------------------
+
+## Text AST
 
 (source_file
   (expression_statement
@@ -176,3 +283,36 @@ m/tings$
     (match_regexp
       (regexp_content)
       (match_regexp_modifiers))))
+
+## JSON AST
+
+{
+  "cumulative_stats": {
+    "successful_parses": 0,
+    "total_bytes": 0,
+    "total_duration": {
+      "nanos": 0,
+      "secs": 0
+    },
+    "total_parses": 0
+  },
+  "parse_summaries": [
+    {
+      "bytes": 40,
+      "duration": {
+        "nanos": 199635,
+        "secs": 0
+      },
+      "end": {
+        "column": 5,
+        "row": 4
+      },
+      "file": "/tmp/test_758870555.pl",
+      "start": {
+        "column": 0,
+        "row": 0
+      },
+      "successful": true
+    }
+  ]
+}

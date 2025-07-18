@@ -55,3 +55,404 @@ use feature 'say';
 ```perl
 # Type inference not yet fully implemented
 ```
+
+# Expected AST
+
+## Text AST
+
+```
+source_file
+  use_statement
+    expression_stmt
+      literal
+    expression_stmt
+      literal
+    token
+  use_statement
+    expression_stmt
+      literal
+    expression_stmt
+      literal
+    token
+  use_statement
+    expression_stmt
+      literal
+    expression_stmt
+      literal
+    token
+  use_statement
+    expression_stmt
+      literal
+    expression_stmt
+      literal
+    quoted_word_list
+      expression_stmt
+        literal
+      expression_stmt
+        literal
+      expression_stmt
+        literal
+      expression_stmt
+        literal
+    token
+  use_statement
+    expression_stmt
+      literal
+    expression_stmt
+      literal
+    token
+    quoted_word_list
+      expression_stmt
+        literal
+      expression_stmt
+        literal
+      expression_stmt
+        literal
+      expression_stmt
+        literal
+    token
+  use_statement
+    expression_stmt
+      literal
+    expression_stmt
+      literal
+    stub_expression
+      token
+      token
+    token
+  use_statement
+    expression_stmt
+      literal
+    expression_stmt
+      literal
+    token
+    token
+```
+
+## JSON AST
+
+```json
+{
+  "root": {
+    "type": "source_file",
+    "children": [
+      {
+        "type": "use_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "use",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "strict",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "token",
+            "text": ";"
+          }
+        ]
+      },
+      {
+        "type": "use_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "use",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "warnings",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "token",
+            "text": ";"
+          }
+        ]
+      },
+      {
+        "type": "use_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "use",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "Data::Dumper",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "token",
+            "text": ";"
+          }
+        ]
+      },
+      {
+        "type": "use_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "use",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "MyModule",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "quoted_word_list",
+            "children": [
+              {
+                "type": "expression_stmt",
+                "children": [
+                  {
+                    "type": "literal",
+                    "value": "qw",
+                    "kind": "string"
+                  }
+                ]
+              },
+              {
+                "type": "expression_stmt",
+                "children": [
+                  {
+                    "type": "literal",
+                    "value": "(",
+                    "kind": "string"
+                  }
+                ]
+              },
+              {
+                "type": "expression_stmt",
+                "children": [
+                  {
+                    "type": "literal",
+                    "value": "function1 function2",
+                    "kind": "string"
+                  }
+                ]
+              },
+              {
+                "type": "expression_stmt",
+                "children": [
+                  {
+                    "type": "literal",
+                    "value": ")",
+                    "kind": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "token",
+            "text": ";"
+          }
+        ]
+      },
+      {
+        "type": "use_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "use",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "AnotherModule",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "token",
+            "text": "1.5"
+          },
+          {
+            "type": "quoted_word_list",
+            "children": [
+              {
+                "type": "expression_stmt",
+                "children": [
+                  {
+                    "type": "literal",
+                    "value": "qw",
+                    "kind": "string"
+                  }
+                ]
+              },
+              {
+                "type": "expression_stmt",
+                "children": [
+                  {
+                    "type": "literal",
+                    "value": "(",
+                    "kind": "string"
+                  }
+                ]
+              },
+              {
+                "type": "expression_stmt",
+                "children": [
+                  {
+                    "type": "literal",
+                    "value": ":all",
+                    "kind": "string"
+                  }
+                ]
+              },
+              {
+                "type": "expression_stmt",
+                "children": [
+                  {
+                    "type": "literal",
+                    "value": ")",
+                    "kind": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "token",
+            "text": ";"
+          }
+        ]
+      },
+      {
+        "type": "use_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "use",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "Parent::Module",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "stub_expression",
+            "children": [
+              {
+                "type": "token",
+                "text": "("
+              },
+              {
+                "type": "token",
+                "text": ")"
+              }
+            ]
+          },
+          {
+            "type": "token",
+            "text": ";"
+          }
+        ]
+      },
+      {
+        "type": "use_statement",
+        "children": [
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "use",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "expression_stmt",
+            "children": [
+              {
+                "type": "literal",
+                "value": "feature",
+                "kind": "string"
+              }
+            ]
+          },
+          {
+            "type": "token",
+            "text": "'say'"
+          },
+          {
+            "type": "token",
+            "text": ";"
+          }
+        ]
+      }
+    ]
+  },
+  "type_annotations": [],
+  "errors": []
+}
+```

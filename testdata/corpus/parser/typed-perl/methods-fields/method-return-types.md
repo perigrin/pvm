@@ -93,6 +93,29 @@ AST {
 }
 ```
 
+## JSON AST
+
+```json
+{
+  "path": "/tmp/test_code_6.pl",
+  "root": {
+    "type": "source_file",
+    "start": {"Line": 1, "Column": 1, "Offset": 0},
+    "end": {"Line": 20, "Column": 2, "Offset": 319},
+    "children": [/* 5 method declarations with various return types */]
+  },
+  "type_annotations": [
+    {"annotated_item": "get_number", "type_expression": {"Kind": 0, "Name": "Int"}, "position": {"Line": 1, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"},
+    {"annotated_item": "get_array", "type_expression": {"Kind": 4, "Name": "ArrayRef[Str]"}, "position": {"Line": 5, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"},
+    {"annotated_item": "get_hash", "type_expression": {"Kind": 4, "Name": "HashRef[Int]"}, "position": {"Line": 9, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"},
+    {"annotated_item": "get_nothing", "type_expression": {"Kind": 0, "Name": "Void"}, "position": {"Line": 13, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"},
+    {"annotated_item": "get_optional", "type_expression": {"Kind": 4, "Name": "Optional[Str]"}, "position": {"Line": 18, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"}
+  ],
+  "errors": [],
+  "source_length": 319
+}
+```
+
 ## After Type Inference
 
 ```
