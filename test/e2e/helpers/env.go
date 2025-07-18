@@ -5,6 +5,7 @@ package helpers
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/psc"
@@ -145,7 +147,22 @@ func (e *TestEnv) buildPVM() error {
 	}
 
 	// Set the binary path to the built location
-	e.PVMBinary = filepath.Join(projectRoot, "build", "pvm")
+	builtBinary := filepath.Join(projectRoot, "build", "pvm")
+
+	// Copy the built binary to the test environment's bin directory
+	// This ensures the shell integration can find it via PATH
+	testBinary := filepath.Join(e.PVMBinDir, "pvm")
+	if err := e.CopyFile(builtBinary, testBinary); err != nil {
+		return fmt.Errorf("failed to copy PVM binary to test environment: %w", err)
+	}
+
+	// Make sure the copied binary is executable
+	if err := os.Chmod(testBinary, 0755); err != nil {
+		return fmt.Errorf("failed to make test binary executable: %w", err)
+	}
+
+	// Use the copied binary for test execution
+	e.PVMBinary = testBinary
 
 	return nil
 }
@@ -196,6 +213,9 @@ func (e *TestEnv) setEnvironment() {
 
 	// Set PVM_HOME
 	_ = os.Setenv("PVM_HOME", e.PVMDataDir)
+
+	// Skip network calls during tests to avoid timeouts
+	_ = os.Setenv("PVM_SKIP_NETWORK_CALLS", "1")
 
 	// Set up library paths for tree-sitter
 	projectRoot, _ := findProjectRoot()
@@ -270,6 +290,11 @@ func (e *TestEnv) RunPVM(args ...string) (string, string, error) {
 
 // RunCommand runs a system command with the test environment
 func (e *TestEnv) RunCommand(name string, args ...string) (string, string, error) {
+	return e.RunCommandWithTimeout(name, 60*time.Second, args...)
+}
+
+// RunCommandWithTimeout runs a system command with a specific timeout
+func (e *TestEnv) RunCommandWithTimeout(name string, timeout time.Duration, args ...string) (string, string, error) {
 	cmd := exec.Command(name, args...)
 
 	// Reset output buffers
@@ -279,12 +304,39 @@ func (e *TestEnv) RunCommand(name string, args ...string) (string, string, error
 	cmd.Stdout = &e.Stdout
 	cmd.Stderr = &e.Stderr
 
-	// Set PATH to include our test directories
+	// Set PATH to include our test directories and inherit all environment variables
 	cmd.Env = os.Environ()
 
-	err := cmd.Run()
+	// Explicitly set PVM_SKIP_NETWORK_CALLS to avoid network timeouts
+	cmd.Env = append(cmd.Env, "PVM_SKIP_NETWORK_CALLS=1")
 
-	return e.Stdout.String(), e.Stderr.String(), err
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Start the command
+	err := cmd.Start()
+	if err != nil {
+		return e.Stdout.String(), e.Stderr.String(), err
+	}
+
+	// Wait for the command to complete or timeout
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+		// Timeout occurred
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		return e.Stdout.String(), e.Stderr.String(), fmt.Errorf("command timed out after %v", timeout)
+	case err := <-done:
+		// Command completed
+		return e.Stdout.String(), e.Stderr.String(), err
+	}
 }
 
 // CreateFile creates a file in the test environment with the given content

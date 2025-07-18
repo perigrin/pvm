@@ -63,16 +63,156 @@ func TestShellUseAndCurrent(t *testing.T) {
 		t.Fatalf("Shell initialization failed: %v\nStderr: %s", err, stderr)
 	}
 
+	// Force regeneration of shell integration script to ensure it includes latest fixes
+	bashScriptPath := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")
+	if err := os.Remove(bashScriptPath); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("Failed to remove old shell script: %v", err)
+	}
+	_, stderr, err = env.RunPVM("shell", "init")
+	if err != nil {
+		t.Fatalf("Shell re-initialization failed: %v\nStderr: %s", err, stderr)
+	}
+
 	// Get the bash script path
 	bashScript := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")
 	if _, statErr := os.Stat(bashScript); os.IsNotExist(statErr) {
 		t.Fatalf("Bash shell integration script not found at %s", bashScript)
 	}
 
+	// DEBUGGING: Test each component individually to isolate the hanging point
+	t.Logf("=== DEBUG: Testing components individually ===")
+
+	// Test 1: Basic bash execution
+	t.Logf("=== DEBUG: Testing basic bash execution ===")
+	basicScript := filepath.Join(env.HomeDir, "test_basic.sh")
+	basicContent := `#!/bin/bash
+echo "Basic bash test successful"
+exit 0
+`
+	err = os.WriteFile(basicScript, []byte(basicContent), 0755)
+	if err != nil {
+		t.Fatalf("Failed to create basic test script: %v", err)
+	}
+
+	stdout, stderr, err = env.RunCommand("bash", basicScript)
+	if err != nil {
+		t.Fatalf("Basic bash test failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+	t.Logf("=== DEBUG: Basic bash test passed ===")
+
+	// Test 2: PVM command execution without shell integration
+	t.Logf("=== DEBUG: Testing PVM command execution ===")
+	pvmScript := filepath.Join(env.HomeDir, "test_pvm.sh")
+	pvmContent := `#!/bin/bash
+set -e
+export PVM_SKIP_NETWORK_CALLS=1
+echo "Testing PVM current command"
+` + env.PVMBinary + ` current
+echo "PVM current command successful"
+exit 0
+`
+	err = os.WriteFile(pvmScript, []byte(pvmContent), 0755)
+	if err != nil {
+		t.Fatalf("Failed to create PVM test script: %v", err)
+	}
+
+	stdout, stderr, err = env.RunCommand("bash", pvmScript)
+	if err != nil {
+		t.Fatalf("PVM command test failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+	t.Logf("=== DEBUG: PVM command test passed ===")
+
+	// Test 3: Shell integration sourcing
+	t.Logf("=== DEBUG: Testing shell integration sourcing ===")
+	sourceScript := filepath.Join(env.HomeDir, "test_source.sh")
+	sourceContent := `#!/bin/bash
+set -e
+export PVM_SKIP_NETWORK_CALLS=1
+export PVM_SUPPRESS_WARNINGS=1
+echo "Testing shell integration sourcing"
+source "` + bashScript + `"
+echo "Shell integration sourcing successful"
+exit 0
+`
+	err = os.WriteFile(sourceScript, []byte(sourceContent), 0755)
+	if err != nil {
+		t.Fatalf("Failed to create source test script: %v", err)
+	}
+
+	stdout, stderr, err = env.RunCommand("bash", sourceScript)
+	if err != nil {
+		t.Fatalf("Shell integration sourcing test failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+	t.Logf("=== DEBUG: Shell integration sourcing test passed ===")
+
+	// Test 4: PVM commands with shell integration (bypass shell function)
+	t.Logf("=== DEBUG: Testing PVM commands with shell integration ===")
+	integrationScript := filepath.Join(env.HomeDir, "test_integration.sh")
+	integrationContent := `#!/bin/bash
+set -e
+export PVM_SKIP_NETWORK_CALLS=1
+export PVM_SUPPRESS_WARNINGS=1
+echo "Testing PVM commands with shell integration"
+source "` + bashScript + `"
+echo "Shell integration loaded"
+echo "Running pvm current directly via binary"
+# Use the binary directly instead of shell function to avoid recursion
+"$(_pvm_executable)" current
+echo "pvm current successful"
+exit 0
+`
+	err = os.WriteFile(integrationScript, []byte(integrationContent), 0755)
+	if err != nil {
+		t.Fatalf("Failed to create integration test script: %v", err)
+	}
+
+	stdout, stderr, err = env.RunCommand("bash", integrationScript)
+	if err != nil {
+		t.Fatalf("PVM integration test failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+	t.Logf("=== DEBUG: PVM integration test passed ===")
+
+	// Test 5: Test shell function vs binary directly to isolate the issue
+	t.Logf("=== DEBUG: Testing shell function vs binary directly ===")
+	directScript := filepath.Join(env.HomeDir, "test_direct.sh")
+	directContent := `#!/bin/bash
+set -e
+export PVM_SKIP_NETWORK_CALLS=1
+export PVM_SUPPRESS_WARNINGS=1
+echo "Testing shell function vs binary directly"
+source "` + bashScript + `"
+echo "Shell integration loaded"
+
+echo "Test 1: Running pvm current via shell function"
+timeout 30 bash -c 'pvm current' || echo "Shell function timed out"
+
+echo "Test 2: Running pvm current directly via binary"
+timeout 30 bash -c '"$(_pvm_executable)" current' || echo "Binary call timed out"
+
+echo "Test completed"
+exit 0
+`
+	err = os.WriteFile(directScript, []byte(directContent), 0755)
+	if err != nil {
+		t.Fatalf("Failed to create direct test script: %v", err)
+	}
+
+	stdout, stderr, err = env.RunCommand("bash", directScript)
+	if err != nil {
+		t.Fatalf("Direct test failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+	t.Logf("=== DEBUG: Direct test passed ===")
+
+	// If we get here, all components work individually, so the issue might be with the original complex script
+	t.Logf("=== DEBUG: All individual components passed, testing original script ===")
+
 	// Create a test script that simulates the issue #118 workflow
 	testScript := filepath.Join(env.HomeDir, "test_issue_118.sh")
 	scriptContent := `#!/bin/bash
 set -e
+
+# Skip network calls to avoid test timeouts
+export PVM_SKIP_NETWORK_CALLS=1
 
 # Source the PVM shell integration
 source "` + bashScript + `"
