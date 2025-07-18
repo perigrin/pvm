@@ -5,6 +5,7 @@ package helpers
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/psc"
@@ -273,6 +275,11 @@ func (e *TestEnv) RunPVM(args ...string) (string, string, error) {
 
 // RunCommand runs a system command with the test environment
 func (e *TestEnv) RunCommand(name string, args ...string) (string, string, error) {
+	return e.RunCommandWithTimeout(name, 60*time.Second, args...)
+}
+
+// RunCommandWithTimeout runs a system command with a specific timeout
+func (e *TestEnv) RunCommandWithTimeout(name string, timeout time.Duration, args ...string) (string, string, error) {
 	cmd := exec.Command(name, args...)
 
 	// Reset output buffers
@@ -288,9 +295,33 @@ func (e *TestEnv) RunCommand(name string, args ...string) (string, string, error
 	// Explicitly set PVM_SKIP_NETWORK_CALLS to avoid network timeouts
 	cmd.Env = append(cmd.Env, "PVM_SKIP_NETWORK_CALLS=1")
 
-	err := cmd.Run()
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	return e.Stdout.String(), e.Stderr.String(), err
+	// Start the command
+	err := cmd.Start()
+	if err != nil {
+		return e.Stdout.String(), e.Stderr.String(), err
+	}
+
+	// Wait for the command to complete or timeout
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+		// Timeout occurred
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		return e.Stdout.String(), e.Stderr.String(), fmt.Errorf("command timed out after %v", timeout)
+	case err := <-done:
+		// Command completed
+		return e.Stdout.String(), e.Stderr.String(), err
+	}
 }
 
 // CreateFile creates a file in the test environment with the given content
