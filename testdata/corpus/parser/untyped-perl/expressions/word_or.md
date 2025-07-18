@@ -35,3 +35,57 @@ $or_result = $x or $y;
 ```perl
 # Type inference not yet fully implemented
 ```
+
+## Expected AST
+
+```json
+{
+  "type": "source_file",
+  "children": [
+    {
+      "type": "expression_statement",
+      "children": [
+        {
+          "type": "lowprec_logical_expression",
+          "children": [
+            {
+              "type": "assignment_expression",
+              "children": [
+                {
+                  "type": "scalar",
+                  "children": [
+                    {"type": "token", "text": "$"},
+                    {"type": "token", "text": "or_result"}
+                  ]
+                },
+                {"type": "token", "text": "="},
+                {
+                  "type": "scalar",
+                  "children": [
+                    {"type": "token", "text": "$"},
+                    {"type": "token", "text": "x"}
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "expression_stmt",
+              "children": [
+                {"type": "literal", "value": "or", "kind": "string"}
+              ]
+            },
+            {
+              "type": "scalar",
+              "children": [
+                {"type": "token", "text": "$"},
+                {"type": "token", "text": "y"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {"type": "token", "text": ";"}
+  ]
+}
+```

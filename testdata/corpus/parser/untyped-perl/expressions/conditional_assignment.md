@@ -37,3 +37,57 @@ $value = $input || $default_value;
 ```perl
 # Type inference not yet fully implemented
 ```
+
+## Expected AST
+
+```json
+{
+  "type": "source_file",
+  "children": [
+    {
+      "type": "expression_statement",
+      "children": [
+        {
+          "type": "assignment_expression",
+          "children": [
+            {
+              "type": "scalar",
+              "children": [
+                {"type": "token", "text": "$"},
+                {"type": "token", "text": "value"}
+              ]
+            },
+            {"type": "token", "text": "="},
+            {
+              "type": "binary_expression",
+              "children": [
+                {
+                  "type": "scalar",
+                  "children": [
+                    {"type": "token", "text": "$"},
+                    {"type": "token", "text": "input"}
+                  ]
+                },
+                {
+                  "type": "expression_stmt",
+                  "children": [
+                    {"type": "literal", "value": "||", "kind": "string"}
+                  ]
+                },
+                {
+                  "type": "scalar",
+                  "children": [
+                    {"type": "token", "text": "$"},
+                    {"type": "token", "text": "default_value"}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {"type": "token", "text": ";"}
+  ]
+}
+```
