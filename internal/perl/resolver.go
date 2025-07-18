@@ -4,11 +4,14 @@
 package perl
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"tamarou.com/pvm/internal/config"
+	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/errors"
 )
 
@@ -110,16 +113,42 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 	// Get available versions if not provided
 	var availableVersions []string
 	if len(options.AvailableVersions) == 0 {
-		// In a full implementation, this would include installed versions
-		// For now, we'll use system Perl version as a starting point
-		systemPerl, err := DetectSystemPerl()
-		if err == nil && systemPerl != nil {
-			availableVersions = append(availableVersions, systemPerl.Version)
+		// Get installed versions first
+		installedVersions, err := GetInstalledVersions()
+		if err == nil {
+			for _, versionInfo := range installedVersions {
+				availableVersions = append(availableVersions, versionInfo.Version)
+			}
 		}
 
-		// Add some common versions for testing
-		availableVersions = append(availableVersions,
-			"5.38.0", "5.36.0", "5.34.1", "5.32.1", "5.30.3", "5.28.3", "5.26.3")
+		// Add downloadable versions from MetaCPAN
+		// Use a short timeout to avoid blocking version resolution
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		metaCPANVersions, err := getDownloadableVersions(ctx)
+		if err == nil {
+			// Add downloadable versions to the available versions list
+			for _, version := range metaCPANVersions {
+				// Check if version is already in the list (to avoid duplicates)
+				found := false
+				for _, existing := range availableVersions {
+					if existing == version {
+						found = true
+						break
+					}
+				}
+				if !found {
+					availableVersions = append(availableVersions, version)
+				}
+			}
+		}
+
+		// Add fallback common versions if MetaCPAN API fails
+		if len(availableVersions) == 0 {
+			availableVersions = append(availableVersions,
+				"5.42.0", "5.40.2", "5.38.4", "5.36.3", "5.34.3", "5.32.1", "5.30.3")
+		}
 	} else {
 		availableVersions = options.AvailableVersions
 	}
@@ -603,4 +632,23 @@ func notifyResolved(version *ResolvedVersion, options *ResolutionOptions) {
 	if !options.SkipVersionResolved && OnVersionResolved != nil {
 		OnVersionResolved(version)
 	}
+}
+
+// getDownloadableVersions fetches the list of downloadable Perl versions from MetaCPAN
+func getDownloadableVersions(ctx context.Context) ([]string, error) {
+	// Create a MetaCPAN provider with a 72-hour cache to avoid repeated API calls
+	provider, err := cpan.NewMetaCPANProvider(
+		cpan.WithTimeout(10), // 10 seconds timeout
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get both stable and development versions (includes all installable versions)
+	versions, err := provider.GetPerlCoreVersionsWithDev(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+
+	return versions, nil
 }

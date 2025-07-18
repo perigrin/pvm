@@ -104,6 +104,8 @@ func NewCommand() *cobra.Command {
 		newMCPCommand(),
 		newEnvCommand(),
 		newToolCommand(),
+		newShimsDirCommand(),
+		newDoctorCommand(),
 
 		// Enhanced help system
 		cli.CreateHelpCommand(), // Context-aware help with workflow suggestions
@@ -4691,4 +4693,117 @@ func executeChangelogCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// newShimsDirCommand creates the shims-dir command
+func newShimsDirCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "shims-dir",
+		Short: "Show the directory containing PVM shims",
+		Long:  "Outputs the path to the directory containing PVM shims that are added to PATH",
+		Run: func(cmd *cobra.Command, args []string) {
+			// Get XDG directories
+			dirs, err := xdg.GetDirs()
+			if err != nil {
+				cmd.Printf("Error: failed to determine XDG directories: %v\n", err)
+				os.Exit(1)
+			}
+
+			// The shims directory is in the data directory
+			shimsDir := filepath.Join(dirs.DataDir, "shims")
+			cmd.Println(shimsDir)
+		},
+	}
+}
+
+// newDoctorCommand creates the doctor command for diagnosing PVM issues
+func newDoctorCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Diagnose and fix PVM installation issues",
+		Long: `Run comprehensive diagnostics to identify and fix PVM configuration issues.
+
+This command checks:
+- Shell integration setup
+- Version management functionality
+- Path configuration
+- Environment variables
+- Shims directory setup
+- Conflicts with other version managers`,
+		Run: func(cmd *cobra.Command, args []string) {
+			ui := cli.GetUI(cmd)
+
+			ui.Header("PVM Doctor - Comprehensive Diagnostics")
+			ui.Println()
+
+			// Track issues found
+			issues := []string{}
+			warnings := []string{}
+
+			// Check 1: Shell integration
+			ui.Status("Checking shell integration...")
+			if err := checkShellIntegration(ui, &issues, &warnings); err != nil {
+				ui.Error("Failed to check shell integration: %v", err)
+			}
+
+			// Check 2: Version management
+			ui.Status("Checking version management...")
+			if err := checkVersionManagement(ui, &issues, &warnings); err != nil {
+				ui.Error("Failed to check version management: %v", err)
+			}
+
+			// Check 3: Path configuration
+			ui.Status("Checking PATH configuration...")
+			if err := checkPathConfiguration(ui, &issues, &warnings); err != nil {
+				ui.Error("Failed to check PATH configuration: %v", err)
+			}
+
+			// Check 4: Environment variables
+			ui.Status("Checking environment variables...")
+			if err := checkEnvironmentVariables(ui, &issues, &warnings); err != nil {
+				ui.Error("Failed to check environment variables: %v", err)
+			}
+
+			// Check 5: Shims directory
+			ui.Status("Checking shims directory...")
+			if err := checkShimsDirectory(ui, &issues, &warnings); err != nil {
+				ui.Error("Failed to check shims directory: %v", err)
+			}
+
+			// Check 6: Version manager conflicts
+			ui.Status("Checking for conflicts with other version managers...")
+			if err := checkVersionManagerConflicts(ui, &issues, &warnings); err != nil {
+				ui.Error("Failed to check version manager conflicts: %v", err)
+			}
+
+			ui.Println()
+
+			// Summary
+			if len(issues) == 0 && len(warnings) == 0 {
+				ui.Success("✓ All checks passed! PVM is properly configured.")
+			} else {
+				if len(issues) > 0 {
+					ui.Error("Found %d issue(s) that need attention:", len(issues))
+					for _, issue := range issues {
+						ui.Error("  • %s", issue)
+					}
+					ui.Println()
+				}
+
+				if len(warnings) > 0 {
+					ui.Warning("Found %d warning(s):", len(warnings))
+					for _, warning := range warnings {
+						ui.Warning("  • %s", warning)
+					}
+					ui.Println()
+				}
+
+				ui.Info("Run 'pvm doctor --fix' to attempt automatic fixes")
+			}
+		},
+	}
+
+	cmd.Flags().Bool("fix", false, "Attempt to automatically fix detected issues")
+
+	return cmd
 }
