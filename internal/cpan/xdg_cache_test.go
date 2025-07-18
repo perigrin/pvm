@@ -42,7 +42,7 @@ func TestXDGCacheHomeExpansion(t *testing.T) {
 
 		// Most importantly, verify that the cache directory was expanded correctly
 		// This test ensures that the environment variable is expanded and not used literally
-		assert.Contains(t, cache.cacheDir, "tmp/", "Cache directory should be expanded and contain tmp path")
+		assert.Contains(t, cache.cacheDir, tempCacheDir, "Cache directory should be expanded and contain the temp directory path")
 		assert.NotContains(t, cache.cacheDir, "$XDG_CACHE_HOME", "Cache directory should not contain literal '$XDG_CACHE_HOME'")
 	})
 
