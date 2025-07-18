@@ -757,7 +757,8 @@ _pvm_shims_dir() {
             eval "$("$pvm_exec" sh-env-activate "$env_name")"
         else
             # Delegate all other commands to the pvm binary
-            "$pvm_exec" "$@"
+            # Use command to avoid potential shell function recursion
+            command "$pvm_exec" "$@"
         fi
     }
 
