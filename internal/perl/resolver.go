@@ -121,25 +121,28 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 			}
 		}
 
-		// Add downloadable versions from MetaCPAN
-		// Use a short timeout to avoid blocking version resolution
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		// Add downloadable versions from MetaCPAN (skip during tests)
+		// Use PVM_SKIP_NETWORK_CALLS environment variable to disable network calls
+		if os.Getenv("PVM_SKIP_NETWORK_CALLS") == "" {
+			// Use a short timeout to avoid blocking version resolution
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-		metaCPANVersions, err := getDownloadableVersions(ctx)
-		if err == nil {
-			// Add downloadable versions to the available versions list
-			for _, version := range metaCPANVersions {
-				// Check if version is already in the list (to avoid duplicates)
-				found := false
-				for _, existing := range availableVersions {
-					if existing == version {
-						found = true
-						break
+			metaCPANVersions, err := getDownloadableVersions(ctx)
+			if err == nil {
+				// Add downloadable versions to the available versions list
+				for _, version := range metaCPANVersions {
+					// Check if version is already in the list (to avoid duplicates)
+					found := false
+					for _, existing := range availableVersions {
+						if existing == version {
+							found = true
+							break
+						}
 					}
-				}
-				if !found {
-					availableVersions = append(availableVersions, version)
+					if !found {
+						availableVersions = append(availableVersions, version)
+					}
 				}
 			}
 		}

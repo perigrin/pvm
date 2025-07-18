@@ -704,6 +704,10 @@ _pvm_shims_dir() {
             return 1
         fi
         PVM_SHIMS_DIR_CACHE="$("$pvm_exec" shims-dir 2>/dev/null || echo "{{ .ShimsDir }}")"
+        # Fallback to template value if command returns empty
+        if [ -z "$PVM_SHIMS_DIR_CACHE" ]; then
+            PVM_SHIMS_DIR_CACHE="{{ .ShimsDir }}"
+        fi
     fi
     echo "$PVM_SHIMS_DIR_CACHE"
 }
@@ -815,11 +819,13 @@ _pvm_shims_dir() {
 # Initialize PVM
 {{ .FunctionPrefix }}init
 
-# Set up completion
-if [ -n "$ZSH_VERSION" ]; then
-    eval "$(${PVM_EXEC} completion zsh 2>/dev/null || true)"
-else
-    eval "$(${PVM_EXEC} completion bash 2>/dev/null || true)"
+# Set up completion (skip during tests)
+if [ "$PVM_SKIP_NETWORK_CALLS" != "1" ]; then
+    if [ -n "$ZSH_VERSION" ]; then
+        eval "$($(_pvm_executable) completion zsh 2>/dev/null || true)"
+    else
+        eval "$($(_pvm_executable) completion bash 2>/dev/null || true)"
+    fi
 fi
 
 # Output message

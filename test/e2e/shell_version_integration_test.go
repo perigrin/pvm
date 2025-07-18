@@ -63,6 +63,16 @@ func TestShellUseAndCurrent(t *testing.T) {
 		t.Fatalf("Shell initialization failed: %v\nStderr: %s", err, stderr)
 	}
 
+	// Force regeneration of shell integration script to ensure it includes latest fixes
+	bashScriptPath := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")
+	if err := os.Remove(bashScriptPath); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("Failed to remove old shell script: %v", err)
+	}
+	_, stderr, err = env.RunPVM("shell", "init")
+	if err != nil {
+		t.Fatalf("Shell re-initialization failed: %v\nStderr: %s", err, stderr)
+	}
+
 	// Get the bash script path
 	bashScript := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")
 	if _, statErr := os.Stat(bashScript); os.IsNotExist(statErr) {
@@ -73,6 +83,9 @@ func TestShellUseAndCurrent(t *testing.T) {
 	testScript := filepath.Join(env.HomeDir, "test_issue_118.sh")
 	scriptContent := `#!/bin/bash
 set -e
+
+# Skip network calls to avoid test timeouts
+export PVM_SKIP_NETWORK_CALLS=1
 
 # Source the PVM shell integration
 source "` + bashScript + `"

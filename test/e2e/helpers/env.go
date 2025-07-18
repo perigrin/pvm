@@ -197,6 +197,9 @@ func (e *TestEnv) setEnvironment() {
 	// Set PVM_HOME
 	_ = os.Setenv("PVM_HOME", e.PVMDataDir)
 
+	// Skip network calls during tests to avoid timeouts
+	_ = os.Setenv("PVM_SKIP_NETWORK_CALLS", "1")
+
 	// Set up library paths for tree-sitter
 	projectRoot, _ := findProjectRoot()
 	if projectRoot != "" {
@@ -279,8 +282,11 @@ func (e *TestEnv) RunCommand(name string, args ...string) (string, string, error
 	cmd.Stdout = &e.Stdout
 	cmd.Stderr = &e.Stderr
 
-	// Set PATH to include our test directories
+	// Set PATH to include our test directories and inherit all environment variables
 	cmd.Env = os.Environ()
+
+	// Explicitly set PVM_SKIP_NETWORK_CALLS to avoid network timeouts
+	cmd.Env = append(cmd.Env, "PVM_SKIP_NETWORK_CALLS=1")
 
 	err := cmd.Run()
 
