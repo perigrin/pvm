@@ -520,34 +520,35 @@ func TestResolutionPrecedence(t *testing.T) {
 			},
 		},
 		{
+			name: "Environment variables have precedence over .perl-version file",
+			options: ResolutionOptions{
+				AvailableVersions:   availableVersions,
+				Config:              cfg,
+				ProjectDir:          env.projectDir,
+				SkipVersionResolved: true,
+			},
+			expected: struct {
+				version string
+				source  ResolutionSource
+			}{
+				version: "5.34.1", // From PERLBREW_PERL environment variable
+				source:  EnvironmentVariable,
+			},
+		},
+		{
 			name: ".perl-version file has precedence over project config",
 			options: ResolutionOptions{
 				AvailableVersions:   availableVersions,
 				Config:              cfg,
 				ProjectDir:          env.projectDir,
+				SkipEnvVars:         true, // Skip environment variables to test .perl-version vs project config
 				SkipVersionResolved: true,
 			},
 			expected: struct {
 				version string
 				source  ResolutionSource
 			}{
-				version: "5.38.0",
-				source:  ProjectVersionFile,
-			},
-		},
-		{
-			name: "Project config has precedence over environment variables",
-			options: ResolutionOptions{
-				AvailableVersions:   availableVersions,
-				Config:              cfg,
-				ProjectDir:          env.projectDir,
-				SkipVersionResolved: true,
-			},
-			expected: struct {
-				version string
-				source  ResolutionSource
-			}{
-				version: "5.38.0", // From .perl-version, which has higher precedence
+				version: "5.38.0", // From .perl-version, which has higher precedence than project config
 				source:  ProjectVersionFile,
 			},
 		},
