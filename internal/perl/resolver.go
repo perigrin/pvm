@@ -13,6 +13,7 @@ import (
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/xdg"
 )
 
 // Version resolution error codes
@@ -639,9 +640,16 @@ func notifyResolved(version *ResolvedVersion, options *ResolutionOptions) {
 
 // getDownloadableVersions fetches the list of downloadable Perl versions from MetaCPAN
 func getDownloadableVersions(ctx context.Context) ([]string, error) {
+	// Get XDG directories for cache
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return nil, err
+	}
+
 	// Create a MetaCPAN provider with a 72-hour cache to avoid repeated API calls
 	provider, err := cpan.NewMetaCPANProvider(
-		cpan.WithTimeout(10), // 10 seconds timeout
+		cpan.WithTimeout(10),              // 10 seconds timeout
+		cpan.WithCache(dirs.CacheDir, 72), // 72 hours cache
 	)
 	if err != nil {
 		return nil, err
