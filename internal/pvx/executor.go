@@ -109,6 +109,9 @@ type ExecutionOptions struct {
 	// Whether to enable verbose output
 	Verbose bool
 
+	// Whether to suppress all non-error output
+	Quiet bool
+
 	// Whether to create an isolated environment for the script (deprecated, use IsolationLevel instead)
 	Isolated bool
 
@@ -183,6 +186,13 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 			ErrExecutionFailed,
 			"No execution options provided",
 			nil)
+	}
+
+	// Set quiet mode if requested
+	if options.Quiet {
+		log.SetGlobalQuiet(true)
+		// Defer restoring previous quiet state
+		defer log.SetGlobalQuiet(false)
 	}
 
 	// Validate script path
@@ -357,6 +367,13 @@ func ExecuteInlineCode(options *ExecutionOptions, uiOutput ...*ui.Output) (strin
 			ErrExecutionFailed,
 			"No execution options provided",
 			nil)
+	}
+
+	// Set quiet mode if requested
+	if options.Quiet {
+		log.SetGlobalQuiet(true)
+		// Defer restoring previous quiet state
+		defer log.SetGlobalQuiet(false)
 	}
 
 	if options.InlineCode == "" {
@@ -1288,6 +1305,14 @@ func ExecuteTool(options *ExecutionOptions, toolName string, toolArgs []string, 
 	if len(uiOutput) > 0 && uiOutput[0] != nil {
 		ui = uiOutput[0]
 	}
+
+	// Set quiet mode if requested
+	if options != nil && options.Quiet {
+		log.SetGlobalQuiet(true)
+		// Defer restoring previous quiet state
+		defer log.SetGlobalQuiet(false)
+	}
+
 	// Create a temporary inline code that invokes the tool
 	// This allows us to leverage existing isolation infrastructure
 

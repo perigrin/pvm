@@ -73,9 +73,9 @@ var OnVersionResolved func(version *ResolvedVersion)
 // ResolveVersion determines which Perl version to use based on the resolution algorithm
 // The precedence order (highest to lowest) is:
 // 1. Explicitly specified version
-// 2. Project-local .perl-version file
-// 3. Project-local .pvm/pvm.toml
-// 4. Environment variables (PVM_PERL_VERSION, PLENV_VERSION, PERLBREW_PERL)
+// 2. Environment variables (PVM_PERL_VERSION, PLENV_VERSION, PERLBREW_PERL)
+// 3. Project-local .perl-version file
+// 4. Project-local .pvm/pvm.toml
 // 5. User-level configuration
 // 6. System Perl
 func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
@@ -159,7 +159,8 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 			nil)
 	}
 
-	// 1. Check explicit version (highest precedence)
+	// 1. Check explicit version (highest precedence - CLI override)
+	// When someone passes 'pvm current 5.38.0', that should take precedence over everything
 	if options.ExplicitVersion != "" {
 		resolved, err := resolveExplicitVersion(options.ExplicitVersion, availableVersions, cfg)
 		if err == nil && resolved != nil {
@@ -168,7 +169,17 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 		}
 	}
 
-	// 2. Check project-local .perl-version file (if not skipped)
+	// 2. Check environment variables (SESSION level)
+	// PVM_PERL_VERSION (set by pvm use) and PLENV_VERSION should override project settings
+	if !options.SkipEnvVars {
+		resolved, err := resolveFromEnvironment(availableVersions, cfg)
+		if err == nil && resolved != nil {
+			notifyResolved(resolved, options)
+			return resolved, nil
+		}
+	}
+
+	// 3. Check project-local .perl-version file (if not skipped)
 	if !options.SkipLocal && options.ProjectDir != "" {
 		resolved, err := resolveFromPerlVersionFile(options.ProjectDir, availableVersions, cfg)
 		if err == nil && resolved != nil {
@@ -177,19 +188,9 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 		}
 	}
 
-	// 3. Check project-local .pvm/pvm.toml (if not skipped)
+	// 4. Check project-local .pvm/pvm.toml (if not skipped)
 	if !options.SkipLocal && options.ProjectDir != "" {
 		resolved, err := resolveFromProjectConfig(options.ProjectDir, availableVersions, cfg)
-		if err == nil && resolved != nil {
-			notifyResolved(resolved, options)
-			return resolved, nil
-		}
-	}
-
-	// 4. Check environment variables (if not skipped)
-	if !options.SkipEnvVars {
-		// Only show debug info for environment variables here
-		resolved, err := resolveFromEnvironment(availableVersions, cfg)
 		if err == nil && resolved != nil {
 			notifyResolved(resolved, options)
 			return resolved, nil
