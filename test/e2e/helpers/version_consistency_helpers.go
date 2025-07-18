@@ -87,9 +87,15 @@ func AssertVersionConsistency(t *testing.T, env *TestEnv, config *VersionConsist
 func setupVersionEnvironment(t *testing.T, env *TestEnv, config *VersionConsistencyTestConfig) {
 	t.Helper()
 
-	// Change to the test root directory first
-	if err := os.Chdir(env.RootDir); err != nil {
-		t.Fatalf("Failed to change to test root directory %s: %v", env.RootDir, err)
+	// Change to the test root directory first (only if it exists)
+	if env.RootDir != "" {
+		if _, err := os.Stat(env.RootDir); err == nil {
+			if err := os.Chdir(env.RootDir); err != nil {
+				t.Fatalf("Failed to change to test root directory %s: %v", env.RootDir, err)
+			}
+		} else {
+			t.Logf("Test root directory %s does not exist, staying in current directory", env.RootDir)
+		}
 	}
 
 	// Set working directory if specified
@@ -120,6 +126,9 @@ func setupVersionEnvironment(t *testing.T, env *TestEnv, config *VersionConsiste
 		setupVersionCommand(t, env, config)
 	case "config":
 		setupVersionConfig(t, env, config)
+	case "":
+		// No setup method - use current environment
+		t.Logf("No setup method specified, using current environment")
 	default:
 		t.Fatalf("Unknown setup method: %s", config.SetupMethod)
 	}
