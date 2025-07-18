@@ -48,6 +48,69 @@ AST {
 }
 ```
 
+## JSON AST
+
+```json
+{
+  "path": "/tmp/minimal-class.pl",
+  "root": {
+    "type": "source_file",
+    "start": {
+      "Line": 1,
+      "Column": 1,
+      "Offset": 0
+    },
+    "end": {
+      "Line": 2,
+      "Column": 1,
+      "Offset": 13
+    },
+    "children": [
+      {
+        "type": "class_decl",
+        "start": {
+          "Line": 1,
+          "Column": 1,
+          "Offset": 0
+        },
+        "end": {
+          "Line": 1,
+          "Column": 13,
+          "Offset": 12
+        },
+        "name": "Foo"
+      }
+    ]
+  },
+  "type_annotations": [
+    {
+      "annotated_item": "Foo",
+      "type_expression": {
+        "Kind": 0,
+        "Name": "class",
+        "Parameters": null,
+        "IsUnion": false,
+        "IsIntersection": false,
+        "IsNegation": false,
+        "UnionTypes": null,
+        "IntersectionTypes": null,
+        "NegatedType": null,
+        "Constraint": null,
+        "OriginalString": "class"
+      },
+      "position": {
+        "Line": 1,
+        "Column": 1,
+        "Offset": 0
+      },
+      "kind": "VarAnnotation"
+    }
+  ],
+  "errors": [],
+  "source_length": 13
+}
+```
+
 
 # Expected Compilation Outcomes
 

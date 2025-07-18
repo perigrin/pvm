@@ -106,6 +106,29 @@ AST {
 }
 ```
 
+## JSON AST
+
+```json
+{
+  "path": "/tmp/test_code_7.pl",
+  "root": {
+    "type": "source_file",
+    "start": {"Line": 1, "Column": 1, "Offset": 0},
+    "end": {"Line": 16, "Column": 2, "Offset": 320},
+    "children": [/* Mixed typed and untyped field/method declarations */]
+  },
+  "type_annotations": [
+    {"annotated_item": "$typed_field", "type_expression": {"Kind": 0, "Name": "Int"}, "position": {"Line": 2, "Column": 1, "Offset": 0}, "kind": "VarAnnotation"},
+    {"annotated_item": "typed_method", "type_expression": {"Kind": 0, "Name": "Str"}, "position": {"Line": 5, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"},
+    {"annotated_item": "$input", "type_expression": {"Kind": 0, "Name": "Str"}, "position": {"Line": 5, "Column": 25, "Offset": 0}, "kind": "MethodParamAnnotation"},
+    {"annotated_item": "partially_typed", "type_expression": {"Kind": 0, "Name": "Str"}, "position": {"Line": 14, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"},
+    {"annotated_item": "$typed", "type_expression": {"Kind": 0, "Name": "Int"}, "position": {"Line": 14, "Column": 38, "Offset": 0}, "kind": "MethodParamAnnotation"}
+  ],
+  "errors": [],
+  "source_length": 320
+}
+```
+
 ## After Type Inference
 
 ```

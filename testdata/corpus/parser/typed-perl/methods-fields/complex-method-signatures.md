@@ -86,6 +86,33 @@ AST {
 }
 ```
 
+## JSON AST
+
+```json
+{
+  "path": "/tmp/test_code_5.pl",
+  "root": {
+    "type": "source_file",
+    "start": {"Line": 1, "Column": 1, "Offset": 0},
+    "end": {"Line": 16, "Column": 2, "Offset": 433},
+    "children": [/* 3 method declarations with complex signatures */]
+  },
+  "type_annotations": [
+    {"annotated_item": "process", "type_expression": {"Kind": 4, "Name": "ArrayRef[Str]"}, "position": {"Line": 1, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"},
+    {"annotated_item": "$data", "type_expression": {"Kind": 4, "Name": "ArrayRef[Str]"}, "position": {"Line": 1, "Column": 30, "Offset": 0}, "kind": "MethodParamAnnotation"},
+    {"annotated_item": "$validate", "type_expression": {"Kind": 0, "Name": "Bool"}, "position": {"Line": 1, "Column": 51, "Offset": 0}, "kind": "MethodParamAnnotation"},
+    {"annotated_item": "transform", "type_expression": {"Kind": 4, "Name": "HashRef[Int]"}, "position": {"Line": 6, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"},
+    {"annotated_item": "$input", "type_expression": {"Kind": 4, "Name": "HashRef[Int]"}, "position": {"Line": 6, "Column": 31, "Offset": 0}, "kind": "MethodParamAnnotation"},
+    {"annotated_item": "$callback", "type_expression": {"Kind": 0, "Name": "CodeRef"}, "position": {"Line": 6, "Column": 52, "Offset": 0}, "kind": "MethodParamAnnotation"},
+    {"annotated_item": "complex_method", "type_expression": {"Kind": 0, "Name": "Bool"}, "position": {"Line": 14, "Column": 8, "Offset": 0}, "kind": "MethodReturnAnnotation"},
+    {"annotated_item": "$data", "type_expression": {"Kind": 4, "Name": "ArrayRef[HashRef[Int]]"}, "position": {"Line": 14, "Column": 28, "Offset": 0}, "kind": "MethodParamAnnotation"},
+    {"annotated_item": "$processor", "type_expression": {"Kind": 4, "Name": "Optional[CodeRef]"}, "position": {"Line": 14, "Column": 58, "Offset": 0}, "kind": "MethodParamAnnotation"}
+  ],
+  "errors": [],
+  "source_length": 433
+}
+```
+
 ## After Type Inference
 
 ```
