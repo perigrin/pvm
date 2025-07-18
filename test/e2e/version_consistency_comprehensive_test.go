@@ -1,0 +1,586 @@
+// ABOUTME: Comprehensive version consistency tests for PVM and PVX (Issue #164)
+// ABOUTME: Tests ensure PVX consistently uses the same Perl version as PVM across all scenarios
+
+package e2e
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"testing"
+	"time"
+
+	"tamarou.com/pvm/test/e2e/helpers"
+)
+
+// TestPVMPVXVersionConsistency tests fundamental version consistency between PVM and PVX
+func TestPVMPVXVersionConsistency(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Skip if no system Perl available
+	helpers.SkipIfNoSystemPerl(t)
+
+	t.Run("BasicVersionConsistency", func(t *testing.T) {
+		// Test basic version consistency without specifying exact version
+		// This tests that PVM and PVX use the same version, whatever that version is
+
+		// Get the current version from PVM
+		pvmStdout, pvmStderr, err := env.RunPVM("current")
+		if err != nil {
+			t.Skipf("PVM current failed, skipping consistency test: %v", err)
+		}
+
+		// Extract version from PVM output
+		pvmOutput := pvmStdout + pvmStderr
+		pvmVersionPattern := regexp.MustCompile(`(\d+\.\d+\.\d+)`)
+		pvmMatches := pvmVersionPattern.FindStringSubmatch(pvmOutput)
+		if len(pvmMatches) < 2 {
+			t.Skipf("Could not extract version from PVM output: %q", pvmOutput)
+		}
+		pvmVersion := pvmMatches[1]
+
+		// Get the version from PVX
+		pvxStdout, pvxStderr, err := env.RunPVM("pvx", "-e", "print $^V")
+		if err != nil {
+			t.Fatalf("PVX version detection failed: %v", err)
+		}
+
+		// Extract version from PVX output
+		pvxOutput := pvxStdout + pvxStderr
+		pvxVersionPattern := regexp.MustCompile(`v?(\d+\.\d+\.\d+)`)
+		pvxMatches := pvxVersionPattern.FindStringSubmatch(pvxOutput)
+		if len(pvxMatches) < 2 {
+			t.Fatalf("Could not extract version from PVX output: %q", pvxOutput)
+		}
+		pvxVersion := pvxMatches[1]
+
+		// Check consistency
+		if pvmVersion != pvxVersion {
+			t.Errorf("Version mismatch - PVM shows %q, PVX uses %q", pvmVersion, pvxVersion)
+		}
+
+		t.Logf("Version consistency confirmed: PVM=%s, PVX=%s", pvmVersion, pvxVersion)
+	})
+
+	t.Run("EnvironmentVariableConsistency", func(t *testing.T) {
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "EnvironmentVariableConsistency",
+			Description:     "Test version consistency with environment variables",
+			Version:         "5.40.0",
+			SetupMethod:     "env",
+			ExpectedVersion: "5.40.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("CommandLineConsistency", func(t *testing.T) {
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "CommandLineConsistency",
+			Description:     "Test version consistency with command line version",
+			Version:         "5.38.0",
+			SetupMethod:     "command",
+			ExpectedVersion: "5.38.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+}
+
+// TestVersionResolutionSources tests consistency across different version resolution sources
+func TestVersionResolutionSources(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	helpers.SkipIfNoSystemPerl(t)
+
+	t.Run("PerlVersionFileResolution", func(t *testing.T) {
+		// Create .perl-version file
+		err := env.CreateFile(".perl-version", "5.42.0")
+		if err != nil {
+			t.Fatalf("Failed to create .perl-version file: %v", err)
+		}
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "PerlVersionFileResolution",
+			Description:     "Test .perl-version file resolution",
+			Version:         "5.42.0",
+			SetupMethod:     "file",
+			ExpectedVersion: "5.42.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("EnvironmentVariableResolution", func(t *testing.T) {
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "EnvironmentVariableResolution",
+			Description:     "Test PVM_PERL_VERSION environment variable resolution",
+			Version:         "5.40.0",
+			SetupMethod:     "env",
+			ExpectedVersion: "5.40.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("ProjectConfigurationResolution", func(t *testing.T) {
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "ProjectConfigurationResolution",
+			Description:     "Test project configuration resolution",
+			Version:         "5.38.0",
+			SetupMethod:     "config",
+			ExpectedVersion: "5.38.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("SystemPerlFallback", func(t *testing.T) {
+		// Test system Perl fallback when no specific version is set
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:    "SystemPerlFallback",
+			Description: "Test system Perl fallback consistency",
+			Version:     "system",
+			SetupMethod: "command",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+}
+
+// TestComplexVersionScenarios tests version consistency in complex scenarios
+func TestComplexVersionScenarios(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	helpers.SkipIfNoSystemPerl(t)
+
+	t.Run("VersionPrecedenceConflicts", func(t *testing.T) {
+		// Create .perl-version file
+		err := env.CreateFile(".perl-version", "5.38.0")
+		if err != nil {
+			t.Fatalf("Failed to create .perl-version file: %v", err)
+		}
+
+		// Set environment variable (should take precedence)
+		os.Setenv("PVM_PERL_VERSION", "5.40.0")
+		defer os.Unsetenv("PVM_PERL_VERSION")
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "VersionPrecedenceConflicts",
+			Description:     "Test version precedence when multiple sources conflict",
+			ExpectedVersion: "5.40.0", // Environment variable should win
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("NestedPerlVersionFiles", func(t *testing.T) {
+		// Create nested directory structure with .perl-version files
+		versions := map[string]string{
+			"project":             "5.42.0",
+			"project/subproject":  "5.40.0",
+			"project/subproject2": "5.38.0",
+		}
+
+		helpers.CreateVersionHierarchy(t, env, versions)
+
+		// Test version resolution in different directories
+		testCases := []struct {
+			dir             string
+			expectedVersion string
+		}{
+			{"project", "5.42.0"},
+			{"project/subproject", "5.40.0"},
+			{"project/subproject2", "5.38.0"},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.dir, func(t *testing.T) {
+				config := &helpers.VersionConsistencyTestConfig{
+					TestName:        "NestedPerlVersionFiles_" + testCase.dir,
+					Description:     "Test nested .perl-version file resolution",
+					WorkingDir:      testCase.dir,
+					ExpectedVersion: testCase.expectedVersion,
+				}
+
+				helpers.AssertVersionConsistency(t, env, config)
+			})
+		}
+	})
+
+	t.Run("VersionSwitchingInSubshells", func(t *testing.T) {
+		// Test version switching consistency in subshells
+		// This tests that PVM and PVX behave consistently in different execution contexts
+
+		// Create .perl-version file
+		err := env.CreateFile(".perl-version", "5.42.0")
+		if err != nil {
+			t.Fatalf("Failed to create .perl-version file: %v", err)
+		}
+
+		// Test in main shell
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "MainShellVersionSwitching",
+			Description:     "Test version switching in main shell",
+			ExpectedVersion: "5.42.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+
+		// Test in subshell (simulated by changing directory)
+		subDir := filepath.Join(env.RootDir, "subdir")
+		os.MkdirAll(subDir, 0755)
+		originalDir, _ := os.Getwd()
+		os.Chdir(subDir)
+		defer os.Chdir(originalDir)
+
+		// Should inherit from parent directory
+		config2 := &helpers.VersionConsistencyTestConfig{
+			TestName:        "SubshellVersionSwitching",
+			Description:     "Test version switching in subshell",
+			ExpectedVersion: "5.42.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config2)
+	})
+
+	t.Run("ConcurrentVersionResolution", func(t *testing.T) {
+		// Test concurrent version resolution to check for race conditions
+		// This is important for shell integration performance
+
+		err := env.CreateFile(".perl-version", "5.42.0")
+		if err != nil {
+			t.Fatalf("Failed to create .perl-version file: %v", err)
+		}
+
+		// Run multiple version resolution operations concurrently
+		done := make(chan bool, 5)
+		errors := make(chan error, 5)
+
+		for i := 0; i < 5; i++ {
+			go func(id int) {
+				config := &helpers.VersionConsistencyTestConfig{
+					TestName:        "ConcurrentVersionResolution",
+					Description:     "Test concurrent version resolution",
+					ExpectedVersion: "5.42.0",
+				}
+
+				defer func() {
+					if r := recover(); r != nil {
+						errors <- fmt.Errorf("panic in goroutine %d: %v", id, r)
+					}
+					done <- true
+				}()
+
+				helpers.AssertVersionConsistency(t, env, config)
+			}(i)
+		}
+
+		// Wait for all goroutines to complete
+		for i := 0; i < 5; i++ {
+			select {
+			case <-done:
+				// Success
+			case err := <-errors:
+				t.Errorf("Concurrent version resolution failed: %v", err)
+			case <-time.After(10 * time.Second):
+				t.Fatal("Concurrent version resolution timed out")
+			}
+		}
+	})
+}
+
+// TestEnvironmentIntegration tests version consistency with different environments
+func TestEnvironmentIntegration(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	helpers.SkipIfNoSystemPerl(t)
+
+	t.Run("ShellIntegrationEnvironment", func(t *testing.T) {
+		// Test version consistency with shell integration environment
+		os.Setenv("PVM_PERL_VERSION", "5.42.0")
+		defer os.Unsetenv("PVM_PERL_VERSION")
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "ShellIntegrationEnvironment",
+			Description:     "Test version consistency with shell integration environment",
+			ExpectedVersion: "5.42.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("CIEnvironment", func(t *testing.T) {
+		// Simulate CI environment variables
+		os.Setenv("CI", "true")
+		os.Setenv("PVM_PERL_VERSION", "5.40.0")
+		defer os.Unsetenv("CI")
+		defer os.Unsetenv("PVM_PERL_VERSION")
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "CIEnvironment",
+			Description:     "Test version consistency in CI environment",
+			ExpectedVersion: "5.40.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("DifferentUserContexts", func(t *testing.T) {
+		// Test version consistency across different user contexts
+		// This simulates what happens when different users have different configurations
+
+		// Create user-specific .perl-version file
+		err := env.CreateFile(".perl-version", "5.38.0")
+		if err != nil {
+			t.Fatalf("Failed to create .perl-version file: %v", err)
+		}
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "DifferentUserContexts",
+			Description:     "Test version consistency across different user contexts",
+			ExpectedVersion: "5.38.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+}
+
+// TestErrorHandlingConsistency tests that both PVM and PVX handle errors consistently
+func TestErrorHandlingConsistency(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	helpers.SkipIfNoSystemPerl(t)
+
+	t.Run("UnavailableVersions", func(t *testing.T) {
+		// Test consistency when version is not available
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:      "UnavailableVersions",
+			Description:   "Test error handling for unavailable versions",
+			Version:       "5.99.0",
+			SetupMethod:   "file",
+			ExpectedError: true,
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("CorruptedPerlVersionFiles", func(t *testing.T) {
+		// Create corrupted .perl-version file
+		err := env.CreateFile(".perl-version", "invalid\nversion\nformat")
+		if err != nil {
+			t.Fatalf("Failed to create corrupted .perl-version file: %v", err)
+		}
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:      "CorruptedPerlVersionFiles",
+			Description:   "Test error handling for corrupted .perl-version files",
+			ExpectedError: true,
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("MissingPerlInstallations", func(t *testing.T) {
+		// Test behavior when Perl installations are missing
+		// This simulates the case where .perl-version specifies a version that's not installed
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:      "MissingPerlInstallations",
+			Description:   "Test error handling for missing Perl installations",
+			Version:       "5.98.0",
+			SetupMethod:   "env",
+			ExpectedError: true,
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("PermissionIssues", func(t *testing.T) {
+		// Test permission issues (simulate by creating unreadable .perl-version file)
+		versionFile := filepath.Join(env.RootDir, ".perl-version")
+		err := os.WriteFile(versionFile, []byte("5.42.0"), 0000) // No permissions
+		if err != nil {
+			t.Fatalf("Failed to create unreadable .perl-version file: %v", err)
+		}
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:      "PermissionIssues",
+			Description:   "Test error handling for permission issues",
+			ExpectedError: true,
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+
+		// Clean up by making file readable again
+		os.Chmod(versionFile, 0644)
+	})
+}
+
+// TestVersionResolutionPerformance tests performance of version resolution
+func TestVersionResolutionPerformance(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	helpers.SkipIfNoSystemPerl(t)
+
+	t.Run("BasicResolutionPerformance", func(t *testing.T) {
+		// Create .perl-version file
+		err := env.CreateFile(".perl-version", "5.42.0")
+		if err != nil {
+			t.Fatalf("Failed to create .perl-version file: %v", err)
+		}
+
+		// Test resolution performance
+		duration := helpers.TestVersionResolutionPerformance(t, env, "basic resolution")
+
+		// Performance should be reasonable (less than 1 second for simple resolution)
+		if duration > time.Second {
+			t.Logf("WARNING: Version resolution took %v, which may be slow", duration)
+		}
+	})
+
+	t.Run("NestedDirectoryPerformance", func(t *testing.T) {
+		// Create deeply nested directory structure
+		versions := map[string]string{
+			"level1":                             "5.42.0",
+			"level1/level2":                      "5.40.0",
+			"level1/level2/level3":               "5.38.0",
+			"level1/level2/level3/level4":        "5.36.0",
+			"level1/level2/level3/level4/level5": "5.34.0",
+		}
+
+		helpers.CreateVersionHierarchy(t, env, versions)
+
+		// Test resolution performance in deeply nested directory
+		originalDir, _ := os.Getwd()
+		os.Chdir(filepath.Join(env.RootDir, "level1/level2/level3/level4/level5"))
+		defer os.Chdir(originalDir)
+
+		duration := helpers.TestVersionResolutionPerformance(t, env, "nested directory resolution")
+
+		// Performance should still be reasonable even with nested resolution
+		if duration > 2*time.Second {
+			t.Logf("WARNING: Nested directory resolution took %v, which may be slow", duration)
+		}
+	})
+}
+
+// TestVersionResolutionTracing tests version resolution debugging
+func TestVersionResolutionTracing(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	helpers.SkipIfNoSystemPerl(t)
+
+	t.Run("DebugOutputValidation", func(t *testing.T) {
+		// Create .perl-version file
+		err := env.CreateFile(".perl-version", "5.42.0")
+		if err != nil {
+			t.Fatalf("Failed to create .perl-version file: %v", err)
+		}
+
+		// Test that debug output shows version resolution sources
+		expectedSources := []string{
+			".perl-version",
+			"5.42.0",
+		}
+
+		helpers.ValidateVersionResolutionTrace(t, env, expectedSources)
+	})
+
+	t.Run("EnvironmentVariableTracing", func(t *testing.T) {
+		// Set environment variable
+		os.Setenv("PVM_PERL_VERSION", "5.40.0")
+		defer os.Unsetenv("PVM_PERL_VERSION")
+
+		// Test that debug output shows environment variable source
+		expectedSources := []string{
+			"PVM_PERL_VERSION",
+			"5.40.0",
+		}
+
+		helpers.ValidateVersionResolutionTrace(t, env, expectedSources)
+	})
+}
+
+// TestVersionResolutionEdgeCases tests edge cases in version resolution
+func TestVersionResolutionEdgeCases(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	helpers.SkipIfNoSystemPerl(t)
+
+	t.Run("EmptyPerlVersionFile", func(t *testing.T) {
+		// Create empty .perl-version file
+		err := env.CreateFile(".perl-version", "")
+		if err != nil {
+			t.Fatalf("Failed to create empty .perl-version file: %v", err)
+		}
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:      "EmptyPerlVersionFile",
+			Description:   "Test handling of empty .perl-version file",
+			ExpectedError: true,
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("WhitespaceInPerlVersionFile", func(t *testing.T) {
+		// Create .perl-version file with whitespace
+		err := env.CreateFile(".perl-version", "  5.42.0  \n")
+		if err != nil {
+			t.Fatalf("Failed to create .perl-version file with whitespace: %v", err)
+		}
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "WhitespaceInPerlVersionFile",
+			Description:     "Test handling of whitespace in .perl-version file",
+			ExpectedVersion: "5.42.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+
+	t.Run("SymlinkPerlVersionFile", func(t *testing.T) {
+		// Create actual .perl-version file
+		actualFile := filepath.Join(env.RootDir, "actual.perl-version")
+		err := os.WriteFile(actualFile, []byte("5.42.0"), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create actual .perl-version file: %v", err)
+		}
+
+		// Create symlink to it
+		symlinkFile := filepath.Join(env.RootDir, ".perl-version")
+		err = os.Symlink(actualFile, symlinkFile)
+		if err != nil {
+			t.Skipf("Symlink creation failed (may not be supported): %v", err)
+		}
+
+		config := &helpers.VersionConsistencyTestConfig{
+			TestName:        "SymlinkPerlVersionFile",
+			Description:     "Test handling of symlinked .perl-version file",
+			ExpectedVersion: "5.42.0",
+		}
+
+		helpers.AssertVersionConsistency(t, env, config)
+	})
+}
+
+// TestVersionConsistencyTestSuite runs the complete version consistency test suite
+func TestVersionConsistencyTestSuite(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	helpers.SkipIfNoSystemPerl(t)
+
+	// Run the standard test suite
+	helpers.RunVersionConsistencyTestSuite(t, env)
+}
