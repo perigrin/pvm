@@ -310,3 +310,209 @@ func convertTypeExpression(tsExpr *treesitter.TypeExpression) *ast.TypeExpressio
 }
 
 // We exclusively use tree-sitter for parsing now
+
+// VersionRequirement represents a Perl version requirement found in a script
+type VersionRequirement struct {
+	// Version is the required Perl version (e.g., "5.38", "5.40")
+	Version string
+
+	// Operator is the comparison operator (">=", "==", ">", etc.)
+	// If empty, defaults to ">=" for "use v5.xx" statements
+	Operator string
+
+	// Line is the line number where the requirement was found
+	Line int
+
+	// Column is the column number where the requirement was found
+	Column int
+}
+
+// ExtractVersionRequirements parses a Perl script and extracts version requirements
+// from "use v5.xx;" statements in the code
+func ExtractVersionRequirements(scriptPath string) (*VersionRequirement, error) {
+	// Create a parser
+	parser, err := NewParser()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create parser: %w", err)
+	}
+
+	// Parse the script
+	ast, err := parser.ParseFile(scriptPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse script %s: %w", scriptPath, err)
+	}
+
+	// Search for version requirements in the AST
+	return extractVersionFromAST(ast)
+}
+
+// extractVersionFromAST searches an AST for version requirements
+func extractVersionFromAST(ast *AST) (*VersionRequirement, error) {
+	if ast.Root == nil {
+		return nil, nil
+	}
+
+	// Recursively search for use statements with version requirements
+	return findVersionInNode(ast.Root)
+}
+
+// findVersionInNode recursively searches a node and its children for version requirements
+func findVersionInNode(node Node) (*VersionRequirement, error) {
+	// Check if this node is a use statement with version
+	if req := extractVersionFromUseStatement(node); req != nil {
+		return req, nil
+	}
+
+	// Recursively check child nodes
+	children := node.Children()
+	for _, child := range children {
+		if child != nil {
+			if req, err := findVersionInNode(child); err != nil {
+				return nil, err
+			} else if req != nil {
+				return req, nil
+			}
+		}
+	}
+
+	return nil, nil
+}
+
+// extractVersionFromUseStatement extracts version requirement from a use statement node
+func extractVersionFromUseStatement(node Node) *VersionRequirement {
+	// Check if this is a use statement
+	if node.Type() != "use_statement" && node.Type() != "statement" {
+		return nil
+	}
+
+	// Get the text content of the node
+	text := node.Text()
+
+	// Look for patterns like "use v5.38;" or "use 5.038;"
+	// This is a simple pattern match - in production you'd want more sophisticated parsing
+	if len(text) < 8 { // Minimum length for "use v5.x;"
+		return nil
+	}
+
+	// Simple pattern matching for version requirements
+	// Look for "use v" followed by version number
+	if pos := findVersionPattern(text); pos != nil {
+		return &VersionRequirement{
+			Version:  pos.Version,
+			Operator: ">=",                  // Default to >= for "use v5.xx" statements
+			Line:     node.Start().Line + 1, // Convert to 1-based
+			Column:   node.Start().Column + 1,
+		}
+	}
+
+	return nil
+}
+
+// versionMatch represents a found version pattern
+type versionMatch struct {
+	Version string
+}
+
+// findVersionPattern searches for version patterns in text
+func findVersionPattern(text string) *versionMatch {
+	// Simple regex-like matching for "use v5.xx" patterns
+	// Look for "use v" followed by digits and dots
+
+	// Find "use v" or "use "
+	useIndex := -1
+	for i := 0; i < len(text)-6; i++ {
+		if text[i:i+6] == "use v5" || text[i:i+5] == "use 5" {
+			useIndex = i
+			break
+		}
+	}
+
+	if useIndex == -1 {
+		return nil
+	}
+
+	// Extract version after "use v" or "use "
+	var versionStart int
+	if text[useIndex:useIndex+6] == "use v5" {
+		versionStart = useIndex + 4 // Skip "use "
+	} else {
+		versionStart = useIndex + 4 // Skip "use "
+	}
+
+	// Find the end of the version (until semicolon, whitespace, or end)
+	versionEnd := versionStart
+	for versionEnd < len(text) &&
+		text[versionEnd] != ';' &&
+		text[versionEnd] != ' ' &&
+		text[versionEnd] != '\t' &&
+		text[versionEnd] != '\n' &&
+		text[versionEnd] != '\r' {
+		versionEnd++
+	}
+
+	if versionEnd <= versionStart {
+		return nil
+	}
+
+	versionStr := text[versionStart:versionEnd]
+
+	// Validate that this looks like a version number
+	if isValidVersionString(versionStr) {
+		return &versionMatch{
+			Version: normalizeVersion(versionStr),
+		}
+	}
+
+	return nil
+}
+
+// isValidVersionString checks if a string looks like a valid Perl version
+func isValidVersionString(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+
+	// Should start with 'v' or digit
+	if s[0] != 'v' && (s[0] < '0' || s[0] > '9') {
+		return false
+	}
+
+	// Count dots and digits
+	dotCount := 0
+	digitCount := 0
+
+	start := 0
+	if s[0] == 'v' {
+		start = 1
+	}
+
+	for i := start; i < len(s); i++ {
+		if s[i] == '.' {
+			dotCount++
+		} else if s[i] >= '0' && s[i] <= '9' {
+			digitCount++
+		} else {
+			return false // Invalid character
+		}
+	}
+
+	// Should have at least one digit and reasonable number of dots
+	return digitCount > 0 && dotCount <= 3
+}
+
+// normalizeVersion normalizes a version string for comparison
+func normalizeVersion(s string) string {
+	// Remove leading 'v' if present
+	if len(s) > 0 && s[0] == 'v' {
+		s = s[1:]
+	}
+
+	// Convert 5.038 style to 5.38 style if needed
+	// This is a simplified conversion
+	if len(s) >= 5 && s[1] == '.' && s[2] == '0' {
+		// Handle cases like "5.038" -> "5.38"
+		return s[:2] + s[3:]
+	}
+
+	return s
+}

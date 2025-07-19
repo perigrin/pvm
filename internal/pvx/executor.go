@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/cli/ui"
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/perl"
@@ -177,9 +178,9 @@ type ExecuteResult struct {
 // ExecuteScript runs a Perl script with the specified options
 func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, error) {
 	// Get UI for user feedback (optional parameter for backward compatibility)
-	var ui *ui.Output
+	var uiOut *ui.Output
 	if len(uiOutput) > 0 && uiOutput[0] != nil {
-		ui = uiOutput[0]
+		uiOut = uiOutput[0]
 	}
 	if options == nil {
 		return "", errors.NewExecutionError(
@@ -205,14 +206,14 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 
 	// Auto-detect dependencies using PSC parsing if enabled (superior to manual metadata)
 	if options.AutoDetectDependencies {
-		if ui != nil && options.Verbose {
-			ui.Status("Analyzing script dependencies...")
+		if uiOut != nil && options.Verbose {
+			uiOut.Status("Analyzing script dependencies...")
 		}
 		autoDeps, err := AutoDetectDependenciesWithOptions(options.ScriptPath, false) // Filter out core modules
 		if err != nil {
 			if options.Verbose {
-				if ui != nil {
-					ui.Warning("Could not auto-detect dependencies (continuing without): %v", err)
+				if uiOut != nil {
+					uiOut.Warning("Could not auto-detect dependencies (continuing without): %v", err)
 				} else {
 					log.Infof("Could not auto-detect dependencies (continuing without): %v", err)
 				}
@@ -223,9 +224,9 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 		// Merge auto-detected dependencies with execution options
 		if len(autoDeps) > 0 {
 			if options.Verbose {
-				if ui != nil {
-					ui.Info("Auto-detected %d dependencies from script", len(autoDeps))
-					ui.List(autoDeps)
+				if uiOut != nil {
+					uiOut.Info("Auto-detected %d dependencies from script", len(autoDeps))
+					uiOut.List(autoDeps)
 				} else {
 					log.Infof("Auto-detected %d dependencies from script: %v", len(autoDeps), autoDeps)
 				}
@@ -243,8 +244,8 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 
 	// Install required modules using PVI if needed
 	if options.AutoInstallModules && len(options.RequiredModules) > 0 {
-		if ui != nil {
-			ui.Status(fmt.Sprintf("Installing %d required modules using PVI", len(options.RequiredModules)))
+		if uiOut != nil {
+			uiOut.Status(fmt.Sprintf("Installing %d required modules using PVI", len(options.RequiredModules)))
 		} else if options.Verbose {
 			log.Infof("Installing %d required modules using PVI", len(options.RequiredModules))
 		}
@@ -277,8 +278,8 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 		}
 
 		if options.Verbose {
-			if ui != nil {
-				ui.Success("Successfully installed %d modules, skipped %d already installed",
+			if uiOut != nil {
+				uiOut.Success("Successfully installed %d modules, skipped %d already installed",
 					len(installResult.InstalledModules), len(installResult.SkippedModules))
 			} else {
 				log.Infof("Successfully installed %d modules, skipped %d already installed",
@@ -543,41 +544,18 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 		// If file doesn't exist, continue with normal resolution
 	}
 
-	var resolvedVersion *perl.ResolvedVersion
-	var err error
+	// Use version resolution to get Perl executable
+	resolvedVersion, err := perl.ResolveVersion(&perl.ResolutionOptions{
+		ExplicitVersion:     options.PerlVersion,
+		ScriptPath:          options.ScriptPath,
+		SkipVersionResolved: !options.Verbose, // Only log if verbose
+	})
 
-	// If a specific version is requested, use that
-	if options.PerlVersion != "" {
-		// Use version resolution to find the executable
-		resolvedVersion, err = perl.ResolveVersion(&perl.ResolutionOptions{
-			ExplicitVersion:     options.PerlVersion,
-			ScriptPath:          options.ScriptPath,
-			SkipLocal:           true,
-			SkipEnvVars:         true,
-			SkipUserConfig:      true,
-			SkipSystemPerl:      !options.ForceVersion, // Use system Perl as fallback if forcing version
-			SkipVersionResolved: !options.Verbose,      // Only log if verbose
-		})
-
-		if err != nil {
-			return "", errors.NewExecutionError(
-				ErrVersionNotFound,
-				fmt.Sprintf("Specified Perl version not found: %s", options.PerlVersion),
-				err)
-		}
-	} else {
-		// Use normal version resolution
-		resolvedVersion, err = perl.ResolveVersion(&perl.ResolutionOptions{
-			ScriptPath:          options.ScriptPath,
-			SkipVersionResolved: !options.Verbose, // Only log if verbose
-		})
-
-		if err != nil {
-			return "", errors.NewExecutionError(
-				ErrVersionNotFound,
-				"Failed to resolve Perl version",
-				err)
-		}
+	if err != nil {
+		return "", errors.NewExecutionError(
+			ErrVersionNotFound,
+			"Failed to resolve Perl version",
+			err)
 	}
 
 	// Get the path to the Perl executable for the resolved version
@@ -1472,4 +1450,79 @@ func ExecuteTool(options *ExecutionOptions, toolName string, toolArgs []string, 
 
 	// Execute as inline code
 	return ExecuteInlineCode(options, ui)
+}
+
+// tryAutoInstallPerl attempts to auto-install a Perl version if auto-install is enabled
+// This uses external pvm command to avoid import cycles
+func tryAutoInstallPerl(version string, ui *ui.Output, verbose bool) error {
+	// Load configuration to check if auto-install is enabled
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		if verbose {
+			if ui != nil {
+				ui.Warning("Could not load configuration for auto-install check: %v", err)
+			} else {
+				log.Infof("Could not load configuration for auto-install check: %v", err)
+			}
+		}
+		return fmt.Errorf("configuration not available")
+	}
+
+	// Check if auto-install is enabled
+	if cfg == nil || cfg.PVX == nil || !cfg.PVX.AutoInstallPerl {
+		if verbose {
+			if ui != nil {
+				ui.Info("Auto-install not enabled for Perl versions (set auto_install_perl = true in config)")
+			} else {
+				log.Infof("Auto-install not enabled for Perl versions")
+			}
+		}
+		return fmt.Errorf("auto-install not enabled")
+	}
+
+	if verbose {
+		if ui != nil {
+			ui.Status(fmt.Sprintf("Auto-installing Perl %s using pvm install", version))
+		} else {
+			log.Infof("Auto-installing Perl %s using pvm install...", version)
+		}
+	}
+
+	// Use external pvm command to install the required version
+	// This avoids import cycles by calling pvm as external process
+	pvmPath, err := exec.LookPath("pvm")
+	if err != nil {
+		return fmt.Errorf("pvm command not found in PATH: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, pvmPath, "install", version)
+	if !verbose {
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+	}
+
+	err = cmd.Run()
+	if err != nil {
+		if verbose {
+			if ui != nil {
+				ui.Error("Failed to auto-install Perl %s: %v", version, err)
+			} else {
+				log.Infof("Failed to auto-install Perl %s: %v", version, err)
+			}
+		}
+		return fmt.Errorf("pvm install failed: %w", err)
+	}
+
+	if verbose {
+		if ui != nil {
+			ui.Success("Successfully auto-installed Perl %s", version)
+		} else {
+			log.Infof("Successfully auto-installed Perl %s", version)
+		}
+	}
+
+	return nil
 }

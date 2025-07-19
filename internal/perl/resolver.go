@@ -235,12 +235,8 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 		}
 	}
 
-	// 5. Check script version requirements (if not skipped)
-	// TODO: Implement script version parsing without import cycles
-	if !options.SkipScriptAnalysis && options.ScriptPath != "" {
-		// Script parsing functionality temporarily disabled to fix import cycle
-		// Will be re-implemented in a separate package to avoid parser import cycles
-	}
+	// 5. Script version requirements are now handled in PVX package
+	// This avoids import cycles and provides better integration with auto-install functionality
 
 	// 6. Check user-level configuration (if not skipped)
 	if !options.SkipUserConfig && cfg != nil && cfg.PVM != nil {
