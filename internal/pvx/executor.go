@@ -708,6 +708,28 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 	// Start with the current environment
 	env := os.Environ()
 
+	// Ensure PVM-specific variables are preserved
+	// These variables should always be inherited to ensure consistent behavior
+	pvmVars := []string{
+		"PVM_PERL_VERSION",
+		"PVM_SUPPRESS_WARNINGS",
+		"PVM_DEBUG",
+		"PVM_CONFIG_DIR",
+		"PVM_HOME",
+		"PVM_SKIP_NETWORK_CALLS",
+	}
+
+	// Capture PVM-specific variables before any processing
+	pvmVarValues := make(map[string]string)
+	for _, key := range pvmVars {
+		if value := os.Getenv(key); value != "" {
+			pvmVarValues[key] = value
+			if options.Verbose {
+				log.Debugf("Preserving PVM variable: %s=%s", key, value)
+			}
+		}
+	}
+
 	// Process any environment variables that should be cleared
 	if len(options.ClearEnv) > 0 {
 		// Create a map for faster lookup
@@ -717,6 +739,7 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 		}
 
 		// Filter out environment variables that should be cleared
+		// BUT preserve PVM-specific variables even if they're in ClearEnv
 		filteredEnv := []string{}
 		for _, envVar := range env {
 			parts := strings.SplitN(envVar, "=", 2)
@@ -724,7 +747,16 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 				continue
 			}
 
-			if !clearEnvMap[parts[0]] {
+			// Always preserve PVM-specific variables
+			isPVMVar := false
+			for _, pvmVar := range pvmVars {
+				if parts[0] == pvmVar {
+					isPVMVar = true
+					break
+				}
+			}
+
+			if !clearEnvMap[parts[0]] || isPVMVar {
 				filteredEnv = append(filteredEnv, envVar)
 			} else if options.Verbose {
 				log.Debugf("Clearing environment variable: %s", parts[0])
@@ -732,6 +764,12 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 		}
 
 		env = filteredEnv
+	}
+
+	// Ensure PVM-specific variables are present in the environment
+	// This handles the case where they might have been filtered out or not inherited
+	for key, value := range pvmVarValues {
+		setEnvVar(&env, key, value)
 	}
 
 	// Add or override with custom environment variables
@@ -1034,6 +1072,11 @@ func buildEnvironment(options *ExecutionOptions) ([]string, error) {
 		}
 	}
 
+	// Debug environment inheritance if verbose
+	if options.Verbose {
+		logEnvironmentInheritance(env, options)
+	}
+
 	return env, nil
 }
 
@@ -1235,6 +1278,60 @@ func setEnvVar(env *[]string, key, value string) {
 		}
 	}
 	*env = append(*env, envVar)
+}
+
+// logEnvironmentInheritance logs environment inheritance information for debugging
+func logEnvironmentInheritance(env []string, options *ExecutionOptions) {
+	log.Infof("Environment inheritance debug information:")
+	log.Infof("  Isolation level: %s", options.IsolationLevel)
+	log.Infof("  Total environment variables: %d", len(env))
+
+	// Log PVM-specific variables
+	pvmVars := []string{
+		"PVM_PERL_VERSION",
+		"PVM_SUPPRESS_WARNINGS",
+		"PVM_DEBUG",
+		"PVM_CONFIG_DIR",
+		"PVM_HOME",
+		"PVM_SKIP_NETWORK_CALLS",
+	}
+
+	log.Infof("  PVM-specific variables:")
+	for _, pvmVar := range pvmVars {
+		found := false
+		for _, envVar := range env {
+			if strings.HasPrefix(envVar, pvmVar+"=") {
+				log.Infof("    %s", envVar)
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Infof("    %s=<not set>", pvmVar)
+		}
+	}
+
+	// Log key environment variables
+	keyVars := []string{"PATH", "PERL5LIB", "HOME", "USER", "SHELL"}
+	log.Infof("  Key environment variables:")
+	for _, keyVar := range keyVars {
+		found := false
+		for _, envVar := range env {
+			if strings.HasPrefix(envVar, keyVar+"=") {
+				// Truncate long values for readability
+				value := strings.TrimPrefix(envVar, keyVar+"=")
+				if len(value) > 100 {
+					value = value[:97] + "..."
+				}
+				log.Infof("    %s=%s", keyVar, value)
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Infof("    %s=<not set>", keyVar)
+		}
+	}
 }
 
 // generateEnvironmentShims creates shims for a named environment that preserve the isolation settings

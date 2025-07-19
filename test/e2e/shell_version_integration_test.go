@@ -308,7 +308,7 @@ func TestShellUseWithoutIntegration(t *testing.T) {
 	}
 
 	// Try to use version without shell integration (should show warning)
-	stdout, stderr, err = env.RunPVM("use", systemVersion)
+	stdout, stderr, _ = env.RunPVM("use", systemVersion)
 
 	// This should NOT fail, but should show a warning about shell integration
 	combinedOutput := stdout + stderr
