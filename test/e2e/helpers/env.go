@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +25,13 @@ import (
 
 // Flag to preserve test environments for debugging
 var preserveEnv = false
+
+// Shared binary management to prevent resource contention
+var (
+	sharedBinaryMutex sync.Mutex
+	sharedBinaryPath  string
+	sharedBinaryBuilt bool
+)
 
 // TestEnv represents an isolated test environment
 type TestEnv struct {
@@ -108,10 +116,21 @@ func NewTestEnv(t *testing.T) *TestEnv {
 		}
 	}
 
-	// Build PVM binary
+	// Get shared PVM binary to avoid build contention
+	sharedBinary, err := getSharedPVMBinary()
+	if err != nil {
+		t.Fatalf("Failed to get shared PVM binary: %v", err)
+	}
+
+	// Copy shared binary to test environment
 	env.PVMBinary = filepath.Join(env.PVMBinDir, "pvm")
-	if err := env.buildPVM(); err != nil {
-		t.Fatalf("Failed to build PVM binary: %v", err)
+	if err := env.CopyFile(sharedBinary, env.PVMBinary); err != nil {
+		t.Fatalf("Failed to copy shared PVM binary: %v", err)
+	}
+
+	// Make sure the copied binary is executable
+	if err := os.Chmod(env.PVMBinary, 0755); err != nil {
+		t.Fatalf("Failed to make test binary executable: %v", err)
 	}
 
 	// Save original environment
@@ -127,44 +146,51 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	return env
 }
 
-// buildPVM builds the PVM binary in the test environment
-func (e *TestEnv) buildPVM() error {
+// getSharedPVMBinary builds the PVM binary once and returns its path
+// This prevents resource contention when multiple tests run in parallel
+func getSharedPVMBinary() (string, error) {
+	sharedBinaryMutex.Lock()
+	defer sharedBinaryMutex.Unlock()
+
+	// If already built, return the cached path
+	if sharedBinaryBuilt && sharedBinaryPath != "" {
+		// Verify the binary still exists
+		if _, err := os.Stat(sharedBinaryPath); err == nil {
+			return sharedBinaryPath, nil
+		}
+		// If it doesn't exist, rebuild
+		sharedBinaryBuilt = false
+	}
+
 	// Get project root directory
 	projectRoot, err := findProjectRoot()
 	if err != nil {
-		return fmt.Errorf("failed to find project root: %w", err)
+		return "", fmt.Errorf("failed to find project root: %w", err)
 	}
 
-	// First run make to ensure tree-sitter parser is generated
+	// Build the binary using make
 	makeCmd := exec.Command("make", "pvm")
 	makeCmd.Dir = projectRoot
-	makeCmd.Stdout = &e.Stdout
-	makeCmd.Stderr = &e.Stderr
+
+	var stdout, stderr bytes.Buffer
+	makeCmd.Stdout = &stdout
+	makeCmd.Stderr = &stderr
 
 	if err := makeCmd.Run(); err != nil {
-		return fmt.Errorf("failed to build PVM binary with make: %w\nOutput: %s\nError: %s",
-			err, e.Stdout.String(), e.Stderr.String())
+		return "", fmt.Errorf("failed to build PVM binary with make: %w\nOutput: %s\nError: %s",
+			err, stdout.String(), stderr.String())
 	}
 
-	// Set the binary path to the built location
-	builtBinary := filepath.Join(projectRoot, "build", "pvm")
+	// Set the shared binary path
+	sharedBinaryPath = filepath.Join(projectRoot, "build", "pvm")
 
-	// Copy the built binary to the test environment's bin directory
-	// This ensures the shell integration can find it via PATH
-	testBinary := filepath.Join(e.PVMBinDir, "pvm")
-	if err := e.CopyFile(builtBinary, testBinary); err != nil {
-		return fmt.Errorf("failed to copy PVM binary to test environment: %w", err)
+	// Verify the binary was built
+	if _, err := os.Stat(sharedBinaryPath); err != nil {
+		return "", fmt.Errorf("PVM binary not found at expected location %s: %w", sharedBinaryPath, err)
 	}
 
-	// Make sure the copied binary is executable
-	if err := os.Chmod(testBinary, 0755); err != nil {
-		return fmt.Errorf("failed to make test binary executable: %w", err)
-	}
-
-	// Use the copied binary for test execution
-	e.PVMBinary = testBinary
-
-	return nil
+	sharedBinaryBuilt = true
+	return sharedBinaryPath, nil
 }
 
 // saveEnvironment saves the original environment variables
