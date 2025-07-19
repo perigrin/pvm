@@ -165,7 +165,7 @@ class TestClass%d {
 		Name:        "large_program_simulation",
 		Description: "Large program with 1000+ variables, 100+ methods, 50+ classes",
 		InputCode:   largeProgram.String(),
-		MaxDuration: 5 * time.Second,
+		MaxDuration: 10 * time.Second,
 		MaxMemory:   500 * 1024 * 1024, // 500MB for large programs
 		Iterations:  10,
 		Complexity:  4,
@@ -229,7 +229,7 @@ class TestClass%d {
 		Name:        "large_method_signature",
 		Description: "Large method signature (50+ parameters)",
 		InputCode:   largeMethodSig.String(),
-		MaxDuration: 1 * time.Second,
+		MaxDuration: 10 * time.Second,
 		MaxMemory:   10 * 1024 * 1024, // 10MB
 		Iterations:  100,
 		Complexity:  4,

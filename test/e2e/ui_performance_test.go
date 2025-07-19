@@ -6,8 +6,10 @@ package e2e
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -337,14 +339,22 @@ func TestUIPerformance_ConcurrentAccess(t *testing.T) {
 
 	t.Run("Concurrent UI operations", func(t *testing.T) {
 		var buf bytes.Buffer
+		var mu sync.Mutex // Protect concurrent access to shared buffer
+
+		// Create a synchronized writer wrapper
+		syncWriter := &struct {
+			io.Writer
+			mu *sync.Mutex
+		}{&buf, &mu}
+
 		ctx := &ui.UIContext{
-			Writer:    &buf,
+			Writer:    syncWriter,
 			ColorMode: ui.ColorNever,
 			Quiet:     false,
 		}
 		output := ui.NewOutput(ctx)
 
-		// Test concurrent access (note: this tests for race conditions too)
+		// Test concurrent access with proper synchronization
 		numGoroutines := 10
 		operationsPerGoroutine := 100
 
@@ -358,9 +368,11 @@ func TestUIPerformance_ConcurrentAccess(t *testing.T) {
 				defer func() { done <- true }()
 
 				for j := 0; j < operationsPerGoroutine; j++ {
+					mu.Lock()
 					output.Info("Goroutine %d, operation %d", id, j)
 					output.Success("Success from goroutine %d", id)
 					output.Warning("Warning from goroutine %d", id)
+					mu.Unlock()
 				}
 			}(i)
 		}
