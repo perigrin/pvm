@@ -218,21 +218,328 @@ func TestParseInvalidTOML(t *testing.T) {
 	}
 }
 
-func TestParseUnknownField(t *testing.T) {
-	// Test unknown field
-	_, err := ParseString(`
+func TestParseUnknownField_PermissiveMode(t *testing.T) {
+	// Test unknown field in permissive mode (default behavior)
+	config, err := ParseString(`
 		[pvm]
 		unknown_field = "value"
+		default_perl = "5.36.0"
 	`)
 
+	// Should succeed in permissive mode
+	if err != nil {
+		t.Fatalf("Expected no error in permissive mode, got: %v", err)
+	}
+
+	// Check that known fields were parsed correctly
+	if config.PVM.DefaultPerl != "5.36.0" {
+		t.Errorf("Expected DefaultPerl = '5.36.0', got '%s'", config.PVM.DefaultPerl)
+	}
+}
+
+func TestParseUnknownField_StrictMode(t *testing.T) {
+	// Test unknown field in strict mode
+	options := ParseOptions{
+		StrictParsing: true,
+		Validate:      true,
+	}
+
+	_, err := ParseBytesWithAdvancedOptions([]byte(`
+		[pvm]
+		unknown_field = "value"
+		default_perl = "5.36.0"
+	`), "test", options)
+
+	// Should fail in strict mode
 	if err == nil {
-		t.Fatal("Expected error for unknown field, got nil")
+		t.Fatal("Expected error for unknown field in strict mode, got nil")
 	}
 
 	// Check that the error is a configuration error
 	var configError *pvm_errors.Error
 	if !errors.As(err, &configError) {
 		t.Fatalf("Expected *pvm_errors.Error, got %T", err)
+	}
+}
+
+func TestParseWithWarnings_UnknownTopLevelSections(t *testing.T) {
+	// Test parsing with unknown top-level sections
+	result, err := ParseStringWithWarnings(`
+		[pvm]
+		default_perl = "5.36.0"
+
+		[unknown_section]
+		some_field = "value"
+
+		[experimental]
+		feature_flag = true
+
+		[pvx]
+		isolation_level = "clean"
+	`)
+
+	if err != nil {
+		t.Fatalf("Expected no error in permissive mode, got: %v", err)
+	}
+
+	// Check that known sections were parsed correctly
+	if result.Config.PVM.DefaultPerl != "5.36.0" {
+		t.Errorf("Expected DefaultPerl = '5.36.0', got '%s'", result.Config.PVM.DefaultPerl)
+	}
+
+	if result.Config.PVX.IsolationLevel != "clean" {
+		t.Errorf("Expected IsolationLevel = 'clean', got '%s'", result.Config.PVX.IsolationLevel)
+	}
+
+	// Check that warnings were generated for unknown sections
+	if len(result.Warnings) == 0 {
+		t.Error("Expected warnings for unknown sections, got none")
+	}
+
+	// Verify specific warnings
+	expectedWarnings := []string{"unknown_section", "experimental"}
+	for _, expectedWarning := range expectedWarnings {
+		found := false
+		for _, warning := range result.Warnings {
+			if strings.Contains(warning, expectedWarning) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected warning containing '%s', warnings: %v", expectedWarning, result.Warnings)
+		}
+	}
+}
+
+func TestParseFileWithWarnings(t *testing.T) {
+	// Create a temporary file with unknown fields
+	tmpDir, err := os.MkdirTemp("", "pvm-config-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	tmpFile := filepath.Join(tmpDir, "pvm.toml")
+
+	tomlContent := `
+		[pvm]
+		default_perl = "5.36.0"
+		build_jobs = 8
+
+		[local]
+		custom_setting = "value"
+
+		[debug]
+		verbose = true
+	`
+
+	err = os.WriteFile(tmpFile, []byte(tomlContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+
+	// Parse the file with warnings
+	result, err := ParseFileWithWarnings(tmpFile)
+	if err != nil {
+		t.Fatalf("Failed to parse file with warnings: %v", err)
+	}
+
+	// Check that known values were correctly parsed
+	if result.Config.PVM.DefaultPerl != "5.36.0" {
+		t.Errorf("Expected DefaultPerl = '5.36.0', got '%s'", result.Config.PVM.DefaultPerl)
+	}
+
+	if result.Config.PVM.BuildJobs != 8 {
+		t.Errorf("Expected BuildJobs = 8, got %d", result.Config.PVM.BuildJobs)
+	}
+
+	// Check that warnings were generated
+	if len(result.Warnings) == 0 {
+		t.Error("Expected warnings for unknown sections, got none")
+	}
+
+	// Should have warnings for both 'local' and 'debug' sections
+	expectedSections := []string{"local", "debug"}
+	for _, section := range expectedSections {
+		found := false
+		for _, warning := range result.Warnings {
+			if strings.Contains(warning, section) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected warning for section '%s', warnings: %v", section, result.Warnings)
+		}
+	}
+}
+
+func TestParseFileWithOptions_StrictMode(t *testing.T) {
+	// Create a temporary file with unknown fields
+	tmpDir, err := os.MkdirTemp("", "pvm-config-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	tmpFile := filepath.Join(tmpDir, "pvm.toml")
+
+	tomlContent := `
+		[pvm]
+		default_perl = "5.36.0"
+
+		[unknown]
+		field = "value"
+	`
+
+	err = os.WriteFile(tmpFile, []byte(tomlContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+
+	// Parse in strict mode
+	options := ParseOptions{
+		StrictParsing: true,
+		Validate:      true,
+	}
+
+	_, err = ParseFileWithOptions(tmpFile, options)
+	if err == nil {
+		t.Fatal("Expected error in strict mode with unknown fields, got nil")
+	}
+
+	// Check that the error is about unknown fields
+	var configError *pvm_errors.Error
+	if !errors.As(err, &configError) {
+		t.Fatalf("Expected *pvm_errors.Error, got %T", err)
+	}
+}
+
+func TestParseFileWithOptions_PermissiveMode(t *testing.T) {
+	// Create a temporary file with unknown fields
+	tmpDir, err := os.MkdirTemp("", "pvm-config-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	tmpFile := filepath.Join(tmpDir, "pvm.toml")
+
+	tomlContent := `
+		[pvm]
+		default_perl = "5.36.0"
+
+		[unknown]
+		field = "value"
+	`
+
+	err = os.WriteFile(tmpFile, []byte(tomlContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+
+	// Parse in permissive mode
+	options := ParseOptions{
+		StrictParsing: false,
+		Validate:      true,
+	}
+
+	result, err := ParseFileWithOptions(tmpFile, options)
+	if err != nil {
+		t.Fatalf("Expected no error in permissive mode, got: %v", err)
+	}
+
+	// Check that known values were parsed
+	if result.Config.PVM.DefaultPerl != "5.36.0" {
+		t.Errorf("Expected DefaultPerl = '5.36.0', got '%s'", result.Config.PVM.DefaultPerl)
+	}
+
+	// Check that warnings were generated
+	if len(result.Warnings) == 0 {
+		t.Error("Expected warnings for unknown fields, got none")
+	}
+}
+
+func TestDefaultParseOptions(t *testing.T) {
+	options := DefaultParseOptions()
+
+	// Default should be permissive parsing
+	if options.StrictParsing {
+		t.Error("Expected default StrictParsing = false, got true")
+	}
+
+	// Default should enable validation
+	if !options.Validate {
+		t.Error("Expected default Validate = true, got false")
+	}
+}
+
+func TestCollectUnknownFields(t *testing.T) {
+	tomlData := []byte(`
+		[pvm]
+		default_perl = "5.36.0"
+
+		[unknown_section]
+		field = "value"
+
+		[experimental]
+		feature = true
+
+		[pvx]
+		isolation_level = "clean"
+	`)
+
+	config := NewDefaultConfig()
+	unknownFields := collectUnknownFields(tomlData, config)
+
+	// Should detect unknown_section and experimental
+	expectedFields := []string{"unknown_section", "experimental"}
+	if len(unknownFields) != len(expectedFields) {
+		t.Errorf("Expected %d unknown fields, got %d: %v", len(expectedFields), len(unknownFields), unknownFields)
+	}
+
+	for _, expected := range expectedFields {
+		found := false
+		for _, unknown := range unknownFields {
+			if unknown == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected to find unknown field '%s', got: %v", expected, unknownFields)
+		}
+	}
+
+	// Should not detect known sections
+	knownSections := []string{"pvm", "pvx"}
+	for _, known := range knownSections {
+		for _, unknown := range unknownFields {
+			if unknown == known {
+				t.Errorf("Known section '%s' was incorrectly detected as unknown", known)
+			}
+		}
+	}
+}
+
+func TestBackwardCompatibility(t *testing.T) {
+	// Test that existing API functions still work with unknown fields
+	config, err := ParseString(`
+		[pvm]
+		default_perl = "5.36.0"
+
+		[unknown]
+		field = "value"
+	`)
+
+	// Should succeed (backward compatibility with permissive parsing)
+	if err != nil {
+		t.Fatalf("Backward compatibility broken: expected no error, got: %v", err)
+	}
+
+	if config.PVM.DefaultPerl != "5.36.0" {
+		t.Errorf("Expected DefaultPerl = '5.36.0', got '%s'", config.PVM.DefaultPerl)
 	}
 }
 

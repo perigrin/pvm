@@ -5,6 +5,7 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,26 @@ import (
 	toml "github.com/pelletier/go-toml/v2"
 	"tamarou.com/pvm/internal/errors"
 )
+
+// ParseResult holds the result of parsing configuration with any warnings
+type ParseResult struct {
+	Config   *Config
+	Warnings []string
+}
+
+// ParseOptions controls parsing behavior
+type ParseOptions struct {
+	StrictParsing bool // Whether to fail on unknown fields
+	Validate      bool // Whether to validate after parsing
+}
+
+// DefaultParseOptions returns the default parsing options
+func DefaultParseOptions() ParseOptions {
+	return ParseOptions{
+		StrictParsing: false, // Default to permissive parsing
+		Validate:      true,
+	}
+}
 
 // ParseFile reads and parses a TOML configuration file
 func ParseFile(path string) (*Config, error) {
@@ -24,6 +45,24 @@ func ParseFile(path string) (*Config, error) {
 	}
 
 	return ParseBytes(data, path)
+}
+
+// ParseFileWithWarnings reads and parses a TOML configuration file, returning warnings
+func ParseFileWithWarnings(path string) (*ParseResult, error) {
+	return ParseFileWithOptions(path, DefaultParseOptions())
+}
+
+// ParseFileWithOptions reads and parses a TOML configuration file with custom options
+func ParseFileWithOptions(path string, options ParseOptions) (*ParseResult, error) {
+	// Read the file
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.NewConfigError("001",
+			"Failed to read configuration file", err).
+			WithLocation(path)
+	}
+
+	return ParseBytesWithAdvancedOptions(data, path, options)
 }
 
 // ParseFileWithoutValidation parses a configuration file without validation
@@ -46,26 +85,59 @@ func ParseBytes(data []byte, source string) (*Config, error) {
 
 // ParseBytesWithOptions parses a TOML configuration from a byte slice with options
 func ParseBytesWithOptions(data []byte, source string, validate bool) (*Config, error) {
+	options := ParseOptions{
+		StrictParsing: false, // Maintain backward compatibility with permissive parsing
+		Validate:      validate,
+	}
+	result, err := ParseBytesWithAdvancedOptions(data, source, options)
+	if err != nil {
+		return nil, err
+	}
+	return result.Config, nil
+}
+
+// ParseBytesWithAdvancedOptions parses a TOML configuration with advanced options and warning collection
+func ParseBytesWithAdvancedOptions(data []byte, source string, options ParseOptions) (*ParseResult, error) {
 	// Create a new configuration with default values
 	config := NewDefaultConfig()
+	warnings := []string{}
 
 	// Parse the TOML data
 	decoder := toml.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
+
+	// Only enable strict parsing if explicitly requested
+	if options.StrictParsing {
+		decoder.DisallowUnknownFields()
+	}
 
 	err := decoder.Decode(config)
 	if err != nil {
 		// Check if it's an unknown field error
 		if strings.Contains(err.Error(), "undecoded keys") {
-			return nil, errors.NewConfigError("002",
-				"Unknown field in configuration", err).
-				WithLocation(source).
-				WithHint("Check for typos in field names")
+			if options.StrictParsing {
+				// In strict mode, unknown fields are still errors
+				return nil, errors.NewConfigError("002",
+					"Unknown field in configuration", err).
+					WithLocation(source).
+					WithHint("Check for typos in field names or disable strict parsing")
+			} else {
+				// In permissive mode, this shouldn't happen, but handle it gracefully
+				warnings = append(warnings, fmt.Sprintf("Unknown fields detected: %s", err.Error()))
+			}
+		} else {
+			// All other parsing errors are still fatal
+			return nil, errors.NewConfigError("003",
+				"Failed to parse TOML configuration", err).
+				WithLocation(source)
 		}
+	}
 
-		return nil, errors.NewConfigError("003",
-			"Failed to parse TOML configuration", err).
-			WithLocation(source)
+	// In permissive mode, collect unknown fields for warnings
+	if !options.StrictParsing {
+		unknownFields := collectUnknownFields(data, config)
+		for _, field := range unknownFields {
+			warnings = append(warnings, fmt.Sprintf("Unknown configuration field: %s", field))
+		}
 	}
 
 	// Perform environment variable interpolation
@@ -78,7 +150,7 @@ func ParseBytesWithOptions(data []byte, source string, validate bool) (*Config, 
 	}
 
 	// Validate the configuration after interpolation (if enabled)
-	if validate {
+	if options.Validate {
 		err = interpolationEngine.ValidateInterpolatedConfig(config)
 		if err != nil {
 			return nil, errors.NewConfigError("009",
@@ -87,12 +159,51 @@ func ParseBytesWithOptions(data []byte, source string, validate bool) (*Config, 
 		}
 	}
 
-	return config, nil
+	return &ParseResult{
+		Config:   config,
+		Warnings: warnings,
+	}, nil
+}
+
+// collectUnknownFields analyzes the TOML data to find unknown fields
+func collectUnknownFields(data []byte, config *Config) []string {
+	var unknownFields []string
+
+	// Parse into a generic map to find all keys
+	var genericData map[string]interface{}
+	err := toml.Unmarshal(data, &genericData)
+	if err != nil {
+		return unknownFields // If we can't parse generically, return empty list
+	}
+
+	// Check top-level sections
+	knownSections := map[string]bool{
+		"pvm":        true,
+		"pvx":        true,
+		"pvi":        true,
+		"psc":        true,
+		"mcp_server": true,
+		"project":    true,
+		"build":      true,
+	}
+
+	for key := range genericData {
+		if !knownSections[key] {
+			unknownFields = append(unknownFields, key)
+		}
+	}
+
+	return unknownFields
 }
 
 // ParseString parses a TOML configuration from a string
 func ParseString(data string) (*Config, error) {
 	return ParseBytes([]byte(data), "string")
+}
+
+// ParseStringWithWarnings parses a TOML configuration from a string, returning warnings
+func ParseStringWithWarnings(data string) (*ParseResult, error) {
+	return ParseBytesWithAdvancedOptions([]byte(data), "string", DefaultParseOptions())
 }
 
 // Helper functions for merging configurations
