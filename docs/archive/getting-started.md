@@ -9,17 +9,13 @@ The PVM Ecosystem is a comprehensive set of tools for Perl development environme
 
 ## Installation
 
-### Option 1: Build from Source
+### Option 1: Download Binary (Recommended)
 
-```bash
-git clone https://github.com/your-username/pvm.git
-cd pvm
-go build -o pvm ./cmd/pvm
-```
+See the [Quickstart Guide](../quickstart.md#installation) for platform-specific binary installation instructions.
 
-### Option 2: Download Binary
+### Option 2: Build from Source
 
-Download the latest release from the releases page and add to your PATH.
+For development or unsupported platforms, see [BUILD.md](../../BUILD.md).
 
 ## Basic Usage
 

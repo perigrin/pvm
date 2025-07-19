@@ -6,15 +6,76 @@ PVM brings modern type safety to Perl through gradual typing while preserving fu
 
 ## Installation
 
-### Option 1: Build from Source (Recommended)
+### Option 1: Download Binary (Recommended)
+
+**Linux (AMD64):**
+```bash
+# Download and verify
+curl -L --fail --proto '=https' --tlsv1.2 \
+  https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-linux-amd64.tar.gz \
+  -o pvm.tar.gz
+
+# Extract and test before installing
+tar -xzf pvm.tar.gz
+chmod +x pvm-* pvi-* pvx-* psc-*
+
+# Verify binaries work
+./pvm-linux-amd64 --version
+
+# Install system-wide (only after verification)
+sudo install -m 755 pvm-* pvi-* pvx-* psc-* /usr/local/bin/
+```
+
+**macOS (Intel):**
+```bash
+# Download and verify
+curl -L --fail --proto '=https' --tlsv1.2 \
+  https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-darwin-amd64.tar.gz \
+  -o pvm.tar.gz
+
+# Extract and test before installing
+tar -xzf pvm.tar.gz
+chmod +x pvm-* pvi-* pvx-* psc-*
+
+# Remove quarantine and verify binaries work
+xattr -d com.apple.quarantine pvm-* pvi-* pvx-* psc-*
+./pvm-darwin-amd64 --version
+
+# Install system-wide (only after verification)
+sudo install -m 755 pvm-* pvi-* pvx-* psc-* /usr/local/bin/
+```
+
+**macOS (Apple Silicon):**
+```bash
+# Download and verify
+curl -L --fail --proto '=https' --tlsv1.2 \
+  https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-darwin-arm64.tar.gz \
+  -o pvm.tar.gz
+
+# Extract and test before installing
+tar -xzf pvm.tar.gz
+chmod +x pvm-* pvi-* pvx-* psc-*
+
+# Remove quarantine and verify binaries work
+xattr -d com.apple.quarantine pvm-* pvi-* pvx-* psc-*
+./pvm-darwin-arm64 --version
+
+# Install system-wide (only after verification)
+sudo install -m 755 pvm-* pvi-* pvx-* psc-* /usr/local/bin/
+```
+
+**Verify installation:**
+```bash
+pvm --version
+```
+
+### Option 2: Build from Source
+For development or unsupported platforms, see [BUILD.md](../BUILD.md).
 ```bash
 git clone https://github.com/perigrin/pvm.git
 cd pvm
 make
 ```
-
-### Option 2: Download Binary
-Download the latest release from the releases page and add to your PATH.
 
 ## Hello World Example
 

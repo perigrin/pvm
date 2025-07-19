@@ -22,15 +22,11 @@
 
 ### 1.1 Installation
 
-**Option 1: Build from Source**
-```bash
-git clone https://github.com/your-username/pvm.git
-cd pvm
-make build  # Builds all components including tree-sitter
-```
+**Option 1: Download Binary (Recommended)**
+See the [Quickstart Guide](quickstart.md#installation) for platform-specific binary installation instructions.
 
-**Option 2: Download Binary**
-Download the latest release and add to your PATH.
+**Option 2: Build from Source**
+For development or unsupported platforms, see [BUILD.md](../BUILD.md).
 
 ### 1.2 Create New Project Structure
 

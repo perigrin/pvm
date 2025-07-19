@@ -41,7 +41,7 @@ xattr -d com.apple.quarantine pvm-darwin-amd64
 2. **Or use Terminal**: `xattr -d com.apple.quarantine pvm-darwin-*`
 3. **Or temporarily disable Gatekeeper**: `sudo spctl --master-disable` (re-enable with `--master-enable`)
 
-## New to PVM? 
+## New to PVM?
 
 Check out the [Getting Started Guide](docs/quickstart.md) for immediate hands-on experience.
 
@@ -114,21 +114,9 @@ The command router enables the single binary to function as multiple tools based
   pvm symlinks verify  # Check if all symlinks exist
   ```
 
-## Building the Project
+## Building from Source
 
-```bash
-# Build all components using the Makefile
-make
-
-# Build a specific component
-make pvm
-make pvx
-make pvi
-make psc
-
-# Run tests
-go test ./...
-```
+For development or unsupported platforms, see [BUILD.md](BUILD.md) for complete build instructions.
 
 ## Features
 
