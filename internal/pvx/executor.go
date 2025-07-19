@@ -551,6 +551,7 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 		// Use version resolution to find the executable
 		resolvedVersion, err = perl.ResolveVersion(&perl.ResolutionOptions{
 			ExplicitVersion:     options.PerlVersion,
+			ScriptPath:          options.ScriptPath,
 			SkipLocal:           true,
 			SkipEnvVars:         true,
 			SkipUserConfig:      true,
@@ -567,6 +568,7 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 	} else {
 		// Use normal version resolution
 		resolvedVersion, err = perl.ResolveVersion(&perl.ResolutionOptions{
+			ScriptPath:          options.ScriptPath,
 			SkipVersionResolved: !options.Verbose, // Only log if verbose
 		})
 
