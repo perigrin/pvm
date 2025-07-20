@@ -29,6 +29,14 @@ sub add ($a, $b) {
 }
 ```
 
+## Typed Perl Output
+
+```perl
+sub Int add (Int$a, Int$b) {
+    return $a + $b;
+}
+```
+
 ## Text AST
 
 **Note**: Function signatures with type annotations are not yet supported by the tree-sitter grammar. This syntax would currently produce parse errors and cannot generate a meaningful AST.

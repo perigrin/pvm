@@ -27,6 +27,13 @@ type UserId = Int;
 type UserData = ;
 ```
 
+## Typed Perl Output
+
+```perl
+type UserId = Int;
+type UserData = HashRef[Str];
+```
+
 ## Text AST
 
 **Note**: Type declarations are not yet supported by the tree-sitter grammar. This syntax would currently produce parse errors and cannot generate a meaningful AST.

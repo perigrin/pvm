@@ -137,23 +137,42 @@ func TestCompilerCorpus(t *testing.T) {
 						ast, err := p.ParseFile(tempFile)
 						require.NoError(t, err)
 
-						// Test unified compiler (CST-based)
-						unifiedCompiler := NewCleanPerlCompilerUnified()
-						astResult, err := unifiedCompiler.Compile(ast)
+						// Test Clean Perl compilation (CST-based)
+						cleanCompiler := NewCleanPerlCompilerUnified()
+						cleanResult, err := cleanCompiler.Compile(ast)
 						require.NoError(t, err)
 
 						// Check if we have expected clean Perl output
 						if testCase.ExpectedCompilationOutcomes != nil && testCase.ExpectedCompilationOutcomes.ExpectedCleanPerl != "" {
 							expectedClean := strings.TrimSpace(testCase.ExpectedCompilationOutcomes.ExpectedCleanPerl)
-							actualClean := strings.TrimSpace(astResult)
+							actualClean := strings.TrimSpace(cleanResult)
 
 							assert.Equal(t, expectedClean, actualClean,
-								"Compiler output should match expected clean Perl output for test case: %s", testCase.Name)
+								"Clean Perl compiler output should match expected output for test case: %s", testCase.Name)
 						} else {
 							// For tests without expected output, just ensure we got some output
-							assert.NotEmpty(t, strings.TrimSpace(astResult),
-								"Compiler should produce some output for test case: %s", testCase.Name)
-							t.Logf("Test %s passed - produced output (expected output not yet defined)", testCase.Name)
+							assert.NotEmpty(t, strings.TrimSpace(cleanResult),
+								"Clean Perl compiler should produce some output for test case: %s", testCase.Name)
+							t.Logf("Test %s passed - produced clean output (expected output not yet defined)", testCase.Name)
+						}
+
+						// Test Typed Perl compilation (CST-based)
+						typedCompiler := NewTypedPerlCompilerUnified()
+						typedResult, err := typedCompiler.Compile(ast)
+						require.NoError(t, err)
+
+						// Check if we have expected typed Perl output
+						if testCase.ExpectedCompilationOutcomes != nil && testCase.ExpectedCompilationOutcomes.ExpectedTypedPerl != "" {
+							expectedTyped := strings.TrimSpace(testCase.ExpectedCompilationOutcomes.ExpectedTypedPerl)
+							actualTyped := strings.TrimSpace(typedResult)
+
+							assert.Equal(t, expectedTyped, actualTyped,
+								"Typed Perl compiler output should match expected output for test case: %s", testCase.Name)
+						} else {
+							// For tests without expected output, just ensure we got some output
+							assert.NotEmpty(t, strings.TrimSpace(typedResult),
+								"Typed Perl compiler should produce some output for test case: %s", testCase.Name)
+							t.Logf("Test %s passed - produced typed output (expected output not yet defined)", testCase.Name)
 						}
 					})
 				}

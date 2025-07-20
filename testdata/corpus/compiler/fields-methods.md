@@ -28,6 +28,13 @@ field $count;
 field $items;
 ```
 
+## Typed Perl Output
+
+```perl
+field Int $count;
+field ArrayRef[Str] $items;
+```
+
 # Field with Initialization
 
 Field declarations with initial values
@@ -47,6 +54,13 @@ field $counter = 0;
 field $config = {};
 ```
 
+## Typed Perl Output
+
+```perl
+field Int $counter = 0;
+field HashRef[Str] $config = {};
+```
+
 # Method Declaration
 
 Method with typed parameters
@@ -64,6 +78,14 @@ method Bool add_user(UserId $id, HashRef[Str] $data) {
 ```perl
 use v5.36;
 method add_user($id, $data) {
+    return 1;
+}
+```
+
+## Typed Perl Output
+
+```perl
+method Bool add_user(UserId$id, HashRef[Str]$data) {
     return 1;
 }
 ```
@@ -97,6 +119,18 @@ sub multiline (
 }
 ```
 
+## Typed Perl Output
+
+```perl
+sub Bool multiline (
+    Int$first,
+    Str$second,
+    ArrayRef[Int]$third
+) {
+    return 1;
+}
+```
+
 # Attributes with Signature
 
 Function with attributes and typed signature
@@ -114,6 +148,14 @@ sub Int tagged :lvalue :const (Int $value) {
 ```perl
 use v5.36;
 sub tagged :lvalue :const ($value) {
+    return $value;
+}
+```
+
+## Typed Perl Output
+
+```perl
+sub Int tagged :lvalue :const (Int$value) {
     return $value;
 }
 ```

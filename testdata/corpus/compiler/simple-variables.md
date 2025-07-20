@@ -26,6 +26,13 @@ my $count = 42;
 print "Count: $count\n";
 ```
 
+## Typed Perl Output
+
+```perl
+my Int $count = 42;
+print "Count: $count\n";
+```
+
 # Simple String Variable
 
 String typed variable compilation
@@ -42,6 +49,13 @@ print "Name: $name\n";
 ```perl
 use v5.36;
 my $name = "hello";
+print "Name: $name\n";
+```
+
+## Typed Perl Output
+
+```perl
+my Str $name = "hello";
 print "Name: $name\n";
 ```
 

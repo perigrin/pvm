@@ -30,6 +30,14 @@ sub process ($data) {
 }
 ```
 
+## Typed Perl Output
+
+```perl
+sub Result[Bool] process (ArrayRef[HashRef[Str]]$data) {
+    return 1;
+}
+```
+
 # Nested Union Types
 
 Function with nested union types
@@ -47,6 +55,14 @@ sub Str complex (Union[Str, Union[Int, Bool]] $param) {
 ```perl
 use v5.36;
 sub complex ($param) {
+    return "result";
+}
+```
+
+## Typed Perl Output
+
+```perl
+sub Str complex (Union[Str, Union[Int, Bool]]$param) {
     return "result";
 }
 ```
@@ -72,6 +88,14 @@ sub validate ($obj, $config) {
 }
 ```
 
+## Typed Perl Output
+
+```perl
+sub Bool validate (Object&Serializable$obj, !Undef$config) {
+    return 1;
+}
+```
+
 # Complex Typed Variables
 
 Complex type declarations for variables
@@ -89,6 +113,13 @@ my ArrayRef[HashRef[Str|Int]] $users = [];
 use v5.36;
 my $self = bless {}, $class;
 my $users = [];
+```
+
+## Typed Perl Output
+
+```perl
+my ComplexTypes $self = bless {}, $class;
+my ArrayRef[HashRef[Str|Int]] $users = [];
 ```
 
 # For Loop with Complex Types
@@ -109,6 +140,14 @@ for my UserId $id (keys %$config) {
 use v5.36;
 for my  $id (keys %$config) {
     my $user_info = {};
+}
+```
+
+## Typed Perl Output
+
+```perl
+for my UserId $id (keys %$config) {
+    my HashRef[Str|Int] $user_info = {};
 }
 ```
 
