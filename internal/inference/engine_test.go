@@ -99,8 +99,8 @@ func TestLiteralInference(t *testing.T) {
 				expectedType = types.NewNumType()
 			}
 
-			// Simulate engine attaching type info
-			typeInfo := types.NewTypeInfo(expectedType, 0.95, types.SourceLiteral)
+			// Simulate engine attaching type info with deterministic confidence
+			typeInfo := types.NewTypeInfo(expectedType, 1.0, types.SourceLiteral)
 			inferredAST.AttachTypeInfo(tt.nodeID, typeInfo)
 
 			// Verify type was inferred correctly
@@ -117,8 +117,9 @@ func TestLiteralInference(t *testing.T) {
 				t.Errorf("Expected literal source, got %s", retrieved.Source)
 			}
 
-			if !retrieved.IsHighConfidence() {
-				t.Errorf("Expected high confidence for literal inference")
+			// Verify deterministic confidence
+			if retrieved.Confidence != 1.0 {
+				t.Errorf("Expected deterministic confidence 1.0, got %f", retrieved.Confidence)
 			}
 		})
 	}
@@ -141,12 +142,12 @@ func TestVariablePropagation(t *testing.T) {
 		// Simulate variable type propagation
 		intType := types.NewIntType()
 
-		// Variable $x gets type from literal
-		xTypeInfo := types.NewTypeInfo(intType, 0.95, types.SourceLiteral)
+		// Variable $x gets type from literal with deterministic confidence
+		xTypeInfo := types.NewTypeInfo(intType, 1.0, types.SourceLiteral)
 		inferredAST.AttachTypeInfo("variable_x", xTypeInfo)
 
-		// Variable $y gets type from $x
-		yTypeInfo := types.NewTypeInfo(intType, 0.90, types.SourceVariable)
+		// Variable $y gets type from $x with deterministic confidence
+		yTypeInfo := types.NewTypeInfo(intType, 1.0, types.SourceVariable)
 		inferredAST.AttachTypeInfo("variable_y", yTypeInfo)
 
 		// Verify both variables have correct types
@@ -157,75 +158,78 @@ func TestVariablePropagation(t *testing.T) {
 			t.Error("Expected both variables to have Int type")
 		}
 
-		// Y should have slightly lower confidence due to propagation
-		if yInfo.Confidence >= xInfo.Confidence {
-			t.Error("Expected propagated type to have lower confidence")
+		// Both should have deterministic confidence
+		if xInfo.Confidence != 1.0 || yInfo.Confidence != 1.0 {
+			t.Error("Expected deterministic confidence 1.0 for both variables")
 		}
 	})
 }
 
-func TestConfidenceScoring(t *testing.T) {
+func TestDeterministicInference(t *testing.T) {
 	engine := NewTypeInferenceEngine()
 
-	tests := []struct {
-		name               string
-		source             types.TypeSource
-		expectedConfidence float64
-		confidenceLevel    string
-	}{
-		{
-			"Literal inference",
-			types.SourceLiteral,
-			0.95,
-			"high",
-		},
-		{
-			"Variable inference",
-			types.SourceVariable,
-			0.85,
-			"high",
-		},
-		{
-			"Context inference",
-			types.SourceContext,
-			0.60,
-			"medium",
-		},
-		{
-			"Parameter inference",
-			types.SourceParameter,
-			0.70,
-			"medium",
-		},
-	}
+	t.Run("Engine operates deterministically", func(t *testing.T) {
+		simpleAST := &ast.AST{
+			Path:   "test.pl",
+			Source: "my $x = 42;",
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			confidence := engine.CalculateConfidence(tt.source, nil)
+		inferredAST, err := engine.InferTypes(simpleAST)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
 
-			if confidence != tt.expectedConfidence {
-				t.Errorf("Expected confidence %f, got %f", tt.expectedConfidence, confidence)
-			}
+		// Verify that we get a valid InferredAST
+		if inferredAST == nil {
+			t.Error("Expected inferred AST to be created")
+		}
 
-			// Test confidence level categorization
-			typeInfo := types.NewTypeInfo(types.NewIntType(), confidence, tt.source)
+		// Test that any type info that gets attached has deterministic confidence
+		testType := types.NewIntType()
+		testTypeInfo := types.NewTypeInfo(testType, 1.0, types.SourceLiteral)
+		inferredAST.AttachTypeInfo("test_node", testTypeInfo)
 
-			switch tt.confidenceLevel {
-			case "high":
-				if !typeInfo.IsHighConfidence() {
-					t.Error("Expected high confidence")
+		retrieved := inferredAST.GetTypeInfo("test_node")
+		if retrieved == nil {
+			t.Error("Expected type info to be retrievable")
+		}
+
+		if retrieved.Confidence != 1.0 {
+			t.Errorf("Expected deterministic confidence 1.0, got %f", retrieved.Confidence)
+		}
+	})
+
+	t.Run("Literal inferrer produces deterministic results", func(t *testing.T) {
+		literalInferrer := NewLiteralInferrer()
+
+		tests := []struct {
+			name     string
+			value    string
+			expected bool // true if should infer, false if should return nil
+		}{
+			{"Integer literal", "42", true},
+			{"String literal", "'hello'", true},
+			{"Float literal", "3.14", true},
+			{"Ambiguous value", "unquoted_string", false},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := literalInferrer.InferLiteralType(tt.value)
+
+				if tt.expected && result == nil {
+					t.Error("Expected type inference but got nil")
+				} else if !tt.expected && result != nil {
+					t.Error("Expected no type inference but got result")
 				}
-			case "medium":
-				if !typeInfo.IsMediumConfidence() {
-					t.Error("Expected medium confidence")
+
+				// If we got a result, verify deterministic confidence
+				if result != nil && result.Confidence != 1.0 {
+					t.Errorf("Expected deterministic confidence 1.0, got %f", result.Confidence)
 				}
-			case "low":
-				if !typeInfo.IsLowConfidence() {
-					t.Error("Expected low confidence")
-				}
-			}
-		})
-	}
+			})
+		}
+	})
 }
 
 func TestErrorCollection(t *testing.T) {

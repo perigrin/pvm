@@ -79,7 +79,7 @@ func TestCleanPerlCompiler_Target(t *testing.T) {
 }
 
 func TestTypedPerlCompiler_Target(t *testing.T) {
-	compiler := NewTypedPerlCompiler()
+	compiler := NewTypedPerlCompilerUnified()
 	if compiler.Target() != TargetTypedPerl {
 		t.Errorf("Expected target %s, got %s", TargetTypedPerl, compiler.Target())
 	}

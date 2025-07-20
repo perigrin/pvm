@@ -46,20 +46,29 @@ func NewCSTTransformer(content []byte, options TransformationOptions) *CSTTransf
 		options: options,
 	}
 
-	// Add default transformation rules
-	transformer.rules = []TransformationRule{
-		&ClassConstraintPreservationRule{}, // Must come before TypeExpressionRemovalRule
-		&TypeExpressionRemovalRule{},
-		&VariableDeclarationCleanupRule{},
-		&TypeAssertionCleanupRule{},
-		&MethodParameterCleanupRule{},
-		&MethodDeclarationCleanupRule{},
-		&SubroutineReturnTypeRule{},
-		&ForLoopTypedVariableRule{},
-		&ErrorNodeCleanupRule{},
-		&SliceExpressionRule{},        // Handle slice expressions specifically
-		&ArrayElementExpressionRule{}, // Handle array element expressions specifically
-		&PreservationRule{},           // Catch-all rule that preserves everything else
+	// Add transformation rules based on options
+	if options.RemoveTypeNodes {
+		// Clean Perl: Remove type annotations
+		transformer.rules = []TransformationRule{
+			&ClassConstraintPreservationRule{}, // Must come before TypeExpressionRemovalRule
+			&TypeExpressionRemovalRule{},
+			&VariableDeclarationCleanupRule{},
+			&TypeAssertionCleanupRule{},
+			&MethodParameterCleanupRule{},
+			&MethodDeclarationCleanupRule{},
+			&SubroutineReturnTypeRule{},
+			&ForLoopTypedVariableRule{},
+			&ErrorNodeCleanupRule{},
+			&SliceExpressionRule{},        // Handle slice expressions specifically
+			&ArrayElementExpressionRule{}, // Handle array element expressions specifically
+			&PreservationRule{},           // Catch-all rule that preserves everything else
+		}
+	} else {
+		// Typed Perl: Preserve type annotations and formatting
+		transformer.rules = []TransformationRule{
+			&ErrorNodeCleanupRule{}, // Still clean up error nodes
+			&PreservationRule{},     // Preserve everything else as-is
+		}
 	}
 
 	return transformer
@@ -622,7 +631,7 @@ func CreateCleanPerl(root *sitter.Node, content []byte) (*TransformationResult, 
 	}, nil
 }
 
-// CreateTypedPerl creates a typed Perl version by preserving all type annotations
+// CreateTypedPerl creates a typed Perl version by preserving all type annotations with normalized spacing
 func CreateTypedPerl(root *sitter.Node, content []byte) (*TransformationResult, error) {
 	options := TransformationOptions{
 		PreserveComments:   true,
@@ -805,6 +814,14 @@ func cleanRemainingTypeAnnotations(code string) string {
 	// This handles cases where the grammar couldn't parse complex types properly
 	forLoopTypePattern := regexp.MustCompile(`\bfor\s+my\s+\w+(?:\[[^\]]*\])*\s+(\$\w+)`)
 	code = forLoopTypePattern.ReplaceAllString(code, "for my $1")
+
+	// Also clean up any remaining extra spaces in for loops
+	extraSpacePattern := regexp.MustCompile(`\bfor\s+my\s+\s+(\$\w+)`)
+	code = extraSpacePattern.ReplaceAllString(code, "for my $1")
+
+	// Remove type declarations entirely
+	typeDeclarationPattern := regexp.MustCompile(`(?m)^type\s+\w+\s*=\s*[^;]*;?\s*$`)
+	code = typeDeclarationPattern.ReplaceAllString(code, "")
 
 	// Pattern to match any remaining standalone type expressions with brackets
 	// This catches complex parameterized types that slipped through

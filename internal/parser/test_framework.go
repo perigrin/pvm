@@ -317,18 +317,30 @@ func (f *ParserTestFramework) parseMarkdownTestCases(content string, metadata *M
 						subsection := sections[k]
 						subsectionTitle := strings.ToLower(subsection.Title)
 
-						// Check if this is a compilation outcome subsection
-						if strings.Contains(subsectionTitle, "clean") ||
+						// Check if this is a compilation outcome subsection (must be level-2 header)
+						isSubsection := subsection.HeaderLevel == 2
+						isCompilationOutcome := strings.Contains(subsectionTitle, "clean") ||
 							strings.Contains(subsectionTitle, "typed") ||
 							strings.Contains(subsectionTitle, "inferred") ||
-							strings.Contains(subsectionTitle, "perl output") {
+							strings.Contains(subsectionTitle, "perl output")
+
+						if f.Verbose {
+							println("DEBUG: Checking section:", subsection.Title, "HeaderLevel:", subsection.HeaderLevel, "isSubsection:", isSubsection, "isCompilationOutcome:", isCompilationOutcome)
+						}
+
+						if isSubsection && isCompilationOutcome {
 							allSections = append(allSections, subsection)
 							if f.Verbose {
 								println("DEBUG: Adding subsection to compilation outcomes:", subsection.Title)
 							}
-						} else if f.sectionHasPerlCode(subsection) ||
-							strings.Contains(subsectionTitle, "expected") {
-							// Stop when we hit another major section
+						} else if f.sectionHasPerlCode(subsection) {
+							// Stop when we hit another test case (section with Perl code that's not a compilation outcome)
+							// But only if it's a main-level header (level 1)
+							if subsection.HeaderLevel == 1 {
+								break
+							}
+						} else if strings.Contains(subsectionTitle, "expected") {
+							// Stop when we hit another major expected section
 							break
 						}
 					}
@@ -364,6 +376,7 @@ type MarkdownSection struct {
 	Description string
 	Comments    map[string]string
 	CodeBlocks  []MarkdownCodeBlock
+	HeaderLevel int // Number of # characters (1 for #, 2 for ##, etc.)
 }
 
 // MarkdownCodeBlock represents a fenced code block
@@ -390,11 +403,28 @@ func (f *ParserTestFramework) splitMarkdownSections(content string) []MarkdownSe
 				sections = append(sections, *currentSection)
 			}
 
+			// Determine header level and extract title
+			var headerLevel int
+			var title string
+			if strings.HasPrefix(line, "#### ") {
+				headerLevel = 4
+				title = strings.TrimPrefix(line, "#### ")
+			} else if strings.HasPrefix(line, "### ") {
+				headerLevel = 3
+				title = strings.TrimPrefix(line, "### ")
+			} else if strings.HasPrefix(line, "## ") {
+				headerLevel = 2
+				title = strings.TrimPrefix(line, "## ")
+			} else if strings.HasPrefix(line, "# ") {
+				headerLevel = 1
+				title = strings.TrimPrefix(line, "# ")
+			}
+
 			// Start new section
-			title := strings.TrimLeft(line, "# ")
 			currentSection = &MarkdownSection{
-				Title:    title,
-				Comments: make(map[string]string),
+				Title:       title,
+				HeaderLevel: headerLevel,
+				Comments:    make(map[string]string),
 			}
 			continue
 		}

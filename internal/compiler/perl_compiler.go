@@ -139,6 +139,7 @@ func (c *PerlCompiler) Compile(ast AST) (string, error) {
 	}
 
 	// Check if this is already a CST-based AST
+	//nolint:gocritic // Interface to concrete type assertion is needed for CST access
 	if cstAST, ok := ast.(*CSTBasedAST); ok {
 		return c.compileFromCST(cstAST.GetCSTRoot(), []byte(content))
 	}

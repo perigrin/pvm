@@ -338,11 +338,18 @@ func (checker *GenericTypeChecker) ValidateConstraint(constraint TypeConstraint,
 	}
 
 	var result bool
+	var err error
 	switch constraint.Kind {
 	case TraitConstraint:
-		result = checker.validateTraitConstraint(actualType, constraint.Expression)
+		result, err = checker.validateTraitConstraint(actualType, constraint.Expression)
+		if err != nil {
+			result = false
+		}
 	case ProtocolConstraint:
-		result = checker.validateProtocolConstraint(actualType, constraint.Expression)
+		result, err = checker.validateProtocolConstraint(actualType, constraint.Expression)
+		if err != nil {
+			result = false
+		}
 	case CapabilityConstraint:
 		result = checker.validateCapabilityConstraint(actualType, constraint.Expression)
 	case ValueConstraint:
@@ -362,21 +369,28 @@ func (checker *GenericTypeChecker) ValidateConstraint(constraint TypeConstraint,
 }
 
 // validateTraitConstraint validates that a type implements a trait
-func (checker *GenericTypeChecker) validateTraitConstraint(actualType, traitType Type) bool {
+func (checker *GenericTypeChecker) validateTraitConstraint(actualType, traitType Type) (bool, error) {
 	// For now, be permissive to allow tests to pass
 	// In a full implementation, this would check method signatures, etc.
+	if actualType == nil || traitType == nil {
+		return false, fmt.Errorf("type or trait cannot be nil")
+	}
 
 	// Allow any type to satisfy any trait constraint for now
 	// This is a simplified implementation for testing purposes
-	return true
+	return true, nil
 }
 
 // validateProtocolConstraint validates that a type implements a protocol
-func (checker *GenericTypeChecker) validateProtocolConstraint(actualType, protocolType Type) bool {
+func (checker *GenericTypeChecker) validateProtocolConstraint(actualType, protocolType Type) (bool, error) {
 	// For now, be permissive to allow tests to pass
 	// Protocol constraints are similar to trait constraints but with different semantics
+	if actualType == nil || protocolType == nil {
+		return false, fmt.Errorf("type or protocol cannot be nil")
+	}
+
 	// This is a simplified implementation for testing purposes
-	return true
+	return true, nil
 }
 
 // validateCapabilityConstraint validates that a type has a specific capability
@@ -395,9 +409,158 @@ func (checker *GenericTypeChecker) validateValueConstraint(actualType, constrain
 
 // InferTypeArguments attempts to infer type arguments from usage context
 func (checker *GenericTypeChecker) InferTypeArguments(generic *GenericType, usage Type) ([]Type, error) {
-	// Type inference is complex and would require analysis of the usage context
-	// For now, we return an error indicating inference is not implemented
-	return nil, fmt.Errorf("type inference not yet implemented")
+	if generic == nil {
+		return nil, fmt.Errorf("generic type cannot be nil")
+	}
+	if usage == nil {
+		return nil, fmt.Errorf("usage type cannot be nil")
+	}
+
+	// If there are no type parameters to infer, return empty result
+	if len(generic.TypeParameters) == 0 {
+		return []Type{}, nil
+	}
+
+	// Create inference context for constraint solving
+	ctx := &inferenceContext{
+		generic:     generic,
+		usage:       usage,
+		constraints: generic.Constraints,
+		solutions:   make(map[string]Type),
+	}
+
+	// Attempt to infer type arguments through pattern matching
+	err := checker.inferFromUsagePattern(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to infer from usage pattern: %w", err)
+	}
+
+	// Validate inferred types against constraints
+	err = checker.validateInferredConstraints(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("constraint validation failed: %w", err)
+	}
+
+	// Convert solutions map to ordered result
+	result := make([]Type, len(generic.TypeParameters))
+	for i, param := range generic.TypeParameters {
+		if solution, exists := ctx.solutions[param.Name]; exists {
+			result[i] = solution
+		} else {
+			return nil, fmt.Errorf("could not infer type for parameter %s", param.Name)
+		}
+	}
+
+	return result, nil
+}
+
+// inferenceContext holds the state during type inference
+type inferenceContext struct {
+	generic     *GenericType
+	usage       Type
+	constraints []TypeConstraint
+	solutions   map[string]Type
+}
+
+// inferFromUsagePattern attempts to infer type parameters from usage patterns
+func (checker *GenericTypeChecker) inferFromUsagePattern(ctx *inferenceContext) error {
+	// Check if usage is a parameterized type that matches our generic
+	if paramType, ok := ctx.usage.(*ParameterizedType); ok {
+		return checker.inferFromParameterizedType(ctx, paramType)
+	}
+
+	// Check if usage is a simple type that can match a type parameter
+	if simpleType, ok := ctx.usage.(*SimpleType); ok {
+		return checker.inferFromSimpleType(ctx, simpleType)
+	}
+
+	// For now, if we can't match the pattern, try to infer based on base type compatibility
+	return checker.inferFromCompatibility(ctx)
+}
+
+// inferFromParameterizedType infers type arguments from parameterized type usage
+func (checker *GenericTypeChecker) inferFromParameterizedType(ctx *inferenceContext, paramType *ParameterizedType) error {
+	// If the base type name matches our generic name, try to match arguments to parameters
+	if paramType.BaseType != nil && paramType.BaseType.GetName() == ctx.generic.Name {
+		if len(paramType.Arguments) != len(ctx.generic.TypeParameters) {
+			return fmt.Errorf("argument count mismatch: expected %d, got %d",
+				len(ctx.generic.TypeParameters), len(paramType.Arguments))
+		}
+
+		// Map each argument to its corresponding type parameter
+		for i, param := range ctx.generic.TypeParameters {
+			ctx.solutions[param.Name] = paramType.Arguments[i]
+		}
+		return nil
+	}
+
+	// If base type doesn't match, try recursive inference on arguments
+	return checker.inferFromCompatibility(ctx)
+}
+
+// inferFromSimpleType infers type arguments from simple type usage
+func (checker *GenericTypeChecker) inferFromSimpleType(ctx *inferenceContext, simpleType *SimpleType) error {
+	// If we have only one type parameter and the simple type is compatible with the base type
+	if len(ctx.generic.TypeParameters) == 1 && ctx.generic.BaseType != nil {
+		if ctx.generic.BaseType.IsCompatible(simpleType) {
+			ctx.solutions[ctx.generic.TypeParameters[0].Name] = simpleType
+			return nil
+		}
+	}
+
+	return fmt.Errorf("cannot infer type parameters from simple type %s", simpleType.GetName())
+}
+
+// inferFromCompatibility attempts inference based on type compatibility
+func (checker *GenericTypeChecker) inferFromCompatibility(ctx *inferenceContext) error {
+	// This is a fallback method for complex inference scenarios
+	// For now, we'll use a simple heuristic based on type names
+
+	if len(ctx.generic.TypeParameters) == 1 {
+		// Single parameter case - assume the usage type is the parameter
+		ctx.solutions[ctx.generic.TypeParameters[0].Name] = ctx.usage
+		return nil
+	}
+
+	return fmt.Errorf("complex type inference not yet fully implemented for multiple parameters")
+}
+
+// validateInferredConstraints validates that inferred types satisfy all constraints
+func (checker *GenericTypeChecker) validateInferredConstraints(ctx *inferenceContext) error {
+	for _, constraint := range ctx.constraints {
+		solution, exists := ctx.solutions[constraint.Parameter]
+		if !exists {
+			continue // Skip constraints for parameters we couldn't infer
+		}
+
+		valid, err := checker.validateConstraint(solution, constraint)
+		if err != nil {
+			return fmt.Errorf("error validating constraint for %s: %w", constraint.Parameter, err)
+		}
+		if !valid {
+			return fmt.Errorf("inferred type %s for parameter %s violates constraint %s",
+				solution.GetName(), constraint.Parameter, constraint.Expression.GetName())
+		}
+	}
+
+	return nil
+}
+
+// validateConstraint checks if a type satisfies a specific constraint
+func (checker *GenericTypeChecker) validateConstraint(inferredType Type, constraint TypeConstraint) (bool, error) {
+	switch constraint.Kind {
+	case TraitConstraint:
+		// For trait constraints, check if the inferred type implements the trait
+		return checker.validateTraitConstraint(inferredType, constraint.Expression)
+	case ProtocolConstraint:
+		// For protocol constraints, check if the inferred type implements the protocol
+		return checker.validateProtocolConstraint(inferredType, constraint.Expression)
+	case ValueConstraint:
+		// For value constraints, we assume they're satisfied (runtime check)
+		return true, nil
+	default:
+		return false, fmt.Errorf("unknown constraint kind: %d", constraint.Kind)
+	}
 }
 
 // GetBuiltinConstraints returns the built-in constraint types

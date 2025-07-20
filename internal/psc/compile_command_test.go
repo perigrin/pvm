@@ -73,23 +73,23 @@ print "Count: $count\n";
 		checkOutput func(t *testing.T, output string)
 	}{
 		{
-			name:      "Clean target - strip annotations",
-			args:      []string{"--target=clean", typedFile},
+			name:      "Standard target - strip annotations",
+			args:      []string{"--target=standard", typedFile},
 			inputFile: typedFile,
 			checkOutput: func(t *testing.T, output string) {
 				// Check for any version pragma (dynamic from PVM, not hard-coded)
 				// Use regex for more precise matching
 				hasVersionPragma := strings.Contains(output, "use v") && strings.Contains(output, ";")
 				if !hasVersionPragma {
-					t.Errorf("Expected Perl version pragma in clean output. Output: %q", output)
+					t.Errorf("Expected Perl version pragma in standard output. Output: %q", output)
 				}
-				// Clean output should not contain type annotations
+				// Standard output should not contain type annotations
 				if strings.Contains(output, "Int $count") {
-					t.Error("Clean output should not contain type annotations")
+					t.Error("Standard output should not contain type annotations")
 				}
-				// Check for clean variable declarations
+				// Check for standard variable declarations
 				if !strings.Contains(output, "my $count") {
-					t.Errorf("Clean output should contain variable declarations without types. Output: %q", output)
+					t.Errorf("Standard output should contain variable declarations without types. Output: %q", output)
 				}
 			},
 		},
@@ -109,37 +109,48 @@ print "Count: $count\n";
 			},
 		},
 		{
-			name:      "Inferred target - add annotations",
-			args:      []string{"--target=inferred", untypedFile},
+			name:      "Typed target with inference - add annotations",
+			args:      []string{"--target=typed", untypedFile},
 			inputFile: untypedFile,
 			checkOutput: func(t *testing.T, output string) {
 				// Check for any version pragma (dynamic from PVM)
 				if !strings.Contains(output, "use v") || !strings.Contains(output, ";") {
-					t.Error("Expected Perl version pragma in inferred output")
+					t.Error("Expected Perl version pragma in typed output with inference")
 				}
-				// Inferred output should have added some annotations
+				// Typed output with inference should have added some annotations
 				if output == "" {
-					t.Error("Expected non-empty inferred output")
+					t.Error("Expected non-empty typed output with inference")
 				}
 			},
 		},
 		{
-			name:      "Inferred with verbose style",
-			args:      []string{"--target=inferred", "--style=verbose", untypedFile},
+			name:      "Typed target with verbose inference style",
+			args:      []string{"--target=typed", "--style=verbose", untypedFile},
 			inputFile: untypedFile,
 			checkOutput: func(t *testing.T, output string) {
 				if output == "" {
-					t.Error("Expected non-empty verbose inferred output")
+					t.Error("Expected non-empty verbose typed output with inference")
+				}
+			},
+		},
+		{
+			name:      "Typed target with inference disabled",
+			args:      []string{"--target=typed", "--disable-inference", typedFile},
+			inputFile: typedFile,
+			checkOutput: func(t *testing.T, output string) {
+				// Should preserve existing annotations but not add new ones
+				if !strings.Contains(output, "Int $count") {
+					t.Error("Typed output should preserve existing type annotations")
 				}
 			},
 		},
 		{
 			name:      "Compile with output file",
-			args:      []string{"--target=clean", "--output=" + filepath.Join(tempDir, "clean_output.pl"), typedFile},
+			args:      []string{"--target=standard", "--output=" + filepath.Join(tempDir, "standard_output.pl"), typedFile},
 			inputFile: typedFile,
 			checkOutput: func(t *testing.T, output string) {
 				// Check that output file was created
-				outputPath := filepath.Join(tempDir, "clean_output.pl")
+				outputPath := filepath.Join(tempDir, "standard_output.pl")
 				if _, err := os.Stat(outputPath); os.IsNotExist(err) {
 					t.Error("Expected output file to be created")
 				}
@@ -165,14 +176,8 @@ print "Count: $count\n";
 			expectError: true,
 		},
 		{
-			name:        "Invalid confidence value",
-			args:        []string{"--target=inferred", "--confidence=1.5", untypedFile},
-			inputFile:   untypedFile,
-			expectError: true,
-		},
-		{
 			name:        "Invalid style",
-			args:        []string{"--target=inferred", "--style=invalid", untypedFile},
+			args:        []string{"--target=typed", "--style=invalid", untypedFile},
 			inputFile:   untypedFile,
 			expectError: true,
 		},
@@ -239,8 +244,7 @@ func TestCompileCommandFlagParsing(t *testing.T) {
 		"preserve-comments":   "true",
 		"preserve-formatting": "true",
 		"style":               "inline",
-		"confidence":          "0.7",
-		"include-uncertain":   "false",
+		"disable-inference":   "false",
 		"progress":            "false",
 		"verbose":             "false",
 		"strict":              "false",
@@ -267,13 +271,13 @@ func TestCompileCommandHelp(t *testing.T) {
 
 	expectedSections := []string{
 		"Compilation targets:",
-		"clean",
+		"standard",
+		"clean", // deprecated but still documented
 		"typed",
-		"inferred",
 		"Output options:",
 		"Examples:",
-		"--target=clean",
-		"--target=inferred",
+		"--target=standard",
+		"--target=typed",
 	}
 
 	for _, section := range expectedSections {
@@ -359,7 +363,7 @@ my $test = 42;
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	validTargets := []string{"clean", "typed", "inferred"}
+	validTargets := []string{"clean", "standard", "typed"}
 
 	for _, target := range validTargets {
 		t.Run("target_"+target, func(t *testing.T) {

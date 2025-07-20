@@ -371,7 +371,7 @@ func validateTypedPerlOutput(t *testing.T, testCase *ParserTestCase, ast *ast.AS
 	t.Helper()
 
 	// Create TypedPerlCompiler
-	typedCompiler := compiler.NewTypedPerlCompiler()
+	typedCompiler := compiler.NewTypedPerlCompilerUnified()
 
 	// Compile to typed Perl
 	actualOutput, err := typedCompiler.Compile(ast)

@@ -30,23 +30,20 @@ clean Perl code with appropriate type annotations. This helps in:
 • Catching potential type errors through explicit annotations
 • Gradual migration to typed Perl development
 
-Confidence levels:
-• High (90%+): Direct inline type annotations
-• Medium (70-89%): Inline with confidence comments
-• Low (50-69%): Comment-only type hints
-• Very Low (<50%): No annotations (optional flag to include)
+Type inference is deterministic: either a type can be confidently inferred
+(like literals and simple assignments) or no annotation is added. This follows
+the same approach as TypeScript and Go type inference.
 
 Output formats:
 • inline    - Clean inline type annotations (default)
-• verbose   - Detailed annotations with confidence info
+• verbose   - Detailed annotations with metadata
 • compact   - Minimal, space-efficient annotations
 • comments  - Type information in comments only
 
 Examples:
-  psc infer script.pl                           # Infer and output to stdout
-  psc infer --output=typed.pl script.pl         # Write to file
-  psc infer --style=verbose --confidence=0.8 script.pl
-  psc infer --include-uncertain script.pl       # Include low-confidence types`,
+  psc infer script.pl                     # Infer and output to stdout
+  psc infer --output=typed.pl script.pl   # Write to file
+  psc infer --style=verbose script.pl     # Detailed output format`,
 		Args: cobra.ExactArgs(1),
 		RunE: runInferCommand,
 	}
@@ -54,12 +51,10 @@ Examples:
 	// Command-line flags
 	cmd.Flags().String("output", "", "Output file (default: stdout)")
 	cmd.Flags().String("style", "inline", "Annotation style: inline, verbose, compact, comments")
-	cmd.Flags().Float64("confidence", 0.7, "Minimum confidence threshold (0.0-1.0)")
-	cmd.Flags().Bool("include-uncertain", false, "Include low-confidence type annotations")
 	cmd.Flags().Bool("preserve-comments", true, "Preserve original code comments")
 	cmd.Flags().Bool("preserve-formatting", true, "Preserve original code formatting")
 	cmd.Flags().Bool("progress", false, "Show progress during inference")
-	cmd.Flags().Bool("verbose", false, "Enable verbose output with confidence details")
+	cmd.Flags().Bool("verbose", false, "Enable verbose output with detailed information")
 
 	return cmd
 }
@@ -72,17 +67,10 @@ func runInferCommand(cmd *cobra.Command, args []string) error {
 	// Get command flags
 	outputFile, _ := cmd.Flags().GetString("output")
 	style, _ := cmd.Flags().GetString("style")
-	confidence, _ := cmd.Flags().GetFloat64("confidence")
-	includeUncertain, _ := cmd.Flags().GetBool("include-uncertain")
 	preserveComments, _ := cmd.Flags().GetBool("preserve-comments")
 	preserveFormatting, _ := cmd.Flags().GetBool("preserve-formatting")
 	showProgress, _ := cmd.Flags().GetBool("progress")
 	verbose, _ := cmd.Flags().GetBool("verbose")
-
-	// Validate inputs
-	if confidence < 0.0 || confidence > 1.0 {
-		return fmt.Errorf("confidence must be between 0.0 and 1.0, got %f", confidence)
-	}
 
 	validStyles := map[string]bool{
 		"inline": true, "verbose": true, "compact": true, "comments": true,
@@ -122,7 +110,6 @@ func runInferCommand(cmd *cobra.Command, args []string) error {
 	// Create type inference engine
 	inferenceOptions := inference.InferenceOptions{
 		EnableFlowAnalysis:        true,
-		MinConfidenceThreshold:    confidence,
 		EnableVariablePropagation: true,
 	}
 	engine := inference.NewTypeInferenceEngineWithOptions(inferenceOptions)
@@ -137,26 +124,10 @@ func runInferCommand(cmd *cobra.Command, args []string) error {
 	if showProgress || verbose {
 		allTypeInfo := inferredAST.GetAllTypeInfo()
 		totalInferences := len(allTypeInfo)
-		highConfidence := 0
-		mediumConfidence := 0
-		lowConfidence := 0
-
-		for _, typeInfo := range allTypeInfo {
-			switch {
-			case typeInfo.Confidence >= 0.9:
-				highConfidence++
-			case typeInfo.Confidence >= 0.7:
-				mediumConfidence++
-			default:
-				lowConfidence++
-			}
-		}
 
 		ui.Info("Inference complete: %d types inferred", totalInferences)
 		if verbose {
-			ui.Info("  High confidence (90%%+): %d", highConfidence)
-			ui.Info("  Medium confidence (70-89%%): %d", mediumConfidence)
-			ui.Info("  Low confidence (<70%%): %d", lowConfidence)
+			ui.Info("All inferences are deterministic (confidence: 100%%)")
 		}
 	}
 
@@ -178,12 +149,10 @@ func runInferCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	compilerOptions := compiler.InferredCompilerOptions{
-		ConfidenceThreshold:   confidence,
-		AnnotationStyle:       annotationStyle,
-		PreserveComments:      preserveComments,
-		PreserveFormatting:    preserveFormatting,
-		IncludeUncertainTypes: includeUncertain,
-		VerboseOutput:         verbose,
+		AnnotationStyle:    annotationStyle,
+		PreserveComments:   preserveComments,
+		PreserveFormatting: preserveFormatting,
+		VerboseOutput:      verbose,
 	}
 
 	// Create compiler and generate code

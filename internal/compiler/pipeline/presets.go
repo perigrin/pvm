@@ -3,6 +3,10 @@
 
 package pipeline
 
+import (
+	"tamarou.com/pvm/internal/types"
+)
+
 // PipelinePreset represents a pre-configured transformation pipeline
 type PipelinePreset struct {
 	Name        string
@@ -10,7 +14,7 @@ type PipelinePreset struct {
 	Pipeline    TransformationPipeline
 }
 
-// GetAllPresets returns all available pipeline presets
+// GetAllPresets returns all available pipeline presets (static ones only)
 func GetAllPresets() []PipelinePreset {
 	return []PipelinePreset{
 		GetCleanPerlPreset(),
@@ -104,6 +108,20 @@ func GetTabFormatterPreset() PipelinePreset {
 	}
 }
 
+// GetInferredTypedPerlPreset returns a pipeline for adding type annotations to untyped Perl
+func GetInferredTypedPerlPreset(typeInfo map[string]*types.TypeInfo, options TypeInjectionOptions) PipelinePreset {
+	pipeline := NewBuilder().
+		Add(NewTypeInjectionTransformer(typeInfo, options)).
+		Add(NewWhitespaceNormalizerTransformer()).
+		Build()
+
+	return PipelinePreset{
+		Name:        "inferred_typed_perl",
+		Description: "Adds inferred type annotations to untyped Perl code",
+		Pipeline:    pipeline,
+	}
+}
+
 // PipelineBuilder provides a fluent interface for building custom pipelines
 type PipelineBuilder struct {
 	builder *Builder
@@ -143,6 +161,12 @@ func (pb *PipelineBuilder) WithSpaceIndentation(size int) *PipelineBuilder {
 // WithTabIndentation adds tab-based indentation normalization to the pipeline
 func (pb *PipelineBuilder) WithTabIndentation() *PipelineBuilder {
 	pb.builder.Add(NewIndentationNormalizerTransformer(1, true))
+	return pb
+}
+
+// WithTypeInjection adds type injection to the pipeline
+func (pb *PipelineBuilder) WithTypeInjection(typeInfo map[string]*types.TypeInfo, options TypeInjectionOptions) *PipelineBuilder {
+	pb.builder.Add(NewTypeInjectionTransformer(typeInfo, options))
 	return pb
 }
 

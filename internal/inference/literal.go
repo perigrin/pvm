@@ -52,179 +52,173 @@ func (li *LiteralInferrer) InferLiteralType(literalValue string) *types.TypeInfo
 		return li.inferBooleanType(cleaned)
 	}
 
-	// Default to string type for unknown literals
+	// Try string inference - but may return nil
 	return li.inferStringType(cleaned)
 }
 
 // inferIntegerType creates type info for integer literals
 func (li *LiteralInferrer) inferIntegerType(value string) *types.TypeInfo {
 	intType := types.NewIntType()
-
-	// High confidence for clear integer patterns
-	confidence := 0.95
-
-	// Reduce confidence for very large numbers that might overflow
-	if len(value) > 10 {
-		confidence = 0.85
-	}
-
-	return types.NewTypeInfo(intType, confidence, types.SourceLiteral)
+	return types.NewTypeInfo(intType, 1.0, types.SourceLiteral)
 }
 
 // inferNumericType creates type info for floating-point literals
 func (li *LiteralInferrer) inferNumericType(value string) *types.TypeInfo {
 	numType := types.NewNumType()
 
-	// High confidence for clear float patterns
-	confidence := 0.95
-
-	// Validate that it's actually a valid float
+	// Validate that it's actually a valid float - if not, don't infer
 	if _, err := strconv.ParseFloat(value, 64); err != nil {
-		confidence = 0.70 // Lower confidence if parsing fails
+		return nil // Failed to parse - don't infer
 	}
 
-	return types.NewTypeInfo(numType, confidence, types.SourceLiteral)
+	return types.NewTypeInfo(numType, 1.0, types.SourceLiteral)
 }
 
 // inferStringType creates type info for string literals
 func (li *LiteralInferrer) inferStringType(value string) *types.TypeInfo {
 	strType := types.NewStrType()
 
-	var confidence float64
-	// Check if it's a quoted string
+	// Only infer for clearly quoted strings
 	if li.stringPattern.MatchString(value) {
-		confidence = 0.98 // Very high confidence for quoted strings
-	} else {
-		confidence = 0.80 // Lower confidence for unquoted strings
+		return types.NewTypeInfo(strType, 1.0, types.SourceLiteral)
 	}
 
-	return types.NewTypeInfo(strType, confidence, types.SourceLiteral)
+	// For unquoted strings, don't infer - too ambiguous in Perl
+	return nil
 }
 
 // inferBooleanType creates type info for boolean literals
 func (li *LiteralInferrer) inferBooleanType(value string) *types.TypeInfo {
 	boolType := types.NewBoolType()
 
-	var confidence float64
-	// Perl's truthiness is complex, so be more conservative
+	// Only infer for clear boolean values
 	switch strings.ToLower(value) {
-	case "1", "true":
-		confidence = 0.95
-	case "0", "false", "undef":
-		confidence = 0.95
+	case "1", "0", "true", "false", "undef":
+		return types.NewTypeInfo(boolType, 1.0, types.SourceLiteral)
 	default:
-		confidence = 0.75
+		// Ambiguous value - don't infer
+		return nil
 	}
-
-	return types.NewTypeInfo(boolType, confidence, types.SourceLiteral)
 }
 
 // inferArrayLiteralType infers type for array literals like [1, 2, 3]
 func (li *LiteralInferrer) inferArrayLiteralType(elements []string) *types.TypeInfo {
 	if len(elements) == 0 {
-		// Empty array - use generic ArrayRef
-		arrayType := types.NewArrayRefType(types.NewStrType()) // Default to Str
-		return types.NewTypeInfo(arrayType, 0.60, types.SourceLiteral)
+		// Empty array - don't infer type, too ambiguous
+		return nil
 	}
 
 	// Infer element type from first element
 	firstElement := elements[0]
 	elementTypeInfo := li.InferLiteralType(firstElement)
+	if elementTypeInfo == nil {
+		// First element couldn't be inferred
+		return nil
+	}
 
 	// Check if all elements have the same type
-	confidence := elementTypeInfo.Confidence
 	allSameType := true
-
 	for _, element := range elements[1:] {
 		elemTypeInfo := li.InferLiteralType(element)
-		if !elemTypeInfo.Type.Equals(elementTypeInfo.Type) {
+		if elemTypeInfo == nil || !elemTypeInfo.Type.Equals(elementTypeInfo.Type) {
 			allSameType = false
 			break
 		}
 	}
 
-	if !allSameType {
+	var elementType types.Type
+	if allSameType {
+		// All elements have the same type
+		elementType = elementTypeInfo.Type
+	} else {
 		// Mixed types - create union type
-		confidence = 0.70
 		elementTypes := make([]types.Type, 0)
 		seenTypes := make(map[string]bool)
 
 		// Collect unique types from all elements
 		for _, element := range elements {
 			elemTypeInfo := li.InferLiteralType(element)
-			typeStr := elemTypeInfo.Type.String()
-			if !seenTypes[typeStr] {
-				seenTypes[typeStr] = true
-				elementTypes = append(elementTypes, elemTypeInfo.Type)
+			if elemTypeInfo != nil {
+				typeStr := elemTypeInfo.Type.String()
+				if !seenTypes[typeStr] {
+					seenTypes[typeStr] = true
+					elementTypes = append(elementTypes, elemTypeInfo.Type)
+				}
 			}
 		}
 
-		// Create union type if we have multiple distinct types
-		var unionType types.Type
-		if len(elementTypes) > 1 {
-			unionType = types.NewUnionType(elementTypes...)
+		if len(elementTypes) == 0 {
+			// No types could be inferred
+			return nil
+		} else if len(elementTypes) == 1 {
+			elementType = elementTypes[0]
 		} else {
-			unionType = elementTypes[0]
+			// Create union type
+			elementType = types.NewUnionType(elementTypes...)
 		}
-
-		elementTypeInfo = types.NewTypeInfo(unionType, confidence, types.SourceLiteral)
 	}
 
-	arrayType := types.NewArrayRefType(elementTypeInfo.Type)
-	return types.NewTypeInfo(arrayType, confidence, types.SourceLiteral)
+	arrayType := types.NewArrayRefType(elementType)
+	return types.NewTypeInfo(arrayType, 1.0, types.SourceLiteral)
 }
 
 // inferHashLiteralType infers type for hash literals like {key => 'value'}
 func (li *LiteralInferrer) inferHashLiteralType(values []string) *types.TypeInfo {
 	if len(values) == 0 {
-		// Empty hash - use generic HashRef
-		hashType := types.NewHashRefType(types.NewStrType()) // Default to Str
-		return types.NewTypeInfo(hashType, 0.60, types.SourceLiteral)
+		// Empty hash - don't infer type, too ambiguous
+		return nil
 	}
 
 	// Infer value type from first value
 	firstValue := values[0]
 	valueTypeInfo := li.InferLiteralType(firstValue)
+	if valueTypeInfo == nil {
+		// First value couldn't be inferred
+		return nil
+	}
 
 	// Check if all values have the same type
-	confidence := valueTypeInfo.Confidence
 	allSameType := true
-
 	for _, value := range values[1:] {
 		valTypeInfo := li.InferLiteralType(value)
-		if !valTypeInfo.Type.Equals(valueTypeInfo.Type) {
+		if valTypeInfo == nil || !valTypeInfo.Type.Equals(valueTypeInfo.Type) {
 			allSameType = false
 			break
 		}
 	}
 
-	if !allSameType {
+	var valueType types.Type
+	if allSameType {
+		// All values have the same type
+		valueType = valueTypeInfo.Type
+	} else {
 		// Mixed types - create union type
-		confidence = 0.70
 		valueTypes := make([]types.Type, 0)
 		seenTypes := make(map[string]bool)
 
 		// Collect unique types from all values
 		for _, value := range values {
 			valTypeInfo := li.InferLiteralType(value)
-			typeStr := valTypeInfo.Type.String()
-			if !seenTypes[typeStr] {
-				seenTypes[typeStr] = true
-				valueTypes = append(valueTypes, valTypeInfo.Type)
+			if valTypeInfo != nil {
+				typeStr := valTypeInfo.Type.String()
+				if !seenTypes[typeStr] {
+					seenTypes[typeStr] = true
+					valueTypes = append(valueTypes, valTypeInfo.Type)
+				}
 			}
 		}
 
-		// Create union type if we have multiple distinct types
-		var unionType types.Type
-		if len(valueTypes) > 1 {
-			unionType = types.NewUnionType(valueTypes...)
+		if len(valueTypes) == 0 {
+			// No types could be inferred
+			return nil
+		} else if len(valueTypes) == 1 {
+			valueType = valueTypes[0]
 		} else {
-			unionType = valueTypes[0]
+			// Create union type
+			valueType = types.NewUnionType(valueTypes...)
 		}
-
-		valueTypeInfo = types.NewTypeInfo(unionType, confidence, types.SourceLiteral)
 	}
 
-	hashType := types.NewHashRefType(valueTypeInfo.Type)
-	return types.NewTypeInfo(hashType, confidence, types.SourceLiteral)
+	hashType := types.NewHashRefType(valueType)
+	return types.NewTypeInfo(hashType, 1.0, types.SourceLiteral)
 }

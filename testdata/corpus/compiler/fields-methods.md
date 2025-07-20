@@ -28,6 +28,13 @@ field $count;
 field $items;
 ```
 
+## Typed Perl Output
+
+```perl
+field Int $count;
+field ArrayRef[Str] $items;
+```
+
 # Field with Initialization
 
 Field declarations with initial values
@@ -47,6 +54,13 @@ field $counter = 0;
 field $config = {};
 ```
 
+## Typed Perl Output
+
+```perl
+field Int $counter = 0;
+field HashRef[Str] $config = {};
+```
+
 # Method Declaration
 
 Method with typed parameters
@@ -64,6 +78,14 @@ method Bool add_user(UserId $id, HashRef[Str] $data) {
 ```perl
 use v5.36;
 method add_user($id, $data) {
+    return 1;
+}
+```
+
+## Typed Perl Output
+
+```perl
+method Bool add_user(UserId $id, HashRef[Str] $data) {
     return 1;
 }
 ```
@@ -97,6 +119,18 @@ sub multiline (
 }
 ```
 
+## Typed Perl Output
+
+```perl
+sub Bool multiline (
+    Int $first,
+    Str $second,
+    ArrayRef[Int] $third
+) {
+    return 1;
+}
+```
+
 # Attributes with Signature
 
 Function with attributes and typed signature
@@ -118,19 +152,77 @@ sub tagged :lvalue :const ($value) {
 }
 ```
 
+## Typed Perl Output
+
+```perl
+sub Int tagged :lvalue :const (Int $value) {
+    return $value;
+}
+```
+
 ## Text AST
 
-**Note**: Field declarations, method signatures, and function attributes with typed parameters are not yet supported by the tree-sitter grammar. This syntax would currently produce parse errors and cannot generate a meaningful AST.
-
 ```
-(parse error - field/method syntax not supported)
+(source
+  (subroutine_declaration
+    (return_type (simple_type name: (identifier)))
+    name: (identifier)
+    (attributes
+      (attribute name: "lvalue")
+      (attribute name: "const"))
+    (signature
+      (parameter
+        (type_annotation (simple_type name: (identifier)))
+        (scalar_variable (variable_name (identifier)))))
+    (block
+      (return_statement
+        (scalar_variable (variable_name (identifier)))))))
 ```
 
 ## JSON AST
 
 ```json
 {
-  "error": "Field declarations and method signatures not yet supported by grammar",
-  "note": "This syntax requires grammar extensions for: field declarations (field Type $name), method declarations (method Type name(params)), and function attributes with typed signatures"
+  "type": "source",
+  "children": [
+    {
+      "type": "subroutine_declaration",
+      "return_type": {
+        "type": "simple_type",
+        "name": "Int"
+      },
+      "name": "tagged",
+      "attributes": [
+        {"name": "lvalue"},
+        {"name": "const"}
+      ],
+      "signature": {
+        "parameters": [
+          {
+            "type_annotation": {
+              "type": "simple_type",
+              "name": "Int"
+            },
+            "variable": {
+              "type": "scalar_variable",
+              "name": "value"
+            }
+          }
+        ]
+      },
+      "body": {
+        "type": "block",
+        "statements": [
+          {
+            "type": "return_statement",
+            "expression": {
+              "type": "scalar_variable",
+              "name": "value"
+            }
+          }
+        ]
+      }
+    }
+  ]
 }
 ```

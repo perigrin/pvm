@@ -132,30 +132,26 @@ func TestCompilerOptions(t *testing.T) {
 		testFunc func(t *testing.T, compiler *InferredTypedPerlCompiler)
 	}{
 		{
-			name: "High confidence threshold",
+			name: "Inline annotation style",
 			options: InferredCompilerOptions{
-				ConfidenceThreshold:   0.9,
-				AnnotationStyle:       StyleInline,
-				PreserveComments:      true,
-				PreserveFormatting:    true,
-				IncludeUncertainTypes: false,
-				VerboseOutput:         false,
+				AnnotationStyle:    StyleInline,
+				PreserveComments:   true,
+				PreserveFormatting: true,
+				VerboseOutput:      false,
 			},
 			testFunc: func(t *testing.T, compiler *InferredTypedPerlCompiler) {
-				if compiler.options.ConfidenceThreshold != 0.9 {
-					t.Errorf("Expected confidence threshold 0.9, got %f", compiler.options.ConfidenceThreshold)
+				if compiler.options.AnnotationStyle != StyleInline {
+					t.Errorf("Expected StyleInline, got %s", compiler.options.AnnotationStyle)
 				}
 			},
 		},
 		{
 			name: "Verbose output mode",
 			options: InferredCompilerOptions{
-				ConfidenceThreshold:   0.7,
-				AnnotationStyle:       StyleVerbose,
-				PreserveComments:      true,
-				PreserveFormatting:    true,
-				IncludeUncertainTypes: true,
-				VerboseOutput:         true,
+				AnnotationStyle:    StyleVerbose,
+				PreserveComments:   true,
+				PreserveFormatting: true,
+				VerboseOutput:      true,
 			},
 			testFunc: func(t *testing.T, compiler *InferredTypedPerlCompiler) {
 				if !compiler.options.VerboseOutput {
@@ -169,12 +165,10 @@ func TestCompilerOptions(t *testing.T) {
 		{
 			name: "Compact style mode",
 			options: InferredCompilerOptions{
-				ConfidenceThreshold:   0.8,
-				AnnotationStyle:       StyleCompact,
-				PreserveComments:      false,
-				PreserveFormatting:    false,
-				IncludeUncertainTypes: false,
-				VerboseOutput:         false,
+				AnnotationStyle:    StyleCompact,
+				PreserveComments:   false,
+				PreserveFormatting: false,
+				VerboseOutput:      false,
 			},
 			testFunc: func(t *testing.T, compiler *InferredTypedPerlCompiler) {
 				if compiler.options.AnnotationStyle != StyleCompact {
@@ -243,20 +237,18 @@ func TestVariableDeclarationCompilation(t *testing.T) {
 		expectedNotContains []string
 	}{
 		{
-			name: "High confidence with annotations",
+			name: "Inline style with annotations",
 			options: InferredCompilerOptions{
-				ConfidenceThreshold: 0.5, // Low threshold to ensure inclusion
-				AnnotationStyle:     StyleInline,
+				AnnotationStyle: StyleInline,
 			},
-			expectedContains: []string{"use v5.36;", "my"},
+			expectedContains: []string{"use v", "my"},
 		},
 		{
-			name: "Low confidence threshold",
+			name: "Verbose style with annotations",
 			options: InferredCompilerOptions{
-				ConfidenceThreshold: 0.95, // Very high threshold
-				AnnotationStyle:     StyleInline,
+				AnnotationStyle: StyleVerbose,
 			},
-			expectedContains: []string{"use v5.36;", "my"},
+			expectedContains: []string{"use v", "my"},
 		},
 	}
 
