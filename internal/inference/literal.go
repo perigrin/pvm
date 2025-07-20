@@ -82,7 +82,7 @@ func (li *LiteralInferrer) inferStringType(value string) *types.TypeInfo {
 	if li.stringPattern.MatchString(value) {
 		return types.NewTypeInfo(strType, 1.0, types.SourceLiteral)
 	}
-	
+
 	// For unquoted strings, don't infer - too ambiguous in Perl
 	return nil
 }

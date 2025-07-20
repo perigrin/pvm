@@ -95,7 +95,6 @@ func runCompileCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid target '%s', must be one of: standard, clean (deprecated), typed", target)
 	}
 
-
 	validStyles := map[string]bool{
 		"inline": true, "verbose": true, "compact": true, "comments": true,
 	}

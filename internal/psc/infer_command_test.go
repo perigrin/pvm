@@ -60,15 +60,6 @@ print "Count: $count\n";
 			},
 		},
 		{
-			name: "Inference with confidence threshold",
-			args: []string{"--confidence=0.9", testFile},
-			checkOutput: func(t *testing.T, output string) {
-				if output == "" {
-					t.Error("Expected non-empty output")
-				}
-			},
-		},
-		{
 			name: "Inference with verbose style",
 			args: []string{"--style=verbose", testFile},
 			checkOutput: func(t *testing.T, output string) {
@@ -116,11 +107,6 @@ print "Count: $count\n";
 					t.Error("Expected Perl version pragma in output file")
 				}
 			},
-		},
-		{
-			name:        "Invalid confidence value",
-			args:        []string{"--confidence=1.5", testFile},
-			expectError: true,
 		},
 		{
 			name:        "Invalid style",
@@ -180,8 +166,6 @@ func TestInferCommandFlagParsing(t *testing.T) {
 	defaults := map[string]interface{}{
 		"output":              "",
 		"style":               "inline",
-		"confidence":          0.7,
-		"include-uncertain":   false,
 		"preserve-comments":   true,
 		"preserve-formatting": true,
 		"progress":            false,
@@ -200,8 +184,6 @@ func TestInferCommandFlagParsing(t *testing.T) {
 		switch v := expectedDefault.(type) {
 		case string:
 			expectedStr = v
-		case float64:
-			expectedStr = "0.7" // Special case for confidence
 		case bool:
 			if v {
 				expectedStr = "true"
@@ -223,10 +205,9 @@ func TestInferCommandHelp(t *testing.T) {
 	helpText := cmd.Long
 
 	expectedSections := []string{
-		"Confidence levels:",
+		"Type inference is deterministic",
 		"Output formats:",
 		"Examples:",
-		"High (90%+)",
 		"inline",
 		"verbose",
 		"compact",
@@ -297,8 +278,6 @@ print "Result: $result, Count: $count\n";
 	cmd.SetArgs([]string{
 		"--output=" + outputFile,
 		"--style=verbose",
-		"--confidence=0.6",
-		"--include-uncertain",
 		"--verbose",
 		testFile,
 	})

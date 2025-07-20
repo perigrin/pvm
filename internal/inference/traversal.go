@@ -101,12 +101,18 @@ func (at *ASTTraverser) handleLiteralNode(node ast.Node, inferredAST ast.Inferre
 	// Infer type using literal inferrer
 	typeInfo := at.literalInferrer.InferLiteralType(literalValue)
 
-	// Generate unique node ID
-	nodeID := fmt.Sprintf("literal_%s_%d_%d",
-		sanitizeNodeID(literalValue), node.Start().Line, node.Start().Column)
+	// Only attach type information if inference was successful
+	if typeInfo != nil {
+		// Generate unique node ID
+		nodeID := fmt.Sprintf("literal_%s_%d_%d",
+			sanitizeNodeID(literalValue), node.Start().Line, node.Start().Column)
 
-	// Attach type information
-	return inferredAST.AttachTypeInfo(nodeID, typeInfo)
+		// Attach type information
+		return inferredAST.AttachTypeInfo(nodeID, typeInfo)
+	}
+
+	// No inference possible - this is normal for deterministic inference
+	return nil
 }
 
 // handleVariableNode handles variable reference nodes
@@ -121,10 +127,10 @@ func (at *ASTTraverser) handleVariableNode(node ast.Node, inferredAST ast.Inferr
 		nodeID := fmt.Sprintf("variable_%s_%d_%d",
 			variableName, node.Start().Line, node.Start().Column)
 
-		// Slightly reduce confidence for variable references
+		// Use deterministic confidence for variable references
 		adjustedTypeInfo := types.NewTypeInfo(
 			typeInfo.Type,
-			typeInfo.Confidence*0.95,
+			1.0,
 			types.SourceVariable)
 
 		return inferredAST.AttachTypeInfo(nodeID, adjustedTypeInfo)
@@ -343,8 +349,8 @@ func (at *ASTTraverser) handleStringAssignment(lhs, rhs ast.Node, inferredAST as
 func (at *ASTTraverser) assignToVariable(varNode ast.Node, varType types.Type, inferredAST ast.InferredAST) error {
 	variableName := extractVariableName(varNode.Text())
 
-	// Create type info with good confidence for assignments
-	typeInfo := types.NewTypeInfo(varType, 0.90, types.SourceVariable)
+	// Create type info with deterministic confidence for assignments
+	typeInfo := types.NewTypeInfo(varType, 1.0, types.SourceVariable)
 
 	// Add to current scope
 	at.addVariableToScope(variableName, typeInfo)

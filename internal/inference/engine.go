@@ -83,7 +83,6 @@ func (bie *basicInferenceEngine) InferTypes(inputAST *ast.AST) (ast.InferredAST,
 	return inferredAST, nil
 }
 
-
 // GetInferenceErrors returns collected errors
 func (bie *basicInferenceEngine) GetInferenceErrors() []InferenceError {
 	// Return a copy to prevent external modification
