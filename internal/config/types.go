@@ -236,6 +236,9 @@ type PVXConfig struct {
 	// AlwaysInstallDeps specifies whether to automatically install missing dependencies
 	AlwaysInstallDeps bool `toml:"always_install_deps" json:"always_install_deps"`
 
+	// AutoInstallPerl specifies whether to automatically install missing Perl versions
+	AutoInstallPerl bool `toml:"auto_install_perl" json:"auto_install_perl"`
+
 	// Timeout specifies the maximum execution time in seconds
 	Timeout int `toml:"timeout" json:"timeout"`
 
@@ -588,6 +591,7 @@ func NewDefaultConfig() *Config {
 			CleanupAfter:            true,
 			IsolationLevel:          "clean",
 			AlwaysInstallDeps:       true,
+			AutoInstallPerl:         false, // Conservative default - require explicit opt-in
 			Timeout:                 300,
 			MaxMemory:               "512MB",
 			IsolationReadOnlyPaths:  []string{"/usr", "/bin", "/lib"},
