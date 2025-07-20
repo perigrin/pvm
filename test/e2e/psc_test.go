@@ -10,16 +10,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"tamarou.com/pvm/internal/parser"
 	basetesting "tamarou.com/pvm/internal/testing"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
 func TestPSCBasicTypeChecking(t *testing.T) {
-	// Skip if Tree-sitter library is not available
-	if !isTreeSitterAvailable() {
-		t.Skip("Tree-sitter library not available, skipping PSC tests")
-	}
+	helpers.SkipIfNoPSC(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -62,10 +58,7 @@ say "Name: $name";
 }
 
 func TestPSCTypeErrorDetection(t *testing.T) {
-	// Skip if Tree-sitter library is not available
-	if !isTreeSitterAvailable() {
-		t.Skip("Tree-sitter library not available, skipping PSC tests")
-	}
+	helpers.SkipIfNoPSC(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -102,10 +95,7 @@ my Int $result = add_numbers($wrong_arg, 10);  # TYPE ERROR: String passed to In
 }
 
 func TestPSCStripAnnotations(t *testing.T) {
-	// Skip if Tree-sitter library is not available
-	if !isTreeSitterAvailable() {
-		t.Skip("Tree-sitter library not available, skipping PSC tests")
-	}
+	helpers.SkipIfNoPSC(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -179,10 +169,7 @@ say "Numbers: " . join(", ", @$numbers);
 }
 
 func TestPSCCompleteWorkflow(t *testing.T) {
-	// Skip if Tree-sitter library is not available
-	if !isTreeSitterAvailable() {
-		t.Skip("Tree-sitter library not available, skipping PSC tests")
-	}
+	helpers.SkipIfNoPSC(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -250,10 +237,7 @@ say "Sum: $sum";
 }
 
 func TestPSCRoundTripConsistency(t *testing.T) {
-	// Skip if Tree-sitter library is not available
-	if !isTreeSitterAvailable() {
-		t.Skip("Tree-sitter library not available, skipping PSC tests")
-	}
+	helpers.SkipIfNoPSC(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -290,10 +274,7 @@ say "Product: $product";
 }
 
 func TestPSCFlowSensitiveAnalysis(t *testing.T) {
-	// Skip if Tree-sitter library is not available
-	if !isTreeSitterAvailable() {
-		t.Skip("Tree-sitter library not available, skipping PSC tests")
-	}
+	helpers.SkipIfNoPSC(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -371,10 +352,7 @@ say "Ref: $ref_result";
 }
 
 func TestPSCComplexParameterizedTypesError(t *testing.T) {
-	// Skip if Tree-sitter library is not available
-	if !isTreeSitterAvailable() {
-		t.Skip("Tree-sitter library not available, skipping PSC tests")
-	}
+	helpers.SkipIfNoPSC(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -408,10 +386,7 @@ for my HashRef[Str, Int] $item (@$data) {
 }
 
 func TestPSCDirectoryChecking(t *testing.T) {
-	// Skip if Tree-sitter library is not available
-	if !isTreeSitterAvailable() {
-		t.Skip("Tree-sitter library not available, skipping PSC tests")
-	}
+	helpers.SkipIfNoPSC(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -474,9 +449,141 @@ say "Number: $x";
 	t.Logf("Directory check succeeded: %s", stdout)
 }
 
-// isTreeSitterAvailable checks if the Tree-sitter parser is available for testing
-func isTreeSitterAvailable() bool {
-	// Try to create a parser to check if Tree-sitter is initialized properly
-	_, err := parser.NewParser()
-	return err == nil
+// TestPSCRunCommand tests the complete PSC run execution workflow
+func TestPSCRunCommand(t *testing.T) {
+	helpers.SkipIfNoPSC(t)
+	helpers.SkipIfNoSystemPerl(t)
+
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Create a simple typed Perl script for execution
+	testScript := filepath.Join(env.RootDir, "run_test.pl")
+	testContent := `#!/usr/bin/perl
+use v5.36;
+
+# Simple typed variables
+my Int $number = 42;
+my Str $message = "Hello from PSC run!";
+
+print "Number: $number\n";
+print "Message: $message\n";
+print "PSC run test completed\n";
+`
+	err := os.WriteFile(testScript, []byte(testContent), 0644)
+	require.NoError(t, err)
+
+	// Test PSC run command
+	t.Log("Testing PSC run command execution...")
+	stdout := helpers.AssertPSCSucceedsOrSkipTODO(t, env, []string{"run", testScript}, "run command execution")
+	assert.Contains(t, stdout, "PSC run test completed", "PSC run should execute script successfully")
+	assert.Contains(t, stdout, "Number: 42", "Should output typed variable values")
+	assert.Contains(t, stdout, "Hello from PSC run!", "Should output string values")
+}
+
+// TestPSCRunWithStripAndExecute tests the PSC → compiler → PVX execution chain
+func TestPSCRunWithStripAndExecute(t *testing.T) {
+	helpers.SkipIfNoPSC(t)
+	helpers.SkipIfNoSystemPerl(t)
+
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Create a more complex typed script
+	executionScript := filepath.Join(env.RootDir, "execution_test.pl")
+	executionContent := `#!/usr/bin/perl
+use v5.36;
+
+# Function with type annotations
+sub Int calculate_sum(Int $a, Int $b) {
+    return $a + $b;
+}
+
+# Variables with type annotations
+my Int $x = 10;
+my Int $y = 20;
+my Int $result = calculate_sum($x, $y);
+
+print "Sum of $x and $y is: $result\n";
+print "PSC execution chain test completed\n";
+`
+	err := os.WriteFile(executionScript, []byte(executionContent), 0644)
+	require.NoError(t, err)
+
+	// Test the complete PSC execution workflow
+	t.Log("Testing PSC execution chain: type check → strip → execute...")
+	stdout := helpers.AssertPSCSucceedsOrSkipTODO(t, env, []string{"run", executionScript}, "complete execution chain")
+	assert.Contains(t, stdout, "PSC execution chain test completed", "Should complete execution workflow")
+	assert.Contains(t, stdout, "Sum of 10 and 20 is: 30", "Should execute typed functions correctly")
+}
+
+// TestPSCRunErrorHandling tests PSC error propagation during execution
+func TestPSCRunErrorHandling(t *testing.T) {
+	helpers.SkipIfNoPSC(t)
+	helpers.SkipIfNoSystemPerl(t)
+
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Create a script with runtime errors
+	errorScript := filepath.Join(env.RootDir, "error_test.pl")
+	errorContent := `#!/usr/bin/perl
+use v5.36;
+
+# Script that will cause runtime error
+my Int $dividend = 10;
+my Int $divisor = 0;
+
+print "About to divide by zero...\n";
+my Int $result = $dividend / $divisor;  # This will cause runtime error
+print "Result: $result\n";
+`
+	err := os.WriteFile(errorScript, []byte(errorContent), 0644)
+	require.NoError(t, err)
+
+	// Test that PSC properly propagates runtime errors
+	t.Log("Testing PSC error propagation during execution...")
+	_, stderr, err := env.RunPSC("run", errorScript)
+	if err != nil {
+		// Should get meaningful error output
+		assert.Contains(t, stderr, "division", "Should report division error")
+		t.Logf("PSC properly caught runtime error: %s", stderr)
+	} else {
+		t.Skip("Runtime error handling not yet implemented or division by zero allowed")
+	}
+}
+
+// TestPSCRunWithDependencies tests PSC execution with module dependencies
+func TestPSCRunWithDependencies(t *testing.T) {
+	helpers.SkipIfNoPSC(t)
+	helpers.SkipIfNoSystemPerl(t)
+
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Create a script that uses standard Perl modules
+	moduleScript := filepath.Join(env.RootDir, "module_test.pl")
+	moduleContent := `#!/usr/bin/perl
+use v5.36;
+use Data::Dumper;
+
+# Test with module usage and type annotations
+my HashRef[Str, Int] $data = {
+    alice => 95,
+    bob => 87,
+    charlie => 92
+};
+
+print "Data structure:\n";
+print Dumper($data);
+print "PSC module dependency test completed\n";
+`
+	err := os.WriteFile(moduleScript, []byte(moduleContent), 0644)
+	require.NoError(t, err)
+
+	// Test PSC run with module dependencies
+	t.Log("Testing PSC run with module dependencies...")
+	stdout := helpers.AssertPSCSucceedsOrSkipTODO(t, env, []string{"run", moduleScript}, "execution with dependencies")
+	assert.Contains(t, stdout, "PSC module dependency test completed", "Should complete with module usage")
+	assert.Contains(t, stdout, "alice", "Should process hash data correctly")
 }

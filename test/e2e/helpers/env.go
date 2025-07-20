@@ -548,3 +548,11 @@ func (e *TestEnv) RunPVXToolWithCleanIsolation(toolName string, toolArgs ...stri
 func (e *TestEnv) RunPVXInlineWithCleanIsolation(code string) (string, string, error) {
 	return e.RunPVXWithCleanIsolation("-e", code)
 }
+
+// RunPSC runs a PSC command using the PVM binary with PSC component
+func (e *TestEnv) RunPSC(args ...string) (string, string, error) {
+	// Prepend "psc" to the arguments to run the PSC component
+	pscArgs := []string{"psc"}
+	pscArgs = append(pscArgs, args...)
+	return e.RunPVM(pscArgs...)
+}
