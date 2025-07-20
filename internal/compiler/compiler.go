@@ -9,11 +9,8 @@ package compiler
 type Target string
 
 const (
-	// TargetStandardPerl produces standard Perl code without type annotations
-	TargetStandardPerl Target = "standard_perl"
-
-	// Deprecated: Use TargetStandardPerl instead
-	TargetCleanPerl = TargetStandardPerl
+	// TargetCleanPerl produces standard Perl code without type annotations
+	TargetCleanPerl Target = "clean_perl"
 
 	// TargetTypedPerl produces Perl code with type annotations preserved
 	TargetTypedPerl Target = "typed_perl"

@@ -150,7 +150,7 @@ func runCompileCommand(cmd *cobra.Command, args []string) error {
 			}
 			ui.Info("Compiling to %s Perl (stripping type annotations)...", targetName)
 		}
-		result, err = registry.CompileWithOptions(ast, compiler.TargetStandardPerl, options)
+		result, err = registry.CompileWithOptions(ast, compiler.TargetCleanPerl, options)
 
 	case "typed":
 		if disableInference {

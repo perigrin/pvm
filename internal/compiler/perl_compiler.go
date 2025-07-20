@@ -81,14 +81,9 @@ func NewPerlCompiler(target Target) *PerlCompiler {
 	}
 }
 
-// NewStandardPerlCompilerUnified creates a new unified compiler for standard Perl output
-func NewStandardPerlCompilerUnified() *PerlCompiler {
-	return NewPerlCompiler(TargetStandardPerl)
-}
-
-// Deprecated: Use NewStandardPerlCompilerUnified instead
+// NewCleanPerlCompilerUnified creates a new unified compiler for clean Perl output
 func NewCleanPerlCompilerUnified() *PerlCompiler {
-	return NewStandardPerlCompilerUnified()
+	return NewPerlCompiler(TargetCleanPerl)
 }
 
 // NewTypedPerlCompilerUnified creates a new unified compiler for typed Perl output
@@ -144,6 +139,7 @@ func (c *PerlCompiler) Compile(ast AST) (string, error) {
 	}
 
 	// Check if this is already a CST-based AST
+	//nolint:gocritic // Interface to concrete type assertion is needed for CST access
 	if cstAST, ok := ast.(*CSTBasedAST); ok {
 		return c.compileFromCST(cstAST.GetCSTRoot(), []byte(content))
 	}

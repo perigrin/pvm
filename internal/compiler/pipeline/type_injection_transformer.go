@@ -5,8 +5,11 @@ package pipeline
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	sitter "github.com/tree-sitter/go-tree-sitter"
+	"tamarou.com/pvm/internal/parser/treesitter"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -45,6 +48,13 @@ func (ti *TypeInjectionTransformer) Transform(input *TransformationInput) (*Tran
 	transformed, err := ti.transformNode(input.CST, &content)
 	if err != nil {
 		return nil, fmt.Errorf("type injection failed: %w", err)
+	}
+
+	// Validate the generated code is syntactically correct
+	if transformed > 0 {
+		if err := ti.validateGeneratedCode(content); err != nil {
+			return nil, fmt.Errorf("type injection produced invalid Perl syntax: %w", err)
+		}
 	}
 
 	// Create metrics for the transformation
@@ -131,14 +141,16 @@ func (ti *TypeInjectionTransformer) transformVariableDeclaration(node *sitter.No
 		return false, nil
 	}
 
-	// Generate type annotation
-	typeAnnotation := ti.formatTypeAnnotation(typeInfo.Type)
+	// Generate type annotation with validation
+	typeAnnotation, err := ti.formatAndValidateTypeAnnotation(typeInfo.Type)
+	if err != nil {
+		return false, fmt.Errorf("invalid type annotation for variable %s: %w", varName, err)
+	}
 	if typeAnnotation == "" {
 		return false, nil
 	}
 
-	// Insert type annotation between "my" and variable name
-	// Pattern: "my $var" -> "my Int $var"
+	// Find the "my" keyword
 	myKeyword := ti.findMyKeyword(node, *content)
 	if myKeyword == nil {
 		return false, nil
@@ -146,12 +158,22 @@ func (ti *TypeInjectionTransformer) transformVariableDeclaration(node *sitter.No
 
 	insertPos := myKeyword.EndByte()
 
+	// Validate the insertion position
+	if insertPos >= uint(len(*content)) {
+		return false, fmt.Errorf("invalid insertion position %d for content length %d", insertPos, len(*content))
+	}
+
 	// Build the new content with type annotation
 	newContent := make([]byte, 0, len(*content)+len(typeAnnotation)+1)
 	newContent = append(newContent, (*content)[:insertPos]...)
 	newContent = append(newContent, ' ')
 	newContent = append(newContent, []byte(typeAnnotation)...)
 	newContent = append(newContent, (*content)[insertPos:]...)
+
+	// Validate the syntax of the modified declaration
+	if err := ti.validateVariableDeclaration(newContent, insertPos, typeAnnotation); err != nil {
+		return false, fmt.Errorf("type injection would create invalid variable declaration: %w", err)
+	}
 
 	*content = newContent
 	return true, nil
@@ -172,9 +194,11 @@ func (ti *TypeInjectionTransformer) transformSubroutineDeclaration(node *sitter.
 		return false, nil
 	}
 
-	// For now, we'll add return type annotation as comments
-	// A full implementation would modify the CST structure
-	typeAnnotation := ti.formatTypeAnnotation(typeInfo.Type)
+	// Generate validated type annotation
+	typeAnnotation, err := ti.formatAndValidateTypeAnnotation(typeInfo.Type)
+	if err != nil {
+		return false, fmt.Errorf("invalid type annotation for subroutine %s: %w", subName, err)
+	}
 	if typeAnnotation == "" {
 		return false, nil
 	}
@@ -191,6 +215,11 @@ func (ti *TypeInjectionTransformer) transformSubroutineDeclaration(node *sitter.
 		return false, nil
 	}
 
+	// Validate the insertion position
+	if bracePos >= uint(len(*content)) {
+		return false, fmt.Errorf("invalid brace position %d for content length %d", bracePos, len(*content))
+	}
+
 	// Insert return type annotation
 	// Pattern: "sub name {" -> "sub name -> ReturnType {"
 	returnTypeStr := fmt.Sprintf(" -> %s ", typeAnnotation)
@@ -199,6 +228,11 @@ func (ti *TypeInjectionTransformer) transformSubroutineDeclaration(node *sitter.
 	newContent = append(newContent, (*content)[:bracePos]...)
 	newContent = append(newContent, []byte(returnTypeStr)...)
 	newContent = append(newContent, (*content)[bracePos:]...)
+
+	// Validate the syntax of the modified subroutine declaration
+	if err := ti.validateSubroutineDeclaration(newContent, bracePos, returnTypeStr); err != nil {
+		return false, fmt.Errorf("type injection would create invalid subroutine declaration: %w", err)
+	}
 
 	*content = newContent
 	return true, nil
@@ -277,18 +311,13 @@ func (ti *TypeInjectionTransformer) findOpeningBrace(node *sitter.Node, content 
 	return 0
 }
 
+// Deprecated: Use formatAndValidateTypeAnnotation instead
 func (ti *TypeInjectionTransformer) formatTypeAnnotation(t types.Type) string {
-	// Format type for Perl syntax
-	if t == nil {
-		return ""
+	result, err := ti.formatAndValidateTypeAnnotation(t)
+	if err != nil {
+		return "" // Return empty string on validation errors for backward compatibility
 	}
-
-	switch t := t.(type) {
-	case interface{ String() string }:
-		return t.String()
-	default:
-		return fmt.Sprintf("%T", t) // Fallback
-	}
+	return result
 }
 
 func (ti *TypeInjectionTransformer) countNodes(node *sitter.Node) int {
@@ -309,4 +338,147 @@ func (ti *TypeInjectionTransformer) countNodes(node *sitter.Node) int {
 // CanSkip returns true if no type information is available
 func (ti *TypeInjectionTransformer) CanSkip(input *TransformationInput) bool {
 	return len(ti.typeInfo) == 0
+}
+
+// validateGeneratedCode validates that the generated Perl code is syntactically correct
+func (ti *TypeInjectionTransformer) validateGeneratedCode(content []byte) error {
+	// Parse the generated code with tree-sitter to check for syntax errors
+	parser := sitter.NewParser()
+	parser.SetLanguage(treesitter.Language())
+
+	tree := parser.Parse(content, nil)
+	if tree == nil {
+		return fmt.Errorf("failed to parse generated code")
+	}
+
+	root := tree.RootNode()
+	if root == nil {
+		return fmt.Errorf("generated code has no root node")
+	}
+
+	// Check for error nodes in the parse tree
+	if err := ti.checkForErrorNodes(root, content); err != nil {
+		return fmt.Errorf("syntax errors in generated code: %w", err)
+	}
+
+	return nil
+}
+
+// checkForErrorNodes recursively checks for ERROR nodes in the CST
+func (ti *TypeInjectionTransformer) checkForErrorNodes(node *sitter.Node, content []byte) error {
+	if node == nil {
+		return nil
+	}
+
+	if node.Kind() == "ERROR" {
+		start := node.StartByte()
+		end := node.EndByte()
+		if end > uint(len(content)) {
+			end = uint(len(content))
+		}
+		errorText := string(content[start:end])
+		return fmt.Errorf("parse error at position %d-%d: %q", start, end, errorText)
+	}
+
+	// Recursively check child nodes
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil {
+			if err := ti.checkForErrorNodes(child, content); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// formatAndValidateTypeAnnotation formats and validates a type annotation
+func (ti *TypeInjectionTransformer) formatAndValidateTypeAnnotation(t types.Type) (string, error) {
+	if t == nil {
+		return "", fmt.Errorf("type cannot be nil")
+	}
+
+	var typeStr string
+	switch t := t.(type) {
+	case interface{ String() string }:
+		typeStr = t.String()
+	default:
+		typeStr = fmt.Sprintf("%T", t) // Fallback
+	}
+
+	// Validate the type annotation format
+	if err := ti.validateTypeAnnotationFormat(typeStr); err != nil {
+		return "", err
+	}
+
+	return typeStr, nil
+}
+
+// validateTypeAnnotationFormat checks if a type annotation is valid for Perl syntax
+func (ti *TypeInjectionTransformer) validateTypeAnnotationFormat(typeAnnotation string) error {
+	if typeAnnotation == "" {
+		return fmt.Errorf("type annotation cannot be empty")
+	}
+
+	// Check for valid type identifier format (allows alphanumeric, underscore, and some special chars)
+	validTypePattern := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\[[A-Za-z0-9_|&!]+\])?(\|[A-Za-z_][A-Za-z0-9_]*(\[[A-Za-z0-9_|&!]+\])?)*$`)
+	if !validTypePattern.MatchString(typeAnnotation) {
+		return fmt.Errorf("invalid type annotation format: %q", typeAnnotation)
+	}
+
+	// Check for potentially problematic characters
+	if strings.ContainsAny(typeAnnotation, "\"'`$@%#;\\") {
+		return fmt.Errorf("type annotation contains invalid characters: %q", typeAnnotation)
+	}
+
+	return nil
+}
+
+// validateVariableDeclaration validates a modified variable declaration
+func (ti *TypeInjectionTransformer) validateVariableDeclaration(content []byte, insertPos uint, typeAnnotation string) error {
+	// Extract a reasonable context around the insertion point for validation
+	start := uint(0)
+	if insertPos > 50 {
+		start = insertPos - 50
+	}
+
+	end := insertPos + uint(len(typeAnnotation)) + 100
+	if end > uint(len(content)) {
+		end = uint(len(content))
+	}
+
+	context := content[start:end]
+
+	// Basic pattern matching for "my Type $var" structure
+	myTypeVarPattern := regexp.MustCompile(`my\s+[A-Za-z_][A-Za-z0-9_]*(\[[^\]]+\])?\s+\$[A-Za-z_][A-Za-z0-9_]*`)
+	if !myTypeVarPattern.Match(context) {
+		return fmt.Errorf("modified variable declaration does not match expected pattern")
+	}
+
+	return nil
+}
+
+// validateSubroutineDeclaration validates a modified subroutine declaration
+func (ti *TypeInjectionTransformer) validateSubroutineDeclaration(content []byte, insertPos uint, returnTypeStr string) error {
+	// Extract a reasonable context around the insertion point for validation
+	start := uint(0)
+	if insertPos > 100 {
+		start = insertPos - 100
+	}
+
+	end := insertPos + uint(len(returnTypeStr)) + 100
+	if end > uint(len(content)) {
+		end = uint(len(content))
+	}
+
+	context := content[start:end]
+
+	// Basic pattern matching for "sub name -> ReturnType {" structure
+	subReturnTypePattern := regexp.MustCompile(`sub\s+[A-Za-z_][A-Za-z0-9_]*\s*->\s*[A-Za-z_][A-Za-z0-9_]*(\[[^\]]+\])?\s*\{`)
+	if !subReturnTypePattern.Match(context) {
+		return fmt.Errorf("modified subroutine declaration does not match expected pattern")
+	}
+
+	return nil
 }

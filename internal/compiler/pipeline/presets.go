@@ -17,8 +17,7 @@ type PipelinePreset struct {
 // GetAllPresets returns all available pipeline presets (static ones only)
 func GetAllPresets() []PipelinePreset {
 	return []PipelinePreset{
-		GetStandardPerlPreset(),
-		GetCleanPerlPreset(), // Deprecated but included for compatibility
+		GetCleanPerlPreset(),
 		GetTypedPerlPreset(),
 		GetCodeFormatterPreset(),
 		GetTypedFormatterPreset(),
@@ -26,25 +25,18 @@ func GetAllPresets() []PipelinePreset {
 	}
 }
 
-// GetStandardPerlPreset returns a pipeline for compiling typed Perl to standard Perl
-func GetStandardPerlPreset() PipelinePreset {
+// GetCleanPerlPreset returns a pipeline for compiling typed Perl to clean Perl
+func GetCleanPerlPreset() PipelinePreset {
 	pipeline := NewBuilder().
 		Add(NewTypeRemovalTransformer()).
 		Add(NewWhitespaceNormalizerTransformer()).
 		Build()
 
 	return PipelinePreset{
-		Name:        "standard_perl",
-		Description: "Removes type annotations and normalizes whitespace for standard Perl output",
+		Name:        "clean_perl",
+		Description: "Removes type annotations and normalizes whitespace for clean Perl output",
 		Pipeline:    pipeline,
 	}
-}
-
-// Deprecated: Use GetStandardPerlPreset instead
-func GetCleanPerlPreset() PipelinePreset {
-	preset := GetStandardPerlPreset()
-	preset.Name = "clean_perl" // Keep old name for compatibility
-	return preset
 }
 
 // GetTypedPerlPreset returns a pipeline for preserving typed Perl
