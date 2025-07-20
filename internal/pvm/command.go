@@ -201,6 +201,22 @@ Examples:
 				return err
 			}
 
+			// Get download-related flags
+			mirror, err := cmd.Flags().GetString("mirror")
+			if err != nil {
+				return err
+			}
+
+			skipCache, err := cmd.Flags().GetBool("skip-cache")
+			if err != nil {
+				return err
+			}
+
+			skipChecksum, err := cmd.Flags().GetBool("skip-checksum")
+			if err != nil {
+				return err
+			}
+
 			// Get binary installation flags
 			binaryOnly, err := cmd.Flags().GetBool("binary-only")
 			if err != nil {
@@ -383,6 +399,9 @@ Examples:
 				CleanupBuildDir:  true, // Always clean up for install command
 				ProgressCallback: progressCallback,
 				Context:          cmd.Context(),
+				Mirror:           mirror,
+				SkipCache:        skipCache,
+				SkipChecksum:     skipChecksum,
 			}
 
 			// Start the build
@@ -417,6 +436,11 @@ Examples:
 
 	// Development version support
 	cmd.Flags().Bool("include-dev", false, "Include development versions when resolving 'latest' (e.g., 'latest --include-dev')")
+
+	// Download-related flags
+	cmd.Flags().String("mirror", "", "Mirror URL to use for downloading (default: "+perl.DefaultMirror+")")
+	cmd.Flags().Bool("skip-cache", false, "Skip using cached downloads")
+	cmd.Flags().Bool("skip-checksum", false, "Skip checksum validation")
 
 	return cmd
 }

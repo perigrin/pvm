@@ -259,20 +259,21 @@ func doDownloadPerlSource(options *DownloadOptions) (*DownloadResult, error) {
 			WithLocation(destPath)
 	}
 
-	// Calculate checksum
-	checksum := ""
-	if !options.SkipChecksum {
-		checksum, err = calculateFileChecksum(destPath)
-		if err != nil {
-			return nil, errors.NewVersionError(
-				ErrChecksumMismatch,
-				"Failed to calculate checksum for downloaded file",
-				err).
-				WithLocation(destPath)
-		}
+	// Calculate checksum (always calculate for reporting, even if verification is skipped)
+	checksum, err := calculateFileChecksum(destPath)
+	if err != nil {
+		return nil, errors.NewVersionError(
+			ErrChecksumMismatch,
+			"Failed to calculate checksum for downloaded file",
+			err).
+			WithLocation(destPath)
+	}
 
-		// In a real implementation, we would compare with known checksums
-		// For now, we'll just accept the file without validation
+	// Verify checksum if not skipped
+	if !options.SkipChecksum {
+		if err := verifyDownloadChecksum(destPath, version); err != nil {
+			return nil, err
+		}
 	}
 
 	// Return download result
@@ -383,6 +384,43 @@ func calculateFileChecksum(filePath string) (string, error) {
 
 	checksum := hex.EncodeToString(hasher.Sum(nil))
 	return checksum, nil
+}
+
+// verifyDownloadChecksum verifies the checksum of a downloaded Perl source file
+func verifyDownloadChecksum(filePath, version string) error {
+	// Calculate the actual checksum of the downloaded file
+	actualChecksum, err := calculateFileChecksum(filePath)
+	if err != nil {
+		return errors.NewVersionError(ErrChecksumMismatch,
+			fmt.Sprintf("Failed to calculate checksum for %s", filePath), err).
+			WithLocation(filePath)
+	}
+
+	// Load checksum database
+	db, err := NewChecksumDatabase()
+	if err != nil {
+		return errors.NewVersionError(ErrChecksumMismatch,
+			fmt.Sprintf("Failed to load checksum database for version %s", version), err).
+			WithLocation(filePath)
+	}
+
+	// Get expected checksum for this version
+	expectedChecksum, err := db.GetChecksum(version)
+	if err != nil {
+		// No known checksum for this version
+		return errors.NewVersionError(ErrChecksumMismatch,
+			fmt.Sprintf("No known checksum for Perl version %s. Use --skip-checksum to bypass verification (not recommended)", version), err).
+			WithLocation(filePath)
+	}
+
+	// Compare checksums
+	if actualChecksum != expectedChecksum {
+		return errors.NewVersionError(ErrChecksumMismatch,
+			fmt.Sprintf("Checksum mismatch for Perl version %s: expected %s, got %s", version, expectedChecksum, actualChecksum), nil).
+			WithLocation(filePath)
+	}
+
+	return nil
 }
 
 // progressReader is an io.Reader that reports progress
