@@ -272,6 +272,15 @@ type BuildOptions struct {
 	// MaxRetries is the maximum number of retries for build steps
 	MaxRetries int
 
+	// SkipChecksum indicates whether to skip checksum validation during download
+	SkipChecksum bool
+
+	// Mirror is the mirror URL to use for downloading (optional)
+	Mirror string
+
+	// SkipCache indicates whether to skip using cached downloads
+	SkipCache bool
+
 	// Verbose enables verbose output
 	Verbose bool
 }
@@ -439,7 +448,10 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 			// Download the source archive
 			downloadOptions := &DownloadOptions{
 				Version:          version,
+				Mirror:           options.Mirror,
 				ProgressCallback: nil, // TODO: Adapt download progress to build progress
+				SkipCache:        options.SkipCache,
+				SkipChecksum:     options.SkipChecksum,
 				Context:          options.Context,
 			}
 

@@ -234,7 +234,8 @@ func TestDownloadPerlSource(t *testing.T) {
 			lastProgress = transferred
 			totalSize = total
 		},
-		Context: context.Background(),
+		SkipChecksum: true, // Skip checksum verification for mock content
+		Context:      context.Background(),
 	}
 
 	// Download the source
@@ -339,11 +340,12 @@ func TestDownloadFailures(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			options := &DownloadOptions{
-				Mirror:     env.server.URL + test.urlSuffix,
-				Version:    test.version,
-				MaxRetries: test.maxRetries,
-				SkipCache:  test.skipCache,
-				Context:    context.Background(),
+				Mirror:       env.server.URL + test.urlSuffix,
+				Version:      test.version,
+				MaxRetries:   test.maxRetries,
+				SkipCache:    test.skipCache,
+				SkipChecksum: true, // Skip checksum verification for mock content
+				Context:      context.Background(),
 			}
 
 			result, err := DownloadPerlSource(options)

@@ -6,8 +6,12 @@ package perl
 import (
 	"bufio"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+
+	"tamarou.com/pvm/internal/xdg"
 )
 
 // ChecksumDatabase stores known checksums for Perl releases
@@ -85,9 +89,77 @@ func (db *ChecksumDatabase) loadEmbeddedChecksums() error {
 	return scanner.Err()
 }
 
-// loadUserChecksums loads user-provided checksums
+// loadUserChecksums loads user-provided checksums from XDG_CONFIG_HOME/pvm/checksums.txt
 func (db *ChecksumDatabase) loadUserChecksums() error {
-	// TODO: Load from XDG_CONFIG_HOME/pvm/checksums.txt
+	// Get XDG directories
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return fmt.Errorf("failed to get XDG directories: %w", err)
+	}
+
+	// Build path to user checksums file
+	checksumsFile := filepath.Join(dirs.ConfigDir, "checksums.txt")
+
+	// Check if file exists
+	if _, err := os.Stat(checksumsFile); os.IsNotExist(err) {
+		// File doesn't exist, which is fine - no user checksums
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("failed to stat checksums file %s: %w", checksumsFile, err)
+	}
+
+	// Open and read the file
+	file, err := os.Open(checksumsFile)
+	if err != nil {
+		return fmt.Errorf("failed to open checksums file %s: %w", checksumsFile, err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	lineNumber := 0
+
+	for scanner.Scan() {
+		lineNumber++
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Parse line format: version algorithm checksum
+		parts := strings.Fields(line)
+		if len(parts) != 3 {
+			return fmt.Errorf("invalid checksum format at line %d in %s: expected 'version algorithm checksum', got: %s",
+				lineNumber, checksumsFile, line)
+		}
+
+		version := parts[0]
+		algorithm := strings.ToLower(parts[1])
+		checksum := parts[2]
+
+		// For now, only support sha256 (can be extended later)
+		if algorithm != "sha256" {
+			return fmt.Errorf("unsupported checksum algorithm '%s' at line %d in %s (currently only sha256 is supported)",
+				algorithm, lineNumber, checksumsFile)
+		}
+
+		// Validate checksum format (sha256 should be 64 hex characters)
+		if len(checksum) != 64 {
+			return fmt.Errorf("invalid sha256 checksum length at line %d in %s: expected 64 characters, got %d",
+				lineNumber, checksumsFile, len(checksum))
+		}
+
+		// Store in database (user checksums override embedded ones)
+		db.mu.Lock()
+		db.checksums[version] = checksum
+		db.mu.Unlock()
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading checksums file %s: %w", checksumsFile, err)
+	}
+
 	return nil
 }
 
