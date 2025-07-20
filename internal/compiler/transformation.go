@@ -46,20 +46,29 @@ func NewCSTTransformer(content []byte, options TransformationOptions) *CSTTransf
 		options: options,
 	}
 
-	// Add default transformation rules
-	transformer.rules = []TransformationRule{
-		&ClassConstraintPreservationRule{}, // Must come before TypeExpressionRemovalRule
-		&TypeExpressionRemovalRule{},
-		&VariableDeclarationCleanupRule{},
-		&TypeAssertionCleanupRule{},
-		&MethodParameterCleanupRule{},
-		&MethodDeclarationCleanupRule{},
-		&SubroutineReturnTypeRule{},
-		&ForLoopTypedVariableRule{},
-		&ErrorNodeCleanupRule{},
-		&SliceExpressionRule{},        // Handle slice expressions specifically
-		&ArrayElementExpressionRule{}, // Handle array element expressions specifically
-		&PreservationRule{},           // Catch-all rule that preserves everything else
+	// Add transformation rules based on options
+	if options.RemoveTypeNodes {
+		// Clean Perl: Remove type annotations
+		transformer.rules = []TransformationRule{
+			&ClassConstraintPreservationRule{}, // Must come before TypeExpressionRemovalRule
+			&TypeExpressionRemovalRule{},
+			&VariableDeclarationCleanupRule{},
+			&TypeAssertionCleanupRule{},
+			&MethodParameterCleanupRule{},
+			&MethodDeclarationCleanupRule{},
+			&SubroutineReturnTypeRule{},
+			&ForLoopTypedVariableRule{},
+			&ErrorNodeCleanupRule{},
+			&SliceExpressionRule{},        // Handle slice expressions specifically
+			&ArrayElementExpressionRule{}, // Handle array element expressions specifically
+			&PreservationRule{},           // Catch-all rule that preserves everything else
+		}
+	} else {
+		// Typed Perl: Preserve type annotations and formatting
+		transformer.rules = []TransformationRule{
+			&ErrorNodeCleanupRule{}, // Still clean up error nodes
+			&PreservationRule{},     // Preserve everything else as-is
+		}
 	}
 
 	return transformer
@@ -640,11 +649,8 @@ func CreateTypedPerl(root *sitter.Node, content []byte) (*TransformationResult, 
 		}, err
 	}
 
-	// Normalize spacing between type annotations and sigils
-	normalized := normalizeTypeAnnotationSpacing(transformed)
-
 	return &TransformationResult{
-		TransformedCode: normalized,
+		TransformedCode: transformed,
 		Success:         true,
 	}, nil
 }
@@ -977,20 +983,4 @@ func isVariableDeclarationContext(prev, next string) bool {
 	nextIsVarName := strings.HasPrefix(next, "$") || strings.HasPrefix(next, "@") || strings.HasPrefix(next, "%")
 
 	return prevIsVarStart && nextIsVarName
-}
-
-// normalizeTypeAnnotationSpacing ensures proper spacing between type annotations and sigils
-func normalizeTypeAnnotationSpacing(code string) string {
-	// Pattern to match type annotations that are immediately followed by sigils with NO space
-	// This handles complex nested brackets like ArrayRef[HashRef[Str]]$var
-	typeWithoutSpacePattern := regexp.MustCompile(`([A-Z!][A-Za-z0-9_]*(?:\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\])?(?:[|&][A-Za-z0-9_\[\],\s|&!]*)*)([\$@%])([a-zA-Z_][a-zA-Z0-9_]*)`)
-
-	// Fix cases where type is immediately followed by sigil (no space)
-	result := typeWithoutSpacePattern.ReplaceAllString(code, `$1 $2$3`)
-
-	// Also normalize any cases with multiple spaces to single space
-	multiSpacePattern := regexp.MustCompile(`([A-Z!][A-Za-z0-9_]*(?:\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\])?(?:[|&][A-Za-z0-9_\[\],\s|&!]*)*)\s+([\$@%])([a-zA-Z_][a-zA-Z0-9_]*)`)
-	result = multiSpacePattern.ReplaceAllString(result, `$1 $2$3`)
-
-	return result
 }
