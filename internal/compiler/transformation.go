@@ -622,7 +622,7 @@ func CreateCleanPerl(root *sitter.Node, content []byte) (*TransformationResult, 
 	}, nil
 }
 
-// CreateTypedPerl creates a typed Perl version by preserving all type annotations
+// CreateTypedPerl creates a typed Perl version by preserving all type annotations with normalized spacing
 func CreateTypedPerl(root *sitter.Node, content []byte) (*TransformationResult, error) {
 	options := TransformationOptions{
 		PreserveComments:   true,
@@ -640,8 +640,11 @@ func CreateTypedPerl(root *sitter.Node, content []byte) (*TransformationResult, 
 		}, err
 	}
 
+	// Normalize spacing between type annotations and sigils
+	normalized := normalizeTypeAnnotationSpacing(transformed)
+
 	return &TransformationResult{
-		TransformedCode: transformed,
+		TransformedCode: normalized,
 		Success:         true,
 	}, nil
 }
@@ -806,6 +809,14 @@ func cleanRemainingTypeAnnotations(code string) string {
 	forLoopTypePattern := regexp.MustCompile(`\bfor\s+my\s+\w+(?:\[[^\]]*\])*\s+(\$\w+)`)
 	code = forLoopTypePattern.ReplaceAllString(code, "for my $1")
 
+	// Also clean up any remaining extra spaces in for loops
+	extraSpacePattern := regexp.MustCompile(`\bfor\s+my\s+\s+(\$\w+)`)
+	code = extraSpacePattern.ReplaceAllString(code, "for my $1")
+
+	// Remove type declarations entirely
+	typeDeclarationPattern := regexp.MustCompile(`(?m)^type\s+\w+\s*=\s*[^;]*;?\s*$`)
+	code = typeDeclarationPattern.ReplaceAllString(code, "")
+
 	// Pattern to match any remaining standalone type expressions with brackets
 	// This catches complex parameterized types that slipped through
 	// BUT avoid matching array indexing expressions like $array[1] or @array[1]
@@ -966,4 +977,20 @@ func isVariableDeclarationContext(prev, next string) bool {
 	nextIsVarName := strings.HasPrefix(next, "$") || strings.HasPrefix(next, "@") || strings.HasPrefix(next, "%")
 
 	return prevIsVarStart && nextIsVarName
+}
+
+// normalizeTypeAnnotationSpacing ensures proper spacing between type annotations and sigils
+func normalizeTypeAnnotationSpacing(code string) string {
+	// Pattern to match type annotations that are immediately followed by sigils with NO space
+	// This handles complex nested brackets like ArrayRef[HashRef[Str]]$var
+	typeWithoutSpacePattern := regexp.MustCompile(`([A-Z!][A-Za-z0-9_]*(?:\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\])?(?:[|&][A-Za-z0-9_\[\],\s|&!]*)*)([\$@%])([a-zA-Z_][a-zA-Z0-9_]*)`)
+
+	// Fix cases where type is immediately followed by sigil (no space)
+	result := typeWithoutSpacePattern.ReplaceAllString(code, `$1 $2$3`)
+
+	// Also normalize any cases with multiple spaces to single space
+	multiSpacePattern := regexp.MustCompile(`([A-Z!][A-Za-z0-9_]*(?:\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\])?(?:[|&][A-Za-z0-9_\[\],\s|&!]*)*)\s+([\$@%])([a-zA-Z_][a-zA-Z0-9_]*)`)
+	result = multiSpacePattern.ReplaceAllString(result, `$1 $2$3`)
+
+	return result
 }

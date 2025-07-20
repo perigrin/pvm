@@ -73,7 +73,7 @@ func TestCleanPerlCompiler_Basic(t *testing.T) {
 }
 
 func TestTypedPerlCompiler_Basic(t *testing.T) {
-	compiler := NewTypedPerlCompiler()
+	compiler := NewTypedPerlCompilerUnified()
 
 	// Test target
 	if compiler.Target() != TargetTypedPerl {

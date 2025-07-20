@@ -23,7 +23,6 @@ type UserData = HashRef[Str];
 
 ```perl
 use v5.36;
-# Type declarations are removed in clean Perl
 ```
 
 ## Typed Perl Output

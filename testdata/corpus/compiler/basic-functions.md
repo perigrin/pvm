@@ -76,7 +76,7 @@ sub Int add (Int $a, Int $b) {
         "parameters": [
           {
             "type_annotation": {
-              "type": "simple_type", 
+              "type": "simple_type",
               "name": "Int"
             },
             "variable": {
@@ -90,7 +90,7 @@ sub Int add (Int $a, Int $b) {
               "name": "Int"
             },
             "variable": {
-              "type": "scalar_variable", 
+              "type": "scalar_variable",
               "name": "b"
             }
           }
@@ -104,7 +104,7 @@ sub Int add (Int $a, Int $b) {
             "expression": {
               "type": "binary_expression",
               "left": {"type": "scalar_variable", "name": "a"},
-              "operator": "+", 
+              "operator": "+",
               "right": {"type": "scalar_variable", "name": "b"}
             }
           }
