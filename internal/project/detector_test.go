@@ -62,7 +62,7 @@ func TestDetectProject(t *testing.T) {
 				assert.Contains(t, ctx.RootDir, "perl-version-project")
 				assert.Equal(t, "5.38.0", ctx.PerlVersion)
 				assert.Equal(t, ".perl-version", ctx.DetectionInfo)
-				assert.Contains(t, ctx.LocalLibDir, filepath.Join("perl-version-project", "lib"))
+				assert.Contains(t, ctx.LocalLibDir, filepath.Join("perl-version-project", "local"))
 			},
 		},
 		{

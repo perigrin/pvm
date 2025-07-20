@@ -53,6 +53,9 @@ type ResolutionOptions struct {
 	// Explicit version to use (highest precedence)
 	ExplicitVersion string
 
+	// Script path to analyze for version requirements
+	ScriptPath string
+
 	// Project directory to check (defaults to current directory)
 	ProjectDir string
 
@@ -68,6 +71,7 @@ type ResolutionOptions struct {
 	SkipUserConfig      bool // Skip user configuration
 	SkipSystemPerl      bool // Skip system Perl detection
 	SkipVersionResolved bool // Skip calling OnVersionResolved
+	SkipScriptAnalysis  bool // Skip script version requirement analysis
 }
 
 // OnVersionResolved is a callback that will be called when a version is resolved
@@ -80,8 +84,9 @@ var OnVersionResolved func(version *ResolvedVersion)
 // 2. Environment variables (PVM_PERL_VERSION, PLENV_VERSION, PERLBREW_PERL)
 // 3. Project-local .perl-version file
 // 4. Project-local .pvm/pvm.toml
-// 5. User-level configuration
-// 6. System Perl
+// 5. Script version requirements (use v5.xx)
+// 6. User-level configuration
+// 7. System Perl
 func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 	// Use default options if nil
 	if options == nil {
@@ -230,7 +235,10 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 		}
 	}
 
-	// 5. Check user-level configuration (if not skipped)
+	// 5. Script version requirements are now handled in PVX package
+	// This avoids import cycles and provides better integration with auto-install functionality
+
+	// 6. Check user-level configuration (if not skipped)
 	if !options.SkipUserConfig && cfg != nil && cfg.PVM != nil {
 		resolved, err := resolveFromUserConfig(cfg, availableVersions)
 		if err == nil && resolved != nil {
@@ -239,7 +247,7 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 		}
 	}
 
-	// 6. Fallback to system Perl (if not skipped)
+	// 7. Fallback to system Perl (if not skipped)
 	if !options.SkipSystemPerl {
 		resolved, err := resolveFromSystemPerl()
 		if err == nil && resolved != nil {

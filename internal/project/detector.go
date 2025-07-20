@@ -57,7 +57,7 @@ func DetectProject(workingDir string) (*ProjectContext, error) {
 	// Walk up directory tree looking for project markers
 	result := &ProjectContext{
 		IsProject:   false,
-		LocalLibDir: filepath.Join(cleanDir, "lib"),
+		LocalLibDir: filepath.Join(cleanDir, "local"), // Changed default from "lib" to "local"
 	}
 
 	currentDir := cleanDir
@@ -83,7 +83,7 @@ func DetectProject(workingDir string) (*ProjectContext, error) {
 				}
 
 				// Update local lib directory to be relative to project root
-				result.LocalLibDir = filepath.Join(result.RootDir, "lib")
+				result.LocalLibDir = filepath.Join(result.RootDir, "local") // Changed default from "lib" to "local"
 
 				// Check for additional project information now that we found the root
 				enrichProjectContext(result)

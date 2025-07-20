@@ -155,8 +155,8 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 	if installDir == "" {
 		// Check if we're in a project context and not forcing global installation
 		if options.ProjectContext != nil && options.ProjectContext.IsProject && !options.ForceGlobal {
-			// Install to project's local lib directory
-			installDir = filepath.Join(options.ProjectContext.RootDir, "lib")
+			// Install to project's local lib directory (respects configuration)
+			installDir = options.ProjectContext.LocalLibDir
 			log.Infof("Using project installation directory: %s", installDir)
 		} else {
 			// Use XDG data directory for user-space installation

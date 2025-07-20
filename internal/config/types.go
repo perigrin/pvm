@@ -5,6 +5,7 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -31,6 +32,9 @@ type Config struct {
 
 	// Build configuration
 	Build *BuildConfig `toml:"build" json:"build"`
+
+	// Dependencies configuration
+	Dependencies *DependenciesConfig `toml:"dependencies" json:"dependencies"`
 }
 
 // PVMConfig represents configuration for the Perl Version Manager
@@ -235,6 +239,9 @@ type PVXConfig struct {
 
 	// AlwaysInstallDeps specifies whether to automatically install missing dependencies
 	AlwaysInstallDeps bool `toml:"always_install_deps" json:"always_install_deps"`
+
+	// AutoInstallPerl specifies whether to automatically install missing Perl versions
+	AutoInstallPerl bool `toml:"auto_install_perl" json:"auto_install_perl"`
 
 	// Timeout specifies the maximum execution time in seconds
 	Timeout int `toml:"timeout" json:"timeout"`
@@ -482,6 +489,53 @@ type ProjectConfig struct {
 	Repository string `toml:"repository" json:"repository"`
 }
 
+// DependenciesConfig represents dependency management configuration
+type DependenciesConfig struct {
+	// Cpanfile specifies the path to the cpanfile for dependency management
+	Cpanfile string `toml:"cpanfile" json:"cpanfile"`
+
+	// LocalLib specifies the local library directory for project dependencies
+	LocalLib string `toml:"local_lib" json:"local_lib"`
+}
+
+// Validate checks if the Dependencies configuration is valid
+func (c *DependenciesConfig) Validate() []error {
+	var errors []error
+
+	// Validate LocalLib path
+	if c.LocalLib != "" {
+		// Check for path traversal
+		if strings.Contains(c.LocalLib, "..") {
+			errors = append(errors, ValidateError("LocalLib cannot contain path traversal sequences (..)"))
+		}
+
+		// Check for absolute paths
+		if filepath.IsAbs(c.LocalLib) {
+			errors = append(errors, ValidateError("LocalLib must be a relative path"))
+		}
+
+		// Check for empty path components
+		if strings.Contains(c.LocalLib, "//") {
+			errors = append(errors, ValidateError("LocalLib cannot contain empty path components"))
+		}
+
+		// Check for null bytes and control characters
+		for _, r := range c.LocalLib {
+			if r == 0 || (r < 32 && r != '\t') {
+				errors = append(errors, ValidateError("LocalLib cannot contain null bytes or control characters"))
+				break
+			}
+		}
+
+		// Length validation
+		if len(c.LocalLib) > 255 {
+			errors = append(errors, ValidateError("LocalLib path too long (max 255 characters)"))
+		}
+	}
+
+	return errors
+}
+
 // BuildConfig represents build system configuration
 type BuildConfig struct {
 	// Mode specifies the default build mode
@@ -588,6 +642,7 @@ func NewDefaultConfig() *Config {
 			CleanupAfter:            true,
 			IsolationLevel:          "clean",
 			AlwaysInstallDeps:       true,
+			AutoInstallPerl:         false, // Conservative default - require explicit opt-in
 			Timeout:                 300,
 			MaxMemory:               "512MB",
 			IsolationReadOnlyPaths:  []string{"/usr", "/bin", "/lib"},
@@ -656,6 +711,10 @@ func NewDefaultConfig() *Config {
 				Installer:      "ExtUtils::MakeMaker",
 			},
 		},
+		Dependencies: &DependenciesConfig{
+			Cpanfile: "cpanfile",
+			LocalLib: "local", // Changed default from "lib" to "local"
+		},
 	}
 }
 
@@ -696,6 +755,11 @@ func (c *Config) Validate() []error {
 	// Add Build validation
 	if c.Build != nil {
 		errors = append(errors, c.Build.Validate()...)
+	}
+
+	// Add Dependencies validation
+	if c.Dependencies != nil {
+		errors = append(errors, c.Dependencies.Validate()...)
 	}
 
 	return errors

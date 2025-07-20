@@ -121,7 +121,7 @@ func TestGetProjectAwareLibPath(t *testing.T) {
 				return subDir
 			},
 			expectedPath: func(root string) string {
-				return filepath.Join(root, "cpan-project", "lib")
+				return filepath.Join(root, "cpan-project", "local")
 			},
 		},
 	}

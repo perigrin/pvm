@@ -165,18 +165,20 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 		{
 			name: "Project context with local installation",
 			projectContext: &project.ProjectContext{
-				IsProject: true,
-				RootDir:   "/tmp/test-project",
+				IsProject:   true,
+				RootDir:     "/tmp/test-project",
+				LocalLibDir: "/tmp/test-project/local", // Changed from "lib" to "local"
 			},
 			forceGlobal:    false,
-			expectedInPath: "/tmp/test-project/lib", // Should use project lib
+			expectedInPath: "/tmp/test-project/local", // Should use project local
 			expectedType:   "project",
 		},
 		{
 			name: "Project context with forced global installation",
 			projectContext: &project.ProjectContext{
-				IsProject: true,
-				RootDir:   "/tmp/test-project",
+				IsProject:   true,
+				RootDir:     "/tmp/test-project",
+				LocalLibDir: "/tmp/test-project/local", // Set LocalLibDir field
 			},
 			forceGlobal:    true,
 			expectedInPath: "perl/modules", // Should use global despite project context
@@ -209,6 +211,7 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 			// Update project context to use temp directory if needed
 			if options.ProjectContext != nil && tt.expectedType == "project" {
 				options.ProjectContext.RootDir = tempDir
+				options.ProjectContext.LocalLibDir = filepath.Join(tempDir, "lib")
 			}
 
 			// Test setup isolation environment

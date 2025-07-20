@@ -196,3 +196,8 @@ core
 core.*
 *.dump
 *.dmp
+
+# Local test artifacts
+local/
+test/e2e/local/
+issues_analysis.json

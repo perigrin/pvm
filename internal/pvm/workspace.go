@@ -447,7 +447,7 @@ perl_version = "%s"
 
 [dependencies]
 cpanfile = "cpanfile"
-local_lib = "lib"
+local_lib = "local"
 
 [build]
 output_dir = "build"
