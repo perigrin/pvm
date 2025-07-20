@@ -33,7 +33,7 @@ sub process ($data) {
 ## Typed Perl Output
 
 ```perl
-sub Result[Bool] process (ArrayRef[HashRef[Str]]$data) {
+sub Result[Bool] process (ArrayRef[HashRef[Str]] $data) {
     return 1;
 }
 ```
@@ -62,7 +62,7 @@ sub complex ($param) {
 ## Typed Perl Output
 
 ```perl
-sub Str complex (Union[Str, Union[Int, Bool]]$param) {
+sub Str complex (Union[Str, Union[Int, Bool]] $param) {
     return "result";
 }
 ```
@@ -91,7 +91,7 @@ sub validate ($obj, $config) {
 ## Typed Perl Output
 
 ```perl
-sub Bool validate (Object&Serializable$obj, !Undef$config) {
+sub Bool validate (Object&Serializable $obj, !Undef $config) {
     return 1;
 }
 ```
@@ -138,7 +138,7 @@ for my UserId $id (keys %$config) {
 
 ```perl
 use v5.36;
-for my  $id (keys %$config) {
+for my $id (keys %$config) {
     my $user_info = {};
 }
 ```
@@ -153,17 +153,67 @@ for my UserId $id (keys %$config) {
 
 ## Text AST
 
-**Note**: Complex parameterized types, union types, intersection types, and function signatures are not yet supported by the tree-sitter grammar. This syntax would currently produce parse errors and cannot generate a meaningful AST.
-
 ```
-(parse error - complex type syntax not supported)
+(source
+  (foreach_statement
+    (scalar_variable (variable_name (identifier)))
+    (type_annotation (simple_type name: (identifier)))
+    (expression (hash_dereference (hash_variable)))
+    (block
+      (variable_declaration
+        (scalar_variable (variable_name (identifier)))
+        (type_annotation (parameterized_type
+          base: (identifier)
+          args: (union_type (simple_type) (simple_type))))
+        (expression (hash_reference))))))
 ```
 
 ## JSON AST
 
 ```json
 {
-  "error": "Complex type syntax not yet supported by grammar",
-  "note": "This syntax requires grammar extensions for: parameterized types (ArrayRef[Type]), union types (Type|Type), intersection types (Type&Type), negation types (!Type), and complex function signatures"
+  "type": "source",
+  "children": [
+    {
+      "type": "foreach_statement",
+      "variable": {
+        "type": "scalar_variable",
+        "type_annotation": {
+          "type": "simple_type",
+          "name": "UserId"
+        },
+        "name": "id"
+      },
+      "iterable": {
+        "type": "hash_dereference",
+        "variable": "config"
+      },
+      "body": {
+        "type": "block",
+        "statements": [
+          {
+            "type": "variable_declaration",
+            "variable": {
+              "type": "scalar_variable",
+              "name": "user_info"
+            },
+            "type_annotation": {
+              "type": "parameterized_type",
+              "base": "HashRef",
+              "args": [
+                {
+                  "type": "union_type",
+                  "members": ["Str", "Int"]
+                }
+              ]
+            },
+            "value": {
+              "type": "hash_reference"
+            }
+          }
+        ]
+      }
+    }
+  ]
 }
 ```

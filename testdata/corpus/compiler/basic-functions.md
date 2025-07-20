@@ -32,24 +32,85 @@ sub add ($a, $b) {
 ## Typed Perl Output
 
 ```perl
-sub Int add (Int$a, Int$b) {
+sub Int add (Int $a, Int $b) {
     return $a + $b;
 }
 ```
 
 ## Text AST
 
-**Note**: Function signatures with type annotations are not yet supported by the tree-sitter grammar. This syntax would currently produce parse errors and cannot generate a meaningful AST.
-
 ```
-(parse error - function signatures not supported)
+(source
+  (subroutine_declaration
+    (return_type (simple_type name: (identifier) @type))
+    name: (identifier) @function.name
+    (signature
+      (parameter
+        (type_annotation (simple_type name: (identifier) @type))
+        (scalar_variable (variable_name (identifier) @parameter)))
+      (parameter
+        (type_annotation (simple_type name: (identifier) @type))
+        (scalar_variable (variable_name (identifier) @parameter))))
+    (block
+      (return_statement
+        (binary_expression
+          left: (scalar_variable (variable_name (identifier)))
+          operator: "+"
+          right: (scalar_variable (variable_name (identifier))))))))
 ```
 
 ## JSON AST
 
 ```json
 {
-  "error": "Function signatures with type annotations not yet supported by grammar",
-  "note": "This syntax requires grammar extension for sub return types and typed parameters"
+  "type": "source",
+  "children": [
+    {
+      "type": "subroutine_declaration",
+      "return_type": {
+        "type": "simple_type",
+        "name": "Int"
+      },
+      "name": "add",
+      "signature": {
+        "parameters": [
+          {
+            "type_annotation": {
+              "type": "simple_type", 
+              "name": "Int"
+            },
+            "variable": {
+              "type": "scalar_variable",
+              "name": "a"
+            }
+          },
+          {
+            "type_annotation": {
+              "type": "simple_type",
+              "name": "Int"
+            },
+            "variable": {
+              "type": "scalar_variable", 
+              "name": "b"
+            }
+          }
+        ]
+      },
+      "body": {
+        "type": "block",
+        "statements": [
+          {
+            "type": "return_statement",
+            "expression": {
+              "type": "binary_expression",
+              "left": {"type": "scalar_variable", "name": "a"},
+              "operator": "+", 
+              "right": {"type": "scalar_variable", "name": "b"}
+            }
+          }
+        ]
+      }
+    }
+  ]
 }
 ```
