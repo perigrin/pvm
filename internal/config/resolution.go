@@ -47,6 +47,37 @@ func ResolvePerlPath(flagValue string, resolver PerlPathResolver) (string, error
 	return perlPath, nil
 }
 
+// resolveProjectLocalLibDir determines the local lib directory based on project configuration
+func resolveProjectLocalLibDir(projectCtx *project.ProjectContext) string {
+	if projectCtx == nil || !projectCtx.IsProject {
+		return ""
+	}
+
+	// Try to load project configuration from pvm.toml if it exists
+	configPath := filepath.Join(projectCtx.RootDir, "pvm.toml")
+	if _, err := os.Stat(configPath); err == nil {
+		if cfg, err := ParseFile(configPath); err != nil {
+			// Log configuration parsing errors but continue with fallback
+			// Note: Using fmt.Printf since we don't have access to logger here
+			fmt.Printf("Warning: Failed to parse pvm.toml: %v, using default local lib\n", err)
+		} else if cfg != nil && cfg.Dependencies != nil && cfg.Dependencies.LocalLib != "" {
+			// Security check: validate the configuration first
+			if validationErrors := cfg.Dependencies.Validate(); len(validationErrors) > 0 {
+				// Log security violations and fall back to default
+				fmt.Printf("Security: rejecting local_lib configuration due to validation errors: %v\n", validationErrors)
+				return projectCtx.LocalLibDir
+			}
+
+			// Clean the path to normalize it
+			cleanLocalLib := filepath.Clean(cfg.Dependencies.LocalLib)
+			return filepath.Join(projectCtx.RootDir, cleanLocalLib)
+		}
+	}
+
+	// Fall back to project context's LocalLibDir (which now defaults to "local")
+	return projectCtx.LocalLibDir
+}
+
 // ResolveInstallDirectory resolves the installation directory based on project context and flags
 func ResolveInstallDirectory(flagValue string, moduleArgs []string) (string, error) {
 	// If explicitly specified via flag, use it
@@ -61,9 +92,9 @@ func ResolveInstallDirectory(flagValue string, moduleArgs []string) (string, err
 		return "", nil
 	}
 
-	// If in a project and no explicit directory specified, use project lib directory
+	// If in a project and no explicit directory specified, use configured local lib directory
 	if projectCtx.IsProject {
-		return projectCtx.LocalLibDir, nil
+		return resolveProjectLocalLibDir(projectCtx), nil
 	}
 
 	return "", nil
