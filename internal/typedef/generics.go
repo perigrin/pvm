@@ -388,7 +388,7 @@ func (checker *GenericTypeChecker) validateProtocolConstraint(actualType, protoc
 	if actualType == nil || protocolType == nil {
 		return false, fmt.Errorf("type or protocol cannot be nil")
 	}
-	
+
 	// This is a simplified implementation for testing purposes
 	return true, nil
 }
@@ -483,7 +483,7 @@ func (checker *GenericTypeChecker) inferFromParameterizedType(ctx *inferenceCont
 	// If the base type name matches our generic name, try to match arguments to parameters
 	if paramType.BaseType != nil && paramType.BaseType.GetName() == ctx.generic.Name {
 		if len(paramType.Arguments) != len(ctx.generic.TypeParameters) {
-			return fmt.Errorf("argument count mismatch: expected %d, got %d", 
+			return fmt.Errorf("argument count mismatch: expected %d, got %d",
 				len(ctx.generic.TypeParameters), len(paramType.Arguments))
 		}
 
@@ -515,7 +515,7 @@ func (checker *GenericTypeChecker) inferFromSimpleType(ctx *inferenceContext, si
 func (checker *GenericTypeChecker) inferFromCompatibility(ctx *inferenceContext) error {
 	// This is a fallback method for complex inference scenarios
 	// For now, we'll use a simple heuristic based on type names
-	
+
 	if len(ctx.generic.TypeParameters) == 1 {
 		// Single parameter case - assume the usage type is the parameter
 		ctx.solutions[ctx.generic.TypeParameters[0].Name] = ctx.usage
@@ -538,7 +538,7 @@ func (checker *GenericTypeChecker) validateInferredConstraints(ctx *inferenceCon
 			return fmt.Errorf("error validating constraint for %s: %w", constraint.Parameter, err)
 		}
 		if !valid {
-			return fmt.Errorf("inferred type %s for parameter %s violates constraint %s", 
+			return fmt.Errorf("inferred type %s for parameter %s violates constraint %s",
 				solution.GetName(), constraint.Parameter, constraint.Expression.GetName())
 		}
 	}
@@ -562,7 +562,6 @@ func (checker *GenericTypeChecker) validateConstraint(inferredType Type, constra
 		return false, fmt.Errorf("unknown constraint kind: %d", constraint.Kind)
 	}
 }
-
 
 // GetBuiltinConstraints returns the built-in constraint types
 func GetBuiltinConstraints() map[string]Type {
