@@ -5,16 +5,12 @@ package inference
 
 import (
 	"tamarou.com/pvm/internal/ast"
-	"tamarou.com/pvm/internal/types"
 )
 
 // TypeInferenceEngine defines the interface for type inference
 type TypeInferenceEngine interface {
 	// InferTypes performs type inference on an AST and returns an enhanced AST with type information
 	InferTypes(inputAST *ast.AST) (ast.InferredAST, error)
-
-	// CalculateConfidence calculates confidence score for a type inference
-	CalculateConfidence(source types.TypeSource, context map[string]interface{}) float64
 
 	// GetInferenceErrors returns any errors collected during inference
 	GetInferenceErrors() []InferenceError
@@ -34,9 +30,6 @@ type basicInferenceEngine struct {
 	// Configuration options
 	options InferenceOptions
 
-	// Quality controller for confidence scoring and validation
-	qualityController *QualityController
-
 	// Conflict detector for resolving type conflicts
 	conflictDetector *ConflictDetector
 }
@@ -46,38 +39,28 @@ type InferenceOptions struct {
 	// EnableFlowAnalysis enables control flow analysis
 	EnableFlowAnalysis bool
 
-	// MinConfidenceThreshold sets minimum confidence for type annotations
-	MinConfidenceThreshold float64
-
 	// EnableVariablePropagation enables variable type propagation
 	EnableVariablePropagation bool
 }
 
 // NewTypeInferenceEngine creates a new basic inference engine
 func NewTypeInferenceEngine() TypeInferenceEngine {
-	qualityOptions := DefaultQualityOptions()
 	return &basicInferenceEngine{
 		errors: make([]InferenceError, 0),
 		options: InferenceOptions{
 			EnableFlowAnalysis:        false, // Start simple
-			MinConfidenceThreshold:    qualityOptions.MinConfidenceThreshold,
 			EnableVariablePropagation: true,
 		},
-		qualityController: NewQualityController(qualityOptions),
-		conflictDetector:  NewConflictDetector(),
+		conflictDetector: NewConflictDetector(),
 	}
 }
 
 // NewTypeInferenceEngineWithOptions creates an engine with custom options
 func NewTypeInferenceEngineWithOptions(options InferenceOptions) TypeInferenceEngine {
-	qualityOptions := DefaultQualityOptions()
-	qualityOptions.MinConfidenceThreshold = options.MinConfidenceThreshold
-
 	return &basicInferenceEngine{
-		errors:            make([]InferenceError, 0),
-		options:           options,
-		qualityController: NewQualityController(qualityOptions),
-		conflictDetector:  NewConflictDetector(),
+		errors:           make([]InferenceError, 0),
+		options:          options,
+		conflictDetector: NewConflictDetector(),
 	}
 }
 
@@ -100,11 +83,6 @@ func (bie *basicInferenceEngine) InferTypes(inputAST *ast.AST) (ast.InferredAST,
 	return inferredAST, nil
 }
 
-// CalculateConfidence calculates confidence score based on inference source
-func (bie *basicInferenceEngine) CalculateConfidence(source types.TypeSource, context map[string]interface{}) float64 {
-	// Use the quality controller for sophisticated confidence calculation
-	return bie.qualityController.CalculateConfidence(source, context)
-}
 
 // GetInferenceErrors returns collected errors
 func (bie *basicInferenceEngine) GetInferenceErrors() []InferenceError {

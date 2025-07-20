@@ -3,6 +3,10 @@
 
 package pipeline
 
+import (
+	"tamarou.com/pvm/internal/types"
+)
+
 // PipelinePreset represents a pre-configured transformation pipeline
 type PipelinePreset struct {
 	Name        string
@@ -10,10 +14,11 @@ type PipelinePreset struct {
 	Pipeline    TransformationPipeline
 }
 
-// GetAllPresets returns all available pipeline presets
+// GetAllPresets returns all available pipeline presets (static ones only)
 func GetAllPresets() []PipelinePreset {
 	return []PipelinePreset{
-		GetCleanPerlPreset(),
+		GetStandardPerlPreset(),
+		GetCleanPerlPreset(), // Deprecated but included for compatibility
 		GetTypedPerlPreset(),
 		GetCodeFormatterPreset(),
 		GetTypedFormatterPreset(),
@@ -21,18 +26,25 @@ func GetAllPresets() []PipelinePreset {
 	}
 }
 
-// GetCleanPerlPreset returns a pipeline for compiling typed Perl to clean Perl
-func GetCleanPerlPreset() PipelinePreset {
+// GetStandardPerlPreset returns a pipeline for compiling typed Perl to standard Perl
+func GetStandardPerlPreset() PipelinePreset {
 	pipeline := NewBuilder().
 		Add(NewTypeRemovalTransformer()).
 		Add(NewWhitespaceNormalizerTransformer()).
 		Build()
 
 	return PipelinePreset{
-		Name:        "clean_perl",
-		Description: "Removes type annotations and normalizes whitespace for clean Perl output",
+		Name:        "standard_perl",
+		Description: "Removes type annotations and normalizes whitespace for standard Perl output",
 		Pipeline:    pipeline,
 	}
+}
+
+// Deprecated: Use GetStandardPerlPreset instead
+func GetCleanPerlPreset() PipelinePreset {
+	preset := GetStandardPerlPreset()
+	preset.Name = "clean_perl" // Keep old name for compatibility
+	return preset
 }
 
 // GetTypedPerlPreset returns a pipeline for preserving typed Perl
@@ -104,6 +116,20 @@ func GetTabFormatterPreset() PipelinePreset {
 	}
 }
 
+// GetInferredTypedPerlPreset returns a pipeline for adding type annotations to untyped Perl
+func GetInferredTypedPerlPreset(typeInfo map[string]*types.TypeInfo, options TypeInjectionOptions) PipelinePreset {
+	pipeline := NewBuilder().
+		Add(NewTypeInjectionTransformer(typeInfo, options)).
+		Add(NewWhitespaceNormalizerTransformer()).
+		Build()
+
+	return PipelinePreset{
+		Name:        "inferred_typed_perl",
+		Description: "Adds inferred type annotations to untyped Perl code",
+		Pipeline:    pipeline,
+	}
+}
+
 // PipelineBuilder provides a fluent interface for building custom pipelines
 type PipelineBuilder struct {
 	builder *Builder
@@ -143,6 +169,12 @@ func (pb *PipelineBuilder) WithSpaceIndentation(size int) *PipelineBuilder {
 // WithTabIndentation adds tab-based indentation normalization to the pipeline
 func (pb *PipelineBuilder) WithTabIndentation() *PipelineBuilder {
 	pb.builder.Add(NewIndentationNormalizerTransformer(1, true))
+	return pb
+}
+
+// WithTypeInjection adds type injection to the pipeline
+func (pb *PipelineBuilder) WithTypeInjection(typeInfo map[string]*types.TypeInfo, options TypeInjectionOptions) *PipelineBuilder {
+	pb.builder.Add(NewTypeInjectionTransformer(typeInfo, options))
 	return pb
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
+	"tamarou.com/pvm/internal/compiler/pipeline"
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/inference"
 	"tamarou.com/pvm/internal/types"
@@ -27,9 +28,6 @@ type InferredTypedPerlCompiler struct {
 
 // InferredCompilerOptions controls compilation behavior
 type InferredCompilerOptions struct {
-	// ConfidenceThreshold sets minimum confidence for including type annotations
-	ConfidenceThreshold float64
-
 	// AnnotationStyle sets the formatting style for annotations
 	AnnotationStyle FormattingStyle
 
@@ -38,9 +36,6 @@ type InferredCompilerOptions struct {
 
 	// PreserveFormatting controls whether original formatting is preserved
 	PreserveFormatting bool
-
-	// IncludeUncertainTypes controls whether low-confidence types are included as comments
-	IncludeUncertainTypes bool
 
 	// VerboseOutput includes additional debugging information
 	VerboseOutput bool
@@ -54,12 +49,10 @@ func NewInferredTypedPerlCompiler() *InferredTypedPerlCompiler {
 		formatter:           formatter,
 		annotationGenerator: NewAnnotationGenerator(formatter),
 		options: InferredCompilerOptions{
-			ConfidenceThreshold:   0.7,
-			AnnotationStyle:       StyleInline,
-			PreserveComments:      true,
-			PreserveFormatting:    true,
-			IncludeUncertainTypes: true,
-			VerboseOutput:         false,
+			AnnotationStyle:    StyleInline,
+			PreserveComments:   true,
+			PreserveFormatting: true,
+			VerboseOutput:      false,
 		},
 	}
 }
@@ -67,10 +60,9 @@ func NewInferredTypedPerlCompiler() *InferredTypedPerlCompiler {
 // NewInferredTypedPerlCompilerWithOptions creates a compiler with custom options
 func NewInferredTypedPerlCompilerWithOptions(options InferredCompilerOptions) *InferredTypedPerlCompiler {
 	formatterOptions := FormatterOptions{
-		ConfidenceThreshold:       options.ConfidenceThreshold,
 		IncludeConfidenceComments: options.VerboseOutput,
 		UseShortTypeNames:         options.AnnotationStyle == StyleCompact,
-		PreferComments:            options.IncludeUncertainTypes,
+		PreferComments:            false, // Always use inline annotations
 	}
 
 	formatter := NewTypeFormatterWithOptions(formatterOptions)
@@ -80,7 +72,6 @@ func NewInferredTypedPerlCompilerWithOptions(options InferredCompilerOptions) *I
 		AnnotateMethods:   true,
 		AnnotateFields:    true,
 		AnnotateReturns:   false, // Usually too noisy
-		MinConfidence:     options.ConfidenceThreshold,
 		PreferredStyle:    options.AnnotationStyle,
 		ContextAware:      true,
 	}
@@ -135,25 +126,39 @@ func (itpc *InferredTypedPerlCompiler) Compile(inputAST AST) (string, error) {
 		return "", err
 	}
 
+	// Extract underlying *ast.AST from adapter if needed
+	var astImpl *ast.AST
+
+	// Try direct cast first
+	if directAST, ok := inputAST.(*ast.AST); ok {
+		astImpl = directAST
+	} else if adapter, ok := inputAST.(*ParserASTAdapter); ok {
+		// Extract from adapter
+		astImpl = adapter.ast
+	} else {
+		return "", &CompilerError{
+			Code:    "INVALID_AST_TYPE",
+			Message: "AST must be *ast.AST or ParserASTAdapter for type inference",
+		}
+	}
+
+	if astImpl == nil {
+		return "", &CompilerError{
+			Code:    "INVALID_AST",
+			Message: "Underlying AST is nil",
+		}
+	}
+
 	// Perform type inference on the AST
 	inferenceEngine := inference.NewTypeInferenceEngine()
-	// TODO: Update inference engine to use compiler.AST interface
-	// For now, we assume inputAST is *ast.AST since that's the only implementation
-	//nolint:sloppyTypeAssert // Type assertion from interface to concrete type is intentional
-	if astImpl, ok := inputAST.(*ast.AST); ok {
-		inferredAST, err := inferenceEngine.InferTypes(astImpl)
-		if err != nil {
-			return "", &CompilerError{
-				Code:    "INFERENCE_FAILED",
-				Message: fmt.Sprintf("Type inference failed: %v", err),
-			}
+	inferredAST, err := inferenceEngine.InferTypes(astImpl)
+	if err != nil {
+		return "", &CompilerError{
+			Code:    "INFERENCE_FAILED",
+			Message: fmt.Sprintf("Type inference failed: %v", err),
 		}
-		return itpc.CompileInferred(inferredAST)
 	}
-	return "", &CompilerError{
-		Code:    "INVALID_AST_TYPE",
-		Message: "AST must be *ast.AST for type inference",
-	}
+	return itpc.CompileInferred(inferredAST)
 }
 
 // CompileInferred generates typed Perl code from an already-inferred AST with type information
@@ -184,10 +189,65 @@ func (itpc *InferredTypedPerlCompiler) CompileInferred(inferredAST ast.InferredA
 	}
 
 	// For integration testing, start with adding the pragma and preserving most content
-	// TODO: Add actual type inference annotations based on inferredAST.GetAllTypeInfo()
+	// Add actual type inference annotations based on inferredAST.GetAllTypeInfo()
 	result := itpc.addPerlVersionPragma(content)
 
-	return result, nil
+	// Apply type annotations based on inference results
+	annotatedResult, err := itpc.addInferenceAnnotations(inferredAST, result)
+	if err != nil {
+		return "", &CompilerError{
+			Code:    "ANNOTATION_FAILED",
+			Message: fmt.Sprintf("Failed to add type annotations: %v", err),
+		}
+	}
+
+	return annotatedResult, nil
+}
+
+// addInferenceAnnotations adds type annotations based on inference results using the transformation pipeline
+func (itpc *InferredTypedPerlCompiler) addInferenceAnnotations(inferredAST ast.InferredAST, content string) (string, error) {
+	// Get all type information from the inference engine
+	typeInfo := inferredAST.GetAllTypeInfo()
+	if len(typeInfo) == 0 {
+		// No type information available, return content unchanged
+		return content, nil
+	}
+
+	// Use the transformation pipeline for direct CST type injection
+	return itpc.addInferenceAnnotationsWithPipeline(inferredAST, content, typeInfo)
+}
+
+// addInferenceAnnotationsWithPipeline uses the transformation pipeline to inject type nodes
+func (itpc *InferredTypedPerlCompiler) addInferenceAnnotationsWithPipeline(inferredAST ast.InferredAST, content string, typeInfo map[string]*types.TypeInfo) (string, error) {
+	// Create type injection options
+	options := pipeline.TypeInjectionOptions{
+		AnnotationStyle:     string(itpc.options.AnnotationStyle),
+		PreserveFormatting:  itpc.options.PreserveFormatting,
+		InjectVariableTypes: true,
+		InjectMethodTypes:   true,
+		InjectReturnTypes:   true,
+	}
+
+	// Build pipeline with type injection
+	transformationPipeline := pipeline.NewPipelineBuilder().
+		WithTypeInjection(typeInfo, options).
+		WithWhitespaceNormalization().
+		Build()
+
+	// Parse the content to get a CST for the transformation pipeline
+	// This follows the pattern used in pipeline_compiler.go
+	cstAST, err := NewCSTBasedAST(inferredAST.GetPath(), content)
+	if err != nil {
+		return "", fmt.Errorf("failed to create CST from content: %w", err)
+	}
+
+	// Execute the transformation pipeline
+	result, err := transformationPipeline.Execute(cstAST.GetCSTRoot(), []byte(content))
+	if err != nil {
+		return "", fmt.Errorf("transformation pipeline failed: %w", err)
+	}
+
+	return string(result.Content), nil
 }
 
 // addPerlVersionPragma adds the Perl version pragma after the shebang line (if present)
@@ -341,7 +401,7 @@ func (nc *nodeCompiler) compileVarDecl(node *ast.VarDecl) (string, error) {
 	// Get type information for this variable
 	typeInfo := nc.getNodeTypeInfo(node)
 
-	if typeInfo != nil && typeInfo.Confidence >= nc.options.ConfidenceThreshold {
+	if typeInfo != nil {
 		// Generate annotated variable declaration
 		return nc.annotationGenerator.GenerateVariableAnnotation(node, typeInfo), nil
 	}
@@ -408,7 +468,7 @@ func (nc *nodeCompiler) compileSubDecl(node *ast.SubDecl) (string, error) {
 	// Add return type if present and confident
 	if node.ReturnType != nil {
 		typeInfo := nc.getNodeTypeInfo(node)
-		if typeInfo != nil && typeInfo.Confidence >= nc.options.ConfidenceThreshold {
+		if typeInfo != nil {
 			returnTypeStr := node.ReturnType.String()
 			parts = append(parts, "->", returnTypeStr)
 		}
@@ -431,7 +491,7 @@ func (nc *nodeCompiler) compileMethodDecl(node *ast.MethodDecl) (string, error) 
 	// Get method signature information
 	signature := nc.buildMethodSignatureInfo(node.SubDecl)
 
-	if signature != nil && signature.OverallConfidence >= nc.options.ConfidenceThreshold {
+	if signature != nil {
 		// Generate annotated method signature
 		return nc.annotationGenerator.GenerateMethodAnnotation(node, signature), nil
 	}
@@ -477,7 +537,7 @@ func (nc *nodeCompiler) compileFieldDecl(node *ast.FieldDecl) (string, error) {
 	// Get type information for this field
 	typeInfo := nc.getNodeTypeInfo(node)
 
-	if typeInfo != nil && typeInfo.Confidence >= nc.options.ConfidenceThreshold {
+	if typeInfo != nil {
 		// Generate annotated field declaration
 		return nc.annotationGenerator.GenerateFieldAnnotation(node, typeInfo), nil
 	}
@@ -805,7 +865,7 @@ func (nc *nodeCompiler) compileVariableDeclaration(node ast.Node) (string, error
 	// Get type information for this variable
 	typeInfo := nc.getNodeTypeInfo(node)
 
-	if typeInfo != nil && typeInfo.Confidence >= nc.options.ConfidenceThreshold {
+	if typeInfo != nil {
 		// Generate annotated variable declaration
 		return nc.generateTypedVariableFromTreeSitter(node, typeInfo), nil
 	}

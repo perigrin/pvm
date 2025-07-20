@@ -1,5 +1,5 @@
 // ABOUTME: PSC compile command for converting between different Perl variants
-// ABOUTME: Supports compilation to clean Perl, typed Perl, and inferred annotations
+// ABOUTME: Supports compilation to standard Perl, typed Perl, and inferred annotations
 
 package psc
 
@@ -25,44 +25,42 @@ func newCompileCommand() *cobra.Command {
 The compile command supports multiple compilation targets:
 
 Compilation targets:
-• clean           - Strip type annotations for standard Perl compatibility
-• typed           - Preserve all type annotations (default for .pl files)
-• inferred        - Add inferred type annotations to untyped code
+• standard        - Strip type annotations for standard Perl compatibility
+• clean           - Deprecated alias for 'standard'
+• typed           - Preserve existing annotations and infer missing types (default for .pl files)
 
-The clean target is perfect for publishing to CPAN or running on systems
-without PSC. The typed target preserves existing annotations. The inferred
-target adds type annotations based on static analysis.
+The standard target is perfect for publishing to CPAN or running on systems
+without PSC. The typed target preserves existing annotations and infers
+missing types through static analysis.
 
 Output options:
 • Single file compilation with --output flag
 • Directory compilation with automatic target detection
 • In-place compilation with --in-place flag (use with caution)
 
-Confidence and style options (for inferred target):
-• --confidence: Minimum confidence threshold for annotations
+Inference options (for typed target):
 • --style: Annotation style (inline, verbose, compact, comments)
-• --include-uncertain: Include low-confidence type hints
+• --disable-inference: Skip type inference and only preserve existing annotations
 
 Examples:
-  psc compile --target=clean typed.pl               # Strip to stdout
-  psc compile --target=clean --output=clean.pl typed.pl
-  psc compile --target=inferred --confidence=0.8 script.pl
+  psc compile --target=standard typed.pl            # Strip to stdout
+  psc compile --target=standard --output=standard.pl typed.pl
+  psc compile --target=typed script.pl              # Add inferred types
   psc compile --target=typed --output=final.pl draft.pl`,
 		Args: cobra.ExactArgs(1),
 		RunE: runCompileCommand,
 	}
 
 	// Core compilation flags
-	cmd.Flags().String("target", "typed", "Compilation target: clean, typed, inferred")
+	cmd.Flags().String("target", "typed", "Compilation target: standard, clean (deprecated), typed")
 	cmd.Flags().String("output", "", "Output file (default: stdout)")
 	cmd.Flags().Bool("in-place", false, "Modify files in-place (dangerous)")
 	cmd.Flags().Bool("preserve-comments", true, "Preserve original code comments")
 	cmd.Flags().Bool("preserve-formatting", true, "Preserve original code formatting")
 
-	// Inference-specific flags (only used with inferred target)
-	cmd.Flags().String("style", "inline", "Annotation style for inferred target: inline, verbose, compact, comments")
-	cmd.Flags().Float64("confidence", 0.7, "Minimum confidence threshold for inferred annotations (0.0-1.0)")
-	cmd.Flags().Bool("include-uncertain", false, "Include low-confidence annotations in inferred target")
+	// Inference flags (used with typed target)
+	cmd.Flags().String("style", "inline", "Annotation style for inferred types: inline, verbose, compact, comments")
+	cmd.Flags().Bool("disable-inference", false, "Skip type inference and only preserve existing annotations")
 
 	// Progress and debugging flags
 	cmd.Flags().Bool("progress", false, "Show compilation progress")
@@ -84,23 +82,19 @@ func runCompileCommand(cmd *cobra.Command, args []string) error {
 	preserveComments, _ := cmd.Flags().GetBool("preserve-comments")
 	preserveFormatting, _ := cmd.Flags().GetBool("preserve-formatting")
 	style, _ := cmd.Flags().GetString("style")
-	confidence, _ := cmd.Flags().GetFloat64("confidence")
-	includeUncertain, _ := cmd.Flags().GetBool("include-uncertain")
+	disableInference, _ := cmd.Flags().GetBool("disable-inference")
 	showProgress, _ := cmd.Flags().GetBool("progress")
 	verbose, _ := cmd.Flags().GetBool("verbose")
 	strict, _ := cmd.Flags().GetBool("strict")
 
 	// Validate inputs
 	validTargets := map[string]bool{
-		"clean": true, "typed": true, "inferred": true,
+		"standard": true, "clean": true, "typed": true,
 	}
 	if !validTargets[target] {
-		return fmt.Errorf("invalid target '%s', must be one of: clean, typed, inferred", target)
+		return fmt.Errorf("invalid target '%s', must be one of: standard, clean (deprecated), typed", target)
 	}
 
-	if confidence < 0.0 || confidence > 1.0 {
-		return fmt.Errorf("confidence must be between 0.0 and 1.0, got %f", confidence)
-	}
 
 	validStyles := map[string]bool{
 		"inline": true, "verbose": true, "compact": true, "comments": true,
@@ -149,100 +143,82 @@ func runCompileCommand(cmd *cobra.Command, args []string) error {
 
 	// Handle different compilation targets
 	switch target {
-	case "clean":
+	case "standard", "clean":
 		if showProgress {
-			ui.Info("Compiling to clean Perl (stripping type annotations)...")
+			targetName := "standard"
+			if target == "clean" {
+				targetName = "clean (deprecated, use 'standard')"
+			}
+			ui.Info("Compiling to %s Perl (stripping type annotations)...", targetName)
 		}
-		result, err = registry.CompileWithOptions(ast, compiler.TargetCleanPerl, options)
+		result, err = registry.CompileWithOptions(ast, compiler.TargetStandardPerl, options)
 
 	case "typed":
-		if showProgress {
-			ui.Info("Compiling to typed Perl (preserving annotations)...")
-		}
-		result, err = registry.CompileWithOptions(ast, compiler.TargetTypedPerl, options)
-
-	case "inferred":
-		if showProgress {
-			ui.Info("Performing type inference...")
-		}
-
-		// For inferred target, we need to do type inference first
-		inferenceOptions := inference.InferenceOptions{
-			EnableFlowAnalysis:        true,
-			MinConfidenceThreshold:    confidence,
-			EnableVariablePropagation: true,
-		}
-		engine := inference.NewTypeInferenceEngineWithOptions(inferenceOptions)
-
-		inferredAST, inferErr := engine.InferTypes(ast)
-		if inferErr != nil {
-			return fmt.Errorf("type inference failed: %w", inferErr)
-		}
-
-		// Report inference statistics
-		if showProgress || verbose {
-			allTypeInfo := inferredAST.GetAllTypeInfo()
-			totalInferences := len(allTypeInfo)
-			ui.Info("Type inference complete: %d types inferred", totalInferences)
-
-			if verbose {
-				highConfidence := 0
-				mediumConfidence := 0
-				lowConfidence := 0
-
-				for _, typeInfo := range allTypeInfo {
-					switch {
-					case typeInfo.Confidence >= 0.9:
-						highConfidence++
-					case typeInfo.Confidence >= 0.7:
-						mediumConfidence++
-					default:
-						lowConfidence++
-					}
-				}
-
-				ui.Info("  High confidence (90%%+): %d", highConfidence)
-				ui.Info("  Medium confidence (70-89%%): %d", mediumConfidence)
-				ui.Info("  Low confidence (<70%%): %d", lowConfidence)
+		if disableInference {
+			if showProgress {
+				ui.Info("Compiling to typed Perl (preserving existing annotations only)...")
 			}
-		}
+			result, err = registry.CompileWithOptions(ast, compiler.TargetTypedPerl, options)
+		} else {
+			if showProgress {
+				ui.Info("Compiling to typed Perl (preserving annotations and inferring missing types)...")
+				ui.Info("Performing type inference...")
+			}
 
-		if showProgress {
-			ui.Info("Generating annotated code...")
-		}
+			// For typed target with inference, we need to do type inference first
+			inferenceOptions := inference.InferenceOptions{
+				EnableFlowAnalysis:        true,
+				EnableVariablePropagation: true,
+			}
+			engine := inference.NewTypeInferenceEngineWithOptions(inferenceOptions)
 
-		// Set up inferred compiler options
-		var annotationStyle compiler.FormattingStyle
-		switch style {
-		case "inline":
-			annotationStyle = compiler.StyleInline
-		case "verbose":
-			annotationStyle = compiler.StyleVerbose
-		case "compact":
-			annotationStyle = compiler.StyleCompact
-		case "comments":
-			annotationStyle = compiler.StyleCommentOnly
-		}
+			inferredAST, inferErr := engine.InferTypes(ast)
+			if inferErr != nil {
+				return fmt.Errorf("type inference failed: %w", inferErr)
+			}
 
-		compilerOptions := compiler.InferredCompilerOptions{
-			ConfidenceThreshold:   confidence,
-			AnnotationStyle:       annotationStyle,
-			PreserveComments:      preserveComments,
-			PreserveFormatting:    preserveFormatting,
-			IncludeUncertainTypes: includeUncertain,
-			VerboseOutput:         verbose,
-		}
+			// Report inference statistics
+			if showProgress || verbose {
+				allTypeInfo := inferredAST.GetAllTypeInfo()
+				totalInferences := len(allTypeInfo)
+				ui.Info("Type inference complete: %d types inferred", totalInferences)
+			}
 
-		inferredCompiler := compiler.NewInferredTypedPerlCompilerWithOptions(compilerOptions)
-		result, err = inferredCompiler.CompileInferred(inferredAST)
+			if showProgress {
+				ui.Info("Generating annotated code...")
+			}
 
-		// Report inference errors if verbose
-		if verbose {
-			inferenceErrors := engine.GetInferenceErrors()
-			if len(inferenceErrors) > 0 {
-				ui.Warning("Type inference encountered %d issues:", len(inferenceErrors))
-				for _, inferErr := range inferenceErrors {
-					ui.Warning("  %s: %s", inferErr.NodeID, inferErr.Message)
+			// Set up inferred compiler options
+			var annotationStyle compiler.FormattingStyle
+			switch style {
+			case "inline":
+				annotationStyle = compiler.StyleInline
+			case "verbose":
+				annotationStyle = compiler.StyleVerbose
+			case "compact":
+				annotationStyle = compiler.StyleCompact
+			case "comments":
+				annotationStyle = compiler.StyleCommentOnly
+			}
+
+			compilerOptions := compiler.InferredCompilerOptions{
+				AnnotationStyle:    annotationStyle,
+				PreserveComments:   preserveComments,
+				PreserveFormatting: preserveFormatting,
+				VerboseOutput:      verbose,
+			}
+
+			inferredCompiler := compiler.NewInferredTypedPerlCompilerWithOptions(compilerOptions)
+			result, err = inferredCompiler.CompileInferred(inferredAST)
+
+			// Report inference errors if verbose
+			if verbose {
+				inferenceErrors := engine.GetInferenceErrors()
+				if len(inferenceErrors) > 0 {
+					ui.Warning("Type inference encountered %d issues:", len(inferenceErrors))
+					for _, inferErr := range inferenceErrors {
+						ui.Warning("  %s: %s", inferErr.NodeID, inferErr.Message)
+					}
 				}
 			}
 		}

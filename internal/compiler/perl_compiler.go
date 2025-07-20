@@ -81,9 +81,14 @@ func NewPerlCompiler(target Target) *PerlCompiler {
 	}
 }
 
-// NewCleanPerlCompilerUnified creates a new unified compiler for clean Perl output
+// NewStandardPerlCompilerUnified creates a new unified compiler for standard Perl output
+func NewStandardPerlCompilerUnified() *PerlCompiler {
+	return NewPerlCompiler(TargetStandardPerl)
+}
+
+// Deprecated: Use NewStandardPerlCompilerUnified instead
 func NewCleanPerlCompilerUnified() *PerlCompiler {
-	return NewPerlCompiler(TargetCleanPerl)
+	return NewStandardPerlCompilerUnified()
 }
 
 // NewTypedPerlCompilerUnified creates a new unified compiler for typed Perl output

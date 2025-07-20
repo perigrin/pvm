@@ -14,6 +14,7 @@ import (
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/cli/ui"
+	"tamarou.com/pvm/internal/inference"
 	"tamarou.com/pvm/internal/parser"
 )
 
@@ -139,10 +140,29 @@ func generateTestMarkdown(filePath string, ast *ast.AST) (string, error) {
 
 	// Get AST representations
 	astBeforeInfer := ast.String()
-	astAfterInfer := astBeforeInfer // TODO: Add type inference when available
+	var astAfterInfer string
 
 	// Determine if type checking should be enabled
 	typeCheck := len(ast.TypeAnnotations) > 0
+
+	// Perform type inference if enabled or if type annotations are present
+	if typeCheck {
+		engine := inference.NewTypeInferenceEngine()
+		inferredAST, err := engine.InferTypes(ast)
+		if err != nil {
+			astAfterInfer = astBeforeInfer + fmt.Sprintf("\n// Type inference failed: %v", err)
+		} else {
+			// Use the inferred AST representation - need to get content from inferred AST
+			content, err := inferredAST.GetContent()
+			if err != nil {
+				astAfterInfer = astBeforeInfer + fmt.Sprintf("\n// Failed to get inferred content: %v", err)
+			} else {
+				astAfterInfer = content
+			}
+		}
+	} else {
+		astAfterInfer = astBeforeInfer
+	}
 
 	// Build the markdown content
 	var content strings.Builder

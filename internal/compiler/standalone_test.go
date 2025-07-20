@@ -9,9 +9,14 @@ import (
 )
 
 func TestCompilerTypes(t *testing.T) {
-	// Test target constants
-	if TargetCleanPerl != "clean_perl" {
-		t.Errorf("Expected TargetCleanPerl to be 'clean_perl', got '%s'", TargetCleanPerl)
+	// Test target constants - updated for new "standard" terminology
+	if TargetStandardPerl != "standard_perl" {
+		t.Errorf("Expected TargetStandardPerl to be 'standard_perl', got '%s'", TargetStandardPerl)
+	}
+
+	// Test backwards compatibility alias
+	if TargetCleanPerl != TargetStandardPerl {
+		t.Errorf("Expected TargetCleanPerl to be alias for TargetStandardPerl, got '%s'", TargetCleanPerl)
 	}
 
 	if TargetTypedPerl != "typed_perl" {

@@ -72,17 +72,10 @@ func runInferCommand(cmd *cobra.Command, args []string) error {
 	// Get command flags
 	outputFile, _ := cmd.Flags().GetString("output")
 	style, _ := cmd.Flags().GetString("style")
-	confidence, _ := cmd.Flags().GetFloat64("confidence")
-	includeUncertain, _ := cmd.Flags().GetBool("include-uncertain")
 	preserveComments, _ := cmd.Flags().GetBool("preserve-comments")
 	preserveFormatting, _ := cmd.Flags().GetBool("preserve-formatting")
 	showProgress, _ := cmd.Flags().GetBool("progress")
 	verbose, _ := cmd.Flags().GetBool("verbose")
-
-	// Validate inputs
-	if confidence < 0.0 || confidence > 1.0 {
-		return fmt.Errorf("confidence must be between 0.0 and 1.0, got %f", confidence)
-	}
 
 	validStyles := map[string]bool{
 		"inline": true, "verbose": true, "compact": true, "comments": true,
@@ -122,7 +115,6 @@ func runInferCommand(cmd *cobra.Command, args []string) error {
 	// Create type inference engine
 	inferenceOptions := inference.InferenceOptions{
 		EnableFlowAnalysis:        true,
-		MinConfidenceThreshold:    confidence,
 		EnableVariablePropagation: true,
 	}
 	engine := inference.NewTypeInferenceEngineWithOptions(inferenceOptions)
@@ -178,12 +170,10 @@ func runInferCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	compilerOptions := compiler.InferredCompilerOptions{
-		ConfidenceThreshold:   confidence,
-		AnnotationStyle:       annotationStyle,
-		PreserveComments:      preserveComments,
-		PreserveFormatting:    preserveFormatting,
-		IncludeUncertainTypes: includeUncertain,
-		VerboseOutput:         verbose,
+		AnnotationStyle:    annotationStyle,
+		PreserveComments:   preserveComments,
+		PreserveFormatting: preserveFormatting,
+		VerboseOutput:      verbose,
 	}
 
 	// Create compiler and generate code

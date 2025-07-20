@@ -1,0 +1,586 @@
+[
+  {
+    "number": 1,
+    "title": "Implement intelligent dependency resolver selection and configuration",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvi"
+  },
+  {
+    "number": 3,
+    "title": "Add Windows support for PVM release builds",
+    "priority": "priority:medium",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 8,
+    "title": "Add WebAssembly (WASM) compilation target",
+    "priority": "priority:low",
+    "effort": "effort:complex",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 13,
+    "title": "Refactor PVI command.go: Extract shared functionality for reuse across components",
+    "priority": "priority:low",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvi"
+  },
+  {
+    "number": 19,
+    "title": "Replace stub implementations in development services",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 19,
+    "title": "Replace stub implementations in development services",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 32,
+    "title": "Add CPAN Mirror Building Functionality (CPAN::Mini-style)",
+    "priority": "priority:medium",
+    "effort": "effort:complex",
+    "impact": "impact:medium",
+    "component": "component:pvi"
+  },
+  {
+    "number": 40,
+    "title": "feat: make release token user-overrideable before public release",
+    "priority": "priority:medium",
+    "effort": "effort:simple",
+    "impact": "impact:medium",
+    "component": "component:pvm"
+  },
+  {
+    "number": 43,
+    "title": "feat: add configurable update channels (stable/prerelease/dev)",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 44,
+    "title": "Step 13: Review and Update Documentation for Type Inference Functionality",
+    "priority": "priority:medium",
+    "effort": "effort:simple",
+    "impact": "impact:low",
+    "component": "component:psc"
+  },
+  {
+    "number": 53,
+    "title": "Simplify Method/Subroutine Type Syntax by Moving Type Expression After Keyword",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 54,
+    "title": "Implement comprehensive role support for typed Perl",
+    "priority": "priority:medium",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 56,
+    "title": "Implement enhanced Perl binary installation and build management",
+    "priority": "priority:medium",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 59,
+    "title": "Port Perl5 official test suite to markdown format",
+    "priority": "priority:low",
+    "effort": "effort:complex",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 95,
+    "title": "Add automatic SBOM generation for workspaces",
+    "priority": "priority:medium",
+    "effort": "effort:complex",
+    "impact": "impact:medium",
+    "component": "component:pvm"
+  },
+  {
+    "number": 95,
+    "title": "Add automatic SBOM generation for workspaces",
+    "priority": "priority:medium",
+    "effort": "effort:complex",
+    "impact": "impact:medium",
+    "component": "component:pvi"
+  },
+  {
+    "number": 96,
+    "title": "Extract parser and compiler into reusable public packages",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 96,
+    "title": "Extract parser and compiler into reusable public packages",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 101,
+    "title": "Complete module generation and validation for PSC module command",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 107,
+    "title": "Implement actual test running and type checking services",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 109,
+    "title": "Implement tuple type support in tree-sitter grammar",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 109,
+    "title": "Implement tuple type support in tree-sitter grammar",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:tree-sitter"
+  },
+  {
+    "number": 110,
+    "title": "Implement type declaration grammar rules",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 110,
+    "title": "Implement type declaration grammar rules",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:tree-sitter"
+  },
+  {
+    "number": 111,
+    "title": "Re-enable AST validation with improved error identification",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 112,
+    "title": "Implement CST-based advanced binder system",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 113,
+    "title": "Implement PSC-PVI type definition exchange system",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:pvi"
+  },
+  {
+    "number": 113,
+    "title": "Implement PSC-PVI type definition exchange system",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 115,
+    "title": "Complete missing Perl built-in functions in grammar",
+    "priority": "priority:low",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:tree-sitter"
+  },
+  {
+    "number": 117,
+    "title": "pvm workspace init fails after creating directory when .perl-version exists",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 120,
+    "title": "Add short alias for --auto-install flag in PVX",
+    "priority": "priority:low",
+    "effort": "effort:simple",
+    "impact": "impact:low",
+    "component": "component:pvx"
+  },
+  {
+    "number": 121,
+    "title": "Add command to install common Perl utilities into workspace/install",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvm"
+  },
+  {
+    "number": 123,
+    "title": "pvx hangs when used in shebang line - stdin handling issue",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:pvx"
+  },
+  {
+    "number": 124,
+    "title": "Failed install using quickstart instructions",
+    "priority": "priority:critical",
+    "effort": "effort:simple",
+    "impact": "impact:high",
+    "component": "component:tree-sitter"
+  },
+  {
+    "number": 126,
+    "title": "pvi ignores local_lib setting in pvm.toml, installs to 'lib' instead of 'local'",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:pvi"
+  },
+  {
+    "number": 130,
+    "title": "Fix PSC run command execution issue in e2e tests",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 131,
+    "title": "Re-implement logScopeStructure helper function in binder tests",
+    "priority": "priority:low",
+    "effort": "effort:simple",
+    "impact": "impact:low",
+    "component": "component:psc"
+  },
+  {
+    "number": 132,
+    "title": "Implement JSON test case loading in compiler AST tests",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 133,
+    "title": "Implement semantic highlighting for LSP",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:lsp"
+  },
+  {
+    "number": 134,
+    "title": "Implement custom mirror upload functionality",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvm"
+  },
+  {
+    "number": 135,
+    "title": "Replace synthetic stress tests with real-world project testing",
+    "priority": "priority:medium",
+    "effort": "effort:complex",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 135,
+    "title": "Replace synthetic stress tests with real-world project testing",
+    "priority": "priority:medium",
+    "effort": "effort:complex",
+    "impact": "impact:medium",
+    "component": "component:tree-sitter"
+  },
+  {
+    "number": 136,
+    "title": "Implement upload verification for binary distribution",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvm"
+  },
+  {
+    "number": 137,
+    "title": "Implement LSP code actions and quick fixes",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:medium",
+    "component": "component:lsp"
+  },
+  {
+    "number": 138,
+    "title": "Implement proper disk space checking per platform",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvm"
+  },
+  {
+    "number": 139,
+    "title": "Implement automatic checksum updates from CPAN",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvm"
+  },
+  {
+    "number": 140,
+    "title": "Implement tree-sitter scanner fallback for token generation",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 140,
+    "title": "Implement tree-sitter scanner fallback for token generation",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:tree-sitter"
+  },
+  {
+    "number": 142,
+    "title": "Implement compatible version detection for recovery",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvm"
+  },
+  {
+    "number": 143,
+    "title": "Implement binary version verification after installation",
+    "priority": "priority:medium",
+    "effort": "effort:simple",
+    "impact": "impact:medium",
+    "component": "component:pvm"
+  },
+  {
+    "number": 145,
+    "title": "Fix scanner-parser AST compatibility issue",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 146,
+    "title": "Implement flow-sensitive type analysis",
+    "priority": "priority:critical",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 147,
+    "title": "Implement union type compatibility checking",
+    "priority": "priority:critical",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 148,
+    "title": "Implement proper module analysis in PVI",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvi"
+  },
+  {
+    "number": 149,
+    "title": "Implement LSP inlay hints for type information",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:lsp"
+  },
+  {
+    "number": 150,
+    "title": "Implement LSP call hierarchy navigation",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:lsp"
+  },
+  {
+    "number": 151,
+    "title": "Implement advanced dependency resolution in module installation",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:medium",
+    "component": "component:pvi"
+  },
+  {
+    "number": 152,
+    "title": "Implement intersection type support",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 153,
+    "title": "Implement Maybe type handling for optional values",
+    "priority": "priority:medium",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  },
+  {
+    "number": 154,
+    "title": "Implement generic type inference",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 155,
+    "title": "Implement checksum verification for Perl installation",
+    "priority": "priority:high",
+    "effort": "effort:simple",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 156,
+    "title": "Implement LSP implementation search feature",
+    "priority": "priority:low",
+    "effort": "effort:medium",
+    "impact": "impact:low",
+    "component": "component:lsp"
+  },
+  {
+    "number": 160,
+    "title": "Improve shell integration error messages and warnings",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 161,
+    "title": "Add auto-fixing capabilities for common shell integration issues",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 167,
+    "title": "Complete type inference engine implementation",
+    "priority": "priority:critical",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 168,
+    "title": "Implement CST binding methods for core language constructs",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 168,
+    "title": "Implement CST binding methods for core language constructs",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:tree-sitter"
+  },
+  {
+    "number": 169,
+    "title": "Implement development service test running functionality",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:pvm"
+  },
+  {
+    "number": 170,
+    "title": "Implement LSP document symbols provider for code navigation",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:high",
+    "component": "component:lsp"
+  },
+  {
+    "number": 171,
+    "title": "Implement module version detection for package management",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:pvi"
+  },
+  {
+    "number": 174,
+    "title": "Implement PVI module analysis - highest priority placeholder",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:pvi"
+  },
+  {
+    "number": 175,
+    "title": "Implement flow control analysis placeholders in typechecker",
+    "priority": "priority:high",
+    "effort": "effort:complex",
+    "impact": "impact:high",
+    "component": "component:psc"
+  },
+  {
+    "number": 176,
+    "title": "Fix PSC command execution failures in component tests",
+    "priority": "priority:high",
+    "effort": "effort:medium",
+    "impact": "impact:medium",
+    "component": "component:psc"
+  }
+]
