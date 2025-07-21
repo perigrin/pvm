@@ -14,14 +14,13 @@ import (
 )
 
 func TestCrossComponentIntegration_PSC_PVX(t *testing.T) {
-	// Removed sampling to enable test in regular runs
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable cross-platform testing
 	helpers.SkipIfNoTreeSitter(t)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	systemPerl := helpers.FindSystemPerl()
+	binaryPerl := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
 
 	// Create a typed Perl script that uses PSC and PVX integration
 	scriptFile := filepath.Join(env.RootDir, "typed_script.pl")
@@ -41,9 +40,9 @@ say "$message $count";
 	require.NoError(t, err)
 
 	// Test PSC run command which uses PSC -> PVX integration
-	// Use system Perl explicitly to avoid version resolution issues
+	// Use binary Perl for reliable cross-platform testing
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"psc", "run", "--verbose", "--perl", systemPerl, scriptFile},
+		[]string{"psc", "run", "--verbose", "--perl", binaryPerl, scriptFile},
 		"PSC run should succeed and use PVX for execution")
 
 	// Should contain both the type checking output and script execution output

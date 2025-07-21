@@ -16,16 +16,12 @@ func TestPVXScriptExecution(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Find path to system Perl
-	perlPath := "/usr/bin/perl"
-	_, err := os.Stat(perlPath)
-	if os.IsNotExist(err) {
-		helpers.SkipTODO(t, "System Perl installation (required for test)")
-	}
+	// Get binary Perl path for reliable testing
+	perlPath := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
 
 	// Create a test Perl script
 	scriptDir := filepath.Join(env.HomeDir, "scripts")
-	err = os.MkdirAll(scriptDir, 0755)
+	err := os.MkdirAll(scriptDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create script directory: %v", err)
 	}
@@ -56,12 +52,8 @@ func TestPVXInlineCodeExecution(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Find path to system Perl
-	perlPath := "/usr/bin/perl"
-	_, err := os.Stat(perlPath)
-	if os.IsNotExist(err) {
-		helpers.SkipTODO(t, "System Perl installation (required for test)")
-	}
+	// Get binary Perl path for reliable testing
+	perlPath := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
 
 	// Execute inline Perl code with PVX, explicitly specifying Perl path
 	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
@@ -117,19 +109,15 @@ func TestPVXEnvironmentVariables(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Find path to system Perl
-	perlPath := "/usr/bin/perl"
-	_, err := os.Stat(perlPath)
-	if os.IsNotExist(err) {
-		helpers.SkipTODO(t, "System Perl installation (required for test)")
-	}
+	// Get binary Perl path for reliable testing
+	perlPath := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
 
 	// Create a script that prints an environment variable
 	scriptPath := filepath.Join(env.HomeDir, "env_test.pl")
 	scriptContent := `#!/usr/bin/env perl
 print "TEST_VAR=", $ENV{TEST_VAR} || "undefined", "\n";
 `
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
 	if err != nil {
 		t.Fatalf("Failed to create environment test script: %v", err)
 	}
@@ -151,19 +139,15 @@ func TestPVXExitCodePropagation(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Find path to system Perl
-	perlPath := "/usr/bin/perl"
-	_, err := os.Stat(perlPath)
-	if os.IsNotExist(err) {
-		helpers.SkipTODO(t, "System Perl installation (required for test)")
-	}
+	// Get binary Perl path for reliable testing
+	perlPath := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
 
 	// Create a script that exits with a specific code
 	scriptPath := filepath.Join(env.HomeDir, "exit_test.pl")
 	scriptContent := `#!/usr/bin/env perl
 exit 42;
 `
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
 	if err != nil {
 		t.Fatalf("Failed to create exit code test script: %v", err)
 	}
