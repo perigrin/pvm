@@ -54,9 +54,9 @@ func TestProcessVariableDeclaration(t *testing.T) {
 			name: "simple typed declaration",
 			setupVarDecl: func() *ast.VarDecl {
 				// Create: my Int $var
-				intType := ast.NewTypeExpression("Int", nil, ast.Position{1, 4, 3}, ast.Position{1, 7, 6})
-				variable := ast.NewVariableExpr("$var", "$", ast.Position{1, 8, 7}, ast.Position{1, 12, 11})
-				return ast.NewVarDecl("my", []*ast.VariableExpr{variable}, intType, nil, ast.Position{1, 1, 0}, ast.Position{1, 12, 11})
+				intType := ast.NewTypeExpression("Int", nil, ast.Position{Line: 1, Column: 4, Offset: 3}, ast.Position{Line: 1, Column: 7, Offset: 6})
+				variable := ast.NewVariableExpr("$var", "$", ast.Position{Line: 1, Column: 8, Offset: 7}, ast.Position{Line: 1, Column: 12, Offset: 11})
+				return ast.NewVarDecl("my", []*ast.VariableExpr{variable}, intType, nil, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 12, Offset: 11})
 			},
 			expectVarType: "Int",
 			expectError:   false,
@@ -65,8 +65,8 @@ func TestProcessVariableDeclaration(t *testing.T) {
 			name: "untyped declaration",
 			setupVarDecl: func() *ast.VarDecl {
 				// Create: my $var
-				variable := ast.NewVariableExpr("$var", "$", ast.Position{1, 4, 3}, ast.Position{1, 8, 7})
-				return ast.NewVarDecl("my", []*ast.VariableExpr{variable}, nil, nil, ast.Position{1, 1, 0}, ast.Position{1, 8, 7})
+				variable := ast.NewVariableExpr("$var", "$", ast.Position{Line: 1, Column: 4, Offset: 3}, ast.Position{Line: 1, Column: 8, Offset: 7})
+				return ast.NewVarDecl("my", []*ast.VariableExpr{variable}, nil, nil, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 8, Offset: 7})
 			},
 			expectVarType: "Any",
 			expectError:   false,
@@ -75,9 +75,9 @@ func TestProcessVariableDeclaration(t *testing.T) {
 			name: "declaration with string initializer",
 			setupVarDecl: func() *ast.VarDecl {
 				// Create: my $var = "hello"
-				variable := ast.NewVariableExpr("$var", "$", ast.Position{1, 4, 3}, ast.Position{1, 8, 7})
-				initializer := ast.NewLiteralExpr("hello", ast.StringLiteral, ast.Position{1, 11, 10}, ast.Position{1, 18, 17})
-				return ast.NewVarDecl("my", []*ast.VariableExpr{variable}, nil, initializer, ast.Position{1, 1, 0}, ast.Position{1, 18, 17})
+				variable := ast.NewVariableExpr("$var", "$", ast.Position{Line: 1, Column: 4, Offset: 3}, ast.Position{Line: 1, Column: 8, Offset: 7})
+				initializer := ast.NewLiteralExpr("hello", ast.StringLiteral, ast.Position{Line: 1, Column: 11, Offset: 10}, ast.Position{Line: 1, Column: 18, Offset: 17})
+				return ast.NewVarDecl("my", []*ast.VariableExpr{variable}, nil, initializer, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 18, Offset: 17})
 			},
 			expectVarType: "Str",
 			expectError:   false,
@@ -86,9 +86,9 @@ func TestProcessVariableDeclaration(t *testing.T) {
 			name: "declaration with numeric initializer",
 			setupVarDecl: func() *ast.VarDecl {
 				// Create: my $var = 42
-				variable := ast.NewVariableExpr("$var", "$", ast.Position{1, 4, 3}, ast.Position{1, 8, 7})
-				initializer := ast.NewLiteralExpr("42", ast.NumberLiteral, ast.Position{1, 11, 10}, ast.Position{1, 13, 12})
-				return ast.NewVarDecl("my", []*ast.VariableExpr{variable}, nil, initializer, ast.Position{1, 1, 0}, ast.Position{1, 13, 12})
+				variable := ast.NewVariableExpr("$var", "$", ast.Position{Line: 1, Column: 4, Offset: 3}, ast.Position{Line: 1, Column: 8, Offset: 7})
+				initializer := ast.NewLiteralExpr("42", ast.NumberLiteral, ast.Position{Line: 1, Column: 11, Offset: 10}, ast.Position{Line: 1, Column: 13, Offset: 12})
+				return ast.NewVarDecl("my", []*ast.VariableExpr{variable}, nil, initializer, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 13, Offset: 12})
 			},
 			expectVarType: "Num",
 			expectError:   false,
@@ -97,9 +97,9 @@ func TestProcessVariableDeclaration(t *testing.T) {
 			name: "multiple variables in one declaration",
 			setupVarDecl: func() *ast.VarDecl {
 				// Create: my ($var1, $var2)
-				var1 := ast.NewVariableExpr("$var1", "$", ast.Position{1, 5, 4}, ast.Position{1, 10, 9})
-				var2 := ast.NewVariableExpr("$var2", "$", ast.Position{1, 12, 11}, ast.Position{1, 17, 16})
-				return ast.NewVarDecl("my", []*ast.VariableExpr{var1, var2}, nil, nil, ast.Position{1, 1, 0}, ast.Position{1, 18, 17})
+				var1 := ast.NewVariableExpr("$var1", "$", ast.Position{Line: 1, Column: 5, Offset: 4}, ast.Position{Line: 1, Column: 10, Offset: 9})
+				var2 := ast.NewVariableExpr("$var2", "$", ast.Position{Line: 1, Column: 12, Offset: 11}, ast.Position{Line: 1, Column: 17, Offset: 16})
+				return ast.NewVarDecl("my", []*ast.VariableExpr{var1, var2}, nil, nil, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 18, Offset: 17})
 			},
 			expectVarType: "Any", // Both variables should get Any type
 			expectError:   false,
@@ -165,9 +165,9 @@ func TestProcessAssignment(t *testing.T) {
 			name: "simple assignment to existing variable",
 			setupAssign: func() *ast.AssignmentExpr {
 				// Create: $var = 42 (assigning to Num variable to avoid Int/Num compatibility issues)
-				left := ast.NewVariableExpr("$var", "$", ast.Position{1, 1, 0}, ast.Position{1, 5, 4})
-				right := ast.NewLiteralExpr("42", ast.NumberLiteral, ast.Position{1, 8, 7}, ast.Position{1, 10, 9})
-				return ast.NewAssignmentExpr(left, right, "=", ast.Position{1, 1, 0}, ast.Position{1, 10, 9})
+				left := ast.NewVariableExpr("$var", "$", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 5, Offset: 4})
+				right := ast.NewLiteralExpr("42", ast.NumberLiteral, ast.Position{Line: 1, Column: 8, Offset: 7}, ast.Position{Line: 1, Column: 10, Offset: 9})
+				return ast.NewAssignmentExpr(left, right, "=", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 10, Offset: 9})
 			},
 			initialState: map[string]string{"$var": "Num"},
 			expectType:   "Num", // Should remain Num
@@ -177,9 +177,9 @@ func TestProcessAssignment(t *testing.T) {
 			name: "assignment to undeclared variable",
 			setupAssign: func() *ast.AssignmentExpr {
 				// Create: $new_var = "hello"
-				left := ast.NewVariableExpr("$new_var", "$", ast.Position{1, 1, 0}, ast.Position{1, 9, 8})
-				right := ast.NewLiteralExpr("hello", ast.StringLiteral, ast.Position{1, 12, 11}, ast.Position{1, 19, 18})
-				return ast.NewAssignmentExpr(left, right, "=", ast.Position{1, 1, 0}, ast.Position{1, 19, 18})
+				left := ast.NewVariableExpr("$new_var", "$", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 9, Offset: 8})
+				right := ast.NewLiteralExpr("hello", ast.StringLiteral, ast.Position{Line: 1, Column: 12, Offset: 11}, ast.Position{Line: 1, Column: 19, Offset: 18})
+				return ast.NewAssignmentExpr(left, right, "=", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 19, Offset: 18})
 			},
 			initialState: map[string]string{},
 			expectType:   "Str", // Should infer Str from literal
@@ -189,9 +189,9 @@ func TestProcessAssignment(t *testing.T) {
 			name: "compound assignment",
 			setupAssign: func() *ast.AssignmentExpr {
 				// Create: $var += 10
-				left := ast.NewVariableExpr("$var", "$", ast.Position{1, 1, 0}, ast.Position{1, 5, 4})
-				right := ast.NewLiteralExpr("10", ast.NumberLiteral, ast.Position{1, 9, 8}, ast.Position{1, 11, 10})
-				return ast.NewAssignmentExpr(left, right, "+=", ast.Position{1, 1, 0}, ast.Position{1, 11, 10})
+				left := ast.NewVariableExpr("$var", "$", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 5, Offset: 4})
+				right := ast.NewLiteralExpr("10", ast.NumberLiteral, ast.Position{Line: 1, Column: 9, Offset: 8}, ast.Position{Line: 1, Column: 11, Offset: 10})
+				return ast.NewAssignmentExpr(left, right, "+=", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 11, Offset: 10})
 			},
 			initialState: map[string]string{"$var": "Num"},
 			expectType:   "Num", // Should remain Num
@@ -201,9 +201,9 @@ func TestProcessAssignment(t *testing.T) {
 			name: "string concatenation assignment",
 			setupAssign: func() *ast.AssignmentExpr {
 				// Create: $str .= " world"
-				left := ast.NewVariableExpr("$str", "$", ast.Position{1, 1, 0}, ast.Position{1, 5, 4})
-				right := ast.NewLiteralExpr(" world", ast.StringLiteral, ast.Position{1, 9, 8}, ast.Position{1, 17, 16})
-				return ast.NewAssignmentExpr(left, right, ".=", ast.Position{1, 1, 0}, ast.Position{1, 17, 16})
+				left := ast.NewVariableExpr("$str", "$", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 5, Offset: 4})
+				right := ast.NewLiteralExpr(" world", ast.StringLiteral, ast.Position{Line: 1, Column: 9, Offset: 8}, ast.Position{Line: 1, Column: 17, Offset: 16})
+				return ast.NewAssignmentExpr(left, right, ".=", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 17, Offset: 16})
 			},
 			initialState: map[string]string{"$str": "Str"},
 			expectType:   "Str", // Should remain Str
@@ -274,9 +274,9 @@ func TestProcessFunctionCall(t *testing.T) {
 			name: "valid function call with correct parameters",
 			setupCall: func() *ast.CallExpr {
 				// Create: print("hello")
-				funcName := ast.NewVariableExpr("print", "", ast.Position{1, 1, 0}, ast.Position{1, 6, 5})
-				arg := ast.NewLiteralExpr("hello", ast.StringLiteral, ast.Position{1, 7, 6}, ast.Position{1, 14, 13})
-				return ast.NewCallExpr(funcName, []ast.ExpressionNode{arg}, false, ast.Position{1, 1, 0}, ast.Position{1, 15, 14})
+				funcName := ast.NewVariableExpr("print", "", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 6, Offset: 5})
+				arg := ast.NewLiteralExpr("hello", ast.StringLiteral, ast.Position{Line: 1, Column: 7, Offset: 6}, ast.Position{Line: 1, Column: 14, Offset: 13})
+				return ast.NewCallExpr(funcName, []ast.ExpressionNode{arg}, false, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 15, Offset: 14})
 			},
 			setupFunctions: map[string]*FunctionSignature{
 				"print": {
@@ -291,9 +291,9 @@ func TestProcessFunctionCall(t *testing.T) {
 			name: "function call with wrong parameter count",
 			setupCall: func() *ast.CallExpr {
 				// Create: add(1) - missing second parameter
-				funcName := ast.NewVariableExpr("add", "", ast.Position{1, 1, 0}, ast.Position{1, 4, 3})
-				arg := ast.NewLiteralExpr("1", ast.NumberLiteral, ast.Position{1, 5, 4}, ast.Position{1, 6, 5})
-				return ast.NewCallExpr(funcName, []ast.ExpressionNode{arg}, false, ast.Position{1, 1, 0}, ast.Position{1, 7, 6})
+				funcName := ast.NewVariableExpr("add", "", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 4, Offset: 3})
+				arg := ast.NewLiteralExpr("1", ast.NumberLiteral, ast.Position{Line: 1, Column: 5, Offset: 4}, ast.Position{Line: 1, Column: 6, Offset: 5})
+				return ast.NewCallExpr(funcName, []ast.ExpressionNode{arg}, false, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 7, Offset: 6})
 			},
 			setupFunctions: map[string]*FunctionSignature{
 				"add": {
@@ -309,8 +309,8 @@ func TestProcessFunctionCall(t *testing.T) {
 			name: "undefined function call",
 			setupCall: func() *ast.CallExpr {
 				// Create: unknown_func()
-				funcName := ast.NewVariableExpr("unknown_func", "", ast.Position{1, 1, 0}, ast.Position{1, 13, 12})
-				return ast.NewCallExpr(funcName, []ast.ExpressionNode{}, false, ast.Position{1, 1, 0}, ast.Position{1, 15, 14})
+				funcName := ast.NewVariableExpr("unknown_func", "", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 13, Offset: 12})
+				return ast.NewCallExpr(funcName, []ast.ExpressionNode{}, false, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 15, Offset: 14})
 			},
 			setupFunctions: map[string]*FunctionSignature{},
 			expectError:    false, // Should not error for undefined functions
@@ -319,8 +319,8 @@ func TestProcessFunctionCall(t *testing.T) {
 			name: "function call with no parameters",
 			setupCall: func() *ast.CallExpr {
 				// Create: get_time()
-				funcName := ast.NewVariableExpr("get_time", "", ast.Position{1, 1, 0}, ast.Position{1, 9, 8})
-				return ast.NewCallExpr(funcName, []ast.ExpressionNode{}, false, ast.Position{1, 1, 0}, ast.Position{1, 11, 10})
+				funcName := ast.NewVariableExpr("get_time", "", ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 9, Offset: 8})
+				return ast.NewCallExpr(funcName, []ast.ExpressionNode{}, false, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 11, Offset: 10})
 			},
 			setupFunctions: map[string]*FunctionSignature{
 				"get_time": {
@@ -516,9 +516,9 @@ func TestIntegratedFlowAnalysis(t *testing.T) {
 	}
 
 	// Step 1: Variable declaration - my Str $input
-	strType := ast.NewTypeExpression("Str", nil, ast.Position{1, 4, 3}, ast.Position{1, 7, 6})
-	variable := ast.NewVariableExpr("$input", "$", ast.Position{1, 8, 7}, ast.Position{1, 14, 13})
-	varDecl := ast.NewVarDecl("my", []*ast.VariableExpr{variable}, strType, nil, ast.Position{1, 1, 0}, ast.Position{1, 14, 13})
+	strType := ast.NewTypeExpression("Str", nil, ast.Position{Line: 1, Column: 4, Offset: 3}, ast.Position{Line: 1, Column: 7, Offset: 6})
+	variable := ast.NewVariableExpr("$input", "$", ast.Position{Line: 1, Column: 8, Offset: 7}, ast.Position{Line: 1, Column: 14, Offset: 13})
+	varDecl := ast.NewVarDecl("my", []*ast.VariableExpr{variable}, strType, nil, ast.Position{Line: 1, Column: 1, Offset: 0}, ast.Position{Line: 1, Column: 14, Offset: 13})
 
 	errors := analyzer.processVariableDeclaration(varDecl, state)
 	if len(errors) > 0 {
@@ -533,9 +533,9 @@ func TestIntegratedFlowAnalysis(t *testing.T) {
 	}
 
 	// Step 2: Assignment - $input = "hello"
-	left := ast.NewVariableExpr("$input", "$", ast.Position{2, 1, 0}, ast.Position{2, 7, 6})
-	right := ast.NewLiteralExpr("hello", ast.StringLiteral, ast.Position{2, 10, 9}, ast.Position{2, 17, 16})
-	assign := ast.NewAssignmentExpr(left, right, "=", ast.Position{2, 1, 0}, ast.Position{2, 17, 16})
+	left := ast.NewVariableExpr("$input", "$", ast.Position{Line: 2, Column: 1, Offset: 0}, ast.Position{Line: 2, Column: 7, Offset: 6})
+	right := ast.NewLiteralExpr("hello", ast.StringLiteral, ast.Position{Line: 2, Column: 10, Offset: 9}, ast.Position{Line: 2, Column: 17, Offset: 16})
+	assign := ast.NewAssignmentExpr(left, right, "=", ast.Position{Line: 2, Column: 1, Offset: 0}, ast.Position{Line: 2, Column: 17, Offset: 16})
 
 	errors = analyzer.processAssignment(assign, state)
 	if len(errors) > 0 {
@@ -543,9 +543,9 @@ func TestIntegratedFlowAnalysis(t *testing.T) {
 	}
 
 	// Step 3: Function call - process($input)
-	funcName := ast.NewVariableExpr("process", "", ast.Position{3, 1, 0}, ast.Position{3, 8, 7})
-	arg := ast.NewVariableExpr("$input", "$", ast.Position{3, 9, 8}, ast.Position{3, 15, 14})
-	call := ast.NewCallExpr(funcName, []ast.ExpressionNode{arg}, false, ast.Position{3, 1, 0}, ast.Position{3, 16, 15})
+	funcName := ast.NewVariableExpr("process", "", ast.Position{Line: 3, Column: 1, Offset: 0}, ast.Position{Line: 3, Column: 8, Offset: 7})
+	arg := ast.NewVariableExpr("$input", "$", ast.Position{Line: 3, Column: 9, Offset: 8}, ast.Position{Line: 3, Column: 15, Offset: 14})
+	call := ast.NewCallExpr(funcName, []ast.ExpressionNode{arg}, false, ast.Position{Line: 3, Column: 1, Offset: 0}, ast.Position{Line: 3, Column: 16, Offset: 15})
 
 	errors = analyzer.processFunctionCall(call, state)
 	if len(errors) > 0 {

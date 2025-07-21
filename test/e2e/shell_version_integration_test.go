@@ -16,7 +16,8 @@ import (
 // This test simulates: pvm use X.Y.Z && pvm current
 // It tests with multiple Perl versions to catch version switching issues
 func TestShellUseAndCurrent(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -272,7 +273,8 @@ fi
 
 // TestShellUseWithoutIntegration tests the expected behavior without shell integration
 func TestShellUseWithoutIntegration(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -318,7 +320,8 @@ func TestShellUseWithoutIntegration(t *testing.T) {
 
 // TestEnvironmentVariableVersionResolution tests that PVM_PERL_VERSION is properly resolved
 func TestEnvironmentVariableVersionResolution(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()

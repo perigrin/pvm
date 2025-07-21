@@ -26,7 +26,8 @@ func TestVersionCommand(t *testing.T) {
 
 // Test importing system Perl
 func TestImportSystemPerl(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -53,7 +54,8 @@ func TestImportSystemPerl(t *testing.T) {
 
 // Test version switching functionality
 func TestVersionSwitching(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -177,7 +179,8 @@ func TestInstallPerl(t *testing.T) {
 func TestUninstallPerl(t *testing.T) {
 	basetesting.SkipUnlessLongRunning(t, "Perl uninstallation test")
 
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()

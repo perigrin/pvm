@@ -453,7 +453,8 @@ say "Number: $x";
 // TestPSCRunCommand tests the complete PSC run execution workflow
 func TestPSCRunCommand(t *testing.T) {
 	helpers.SkipIfNoPSC(t)
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -485,7 +486,8 @@ print "PSC run test completed\n";
 // TestPSCRunWithStripAndExecute tests the PSC → compiler → PVX execution chain
 func TestPSCRunWithStripAndExecute(t *testing.T) {
 	helpers.SkipIfNoPSC(t)
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -521,7 +523,8 @@ print "PSC execution chain test completed\n";
 // TestPSCRunErrorHandling tests PSC error propagation during execution
 func TestPSCRunErrorHandling(t *testing.T) {
 	helpers.SkipIfNoPSC(t)
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -563,7 +566,8 @@ print "Result: $result\n";
 // TestPSCRunWithDependencies tests PSC execution with module dependencies
 func TestPSCRunWithDependencies(t *testing.T) {
 	helpers.SkipIfNoPSC(t)
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()

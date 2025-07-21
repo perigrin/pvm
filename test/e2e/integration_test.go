@@ -53,7 +53,8 @@ say "$message $count";
 }
 
 func TestCrossComponentIntegration_PVX_Modules(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -71,8 +72,8 @@ say "Script executed successfully";
 	// Test PVX with module requirements (PVX -> PVI integration)
 	// Note: This will try to install modules, but may fail in test environment
 	// The test is to verify the integration plumbing works, not actual module installation
-	systemPerl := helpers.FindSystemPerl()
-	_, stderr, err := env.RunPVM("pvx", "--perl", systemPerl, "--auto-install", "--require", "JSON", "--verbose", scriptFile)
+	binaryPerl := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
+	_, stderr, err := env.RunPVM("pvx", "--perl", binaryPerl, "--auto-install", "--require", "JSON", "--verbose", scriptFile)
 
 	// The command may fail due to module installation issues in test environment,
 	// but we're testing that the integration code paths are working
@@ -89,7 +90,8 @@ say "Script executed successfully";
 }
 
 func TestCrossComponentIntegration_ImportSystem(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -106,7 +108,8 @@ func TestCrossComponentIntegration_ImportSystem(t *testing.T) {
 }
 
 func TestCrossComponentIntegration_TypeDefinitions(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoTreeSitter(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -146,7 +149,8 @@ sub Int increment(Int $value) {
 }
 
 func TestCrossComponentIntegration_EndToEnd(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoTreeSitter(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -195,9 +199,9 @@ say "Comprehensive integration test completed successfully";
 
 	// Step 3: Execute with PVX
 	t.Log("Step 3: Executing with PVX...")
-	systemPerl := helpers.FindSystemPerl()
+	binaryPerl := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", "--perl", systemPerl, strippedFile},
+		[]string{"pvx", "--perl", binaryPerl, strippedFile},
 		"PVX execution should succeed")
 
 	// Verify output
@@ -211,7 +215,7 @@ say "Comprehensive integration test completed successfully";
 	// Step 4: Test integrated run (PSC -> PVX)
 	t.Log("Step 4: Testing integrated PSC run...")
 	stdout = helpers.AssertPVMSucceeds(t, env,
-		[]string{"psc", "run", "--verbose", "--perl", systemPerl, scriptFile},
+		[]string{"psc", "run", "--verbose", "--perl", binaryPerl, scriptFile},
 		"PSC run should succeed using PSC->PVX integration")
 
 	// Should produce the same output as direct PVX execution
