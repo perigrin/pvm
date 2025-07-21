@@ -93,7 +93,8 @@ system_path = "/usr/bin/perl"
 }
 
 func TestMigrationCompatibility_ExistingShims(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -104,10 +105,11 @@ func TestMigrationCompatibility_ExistingShims(t *testing.T) {
 
 	// Create old-style shim script
 	perlShim := filepath.Join(shimsDir, "perl")
+	binaryPerl := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
 	shimContent := `#!/bin/bash
 # Old PVM shim format
 export PVM_ROOT="` + env.RootDir + `"
-exec "` + helpers.FindSystemPerl() + `" "$@"
+exec "` + binaryPerl + `" "$@"
 `
 	err = os.WriteFile(perlShim, []byte(shimContent), 0755)
 	require.NoError(t, err)
@@ -208,7 +210,8 @@ func TestMigrationCompatibility_EnvironmentVariables(t *testing.T) {
 }
 
 func TestMigrationCompatibility_ScriptExecution(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -236,9 +239,9 @@ print "Old style script executed successfully\n";
 
 	// Test that old style scripts still work
 	t.Log("Testing old style script execution...")
-	systemPerl := helpers.FindSystemPerl()
+	binaryPerl := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", "--perl", systemPerl, oldStyleScript},
+		[]string{"pvx", "--perl", binaryPerl, oldStyleScript},
 		"Old style script should execute")
 
 	assert.Contains(t, stdout, "Hello from old style script", "Should show script output")
@@ -258,7 +261,8 @@ print "Old style script executed successfully\n";
 }
 
 func TestMigrationCompatibility_ModuleHandling(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -331,9 +335,9 @@ print "Old module test completed\n";
 
 	// Test execution of old module
 	t.Log("Testing old module execution...")
-	systemPerl := helpers.FindSystemPerl()
+	binaryPerl := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", "--perl", systemPerl, testScript},
+		[]string{"pvx", "--perl", binaryPerl, testScript},
 		"Old module should work")
 
 	assert.Contains(t, stdout, "Name: test", "Should use old module")

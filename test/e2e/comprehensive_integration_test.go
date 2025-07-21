@@ -17,11 +17,14 @@ import (
 )
 
 func TestComprehensiveIntegration_TypedPerlDevelopment(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl to eliminate resource contention issues
 	helpers.SkipIfNoTreeSitter(t)
-	// SKIPPED: env := helpers.NewTestEnv(t)
-	t.Skip("Skipping comprehensive test - causes resource contention in CI")
+
+	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
+
+	// Set up binary Perl environment for reliable testing
+	_ = helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	// Create a comprehensive typed Perl project
 	projectDir := filepath.Join(env.RootDir, "typed_project")
@@ -118,7 +121,7 @@ print "Typed Perl development test completed\n";
 }
 
 func TestComprehensiveIntegration_LegacyMigration(t *testing.T) {
-	// SKIPPED: env := helpers.NewTestEnv(t)
+	env := helpers.NewTestEnv(t)
 	t.Skip("Skipping comprehensive test - causes resource contention in CI")
 	defer env.Cleanup()
 
@@ -197,7 +200,7 @@ print "Migration test completed\n";
 func TestComprehensiveIntegration_PerformanceStress(t *testing.T) {
 	basetesting.SkipUnlessStress(t, "comprehensive performance stress test")
 
-	// SKIPPED: env := helpers.NewTestEnv(t)
+	env := helpers.NewTestEnv(t)
 	t.Skip("Skipping comprehensive test - causes resource contention in CI")
 	defer env.Cleanup()
 
@@ -249,7 +252,7 @@ print "Performance test completed\n";
 }
 
 func TestComprehensiveIntegration_ErrorHandling(t *testing.T) {
-	// SKIPPED: env := helpers.NewTestEnv(t)
+	env := helpers.NewTestEnv(t)
 	t.Skip("Skipping comprehensive test - causes resource contention in CI")
 	defer env.Cleanup()
 
@@ -326,7 +329,7 @@ if ($@) {
 }
 
 func TestComprehensiveIntegration_BackwardCompatibility(t *testing.T) {
-	// SKIPPED: env := helpers.NewTestEnv(t)
+	env := helpers.NewTestEnv(t)
 	t.Skip("Skipping comprehensive test - causes resource contention in CI")
 	defer env.Cleanup()
 

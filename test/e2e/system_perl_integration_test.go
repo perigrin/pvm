@@ -88,13 +88,13 @@ func TestSystemPerlEnforcement(t *testing.T) {
 		t.Skip("Skipping enforcement test in CI environment")
 	}
 
-	// Test the EnsureSystemPerl function
-	systemPerl := helpers.EnsureSystemPerl(t)
-	if systemPerl == nil {
-		t.Fatal("EnsureSystemPerl returned nil")
+	// Test the binary Perl function instead
+	binaryPerlPath := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
+	if binaryPerlPath == "" {
+		t.Fatal("EnsureBinaryPerl returned empty path")
 	}
 
-	t.Logf("EnsureSystemPerl succeeded: %s at %s", systemPerl.Version, systemPerl.Path)
+	t.Logf("EnsureBinaryPerl succeeded: %s", binaryPerlPath)
 }
 
 // TestSystemPerlValidation tests the validation functionality

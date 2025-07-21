@@ -29,7 +29,8 @@ import (
 
 // TestPoolingIntegration_MemoryUsageValidation validates memory usage patterns with pooling
 func TestPoolingIntegration_MemoryUsageValidation(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoTreeSitter(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -134,7 +135,8 @@ func TestPoolingIntegration_MemoryUsageValidation(t *testing.T) {
 
 // TestPoolingIntegration_ConcurrentUsage tests pool safety under concurrent access
 func TestPoolingIntegration_ConcurrentUsage(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoTreeSitter(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -247,7 +249,8 @@ func TestPoolingIntegration_ConcurrentUsage(t *testing.T) {
 
 // TestPoolingIntegration_LSPOperations tests pooling with LSP protocol operations
 func TestPoolingIntegration_LSPOperations(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoTreeSitter(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -358,7 +361,8 @@ sub Int increment() {
 func TestPoolingIntegration_StressTest(t *testing.T) {
 	basetesting.SkipUnlessStress(t, "pooling integration stress test")
 
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoTreeSitter(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -464,7 +468,8 @@ func TestPoolingIntegration_StressTest(t *testing.T) {
 func TestPoolingIntegration_MemoryLeakDetection(t *testing.T) {
 	basetesting.SkipUnlessLongRunning(t, "pooling integration memory leak detection")
 
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoTreeSitter(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -553,7 +558,8 @@ func TestPoolingIntegration_MemoryLeakDetection(t *testing.T) {
 
 // TestPoolingIntegration_BackwardCompatibility ensures no functional regressions
 func TestPoolingIntegration_BackwardCompatibility(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoTreeSitter(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()

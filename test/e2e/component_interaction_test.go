@@ -17,10 +17,12 @@ import (
 )
 
 func TestComponentInteraction_PSC_PVI_TypeDefinitions(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
 	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
+
+	// Set up binary Perl environment for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
 	// Create a module project for type definition testing
 	projectDir := filepath.Join(env.RootDir, "module_project")
@@ -115,7 +117,8 @@ print "Basic type integration test completed\n";
 }
 
 func TestComponentInteraction_PSC_PVX_ErrorPropagation(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -177,7 +180,8 @@ print "Valid type script completed\n";
 func TestComponentInteraction_PVI_PVX_ModuleInstallation(t *testing.T) {
 	basetesting.SkipUnlessLongRunning(t, "PVI/PVX module installation integration test")
 
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -228,7 +232,8 @@ print "Module installation test completed\n";
 }
 
 func TestComponentInteraction_PerformanceOptimizations(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -268,7 +273,8 @@ print "Performance test completed: total = $total\n";
 }
 
 func TestComponentInteraction_ConcurrentOperations(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
@@ -321,7 +327,8 @@ print "Script $script_id completed with result: $result\n";
 }
 
 func TestComponentInteraction_MemoryManagement(t *testing.T) {
-	helpers.SkipIfNoSystemPerl(t)
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()

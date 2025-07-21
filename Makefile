@@ -1,6 +1,7 @@
 .PHONY: all test clean install tree-sitter vendor cross-compile release install-tools check-tools
 .PHONY: build-dev build-release lint check fmt check-generate generate
 .PHONY: test-performance test-stress test-integration test-unit profile optimize performance-analysis test-repository-consistency
+.PHONY: install-test-perl test-with-binary-perl
 
 # Define binaries - we only build pvm, others are symlinks
 BINARIES := pvm
@@ -214,6 +215,32 @@ test-parser: tree-sitter install-tools
 
 test-ast: tree-sitter install-tools
 	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod ./internal/ast/... ./internal/astnav/...
+
+# Binary Perl test infrastructure
+install-test-perl:
+	@echo "Ensuring Perl 5.40.0 is available for testing..."
+	@if ! ./build/pvm list | grep -q "5.40.0"; then \
+		echo "Installing Perl 5.40.0..."; \
+		./build/pvm install --prefer-binary 5.40.0; \
+	else \
+		echo "Perl 5.40.0 already installed"; \
+	fi
+
+test-with-binary-perl: tree-sitter install-tools install-test-perl
+	@echo "Running tests with binary Perl infrastructure..."
+	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
+	PVM_TEST_PERL_VERSION=5.40.0 PVM_USE_BINARY_PERL=1 \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH \
+	go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results-binary.json -- \
+	-mod=mod -timeout=5m -parallel=$$PARALLEL_JOBS ./test/e2e/...; \
+	TEST_EXIT_CODE=$$?; \
+	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
+		echo ""; \
+		echo "📊 BINARY PERL TEST SUMMARY"; \
+		echo "==========================="; \
+		go run scripts/test_summary.go test-results-binary.json; \
+	fi; \
+	exit $$TEST_EXIT_CODE
 
 # Benchmarking
 bench: tree-sitter
