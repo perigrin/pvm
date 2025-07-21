@@ -410,3 +410,255 @@ func BenchmarkDetectProjectCached(b *testing.B) {
 		require.NoError(b, err)
 	}
 }
+
+func TestDetectProjectInDirectory(t *testing.T) {
+	// Create temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Clear cache before each test
+	ClearDetectionCache()
+
+	tests := []struct {
+		name           string
+		setupFunc      func(string) (string, string) // Returns (testDir, parentDir)
+		expectedResult func(*testing.T, *ProjectContext)
+	}{
+		{
+			name: "NoProjectMarkersInDirectory",
+			setupFunc: func(root string) (string, string) {
+				// Create parent directory with project marker
+				parentDir := filepath.Join(root, "parent-project")
+				err := os.MkdirAll(parentDir, 0755)
+				require.NoError(t, err)
+
+				// Create .perl-version in parent
+				perlVersionFile := filepath.Join(parentDir, ".perl-version")
+				err = os.WriteFile(perlVersionFile, []byte("5.38.0\n"), 0644)
+				require.NoError(t, err)
+
+				// Create subdirectory without markers
+				subDir := filepath.Join(parentDir, "empty-subdir")
+				err = os.MkdirAll(subDir, 0755)
+				require.NoError(t, err)
+
+				return subDir, parentDir
+			},
+			expectedResult: func(t *testing.T, ctx *ProjectContext) {
+				// Should NOT find project since we only check the specific directory
+				assert.False(t, ctx.IsProject)
+				assert.Empty(t, ctx.RootDir)
+				assert.Empty(t, ctx.PerlVersion)
+				assert.False(t, ctx.HasCpanfile)
+				assert.Empty(t, ctx.ConfigFile)
+				assert.Empty(t, ctx.DetectionInfo)
+			},
+		},
+		{
+			name: "PerlVersionInTargetDirectory",
+			setupFunc: func(root string) (string, string) {
+				// Create parent without markers
+				parentDir := filepath.Join(root, "parent-no-project")
+				err := os.MkdirAll(parentDir, 0755)
+				require.NoError(t, err)
+
+				// Create target directory with .perl-version
+				targetDir := filepath.Join(parentDir, "target-project")
+				err = os.MkdirAll(targetDir, 0755)
+				require.NoError(t, err)
+
+				perlVersionFile := filepath.Join(targetDir, ".perl-version")
+				err = os.WriteFile(perlVersionFile, []byte("5.40.0\n"), 0644)
+				require.NoError(t, err)
+
+				return targetDir, parentDir
+			},
+			expectedResult: func(t *testing.T, ctx *ProjectContext) {
+				assert.True(t, ctx.IsProject)
+				assert.Contains(t, ctx.RootDir, "target-project")
+				assert.Equal(t, "5.40.0", ctx.PerlVersion)
+				assert.Equal(t, ".perl-version", ctx.DetectionInfo)
+				assert.Contains(t, ctx.LocalLibDir, filepath.Join("target-project", "local"))
+			},
+		},
+		{
+			name: "CpanfileInTargetDirectory",
+			setupFunc: func(root string) (string, string) {
+				parentDir := filepath.Join(root, "parent")
+				targetDir := filepath.Join(parentDir, "cpanfile-target")
+				err := os.MkdirAll(targetDir, 0755)
+				require.NoError(t, err)
+
+				// Create cpanfile in target
+				cpanfile := filepath.Join(targetDir, "cpanfile")
+				err = os.WriteFile(cpanfile, []byte("requires 'Moose';\n"), 0644)
+				require.NoError(t, err)
+
+				return targetDir, parentDir
+			},
+			expectedResult: func(t *testing.T, ctx *ProjectContext) {
+				assert.True(t, ctx.IsProject)
+				assert.Contains(t, ctx.RootDir, "cpanfile-target")
+				assert.True(t, ctx.HasCpanfile)
+				assert.Equal(t, "cpanfile", ctx.DetectionInfo)
+			},
+		},
+		{
+			name: "PvmTomlInTargetDirectory",
+			setupFunc: func(root string) (string, string) {
+				parentDir := filepath.Join(root, "parent")
+				targetDir := filepath.Join(parentDir, "pvm-target")
+				err := os.MkdirAll(targetDir, 0755)
+				require.NoError(t, err)
+
+				// Create pvm.toml in target
+				pvmToml := filepath.Join(targetDir, "pvm.toml")
+				err = os.WriteFile(pvmToml, []byte("[project]\nname = \"test\"\n"), 0644)
+				require.NoError(t, err)
+
+				return targetDir, parentDir
+			},
+			expectedResult: func(t *testing.T, ctx *ProjectContext) {
+				assert.True(t, ctx.IsProject)
+				assert.Contains(t, ctx.RootDir, "pvm-target")
+				assert.Contains(t, ctx.ConfigFile, "pvm.toml")
+				assert.Equal(t, "pvm.toml", ctx.DetectionInfo)
+			},
+		},
+		{
+			name: "GitInTargetDirectory",
+			setupFunc: func(root string) (string, string) {
+				parentDir := filepath.Join(root, "parent")
+				targetDir := filepath.Join(parentDir, "git-target")
+				err := os.MkdirAll(targetDir, 0755)
+				require.NoError(t, err)
+
+				// Create .git directory in target
+				gitDir := filepath.Join(targetDir, ".git")
+				err = os.MkdirAll(gitDir, 0755)
+				require.NoError(t, err)
+
+				return targetDir, parentDir
+			},
+			expectedResult: func(t *testing.T, ctx *ProjectContext) {
+				assert.True(t, ctx.IsProject)
+				assert.Contains(t, ctx.RootDir, "git-target")
+				assert.Equal(t, ".git", ctx.DetectionInfo)
+			},
+		},
+		{
+			name: "PriorityOrderInTargetDirectory",
+			setupFunc: func(root string) (string, string) {
+				parentDir := filepath.Join(root, "parent")
+				targetDir := filepath.Join(parentDir, "priority-target")
+				err := os.MkdirAll(targetDir, 0755)
+				require.NoError(t, err)
+
+				// Create multiple markers in target directory (.perl-version should have priority)
+				perlVersionFile := filepath.Join(targetDir, ".perl-version")
+				err = os.WriteFile(perlVersionFile, []byte("5.38.0\n"), 0644)
+				require.NoError(t, err)
+
+				cpanfile := filepath.Join(targetDir, "cpanfile")
+				err = os.WriteFile(cpanfile, []byte("requires 'DBI';\n"), 0644)
+				require.NoError(t, err)
+
+				gitDir := filepath.Join(targetDir, ".git")
+				err = os.MkdirAll(gitDir, 0755)
+				require.NoError(t, err)
+
+				return targetDir, parentDir
+			},
+			expectedResult: func(t *testing.T, ctx *ProjectContext) {
+				assert.True(t, ctx.IsProject)
+				assert.Contains(t, ctx.RootDir, "priority-target")
+				assert.Equal(t, ".perl-version", ctx.DetectionInfo) // Should detect .perl-version first
+				assert.Equal(t, "5.38.0", ctx.PerlVersion)
+				assert.True(t, ctx.HasCpanfile) // Should enrich with other project info
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear cache for each test
+			ClearDetectionCache()
+
+			testDir, parentDir := tt.setupFunc(tmpDir)
+
+			// Verify parent setup if needed
+			_ = parentDir // Suppress unused variable warning
+
+			// Test DetectProjectInDirectory
+			ctx, err := DetectProjectInDirectory(testDir)
+			require.NoError(t, err)
+			require.NotNil(t, ctx)
+
+			tt.expectedResult(t, ctx)
+		})
+	}
+}
+
+func TestDetectProjectInDirectoryVsDetectProject(t *testing.T) {
+	// This test specifically validates the key difference between the two functions
+	tmpDir := t.TempDir()
+	ClearDetectionCache()
+
+	// Setup: Create parent directory with .perl-version
+	parentDir := filepath.Join(tmpDir, "parent-project")
+	err := os.MkdirAll(parentDir, 0755)
+	require.NoError(t, err)
+
+	perlVersionFile := filepath.Join(parentDir, ".perl-version")
+	err = os.WriteFile(perlVersionFile, []byte("5.38.0\n"), 0644)
+	require.NoError(t, err)
+
+	// Create empty subdirectory
+	emptySubdir := filepath.Join(parentDir, "empty-subdir")
+	err = os.MkdirAll(emptySubdir, 0755)
+	require.NoError(t, err)
+
+	// Test DetectProject - should find parent's .perl-version
+	treeWalkingResult, err := DetectProject(emptySubdir)
+	require.NoError(t, err)
+	assert.True(t, treeWalkingResult.IsProject, "DetectProject should find parent directory markers")
+	assert.Contains(t, treeWalkingResult.RootDir, "parent-project")
+	assert.Equal(t, ".perl-version", treeWalkingResult.DetectionInfo)
+
+	// Test DetectProjectInDirectory - should NOT find parent's .perl-version
+	directoryOnlyResult, err := DetectProjectInDirectory(emptySubdir)
+	require.NoError(t, err)
+	assert.False(t, directoryOnlyResult.IsProject, "DetectProjectInDirectory should NOT find parent directory markers")
+	assert.Empty(t, directoryOnlyResult.RootDir)
+	assert.Empty(t, directoryOnlyResult.DetectionInfo)
+}
+
+func TestDetectProjectInDirectoryCaching(t *testing.T) {
+	tmpDir := t.TempDir()
+	ClearDetectionCache()
+
+	// Create directory with .perl-version
+	projectDir := filepath.Join(tmpDir, "cached-project")
+	err := os.MkdirAll(projectDir, 0755)
+	require.NoError(t, err)
+
+	perlVersionFile := filepath.Join(projectDir, ".perl-version")
+	err = os.WriteFile(perlVersionFile, []byte("5.38.0\n"), 0644)
+	require.NoError(t, err)
+
+	// First call - should hit filesystem
+	ctx1, err := DetectProjectInDirectory(projectDir)
+	require.NoError(t, err)
+	assert.True(t, ctx1.IsProject)
+
+	// Second call - should hit cache
+	ctx2, err := DetectProjectInDirectory(projectDir)
+	require.NoError(t, err)
+	assert.True(t, ctx2.IsProject)
+	assert.Equal(t, ctx1.PerlVersion, ctx2.PerlVersion)
+
+	// Verify cache separation from regular DetectProject
+	ctx3, err := DetectProject(projectDir)
+	require.NoError(t, err)
+	assert.True(t, ctx3.IsProject)
+	// Both should find the project but cache keys should be different
+}
