@@ -4,6 +4,7 @@
 package binder
 
 import (
+	"fmt"
 	"log"
 	"strings"
 
@@ -483,7 +484,45 @@ func (b *CSTBinder) bindCSTMethodDeclaration(node *sitter.Node) error {
 }
 
 func (b *CSTBinder) bindCSTPackageDeclaration(node *sitter.Node) error {
-	// TODO: Implement CST-based package binding
+	if DebugScoping {
+		fmt.Printf("Binding package declaration at position %+v\n", b.getNodePosition(node))
+	}
+
+	// Extract package name from the CST node
+	packageName := b.extractPackageName(node)
+	if packageName == "" {
+		if DebugScoping {
+			fmt.Printf("Warning: Could not extract package name from package declaration\n")
+		}
+		return b.visitCSTChildren(node)
+	}
+
+	if DebugScoping {
+		fmt.Printf("Found package declaration: %s\n", packageName)
+	}
+
+	// Create package symbol
+	symbol := b.poolManager.NewSymbol(
+		packageName,
+		SymbolPackage,
+		SymbolFlagPackage,
+		nil, // No AST node for CST binding
+		b.getNodePosition(node),
+	)
+
+	// Add to symbol table
+	if err := b.symbolTable.AddSymbol(symbol); err != nil {
+		return fmt.Errorf("failed to add package symbol '%s': %w", packageName, err)
+	}
+
+	// Update package context in symbol table
+	b.symbolTable.SetPackage(packageName)
+
+	if DebugScoping {
+		fmt.Printf("Successfully bound package '%s'\n", packageName)
+	}
+
+	// Continue binding children
 	return b.visitCSTChildren(node)
 }
 
@@ -501,27 +540,142 @@ func (b *CSTBinder) bindCSTBlockStatement(node *sitter.Node) error {
 }
 
 func (b *CSTBinder) bindCSTIfStatement(node *sitter.Node) error {
-	// TODO: Implement CST-based if statement binding
-	return b.visitCSTChildren(node)
+	if DebugScoping {
+		fmt.Printf("Binding if statement at position %+v\n", b.getNodePosition(node))
+	}
+
+	// Enter block scope for the if statement
+	b.symbolTable.EnterScope(ScopeBlock, nil)
+
+	if DebugScoping {
+		fmt.Printf("Entered block scope for if statement\n")
+	}
+
+	// Bind condition and body - this will handle any variable declarations
+	// or references within the if statement
+	err := b.visitCSTChildren(node)
+
+	// Exit block scope
+	b.symbolTable.ExitScope()
+
+	if DebugScoping {
+		fmt.Printf("Exited block scope for if statement\n")
+	}
+
+	return err
 }
 
 func (b *CSTBinder) bindCSTWhileStatement(node *sitter.Node) error {
-	// TODO: Implement CST-based while statement binding
-	return b.visitCSTChildren(node)
+	if DebugScoping {
+		fmt.Printf("Binding while statement at position %+v\n", b.getNodePosition(node))
+	}
+
+	// Enter block scope for the while loop
+	b.symbolTable.EnterScope(ScopeBlock, nil)
+
+	if DebugScoping {
+		fmt.Printf("Entered block scope for while statement\n")
+	}
+
+	// Bind condition and body - this will handle any variable declarations
+	// or references within the while statement
+	err := b.visitCSTChildren(node)
+
+	// Exit block scope
+	b.symbolTable.ExitScope()
+
+	if DebugScoping {
+		fmt.Printf("Exited block scope for while statement\n")
+	}
+
+	return err
 }
 
 func (b *CSTBinder) bindCSTForStatement(node *sitter.Node) error {
-	// TODO: Implement CST-based for statement binding
-	return b.visitCSTChildren(node)
+	if DebugScoping {
+		fmt.Printf("Binding for statement at position %+v\n", b.getNodePosition(node))
+	}
+
+	// Enter block scope for the for loop
+	b.symbolTable.EnterScope(ScopeBlock, nil)
+
+	if DebugScoping {
+		fmt.Printf("Entered block scope for for statement\n")
+	}
+
+	// Handle loop variable binding - for statements may introduce
+	// new variables (e.g., for my $var (@array))
+	if err := b.bindLoopVariable(node); err != nil {
+		b.symbolTable.ExitScope()
+		return fmt.Errorf("failed to bind loop variable in for statement: %w", err)
+	}
+
+	// Bind the rest of the statement (condition, body, etc.)
+	err := b.visitCSTChildren(node)
+
+	// Exit block scope
+	b.symbolTable.ExitScope()
+
+	if DebugScoping {
+		fmt.Printf("Exited block scope for for statement\n")
+	}
+
+	return err
 }
 
 func (b *CSTBinder) bindCSTUseStatement(node *sitter.Node) error {
-	// TODO: Implement CST-based use statement binding
+	if DebugScoping {
+		fmt.Printf("Binding use statement at position %+v\n", b.getNodePosition(node))
+	}
+
+	// Extract module name from the CST node
+	moduleName := b.extractModuleName(node)
+	if moduleName == "" {
+		if DebugScoping {
+			fmt.Printf("Warning: Could not extract module name from use statement\n")
+		}
+		return b.visitCSTChildren(node)
+	}
+
+	if DebugScoping {
+		fmt.Printf("Found use statement: %s\n", moduleName)
+	}
+
+	// Create import symbol
+	symbol := b.poolManager.NewSymbol(
+		moduleName,
+		SymbolImport,
+		SymbolFlagImported,
+		nil, // No AST node for CST binding
+		b.getNodePosition(node),
+	)
+
+	// Add to symbol table
+	if err := b.symbolTable.AddSymbol(symbol); err != nil {
+		return fmt.Errorf("failed to add import symbol '%s': %w", moduleName, err)
+	}
+
+	// Add the import to the current scope's import tracking
+	if b.symbolTable.CurrentScope.ImportedModules == nil {
+		b.symbolTable.CurrentScope.ImportedModules = make(map[string]string)
+	}
+	b.symbolTable.CurrentScope.ImportedModules[moduleName] = moduleName
+
+	if DebugScoping {
+		fmt.Printf("Successfully bound use statement for module '%s'\n", moduleName)
+	}
+
+	// Continue binding children (for version specs, import lists, etc.)
 	return b.visitCSTChildren(node)
 }
 
 func (b *CSTBinder) bindCSTReturnStatement(node *sitter.Node) error {
-	// TODO: Implement CST-based return statement binding
+	if DebugScoping {
+		fmt.Printf("Binding return statement at position %+v\n", b.getNodePosition(node))
+	}
+
+	// Return statements don't create new scopes, just process their children
+	// This will bind any variables referenced in the return expression
 	return b.visitCSTChildren(node)
 }
 
@@ -649,4 +803,130 @@ func (b *CSTBinder) isValidSymbolName(name string) bool {
 	}
 
 	return true
+}
+
+// getNodePosition creates an AST position from a tree-sitter node
+func (b *CSTBinder) getNodePosition(node *sitter.Node) ast.Position {
+	if node == nil {
+		return ast.Position{}
+	}
+
+	startPos := node.StartPosition()
+	return ast.Position{
+		Line:   int(startPos.Row) + 1,    // Convert 0-based to 1-based
+		Column: int(startPos.Column) + 1, // Convert 0-based to 1-based
+		Offset: int(node.StartByte()),
+	}
+}
+
+// extractPackageName extracts the package name from a package_statement node
+func (b *CSTBinder) extractPackageName(node *sitter.Node) string {
+	if node == nil {
+		return ""
+	}
+
+	// Look for the name field in the package declaration
+	// The grammar defines: field('name', $.package)
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		childType := child.Kind()
+
+		// Look for package name nodes
+		if childType == "package" || childType == "bareword" || childType == "identifier" {
+			text := b.getNodeText(child)
+			if text != "" && text != "package" {
+				return text
+			}
+		}
+
+		// If it's a nested structure, recurse
+		if child.ChildCount() > 0 {
+			if name := b.extractPackageName(child); name != "" {
+				return name
+			}
+		}
+	}
+
+	return ""
+}
+
+// extractModuleName extracts the module name from a use_statement node
+func (b *CSTBinder) extractModuleName(node *sitter.Node) string {
+	if node == nil {
+		return ""
+	}
+
+	// Look for the module field in the use declaration
+	// The grammar defines: field('module', $.package)
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		childType := child.Kind()
+
+		// Look for module name nodes
+		if childType == "package" || childType == "bareword" || childType == "identifier" {
+			text := b.getNodeText(child)
+			if text != "" && text != "use" && text != ";" {
+				return text
+			}
+		}
+
+		// If it's a nested structure, recurse
+		if child.ChildCount() > 0 {
+			if name := b.extractModuleName(child); name != "" {
+				return name
+			}
+		}
+	}
+
+	return ""
+}
+
+// bindLoopVariable handles binding of loop variables in for statements
+func (b *CSTBinder) bindLoopVariable(node *sitter.Node) error {
+	if node == nil {
+		return nil
+	}
+
+	// Look for loop variable declarations in the for statement
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(uint(i))
+		if child == nil {
+			continue
+		}
+
+		childType := child.Kind()
+
+		// Look for variable declarations or variable expressions
+		if childType == "variable_declaration" {
+			return b.bindCSTVariableDeclaration(child)
+		}
+
+		if strings.HasSuffix(childType, "variable") && strings.HasPrefix(b.getNodeText(child), "$") {
+			// This is likely a loop variable, create a symbol for it
+			varName := b.getNodeText(child)
+			if b.isValidSymbolName(varName) {
+				symbol := b.poolManager.NewSymbol(
+					b.stripSigil(varName),
+					SymbolScalar,
+					SymbolFlagLexical,
+					nil,
+					b.getNodePosition(child),
+				)
+
+				if err := b.symbolTable.AddSymbol(symbol); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
