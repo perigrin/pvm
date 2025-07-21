@@ -80,14 +80,14 @@ type Document struct {
 
 // ServerCapabilities defines what the server can do
 type ServerCapabilities struct {
-	TextDocumentSync           *TextDocumentSyncOptions `json:"textDocumentSync,omitempty"`
-	HoverProvider              bool                     `json:"hoverProvider,omitempty"`
-	CompletionProvider         *CompletionOptions       `json:"completionProvider,omitempty"`
-	DiagnosticsProvider        bool                     `json:"diagnosticsProvider,omitempty"`
-	DefinitionProvider         bool                     `json:"definitionProvider,omitempty"`
-	ReferencesProvider         bool                     `json:"referencesProvider,omitempty"`
-	DocumentFormattingProvider bool                     `json:"documentFormattingProvider,omitempty"`
-	CodeActionProvider         bool                     `json:"codeActionProvider,omitempty"`
+	TextDocumentSync           *TextDocumentSyncOptions          `json:"textDocumentSync,omitempty"`
+	HoverProvider              bool                              `json:"hoverProvider,omitempty"`
+	CompletionProvider         *CompletionOptions                `json:"completionProvider,omitempty"`
+	DiagnosticsProvider        bool                              `json:"diagnosticsProvider,omitempty"`
+	DefinitionProvider         bool                              `json:"definitionProvider,omitempty"`
+	ReferencesProvider         bool                              `json:"referencesProvider,omitempty"`
+	DocumentFormattingProvider bool                              `json:"documentFormattingProvider,omitempty"`
+	CodeActionProvider         bool                              `json:"codeActionProvider,omitempty"`
 	DocumentSymbolProvider     bool                              `json:"documentSymbolProvider,omitempty"`
 	WorkspaceSymbolProvider    bool                              `json:"workspaceSymbolProvider,omitempty"`
 	SignatureHelpProvider      *SignatureHelpOptions             `json:"signatureHelpProvider,omitempty"`

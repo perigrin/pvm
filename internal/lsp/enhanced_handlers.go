@@ -265,7 +265,7 @@ func (s *Server) createInlayHintFromSymbol(symbol *binder.Symbol, docRange Range
 	}
 
 	pos := symbol.Declaration.Start()
-	
+
 	// Check if symbol position is within the requested range
 	if !s.positionInRange(pos, docRange) {
 		return nil
@@ -287,7 +287,7 @@ func (s *Server) createInlayHintFromSymbol(symbol *binder.Symbol, docRange Range
 // createTypeInlayHint creates a type inlay hint for a variable
 func (s *Server) createTypeInlayHint(symbol *binder.Symbol, pos ast.Position) *InlayHint {
 	var typeLabel string
-	
+
 	if symbol.Type != "" {
 		typeLabel = fmt.Sprintf(": %s", symbol.Type)
 	} else {
@@ -352,8 +352,8 @@ func (s *Server) isVariableSymbol(symbol *binder.Symbol) bool {
 
 // positionInRange checks if a position is within a range
 func (s *Server) positionInRange(pos ast.Position, docRange Range) bool {
-	line := pos.Line - 1    // Convert to 0-based
-	char := pos.Column - 1  // Convert to 0-based
+	line := pos.Line - 1   // Convert to 0-based
+	char := pos.Column - 1 // Convert to 0-based
 
 	// Check if position is within range
 	if line < docRange.Start.Line || line > docRange.End.Line {
@@ -433,7 +433,7 @@ func (builder *SemanticTokensBuilder) addTokenFromSymbol(symbol *binder.Symbol) 
 	pos := symbol.Declaration.Start()
 	tokenType := builder.getTokenTypeFromSymbol(symbol)
 	tokenTypeIndex := builder.findTokenTypeIndex(tokenType)
-	
+
 	if tokenTypeIndex == -1 {
 		return // Unknown token type
 	}
