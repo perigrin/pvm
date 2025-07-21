@@ -496,6 +496,66 @@ type WorkspaceSymbol struct {
 	Data     interface{} `json:"data,omitempty"`
 }
 
+// DocumentSymbolParams represents parameters for textDocument/documentSymbol
+type DocumentSymbolParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+}
+
+// DocumentSymbol represents a symbol inside a document
+type DocumentSymbol struct {
+	Name           string           `json:"name"`
+	Detail         string           `json:"detail,omitempty"`
+	Kind           SymbolKind       `json:"kind"`
+	Tags           []SymbolTag      `json:"tags,omitempty"`
+	Range          Range            `json:"range"`
+	SelectionRange Range            `json:"selectionRange"`
+	Children       []DocumentSymbol `json:"children,omitempty"`
+}
+
+// SignatureHelpParams represents parameters for textDocument/signatureHelp
+type SignatureHelpParams struct {
+	TextDocumentPositionParams
+	Context *SignatureHelpContext `json:"context,omitempty"`
+}
+
+// SignatureHelpContext contains context information for signature help
+type SignatureHelpContext struct {
+	TriggerKind      SignatureHelpTriggerKind `json:"triggerKind"`
+	TriggerCharacter string                   `json:"triggerCharacter,omitempty"`
+	IsRetrigger      bool                     `json:"isRetrigger"`
+	ActiveSignature  *SignatureHelp           `json:"activeSignatureHelp,omitempty"`
+}
+
+// SignatureHelpTriggerKind represents why signature help was triggered
+type SignatureHelpTriggerKind int
+
+const (
+	SignatureHelpTriggerInvoked       SignatureHelpTriggerKind = 1
+	SignatureHelpTriggerCharacter     SignatureHelpTriggerKind = 2
+	SignatureHelpTriggerContentChange SignatureHelpTriggerKind = 3
+)
+
+// SignatureHelp contains signature help information
+type SignatureHelp struct {
+	Signatures      []SignatureInformation `json:"signatures"`
+	ActiveSignature *int                   `json:"activeSignature,omitempty"`
+	ActiveParameter *int                   `json:"activeParameter,omitempty"`
+}
+
+// SignatureInformation represents information about a callable signature
+type SignatureInformation struct {
+	Label           string                 `json:"label"`
+	Documentation   *MarkupContent         `json:"documentation,omitempty"`
+	Parameters      []ParameterInformation `json:"parameters,omitempty"`
+	ActiveParameter *int                   `json:"activeParameter,omitempty"`
+}
+
+// ParameterInformation represents information about a parameter
+type ParameterInformation struct {
+	Label         interface{}    `json:"label"` // string | [int, int]
+	Documentation *MarkupContent `json:"documentation,omitempty"`
+}
+
 // SymbolKind represents symbol kinds
 type SymbolKind int
 
