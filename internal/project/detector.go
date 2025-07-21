@@ -114,6 +114,80 @@ func DetectProject(workingDir string) (*ProjectContext, error) {
 	return result, nil
 }
 
+// DetectProjectInDirectory detects project context in the specified directory only (no directory tree walking)
+// This is useful for workspace initialization where we want to check only the target directory
+func DetectProjectInDirectory(workingDir string) (*ProjectContext, error) {
+	// Clean the working directory path
+	cleanDir, err := filepath.Abs(workingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the directory exists and is accessible
+	if _, err := os.Stat(cleanDir); err != nil {
+		return nil, err
+	}
+
+	// Create a specific cache key for directory-only detection to avoid conflicts with tree-walking detection
+	cacheKey := "dir-only:" + cleanDir
+
+	// Check cache first
+	cacheMutex.RLock()
+	if cached, exists := detectionCache[cacheKey]; exists {
+		cacheMutex.RUnlock()
+		return cached, nil
+	}
+	cacheMutex.RUnlock()
+
+	// Check for project markers in the specified directory only
+	result := &ProjectContext{
+		IsProject:   false,
+		LocalLibDir: filepath.Join(cleanDir, "local"),
+	}
+
+	// Check for project markers in the specified directory
+	for _, marker := range projectMarkers {
+		markerPath := filepath.Join(cleanDir, marker)
+		if fileExists(markerPath) {
+			result.IsProject = true
+			result.RootDir = cleanDir
+			result.DetectionInfo = marker
+
+			// Set specific information based on marker type
+			switch marker {
+			case ".perl-version":
+				if version, err := readPerlVersion(markerPath); err == nil {
+					result.PerlVersion = version
+				}
+			case "cpanfile":
+				result.HasCpanfile = true
+			case "pvm.toml":
+				result.ConfigFile = markerPath
+			}
+
+			// Update local lib directory to be relative to project root
+			result.LocalLibDir = filepath.Join(result.RootDir, "local")
+
+			// Check for additional project information now that we found the root
+			enrichProjectContext(result)
+
+			// Cache the result
+			cacheMutex.Lock()
+			detectionCache[cacheKey] = result
+			cacheMutex.Unlock()
+
+			return result, nil
+		}
+	}
+
+	// Cache negative result (not a project)
+	cacheMutex.Lock()
+	detectionCache[cacheKey] = result
+	cacheMutex.Unlock()
+
+	return result, nil
+}
+
 // enrichProjectContext adds additional information once project root is found
 func enrichProjectContext(ctx *ProjectContext) {
 	if ctx.RootDir == "" {

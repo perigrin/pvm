@@ -286,8 +286,9 @@ func initializeProject(cmd *cobra.Command, projectName, projectDir string, templ
 	}
 
 	// Check if we're already in a project (unless force is used)
+	// Use DetectProjectInDirectory to check only the target directory, not parent directories
 	if !force {
-		existingProject, err := project.DetectProject(absProjectDir)
+		existingProject, err := project.DetectProjectInDirectory(absProjectDir)
 		if err != nil {
 			return fmt.Errorf("failed to detect existing project: %w", err)
 		}
