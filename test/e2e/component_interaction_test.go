@@ -18,7 +18,7 @@ import (
 
 func TestComponentInteraction_PSC_PVI_TypeDefinitions(t *testing.T) {
 	helpers.SkipIfNoSystemPerl(t)
-	helpers.SkipIfNoTreeSitter(t)
+	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -107,14 +107,16 @@ print "Basic type integration test completed\n";
 		[]string{"psc", "check", "--verbose", testScript},
 		"Test script using basic types should type check")
 
-	// For now, just verify that type checking works
-	// TODO: Fix psc run command execution issue later
-	t.Log("Type checking completed successfully - this validates PSC-PVI integration")
+	// Test PSC run command execution with PVI integration
+	t.Log("Testing PSC-PVI integration: psc run command...")
+	stdout = helpers.AssertPSCSucceedsOrSkipTODO(t, env, []string{"run", testScript}, "run execution")
+	assert.Contains(t, stdout, "Basic type integration test completed", "PSC run should execute script successfully")
+	t.Log("PSC-PVI integration test completed successfully")
 }
 
 func TestComponentInteraction_PSC_PVX_ErrorPropagation(t *testing.T) {
 	helpers.SkipIfNoSystemPerl(t)
-	helpers.SkipIfNoTreeSitter(t)
+	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -165,9 +167,11 @@ print "Valid type script completed\n";
 	_, _, err = env.RunPVM("psc", "check", validScript)
 	assert.NoError(t, err, "Valid script should type check successfully")
 
-	// For now, just verify that type checking works
-	// TODO: Fix psc run command execution issue later
-	t.Log("Type checking completed successfully - this validates PSC-PVX integration")
+	// Test PSC run command execution with PVX integration
+	t.Log("Testing PSC-PVX integration: psc run command...")
+	stdout := helpers.AssertPSCSucceedsOrSkipTODO(t, env, []string{"run", validScript}, "run execution")
+	assert.Contains(t, stdout, "Valid type script completed", "PSC run should execute script successfully")
+	t.Log("PSC-PVX integration test completed successfully")
 }
 
 func TestComponentInteraction_PVI_PVX_ModuleInstallation(t *testing.T) {
@@ -225,7 +229,7 @@ print "Module installation test completed\n";
 
 func TestComponentInteraction_PerformanceOptimizations(t *testing.T) {
 	helpers.SkipIfNoSystemPerl(t)
-	helpers.SkipIfNoTreeSitter(t)
+	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -265,7 +269,7 @@ print "Performance test completed: total = $total\n";
 
 func TestComponentInteraction_ConcurrentOperations(t *testing.T) {
 	helpers.SkipIfNoSystemPerl(t)
-	helpers.SkipIfNoTreeSitter(t)
+	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -318,7 +322,7 @@ print "Script $script_id completed with result: $result\n";
 
 func TestComponentInteraction_MemoryManagement(t *testing.T) {
 	helpers.SkipIfNoSystemPerl(t)
-	helpers.SkipIfNoTreeSitter(t)
+	helpers.SkipIfNoPSC(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -351,7 +355,9 @@ print "Memory test completed: total = $total\n";
 		[]string{"psc", "check", "--verbose", memoryScript},
 		"Type checking with basic data should succeed")
 
-	// For now, just verify that type checking works
-	// TODO: Fix psc run command execution issue later
-	t.Log("Type checking completed successfully - this validates memory management integration")
+	// Test PSC run command execution with memory management
+	t.Log("Testing PSC memory management: psc run command...")
+	stdout := helpers.AssertPSCSucceedsOrSkipTODO(t, env, []string{"run", memoryScript}, "run execution with memory management")
+	assert.Contains(t, stdout, "Memory test completed", "PSC run should execute memory management script successfully")
+	t.Log("PSC memory management integration test completed successfully")
 }
