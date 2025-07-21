@@ -5,6 +5,7 @@ package typechecker
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
@@ -678,18 +679,137 @@ func (fa *FlowAnalyzer) extractVariableFromCondition(node ast.Node) string {
 
 // processVariableDeclaration processes variable declarations
 func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeState) []error {
-	// Extract variable name and type from declaration
-	// For now, this is a placeholder
-	return []error{}
+	var errors []error
+
+	// Cast to VarDecl node - check by node type first
+	if stmt.Type() != "var_decl" {
+		return errors // Not a variable declaration, skip
+	}
+
+	varDecl, ok := stmt.(*ast.VarDecl)
+	if !ok {
+		return errors // Type assertion failed, skip
+	}
+
+	// Initialize type maps if needed
+	if state.VariableTypes == nil {
+		state.VariableTypes = make(map[string]string)
+	}
+
+	// Process each variable in the declaration
+	variables := varDecl.Variables()
+	for _, variable := range variables {
+		if variable == nil {
+			continue
+		}
+
+		varName := variable.Name
+		if varName == "" {
+			continue
+		}
+
+		// Extract type from type annotation or infer from initializer
+		var varType string
+
+		// First, check for explicit type annotation on the declaration
+		if varDecl.TypeExpr != nil {
+			varType = fa.extractTypeFromTypeExpression(varDecl.TypeExpr)
+		} else if varDecl.Initializer != nil {
+			// If no type annotation, try to infer from initializer
+			varType = fa.inferTypeFromExpression(varDecl.Initializer)
+		}
+
+		// Fall back to "Any" if we can't determine the type
+		if varType == "" {
+			varType = "Any"
+		}
+
+		// Update type state with the variable type
+		state.VariableTypes[varName] = varType
+
+		// Validate the type annotation if provided
+		if varDecl.TypeExpr != nil && varType != "" && varType != "Any" {
+			if err := fa.validateTypeAnnotation(varType, varDecl.Start()); err != nil {
+				errors = append(errors, err)
+			}
+		}
+
+		// If there's an initializer, check type compatibility
+		if varDecl.Initializer != nil && varType != "Any" {
+			initType := fa.inferTypeFromExpression(varDecl.Initializer)
+			if initType != "" && initType != "Any" && initType != varType {
+				if err := fa.checkTypeCompatibility(initType, varType, varDecl.Start()); err != nil {
+					errors = append(errors, err)
+				}
+			}
+		}
+	}
+
+	return errors
 }
 
 // processAssignment processes assignment statements
 func (fa *FlowAnalyzer) processAssignment(stmt ast.Node, state *TypeState) []error {
 	var errors []error
 
-	// Check type compatibility for assignments
-	// This would extract the LHS and RHS types
-	// For now, this is a placeholder
+	// Cast to AssignmentExpr node - check by node type first
+	if stmt.Type() != "assignment_expr" {
+		return errors // Not an assignment expression, skip
+	}
+
+	assign, ok := stmt.(*ast.AssignmentExpr)
+	if !ok {
+		return errors // Type assertion failed, skip
+	}
+
+	// Initialize type maps if needed
+	if state.VariableTypes == nil {
+		state.VariableTypes = make(map[string]string)
+	}
+
+	// Extract target variable name from LHS
+	targetVar := fa.extractVariableFromExpression(assign.Left)
+	if targetVar == "" {
+		// Not assigning to a simple variable (e.g., array element, method call result)
+		// Still validate RHS for any type errors
+		fa.inferTypeFromExpression(assign.Right)
+		return errors
+	}
+
+	// Get current type of target variable from type state
+	targetType := fa.getVariableTypeFromState(targetVar, state)
+
+	// Infer type of RHS expression
+	sourceType := fa.inferTypeFromExpression(assign.Right)
+	if sourceType == "" {
+		sourceType = "Any"
+	}
+
+	// For compound assignments (+=, -=, etc.), need special handling
+	if assign.Operator != "=" {
+		// For compound assignments, both operands should be compatible with the operation
+		if targetType != "" && targetType != "Any" && sourceType != "Any" {
+			if err := fa.checkCompoundAssignmentCompatibility(targetType, sourceType, assign.Operator, assign.Start()); err != nil {
+				errors = append(errors, err)
+			}
+		}
+		// Result type remains the same for compound assignments
+		return errors
+	}
+
+	// For simple assignment (=), check type compatibility
+	if targetType != "" && targetType != "Any" && sourceType != "Any" {
+		if err := fa.checkTypeCompatibility(sourceType, targetType, assign.Start()); err != nil {
+			errors = append(errors, err)
+		}
+	} else if targetType == "" || targetType == "Any" {
+		// Variable not previously declared or has Any type - refine to source type
+		if sourceType != "Any" {
+			state.VariableTypes[targetVar] = sourceType
+		} else {
+			state.VariableTypes[targetVar] = "Any"
+		}
+	}
 
 	return errors
 }
@@ -698,9 +818,85 @@ func (fa *FlowAnalyzer) processAssignment(stmt ast.Node, state *TypeState) []err
 func (fa *FlowAnalyzer) processFunctionCall(stmt ast.Node, state *TypeState) []error {
 	var errors []error
 
-	// Analyze function calls for type errors
-	// This would check parameter types against function signatures
-	// For now, this is a placeholder
+	// Cast to CallExpr node - check by node type first
+	if stmt.Type() != "call_expr" {
+		return errors // Not a function call expression, skip
+	}
+
+	call, ok := stmt.(*ast.CallExpr)
+	if !ok {
+		return errors // Type assertion failed, skip
+	}
+
+	// Extract function name from the call expression
+	functionName := fa.extractFunctionNameFromCall(call)
+	if functionName == "" {
+		// Can't determine function name (e.g., complex expression)
+		// Still validate arguments for any type errors
+		for _, arg := range call.Arguments {
+			fa.inferTypeFromExpression(arg)
+		}
+		return errors
+	}
+
+	// Look up function signature in the type checker's function types
+	signature, exists := fa.TypeChecker.FunctionTypes[functionName]
+	if !exists {
+		// Function signature not found - might be built-in, external, or undeclared
+		// Still validate arguments for any type errors
+		for _, arg := range call.Arguments {
+			fa.inferTypeFromExpression(arg)
+		}
+		return errors
+	}
+
+	// Validate parameter count
+	expectedParamCount := len(signature.ParameterTypes)
+	actualParamCount := len(call.Arguments)
+
+	if actualParamCount != expectedParamCount {
+		err := &TypeCheckError{
+			Message: fmt.Sprintf("Function '%s' expects %d parameters, got %d", functionName, expectedParamCount, actualParamCount),
+			Path:    "",
+			Line:    call.Start().Line,
+			Column:  call.Start().Column,
+		}
+		errors = append(errors, err)
+		return errors // Can't validate individual parameters if count is wrong
+	}
+
+	// Validate each parameter type
+	paramNames := fa.getParameterNamesFromSignature(signature)
+	for i, arg := range call.Arguments {
+		if i >= len(paramNames) {
+			break // Safety check
+		}
+
+		paramName := paramNames[i]
+		expectedType, exists := signature.ParameterTypes[paramName]
+		if !exists {
+			continue // Parameter not found in signature, skip
+		}
+
+		actualType := fa.inferTypeFromExpression(arg)
+		if actualType == "" || actualType == "Any" {
+			continue // Can't validate unknown or Any type
+		}
+
+		// Check type compatibility
+		if expectedType != "Any" && actualType != expectedType {
+			if err := fa.checkTypeCompatibility(actualType, expectedType, call.Start()); err != nil {
+				// Customize error message for function parameter
+				paramErr := &TypeCheckError{
+					Message: fmt.Sprintf("Parameter %d of function '%s' expects type '%s', got '%s'", i+1, functionName, expectedType, actualType),
+					Path:    err.(*TypeCheckError).Path,
+					Line:    call.Start().Line,
+					Column:  call.Start().Column,
+				}
+				errors = append(errors, paramErr)
+			}
+		}
+	}
 
 	return errors
 }
@@ -724,5 +920,273 @@ func (tc *TypeChecker) AddFlowPatterns(patterns []string) {
 			},
 		}
 		tc.ValidationPatterns = append(tc.ValidationPatterns, validationPattern)
+	}
+}
+
+// Helper methods for flow control analysis
+
+// extractTypeFromTypeExpression extracts a type string from a TypeExpression AST node
+func (fa *FlowAnalyzer) extractTypeFromTypeExpression(typeExpr *ast.TypeExpression) string {
+	if typeExpr == nil {
+		return ""
+	}
+
+	// Use the existing String() method on TypeExpression
+	return typeExpr.String()
+}
+
+// inferTypeFromExpression performs basic type inference on expressions
+func (fa *FlowAnalyzer) inferTypeFromExpression(expr ast.ExpressionNode) string {
+	if expr == nil {
+		return "Any"
+	}
+
+	// Use the existing inference engine if available
+	if fa.TypeChecker.InferenceEngine != nil {
+		// Try to get inferred type from the inference engine
+		inferredTypes := fa.TypeChecker.InferenceEngine.GetAllInferredTypes()
+
+		// For variable expressions, check if we have an inferred type
+		if varExpr, ok := expr.(*ast.VariableExpr); ok {
+			if inferredType, exists := inferredTypes[varExpr.Name]; exists {
+				return inferredType
+			}
+		}
+	}
+
+	// Basic type inference based on expression type
+	switch expr.Type() {
+	case "literal":
+		if literal, ok := expr.(*ast.LiteralExpr); ok {
+			return fa.inferTypeFromLiteral(literal)
+		}
+	case "variable":
+		if varExpr, ok := expr.(*ast.VariableExpr); ok {
+			// Check current type state first
+			if fa.TypeChecker.TypeState != nil {
+				if varType, exists := fa.TypeChecker.TypeState.VariableTypes[varExpr.Name]; exists {
+					return varType
+				}
+			}
+			// Fall back to type annotations
+			if varType, exists := fa.TypeChecker.TypeAnnotations[varExpr.Name]; exists {
+				return varType
+			}
+		}
+	case "call_expr":
+		if callExpr, ok := expr.(*ast.CallExpr); ok {
+			return fa.inferReturnTypeFromCall(callExpr)
+		}
+	}
+
+	return "Any" // Default fallback
+}
+
+// inferTypeFromLiteral infers type from literal expressions
+func (fa *FlowAnalyzer) inferTypeFromLiteral(literal *ast.LiteralExpr) string {
+	if literal == nil {
+		return "Any"
+	}
+
+	switch literal.Kind {
+	case ast.NumberLiteral:
+		return "Num" // Could be more specific with Int vs Num analysis
+	case ast.StringLiteral:
+		return "Str"
+	case ast.BooleanLiteral:
+		return "Bool"
+	case ast.UndefLiteral:
+		return "Undef"
+	case ast.RegexLiteral:
+		return "Regex"
+	default:
+		return "Any"
+	}
+}
+
+// inferReturnTypeFromCall infers the return type of a function call
+func (fa *FlowAnalyzer) inferReturnTypeFromCall(call *ast.CallExpr) string {
+	functionName := fa.extractFunctionNameFromCall(call)
+	if functionName == "" {
+		return "Any"
+	}
+
+	if signature, exists := fa.TypeChecker.FunctionTypes[functionName]; exists {
+		return signature.ReturnType
+	}
+
+	return "Any"
+}
+
+// extractVariableFromExpression extracts variable name from an expression (for LHS of assignments)
+func (fa *FlowAnalyzer) extractVariableFromExpression(expr ast.ExpressionNode) string {
+	if expr == nil {
+		return ""
+	}
+
+	// Handle simple variable expressions
+	if varExpr, ok := expr.(*ast.VariableExpr); ok {
+		return varExpr.Name
+	}
+
+	// For more complex expressions (array/hash refs, etc.), we don't extract the variable
+	// This is intentional - we only want simple variable assignments
+	return ""
+}
+
+// getVariableTypeFromState retrieves the current type of a variable from the type state
+func (fa *FlowAnalyzer) getVariableTypeFromState(varName string, state *TypeState) string {
+	if state == nil || varName == "" {
+		return ""
+	}
+
+	// Check refined types first (more specific)
+	if state.RefinedTypes != nil {
+		if refinedType, exists := state.RefinedTypes[varName]; exists {
+			return refinedType
+		}
+	}
+
+	// Check base variable types
+	if state.VariableTypes != nil {
+		if varType, exists := state.VariableTypes[varName]; exists {
+			return varType
+		}
+	}
+
+	// Check type checker's type annotations as fallback
+	if varType, exists := fa.TypeChecker.TypeAnnotations[varName]; exists {
+		return varType
+	}
+
+	return ""
+}
+
+// extractFunctionNameFromCall extracts the function name from a CallExpr
+func (fa *FlowAnalyzer) extractFunctionNameFromCall(call *ast.CallExpr) string {
+	if call == nil || call.Function == nil {
+		return ""
+	}
+
+	// Handle simple function name (identifier)
+	if varExpr, ok := call.Function.(*ast.VariableExpr); ok {
+		return varExpr.Name
+	}
+
+	// For method calls or more complex expressions, we might need more sophisticated handling
+	// For now, return empty string to indicate we can't handle it
+	return ""
+}
+
+// getParameterNamesFromSignature extracts ordered parameter names from a function signature
+func (fa *FlowAnalyzer) getParameterNamesFromSignature(signature *FunctionSignature) []string {
+	if signature == nil || signature.ParameterTypes == nil {
+		return []string{}
+	}
+
+	// Since Go maps don't have guaranteed order, we need to extract parameter names
+	// in a consistent way. For now, we'll extract them alphabetically.
+	// In a real implementation, we'd want to maintain parameter order in the signature.
+	var paramNames []string
+	for paramName := range signature.ParameterTypes {
+		paramNames = append(paramNames, paramName)
+	}
+
+	// Sort alphabetically for consistency (this is a limitation of the current design)
+	// Ideally, FunctionSignature should maintain parameter order
+	sort.Strings(paramNames)
+
+	return paramNames
+}
+
+// validateTypeAnnotation validates that a type annotation is valid
+func (fa *FlowAnalyzer) validateTypeAnnotation(typeStr string, pos ast.Position) error {
+	if typeStr == "" || typeStr == "Any" {
+		return nil // Empty or Any type is always valid
+	}
+
+	// Use the type hierarchy to validate the type
+	if fa.TypeChecker.Hierarchy != nil {
+		if err := fa.TypeChecker.Hierarchy.ValidateType(typeStr); err != nil {
+			return &TypeCheckError{
+				Message: fmt.Sprintf("Invalid type annotation '%s'", typeStr),
+				Path:    "",
+				Line:    pos.Line,
+				Column:  pos.Column,
+			}
+		}
+	}
+
+	return nil
+}
+
+// checkTypeCompatibility checks if sourceType is compatible with targetType
+func (fa *FlowAnalyzer) checkTypeCompatibility(sourceType, targetType string, pos ast.Position) error {
+	if sourceType == "Any" || targetType == "Any" {
+		return nil // Any type is compatible with everything
+	}
+
+	// Use the type hierarchy to check compatibility
+	if fa.TypeChecker.Hierarchy != nil {
+		if err := fa.TypeChecker.Hierarchy.CheckTypeCompatibility(sourceType, targetType); err != nil {
+			return &TypeCheckError{
+				Message: fmt.Sprintf("Cannot assign type '%s' to type '%s'", sourceType, targetType),
+				Path:    "",
+				Line:    pos.Line,
+				Column:  pos.Column,
+			}
+		}
+	}
+
+	return nil
+}
+
+// checkCompoundAssignmentCompatibility checks type compatibility for compound assignments (+=, -=, etc.)
+func (fa *FlowAnalyzer) checkCompoundAssignmentCompatibility(targetType, sourceType, operator string, pos ast.Position) error {
+	// For compound assignments, both operands should be compatible with the operation
+	switch operator {
+	case "+=", "-=", "*=", "/=", "%=":
+		// Numeric operations - both types should be numeric or compatible
+		if !fa.isNumericType(targetType) || !fa.isNumericType(sourceType) {
+			return &TypeCheckError{
+				Message: fmt.Sprintf("Operator '%s' requires numeric types, got '%s' %s '%s'", operator, targetType, operator, sourceType),
+				Path:    "",
+				Line:    pos.Line,
+				Column:  pos.Column,
+			}
+		}
+	case ".=":
+		// String concatenation - both types should be string-compatible
+		if !fa.isStringCompatibleType(targetType) || !fa.isStringCompatibleType(sourceType) {
+			return &TypeCheckError{
+				Message: fmt.Sprintf("Operator '%s' requires string-compatible types, got '%s' %s '%s'", operator, targetType, operator, sourceType),
+				Path:    "",
+				Line:    pos.Line,
+				Column:  pos.Column,
+			}
+		}
+	}
+
+	return nil
+}
+
+// isNumericType checks if a type is numeric (Int, Num, or compatible)
+func (fa *FlowAnalyzer) isNumericType(typeStr string) bool {
+	switch typeStr {
+	case "Int", "Num", "Any":
+		return true
+	default:
+		return false
+	}
+}
+
+// isStringCompatibleType checks if a type can be used in string operations
+func (fa *FlowAnalyzer) isStringCompatibleType(typeStr string) bool {
+	// In Perl, most types can be stringified, but we'll be more strict
+	switch typeStr {
+	case "Str", "Int", "Num", "Bool", "Any":
+		return true
+	default:
+		return false
 	}
 }
