@@ -88,9 +88,11 @@ type ServerCapabilities struct {
 	ReferencesProvider         bool                     `json:"referencesProvider,omitempty"`
 	DocumentFormattingProvider bool                     `json:"documentFormattingProvider,omitempty"`
 	CodeActionProvider         bool                     `json:"codeActionProvider,omitempty"`
-	DocumentSymbolProvider     bool                     `json:"documentSymbolProvider,omitempty"`
-	WorkspaceSymbolProvider    bool                     `json:"workspaceSymbolProvider,omitempty"`
-	SignatureHelpProvider      *SignatureHelpOptions    `json:"signatureHelpProvider,omitempty"`
+	DocumentSymbolProvider     bool                              `json:"documentSymbolProvider,omitempty"`
+	WorkspaceSymbolProvider    bool                              `json:"workspaceSymbolProvider,omitempty"`
+	SignatureHelpProvider      *SignatureHelpOptions             `json:"signatureHelpProvider,omitempty"`
+	SemanticTokensProvider     *SemanticTokensServerCapabilities `json:"semanticTokensProvider,omitempty"`
+	InlayHintProvider          bool                              `json:"inlayHintProvider,omitempty"`
 }
 
 // TextDocumentSyncOptions defines text synchronization capabilities
@@ -151,6 +153,14 @@ func NewServer(conn io.ReadWriteCloser) (*Server, error) {
 			SignatureHelpProvider: &SignatureHelpOptions{
 				TriggerCharacters: []string{"(", ","},
 			},
+			SemanticTokensProvider: &SemanticTokensServerCapabilities{
+				Legend: SemanticTokensLegend{
+					TokenTypes:     getSemanticTokenTypes(),
+					TokenModifiers: getSemanticTokenModifiers(),
+				},
+				Full: true,
+			},
+			InlayHintProvider: true,
 		},
 		ctx:    ctx,
 		cancel: cancel,
@@ -287,6 +297,10 @@ func (s *Server) dispatchMessage(msg *JSONRPCMessage) error {
 		return s.handleDocumentSymbol(msg)
 	case "textDocument/signatureHelp":
 		return s.handleSignatureHelp(msg)
+	case "textDocument/semanticTokens/full":
+		return s.handleSemanticTokensFull(msg)
+	case "textDocument/inlayHint":
+		return s.handleInlayHint(msg)
 	case "workspace/symbol":
 		return s.handleWorkspaceSymbol(msg)
 	default:

@@ -635,3 +635,57 @@ type SemanticTokens struct {
 	ResultID string   `json:"resultId,omitempty"`
 	Data     []uint32 `json:"data"`
 }
+
+// SemanticTokensLegend represents the legend for semantic tokens
+type SemanticTokensLegend struct {
+	TokenTypes     []string `json:"tokenTypes"`
+	TokenModifiers []string `json:"tokenModifiers"`
+}
+
+// SemanticTokensServerCapabilities represents server capabilities for semantic tokens
+type SemanticTokensServerCapabilities struct {
+	Legend SemanticTokensLegend `json:"legend"`
+	Range  bool                 `json:"range,omitempty"`
+	Full   interface{}          `json:"full,omitempty"` // bool | SemanticTokensFullOptions
+}
+
+// Semantic token types following LSP specification
+const (
+	SemanticTokenTypeNamespace = "namespace"
+	SemanticTokenTypeType      = "type"
+	SemanticTokenTypeClass     = "class"
+	SemanticTokenTypeEnum      = "enum"
+	SemanticTokenTypeInterface = "interface"
+	SemanticTokenTypeStruct    = "struct"
+	SemanticTokenTypeTypeParameter = "typeParameter"
+	SemanticTokenTypeParameter = "parameter"
+	SemanticTokenTypeVariable  = "variable"
+	SemanticTokenTypeProperty  = "property"
+	SemanticTokenTypeEnumMember = "enumMember"
+	SemanticTokenTypeEvent     = "event"
+	SemanticTokenTypeFunction  = "function"
+	SemanticTokenTypeMethod    = "method"
+	SemanticTokenTypeMacro     = "macro"
+	SemanticTokenTypeKeyword   = "keyword"
+	SemanticTokenTypeModifier  = "modifier"
+	SemanticTokenTypeComment   = "comment"
+	SemanticTokenTypeString    = "string"
+	SemanticTokenTypeNumber    = "number"
+	SemanticTokenTypeRegexp    = "regexp"
+	SemanticTokenTypeOperator  = "operator"
+	SemanticTokenTypeDecorator = "decorator"
+)
+
+// Semantic token modifiers following LSP specification
+const (
+	SemanticTokenModifierDeclaration    = "declaration"
+	SemanticTokenModifierDefinition     = "definition"
+	SemanticTokenModifierReadonly       = "readonly"
+	SemanticTokenModifierStatic         = "static"
+	SemanticTokenModifierDeprecated     = "deprecated"
+	SemanticTokenModifierAbstract       = "abstract"
+	SemanticTokenModifierAsync          = "async"
+	SemanticTokenModifierModification   = "modification"
+	SemanticTokenModifierDocumentation  = "documentation"
+	SemanticTokenModifierDefaultLibrary = "defaultLibrary"
+)
