@@ -40,13 +40,15 @@ const (
 
 // TypeUnifier implements the unification algorithm
 type TypeUnifier struct {
-	hierarchy *typedef.TypeHierarchy
+	hierarchy            *typedef.TypeHierarchy
+	constraintPropagator *ConstraintPropagator
 }
 
 // NewTypeUnifier creates a new type unifier
 func NewTypeUnifier(hierarchy *typedef.TypeHierarchy) *TypeUnifier {
 	return &TypeUnifier{
-		hierarchy: hierarchy,
+		hierarchy:            hierarchy,
+		constraintPropagator: NewConstraintPropagator(hierarchy),
 	}
 }
 
@@ -430,4 +432,39 @@ func (u *TypeUnifier) matchGenericWithSimple(generic *typedef.GenericType, simpl
 	}
 
 	return fmt.Errorf("simple type %s does not match generic %s", simpleType.Name, generic.Name)
+}
+
+// UnifyWithConstraintPropagation unifies types with full constraint propagation
+func (u *TypeUnifier) UnifyWithConstraintPropagation(generic *typedef.GenericType, concrete typedef.Type) (*PropagationResult, error) {
+	if generic == nil {
+		return nil, fmt.Errorf("generic type cannot be nil")
+	}
+	if concrete == nil {
+		return nil, fmt.Errorf("concrete type cannot be nil")
+	}
+
+	// First, perform basic unification to get initial type assignments
+	substitutions, err := u.Unify(generic, concrete)
+	if err != nil {
+		return nil, fmt.Errorf("initial unification failed: %w", err)
+	}
+
+	// Convert substitutions to type slice for constraint propagation
+	inferredTypes := make([]typedef.Type, len(generic.TypeParameters))
+	for i, param := range generic.TypeParameters {
+		if sub, exists := substitutions[param.Name]; exists {
+			inferredTypes[i] = sub
+		} else {
+			// If no substitution found, use a type variable
+			inferredTypes[i] = &TypeVariable{Name: param.Name}
+		}
+	}
+
+	// Propagate constraints
+	result, err := u.constraintPropagator.PropagateConstraints(generic, inferredTypes)
+	if err != nil {
+		return nil, fmt.Errorf("constraint propagation failed: %w", err)
+	}
+
+	return result, nil
 }
