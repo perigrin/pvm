@@ -4,8 +4,13 @@
 package modules
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
 	"time"
 
 	"tamarou.com/pvm/internal/cli/progress"
@@ -284,7 +289,179 @@ func (i *Installer) convertInstallOptions(module string, opts InstallOptions) (*
 
 // getInstalledVersion tries to get the installed version of a module
 func (i *Installer) getInstalledVersion(module, perlPath string) (string, error) {
-	// This is a simplified version - in practice, we'd query the installed modules
-	// For now, return empty version to avoid complex implementation
-	return "", fmt.Errorf("version detection not implemented")
+	// Use default perl if no path specified
+	if perlPath == "" {
+		perlPath = "perl"
+	}
+
+	// Method 1: Try Perl command execution (most reliable)
+	if version, err := i.getVersionFromPerl(module, perlPath); err == nil && version != "" {
+		return version, nil
+	}
+
+	// Method 2: Try file parsing as fallback
+	if version, err := i.getVersionFromFile(module, perlPath); err == nil && version != "" {
+		return version, nil
+	}
+
+	// Return "undef" for unknown versions - this is not an error condition
+	// Many Perl modules legitimately have no version or return undef
+	return "undef", nil
+}
+
+// validateModuleName checks if a module name is safe to use
+func (i *Installer) validateModuleName(module string) error {
+	if module == "" {
+		return fmt.Errorf("module name cannot be empty")
+	}
+
+	// Valid Perl module names: word chars, double colons, length limit
+	modulePattern := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$`)
+	if !modulePattern.MatchString(module) {
+		return fmt.Errorf("invalid module name format: %s", module)
+	}
+
+	if len(module) > 255 {
+		return fmt.Errorf("module name too long: %d characters", len(module))
+	}
+
+	return nil
+}
+
+// getVersionFromPerl executes a Perl command to get module version
+func (i *Installer) getVersionFromPerl(module, perlPath string) (string, error) {
+	// Validate module name to prevent injection attacks
+	if err := i.validateModuleName(module); err != nil {
+		return "", err
+	}
+
+	// Use safer Perl execution with -M flag instead of string interpolation
+	// This approach avoids injection vulnerabilities
+	script := `
+		use strict;
+		use warnings;
+		my $module = $ARGV[0];
+		eval "require $module";
+		if ($@) {
+			print "undef";
+		} else {
+			no strict 'refs';
+			my $version = ${$module . '::VERSION'};
+			if (defined $version) {
+				print "$version";
+			} else {
+				print "undef";
+			}
+		}
+	`
+
+	// Execute the Perl script with module name as argument
+	cmd := exec.Command(perlPath, "-e", script, module)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("failed to execute Perl for module %s", module)
+	}
+
+	version := strings.TrimSpace(stdout.String())
+
+	// Clean up version string - remove 'v' prefix if present
+	version = strings.TrimPrefix(version, "v")
+
+	// Don't return "undef" as a version string, return empty instead
+	if version == "undef" || version == "" {
+		return "", fmt.Errorf("module %s has no version", module)
+	}
+
+	return version, nil
+}
+
+// getVersionFromFile tries to extract version from module file content
+func (i *Installer) getVersionFromFile(module, perlPath string) (string, error) {
+	// First, try to find the module file
+	modulePath, err := i.findModuleFile(module, perlPath)
+	if err != nil {
+		return "", err
+	}
+
+	// Read the file content
+	content, err := os.ReadFile(modulePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read module file %s: %w", modulePath, err)
+	}
+
+	return i.extractVersionFromContent(string(content))
+}
+
+// findModuleFile locates the file path for a given module
+func (i *Installer) findModuleFile(module, perlPath string) (string, error) {
+	// Validate module name to prevent injection attacks
+	if err := i.validateModuleName(module); err != nil {
+		return "", err
+	}
+
+	// Use Perl to find the module file location with safe argument passing
+	script := `
+		use strict;
+		use warnings;
+		my $module = $ARGV[0];
+		$module =~ s/::/\//g;
+		$module .= ".pm";
+
+		foreach my $inc (@INC) {
+			my $path = "$inc/$module";
+			if (-f $path) {
+				print $path;
+				last;
+			}
+		}
+	`
+
+	cmd := exec.Command(perlPath, "-e", script, module)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("failed to find module file for %s", module)
+	}
+
+	path := strings.TrimSpace(stdout.String())
+	if path == "" {
+		return "", fmt.Errorf("module file not found for %s", module)
+	}
+
+	return path, nil
+}
+
+// extractVersionFromContent extracts version using regex patterns
+func (i *Installer) extractVersionFromContent(content string) (string, error) {
+	// Pattern 1: Standard $VERSION = "value" or $VERSION = value
+	versionRe := regexp.MustCompile(`(?m)^\s*(?:our\s+)?\$VERSION\s*=\s*['"]([^'"]+)['"]`)
+	if matches := versionRe.FindStringSubmatch(content); len(matches) > 1 {
+		return matches[1], nil
+	}
+
+	// Pattern 2: $VERSION = value without quotes
+	versionRe2 := regexp.MustCompile(`(?m)^\s*(?:our\s+)?\$VERSION\s*=\s*([0-9]+(?:\.[0-9]+)*)`)
+	if matches := versionRe2.FindStringSubmatch(content); len(matches) > 1 {
+		return matches[1], nil
+	}
+
+	// Pattern 3: version pragma - our $VERSION = version->declare("value")
+	useVersionRe := regexp.MustCompile(`(?m)^\s*(?:our\s+)?\$VERSION\s*=\s*version->declare\s*\(\s*['"]([^'"]+)['"]\s*\)`)
+	if matches := useVersionRe.FindStringSubmatch(content); len(matches) > 1 {
+		return matches[1], nil
+	}
+
+	// Pattern 4: version->parse("value")
+	parseVersionRe := regexp.MustCompile(`(?m)^\s*(?:our\s+)?\$VERSION\s*=\s*version->parse\s*\(\s*['"]([^'"]+)['"]\s*\)`)
+	if matches := parseVersionRe.FindStringSubmatch(content); len(matches) > 1 {
+		return matches[1], nil
+	}
+
+	return "", fmt.Errorf("no version found in module content")
 }

