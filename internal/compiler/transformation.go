@@ -52,6 +52,7 @@ func NewCSTTransformer(content []byte, options TransformationOptions) *CSTTransf
 		transformer.rules = []TransformationRule{
 			&ClassConstraintPreservationRule{}, // Must come before TypeExpressionRemovalRule
 			&TypeExpressionRemovalRule{},
+			&TypeAliasCleanupRule{},
 			&VariableDeclarationCleanupRule{},
 			&TypeAssertionCleanupRule{},
 			&MethodParameterCleanupRule{},
@@ -244,6 +245,26 @@ func (r *TypeExpressionRemovalRule) isInClassContext(node *sitter.Node) bool {
 
 func (r *TypeExpressionRemovalRule) Description() string {
 	return "Removes type expression nodes from the CST"
+}
+
+// TypeAliasCleanupRule removes type alias statements entirely (type Name = Definition)
+type TypeAliasCleanupRule struct{}
+
+func (r *TypeAliasCleanupRule) CanTransform(node *sitter.Node) bool {
+	return node != nil && node.Kind() == NodeTypeAlias
+}
+
+func (r *TypeAliasCleanupRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
+	if transformer.options.RemoveTypeNodes {
+		// Type alias statements should be removed entirely from clean Perl
+		return "", nil
+	}
+	// Otherwise preserve as-is (typed Perl mode)
+	return transformer.getNodeText(node), nil
+}
+
+func (r *TypeAliasCleanupRule) Description() string {
+	return "Removes type alias statements from the CST"
 }
 
 // VariableDeclarationCleanupRule handles variable declarations by removing type annotations

@@ -31,6 +31,7 @@ const (
 	NodeTypeExpression = "type_expression"
 	NodeSimpleType     = "simple_type"
 	NodeTypeAssertion  = "type_assertion_expression"
+	NodeTypeAlias      = "type_alias_statement"
 	NodeAs             = "as"
 
 	// Method declaration nodes

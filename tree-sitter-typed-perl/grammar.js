@@ -206,6 +206,7 @@ module.exports = grammar({
       $.class_phaser_statement,
       $.use_version_statement,
       $.use_statement,
+      $.type_alias_statement,
       $.subroutine_declaration_statement,
       $.method_declaration_statement,
       $.phaser_statement,
@@ -1430,6 +1431,15 @@ module.exports = grammar({
       $.type_identifier,
       ':',
       $.type_expression
+    ),
+
+    type_alias_statement: $ => seq(
+      'type',
+      field('name', $.type_identifier),
+      optional(field('type_parameters', $.type_parameter_clause)),
+      '=',
+      field('definition', $.type_expression),
+      $._semicolon
     ),
 
 

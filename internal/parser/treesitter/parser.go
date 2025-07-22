@@ -1460,6 +1460,9 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 	case "role_statement":
 		// Parse role declarations
 		return p.convertToRoleDeclAST(node, start, end).(ast.StatementNode)
+	case "type_alias_statement":
+		// Parse type alias statements
+		return p.parseTypeAliasStatement(node, start, end)
 	default:
 		// For other statement types, create a generic expression statement
 		// using the node's text content
@@ -1582,6 +1585,75 @@ func (p *Parser) parseReturnStatement(node Node, start, end ast.Position) ast.St
 		expr := ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end)
 		return ast.NewExpressionStmt(expr, start, end)
 	}
+	return nil
+}
+
+// parseTypeAliasStatement parses a type alias statement (type UserID = Int)
+func (p *Parser) parseTypeAliasStatement(node Node, start, end ast.Position) ast.StatementNode {
+	// Simple text-based parsing for now, following the pattern of other parser functions
+	nodeText := strings.TrimSpace(node.Text())
+	if nodeText == "" {
+		return nil
+	}
+
+	// Parse "type Name = Definition;" or "type Name<T> = Definition;"
+	// Remove semicolon if present
+	nodeText = strings.TrimSuffix(nodeText, ";")
+
+	// Find the equal sign to split name and definition
+	equalPos := strings.Index(nodeText, "=")
+	if equalPos == -1 {
+		return nil
+	}
+
+	// Extract left side (type name and parameters) and right side (definition)
+	leftPart := strings.TrimSpace(nodeText[4:equalPos]) // Skip "type "
+	rightPart := strings.TrimSpace(nodeText[equalPos+1:])
+
+	if leftPart == "" || rightPart == "" {
+		return nil
+	}
+
+	// Parse type name and optional parameters from left part
+	var typeName string
+	var typeParams []*ast.TypeParameter
+
+	if strings.Contains(leftPart, "<") && strings.Contains(leftPart, ">") {
+		// Has type parameters: "Name<T, U>"
+		paramStart := strings.Index(leftPart, "<")
+		paramEnd := strings.LastIndex(leftPart, ">")
+		if paramStart > 0 && paramEnd > paramStart {
+			typeName = strings.TrimSpace(leftPart[:paramStart])
+			paramText := strings.TrimSpace(leftPart[paramStart+1 : paramEnd])
+
+			// Simple parameter parsing - split by comma
+			if paramText != "" {
+				paramNames := strings.Split(paramText, ",")
+				for _, paramName := range paramNames {
+					paramName = strings.TrimSpace(paramName)
+					if paramName != "" {
+						param := &ast.TypeParameter{
+							Name:     paramName,
+							Position: ast.Position{Line: start.Line, Column: start.Column},
+						}
+						typeParams = append(typeParams, param)
+					}
+				}
+			}
+		}
+	} else {
+		// No type parameters: just the name
+		typeName = leftPart
+	}
+
+	// Parse the type definition
+	typeExpr := p.parseTypeExpression(rightPart, Position{Line: start.Line, Column: start.Column})
+	definition := p.convertToASTTypeExpression(typeExpr)
+
+	if typeName != "" && definition != nil {
+		return ast.NewTypeAliasStatement(typeName, typeParams, definition, start, end)
+	}
+
 	return nil
 }
 

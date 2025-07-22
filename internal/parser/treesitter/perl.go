@@ -198,6 +198,11 @@ func (t *PerlTree) traverseForTypeAnnotations(node *sitter.Node, annotations *[]
 			fmt.Printf("DEBUG: Found type_assertion node\n")
 		}
 		t.processTypeAssertion(node, annotations)
+	case "type_alias_statement":
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Found type_alias_statement node\n")
+		}
+		t.processTypeAliasDeclaration(node, annotations)
 	}
 
 	// Recursively process all child nodes
@@ -807,6 +812,60 @@ func (t *PerlTree) processTypeDeclaration(node *sitter.Node, annotations *[]*Per
 
 		if os.Getenv("DEBUG_PARSER") == "1" {
 			fmt.Printf("DEBUG: Created type declaration annotation: %s = %s\n", typeName, typeDefinition)
+		}
+	}
+}
+
+// processTypeAliasDeclaration processes type alias statements (type UserID = Int)
+func (t *PerlTree) processTypeAliasDeclaration(node *sitter.Node, annotations *[]*PerlTypeAnnotation) {
+	var typeName, typeDefinition, typeParameters string
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Processing type alias declaration with %d children\n", node.ChildCount())
+	}
+
+	// Extract the type alias name using field name
+	nameNode := node.ChildByFieldName("name")
+	if nameNode != nil {
+		typeName = t.getNodeText(nameNode)
+	}
+
+	// Extract optional type parameters
+	typeParamsNode := node.ChildByFieldName("type_parameters")
+	if typeParamsNode != nil {
+		typeParameters = t.getNodeText(typeParamsNode)
+	}
+
+	// Extract the type definition using field name
+	definitionNode := node.ChildByFieldName("definition")
+	if definitionNode != nil {
+		typeDefinition = t.extractTypeExpression(definitionNode)
+	}
+
+	if os.Getenv("DEBUG_PARSER") == "1" {
+		fmt.Printf("DEBUG: Type alias components: name=%s, params=%s, definition=%s\n",
+			typeName, typeParameters, typeDefinition)
+	}
+
+	if typeName != "" && typeDefinition != "" {
+		// Build the full type name including parameters
+		fullTypeName := typeName
+		if typeParameters != "" {
+			fullTypeName = typeName + typeParameters
+		}
+
+		annotation := &PerlTypeAnnotation{
+			ItemName: fullTypeName,
+			TypeName: typeDefinition,
+			Kind:     "type_alias",
+			StartPos: int(node.StartByte()),
+			EndPos:   int(node.EndByte()),
+			Content:  t.getNodeText(node),
+		}
+		*annotations = append(*annotations, annotation)
+
+		if os.Getenv("DEBUG_PARSER") == "1" {
+			fmt.Printf("DEBUG: Created type alias annotation: %s = %s\n", fullTypeName, typeDefinition)
 		}
 	}
 }
