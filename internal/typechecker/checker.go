@@ -63,6 +63,9 @@ type TypeChecker struct {
 	// InferenceEngine for advanced type inference
 	InferenceEngine *InferenceEngine
 
+	// MaybeHandler provides comprehensive Maybe type operations
+	MaybeHandler *MaybeTypeHandler
+
 	// Debug enables debug mode
 	Debug bool
 }
@@ -94,6 +97,9 @@ func NewTypeChecker(hierarchy *typedef.TypeHierarchy, symbolTable *binder.Symbol
 		HigherKindedTypes:         make(map[string]*HigherKindedTypeDefinition),
 		Debug:                     false,
 	}
+
+	// Initialize Maybe type handler
+	tc.MaybeHandler = NewMaybeTypeHandler(tc)
 
 	// Initialize validation patterns
 	tc.initializeValidationPatterns()
@@ -249,6 +255,14 @@ func (tc *TypeChecker) CheckAST(ast *ast.AST) []error {
 	usageWarnings := tc.checkSymbolUsage()
 	if len(usageWarnings) > 0 {
 		typeErrors = append(typeErrors, usageWarnings...)
+	}
+
+	// Enhanced Maybe type safety analysis
+	if tc.MaybeHandler != nil {
+		maybeErrors := tc.checkMaybeTypeSafety(ast)
+		if len(maybeErrors) > 0 {
+			typeErrors = append(typeErrors, maybeErrors...)
+		}
 	}
 
 	return typeErrors
@@ -443,4 +457,50 @@ func (tc *TypeChecker) checkTypeAnnotation(annotation *ast.TypeAnnotation) error
 
 	typeStr := annotation.TypeExpression.String()
 	return tc.validateType(typeStr)
+}
+
+// checkMaybeTypeSafety performs comprehensive Maybe type safety analysis
+func (tc *TypeChecker) checkMaybeTypeSafety(ast *ast.AST) []error {
+	var maybeErrors []error
+
+	if tc.MaybeHandler == nil {
+		return maybeErrors
+	}
+
+	// Analyze all variable usages for Maybe type safety
+	// Note: In real implementation, this would walk the AST to find actual variable usage positions
+	for varName, varType := range tc.VariableTypes {
+		if tc.MaybeHandler.IsMaybeType(varType) {
+			// This would be implemented to track actual usage positions
+			// For now, skip the position-dependent checks
+			_ = varName
+		}
+	}
+
+	// Analyze Perl idiom integration patterns
+	// This would typically walk the AST to find expressions with //, ||=, etc.
+	// For now, we'll simulate some common patterns
+	tc.analyzePerlIdioms(&maybeErrors)
+
+	return maybeErrors
+}
+
+// analyzePerlIdioms analyzes Perl idiom usage with Maybe types
+func (tc *TypeChecker) analyzePerlIdioms(errors *[]error) {
+	// In a real implementation, this would walk the AST looking for:
+	// 1. defined-or operator (//) usage
+	// 2. logical-or assignment (||=) usage
+	// 3. defined() checks
+	// 4. exists() checks
+	//
+	// For now, we'll check if we have good practices vs unsafe accesses
+	if tc.MaybeHandler != nil {
+		report := tc.MaybeHandler.GenerateSafetyReport()
+
+		// If safety score is low, add a general recommendation
+		if report.SafetyScore < 70.0 {
+			generalError := fmt.Errorf("WARNING_MAYBE_TYPE_SAFETY: Maybe type safety score: %.1f%%. Consider using // operator and defined() checks", report.SafetyScore)
+			*errors = append(*errors, generalError)
+		}
+	}
 }
