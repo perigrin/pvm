@@ -185,6 +185,9 @@ module.exports = grammar({
     [$.bareword, $.simple_type],
     // conflict between simple_type and type_identifier for generic instantiation
     [$.simple_type, $.type_identifier],
+    // conflict resolution for BUILD/ADJUST in signatures
+    [$.function_call_expression, $.function, $.bareword],
+    [$.coderef_call_expression, $._term],
   ],
   rules: {
     source_file: $ => seq(repeat($._fullstmt), optional($.__DATA__)),
@@ -861,13 +864,13 @@ module.exports = grammar({
       seq($.scalar, optional($._no_search_slash_plz)),
     ),
     _unambiguous_function: $ => alias(choice($._bareword, $.amper_sub), $.function),
-    function_call_expression: $ => choice(
+    function_call_expression: $ => prec.left(choice(
       seq(field('function', alias($.amper_sub, $.function))),
       // the usage of NONASSOC here is to make it that any parse of a paren after a func
       // automatically becomes a non-ambiguous function call
       seq(field('function', $._unambiguous_function), '(', $._NONASSOC, optional(field('arguments', $._expr)), ')'),
       seq(field('function', $._unambiguous_function), '(', $._NONASSOC, $.indirect_object, field('arguments', $._expr), ')'),
-    ),
+    )),
     _tricky_indirob_hashref: $ => seq($._PERLY_BRACE_OPEN, $._expr, $._PERLY_SEMICOLON, '}'),
     ambiguous_function_call_expression: $ =>
       // we need the right precedence here so we can read ahead for the hash/sub disambiguation
