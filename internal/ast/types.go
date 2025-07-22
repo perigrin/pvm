@@ -349,6 +349,9 @@ type TypeExpression struct {
 	// Constraint represents type constraints (where clauses)
 	Constraint ExpressionNode
 
+	// StructuralMembers contains the members for structural types
+	StructuralMembers []*StructuralTypeMember
+
 	// OriginalString preserves the original source text
 	OriginalString string
 }
@@ -363,6 +366,7 @@ const (
 	NegationTypeKind
 	ParameterizedTypeKind
 	ConstrainedTypeKind
+	StructuralTypeKind
 )
 
 // NewTypeExpression creates a new type expression
@@ -421,6 +425,15 @@ func (te *TypeExpression) String() string {
 			parts = append(parts, intType.String())
 		}
 		return strings.Join(parts, "&")
+	}
+
+	// Handle structural types
+	if te.Kind == StructuralTypeKind && len(te.StructuralMembers) > 0 {
+		var members []string
+		for _, member := range te.StructuralMembers {
+			members = append(members, member.Key + ": " + member.Type.String())
+		}
+		return "struct { " + strings.Join(members, ", ") + " }"
 	}
 
 	// Handle parameterized types
@@ -698,6 +711,13 @@ const (
 	ValueConstraint                            // $param > 0
 	VersionConstraint                          // T->VERSION >= 1.0
 )
+
+// StructuralTypeMember represents a member in a structural type
+type StructuralTypeMember struct {
+	Key      string          // field key/name
+	Type     *TypeExpression // field type
+	Position Position        // source position
+}
 
 // TypeParameter represents a generic type parameter
 type TypeParameter struct {

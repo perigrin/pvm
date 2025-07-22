@@ -105,11 +105,24 @@ type TypeExpression struct {
 	// NegatedType is the type being negated
 	NegatedType *TypeExpression
 
+	// IsStructural indicates if this is a structural type
+	IsStructural bool
+
+	// StructuralMembers are the members for structural types  
+	StructuralMembers []*StructuralTypeMember
+
 	// OriginalString is the original string representation
 	OriginalString string
 
 	// Position is the position of the type expression in the source code
 	Pos Position
+}
+
+// StructuralTypeMember represents a member in a structural type for the parser
+type StructuralTypeMember struct {
+	Key      string          // field key/name
+	Type     *ast.TypeExpression // field type (AST format)
+	Position ast.Position    // source position
 }
 
 // String returns a string representation of the type expression
@@ -300,6 +313,11 @@ func (p *Parser) calculatePosition(byteOffset int, content string) Position {
 // parseTypeExpression parses a type expression string into a structured TypeExpression
 func (p *Parser) parseTypeExpression(typeStr string, pos Position) *TypeExpression {
 	typeStr = strings.TrimSpace(typeStr)
+
+	// Handle structural types (struct { ... })
+	if strings.HasPrefix(typeStr, "struct ") && strings.Contains(typeStr, "{") {
+		return p.parseStructuralType(typeStr, pos)
+	}
 
 	// Handle negation types (!Type)
 	if strings.HasPrefix(typeStr, "!") {
@@ -658,6 +676,65 @@ func (n *SimpleNode) Text() string {
 	return n.Text_
 }
 
+// parseStructuralType parses structural type expressions (struct { key: Type, ... })
+func (p *Parser) parseStructuralType(typeStr string, pos Position) *TypeExpression {
+	// Extract content between braces
+	startBrace := strings.Index(typeStr, "{")
+	endBrace := strings.LastIndex(typeStr, "}")
+	
+	if startBrace == -1 || endBrace == -1 || endBrace <= startBrace {
+		// Malformed structural type, return simple type
+		return &TypeExpression{
+			BaseType:       typeStr,
+			OriginalString: typeStr,
+			Pos:            pos,
+		}
+	}
+
+	membersStr := strings.TrimSpace(typeStr[startBrace+1 : endBrace])
+	
+	var members []*StructuralTypeMember
+	if membersStr != "" {
+		// Split by commas (simple parsing for now)
+		memberStrs := strings.Split(membersStr, ",")
+		for _, memberStr := range memberStrs {
+			memberStr = strings.TrimSpace(memberStr)
+			if memberStr == "" {
+				continue
+			}
+			
+			// Parse "key: Type" format
+			colonPos := strings.Index(memberStr, ":")
+			if colonPos == -1 {
+				continue
+			}
+			
+			key := strings.TrimSpace(memberStr[:colonPos])
+			typeStr := strings.TrimSpace(memberStr[colonPos+1:])
+			
+			if key != "" && typeStr != "" {
+				memberType := p.parseTypeExpression(typeStr, pos)
+				memberAST := p.convertToASTTypeExpression(memberType)
+				
+				member := &StructuralTypeMember{
+					Key:      key,
+					Type:     memberAST,
+					Position: ast.Position{Line: pos.Line, Column: pos.Column, Offset: pos.Offset},
+				}
+				members = append(members, member)
+			}
+		}
+	}
+
+	return &TypeExpression{
+		BaseType:          "struct",
+		OriginalString:    typeStr,
+		Pos:               pos,
+		IsStructural:      true,
+		StructuralMembers: members,
+	}
+}
+
 // newSimpleNode creates a new SimpleNode
 func newSimpleNode(nodeType string) Node {
 	return &SimpleNode{
@@ -888,6 +965,16 @@ func (p *Parser) convertToASTTypeExpression(te *TypeExpression) *ast.TypeExpress
 		astIntersectionTypes = append(astIntersectionTypes, p.convertToASTTypeExpression(intersectionType))
 	}
 
+	// Convert structural members
+	var astStructuralMembers []*ast.StructuralTypeMember
+	for _, member := range te.StructuralMembers {
+		astStructuralMembers = append(astStructuralMembers, &ast.StructuralTypeMember{
+			Key:      member.Key,
+			Type:     member.Type, // Already in AST format
+			Position: member.Position,
+		})
+	}
+
 	// Reconstruct full type name including parameters
 	fullTypeName := te.BaseType
 	if len(astParams) > 0 {
@@ -905,7 +992,14 @@ func (p *Parser) convertToASTTypeExpression(te *TypeExpression) *ast.TypeExpress
 	astTypeExpr.UnionTypes = astUnionTypes
 	astTypeExpr.IntersectionTypes = astIntersectionTypes
 	astTypeExpr.NegatedType = p.convertToASTTypeExpression(te.NegatedType)
+	astTypeExpr.StructuralMembers = astStructuralMembers
 	astTypeExpr.OriginalString = te.OriginalString
+	
+	// Set the kind for structural types
+	if te.IsStructural {
+		astTypeExpr.Kind = ast.StructuralTypeKind
+	}
+	
 	return astTypeExpr
 }
 

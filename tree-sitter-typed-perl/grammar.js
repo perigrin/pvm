@@ -1362,6 +1362,7 @@ module.exports = grammar({
       $.intersection_type,
       $.negation_type,
       $.parameterized_type,
+      $.structural_type,
     ),
 
     simple_type: $ => $._bareword,
@@ -1440,6 +1441,25 @@ module.exports = grammar({
       '=',
       field('definition', $.type_expression),
       $._semicolon
+    ),
+
+    structural_type: $ => seq(
+      'struct',
+      '{',
+      optional($.structural_type_member_list),
+      '}'
+    ),
+
+    structural_type_member_list: $ => seq(
+      $.structural_type_member,
+      repeat(seq(',', $.structural_type_member)),
+      optional(',')
+    ),
+
+    structural_type_member: $ => seq(
+      field('key', choice($.type_identifier, $.string_literal)),
+      ':',
+      field('type', $.type_expression)
     ),
 
 
