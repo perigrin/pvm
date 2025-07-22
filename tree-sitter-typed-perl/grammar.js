@@ -1370,6 +1370,7 @@ module.exports = grammar({
       $.intersection_type,
       $.negation_type,
       $.parameterized_type,
+      $.tuple_type,
       $.structural_type,
       $.generic_type_instantiation,
       $.conditional_type,
@@ -1401,11 +1402,11 @@ module.exports = grammar({
       ']'
     ),
 
-    // tuple_type: $ => prec(4, seq(
-    //   '(',
-    //   $.type_parameter_list,
-    //   ')'
-    // )),
+    tuple_type: $ => prec(4, seq(
+      '(',
+      $.type_parameter_list,
+      ')'
+    )),
 
     type_parameter_list: $ => seq(
       $.type_expression,
