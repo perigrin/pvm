@@ -814,9 +814,46 @@ func (tw *TypeWalker) walkNode(node Node) error {
 	}
 
 	// Visit specific node types with type information
-	if n, ok := node.(*TypeExpression); ok {
+	switch n := node.(type) {
+	case *FieldDecl:
+		if err := tw.visitor.VisitFieldDeclaration(n); err != nil {
+			return err
+		}
+	case *SubDecl:
+		// Only visit if it has parameter types or return type
+		params := n.Parameters()
+		if n.ReturnType != nil || (params != nil && len(params) > 0) {
+			hasTypedParams := false
+			for _, param := range params {
+				if param.TypeExpr != nil {
+					hasTypedParams = true
+					break
+				}
+			}
+			if n.ReturnType != nil || hasTypedParams {
+				if err := tw.visitor.VisitTypedMethod(n); err != nil {
+					return err
+				}
+			}
+		}
+	case *TypeAssertionExpr:
+		if err := tw.visitor.VisitTypeAssertion(n); err != nil {
+			return err
+		}
+	case *TypeDecl:
+		if err := tw.visitor.VisitTypeDeclaration(n); err != nil {
+			return err
+		}
+	case *TypeExpression:
 		if err := tw.visitor.VisitTypeExpression(n); err != nil {
 			return err
+		}
+	case *VarDecl:
+		// Only visit if it has a type annotation
+		if n.TypeExpr != nil {
+			if err := tw.visitor.VisitTypedVariable(n); err != nil {
+				return err
+			}
 		}
 	}
 
