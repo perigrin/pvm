@@ -31,7 +31,7 @@ func TestBuildCapability(t *testing.T) {
 	}
 
 	// Run go build ./... to verify everything compiles
-	cmd := exec.Command("go", "build", "./...")
+	cmd := exec.Command("go", "build", "-mod=mod", "./...")
 	cmd.Dir = helper.ProjectRoot
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Build failed: %v", err)
