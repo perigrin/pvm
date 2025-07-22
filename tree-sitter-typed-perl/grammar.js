@@ -188,6 +188,8 @@ module.exports = grammar({
     // conflict resolution for BUILD/ADJUST in signatures
     [$.function_call_expression, $.function, $.bareword],
     [$.coderef_call_expression, $._term],
+    // conflict for generic type parameters after sub/method names
+    [$.bareword, $.type_identifier],
   ],
   rules: {
     source_file: $ => seq(repeat($._fullstmt), optional($.__DATA__)),
@@ -343,6 +345,7 @@ module.exports = grammar({
       'sub',
       optional(field('return_type', $.type_expression)),
       field('name', $.bareword),
+      optional(field('type_parameters', $.type_parameter_clause)),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice(field('prototype', $.prototype), field('signature', $.signature))),
       choice(
