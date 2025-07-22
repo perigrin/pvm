@@ -288,7 +288,7 @@ func TestCommandRunner(t *testing.T) {
 	_, err = runner.RunWithProgress(
 		".",
 		"sh",
-		[]string{"-c", "echo line1; echo line2; echo line3"},
+		[]string{"-c", "echo line1; sleep 0.01; echo line2; sleep 0.01; echo line3"},
 		context.Background(),
 		func(line string, isError bool) {
 			lines = append(lines, line)

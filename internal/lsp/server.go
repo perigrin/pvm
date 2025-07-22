@@ -80,14 +80,19 @@ type Document struct {
 
 // ServerCapabilities defines what the server can do
 type ServerCapabilities struct {
-	TextDocumentSync           *TextDocumentSyncOptions `json:"textDocumentSync,omitempty"`
-	HoverProvider              bool                     `json:"hoverProvider,omitempty"`
-	CompletionProvider         *CompletionOptions       `json:"completionProvider,omitempty"`
-	DiagnosticsProvider        bool                     `json:"diagnosticsProvider,omitempty"`
-	DefinitionProvider         bool                     `json:"definitionProvider,omitempty"`
-	ReferencesProvider         bool                     `json:"referencesProvider,omitempty"`
-	DocumentFormattingProvider bool                     `json:"documentFormattingProvider,omitempty"`
-	CodeActionProvider         bool                     `json:"codeActionProvider,omitempty"`
+	TextDocumentSync           *TextDocumentSyncOptions          `json:"textDocumentSync,omitempty"`
+	HoverProvider              bool                              `json:"hoverProvider,omitempty"`
+	CompletionProvider         *CompletionOptions                `json:"completionProvider,omitempty"`
+	DiagnosticsProvider        bool                              `json:"diagnosticsProvider,omitempty"`
+	DefinitionProvider         bool                              `json:"definitionProvider,omitempty"`
+	ReferencesProvider         bool                              `json:"referencesProvider,omitempty"`
+	DocumentFormattingProvider bool                              `json:"documentFormattingProvider,omitempty"`
+	CodeActionProvider         bool                              `json:"codeActionProvider,omitempty"`
+	DocumentSymbolProvider     bool                              `json:"documentSymbolProvider,omitempty"`
+	WorkspaceSymbolProvider    bool                              `json:"workspaceSymbolProvider,omitempty"`
+	SignatureHelpProvider      *SignatureHelpOptions             `json:"signatureHelpProvider,omitempty"`
+	SemanticTokensProvider     *SemanticTokensServerCapabilities `json:"semanticTokensProvider,omitempty"`
+	InlayHintProvider          bool                              `json:"inlayHintProvider,omitempty"`
 }
 
 // TextDocumentSyncOptions defines text synchronization capabilities
@@ -100,6 +105,12 @@ type TextDocumentSyncOptions struct {
 type CompletionOptions struct {
 	TriggerCharacters []string `json:"triggerCharacters,omitempty"`
 	ResolveProvider   bool     `json:"resolveProvider,omitempty"`
+}
+
+// SignatureHelpOptions defines signature help capabilities
+type SignatureHelpOptions struct {
+	TriggerCharacters   []string `json:"triggerCharacters,omitempty"`
+	RetriggerCharacters []string `json:"retriggerCharacters,omitempty"`
 }
 
 // NewServer creates a new LSP server
@@ -137,6 +148,19 @@ func NewServer(conn io.ReadWriteCloser) (*Server, error) {
 			ReferencesProvider:         true,
 			DocumentFormattingProvider: true,
 			CodeActionProvider:         true,
+			DocumentSymbolProvider:     true,
+			WorkspaceSymbolProvider:    true,
+			SignatureHelpProvider: &SignatureHelpOptions{
+				TriggerCharacters: []string{"(", ","},
+			},
+			SemanticTokensProvider: &SemanticTokensServerCapabilities{
+				Legend: SemanticTokensLegend{
+					TokenTypes:     getSemanticTokenTypes(),
+					TokenModifiers: getSemanticTokenModifiers(),
+				},
+				Full: true,
+			},
+			InlayHintProvider: true,
 		},
 		ctx:    ctx,
 		cancel: cancel,
@@ -269,6 +293,14 @@ func (s *Server) dispatchMessage(msg *JSONRPCMessage) error {
 		return s.handleTextDocumentFormatting(msg)
 	case "textDocument/codeAction":
 		return s.handleTextDocumentCodeAction(msg)
+	case "textDocument/documentSymbol":
+		return s.handleDocumentSymbol(msg)
+	case "textDocument/signatureHelp":
+		return s.handleSignatureHelp(msg)
+	case "textDocument/semanticTokens/full":
+		return s.handleSemanticTokensFull(msg)
+	case "textDocument/inlayHint":
+		return s.handleInlayHint(msg)
 	case "workspace/symbol":
 		return s.handleWorkspaceSymbol(msg)
 	default:
