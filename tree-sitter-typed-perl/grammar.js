@@ -183,6 +183,8 @@ module.exports = grammar({
     [$._interp_arrow, $._interpolation_fallbacks],
     // conflict between bareword and simple_type in sub/method declarations
     [$.bareword, $.simple_type],
+    // conflict between simple_type and type_identifier for generic instantiation
+    [$.simple_type, $.type_identifier],
   ],
   rules: {
     source_file: $ => seq(repeat($._fullstmt), optional($.__DATA__)),
@@ -254,7 +256,7 @@ module.exports = grammar({
         $.block),
     ),
     class_phaser_statement: $ => seq(
-      field('phase', choice('BUILD', 'ADJUST')),
+      field('phase', choice(token('BUILD'), token('ADJUST'))),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional($.signature),
       $.block
@@ -1363,6 +1365,8 @@ module.exports = grammar({
       $.negation_type,
       $.parameterized_type,
       $.structural_type,
+      $.generic_type_instantiation,
+      $.conditional_type,
     ),
 
     simple_type: $ => $._bareword,
@@ -1460,6 +1464,38 @@ module.exports = grammar({
       field('key', choice($.type_identifier, $.string_literal)),
       ':',
       field('type', $.type_expression)
+    ),
+
+    generic_type_instantiation: $ => seq(
+      $.type_identifier,
+      '<',
+      $.type_argument_list,
+      '>'
+    ),
+
+    type_argument_list: $ => seq(
+      $.type_expression,
+      repeat(seq(',', $.type_expression)),
+      optional(',')
+    ),
+
+    conditional_type: $ => seq(
+      '(',
+      $.type_expression,
+      $.type_relationship_op,
+      $.type_expression,
+      '?',
+      $.type_expression,
+      ':',
+      $.type_expression,
+      ')'
+    ),
+
+    type_relationship_op: $ => choice(
+      'extends',
+      'implements',
+      'isa',
+      'does'
     ),
 
 

@@ -217,7 +217,7 @@ func (ct *CSTTransformer) getNodeText(node *sitter.Node) string {
 type TypeExpressionRemovalRule struct{}
 
 func (r *TypeExpressionRemovalRule) CanTransform(node *sitter.Node) bool {
-	return node != nil && (node.Kind() == NodeTypeExpression || node.Kind() == NodeStructuralType)
+	return node != nil && (node.Kind() == NodeTypeExpression || node.Kind() == NodeStructuralType || node.Kind() == NodeGenericType || node.Kind() == NodeConditionalType || node.Kind() == NodeTypeGuard)
 }
 
 func (r *TypeExpressionRemovalRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {

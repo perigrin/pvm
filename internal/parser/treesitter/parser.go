@@ -108,8 +108,32 @@ type TypeExpression struct {
 	// IsStructural indicates if this is a structural type
 	IsStructural bool
 
-	// StructuralMembers are the members for structural types  
+	// StructuralMembers are the members for structural types
 	StructuralMembers []*StructuralTypeMember
+
+	// IsConditional indicates if this is a conditional type
+	IsConditional bool
+
+	// ConditionalCondition is the check type for conditional types
+	ConditionalCondition *TypeExpression
+
+	// ConditionalTarget is the type being checked against for conditional types
+	ConditionalTarget *TypeExpression
+
+	// ConditionalRelationship is the relationship operator (extends, implements, isa, does)
+	ConditionalRelationship string
+
+	// ConditionalTrueType is the type returned when condition is true
+	ConditionalTrueType *TypeExpression
+
+	// ConditionalFalseType is the type returned when condition is false
+	ConditionalFalseType *TypeExpression
+
+	// IsTypeGuard indicates if this is a type guard type
+	IsTypeGuard bool
+
+	// TypeGuardTarget is the type being guarded for TypeGuard<T> types
+	TypeGuardTarget *TypeExpression
 
 	// OriginalString is the original string representation
 	OriginalString string
@@ -120,9 +144,9 @@ type TypeExpression struct {
 
 // StructuralTypeMember represents a member in a structural type for the parser
 type StructuralTypeMember struct {
-	Key      string          // field key/name
+	Key      string              // field key/name
 	Type     *ast.TypeExpression // field type (AST format)
-	Position ast.Position    // source position
+	Position ast.Position        // source position
 }
 
 // String returns a string representation of the type expression
@@ -153,6 +177,16 @@ func (t *TypeExpression) String() string {
 
 	if t.IsNegation && t.NegatedType != nil {
 		return "!" + t.NegatedType.String()
+	}
+
+	if t.IsConditional && t.ConditionalCondition != nil && t.ConditionalTarget != nil {
+		return "(" + t.ConditionalCondition.String() + " " + t.ConditionalRelationship + " " +
+			t.ConditionalTarget.String() + " ? " + t.ConditionalTrueType.String() + " : " +
+			t.ConditionalFalseType.String() + ")"
+	}
+
+	if t.IsTypeGuard && t.TypeGuardTarget != nil {
+		return "TypeGuard<" + t.TypeGuardTarget.String() + ">"
 	}
 
 	if len(t.Parameters) > 0 {
@@ -369,6 +403,30 @@ func (p *Parser) parseTypeExpression(typeStr string, pos Position) *TypeExpressi
 				OriginalString:    typeStr,
 				Pos:               pos,
 			}
+		}
+	}
+
+	// Handle conditional types ((T extends U ? X : Y))
+	if strings.HasPrefix(typeStr, "(") && strings.HasSuffix(typeStr, ")") {
+		innerStr := strings.TrimSpace(typeStr[1 : len(typeStr)-1])
+
+		// Look for conditional type pattern with multiple operators
+		if strings.Contains(innerStr, "?") && strings.Contains(innerStr, ":") {
+			return p.parseConditionalType(innerStr, pos, typeStr)
+		}
+	}
+
+	// Handle type guards (TypeGuard<T>)
+	if strings.HasPrefix(typeStr, "TypeGuard<") && strings.HasSuffix(typeStr, ">") {
+		targetStr := strings.TrimSpace(typeStr[10 : len(typeStr)-1]) // Remove "TypeGuard<" and ">"
+		targetType := p.parseTypeExpression(targetStr, pos)
+
+		return &TypeExpression{
+			BaseType:        typeStr,
+			IsTypeGuard:     true,
+			TypeGuardTarget: targetType,
+			OriginalString:  typeStr,
+			Pos:             pos,
 		}
 	}
 
@@ -681,7 +739,7 @@ func (p *Parser) parseStructuralType(typeStr string, pos Position) *TypeExpressi
 	// Extract content between braces
 	startBrace := strings.Index(typeStr, "{")
 	endBrace := strings.LastIndex(typeStr, "}")
-	
+
 	if startBrace == -1 || endBrace == -1 || endBrace <= startBrace {
 		// Malformed structural type, return simple type
 		return &TypeExpression{
@@ -692,7 +750,7 @@ func (p *Parser) parseStructuralType(typeStr string, pos Position) *TypeExpressi
 	}
 
 	membersStr := strings.TrimSpace(typeStr[startBrace+1 : endBrace])
-	
+
 	var members []*StructuralTypeMember
 	if membersStr != "" {
 		// Split by commas (simple parsing for now)
@@ -702,20 +760,20 @@ func (p *Parser) parseStructuralType(typeStr string, pos Position) *TypeExpressi
 			if memberStr == "" {
 				continue
 			}
-			
+
 			// Parse "key: Type" format
 			colonPos := strings.Index(memberStr, ":")
 			if colonPos == -1 {
 				continue
 			}
-			
+
 			key := strings.TrimSpace(memberStr[:colonPos])
 			typeStr := strings.TrimSpace(memberStr[colonPos+1:])
-			
+
 			if key != "" && typeStr != "" {
 				memberType := p.parseTypeExpression(typeStr, pos)
 				memberAST := p.convertToASTTypeExpression(memberType)
-				
+
 				member := &StructuralTypeMember{
 					Key:      key,
 					Type:     memberAST,
@@ -994,12 +1052,28 @@ func (p *Parser) convertToASTTypeExpression(te *TypeExpression) *ast.TypeExpress
 	astTypeExpr.NegatedType = p.convertToASTTypeExpression(te.NegatedType)
 	astTypeExpr.StructuralMembers = astStructuralMembers
 	astTypeExpr.OriginalString = te.OriginalString
-	
+
+	// Handle conditional types
+	if te.IsConditional {
+		astTypeExpr.Kind = ast.ConditionalTypeKind
+		astTypeExpr.ConditionalCondition = p.convertToASTTypeExpression(te.ConditionalCondition)
+		astTypeExpr.ConditionalTarget = p.convertToASTTypeExpression(te.ConditionalTarget)
+		astTypeExpr.ConditionalRelationship = te.ConditionalRelationship
+		astTypeExpr.ConditionalTrueType = p.convertToASTTypeExpression(te.ConditionalTrueType)
+		astTypeExpr.ConditionalFalseType = p.convertToASTTypeExpression(te.ConditionalFalseType)
+	}
+
+	// Handle type guards
+	if te.IsTypeGuard {
+		astTypeExpr.Kind = ast.TypeGuardKind
+		astTypeExpr.TypeGuardTarget = p.convertToASTTypeExpression(te.TypeGuardTarget)
+	}
+
 	// Set the kind for structural types
 	if te.IsStructural {
 		astTypeExpr.Kind = ast.StructuralTypeKind
 	}
-	
+
 	return astTypeExpr
 }
 
@@ -2625,4 +2699,88 @@ func (p *Parser) formatParseErrors(errorNodes []ErrorNodeInfo, filePath, sourceC
 	result.WriteString("      Please add test cases for this syntax to improve parser coverage.\n")
 
 	return result.String()
+}
+
+// parseConditionalType parses conditional type expressions like (T extends U ? X : Y)
+func (p *Parser) parseConditionalType(innerStr string, pos Position, originalStr string) *TypeExpression {
+	// Find the question mark and colon, being careful about nested parentheses
+	questionIndex := -1
+	colonIndex := -1
+	parenLevel := 0
+
+	for i, ch := range innerStr {
+		switch ch {
+		case '(':
+			parenLevel++
+		case ')':
+			parenLevel--
+		case '?':
+			if parenLevel == 0 && questionIndex == -1 {
+				questionIndex = i
+			}
+		case ':':
+			if parenLevel == 0 && colonIndex == -1 && questionIndex != -1 {
+				colonIndex = i
+			}
+		}
+	}
+
+	if questionIndex == -1 || colonIndex == -1 {
+		// Not a valid conditional type, return as simple type
+		return &TypeExpression{
+			BaseType:       originalStr,
+			OriginalString: originalStr,
+			Pos:            pos,
+		}
+	}
+
+	// Extract condition part (T extends U)
+	conditionPart := strings.TrimSpace(innerStr[:questionIndex])
+	truePart := strings.TrimSpace(innerStr[questionIndex+1 : colonIndex])
+	falsePart := strings.TrimSpace(innerStr[colonIndex+1:])
+
+	// Parse the condition for relationship operators
+	relationship, conditionType, targetType := p.parseConditionalCondition(conditionPart)
+
+	if relationship == "" || conditionType == nil || targetType == nil {
+		// Invalid conditional structure, return as simple type
+		return &TypeExpression{
+			BaseType:       originalStr,
+			OriginalString: originalStr,
+			Pos:            pos,
+		}
+	}
+
+	// Parse true and false types
+	trueTypeExpr := p.parseTypeExpression(truePart, pos)
+	falseTypeExpr := p.parseTypeExpression(falsePart, pos)
+
+	return &TypeExpression{
+		BaseType:                originalStr,
+		IsConditional:           true,
+		ConditionalCondition:    conditionType,
+		ConditionalTarget:       targetType,
+		ConditionalRelationship: relationship,
+		ConditionalTrueType:     trueTypeExpr,
+		ConditionalFalseType:    falseTypeExpr,
+		OriginalString:          originalStr,
+		Pos:                     pos,
+	}
+}
+
+// parseConditionalCondition parses the condition part of conditional types
+func (p *Parser) parseConditionalCondition(conditionStr string) (relationship string, conditionType, targetType *TypeExpression) {
+	// Look for relationship operators
+	relationships := []string{"extends", "implements", "isa", "does"}
+
+	for _, rel := range relationships {
+		parts := strings.Split(conditionStr, " "+rel+" ")
+		if len(parts) == 2 {
+			leftType := p.parseTypeExpression(strings.TrimSpace(parts[0]), Position{})
+			rightType := p.parseTypeExpression(strings.TrimSpace(parts[1]), Position{})
+			return rel, leftType, rightType
+		}
+	}
+
+	return "", nil, nil
 }
