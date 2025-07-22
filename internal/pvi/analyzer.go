@@ -572,8 +572,6 @@ func (ma *ModuleAnalyzer) processVariableTypeAnnotation(annotation *ast.TypeAnno
 		return
 	}
 
-	variableType := ma.extractTypeString(annotation.TypeExpression)
-
 	// Store variable type information for enhanced analysis and validation
 	// This can be used for type checking or IDE features in the future
 	// For now, we validate that the type expression is well-formed
@@ -584,9 +582,6 @@ func (ma *ModuleAnalyzer) processVariableTypeAnnotation(annotation *ast.TypeAnno
 
 	// Variable type annotations enhance our understanding of module structure
 	// though they don't directly create type definitions in the current implementation
-	// The variable name and type are available for future enhancement
-	_ = varName
-	_ = variableType
 }
 
 func (ma *ModuleAnalyzer) processSubReturnAnnotation(annotation *ast.TypeAnnotation) {
