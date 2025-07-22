@@ -560,21 +560,242 @@ func (ma *ModuleAnalyzer) buildExportList() []typedef.ExportInfo {
 	return exports
 }
 
-// Placeholder implementations for type annotation processing
+// Type annotation processing implementations
 func (ma *ModuleAnalyzer) processVariableTypeAnnotation(annotation *ast.TypeAnnotation) {
-	// Extract variable type information
+	if annotation == nil || annotation.TypeExpression == nil {
+		return
+	}
+
+	// Extract variable type information and validate it
+	varName := annotation.AnnotatedItem
+	if varName == "" {
+		return
+	}
+
+	// Store variable type information for enhanced analysis and validation
+	// This can be used for type checking or IDE features in the future
+	// For now, we validate that the type expression is well-formed
+	if err := ma.validateTypeExpression(annotation.TypeExpression); err != nil {
+		// Type expression is malformed, but we continue processing
+		return
+	}
+
+	// Variable type annotations enhance our understanding of module structure
+	// though they don't directly create type definitions in the current implementation
 }
 
 func (ma *ModuleAnalyzer) processSubReturnAnnotation(annotation *ast.TypeAnnotation) {
-	// Extract subroutine return type information
+	if annotation == nil || annotation.TypeExpression == nil {
+		return
+	}
+
+	subName := annotation.AnnotatedItem
+	if subName == "" {
+		return
+	}
+
+	returnType := ma.extractTypeString(annotation.TypeExpression)
+
+	// Use helper method to update return type information
+	ma.updateSubReturnType(subName, returnType)
 }
 
 func (ma *ModuleAnalyzer) processMethodReturnAnnotation(annotation *ast.TypeAnnotation) {
-	// Extract method return type information
+	if annotation == nil || annotation.TypeExpression == nil {
+		return
+	}
+
+	methodName := annotation.AnnotatedItem
+	if methodName == "" {
+		return
+	}
+
+	returnType := ma.extractTypeString(annotation.TypeExpression)
+
+	// Use helper method to update return type information
+	ma.updateMethodReturnType(methodName, returnType)
 }
 
 func (ma *ModuleAnalyzer) processTypeDeclaration(annotation *ast.TypeAnnotation) {
-	// Extract type declaration information
+	if annotation == nil || annotation.TypeExpression == nil {
+		return
+	}
+
+	typeName := annotation.AnnotatedItem
+	if typeName == "" {
+		return
+	}
+
+	// Validate the type expression before processing
+	if err := ma.validateTypeExpression(annotation.TypeExpression); err != nil {
+		// Type expression is malformed, skip processing
+		return
+	}
+
+	// Check if type already exists
+	if ma.typeExists(typeName) {
+		return
+	}
+
+	// Create a new type definition based on the annotation
+	typeInfo := typedef.TypeInfo{
+		Name:        typeName,
+		Description: fmt.Sprintf("Type %s", typeName),
+		Kind:        ma.determineTypeKind(annotation.TypeExpression),
+		Parameters:  make([]typedef.ParamInfo, 0),
+		Properties:  make([]typedef.PropInfo, 0),
+		Methods:     make([]typedef.MethodInfo, 0),
+		Parent:      "",
+		Roles:       make([]string, 0),
+	}
+
+	// Handle different types of type declarations with proper validation
+	switch {
+	case annotation.TypeExpression.IsUnion:
+		typeInfo.Kind = "union"
+		typeInfo.Description = fmt.Sprintf("Union type %s", typeName)
+	case annotation.TypeExpression.IsIntersection:
+		typeInfo.Kind = "intersection"
+		typeInfo.Description = fmt.Sprintf("Intersection type %s", typeName)
+	case len(annotation.TypeExpression.Parameters) > 0:
+		typeInfo.Kind = "parameterized"
+		typeInfo.Description = fmt.Sprintf("Parameterized type %s", typeName)
+
+		// Extract parameter information safely
+		typeInfo.Parameters = make([]typedef.ParamInfo, 0, len(annotation.TypeExpression.Parameters))
+		for _, param := range annotation.TypeExpression.Parameters {
+			if param != nil && param.Name != "" {
+				typeInfo.Parameters = append(typeInfo.Parameters, typedef.ParamInfo{
+					Name:        param.Name,
+					Type:        ma.extractTypeString(param),
+					Description: fmt.Sprintf("Type parameter %s", param.Name),
+					Optional:    false,
+					Default:     "",
+				})
+			}
+		}
+	}
+
+	ma.types = append(ma.types, typeInfo)
+}
+
+// extractTypeString converts a TypeExpression to a string representation
+func (ma *ModuleAnalyzer) extractTypeString(typeExpr *ast.TypeExpression) string {
+	if typeExpr == nil {
+		return "Any"
+	}
+
+	// Use the built-in String() method which handles all complex type cases
+	return typeExpr.String()
+}
+
+// determineTypeKind determines the kind of type based on the TypeExpression
+func (ma *ModuleAnalyzer) determineTypeKind(typeExpr *ast.TypeExpression) string {
+	if typeExpr == nil {
+		return "scalar"
+	}
+
+	if typeExpr.IsUnion {
+		return "union"
+	}
+	if typeExpr.IsIntersection {
+		return "intersection"
+	}
+	if typeExpr.IsNegation {
+		return "negation"
+	}
+	if len(typeExpr.Parameters) > 0 {
+		return "parameterized"
+	}
+
+	// Default to scalar for simple types
+	return "scalar"
+}
+
+// validateTypeExpression validates that a TypeExpression is well-formed
+func (ma *ModuleAnalyzer) validateTypeExpression(typeExpr *ast.TypeExpression) error {
+	if typeExpr == nil {
+		return fmt.Errorf("type expression is nil")
+	}
+
+	// Validate that union types have at least 2 members
+	if typeExpr.IsUnion && len(typeExpr.UnionTypes) < 2 {
+		return fmt.Errorf("union type must have at least 2 members")
+	}
+
+	// Validate that intersection types have at least 2 members
+	if typeExpr.IsIntersection && len(typeExpr.IntersectionTypes) < 2 {
+		return fmt.Errorf("intersection type must have at least 2 members")
+	}
+
+	// Validate that negation types have a target
+	if typeExpr.IsNegation && typeExpr.NegatedType == nil {
+		return fmt.Errorf("negation type must have a target type")
+	}
+
+	// Validate parameterized types
+	if len(typeExpr.Parameters) > 0 {
+		for _, param := range typeExpr.Parameters {
+			if param == nil {
+				return fmt.Errorf("parameterized type contains nil parameter")
+			}
+			if param.Name == "" {
+				return fmt.Errorf("parameterized type contains parameter with empty name")
+			}
+		}
+	}
+
+	return nil
+}
+
+// updateSubReturnType updates the return type for a subroutine
+func (ma *ModuleAnalyzer) updateSubReturnType(subName, returnType string) {
+	for i := range ma.subs {
+		if ma.subs[i].Name == subName {
+			if len(ma.subs[i].Returns) == 0 {
+				ma.subs[i].Returns = []typedef.ReturnInfo{
+					{
+						Type:        returnType,
+						Description: fmt.Sprintf("Return value of %s", subName),
+					},
+				}
+			} else {
+				// Update existing return type
+				ma.subs[i].Returns[0].Type = returnType
+			}
+			return
+		}
+	}
+}
+
+// updateMethodReturnType updates the return type for a method
+func (ma *ModuleAnalyzer) updateMethodReturnType(methodName, returnType string) {
+	for i := range ma.methods {
+		if ma.methods[i].Name == methodName {
+			if len(ma.methods[i].Returns) == 0 {
+				ma.methods[i].Returns = []typedef.ReturnInfo{
+					{
+						Type:        returnType,
+						Description: fmt.Sprintf("Return value of %s", methodName),
+					},
+				}
+			} else {
+				// Update existing return type
+				ma.methods[i].Returns[0].Type = returnType
+			}
+			return
+		}
+	}
+}
+
+// typeExists checks if a type with the given name already exists
+func (ma *ModuleAnalyzer) typeExists(typeName string) bool {
+	for _, existingType := range ma.types {
+		if existingType.Name == typeName {
+			return true
+		}
+	}
+	return false
 }
 
 // extractModuleNameFromPath extracts module name from file path
