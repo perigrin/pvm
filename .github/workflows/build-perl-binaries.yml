@@ -150,8 +150,7 @@ jobs:
 
       - name: Build Perl binary (no upload)
         run: |
-          ./pvm build-perl ${{ matrix.version }} \
-            --platforms ${{ matrix.platform }}
+          ./pvm build-perl ${{ matrix.version }}
         timeout-minutes: 120
 
       - name: Create binary archive
