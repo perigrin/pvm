@@ -4,8 +4,9 @@
 package binder
 
 import (
-	sitter "github.com/tree-sitter/go-tree-sitter"
 	"sync"
+
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/ast"
 )
 
