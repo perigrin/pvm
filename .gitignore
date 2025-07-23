@@ -201,3 +201,4 @@ core.*
 local/
 test/e2e/local/
 issues_analysis.json
+vendor/
