@@ -1662,7 +1662,7 @@ func containsTypedVariableDeclaration(line string) bool {
 		if strings.HasPrefix(line, keyword) {
 			// Extract the part after the keyword
 			rest := strings.TrimSpace(line[len(keyword):])
-			
+
 			// Look for a pattern like "TypeName $variable"
 			// This is a simple heuristic - a word followed by a space and then $variable
 			parts := strings.Fields(rest)
@@ -1670,7 +1670,7 @@ func containsTypedVariableDeclaration(line string) bool {
 				// Check if first part looks like a type name (starts with uppercase)
 				typeName := parts[0]
 				variablePart := parts[1]
-				
+
 				// Type names typically start with uppercase or contain "::"
 				if (len(typeName) > 0 && (typeName[0] >= 'A' && typeName[0] <= 'Z')) || strings.Contains(typeName, "::") {
 					// Variable part should start with $ or @or %
@@ -1751,9 +1751,9 @@ func containsTypeOperators(line string) bool {
 
 	// Look for type operators in non-string context
 	typeOperators := []string{
-		"|",  // Union types: Int|Str  
-		"&",  // Intersection types: Object&Serializable
-		"!",  // Negation types: !Undef
+		"|", // Union types: Int|Str
+		"&", // Intersection types: Object&Serializable
+		"!", // Negation types: !Undef
 	}
 
 	for _, op := range typeOperators {
@@ -1773,7 +1773,7 @@ func removeStringLiterals(line string) string {
 	// Simple approach: remove content between quotes
 	// This is not perfect but good enough for type detection
 	result := line
-	
+
 	// Remove double-quoted strings
 	for {
 		start := strings.Index(result, "\"")
@@ -1823,9 +1823,9 @@ func looksLikeTypeContext(line, operator string) bool {
 	// - Variable declarations: my Type|Other $var
 	// - Type definitions: type Foo = Bar|Baz
 	// - Field declarations: field Type&Trait $field
-	
+
 	declarationKeywords := []string{"my ", "our ", "field ", "has ", "type ", "typedef ", "sub "}
-	
+
 	for _, keyword := range declarationKeywords {
 		if strings.Contains(line, keyword) {
 			// Check if the operator appears after the keyword
@@ -1843,22 +1843,30 @@ func looksLikeTypeContext(line, operator string) bool {
 	if operatorIndex > 0 && operatorIndex < len(line)-1 {
 		before := ""
 		after := ""
-		
+
 		// Get word before operator
 		i := operatorIndex - 1
-		for i >= 0 && (line[i] == ' ' || line[i] == '\t') { i-- }
+		for i >= 0 && (line[i] == ' ' || line[i] == '\t') {
+			i--
+		}
 		if i >= 0 {
 			end := i + 1
-			for i >= 0 && (line[i] != ' ' && line[i] != '\t') { i-- }
-			before = line[i+1:end]
+			for i >= 0 && (line[i] != ' ' && line[i] != '\t') {
+				i--
+			}
+			before = line[i+1 : end]
 		}
 
 		// Get word after operator
 		i = operatorIndex + 1
-		for i < len(line) && (line[i] == ' ' || line[i] == '\t') { i++ }
+		for i < len(line) && (line[i] == ' ' || line[i] == '\t') {
+			i++
+		}
 		if i < len(line) {
 			start := i
-			for i < len(line) && (line[i] != ' ' && line[i] != '\t') { i++ }
+			for i < len(line) && (line[i] != ' ' && line[i] != '\t') {
+				i++
+			}
 			after = line[start:i]
 		}
 
@@ -1876,7 +1884,7 @@ func looksLikeTypeName(s string) bool {
 	if len(s) == 0 {
 		return false
 	}
-	
+
 	// Type names typically start with uppercase or contain "::"
 	return (s[0] >= 'A' && s[0] <= 'Z') || strings.Contains(s, "::")
 }

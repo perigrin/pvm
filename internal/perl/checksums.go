@@ -186,6 +186,9 @@ func extractVersionFromFilename(filename string) string {
 // Format: sha256sum  filename
 // Source: https://www.cpan.org/src/5.0/CHECKSUMS
 const embeddedChecksums = `
+# Perl 5.42.x series
+73cf6cc1ea2b2b1c110a18c14bbbc73a362073003893ffcedc26d22ebdbdd0c3  perl-5.42.0.tar.xz
+
 # Perl 5.40.x series
 0551c717458e703ef7972307ab19385edfa231198d88998df74e12226abf563b  perl-5.40.2.tar.xz
 4ab18a5d642c1085fd41e52de89eec4cbf4a3a47cd2ac6178608e5f0ef1fa76f  perl-5.40.0.tar.xz
