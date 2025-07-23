@@ -736,18 +736,18 @@ AST {
 
 ```perl
 use v5.36;
-class Container<T> where T: Serializable {
-    field ArrayRef[T] $items = [];
+class Container<T> where T:  {
+    field $items = [];
 
-    method Void add(T $item) {
+    method add($item) {
         push @{$items}, $item;
     }
 
-    method ArrayRef[T] get_all() {
+    method get_all() {
         return $items;
     }
 
-    method Optional[T] find(CodeRef[T, Bool] $predicate) {
+    method find($predicate) {
         for my $item (@{$items}) {
             return $item if $predicate->($item);
         }

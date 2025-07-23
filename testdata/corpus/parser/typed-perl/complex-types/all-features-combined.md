@@ -29,7 +29,7 @@ method Result[Map[Str, Array[ProcessedItem|FailureReason]], ProcessingError&Deta
 
 ```perl
 use v5.36;
-method complex_processing($validated_data, (|)&$handler, $logger) {
+method complex_processing($validated_data, $handler, $logger) {
     my $transformed = $validated_data;
     return success($transformed->map(sub { process($_) }));
 }

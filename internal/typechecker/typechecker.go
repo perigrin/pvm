@@ -48,6 +48,9 @@ type TypeCheck struct {
 	// InferenceEngine for advanced type inference
 	InferenceEngine *InferenceEngine
 
+	// GenericInference handles generic type parameter inference
+	GenericInference *GenericInferenceEngine
+
 	// EnableTypeInference controls whether type inference is enabled
 	EnableTypeInference bool
 }
@@ -69,6 +72,9 @@ func NewTypeCheck() (*TypeCheck, error) {
 	// Create the inference engine (will be updated with symbol table later)
 	inferenceEngine := NewInferenceEngine(hierarchy, nil)
 
+	// Create the generic inference engine
+	genericInference := NewGenericInferenceEngine()
+
 	return &TypeCheck{
 		Binder:                      symbolBinder,
 		TypeStore:                   typeStore,
@@ -79,6 +85,7 @@ func NewTypeCheck() (*TypeCheck, error) {
 		fileCache:                   make(map[string]*TypeCheckResult), // Initialize caches
 		maxCacheSize:                100,                               // Reasonable default cache size
 		InferenceEngine:             inferenceEngine,
+		GenericInference:            genericInference,
 		EnableTypeInference:         true, // Enable type inference by default
 	}, nil
 }

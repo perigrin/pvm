@@ -183,6 +183,13 @@ module.exports = grammar({
     [$._interp_arrow, $._interpolation_fallbacks],
     // conflict between bareword and simple_type in sub/method declarations
     [$.bareword, $.simple_type],
+    // conflict between simple_type and type_identifier for generic instantiation
+    [$.simple_type, $.type_identifier],
+    // conflict resolution for BUILD/ADJUST in signatures
+    [$.function_call_expression, $.function, $.bareword],
+    [$.coderef_call_expression, $._term],
+    // conflict for generic type parameters after sub/method names
+    [$.bareword, $.type_identifier],
   ],
   rules: {
     source_file: $ => seq(repeat($._fullstmt), optional($.__DATA__)),
@@ -206,6 +213,7 @@ module.exports = grammar({
       $.class_phaser_statement,
       $.use_version_statement,
       $.use_statement,
+      $.type_alias_statement,
       $.subroutine_declaration_statement,
       $.method_declaration_statement,
       $.phaser_statement,
@@ -253,7 +261,7 @@ module.exports = grammar({
         $.block),
     ),
     class_phaser_statement: $ => seq(
-      field('phase', choice('BUILD', 'ADJUST')),
+      field('phase', choice(token('BUILD'), token('ADJUST'))),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional($.signature),
       $.block
@@ -337,6 +345,7 @@ module.exports = grammar({
       'sub',
       optional(field('return_type', $.type_expression)),
       field('name', $.bareword),
+      optional(field('type_parameters', $.type_parameter_clause)),
       optseq(':', optional(field('attributes', $.attrlist))),
       optional(choice(field('prototype', $.prototype), field('signature', $.signature))),
       choice(
@@ -858,13 +867,13 @@ module.exports = grammar({
       seq($.scalar, optional($._no_search_slash_plz)),
     ),
     _unambiguous_function: $ => alias(choice($._bareword, $.amper_sub), $.function),
-    function_call_expression: $ => choice(
+    function_call_expression: $ => prec.left(choice(
       seq(field('function', alias($.amper_sub, $.function))),
       // the usage of NONASSOC here is to make it that any parse of a paren after a func
       // automatically becomes a non-ambiguous function call
       seq(field('function', $._unambiguous_function), '(', $._NONASSOC, optional(field('arguments', $._expr)), ')'),
       seq(field('function', $._unambiguous_function), '(', $._NONASSOC, $.indirect_object, field('arguments', $._expr), ')'),
-    ),
+    )),
     _tricky_indirob_hashref: $ => seq($._PERLY_BRACE_OPEN, $._expr, $._PERLY_SEMICOLON, '}'),
     ambiguous_function_call_expression: $ =>
       // we need the right precedence here so we can read ahead for the hash/sub disambiguation
@@ -1361,6 +1370,11 @@ module.exports = grammar({
       $.intersection_type,
       $.negation_type,
       $.parameterized_type,
+      $.tuple_type,
+      $.structural_type,
+      $.generic_type_instantiation,
+      $.conditional_type,
+      $.constrained_type,
     ),
 
     simple_type: $ => $._bareword,
@@ -1389,11 +1403,11 @@ module.exports = grammar({
       ']'
     ),
 
-    // tuple_type: $ => prec(4, seq(
-    //   '(',
-    //   $.type_parameter_list,
-    //   ')'
-    // )),
+    tuple_type: $ => prec(4, seq(
+      '(',
+      $.type_parameter_list,
+      ')'
+    )),
 
     type_parameter_list: $ => seq(
       $.type_expression,
@@ -1430,6 +1444,80 @@ module.exports = grammar({
       $.type_identifier,
       ':',
       $.type_expression
+    ),
+
+    type_alias_statement: $ => seq(
+      'type',
+      field('name', $.type_identifier),
+      optional(field('type_parameters', $.type_parameter_clause)),
+      '=',
+      field('definition', $.type_expression),
+      $._semicolon
+    ),
+
+    structural_type: $ => seq(
+      'struct',
+      '{',
+      optional($.structural_type_member_list),
+      '}'
+    ),
+
+    structural_type_member_list: $ => seq(
+      $.structural_type_member,
+      repeat(seq(',', $.structural_type_member)),
+      optional(',')
+    ),
+
+    structural_type_member: $ => seq(
+      field('key', choice($.type_identifier, $.string_literal)),
+      choice(':', token('=>')),
+      field('type', $.type_expression)
+    ),
+
+    generic_type_instantiation: $ => seq(
+      $.type_identifier,
+      '<',
+      $.type_argument_list,
+      '>'
+    ),
+
+    type_argument_list: $ => seq(
+      $.type_expression,
+      repeat(seq(',', $.type_expression)),
+      optional(',')
+    ),
+
+    conditional_type: $ => seq(
+      '(',
+      $.type_expression,
+      $.type_relationship_op,
+      $.type_expression,
+      '?',
+      $.type_expression,
+      ':',
+      $.type_expression,
+      ')'
+    ),
+
+    type_relationship_op: $ => choice(
+      'extends',
+      'implements',
+      'isa',
+      'does'
+    ),
+
+    constrained_type: $ => seq(
+      '(',
+      field('base_type', $.type_expression),
+      'where',
+      field('constraint', $.constraint_expression),
+      ')'
+    ),
+
+    constraint_expression: $ => seq(
+      '{',
+      field('body', $._term),
+      '}'
     ),
 
 

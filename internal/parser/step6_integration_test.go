@@ -354,7 +354,7 @@ sub Int foo() { return $x; }
 		{
 			name: "complex_types",
 			code: `package Complex;
-type Result[T, E] = Success[T] | Error[E];
+type Result<T, E> = Success[T] | Error[E];
 type Handler = CodeRef[Any, Result[Any, Str]];
 
 class Service {
@@ -419,7 +419,7 @@ func saveBaseline(t *testing.T, results map[string]Step6PerformanceMetrics) {
 
 	// Create baseline directory
 	baselineDir := filepath.Join("../../testdata/corpus/parser", "performance", "baselines")
-	err := os.MkdirAll(baselineDir, 0755)
+	err := os.MkdirAll(baselineDir, 0o755)
 	require.NoError(t, err)
 
 	// Save results
@@ -429,7 +429,7 @@ func saveBaseline(t *testing.T, results map[string]Step6PerformanceMetrics) {
 	data, err := json.MarshalIndent(results, "", "  ")
 	require.NoError(t, err)
 
-	err = os.WriteFile(filename, data, 0644)
+	err = os.WriteFile(filename, data, 0o644)
 	require.NoError(t, err)
 
 	t.Logf("Performance baseline saved to %s", filename)

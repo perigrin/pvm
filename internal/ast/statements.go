@@ -708,6 +708,36 @@ func (ps *PackageStmt) IsStatement() bool {
 	return true
 }
 
+// TypeAliasStatement represents type alias declarations (type UserID = Int)
+type TypeAliasStatement struct {
+	*BaseNode
+	Name           string           // alias name
+	TypeParameters []*TypeParameter // generic parameters (optional)
+	Definition     *TypeExpression  // the type being aliased
+}
+
+// NewTypeAliasStatement creates a new type alias statement
+func NewTypeAliasStatement(name string, typeParams []*TypeParameter, definition *TypeExpression, start, end Position) *TypeAliasStatement {
+	stmt := &TypeAliasStatement{
+		BaseNode:       NewBaseNode("type_alias_stmt", start, end),
+		Name:           name,
+		TypeParameters: typeParams,
+		Definition:     definition,
+	}
+
+	// Add definition as child
+	if definition != nil {
+		stmt.AddChild(definition)
+	}
+
+	return stmt
+}
+
+// IsStatement implements StatementNode interface
+func (tas *TypeAliasStatement) IsStatement() bool {
+	return true
+}
+
 // ClassDecl represents class declarations
 type ClassDecl struct {
 	*BaseNode

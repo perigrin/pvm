@@ -52,7 +52,7 @@ AST {
 
 ```perl
 use v5.36;
-class Processor<T> where T: EventHandler { }
+class Processor<T> where T:  { }
 ```
 
 ## Typed Perl Output

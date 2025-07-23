@@ -349,6 +349,27 @@ type TypeExpression struct {
 	// Constraint represents type constraints (where clauses)
 	Constraint ExpressionNode
 
+	// StructuralMembers contains the members for structural types
+	StructuralMembers []*StructuralTypeMember
+
+	// ConditionalCondition is the check type for conditional types
+	ConditionalCondition *TypeExpression
+
+	// ConditionalTarget is the type being checked against for conditional types
+	ConditionalTarget *TypeExpression
+
+	// ConditionalRelationship is the relationship operator (extends, implements, isa, does)
+	ConditionalRelationship string
+
+	// ConditionalTrueType is the type returned when condition is true
+	ConditionalTrueType *TypeExpression
+
+	// ConditionalFalseType is the type returned when condition is false
+	ConditionalFalseType *TypeExpression
+
+	// TypeGuardTarget is the type being guarded for TypeGuard<T> types
+	TypeGuardTarget *TypeExpression
+
 	// OriginalString preserves the original source text
 	OriginalString string
 }
@@ -363,6 +384,9 @@ const (
 	NegationTypeKind
 	ParameterizedTypeKind
 	ConstrainedTypeKind
+	StructuralTypeKind
+	ConditionalTypeKind
+	TypeGuardKind
 )
 
 // NewTypeExpression creates a new type expression
@@ -421,6 +445,27 @@ func (te *TypeExpression) String() string {
 			parts = append(parts, intType.String())
 		}
 		return strings.Join(parts, "&")
+	}
+
+	// Handle structural types
+	if te.Kind == StructuralTypeKind && len(te.StructuralMembers) > 0 {
+		var members []string
+		for _, member := range te.StructuralMembers {
+			members = append(members, member.Key+": "+member.Type.String())
+		}
+		return "struct { " + strings.Join(members, ", ") + " }"
+	}
+
+	// Handle conditional types
+	if te.Kind == ConditionalTypeKind && te.ConditionalCondition != nil && te.ConditionalTarget != nil {
+		return "(" + te.ConditionalCondition.String() + " " + te.ConditionalRelationship + " " +
+			te.ConditionalTarget.String() + " ? " + te.ConditionalTrueType.String() + " : " +
+			te.ConditionalFalseType.String() + ")"
+	}
+
+	// Handle type guards
+	if te.Kind == TypeGuardKind && te.TypeGuardTarget != nil {
+		return "TypeGuard<" + te.TypeGuardTarget.String() + ">"
 	}
 
 	// Handle parameterized types
@@ -699,6 +744,13 @@ const (
 	VersionConstraint                          // T->VERSION >= 1.0
 )
 
+// StructuralTypeMember represents a member in a structural type
+type StructuralTypeMember struct {
+	Key      string          // field key/name
+	Type     *TypeExpression // field type
+	Position Position        // source position
+}
+
 // TypeParameter represents a generic type parameter
 type TypeParameter struct {
 	Name        string            // parameter name (e.g., T, U)
@@ -763,24 +815,29 @@ func (tw *TypeWalker) walkNode(node Node) error {
 
 	// Visit specific node types with type information
 	switch n := node.(type) {
-	case *VarDecl:
-		if n.IsTyped() {
-			if err := tw.visitor.VisitTypedVariable(n); err != nil {
-				return err
-			}
+	case *FieldDecl:
+		if err := tw.visitor.VisitFieldDeclaration(n); err != nil {
+			return err
 		}
 	case *SubDecl:
-		if n.IsTyped() {
-			if err := tw.visitor.VisitTypedMethod(n); err != nil {
-				return err
+		// Only visit if it has parameter types or return type
+		params := n.Parameters()
+		if n.ReturnType != nil || (params != nil && len(params) > 0) {
+			hasTypedParams := false
+			for _, param := range params {
+				if param.TypeExpr != nil {
+					hasTypedParams = true
+					break
+				}
+			}
+			if n.ReturnType != nil || hasTypedParams {
+				if err := tw.visitor.VisitTypedMethod(n); err != nil {
+					return err
+				}
 			}
 		}
 	case *TypeAssertionExpr:
 		if err := tw.visitor.VisitTypeAssertion(n); err != nil {
-			return err
-		}
-	case *FieldDecl:
-		if err := tw.visitor.VisitFieldDeclaration(n); err != nil {
 			return err
 		}
 	case *TypeDecl:
@@ -790,6 +847,13 @@ func (tw *TypeWalker) walkNode(node Node) error {
 	case *TypeExpression:
 		if err := tw.visitor.VisitTypeExpression(n); err != nil {
 			return err
+		}
+	case *VarDecl:
+		// Only visit if it has a type annotation
+		if n.TypeExpr != nil {
+			if err := tw.visitor.VisitTypedVariable(n); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -928,49 +992,10 @@ func nodeToJSON(node Node) *nodeJSON {
 		}
 	}
 
-	// Add type-specific fields
-	switch n := node.(type) {
-	case *AssignmentExpr:
-		nodeJS.Operator = n.Operator
-	case *BinaryExpr:
-		nodeJS.Operator = n.Operator
-	case *CallExpr:
-		nodeJS.Method = n.Method
-	case *ClassDecl:
-		nodeJS.Name = n.Name
-	case *FieldDecl:
-		nodeJS.Name = n.Name
-	case *LiteralExpr:
-		nodeJS.Value = n.Value
-		nodeJS.Kind = literalKindToString(n.Kind)
-	case *MethodDecl:
-		nodeJS.Name = n.Name
-	case *PackageStmt:
-		nodeJS.Name = n.Name
-	case *RoleDecl:
-		nodeJS.Name = n.Name
-	case *SubDecl:
-		nodeJS.Name = n.Name
-	case *TypeAssertionExpr:
-		// Type assertion has an expression and a type
-		nodeJS.Name = n.TargetType.String()
-	case *TypeDecl:
-		nodeJS.Name = n.Name
-	case *TypeExpression:
+	// Add type-specific fields for core types only
+	if n, ok := node.(*TypeExpression); ok {
 		nodeJS.Name = n.Name
 		nodeJS.Kind = typeExpressionKindToString(n.Kind)
-	case *UnaryExpr:
-		nodeJS.Operator = n.Operator
-		nodeJS.Prefix = n.Prefix
-	case *UseStmt:
-		nodeJS.Name = n.Module
-	case *VarDecl:
-		nodeJS.DeclType = n.DeclType
-		nodeJS.Package = n.Package
-	case *VariableExpr:
-		nodeJS.Name = n.Name
-		nodeJS.Sigil = n.Sigil
-		nodeJS.Package = n.Package
 	}
 
 	return nodeJS
@@ -1008,6 +1033,12 @@ func typeExpressionKindToString(kind TypeExpressionKind) string {
 		return "parameterized"
 	case ConstrainedTypeKind:
 		return "constrained"
+	case StructuralTypeKind:
+		return "structural"
+	case ConditionalTypeKind:
+		return "conditional"
+	case TypeGuardKind:
+		return "typeguard"
 	default:
 		return "unknown"
 	}

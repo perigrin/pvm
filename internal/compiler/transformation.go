@@ -52,6 +52,7 @@ func NewCSTTransformer(content []byte, options TransformationOptions) *CSTTransf
 		transformer.rules = []TransformationRule{
 			&ClassConstraintPreservationRule{}, // Must come before TypeExpressionRemovalRule
 			&TypeExpressionRemovalRule{},
+			&TypeAliasCleanupRule{},
 			&VariableDeclarationCleanupRule{},
 			&TypeAssertionCleanupRule{},
 			&MethodParameterCleanupRule{},
@@ -216,7 +217,7 @@ func (ct *CSTTransformer) getNodeText(node *sitter.Node) string {
 type TypeExpressionRemovalRule struct{}
 
 func (r *TypeExpressionRemovalRule) CanTransform(node *sitter.Node) bool {
-	return node != nil && node.Kind() == NodeTypeExpression
+	return node != nil && (node.Kind() == NodeTypeExpression || node.Kind() == NodeStructuralType || node.Kind() == NodeGenericType || node.Kind() == NodeConditionalType || node.Kind() == NodeTypeGuard)
 }
 
 func (r *TypeExpressionRemovalRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
@@ -244,6 +245,26 @@ func (r *TypeExpressionRemovalRule) isInClassContext(node *sitter.Node) bool {
 
 func (r *TypeExpressionRemovalRule) Description() string {
 	return "Removes type expression nodes from the CST"
+}
+
+// TypeAliasCleanupRule removes type alias statements entirely (type Name = Definition)
+type TypeAliasCleanupRule struct{}
+
+func (r *TypeAliasCleanupRule) CanTransform(node *sitter.Node) bool {
+	return node != nil && node.Kind() == NodeTypeAlias
+}
+
+func (r *TypeAliasCleanupRule) Transform(node *sitter.Node, content []byte, transformer *CSTTransformer) (string, error) {
+	if transformer.options.RemoveTypeNodes {
+		// Type alias statements should be removed entirely from clean Perl
+		return "", nil
+	}
+	// Otherwise preserve as-is (typed Perl mode)
+	return transformer.getNodeText(node), nil
+}
+
+func (r *TypeAliasCleanupRule) Description() string {
+	return "Removes type alias statements from the CST"
 }
 
 // VariableDeclarationCleanupRule handles variable declarations by removing type annotations
@@ -591,16 +612,6 @@ type TransformationResult struct {
 
 // CreateCleanPerl creates a clean Perl version by removing all type annotations
 func CreateCleanPerl(root *sitter.Node, content []byte) (*TransformationResult, error) {
-	// Special case: if input contains class constraints, preserve as-is for now
-	// This is a targeted fix for class Container<T> where T: Serializable patterns
-	sourceCode := string(content)
-	if strings.Contains(sourceCode, "class ") && strings.Contains(sourceCode, "where ") && strings.Contains(sourceCode, ":") {
-		return &TransformationResult{
-			TransformedCode: sourceCode,
-			Success:         true,
-		}, nil
-	}
-
 	options := TransformationOptions{
 		PreserveComments:   true,
 		PreserveWhitespace: true,

@@ -1,283 +1,93 @@
 // ABOUTME: Advanced symbol binding features for Perl's complex scoping scenarios.
 // ABOUTME: Handles closures, dynamic scoping, module imports, and package qualification.
-// NOTE: Currently disabled as it depends on old AST binding methods that have been removed
-
-// TODO: Update AdvancedBinder to work with CST binding instead of AST binding
 
 package binder
 
-// Temporarily comment out AdvancedBinder until it can be updated for CST binding
-/*
-
 import (
 	"log"
-	"strings"
 
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/ast"
 )
 
-// AdvancedBinder extends DefaultBinder with advanced Perl scoping features
+// AdvancedBinder provides enhanced CST-based symbol binding with advanced Perl features
 type AdvancedBinder struct {
-	*DefaultBinder
+	*CSTBinder
 }
 
 // NewAdvancedBinder creates a new advanced binder
 func NewAdvancedBinder() *AdvancedBinder {
 	return &AdvancedBinder{
-		DefaultBinder: NewBinder(),
+		CSTBinder: NewCSTBinder(),
 	}
 }
 
-// ResolvePackageSymbol resolves package-qualified symbols ($Package::var)
-func (st *SymbolTable) ResolvePackageSymbol(packageName, symbolName string, kind SymbolKind) *Symbol {
-	// First check if we have a package scope for this package
-	if packageScope, exists := st.PackageSymbols[packageName]; exists {
-		if symbol, found := packageScope.Symbols[symbolName]; found {
-			if kind == SymbolKind(-1) || symbol.Kind == kind {
-				return symbol
-			}
+// BindCST performs advanced CST-based symbol binding
+func (ab *AdvancedBinder) BindCST(root *sitter.Node, content []byte, typeAnnotations []*ast.TypeAnnotation) (*SymbolTable, error) {
+	// First perform standard CST binding
+	symbolTable, err := ab.CSTBinder.BindCST(root, content, typeAnnotations)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add advanced binding passes
+	if err := ab.processAdvancedFeatures(root, content, symbolTable); err != nil {
+		return nil, err
+	}
+
+	return symbolTable, nil
+}
+
+// processAdvancedFeatures processes advanced Perl features in the CST
+func (ab *AdvancedBinder) processAdvancedFeatures(root *sitter.Node, content []byte, st *SymbolTable) error {
+	// Process package qualification, closures, and local variables
+	return ab.walkCSTForAdvancedFeatures(root, content, st)
+}
+
+// walkCSTForAdvancedFeatures walks CST nodes for advanced feature processing
+func (ab *AdvancedBinder) walkCSTForAdvancedFeatures(node *sitter.Node, content []byte, st *SymbolTable) error {
+	if node == nil {
+		return nil
+	}
+
+	nodeType := node.Kind()
+	switch nodeType {
+	case "use_statement":
+		if err := ab.processUseStatement(node, content, st); err != nil {
+			return err
+		}
+	case "local_variable_declaration":
+		if err := ab.processLocalVariable(node, content, st); err != nil {
+			return err
+		}
+	case "package_qualified_access":
+		if err := ab.processPackageQualifiedAccess(node, content, st); err != nil {
+			return err
+		}
+	case "subroutine_declaration_statement":
+		if err := ab.analyzeClosureCapture(node, content, st); err != nil {
+			return err
 		}
 	}
 
-	// Check in module symbol tables
-	if moduleTable, exists := st.ModuleSymbols[packageName]; exists {
-		return moduleTable.ResolveSymbol(symbolName, kind)
+	// Recursively process child nodes
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if err := ab.walkCSTForAdvancedFeatures(child, content, st); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-// ResolveImportedSymbol resolves symbols from imported modules
-func (st *SymbolTable) ResolveImportedSymbol(moduleName, symbolName string, kind SymbolKind) *Symbol {
-	// Check if module is imported in current scope or parent scopes
-	current := st.CurrentScope
-	for current != nil {
-		if _, imported := current.ImportedModules[moduleName]; imported {
-			if moduleTable, exists := st.ModuleSymbols[moduleName]; exists {
-				return moduleTable.ResolveSymbol(symbolName, kind)
-			}
-		}
-		current = current.Parent
+// processUseStatement processes use/require statements from CST
+func (ab *AdvancedBinder) processUseStatement(node *sitter.Node, content []byte, st *SymbolTable) error {
+	// Extract module name from CST node
+	moduleName := ab.extractModuleName(node, content)
+	if moduleName == "" {
+		return nil // Skip if we can't extract module name
 	}
-
-	return nil
-}
-
-// CreateAlias creates a symbol alias
-func (st *SymbolTable) CreateAlias(aliasName string, originalSymbol *Symbol) *Symbol {
-	alias := &Symbol{
-		Name:           aliasName,
-		Kind:           originalSymbol.Kind,
-		Flags:          originalSymbol.Flags | SymbolFlagAlias,
-		Declaration:    originalSymbol.Declaration,
-		Type:           originalSymbol.Type,
-		Scope:          st.CurrentScope,
-		Package:        st.Package,
-		Position:       originalSymbol.Position,
-		OriginalSymbol: originalSymbol,
-		QualifiedName:  originalSymbol.QualifiedName,
-	}
-
-	st.AddSymbol(alias)
-	return alias
-}
-
-// CaptureSymbol marks a symbol as captured by a closure
-func (st *SymbolTable) CaptureSymbol(symbol *Symbol, capturingScope *Scope) error {
-	// Mark symbol as captured
-	symbol.Flags |= SymbolFlagClosure
-	symbol.CapturedBy = append(symbol.CapturedBy, capturingScope)
-
-	// Add to capturing scope's captured symbols
-	capturingScope.CapturedSymbols = append(capturingScope.CapturedSymbols, symbol)
-
-	// If this is a closure scope, mark symbol as upvalue
-	if capturingScope.Kind == ScopeSubroutine || capturingScope.Kind == ScopeMethod {
-		symbol.Flags |= SymbolFlagUpvalue
-	}
-
-	return nil
-}
-
-// ImportModule imports symbols from another module
-func (st *SymbolTable) ImportModule(moduleName string, moduleTable *SymbolTable) error {
-	// Register the module
-	st.ModuleSymbols[moduleName] = moduleTable
-
-	// Add to current scope's imports
-	if st.CurrentScope != nil {
-		st.CurrentScope.ImportedModules[moduleName] = moduleName
-	}
-
-	return nil
-}
-
-// ExportSymbol marks a symbol as exported
-func (st *SymbolTable) ExportSymbol(symbol *Symbol) error {
-	symbol.Flags |= SymbolFlagExported
-	st.ExportedSymbols[symbol.Name] = symbol
-	return nil
-}
-
-// GetModuleSymbolTable returns the symbol table for a module
-func (st *SymbolTable) GetModuleSymbolTable(moduleName string) *SymbolTable {
-	return st.ModuleSymbols[moduleName]
-}
-
-// RegisterModule registers a module's symbol table
-func (st *SymbolTable) RegisterModule(moduleName string, symbolTable *SymbolTable) error {
-	st.ModuleSymbols[moduleName] = symbolTable
-	return nil
-}
-
-// CreateLocalSymbol creates a local dynamic symbol (local $var)
-func (st *SymbolTable) CreateLocalSymbol(symbol *Symbol) error {
-	if st.CurrentScope == nil {
-		return NewBindingError("no current scope for local symbol", symbol.Name, symbol.Kind.String(), symbol.Position)
-	}
-
-	// Save original value if it exists
-	if existing := st.ResolveSymbol(symbol.Name, symbol.Kind); existing != nil {
-		st.CurrentScope.SavedValues[symbol.Name] = existing
-	}
-
-	// Mark as local and add to current scope
-	symbol.Flags |= SymbolFlagLocal
-	st.CurrentScope.LocalSymbols[symbol.Name] = symbol
-
-	return st.AddSymbol(symbol)
-}
-
-// RestoreLocalSymbols restores local symbols when exiting a scope
-func (st *SymbolTable) RestoreLocalSymbols(scope *Scope) {
-	// Restore saved values for local symbols
-	for name, savedSymbol := range scope.SavedValues {
-		if localSymbol, exists := scope.LocalSymbols[name]; exists {
-			// Remove local symbol
-			delete(scope.Symbols, name)
-			delete(scope.LocalSymbols, name)
-
-			// Restore saved symbol if it existed
-			if savedSymbol != nil {
-				scope.Symbols[name] = savedSymbol
-			}
-
-			// Remove from global symbol index
-			if symbols, exists := st.Symbols[name]; exists {
-				filtered := make([]*Symbol, 0, len(symbols))
-				for _, sym := range symbols {
-					if sym != localSymbol {
-						filtered = append(filtered, sym)
-					}
-				}
-				if len(filtered) > 0 {
-					st.Symbols[name] = filtered
-				} else {
-					delete(st.Symbols, name)
-				}
-			}
-		}
-	}
-}
-
-// CreatePackageQualifiedSymbol creates a package-qualified symbol
-func (st *SymbolTable) CreatePackageQualifiedSymbol(packageName, symbolName string, kind SymbolKind, flags SymbolFlags) *Symbol {
-	qualifiedName := packageName + "::" + symbolName
-
-	symbol := &Symbol{
-		Name:          symbolName,
-		Kind:          kind,
-		Flags:         flags | SymbolFlagPackageQualified,
-		Package:       packageName,
-		QualifiedName: qualifiedName,
-	}
-
-	// Ensure package scope exists
-	if _, exists := st.PackageSymbols[packageName]; !exists {
-		packageScope := &Scope{
-			Kind:            ScopePackage,
-			Parent:          nil, // Package scopes are top-level
-			Children:        []*Scope{},
-			Symbols:         make(map[string]*Symbol),
-			Package:         packageName,
-			LocalSymbols:    make(map[string]*Symbol),
-			SavedValues:     make(map[string]*Symbol),
-			ImportedModules: make(map[string]string),
-			CapturedSymbols: []*Symbol{},
-		}
-		st.PackageSymbols[packageName] = packageScope
-	}
-
-	// Add to package scope
-	packageScope := st.PackageSymbols[packageName]
-	packageScope.Symbols[symbolName] = symbol
-	symbol.Scope = packageScope
-
-	// Add to global symbol index
-	st.Symbols[symbolName] = append(st.Symbols[symbolName], symbol)
-
-	return symbol
-}
-
-// ResolveWithPackageQualification resolves symbols with package qualification
-func (st *SymbolTable) ResolveWithPackageQualification(name string, kind SymbolKind) *Symbol {
-	// Check if name contains package qualification
-	if strings.Contains(name, "::") {
-		parts := strings.SplitN(name, "::", 2)
-		if len(parts) == 2 {
-			packageName := parts[0]
-			symbolName := parts[1]
-			return st.ResolvePackageSymbol(packageName, symbolName, kind)
-		}
-	}
-
-	// Regular resolution
-	return st.ResolveSymbol(name, kind)
-}
-
-// AnalyzeClosureCapture analyzes closure variable capture
-func (st *SymbolTable) AnalyzeClosureCapture(closureScope *Scope) []*Symbol {
-	var capturedSymbols []*Symbol
-
-	// For each symbol referenced in the closure scope
-	for _, symbol := range closureScope.Symbols {
-		// Check if symbol is defined in an outer scope
-		if symbol.Scope != closureScope && symbol.Scope != st.GlobalScope {
-			// This is potentially a captured variable
-			if err := st.CaptureSymbol(symbol, closureScope); err == nil {
-				capturedSymbols = append(capturedSymbols, symbol)
-			}
-		}
-	}
-
-	// Recursively analyze child scopes
-	for _, child := range closureScope.Children {
-		childCaptured := st.AnalyzeClosureCapture(child)
-		capturedSymbols = append(capturedSymbols, childCaptured...)
-	}
-
-	return capturedSymbols
-}
-
-// CreateDynamicSymbol creates a dynamically created symbol
-func (st *SymbolTable) CreateDynamicSymbol(name string, kind SymbolKind, flags SymbolFlags) *Symbol {
-	symbol := &Symbol{
-		Name:    name,
-		Kind:    kind,
-		Flags:   flags | SymbolFlagDynamic,
-		Scope:   st.CurrentScope,
-		Package: st.Package,
-	}
-
-	st.DynamicSymbols[name] = symbol
-	st.AddSymbol(symbol)
-
-	return symbol
-}
-
-// ProcessUseStatement processes use/require statements
-func (ab *AdvancedBinder) ProcessUseStatement(useStmt *ast.UseStmt) error {
-	moduleName := useStmt.Module
 
 	// Create a placeholder module symbol table
 	// In a real implementation, this would load the actual module
@@ -285,66 +95,172 @@ func (ab *AdvancedBinder) ProcessUseStatement(useStmt *ast.UseStmt) error {
 	moduleTable.Package = moduleName
 
 	// Import the module
-	err := ab.symbolTable.ImportModule(moduleName, moduleTable)
+	err := st.ImportModule(moduleName, moduleTable)
 	if err != nil {
 		return err
 	}
 
 	// Create import symbol
+	pos := ab.nodeToPosition(node)
 	importSymbol := &Symbol{
 		Name:     moduleName,
 		Kind:     SymbolImport,
 		Flags:    SymbolFlagImported,
-		Package:  ab.symbolTable.Package,
-		Position: useStmt.Start(),
+		Package:  st.Package,
+		Position: pos,
 	}
 
-	return ab.symbolTable.AddSymbol(importSymbol)
+	return st.AddSymbol(importSymbol)
 }
 
-// ProcessLocalVariable processes local variable declarations
-func (ab *AdvancedBinder) ProcessLocalVariable(varName string, kind SymbolKind, pos ast.Position) error {
+// extractModuleName extracts module name from use statement CST node
+func (ab *AdvancedBinder) extractModuleName(node *sitter.Node, content []byte) string {
+	// Look for module name in use statement
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child.Kind() == "bareword" {
+			return ab.nodeText(child, content)
+		}
+	}
+	return ""
+}
+
+// processLocalVariable processes local variable declarations from CST
+func (ab *AdvancedBinder) processLocalVariable(node *sitter.Node, content []byte, st *SymbolTable) error {
+	// Extract variable information from CST node
+	varName, kind := ab.extractVariableInfo(node, content)
+	if varName == "" {
+		return nil // Skip if we can't extract variable info
+	}
+
+	pos := ab.nodeToPosition(node)
 	symbol := &Symbol{
 		Name:     ab.stripSigil(varName),
 		Kind:     kind,
 		Flags:    SymbolFlagLocal,
 		Position: pos,
+		Scope:    st.CurrentScope,
+		Package:  st.Package,
 	}
 
-	return ab.symbolTable.CreateLocalSymbol(symbol)
+	return st.CreateLocalSymbol(symbol)
 }
 
-// ProcessPackageQualifiedAccess processes package qualified variable access
-func (ab *AdvancedBinder) ProcessPackageQualifiedAccess(qualifiedName string, kind SymbolKind, pos ast.Position) *Symbol {
-	return ab.symbolTable.ResolveWithPackageQualification(qualifiedName, kind)
-}
-
-// Enhanced ExitScope that handles local variable restoration
-func (st *SymbolTable) ExitScopeAdvanced() *Scope {
-	if st.CurrentScope != nil {
-		// Debug logging
-		if DebugScoping {
-			parentID := -1
-			if st.CurrentScope.Parent != nil {
-				parentID = st.CurrentScope.Parent.ScopeID
-			}
-			log.Printf("[DEBUG] ExitScopeAdvanced: Leaving %s scope ID=%d, returning to parent ID=%d",
-				st.CurrentScope.Kind.String(), st.CurrentScope.ScopeID, parentID)
-		}
-
-		// Restore local symbols before exiting
-		st.RestoreLocalSymbols(st.CurrentScope)
-
-		// Analyze closure capture if this is a subroutine/method scope
-		if st.CurrentScope.Kind == ScopeSubroutine || st.CurrentScope.Kind == ScopeMethod {
-			st.AnalyzeClosureCapture(st.CurrentScope)
-		}
-
-		// Return to parent scope
-		if st.CurrentScope.Parent != nil {
-			st.CurrentScope = st.CurrentScope.Parent
+// extractVariableInfo extracts variable name and kind from CST node
+func (ab *AdvancedBinder) extractVariableInfo(node *sitter.Node, content []byte) (string, SymbolKind) {
+	// Look for variable in local declaration
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child.Kind() == "variable" {
+			varText := ab.nodeText(child, content)
+			return varText, ab.getSymbolKindFromSigil(varText)
 		}
 	}
-	return st.CurrentScope
+	return "", SymbolScalar
 }
-*/
+
+// processPackageQualifiedAccess processes package qualified variable access from CST
+func (ab *AdvancedBinder) processPackageQualifiedAccess(node *sitter.Node, content []byte, st *SymbolTable) error {
+	// Extract qualified name from CST node
+	qualifiedName := ab.extractQualifiedName(node, content)
+	if qualifiedName == "" {
+		return nil // Skip if we can't extract qualified name
+	}
+
+	// Resolve the qualified symbol
+	kind := ab.getSymbolKindFromSigil(qualifiedName)
+	symbol := st.ResolveWithPackageQualification(qualifiedName, kind)
+
+	// If not found, create a reference symbol
+	if symbol == nil {
+		pos := ab.nodeToPosition(node)
+		symbol = &Symbol{
+			Name:          ab.stripSigil(qualifiedName),
+			Kind:          kind,
+			Flags:         SymbolFlagPackageQualified,
+			Position:      pos,
+			Scope:         st.CurrentScope,
+			Package:       st.Package,
+			QualifiedName: qualifiedName,
+		}
+		st.AddSymbol(symbol)
+	}
+
+	return nil
+}
+
+// extractQualifiedName extracts package qualified name from CST node
+func (ab *AdvancedBinder) extractQualifiedName(node *sitter.Node, content []byte) string {
+	// Extract text from qualified variable access node
+	return ab.nodeText(node, content)
+}
+
+// analyzeClosureCapture analyzes closure variable capture for subroutines
+func (ab *AdvancedBinder) analyzeClosureCapture(node *sitter.Node, content []byte, st *SymbolTable) error {
+	// Find the scope for this subroutine
+	if st.CurrentScope == nil {
+		return nil
+	}
+
+	// Only analyze if this is a subroutine or method scope
+	if st.CurrentScope.Kind != ScopeSubroutine && st.CurrentScope.Kind != ScopeMethod {
+		return nil
+	}
+
+	// Analyze variable references in the subroutine body
+	capturedSymbols := st.AnalyzeClosureCapture(st.CurrentScope)
+
+	// Log captured variables if debugging
+	if DebugScoping && len(capturedSymbols) > 0 {
+		log.Printf("[DEBUG] Captured %d variables in %s scope", len(capturedSymbols), st.CurrentScope.Kind)
+	}
+
+	return nil
+}
+
+// Helper methods for CST processing
+
+// nodeToPosition converts a CST node to an AST position
+func (ab *AdvancedBinder) nodeToPosition(node *sitter.Node) ast.Position {
+	return ast.Position{
+		Line:   int(node.StartPosition().Row) + 1,
+		Column: int(node.StartPosition().Column) + 1,
+	}
+}
+
+// nodeText extracts text content from a CST node
+func (ab *AdvancedBinder) nodeText(node *sitter.Node, content []byte) string {
+	if node == nil {
+		return ""
+	}
+	startByte := node.StartByte()
+	endByte := node.EndByte()
+	return string(content[startByte:endByte])
+}
+
+// getSymbolKindFromSigil determines symbol kind from Perl sigil
+func (ab *AdvancedBinder) getSymbolKindFromSigil(name string) SymbolKind {
+	if len(name) == 0 {
+		return SymbolScalar
+	}
+	switch name[0] {
+	case '$':
+		return SymbolScalar
+	case '@':
+		return SymbolArray
+	case '%':
+		return SymbolHash
+	case '*':
+		return SymbolGlob
+	default:
+		return SymbolScalar
+	}
+}
+
+// stripSigil removes the sigil from a variable name
+func (ab *AdvancedBinder) stripSigil(name string) string {
+	if len(name) > 0 && (name[0] == '$' || name[0] == '@' || name[0] == '%' || name[0] == '*') {
+		return name[1:]
+	}
+	return name
+}

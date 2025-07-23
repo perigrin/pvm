@@ -28,10 +28,15 @@ const (
 	NodeField        = "field"
 
 	// Type annotation nodes
-	NodeTypeExpression = "type_expression"
-	NodeSimpleType     = "simple_type"
-	NodeTypeAssertion  = "type_assertion_expression"
-	NodeAs             = "as"
+	NodeTypeExpression  = "type_expression"
+	NodeSimpleType      = "simple_type"
+	NodeTypeAssertion   = "type_assertion_expression"
+	NodeTypeAlias       = "type_alias_statement"
+	NodeStructuralType  = "structural_type"
+	NodeGenericType     = "generic_type_instantiation"
+	NodeConditionalType = "conditional_type"
+	NodeTypeGuard       = "type_guard"
+	NodeAs              = "as"
 
 	// Method declaration nodes
 	NodeMethodDecl     = "method_declaration_statement"

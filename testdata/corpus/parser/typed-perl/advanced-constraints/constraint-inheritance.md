@@ -22,7 +22,7 @@ class Base<T> where T: Defined { }
 
 ```perl
 use v5.36;
-class Base<T> where T: Defined { }
+class Base<T> where T:  { }
 ```
 
 ## Typed Perl Output

@@ -39,6 +39,9 @@ type TypeHierarchy struct {
 
 	// intersectionTypes stores created intersection type instances
 	intersectionTypes map[string]*IntersectionType
+
+	// intersectionValidator for advanced intersection validation
+	intersectionValidator *IntersectionValidator
 }
 
 // NewTypeHierarchy creates a new TypeHierarchy with built-in types
@@ -51,6 +54,9 @@ func NewTypeHierarchy(store *Storage) *TypeHierarchy {
 		unionTypes:         make(map[string]*UnionType),
 		intersectionTypes:  make(map[string]*IntersectionType),
 	}
+
+	// Initialize intersection validator
+	hierarchy.intersectionValidator = NewIntersectionValidator(hierarchy)
 
 	// Initialize built-in types
 	hierarchy.initializeBuiltinTypes()
@@ -894,4 +900,56 @@ func (h *TypeHierarchy) CheckIntersectionTypeCompatibility(sourceType, targetTyp
 
 	// Neither is intersection, shouldn't reach here in normal flow
 	return fmt.Errorf("internal error: non-intersection types in intersection compatibility check")
+}
+
+// ValidateIntersectionType performs comprehensive validation of an intersection type
+func (h *TypeHierarchy) ValidateIntersectionType(intersectionType string) error {
+	if h.intersectionValidator == nil {
+		return nil // Skip validation if validator not available
+	}
+
+	contradictions, err := h.intersectionValidator.ValidateIntersection(intersectionType)
+	if err != nil {
+		return err
+	}
+
+	// Check for error-level contradictions
+	errorContradictions := h.intersectionValidator.GetContradictionsBySeverity(contradictions, Error)
+	if len(errorContradictions) > 0 {
+		formatted := h.intersectionValidator.FormatContradictions(errorContradictions)
+		return fmt.Errorf("intersection type validation failed: %s", strings.Join(formatted, "; "))
+	}
+
+	return nil
+}
+
+// GetIntersectionWarnings returns warning-level contradictions for an intersection type
+func (h *TypeHierarchy) GetIntersectionWarnings(intersectionType string) []string {
+	if h.intersectionValidator == nil {
+		return nil
+	}
+
+	contradictions, err := h.intersectionValidator.ValidateIntersection(intersectionType)
+	if err != nil {
+		return nil
+	}
+
+	// Get warning and info level contradictions
+	warningContradictions := h.intersectionValidator.GetContradictionsBySeverity(contradictions, Warning)
+	infoContradictions := h.intersectionValidator.GetContradictionsBySeverity(contradictions, Info)
+
+	allWarnings := make([]IntersectionContradiction, 0, len(warningContradictions)+len(infoContradictions))
+	allWarnings = append(allWarnings, warningContradictions...)
+	allWarnings = append(allWarnings, infoContradictions...)
+	return h.intersectionValidator.FormatContradictions(allWarnings)
+}
+
+// SimplifyIntersectionType attempts to simplify an intersection type
+func (h *TypeHierarchy) SimplifyIntersectionType(intersectionType string) (string, error) {
+	if h.intersectionValidator == nil {
+		return intersectionType, nil
+	}
+
+	simplified, _, err := h.intersectionValidator.SimplifyIntersection(intersectionType)
+	return simplified, err
 }
