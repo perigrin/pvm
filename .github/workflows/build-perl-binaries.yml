@@ -155,9 +155,9 @@ jobs:
 
       - name: Create binary archive
         run: |
-          # Archive the built binary for upload
-          cd ~/.local/share/pvm/versions/${{ matrix.version }}
-          tar -czf perl-${{ matrix.version }}-${{ matrix.platform }}.tar.gz .
+          # Archive the built binary for upload (create archive from parent directory to avoid tar conflicts)
+          cd ~/.local/share/pvm/versions
+          tar -czf ${{ matrix.version }}/perl-${{ matrix.version }}-${{ matrix.platform }}.tar.gz -C ${{ matrix.version }} .
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
