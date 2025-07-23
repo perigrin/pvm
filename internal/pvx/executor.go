@@ -83,6 +83,9 @@ type ExecutionOptions struct {
 	// Inline Perl code to execute (used with -e flag)
 	InlineCode string
 
+	// Whether to enable all features when executing inline code (used with -E flag)
+	EnableFeatures bool
+
 	// Command line arguments to pass to the script
 	Args []string
 
@@ -447,7 +450,14 @@ func ExecuteInlineCode(options *ExecutionOptions, uiOutput ...*ui.Output) (strin
 	}
 
 	// Build command arguments for inline code execution
-	args := []string{"-e", options.InlineCode}
+	var args []string
+	if options.EnableFeatures {
+		// Use -E flag to enable all features (equivalent to perl's -E)
+		args = []string{"-E", options.InlineCode}
+	} else {
+		// Use standard -e flag
+		args = []string{"-e", options.InlineCode}
+	}
 
 	// Add any script arguments if provided
 	if len(options.Args) > 0 {

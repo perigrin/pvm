@@ -9,6 +9,7 @@ import (
 
 	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/ast"
+	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/parser/treesitter"
 )
 
@@ -251,8 +252,8 @@ func (c *PerlCompiler) addVersionPragma(code string) (string, error) {
 		return code, nil
 	}
 
-	// Add version pragma for signature support
-	versionPragma := "use v5.36;"
+	// Add version pragma for signature support using current PVM version
+	versionPragma := c.getCurrentVersionPragma()
 
 	// Check if we need signatures specifically
 	if c.hasSignatureFeatures(code) {
@@ -268,6 +269,19 @@ func (c *PerlCompiler) addVersionPragma(code string) (string, error) {
 func (c *PerlCompiler) hasSignatureFeatures(code string) bool {
 	// Simple check for signature patterns
 	return strings.Contains(code, "sub ") && (strings.Contains(code, "($") || strings.Contains(code, "( $"))
+}
+
+// getCurrentVersionPragma returns the version pragma for the current PVM version
+func (c *PerlCompiler) getCurrentVersionPragma() string {
+	// Get current version from PVM
+	currentInfo, err := current.GetCurrentVersion()
+	if err != nil || !currentInfo.IsAvailable {
+		// Fallback to 5.36 if we can't determine current version
+		return "use v5.36;"
+	}
+	
+	// Format as version pragma
+	return fmt.Sprintf("use v%s;", currentInfo.Version)
 }
 
 // CreateUnifiedCompilerForTarget creates a unified compiler for any supported target

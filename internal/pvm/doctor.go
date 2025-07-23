@@ -6,10 +6,12 @@ package pvm
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"tamarou.com/pvm/internal/cli/ui"
+	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/xdg"
 )
@@ -108,14 +110,14 @@ func checkVersionManagement(ui *ui.Output, issues *[]string, warnings *[]string)
 
 	ui.Success("Found %d installed Perl version(s)", len(installedVersions))
 
-	// Test version resolution
-	resolved, err := perl.ResolveVersion(nil)
+	// Test version resolution - use current package for proper formatting
+	currentInfo, err := current.GetCurrentVersion()
 	if err != nil {
 		*issues = append(*issues, "Failed to resolve current Perl version")
 		return err
 	}
 
-	ui.Success("Current version resolves to: %s (from %s)", resolved.Version, resolved.Source)
+	ui.Success("Current version resolves to: %s (%s)", currentInfo.Version, currentInfo.SourceDescription)
 
 	return nil
 }
@@ -129,8 +131,8 @@ func checkPathConfiguration(ui *ui.Output, issues *[]string, warnings *[]string)
 	}
 
 	// Check if PVM executable is in PATH
-	if _, err := os.Stat("/usr/local/bin/pvm"); err == nil {
-		ui.Success("PVM executable found in system PATH")
+	if pvmPath, err := exec.LookPath("pvm"); err == nil {
+		ui.Success("PVM executable found in system PATH at %s", pvmPath)
 	} else {
 		*warnings = append(*warnings, "PVM executable not found in system PATH")
 		ui.Warning("Consider adding PVM to your system PATH for easier access")

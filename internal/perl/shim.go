@@ -94,7 +94,15 @@ PVM_EXEC="{{ .PVMPath }}"
 
 # Execute the command through PVM
 if [ -x "$PVM_EXEC" ]; then
-  exec "$PVM_EXEC" exec{{ if .IsScript }} --script "{{ .Name }}"{{ end }} -- "$@"
+  # Resolve the current Perl version
+  PERL_VERSION=$("$PVM_EXEC" current --bare 2>/dev/null)
+  if [ -z "$PERL_VERSION" ]; then
+    echo "Error: No Perl version is currently configured"
+    echo "Run 'pvm install <version>' to install a Perl version"
+    echo "Or 'pvm global <version>' to set a global version"
+    exit 1
+  fi
+  exec "$PVM_EXEC" exec "$PERL_VERSION"{{ if .IsScript }} --script "{{ .Name }}"{{ end }} -- "$@"
 else
   echo "Error: PVM executable not found at '$PVM_EXEC'"
   echo "Please ensure PVM is installed correctly"
@@ -111,7 +119,15 @@ set "PVM_EXEC={{ .PVMPath }}"
 
 :: Execute the command through PVM
 if exist "%PVM_EXEC%" (
-  "%PVM_EXEC%" exec{{ if .IsScript }} --script "{{ .Name }}"{{ end }} -- %*
+  :: Resolve the current Perl version
+  for /f "delims=" %%v in ('"%PVM_EXEC%" current --bare 2^>nul') do set "PERL_VERSION=%%v"
+  if "%PERL_VERSION%"=="" (
+    echo Error: No Perl version is currently configured
+    echo Run 'pvm install ^<version^>' to install a Perl version
+    echo Or 'pvm global ^<version^>' to set a global version
+    exit /b 1
+  )
+  "%PVM_EXEC%" exec "%PERL_VERSION%"{{ if .IsScript }} --script "{{ .Name }}"{{ end }} -- %*
 ) else (
   echo Error: PVM executable not found at '%PVM_EXEC%'
   echo Please ensure PVM is installed correctly

@@ -556,6 +556,20 @@ func resolveFromUserConfig(cfg *config.Config, availableVersions []string) (*Res
 			nil)
 	}
 
+	// Verify that a user config file actually exists
+	// Don't use hardcoded defaults as "user configuration"
+	dirs, err := xdg.GetDirs()
+	if err == nil {
+		userConfigPath := dirs.GetConfigFilePath()
+		if _, err := os.Stat(userConfigPath); os.IsNotExist(err) {
+			// No user config file exists, don't treat defaults as user config
+			return nil, errors.NewVersionError(
+				ErrResolutionFailed,
+				"No user configuration file found",
+				nil)
+		}
+	}
+
 	// Check if it's an alias and resolve if needed
 	resolvedVersion, err := ResolveVersionAlias(cfg.PVM.DefaultPerl, cfg.PVM.VersionAliases)
 	if err != nil {
