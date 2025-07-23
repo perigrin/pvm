@@ -6,10 +6,14 @@ package perl
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"tamarou.com/pvm/internal/xdg"
 )
@@ -41,14 +45,27 @@ func NewChecksumDatabase() (*ChecksumDatabase, error) {
 }
 
 // GetChecksum returns the checksum for a version
+// First checks embedded checksums, then falls back to CPAN lookup
 func (db *ChecksumDatabase) GetChecksum(version string) (string, error) {
+	// First try embedded checksums
 	db.mu.RLock()
-	defer db.mu.RUnlock()
-
 	checksum, ok := db.checksums[version]
-	if !ok {
-		return "", fmt.Errorf("no checksum found for version %s", version)
+	db.mu.RUnlock()
+
+	if ok {
+		return checksum, nil
 	}
+
+	// Not found in embedded checksums, try CPAN fallback
+	checksum, err := db.fetchChecksumFromCPAN(version)
+	if err != nil {
+		return "", fmt.Errorf("no checksum found for version %s: not in embedded checksums and CPAN lookup failed: %w", version, err)
+	}
+
+	// Cache the fetched checksum for future use
+	db.mu.Lock()
+	db.checksums[version] = checksum
+	db.mu.Unlock()
 
 	return checksum, nil
 }
@@ -237,10 +254,78 @@ fe8208133e73e47afc3251c08d2c21c5a60160165a8ab8b669c43a420e4ec680  perl-5.26.1.ta
 // checksumsFS would be used for external checksum files
 // var checksumsFS embed.FS
 
+// fetchChecksumFromCPAN fetches the checksum for a specific version from CPAN
+func (db *ChecksumDatabase) fetchChecksumFromCPAN(version string) (string, error) {
+	// CPAN CHECKSUMS URL
+	checksumsURL := "https://www.cpan.org/src/5.0/CHECKSUMS"
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// Fetch the CHECKSUMS file
+	resp, err := client.Get(checksumsURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch CHECKSUMS from CPAN: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("CPAN CHECKSUMS request failed with status %d", resp.StatusCode)
+	}
+
+	// Read the response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read CHECKSUMS response: %w", err)
+	}
+
+	// Parse the CHECKSUMS file to find our version
+	checksum, err := db.parseChecksumFromCPANData(string(body), version)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse checksum for version %s: %w", version, err)
+	}
+
+	return checksum, nil
+}
+
+// parseChecksumFromCPANData parses the CPAN CHECKSUMS format to extract checksum for a version
+func (db *ChecksumDatabase) parseChecksumFromCPANData(data, version string) (string, error) {
+	// The CPAN CHECKSUMS file has entries like:
+	// 'perl-5.42.0.tar.xz' => {
+	//   'sha256' => 'abc123...',
+	//   'size' => 12345,
+	// },
+
+	// Create regex to match the perl version entry
+	filename := fmt.Sprintf("perl-%s.tar.xz", version)
+
+	// Look for the sha256 entry for this file
+	// Pattern matches: 'perl-X.Y.Z.tar.xz' => { ... 'sha256' => 'checksum', ... }
+	pattern := fmt.Sprintf(`'%s'\s*=>\s*\{[^}]*'sha256'\s*=>\s*'([a-f0-9]{64})'`, regexp.QuoteMeta(filename))
+	re := regexp.MustCompile(pattern)
+
+	matches := re.FindStringSubmatch(data)
+	if len(matches) < 2 {
+		// Try .tar.gz as fallback
+		filenameGz := fmt.Sprintf("perl-%s.tar.gz", version)
+		patternGz := fmt.Sprintf(`'%s'\s*=>\s*\{[^}]*'sha256'\s*=>\s*'([a-f0-9]{64})'`, regexp.QuoteMeta(filenameGz))
+		reGz := regexp.MustCompile(patternGz)
+
+		matches = reGz.FindStringSubmatch(data)
+		if len(matches) < 2 {
+			return "", fmt.Errorf("checksum not found in CPAN CHECKSUMS for perl-%s", version)
+		}
+	}
+
+	return matches[1], nil
+}
+
 // UpdateChecksums updates the checksum database from CPAN
 func (db *ChecksumDatabase) UpdateChecksums() error {
 	// This would fetch the latest CHECKSUMS file from CPAN
 	// and update the local database
-	// For now, we rely on embedded checksums
-	return fmt.Errorf("automatic checksum updates not yet implemented")
+	// For now, we rely on embedded checksums + fallback
+	return fmt.Errorf("bulk checksum updates not yet implemented")
 }
