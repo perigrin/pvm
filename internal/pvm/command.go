@@ -2273,7 +2273,7 @@ func installPerlFromBuild(cmd *cobra.Command, args []string) error {
 	ui.Info("Installing to: %s", installDir)
 
 	// Create installation directory
-	err = os.MkdirAll(installDir, 0755)
+	err = os.MkdirAll(installDir, 0o755)
 	if err != nil {
 		return fmt.Errorf("failed to create installation directory: %w", err)
 	}
@@ -2387,7 +2387,7 @@ func extractArchive(archivePath, destDir string) error {
 func extractFile(reader io.Reader, destPath string, mode os.FileMode) error {
 	// Ensure parent directory exists
 	parentDir := filepath.Dir(destPath)
-	err := os.MkdirAll(parentDir, 0755)
+	err := os.MkdirAll(parentDir, 0o755)
 	if err != nil {
 		return err
 	}
@@ -2436,7 +2436,7 @@ func copyDirectory(src, dst string) error {
 func copyFile(src, dst string, mode os.FileMode) error {
 	// Create destination directory if it doesn't exist
 	dstDir := filepath.Dir(dst)
-	err := os.MkdirAll(dstDir, 0755)
+	err := os.MkdirAll(dstDir, 0o755)
 	if err != nil {
 		return err
 	}
@@ -2599,12 +2599,15 @@ func newShellCommand() *cobra.Command {
 // newBuildPerlCommand creates a command for building Perl from source (moved from old build command)
 func newBuildPerlCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "build-perl [version|URL]",
-		Short: "Build Perl from source, URL, or version",
-		Long:  "Build and install Perl from source code, direct URL, or official version release",
-		Args:  cobra.ExactArgs(1),
+		Use:        "build-perl [version|URL]",
+		Short:      "Build Perl from source, URL, or version",
+		Long:       "Build and install Perl from source code, direct URL, or official version release",
+		Args:       cobra.ExactArgs(1),
+		Deprecated: "Use 'pvm perl build' instead. This command will be removed in a future version.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			versionOrURL := args[0]
+			ui := cli.GetUI(cmd)
+			ui.Warning("The 'build-perl' command is deprecated. Please use 'pvm perl build' instead.")
 			return buildPerlFromSource(cmd, versionOrURL)
 		},
 	}
@@ -3306,7 +3309,7 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 
 	// Create tools directory
 	toolsDir := filepath.Join(dirs.DataDir, "tools")
-	if err := os.MkdirAll(toolsDir, 0755); err != nil {
+	if err := os.MkdirAll(toolsDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create tools directory: %w", err)
 	}
 
@@ -3343,7 +3346,7 @@ exec { 'cpanm' } 'cpanm', '%s';
 	tmpDir := os.TempDir()
 	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("install-%s-%d.pl", toolName, os.Getpid()))
 
-	err = os.WriteFile(scriptPath, []byte(installScript), 0644)
+	err = os.WriteFile(scriptPath, []byte(installScript), 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to create installation script: %w", err)
 	}
@@ -3586,7 +3589,7 @@ exec { 'cpanm' } 'cpanm', '--force', '%s';
 	tmpDir := os.TempDir()
 	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("upgrade-%s-%d.pl", toolName, os.Getpid()))
 
-	err = os.WriteFile(scriptPath, []byte(upgradeScript), 0644)
+	err = os.WriteFile(scriptPath, []byte(upgradeScript), 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to create upgrade script: %w", err)
 	}
@@ -3695,7 +3698,7 @@ func createToolShim(toolName, toolEnvDir string) error {
 
 	// Create shims directory in tools
 	shimsDir := filepath.Join(dirs.DataDir, "tools", "bin")
-	if err := os.MkdirAll(shimsDir, 0755); err != nil {
+	if err := os.MkdirAll(shimsDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create shims directory: %w", err)
 	}
 
@@ -3709,7 +3712,7 @@ export PERL5LIB="%s/lib/perl5:$PERL5LIB"
 exec "%s" "$@"
 `, toolName, toolEnvDir, toolEnvDir, toolName)
 
-	err = os.WriteFile(shimPath, []byte(shimContent), 0755)
+	err = os.WriteFile(shimPath, []byte(shimContent), 0o755)
 	if err != nil {
 		return fmt.Errorf("failed to create shim: %w", err)
 	}
