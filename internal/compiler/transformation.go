@@ -612,16 +612,6 @@ type TransformationResult struct {
 
 // CreateCleanPerl creates a clean Perl version by removing all type annotations
 func CreateCleanPerl(root *sitter.Node, content []byte) (*TransformationResult, error) {
-	// Special case: if input contains class constraints, preserve as-is for now
-	// This is a targeted fix for class Container<T> where T: Serializable patterns
-	sourceCode := string(content)
-	if strings.Contains(sourceCode, "class ") && strings.Contains(sourceCode, "where ") && strings.Contains(sourceCode, ":") {
-		return &TransformationResult{
-			TransformedCode: sourceCode,
-			Success:         true,
-		}, nil
-	}
-
 	options := TransformationOptions{
 		PreserveComments:   true,
 		PreserveWhitespace: true,

@@ -302,7 +302,20 @@ func (m *MaybeTypeHandler) handleDefinedOrOperator(expression string, pos ast.Po
 	if len(parts) >= 2 {
 		leftSide := strings.TrimSpace(parts[0])
 
-		// Check if left side is a Maybe type
+		// Extract variable name from assignment: "$result = $maybe_var" -> "$maybe_var"
+		if strings.Contains(leftSide, "=") {
+			assignParts := strings.Split(leftSide, "=")
+			if len(assignParts) >= 2 {
+				leftSide = strings.TrimSpace(assignParts[1])
+			}
+		}
+
+		// Strip $ prefix if present
+		if strings.HasPrefix(leftSide, "$") {
+			leftSide = leftSide[1:]
+		}
+
+		// Check if variable is a Maybe type
 		if varType, exists := m.Checker.VariableTypes[leftSide]; exists && m.IsMaybeType(varType) {
 			// This is good usage - no warning needed
 			m.PerlIdiomIntegrations[expression] = DefinedOrOperator
@@ -319,6 +332,10 @@ func (m *MaybeTypeHandler) handleLogicalOrAssign(expression string, pos ast.Posi
 	parts := strings.Split(expression, "||=")
 	if len(parts) == 2 {
 		varName := strings.TrimSpace(parts[0])
+		// Strip $ prefix if present
+		if strings.HasPrefix(varName, "$") {
+			varName = varName[1:]
+		}
 
 		if varType, exists := m.Checker.VariableTypes[varName]; exists && m.IsMaybeType(varType) {
 			// This is good usage

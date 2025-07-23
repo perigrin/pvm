@@ -1374,6 +1374,7 @@ module.exports = grammar({
       $.structural_type,
       $.generic_type_instantiation,
       $.conditional_type,
+      $.constrained_type,
     ),
 
     simple_type: $ => $._bareword,
@@ -1469,7 +1470,7 @@ module.exports = grammar({
 
     structural_type_member: $ => seq(
       field('key', choice($.type_identifier, $.string_literal)),
-      ':',
+      choice(':', token('=>')),
       field('type', $.type_expression)
     ),
 
@@ -1503,6 +1504,20 @@ module.exports = grammar({
       'implements',
       'isa',
       'does'
+    ),
+
+    constrained_type: $ => seq(
+      '(',
+      field('base_type', $.type_expression),
+      'where',
+      field('constraint', $.constraint_expression),
+      ')'
+    ),
+
+    constraint_expression: $ => seq(
+      '{',
+      field('body', $._term),
+      '}'
     ),
 
 

@@ -523,7 +523,7 @@ func TestStep6_IntegrationWithCompiler(t *testing.T) {
 use v5.36;
 
 # Type definitions
-type UserData = HashRef[{
+type UserData = HashRef[struct {
     id => Int,
     name => Str,
     roles => ArrayRef[Str],
