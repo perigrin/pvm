@@ -78,7 +78,7 @@ class ProcessingQueue<T> : BaseQueue<T>
     method enqueue($item) where $item->can('get_id') {
         push @{$pending}, $item;
     }
-    method get_queue_status() {
+    method QueueStatus () {
         return QueueStatus->new(
             pending => scalar @{$pending},
             processing => scalar keys %{$processing},

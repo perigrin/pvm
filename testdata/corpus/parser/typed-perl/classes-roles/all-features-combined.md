@@ -12,6 +12,7 @@ tags:
     - interface-implementation
     - lifecycle-management
 type_check: true
+should_error: true
 ---
 
 # All Features Combined
