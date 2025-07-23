@@ -52,7 +52,7 @@ AST {
 
 ```perl
 use v5.36;
-class Array<T> where T: Any { }
+class Array<T> where T:  { }
 ```
 
 ## Typed Perl Output

@@ -21,7 +21,7 @@ class Container<T> where T: Serializable { }
 
 ```perl
 use v5.36;
-class Container<T> where T: Serializable { }
+class Container<T> where T:  { }
 ```
 
 ## Typed Perl Output

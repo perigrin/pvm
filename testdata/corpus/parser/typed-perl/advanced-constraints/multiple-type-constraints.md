@@ -52,7 +52,7 @@ AST {
 
 ```perl
 use v5.36;
-class Handler<T> where T: Serializable&Defined { }
+class Handler<T> where T:  { }
 ```
 
 ## Typed Perl Output
