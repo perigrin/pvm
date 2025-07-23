@@ -155,25 +155,10 @@ jobs:
 
       - name: Create binary archive
         run: |
-          # Archive the built binary for upload
-          # Use multiple approaches to handle Linux tar issues
-
-          # Ensure all writes are complete
-          sync
-          sleep 2
-
-          # Create archive outside the target directory with absolute paths
-          cd ~
-          tar -czf perl-${{ matrix.version }}-${{ matrix.platform }}.tar.gz \
-            --warning=no-file-changed \
-            --exclude='*.log' \
-            --exclude='*.tmp' \
-            --exclude='.pvm-*' \
-            -C ~/.local/share/pvm/versions/${{ matrix.version }} .
-
-          # Move to expected location
-          mv ~/perl-${{ matrix.version }}-${{ matrix.platform }}.tar.gz \
-            ~/.local/share/pvm/versions/${{ matrix.version }}/
+          # Use PVM's native perl tarball command for reliable cross-platform archive creation
+          ./pvm perl tarball ${{ matrix.version }} \
+            --output ~/.local/share/pvm/versions/${{ matrix.version }}/perl-${{ matrix.version }}-${{ matrix.platform }}.tar.gz \
+            --exclude "*.log" --exclude "*.tmp" --exclude ".pvm-*"
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
