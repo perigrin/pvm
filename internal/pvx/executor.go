@@ -16,9 +16,11 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/cli/ui"
+	"tamarou.com/pvm/internal/compiler"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
+	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/xdg"
@@ -236,7 +238,20 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 		}
 	}
 
-	// Resolve Perl version to use
+	// Resolve Perl version to use - we need the resolved version for both execution and module installation
+	resolvedVersion, err := perl.ResolveVersion(&perl.ResolutionOptions{
+		ExplicitVersion:     options.PerlVersion,
+		ScriptPath:          options.ScriptPath,
+		SkipVersionResolved: !options.Verbose, // Only log if verbose
+	})
+	if err != nil {
+		return "", errors.NewExecutionError(
+			ErrVersionNotFound,
+			"Failed to resolve Perl version",
+			err)
+	}
+
+	// Get the Perl executable path using the existing function
 	perlExe, err := resolvePerlExecutable(options)
 	if err != nil {
 		return "", err
@@ -250,9 +265,9 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 			log.Infof("Installing %d required modules using PVI", len(options.RequiredModules))
 		}
 
-		// Create PVI integration options
+		// Create PVI integration options - use resolved version instead of raw options.PerlVersion
 		pviOptions := &pvi.PVXIntegrationOptions{
-			PerlVersion:     options.PerlVersion,
+			PerlVersion:     resolvedVersion.Version, // Use resolved version instead of potentially empty options.PerlVersion
 			RequiredModules: options.RequiredModules,
 			InstallDir:      options.CustomModulePath,
 			Verbose:         options.Verbose,
@@ -284,6 +299,47 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 			} else {
 				log.Infof("Successfully installed %d modules, skipped %d already installed",
 					len(installResult.InstalledModules), len(installResult.SkippedModules))
+			}
+		}
+	}
+
+	// Check if script contains type annotations and strip them if needed
+	var needsCleanup bool
+
+	if ContainsTypeAnnotations(options.ScriptPath) {
+		if options.Verbose {
+			if uiOut != nil {
+				uiOut.Info("Detected type annotations in script, stripping types for execution")
+			} else {
+				log.Infof("Detected type annotations in script, stripping types for execution")
+			}
+		}
+
+		// Create a temporary file for the stripped code
+		strippedPath, cleanupFunc, err := stripTypeAnnotationsFromScript(options.ScriptPath)
+		if err != nil {
+			return "", errors.NewExecutionError(
+				ErrExecutionFailed,
+				fmt.Sprintf("Failed to strip type annotations: %v", err),
+				err)
+		}
+
+		// Update script path to the stripped version
+		options.ScriptPath = strippedPath
+		needsCleanup = true
+
+		// Set up cleanup of the temporary stripped script file
+		defer func() {
+			if needsCleanup {
+				cleanupFunc()
+			}
+		}()
+
+		if options.Verbose {
+			if uiOut != nil {
+				uiOut.Success("Successfully stripped type annotations, executing clean Perl code")
+			} else {
+				log.Infof("Successfully stripped type annotations, executing clean Perl code")
 			}
 		}
 	}
@@ -1525,4 +1581,302 @@ func tryAutoInstallPerl(version string, ui *ui.Output, verbose bool) error {
 	}
 
 	return nil
+}
+
+// ContainsTypeAnnotations checks if a Perl script contains type annotations
+func ContainsTypeAnnotations(scriptPath string) bool {
+	// Read the file content
+	content, err := os.ReadFile(scriptPath)
+	if err != nil {
+		// If we can't read the file, assume no types (execution will fail later anyway)
+		return false
+	}
+
+	source := string(content)
+
+	// Quick text-based patterns to detect type annotations
+	// These patterns are based on the ones found in enhanced_parser_impl.go
+	// Note: We need to be more careful with common characters like !, |, & that can appear in strings
+	typePatterns := []string{
+		" as ",       // Type assertions: $value as Int
+		"ArrayRef[",  // Parameterized types: ArrayRef[Int]
+		"HashRef[",   // Parameterized types: HashRef[Str]
+		"Maybe[",     // Maybe types: Maybe[Int]
+		"Container[", // Container types
+		"Map[",       // Map types
+		"Wrapper[",   // Wrapper types
+	}
+
+	// Check for parameterized type patterns (these are quite specific)
+	for _, pattern := range typePatterns {
+		if strings.Contains(source, pattern) {
+			return true
+		}
+	}
+
+	// Check for type operators but be more careful about context
+	// Look for type operators that are likely not in strings
+	lines := strings.Split(source, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Skip string literals when looking for type operators
+		if containsTypeOperators(line) {
+			return true
+		}
+	}
+
+	// Check for typed variable declarations (more complex pattern)
+	// Look for patterns like: my Int $var, our String $VERSION, field Str $name
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Check for typed variable declarations
+		if containsTypedVariableDeclaration(line) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// containsTypedVariableDeclaration checks if a line contains a typed variable declaration
+func containsTypedVariableDeclaration(line string) bool {
+	// Remove leading/trailing whitespace and skip comments
+	line = strings.TrimSpace(line)
+	if strings.HasPrefix(line, "#") {
+		return false
+	}
+
+	// Patterns for typed variable declarations:
+	// my Type $var, our Type $var, field Type $name, etc.
+	declarationKeywords := []string{"my ", "our ", "field ", "has "}
+
+	for _, keyword := range declarationKeywords {
+		if strings.HasPrefix(line, keyword) {
+			// Extract the part after the keyword
+			rest := strings.TrimSpace(line[len(keyword):])
+			
+			// Look for a pattern like "TypeName $variable"
+			// This is a simple heuristic - a word followed by a space and then $variable
+			parts := strings.Fields(rest)
+			if len(parts) >= 2 {
+				// Check if first part looks like a type name (starts with uppercase)
+				typeName := parts[0]
+				variablePart := parts[1]
+				
+				// Type names typically start with uppercase or contain "::"
+				if (len(typeName) > 0 && (typeName[0] >= 'A' && typeName[0] <= 'Z')) || strings.Contains(typeName, "::") {
+					// Variable part should start with $ or @or %
+					if strings.HasPrefix(variablePart, "$") || strings.HasPrefix(variablePart, "@") || strings.HasPrefix(variablePart, "%") {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// stripTypeAnnotationsFromScript strips type annotations from a script and returns a temporary file
+// Returns: (tempFilePath, cleanupFunc, error)
+func stripTypeAnnotationsFromScript(scriptPath string) (string, func(), error) {
+	// Parse the file using the same approach as PSC strip command
+	standardParser, err := parser.NewParser()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create parser: %v", err)
+	}
+
+	ast, err := standardParser.ParseFile(scriptPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse file %s: %v", scriptPath, err)
+	}
+
+	// Use unified compiler to strip type annotations (same as PSC strip command)
+	cleanCompiler := compiler.NewCleanPerlCompilerUnified()
+	strippedCode, err := cleanCompiler.Compile(ast)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to strip type annotations from %s: %v", scriptPath, err)
+	}
+
+	// Create a temporary file for the stripped code
+	// Use a predictable name pattern for easier debugging
+	dir := filepath.Dir(scriptPath)
+	baseName := filepath.Base(scriptPath)
+	tempFile, err := os.CreateTemp(dir, ".pvx-stripped-"+baseName+"-*.pl")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create temporary file: %v", err)
+	}
+
+	// Write the stripped code to the temporary file
+	if _, err := tempFile.WriteString(strippedCode); err != nil {
+		tempFile.Close()
+		os.Remove(tempFile.Name())
+		return "", nil, fmt.Errorf("failed to write stripped code: %v", err)
+	}
+
+	// Close the file so it can be executed
+	if err := tempFile.Close(); err != nil {
+		os.Remove(tempFile.Name())
+		return "", nil, fmt.Errorf("failed to close temporary file: %v", err)
+	}
+
+	// Return the temp file path and cleanup function
+	tempPath := tempFile.Name()
+	cleanupFunc := func() {
+		if err := os.Remove(tempPath); err != nil {
+			// Log the warning but don't fail
+			log.Warnf("Failed to cleanup temporary stripped script file %s: %v", tempPath, err)
+		}
+	}
+
+	return tempPath, cleanupFunc, nil
+}
+
+// containsTypeOperators checks if a line contains type operators in a type context
+// (not inside strings or other contexts where they might appear naturally)
+func containsTypeOperators(line string) bool {
+	// Simple heuristic: if the line contains type operators and looks like a type context,
+	// then it's likely a type annotation
+
+	// Remove strings to avoid false positives
+	withoutStrings := removeStringLiterals(line)
+
+	// Look for type operators in non-string context
+	typeOperators := []string{
+		"|",  // Union types: Int|Str  
+		"&",  // Intersection types: Object&Serializable
+		"!",  // Negation types: !Undef
+	}
+
+	for _, op := range typeOperators {
+		if strings.Contains(withoutStrings, op) {
+			// Additional check: make sure this looks like a type context
+			if looksLikeTypeContext(withoutStrings, op) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// removeStringLiterals removes string literals from a line to avoid false positives
+func removeStringLiterals(line string) string {
+	// Simple approach: remove content between quotes
+	// This is not perfect but good enough for type detection
+	result := line
+	
+	// Remove double-quoted strings
+	for {
+		start := strings.Index(result, "\"")
+		if start == -1 {
+			break
+		}
+		end := start + 1
+		for end < len(result) {
+			if result[end] == '"' && (end == 0 || result[end-1] != '\\') {
+				break
+			}
+			end++
+		}
+		if end < len(result) {
+			result = result[:start] + result[end+1:]
+		} else {
+			result = result[:start]
+		}
+	}
+
+	// Remove single-quoted strings
+	for {
+		start := strings.Index(result, "'")
+		if start == -1 {
+			break
+		}
+		end := start + 1
+		for end < len(result) {
+			if result[end] == '\'' && (end == 0 || result[end-1] != '\\') {
+				break
+			}
+			end++
+		}
+		if end < len(result) {
+			result = result[:start] + result[end+1:]
+		} else {
+			result = result[:start]
+		}
+	}
+
+	return result
+}
+
+// looksLikeTypeContext checks if a type operator appears in what looks like a type context
+func looksLikeTypeContext(line, operator string) bool {
+	// Look for patterns that suggest this is a type annotation:
+	// - Variable declarations: my Type|Other $var
+	// - Type definitions: type Foo = Bar|Baz
+	// - Field declarations: field Type&Trait $field
+	
+	declarationKeywords := []string{"my ", "our ", "field ", "has ", "type ", "typedef ", "sub "}
+	
+	for _, keyword := range declarationKeywords {
+		if strings.Contains(line, keyword) {
+			// Check if the operator appears after the keyword
+			keywordIndex := strings.Index(line, keyword)
+			operatorIndex := strings.Index(line, operator)
+			if operatorIndex > keywordIndex {
+				return true
+			}
+		}
+	}
+
+	// Additional heuristic: if the operator is surrounded by what looks like type names
+	// (words that start with uppercase or contain ::)
+	operatorIndex := strings.Index(line, operator)
+	if operatorIndex > 0 && operatorIndex < len(line)-1 {
+		before := ""
+		after := ""
+		
+		// Get word before operator
+		i := operatorIndex - 1
+		for i >= 0 && (line[i] == ' ' || line[i] == '\t') { i-- }
+		if i >= 0 {
+			end := i + 1
+			for i >= 0 && (line[i] != ' ' && line[i] != '\t') { i-- }
+			before = line[i+1:end]
+		}
+
+		// Get word after operator
+		i = operatorIndex + 1
+		for i < len(line) && (line[i] == ' ' || line[i] == '\t') { i++ }
+		if i < len(line) {
+			start := i
+			for i < len(line) && (line[i] != ' ' && line[i] != '\t') { i++ }
+			after = line[start:i]
+		}
+
+		// Check if before and after look like type names
+		if looksLikeTypeName(before) && looksLikeTypeName(after) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// looksLikeTypeName checks if a string looks like a type name
+func looksLikeTypeName(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	
+	// Type names typically start with uppercase or contain "::"
+	return (s[0] >= 'A' && s[0] <= 'Z') || strings.Contains(s, "::")
 }
