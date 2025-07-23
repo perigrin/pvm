@@ -38,6 +38,7 @@ func NewCommand() *cobra.Command {
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			quiet, _ := cmd.Flags().GetBool("quiet")
 			executeCode, _ := cmd.Flags().GetString("execute")
+			executeFeaturesCode, _ := cmd.Flags().GetString("execute-features")
 			forceVersion, _ := cmd.Flags().GetBool("force")
 			noInstall, _ := cmd.Flags().GetBool("no-install")
 			isolated, _ := cmd.Flags().GetBool("isolated")
@@ -231,10 +232,23 @@ func NewCommand() *cobra.Command {
 
 			var output string
 
-			if executeCode != "" {
+			if executeCode != "" || executeFeaturesCode != "" {
+				// Determine which code to execute and whether to enable features
+				var codeToExecute string
+				var enableFeatures bool
+				
+				if executeFeaturesCode != "" {
+					codeToExecute = executeFeaturesCode
+					enableFeatures = true
+				} else {
+					codeToExecute = executeCode
+					enableFeatures = false
+				}
+				
 				// Execute Perl code directly
-				log.Debugf("Executing Perl code: %s", executeCode)
-				options.InlineCode = executeCode
+				log.Debugf("Executing Perl code: %s (features enabled: %v)", codeToExecute, enableFeatures)
+				options.InlineCode = codeToExecute
+				options.EnableFeatures = enableFeatures
 				output, err = ExecuteInlineCode(options)
 			} else {
 				// Use the enhanced tool detector to determine execution mode
@@ -316,6 +330,7 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().Bool("no-install", false, "Don't install missing modules")
 	cmd.Flags().StringP("perl", "p", "", "Use a specific Perl version")
 	cmd.Flags().StringP("execute", "e", "", "Execute Perl code directly")
+	cmd.Flags().StringP("execute-features", "E", "", "Execute Perl code with all features enabled")
 	cmd.Flags().String("root", "", "Set environment root directory")
 	cmd.Flags().Bool("type-check", false, "Enable type checking before execution")
 	cmd.Flags().BoolP("verbose", "v", false, "Show additional output")
