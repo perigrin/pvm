@@ -125,7 +125,6 @@ func TestCompilerCorpus(t *testing.T) {
 
 				for _, testCase := range testCases {
 					t.Run(testCase.Name, func(t *testing.T) {
-
 						// Create temporary file for testing
 						tempFile := createTempFile(t, testCase.Input)
 						defer os.Remove(tempFile)
@@ -358,4 +357,149 @@ func getTestPerlPath() (string, error) {
 	}
 
 	return "", fmt.Errorf("no working perl installation found for testing")
+}
+
+// getPVMPerlPath attempts to get the current PVM Perl path
+func getPVMPerlPath() (string, error) {
+	// First check if PVM_PERL_PATH environment variable is set (CI optimization)
+	if envPath := os.Getenv("PVM_PERL_PATH"); envPath != "" {
+		perlPath := filepath.Join(envPath, "perl")
+		if _, err := os.Stat(perlPath); err == nil {
+			return perlPath, nil
+		}
+	}
+
+	// Try to get PVM current version path using 'pvm current --path'
+	cmd := exec.Command("pvm", "current", "--path")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("pvm not available or no current version set: %v", err)
+	}
+
+	pvmPath := strings.TrimSpace(string(output))
+	if pvmPath == "" {
+		return "", fmt.Errorf("pvm returned empty path")
+	}
+
+	// Construct the perl binary path
+	perlPath := filepath.Join(pvmPath, "bin", "perl")
+
+	// Verify the perl binary exists
+	if _, err := os.Stat(perlPath); err != nil {
+		return "", fmt.Errorf("pvm perl binary not found at %s: %v", perlPath, err)
+	}
+
+	return perlPath, nil
+}
+
+// fileExists checks if a file exists and is not a directory
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
+
+// TestPVMEnvironmentSetup verifies that the built PVM binary works properly
+func TestPVMEnvironmentSetup(t *testing.T) {
+	// Get path to built PVM binary
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+
+	// Navigate to project root (we might be in internal/compiler)
+	for !fileExists(filepath.Join(projectRoot, "go.mod")) {
+		parent := filepath.Dir(projectRoot)
+		if parent == projectRoot {
+			t.Fatalf("Could not find project root with go.mod")
+		}
+		projectRoot = parent
+	}
+
+	builtPVMPath := filepath.Join(projectRoot, "build", "pvm")
+
+	t.Run("Built PVM binary available", func(t *testing.T) {
+		// Check if built pvm binary exists
+		if !fileExists(builtPVMPath) {
+			t.Skipf("Built PVM binary not found at %s (run 'make' first)", builtPVMPath)
+			return
+		}
+
+		// Test the built binary
+		cmd := exec.Command(builtPVMPath, "version")
+		output, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("Built PVM binary failed to run: %v", err)
+		}
+
+		version := strings.TrimSpace(string(output))
+		t.Logf("Built PVM version: %s", version)
+
+		// Should be a development version (not the installed release)
+		assert.NotContains(t, version, "v1.0.0-rc37", "Should test built binary, not installed release")
+	})
+
+	t.Run("Built PVM current command works", func(t *testing.T) {
+		if !fileExists(builtPVMPath) {
+			t.Skipf("Built PVM binary not found at %s", builtPVMPath)
+			return
+		}
+
+		// The built binary should work even without shell integration
+		cmd := exec.Command(builtPVMPath, "current")
+		cmd.Dir = projectRoot // Run from project root where .perl-version exists
+		output, err := cmd.Output()
+		if err != nil {
+			t.Logf("Built PVM current command failed (expected in clean environment): %v", err)
+			t.Logf("This is normal if no Perl versions are installed in the test environment")
+			return
+		}
+
+		currentVersion := strings.TrimSpace(string(output))
+		t.Logf("Built PVM current version: %s", currentVersion)
+	})
+
+	t.Run("PVM Perl path accessible", func(t *testing.T) {
+		perlPath, err := getPVMPerlPath()
+		if err != nil {
+			t.Skipf("PVM Perl path not accessible: %v", err)
+			return
+		}
+
+		t.Logf("PVM Perl path: %s", perlPath)
+
+		// Verify the perl binary works
+		cmd := exec.Command(perlPath, "-v")
+		output, err := cmd.Output()
+		require.NoError(t, err, "PVM Perl should be executable")
+
+		perlVersionOutput := string(output)
+		assert.Contains(t, perlVersionOutput, "v5.42.0", "PVM Perl should be version 5.42.0")
+		t.Logf("PVM Perl version output: %s", strings.Split(perlVersionOutput, "\n")[0])
+	})
+
+	t.Run("Test helper function selects correct Perl", func(t *testing.T) {
+		testPerlPath, err := getTestPerlPath()
+		require.NoError(t, err, "getTestPerlPath should return a valid perl")
+
+		t.Logf("Test helper selected Perl: %s", testPerlPath)
+
+		// Check which perl version it selected
+		cmd := exec.Command(testPerlPath, "-e", "print $^V")
+		output, err := cmd.Output()
+		require.NoError(t, err, "Selected Perl should be executable")
+
+		version := strings.TrimSpace(string(output))
+		t.Logf("Selected Perl version: %s", version)
+
+		// In CI with PVM setup, this should prefer PVM Perl 5.42.0
+		// In local dev without PVM, it may fall back to system Perl
+		if strings.Contains(version, "v5.42.0") {
+			t.Logf("✅ Using PVM Perl 5.42.0 (optimal)")
+		} else {
+			t.Logf("⚠️  Using non-PVM Perl %s (tests may fail with version pragma mismatches)", version)
+		}
+	})
 }
