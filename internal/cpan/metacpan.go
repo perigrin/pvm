@@ -956,7 +956,8 @@ func (p *MetaCPANProvider) GetPerlCoreVersionsWithDev(ctx context.Context, inclu
 
 	// Query MetaCPAN for Perl core releases
 	// Use the release endpoint to search for distributions named "perl"
-	endpoint := "/release/_search?q=distribution:perl&fields=version,date&size=100&sort=date:desc"
+	// Include maturity and authorized fields to filter out RCs and unauthorized releases
+	endpoint := "/release/_search?q=distribution:perl&fields=version,date,maturity,authorized&size=100&sort=date:desc"
 	requestURL := p.baseURL + endpoint
 
 	// Make the request
@@ -1016,8 +1017,10 @@ func (p *MetaCPANProvider) GetPerlCoreVersionsWithDev(ctx context.Context, inclu
 		Hits struct {
 			Hits []struct {
 				Fields struct {
-					Version string `json:"version"`
-					Date    string `json:"date"`
+					Version    string `json:"version"`
+					Date       string `json:"date"`
+					Maturity   string `json:"maturity"`
+					Authorized bool   `json:"authorized"`
 				} `json:"fields"`
 			} `json:"hits"`
 		} `json:"hits"`
@@ -1039,6 +1042,20 @@ func (p *MetaCPANProvider) GetPerlCoreVersionsWithDev(ctx context.Context, inclu
 
 	for _, hit := range searchResponse.Hits.Hits {
 		version := hit.Fields.Version
+		maturity := hit.Fields.Maturity
+		authorized := hit.Fields.Authorized
+
+		// Skip unauthorized releases entirely
+		if !authorized {
+			continue
+		}
+
+		// Skip release candidates and other developer releases
+		// Only include releases with maturity "released" when not including dev versions
+		if !includeDev && maturity != "released" {
+			continue
+		}
+
 		// Convert MetaCPAN version format (5.042000) to standard format (5.42.0)
 		standardVersion := convertMetaCPANVersion(version)
 		// Filter versions based on includeDev parameter

@@ -52,25 +52,33 @@ func TestMetaCPANProvider_GetPerlCoreVersionsWithDev(t *testing.T) {
 							{
 								"fields": {
 									"version": "5.040000",
-									"date": "2024-06-09T12:00:00Z"
+									"date": "2024-06-09T12:00:00Z",
+									"maturity": "released",
+									"authorized": true
 								}
 							},
 							{
 								"fields": {
 									"version": "5.039000",
-									"date": "2024-03-15T12:00:00Z"
+									"date": "2024-03-15T12:00:00Z",
+									"maturity": "released",
+									"authorized": true
 								}
 							},
 							{
 								"fields": {
 									"version": "5.038002",
-									"date": "2024-01-10T12:00:00Z"
+									"date": "2024-01-10T12:00:00Z",
+									"maturity": "released",
+									"authorized": true
 								}
 							},
 							{
 								"fields": {
 									"version": "5.037012",
-									"date": "2023-12-01T12:00:00Z"
+									"date": "2023-12-01T12:00:00Z",
+									"maturity": "released",
+									"authorized": true
 								}
 							}
 						]
@@ -205,13 +213,17 @@ func TestMetaCPANProvider_GetPerlCoreVersionsWithDev_BackwardCompatibility(t *te
 					{
 						"fields": {
 							"version": "5.040000",
-							"date": "2024-06-09T12:00:00Z"
+							"date": "2024-06-09T12:00:00Z",
+							"maturity": "released",
+							"authorized": true
 						}
 					},
 					{
 						"fields": {
 							"version": "5.039000",
-							"date": "2024-03-15T12:00:00Z"
+							"date": "2024-03-15T12:00:00Z",
+							"maturity": "released",
+							"authorized": true
 						}
 					}
 				]
