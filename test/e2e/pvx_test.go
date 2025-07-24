@@ -16,12 +16,9 @@ func TestPVXScriptExecution(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Get binary Perl path for reliable testing
-	perlPath := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
-
-	// Create a test Perl script
+	// Create a test Perl script (PVM shell integration handles Perl environment)
 	scriptDir := filepath.Join(env.HomeDir, "scripts")
-	err := os.MkdirAll(scriptDir, 0755)
+	err := os.MkdirAll(scriptDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create script directory: %v", err)
 	}
@@ -31,14 +28,14 @@ func TestPVXScriptExecution(t *testing.T) {
 print "Hello from PVX test!\n";
 print "Args: ", join(", ", @ARGV), "\n" if @ARGV;
 `
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create test script: %v", err)
 	}
 
-	// Run the script with PVX, explicitly specifying Perl path
+	// Run the script with PVX (PVM shell integration automatically handles Perl version)
 	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-		[]string{"pvx", "-p", perlPath, scriptPath, "arg1", "arg2"},
+		[]string{"pvx", scriptPath, "arg1", "arg2"},
 		"PVX script execution")
 
 	helpers.AssertStringContains(t, stdout, "Hello from PVX test!",
@@ -52,12 +49,9 @@ func TestPVXInlineCodeExecution(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Get binary Perl path for reliable testing
-	perlPath := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
-
-	// Execute inline Perl code with PVX, explicitly specifying Perl path
+	// Execute inline Perl code with PVX (PVM shell integration handles Perl version)
 	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-		[]string{"pvx", "-p", perlPath, "-e", "print 'Inline code executed successfully!\\n';"},
+		[]string{"pvx", "-e", "print 'Inline code executed successfully!\\n';"},
 		"PVX inline code execution")
 
 	helpers.AssertStringContains(t, stdout, "Inline code executed successfully!",
@@ -89,7 +83,7 @@ func TestPVXVersionSpecification(t *testing.T) {
 	scriptContent := `#!/usr/bin/env perl
 print "Perl version: $^V\n";
 `
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create version test script: %v", err)
 	}
@@ -109,15 +103,12 @@ func TestPVXEnvironmentVariables(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Get binary Perl path for reliable testing
-	perlPath := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
-
-	// Create a script that prints an environment variable
+	// Create a script that prints an environment variable (PVM shell integration handles Perl)
 	scriptPath := filepath.Join(env.HomeDir, "env_test.pl")
 	scriptContent := `#!/usr/bin/env perl
 print "TEST_VAR=", $ENV{TEST_VAR} || "undefined", "\n";
 `
-	err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err := os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create environment test script: %v", err)
 	}
@@ -127,7 +118,7 @@ print "TEST_VAR=", $ENV{TEST_VAR} || "undefined", "\n";
 
 	// Run the script, which should inherit the environment variable
 	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-		[]string{"pvx", "-p", perlPath, scriptPath},
+		[]string{"pvx", scriptPath},
 		"PVX execution with environment variables")
 
 	helpers.AssertStringContains(t, stdout, "TEST_VAR=test_value",
@@ -139,22 +130,19 @@ func TestPVXExitCodePropagation(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Get binary Perl path for reliable testing
-	perlPath := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
-
-	// Create a script that exits with a specific code
+	// Create a script that exits with a specific code (PVM shell integration handles Perl)
 	scriptPath := filepath.Join(env.HomeDir, "exit_test.pl")
 	scriptContent := `#!/usr/bin/env perl
 exit 42;
 `
-	err := os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err := os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create exit code test script: %v", err)
 	}
 
 	// Run the script and expect it to fail with a specific exit code
 	stderr := helpers.AssertPVMFailsOrSkipTODO(t, env,
-		[]string{"pvx", "-p", perlPath, scriptPath},
+		[]string{"pvx", scriptPath},
 		"PVX exit code propagation")
 
 	// Check that the error contains the exit code 42
