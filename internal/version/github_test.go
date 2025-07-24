@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -396,19 +397,17 @@ func TestGitHubClient_InvalidJSON(t *testing.T) {
 func TestGetLatestRelease_Integration(t *testing.T) {
 	basetesting.SkipUnlessIntegration(t, "GitHub API integration test")
 
-	// Test repositories that are known to have releases (not necessarily PVM releases)
+	// Test against the PVM repository itself - this is a known quantity with controlled releases
 	testRepos := []struct {
 		owner string
 		repo  string
 		desc  string
 	}{
-		{"microsoft", "vscode", "VS Code - has many releases"},
-		{"golang", "go", "Go repository - has releases"},
-		{"torvalds", "linux", "Linux kernel - has releases"},
+		{"perigrin", "pvm", "PVM repository - known to have releases"},
 	}
 
 	// Use authentication to avoid rate limiting
-	t.Log("Making authenticated API calls to external repositories")
+	t.Log("Making authenticated API calls to PVM repository")
 
 	// This test makes a real API call to GitHub to test the underlying HTTP functionality
 	// Instead of testing GetLatestRelease (which filters for PVM releases), we'll test GetReleases
@@ -441,6 +440,16 @@ func TestGetLatestRelease_Integration(t *testing.T) {
 
 		if firstRelease.HTMLURL == "" {
 			t.Error("expected HTMLURL to be non-empty")
+		}
+
+		// PVM-specific validation - we know PVM releases should have certain patterns
+		if testRepo.owner == "perigrin" && testRepo.repo == "pvm" {
+			// PVM releases should either be version tags (v1.0.0-rcX) or Perl releases (perl-5.X.X)
+			tagName := firstRelease.TagName
+			if !strings.HasPrefix(tagName, "v") && !strings.HasPrefix(tagName, "perl-") {
+				t.Logf("Warning: PVM release tag '%s' doesn't match expected pattern (v* or perl-*)", tagName)
+			}
+			t.Logf("Found PVM release: %s", tagName)
 		}
 
 		// Test passed with at least one repository
@@ -543,7 +552,7 @@ func TestGitHubClient_UploadReleaseAsset(t *testing.T) {
 		tempDir := t.TempDir()
 		testFile := tempDir + "/test.tar.gz"
 		testContent := []byte("test archive content")
-		if err := os.WriteFile(testFile, testContent, 0644); err != nil {
+		if err := os.WriteFile(testFile, testContent, 0o644); err != nil {
 			t.Fatalf("failed to create test file: %v", err)
 		}
 
