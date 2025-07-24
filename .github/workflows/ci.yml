@@ -39,14 +39,11 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        # Download latest PVM release using gh CLI
-        # First get the latest PVM release (not Perl release)
-        LATEST_PVM_RELEASE=$(gh release list --repo perigrin/pvm --json tagName,name --jq '.[] | select(.name | startswith("PVM")) | .tagName' | head -1)
-        echo "Latest PVM release: $LATEST_PVM_RELEASE"
-        gh release download "$LATEST_PVM_RELEASE" --repo perigrin/pvm --pattern 'pvm-*-linux-amd64.tar.gz'
+        # Download latest PVM release using gh CLI (Linux AMD64 only)
+        gh release download "$(gh release list --repo perigrin/pvm --json tagName,name --jq '.[] | .tagName' | head -1)" --repo perigrin/pvm --pattern '*linux-amd64*'
 
         # Extract and install PVM
-        tar -xzf pvm-linux-amd64.tar.gz
+        tar -xzf pvm-*-linux-amd64.tar.gz
         sudo mv pvm /usr/local/bin/pvm
 
         # Install the Perl version specified in .perl-version
@@ -102,14 +99,11 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        # Download latest PVM release using gh CLI
-        # First get the latest PVM release (not Perl release)
-        LATEST_PVM_RELEASE=$(gh release list --repo perigrin/pvm --json tagName,name --jq '.[] | select(.name | startswith("PVM")) | .tagName' | head -1)
-        echo "Latest PVM release: $LATEST_PVM_RELEASE"
-        gh release download "$LATEST_PVM_RELEASE" --repo perigrin/pvm --pattern 'pvm-*-darwin-arm64.tar.gz'
+        # Download latest PVM release using gh CLI (macOS ARM64 only)
+        gh release download "$(gh release list --repo perigrin/pvm --json tagName,name --jq '.[] | .tagName' | head -1)" --repo perigrin/pvm --pattern '*darwin-arm64*'
 
         # Extract and install PVM
-        tar -xzf pvm-darwin-arm64.tar.gz
+        tar -xzf pvm-*-darwin-arm64.tar.gz
         sudo mv pvm /usr/local/bin/pvm
 
         # Install the Perl version specified in .perl-version
