@@ -37,17 +37,8 @@ jobs:
 
     - name: Install PVM and project Perl version
       run: |
-        # Remove GitHub token variables to prevent authentication issues with public downloads
-        unset GITHUB_TOKEN
-        unset GH_TOKEN
-
-        # Download latest PVM release (public download, no auth needed)
-        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name' | head -1)
-        echo "Latest PVM release: $LATEST_PVM_RELEASE"
-
-        # Download Linux AMD64 binary (strip 'v' prefix from version for filename)
-        PVM_VERSION=${LATEST_PVM_RELEASE#v}
-        curl -L -o pvm-linux-amd64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$PVM_VERSION-linux-amd64.tar.gz"
+        # Download latest PVM release using gh CLI
+        gh release download --repo perigrin/pvm --pattern 'pvm-*-linux-amd64.tar.gz' --output pvm-linux-amd64.tar.gz
 
         # Extract and install PVM
         tar -xzf pvm-linux-amd64.tar.gz
@@ -104,17 +95,8 @@ jobs:
 
     - name: Install PVM and project Perl version
       run: |
-        # Remove GitHub token variables to prevent authentication issues with public downloads
-        unset GITHUB_TOKEN
-        unset GH_TOKEN
-
-        # Download latest PVM release (public download, no auth needed)
-        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name' | head -1)
-        echo "Latest PVM release: $LATEST_PVM_RELEASE"
-
-        # Download macOS ARM64 binary (GitHub Actions macOS runners are ARM64, strip 'v' prefix from version for filename)
-        PVM_VERSION=${LATEST_PVM_RELEASE#v}
-        curl -L -o pvm-darwin-arm64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$PVM_VERSION-darwin-arm64.tar.gz"
+        # Download latest PVM release using gh CLI
+        gh release download --repo perigrin/pvm --pattern 'pvm-*-darwin-arm64.tar.gz' --output pvm-darwin-arm64.tar.gz
 
         # Extract and install PVM
         tar -xzf pvm-darwin-arm64.tar.gz
