@@ -42,7 +42,7 @@ jobs:
         unset GH_TOKEN
 
         # Download latest PVM release (public download, no auth needed)
-        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[].tag_name | select(startswith("v")) | first')
+        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name' | head -1)
         echo "Latest PVM release: $LATEST_PVM_RELEASE"
 
         # Download Linux AMD64 binary
@@ -108,7 +108,7 @@ jobs:
         unset GH_TOKEN
 
         # Download latest PVM release (public download, no auth needed)
-        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[].tag_name | select(startswith("v")) | first')
+        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name' | head -1)
         echo "Latest PVM release: $LATEST_PVM_RELEASE"
 
         # Download macOS ARM64 binary (GitHub Actions macOS runners are ARM64)
