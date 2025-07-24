@@ -42,7 +42,7 @@ jobs:
         unset GH_TOKEN
 
         # Download latest PVM release (public download, no auth needed)
-        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases/latest | jq -r .tag_name)
+        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[].tag_name | select(startswith("v")) | first')
         echo "Latest PVM release: $LATEST_PVM_RELEASE"
 
         # Download Linux AMD64 binary
@@ -108,14 +108,14 @@ jobs:
         unset GH_TOKEN
 
         # Download latest PVM release (public download, no auth needed)
-        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases/latest | jq -r .tag_name)
+        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[].tag_name | select(startswith("v")) | first')
         echo "Latest PVM release: $LATEST_PVM_RELEASE"
 
-        # Download macOS AMD64 binary (GitHub Actions macOS runners are AMD64)
-        curl -L -o pvm-darwin-amd64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$LATEST_PVM_RELEASE-darwin-amd64.tar.gz"
+        # Download macOS ARM64 binary (GitHub Actions macOS runners are ARM64)
+        curl -L -o pvm-darwin-arm64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$LATEST_PVM_RELEASE-darwin-arm64.tar.gz"
 
         # Extract and install PVM
-        tar -xzf pvm-darwin-amd64.tar.gz
+        tar -xzf pvm-darwin-arm64.tar.gz
         sudo mv pvm /usr/local/bin/pvm
 
         # Install the Perl version specified in .perl-version
