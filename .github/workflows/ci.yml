@@ -49,7 +49,7 @@ jobs:
         # Install the Perl version specified in .perl-version
         PERL_VERSION=$(cat .perl-version)
         echo "Installing Perl $PERL_VERSION via PVM..."
-        pvm install $PERL_VERSION
+        pvm install -B $PERL_VERSION
 
         # Set up shell integration for the test environment
         eval "$(pvm init)"
@@ -109,7 +109,7 @@ jobs:
         # Install the Perl version specified in .perl-version
         PERL_VERSION=$(cat .perl-version)
         echo "Installing Perl $PERL_VERSION via PVM..."
-        pvm install $PERL_VERSION
+        pvm install -B $PERL_VERSION
 
         # Set up shell integration for the test environment
         eval "$(pvm init)"
