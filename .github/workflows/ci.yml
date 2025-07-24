@@ -1,5 +1,5 @@
 # ABOUTME: Multi-platform CI pipeline testing Linux and macOS
-# ABOUTME: Tests with both system Perl (Linux) and PVM-managed Perl (macOS)
+# ABOUTME: Uses PVM to ensure consistent Perl versions across all platforms
 
 name: CI
 
@@ -35,13 +35,41 @@ jobs:
         sudo apt-get install -y build-essential
         npm install -g tree-sitter-cli
 
+    - name: Install PVM and project Perl version
+      run: |
+        # Remove GitHub token variables to prevent authentication issues with public downloads
+        unset GITHUB_TOKEN
+        unset GH_TOKEN
+
+        # Download latest PVM release (public download, no auth needed)
+        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases/latest | jq -r .tag_name)
+        echo "Latest PVM release: $LATEST_PVM_RELEASE"
+
+        # Download Linux AMD64 binary
+        curl -L -o pvm-linux-amd64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$LATEST_PVM_RELEASE-linux-amd64.tar.gz"
+
+        # Extract and install PVM
+        tar -xzf pvm-linux-amd64.tar.gz
+        sudo mv pvm /usr/local/bin/pvm
+
+        # Install the Perl version specified in .perl-version
+        PERL_VERSION=$(cat .perl-version)
+        echo "Installing Perl $PERL_VERSION via PVM..."
+        pvm install $PERL_VERSION
+
+        # Set up shell integration for the test environment
+        eval "$(pvm init)"
+        echo 'eval "$(pvm init)"' >> ~/.bashrc
+
     - name: Build
-      run: make
+      run: |
+        eval "$(pvm init)"
+        make
 
     - name: Test
-      run: make test
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        eval "$(pvm init)"
+        make test
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -72,16 +100,42 @@ jobs:
     - name: Install system dependencies
       run: |
         brew install tree-sitter
-        # Use system Perl (macOS comes with Perl pre-installed)
-        perl -v
+
+    - name: Install PVM and project Perl version
+      run: |
+        # Remove GitHub token variables to prevent authentication issues with public downloads
+        unset GITHUB_TOKEN
+        unset GH_TOKEN
+
+        # Download latest PVM release (public download, no auth needed)
+        LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases/latest | jq -r .tag_name)
+        echo "Latest PVM release: $LATEST_PVM_RELEASE"
+
+        # Download macOS AMD64 binary (GitHub Actions macOS runners are AMD64)
+        curl -L -o pvm-darwin-amd64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$LATEST_PVM_RELEASE-darwin-amd64.tar.gz"
+
+        # Extract and install PVM
+        tar -xzf pvm-darwin-amd64.tar.gz
+        sudo mv pvm /usr/local/bin/pvm
+
+        # Install the Perl version specified in .perl-version
+        PERL_VERSION=$(cat .perl-version)
+        echo "Installing Perl $PERL_VERSION via PVM..."
+        pvm install $PERL_VERSION
+
+        # Set up shell integration for the test environment
+        eval "$(pvm init)"
+        echo 'eval "$(pvm init)"' >> ~/.bash_profile
 
     - name: Build
-      run: make
+      run: |
+        eval "$(pvm init)"
+        make
 
     - name: Test
-      run: make test
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        eval "$(pvm init)"
+        make test
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4

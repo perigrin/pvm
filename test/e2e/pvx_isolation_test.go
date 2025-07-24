@@ -17,17 +17,11 @@ func TestPVXIsolationLevels(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Find path to system Perl
-	perlPath := "/usr/bin/perl"
-	_, err := os.Stat(perlPath)
-	if os.IsNotExist(err) {
-		helpers.SkipTODO(t, "System Perl installation (required for isolation tests)")
-		return
-	}
+	// PVM shell integration will handle Perl version automatically
 
 	// Create a test script that prints environment information
 	scriptDir := filepath.Join(env.HomeDir, "scripts")
-	err = os.MkdirAll(scriptDir, 0755)
+	err := os.MkdirAll(scriptDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create script directory: %v", err)
 	}
@@ -100,14 +94,14 @@ foreach my $key (sort keys %ENV) {
 
 print "\nScript completed successfully\n";
 `
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create isolation test script: %v", err)
 	}
 
 	// Create an output save directory
 	saveDir := filepath.Join(env.HomeDir, "isolated_output")
-	err = os.MkdirAll(saveDir, 0755)
+	err = os.MkdirAll(saveDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create output save directory: %v", err)
 	}
@@ -115,7 +109,7 @@ print "\nScript completed successfully\n";
 	// Test isolation level: global
 	t.Run("IsolationGlobal", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-			[]string{"pvx", "--isolation", "global", "-p", perlPath, "--verbose", scriptPath},
+			[]string{"pvx", "--isolation", "global", "--verbose", scriptPath},
 			"PVX with isolation level: global")
 
 		// Check that the script ran successfully
@@ -134,7 +128,7 @@ print "\nScript completed successfully\n";
 	// Test isolation level: local
 	t.Run("IsolationLocal", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-			[]string{"pvx", "--isolation", "local", "-p", perlPath, "--verbose", scriptPath},
+			[]string{"pvx", "--isolation", "local", "--verbose", scriptPath},
 			"PVX with isolation level: local")
 
 		// Check that the script ran successfully
@@ -153,7 +147,7 @@ print "\nScript completed successfully\n";
 	// Test isolation level: clean
 	t.Run("IsolationClean", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-			[]string{"pvx", "--isolation", "clean", "-p", perlPath, "--verbose", scriptPath},
+			[]string{"pvx", "--isolation", "clean", "--verbose", scriptPath},
 			"PVX with isolation level: clean")
 
 		// Check that the script ran successfully
@@ -177,17 +171,11 @@ func TestPVXCleanupBehavior(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Find path to system Perl
-	perlPath := "/usr/bin/perl"
-	_, err := os.Stat(perlPath)
-	if os.IsNotExist(err) {
-		helpers.SkipTODO(t, "System Perl installation (required for cleanup tests)")
-		return
-	}
+	// PVM shell integration will handle Perl version automatically
 
 	// Create a simple test script
 	scriptDir := filepath.Join(env.HomeDir, "scripts")
-	err = os.MkdirAll(scriptDir, 0755)
+	err := os.MkdirAll(scriptDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create script directory: %v", err)
 	}
@@ -199,7 +187,7 @@ my $isolationDir = $ENV{PVM_ISOLATION_DIR} || "unknown";
 print "Isolation directory: $isolationDir\n";
 print "Script completed successfully\n";
 `
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create mediumup test script: %v", err)
 	}
@@ -211,7 +199,6 @@ print "Script completed successfully\n";
 			[]string{
 				"pvx",
 				"--isolation", "clean",
-				"-p", perlPath,
 				"--verbose",
 				scriptPath,
 			},
@@ -253,7 +240,6 @@ print "Script completed successfully\n";
 			[]string{
 				"pvx",
 				"--isolation", "clean",
-				"-p", perlPath,
 				"--verbose",
 				"--no-cleanup",
 				scriptPath,
@@ -301,7 +287,7 @@ print "Script completed successfully\n";
 	t.Run("CustomIsolationDir", func(t *testing.T) {
 		// Create a custom isolation directory
 		customIsolationDir := filepath.Join(env.HomeDir, "custom_isolation")
-		err := os.MkdirAll(customIsolationDir, 0755)
+		err := os.MkdirAll(customIsolationDir, 0o755)
 		if err != nil {
 			t.Fatalf("Failed to create custom isolation directory: %v", err)
 		}
@@ -311,7 +297,6 @@ print "Script completed successfully\n";
 			[]string{
 				"pvx",
 				"--isolation", "clean",
-				"-p", perlPath,
 				"--verbose",
 				"--isolation-dir", customIsolationDir,
 				scriptPath,
@@ -342,17 +327,11 @@ func TestPVXIsolationEnvVars(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Find path to system Perl
-	perlPath := "/usr/bin/perl"
-	_, err := os.Stat(perlPath)
-	if os.IsNotExist(err) {
-		helpers.SkipTODO(t, "System Perl installation (required for env var tests)")
-		return
-	}
+	// PVM shell integration will handle Perl version automatically
 
 	// Create a script that prints environment variables
 	scriptDir := filepath.Join(env.HomeDir, "scripts")
-	err = os.MkdirAll(scriptDir, 0755)
+	err := os.MkdirAll(scriptDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create script directory: %v", err)
 	}
@@ -374,7 +353,7 @@ print "USER: $ENV{USER}\n";
 
 print "Script completed successfully\n";
 `
-	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create env var test script: %v", err)
 	}
@@ -389,7 +368,7 @@ print "Script completed successfully\n";
 	// Test isolation level: global (should pass all environment variables)
 	t.Run("EnvVars_global", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-			[]string{"pvx", "--isolation", "global", "-p", perlPath, "--verbose", scriptPath},
+			[]string{"pvx", "--isolation", "global", "--verbose", scriptPath},
 			"PVX env vars with isolation level: global")
 
 		helpers.AssertStringContains(t, result, "Script completed successfully",
@@ -411,7 +390,7 @@ print "Script completed successfully\n";
 	// Test isolation level: local (should pass all environment variables)
 	t.Run("EnvVars_local", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-			[]string{"pvx", "--isolation", "local", "-p", perlPath, "--verbose", scriptPath},
+			[]string{"pvx", "--isolation", "local", "--verbose", scriptPath},
 			"PVX env vars with isolation level: local")
 
 		helpers.AssertStringContains(t, result, "Script completed successfully",
@@ -437,7 +416,7 @@ print "Script completed successfully\n";
 	// Test isolation level: clean (should still pass most environment variables)
 	t.Run("EnvVars_clean", func(t *testing.T) {
 		result := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-			[]string{"pvx", "--isolation", "clean", "-p", perlPath, "--verbose", scriptPath},
+			[]string{"pvx", "--isolation", "clean", "--verbose", scriptPath},
 			"PVX env vars with isolation level: clean")
 
 		helpers.AssertStringContains(t, result, "Script completed successfully",
@@ -466,7 +445,6 @@ print "Script completed successfully\n";
 			[]string{
 				"pvx",
 				"--isolation", "clean",
-				"-p", perlPath,
 				"--verbose",
 				"--preserve-env", "TEST_VAR",
 				"--preserve-env", "TEST_VAR2",
@@ -500,7 +478,6 @@ print "Script completed successfully\n";
 			[]string{
 				"pvx",
 				"--isolation", "clean",
-				"-p", perlPath,
 				"--verbose",
 				"--preserve-env", "TEST_VAR",
 				"--preserve-env", "TEST_VAR2",
@@ -530,7 +507,6 @@ print "Script completed successfully\n";
 			[]string{
 				"pvx",
 				"--isolation", "clean",
-				"-p", perlPath,
 				"--verbose",
 				"--preserve-env", "MY_CUSTOM_VAR",
 				scriptPath,
@@ -540,7 +516,7 @@ print "Script completed successfully\n";
 		// Write custom script to check the environment variable
 		customCheckScript := filepath.Join(scriptDir, "custom_var_check.pl")
 		customCheckContent := `print "MY_CUSTOM_VAR: $ENV{MY_CUSTOM_VAR}\n";`
-		err = os.WriteFile(customCheckScript, []byte(customCheckContent), 0755)
+		err = os.WriteFile(customCheckScript, []byte(customCheckContent), 0o755)
 		if err != nil {
 			t.Fatalf("Failed to create custom check script: %v", err)
 		}
@@ -550,7 +526,6 @@ print "Script completed successfully\n";
 			[]string{
 				"pvx",
 				"--isolation", "clean",
-				"-p", perlPath,
 				"--verbose",
 				"--preserve-env", "MY_CUSTOM_VAR",
 				customCheckScript,
