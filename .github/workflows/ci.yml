@@ -45,8 +45,9 @@ jobs:
         LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name' | head -1)
         echo "Latest PVM release: $LATEST_PVM_RELEASE"
 
-        # Download Linux AMD64 binary
-        curl -L -o pvm-linux-amd64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$LATEST_PVM_RELEASE-linux-amd64.tar.gz"
+        # Download Linux AMD64 binary (strip 'v' prefix from version for filename)
+        PVM_VERSION=${LATEST_PVM_RELEASE#v}
+        curl -L -o pvm-linux-amd64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$PVM_VERSION-linux-amd64.tar.gz"
 
         # Extract and install PVM
         tar -xzf pvm-linux-amd64.tar.gz
@@ -111,8 +112,9 @@ jobs:
         LATEST_PVM_RELEASE=$(curl -s https://api.github.com/repos/perigrin/pvm/releases | jq -r '.[] | select(.tag_name | startswith("v")) | .tag_name' | head -1)
         echo "Latest PVM release: $LATEST_PVM_RELEASE"
 
-        # Download macOS ARM64 binary (GitHub Actions macOS runners are ARM64)
-        curl -L -o pvm-darwin-arm64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$LATEST_PVM_RELEASE-darwin-arm64.tar.gz"
+        # Download macOS ARM64 binary (GitHub Actions macOS runners are ARM64, strip 'v' prefix from version for filename)
+        PVM_VERSION=${LATEST_PVM_RELEASE#v}
+        curl -L -o pvm-darwin-arm64.tar.gz "https://github.com/perigrin/pvm/releases/download/$LATEST_PVM_RELEASE/pvm-$PVM_VERSION-darwin-arm64.tar.gz"
 
         # Extract and install PVM
         tar -xzf pvm-darwin-arm64.tar.gz
