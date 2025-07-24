@@ -36,9 +36,11 @@ jobs:
         npm install -g tree-sitter-cli
 
     - name: Install PVM and project Perl version
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
-        # Download latest PVM release using gh CLI with inline token
-        gh release download --repo perigrin/pvm --pattern 'pvm-*-linux-amd64.tar.gz' --auth-token "${{ github.token }}"
+        # Download latest PVM release using gh CLI
+        gh release download --repo perigrin/pvm --pattern 'pvm-*-linux-amd64.tar.gz'
 
         # Extract and install PVM
         tar -xzf pvm-linux-amd64.tar.gz
@@ -94,9 +96,11 @@ jobs:
         brew install tree-sitter
 
     - name: Install PVM and project Perl version
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
-        # Download latest PVM release using gh CLI with inline token
-        gh release download --repo perigrin/pvm --pattern 'pvm-*-darwin-arm64.tar.gz' --auth-token "${{ github.token }}"
+        # Download latest PVM release using gh CLI
+        gh release download --repo perigrin/pvm --pattern 'pvm-*-darwin-arm64.tar.gz'
 
         # Extract and install PVM
         tar -xzf pvm-darwin-arm64.tar.gz
