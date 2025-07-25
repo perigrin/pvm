@@ -87,11 +87,14 @@ func CheckForUpdates(opts *CheckOptions) (*VersionCheckResult, error) {
 	}
 	owner, repo := parts[0], parts[1]
 
-	// Create GitHub client
-	var client *GitHubClient
-	if opts.GitHubToken != "" {
+	// Create GitHub client (use injected client for testing, or create new one)
+	var client GitHubClientInterface
+	switch {
+	case opts.Client != nil:
+		client = opts.Client
+	case opts.GitHubToken != "":
 		client = NewGitHubClientWithToken(opts.GitHubToken)
-	} else {
+	default:
 		client = NewGitHubClient()
 	}
 
@@ -122,7 +125,9 @@ func CheckForUpdates(opts *CheckOptions) (*VersionCheckResult, error) {
 		if err == nil && len(releases) > 0 {
 			// Filter for PVM releases and find the latest prerelease
 			for _, r := range releases {
-				if client.isPVMRelease(r.TagName) && !r.Draft {
+				// Check if this is a PVM release (not a Perl binary release)
+				// PVM releases start with "v", Perl releases start with "perl-"
+				if !strings.HasPrefix(r.TagName, "perl-") && strings.HasPrefix(r.TagName, "v") && !r.Draft {
 					release = &r
 					break // First PVM release is the latest
 				}

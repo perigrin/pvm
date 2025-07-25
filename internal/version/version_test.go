@@ -211,65 +211,179 @@ func TestUpdateInfo_Structure(t *testing.T) {
 	}
 }
 
+// mockGitHubClient implements GitHubClientInterface for testing
+type mockGitHubClient struct {
+	releases []GitHubRelease
+	err      error
+}
+
+func (m *mockGitHubClient) GetLatestRelease(owner, repo string) (*GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if len(m.releases) == 0 {
+		return nil, nil
+	}
+	// Return first non-prerelease, or first if all prereleases
+	for _, r := range m.releases {
+		if !r.Prerelease {
+			return &r, nil
+		}
+	}
+	return &m.releases[0], nil
+}
+
+func (m *mockGitHubClient) GetReleases(owner, repo string, includePrerelease bool) ([]GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if includePrerelease {
+		return m.releases, nil
+	}
+	// Filter out prereleases
+	var filtered []GitHubRelease
+	for _, r := range m.releases {
+		if !r.Prerelease {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered, nil
+}
+
+func (m *mockGitHubClient) GetReleaseByTag(owner, repo, tag string) (*GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	for _, r := range m.releases {
+		if r.TagName == tag {
+			return &r, nil
+		}
+	}
+	return nil, nil
+}
+
 func TestCheckForUpdates_PrereleaseHandling(t *testing.T) {
 	t.Run("ExplicitPrereleaseInclusionShouldWork", func(t *testing.T) {
+		// Create mock with a prerelease and stable release
+		mockClient := &mockGitHubClient{
+			releases: []GitHubRelease{
+				{
+					TagName:    "v1.2.0-rc1",
+					Name:       "Release 1.2.0-rc1",
+					Prerelease: true,
+					Draft:      false,
+					HTMLURL:    "https://github.com/perigrin/pvm/releases/tag/v1.2.0-rc1",
+					Body:       "Prerelease notes",
+				},
+				{
+					TagName:    "v1.1.0",
+					Name:       "Release 1.1.0",
+					Prerelease: false,
+					Draft:      false,
+					HTMLURL:    "https://github.com/perigrin/pvm/releases/tag/v1.1.0",
+					Body:       "Stable release notes",
+				},
+			},
+		}
+
 		opts := &CheckOptions{
 			Repository:        "perigrin/pvm",
 			IncludePrerelease: true,
+			Client:            mockClient,
 		}
 
 		result, err := CheckForUpdates(opts)
 		if err != nil {
-			t.Logf("CheckForUpdates with prerelease inclusion failed (may be network/auth): %v", err)
-			// Network errors are acceptable, we're testing the option flow
-			return
+			t.Fatalf("unexpected error: %v", err)
 		}
 
 		if result == nil {
-			t.Error("expected result but got nil")
-			return
+			t.Fatal("expected result but got nil")
 		}
 
-		// If successful, we should have found a release
-		if result.LatestVersion == "" {
-			t.Error("expected latest version to be populated")
+		// Should find the latest prerelease
+		if result.LatestVersion != "v1.2.0-rc1" {
+			t.Errorf("expected latest version v1.2.0-rc1, got %s", result.LatestVersion)
+		}
+
+		if !result.IsPrerelease {
+			t.Error("expected IsPrerelease to be true")
 		}
 	})
 
 	t.Run("FallbackToPrereleaseWhenStableNotAvailable", func(t *testing.T) {
+		// Create mock with only prereleases (no stable releases)
+		mockClient := &mockGitHubClient{
+			releases: []GitHubRelease{
+				{
+					TagName:    "v1.2.0-rc2",
+					Name:       "Release 1.2.0-rc2",
+					Prerelease: true,
+					Draft:      false,
+					HTMLURL:    "https://github.com/perigrin/pvm/releases/tag/v1.2.0-rc2",
+					Body:       "Latest prerelease",
+				},
+				{
+					TagName:    "v1.2.0-rc1",
+					Name:       "Release 1.2.0-rc1",
+					Prerelease: true,
+					Draft:      false,
+					HTMLURL:    "https://github.com/perigrin/pvm/releases/tag/v1.2.0-rc1",
+					Body:       "Older prerelease",
+				},
+			},
+		}
+
 		opts := &CheckOptions{
 			Repository:        "perigrin/pvm",
-			IncludePrerelease: false, // Explicitly exclude prereleases initially
+			IncludePrerelease: false, // Initially exclude prereleases
+			Client:            mockClient,
 		}
 
 		result, err := CheckForUpdates(opts)
 		if err != nil {
-			t.Logf("CheckForUpdates with fallback failed (may be network/auth): %v", err)
-			// Network errors are acceptable, we're testing the fallback logic
-			return
+			t.Fatalf("unexpected error: %v", err)
 		}
 
 		if result == nil {
-			t.Error("expected result but got nil")
-			return
+			t.Fatal("expected result but got nil")
 		}
 
-		// If successful, fallback should have found a prerelease
-		// since the repository currently only has prereleases
-		if result.LatestVersion == "" {
-			t.Error("expected fallback to find a prerelease version")
+		// Should fall back to prerelease since no stable releases exist
+		if result.LatestVersion != "v1.2.0-rc2" {
+			t.Errorf("expected fallback to prerelease v1.2.0-rc2, got %s", result.LatestVersion)
 		}
 
-		// The found version should be a prerelease
 		if !result.IsPrerelease {
-			t.Logf("Note: Found stable release %s (fallback not needed)", result.LatestVersion)
-		} else {
-			t.Logf("Successfully fell back to prerelease %s", result.LatestVersion)
+			t.Error("expected fallback result to be a prerelease")
 		}
 	})
 
 	t.Run("DefaultOptionsExcludePrereleaseButAllowFallback", func(t *testing.T) {
+		// Create mock with mixed releases
+		mockClient := &mockGitHubClient{
+			releases: []GitHubRelease{
+				{
+					TagName:    "v1.1.0",
+					Name:       "Release 1.1.0",
+					Prerelease: false,
+					Draft:      false,
+					HTMLURL:    "https://github.com/perigrin/pvm/releases/tag/v1.1.0",
+					Body:       "Stable release",
+				},
+				{
+					TagName:    "v1.0.0",
+					Name:       "Release 1.0.0",
+					Prerelease: false,
+					Draft:      false,
+					HTMLURL:    "https://github.com/perigrin/pvm/releases/tag/v1.0.0",
+					Body:       "Older stable release",
+				},
+			},
+		}
+
 		opts := DefaultCheckOptions()
+		opts.Client = mockClient
 
 		// Verify default is to exclude prereleases
 		if opts.IncludePrerelease {
@@ -278,19 +392,20 @@ func TestCheckForUpdates_PrereleaseHandling(t *testing.T) {
 
 		result, err := CheckForUpdates(opts)
 		if err != nil {
-			t.Logf("CheckForUpdates with default options failed (may be network/auth): %v", err)
-			// Network errors are acceptable
-			return
+			t.Fatalf("unexpected error: %v", err)
 		}
 
 		if result == nil {
-			t.Error("expected result but got nil")
-			return
+			t.Fatal("expected result but got nil")
 		}
 
-		// Should succeed due to fallback logic when only prereleases exist
-		if result.LatestVersion == "" {
-			t.Error("expected to find a version through fallback logic")
+		// Should find stable release
+		if result.LatestVersion != "v1.1.0" {
+			t.Errorf("expected stable release v1.1.0, got %s", result.LatestVersion)
+		}
+
+		if result.IsPrerelease {
+			t.Error("expected stable release, not prerelease")
 		}
 	})
 }
