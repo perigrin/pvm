@@ -51,7 +51,7 @@ func TestCompilerRegistry_UnifiedCompilers(t *testing.T) {
 		}
 
 		cleanResult = strings.TrimSpace(cleanResult)
-		expectedClean := "use v5.36;\nmy $count = 42;"
+		expectedClean := "use v5.42.0;\nmy $count = 42;"
 
 		if cleanResult != expectedClean {
 			t.Errorf("Expected clean result %q, got %q", expectedClean, cleanResult)
@@ -94,7 +94,7 @@ func TestCompilerRegistry_UnifiedCompilers(t *testing.T) {
 		}
 
 		result = strings.TrimSpace(result)
-		expected := "use v5.36;\nmy $name = \"hello\";"
+		expected := "use v5.42.0;\nmy $name = \"hello\";"
 
 		if result != expected {
 			t.Errorf("Expected result %q, got %q", expected, result)
@@ -139,7 +139,7 @@ func TestCompilerRegistry_UnifiedCompilers(t *testing.T) {
 		}
 
 		result = strings.TrimSpace(result)
-		expected := "use v5.36;\nmy $value = 123;"
+		expected := "use v5.42.0;\nmy $value = 123;"
 
 		if result != expected {
 			t.Errorf("Expected result %q, got %q", expected, result)

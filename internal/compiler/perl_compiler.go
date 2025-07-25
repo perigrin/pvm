@@ -279,7 +279,7 @@ func (c *PerlCompiler) getCurrentVersionPragma() string {
 		// Fallback to 5.36 if we can't determine current version
 		return "use v5.36;"
 	}
-	
+
 	// Format as version pragma
 	return fmt.Sprintf("use v%s;", currentInfo.Version)
 }

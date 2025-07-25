@@ -236,7 +236,7 @@ func NewCommand() *cobra.Command {
 				// Determine which code to execute and whether to enable features
 				var codeToExecute string
 				var enableFeatures bool
-				
+
 				if executeFeaturesCode != "" {
 					codeToExecute = executeFeaturesCode
 					enableFeatures = true
@@ -244,7 +244,7 @@ func NewCommand() *cobra.Command {
 					codeToExecute = executeCode
 					enableFeatures = false
 				}
-				
+
 				// Execute Perl code directly
 				log.Debugf("Executing Perl code: %s (features enabled: %v)", codeToExecute, enableFeatures)
 				options.InlineCode = codeToExecute
