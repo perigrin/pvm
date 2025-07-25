@@ -10,7 +10,48 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"tamarou.com/pvm/internal/version"
 )
+
+// mockAutoUpdateGitHubClient implements GitHubClientInterface for testing
+type mockAutoUpdateGitHubClient struct {
+	releases []version.GitHubRelease
+	err      error
+}
+
+func (m *mockAutoUpdateGitHubClient) GetLatestRelease(owner, repo string) (*version.GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if len(m.releases) == 0 {
+		return nil, nil
+	}
+	return &m.releases[0], nil
+}
+
+func (m *mockAutoUpdateGitHubClient) GetReleases(owner, repo string, includePrerelease bool) ([]version.GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.releases, nil
+}
+
+func (m *mockAutoUpdateGitHubClient) GetReleaseByTag(owner, repo, tag string) (*version.GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	for _, release := range m.releases {
+		if release.TagName == tag {
+			return &release, nil
+		}
+	}
+	return &version.GitHubRelease{
+		TagName: tag,
+		Name:    "Test Release " + tag,
+		Body:    "Test release notes for " + tag,
+	}, nil
+}
 
 func TestDefaultAutoUpdateConfig(t *testing.T) {
 	config := DefaultAutoUpdateConfig()
@@ -261,19 +302,36 @@ func TestUpdateNotificationTimestamp(t *testing.T) {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
 
+	// Create mock client with test data
+	mockClient := &mockAutoUpdateGitHubClient{
+		releases: []version.GitHubRelease{
+			{
+				TagName: "v1.1.0",
+				Name:    "PVM v1.1.0",
+				Body:    "Test release for notification timestamp",
+			},
+		},
+		err: nil,
+	}
+
+	// Set the test client
+	manager.SetTestClient(mockClient)
+
 	// Set last check time to force an update check
 	config := manager.GetConfig()
 	config.LastCheckTime = time.Now().Add(-25 * time.Hour) // Force check
-	config.Repository = "nonexistent/repo"                 // This will likely not have updates
+	config.Repository = "test/repo"                        // Use test repo
 	manager.UpdateConfig(config)
 
 	ctx := context.Background()
 	notification, err := manager.CheckForUpdates(ctx)
+	// Test should now succeed without network calls
+	if err != nil {
+		t.Errorf("Unexpected error with mocked client: %v", err)
+	}
 
-	// We expect this to fail or return no update for nonexistent repo
-	// but we mainly want to test that the function doesn't crash
+	// Verify we got a notification response (may be nil if no update needed)
 	_ = notification
-	_ = err
 }
 
 func TestConfigJSONMarshaling(t *testing.T) {

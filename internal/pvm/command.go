@@ -4572,6 +4572,11 @@ func newReleaseNotesCommand() *cobra.Command {
 
 // executeReleaseNotesCommand implements the release notes command functionality
 func executeReleaseNotesCommand(cmd *cobra.Command, args []string) error {
+	return executeReleaseNotesCommandWithOptions(cmd, args, nil)
+}
+
+// executeReleaseNotesCommandWithOptions implements the release notes command functionality with optional dependency injection
+func executeReleaseNotesCommandWithOptions(cmd *cobra.Command, args []string, testClient version.GitHubClientInterface) error {
 	// Create UI instance for enhanced output
 	uiOutput := ui.NewDefaultOutput()
 
@@ -4592,11 +4597,12 @@ func executeReleaseNotesCommand(cmd *cobra.Command, args []string) error {
 		effectiveToken = cfg.PVM.Update.GitHubToken
 	}
 
-	// Create check options
+	// Create check options with optional test client
 	checkOpts := &version.CheckOptions{
 		IncludePrerelease: prerelease,
 		Repository:        "perigrin/pvm",
 		GitHubToken:       effectiveToken,
+		Client:            testClient,
 	}
 
 	// Determine which version to show
@@ -4612,11 +4618,14 @@ func executeReleaseNotesCommand(cmd *cobra.Command, args []string) error {
 		targetVersion = args[0]
 	}
 
-	// Create GitHub client
-	var client *version.GitHubClient
-	if effectiveToken != "" {
+	// Create GitHub client (use test client if provided)
+	var client version.GitHubClientInterface
+	switch {
+	case testClient != nil:
+		client = testClient
+	case effectiveToken != "":
 		client = version.NewGitHubClientWithToken(effectiveToken)
-	} else {
+	default:
 		client = version.NewGitHubClient()
 	}
 

@@ -189,11 +189,14 @@ func GetUpdateInfo(opts *CheckOptions) (*UpdateInfo, error) {
 	}
 	owner, repo := parts[0], parts[1]
 
-	// Create GitHub client
-	var client *GitHubClient
-	if opts.GitHubToken != "" {
+	// Create GitHub client (use injected client if available)
+	var client GitHubClientInterface
+	switch {
+	case opts.Client != nil:
+		client = opts.Client
+	case opts.GitHubToken != "":
 		client = NewGitHubClientWithToken(opts.GitHubToken)
-	} else {
+	default:
 		client = NewGitHubClient()
 	}
 
