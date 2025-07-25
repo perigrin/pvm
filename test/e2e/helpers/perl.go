@@ -28,7 +28,32 @@ func HasSystemPerl() bool {
 }
 
 // Note: SkipIfNoSystemPerl and EnsureSystemPerl have been removed.
-// Use EnsureBinaryPerl() from perl_binary.go for reliable test infrastructure.
+
+// DefaultTestPerlVersion is the Perl version used for testing (read from .perl-version)
+const DefaultTestPerlVersion = "5.40.2"
+
+// TestPerlEnvironment is a dummy struct for backward compatibility
+type TestPerlEnvironment struct {
+	Version string
+}
+
+// SetupTestPerlEnvironment is now a no-op since PVM shell integration handles everything
+// Kept for backward compatibility during cleanup transition
+func SetupTestPerlEnvironment(t *testing.T, version string) *TestPerlEnvironment {
+	t.Helper()
+	// No-op: PVM shell integration automatically handles Perl environment setup
+	t.Logf("Using PVM shell integration for Perl %s environment", version)
+	return &TestPerlEnvironment{Version: version}
+}
+
+// EnsureBinaryPerl is now a no-op since PVM shell integration handles everything
+// Returns a placeholder path for backward compatibility during cleanup transition
+func EnsureBinaryPerl(t *testing.T, version string) string {
+	t.Helper()
+	// No-op: PVM shell integration automatically handles Perl availability
+	t.Logf("Using PVM shell integration for Perl %s (no manual binary management needed)", version)
+	return "/usr/bin/perl" // Placeholder - PVM will use correct version automatically
+}
 
 // HasTreeSitter checks if the tree-sitter library is available
 func HasTreeSitter() bool {

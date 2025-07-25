@@ -20,8 +20,6 @@ func TestCrossComponentIntegration_PSC_PVX(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	binaryPerl := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
-
 	// Create a typed Perl script that uses PSC and PVX integration
 	scriptFile := filepath.Join(env.RootDir, "typed_script.pl")
 	scriptContent := `#!/usr/bin/perl
@@ -36,13 +34,13 @@ my Str $message = "Hello from cross-component integration!";
 say "$message $count";
 `
 
-	err := os.WriteFile(scriptFile, []byte(scriptContent), 0644)
+	err := os.WriteFile(scriptFile, []byte(scriptContent), 0o644)
 	require.NoError(t, err)
 
 	// Test PSC run command which uses PSC -> PVX integration
-	// Use binary Perl for reliable cross-platform testing
+	// PVM shell integration will handle Perl version automatically
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"psc", "run", "--verbose", "--perl", binaryPerl, scriptFile},
+		[]string{"psc", "run", "--verbose", scriptFile},
 		"PSC run should succeed and use PVX for execution")
 
 	// Should contain both the type checking output and script execution output
@@ -66,15 +64,14 @@ use v5.36;
 say "Script executed successfully";
 `
 
-	err := os.WriteFile(scriptFile, []byte(scriptContent), 0644)
+	err := os.WriteFile(scriptFile, []byte(scriptContent), 0o644)
 	require.NoError(t, err)
 
 	// Test PVX with module requirements (PVX -> PVI integration)
 	// Note: This will try to install modules, but may fail in test environment
 	// The test is to verify the integration plumbing works, not actual module installation
-	binaryPerl := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
-	_, stderr, err := env.RunPVM("pvx", "--perl", binaryPerl, "--auto-install", "--require", "JSON", "--verbose", scriptFile)
-
+	// PVM shell integration will handle Perl version automatically
+	_, stderr, err := env.RunPVM("pvx", "--auto-install", "--require", "JSON", "--verbose", scriptFile)
 	// The command may fail due to module installation issues in test environment,
 	// but we're testing that the integration code paths are working
 	if err != nil {
@@ -131,7 +128,7 @@ sub Int increment(Int $value) {
 1;
 `
 
-	err := os.WriteFile(moduleFile, []byte(moduleContent), 0644)
+	err := os.WriteFile(moduleFile, []byte(moduleContent), 0o644)
 	require.NoError(t, err)
 
 	// Set PERL5LIB so the module can be found
@@ -181,7 +178,7 @@ say "Sum: $sum";
 say "Comprehensive integration test completed successfully";
 `
 
-	err := os.WriteFile(scriptFile, []byte(scriptContent), 0644)
+	err := os.WriteFile(scriptFile, []byte(scriptContent), 0o644)
 	require.NoError(t, err)
 
 	// Step 1: Type check the script (PSC)
@@ -199,9 +196,9 @@ say "Comprehensive integration test completed successfully";
 
 	// Step 3: Execute with PVX
 	t.Log("Step 3: Executing with PVX...")
-	binaryPerl := helpers.EnsureBinaryPerl(t, helpers.DefaultTestPerlVersion)
+	// PVM shell integration will handle Perl version automatically
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", "--perl", binaryPerl, strippedFile},
+		[]string{"pvx", strippedFile},
 		"PVX execution should succeed")
 
 	// Verify output
@@ -215,7 +212,7 @@ say "Comprehensive integration test completed successfully";
 	// Step 4: Test integrated run (PSC -> PVX)
 	t.Log("Step 4: Testing integrated PSC run...")
 	stdout = helpers.AssertPVMSucceeds(t, env,
-		[]string{"psc", "run", "--verbose", "--perl", binaryPerl, scriptFile},
+		[]string{"psc", "run", "--verbose", scriptFile},
 		"PSC run should succeed using PSC->PVX integration")
 
 	// Should produce the same output as direct PVX execution

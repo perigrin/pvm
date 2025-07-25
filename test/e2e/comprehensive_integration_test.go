@@ -28,7 +28,7 @@ func TestComprehensiveIntegration_TypedPerlDevelopment(t *testing.T) {
 
 	// Create a comprehensive typed Perl project
 	projectDir := filepath.Join(env.RootDir, "typed_project")
-	err := os.MkdirAll(projectDir, 0755)
+	err := os.MkdirAll(projectDir, 0o755)
 	require.NoError(t, err)
 
 	// Create main application module
@@ -72,7 +72,7 @@ sub Int set_precision(Int $new_precision) {
 
 1;
 `
-	err = os.WriteFile(mainModule, []byte(mainContent), 0644)
+	err = os.WriteFile(mainModule, []byte(mainContent), 0o644)
 	require.NoError(t, err)
 
 	// Create main application script
@@ -100,7 +100,7 @@ print "Quotient: $quotient\n";
 print "Precision: $precision -> $new_precision\n";
 print "Typed Perl development test completed\n";
 `
-	err = os.WriteFile(mainScript, []byte(mainScriptContent), 0644)
+	err = os.WriteFile(mainScript, []byte(mainScriptContent), 0o644)
 	require.NoError(t, err)
 
 	// Step 1: Type check the module
@@ -127,7 +127,7 @@ func TestComprehensiveIntegration_LegacyMigration(t *testing.T) {
 
 	// Create a legacy Perl project with mixed typed/untyped code
 	projectDir := filepath.Join(env.RootDir, "legacy_project")
-	err := os.MkdirAll(projectDir, 0755)
+	err := os.MkdirAll(projectDir, 0o755)
 	require.NoError(t, err)
 
 	// Create legacy module without types
@@ -156,7 +156,7 @@ sub process_data {
 1;
 `
 
-	require.NoError(t, os.WriteFile(legacyFile, []byte(legacyContent), 0644))
+	require.NoError(t, os.WriteFile(legacyFile, []byte(legacyContent), 0o644))
 
 	// Create migration script
 	migrationScript := filepath.Join(projectDir, "migrate.pl")
@@ -172,17 +172,13 @@ print "Processed: " . $legacy->process_data("hello world") . "\n";
 print "Migration test completed\n";
 `, projectDir)
 
-	require.NoError(t, os.WriteFile(migrationScript, []byte(migrationContent), 0644))
+	require.NoError(t, os.WriteFile(migrationScript, []byte(migrationContent), 0o644))
 
 	// Step 1: Verify legacy code works
-	// Use system perl if available
-	perlPath := "/usr/bin/perl"
-	if _, err := os.Stat(perlPath); err != nil {
-		t.Skip("System Perl not available - skipping test")
-	}
+	// PVM shell integration will handle Perl version automatically
 
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", "-p", perlPath, migrationScript},
+		[]string{"pvx", migrationScript},
 		"Legacy script should execute")
 
 	assert.Contains(t, stdout, "Legacy name: test", "Legacy script should work correctly")
@@ -206,7 +202,7 @@ func TestComprehensiveIntegration_PerformanceStress(t *testing.T) {
 
 	// Create multiple Perl versions for stress testing
 	projectDir := filepath.Join(env.RootDir, "stress_project")
-	err := os.MkdirAll(projectDir, 0755)
+	err := os.MkdirAll(projectDir, 0o755)
 	require.NoError(t, err)
 
 	// Create stress test script
@@ -227,18 +223,14 @@ print "Stress test result: $result\n";
 print "Performance test completed\n";
 `
 
-	require.NoError(t, os.WriteFile(stressScript, []byte(stressContent), 0644))
+	require.NoError(t, os.WriteFile(stressScript, []byte(stressContent), 0o644))
 
-	// Use system perl if available
-	perlPath := "/usr/bin/perl"
-	if _, err := os.Stat(perlPath); err != nil {
-		t.Skip("System Perl not available - skipping test")
-	}
+	// PVM shell integration will handle Perl version automatically
 
 	// Time the execution
 	start := time.Now()
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", "-p", perlPath, stressScript},
+		[]string{"pvx", stressScript},
 		"Stress test should complete")
 	duration := time.Since(start)
 
@@ -258,7 +250,7 @@ func TestComprehensiveIntegration_ErrorHandling(t *testing.T) {
 
 	// Create project with intentional errors
 	projectDir := filepath.Join(env.RootDir, "error_project")
-	err := os.MkdirAll(projectDir, 0755)
+	err := os.MkdirAll(projectDir, 0o755)
 	require.NoError(t, err)
 
 	// Create script with syntax error
@@ -272,16 +264,12 @@ my $var = "unclosed string;
 print "This should not work\n";
 `
 
-	require.NoError(t, os.WriteFile(errorScript, []byte(errorContent), 0644))
+	require.NoError(t, os.WriteFile(errorScript, []byte(errorContent), 0o644))
 
-	// Use system perl if available
-	perlPath := "/usr/bin/perl"
-	if _, err := os.Stat(perlPath); err != nil {
-		t.Skip("System Perl not available - skipping test")
-	}
+	// PVM shell integration will handle Perl version automatically
 
 	// Test that PVX properly handles and reports errors
-	_, _, err = env.RunPVM("pvx", "-p", perlPath, errorScript)
+	_, _, err = env.RunPVM("pvx", errorScript)
 	assert.Error(t, err, "Error script should fail")
 
 	// Create script with runtime error
@@ -295,10 +283,10 @@ die "Intentional runtime error for testing";
 print "This should not be reached\n";
 `
 
-	require.NoError(t, os.WriteFile(runtimeErrorScript, []byte(runtimeErrorContent), 0644))
+	require.NoError(t, os.WriteFile(runtimeErrorScript, []byte(runtimeErrorContent), 0o644))
 
 	// Test runtime error handling
-	_, _, err = env.RunPVM("pvx", "-p", perlPath, runtimeErrorScript)
+	_, _, err = env.RunPVM("pvx", runtimeErrorScript)
 	assert.Error(t, err, "Runtime error script should fail")
 
 	// Create script that tests error recovery
@@ -317,11 +305,11 @@ if ($@) {
 }
 `
 
-	require.NoError(t, os.WriteFile(recoveryScript, []byte(recoveryContent), 0644))
+	require.NoError(t, os.WriteFile(recoveryScript, []byte(recoveryContent), 0o644))
 
 	// Test error recovery
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", "-p", perlPath, recoveryScript},
+		[]string{"pvx", recoveryScript},
 		"Error recovery should work")
 
 	assert.Contains(t, stdout, "Caught error", "Error should be caught")
@@ -335,7 +323,7 @@ func TestComprehensiveIntegration_BackwardCompatibility(t *testing.T) {
 
 	// Test backward compatibility with various Perl versions and features
 	projectDir := filepath.Join(env.RootDir, "compat_project")
-	err := os.MkdirAll(projectDir, 0755)
+	err := os.MkdirAll(projectDir, 0o755)
 	require.NoError(t, err)
 
 	// Create script using older Perl features
@@ -374,17 +362,13 @@ print "Lower: $lower\n";
 print "Compatibility test completed\n";
 `
 
-	require.NoError(t, os.WriteFile(compatScript, []byte(compatContent), 0644))
+	require.NoError(t, os.WriteFile(compatScript, []byte(compatContent), 0o644))
 
 	// Test execution
-	// Use system perl if available
-	perlPath := "/usr/bin/perl"
-	if _, err := os.Stat(perlPath); err != nil {
-		t.Skip("System Perl not available - skipping test")
-	}
+	// PVM shell integration will handle Perl version automatically
 
 	stdout := helpers.AssertPVMSucceeds(t, env,
-		[]string{"pvx", "-p", perlPath, compatScript},
+		[]string{"pvx", compatScript},
 		"Compatibility script should work")
 
 	assert.Contains(t, stdout, "Array sum: 15", "Array operations should work")

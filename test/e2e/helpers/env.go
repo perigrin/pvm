@@ -111,7 +111,7 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("Failed to create directory %s: %v", dir, err)
 		}
 	}
@@ -129,7 +129,7 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	}
 
 	// Make sure the copied binary is executable
-	if err := os.Chmod(env.PVMBinary, 0755); err != nil {
+	if err := os.Chmod(env.PVMBinary, 0o755); err != nil {
 		t.Fatalf("Failed to make test binary executable: %v", err)
 	}
 
@@ -142,6 +142,10 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	// Import system Perl to ensure it's available for version resolution
 	// This ensures tests have a working Perl environment
 	env.importSystemPerl()
+
+	// Set up PVM shell integration for consistent Perl version management
+	// This uses the built PVM binary to initialize shell integration
+	SetupPVMShellIntegration(t, env)
 
 	return env
 }
@@ -374,11 +378,11 @@ func (e *TestEnv) CreateFile(path string, content string) error {
 
 	// Create parent directory if it doesn't exist
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0o644)
 }
 
 // ReadFile reads a file in the test environment
@@ -450,7 +454,7 @@ func (e *TestEnv) CopyFile(src, dst string) error {
 	}
 
 	// Create parent directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
 

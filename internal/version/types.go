@@ -5,6 +5,13 @@ package version
 
 import "time"
 
+// GitHubClientInterface defines the methods needed from a GitHub client for version checking
+type GitHubClientInterface interface {
+	GetLatestRelease(owner, repo string) (*GitHubRelease, error)
+	GetReleases(owner, repo string, includePrerelease bool) ([]GitHubRelease, error)
+	GetReleaseByTag(owner, repo, tag string) (*GitHubRelease, error)
+}
+
 // UpdateInfo contains information about available updates
 type UpdateInfo struct {
 	CurrentVersion *SemanticVersion
@@ -32,6 +39,7 @@ type CheckOptions struct {
 	Repository        string // Format: "owner/repo"
 	GitHubToken       string // Optional for higher rate limits
 	Timeout           time.Duration
+	Client            GitHubClientInterface // Optional: for testing with mock clients
 }
 
 // DefaultCheckOptions returns default version check options
