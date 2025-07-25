@@ -9,7 +9,47 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/version"
 )
+
+// mockReleaseNotesGitHubClient implements GitHubClientInterface for testing
+type mockReleaseNotesGitHubClient struct {
+	releases []version.GitHubRelease
+	err      error
+}
+
+func (m *mockReleaseNotesGitHubClient) GetLatestRelease(owner, repo string) (*version.GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if len(m.releases) == 0 {
+		return nil, nil
+	}
+	return &m.releases[0], nil
+}
+
+func (m *mockReleaseNotesGitHubClient) GetReleases(owner, repo string, includePrerelease bool) ([]version.GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.releases, nil
+}
+
+func (m *mockReleaseNotesGitHubClient) GetReleaseByTag(owner, repo, tag string) (*version.GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	for _, release := range m.releases {
+		if release.TagName == tag {
+			return &release, nil
+		}
+	}
+	return &version.GitHubRelease{
+		TagName: tag,
+		Name:    "Test Release " + tag,
+		Body:    "Test release notes for " + tag,
+	}, nil
+}
 
 func TestReleaseNotesCommand_Creation(t *testing.T) {
 	cmd := newReleaseNotesCommand()
@@ -169,7 +209,22 @@ func TestChangelogCommand_ErrorHandling(t *testing.T) {
 }
 
 func TestReleaseNotesCommand_FlagCombinations(t *testing.T) {
-	cmd := newReleaseNotesCommand()
+	// Create mock client with test data
+	mockClient := &mockReleaseNotesGitHubClient{
+		releases: []version.GitHubRelease{
+			{
+				TagName: "v1.2.0",
+				Name:    "PVM v1.2.0",
+				Body:    "Latest release with new features",
+			},
+			{
+				TagName: "v1.1.0",
+				Name:    "PVM v1.1.0",
+				Body:    "Previous release",
+			},
+		},
+		err: nil,
+	}
 
 	testCases := []struct {
 		name        string
@@ -205,6 +260,8 @@ func TestReleaseNotesCommand_FlagCombinations(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			cmd := newReleaseNotesCommand()
+
 			// Reset flags
 			cmd.Flags().Set("latest", "false")
 			cmd.Flags().Set("prerelease", "false")
@@ -215,16 +272,15 @@ func TestReleaseNotesCommand_FlagCombinations(t *testing.T) {
 				cmd.Flags().Set(flag, value)
 			}
 
-			// Execute command (we expect network errors in test environment)
-			err := cmd.RunE(cmd, tc.args)
+			// Execute command with mock client
+			err := executeReleaseNotesCommandWithOptions(cmd, tc.args, mockClient)
 
 			if tc.expectError && err == nil {
 				t.Error("Expected error but got none")
 			}
 
 			if !tc.expectError && err != nil {
-				// In test environment, network errors are expected
-				t.Logf("Got expected network error: %v", err)
+				t.Errorf("Unexpected error: %v", err)
 			}
 		})
 	}

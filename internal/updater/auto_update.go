@@ -35,6 +35,8 @@ type AutoUpdateConfig struct {
 	QuietMode         bool                `json:"quiet_mode"`
 	AutoInstall       bool                `json:"auto_install"`
 	InstallationTime  AutoInstallSchedule `json:"installation_time"`
+	// testClient is used for dependency injection in tests (not serialized)
+	testClient version.GitHubClientInterface `json:"-"`
 }
 
 // UpdateChannel represents different update channels
@@ -138,6 +140,7 @@ func (m *AutoUpdateManager) CheckForUpdates(ctx context.Context) (*UpdateNotific
 		Repository:        m.config.Repository,
 		GitHubToken:       m.config.GitHubToken,
 		Timeout:           30 * time.Second,
+		Client:            m.config.testClient, // For dependency injection in tests
 	}
 
 	updateInfo, err := version.GetUpdateInfo(checkOpts)
@@ -297,7 +300,7 @@ func (m *AutoUpdateManager) loadConfig() (*AutoUpdateConfig, error) {
 func (m *AutoUpdateManager) saveConfig(config *AutoUpdateConfig) error {
 	// Ensure directory exists
 	dir := filepath.Dir(m.configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -306,11 +309,16 @@ func (m *AutoUpdateManager) saveConfig(config *AutoUpdateConfig) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(m.configPath, data, 0644); err != nil {
+	if err := os.WriteFile(m.configPath, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	return nil
+}
+
+// SetTestClient sets a test client for dependency injection (testing only)
+func (m *AutoUpdateManager) SetTestClient(client version.GitHubClientInterface) {
+	m.config.testClient = client
 }
 
 // String methods for enums

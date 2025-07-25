@@ -139,6 +139,12 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	// Set up test environment
 	env.setEnvironment()
 
+	// Set up shell integration using the built PVM binary
+	env.setupShellIntegration()
+
+	// Create a .perl-version file matching the project's configuration
+	env.createPerlVersionFile()
+
 	// Import system Perl to ensure it's available for version resolution
 	// This ensures tests have a working Perl environment
 	env.importSystemPerl()
@@ -276,6 +282,70 @@ func (e *TestEnv) setEnvironment() {
 
 	// Ensure plenv uses system version for consistent test environment
 	_ = os.Setenv("PLENV_VERSION", "system")
+}
+
+// setupShellIntegration sets up PVM shell integration for e2e testing
+// This mimics what 'eval "$(pvm init)"' would do in a real shell
+func (e *TestEnv) setupShellIntegration() {
+	// Get the init script output from our test PVM binary
+	cmd := exec.Command(e.PVMBinary, "init")
+	initScript, err := cmd.Output()
+	if err != nil {
+		e.T.Logf("Warning: Failed to get PVM init script: %v", err)
+		return
+	}
+
+	// Parse and execute the shell integration commands
+	// The init script typically sets up PATH and other environment variables
+	script := string(initScript)
+	e.T.Logf("PVM init script for test environment:\n%s", script)
+
+	// Apply PATH changes from the init script
+	// The init script usually prepends shims directory to PATH
+	if strings.Contains(script, "PATH") {
+		// Extract PATH modification - this is a simplified version
+		// In practice, the init script prepends the shims directory
+		currentPath := os.Getenv("PATH")
+		if !strings.Contains(currentPath, e.PVMShimsDir) {
+			newPath := fmt.Sprintf("%s:%s", e.PVMShimsDir, currentPath)
+			_ = os.Setenv("PATH", newPath)
+			e.T.Logf("Updated PATH for shell integration: %s", newPath)
+		}
+	}
+
+	// Set PVM_ROOT environment variable if not already set
+	if os.Getenv("PVM_ROOT") == "" {
+		_ = os.Setenv("PVM_ROOT", e.PVMDataDir)
+	}
+}
+
+// createPerlVersionFile creates a .perl-version file in the test environment
+// matching the project's configuration for consistent version resolution
+func (e *TestEnv) createPerlVersionFile() {
+	// Read the project's .perl-version file
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		e.T.Logf("Warning: Could not find project root: %v", err)
+		return
+	}
+
+	projectPerlVersionFile := filepath.Join(projectRoot, ".perl-version")
+	perlVersion, err := os.ReadFile(projectPerlVersionFile)
+	if err != nil {
+		e.T.Logf("Warning: Could not read project .perl-version file: %v", err)
+		return
+	}
+
+	// Create .perl-version file in the test environment's home directory
+	testPerlVersionFile := filepath.Join(e.HomeDir, ".perl-version")
+	err = os.WriteFile(testPerlVersionFile, perlVersion, 0o644)
+	if err != nil {
+		e.T.Logf("Warning: Could not create test .perl-version file: %v", err)
+		return
+	}
+
+	version := strings.TrimSpace(string(perlVersion))
+	e.T.Logf("Created .perl-version file in test environment with version: %s", version)
 }
 
 // Cleanup removes the test environment
