@@ -41,6 +41,11 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 		env.origEnv[name] = os.Getenv(name)
 	}
 
+	// Clear environment variables to ensure test isolation
+	for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
+		_ = os.Unsetenv(name)
+	}
+
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "pvm-resolver-test-*")
 	if err != nil {
