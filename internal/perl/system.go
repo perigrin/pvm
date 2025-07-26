@@ -340,6 +340,12 @@ func GetSystemPerlVersion(perlPath string) (string, error) {
 
 // resolvePerlVersionManager resolves plenv or perlbrew shims to actual Perl executable
 func resolvePerlVersionManager(perlPath string) (string, error) {
+	// Check if this looks like a PVM shim
+	if strings.Contains(perlPath, "pvm/shims") {
+		// For PVM shims, fall back to system Perl
+		return resolveSystemPerl()
+	}
+
 	// Check if this looks like a plenv shim
 	if strings.Contains(perlPath, ".plenv/shims") {
 		// If plenv is available, use command-based resolution
@@ -356,6 +362,26 @@ func resolvePerlVersionManager(perlPath string) (string, error) {
 	}
 
 	return "", fmt.Errorf("not a known perl version manager")
+}
+
+// resolveSystemPerl finds the actual system Perl executable, bypassing any version managers
+func resolveSystemPerl() (string, error) {
+	// Common system Perl locations
+	systemPaths := []string{
+		"/usr/bin/perl",
+		"/usr/local/bin/perl",
+		"/opt/local/bin/perl", // MacPorts
+		"/opt/homebrew/bin/perl", // Homebrew on Apple Silicon
+		"/usr/pkg/bin/perl", // NetBSD pkgsrc
+	}
+
+	for _, path := range systemPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("no system Perl found in standard locations")
 }
 
 // resolvePlenvShim resolves a plenv shim to the actual Perl executable
