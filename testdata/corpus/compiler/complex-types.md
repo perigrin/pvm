@@ -24,7 +24,7 @@ sub Result[Bool] process (ArrayRef[HashRef[Str]] $data) {
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 sub process ($data) {
     return 1;
 }
@@ -53,7 +53,7 @@ sub Str complex (Union[Str, Union[Int, Bool]] $param) {
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 sub complex ($param) {
     return "result";
 }
@@ -82,7 +82,7 @@ sub Bool validate (Object&Serializable $obj, !Undef $config) {
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 sub validate ($obj, $config) {
     return 1;
 }
@@ -110,7 +110,7 @@ my ArrayRef[HashRef[Str|Int]] $users = [];
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 my $self = bless {}, $class;
 my $users = [];
 ```
@@ -137,7 +137,7 @@ for my UserId $id (keys %$config) {
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 for my $id (keys %$config) {
     my $user_info = {};
 }

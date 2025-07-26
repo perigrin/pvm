@@ -23,7 +23,7 @@ field ArrayRef[Str] $items;
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 field $count;
 field $items;
 ```
@@ -49,7 +49,7 @@ field HashRef[Str] $config = {};
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 field $counter = 0;
 field $config = {};
 ```
@@ -76,7 +76,7 @@ method Bool add_user(UserId $id, HashRef[Str] $data) {
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 method add_user($id, $data) {
     return 1;
 }
@@ -109,7 +109,7 @@ sub Bool multiline (
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 sub multiline (
     $first,
     $second,
@@ -146,7 +146,7 @@ sub Int tagged :lvalue :const (Int $value) {
 ## Clean Perl Output
 
 ```perl
-use v5.36;
+use v5.38.2;
 sub tagged :lvalue :const ($value) {
     return $value;
 }

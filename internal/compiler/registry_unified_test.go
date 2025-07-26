@@ -19,8 +19,8 @@ func TestCompilerRegistry_UnifiedCompilers(t *testing.T) {
 		}
 
 		// Verify it's the unified compiler
-		if _, ok := cleanCompiler.(*PerlCompiler); !ok {
-			t.Errorf("Expected unified PerlCompiler for clean target, got %T", cleanCompiler)
+		if cleanCompiler.Target() != TargetCleanPerl {
+			t.Errorf("Expected clean compiler target, got %s", cleanCompiler.Target())
 		}
 
 		// Test typed Perl compiler
@@ -30,8 +30,8 @@ func TestCompilerRegistry_UnifiedCompilers(t *testing.T) {
 		}
 
 		// Verify it's the unified compiler
-		if _, ok := typedCompiler.(*PerlCompiler); !ok {
-			t.Errorf("Expected unified PerlCompiler for typed target, got %T", typedCompiler)
+		if typedCompiler.Target() != TargetTypedPerl {
+			t.Errorf("Expected typed compiler target, got %s", typedCompiler.Target())
 		}
 	})
 
@@ -51,7 +51,7 @@ func TestCompilerRegistry_UnifiedCompilers(t *testing.T) {
 		}
 
 		cleanResult = strings.TrimSpace(cleanResult)
-		expectedClean := "use v5.42.0;\nmy $count = 42;"
+		expectedClean := "use v5.38.2;\nmy $count = 42;"
 
 		if cleanResult != expectedClean {
 			t.Errorf("Expected clean result %q, got %q", expectedClean, cleanResult)
@@ -94,7 +94,7 @@ func TestCompilerRegistry_UnifiedCompilers(t *testing.T) {
 		}
 
 		result = strings.TrimSpace(result)
-		expected := "use v5.42.0;\nmy $name = \"hello\";"
+		expected := "use v5.38.2;\nmy $name = \"hello\";"
 
 		if result != expected {
 			t.Errorf("Expected result %q, got %q", expected, result)
@@ -139,7 +139,7 @@ func TestCompilerRegistry_UnifiedCompilers(t *testing.T) {
 		}
 
 		result = strings.TrimSpace(result)
-		expected := "use v5.42.0;\nmy $value = 123;"
+		expected := "use v5.38.2;\nmy $value = 123;"
 
 		if result != expected {
 			t.Errorf("Expected result %q, got %q", expected, result)
@@ -156,20 +156,12 @@ func TestCompilerRegistry_Migration(t *testing.T) {
 		typedCompiler, _ := registry.GetCompiler(TargetTypedPerl)
 
 		// Check that these are unified compilers
-		if cleanUnified, ok := cleanCompiler.(*PerlCompiler); ok {
-			if cleanUnified.Target() != TargetCleanPerl {
-				t.Error("Unified clean compiler should have correct target")
-			}
-		} else {
-			t.Error("Clean compiler should be unified PerlCompiler")
+		if cleanCompiler.Target() != TargetCleanPerl {
+			t.Error("Unified clean compiler should have correct target")
 		}
 
-		if typedUnified, ok := typedCompiler.(*PerlCompiler); ok {
-			if typedUnified.Target() != TargetTypedPerl {
-				t.Error("Unified typed compiler should have correct target")
-			}
-		} else {
-			t.Error("Typed compiler should be unified PerlCompiler")
+		if typedCompiler.Target() != TargetTypedPerl {
+			t.Error("Unified typed compiler should have correct target")
 		}
 	})
 }

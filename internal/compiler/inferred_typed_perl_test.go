@@ -191,7 +191,7 @@ func TestCompilerOptions(t *testing.T) {
 
 func TestBasicCompilation(t *testing.T) {
 	// Create a simple AST for testing with source content
-	sourceCode := "#!/usr/bin/perl\nuse v5.42.0;\nprint \"Hello, World!\\n\";"
+	sourceCode := "#!/usr/bin/perl\nuse v5.38.2;\nprint \"Hello, World!\\n\";"
 	programStmt := ast.NewProgramStmt([]ast.StatementNode{}, ast.Position{}, ast.Position{})
 
 	testAST := &ast.AST{
@@ -210,7 +210,7 @@ func TestBasicCompilation(t *testing.T) {
 		}
 
 		// Should include Perl version pragma
-		if !strings.Contains(result, "use v5.42.0;") {
+		if !strings.Contains(result, "use v5.38.2;") {
 			t.Error("Expected Perl version pragma in output")
 		}
 	})
@@ -263,7 +263,7 @@ func TestVariableDeclarationCompilation(t *testing.T) {
 
 			for _, expected := range tt.expectedContains {
 				// Handle dynamic version pragma - accept any version pragma format
-				if expected == "use v5.42.0;" && strings.Contains(result, "use v") {
+				if expected == "use v5.38.2;" && strings.Contains(result, "use v") {
 					// Version pragma test passes if any version pragma is present
 					continue
 				}

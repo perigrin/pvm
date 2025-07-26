@@ -131,31 +131,31 @@ func TestPerlCompiler_Compilation(t *testing.T) {
 		{
 			name:          "Simple typed variable",
 			input:         "my Int $count = 42;",
-			cleanExpected: "use v5.42.0;\nmy $count = 42;",
+			cleanExpected: "use v5.38.2;\nmy $count = 42;",
 			typedExpected: "my Int $count = 42;",
 		},
 		{
 			name:          "Field declaration",
 			input:         "field Str $name;",
-			cleanExpected: "use v5.42.0;\nfield $name;",
+			cleanExpected: "use v5.38.2;\nfield $name;",
 			typedExpected: "field Str $name;",
 		},
 		{
 			name:          "Union type",
 			input:         "my (Int|Str) $value;",
-			cleanExpected: "use v5.42.0;\nmy $value;",
+			cleanExpected: "use v5.38.2;\nmy $value;",
 			typedExpected: "my (Int|Str) $value;",
 		},
 		{
 			name:          "Untyped variable",
 			input:         "my $plain = 123;",
-			cleanExpected: "use v5.42.0;\nmy $plain = 123;",
+			cleanExpected: "use v5.38.2;\nmy $plain = 123;",
 			typedExpected: "my $plain = 123;",
 		},
 		{
 			name:          "Type assertion",
 			input:         "my $typed = $value as Int;",
-			cleanExpected: "use v5.42.0;\nmy $typed = $value;",
+			cleanExpected: "use v5.38.2;\nmy $typed = $value;",
 			typedExpected: "my $typed = $value as Int;",
 		},
 	}
@@ -217,7 +217,7 @@ func TestPerlCompiler_CompileString(t *testing.T) {
 		{
 			name:     "Clean Perl from string",
 			input:    "my Int $count = 42;",
-			expected: "use v5.42.0;\nmy $count = 42;",
+			expected: "use v5.38.2;\nmy $count = 42;",
 			target:   TargetCleanPerl,
 		},
 		{
@@ -265,7 +265,7 @@ func TestPerlCompiler_BackwardCompatibility(t *testing.T) {
 		}
 
 		result = strings.TrimSpace(result)
-		expected := "use v5.42.0;\nmy $count = 42;"
+		expected := "use v5.38.2;\nmy $count = 42;"
 
 		if result != expected {
 			t.Errorf("Expected %q, got %q", expected, result)
