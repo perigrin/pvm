@@ -55,13 +55,13 @@ func main() {
 			continue // Skip malformed lines
 		}
 
-		// Skip non-test events
-		if event.Test == "" {
+		pkg := event.Package
+		if pkg == "" {
 			continue
 		}
 
-		pkg := event.Package
-		if pkg == "" {
+		// Skip non-test and non-package events (only process pass/fail/skip actions)
+		if event.Action != "pass" && event.Action != "fail" && event.Action != "skip" {
 			continue
 		}
 
@@ -76,26 +76,35 @@ func main() {
 
 		stats := packageStats[pkg]
 
+		// Determine test name (use "Package-level failure" for package failures without test name)
+		testName := event.Test
+		if testName == "" && event.Action == "fail" {
+			testName = "Package-level failure"
+		} else if testName == "" {
+			// Skip package-level pass/skip events (these are summary events, not actual tests)
+			continue
+		}
+
 		switch event.Action {
 		case "pass":
 			stats.Passed++
 			totalPassed++
-			stats.Tests = append(stats.Tests, event.Test)
+			stats.Tests = append(stats.Tests, testName)
 		case "fail":
 			stats.Failed++
 			totalFailed++
-			stats.Tests = append(stats.Tests, event.Test)
-			stats.Failures = append(stats.Failures, event.Test)
+			stats.Tests = append(stats.Tests, testName)
+			stats.Failures = append(stats.Failures, testName)
 		case "skip":
 			stats.Skipped++
 			totalSkipped++
-			stats.Tests = append(stats.Tests, event.Test)
+			stats.Tests = append(stats.Tests, testName)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
-		os.Exit(1)
+		return
 	}
 
 	// Generate summary report
@@ -168,13 +177,14 @@ func generateSummaryReport(packageStats map[string]*PackageStats, totalPassed, t
 	// Progress tracking (compare to previous runs if we had historical data)
 	fmt.Printf("\n📊 PROGRESS TRACKING\n")
 	failureRate := float64(totalFailed) / float64(totalTests) * 100
-	if failureRate <= 5 {
+	switch {
+	case failureRate <= 5:
 		fmt.Printf("🟢 Excellent: %.1f%% failure rate (Very close to 100%% pass rate!)\n", failureRate)
-	} else if failureRate <= 15 {
+	case failureRate <= 15:
 		fmt.Printf("🟡 Good: %.1f%% failure rate (Making solid progress)\n", failureRate)
-	} else if failureRate <= 30 {
+	case failureRate <= 30:
 		fmt.Printf("🟠 Moderate: %.1f%% failure rate (Room for improvement)\n", failureRate)
-	} else {
+	default:
 		fmt.Printf("🔴 High: %.1f%% failure rate (Needs attention)\n", failureRate)
 	}
 }
