@@ -5,6 +5,7 @@ package pvm
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -16,6 +17,41 @@ import (
 type mockReleaseNotesGitHubClient struct {
 	releases []version.GitHubRelease
 	err      error
+}
+
+// mockChangelogGitHubClient is a mock implementation for testing changelog command
+type mockChangelogGitHubClient struct {
+	releases []version.GitHubRelease
+	err      error
+}
+
+func (m *mockChangelogGitHubClient) GetLatestRelease(owner, repo string) (*version.GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if len(m.releases) > 0 {
+		return &m.releases[0], nil
+	}
+	return nil, fmt.Errorf("no releases found")
+}
+
+func (m *mockChangelogGitHubClient) GetReleases(owner, repo string, includePrerelease bool) ([]version.GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.releases, nil
+}
+
+func (m *mockChangelogGitHubClient) GetReleaseByTag(owner, repo, tag string) (*version.GitHubRelease, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	for _, release := range m.releases {
+		if release.TagName == tag {
+			return &release, nil
+		}
+	}
+	return nil, fmt.Errorf("release not found: %s", tag)
 }
 
 func (m *mockReleaseNotesGitHubClient) GetLatestRelease(owner, repo string) (*version.GitHubRelease, error) {
@@ -289,6 +325,27 @@ func TestReleaseNotesCommand_FlagCombinations(t *testing.T) {
 func TestChangelogCommand_FlagCombinations(t *testing.T) {
 	cmd := newChangelogCommand()
 
+	// Create a mock GitHub client
+	mockClient := &mockChangelogGitHubClient{
+		releases: []version.GitHubRelease{
+			{
+				TagName: "v1.2.0",
+				Name:    "Version 1.2.0",
+				Body:    "## Changes\n- Feature A\n- Feature B",
+			},
+			{
+				TagName: "v1.1.0",
+				Name:    "Version 1.1.0",
+				Body:    "## Changes\n- Bug fix C\n- Enhancement D",
+			},
+			{
+				TagName: "v1.0.0",
+				Name:    "Version 1.0.0",
+				Body:    "## Initial Release\n- Initial features",
+			},
+		},
+	}
+
 	testCases := []struct {
 		name        string
 		flags       map[string]string
@@ -328,16 +385,15 @@ func TestChangelogCommand_FlagCombinations(t *testing.T) {
 				cmd.Flags().Set(flag, value)
 			}
 
-			// Execute command (we expect network errors in test environment)
-			err := cmd.RunE(cmd, []string{})
+			// Execute command with mocked client
+			err := executeChangelogCommandWithOptions(cmd, []string{}, mockClient)
 
 			if tc.expectError && err == nil {
 				t.Error("Expected error but got none")
 			}
 
 			if !tc.expectError && err != nil {
-				// In test environment, network errors are expected
-				t.Logf("Got expected network error: %v", err)
+				t.Errorf("Unexpected error: %v", err)
 			}
 		})
 	}

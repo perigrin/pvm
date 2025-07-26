@@ -391,18 +391,36 @@ func TestQuietModeNotifications(t *testing.T) {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
 
+	// Create a mock GitHub client
+	mockClient := &mockAutoUpdateGitHubClient{
+		releases: []version.GitHubRelease{
+			{
+				TagName:     "v1.2.0",
+				Name:        "v1.2.0",
+				Prerelease:  false,
+				PublishedAt: func(t time.Time) *time.Time { return &t }(time.Now()),
+			},
+		},
+	}
+
 	// Enable quiet mode
 	config := manager.GetConfig()
 	config.QuietMode = true
 	config.LastCheckTime = time.Now().Add(-25 * time.Hour) // Force check
+	config.testClient = mockClient                         // Use mock client
 	manager.UpdateConfig(config)
 
 	// Even in quiet mode, we should be able to check for updates
 	// The difference is notifications won't update the last notification time
 	ctx := context.Background()
-	_, err = manager.CheckForUpdates(ctx)
-
+	notification, err := manager.CheckForUpdates(ctx)
 	// The check itself should not error due to quiet mode
-	// (though it might error for other reasons like network issues)
-	t.Logf("Update check result: %v", err)
+	if err != nil {
+		t.Errorf("Unexpected error in quiet mode: %v", err)
+	}
+
+	// Verify we got a notification (even in quiet mode)
+	if notification == nil {
+		t.Error("Expected notification even in quiet mode")
+	}
 }

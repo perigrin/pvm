@@ -4667,6 +4667,11 @@ func newChangelogCommand() *cobra.Command {
 
 // executeChangelogCommand implements the changelog command functionality
 func executeChangelogCommand(cmd *cobra.Command, args []string) error {
+	return executeChangelogCommandWithOptions(cmd, args, nil)
+}
+
+// executeChangelogCommandWithOptions implements the changelog command functionality with optional dependency injection
+func executeChangelogCommandWithOptions(cmd *cobra.Command, args []string, testClient version.GitHubClientInterface) error {
 	// Create UI instance for enhanced output
 	uiOutput := ui.NewDefaultOutput()
 
@@ -4688,10 +4693,13 @@ func executeChangelogCommand(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create GitHub client
-	var client *version.GitHubClient
-	if effectiveToken != "" {
+	var client version.GitHubClientInterface
+	switch {
+	case testClient != nil:
+		client = testClient
+	case effectiveToken != "":
 		client = version.NewGitHubClientWithToken(effectiveToken)
-	} else {
+	default:
 		client = version.NewGitHubClient()
 	}
 
