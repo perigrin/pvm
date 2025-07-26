@@ -348,6 +348,12 @@ func executePerlCode(code string) (string, error) {
 func getTestPerlPath() (string, error) {
 	// First try to use perl from PATH (which should include PVM-managed Perl)
 	if perlPath, err := exec.LookPath("perl"); err == nil {
+		// Check if this is a PVM shim and resolve to actual Perl
+		if strings.Contains(perlPath, "pvm/shims") {
+			// For PVM shims, fall back to system Perl
+			return resolveSystemPerlForTest()
+		}
+		
 		// Test it works and check version
 		cmd := exec.Command(perlPath, "-v")
 		if err := cmd.Run(); err == nil {
@@ -356,13 +362,21 @@ func getTestPerlPath() (string, error) {
 	}
 
 	// Fallback to standard system locations if PATH doesn't work
-	standardPaths := []string{
+	return resolveSystemPerlForTest()
+}
+
+// resolveSystemPerlForTest finds the actual system Perl executable, bypassing any version managers
+func resolveSystemPerlForTest() (string, error) {
+	// Common system Perl locations
+	systemPaths := []string{
 		"/usr/bin/perl",
 		"/usr/local/bin/perl",
-		"/opt/perl/bin/perl",
+		"/opt/local/bin/perl",    // MacPorts
+		"/opt/homebrew/bin/perl", // Homebrew on Apple Silicon
+		"/usr/pkg/bin/perl",      // NetBSD pkgsrc
 	}
 
-	for _, path := range standardPaths {
+	for _, path := range systemPaths {
 		if _, err := os.Stat(path); err == nil {
 			// Verify this perl works by checking version
 			cmd := exec.Command(path, "-v")

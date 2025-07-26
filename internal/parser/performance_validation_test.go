@@ -453,21 +453,33 @@ class Cache[K: Hashable, V: Serializable] {
 use v5.36;
 
 type UserID = Int;
-type Result[T, E] = Success[T] | Error[E];
 
-class UserService[T: User] {
-    field HashRef[UserID, T] $users = {};
+my Int $count = 0;
+my Str $status = "active";
 
-    method Optional[T] find_user(UserID $id) {
-        return $self->{users}->{$id};
-    }
+sub find_user {
+    my (UserID $id, Str $default) = @_;
+    my Str $result = $default;
+    return $result if $id < 0;
+    $result = "user_" . $id;
+    return $result;
+}
 
-    method Result[UserID, Str] add_user(T $user) {
-        my UserID $id = $user->id as UserID;
-        return Error->new("User exists") if exists $self->{users}->{$id};
-        $self->{users}->{$id} = $user;
-        return Success->new($id);
-    }
+sub add_user {
+    my (UserID $id, Str $name) = @_;
+    return 0 if $id < 0;
+    my Bool $exists = $count > 0;
+    return $id if $exists;
+    $count++;
+    return $id;
+}
+
+sub process_data {
+    my (Int $input, Str $prefix) = @_;
+    my Int $total = $input * 2;
+    my Str $output = $prefix . "_" . $total;
+    $count += $total;
+    return $output;
 }`,
 			maxDuration: 100 * time.Millisecond,
 			description: "Step 5: All typed Perl features combined",

@@ -5,6 +5,7 @@ package modules
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -517,9 +518,10 @@ func TestValidateModuleName(t *testing.T) {
 func TestGetVersionFromPerl(t *testing.T) {
 	installer := createTestInstaller()
 
-	// Skip if perl is not available in system
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("Perl not found in PATH, skipping Perl execution tests")
+	// Get a working Perl path for testing
+	perlPath, err := getWorkingPerlPath()
+	if err != nil {
+		t.Skipf("No working Perl found for testing: %v", err)
 	}
 
 	tests := []struct {
@@ -548,7 +550,7 @@ func TestGetVersionFromPerl(t *testing.T) {
 				t.Skip("Skipping test that requires specific module")
 			}
 
-			result, err := installer.getVersionFromPerl(tt.module, "perl")
+			result, err := installer.getVersionFromPerl(tt.module, perlPath)
 
 			if tt.hasError && err == nil {
 				t.Errorf("Expected error but got none for module %s", tt.module)
@@ -576,9 +578,10 @@ func TestGetVersionFromPerl(t *testing.T) {
 func TestGetInstalledVersion(t *testing.T) {
 	installer := createTestInstaller()
 
-	// Skip if perl is not available in system
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("Perl not found in PATH, skipping version detection tests")
+	// Get a working Perl path for testing
+	perlPath, err := getWorkingPerlPath()
+	if err != nil {
+		t.Skipf("No working Perl found for testing: %v", err)
 	}
 
 	tests := []struct {
@@ -602,7 +605,7 @@ func TestGetInstalledVersion(t *testing.T) {
 		{
 			name:     "strict module with explicit perl path",
 			module:   "strict",
-			perlPath: "perl",
+			perlPath: perlPath,
 			skipTest: false,
 		},
 	}
@@ -639,14 +642,15 @@ func TestVersionDetectionIntegration(t *testing.T) {
 	// Test that the main getInstalledVersion method works with a real installer
 	installer := createTestInstaller()
 
-	// Skip if perl is not available
-	if _, err := exec.LookPath("perl"); err != nil {
-		t.Skip("Perl not found in PATH, skipping integration test")
+	// Get a working Perl path for testing
+	perlPath, err := getWorkingPerlPath()
+	if err != nil {
+		t.Skipf("No working Perl found for testing: %v", err)
 	}
 
 	t.Run("version detection integration", func(t *testing.T) {
 		// Test with a core module that should be available
-		result, err := installer.getInstalledVersion("strict", "perl")
+		result, err := installer.getInstalledVersion("strict", perlPath)
 
 		// The main method should never error - it should return "undef" for unknown versions
 		if err != nil {
@@ -660,4 +664,49 @@ func TestVersionDetectionIntegration(t *testing.T) {
 			t.Logf("Module strict has no version (returned 'undef')")
 		}
 	})
+}
+
+// getWorkingPerlPath returns a reliable perl path for testing, avoiding PVM shim issues
+func getWorkingPerlPath() (string, error) {
+	// First try to use perl from PATH (which should include PVM-managed Perl)
+	if perlPath, err := exec.LookPath("perl"); err == nil {
+		// Check if this is a PVM shim and resolve to actual Perl
+		if strings.Contains(perlPath, "pvm/shims") {
+			// For PVM shims, fall back to system Perl
+			return resolveSystemPerlForModuleTest()
+		}
+		
+		// Test it works and check version
+		cmd := exec.Command(perlPath, "-v")
+		if err := cmd.Run(); err == nil {
+			return perlPath, nil
+		}
+	}
+
+	// Fallback to standard system locations if PATH doesn't work
+	return resolveSystemPerlForModuleTest()
+}
+
+// resolveSystemPerlForModuleTest finds the actual system Perl executable, bypassing any version managers
+func resolveSystemPerlForModuleTest() (string, error) {
+	// Common system Perl locations
+	systemPaths := []string{
+		"/usr/bin/perl",
+		"/usr/local/bin/perl",
+		"/opt/local/bin/perl",    // MacPorts
+		"/opt/homebrew/bin/perl", // Homebrew on Apple Silicon
+		"/usr/pkg/bin/perl",      // NetBSD pkgsrc
+	}
+
+	for _, path := range systemPaths {
+		if _, err := os.Stat(path); err == nil {
+			// Verify this perl works by checking version
+			cmd := exec.Command(path, "-v")
+			if err := cmd.Run(); err == nil {
+				return path, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no working perl installation found for testing")
 }

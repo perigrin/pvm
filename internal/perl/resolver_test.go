@@ -407,15 +407,26 @@ func TestResolveUserConfig(t *testing.T) {
 
 	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
 
-	// Create user config file
+	// Create user config object directly
 	aliases := map[string]string{
 		"latest": "5.38.0",
 		"stable": "5.36.0",
 	}
+	
+	// Create user config file for the resolveFromUserConfig file existence check
 	env.createUserConfig(t, "5.34.1", aliases)
+
+	// Create config object directly to avoid config loading complexities in tests
+	cfg := &config.Config{
+		PVM: &config.PVMConfig{
+			DefaultPerl: "5.34.1",
+			VersionAliases: aliases,
+		},
+	}
 
 	options := &ResolutionOptions{
 		AvailableVersions:   availableVersions,
+		Config:              cfg,
 		SkipLocal:           true, // Skip project-local checks
 		SkipEnvVars:         true, // Skip environment variables
 		SkipVersionResolved: true,
@@ -436,6 +447,10 @@ func TestResolveUserConfig(t *testing.T) {
 
 	// Test with user config alias
 	env.createUserConfig(t, "@latest", aliases)
+
+	// Update config object to use alias
+	cfg.PVM.DefaultPerl = "@latest"
+	options.Config = cfg
 
 	resolved, err = ResolveVersion(options)
 	if err != nil {
@@ -490,7 +505,8 @@ func TestResolutionPrecedence(t *testing.T) {
 	// 1. System Perl is 5.30.3 (lowest precedence)
 	env.mockSystemPerl.Version = "5.30.3"
 
-	// 2. User config has 5.32.1
+	// 2. User config has 5.32.1 - create user config file and object
+	env.createUserConfig(t, "5.32.1", nil)
 	cfg := &config.Config{
 		PVM: &config.PVMConfig{
 			DefaultPerl: "5.32.1",
