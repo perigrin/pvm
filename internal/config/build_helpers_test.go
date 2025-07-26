@@ -9,6 +9,12 @@ import (
 	"testing"
 )
 
+// fileExists checks if a file exists
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func TestGetProjectBuildConfig(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "pvm_build_config_test")
@@ -29,21 +35,21 @@ func TestGetProjectBuildConfig(t *testing.T) {
 
 	// Test 2: Project directory with custom config
 	projectDir := filepath.Join(tempDir, "project")
-	err = os.MkdirAll(projectDir, 0755)
+	err = os.MkdirAll(projectDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create project directory: %v", err)
 	}
 
 	// Create .perl-version to make it a project
 	perlVersionPath := filepath.Join(projectDir, ".perl-version")
-	err = os.WriteFile(perlVersionPath, []byte("5.36.0\n"), 0644)
+	err = os.WriteFile(perlVersionPath, []byte("5.36.0\n"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create .perl-version: %v", err)
 	}
 
 	// Create project config with custom build settings
 	configDir := filepath.Join(projectDir, ".pvm")
-	err = os.MkdirAll(configDir, 0755)
+	err = os.MkdirAll(configDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
@@ -59,9 +65,20 @@ strict = true
 target_perl = "5.38"
 `
 	configPath := filepath.Join(configDir, "pvm.toml")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+
+	// Add debug info to help diagnose filesystem issues
+	t.Logf("Writing config file to: %s", configPath)
+	t.Logf("Config dir exists: %v", fileExists(configDir))
+	t.Logf("Project dir exists: %v", fileExists(projectDir))
+
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
-		t.Fatalf("Failed to create config file: %v", err)
+		t.Fatalf("Failed to create config file at %s: %v", configPath, err)
+	}
+
+	// Verify file was created
+	if !fileExists(configPath) {
+		t.Fatalf("Config file was not created at %s", configPath)
 	}
 
 	// Test with project directory
