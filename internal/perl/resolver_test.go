@@ -4,11 +4,13 @@
 package perl
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"tamarou.com/pvm/internal/config"
+	"tamarou.com/pvm/internal/xdg"
 )
 
 // Setup for testing
@@ -132,6 +134,45 @@ func (env *resolverTestEnv) createPerlVersionFile(t *testing.T, version string) 
 	if err := os.WriteFile(versionFile, []byte(version+"\n"), 0644); err != nil {
 		t.Fatalf("Failed to create .perl-version file: %v", err)
 	}
+}
+
+func (env *resolverTestEnv) createUserConfig(t *testing.T, defaultPerl string, aliases map[string]string) {
+	// Get user config directory
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		t.Fatalf("Failed to get XDG dirs: %v", err)
+	}
+
+	// Create the user config directory if it doesn't exist
+	userConfigDir := dirs.ConfigDir
+	if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+		t.Fatalf("Failed to create user config directory: %v", err)
+	}
+
+	// Create user config file
+	userConfigPath := dirs.GetConfigFilePath()
+	
+	// Build config content
+	content := fmt.Sprintf("default_perl = \"%s\"\n", defaultPerl)
+	if len(aliases) > 0 {
+		content += "version_aliases = { "
+		first := true
+		for alias, version := range aliases {
+			if !first {
+				content += ", "
+			}
+			content += fmt.Sprintf("%s = \"%s\"", alias, version)
+			first = false
+		}
+		content += " }\n"
+	}
+
+	if err := os.WriteFile(userConfigPath, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to create user config file: %v", err)
+	}
+
+	// Add cleanup
+	env.cleanup = append(env.cleanup, func() { _ = os.RemoveAll(userConfigDir) })
 }
 
 // Test explicit version resolution
@@ -366,20 +407,15 @@ func TestResolveUserConfig(t *testing.T) {
 
 	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
 
-	// Create user config
-	cfg := &config.Config{
-		PVM: &config.PVMConfig{
-			DefaultPerl: "5.34.1",
-			VersionAliases: map[string]string{
-				"latest": "5.38.0",
-				"stable": "5.36.0",
-			},
-		},
+	// Create user config file
+	aliases := map[string]string{
+		"latest": "5.38.0",
+		"stable": "5.36.0",
 	}
+	env.createUserConfig(t, "5.34.1", aliases)
 
 	options := &ResolutionOptions{
 		AvailableVersions:   availableVersions,
-		Config:              cfg,
 		SkipLocal:           true, // Skip project-local checks
 		SkipEnvVars:         true, // Skip environment variables
 		SkipVersionResolved: true,
@@ -399,7 +435,7 @@ func TestResolveUserConfig(t *testing.T) {
 	}
 
 	// Test with user config alias
-	cfg.PVM.DefaultPerl = "@latest"
+	env.createUserConfig(t, "@latest", aliases)
 
 	resolved, err = ResolveVersion(options)
 	if err != nil {
