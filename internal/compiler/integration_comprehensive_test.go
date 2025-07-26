@@ -139,7 +139,7 @@ func TestParserIntegration(t *testing.T) {
 			}
 
 			// Should contain version pragma
-			if !strings.Contains(result, "use v5.38.2;") {
+			if !strings.Contains(result, "use v5.42.0;") {
 				t.Error("Clean Perl output should contain version pragma")
 			}
 		})
@@ -363,7 +363,7 @@ field ArrayRef[Int] $array%d = [%d, %d];`, i, i, i, i, i, i, i+1)
 func TestComplexRealWorldScenarios(t *testing.T) {
 	scenarios := map[string]string{
 		"WebService": `package WebService;
-use v5.38.2;
+use v5.42.0;
 
 field Str $base_url;
 field HashRef[Str] $headers;
@@ -495,7 +495,7 @@ func validateCompiledOutput(t *testing.T, input, output string, target Target) {
 		}
 
 		// Should contain version pragma
-		if !strings.Contains(output, "use v5.38.2;") {
+		if !strings.Contains(output, "use v5.42.0;") {
 			t.Error("Clean Perl output should contain version pragma")
 		}
 
@@ -518,7 +518,7 @@ func validateCleanPerlOutput(t *testing.T, output, scenario string) {
 	}
 
 	// Should contain version pragma for compatibility
-	if !strings.Contains(output, "use v5.38.2;") {
+	if !strings.Contains(output, "use v5.42.0;") {
 		t.Errorf("Clean Perl output for %s should contain version pragma", scenario)
 	}
 

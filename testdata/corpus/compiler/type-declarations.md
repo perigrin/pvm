@@ -22,7 +22,7 @@ type UserData = HashRef[Str];
 ## Clean Perl Output
 
 ```perl
-use v5.38.2;
+use v5.42.0;
 ```
 
 ## Typed Perl Output

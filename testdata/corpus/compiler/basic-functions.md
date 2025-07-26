@@ -23,7 +23,7 @@ sub Int add (Int $a, Int $b) {
 ## Clean Perl Output
 
 ```perl
-use v5.38.2;
+use v5.42.0;
 sub add ($a, $b) {
     return $a + $b;
 }

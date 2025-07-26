@@ -21,7 +21,7 @@ print "Count: $count\n";
 ## Clean Perl Output
 
 ```perl
-use v5.38.2;
+use v5.42.0;
 my $count = 42;
 print "Count: $count\n";
 ```
@@ -47,7 +47,7 @@ print "Name: $name\n";
 ## Clean Perl Output
 
 ```perl
-use v5.38.2;
+use v5.42.0;
 my $name = "hello";
 print "Name: $name\n";
 ```
