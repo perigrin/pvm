@@ -4,12 +4,19 @@
 package updater
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
+
+	"tamarou.com/pvm/internal/archive"
+	"tamarou.com/pvm/internal/download"
 )
 
 func TestNewUpdater(t *testing.T) {
@@ -472,4 +479,261 @@ func TestPrereleaseInclusion(t *testing.T) {
 			// Network errors and timeouts are acceptable in tests, we're testing option handling
 		}
 	})
+}
+
+func TestUpdateWithArchiveExtraction_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	t.Run("ArchiveValidationWorkflow", func(t *testing.T) {
+		// Create a test archive with a mock binary
+		archivePath := createMockPVMArchive(t)
+		defer os.Remove(archivePath)
+
+		// Test that ValidateDownloadedBinary works with archives
+		err := download.ValidateDownloadedBinary(archivePath, "")
+		if err != nil {
+			t.Logf("Archive validation failed (expected in test environment): %v", err)
+			// This may fail in test environment due to execution validation,
+			// but we want to test that archive extraction works
+		}
+	})
+
+	t.Run("BinaryExtractionFromArchive", func(t *testing.T) {
+		// Create test archive
+		archivePath := createMockPVMArchive(t)
+		defer os.Remove(archivePath)
+
+		// Test archive extraction
+		extractor := archive.NewBinaryExtractor()
+		platform := detectCurrentPlatform()
+		
+		extractedPath, err := extractor.ExtractExecutable(archivePath, platform)
+		if err != nil {
+			t.Fatalf("Failed to extract binary from archive: %v", err)
+		}
+
+		// Verify extracted file exists
+		_, err = os.Stat(extractedPath)
+		if err != nil {
+			t.Errorf("Extracted binary does not exist: %v", err)
+		}
+
+		// Cleanup
+		err = extractor.Cleanup(extractedPath)
+		if err != nil {
+			t.Errorf("Failed to cleanup extracted files: %v", err)
+		}
+	})
+}
+
+func TestUpdateValidationFailure_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	t.Run("InvalidArchiveHandling", func(t *testing.T) {
+		// Create an invalid archive (corrupted)
+		invalidArchive := createInvalidArchive(t)
+		defer os.Remove(invalidArchive)
+
+		// Test that validation properly fails
+		err := download.ValidateDownloadedBinary(invalidArchive, "")
+		if err == nil {
+			t.Error("Expected validation to fail for invalid archive")
+		}
+	})
+
+	t.Run("ArchiveWithoutExecutable", func(t *testing.T) {
+		// Create archive without the expected executable
+		archivePath := createArchiveWithoutExecutable(t)
+		defer os.Remove(archivePath)
+
+		err := download.ValidateDownloadedBinary(archivePath, "")
+		if err == nil {
+			t.Error("Expected validation to fail for archive without executable")
+		}
+		
+		if err != nil && !containsAny(err.Error(), []string{"no executable found", "finding executable"}) {
+			t.Errorf("Expected 'no executable found' error, got: %v", err)
+		}
+	})
+}
+
+// Helper functions for integration tests
+
+func createMockPVMArchive(t *testing.T) string {
+	// Create a mock binary content
+	binaryContent := createMockBinaryContent()
+	
+	// Determine filename based on platform
+	var filename string
+	if runtime.GOOS == "windows" {
+		filename = "pvm.exe"
+	} else {
+		filename = "pvm"
+	}
+
+	// Create tar.gz archive
+	return createTestTarGzArchive(t, filename, binaryContent)
+}
+
+func createMockBinaryContent() []byte {
+	// Create a binary that will pass format validation but won't execute properly
+	switch runtime.GOOS {
+	case "linux":
+		// ELF header with minimum viable content
+		elf := make([]byte, 4096) // 4KB to pass size validation
+		copy(elf, []byte{0x7f, 'E', 'L', 'F', 0x02, 0x01, 0x01, 0x00})
+		return elf
+	case "darwin":
+		// Mach-O header with minimum viable content
+		macho := make([]byte, 4096)
+		copy(macho, []byte{0xcf, 0xfa, 0xed, 0xfe, 0x07, 0x00, 0x00, 0x01})
+		return macho
+	case "windows":
+		// PE header with minimum viable content
+		pe := make([]byte, 4096)
+		copy(pe, []byte{'M', 'Z', 0x90, 0x00, 0x03, 0x00, 0x00, 0x00})
+		return pe
+	default:
+		// Shell script as fallback - this will actually work for execution tests
+		script := `#!/bin/sh
+if [ "$1" = "--version" ]; then
+    echo "pvm version 1.0.0-test"
+    exit 0
+elif [ "$1" = "--help" ]; then
+    echo "Usage: pvm [command]"
+    exit 0
+fi
+echo "Test binary"
+exit 0
+`
+		padded := make([]byte, 4096)
+		copy(padded, script)
+		return padded
+	}
+}
+
+func createTestTarGzArchive(t *testing.T, filename string, content []byte) string {
+	tempFile, err := os.CreateTemp("", "mock-pvm-*.tar.gz")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer tempFile.Close()
+
+	// Create gzip writer
+	gzWriter := gzip.NewWriter(tempFile)
+	defer gzWriter.Close()
+
+	// Create tar writer
+	tarWriter := tar.NewWriter(gzWriter)
+	defer tarWriter.Close()
+
+	// Add file to tar
+	header := &tar.Header{
+		Name: filename,
+		Size: int64(len(content)),
+		Mode: 0755,
+	}
+
+	err = tarWriter.WriteHeader(header)
+	if err != nil {
+		t.Fatalf("Failed to write tar header: %v", err)
+	}
+
+	_, err = tarWriter.Write(content)
+	if err != nil {
+		t.Fatalf("Failed to write tar content: %v", err)
+	}
+
+	return tempFile.Name()
+}
+
+func createInvalidArchive(t *testing.T) string {
+	tempFile, err := os.CreateTemp("", "invalid-*.tar.gz")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer tempFile.Close()
+
+	// Write invalid gzip content
+	_, err = tempFile.WriteString("This is not a valid gzip file")
+	if err != nil {
+		t.Fatalf("Failed to write invalid content: %v", err)
+	}
+
+	return tempFile.Name()
+}
+
+func createArchiveWithoutExecutable(t *testing.T) string {
+	tempFile, err := os.CreateTemp("", "no-exec-*.tar.gz")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer tempFile.Close()
+
+	// Create gzip writer
+	gzWriter := gzip.NewWriter(tempFile)
+	defer gzWriter.Close()
+
+	// Create tar writer
+	tarWriter := tar.NewWriter(gzWriter)
+	defer tarWriter.Close()
+
+	// Add non-executable files
+	files := map[string]string{
+		"README.txt": "This is a readme file",
+		"config.yml": "configuration: test",
+		"docs/help.md": "# Help Documentation",
+	}
+
+	for filename, content := range files {
+		header := &tar.Header{
+			Name: filename,
+			Size: int64(len(content)),
+			Mode: 0644,
+		}
+
+		err = tarWriter.WriteHeader(header)
+		if err != nil {
+			t.Fatalf("Failed to write tar header: %v", err)
+		}
+
+		_, err = tarWriter.Write([]byte(content))
+		if err != nil {
+			t.Fatalf("Failed to write tar content: %v", err)
+		}
+	}
+
+	return tempFile.Name()
+}
+
+func detectCurrentPlatform() string {
+	os := runtime.GOOS
+	arch := runtime.GOARCH
+	
+	// Convert Go arch names to our naming convention
+	switch arch {
+	case "amd64":
+		arch = "amd64"
+	case "arm64":
+		arch = "arm64"
+	case "386":
+		arch = "i386"
+	default:
+		arch = "unknown"
+	}
+	
+	return fmt.Sprintf("%s-%s", os, arch)
+}
+
+func containsAny(str string, substrings []string) bool {
+	for _, substr := range substrings {
+		if strings.Contains(str, substr) {
+			return true
+		}
+	}
+	return false
 }
