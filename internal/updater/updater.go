@@ -289,9 +289,9 @@ func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) {
 		return result, err
 	}
 
-	// Validate downloaded binary
+	// Validate downloaded binary with version verification
 	reportProgress(StageValidating, "Validating download", 0.6)
-	if err := download.ValidateDownloadedBinary(downloadResult.Path, ""); err != nil {
+	if err := download.ValidateDownloadedBinaryWithVersion(downloadResult.Path, "", result.NewVersion); err != nil {
 		result.Message = fmt.Sprintf("Downloaded binary validation failed: %v", err)
 		return result, err
 	}
