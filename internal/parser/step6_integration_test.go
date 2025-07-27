@@ -131,17 +131,17 @@ sub validate_email {
 
 sub create_user {
     my (Str $name, Email $email) = @_;
-    
+
     # Validate input
     return unless validate_email($email);
     return unless length($name) > 0;
-    
+
     # Create user data
     my UserID $id = $next_id++;
     my Int $now = time();
-    
+
     $user_count++;
-    
+
     return {
         id => $id,
         name => $name,
@@ -155,7 +155,7 @@ sub create_user {
 sub find_user_by_id {
     my UserID $target_id = $_[0];
     my Int $search_count = 0;
-    
+
     # Simulate searching through users
     for my Int $i (1..$user_count) {
         $search_count++;
@@ -168,14 +168,14 @@ sub find_user_by_id {
             };
         }
     }
-    
+
     return { found => 0, searches => $search_count };
 }
 
 sub update_user_status {
     my (UserID $id, Bool $active) = @_;
     my Int $timestamp = time();
-    
+
     return {
         id => $id,
         active => $active,
@@ -187,12 +187,12 @@ sub update_user_status {
 sub get_user_statistics {
     my Int $active_count = 0;
     my Int $total_processed = 0;
-    
+
     for my Int $i (1..$user_count) {
         $total_processed++;
         $active_count++ if $i % 2 == 1;  # Simulate some active users
     }
-    
+
     return {
         total => $user_count,
         active => $active_count,
@@ -220,10 +220,10 @@ sub get_user_statistics {
 	// Verify AST completeness - check for typed Perl features
 	astStr := fmt.Sprintf("%v", ast)
 	expectedFeatures := []string{
-		"sub_decl",              // Function declarations
-		"var_decl",              // Variable declarations
-		"type_alias_statement",  // Type definitions
-		"package_statement",     // Package declaration
+		"sub_decl",             // Function declarations
+		"var_decl",             // Variable declarations
+		"type_alias_statement", // Type definitions
+		"package_statement",    // Package declaration
 	}
 
 	for _, feature := range expectedFeatures {

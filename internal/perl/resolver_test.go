@@ -142,7 +142,7 @@ func (env *resolverTestEnv) createUserConfig(t *testing.T, defaultPerl string, a
 	if err := os.MkdirAll(testConfigDir, 0755); err != nil {
 		t.Fatalf("Failed to create test config directory: %v", err)
 	}
-	
+
 	// Set environment variable to override XDG config location
 	originalXDG := os.Getenv("XDG_CONFIG_HOME")
 	os.Setenv("XDG_CONFIG_HOME", testConfigDir)
@@ -168,7 +168,7 @@ func (env *resolverTestEnv) createUserConfig(t *testing.T, defaultPerl string, a
 
 	// Create user config file
 	userConfigPath := dirs.GetConfigFilePath()
-	
+
 	// Build config content
 	content := fmt.Sprintf("default_perl = \"%s\"\n", defaultPerl)
 	if len(aliases) > 0 {
@@ -428,14 +428,14 @@ func TestResolveUserConfig(t *testing.T) {
 		"latest": "5.38.0",
 		"stable": "5.36.0",
 	}
-	
+
 	// Create user config file for the resolveFromUserConfig file existence check
 	env.createUserConfig(t, "5.34.1", aliases)
 
 	// Create config object directly to avoid config loading complexities in tests
 	cfg := &config.Config{
 		PVM: &config.PVMConfig{
-			DefaultPerl: "5.34.1",
+			DefaultPerl:    "5.34.1",
 			VersionAliases: aliases,
 		},
 	}
