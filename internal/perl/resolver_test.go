@@ -137,7 +137,24 @@ func (env *resolverTestEnv) createPerlVersionFile(t *testing.T, version string) 
 }
 
 func (env *resolverTestEnv) createUserConfig(t *testing.T, defaultPerl string, aliases map[string]string) {
-	// Get user config directory
+	// Set XDG_CONFIG_HOME to our temp directory to ensure consistent behavior
+	testConfigDir := filepath.Join(env.tempDir, "config")
+	if err := os.MkdirAll(testConfigDir, 0755); err != nil {
+		t.Fatalf("Failed to create test config directory: %v", err)
+	}
+	
+	// Set environment variable to override XDG config location
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", testConfigDir)
+	env.cleanup = append(env.cleanup, func() {
+		if originalXDG == "" {
+			os.Unsetenv("XDG_CONFIG_HOME")
+		} else {
+			os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		}
+	})
+
+	// Get user config directory (should now use our test directory)
 	dirs, err := xdg.GetDirs()
 	if err != nil {
 		t.Fatalf("Failed to get XDG dirs: %v", err)
@@ -171,8 +188,7 @@ func (env *resolverTestEnv) createUserConfig(t *testing.T, defaultPerl string, a
 		t.Fatalf("Failed to create user config file: %v", err)
 	}
 
-	// Add cleanup
-	env.cleanup = append(env.cleanup, func() { _ = os.RemoveAll(userConfigDir) })
+	t.Logf("Created user config file at: %s", userConfigPath)
 }
 
 // Test explicit version resolution
