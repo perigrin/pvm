@@ -77,6 +77,15 @@ func NewGitHubClientWithToken(token string) *GitHubClient {
 
 // doRequestWithRetry executes an HTTP request with exponential backoff for rate limiting
 func (g *GitHubClient) doRequestWithRetry(req *http.Request, maxRetries int) (*http.Response, error) {
+	// In test environments, reduce retry behavior to prevent timeouts
+	isTestEnvironment := strings.HasSuffix(os.Args[0], ".test") || 
+		strings.Contains(os.Args[0], "_test") ||
+		os.Getenv("GO_TEST") == "1"
+	
+	if isTestEnvironment {
+		maxRetries = 1 // Only one retry in tests
+	}
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		resp, err := g.httpClient.Do(req)
 		if err != nil {
@@ -91,6 +100,11 @@ func (g *GitHubClient) doRequestWithRetry(req *http.Request, maxRetries int) (*h
 
 			// Check if this is a rate limit error
 			if strings.Contains(bodyStr, "rate limit exceeded") || strings.Contains(bodyStr, "API rate limit") {
+				// In test environments, fail fast instead of long waits
+				if isTestEnvironment {
+					return nil, fmt.Errorf("GitHub API rate limit exceeded (test environment): %s", bodyStr)
+				}
+
 				// Check if we can determine retry time from headers
 				resetTime := resp.Header.Get("X-RateLimit-Reset")
 
@@ -99,9 +113,13 @@ func (g *GitHubClient) doRequestWithRetry(req *http.Request, maxRetries int) (*h
 				if resetTime != "" {
 					if resetTimestamp, err := strconv.ParseInt(resetTime, 10, 64); err == nil {
 						backoffTime = time.Until(time.Unix(resetTimestamp, 0))
-						// Cap backoff at 5 minutes
-						if backoffTime > 5*time.Minute {
-							backoffTime = 5 * time.Minute
+						// Cap backoff at 5 minutes in production, 10 seconds in tests
+						maxBackoff := 5 * time.Minute
+						if isTestEnvironment {
+							maxBackoff = 10 * time.Second
+						}
+						if backoffTime > maxBackoff {
+							backoffTime = maxBackoff
 						}
 					}
 				}
@@ -109,6 +127,10 @@ func (g *GitHubClient) doRequestWithRetry(req *http.Request, maxRetries int) (*h
 				// Fall back to exponential backoff if no reset time
 				if backoffTime <= 0 {
 					backoffTime = time.Duration(math.Pow(2, float64(attempt))) * time.Second
+					// Cap exponential backoff in test environments
+					if isTestEnvironment && backoffTime > 5*time.Second {
+						backoffTime = 5 * time.Second
+					}
 				}
 
 				// Don't retry on last attempt

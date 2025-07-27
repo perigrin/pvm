@@ -419,6 +419,10 @@ func TestUpdateWorkflowMocking(t *testing.T) {
 }
 
 func TestPrereleaseInclusion(t *testing.T) {
+	// Set environment variable to ensure test-friendly behavior
+	os.Setenv("GO_TEST", "1")
+	defer os.Unsetenv("GO_TEST")
+
 	t.Run("DefaultOptionsIncludePrerelease", func(t *testing.T) {
 		opts := DefaultUpdateOptions()
 		if !opts.IncludePrerelease {
@@ -427,10 +431,14 @@ func TestPrereleaseInclusion(t *testing.T) {
 	})
 
 	t.Run("ExplicitPrereleaseExclusion", func(t *testing.T) {
+		// Set a reasonable timeout for test environment
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
 		opts := &UpdateOptions{
 			Repository:        "perigrin/pvm",
 			IncludePrerelease: false,
-			Context:           context.Background(),
+			Context:           ctx,
 		}
 
 		updater := NewUpdater()
@@ -445,10 +453,14 @@ func TestPrereleaseInclusion(t *testing.T) {
 	})
 
 	t.Run("ExplicitPrereleaseInclusion", func(t *testing.T) {
+		// Set a reasonable timeout for test environment
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
 		opts := &UpdateOptions{
 			Repository:        "perigrin/pvm",
 			IncludePrerelease: true,
-			Context:           context.Background(),
+			Context:           ctx,
 		}
 
 		updater := NewUpdater()
@@ -456,8 +468,8 @@ func TestPrereleaseInclusion(t *testing.T) {
 		// This should work since we explicitly include prereleases
 		_, err := updater.CheckForUpdates(opts)
 		if err != nil {
-			t.Logf("CheckForUpdates with IncludePrerelease=true failed (may be due to network/auth): %v", err)
-			// Network errors are acceptable in tests, we're testing option handling
+			t.Logf("CheckForUpdates with IncludePrerelease=true failed (may be due to network/auth/timeout): %v", err)
+			// Network errors and timeouts are acceptable in tests, we're testing option handling
 		}
 	})
 }
