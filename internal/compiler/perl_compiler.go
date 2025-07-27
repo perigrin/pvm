@@ -11,6 +11,7 @@ import (
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/parser/treesitter"
+	"tamarou.com/pvm/internal/perl"
 )
 
 // CSTBasedAST represents an AST that works directly with tree-sitter CST
@@ -140,7 +141,7 @@ func (c *PerlCompiler) Compile(ast AST) (string, error) {
 	}
 
 	// Check if this is already a CST-based AST
-	//nolint:gocritic // Interface to concrete type assertion is needed for CST access
+	//nolint:gocritic,sloppyTypeAssert // Interface to concrete type assertion is needed for CST access
 	if cstAST, ok := ast.(*CSTBasedAST); ok {
 		return c.compileFromCST(cstAST.GetCSTRoot(), []byte(content))
 	}
@@ -273,15 +274,20 @@ func (c *PerlCompiler) hasSignatureFeatures(code string) bool {
 
 // getCurrentVersionPragma returns the version pragma for the current PVM version
 func (c *PerlCompiler) getCurrentVersionPragma() string {
-	// Get current version from PVM
+	// Try to get current version from PVM
 	currentInfo, err := current.GetCurrentVersion()
-	if err != nil || !currentInfo.IsAvailable {
-		// Fallback to 5.36 if we can't determine current version
-		return "use v5.36;"
+	if err == nil && currentInfo.IsAvailable {
+		return fmt.Sprintf("use v%s;", currentInfo.Version)
 	}
 
-	// Format as version pragma
-	return fmt.Sprintf("use v%s;", currentInfo.Version)
+	// Fallback 1: Try system Perl
+	systemPerl, err := perl.DetectSystemPerl()
+	if err == nil && systemPerl.Version != "" {
+		return fmt.Sprintf("use v%s;", systemPerl.Version)
+	}
+
+	// Fallback 2: Use sensible default (match PVM defaults)
+	return "use v5.40.2;"
 }
 
 // CreateUnifiedCompilerForTarget creates a unified compiler for any supported target

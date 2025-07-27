@@ -370,9 +370,9 @@ func resolveSystemPerl() (string, error) {
 	systemPaths := []string{
 		"/usr/bin/perl",
 		"/usr/local/bin/perl",
-		"/opt/local/bin/perl", // MacPorts
+		"/opt/local/bin/perl",    // MacPorts
 		"/opt/homebrew/bin/perl", // Homebrew on Apple Silicon
-		"/usr/pkg/bin/perl", // NetBSD pkgsrc
+		"/usr/pkg/bin/perl",      // NetBSD pkgsrc
 	}
 
 	for _, path := range systemPaths {

@@ -556,18 +556,40 @@ func resolveFromUserConfig(cfg *config.Config, availableVersions []string) (*Res
 			nil)
 	}
 
-	// Verify that a user config file actually exists
+	// Always verify that a user config file actually exists
 	// Don't use hardcoded defaults as "user configuration"
-	dirs, err := xdg.GetDirs()
-	if err == nil {
+	userConfigExists := false
+
+	// Try XDG config path first
+	if dirs, err := xdg.GetDirs(); err == nil {
 		userConfigPath := dirs.GetConfigFilePath()
-		if _, err := os.Stat(userConfigPath); os.IsNotExist(err) {
-			// No user config file exists, don't treat defaults as user config
-			return nil, errors.NewVersionError(
-				ErrResolutionFailed,
-				"No user configuration file found",
-				nil)
+		if _, err := os.Stat(userConfigPath); err == nil {
+			userConfigExists = true
 		}
+	}
+
+	// Fallback: Try standard config paths if XDG fails or file not found
+	if !userConfigExists {
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			standardPaths := []string{
+				filepath.Join(homeDir, ".config", "pvm", "pvm.toml"),
+				filepath.Join(homeDir, ".pvm", "pvm.toml"),
+			}
+			for _, path := range standardPaths {
+				if _, err := os.Stat(path); err == nil {
+					userConfigExists = true
+					break
+				}
+			}
+		}
+	}
+
+	if !userConfigExists {
+		return nil, errors.NewVersionError(
+			ErrResolutionFailed,
+			"No user configuration file found",
+			nil)
 	}
 
 	// Check if it's an alias and resolve if needed

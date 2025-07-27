@@ -353,7 +353,7 @@ func getTestPerlPath() (string, error) {
 			// For PVM shims, fall back to system Perl
 			return resolveSystemPerlForTest()
 		}
-		
+
 		// Test it works and check version
 		cmd := exec.Command(perlPath, "-v")
 		if err := cmd.Run(); err == nil {
