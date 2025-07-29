@@ -59,9 +59,10 @@ func TestCompilerStripDefaultParameters(t *testing.T) {
 			expected := strings.TrimSpace(tt.expected)
 			actual := strings.TrimSpace(result)
 
-			// Remove the "use v5.42.0;" pragma if present for comparison
-			if strings.HasPrefix(actual, "use v5.42.0;") {
-				actual = strings.TrimSpace(strings.TrimPrefix(actual, "use v5.42.0;"))
+			// Remove the "use vX.XX.X;" pragma if present for comparison
+			lines := strings.Split(actual, "\n")
+			if len(lines) > 0 && strings.HasPrefix(lines[0], "use v") && strings.HasSuffix(lines[0], ";") {
+				actual = strings.TrimSpace(strings.Join(lines[1:], "\n"))
 			}
 
 			assert.Equal(t, expected, actual)
