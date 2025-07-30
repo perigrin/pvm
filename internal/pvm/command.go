@@ -17,10 +17,10 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/config"
@@ -64,61 +64,48 @@ func NewCommand() *cobra.Command {
 		Long:  "Manages Perl installations and versions",
 	}
 
-	// Add PVM-specific commands
+	// Add enhanced help command as a regular command (placed first for precedence)
+	cmd.AddCommand(newEnhancedHelpCommand())
+
+	// Add PVM-specific commands  
 	cmd.AddCommand(
 		newInstallCommand(),
 		newUseCommand(),
 		newShUseCommand(),
 		newShEnvActivateCommand(),
 		newDetectVersionCommand(),
-		newShellInitCommand(),
-		newGlobalCommand(),
 		newLocalCommand(),
 		newCurrentCommand(), // Show current Perl version
 		newVersionsCommand(),
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
-		newDownloadCommand(),
-		newUpdateCommand(),       // Self-updater functionality
-		newAutoUpdateCommand(),   // Auto-update configuration and management
-		newReleaseNotesCommand(), // View release notes with glow formatting
-		newChangelogCommand(),    // View changelog with glow formatting
+		newSelfCommand(),         // Self-management commands (update, changelog, doctor, etc.)
 		NewBuildCommand(),        // Unified build system with PSC integration
 		newBuildPerlCommand(),    // Build Perl from source (split from old build command)
-		newInstallPerlCommand(),  // Install Perl from build directories
-		newUploadBinaryCommand(), // Upload binary archives to mirrors
 		newRunCommand(),          // New unified run command (incorporates PVX)
 		newModuleCommand(),       // New unified module command (incorporates PVI)
 		newWorkspaceCommand(),    // New workspace management command
 		newDevCommand(),          // Development environment command
 		newTestCommand(),         // Test execution command
-		newExecCommand(),
 		newUninstallCommand(),
-		newImportSystemCommand(),
-		newImportCommand(),
 		newRehashCommand(),
-		newResolveCommand(),
 		newInitCommand(),
 		newShellCommand(),
 		newCompletionCommand(),
-		newMCPCommand(),
 		newEnvCommand(),
 		newToolCommand(),
-		newShimsDirCommand(),
-		newDoctorCommand(),
-
-		// Enhanced help system
-		cli.CreateHelpCommand(), // Context-aware help with workflow suggestions
 
 		// Shell aliases for convenience
 		newPVXCommand(), // Shell alias to run command
 		newPSCCommand(), // Shell alias to build command
 
 		// These are implemented in their own files
-		newSymlinksCommand(), // from symlinks.go
 		newConfigCommand(),   // from config.go
 		newPerlCommand(),     // from perl.go
 		newVersionCommand(),  // from version.go
+
+		// Temporary backward compatibility alias for makefile
+		newBackwardCompatSymlinksCommand(),
 
 		// Hidden subcommands for help purposes only
 		newHelpOnlyPVICommand(),
@@ -499,52 +486,6 @@ func newDetectVersionCommand() *cobra.Command {
 	}
 }
 
-func newShellInitCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "shell-init [shell]",
-		Short: "Generate shell integration code",
-		Long:  "Generate shell integration code for auto-switching and shell functions (alias for 'pvm init')",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			var shell perl.ShellType
-			var err error
-
-			if len(args) > 0 {
-				// Parse shell type from argument
-				switch args[0] {
-				case "bash":
-					shell = perl.ShellBash
-				case "zsh":
-					shell = perl.ShellZsh
-				case "fish":
-					shell = perl.ShellFish
-				case "powershell":
-					shell = perl.ShellPowerShell
-				case "cmd":
-					shell = perl.ShellCmd
-				default:
-					return fmt.Errorf("unsupported shell: %s", args[0])
-				}
-			} else {
-				// Detect shell type automatically
-				shell, err = perl.DetectShell()
-				if err != nil {
-					return err
-				}
-			}
-
-			// Get shell script for the specified/detected shell
-			script, err := perl.GetCurrentShellScript(shell)
-			if err != nil {
-				return err
-			}
-
-			// Print the script to stdout (for eval)
-			fmt.Print(script)
-			return nil
-		},
-	}
-}
 
 func newGlobalCommand() *cobra.Command {
 	return &cobra.Command{
@@ -1324,29 +1265,6 @@ func newDownloadCommand() *cobra.Command {
 	return cmd
 }
 
-func newExecCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "exec [version] [command]",
-		Short: "Execute a command with a specific version",
-		Long:  "Execute a command using a specific Perl version",
-		Run: func(cmd *cobra.Command, args []string) {
-			ui := cli.GetUI(cmd)
-			if len(args) < 2 {
-				ui.Error("Usage: pvm exec [version] [command]")
-				return
-			}
-
-			version := args[0]
-			command := args[1:]
-
-			err := execCommand(cmd, version, command)
-			if err != nil {
-				ui.Error("Error: %v", err)
-				os.Exit(1)
-			}
-		},
-	}
-}
 
 func newUninstallCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -1408,89 +1326,8 @@ func newUninstallCommand() *cobra.Command {
 	return cmd
 }
 
-func newImportSystemCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "import-system",
-		Short: "Import system Perl installation",
-		Long:  "Import the system Perl installation into PVM registry",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return importSystemPerl(cmd)
-		},
-	}
-	cmd.Flags().Bool("force", false, "Force re-import even if already registered")
-	return cmd
-}
 
-func newImportCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "import-from [tool]",
-		Short: "Import Perl installations from other tools",
-		Long:  "Import Perl installations from other version managers (plenv, perlbrew)",
-	}
 
-	cmd.AddCommand(
-		&cobra.Command{
-			Use:   "plenv",
-			Short: "Import from plenv",
-			Long:  "Import Perl installations from plenv",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return importFromLegacyTool(cmd, perl.Plenv)
-			},
-		},
-		&cobra.Command{
-			Use:   "perlbrew",
-			Short: "Import from perlbrew",
-			Long:  "Import Perl installations from perlbrew",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return importFromLegacyTool(cmd, perl.Perlbrew)
-			},
-		},
-	)
-
-	return cmd
-}
-
-// importFromLegacyTool implements the logic for importing from a legacy tool
-func importFromLegacyTool(cmd *cobra.Command, tool perl.LegacyToolType) error {
-	ui := cli.GetUI(cmd)
-	ui.Info("Detecting %s installations...", tool)
-
-	installations, err := perl.ImportFromLegacyTool(tool)
-	if err != nil {
-		return err
-	}
-
-	ui.Success("Found %d %s installation(s):", len(installations), tool)
-	for i, inst := range installations {
-		defaultMark := ""
-		if inst.IsDefault {
-			defaultMark = " (default)"
-		}
-		ui.Printf("%d. %s%s at %s", i+1, inst.Version, defaultMark, inst.Path)
-	}
-
-	// In a real implementation, here we would:
-	// 1. Ask the user which installations to import
-	// 2. Create symlinks or copy the installations
-	// 3. Register them in PVM's internal database
-	// But for now, we'll just report what was found
-
-	ui.Warning("Note: This command currently only detects installations.")
-	ui.Info("Actual import functionality will be implemented in a future version.")
-
-	// If it's perlbrew, also show aliases
-	if tool == perl.Perlbrew {
-		aliases, err := perl.GetPerlbrewAliases()
-		if err == nil && len(aliases) > 0 {
-			ui.SubHeader("Perlbrew aliases detected:")
-			for alias, target := range aliases {
-				ui.Printf("  %s -> %s", alias, target)
-			}
-		}
-	}
-
-	return nil
-}
 
 func newRehashCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -2486,20 +2323,13 @@ func newInitCommand() *cobra.Command {
 				return err
 			}
 
-			// Check if --generate flag is provided
-			generate, err := cmd.Flags().GetBool("generate")
-			if err != nil {
-				return err
-			}
-
-			if generate {
-				// Generate and create shell initialization scripts
-				err = perl.CreateShellInitScripts()
-				if err != nil {
-					return err
+			// Check if registry exists, rebuild if missing or empty
+			registry, err := perl.LoadRegistry()
+			if err != nil || len(registry.Versions) == 0 {
+				// Registry is missing, corrupted, or empty - try to rebuild it
+				if rebuildErr := perl.RebuildRegistry(); rebuildErr == nil {
+					fmt.Fprintf(os.Stderr, "Registry rebuilt from existing installations\n")
 				}
-				cmd.Println("Shell initialization scripts generated successfully.")
-				return nil
 			}
 
 			// Check if we should perform automatic import
@@ -2526,8 +2356,7 @@ func newInitCommand() *cobra.Command {
 		},
 	}
 
-	// Add flags
-	cmd.Flags().Bool("generate", false, "Generate shell initialization scripts instead of printing them")
+	// No flags needed for shell integration output
 
 	return cmd
 }
@@ -2541,21 +2370,6 @@ func newShellCommand() *cobra.Command {
 
 	// Add subcommands
 	cmd.AddCommand(
-		&cobra.Command{
-			Use:   "init",
-			Short: "Initialize shell integration",
-			Long:  "Generate shell integration script for the current shell",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				// Generate and create shell initialization scripts
-				err := perl.CreateShellInitScripts()
-				if err != nil {
-					return err
-				}
-				ui := cli.GetUI(cmd)
-				ui.Success("Shell integration initialized")
-				return nil
-			},
-		},
 		&cobra.Command{
 			Use:   "setup",
 			Short: "Setup shell integration",
@@ -2595,6 +2409,7 @@ func newShellCommand() *cobra.Command {
 
 	return cmd
 }
+
 
 // newBuildPerlCommand creates a command for building Perl from source (moved from old build command)
 func newBuildPerlCommand() *cobra.Command {
@@ -2699,72 +2514,8 @@ func newPSCCommand() *cobra.Command {
 	return pscCmd
 }
 
+
 // execCommand implements the exec command functionality
-func execCommand(cmd *cobra.Command, version string, command []string) error {
-	// Resolve the version to get the Perl path
-	options := &perl.ResolutionOptions{
-		ExplicitVersion: version,
-	}
-
-	resolved, err := perl.ResolveVersion(options)
-	if err != nil {
-		return fmt.Errorf("failed to resolve Perl version %s: %w", version, err)
-	}
-
-	// Check if the resolved version has a path
-	if resolved.Path == "" {
-		return fmt.Errorf("no path found for Perl version %s", resolved.Version)
-	}
-
-	// Check if the Perl binary exists
-	if _, err := os.Stat(resolved.Path); os.IsNotExist(err) {
-		return fmt.Errorf("perl version %s not found at %s", resolved.Version, resolved.Path)
-	}
-
-	// Create a new environment with the Perl bin directory in PATH
-	env := os.Environ()
-	perlBinDir := strings.TrimSuffix(resolved.Path, "/perl")
-	if perlBinDir == resolved.Path {
-		// Handle case where path doesn't end with /perl
-		perlBinDir = resolved.Path[:strings.LastIndex(resolved.Path, "/")]
-	}
-
-	// Update PATH to include the Perl bin directory at the beginning
-	for i, envVar := range env {
-		if strings.HasPrefix(envVar, "PATH=") {
-			currentPath := envVar[5:] // Remove "PATH=" prefix
-			env[i] = fmt.Sprintf("PATH=%s:%s", perlBinDir, currentPath)
-			break
-		}
-	}
-
-	// Create the command to execute
-	// If the first argument is "perl", replace it with the resolved Perl path
-	if command[0] == "perl" {
-		command[0] = resolved.Path
-	}
-
-	// Execute the command
-	execCmd := exec.Command(command[0], command[1:]...)
-	execCmd.Env = env
-	execCmd.Stdin = os.Stdin
-	execCmd.Stdout = os.Stdout
-	execCmd.Stderr = os.Stderr
-
-	// Run the command and wait for completion
-	err = execCmd.Run()
-	if err != nil {
-		// Check if it's an exit error to get the exit code
-		if exitError, ok := err.(*exec.ExitError); ok {
-			if status, ok := exitError.Sys().(syscall.WaitStatus); ok {
-				os.Exit(status.ExitStatus())
-			}
-		}
-		return fmt.Errorf("command execution failed: %w", err)
-	}
-
-	return nil
-}
 
 // importSystemPerl imports the system Perl installation into PVM registry
 func importSystemPerl(cmd *cobra.Command) error {
@@ -3104,16 +2855,16 @@ func newToolCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tool",
 		Short: "Manage tool installations",
-		Long:  "Commands for installing, running, and managing Perl tools globally and per-project",
+		Long:  "Commands for adding, running, and managing Perl tools globally and per-project",
 	}
 
 	// Add --global flag to the parent command
 	cmd.PersistentFlags().Bool("global", false, "Operate on global tools instead of project tools")
 
-	installCmd := &cobra.Command{
-		Use:   "install [tool[@version]]",
-		Short: "Install a tool",
-		Long:  "Install a Perl tool (module) and make it available as a command. Use --global for system-wide installation.",
+	addCmd := &cobra.Command{
+		Use:   "add [tool[@version]]",
+		Short: "Add a tool",
+		Long:  "Add a Perl tool (module) and make it available as a command. Use --global for system-wide installation.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
@@ -3216,10 +2967,65 @@ func newToolCommand() *cobra.Command {
 
 	shimCmd.AddCommand(shimInstallCmd, shimRemoveCmd, shimListCmd, shimStatusCmd)
 
-	cmd.AddCommand(installCmd, runCmd, listCmd, upgradeCmd, uninstallCmd, shimCmd)
+	// Create LSP command for tool management
+	lspCmd := newToolLSPCommand()
+
+	// Create MCP command for tool management
+	mcpCmd := newMCPCommand()
+
+	cmd.AddCommand(addCmd, runCmd, listCmd, upgradeCmd, uninstallCmd, shimCmd, lspCmd, mcpCmd)
 
 	return cmd
 }
+
+// newToolLSPCommand creates an LSP command under tool management
+func newToolLSPCommand() *cobra.Command {
+	// Get the PSC command and extract just the lsp subcommand
+	pscCmd := psc.NewCommand()
+
+	// Find the lsp subcommand
+	var lspCmd *cobra.Command
+	for _, subCmd := range pscCmd.Commands() {
+		if subCmd.Use == "lsp" {
+			lspCmd = subCmd
+			break
+		}
+	}
+
+	if lspCmd == nil {
+		// Fallback if lsp command not found
+		return &cobra.Command{
+			Use:   "lsp",
+			Short: "Language Server Protocol server",
+			Long:  "Start the PVM Language Server for editor integration",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fmt.Errorf("LSP server not available")
+			},
+		}
+	}
+
+	// Clone the command to avoid conflicts
+	newLspCmd := &cobra.Command{
+		Use:   lspCmd.Use,
+		Short: lspCmd.Short,
+		Long:  lspCmd.Long,
+		RunE:  lspCmd.RunE,
+		Run:   lspCmd.Run,
+	}
+
+	// Copy flags
+	lspCmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		newLspCmd.Flags().AddFlag(flag)
+	})
+
+	// Copy subcommands
+	for _, subCmd := range lspCmd.Commands() {
+		newLspCmd.AddCommand(subCmd)
+	}
+
+	return newLspCmd
+}
+
 
 // installTool installs a tool and creates a shim for it
 func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
@@ -4769,20 +4575,29 @@ func newDoctorCommand() *cobra.Command {
 
 This command checks:
 - Shell integration setup
+- Registry integrity
 - Version management functionality
 - Path configuration
 - Environment variables
 - Shims directory setup
-- Conflicts with other version managers`,
+- Conflicts with other version managers
+- Filesystem locations`,
 		Run: func(cmd *cobra.Command, args []string) {
 			ui := cli.GetUI(cmd)
 
+			// Get --fix flag
+			fix, _ := cmd.Flags().GetBool("fix")
+
 			ui.Header("PVM Doctor - Comprehensive Diagnostics")
+			if fix {
+				ui.Info("Running in fix mode - will attempt to repair issues")
+			}
 			ui.Println()
 
 			// Track issues found
 			issues := []string{}
 			warnings := []string{}
+			fixed := []string{}
 
 			// Check 1: Shell integration
 			ui.Status("Checking shell integration...")
@@ -4790,41 +4605,105 @@ This command checks:
 				ui.Error("Failed to check shell integration: %v", err)
 			}
 
-			// Check 2: Version management
+			// Check 2: Registry integrity
+			ui.Status("Checking registry integrity...")
+			if err := checkRegistryIntegrity(ui, &issues, &warnings); err != nil {
+				ui.Error("Failed to check registry integrity: %v", err)
+			}
+
+			// Check 3: Version management
 			ui.Status("Checking version management...")
 			if err := checkVersionManagement(ui, &issues, &warnings); err != nil {
 				ui.Error("Failed to check version management: %v", err)
 			}
 
-			// Check 3: Path configuration
+			// Check 4: Path configuration
 			ui.Status("Checking PATH configuration...")
 			if err := checkPathConfiguration(ui, &issues, &warnings); err != nil {
 				ui.Error("Failed to check PATH configuration: %v", err)
 			}
 
-			// Check 4: Environment variables
+			// Check 5: Environment variables
 			ui.Status("Checking environment variables...")
 			if err := checkEnvironmentVariables(ui, &issues, &warnings); err != nil {
 				ui.Error("Failed to check environment variables: %v", err)
 			}
 
-			// Check 5: Shims directory
+			// Check 6: Shims directory
 			ui.Status("Checking shims directory...")
 			if err := checkShimsDirectory(ui, &issues, &warnings); err != nil {
 				ui.Error("Failed to check shims directory: %v", err)
 			}
 
-			// Check 6: Version manager conflicts
+			// Check 7: Version manager conflicts
 			ui.Status("Checking for conflicts with other version managers...")
 			if err := checkVersionManagerConflicts(ui, &issues, &warnings); err != nil {
 				ui.Error("Failed to check version manager conflicts: %v", err)
 			}
 
+			// Check 8: Filesystem locations
+			ui.Status("Checking filesystem locations...")
+			if err := checkFilesystemLocations(ui, &issues, &warnings); err != nil {
+				ui.Error("Failed to check filesystem locations: %v", err)
+			}
+
 			ui.Println()
 
+			// Apply fixes if requested
+			if fix && len(issues) > 0 {
+				ui.Info("Attempting to fix detected issues...")
+				ui.Println()
+
+				for _, issue := range issues {
+					if strings.Contains(issue, "Registry missing") ||
+					   strings.Contains(issue, "Registry is empty") ||
+					   strings.Contains(issue, "Failed to load registry file") {
+						ui.Info("Rebuilding registry from existing installations...")
+						if err := perl.RebuildRegistry(); err != nil {
+							ui.Error("Failed to rebuild registry: %v", err)
+						} else {
+							fixed = append(fixed, "Rebuilt registry from existing installations")
+							ui.Success("✓ Registry rebuilt successfully")
+						}
+					}
+				}
+
+				// Remove fixed issues from the issues list
+				if len(fixed) > 0 {
+					var remainingIssues []string
+					for _, issue := range issues {
+						isFixed := false
+						for _, fixedItem := range fixed {
+							if (strings.Contains(issue, "Registry") && strings.Contains(fixedItem, "registry")) {
+								isFixed = true
+								break
+							}
+						}
+						if !isFixed {
+							remainingIssues = append(remainingIssues, issue)
+						}
+					}
+					issues = remainingIssues
+				}
+
+				ui.Println()
+			}
+
 			// Summary
+			if len(fixed) > 0 {
+				ui.Success("Fixed %d issue(s):", len(fixed))
+				for _, fixedItem := range fixed {
+					ui.Success("  ✓ %s", fixedItem)
+				}
+				ui.Println()
+			}
+
 			if len(issues) == 0 && len(warnings) == 0 {
-				ui.Success("✓ All checks passed! PVM is properly configured.")
+				if len(fixed) > 0 {
+					ui.Success("✓ All issues resolved! PVM is now properly configured.")
+				} else {
+					ui.Success("✓ All checks passed! PVM is properly configured.")
+				}
 			} else {
 				if len(issues) > 0 {
 					ui.Error("Found %d issue(s) that need attention:", len(issues))
@@ -4832,6 +4711,19 @@ This command checks:
 						ui.Error("  • %s", issue)
 					}
 					ui.Println()
+
+					// Show manual fix instructions for unfixable issues
+					if fix {
+						ui.Info("Manual fixes required for remaining issues:")
+						ui.Println()
+						for _, issue := range issues {
+							if instructions := getManualFixInstructions(issue); instructions != "" {
+								ui.Info("How to fix: %s", issue)
+								ui.Println(instructions)
+								ui.Println()
+							}
+						}
+					}
 				}
 
 				if len(warnings) > 0 {
@@ -4840,14 +4732,421 @@ This command checks:
 						ui.Warning("  • %s", warning)
 					}
 					ui.Println()
+
+					// Show manual fix instructions for warnings too
+					if fix {
+						instructionMap := make(map[string][]string)
+
+						// Group warnings by their fix instructions
+						for _, warning := range warnings {
+							if instructions := getManualFixInstructions(warning); instructions != "" {
+								instructionMap[instructions] = append(instructionMap[instructions], warning)
+							}
+						}
+
+						if len(instructionMap) > 0 {
+							ui.Info("Recommendations for warnings:")
+							ui.Println()
+
+							for instructions, warningList := range instructionMap {
+								if len(warningList) == 1 {
+									ui.Info("How to address: %s", warningList[0])
+								} else {
+									ui.Info("How to address %d similar warnings:", len(warningList))
+									for _, w := range warningList {
+										ui.Info("  • %s", w)
+									}
+								}
+								ui.Println(instructions)
+								ui.Println()
+							}
+						}
+					}
 				}
 
-				ui.Info("Run 'pvm doctor --fix' to attempt automatic fixes")
+				if !fix {
+					ui.Info("Run 'pvm doctor --fix' to attempt automatic fixes")
+				}
 			}
 		},
 	}
 
 	cmd.Flags().Bool("fix", false, "Attempt to automatically fix detected issues")
 
+	return cmd
+}
+
+// newEnhancedHelpCommand creates the enhanced help command that replaces Cobra's default help
+func newEnhancedHelpCommand() *cobra.Command {
+	helpCmd := &cobra.Command{
+		Use:   "help [topic|command]",
+		Short: "Help about any command or topic",
+		Long: `Enhanced help system that provides context-aware suggestions and workflow guidance.
+
+Special topics:
+  workflows     - Common development workflows
+  getting-started - New user onboarding
+  troubleshooting - Diagnostic and problem-solving commands
+  next          - Suggested next steps based on current context
+  docs          - List embedded documentation (if available)
+  docs <name>   - View specific documentation
+  docs search <query> - Search documentation
+
+For command-specific help, use: pvm help [command]
+Without arguments, shows contextual help based on your current state.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get the root command to access all commands
+			rootCmd := cmd.Root()
+
+			if len(args) == 0 {
+				// No arguments - show standard Fang help by calling root command help
+				rootCmd.SetHelpFunc(nil) // Reset to default temporarily
+				return rootCmd.Help()
+			}
+
+			topic := args[0]
+
+			// Handle special topics first
+			switch topic {
+			case "workflows":
+				// This is now the contextual help (what used to be the default)
+				helpManager := cli.NewHelpManager()
+				return cli.ShowContextualHelpWithPager(cmd, helpManager)
+			case "workflow-guide":
+				// This shows the actual workflow markdown template
+				helpManager := cli.NewHelpManager()
+				return showWorkflowHelp(cmd, helpManager)
+			case "getting-started":
+				helpManager := cli.NewHelpManager()
+				return showGettingStartedHelp(cmd, helpManager)
+			case "troubleshooting":
+				helpManager := cli.NewHelpManager()
+				return showTroubleshootingHelp(cmd, helpManager)
+			case "next":
+				helpManager := cli.NewHelpManager()
+				return showNextStepsHelp(cmd, helpManager)
+			case "docs":
+				helpManager := cli.NewHelpManager()
+				return showDocumentationHelp(cmd, helpManager, args[1:])
+			default:
+				// Try to find the command for normal help
+				if targetCmd, _, err := rootCmd.Find(args); err == nil {
+					return targetCmd.Help()
+				}
+
+				// Command not found - show error and suggestions
+				ui := cli.GetUI(cmd)
+				ui.Error("Unknown help topic or command: %s", topic)
+				ui.Println("")
+
+				// Get available commands for suggestions
+				var availableCommands []string
+				for _, subCmd := range rootCmd.Commands() {
+					if !subCmd.Hidden {
+						availableCommands = append(availableCommands, subCmd.Name())
+					}
+				}
+
+				// Add special topics
+				specialTopics := []string{"workflows", "getting-started", "troubleshooting", "next", "docs"}
+				availableCommands = append(availableCommands, specialTopics...)
+
+				suggestions := cli.SuggestCommand(topic, availableCommands)
+				if len(suggestions) > 0 {
+					ui.Info("Did you mean one of these?")
+					for _, suggestion := range suggestions {
+						ui.Printf("  pvm help %s\n", suggestion)
+					}
+				} else {
+					ui.Info("Available topics: workflows, getting-started, troubleshooting, next, docs")
+					ui.Info("Use 'pvm help [command]' for command-specific help")
+				}
+
+				return fmt.Errorf("unknown help topic: %s", topic)
+			}
+		},
+	}
+
+	return helpCmd
+}
+
+// Helper functions that delegate to the help.go implementations
+func showContextualHelp(cmd *cobra.Command, helpManager *cli.HelpManager) error {
+	output := cli.GetUI(cmd)
+
+	output.Header("PVM Contextual Help")
+	output.Println("")
+
+	// Important: Show how to get command list first
+	output.Info("💡 For a list of all PVM commands: pvm -h")
+	output.Info("💡 For specific command help: pvm [command] --help")
+	output.Println("")
+
+	categories := helpManager.GetContextualHelp()
+
+	// Show each category
+	for _, category := range categories {
+		output.SubHeader(category.Name)
+		output.Println(category.Description)
+		output.Println("")
+
+		// Format commands as a structured list
+		commandItems := make([]string, 0, len(category.Commands))
+		for _, suggestion := range category.Commands {
+			commandLine := fmt.Sprintf("%-25s %s", suggestion.Command, suggestion.Description)
+			if suggestion.Relevance != "" {
+				commandLine += "\n" + fmt.Sprintf("%25s └─ %s", "", suggestion.Relevance)
+			}
+			commandItems = append(commandItems, commandLine)
+		}
+		output.List(commandItems)
+		output.Println("")
+	}
+
+	// Show next steps
+	output.SubHeader("💡 Suggested next steps")
+	suggestions := helpManager.SuggestNextSteps()
+	output.List(suggestions)
+	output.Println("")
+
+	output.Info("For detailed workflows: pvm help workflows")
+	output.Info("For troubleshooting: pvm help troubleshooting")
+
+	return nil
+}
+
+func showWorkflowHelp(cmd *cobra.Command, helpManager *cli.HelpManager) error {
+	output := cli.GetUI(cmd)
+
+	// Use template system for workflow help
+	templateData := cli.HelpTemplateData{
+		// Add any template variables needed
+	}
+
+	content, err := cli.RenderHelpTemplate("workflows", templateData)
+	if err != nil {
+		// Fallback to basic error message if template fails
+		output.Error("Failed to load workflows help: %v", err)
+		return err
+	}
+
+	// Render the markdown content as formatted help
+	cli.RenderMarkdownAsHelp(content, output)
+
+	return nil
+}
+
+func showGettingStartedHelp(cmd *cobra.Command, helpManager *cli.HelpManager) error {
+	output := cli.GetUI(cmd)
+
+	// Use template system for getting started help
+	templateData := cli.HelpTemplateData{
+		// Add any template variables needed
+	}
+
+	content, err := cli.RenderHelpTemplate("getting-started", templateData)
+	if err != nil {
+		// Fallback to basic error message if template fails
+		output.Error("Failed to load getting started help: %v", err)
+		return err
+	}
+
+	// Render the markdown content as formatted help
+	cli.RenderMarkdownAsHelp(content, output)
+
+	return nil
+}
+
+func showTroubleshootingHelp(cmd *cobra.Command, helpManager *cli.HelpManager) error {
+	output := cli.GetUI(cmd)
+
+	// Use template system for troubleshooting help
+	templateData := cli.HelpTemplateData{
+		// Add any template variables needed
+	}
+
+	content, err := cli.RenderHelpTemplate("troubleshooting", templateData)
+	if err != nil {
+		// Fallback to basic error message if template fails
+		output.Error("Failed to load troubleshooting help: %v", err)
+		return err
+	}
+
+	// Render the markdown content as formatted help
+	cli.RenderMarkdownAsHelp(content, output)
+
+	return nil
+}
+
+func showNextStepsHelp(cmd *cobra.Command, helpManager *cli.HelpManager) error {
+	ui := cli.GetUI(cmd)
+	suggestions := helpManager.SuggestNextSteps()
+
+	ui.Header("💡 Suggested next steps based on your current context")
+	ui.Println("")
+
+	for i, suggestion := range suggestions {
+		ui.Printf("%d. %s\n", i+1, suggestion)
+	}
+
+	ui.SubHeader("For more guidance")
+	moreHelp := []string{
+		"pvm help workflows     # See common development workflows",
+		"pvm help getting-started # New user guide",
+		"pvm workspace status     # Check current project state",
+	}
+	ui.List(moreHelp)
+
+	return nil
+}
+
+func showDocumentationHelp(cmd *cobra.Command, helpManager *cli.HelpManager, args []string) error {
+	if len(args) == 0 {
+		// List all documentation
+		return helpManager.ListDocuments()
+	}
+
+	subCommand := args[0]
+	switch subCommand {
+	case "search":
+		if len(args) < 2 {
+			fmt.Printf("Usage: pvm help docs search <query>\n")
+			return fmt.Errorf("search query required")
+		}
+		query := strings.Join(args[1:], " ")
+		return helpManager.SearchDocuments(query)
+	default:
+		// Treat as document name
+		docName := subCommand
+		return helpManager.ShowDocument(docName)
+	}
+}
+
+// customHelpFunc handles all help requests with our enhanced help system
+func customHelpFunc(cmd *cobra.Command, args []string) {
+	// If this is the root command and no args, show contextual help
+	if cmd.Name() == "pvm" && len(args) == 0 {
+		helpManager := cli.NewHelpManager()
+		showContextualHelp(cmd, helpManager)
+		return
+	}
+
+	// If this is a help command call with arguments, handle special topics
+	if len(args) > 0 {
+		topic := args[0]
+
+		// Handle special help topics
+		switch topic {
+		case "workflows":
+			helpManager := cli.NewHelpManager()
+			showWorkflowHelp(cmd, helpManager)
+			return
+		case "getting-started":
+			helpManager := cli.NewHelpManager()
+			showGettingStartedHelp(cmd, helpManager)
+			return
+		case "troubleshooting":
+			helpManager := cli.NewHelpManager()
+			showTroubleshootingHelp(cmd, helpManager)
+			return
+		case "next":
+			helpManager := cli.NewHelpManager()
+			showNextStepsHelp(cmd, helpManager)
+			return
+		case "docs":
+			helpManager := cli.NewHelpManager()
+			showDocumentationHelp(cmd, helpManager, args[1:])
+			return
+		default:
+			// Try to find the command for normal help
+			rootCmd := cmd.Root()
+			if targetCmd, _, err := rootCmd.Find(args); err == nil {
+				// Use the default help function for the found command
+				targetCmd.Help()
+				return
+			}
+
+			// Command not found - show error and suggestions
+			ui := cli.GetUI(cmd)
+			ui.Error("Unknown help topic or command: %s", topic)
+			ui.Println("")
+
+			// Get available commands for suggestions
+			var availableCommands []string
+			for _, subCmd := range rootCmd.Commands() {
+				if !subCmd.Hidden {
+					availableCommands = append(availableCommands, subCmd.Name())
+				}
+			}
+
+			// Add special topics
+			specialTopics := []string{"workflows", "getting-started", "troubleshooting", "next", "docs"}
+			availableCommands = append(availableCommands, specialTopics...)
+
+			suggestions := cli.SuggestCommand(topic, availableCommands)
+			if len(suggestions) > 0 {
+				ui.Info("Did you mean one of these?")
+				for _, suggestion := range suggestions {
+					ui.Printf("  pvm help %s\n", suggestion)
+				}
+			} else {
+				ui.Info("Available topics: workflows, getting-started, troubleshooting, next, docs")
+				ui.Info("Use 'pvm help [command]' for command-specific help")
+			}
+			return
+		}
+	}
+
+	// For any other case, use the default help behavior
+	cmd.Help()
+}
+
+// setupCustomHelp configures the command to use our custom help system
+/* func setupCustomHelp(cmd *cobra.Command) {
+	// Disable the default help command and replace it with our enhanced one
+	cmd.SetHelpCommand(&cobra.Command{
+		Use:    "no-help",
+		Hidden: true,
+	})
+} */
+
+// newSelfCommand creates the self-management command that groups update, doctor, changelog, etc.
+func newSelfCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "self",
+		Short: "Self-management commands for PVM",
+		Long: `Commands for managing PVM itself, including updates, diagnostics, and information.
+
+This command groups all self-management functionality:
+  update        - Update PVM to the latest version
+  auto-update   - Configure automatic update checking
+  doctor        - Diagnose PVM installation and configuration issues
+  changelog     - View PVM changelog
+  release-notes - View release notes for specific versions
+  symlinks      - Manage entry point symlinks
+
+These commands help you keep PVM up-to-date and troubleshoot any issues.`,
+	}
+
+	// Add self-management subcommands
+	cmd.AddCommand(
+		newUpdateCommand(),
+		newAutoUpdateCommand(),
+		newDoctorCommand(),
+		newReleaseNotesCommand(),
+		newChangelogCommand(),
+		newSymlinksCommand(), // Moved from main commands
+	)
+
+	return cmd
+}
+
+// newBackwardCompatSymlinksCommand creates a backward compatibility alias for the symlinks command
+func newBackwardCompatSymlinksCommand() *cobra.Command {
+	cmd := newSymlinksCommand()
+	cmd.Use = "symlinks"
+	cmd.Hidden = true // Hide from help, but still available for makefile
+	cmd.Short = "Manage entry point symlinks (moved to 'pvm self symlinks')"
+	cmd.Long = "This command has been moved to 'pvm self symlinks'. Please use that instead."
 	return cmd
 }

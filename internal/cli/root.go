@@ -4,10 +4,17 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"syscall"
+	"unsafe"
 
+	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/current"
@@ -153,8 +160,8 @@ func Execute(rootCmd *cobra.Command) {
 	// Enable command suggestions for typos
 	enableCommandSuggestions(rootCmd)
 
-	// Execute the command
-	if err := rootCmd.Execute(); err != nil {
+	// Use Fang Execute with pager support
+	if err := FangExecuteWithPager(context.Background(), rootCmd); err != nil {
 		// Check if it's an unknown command error and provide suggestions
 		if unknownCommandError, ok := err.(*UnknownCommandError); ok {
 			handleUnknownCommand(rootCmd, unknownCommandError)
@@ -259,6 +266,387 @@ func GetUI(cmd *cobra.Command) *ui.Output {
 		setupUI(cmd)
 	}
 	return globalUI
+}
+
+// FangExecuteWithPager wraps Fang's Execute function with pager support for help output
+func FangExecuteWithPager(ctx context.Context, rootCmd *cobra.Command) error {
+	// Get UI styles for Fang integration
+	ui := GetUI(rootCmd)
+	styles := ui.Styles()
+	
+	// Create Fang color scheme from UI styles
+	colorScheme := styles.FangColorScheme()
+	
+	// Check if we're showing help and should use pager
+	args := os.Args[1:]
+	if isHelpCommand(args) && shouldEnablePager() {
+		return executeWithPagerIfNeeded(ctx, rootCmd, colorScheme)
+	}
+	
+	// Use standard Fang execution
+	err := fang.Execute(ctx, rootCmd,
+		fang.WithTheme(colorScheme),
+		fang.WithVersion(version.GetVersion()),
+	)
+	
+	return err
+}
+
+// isHelpCommand checks if the command being executed is a help command
+func isHelpCommand(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	
+	// Check for help flags
+	for _, arg := range args {
+		if arg == "-h" || arg == "--help" {
+			return true
+		}
+	}
+	
+	// Check for help command
+	if args[0] == "help" {
+		return true
+	}
+	
+	return false
+}
+
+// shouldEnablePager checks if pager should be enabled based on environment and content size
+func shouldEnablePager() bool {
+	// Don't use pager if output is being redirected
+	if !isTerminal(os.Stdout) {
+		return false
+	}
+	
+	// Check if PAGER is explicitly disabled
+	if os.Getenv("PAGER") == "cat" || os.Getenv("NO_PAGER") != "" {
+		return false
+	}
+	
+	return true
+}
+
+// shouldEnablePagerForOutput checks if pager should be enabled based on content size vs terminal size
+func shouldEnablePagerForOutput(contentLines int) bool {
+	// Don't use pager if output is being redirected
+	if !isTerminal(os.Stdout) {
+		return false
+	}
+	
+	// Check if PAGER is explicitly disabled
+	if os.Getenv("PAGER") == "cat" || os.Getenv("NO_PAGER") != "" {
+		return false
+	}
+	
+	// Get terminal size
+	terminalHeight := getTerminalHeight()
+	if terminalHeight <= 0 {
+		// Can't determine terminal size, default to no pager for short content
+		return contentLines > 25 // Conservative fallback
+	}
+	
+	// Use pager if content would overflow terminal (leave some buffer for prompt)
+	return contentLines > (terminalHeight - 3)
+}
+
+// isTerminal checks if the given file is a terminal
+func isTerminal(f *os.File) bool {
+	fileInfo, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return (fileInfo.Mode() & os.ModeCharDevice) != 0
+}
+
+// getTerminalHeight returns the height of the terminal in rows
+func getTerminalHeight() int {
+	type winsize struct {
+		Row    uint16
+		Col    uint16
+		Xpixel uint16
+		Ypixel uint16
+	}
+	
+	ws := &winsize{}
+	retCode, _, errno := syscall.Syscall(syscall.SYS_IOCTL,
+		uintptr(syscall.Stdin),
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(ws)))
+	
+	if int(retCode) == -1 {
+		// Fall back to environment variable if syscall fails
+		return getTerminalHeightFromEnv()
+	}
+	
+	if errno != 0 {
+		return getTerminalHeightFromEnv()
+	}
+	
+	return int(ws.Row)
+}
+
+// getTerminalHeightFromEnv gets terminal height from environment variables
+func getTerminalHeightFromEnv() int {
+	if lines := os.Getenv("LINES"); lines != "" {
+		if h, err := strconv.Atoi(lines); err == nil && h > 0 {
+			return h
+		}
+	}
+	
+	// Try tput as last resort
+	if cmd := exec.Command("tput", "lines"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			if h, err := strconv.Atoi(strings.TrimSpace(string(output))); err == nil && h > 0 {
+				return h
+			}
+		}
+	}
+	
+	return 0 // Unknown terminal size
+}
+
+// executeWithPagerIfNeeded pre-renders output and uses pager only if content overflows terminal
+func executeWithPagerIfNeeded(ctx context.Context, rootCmd *cobra.Command, colorScheme fang.ColorScheme) error {
+	// First, capture the output to determine if we need a pager
+	tmpFile, err := os.CreateTemp("", "pvm-help-check-*")
+	if err != nil {
+		// Fall back to standard execution if temp file creation fails
+		return fang.Execute(ctx, rootCmd,
+			fang.WithTheme(colorScheme),
+			fang.WithVersion(version.GetVersion()),
+		)
+	}
+	defer os.Remove(tmpFile.Name())
+	
+	// Temporarily redirect stdout to temp file to capture output
+	originalStdout := os.Stdout
+	os.Stdout = tmpFile
+	
+	// Execute with Fang to capture the output
+	err = fang.Execute(ctx, rootCmd,
+		fang.WithTheme(colorScheme),
+		fang.WithVersion(version.GetVersion()),
+	)
+	
+	// Restore stdout
+	os.Stdout = originalStdout
+	tmpFile.Close()
+	
+	if err != nil {
+		return err
+	}
+	
+	// Read the captured output and count lines
+	content, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		return err
+	}
+	
+	lines := strings.Split(string(content), "\n")
+	lineCount := len(lines)
+	
+	// Decide whether to use pager based on content size vs terminal size
+	if shouldEnablePagerForOutput(lineCount) {
+		return executeWithPagerFromContent(ctx, string(content), colorScheme)
+	}
+	
+	// Content fits in terminal, output directly
+	fmt.Print(string(content))
+	return nil
+}
+
+// executeWithPagerFromContent pipes pre-rendered content through a pager
+func executeWithPagerFromContent(ctx context.Context, content string, colorScheme fang.ColorScheme) error {
+	// Get pager command
+	pagerCmd := getPagerCommand()
+	if pagerCmd == "" {
+		// No pager available, output content directly
+		fmt.Print(content)
+		return nil
+	}
+	
+	// Create pager process
+	pager := exec.CommandContext(ctx, "sh", "-c", pagerCmd)
+	pager.Stdout = os.Stdout
+	pager.Stderr = os.Stderr
+	
+	// Create pipe to pager
+	pagerInput, err := pager.StdinPipe()
+	if err != nil {
+		// Fall back to direct output if pager setup fails
+		fmt.Print(content)
+		return nil
+	}
+	
+	// Start pager
+	if err := pager.Start(); err != nil {
+		pagerInput.Close()
+		// Fall back to direct output
+		fmt.Print(content)
+		return nil
+	}
+	
+	// Send content to pager
+	_, err = pagerInput.Write([]byte(content))
+	pagerInput.Close()
+	
+	// Wait for pager to finish
+	pagerErr := pager.Wait()
+	if pagerErr != nil {
+		// If pager failed but we already sent content, that's ok
+		// This handles cases where user exits pager early (SIGPIPE)
+	}
+	
+	return err
+}
+
+// executeWithPager executes the command and pipes help output through a pager
+func executeWithPager(ctx context.Context, rootCmd *cobra.Command, colorScheme fang.ColorScheme) error {
+	// Get pager command
+	pagerCmd := getPagerCommand()
+	if pagerCmd == "" {
+		// No pager available, use standard execution
+		return fang.Execute(ctx, rootCmd,
+			fang.WithTheme(colorScheme),
+			fang.WithVersion(version.ComponentVersion(rootCmd.Use)),
+		)
+	}
+	
+	// Create pager process
+	pager := exec.CommandContext(ctx, "sh", "-c", pagerCmd)
+	pager.Stdout = os.Stdout
+	pager.Stderr = os.Stderr
+	
+	// Create pipe to pager
+	pagerInput, err := pager.StdinPipe()
+	if err != nil {
+		// Fall back to standard execution if pager setup fails
+		return fang.Execute(ctx, rootCmd,
+			fang.WithTheme(colorScheme),
+			fang.WithVersion(version.ComponentVersion(rootCmd.Use)),
+		)
+	}
+	
+	// Start pager
+	if err := pager.Start(); err != nil {
+		pagerInput.Close()
+		// Fall back to standard execution
+		return fang.Execute(ctx, rootCmd,
+			fang.WithTheme(colorScheme),
+			fang.WithVersion(version.ComponentVersion(rootCmd.Use)),
+		)
+	}
+	
+	// Create a temporary file to capture stdout
+	tmpFile, err := os.CreateTemp("", "pvm-help-*")
+	if err != nil {
+		pagerInput.Close()
+		return fang.Execute(ctx, rootCmd,
+			fang.WithTheme(colorScheme),
+			fang.WithVersion(version.GetVersion()),
+		)
+	}
+	defer os.Remove(tmpFile.Name())
+	
+	// Temporarily redirect stdout to temp file
+	originalStdout := os.Stdout
+	os.Stdout = tmpFile
+	
+	// Execute with Fang
+	err = fang.Execute(context.WithValue(ctx, "pager", true), rootCmd,
+		fang.WithTheme(colorScheme),
+		fang.WithVersion(version.GetVersion()),
+	)
+	
+	// Restore stdout
+	os.Stdout = originalStdout
+	tmpFile.Close()
+	
+	// Copy temp file content to pager if command executed successfully
+	if err == nil {
+		tmpFile, readErr := os.Open(tmpFile.Name())
+		if readErr == nil {
+			_, copyErr := io.Copy(pagerInput, tmpFile)
+			tmpFile.Close()
+			if copyErr != nil {
+				// If copy failed, fall back to standard output
+				pagerInput.Close()
+				pager.Wait()
+				return fang.Execute(ctx, rootCmd,
+					fang.WithTheme(colorScheme),
+					fang.WithVersion(version.GetVersion()),
+				)
+			}
+		}
+	}
+	
+	pagerInput.Close()
+	
+	// Wait for pager to finish
+	pagerErr := pager.Wait()
+	if pagerErr != nil && err == nil {
+		// If command succeeded but pager failed, don't treat it as an error
+		// This handles cases where user exits pager early (SIGPIPE)
+	}
+	
+	return err
+}
+
+// getPagerCommand returns the pager command to use
+func getPagerCommand() string {
+	// Check PAGER environment variable first
+	if pager := os.Getenv("PAGER"); pager != "" && pager != "cat" {
+		return pager
+	}
+	
+	// Try common pagers in order of preference
+	pagers := []string{"less -R", "more", "cat"}
+	
+	for _, pager := range pagers {
+		// Extract command name (first word) to check if it exists
+		cmdName := pager
+		if idx := strings.IndexByte(pager, ' '); idx != -1 {
+			cmdName = pager[:idx]
+		}
+		
+		if _, err := exec.LookPath(cmdName); err == nil {
+			return pager
+		}
+	}
+	
+	return ""
+}
+
+// PrintWithPager outputs content using pager if it would overflow terminal
+func PrintWithPager(content string) {
+	lines := strings.Split(content, "\n")
+	lineCount := len(lines)
+	
+	
+	if shouldEnablePagerForOutput(lineCount) {
+		// Use pager for long content
+		pagerCmd := getPagerCommand()
+		if pagerCmd != "" {
+			pager := exec.Command("sh", "-c", pagerCmd)
+			pager.Stdout = os.Stdout
+			pager.Stderr = os.Stderr
+			
+			pagerInput, err := pager.StdinPipe()
+			if err == nil {
+				if pager.Start() == nil {
+					pagerInput.Write([]byte(content))
+					pagerInput.Close()
+					pager.Wait()
+					return
+				}
+			}
+		}
+	}
+	
+	// Fall back to direct output
+	fmt.Print(content)
 }
 
 // showCurrentPerlVersion displays the currently active Perl version (legacy function)
