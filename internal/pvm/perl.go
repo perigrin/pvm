@@ -9,8 +9,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
@@ -30,9 +33,14 @@ func newPerlCommand() *cobra.Command {
 	// Add subcommands
 	cmd.AddCommand(
 		newPerlSystemCommand(),
-		newPerlImportSystemCommand(),
 		newPerlBuildCommand(),
 		newPerlTarballCommand(),
+		newPerlExecCommand(),
+		newPerlDownloadCommand(),
+		newPerlInstallCommand(),
+		newPerlUploadCommand(),
+		newPerlGlobalCommand(),
+		newPerlResolveCommand(), // Moved from main commands
 	)
 
 	return cmd
@@ -75,48 +83,6 @@ func newPerlSystemCommand() *cobra.Command {
 	}
 }
 
-// newPerlImportSystemCommand creates a command for importing system Perl
-func newPerlImportSystemCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "import-system",
-		Short: "Import system Perl",
-		Long:  "Register the system Perl in PVM's version registry",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ui := cli.GetUI(cmd)
-
-			// Detect system Perl
-			systemPerl, err := perl.DetectSystemPerl()
-			if err != nil {
-				return err
-			}
-
-			ui.Info("Detected system Perl %s at %s", systemPerl.Version, systemPerl.Path)
-
-			// Check if this version is already registered
-			installed, err := perl.IsVersionInstalled(systemPerl.Version)
-			if err != nil {
-				return err
-			}
-
-			if installed {
-				ui.Warning("System Perl %s is already registered with PVM.", systemPerl.Version)
-				return nil
-			}
-
-			// Import the system Perl
-			ui.Status("Importing system Perl into PVM registry...")
-			err = perl.ImportSystemPerl()
-			if err != nil {
-				return err
-			}
-
-			ui.Success("Successfully imported system Perl %s.", systemPerl.Version)
-			ui.Info("You can now use this version with PVM commands.")
-
-			return nil
-		},
-	}
-}
 
 // newPerlBuildCommand creates a command to build Perl from source
 func newPerlBuildCommand() *cobra.Command {
@@ -356,4 +322,168 @@ func createEnhancedTarGzArchive(sourceDir, outputPath string, compressionLevel i
 
 	ui.Status("Successfully archived files")
 	return nil
+}
+
+// newPerlExecCommand creates a command to execute commands with specific Perl versions
+func newPerlExecCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "exec [version] [command]",
+		Short: "Execute a command with a specific version",
+		Long:  "Execute a command using a specific Perl version",
+		Run: func(cmd *cobra.Command, args []string) {
+			ui := cli.GetUI(cmd)
+			if len(args) < 1 {
+				ui.Error("Usage: pvm perl exec [version] [command]")
+				return
+			}
+
+			var version string
+			var command []string
+
+			if len(args) == 1 {
+				// Only command provided, use current version
+				command = args
+			} else {
+				// Check if first arg looks like a version or a command
+				firstArg := args[0]
+				if isLikelyVersion(firstArg) {
+					// First arg is a version
+					version = firstArg
+					command = args[1:]
+				} else {
+					// First arg is probably a command, use current version
+					command = args
+				}
+			}
+
+			err := execCommand(cmd, version, command)
+			if err != nil {
+				ui.Error("Error: %v", err)
+				os.Exit(1)
+			}
+		},
+	}
+}
+
+// isLikelyVersion checks if a string looks like a Perl version
+func isLikelyVersion(arg string) bool {
+	// Check for common version patterns
+	// 5.38.0, 5.40.1, etc.
+	if matched, _ := filepath.Match("[0-9]*.[0-9]*", arg); matched {
+		return true
+	}
+	// Handle version aliases like @latest, @stable
+	if strings.HasPrefix(arg, "@") {
+		return true
+	}
+	// Handle special identifiers
+	if arg == "system" || arg == "latest" {
+		return true
+	}
+	// Common commands that are definitely NOT versions
+	commonCommands := []string{"perl", "cpan", "prove", "perldoc", "cpanm"}
+	for _, cmd := range commonCommands {
+		if arg == cmd {
+			return false
+		}
+	}
+	return false
+}
+
+// execCommand executes a command with the specified Perl version
+func execCommand(cmd *cobra.Command, version string, command []string) error {
+	// Resolve the version to get the Perl path
+	options := &perl.ResolutionOptions{
+		ExplicitVersion: version,
+	}
+
+	resolved, err := perl.ResolveVersion(options)
+	if err != nil {
+		return fmt.Errorf("failed to resolve Perl version %s: %w", version, err)
+	}
+
+	// Check if the resolved version has a path
+	if resolved.Path == "" {
+		return fmt.Errorf("no path found for Perl version %s", resolved.Version)
+	}
+
+	// Check if the Perl binary exists
+	if _, err := os.Stat(resolved.Path); os.IsNotExist(err) {
+		return fmt.Errorf("perl version %s not found at %s", resolved.Version, resolved.Path)
+	}
+
+	// Create a new environment with the Perl bin directory in PATH
+	env := os.Environ()
+	perlBinDir := strings.TrimSuffix(resolved.Path, "/perl")
+	if perlBinDir == resolved.Path {
+		// Handle case where path doesn't end with /perl
+		perlBinDir = resolved.Path[:strings.LastIndex(resolved.Path, "/")]
+	}
+
+	// Update PATH to include the Perl bin directory at the beginning
+	for i, envVar := range env {
+		if strings.HasPrefix(envVar, "PATH=") {
+			currentPath := envVar[5:] // Remove "PATH=" prefix
+			env[i] = fmt.Sprintf("PATH=%s:%s", perlBinDir, currentPath)
+			break
+		}
+	}
+
+	// Create the command to execute
+	// If the first argument is "perl", replace it with the resolved Perl path
+	if command[0] == "perl" {
+		command[0] = resolved.Path
+	}
+
+	execCmd := exec.Command(command[0], command[1:]...)
+	execCmd.Env = env
+	execCmd.Stdin = os.Stdin
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
+
+	err = execCmd.Run()
+	if err != nil {
+		// Check if it's an exit error to get the exit code
+		if exitError, ok := err.(*exec.ExitError); ok {
+			if status, ok := exitError.Sys().(syscall.WaitStatus); ok {
+				os.Exit(status.ExitStatus())
+			}
+		}
+		return fmt.Errorf("command execution failed: %w", err)
+	}
+
+	return nil
+}
+
+// newPerlDownloadCommand creates a perl download command (wraps main download command)
+func newPerlDownloadCommand() *cobra.Command {
+	return newDownloadCommand()
+}
+
+// newPerlInstallCommand creates a perl install command (wraps main install-perl command)
+func newPerlInstallCommand() *cobra.Command {
+	cmd := newInstallPerlCommand()
+	cmd.Use = "install [build-dir]"
+	return cmd
+}
+
+// newPerlUploadCommand creates a perl upload command (wraps main upload-binary command)
+func newPerlUploadCommand() *cobra.Command {
+	cmd := newUploadBinaryCommand()
+	cmd.Use = "upload [archive-path]"
+	return cmd
+}
+
+// newPerlGlobalCommand creates a perl global command (wraps main global command)
+func newPerlGlobalCommand() *cobra.Command {
+	cmd := newGlobalCommand()
+	cmd.Use = "global [version]"
+	return cmd
+}
+
+// newPerlResolveCommand creates a perl resolve command (wraps main resolve command)
+func newPerlResolveCommand() *cobra.Command {
+	cmd := newResolveCommand()
+	cmd.Use = "resolve [version]"
+	return cmd
 }

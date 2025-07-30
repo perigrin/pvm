@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"sort"
@@ -646,8 +647,8 @@ func (h *HelpManager) ListDocuments() error {
 // CreateHelpCommand creates the enhanced help command
 func CreateHelpCommand() *cobra.Command {
 	helpCmd := &cobra.Command{
-		Use:   "help [topic]",
-		Short: "Context-aware help and command suggestions",
+		Use:   "guide [topic]",
+		Short: "Development workflows and guidance",
 		Long: `Enhanced help system that provides context-aware suggestions and workflow guidance.
 
 Available topics:
@@ -698,9 +699,61 @@ Without a topic, shows contextual help based on your current project state.`,
 	return helpCmd
 }
 
+// ShowContextualHelpWithPager captures help output and uses smart paging
+func ShowContextualHelpWithPager(cmd *cobra.Command, helpManager *HelpManager) error {
+	// Check if we can use pager before capturing output  
+	canUsePager := isTerminal(os.Stdout) && os.Getenv("PAGER") != "cat" && os.Getenv("NO_PAGER") == ""
+	
+	if !canUsePager {
+		// Just use regular help output if pager is not available
+		return showContextualHelp(cmd, helpManager)
+	}
+	
+	// Capture the output in a buffer
+	var buf bytes.Buffer
+	
+	// Create a UI that writes to our buffer
+	ctx := &ui.UIContext{
+		Writer:      &buf,
+		ErrorWriter: os.Stderr, // Keep errors going to stderr
+		ColorMode:   ui.ColorAuto,
+		Quiet:       false, // Don't suppress output when capturing
+		Verbose:     false,
+		Interactive: true,
+	}
+	bufferUI := ui.NewOutput(ctx)
+	
+	// Generate help content to buffer
+	err := generateContextualHelp(cmd, bufferUI, helpManager)
+	if err != nil {
+		return err
+	}
+	
+	// Count lines and decide on pager
+	content := buf.String()
+	lines := strings.Split(content, "\n")
+	lineCount := len(lines)
+	terminalHeight := getTerminalHeight()
+	
+	if terminalHeight > 0 && lineCount > (terminalHeight-3) {
+		// Use pager for long content  
+		PrintWithPager(content)
+		return nil
+	}
+	
+	// Content fits in terminal, output directly
+	fmt.Print(content)
+	return nil
+}
+
 // showContextualHelp displays help content based on current context
 func showContextualHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 	ui := GetUI(cmd)
+	return generateContextualHelp(cmd, ui, helpManager)
+}
+
+// generateContextualHelp generates the help content using the provided UI
+func generateContextualHelp(cmd *cobra.Command, ui *ui.Output, helpManager *HelpManager) error {
 	categories := helpManager.GetContextualHelp()
 
 	// Show project context
