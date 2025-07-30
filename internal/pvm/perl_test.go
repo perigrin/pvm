@@ -31,7 +31,7 @@ func TestNewPerlCommand(t *testing.T) {
 		subCmdNames = append(subCmdNames, subCmd.Name())
 	}
 
-	expectedSubCmds := []string{"system", "import-system", "build", "tarball"}
+	expectedSubCmds := []string{"system", "build", "tarball"}
 	for _, expected := range expectedSubCmds {
 		found := false
 		for _, actual := range subCmdNames {

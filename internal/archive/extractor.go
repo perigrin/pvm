@@ -258,7 +258,7 @@ func (e *BinaryExtractor) findMainExecutable(extractedFiles []string, platform s
 		}
 
 		fileName := filepath.Base(file)
-		
+
 		// Check if this matches expected executable name
 		for _, expected := range expectedNames {
 			if fileName == expected {

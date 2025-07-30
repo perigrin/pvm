@@ -14,6 +14,17 @@ import (
 	basetesting "tamarou.com/pvm/internal/testing"
 )
 
+// testCompilerOptions returns default compiler options with a fixed version for tests
+func testCompilerOptions() *CompilerOptions {
+	return &CompilerOptions{
+		PreserveComments:   true,
+		PreserveFormatting: true,
+		StrictMode:         false,
+		PerlVersion:        "5.42.0",
+		CustomPatterns:     nil,
+	}
+}
+
 // TestPSCCommandsIntegration tests all PSC commands with unified compiler
 func TestPSCCommandsIntegration(t *testing.T) {
 	// Test cases for different PSC command scenarios
@@ -70,7 +81,7 @@ my Maybe[Object] $optional = undef;`,
 			}
 
 			// Compile using registry
-			result, err := registry.Compile(cstAST, tc.target)
+			result, err := registry.CompileWithOptions(cstAST, tc.target, testCompilerOptions())
 
 			if tc.expectError {
 				if err == nil {
@@ -128,7 +139,7 @@ func TestParserIntegration(t *testing.T) {
 			}
 
 			// Compile with unified compiler
-			result, err := registry.Compile(ast, TargetCleanPerl)
+			result, err := registry.CompileWithOptions(ast, TargetCleanPerl, testCompilerOptions())
 			if err != nil {
 				t.Fatalf("Compilation failed: %v", err)
 			}
@@ -195,6 +206,7 @@ my Str $another_typed = "test";`,
 	}
 
 	compiler := NewCleanPerlCompilerUnified()
+	compiler.SetOptions(*testCompilerOptions())
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -234,6 +246,7 @@ func TestBackwardCompatibility(t *testing.T) {
 
 		// Should work with unified compiler
 		compiler := NewCleanPerlCompilerUnified()
+		compiler.SetOptions(*testCompilerOptions())
 		result, err := compiler.Compile(cstAST)
 		if err != nil {
 			t.Fatalf("Compilation failed: %v", err)
@@ -459,12 +472,12 @@ method Void set(Str $key, Union[Str, Int, Bool] $value) {
 				t.Fatalf("Failed to create CST AST: %v", err)
 			}
 
-			cleanResult, err := registry.Compile(cstAST, TargetCleanPerl)
+			cleanResult, err := registry.CompileWithOptions(cstAST, TargetCleanPerl, testCompilerOptions())
 			if err != nil {
 				t.Fatalf("Clean Perl compilation failed: %v", err)
 			}
 
-			typedResult, err := registry.Compile(cstAST, TargetTypedPerl)
+			typedResult, err := registry.CompileWithOptions(cstAST, TargetTypedPerl, testCompilerOptions())
 			if err != nil {
 				t.Fatalf("Typed Perl compilation failed: %v", err)
 			}

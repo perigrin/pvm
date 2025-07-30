@@ -508,7 +508,7 @@ func TestUpdateWithArchiveExtraction_Integration(t *testing.T) {
 		// Test archive extraction
 		extractor := archive.NewBinaryExtractor()
 		platform := detectCurrentPlatform()
-		
+
 		extractedPath, err := extractor.ExtractExecutable(archivePath, platform)
 		if err != nil {
 			t.Fatalf("Failed to extract binary from archive: %v", err)
@@ -554,7 +554,7 @@ func TestUpdateValidationFailure_Integration(t *testing.T) {
 		if err == nil {
 			t.Error("Expected validation to fail for archive without executable")
 		}
-		
+
 		if err != nil && !containsAny(err.Error(), []string{"no executable found", "finding executable"}) {
 			t.Errorf("Expected 'no executable found' error, got: %v", err)
 		}
@@ -566,7 +566,7 @@ func TestUpdateValidationFailure_Integration(t *testing.T) {
 func createMockPVMArchive(t *testing.T) string {
 	// Create a mock binary content
 	binaryContent := createMockBinaryContent()
-	
+
 	// Determine filename based on platform
 	var filename string
 	if runtime.GOOS == "windows" {
@@ -684,8 +684,8 @@ func createArchiveWithoutExecutable(t *testing.T) string {
 
 	// Add non-executable files
 	files := map[string]string{
-		"README.txt": "This is a readme file",
-		"config.yml": "configuration: test",
+		"README.txt":   "This is a readme file",
+		"config.yml":   "configuration: test",
 		"docs/help.md": "# Help Documentation",
 	}
 
@@ -713,7 +713,7 @@ func createArchiveWithoutExecutable(t *testing.T) string {
 func detectCurrentPlatform() string {
 	os := runtime.GOOS
 	arch := runtime.GOARCH
-	
+
 	// Convert Go arch names to our naming convention
 	switch arch {
 	case "amd64":
@@ -725,7 +725,7 @@ func detectCurrentPlatform() string {
 	default:
 		arch = "unknown"
 	}
-	
+
 	return fmt.Sprintf("%s-%s", os, arch)
 }
 

@@ -20,35 +20,35 @@ import (
 // Binary validation constants
 const (
 	// Size limits for executable validation
-	MinExecutableSize = 1024        // 1KB minimum
+	MinExecutableSize = 1024              // 1KB minimum
 	MaxExecutableSize = 100 * 1024 * 1024 // 100MB maximum
-	MinBinarySize     = 2048        // 2KB minimum for real binaries
-	
+	MinBinarySize     = 2048              // 2KB minimum for real binaries
+
 	// File permissions
 	DefaultFilePermissions = 0755
-	
+
 	// Timeouts
 	DefaultVersionTimeout   = 10 * time.Second
 	DefaultExecutionTimeout = 5 * time.Second
-	
+
 	// Binary format magic numbers
 	// ELF magic bytes
 	ELFMagic0 = 0x7f
 	ELFMagic1 = 'E'
-	ELFMagic2 = 'L' 
+	ELFMagic2 = 'L'
 	ELFMagic3 = 'F'
-	
+
 	// Mach-O magic numbers
 	MachOMagic32      = 0xfeedface // 32-bit Mach-O
 	MachOMagic64      = 0xfeedfacf // 64-bit Mach-O
 	MachOFatMagic     = 0xcafebabe // Fat binary
 	MachOFatMagicSwap = 0xcffaedfe // Fat binary (swapped)
 	MachOMagic64Swap  = 0xcefaedfe // 64-bit Mach-O (swapped)
-	
+
 	// PE magic bytes
 	PEMagic0 = 'M'
 	PEMagic1 = 'Z'
-	
+
 	// Shell script magic bytes
 	ShellMagic0 = '#'
 	ShellMagic1 = '!'
@@ -95,14 +95,14 @@ func isValidSHA256(checksum string) bool {
 	if len(checksum) != 64 {
 		return false
 	}
-	
+
 	// Check that all characters are valid hex
 	for _, c := range checksum {
 		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -309,12 +309,12 @@ func ValidateDownloadedBinaryWithVersion(filePath, expectedChecksum, expectedVer
 		// Extract binary from archive
 		extractor := archive.NewBinaryExtractor()
 		platform := detectPlatform()
-		
+
 		extractedPath, err := extractor.ExtractExecutable(filePath, platform)
 		if err != nil {
 			return fmt.Errorf("archive extraction failed: %w", err)
 		}
-		
+
 		binaryPath = extractedPath
 		cleanup = func() error { return extractor.Cleanup(extractedPath) }
 	} else {
@@ -361,7 +361,7 @@ func isArchive(filePath string) bool {
 func detectPlatform() string {
 	os := runtime.GOOS
 	arch := runtime.GOARCH
-	
+
 	// Convert Go arch names to our naming convention
 	switch arch {
 	case "amd64":
@@ -373,7 +373,7 @@ func detectPlatform() string {
 	default:
 		arch = "unknown"
 	}
-	
+
 	return fmt.Sprintf("%s-%s", os, arch)
 }
 
@@ -384,7 +384,7 @@ func validateExecutableVersion(binaryPath, expectedVersion string) error {
 	// 1. Checksum validation (if provided)
 	// 2. Download source validation (GitHub releases)
 	// 3. Binary format validation
-	
+
 	// Skip version validation during binary validation for security
 	// Version verification should happen at the download/source level
 	return nil
@@ -394,27 +394,27 @@ func validateExecutableVersion(binaryPath, expectedVersion string) error {
 func validateExecutableCanRun(binaryPath string) error {
 	// For security reasons, we don't execute untrusted binaries during validation
 	// Instead, we perform static checks:
-	
+
 	// 1. Verify the binary has executable permissions
 	info, err := os.Stat(binaryPath)
 	if err != nil {
 		return fmt.Errorf("cannot access binary: %w", err)
 	}
-	
+
 	// Check if file is executable (on Unix-like systems)
 	if runtime.GOOS != "windows" && info.Mode()&0111 == 0 {
 		return fmt.Errorf("binary is not executable")
 	}
-	
+
 	// 2. Verify minimum size (should be a real binary, not empty file)
 	if info.Size() < MinBinarySize {
 		return fmt.Errorf("binary too small to be valid: %d bytes (minimum %d)", info.Size(), MinBinarySize)
 	}
-	
+
 	// Additional static checks could be added here:
 	// - ELF/PE/Mach-O header validation
 	// - Digital signature verification
 	// - Known binary hash verification
-	
+
 	return nil
 }

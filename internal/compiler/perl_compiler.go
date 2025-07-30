@@ -274,6 +274,11 @@ func (c *PerlCompiler) hasSignatureFeatures(code string) bool {
 
 // getCurrentVersionPragma returns the version pragma for the current PVM version
 func (c *PerlCompiler) getCurrentVersionPragma() string {
+	// If version is explicitly set in options, use it
+	if c.options.PerlVersion != "" {
+		return fmt.Sprintf("use v%s;", c.options.PerlVersion)
+	}
+
 	// Try to get current version from PVM
 	currentInfo, err := current.GetCurrentVersion()
 	if err == nil && currentInfo.IsAvailable {
@@ -287,7 +292,7 @@ func (c *PerlCompiler) getCurrentVersionPragma() string {
 	}
 
 	// Fallback 2: Use sensible default (match PVM defaults)
-	return "use v5.40.2;"
+	return "use v5.42.0;"
 }
 
 // CreateUnifiedCompilerForTarget creates a unified compiler for any supported target

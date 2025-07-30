@@ -115,7 +115,7 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 
 	// Check if registry file exists
 	if _, err := os.Stat(registryPath); os.IsNotExist(err) {
-		// Check if versions directory exists with installations  
+		// Check if versions directory exists with installations
 		if entries, err := os.ReadDir(versionsDir); err == nil && len(entries) > 0 {
 			*issues = append(*issues, "Registry missing but versions directory contains installations")
 			ui.Error("Registry file missing: %s", registryPath)
@@ -154,7 +154,7 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 	if entries, err := os.ReadDir(versionsDir); err == nil {
 		filesystemVersions := []string{}
 		missingFromRegistry := []string{}
-		
+
 		for _, entry := range entries {
 			if entry.IsDir() || entry.Type() == os.ModeSymlink {
 				// Validate it's a real Perl installation
@@ -179,7 +179,7 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 		orphanedInRegistry := []string{}
 		for version, versionInfo := range registry.Versions {
 			found := false
-			
+
 			// Special handling for system version - check the actual install path
 			if version == "system" {
 				perlBinary := filepath.Join(versionInfo.InstallPath, "perl")
@@ -195,7 +195,7 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 					}
 				}
 			}
-			
+
 			if !found {
 				orphanedInRegistry = append(orphanedInRegistry, version)
 				*warnings = append(*warnings, fmt.Sprintf("Version %s in registry but not on filesystem", version))
@@ -240,8 +240,8 @@ func checkFilesystemLocations(ui *ui.Output, issues *[]string, warnings *[]strin
 	// Check if directories exist and show their status
 	locations := map[string]string{
 		"Data directory": dirs.DataDir,
-		"Versions": filepath.Join(dirs.DataDir, "versions"),
-		"XDG_BIN_HOME": xdgBinHome,
+		"Versions":       filepath.Join(dirs.DataDir, "versions"),
+		"XDG_BIN_HOME":   xdgBinHome,
 	}
 
 	allExist := true
@@ -280,7 +280,7 @@ Make sure your shell configuration file contains:
   eval "$(pvm init)"
 
 Add this line to:
-  - Bash: ~/.bashrc or ~/.bash_profile  
+  - Bash: ~/.bashrc or ~/.bash_profile
   - Zsh: ~/.zshrc
   - Fish: ~/.config/fish/config.fish
 

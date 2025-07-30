@@ -701,17 +701,17 @@ Without a topic, shows contextual help based on your current project state.`,
 
 // ShowContextualHelpWithPager captures help output and uses smart paging
 func ShowContextualHelpWithPager(cmd *cobra.Command, helpManager *HelpManager) error {
-	// Check if we can use pager before capturing output  
+	// Check if we can use pager before capturing output
 	canUsePager := isTerminal(os.Stdout) && os.Getenv("PAGER") != "cat" && os.Getenv("NO_PAGER") == ""
-	
+
 	if !canUsePager {
 		// Just use regular help output if pager is not available
 		return showContextualHelp(cmd, helpManager)
 	}
-	
+
 	// Capture the output in a buffer
 	var buf bytes.Buffer
-	
+
 	// Create a UI that writes to our buffer
 	ctx := &ui.UIContext{
 		Writer:      &buf,
@@ -722,25 +722,25 @@ func ShowContextualHelpWithPager(cmd *cobra.Command, helpManager *HelpManager) e
 		Interactive: true,
 	}
 	bufferUI := ui.NewOutput(ctx)
-	
+
 	// Generate help content to buffer
 	err := generateContextualHelp(cmd, bufferUI, helpManager)
 	if err != nil {
 		return err
 	}
-	
+
 	// Count lines and decide on pager
 	content := buf.String()
 	lines := strings.Split(content, "\n")
 	lineCount := len(lines)
 	terminalHeight := getTerminalHeight()
-	
+
 	if terminalHeight > 0 && lineCount > (terminalHeight-3) {
-		// Use pager for long content  
+		// Use pager for long content
 		PrintWithPager(content)
 		return nil
 	}
-	
+
 	// Content fits in terminal, output directly
 	fmt.Print(content)
 	return nil

@@ -273,22 +273,22 @@ func FangExecuteWithPager(ctx context.Context, rootCmd *cobra.Command) error {
 	// Get UI styles for Fang integration
 	ui := GetUI(rootCmd)
 	styles := ui.Styles()
-	
+
 	// Create Fang color scheme from UI styles
 	colorScheme := styles.FangColorScheme()
-	
+
 	// Check if we're showing help and should use pager
 	args := os.Args[1:]
 	if isHelpCommand(args) && shouldEnablePager() {
 		return executeWithPagerIfNeeded(ctx, rootCmd, colorScheme)
 	}
-	
+
 	// Use standard Fang execution
 	err := fang.Execute(ctx, rootCmd,
 		fang.WithTheme(colorScheme),
 		fang.WithVersion(version.GetVersion()),
 	)
-	
+
 	return err
 }
 
@@ -297,19 +297,19 @@ func isHelpCommand(args []string) bool {
 	if len(args) == 0 {
 		return false
 	}
-	
+
 	// Check for help flags
 	for _, arg := range args {
 		if arg == "-h" || arg == "--help" {
 			return true
 		}
 	}
-	
+
 	// Check for help command
 	if args[0] == "help" {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -319,12 +319,12 @@ func shouldEnablePager() bool {
 	if !isTerminal(os.Stdout) {
 		return false
 	}
-	
+
 	// Check if PAGER is explicitly disabled
 	if os.Getenv("PAGER") == "cat" || os.Getenv("NO_PAGER") != "" {
 		return false
 	}
-	
+
 	return true
 }
 
@@ -334,19 +334,19 @@ func shouldEnablePagerForOutput(contentLines int) bool {
 	if !isTerminal(os.Stdout) {
 		return false
 	}
-	
+
 	// Check if PAGER is explicitly disabled
 	if os.Getenv("PAGER") == "cat" || os.Getenv("NO_PAGER") != "" {
 		return false
 	}
-	
+
 	// Get terminal size
 	terminalHeight := getTerminalHeight()
 	if terminalHeight <= 0 {
 		// Can't determine terminal size, default to no pager for short content
 		return contentLines > 25 // Conservative fallback
 	}
-	
+
 	// Use pager if content would overflow terminal (leave some buffer for prompt)
 	return contentLines > (terminalHeight - 3)
 }
@@ -368,22 +368,22 @@ func getTerminalHeight() int {
 		Xpixel uint16
 		Ypixel uint16
 	}
-	
+
 	ws := &winsize{}
 	retCode, _, errno := syscall.Syscall(syscall.SYS_IOCTL,
 		uintptr(syscall.Stdin),
 		uintptr(syscall.TIOCGWINSZ),
 		uintptr(unsafe.Pointer(ws)))
-	
+
 	if int(retCode) == -1 {
 		// Fall back to environment variable if syscall fails
 		return getTerminalHeightFromEnv()
 	}
-	
+
 	if errno != 0 {
 		return getTerminalHeightFromEnv()
 	}
-	
+
 	return int(ws.Row)
 }
 
@@ -394,7 +394,7 @@ func getTerminalHeightFromEnv() int {
 			return h
 		}
 	}
-	
+
 	// Try tput as last resort
 	if cmd := exec.Command("tput", "lines"); cmd != nil {
 		if output, err := cmd.Output(); err == nil {
@@ -403,7 +403,7 @@ func getTerminalHeightFromEnv() int {
 			}
 		}
 	}
-	
+
 	return 0 // Unknown terminal size
 }
 
@@ -419,39 +419,39 @@ func executeWithPagerIfNeeded(ctx context.Context, rootCmd *cobra.Command, color
 		)
 	}
 	defer os.Remove(tmpFile.Name())
-	
+
 	// Temporarily redirect stdout to temp file to capture output
 	originalStdout := os.Stdout
 	os.Stdout = tmpFile
-	
+
 	// Execute with Fang to capture the output
 	err = fang.Execute(ctx, rootCmd,
 		fang.WithTheme(colorScheme),
 		fang.WithVersion(version.GetVersion()),
 	)
-	
+
 	// Restore stdout
 	os.Stdout = originalStdout
 	tmpFile.Close()
-	
+
 	if err != nil {
 		return err
 	}
-	
+
 	// Read the captured output and count lines
 	content, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
 		return err
 	}
-	
+
 	lines := strings.Split(string(content), "\n")
 	lineCount := len(lines)
-	
+
 	// Decide whether to use pager based on content size vs terminal size
 	if shouldEnablePagerForOutput(lineCount) {
 		return executeWithPagerFromContent(ctx, string(content), colorScheme)
 	}
-	
+
 	// Content fits in terminal, output directly
 	fmt.Print(string(content))
 	return nil
@@ -466,12 +466,12 @@ func executeWithPagerFromContent(ctx context.Context, content string, colorSchem
 		fmt.Print(content)
 		return nil
 	}
-	
+
 	// Create pager process
 	pager := exec.CommandContext(ctx, "sh", "-c", pagerCmd)
 	pager.Stdout = os.Stdout
 	pager.Stderr = os.Stderr
-	
+
 	// Create pipe to pager
 	pagerInput, err := pager.StdinPipe()
 	if err != nil {
@@ -479,7 +479,7 @@ func executeWithPagerFromContent(ctx context.Context, content string, colorSchem
 		fmt.Print(content)
 		return nil
 	}
-	
+
 	// Start pager
 	if err := pager.Start(); err != nil {
 		pagerInput.Close()
@@ -487,18 +487,18 @@ func executeWithPagerFromContent(ctx context.Context, content string, colorSchem
 		fmt.Print(content)
 		return nil
 	}
-	
+
 	// Send content to pager
 	_, err = pagerInput.Write([]byte(content))
 	pagerInput.Close()
-	
+
 	// Wait for pager to finish
 	pagerErr := pager.Wait()
 	if pagerErr != nil {
 		// If pager failed but we already sent content, that's ok
 		// This handles cases where user exits pager early (SIGPIPE)
 	}
-	
+
 	return err
 }
 
@@ -513,12 +513,12 @@ func executeWithPager(ctx context.Context, rootCmd *cobra.Command, colorScheme f
 			fang.WithVersion(version.ComponentVersion(rootCmd.Use)),
 		)
 	}
-	
+
 	// Create pager process
 	pager := exec.CommandContext(ctx, "sh", "-c", pagerCmd)
 	pager.Stdout = os.Stdout
 	pager.Stderr = os.Stderr
-	
+
 	// Create pipe to pager
 	pagerInput, err := pager.StdinPipe()
 	if err != nil {
@@ -528,7 +528,7 @@ func executeWithPager(ctx context.Context, rootCmd *cobra.Command, colorScheme f
 			fang.WithVersion(version.ComponentVersion(rootCmd.Use)),
 		)
 	}
-	
+
 	// Start pager
 	if err := pager.Start(); err != nil {
 		pagerInput.Close()
@@ -538,7 +538,7 @@ func executeWithPager(ctx context.Context, rootCmd *cobra.Command, colorScheme f
 			fang.WithVersion(version.ComponentVersion(rootCmd.Use)),
 		)
 	}
-	
+
 	// Create a temporary file to capture stdout
 	tmpFile, err := os.CreateTemp("", "pvm-help-*")
 	if err != nil {
@@ -549,21 +549,21 @@ func executeWithPager(ctx context.Context, rootCmd *cobra.Command, colorScheme f
 		)
 	}
 	defer os.Remove(tmpFile.Name())
-	
+
 	// Temporarily redirect stdout to temp file
 	originalStdout := os.Stdout
 	os.Stdout = tmpFile
-	
+
 	// Execute with Fang
 	err = fang.Execute(context.WithValue(ctx, "pager", true), rootCmd,
 		fang.WithTheme(colorScheme),
 		fang.WithVersion(version.GetVersion()),
 	)
-	
+
 	// Restore stdout
 	os.Stdout = originalStdout
 	tmpFile.Close()
-	
+
 	// Copy temp file content to pager if command executed successfully
 	if err == nil {
 		tmpFile, readErr := os.Open(tmpFile.Name())
@@ -581,16 +581,16 @@ func executeWithPager(ctx context.Context, rootCmd *cobra.Command, colorScheme f
 			}
 		}
 	}
-	
+
 	pagerInput.Close()
-	
+
 	// Wait for pager to finish
 	pagerErr := pager.Wait()
 	if pagerErr != nil && err == nil {
 		// If command succeeded but pager failed, don't treat it as an error
 		// This handles cases where user exits pager early (SIGPIPE)
 	}
-	
+
 	return err
 }
 
@@ -600,22 +600,22 @@ func getPagerCommand() string {
 	if pager := os.Getenv("PAGER"); pager != "" && pager != "cat" {
 		return pager
 	}
-	
+
 	// Try common pagers in order of preference
 	pagers := []string{"less -R", "more", "cat"}
-	
+
 	for _, pager := range pagers {
 		// Extract command name (first word) to check if it exists
 		cmdName := pager
 		if idx := strings.IndexByte(pager, ' '); idx != -1 {
 			cmdName = pager[:idx]
 		}
-		
+
 		if _, err := exec.LookPath(cmdName); err == nil {
 			return pager
 		}
 	}
-	
+
 	return ""
 }
 
@@ -623,8 +623,7 @@ func getPagerCommand() string {
 func PrintWithPager(content string) {
 	lines := strings.Split(content, "\n")
 	lineCount := len(lines)
-	
-	
+
 	if shouldEnablePagerForOutput(lineCount) {
 		// Use pager for long content
 		pagerCmd := getPagerCommand()
@@ -632,7 +631,7 @@ func PrintWithPager(content string) {
 			pager := exec.Command("sh", "-c", pagerCmd)
 			pager.Stdout = os.Stdout
 			pager.Stderr = os.Stderr
-			
+
 			pagerInput, err := pager.StdinPipe()
 			if err == nil {
 				if pager.Start() == nil {
@@ -644,7 +643,7 @@ func PrintWithPager(content string) {
 			}
 		}
 	}
-	
+
 	// Fall back to direct output
 	fmt.Print(content)
 }

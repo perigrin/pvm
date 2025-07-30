@@ -22,7 +22,7 @@ func newInitCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var shell perl.ShellType
 			var err error
-			
+
 			// Use explicit shell argument if provided, otherwise auto-detect
 			if len(args) > 0 {
 				shellName := args[0]

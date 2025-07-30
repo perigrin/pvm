@@ -63,19 +63,19 @@ func NewCommand() *cobra.Command {
 		Short: "Perl Version Manager",
 		Long:  "Manages Perl installations and versions",
 	}
-	
+
 	// Create our enhanced help command
 	helpCmd := newEnhancedHelpCommand()
-	
+
 	// Set it as the official help command to prevent Cobra from adding its own
 	cmd.SetHelpCommand(helpCmd)
-	
+
 	// Also add it as a regular command but make it hidden so subcommands work
 	// but it doesn't show twice in the command list
 	hiddenHelpCmd := newEnhancedHelpCommand()
 	hiddenHelpCmd.Hidden = true
-	
-	// Add PVM-specific commands  
+
+	// Add PVM-specific commands
 	cmd.AddCommand(
 		hiddenHelpCmd, // Hidden version for subcommands to work
 		newInstallCommand(),
@@ -89,6 +89,8 @@ func NewCommand() *cobra.Command {
 		newSelfCommand(),         // Self-management commands (update, changelog, doctor, etc.)
 		NewBuildCommand(),        // Unified build system with PSC integration
 		newBuildPerlCommand(),    // Build Perl from source (split from old build command)
+		newInstallPerlCommand(),  // Install Perl from build directory, archive, or URL
+		newImportSystemCommand(), // Import system Perl into PVM
 		newRunCommand(),          // New unified run command (incorporates PVX)
 		newModuleCommand(),       // New unified module command (incorporates PVI)
 		newWorkspaceCommand(),    // New workspace management command
@@ -102,8 +104,8 @@ func NewCommand() *cobra.Command {
 		newToolCommand(),
 
 		// These are implemented in their own files
-		newConfigCommand(),   // from config.go
-		newPerlCommand(),     // from perl.go
+		newConfigCommand(), // from config.go
+		newPerlCommand(),   // from perl.go
 
 		// Temporary backward compatibility alias for makefile
 		newBackwardCompatSymlinksCommand(),
@@ -461,7 +463,7 @@ func newShUseCommand() *cobra.Command {
 		Hidden: true, // Hide from help output as this is internal
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
-			
+
 			// Handle special "system" case
 			if version == "system" {
 				// Generate shell code to unset PVM_PERL_VERSION
@@ -469,7 +471,7 @@ func newShUseCommand() *cobra.Command {
 				fmt.Printf("echo \"Using system Perl\"\n")
 				return nil
 			}
-			
+
 			return perl.GenerateShellUse(version)
 		},
 	}
@@ -499,7 +501,6 @@ func newDetectVersionCommand() *cobra.Command {
 		},
 	}
 }
-
 
 func newGlobalCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -625,7 +626,6 @@ func newLocalCommand() *cobra.Command {
 
 	return cmd
 }
-
 
 func newVersionsCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -1241,7 +1241,6 @@ func newDownloadCommand() *cobra.Command {
 	return cmd
 }
 
-
 func newUninstallCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "uninstall [version]",
@@ -1301,9 +1300,6 @@ func newUninstallCommand() *cobra.Command {
 
 	return cmd
 }
-
-
-
 
 func newRehashCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -2287,7 +2283,6 @@ func copyFile(src, dst string, mode os.FileMode) error {
 // newSystemCommand creates a command for showing system Perl info
 // This is now moved to perl.go as newPerlSystemCommand()
 
-
 func newShellCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "shell",
@@ -2336,7 +2331,6 @@ func newShellCommand() *cobra.Command {
 
 	return cmd
 }
-
 
 // newBuildPerlCommand creates a command for building Perl from source (moved from old build command)
 func newBuildPerlCommand() *cobra.Command {
@@ -2399,6 +2393,20 @@ func newInstallPerlCommand() *cobra.Command {
 	return cmd
 }
 
+// newImportSystemCommand creates a new import-system command
+func newImportSystemCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "import-system",
+		Short: "Import system Perl into PVM",
+		Long:  "Import the system-installed Perl into PVM for version management",
+		RunE:  importSystemPerl,
+	}
+
+	cmd.Flags().Bool("force", false, "Force import even if version already exists")
+
+	return cmd
+}
+
 // newModuleCommand creates a unified module management command
 func newModuleCommand() *cobra.Command {
 	// Get the PVI command from the PVI package
@@ -2441,11 +2449,10 @@ func newPSCCommand() *cobra.Command {
 	return pscCmd
 }
 
-
 // execCommand implements the exec command functionality
 
 // importSystemPerl imports the system Perl installation into PVM registry
-func importSystemPerl(cmd *cobra.Command) error {
+func importSystemPerl(cmd *cobra.Command, args []string) error {
 	// Detect the system Perl
 	systemPerl, err := perl.DetectSystemPerl()
 	if err != nil {
@@ -2952,7 +2959,6 @@ func newToolLSPCommand() *cobra.Command {
 
 	return newLspCmd
 }
-
 
 // installTool installs a tool and creates a shim for it
 func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
@@ -4583,9 +4589,9 @@ This command checks:
 
 				for _, issue := range issues {
 					if strings.Contains(issue, "Registry missing") ||
-					   strings.Contains(issue, "Registry is empty") ||
-					   strings.Contains(issue, "Registry contains") ||
-					   strings.Contains(issue, "Failed to load registry file") {
+						strings.Contains(issue, "Registry is empty") ||
+						strings.Contains(issue, "Registry contains") ||
+						strings.Contains(issue, "Failed to load registry file") {
 						ui.Info("Rebuilding registry from existing installations...")
 						if err := perl.RebuildRegistry(); err != nil {
 							ui.Error("Failed to rebuild registry: %v", err)
@@ -4602,7 +4608,7 @@ This command checks:
 					for _, issue := range issues {
 						isFixed := false
 						for _, fixedItem := range fixed {
-							if (strings.Contains(issue, "Registry") && strings.Contains(fixedItem, "registry")) {
+							if strings.Contains(issue, "Registry") && strings.Contains(fixedItem, "registry") {
 								isFixed = true
 								break
 							}
@@ -4718,13 +4724,13 @@ Simply type pvm help [path to command] for full details.`,
 				// No arguments - show standard help by calling root command help directly
 				return rootCmd.Help()
 			}
-			
+
 			// Try to find the command they're asking about
 			topic := args[0]
 			if targetCmd, _, err := rootCmd.Find([]string{topic}); err == nil && targetCmd != rootCmd {
 				return targetCmd.Help()
 			}
-			
+
 			// Command not found
 			ui := cli.GetUI(cmd)
 			ui.Error("Unknown help topic: %s", topic)

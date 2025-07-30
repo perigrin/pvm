@@ -244,8 +244,8 @@ func TestSuggestCommand(t *testing.T) {
 func TestCreateHelpCommand(t *testing.T) {
 	cmd := CreateHelpCommand()
 
-	if cmd.Use != "help [topic]" {
-		t.Errorf("Expected Use 'help [topic]', got '%s'", cmd.Use)
+	if cmd.Use != "guide [topic]" {
+		t.Errorf("Expected Use 'guide [topic]', got '%s'", cmd.Use)
 	}
 
 	if cmd.Short == "" {

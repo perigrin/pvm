@@ -406,3 +406,81 @@ func GetAvailableVersions() ([]string, error) {
 
 	return result, nil
 }
+
+// RebuildRegistry scans the versions directory and rebuilds the registry from existing installations
+func RebuildRegistry() error {
+	// Get XDG directories
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return errors.NewSystemError("001",
+			"Failed to determine XDG directories", err)
+	}
+
+	// Get versions directory
+	versionsDir := dirs.VersionsDir
+
+	// Create a new registry
+	newRegistry := &VersionRegistry{
+		Versions: make(map[string]VersionInfo),
+	}
+
+	// Check if versions directory exists
+	if _, err := os.Stat(versionsDir); os.IsNotExist(err) {
+		// No versions directory, save empty registry
+		return SaveRegistry(newRegistry)
+	}
+
+	// Scan versions directory
+	entries, err := os.ReadDir(versionsDir)
+	if err != nil {
+		return errors.NewSystemError(
+			ErrRegistryIOFailed,
+			fmt.Sprintf("Failed to read versions directory: %s", versionsDir),
+			err)
+	}
+
+	// Process each entry
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		version := entry.Name()
+		installPath := filepath.Join(versionsDir, version)
+
+		// Check if perl binary exists
+		perlBinary := filepath.Join(installPath, "bin", "perl")
+		if _, err := os.Stat(perlBinary); os.IsNotExist(err) {
+			continue
+		}
+
+		// Get directory info for install time
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		// Add to registry
+		newRegistry.Versions[version] = VersionInfo{
+			Version:     version,
+			InstallPath: installPath,
+			InstallTime: info.ModTime(),
+			Source:      "manual", // Default to manual for existing installations
+		}
+	}
+
+	// Check for system perl
+	if systemPerl, err := detectSystemPerl(); err == nil {
+		// Add system perl to registry
+		installPath := filepath.Dir(systemPerl.Path)
+		newRegistry.Versions["system"] = VersionInfo{
+			Version:     "system",
+			InstallPath: installPath,
+			InstallTime: time.Now(),
+			Source:      "system",
+		}
+	}
+
+	// Save the new registry
+	return SaveRegistry(newRegistry)
+}

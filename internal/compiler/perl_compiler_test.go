@@ -165,6 +165,14 @@ func TestPerlCompiler_Compilation(t *testing.T) {
 			// Test clean compilation
 			t.Run("Clean Perl", func(t *testing.T) {
 				cleanCompiler := NewPerlCompiler(TargetCleanPerl)
+				// Set version for consistent test results
+				cleanCompiler.SetOptions(CompilerOptions{
+					PreserveComments:   true,
+					PreserveFormatting: true,
+					StrictMode:         false,
+					PerlVersion:        "5.42.0",
+					CustomPatterns:     nil,
+				})
 				ast, err := NewCSTBasedAST("test.pl", tc.input)
 				if err != nil {
 					t.Fatalf("Failed to create AST: %v", err)
@@ -231,6 +239,14 @@ func TestPerlCompiler_CompileString(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			compiler := NewPerlCompiler(tc.target)
+			// Set version for consistent test results
+			compiler.SetOptions(CompilerOptions{
+				PreserveComments:   true,
+				PreserveFormatting: true,
+				StrictMode:         false,
+				PerlVersion:        "5.42.0",
+				CustomPatterns:     nil,
+			})
 
 			result, err := compiler.CompileString(tc.input)
 			if err != nil {
@@ -251,6 +267,14 @@ func TestPerlCompiler_BackwardCompatibility(t *testing.T) {
 	// Test that the unified compiler works with existing AST types (like SimpleAST)
 	t.Run("Works with SimpleAST", func(t *testing.T) {
 		compiler := NewPerlCompiler(TargetCleanPerl)
+		// Set version for consistent test results
+		compiler.SetOptions(CompilerOptions{
+			PreserveComments:   true,
+			PreserveFormatting: true,
+			StrictMode:         false,
+			PerlVersion:        "5.42.0",
+			CustomPatterns:     nil,
+		})
 
 		// Create a SimpleAST (for backward compatibility testing)
 		simpleAST := &SimpleAST{

@@ -395,6 +395,69 @@ func SetLocalVersion(version string) error {
 	return nil
 }
 
+// UnsetGlobalVersion removes the global default Perl version
+func UnsetGlobalVersion() error {
+	// Get XDG directories
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return errors.NewSystemError("001",
+			"Failed to determine XDG directories", err)
+	}
+
+	// Get configuration file path
+	configPath := dirs.GetConfigFilePath()
+
+	// Check if config file exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// No config file, nothing to unset
+		return nil
+	}
+
+	// Remove the configuration file
+	err = os.Remove(configPath)
+	if err != nil {
+		return errors.NewVersionError(
+			ErrGlobalVersionSetFailed,
+			"Failed to remove configuration file",
+			err).
+			WithLocation(configPath)
+	}
+
+	return nil
+}
+
+// UnsetLocalVersion removes the local Perl version for a project
+func UnsetLocalVersion() error {
+	// Get current directory
+	dir, err := os.Getwd()
+	if err != nil {
+		return errors.NewVersionError(
+			ErrLocalVersionSetFailed,
+			"Failed to determine current directory",
+			err)
+	}
+
+	// Remove .perl-version file
+	versionFilePath := filepath.Join(dir, ".perl-version")
+
+	// Check if file exists
+	if _, err := os.Stat(versionFilePath); os.IsNotExist(err) {
+		// No version file, nothing to unset
+		return nil
+	}
+
+	err = os.Remove(versionFilePath)
+	if err != nil {
+		return errors.NewVersionError(
+			ErrLocalVersionSetFailed,
+			"Failed to remove .perl-version file",
+			err).
+			WithLocation(versionFilePath)
+	}
+
+	return nil
+}
+
 // UseVersion sets the Perl version for the current shell session
 func UseVersion(version string) error {
 	// Check if the version is valid

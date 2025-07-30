@@ -469,16 +469,26 @@ func TestCommandsIntegration_WithPVMCommand(t *testing.T) {
 	// Test that the new commands integrate properly with the main PVM command
 	pvmCmd := NewCommand()
 
-	// Find the release-notes command
+	// Find the self command first, then look for release-notes and changelog within it
+	var selfCmd *cobra.Command
+	for _, cmd := range pvmCmd.Commands() {
+		if cmd.Use == "self" {
+			selfCmd = cmd
+			break
+		}
+	}
+
 	var releaseNotesCmd *cobra.Command
 	var changelogCmd *cobra.Command
 
-	for _, cmd := range pvmCmd.Commands() {
-		if cmd.Use == "release-notes [version]" {
-			releaseNotesCmd = cmd
-		}
-		if cmd.Use == "changelog" {
-			changelogCmd = cmd
+	if selfCmd != nil {
+		for _, cmd := range selfCmd.Commands() {
+			if cmd.Use == "release-notes [version]" {
+				releaseNotesCmd = cmd
+			}
+			if cmd.Use == "changelog" {
+				changelogCmd = cmd
+			}
 		}
 	}
 
@@ -492,14 +502,14 @@ func TestCommandsIntegration_WithPVMCommand(t *testing.T) {
 
 	// Test that commands are properly registered
 	if releaseNotesCmd != nil {
-		if releaseNotesCmd.Parent() != pvmCmd {
-			t.Error("release-notes command should be a child of PVM command")
+		if releaseNotesCmd.Parent() != selfCmd {
+			t.Error("release-notes command should be a child of self command")
 		}
 	}
 
 	if changelogCmd != nil {
-		if changelogCmd.Parent() != pvmCmd {
-			t.Error("changelog command should be a child of PVM command")
+		if changelogCmd.Parent() != selfCmd {
+			t.Error("changelog command should be a child of self command")
 		}
 	}
 }

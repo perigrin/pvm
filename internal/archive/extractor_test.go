@@ -19,11 +19,11 @@ import (
 
 func TestBinaryExtractor_ExtractExecutable(t *testing.T) {
 	tests := []struct {
-		name         string
+		name          string
 		createArchive func(t *testing.T) string
-		platform     string
-		expectError  bool
-		errorMatch   string
+		platform      string
+		expectError   bool
+		errorMatch    string
 	}{
 		{
 			name: "valid tar.gz with pvm binary",
@@ -80,11 +80,11 @@ func TestBinaryExtractor_ExtractExecutable(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, err)
-				
+
 				// Verify extracted file exists
 				_, err := os.Stat(extractedPath)
 				assert.NoError(t, err)
-				
+
 				// Verify it has correct name
 				filename := filepath.Base(extractedPath)
 				if strings.HasPrefix(tt.platform, "windows") {
@@ -92,7 +92,7 @@ func TestBinaryExtractor_ExtractExecutable(t *testing.T) {
 				} else {
 					assert.Equal(t, "pvm", filename)
 				}
-				
+
 				// Cleanup
 				err = extractor.Cleanup(extractedPath)
 				assert.NoError(t, err)
@@ -155,11 +155,11 @@ func TestBinaryExtractor_FindMainExecutable(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	tests := []struct {
-		name        string
-		files       map[string][]byte // filename -> content
-		platform    string
-		expectError bool
-		errorMatch  string
+		name         string
+		files        map[string][]byte // filename -> content
+		platform     string
+		expectError  bool
+		errorMatch   string
 		expectedFile string
 	}{
 		{
@@ -195,8 +195,8 @@ func TestBinaryExtractor_FindMainExecutable(t *testing.T) {
 		{
 			name: "multiple executables",
 			files: map[string][]byte{
-				"pvm":      createMockBinary(),
-				"bin/pvm":  createMockBinary(),
+				"pvm":     createMockBinary(),
+				"bin/pvm": createMockBinary(),
 			},
 			platform:    "linux-amd64",
 			expectError: true,
@@ -210,14 +210,14 @@ func TestBinaryExtractor_FindMainExecutable(t *testing.T) {
 			var createdFiles []string
 			for filename, content := range tt.files {
 				fullPath := filepath.Join(tempDir, filename)
-				
+
 				// Create directory if needed
 				dir := filepath.Dir(fullPath)
 				if dir != tempDir {
 					err := os.MkdirAll(dir, 0755)
 					require.NoError(t, err)
 				}
-				
+
 				// Create file
 				err := os.WriteFile(fullPath, content, 0755)
 				require.NoError(t, err)

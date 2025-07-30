@@ -31,6 +31,12 @@ type Compiler interface {
 	Validate(ast AST) error
 }
 
+// OptionsCompiler is a compiler that supports configuration options
+type OptionsCompiler interface {
+	Compiler
+	SetOptions(options CompilerOptions)
+}
+
 // CompilerOptions holds configuration options for compilation
 type CompilerOptions struct {
 	// PreserveComments controls whether comments are preserved in output
@@ -41,6 +47,10 @@ type CompilerOptions struct {
 
 	// StrictMode enables stricter compilation checks
 	StrictMode bool
+
+	// PerlVersion specifies the Perl version to use for pragmas (e.g., "5.42.0")
+	// If empty, the compiler will auto-detect from current environment
+	PerlVersion string
 
 	// CustomPatterns allows custom transformation patterns
 	CustomPatterns map[string]string
@@ -95,6 +105,11 @@ func (r *CompilerRegistry) CompileWithOptions(ast AST, target Target, options *C
 		}
 	}
 
+	// Set options if the compiler supports them
+	if optCompiler, ok := compiler.(OptionsCompiler); ok && options != nil {
+		optCompiler.SetOptions(*options)
+	}
+
 	if err := compiler.Validate(ast); err != nil {
 		return "", err
 	}
@@ -108,6 +123,7 @@ func (r *CompilerRegistry) Compile(ast AST, target Target) (string, error) {
 		PreserveComments:   true,
 		PreserveFormatting: true,
 		StrictMode:         false,
+		PerlVersion:        "", // Auto-detect from environment
 		CustomPatterns:     nil,
 	})
 }

@@ -441,4 +441,3 @@ func (o *Output) renderWithColorMode(style lipgloss.Style, text string) string {
 	}
 	return style.Render(text)
 }
-

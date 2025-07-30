@@ -9,7 +9,7 @@ import (
 	"io/fs"
 	"strings"
 	"text/template"
-	
+
 	"tamarou.com/pvm/internal/cli/ui"
 )
 
@@ -50,35 +50,35 @@ func RenderHelpTemplate(templateName string, data HelpTemplateData) (string, err
 // GetAvailableHelpTemplates returns a list of available help templates
 func GetAvailableHelpTemplates() ([]string, error) {
 	var templates []string
-	
+
 	err := fs.WalkDir(helpTemplatesFS, "help", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		if !d.IsDir() && strings.HasSuffix(path, ".md") {
 			// Extract template name from path
 			templateName := strings.TrimSuffix(strings.TrimPrefix(path, "help/"), ".md")
 			templates = append(templates, templateName)
 		}
-		
+
 		return nil
 	})
-	
+
 	return templates, err
 }
 
 // RenderMarkdownAsHelp renders markdown content for help display
 func RenderMarkdownAsHelp(markdown string, output *ui.Output) {
 	lines := strings.Split(markdown, "\n")
-	
+
 	for _, line := range lines {
 		switch {
 		case strings.HasPrefix(line, "# "):
 			// Main header
 			output.Header(strings.TrimPrefix(line, "# "))
 		case strings.HasPrefix(line, "## "):
-			// Sub header  
+			// Sub header
 			output.SubHeader(strings.TrimPrefix(line, "## "))
 		case strings.HasPrefix(line, "### "):
 			// Sub section (treat as warning for emphasis)

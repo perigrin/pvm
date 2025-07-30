@@ -147,7 +147,7 @@ func TestBinaryValidator_ValidateExecutable(t *testing.T) {
 func TestValidateDownloadedBinary_Archive(t *testing.T) {
 	// Create a simple test binary
 	binaryContent := createTestBinary(t)
-	
+
 	// Test tar.gz archive
 	t.Run("tar.gz archive", func(t *testing.T) {
 		archivePath := createTestTarGz(t, "pvm", binaryContent)
@@ -157,14 +157,14 @@ func TestValidateDownloadedBinary_Archive(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	// Test zip archive  
+	// Test zip archive
 	t.Run("zip archive", func(t *testing.T) {
 		// Use correct filename for current platform
 		filename := "pvm"
 		if runtime.GOOS == "windows" {
 			filename = "pvm.exe"
 		}
-		
+
 		archivePath := createTestZip(t, filename, binaryContent)
 		defer os.Remove(archivePath)
 
@@ -176,7 +176,7 @@ func TestValidateDownloadedBinary_Archive(t *testing.T) {
 func TestValidateDownloadedBinary_Direct(t *testing.T) {
 	// Create a test binary directly
 	binaryContent := createTestBinary(t)
-	
+
 	tempFile, err := os.CreateTemp("", "binary-test-*")
 	require.NoError(t, err)
 	defer os.Remove(tempFile.Name())
@@ -218,19 +218,19 @@ func TestIsArchive(t *testing.T) {
 
 func TestDetectPlatform(t *testing.T) {
 	platform := detectPlatform()
-	
+
 	// Should contain OS and architecture
 	assert.Contains(t, platform, runtime.GOOS)
 	assert.Contains(t, platform, "-")
-	
+
 	// Should be in expected format
 	parts := strings.Split(platform, "-")
 	assert.Len(t, parts, 2)
-	
+
 	// OS should be valid
 	validOS := []string{"linux", "darwin", "windows"}
 	assert.Contains(t, validOS, parts[0])
-	
+
 	// Architecture should be valid
 	validArch := []string{"amd64", "arm64", "i386", "unknown"}
 	assert.Contains(t, validArch, parts[1])
@@ -296,7 +296,7 @@ func createTestBinary(t *testing.T) []byte {
 		// Shell script as fallback
 		header = []byte("#!/bin/sh\necho test\n")
 	}
-	
+
 	// Pad to meet minimum size requirement (1024 bytes)
 	binary := make([]byte, 2048) // 2KB to be safe
 	copy(binary, header)

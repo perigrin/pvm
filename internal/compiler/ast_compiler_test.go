@@ -77,7 +77,15 @@ print "Total: $total\n";`,
 
 			// Use unified compiler from registry
 			registry := NewCompilerRegistry()
-			cleanPerl, err := registry.Compile(ast, TargetCleanPerl)
+			// Set version for consistent test results
+			options := &CompilerOptions{
+				PreserveComments:   true,
+				PreserveFormatting: true,
+				StrictMode:         false,
+				PerlVersion:        "5.42.0",
+				CustomPatterns:     nil,
+			}
+			cleanPerl, err := registry.CompileWithOptions(ast, TargetCleanPerl, options)
 			require.NoError(t, err)
 
 			// Debug: Show generated Perl
@@ -151,6 +159,14 @@ func TestCompilerCorpus(t *testing.T) {
 
 						// Test Clean Perl compilation (CST-based)
 						cleanCompiler := NewCleanPerlCompilerUnified()
+						// Set version for consistent test results
+						cleanCompiler.SetOptions(CompilerOptions{
+							PreserveComments:   true,
+							PreserveFormatting: true,
+							StrictMode:         false,
+							PerlVersion:        "5.42.0",
+							CustomPatterns:     nil,
+						})
 						cleanResult, err := cleanCompiler.Compile(ast)
 						require.NoError(t, err)
 
@@ -261,7 +277,16 @@ print greet("World") . "\n";`,
 			ast, err := p.ParseFile(tempFile)
 			require.NoError(t, err)
 
-			cleanPerl, err := NewCleanPerlCompilerUnified().Compile(ast)
+			cleanCompiler := NewCleanPerlCompilerUnified()
+			// Set version for consistent test results
+			cleanCompiler.SetOptions(CompilerOptions{
+				PreserveComments:   true,
+				PreserveFormatting: true,
+				StrictMode:         false,
+				PerlVersion:        "5.42.0",
+				CustomPatterns:     nil,
+			})
+			cleanPerl, err := cleanCompiler.Compile(ast)
 			require.NoError(t, err)
 
 			// Execute the compiled clean version and compare against expected output

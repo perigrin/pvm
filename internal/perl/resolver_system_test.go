@@ -4,6 +4,8 @@
 package perl
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,8 +15,10 @@ import (
 func TestResolveExplicitVersion_SystemIdentifier(t *testing.T) {
 	// Save original functions
 	origGetInstalledVersions := GetInstalledVersions
+	origLoadRegistry := LoadRegistry
 	defer func() {
 		GetInstalledVersions = origGetInstalledVersions
+		LoadRegistry = origLoadRegistry
 	}()
 
 	t.Run("SystemIdentifierResolvesToImportedSystemPerl", func(t *testing.T) {
@@ -79,13 +83,37 @@ func TestResolveExplicitVersion_SystemIdentifier(t *testing.T) {
 	})
 
 	t.Run("RegularVersionStillWorks", func(t *testing.T) {
+		// Create a temp directory with perl binary structure
+		tempDir := t.TempDir()
+		binDir := filepath.Join(tempDir, "bin")
+		err := os.MkdirAll(binDir, 0755)
+		assert.NoError(t, err)
+
+		// Create a fake perl binary
+		perlPath := filepath.Join(binDir, "perl")
+		err = os.WriteFile(perlPath, []byte("#!/bin/sh\necho fake perl"), 0755)
+		assert.NoError(t, err)
+
 		// Reset mock for normal operation
 		GetInstalledVersions = func() ([]VersionInfo, error) {
 			return []VersionInfo{
 				{
 					Version:     "5.38.0",
-					InstallPath: "/usr/bin/perl",
-					Source:      "system",
+					InstallPath: tempDir,
+					Source:      "manual", // Regular version, not system
+				},
+			}, nil
+		}
+
+		// Mock LoadRegistry to return the version info
+		LoadRegistry = func() (*VersionRegistry, error) {
+			return &VersionRegistry{
+				Versions: map[string]VersionInfo{
+					"5.38.0": {
+						Version:     "5.38.0",
+						InstallPath: tempDir,
+						Source:      "manual",
+					},
 				},
 			}, nil
 		}
@@ -100,9 +128,33 @@ func TestResolveExplicitVersion_SystemIdentifier(t *testing.T) {
 	})
 
 	t.Run("AliasResolutionStillWorks", func(t *testing.T) {
+		// Create a temp directory with perl binary structure
+		tempDir := t.TempDir()
+		binDir := filepath.Join(tempDir, "bin")
+		err := os.MkdirAll(binDir, 0755)
+		assert.NoError(t, err)
+
+		// Create a fake perl binary
+		perlPath := filepath.Join(binDir, "perl")
+		err = os.WriteFile(perlPath, []byte("#!/bin/sh\necho fake perl"), 0755)
+		assert.NoError(t, err)
+
 		// Reset mock for normal operation
 		GetInstalledVersions = func() ([]VersionInfo, error) {
 			return []VersionInfo{}, nil
+		}
+
+		// Mock LoadRegistry to return the version info
+		LoadRegistry = func() (*VersionRegistry, error) {
+			return &VersionRegistry{
+				Versions: map[string]VersionInfo{
+					"5.38.0": {
+						Version:     "5.38.0",
+						InstallPath: tempDir,
+						Source:      "manual",
+					},
+				},
+			}, nil
 		}
 
 		cfg := &config.Config{
