@@ -18,32 +18,7 @@ import (
 
 // checkShellIntegration checks if shell integration is properly set up
 func checkShellIntegration(ui *ui.Output, issues *[]string, warnings *[]string) error {
-	// Get XDG directories
-	dirs, err := xdg.GetDirs()
-	if err != nil {
-		*issues = append(*issues, "Failed to determine XDG directories")
-		return err
-	}
-
-	// Check if shell integration files exist
-	shellDir := filepath.Join(dirs.DataDir, "shell")
-	shellFiles := []string{"pvm.bash", "pvm.zsh", "pvm.fish"}
-
-	missingFiles := []string{}
-	for _, file := range shellFiles {
-		shellFile := filepath.Join(shellDir, file)
-		if _, err := os.Stat(shellFile); os.IsNotExist(err) {
-			missingFiles = append(missingFiles, file)
-		}
-	}
-
-	if len(missingFiles) > 0 {
-		*issues = append(*issues, fmt.Sprintf("Missing shell integration files: %v", missingFiles))
-		ui.Error("Shell integration files not found. Run 'pvm shell init' to create them.")
-		return nil
-	}
-
-	ui.Success("Shell integration files found")
+	ui.Success("Shell integration available via: eval \"$(pvm init)\"")
 
 	// Check if shell integration is loaded in shell
 	shell := os.Getenv("SHELL")
@@ -76,7 +51,11 @@ func checkShellIntegration(ui *ui.Output, issues *[]string, warnings *[]string) 
 	for _, config := range configs {
 		configPath := filepath.Join(homeDir, config)
 		if data, err := os.ReadFile(configPath); err == nil {
-			if strings.Contains(string(data), "pvm init") {
+			content := string(data)
+			// Check for various pvm init patterns
+			if strings.Contains(content, "pvm init") ||
+				strings.Contains(content, "pvm_path init") ||
+				strings.Contains(content, "$pvm_path init") {
 				foundInitCall = true
 				break
 			}
@@ -122,6 +101,245 @@ func checkVersionManagement(ui *ui.Output, issues *[]string, warnings *[]string)
 	return nil
 }
 
+// checkRegistryIntegrity checks if the version registry is intact
+func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string) error {
+	// Get XDG directories for paths
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		*issues = append(*issues, "Failed to determine XDG directories")
+		return err
+	}
+
+	registryPath := filepath.Join(dirs.DataDir, "registry.json")
+	versionsDir := filepath.Join(dirs.DataDir, "versions")
+
+	// Check if registry file exists
+	if _, err := os.Stat(registryPath); os.IsNotExist(err) {
+		// Check if versions directory exists with installations  
+		if entries, err := os.ReadDir(versionsDir); err == nil && len(entries) > 0 {
+			*issues = append(*issues, "Registry missing but versions directory contains installations")
+			ui.Error("Registry file missing: %s", registryPath)
+			return nil
+		} else {
+			*warnings = append(*warnings, "Registry file doesn't exist (no versions installed)")
+			ui.Warning("No registry file found, but no versions are installed")
+			return nil
+		}
+	}
+
+	// Load and validate registry
+	registry, err := perl.LoadRegistry()
+	if err != nil {
+		*issues = append(*issues, "Failed to load registry file")
+		ui.Error("Registry file corrupted: %v", err)
+		return nil
+	}
+
+	// Check if registry is empty but versions exist
+	if len(registry.Versions) == 0 {
+		if entries, err := os.ReadDir(versionsDir); err == nil && len(entries) > 0 {
+			*issues = append(*issues, "Registry is empty but versions directory contains installations")
+			ui.Error("Registry file is empty but versions exist")
+			return nil
+		}
+	}
+
+	// Check for registry-filesystem mismatch
+	registryVersions := make(map[string]bool)
+	for version := range registry.Versions {
+		registryVersions[version] = true
+	}
+
+	// Check filesystem versions
+	if entries, err := os.ReadDir(versionsDir); err == nil {
+		filesystemVersions := []string{}
+		missingFromRegistry := []string{}
+		
+		for _, entry := range entries {
+			if entry.IsDir() || entry.Type() == os.ModeSymlink {
+				// Validate it's a real Perl installation
+				versionPath := filepath.Join(versionsDir, entry.Name())
+				perlBinary := filepath.Join(versionPath, "bin", "perl")
+				if _, err := os.Stat(perlBinary); err == nil {
+					filesystemVersions = append(filesystemVersions, entry.Name())
+					if !registryVersions[entry.Name()] {
+						missingFromRegistry = append(missingFromRegistry, entry.Name())
+						*warnings = append(*warnings, fmt.Sprintf("Version %s exists on filesystem but not in registry", entry.Name()))
+					}
+				}
+			}
+		}
+
+		// If we have versions missing from registry, mark this as an issue that can be auto-fixed
+		if len(missingFromRegistry) > 0 {
+			*issues = append(*issues, fmt.Sprintf("Registry missing %d version(s) that exist on filesystem", len(missingFromRegistry)))
+		}
+
+		// Check for registry entries without filesystem presence
+		orphanedInRegistry := []string{}
+		for version, versionInfo := range registry.Versions {
+			found := false
+			
+			// Special handling for system version - check the actual install path
+			if version == "system" {
+				perlBinary := filepath.Join(versionInfo.InstallPath, "perl")
+				if _, err := os.Stat(perlBinary); err == nil {
+					found = true
+				}
+			} else {
+				// Regular version - check in filesystem versions
+				for _, fsVersion := range filesystemVersions {
+					if fsVersion == version {
+						found = true
+						break
+					}
+				}
+			}
+			
+			if !found {
+				orphanedInRegistry = append(orphanedInRegistry, version)
+				*warnings = append(*warnings, fmt.Sprintf("Version %s in registry but not on filesystem", version))
+			}
+		}
+
+		// If we have orphaned registry entries, mark this as an issue that can be auto-fixed
+		if len(orphanedInRegistry) > 0 {
+			*issues = append(*issues, fmt.Sprintf("Registry contains %d version(s) that don't exist on filesystem", len(orphanedInRegistry)))
+		}
+	}
+
+	ui.Success("Registry integrity check passed")
+	return nil
+}
+
+// checkFilesystemLocations shows where PVM stores its files
+func checkFilesystemLocations(ui *ui.Output, issues *[]string, warnings *[]string) error {
+	// Get XDG directories
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		*issues = append(*issues, "Failed to determine XDG directories")
+		return err
+	}
+
+	// Get XDG_BIN_HOME for current shim location
+	xdgBinHome := os.Getenv("XDG_BIN_HOME")
+	if xdgBinHome == "" {
+		homeDir, _ := os.UserHomeDir()
+		xdgBinHome = filepath.Join(homeDir, ".local", "bin")
+	}
+
+	ui.Success("PVM filesystem locations:")
+	ui.Info("  Data directory: %s", dirs.DataDir)
+	ui.Info("  Registry file: %s", filepath.Join(dirs.DataDir, "registry.json"))
+	ui.Info("  Versions directory: %s", filepath.Join(dirs.DataDir, "versions"))
+	ui.Info("  XDG_BIN_HOME (current shims): %s", xdgBinHome)
+	ui.Info("  Legacy shims directory: %s (deprecated)", filepath.Join(dirs.DataDir, "shims"))
+	ui.Info("  Shell integration: Generated dynamically (no directory needed)")
+	ui.Info("  Type definitions: %s", filepath.Join(dirs.DataDir, "type_definitions"))
+
+	// Check if directories exist and show their status
+	locations := map[string]string{
+		"Data directory": dirs.DataDir,
+		"Versions": filepath.Join(dirs.DataDir, "versions"),
+		"XDG_BIN_HOME": xdgBinHome,
+	}
+
+	allExist := true
+	for name, path := range locations {
+		if info, err := os.Stat(path); err == nil {
+			if info.IsDir() {
+				ui.Success("  ✓ %s directory exists", name)
+			} else {
+				*warnings = append(*warnings, fmt.Sprintf("%s path exists but is not a directory", name))
+				ui.Warning("  ! %s path exists but is not a directory", name)
+			}
+		} else if os.IsNotExist(err) {
+			*warnings = append(*warnings, fmt.Sprintf("%s directory missing", name))
+			ui.Warning("  ! %s directory missing", name)
+			allExist = false
+		}
+	}
+
+	if allExist {
+		ui.Success("All required directories exist")
+	}
+
+	return nil
+}
+
+// getManualFixInstructions returns help text for issues that can't be automatically fixed
+func getManualFixInstructions(issue string) string {
+	switch {
+	case strings.Contains(issue, "PATH environment variable not set"):
+		return `PATH environment variable is not set. This is unusual and may indicate a severe system configuration issue.
+Try running: export PATH="/usr/local/bin:/usr/bin:/bin"`
+
+	case strings.Contains(issue, "XDG_BIN_HOME not in PATH"):
+		return `XDG_BIN_HOME is not in PATH. This usually means shell integration isn't active.
+Make sure your shell configuration file contains:
+  eval "$(pvm init)"
+
+Add this line to:
+  - Bash: ~/.bashrc or ~/.bash_profile  
+  - Zsh: ~/.zshrc
+  - Fish: ~/.config/fish/config.fish
+
+Do NOT manually add XDG_BIN_HOME to PATH - let 'pvm init' handle it automatically.`
+
+	case strings.Contains(issue, "PVM executable not found in system PATH"):
+		return `PVM is not in your system PATH. Add the PVM binary location to PATH:
+  export PATH="/path/to/pvm/bin:$PATH"
+
+Or create a symlink: ln -s /path/to/pvm/binary /usr/local/bin/pvm`
+
+	case strings.Contains(issue, "Shell integration files not found"):
+		return `Shell integration is available without files. Use:
+  eval "$(pvm init)"
+
+Add this to your shell configuration file.`
+
+	case strings.Contains(issue, "Shell configuration doesn't contain"):
+		return `Your shell configuration needs to initialize PVM. Add this line to your shell config:
+  eval "$(pvm init)"
+
+For bash: add to ~/.bashrc or ~/.bash_profile
+For zsh: add to ~/.zshrc
+For fish: add to ~/.config/fish/config.fish`
+
+	case strings.Contains(issue, "directory missing"):
+		return `Missing PVM directories. These should be created automatically.
+Try running: pvm init
+If the issue persists, reinstall PVM.`
+
+	case strings.Contains(issue, "Failed to determine XDG directories"):
+		return `XDG directory detection failed. This may be a system configuration issue.
+Ensure your HOME environment variable is set:
+  echo $HOME
+
+If unset, try: export HOME="/path/to/your/home/directory"`
+
+	case strings.Contains(issue, "No Perl versions installed"):
+		return `No Perl versions are currently installed. Install a Perl version:
+  pvm install latest       # Install latest stable version
+  pvm install 5.40.0      # Install specific version
+  pvm install -B 5.40.0   # Install from pre-compiled binary (faster)`
+
+	case strings.Contains(issue, "Version") && strings.Contains(issue, "exists on filesystem but not in registry"):
+		return `Some versions exist on filesystem but are missing from registry.
+Run: pvm init
+This will scan and register all existing installations.`
+
+	case strings.Contains(issue, "Version") && strings.Contains(issue, "in registry but not on filesystem"):
+		return `Registry contains versions that don't exist on filesystem.
+This usually happens after manual deletion. Run:
+  pvm init
+This will rebuild the registry from actual installations.`
+
+	default:
+		return ""
+	}
+}
+
 // checkPathConfiguration checks if PATH is properly configured
 func checkPathConfiguration(ui *ui.Output, issues *[]string, warnings *[]string) error {
 	path := os.Getenv("PATH")
@@ -138,29 +356,33 @@ func checkPathConfiguration(ui *ui.Output, issues *[]string, warnings *[]string)
 		ui.Warning("Consider adding PVM to your system PATH for easier access")
 	}
 
-	// Check if shims directory is in PATH
-	dirs, err := xdg.GetDirs()
-	if err != nil {
-		*issues = append(*issues, "Failed to determine XDG directories")
-		return err
+	// Check if XDG_BIN_HOME is in PATH (replaces old shims directory check)
+	// XDG_BIN_HOME defaults to $HOME/.local/bin
+	xdgBinHome := os.Getenv("XDG_BIN_HOME")
+	if xdgBinHome == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			*warnings = append(*warnings, "Failed to determine home directory for XDG_BIN_HOME check")
+			return nil
+		}
+		xdgBinHome = filepath.Join(homeDir, ".local", "bin")
 	}
 
-	shimsDir := filepath.Join(dirs.DataDir, "shims")
 	pathDirs := strings.Split(path, ":")
-
-	shimsInPath := false
+	xdgBinInPath := false
 	for _, dir := range pathDirs {
-		if dir == shimsDir {
-			shimsInPath = true
+		if dir == xdgBinHome {
+			xdgBinInPath = true
 			break
 		}
 	}
 
-	if !shimsInPath {
-		*issues = append(*issues, "Shims directory not in PATH")
-		ui.Error("Shims directory not in PATH. Shell integration may not be working.")
+	if !xdgBinInPath {
+		*issues = append(*issues, "XDG_BIN_HOME not in PATH")
+		ui.Error("XDG_BIN_HOME (%s) not in PATH. Shell integration is not active.", xdgBinHome)
+		ui.Info("This usually means 'eval \"$(pvm init)\"' is not in your shell config.")
 	} else {
-		ui.Success("Shims directory found in PATH")
+		ui.Success("XDG_BIN_HOME (%s) found in PATH", xdgBinHome)
 	}
 
 	return nil
@@ -190,7 +412,7 @@ func checkEnvironmentVariables(ui *ui.Output, issues *[]string, warnings *[]stri
 	return nil
 }
 
-// checkShimsDirectory checks if shims directory is properly set up
+// checkShimsDirectory checks if legacy shims directory exists (informational only)
 func checkShimsDirectory(ui *ui.Output, issues *[]string, warnings *[]string) error {
 	dirs, err := xdg.GetDirs()
 	if err != nil {
@@ -200,22 +422,20 @@ func checkShimsDirectory(ui *ui.Output, issues *[]string, warnings *[]string) er
 
 	shimsDir := filepath.Join(dirs.DataDir, "shims")
 
-	// Check if shims directory exists
+	// Check if legacy shims directory exists
 	if _, err := os.Stat(shimsDir); os.IsNotExist(err) {
-		*issues = append(*issues, "Shims directory does not exist")
-		ui.Error("Shims directory not found. Run 'pvm rehash' to create it.")
+		ui.Info("Legacy shims directory not found (expected - PVM now uses XDG_BIN_HOME)")
 		return nil
 	}
 
-	// Check if shims directory contains expected files
+	// Check if legacy shims directory contains files
 	files, err := os.ReadDir(shimsDir)
 	if err != nil {
-		*issues = append(*issues, "Failed to read shims directory")
-		return err
+		*warnings = append(*warnings, "Failed to read legacy shims directory")
+		return nil
 	}
 
 	foundShims := []string{}
-
 	for _, file := range files {
 		if !file.IsDir() {
 			foundShims = append(foundShims, file.Name())
@@ -223,10 +443,10 @@ func checkShimsDirectory(ui *ui.Output, issues *[]string, warnings *[]string) er
 	}
 
 	if len(foundShims) == 0 {
-		*warnings = append(*warnings, "No shims found in shims directory")
-		ui.Warning("No shims found. Run 'pvm rehash' to create shims.")
+		ui.Info("Legacy shims directory exists but is empty (can be safely removed)")
 	} else {
-		ui.Success("Found %d shim(s): %v", len(foundShims), foundShims)
+		ui.Warning("Legacy shims directory contains %d file(s): %v", len(foundShims), foundShims)
+		ui.Info("PVM now uses XDG_BIN_HOME instead of legacy shims - these files can be safely removed")
 	}
 
 	return nil
