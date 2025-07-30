@@ -415,6 +415,11 @@ func (o *Output) Context() *UIContext {
 	return o.context
 }
 
+// Styles returns the UI styles
+func (o *Output) Styles() Styles {
+	return o.styles
+}
+
 // safeWrite writes to the writer if it's not nil, otherwise does nothing
 func (o *Output) safeWrite(writer io.Writer, message string) {
 	if writer != nil {
@@ -436,3 +441,4 @@ func (o *Output) renderWithColorMode(style lipgloss.Style, text string) string {
 	}
 	return style.Render(text)
 }
+

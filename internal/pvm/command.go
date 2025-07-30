@@ -63,12 +63,21 @@ func NewCommand() *cobra.Command {
 		Short: "Perl Version Manager",
 		Long:  "Manages Perl installations and versions",
 	}
-
-	// Add enhanced help command as a regular command (placed first for precedence)
-	cmd.AddCommand(newEnhancedHelpCommand())
-
+	
+	// Create our enhanced help command
+	helpCmd := newEnhancedHelpCommand()
+	
+	// Set it as the official help command to prevent Cobra from adding its own
+	cmd.SetHelpCommand(helpCmd)
+	
+	// Also add it as a regular command but make it hidden so subcommands work
+	// but it doesn't show twice in the command list
+	hiddenHelpCmd := newEnhancedHelpCommand()
+	hiddenHelpCmd.Hidden = true
+	
 	// Add PVM-specific commands  
 	cmd.AddCommand(
+		hiddenHelpCmd, // Hidden version for subcommands to work
 		newInstallCommand(),
 		newUseCommand(),
 		newShUseCommand(),
@@ -4779,95 +4788,100 @@ This command checks:
 // newEnhancedHelpCommand creates the enhanced help command that replaces Cobra's default help
 func newEnhancedHelpCommand() *cobra.Command {
 	helpCmd := &cobra.Command{
-		Use:   "help [topic|command]",
-		Short: "Help about any command or topic",
-		Long: `Enhanced help system that provides context-aware suggestions and workflow guidance.
-
-Special topics:
-  workflows     - Common development workflows
-  getting-started - New user onboarding
-  troubleshooting - Diagnostic and problem-solving commands
-  next          - Suggested next steps based on current context
-  docs          - List embedded documentation (if available)
-  docs <name>   - View specific documentation
-  docs search <query> - Search documentation
-
-For command-specific help, use: pvm help [command]
-Without arguments, shows contextual help based on your current state.`,
+		Use:   "help [command]",
+		Short: "Help about any command",
+		Long: `Help provides help for any command in the application.
+Simply type pvm help [path to command] for full details.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get the root command to access all commands
 			rootCmd := cmd.Root()
-
 			if len(args) == 0 {
-				// No arguments - show standard Fang help by calling root command help
-				rootCmd.SetHelpFunc(nil) // Reset to default temporarily
+				// No arguments - show standard help by calling root command help directly
 				return rootCmd.Help()
 			}
-
+			
+			// Try to find the command they're asking about
 			topic := args[0]
-
-			// Handle special topics first
-			switch topic {
-			case "workflows":
-				// This is now the contextual help (what used to be the default)
-				helpManager := cli.NewHelpManager()
-				return cli.ShowContextualHelpWithPager(cmd, helpManager)
-			case "workflow-guide":
-				// This shows the actual workflow markdown template
-				helpManager := cli.NewHelpManager()
-				return showWorkflowHelp(cmd, helpManager)
-			case "getting-started":
-				helpManager := cli.NewHelpManager()
-				return showGettingStartedHelp(cmd, helpManager)
-			case "troubleshooting":
-				helpManager := cli.NewHelpManager()
-				return showTroubleshootingHelp(cmd, helpManager)
-			case "next":
-				helpManager := cli.NewHelpManager()
-				return showNextStepsHelp(cmd, helpManager)
-			case "docs":
-				helpManager := cli.NewHelpManager()
-				return showDocumentationHelp(cmd, helpManager, args[1:])
-			default:
-				// Try to find the command for normal help
-				if targetCmd, _, err := rootCmd.Find(args); err == nil {
-					return targetCmd.Help()
-				}
-
-				// Command not found - show error and suggestions
-				ui := cli.GetUI(cmd)
-				ui.Error("Unknown help topic or command: %s", topic)
-				ui.Println("")
-
-				// Get available commands for suggestions
-				var availableCommands []string
-				for _, subCmd := range rootCmd.Commands() {
-					if !subCmd.Hidden {
-						availableCommands = append(availableCommands, subCmd.Name())
-					}
-				}
-
-				// Add special topics
-				specialTopics := []string{"workflows", "getting-started", "troubleshooting", "next", "docs"}
-				availableCommands = append(availableCommands, specialTopics...)
-
-				suggestions := cli.SuggestCommand(topic, availableCommands)
-				if len(suggestions) > 0 {
-					ui.Info("Did you mean one of these?")
-					for _, suggestion := range suggestions {
-						ui.Printf("  pvm help %s\n", suggestion)
-					}
-				} else {
-					ui.Info("Available topics: workflows, getting-started, troubleshooting, next, docs")
-					ui.Info("Use 'pvm help [command]' for command-specific help")
-				}
-
-				return fmt.Errorf("unknown help topic: %s", topic)
+			if targetCmd, _, err := rootCmd.Find([]string{topic}); err == nil && targetCmd != rootCmd {
+				return targetCmd.Help()
 			}
+			
+			// Command not found
+			ui := cli.GetUI(cmd)
+			ui.Error("Unknown help topic: %s", topic)
+			ui.Println("")
+			ui.Info("Available help topics:")
+			ui.Info("  workflows        - Common development workflows")
+			ui.Info("  getting-started  - New user onboarding")
+			ui.Info("  troubleshooting  - Diagnostic and problem-solving")
+			ui.Info("  next             - Suggested next steps")
+			ui.Info("")
+			ui.Info("Use 'pvm help [command]' for help on any command.")
+			return fmt.Errorf("unknown help topic: %s", topic)
 		},
 	}
 
+	// Add help subcommands
+	helpCmd.AddCommand(
+		newHelpWorkflowsCommand(),
+		newHelpGettingStartedCommand(),
+		newHelpTroubleshootingCommand(),
+		newHelpNextCommand(),
+	)
+
 	return helpCmd
+}
+
+// newHelpWorkflowsCommand creates the workflows help subcommand
+func newHelpWorkflowsCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "workflows",
+		Short: "Common development workflows",
+		Long:  "Show common PVM development workflows and usage patterns",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			helpManager := cli.NewHelpManager()
+			return cli.ShowContextualHelpWithPager(cmd, helpManager)
+		},
+	}
+}
+
+// newHelpGettingStartedCommand creates the getting-started help subcommand
+func newHelpGettingStartedCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "getting-started",
+		Short: "New user onboarding",
+		Long:  "Guide for new users to get started with PVM",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			helpManager := cli.NewHelpManager()
+			return showGettingStartedHelp(cmd, helpManager)
+		},
+	}
+}
+
+// newHelpTroubleshootingCommand creates the troubleshooting help subcommand
+func newHelpTroubleshootingCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "troubleshooting",
+		Short: "Diagnostic and problem-solving",
+		Long:  "Help with common issues and diagnostic commands",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			helpManager := cli.NewHelpManager()
+			return showTroubleshootingHelp(cmd, helpManager)
+		},
+	}
+}
+
+// newHelpNextCommand creates the next steps help subcommand
+func newHelpNextCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "next",
+		Short: "Suggested next steps",
+		Long:  "Show suggested next steps based on current context",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			helpManager := cli.NewHelpManager()
+			return showNextStepsHelp(cmd, helpManager)
+		},
+	}
 }
 
 // Helper functions that delegate to the help.go implementations
@@ -5100,15 +5114,6 @@ func customHelpFunc(cmd *cobra.Command, args []string) {
 	// For any other case, use the default help behavior
 	cmd.Help()
 }
-
-// setupCustomHelp configures the command to use our custom help system
-/* func setupCustomHelp(cmd *cobra.Command) {
-	// Disable the default help command and replace it with our enhanced one
-	cmd.SetHelpCommand(&cobra.Command{
-		Use:    "no-help",
-		Hidden: true,
-	})
-} */
 
 // newSelfCommand creates the self-management command that groups update, doctor, changelog, etc.
 func newSelfCommand() *cobra.Command {
