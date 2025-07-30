@@ -5,6 +5,7 @@ package perl
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -44,8 +45,11 @@ type ResolvedVersion struct {
 	// The source of the resolved version
 	Source ResolutionSource
 
-	// The path where this version was found (if applicable)
+	// The path to the Perl binary executable
 	Path string
+
+	// The path to the configuration source (e.g., .perl-version file, pvm.toml)
+	SourcePath string
 }
 
 // ResolutionOptions contains options for version resolution
@@ -288,9 +292,10 @@ func resolveExplicitVersion(version string, availableVersions []string, cfg *con
 				}
 
 				return &ResolvedVersion{
-					Version: versionInfo.Version,
-					Source:  SystemPerlSource,
-					Path:    perlExe,
+					Version:    versionInfo.Version,
+					Source:     SystemPerlSource,
+					Path:       perlExe,
+					SourcePath: "", // System Perl has no config file
 				}, nil
 			}
 		}
@@ -329,10 +334,17 @@ func resolveExplicitVersion(version string, availableVersions []string, cfg *con
 			nil)
 	}
 
+	// Get the install path for this version
+	perlPath, err := getPathForVersion(resolvedVersion)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ResolvedVersion{
-		Version: resolvedVersion,
-		Source:  ExplicitVersion,
-		Path:    "", // Path will be resolved by the executor
+		Version:    resolvedVersion,
+		Source:     ExplicitVersion,
+		Path:       perlPath,
+		SourcePath: "", // Explicit version has no config file
 	}, nil
 }
 
@@ -374,10 +386,17 @@ func resolveFromPerlVersionFile(projectDir string, availableVersions []string, c
 			nil)
 	}
 
+	// Get the install path for this version
+	perlPath, err := getPathForVersion(resolvedVersion)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ResolvedVersion{
-		Version: resolvedVersion,
-		Source:  ProjectVersionFile,
-		Path:    "", // Path will be resolved by the executor
+		Version:    resolvedVersion,
+		Source:     ProjectVersionFile,
+		Path:       perlPath,
+		SourcePath: versionFile,
 	}, nil
 }
 
@@ -441,10 +460,17 @@ func resolveFromProjectConfig(projectDir string, availableVersions []string, cfg
 			nil)
 	}
 
+	// Get the install path for this version
+	perlPath, err := getPathForVersion(resolvedVersion)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ResolvedVersion{
-		Version: resolvedVersion,
-		Source:  ProjectConfig,
-		Path:    "", // Path will be resolved by the executor
+		Version:    resolvedVersion,
+		Source:     ProjectConfig,
+		Path:       perlPath,
+		SourcePath: projectConfigPath,
 	}, nil
 }
 
@@ -472,10 +498,17 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 				nil)
 		}
 
+		// Get the install path for this version
+		perlPath, err := getPathForVersion(resolvedVersion)
+		if err != nil {
+			return nil, err
+		}
+
 		return &ResolvedVersion{
-			Version: resolvedVersion,
-			Source:  EnvironmentVariable,
-			Path:    "", // Path will be resolved by the executor
+			Version:    resolvedVersion,
+			Source:     EnvironmentVariable,
+			Path:       perlPath,
+			SourcePath: "", // Environment variables don't have a file path
 		}, nil
 	}
 
@@ -500,10 +533,17 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 				nil)
 		}
 
+		// Get the install path for this version
+		perlPath, err := getPathForVersion(resolvedVersion)
+		if err != nil {
+			return nil, err
+		}
+
 		return &ResolvedVersion{
-			Version: resolvedVersion,
-			Source:  EnvironmentVariable,
-			Path:    "", // Path will be resolved by the executor
+			Version:    resolvedVersion,
+			Source:     EnvironmentVariable,
+			Path:       perlPath,
+			SourcePath: "", // Environment variables don't have a file path
 		}, nil
 	}
 
@@ -533,10 +573,17 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 				nil)
 		}
 
+		// Get the install path for this version
+		perlPath, err := getPathForVersion(resolvedVersion)
+		if err != nil {
+			return nil, err
+		}
+
 		return &ResolvedVersion{
-			Version: resolvedVersion,
-			Source:  EnvironmentVariable,
-			Path:    "", // Path will be resolved by the executor
+			Version:    resolvedVersion,
+			Source:     EnvironmentVariable,
+			Path:       perlPath,
+			SourcePath: "", // Environment variables don't have a file path
 		}, nil
 	}
 
@@ -606,10 +653,24 @@ func resolveFromUserConfig(cfg *config.Config, availableVersions []string) (*Res
 			nil)
 	}
 
+	// Get the install path for this version
+	perlPath, err := getPathForVersion(resolvedVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get user config file path
+	dirs, err := xdg.GetDirs()
+	var userConfigPath string
+	if err == nil {
+		userConfigPath = dirs.GetConfigFilePath()
+	}
+
 	return &ResolvedVersion{
-		Version: resolvedVersion,
-		Source:  UserConfig,
-		Path:    "", // Path will be resolved by the executor
+		Version:    resolvedVersion,
+		Source:     UserConfig,
+		Path:       perlPath,
+		SourcePath: userConfigPath,
 	}, nil
 }
 
@@ -622,9 +683,10 @@ func resolveFromSystemPerl() (*ResolvedVersion, error) {
 	}
 
 	return &ResolvedVersion{
-		Version: systemPerl.Version,
-		Source:  SystemPerlSource,
-		Path:    systemPerl.Path,
+		Version:    systemPerl.Version,
+		Source:     SystemPerlSource,
+		Path:       systemPerl.Path,
+		SourcePath: "", // System Perl has no config file
 	}, nil
 }
 
@@ -706,4 +768,43 @@ func getDownloadableVersions(ctx context.Context) ([]string, error) {
 	}
 
 	return versions, nil
+}
+
+// getPathForVersion returns the path to the perl binary for a given version
+func getPathForVersion(version string) (string, error) {
+	// Get version info from registry
+	versionInfo, err := GetVersionInfo(version)
+	if err != nil {
+		return "", err
+	}
+
+	// For system perl, the InstallPath might be the directory containing perl or perl itself
+	if versionInfo.Source == "system" {
+		if filepath.Base(versionInfo.InstallPath) == "perl" || filepath.Base(versionInfo.InstallPath) == "perl.exe" {
+			return versionInfo.InstallPath, nil
+		} else {
+			// InstallPath is likely the bin directory, append perl
+			perlPath := filepath.Join(versionInfo.InstallPath, "perl")
+			if runtime.GOOS == "windows" {
+				perlPath = filepath.Join(versionInfo.InstallPath, "perl.exe")
+			}
+			return perlPath, nil
+		}
+	}
+
+	// For non-system perl, construct the path to bin/perl
+	perlPath := filepath.Join(versionInfo.InstallPath, "bin", "perl")
+	if runtime.GOOS == "windows" {
+		perlPath = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+	}
+
+	// Verify the perl binary exists
+	if _, err := os.Stat(perlPath); err != nil {
+		return "", errors.NewVersionError(
+			ErrResolutionFailed,
+			fmt.Sprintf("Perl binary not found at %s for version %s", perlPath, version),
+			err)
+	}
+
+	return perlPath, nil
 }

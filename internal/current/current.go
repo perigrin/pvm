@@ -47,7 +47,7 @@ func GetCurrentVersion() (*CurrentVersionInfo, error) {
 	}
 
 	// Convert resolver source to user-friendly description
-	sourceDesc := formatSourceDescription(resolved.Source, resolved.Path)
+	sourceDesc := formatSourceDescription(resolved.Source, resolved.SourcePath)
 
 	return &CurrentVersionInfo{
 		Version:           resolved.Version,
