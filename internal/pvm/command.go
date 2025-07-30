@@ -79,11 +79,9 @@ func NewCommand() *cobra.Command {
 	cmd.AddCommand(
 		hiddenHelpCmd, // Hidden version for subcommands to work
 		newInstallCommand(),
-		newUseCommand(),
 		newShUseCommand(),
 		newShEnvActivateCommand(),
 		newDetectVersionCommand(),
-		newLocalCommand(),
 		newCurrentCommand(), // Show current Perl version
 		newVersionsCommand(),
 		newListCommand(), // Alias for versions command for compatibility
@@ -97,21 +95,15 @@ func NewCommand() *cobra.Command {
 		newDevCommand(),          // Development environment command
 		newTestCommand(),         // Test execution command
 		newUninstallCommand(),
-		newRehashCommand(),
 		newInitCommand(),
 		newShellCommand(),
 		newCompletionCommand(),
 		newEnvCommand(),
 		newToolCommand(),
 
-		// Shell aliases for convenience
-		newPVXCommand(), // Shell alias to run command
-		newPSCCommand(), // Shell alias to build command
-
 		// These are implemented in their own files
 		newConfigCommand(),   // from config.go
 		newPerlCommand(),     // from perl.go
-		newVersionCommand(),  // from version.go
 
 		// Temporary backward compatibility alias for makefile
 		newBackwardCompatSymlinksCommand(),
@@ -445,12 +437,16 @@ func newUseCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "use [version]",
 		Short: "Use a specific version in the current shell",
-		Long:  "Temporarily use a specific Perl version in the current shell session",
+		Long:  "Temporarily use a specific Perl version in the current shell session. Use 'system' to fall back to system Perl.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cmd.Println("The 'pvm use' command requires shell integration to work properly.")
+			cmd.Println("The 'pvm perl use' command requires shell integration to work properly.")
 			cmd.Println("Please ensure you have run 'eval \"$(pvm init)\"' in your shell.")
 			cmd.Println("The shell integration provides a 'pvm' function that handles version switching.")
+			cmd.Println()
+			cmd.Println("Examples:")
+			cmd.Println("  pvm perl use 5.38.0    # Use a specific Perl version")
+			cmd.Println("  pvm perl use system    # Fall back to system Perl")
 			return nil
 		},
 	}
@@ -465,6 +461,15 @@ func newShUseCommand() *cobra.Command {
 		Hidden: true, // Hide from help output as this is internal
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
+			
+			// Handle special "system" case
+			if version == "system" {
+				// Generate shell code to unset PVM_PERL_VERSION
+				fmt.Println("unset PVM_PERL_VERSION")
+				fmt.Printf("echo \"Using system Perl\"\n")
+				return nil
+			}
+			
 			return perl.GenerateShellUse(version)
 		},
 	}
@@ -497,41 +502,105 @@ func newDetectVersionCommand() *cobra.Command {
 
 
 func newGlobalCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "global [version]",
 		Short: "Set the global Perl version",
-		Long:  "Set the default Perl version for all shells",
-		Args:  cobra.ExactArgs(1),
+		Long:  "Set the default Perl version for all shells. Use 'system' to fall back to system Perl.",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check for unset flag
+			unset, err := cmd.Flags().GetBool("unset")
+			if err != nil {
+				return err
+			}
+
+			ui := cli.GetUI(cmd)
+
+			if unset {
+				// Unset global version
+				err := perl.UnsetGlobalVersion()
+				if err != nil {
+					return err
+				}
+				ui.Success("Global Perl version unset")
+				ui.Info("PVM will now fall back to project-local versions or system Perl")
+				return nil
+			}
+
+			// Require version argument if not unsetting
+			if len(args) == 0 {
+				return fmt.Errorf("version argument required (use --unset to remove global version)")
+			}
+
 			version := args[0]
 
+			// Handle special "system" case
+			if version == "system" {
+				// Unset global version to fall back to system
+				err = perl.UnsetGlobalVersion()
+				if err != nil {
+					return err
+				}
+				ui.Success("Global Perl version set to system")
+				ui.Info("PVM will now fall back to system Perl when no other version is specified")
+				return nil
+			}
+
 			// Set global version
-			err := perl.SetGlobalVersion(version)
+			err = perl.SetGlobalVersion(version)
 			if err != nil {
 				return err
 			}
 
 			// Success message
-			ui := cli.GetUI(cmd)
 			ui.Success("Global Perl version set to %s", version)
 			ui.Info("This is now the default version when no other version is specified")
 
 			return nil
 		},
 	}
+
+	// Add the unset flag
+	cmd.Flags().Bool("unset", false, "Remove the global Perl version setting")
+
+	return cmd
 }
 
 func newLocalCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "local [version]",
 		Short: "Set the local version for a directory",
 		Long:  "Set the Perl version for the current directory and subdirectories",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check for unset flag
+			unset, err := cmd.Flags().GetBool("unset")
+			if err != nil {
+				return err
+			}
+
+			ui := cli.GetUI(cmd)
+
+			if unset {
+				// Unset local version
+				err := perl.UnsetLocalVersion()
+				if err != nil {
+					return err
+				}
+				ui.Success("Local Perl version unset")
+				ui.Info("PVM will now fall back to global version or system Perl")
+				return nil
+			}
+
+			// Require version argument if not unsetting
+			if len(args) == 0 {
+				return fmt.Errorf("version argument required (use --unset to remove local version)")
+			}
+
 			version := args[0]
 
 			// Set local version
-			err := perl.SetLocalVersion(version)
+			err = perl.SetLocalVersion(version)
 			if err != nil {
 				return err
 			}
@@ -543,7 +612,6 @@ func newLocalCommand() *cobra.Command {
 			}
 
 			// Success message
-			ui := cli.GetUI(cmd)
 			ui.Success("Local Perl version set to %s for %s", version, dir)
 			ui.Info("This version will be used in this directory and its subdirectories")
 			ui.Info("Note: Shell integration must be set up for automatic switching to work")
@@ -551,114 +619,13 @@ func newLocalCommand() *cobra.Command {
 			return nil
 		},
 	}
-}
 
-// newCurrentCommand creates a command to show the currently active Perl version
-func newCurrentCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "current",
-		Short: "Show currently active Perl version",
-		Long: `Show the currently active Perl version with source attribution.
-
-This command shows which Perl version is currently being used and where
-that setting comes from (e.g., .perl-version file, environment variable,
-user configuration, etc.).
-
-The version resolution follows this precedence order:
-1. Explicitly specified version
-2. Environment variables (PVM_PERL_VERSION, PLENV_VERSION, PERLBREW_PERL)
-3. Project-local .perl-version file
-4. Project-local .pvm/pvm.toml
-5. User-level configuration
-6. System Perl
-
-Examples:
-  pvm current              # Show current version with source
-  pvm current --bare       # Show only version (for scripting)
-  pvm current --detailed   # Show comprehensive information
-  pvm current --json       # Output in JSON format`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get flags
-			bare, err := cmd.Flags().GetBool("bare")
-			if err != nil {
-				return err
-			}
-
-			detailed, err := cmd.Flags().GetBool("detailed")
-			if err != nil {
-				return err
-			}
-
-			jsonOutput, err := cmd.Flags().GetBool("json")
-			if err != nil {
-				return err
-			}
-
-			showPath, err := cmd.Flags().GetBool("path")
-			if err != nil {
-				return err
-			}
-
-			validate, err := cmd.Flags().GetBool("validate")
-			if err != nil {
-				return err
-			}
-
-			// Determine display options based on flags
-			var options *current.DisplayOptions
-			switch {
-			case bare:
-				options = current.BareDisplayOptions()
-			case detailed:
-				options = current.DetailedDisplayOptions()
-			case jsonOutput:
-				options = current.DefaultDisplayOptions()
-				options.Format = current.FormatJSON
-			default:
-				options = current.DefaultDisplayOptions()
-			}
-
-			// Apply additional flag overrides
-			if showPath {
-				options.ShowPath = true
-			}
-			if validate {
-				options.Validate = true
-				options.ShowComparison = true
-			}
-
-			// Get current version information
-			info, err := current.GetCurrentVersion()
-			if err != nil {
-				return fmt.Errorf("failed to get current version: %w", err)
-			}
-
-			// Format and display the output
-			output, err := current.FormatCurrentVersion(info, options)
-			if err != nil {
-				return fmt.Errorf("failed to format output: %w", err)
-			}
-
-			cmd.Print(output)
-
-			// Add newline for non-bare output
-			if !bare {
-				cmd.Println()
-			}
-
-			return nil
-		},
-	}
-
-	// Add flags
-	cmd.Flags().Bool("bare", false, "Show only the version string (for scripting)")
-	cmd.Flags().Bool("detailed", false, "Show comprehensive version information")
-	cmd.Flags().Bool("json", false, "Output in JSON format")
-	cmd.Flags().Bool("path", false, "Include file paths in output")
-	cmd.Flags().Bool("validate", false, "Validate current version and show warnings")
+	// Add the unset flag
+	cmd.Flags().Bool("unset", false, "Remove the local Perl version setting")
 
 	return cmd
 }
+
 
 func newVersionsCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -2320,55 +2287,6 @@ func copyFile(src, dst string, mode os.FileMode) error {
 // newSystemCommand creates a command for showing system Perl info
 // This is now moved to perl.go as newPerlSystemCommand()
 
-func newInitCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "init",
-		Short: "Initialize shell integration",
-		Long:  "Generate shell integration script for the current shell",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// Detect shell type
-			shell, err := perl.DetectShell()
-			if err != nil {
-				return err
-			}
-
-			// Check if registry exists, rebuild if missing or empty
-			registry, err := perl.LoadRegistry()
-			if err != nil || len(registry.Versions) == 0 {
-				// Registry is missing, corrupted, or empty - try to rebuild it
-				if rebuildErr := perl.RebuildRegistry(); rebuildErr == nil {
-					fmt.Fprintf(os.Stderr, "Registry rebuilt from existing installations\n")
-				}
-			}
-
-			// Check if we should perform automatic import
-			// Only do this if we have no existing versions (first run)
-			if perl.ShouldAutoImport() {
-				// Perform automatic import of legacy tools
-				results, err := perl.AutoImportLegacyVersions()
-				if err == nil && results.TotalImported > 0 {
-					// Print import results to stderr so it doesn't interfere with shell eval
-					perl.PrintAutoImportResults(results)
-				}
-			}
-
-			// Get shell script for the detected shell
-			script, err := perl.GetCurrentShellScript(shell)
-			if err != nil {
-				return err
-			}
-
-			// Print the script to stdout (for eval)
-			ui := cli.GetUI(cmd)
-			ui.Printf("%s", script)
-			return nil
-		},
-	}
-
-	// No flags needed for shell integration output
-
-	return cmd
-}
 
 func newShellCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -4666,6 +4584,7 @@ This command checks:
 				for _, issue := range issues {
 					if strings.Contains(issue, "Registry missing") ||
 					   strings.Contains(issue, "Registry is empty") ||
+					   strings.Contains(issue, "Registry contains") ||
 					   strings.Contains(issue, "Failed to load registry file") {
 						ui.Info("Rebuilding registry from existing installations...")
 						if err := perl.RebuildRegistry(); err != nil {
@@ -4774,7 +4693,7 @@ This command checks:
 				}
 
 				if !fix {
-					ui.Info("Run 'pvm doctor --fix' to attempt automatic fixes")
+					ui.Info("Run 'pvm self doctor --fix' to attempt automatic fixes")
 				}
 			}
 		},
