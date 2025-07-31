@@ -30,12 +30,14 @@ type Dirs struct {
 	CacheHome  string // For non-essential data files
 	DataHome   string // For data files
 	StateHome  string // For state files
+	BinHome    string // For executable files
 
 	// Application-specific directories
 	ConfigDir string // App-specific config directory
 	CacheDir  string // App-specific cache directory
 	DataDir   string // App-specific data directory
 	StateDir  string // App-specific state directory
+	BinDir    string // App-specific bin directory
 
 	// PVM-specific directories
 	VersionsDir        string // For installed Perl versions
@@ -57,12 +59,14 @@ func getDirsFunc() (*Dirs, error) {
 	dirs.CacheHome = getXDGCacheHome()
 	dirs.DataHome = getXDGDataHome()
 	dirs.StateHome = getXDGStateHome()
+	dirs.BinHome = getXDGBinHome()
 
 	// Set application-specific directories
 	dirs.ConfigDir = filepath.Join(dirs.ConfigHome, AppDirName)
 	dirs.CacheDir = filepath.Join(dirs.CacheHome, AppDirName)
 	dirs.DataDir = filepath.Join(dirs.DataHome, AppDirName)
 	dirs.StateDir = filepath.Join(dirs.StateHome, AppDirName)
+	dirs.BinDir = dirs.BinHome // Use BinHome directly for tool shims
 
 	// Set PVM-specific directories
 	dirs.VersionsDir = filepath.Join(dirs.DataDir, VersionsDir)
@@ -91,6 +95,7 @@ func (d *Dirs) ensureDirsImpl() error {
 		d.CacheDir,
 		d.DataDir,
 		d.StateDir,
+		d.BinDir,
 		d.VersionsDir,
 		d.SourcesDir,
 		d.ShimsDir,
@@ -160,6 +165,14 @@ func getXDGStateHome() string {
 		return stateHome
 	}
 	return filepath.Join(getHomeDir(), ".local", "state")
+}
+
+// getXDGBinHome returns XDG_BIN_HOME or default
+func getXDGBinHome() string {
+	if binHome := os.Getenv("XDG_BIN_HOME"); binHome != "" {
+		return binHome
+	}
+	return filepath.Join(getHomeDir(), ".local", "bin")
 }
 
 // getHomeDir returns the user's home directory

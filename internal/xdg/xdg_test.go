@@ -16,6 +16,7 @@ func TestGetDirs(t *testing.T) {
 	oldCacheHome := os.Getenv("XDG_CACHE_HOME")
 	oldDataHome := os.Getenv("XDG_DATA_HOME")
 	oldStateHome := os.Getenv("XDG_STATE_HOME")
+	oldBinHome := os.Getenv("XDG_BIN_HOME")
 
 	// Restore environment variables after the test
 	defer func() {
@@ -23,6 +24,7 @@ func TestGetDirs(t *testing.T) {
 		_ = os.Setenv("XDG_CACHE_HOME", oldCacheHome)
 		_ = os.Setenv("XDG_DATA_HOME", oldDataHome)
 		_ = os.Setenv("XDG_STATE_HOME", oldStateHome)
+		_ = os.Setenv("XDG_BIN_HOME", oldBinHome)
 	}()
 
 	t.Run("ExplicitEnvironmentVariables", func(t *testing.T) {
@@ -32,11 +34,13 @@ func TestGetDirs(t *testing.T) {
 		testCacheDir := filepath.Join(testDir, "cache")
 		testDataDir := filepath.Join(testDir, "data")
 		testStateDir := filepath.Join(testDir, "state")
+		testBinDir := filepath.Join(testDir, "bin")
 
 		_ = os.Setenv("XDG_CONFIG_HOME", testConfigDir)
 		_ = os.Setenv("XDG_CACHE_HOME", testCacheDir)
 		_ = os.Setenv("XDG_DATA_HOME", testDataDir)
 		_ = os.Setenv("XDG_STATE_HOME", testStateDir)
+		_ = os.Setenv("XDG_BIN_HOME", testBinDir)
 
 		dirs, err := GetDirs()
 		if err != nil {
@@ -56,6 +60,9 @@ func TestGetDirs(t *testing.T) {
 		if dirs.StateHome != testStateDir {
 			t.Errorf("Expected StateHome to be %s, got %s", testStateDir, dirs.StateHome)
 		}
+		if dirs.BinHome != testBinDir {
+			t.Errorf("Expected BinHome to be %s, got %s", testBinDir, dirs.BinHome)
+		}
 
 		// Verify application-specific directories
 		expectedConfigDir := filepath.Join(testConfigDir, AppDirName)
@@ -71,6 +78,11 @@ func TestGetDirs(t *testing.T) {
 		expectedDataDir := filepath.Join(testDataDir, AppDirName)
 		if dirs.DataDir != expectedDataDir {
 			t.Errorf("Expected DataDir to be %s, got %s", expectedDataDir, dirs.DataDir)
+		}
+
+		expectedBinDir := testBinDir // BinDir uses BinHome directly
+		if dirs.BinDir != expectedBinDir {
+			t.Errorf("Expected BinDir to be %s, got %s", expectedBinDir, dirs.BinDir)
 		}
 
 		// Verify PVM-specific directories
@@ -91,6 +103,7 @@ func TestGetDirs(t *testing.T) {
 		_ = os.Unsetenv("XDG_CACHE_HOME")
 		_ = os.Unsetenv("XDG_DATA_HOME")
 		_ = os.Unsetenv("XDG_STATE_HOME")
+		_ = os.Unsetenv("XDG_BIN_HOME")
 
 		dirs, err := GetDirs()
 		if err != nil {
@@ -113,6 +126,14 @@ func TestGetDirs(t *testing.T) {
 
 		if dirs.StateHome == "" {
 			t.Error("Expected non-empty StateHome")
+		}
+
+		if dirs.BinHome == "" {
+			t.Error("Expected non-empty BinHome")
+		}
+
+		if dirs.BinDir == "" {
+			t.Error("Expected non-empty BinDir")
 		}
 
 		// Verify that directories are absolute paths
@@ -140,6 +161,7 @@ func TestEnsureDirs(t *testing.T) {
 	_ = os.Setenv("XDG_CACHE_HOME", filepath.Join(testDir, "cache"))
 	_ = os.Setenv("XDG_DATA_HOME", filepath.Join(testDir, "data"))
 	_ = os.Setenv("XDG_STATE_HOME", filepath.Join(testDir, "state"))
+	_ = os.Setenv("XDG_BIN_HOME", filepath.Join(testDir, "bin"))
 
 	// Get directories
 	dirs, err := GetDirs()
@@ -159,6 +181,7 @@ func TestEnsureDirs(t *testing.T) {
 		dirs.CacheDir,
 		dirs.DataDir,
 		dirs.StateDir,
+		dirs.BinDir,
 		dirs.VersionsDir,
 		dirs.SourcesDir,
 		dirs.ShimsDir,

@@ -143,7 +143,7 @@ func GenerateShims() error {
 
 	// Create shims for standard commands
 	for _, shimInfo := range standardShims {
-		err := createShim(dirs.ShimsDir, shimInfo, pvmPath)
+		err := createShim(dirs.BinDir, shimInfo, pvmPath)
 		if err != nil {
 			return err
 		}
@@ -354,7 +354,7 @@ func CheckPath() (bool, string, error) {
 	}
 
 	// Get the shim directory
-	shimDir := dirs.ShimsDir
+	shimDir := dirs.BinDir
 
 	// Get the PATH environment variable
 	path := os.Getenv("PATH")
@@ -390,7 +390,7 @@ func GetPathConfigCommand() (string, error) {
 	}
 
 	// Get the shim directory
-	shimDir := dirs.ShimsDir
+	shimDir := dirs.BinDir
 
 	// Create different commands based on OS
 	switch runtime.GOOS {
@@ -477,7 +477,7 @@ func IsShimDirectory(dir string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	shimDirAbs, err := filepath.Abs(dirs.ShimsDir)
+	shimDirAbs, err := filepath.Abs(dirs.BinDir)
 	if err != nil {
 		return false, err
 	}
@@ -495,7 +495,7 @@ func RemoveAllShims() error {
 	}
 
 	// Read the directory
-	entries, err := os.ReadDir(dirs.ShimsDir)
+	entries, err := os.ReadDir(dirs.BinDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Directory doesn't exist, nothing to remove
@@ -505,7 +505,7 @@ func RemoveAllShims() error {
 			ErrShimDirectoryFailed,
 			"Failed to read shim directory",
 			err).
-			WithLocation(dirs.ShimsDir)
+			WithLocation(dirs.BinDir)
 	}
 
 	// Remove each file
@@ -516,7 +516,7 @@ func RemoveAllShims() error {
 		}
 
 		// Remove the file
-		err := os.Remove(filepath.Join(dirs.ShimsDir, entry.Name()))
+		err := os.Remove(filepath.Join(dirs.BinDir, entry.Name()))
 		if err != nil {
 			// Non-fatal error, continue with other files
 			continue

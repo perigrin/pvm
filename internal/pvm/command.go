@@ -2751,12 +2751,12 @@ func newToolCommand() *cobra.Command {
 	}
 
 	// Add --global flag to the parent command
-	cmd.PersistentFlags().Bool("global", false, "Operate on global tools instead of project tools")
+	cmd.PersistentFlags().Bool("global", true, "Operate on global tools instead of project tools (default)")
 
 	addCmd := &cobra.Command{
 		Use:   "add [tool[@version]]",
 		Short: "Add a tool",
-		Long:  "Add a Perl tool (module) and make it available as a command. Use --global for system-wide installation.",
+		Long:  "Add a Perl tool (module) and make it available globally. Use --global=false for project-local installation.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
@@ -2777,7 +2777,7 @@ func newToolCommand() *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List installed tools",
-		Long:  "List all installed tools and their versions. Use --global to show only global tools.",
+		Long:  "List installed global tools and their versions. Use --global=false to show both global and project tools.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
 			return listTools(cmd, global)
@@ -2787,7 +2787,7 @@ func newToolCommand() *cobra.Command {
 	upgradeCmd := &cobra.Command{
 		Use:   "upgrade [tool]",
 		Short: "Upgrade a tool",
-		Long:  "Upgrade an installed tool to the latest version. Use --global for global tools.",
+		Long:  "Upgrade an installed global tool to the latest version. Use --global=false for project tools.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
@@ -2798,7 +2798,7 @@ func newToolCommand() *cobra.Command {
 	uninstallCmd := &cobra.Command{
 		Use:   "uninstall [tool]",
 		Short: "Uninstall a tool",
-		Long:  "Remove an installed tool. Use --global for global tools.",
+		Long:  "Remove an installed global tool. Use --global=false for project tools.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
