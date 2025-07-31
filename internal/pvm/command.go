@@ -83,6 +83,7 @@ func NewCommand() *cobra.Command {
 		newShEnvActivateCommand(),
 		newDetectVersionCommand(),
 		newCurrentCommand(), // Show current Perl version
+		newRehashCommand(), // Update shell PATH for current version
 		newShowAlertsCommand(), // Hidden command for shell integration
 		newVersionsCommand(),
 		newListCommand(), // Alias for versions command for compatibility
@@ -1302,49 +1303,6 @@ func newUninstallCommand() *cobra.Command {
 	return cmd
 }
 
-func newRehashCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "rehash",
-		Short: "Rebuild shim executables",
-		Long:  "Rebuild shim executables for all installed Perl versions",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ui := cli.GetUI(cmd)
-			ui.Info("Rebuilding shim executables...")
-
-			// Call rehash function
-			err := perl.Rehash()
-			if err != nil {
-				return err
-			}
-
-			// Check if PATH is configured correctly
-			pathConfigured, shimDir, err := perl.CheckPath()
-			if err != nil {
-				return err
-			}
-
-			// Show success message
-			ui.Success("Shim executables rebuilt successfully.")
-
-			// Warn if PATH is not configured
-			if !pathConfigured {
-				ui.Warning("The shim directory is not in your PATH.")
-				ui.Printf("To use pvm, add the following directory to your PATH:\n%s\n", shimDir)
-
-				// Get the command to add to PATH
-				pathCmd, err := perl.GetPathConfigCommand()
-				if err == nil {
-					ui.Info("You can do this with the following command:")
-					ui.Printf("%s", pathCmd)
-				}
-			}
-
-			return nil
-		},
-	}
-
-	return cmd
-}
 
 func newResolveCommand() *cobra.Command {
 	return &cobra.Command{
