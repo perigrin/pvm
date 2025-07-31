@@ -83,6 +83,7 @@ func NewCommand() *cobra.Command {
 		newShEnvActivateCommand(),
 		newDetectVersionCommand(),
 		newCurrentCommand(), // Show current Perl version
+		newShowAlertsCommand(), // Hidden command for shell integration
 		newVersionsCommand(),
 		newListCommand(), // Alias for versions command for compatibility
 		newAvailableCommand(),
@@ -765,7 +766,7 @@ func newVersionsCommand() *cobra.Command {
 					case "system":
 						sourceIndicator = " (system)"
 					}
-					ui.Printf("  %s%s%s", versionInfo.Version, decoration, sourceIndicator)
+					ui.Printf("  %s%s%s\n", versionInfo.Version, decoration, sourceIndicator)
 					continue
 				}
 
@@ -855,7 +856,7 @@ func newListCommand() *cobra.Command {
 					case "system":
 						sourceIndicator = " (system)"
 					}
-					ui.Printf("  %s%s%s", versionInfo.Version, decoration, sourceIndicator)
+					ui.Printf("  %s%s%s\n", versionInfo.Version, decoration, sourceIndicator)
 					continue
 				}
 

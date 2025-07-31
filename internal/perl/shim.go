@@ -68,17 +68,10 @@ type ShimTemplate struct {
 }
 
 // Standard Perl commands to create shims for
+// NOTE: Most Perl commands (perl, cpan, prove, etc.) are now accessed directly
+// via the two-tier PATH system. Only tool-specific shims are created here.
 var standardShims = []ShimInfo{
-	{Name: "perl", Type: ShimPerl},
-	{Name: "cpan", Type: ShimScript},
-	{Name: "prove", Type: ShimScript},
-	{Name: "perldoc", Type: ShimScript},
-	{Name: "h2ph", Type: ShimScript},
-	{Name: "h2xs", Type: ShimScript},
-	{Name: "enc2xs", Type: ShimScript},
-	{Name: "xsubpp", Type: ShimScript},
-	{Name: "corelist", Type: ShimScript},
-	{Name: "cpanm", Type: ShimScript}, // Not bundled with Perl, but common
+	// Reserved for pvm tool install shims
 }
 
 // Shim template for Unix-like systems (Linux, macOS)
@@ -94,15 +87,7 @@ PVM_EXEC="{{ .PVMPath }}"
 
 # Execute the command through PVM
 if [ -x "$PVM_EXEC" ]; then
-  # Resolve the current Perl version
-  PERL_VERSION=$("$PVM_EXEC" current --bare 2>/dev/null)
-  if [ -z "$PERL_VERSION" ]; then
-    echo "Error: No Perl version is currently configured"
-    echo "Run 'pvm install <version>' to install a Perl version"
-    echo "Or 'pvm global <version>' to set a global version"
-    exit 1
-  fi
-  exec "$PVM_EXEC" exec "$PERL_VERSION"{{ if .IsScript }} --script "{{ .Name }}"{{ end }} -- "$@"
+  exec "$PVM_EXEC" exec -- "{{ .Name }}" "$@"
 else
   echo "Error: PVM executable not found at '$PVM_EXEC'"
   echo "Please ensure PVM is installed correctly"
@@ -119,15 +104,7 @@ set "PVM_EXEC={{ .PVMPath }}"
 
 :: Execute the command through PVM
 if exist "%PVM_EXEC%" (
-  :: Resolve the current Perl version
-  for /f "delims=" %%v in ('"%PVM_EXEC%" current --bare 2^>nul') do set "PERL_VERSION=%%v"
-  if "%PERL_VERSION%"=="" (
-    echo Error: No Perl version is currently configured
-    echo Run 'pvm install ^<version^>' to install a Perl version
-    echo Or 'pvm global ^<version^>' to set a global version
-    exit /b 1
-  )
-  "%PVM_EXEC%" exec "%PERL_VERSION%"{{ if .IsScript }} --script "{{ .Name }}"{{ end }} -- %*
+  "%PVM_EXEC%" exec -- "{{ .Name }}" %*
 ) else (
   echo Error: PVM executable not found at '%PVM_EXEC%'
   echo Please ensure PVM is installed correctly
@@ -172,65 +149,54 @@ func GenerateShims() error {
 		}
 	}
 
-	// Look for additional scripts in installed Perl versions
-	installedVersions, err := GetInstalledVersions()
-	if err != nil {
-		// Non-fatal error, we can continue with standard shims
-		return nil
-	}
-
-	// Create a map of existing shims to avoid duplicates
-	existingShims := make(map[string]bool)
-	for _, shim := range standardShims {
-		existingShims[shim.Name] = true
-	}
-
-	// Find additional scripts in bin directories of installed versions
-	for _, version := range installedVersions {
-		// Skip system Perl as it's handled differently
-		if version.Source == "system" {
-			continue
-		}
-
-		// Check the bin directory for scripts
-		binDir := filepath.Join(version.InstallPath, "bin")
-		files, err := os.ReadDir(binDir)
-		if err != nil {
-			// Skip if bin directory doesn't exist or can't be read
-			continue
-		}
-
-		// Create shims for additional scripts
-		for _, file := range files {
-			// Skip if it's a directory
-			if file.IsDir() {
-				continue
-			}
-
-			// Skip if we already have a shim for this command
-			if existingShims[file.Name()] {
-				continue
-			}
-
-			// Create a new shim
-			shimInfo := ShimInfo{
-				Name:         file.Name(),
-				Type:         ShimScript,
-				OriginalPath: filepath.Join(binDir, file.Name()),
-			}
-
-			err := createShim(dirs.ShimsDir, shimInfo, pvmPath)
-			if err != nil {
-				// Non-fatal error, continue with other scripts
-				continue
-			}
-
-			// Mark as existing
-			existingShims[file.Name()] = true
-		}
-	}
+	// Note: Perl binaries (perl, cpan, prove, etc.) are now accessed directly 
+	// via the two-tier PATH system. No shims needed for them.
+	// This function is reserved for future pvm tool install shims.
 
 	return nil
+}
+
+// shouldCreateShimFor determines whether we should create a shim for a given command
+func shouldCreateShimFor(commandName string) bool {
+	// Skip version-specific commands (e.g., perl5.26.0, cpan5.34.0)
+	if strings.Contains(commandName, "5.") {
+		return false
+	}
+
+	// Allow core Perl utilities
+	coreCommands := map[string]bool{
+		"perlbug":      true,
+		"perldoc":      true,
+		"perlivp":      true,
+		"perlthanks":   true,
+		"piconv":       true,
+		"pl2pm":        true,
+		"pod2html":     true,
+		"pod2man":      true,
+		"pod2text":     true,
+		"pod2usage":    true,
+		"podchecker":   true,
+		"podselect":    true,
+		"ptar":         true,
+		"ptardiff":     true,
+		"ptargrep":     true,
+		"shasum":       true,
+		"splain":       true,
+		"streamzip":    true,
+		"zipdetails":   true,
+		"json_pp":      true,
+		"libnetcfg":    true,
+		"instmodsh":    true,
+		"encguess":     true,
+		"config_data":  true,
+	}
+
+	if coreCommands[commandName] {
+		return true
+	}
+
+	// Skip everything else (installed modules, etc.)
+	return false
 }
 
 // CreateShim creates a shim executable for a given command

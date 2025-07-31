@@ -65,6 +65,9 @@ type PVMConfig struct {
 
 	// Binary distribution configuration
 	Binary *PVMBinaryConfig `toml:"binary" json:"binary"`
+
+	// Shell integration configuration
+	Shell *PVMShellConfig `toml:"shell" json:"shell"`
 }
 
 // PVMCustomMirrorConfig represents a custom mirror with authentication
@@ -181,6 +184,12 @@ type PVMBinaryConfig struct {
 
 	// BandwidthLimit specifies bandwidth limit for downloads (e.g., "10MB", "1GB")
 	BandwidthLimit string `toml:"bandwidth_limit" json:"bandwidth_limit"`
+}
+
+// PVMShellConfig represents configuration for shell integration
+type PVMShellConfig struct {
+	// ShowDirectoryChangeAlerts controls whether to show version alerts when changing directories
+	ShowDirectoryChangeAlerts bool `toml:"show_directory_change_alerts" json:"show_directory_change_alerts"`
 }
 
 // PVMUpdateConfig represents configuration for PVM self-updater
@@ -636,6 +645,9 @@ func NewDefaultConfig() *Config {
 				Timeout:            "10m",
 				BandwidthLimit:     "",
 			},
+			Shell: &PVMShellConfig{
+				ShowDirectoryChangeAlerts: true, // Default to showing alerts
+			},
 		},
 		PVX: &PVXConfig{
 			CacheModules:            true,
@@ -789,6 +801,10 @@ func (c *PVMConfig) Validate() []error {
 		errors = append(errors, c.Binary.Validate()...)
 	}
 
+	if c.Shell != nil {
+		errors = append(errors, c.Shell.Validate()...)
+	}
+
 	return errors
 }
 
@@ -898,6 +914,12 @@ func (c *PVMBinaryConfig) Validate() []error {
 	}
 
 	return errors
+}
+
+// Validate checks if the PVMShell configuration is valid
+func (c *PVMShellConfig) Validate() []error {
+	// No validation needed for boolean fields - they're always valid
+	return []error{}
 }
 
 // Validate checks if the PVX configuration is valid

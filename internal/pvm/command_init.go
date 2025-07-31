@@ -6,11 +6,13 @@ package pvm
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/xdg"
 )
 
 // newInitCommand creates a command to initialize shell integration
@@ -46,10 +48,8 @@ func newInitCommand() *cobra.Command {
 				}
 			}
 
-			// Check if registry exists, rebuild if missing or empty
-			registry, err := perl.LoadRegistry()
-			if err != nil || len(registry.Versions) == 0 {
-				// Registry is missing, corrupted, or empty - try to rebuild it
+			// Check if registry needs rebuilding using comprehensive detection
+			if needsRegistryRebuild() {
 				if rebuildErr := perl.RebuildRegistry(); rebuildErr == nil {
 					fmt.Fprintf(os.Stderr, "Registry rebuilt from existing installations\n")
 				}
@@ -82,4 +82,33 @@ func newInitCommand() *cobra.Command {
 	// No flags needed for shell integration output
 
 	return cmd
+}
+
+// needsRegistryRebuild checks if the registry needs rebuilding
+// Only rebuilds if registry is missing, corrupted, or completely empty
+func needsRegistryRebuild() bool {
+	// Load and validate registry
+	registry, err := perl.LoadRegistry()
+	if err != nil {
+		return true // Registry file corrupted or missing
+	}
+
+	// Only rebuild if registry is completely empty
+	// If registry has any versions, assume it's functional
+	if len(registry.Versions) == 0 {
+		// Get XDG directories for versions directory  
+		dirs, err := xdg.GetDirs()
+		if err != nil {
+			return true // If we can't get dirs, assume rebuild needed
+		}
+		
+		versionsDir := filepath.Join(dirs.DataDir, "versions")
+		
+		// Check if versions exist on filesystem when registry is empty
+		if entries, err := os.ReadDir(versionsDir); err == nil && len(entries) > 0 {
+			return true // Registry is empty but versions directory contains installations
+		}
+	}
+
+	return false // Registry has entries, assume it's functional
 }

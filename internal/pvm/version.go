@@ -14,10 +14,10 @@ import (
 	"tamarou.com/pvm/internal/perl"
 )
 
-// newVersionCommand creates a command for version utilities
-func newVersionCommand() *cobra.Command {
+// newPerlVersionUtilCommand creates a command for version utilities
+func newPerlVersionUtilCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "version-util",
+		Use:   "version",
 		Short: "Perl version utilities",
 		Long:  "Parse, validate, and compare Perl versions",
 	}

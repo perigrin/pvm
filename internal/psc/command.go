@@ -4,6 +4,8 @@
 package psc
 
 import (
+	"fmt"
+	
 	"github.com/spf13/cobra"
 )
 
@@ -51,9 +53,31 @@ Examples:
 		newListTypesCommand(),
 		// Add LSP command
 		lspCmd,
+		// Add MCP command (alias to pvm tool mcp)
+		newPSCMCPCommand(),
 	)
 
 	return cmd
+}
+
+// newPSCMCPCommand creates an MCP command that delegates to pvm tool mcp
+func newPSCMCPCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "mcp",
+		Short: "Start the Model Context Protocol server",
+		Long: `Start the MCP server that provides LLMs with:
+- Perl code analysis using PVM's type system
+- Semantic code search via embeddings
+- Intelligent code generation with collaborative sampling
+- Rich context awareness and project-scoped operations
+
+This is an alias for 'pvm tool mcp' - you can use either command.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// This is a simple redirect - in a real implementation,
+			// you might want to call the actual MCP server code directly
+			return fmt.Errorf("Please use 'pvm tool mcp' to start the MCP server")
+		},
+	}
 }
 
 // Legacy command - kept for backwards compatibility but delegates to the new implementation

@@ -45,16 +45,7 @@ type SystemPerl struct {
 
 // detectSystemPerlFunc is the actual function that detects the primary system Perl
 func detectSystemPerlFunc() (*SystemPerl, error) {
-	// If plenv is available and configured, use plenv-aware detection
-	if isPlenvAvailable() {
-		perl, err := detectSystemPerlWithPlenv()
-		if err == nil {
-			return perl, nil
-		}
-		// If plenv detection fails, continue with fallback
-	}
-
-	// Fallback: try to find perl in PATH
+	// Find system perl directly, bypassing any version managers
 	perlPath, err := findPerlInPath()
 	if err != nil {
 		return nil, err
@@ -116,7 +107,7 @@ func FindPerlByVersion(version string) (*SystemPerl, error) {
 		fmt.Sprintf("No system Perl with version %s found", version), nil)
 }
 
-// findPerlInPath finds the perl executable in PATH, resolving plenv shims to actual Perl
+// findPerlInPath finds the perl executable in system PATH, bypassing version managers
 func findPerlInPath() (string, error) {
 	// On Windows, we need to add .exe extension
 	perlName := "perl"
@@ -124,10 +115,33 @@ func findPerlInPath() (string, error) {
 		perlName = "perl.exe"
 	}
 
+	// First try with clean system PATH to find actual system perl
+	systemPaths := []string{"/usr/bin", "/usr/local/bin", "/bin"}
+	if runtime.GOOS == "windows" {
+		systemPaths = []string{"C:\\Perl\\bin", "C:\\Strawberry\\perl\\bin", "C:\\Windows\\System32"}
+	}
+
+	// Check system locations directly first
+	for _, dir := range systemPaths {
+		perlPath := filepath.Join(dir, perlName)
+		if _, err := os.Stat(perlPath); err == nil {
+			return perlPath, nil
+		}
+	}
+
+	// Fallback: use exec.LookPath with clean PATH as a last resort
+	// Save current environment
+	originalPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", originalPath)
+
+	// Set clean system PATH
+	cleanPath := strings.Join(systemPaths, string(os.PathListSeparator))
+	os.Setenv("PATH", cleanPath)
+
 	perlPath, err := exec.LookPath(perlName)
 	if err != nil {
 		return "", errors.NewVersionError(ErrNoSystemPerl,
-			"No system Perl found in PATH", err)
+			"No system Perl found in system locations", err)
 	}
 
 	// Get the absolute path
@@ -137,12 +151,6 @@ func findPerlInPath() (string, error) {
 			"Failed to get absolute path to Perl", err)
 	}
 
-	// Check if this is a plenv or perlbrew shim and resolve to actual Perl
-	if resolvedPath, err := resolvePerlVersionManager(perlPath); err == nil {
-		return resolvedPath, nil
-	}
-
-	// If not a version manager shim or resolution failed, return the original path
 	return perlPath, nil
 }
 

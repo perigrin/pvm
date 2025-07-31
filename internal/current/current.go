@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/perl"
 )
 
@@ -239,4 +240,20 @@ func enhanceResolutionError(err error) error {
 
 	// For other errors, just add a generic helpful message
 	return fmt.Errorf("failed to resolve current Perl version: %w\n\nFor help with version resolution, run 'pvm help' or 'pvm resolve' to debug", err)
+}
+
+// ShouldShowDirectoryChangeAlerts checks if directory change alerts should be shown
+func ShouldShowDirectoryChangeAlerts() bool {
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		// If we can't load config, default to showing alerts
+		return true
+	}
+
+	if cfg.PVM == nil || cfg.PVM.Shell == nil {
+		// If shell config is not set, default to showing alerts
+		return true
+	}
+
+	return cfg.PVM.Shell.ShowDirectoryChangeAlerts
 }

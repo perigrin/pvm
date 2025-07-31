@@ -40,7 +40,10 @@ func newPerlCommand() *cobra.Command {
 		newPerlInstallCommand(),
 		newPerlUploadCommand(),
 		newPerlGlobalCommand(),
-		newPerlResolveCommand(), // Moved from main commands
+		newPerlLocalCommand(),       // Moved from main commands
+		newPerlUseCommand(),         // Moved from main commands
+		newPerlResolveCommand(),     // Moved from main commands
+		newPerlVersionUtilCommand(), // Moved from top-level version-util
 	)
 
 	return cmd
@@ -477,6 +480,20 @@ func newPerlUploadCommand() *cobra.Command {
 func newPerlGlobalCommand() *cobra.Command {
 	cmd := newGlobalCommand()
 	cmd.Use = "global [version]"
+	return cmd
+}
+
+// newPerlLocalCommand creates a perl local command (wraps main local command)
+func newPerlLocalCommand() *cobra.Command {
+	cmd := newLocalCommand()
+	cmd.Use = "local [version]"
+	return cmd
+}
+
+// newPerlUseCommand creates a perl use command (wraps main use command)
+func newPerlUseCommand() *cobra.Command {
+	cmd := newUseCommand()
+	cmd.Use = "use [version]"
 	return cmd
 }
 

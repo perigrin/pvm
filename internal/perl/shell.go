@@ -5,6 +5,7 @@ package perl
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,19 @@ import (
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/xdg"
 )
+
+//go:embed shell_templates/pvm.bash
+var bashTemplate string
+
+//go:embed shell_templates/pvm.zsh  
+var zshTemplate string
+
+//go:embed shell_templates/pvm.fish
+var fishTemplate string
+
+// PowerShell and CMD templates (not embedded - not currently maintained)
+var powershellTemplate = ""
+var cmdTemplate = ""
 
 // Shell-related error codes
 const (
@@ -206,8 +220,10 @@ func GenerateShellScript(shellType ShellType, data ShellScriptData) (string, err
 
 	// Select the appropriate template based on shell type
 	switch shellType {
-	case ShellBash, ShellZsh:
-		tmplText = bashZshTemplate
+	case ShellBash:
+		tmplText = bashTemplate
+	case ShellZsh:
+		tmplText = zshTemplate
 	case ShellFish:
 		tmplText = fishTemplate
 	case ShellPowerShell:
@@ -325,9 +341,11 @@ func SwitchVersion(version string, scope string) error {
 
 // SetGlobalVersion sets the global default Perl version
 func SetGlobalVersion(version string) error {
-	// Check if the version is valid
-	if err := ValidateVersion(version); err != nil {
-		return err
+	// Allow "system" as a special case, otherwise validate the version
+	if version != "system" {
+		if err := ValidateVersion(version); err != nil {
+			return err
+		}
 	}
 
 	// Get XDG directories
@@ -365,11 +383,50 @@ func SetGlobalVersion(version string) error {
 	return nil
 }
 
+// UnsetGlobalVersion sets the global version to "system" to fall back to system Perl
+func UnsetGlobalVersion() error {
+	// Get XDG directories
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return errors.NewSystemError("001",
+			"Failed to determine XDG directories", err)
+	}
+
+	// Get configuration file path
+	configPath := dirs.GetConfigFilePath()
+
+	// Create the configuration directory if it doesn't exist
+	err = os.MkdirAll(filepath.Dir(configPath), 0755)
+	if err != nil {
+		return errors.NewVersionError(
+			ErrGlobalVersionSetFailed,
+			"Failed to create configuration directory",
+			err)
+	}
+
+	// Create/update configuration file with system setting
+	configContent := "[pvm]\ndefault_perl = \"system\"\n"
+
+	// Write to file
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	if err != nil {
+		return errors.NewVersionError(
+			ErrGlobalVersionSetFailed,
+			"Failed to write configuration file",
+			err).
+			WithLocation(configPath)
+	}
+
+	return nil
+}
+
 // SetLocalVersion sets the local Perl version for a project
 func SetLocalVersion(version string) error {
-	// Check if the version is valid
-	if err := ValidateVersion(version); err != nil {
-		return err
+	// Allow "system" as a special case, otherwise validate the version
+	if version != "system" {
+		if err := ValidateVersion(version); err != nil {
+			return err
+		}
 	}
 
 	// Get current directory
@@ -395,64 +452,34 @@ func SetLocalVersion(version string) error {
 	return nil
 }
 
-// UnsetGlobalVersion removes the global default Perl version
-func UnsetGlobalVersion() error {
-	// Get XDG directories
-	dirs, err := xdg.GetDirs()
-	if err != nil {
-		return errors.NewSystemError("001",
-			"Failed to determine XDG directories", err)
-	}
-
-	// Get configuration file path
-	configPath := dirs.GetConfigFilePath()
-
-	// Check if config file exists
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		// No config file, nothing to unset
-		return nil
-	}
-
-	// Remove the configuration file
-	err = os.Remove(configPath)
-	if err != nil {
-		return errors.NewVersionError(
-			ErrGlobalVersionSetFailed,
-			"Failed to remove configuration file",
-			err).
-			WithLocation(configPath)
-	}
-
-	return nil
-}
-
-// UnsetLocalVersion removes the local Perl version for a project
+// UnsetLocalVersion removes the local Perl version for the current directory
 func UnsetLocalVersion() error {
 	// Get current directory
 	dir, err := os.Getwd()
 	if err != nil {
 		return errors.NewVersionError(
 			ErrLocalVersionSetFailed,
-			"Failed to determine current directory",
+			"Failed to get current directory",
 			err)
 	}
 
-	// Remove .perl-version file
-	versionFilePath := filepath.Join(dir, ".perl-version")
+	// Define the .perl-version file path
+	versionFile := filepath.Join(dir, ".perl-version")
 
-	// Check if file exists
-	if _, err := os.Stat(versionFilePath); os.IsNotExist(err) {
-		// No version file, nothing to unset
+	// Check if the file exists
+	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
+		// File doesn't exist, nothing to unset
 		return nil
 	}
 
-	err = os.Remove(versionFilePath)
+	// Remove the .perl-version file
+	err = os.Remove(versionFile)
 	if err != nil {
 		return errors.NewVersionError(
 			ErrLocalVersionSetFailed,
 			"Failed to remove .perl-version file",
 			err).
-			WithLocation(versionFilePath)
+			WithLocation(versionFile)
 	}
 
 	return nil
@@ -460,9 +487,11 @@ func UnsetLocalVersion() error {
 
 // UseVersion sets the Perl version for the current shell session
 func UseVersion(version string) error {
-	// Check if the version is valid
-	if err := ValidateVersion(version); err != nil {
-		return err
+	// Allow "system" as a special case, otherwise validate the version
+	if version != "system" {
+		if err := ValidateVersion(version); err != nil {
+			return err
+		}
 	}
 
 	// Since we can't directly affect the parent shell's environment,
@@ -478,9 +507,11 @@ func UseVersion(version string) error {
 
 // GenerateShellUse outputs shell commands to set up the environment for a specific Perl version
 func GenerateShellUse(version string) error {
-	// Check if the version is valid
-	if err := ValidateVersion(version); err != nil {
-		return err
+	// Allow "system" as a special case, otherwise validate the version
+	if version != "system" {
+		if err := ValidateVersion(version); err != nil {
+			return err
+		}
 	}
 
 	// Detect shell type from environment
@@ -721,324 +752,6 @@ func generateConflictWarnings() string {
 	return warnings.String()
 }
 
-// Shell script templates for different shell types
-
-// Bash/Zsh shell script template
-const bashZshTemplate = `#!/usr/bin/env sh
-# PVM Shell Integration for Bash/Zsh
-# Generated by PVM - DO NOT EDIT
-
-# Function to find PVM executable dynamically
-_pvm_find_executable() {
-    # First, try to find pvm in PATH
-    if command -v pvm >/dev/null 2>&1; then
-        command -v pvm
-        return 0
-    fi
-
-    # Fallback to the path that was used during generation
-    local fallback_path="{{ .PVMPath }}"
-    if [ -x "$fallback_path" ]; then
-        echo "$fallback_path"
-        return 0
-    fi
-
-    # If all else fails, show an error
-    echo "Error: PVM executable not found. Please ensure PVM is installed and in PATH." >&2
-    return 1
-}
-
-# Function to get PVM executable path
-_pvm_executable() {
-    if [ -z "$PVM_EXEC_CACHE" ]; then
-        PVM_EXEC_CACHE="$(_pvm_find_executable)"
-        if [ $? -ne 0 ]; then
-            return 1
-        fi
-    fi
-    echo "$PVM_EXEC_CACHE"
-}
-
-# Function to get shims directory dynamically
-_pvm_shims_dir() {
-    if [ -z "$PVM_SHIMS_DIR_CACHE" ]; then
-        local pvm_exec="$(_pvm_executable)"
-        if [ $? -ne 0 ]; then
-            return 1
-        fi
-        PVM_SHIMS_DIR_CACHE="$("$pvm_exec" shims-dir 2>/dev/null || echo "{{ .ShimsDir }}")"
-        # Fallback to template value if command returns empty
-        if [ -z "$PVM_SHIMS_DIR_CACHE" ]; then
-            PVM_SHIMS_DIR_CACHE="{{ .ShimsDir }}"
-        fi
-    fi
-    echo "$PVM_SHIMS_DIR_CACHE"
-}
-
-# Function to initialize PVM
-{{ .FunctionPrefix }}init() {
-    # Get shims directory
-    local shims_dir="$(_pvm_shims_dir)"
-    if [ $? -ne 0 ]; then
-        return 1
-    fi
-
-    # Add shims directory to PATH if not already there
-    case ":${PATH}:" in
-        *":${shims_dir}:"*) ;;
-        *) export PATH="${shims_dir}:${PATH}" ;;
-    esac
-
-{{ .ConflictWarnings }}
-    # Define main pvm function that intercepts 'use' and 'env activate' commands
-    pvm() {
-        local pvm_exec="$(_pvm_executable)"
-        if [ $? -ne 0 ]; then
-            return 1
-        fi
-
-        local command="$1"
-        if [ "$command" = "use" ]; then
-            # Handle 'pvm use' with shell integration
-            shift
-            local version="$1"
-            if [ -z "$version" ]; then
-                echo "Usage: pvm use <version>"
-                return 1
-            fi
-            # Use the sh-use command to generate shell code and eval it
-            eval "$("$pvm_exec" sh-use "$version")"
-        elif [ "$command" = "env" ] && [ "$2" = "activate" ]; then
-            # Handle 'pvm env activate' with shell integration
-            shift 2 # Remove 'env' and 'activate'
-            local env_name="$1"
-            if [ -z "$env_name" ]; then
-                echo "Usage: pvm env activate <name>"
-                return 1
-            fi
-            # Use the sh-env-activate command to generate shell code and eval it
-            eval "$("$pvm_exec" sh-env-activate "$env_name")"
-        else
-            # Delegate all other commands to the pvm binary
-            # Use command to avoid potential shell function recursion
-            command "$pvm_exec" "$@"
-        fi
-    }
-
-    # Define helper functions for backward compatibility
-    {{ .FunctionPrefix }}use() {
-        pvm use "$@"
-    }
-
-    {{ .FunctionPrefix }}local() {
-        pvm local "$@"
-    }
-
-    {{ .FunctionPrefix }}global() {
-        pvm global "$@"
-    }
-
-    # Create shell aliases
-    if [ -n "$ZSH_VERSION" ]; then
-        # Zsh aliases
-        alias pvm-use="{{ .FunctionPrefix }}use"
-        alias pvm-local="{{ .FunctionPrefix }}local"
-        alias pvm-global="{{ .FunctionPrefix }}global"
-    else
-        # Bash aliases
-        alias pvm-use="{{ .FunctionPrefix }}use"
-        alias pvm-local="{{ .FunctionPrefix }}local"
-        alias pvm-global="{{ .FunctionPrefix }}global"
-    fi
-
-    # Function to run custom commands upon directory change
-    {{ .FunctionPrefix }}cd() {
-        \cd "$@" || return $?
-
-        # Check for .perl-version file in current directory
-        if [ -f .perl-version ]; then
-            local version=$(cat .perl-version)
-            [ -n "$version" ] && pvm use "$version"
-        fi
-    }
-
-    # Set up cd override (if supported)
-    if [ -n "$ZSH_VERSION" ]; then
-        # For Zsh, use chpwd hook
-        {{ .FunctionPrefix }}chpwd() {
-            if [ -f .perl-version ]; then
-                local version=$(cat .perl-version)
-                [ -n "$version" ] && pvm use "$version"
-            fi
-        }
-
-        autoload -Uz add-zsh-hook
-        add-zsh-hook chpwd {{ .FunctionPrefix }}chpwd
-    else
-        # For Bash, override cd
-        alias cd="{{ .FunctionPrefix }}cd"
-    fi
-}
-
-# Initialize PVM
-{{ .FunctionPrefix }}init
-
-# Set up completion (skip during tests)
-if [ "$PVM_SKIP_NETWORK_CALLS" != "1" ]; then
-    if [ -n "$ZSH_VERSION" ]; then
-        eval "$($(_pvm_executable) completion zsh 2>/dev/null || true)"
-    else
-        eval "$($(_pvm_executable) completion bash 2>/dev/null || true)"
-    fi
-fi
-
-# Output message
-echo "PVM environment initialized"
-`
-
-// Fish shell script template
-const fishTemplate = `#!/usr/bin/env fish
-# PVM Shell Integration for Fish
-# Generated by PVM - DO NOT EDIT
-
-# Path to PVM executable
-set PVM_EXEC "{{ .PVMPath }}"
-
-# Shims directory
-set PVM_SHIMS_DIR "{{ .ShimsDir }}"
-
-# Function to initialize PVM
-function {{ .FunctionPrefix }}init
-    # Add shims directory to PATH if not already there
-    if not contains $PVM_SHIMS_DIR $PATH
-        set -gx PATH $PVM_SHIMS_DIR $PATH
-    end
-
-    # Define shell functions for version switching
-    function {{ .FunctionPrefix }}use
-        set version $argv[1]
-        if test -z "$version"
-            echo "Usage: pvm use <version>"
-            return 1
-        end
-
-        # Set version for current shell
-        set -gx PVM_PERL_VERSION $version
-        echo "Using Perl $version"
-    end
-
-    # Create shell aliases
-    alias pvm-use="{{ .FunctionPrefix }}use"
-    alias pvm-local="$PVM_EXEC local"
-    alias pvm-global="$PVM_EXEC global"
-
-    # Function to run when directory changes
-    function {{ .FunctionPrefix }}on_pwd_change --on-variable PWD
-        if test -f "$PWD/.perl-version"
-            set version (cat "$PWD/.perl-version")
-            if test -n "$version"
-                {{ .FunctionPrefix }}use $version
-            end
-        end
-    end
-
-    # Check current directory immediately
-    {{ .FunctionPrefix }}on_pwd_change
-end
-
-# Initialize PVM
-{{ .FunctionPrefix }}init
-
-# Set up completion
-eval (${PVM_EXEC} completion fish 2>/dev/null; or true)
-
-# Output message
-echo "PVM environment initialized"
-`
-
-// PowerShell script template
-const powershellTemplate = `# PVM Shell Integration for PowerShell
-# Generated by PVM - DO NOT EDIT
-
-# Path to PVM executable
-$PVM_EXEC = "{{ .PVMPath }}"
-
-# Shims directory
-$PVM_SHIMS_DIR = "{{ .ShimsDir }}"
-
-# Function to initialize PVM
-function {{ .FunctionPrefix }}Init {
-    # Add shims directory to PATH if not already there
-    if ($env:PATH -split ';' -notcontains $PVM_SHIMS_DIR) {
-        $env:PATH = "$PVM_SHIMS_DIR;$env:PATH"
-    }
-
-    # Define shell functions for version switching
-    function global:Use-PerlVersion {
-        param(
-            [Parameter(Mandatory=$true)]
-            [string]$Version
-        )
-
-        # Set version for current shell
-        $env:PVM_PERL_VERSION = $Version
-        Write-Host "Using Perl $Version"
-    }
-
-    # Create shell aliases
-    Set-Alias -Name pvm-use -Value Use-PerlVersion -Scope Global
-    Set-Alias -Name pvm-local -Value { & $PVM_EXEC local $args } -Scope Global
-    Set-Alias -Name pvm-global -Value { & $PVM_EXEC global $args } -Scope Global
-
-    # Function to check for .perl-version when directory changes
-    function global:{{ .FunctionPrefix }}OnLocationChanged {
-        if (Test-Path .perl-version) {
-            $version = Get-Content .perl-version -Raw
-            $version = $version.Trim()
-            if ($version) {
-                Use-PerlVersion $version
-            }
-        }
-    }
-
-    # Set up directory change hook
-    $ExecutionContext.InvokeCommand.LocationChangedAction = { {{ .FunctionPrefix }}OnLocationChanged }
-
-    # Check current directory immediately
-    {{ .FunctionPrefix }}OnLocationChanged
-}
-
-# Initialize PVM
-{{ .FunctionPrefix }}Init
-
-# Set up completion
-try {
-    Invoke-Expression (& "$PVM_EXEC" completion powershell 2>$null)
-} catch {
-    # Ignore completion setup errors
-}
-
-# Output message
-Write-Host "PVM environment initialized"
-`
-
-// CMD script template
-const cmdTemplate = `@echo off
-:: PVM Shell Integration for CMD
-:: Generated by PVM - DO NOT EDIT
-
-:: Path to PVM executable
-set PVM_EXEC={{ .PVMPath }}
-
-:: Shims directory
-set PVM_SHIMS_DIR={{ .ShimsDir }}
-
-:: Add shims directory to PATH if not already there
-set PATH=%PVM_SHIMS_DIR%;%PATH%
-
-:: Message
-echo PVM environment initialized
-`
 
 // bootstrapFromPlenv attempts to bootstrap PVM from existing plenv installations
 func bootstrapFromPlenv() error {

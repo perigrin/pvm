@@ -17,10 +17,10 @@ import (
 	"tamarou.com/pvm/internal/mcp"
 )
 
-// newMCPCommand creates the mcp-server subcommand
+// newMCPCommand creates the mcp subcommand for tool management
 func newMCPCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "mcp-server",
+		Use:   "mcp",
 		Short: "Start the Model Context Protocol server",
 		Long: `Start the MCP server that provides LLMs with:
 - Perl code analysis using PVM's type system

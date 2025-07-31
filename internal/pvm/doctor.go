@@ -27,6 +27,9 @@ func checkShellIntegration(ui *ui.Output, issues *[]string, warnings *[]string) 
 		return nil
 	}
 
+	shellName := filepath.Base(shell)
+	ui.Info("Detected shell: %s", shellName)
+
 	// Check shell configuration files
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -40,7 +43,6 @@ func checkShellIntegration(ui *ui.Output, issues *[]string, warnings *[]string) 
 		"fish": {".config/fish/config.fish"},
 	}
 
-	shellName := filepath.Base(shell)
 	configs, exists := shellConfigs[shellName]
 	if !exists {
 		*warnings = append(*warnings, fmt.Sprintf("Unknown shell: %s", shellName))
@@ -57,6 +59,7 @@ func checkShellIntegration(ui *ui.Output, issues *[]string, warnings *[]string) 
 				strings.Contains(content, "pvm_path init") ||
 				strings.Contains(content, "$pvm_path init") {
 				foundInitCall = true
+				ui.Success("Found pvm init in %s", config)
 				break
 			}
 		}
@@ -65,8 +68,104 @@ func checkShellIntegration(ui *ui.Output, issues *[]string, warnings *[]string) 
 	if !foundInitCall {
 		*warnings = append(*warnings, "Shell configuration doesn't contain 'eval \"$(pvm init)\"'")
 		ui.Warning("Add 'eval \"$(pvm init)\"' to your shell configuration file")
+	}
+
+	// Check if shell integration is actually active in current session
+	err = checkActiveShellIntegration(ui, issues, warnings, shellName)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// checkActiveShellIntegration checks if shell integration is active in the current session
+func checkActiveShellIntegration(ui *ui.Output, issues *[]string, warnings *[]string, shellName string) error {
+	// Test if PVM shell functions are defined by running shell commands
+	switch shellName {
+	case "bash":
+		// Check if cd is aliased to pvm_cd
+		cmd := exec.Command("bash", "-c", "type cd")
+		output, err := cmd.Output()
+		if err == nil {
+			outputStr := string(output)
+			if strings.Contains(outputStr, "pvm_cd") {
+				ui.Success("Shell integration active: cd is aliased to pvm_cd")
+			} else {
+				*warnings = append(*warnings, "Shell integration not active: cd is not aliased")
+				ui.Warning("Shell integration not loaded in current session")
+				ui.Info("Run 'eval \"$(pvm init)\"' or restart your shell")
+			}
+		}
+
+	case "zsh":
+		// Check if pvm_chpwd function exists and chpwd hook is registered
+		cmd := exec.Command("zsh", "-c", "type pvm_chpwd 2>/dev/null")
+		err := cmd.Run()
+		if err == nil {
+			ui.Success("Shell integration active: pvm_chpwd function exists")
+			
+			// Check if chpwd hook is registered
+			hookCmd := exec.Command("zsh", "-c", "echo $chpwd_functions | grep -q pvm_chpwd")
+			hookErr := hookCmd.Run()
+			if hookErr == nil {
+				ui.Success("chpwd hook properly registered")
+			} else {
+				*warnings = append(*warnings, "pvm_chpwd function exists but hook not registered")
+				ui.Warning("chpwd hook not registered properly")
+			}
+		} else {
+			*warnings = append(*warnings, "Shell integration not active: pvm_chpwd function not found")
+			ui.Warning("Shell integration not loaded in current session")
+			ui.Info("Run 'eval \"$(pvm init)\"' or restart your shell")
+		}
+
+	case "fish":
+		// Check if fish functions exist
+		cmd := exec.Command("fish", "-c", "functions -q pvm")
+		err := cmd.Run()
+		if err == nil {
+			ui.Success("Shell integration active: pvm function exists")
+		} else {
+			*warnings = append(*warnings, "Shell integration not active: pvm function not found")
+			ui.Warning("Shell integration not loaded in current session")
+		}
+	}
+
+	// Check if the pvm executable is accessible from shell integration
+	cmd := exec.Command(shellName, "-c", "command -v pvm")
+	output, err := cmd.Output()
+	if err == nil {
+		pvmPath := strings.TrimSpace(string(output))
+		ui.Success("PVM executable accessible at: %s", pvmPath)
+		
+		// Check if it's the same binary we're running from
+		currentExec, _ := os.Executable()
+		if currentExec != "" {
+			// Resolve symlinks for accurate comparison
+			currentPath, _ := filepath.EvalSymlinks(currentExec)
+			shellPath, _ := filepath.EvalSymlinks(pvmPath)
+			
+			// Convert to absolute paths for comparison
+			currentPath, _ = filepath.Abs(currentPath)
+			shellPath, _ = filepath.Abs(shellPath)
+			
+			if currentPath != shellPath {
+				*warnings = append(*warnings, "Shell integration using different PVM binary")
+				ui.Warning("Shell integration using: %s (resolves to %s)", pvmPath, shellPath)
+				ui.Warning("Current doctor running from: %s", currentPath)
+				ui.Info("This may cause inconsistent behavior")
+			} else {
+				ui.Success("Shell integration using same PVM binary")
+				if pvmPath != currentPath {
+					ui.Info("Via symlink: %s -> %s", pvmPath, currentPath)
+				}
+			}
+		}
 	} else {
-		ui.Success("Shell integration properly configured")
+		*issues = append(*issues, "PVM executable not accessible from shell")
+		ui.Error("Shell cannot find pvm executable")
+		ui.Info("Ensure PVM is in your PATH or shell integration is properly loaded")
 	}
 
 	return nil

@@ -142,6 +142,21 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 		// Directory exists, check if it's a valid installation
 		perlBinary := filepath.Join(installDir, "bin", "perl")
 		if _, err := os.Stat(perlBinary); err == nil {
+			// Register the version in case registry is missing/corrupted
+			versionInfo := VersionInfo{
+				Version:     version,
+				InstallPath: installDir,
+				InstallTime: time.Now(),
+				Source:      "binary",
+			}
+
+			err = RegisterVersion(versionInfo)
+			if err != nil {
+				// Don't fail the installation if registration fails, just warn
+				// The installation is still functional
+				fmt.Fprintf(os.Stderr, "Warning: Failed to register version %s: %v\n", version, err)
+			}
+
 			// Complete metrics for cached installation
 			if metrics != nil {
 				metrics.CacheHit = true

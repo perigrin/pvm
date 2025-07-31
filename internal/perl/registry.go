@@ -4,11 +4,13 @@
 package perl
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"tamarou.com/pvm/internal/errors"
@@ -37,6 +39,13 @@ const (
 // registryFileName is the name of the registry file
 const registryFileName = "registry.json"
 
+// generateUUID generates a simple UUID for registry entries
+func generateUUID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
 // VersionInfo contains metadata about an installed Perl version
 type VersionInfo struct {
 	// Version string in normalized format (X.Y.Z)
@@ -57,7 +66,7 @@ type VersionInfo struct {
 
 // VersionRegistry holds information about all installed Perl versions
 type VersionRegistry struct {
-	// Map of version -> VersionInfo
+	// Map of UUID -> VersionInfo
 	Versions map[string]VersionInfo `json:"versions"`
 }
 
@@ -196,16 +205,9 @@ func RegisterVersion(versionInfo VersionInfo) error {
 		return err
 	}
 
-	// Check if version already exists
-	if _, exists := registry.Versions[versionInfo.Version]; exists {
-		return errors.NewVersionError(
-			ErrVersionExists,
-			fmt.Sprintf("Version %s is already registered", versionInfo.Version),
-			nil)
-	}
-
-	// Add to registry
-	registry.Versions[versionInfo.Version] = versionInfo
+	// Add to registry with new UUID (no duplicate checking)
+	uuid := generateUUID()
+	registry.Versions[uuid] = versionInfo
 
 	// Save updated registry
 	return SaveRegistry(registry)
@@ -243,11 +245,28 @@ func getInstalledVersionsFunc() ([]VersionInfo, error) {
 		versions = append(versions, versionInfo)
 	}
 
-	// Sort versions by version number (descending)
+	// Sort versions by version number (descending), with string versions at the end
 	sort.Slice(versions, func(i, j int) bool {
-		versionI, _ := ParseVersion(versions[i].Version)
-		versionJ, _ := ParseVersion(versions[j].Version)
-		return versionI.Compare(versionJ) > 0
+		versionI, errI := ParseVersion(versions[i].Version)
+		versionJ, errJ := ParseVersion(versions[j].Version)
+		
+		// Both are valid semantic versions - compare numerically (newest first)
+		if errI == nil && errJ == nil {
+			return versionI.Compare(versionJ) > 0
+		}
+		
+		// Version i is valid, j is string - i comes first
+		if errI == nil && errJ != nil {
+			return true
+		}
+		
+		// Version j is valid, i is string - j comes first
+		if errI != nil && errJ == nil {
+			return false
+		}
+		
+		// Both are string versions - sort alphabetically
+		return versions[i].Version < versions[j].Version
 	})
 
 	return versions, nil
@@ -275,16 +294,17 @@ func GetVersionInfo(version string) (*VersionInfo, error) {
 		return nil, err
 	}
 
-	// Look up version
-	versionInfo, exists := registry.Versions[normalizedVersion]
-	if !exists {
-		return nil, errors.NewVersionError(
-			ErrVersionNotFound,
-			fmt.Sprintf("Version %s is not installed", normalizedVersion),
-			nil)
+	// Look up version by searching through all entries
+	for _, versionInfo := range registry.Versions {
+		if versionInfo.Version == normalizedVersion {
+			return &versionInfo, nil
+		}
 	}
 
-	return &versionInfo, nil
+	return nil, errors.NewVersionError(
+		ErrVersionNotFound,
+		fmt.Sprintf("Version %s is not installed", normalizedVersion),
+		nil)
 }
 
 // isVersionInstalledFunc checks if a specific version is installed
@@ -305,9 +325,13 @@ func isVersionInstalledFunc(version string) (bool, error) {
 		return false, err
 	}
 
-	// Check if version exists in registry
-	_, exists := registry.Versions[normalizedVersion]
-	return exists, nil
+	// Check if version exists in registry by searching through all entries
+	for _, versionInfo := range registry.Versions {
+		if versionInfo.Version == normalizedVersion {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // IsVersionInstalled is a variable that points to isVersionInstalledFunc,
@@ -386,6 +410,7 @@ func ImportSystemPerl() error {
 	return registerVersion(versionInfo)
 }
 
+
 // GetAvailableVersions returns a list of all available versions
 // This includes installed versions and potentially downloadable versions
 func GetAvailableVersions() ([]string, error) {
@@ -460,24 +485,55 @@ func RebuildRegistry() error {
 			continue
 		}
 
-		// Add to registry
-		newRegistry.Versions[version] = VersionInfo{
+		// Add to registry with UUID
+		uuid := generateUUID()
+		newRegistry.Versions[uuid] = VersionInfo{
 			Version:     version,
 			InstallPath: installPath,
 			InstallTime: info.ModTime(),
-			Source:      "manual", // Default to manual for existing installations
+			Source:      "pvm", // Installations in PVM versions directory are from PVM
 		}
 	}
 
-	// Check for system perl
+	// Add system perl
 	if systemPerl, err := detectSystemPerl(); err == nil {
-		// Add system perl to registry
-		installPath := filepath.Dir(systemPerl.Path)
-		newRegistry.Versions["system"] = VersionInfo{
-			Version:     "system",
-			InstallPath: installPath,
-			InstallTime: time.Now(),
-			Source:      "system",
+		systemPath := filepath.Dir(systemPerl.Path)
+		isPVMInstall := strings.Contains(systemPath, filepath.Join("pvm", "versions"))
+		
+		if !isPVMInstall {
+			uuid := generateUUID()
+			newRegistry.Versions[uuid] = VersionInfo{
+				Version:     systemPerl.Version,
+				InstallPath: systemPath,
+				InstallTime: time.Now(),
+				Source:      "system",
+			}
+		}
+	}
+
+	// Auto-detect and add plenv installations directly to registry
+	if plenvInstallations, err := DetectPlenv(); err == nil {
+		for _, inst := range plenvInstallations {
+			uuid := generateUUID()
+			newRegistry.Versions[uuid] = VersionInfo{
+				Version:     inst.Version,
+				InstallPath: inst.Path, // Use original path, not symlink
+				InstallTime: inst.InstallTime,
+				Source:      string(inst.Source), // "plenv"
+			}
+		}
+	}
+
+	// Auto-detect and add perlbrew installations directly to registry
+	if perlbrewInstallations, err := DetectPerlbrew(); err == nil {
+		for _, inst := range perlbrewInstallations {
+			uuid := generateUUID()
+			newRegistry.Versions[uuid] = VersionInfo{
+				Version:     inst.Version,
+				InstallPath: inst.Path, // Use original path, not symlink
+				InstallTime: inst.InstallTime,
+				Source:      string(inst.Source), // "perlbrew"
+			}
 		}
 	}
 

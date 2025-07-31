@@ -4,3 +4,6 @@ version = "0.01"
 
 [build]
 output_dir = "build"
+
+[pvm.shell]
+show_directory_change_alerts = true

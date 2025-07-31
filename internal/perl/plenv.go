@@ -120,9 +120,9 @@ func getPlenvPerlPath(version string) (string, error) {
 			nil)
 	}
 
-	// For system version, use 'plenv which perl'
+	// For system version, find system perl directly (don't use plenv)
 	if version == "system" {
-		return getPlenvSystemPerlPath()
+		return findSystemPerlDirectly()
 	}
 
 	// For other versions, construct path using plenv root
@@ -141,30 +141,6 @@ func getPlenvPerlPath(version string) (string, error) {
 	return perlPath, nil
 }
 
-// getPlenvSystemPerlPath uses plenv to find the system perl path
-func getPlenvSystemPerlPath() (string, error) {
-	// Use 'plenv which perl' to get the actual perl path for system version
-	cmd := exec.Command("plenv", "which", "perl")
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	// Set PLENV_VERSION=system to ensure we get system perl
-	cmd.Env = append(os.Environ(), "PLENV_VERSION=system")
-
-	err := cmd.Run()
-	if err != nil {
-		// If plenv which fails, fallback to direct system perl detection
-		return findSystemPerlDirectly()
-	}
-
-	perlPath := strings.TrimSpace(stdout.String())
-	if perlPath == "" {
-		return findSystemPerlDirectly()
-	}
-
-	return perlPath, nil
-}
 
 // getCurrentPlenvVersion gets the currently active plenv version
 func getCurrentPlenvVersion() (string, error) {
@@ -282,29 +258,6 @@ func resolvePlenvWithCommands() (string, error) {
 	return getPlenvPerlPath(version)
 }
 
-// detectSystemPerlWithPlenv detects system Perl using plenv awareness
-func detectSystemPerlWithPlenv() (*SystemPerl, error) {
-	// If plenv is available, use it to find system perl
-	if isPlenvAvailable() {
-		perlPath, err := getPlenvSystemPerlPath()
-		if err == nil {
-			return extractPerlInfo(perlPath, true)
-		}
-	}
-
-	// Fallback to direct system perl detection
-	return detectSystemPerlDirectly()
-}
-
-// detectSystemPerlDirectly detects system perl without version managers
-func detectSystemPerlDirectly() (*SystemPerl, error) {
-	perlPath, err := findSystemPerlDirectly()
-	if err != nil {
-		return nil, err
-	}
-
-	return extractPerlInfo(perlPath, true)
-}
 
 // DiscoverAllPerlsWithPlenv discovers all available Perl installations using plenv
 func DiscoverAllPerlsWithPlenv() ([]*SystemPerl, error) {

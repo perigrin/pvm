@@ -11,6 +11,38 @@ import (
 	"tamarou.com/pvm/internal/current"
 )
 
+// newShowAlertsCommand creates a hidden command for shell integration to check if alerts should be shown
+func newShowAlertsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:    "show-alerts",
+		Short:  "Check if directory change alerts should be shown (internal use)",
+		Hidden: true, // Hide from help as this is for shell integration only
+		RunE: func(cmd *cobra.Command, args []string) error {
+			shouldShow := current.ShouldShowDirectoryChangeAlerts()
+			
+			// Add debug flag for testing
+			debug, _ := cmd.Flags().GetBool("debug")
+			if debug {
+				fmt.Printf("ShouldShowDirectoryChangeAlerts returned: %t\n", shouldShow)
+			}
+			
+			if shouldShow {
+				// Exit with code 0 to indicate alerts should be shown
+				return nil
+			} else {
+				// Exit with code 1 to indicate alerts should be suppressed
+				cmd.SilenceUsage = true
+				return fmt.Errorf("alerts disabled")
+			}
+		},
+	}
+
+	cmd.Flags().Bool("debug", false, "Show debug information")
+	cmd.Flags().MarkHidden("debug")
+
+	return cmd
+}
+
 // newCurrentCommand creates a command to show the currently active Perl version
 func newCurrentCommand() *cobra.Command {
 	cmd := &cobra.Command{

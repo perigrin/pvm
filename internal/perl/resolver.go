@@ -676,18 +676,29 @@ func resolveFromUserConfig(cfg *config.Config, availableVersions []string) (*Res
 
 // resolveFromSystemPerl falls back to using the system Perl installation
 func resolveFromSystemPerl() (*ResolvedVersion, error) {
-	// Detect system Perl
-	systemPerl, err := DetectSystemPerl()
+	// Find system perl in registry by looking for version with source="system"
+	installedVersions, err := GetInstalledVersions()
 	if err != nil {
 		return nil, err
 	}
-
-	return &ResolvedVersion{
-		Version:    systemPerl.Version,
-		Source:     SystemPerlSource,
-		Path:       systemPerl.Path,
-		SourcePath: "", // System Perl has no config file
-	}, nil
+	
+	for _, versionInfo := range installedVersions {
+		if versionInfo.Source == "system" {
+			// Found system perl in registry
+			perlPath := filepath.Join(versionInfo.InstallPath, "perl")
+			return &ResolvedVersion{
+				Version:    versionInfo.Version, // Actual version like "5.34.1"
+				Source:     SystemPerlSource,
+				Path:       perlPath,
+				SourcePath: "", // System Perl has no config file
+			}, nil
+		}
+	}
+	
+	return nil, errors.NewVersionError(
+		ErrResolutionFailed,
+		"System Perl not found in registry. Run 'pvm import-system' to register it.",
+		nil)
 }
 
 // getPerlExecutablePath returns the path to the perl executable for a given version
