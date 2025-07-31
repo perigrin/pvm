@@ -775,9 +775,18 @@ func getPathForVersion(version string) (string, error) {
 	// Get version info from registry
 	versionInfo, err := GetVersionInfo(version)
 	if err != nil {
-		// In test mode (PVM_SKIP_NETWORK_CALLS set), return a mock path for unavailable versions
-		// This allows tests to use mock available versions without requiring actual installations
+		// In test mode (PVM_SKIP_NETWORK_CALLS set), handle special cases
 		if os.Getenv("PVM_SKIP_NETWORK_CALLS") != "" {
+			// For "system" version, try to detect actual system Perl even in test mode
+			// This allows integration tests to use real system Perl
+			if version == "system" {
+				systemPerl, detectErr := DetectSystemPerl()
+				if detectErr == nil && systemPerl != nil {
+					return systemPerl.Path, nil
+				}
+			}
+			
+			// For other versions, return mock path to allow tests with mock available versions
 			mockPath := filepath.Join("/mock", "pvm", version, "bin", "perl")
 			if runtime.GOOS == "windows" {
 				mockPath = filepath.Join("/mock", "pvm", version, "bin", "perl.exe")
