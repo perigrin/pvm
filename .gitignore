@@ -75,6 +75,7 @@ debug_*.pl
 test_*.pl
 test_*.go
 test-results.json
+test-results-*.json
 test_output.txt
 
 # Test data directories
@@ -114,6 +115,10 @@ performance-profiles/
 *.pprof
 *.mem
 *.cpu
+
+# Performance baseline files
+**/baselines/*.json
+**/baselines.backup/*.json
 
 # Security-sensitive files
 *.pem
