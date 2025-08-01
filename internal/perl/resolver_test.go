@@ -572,14 +572,44 @@ func TestResolveUserConfig(t *testing.T) {
 
 // Test fallback to system Perl
 func TestResolveSystemPerl(t *testing.T) {
+	// Log test start (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - TestResolveSystemPerl starting")
+	}
+
 	env := setupResolverTest(t)
 	defer env.cleanup_()
 
+	// Log mock system perl info (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Mock system perl: Path=%s, Version=%s", env.mockSystemPerl.Path, env.mockSystemPerl.Version)
+	}
+
+	// Clear any existing registry entries to ensure clean test
+	// This prevents interference from previous tests or system state
+	err := clearRegistryForTesting(t)
+	if err != nil {
+		t.Logf("Warning: Failed to clear registry for testing: %v", err)
+	}
+
 	// Import system perl into registry for resolution to work
 	// Since AutoImportSystemPerl skips if already registered, we force import
-	err := ImportSystemPerl()
+	err = ImportSystemPerl()
 	if err != nil {
 		t.Fatalf("Failed to import system perl: %v", err)
+	}
+
+	// Log registry state after import (CI debugging)
+	if os.Getenv("CI") != "" {
+		installedVersions, regErr := GetInstalledVersions()
+		if regErr == nil {
+			t.Logf("CI DEBUG - Registry entries after import:")
+			for _, v := range installedVersions {
+				if v.Source == "system" {
+					t.Logf("  System entry: Version=%s, InstallPath=%s", v.Version, v.InstallPath)
+				}
+			}
+		}
 	}
 
 	// Set options to skip all other resolution methods
@@ -916,4 +946,15 @@ func TestVersionResolvedCallback(t *testing.T) {
 	if callbackCalled {
 		t.Errorf("Expected callback to be skipped")
 	}
+}
+
+// clearRegistryForTesting clears the registry for testing purposes
+func clearRegistryForTesting(t *testing.T) error {
+	// Create an empty registry
+	emptyRegistry := &VersionRegistry{
+		Versions: make(map[string]VersionInfo),
+	}
+	
+	// Save the empty registry
+	return saveRegistryFunc(emptyRegistry)
 }
