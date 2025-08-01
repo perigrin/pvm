@@ -77,13 +77,21 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	// Set up mock system Perl function
 	originalDetectSystemPerl := DetectSystemPerl
 	env.cleanup = append(env.cleanup, func() { DetectSystemPerl = originalDetectSystemPerl })
-	env.mockSystemPerl = &SystemPerl{
-		Path:         "/usr/bin/perl",
-		Version:      "5.30.3",
-		FullVersion:  "5.30.3",
-		Architecture: "x86_64",
-		IsPrimary:    true,
+
+	// Use actual system perl for more robust testing
+	actualSystemPerl, err := originalDetectSystemPerl()
+	if err != nil {
+		// If we can't detect system perl, use a sensible default
+		actualSystemPerl = &SystemPerl{
+			Path:         "/usr/bin/perl",
+			Version:      "5.38.2",
+			FullVersion:  "5.38.2",
+			Architecture: "x86_64",
+			IsPrimary:    true,
+		}
 	}
+
+	env.mockSystemPerl = actualSystemPerl
 	DetectSystemPerl = func() (*SystemPerl, error) {
 		return env.mockSystemPerl, nil
 	}
@@ -483,6 +491,13 @@ func TestResolveSystemPerl(t *testing.T) {
 	env := setupResolverTest(t)
 	defer env.cleanup_()
 
+	// Import system perl into registry for resolution to work
+	// Since AutoImportSystemPerl skips if already registered, we force import
+	err := ImportSystemPerl()
+	if err != nil {
+		t.Fatalf("Failed to import system perl: %v", err)
+	}
+
 	// Set options to skip all other resolution methods
 	options := &ResolutionOptions{
 		SkipLocal:           true, // Skip project-local checks
@@ -514,12 +529,12 @@ func TestResolutionPrecedence(t *testing.T) {
 	env := setupResolverTest(t)
 	defer env.cleanup_()
 
-	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1", "5.32.1", "5.30.3"}
+	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1", "5.32.1", "5.30.3", env.mockSystemPerl.Version}
 
 	// Create config files and set environment variables to test precedence
 
-	// 1. System Perl is 5.30.3 (lowest precedence)
-	env.mockSystemPerl.Version = "5.30.3"
+	// 1. System Perl (lowest precedence) - use the actual system perl version
+	// env.mockSystemPerl.Version is already set to actual system perl version
 
 	// 2. User config has 5.32.1 - create user config file and object
 	env.createUserConfig(t, "5.32.1", nil)
@@ -672,7 +687,7 @@ func TestResolutionPrecedence(t *testing.T) {
 				version string
 				source  ResolutionSource
 			}{
-				version: "5.30.3",
+				version: env.mockSystemPerl.Version,
 				source:  SystemPerlSource,
 			},
 		},

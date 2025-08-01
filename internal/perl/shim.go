@@ -417,11 +417,13 @@ func GetShimCommand(shimName string, args []string) (*exec.Cmd, error) {
 
 	// Handle differently based on shim type
 	if shimName == "perl" {
-		// For perl executable, run it directly
-		cmd = exec.Command(filepath.Join(resolved.Path, "bin", "perl"), args...)
+		// For perl executable, run it directly (resolved.Path already points to perl executable)
+		cmd = exec.Command(resolved.Path, args...)
 	} else {
-		// For scripts, run them through perl
-		scriptPath := filepath.Join(resolved.Path, "bin", shimName)
+		// For scripts, we need to find the script in the same directory structure as perl
+		// resolved.Path points to the perl executable, so we need to derive the script path
+		installDir := filepath.Dir(filepath.Dir(resolved.Path)) // Remove /bin/perl to get install dir
+		scriptPath := filepath.Join(installDir, "bin", shimName)
 
 		// Check if the script exists
 		_, err := os.Stat(scriptPath)
@@ -441,12 +443,12 @@ func GetShimCommand(shimName string, args []string) (*exec.Cmd, error) {
 				// Script is executable, run directly
 				cmd = exec.Command(scriptPath, args...)
 			} else {
-				// Not executable, run through perl
-				cmd = exec.Command(filepath.Join(resolved.Path, "bin", "perl"), append([]string{scriptPath}, args...)...)
+				// Not executable, run through perl (resolved.Path already points to perl executable)
+				cmd = exec.Command(resolved.Path, append([]string{scriptPath}, args...)...)
 			}
 		} else {
-			// Fallback to running through perl
-			cmd = exec.Command(filepath.Join(resolved.Path, "bin", "perl"), append([]string{scriptPath}, args...)...)
+			// Fallback to running through perl (resolved.Path already points to perl executable)
+			cmd = exec.Command(resolved.Path, append([]string{scriptPath}, args...)...)
 		}
 	}
 

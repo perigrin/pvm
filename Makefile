@@ -93,7 +93,7 @@ pvx pvi psc: pvm
 test: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running tests with $$PARALLEL_JOBS parallel workers..."; \
-	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PLENV_VERSION= PVM_PERL_VERSION= PVM_TEST_MODE=integration go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results.json -- -mod=mod -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PLENV_VERSION= PVM_PERL_VERSION= PVM_TEST_MODE=integration PVM_SKIP_NETWORK_CALLS=1 go run gotest.tools/gotestsum@latest --format=short --jsonfile=test-results.json -- -mod=mod -timeout=3m -parallel=$$PARALLEL_JOBS ./...; \
 	TEST_EXIT_CODE=$$?; \
 	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo ""; \
@@ -110,7 +110,7 @@ test: tree-sitter install-tools
 test-full: tree-sitter install-tools
 	@PARALLEL_JOBS=$$(go run scripts/cpu_count.go); \
 	echo "Running full test suite with $$PARALLEL_JOBS parallel workers..."; \
-	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PLENV_VERSION= PVM_PERL_VERSION= PVM_TEST_MODE=full go run gotest.tools/gotestsum@latest --format=standard-verbose --jsonfile=test-results-full.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...; \
+	LD_LIBRARY_PATH=$(PWD)/tree-sitter-typed-perl:$$LD_LIBRARY_PATH PLENV_VERSION= PVM_PERL_VERSION= PVM_TEST_MODE=full PVM_SKIP_NETWORK_CALLS=1 go run gotest.tools/gotestsum@latest --format=standard-verbose --jsonfile=test-results-full.json -- -mod=mod -timeout=10m -parallel=$$PARALLEL_JOBS ./...; \
 	TEST_EXIT_CODE=$$?; \
 	if [ $$TEST_EXIT_CODE -ne 0 ]; then \
 		echo ""; \

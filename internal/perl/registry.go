@@ -391,7 +391,7 @@ func UninstallVersion(version string) error {
 // ImportSystemPerl imports the system Perl into the registry
 func ImportSystemPerl() error {
 	// Detect system Perl
-	systemPerl, err := detectSystemPerl()
+	systemPerl, err := DetectSystemPerl()
 	if err != nil {
 		return err
 	}

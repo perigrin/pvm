@@ -696,10 +696,10 @@ func resolveFromSystemPerl() (*ResolvedVersion, error) {
 	for _, versionInfo := range installedVersions {
 		if versionInfo.Source == "system" {
 			// Found system perl in registry
-			// For system perl imported into PVM, the symlink is in bin/perl, not directly in perl
-			perlPath := filepath.Join(versionInfo.InstallPath, "bin", "perl")
+			// For system perl, InstallPath is the directory containing the perl executable
+			perlPath := filepath.Join(versionInfo.InstallPath, "perl")
 			if runtime.GOOS == "windows" {
-				perlPath = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+				perlPath = filepath.Join(versionInfo.InstallPath, "perl.exe")
 			}
 			return &ResolvedVersion{
 				Version:    versionInfo.Version, // Actual version like "5.34.1"
