@@ -790,6 +790,41 @@ func TestResolutionPrecedence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Save current environment state for this subtest
+			origPerlbrewPerl := os.Getenv("PERLBREW_PERL")
+			origPlenvVersion := os.Getenv("PLENV_VERSION")
+			origPvmPerlVersion := os.Getenv("PVM_PERL_VERSION")
+			
+			// Ensure proper environment setup for this specific subtest
+			if tt.options.SkipEnvVars {
+				// Clear environment variables when they should be skipped
+				_ = os.Unsetenv("PERLBREW_PERL")
+				_ = os.Unsetenv("PLENV_VERSION")
+				_ = os.Unsetenv("PVM_PERL_VERSION")
+			} else {
+				// Ensure the expected environment variables are set
+				_ = os.Setenv("PERLBREW_PERL", "perl-5.34.1")
+			}
+			
+			// Restore environment after subtest
+			defer func() {
+				if origPerlbrewPerl != "" {
+					_ = os.Setenv("PERLBREW_PERL", origPerlbrewPerl)
+				} else {
+					_ = os.Unsetenv("PERLBREW_PERL")
+				}
+				if origPlenvVersion != "" {
+					_ = os.Setenv("PLENV_VERSION", origPlenvVersion)
+				} else {
+					_ = os.Unsetenv("PLENV_VERSION")
+				}
+				if origPvmPerlVersion != "" {
+					_ = os.Setenv("PVM_PERL_VERSION", origPvmPerlVersion)
+				} else {
+					_ = os.Unsetenv("PVM_PERL_VERSION")
+				}
+			}()
+
 			// Log subtest start (CI debugging)
 			if os.Getenv("CI") != "" {
 				t.Logf("CI DEBUG - Running subtest: %s", tt.name)
