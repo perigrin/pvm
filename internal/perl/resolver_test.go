@@ -43,6 +43,19 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 		env.origEnv[name] = os.Getenv(name)
 	}
 
+	// Log environment state before cleanup (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Test setup environment before cleanup:")
+		for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL", "PVM_SKIP_NETWORK_CALLS", "PATH"} {
+			value := os.Getenv(name)
+			if value != "" {
+				t.Logf("  %s=%s", name, value)
+			} else {
+				t.Logf("  %s=<unset>", name)
+			}
+		}
+	}
+
 	// Clear environment variables to ensure test isolation
 	for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
 		_ = os.Unsetenv(name)
@@ -50,6 +63,19 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 
 	// Set test mode environment variables
 	_ = os.Setenv("PVM_SKIP_NETWORK_CALLS", "1")
+
+	// Log environment state after cleanup (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Test setup environment after cleanup:")
+		for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL", "PVM_SKIP_NETWORK_CALLS"} {
+			value := os.Getenv(name)
+			if value != "" {
+				t.Logf("  %s=%s", name, value)
+			} else {
+				t.Logf("  %s=<unset>", name)
+			}
+		}
+	}
 
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "pvm-resolver-test-*")
@@ -90,7 +116,22 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	_ = os.Unsetenv("PVM_PERL_VERSION")
 	_ = os.Unsetenv("PERLBREW_PERL")
 	
+	// Log system Perl detection attempt (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Attempting system Perl detection...")
+	}
+	
 	actualSystemPerl, err := originalDetectSystemPerl()
+	
+	// Log system Perl detection result (CI debugging)
+	if os.Getenv("CI") != "" {
+		if err != nil {
+			t.Logf("CI DEBUG - System Perl detection failed: %v", err)
+		} else {
+			t.Logf("CI DEBUG - System Perl detected: Path=%s, Version=%s, Architecture=%s", 
+				actualSystemPerl.Path, actualSystemPerl.Version, actualSystemPerl.Architecture)
+		}
+	}
 	
 	// Restore environment variables
 	if origPlenvVersion != "" {
@@ -124,6 +165,20 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 
 // Cleanup test environment
 func (env *resolverTestEnv) cleanup_() {
+	// Log cleanup start (CI debugging)
+	if os.Getenv("CI") != "" {
+		// Get a test instance for logging - we'll use testing.TB interface if available
+		// For now, just print directly in CI mode
+		fmt.Printf("CI DEBUG - Starting test cleanup, restoring environment variables\n")
+		for name, value := range env.origEnv {
+			if value == "" {
+				fmt.Printf("  Unsetting %s\n", name)
+			} else {
+				fmt.Printf("  Setting %s=%s\n", name, value)
+			}
+		}
+	}
+
 	// Restore environment variables
 	for name, value := range env.origEnv {
 		if value == "" {
@@ -555,10 +610,21 @@ func TestResolveSystemPerl(t *testing.T) {
 
 // Test full resolution precedence
 func TestResolutionPrecedence(t *testing.T) {
+	// Log test start (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - TestResolutionPrecedence starting")
+	}
+
 	env := setupResolverTest(t)
 	defer env.cleanup_()
 
 	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1", "5.32.1", "5.30.3", env.mockSystemPerl.Version}
+
+	// Log available versions (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Available versions: %v", availableVersions)
+		t.Logf("CI DEBUG - Mock system perl version: %s", env.mockSystemPerl.Version)
+	}
 
 	// Create config files and set environment variables to test precedence
 
@@ -724,9 +790,35 @@ func TestResolutionPrecedence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Log subtest start (CI debugging)
+			if os.Getenv("CI") != "" {
+				t.Logf("CI DEBUG - Running subtest: %s", tt.name)
+				t.Logf("CI DEBUG - Options: ExplicitVersion=%s, SkipLocal=%v, SkipEnvVars=%v, SkipUserConfig=%v", 
+					tt.options.ExplicitVersion, tt.options.SkipLocal, tt.options.SkipEnvVars, tt.options.SkipUserConfig)
+				
+				// Log current environment state
+				for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
+					value := os.Getenv(name)
+					if value != "" {
+						t.Logf("CI DEBUG - Current env %s=%s", name, value)
+					} else {
+						t.Logf("CI DEBUG - Current env %s=<unset>", name)
+					}
+				}
+			}
+
 			resolved, err := ResolveVersion(&tt.options)
 			if err != nil {
+				if os.Getenv("CI") != "" {
+					t.Logf("CI DEBUG - Resolution failed with error: %v", err)
+				}
 				t.Fatalf("Failed to resolve version: %v", err)
+			}
+
+			// Log resolution result (CI debugging)
+			if os.Getenv("CI") != "" {
+				t.Logf("CI DEBUG - Resolved: Version=%s, Source=%s", resolved.Version, resolved.Source)
+				t.Logf("CI DEBUG - Expected: Version=%s, Source=%s", tt.expected.version, tt.expected.source)
 			}
 
 			if resolved.Version != tt.expected.version {
