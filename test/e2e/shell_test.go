@@ -16,30 +16,31 @@ func TestShellInit(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Run shell init command
-	stdout, stderr, err := env.RunPVM("shell", "init")
+	// Run the correct init command (not "shell init")
+	stdout, stderr, err := env.RunPVM("init")
 	if err != nil {
 		t.Fatalf("Shell initialization failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
 
-	// If we get here, the command succeeded, so run the normal assertions
-	helpers.AssertStringContains(t, stdout, "Shell integration initialized",
+	// The init command outputs the script to stdout and ends with success message
+	helpers.AssertStringContains(t, stdout, "PVM environment initialized",
 		"Shell init output does not indicate success")
 
-	// Check that shell scripts were created
-	shellDir := filepath.Join(env.PVMDataDir, "shell")
-	helpers.AssertFileExists(t, filepath.Join(shellDir, "pvm.bash"), "Bash shell script not created")
-	helpers.AssertFileExists(t, filepath.Join(shellDir, "pvm.zsh"), "Zsh shell script not created")
-	helpers.AssertFileExists(t, filepath.Join(shellDir, "pvm.fish"), "Fish shell script not created")
+	// Check that the generated script contains expected content
+	helpers.AssertStringContains(t, stdout, "PVM Shell Integration for Bash/Zsh",
+		"Shell script does not contain expected header")
+	helpers.AssertStringContains(t, stdout, "pvm_init",
+		"Shell script does not contain init function")
+	helpers.AssertStringContains(t, stdout, "_pvm_update_perl_path",
+		"Shell script does not contain PATH manipulation")
 
-	// Check content of bash script
-	bashScript := filepath.Join(shellDir, "pvm.bash")
-	helpers.AssertFileContains(t, bashScript, "PVM Shell Integration for Bash/Zsh",
-		"Bash script does not contain expected header")
-	helpers.AssertFileContains(t, bashScript, "PATH=",
-		"Bash script does not contain PATH manipulation")
-	helpers.AssertFileContains(t, bashScript, "pvm-use",
-		"Bash script does not contain use function")
+	// Test with explicit shell parameter
+	stdout, stderr, err = env.RunPVM("init", "bash")
+	if err != nil {
+		t.Fatalf("Shell initialization with bash parameter failed\nError: %v\nStderr: %s", err, stderr)
+	}
+	helpers.AssertStringContains(t, stdout, "PVM environment initialized",
+		"Bash init output does not indicate success")
 }
 
 // TestBashIntegration tests bash-specific shell integration
