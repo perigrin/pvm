@@ -64,9 +64,21 @@ func TestXDGCacheHomeExpansion(t *testing.T) {
 		_, err = os.Stat(expectedDir)
 		assert.NoError(t, err, "XDG fallback cache directory should exist when XDG_CACHE_HOME is unset")
 
-		// Verify the literal directory was NOT created
-		_, err = os.Stat("$XDG_CACHE_HOME/pvm-test")
-		assert.Error(t, err, "Literal '$XDG_CACHE_HOME' directory should not exist")
+		// The main test is that the cache directory path is correctly expanded
+		// and does NOT contain the literal '$' character
+		assert.NotContains(t, cache.cacheDir, "$", "Cache directory should not contain literal '$' characters")
+		assert.Contains(t, cache.cacheDir, homeDir, "Cache directory should contain the home directory path")
+		
+		// Additional verification: the cache should be functional
+		testKey := "test-key"
+		testData := "test-data"
+		err = cache.Set(testKey, testData, "test-source")
+		assert.NoError(t, err, "Cache should be able to store data")
+		
+		var retrievedData string
+		found := cache.Get(testKey, &retrievedData)
+		assert.True(t, found, "Cache should be able to retrieve data")
+		assert.Equal(t, testData, retrievedData, "Retrieved data should match stored data")
 	})
 
 	t.Run("XDG_CACHE_HOME_With_Braces", func(t *testing.T) {

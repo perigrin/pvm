@@ -39,7 +39,7 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	}
 
 	// Save original environment variables
-	for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
+	for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL", "PVM_SKIP_NETWORK_CALLS"} {
 		env.origEnv[name] = os.Getenv(name)
 	}
 
@@ -47,6 +47,9 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
 		_ = os.Unsetenv(name)
 	}
+
+	// Set test mode environment variables
+	_ = os.Setenv("PVM_SKIP_NETWORK_CALLS", "1")
 
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "pvm-resolver-test-*")
@@ -79,7 +82,27 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	env.cleanup = append(env.cleanup, func() { DetectSystemPerl = originalDetectSystemPerl })
 
 	// Use actual system perl for more robust testing
+	// Ensure clean environment for system perl detection to avoid test interference
+	origPlenvVersion := os.Getenv("PLENV_VERSION")
+	origPvmPerlVersion := os.Getenv("PVM_PERL_VERSION")
+	origPerlbrewPerl := os.Getenv("PERLBREW_PERL")
+	_ = os.Unsetenv("PLENV_VERSION")
+	_ = os.Unsetenv("PVM_PERL_VERSION")
+	_ = os.Unsetenv("PERLBREW_PERL")
+	
 	actualSystemPerl, err := originalDetectSystemPerl()
+	
+	// Restore environment variables
+	if origPlenvVersion != "" {
+		_ = os.Setenv("PLENV_VERSION", origPlenvVersion)
+	}
+	if origPvmPerlVersion != "" {
+		_ = os.Setenv("PVM_PERL_VERSION", origPvmPerlVersion)
+	}
+	if origPerlbrewPerl != "" {
+		_ = os.Setenv("PERLBREW_PERL", origPerlbrewPerl)
+	}
+	
 	if err != nil {
 		// If we can't detect system perl, use a sensible default
 		actualSystemPerl = &SystemPerl{
@@ -369,6 +392,11 @@ func TestResolveEnvironmentVariables(t *testing.T) {
 	env := setupResolverTest(t)
 	defer env.cleanup_()
 
+	// Ensure environment variables are cleaned up after test
+	defer os.Unsetenv("PVM_PERL_VERSION")
+	defer os.Unsetenv("PLENV_VERSION")
+	defer os.Unsetenv("PERLBREW_PERL")
+
 	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
 
 	options := &ResolutionOptions{
@@ -381,6 +409,7 @@ func TestResolveEnvironmentVariables(t *testing.T) {
 	_ = os.Setenv("PVM_PERL_VERSION", "5.34.1")
 	_ = os.Setenv("PLENV_VERSION", "5.38.0")
 	_ = os.Setenv("PERLBREW_PERL", "perl-5.36.0")
+
 
 	resolved, err := ResolveVersion(options)
 	if err != nil {
