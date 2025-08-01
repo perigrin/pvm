@@ -5,6 +5,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -206,6 +207,27 @@ func getPVMStringMap(c *PVMConfig, key string) map[string]string {
 	return nil
 }
 
+// getXDGFallback returns the XDG Base Directory specification fallback for XDG environment variables
+func getXDGFallback(envVar string) string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil || homeDir == "" {
+		return ""
+	}
+
+	switch envVar {
+	case "XDG_CACHE_HOME":
+		return filepath.Join(homeDir, ".cache")
+	case "XDG_DATA_HOME":
+		return filepath.Join(homeDir, ".local", "share")
+	case "XDG_CONFIG_HOME":
+		return filepath.Join(homeDir, ".config")
+	case "XDG_STATE_HOME":
+		return filepath.Join(homeDir, ".local", "state")
+	default:
+		return ""
+	}
+}
+
 // expandEnvironmentVariables expands environment variables in configuration values
 func expandEnvironmentVariables(value string) string {
 	if value == "" {
@@ -223,6 +245,10 @@ func expandEnvironmentVariables(value string) string {
 			if exists {
 				return envValue
 			}
+			// Try XDG fallback for unset XDG variables
+			if fallback := getXDGFallback(envVar); fallback != "" {
+				return fallback
+			}
 			return value
 		}
 		// Check if this is a simple $VAR without any other characters
@@ -230,6 +256,10 @@ func expandEnvironmentVariables(value string) string {
 			envValue, exists := os.LookupEnv(envVar)
 			if exists {
 				return envValue
+			}
+			// Try XDG fallback for unset XDG variables
+			if fallback := getXDGFallback(envVar); fallback != "" {
+				return fallback
 			}
 			return value
 		}
@@ -250,6 +280,10 @@ func expandEnvironmentVariables(value string) string {
 		envValue, exists := os.LookupEnv(envVar)
 		if exists {
 			return envValue
+		}
+		// Try XDG fallback for unset XDG variables
+		if fallback := getXDGFallback(envVar); fallback != "" {
+			return fallback
 		}
 		return match // Return original if env var not found
 	})

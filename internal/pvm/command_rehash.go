@@ -26,7 +26,7 @@ This command manually triggers the same PATH update logic that normally happens
 automatically when you change directories. Use this after:
 
 - Manually editing .perl-version files
-- Setting PVM_PERL_VERSION or other environment variables  
+- Setting PVM_PERL_VERSION or other environment variables
 - Changing global PVM configuration
 - Installing or uninstalling Perl versions
 
@@ -67,7 +67,7 @@ Examples:
 				fmt.Printf("Cleaned PATH: %s\n", cleanPath)
 			}
 
-			// Get current version 
+			// Get current version
 			info, err := current.GetCurrentVersion()
 			if err != nil {
 				return fmt.Errorf("failed to get current version: %w", err)
@@ -106,7 +106,7 @@ Examples:
 
 			// Set the new PATH
 			os.Setenv("PATH", newPath)
-			
+
 			if verbose {
 				fmt.Printf("Updated PATH: %s\n", newPath)
 				fmt.Println("Shell PATH updated successfully")
@@ -138,7 +138,7 @@ func cleanPVMFromPath(path string, verbose bool) (string, error) {
 	}
 
 	pvmVersionsPath := filepath.Join(dirs.DataDir, "versions")
-	
+
 	// Split PATH and filter out PVM directories
 	pathEntries := strings.Split(path, string(os.PathListSeparator))
 	var cleanEntries []string

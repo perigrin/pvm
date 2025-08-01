@@ -304,6 +304,39 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 					len(installResult.InstalledModules), len(installResult.SkippedModules))
 			}
 		}
+
+		// Add the PVI installation directory to module paths so installed modules are available during execution
+		// This ensures that modules installed by PVI are found in the execution environment
+		pviInstallDir := pviOptions.InstallDir
+		if pviInstallDir == "" {
+			// If no custom install dir was specified, PVI will determine the install directory based on context
+			// From the verbose log, we saw it uses "/home/perigrin/dev/pvm/local", which suggests it's using
+			// a project-specific installation directory. For now, we'll need to get this from somewhere else
+			// or make PVI return the actual installation directory used.
+			//
+			// As a temporary workaround, we'll check if there's a project context
+			cfg, cfgErr := config.LoadEffectiveConfig()
+			if cfgErr == nil && cfg != nil {
+				// Check if we're in a project directory (pvm.toml exists)
+				if _, err := os.Stat("pvm.toml"); err == nil {
+					// We're in a project directory, use the local subdirectory
+					pviInstallDir = "./local"
+				}
+			}
+		}
+
+		if pviInstallDir != "" {
+			// Add the lib/perl5 subdirectory to the additional module paths
+			pviModulePath := filepath.Join(pviInstallDir, "lib", "perl5")
+			options.AdditionalModulePaths = append(options.AdditionalModulePaths, pviModulePath)
+			if options.Verbose {
+				if uiOut != nil {
+					uiOut.Info("Adding PVI installation directory to module path: %s", pviModulePath)
+				} else {
+					log.Infof("Adding PVI installation directory to module path: %s", pviModulePath)
+				}
+			}
+		}
 	}
 
 	// Check if script contains type annotations and strip them if needed

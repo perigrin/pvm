@@ -104,7 +104,7 @@ func checkActiveShellIntegration(ui *ui.Output, issues *[]string, warnings *[]st
 		err := cmd.Run()
 		if err == nil {
 			ui.Success("Shell integration active: pvm_chpwd function exists")
-			
+
 			// Check if chpwd hook is registered
 			hookCmd := exec.Command("zsh", "-c", "echo $chpwd_functions | grep -q pvm_chpwd")
 			hookErr := hookCmd.Run()
@@ -138,18 +138,18 @@ func checkActiveShellIntegration(ui *ui.Output, issues *[]string, warnings *[]st
 	if err == nil {
 		pvmPath := strings.TrimSpace(string(output))
 		ui.Success("PVM executable accessible at: %s", pvmPath)
-		
+
 		// Check if it's the same binary we're running from
 		currentExec, _ := os.Executable()
 		if currentExec != "" {
 			// Resolve symlinks for accurate comparison
 			currentPath, _ := filepath.EvalSymlinks(currentExec)
 			shellPath, _ := filepath.EvalSymlinks(pvmPath)
-			
+
 			// Convert to absolute paths for comparison
 			currentPath, _ = filepath.Abs(currentPath)
 			shellPath, _ = filepath.Abs(shellPath)
-			
+
 			if currentPath != shellPath {
 				*warnings = append(*warnings, "Shell integration using different PVM binary")
 				ui.Warning("Shell integration using: %s (resolves to %s)", pvmPath, shellPath)

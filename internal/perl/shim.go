@@ -149,7 +149,7 @@ func GenerateShims() error {
 		}
 	}
 
-	// Note: Perl binaries (perl, cpan, prove, etc.) are now accessed directly 
+	// Note: Perl binaries (perl, cpan, prove, etc.) are now accessed directly
 	// via the two-tier PATH system. No shims needed for them.
 	// This function is reserved for future pvm tool install shims.
 
@@ -165,30 +165,30 @@ func shouldCreateShimFor(commandName string) bool {
 
 	// Allow core Perl utilities
 	coreCommands := map[string]bool{
-		"perlbug":      true,
-		"perldoc":      true,
-		"perlivp":      true,
-		"perlthanks":   true,
-		"piconv":       true,
-		"pl2pm":        true,
-		"pod2html":     true,
-		"pod2man":      true,
-		"pod2text":     true,
-		"pod2usage":    true,
-		"podchecker":   true,
-		"podselect":    true,
-		"ptar":         true,
-		"ptardiff":     true,
-		"ptargrep":     true,
-		"shasum":       true,
-		"splain":       true,
-		"streamzip":    true,
-		"zipdetails":   true,
-		"json_pp":      true,
-		"libnetcfg":    true,
-		"instmodsh":    true,
-		"encguess":     true,
-		"config_data":  true,
+		"perlbug":     true,
+		"perldoc":     true,
+		"perlivp":     true,
+		"perlthanks":  true,
+		"piconv":      true,
+		"pl2pm":       true,
+		"pod2html":    true,
+		"pod2man":     true,
+		"pod2text":    true,
+		"pod2usage":   true,
+		"podchecker":  true,
+		"podselect":   true,
+		"ptar":        true,
+		"ptardiff":    true,
+		"ptargrep":    true,
+		"shasum":      true,
+		"splain":      true,
+		"streamzip":   true,
+		"zipdetails":  true,
+		"json_pp":     true,
+		"libnetcfg":   true,
+		"instmodsh":   true,
+		"encguess":    true,
+		"config_data": true,
 	}
 
 	if coreCommands[commandName] {

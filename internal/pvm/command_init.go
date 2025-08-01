@@ -96,14 +96,14 @@ func needsRegistryRebuild() bool {
 	// Only rebuild if registry is completely empty
 	// If registry has any versions, assume it's functional
 	if len(registry.Versions) == 0 {
-		// Get XDG directories for versions directory  
+		// Get XDG directories for versions directory
 		dirs, err := xdg.GetDirs()
 		if err != nil {
 			return true // If we can't get dirs, assume rebuild needed
 		}
-		
+
 		versionsDir := filepath.Join(dirs.DataDir, "versions")
-		
+
 		// Check if versions exist on filesystem when registry is empty
 		if entries, err := os.ReadDir(versionsDir); err == nil && len(entries) > 0 {
 			return true // Registry is empty but versions directory contains installations

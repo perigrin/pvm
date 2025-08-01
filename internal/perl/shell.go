@@ -21,7 +21,7 @@ import (
 //go:embed shell_templates/pvm.bash
 var bashTemplate string
 
-//go:embed shell_templates/pvm.zsh  
+//go:embed shell_templates/pvm.zsh
 var zshTemplate string
 
 //go:embed shell_templates/pvm.fish
@@ -751,7 +751,6 @@ func generateConflictWarnings() string {
 
 	return warnings.String()
 }
-
 
 // bootstrapFromPlenv attempts to bootstrap PVM from existing plenv installations
 func bootstrapFromPlenv() error {

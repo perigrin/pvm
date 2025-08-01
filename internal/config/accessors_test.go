@@ -2,6 +2,8 @@ package config
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -28,6 +30,17 @@ func TestGetString(t *testing.T) {
 		t.Fatalf("Configuration is nil")
 	}
 
+	// Calculate expected XDG fallback for type definitions path
+	homeDir, _ := os.UserHomeDir()
+	var expectedTypeDefsPath string
+	if xdgDataHome := os.Getenv("XDG_DATA_HOME"); xdgDataHome != "" {
+		// If XDG_DATA_HOME is set, use it
+		expectedTypeDefsPath = filepath.Join(xdgDataHome, "pvm", "types")
+	} else {
+		// If XDG_DATA_HOME is unset, use fallback: ~/.local/share
+		expectedTypeDefsPath = filepath.Join(homeDir, ".local", "share", "pvm", "types")
+	}
+
 	// Test getting string values
 	tests := []struct {
 		section  string
@@ -38,7 +51,7 @@ func TestGetString(t *testing.T) {
 		{"pvm", "download_mirror", "https://example.com/perl"},
 		{"pvx", "isolation_level", "clean"},
 		{"pvi", "preferred_installer", "cpanm"},
-		{"psc", "type_definitions_path", "$XDG_DATA_HOME/pvm/types"},
+		{"psc", "type_definitions_path", expectedTypeDefsPath},
 		// Test non-existent key
 		{"pvm", "non_existent", ""},
 	}
@@ -206,4 +219,118 @@ func TestGetStringMap(t *testing.T) {
 	if nonExistent != nil {
 		t.Errorf("Expected nil for non-existent key, got %v", nonExistent)
 	}
+}
+
+// TestExpandEnvironmentVariables_XDGFallbacks tests comprehensive XDG fallback behavior
+func TestExpandEnvironmentVariables_XDGFallbacks(t *testing.T) {
+	t.Run("XDG_Fallbacks_Comprehensive", func(t *testing.T) {
+		// Test cases for all XDG variables
+		testCases := []struct {
+			envVar       string
+			inputPath    string
+			expectedPath string
+		}{
+			{
+				envVar:       "XDG_CACHE_HOME",
+				inputPath:    "$XDG_CACHE_HOME/pvm",
+				expectedPath: ".cache/pvm",
+			},
+			{
+				envVar:       "XDG_DATA_HOME",
+				inputPath:    "$XDG_DATA_HOME/pvm",
+				expectedPath: ".local/share/pvm",
+			},
+			{
+				envVar:       "XDG_CONFIG_HOME",
+				inputPath:    "$XDG_CONFIG_HOME/pvm",
+				expectedPath: ".config/pvm",
+			},
+			{
+				envVar:       "XDG_STATE_HOME",
+				inputPath:    "$XDG_STATE_HOME/pvm",
+				expectedPath: ".local/state/pvm",
+			},
+		}
+
+		homeDir, _ := os.UserHomeDir()
+
+		for _, tc := range testCases {
+			t.Run("Fallback_"+tc.envVar, func(t *testing.T) {
+				// Ensure the environment variable is unset
+				originalValue := os.Getenv(tc.envVar)
+				_ = os.Unsetenv(tc.envVar)
+				defer func() {
+					if originalValue != "" {
+						_ = os.Setenv(tc.envVar, originalValue)
+					}
+				}()
+
+				// Test expansion
+				result := expandEnvironmentVariables(tc.inputPath)
+				expected := filepath.Join(homeDir, tc.expectedPath)
+
+				if result != expected {
+					t.Errorf("expandEnvironmentVariables(%s) = %s, expected XDG fallback %s", tc.inputPath, result, expected)
+				}
+
+				if strings.Contains(result, "$") {
+					t.Errorf("Result %s should not contain literal environment variables", result)
+				}
+			})
+		}
+	})
+
+	t.Run("XDG_Fallbacks_With_Braces", func(t *testing.T) {
+		// Test XDG fallbacks with ${VAR} format
+		_ = os.Unsetenv("XDG_DATA_HOME")
+		defer func() {
+			// Restore if it was set
+			if val := os.Getenv("XDG_DATA_HOME"); val != "" {
+				_ = os.Setenv("XDG_DATA_HOME", val)
+			}
+		}()
+
+		homeDir, _ := os.UserHomeDir()
+		result := expandEnvironmentVariables("${XDG_DATA_HOME}/pvm/types")
+		expected := filepath.Join(homeDir, ".local", "share", "pvm", "types")
+
+		if result != expected {
+			t.Errorf("expandEnvironmentVariables(${XDG_DATA_HOME}/pvm/types) = %s, expected XDG fallback %s", result, expected)
+		}
+
+		if strings.Contains(result, "$") {
+			t.Errorf("Result %s should not contain literal environment variables", result)
+		}
+	})
+
+	t.Run("Non_XDG_Variable_Unset", func(t *testing.T) {
+		// Test that non-XDG variables still return literal when unset
+		_ = os.Unsetenv("NON_XDG_VAR")
+
+		result := expandEnvironmentVariables("$NON_XDG_VAR/test")
+		expected := "$NON_XDG_VAR/test"
+
+		if result != expected {
+			t.Errorf("expandEnvironmentVariables($NON_XDG_VAR/test) = %s, expected literal %s", result, expected)
+		}
+	})
+
+	t.Run("Mixed_XDG_And_Regular_Variables", func(t *testing.T) {
+		// Test mixing XDG fallbacks with regular environment variables
+		_ = os.Unsetenv("XDG_CACHE_HOME")
+		_ = os.Setenv("TEST_PREFIX", "custom")
+		defer func() {
+			_ = os.Unsetenv("TEST_PREFIX")
+		}()
+
+		homeDir, _ := os.UserHomeDir()
+		result := expandEnvironmentVariables("$TEST_PREFIX/$XDG_CACHE_HOME/pvm")
+		// When XDG_CACHE_HOME is unset, it expands to absolute path ~/.cache
+		// So the result will be "custom" + "/" + "/home/user/.cache" + "/pvm"
+		expected := "custom" + "/" + filepath.Join(homeDir, ".cache") + "/pvm"
+
+		if result != expected {
+			t.Errorf("expandEnvironmentVariables($TEST_PREFIX/$XDG_CACHE_HOME/pvm) = %s, expected %s", result, expected)
+		}
+	})
 }
