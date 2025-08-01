@@ -64,20 +64,18 @@ func TestShellUseAndCurrent(t *testing.T) {
 		t.Fatalf("Shell initialization failed: %v\nStderr: %s", err, stderr)
 	}
 
-	// Force regeneration of shell integration script to ensure it includes latest fixes
-	bashScriptPath := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")
-	if err := os.Remove(bashScriptPath); err != nil && !os.IsNotExist(err) {
-		t.Fatalf("Failed to remove old shell script: %v", err)
-	}
-	_, stderr, err = env.RunPVM("shell", "init")
+	// Generate shell integration script (no longer creates files, outputs to stdout)
+	// Generate shell integration script using the correct command
+	initScript, stderr, err := env.RunPVM("init", "bash")
 	if err != nil {
 		t.Fatalf("Shell re-initialization failed: %v\nStderr: %s", err, stderr)
 	}
 
-	// Get the bash script path
-	bashScript := filepath.Join(env.PVMDataDir, "shell", "pvm.bash")
-	if _, statErr := os.Stat(bashScript); os.IsNotExist(statErr) {
-		t.Fatalf("Bash shell integration script not found at %s", bashScript)
+	// Write the generated script to a file for testing
+	bashScript := filepath.Join(env.HomeDir, "pvm_shell_integration.sh")
+	err = os.WriteFile(bashScript, []byte(initScript), 0755)
+	if err != nil {
+		t.Fatalf("Failed to write shell integration script: %v", err)
 	}
 
 	// DEBUGGING: Test each component individually to isolate the hanging point

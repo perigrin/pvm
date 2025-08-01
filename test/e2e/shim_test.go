@@ -79,8 +79,8 @@ func TestRehashCommand(t *testing.T) {
 	// Run the rehash command
 	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"rehash"}, "Rehash command functionality")
 
-	// Check that it reports success
-	helpers.AssertStringContains(t, stdout, "Shim executables rebuilt successfully",
+	// Check that it reports success (now uses two-tier PATH instead of shims)
+	helpers.AssertStringContains(t, stdout, "Updated shell PATH for Perl",
 		"Rehash command output does not indicate success")
 
 	// With two-tier PATH, perl shims should NOT be created
