@@ -585,16 +585,9 @@ func TestResolveSystemPerl(t *testing.T) {
 		t.Logf("CI DEBUG - Mock system perl: Path=%s, Version=%s", env.mockSystemPerl.Path, env.mockSystemPerl.Version)
 	}
 
-	// Clear any existing registry entries to ensure clean test
-	// This prevents interference from previous tests or system state
-	err := clearRegistryForTesting(t)
-	if err != nil {
-		t.Logf("Warning: Failed to clear registry for testing: %v", err)
-	}
-
 	// Import system perl into registry for resolution to work
 	// Since AutoImportSystemPerl skips if already registered, we force import
-	err = ImportSystemPerl()
+	err := ImportSystemPerl()
 	if err != nil {
 		t.Fatalf("Failed to import system perl: %v", err)
 	}
@@ -946,15 +939,4 @@ func TestVersionResolvedCallback(t *testing.T) {
 	if callbackCalled {
 		t.Errorf("Expected callback to be skipped")
 	}
-}
-
-// clearRegistryForTesting clears the registry for testing purposes
-func clearRegistryForTesting(t *testing.T) error {
-	// Create an empty registry
-	emptyRegistry := &VersionRegistry{
-		Versions: make(map[string]VersionInfo),
-	}
-	
-	// Save the empty registry
-	return saveRegistryFunc(emptyRegistry)
 }
