@@ -820,70 +820,9 @@ func TestResolutionPrecedence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save current environment state for this subtest
-			origPerlbrewPerl := os.Getenv("PERLBREW_PERL")
-			origPlenvVersion := os.Getenv("PLENV_VERSION")
-			origPvmPerlVersion := os.Getenv("PVM_PERL_VERSION")
-			
-			// Ensure proper environment setup for this specific subtest
-			if tt.options.SkipEnvVars {
-				// Clear environment variables when they should be skipped
-				_ = os.Unsetenv("PERLBREW_PERL")
-				_ = os.Unsetenv("PLENV_VERSION")
-				_ = os.Unsetenv("PVM_PERL_VERSION")
-			} else {
-				// Ensure the expected environment variables are set
-				_ = os.Setenv("PERLBREW_PERL", "perl-5.34.1")
-			}
-			
-			// Restore environment after subtest
-			defer func() {
-				if origPerlbrewPerl != "" {
-					_ = os.Setenv("PERLBREW_PERL", origPerlbrewPerl)
-				} else {
-					_ = os.Unsetenv("PERLBREW_PERL")
-				}
-				if origPlenvVersion != "" {
-					_ = os.Setenv("PLENV_VERSION", origPlenvVersion)
-				} else {
-					_ = os.Unsetenv("PLENV_VERSION")
-				}
-				if origPvmPerlVersion != "" {
-					_ = os.Setenv("PVM_PERL_VERSION", origPvmPerlVersion)
-				} else {
-					_ = os.Unsetenv("PVM_PERL_VERSION")
-				}
-			}()
-
-			// Log subtest start (CI debugging)
-			if os.Getenv("CI") != "" {
-				t.Logf("CI DEBUG - Running subtest: %s", tt.name)
-				t.Logf("CI DEBUG - Options: ExplicitVersion=%s, SkipLocal=%v, SkipEnvVars=%v, SkipUserConfig=%v", 
-					tt.options.ExplicitVersion, tt.options.SkipLocal, tt.options.SkipEnvVars, tt.options.SkipUserConfig)
-				
-				// Log current environment state
-				for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
-					value := os.Getenv(name)
-					if value != "" {
-						t.Logf("CI DEBUG - Current env %s=%s", name, value)
-					} else {
-						t.Logf("CI DEBUG - Current env %s=<unset>", name)
-					}
-				}
-			}
-
 			resolved, err := ResolveVersion(&tt.options)
 			if err != nil {
-				if os.Getenv("CI") != "" {
-					t.Logf("CI DEBUG - Resolution failed with error: %v", err)
-				}
 				t.Fatalf("Failed to resolve version: %v", err)
-			}
-
-			// Log resolution result (CI debugging)
-			if os.Getenv("CI") != "" {
-				t.Logf("CI DEBUG - Resolved: Version=%s, Source=%s", resolved.Version, resolved.Source)
-				t.Logf("CI DEBUG - Expected: Version=%s, Source=%s", tt.expected.version, tt.expected.source)
 			}
 
 			if resolved.Version != tt.expected.version {
