@@ -585,9 +585,16 @@ func TestResolveSystemPerl(t *testing.T) {
 		t.Logf("CI DEBUG - Mock system perl: Path=%s, Version=%s", env.mockSystemPerl.Path, env.mockSystemPerl.Version)
 	}
 
+	// Clear only system perl entries to prevent conflicts, but keep other registry entries
+	// This prevents interference from previous tests while preserving PVX functionality
+	err := clearSystemPerlFromRegistry()
+	if err != nil {
+		t.Logf("Warning: Failed to clear system perl from registry: %v", err)
+	}
+
 	// Import system perl into registry for resolution to work
 	// Since AutoImportSystemPerl skips if already registered, we force import
-	err := ImportSystemPerl()
+	err = ImportSystemPerl()
 	if err != nil {
 		t.Fatalf("Failed to import system perl: %v", err)
 	}
@@ -939,4 +946,24 @@ func TestVersionResolvedCallback(t *testing.T) {
 	if callbackCalled {
 		t.Errorf("Expected callback to be skipped")
 	}
+}
+
+// clearSystemPerlFromRegistry removes only system perl entries from the registry
+// This is more targeted than clearing the entire registry and preserves other entries
+func clearSystemPerlFromRegistry() error {
+	// Load the current registry
+	registry, err := loadRegistryFunc()
+	if err != nil {
+		return err
+	}
+
+	// Remove only entries with source="system"
+	for id, versionInfo := range registry.Versions {
+		if versionInfo.Source == "system" {
+			delete(registry.Versions, id)
+		}
+	}
+
+	// Save the modified registry
+	return saveRegistryFunc(registry)
 }
