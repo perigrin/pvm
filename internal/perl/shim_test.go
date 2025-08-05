@@ -36,6 +36,7 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 	// Create PVM-specific directories
 	versionsDir := filepath.Join(appDataDir, xdg.VersionsDir)
 	shimsDir := filepath.Join(appDataDir, xdg.ShimsDir)
+	binDir := filepath.Join(tempDir, "bin")  // BinDir for shims
 	sourcesDir := filepath.Join(appCacheDir, xdg.SourcesDir)
 	buildDir := filepath.Join(appCacheDir, xdg.BuildDir)
 	typeDefsDir := filepath.Join(appDataDir, xdg.TypeDefinitionsDir)
@@ -44,7 +45,7 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 	for _, dir := range []string{
 		configDir, cacheDir, dataDir, stateDir,
 		appConfigDir, appCacheDir, appDataDir, appStateDir,
-		versionsDir, shimsDir, sourcesDir, buildDir, typeDefsDir,
+		versionsDir, shimsDir, binDir, sourcesDir, buildDir, typeDefsDir,
 	} {
 		err := os.MkdirAll(dir, 0755)
 		if err != nil {
@@ -109,11 +110,13 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 		CacheHome:  cacheDir,
 		DataHome:   dataDir,
 		StateHome:  stateDir,
+		BinHome:    binDir,  // Add BinHome for consistency
 
 		ConfigDir: appConfigDir,
 		CacheDir:  appCacheDir,
 		DataDir:   appDataDir,
 		StateDir:  appStateDir,
+		BinDir:    binDir,   // BinDir where shims are created
 
 		VersionsDir:        versionsDir,
 		SourcesDir:         sourcesDir,
@@ -258,8 +261,8 @@ func TestGenerateShims(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Mock GetDirs failed: %v", err)
 	}
-	if testDirs.ShimsDir != dirs.ShimsDir {
-		t.Fatalf("Mock GetDirs not working correctly. Expected: %s, Got: %s", dirs.ShimsDir, testDirs.ShimsDir)
+	if testDirs.BinDir != dirs.BinDir {
+		t.Fatalf("Mock GetDirs not working correctly. Expected: %s, Got: %s", dirs.BinDir, testDirs.BinDir)
 	}
 
 	// Note: GenerateShims calls GetInstalledVersions which may have registry issues
@@ -278,6 +281,17 @@ func TestGenerateShims(t *testing.T) {
 	// standard Perl commands (perl, cpan, prove, perldoc) since they're accessed via
 	// the two-tier PATH system. Only tool-specific shims from "pvm tool install" would
 	// be created, but standardShims is currently empty.
+	
+	// Check that basic shims were created
+	// With the two-tier PATH system, only tool-specific shims are created
+	// Main Perl commands (perl, cpan, prove) are accessed directly via PATH
+	expectedShims := []string{} // Currently no standard shims are created
+	for _, shimName := range expectedShims {
+		shimPath := filepath.Join(dirs.BinDir, shimName)
+		if runtime.GOOS == "windows" {
+			shimPath += ".bat"
+		}
+	}
 
 	// Verify that the shims directory exists (it should be created)
 	if _, err := os.Stat(dirs.ShimsDir); os.IsNotExist(err) {

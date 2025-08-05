@@ -46,7 +46,7 @@ func getShimDirectory() (string, error) {
 		return "", fmt.Errorf("failed to create shim directory: %w", err)
 	}
 
-	return dirs.ShimsDir, nil
+	return dirs.BinDir, nil
 }
 
 // CreateShim creates an executable shim for the given tool

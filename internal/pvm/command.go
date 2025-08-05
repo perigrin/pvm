@@ -2750,16 +2750,22 @@ func newToolCommand() *cobra.Command {
 		Long:  "Commands for adding, running, and managing Perl tools globally and per-project",
 	}
 
-	// Add --global flag to the parent command
-	cmd.PersistentFlags().Bool("global", false, "Operate on global tools instead of project tools")
+	// Add --global and --local flags to the parent command
+	cmd.PersistentFlags().Bool("global", true, "Operate on global tools instead of project tools (default)")
+	cmd.PersistentFlags().Bool("local", false, "Operate on project tools instead of global tools")
+	cmd.MarkFlagsMutuallyExclusive("global", "local")
 
 	addCmd := &cobra.Command{
 		Use:   "add [tool[@version]]",
 		Short: "Add a tool",
-		Long:  "Add a Perl tool (module) and make it available as a command. Use --global for system-wide installation.",
+		Long:  "Add a Perl tool (module) and make it available globally. Use --local for project-local installation.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
+			local, _ := cmd.Flags().GetBool("local")
+			if local {
+				global = false
+			}
 			return installTool(cmd, args[0], global)
 		},
 	}
@@ -2777,9 +2783,13 @@ func newToolCommand() *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List installed tools",
-		Long:  "List all installed tools and their versions. Use --global to show only global tools.",
+		Long:  "List installed global tools and their versions. Use --local to show both global and project tools.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
+			local, _ := cmd.Flags().GetBool("local")
+			if local {
+				global = false
+			}
 			return listTools(cmd, global)
 		},
 	}
@@ -2787,10 +2797,14 @@ func newToolCommand() *cobra.Command {
 	upgradeCmd := &cobra.Command{
 		Use:   "upgrade [tool]",
 		Short: "Upgrade a tool",
-		Long:  "Upgrade an installed tool to the latest version. Use --global for global tools.",
+		Long:  "Upgrade an installed global tool to the latest version. Use --local for project tools.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
+			local, _ := cmd.Flags().GetBool("local")
+			if local {
+				global = false
+			}
 			return upgradeTool(cmd, args[0], global)
 		},
 	}
@@ -2798,10 +2812,14 @@ func newToolCommand() *cobra.Command {
 	uninstallCmd := &cobra.Command{
 		Use:   "uninstall [tool]",
 		Short: "Uninstall a tool",
-		Long:  "Remove an installed tool. Use --global for global tools.",
+		Long:  "Remove an installed global tool. Use --local for project tools.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
+			local, _ := cmd.Flags().GetBool("local")
+			if local {
+				global = false
+			}
 			return uninstallTool(cmd, args[0], global)
 		},
 	}
