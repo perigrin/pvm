@@ -19,13 +19,13 @@ func newShowAlertsCommand() *cobra.Command {
 		Hidden: true, // Hide from help as this is for shell integration only
 		RunE: func(cmd *cobra.Command, args []string) error {
 			shouldShow := current.ShouldShowDirectoryChangeAlerts()
-			
+
 			// Add debug flag for testing
 			debug, _ := cmd.Flags().GetBool("debug")
 			if debug {
 				fmt.Printf("ShouldShowDirectoryChangeAlerts returned: %t\n", shouldShow)
 			}
-			
+
 			if shouldShow {
 				// Exit with code 0 to indicate alerts should be shown
 				return nil

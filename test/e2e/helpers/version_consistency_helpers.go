@@ -186,7 +186,7 @@ func setupVersionEnv(t *testing.T, env *TestEnv, config *VersionConsistencyTestC
 func setupVersionCommand(t *testing.T, env *TestEnv, config *VersionConsistencyTestConfig) {
 	t.Helper()
 
-	_, _, err := env.RunPVM("use", config.Version)
+	_, _, err := env.RunPVM("perl", "use", config.Version)
 	if err != nil {
 		t.Fatalf("Failed to run pvm use %s: %v", config.Version, err)
 	}

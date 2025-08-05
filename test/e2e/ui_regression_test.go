@@ -34,7 +34,7 @@ func TestUIRegression_FunctionalPreservation(t *testing.T) {
 			name:          "PVM help command works",
 			command:       []string{"--help"},
 			shouldSucceed: true,
-			contains:      []string{"Usage", "Commands"},
+			contains:      []string{"USAGE", "COMMANDS"},
 		},
 		{
 			name:          "PVX help command works",
@@ -108,9 +108,9 @@ func TestUIRegression_OutputFormatPreservation(t *testing.T) {
 				lines := strings.Split(output, "\n")
 				assert.Greater(t, len(lines), 5, "Help should have multiple lines")
 
-				// Help should contain standard sections
-				hasUsage := strings.Contains(output, "Usage:")
-				assert.True(t, hasUsage, "Help should contain Usage section")
+				// Help should contain standard sections (check for actual format from help output)
+				hasUsage := strings.Contains(output, "USAGE") || strings.Contains(output, "Usage:")
+				assert.True(t, hasUsage, "Help should contain USAGE section")
 			},
 		},
 		{

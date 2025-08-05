@@ -13,17 +13,17 @@ import (
 // TestImportSystemPerlErrorPaths tests all error paths in ImportSystemPerl
 func TestImportSystemPerlErrorPaths(t *testing.T) {
 	// Save original functions to restore later
-	originalDetectSystemPerl := detectSystemPerl
+	originalDetectSystemPerl := DetectSystemPerl
 	originalRegisterVersion := registerVersion
 	defer func() {
-		detectSystemPerl = originalDetectSystemPerl
+		DetectSystemPerl = originalDetectSystemPerl
 		registerVersion = originalRegisterVersion
 	}()
 
 	// Test 1: DetectSystemPerl fails
 	t.Run("DetectSystemPerlFails", func(t *testing.T) {
 		// Mock DetectSystemPerl to fail
-		detectSystemPerl = func() (*SystemPerl, error) {
+		DetectSystemPerl = func() (*SystemPerl, error) {
 			return nil, errors.New("mock DetectSystemPerl error")
 		}
 
@@ -36,7 +36,7 @@ func TestImportSystemPerlErrorPaths(t *testing.T) {
 	// Test 2: RegisterVersion fails
 	t.Run("RegisterVersionFails", func(t *testing.T) {
 		// Mock DetectSystemPerl to succeed
-		detectSystemPerl = func() (*SystemPerl, error) {
+		DetectSystemPerl = func() (*SystemPerl, error) {
 			return &SystemPerl{
 				Path:    "/usr/bin/perl",
 				Version: "5.38.0",

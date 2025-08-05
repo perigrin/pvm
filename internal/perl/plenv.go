@@ -141,7 +141,6 @@ func getPlenvPerlPath(version string) (string, error) {
 	return perlPath, nil
 }
 
-
 // getCurrentPlenvVersion gets the currently active plenv version
 func getCurrentPlenvVersion() (string, error) {
 	if !isPlenvAvailable() {
@@ -257,7 +256,6 @@ func resolvePlenvWithCommands() (string, error) {
 	// Get the path for this version
 	return getPlenvPerlPath(version)
 }
-
 
 // DiscoverAllPerlsWithPlenv discovers all available Perl installations using plenv
 func DiscoverAllPerlsWithPlenv() ([]*SystemPerl, error) {

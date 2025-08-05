@@ -249,22 +249,22 @@ func getInstalledVersionsFunc() ([]VersionInfo, error) {
 	sort.Slice(versions, func(i, j int) bool {
 		versionI, errI := ParseVersion(versions[i].Version)
 		versionJ, errJ := ParseVersion(versions[j].Version)
-		
+
 		// Both are valid semantic versions - compare numerically (newest first)
 		if errI == nil && errJ == nil {
 			return versionI.Compare(versionJ) > 0
 		}
-		
+
 		// Version i is valid, j is string - i comes first
 		if errI == nil && errJ != nil {
 			return true
 		}
-		
+
 		// Version j is valid, i is string - j comes first
 		if errI != nil && errJ == nil {
 			return false
 		}
-		
+
 		// Both are string versions - sort alphabetically
 		return versions[i].Version < versions[j].Version
 	})
@@ -391,7 +391,7 @@ func UninstallVersion(version string) error {
 // ImportSystemPerl imports the system Perl into the registry
 func ImportSystemPerl() error {
 	// Detect system Perl
-	systemPerl, err := detectSystemPerl()
+	systemPerl, err := DetectSystemPerl()
 	if err != nil {
 		return err
 	}
@@ -409,7 +409,6 @@ func ImportSystemPerl() error {
 	// Register it
 	return registerVersion(versionInfo)
 }
-
 
 // GetAvailableVersions returns a list of all available versions
 // This includes installed versions and potentially downloadable versions
@@ -499,7 +498,7 @@ func RebuildRegistry() error {
 	if systemPerl, err := detectSystemPerl(); err == nil {
 		systemPath := filepath.Dir(systemPerl.Path)
 		isPVMInstall := strings.Contains(systemPath, filepath.Join("pvm", "versions"))
-		
+
 		if !isPVMInstall {
 			uuid := generateUUID()
 			newRegistry.Versions[uuid] = VersionInfo{

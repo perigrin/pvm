@@ -82,8 +82,8 @@ func NewCommand() *cobra.Command {
 		newShUseCommand(),
 		newShEnvActivateCommand(),
 		newDetectVersionCommand(),
-		newCurrentCommand(), // Show current Perl version
-		newRehashCommand(), // Update shell PATH for current version
+		newCurrentCommand(),    // Show current Perl version
+		newRehashCommand(),     // Update shell PATH for current version
 		newShowAlertsCommand(), // Hidden command for shell integration
 		newVersionsCommand(),
 		newListCommand(), // Alias for versions command for compatibility
@@ -1302,7 +1302,6 @@ func newUninstallCommand() *cobra.Command {
 
 	return cmd
 }
-
 
 func newResolveCommand() *cobra.Command {
 	return &cobra.Command{

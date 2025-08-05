@@ -50,18 +50,35 @@ func TestXDGCacheHomeExpansion(t *testing.T) {
 		// Unset XDG_CACHE_HOME to test fallback behavior
 		_ = os.Unsetenv("XDG_CACHE_HOME")
 
-		// This should not expand since XDG_CACHE_HOME is not set
+		// This should use XDG fallback when XDG_CACHE_HOME is not set
 		cache, err := NewCache("$XDG_CACHE_HOME/pvm-test", 24)
 		require.NoError(t, err, "NewCache should not return an error even when XDG_CACHE_HOME is unset")
 		require.NotNil(t, cache, "Cache should not be nil")
 
-		// When XDG_CACHE_HOME is unset, it should use the literal path
-		expectedDir := "$XDG_CACHE_HOME/pvm-test"
-		assert.Equal(t, expectedDir, cache.cacheDir, "Cache directory should remain literal when XDG_CACHE_HOME is unset")
+		// When XDG_CACHE_HOME is unset, it should use the XDG fallback: ~/.cache
+		homeDir, _ := os.UserHomeDir()
+		expectedDir := filepath.Join(homeDir, ".cache", "pvm-test")
+		assert.Equal(t, expectedDir, cache.cacheDir, "Cache directory should use XDG fallback (~/.cache) when XDG_CACHE_HOME is unset")
 
-		// Verify the literal directory was created
+		// Verify the fallback directory was created (not the literal one)
 		_, err = os.Stat(expectedDir)
-		assert.NoError(t, err, "Literal cache directory should exist when XDG_CACHE_HOME is unset")
+		assert.NoError(t, err, "XDG fallback cache directory should exist when XDG_CACHE_HOME is unset")
+
+		// The main test is that the cache directory path is correctly expanded
+		// and does NOT contain the literal '$' character
+		assert.NotContains(t, cache.cacheDir, "$", "Cache directory should not contain literal '$' characters")
+		assert.Contains(t, cache.cacheDir, homeDir, "Cache directory should contain the home directory path")
+		
+		// Additional verification: the cache should be functional
+		testKey := "test-key"
+		testData := "test-data"
+		err = cache.Set(testKey, testData, "test-source")
+		assert.NoError(t, err, "Cache should be able to store data")
+		
+		var retrievedData string
+		found := cache.Get(testKey, &retrievedData)
+		assert.True(t, found, "Cache should be able to retrieve data")
+		assert.Equal(t, testData, retrievedData, "Retrieved data should match stored data")
 	})
 
 	t.Run("XDG_CACHE_HOME_With_Braces", func(t *testing.T) {
@@ -192,11 +209,13 @@ func TestEnvironmentVariableExpansion(t *testing.T) {
 		assert.Equal(t, "/tmp/test-cache/subdir", result, "Variable with braces in path should be expanded")
 	})
 
-	t.Run("Nonexistent_Variable", func(t *testing.T) {
+	t.Run("Nonexistent_XDG_Variable", func(t *testing.T) {
 		_ = os.Unsetenv("XDG_CACHE_HOME")
 
 		result := expandEnvironmentVariables("$XDG_CACHE_HOME")
-		assert.Equal(t, "$XDG_CACHE_HOME", result, "Nonexistent variable should remain unchanged")
+		homeDir, _ := os.UserHomeDir()
+		expected := filepath.Join(homeDir, ".cache")
+		assert.Equal(t, expected, result, "Unset XDG_CACHE_HOME should use XDG fallback ~/.cache")
 	})
 
 	t.Run("Empty_String", func(t *testing.T) {
@@ -225,5 +244,86 @@ func TestEnvironmentVariableExpansion(t *testing.T) {
 
 		result := expandEnvironmentVariables("$XDG_CACHE_HOME/${TEST_VAR}/subdir")
 		assert.Equal(t, "/tmp/cache/test/subdir", result, "Mixed variable formats should be expanded")
+	})
+
+	// Test comprehensive XDG fallback behavior for all XDG variables
+	t.Run("XDG_Fallbacks_Comprehensive", func(t *testing.T) {
+		// Test cases for all XDG variables
+		testCases := []struct {
+			envVar       string
+			inputPath    string
+			expectedPath string
+		}{
+			{
+				envVar:       "XDG_CACHE_HOME",
+				inputPath:    "$XDG_CACHE_HOME/pvm-test",
+				expectedPath: ".cache/pvm-test",
+			},
+			{
+				envVar:       "XDG_DATA_HOME",
+				inputPath:    "$XDG_DATA_HOME/pvm-test",
+				expectedPath: ".local/share/pvm-test",
+			},
+			{
+				envVar:       "XDG_CONFIG_HOME",
+				inputPath:    "$XDG_CONFIG_HOME/pvm-test",
+				expectedPath: ".config/pvm-test",
+			},
+			{
+				envVar:       "XDG_STATE_HOME",
+				inputPath:    "$XDG_STATE_HOME/pvm-test",
+				expectedPath: ".local/state/pvm-test",
+			},
+		}
+
+		homeDir, _ := os.UserHomeDir()
+
+		for _, tc := range testCases {
+			t.Run("Fallback_"+tc.envVar, func(t *testing.T) {
+				// Ensure the environment variable is unset
+				originalValue := os.Getenv(tc.envVar)
+				_ = os.Unsetenv(tc.envVar)
+				defer func() {
+					if originalValue != "" {
+						_ = os.Setenv(tc.envVar, originalValue)
+					}
+				}()
+
+				// Test expansion
+				result := expandEnvironmentVariables(tc.inputPath)
+				expected := filepath.Join(homeDir, tc.expectedPath)
+
+				assert.Equal(t, expected, result, "Should use XDG fallback for %s when unset", tc.envVar)
+				assert.NotContains(t, result, "$", "Result should not contain literal environment variables")
+			})
+		}
+	})
+
+	t.Run("XDG_Fallbacks_With_Braces", func(t *testing.T) {
+		// Test XDG fallbacks with ${VAR} format
+		_ = os.Unsetenv("XDG_CACHE_HOME")
+		defer func() {
+			// Restore if it was set
+			if val := os.Getenv("XDG_CACHE_HOME"); val != "" {
+				_ = os.Setenv("XDG_CACHE_HOME", val)
+			}
+		}()
+
+		homeDir, _ := os.UserHomeDir()
+		result := expandEnvironmentVariables("${XDG_CACHE_HOME}/pvm-test")
+		expected := filepath.Join(homeDir, ".cache", "pvm-test")
+
+		assert.Equal(t, expected, result, "Should use XDG fallback for ${XDG_CACHE_HOME} when unset")
+		assert.NotContains(t, result, "$", "Result should not contain literal environment variables")
+	})
+
+	t.Run("Non_XDG_Variable_Unset", func(t *testing.T) {
+		// Test that non-XDG variables still return literal when unset
+		_ = os.Unsetenv("NON_XDG_VAR")
+
+		result := expandEnvironmentVariables("$NON_XDG_VAR/test")
+		expected := "$NON_XDG_VAR/test"
+
+		assert.Equal(t, expected, result, "Non-XDG variables should remain literal when unset")
 	})
 }

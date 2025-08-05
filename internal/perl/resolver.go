@@ -284,10 +284,21 @@ func resolveExplicitVersion(version string, availableVersions []string, cfg *con
 				if filepath.Base(versionInfo.InstallPath) == "perl" || filepath.Base(versionInfo.InstallPath) == "perl.exe" {
 					perlExe = versionInfo.InstallPath
 				} else {
-					// InstallPath is likely the bin directory, append perl
-					perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+					// For system perl imported into PVM, check bin/perl first, then fall back to perl
+					binPerlPath := filepath.Join(versionInfo.InstallPath, "bin", "perl")
 					if runtime.GOOS == "windows" {
-						perlExe = filepath.Join(versionInfo.InstallPath, "perl.exe")
+						binPerlPath = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+					}
+
+					// Check if bin/perl exists (typical for imported system perl)
+					if _, statErr := os.Stat(binPerlPath); statErr == nil {
+						perlExe = binPerlPath
+					} else {
+						// Fallback to direct perl path (for backward compatibility)
+						perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+						if runtime.GOOS == "windows" {
+							perlExe = filepath.Join(versionInfo.InstallPath, "perl.exe")
+						}
 					}
 				}
 
@@ -681,11 +692,15 @@ func resolveFromSystemPerl() (*ResolvedVersion, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	for _, versionInfo := range installedVersions {
 		if versionInfo.Source == "system" {
 			// Found system perl in registry
+			// For system perl, InstallPath is the directory containing the perl executable
 			perlPath := filepath.Join(versionInfo.InstallPath, "perl")
+			if runtime.GOOS == "windows" {
+				perlPath = filepath.Join(versionInfo.InstallPath, "perl.exe")
+			}
 			return &ResolvedVersion{
 				Version:    versionInfo.Version, // Actual version like "5.34.1"
 				Source:     SystemPerlSource,
@@ -694,7 +709,7 @@ func resolveFromSystemPerl() (*ResolvedVersion, error) {
 			}, nil
 		}
 	}
-	
+
 	return nil, errors.NewVersionError(
 		ErrResolutionFailed,
 		"System Perl not found in registry. Run 'pvm import-system' to register it.",
@@ -723,10 +738,21 @@ func getPerlExecutablePath(version string) (string, error) {
 		if filepath.Base(versionInfo.InstallPath) == "perl" || filepath.Base(versionInfo.InstallPath) == "perl.exe" {
 			perlExe = versionInfo.InstallPath
 		} else {
-			// InstallPath is likely the bin directory, append perl
-			perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+			// For system perl imported into PVM, check bin/perl first, then fall back to perl
+			binPerlPath := filepath.Join(versionInfo.InstallPath, "bin", "perl")
 			if runtime.GOOS == "windows" {
-				perlExe = filepath.Join(versionInfo.InstallPath, "perl.exe")
+				binPerlPath = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+			}
+
+			// Check if bin/perl exists (typical for imported system perl)
+			if _, statErr := os.Stat(binPerlPath); statErr == nil {
+				perlExe = binPerlPath
+			} else {
+				// Fallback to direct perl path (for backward compatibility)
+				perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+				if runtime.GOOS == "windows" {
+					perlExe = filepath.Join(versionInfo.InstallPath, "perl.exe")
+				}
 			}
 		}
 	} else {
@@ -796,7 +822,7 @@ func getPathForVersion(version string) (string, error) {
 					return systemPerl.Path, nil
 				}
 			}
-			
+
 			// For other versions, return mock path to allow tests with mock available versions
 			mockPath := filepath.Join("/mock", "pvm", version, "bin", "perl")
 			if runtime.GOOS == "windows" {

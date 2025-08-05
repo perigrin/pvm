@@ -115,7 +115,7 @@ func TestVersionSwitching(t *testing.T) {
 	}
 
 	// Test local version setting
-	stdout, stderr, err = env.RunPVM("local", systemVersion)
+	stdout, stderr, err = env.RunPVM("perl", "local", systemVersion)
 	if err != nil {
 		t.Fatalf("Local command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
@@ -130,7 +130,7 @@ func TestVersionSwitching(t *testing.T) {
 	helpers.AssertPerlVersionFile(t, dotPerlVersionPath, systemVersion, "Wrong version in .perl-version file")
 
 	// Test global version setting
-	stdout, stderr, err = env.RunPVM("global", systemVersion)
+	stdout, stderr, err = env.RunPVM("perl", "global", systemVersion)
 	if err != nil {
 		t.Fatalf("Global command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
@@ -143,8 +143,8 @@ func TestVersionSwitching(t *testing.T) {
 	helpers.AssertFileContains(t, configFile, fmt.Sprintf("default_perl = \"%s\"", systemVersion),
 		"Config file does not contain correct default Perl")
 
-	// Test 'use' command (expects shell integration message)
-	stdout, stderr, err = env.RunPVM("use", systemVersion)
+	// Test 'perl use' command (expects shell integration message)
+	stdout, stderr, err = env.RunPVM("perl", "use", systemVersion)
 	if err != nil {
 		t.Fatalf("Use command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}

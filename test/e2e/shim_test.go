@@ -38,7 +38,7 @@ func TestShimExecutable(t *testing.T) {
 
 	// Verify shell integration generates correct PATH setup
 	output := helpers.AssertPVMSucceeds(t, env, []string{"init"}, "pvm init should work")
-	
+
 	// Should contain two-tier PATH setup
 	helpers.AssertStringContains(t, output, "_pvm_update_perl_path", "Should contain PATH update function")
 	helpers.AssertStringContains(t, output, "XDG_BIN_HOME", "Should contain XDG_BIN_HOME setup")
@@ -56,17 +56,17 @@ func TestShimPathPriority(t *testing.T) {
 
 	// Test that shell integration sets up correct PATH priority
 	output := helpers.AssertPVMSucceeds(t, env, []string{"init"}, "pvm init should work")
-	
+
 	// Should set up XDG_BIN_HOME first (highest priority for tool shims)
 	helpers.AssertStringContains(t, output, "XDG_BIN_HOME", "Should contain XDG_BIN_HOME setup")
-	
+
 	// Should dynamically add current Perl version's bin directory
 	helpers.AssertStringContains(t, output, "_pvm_update_perl_path", "Should contain PATH update function")
 	helpers.AssertStringContains(t, output, "pvm/versions/$current_version/bin", "Should add version-specific bin path")
 
 	// Verify no perl shims exist (they're not needed with two-tier PATH)
 	helpers.AssertFileDoesNotExist(t, env.PVMShimsDir+"/perl", "perl shim should not exist")
-	
+
 	// Test that pvm exec works without explicit version (our enhancement)
 	helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"exec", "echo", "hello"}, "pvm exec should work without version")
 }
@@ -79,8 +79,8 @@ func TestRehashCommand(t *testing.T) {
 	// Run the rehash command
 	stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"rehash"}, "Rehash command functionality")
 
-	// Check that it reports success
-	helpers.AssertStringContains(t, stdout, "Shim executables rebuilt successfully",
+	// Check that it reports success (now uses two-tier PATH instead of shims)
+	helpers.AssertStringContains(t, stdout, "Updated shell PATH for Perl",
 		"Rehash command output does not indicate success")
 
 	// With two-tier PATH, perl shims should NOT be created

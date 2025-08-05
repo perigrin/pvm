@@ -126,13 +126,13 @@ func TestQuickstartProjectSetup(t *testing.T) {
 	err = os.Chdir(projectDir)
 	require.NoError(t, err)
 
-	// Test pvm local 5.36.0
-	stdout, stderr, err := env.RunPVM("local", "5.36.0")
+	// Test pvm perl local 5.36.0
+	stdout, stderr, err := env.RunPVM("perl", "local", "5.36.0")
 	if err != nil {
-		t.Logf("pvm local stdout: %s", stdout)
-		t.Logf("pvm local stderr: %s", stderr)
+		t.Logf("pvm perl local stdout: %s", stdout)
+		t.Logf("pvm perl local stderr: %s", stderr)
 		// This might fail if Perl 5.36.0 isn't available, which is OK for testing
-		t.Log("pvm local may fail if Perl version not available - this is OK")
+		t.Log("pvm perl local may fail if Perl version not available - this is OK")
 	}
 
 	// Create main.pl as shown in quickstart guide
@@ -277,12 +277,12 @@ func TestQuickstartVersionCommands(t *testing.T) {
 	assert.True(t, err == nil || strings.Contains(stdout+stderr, "version"),
 		"pvm version should work")
 
-	// Test pvm local (may fail if no versions installed, which is OK)
-	stdout, stderr, err = env.RunPVM("local")
+	// Test pvm perl local (may fail if no versions installed, which is OK)
+	stdout, stderr, err = env.RunPVM("perl", "local")
 	if err != nil {
-		t.Logf("pvm local stdout: %s", stdout)
-		t.Logf("pvm local stderr: %s", stderr)
+		t.Logf("pvm perl local stdout: %s", stdout)
+		t.Logf("pvm perl local stderr: %s", stderr)
 		// This is expected to fail in test environment without installed Perl versions
-		t.Log("pvm local expected to fail in test environment - this is OK")
+		t.Log("pvm perl local expected to fail in test environment - this is OK")
 	}
 }

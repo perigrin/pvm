@@ -39,13 +39,42 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	}
 
 	// Save original environment variables
-	for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
+	for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL", "PVM_SKIP_NETWORK_CALLS"} {
 		env.origEnv[name] = os.Getenv(name)
+	}
+
+	// Log environment state before cleanup (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Test setup environment before cleanup:")
+		for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL", "PVM_SKIP_NETWORK_CALLS", "PATH"} {
+			value := os.Getenv(name)
+			if value != "" {
+				t.Logf("  %s=%s", name, value)
+			} else {
+				t.Logf("  %s=<unset>", name)
+			}
+		}
 	}
 
 	// Clear environment variables to ensure test isolation
 	for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL"} {
 		_ = os.Unsetenv(name)
+	}
+
+	// Set test mode environment variables
+	_ = os.Setenv("PVM_SKIP_NETWORK_CALLS", "1")
+
+	// Log environment state after cleanup (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Test setup environment after cleanup:")
+		for _, name := range []string{"PVM_PERL_VERSION", "PLENV_VERSION", "PERLBREW_PERL", "PVM_SKIP_NETWORK_CALLS"} {
+			value := os.Getenv(name)
+			if value != "" {
+				t.Logf("  %s=%s", name, value)
+			} else {
+				t.Logf("  %s=<unset>", name)
+			}
+		}
 	}
 
 	// Create temporary directory
@@ -77,13 +106,56 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	// Set up mock system Perl function
 	originalDetectSystemPerl := DetectSystemPerl
 	env.cleanup = append(env.cleanup, func() { DetectSystemPerl = originalDetectSystemPerl })
-	env.mockSystemPerl = &SystemPerl{
-		Path:         "/usr/bin/perl",
-		Version:      "5.30.3",
-		FullVersion:  "5.30.3",
-		Architecture: "x86_64",
-		IsPrimary:    true,
+
+	// Use actual system perl for more robust testing
+	// Ensure clean environment for system perl detection to avoid test interference
+	origPlenvVersion := os.Getenv("PLENV_VERSION")
+	origPvmPerlVersion := os.Getenv("PVM_PERL_VERSION")
+	origPerlbrewPerl := os.Getenv("PERLBREW_PERL")
+	_ = os.Unsetenv("PLENV_VERSION")
+	_ = os.Unsetenv("PVM_PERL_VERSION")
+	_ = os.Unsetenv("PERLBREW_PERL")
+	
+	// Log system Perl detection attempt (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Attempting system Perl detection...")
 	}
+	
+	actualSystemPerl, err := originalDetectSystemPerl()
+	
+	// Log system Perl detection result (CI debugging)
+	if os.Getenv("CI") != "" {
+		if err != nil {
+			t.Logf("CI DEBUG - System Perl detection failed: %v", err)
+		} else {
+			t.Logf("CI DEBUG - System Perl detected: Path=%s, Version=%s, Architecture=%s", 
+				actualSystemPerl.Path, actualSystemPerl.Version, actualSystemPerl.Architecture)
+		}
+	}
+	
+	// Restore environment variables
+	if origPlenvVersion != "" {
+		_ = os.Setenv("PLENV_VERSION", origPlenvVersion)
+	}
+	if origPvmPerlVersion != "" {
+		_ = os.Setenv("PVM_PERL_VERSION", origPvmPerlVersion)
+	}
+	if origPerlbrewPerl != "" {
+		_ = os.Setenv("PERLBREW_PERL", origPerlbrewPerl)
+	}
+	
+	if err != nil {
+		// If we can't detect system perl, use a sensible default
+		actualSystemPerl = &SystemPerl{
+			Path:         "/usr/bin/perl",
+			Version:      "5.38.2",
+			FullVersion:  "5.38.2",
+			Architecture: "x86_64",
+			IsPrimary:    true,
+		}
+	}
+
+	env.mockSystemPerl = actualSystemPerl
 	DetectSystemPerl = func() (*SystemPerl, error) {
 		return env.mockSystemPerl, nil
 	}
@@ -93,6 +165,20 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 
 // Cleanup test environment
 func (env *resolverTestEnv) cleanup_() {
+	// Log cleanup start (CI debugging)
+	if os.Getenv("CI") != "" {
+		// Get a test instance for logging - we'll use testing.TB interface if available
+		// For now, just print directly in CI mode
+		fmt.Printf("CI DEBUG - Starting test cleanup, restoring environment variables\n")
+		for name, value := range env.origEnv {
+			if value == "" {
+				fmt.Printf("  Unsetting %s\n", name)
+			} else {
+				fmt.Printf("  Setting %s=%s\n", name, value)
+			}
+		}
+	}
+
 	// Restore environment variables
 	for name, value := range env.origEnv {
 		if value == "" {
@@ -361,6 +447,11 @@ func TestResolveEnvironmentVariables(t *testing.T) {
 	env := setupResolverTest(t)
 	defer env.cleanup_()
 
+	// Ensure environment variables are cleaned up after test
+	defer os.Unsetenv("PVM_PERL_VERSION")
+	defer os.Unsetenv("PLENV_VERSION")
+	defer os.Unsetenv("PERLBREW_PERL")
+
 	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1"}
 
 	options := &ResolutionOptions{
@@ -373,6 +464,7 @@ func TestResolveEnvironmentVariables(t *testing.T) {
 	_ = os.Setenv("PVM_PERL_VERSION", "5.34.1")
 	_ = os.Setenv("PLENV_VERSION", "5.38.0")
 	_ = os.Setenv("PERLBREW_PERL", "perl-5.36.0")
+
 
 	resolved, err := ResolveVersion(options)
 	if err != nil {
@@ -480,8 +572,45 @@ func TestResolveUserConfig(t *testing.T) {
 
 // Test fallback to system Perl
 func TestResolveSystemPerl(t *testing.T) {
+	// Log test start (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - TestResolveSystemPerl starting")
+	}
+
 	env := setupResolverTest(t)
 	defer env.cleanup_()
+
+	// Log mock system perl info (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Mock system perl: Path=%s, Version=%s", env.mockSystemPerl.Path, env.mockSystemPerl.Version)
+	}
+
+	// Clear only system perl entries to prevent conflicts, but keep other registry entries
+	// This prevents interference from previous tests while preserving PVX functionality
+	err := clearSystemPerlFromRegistry()
+	if err != nil {
+		t.Logf("Warning: Failed to clear system perl from registry: %v", err)
+	}
+
+	// Import system perl into registry for resolution to work
+	// Since AutoImportSystemPerl skips if already registered, we force import
+	err = ImportSystemPerl()
+	if err != nil {
+		t.Fatalf("Failed to import system perl: %v", err)
+	}
+
+	// Log registry state after import (CI debugging)
+	if os.Getenv("CI") != "" {
+		installedVersions, regErr := GetInstalledVersions()
+		if regErr == nil {
+			t.Logf("CI DEBUG - Registry entries after import:")
+			for _, v := range installedVersions {
+				if v.Source == "system" {
+					t.Logf("  System entry: Version=%s, InstallPath=%s", v.Version, v.InstallPath)
+				}
+			}
+		}
+	}
 
 	// Set options to skip all other resolution methods
 	options := &ResolutionOptions{
@@ -511,15 +640,26 @@ func TestResolveSystemPerl(t *testing.T) {
 
 // Test full resolution precedence
 func TestResolutionPrecedence(t *testing.T) {
+	// Log test start (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - TestResolutionPrecedence starting")
+	}
+
 	env := setupResolverTest(t)
 	defer env.cleanup_()
 
-	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1", "5.32.1", "5.30.3"}
+	availableVersions := []string{"5.38.0", "5.36.0", "5.34.1", "5.32.1", "5.30.3", env.mockSystemPerl.Version}
+
+	// Log available versions (CI debugging)
+	if os.Getenv("CI") != "" {
+		t.Logf("CI DEBUG - Available versions: %v", availableVersions)
+		t.Logf("CI DEBUG - Mock system perl version: %s", env.mockSystemPerl.Version)
+	}
 
 	// Create config files and set environment variables to test precedence
 
-	// 1. System Perl is 5.30.3 (lowest precedence)
-	env.mockSystemPerl.Version = "5.30.3"
+	// 1. System Perl (lowest precedence) - use the actual system perl version
+	// env.mockSystemPerl.Version is already set to actual system perl version
 
 	// 2. User config has 5.32.1 - create user config file and object
 	env.createUserConfig(t, "5.32.1", nil)
@@ -672,7 +812,7 @@ func TestResolutionPrecedence(t *testing.T) {
 				version string
 				source  ResolutionSource
 			}{
-				version: "5.30.3",
+				version: env.mockSystemPerl.Version,
 				source:  SystemPerlSource,
 			},
 		},
@@ -745,4 +885,24 @@ func TestVersionResolvedCallback(t *testing.T) {
 	if callbackCalled {
 		t.Errorf("Expected callback to be skipped")
 	}
+}
+
+// clearSystemPerlFromRegistry removes only system perl entries from the registry
+// This is more targeted than clearing the entire registry and preserves other entries
+func clearSystemPerlFromRegistry() error {
+	// Load the current registry
+	registry, err := loadRegistryFunc()
+	if err != nil {
+		return err
+	}
+
+	// Remove only entries with source="system"
+	for id, versionInfo := range registry.Versions {
+		if versionInfo.Source == "system" {
+			delete(registry.Versions, id)
+		}
+	}
+
+	// Save the modified registry
+	return saveRegistryFunc(registry)
 }
