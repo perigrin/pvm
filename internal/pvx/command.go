@@ -66,7 +66,11 @@ func NewCommand() *cobra.Command {
 			additionalDeps, _ := cmd.Flags().GetStringArray("with")
 
 			// Check if we're executing code directly or running a script
-			if executeCode == "" && len(args) == 0 {
+			// Allow empty code if either -e or -E flags were explicitly provided
+			executeCodeProvided := cmd.Flags().Changed("execute")
+			executeFeaturesCodeProvided := cmd.Flags().Changed("execute-features")
+			
+			if !executeCodeProvided && !executeFeaturesCodeProvided && len(args) == 0 {
 				_ = cmd.Help() // Ignoring error as we're exiting anyway
 				return
 			}

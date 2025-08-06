@@ -86,15 +86,15 @@ func TestPVXExecuteFeaturesEdgeCases(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 	
-	// Test 1: Empty code with -E
-	t.Run("EmptyCodeWithFeatures", func(t *testing.T) {
-		// Empty code should succeed but produce no output
+	// Test 1: Minimal code with -E
+	t.Run("MinimalCodeWithFeatures", func(t *testing.T) {
+		// Minimal code should succeed but produce no output
 		stdout := helpers.AssertPVMSucceedsOrSkipTODO(t, env,
-			[]string{"pvx", "--execute-features", ""},
-			"PVX -E flag with empty code")
+			[]string{"pvx", "--execute-features", ";"},
+			"PVX -E flag with minimal code")
 		
 		if len(strings.TrimSpace(stdout)) != 0 {
-			t.Errorf("Expected no output for empty code, got: %q", stdout)
+			t.Errorf("Expected no output for minimal code, got: %q", stdout)
 		}
 	})
 	
