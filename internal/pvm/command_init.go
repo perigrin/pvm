@@ -101,7 +101,7 @@ func needsRegistryRebuild() bool {
 	}
 
 	versionsDir := filepath.Join(dirs.DataDir, "versions")
-	
+
 	// If registry is empty, check if versions exist on filesystem
 	if len(registry.Versions) == 0 {
 		if entries, err := os.ReadDir(versionsDir); err == nil && len(entries) > 0 {
@@ -122,12 +122,12 @@ func needsRegistryRebuild() bool {
 		// For PVM installations, verify the path exists and looks reasonable
 		if versionInfo.Source == "pvm" || versionInfo.Source == "plenv" {
 			// Check if this looks like a test path (corrupted entry)
-			if strings.Contains(versionInfo.InstallPath, "/tmp/") || 
-			   strings.Contains(versionInfo.InstallPath, "pvm-shim-test") ||
-			   strings.Contains(versionInfo.InstallPath, "/var/folders/") {
+			if strings.Contains(versionInfo.InstallPath, "/tmp/") ||
+				strings.Contains(versionInfo.InstallPath, "pvm-shim-test") ||
+				strings.Contains(versionInfo.InstallPath, "/var/folders/") {
 				continue // Skip corrupted test entries
 			}
-			
+
 			// Verify the installation path exists
 			if _, err := os.Stat(versionInfo.InstallPath); err == nil {
 				validEntries++

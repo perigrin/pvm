@@ -25,36 +25,25 @@ func NewCpanfileManager(path string) *CpanfileManager {
 }
 
 // AddDependency adds a new dependency to the cpanfile
-func (cm *CpanfileManager) AddDependency(moduleName, versionConstraint string, isDev bool) error {
+func (cm *CpanfileManager) AddDependency(moduleName, versionConstraint string, isDev, isTest bool) error {
 	// Read existing cpanfile if it exists
 	var cpanfile *cpan.CPANFile
 
-	if fileExists(cm.Path) {
-		content, err := os.ReadFile(cm.Path)
-		if err != nil {
-			return fmt.Errorf("failed to read cpanfile: %w", err)
-		}
-		cpanfile, err = cpan.ParseCPANFile(string(content))
-		if err != nil {
-			return fmt.Errorf("failed to parse cpanfile: %w", err)
-		}
-	} else {
-		// Create new cpanfile structure
-		cpanfile = &cpan.CPANFile{
-			Requirements: []cpan.Requirement{},
-			Features:     make(map[string][]cpan.Requirement),
-			Platforms:    make(map[string][]cpan.Requirement),
-		}
+	// Always create a minimal cpanfile with just the new dependency
+	// The existing dependencies will be preserved by the file processing logic
+	cpanfile = &cpan.CPANFile{
+		Requirements: []cpan.Requirement{},
+		Features:     make(map[string][]cpan.Requirement),
+		Platforms:    make(map[string][]cpan.Requirement),
 	}
 
-	// Check if dependency already exists
+	// Determine phase
 	phase := "runtime"
 	if isDev {
 		phase = "develop"
+	} else if isTest {
+		phase = "test"
 	}
-
-	// Remove existing dependency if it exists
-	cm.removeDependencyFromList(&cpanfile.Requirements, moduleName)
 
 	// Create new requirement
 	req := cpan.Requirement{
@@ -64,12 +53,7 @@ func (cm *CpanfileManager) AddDependency(moduleName, versionConstraint string, i
 		Relationship: "requires",
 	}
 
-	// Add to appropriate list
-	if isDev {
-		// For development dependencies, we need to add them to the develop phase
-		// This will be handled in the write phase
-		req.Phase = "develop"
-	}
+	// Add the new requirement
 	cpanfile.Requirements = append(cpanfile.Requirements, req)
 
 	// Write back to file
@@ -153,7 +137,6 @@ func (cm *CpanfileManager) writeCpanfile(cpanfile *cpan.CPANFile) error {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-
 	// Read existing content to preserve formatting and comments if possible
 	var lines []string
 	var existingContent string
@@ -180,18 +163,27 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 	var output []string
 	processed := make(map[string]bool)
 	inDevelopBlock := false
-	developBlockIndent := ""
+	inTestBlock := false
+	currentBlockIndent := ""
+	newDepsInserted := false
 
-	// Regular expressions for parsing
-	requiresRe := regexp.MustCompile(`^(\s*)requires\s+'([^']+)'`)
-	developRe := regexp.MustCompile(`^(\s*)on\s+'develop'\s*=>\s*sub\s*\{`)
+	// Regular expressions for parsing (handle both single and double quotes)
+	requiresRe := regexp.MustCompile(`^(\s*)requires\s+['"]([^'"]+)['"]`)
+	developRe := regexp.MustCompile(`^(\s*)on\s+['"]develop['"]\s*=>\s*sub\s*\{`)
+	testRe := regexp.MustCompile(`^(\s*)on\s+['"]test['"]\s*=>\s*sub\s*\{`)
 	blockEndRe := regexp.MustCompile(`^(\s*)\}`)
 
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 
-		// Skip empty lines and comments as-is
-		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "#") {
+		// Handle empty lines with consolidation, keep comments as-is
+		if trimmedLine == "" {
+			// This is a blank line - only add if the last line wasn't also blank
+			if len(output) > 0 && strings.TrimSpace(output[len(output)-1]) != "" {
+				output = append(output, "")
+			}
+			continue
+		} else if strings.HasPrefix(trimmedLine, "#") {
 			output = append(output, line)
 			continue
 		}
@@ -199,17 +191,32 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 		// Check for develop block start
 		if developRe.MatchString(line) {
 			inDevelopBlock = true
-			developBlockIndent = developRe.FindStringSubmatch(line)[1]
+			currentBlockIndent = developRe.FindStringSubmatch(line)[1]
+			output = append(output, line)
+			continue
+		}
+
+		// Check for test block start
+		if testRe.MatchString(line) {
+			inTestBlock = true
+			currentBlockIndent = testRe.FindStringSubmatch(line)[1]
 			output = append(output, line)
 			continue
 		}
 
 		// Check for block end
-		if blockEndRe.MatchString(line) && inDevelopBlock {
-			// Add any new develop dependencies before closing block
+		if blockEndRe.MatchString(line) && (inDevelopBlock || inTestBlock) {
+			// Add any new dependencies before closing block
 			for _, req := range cpanfile.Requirements {
-				if req.Phase == "develop" && !processed[req.Module] {
-					depLine := fmt.Sprintf("%s    requires '%s'", developBlockIndent, req.Module)
+				shouldAdd := false
+				if inDevelopBlock && req.Phase == "develop" && !processed[req.Module] {
+					shouldAdd = true
+				} else if inTestBlock && req.Phase == "test" && !processed[req.Module] {
+					shouldAdd = true
+				}
+
+				if shouldAdd {
+					depLine := fmt.Sprintf("%s    requires '%s'", currentBlockIndent, req.Module)
 					if req.Version != "" {
 						depLine += fmt.Sprintf(", '%s'", req.Version)
 					}
@@ -219,6 +226,7 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 				}
 			}
 			inDevelopBlock = false
+			inTestBlock = false
 			output = append(output, line)
 			continue
 		}
@@ -232,13 +240,17 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 			var newReq *cpan.Requirement
 			for _, req := range cpanfile.Requirements {
 				if req.Module == moduleName {
-					// Check if it should be in develop block
+					// Check if it should be in the correct block
 					if inDevelopBlock && req.Phase != "develop" {
 						// Skip this line, it shouldn't be in develop block
 						continue
 					}
-					if !inDevelopBlock && req.Phase == "develop" {
-						// Skip this line, it should be in develop block
+					if inTestBlock && req.Phase != "test" {
+						// Skip this line, it shouldn't be in test block
+						continue
+					}
+					if !inDevelopBlock && !inTestBlock && (req.Phase == "develop" || req.Phase == "test") {
+						// Skip this line, it should be in a specific phase block
 						continue
 					}
 					newReq = &req
@@ -255,8 +267,29 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 				newLine += ";"
 				output = append(output, newLine)
 				processed[newReq.Module] = true
+			} else {
+				// Keep existing dependency as-is
+				output = append(output, line)
+				// Mark this module as processed to avoid duplication
+				processed[moduleName] = true
 			}
-			// If newReq is nil, the dependency was removed, so skip the line
+
+			// If this was a perl version requirement and we haven't inserted new deps yet,
+			// insert any new runtime dependencies right after it
+			if !inDevelopBlock && !inTestBlock && moduleName == "perl" && !newDepsInserted {
+				for _, req := range cpanfile.Requirements {
+					if req.Phase != "develop" && req.Phase != "test" && !processed[req.Module] {
+						depLine := fmt.Sprintf("requires '%s'", req.Module)
+						if req.Version != "" {
+							depLine += fmt.Sprintf(", '%s'", req.Version)
+						}
+						depLine += ";"
+						output = append(output, depLine)
+						processed[req.Module] = true
+					}
+				}
+				newDepsInserted = true
+			}
 			continue
 		}
 
@@ -264,22 +297,49 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 		output = append(output, line)
 	}
 
-	// Add any new runtime dependencies that weren't processed
-	addedNewline := false
-	for _, req := range cpanfile.Requirements {
-		if req.Phase != "develop" && !processed[req.Module] {
-			if !addedNewline {
-				output = append(output, "")
-				addedNewline = true
+	// Add any new runtime dependencies that weren't processed (only if they weren't inserted after perl version)
+	if !newDepsInserted {
+		for _, req := range cpanfile.Requirements {
+			if req.Phase != "develop" && req.Phase != "test" && !processed[req.Module] {
+				// Add a single blank line before new dependencies if there are existing lines
+				if len(output) > 0 && strings.TrimSpace(output[len(output)-1]) != "" {
+					output = append(output, "")
+				}
+				depLine := fmt.Sprintf("requires '%s'", req.Module)
+				if req.Version != "" {
+					depLine += fmt.Sprintf(", '%s'", req.Version)
+				}
+				depLine += ";"
+				output = append(output, depLine)
+				processed[req.Module] = true
 			}
-			depLine := fmt.Sprintf("requires '%s'", req.Module)
-			if req.Version != "" {
-				depLine += fmt.Sprintf(", '%s'", req.Version)
-			}
-			depLine += ";"
-			output = append(output, depLine)
-			processed[req.Module] = true
 		}
+	}
+
+	// Add test block if needed and there are test dependencies
+	hasTestDeps := false
+	for _, req := range cpanfile.Requirements {
+		if req.Phase == "test" && !processed[req.Module] {
+			hasTestDeps = true
+			break
+		}
+	}
+
+	if hasTestDeps {
+		output = append(output, "")
+		output = append(output, "on 'test' => sub {")
+		for _, req := range cpanfile.Requirements {
+			if req.Phase == "test" && !processed[req.Module] {
+				depLine := fmt.Sprintf("    requires '%s'", req.Module)
+				if req.Version != "" {
+					depLine += fmt.Sprintf(", '%s'", req.Version)
+				}
+				depLine += ";"
+				output = append(output, depLine)
+				processed[req.Module] = true
+			}
+		}
+		output = append(output, "};")
 	}
 
 	// Add develop block if needed and there are develop dependencies
@@ -308,8 +368,13 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 		output = append(output, "};")
 	}
 
+	// Final cleanup: remove any trailing blank lines except one, then add single newline
+	for len(output) > 0 && strings.TrimSpace(output[len(output)-1]) == "" {
+		output = output[:len(output)-1]
+	}
+
 	// Write the file
-	content := strings.Join(output, "\n")
+	content := strings.Join(output, "\n") + "\n"
 	return os.WriteFile(cm.Path, []byte(content), 0644)
 }
 
@@ -324,7 +389,7 @@ func (cm *CpanfileManager) createNewCpanfile(cpanfile *cpan.CPANFile) error {
 
 	// Add runtime requirements
 	for _, req := range cpanfile.Requirements {
-		if req.Phase != "develop" {
+		if req.Phase != "develop" && req.Phase != "test" {
 			line := fmt.Sprintf("requires '%s'", req.Module)
 			if req.Version != "" {
 				line += fmt.Sprintf(", '%s'", req.Version)
@@ -332,6 +397,28 @@ func (cm *CpanfileManager) createNewCpanfile(cpanfile *cpan.CPANFile) error {
 			line += ";"
 			lines = append(lines, line)
 		}
+	}
+
+	// Add test requirements if any
+	var testReqs []cpan.Requirement
+	for _, req := range cpanfile.Requirements {
+		if req.Phase == "test" {
+			testReqs = append(testReqs, req)
+		}
+	}
+
+	if len(testReqs) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, "on 'test' => sub {")
+		for _, req := range testReqs {
+			line := fmt.Sprintf("    requires '%s'", req.Module)
+			if req.Version != "" {
+				line += fmt.Sprintf(", '%s'", req.Version)
+			}
+			line += ";"
+			lines = append(lines, line)
+		}
+		lines = append(lines, "};")
 	}
 
 	// Add develop requirements if any
@@ -365,7 +452,6 @@ func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
-
 
 // SnapshotEntry represents a single entry in the cpanfile.snapshot
 type SnapshotEntry struct {

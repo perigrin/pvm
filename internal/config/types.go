@@ -606,7 +606,7 @@ type BuildDistributionConfig struct {
 
 // NewDefaultConfig creates a new configuration with default values
 func NewDefaultConfig() *Config {
-	return &Config{
+	cfg := &Config{
 		PVM: &PVMConfig{
 			DefaultPerl:    "5.40.2",
 			BuildJobs:      4,
@@ -728,6 +728,12 @@ func NewDefaultConfig() *Config {
 			LocalLib: "local", // Changed default from "lib" to "local"
 		},
 	}
+
+	// Expand environment variables in paths
+	cfg.PVI.CacheDir = expandEnvironmentVariables(cfg.PVI.CacheDir)
+	cfg.PSC.TypeDefinitionsPath = expandEnvironmentVariables(cfg.PSC.TypeDefinitionsPath)
+
+	return cfg
 }
 
 // Validate checks if the configuration is valid

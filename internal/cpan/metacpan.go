@@ -1278,11 +1278,11 @@ func (p *MetaCPANProvider) SearchExecutableFiles(ctx context.Context, toolName s
 	results := make([]ExecutableFileResult, 0, len(searchResponse.Hits.Hits))
 	for _, hit := range searchResponse.Hits.Hits {
 		file := hit.Source
-		
+
 		// Exact match on file name (without extension) gets priority
 		fileName := strings.TrimSuffix(file.Name, ".pl")
 		isExactMatch := fileName == toolName
-		
+
 		results = append(results, ExecutableFileResult{
 			FileName:     file.Name,
 			ToolName:     fileName,

@@ -115,24 +115,24 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	_ = os.Unsetenv("PLENV_VERSION")
 	_ = os.Unsetenv("PVM_PERL_VERSION")
 	_ = os.Unsetenv("PERLBREW_PERL")
-	
+
 	// Log system Perl detection attempt (CI debugging)
 	if os.Getenv("CI") != "" {
 		t.Logf("CI DEBUG - Attempting system Perl detection...")
 	}
-	
+
 	actualSystemPerl, err := originalDetectSystemPerl()
-	
+
 	// Log system Perl detection result (CI debugging)
 	if os.Getenv("CI") != "" {
 		if err != nil {
 			t.Logf("CI DEBUG - System Perl detection failed: %v", err)
 		} else {
-			t.Logf("CI DEBUG - System Perl detected: Path=%s, Version=%s, Architecture=%s", 
+			t.Logf("CI DEBUG - System Perl detected: Path=%s, Version=%s, Architecture=%s",
 				actualSystemPerl.Path, actualSystemPerl.Version, actualSystemPerl.Architecture)
 		}
 	}
-	
+
 	// Restore environment variables
 	if origPlenvVersion != "" {
 		_ = os.Setenv("PLENV_VERSION", origPlenvVersion)
@@ -143,7 +143,7 @@ func setupResolverTest(t *testing.T) *resolverTestEnv {
 	if origPerlbrewPerl != "" {
 		_ = os.Setenv("PERLBREW_PERL", origPerlbrewPerl)
 	}
-	
+
 	if err != nil {
 		// If we can't detect system perl, use a sensible default
 		actualSystemPerl = &SystemPerl{
@@ -464,7 +464,6 @@ func TestResolveEnvironmentVariables(t *testing.T) {
 	_ = os.Setenv("PVM_PERL_VERSION", "5.34.1")
 	_ = os.Setenv("PLENV_VERSION", "5.38.0")
 	_ = os.Setenv("PERLBREW_PERL", "perl-5.36.0")
-
 
 	resolved, err := ResolveVersion(options)
 	if err != nil {

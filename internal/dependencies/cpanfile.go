@@ -76,7 +76,6 @@ func (cm *CpanfileManager) SaveCpanfile(cpanfile *CPANFile) error {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-
 	// Read existing content to preserve formatting and comments if possible
 	var lines []string
 	var existingContent string
@@ -709,4 +708,3 @@ func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
-

@@ -1,10 +1,11 @@
-// ABOUTME: Test for version source display improvements (issue #196)  
+// ABOUTME: Test for version source display improvements (issue #196)
 // ABOUTME: Verifies that environment variable names are displayed specifically
 
 package current
 
 import (
 	"testing"
+
 	"tamarou.com/pvm/internal/perl"
 )
 
@@ -57,7 +58,7 @@ func TestVersionSourceDisplayImprovements(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := formatSourceDescription(tt.source, tt.path)
 			if result != tt.expected {
-				t.Errorf("formatSourceDescription(%v, %q) = %q, want %q", 
+				t.Errorf("formatSourceDescription(%v, %q) = %q, want %q",
 					tt.source, tt.path, result, tt.expected)
 			}
 		})
@@ -98,7 +99,7 @@ func TestCurrentVersionInfoWithEnvironmentVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.info.SourceDescription != tt.expectedDesc {
-				t.Errorf("Expected source description %q, got %q", 
+				t.Errorf("Expected source description %q, got %q",
 					tt.expectedDesc, tt.info.SourceDescription)
 			}
 
@@ -106,7 +107,7 @@ func TestCurrentVersionInfoWithEnvironmentVariables(t *testing.T) {
 			output := tt.info.FormatOutput(false)
 			expectedOutput := tt.info.Version + " (" + tt.expectedDesc + ")"
 			if output != expectedOutput {
-				t.Errorf("Expected formatted output %q, got %q", 
+				t.Errorf("Expected formatted output %q, got %q",
 					expectedOutput, output)
 			}
 		})

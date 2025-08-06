@@ -57,7 +57,7 @@ func TestResolveToolToModule_ExplicitModule(t *testing.T) {
 
 	testCases := []string{
 		"App::Ack",
-		"Test::Harness", 
+		"Test::Harness",
 		"Perl-Tidy",
 		"My::Custom::Module",
 	}
