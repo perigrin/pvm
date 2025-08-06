@@ -519,7 +519,7 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 			Version:    resolvedVersion,
 			Source:     EnvironmentVariable,
 			Path:       perlPath,
-			SourcePath: "", // Environment variables don't have a file path
+			SourcePath: "PVM_PERL_VERSION", // Store the specific environment variable name
 		}, nil
 	}
 
@@ -554,7 +554,7 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 			Version:    resolvedVersion,
 			Source:     EnvironmentVariable,
 			Path:       perlPath,
-			SourcePath: "", // Environment variables don't have a file path
+			SourcePath: "PLENV_VERSION", // Store the specific environment variable name
 		}, nil
 	}
 
@@ -594,7 +594,7 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 			Version:    resolvedVersion,
 			Source:     EnvironmentVariable,
 			Path:       perlPath,
-			SourcePath: "", // Environment variables don't have a file path
+			SourcePath: "PERLBREW_PERL", // Store the specific environment variable name
 		}, nil
 	}
 

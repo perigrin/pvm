@@ -27,6 +27,7 @@ require (
 	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.1
 	github.com/google/go-cmp v0.7.0
 	github.com/spf13/viper v1.20.1
+	golang.org/x/text v0.27.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -74,7 +75,6 @@ require (
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/telemetry v0.0.0-20240522233618-39ace7a40ae7 // indirect
 	golang.org/x/term v0.18.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
