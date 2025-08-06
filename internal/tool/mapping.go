@@ -24,28 +24,17 @@ func NewToolMapping() *ToolMapping {
 	// Initialize built-in mappings
 	tm.initBuiltinMappings()
 
+	// Initialize MetaCPAN resolver for fallback searches
+	if resolver, err := NewMetaCPANResolver(); err == nil {
+		tm.SetResolver(resolver)
+	}
+
 	return tm
 }
 
 // initBuiltinMappings sets up the hardcoded mappings for common tools
 func (tm *ToolMapping) initBuiltinMappings() {
-	tm.builtinMappings = map[string]string{
-		"ack":         "App::Ack",
-		"cpanm":       "App::cpanminus",
-		"prove":       "Test::Harness",
-		"perltidy":    "Perl::Tidy",
-		"perlcritic":  "Perl::Critic",
-		"fatpack":     "App::FatPacker",
-		"plackup":     "Plack",
-		"cpanfile":    "Module::CPANfile",
-		"carton":      "Carton",
-		"dzil":        "Dist::Zilla",
-		"minil":       "Minilla",
-		"pmversions":  "Perl::Version",
-		"cpan-upload": "CPAN::Uploader",
-		"cpan-audit":  "CPAN::Audit",
-		"metacpan":    "MetaCPAN::Client",
-	}
+	tm.builtinMappings = GetBuiltinMappings()
 }
 
 // ResolveToolToModule resolves a tool name to its CPAN module
@@ -202,4 +191,26 @@ func isValidModuleName(name string) bool {
 	}
 
 	return true
+}
+
+// GetBuiltinMappings returns the built-in tool mappings for use by other packages
+func GetBuiltinMappings() map[string]string {
+	mappings := map[string]string{
+		"ack":         "App::Ack",
+		"cpanm":       "App::cpanminus",
+		"prove":       "Test::Harness",
+		"perltidy":    "Perl-Tidy",
+		"perlcritic":  "Perl::Critic",
+		"fatpack":     "App::FatPacker",
+		"plackup":     "Plack",
+		"cpanfile":    "Module::CPANfile",
+		"carton":      "Carton",
+		"dzil":        "Dist::Zilla",
+		"minil":       "Minilla",
+		"pmversions":  "Perl::Version",
+		"cpan-upload": "CPAN::Uploader",
+		"cpan-audit":  "CPAN::Audit",
+		"metacpan":    "MetaCPAN::Client",
+	}
+	return mappings
 }
