@@ -303,6 +303,15 @@ func (vpm *ViperProfileManager) configToViper(config *Config) *viper.Viper {
 	return v
 }
 
+// expandStringSlice expands environment variables in each string in a slice
+func expandStringSlice(slice []string) []string {
+	expanded := make([]string, len(slice))
+	for i, s := range slice {
+		expanded[i] = expandEnvironmentVariables(s)
+	}
+	return expanded
+}
+
 // viperToConfig converts a Viper instance to a Config struct
 func (vpm *ViperProfileManager) viperToConfig(v *viper.Viper) (*Config, error) {
 	config := &Config{
@@ -311,7 +320,7 @@ func (vpm *ViperProfileManager) viperToConfig(v *viper.Viper) (*Config, error) {
 			BuildJobs:      v.GetInt("config.pvm.build_jobs"),
 			DownloadMirror: v.GetString("config.pvm.download_mirror"),
 			RunTests:       v.GetBool("config.pvm.run_tests"),
-			PatchesDir:     v.GetString("config.pvm.patches_dir"),
+			PatchesDir:     expandEnvironmentVariables(v.GetString("config.pvm.patches_dir")),
 			Compiler:       v.GetString("config.pvm.compiler"),
 			VersionAliases: v.GetStringMapString("config.pvm.version_aliases"),
 		},
@@ -323,12 +332,12 @@ func (vpm *ViperProfileManager) viperToConfig(v *viper.Viper) (*Config, error) {
 			Timeout:                 v.GetInt("config.pvx.timeout"),
 			MaxMemory:               v.GetString("config.pvx.max_memory"),
 			IsolatedOutput:          v.GetBool("config.pvx.isolated_output"),
-			SaveOutputDir:           v.GetString("config.pvx.save_output_dir"),
-			CustomModulePath:        v.GetString("config.pvx.custom_module_path"),
-			IsolationReadOnlyPaths:  v.GetStringSlice("config.pvx.isolation_read_only_paths"),
-			IsolationReadWritePaths: v.GetStringSlice("config.pvx.isolation_read_write_paths"),
+			SaveOutputDir:           expandEnvironmentVariables(v.GetString("config.pvx.save_output_dir")),
+			CustomModulePath:        expandEnvironmentVariables(v.GetString("config.pvx.custom_module_path")),
+			IsolationReadOnlyPaths:  expandStringSlice(v.GetStringSlice("config.pvx.isolation_read_only_paths")),
+			IsolationReadWritePaths: expandStringSlice(v.GetStringSlice("config.pvx.isolation_read_write_paths")),
 			PreserveEnvVars:         v.GetStringSlice("config.pvx.preserve_env_vars"),
-			AdditionalModulePaths:   v.GetStringSlice("config.pvx.additional_module_paths"),
+			AdditionalModulePaths:   expandStringSlice(v.GetStringSlice("config.pvx.additional_module_paths")),
 		},
 		PVI: &PVIConfig{
 			PreferredInstaller: v.GetString("config.pvi.preferred_installer"),
@@ -336,7 +345,7 @@ func (vpm *ViperProfileManager) viperToConfig(v *viper.Viper) (*Config, error) {
 			AdditionalMirrors:  v.GetStringSlice("config.pvi.additional_mirrors"),
 			MetadataSource:     v.GetString("config.pvi.metadata_source"),
 			MetadataURL:        v.GetString("config.pvi.metadata_url"),
-			CacheDir:           v.GetString("config.pvi.cache_dir"),
+			CacheDir:           expandEnvironmentVariables(v.GetString("config.pvi.cache_dir")),
 			CacheTTL:           v.GetInt("config.pvi.cache_ttl"),
 			TestDuringInstall:  v.GetBool("config.pvi.test_during_install"),
 			CacheModules:       v.GetBool("config.pvi.cache_modules"),
@@ -345,7 +354,7 @@ func (vpm *ViperProfileManager) viperToConfig(v *viper.Viper) (*Config, error) {
 			DisableNetwork:     v.GetBool("config.pvi.disable_network"),
 		},
 		PSC: &PSCConfig{
-			TypeDefinitionsPath:  v.GetString("config.psc.type_definitions_path"),
+			TypeDefinitionsPath:  expandEnvironmentVariables(v.GetString("config.psc.type_definitions_path")),
 			StrictMode:           v.GetBool("config.psc.strict_mode"),
 			WatchExclude:         v.GetStringSlice("config.psc.watch_exclude"),
 			GenerateMissingTypes: v.GetBool("config.psc.generate_missing_types"),
