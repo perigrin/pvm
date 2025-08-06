@@ -141,21 +141,7 @@ func TestGetAllCategories(t *testing.T) {
 
 func TestBuiltinMappings_KnownGoodMappings(t *testing.T) {
 	// Test specific mappings we know are correct
-	knownMappings := map[string]string{
-		"ack":         "App::Ack",
-		"cpanm":       "App::cpanminus",
-		"prove":       "Test::Harness",
-		"perltidy":    "Perl::Tidy",
-		"perlcritic":  "Perl::Critic",
-		"fatpack":     "App::FatPacker",
-		"plackup":     "Plack",
-		"carton":      "Carton",
-		"dzil":        "Dist::Zilla",
-		"minil":       "Minilla",
-		"cpan-upload": "CPAN::Uploader",
-		"cpan-audit":  "CPAN::Audit",
-		"metacpan":    "MetaCPAN::Client",
-	}
+	knownMappings := GetBuiltinMappings()
 
 	for tool, expectedModule := range knownMappings {
 		t.Run(tool, func(t *testing.T) {

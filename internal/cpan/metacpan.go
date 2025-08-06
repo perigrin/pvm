@@ -1144,6 +1144,179 @@ func isStablePerlVersion(version string) bool {
 	return minor%2 == 0
 }
 
+// SearchExecutableFiles searches for executable files in CPAN distributions using FastAPI
+func (p *MetaCPANProvider) SearchExecutableFiles(ctx context.Context, toolName string) ([]ExecutableFileResult, error) {
+	if p.disableNetwork {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "network_disabled",
+			Message: "Network access is disabled",
+		}
+	}
+
+	// Check cache first
+	if p.cacheDir != "" {
+		cache, err := NewCache(p.cacheDir, p.cacheTTL)
+		if err == nil {
+			cacheKey := fmt.Sprintf("executable_search_%s", toolName)
+			var cachedResults []ExecutableFileResult
+			if cache.Get(cacheKey, &cachedResults) {
+				return cachedResults, nil
+			}
+		}
+	}
+
+	// Use FastAPI endpoint for file search
+	searchRequest := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": []map[string]interface{}{
+					{"term": map[string]interface{}{"directory": false}},
+					{"term": map[string]interface{}{"executable": true}},
+					{"match": map[string]string{"name": toolName}},
+				},
+			},
+		},
+		"size": 10,
+	}
+
+	// Marshal request to JSON
+	reqBody, err := json.Marshal(searchRequest)
+	if err != nil {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "marshal_failed",
+			Message: "Failed to marshal search request",
+			Err:     err,
+		}
+	}
+
+	// Create HTTP request to FastAPI endpoint
+	fastAPIURL := "https://fastapi.metacpan.org/v1/file/_search"
+	req, err := http.NewRequestWithContext(ctx, "POST", fastAPIURL, strings.NewReader(string(reqBody)))
+	if err != nil {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "request_creation_failed",
+			Message: "Failed to create request",
+			URL:     fastAPIURL,
+			Err:     err,
+		}
+	}
+
+	// Set headers
+	req.Header.Set("User-Agent", p.userAgent)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	// Execute the request
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "request_failed",
+			Message: "Failed to execute request",
+			URL:     fastAPIURL,
+			Err:     err,
+		}
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Check status code
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ProviderError{
+			Source:     p.Name(),
+			Code:       "http_error",
+			Message:    fmt.Sprintf("HTTP error: %d", resp.StatusCode),
+			URL:        fastAPIURL,
+			StatusCode: resp.StatusCode,
+		}
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "read_failed",
+			Message: "Failed to read response body",
+			URL:     fastAPIURL,
+			Err:     err,
+		}
+	}
+
+	// Parse the JSON response
+	var searchResponse struct {
+		Hits struct {
+			Total struct {
+				Value int `json:"value"`
+			} `json:"total"`
+			Hits []struct {
+				Source struct {
+					Name         string `json:"name"`
+					Distribution string `json:"distribution"`
+					Author       string `json:"author"`
+					Release      string `json:"release"`
+					Version      string `json:"version"`
+					Abstract     string `json:"abstract"`
+				} `json:"_source"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+
+	if err := json.Unmarshal(body, &searchResponse); err != nil {
+		return nil, &ProviderError{
+			Source:  p.Name(),
+			Code:    "parse_failed",
+			Message: "Failed to parse JSON response",
+			URL:     fastAPIURL,
+			Err:     err,
+		}
+	}
+
+	// Convert results
+	results := make([]ExecutableFileResult, 0, len(searchResponse.Hits.Hits))
+	for _, hit := range searchResponse.Hits.Hits {
+		file := hit.Source
+		
+		// Exact match on file name (without extension) gets priority
+		fileName := strings.TrimSuffix(file.Name, ".pl")
+		isExactMatch := fileName == toolName
+		
+		results = append(results, ExecutableFileResult{
+			FileName:     file.Name,
+			ToolName:     fileName,
+			Distribution: file.Distribution,
+			Author:       file.Author,
+			Version:      file.Version,
+			Abstract:     file.Abstract,
+			IsExactMatch: isExactMatch,
+		})
+	}
+
+	// Save to cache
+	if p.cacheDir != "" {
+		cache, err := NewCache(p.cacheDir, p.cacheTTL)
+		if err == nil {
+			cacheKey := fmt.Sprintf("executable_search_%s", toolName)
+			_ = cache.Set(cacheKey, results, p.Name())
+		}
+	}
+
+	return results, nil
+}
+
+// ExecutableFileResult represents a result from executable file search
+type ExecutableFileResult struct {
+	FileName     string `json:"file_name"`
+	ToolName     string `json:"tool_name"`
+	Distribution string `json:"distribution"`
+	Author       string `json:"author"`
+	Version      string `json:"version"`
+	Abstract     string `json:"abstract"`
+	IsExactMatch bool   `json:"is_exact_match"`
+}
+
 // calculateRating calculates a rating for a module based on CPAN Testers results
 // This is a simplified rating calculation for demonstration purposes
 func calculateRating(module *MetaCPANModule) float64 {

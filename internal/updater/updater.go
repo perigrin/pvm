@@ -170,12 +170,12 @@ func (u *Updater) CheckForUpdates(opts *UpdateOptions) (*version.UpdateInfo, err
 func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) {
 	startTime := time.Now()
 
-	result := &UpdateResult{
-		DryRun: opts.DryRun,
-	}
-
 	if opts == nil {
 		opts = DefaultUpdateOptions()
+	}
+
+	result := &UpdateResult{
+		DryRun: opts.DryRun,
 	}
 
 	if opts.Context == nil {

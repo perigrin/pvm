@@ -47,12 +47,12 @@ type ReplacementResult struct {
 func (r *BinaryReplacer) ReplaceBinary(opts *ReplacementOptions) (*ReplacementResult, error) {
 	startTime := time.Now()
 
-	result := &ReplacementResult{
-		SimulatedOnly: opts.DryRun,
+	if opts == nil {
+		return nil, fmt.Errorf("replacement options cannot be nil")
 	}
 
-	if opts == nil {
-		return result, fmt.Errorf("replacement options cannot be nil")
+	result := &ReplacementResult{
+		SimulatedOnly: opts.DryRun,
 	}
 
 	// Validate inputs

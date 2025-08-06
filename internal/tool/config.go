@@ -4,7 +4,6 @@ package tool
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +76,7 @@ func (cl *ConfigLoader) loadConfigFromPath(path string, config *ToolConfig) erro
 		return nil
 	}
 
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -178,7 +177,7 @@ func (cl *ConfigLoader) SaveUserConfig(config *ToolConfig) error {
 	}
 
 	// Write to file
-	if err := ioutil.WriteFile(cl.userConfigPath, data, 0644); err != nil {
+	if err := os.WriteFile(cl.userConfigPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

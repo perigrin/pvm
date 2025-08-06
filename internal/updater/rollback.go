@@ -44,12 +44,12 @@ type RollbackResult struct {
 func (rm *RollbackManager) PerformRollback(opts *RollbackOptions) (*RollbackResult, error) {
 	startTime := time.Now()
 
-	result := &RollbackResult{
-		SimulatedOnly: opts.DryRun,
+	if opts == nil {
+		return nil, fmt.Errorf("rollback options cannot be nil")
 	}
 
-	if opts == nil {
-		return result, fmt.Errorf("rollback options cannot be nil")
+	result := &RollbackResult{
+		SimulatedOnly: opts.DryRun,
 	}
 
 	// Validate options

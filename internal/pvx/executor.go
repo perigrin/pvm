@@ -23,6 +23,7 @@ import (
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/pvi"
+	"tamarou.com/pvm/internal/tool"
 	"tamarou.com/pvm/internal/xdg"
 )
 
@@ -1432,6 +1433,22 @@ func generateEnvironmentShims(options *ExecutionOptions, isolationDir string) er
 	// Standard Perl commands to create shims for
 	commands := []string{"perl", "cpan", "prove", "perldoc", "h2ph", "h2xs", "enc2xs", "xsubpp", "corelist", "cpanm"}
 
+	// Skip cpanm shim for tool installation environments to prevent fork bomb
+	// Tool installations use cpanm directly and creating a shim causes recursive pvm calls
+	if strings.HasPrefix(options.EnvName, "tool-") {
+		// Filter out cpanm from commands for tool installation environments
+		filteredCommands := []string{}
+		for _, cmd := range commands {
+			if cmd != "cpanm" {
+				filteredCommands = append(filteredCommands, cmd)
+			}
+		}
+		commands = filteredCommands
+		if options.Verbose {
+			log.Infof("Excluded cpanm shim for tool installation environment '%s' to prevent fork bomb", options.EnvName)
+		}
+	}
+
 	// Generate shim for each command
 	for _, command := range commands {
 		shimPath := filepath.Join(binDir, command)
@@ -1526,16 +1543,8 @@ func ExecuteTool(options *ExecutionOptions, toolName string, toolArgs []string, 
 	}
 
 	if !isStandard {
-		// For non-standard tools, we need to map tool names to module names
-		// This is a basic mapping - could be expanded
-		moduleMap := map[string]string{
-			"cpanm":      "App::cpanminus",
-			"plackup":    "Plack",
-			"carton":     "Carton",
-			"dzil":       "Dist::Zilla",
-			"perlcritic": "Perl::Critic",
-			"perltidy":   "Perl::Tidy",
-		}
+		// Use shared tool mapping from internal/tool package
+		moduleMap := tool.GetBuiltinMappings()
 
 		if module, exists := moduleMap[toolName]; exists {
 			options.RequiredModules = append(options.RequiredModules, module)

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -250,7 +249,7 @@ func main() {
 		log.Fatalf("Failed to marshal JSON: %v", err)
 	}
 
-	if err := ioutil.WriteFile("ci-dashboard.json", jsonData, 0644); err != nil {
+	if err := os.WriteFile("ci-dashboard.json", jsonData, 0644); err != nil {
 		log.Fatalf("Failed to write JSON: %v", err)
 	}
 
@@ -307,7 +306,7 @@ func generateSampleData() DashboardData {
 
 func loadRealData(data *DashboardData) {
 	// Try to load real metrics from build artifacts
-	if metricsData, err := ioutil.ReadFile(".build-metrics/latest.json"); err == nil {
+	if metricsData, err := os.ReadFile(".build-metrics/latest.json"); err == nil {
 		var metrics map[string]interface{}
 		if json.Unmarshal(metricsData, &metrics) == nil {
 			// Update with real data
@@ -322,7 +321,7 @@ func loadRealData(data *DashboardData) {
 	if len(perfFiles) > 0 {
 		sort.Strings(perfFiles)
 		// Use most recent performance data
-		if perfData, err := ioutil.ReadFile(perfFiles[len(perfFiles)-1]); err == nil {
+		if perfData, err := os.ReadFile(perfFiles[len(perfFiles)-1]); err == nil {
 			var perf map[string]interface{}
 			if json.Unmarshal(perfData, &perf) == nil {
 				// Update performance metrics with real data

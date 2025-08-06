@@ -3,7 +3,6 @@
 package tool
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,7 +34,7 @@ func TestLoadConfig_EmptyConfig(t *testing.T) {
 
 func TestLoadConfig_YAML(t *testing.T) {
 	// Create temporary config file
-	tempDir, err := ioutil.TempDir("", "pvm-config-test")
+	tempDir, err := os.MkdirTemp("", "pvm-config-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
@@ -53,7 +52,7 @@ tools:
     category: "testing"
 `
 
-	err = ioutil.WriteFile(configFile, []byte(yamlContent), 0644)
+	err = os.WriteFile(configFile, []byte(yamlContent), 0644)
 	require.NoError(t, err)
 
 	loader := &ConfigLoader{
@@ -84,7 +83,7 @@ tools:
 
 func TestLoadConfig_JSON(t *testing.T) {
 	// Create temporary config file
-	tempDir, err := ioutil.TempDir("", "pvm-config-test")
+	tempDir, err := os.MkdirTemp("", "pvm-config-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
@@ -100,7 +99,7 @@ func TestLoadConfig_JSON(t *testing.T) {
 	}
 }`
 
-	err = ioutil.WriteFile(configFile, []byte(jsonContent), 0644)
+	err = os.WriteFile(configFile, []byte(jsonContent), 0644)
 	require.NoError(t, err)
 
 	loader := &ConfigLoader{
@@ -123,7 +122,7 @@ func TestLoadConfig_JSON(t *testing.T) {
 
 func TestLoadConfig_ConfigMerging(t *testing.T) {
 	// Create temporary config files
-	tempDir, err := ioutil.TempDir("", "pvm-config-test")
+	tempDir, err := os.MkdirTemp("", "pvm-config-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
@@ -153,10 +152,10 @@ tools:
     category: "user"
 `
 
-	err = ioutil.WriteFile(systemConfigFile, []byte(systemContent), 0644)
+	err = os.WriteFile(systemConfigFile, []byte(systemContent), 0644)
 	require.NoError(t, err)
 
-	err = ioutil.WriteFile(userConfigFile, []byte(userContent), 0644)
+	err = os.WriteFile(userConfigFile, []byte(userContent), 0644)
 	require.NoError(t, err)
 
 	loader := &ConfigLoader{
@@ -189,7 +188,7 @@ tools:
 
 func TestLoadConfig_InvalidYAML(t *testing.T) {
 	// Create temporary config file with invalid YAML
-	tempDir, err := ioutil.TempDir("", "pvm-config-test")
+	tempDir, err := os.MkdirTemp("", "pvm-config-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
@@ -202,7 +201,7 @@ tools:
     category: "utility"
 `
 
-	err = ioutil.WriteFile(configFile, []byte(invalidContent), 0644)
+	err = os.WriteFile(configFile, []byte(invalidContent), 0644)
 	require.NoError(t, err)
 
 	loader := &ConfigLoader{
@@ -217,7 +216,7 @@ tools:
 
 func TestLoadConfig_InvalidJSON(t *testing.T) {
 	// Create temporary config file with invalid JSON
-	tempDir, err := ioutil.TempDir("", "pvm-config-test")
+	tempDir, err := os.MkdirTemp("", "pvm-config-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
@@ -231,7 +230,7 @@ func TestLoadConfig_InvalidJSON(t *testing.T) {
 	}
 }`
 
-	err = ioutil.WriteFile(configFile, []byte(invalidContent), 0644)
+	err = os.WriteFile(configFile, []byte(invalidContent), 0644)
 	require.NoError(t, err)
 
 	loader := &ConfigLoader{
@@ -319,7 +318,7 @@ func TestValidateConfig_Invalid(t *testing.T) {
 
 func TestSaveUserConfig(t *testing.T) {
 	// Create temporary directory
-	tempDir, err := ioutil.TempDir("", "pvm-config-test")
+	tempDir, err := os.MkdirTemp("", "pvm-config-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
@@ -361,7 +360,7 @@ func TestSaveUserConfig(t *testing.T) {
 
 func TestCreateDefaultUserConfig(t *testing.T) {
 	// Create temporary directory
-	tempDir, err := ioutil.TempDir("", "pvm-config-test")
+	tempDir, err := os.MkdirTemp("", "pvm-config-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 

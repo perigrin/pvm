@@ -24,28 +24,17 @@ func NewToolMapping() *ToolMapping {
 	// Initialize built-in mappings
 	tm.initBuiltinMappings()
 
+	// Initialize MetaCPAN resolver for fallback searches
+	if resolver, err := NewMetaCPANResolver(); err == nil {
+		tm.SetResolver(resolver)
+	}
+
 	return tm
 }
 
 // initBuiltinMappings sets up the hardcoded mappings for common tools
 func (tm *ToolMapping) initBuiltinMappings() {
-	tm.builtinMappings = map[string]string{
-		"ack":         "App::Ack",
-		"cpanm":       "App::cpanminus",
-		"prove":       "Test::Harness",
-		"perltidy":    "Perl::Tidy",
-		"perlcritic":  "Perl::Critic",
-		"fatpack":     "App::FatPacker",
-		"plackup":     "Plack",
-		"cpanfile":    "Module::CPANfile",
-		"carton":      "Carton",
-		"dzil":        "Dist::Zilla",
-		"minil":       "Minilla",
-		"pmversions":  "Perl::Version",
-		"cpan-upload": "CPAN::Uploader",
-		"cpan-audit":  "CPAN::Audit",
-		"metacpan":    "MetaCPAN::Client",
-	}
+	tm.builtinMappings = GetBuiltinMappings()
 }
 
 // ResolveToolToModule resolves a tool name to its CPAN module
@@ -54,8 +43,8 @@ func (tm *ToolMapping) ResolveToolToModule(toolName string) (*ToolResolution, er
 		return nil, NewToolError(ErrInvalidToolName, fmt.Sprintf("tool name cannot be empty"))
 	}
 
-	// Check if it's already a module name (contains ::)
-	if strings.Contains(toolName, "::") {
+	// Check if it's already a module name (contains ::) or CPAN distribution name
+	if strings.Contains(toolName, "::") || isLikelyCPANDistribution(toolName) {
 		return &ToolResolution{
 			ToolName:   toolName,
 			ModuleName: toolName,
@@ -168,38 +157,146 @@ func isValidToolName(name string) bool {
 	return true
 }
 
-// isValidModuleName checks if a module name follows Perl conventions
+// isLikelyCPANDistribution checks if a name looks like a CPAN distribution name
+func isLikelyCPANDistribution(name string) bool {
+	if len(name) == 0 {
+		return false
+	}
+	
+	// CPAN distribution names follow specific patterns:
+	// - Start with uppercase letter
+	// - Contain hyphens to separate words (not underscores only)
+	// - Each word after hyphen starts with uppercase
+	// - Examples: "Perl-Tidy", "Test-Simple", "App-Ack" 
+	// - Counter-examples: "Module-With-Dashes" (too generic), "module-name" (lowercase)
+	
+	if name[0] < 'A' || name[0] > 'Z' {
+		return false
+	}
+	
+	// Must contain at least one hyphen to be a distribution name
+	if !strings.Contains(name, "-") {
+		return false
+	}
+	
+	// Split by hyphens and validate each part
+	parts := strings.Split(name, "-")
+	if len(parts) < 2 {
+		return false
+	}
+	
+	for _, part := range parts {
+		if len(part) == 0 {
+			return false
+		}
+		
+		// Each part must start with uppercase letter
+		if part[0] < 'A' || part[0] > 'Z' {
+			return false
+		}
+		
+		// Each part must contain only letters and numbers
+		for _, char := range part {
+			if !((char >= 'a' && char <= 'z') ||
+				(char >= 'A' && char <= 'Z') ||
+				(char >= '0' && char <= '9')) {
+				return false
+			}
+		}
+	}
+	
+	// Additional constraint: avoid overly generic patterns
+	// Real CPAN distributions typically have meaningful first parts
+	commonPrefixes := []string{"Perl", "App", "Test", "Data", "File", "JSON", "XML", "Web", "HTTP", "Net", "DBI", "DBD"}
+	firstPart := parts[0]
+	for _, prefix := range commonPrefixes {
+		if firstPart == prefix {
+			return true
+		}
+	}
+	
+	// If not a common prefix, reject it - we want to be conservative
+	// and only accept well-known CPAN distribution patterns
+	return false
+}
+
+// isValidModuleName checks if a module name follows Perl conventions or CPAN distribution conventions
 func isValidModuleName(name string) bool {
 	if len(name) == 0 {
 		return false
 	}
 
-	parts := strings.Split(name, "::")
-	for i, part := range parts {
-		if len(part) == 0 {
+	// Check if it's a CPAN distribution name (like "Perl-Tidy")
+	if isLikelyCPANDistribution(name) {
+		return true
+	}
+
+	// Check if it's a traditional Perl module name format (like "Perl::Tidy")
+	if strings.Contains(name, "::") {
+		parts := strings.Split(name, "::")
+		for i, part := range parts {
+			if len(part) == 0 {
+				return false
+			}
+
+			// First part should start with an uppercase letter, other parts can start with any letter
+			if i == 0 {
+				if part[0] < 'A' || part[0] > 'Z' {
+					return false
+				}
+			} else {
+				if !((part[0] >= 'A' && part[0] <= 'Z') || (part[0] >= 'a' && part[0] <= 'z')) {
+					return false
+				}
+			}
+
+			for _, char := range part {
+				if !((char >= 'a' && char <= 'z') ||
+					(char >= 'A' && char <= 'Z') ||
+					(char >= '0' && char <= '9') ||
+					char == '_') {
+					return false
+				}
+			}
+		}
+		return true
+	}
+
+	// Check single-word module names (like "Mojolicious", "Plack", "Reply")
+	if len(name) == 0 || name[0] < 'A' || name[0] > 'Z' {
+		return false
+	}
+
+	for _, char := range name {
+		if !((char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '_') {
 			return false
-		}
-
-		// First part should start with an uppercase letter, other parts can start with any letter
-		if i == 0 {
-			if part[0] < 'A' || part[0] > 'Z' {
-				return false
-			}
-		} else {
-			if !((part[0] >= 'A' && part[0] <= 'Z') || (part[0] >= 'a' && part[0] <= 'z')) {
-				return false
-			}
-		}
-
-		for _, char := range part {
-			if !((char >= 'a' && char <= 'z') ||
-				(char >= 'A' && char <= 'Z') ||
-				(char >= '0' && char <= '9') ||
-				char == '_') {
-				return false
-			}
 		}
 	}
 
 	return true
+}
+
+// GetBuiltinMappings returns the built-in tool mappings for use by other packages
+func GetBuiltinMappings() map[string]string {
+	mappings := map[string]string{
+		"ack":         "App::Ack",
+		"cpanm":       "App::cpanminus",
+		"prove":       "Test::Harness",
+		"perltidy":    "Perl-Tidy",
+		"perlcritic":  "Perl::Critic",
+		"fatpack":     "App::FatPacker",
+		"plackup":     "Plack",
+		"cpanfile":    "Module::CPANfile",
+		"carton":      "Carton",
+		"dzil":        "Dist::Zilla",
+		"minil":       "Minilla",
+		"pmversions":  "Perl::Version",
+		"cpan-upload": "CPAN::Uploader",
+		"cpan-audit":  "CPAN::Audit",
+		"metacpan":    "MetaCPAN::Client",
+	}
+	return mappings
 }
