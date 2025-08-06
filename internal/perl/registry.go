@@ -39,6 +39,31 @@ const (
 // registryFileName is the name of the registry file
 const registryFileName = "registry.json"
 
+// getRegistryPath returns the path to the registry file
+// Checks PVM_PERL_REGISTRY environment variable first, falls back to XDG standard location
+func getRegistryPath() (string, error) {
+	// Check if custom registry path is set via environment variable
+	if customPath := os.Getenv("PVM_PERL_REGISTRY"); customPath != "" {
+		return customPath, nil
+	}
+
+	// Fall back to XDG standard location
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return "", errors.NewSystemError("001",
+			"Failed to determine XDG directories", err)
+	}
+
+	// Ensure data directory exists
+	err = dirs.EnsureDirs()
+	if err != nil {
+		return "", errors.NewSystemError("002",
+			"Failed to create required directories", err)
+	}
+
+	return filepath.Join(dirs.DataDir, registryFileName), nil
+}
+
 // generateUUID generates a simple UUID for registry entries
 func generateUUID() string {
 	b := make([]byte, 16)
@@ -77,22 +102,11 @@ func loadRegistryFunc() (*VersionRegistry, error) {
 		Versions: make(map[string]VersionInfo),
 	}
 
-	// Get XDG directories
-	dirs, err := xdg.GetDirs()
+	// Get registry file path
+	registryPath, err := getRegistryPath()
 	if err != nil {
-		return registry, errors.NewSystemError("001",
-			"Failed to determine XDG directories", err)
+		return registry, err
 	}
-
-	// Ensure data directory exists
-	err = dirs.EnsureDirs()
-	if err != nil {
-		return registry, errors.NewSystemError("002",
-			"Failed to create required directories", err)
-	}
-
-	// Path to registry file
-	registryPath := filepath.Join(dirs.DataDir, registryFileName)
 
 	// Check if registry file exists
 	if _, err := osStat(registryPath); os.IsNotExist(err) {
@@ -131,22 +145,18 @@ var LoadRegistry = loadRegistryFunc
 
 // saveRegistryFunc saves the version registry to disk
 func saveRegistryFunc(registry *VersionRegistry) error {
-	// Get XDG directories
-	dirs, err := xdg.GetDirs()
+	// Get registry file path
+	registryPath, err := getRegistryPath()
 	if err != nil {
-		return errors.NewSystemError("001",
-			"Failed to determine XDG directories", err)
+		return err
 	}
 
-	// Ensure data directory exists
-	err = dirs.EnsureDirs()
-	if err != nil {
+	// If using a custom registry path, ensure the directory exists
+	registryDir := filepath.Dir(registryPath)
+	if err := os.MkdirAll(registryDir, 0755); err != nil {
 		return errors.NewSystemError("002",
-			"Failed to create required directories", err)
+			"Failed to create registry directory", err)
 	}
-
-	// Path to registry file
-	registryPath := filepath.Join(dirs.DataDir, registryFileName)
 
 	// Convert registry to JSON
 	data, err := json.MarshalIndent(registry, "", "  ")
