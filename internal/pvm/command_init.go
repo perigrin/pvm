@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -85,7 +86,7 @@ func newInitCommand() *cobra.Command {
 }
 
 // needsRegistryRebuild checks if the registry needs rebuilding
-// Only rebuilds if registry is missing, corrupted, or completely empty
+// Rebuilds if registry is missing, corrupted, empty, or contains invalid entries
 func needsRegistryRebuild() bool {
 	// Load and validate registry
 	registry, err := perl.LoadRegistry()
@@ -93,22 +94,53 @@ func needsRegistryRebuild() bool {
 		return true // Registry file corrupted or missing
 	}
 
-	// Only rebuild if registry is completely empty
-	// If registry has any versions, assume it's functional
+	// Get XDG directories for filesystem validation
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return true // If we can't get dirs, assume rebuild needed
+	}
+
+	versionsDir := filepath.Join(dirs.DataDir, "versions")
+	
+	// If registry is empty, check if versions exist on filesystem
 	if len(registry.Versions) == 0 {
-		// Get XDG directories for versions directory
-		dirs, err := xdg.GetDirs()
-		if err != nil {
-			return true // If we can't get dirs, assume rebuild needed
-		}
-
-		versionsDir := filepath.Join(dirs.DataDir, "versions")
-
-		// Check if versions exist on filesystem when registry is empty
 		if entries, err := os.ReadDir(versionsDir); err == nil && len(entries) > 0 {
 			return true // Registry is empty but versions directory contains installations
 		}
+		return false // Both registry and filesystem are empty
 	}
 
-	return false // Registry has entries, assume it's functional
+	// Registry has entries - validate that they correspond to actual installations
+	validEntries := 0
+	for _, versionInfo := range registry.Versions {
+		// Skip system perl (doesn't need to be in versions directory)
+		if versionInfo.Source == "system" {
+			validEntries++
+			continue
+		}
+
+		// For PVM installations, verify the path exists and looks reasonable
+		if versionInfo.Source == "pvm" || versionInfo.Source == "plenv" {
+			// Check if this looks like a test path (corrupted entry)
+			if strings.Contains(versionInfo.InstallPath, "/tmp/") || 
+			   strings.Contains(versionInfo.InstallPath, "pvm-shim-test") ||
+			   strings.Contains(versionInfo.InstallPath, "/var/folders/") {
+				continue // Skip corrupted test entries
+			}
+			
+			// Verify the installation path exists
+			if _, err := os.Stat(versionInfo.InstallPath); err == nil {
+				validEntries++
+			}
+		}
+	}
+
+	// If we have no valid entries but filesystem has installations, rebuild
+	if validEntries == 0 {
+		if entries, err := os.ReadDir(versionsDir); err == nil && len(entries) > 0 {
+			return true
+		}
+	}
+
+	return false // Registry has valid entries
 }
