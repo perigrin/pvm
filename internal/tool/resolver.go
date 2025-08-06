@@ -5,7 +5,7 @@ package tool
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -198,7 +198,7 @@ func (cr *CPANResolver) searchMetaCPAN(query string) (*MetaCPANResponse, error) 
 	}
 
 	// Parse the response
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read MetaCPAN response: %w", err)
 	}

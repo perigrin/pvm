@@ -227,6 +227,7 @@ func TestInstallToolExistingTool(t *testing.T) {
 	}
 	if result == nil {
 		t.Error("Result should not be nil")
+		return
 	}
 	if result.Success {
 		t.Error("Result should not indicate success")
