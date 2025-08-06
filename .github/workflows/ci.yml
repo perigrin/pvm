@@ -93,7 +93,7 @@ jobs:
 
     - name: Install system dependencies
       run: |
-        brew install tree-sitter
+        brew install tree-sitter-cli
 
     - name: Install PVM and project Perl version
       env:
