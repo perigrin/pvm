@@ -189,8 +189,8 @@ func extractPerlInfo(perlPath string, isPrimary bool) (*SystemPerl, error) {
 			perl.Version = matches[1]
 		} else {
 			return nil, errors.NewVersionError(ErrVersionParseFail,
-				"Failed to parse Perl version", nil).
-				WithDetail(output)
+				fmt.Sprintf("Failed to parse Perl version from output: '%s'", strings.TrimSpace(output)), nil).
+				WithDetail(fmt.Sprintf("Full output: %s", output))
 		}
 	}
 

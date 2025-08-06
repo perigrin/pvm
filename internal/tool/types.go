@@ -65,6 +65,10 @@ type ToolInfo struct {
 	InstallDate time.Time
 	LastUsed    time.Time
 	Source      ToolSource
+	// New fields for isolated tool environments
+	InstallPath string
+	PerlVersion string
+	IsGlobal    bool
 }
 
 // ToolSource indicates where a tool mapping comes from

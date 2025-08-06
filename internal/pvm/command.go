@@ -2946,75 +2946,17 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 		version = parts[1]
 	}
 
-	if global {
-		// Use global tool installation infrastructure
-		cmd.Printf("Installing global tool '%s'", toolName)
-		if version != "" {
-			cmd.Printf(" (version %s)", version)
-		}
-		cmd.Println("...")
-
-		// Initialize tool mapping to resolve tool name to module
-		mapping := tool.NewToolMapping()
-
-		// Resolve tool to module name
-		resolution, err := mapping.ResolveToolToModule(toolName)
-		if err != nil {
-			return fmt.Errorf("failed to resolve tool '%s' to module: %w", toolName, err)
-		}
-
-		// Create installation options
-		options := &install.InstallOptions{
-			ToolName:          toolName,
-			ModuleName:        resolution.ModuleName,
-			VersionConstraint: version,
-			Force:             false,
-			Verbose:           true,
-			Context:           cmd.Context(),
-		}
-
-		// Use global installer
-		installer, err := install.NewToolInstaller()
-		if err != nil {
-			return fmt.Errorf("failed to create installer: %w", err)
-		}
-
-		result, err := installer.InstallTool(options)
-		if err != nil {
-			return fmt.Errorf("failed to install global tool '%s': %w", toolName, err)
-		}
-
-		cmd.Printf("Successfully installed global tool '%s' -> %s\n", toolName, result.InstallPath)
-
-		// Create shim for the tool
-		shimManager, err := shim.NewManager()
-		if err != nil {
-			cmd.Printf("Warning: Failed to create shim manager: %v\n", err)
-		} else {
-			toolInfo := &tool.ToolInfo{
-				Name:        toolName,
-				Module:      resolution.ModuleName,
-				Version:     result.Version,
-				Description: resolution.Description,
-				InstallDate: time.Now(),
-			}
-
-			if err := shimManager.CreateShim(toolName, toolInfo); err != nil {
-				cmd.Printf("Warning: Failed to create shim for '%s': %v\n", toolName, err)
-			} else {
-				cmd.Printf("Created shim in PATH for command '%s'\n", toolName)
-			}
-		}
-
-		return nil
+	// Use unified isolated tool installation for both global and local tools
+	installType := "global"
+	if !global {
+		installType = "local" 
 	}
-
-	// Legacy project-local tool installation (keep existing behavior for backward compatibility)
-	cmd.Printf("Installing project tool '%s'", toolName)
+	
+	cmd.Printf("Installing %s tool '%s'", installType, toolName)
 	if version != "" {
 		cmd.Printf(" (version %s)", version)
 	}
-	cmd.Println("...")
+	cmd.Println(" with isolated environment...")
 
 	// Get XDG directories
 	dirs, err := xdg.GetDirs()
@@ -3028,33 +2970,70 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 		return fmt.Errorf("failed to create tools directory: %w", err)
 	}
 
-	// Create tool-specific environment
+	// Validate tool name for security (prevent path traversal)
+	if strings.Contains(toolName, "..") || strings.ContainsAny(toolName, "/\\") {
+		return fmt.Errorf("invalid tool name contains unsafe characters: %s", toolName)
+	}
+	if version != "" && (strings.Contains(version, "..") || strings.ContainsAny(version, "/\\")) {
+		return fmt.Errorf("invalid version contains unsafe characters: %s", version)
+	}
+
+	// Create tool-specific isolated environment directory
 	toolEnvDir := filepath.Join(toolsDir, toolName)
 	if version != "" {
 		toolEnvDir = filepath.Join(toolsDir, fmt.Sprintf("%s-%s", toolName, version))
 	}
 
+	// Initialize tool mapping to resolve tool name to module
+	mapping := tool.NewToolMapping()
+
+	// Resolve tool to module name
+	resolution, err := mapping.ResolveToolToModule(toolName)
+	if err != nil {
+		// If tool mapping fails, assume tool name is the module name
+		cmd.Printf("Warning: Could not resolve tool '%s' to known module, using tool name as module name\n", toolName)
+		resolution = &tool.ToolResolution{
+			ModuleName:  toolName,
+			Description: fmt.Sprintf("Tool: %s", toolName),
+		}
+	}
+
+	// Get current Perl version for tool installation  
+	resolvedVersion, err := perl.ResolveVersion(&perl.ResolutionOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to resolve Perl version for tool installation: %w", err)
+	}
+
 	// Use PVX to install the tool in an isolated environment
 	options := &pvx.ExecutionOptions{
-		PerlVersion:    "", // Use default
+		PerlVersion:    resolvedVersion.Version,
 		IsolationLevel: pvx.IsolationLocal,
 		IsolationDir:   toolEnvDir,
 		EnvName:        fmt.Sprintf("tool-%s", toolName),
 		NoCleanup:      true,
 	}
 
-	// Create installation script
+	// Create installation script using cpanm
 	var installScript string
 	if version != "" {
 		installScript = fmt.Sprintf(`
+use strict;
+use warnings;
 use App::cpanminus;
-exec { 'cpanm' } 'cpanm', '%s@%s';
-`, toolName, version)
+my $module = '%s';
+my $version = '%s';
+system('cpanm', "${module}\@${version}") == 0 or die "Failed to install ${module}\@${version}";
+print "Successfully installed ${module}\@${version}\\n";
+`, resolution.ModuleName, version)
 	} else {
 		installScript = fmt.Sprintf(`
+use strict; 
+use warnings;
 use App::cpanminus;
-exec { 'cpanm' } 'cpanm', '%s';
-`, toolName)
+my $module = '%s';
+system('cpanm', $module) == 0 or die "Failed to install $module";
+print "Successfully installed $module\\n";
+`, resolution.ModuleName)
 	}
 
 	// Create a temporary script file
@@ -3070,20 +3049,45 @@ exec { 'cpanm' } 'cpanm', '%s';
 	// Set the script path
 	options.ScriptPath = scriptPath
 
+	if cmd.Flags().Changed("verbose") {
+		options.Verbose = true
+		cmd.Printf("Installing module '%s' in isolated environment: %s\n", resolution.ModuleName, toolEnvDir)
+	}
+
 	// Execute installation
 	_, err = pvx.ExecuteScript(options)
 	if err != nil {
 		return fmt.Errorf("failed to install tool '%s': %w", toolName, err)
 	}
 
-	// Create shim for the tool
-	err = createToolShim(toolName, toolEnvDir)
+	// Create isolated shim for the tool
+	err = createIsolatedToolShim(toolName, toolEnvDir, resolvedVersion.Version, global)
 	if err != nil {
-		return fmt.Errorf("failed to create shim for tool '%s': %w", toolName, err)
+		return fmt.Errorf("failed to create isolated shim for tool '%s': %w", toolName, err)
 	}
 
-	cmd.Printf("Tool '%s' installed successfully\n", toolName)
-	cmd.Printf("Shim created in tools directory\n")
+	// Store tool metadata for management
+	toolInfo := &tool.ToolInfo{
+		Name:         toolName,
+		Module:       resolution.ModuleName, 
+		Version:      version,
+		Description:  resolution.Description,
+		InstallDate:  time.Now(),
+		InstallPath:  toolEnvDir,
+		PerlVersion:  resolvedVersion.Version,
+		IsGlobal:     global,
+	}
+
+	if err := storeToolMetadata(toolInfo); err != nil {
+		cmd.Printf("Warning: Failed to store tool metadata: %v\n", err)
+	}
+
+	cmd.Printf("Tool '%s' installed successfully in isolated environment\n", toolName)
+	if global {
+		cmd.Printf("Shim created in PATH for global access\n")
+	} else {
+		cmd.Printf("Shim created for local project access\n")
+	}
 
 	return nil
 }
@@ -3430,6 +3434,90 @@ exec "%s" "$@"
 	err = os.WriteFile(shimPath, []byte(shimContent), 0o755)
 	if err != nil {
 		return fmt.Errorf("failed to create shim: %w", err)
+	}
+
+	return nil
+}
+
+// createIsolatedToolShim creates a shim for an isolated tool environment
+func createIsolatedToolShim(toolName, toolEnvDir, perlVersion string, isGlobal bool) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	var shimPath string
+	if isGlobal {
+		// Global tools: Create shim in XDG_BIN_HOME for PATH access
+		shimPath = filepath.Join(dirs.BinDir, toolName)
+	} else {
+		// Local tools: Create shim in tools bin directory
+		shimsDir := filepath.Join(dirs.DataDir, "tools", "bin")
+		if err := os.MkdirAll(shimsDir, 0o755); err != nil {
+			return fmt.Errorf("failed to create shims directory: %w", err)
+		}
+		shimPath = filepath.Join(shimsDir, toolName)
+	}
+
+	// Create isolated shim script that sets up the complete isolated environment
+	// Escape shell variables to prevent injection attacks
+	escapedToolEnvDir := strings.ReplaceAll(toolEnvDir, "'", "'\"'\"'")
+	escapedToolName := strings.ReplaceAll(toolName, "'", "'\"'\"'")
+	
+	shimContent := fmt.Sprintf(`#!/bin/bash
+# PVM isolated tool shim for %s
+# Tool Environment: %s
+# Perl Version: %s
+
+# Set up isolated environment (using escaped variables for security)
+TOOL_ENV_DIR='%s'
+TOOL_NAME='%s'
+export PATH="${TOOL_ENV_DIR}/bin:$PATH"
+export PERL5LIB="${TOOL_ENV_DIR}/lib/perl5:$PERL5LIB"
+
+# Locate the tool executable in the isolated environment
+TOOL_EXEC="${TOOL_ENV_DIR}/bin/${TOOL_NAME}"
+if [ -f "$TOOL_EXEC" ]; then
+    exec "$TOOL_EXEC" "$@"
+else
+    # Fallback: try to find the tool in the isolated environment's PATH
+    exec "${TOOL_NAME}" "$@"
+fi
+`, toolName, toolEnvDir, perlVersion, escapedToolEnvDir, escapedToolName)
+
+	err = os.WriteFile(shimPath, []byte(shimContent), 0o755)
+	if err != nil {
+		return fmt.Errorf("failed to create isolated shim: %w", err)
+	}
+
+	return nil
+}
+
+// storeToolMetadata stores tool metadata for management purposes
+func storeToolMetadata(toolInfo *tool.ToolInfo) error {
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return err
+	}
+
+	// Create metadata directory
+	metadataDir := filepath.Join(dirs.DataDir, "tools", "metadata")
+	if err := os.MkdirAll(metadataDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create metadata directory: %w", err)
+	}
+
+	// Create metadata file path
+	metadataFile := filepath.Join(metadataDir, fmt.Sprintf("%s.json", toolInfo.Name))
+
+	// Convert tool info to JSON
+	jsonData, err := json.Marshal(toolInfo)
+	if err != nil {
+		return fmt.Errorf("failed to marshal tool metadata: %w", err)
+	}
+
+	// Write metadata file
+	if err := os.WriteFile(metadataFile, jsonData, 0o644); err != nil {
+		return fmt.Errorf("failed to write tool metadata: %w", err)
 	}
 
 	return nil

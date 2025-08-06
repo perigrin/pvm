@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"tamarou.com/pvm/internal/cli/progress"
@@ -338,7 +340,7 @@ func normalizeModuleName(name string) string {
 // resolvePerlExecutable resolves the Perl executable for a given version
 func resolvePerlExecutable(perlVersion string) (string, error) {
 	if perlVersion == "" {
-		// Use system Perl
+		// Use system Perl when no version specified
 		systemPerl, err := perl.DetectSystemPerl()
 		if err != nil {
 			return "", err
@@ -346,17 +348,79 @@ func resolvePerlExecutable(perlVersion string) (string, error) {
 		return systemPerl.Path, nil
 	}
 
-	// Resolve specific version
+	// For non-empty version strings, get the path directly using the version registry
+	// This avoids redundant version resolution when we already have a resolved version
+	perlPath, err := getPathForResolvedVersion(perlVersion)
+	if err == nil {
+		return perlPath, nil
+	}
+
+	// Fallback: if direct path resolution fails, try full version resolution
+	// This handles cases where the version might not be in the registry yet
 	options := &perl.ResolutionOptions{
 		ExplicitVersion: perlVersion,
 	}
 
 	resolved, err := perl.ResolveVersion(options)
 	if err != nil {
-		return "", err
+		return "", errors.NewModuleError(
+			"PVI-903",
+			fmt.Sprintf("Failed to resolve Perl executable for version %s", perlVersion),
+			err,
+		)
 	}
 
 	return resolved.Path, nil
+}
+
+// getPathForResolvedVersion gets the path to perl binary for a resolved version string
+func getPathForResolvedVersion(version string) (string, error) {
+	// Get version info from registry
+	versionInfo, err := perl.GetVersionInfo(version)
+	if err != nil {
+		return "", err
+	}
+
+	if versionInfo == nil {
+		return "", fmt.Errorf("version info not found for version: %s", version)
+	}
+
+	var perlExe string
+	if versionInfo.Source == "system" {
+		// For system perl, InstallPath might be the directory or the executable itself
+		if filepath.Base(versionInfo.InstallPath) == "perl" || 
+		   filepath.Base(versionInfo.InstallPath) == "perl.exe" {
+			perlExe = versionInfo.InstallPath
+		} else {
+			// Check bin/perl first, then fallback to perl
+			binPerlPath := filepath.Join(versionInfo.InstallPath, "bin", "perl")
+			if runtime.GOOS == "windows" {
+				binPerlPath = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+			}
+
+			if _, statErr := os.Stat(binPerlPath); statErr == nil {
+				perlExe = binPerlPath
+			} else {
+				perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+				if runtime.GOOS == "windows" {
+					perlExe = filepath.Join(versionInfo.InstallPath, "perl.exe")
+				}
+			}
+		}
+	} else {
+		// For PVM-installed versions
+		perlExe = filepath.Join(versionInfo.InstallPath, "bin", "perl")
+		if runtime.GOOS == "windows" {
+			perlExe = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+		}
+	}
+
+	// Verify the executable exists
+	if _, err := os.Stat(perlExe); os.IsNotExist(err) {
+		return "", fmt.Errorf("perl executable not found at: %s", perlExe)
+	}
+
+	return perlExe, nil
 }
 
 // CheckModuleAvailability checks if modules are available for installation
