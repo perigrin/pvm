@@ -168,7 +168,7 @@ print "Valid type script completed\n";
 	_, _, err = env.RunPVM("psc", "check", validScript)
 	assert.NoError(t, err, "Valid script should type check successfully")
 
-	// TODO: PSC run with typed scripts is not fully implemented  
+	// TODO: PSC run with typed scripts is not fully implemented
 	// The run command may not handle all type annotation cases correctly on all platforms
 	t.Skip("TODO: PSC run execution not yet fully implemented on all platforms")
 }

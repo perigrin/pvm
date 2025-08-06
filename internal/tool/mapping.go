@@ -162,39 +162,39 @@ func isLikelyCPANDistribution(name string) bool {
 	if len(name) == 0 {
 		return false
 	}
-	
+
 	// CPAN distribution names follow specific patterns:
 	// - Start with uppercase letter
 	// - Contain hyphens to separate words (not underscores only)
 	// - Each word after hyphen starts with uppercase
-	// - Examples: "Perl-Tidy", "Test-Simple", "App-Ack" 
+	// - Examples: "Perl-Tidy", "Test-Simple", "App-Ack"
 	// - Counter-examples: "Module-With-Dashes" (too generic), "module-name" (lowercase)
-	
+
 	if name[0] < 'A' || name[0] > 'Z' {
 		return false
 	}
-	
+
 	// Must contain at least one hyphen to be a distribution name
 	if !strings.Contains(name, "-") {
 		return false
 	}
-	
+
 	// Split by hyphens and validate each part
 	parts := strings.Split(name, "-")
 	if len(parts) < 2 {
 		return false
 	}
-	
+
 	for _, part := range parts {
 		if len(part) == 0 {
 			return false
 		}
-		
+
 		// Each part must start with uppercase letter
 		if part[0] < 'A' || part[0] > 'Z' {
 			return false
 		}
-		
+
 		// Each part must contain only letters and numbers
 		for _, char := range part {
 			if !((char >= 'a' && char <= 'z') ||
@@ -204,7 +204,7 @@ func isLikelyCPANDistribution(name string) bool {
 			}
 		}
 	}
-	
+
 	// Additional constraint: avoid overly generic patterns
 	// Real CPAN distributions typically have meaningful first parts
 	commonPrefixes := []string{"Perl", "App", "Test", "Data", "File", "JSON", "XML", "Web", "HTTP", "Net", "DBI", "DBD"}
@@ -214,7 +214,7 @@ func isLikelyCPANDistribution(name string) bool {
 			return true
 		}
 	}
-	
+
 	// If not a common prefix, reject it - we want to be conservative
 	// and only accept well-known CPAN distribution patterns
 	return false

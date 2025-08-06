@@ -68,13 +68,13 @@ func TestXDGCacheHomeExpansion(t *testing.T) {
 		// and does NOT contain the literal '$' character
 		assert.NotContains(t, cache.cacheDir, "$", "Cache directory should not contain literal '$' characters")
 		assert.Contains(t, cache.cacheDir, homeDir, "Cache directory should contain the home directory path")
-		
+
 		// Additional verification: the cache should be functional
 		testKey := "test-key"
 		testData := "test-data"
 		err = cache.Set(testKey, testData, "test-source")
 		assert.NoError(t, err, "Cache should be able to store data")
-		
+
 		var retrievedData string
 		found := cache.Get(testKey, &retrievedData)
 		assert.True(t, found, "Cache should be able to retrieve data")

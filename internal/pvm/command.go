@@ -2952,9 +2952,9 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 	// Use unified isolated tool installation for both global and local tools
 	installType := "global"
 	if !global {
-		installType = "local" 
+		installType = "local"
 	}
-	
+
 	cmd.Printf("Installing %s tool '%s'", installType, toolName)
 	if version != "" {
 		cmd.Printf(" (version %s)", version)
@@ -3004,7 +3004,7 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 		cmd.Printf("✅ Resolved '%s' → '%s' (%s)\n", toolName, resolution.ModuleName, resolution.Description)
 	}
 
-	// Get current Perl version for tool installation  
+	// Get current Perl version for tool installation
 	cmd.Printf("🐪 Resolving Perl version for installation...\n")
 	resolvedVersion, err := perl.ResolveVersion(&perl.ResolutionOptions{})
 	if err != nil {
@@ -3014,7 +3014,7 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 
 	// Use PVI directly to install the tool in an isolated environment
 	cmd.Printf("🏗️  Setting up isolated environment: %s\n", toolEnvDir)
-	
+
 	// Always show installation progress
 	cmd.Printf("📦 Installing module '%s' using PVI...\n", resolution.ModuleName)
 	if cmd.Flags().Changed("verbose") {
@@ -3047,7 +3047,7 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 	result, err := pvi.InstallModulesForPVX(pviOptions)
 	if err != nil {
 		errorMsg := fmt.Sprintf("Failed to install tool '%s'", toolName)
-		
+
 		// Add PVI-specific error information
 		if result != nil && len(result.Errors) > 0 {
 			errorMsg += "\n\nInstallation errors:"
@@ -3059,11 +3059,11 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 				errorMsg += fmt.Sprintf("\n  %v", installErr)
 			}
 		}
-		
+
 		if result != nil && len(result.FailedModules) > 0 {
 			errorMsg += fmt.Sprintf("\n\nFailed modules: %v", result.FailedModules)
 		}
-		
+
 		// Add common troubleshooting suggestions
 		errorMsg += "\n\nCommon causes:"
 		errorMsg += "\n  - Module name might be incorrect"
@@ -3072,11 +3072,11 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 		if version != "" {
 			errorMsg += "\n  - Requested version might not exist"
 		}
-		
+
 		errorMsg += "\n\nTo troubleshoot:"
 		errorMsg += fmt.Sprintf("\n  pvm tool add %s --verbose  # For detailed output", toolName)
 		errorMsg += "\n  pvm doctor                   # Check system health"
-		
+
 		return fmt.Errorf("%s\n\nOriginal error: %v", errorMsg, err)
 	}
 
@@ -3096,14 +3096,14 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 
 	// Store tool metadata for management
 	toolInfo := &tool.ToolInfo{
-		Name:         toolName,
-		Module:       resolution.ModuleName, 
-		Version:      version,
-		Description:  resolution.Description,
-		InstallDate:  time.Now(),
-		InstallPath:  toolEnvDir,
-		PerlVersion:  resolvedVersion.Version,
-		IsGlobal:     global,
+		Name:        toolName,
+		Module:      resolution.ModuleName,
+		Version:     version,
+		Description: resolution.Description,
+		InstallDate: time.Now(),
+		InstallPath: toolEnvDir,
+		PerlVersion: resolvedVersion.Version,
+		IsGlobal:    global,
 	}
 
 	if err := storeToolMetadata(toolInfo); err != nil {
@@ -3512,7 +3512,7 @@ func createIsolatedToolShim(toolName, toolEnvDir, perlVersion string, isGlobal b
 	// Escape shell variables to prevent injection attacks
 	escapedToolEnvDir := strings.ReplaceAll(toolEnvDir, "'", "'\"'\"'")
 	escapedToolName := strings.ReplaceAll(toolName, "'", "'\"'\"'")
-	
+
 	shimContent := fmt.Sprintf(`#!/bin/bash
 # PVM isolated tool shim for %s
 # Tool Environment: %s

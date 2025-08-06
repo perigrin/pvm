@@ -838,6 +838,7 @@ func newOutdatedCommand() *cobra.Command {
 func newAddCommand() *cobra.Command {
 	var (
 		dev     bool
+		test    bool
 		version string
 		verbose bool
 		force   bool
@@ -866,10 +867,17 @@ func newAddCommand() *cobra.Command {
 			cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
 			cpanfileManager := NewCpanfileManager(cpanfilePath)
 
+			// Validate mutually exclusive flags
+			if dev && test {
+				return fmt.Errorf("cannot specify both --dev and --test flags")
+			}
+
 			// Build the "Adding module" message
 			addMsg := fmt.Sprintf("Adding %s to cpanfile", moduleName)
 			if dev {
 				addMsg += " (development dependency)"
+			} else if test {
+				addMsg += " (test dependency)"
 			}
 			if version != "" {
 				addMsg += fmt.Sprintf(" with version constraint '%s'", version)
@@ -878,7 +886,7 @@ func newAddCommand() *cobra.Command {
 			ui.Info("%s", addMsg)
 
 			// Add to cpanfile first
-			err = cpanfileManager.AddDependency(moduleName, version, dev)
+			err = cpanfileManager.AddDependency(moduleName, version, dev, test)
 			if err != nil {
 				return fmt.Errorf("failed to add dependency to cpanfile: %w", err)
 			}
@@ -911,8 +919,16 @@ func newAddCommand() *cobra.Command {
 				return err
 			}
 
-			// Install to project lib directory
-			installDir := projectCtx.LocalLibDir
+			// Install to project lib directory - use configuration-aware resolution
+			installDir, err := config.ResolveInstallDirectory("", []string{moduleName})
+			if err != nil {
+				return fmt.Errorf("failed to resolve install directory: %w", err)
+			}
+
+			// Fallback to project context's LocalLibDir if resolution returns empty
+			if installDir == "" {
+				installDir = projectCtx.LocalLibDir
+			}
 
 			installOptions := &pviModules.ModuleInstallOptions{
 				ModuleName:         moduleName,
@@ -966,6 +982,7 @@ func newAddCommand() *cobra.Command {
 
 	// Add flags
 	cmd.Flags().BoolVar(&dev, "dev", false, "Add as development dependency")
+	cmd.Flags().BoolVar(&test, "test", false, "Add as test dependency")
 	cmd.Flags().StringVar(&version, "version", "", "Version constraint (e.g., '>= 1.0', '~1.2.3')")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force installation even if tests fail")

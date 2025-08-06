@@ -16,7 +16,7 @@ func TestCpanfileManager_TrailingNewline(t *testing.T) {
 	manager := NewCpanfileManager(cpanfilePath)
 
 	// Test case 1: Create new cpanfile - should have trailing newline
-	err := manager.AddDependency("Test::More", "1.0", false)
+	err := manager.AddDependency("Test::More", "1.0", false, false)
 	if err != nil {
 		t.Fatalf("Failed to add dependency: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestCpanfileManager_TrailingNewline(t *testing.T) {
 	}
 
 	// Test case 2: Update existing cpanfile - should preserve trailing newline
-	err = manager.AddDependency("Moose", "2.0", false)
+	err = manager.AddDependency("Moose", "2.0", false, false)
 	if err != nil {
 		t.Fatalf("Failed to add second dependency: %v", err)
 	}
@@ -67,7 +67,7 @@ on 'develop' => sub {
 	manager := NewCpanfileManager(cpanfilePath)
 
 	// Add a new runtime dependency
-	err = manager.AddDependency("New::Module", "1.0", false)
+	err = manager.AddDependency("New::Module", "1.0", false, false)
 	if err != nil {
 		t.Fatalf("Failed to add new dependency: %v", err)
 	}
@@ -143,7 +143,7 @@ requires 'Existing::Module';`
 	manager := NewCpanfileManager(cpanfilePath)
 
 	// Add a new runtime dependency
-	err = manager.AddDependency("New::Module", "1.0", false)
+	err = manager.AddDependency("New::Module", "1.0", false, false)
 	if err != nil {
 		t.Fatalf("Failed to add new dependency: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestCpanfileManager_DevelopDependencies(t *testing.T) {
 	manager := NewCpanfileManager(cpanfilePath)
 
 	// Add a develop dependency
-	err := manager.AddDependency("Test::More", "1.0", true)
+	err := manager.AddDependency("Test::More", "1.0", true, false)
 	if err != nil {
 		t.Fatalf("Failed to add develop dependency: %v", err)
 	}
@@ -214,13 +214,13 @@ func TestCpanfileManager_MixedDependencies(t *testing.T) {
 	manager := NewCpanfileManager(cpanfilePath)
 
 	// Add runtime dependency
-	err = manager.AddDependency("Moose", "2.0", false)
+	err = manager.AddDependency("Moose", "2.0", false, false)
 	if err != nil {
 		t.Fatalf("Failed to add runtime dependency: %v", err)
 	}
 
 	// Add develop dependency
-	err = manager.AddDependency("Test::More", "1.0", true)
+	err = manager.AddDependency("Test::More", "1.0", true, false)
 	if err != nil {
 		t.Fatalf("Failed to add develop dependency: %v", err)
 	}
@@ -263,6 +263,187 @@ func TestCpanfileManager_MixedDependencies(t *testing.T) {
 
 	// Should end with newline
 	contentStr := string(content)
+	if !strings.HasSuffix(contentStr, "\n") {
+		t.Error("Cpanfile should end with trailing newline")
+	}
+}
+
+func TestCpanfileManager_TestDependencies(t *testing.T) {
+	tempDir := t.TempDir()
+	cpanfilePath := filepath.Join(tempDir, "cpanfile")
+	manager := NewCpanfileManager(cpanfilePath)
+
+	// Add a test dependency
+	err := manager.AddDependency("Test::More", "1.0", false, true)
+	if err != nil {
+		t.Fatalf("Failed to add test dependency: %v", err)
+	}
+
+	content, err := os.ReadFile(cpanfilePath)
+	if err != nil {
+		t.Fatalf("Failed to read cpanfile: %v", err)
+	}
+
+	contentStr := string(content)
+
+	// Should contain test block
+	if !strings.Contains(contentStr, "on 'test' => sub {") {
+		t.Error("Should contain test block")
+	}
+	if !strings.Contains(contentStr, "requires 'Test::More'") {
+		t.Error("Should contain Test::More in test block")
+	}
+
+	// Should end with newline
+	if !strings.HasSuffix(contentStr, "\n") {
+		t.Error("Cpanfile should end with trailing newline")
+	}
+}
+
+func TestCpanfileManager_MixedDependenciesWithTest(t *testing.T) {
+	tempDir := t.TempDir()
+	cpanfilePath := filepath.Join(tempDir, "cpanfile")
+
+	// Create cpanfile with perl version
+	initialContent := `requires 'perl', '5.038000';`
+
+	err := os.WriteFile(cpanfilePath, []byte(initialContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create initial cpanfile: %v", err)
+	}
+
+	manager := NewCpanfileManager(cpanfilePath)
+
+	// Add runtime dependency
+	err = manager.AddDependency("Moose", "2.0", false, false)
+	if err != nil {
+		t.Fatalf("Failed to add runtime dependency: %v", err)
+	}
+
+	// Add test dependency
+	err = manager.AddDependency("Test::More", "1.0", false, true)
+	if err != nil {
+		t.Fatalf("Failed to add test dependency: %v", err)
+	}
+
+	// Add develop dependency
+	err = manager.AddDependency("Devel::NYTProf", "6.0", true, false)
+	if err != nil {
+		t.Fatalf("Failed to add develop dependency: %v", err)
+	}
+
+	content, err := os.ReadFile(cpanfilePath)
+	if err != nil {
+		t.Fatalf("Failed to read cpanfile: %v", err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+
+	// Find positions
+	perlIndex := -1
+	mooseIndex := -1
+	testIndex := -1
+	developIndex := -1
+
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.Contains(line, "requires 'perl'"):
+			perlIndex = i
+		case strings.Contains(line, "requires 'Moose'"):
+			mooseIndex = i
+		case strings.Contains(line, "on 'test'"):
+			testIndex = i
+		case strings.Contains(line, "on 'develop'"):
+			developIndex = i
+		}
+	}
+
+	// Verify order: perl -> moose -> test block -> develop block
+	if perlIndex == -1 || mooseIndex == -1 || testIndex == -1 || developIndex == -1 {
+		t.Fatal("Could not find all required elements in cpanfile")
+	}
+
+	if mooseIndex <= perlIndex {
+		t.Errorf("Moose (line %d) should be after perl (line %d)", mooseIndex, perlIndex)
+	}
+	if testIndex <= mooseIndex {
+		t.Errorf("Test block (line %d) should be after Moose (line %d)", testIndex, mooseIndex)
+	}
+	if developIndex <= testIndex {
+		t.Errorf("Develop block (line %d) should be after test block (line %d)", developIndex, testIndex)
+	}
+
+	// Should contain all dependencies in correct blocks
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "on 'test' => sub {") {
+		t.Error("Should contain test block")
+	}
+	if !strings.Contains(contentStr, "on 'develop' => sub {") {
+		t.Error("Should contain develop block")
+	}
+
+	// Should end with newline
+	if !strings.HasSuffix(contentStr, "\n") {
+		t.Error("Cpanfile should end with trailing newline")
+	}
+}
+
+func TestCpanfileManager_ConsolidateBlankLines(t *testing.T) {
+	tempDir := t.TempDir()
+	cpanfilePath := filepath.Join(tempDir, "cpanfile")
+
+	// Create cpanfile with excessive blank lines
+	initialContent := `requires 'perl', '5.038000';
+
+
+
+
+requires 'Existing::Module';
+
+
+
+
+`
+
+	err := os.WriteFile(cpanfilePath, []byte(initialContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create initial cpanfile: %v", err)
+	}
+
+	manager := NewCpanfileManager(cpanfilePath)
+
+	// Add a new dependency
+	err = manager.AddDependency("New::Module", "1.0", false, false)
+	if err != nil {
+		t.Fatalf("Failed to add new dependency: %v", err)
+	}
+
+	content, err := os.ReadFile(cpanfilePath)
+	if err != nil {
+		t.Fatalf("Failed to read updated cpanfile: %v", err)
+	}
+
+	contentStr := string(content)
+	t.Logf("Cpanfile content after adding New::Module:\n%s", contentStr)
+
+	// Check that excessive blank lines have been consolidated
+	if strings.Contains(contentStr, "\n\n\n") {
+		t.Error("Cpanfile should not contain more than one consecutive blank line")
+	}
+
+	// Count occurrences of Existing::Module - should be exactly 1
+	existingModuleCount := strings.Count(contentStr, "requires 'Existing::Module'")
+	if existingModuleCount != 1 {
+		t.Errorf("Expected exactly 1 occurrence of 'Existing::Module', got %d", existingModuleCount)
+	}
+
+	// Should contain the new module
+	if !strings.Contains(contentStr, "requires 'New::Module'") {
+		t.Error("Should contain new module")
+	}
+
+	// Should end with newline
 	if !strings.HasSuffix(contentStr, "\n") {
 		t.Error("Cpanfile should end with trailing newline")
 	}

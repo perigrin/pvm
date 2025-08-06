@@ -388,8 +388,8 @@ func getPathForResolvedVersion(version string) (string, error) {
 	var perlExe string
 	if versionInfo.Source == "system" {
 		// For system perl, InstallPath might be the directory or the executable itself
-		if filepath.Base(versionInfo.InstallPath) == "perl" || 
-		   filepath.Base(versionInfo.InstallPath) == "perl.exe" {
+		if filepath.Base(versionInfo.InstallPath) == "perl" ||
+			filepath.Base(versionInfo.InstallPath) == "perl.exe" {
 			perlExe = versionInfo.InstallPath
 		} else {
 			// Check bin/perl first, then fallback to perl

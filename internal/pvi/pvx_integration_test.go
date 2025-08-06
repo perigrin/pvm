@@ -48,7 +48,7 @@ func TestResolvePerlExecutable_Issue201_Regression(t *testing.T) {
 		if filepath.Base(perlPath) != expectedName {
 			t.Fatalf("Expected executable named '%s', got '%s'", expectedName, filepath.Base(perlPath))
 		}
-		
+
 		t.Logf("Successfully resolved Perl path: %s", perlPath)
 	})
 
@@ -71,7 +71,7 @@ func TestResolvePerlExecutable_Issue201_Regression(t *testing.T) {
 		if filepath.Base(perlPath) != expectedName {
 			t.Fatalf("Expected executable named '%s', got '%s'", expectedName, filepath.Base(perlPath))
 		}
-		
+
 		t.Logf("System Perl fallback path: %s", perlPath)
 	})
 
@@ -79,7 +79,7 @@ func TestResolvePerlExecutable_Issue201_Regression(t *testing.T) {
 	t.Run("NonExistentVersionHandling", func(t *testing.T) {
 		nonExistentVersion := "99.99.99" // Highly unlikely to exist
 		perlPath, err := resolvePerlExecutable(nonExistentVersion)
-		
+
 		// Either should return an error (if strict resolution) or fallback to system (graceful)
 		if err != nil {
 			// If error, should contain PVI-903 error code
@@ -100,7 +100,7 @@ func TestResolvePerlExecutable_Issue201_Regression(t *testing.T) {
 				t.Errorf("Expected fallback executable named '%s', got '%s'", expectedName, filepath.Base(perlPath))
 			}
 		}
-		
+
 		t.Logf("Non-existent version handled appropriately: path=%s, err=%v", perlPath, err)
 	})
 
@@ -137,7 +137,7 @@ func TestGetPathForResolvedVersion_Issue201(t *testing.T) {
 		if perlPath == "" {
 			t.Fatalf("Empty path returned for version %s", testVersion)
 		}
-		
+
 		t.Logf("Direct path resolution succeeded for version %s: %s", testVersion, perlPath)
 	})
 
@@ -152,8 +152,8 @@ func TestGetPathForResolvedVersion_Issue201(t *testing.T) {
 
 // containsError checks if an error message contains a specific error code
 func containsError(message, errorCode string) bool {
-	return len(message) > 0 && len(errorCode) > 0 && 
-		   (message == errorCode || 
-		    len(message) >= len(errorCode) && 
-		    message[:len(errorCode)] == errorCode)
+	return len(message) > 0 && len(errorCode) > 0 &&
+		(message == errorCode ||
+			len(message) >= len(errorCode) &&
+				message[:len(errorCode)] == errorCode)
 }

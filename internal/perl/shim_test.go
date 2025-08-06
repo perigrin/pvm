@@ -36,7 +36,7 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 	// Create PVM-specific directories
 	versionsDir := filepath.Join(appDataDir, xdg.VersionsDir)
 	shimsDir := filepath.Join(appDataDir, xdg.ShimsDir)
-	binDir := filepath.Join(tempDir, "bin")  // BinDir for shims
+	binDir := filepath.Join(tempDir, "bin") // BinDir for shims
 	sourcesDir := filepath.Join(appCacheDir, xdg.SourcesDir)
 	buildDir := filepath.Join(appCacheDir, xdg.BuildDir)
 	typeDefsDir := filepath.Join(appDataDir, xdg.TypeDefinitionsDir)
@@ -110,13 +110,13 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 		CacheHome:  cacheDir,
 		DataHome:   dataDir,
 		StateHome:  stateDir,
-		BinHome:    binDir,  // Add BinHome for consistency
+		BinHome:    binDir, // Add BinHome for consistency
 
 		ConfigDir: appConfigDir,
 		CacheDir:  appCacheDir,
 		DataDir:   appDataDir,
 		StateDir:  appStateDir,
-		BinDir:    binDir,   // BinDir where shims are created
+		BinDir:    binDir, // BinDir where shims are created
 
 		VersionsDir:        versionsDir,
 		SourcesDir:         sourcesDir,
@@ -281,7 +281,7 @@ func TestGenerateShims(t *testing.T) {
 	// standard Perl commands (perl, cpan, prove, perldoc) since they're accessed via
 	// the two-tier PATH system. Only tool-specific shims from "pvm tool install" would
 	// be created, but standardShims is currently empty.
-	
+
 	// Check that basic shims were created
 	// With the two-tier PATH system, only tool-specific shims are created
 	// Main Perl commands (perl, cpan, prove) are accessed directly via PATH
