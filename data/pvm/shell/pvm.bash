@@ -35,9 +35,16 @@ _pvm_executable() {
 
 # Function to update PATH with current Perl version
 _pvm_update_perl_path() {
+    # Recursion guard - prevent infinite loops
+    if [ "$_PVM_PATH_UPDATE_IN_PROGRESS" = "1" ]; then
+        return 0
+    fi
+    export _PVM_PATH_UPDATE_IN_PROGRESS=1
+    
     local xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
     local pvm_exec="$(_pvm_executable)"
     if [ $? -ne 0 ]; then
+        unset _PVM_PATH_UPDATE_IN_PROGRESS
         return 1
     fi
     
@@ -92,6 +99,9 @@ _pvm_update_perl_path() {
         # No current version or system version - just use cleaned path
         export PATH="$clean_path"
     fi
+    
+    # Clear recursion guard
+    unset _PVM_PATH_UPDATE_IN_PROGRESS
 }
 
 # Function to initialize PVM
@@ -111,8 +121,16 @@ pvm_init() {
 
     # Define main pvm function that intercepts 'use' and 'env activate' commands
     pvm() {
+        # Recursion guard - prevent infinite loops
+        if [ "$_PVM_COMMAND_IN_PROGRESS" = "1" ]; then
+            echo "Error: PVM recursion detected, aborting to prevent fork bomb" >&2
+            return 1
+        fi
+        export _PVM_COMMAND_IN_PROGRESS=1
+        
         local pvm_exec="$(_pvm_executable)"
         if [ $? -ne 0 ]; then
+            unset _PVM_COMMAND_IN_PROGRESS
             return 1
         fi
 
@@ -123,24 +141,35 @@ pvm_init() {
             local version="$1"
             if [ -z "$version" ]; then
                 echo "Usage: pvm use <version>"
+                unset _PVM_COMMAND_IN_PROGRESS
                 return 1
             fi
             # Use the sh-use command to generate shell code and eval it
             eval "$("$pvm_exec" sh-use "$version")"
+            local result=$?
+            unset _PVM_COMMAND_IN_PROGRESS
+            return $result
         elif [ "$command" = "env" ] && [ "$2" = "activate" ]; then
             # Handle 'pvm env activate' with shell integration
             shift 2 # Remove 'env' and 'activate'
             local env_name="$1"
             if [ -z "$env_name" ]; then
                 echo "Usage: pvm env activate <name>"
+                unset _PVM_COMMAND_IN_PROGRESS
                 return 1
             fi
             # Use the sh-env-activate command to generate shell code and eval it
             eval "$("$pvm_exec" sh-env-activate "$env_name")"
+            local result=$?
+            unset _PVM_COMMAND_IN_PROGRESS
+            return $result
         else
             # Delegate all other commands to the pvm binary
             # Use command to avoid potential shell function recursion
             command "$pvm_exec" "$@"
+            local result=$?
+            unset _PVM_COMMAND_IN_PROGRESS
+            return $result
         fi
     }
 
@@ -148,6 +177,12 @@ pvm_init() {
     # Function to run custom commands upon directory change
     pvm_cd() {
         \cd "$@" || return $?
+        
+        # Recursion guard for directory change operations
+        if [ "$_PVM_CD_IN_PROGRESS" = "1" ]; then
+            return 0
+        fi
+        export _PVM_CD_IN_PROGRESS=1
         
         # Update PATH to reflect current directory's Perl version
         _pvm_update_perl_path
@@ -163,12 +198,20 @@ pvm_init() {
                 fi
             fi
         fi
+        
+        unset _PVM_CD_IN_PROGRESS
     }
 
     # Set up cd override (if supported)
     if [ -n "$ZSH_VERSION" ]; then
         # For Zsh, use chpwd hook
         pvm_chpwd() {
+            # Recursion guard for directory change operations
+            if [ "$_PVM_CD_IN_PROGRESS" = "1" ]; then
+                return 0
+            fi
+            export _PVM_CD_IN_PROGRESS=1
+            
             # Update PATH to reflect current directory's Perl version
             _pvm_update_perl_path
             
@@ -183,6 +226,8 @@ pvm_init() {
                     fi
                 fi
             fi
+            
+            unset _PVM_CD_IN_PROGRESS
         }
 
         autoload -Uz add-zsh-hook

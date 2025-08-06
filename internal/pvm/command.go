@@ -2745,9 +2745,10 @@ func showEnvironmentInfo(cmd *cobra.Command, envName string) error {
 // newToolCommand creates tool management commands
 func newToolCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "tool",
-		Short: "Manage tool installations",
-		Long:  "Commands for adding, running, and managing Perl tools globally and per-project",
+		Use:     "tool",
+		Aliases: []string{"tools"},
+		Short:   "Manage tool installations",
+		Long:    "Commands for adding, running, and managing Perl tools globally and per-project",
 	}
 
 	// Add --global and --local flags to the parent command
@@ -2756,10 +2757,11 @@ func newToolCommand() *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive("global", "local")
 
 	addCmd := &cobra.Command{
-		Use:   "add [tool[@version]]",
-		Short: "Add a tool",
-		Long:  "Add a Perl tool (module) and make it available globally. Use --local for project-local installation.",
-		Args:  cobra.ExactArgs(1),
+		Use:     "add [tool[@version]]",
+		Aliases: []string{"install"},
+		Short:   "Add a tool",
+		Long:    "Add a Perl tool (module) and make it available globally. Use --local for project-local installation.",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
 			local, _ := cmd.Flags().GetBool("local")
@@ -2810,10 +2812,11 @@ func newToolCommand() *cobra.Command {
 	}
 
 	uninstallCmd := &cobra.Command{
-		Use:   "uninstall [tool]",
-		Short: "Uninstall a tool",
-		Long:  "Remove an installed global tool. Use --local for project tools.",
-		Args:  cobra.ExactArgs(1),
+		Use:     "uninstall [tool]",
+		Aliases: []string{"rm", "remove", "delete"},
+		Short:   "Uninstall a tool",
+		Long:    "Remove an installed global tool. Use --local for project tools.",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			global, _ := cmd.Flags().GetBool("global")
 			local, _ := cmd.Flags().GetBool("local")
@@ -2985,82 +2988,107 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 	}
 
 	// Initialize tool mapping to resolve tool name to module
+	cmd.Printf("🔍 Resolving tool '%s' to module name...\n", toolName)
 	mapping := tool.NewToolMapping()
 
 	// Resolve tool to module name
 	resolution, err := mapping.ResolveToolToModule(toolName)
 	if err != nil {
 		// If tool mapping fails, assume tool name is the module name
-		cmd.Printf("Warning: Could not resolve tool '%s' to known module, using tool name as module name\n", toolName)
+		cmd.Printf("⚠️  Could not resolve tool '%s' to known module, using tool name as module name\n", toolName)
 		resolution = &tool.ToolResolution{
 			ModuleName:  toolName,
 			Description: fmt.Sprintf("Tool: %s", toolName),
 		}
+	} else {
+		cmd.Printf("✅ Resolved '%s' → '%s' (%s)\n", toolName, resolution.ModuleName, resolution.Description)
 	}
 
 	// Get current Perl version for tool installation  
+	cmd.Printf("🐪 Resolving Perl version for installation...\n")
 	resolvedVersion, err := perl.ResolveVersion(&perl.ResolutionOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to resolve Perl version for tool installation: %w", err)
 	}
+	cmd.Printf("✅ Using Perl %s (%s)\n", resolvedVersion.Version, resolvedVersion.Source)
 
-	// Use PVX to install the tool in an isolated environment
-	options := &pvx.ExecutionOptions{
-		PerlVersion:    resolvedVersion.Version,
-		IsolationLevel: pvx.IsolationLocal,
-		IsolationDir:   toolEnvDir,
-		EnvName:        fmt.Sprintf("tool-%s", toolName),
-		NoCleanup:      true,
-	}
-
-	// Create installation script using cpanm
-	var installScript string
-	if version != "" {
-		installScript = fmt.Sprintf(`
-use strict;
-use warnings;
-use App::cpanminus;
-my $module = '%s';
-my $version = '%s';
-system('cpanm', "${module}\@${version}") == 0 or die "Failed to install ${module}\@${version}";
-print "Successfully installed ${module}\@${version}\\n";
-`, resolution.ModuleName, version)
-	} else {
-		installScript = fmt.Sprintf(`
-use strict; 
-use warnings;
-use App::cpanminus;
-my $module = '%s';
-system('cpanm', $module) == 0 or die "Failed to install $module";
-print "Successfully installed $module\\n";
-`, resolution.ModuleName)
-	}
-
-	// Create a temporary script file
-	tmpDir := os.TempDir()
-	scriptPath := filepath.Join(tmpDir, fmt.Sprintf("install-%s-%d.pl", toolName, os.Getpid()))
-
-	err = os.WriteFile(scriptPath, []byte(installScript), 0o644)
-	if err != nil {
-		return fmt.Errorf("failed to create installation script: %w", err)
-	}
-	defer os.Remove(scriptPath)
-
-	// Set the script path
-	options.ScriptPath = scriptPath
-
+	// Use PVI directly to install the tool in an isolated environment
+	cmd.Printf("🏗️  Setting up isolated environment: %s\n", toolEnvDir)
+	
+	// Always show installation progress
+	cmd.Printf("📦 Installing module '%s' using PVI...\n", resolution.ModuleName)
 	if cmd.Flags().Changed("verbose") {
-		options.Verbose = true
-		cmd.Printf("Installing module '%s' in isolated environment: %s\n", resolution.ModuleName, toolEnvDir)
+		cmd.Printf("   Environment: %s\n", toolEnvDir)
+		cmd.Printf("   Perl version: %s\n", resolvedVersion.Version)
 	}
 
-	// Execute installation
-	_, err = pvx.ExecuteScript(options)
-	if err != nil {
-		return fmt.Errorf("failed to install tool '%s': %w", toolName, err)
+	// Use PVI to install the module directly in the isolated environment
+	var requiredModules []string
+	if version != "" {
+		// For versioned modules, we need to specify the version constraint
+		// PVI expects module@version format
+		requiredModules = []string{fmt.Sprintf("%s@%s", resolution.ModuleName, version)}
+	} else {
+		requiredModules = []string{resolution.ModuleName}
 	}
+
+	// Create PVI integration options for tool installation
+	pviOptions := &pvi.PVXIntegrationOptions{
+		PerlVersion:     resolvedVersion.Version,
+		RequiredModules: requiredModules,
+		InstallDir:      toolEnvDir,
+		Verbose:         cmd.Flags().Changed("verbose"),
+		MaxRetries:      3,
+		SkipTests:       false, // Run tests for tool installations to ensure quality
+		OutputWriter:    cmd.OutOrStdout(),
+	}
+
+	// Install using PVI
+	result, err := pvi.InstallModulesForPVX(pviOptions)
+	if err != nil {
+		errorMsg := fmt.Sprintf("Failed to install tool '%s'", toolName)
+		
+		// Add PVI-specific error information
+		if result != nil && len(result.Errors) > 0 {
+			errorMsg += "\n\nInstallation errors:"
+			for i, installErr := range result.Errors {
+				if i >= 3 { // Limit to 3 most relevant errors
+					errorMsg += "\n  ... (additional errors truncated)"
+					break
+				}
+				errorMsg += fmt.Sprintf("\n  %v", installErr)
+			}
+		}
+		
+		if result != nil && len(result.FailedModules) > 0 {
+			errorMsg += fmt.Sprintf("\n\nFailed modules: %v", result.FailedModules)
+		}
+		
+		// Add common troubleshooting suggestions
+		errorMsg += "\n\nCommon causes:"
+		errorMsg += "\n  - Module name might be incorrect"
+		errorMsg += "\n  - Network connectivity issues"
+		errorMsg += "\n  - Missing system dependencies"
+		if version != "" {
+			errorMsg += "\n  - Requested version might not exist"
+		}
+		
+		errorMsg += "\n\nTo troubleshoot:"
+		errorMsg += fmt.Sprintf("\n  pvm tool add %s --verbose  # For detailed output", toolName)
+		errorMsg += "\n  pvm doctor                   # Check system health"
+		
+		return fmt.Errorf("%s\n\nOriginal error: %v", errorMsg, err)
+	}
+
+	// Check if installation was successful
+	if len(result.FailedModules) > 0 {
+		return fmt.Errorf("failed to install some modules for tool '%s': %v", toolName, result.FailedModules)
+	}
+
+	cmd.Printf("✅ Module '%s' installed successfully\n", resolution.ModuleName)
 
 	// Create isolated shim for the tool
+	cmd.Printf("🔗 Creating command shim for '%s'...\n", toolName)
 	err = createIsolatedToolShim(toolName, toolEnvDir, resolvedVersion.Version, global)
 	if err != nil {
 		return fmt.Errorf("failed to create isolated shim for tool '%s': %w", toolName, err)
@@ -3079,14 +3107,18 @@ print "Successfully installed $module\\n";
 	}
 
 	if err := storeToolMetadata(toolInfo); err != nil {
-		cmd.Printf("Warning: Failed to store tool metadata: %v\n", err)
+		cmd.Printf("⚠️  Warning: Failed to store tool metadata: %v\n", err)
 	}
 
-	cmd.Printf("Tool '%s' installed successfully in isolated environment\n", toolName)
+	cmd.Printf("🎉 Tool '%s' installed successfully!\n", toolName)
+	cmd.Printf("   ✅ Module: %s\n", resolution.ModuleName)
+	cmd.Printf("   ✅ Environment: %s\n", toolEnvDir)
 	if global {
-		cmd.Printf("Shim created in PATH for global access\n")
+		cmd.Printf("   ✅ Shim created in PATH for global access\n")
+		cmd.Printf("   \nYou can now run: %s [args]\n", toolName)
 	} else {
-		cmd.Printf("Shim created for local project access\n")
+		cmd.Printf("   ✅ Shim created for local project access\n")
+		cmd.Printf("   \nYou can now run: %s [args] (in this project)\n", toolName)
 	}
 
 	return nil
@@ -3330,9 +3362,24 @@ exec { 'cpanm' } 'cpanm', '--force', '%s';
 // uninstallTool removes an installed tool
 func uninstallTool(cmd *cobra.Command, toolName string, global bool) error {
 	if global {
-		// Use global tool infrastructure for uninstall
-		// Confirm removal
-		cmd.Printf("Are you sure you want to uninstall global tool '%s'? [y/N] ", toolName)
+		// Initialize storage first to check if tool exists
+		storage, err := install.NewToolStorage()
+		if err != nil {
+			return fmt.Errorf("failed to initialize storage: %w", err)
+		}
+
+		// Check if tool exists before asking for confirmation
+		cmd.Printf("🔍 Checking if tool '%s' is installed...\n", toolName)
+		exists := storage.ToolExists(toolName)
+
+		if !exists {
+			cmd.Printf("❌ Tool '%s' is not installed\n", toolName)
+			cmd.Println("Use 'pvm tool list' to see installed tools.")
+			return nil
+		}
+
+		// Confirm removal after verifying existence
+		cmd.Printf("⚠️  Are you sure you want to uninstall global tool '%s'? [y/N] ", toolName)
 		var response string
 		_, _ = fmt.Scanln(&response)
 
@@ -3342,31 +3389,27 @@ func uninstallTool(cmd *cobra.Command, toolName string, global bool) error {
 			return nil
 		}
 
-		// Initialize storage and remove the global tool
-		storage, err := install.NewToolStorage()
-		if err != nil {
-			return fmt.Errorf("failed to initialize storage: %w", err)
-		}
-
 		// Remove the global tool
+		cmd.Printf("🗑️  Removing tool '%s'...\n", toolName)
 		err = storage.RemoveTool(toolName)
 		if err != nil {
 			return fmt.Errorf("failed to remove global tool '%s': %w", toolName, err)
 		}
 
 		// Remove shim for the tool
+		cmd.Printf("🔗 Removing command shim...\n")
 		shimManager, err := shim.NewManager()
 		if err != nil {
-			cmd.Printf("Warning: Failed to create shim manager: %v\n", err)
+			cmd.Printf("⚠️  Warning: Failed to create shim manager: %v\n", err)
 		} else {
 			if err := shimManager.RemoveShim(toolName); err != nil {
-				cmd.Printf("Warning: Failed to remove shim for '%s': %v\n", toolName, err)
+				cmd.Printf("⚠️  Warning: Failed to remove shim for '%s': %v\n", toolName, err)
 			} else {
-				cmd.Printf("Removed shim for command '%s'\n", toolName)
+				cmd.Printf("✅ Removed shim for command '%s'\n", toolName)
 			}
 		}
 
-		cmd.Printf("Global tool '%s' has been uninstalled.\n", toolName)
+		cmd.Printf("🎉 Global tool '%s' has been successfully uninstalled!\n", toolName)
 		return nil
 	}
 
@@ -3380,12 +3423,15 @@ func uninstallTool(cmd *cobra.Command, toolName string, global bool) error {
 	toolEnvDir := filepath.Join(toolsDir, toolName)
 
 	// Check if tool is installed
+	cmd.Printf("🔍 Checking if project tool '%s' is installed...\n", toolName)
 	if _, err := os.Stat(toolEnvDir); os.IsNotExist(err) {
-		return fmt.Errorf("project tool '%s' is not installed", toolName)
+		cmd.Printf("❌ Project tool '%s' is not installed\n", toolName)
+		cmd.Println("Use 'pvm tool list --local' to see installed project tools.")
+		return nil
 	}
 
 	// Confirm removal
-	cmd.Printf("Are you sure you want to uninstall project tool '%s'? [y/N] ", toolName)
+	cmd.Printf("⚠️  Are you sure you want to uninstall project tool '%s'? [y/N] ", toolName)
 	var response string
 	_, _ = fmt.Scanln(&response)
 
@@ -3395,6 +3441,8 @@ func uninstallTool(cmd *cobra.Command, toolName string, global bool) error {
 		return nil
 	}
 
+	cmd.Printf("🗑️  Removing project tool '%s'...\n", toolName)
+
 	// Remove the tool directory
 	err = os.RemoveAll(toolEnvDir)
 	if err != nil {
@@ -3402,9 +3450,10 @@ func uninstallTool(cmd *cobra.Command, toolName string, global bool) error {
 	}
 
 	// Remove shim if it exists
+	cmd.Printf("🔗 Removing project tool shim...\n")
 	removeToolShim(toolName)
 
-	cmd.Printf("Project tool '%s' has been uninstalled.\n", toolName)
+	cmd.Printf("🎉 Project tool '%s' has been successfully uninstalled!\n", toolName)
 	return nil
 }
 
@@ -3495,29 +3544,28 @@ fi
 
 // storeToolMetadata stores tool metadata for management purposes
 func storeToolMetadata(toolInfo *tool.ToolInfo) error {
-	dirs, err := xdg.GetDirs()
+	// Use the proper ToolStorage API to store metadata
+	storage, err := install.NewToolStorage()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize tool storage: %w", err)
 	}
 
-	// Create metadata directory
-	metadataDir := filepath.Join(dirs.DataDir, "tools", "metadata")
-	if err := os.MkdirAll(metadataDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create metadata directory: %w", err)
+	// Convert ToolInfo to ToolMetadata format expected by storage
+	metadata := &install.ToolMetadata{
+		ToolName:     toolInfo.Name,
+		ModuleName:   toolInfo.Module,
+		Version:      toolInfo.Version,
+		InstallDate:  toolInfo.InstallDate,
+		InstallPath:  toolInfo.InstallPath,
+		LocalLibPath: filepath.Join(toolInfo.InstallPath, "lib", "perl5"),
+		BinPath:      filepath.Join(toolInfo.InstallPath, "bin"),
+		// Note: PerlVersion and Description are stored in ToolInfo but not in ToolMetadata
+		// This is a design limitation that should be addressed
 	}
 
-	// Create metadata file path
-	metadataFile := filepath.Join(metadataDir, fmt.Sprintf("%s.json", toolInfo.Name))
-
-	// Convert tool info to JSON
-	jsonData, err := json.Marshal(toolInfo)
-	if err != nil {
-		return fmt.Errorf("failed to marshal tool metadata: %w", err)
-	}
-
-	// Write metadata file
-	if err := os.WriteFile(metadataFile, jsonData, 0o644); err != nil {
-		return fmt.Errorf("failed to write tool metadata: %w", err)
+	// Store using the proper storage API
+	if err := storage.SaveMetadata(metadata); err != nil {
+		return fmt.Errorf("failed to store tool metadata: %w", err)
 	}
 
 	return nil

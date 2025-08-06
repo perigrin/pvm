@@ -36,7 +36,7 @@ func TestResolveToolToModule_BuiltinMappings(t *testing.T) {
 		{"ack", "App::Ack", "builtin"},
 		{"cpanm", "App::cpanminus", "builtin"},
 		{"prove", "Test::Harness", "builtin"},
-		{"perltidy", "Perl::Tidy", "builtin"},
+		{"perltidy", "Perl-Tidy", "builtin"},
 		{"perlcritic", "Perl::Critic", "builtin"},
 	}
 
@@ -57,8 +57,8 @@ func TestResolveToolToModule_ExplicitModule(t *testing.T) {
 
 	testCases := []string{
 		"App::Ack",
-		"Test::Harness",
-		"Perl::Tidy",
+		"Test::Harness", 
+		"Perl-Tidy",
 		"My::Custom::Module",
 	}
 
