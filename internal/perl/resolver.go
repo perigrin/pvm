@@ -696,10 +696,20 @@ func resolveFromSystemPerl() (*ResolvedVersion, error) {
 	for _, versionInfo := range installedVersions {
 		if versionInfo.Source == "system" {
 			// Found system perl in registry
-			// For system perl, InstallPath is the directory containing the perl executable
-			perlPath := filepath.Join(versionInfo.InstallPath, "perl")
-			if runtime.GOOS == "windows" {
-				perlPath = filepath.Join(versionInfo.InstallPath, "perl.exe")
+			// For system perl, InstallPath might be either the prefix directory (e.g., /usr) or the bin directory (e.g., /usr/bin)
+			var perlPath string
+			if filepath.Base(versionInfo.InstallPath) == "bin" {
+				// InstallPath is already the bin directory
+				perlPath = filepath.Join(versionInfo.InstallPath, "perl")
+				if runtime.GOOS == "windows" {
+					perlPath = filepath.Join(versionInfo.InstallPath, "perl.exe")
+				}
+			} else {
+				// InstallPath is the prefix directory, so perl is in InstallPath/bin/perl
+				perlPath = filepath.Join(versionInfo.InstallPath, "bin", "perl")
+				if runtime.GOOS == "windows" {
+					perlPath = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+				}
 			}
 			return &ResolvedVersion{
 				Version:    versionInfo.Version, // Actual version like "5.34.1"
