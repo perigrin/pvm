@@ -10,6 +10,9 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // CPANResolver handles CPAN module resolution and search
@@ -111,10 +114,10 @@ func (cr *CPANResolver) searchByExecutableName(toolName string) (*ToolResolution
 func (cr *CPANResolver) searchByModuleName(toolName string) (*ToolResolution, error) {
 	// Try common module name patterns
 	patterns := []string{
-		fmt.Sprintf("App::%s", strings.Title(toolName)),
+		fmt.Sprintf("App::%s", cases.Title(language.English).String(toolName)),
 		fmt.Sprintf("App::%s", strings.ToUpper(toolName)),
-		fmt.Sprintf("%s", strings.Title(toolName)),
-		fmt.Sprintf("Perl::%s", strings.Title(toolName)),
+		fmt.Sprintf("%s", cases.Title(language.English).String(toolName)),
+		fmt.Sprintf("Perl::%s", cases.Title(language.English).String(toolName)),
 	}
 
 	for _, pattern := range patterns {
