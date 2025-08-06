@@ -4614,8 +4614,9 @@ func newShimsDirCommand() *cobra.Command {
 // newDoctorCommand creates the doctor command for diagnosing PVM issues
 func newDoctorCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "doctor",
-		Short: "Diagnose and fix PVM installation issues",
+		Use:     "doctor",
+		Aliases: []string{"diagnose"},
+		Short:   "Diagnose and fix PVM installation issues",
 		Long: `Run comprehensive diagnostics to identify and fix PVM configuration issues.
 
 This command checks:

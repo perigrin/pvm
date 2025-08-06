@@ -245,8 +245,8 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 
 	// Check for registry-filesystem mismatch
 	registryVersions := make(map[string]bool)
-	for version := range registry.Versions {
-		registryVersions[version] = true
+	for _, versionInfo := range registry.Versions {
+		registryVersions[versionInfo.Version] = true
 	}
 
 	// Check filesystem versions
@@ -276,11 +276,11 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 
 		// Check for registry entries without filesystem presence
 		orphanedInRegistry := []string{}
-		for version, versionInfo := range registry.Versions {
+		for uuid, versionInfo := range registry.Versions {
 			found := false
 
 			// Special handling for system version - check the actual install path
-			if version == "system" {
+			if versionInfo.Source == "system" {
 				perlBinary := filepath.Join(versionInfo.InstallPath, "perl")
 				if _, err := os.Stat(perlBinary); err == nil {
 					found = true
@@ -288,7 +288,7 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 			} else {
 				// Regular version - check in filesystem versions
 				for _, fsVersion := range filesystemVersions {
-					if fsVersion == version {
+					if fsVersion == versionInfo.Version {
 						found = true
 						break
 					}
@@ -296,8 +296,8 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 			}
 
 			if !found {
-				orphanedInRegistry = append(orphanedInRegistry, version)
-				*warnings = append(*warnings, fmt.Sprintf("Version %s in registry but not on filesystem", version))
+				orphanedInRegistry = append(orphanedInRegistry, versionInfo.Version)
+				*warnings = append(*warnings, fmt.Sprintf("Version %s in registry but not on filesystem (UUID: %s)", versionInfo.Version, uuid))
 			}
 		}
 
