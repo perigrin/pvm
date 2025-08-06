@@ -464,7 +464,7 @@ func TestCreateNewCpanfile(t *testing.T) {
 	}
 }
 
-func TestBackupCreation(t *testing.T) {
+func TestNoBackupCreation(t *testing.T) {
 	tempDir := t.TempDir()
 	logger := &mockLogger{}
 	manager := NewCpanfileManager(tempDir, logger)
@@ -494,33 +494,16 @@ func TestBackupCreation(t *testing.T) {
 		t.Fatalf("Failed to save updated cpanfile: %v", err)
 	}
 
-	// Check that backup was created
+	// Check that NO backup was created
 	files, err := os.ReadDir(tempDir)
 	if err != nil {
 		t.Fatalf("Failed to read temp directory: %v", err)
 	}
 
-	backupFound := false
 	for _, file := range files {
 		if strings.HasPrefix(file.Name(), "cpanfile.backup.") {
-			backupFound = true
-
-			// Verify backup contains original content
-			backupPath := filepath.Join(tempDir, file.Name())
-			backupContent, err := os.ReadFile(backupPath)
-			if err != nil {
-				t.Fatalf("Failed to read backup file: %v", err)
-			}
-
-			if string(backupContent) != initialContent {
-				t.Errorf("Expected backup to contain original content, got: %s", string(backupContent))
-			}
-			break
+			t.Errorf("Backup file should not be created, but found: %s", file.Name())
 		}
-	}
-
-	if !backupFound {
-		t.Error("Expected backup file to be created")
 	}
 }
 

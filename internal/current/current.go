@@ -75,6 +75,9 @@ func formatSourceDescription(source perl.ResolutionSource, path string) string {
 		}
 		return "set by project configuration"
 	case perl.EnvironmentVariable:
+		if path != "" {
+			return fmt.Sprintf("set by %s", path)
+		}
 		return "set by environment variable"
 	case perl.UserConfig:
 		return "set by user configuration"

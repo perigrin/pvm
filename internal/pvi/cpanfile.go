@@ -153,14 +153,6 @@ func (cm *CpanfileManager) writeCpanfile(cpanfile *cpan.CPANFile) error {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	// Create backup if file exists
-	if fileExists(cm.Path) {
-		backupPath := cm.Path + ".backup." + time.Now().Format("20060102150405")
-		if err := copyFile(cm.Path, backupPath); err != nil {
-			// Log warning but don't fail
-			fmt.Fprintf(os.Stderr, "Warning: failed to create backup: %v\n", err)
-		}
-	}
 
 	// Read existing content to preserve formatting and comments if possible
 	var lines []string
@@ -374,14 +366,6 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
-	input, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(dst, input, 0644)
-}
 
 // SnapshotEntry represents a single entry in the cpanfile.snapshot
 type SnapshotEntry struct {

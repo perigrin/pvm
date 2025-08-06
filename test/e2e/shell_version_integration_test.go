@@ -265,8 +265,8 @@ fi
 		"PVM_PERL_VERSION environment variable not set correctly")
 
 	// Verify the environment variable takes precedence over .perl-version file
-	helpers.AssertStringContains(t, allOutput, "set by environment variable",
-		"Version should be set by environment variable, not .perl-version file")
+	helpers.AssertStringContains(t, allOutput, "set by PVM_PERL_VERSION",
+		"Version should be set by PVM_PERL_VERSION environment variable, not .perl-version file")
 }
 
 // TestShellUseWithoutIntegration tests the expected behavior without shell integration
@@ -366,6 +366,6 @@ func TestEnvironmentVariableVersionResolution(t *testing.T) {
 	currentOutput := stdout + stderr
 	helpers.AssertStringContains(t, currentOutput, systemVersion,
 		"pvm current should show version from PVM_PERL_VERSION environment variable")
-	helpers.AssertStringContains(t, currentOutput, "environment variable",
-		"pvm current should indicate version source as environment variable")
+	helpers.AssertStringContains(t, currentOutput, "set by PVM_PERL_VERSION",
+		"pvm current should indicate version source as PVM_PERL_VERSION environment variable")
 }
