@@ -81,53 +81,101 @@ func checkShellIntegration(ui *ui.Output, issues *[]string, warnings *[]string) 
 
 // checkActiveShellIntegration checks if shell integration is active in the current session
 func checkActiveShellIntegration(ui *ui.Output, issues *[]string, warnings *[]string, shellName string) error {
-	// Test if PVM shell functions are defined by running shell commands
+	// Use the current shell environment to check for PVM integration
+	// This is more accurate than spawning fresh shell subprocesses
+	currentShell := os.Getenv("SHELL")
+	if currentShell == "" {
+		*warnings = append(*warnings, "SHELL environment variable not set, skipping active integration check")
+		return nil
+	}
+
 	switch shellName {
 	case "bash":
-		// Check if cd is aliased to pvm_cd
-		cmd := exec.Command("bash", "-c", "type cd")
-		output, err := cmd.Output()
-		if err == nil {
-			outputStr := string(output)
-			if strings.Contains(outputStr, "pvm_cd") {
-				ui.Success("Shell integration active: cd is aliased to pvm_cd")
-			} else {
-				*warnings = append(*warnings, "Shell integration not active: cd is not aliased")
-				ui.Warning("Shell integration not loaded in current session")
-				ui.Info("Run 'eval \"$(pvm init)\"' or restart your shell")
+		// For bash, we check integration by seeing if PVM environment is properly set up
+		// Check if XDG_BIN_HOME is in PATH (primary indicator of active integration)
+		xdgBinHome := os.Getenv("XDG_BIN_HOME")
+		if xdgBinHome == "" {
+			homeDir, _ := os.UserHomeDir()
+			if homeDir != "" {
+				xdgBinHome = filepath.Join(homeDir, ".local", "bin")
 			}
 		}
 
-	case "zsh":
-		// Check if pvm_chpwd function exists and chpwd hook is registered
-		cmd := exec.Command("zsh", "-c", "type pvm_chpwd 2>/dev/null")
-		err := cmd.Run()
-		if err == nil {
-			ui.Success("Shell integration active: pvm_chpwd function exists")
+		pathEnv := os.Getenv("PATH")
+		if xdgBinHome != "" && strings.Contains(pathEnv, xdgBinHome) {
+			ui.Success("Shell integration active: XDG_BIN_HOME found in PATH")
 
-			// Check if chpwd hook is registered
-			hookCmd := exec.Command("zsh", "-c", "echo $chpwd_functions | grep -q pvm_chpwd")
-			hookErr := hookCmd.Run()
-			if hookErr == nil {
-				ui.Success("chpwd hook properly registered")
+			// Additional check: verify PVM version resolution works
+			cmd := exec.Command("pvm", "current", "--bare")
+			_, err := cmd.Output()
+			if err == nil {
+				ui.Success("PVM version resolution working correctly")
 			} else {
-				*warnings = append(*warnings, "pvm_chpwd function exists but hook not registered")
-				ui.Warning("chpwd hook not registered properly")
+				*warnings = append(*warnings, "PVM version resolution may have issues")
 			}
 		} else {
-			*warnings = append(*warnings, "Shell integration not active: pvm_chpwd function not found")
+			*warnings = append(*warnings, "Shell integration not active: XDG_BIN_HOME not in PATH")
+			ui.Warning("Shell integration not loaded in current session")
+			ui.Info("Run 'eval \"$(pvm init)\"' or restart your shell")
+		}
+
+	case "zsh":
+		// For zsh, we check integration by seeing if PVM environment is properly set up
+		// Since shell functions don't persist across exec.Command calls, we look for
+		// environment indicators that suggest integration is active
+
+		// Check if XDG_BIN_HOME is in PATH (primary indicator of active integration)
+		xdgBinHome := os.Getenv("XDG_BIN_HOME")
+		if xdgBinHome == "" {
+			homeDir, _ := os.UserHomeDir()
+			if homeDir != "" {
+				xdgBinHome = filepath.Join(homeDir, ".local", "bin")
+			}
+		}
+
+		pathEnv := os.Getenv("PATH")
+		if xdgBinHome != "" && strings.Contains(pathEnv, xdgBinHome) {
+			ui.Success("Shell integration active: XDG_BIN_HOME found in PATH")
+
+			// Additional check: verify PVM version resolution works
+			cmd := exec.Command("pvm", "current", "--bare")
+			_, err := cmd.Output()
+			if err == nil {
+				ui.Success("PVM version resolution working correctly")
+			} else {
+				*warnings = append(*warnings, "PVM version resolution may have issues")
+			}
+		} else {
+			*warnings = append(*warnings, "Shell integration not active: XDG_BIN_HOME not in PATH")
 			ui.Warning("Shell integration not loaded in current session")
 			ui.Info("Run 'eval \"$(pvm init)\"' or restart your shell")
 		}
 
 	case "fish":
-		// Check if fish functions exist
-		cmd := exec.Command("fish", "-c", "functions -q pvm")
-		err := cmd.Run()
-		if err == nil {
-			ui.Success("Shell integration active: pvm function exists")
+		// For fish, we check integration by seeing if PVM environment is properly set up
+		// Check if XDG_BIN_HOME is in PATH (primary indicator of active integration)
+		xdgBinHome := os.Getenv("XDG_BIN_HOME")
+		if xdgBinHome == "" {
+			homeDir, _ := os.UserHomeDir()
+			if homeDir != "" {
+				xdgBinHome = filepath.Join(homeDir, ".local", "bin")
+			}
+		}
+
+		pathEnv := os.Getenv("PATH")
+		if xdgBinHome != "" && strings.Contains(pathEnv, xdgBinHome) {
+			ui.Success("Shell integration active: XDG_BIN_HOME found in PATH")
+
+			// Additional check: verify PVM version resolution works
+			cmd := exec.Command("pvm", "current", "--bare")
+			_, err := cmd.Output()
+			if err == nil {
+				ui.Success("PVM version resolution working correctly")
+			} else {
+				*warnings = append(*warnings, "PVM version resolution may have issues")
+			}
 		} else {
-			*warnings = append(*warnings, "Shell integration not active: pvm function not found")
+			*warnings = append(*warnings, "Shell integration not active: XDG_BIN_HOME not in PATH")
 			ui.Warning("Shell integration not loaded in current session")
 		}
 	}
@@ -245,8 +293,8 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 
 	// Check for registry-filesystem mismatch
 	registryVersions := make(map[string]bool)
-	for version := range registry.Versions {
-		registryVersions[version] = true
+	for _, versionInfo := range registry.Versions {
+		registryVersions[versionInfo.Version] = true
 	}
 
 	// Check filesystem versions
@@ -276,11 +324,11 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 
 		// Check for registry entries without filesystem presence
 		orphanedInRegistry := []string{}
-		for version, versionInfo := range registry.Versions {
+		for uuid, versionInfo := range registry.Versions {
 			found := false
 
 			// Special handling for system version - check the actual install path
-			if version == "system" {
+			if versionInfo.Source == "system" {
 				perlBinary := filepath.Join(versionInfo.InstallPath, "perl")
 				if _, err := os.Stat(perlBinary); err == nil {
 					found = true
@@ -288,7 +336,7 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 			} else {
 				// Regular version - check in filesystem versions
 				for _, fsVersion := range filesystemVersions {
-					if fsVersion == version {
+					if fsVersion == versionInfo.Version {
 						found = true
 						break
 					}
@@ -296,8 +344,8 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 			}
 
 			if !found {
-				orphanedInRegistry = append(orphanedInRegistry, version)
-				*warnings = append(*warnings, fmt.Sprintf("Version %s in registry but not on filesystem", version))
+				orphanedInRegistry = append(orphanedInRegistry, versionInfo.Version)
+				*warnings = append(*warnings, fmt.Sprintf("Version %s in registry but not on filesystem (UUID: %s)", versionInfo.Version, uuid))
 			}
 		}
 

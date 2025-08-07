@@ -81,14 +81,15 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 		t.Fatalf("Failed to create fake script: %v", err)
 	}
 
-	// Register the fake version
-	originalLoadRegistry := LoadRegistry
-	originalSaveRegistry := SaveRegistry
+	// Set up isolated registry file for this test
+	registryPath := filepath.Join(tempDir, "test_registry.json")
+	originalPvmPerlRegistry := os.Getenv("PVM_PERL_REGISTRY")
+	os.Setenv("PVM_PERL_REGISTRY", registryPath)
 
-	// Create a fake registry
+	// Create a fake registry and save it to the isolated file
 	registry := &VersionRegistry{
 		Versions: map[string]VersionInfo{
-			"5.38.0": {
+			"fake-uuid-12345": {
 				Version:      "5.38.0",
 				InstallPath:  perlVersionDir,
 				InstallTime:  time.Now(),
@@ -98,10 +99,10 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 		},
 	}
 
-	// Save the fake registry
+	// Save the fake registry to the isolated file
 	err = SaveRegistry(registry)
 	if err != nil {
-		t.Fatalf("Failed to save registry: %v", err)
+		t.Fatalf("Failed to save test registry: %v", err)
 	}
 
 	// Create mock dirs structure
@@ -136,23 +137,19 @@ func setupShimTest(t *testing.T) (string, *xdg.Dirs, func()) {
 		return dirs, nil
 	}
 
-	// Setup the mock registry functions
-	LoadRegistry = func() (*VersionRegistry, error) {
-		return registry, nil
-	}
-
-	SaveRegistry = func(reg *VersionRegistry) error {
-		return nil
-	}
-
 	// Create a cleanup function
 	cleanup := func() {
 		// Restore original functions
 		xdg.GetDirs = originalGetDirs
-		LoadRegistry = originalLoadRegistry
-		SaveRegistry = originalSaveRegistry
 
-		// Remove temp directory
+		// Restore original registry environment variable
+		if originalPvmPerlRegistry != "" {
+			os.Setenv("PVM_PERL_REGISTRY", originalPvmPerlRegistry)
+		} else {
+			os.Unsetenv("PVM_PERL_REGISTRY")
+		}
+
+		// Remove temp directory (this will also remove the isolated registry file)
 		_ = os.RemoveAll(tempDir)
 	}
 
