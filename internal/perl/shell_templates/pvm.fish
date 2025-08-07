@@ -5,40 +5,147 @@
 # Path to PVM executable (fallback)
 set PVM_EXEC "{{.PVMPath}}"
 
-# Shims directory
-set PVM_SHIMS_DIR "{{.ShimsDir}}"
+# XDG directories for the two-tier PATH system
+set XDG_BIN_HOME (if test -n "$XDG_BIN_HOME"; echo "$XDG_BIN_HOME"; else; echo "$HOME/.local/bin"; end)
+set XDG_DATA_HOME (if test -n "$XDG_DATA_HOME"; echo "$XDG_DATA_HOME"; else; echo "$HOME/.local/share"; end)
+
+# Function to find PVM executable dynamically
+function _pvm_find_executable
+    # First, try to find pvm in PATH
+    if command -v pvm >/dev/null 2>&1
+        command -v pvm
+        return 0
+    end
+
+    # Fallback to the path that was used during generation
+    if test -x "$PVM_EXEC"
+        echo "$PVM_EXEC"
+        return 0
+    end
+
+    # If all else fails, show an error
+    echo "Error: PVM executable not found. Please ensure PVM is installed and in PATH." >&2
+    return 1
+end
+
+# Function to get PVM executable path
+function _pvm_executable
+    if test -z "$PVM_EXEC_CACHE"
+        set -g PVM_EXEC_CACHE (_pvm_find_executable)
+        if test $status -ne 0
+            return 1
+        end
+    end
+    echo "$PVM_EXEC_CACHE"
+end
+
+# Function to update PATH with current Perl version
+function _pvm_update_perl_path
+    set pvm_exec (_pvm_executable)
+    if test $status -ne 0
+        return 1
+    end
+
+    # FIRST: Clean up existing pvm perl paths from PATH, preserve everything else
+    set clean_path
+    set found_xdg_bin_home false
+
+    for path_entry in $PATH
+        # Track if we found XDG_BIN_HOME in existing PATH
+        if test "$path_entry" = "$XDG_BIN_HOME"
+            set found_xdg_bin_home true
+        end
+
+        # Skip existing pvm perl paths - we'll replace them
+        if string match -q "*/pvm/versions/*/bin" "$path_entry"
+            continue
+        end
+
+        # Keep all other paths (including XDG_BIN_HOME)
+        set clean_path $clean_path $path_entry
+    end
+
+    # SECOND: Ensure XDG_BIN_HOME is at the front of clean_path
+    if test "$found_xdg_bin_home" = false
+        set clean_path $XDG_BIN_HOME $clean_path
+    end
+
+    # THIRD: Set clean PATH temporarily so PVM resolver doesn't see old perl
+    set -gx PATH $clean_path
+
+    # FOURTH: Now ask PVM what version should be active (in clean environment)
+    set current_version ("$pvm_exec" current --bare 2>/dev/null)
+
+    # Add the current version's bin path if we have a version
+    if test -n "$current_version" -a "$current_version" != "system"
+        set new_perl_bin "$XDG_DATA_HOME/pvm/versions/$current_version/bin"
+        if test -d "$new_perl_bin"
+            set -gx PATH $new_perl_bin $clean_path
+        else
+            set -gx PATH $clean_path
+        end
+    else
+        # No current version or system version - just use cleaned path
+        set -gx PATH $clean_path
+    end
+end
 
 # Function to initialize PVM
 function pvm_init
-    # Add shims directory to PATH if not already there
-    if not contains $PVM_SHIMS_DIR $PATH
-        set -gx PATH $PVM_SHIMS_DIR $PATH
+    # Add XDG_BIN_HOME to PATH (for pvm tool install shims) if not already there
+    if not contains "$XDG_BIN_HOME" $PATH
+        set -gx PATH $XDG_BIN_HOME $PATH
     end
 
-    # Define shell functions for version switching
-    function pvm_use
-        set version $argv[1]
-        if test -z "$version"
-            echo "Usage: pvm use <version>"
+    # Add current Perl bin directory to PATH (for perl, cpan, prove, etc.)
+    _pvm_update_perl_path
+
+    # Define main pvm function that intercepts 'use' and 'env activate' commands
+    function pvm
+        set pvm_exec (_pvm_executable)
+        if test $status -ne 0
             return 1
         end
 
-        # Set version for current shell
-        set -gx PVM_PERL_VERSION $version
-        echo "Using Perl $version"
+        set command $argv[1]
+        if test "$command" = "use"
+            # Handle 'pvm use' with shell integration
+            set version $argv[2]
+            if test -z "$version"
+                echo "Usage: pvm use <version>"
+                return 1
+            end
+            # Use the sh-use command to generate shell code and eval it
+            eval (command "$pvm_exec" sh-use "$version")
+        else if test "$command" = "env" -a "$argv[2]" = "activate"
+            # Handle 'pvm env activate' with shell integration
+            set env_name $argv[3]
+            if test -z "$env_name"
+                echo "Usage: pvm env activate <name>"
+                return 1
+            end
+            # Use the sh-env-activate command to generate shell code and eval it
+            eval (command "$pvm_exec" sh-env-activate "$env_name")
+        else
+            # Delegate all other commands to the pvm binary
+            command "$pvm_exec" $argv
+        end
     end
-
-    # Create shell aliases
-    alias pvm-use="pvm_use"
-    alias pvm-local="$PVM_EXEC local"
-    alias pvm-global="$PVM_EXEC global"
 
     # Function to run when directory changes
     function pvm_on_pwd_change --on-variable PWD
-        if test -f "$PWD/.perl-version"
-            set version (cat "$PWD/.perl-version")
-            if test -n "$version"
-                pvm_use $version
+        # Update PATH to reflect current directory's Perl version
+        _pvm_update_perl_path
+
+        # Show current Perl version after directory change (if enabled in config)
+        set pvm_exec (_pvm_executable)
+        if test $status -eq 0
+            # Check if alerts should be shown
+            if "$pvm_exec" show-alerts 2>/dev/null
+                set current_info ("$pvm_exec" current 2>/dev/null)
+                if test -n "$current_info"
+                    echo "Using $current_info"
+                end
             end
         end
     end
@@ -49,6 +156,11 @@ end
 
 # Initialize PVM
 pvm_init
+
+# Set up completion (skip during tests)
+if test "$PVM_SKIP_NETWORK_CALLS" != "1"
+    eval ((_pvm_executable) completion fish 2>/dev/null || true)
+end
 
 # Output message
 echo "PVM environment initialized"
