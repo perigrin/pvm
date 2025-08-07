@@ -306,3 +306,206 @@ func TestShellConflictDetection(t *testing.T) {
 	helpers.AssertStringContains(t, stdout, "pvm_init",
 		"Generated script should contain pvm_init function")
 }
+
+// TestXDGBinHomePathIntegration tests that XDG_BIN_HOME is properly added and preserved in PATH
+func TestXDGBinHomePathIntegration(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Get the expected XDG_BIN_HOME path
+	expectedXDGBinHome := filepath.Join(env.HomeDir, ".local", "bin")
+
+	// Ensure XDG_BIN_HOME directory exists for realistic testing
+	err := os.MkdirAll(expectedXDGBinHome, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create XDG_BIN_HOME directory: %v", err)
+	}
+
+	// Test both bash and fish shells
+	shells := []string{"bash", "fish"}
+
+	for _, shell := range shells {
+		t.Run(shell, func(t *testing.T) {
+			// Skip fish test if fish shell is not available
+			if shell == "fish" {
+				_, _, err := env.RunCommand("which", "fish")
+				if err != nil {
+					t.Skip("Fish shell not available in test environment")
+					return
+				}
+			}
+			// Generate shell integration script
+			initScript, stderr, err := env.RunPVM("init", shell)
+			if err != nil {
+				t.Fatalf("Shell initialization failed for %s\nError: %v\nStderr: %s", shell, err, stderr)
+			}
+
+			// The script should contain success message
+			helpers.AssertStringContains(t, initScript, "PVM environment initialized",
+				"Init script should indicate success")
+
+			// Verify XDG_BIN_HOME variable is referenced in the script (not hardcoded path)
+			if shell == "fish" {
+				helpers.AssertStringContains(t, initScript, "XDG_BIN_HOME",
+					"Fish script should contain XDG_BIN_HOME variable reference")
+			} else {
+				helpers.AssertStringContains(t, initScript, "xdg_bin_home=",
+					"Bash/Zsh script should contain xdg_bin_home variable assignment")
+			}
+
+			// Write the generated script to a file for testing
+			scriptFile := filepath.Join(env.HomeDir, "pvm_init_"+shell+".sh")
+			if shell == "fish" {
+				scriptFile = filepath.Join(env.HomeDir, "pvm_init.fish")
+			}
+			err = os.WriteFile(scriptFile, []byte(initScript), 0755)
+			if err != nil {
+				t.Fatalf("Failed to write %s script: %v", shell, err)
+			}
+
+			// Create a test script that sources the pvm script and checks PATH
+			var testScript string
+			var scriptContent string
+
+			if shell == "bash" {
+				testScript = filepath.Join(env.HomeDir, "test_path.sh")
+				scriptContent = `#!/bin/bash
+# Clear PATH to simulate fresh environment
+export PATH="/usr/bin:/bin"
+
+# Source the PVM init script
+source "` + scriptFile + `"
+
+# Check if XDG_BIN_HOME is in PATH
+if echo "$PATH" | grep -q "` + expectedXDGBinHome + `"; then
+    echo "XDG_BIN_HOME_FOUND_IN_PATH"
+else
+    echo "XDG_BIN_HOME_MISSING_FROM_PATH"
+fi
+
+# Test PATH preservation after calling _pvm_update_perl_path
+if type _pvm_update_perl_path >/dev/null 2>&1; then
+    _pvm_update_perl_path
+    if echo "$PATH" | grep -q "` + expectedXDGBinHome + `"; then
+        echo "XDG_BIN_HOME_PRESERVED_AFTER_UPDATE"
+    else
+        echo "XDG_BIN_HOME_LOST_AFTER_UPDATE"
+    fi
+fi
+
+echo "PATH_TEST_COMPLETED"
+`
+			} else { // fish
+				testScript = filepath.Join(env.HomeDir, "test_path.fish")
+				scriptContent = `#!/usr/bin/env fish
+# Clear PATH to simulate fresh environment
+set -gx PATH /usr/bin /bin
+
+# Source the PVM init script
+source "` + scriptFile + `"
+
+# Check if XDG_BIN_HOME is in PATH
+if contains "` + expectedXDGBinHome + `" $PATH
+    echo "XDG_BIN_HOME_FOUND_IN_PATH"
+else
+    echo "XDG_BIN_HOME_MISSING_FROM_PATH"
+end
+
+# Test PATH preservation after calling _pvm_update_perl_path
+if functions -q _pvm_update_perl_path
+    _pvm_update_perl_path
+    if contains "` + expectedXDGBinHome + `" $PATH
+        echo "XDG_BIN_HOME_PRESERVED_AFTER_UPDATE"
+    else
+        echo "XDG_BIN_HOME_LOST_AFTER_UPDATE"
+    end
+end
+
+echo "PATH_TEST_COMPLETED"
+`
+			}
+
+			err = os.WriteFile(testScript, []byte(scriptContent), 0755)
+			if err != nil {
+				t.Fatalf("Failed to create test script: %v", err)
+			}
+
+			// Run the test script
+			var stdout, stderr_out string
+			if shell == "bash" {
+				stdout, stderr_out, err = env.RunCommand("bash", testScript)
+			} else {
+				stdout, stderr_out, err = env.RunCommand("fish", testScript)
+			}
+
+			if err != nil {
+				t.Fatalf("Failed to run %s test script: %v\nStdout: %s\nStderr: %s", shell, err, stdout, stderr_out)
+			}
+
+			// Verify XDG_BIN_HOME was added to PATH initially
+			helpers.AssertStringContains(t, stdout, "XDG_BIN_HOME_FOUND_IN_PATH",
+				"XDG_BIN_HOME should be added to PATH during initialization")
+
+			// Verify XDG_BIN_HOME is preserved after PATH updates
+			helpers.AssertStringContains(t, stdout, "XDG_BIN_HOME_PRESERVED_AFTER_UPDATE",
+				"XDG_BIN_HOME should be preserved after _pvm_update_perl_path calls")
+
+			helpers.AssertStringContains(t, stdout, "PATH_TEST_COMPLETED",
+				"PATH test should complete successfully")
+
+			// Ensure we don't have failure messages
+			helpers.AssertStringDoesNotContain(t, stdout, "XDG_BIN_HOME_MISSING_FROM_PATH",
+				"XDG_BIN_HOME should not be missing from PATH")
+			helpers.AssertStringDoesNotContain(t, stdout, "XDG_BIN_HOME_LOST_AFTER_UPDATE",
+				"XDG_BIN_HOME should not be lost after PATH updates")
+		})
+	}
+}
+
+// TestShellIntegrationDoctorDetection tests that 'pvm self doctor' correctly detects shell integration
+func TestShellIntegrationDoctorDetection(t *testing.T) {
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Get the expected XDG_BIN_HOME path
+	expectedXDGBinHome := filepath.Join(env.HomeDir, ".local", "bin")
+
+	// Ensure XDG_BIN_HOME directory exists
+	err := os.MkdirAll(expectedXDGBinHome, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create XDG_BIN_HOME directory: %v", err)
+	}
+
+	// First, test without shell integration (should show warning)
+	stdout, stderr, err := env.RunPVM("self", "doctor")
+	if err != nil {
+		t.Fatalf("Doctor command failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	// Should detect that shell integration is not active
+	helpers.AssertStringContains(t, stdout, "Shell integration not active",
+		"Doctor should detect shell integration is not active initially")
+
+	// Now test with XDG_BIN_HOME in PATH (simulate shell integration)
+	originalPath := os.Getenv("PATH")
+	pathWithXDG := expectedXDGBinHome + string(os.PathListSeparator) + originalPath
+	err = os.Setenv("PATH", pathWithXDG)
+	if err != nil {
+		t.Fatalf("Failed to set PATH with XDG_BIN_HOME: %v", err)
+	}
+	defer func() {
+		_ = os.Setenv("PATH", originalPath)
+	}()
+
+	// Run doctor again with XDG_BIN_HOME in PATH
+	stdout, stderr, err = env.RunPVM("self", "doctor")
+	if err != nil {
+		t.Fatalf("Doctor command failed with XDG_BIN_HOME in PATH\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	// Should now detect that shell integration is active
+	helpers.AssertStringContains(t, stdout, "Shell integration active",
+		"Doctor should detect shell integration is active when XDG_BIN_HOME is in PATH")
+	helpers.AssertStringContains(t, stdout, "XDG_BIN_HOME found in PATH",
+		"Doctor should specifically mention XDG_BIN_HOME in PATH")
+}

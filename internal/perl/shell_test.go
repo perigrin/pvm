@@ -166,9 +166,9 @@ func TestGenerateShellScript(t *testing.T) {
 			if !strings.Contains(script, data.PVMPath) {
 				t.Errorf("Fish script does not contain PVM path")
 			}
-			// Fish template also uses ShimsDir directly
-			if !strings.Contains(script, data.ShimsDir) {
-				t.Errorf("Fish script does not contain shims directory")
+			// Fish template uses XDG_BIN_HOME for tool shims (no longer uses deprecated ShimsDir)
+			if !strings.Contains(script, "XDG_BIN_HOME") {
+				t.Errorf("Fish script does not contain XDG_BIN_HOME integration")
 			}
 		case ShellPowerShell, ShellCmd:
 			// PowerShell and CMD templates are not currently implemented (empty by design)

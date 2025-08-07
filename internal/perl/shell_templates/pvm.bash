@@ -35,15 +35,17 @@ _pvm_executable() {
 
 # Function to update PATH with current Perl version
 _pvm_update_perl_path() {
+    local xdg_bin_home="${XDG_BIN_HOME:-$HOME/.local/bin}"
     local xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
     local pvm_exec="$(_pvm_executable)"
     if [ $? -ne 0 ]; then
         return 1
     fi
-    
+
     # FIRST: Always clean up existing pvm perl paths from PATH
     local clean_path=""
-    
+    local found_xdg_bin_home=false
+
     # Split PATH manually to avoid issues with set command
     local remaining_path="$PATH"
     while [ -n "$remaining_path" ]; do
@@ -55,16 +57,21 @@ _pvm_update_perl_path() {
             path_entry="$remaining_path"
             remaining_path=""
         fi
-        
+
         # Skip empty entries (can happen with double colons)
         [ -z "$path_entry" ] && continue
-        
+
+        # Track if we found XDG_BIN_HOME in existing PATH
+        if [ "$path_entry" = "$xdg_bin_home" ]; then
+            found_xdg_bin_home=true
+        fi
+
         case "$path_entry" in
             */pvm/versions/*/bin)
                 # Skip existing pvm perl paths - we'll replace them
                 ;;
             *)
-                # Keep all other paths
+                # Keep all other paths (including XDG_BIN_HOME)
                 if [ -z "$clean_path" ]; then
                     clean_path="$path_entry"
                 else
@@ -73,13 +80,23 @@ _pvm_update_perl_path() {
                 ;;
         esac
     done
-    
-    # SECOND: Set clean PATH temporarily so PVM resolver doesn't see old perl
+
+    # SECOND: Ensure XDG_BIN_HOME is at the front of clean_path
+    if [ "$found_xdg_bin_home" = false ]; then
+        # XDG_BIN_HOME wasn't in PATH, add it to the front
+        if [ -z "$clean_path" ]; then
+            clean_path="$xdg_bin_home"
+        else
+            clean_path="$xdg_bin_home:$clean_path"
+        fi
+    fi
+
+    # THIRD: Set clean PATH temporarily so PVM resolver doesn't see old perl
     export PATH="$clean_path"
-    
-    # THIRD: Now ask PVM what version should be active (in clean environment)
+
+    # FOURTH: Now ask PVM what version should be active (in clean environment)
     local current_version="$("$pvm_exec" current --bare 2>/dev/null)"
-    
+
     # Add the current version's bin path if we have a version
     if [ -n "$current_version" ] && [ "$current_version" != "system" ]; then
         local new_perl_bin="$xdg_data_home/pvm/versions/$current_version/bin"
@@ -99,13 +116,13 @@ pvm_init() {
     # Get XDG directories for the two-tier PATH system
     local xdg_bin_home="${XDG_BIN_HOME:-$HOME/.local/bin}"
     local xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-    
+
     # Add XDG_BIN_HOME to PATH (for pvm tool install shims)
     case ":${PATH}:" in
         *":${xdg_bin_home}:"*) ;;
         *) export PATH="${xdg_bin_home}:${PATH}" ;;
     esac
-    
+
     # Add current Perl bin directory to PATH (for perl, cpan, prove, etc.)
     _pvm_update_perl_path
 
@@ -148,10 +165,10 @@ pvm_init() {
     # Function to run custom commands upon directory change
     pvm_cd() {
         \cd "$@" || return $?
-        
+
         # Update PATH to reflect current directory's Perl version
         _pvm_update_perl_path
-        
+
         # Show current Perl version after directory change (if enabled in config)
         local pvm_exec="$(_pvm_executable)"
         if [ $? -eq 0 ]; then
@@ -171,7 +188,7 @@ pvm_init() {
         pvm_chpwd() {
             # Update PATH to reflect current directory's Perl version
             _pvm_update_perl_path
-            
+
             # Show current Perl version after directory change (if enabled in config)
             local pvm_exec="$(_pvm_executable)"
             if [ $? -eq 0 ]; then
