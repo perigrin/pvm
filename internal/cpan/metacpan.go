@@ -366,14 +366,20 @@ func (p *MetaCPANProvider) GetModuleInfo(ctx context.Context, moduleName string)
 		}
 	}
 
-	// Fallback to distribution name if no modules found
+	// Fallback to original requested module name if no modules found
 	if actualModuleName == "" {
-		actualModuleName = module.Distribution
+		actualModuleName = moduleName
 	}
 
 	// Use distribution version if module version is empty
 	if actualModuleVersion == "" {
 		actualModuleVersion = module.Version
+	}
+
+	// ADDITIONAL SAFEGUARD: Ensure we never return distribution name as module name
+	// If the actualModuleName is a distribution name (contains -), use the original requested name
+	if strings.Contains(actualModuleName, "-") && !strings.Contains(moduleName, "-") {
+		actualModuleName = moduleName
 	}
 
 	// Convert to a generic ModuleInfo

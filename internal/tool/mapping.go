@@ -285,7 +285,7 @@ func GetBuiltinMappings() map[string]string {
 		"ack":         "App::Ack",
 		"cpanm":       "App::cpanminus",
 		"prove":       "Test::Harness",
-		"perltidy":    "Perl-Tidy",
+		"perltidy":    "Perl::Tidy",
 		"perlcritic":  "Perl::Critic",
 		"fatpack":     "App::FatPacker",
 		"plackup":     "Plack",

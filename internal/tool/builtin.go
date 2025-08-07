@@ -18,7 +18,7 @@ var BuiltinMappings = map[string]ToolMappingInfo{
 		Executable:  "perlcritic",
 	},
 	"perltidy": {
-		Module:      "Perl-Tidy",
+		Module:      "Perl::Tidy",
 		Description: "Indent and reformat Perl scripts",
 		Category:    "formatting",
 		Executable:  "perltidy",
