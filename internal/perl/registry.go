@@ -151,11 +151,13 @@ func saveRegistryFunc(registry *VersionRegistry) error {
 		return err
 	}
 
-	// If using a custom registry path, ensure the directory exists
-	registryDir := filepath.Dir(registryPath)
-	if err := os.MkdirAll(registryDir, 0755); err != nil {
-		return errors.NewSystemError("002",
-			"Failed to create registry directory", err)
+	// If using a custom registry path (not XDG), ensure the directory exists
+	if customPath := os.Getenv("PVM_PERL_REGISTRY"); customPath != "" {
+		registryDir := filepath.Dir(registryPath)
+		if err := os.MkdirAll(registryDir, 0755); err != nil {
+			return errors.NewSystemError("002",
+				"Failed to create registry directory", err)
+		}
 	}
 
 	// Convert registry to JSON
