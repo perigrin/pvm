@@ -11,7 +11,9 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/cpan"
+	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/project"
+	"tamarou.com/pvm/internal/xdg"
 )
 
 // Test helper functions for module installer testing
@@ -159,7 +161,7 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 			name:           "No project context",
 			projectContext: nil,
 			forceGlobal:    false,
-			expectedInPath: "perl/modules", // Should use XDG data directory
+			expectedInPath: "library", // Should use version-specific XDG data directory
 			expectedType:   "global",
 		},
 		{
@@ -181,7 +183,7 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 				LocalLibDir: "/tmp/test-project/local", // Set LocalLibDir field
 			},
 			forceGlobal:    true,
-			expectedInPath: "perl/modules", // Should use global despite project context
+			expectedInPath: "library", // Should use version-specific global despite project context
 			expectedType:   "global",
 		},
 		{
@@ -191,7 +193,7 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 				RootDir:   "",
 			},
 			forceGlobal:    false,
-			expectedInPath: "perl/modules", // Should use global
+			expectedInPath: "library", // Should use version-specific global
 			expectedType:   "global",
 		},
 	}
@@ -204,6 +206,7 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 			// Create test options
 			options := &ModuleInstallOptions{
 				ModuleName:     "Test::Module",
+				PerlPath:       "/usr/bin/perl", // Use system perl for consistent testing
 				ProjectContext: tt.projectContext,
 				ForceGlobal:    tt.forceGlobal,
 			}
@@ -230,7 +233,7 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 				if !filepath.IsAbs(installDir) {
 					t.Errorf("Expected absolute path for install dir, got %s", installDir)
 				}
-				if !strings.HasSuffix(installDir, tt.expectedInPath) {
+				if !strings.Contains(installDir, tt.expectedInPath) {
 					t.Errorf("Expected install dir to contain %s, got %s", tt.expectedInPath, installDir)
 				}
 			}
@@ -284,6 +287,7 @@ func TestSetupIsolationEnvironment_PERL5LIB_Preservation(t *testing.T) {
 
 	options := &ModuleInstallOptions{
 		ModuleName: "Test::Module",
+		PerlPath:   "/usr/bin/perl", // Use system perl for consistent testing
 	}
 
 	_, envVars, err := setupIsolationEnvironment(options)
@@ -364,4 +368,198 @@ func containsPath(pathList, targetPath string) bool {
 		}
 	}
 	return false
+}
+
+// TestGetVersionSpecificInstallDir tests version-specific directory creation
+func TestGetVersionSpecificInstallDir(t *testing.T) {
+	// Test the function with the system's actual perl if available
+	// This is more realistic than mocking
+
+	// First, check if we have a perl binary available for testing
+	perlPath, err := perl.GetCurrentPerlPath()
+	if err != nil {
+		t.Skip("No perl binary available for testing")
+	}
+
+	// Create temporary XDG directories
+	tempDir := t.TempDir()
+
+	// Create a proper XDG dirs struct for testing
+	xdgDirs := &xdg.Dirs{
+		DataDir: tempDir,
+	}
+
+	// Call the function with the actual perl path
+	installDir, err := getVersionSpecificInstallDir(perlPath, xdgDirs)
+	if err != nil {
+		t.Fatalf("getVersionSpecificInstallDir failed: %v", err)
+	}
+
+	// Check that the directory contains the expected components
+	if !strings.Contains(installDir, "library") {
+		t.Errorf("Expected install dir to contain 'library', got %s", installDir)
+	}
+
+	// Check that it's within our temp directory
+	if !strings.HasPrefix(installDir, tempDir) {
+		t.Errorf("Expected install dir to be within temp dir %s, got %s", tempDir, installDir)
+	}
+
+	// Verify the directory structure follows the expected pattern
+	// Should be {tempDir}/library/{version} or {tempDir}/library/system
+	if !strings.HasPrefix(installDir, filepath.Join(tempDir, "library")) {
+		t.Errorf("Expected install dir to be under library directory, got %s", installDir)
+	}
+
+	// Check that it ends with either 'system' or a version-like string
+	baseName := filepath.Base(installDir)
+	if baseName != "system" && !strings.Contains(baseName, ".") {
+		t.Errorf("Expected directory name to be 'system' or contain version dots, got %s", baseName)
+	}
+}
+
+// TestIsSystemPerlPath tests system Perl path detection
+func TestIsSystemPerlPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		perlPath string
+		isSystem bool
+	}{
+		{
+			name:     "Standard system Perl",
+			perlPath: "/usr/bin/perl",
+			isSystem: true,
+		},
+		{
+			name:     "Local system Perl",
+			perlPath: "/usr/local/bin/perl",
+			isSystem: true,
+		},
+		{
+			name:     "Bin Perl",
+			perlPath: "/bin/perl",
+			isSystem: true,
+		},
+		{
+			name:     "Opt Perl",
+			perlPath: "/opt/perl/bin/perl",
+			isSystem: true,
+		},
+		{
+			name:     "PVM managed Perl",
+			perlPath: "/home/user/.local/share/pvm/versions/5.38.0/bin/perl",
+			isSystem: false,
+		},
+		{
+			name:     "Plenv Perl",
+			perlPath: "/home/user/.plenv/versions/5.34.0/bin/perl",
+			isSystem: false,
+		},
+		{
+			name:     "Custom Perl",
+			perlPath: "/home/user/custom-perl/bin/perl",
+			isSystem: false,
+		},
+		{
+			name:     "Homebrew Perl",
+			perlPath: "/opt/homebrew/bin/perl",
+			isSystem: true, // Still considered system as it's in /opt/
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isSystemPerlPath(tt.perlPath)
+			if result != tt.isSystem {
+				t.Errorf("Expected isSystemPerlPath(%s) = %v, got %v", tt.perlPath, tt.isSystem, result)
+			}
+		})
+	}
+}
+
+// TestVersionSpecificInstallationIntegration tests the full integration of version-specific installation
+func TestVersionSpecificInstallationIntegration(t *testing.T) {
+	// Check if we have perl available for testing
+	perlPath, err := perl.GetCurrentPerlPath()
+	if err != nil {
+		t.Skip("No perl binary available for testing")
+	}
+
+	// Save original function variables for restoration
+	origDownloadModule := DownloadModule
+	origExtractModuleArchive := ExtractModuleArchive
+	origBuildAndInstallModule := BuildAndInstallModule
+
+	// Restore original functions after test
+	defer func() {
+		DownloadModule = origDownloadModule
+		ExtractModuleArchive = origExtractModuleArchive
+		BuildAndInstallModule = origBuildAndInstallModule
+	}()
+
+	// Mock functions for controlled testing
+	DownloadModule = func(options *DownloadOptions) (*DownloadResult, error) {
+		return &DownloadResult{
+			Path:       "/tmp/test-module.tar.gz",
+			ModuleName: "Test::Module",
+			Version:    "1.0.0",
+			Size:       12345,
+		}, nil
+	}
+
+	ExtractModuleArchive = func(archivePath, targetDir string, ctx context.Context) (*ExtractionResult, error) {
+		return &ExtractionResult{
+			ExtractedDir: "/tmp/extracted/Test-Module-1.0.0",
+			ModuleName:   "Test::Module",
+			ArchivePath:  archivePath,
+			Distribution: "Test-Module-1.0.0",
+		}, nil
+	}
+
+	BuildAndInstallModule = func(options *ModuleBuildOptions) (*ModuleBuildResult, error) {
+		return &ModuleBuildResult{
+			ModuleName:   "Test::Module",
+			Distribution: "Test-Module-1.0.0",
+			Success:      true,
+			Installed:    true,
+			Warnings:     []string{},
+			Errors:       []string{},
+		}, nil
+	}
+
+	// Create a mock provider
+	mockProvider := createMockProvider()
+
+	// Create install options with the available Perl path and force global to test version-specific directories
+	options := &ModuleInstallOptions{
+		ModuleName:       "Test::Module",
+		PerlPath:         perlPath,
+		Provider:         mockProvider,
+		SkipDependencies: true,
+		Verbose:          false,
+		ForceGlobal:      true, // Force global installation to test version-specific directories
+	}
+
+	// Execute installation
+	result, err := InstallModule(options)
+
+	// Verify results
+	if err != nil {
+		t.Fatalf("InstallModule should not return error: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Installation should be successful, errors: %v", result.Errors)
+	}
+
+	// Check that the install path contains the version-specific directory structure
+	if !strings.Contains(result.InstallPath, "library") {
+		t.Errorf("Expected install path to contain 'library', got %s", result.InstallPath)
+	}
+
+	// The directory should have the version-specific structure
+	if !strings.HasPrefix(result.InstallPath, os.Getenv("HOME")) && !strings.HasPrefix(result.InstallPath, "/tmp") {
+		// Should be an absolute path in user's home or temp directory for testing
+		t.Logf("Install path: %s (this is expected to be in user data or temp directory)", result.InstallPath)
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"tamarou.com/pvm/internal/cpan"
@@ -147,6 +148,66 @@ type ModuleInstallResult struct {
 	Duration time.Duration
 }
 
+// getVersionSpecificInstallDir returns the version-specific installation directory
+func getVersionSpecificInstallDir(perlPath string, dirs *xdg.Dirs) (string, error) {
+	// Ensure we have a Perl path
+	if perlPath == "" {
+		var err error
+		perlPath, err = perl.GetCurrentPerlPath()
+		if err != nil {
+			return "", errors.NewSystemError("007",
+				"Failed to determine current Perl path", err)
+		}
+	}
+
+	// Get the version from the Perl executable
+	versionStr, err := perl.GetSystemPerlVersion(perlPath)
+	if err != nil {
+		return "", errors.NewSystemError("005",
+			"Failed to determine Perl version", err)
+	}
+
+	// Clean up the version string and handle special cases
+	version := strings.TrimSpace(versionStr)
+
+	// Handle system Perl detection - if the path contains /usr/bin/perl or similar system locations
+	// we'll use "system" as the version identifier to avoid conflicts with managed versions
+	if isSystemPerlPath(perlPath) {
+		version = "system"
+		log.Infof("Detected system Perl, using 'system' as version identifier")
+	} else {
+		log.Infof("Using Perl version %s for module directory", version)
+	}
+
+	// Create version-specific directory following the proposed structure:
+	// ~/.local/share/pvm/library/{version}/
+	installDir := filepath.Join(dirs.DataDir, "library", version)
+
+	return installDir, nil
+}
+
+// isSystemPerlPath determines if the given Perl path is a system Perl installation
+func isSystemPerlPath(perlPath string) bool {
+	// Common system Perl locations
+	systemPaths := []string{
+		"/usr/bin/perl",
+		"/usr/local/bin/perl",
+		"/bin/perl",
+		"/opt/perl/bin/perl",
+	}
+
+	for _, sysPath := range systemPaths {
+		if perlPath == sysPath {
+			return true
+		}
+	}
+
+	// Also check if it's in typical system directories
+	return strings.HasPrefix(perlPath, "/usr/") ||
+		strings.HasPrefix(perlPath, "/bin/") ||
+		strings.HasPrefix(perlPath, "/opt/")
+}
+
 // setupIsolationEnvironment creates a local::lib isolation environment for module installation
 func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[string]string, error) {
 
@@ -159,16 +220,21 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 			installDir = options.ProjectContext.LocalLibDir
 			log.Infof("Using project installation directory: %s", installDir)
 		} else {
-			// Use XDG data directory for user-space installation
+			// Use XDG data directory for version-specific installation
 			dirs, err := xdg.GetDirs()
 			if err != nil {
 				return "", nil, errors.NewSystemError("001",
 					"Failed to determine XDG directories", err)
 			}
 
-			// Create perl modules directory in XDG data directory
-			installDir = filepath.Join(dirs.DataDir, "perl", "modules")
-			log.Infof("Using default installation directory: %s", installDir)
+			// Create version-specific perl modules directory in XDG data directory
+			// This follows the new structure: ~/.local/share/pvm/library/{version}/
+			installDir, err = getVersionSpecificInstallDir(options.PerlPath, dirs)
+			if err != nil {
+				return "", nil, errors.NewSystemError("006",
+					"Failed to determine version-specific installation directory", err)
+			}
+			log.Infof("Using version-specific installation directory: %s", installDir)
 		}
 	}
 
