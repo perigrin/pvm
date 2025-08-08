@@ -5,6 +5,7 @@ package cli
 
 import (
 	"os"
+	"strings"
 
 	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/errors"
@@ -183,4 +184,67 @@ func FormatError(err error) string {
 	// Use the errors package formatter for consistent formatting
 	formatter := errors.NewErrorFormatter(true, Verbose) // Enable color and use verbose based on flag
 	return formatter.Format(err)
+}
+
+// DisplayEnhancedError displays an enhanced error using the provided UI output
+// This is used by commands that want to show detailed error information
+func DisplayEnhancedError(output *ui.Output, err *errors.EnhancedError) {
+	// Display the main error with appropriate styling
+	switch err.Severity() {
+	case errors.SeverityInfo:
+		output.Info("%s-%s: %s", err.Prefix(), err.Code(), err.Message())
+	case errors.SeverityWarning:
+		output.Warning("%s-%s: %s", err.Prefix(), err.Code(), err.Message())
+	case errors.SeverityError, errors.SeverityCritical:
+		output.Error("%s-%s: %s", err.Prefix(), err.Code(), err.Message())
+	default:
+		output.Error("%s-%s: %s", err.Prefix(), err.Code(), err.Message())
+	}
+
+	output.Printf("")
+
+	// Display context information if available
+	if context := err.Context(); len(context) > 0 {
+		if cmdName, ok := context["command"].(string); ok {
+			output.Printf("Command: %s", cmdName)
+		}
+		if desc, ok := context["description"].(string); ok {
+			output.Printf("Issue: %s", desc)
+		}
+		if shell, ok := context["detected_shell"].(string); ok {
+			output.Printf("Detected shell: %s", shell)
+		}
+		if conflicts, ok := context["detected_conflicts"].([]string); ok && len(conflicts) > 0 {
+			output.Printf("Conflicting version managers: %v", conflicts)
+		}
+		output.Printf("")
+	}
+
+	// Display recovery actions with clear formatting
+	if actions := err.RecoveryActions(); len(actions) > 0 {
+		output.Info("To fix this issue:")
+		for i, action := range actions {
+			// Skip numbered actions for examples
+			if strings.HasPrefix(action, "Examples") {
+				output.Printf("")
+				output.Info("%s", action)
+				continue
+			}
+			// Format action items nicely
+			if strings.HasPrefix(action, "  ") {
+				// This is an example or sub-item, show it indented
+				output.Printf("%s", action)
+			} else {
+				// This is a main action item, number it
+				output.Printf("%d. %s", i+1, action)
+			}
+		}
+		output.Printf("")
+	}
+
+	// Display hint if available
+	if hint := err.Hint(); hint != "" {
+		output.Info("Hint: %s", hint)
+		output.Printf("")
+	}
 }
