@@ -75,12 +75,22 @@ func (cm *CpanfileManager) AddDependency(moduleName, versionConstraint string, i
 	// Read existing cpanfile if it exists
 	var cpanfile *cpan.CPANFile
 
-	// Always create a minimal cpanfile with just the new dependency
-	// The existing dependencies will be preserved by the file processing logic
-	cpanfile = &cpan.CPANFile{
-		Requirements: []cpan.Requirement{},
-		Features:     make(map[string][]cpan.Requirement),
-		Platforms:    make(map[string][]cpan.Requirement),
+	if fileExists(cm.Path) {
+		content, err := os.ReadFile(cm.Path)
+		if err != nil {
+			return fmt.Errorf("failed to read cpanfile: %w", err)
+		}
+		cpanfile, err = cpan.ParseCPANFile(string(content))
+		if err != nil {
+			return fmt.Errorf("failed to parse cpanfile: %w", err)
+		}
+	} else {
+		// Create new cpanfile
+		cpanfile = &cpan.CPANFile{
+			Requirements: []cpan.Requirement{},
+			Features:     make(map[string][]cpan.Requirement),
+			Platforms:    make(map[string][]cpan.Requirement),
+		}
 	}
 
 	// Determine phase
@@ -97,6 +107,15 @@ func (cm *CpanfileManager) AddDependency(moduleName, versionConstraint string, i
 		Version:      versionConstraint,
 		Phase:        phase,
 		Relationship: "requires",
+	}
+
+	// Check if dependency already exists
+	for i, existingReq := range cpanfile.Requirements {
+		if existingReq.Module == moduleName && existingReq.Phase == phase {
+			// Update existing dependency
+			cpanfile.Requirements[i] = req
+			return cm.writeCpanfile(cpanfile)
+		}
 	}
 
 	// Add the new requirement
@@ -321,12 +340,9 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 				newLine += ";"
 				output = append(output, newLine)
 				processed[newReq.Module] = true
-			} else {
-				// Keep existing dependency as-is
-				output = append(output, line)
-				// Mark this module as processed to avoid duplication
-				processed[moduleName] = true
 			}
+			// If newReq is nil, the dependency was removed, so skip this line
+			// (don't add it to output)
 
 			// If this was a perl version requirement and we haven't inserted new deps yet,
 			// insert any new runtime dependencies right after it

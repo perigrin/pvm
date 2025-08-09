@@ -71,7 +71,7 @@ func (bm *BackupManager) BackupCpanfile(cpanfilePath string) error {
 
 // createLocalBackup creates a backup in the same directory as the cpanfile
 func (bm *BackupManager) createLocalBackup(cpanfilePath string) error {
-	timestamp := time.Now().Format("20060102150405")
+	timestamp := time.Now().Format("20060102150405.000")
 	backupPath := cpanfilePath + ".backup." + timestamp
 
 	if err := copyFile(cpanfilePath, backupPath); err != nil {
@@ -100,7 +100,7 @@ func (bm *BackupManager) createCacheBackup(cpanfilePath string) error {
 	}
 
 	// Create backup with timestamp
-	timestamp := time.Now().Format("20060102150405")
+	timestamp := time.Now().Format("20060102150405.000")
 	backupPath := filepath.Join(cacheDir, "cpanfile.backup."+timestamp)
 
 	if err := copyFile(cpanfilePath, backupPath); err != nil {
