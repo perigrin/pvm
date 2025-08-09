@@ -6,7 +6,7 @@ The PVM Ecosystem provides a comprehensive suite of tools for Perl development w
 
 - **PVM (Perl Version Manager)** - Manages Perl installations and versions
 - **PSC (Perl Script Compiler)** - Static type checker with enhanced LSP and symbol-aware features
-- **PVI (Perl Version Installer)** - Module installer with type-aware dependency management
+- **PVI (Perl Version Installer)** - Module installer with type-aware dependency management and configurable cpanfile backup
 - **PVX (Perl Version eXecutor)** - Isolated script execution with dependency resolution
 
 ## 🔧 Installation
