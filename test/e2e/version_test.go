@@ -19,8 +19,8 @@ func TestVersionCommand(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Test version command
-	stdout := helpers.AssertPVMSucceeds(t, env, []string{"version", "--pvm"}, "PVM version command failed")
+	// Test version command (now shows PVM version by default)
+	stdout := helpers.AssertPVMSucceeds(t, env, []string{"version"}, "PVM version command failed")
 	helpers.AssertStringContains(t, stdout, "pvm", "Version output does not contain version information")
 }
 
