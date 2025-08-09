@@ -321,6 +321,22 @@ type PVIConfig struct {
 
 	// DisableNetwork specifies whether to disable network access (for testing)
 	DisableNetwork bool `toml:"disable_network" json:"disable_network"`
+
+	// Backup configuration for cpanfile operations
+	Backup *PVIBackupConfig `toml:"backup" json:"backup"`
+}
+
+// PVIBackupConfig represents backup configuration for cpanfile operations
+type PVIBackupConfig struct {
+	// CpanfileBackup specifies the backup mode for cpanfile operations
+	// Valid values: "off", "local", "cache"
+	CpanfileBackup string `toml:"cpanfile_backup" json:"cpanfile_backup"`
+
+	// RetentionDays specifies how many days to keep backups before cleanup
+	RetentionDays int `toml:"retention_days" json:"retention_days"`
+
+	// MaxBackups specifies the maximum number of backups to keep per project
+	MaxBackups int `toml:"max_backups" json:"max_backups"`
 }
 
 // PSCConfig represents configuration for the Perl Script Compiler
@@ -677,6 +693,11 @@ func NewDefaultConfig() *Config {
 			CacheModules:       true,
 			CheckSignatures:    true,
 			DisableNetwork:     false,
+			Backup: &PVIBackupConfig{
+				CpanfileBackup: "off", // Default to no backups to avoid directory clutter
+				RetentionDays:  30,    // Clean up backups after 30 days
+				MaxBackups:     10,    // Limit backup storage usage
+			},
 		},
 		PSC: &PSCConfig{
 			TypeDefinitionsPath:  "$XDG_DATA_HOME/pvm/type_definitions",
@@ -1020,6 +1041,39 @@ func (c *PVIConfig) Validate() []error {
 	// Validate CacheTTL
 	if c.CacheTTL < 0 {
 		errors = append(errors, ValidateError("CacheTTL cannot be negative"))
+	}
+
+	// Validate Backup configuration
+	if c.Backup != nil {
+		errors = append(errors, c.Backup.Validate()...)
+	}
+
+	return errors
+}
+
+// Validate checks if the PVIBackup configuration is valid
+func (c *PVIBackupConfig) Validate() []error {
+	var errors []error
+
+	// Validate CpanfileBackup mode
+	validModes := map[string]bool{
+		"off":   true,
+		"local": true,
+		"cache": true,
+	}
+
+	if c.CpanfileBackup != "" && !validModes[c.CpanfileBackup] {
+		errors = append(errors, ValidateError("CpanfileBackup must be one of: off, local, cache"))
+	}
+
+	// Validate RetentionDays
+	if c.RetentionDays < 0 {
+		errors = append(errors, ValidateError("RetentionDays cannot be negative"))
+	}
+
+	// Validate MaxBackups
+	if c.MaxBackups < 0 {
+		errors = append(errors, ValidateError("MaxBackups cannot be negative"))
 	}
 
 	return errors

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -842,6 +843,7 @@ func newAddCommand() *cobra.Command {
 		version string
 		verbose bool
 		force   bool
+		backup  string
 	)
 
 	cmd := &cobra.Command{
@@ -863,9 +865,33 @@ func newAddCommand() *cobra.Command {
 				return fmt.Errorf("not in a project directory. Use 'pvm workspace init' to create a project")
 			}
 
+			// Load configuration
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
 			// Set up cpanfile path
 			cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
-			cpanfileManager := NewCpanfileManager(cpanfilePath)
+
+			// Create cpanfile manager with backup configuration
+			logger := log.New(os.Stderr, "[PVI] ", log.LstdFlags)
+			var backupConfig *config.PVIBackupConfig
+			if cfg.PVI != nil && cfg.PVI.Backup != nil {
+				backupConfig = cfg.PVI.Backup
+			}
+
+			cpanfileManager, err := NewCpanfileManagerWithConfig(cpanfilePath, backupConfig, logger)
+			if err != nil {
+				return fmt.Errorf("failed to create cpanfile manager: %w", err)
+			}
+
+			// Override backup mode if --backup flag is provided
+			if backup != "" {
+				if err := cpanfileManager.SetBackupMode(backup); err != nil {
+					return fmt.Errorf("invalid backup mode: %w", err)
+				}
+			}
 
 			// Validate mutually exclusive flags
 			if dev && test {
@@ -896,11 +922,7 @@ func newAddCommand() *cobra.Command {
 			// Now install the module to project lib directory
 			ui.Info("Installing %s to project lib directory...", moduleName)
 
-			// Load configuration and create provider/resolver
-			cfg, err := config.LoadEffectiveConfig()
-			if err != nil {
-				return err
-			}
+			// Create provider/resolver (config already loaded above)
 
 			result, err := NewProviderBuilder().
 				WithConfig(cfg).
@@ -986,6 +1008,7 @@ func newAddCommand() *cobra.Command {
 	cmd.Flags().StringVar(&version, "version", "", "Version constraint (e.g., '>= 1.0', '~1.2.3')")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force installation even if tests fail")
+	cmd.Flags().StringVar(&backup, "backup", "", "Override backup mode for this operation (off, local, cache)")
 
 	return cmd
 }
@@ -1046,8 +1069,25 @@ func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, ve
 
 	ui.Info("Generating cpanfile.snapshot from installed modules...")
 
-	// Create cpanfile manager
-	cpanfileManager := NewCpanfileManager(cpanfilePath)
+	// Load configuration
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		// Continue with no backup config if config loading fails
+		cfg = config.NewDefaultConfig()
+	}
+
+	// Create cpanfile manager with backup configuration
+	logger := log.New(os.Stderr, "[PVI] ", log.LstdFlags)
+	var backupConfig *config.PVIBackupConfig
+	if cfg.PVI != nil && cfg.PVI.Backup != nil {
+		backupConfig = cfg.PVI.Backup
+	}
+
+	cpanfileManager, err := NewCpanfileManagerWithConfig(cpanfilePath, backupConfig, logger)
+	if err != nil {
+		// Fallback to basic manager if config fails
+		cpanfileManager = NewCpanfileManager(cpanfilePath)
+	}
 
 	// Generate snapshot
 	snapshot, err := cpanfileManager.GenerateSnapshot()
@@ -1101,8 +1141,25 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 
 	ui.Info("Installing modules from cpanfile.snapshot...")
 
-	// Create cpanfile manager
-	cpanfileManager := NewCpanfileManager(cpanfilePath)
+	// Load configuration
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		// Continue with no backup config if config loading fails
+		cfg = config.NewDefaultConfig()
+	}
+
+	// Create cpanfile manager with backup configuration
+	logger := log.New(os.Stderr, "[PVI] ", log.LstdFlags)
+	var backupConfig *config.PVIBackupConfig
+	if cfg.PVI != nil && cfg.PVI.Backup != nil {
+		backupConfig = cfg.PVI.Backup
+	}
+
+	cpanfileManager, err := NewCpanfileManagerWithConfig(cpanfilePath, backupConfig, logger)
+	if err != nil {
+		// Fallback to basic manager if config fails
+		cpanfileManager = NewCpanfileManager(cpanfilePath)
+	}
 
 	// Read snapshot
 	snapshot, err := cpanfileManager.ReadSnapshot()
@@ -1413,8 +1470,27 @@ func resolveModuleNames(args []string, includeDev bool) ([]string, error) {
 		return nil, fmt.Errorf("no modules specified and no cpanfile found in project. Use 'pvm module add <module>' to add dependencies")
 	}
 
+	// Load configuration for cpanfile manager
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		// Continue with basic manager if config loading fails
+		cfg = config.NewDefaultConfig()
+	}
+
+	// Create cpanfile manager with backup configuration
+	logger := log.New(os.Stderr, "[PVI] ", log.LstdFlags)
+	var backupConfig *config.PVIBackupConfig
+	if cfg.PVI != nil && cfg.PVI.Backup != nil {
+		backupConfig = cfg.PVI.Backup
+	}
+
+	cpanfileManager, err := NewCpanfileManagerWithConfig(cpanfilePath, backupConfig, logger)
+	if err != nil {
+		// Fallback to basic manager if config fails
+		cpanfileManager = NewCpanfileManager(cpanfilePath)
+	}
+
 	// Read cpanfile and extract module names
-	cpanfileManager := NewCpanfileManager(cpanfilePath)
 	cpanfile, err := cpanfileManager.ListDependencies()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read cpanfile: %w", err)

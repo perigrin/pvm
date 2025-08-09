@@ -5,23 +5,69 @@ package pvi
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
 )
 
 // CpanfileManager handles cpanfile operations
 type CpanfileManager struct {
-	Path string
+	Path          string
+	backupManager *BackupManager
+	logger        *log.Logger
 }
 
 // NewCpanfileManager creates a new cpanfile manager for the given path
 func NewCpanfileManager(path string) *CpanfileManager {
-	return &CpanfileManager{Path: path}
+	return &CpanfileManager{
+		Path:          path,
+		backupManager: nil,
+		logger:        log.New(os.Stderr, "[PVI] ", log.LstdFlags),
+	}
+}
+
+// NewCpanfileManagerWithConfig creates a new cpanfile manager with backup configuration
+func NewCpanfileManagerWithConfig(path string, backupConfig *config.PVIBackupConfig, logger *log.Logger) (*CpanfileManager, error) {
+	if logger == nil {
+		logger = log.New(os.Stderr, "[PVI] ", log.LstdFlags)
+	}
+
+	var backupManager *BackupManager
+	if backupConfig != nil {
+		bm, err := NewBackupManager(backupConfig, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create backup manager: %w", err)
+		}
+		backupManager = bm
+	}
+
+	return &CpanfileManager{
+		Path:          path,
+		backupManager: backupManager,
+		logger:        logger,
+	}, nil
+}
+
+// SetBackupMode temporarily overrides the backup mode (for CLI flag support)
+func (cm *CpanfileManager) SetBackupMode(mode string) error {
+	if cm.backupManager != nil {
+		return cm.backupManager.SetBackupMode(mode)
+	}
+	return fmt.Errorf("backup manager not initialized")
+}
+
+// GetBackupMode returns the current backup mode
+func (cm *CpanfileManager) GetBackupMode() string {
+	if cm.backupManager != nil {
+		return cm.backupManager.GetBackupMode()
+	}
+	return "off"
 }
 
 // AddDependency adds a new dependency to the cpanfile
@@ -131,6 +177,14 @@ func (cm *CpanfileManager) removeDependencyFromList(reqs *[]cpan.Requirement, mo
 
 // writeCpanfile writes a CPANFile structure back to the cpanfile
 func (cm *CpanfileManager) writeCpanfile(cpanfile *cpan.CPANFile) error {
+	// Create backup before making changes
+	if cm.backupManager != nil {
+		if err := cm.backupManager.BackupCpanfile(cm.Path); err != nil {
+			cm.logger.Printf("Warning: failed to create backup: %v", err)
+			// Continue with the operation - backup failure shouldn't block cpanfile updates
+		}
+	}
+
 	// Ensure the directory exists
 	dir := filepath.Dir(cm.Path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
