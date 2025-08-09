@@ -5,23 +5,69 @@ package pvi
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
 )
 
 // CpanfileManager handles cpanfile operations
 type CpanfileManager struct {
-	Path string
+	Path          string
+	backupManager *BackupManager
+	logger        *log.Logger
 }
 
 // NewCpanfileManager creates a new cpanfile manager for the given path
 func NewCpanfileManager(path string) *CpanfileManager {
-	return &CpanfileManager{Path: path}
+	return &CpanfileManager{
+		Path:          path,
+		backupManager: nil,
+		logger:        log.New(os.Stderr, "[PVI] ", log.LstdFlags),
+	}
+}
+
+// NewCpanfileManagerWithConfig creates a new cpanfile manager with backup configuration
+func NewCpanfileManagerWithConfig(path string, backupConfig *config.PVIBackupConfig, logger *log.Logger) (*CpanfileManager, error) {
+	if logger == nil {
+		logger = log.New(os.Stderr, "[PVI] ", log.LstdFlags)
+	}
+
+	var backupManager *BackupManager
+	if backupConfig != nil {
+		bm, err := NewBackupManager(backupConfig, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create backup manager: %w", err)
+		}
+		backupManager = bm
+	}
+
+	return &CpanfileManager{
+		Path:          path,
+		backupManager: backupManager,
+		logger:        logger,
+	}, nil
+}
+
+// SetBackupMode temporarily overrides the backup mode (for CLI flag support)
+func (cm *CpanfileManager) SetBackupMode(mode string) error {
+	if cm.backupManager != nil {
+		return cm.backupManager.SetBackupMode(mode)
+	}
+	return fmt.Errorf("backup manager not initialized")
+}
+
+// GetBackupMode returns the current backup mode
+func (cm *CpanfileManager) GetBackupMode() string {
+	if cm.backupManager != nil {
+		return cm.backupManager.GetBackupMode()
+	}
+	return "off"
 }
 
 // AddDependency adds a new dependency to the cpanfile
@@ -29,12 +75,22 @@ func (cm *CpanfileManager) AddDependency(moduleName, versionConstraint string, i
 	// Read existing cpanfile if it exists
 	var cpanfile *cpan.CPANFile
 
-	// Always create a minimal cpanfile with just the new dependency
-	// The existing dependencies will be preserved by the file processing logic
-	cpanfile = &cpan.CPANFile{
-		Requirements: []cpan.Requirement{},
-		Features:     make(map[string][]cpan.Requirement),
-		Platforms:    make(map[string][]cpan.Requirement),
+	if fileExists(cm.Path) {
+		content, err := os.ReadFile(cm.Path)
+		if err != nil {
+			return fmt.Errorf("failed to read cpanfile: %w", err)
+		}
+		cpanfile, err = cpan.ParseCPANFile(string(content))
+		if err != nil {
+			return fmt.Errorf("failed to parse cpanfile: %w", err)
+		}
+	} else {
+		// Create new cpanfile
+		cpanfile = &cpan.CPANFile{
+			Requirements: []cpan.Requirement{},
+			Features:     make(map[string][]cpan.Requirement),
+			Platforms:    make(map[string][]cpan.Requirement),
+		}
 	}
 
 	// Determine phase
@@ -51,6 +107,15 @@ func (cm *CpanfileManager) AddDependency(moduleName, versionConstraint string, i
 		Version:      versionConstraint,
 		Phase:        phase,
 		Relationship: "requires",
+	}
+
+	// Check if dependency already exists
+	for i, existingReq := range cpanfile.Requirements {
+		if existingReq.Module == moduleName && existingReq.Phase == phase {
+			// Update existing dependency
+			cpanfile.Requirements[i] = req
+			return cm.writeCpanfile(cpanfile)
+		}
 	}
 
 	// Add the new requirement
@@ -131,6 +196,14 @@ func (cm *CpanfileManager) removeDependencyFromList(reqs *[]cpan.Requirement, mo
 
 // writeCpanfile writes a CPANFile structure back to the cpanfile
 func (cm *CpanfileManager) writeCpanfile(cpanfile *cpan.CPANFile) error {
+	// Create backup before making changes
+	if cm.backupManager != nil {
+		if err := cm.backupManager.BackupCpanfile(cm.Path); err != nil {
+			cm.logger.Printf("Warning: failed to create backup: %v", err)
+			// Continue with the operation - backup failure shouldn't block cpanfile updates
+		}
+	}
+
 	// Ensure the directory exists
 	dir := filepath.Dir(cm.Path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -166,6 +239,15 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 	inTestBlock := false
 	currentBlockIndent := ""
 	newDepsInserted := false
+
+	// Build a map of all modules that exist in the original file to avoid duplicating them
+	modulesInFile := make(map[string]bool)
+	requiresPattern := regexp.MustCompile(`requires\s+['"]([^'"]+)['"]`)
+	for _, line := range lines {
+		if matches := requiresPattern.FindStringSubmatch(line); matches != nil {
+			modulesInFile[matches[1]] = true
+		}
+	}
 
 	// Regular expressions for parsing (handle both single and double quotes)
 	requiresRe := regexp.MustCompile(`^(\s*)requires\s+['"]([^'"]+)['"]`)
@@ -267,18 +349,16 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 				newLine += ";"
 				output = append(output, newLine)
 				processed[newReq.Module] = true
-			} else {
-				// Keep existing dependency as-is
-				output = append(output, line)
-				// Mark this module as processed to avoid duplication
-				processed[moduleName] = true
 			}
+			// If newReq is nil, the dependency was removed, so skip this line
+			// (don't add it to output)
 
 			// If this was a perl version requirement and we haven't inserted new deps yet,
 			// insert any new runtime dependencies right after it
 			if !inDevelopBlock && !inTestBlock && moduleName == "perl" && !newDepsInserted {
+				// Only insert dependencies that don't appear in the original file
 				for _, req := range cpanfile.Requirements {
-					if req.Phase != "develop" && req.Phase != "test" && !processed[req.Module] {
+					if req.Phase != "develop" && req.Phase != "test" && !processed[req.Module] && !modulesInFile[req.Module] {
 						depLine := fmt.Sprintf("requires '%s'", req.Module)
 						if req.Version != "" {
 							depLine += fmt.Sprintf(", '%s'", req.Version)

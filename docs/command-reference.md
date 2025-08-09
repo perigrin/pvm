@@ -466,6 +466,41 @@ pvm dev --test-interval 10 --verbose       # Custom intervals with verbose outpu
 
 ## Module Management
 
+### Cpanfile Backup Management
+
+PVM automatically creates backups of your cpanfile before making changes. This prevents accidental loss of dependency information and allows you to restore previous versions.
+
+**Backup Modes:**
+
+- **off** (default) - No backups are created, minimizing directory clutter
+- **local** - Backups stored in the same directory as cpanfile with timestamped names (e.g., `cpanfile.backup.20250109_143052`)
+- **cache** - Backups stored in XDG cache directory (`~/.cache/pvm/backups/`) organized by project
+
+**Configuration:**
+```toml
+[pvi.backup]
+cpanfile_backup = "off"      # Backup mode: "off", "local", "cache"
+retention_days = 30          # Delete backups older than this (0 = keep all)
+max_backups = 10            # Maximum number of backups to keep (0 = no limit)
+```
+
+**Runtime Override:**
+Use the `--backup` flag with any cpanfile-modifying command to override the configured mode for that operation:
+```bash
+pvm module add DBI --backup local    # Force local backup for this operation
+```
+
+**Backup Storage:**
+
+- **Local backups**: Stored alongside your cpanfile with names like `cpanfile.backup.YYYYMMDD_HHMMSS`
+- **Cache backups**: Stored in `~/.cache/pvm/backups/<project-hash>/` where project-hash isolates different projects
+
+**Automatic Cleanup:**
+Backups are automatically cleaned up based on your retention policy:
+- Old backups beyond `retention_days` are deleted
+- If more than `max_backups` exist, oldest ones are removed first
+- Set either value to 0 to disable that cleanup rule
+
 ### pvm module install
 Install modules with project-aware behavior.
 
@@ -499,12 +534,14 @@ pvm module add [module] [version-spec]
 
 **Options:**
 - `--dev` - Add as development dependency
+- `--backup <mode>` - Override backup mode: "off", "local", "cache"
 
 **Examples:**
 ```bash
 pvm module add DBI                    # Add runtime dependency
 pvm module add Test::More --dev      # Add development dependency
 pvm module add DBI ">=1.643"         # Add with version constraint
+pvm module add DBI --backup local    # Add with forced local backup
 ```
 
 ### pvm module sync
@@ -780,6 +817,11 @@ default_mirror = "https://cpan.metacpan.org"
 test_during_install = false
 cache_modules = true
 check_signatures = true
+
+[pvi.backup]
+cpanfile_backup = "off"            # "off", "local", "cache"
+retention_days = 30                # Backup retention period (0 = no limit)
+max_backups = 10                   # Maximum number of backups (0 = no limit)
 ```
 
 #### [pvx]
