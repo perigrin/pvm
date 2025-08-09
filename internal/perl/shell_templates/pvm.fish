@@ -162,5 +162,5 @@ if test "$PVM_SKIP_NETWORK_CALLS" != "1"
     eval ((_pvm_executable) completion fish 2>/dev/null || true)
 end
 
-# Output message
-echo "PVM environment initialized"
+# Output fortune quote
+echo "{{.FortuneQuote}}"

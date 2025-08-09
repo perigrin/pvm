@@ -6,10 +6,31 @@ package e2e
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/fortune"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
+
+// assertFortuneQuotePresent verifies that the output contains one of the expected fortune quotes
+func assertFortuneQuotePresent(t *testing.T, output, context string) {
+	t.Helper()
+
+	// Get all available fortune quotes
+	allQuotes := fortune.GetAllQuotes()
+
+	// Check if any of the expected quotes is present in the output
+	for _, quote := range allQuotes {
+		if strings.Contains(output, quote) {
+			return // Found a fortune quote, test passes
+		}
+	}
+
+	// If we get here, no fortune quote was found
+	t.Errorf("%s should contain a fortune quote, but none found.\nExpected one of %d quotes, got output: %s",
+		context, len(allQuotes), output)
+}
 
 // TestShellInit tests the shell initialization command
 func TestShellInit(t *testing.T) {
@@ -22,9 +43,8 @@ func TestShellInit(t *testing.T) {
 		t.Fatalf("Shell initialization failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
 
-	// The init command outputs the script to stdout and ends with success message
-	helpers.AssertStringContains(t, stdout, "PVM environment initialized",
-		"Shell init output does not indicate success")
+	// The init command outputs the script to stdout and ends with fortune quote
+	assertFortuneQuotePresent(t, stdout, "Shell init output")
 
 	// Check that the generated script contains expected content
 	helpers.AssertStringContains(t, stdout, "PVM Shell Integration for Bash/Zsh",
@@ -39,8 +59,7 @@ func TestShellInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Shell initialization with bash parameter failed\nError: %v\nStderr: %s", err, stderr)
 	}
-	helpers.AssertStringContains(t, stdout, "PVM environment initialized",
-		"Bash init output does not indicate success")
+	assertFortuneQuotePresent(t, stdout, "Bash init output")
 }
 
 // TestBashIntegration tests bash-specific shell integration
@@ -54,9 +73,8 @@ func TestBashIntegration(t *testing.T) {
 		t.Fatalf("Shell initialization failed\nError: %v\nStderr: %s", err, stderr)
 	}
 
-	// The script should contain success message
-	helpers.AssertStringContains(t, initScript, "PVM environment initialized",
-		"Init script should indicate success")
+	// The script should contain fortune quote
+	assertFortuneQuotePresent(t, initScript, "Init script")
 
 	// Write the generated script to a file for testing
 	bashScript := filepath.Join(env.HomeDir, "pvm_init.sh")
@@ -128,9 +146,8 @@ func TestPerlVersionFileDetection(t *testing.T) {
 		t.Fatalf("Shell initialization failed\nError: %v\nStderr: %s", err, stderr)
 	}
 
-	// The script should contain success message
-	helpers.AssertStringContains(t, initScript, "PVM environment initialized",
-		"Init script should indicate success")
+	// The script should contain fortune quote
+	assertFortuneQuotePresent(t, initScript, "Init script")
 
 	// Write the generated script to a file for testing
 	bashScript := filepath.Join(env.HomeDir, "pvm_init.sh")
@@ -287,9 +304,8 @@ func TestShellConflictDetection(t *testing.T) {
 		t.Fatalf("Shell initialization failed\nError: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
 	}
 
-	// The script should contain success message
-	helpers.AssertStringContains(t, stdout, "PVM environment initialized",
-		"Init script should indicate success")
+	// The script should contain fortune quote
+	assertFortuneQuotePresent(t, stdout, "Init script")
 
 	// TODO: Conflict detection is not currently implemented in shell templates
 	// The ConflictWarnings template variable exists but is not used in templates
@@ -340,9 +356,8 @@ func TestXDGBinHomePathIntegration(t *testing.T) {
 				t.Fatalf("Shell initialization failed for %s\nError: %v\nStderr: %s", shell, err, stderr)
 			}
 
-			// The script should contain success message
-			helpers.AssertStringContains(t, initScript, "PVM environment initialized",
-				"Init script should indicate success")
+			// The script should contain fortune quote
+			assertFortuneQuotePresent(t, initScript, "Init script")
 
 			// Verify XDG_BIN_HOME variable is referenced in the script (not hardcoded path)
 			if shell == "fish" {
