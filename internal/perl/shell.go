@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/fortune"
 	"tamarou.com/pvm/internal/xdg"
 )
 
@@ -75,6 +76,9 @@ type ShellScriptData struct {
 
 	// Conflict warnings for other version managers
 	ConflictWarnings string
+
+	// Fortune quote for initialization Easter egg
+	FortuneQuote string
 }
 
 // Returns whether the script is for a Windows shell
@@ -167,6 +171,7 @@ func CreateShellInitScripts() error {
 		FunctionPrefix:   "pvm_",
 		SupportsAdvanced: true,
 		ConflictWarnings: generateConflictWarnings(),
+		FortuneQuote:     fortune.GetRandomQuote(),
 	}
 
 	// Generate scripts for each supported shell
@@ -595,6 +600,7 @@ func GetCurrentShellScript(shellType ShellType) (string, error) {
 		ConfigDir:        dirs.ConfigDir,
 		FunctionPrefix:   "pvm_",
 		SupportsAdvanced: true,
+		FortuneQuote:     fortune.GetRandomQuote(),
 	}
 
 	// Generate the script for the detected shell

@@ -222,5 +222,5 @@ if [ "$PVM_SKIP_NETWORK_CALLS" != "1" ]; then
     fi
 fi
 
-# Output message
-echo "PVM environment initialized"
+# Output fortune quote
+echo "{{.FortuneQuote}}"
