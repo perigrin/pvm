@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
@@ -36,6 +37,7 @@ func newPerlCommand() *cobra.Command {
 		newPerlBuildCommand(),
 		newPerlTarballCommand(),
 		newPerlExecCommand(),
+		newPerlExecAllCommand(),
 		newPerlDownloadCommand(),
 		newPerlInstallCommand(),
 		newPerlUploadCommand(),
@@ -502,4 +504,204 @@ func newPerlResolveCommand() *cobra.Command {
 	cmd := newResolveCommand()
 	cmd.Use = "resolve [version]"
 	return cmd
+}
+
+// ExecAllResult represents the result of executing a command with a specific Perl version
+type ExecAllResult struct {
+	Version  string
+	ExitCode int
+	Output   string
+	Error    string
+	Duration time.Duration
+}
+
+// newPerlExecAllCommand creates a command to execute commands with all installed Perl versions
+func newPerlExecAllCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "exec-all [command...]",
+		Short: "Execute a command with all installed Perl versions",
+		Long: `Execute a command using all installed Perl versions sequentially.
+
+This command runs the specified command with each installed Perl version
+and provides a summary of the results.
+
+Examples:
+  pvm perl exec-all prove t/basic.t
+  pvm perl exec-all perl -MData::Dumper -e 'print $Data::Dumper::VERSION'
+  pvm perl exec-all perl my-script.pl`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("no command specified")
+			}
+			return execAllCommand(cmd, args)
+		},
+		DisableFlagParsing: true, // Pass all arguments through to the executed command
+	}
+	return cmd
+}
+
+// execAllCommand executes a command with all installed Perl versions
+func execAllCommand(cmd *cobra.Command, args []string) error {
+	ui := cli.GetUI(cmd)
+
+	// Get all installed versions
+	installedVersions, err := perl.GetInstalledVersions()
+	if err != nil {
+		return fmt.Errorf("failed to get installed versions: %w", err)
+	}
+
+	if len(installedVersions) == 0 {
+		ui.Warning("No Perl versions are installed.")
+		return nil
+	}
+
+	ui.Info("Running command with %d installed Perl versions...\n", len(installedVersions))
+
+	// Execute command with each version
+	var results []ExecAllResult
+	for _, versionInfo := range installedVersions {
+		result := executeWithVersion(versionInfo.Version, args, ui)
+		results = append(results, result)
+	}
+
+	// Display summary
+	displayExecAllSummary(results, ui)
+
+	// Determine overall exit code
+	return determineExitCode(results)
+}
+
+// executeWithVersion executes a command with a specific Perl version
+func executeWithVersion(version string, args []string, ui *ui.Output) ExecAllResult {
+	start := time.Now()
+
+	// Display version header
+	ui.Info("=== Running with Perl %s ===", version)
+
+	// Resolve version
+	options := &perl.ResolutionOptions{
+		ExplicitVersion: version,
+	}
+
+	resolved, err := perl.ResolveVersion(options)
+	if err != nil {
+		ui.Error("Failed to resolve version %s: %v", version, err)
+		return ExecAllResult{
+			Version:  version,
+			ExitCode: 1,
+			Error:    fmt.Sprintf("Failed to resolve version: %v", err),
+			Duration: time.Since(start),
+		}
+	}
+
+	// Check if Perl binary exists
+	if resolved.Path == "" {
+		err := fmt.Errorf("no path found for Perl version %s", version)
+		ui.Error("No path found for Perl version %s", version)
+		return ExecAllResult{
+			Version:  version,
+			ExitCode: 1,
+			Error:    err.Error(),
+			Duration: time.Since(start),
+		}
+	}
+
+	if _, err := os.Stat(resolved.Path); os.IsNotExist(err) {
+		ui.Error("Perl version %s not found at %s", version, resolved.Path)
+		return ExecAllResult{
+			Version:  version,
+			ExitCode: 1,
+			Error:    fmt.Sprintf("Perl not found at %s", resolved.Path),
+			Duration: time.Since(start),
+		}
+	}
+
+	// Prepare environment
+	env := os.Environ()
+	perlBinDir := strings.TrimSuffix(resolved.Path, "/perl")
+	if perlBinDir == resolved.Path {
+		perlBinDir = resolved.Path[:strings.LastIndex(resolved.Path, "/")]
+	}
+
+	// Update PATH
+	for i, envVar := range env {
+		if strings.HasPrefix(envVar, "PATH=") {
+			currentPath := envVar[5:]
+			env[i] = fmt.Sprintf("PATH=%s:%s", perlBinDir, currentPath)
+			break
+		}
+	}
+
+	// Prepare command
+	command := make([]string, len(args))
+	copy(command, args)
+	if command[0] == "perl" {
+		command[0] = resolved.Path
+	}
+
+	// Execute command
+	execCmd := exec.Command(command[0], command[1:]...)
+	execCmd.Env = env
+
+	output, err := execCmd.CombinedOutput()
+	exitCode := 0
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			if status, ok := exitError.Sys().(syscall.WaitStatus); ok {
+				exitCode = status.ExitStatus()
+			} else {
+				exitCode = 1
+			}
+		} else {
+			exitCode = 1
+		}
+	}
+
+	// Display output
+	if len(output) > 0 {
+		fmt.Print(string(output))
+	}
+
+	// Add blank line for readability unless this is the last version
+	fmt.Println()
+
+	return ExecAllResult{
+		Version:  version,
+		ExitCode: exitCode,
+		Output:   string(output),
+		Duration: time.Since(start),
+	}
+}
+
+// displayExecAllSummary displays a summary of all execution results
+func displayExecAllSummary(results []ExecAllResult, ui *ui.Output) {
+	ui.Info("=== Summary ===")
+
+	successCount := 0
+	for _, result := range results {
+		if result.ExitCode == 0 {
+			ui.Success("✓ %s: SUCCESS", result.Version)
+			successCount++
+		} else {
+			ui.Error("✗ %s: FAILED (exit code %d)", result.Version, result.ExitCode)
+		}
+	}
+
+	// Overall result
+	if successCount == len(results) {
+		ui.Success("All versions completed successfully.")
+	} else {
+		failCount := len(results) - successCount
+		ui.Error("%d of %d versions failed.", failCount, len(results))
+	}
+}
+
+// determineExitCode determines the overall exit code based on results
+func determineExitCode(results []ExecAllResult) error {
+	for _, result := range results {
+		if result.ExitCode != 0 {
+			os.Exit(1)
+		}
+	}
+	return nil
 }
