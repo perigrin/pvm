@@ -240,6 +240,15 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 	currentBlockIndent := ""
 	newDepsInserted := false
 
+	// Build a map of all modules that exist in the original file to avoid duplicating them
+	modulesInFile := make(map[string]bool)
+	requiresPattern := regexp.MustCompile(`requires\s+['"]([^'"]+)['"]`)
+	for _, line := range lines {
+		if matches := requiresPattern.FindStringSubmatch(line); matches != nil {
+			modulesInFile[matches[1]] = true
+		}
+	}
+
 	// Regular expressions for parsing (handle both single and double quotes)
 	requiresRe := regexp.MustCompile(`^(\s*)requires\s+['"]([^'"]+)['"]`)
 	developRe := regexp.MustCompile(`^(\s*)on\s+['"]develop['"]\s*=>\s*sub\s*\{`)
@@ -347,8 +356,9 @@ func (cm *CpanfileManager) updateExistingCpanfile(lines []string, cpanfile *cpan
 			// If this was a perl version requirement and we haven't inserted new deps yet,
 			// insert any new runtime dependencies right after it
 			if !inDevelopBlock && !inTestBlock && moduleName == "perl" && !newDepsInserted {
+				// Only insert dependencies that don't appear in the original file
 				for _, req := range cpanfile.Requirements {
-					if req.Phase != "develop" && req.Phase != "test" && !processed[req.Module] {
+					if req.Phase != "develop" && req.Phase != "test" && !processed[req.Module] && !modulesInFile[req.Module] {
 						depLine := fmt.Sprintf("requires '%s'", req.Module)
 						if req.Version != "" {
 							depLine += fmt.Sprintf(", '%s'", req.Version)
