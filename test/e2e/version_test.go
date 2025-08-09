@@ -143,13 +143,13 @@ func TestVersionSwitching(t *testing.T) {
 	helpers.AssertFileContains(t, configFile, fmt.Sprintf("default_perl = \"%s\"", systemVersion),
 		"Config file does not contain correct default Perl")
 
-	// Test 'perl use' command (expects shell integration message)
+	// Test 'perl use' command (expects shell integration error)
 	stdout, stderr, err = env.RunPVM("perl", "use", systemVersion)
-	if err != nil {
-		t.Fatalf("Use command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	if err == nil {
+		t.Fatal("Use command should have failed without shell integration")
 	}
 	useOutput := stdout + stderr
-	helpers.AssertStringContains(t, useOutput, "requires shell integration", "Use command should indicate shell integration requirement")
+	helpers.AssertStringContains(t, useOutput, "Shell integration not detected", "Use command should indicate shell integration requirement")
 }
 
 // TestInstallPerl tests installing a Perl version

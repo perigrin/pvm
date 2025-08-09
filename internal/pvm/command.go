@@ -21,16 +21,19 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"tamarou.com/pvm/internal/backup"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/current"
 	"tamarou.com/pvm/internal/download"
+	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/pvx"
+	"tamarou.com/pvm/internal/shell"
 	"tamarou.com/pvm/internal/tool"
 	"tamarou.com/pvm/internal/tool/install"
 	"tamarou.com/pvm/internal/tool/shim"
@@ -444,14 +447,7 @@ func newUseCommand() *cobra.Command {
 		Long:  "Temporarily use a specific Perl version in the current shell session. Use 'system' to fall back to system Perl.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cmd.Println("The 'pvm perl use' command requires shell integration to work properly.")
-			cmd.Println("Please ensure you have run 'eval \"$(pvm init)\"' in your shell.")
-			cmd.Println("The shell integration provides a 'pvm' function that handles version switching.")
-			cmd.Println()
-			cmd.Println("Examples:")
-			cmd.Println("  pvm perl use 5.38.0    # Use a specific Perl version")
-			cmd.Println("  pvm perl use system    # Fall back to system Perl")
-			return nil
+			return handleShellIntegrationRequired(cmd)
 		},
 	}
 }
@@ -2483,10 +2479,7 @@ func newEnvCommand() *cobra.Command {
 			Long:  "Activate a named isolation environment in the current shell session",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				cmd.Println("The 'pvm env activate' command requires shell integration to work properly.")
-				cmd.Println("Please ensure you have run 'eval \"$(pvm init)\"' in your shell.")
-				cmd.Println("The shell integration provides a 'pvm' function that handles environment activation.")
-				return nil
+				return handleShellIntegrationRequired(cmd)
 			},
 		},
 		&cobra.Command{
@@ -4627,198 +4620,57 @@ This command checks:
 - Environment variables
 - Shims directory setup
 - Conflicts with other version managers
-- Filesystem locations`,
+- Filesystem locations
+
+Auto-fix options:
+  --fix            Automatically fix detected issues
+  --dry-run        Preview what would be fixed without making changes
+  --rollback       Undo the most recent auto-fix changes
+  --yes            Skip confirmation prompts`,
 		Run: func(cmd *cobra.Command, args []string) {
 			ui := cli.GetUI(cmd)
 
-			// Get --fix flag
+			// Get flags
 			fix, _ := cmd.Flags().GetBool("fix")
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			rollback, _ := cmd.Flags().GetBool("rollback")
+			yes, _ := cmd.Flags().GetBool("yes")
+
+			// Handle rollback first
+			if rollback {
+				handleRollback(ui)
+				return
+			}
 
 			ui.Header("PVM Doctor - Comprehensive Diagnostics")
 			if fix {
-				ui.Info("Running in fix mode - will attempt to repair issues")
-			}
-			ui.Println()
-
-			// Track issues found
-			issues := []string{}
-			warnings := []string{}
-			fixed := []string{}
-
-			// Check 1: Shell integration
-			ui.Status("Checking shell integration...")
-			if err := checkShellIntegration(ui, &issues, &warnings); err != nil {
-				ui.Error("Failed to check shell integration: %v", err)
-			}
-
-			// Check 2: Registry integrity
-			ui.Status("Checking registry integrity...")
-			if err := checkRegistryIntegrity(ui, &issues, &warnings); err != nil {
-				ui.Error("Failed to check registry integrity: %v", err)
-			}
-
-			// Check 3: Version management
-			ui.Status("Checking version management...")
-			if err := checkVersionManagement(ui, &issues, &warnings); err != nil {
-				ui.Error("Failed to check version management: %v", err)
-			}
-
-			// Check 4: Path configuration
-			ui.Status("Checking PATH configuration...")
-			if err := checkPathConfiguration(ui, &issues, &warnings); err != nil {
-				ui.Error("Failed to check PATH configuration: %v", err)
-			}
-
-			// Check 5: Environment variables
-			ui.Status("Checking environment variables...")
-			if err := checkEnvironmentVariables(ui, &issues, &warnings); err != nil {
-				ui.Error("Failed to check environment variables: %v", err)
-			}
-
-			// Check 6: Shims directory
-			ui.Status("Checking shims directory...")
-			if err := checkShimsDirectory(ui, &issues, &warnings); err != nil {
-				ui.Error("Failed to check shims directory: %v", err)
-			}
-
-			// Check 7: Version manager conflicts
-			ui.Status("Checking for conflicts with other version managers...")
-			if err := checkVersionManagerConflicts(ui, &issues, &warnings); err != nil {
-				ui.Error("Failed to check version manager conflicts: %v", err)
-			}
-
-			// Check 8: Filesystem locations
-			ui.Status("Checking filesystem locations...")
-			if err := checkFilesystemLocations(ui, &issues, &warnings); err != nil {
-				ui.Error("Failed to check filesystem locations: %v", err)
-			}
-
-			ui.Println()
-
-			// Apply fixes if requested
-			if fix && len(issues) > 0 {
-				ui.Info("Attempting to fix detected issues...")
-				ui.Println()
-
-				for _, issue := range issues {
-					if strings.Contains(issue, "Registry missing") ||
-						strings.Contains(issue, "Registry is empty") ||
-						strings.Contains(issue, "Registry contains") ||
-						strings.Contains(issue, "Failed to load registry file") {
-						ui.Info("Rebuilding registry from existing installations...")
-						if err := perl.RebuildRegistry(); err != nil {
-							ui.Error("Failed to rebuild registry: %v", err)
-						} else {
-							fixed = append(fixed, "Rebuilt registry from existing installations")
-							ui.Success("✓ Registry rebuilt successfully")
-						}
-					}
-				}
-
-				// Remove fixed issues from the issues list
-				if len(fixed) > 0 {
-					var remainingIssues []string
-					for _, issue := range issues {
-						isFixed := false
-						for _, fixedItem := range fixed {
-							if strings.Contains(issue, "Registry") && strings.Contains(fixedItem, "registry") {
-								isFixed = true
-								break
-							}
-						}
-						if !isFixed {
-							remainingIssues = append(remainingIssues, issue)
-						}
-					}
-					issues = remainingIssues
-				}
-
-				ui.Println()
-			}
-
-			// Summary
-			if len(fixed) > 0 {
-				ui.Success("Fixed %d issue(s):", len(fixed))
-				for _, fixedItem := range fixed {
-					ui.Success("  ✓ %s", fixedItem)
-				}
-				ui.Println()
-			}
-
-			if len(issues) == 0 && len(warnings) == 0 {
-				if len(fixed) > 0 {
-					ui.Success("✓ All issues resolved! PVM is now properly configured.")
+				if dryRun {
+					ui.Info("Running in dry-run mode - no changes will be made")
 				} else {
-					ui.Success("✓ All checks passed! PVM is properly configured.")
-				}
-			} else {
-				if len(issues) > 0 {
-					ui.Error("Found %d issue(s) that need attention:", len(issues))
-					for _, issue := range issues {
-						ui.Error("  • %s", issue)
-					}
-					ui.Println()
-
-					// Show manual fix instructions for unfixable issues
-					if fix {
-						ui.Info("Manual fixes required for remaining issues:")
-						ui.Println()
-						for _, issue := range issues {
-							if instructions := getManualFixInstructions(issue); instructions != "" {
-								ui.Info("How to fix: %s", issue)
-								ui.Println(instructions)
-								ui.Println()
-							}
-						}
-					}
-				}
-
-				if len(warnings) > 0 {
-					ui.Warning("Found %d warning(s):", len(warnings))
-					for _, warning := range warnings {
-						ui.Warning("  • %s", warning)
-					}
-					ui.Println()
-
-					// Show manual fix instructions for warnings too
-					if fix {
-						instructionMap := make(map[string][]string)
-
-						// Group warnings by their fix instructions
-						for _, warning := range warnings {
-							if instructions := getManualFixInstructions(warning); instructions != "" {
-								instructionMap[instructions] = append(instructionMap[instructions], warning)
-							}
-						}
-
-						if len(instructionMap) > 0 {
-							ui.Info("Recommendations for warnings:")
-							ui.Println()
-
-							for instructions, warningList := range instructionMap {
-								if len(warningList) == 1 {
-									ui.Info("How to address: %s", warningList[0])
-								} else {
-									ui.Info("How to address %d similar warnings:", len(warningList))
-									for _, w := range warningList {
-										ui.Info("  • %s", w)
-									}
-								}
-								ui.Println(instructions)
-								ui.Println()
-							}
-						}
-					}
-				}
-
-				if !fix {
-					ui.Info("Run 'pvm self doctor --fix' to attempt automatic fixes")
+					ui.Info("Running in fix mode - will attempt to repair issues")
 				}
 			}
+			ui.Println()
+
+			// If auto-fix is requested, use the new engine
+			if fix || dryRun {
+				err := runAutoFix(ui, dryRun, yes)
+				if err != nil {
+					ui.Error("Auto-fix failed: %v", err)
+					os.Exit(1)
+				}
+				return
+			}
+
+			// Otherwise run traditional diagnostics
+			runTraditionalDiagnostics(ui)
 		},
 	}
 
 	cmd.Flags().Bool("fix", false, "Attempt to automatically fix detected issues")
+	cmd.Flags().Bool("dry-run", false, "Preview fixes without making changes")
+	cmd.Flags().Bool("rollback", false, "Undo the most recent auto-fix changes")
+	cmd.Flags().Bool("yes", false, "Skip confirmation prompts")
 
 	return cmd
 }
@@ -5192,4 +5044,280 @@ func newBackwardCompatSymlinksCommand() *cobra.Command {
 	cmd.Short = "Manage entry point symlinks (moved to 'pvm self symlinks')"
 	cmd.Long = "This command has been moved to 'pvm self symlinks'. Please use that instead."
 	return cmd
+}
+
+// handleShellIntegrationRequired provides context-aware error messages for commands that require shell integration
+func handleShellIntegrationRequired(cmd *cobra.Command) error {
+	// Detect user's shell type
+	shell, err := perl.DetectShell()
+	if err != nil {
+		shell = perl.ShellBash // Default to bash if detection fails
+	}
+
+	// Create enhanced shell integration error
+	shellErr := errors.NewMissingShellIntegrationError(string(shell))
+
+	// Add command-specific context
+	cmdName := cmd.Name()
+	shellErr.WithContext("command", cmdName)
+	shellErr.WithContext("description", "Command requires active shell integration to modify current shell environment")
+
+	// Add examples for the specific command
+	switch cmdName {
+	case "use":
+		shellErr.WithRecoveryAction("Examples after setup:")
+		shellErr.WithRecoveryAction("  pvm use 5.38.0    # Use specific Perl version")
+		shellErr.WithRecoveryAction("  pvm use system    # Fall back to system Perl")
+	default:
+		shellErr.WithRecoveryAction(fmt.Sprintf("Command '%s' will work after shell integration is set up", cmdName))
+	}
+
+	// Use CLI error handling to display the enhanced error
+	ui := cli.GetUI(cmd)
+	cli.DisplayEnhancedError(ui, shellErr.EnhancedError)
+
+	return fmt.Errorf("shell integration required for command '%s'", cmdName)
+}
+
+// runAutoFix executes the auto-fix engine with the provided options
+func runAutoFix(ui *ui.Output, dryRun, skipConfirmation bool) error {
+	// Create auto-fix engine
+	engine := NewAutoFixEngine()
+
+	// Create backup manager
+	backupMgr, err := backup.NewManager()
+	if err != nil {
+		return fmt.Errorf("failed to initialize backup system: %w", err)
+	}
+
+	// Create shell configuration manager
+	shellMgr, err := shell.NewConfigManager()
+	if err != nil {
+		return fmt.Errorf("failed to initialize shell configuration manager: %w", err)
+	}
+
+	// Detect shell configuration
+	shellConfig, err := shellMgr.DetectShellConfig()
+	if err != nil {
+		return fmt.Errorf("failed to detect shell configuration: %w", err)
+	}
+
+	// Get user home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// Get XDG directories
+	xdgDirs, err := xdg.GetDirs()
+	if err != nil {
+		return fmt.Errorf("failed to get XDG directories: %w", err)
+	}
+
+	// Create backup session
+	session := backupMgr.CreateSession("doctor-autofix")
+	session.Metadata["shell_type"] = string(shellConfig.Shell)
+	session.Metadata["dry_run"] = fmt.Sprintf("%t", dryRun)
+
+	// Create fix context
+	ctx := &FixContext{
+		UI:        ui,
+		DryRun:    dryRun,
+		Force:     skipConfirmation,
+		Session:   session,
+		Shell:     shellConfig,
+		HomeDir:   homeDir,
+		XDGDirs:   xdgDirs,
+		BackupMgr: backupMgr,
+		ShellMgr:  shellMgr,
+	}
+
+	// Run auto-fixes
+	result, err := engine.RunAutoFixes(ctx)
+	if err != nil {
+		return fmt.Errorf("auto-fix execution failed: %w", err)
+	}
+
+	// Display results
+	ui.Printf("")
+	if dryRun {
+		ui.Info("Dry-run completed. The following changes would be made:")
+	} else {
+		ui.Info("Auto-fix completed.")
+	}
+	ui.Printf("")
+
+	if len(result.Fixed) > 0 {
+		ui.Success("✓ Fixed issues (%d):", len(result.Fixed))
+		for _, fixed := range result.Fixed {
+			ui.Success("  • %s", fixed)
+		}
+		ui.Printf("")
+	}
+
+	if len(result.Failed) > 0 {
+		ui.Error("✗ Failed to fix (%d):", len(result.Failed))
+		for _, failed := range result.Failed {
+			ui.Error("  • %s", failed)
+		}
+		ui.Printf("")
+	}
+
+	if len(result.Skipped) > 0 {
+		ui.Info("→ Already configured (%d):", len(result.Skipped))
+		for _, skipped := range result.Skipped {
+			ui.Info("  • %s", skipped)
+		}
+		ui.Printf("")
+	}
+
+	if len(result.ManualActionItems) > 0 {
+		ui.Warning("⚠ Manual action required:")
+		for _, action := range result.ManualActionItems {
+			ui.Warning("  • %s", action)
+		}
+		ui.Printf("")
+	}
+
+	// Show verification command
+	if !dryRun && (len(result.Fixed) > 0 || result.RequiresRestart) {
+		ui.Info("Verify installation: pvm doctor")
+		if result.RequiresRestart {
+			ui.Info("After restarting shell: pvm current")
+		}
+	}
+
+	return nil
+}
+
+// handleRollback handles the rollback functionality
+func handleRollback(ui *ui.Output) {
+	ui.Header("PVM Doctor - Rollback")
+	ui.Printf("")
+
+	// Create backup manager
+	backupMgr, err := backup.NewManager()
+	if err != nil {
+		ui.Error("Failed to initialize backup system: %v", err)
+		return
+	}
+
+	// Get latest session
+	session, err := backupMgr.GetLatestSession()
+	if err != nil {
+		ui.Error("No backup sessions found to rollback")
+		ui.Info("Auto-fix creates backups automatically when modifying files")
+		return
+	}
+
+	ui.Info("Latest backup session:")
+	ui.Printf("  ID: %s", session.ID)
+	ui.Printf("  Operation: %s", session.Operation)
+	ui.Printf("  Timestamp: %s", session.Timestamp.Format("2006-01-02 15:04:05"))
+	ui.Printf("  Files backed up: %d", len(session.Backups))
+	ui.Printf("")
+
+	// Confirm rollback
+	ui.Warning("This will restore files from the backup, overwriting any changes made since then.")
+	ui.Printf("Are you sure you want to rollback? [y/N]: ")
+
+	var response string
+	fmt.Scanln(&response)
+
+	if strings.ToLower(strings.TrimSpace(response)) != "y" {
+		ui.Info("Rollback cancelled")
+		return
+	}
+
+	// Perform rollback
+	ui.Info("Restoring files from backup...")
+	err = backupMgr.RestoreSession(session)
+	if err != nil {
+		ui.Error("Rollback failed: %v", err)
+		return
+	}
+
+	ui.Success("✓ Successfully rolled back %d files", len(session.Backups))
+	ui.Info("Run 'pvm doctor' to verify the current state")
+}
+
+// runTraditionalDiagnostics runs the traditional diagnostic checks without auto-fix
+func runTraditionalDiagnostics(ui *ui.Output) {
+	// Track issues found
+	issues := []string{}
+	warnings := []string{}
+
+	// Check 1: Shell integration
+	ui.Status("Checking shell integration...")
+	if err := checkShellIntegration(ui, &issues, &warnings); err != nil {
+		ui.Error("Failed to check shell integration: %v", err)
+	}
+
+	// Check 2: Registry integrity
+	ui.Status("Checking registry integrity...")
+	if err := checkRegistryIntegrity(ui, &issues, &warnings); err != nil {
+		ui.Error("Failed to check registry integrity: %v", err)
+	}
+
+	// Check 3: Version management
+	ui.Status("Checking version management...")
+	if err := checkVersionManagement(ui, &issues, &warnings); err != nil {
+		ui.Error("Failed to check version management: %v", err)
+	}
+
+	// Check 4: Path configuration
+	ui.Status("Checking PATH configuration...")
+	if err := checkPathConfiguration(ui, &issues, &warnings); err != nil {
+		ui.Error("Failed to check PATH configuration: %v", err)
+	}
+
+	// Check 5: Environment variables
+	ui.Status("Checking environment variables...")
+	if err := checkEnvironmentVariables(ui, &issues, &warnings); err != nil {
+		ui.Error("Failed to check environment variables: %v", err)
+	}
+
+	// Check 6: Shims directory
+	ui.Status("Checking shims directory...")
+	if err := checkShimsDirectory(ui, &issues, &warnings); err != nil {
+		ui.Error("Failed to check shims directory: %v", err)
+	}
+
+	// Check 7: Version manager conflicts
+	ui.Status("Checking for conflicts with other version managers...")
+	if err := checkVersionManagerConflicts(ui, &issues, &warnings); err != nil {
+		ui.Error("Failed to check version manager conflicts: %v", err)
+	}
+
+	// Check 8: Filesystem locations
+	ui.Status("Checking filesystem locations...")
+	if err := checkFilesystemLocations(ui, &issues, &warnings); err != nil {
+		ui.Error("Failed to check filesystem locations: %v", err)
+	}
+
+	ui.Println()
+
+	// Summary
+	if len(issues) == 0 && len(warnings) == 0 {
+		ui.Success("✓ All checks passed! PVM is properly configured.")
+	} else {
+		if len(issues) > 0 {
+			ui.Error("Found %d issue(s) that need attention:", len(issues))
+			for _, issue := range issues {
+				ui.Error("  • %s", issue)
+			}
+			ui.Println()
+		}
+
+		if len(warnings) > 0 {
+			ui.Warning("Found %d warning(s):", len(warnings))
+			for _, warning := range warnings {
+				ui.Warning("  • %s", warning)
+			}
+			ui.Println()
+		}
+
+		ui.Info("💡 Run 'pvm doctor --fix' to automatically resolve common issues")
+		ui.Info("💡 Run 'pvm doctor --dry-run' to preview what would be fixed")
+	}
 }
