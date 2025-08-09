@@ -5,122 +5,141 @@ package parser
 
 import (
 	"io"
-	"os"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/scanner"
 )
 
-// TokenBasedParser implements Parser interface using Scanner tokens
-// This provides the TypeScript-Go style separation while maintaining compatibility
+// TokenBasedParser implements Parser interface using TokenExtractor
+// This follows the new architecture: Parse once → Extract tokens → Process
 type TokenBasedParser struct {
-	scanner    scanner.Scanner
-	fallback   Parser // Fallback to original tree-sitter parser for compatibility
-	useScanner bool   // Whether to use scanner or fallback
+	parser         Parser                 // Main parser for AST creation
+	tokenExtractor scanner.TokenExtractor // Token extractor for AST-based tokenization
+	useTokens      bool                   // Whether to use token-based processing
 }
 
-// NewTokenBasedParser creates a parser that uses the scanner for tokenization
-func NewTokenBasedParser(useScanner bool) (Parser, error) {
-	// Create scanner
-	scannerInstance, err := scanner.NewScanner(false)
+// NewTokenBasedParser creates a parser that uses the new token extraction architecture
+func NewTokenBasedParser(useTokens bool) (Parser, error) {
+	// Create main parser for AST creation
+	mainParser, err := NewTreeSitterParser()
 	if err != nil {
 		return nil, err
 	}
 
-	// Create fallback parser for compatibility
-	fallbackParser, err := NewTreeSitterParser()
-	if err != nil {
-		return nil, err
-	}
+	// Create token extractor (no parser needed - it consumes AST)
+	tokenExtractor := scanner.NewTokenExtractor(nil)
 
 	return &TokenBasedParser{
-		scanner:    scannerInstance,
-		fallback:   fallbackParser,
-		useScanner: useScanner,
+		parser:         mainParser,
+		tokenExtractor: tokenExtractor,
+		useTokens:      useTokens,
 	}, nil
 }
 
-// ParseFile implements Parser interface using tokens
+// ParseFile implements Parser interface using the new architecture
 func (p *TokenBasedParser) ParseFile(path string) (*AST, error) {
-	if !p.useScanner {
-		// Use fallback for compatibility
-		return p.fallback.ParseFile(path)
-	}
-
-	// Use scanner-based approach
-	content, err := os.ReadFile(path)
+	// Parse with main parser first to get AST
+	ast, err := p.parser.ParseFile(path)
 	if err != nil {
-		return nil, &ParseError{
-			Message: "Failed to read file: " + err.Error(),
-			Line:    0,
-			Column:  0,
-		}
+		return nil, err
 	}
 
-	return p.parseFromTokens(path, string(content))
+	// If token processing is enabled, enhance AST with token information
+	if p.useTokens {
+		return p.enhanceASTWithTokens(ast)
+	}
+
+	return ast, nil
 }
 
-// ParseString implements Parser interface using tokens
+// ParseString implements Parser interface using the new architecture
 func (p *TokenBasedParser) ParseString(content string) (*AST, error) {
-	if !p.useScanner {
-		// Use fallback for compatibility
-		return p.fallback.ParseString(content)
+	// Parse with main parser first to get AST
+	ast, err := p.parser.ParseString(content)
+	if err != nil {
+		return nil, err
 	}
 
-	return p.parseFromTokens("", content)
+	// If token processing is enabled, enhance AST with token information
+	if p.useTokens {
+		return p.enhanceASTWithTokens(ast)
+	}
+
+	return ast, nil
 }
 
-// ParseReader implements Parser interface using tokens
+// ParseReader implements Parser interface using the new architecture
 func (p *TokenBasedParser) ParseReader(reader io.Reader) (*AST, error) {
-	if !p.useScanner {
-		// Use fallback for compatibility
-		return p.fallback.ParseReader(reader)
-	}
-
-	content, err := io.ReadAll(reader)
+	// Parse with main parser first to get AST
+	ast, err := p.parser.ParseReader(reader)
 	if err != nil {
-		return nil, &ParseError{
-			Message: "Failed to read from reader: " + err.Error(),
-			Line:    0,
-			Column:  0,
-		}
+		return nil, err
 	}
 
-	return p.parseFromTokens("", string(content))
+	// If token processing is enabled, enhance AST with token information
+	if p.useTokens {
+		return p.enhanceASTWithTokens(ast)
+	}
+
+	return ast, nil
 }
 
-// parseFromTokens builds an AST from scanned tokens
-func (p *TokenBasedParser) parseFromTokens(path, content string) (*AST, error) {
-	// Get token iterator
-	iter, err := p.scanner.ScanString(content)
+// enhanceASTWithTokens enhances an existing AST with token information
+func (p *TokenBasedParser) enhanceASTWithTokens(parsedAST *AST) (*AST, error) {
+	// Convert AST to ast.AST format for token extraction
+	astTree := (*ast.AST)(parsedAST)
+
+	// Extract tokens from the AST using the new token extractor
+	tokenIterator, err := p.tokenExtractor.ExtractTokens(astTree)
 	if err != nil {
-		return nil, &ParseError{
-			Message: "Failed to scan content: " + err.Error(),
-			Line:    0,
-			Column:  0,
+		// If token extraction fails, return the original AST without enhancement
+		// This maintains compatibility even if token processing has issues
+		return parsedAST, nil
+	}
+
+	// Collect tokens for processing
+	tokens := p.collectTokens(tokenIterator)
+
+	// Extract type annotations from tokens to enhance the AST
+	if astTree.Source != "" {
+		additionalAnnotations := p.extractTypeAnnotationsFromTokens(tokens, astTree.Source)
+
+		// Merge with existing annotations (avoid duplicates)
+		existingAnnotations := astTree.TypeAnnotations
+		astTree.TypeAnnotations = p.mergeTypeAnnotations(existingAnnotations, additionalAnnotations)
+	}
+
+	return parsedAST, nil
+}
+
+// mergeTypeAnnotations merges additional annotations with existing ones, avoiding duplicates
+func (p *TokenBasedParser) mergeTypeAnnotations(existing, additional []*ast.TypeAnnotation) []*ast.TypeAnnotation {
+	if len(additional) == 0 {
+		return existing
+	}
+
+	// Create a map to track existing annotations by their annotated item and position
+	existingMap := make(map[string]bool)
+	for _, annotation := range existing {
+		key := annotation.AnnotatedItem + ":" + annotation.TypeExpression.String() +
+			":" + string(rune(annotation.Pos.Line)) + ":" + string(rune(annotation.Pos.Column))
+		existingMap[key] = true
+	}
+
+	// Add additional annotations that don't already exist
+	result := make([]*ast.TypeAnnotation, len(existing))
+	copy(result, existing)
+
+	for _, annotation := range additional {
+		key := annotation.AnnotatedItem + ":" + annotation.TypeExpression.String() +
+			":" + string(rune(annotation.Pos.Line)) + ":" + string(rune(annotation.Pos.Column))
+		if !existingMap[key] {
+			result = append(result, annotation)
 		}
 	}
 
-	// For now, build a simplified AST from tokens
-	// In future iterations, this will become a full recursive descent parser
-	root := &tokenNode{
-		nodeType: "root",
-		tokens:   p.collectTokens(iter),
-		position: ast.Position{Line: 1, Column: 1, Offset: 0},
-	}
-
-	// Extract type annotations from tokens
-	annotations := p.extractTypeAnnotationsFromTokens(root.tokens, content)
-
-	astResult := &ast.AST{
-		Path:            path,
-		Root:            root,
-		TypeAnnotations: annotations,
-		Errors:          []error{},
-		Source:          content,
-	}
-	return (*AST)(astResult), nil
+	return result
 }
 
 // collectTokens collects all tokens from the iterator
@@ -299,14 +318,14 @@ func (n *tokenNode) SetParent(parent ast.Node) {
 	n.parent = parent
 }
 
-// NewParserWithScanner creates a new parser with scanner enabled
-// This is the new API for scanner-based parsing
-func NewParserWithScanner() (Parser, error) {
+// NewParserWithTokenExtraction creates a new parser with token extraction enabled
+// This uses the new architecture: Parse AST first, then extract tokens
+func NewParserWithTokenExtraction() (Parser, error) {
 	return NewTokenBasedParser(true)
 }
 
-// NewCompatParser creates a parser that falls back to tree-sitter
-// This maintains compatibility with existing code
-func NewCompatParser() (Parser, error) {
+// NewStandardParser creates a parser without token extraction
+// This is the standard parser for cases that don't need token processing
+func NewStandardParser() (Parser, error) {
 	return NewTokenBasedParser(false)
 }
