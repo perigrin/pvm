@@ -165,14 +165,14 @@ func TestTestRunnerServiceRunTests(t *testing.T) {
 	service := NewTestRunnerService(projectCtx, time.Second)
 	result := service.runTests()
 
-	// Verify placeholder result structure
+	// Verify real test runner behavior - no test files found should return success with informative message
 	assert.True(t, result.Success)
 	assert.Equal(t, 0, result.TestCount)
 	assert.Equal(t, 0, result.Passed)
 	assert.Equal(t, 0, result.Failed)
 	assert.Equal(t, 0, result.Skipped)
 	assert.True(t, result.Duration > 0)
-	assert.Empty(t, result.Output)
+	assert.Equal(t, "No test files found", result.Output)
 	assert.Nil(t, result.Error)
 }
 
@@ -185,12 +185,12 @@ func TestTypeCheckerServiceRunTypeCheck(t *testing.T) {
 	service := NewTypeCheckerService(projectCtx, time.Second)
 	result := service.runTypeCheck()
 
-	// Verify placeholder result structure
+	// Verify real type checker behavior - no Perl files found should return success with informative message
 	assert.True(t, result.Success)
 	assert.Equal(t, 0, result.ErrorCount)
 	assert.Equal(t, 0, result.Warnings)
 	assert.True(t, result.Duration > 0)
-	assert.Empty(t, result.Output)
+	assert.Equal(t, "No Perl files found for type checking", result.Output)
 	assert.Nil(t, result.Error)
 }
 
@@ -240,4 +240,91 @@ func TestDevEnvironmentServices(t *testing.T) {
 	assert.NotNil(t, testService.Stop)
 	assert.NotNil(t, testService.Name)
 	assert.NotNil(t, testService.Status)
+}
+
+// TestDevServices_Issues19_216_219_Regression tests the fix for GitHub issues #19, #216, and #219
+// Ensures that development services return real functionality instead of placeholder stubs
+func TestDevServices_Issues19_216_219_Regression(t *testing.T) {
+	projectCtx := &project.ProjectContext{
+		IsProject: true,
+		RootDir:   "/non/existent/project", // Intentionally non-existent to test no-files behavior
+	}
+
+	// Test Issue #216: Test Runner Service should return real results
+	t.Run("TestRunnerService_RealImplementation_Issue216", func(t *testing.T) {
+		testService := NewTestRunnerService(projectCtx, time.Second)
+		result := testService.runTests()
+
+		// Should return informative message instead of empty placeholder
+		assert.True(t, result.Success, "No test files should still be considered successful")
+		assert.Equal(t, "No test files found", result.Output, "Should provide informative message about no test files")
+		assert.True(t, result.Duration > 0, "Should have measured execution time")
+		assert.Nil(t, result.Error, "Should not error when no test files found")
+	})
+
+	// Test Issue #219: Type Checker Service should return real results
+	t.Run("TypeCheckerService_RealImplementation_Issue219", func(t *testing.T) {
+		typeService := NewTypeCheckerService(projectCtx, time.Second)
+		result := typeService.runTypeCheck()
+
+		// Should return informative message instead of empty placeholder
+		assert.True(t, result.Success, "No Perl files should still be considered successful")
+		assert.Equal(t, "No Perl files found for type checking", result.Output, "Should provide informative message about no Perl files")
+		assert.True(t, result.Duration > 0, "Should have measured execution time")
+		assert.Nil(t, result.Error, "Should not error when no Perl files found")
+	})
+
+	// Test Issue #19: Overall development services should provide real value
+	t.Run("DevServices_ProvidingRealValue_Issue19", func(t *testing.T) {
+		config := &DevConfig{
+			EnableBuild:       false, // Disable build for this test
+			EnableTest:        true,
+			EnableTypecheck:   true,
+			TestInterval:      time.Second,
+			TypecheckInterval: time.Second,
+		}
+
+		devEnv, err := NewDevEnvironment(projectCtx, config)
+		assert.NoError(t, err)
+		assert.NotNil(t, devEnv)
+
+		// Should have test and typecheck services
+		assert.Len(t, devEnv.services, 2)
+
+		// Test that services provide meaningful status information
+		for _, service := range devEnv.services {
+			status := service.Status()
+			assert.NotEmpty(t, status.Name, "Service should have a meaningful name")
+			// Status may be "idle" initially, which is meaningful vs empty
+		}
+	})
+}
+
+// TestDevServices_FileDiscovery_Regression tests that file discovery works correctly
+func TestDevServices_FileDiscovery_Regression(t *testing.T) {
+	// Test with a project context that has accessible directories
+	projectCtx := &project.ProjectContext{
+		IsProject: true,
+		RootDir:   ".", // Use current directory which exists
+	}
+
+	t.Run("TestRunnerService_FileDiscovery", func(t *testing.T) {
+		testService := NewTestRunnerService(projectCtx, time.Second)
+		testFiles, err := testService.discoverTestFiles()
+
+		// Should not error even if no test files found
+		assert.NoError(t, err, "File discovery should not error")
+		// testFiles may be empty if no .t files in current directory, which is valid
+		assert.NotNil(t, testFiles, "Should return a valid slice even if empty")
+	})
+
+	t.Run("TypeCheckerService_FileDiscovery", func(t *testing.T) {
+		typeService := NewTypeCheckerService(projectCtx, time.Second)
+		perlFiles, err := typeService.discoverPerlFiles()
+
+		// Should not error even if no Perl files found
+		assert.NoError(t, err, "File discovery should not error")
+		// perlFiles may be empty if no .pl/.pm files in accessible directories, which is valid
+		assert.NotNil(t, perlFiles, "Should return a valid slice even if empty")
+	})
 }
