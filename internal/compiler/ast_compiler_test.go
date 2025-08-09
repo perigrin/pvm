@@ -516,8 +516,8 @@ func TestPVMEnvironmentSetup(t *testing.T) {
 			return
 		}
 
-		// Test the built binary (use --pvm to get PVM's version, not Perl version)
-		cmd := exec.Command(builtPVMPath, "version", "--pvm")
+		// Test the built binary (now shows PVM version by default)
+		cmd := exec.Command(builtPVMPath, "version")
 		output, err := cmd.Output()
 		if err != nil {
 			t.Fatalf("Built PVM binary failed to run: %v", err)

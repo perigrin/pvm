@@ -68,7 +68,6 @@ func NewRootCommand(name string, description string) *cobra.Command {
 
 // newVersionCommand creates a version command for the provided component
 func newVersionCommand(component string) *cobra.Command {
-	var showPVM bool
 	var bare bool
 	var showCurrent bool
 	var detailed bool
@@ -78,12 +77,9 @@ func newVersionCommand(component string) *cobra.Command {
 		Short: "Print version information",
 		Long:  "Print version information about Perl or PVM",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// For PVM component, default behavior is to show Perl version
-			if component == "pvm" && !showPVM {
+			// For PVM component, show current Perl version only when explicitly requested
+			if component == "pvm" && showCurrent {
 				return showCurrentPerlVersionWithFlags(cmd, component, bare)
-			}
-			if showCurrent {
-				return showCurrentPerlVersion(cmd, component)
 			}
 			ui := GetUI(cmd)
 
@@ -113,18 +109,17 @@ func newVersionCommand(component string) *cobra.Command {
 
 	// Add flags for PVM component
 	if component == "pvm" {
-		cmd.Flags().BoolVar(&showPVM, "pvm", false, "Show PVM version instead of active Perl version")
 		cmd.Flags().BoolVar(&bare, "bare", false, "Show only the version string (for scripting)")
 		cmd.Flags().BoolVar(&showCurrent, "current", false, "Show currently active Perl version")
 		cmd.Flags().BoolVar(&detailed, "detailed", false, "Show detailed version information with release notes")
-		cmd.Long = `Show the currently active Perl version.
+		cmd.Long = `Show PVM version information.
 
-By default, this command shows which Perl version is currently active.
-Use --pvm to show PVM's own version instead.
+By default, this command shows PVM's own version.
+Use --current to show which Perl version is currently active.
 
 Examples:
-  pvm version             # Show active Perl version (default)
-  pvm version --pvm       # Show PVM's version
+  pvm version             # Show PVM's version (default)
+  pvm version --current   # Show active Perl version
   pvm version --bare      # Show only version string for scripting
   pvm version --detailed  # Show detailed version with release notes`
 	}
