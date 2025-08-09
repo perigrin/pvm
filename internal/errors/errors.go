@@ -12,12 +12,13 @@ import (
 
 // Component prefixes for error codes
 const (
-	PrefixPVM = "PVM" // Perl Version Manager
-	PrefixPVX = "PVX" // Perl Version eXecutor
-	PrefixPVI = "PVI" // Perl Version Installer
-	PrefixPSC = "PSC" // Perl Script Compiler
-	PrefixCFG = "CFG" // Configuration
-	PrefixSYS = "SYS" // System
+	PrefixPVM  = "PVM"  // Perl Version Manager
+	PrefixPVX  = "PVX"  // Perl Version eXecutor
+	PrefixPVI  = "PVI"  // Perl Version Installer
+	PrefixPSC  = "PSC"  // Perl Script Compiler
+	PrefixCFG  = "CFG"  // Configuration
+	PrefixSYS  = "SYS"  // System
+	PrefixDOCS = "DOCS" // Documentation
 )
 
 // Error categories
@@ -42,6 +43,9 @@ const (
 
 	// User input errors
 	CategoryUserInput = "User Input Error"
+
+	// Documentation-related errors
+	CategoryDocumentation = "Documentation Error"
 )
 
 // TypedError is an interface for errors that provide additional type information
@@ -251,6 +255,11 @@ func NewSystemError(code, message string, inner error) *Error {
 // NewUserInputError creates a new user input error
 func NewUserInputError(prefix, code, message string, inner error) *Error {
 	return New(prefix, CategoryUserInput, code, message, inner)
+}
+
+// NewDocumentationError creates a new documentation error
+func NewDocumentationError(code, message string, inner error) *Error {
+	return New(PrefixDOCS, CategoryDocumentation, code, message, inner)
 }
 
 // ErrorSeverity defines the severity level of an error

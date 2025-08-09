@@ -35,6 +35,9 @@ type Config struct {
 
 	// Dependencies configuration
 	Dependencies *DependenciesConfig `toml:"dependencies" json:"dependencies"`
+
+	// Documentation configuration
+	Docs *DocsConfig `toml:"docs" json:"docs"`
 }
 
 // PVMConfig represents configuration for the Perl Version Manager
@@ -620,6 +623,79 @@ type BuildDistributionConfig struct {
 	Installer string `toml:"installer" json:"installer"`
 }
 
+// DocsConfig represents configuration for external documentation access
+type DocsConfig struct {
+	// Repository specifies the GitHub repository containing documentation
+	// Format: "owner/repo" (e.g., "perigrin/pvm")
+	Repository string `toml:"repository" json:"repository"`
+
+	// Branch specifies the Git branch or tag to fetch documentation from
+	Branch string `toml:"branch" json:"branch"`
+
+	// GitHubToken specifies the GitHub token for API access and rate limiting
+	// Can be set via environment variable GITHUB_TOKEN
+	GitHubToken string `toml:"github_token" json:"github_token"`
+
+	// CacheDir specifies the directory for caching external documentation
+	CacheDir string `toml:"cache_dir" json:"cache_dir"`
+
+	// CacheTTL specifies the cache time-to-live in hours
+	// 0 = always refresh, -1 = never expire
+	CacheTTL int `toml:"cache_ttl" json:"cache_ttl"`
+
+	// AutoUpdate specifies whether to automatically update documentation cache
+	AutoUpdate bool `toml:"auto_update" json:"auto_update"`
+
+	// UpdateInterval specifies how often to update documentation (e.g., "24h", "1h")
+	UpdateInterval string `toml:"update_interval" json:"update_interval"`
+
+	// MaxRetries specifies maximum retry attempts for failed requests
+	MaxRetries int `toml:"max_retries" json:"max_retries"`
+
+	// Timeout specifies timeout for documentation requests (e.g., "30s", "2m")
+	Timeout string `toml:"timeout" json:"timeout"`
+
+	// OfflineMode specifies whether to operate in offline-only mode
+	// When true, only cached/embedded documentation is available
+	OfflineMode bool `toml:"offline_mode" json:"offline_mode"`
+
+	// PreferEmbedded specifies whether to prefer embedded docs over external
+	PreferEmbedded bool `toml:"prefer_embedded" json:"prefer_embedded"`
+
+	// DocumentSources specifies additional documentation sources
+	DocumentSources []*DocsSourceConfig `toml:"document_sources" json:"document_sources"`
+}
+
+// DocsSourceConfig represents a documentation source configuration
+type DocsSourceConfig struct {
+	// Name is a human-readable identifier for this source
+	Name string `toml:"name" json:"name"`
+
+	// Type specifies the source type (github, url, local)
+	Type string `toml:"type" json:"type"`
+
+	// Repository specifies the GitHub repository (for github type)
+	Repository string `toml:"repository" json:"repository"`
+
+	// Branch specifies the branch/tag (for github type)
+	Branch string `toml:"branch" json:"branch"`
+
+	// BaseURL specifies the base URL (for url type)
+	BaseURL string `toml:"base_url" json:"base_url"`
+
+	// Path specifies the local path (for local type)
+	Path string `toml:"path" json:"path"`
+
+	// Priority determines source selection order (lower = higher priority)
+	Priority int `toml:"priority" json:"priority"`
+
+	// Enabled specifies whether this source is active
+	Enabled bool `toml:"enabled" json:"enabled"`
+
+	// Categories specifies which documentation categories this source provides
+	Categories []string `toml:"categories" json:"categories"`
+}
+
 // NewDefaultConfig creates a new configuration with default values
 func NewDefaultConfig() *Config {
 	cfg := &Config{
@@ -748,11 +824,26 @@ func NewDefaultConfig() *Config {
 			Cpanfile: "cpanfile",
 			LocalLib: "local", // Changed default from "lib" to "local"
 		},
+		Docs: &DocsConfig{
+			Repository:      "perigrin/pvm",
+			Branch:          "pu",
+			GitHubToken:     "",
+			CacheDir:        "$XDG_CACHE_HOME/pvm/docs",
+			CacheTTL:        24, // 24 hours
+			AutoUpdate:      true,
+			UpdateInterval:  "24h",
+			MaxRetries:      3,
+			Timeout:         "30s",
+			OfflineMode:     false,
+			PreferEmbedded:  false,
+			DocumentSources: []*DocsSourceConfig{},
+		},
 	}
 
 	// Expand environment variables in paths
 	cfg.PVI.CacheDir = expandEnvironmentVariables(cfg.PVI.CacheDir)
 	cfg.PSC.TypeDefinitionsPath = expandEnvironmentVariables(cfg.PSC.TypeDefinitionsPath)
+	cfg.Docs.CacheDir = expandEnvironmentVariables(cfg.Docs.CacheDir)
 
 	return cfg
 }
@@ -799,6 +890,11 @@ func (c *Config) Validate() []error {
 	// Add Dependencies validation
 	if c.Dependencies != nil {
 		errors = append(errors, c.Dependencies.Validate()...)
+	}
+
+	// Add Docs validation
+	if c.Docs != nil {
+		errors = append(errors, c.Docs.Validate()...)
 	}
 
 	return errors
@@ -1281,6 +1377,118 @@ func (c *BuildDistributionConfig) Validate() []error {
 
 	if c.Installer != "" && !validInstallers[c.Installer] {
 		errors = append(errors, ValidateError("Build distribution installer must be one of: ExtUtils::MakeMaker, Module::Build, Module::Install"))
+	}
+
+	return errors
+}
+
+// Validate checks if the Docs configuration is valid
+func (c *DocsConfig) Validate() []error {
+	var errors []error
+
+	// Validate Repository format
+	if c.Repository == "" {
+		errors = append(errors, ValidateError("Docs repository cannot be empty"))
+	} else if !strings.Contains(c.Repository, "/") {
+		errors = append(errors, ValidateError("Docs repository must be in format 'owner/repo'"))
+	}
+
+	// Validate Branch
+	if c.Branch == "" {
+		errors = append(errors, ValidateError("Docs branch cannot be empty"))
+	}
+
+	// Validate CacheTTL
+	if c.CacheTTL < -1 {
+		errors = append(errors, ValidateError("Docs CacheTTL cannot be less than -1"))
+	}
+
+	// Validate UpdateInterval
+	if c.UpdateInterval != "" {
+		if _, err := time.ParseDuration(c.UpdateInterval); err != nil {
+			errors = append(errors, ValidateError("Docs UpdateInterval must be a valid duration (e.g., '24h', '1h')"))
+		}
+	}
+
+	// Validate MaxRetries
+	if c.MaxRetries < 0 {
+		errors = append(errors, ValidateError("Docs MaxRetries cannot be negative"))
+	}
+
+	// Validate Timeout
+	if c.Timeout != "" {
+		if _, err := time.ParseDuration(c.Timeout); err != nil {
+			errors = append(errors, ValidateError("Docs Timeout must be a valid duration (e.g., '30s', '2m')"))
+		}
+	}
+
+	// Validate DocumentSources
+	for i, source := range c.DocumentSources {
+		if source != nil {
+			if sourceErrors := source.Validate(); len(sourceErrors) > 0 {
+				for _, err := range sourceErrors {
+					errors = append(errors, ValidateError(fmt.Sprintf("DocumentSources[%d]: %s", i, err.Error())))
+				}
+			}
+		}
+	}
+
+	return errors
+}
+
+// Validate checks if the DocsSource configuration is valid
+func (c *DocsSourceConfig) Validate() []error {
+	var errors []error
+
+	// Validate Name
+	if c.Name == "" {
+		errors = append(errors, ValidateError("Name cannot be empty"))
+	}
+
+	// Validate Type
+	validTypes := map[string]bool{
+		"github": true,
+		"url":    true,
+		"local":  true,
+	}
+	if c.Type != "" && !validTypes[c.Type] {
+		errors = append(errors, ValidateError("Type must be one of: github, url, local"))
+	}
+
+	// Validate type-specific fields
+	switch c.Type {
+	case "github":
+		if c.Repository == "" {
+			errors = append(errors, ValidateError("Repository is required for github source type"))
+		} else if !strings.Contains(c.Repository, "/") {
+			errors = append(errors, ValidateError("Repository must be in format 'owner/repo' for github source type"))
+		}
+		if c.Branch == "" {
+			errors = append(errors, ValidateError("Branch is required for github source type"))
+		}
+	case "url":
+		if c.BaseURL == "" {
+			errors = append(errors, ValidateError("BaseURL is required for url source type"))
+		} else if !strings.HasPrefix(c.BaseURL, "http://") && !strings.HasPrefix(c.BaseURL, "https://") {
+			errors = append(errors, ValidateError("BaseURL must start with http:// or https://"))
+		}
+	case "local":
+		if c.Path == "" {
+			errors = append(errors, ValidateError("Path is required for local source type"))
+		}
+	}
+
+	// Validate Priority
+	if c.Priority < 0 {
+		errors = append(errors, ValidateError("Priority cannot be negative"))
+	}
+
+	// Validate Categories (optional, no validation needed for empty)
+	for _, category := range c.Categories {
+		if category == "" {
+			errors = append(errors, ValidateError("Categories cannot contain empty strings"))
+			break
+		}
 	}
 
 	return errors

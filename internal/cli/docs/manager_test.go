@@ -5,8 +5,11 @@ package docs
 
 import (
 	"embed"
+	"os"
 	"testing"
 	"time"
+
+	"tamarou.com/pvm/internal/config"
 )
 
 //go:embed testdata/*.md
@@ -230,14 +233,30 @@ func TestEmbeddedDocumentManager_GenerateDescription(t *testing.T) {
 }
 
 func TestExternalDocumentManager(t *testing.T) {
-	manager := NewExternalDocumentManager("https://example.com/docs")
+	tmpDir, err := os.MkdirTemp("", "external_docs_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
 
-	if manager.IsAvailable() {
-		t.Error("External manager should not be available")
+	docsConfig := &config.DocsConfig{
+		Repository: "test/repo",
+		Branch:     "main",
+		CacheDir:   tmpDir,
+		CacheTTL:   1,
+		MaxRetries: 1,
+		Timeout:    "1ms", // Very short timeout to ensure failure
+	}
+	manager := NewExternalDocumentManager(docsConfig, nil)
+
+	// With very short timeout, external manager should not be available
+	available := manager.IsAvailable()
+	if available {
+		t.Error("External manager should not be available with short timeout and no fallback")
 	}
 
 	// Test that all methods return appropriate errors/empty results
-	_, err := manager.GetDocument("test")
+	_, err = manager.GetDocument("test")
 	if err == nil {
 		t.Error("Expected error from external manager GetDocument")
 	}
@@ -257,12 +276,9 @@ func TestExternalDocumentManager(t *testing.T) {
 		t.Error("Expected empty categories from external manager")
 	}
 
-	docs, err := manager.GetDocumentsByCategory("test")
-	if err != nil {
-		t.Errorf("Unexpected error from external manager GetDocumentsByCategory: %v", err)
-	}
-	if len(docs) != 0 {
-		t.Error("Expected empty docs from external manager")
+	_, err = manager.GetDocumentsByCategory("test")
+	if err == nil {
+		t.Error("Expected error from external manager GetDocumentsByCategory when no fallback available")
 	}
 }
 
