@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/cpan"
+	"tamarou.com/pvm/internal/diskspace"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/pvi/deps"
@@ -324,7 +325,16 @@ func (lm *LifecycleManager) ListTools() ([]*ToolInfo, error) {
 		}
 
 		// Calculate disk usage (optional, might be expensive)
-		// TODO: Implement disk usage calculation if needed
+		if metadata.InstallPath != "" {
+			if diskUsage, err := diskspace.CalculateDirectorySize(metadata.InstallPath); err == nil {
+				toolInfo.DiskUsage = diskUsage
+			} else {
+				// Log warning but don't fail the listing operation
+				log.Warnf("Failed to calculate disk usage for tool %s at %s: %v",
+					metadata.ToolName, metadata.InstallPath, err)
+				toolInfo.DiskUsage = 0
+			}
+		}
 
 		tools = append(tools, toolInfo)
 	}

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"tamarou.com/pvm/internal/diskspace"
 )
 
 // TempFileManager manages temporary files for downloads
@@ -188,26 +190,12 @@ func (tfm *TempFileManager) ValidateDiskSpace(requiredBytes int64) error {
 
 // getAvailableSpace gets available disk space for a directory
 func (tfm *TempFileManager) getAvailableSpace(dir string) (int64, error) {
-	// This is a cross-platform implementation
-	// On Unix systems, we could use syscall.Statfs for more accurate results
-
-	// For now, we'll use a simple heuristic based on creating a test file
-	// This isn't perfect but works across platforms
-
-	testFile := filepath.Join(dir, ".pvm-space-test")
-	file, err := os.Create(testFile)
+	spaceInfo, err := diskspace.GetSpaceInfo(dir)
 	if err != nil {
-		return 0, fmt.Errorf("creating test file: %w", err)
+		return 0, fmt.Errorf("getting disk space information: %w", err)
 	}
-	file.Close()
-	defer os.Remove(testFile)
 
-	// Get filesystem stats (this is a simplified approach)
-	// In a production system, you'd want to use platform-specific syscalls
-
-	// For now, return a large value to avoid blocking downloads
-	// TODO: Implement proper disk space checking per platform
-	return 1024 * 1024 * 1024, nil // 1GB available (placeholder)
+	return spaceInfo.Available, nil
 }
 
 // SecureDelete securely deletes a file by overwriting it before removal
