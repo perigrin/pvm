@@ -7,6 +7,8 @@ package docs
 
 import (
 	"embed"
+	"os"
+	"path/filepath"
 
 	"tamarou.com/pvm/internal/config"
 )
@@ -16,11 +18,14 @@ var embeddedDocs embed.FS
 
 // NewDocumentManager creates a document manager for external documentation
 func NewDocumentManager() (DocumentManager, error) {
+	// Use system temp directory with proper cleanup
+	cacheDir := filepath.Join(os.TempDir(), "pvm-docs-cache")
+
 	// For development builds, return external manager with default config
 	docsConfig := &config.DocsConfig{
 		Repository:     "perigrin/pvm",
 		Branch:         "pu",
-		CacheDir:       "/tmp/pvm-docs-cache",
+		CacheDir:       cacheDir,
 		CacheTTL:       24,
 		MaxRetries:     3,
 		Timeout:        "30s",
