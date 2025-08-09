@@ -8,6 +8,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -16,6 +20,8 @@ import (
 	"tamarou.com/pvm/internal/build"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/project"
+	"tamarou.com/pvm/internal/pvx"
+	"tamarou.com/pvm/internal/typechecker"
 )
 
 // DevService represents a development service that can be started and stopped
@@ -466,25 +472,31 @@ func (t *TestRunnerService) Status() ServiceStatus {
 	}
 }
 
-// runTests executes project tests
+// runTests executes project tests using prove or direct perl execution
 func (t *TestRunnerService) runTests() TestResult {
-	// This is a simplified test runner - in a real implementation
-	// you would integrate with prove, Test::Harness, or similar
-	result := TestResult{
-		Success:   true,
-		TestCount: 0,
-		Passed:    0,
-		Failed:    0,
-		Skipped:   0,
-		Duration:  time.Millisecond * 100, // Placeholder
-		Output:    "",
-		Error:     nil,
+	startTime := time.Now()
+
+	// Discover test files
+	testFiles, err := t.discoverTestFiles()
+	if err != nil {
+		return TestResult{
+			Success:  false,
+			Duration: time.Since(startTime),
+			Error:    err,
+		}
 	}
 
-	// TODO: Implement actual test running
-	// For now, just return a placeholder result
+	if len(testFiles) == 0 {
+		return TestResult{
+			Success:   true,
+			TestCount: 0,
+			Duration:  time.Since(startTime),
+			Output:    "No test files found",
+		}
+	}
 
-	return result
+	// Execute tests using prove or direct perl execution
+	return t.executeTestFiles(testFiles, startTime)
 }
 
 // NewTypeCheckerService creates a new type checker service
@@ -551,21 +563,522 @@ func (tc *TypeCheckerService) Status() ServiceStatus {
 	}
 }
 
-// runTypeCheck executes type checking
+// runTypeCheck executes type checking using PSC
 func (tc *TypeCheckerService) runTypeCheck() TypeCheckResult {
-	// This is a simplified type checker - in a real implementation
-	// you would integrate with the PSC type checker
-	result := TypeCheckResult{
-		Success:    true,
-		ErrorCount: 0,
-		Warnings:   0,
-		Duration:   time.Millisecond * 50, // Placeholder
-		Output:     "",
-		Error:      nil,
+	startTime := time.Now()
+
+	// Discover Perl files to check
+	perlFiles, err := tc.discoverPerlFiles()
+	if err != nil {
+		return TypeCheckResult{
+			Success:  false,
+			Duration: time.Since(startTime),
+			Error:    err,
+		}
 	}
 
-	// TODO: Implement actual type checking
-	// For now, just return a placeholder result
+	if len(perlFiles) == 0 {
+		return TypeCheckResult{
+			Success:  true,
+			Duration: time.Since(startTime),
+			Output:   "No Perl files found for type checking",
+		}
+	}
 
+	// Use incremental file-level checking for development environment
+	return tc.runFileLevelTypeCheck(perlFiles, startTime)
+}
+
+// discoverTestFiles finds all test files in the project
+func (t *TestRunnerService) discoverTestFiles() ([]string, error) {
+	var testDirs []string
+
+	if t.projectCtx.IsProject {
+		// Standard Perl test directories
+		testDirs = []string{
+			filepath.Join(t.projectCtx.RootDir, "t"),
+			filepath.Join(t.projectCtx.RootDir, "tests"),
+		}
+	} else {
+		// Look in current directory
+		testDirs = []string{"t", "tests", "."}
+	}
+
+	var testFiles []string
+
+	for _, dir := range testDirs {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			continue
+		}
+
+		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if info.IsDir() {
+				return nil
+			}
+
+			// Look for .t files (standard Perl test files)
+			if strings.HasSuffix(path, ".t") {
+				testFiles = append(testFiles, path)
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			return []string{}, fmt.Errorf("failed to walk test directory %s: %w", dir, err)
+		}
+	}
+
+	// Always return a valid slice, even if empty
+	if testFiles == nil {
+		testFiles = []string{}
+	}
+
+	return testFiles, nil
+}
+
+// executeTestFiles runs test files using the most appropriate method
+func (t *TestRunnerService) executeTestFiles(testFiles []string, startTime time.Time) TestResult {
+	// Try prove first (standard Perl test runner)
+	if result := t.tryExecuteWithProve(testFiles, startTime); result.Success || result.Error == nil {
+		return result
+	}
+
+	// Fallback to direct perl execution
+	return t.executeWithDirectPerl(testFiles, startTime)
+}
+
+// tryExecuteWithProve attempts to use prove for test execution
+func (t *TestRunnerService) tryExecuteWithProve(testFiles []string, startTime time.Time) TestResult {
+	// Create a prove command that will run all test files
+	proveCode := fmt.Sprintf("exec { 'prove' } 'prove', '-v', %s",
+		strings.Join(func() []string {
+			var quoted []string
+			for _, file := range testFiles {
+				quoted = append(quoted, fmt.Sprintf("'%s'", file))
+			}
+			return quoted
+		}(), ", "))
+
+	// Set up execution options for prove
+	options := &pvx.ExecutionOptions{
+		InlineCode:     proveCode,
+		PerlVersion:    t.resolvePerlVersion(),
+		IsolationLevel: pvx.IsolationLocal, // Use local isolation for test environment
+		Env: map[string]string{
+			"PERL_TEST_HARNESS_DUMP_TAP": "1", // Enable TAP dumping
+		},
+	}
+
+	// Set up project-aware environment
+	if t.projectCtx.IsProject {
+		if options.Env == nil {
+			options.Env = make(map[string]string)
+		}
+
+		// Add project lib paths to PERL5LIB
+		projectLibPaths := []string{
+			filepath.Join(t.projectCtx.RootDir, "lib"),
+			filepath.Join(t.projectCtx.RootDir, "local", "lib", "perl5"),
+		}
+
+		for _, path := range projectLibPaths {
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				if existingPerl5Lib := options.Env["PERL5LIB"]; existingPerl5Lib != "" {
+					options.Env["PERL5LIB"] = path + string(os.PathListSeparator) + existingPerl5Lib
+				} else {
+					options.Env["PERL5LIB"] = path
+				}
+			}
+		}
+	}
+
+	output, err := pvx.ExecuteInlineCode(options)
+
+	result := TestResult{
+		Duration: time.Since(startTime),
+		Output:   output,
+		Error:    err,
+	}
+
+	if err != nil {
+		result.Success = false
+		result.Failed = len(testFiles) // Assume all failed if prove fails
+		return result
+	}
+
+	// Parse TAP output from prove
+	t.parseTAPOutput(output, &result)
 	return result
+}
+
+// executeWithDirectPerl runs tests directly with perl (fallback method)
+func (t *TestRunnerService) executeWithDirectPerl(testFiles []string, startTime time.Time) TestResult {
+	totalTests := 0
+	passedFiles := 0
+	failedFiles := 0
+	var outputs []string
+
+	for _, testFile := range testFiles {
+		options := &pvx.ExecutionOptions{
+			ScriptPath:     testFile,
+			PerlVersion:    t.resolvePerlVersion(),
+			IsolationLevel: pvx.IsolationLocal,
+		}
+
+		// Set up project-aware environment
+		if t.projectCtx.IsProject {
+			options.Env = make(map[string]string)
+
+			// Add project lib paths to PERL5LIB
+			projectLibPaths := []string{
+				filepath.Join(t.projectCtx.RootDir, "lib"),
+				filepath.Join(t.projectCtx.RootDir, "local", "lib", "perl5"),
+			}
+
+			for _, path := range projectLibPaths {
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					if existingPerl5Lib := options.Env["PERL5LIB"]; existingPerl5Lib != "" {
+						options.Env["PERL5LIB"] = path + string(os.PathListSeparator) + existingPerl5Lib
+					} else {
+						options.Env["PERL5LIB"] = path
+					}
+				}
+			}
+		}
+
+		output, err := pvx.ExecuteScript(options)
+		outputs = append(outputs, fmt.Sprintf("=== %s ===\n%s", testFile, output))
+
+		if err != nil {
+			failedFiles++
+		} else {
+			passedFiles++
+			// Try to extract test count from TAP output
+			totalTests += t.parseTestCount(output)
+		}
+	}
+
+	return TestResult{
+		Success:   failedFiles == 0,
+		TestCount: totalTests,
+		Passed:    passedFiles,
+		Failed:    failedFiles,
+		Duration:  time.Since(startTime),
+		Output:    strings.Join(outputs, "\n"),
+	}
+}
+
+// resolvePerlVersion determines which Perl version to use for testing
+func (t *TestRunnerService) resolvePerlVersion() string {
+	// Use project-specific version if available
+	if t.projectCtx.IsProject && t.projectCtx.PerlVersion != "" {
+		return t.projectCtx.PerlVersion
+	}
+
+	// Look for .perl-version file
+	if version := t.readVersionFile(".perl-version"); version != "" {
+		return version
+	}
+
+	// Fall back to system Perl (empty string lets PVX handle resolution)
+	return ""
+}
+
+// readVersionFile reads version from a file
+func (t *TestRunnerService) readVersionFile(filename string) string {
+	var filePath string
+	if t.projectCtx.IsProject {
+		filePath = filepath.Join(t.projectCtx.RootDir, filename)
+	} else {
+		filePath = filename
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(content))
+}
+
+// parseTAPOutput parses TAP output from prove and updates TestResult
+func (t *TestRunnerService) parseTAPOutput(output string, result *TestResult) {
+	lines := strings.Split(output, "\n")
+
+	var totalTests, passedTests, failedTests int
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Look for test plan (1..N)
+		if matches := regexp.MustCompile(`^1\.\.(\d+)`).FindStringSubmatch(line); matches != nil {
+			if count, err := strconv.Atoi(matches[1]); err == nil {
+				totalTests += count
+			}
+		}
+
+		// Count passed tests
+		if strings.HasPrefix(line, "ok ") {
+			passedTests++
+		}
+
+		// Count failed tests
+		if strings.HasPrefix(line, "not ok ") {
+			failedTests++
+		}
+
+		// Look for prove summary
+		if strings.Contains(line, "All tests successful") {
+			result.Success = true
+		}
+
+		// Look for failure summary
+		if matches := regexp.MustCompile(`(\d+)/(\d+) subtests failed`).FindStringSubmatch(line); matches != nil {
+			result.Success = false
+			if failed, err := strconv.Atoi(matches[1]); err == nil {
+				failedTests = failed
+			}
+			if total, err := strconv.Atoi(matches[2]); err == nil {
+				totalTests = total
+			}
+		}
+	}
+
+	result.TestCount = totalTests
+	result.Passed = passedTests
+	result.Failed = failedTests
+
+	if result.Success && failedTests > 0 {
+		result.Success = false
+	}
+
+	// If we don't have explicit success indication and no failures, assume success
+	if !result.Success && failedTests == 0 && totalTests > 0 {
+		result.Success = true
+	}
+}
+
+// parseTestCount extracts test count from TAP output (for direct perl execution)
+func (t *TestRunnerService) parseTestCount(output string) int {
+	// Look for "1..N" pattern in TAP output
+	re := regexp.MustCompile(`^1\.\.(\d+)`)
+	lines := strings.Split(output, "\n")
+
+	for _, line := range lines {
+		if matches := re.FindStringSubmatch(strings.TrimSpace(line)); matches != nil {
+			if len(matches) > 1 {
+				if count, err := strconv.Atoi(matches[1]); err == nil {
+					return count
+				}
+			}
+		}
+	}
+
+	// Fallback: count "ok" and "not ok" lines
+	count := 0
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "ok ") || strings.HasPrefix(trimmed, "not ok ") {
+			count++
+		}
+	}
+	return count
+}
+
+// discoverPerlFiles finds all Perl files in the project for type checking
+func (tc *TypeCheckerService) discoverPerlFiles() ([]string, error) {
+	var searchDirs []string
+	var perlFiles []string
+
+	if tc.projectCtx.IsProject {
+		// Standard Perl project directories
+		searchDirs = []string{
+			filepath.Join(tc.projectCtx.RootDir, "lib"),
+			filepath.Join(tc.projectCtx.RootDir, "bin"),
+			filepath.Join(tc.projectCtx.RootDir, "scripts"),
+			tc.projectCtx.RootDir, // Check root for loose .pl files
+		}
+	} else {
+		// Look in current directory
+		searchDirs = []string{"."}
+	}
+
+	for _, dir := range searchDirs {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			continue
+		}
+
+		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if info.IsDir() {
+				// Skip hidden directories and common non-source directories
+				baseName := filepath.Base(path)
+				if strings.HasPrefix(baseName, ".") ||
+					baseName == "t" || baseName == "tests" || baseName == "local" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+
+			// Look for .pl and .pm files (standard Perl source files)
+			if strings.HasSuffix(path, ".pl") || strings.HasSuffix(path, ".pm") {
+				perlFiles = append(perlFiles, path)
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			return []string{}, fmt.Errorf("failed to walk directory %s: %w", dir, err)
+		}
+	}
+
+	// Always return a valid slice, even if empty
+	if perlFiles == nil {
+		perlFiles = []string{}
+	}
+
+	return perlFiles, nil
+}
+
+// runFileLevelTypeCheck performs incremental type checking on individual files
+func (tc *TypeCheckerService) runFileLevelTypeCheck(perlFiles []string, startTime time.Time) TypeCheckResult {
+	// Create a new type checker instance
+	typeChecker, err := typechecker.NewTypeCheck()
+	if err != nil {
+		return TypeCheckResult{
+			Success:  false,
+			Duration: time.Since(startTime),
+			Error:    fmt.Errorf("failed to create type checker: %w", err),
+		}
+	}
+
+	var allErrors []string
+	var totalErrorCount int
+	var totalWarningCount int
+	checkedFiles := 0
+
+	// Check each file individually (incremental approach)
+	for _, file := range perlFiles {
+		// Only check recently modified files in development environment
+		if tc.shouldSkipFile(file) {
+			continue
+		}
+
+		result, err := typeChecker.CheckFile(file)
+		if err != nil {
+			// Don't fail entire check for individual file errors in dev environment
+			allErrors = append(allErrors, fmt.Sprintf("%s: %v", file, err))
+			continue
+		}
+
+		checkedFiles++
+
+		if len(result.Errors) > 0 {
+			totalErrorCount += len(result.Errors)
+
+			// Format errors for display
+			for _, typeErr := range result.Errors {
+				errorMsg := fmt.Sprintf("%s:%d:%d: %s",
+					file,
+					typeErr.Line,
+					typeErr.Column,
+					typeErr.Message)
+				allErrors = append(allErrors, errorMsg)
+			}
+		}
+
+		// Count warnings if available
+		// Note: The current typechecker doesn't expose warnings directly,
+		// but we can estimate based on less severe errors
+		totalWarningCount += tc.estimateWarnings(result)
+	}
+
+	success := totalErrorCount == 0
+	duration := time.Since(startTime)
+
+	return TypeCheckResult{
+		Success:    success,
+		ErrorCount: totalErrorCount,
+		Warnings:   totalWarningCount,
+		Duration:   duration,
+		Output:     tc.formatTypeCheckOutput(checkedFiles, totalErrorCount, totalWarningCount, allErrors),
+		Error:      nil,
+	}
+}
+
+// shouldSkipFile determines if a file should be skipped in incremental checking
+func (tc *TypeCheckerService) shouldSkipFile(filePath string) bool {
+	// In development environment, we might want to skip files that haven't
+	// been modified recently to improve performance. For now, check all files
+	// but this could be enhanced with file modification time tracking.
+
+	// Skip if file doesn't exist or can't be read
+	if _, err := os.Stat(filePath); err != nil {
+		return true
+	}
+
+	return false
+}
+
+// estimateWarnings estimates warning count from type check results
+func (tc *TypeCheckerService) estimateWarnings(result *typechecker.TypeCheckResult) int {
+	// This is a heuristic since the typechecker doesn't currently expose warnings separately
+	// We could enhance this by examining error severity or types
+	warningCount := 0
+
+	for _, err := range result.Errors {
+		// Consider certain error patterns as warnings rather than errors
+		if strings.Contains(strings.ToLower(err.Message), "warning") ||
+			strings.Contains(strings.ToLower(err.Message), "unused") ||
+			strings.Contains(strings.ToLower(err.Message), "deprecated") {
+			warningCount++
+		}
+	}
+
+	return warningCount
+}
+
+// formatTypeCheckOutput formats the type checking results for display
+func (tc *TypeCheckerService) formatTypeCheckOutput(checkedFiles, errorCount, warningCount int, errors []string) string {
+	var output strings.Builder
+
+	output.WriteString(fmt.Sprintf("Type checked %d file(s)", checkedFiles))
+
+	if errorCount == 0 && warningCount == 0 {
+		output.WriteString(" - no issues found")
+	} else {
+		if errorCount > 0 {
+			output.WriteString(fmt.Sprintf(" - %d error(s)", errorCount))
+		}
+		if warningCount > 0 {
+			if errorCount > 0 {
+				output.WriteString(",")
+			}
+			output.WriteString(fmt.Sprintf(" %d warning(s)", warningCount))
+		}
+	}
+
+	if len(errors) > 0 {
+		output.WriteString("\n\nIssues found:")
+		// Limit output in development environment to avoid overwhelming the console
+		maxErrors := 10
+		for i, err := range errors {
+			if i >= maxErrors {
+				output.WriteString(fmt.Sprintf("\n... and %d more issues (use 'psc check' for complete output)", len(errors)-maxErrors))
+				break
+			}
+			output.WriteString("\n  ")
+			output.WriteString(err)
+		}
+	}
+
+	return output.String()
 }
