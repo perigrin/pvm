@@ -106,14 +106,9 @@ func NewParser() (Parser, error) {
 }
 
 // NewParserWithOptions creates a parser with specific options
-// This is the new interface for choosing scanner vs tree-sitter parsing
+// Note: useScanner parameter is ignored - always returns tree-sitter parser
 func NewParserWithOptions(useScanner bool) (Parser, error) {
-	if useScanner {
-		// Use the new scanner-based parser
-		return NewTokenBasedParser(true)
-	}
-
-	// Use traditional tree-sitter parser directly
+	// Always use tree-sitter parser - scanner infrastructure has been removed
 	return NewTreeSitterParser()
 }
 

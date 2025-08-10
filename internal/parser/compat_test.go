@@ -1,5 +1,5 @@
-// ABOUTME: Compatibility tests for scanner integration
-// ABOUTME: Ensures backward compatibility while testing new scanner interface
+// ABOUTME: Compatibility tests for parser interface
+// ABOUTME: Ensures backward compatibility across different parser creation methods
 
 package parser
 
@@ -54,21 +54,17 @@ func TestBackwardCompatibility_NewParser(t *testing.T) {
 	}
 }
 
-func TestNewParserWithOptions_Scanner(t *testing.T) {
-	// Test that scanner-based parser can be created
-	// (even if tree-sitter dependencies are not available in test environment)
+func TestNewParserWithOptions_UseScanner(t *testing.T) {
+	// Test that NewParserWithOptions(true) works (now uses tree-sitter since scanner removed)
 	parser, err := NewParserWithOptions(true)
 	if err != nil {
-		// If tree-sitter is not available, this is expected in test environment
-		t.Logf("Scanner parser not available (expected in test env): %v", err)
-		return
+		t.Fatalf("Failed to create parser with useScanner=true: %v", err)
 	}
 
-	// If we get here, scanner is available
 	content := `my $x = 42;`
 	ast, err := parser.ParseString(content)
 	if err != nil {
-		t.Fatalf("Failed to parse with scanner: %v", err)
+		t.Fatalf("Failed to parse content: %v", err)
 	}
 
 	if ast == nil {

@@ -9,16 +9,15 @@ PVM has undergone a comprehensive architecture modernization inspired by Microso
 The PVM compiler pipeline follows the TypeScript-Go pattern with clear separation of concerns:
 
 ```
-Source Code → Scanner → Parser → Binder → Checker → Compiler → Output
+Source Code → Parser → Binder → Checker → Compiler → Output
 ```
 
 ### Pipeline Components
 
-1. **Scanner** (`internal/scanner/`): Lexical analysis with token-based parsing
-2. **Parser** (`internal/parser/`): AST generation with consolidated node types
-3. **Binder** (`internal/binder/`): Symbol resolution and scope management
-4. **Checker** (`internal/typechecker/`): Type analysis using symbol information
-5. **Compiler** (`internal/compiler/`): Code generation to multiple targets
+1. **Parser** (`internal/parser/`): AST generation with tree-sitter integration
+2. **Binder** (`internal/binder/`): Symbol resolution and scope management
+3. **Checker** (`internal/typechecker/`): Type analysis using symbol information
+4. **Compiler** (`internal/compiler/`): Code generation to multiple targets
 
 ## Key Architectural Benefits
 
@@ -44,23 +43,10 @@ Source Code → Scanner → Parser → Binder → Checker → Compiler → Outpu
 
 ### Core Compiler Pipeline
 
-#### Scanner (`internal/scanner/`)
-- **Purpose**: Lexical analysis and tokenization
-- **Key Features**: Tree-sitter integration, incremental parsing support
-- **Performance**: Token-based parsing for improved efficiency
-
-```go
-type Scanner interface {
-    NextToken() (*Token, error)
-    Peek() (*Token, error)
-    Position() Position
-}
-```
-
 #### Parser (`internal/parser/`)
-- **Purpose**: AST generation from token stream
-- **Key Features**: Consolidated AST types, tree-sitter integration
-- **Performance**: Fast parser for simple patterns, full parser for complex code
+- **Purpose**: AST generation directly from source code using tree-sitter
+- **Key Features**: Consolidated AST types, tree-sitter integration, caching
+- **Performance**: Optimized tree-sitter parsing with caching for repeated content
 
 ```go
 type Parser interface {
@@ -141,12 +127,11 @@ func (ls *LanguageService) FindReferences(uri string, pos Position) ([]*Referenc
 ### Type Checking Pipeline
 ```
 1. Source file loaded
-2. Scanner tokenizes input
-3. Parser generates AST
-4. Binder resolves symbols and builds symbol table
-5. Type checker analyzes types using symbol information
-6. Enhanced diagnostics provide context-aware error messages
-7. Compiler generates output in target format
+2. Parser generates AST using tree-sitter
+3. Binder resolves symbols and builds symbol table
+4. Type checker analyzes types using symbol information
+5. Enhanced diagnostics provide context-aware error messages
+6. Compiler generates output in target format
 ```
 
 ### LSP Request Handling

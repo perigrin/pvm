@@ -71,45 +71,45 @@ my Str $name = "test";`
 
 // TestParserOptions tests that parser options work correctly
 func TestParserOptions(t *testing.T) {
-	// Test creating parser with scanner enabled
-	scannerParser, err := NewParserWithOptions(true)
+	// Test that NewParserWithOptions works with both parameter values
+	// Note: Both now use tree-sitter since scanner infrastructure was removed
+	parser1, err := NewParserWithOptions(true)
 	if err != nil {
-		t.Fatalf("Failed to create scanner parser: %v", err)
+		t.Fatalf("Failed to create parser with useScanner=true: %v", err)
 	}
 
-	// Test creating parser with tree-sitter
-	tsParser, err := NewParserWithOptions(false)
+	parser2, err := NewParserWithOptions(false)
 	if err != nil {
-		t.Fatalf("Failed to create tree-sitter parser: %v", err)
+		t.Fatalf("Failed to create parser with useScanner=false: %v", err)
 	}
 
 	testCode := `my $test = "hello";`
 
-	// Both parsers should be able to parse the same code
-	scannerAST, err := scannerParser.ParseString(testCode)
+	// Both parsers should be able to parse the same code (both use tree-sitter now)
+	ast1, err := parser1.ParseString(testCode)
 	if err != nil {
-		t.Errorf("Scanner parser failed: %v", err)
+		t.Errorf("Parser 1 failed: %v", err)
 	}
 
-	tsAST, err := tsParser.ParseString(testCode)
+	ast2, err := parser2.ParseString(testCode)
 	if err != nil {
-		t.Errorf("Tree-sitter parser failed: %v", err)
+		t.Errorf("Parser 2 failed: %v", err)
 	}
 
 	// Both should produce valid ASTs
-	if scannerAST == nil {
-		t.Error("Scanner AST is nil")
+	if ast1 == nil {
+		t.Error("Parser 1 AST is nil")
 	}
-	if tsAST == nil {
-		t.Error("Tree-sitter AST is nil")
+	if ast2 == nil {
+		t.Error("Parser 2 AST is nil")
 	}
 
 	// Both should have the same source
-	if scannerAST != nil && scannerAST.Source != testCode {
-		t.Errorf("Scanner AST source mismatch: expected %q, got %q", testCode, scannerAST.Source)
+	if ast1 != nil && ast1.Source != testCode {
+		t.Errorf("Parser 1 AST source mismatch: expected %q, got %q", testCode, ast1.Source)
 	}
-	if tsAST != nil && tsAST.Source != testCode {
-		t.Errorf("Tree-sitter AST source mismatch: expected %q, got %q", testCode, tsAST.Source)
+	if ast2 != nil && ast2.Source != testCode {
+		t.Errorf("Parser 2 AST source mismatch: expected %q, got %q", testCode, ast2.Source)
 	}
 }
 
