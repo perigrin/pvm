@@ -909,6 +909,11 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 		return p.convertToRoleDeclAST(node, start, end)
 	}
 
+	// Handle use statements specifically
+	if nodeType == "use_statement" {
+		return p.convertToUseStmtAST(node, start, end)
+	}
+
 	// Handle block statements specifically
 	if nodeType == "block" {
 		return p.parseBlock(node, start, end)
@@ -1315,6 +1320,62 @@ func (p *Parser) convertToRoleDeclAST(node Node, start, end ast.Position) ast.No
 	}
 
 	return roleDecl
+}
+
+// convertToUseStmtAST converts a use_statement node to ast.UseStmt
+func (p *Parser) convertToUseStmtAST(node Node, start, end ast.Position) ast.Node {
+	module := ""
+	version := ""
+	var imports []string
+
+	// Extract fields from tree-sitter node children
+	for _, child := range node.Children() {
+		switch child.Type() {
+		case "package":
+			module = child.Text()
+		case "_version":
+			version = child.Text()
+		case "_listexpr":
+			// Parse import list from expressions like qw(has with)
+			imports = p.parseImportList(child)
+		}
+	}
+
+	return ast.NewUseStmt(module, version, imports, start, end)
+}
+
+// parseImportList extracts imports from a _listexpr node
+func (p *Parser) parseImportList(listNode Node) []string {
+	var imports []string
+
+	// Handle qw() syntax and other list expressions
+	text := listNode.Text()
+
+	// Simple parsing for qw(symbol1 symbol2) format
+	if strings.Contains(text, "qw(") {
+		// Extract content between qw( and )
+		start := strings.Index(text, "qw(") + 3
+		end := strings.LastIndex(text, ")")
+		if start < end && end > 0 {
+			content := text[start:end]
+			// Split by whitespace to get individual imports
+			for _, item := range strings.Fields(content) {
+				item = strings.TrimSpace(item)
+				if item != "" {
+					imports = append(imports, item)
+				}
+			}
+		}
+	} else {
+		// For non-qw syntax, try to extract identifiers
+		for _, child := range listNode.Children() {
+			if child.Type() == "identifier" || child.Type() == "string" {
+				imports = append(imports, strings.Trim(child.Text(), `"'`))
+			}
+		}
+	}
+
+	return imports
 }
 
 // convertToSubDeclAST converts a subroutine_declaration_statement node to ast.SubDecl
