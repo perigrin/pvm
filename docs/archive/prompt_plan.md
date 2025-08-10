@@ -11,7 +11,7 @@ This plan transforms PVM from a collection of tools into a unified, context-awar
 - **uv-like workflow** for Perl module management
 - **TypeScript-style build system** with type-check + compile
 - **CPAN distribution ready** builds
-- **Backward compatible** aliases (pvi, pvx, psc)
+- **Backward compatible** aliases (pm, pvx, psc)
 
 ## Implementation Phases
 
@@ -49,20 +49,20 @@ This plan transforms PVM from a collection of tools into a unified, context-awar
 
 ### Step 1.1: Fix Command Router Infrastructure ✅ **COMPLETED**
 
-**Goal**: Ensure subcommands work properly (`pvm pvi install` should route correctly)
+**Goal**: Ensure subcommands work properly (`pvm pm install` should route correctly)
 
 **Status**: ✅ **COMPLETED** - All routing functionality works correctly. Added comprehensive tests to verify:
-- Direct symlink routing (./pvi, ./pvx, ./psc)
-- Subcommand routing (./pvm pvi, ./pvm pvx, ./pvm psc)
-- Help routing (./pvm help pvi, etc.)
-- Version routing (./pvm pvi version, etc.)
+- Direct symlink routing (./pm, ./pvx, ./psc)
+- Subcommand routing (./pvm pm, ./pvm pvx, ./pvm psc)
+- Help routing (./pvm help pm, etc.)
+- Version routing (./pvm pm version, etc.)
 - Backward compatibility with existing symlinks
 
 ```
 Fix the command router in internal/cli/router.go to properly detect and route subcommands. The router should:
 
-1. Detect the component (pvm, pvi, pvx, psc) from binary name OR subcommand
-2. Route "pvm pvi install Module::Name" to PVI module installer
+1. Detect the component (pvm, pm, pvx, psc) from binary name OR subcommand
+2. Route "pvm pm install Module::Name" to PM module installer
 3. Route "pvm pvx script.pl" to PVX executor
 4. Route "pvm psc check file.pl" to PSC type checker
 5. Maintain backward compatibility with symlinks
@@ -74,15 +74,15 @@ Implementation requirements:
 - Add comprehensive tests for all routing scenarios
 
 Test cases to implement:
-- Direct symlink: ./pvi install Module::Name
-- Subcommand: ./pvm pvi install Module::Name
-- Help: ./pvm help pvi (should show PVI help)
-- Version: ./pvm pvi version (should show PVI version)
+- Direct symlink: ./pm install Module::Name
+- Subcommand: ./pvm pm install Module::Name
+- Help: ./pvm help pm (should show PM help)
+- Version: ./pvm pm version (should show PM version)
 
 Verification:
 - All existing tests continue to pass
 - New routing tests verify correct component selection
-- Manual testing: make pvm && ./build/pvm help pvi works
+- Manual testing: make pvm && ./build/pvm help pm works
 ```
 
 ### Step 1.2: Implement Project Context Detection ✅ **COMPLETED**
@@ -306,9 +306,9 @@ Foundation is solid and ready for Phase 2 development.
 
 ### Step 2.1: Context-Aware Module Installation ✅ **COMPLETED**
 
-**Goal**: Make `pvi install` project-aware with automatic local lib management
+**Goal**: Make `pm install` project-aware with automatic local lib management
 
-**Status**: ✅ **COMPLETED** - PVI module installer enhanced with full project-awareness:
+**Status**: ✅ **COMPLETED** - PM module installer enhanced with full project-awareness:
 - Automatic project context detection
 - Project-local installation to `./lib/` directory when in project context
 - Global installation to XDG directory when outside projects or with `--force-global`
@@ -317,7 +317,7 @@ Foundation is solid and ready for Phase 2 development.
 - Comprehensive test coverage for all installation scenarios
 
 ```
-Enhance internal/pvi/modules/installer.go for context-aware installation:
+Enhance internal/pm/modules/installer.go for context-aware installation:
 
 1. Modify InstallModule function to:
    - Use project detector to determine installation target
@@ -341,7 +341,7 @@ Enhance internal/pvi/modules/installer.go for context-aware installation:
    - Use ProjectContext from detector
    - Respect configuration for local lib preferences
    - Coordinate with existing parallel installation system
-   - Maintain compatibility with existing PVI commands
+   - Maintain compatibility with existing PM commands
 
 Enhanced testing:
 - Installation in project vs non-project directories
@@ -358,7 +358,7 @@ This creates the foundation for the uv-like workflow where module installation "
 **Goal**: Add `pvm module add` command that updates cpanfile and installs modules
 
 **Status**: ✅ **COMPLETED** - Full cpanfile management functionality implemented:
-- Created CpanfileManager in `internal/pvi/cpanfile.go` for reading/writing cpanfile format
+- Created CpanfileManager in `internal/pm/cpanfile.go` for reading/writing cpanfile format
 - Added `pvm module add` command with support for runtime and development dependencies
 - Enhanced `pvm module install` to read from cpanfile when no modules specified
 - Automatic rollback of cpanfile changes if installation fails
@@ -427,7 +427,7 @@ This is the key command that enables the uv-like workflow: "pvm module add Modul
 ```
 Enhance module installation to support cpanfile-based installation:
 
-1. Modify ModuleInstallCommand in internal/pvi/command.go:
+1. Modify ModuleInstallCommand in internal/pm/command.go:
    - If no modules specified, read from cpanfile
    - Install all dependencies from cpanfile
    - Support development dependencies (--dev flag)

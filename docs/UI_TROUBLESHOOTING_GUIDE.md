@@ -168,7 +168,7 @@ grep -r "os\.Stdout\|os\.Stderr" internal/
 # Compare command outputs
 pvm --help
 pvx --help
-pvi --help
+pm --help
 psc --help
 ```
 

@@ -56,12 +56,12 @@ func (ie *InterpolationEngine) InterpolateConfig(config *Config) (*Config, error
 		configCopy.PVX = &pvxCopy
 	}
 
-	if config.PVI != nil {
-		pviCopy := *config.PVI
+	if config.PM != nil {
+		pviCopy := *config.PM
 		if err := ie.interpolateStruct(&pviCopy); err != nil {
-			return nil, fmt.Errorf("PVI config interpolation failed: %w", err)
+			return nil, fmt.Errorf("PM config interpolation failed: %w", err)
 		}
-		configCopy.PVI = &pviCopy
+		configCopy.PM = &pviCopy
 	}
 
 	if config.PSC != nil {

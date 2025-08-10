@@ -1,4 +1,4 @@
-package pvi
+package pm
 
 import (
 	"log"
@@ -22,13 +22,13 @@ func TestCpanfileManager_WithBackupConfig(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		backupConfig   *config.PVIBackupConfig
+		backupConfig   *config.PMBackupConfig
 		expectBackup   bool
 		backupLocation string // "local" or "cache"
 	}{
 		{
 			name: "backup disabled",
-			backupConfig: &config.PVIBackupConfig{
+			backupConfig: &config.PMBackupConfig{
 				CpanfileBackup: "off",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -37,7 +37,7 @@ func TestCpanfileManager_WithBackupConfig(t *testing.T) {
 		},
 		{
 			name: "local backup enabled",
-			backupConfig: &config.PVIBackupConfig{
+			backupConfig: &config.PMBackupConfig{
 				CpanfileBackup: "local",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -47,7 +47,7 @@ func TestCpanfileManager_WithBackupConfig(t *testing.T) {
 		},
 		{
 			name: "cache backup enabled",
-			backupConfig: &config.PVIBackupConfig{
+			backupConfig: &config.PMBackupConfig{
 				CpanfileBackup: "cache",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -139,7 +139,7 @@ func TestCpanfileManager_BackupModeOverride(t *testing.T) {
 	}
 
 	// Start with cache backup mode
-	backupConfig := &config.PVIBackupConfig{
+	backupConfig := &config.PMBackupConfig{
 		CpanfileBackup: "cache",
 		RetentionDays:  30,
 		MaxBackups:     10,
@@ -219,7 +219,7 @@ requires 'File::Spec';
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
 
-	backupConfig := &config.PVIBackupConfig{
+	backupConfig := &config.PMBackupConfig{
 		CpanfileBackup: "local",
 		RetentionDays:  30,
 		MaxBackups:     10,
@@ -268,7 +268,7 @@ func TestCpanfileManager_MultipleOperationsWithRetention(t *testing.T) {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
 
-	backupConfig := &config.PVIBackupConfig{
+	backupConfig := &config.PMBackupConfig{
 		CpanfileBackup: "local",
 		RetentionDays:  30,
 		MaxBackups:     3, // Low limit to test retention
@@ -335,7 +335,7 @@ func TestCpanfileManager_BackupFailureHandling(t *testing.T) {
 	}
 
 	// Create backup config that will cause issues (invalid cache dir by removing XDG access)
-	backupConfig := &config.PVIBackupConfig{
+	backupConfig := &config.PMBackupConfig{
 		CpanfileBackup: "cache",
 		RetentionDays:  30,
 		MaxBackups:     10,

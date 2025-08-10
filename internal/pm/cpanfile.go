@@ -1,7 +1,7 @@
 // ABOUTME: cpanfile manipulation and management functionality
 // ABOUTME: Provides functions to read, write, and modify cpanfile format
 
-package pvi
+package pm
 
 import (
 	"fmt"
@@ -33,7 +33,7 @@ func NewCpanfileManager(path string) *CpanfileManager {
 }
 
 // NewCpanfileManagerWithConfig creates a new cpanfile manager with backup configuration
-func NewCpanfileManagerWithConfig(path string, backupConfig *config.PVIBackupConfig, logger *log.Logger) (*CpanfileManager, error) {
+func NewCpanfileManagerWithConfig(path string, backupConfig *config.PMBackupConfig, logger *log.Logger) (*CpanfileManager, error) {
 	if logger == nil {
 		logger = log.New(os.Stderr, "[PVI] ", log.LstdFlags)
 	}

@@ -58,7 +58,7 @@ strict_mode = true
 show_context_lines = 3
 enable_colors = true
 
-[pvi]
+[pm]
 # Automate dependency management
 auto_install_deps = true
 test_during_install = true
@@ -174,7 +174,7 @@ pvm current
 
 # Install core dependencies
 echo "Installing core dependencies..."
-pvi install Moose Test2::V0 JSON::XS DBI
+pm install Moose Test2::V0 JSON::XS DBI
 
 # Generate basic project files
 if [ ! -f "cpanfile" ]; then

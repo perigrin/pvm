@@ -15,7 +15,7 @@ import (
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/modules"
-	"tamarou.com/pvm/internal/pvi"
+	"tamarou.com/pvm/internal/pm"
 )
 
 // newModuleCommand creates a module management command for PSC
@@ -61,11 +61,11 @@ func newModuleInstallCommand() *cobra.Command {
 
 			// Create provider using builder pattern
 			source := "metacpan"
-			if cfg != nil && cfg.PVI != nil && cfg.PVI.MetadataSource != "" {
-				source = cfg.PVI.MetadataSource
+			if cfg != nil && cfg.PM != nil && cfg.PM.MetadataSource != "" {
+				source = cfg.PM.MetadataSource
 			}
 
-			providerResult, err := pvi.NewProviderBuilder().
+			providerResult, err := pm.NewProviderBuilder().
 				WithConfig(cfg).
 				WithSource(source).
 				WithResolver().

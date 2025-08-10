@@ -1,4 +1,4 @@
-package pvi
+package pm
 
 import (
 	"log"
@@ -24,12 +24,12 @@ func (w *mockWriter) Write(p []byte) (n int, err error) {
 func TestNewBackupManager(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *config.PVIBackupConfig
+		config      *config.PMBackupConfig
 		expectError bool
 	}{
 		{
 			name: "valid config",
-			config: &config.PVIBackupConfig{
+			config: &config.PMBackupConfig{
 				CpanfileBackup: "local",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -127,7 +127,7 @@ func TestBackupManager_BackupCpanfile_Off(t *testing.T) {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
 
-	config := &config.PVIBackupConfig{
+	config := &config.PMBackupConfig{
 		CpanfileBackup: "off",
 		RetentionDays:  30,
 		MaxBackups:     10,
@@ -169,7 +169,7 @@ func TestBackupManager_BackupCpanfile_Local(t *testing.T) {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
 
-	config := &config.PVIBackupConfig{
+	config := &config.PMBackupConfig{
 		CpanfileBackup: "local",
 		RetentionDays:  30,
 		MaxBackups:     10,
@@ -235,7 +235,7 @@ func TestBackupManager_BackupCpanfile_Cache(t *testing.T) {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
 
-	config := &config.PVIBackupConfig{
+	config := &config.PMBackupConfig{
 		CpanfileBackup: "cache",
 		RetentionDays:  30,
 		MaxBackups:     10,
@@ -288,7 +288,7 @@ func TestBackupManager_BackupCpanfile_NonexistentFile(t *testing.T) {
 	tempDir := t.TempDir()
 	cpanfilePath := filepath.Join(tempDir, "nonexistent.cpanfile")
 
-	config := &config.PVIBackupConfig{
+	config := &config.PMBackupConfig{
 		CpanfileBackup: "local",
 		RetentionDays:  30,
 		MaxBackups:     10,
@@ -318,7 +318,7 @@ func TestBackupManager_BackupCleanup_MaxBackups(t *testing.T) {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
 
-	config := &config.PVIBackupConfig{
+	config := &config.PMBackupConfig{
 		CpanfileBackup: "local",
 		RetentionDays:  365, // Long retention to test max backups limit
 		MaxBackups:     3,   // Limit to 3 backups
@@ -395,7 +395,7 @@ func TestBackupManager_BackupCleanup_RetentionDays(t *testing.T) {
 		t.Fatalf("Failed to set old backup time: %v", err)
 	}
 
-	config := &config.PVIBackupConfig{
+	config := &config.PMBackupConfig{
 		CpanfileBackup: "local",
 		RetentionDays:  30, // 30 day retention
 		MaxBackups:     10,
@@ -434,7 +434,7 @@ func TestBackupManager_BackupCleanup_RetentionDays(t *testing.T) {
 }
 
 func TestBackupManager_ProjectHash(t *testing.T) {
-	config := &config.PVIBackupConfig{
+	config := &config.PMBackupConfig{
 		CpanfileBackup: "cache",
 		RetentionDays:  30,
 		MaxBackups:     10,

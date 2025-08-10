@@ -373,7 +373,7 @@ func runScript(cmd *cobra.Command, args []string) error {
     if len(deps.Missing) > 0 {
         ui.Warning("Missing dependencies detected:")
         ui.List(deps.Missing)
-        ui.Info("Install with: pvi install %s", strings.Join(deps.Missing, " "))
+        ui.Info("Install with: pm install %s", strings.Join(deps.Missing, " "))
     }
 
     ui.Status("Executing script...")
@@ -715,7 +715,7 @@ pvm --help
 pvm --quiet --help
 pvm --verbose --help
 pvx --help
-pvi --help
+pm --help
 psc --help
 
 # Test error handling
@@ -733,7 +733,7 @@ make test
 # Test performance impact
 time pvm --help
 time pvx --help
-time pvi --help
+time pm --help
 time psc --help
 
 # Should complete in under 1 second for help commands

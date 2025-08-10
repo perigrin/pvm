@@ -636,7 +636,7 @@ func pvxRunCommand(cmd *cobra.Command, args []string) error {
     if len(deps.Missing) > 0 {
         ui.Warning("Missing dependencies:")
         ui.List(deps.Missing)
-        ui.Info("Install with: pvi install %s",
+        ui.Info("Install with: pm install %s",
             strings.Join(deps.Missing, " "))
     }
 
@@ -667,20 +667,20 @@ func pvxRunCommand(cmd *cobra.Command, args []string) error {
 }
 ```
 
-### PVI Component Patterns
+### PM Component Patterns
 
 #### Package Installation
 ```go
-func pviInstallCommand(cmd *cobra.Command, args []string) error {
+func pmInstallCommand(cmd *cobra.Command, args []string) error {
     ui := cli.GetUI(cmd)
     packageName := args[0]
 
     ui.Header(fmt.Sprintf("Installing %s", packageName))
 
     // Check existing installation
-    if pvi.IsInstalled(packageName) {
+    if pm.IsInstalled(packageName) {
         ui.Warning("Package %s is already installed", packageName)
-        ui.Info("Use 'pvi upgrade %s' to upgrade", packageName)
+        ui.Info("Use 'pm upgrade %s' to upgrade", packageName)
         return nil
     }
 
@@ -689,9 +689,9 @@ func pviInstallCommand(cmd *cobra.Command, args []string) error {
         name string
         fn   func() error
     }{
-        {"Downloading", func() error { return pvi.Download(packageName) }},
-        {"Resolving dependencies", func() error { return pvi.ResolveDeps(packageName) }},
-        {"Installing", func() error { return pvi.Install(packageName) }},
+        {"Downloading", func() error { return pm.Download(packageName) }},
+        {"Resolving dependencies", func() error { return pm.ResolveDeps(packageName) }},
+        {"Installing", func() error { return pm.Install(packageName) }},
     }
 
     for i, phase := range phases {

@@ -2,13 +2,13 @@
 
 ## Executive Summary
 
-Analysis of `internal/pvi/command.go` (2403 lines) reveals significant code duplication and opportunities for extraction into reusable packages. The file contains 12 commands with substantial repeated patterns, particularly in provider setup (40-60 lines per command), configuration handling, and progress tracking.
+Analysis of `internal/pm/command.go` (2403 lines) reveals significant code duplication and opportunities for extraction into reusable packages. The file contains 12 commands with substantial repeated patterns, particularly in provider setup (40-60 lines per command), configuration handling, and progress tracking.
 
 ## Current State Analysis
 
 ### File Structure Overview
 
-**Target File:** `internal/pvi/command.go` (2403 lines)
+**Target File:** `internal/pm/command.go` (2403 lines)
 - **Commands Analyzed:** 12 primary commands + 4 simplified prototypes
 - **Code Duplication:** High (estimated 60-70% repetitive patterns)
 - **Complexity:** Very High (multiple responsibilities per command)
@@ -35,8 +35,8 @@ Analysis of `internal/pvi/command.go` (2403 lines) reveals significant code dupl
 **Already Extracted Components:**
 - `ProviderBuilder` (181 lines) - Fluent builder for CPAN providers ✅
 - `CpanfileManager` (597 lines) - cpanfile manipulation ✅
-- `internal/pvi/modules/` - Module operations (installer, manager, etc.) ✅
-- `internal/pvi/deps/` - Dependency resolution ✅
+- `internal/pm/modules/` - Module operations (installer, manager, etc.) ✅
+- `internal/pm/deps/` - Dependency resolution ✅
 
 **Prototype Implementations:**
 The file contains simplified command implementations (`newSimplified*Command`) that demonstrate the target refactored patterns using helper functions.
@@ -129,7 +129,7 @@ default:
 
 ```go
 // Pattern for creating installation options:
-installOptions := &pviModules.ModuleInstallOptions{
+installOptions := &pmModules.ModuleInstallOptions{
     ModuleName:         moduleName,
     VersionConstraint:  version,
     PerlPath:           perlPath,
@@ -154,15 +154,15 @@ command.go depends on:
 ├── internal/modules (Module management - needs extraction)
 ├── internal/perl (Perl interpreter utilities)
 ├── internal/project (Project context detection)
-├── internal/pvi/deps (Dependency resolution)
-├── internal/pvi/modules (PVI-specific module operations)
+├── internal/pm/deps (Dependency resolution)
+├── internal/pm/modules (PM-specific module operations)
 └── github.com/spf13/cobra (CLI framework)
 ```
 
 ### Circular Dependency Risks
 
 1. **Low Risk:** Most dependencies are unidirectional
-2. **Medium Risk:** `internal/modules` and `internal/pvi/modules` overlap
+2. **Medium Risk:** `internal/modules` and `internal/pm/modules` overlap
 3. **Mitigation:** Extract to unified `internal/modules` package
 
 ### External Dependencies
@@ -205,13 +205,13 @@ command.go depends on:
 ### Phase 3: Provider and Dependencies (MEDIUM IMPACT, LOW RISK)
 
 6. **CPAN Provider Builder** - Already extracted ✅
-   - Current: `internal/pvi/provider_builder.go`
+   - Current: `internal/pm/provider_builder.go`
    - Target: Move to `internal/cpan/builder.go`
    - Impact: Provider setup already simplified
    - Risk: Low (existing implementation)
 
 7. **Dependency Management** - Extract cpanfile operations
-   - Current: `internal/pvi/cpanfile.go` (597 lines)
+   - Current: `internal/pm/cpanfile.go` (597 lines)
    - Target: `internal/dependencies/cpanfile.go`
    - Impact: Reusable across components
    - Risk: Low (well-isolated)
@@ -421,7 +421,7 @@ type ConfigResolver interface {
 
 ## Conclusion
 
-The analysis confirms that `internal/pvi/command.go` contains significant extractable functionality with high potential for reuse across PVM components. The existing prototype implementations demonstrate viable extraction patterns, and the risk assessment shows manageable complexity with proper phasing.
+The analysis confirms that `internal/pm/command.go` contains significant extractable functionality with high potential for reuse across PVM components. The existing prototype implementations demonstrate viable extraction patterns, and the risk assessment shows manageable complexity with proper phasing.
 
 **Recommendation:** Proceed with extraction following the phased approach, starting with foundation interfaces and progressing through module management, provider configuration, and UI standardization.
 

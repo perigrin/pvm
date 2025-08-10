@@ -12,7 +12,7 @@ unrelated to the current work.
 - Build individual components:
   - PVM: `make pvm`
   - PVX: `make pvx`
-  - PVI: `make pvi`
+  - PM: `make pm`
   - PSC: `make psc` (requires tree-sitter-typed-perl build first)
 - Test all: `make test` (provides comprehensive test summary with failure breakdown by package)
 - Lint: `golangci-lint run`

@@ -195,7 +195,7 @@ func TestInterpolationEngine_InterpolateConfig(t *testing.T) {
 			SaveOutputDir:   "${TEST_HOME}/output",
 			PreserveEnvVars: []string{"${TEST_USER}_VAR", "DISPLAY"},
 		},
-		PVI: &PVIConfig{
+		PM: &PMConfig{
 			CacheDir: "${TEST_HOME:-/default}/.cache",
 		},
 		PSC: &PSCConfig{
@@ -229,8 +229,8 @@ func TestInterpolationEngine_InterpolateConfig(t *testing.T) {
 	}
 
 	// Verify PVI interpolation
-	if result.PVI.CacheDir != "/test/home/.cache" {
-		t.Errorf("PVI.CacheDir = %v, want /test/home/.cache", result.PVI.CacheDir)
+	if result.PM.CacheDir != "/test/home/.cache" {
+		t.Errorf("PVI.CacheDir = %v, want /test/home/.cache", result.PM.CacheDir)
 	}
 
 	// Verify PSC interpolation
@@ -266,7 +266,7 @@ func TestInterpolationEngine_TypeConversion(t *testing.T) {
 				PVM: &PVMConfig{
 					DownloadMirror: "${CONFIG_BASE}/mirror",
 				},
-				PVI: &PVIConfig{
+				PM: &PMConfig{
 					CacheDir: "${CACHE_BASE}/pvi",
 				},
 			},
@@ -274,8 +274,8 @@ func TestInterpolationEngine_TypeConversion(t *testing.T) {
 				if result.PVM.DownloadMirror != "/custom/config/mirror" {
 					t.Errorf("Expected /custom/config/mirror, got %v", result.PVM.DownloadMirror)
 				}
-				if result.PVI.CacheDir != "/custom/cache/pvi" {
-					t.Errorf("Expected /custom/cache/pvi, got %v", result.PVI.CacheDir)
+				if result.PM.CacheDir != "/custom/cache/pvi" {
+					t.Errorf("Expected /custom/cache/pvi, got %v", result.PM.CacheDir)
 				}
 			},
 		},
@@ -456,7 +456,7 @@ func TestInterpolationEngine_ComplexScenarios(t *testing.T) {
 		PSC: &PSCConfig{
 			TypeDefinitionsPath: "${FULL_PATH}/types",
 		},
-		PVI: &PVIConfig{
+		PM: &PMConfig{
 			CacheDir: "${BASE_DIR:-/default}/${APP_NAME:-unknown}/cache",
 		},
 	}
@@ -472,8 +472,8 @@ func TestInterpolationEngine_ComplexScenarios(t *testing.T) {
 	}
 
 	expectedCache := "/opt/pvm/cache"
-	if result.PVI.CacheDir != expectedCache {
-		t.Errorf("Expected %v, got %v", expectedCache, result.PVI.CacheDir)
+	if result.PM.CacheDir != expectedCache {
+		t.Errorf("Expected %v, got %v", expectedCache, result.PM.CacheDir)
 	}
 }
 

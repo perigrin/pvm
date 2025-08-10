@@ -28,7 +28,7 @@ func TestRouterMultiEntryPointScenarios(t *testing.T) {
 			name:         "DirectSymlinkPVI",
 			binaryName:   "./pvi",
 			args:         []string{"./pvi", "install", "Module::Name"},
-			expectedComp: ComponentPVI,
+			expectedComp: ComponentPM,
 			expectedType: InvocationSymlink,
 			description:  "Direct symlink: ./pvi install Module::Name",
 		},
@@ -104,7 +104,7 @@ func TestRouterHelpRouting(t *testing.T) {
 		component   string
 		description string
 	}{
-		{ComponentPVI, "PVI help should be accessible"},
+		{ComponentPM, "PVI help should be accessible"},
 		{ComponentPVX, "PVX help should be accessible"},
 		{ComponentPSC, "PSC help should be accessible"},
 	}
@@ -132,7 +132,7 @@ func TestRouterComponentDescriptions(t *testing.T) {
 		expectedDesc string
 	}{
 		{ComponentPVM, DescriptionPVM},
-		{ComponentPVI, DescriptionPVI},
+		{ComponentPM, DescriptionPM},
 		{ComponentPVX, DescriptionPVX},
 		{ComponentPSC, DescriptionPSC},
 	}
@@ -151,7 +151,7 @@ func TestRouterComponentDescriptions(t *testing.T) {
 
 func TestRouterRootCommandCreation(t *testing.T) {
 	// Test that root commands can be created for all components
-	components := []string{ComponentPVM, ComponentPVI, ComponentPVX, ComponentPSC}
+	components := []string{ComponentPVM, ComponentPM, ComponentPVX, ComponentPSC}
 
 	for _, component := range components {
 		t.Run(component, func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestRouterBackwardCompatibilityAliases(t *testing.T) {
 		expectedComp string
 		description  string
 	}{
-		{"pvi", ComponentPVI, "PVI symlink compatibility"},
+		{"pvi", ComponentPM, "PVI symlink compatibility"},
 		{"pvx", ComponentPVX, "PVX symlink compatibility"},
 		{"psc", ComponentPSC, "PSC symlink compatibility"},
 		{"pvm", ComponentPVM, "PVM direct execution"},
@@ -206,7 +206,7 @@ func TestRouterRegistryIntegration(t *testing.T) {
 	// Test that the GlobalRegistry interface works (components are registered in main)
 
 	// Verify all required components exist in the constants
-	requiredComponents := []string{ComponentPVM, ComponentPVI, ComponentPVX, ComponentPSC}
+	requiredComponents := []string{ComponentPVM, ComponentPM, ComponentPVX, ComponentPSC}
 
 	for _, component := range requiredComponents {
 		t.Run("Component"+component, func(t *testing.T) {

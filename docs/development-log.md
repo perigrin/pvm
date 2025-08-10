@@ -26,7 +26,7 @@ The team made an early decision to split functionality into discrete, cooperatin
 
 - **PVM**: Core version management and coordination
 - **PSC**: Static type checker operating independently of runtime
-- **PVI**: Version-aware package installer with type integration
+- **PM**: Version-aware package installer with type integration
 - **PVX**: Isolated execution environment for testing and deployment
 
 This decision proved prescient, allowing each component to evolve independently while maintaining tight integration.
@@ -134,7 +134,7 @@ This feature made typed-Perl significantly more usable by reducing the need for 
 
 ### Phase 3: Ecosystem Integration (Late 2024)
 
-**PVI Package Management:**
+**PM Package Management:**
 - CPAN integration with type awareness
 - Dependency resolution with type compatibility checking
 - Type definition file (`.ptd`) support for external modules
@@ -347,7 +347,7 @@ Multi-stage container builds enabling:
 - Comprehensive error reporting
 - Performance optimized for large codebases
 
-**PVI (Package Installer):** Production-ready
+**PM (Package Installer):** Production-ready
 - CPAN integration
 - Type-aware dependency resolution
 - Module introspection and type generation
@@ -371,7 +371,7 @@ Multi-stage container builds enabling:
 Each component operates independently but integrates seamlessly:
 ```
 ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
-│   PVM   │────│   PSC   │────│   PVI   │────│   PVX   │
+│   PVM   │────│   PSC   │────│   PM   │────│   PVX   │
 │  Core   │    │  Types  │    │ Install │    │  Exec   │
 └─────────┘    └─────────┘    └─────────┘    └─────────┘
      │              │              │              │

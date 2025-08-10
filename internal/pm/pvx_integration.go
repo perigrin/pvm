@@ -1,7 +1,7 @@
 // ABOUTME: Integration between PVI and PVX for automatic module installation
 // ABOUTME: Provides functionality for PVX to install required modules automatically
 
-package pvi
+package pm
 
 import (
 	"context"
@@ -207,8 +207,8 @@ func InstallModulesForPVX(options *PVXIntegrationOptions) (*PVXIntegrationResult
 
 	// Create provider using builder pattern (extracted package)
 	source := "metacpan" // Default to MetaCPAN
-	if cfg.PVI != nil && cfg.PVI.MetadataSource != "" {
-		source = cfg.PVI.MetadataSource
+	if cfg.PM != nil && cfg.PM.MetadataSource != "" {
+		source = cfg.PM.MetadataSource
 	}
 
 	providerResult, err := NewProviderBuilder().
@@ -449,17 +449,17 @@ func CheckModuleAvailability(modules []string, perlVersion string) (*ModuleAvail
 
 	// Set up CPAN provider
 	source := "metacpan" // Default to MetaCPAN
-	if cfg.PVI != nil && cfg.PVI.MetadataSource != "" {
-		source = cfg.PVI.MetadataSource
+	if cfg.PM != nil && cfg.PM.MetadataSource != "" {
+		source = cfg.PM.MetadataSource
 	}
 
 	var providerOptions []cpan.ProviderOption
-	if cfg.PVI != nil {
-		if cfg.PVI.DefaultMirror != "" {
-			providerOptions = append(providerOptions, cpan.WithBaseURL(cfg.PVI.DefaultMirror))
+	if cfg.PM != nil {
+		if cfg.PM.DefaultMirror != "" {
+			providerOptions = append(providerOptions, cpan.WithBaseURL(cfg.PM.DefaultMirror))
 		}
-		if cfg.PVI.CacheDir != "" && cfg.PVI.CacheTTL > 0 {
-			providerOptions = append(providerOptions, cpan.WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
+		if cfg.PM.CacheDir != "" && cfg.PM.CacheTTL > 0 {
+			providerOptions = append(providerOptions, cpan.WithCache(cfg.PM.CacheDir, cfg.PM.CacheTTL))
 		}
 	}
 

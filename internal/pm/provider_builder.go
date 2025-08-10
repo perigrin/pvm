@@ -1,12 +1,12 @@
 // ABOUTME: CPAN provider builder pattern for PVI commands
 // ABOUTME: Simplifies repetitive provider and resolver setup across commands
 
-package pvi
+package pm
 
 import (
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/cpan"
-	"tamarou.com/pvm/internal/pvi/deps"
+	"tamarou.com/pvm/internal/pm/deps"
 )
 
 // ProviderBuilder provides a fluent interface for creating CPAN providers
@@ -118,8 +118,8 @@ func (pb *ProviderBuilder) resolveSource() string {
 	}
 
 	// Check config for source override (medium priority)
-	if pb.cfg != nil && pb.cfg.PVI != nil && pb.cfg.PVI.MetadataSource != "" {
-		return pb.cfg.PVI.MetadataSource
+	if pb.cfg != nil && pb.cfg.PM != nil && pb.cfg.PM.MetadataSource != "" {
+		return pb.cfg.PM.MetadataSource
 	}
 
 	// Default to metacpan (lowest priority)
@@ -134,11 +134,11 @@ func (pb *ProviderBuilder) buildProviderOptions() ([]cpan.ProviderOption, error)
 	options = append(options, pb.options...)
 
 	// Skip config-based options if no config provided
-	if pb.cfg == nil || pb.cfg.PVI == nil {
+	if pb.cfg == nil || pb.cfg.PM == nil {
 		return options, nil
 	}
 
-	pviCfg := pb.cfg.PVI
+	pviCfg := pb.cfg.PM
 	effectiveSource := pb.resolveSource()
 
 	// Set base URL if custom source and URL provided
@@ -171,9 +171,9 @@ func (pb *ProviderBuilder) buildResolver() (deps.DependencyResolver, error) {
 	var cacheTTL int
 
 	// Configure resolver cache from config if available and caching not disabled
-	if pb.cfg != nil && pb.cfg.PVI != nil && !pb.noCache {
-		cacheDir = pb.cfg.PVI.CacheDir
-		cacheTTL = pb.cfg.PVI.CacheTTL
+	if pb.cfg != nil && pb.cfg.PM != nil && !pb.noCache {
+		cacheDir = pb.cfg.PM.CacheDir
+		cacheTTL = pb.cfg.PM.CacheTTL
 	}
 
 	return deps.NewDefaultResolver(cacheDir, cacheTTL)

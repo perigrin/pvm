@@ -84,7 +84,7 @@ pvm: $(BUILDDIR) tree-sitter
 	cd $(BUILDDIR) && ./pvm symlinks create
 
 # Legacy targets for backward compatibility - now just create symlinks
-pvx pvi psc: pvm
+pvx pm psc: pvm
 	@echo "Using pvm binary with symlinks for $@"
 
 # Enhanced testing with gotestsum
@@ -290,7 +290,7 @@ build-monitor:
 
 build-monitor-component:
 	@if [ -z "$(COMPONENT)" ]; then \
-		echo "Usage: make build-monitor-component COMPONENT=<pvm|pvx|pvi|psc>"; \
+		echo "Usage: make build-monitor-component COMPONENT=<pvm|pvx|pm|psc>"; \
 		exit 1; \
 	fi
 	./scripts/build-monitor.sh $(COMPONENT)
@@ -337,7 +337,7 @@ cross-compile: tree-sitter
 	GOOS=darwin GOARCH=arm64 go build -ldflags="$(RELEASE_LDFLAGS)" -o $(BUILDDIR)/release/pvm-darwin-arm64 ./cmd/pvm
 
 	@echo "Cross-compilation complete. Single pvm binary for each platform in $(BUILDDIR)/release/"
-	@echo "Use 'pvm symlinks create' after installation to create pvx, pvi, psc symlinks"
+	@echo "Use 'pvm symlinks create' after installation to create pvx, pm, psc symlinks"
 
 # Create release archives
 release: cross-compile

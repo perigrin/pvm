@@ -17,7 +17,7 @@ func TestGetString(t *testing.T) {
 		[pvx]
 		isolation_level = "clean"
 
-		[pvi]
+		[pm]
 		preferred_installer = "cpanm"
 
 		[psc]
@@ -50,7 +50,7 @@ func TestGetString(t *testing.T) {
 		{"pvm", "default_perl", "5.36.0"},
 		{"pvm", "download_mirror", "https://example.com/perl"},
 		{"pvx", "isolation_level", "clean"},
-		{"pvi", "preferred_installer", "cpanm"},
+		{"pm", "preferred_installer", "cpanm"},
 		{"psc", "type_definitions_path", expectedTypeDefsPath},
 		// Test non-existent key
 		{"pvm", "non_existent", ""},
@@ -125,7 +125,7 @@ func TestGetBool(t *testing.T) {
 		cache_modules = false
 		cleanup_after = true
 
-		[pvi]
+		[pm]
 		test_during_install = true
 
 		[psc]
@@ -144,7 +144,7 @@ func TestGetBool(t *testing.T) {
 		{"pvm", "run_tests", true},
 		{"pvx", "cache_modules", false},
 		{"pvx", "cleanup_after", true},
-		{"pvi", "test_during_install", true},
+		{"pm", "test_during_install", true},
 		{"psc", "strict_mode", true},
 		// Test non-existent key
 		{"pvm", "non_existent", false},

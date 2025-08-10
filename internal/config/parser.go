@@ -313,7 +313,7 @@ func mergePVXConfig(target, source *PVXConfig) {
 	target.AlwaysInstallDeps = source.AlwaysInstallDeps
 }
 
-func mergePVIConfig(target, source *PVIConfig) {
+func mergePMConfig(target, source *PMConfig) {
 	// For all fields, source takes precedence over target
 
 	// String fields

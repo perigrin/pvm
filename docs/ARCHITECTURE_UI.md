@@ -2,7 +2,7 @@
 
 ## Overview
 
-The PVM UI Framework provides a unified, beautiful interface across all PVM components (pvm, pvx, pvi, psc). Built on Charm's Fang library, it replaces direct output calls with styled, consistent CLI experiences that adapt to user preferences and terminal capabilities.
+The PVM UI Framework provides a unified, beautiful interface across all PVM components (pvm, pvx, pm, psc). Built on Charm's Fang library, it replaces direct output calls with styled, consistent CLI experiences that adapt to user preferences and terminal capabilities.
 
 ## Design Goals
 
@@ -63,7 +63,7 @@ func WithUI(ctx context.Context, output *ui.Output) context.Context
 // Component registration
 cli.RegisterComponent("pvm", pvm.NewCommand)
 cli.RegisterComponent("pvx", pvx.NewCommand)
-cli.RegisterComponent("pvi", pvi.NewCommand)
+cli.RegisterComponent("pm", pm.NewCommand)
 cli.RegisterComponent("psc", psc.NewCommand)
 ```
 

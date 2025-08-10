@@ -135,7 +135,7 @@ content = """
 [pvm]
 build_jobs = {{.build_jobs}}
 
-[pvi]
+[pm]
 preferred_installer = "cpanm"
 """`
 
@@ -186,8 +186,8 @@ preferred_installer = "cpanm"
 		if config.PVM.RunTests != true {
 			t.Errorf("Expected RunTests true (from parent), got %v", config.PVM.RunTests)
 		}
-		if config.PVI.PreferredInstaller != "cpanm" {
-			t.Errorf("Expected PreferredInstaller 'cpanm' (from child), got '%s'", config.PVI.PreferredInstaller)
+		if config.PM.PreferredInstaller != "cpanm" {
+			t.Errorf("Expected PreferredInstaller 'cpanm' (from child), got '%s'", config.PM.PreferredInstaller)
 		}
 	})
 

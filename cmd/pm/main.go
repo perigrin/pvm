@@ -1,16 +1,16 @@
-// ABOUTME: Main entry point for PVI (Perl Version Installer)
+// ABOUTME: Main entry point for PM (Perl Module)
 // ABOUTME: Manages CPAN modules for installed Perl versions
 
 package main
 
 import (
 	"tamarou.com/pvm/internal/cli"
-	"tamarou.com/pvm/internal/pvi"
+	"tamarou.com/pvm/internal/pm"
 )
 
 func init() {
-	// Register PVI command
-	cli.GlobalRegistry.Register(cli.ComponentPVI, pvi.NewCommand)
+	// Register PM command
+	cli.GlobalRegistry.Register(cli.ComponentPM, pm.NewCommand)
 }
 
 func main() {

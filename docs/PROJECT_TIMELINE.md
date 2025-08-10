@@ -7,10 +7,10 @@ This document provides a detailed chronological history of the PVM (Perl Version
 ### May 18, 2025 - Project Inception
 - **Initial Concept**: PVM Ecosystem specification created
 - **Project Structure**: Basic project structure implemented
-- **CLI Framework**: Command router for multiple entry points (pvm, psc, pvi, pvx)
+- **CLI Framework**: Command router for multiple entry points (pvm, psc, pm, pvx)
 - **Logging Framework**: Comprehensive logging and error system established
 - **Key Technical Decisions**:
-  - Component-based architecture (PVM, PSC, PVI, PVX)
+  - Component-based architecture (PVM, PSC, PM, PVX)
   - Go implementation for performance and cross-platform support
   - Integration with existing Perl tooling (plenv, perlbrew)
 
@@ -30,7 +30,7 @@ This document provides a detailed chronological history of the PVM (Perl Version
   - Environment isolation with multiple levels (none, low, medium, high)
   - Container-like execution environment
   - Integration with PVM core
-- **PVI Foundation**:
+- **PM Foundation**:
   - CPAN metadata retrieval
   - Dependency resolution
   - Module management commands
@@ -163,7 +163,7 @@ This document provides a detailed chronological history of the PVM (Perl Version
 ### Production-Ready Components
 - **PVM Core**: Version management, configuration, CLI
 - **PSC**: Type checker with flow analysis
-- **PVI**: Package installer with type awareness
+- **PM**: Package installer with type awareness
 - **PVX**: Execution environment with isolation
 
 ### Beta/Development Features

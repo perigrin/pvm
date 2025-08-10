@@ -84,7 +84,7 @@ All CLI framework components are integral to the system.
 
 ✅ Verified newer implementation exists and works:
 - Current system uses cpan.Provider interface with MetaCPANProvider, CPANProvider, CustomProvider
-- All PVI commands use cpan.NewProvider() with provider options pattern
+- All PM commands use cpan.NewProvider() with provider options pattern
 - No imports or usage of removed legacy integration types found
 
 ✅ Tested removal: All 2824 tests pass, build succeeds

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The PVM Fang UI Framework provides beautiful, consistent styling across all PVM components (pvm, pvx, pvi, psc). Built on top of Charm's Fang library, it replaces all direct output calls with styled, user-friendly displays that enhance the CLI experience.
+The PVM Fang UI Framework provides beautiful, consistent styling across all PVM components (pvm, pvx, pm, psc). Built on top of Charm's Fang library, it replaces all direct output calls with styled, user-friendly displays that enhance the CLI experience.
 
 ## Architecture
 
@@ -141,7 +141,7 @@ headers := []string{"Component", "Status", "Version"}
 rows := [][]string{
     {"PVM", "Active", "1.0.0"},
     {"PVX", "Active", "1.0.0"},
-    {"PVI", "Active", "1.0.0"},
+    {"PM", "Active", "1.0.0"},
     {"PSC", "Active", "1.0.0"},
 }
 

@@ -262,7 +262,7 @@ show_context_lines = 3
 watch_include = ["lib/MyApp/Migrated/*.pm"]
 watch_exclude = ["**"]
 
-[pvi]
+[pm]
 # Don't auto-install deps to avoid conflicts
 auto_install_deps = false
 test_during_install = false

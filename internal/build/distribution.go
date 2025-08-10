@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"tamarou.com/pvm/internal/pm"
 	"tamarou.com/pvm/internal/project"
-	"tamarou.com/pvm/internal/pvi"
 )
 
 // DistributionBuilder handles production builds for CPAN distribution
@@ -486,7 +486,7 @@ func (b *DistributionBuilder) getProjectMetadata() (*ProjectMetadata, error) {
 		// Try to load prerequisites from cpanfile
 		cpanfilePath := filepath.Join(b.projectCtx.RootDir, "cpanfile")
 		if _, err := os.Stat(cpanfilePath); err == nil {
-			manager := pvi.NewCpanfileManager(cpanfilePath)
+			manager := pm.NewCpanfileManager(cpanfilePath)
 			cpanfile, err := manager.ListDependencies()
 			if err == nil {
 				for _, req := range cpanfile.Requirements {

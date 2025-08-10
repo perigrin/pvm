@@ -4,16 +4,16 @@ import (
 	"testing"
 )
 
-func TestPVIBackupConfig_Validate(t *testing.T) {
+func TestPMBackupConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *PVIBackupConfig
+		config      *PMBackupConfig
 		expectError bool
 		errorCount  int
 	}{
 		{
 			name: "valid config with off mode",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "off",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -22,7 +22,7 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "valid config with local mode",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "local",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -31,7 +31,7 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "valid config with cache mode",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "cache",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -40,7 +40,7 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "valid config with zero retention",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "local",
 				RetentionDays:  0, // Zero should be valid (no retention)
 				MaxBackups:     10,
@@ -49,7 +49,7 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "valid config with zero max backups",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "local",
 				RetentionDays:  30,
 				MaxBackups:     0, // Zero should be valid (no limit)
@@ -58,7 +58,7 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid backup mode",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "invalid",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -68,7 +68,7 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "empty backup mode",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -77,7 +77,7 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "negative retention days",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "local",
 				RetentionDays:  -1,
 				MaxBackups:     10,
@@ -87,7 +87,7 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "negative max backups",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "local",
 				RetentionDays:  30,
 				MaxBackups:     -1,
@@ -97,7 +97,7 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 		},
 		{
 			name: "multiple validation errors",
-			config: &PVIBackupConfig{
+			config: &PMBackupConfig{
 				CpanfileBackup: "invalid",
 				RetentionDays:  -1,
 				MaxBackups:     -5,
@@ -126,12 +126,12 @@ func TestPVIBackupConfig_Validate(t *testing.T) {
 	}
 }
 
-func TestPVIConfig_BackupValidation(t *testing.T) {
-	// Test that PVIConfig properly validates its Backup field
-	config := &PVIConfig{
+func TestPMConfig_BackupValidation(t *testing.T) {
+	// Test that PMConfig properly validates its Backup field
+	config := &PMConfig{
 		PreferredInstaller: "cpanm",
 		DefaultMirror:      "https://cpan.metacpan.org",
-		Backup: &PVIBackupConfig{
+		Backup: &PMBackupConfig{
 			CpanfileBackup: "invalid",
 			RetentionDays:  -1,
 			MaxBackups:     -1,
@@ -170,15 +170,15 @@ func TestDefaultConfig_BackupDefaults(t *testing.T) {
 	// Test that the default configuration includes proper backup defaults
 	cfg := NewDefaultConfig()
 
-	if cfg.PVI == nil {
+	if cfg.PM == nil {
 		t.Fatal("Expected PVI config to be initialized")
 	}
 
-	if cfg.PVI.Backup == nil {
+	if cfg.PM.Backup == nil {
 		t.Fatal("Expected PVI Backup config to be initialized")
 	}
 
-	backup := cfg.PVI.Backup
+	backup := cfg.PM.Backup
 
 	// Check default values
 	if backup.CpanfileBackup != "off" {
@@ -203,12 +203,12 @@ func TestDefaultConfig_BackupDefaults(t *testing.T) {
 func TestConfig_BackupConfigIntegration(t *testing.T) {
 	// Test full config validation including backup config
 	cfg := &Config{
-		PVI: &PVIConfig{
+		PM: &PMConfig{
 			PreferredInstaller: "cpanm",
 			DefaultMirror:      "https://cpan.metacpan.org",
 			MetadataSource:     "metacpan",
 			CacheTTL:           24,
-			Backup: &PVIBackupConfig{
+			Backup: &PMBackupConfig{
 				CpanfileBackup: "local",
 				RetentionDays:  30,
 				MaxBackups:     10,
@@ -222,8 +222,8 @@ func TestConfig_BackupConfigIntegration(t *testing.T) {
 	}
 
 	// Test with invalid backup config
-	cfg.PVI.Backup.CpanfileBackup = "invalid"
-	cfg.PVI.Backup.RetentionDays = -1
+	cfg.PM.Backup.CpanfileBackup = "invalid"
+	cfg.PM.Backup.RetentionDays = -1
 
 	errors = cfg.Validate()
 	if len(errors) == 0 {

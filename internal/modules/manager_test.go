@@ -13,7 +13,7 @@ import (
 	"tamarou.com/pvm/internal/cli/progress"
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/log"
-	pviModules "tamarou.com/pvm/internal/pvi/modules"
+	pviModules "tamarou.com/pvm/internal/pm/modules"
 )
 
 // Mock implementations for testing

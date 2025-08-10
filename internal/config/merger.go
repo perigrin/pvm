@@ -82,8 +82,8 @@ func (m *AdvancedMerger) MergeConfigs(configs ...*Config) *Config {
 		if config.PVX != nil {
 			result.PVX = m.mergePVXConfigAdvanced(result.PVX, config.PVX)
 		}
-		if config.PVI != nil {
-			result.PVI = m.mergePVIConfigAdvanced(result.PVI, config.PVI)
+		if config.PM != nil {
+			result.PM = m.mergePMConfigAdvanced(result.PM, config.PM)
 		}
 		if config.PSC != nil {
 			result.PSC = m.mergePSCConfigAdvanced(result.PSC, config.PSC)
@@ -152,10 +152,10 @@ func (m *AdvancedMerger) mergePVXConfigAdvanced(target, source *PVXConfig) *PVXC
 	return target
 }
 
-// mergePVIConfigAdvanced performs advanced PVI configuration merging
-func (m *AdvancedMerger) mergePVIConfigAdvanced(target, source *PVIConfig) *PVIConfig {
+// mergePMConfigAdvanced performs advanced PVI configuration merging
+func (m *AdvancedMerger) mergePMConfigAdvanced(target, source *PMConfig) *PMConfig {
 	if target == nil {
-		target = &PVIConfig{}
+		target = &PMConfig{}
 	}
 	if source == nil {
 		return target
@@ -325,8 +325,8 @@ func (cd *ConflictDetector) DetectConflicts(target, source *Config) []MergeConfl
 	}
 
 	// Compare PVI configurations
-	if target.PVI != nil && source.PVI != nil {
-		cd.comparePVIConfigs("pvi", target.PVI, source.PVI)
+	if target.PM != nil && source.PM != nil {
+		cd.comparePMConfigs("pvi", target.PM, source.PM)
 	}
 
 	// Compare PSC configurations
@@ -350,7 +350,7 @@ func (cd *ConflictDetector) comparePVXConfigs(prefix string, target, source *PVX
 	cd.compareIntField(prefix+".timeout", target.Timeout, source.Timeout)
 }
 
-func (cd *ConflictDetector) comparePVIConfigs(prefix string, target, source *PVIConfig) {
+func (cd *ConflictDetector) comparePMConfigs(prefix string, target, source *PMConfig) {
 	cd.compareStringField(prefix+".preferred_installer", target.PreferredInstaller, source.PreferredInstaller)
 	cd.compareStringField(prefix+".default_mirror", target.DefaultMirror, source.DefaultMirror)
 	cd.compareIntField(prefix+".cache_ttl", target.CacheTTL, source.CacheTTL)

@@ -6,7 +6,7 @@ The PVM Ecosystem provides a comprehensive suite of tools for Perl development w
 
 - **PVM (Perl Version Manager)** - Manages Perl installations and versions
 - **PSC (Perl Script Compiler)** - Static type checker with enhanced LSP and symbol-aware features
-- **PVI (Perl Version Installer)** - Module installer with type-aware dependency management and configurable cpanfile backup
+- **PM (Perl Version Installer)** - Module installer with type-aware dependency management and configurable cpanfile backup
 - **PVX (Perl Version eXecutor)** - Isolated script execution with dependency resolution
 
 ## 🔧 Installation
@@ -18,7 +18,7 @@ wget https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc3
 tar -xzf pvm-1.0.0-rc32-linux-amd64.tar.gz
 
 # Make binaries executable and test
-chmod +x pvm-* pvi-* pvx-*
+chmod +x pvm-* pm-* pvx-*
 ./pvm-linux-amd64 version
 ```
 
@@ -71,7 +71,7 @@ Check out the [Getting Started Guide](docs/quickstart.md) for immediate hands-on
 ### Core Components
 - `cmd/` - Command entry points for each component
 - `internal/cli/` - Unified CLI framework and error handling
-- `internal/pvm/`, `internal/psc/`, `internal/pvi/`, `internal/pvx/` - Component-specific implementations
+- `internal/pvm/`, `internal/psc/`, `internal/pm/`, `internal/pvx/` - Component-specific implementations
 - `docs/` - Comprehensive documentation including architecture guides
 - `test/` - Testing infrastructure with baseline and performance tests
 
@@ -79,7 +79,7 @@ Check out the [Getting Started Guide](docs/quickstart.md) for immediate hands-on
 
 The PVM Ecosystem uses a unified CLI framework based on [Cobra](https://github.com/spf13/cobra) with the following features:
 
-- **Single Binary, Multiple Entry Points**: The same binary can be invoked as `pvm`, `pvx`, `pvi`, or `psc` (using symlinks) and will provide the appropriate functionality based on how it was invoked.
+- **Single Binary, Multiple Entry Points**: The same binary can be invoked as `pvm`, `pvx`, `pm`, or `psc` (using symlinks) and will provide the appropriate functionality based on how it was invoked.
 - **Consistent Command Structure**: All components share the same command structure, error handling, and help text formatting.
 - **Command Registration**: Components register their commands with a central registry.
 - **Structured Error Handling**: Errors include categories, context, and helpful hints.

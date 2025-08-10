@@ -9,7 +9,7 @@ import (
 	"log"
 	"sync"
 
-	pviModules "tamarou.com/pvm/internal/pvi/modules"
+	pviModules "tamarou.com/pvm/internal/pm/modules"
 )
 
 // ParallelCoordinator manages complex multi-module installation operations

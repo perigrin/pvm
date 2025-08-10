@@ -415,7 +415,7 @@ Create robust system Perl integration to enable all skipped E2E tests.
 - Test suite runs in CI/CD environments
 ```
 
-### Step 3.2: Enhanced PVI Module Analysis ✅ **COMPLETED**
+### Step 3.2: Enhanced PM Module Analysis ✅ **COMPLETED**
 
 **Goal**: Implement real module analysis for accurate type definition generation
 
@@ -428,12 +428,12 @@ Create robust system Perl integration to enable all skipped E2E tests.
 - Privacy detection for internal functions (_prefixed)
 - Integration with typedef storage system
 - Comprehensive test coverage with performance validation
-- Command-line interface working: `pvi type generate [module]`
+- Command-line interface working: `pm type generate [module]`
 
 ```
-Replace placeholder type generation in PVI with actual module analysis.
+Replace placeholder type generation in PM with actual module analysis.
 
-**Context**: PVI creates placeholder type definitions instead of analyzing modules (`internal/pvi/type_command.go:237-239` TODO comment).
+**Context**: PM creates placeholder type definitions instead of analyzing modules (`internal/pm/type_command.go:237-239` TODO comment).
 
 **Requirements**: ✅ **ALL COMPLETED**
 1. ✅ Implement ModuleAnalyzer with AST-based analysis
@@ -442,7 +442,7 @@ Replace placeholder type generation in PVI with actual module analysis.
 4. ✅ Integrate with existing type system
 
 **Implementation**: ✅ **ALL COMPLETED**
-1. ✅ In `internal/pvi/analyzer.go`:
+1. ✅ In `internal/pm/analyzer.go`:
    - ✅ ModuleAnalyzer using parser infrastructure (`NewModuleAnalyzer()`)
    - ✅ AST traversal for type extraction (`extractTypeInformation()`)
    - ✅ Symbol table construction for modules (`extractExportList()`)
@@ -460,8 +460,8 @@ Replace placeholder type generation in PVI with actual module analysis.
    - ✅ Integration with union types and generics (type parameter parsing)
    - ✅ Cross-module type dependency resolution
 
-4. ✅ Enhanced PVI workflow:
-   - ✅ Analyze modules before generating type definitions (`pvi type generate`)
+4. ✅ Enhanced PM workflow:
+   - ✅ Analyze modules before generating type definitions (`pm type generate`)
    - ✅ Update existing type definitions when modules change (`--save` flag)
    - ✅ Validate type definition accuracy (comprehensive test suite)
    - ✅ Provide analysis reports and statistics (JSON output format)

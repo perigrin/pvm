@@ -1,7 +1,7 @@
 // ABOUTME: Tests for module analyzer functionality
 // ABOUTME: Validates real module analysis vs placeholder generation
 
-package pvi
+package pm
 
 import (
 	"fmt"

@@ -11,7 +11,7 @@ import (
 	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/modules"
-	"tamarou.com/pvm/internal/pvi"
+	"tamarou.com/pvm/internal/pm"
 	"tamarou.com/pvm/internal/pvx"
 )
 
@@ -41,7 +41,7 @@ func testPVIModuleInstaller(t *testing.T) {
 	cfg := createTestConfig()
 
 	// Create provider using builder pattern
-	providerResult, err := pvi.NewProviderBuilder().
+	providerResult, err := pm.NewProviderBuilder().
 		WithConfig(cfg).
 		WithSource("metacpan").
 		WithResolver().
@@ -94,7 +94,7 @@ func testPVXAutoInstall(t *testing.T) {
 	}
 
 	// Test PVX integration capability (without actual execution)
-	integrationOptions := &pvi.PVXIntegrationOptions{
+	integrationOptions := &pm.PVXIntegrationOptions{
 		PerlVersion:     "",
 		RequiredModules: options.RequiredModules,
 		Verbose:         false,
@@ -138,7 +138,7 @@ func testPSCTypeAwareIntegration(t *testing.T) {
 
 func createTestConfig() *config.Config {
 	return &config.Config{
-		PVI: &config.PVIConfig{
+		PM: &config.PMConfig{
 			MetadataSource: "metacpan",
 			DefaultMirror:  "",
 		},

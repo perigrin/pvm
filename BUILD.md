@@ -90,14 +90,14 @@ make build-release
 
 This creates:
 - `build/pvm`: Main binary (includes all components via symlink detection)
-- Symlinks: `build/pvi`, `build/pvx`, `build/psc` (created automatically)
+- Symlinks: `build/pm`, `build/pvx`, `build/psc` (created automatically)
 
 ## Component Architecture
 
 PVM uses a unified binary architecture:
 
 - **pvm**: Main Perl version manager
-- **pvi**: Package installer with dependency management
+- **pm**: Package installer with dependency management
 - **pvx**: Perl script executor with isolation
 - **psc**: Perl script compiler with type checking
 

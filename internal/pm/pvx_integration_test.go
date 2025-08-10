@@ -1,6 +1,6 @@
 // ABOUTME: Test suite for PVI-PVX integration functionality
 // ABOUTME: Includes regression tests for GitHub issue #201 version resolution
-package pvi
+package pm
 
 import (
 	"os"

@@ -15,8 +15,8 @@ import (
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/pm/deps"
 	"tamarou.com/pvm/internal/project"
-	"tamarou.com/pvm/internal/pvi/deps"
 	"tamarou.com/pvm/internal/xdg"
 )
 

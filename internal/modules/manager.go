@@ -12,7 +12,7 @@ import (
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
-	pviModules "tamarou.com/pvm/internal/pvi/modules"
+	pviModules "tamarou.com/pvm/internal/pm/modules"
 )
 
 // Error codes for module management operations

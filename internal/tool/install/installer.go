@@ -12,8 +12,8 @@ import (
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/perl"
-	"tamarou.com/pvm/internal/pvi/deps"
-	"tamarou.com/pvm/internal/pvi/modules"
+	"tamarou.com/pvm/internal/pm/deps"
+	"tamarou.com/pvm/internal/pm/modules"
 	"tamarou.com/pvm/internal/tool"
 )
 

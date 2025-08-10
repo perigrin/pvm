@@ -70,8 +70,8 @@ func LoadEffectiveConfigWithOptions(validate bool) (*Config, error) {
 		if systemConfig.PVX != nil {
 			mergePVXConfig(result.PVX, systemConfig.PVX)
 		}
-		if systemConfig.PVI != nil {
-			mergePVIConfig(result.PVI, systemConfig.PVI)
+		if systemConfig.PM != nil {
+			mergePMConfig(result.PM, systemConfig.PM)
 		}
 		if systemConfig.PSC != nil {
 			mergePSCConfig(result.PSC, systemConfig.PSC)
@@ -85,8 +85,8 @@ func LoadEffectiveConfigWithOptions(validate bool) (*Config, error) {
 		if userConfig.PVX != nil {
 			mergePVXConfig(result.PVX, userConfig.PVX)
 		}
-		if userConfig.PVI != nil {
-			mergePVIConfig(result.PVI, userConfig.PVI)
+		if userConfig.PM != nil {
+			mergePMConfig(result.PM, userConfig.PM)
 		}
 		if userConfig.PSC != nil {
 			mergePSCConfig(result.PSC, userConfig.PSC)
@@ -103,8 +103,8 @@ func LoadEffectiveConfigWithOptions(validate bool) (*Config, error) {
 		if projectConfig.PVX != nil {
 			mergePVXConfig(result.PVX, projectConfig.PVX)
 		}
-		if projectConfig.PVI != nil {
-			mergePVIConfig(result.PVI, projectConfig.PVI)
+		if projectConfig.PM != nil {
+			mergePMConfig(result.PM, projectConfig.PM)
 		}
 		if projectConfig.PSC != nil {
 			mergePSCConfig(result.PSC, projectConfig.PSC)
@@ -397,8 +397,8 @@ func LoadEffectiveConfigForDirectory(dir string) (*Config, error) {
 		if systemConfig.PVX != nil {
 			mergePVXConfig(result.PVX, systemConfig.PVX)
 		}
-		if systemConfig.PVI != nil {
-			mergePVIConfig(result.PVI, systemConfig.PVI)
+		if systemConfig.PM != nil {
+			mergePMConfig(result.PM, systemConfig.PM)
 		}
 		if systemConfig.PSC != nil {
 			mergePSCConfig(result.PSC, systemConfig.PSC)
@@ -412,8 +412,8 @@ func LoadEffectiveConfigForDirectory(dir string) (*Config, error) {
 		if userConfig.PVX != nil {
 			mergePVXConfig(result.PVX, userConfig.PVX)
 		}
-		if userConfig.PVI != nil {
-			mergePVIConfig(result.PVI, userConfig.PVI)
+		if userConfig.PM != nil {
+			mergePMConfig(result.PM, userConfig.PM)
 		}
 		if userConfig.PSC != nil {
 			mergePSCConfig(result.PSC, userConfig.PSC)
@@ -430,8 +430,8 @@ func LoadEffectiveConfigForDirectory(dir string) (*Config, error) {
 		if projectConfig.PVX != nil {
 			mergePVXConfig(result.PVX, projectConfig.PVX)
 		}
-		if projectConfig.PVI != nil {
-			mergePVIConfig(result.PVI, projectConfig.PVI)
+		if projectConfig.PM != nil {
+			mergePMConfig(result.PM, projectConfig.PM)
 		}
 		if projectConfig.PSC != nil {
 			mergePSCConfig(result.PSC, projectConfig.PSC)

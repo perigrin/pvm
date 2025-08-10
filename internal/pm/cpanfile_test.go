@@ -1,7 +1,7 @@
 // ABOUTME: Tests for cpanfile management functionality in PVI package
 // ABOUTME: Covers formatting fixes for trailing newlines and dependency insertion
 
-package pvi
+package pm
 
 import (
 	"os"

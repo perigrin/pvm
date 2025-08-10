@@ -8,14 +8,14 @@ This plan outlines the step-by-step implementation of Fang UI integration across
 
 - **Global Fang Integration**: All user-facing output flows through Fang styling
 - **Clean Architecture**: Internal packages return structured data, CLI layer handles formatting
-- **Consistent Experience**: Beautiful output across all components (pvm, pvx, pvi, psc)
+- **Consistent Experience**: Beautiful output across all components (pvm, pvx, pm, psc)
 - **Future-Proof**: Foundation for embedded documentation and enhanced UX
 
 ## Current State Analysis
 
 - **353** `fmt.Print*` calls across internal packages
 - **447** `cmd.Print*` calls (Cobra output methods)
-- **4 components**: pvm, pvx, pvi, psc sharing CLI framework
+- **4 components**: pvm, pvx, pm, psc sharing CLI framework
 - **Sophisticated help system**: Context-aware help with project detection
 - **Component routing**: Single binary with symlink-based component detection
 
@@ -195,17 +195,17 @@ Convert all fmt.Print* and cmd.Print* calls in the PVX component to use the Fang
 - All PVX tests pass with new output system
 ```
 
-### Step 2.3: Convert PVI Component Output ✅ **COMPLETED**
+### Step 2.3: Convert PM Component Output ✅ **COMPLETED**
 
-**Goal**: Replace all direct output in PVI component with Fang UI calls
+**Goal**: Replace all direct output in PM component with Fang UI calls
 
 ```
-Convert all fmt.Print* and cmd.Print* calls in the PVI component to use the Fang UI framework.
+Convert all fmt.Print* and cmd.Print* calls in the PM component to use the Fang UI framework.
 
-**Context**: Converting the PVI (Perl Version Installer) component to use Fang styling, with special attention to module installation progress, dependency resolution displays, and CPAN integration output.
+**Context**: Converting the PM (Perl Version Installer) component to use Fang styling, with special attention to module installation progress, dependency resolution displays, and CPAN integration output.
 
 **Requirements**:
-1. Audit all output calls in internal/pvi/ package and subpackages
+1. Audit all output calls in internal/pm/ package and subpackages
 2. Replace direct output with styled UI calls
 3. Enhance module installation progress displays
 4. Style dependency resolution output and conflict reporting
@@ -214,16 +214,16 @@ Convert all fmt.Print* and cmd.Print* calls in the PVI component to use the Fang
 7. Add comprehensive tests and verify functionality
 
 **Target Files**:
-- internal/pvi/command.go (PVI command definitions)
-- internal/pvi/modules/ package (installation and management)
-- internal/pvi/deps/ package (dependency resolution)
-- internal/pvi/analyzer.go (analysis output)
+- internal/pm/command.go (PM command definitions)
+- internal/pm/modules/ package (installation and management)
+- internal/pm/deps/ package (dependency resolution)
+- internal/pm/analyzer.go (analysis output)
 
 **Success Criteria**:
 - Module installation progress beautifully displayed
 - Dependency resolution output clear and informative
 - Installation errors formatted consistently
-- All PVI functionality preserved and enhanced
+- All PM functionality preserved and enhanced
 - Comprehensive test coverage maintained
 ```
 
@@ -335,7 +335,7 @@ Update error handling to use UI framework for user-facing error display while ma
 ```
 Update the component routing system and global CLI framework features to use Fang styling consistently across all entry points.
 
-**Context**: PVM uses a sophisticated routing system where a single binary can act as pvm, pvx, pvi, or psc. Ensure all routing, version displays, and global features use consistent Fang styling.
+**Context**: PVM uses a sophisticated routing system where a single binary can act as pvm, pvx, pm, or psc. Ensure all routing, version displays, and global features use consistent Fang styling.
 
 **Requirements**:
 1. Update internal/cli/router.go to use UI framework

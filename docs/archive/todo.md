@@ -20,8 +20,8 @@ This list represents all TODO markers, incomplete features, and missing function
 
 ## **Core Implementation TODOs**
 
-### **PVI (Package Installer)**
-- [ ] **Module analysis implementation** (internal/pvi/type_command.go)
+### **PM (Package Installer)**
+- [ ] **Module analysis implementation** (internal/pm/type_command.go)
   - Currently placeholder: `// TODO: In a future implementation, we would actually analyze the module`
 - [ ] **Advanced dependency resolution completion**
 
@@ -110,7 +110,7 @@ This list represents all TODO markers, incomplete features, and missing function
 
 **PVM Core:** 95% - Shell integration, shims, config management all COMPLETE
 **PVX:** 80% - Core isolation works, needs system Perl tests
-**PVI:** 60% - Basic functionality, missing advanced analysis
+**PM:** 60% - Basic functionality, missing advanced analysis
 **PSC:** 70% - Type checking works, missing tree-sitter completion
 **Build System:** 85% - Works well, minor optimization TODOs
 **LSP:** 60% - Basic features, missing advanced functionality
@@ -144,7 +144,7 @@ This list represents all TODO markers, incomplete features, and missing function
 
 ### **Sprint 2: Advanced Features**
 1. **Tree-sitter integration** completion
-2. **PVI module analysis** implementation
+2. **PM module analysis** implementation
 3. **LSP advanced features**
 
 ### **Sprint 3: Polish and Performance**

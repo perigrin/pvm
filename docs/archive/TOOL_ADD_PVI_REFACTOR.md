@@ -1,8 +1,8 @@
-# Tool Installation Refactor: From cpanm to PVI
+# Tool Installation Refactor: From cpanm to PM
 
 ## Architectural Improvement
 
-We've refactored `pvm tool add` to use PVI (PVM's native module installer) instead of cpanm, eliminating architectural inconsistencies and the fork bomb risk.
+We've refactored `pvm tool add` to use PM (PVM's native module installer) instead of cpanm, eliminating architectural inconsistencies and the fork bomb risk.
 
 ## Before (cpanm-based)
 ```
@@ -17,13 +17,13 @@ Script calls cpanm shim → FORK BOMB RISK
 Required cpanm shim exclusion workaround
 ```
 
-## After (PVI-based)
+## After (PM-based)
 ```
 pvm tool add ack
   ↓
-Call PVI directly with InstallModulesForPVX()
+Call PM directly with InstallModulesForPVX()
   ↓
-PVI handles module installation natively
+PM handles module installation natively
   ↓
 Clean, consistent architecture
 ```
@@ -31,17 +31,17 @@ Clean, consistent architecture
 ## Benefits
 
 ### ✅ **Architectural Consistency**
-- Uses PVM's own module installer (PVI)
+- Uses PVM's own module installer (PM)
 - Eliminates external dependency on cpanm
 - Consistent with rest of PVM ecosystem
 
 ### ✅ **Security & Stability**
 - No more fork bomb risk from cpanm shims
 - No need for cpanm shim exclusion workaround
-- Proper error handling through PVI's structured results
+- Proper error handling through PM's structured results
 
 ### ✅ **Better User Experience**
-- PVI's advanced progress tracking
+- PM's advanced progress tracking
 - Better error messages with structured feedback
 - Proper dependency resolution
 - Parallel installation support
@@ -60,15 +60,15 @@ Clean, consistent architecture
 - Dependency on external cpanm binary
 
 ### Added
-- Direct PVI integration
-- Structured error handling with PVIXIntegrationResult
+- Direct PM integration
+- Structured error handling with PMXIntegrationResult
 - Version constraint support (@version syntax)
 - Better progress feedback
 
 ## Next Steps
 
-1. Update PVX auto-install to use PVI (not cpanm)
-2. Remove cpanm shim exclusion workaround 
+1. Update PVX auto-install to use PM (not cpanm)
+2. Remove cpanm shim exclusion workaround
 3. Test with various module installations
 
 This brings PVM's tool installation in line with its architectural principles and eliminates the technical debt from the cpanm-based approach.

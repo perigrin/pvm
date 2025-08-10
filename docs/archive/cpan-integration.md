@@ -11,7 +11,7 @@ The PVM Ecosystem integrates with CPAN (Comprehensive Perl Archive Network) to p
 - Managing module dependencies
 - Installing modules for specific Perl versions
 
-The integration is primarily provided through the PVI (Perl Version Installer) component, which uses various metadata providers to interact with CPAN.
+The integration is primarily provided through the PM (Perl Version Installer) component, which uses various metadata providers to interact with CPAN.
 
 ## Metadata Providers
 
@@ -25,10 +25,10 @@ Each provider implements the same interface, ensuring consistent behavior regard
 
 ## Configuration Options
 
-CPAN integration can be configured through the PVM configuration system. The following options are available in the `pvi` section of the configuration file:
+CPAN integration can be configured through the PVM configuration system. The following options are available in the `pm` section of the configuration file:
 
 ```toml
-[pvi]
+[pm]
 # Preferred installation method for modules (auto, cpanm, cpan, cpm)
 preferred_installer = "auto"
 
@@ -108,7 +108,7 @@ Module installation behavior can be configured with:
 
 ## Command-Line Options
 
-Command-line options can override the configuration settings for individual commands. The following options are available for the `pvi search` command:
+Command-line options can override the configuration settings for individual commands. The following options are available for the `pm search` command:
 
 - `--source, -s`: Use a specific metadata source (metacpan, cpan, custom)
 - `--limit, -l`: Limit the number of search results
@@ -116,10 +116,10 @@ Command-line options can override the configuration settings for individual comm
 
 Example:
 ```bash
-pvm pvi search --source metacpan --limit 50 --no-cache "Moose"
+pvm pm search --source metacpan --limit 50 --no-cache "Moose"
 ```
 
-Other PVI commands will have similar options for controlling metadata retrieval and caching.
+Other PM commands will have similar options for controlling metadata retrieval and caching.
 
 ## Directory Structure
 

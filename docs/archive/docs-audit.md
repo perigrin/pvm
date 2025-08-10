@@ -127,9 +127,9 @@ This audit analyzes all existing documentation files in the PVM (Perl Version Ma
 #### 16. search-command.md
 - **Content Type**: Command reference
 - **Relevance**: Current but narrow scope
-- **Target Audience**: PVI users
-- **Key Information**: PVI search functionality
-- **Disposition**: Consolidate into PVI workflow examples
+- **Target Audience**: PM users
+- **Key Information**: PM search functionality
+- **Disposition**: Consolidate into PM workflow examples
 
 ### TECHNICAL GUIDES - CONSOLIDATE OR MODERNIZE
 

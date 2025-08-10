@@ -50,7 +50,7 @@
     },
     {
       "code": "201",
-      "component": "PVI",
+      "component": "PM",
       "category": "Module Error",
       "message": "Module not found",
       "description": "The requested module could not be found on CPAN",
@@ -58,7 +58,7 @@
     },
     {
       "code": "202",
-      "component": "PVI",
+      "component": "PM",
       "category": "Module Error",
       "message": "Dependency conflict",
       "description": "Module dependencies have conflicting version requirements",

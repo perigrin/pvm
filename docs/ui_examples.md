@@ -104,7 +104,7 @@ headers := []string{"Component", "Version", "Status", "Location"}
 rows := [][]string{
     {"PVM", "1.0.0", "Active", "/usr/local/bin/pvm"},
     {"PVX", "1.0.0", "Active", "/usr/local/bin/pvx"},
-    {"PVI", "1.0.0", "Active", "/usr/local/bin/pvi"},
+    {"PM", "1.0.0", "Active", "/usr/local/bin/pm"},
     {"PSC", "1.0.0", "Active", "/usr/local/bin/psc"},
 }
 
@@ -121,7 +121,7 @@ Component | Version | Status | Location
 ----------|---------|--------|------------------
 PVM       | 1.0.0   | Active | /usr/local/bin/pvm
 PVX       | 1.0.0   | Active | /usr/local/bin/pvx
-PVI       | 1.0.0   | Active | /usr/local/bin/pvi
+PM       | 1.0.0   | Active | /usr/local/bin/pm
 PSC       | 1.0.0   | Active | /usr/local/bin/psc
 ```
 
@@ -237,7 +237,7 @@ func runScript(ui *ui.Output, scriptPath string, args []string) error {
     if len(deps.Missing) > 0 {
         ui.Warning("Missing dependencies detected:")
         ui.List(deps.Missing)
-        ui.Info("Install with: pvi install %s", strings.Join(deps.Missing, " "))
+        ui.Info("Install with: pm install %s", strings.Join(deps.Missing, " "))
     }
 
     ui.Status("Executing script...")
@@ -256,17 +256,17 @@ func runScript(ui *ui.Output, scriptPath string, args []string) error {
 }
 ```
 
-### PVI Component
+### PM Component
 
 ```go
-// pvi install command with progress
+// pm install command with progress
 func installModule(ui *ui.Output, moduleName string) error {
     ui.Header(fmt.Sprintf("Installing %s", moduleName))
 
     // Check if already installed
     if isInstalled(moduleName) {
         ui.Warning("Module %s is already installed", moduleName)
-        ui.Info("Use 'pvi upgrade %s' to upgrade", moduleName)
+        ui.Info("Use 'pm upgrade %s' to upgrade", moduleName)
         return nil
     }
 

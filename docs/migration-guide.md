@@ -20,7 +20,7 @@ The modernized PVM includes significant architectural improvements:
 
 All existing functionality is preserved:
 
-- **Command-line interface**: All `pvm`, `psc`, `pvi`, `pvx` commands work identically
+- **Command-line interface**: All `pvm`, `psc`, `pm`, `pvx` commands work identically
 - **Configuration files**: Existing `pvm.toml` files continue to work
 - **Perl code**: No changes required to existing Perl scripts or modules
 - **Type annotations**: Existing typed-Perl code works without modification
@@ -47,7 +47,7 @@ pvm version
 
 # Check all components
 psc version
-pvi version
+pm version
 pvx version
 ```
 
@@ -74,7 +74,7 @@ curl -L https://github.com/pvm/pvm/releases/latest/download/pvm-$(uname -s)-$(un
 # Install to system
 sudo mv pvm /usr/local/bin/
 sudo ln -sf /usr/local/bin/pvm /usr/local/bin/psc
-sudo ln -sf /usr/local/bin/pvm /usr/local/bin/pvi
+sudo ln -sf /usr/local/bin/pvm /usr/local/bin/pm
 sudo ln -sf /usr/local/bin/pvm /usr/local/bin/pvx
 ```
 
@@ -414,8 +414,8 @@ pvm current
 # Test PSC type checking
 psc check your_project/
 
-# Test PVI module management
-pvi list
+# Test PM module management
+pm list
 
 # Test PVX execution
 pvx your_script.pl
