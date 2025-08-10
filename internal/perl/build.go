@@ -510,6 +510,12 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	// Start configure
 	updateStage(StageConfigure, "Running Configure script", 0.0)
 
+	// Apply macOS Configure patches if needed
+	err = ApplyMacOSConfigurePatches(srcDir, options.Version, options.Verbose)
+	if err != nil {
+		return nil, err
+	}
+
 	// Construct configure options
 	configureOptions := []string{
 		"-des",                                 // Default options, no interactive prompts
@@ -558,11 +564,32 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	)
 
 	if configureErr != nil {
-		return nil, errors.NewVersionError(
+		configErr := errors.NewVersionError(
 			ErrConfigureFailed,
 			"Configure script failed",
 			configureErr).
 			WithLocation(srcDir)
+
+		// Add macOS-specific guidance if this might be a version compatibility issue
+		if runtime.GOOS == "darwin" && strings.Contains(configureErr.Error(), "Unexpected product version") {
+			macOSVer, _ := GetMacOSVersion()
+			var guidance string
+			if macOSVer != nil {
+				guidance = fmt.Sprintf(
+					"This appears to be a macOS version compatibility issue. "+
+						"Perl %s may not recognize macOS %s. "+
+						"Consider using a newer Perl version (5.32.0+) or try setting "+
+						"MACOSX_DEPLOYMENT_TARGET=10.15 before running the installation.",
+					options.Version, macOSVer.String())
+			} else {
+				guidance = "This appears to be a macOS version compatibility issue. " +
+					"Try setting MACOSX_DEPLOYMENT_TARGET=10.15 before running the installation, " +
+					"or consider using a newer Perl version (5.32.0+)."
+			}
+			configErr = configErr.WithDetail(guidance)
+		}
+
+		return nil, configErr
 	}
 
 	// Start compilation

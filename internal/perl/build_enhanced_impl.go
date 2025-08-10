@@ -109,6 +109,12 @@ func (bm *BuildManager) extractSourceWithProgress(ctx *BuildContext, progress *P
 func (bm *BuildManager) configureBuild(ctx *BuildContext, progress *Progress) error {
 	progress.Update(StageConfigure, "Preparing configuration", 0.0)
 
+	// Apply macOS Configure patches if needed
+	err := bm.applyMacOSConfigurePatches(ctx, progress)
+	if err != nil {
+		return err
+	}
+
 	// Check for cached configure results
 	if cachedConfig, ok := bm.buildCache.GetConfigCache(ctx.Options.Version); ok {
 		ctx.ConfigCache = cachedConfig
@@ -596,4 +602,49 @@ func (bm *BuildManager) updateCache(ctx *BuildContext, result *BuildResult) erro
 // registerInstallation registers the Perl installation
 func (bm *BuildManager) registerInstallation(result *BuildResult) error {
 	return RegisterVersionAfterBuild(result, "pvm-enhanced")
+}
+
+// applyMacOSConfigurePatches applies macOS-specific Configure patches if needed
+func (bm *BuildManager) applyMacOSConfigurePatches(ctx *BuildContext, progress *Progress) error {
+	if runtime.GOOS != "darwin" {
+		return nil // No-op on non-macOS systems
+	}
+
+	// Check if patching is needed
+	if !NeedsConfigurePatch(ctx.Options.Version) {
+		bm.logger.Debugf("No macOS Configure patches needed for Perl %s", ctx.Options.Version)
+		return nil
+	}
+
+	progress.Update(StageConfigure, "Applying macOS compatibility patches", 0.05)
+
+	// Create patcher
+	patcher, err := NewConfigurePatcher(ctx.SourceDir, ctx.Options.Version, ctx.Options.Verbose)
+	if err != nil {
+		return errors.NewVersionError(
+			ErrConfigureFailed,
+			"Failed to create Configure patcher for macOS compatibility",
+			err,
+		)
+	}
+
+	// Apply patches
+	bm.logger.Infof("Applying macOS Configure patches for Perl %s", ctx.Options.Version)
+	err = patcher.ApplyPatches()
+	if err != nil {
+		return errors.NewVersionError(
+			ErrConfigureFailed,
+			"Failed to apply macOS Configure patches",
+			err,
+		)
+	}
+
+	// Log compatibility information for user
+	compatInfo := GetMacOSCompatibilityInfo(ctx.Options.Version)
+	if compatInfo != "" && ctx.Options.Verbose {
+		bm.logger.Infof("macOS Compatibility Information:\n%s", compatInfo)
+	}
+
+	progress.Update(StageConfigure, "macOS compatibility patches applied", 0.1)
+	return nil
 }
