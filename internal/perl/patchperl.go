@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -57,78 +56,41 @@ func IsPatchPerlAvailable() bool {
 	return err == nil
 }
 
-// InstallPatchPerl installs Devel::PatchPerl using PVM's PM command
-func InstallPatchPerl(verbose bool) error {
-	if verbose {
-		fmt.Println("Installing Devel::PatchPerl using PVM PM...")
-	}
-
-	// Find the PM command (should be in the same directory as the current executable or in PATH)
-	pmCmd, err := findPMCommand()
-	if err != nil {
-		return fmt.Errorf("failed to find PM command: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	// Build PM install command
-	args := []string{"install", "Devel::PatchPerl"}
-	if !verbose {
-		args = append(args, "--quiet")
-	}
-
-	cmd := exec.CommandContext(ctx, pmCmd, args...)
-
-	if verbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		fmt.Printf("Running: %s %s\n", pmCmd, strings.Join(args, " "))
-	}
-
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("PM install failed: %w", err)
-	}
-
-	if verbose {
-		fmt.Println("Devel::PatchPerl installed successfully via PM")
-	}
-
-	return nil
+// ModuleInstaller is an interface for installing Perl modules
+// This allows us to inject the PM functionality without creating import cycles
+type ModuleInstaller interface {
+	InstallModule(moduleName string, verbose bool) error
 }
 
-// findPMCommand finds the PM command executable
-func findPMCommand() (string, error) {
-	// First try to find 'pm' in PATH
-	if pmPath, err := exec.LookPath("pm"); err == nil {
-		return pmPath, nil
+// Default module installer that provides user guidance
+type DefaultModuleInstaller struct{}
+
+func (d *DefaultModuleInstaller) InstallModule(moduleName string, verbose bool) error {
+	if verbose {
+		fmt.Printf("%s not found - please install it using PM\n", moduleName)
 	}
+	
+	return fmt.Errorf(`%s is required but not installed.
 
-	// If not in PATH, try to find it relative to the current executable
-	if execPath, err := os.Executable(); err == nil {
-		// Check if pm is in the same directory as the current executable
-		execDir := filepath.Dir(execPath)
-		pmPath := filepath.Join(execDir, "pm")
-		if _, err := os.Stat(pmPath); err == nil {
-			return pmPath, nil
-		}
+Please install it using PVM's PM command:
+  pm install %s
 
-		// Check for pm.exe on Windows
-		pmExePath := filepath.Join(execDir, "pm.exe")
-		if _, err := os.Stat(pmExePath); err == nil {
-			return pmExePath, nil
-		}
+Or if you prefer to skip patching, use the --no-patchperl flag:
+  pvm install --no-patchperl <version>`, moduleName, moduleName)
+}
 
-		// Check in build directory (during development)
-		buildDir := filepath.Join(filepath.Dir(execDir), "build")
-		buildPMPath := filepath.Join(buildDir, "pm")
-		if _, err := os.Stat(buildPMPath); err == nil {
-			return buildPMPath, nil
-		}
-	}
+// moduleInstaller is the current module installer implementation
+// It can be set by other packages to provide actual installation functionality
+var moduleInstaller ModuleInstaller = &DefaultModuleInstaller{}
 
-	return "", fmt.Errorf("PM command not found in PATH or relative to executable")
+// SetModuleInstaller allows other packages to provide module installation functionality
+func SetModuleInstaller(installer ModuleInstaller) {
+	moduleInstaller = installer
+}
+
+// InstallPatchPerl installs Devel::PatchPerl using the configured module installer
+func InstallPatchPerl(verbose bool) error {
+	return moduleInstaller.InstallModule("Devel::PatchPerl", verbose)
 }
 
 // ApplyPatchPerl applies Devel::PatchPerl patches to Perl source
