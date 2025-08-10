@@ -45,17 +45,27 @@ pvm install 5.40.0 --source perl-5.40.0.tar.gz
 ```
 
 ### pvm use
-Use a specific version in the current shell.
+Use a specific version and optional library environment in the current shell.
 
 ```bash
-pvm use [version]
+pvm use [version[@library]]
 ```
 
 **Examples:**
 ```bash
-pvm use 5.38.0
-pvm use latest
+pvm use 5.38.0                 # Use version 5.38.0
+pvm use latest                 # Use latest available version
+pvm use 5.42.0@tools          # Use version 5.42.0 with 'tools' library environment
+pvm use 5.38.0@testing        # Use version 5.38.0 with 'testing' library environment
+pvm use system@production     # Use system Perl with 'production' library environment
 ```
+
+**Library Environments:**
+Library environments provide isolated module installations for different use cases:
+- Create with: `pvm pvx --name <library> --isolation local`
+- Libraries are stored in `$XDG_DATA_HOME/pvm/environments/<library>`
+- When active, library's `lib/perl5` is added to `PERL5LIB`
+- Library's `bin` directory is added to `PATH`
 
 ### pvm global
 Set the global default Perl version.
