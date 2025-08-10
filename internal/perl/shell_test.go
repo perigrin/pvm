@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/xdg"
 )
 
@@ -573,5 +574,312 @@ func TestGetShellInitInstructions(t *testing.T) {
 				t.Errorf("CMD instructions should mention CMD")
 			}
 		}
+	}
+}
+
+// TestGenerateShellUse tests the GenerateShellUse function with library support
+func TestGenerateShellUse(t *testing.T) {
+	cleanup := setupShellTest(t)
+	defer cleanup()
+
+	// Mock validation functions
+	origValidateVersionFunc := ValidateVersion
+
+	ValidateVersion = func(version string) error {
+		if version == "5.38.0" || version == "5.42.0" {
+			return nil
+		}
+		return errors.NewVersionError(ErrUnsatisfiedVersion, "Version not available", nil)
+	}
+
+	defer func() {
+		ValidateVersion = origValidateVersionFunc
+	}()
+
+	// Create test library environments
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		t.Fatalf("Failed to get XDG dirs: %v", err)
+	}
+
+	// Create test library environments
+	testLibraries := []string{"testlib", "tools"}
+	for _, lib := range testLibraries {
+		envDir := filepath.Join(dirs.DataDir, "environments", lib)
+		if err := os.MkdirAll(envDir, 0755); err != nil {
+			t.Fatalf("Failed to create test library environment %s: %v", lib, err)
+		}
+	}
+
+	// Save original SHELL environment variable
+	origShell := os.Getenv("SHELL")
+	defer func() { _ = os.Setenv("SHELL", origShell) }()
+
+	testCases := []struct {
+		name            string
+		version         string
+		library         string
+		shell           string
+		wantError       bool
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{
+			name:      "ValidVersionWithLibrary",
+			version:   "5.38.0",
+			library:   "testlib",
+			shell:     "/bin/bash",
+			wantError: false,
+			wantContains: []string{
+				"export PVM_PERL_VERSION='5.38.0'",
+				"export PVM_PERL_LIBRARY='testlib'",
+				"export PVM_PERL_VERSION_FULL='5.38.0@testlib'",
+				"Using Perl 5.38.0@testlib",
+			},
+		},
+		{
+			name:      "ValidVersionWithoutLibrary",
+			version:   "5.42.0",
+			library:   "",
+			shell:     "/bin/bash",
+			wantError: false,
+			wantContains: []string{
+				"export PVM_PERL_VERSION='5.42.0'",
+				"unset PVM_PERL_LIBRARY",
+				"export PVM_PERL_VERSION_FULL='5.42.0'",
+				"Using Perl 5.42.0",
+			},
+		},
+		{
+			name:      "ValidVersionWithLibraryFish",
+			version:   "5.38.0",
+			library:   "tools",
+			shell:     "/usr/bin/fish",
+			wantError: false,
+			wantContains: []string{
+				"set -gx PVM_PERL_VERSION '5.38.0'",
+				"set -gx PVM_PERL_LIBRARY 'tools'",
+				"set -gx PVM_PERL_VERSION_FULL '5.38.0@tools'",
+				"Using Perl 5.38.0@tools",
+			},
+		},
+		{
+			name:      "ValidVersionWithoutLibraryFish",
+			version:   "5.42.0",
+			library:   "",
+			shell:     "/usr/bin/fish",
+			wantError: false,
+			wantContains: []string{
+				"set -gx PVM_PERL_VERSION '5.42.0'",
+				"set -e PVM_PERL_LIBRARY 2>/dev/null || true",
+				"set -gx PVM_PERL_VERSION_FULL '5.42.0'",
+				"Using Perl 5.42.0",
+			},
+		},
+		{
+			name:      "InvalidVersion",
+			version:   "999.999.999",
+			library:   "",
+			shell:     "/bin/bash",
+			wantError: true,
+		},
+		{
+			name:      "InvalidLibrary",
+			version:   "5.38.0",
+			library:   "nonexistent",
+			shell:     "/bin/bash",
+			wantError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Set SHELL environment variable
+			_ = os.Setenv("SHELL", tc.shell)
+
+			// Capture output by temporarily redirecting stdout
+			origStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			// Run the function
+			err := GenerateShellUse(tc.version, tc.library)
+
+			// Restore stdout and read output
+			w.Close()
+			os.Stdout = origStdout
+
+			output := make([]byte, 1024)
+			n, _ := r.Read(output)
+			outputStr := string(output[:n])
+
+			// Check error expectation
+			if tc.wantError && err == nil {
+				t.Fatalf("Expected error but got none")
+			}
+			if !tc.wantError && err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// Check expected content
+			for _, want := range tc.wantContains {
+				if !strings.Contains(outputStr, want) {
+					t.Errorf("Output missing expected string: %s\nOutput: %s", want, outputStr)
+				}
+			}
+
+			// Check unwanted content
+			for _, unwant := range tc.wantNotContains {
+				if strings.Contains(outputStr, unwant) {
+					t.Errorf("Output contains unwanted string: %s\nOutput: %s", unwant, outputStr)
+				}
+			}
+		})
+	}
+}
+
+// TestLibraryNameSecurity tests security validation for library names
+func TestLibraryNameSecurity(t *testing.T) {
+	cleanup := setupShellTest(t)
+	defer cleanup()
+
+	testCases := []struct {
+		name          string
+		libraryName   string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "ValidLibraryName",
+			libraryName: "tools",
+			expectError: false,
+		},
+		{
+			name:        "ValidLibraryNameWithDash",
+			libraryName: "my-tools",
+			expectError: false,
+		},
+		{
+			name:        "ValidLibraryNameWithUnderscore",
+			libraryName: "test_env",
+			expectError: false,
+		},
+		{
+			name:          "PathTraversalAttack",
+			libraryName:   "../../../etc",
+			expectError:   true,
+			errorContains: "invalid path characters",
+		},
+		{
+			name:          "RelativePathAttack",
+			libraryName:   "../../.ssh",
+			expectError:   true,
+			errorContains: "invalid path characters",
+		},
+		{
+			name:          "AbsolutePathAttack",
+			libraryName:   "/etc/passwd",
+			expectError:   true,
+			errorContains: "invalid path characters",
+		},
+		{
+			name:          "WindowsPathAttack",
+			libraryName:   "..\\..\\windows",
+			expectError:   true,
+			errorContains: "invalid path characters",
+		},
+		{
+			name:          "ShellInjectionSingleQuote",
+			libraryName:   "lib'; rm -rf /; echo 'hack",
+			expectError:   true,
+			errorContains: "invalid path characters",
+		},
+		{
+			name:          "ShellInjectionBacktick",
+			libraryName:   "lib`id`",
+			expectError:   true,
+			errorContains: "alphanumeric characters",
+		},
+		{
+			name:          "ShellInjectionDollarSign",
+			libraryName:   "lib$(whoami)",
+			expectError:   true,
+			errorContains: "alphanumeric characters",
+		},
+		{
+			name:        "EmptyLibraryName",
+			libraryName: "",
+			expectError: false, // Empty is allowed
+		},
+		{
+			name:          "WhitespaceOnlyLibrary",
+			libraryName:   "   ",
+			expectError:   true,
+			errorContains: "whitespace-only",
+		},
+		{
+			name:          "TooLongLibraryName",
+			libraryName:   strings.Repeat("a", 65),
+			expectError:   true,
+			errorContains: "too long",
+		},
+		{
+			name:          "SpecialCharacters",
+			libraryName:   "lib@#$%",
+			expectError:   true,
+			errorContains: "alphanumeric characters",
+		},
+		{
+			name:          "SpacesInName",
+			libraryName:   "my tools",
+			expectError:   true,
+			errorContains: "alphanumeric characters",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := sanitizeLibraryName(tc.libraryName)
+
+			if tc.expectError && err == nil {
+				t.Fatalf("Expected error for library name '%s' but got none", tc.libraryName)
+			}
+
+			if !tc.expectError && err != nil {
+				t.Fatalf("Unexpected error for library name '%s': %v", tc.libraryName, err)
+			}
+
+			if tc.expectError && tc.errorContains != "" {
+				if !strings.Contains(err.Error(), tc.errorContains) {
+					t.Errorf("Error message should contain '%s' but got: %s", tc.errorContains, err.Error())
+				}
+			}
+		})
+	}
+}
+
+// TestShellEscaping tests the shell escaping function
+func TestShellEscaping(t *testing.T) {
+	testCases := []struct {
+		input    string
+		expected string
+	}{
+		{"simple", "'simple'"},
+		{"with space", "'with space'"},
+		{"with'quote", "'with'\"'\"'quote'"},
+		{"multiple'quotes'here", "'multiple'\"'\"'quotes'\"'\"'here'"},
+		{"", "''"},
+		{"$injection", "'$injection'"},
+		{"`backtick`", "'`backtick`'"},
+		{"$(command)", "'$(command)'"},
+	}
+
+	for _, tc := range testCases {
+		t.Run("Escape_"+tc.input, func(t *testing.T) {
+			result := escapeShellArg(tc.input)
+			if result != tc.expected {
+				t.Errorf("escapeShellArg(%q) = %q, want %q", tc.input, result, tc.expected)
+			}
+		})
 	}
 }

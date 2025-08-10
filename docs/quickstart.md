@@ -242,6 +242,7 @@ PVM works alongside existing tools:
 ```bash
 # Works with existing version managers
 pvm use 5.36.0  # Switches Perl version like perlbrew/plenv
+pvm use 5.36.0@tools  # Switches to version with isolated library environment
 
 # Type-check existing Perl code (gradually add types)
 psc check existing_script.pl  # Reports type opportunities

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"text/template"
@@ -510,13 +511,116 @@ func UseVersion(version string) error {
 	return nil
 }
 
-// GenerateShellUse outputs shell commands to set up the environment for a specific Perl version
-func GenerateShellUse(version string) error {
+// sanitizeLibraryName validates that library names are safe and don't contain malicious content
+func sanitizeLibraryName(library string) error {
+	if library == "" {
+		return nil // Empty library is valid (uses default)
+	}
+
+	// Reject names that are only whitespace
+	if strings.TrimSpace(library) == "" {
+		return errors.NewVersionError(
+			ErrVersionSwitchFailed,
+			"library name cannot be empty or whitespace-only",
+			nil)
+	}
+
+	// Check for path traversal attempts
+	if strings.Contains(library, "..") || strings.Contains(library, "/") || strings.Contains(library, "\\") {
+		return errors.NewVersionError(
+			ErrVersionSwitchFailed,
+			"library name contains invalid path characters",
+			nil)
+	}
+
+	// Prevent absolute paths
+	if filepath.IsAbs(library) {
+		return errors.NewVersionError(
+			ErrVersionSwitchFailed,
+			"library name cannot be an absolute path",
+			nil)
+	}
+
+	// Limit length to prevent DoS attacks
+	if len(library) > 64 {
+		return errors.NewVersionError(
+			ErrVersionSwitchFailed,
+			"library name is too long (maximum 64 characters)",
+			nil)
+	}
+
+	// Only allow alphanumeric characters, dash, and underscore
+	matched, _ := regexp.MatchString("^[a-zA-Z0-9_-]+$", library)
+	if !matched {
+		return errors.NewVersionError(
+			ErrVersionSwitchFailed,
+			"library name can only contain alphanumeric characters, dash, and underscore",
+			nil)
+	}
+
+	return nil
+}
+
+// escapeShellArg properly escapes a string for safe use in shell commands
+func escapeShellArg(arg string) string {
+	// Use single quotes and escape any single quotes within
+	return "'" + strings.ReplaceAll(arg, "'", "'\"'\"'") + "'"
+}
+
+// validateLibraryEnvironmentImpl is the actual implementation
+func validateLibraryEnvironmentImpl(library string) error {
+	if library == "" {
+		return nil // Empty library is valid (uses default)
+	}
+
+	// First sanitize the library name
+	if err := sanitizeLibraryName(library); err != nil {
+		return err
+	}
+
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return errors.NewVersionError(
+			ErrVersionSwitchFailed,
+			"Failed to determine XDG directories",
+			err)
+	}
+
+	// Build the environment directory path and verify it's within bounds
+	envDir := filepath.Clean(filepath.Join(dirs.DataDir, "environments", library))
+	expectedPrefix := filepath.Clean(filepath.Join(dirs.DataDir, "environments")) + string(os.PathSeparator)
+
+	// Double-check that the resolved path is within the expected directory
+	if !strings.HasPrefix(envDir+string(os.PathSeparator), expectedPrefix) {
+		return errors.NewVersionError(
+			ErrVersionSwitchFailed,
+			"library path resolves outside allowed directory",
+			nil)
+	}
+
+	// Check if library environment exists
+	if _, err := os.Stat(envDir); os.IsNotExist(err) {
+		return errors.NewVersionError(
+			ErrVersionSwitchFailed,
+			fmt.Sprintf("Library environment '%s' does not exist. Library environments provide isolated module installations. Create with: pvm pvx --name %s --isolation local", library, library),
+			nil)
+	}
+
+	return nil
+}
+
+// GenerateShellUse outputs shell commands to set up the environment for a specific Perl version and optional library
+func GenerateShellUse(version string, library string) error {
 	// Allow "system" as a special case, otherwise validate the version
 	if version != "system" {
 		if err := ValidateVersion(version); err != nil {
 			return err
 		}
+	}
+
+	// Validate library environment if specified
+	if err := ValidateLibraryEnvironment(library); err != nil {
+		return err
 	}
 
 	// Detect shell type from environment
@@ -528,14 +632,34 @@ func GenerateShellUse(version string) error {
 	// Extract shell name from full path
 	shellName := filepath.Base(shell)
 
-	// Generate shell-specific environment commands
+	// Build display string
+	displayVersion := version
+	if library != "" {
+		displayVersion = fmt.Sprintf("%s@%s", version, library)
+	}
+
+	// Generate shell-specific environment commands with proper escaping
 	switch shellName {
 	case "fish":
-		fmt.Printf("set -gx PVM_PERL_VERSION %s\n", version)
-		fmt.Printf("echo \"Using Perl %s\"\n", version)
+		fmt.Printf("set -gx PVM_PERL_VERSION %s\n", escapeShellArg(version))
+		if library != "" {
+			fmt.Printf("set -gx PVM_PERL_LIBRARY %s\n", escapeShellArg(library))
+			fmt.Printf("set -gx PVM_PERL_VERSION_FULL %s\n", escapeShellArg(displayVersion))
+		} else {
+			fmt.Println("set -e PVM_PERL_LIBRARY 2>/dev/null || true")
+			fmt.Printf("set -gx PVM_PERL_VERSION_FULL %s\n", escapeShellArg(version))
+		}
+		fmt.Printf("echo %s\n", escapeShellArg("Using Perl "+displayVersion))
 	default: // bash, zsh, sh
-		fmt.Printf("export PVM_PERL_VERSION=%s\n", version)
-		fmt.Printf("echo \"Using Perl %s\"\n", version)
+		fmt.Printf("export PVM_PERL_VERSION=%s\n", escapeShellArg(version))
+		if library != "" {
+			fmt.Printf("export PVM_PERL_LIBRARY=%s\n", escapeShellArg(library))
+			fmt.Printf("export PVM_PERL_VERSION_FULL=%s\n", escapeShellArg(displayVersion))
+		} else {
+			fmt.Println("unset PVM_PERL_LIBRARY")
+			fmt.Printf("export PVM_PERL_VERSION_FULL=%s\n", escapeShellArg(version))
+		}
+		fmt.Printf("echo %s\n", escapeShellArg("Using Perl "+displayVersion))
 	}
 
 	return nil
@@ -573,6 +697,9 @@ func validateVersionImpl(version string) error {
 
 // ValidateVersion is a variable pointing to validateVersionImpl for easier mocking in tests
 var ValidateVersion = validateVersionImpl
+
+// ValidateLibraryEnvironment is a variable pointing to validateLibraryEnvironmentImpl for easier mocking in tests
+var ValidateLibraryEnvironment = validateLibraryEnvironmentImpl
 
 // GetCurrentShellScript generates shell script to be evaluated for the command:
 // eval "$(pvm shell)"

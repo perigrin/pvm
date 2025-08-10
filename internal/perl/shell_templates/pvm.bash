@@ -109,6 +109,60 @@ _pvm_update_perl_path() {
         # No current version or system version - just use cleaned path
         export PATH="$clean_path"
     fi
+
+    # Handle library environment if PVM_PERL_LIBRARY is set
+    if [ -n "$PVM_PERL_LIBRARY" ]; then
+        local library_env_dir="$xdg_data_home/pvm/environments/$PVM_PERL_LIBRARY"
+        if [ -d "$library_env_dir" ]; then
+            # Add library environment's lib/perl5 to PERL5LIB
+            local library_lib_dir="$library_env_dir/lib/perl5"
+            if [ -d "$library_lib_dir" ]; then
+                if [ -n "$PERL5LIB" ]; then
+                    export PERL5LIB="$library_lib_dir:$PERL5LIB"
+                else
+                    export PERL5LIB="$library_lib_dir"
+                fi
+            fi
+
+            # Add library environment's bin to PATH (after version bin but before clean_path)
+            local library_bin_dir="$library_env_dir/bin"
+            if [ -d "$library_bin_dir" ]; then
+                export PATH="$library_bin_dir:$PATH"
+            fi
+        fi
+    else
+        # Clear library-specific PERL5LIB when no library is active
+        # Only clear if it contains PVM environment paths
+        if [ -n "$PERL5LIB" ]; then
+            local cleaned_perl5lib=""
+            local remaining_perl5lib="$PERL5LIB"
+            while [ -n "$remaining_perl5lib" ]; do
+                if echo "$remaining_perl5lib" | grep -q ':'; then
+                    lib_entry="${remaining_perl5lib%%:*}"
+                    remaining_perl5lib="${remaining_perl5lib#*:}"
+                else
+                    lib_entry="$remaining_perl5lib"
+                    remaining_perl5lib=""
+                fi
+
+                # Skip PVM environment paths
+                case "$lib_entry" in
+                    */pvm/environments/*/lib/perl5)
+                        # Skip library environment paths
+                        ;;
+                    *)
+                        # Keep other paths
+                        if [ -z "$cleaned_perl5lib" ]; then
+                            cleaned_perl5lib="$lib_entry"
+                        else
+                            cleaned_perl5lib="$cleaned_perl5lib:$lib_entry"
+                        fi
+                        ;;
+                esac
+            done
+            export PERL5LIB="$cleaned_perl5lib"
+        fi
+    fi
 }
 
 # Function to initialize PVM

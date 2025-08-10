@@ -42,6 +42,9 @@ type ResolvedVersion struct {
 	// The resolved version string
 	Version string
 
+	// The library environment name (if any)
+	Library string
+
 	// The source of the resolved version
 	Source ResolutionSource
 
@@ -304,6 +307,7 @@ func resolveExplicitVersion(version string, availableVersions []string, cfg *con
 
 				return &ResolvedVersion{
 					Version:    versionInfo.Version,
+					Library:    "", // System Perl has no library environment
 					Source:     SystemPerlSource,
 					Path:       perlExe,
 					SourcePath: "", // System Perl has no config file
@@ -353,6 +357,7 @@ func resolveExplicitVersion(version string, availableVersions []string, cfg *con
 
 	return &ResolvedVersion{
 		Version:    resolvedVersion,
+		Library:    "", // Explicit version has no library environment
 		Source:     ExplicitVersion,
 		Path:       perlPath,
 		SourcePath: "", // Explicit version has no config file
@@ -405,6 +410,7 @@ func resolveFromPerlVersionFile(projectDir string, availableVersions []string, c
 
 	return &ResolvedVersion{
 		Version:    resolvedVersion,
+		Library:    "", // Project version file has no library environment
 		Source:     ProjectVersionFile,
 		Path:       perlPath,
 		SourcePath: versionFile,
@@ -479,6 +485,7 @@ func resolveFromProjectConfig(projectDir string, availableVersions []string, cfg
 
 	return &ResolvedVersion{
 		Version:    resolvedVersion,
+		Library:    "", // Project config has no library environment
 		Source:     ProjectConfig,
 		Path:       perlPath,
 		SourcePath: projectConfigPath,
@@ -515,8 +522,12 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 			return nil, err
 		}
 
+		// Check for library environment
+		library := os.Getenv("PVM_PERL_LIBRARY")
+
 		return &ResolvedVersion{
 			Version:    resolvedVersion,
+			Library:    library,
 			Source:     EnvironmentVariable,
 			Path:       perlPath,
 			SourcePath: "PVM_PERL_VERSION", // Store the specific environment variable name
@@ -552,6 +563,7 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 
 		return &ResolvedVersion{
 			Version:    resolvedVersion,
+			Library:    "", // Legacy environment variables have no library environment
 			Source:     EnvironmentVariable,
 			Path:       perlPath,
 			SourcePath: "PLENV_VERSION", // Store the specific environment variable name
@@ -592,6 +604,7 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 
 		return &ResolvedVersion{
 			Version:    resolvedVersion,
+			Library:    "", // Legacy environment variables have no library environment
 			Source:     EnvironmentVariable,
 			Path:       perlPath,
 			SourcePath: "PERLBREW_PERL", // Store the specific environment variable name
@@ -679,6 +692,7 @@ func resolveFromUserConfig(cfg *config.Config, availableVersions []string) (*Res
 
 	return &ResolvedVersion{
 		Version:    resolvedVersion,
+		Library:    "", // User config has no library environment
 		Source:     UserConfig,
 		Path:       perlPath,
 		SourcePath: userConfigPath,
@@ -713,6 +727,7 @@ func resolveFromSystemPerl() (*ResolvedVersion, error) {
 			}
 			return &ResolvedVersion{
 				Version:    versionInfo.Version, // Actual version like "5.34.1"
+				Library:    "",                  // System Perl has no library environment
 				Source:     SystemPerlSource,
 				Path:       perlPath,
 				SourcePath: "", // System Perl has no config file

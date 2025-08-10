@@ -442,9 +442,9 @@ Examples:
 
 func newUseCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "use [version]",
-		Short: "Use a specific version in the current shell",
-		Long:  "Temporarily use a specific Perl version in the current shell session. Use 'system' to fall back to system Perl.",
+		Use:   "use [version[@library]]",
+		Short: "Use a specific version and optional library environment in the current shell",
+		Long:  "Temporarily use a specific Perl version and optional library environment in the current shell session. Use 'system' to fall back to system Perl. Library environments can be specified with @library syntax (e.g., 5.42.0@tools).",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return handleShellIntegrationRequired(cmd)
@@ -454,23 +454,45 @@ func newUseCommand() *cobra.Command {
 
 func newShUseCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:    "sh-use [version]",
-		Short:  "Generate shell code to use a specific Perl version",
-		Long:   "Outputs shell commands to set environment variables for a specific Perl version",
+		Use:    "sh-use [version[@library]]",
+		Short:  "Generate shell code to use a specific Perl version and optional library environment",
+		Long:   "Outputs shell commands to set environment variables for a specific Perl version and optional library environment",
 		Args:   cobra.ExactArgs(1),
 		Hidden: true, // Hide from help output as this is internal
 		RunE: func(cmd *cobra.Command, args []string) error {
-			version := args[0]
+			versionSpec := args[0]
+
+			// Parse version@library syntax with validation
+			parts := strings.SplitN(versionSpec, "@", 3) // Split into at most 3 parts to detect multiple @
+			if len(parts) > 2 {
+				return fmt.Errorf("invalid version specification: only one @ symbol allowed")
+			}
+
+			version := parts[0]
+			var library string
+			if len(parts) == 2 {
+				library = parts[1]
+				// Validate library name is not empty after @
+				if library == "" {
+					return fmt.Errorf("library name cannot be empty after @")
+				}
+			}
 
 			// Handle special "system" case
 			if version == "system" {
-				// Generate shell code to unset PVM_PERL_VERSION
+				// Generate shell code to unset PVM_PERL_VERSION and PVM_PERL_LIBRARY
 				fmt.Println("unset PVM_PERL_VERSION")
-				fmt.Printf("echo \"Using system Perl\"\n")
+				if library != "" {
+					fmt.Println("unset PVM_PERL_LIBRARY")
+					fmt.Printf("echo \"Using system Perl with library '%s'\"\n", library)
+				} else {
+					fmt.Println("unset PVM_PERL_LIBRARY")
+					fmt.Printf("echo \"Using system Perl\"\n")
+				}
 				return nil
 			}
 
-			return perl.GenerateShellUse(version)
+			return perl.GenerateShellUse(version, library)
 		},
 	}
 }

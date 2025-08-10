@@ -369,3 +369,278 @@ func TestEnvironmentVariableVersionResolution(t *testing.T) {
 	helpers.AssertStringContains(t, currentOutput, "set by PVM_PERL_VERSION",
 		"pvm current should indicate version source as PVM_PERL_VERSION environment variable")
 }
+
+// TestLibrarySpecificUse tests the new library-specific syntax for pvm use
+func TestLibrarySpecificUse(t *testing.T) {
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
+
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Import system Perl first
+	stdout, stderr, err := env.RunPVM("import-system")
+	if err != nil {
+		t.Fatalf("System Perl import failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	// Get system Perl version
+	stdout, stderr, err = env.RunPVM("list")
+	if err != nil {
+		t.Fatalf("List command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	listOutput := stdout + stderr
+	lines := strings.Split(listOutput, "\n")
+	var systemVersion string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, ".") && !strings.Contains(line, "No Perl versions") {
+			parts := strings.Fields(line)
+			if len(parts) > 0 {
+				systemVersion = strings.TrimSpace(parts[0])
+				break
+			}
+		}
+	}
+
+	if systemVersion == "" {
+		t.Fatalf("Could not find system Perl version")
+	}
+
+	// Create a test library environment
+	testLibraryName := "testlib"
+	stdout, stderr, err = env.RunPVM("pvx", "--name", testLibraryName, "--isolation", "local", "-e", "print 'test'")
+	if err != nil {
+		t.Fatalf("Failed to create test library environment: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	// Test 1: Test sh-use with library syntax
+	t.Run("ShUseWithLibrary", func(t *testing.T) {
+		versionLibrarySpec := systemVersion + "@" + testLibraryName
+		stdout, stderr, err := env.RunPVM("sh-use", versionLibrarySpec)
+		if err != nil {
+			t.Fatalf("sh-use with library failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+		}
+
+		shellOutput := stdout + stderr
+		helpers.AssertStringContains(t, shellOutput, "export PVM_PERL_VERSION='"+systemVersion+"'",
+			"sh-use should set PVM_PERL_VERSION")
+		helpers.AssertStringContains(t, shellOutput, "export PVM_PERL_LIBRARY='"+testLibraryName+"'",
+			"sh-use should set PVM_PERL_LIBRARY")
+		helpers.AssertStringContains(t, shellOutput, "export PVM_PERL_VERSION_FULL='"+versionLibrarySpec+"'",
+			"sh-use should set PVM_PERL_VERSION_FULL")
+		helpers.AssertStringContains(t, shellOutput, "Using Perl "+versionLibrarySpec,
+			"sh-use should show version@library in output")
+	})
+
+	// Test 2: Test sh-use with non-existent library
+	t.Run("ShUseWithNonExistentLibrary", func(t *testing.T) {
+		versionLibrarySpec := systemVersion + "@nonexistent"
+		stdout, stderr, err := env.RunPVM("sh-use", versionLibrarySpec)
+		if err == nil {
+			t.Fatalf("sh-use with non-existent library should fail")
+		}
+
+		errorOutput := stdout + stderr
+		helpers.AssertStringContains(t, errorOutput, "does not exist",
+			"sh-use should error for non-existent library")
+		helpers.AssertStringContains(t, errorOutput, "pvm pvx --name nonexistent",
+			"sh-use should suggest how to create the library")
+	})
+
+	// Test 3: Test system@library syntax
+	t.Run("SystemWithLibrary", func(t *testing.T) {
+		versionLibrarySpec := "system@" + testLibraryName
+		stdout, stderr, err := env.RunPVM("sh-use", versionLibrarySpec)
+		if err != nil {
+			t.Fatalf("sh-use system@library failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+		}
+
+		shellOutput := stdout + stderr
+		helpers.AssertStringContains(t, shellOutput, "unset PVM_PERL_VERSION",
+			"sh-use system@library should unset PVM_PERL_VERSION")
+		helpers.AssertStringContains(t, shellOutput, "unset PVM_PERL_LIBRARY",
+			"sh-use system@library should unset PVM_PERL_LIBRARY")
+		helpers.AssertStringContains(t, shellOutput, "Using system Perl with library '"+testLibraryName+"'",
+			"sh-use should show system with library message")
+	})
+
+	// Test 4: Test clearing library (version without @library)
+	t.Run("ClearLibrary", func(t *testing.T) {
+		stdout, stderr, err := env.RunPVM("sh-use", systemVersion)
+		if err != nil {
+			t.Fatalf("sh-use without library failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+		}
+
+		shellOutput := stdout + stderr
+		helpers.AssertStringContains(t, shellOutput, "export PVM_PERL_VERSION='"+systemVersion+"'",
+			"sh-use should set PVM_PERL_VERSION")
+		helpers.AssertStringContains(t, shellOutput, "unset PVM_PERL_LIBRARY",
+			"sh-use without library should unset PVM_PERL_LIBRARY")
+		helpers.AssertStringContains(t, shellOutput, "export PVM_PERL_VERSION_FULL='"+systemVersion+"'",
+			"sh-use should set PVM_PERL_VERSION_FULL to just version")
+	})
+}
+
+// TestLibraryEnvironmentResolution tests that library environments are properly resolved
+func TestLibraryEnvironmentResolution(t *testing.T) {
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
+
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Import system Perl first
+	stdout, stderr, err := env.RunPVM("import-system")
+	if err != nil {
+		t.Fatalf("System Perl import failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	// Get system Perl version
+	stdout, stderr, err = env.RunPVM("list")
+	if err != nil {
+		t.Fatalf("List command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	listOutput := stdout + stderr
+	lines := strings.Split(listOutput, "\n")
+	var systemVersion string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, ".") && !strings.Contains(line, "No Perl versions") {
+			parts := strings.Fields(line)
+			if len(parts) > 0 {
+				systemVersion = strings.TrimSpace(parts[0])
+				break
+			}
+		}
+	}
+
+	if systemVersion == "" {
+		t.Fatalf("Could not find system Perl version")
+	}
+
+	// Create a test library environment
+	testLibraryName := "resolvertest"
+	stdout, stderr, err = env.RunPVM("pvx", "--name", testLibraryName, "--isolation", "local", "-e", "print 'test'")
+	if err != nil {
+		t.Fatalf("Failed to create test library environment: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	// Set environment variables as if pvm use was called
+	os.Setenv("PVM_PERL_VERSION", systemVersion)
+	os.Setenv("PVM_PERL_LIBRARY", testLibraryName)
+
+	// Test that current version resolution includes library information
+	stdout, stderr, err = env.RunPVM("current", "-v")
+	if err != nil {
+		t.Fatalf("Current command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	currentOutput := stdout + stderr
+	helpers.AssertStringContains(t, currentOutput, systemVersion,
+		"pvm current should show the version")
+	helpers.AssertStringContains(t, currentOutput, "PVM_PERL_VERSION",
+		"pvm current should indicate version source as PVM_PERL_VERSION")
+}
+
+// TestLibrarySpecificUseSecurity tests security aspects of library-specific use syntax
+func TestLibrarySpecificUseSecurity(t *testing.T) {
+	// Use binary Perl for reliable testing
+	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
+
+	env := helpers.NewTestEnv(t)
+	defer env.Cleanup()
+
+	// Get system version for testing
+	stdout, stderr, err := env.RunPVM("import-system")
+	if err != nil {
+		t.Fatalf("System Perl import failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	stdout, stderr, err = env.RunPVM("list")
+	if err != nil {
+		t.Fatalf("List command failed: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+
+	listOutput := stdout + stderr
+	lines := strings.Split(listOutput, "\n")
+	var systemVersion string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, ".") && !strings.Contains(line, "No Perl versions") {
+			parts := strings.Fields(line)
+			if len(parts) > 0 {
+				systemVersion = strings.TrimSpace(parts[0])
+				break
+			}
+		}
+	}
+
+	if systemVersion == "" {
+		t.Fatalf("Could not find system Perl version")
+	}
+
+	// Test security validation for malicious library names
+	securityTestCases := []struct {
+		name          string
+		versionSpec   string
+		shouldFail    bool
+		errorContains string
+	}{
+		{
+			name:          "PathTraversalAttack",
+			versionSpec:   systemVersion + "@../../../etc",
+			shouldFail:    true,
+			errorContains: "invalid path characters",
+		},
+		{
+			name:          "ShellInjectionAttack",
+			versionSpec:   systemVersion + "@lib'; rm -rf /; echo 'hack",
+			shouldFail:    true,
+			errorContains: "invalid path characters",
+		},
+		{
+			name:          "MultipleAtSymbols",
+			versionSpec:   systemVersion + "@lib1@lib2",
+			shouldFail:    true,
+			errorContains: "only one @ symbol allowed",
+		},
+		{
+			name:          "EmptyLibraryAfterAt",
+			versionSpec:   systemVersion + "@",
+			shouldFail:    true,
+			errorContains: "library name cannot be empty after @",
+		},
+		{
+			name:          "BacktickInjection",
+			versionSpec:   systemVersion + "@lib`id`",
+			shouldFail:    true,
+			errorContains: "alphanumeric characters",
+		},
+		{
+			name:          "DollarSignInjection",
+			versionSpec:   systemVersion + "@lib$(whoami)",
+			shouldFail:    true,
+			errorContains: "alphanumeric characters",
+		},
+	}
+
+	for _, tc := range securityTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			stdout, stderr, err := env.RunPVM("sh-use", tc.versionSpec)
+
+			if tc.shouldFail && err == nil {
+				t.Fatalf("Expected security validation to fail for %s", tc.versionSpec)
+			}
+
+			if tc.shouldFail && tc.errorContains != "" {
+				errorOutput := stdout + stderr
+				if !strings.Contains(errorOutput, tc.errorContains) {
+					t.Errorf("Error should contain '%s' but got: %s", tc.errorContains, errorOutput)
+				}
+			}
+		})
+	}
+}
