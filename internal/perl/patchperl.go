@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -56,64 +57,78 @@ func IsPatchPerlAvailable() bool {
 	return err == nil
 }
 
-// InstallPatchPerl installs Devel::PatchPerl using system perl and cpan
+// InstallPatchPerl installs Devel::PatchPerl using PVM's PM command
 func InstallPatchPerl(verbose bool) error {
 	if verbose {
-		fmt.Println("Installing Devel::PatchPerl using system perl...")
+		fmt.Println("Installing Devel::PatchPerl using PVM PM...")
 	}
 
-	// Try cpanm first (faster and more reliable)
-	if isCPANMAvailable() {
-		return installWithCPANM(verbose)
+	// Find the PM command (should be in the same directory as the current executable or in PATH)
+	pmCmd, err := findPMCommand()
+	if err != nil {
+		return fmt.Errorf("failed to find PM command: %w", err)
 	}
 
-	// Fall back to cpan
-	return installWithCPAN(verbose)
-}
-
-// isCPANMAvailable checks if cpanm is available
-func isCPANMAvailable() bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "cpanm", "--version")
-	return cmd.Run() == nil
-}
-
-// installWithCPANM installs using cpanm
-func installWithCPANM(verbose bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	args := []string{"--notest", "Devel::PatchPerl"}
+	// Build PM install command
+	args := []string{"install", "Devel::PatchPerl"}
 	if !verbose {
-		args = append([]string{"--quiet"}, args...)
+		args = append(args, "--quiet")
 	}
 
-	cmd := exec.CommandContext(ctx, "cpanm", args...)
+	cmd := exec.CommandContext(ctx, pmCmd, args...)
+
 	if verbose {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+		fmt.Printf("Running: %s %s\n", pmCmd, strings.Join(args, " "))
 	}
 
-	return cmd.Run()
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("PM install failed: %w", err)
+	}
+
+	if verbose {
+		fmt.Println("Devel::PatchPerl installed successfully via PM")
+	}
+
+	return nil
 }
 
-// installWithCPAN installs using traditional cpan
-func installWithCPAN(verbose bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "cpan", "Devel::PatchPerl")
-	if verbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+// findPMCommand finds the PM command executable
+func findPMCommand() (string, error) {
+	// First try to find 'pm' in PATH
+	if pmPath, err := exec.LookPath("pm"); err == nil {
+		return pmPath, nil
 	}
 
-	// Set non-interactive mode
-	cmd.Env = append(os.Environ(), "PERL_MM_USE_DEFAULT=1")
+	// If not in PATH, try to find it relative to the current executable
+	if execPath, err := os.Executable(); err == nil {
+		// Check if pm is in the same directory as the current executable
+		execDir := filepath.Dir(execPath)
+		pmPath := filepath.Join(execDir, "pm")
+		if _, err := os.Stat(pmPath); err == nil {
+			return pmPath, nil
+		}
 
-	return cmd.Run()
+		// Check for pm.exe on Windows
+		pmExePath := filepath.Join(execDir, "pm.exe")
+		if _, err := os.Stat(pmExePath); err == nil {
+			return pmExePath, nil
+		}
+
+		// Check in build directory (during development)
+		buildDir := filepath.Join(filepath.Dir(execDir), "build")
+		buildPMPath := filepath.Join(buildDir, "pm")
+		if _, err := os.Stat(buildPMPath); err == nil {
+			return buildPMPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("PM command not found in PATH or relative to executable")
 }
 
 // ApplyPatchPerl applies Devel::PatchPerl patches to Perl source
