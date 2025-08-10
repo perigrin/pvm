@@ -109,6 +109,12 @@ func (bm *BuildManager) extractSourceWithProgress(ctx *BuildContext, progress *P
 func (bm *BuildManager) configureBuild(ctx *BuildContext, progress *Progress) error {
 	progress.Update(StageConfigure, "Preparing configuration", 0.0)
 
+	// Apply PatchPerl patches if needed (cross-platform compatibility)
+	err := bm.applyPatchPerlPatches(ctx, progress)
+	if err != nil {
+		return err
+	}
+
 	// Check for cached configure results
 	if cachedConfig, ok := bm.buildCache.GetConfigCache(ctx.Options.Version); ok {
 		ctx.ConfigCache = cachedConfig
@@ -596,4 +602,36 @@ func (bm *BuildManager) updateCache(ctx *BuildContext, result *BuildResult) erro
 // registerInstallation registers the Perl installation
 func (bm *BuildManager) registerInstallation(result *BuildResult) error {
 	return RegisterVersionAfterBuild(result, "pvm-enhanced")
+}
+
+// applyPatchPerlPatches applies Devel::PatchPerl patches for cross-platform compatibility
+func (bm *BuildManager) applyPatchPerlPatches(ctx *BuildContext, progress *Progress) error {
+	// Check if PatchPerl is disabled
+	if ctx.Options.NoPatchPerl {
+		bm.logger.Debugf("PatchPerl disabled for Perl %s", ctx.Options.Version)
+		return nil
+	}
+
+	// Check if PatchPerl is needed for this version
+	if !ShouldUsePatchPerl(ctx.Options.Version) {
+		bm.logger.Debugf("PatchPerl not needed for Perl %s", ctx.Options.Version)
+		return nil
+	}
+
+	progress.Update(StageConfigure, "Applying compatibility patches", 0.02)
+
+	bm.logger.Infof("Applying PatchPerl compatibility patches for Perl %s", ctx.Options.Version)
+
+	// Apply patches using PatchPerl
+	err := ApplyPatchPerlSafely(ctx.SourceDir, ctx.Options.Version, ctx.Options.Verbose)
+	if err != nil {
+		return errors.NewVersionError(
+			ErrConfigureFailed,
+			"Failed to apply PatchPerl compatibility patches",
+			err,
+		)
+	}
+
+	progress.Update(StageConfigure, "Compatibility patches applied", 0.05)
+	return nil
 }

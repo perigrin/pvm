@@ -2050,3 +2050,52 @@ func (p *pviInstallerBridge) InstallBatch(ctx context.Context, mods []string, op
 
 	return results, nil
 }
+
+// PMModuleInstaller implements perl.ModuleInstaller using PM's internal functionality
+type PMModuleInstaller struct{}
+
+// InstallModule installs a module using PM's internal module installation
+func (p *PMModuleInstaller) InstallModule(moduleName string, verbose bool) error {
+	// Use system perl for installation (empty string means use system perl)
+	options := &pviModules.ModuleInstallOptions{
+		ModuleName:        moduleName,
+		VersionConstraint: "", // Use latest available version
+		PerlPath:          "", // Use system perl
+		RunTests:          false, // Skip tests for faster installation
+		Force:             false,
+		Cleanup:           true,
+		Context:           context.Background(),
+	}
+
+	// Add progress callback if verbose
+	if verbose {
+		fmt.Printf("Installing %s using PM...\n", moduleName)
+		options.ProgressCallback = func(stage pviModules.InstallProgressStage, modName string, details string, progress float64) {
+			fmt.Printf("  %s: %s (%.1f%%)\n", stage.String(), details, progress*100)
+		}
+	}
+
+	result, err := pviModules.InstallModule(options)
+	if err != nil {
+		return fmt.Errorf("failed to install %s via PM: %w", moduleName, err)
+	}
+
+	if !result.Success {
+		errMsg := "unknown error"
+		if len(result.Errors) > 0 {
+			errMsg = strings.Join(result.Errors, "; ")
+		}
+		return fmt.Errorf("%s installation failed: %s", moduleName, errMsg)
+	}
+
+	if verbose {
+		fmt.Printf("%s installed successfully via PM\n", moduleName)
+	}
+
+	return nil
+}
+
+// init sets up the PM-based module installer for the perl package
+func init() {
+	perl.SetModuleInstaller(&PMModuleInstaller{})
+}
