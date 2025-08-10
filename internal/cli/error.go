@@ -93,7 +93,18 @@ func displayError(err error) {
 	output := ui.NewOutput(uiCtx)
 
 	// Format the error based on its type
-	if enhancedErr, ok := err.(*errors.EnhancedError); ok {
+	// Handle user-friendly errors without showing error codes
+	if userErr, ok := err.(*errors.UserError); ok {
+		displayUserError(output, userErr)
+	} else if installErr, ok := err.(*errors.InstallError); ok {
+		displayInstallError(output, installErr)
+	} else if configErr, ok := err.(*errors.ConfigError); ok {
+		displayConfigError(output, configErr)
+	} else if versionErr, ok := err.(*errors.VersionError); ok {
+		displayVersionError(output, versionErr)
+	} else if cmdErr, ok := err.(*errors.CommandError); ok {
+		displayCommandError(output, cmdErr)
+	} else if enhancedErr, ok := err.(*errors.EnhancedError); ok {
 		displayEnhancedError(output, enhancedErr)
 	} else if typedErr, ok := err.(*errors.Error); ok {
 		displayTypedError(output, typedErr)
@@ -176,6 +187,159 @@ func displayTypedError(output *ui.Output, err *errors.Error) {
 	// Display hint if available
 	if err.Hint() != "" {
 		output.Info("  Hint: %s", err.Hint())
+	}
+}
+
+// displayUserError displays a generic user error without error codes
+func displayUserError(output *ui.Output, err *errors.UserError) {
+	output.Error("%s", err.Summary)
+
+	if err.Explanation != "" {
+		output.Printf("\n%s\n", err.Explanation)
+	}
+
+	if len(err.Actions) > 0 {
+		output.Info("\nWhat you can do:")
+		for _, action := range err.Actions {
+			output.Printf("• %s", action.Description)
+			if action.Command != "" {
+				output.Printf(": %s", action.Command)
+			}
+			if action.Risk != "" {
+				output.Printf(" (%s)", action.Risk)
+			}
+			output.Printf("\n")
+		}
+	}
+}
+
+// displayInstallError displays an installation error without error codes
+func displayInstallError(output *ui.Output, err *errors.InstallError) {
+	// Display module info and summary
+	if err.Module != "" {
+		if err.Version != "" {
+			output.Error("%s v%s: %s", err.Module, err.Version, err.Summary)
+		} else {
+			output.Error("%s: %s", err.Module, err.Summary)
+		}
+	} else {
+		output.Error("%s", err.Summary)
+	}
+
+	// Show test failures if available
+	if err.TestResults != nil && len(err.TestResults.FailedTests) > 0 {
+		output.Printf("\nFailed Tests:")
+		for _, test := range err.TestResults.FailedTests {
+			output.Printf("  • %s", test.File)
+			if test.Line > 0 {
+				output.Printf(" line %d", test.Line)
+			}
+			output.Printf(": %s\n", test.Error)
+		}
+	}
+
+	if err.Explanation != "" {
+		output.Printf("\n%s\n", err.Explanation)
+	}
+
+	if len(err.Actions) > 0 {
+		output.Info("\nWhat you can do:")
+		for i, action := range err.Actions {
+			if action.Command != "" {
+				output.Printf("  %d. %s", i+1, action.Command)
+				if action.Description != "" {
+					output.Printf("  # %s", action.Description)
+				}
+			} else {
+				output.Printf("  %d. %s", i+1, action.Description)
+			}
+			if action.Risk != "" {
+				output.Printf(" (%s)", action.Risk)
+			}
+			output.Printf("\n")
+		}
+	}
+}
+
+// displayConfigError displays a configuration error without error codes
+func displayConfigError(output *ui.Output, err *errors.ConfigError) {
+	output.Error("%s", err.Summary)
+
+	if err.ConfigFile != "" {
+		output.Printf("\nConfiguration file: %s\n", err.ConfigFile)
+	}
+
+	if err.Explanation != "" {
+		output.Printf("\n%s\n", err.Explanation)
+	}
+
+	if len(err.Actions) > 0 {
+		output.Info("\nWhat you can do:")
+		for _, action := range err.Actions {
+			output.Printf("• %s", action.Description)
+			if action.Command != "" {
+				output.Printf(": %s", action.Command)
+			}
+			output.Printf("\n")
+		}
+	}
+}
+
+// displayVersionError displays a version management error without error codes
+func displayVersionError(output *ui.Output, err *errors.VersionError) {
+	if err.Version != "" {
+		output.Error("Perl %s: %s", err.Version, err.Summary)
+	} else {
+		output.Error("%s", err.Summary)
+	}
+
+	if len(err.Available) > 0 {
+		output.Printf("\nAvailable versions: ")
+		maxShow := 5
+		if len(err.Available) > maxShow {
+			output.Printf("%s (and %d more)\n", strings.Join(err.Available[:maxShow], ", "), len(err.Available)-maxShow)
+		} else {
+			output.Printf("%s\n", strings.Join(err.Available, ", "))
+		}
+	}
+
+	if err.Explanation != "" {
+		output.Printf("\n%s\n", err.Explanation)
+	}
+
+	if len(err.Actions) > 0 {
+		output.Info("\nWhat you can do:")
+		for _, action := range err.Actions {
+			output.Printf("• %s", action.Description)
+			if action.Command != "" {
+				output.Printf(": %s", action.Command)
+			}
+			output.Printf("\n")
+		}
+	}
+}
+
+// displayCommandError displays a command error without error codes
+func displayCommandError(output *ui.Output, err *errors.CommandError) {
+	output.Error("%s", err.Summary)
+
+	if err.Explanation != "" {
+		output.Printf("\n%s\n", err.Explanation)
+	}
+
+	if err.Example != "" {
+		output.Printf("\nExample usage:\n  %s\n", err.Example)
+	}
+
+	if len(err.Actions) > 0 {
+		output.Info("\nWhat you can do:")
+		for _, action := range err.Actions {
+			output.Printf("• %s", action.Description)
+			if action.Command != "" {
+				output.Printf(": %s", action.Command)
+			}
+			output.Printf("\n")
+		}
 	}
 }
 

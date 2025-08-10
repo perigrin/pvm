@@ -87,6 +87,9 @@ type ModuleInstallOptions struct {
 	// Run tests before installation
 	RunTests bool
 
+	// Skip tests completely
+	NoTest bool
+
 	// Force installation even if tests fail
 	Force bool
 
@@ -478,6 +481,7 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 				PerlPath:           options.PerlPath,
 				InstallDir:         options.InstallDir,
 				RunTests:           options.RunTests,
+				NoTest:             options.NoTest,
 				Force:              options.Force,
 				Cleanup:            options.Cleanup,
 				Verbose:            options.Verbose,
@@ -577,7 +581,8 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 		PerlPath:     options.PerlPath,
 		InstallDir:   options.InstallDir,
 		BuildDir:     buildDir,
-		RunTests:     options.RunTests,
+		RunTests:     options.RunTests && !options.NoTest,
+		NoTest:       options.NoTest,
 		Force:        options.Force,
 		Cleanup:      options.Cleanup,
 		Verbose:      options.Verbose,
