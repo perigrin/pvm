@@ -283,6 +283,9 @@ type BuildOptions struct {
 
 	// Verbose enables verbose output
 	Verbose bool
+
+	// NoPatchPerl disables automatic Devel::PatchPerl patching
+	NoPatchPerl bool
 }
 
 // BuildResult contains information about the build
@@ -510,10 +513,17 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	// Start configure
 	updateStage(StageConfigure, "Running Configure script", 0.0)
 
-	// Apply macOS Configure patches if needed
-	err = ApplyMacOSConfigurePatches(srcDir, options.Version, options.Verbose)
-	if err != nil {
-		return nil, err
+	// Apply PatchPerl patches if needed (cross-platform compatibility)
+	if !options.NoPatchPerl {
+		reportStageProgress("Applying compatibility patches", 0.02)
+		err = ApplyPatchPerlSafely(srcDir, options.Version, options.Verbose)
+		if err != nil {
+			return nil, errors.NewVersionError(
+				ErrConfigureFailed,
+				"PatchPerl compatibility patches failed",
+				err)
+		}
+		reportStageProgress("Compatibility patches applied", 0.05)
 	}
 
 	// Construct configure options
@@ -570,22 +580,15 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 			configureErr).
 			WithLocation(srcDir)
 
-		// Add macOS-specific guidance if this might be a version compatibility issue
-		if runtime.GOOS == "darwin" && strings.Contains(configureErr.Error(), "Unexpected product version") {
-			macOSVer, _ := GetMacOSVersion()
-			var guidance string
-			if macOSVer != nil {
-				guidance = fmt.Sprintf(
-					"This appears to be a macOS version compatibility issue. "+
-						"Perl %s may not recognize macOS %s. "+
-						"Consider using a newer Perl version (5.32.0+) or try setting "+
-						"MACOSX_DEPLOYMENT_TARGET=10.15 before running the installation.",
-					options.Version, macOSVer.String())
-			} else {
-				guidance = "This appears to be a macOS version compatibility issue. " +
-					"Try setting MACOSX_DEPLOYMENT_TARGET=10.15 before running the installation, " +
-					"or consider using a newer Perl version (5.32.0+)."
-			}
+		// Add general compatibility guidance
+		if strings.Contains(configureErr.Error(), "Unexpected product version") ||
+			strings.Contains(configureErr.Error(), "version") {
+			guidance := fmt.Sprintf(
+				"This appears to be a platform compatibility issue with Perl %s. "+
+					"PatchPerl should have applied compatibility patches automatically. "+
+					"If this persists, try using --no-patchperl to disable patching, "+
+					"or consider using a newer Perl version.",
+				options.Version)
 			configErr = configErr.WithDetail(guidance)
 		}
 

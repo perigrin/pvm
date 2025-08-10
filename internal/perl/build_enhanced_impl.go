@@ -109,8 +109,8 @@ func (bm *BuildManager) extractSourceWithProgress(ctx *BuildContext, progress *P
 func (bm *BuildManager) configureBuild(ctx *BuildContext, progress *Progress) error {
 	progress.Update(StageConfigure, "Preparing configuration", 0.0)
 
-	// Apply macOS Configure patches if needed
-	err := bm.applyMacOSConfigurePatches(ctx, progress)
+	// Apply PatchPerl patches if needed (cross-platform compatibility)
+	err := bm.applyPatchPerlPatches(ctx, progress)
 	if err != nil {
 		return err
 	}
@@ -604,47 +604,34 @@ func (bm *BuildManager) registerInstallation(result *BuildResult) error {
 	return RegisterVersionAfterBuild(result, "pvm-enhanced")
 }
 
-// applyMacOSConfigurePatches applies macOS-specific Configure patches if needed
-func (bm *BuildManager) applyMacOSConfigurePatches(ctx *BuildContext, progress *Progress) error {
-	if runtime.GOOS != "darwin" {
-		return nil // No-op on non-macOS systems
-	}
-
-	// Check if patching is needed
-	if !NeedsConfigurePatch(ctx.Options.Version) {
-		bm.logger.Debugf("No macOS Configure patches needed for Perl %s", ctx.Options.Version)
+// applyPatchPerlPatches applies Devel::PatchPerl patches for cross-platform compatibility
+func (bm *BuildManager) applyPatchPerlPatches(ctx *BuildContext, progress *Progress) error {
+	// Check if PatchPerl is disabled
+	if ctx.Options.NoPatchPerl {
+		bm.logger.Debugf("PatchPerl disabled for Perl %s", ctx.Options.Version)
 		return nil
 	}
 
-	progress.Update(StageConfigure, "Applying macOS compatibility patches", 0.05)
+	// Check if PatchPerl is needed for this version
+	if !ShouldUsePatchPerl(ctx.Options.Version) {
+		bm.logger.Debugf("PatchPerl not needed for Perl %s", ctx.Options.Version)
+		return nil
+	}
 
-	// Create patcher
-	patcher, err := NewConfigurePatcher(ctx.SourceDir, ctx.Options.Version, ctx.Options.Verbose)
+	progress.Update(StageConfigure, "Applying compatibility patches", 0.02)
+
+	bm.logger.Infof("Applying PatchPerl compatibility patches for Perl %s", ctx.Options.Version)
+
+	// Apply patches using PatchPerl
+	err := ApplyPatchPerlSafely(ctx.SourceDir, ctx.Options.Version, ctx.Options.Verbose)
 	if err != nil {
 		return errors.NewVersionError(
 			ErrConfigureFailed,
-			"Failed to create Configure patcher for macOS compatibility",
+			"Failed to apply PatchPerl compatibility patches",
 			err,
 		)
 	}
 
-	// Apply patches
-	bm.logger.Infof("Applying macOS Configure patches for Perl %s", ctx.Options.Version)
-	err = patcher.ApplyPatches()
-	if err != nil {
-		return errors.NewVersionError(
-			ErrConfigureFailed,
-			"Failed to apply macOS Configure patches",
-			err,
-		)
-	}
-
-	// Log compatibility information for user
-	compatInfo := GetMacOSCompatibilityInfo(ctx.Options.Version)
-	if compatInfo != "" && ctx.Options.Verbose {
-		bm.logger.Infof("macOS Compatibility Information:\n%s", compatInfo)
-	}
-
-	progress.Update(StageConfigure, "macOS compatibility patches applied", 0.1)
+	progress.Update(StageConfigure, "Compatibility patches applied", 0.05)
 	return nil
 }
