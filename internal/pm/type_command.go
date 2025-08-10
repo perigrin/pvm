@@ -1,7 +1,7 @@
 // ABOUTME: PVI type command implementation
 // ABOUTME: Manages type definitions for Perl modules
 
-package pvi
+package pm
 
 import (
 	"encoding/json"

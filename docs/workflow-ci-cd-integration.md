@@ -8,7 +8,7 @@ This document covers production-ready CI/CD pipeline configurations for PVM-enab
 
 ## Prerequisites
 
-- PVM ecosystem installed (pvm, pvx, pvi, psc)
+- PVM ecosystem installed (pvm, pvx, pm, psc)
 - Git repository with typed-Perl code
 - Understanding of [workflow-new-development.md](workflow-new-development.md) concepts
 - Basic familiarity with CI/CD platforms
@@ -34,7 +34,7 @@ jobs:
           curl -sSL https://raw.githubusercontent.com/perigrin/pvm/main/scripts/install.sh | bash
           echo "$HOME/.pvm/bin" >> $GITHUB_PATH
       - name: Install Perl Version
-        run: pvi 5.38.0
+        run: pm 5.38.0
       - name: Type Check
         run: |
           psc check --verbose --warnings --format json lib/ > type-check-results.json
@@ -75,7 +75,7 @@ cross-platform:
   runs-on: ${{ matrix.os }}
   steps:
     - name: Setup Perl ${{ matrix.perl }}
-      run: pvi ${{ matrix.perl }}
+      run: pm ${{ matrix.perl }}
     - name: Run tests
       run: pvx --isolation medium t/all_tests.pl
 ```
@@ -159,7 +159,7 @@ jobs:
         run: echo "$HOME/.pvm/bin" >> $GITHUB_PATH
 
       - name: Install Dependencies
-        run: pvi --install-deps
+        run: pm --install-deps
 
       - name: Type Check with Flow Analysis
         run: |
@@ -196,7 +196,7 @@ jobs:
         run: echo "$HOME/.pvm/bin" >> $GITHUB_PATH
 
       - name: Install Perl ${{ matrix.perl }}
-        run: pvi ${{ matrix.perl }}
+        run: pm ${{ matrix.perl }}
 
       - name: Install Test Dependencies
         run: |
@@ -458,7 +458,7 @@ setup:
   stage: setup
   script:
     - pvm --version
-    - pvi --install-deps
+    - pm --install-deps
   artifacts:
     reports:
       dotenv: build.env
@@ -480,7 +480,7 @@ test:unit:
       - PERL_VERSION: ["5.36.0", "5.38.0"]
         ISOLATION: ["medium", "high"]
   script:
-    - pvi $PERL_VERSION
+    - pm $PERL_VERSION
     - |
       pvx --isolation $ISOLATION \
           --isolated-output \
@@ -577,7 +577,7 @@ pipeline {
 
         stage('Dependencies') {
             steps {
-                sh 'pvi --install-deps'
+                sh 'pm --install-deps'
             }
         }
 
@@ -726,7 +726,7 @@ ENV PATH="/root/.pvm/bin:$PATH"
 FROM base as development
 WORKDIR /app
 COPY cpanfile pvm.toml ./
-RUN pvi --install-deps
+RUN pm --install-deps
 
 COPY . .
 RUN psc check lib/ src/
@@ -819,7 +819,7 @@ PERL_VERSIONS="5.36.0 5.38.0"
 for version in $PERL_VERSIONS; do
     if ! pvm list | grep -q "$version"; then
         echo "Installing Perl $version..."
-        pvi "$version"
+        pm "$version"
     fi
 done
 
@@ -892,7 +892,7 @@ if ($? != 0) {
 }
 
 # Module dependencies health
-my $deps_result = `pvi --check-deps 2>&1`;
+my $deps_result = `pm --check-deps 2>&1`;
 if ($? != 0) {
     die "Dependencies unhealthy: $deps_result";
 }
@@ -1035,10 +1035,10 @@ pvx --isolation none script.pl
 rm -rf ~/.pvm/module-cache
 
 # Reinstall dependencies
-pvi --force-reinstall --install-deps
+pm --force-reinstall --install-deps
 
 # Check dependency conflicts
-pvi --check-conflicts
+pm --check-conflicts
 ```
 
 ### Performance Issues

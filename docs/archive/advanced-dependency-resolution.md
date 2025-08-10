@@ -1,6 +1,6 @@
-# Advanced Dependency Resolution in PVI
+# Advanced Dependency Resolution in PM
 
-The PVM Installer (PVI) includes an advanced dependency resolver that provides sophisticated conflict resolution and optimization strategies for complex dependency scenarios.
+The PVM Installer (PM) includes an advanced dependency resolver that provides sophisticated conflict resolution and optimization strategies for complex dependency scenarios.
 
 ## Overview
 
@@ -14,10 +14,10 @@ The advanced resolver extends the basic dependency resolution with:
 
 ## Usage
 
-Enable the advanced resolver using the `--advanced` flag with the `pvi deps` command:
+Enable the advanced resolver using the `--advanced` flag with the `pm deps` command:
 
 ```bash
-pvi deps Module::Name --advanced
+pm deps Module::Name --advanced
 ```
 
 ## Conflict Resolution Strategies
@@ -26,25 +26,25 @@ When multiple modules require different versions of the same dependency, the res
 
 ### Latest Compatible (Default)
 ```bash
-pvi deps Module::Name --advanced --conflict-strategy latest
+pm deps Module::Name --advanced --conflict-strategy latest
 ```
 Selects the latest version that satisfies all constraints. This is often the best choice for getting the most up-to-date features while maintaining compatibility.
 
 ### Minimal Version
 ```bash
-pvi deps Module::Name --advanced --conflict-strategy minimal
+pm deps Module::Name --advanced --conflict-strategy minimal
 ```
 Selects the minimal version that satisfies all constraints. Useful for conservative deployments where stability is prioritized over features.
 
 ### Prefer Existing
 ```bash
-pvi deps Module::Name --advanced --conflict-strategy prefer-existing
+pm deps Module::Name --advanced --conflict-strategy prefer-existing
 ```
 Prefers already-resolved versions when possible. This helps maintain consistency across the dependency tree.
 
 ### Fail Fast
 ```bash
-pvi deps Module::Name --advanced --conflict-strategy fail-fast
+pm deps Module::Name --advanced --conflict-strategy fail-fast
 ```
 Fails immediately on any conflict without attempting resolution. Useful for CI/CD pipelines where conflicts should be manually resolved.
 
@@ -54,25 +54,25 @@ The resolver can optimize the dependency tree using different approaches:
 
 ### Shared Dependencies (Default)
 ```bash
-pvi deps Module::Name --advanced --optimization shared
+pm deps Module::Name --advanced --optimization shared
 ```
 Maximizes sharing of common dependencies across the tree. This reduces duplication and installation size.
 
 ### Minimal Tree
 ```bash
-pvi deps Module::Name --advanced --optimization minimal-tree
+pm deps Module::Name --advanced --optimization minimal-tree
 ```
 Minimizes the total number of dependencies. Useful for lightweight deployments.
 
 ### Parallel Processing
 ```bash
-pvi deps Module::Name --advanced --optimization parallel --parallel-workers 8
+pm deps Module::Name --advanced --optimization parallel --parallel-workers 8
 ```
 Uses concurrent processing for faster resolution. The number of workers can be customized.
 
 ### No Optimization
 ```bash
-pvi deps Module::Name --advanced --optimization none
+pm deps Module::Name --advanced --optimization none
 ```
 Performs basic resolution without any optimization. Useful for debugging or when optimization causes issues.
 
@@ -83,7 +83,7 @@ Performs basic resolution without any optimization. Useful for debugging or when
 You can lock specific module versions in your configuration:
 
 ```toml
-[pvi.locked_versions]
+[pm.locked_versions]
 "DBI" = "1.643"
 "DBD::SQLite" = "1.70"
 ```
@@ -93,7 +93,7 @@ You can lock specific module versions in your configuration:
 Specify preferred versions that will be used when multiple versions satisfy constraints:
 
 ```toml
-[pvi.preferred_versions]
+[pm.preferred_versions]
 "Test::More" = "1.302190"
 "Moose" = "2.2206"
 ```
@@ -103,7 +103,7 @@ Specify preferred versions that will be used when multiple versions satisfy cons
 Exclude specific versions that are known to have issues:
 
 ```toml
-[pvi.excluded_versions]
+[pm.excluded_versions]
 "Module::Build" = ["0.4229", "0.4230"]
 ```
 
@@ -112,7 +112,7 @@ Exclude specific versions that are known to have issues:
 Enable metrics display to see resolution performance:
 
 ```bash
-pvi deps Module::Name --advanced --metrics
+pm deps Module::Name --advanced --metrics
 ```
 
 This shows:
@@ -126,7 +126,7 @@ This shows:
 
 ### Complex Module with Known Conflicts
 ```bash
-pvi deps Catalyst::Runtime --advanced \
+pm deps Catalyst::Runtime --advanced \
   --conflict-strategy latest \
   --optimization shared \
   --include-test \
@@ -135,7 +135,7 @@ pvi deps Catalyst::Runtime --advanced \
 
 ### Conservative Installation
 ```bash
-pvi deps App::cpanminus --advanced \
+pm deps App::cpanminus --advanced \
   --conflict-strategy minimal \
   --optimization minimal-tree \
   --max-depth 3
@@ -143,7 +143,7 @@ pvi deps App::cpanminus --advanced \
 
 ### Fast Parallel Resolution
 ```bash
-pvi deps Mojolicious --advanced \
+pm deps Mojolicious --advanced \
   --optimization parallel \
   --parallel-workers 12 \
   --verbose
@@ -151,7 +151,7 @@ pvi deps Mojolicious --advanced \
 
 ### Debugging Dependency Issues
 ```bash
-pvi deps problematic-module --advanced \
+pm deps problematic-module --advanced \
   --conflict-strategy fail-fast \
   --verbose \
   --metrics
@@ -162,7 +162,7 @@ pvi deps problematic-module --advanced \
 The advanced resolver is automatically used when installing modules with the `--advanced` flag:
 
 ```bash
-pvi install Module::Name --advanced \
+pm install Module::Name --advanced \
   --conflict-strategy latest \
   --optimization shared
 ```

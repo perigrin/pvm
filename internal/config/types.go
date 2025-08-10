@@ -18,8 +18,8 @@ type Config struct {
 	// PVX specific configuration
 	PVX *PVXConfig `toml:"pvx" json:"pvx"`
 
-	// PVI specific configuration
-	PVI *PVIConfig `toml:"pvi" json:"pvi"`
+	// PM specific configuration
+	PM *PMConfig `toml:"pm" json:"pm"`
 
 	// PSC specific configuration
 	PSC *PSCConfig `toml:"psc" json:"psc"`
@@ -283,8 +283,8 @@ type PVXConfig struct {
 	CustomModulePath string `toml:"custom_module_path" json:"custom_module_path"`
 }
 
-// PVIConfig represents configuration for the Perl Version Installer
-type PVIConfig struct {
+// PMConfig represents configuration for the Perl Version Installer
+type PMConfig struct {
 	// PreferredInstaller specifies the preferred installation method
 	// Valid values: "auto", "cpanm", "cpan", "cpm"
 	PreferredInstaller string `toml:"preferred_installer" json:"preferred_installer"`
@@ -326,11 +326,11 @@ type PVIConfig struct {
 	DisableNetwork bool `toml:"disable_network" json:"disable_network"`
 
 	// Backup configuration for cpanfile operations
-	Backup *PVIBackupConfig `toml:"backup" json:"backup"`
+	Backup *PMBackupConfig `toml:"backup" json:"backup"`
 }
 
-// PVIBackupConfig represents backup configuration for cpanfile operations
-type PVIBackupConfig struct {
+// PMBackupConfig represents backup configuration for cpanfile operations
+type PMBackupConfig struct {
 	// CpanfileBackup specifies the backup mode for cpanfile operations
 	// Valid values: "off", "local", "cache"
 	CpanfileBackup string `toml:"cpanfile_backup" json:"cpanfile_backup"`
@@ -757,7 +757,7 @@ func NewDefaultConfig() *Config {
 			AdditionalModulePaths:   []string{},
 			CustomModulePath:        "",
 		},
-		PVI: &PVIConfig{
+		PM: &PMConfig{
 			PreferredInstaller: "auto",
 			DefaultMirror:      "https://cpan.metacpan.org",
 			AdditionalMirrors:  []string{"https://cpan.mirror.co.uk", "https://www.cpan.org"},
@@ -769,7 +769,7 @@ func NewDefaultConfig() *Config {
 			CacheModules:       true,
 			CheckSignatures:    true,
 			DisableNetwork:     false,
-			Backup: &PVIBackupConfig{
+			Backup: &PMBackupConfig{
 				CpanfileBackup: "off", // Default to no backups to avoid directory clutter
 				RetentionDays:  30,    // Clean up backups after 30 days
 				MaxBackups:     10,    // Limit backup storage usage
@@ -841,7 +841,7 @@ func NewDefaultConfig() *Config {
 	}
 
 	// Expand environment variables in paths
-	cfg.PVI.CacheDir = expandEnvironmentVariables(cfg.PVI.CacheDir)
+	cfg.PM.CacheDir = expandEnvironmentVariables(cfg.PM.CacheDir)
 	cfg.PSC.TypeDefinitionsPath = expandEnvironmentVariables(cfg.PSC.TypeDefinitionsPath)
 	cfg.Docs.CacheDir = expandEnvironmentVariables(cfg.Docs.CacheDir)
 
@@ -862,9 +862,9 @@ func (c *Config) Validate() []error {
 		errors = append(errors, c.PVX.Validate()...)
 	}
 
-	// Add PVI validation
-	if c.PVI != nil {
-		errors = append(errors, c.PVI.Validate()...)
+	// Add PM validation
+	if c.PM != nil {
+		errors = append(errors, c.PM.Validate()...)
 	}
 
 	// Add PSC validation
@@ -1097,8 +1097,8 @@ func (c *PVXConfig) Validate() []error {
 	return errors
 }
 
-// Validate checks if the PVI configuration is valid
-func (c *PVIConfig) Validate() []error {
+// Validate checks if the PM configuration is valid
+func (c *PMConfig) Validate() []error {
 	var errors []error
 
 	// Validate PreferredInstaller
@@ -1147,8 +1147,8 @@ func (c *PVIConfig) Validate() []error {
 	return errors
 }
 
-// Validate checks if the PVIBackup configuration is valid
-func (c *PVIBackupConfig) Validate() []error {
+// Validate checks if the PMBackup configuration is valid
+func (c *PMBackupConfig) Validate() []error {
 	var errors []error
 
 	// Validate CpanfileBackup mode

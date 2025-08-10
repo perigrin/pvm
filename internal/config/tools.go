@@ -323,10 +323,10 @@ func (m *ConfigManager) formatAsYAML(config *Config) string {
 		builder.WriteString("\n")
 	}
 
-	if config.PVI != nil {
+	if config.PM != nil {
 		builder.WriteString("pvi:\n")
-		builder.WriteString(fmt.Sprintf("  preferred_installer: %s\n", config.PVI.PreferredInstaller))
-		builder.WriteString(fmt.Sprintf("  default_mirror: %s\n", config.PVI.DefaultMirror))
+		builder.WriteString(fmt.Sprintf("  preferred_installer: %s\n", config.PM.PreferredInstaller))
+		builder.WriteString(fmt.Sprintf("  default_mirror: %s\n", config.PM.DefaultMirror))
 		builder.WriteString("\n")
 	}
 
@@ -359,8 +359,8 @@ func (m *ConfigManager) getValueByKey(config *Config, key string) interface{} {
 			return getPVXValue(config.PVX, field)
 		}
 	case "pvi":
-		if config.PVI != nil {
-			return getPVIValue(config.PVI, field)
+		if config.PM != nil {
+			return getPVIValue(config.PM, field)
 		}
 	case "psc":
 		if config.PSC != nil {
@@ -392,10 +392,10 @@ func (m *ConfigManager) setValueByKey(config *Config, key string, value interfac
 		}
 		return setPVXValue(config.PVX, field, value)
 	case "pvi":
-		if config.PVI == nil {
-			config.PVI = &PVIConfig{}
+		if config.PM == nil {
+			config.PM = &PMConfig{}
 		}
-		return setPVIValue(config.PVI, field, value)
+		return setPVIValue(config.PM, field, value)
 	case "psc":
 		if config.PSC == nil {
 			config.PSC = &PSCConfig{}
@@ -527,7 +527,7 @@ func setPVXValue(config *PVXConfig, field string, value interface{}) error {
 	return nil
 }
 
-func getPVIValue(config *PVIConfig, field string) interface{} {
+func getPVIValue(config *PMConfig, field string) interface{} {
 	switch field {
 	case "preferred_installer":
 		return config.PreferredInstaller
@@ -537,7 +537,7 @@ func getPVIValue(config *PVIConfig, field string) interface{} {
 	return nil
 }
 
-func setPVIValue(config *PVIConfig, field string, value interface{}) error {
+func setPVIValue(config *PMConfig, field string, value interface{}) error {
 	switch field {
 	case "preferred_installer":
 		if str, ok := value.(string); ok {

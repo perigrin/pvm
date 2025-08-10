@@ -3,18 +3,18 @@
 
 package errors
 
-// Generated error codes for PVI
+// Generated error codes for PM
 const (
-	PVI201 = "201" // Module not found
-	PVI202 = "202" // Dependency conflict
+	PM201 = "201" // Module not found
+	PM202 = "202" // Dependency conflict
 )
 
 // Generated error constructors
 
-// NewPVI201Error creates a new 201 error
-func NewPVI201Error(detail string, location string) *Error {
+// NewPM201Error creates a new 201 error
+func NewPM201Error(detail string, location string) *Error {
 	return &Error{
-		prefix:   "PVI",
+		prefix:   "PM",
 		category: "Module Error",
 		code:     "201",
 		message:  "Module not found",
@@ -24,10 +24,10 @@ func NewPVI201Error(detail string, location string) *Error {
 	}
 }
 
-// NewPVI202Error creates a new 202 error
-func NewPVI202Error(detail string, location string) *Error {
+// NewPM202Error creates a new 202 error
+func NewPM202Error(detail string, location string) *Error {
 	return &Error{
-		prefix:   "PVI",
+		prefix:   "PM",
 		category: "Module Error",
 		code:     "202",
 		message:  "Dependency conflict",

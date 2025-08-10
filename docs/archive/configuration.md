@@ -18,7 +18,7 @@ The configuration file is divided into sections, each corresponding to one of th
 
 - `[pvm]` - Configuration for Perl Version Manager
 - `[pvx]` - Configuration for Perl Version eXecutor
-- `[pvi]` - Configuration for Perl Version Installer
+- `[pm]` - Configuration for Perl Version Installer
 - `[psc]` - Configuration for Perl Script Compiler
 
 Each section contains specific options for that component. See the [example configuration file](config-example.toml) for a complete list of available options.
@@ -68,10 +68,10 @@ always_install_deps = true
 timeout = 300
 ```
 
-### PVI Configuration
+### PM Configuration
 
 ```toml
-[pvi]
+[pm]
 # Preferred installation method
 # Valid values: "auto", "cpanm", "cpan", "cpm"
 preferred_installer = "auto"

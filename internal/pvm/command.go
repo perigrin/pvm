@@ -30,8 +30,8 @@ import (
 	"tamarou.com/pvm/internal/download"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/pm"
 	"tamarou.com/pvm/internal/psc"
-	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/pvx"
 	"tamarou.com/pvm/internal/shell"
 	"tamarou.com/pvm/internal/tool"
@@ -2386,7 +2386,7 @@ func newImportSystemCommand() *cobra.Command {
 // newModuleCommand creates a unified module management command
 func newModuleCommand() *cobra.Command {
 	// Get the PVI command from the PVI package
-	pviCmd := pvi.NewCommand()
+	pviCmd := pm.NewCommand()
 
 	// Customize for integration with PVM
 	pviCmd.Use = "module"
@@ -3048,7 +3048,7 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 	}
 
 	// Create PVI integration options for tool installation
-	pviOptions := &pvi.PVXIntegrationOptions{
+	pviOptions := &pm.PVXIntegrationOptions{
 		PerlVersion:     resolvedVersion.Version,
 		RequiredModules: requiredModules,
 		InstallDir:      toolEnvDir,
@@ -3059,7 +3059,7 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 	}
 
 	// Install using PVI
-	result, err := pvi.InstallModulesForPVX(pviOptions)
+	result, err := pm.InstallModulesForPVX(pviOptions)
 	if err != nil {
 		errorMsg := fmt.Sprintf("Failed to install tool '%s'", toolName)
 
@@ -3602,7 +3602,7 @@ func removeToolShim(toolName string) error {
 
 // newHelpOnlyPVICommand creates a hidden PVI subcommand for help purposes only
 func newHelpOnlyPVICommand() *cobra.Command {
-	pviCmd := pvi.NewCommand()
+	pviCmd := pm.NewCommand()
 	pviCmd.Use = "pvi"
 	pviCmd.Hidden = true
 	pviCmd.Short = "Perl Version Installer (shell alias for 'pvm module')"

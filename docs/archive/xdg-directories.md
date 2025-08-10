@@ -26,11 +26,11 @@ PVM uses the following XDG directories for storing data:
 - **Shim executables**: `$XDG_DATA_HOME/pvm/shims/`
 - **Type definitions**: `$XDG_DATA_HOME/pvm/type_definitions/`
 - **Build cache**: `$XDG_CACHE_HOME/pvm/build/`
-- **Global module libraries (PVI)**: `$XDG_DATA_HOME/pvm/library/{version}/`
+- **Global module libraries (PM)**: `$XDG_DATA_HOME/pvm/library/{version}/`
 
 #### Module Installation Directories
 
-PVI organizes global module installations using version-specific directories to prevent conflicts between different Perl versions:
+PM organizes global module installations using version-specific directories to prevent conflicts between different Perl versions:
 
 - **System Perl modules**: `$XDG_DATA_HOME/pvm/library/system/`
 - **PVM-managed Perl modules**: `$XDG_DATA_HOME/pvm/library/{perl-version}/` (e.g., `library/5.38.0/`)

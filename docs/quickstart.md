@@ -17,13 +17,13 @@ curl -L --fail --proto '=https' --tlsv1.2 \
 
 # Extract and test before installing
 tar -xzf pvm.tar.gz
-chmod +x pvm-* pvi-* pvx-* psc-*
+chmod +x pvm-* pm-* pvx-* psc-*
 
 # Verify binaries work
 ./pvm-linux-amd64 --version
 
 # Install system-wide (only after verification)
-sudo install -m 755 pvm-* pvi-* pvx-* psc-* /usr/local/bin/
+sudo install -m 755 pvm-* pm-* pvx-* psc-* /usr/local/bin/
 ```
 
 **macOS (Intel):**
@@ -35,14 +35,14 @@ curl -L --fail --proto '=https' --tlsv1.2 \
 
 # Extract and test before installing
 tar -xzf pvm.tar.gz
-chmod +x pvm-* pvi-* pvx-* psc-*
+chmod +x pvm-* pm-* pvx-* psc-*
 
 # Remove quarantine and verify binaries work
-xattr -d com.apple.quarantine pvm-* pvi-* pvx-* psc-*
+xattr -d com.apple.quarantine pvm-* pm-* pvx-* psc-*
 ./pvm-darwin-amd64 --version
 
 # Install system-wide (only after verification)
-sudo install -m 755 pvm-* pvi-* pvx-* psc-* /usr/local/bin/
+sudo install -m 755 pvm-* pm-* pvx-* psc-* /usr/local/bin/
 ```
 
 **macOS (Apple Silicon):**
@@ -54,14 +54,14 @@ curl -L --fail --proto '=https' --tlsv1.2 \
 
 # Extract and test before installing
 tar -xzf pvm.tar.gz
-chmod +x pvm-* pvi-* pvx-* psc-*
+chmod +x pvm-* pm-* pvx-* psc-*
 
 # Remove quarantine and verify binaries work
-xattr -d com.apple.quarantine pvm-* pvi-* pvx-* psc-*
+xattr -d com.apple.quarantine pvm-* pm-* pvx-* psc-*
 ./pvm-darwin-arm64 --version
 
 # Install system-wide (only after verification)
-sudo install -m 755 pvm-* pvi-* pvx-* psc-* /usr/local/bin/
+sudo install -m 755 pvm-* pm-* pvx-* psc-* /usr/local/bin/
 ```
 
 **Verify installation:**
@@ -175,7 +175,7 @@ psc run user.pl
 pvm local 5.36.0
 
 # Install modules with type checking
-pvi install JSON::XS DBI
+pm install JSON::XS DBI
 
 # Type check files
 psc check script.pl
@@ -201,7 +201,7 @@ mkdir my-typed-project && cd my-typed-project
 pvm local 5.36.0
 
 # Install dependencies
-pvi install Moose JSON::XS
+pm install Moose JSON::XS
 
 # Create main script with types
 cat > main.pl << 'EOF'
@@ -248,7 +248,7 @@ pvm use 5.36.0@tools  # Switches to version with isolated library environment
 psc check existing_script.pl  # Reports type opportunities
 
 # Install modules normally
-pvi install Module::Name  # Like cpanm but with type awareness
+pm install Module::Name  # Like cpanm but with type awareness
 ```
 
 ## Common Patterns
@@ -307,7 +307,7 @@ if ($maybe_user->is_some()) {
 **Need help?** The PVM ecosystem includes 4 integrated tools:
 - **PVM**: Version management
 - **PSC**: Static type checking
-- **PVI**: Package installation
+- **PM**: Package installation
 - **PVX**: Isolated execution
 
 All commands work together seamlessly. Start with `psc check` on any Perl file to see type opportunities, then gradually add annotations where they provide value.

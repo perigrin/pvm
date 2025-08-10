@@ -119,7 +119,7 @@ func TestNewProviderWithUnknownSource(t *testing.T) {
 func TestWithCPANConfig(t *testing.T) {
 	// Create a config with CPAN settings
 	cfg := &config.Config{
-		PVI: &config.PVIConfig{
+		PM: &config.PMConfig{
 			MetadataSource:    "metacpan",
 			MetadataURL:       "https://config.metacpan.org",
 			DefaultMirror:     "https://config.mirror.org",
@@ -132,28 +132,28 @@ func TestWithCPANConfig(t *testing.T) {
 
 	// Create a provider based on the configuration
 	var providerOpts []ProviderOption
-	source := cfg.PVI.MetadataSource
+	source := cfg.PM.MetadataSource
 
 	// Set base URL if custom source and URL provided
-	if source == "custom" && cfg.PVI.MetadataURL != "" {
-		providerOpts = append(providerOpts, WithBaseURL(cfg.PVI.MetadataURL))
+	if source == "custom" && cfg.PM.MetadataURL != "" {
+		providerOpts = append(providerOpts, WithBaseURL(cfg.PM.MetadataURL))
 	}
 
 	// Set cache settings
-	if cfg.PVI.CacheDir != "" {
-		providerOpts = append(providerOpts, WithCache(cfg.PVI.CacheDir, cfg.PVI.CacheTTL))
+	if cfg.PM.CacheDir != "" {
+		providerOpts = append(providerOpts, WithCache(cfg.PM.CacheDir, cfg.PM.CacheTTL))
 	}
 
 	// Set mirrors
-	if cfg.PVI.DefaultMirror != "" {
-		providerOpts = append(providerOpts, WithMirror(cfg.PVI.DefaultMirror))
+	if cfg.PM.DefaultMirror != "" {
+		providerOpts = append(providerOpts, WithMirror(cfg.PM.DefaultMirror))
 	}
-	if len(cfg.PVI.AdditionalMirrors) > 0 {
-		providerOpts = append(providerOpts, WithAdditionalMirrors(cfg.PVI.AdditionalMirrors))
+	if len(cfg.PM.AdditionalMirrors) > 0 {
+		providerOpts = append(providerOpts, WithAdditionalMirrors(cfg.PM.AdditionalMirrors))
 	}
 
 	// Set network access
-	providerOpts = append(providerOpts, WithDisableNetwork(cfg.PVI.DisableNetwork))
+	providerOpts = append(providerOpts, WithDisableNetwork(cfg.PM.DisableNetwork))
 
 	provider, err := NewProvider(source, providerOpts...)
 	require.NoError(t, err, "NewProvider should not return an error with config options")

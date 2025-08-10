@@ -4,7 +4,7 @@
 package modules
 
 import (
-	pviModules "tamarou.com/pvm/internal/pvi/modules"
+	pviModules "tamarou.com/pvm/internal/pm/modules"
 )
 
 // PVIModuleService provides an interface for PVI module operations

@@ -1,15 +1,15 @@
-# PVI Search Command
+# PM Search Command
 
-This document provides detailed information about using the `pvi search` command to find and explore CPAN modules.
+This document provides detailed information about using the `pm search` command to find and explore CPAN modules.
 
 ## Overview
 
-The `pvi search` command allows you to search for CPAN modules by name, description, or other attributes. It provides a convenient way to discover modules that match your requirements directly from the command line.
+The `pm search` command allows you to search for CPAN modules by name, description, or other attributes. It provides a convenient way to discover modules that match your requirements directly from the command line.
 
 ## Basic Usage
 
 ```bash
-pvm pvi search [options] <query>
+pvm pm search [options] <query>
 ```
 
 The search query can be a module name, a keyword, or a phrase. The command will search for modules that match the query and display the results.
@@ -18,17 +18,17 @@ The search query can be a module name, a keyword, or a phrase. The command will 
 
 Search for modules related to "database":
 ```bash
-pvm pvi search database
+pvm pm search database
 ```
 
 Search for modules related to "HTTP client":
 ```bash
-pvm pvi search "HTTP client"
+pvm pm search "HTTP client"
 ```
 
 Search for modules with a specific name:
 ```bash
-pvm pvi search DBI
+pvm pm search DBI
 ```
 
 ## Command Options
@@ -79,9 +79,9 @@ Each source may provide slightly different results or performance characteristic
 
 The search command integrates with the PVM configuration system and respects settings in the configuration files:
 
-- The default metadata source is determined by the `pvi.metadata_source` configuration option
-- The default mirror is determined by the `pvi.default_mirror` configuration option
-- Caching behavior is controlled by the `pvi.cache_modules` and `pvi.cache_ttl` configuration options
+- The default metadata source is determined by the `pm.metadata_source` configuration option
+- The default mirror is determined by the `pm.default_mirror` configuration option
+- Caching behavior is controlled by the `pm.cache_modules` and `pm.cache_ttl` configuration options
 
 ## Caching Behavior
 
@@ -110,7 +110,7 @@ If you encounter issues with the search command:
 
 ## Related Commands
 
-- `pvi install`: Install a module after finding it with search
-- `pvi deps`: Show dependencies for a module
-- `pvi info`: Get detailed information about a specific module
-- `pvi mirror`: Configure CPAN mirrors
+- `pm install`: Install a module after finding it with search
+- `pm deps`: Show dependencies for a module
+- `pm info`: Get detailed information about a specific module
+- `pm mirror`: Configure CPAN mirrors

@@ -6,7 +6,7 @@ The PVM Ecosystem provides a comprehensive suite of tools for Perl development e
 
 - **PVM (Perl Version Manager)** - Manages Perl installations and versions
 - **PVX (Perl Version eXecutor)** - Executes modules/scripts in isolated environments
-- **PVI (Perl Version Installer)** - Manages CPAN modules for installed Perl versions
+- **PM (Perl Version Installer)** - Manages CPAN modules for installed Perl versions
 - **PSC (Perl Script Compiler)** - Provides static type checking for Perl code
 
 This project aims to modernize Perl development workflows by providing fast, reliable tooling with a consistent interface across platforms, while ensuring integration with existing Perl version managers and supporting zero-configuration startup.
@@ -59,7 +59,7 @@ All components are part of a single binary, providing:
 │                     PVM Ecosystem                        │
 │                                                         │
 │  ┌─────────┐   ┌──────────┐   ┌────────────┐   ┌─────┐  │
-│  │   PVM   │   │    PVX   │   │    PVI     │   │ PSC │  │
+│  │   PVM   │   │    PVX   │   │    PM     │   │ PSC │  │
 │  │ Command │   │ Command  │   │  Command   │   │ Cmd │  │
 │  │ Router  │   │  Router  │   │   Router   │   │ Rtr │  │
 │  └────┬────┘   └────┬─────┘   └─────┬──────┘   └──┬──┘  │
@@ -93,7 +93,7 @@ All components are part of a single binary, providing:
 The PVM ecosystem follows a unified architecture with specialized entry points:
 
 1. **Single Binary Design**:
-   - One Go executable with four entry points based on filename/symlink (pvm, pvx, pvi, psc)
+   - One Go executable with four entry points based on filename/symlink (pvm, pvx, pm, psc)
    - Shared core components and configuration
    - Platform-specific optimizations handled internally
 
@@ -144,7 +144,7 @@ download_mirror = "https://www.cpan.org/src/5.0"
 version_aliases = { latest = "5.38.0", stable = "5.36.0" }
 
 # Module management configuration
-[pvi]
+[pm]
 preferred_installer = "auto"
 default_mirror = "https://cpan.metacpan.org"
 test_during_install = false
@@ -258,11 +258,11 @@ Options:
   --verbose                   # Show additional output
 ```
 
-### 5.3 PVI (Perl Version Installer)
+### 5.3 PM (Perl Version Installer)
 
 #### 5.3.1 Overview
 
-PVI manages CPAN modules for installed Perl versions, handling installation, updates, and dependencies.
+PM manages CPAN modules for installed Perl versions, handling installation, updates, and dependencies.
 
 #### 5.3.2 Key Features
 
@@ -274,22 +274,22 @@ PVI manages CPAN modules for installed Perl versions, handling installation, upd
 #### 5.3.3 Commands
 
 ```
-pvi install <module>          # Install a module
-pvi list                      # List installed modules
-pvi update [module...]        # Update modules
-pvi remove <module>           # Remove a module
-pvi search <query>            # Search available modules
-pvi deps <module>             # Show module dependencies
-pvi bundle export <file>      # Export a module bundle
-pvi bundle import <file>      # Import a module bundle
-pvi type <module>             # Manage type definitions for a module
-pvi mirror [url]              # Set/get CPAN mirror
-pvi outdated                  # Show outdated modules
+pm install <module>          # Install a module
+pm list                      # List installed modules
+pm update [module...]        # Update modules
+pm remove <module>           # Remove a module
+pm search <query>            # Search available modules
+pm deps <module>             # Show module dependencies
+pm bundle export <file>      # Export a module bundle
+pm bundle import <file>      # Import a module bundle
+pm type <module>             # Manage type definitions for a module
+pm mirror [url]              # Set/get CPAN mirror
+pm outdated                  # Show outdated modules
 ```
 
 #### 5.3.4 Dependency Resolution
 
-The dependency resolution in PVI follows the pattern established in Menlo and App::cpanminus:
+The dependency resolution in PM follows the pattern established in Menlo and App::cpanminus:
 
 1. **Recursive Resolution**: Recursively resolves dependencies depth-first
 2. **Conflict Resolution**: Uses a simple "latest wins" strategy for version conflicts
@@ -422,9 +422,9 @@ These grammar extensions should be implemented in a way that remains backward co
 - Execution environments inherit PVM version settings
 - Both use the same version resolution algorithm
 
-### 6.2 PVX and PVI Integration
+### 6.2 PVX and PM Integration
 
-- PVX uses PVI to install required modules in isolated environments
+- PVX uses PM to install required modules in isolated environments
 - Module installation respects version-specific contexts
 - Shared caching mechanisms improve performance
 
@@ -434,10 +434,10 @@ These grammar extensions should be implemented in a way that remains backward co
 - Command `psc run` performs type checking and then executes via PVX
 - Type information from PSC is made available to PVX for optimizations
 
-### 6.4 PSC and PVI Integration
+### 6.4 PSC and PM Integration
 
-- PVI can install type definitions alongside modules
-- PSC uses PVI to discover module information for type checking
+- PM can install type definitions alongside modules
+- PSC uses PM to discover module information for type checking
 - Type definitions are stored in a centralized location for reuse
 
 ## 7. Error Handling and Communication
@@ -468,7 +468,7 @@ ERROR_CODE: Brief description
 Error codes are prefixed with the component that generated them:
 - `PVM-`: For version manager errors
 - `PVX-`: For execution errors
-- `PVI-`: For module installer errors
+- `PM-`: For module installer errors
 - `PSC-`: For type checking errors
 - `CFG-`: For configuration errors
 - `SYS-`: For system-level errors
@@ -695,7 +695,7 @@ run_tests = true
 version_aliases = { latest = "5.38.0", stable = "5.36.0", legacy = "5.32.1" }
 
 # Module management configuration
-[pvi]
+[pm]
 preferred_installer = "auto"
 default_mirror = "https://cpan.metacpan.org"
 test_during_install = false

@@ -156,18 +156,18 @@ func (vpm *ViperProfileManager) setDefaults(v *viper.Viper) {
 	v.SetDefault("config.pvx.additional_module_paths", defaultConfig.PVX.AdditionalModulePaths)
 
 	// PVI defaults
-	v.SetDefault("config.pvi.preferred_installer", defaultConfig.PVI.PreferredInstaller)
-	v.SetDefault("config.pvi.default_mirror", defaultConfig.PVI.DefaultMirror)
-	v.SetDefault("config.pvi.additional_mirrors", defaultConfig.PVI.AdditionalMirrors)
-	v.SetDefault("config.pvi.metadata_source", defaultConfig.PVI.MetadataSource)
-	v.SetDefault("config.pvi.metadata_url", defaultConfig.PVI.MetadataURL)
-	v.SetDefault("config.pvi.cache_dir", defaultConfig.PVI.CacheDir)
-	v.SetDefault("config.pvi.cache_ttl", defaultConfig.PVI.CacheTTL)
-	v.SetDefault("config.pvi.test_during_install", defaultConfig.PVI.TestDuringInstall)
-	v.SetDefault("config.pvi.cache_modules", defaultConfig.PVI.CacheModules)
-	v.SetDefault("config.pvi.force_reinstall", defaultConfig.PVI.ForceReinstall)
-	v.SetDefault("config.pvi.check_signatures", defaultConfig.PVI.CheckSignatures)
-	v.SetDefault("config.pvi.disable_network", defaultConfig.PVI.DisableNetwork)
+	v.SetDefault("config.pm.preferred_installer", defaultConfig.PM.PreferredInstaller)
+	v.SetDefault("config.pm.default_mirror", defaultConfig.PM.DefaultMirror)
+	v.SetDefault("config.pm.additional_mirrors", defaultConfig.PM.AdditionalMirrors)
+	v.SetDefault("config.pm.metadata_source", defaultConfig.PM.MetadataSource)
+	v.SetDefault("config.pm.metadata_url", defaultConfig.PM.MetadataURL)
+	v.SetDefault("config.pm.cache_dir", defaultConfig.PM.CacheDir)
+	v.SetDefault("config.pm.cache_ttl", defaultConfig.PM.CacheTTL)
+	v.SetDefault("config.pm.test_during_install", defaultConfig.PM.TestDuringInstall)
+	v.SetDefault("config.pm.cache_modules", defaultConfig.PM.CacheModules)
+	v.SetDefault("config.pm.force_reinstall", defaultConfig.PM.ForceReinstall)
+	v.SetDefault("config.pm.check_signatures", defaultConfig.PM.CheckSignatures)
+	v.SetDefault("config.pm.disable_network", defaultConfig.PM.DisableNetwork)
 
 	// PSC defaults
 	v.SetDefault("config.psc.type_definitions_path", defaultConfig.PSC.TypeDefinitionsPath)
@@ -268,19 +268,19 @@ func (vpm *ViperProfileManager) configToViper(config *Config) *viper.Viper {
 	}
 
 	// PVI config
-	if config.PVI != nil {
-		v.Set("config.pvi.preferred_installer", config.PVI.PreferredInstaller)
-		v.Set("config.pvi.default_mirror", config.PVI.DefaultMirror)
-		v.Set("config.pvi.additional_mirrors", config.PVI.AdditionalMirrors)
-		v.Set("config.pvi.metadata_source", config.PVI.MetadataSource)
-		v.Set("config.pvi.metadata_url", config.PVI.MetadataURL)
-		v.Set("config.pvi.cache_dir", config.PVI.CacheDir)
-		v.Set("config.pvi.cache_ttl", config.PVI.CacheTTL)
-		v.Set("config.pvi.test_during_install", config.PVI.TestDuringInstall)
-		v.Set("config.pvi.cache_modules", config.PVI.CacheModules)
-		v.Set("config.pvi.force_reinstall", config.PVI.ForceReinstall)
-		v.Set("config.pvi.check_signatures", config.PVI.CheckSignatures)
-		v.Set("config.pvi.disable_network", config.PVI.DisableNetwork)
+	if config.PM != nil {
+		v.Set("config.pm.preferred_installer", config.PM.PreferredInstaller)
+		v.Set("config.pm.default_mirror", config.PM.DefaultMirror)
+		v.Set("config.pm.additional_mirrors", config.PM.AdditionalMirrors)
+		v.Set("config.pm.metadata_source", config.PM.MetadataSource)
+		v.Set("config.pm.metadata_url", config.PM.MetadataURL)
+		v.Set("config.pm.cache_dir", config.PM.CacheDir)
+		v.Set("config.pm.cache_ttl", config.PM.CacheTTL)
+		v.Set("config.pm.test_during_install", config.PM.TestDuringInstall)
+		v.Set("config.pm.cache_modules", config.PM.CacheModules)
+		v.Set("config.pm.force_reinstall", config.PM.ForceReinstall)
+		v.Set("config.pm.check_signatures", config.PM.CheckSignatures)
+		v.Set("config.pm.disable_network", config.PM.DisableNetwork)
 	}
 
 	// PSC config
@@ -339,19 +339,19 @@ func (vpm *ViperProfileManager) viperToConfig(v *viper.Viper) (*Config, error) {
 			PreserveEnvVars:         v.GetStringSlice("config.pvx.preserve_env_vars"),
 			AdditionalModulePaths:   expandStringSlice(v.GetStringSlice("config.pvx.additional_module_paths")),
 		},
-		PVI: &PVIConfig{
-			PreferredInstaller: v.GetString("config.pvi.preferred_installer"),
-			DefaultMirror:      v.GetString("config.pvi.default_mirror"),
-			AdditionalMirrors:  v.GetStringSlice("config.pvi.additional_mirrors"),
-			MetadataSource:     v.GetString("config.pvi.metadata_source"),
-			MetadataURL:        v.GetString("config.pvi.metadata_url"),
-			CacheDir:           expandEnvironmentVariables(v.GetString("config.pvi.cache_dir")),
-			CacheTTL:           v.GetInt("config.pvi.cache_ttl"),
-			TestDuringInstall:  v.GetBool("config.pvi.test_during_install"),
-			CacheModules:       v.GetBool("config.pvi.cache_modules"),
-			ForceReinstall:     v.GetBool("config.pvi.force_reinstall"),
-			CheckSignatures:    v.GetBool("config.pvi.check_signatures"),
-			DisableNetwork:     v.GetBool("config.pvi.disable_network"),
+		PM: &PMConfig{
+			PreferredInstaller: v.GetString("config.pm.preferred_installer"),
+			DefaultMirror:      v.GetString("config.pm.default_mirror"),
+			AdditionalMirrors:  v.GetStringSlice("config.pm.additional_mirrors"),
+			MetadataSource:     v.GetString("config.pm.metadata_source"),
+			MetadataURL:        v.GetString("config.pm.metadata_url"),
+			CacheDir:           expandEnvironmentVariables(v.GetString("config.pm.cache_dir")),
+			CacheTTL:           v.GetInt("config.pm.cache_ttl"),
+			TestDuringInstall:  v.GetBool("config.pm.test_during_install"),
+			CacheModules:       v.GetBool("config.pm.cache_modules"),
+			ForceReinstall:     v.GetBool("config.pm.force_reinstall"),
+			CheckSignatures:    v.GetBool("config.pm.check_signatures"),
+			DisableNetwork:     v.GetBool("config.pm.disable_network"),
 		},
 		PSC: &PSCConfig{
 			TypeDefinitionsPath:  expandEnvironmentVariables(v.GetString("config.psc.type_definitions_path")),

@@ -33,7 +33,7 @@ Error codes are prefixed with the component that generated them:
 
 - `PVM-`: For Perl Version Manager errors
 - `PVX-`: For Perl Version eXecutor errors
-- `PVI-`: For Perl Version Installer errors
+- `PM-`: For Perl Version Installer errors
 - `PSC-`: For Perl Script Compiler errors
 - `CFG-`: For configuration errors
 - `SYS-`: For system-level errors

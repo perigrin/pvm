@@ -24,7 +24,7 @@ func TestVerifySymlinks(t *testing.T) {
 
 	// Check each component status (should all be false)
 	if status[ComponentPVM] || status[ComponentPVX] ||
-		status[ComponentPVI] || status[ComponentPSC] {
+		status[ComponentPM] || status[ComponentPSC] {
 		t.Error("Expected all symlinks to be missing, but some were found")
 	}
 }

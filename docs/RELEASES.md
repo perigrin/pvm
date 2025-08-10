@@ -52,7 +52,7 @@ The release workflow builds binaries for:
 Each release includes these components where supported:
 
 - **pvm**: Main Perl version manager
-- **pvi**: Package installer with dependency management
+- **pm**: Package installer with dependency management
 - **pvx**: Perl script executor with isolation
 - **psc**: Perl script compiler with type checking (Linux/macOS only)
 
@@ -123,7 +123,7 @@ wget https://github.com/perigrin/pvm/releases/download/v1.0.0-rc2/pvm-1.0.0-rc2-
 
 # Extract and test
 tar -xzf pvm-1.0.0-rc2-linux-amd64.tar.gz
-chmod +x pvm-* pvi-* pvx-*
+chmod +x pvm-* pm-* pvx-*
 ./pvm-linux-amd64 version
 ```
 

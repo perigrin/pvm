@@ -57,7 +57,7 @@ Each release includes:
 
 - **pvm**: Perl Version Manager
 - **pvx**: Perl Version Executor
-- **pvi**: Perl Version Installer
+- **pm**: Perl Version Installer
 - **psc**: Perl Static Checker (when CGO build succeeds)
 
 ## Build Features

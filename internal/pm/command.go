@@ -1,7 +1,7 @@
 // ABOUTME: PVI-specific commands and functionality
 // ABOUTME: Implements commands for Perl module management
 
-package pvi
+package pm
 
 import (
 	"context"
@@ -20,9 +20,9 @@ import (
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/modules"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/pm/deps"
+	pviModules "tamarou.com/pvm/internal/pm/modules"
 	"tamarou.com/pvm/internal/project"
-	"tamarou.com/pvm/internal/pvi/deps"
-	pviModules "tamarou.com/pvm/internal/pvi/modules"
 )
 
 // NewCommand creates a new PVI command
@@ -625,8 +625,8 @@ func newMirrorCommand() *cobra.Command {
 			}
 
 			// Create PVI configuration if it doesn't exist
-			if cfg.PVI == nil {
-				cfg.PVI = &config.PVIConfig{}
+			if cfg.PM == nil {
+				cfg.PM = &config.PMConfig{}
 			}
 
 			// List current mirrors
@@ -636,8 +636,8 @@ func newMirrorCommand() *cobra.Command {
 				mirrorInfo := map[string]string{}
 
 				// Show default mirror
-				if cfg.PVI.DefaultMirror != "" {
-					mirrorInfo["Default"] = cfg.PVI.DefaultMirror
+				if cfg.PM.DefaultMirror != "" {
+					mirrorInfo["Default"] = cfg.PM.DefaultMirror
 				} else {
 					mirrorInfo["Default"] = "<not set> (using MetaCPAN API default)"
 				}
@@ -645,9 +645,9 @@ func newMirrorCommand() *cobra.Command {
 				ui.KeyValue(mirrorInfo)
 
 				// Show additional mirrors
-				if len(cfg.PVI.AdditionalMirrors) > 0 {
+				if len(cfg.PM.AdditionalMirrors) > 0 {
 					var additionalMirrors []string
-					for i, mirror := range cfg.PVI.AdditionalMirrors {
+					for i, mirror := range cfg.PM.AdditionalMirrors {
 						additionalMirrors = append(additionalMirrors, fmt.Sprintf("[%d] %s", i+1, mirror))
 					}
 					ui.ListWithOptions(uipkg.ListOptions{
@@ -673,11 +673,11 @@ func newMirrorCommand() *cobra.Command {
 				// Add as additional mirror or set as default
 				if add {
 					// Add as additional mirror
-					cfg.PVI.AdditionalMirrors = append(cfg.PVI.AdditionalMirrors, mirrorURL)
+					cfg.PM.AdditionalMirrors = append(cfg.PM.AdditionalMirrors, mirrorURL)
 					ui.Success("Added %s as additional mirror", mirrorURL)
 				} else {
 					// Set as default mirror
-					cfg.PVI.DefaultMirror = mirrorURL
+					cfg.PM.DefaultMirror = mirrorURL
 					ui.Success("Set %s as default mirror", mirrorURL)
 				}
 
@@ -876,9 +876,9 @@ func newAddCommand() *cobra.Command {
 
 			// Create cpanfile manager with backup configuration
 			logger := log.New(os.Stderr, "[PVI] ", log.LstdFlags)
-			var backupConfig *config.PVIBackupConfig
-			if cfg.PVI != nil && cfg.PVI.Backup != nil {
-				backupConfig = cfg.PVI.Backup
+			var backupConfig *config.PMBackupConfig
+			if cfg.PM != nil && cfg.PM.Backup != nil {
+				backupConfig = cfg.PM.Backup
 			}
 
 			cpanfileManager, err := NewCpanfileManagerWithConfig(cpanfilePath, backupConfig, logger)
@@ -1078,9 +1078,9 @@ func generateSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext, ve
 
 	// Create cpanfile manager with backup configuration
 	logger := log.New(os.Stderr, "[PVI] ", log.LstdFlags)
-	var backupConfig *config.PVIBackupConfig
-	if cfg.PVI != nil && cfg.PVI.Backup != nil {
-		backupConfig = cfg.PVI.Backup
+	var backupConfig *config.PMBackupConfig
+	if cfg.PM != nil && cfg.PM.Backup != nil {
+		backupConfig = cfg.PM.Backup
 	}
 
 	cpanfileManager, err := NewCpanfileManagerWithConfig(cpanfilePath, backupConfig, logger)
@@ -1150,9 +1150,9 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 
 	// Create cpanfile manager with backup configuration
 	logger := log.New(os.Stderr, "[PVI] ", log.LstdFlags)
-	var backupConfig *config.PVIBackupConfig
-	if cfg.PVI != nil && cfg.PVI.Backup != nil {
-		backupConfig = cfg.PVI.Backup
+	var backupConfig *config.PMBackupConfig
+	if cfg.PM != nil && cfg.PM.Backup != nil {
+		backupConfig = cfg.PM.Backup
 	}
 
 	cpanfileManager, err := NewCpanfileManagerWithConfig(cpanfilePath, backupConfig, logger)
@@ -1479,9 +1479,9 @@ func resolveModuleNames(args []string, includeDev bool) ([]string, error) {
 
 	// Create cpanfile manager with backup configuration
 	logger := log.New(os.Stderr, "[PVI] ", log.LstdFlags)
-	var backupConfig *config.PVIBackupConfig
-	if cfg.PVI != nil && cfg.PVI.Backup != nil {
-		backupConfig = cfg.PVI.Backup
+	var backupConfig *config.PMBackupConfig
+	if cfg.PM != nil && cfg.PM.Backup != nil {
+		backupConfig = cfg.PM.Backup
 	}
 
 	cpanfileManager, err := NewCpanfileManagerWithConfig(cpanfilePath, backupConfig, logger)

@@ -76,7 +76,7 @@ pvm/
 ├── cmd/                    # Command entry points
 │   ├── pvm/               # Main version manager
 │   ├── psc/               # Type checker and LSP
-│   ├── pvi/               # Module installer
+│   ├── pm/               # Module installer
 │   └── pvx/               # Script executor
 ├── internal/              # Internal packages
 │   ├── ast/               # Consolidated AST types

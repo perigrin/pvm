@@ -23,9 +23,9 @@ func (c *Config) GetString(section, key string) string {
 		if c.PVX != nil {
 			value = getPVXString(c.PVX, key)
 		}
-	case "pvi":
-		if c.PVI != nil {
-			value = getPVIString(c.PVI, key)
+	case "pm":
+		if c.PM != nil {
+			value = getPVIString(c.PM, key)
 		}
 	case "psc":
 		if c.PSC != nil {
@@ -63,9 +63,9 @@ func (c *Config) GetBool(section, key string) bool {
 		if c.PVX != nil {
 			return getPVXBool(c.PVX, key)
 		}
-	case "pvi":
-		if c.PVI != nil {
-			return getPVIBool(c.PVI, key)
+	case "pm":
+		if c.PM != nil {
+			return getPVIBool(c.PM, key)
 		}
 	case "psc":
 		if c.PSC != nil {
@@ -117,7 +117,7 @@ func getPVXString(c *PVXConfig, key string) string {
 	return ""
 }
 
-func getPVIString(c *PVIConfig, key string) string {
+func getPVIString(c *PMConfig, key string) string {
 	switch key {
 	case "preferred_installer":
 		return c.PreferredInstaller
@@ -167,7 +167,7 @@ func getPVXBool(c *PVXConfig, key string) bool {
 	return false
 }
 
-func getPVIBool(c *PVIConfig, key string) bool {
+func getPVIBool(c *PMConfig, key string) bool {
 	switch key {
 	case "test_during_install":
 		return c.TestDuringInstall
@@ -321,8 +321,8 @@ func (c *Config) HasSection(section string) bool {
 		return c.PVM != nil
 	case "pvx":
 		return c.PVX != nil
-	case "pvi":
-		return c.PVI != nil
+	case "pm":
+		return c.PM != nil
 	case "psc":
 		return c.PSC != nil
 	}
@@ -340,9 +340,9 @@ func (c *Config) HasKey(section, key string) bool {
 		if c.PVX != nil {
 			return hasPVXKey(c.PVX, key)
 		}
-	case "pvi":
-		if c.PVI != nil {
-			return hasPVIKey(c.PVI, key)
+	case "pm":
+		if c.PM != nil {
+			return hasPVIKey(c.PM, key)
 		}
 	case "psc":
 		if c.PSC != nil {
@@ -373,7 +373,7 @@ func hasPVXKey(c *PVXConfig, key string) bool {
 	return false
 }
 
-func hasPVIKey(c *PVIConfig, key string) bool {
+func hasPVIKey(c *PMConfig, key string) bool {
 	switch key {
 	case "preferred_installer", "default_mirror", "additional_mirrors",
 		"metadata_source", "metadata_url", "cache_dir", "cache_ttl",

@@ -223,7 +223,7 @@ pvm config get [section.key]
 **Examples:**
 ```bash
 pvm config get pvm.default_perl
-pvm config get pvi.preferred_installer
+pvm config get pm.preferred_installer
 pvm config get build.mode
 ```
 
@@ -243,7 +243,7 @@ pvm config set [section.key] [value]
 ```bash
 pvm config set pvm.default_perl 5.38.0
 pvm config set build.mode distribution --project
-pvm config set pvi.test_during_install true --user
+pvm config set pm.test_during_install true --user
 ```
 
 ### pvm config unset
@@ -488,7 +488,7 @@ PVM automatically creates backups of your cpanfile before making changes. This p
 
 **Configuration:**
 ```toml
-[pvi.backup]
+[pm.backup]
 cpanfile_backup = "off"      # Backup mode: "off", "local", "cache"
 retention_days = 30          # Delete backups older than this (0 = keep all)
 max_backups = 10            # Maximum number of backups to keep (0 = no limit)
@@ -820,7 +820,7 @@ include_scripts = true
 installer = "ExtUtils::MakeMaker"
 ```
 
-#### [pvi]
+#### [pm]
 ```toml
 preferred_installer = "auto"       # "auto", "cpanm", "cpan", "cpm"
 default_mirror = "https://cpan.metacpan.org"
@@ -828,7 +828,7 @@ test_during_install = false
 cache_modules = true
 check_signatures = true
 
-[pvi.backup]
+[pm.backup]
 cpanfile_backup = "off"            # "off", "local", "cache"
 retention_days = 30                # Backup retention period (0 = no limit)
 max_backups = 10                   # Maximum number of backups (0 = no limit)

@@ -13,8 +13,8 @@ import (
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/perl"
+	"tamarou.com/pvm/internal/pm"
 	"tamarou.com/pvm/internal/psc"
-	"tamarou.com/pvm/internal/pvi"
 	"tamarou.com/pvm/internal/pvx"
 )
 
@@ -388,8 +388,8 @@ func extractModulesFromTypeCheck(result *parser.TypeCheckResult) []string {
 }
 
 // installModules installs required modules
-func installModules(options *WorkflowOptions, resolvedVersion *perl.ResolvedVersion) (*pvi.PVXIntegrationResult, error) {
-	pviOptions := &pvi.PVXIntegrationOptions{
+func installModules(options *WorkflowOptions, resolvedVersion *perl.ResolvedVersion) (*pm.PVXIntegrationResult, error) {
+	pviOptions := &pm.PVXIntegrationOptions{
 		PerlVersion:     resolvedVersion.Version,
 		RequiredModules: options.RequiredModules,
 		Verbose:         options.Verbose,
@@ -397,7 +397,7 @@ func installModules(options *WorkflowOptions, resolvedVersion *perl.ResolvedVers
 		MaxRetries:      2,
 	}
 
-	result, err := pvi.InstallModulesForPVX(pviOptions)
+	result, err := pm.InstallModulesForPVX(pviOptions)
 	if err != nil {
 		return nil, errors.NewModuleError(
 			ErrModuleInstallation,

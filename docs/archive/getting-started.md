@@ -4,7 +4,7 @@ The PVM Ecosystem is a comprehensive set of tools for Perl development environme
 
 - **PVM** - Perl Version Manager
 - **PVX** - Perl Version eXecutor
-- **PVI** - Perl Version Installer (CPAN module manager)
+- **PM** - Perl Version Installer (CPAN module manager)
 - **PSC** - Perl Script Compiler (static type checker)
 
 ## Installation
@@ -58,28 +58,28 @@ pvx run --isolation high script.pl
 pvx run --env "DEBUG=1" script.pl
 ```
 
-### 3. Managing CPAN Modules (PVI)
+### 3. Managing CPAN Modules (PM)
 
 Install and manage CPAN modules for different Perl versions:
 
 ```bash
 # Install a module
-pvi install Moose
+pm install Moose
 
 # Install for specific Perl version
-pvi install --perl 5.36.0 DBI
+pm install --perl 5.36.0 DBI
 
 # List installed modules
-pvi list
+pm list
 
 # Update all modules
-pvi update
+pm update
 
 # Search for modules
-pvi search JSON
+pm search JSON
 
 # Remove a module
-pvi remove Test::More
+pm remove Test::More
 ```
 
 ### 4. Type Checking Perl Code (PSC)
@@ -178,7 +178,7 @@ The components work together seamlessly:
 
 ```bash
 # Install modules, type-check, and run
-pvi install --perl 5.36.0 JSON::XS
+pm install --perl 5.36.0 JSON::XS
 psc check --perl 5.36.0 my_script.pl
 psc run --perl 5.36.0 my_script.pl
 ```
@@ -202,7 +202,7 @@ auto_switch = true
 enable_flow_sensitive = true
 strict_mode = false
 
-[pvi]
+[pm]
 auto_install_deps = true
 skip_tests = false
 
@@ -222,7 +222,7 @@ mkdir my-project && cd my-project
 pvm local 5.36.0
 
 # Install dependencies
-pvi install Moose DBI JSON::XS
+pm install Moose DBI JSON::XS
 
 # Create typed Perl code
 cat > lib/MyApp.pm << 'EOF'
@@ -314,7 +314,7 @@ Each command provides help via the `--help` flag:
 ```bash
 pvm --help           # General help
 psc check --help     # Help for specific command
-pvi install --help   # Module installation help
+pm install --help   # Module installation help
 pvx run --help       # Script execution help
 ```
 
@@ -327,7 +327,7 @@ For more information, see the documentation in the `docs/` directory or visit th
 1. **Tree-sitter errors**: Ensure you have the Tree-sitter library installed for PSC functionality
 2. **Permission errors**: Make sure the PVM installation directory is writable
 3. **Path issues**: Verify that PVM's bin directory is in your PATH
-4. **Module conflicts**: Use `pvi list` to check installed modules and versions
+4. **Module conflicts**: Use `pm list` to check installed modules and versions
 
 ### Getting Support
 

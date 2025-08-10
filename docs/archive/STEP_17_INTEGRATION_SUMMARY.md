@@ -18,9 +18,9 @@ Created extensive test files covering all major integration scenarios:
 - **TestComprehensiveIntegration_BackwardCompatibility**: Legacy command compatibility
 
 #### **test/e2e/component_interaction_test.go**
-- **TestComponentInteraction_PSC_PVI_TypeDefinitions**: PSC-PVI integration for type definitions
+- **TestComponentInteraction_PSC_PM_TypeDefinitions**: PSC-PM integration for type definitions
 - **TestComponentInteraction_PSC_PVX_ErrorPropagation**: Error handling across components
-- **TestComponentInteraction_PVI_PVX_ModuleInstallation**: Module dependency management
+- **TestComponentInteraction_PM_PVX_ModuleInstallation**: Module dependency management
 - **TestComponentInteraction_PerformanceOptimizations**: Cross-component performance
 - **TestComponentInteraction_ConcurrentOperations**: Concurrent processing validation
 - **TestComponentInteraction_MemoryManagement**: Memory usage and cleanup
@@ -83,10 +83,10 @@ Created extensive test files covering all major integration scenarios:
 
 ### 5. Component Integration Matrix
 
-| Component | PSC | PVI | PVX | PVM | LSP |
+| Component | PSC | PM | PVX | PVM | LSP |
 |-----------|-----|-----|-----|-----|-----|
 | **PSC**   | ✅  | ✅  | ✅  | ✅  | 🔍  |
-| **PVI**   | ✅  | ✅  | 🔍  | ✅  | N/A |
+| **PM**   | ✅  | ✅  | 🔍  | ✅  | N/A |
 | **PVX**   | ✅  | 🔍  | ✅  | ✅  | N/A |
 | **PVM**   | ✅  | ✅  | ✅  | ✅  | N/A |
 | **LSP**   | 🔍  | N/A | N/A | N/A | 🔍  |

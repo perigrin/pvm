@@ -12,7 +12,7 @@ import (
 	"tamarou.com/pvm/internal/compiler"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
-	"tamarou.com/pvm/internal/pvi"
+	"tamarou.com/pvm/internal/pm"
 	"tamarou.com/pvm/internal/pvx"
 )
 
@@ -201,7 +201,7 @@ func ExecuteWithTypeChecking(options *TypeCheckedExecutionOptions) (*TypeChecked
 		}
 
 		// Create PVI integration options
-		pviOptions := &pvi.PVXIntegrationOptions{
+		pviOptions := &pm.PVXIntegrationOptions{
 			PerlVersion:     options.PerlVersion,
 			RequiredModules: options.RequiredModules,
 			InstallDir:      options.ModuleDir,
@@ -211,7 +211,7 @@ func ExecuteWithTypeChecking(options *TypeCheckedExecutionOptions) (*TypeChecked
 		}
 
 		// Install required modules using PVI
-		installResult, err := pvi.InstallModulesForPVX(pviOptions)
+		installResult, err := pm.InstallModulesForPVX(pviOptions)
 		if err != nil {
 			return result, errors.NewTypeError(
 				ErrDependencyMissing,

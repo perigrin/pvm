@@ -35,7 +35,7 @@ These tests are fully implemented but disabled in `make test` (short mode). They
 - `internal/psc` TestLargePerlFile, TestPerformanceWithLargeFile
 - `internal/perl` TestBuildManagerIntegration
 - `internal/scanner` TestTokenPoolManager_PerformanceComparison, TestTokenPoolManager_LargeFileSimulation
-- `test/e2e` TestComponentInteraction_PVI_PVX_ModuleInstallation, TestComprehensiveIntegration_PerformanceStress, TestLSPIntegration_PerformanceAndResponsiveness, TestPoolingIntegration_StressTest, TestPoolingIntegration_MemoryLeakDetection, TestInstallPerl, TestUninstallPerl
+- `test/e2e` TestComponentInteraction_PM_PVX_ModuleInstallation, TestComprehensiveIntegration_PerformanceStress, TestLSPIntegration_PerformanceAndResponsiveness, TestPoolingIntegration_StressTest, TestPoolingIntegration_MemoryLeakDetection, TestInstallPerl, TestUninstallPerl
 
 **Action:**
 - Add `make test-performance` target
@@ -84,7 +84,7 @@ Tests requiring better mocking, integration setup, or infrastructure improvement
 
 **Tests:**
 - `internal/config` TestHotReloader_SuccessfulReconfiguration - File system setup
-- `internal/pvi/modules` TestInstallModule_Basic - Mock expectations inconsistent
+- `internal/pm/modules` TestInstallModule_Basic - Mock expectations inconsistent
 - `internal/pvx` TestPVXCommand/IntegrationWithExecutor, TestPVXCommand/InlineCodeExecution - Proper mocking needed
 - `internal/parser` TestParser_PerformanceBaselines - Requires UPDATE_PERFORMANCE_BASELINES=1
 - `internal/parser` TestStep6_IntegrationWithCompiler - AST verification skipped
@@ -124,7 +124,7 @@ These require significant tree-sitter grammar extensions and typed Perl runtime 
 - `internal/parser` TestParseMethodTypeAnnotations - Method return types (parsing conflicts)
 - `internal/parser` TestParseTypeDeclarations - Type declarations
 - `internal/parser` TestTypeConstraints - Where clause syntax
-- `test/e2e` TestComponentInteraction_PSC_PVI_TypeDefinitions, TestComponentInteraction_PSC_PVX_ErrorPropagation, TestComponentInteraction_PerformanceOptimizations, TestComponentInteraction_ConcurrentOperations, TestComponentInteraction_MemoryManagement, TestComprehensiveIntegration_TypedPerlDevelopment - Full typed Perl support
+- `test/e2e` TestComponentInteraction_PSC_PM_TypeDefinitions, TestComponentInteraction_PSC_PVX_ErrorPropagation, TestComponentInteraction_PerformanceOptimizations, TestComponentInteraction_ConcurrentOperations, TestComponentInteraction_MemoryManagement, TestComprehensiveIntegration_TypedPerlDevelopment - Full typed Perl support
 
 **Action:**
 - Phase 1: Basic type declarations and constraints (2-3 months)

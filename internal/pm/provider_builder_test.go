@@ -1,4 +1,4 @@
-package pvi
+package pm
 
 import (
 	"testing"
@@ -40,7 +40,7 @@ func TestProviderBuilder_WithSource(t *testing.T) {
 
 func TestProviderBuilder_WithConfig(t *testing.T) {
 	cfg := &config.Config{
-		PVI: &config.PVIConfig{
+		PM: &config.PMConfig{
 			MetadataSource: "cpan",
 			CacheModules:   true,
 			CacheDir:       "/tmp/test-cache",
@@ -64,7 +64,7 @@ func TestProviderBuilder_WithConfig(t *testing.T) {
 func TestProviderBuilder_SourcePriority(t *testing.T) {
 	// Config specifies cpan, but explicit source should override
 	cfg := &config.Config{
-		PVI: &config.PVIConfig{
+		PM: &config.PMConfig{
 			MetadataSource: "cpan",
 		},
 	}
@@ -83,7 +83,7 @@ func TestProviderBuilder_SourcePriority(t *testing.T) {
 
 func TestProviderBuilder_WithResolver(t *testing.T) {
 	cfg := &config.Config{
-		PVI: &config.PVIConfig{
+		PM: &config.PMConfig{
 			CacheDir: "/tmp/test-cache",
 			CacheTTL: 3600,
 		},
@@ -106,7 +106,7 @@ func TestProviderBuilder_WithResolver(t *testing.T) {
 
 func TestProviderBuilder_WithNoCache(t *testing.T) {
 	cfg := &config.Config{
-		PVI: &config.PVIConfig{
+		PM: &config.PMConfig{
 			CacheModules: true,
 			CacheDir:     "/tmp/test-cache",
 			CacheTTL:     3600,

@@ -27,7 +27,7 @@ func CreateSymlinks(binaryPath string) (map[string]string, error) {
 	components := []string{
 		ComponentPVM,
 		ComponentPVX,
-		ComponentPVI,
+		ComponentPM,
 		ComponentPSC,
 	}
 
@@ -71,7 +71,7 @@ func VerifySymlinks(binaryPath string) map[string]bool {
 	components := []string{
 		ComponentPVM,
 		ComponentPVX,
-		ComponentPVI,
+		ComponentPM,
 		ComponentPSC,
 	}
 

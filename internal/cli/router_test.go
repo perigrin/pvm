@@ -19,7 +19,7 @@ func TestDetectComponent(t *testing.T) {
 	}{
 		{"PVM", []string{"/path/to/pvm"}, ComponentPVM},
 		{"PVX", []string{"/path/to/pvx"}, ComponentPVX},
-		{"PVI", []string{"/path/to/pvi"}, ComponentPVI},
+		{"PM", []string{"/path/to/pm"}, ComponentPM},
 		{"PSC", []string{"/path/to/psc"}, ComponentPSC},
 		{"PVM with Windows extension", []string{"/path/to/pvm.exe"}, ComponentPVM},
 		{"Unknown", []string{"/path/to/unknown"}, ComponentPVM}, // Defaults to PVM
@@ -44,7 +44,7 @@ func TestGetComponentDescription(t *testing.T) {
 	}{
 		{ComponentPVM, DescriptionPVM},
 		{ComponentPVX, DescriptionPVX},
-		{ComponentPVI, DescriptionPVI},
+		{ComponentPM, DescriptionPM},
 		{ComponentPSC, DescriptionPSC},
 		{"unknown", "Unknown component"},
 	}

@@ -1,7 +1,7 @@
 // ABOUTME: Backup manager for cpanfile operations in PVI
 // ABOUTME: Handles backup creation in different modes: off, local, and cache
 
-package pvi
+package pm
 
 import (
 	"crypto/sha256"
@@ -18,16 +18,16 @@ import (
 
 // BackupManager handles cpanfile backup operations
 type BackupManager struct {
-	config  *config.PVIBackupConfig
+	config  *config.PMBackupConfig
 	logger  *log.Logger
 	xdgDirs *xdg.Dirs
 }
 
 // NewBackupManager creates a new backup manager with configuration
-func NewBackupManager(backupConfig *config.PVIBackupConfig, logger *log.Logger) (*BackupManager, error) {
+func NewBackupManager(backupConfig *config.PMBackupConfig, logger *log.Logger) (*BackupManager, error) {
 	if backupConfig == nil {
 		// Use default configuration if none provided
-		backupConfig = &config.PVIBackupConfig{
+		backupConfig = &config.PMBackupConfig{
 			CpanfileBackup: "off",
 			RetentionDays:  30,
 			MaxBackups:     10,

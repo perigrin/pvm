@@ -20,7 +20,7 @@ This comprehensive documentation covers the Fang UI integration across all PVM c
 The PVM Fang UI Framework replaces all direct output calls (`fmt.Print*`, `cmd.Print*`) with beautiful, consistent Fang-powered styling. The architecture follows these principles:
 
 1. **Separation of Concerns**: Internal packages return structured data, CLI layer handles formatting
-2. **Global Consistency**: All components (pvm, pvx, pvi, psc) use identical styling patterns
+2. **Global Consistency**: All components (pvm, pvx, pm, psc) use identical styling patterns
 3. **Context Awareness**: UI adapts to quiet/verbose modes, color preferences, and terminal capabilities
 4. **Performance First**: Minimal overhead with efficient rendering
 5. **Clean Architecture**: No UI dependencies in internal business logic packages
@@ -40,7 +40,7 @@ PVM CLI Ecosystem
 └── Components Integration
     ├── internal/pvm/          # PVM commands using UI framework
     ├── internal/pvx/          # PVX commands using UI framework
-    ├── internal/pvi/          # PVI commands using UI framework
+    ├── internal/pm/          # PM commands using UI framework
     └── internal/psc/          # PSC commands using UI framework
 ```
 
@@ -561,7 +561,7 @@ func pvxRun(cmd *cobra.Command, args []string) error {
         ui.Warning("Missing dependencies detected:")
         ui.List(deps.Missing)
         ui.Info("Install missing dependencies with:")
-        ui.Printf("  pvi install %s\n", strings.Join(deps.Missing, " "))
+        ui.Printf("  pm install %s\n", strings.Join(deps.Missing, " "))
 
         continueFlag, _ := cmd.Flags().GetBool("continue")
         if !continueFlag {

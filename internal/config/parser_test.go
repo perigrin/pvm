@@ -27,7 +27,7 @@ default_perl = "5.38.0"
 download_mirror = "${TEST_MIRROR}/perl"
 patches_dir = "${TEST_HOME}/${TEST_USER}/patches"
 
-[pvi]
+[pm]
 cache_dir = "${TEST_HOME:-/default}/cache"
 default_mirror = "${TEST_MIRROR}"
 
@@ -53,12 +53,12 @@ type_definitions_path = "${TEST_HOME}/types"
 		t.Errorf("PVM.PatchesDir = %v, want /test/home/testuser/patches", config.PVM.PatchesDir)
 	}
 
-	if config.PVI.CacheDir != "/test/home/cache" {
-		t.Errorf("PVI.CacheDir = %v, want /test/home/cache", config.PVI.CacheDir)
+	if config.PM.CacheDir != "/test/home/cache" {
+		t.Errorf("PM.CacheDir = %v, want /test/home/cache", config.PM.CacheDir)
 	}
 
-	if config.PVI.DefaultMirror != "https://test.mirror.com" {
-		t.Errorf("PVI.DefaultMirror = %v, want https://test.mirror.com", config.PVI.DefaultMirror)
+	if config.PM.DefaultMirror != "https://test.mirror.com" {
+		t.Errorf("PM.DefaultMirror = %v, want https://test.mirror.com", config.PM.DefaultMirror)
 	}
 
 	if config.PVX.SaveOutputDir != "/test/home/output" {
@@ -84,7 +84,7 @@ func TestParseBytes_InterpolationWithDefaults(t *testing.T) {
 download_mirror = "${MISSING_VAR:-https://default.mirror.com}"
 patches_dir = "${EXISTING_VAR}/patches"
 
-[pvi]
+[pm]
 cache_dir = "${MISSING_VAR:-/default/cache}"
 `
 
@@ -102,8 +102,8 @@ cache_dir = "${MISSING_VAR:-/default/cache}"
 		t.Errorf("PVM.PatchesDir = %v, want exists/patches", config.PVM.PatchesDir)
 	}
 
-	if config.PVI.CacheDir != "/default/cache" {
-		t.Errorf("PVI.CacheDir = %v, want /default/cache", config.PVI.CacheDir)
+	if config.PM.CacheDir != "/default/cache" {
+		t.Errorf("PM.CacheDir = %v, want /default/cache", config.PM.CacheDir)
 	}
 }
 
@@ -141,7 +141,7 @@ func TestParseString(t *testing.T) {
 		[pvx]
 		isolation_level = "clean"
 
-		[pvi]
+		[pm]
 		preferred_installer = "cpanm"
 
 		[psc]
@@ -165,8 +165,8 @@ func TestParseString(t *testing.T) {
 		t.Errorf("Expected IsolationLevel = 'clean', got '%s'", config.PVX.IsolationLevel)
 	}
 
-	if config.PVI.PreferredInstaller != "cpanm" {
-		t.Errorf("Expected PreferredInstaller = 'cpanm', got '%s'", config.PVI.PreferredInstaller)
+	if config.PM.PreferredInstaller != "cpanm" {
+		t.Errorf("Expected PreferredInstaller = 'cpanm', got '%s'", config.PM.PreferredInstaller)
 	}
 
 	if !config.PSC.StrictMode {
@@ -642,7 +642,7 @@ func TestMergeSpecificConfigs(t *testing.T) {
 		PVM: &PVMConfig{
 			BuildJobs: 8, // Should override base
 		},
-		PVI: &PVIConfig{
+		PM: &PMConfig{
 			PreferredInstaller: "cpanm",
 		},
 	}
@@ -688,9 +688,9 @@ func TestMergeSpecificConfigs(t *testing.T) {
 
 	t.Logf("After config2: BuildJobs = %d", base.PVM.BuildJobs)
 
-	if config2.PVI != nil {
-		if config2.PVI.PreferredInstaller != "" {
-			base.PVI.PreferredInstaller = config2.PVI.PreferredInstaller
+	if config2.PM != nil {
+		if config2.PM.PreferredInstaller != "" {
+			base.PM.PreferredInstaller = config2.PM.PreferredInstaller
 		}
 	}
 
@@ -720,8 +720,8 @@ func TestMergeSpecificConfigs(t *testing.T) {
 		t.Errorf("Expected IsolationLevel = 'low', got '%s'", base.PVX.IsolationLevel)
 	}
 
-	if base.PVI.PreferredInstaller != "cpanm" {
-		t.Errorf("Expected PreferredInstaller = 'cpanm', got '%s'", base.PVI.PreferredInstaller)
+	if base.PM.PreferredInstaller != "cpanm" {
+		t.Errorf("Expected PreferredInstaller = 'cpanm', got '%s'", base.PM.PreferredInstaller)
 	}
 
 	if !base.PSC.StrictMode {

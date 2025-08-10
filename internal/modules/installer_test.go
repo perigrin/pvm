@@ -14,7 +14,7 @@ import (
 	"tamarou.com/pvm/internal/cli/progress"
 	"tamarou.com/pvm/internal/cpan"
 	"tamarou.com/pvm/internal/log"
-	"tamarou.com/pvm/internal/pvi/deps"
+	"tamarou.com/pvm/internal/pm/deps"
 )
 
 // mockTracker implements progress.Tracker for testing

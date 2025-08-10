@@ -300,7 +300,7 @@ func isStringKey(section, key string) bool {
 			key == "max_memory" ||
 			key == "save_output_dir" ||
 			key == "custom_module_path"
-	case "pvi":
+	case "pm":
 		return key == "preferred_installer" ||
 			key == "default_mirror"
 	case "psc":
@@ -335,7 +335,7 @@ func isBoolKey(section, key string) bool {
 			key == "cleanup_after" ||
 			key == "always_install_deps" ||
 			key == "isolated_output"
-	case "pvi":
+	case "pm":
 		return key == "test_during_install" ||
 			key == "cache_modules" ||
 			key == "force_reinstall" ||
@@ -391,11 +391,11 @@ func updateConfigValue(cfg *config.Config, section, key, value string) error {
 			cfg.PVX = &config.PVXConfig{}
 		}
 		return updatePVXValue(cfg.PVX, key, value)
-	case "pvi":
-		if cfg.PVI == nil {
-			cfg.PVI = &config.PVIConfig{}
+	case "pm":
+		if cfg.PM == nil {
+			cfg.PM = &config.PMConfig{}
 		}
-		return updatePVIValue(cfg.PVI, key, value)
+		return updatePVIValue(cfg.PM, key, value)
 	case "psc":
 		if cfg.PSC == nil {
 			cfg.PSC = &config.PSCConfig{}
@@ -500,7 +500,7 @@ func updatePVXValue(cfg *config.PVXConfig, key, value string) error {
 	return nil
 }
 
-func updatePVIValue(cfg *config.PVIConfig, key, value string) error {
+func updatePVIValue(cfg *config.PMConfig, key, value string) error {
 	switch key {
 	case "preferred_installer":
 		cfg.PreferredInstaller = value
@@ -843,11 +843,11 @@ func unsetConfigValue(cfg, defaultCfg *config.Config, section, key string) error
 			return nil // Already unset
 		}
 		return unsetPVXValue(cfg.PVX, defaultCfg.PVX, key)
-	case "pvi":
-		if cfg.PVI == nil {
+	case "pm":
+		if cfg.PM == nil {
 			return nil // Already unset
 		}
-		return unsetPVIValue(cfg.PVI, defaultCfg.PVI, key)
+		return unsetPVIValue(cfg.PM, defaultCfg.PM, key)
 	case "psc":
 		if cfg.PSC == nil {
 			return nil // Already unset
@@ -922,7 +922,7 @@ func unsetPVXValue(cfg, defaultCfg *config.PVXConfig, key string) error {
 	return nil
 }
 
-func unsetPVIValue(cfg, defaultCfg *config.PVIConfig, key string) error {
+func unsetPVIValue(cfg, defaultCfg *config.PMConfig, key string) error {
 	switch key {
 	case "preferred_installer":
 		cfg.PreferredInstaller = defaultCfg.PreferredInstaller

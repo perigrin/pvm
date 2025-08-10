@@ -191,7 +191,7 @@ func (ls *LanguageService) FindReferences(uri string, pos Position) ([]*Referenc
 The modernized architecture maintains full backward compatibility:
 
 ### For Users
-- All existing PVM, PSC, PVI, PVX commands work unchanged
+- All existing PVM, PSC, PM, PVX commands work unchanged
 - Configuration files and workflows preserved
 - Enhanced features available immediately
 - No breaking changes to public APIs

@@ -44,7 +44,7 @@ make
 # Build specific components
 make pvm        # Core version manager
 make psc        # Type checker with LSP
-make pvi        # Module installer
+make pm        # Module installer
 make pvx        # Script executor
 
 # Clean build artifacts

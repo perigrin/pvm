@@ -22,7 +22,7 @@ import (
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/perl"
-	"tamarou.com/pvm/internal/pvi"
+	"tamarou.com/pvm/internal/pm"
 	"tamarou.com/pvm/internal/tool"
 	"tamarou.com/pvm/internal/xdg"
 )
@@ -270,7 +270,7 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 		}
 
 		// Create PVI integration options - use resolved version instead of raw options.PerlVersion
-		pviOptions := &pvi.PVXIntegrationOptions{
+		pviOptions := &pm.PVXIntegrationOptions{
 			PerlVersion:     resolvedVersion.Version, // Use resolved version instead of potentially empty options.PerlVersion
 			RequiredModules: options.RequiredModules,
 			InstallDir:      options.CustomModulePath,
@@ -280,7 +280,7 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 		}
 
 		// Install required modules
-		installResult, err := pvi.InstallModulesForPVX(pviOptions)
+		installResult, err := pm.InstallModulesForPVX(pviOptions)
 		if err != nil {
 			return "", errors.NewExecutionError(
 				ErrExecutionFailed,

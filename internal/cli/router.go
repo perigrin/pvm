@@ -15,7 +15,7 @@ import (
 const (
 	ComponentPVM = "pvm"
 	ComponentPVX = "pvx"
-	ComponentPVI = "pvi"
+	ComponentPM  = "pm"
 	ComponentPSC = "psc"
 )
 
@@ -23,7 +23,7 @@ const (
 const (
 	DescriptionPVM = "Perl Version Manager - Manages Perl installations and versions"
 	DescriptionPVX = "Perl Version eXecutor - Executes modules/scripts in isolated environments"
-	DescriptionPVI = "Perl Version Installer - Manages CPAN modules for installed Perl versions"
+	DescriptionPM  = "Perl Module - Manages CPAN modules for installed Perl versions"
 	DescriptionPSC = "Perl Script Compiler - Provides static type checking for Perl code"
 )
 
@@ -51,8 +51,8 @@ func GetComponentDescription(component string) string {
 		return DescriptionPVM
 	case ComponentPVX:
 		return DescriptionPVX
-	case ComponentPVI:
-		return DescriptionPVI
+	case ComponentPM:
+		return DescriptionPM
 	case ComponentPSC:
 		return DescriptionPSC
 	default:

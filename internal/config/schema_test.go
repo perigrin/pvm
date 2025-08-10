@@ -127,7 +127,7 @@ func TestSchemaValidator(t *testing.T) {
 		config := NewDefaultConfig()
 
 		// Test invalid installer
-		config.PVI.PreferredInstaller = "invalid-installer"
+		config.PM.PreferredInstaller = "invalid-installer"
 		errors := sv.ValidateConfig(config)
 		hasInstallerError := false
 		for _, err := range errors {
@@ -254,7 +254,7 @@ func TestSchemaValidator(t *testing.T) {
 		config.PVX.IsolationLevel = "invalid"
 		config.PVM.BuildJobs = -1
 		config.MCP.Port = 70000
-		config.PVI.PreferredInstaller = "invalid-installer"
+		config.PM.PreferredInstaller = "invalid-installer"
 
 		errors := sv.ValidateConfig(config)
 		if len(errors) < 4 {

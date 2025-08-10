@@ -1,7 +1,7 @@
 // ABOUTME: Real module analysis for accurate type definition generation
 // ABOUTME: Analyzes Perl modules using AST traversal to extract type information
 
-package pvi
+package pm
 
 import (
 	"fmt"
