@@ -720,6 +720,7 @@ func ShowContextualHelpWithPager(cmd *cobra.Command, helpManager *HelpManager) e
 		Quiet:       false, // Don't suppress output when capturing
 		Verbose:     false,
 		Interactive: true,
+		RawMarkdown: RawMarkdown,
 	}
 	bufferUI := ui.NewOutput(ctx)
 

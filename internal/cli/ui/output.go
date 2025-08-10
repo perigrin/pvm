@@ -377,7 +377,7 @@ func (o *Output) Markdown(content string) {
 	}
 }
 
-// GlowMarkdown renders markdown content using glow if available, otherwise falls back to basic markdown
+// GlowMarkdown renders markdown content using built-in glamour styling, with fallback to basic markdown
 func (o *Output) GlowMarkdown(content string) {
 	if o.context.Quiet {
 		return
@@ -385,7 +385,7 @@ func (o *Output) GlowMarkdown(content string) {
 
 	renderer := NewGlowRenderer(o)
 	if err := renderer.RenderMarkdown(content); err != nil {
-		o.Debug("Failed to render markdown with glow: %v", err)
+		o.Debug("Failed to render markdown with glamour: %v", err)
 		// Fallback is handled within RenderMarkdown
 	}
 }

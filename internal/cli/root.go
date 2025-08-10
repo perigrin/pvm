@@ -33,6 +33,9 @@ var (
 	// Quiet mode flag
 	Quiet bool
 
+	// RawMarkdown flag to disable styled markdown rendering
+	RawMarkdown bool
+
 	// Global UI instance for all commands
 	globalUI *ui.Output
 )
@@ -43,6 +46,7 @@ func ResetGlobalState() {
 	Verbose = false
 	Debug = false
 	Quiet = false
+	RawMarkdown = false
 	globalUI = nil
 	ResetGlobalRegistry()
 }
@@ -59,6 +63,7 @@ func NewRootCommand(name string, description string) *cobra.Command {
 	cmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.PersistentFlags().BoolVarP(&Debug, "debug", "d", false, "Enable debug mode")
 	cmd.PersistentFlags().BoolVarP(&Quiet, "quiet", "q", false, "Enable quiet mode")
+	cmd.PersistentFlags().BoolVar(&RawMarkdown, "raw-markdown", false, "Disable styled markdown rendering, use plain text")
 
 	// Add version command
 	cmd.AddCommand(newVersionCommand(name))
@@ -240,6 +245,14 @@ func setupUI(cmd *cobra.Command) {
 		writer = cmd.OutOrStdout()
 	}
 
+	// Parse raw-markdown flag - try inherited flags first, then global variable
+	rawMarkdown := RawMarkdown
+	if cmd.InheritedFlags().Lookup("raw-markdown") != nil {
+		if flagValue, err := cmd.InheritedFlags().GetBool("raw-markdown"); err == nil {
+			rawMarkdown = flagValue
+		}
+	}
+
 	// Create UI context based on command flags and environment
 	ctx := &ui.UIContext{
 		Writer:      writer,
@@ -248,6 +261,7 @@ func setupUI(cmd *cobra.Command) {
 		Quiet:       Quiet,
 		Verbose:     Verbose,
 		Interactive: true, // TODO: Detect TTY
+		RawMarkdown: rawMarkdown,
 	}
 
 	// Create and store the UI instance
