@@ -1,11 +1,11 @@
-// ABOUTME: Unit tests for glow integration functionality
-// ABOUTME: Tests glow detection, fallback behavior, and markdown rendering
+// ABOUTME: Unit tests for glamour integration functionality
+// ABOUTME: Tests built-in markdown rendering, raw markdown mode, and fallback behavior
 
 package ui
 
 import (
 	"bytes"
-	"os"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -27,14 +27,14 @@ func TestGlowRenderer_IsAvailable(t *testing.T) {
 	ui := NewDefaultOutput()
 	renderer := NewGlowRenderer(ui)
 
-	// Test that IsAvailable returns a boolean
+	// Test that IsAvailable returns true (glamour is built-in)
 	available := renderer.IsAvailable()
-	if available != renderer.available {
-		t.Error("IsAvailable() doesn't match internal available state")
+	if !available {
+		t.Error("IsAvailable() should return true with built-in glamour")
 	}
 }
 
-func TestGlowRenderer_FallbackBehavior(t *testing.T) {
+func TestGlowRenderer_StyledMarkdown(t *testing.T) {
 	// Create a test output buffer
 	var buf bytes.Buffer
 	ui := NewDefaultOutput()
@@ -55,7 +55,7 @@ This is a test markdown content with **bold** text.
 
 More content here.`
 
-	// Render markdown (should fallback to basic markdown if glow unavailable)
+	// Render markdown using glamour styling
 	err := renderer.RenderMarkdown(testContent)
 	if err != nil {
 		t.Fatalf("RenderMarkdown failed: %v", err)
@@ -67,7 +67,7 @@ More content here.`
 		t.Error("No output generated")
 	}
 
-	// Should contain formatted content (either glow or basic markdown)
+	// Should contain formatted content with glamour styling
 	if !strings.Contains(output, "Test Header") {
 		t.Error("Output doesn't contain expected header")
 	}
@@ -157,75 +157,36 @@ func TestGlowRenderer_ColorModeHandling(t *testing.T) {
 	}
 }
 
-func TestIsGlowAvailable(t *testing.T) {
-	// Test glow availability detection
-	available := isGlowAvailable()
-
-	// Should return a boolean without error
-	if available != true && available != false {
-		t.Error("isGlowAvailable should return a boolean value")
-	}
-
-	// If glow is available, verify it's actually executable
-	if available {
-		// This is a basic sanity check - if glow is detected as available,
-		// it should be in the PATH
-		if os.Getenv("PATH") == "" {
-			t.Skip("PATH not set, skipping glow availability verification")
-		}
-
-		// The detection should be consistent
-		available2 := isGlowAvailable()
-		if available != available2 {
-			t.Error("isGlowAvailable returned inconsistent results")
-		}
-	}
-}
-
-func TestCheckGlowVersion(t *testing.T) {
-	// Only test if glow is available
-	if !isGlowAvailable() {
-		t.Skip("Glow not available, skipping version check test")
-	}
-
-	version, err := checkGlowVersion()
-	if err != nil {
-		t.Fatalf("checkGlowVersion failed: %v", err)
-	}
-
-	if version == "" {
-		t.Error("checkGlowVersion returned empty version string")
-	}
-
-	// Version should contain some expected content
-	if !strings.Contains(strings.ToLower(version), "glow") {
-		t.Error("Version string doesn't contain 'glow':", version)
-	}
-}
-
-func TestSuggestGlowInstallation(t *testing.T) {
+func TestGlowRenderer_RawMarkdownMode(t *testing.T) {
 	var buf bytes.Buffer
 	ui := NewDefaultOutput()
 	ui.SetWriter(&buf)
 
-	SuggestGlowInstallation(ui)
+	// Enable raw markdown mode
+	ui.context.RawMarkdown = true
+
+	renderer := NewGlowRenderer(ui)
+
+	testContent := `# Test Header
+
+This is **bold** text and *italic* text.
+
+- List item
+- Another item`
+
+	err := renderer.RenderMarkdown(testContent)
+	if err != nil {
+		t.Fatalf("RenderMarkdown failed in raw mode: %v", err)
+	}
 
 	output := buf.String()
 	if len(output) == 0 {
-		t.Error("SuggestGlowInstallation produced no output")
+		t.Error("No output generated in raw markdown mode")
 	}
 
-	// Should contain installation suggestions
-	expectedStrings := []string{
-		"glow",
-		"brew install",
-		"github.com/charmbracelet/glow",
-	}
-
-	for _, expected := range expectedStrings {
-		if !strings.Contains(output, expected) {
-			t.Errorf("Installation suggestion missing expected string: %s", expected)
-		}
+	// In raw mode, should contain the original markdown text
+	if !strings.Contains(output, "Test Header") {
+		t.Error("Raw mode output doesn't contain expected header")
 	}
 }
 
@@ -240,10 +201,10 @@ func TestGlowRenderer_LargeContent(t *testing.T) {
 	var content strings.Builder
 	for i := 0; i < 100; i++ {
 		content.WriteString("# Header ")
-		content.WriteString(string(rune(i)))
+		content.WriteString(strconv.Itoa(i))
 		content.WriteString("\n\n")
 		content.WriteString("This is paragraph ")
-		content.WriteString(string(rune(i)))
+		content.WriteString(strconv.Itoa(i))
 		content.WriteString(" with some **bold** text and *italic* text.\n\n")
 		content.WriteString("- List item 1\n")
 		content.WriteString("- List item 2\n")

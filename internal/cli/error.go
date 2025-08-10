@@ -88,6 +88,7 @@ func displayError(err error) {
 		Quiet:       false,
 		Verbose:     Verbose,
 		Interactive: true,
+		RawMarkdown: RawMarkdown,
 	}
 	output := ui.NewOutput(uiCtx)
 

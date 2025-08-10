@@ -44,6 +44,7 @@ type UIContext struct {
 	Quiet       bool
 	Verbose     bool
 	Interactive bool
+	RawMarkdown bool // Use plain text markdown instead of styled rendering
 }
 
 // ColorMode represents different color output modes
