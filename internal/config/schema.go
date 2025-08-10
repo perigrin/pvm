@@ -429,8 +429,8 @@ func getBuiltinSchema() *ConfigSchema {
 					},
 				},
 			},
-			"pvi": {
-				Name: "pvi",
+			"pm": {
+				Name: "pm",
 				Type: "object",
 				Children: map[string]*SchemaField{
 					"preferred_installer": {
