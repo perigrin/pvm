@@ -228,6 +228,11 @@ Examples:
 				return err
 			}
 
+			noPatchPerl, err := cmd.Flags().GetBool("no-patchperl")
+			if err != nil {
+				return err
+			}
+
 			// Validate mutually exclusive flags
 			if binaryOnly && forceSource {
 				return fmt.Errorf("--binary-only and --force-source are mutually exclusive")
@@ -397,6 +402,18 @@ Examples:
 				Mirror:           mirror,
 				SkipCache:        skipCache,
 				SkipChecksum:     skipChecksum,
+				NoPatchPerl:      noPatchPerl,
+			}
+
+			// Bootstrap Devel::PatchPerl if needed for source patching (unless disabled)
+			if !noPatchPerl && !perl.IsPatchPerlAvailable() {
+				ui.Info("Bootstrapping Devel::PatchPerl for source compatibility...")
+				if err := perl.InstallPatchPerl(true); err != nil {
+					ui.Warning("Failed to bootstrap PatchPerl: %v", err)
+					ui.Info("Continuing without PatchPerl - build may fail for older Perl versions")
+				} else {
+					ui.Success("PatchPerl bootstrapped successfully")
+				}
 			}
 
 			// Start the build
@@ -436,6 +453,9 @@ Examples:
 	cmd.Flags().String("mirror", "", "Mirror URL to use for downloading (default: "+perl.DefaultMirror+")")
 	cmd.Flags().Bool("skip-cache", false, "Skip using cached downloads")
 	cmd.Flags().Bool("skip-checksum", false, "Skip checksum validation")
+
+	// Source patching flags
+	cmd.Flags().Bool("no-patchperl", false, "Disable automatic Devel::PatchPerl source patching")
 
 	return cmd
 }
