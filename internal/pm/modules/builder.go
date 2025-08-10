@@ -443,7 +443,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 		outputBuffer.WriteString(output)
 
 		// Parse test output using the new parser
-		parser := NewTestParser(options.Verbose)
+		parser := NewTAPParser(options.Verbose)
 		testResults := parser.ParseTestOutput(output)
 		result.TestResults = testResults
 
