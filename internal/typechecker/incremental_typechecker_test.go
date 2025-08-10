@@ -340,13 +340,16 @@ func TestIncrementalTypeChecker_updateDependencies(t *testing.T) {
 	itc := NewIncrementalTypeChecker(hierarchy, symbolTable, "TestModule", config)
 
 	filePath := "test.pl"
-	_ = []string{"dep1.pl", "dep2.pl"} // dependencies not used in current AST structure
 
-	// Create test AST with imports
+	// Create test AST with UseStmt dependencies
+	useStmt1 := ast.NewUseStmt("Moose", "", nil, ast.Position{}, ast.Position{})
+	useStmt2 := ast.NewUseStmt("DBI", "1.23", []string{"connect", "prepare"}, ast.Position{}, ast.Position{})
+	pragmaStmt := ast.NewUseStmt("strict", "", nil, ast.Position{}, ast.Position{}) // Should be filtered out
+
+	program := ast.NewProgramStmt([]ast.StatementNode{useStmt1, useStmt2, pragmaStmt}, ast.Position{}, ast.Position{})
 	astRoot := &ast.AST{
-		Root:            &ast.BaseNode{},
+		Root:            program,
 		TypeAnnotations: []*ast.TypeAnnotation{},
-		// SymbolTable and Imports fields not available
 	}
 
 	// Update dependencies
@@ -355,23 +358,273 @@ func TestIncrementalTypeChecker_updateDependencies(t *testing.T) {
 	// Verify dependencies were recorded
 	itc.dependencyGraph.mu.RLock()
 	recordedDeps := itc.dependencyGraph.FileDependencies[filePath]
-	dep1Dependents := itc.dependencyGraph.FileDependents["dep1.pl"]
-	dep2Dependents := itc.dependencyGraph.FileDependents["dep2.pl"]
+	mooseDependents := itc.dependencyGraph.FileDependents["Moose"]
+	dbiDependents := itc.dependencyGraph.FileDependents["DBI"]
 	itc.dependencyGraph.mu.RUnlock()
 
-	// NOTE: updateDependencies is currently a placeholder that returns empty dependencies
-	// TODO: Implement actual dependency extraction from AST when imports field is added
-	if len(recordedDeps) != 0 {
-		t.Errorf("Expected 0 dependencies (placeholder implementation), got %d", len(recordedDeps))
-		return // Prevent panic on empty slice
+	// Should extract dependencies from UseStmt nodes, filtering out pragmas
+	expectedDeps := []string{"Moose", "DBI"}
+	if len(recordedDeps) != len(expectedDeps) {
+		t.Errorf("Expected %d dependencies, got %d", len(expectedDeps), len(recordedDeps))
 	}
 
-	// Check reverse dependencies (should be empty due to placeholder implementation)
-	if len(dep1Dependents) != 0 {
-		t.Errorf("Expected no dependents for dep1.pl (placeholder implementation), got %d", len(dep1Dependents))
+	// Check that both dependencies are present
+	depsMap := make(map[string]bool)
+	for _, dep := range recordedDeps {
+		depsMap[dep] = true
 	}
-	if len(dep2Dependents) != 0 {
-		t.Errorf("Expected no dependents for dep2.pl (placeholder implementation), got %d", len(dep2Dependents))
+	for _, expectedDep := range expectedDeps {
+		if !depsMap[expectedDep] {
+			t.Errorf("Expected dependency %s not found in recorded dependencies", expectedDep)
+		}
+	}
+
+	// Check that strict pragma was filtered out
+	if depsMap["strict"] {
+		t.Error("Expected pragma 'strict' to be filtered out")
+	}
+
+	// Check reverse dependencies
+	if len(mooseDependents) != 1 || mooseDependents[0] != filePath {
+		t.Errorf("Expected Moose to have %s as dependent", filePath)
+	}
+	if len(dbiDependents) != 1 || dbiDependents[0] != filePath {
+		t.Errorf("Expected DBI to have %s as dependent", filePath)
+	}
+}
+
+func TestIncrementalTypeChecker_extractDependenciesFromAST(t *testing.T) {
+	hierarchy := typedef.NewTypeHierarchy(nil)
+	symbolTable := binder.NewSymbolTable()
+	config := DefaultIncrementalConfig()
+
+	itc := NewIncrementalTypeChecker(hierarchy, symbolTable, "TestModule", config)
+
+	tests := []struct {
+		name     string
+		setupAST func() *ast.AST
+		expected []string
+	}{
+		{
+			name: "empty AST",
+			setupAST: func() *ast.AST {
+				return &ast.AST{Root: ast.NewProgramStmt(nil, ast.Position{}, ast.Position{})}
+			},
+			expected: []string{},
+		},
+		{
+			name: "single use statement",
+			setupAST: func() *ast.AST {
+				useStmt := ast.NewUseStmt("Test::Module", "", nil, ast.Position{}, ast.Position{})
+				program := ast.NewProgramStmt([]ast.StatementNode{useStmt}, ast.Position{}, ast.Position{})
+				return &ast.AST{Root: program}
+			},
+			expected: []string{"Test::Module"},
+		},
+		{
+			name: "multiple use statements",
+			setupAST: func() *ast.AST {
+				useStmt1 := ast.NewUseStmt("Moose", "", nil, ast.Position{}, ast.Position{})
+				useStmt2 := ast.NewUseStmt("DBI", "1.23", []string{"connect"}, ast.Position{}, ast.Position{})
+				useStmt3 := ast.NewUseStmt("JSON", "", []string{"encode_json", "decode_json"}, ast.Position{}, ast.Position{})
+				program := ast.NewProgramStmt([]ast.StatementNode{useStmt1, useStmt2, useStmt3}, ast.Position{}, ast.Position{})
+				return &ast.AST{Root: program}
+			},
+			expected: []string{"Moose", "DBI", "JSON"},
+		},
+		{
+			name: "pragmas filtered out",
+			setupAST: func() *ast.AST {
+				useStmt1 := ast.NewUseStmt("Test::Module", "", nil, ast.Position{}, ast.Position{})
+				pragmaStmt1 := ast.NewUseStmt("strict", "", nil, ast.Position{}, ast.Position{})
+				pragmaStmt2 := ast.NewUseStmt("warnings", "", nil, ast.Position{}, ast.Position{})
+				pragmaStmt3 := ast.NewUseStmt("utf8", "", nil, ast.Position{}, ast.Position{})
+				program := ast.NewProgramStmt([]ast.StatementNode{useStmt1, pragmaStmt1, pragmaStmt2, pragmaStmt3}, ast.Position{}, ast.Position{})
+				return &ast.AST{Root: program}
+			},
+			expected: []string{"Test::Module"},
+		},
+		{
+			name: "duplicate dependencies",
+			setupAST: func() *ast.AST {
+				useStmt1 := ast.NewUseStmt("Test::Module", "", nil, ast.Position{}, ast.Position{})
+				useStmt2 := ast.NewUseStmt("Test::Module", "1.0", []string{"func"}, ast.Position{}, ast.Position{})
+				useStmt3 := ast.NewUseStmt("Other::Module", "", nil, ast.Position{}, ast.Position{})
+				program := ast.NewProgramStmt([]ast.StatementNode{useStmt1, useStmt2, useStmt3}, ast.Position{}, ast.Position{})
+				return &ast.AST{Root: program}
+			},
+			expected: []string{"Test::Module", "Other::Module"},
+		},
+		{
+			name: "nested use statements in blocks",
+			setupAST: func() *ast.AST {
+				// Create a nested structure with use statements in different levels
+				useStmt1 := ast.NewUseStmt("Top::Module", "", nil, ast.Position{}, ast.Position{})
+
+				// Create a block with a nested use statement
+				useStmt2 := ast.NewUseStmt("Nested::Module", "", nil, ast.Position{}, ast.Position{})
+				blockStmt := ast.NewBlockStmt([]ast.StatementNode{useStmt2}, ast.Position{}, ast.Position{})
+
+				program := ast.NewProgramStmt([]ast.StatementNode{useStmt1, blockStmt}, ast.Position{}, ast.Position{})
+				return &ast.AST{Root: program}
+			},
+			expected: []string{"Top::Module", "Nested::Module"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			astRoot := test.setupAST()
+			dependencies := itc.extractDependenciesFromAST(astRoot)
+
+			if len(dependencies) != len(test.expected) {
+				t.Errorf("Expected %d dependencies, got %d", len(test.expected), len(dependencies))
+			}
+
+			// Convert to map for easier comparison
+			depsMap := make(map[string]bool)
+			for _, dep := range dependencies {
+				depsMap[dep] = true
+			}
+
+			for _, expectedDep := range test.expected {
+				if !depsMap[expectedDep] {
+					t.Errorf("Expected dependency %s not found", expectedDep)
+				}
+			}
+
+			// Check for unexpected dependencies
+			for _, dep := range dependencies {
+				found := false
+				for _, expectedDep := range test.expected {
+					if dep == expectedDep {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Unexpected dependency %s found", dep)
+				}
+			}
+		})
+	}
+}
+
+func TestIncrementalTypeChecker_filterAndDeduplicateDependencies(t *testing.T) {
+	hierarchy := typedef.NewTypeHierarchy(nil)
+	symbolTable := binder.NewSymbolTable()
+	config := DefaultIncrementalConfig()
+
+	itc := NewIncrementalTypeChecker(hierarchy, symbolTable, "TestModule", config)
+
+	tests := []struct {
+		name     string
+		input    []string
+		expected []string
+	}{
+		{
+			name:     "empty input",
+			input:    []string{},
+			expected: []string{},
+		},
+		{
+			name:     "no duplicates or pragmas",
+			input:    []string{"Module::A", "Module::B", "Module::C"},
+			expected: []string{"Module::A", "Module::B", "Module::C"},
+		},
+		{
+			name:     "with duplicates",
+			input:    []string{"Module::A", "Module::B", "Module::A", "Module::C", "Module::B"},
+			expected: []string{"Module::A", "Module::B", "Module::C"},
+		},
+		{
+			name:     "filter out pragmas",
+			input:    []string{"Module::A", "strict", "warnings", "Module::B", "utf8", "feature"},
+			expected: []string{"Module::A", "Module::B"},
+		},
+		{
+			name:     "all pragmas",
+			input:    []string{"strict", "warnings", "utf8", "feature", "vars", "lib"},
+			expected: []string{},
+		},
+		{
+			name:     "mixed with empty strings",
+			input:    []string{"Module::A", "", "Module::B", "", "strict", "Module::C"},
+			expected: []string{"Module::A", "Module::B", "Module::C"},
+		},
+		{
+			name:     "complex case",
+			input:    []string{"Moose", "DBI", "strict", "Moose", "JSON", "warnings", "DBI", "", "Test::More"},
+			expected: []string{"Moose", "DBI", "JSON", "Test::More"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := itc.filterAndDeduplicateDependencies(test.input)
+
+			if len(result) != len(test.expected) {
+				t.Errorf("Expected %d dependencies, got %d", len(test.expected), len(result))
+			}
+
+			// Convert to map for easier comparison
+			resultMap := make(map[string]bool)
+			for _, dep := range result {
+				resultMap[dep] = true
+			}
+
+			for _, expectedDep := range test.expected {
+				if !resultMap[expectedDep] {
+					t.Errorf("Expected dependency %s not found", expectedDep)
+				}
+			}
+
+			// Check for unexpected dependencies
+			for _, dep := range result {
+				found := false
+				for _, expectedDep := range test.expected {
+					if dep == expectedDep {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Unexpected dependency %s found", dep)
+				}
+			}
+		})
+	}
+}
+
+func TestIncrementalTypeChecker_extractDependenciesFromAST_NilCases(t *testing.T) {
+	hierarchy := typedef.NewTypeHierarchy(nil)
+	symbolTable := binder.NewSymbolTable()
+	config := DefaultIncrementalConfig()
+
+	itc := NewIncrementalTypeChecker(hierarchy, symbolTable, "TestModule", config)
+
+	tests := []struct {
+		name string
+		ast  *ast.AST
+	}{
+		{
+			name: "nil AST",
+			ast:  nil,
+		},
+		{
+			name: "AST with nil root",
+			ast:  &ast.AST{Root: nil},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dependencies := itc.extractDependenciesFromAST(test.ast)
+
+			if len(dependencies) != 0 {
+				t.Errorf("Expected empty dependencies for %s, got %d", test.name, len(dependencies))
+			}
+		})
 	}
 }
 

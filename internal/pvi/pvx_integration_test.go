@@ -3,8 +3,11 @@
 package pvi
 
 import (
+	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
+	"sort"
 	"testing"
 
 	"tamarou.com/pvm/internal/perl"
@@ -156,4 +159,198 @@ func containsError(message, errorCode string) bool {
 		(message == errorCode ||
 			len(message) >= len(errorCode) &&
 				message[:len(errorCode)] == errorCode)
+}
+
+// TestGetRequiredModulesForScript tests AST-based dependency extraction
+func TestGetRequiredModulesForScript(t *testing.T) {
+	tests := []struct {
+		name          string
+		scriptContent string
+		expected      []string
+		expectError   bool
+	}{
+		{
+			name: "Basic use statements",
+			scriptContent: `#!/usr/bin/perl
+use strict;
+use warnings;
+use Moose;
+use DBI;`,
+			expected: []string{"Moose", "DBI"}, // pragmas filtered out
+		},
+		{
+			name: "Use with versions and imports",
+			scriptContent: `use JSON::PP 2.0 qw(encode_json decode_json);
+use Test::More;`,
+			expected: []string{"JSON::PP", "Test::More"},
+		},
+		{
+			name: "Require statements",
+			scriptContent: `require DBI;
+require "JSON/PP.pm";
+require 'HTTP/Tiny.pm';`,
+			expected: []string{"DBI", "JSON::PP", "HTTP::Tiny"},
+		},
+		{
+			name: "Mixed use and require",
+			scriptContent: `use strict;
+use Moose;
+require DBI;
+# use Test::More; # commented out
+require 'HTTP/Tiny.pm';`,
+			expected: []string{"Moose", "DBI", "HTTP::Tiny"},
+		},
+		{
+			name: "Core modules filtered out",
+			scriptContent: `use DBI;
+use File::Path;  # core module
+use Test::More;`,
+			expected: []string{"DBI", "Test::More"}, // File::Path filtered as core
+		},
+		{
+			name: "Empty script",
+			scriptContent: `#!/usr/bin/perl
+# Just a comment
+print "Hello World\n";`,
+			expected: []string{},
+		},
+		{
+			name: "Complex module names",
+			scriptContent: `use Test::More::UTF8;
+use Moo::Role;
+use namespace::clean;`,
+			expected: []string{"Test::More::UTF8", "Moo::Role", "namespace::clean"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Create a temporary file with the test content
+			tmpfile, err := os.CreateTemp("", "test_script_*.pl")
+			if err != nil {
+				t.Fatalf("Failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpfile.Name())
+
+			// Write the test content to the file
+			if _, err := tmpfile.WriteString(test.scriptContent); err != nil {
+				tmpfile.Close()
+				t.Fatalf("Failed to write to temp file: %v", err)
+			}
+			tmpfile.Close()
+
+			// Test the function
+			modules, err := GetRequiredModulesForScript(tmpfile.Name())
+
+			if test.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// Handle nil vs empty slice comparison
+			if modules == nil {
+				modules = []string{}
+			}
+			if test.expected == nil {
+				test.expected = []string{}
+			}
+
+			// Sort both slices for comparison
+			sort.Strings(modules)
+			sort.Strings(test.expected)
+
+			if !reflect.DeepEqual(modules, test.expected) {
+				t.Errorf("Expected modules %v, got %v", test.expected, modules)
+			}
+		})
+	}
+}
+
+// TestGetRequiredModulesForScript_ErrorCases tests error handling
+func TestGetRequiredModulesForScript_ErrorCases(t *testing.T) {
+	t.Run("NonexistentFile", func(t *testing.T) {
+		_, err := GetRequiredModulesForScript("/nonexistent/file.pl")
+		if err == nil {
+			t.Error("Expected error for nonexistent file")
+		}
+	})
+
+	t.Run("InvalidPerlSyntax", func(t *testing.T) {
+		// Create a temp file with invalid Perl syntax
+		tmpfile, err := os.CreateTemp("", "invalid_perl_*.pl")
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+		defer os.Remove(tmpfile.Name())
+
+		// Write invalid Perl syntax
+		invalidContent := `use unclosed string"`
+		if _, err := tmpfile.WriteString(invalidContent); err != nil {
+			tmpfile.Close()
+			t.Fatalf("Failed to write to temp file: %v", err)
+		}
+		tmpfile.Close()
+
+		// The function should handle parsing errors gracefully and return empty list
+		modules, err := GetRequiredModulesForScript(tmpfile.Name())
+		if err != nil {
+			t.Errorf("Function should handle parsing errors gracefully, but got error: %v", err)
+		}
+
+		// Should return empty list on parsing errors (graceful degradation)
+		if len(modules) != 0 {
+			t.Errorf("Expected empty module list on parsing error, got: %v", modules)
+		}
+	})
+}
+
+// TestExtractDependenciesFromContent tests the internal dependency extraction function
+func TestExtractDependenciesFromContent(t *testing.T) {
+	content := `use strict;
+use DBI;
+require JSON::PP;
+use Test::More qw(ok done_testing);`
+
+	dependencies, err := extractDependenciesFromContent(content)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expected := []string{"DBI", "JSON::PP", "Test::More"}
+
+	// Sort both for comparison
+	sort.Strings(dependencies)
+	sort.Strings(expected)
+
+	if !reflect.DeepEqual(dependencies, expected) {
+		t.Errorf("Expected %v, got %v", expected, dependencies)
+	}
+}
+
+// TestFilterCPANModules tests core module filtering
+func TestFilterCPANModules(t *testing.T) {
+	input := []string{
+		"DBI",        // CPAN module
+		"File::Path", // Core module
+		"Test::More", // CPAN module
+		"Carp",       // Core module
+		"Moose",      // CPAN module
+	}
+
+	result := filterCPANModules(input)
+	expected := []string{"DBI", "Test::More", "Moose"}
+
+	// Sort both for comparison
+	sort.Strings(result)
+	sort.Strings(expected)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
+	}
 }

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/typechecker"
 	"tamarou.com/pvm/internal/typedef"
@@ -500,18 +501,162 @@ func (pa *ProjectAnalyzer) analyzeModuleDependencies(modulePath string) error {
 		return err
 	}
 
-	dependencies := pa.extractDependencies(string(content))
+	dependencies, err := pa.extractDependencies(string(content))
+	if err != nil {
+		// Log the error but continue with empty dependencies for graceful degradation
+		fmt.Fprintf(os.Stderr, "Warning: Failed to extract dependencies from %s: %v\n", modulePath, err)
+		dependencies = []string{}
+	}
 	pa.updateDependencyGraph(modulePath, dependencies)
 
 	return nil
 }
 
-// extractDependencies extracts module dependencies from content
-func (pa *ProjectAnalyzer) extractDependencies(content string) []string {
-	var dependencies []string
-	seen := make(map[string]bool)
+// extractDependencies extracts module dependencies from content using AST parsing
+func (pa *ProjectAnalyzer) extractDependencies(content string) ([]string, error) {
+	// Use the same AST-based dependency extraction as PVX
+	parser, err := parser.NewParser()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create parser: %w", err)
+	}
 
-	// Look for use statements
+	astRoot, err := parser.ParseString(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse content: %w", err)
+	}
+
+	// Extract dependencies using the same logic as PVX
+	dependencies := pa.extractDependenciesFromASTWithFallback(astRoot, content)
+
+	return dependencies, nil
+}
+
+// extractDependenciesFromASTWithFallback mirrors PVX's hybrid AST + regex extraction
+func (pa *ProjectAnalyzer) extractDependenciesFromASTWithFallback(astRoot *ast.AST, originalContent string) []string {
+	// First try AST-based extraction
+	astDeps := pa.extractDependenciesFromAST(astRoot)
+
+	// Also try regex-based extraction as fallback for edge cases
+	regexDeps := pa.extractDependenciesFromRegex(originalContent)
+
+	// Combine and deduplicate
+	astDeps = append(astDeps, regexDeps...)
+	return pa.filterAndDeduplicateDependencies(astDeps)
+}
+
+// extractDependenciesFromAST traverses AST to find UseStmt nodes and require expressions
+func (pa *ProjectAnalyzer) extractDependenciesFromAST(astRoot *ast.AST) []string {
+	if astRoot == nil || astRoot.Root == nil {
+		return []string{}
+	}
+
+	var dependencies []string
+	visited := make(map[ast.Node]bool)
+
+	// Traverse the AST to find UseStmt nodes and require expressions
+	pa.traverseASTForDependencies(astRoot.Root, &dependencies, visited)
+
+	return dependencies
+}
+
+// traverseASTForDependencies recursively traverses AST nodes
+func (pa *ProjectAnalyzer) traverseASTForDependencies(node ast.Node, dependencies *[]string, visited map[ast.Node]bool) {
+	if node == nil || visited[node] {
+		return
+	}
+	visited[node] = true
+
+	// Check if this node is a UseStmt
+	if useStmt, ok := node.(*ast.UseStmt); ok {
+		if useStmt.Module != "" {
+			*dependencies = append(*dependencies, useStmt.Module)
+		}
+	}
+
+	// Check for require expressions
+	if node.Type() == "require_expression" || node.Type() == "require_version_expression" {
+		if module := pa.extractModuleFromRequireExpression(node); module != "" {
+			*dependencies = append(*dependencies, module)
+		}
+	}
+
+	// Check for expression statements that might contain require calls
+	if node.Type() == "expression_statement" {
+		text := node.Text()
+		if module := pa.extractModuleFromRequireText(text); module != "" {
+			*dependencies = append(*dependencies, module)
+		}
+	}
+
+	// Traverse child nodes
+	for _, child := range node.Children() {
+		pa.traverseASTForDependencies(child, dependencies, visited)
+	}
+}
+
+// extractModuleFromRequireExpression extracts module name from require_expression AST nodes
+func (pa *ProjectAnalyzer) extractModuleFromRequireExpression(node ast.Node) string {
+	for _, child := range node.Children() {
+		childType := child.Type()
+		text := child.Text()
+
+		if childType == "string" || childType == "identifier" || childType == "token" ||
+			childType == "interpolated_string_literal" || childType == "literal" {
+
+			if text != "" && text != "require" {
+				return pa.normalizeRequiredModule(text)
+			}
+		}
+
+		if childType == "interpolated_string_literal" {
+			for _, grandchild := range child.Children() {
+				grandText := grandchild.Text()
+				if grandText != "" {
+					return pa.normalizeRequiredModule(grandText)
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// extractModuleFromRequireText extracts module name from require statement text (fallback)
+func (pa *ProjectAnalyzer) extractModuleFromRequireText(text string) string {
+	text = strings.TrimSpace(text)
+
+	if strings.HasPrefix(text, "require ") {
+		module := strings.TrimPrefix(text, "require ")
+		module = strings.TrimSuffix(module, ";")
+		module = strings.TrimSpace(module)
+
+		return pa.normalizeRequiredModule(module)
+	}
+
+	return ""
+}
+
+// normalizeRequiredModule normalizes a required module name
+func (pa *ProjectAnalyzer) normalizeRequiredModule(module string) string {
+	// Remove quotes
+	module = strings.Trim(module, `"'`)
+
+	// Convert .pm file paths to module names
+	if strings.HasSuffix(module, ".pm") {
+		module = strings.TrimSuffix(module, ".pm")
+		module = strings.ReplaceAll(module, "/", "::")
+	}
+
+	if module == "" {
+		return ""
+	}
+
+	return module
+}
+
+// extractDependenciesFromRegex provides regex-based fallback extraction
+func (pa *ProjectAnalyzer) extractDependenciesFromRegex(content string) []string {
+	var dependencies []string
+
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -521,48 +666,48 @@ func (pa *ProjectAnalyzer) extractDependencies(content string) []string {
 			continue
 		}
 
-		// Match use statements
-		if strings.HasPrefix(line, "use ") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				module := parts[1]
-				// Remove version and semicolon
-				module = strings.TrimSuffix(module, ";")
-				if idx := strings.Index(module, " "); idx > 0 {
-					module = module[:idx]
-				}
+		// Match require statements with quoted strings
+		if strings.HasPrefix(line, "require ") && (strings.Contains(line, `"`) || strings.Contains(line, `'`)) {
+			module := strings.TrimPrefix(line, "require ")
+			module = strings.TrimSuffix(module, ";")
+			module = strings.TrimSpace(module)
+			module = strings.Trim(module, `"'`)
 
-				// Skip pragmas
-				if !strings.Contains(module, "::") && strings.ToLower(module) == module {
-					continue
-				}
-
-				if !seen[module] {
-					dependencies = append(dependencies, module)
-					seen[module] = true
-				}
-			}
-		}
-
-		// Match require statements
-		if strings.HasPrefix(line, "require ") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				module := strings.Trim(parts[1], "\"';")
-				if strings.HasSuffix(module, ".pm") {
-					module = strings.TrimSuffix(module, ".pm")
-					module = strings.ReplaceAll(module, "/", "::")
-				}
-
-				if !seen[module] && strings.Contains(module, "::") {
-					dependencies = append(dependencies, module)
-					seen[module] = true
-				}
+			if module != "" {
+				dependencies = append(dependencies, pa.normalizeRequiredModule(module))
 			}
 		}
 	}
 
 	return dependencies
+}
+
+// filterAndDeduplicateDependencies removes duplicates and filters out Perl pragmas
+func (pa *ProjectAnalyzer) filterAndDeduplicateDependencies(deps []string) []string {
+	seen := make(map[string]bool)
+	var filtered []string
+
+	// List of common Perl pragmas to filter out
+	pragmas := map[string]bool{
+		"strict": true, "warnings": true, "utf8": true, "feature": true,
+		"vars": true, "lib": true, "base": true, "parent": true,
+		"constant": true, "autodie": true, "experimental": true,
+		"bigint": true, "bignum": true, "bigrat": true, "integer": true,
+		"bytes": true, "charnames": true, "diagnostics": true,
+		"encoding": true, "fields": true, "filetest": true, "if": true,
+		"less": true, "locale": true, "open": true, "ops": true,
+		"overload": true, "re": true, "sigtrap": true, "sort": true,
+		"subs": true, "threads": true, "version": true,
+	}
+
+	for _, dep := range deps {
+		if dep != "" && !seen[dep] && !pragmas[dep] {
+			seen[dep] = true
+			filtered = append(filtered, dep)
+		}
+	}
+
+	return filtered
 }
 
 // updateDependencyGraph updates the dependency graph with module dependencies

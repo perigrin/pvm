@@ -471,8 +471,8 @@ func (itc *IncrementalTypeChecker) updateDependencies(filePath string, ast *ast.
 	itc.dependencyGraph.mu.Lock()
 	defer itc.dependencyGraph.mu.Unlock()
 
-	// Extract dependencies from imports (placeholder - AST doesn't have Imports field yet)
-	dependencies := []string{}
+	// Extract dependencies from use statements in the AST
+	dependencies := itc.extractDependenciesFromAST(ast)
 
 	// Update file dependencies
 	itc.dependencyGraph.FileDependencies[filePath] = dependencies
@@ -489,6 +489,72 @@ func (itc *IncrementalTypeChecker) updateDependencies(filePath string, ast *ast.
 	if state, exists := itc.fileStateCache[filePath]; exists {
 		state.Dependencies = dependencies
 	}
+}
+
+// extractDependenciesFromAST traverses the AST to find all use statements and extract module dependencies
+func (itc *IncrementalTypeChecker) extractDependenciesFromAST(astRoot *ast.AST) []string {
+	if astRoot == nil || astRoot.Root == nil {
+		return []string{}
+	}
+
+	var dependencies []string
+	visited := make(map[ast.Node]bool)
+
+	// Traverse the AST to find UseStmt nodes
+	itc.traverseASTForDependencies(astRoot.Root, &dependencies, visited)
+
+	// Remove duplicates and filter out pragmas
+	return itc.filterAndDeduplicateDependencies(dependencies)
+}
+
+// traverseASTForDependencies recursively traverses AST nodes to find UseStmt nodes
+func (itc *IncrementalTypeChecker) traverseASTForDependencies(node ast.Node, dependencies *[]string, visited map[ast.Node]bool) {
+	if node == nil || visited[node] {
+		return
+	}
+	visited[node] = true
+
+	// Check if this node is a UseStmt
+	if useStmt, ok := node.(*ast.UseStmt); ok {
+		if useStmt.Module != "" {
+			*dependencies = append(*dependencies, useStmt.Module)
+		}
+	}
+
+	// Traverse child nodes
+	for _, child := range node.Children() {
+		itc.traverseASTForDependencies(child, dependencies, visited)
+	}
+}
+
+// filterAndDeduplicateDependencies removes duplicates and filters out Perl pragmas
+func (itc *IncrementalTypeChecker) filterAndDeduplicateDependencies(deps []string) []string {
+	seen := make(map[string]bool)
+	var filtered []string
+
+	// List of common Perl pragmas to filter out
+	pragmas := map[string]bool{
+		"strict":       true,
+		"warnings":     true,
+		"utf8":         true,
+		"feature":      true,
+		"vars":         true,
+		"lib":          true,
+		"base":         true,
+		"parent":       true,
+		"constant":     true,
+		"autodie":      true,
+		"experimental": true,
+	}
+
+	for _, dep := range deps {
+		if dep != "" && !seen[dep] && !pragmas[dep] {
+			seen[dep] = true
+			filtered = append(filtered, dep)
+		}
+	}
+
+	return filtered
 }
 
 // calculateFilesToRecheck determines which files need to be re-checked based on changes
