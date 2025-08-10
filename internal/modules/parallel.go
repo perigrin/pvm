@@ -6,6 +6,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 
 	pviModules "tamarou.com/pvm/internal/pvi/modules"
@@ -89,9 +90,6 @@ type RichInstallPlan interface {
 
 // InstallModules installs multiple modules with dependency-aware parallel coordination
 func (pc *ParallelCoordinator) InstallModules(ctx context.Context, modules []string, opts InstallOptions) ([]*InstallResult, error) {
-	pc.mutex.Lock()
-	defer pc.mutex.Unlock()
-
 	if len(modules) == 0 {
 		return []*InstallResult{}, nil
 	}
@@ -473,6 +471,8 @@ func (pc *ParallelCoordinator) convertRichGraphToSimple(richGraphInterface inter
 			}
 		}
 	} else {
+		// Log conversion failure for debugging
+		log.Printf("Warning: Failed to convert rich dependency graph to simple format, using empty graph")
 		// Fallback: create empty graph - the actual dependency resolution
 		// will be handled by the advanced resolver anyway
 	}
@@ -511,6 +511,8 @@ func (pc *ParallelCoordinator) convertRichPlanToSimple(richPlanInterface interfa
 		}
 	}
 
+	// Log conversion failure for debugging
+	log.Printf("Warning: Failed to convert rich install plan to simple format, using empty plan")
 	// Fallback to empty plan
 	return &InstallPlan{}
 }
