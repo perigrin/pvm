@@ -14,7 +14,7 @@ import (
 	basetesting "tamarou.com/pvm/internal/testing"
 )
 
-// Benchmark parsing performance with different parser types
+// Benchmark parsing performance with tree-sitter parser
 func BenchmarkParser_SmallFile(b *testing.B) {
 	testCode := `my Int $count = 42;
 my Str $name = "test";
@@ -22,35 +22,18 @@ sub Str greet(Str $name) {
     return "Hello, " . $name;
 }`
 
-	b.Run("Scanner-based", func(b *testing.B) {
-		parser, err := NewParserWithOptions(true) // Use scanner
+	parser, err := NewParser()
+	if err != nil {
+		b.Fatalf("Failed to create parser: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := parser.ParseString(testCode)
 		if err != nil {
-			b.Fatalf("Failed to create scanner parser: %v", err)
+			b.Fatalf("Parse failed: %v", err)
 		}
-
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_, err := parser.ParseString(testCode)
-			if err != nil {
-				b.Fatalf("Parse failed: %v", err)
-			}
-		}
-	})
-
-	b.Run("Tree-sitter", func(b *testing.B) {
-		parser, err := NewParserWithOptions(false) // Use tree-sitter
-		if err != nil {
-			b.Fatalf("Failed to create tree-sitter parser: %v", err)
-		}
-
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_, err := parser.ParseString(testCode)
-			if err != nil {
-				b.Fatalf("Parse failed: %v", err)
-			}
-		}
-	})
+	}
 }
 
 // Benchmark parsing with medium-sized files
@@ -78,35 +61,18 @@ func BenchmarkParser_MediumFile(b *testing.B) {
 
 	testCode := builder.String()
 
-	b.Run("Scanner-based", func(b *testing.B) {
-		parser, err := NewParserWithOptions(true)
+	parser, err := NewParser()
+	if err != nil {
+		b.Fatalf("Failed to create parser: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := parser.ParseString(testCode)
 		if err != nil {
-			b.Fatalf("Failed to create scanner parser: %v", err)
+			b.Fatalf("Parse failed: %v", err)
 		}
-
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_, err := parser.ParseString(testCode)
-			if err != nil {
-				b.Fatalf("Parse failed: %v", err)
-			}
-		}
-	})
-
-	b.Run("Tree-sitter", func(b *testing.B) {
-		parser, err := NewParserWithOptions(false)
-		if err != nil {
-			b.Fatalf("Failed to create tree-sitter parser: %v", err)
-		}
-
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_, err := parser.ParseString(testCode)
-			if err != nil {
-				b.Fatalf("Parse failed: %v", err)
-			}
-		}
-	})
+	}
 }
 
 // Test memory usage patterns
@@ -117,67 +83,33 @@ sub Str greet(Str $name) {
     return "Hello, " . $name;
 }`
 
-	// Test memory usage for scanner-based parser
-	t.Run("Scanner-based memory usage", func(t *testing.T) {
-		runtime.GC()
-		var m1, m2 runtime.MemStats
-		runtime.ReadMemStats(&m1)
+	runtime.GC()
+	var m1, m2 runtime.MemStats
+	runtime.ReadMemStats(&m1)
 
-		parser, err := NewParserWithOptions(true)
+	parser, err := NewParser()
+	if err != nil {
+		t.Fatalf("Failed to create parser: %v", err)
+	}
+
+	// Parse multiple times to see memory patterns
+	for i := 0; i < 100; i++ {
+		_, err := parser.ParseString(testCode)
 		if err != nil {
-			t.Fatalf("Failed to create scanner parser: %v", err)
+			t.Fatalf("Parse failed on iteration %d: %v", i, err)
 		}
+	}
 
-		// Parse multiple times to see memory patterns
-		for i := 0; i < 100; i++ {
-			_, err := parser.ParseString(testCode)
-			if err != nil {
-				t.Fatalf("Parse failed on iteration %d: %v", i, err)
-			}
-		}
+	runtime.GC()
+	runtime.ReadMemStats(&m2)
 
-		runtime.GC()
-		runtime.ReadMemStats(&m2)
+	allocDiff := m2.TotalAlloc - m1.TotalAlloc
+	t.Logf("Parser memory usage: %d bytes allocated", allocDiff)
 
-		allocDiff := m2.TotalAlloc - m1.TotalAlloc
-		t.Logf("Scanner-based parser memory usage: %d bytes allocated", allocDiff)
-
-		// Basic sanity check - shouldn't use excessive memory for small files
-		if allocDiff > 10*1024*1024 { // 10MB threshold
-			t.Errorf("Excessive memory usage: %d bytes", allocDiff)
-		}
-	})
-
-	// Test memory usage for tree-sitter parser
-	t.Run("Tree-sitter memory usage", func(t *testing.T) {
-		runtime.GC()
-		var m1, m2 runtime.MemStats
-		runtime.ReadMemStats(&m1)
-
-		parser, err := NewParserWithOptions(false)
-		if err != nil {
-			t.Fatalf("Failed to create tree-sitter parser: %v", err)
-		}
-
-		// Parse multiple times to see memory patterns
-		for i := 0; i < 100; i++ {
-			_, err := parser.ParseString(testCode)
-			if err != nil {
-				t.Fatalf("Parse failed on iteration %d: %v", i, err)
-			}
-		}
-
-		runtime.GC()
-		runtime.ReadMemStats(&m2)
-
-		allocDiff := m2.TotalAlloc - m1.TotalAlloc
-		t.Logf("Tree-sitter parser memory usage: %d bytes allocated", allocDiff)
-
-		// Basic sanity check
-		if allocDiff > 10*1024*1024 { // 10MB threshold
-			t.Errorf("Excessive memory usage: %d bytes", allocDiff)
-		}
-	})
+	// Basic sanity check - shouldn't use excessive memory for small files
+	if allocDiff > 10*1024*1024 { // 10MB threshold
+		t.Errorf("Excessive memory usage: %d bytes", allocDiff)
+	}
 }
 
 // Test error handling and edge cases

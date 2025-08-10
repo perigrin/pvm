@@ -196,10 +196,6 @@ test-novendor: tree-sitter
 	rm -rf vendor || true
 	go test -mod=mod -v ./...
 
-# Run specific component tests
-test-scanner: tree-sitter install-tools
-	go run gotest.tools/gotestsum@latest --format=short -- -mod=mod ./internal/scanner/...
-
 # Run repository consistency tests to prevent configuration regressions
 test-repository-consistency:
 	@echo "Running repository consistency tests..."

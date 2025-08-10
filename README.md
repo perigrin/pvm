@@ -57,7 +57,6 @@ Check out the [Getting Started Guide](docs/quickstart.md) for immediate hands-on
 ## Modernized Architecture
 
 ### Compiler Pipeline
-- `internal/scanner/` - Lexical analysis and tokenization
 - `internal/parser/` - AST generation with tree-sitter integration
 - `internal/ast/` - Consolidated AST node types and navigation
 - `internal/binder/` - Symbol resolution and scope management
