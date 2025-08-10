@@ -4,12 +4,14 @@
 package perl
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // MacOSVersion represents a macOS version
@@ -41,8 +43,11 @@ func GetMacOSVersion() (*MacOSVersion, error) {
 		return nil, fmt.Errorf("not running on macOS")
 	}
 
-	// Try sw_vers first
-	cmd := exec.Command("sw_vers", "-productVersion")
+	// Try sw_vers first with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "sw_vers", "-productVersion")
 	output, err := cmd.Output()
 	if err != nil {
 		// If sw_vers fails, try using system_profiler as fallback
@@ -55,7 +60,10 @@ func GetMacOSVersion() (*MacOSVersion, error) {
 
 // getMacOSVersionFallback uses system_profiler as a fallback method
 func getMacOSVersionFallback() (*MacOSVersion, error) {
-	cmd := exec.Command("system_profiler", "SPSoftwareDataType")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "system_profiler", "SPSoftwareDataType")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect macOS version: %w", err)

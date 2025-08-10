@@ -24,6 +24,30 @@ type ConfigurePatcher struct {
 	verbose      bool
 }
 
+// validateFilePath ensures the target path is within the expected source directory
+func (cp *ConfigurePatcher) validateFilePath(path string) error {
+	cleanPath := filepath.Clean(path)
+	cleanSourceDir := filepath.Clean(cp.sourceDir)
+
+	// Convert to absolute paths for proper comparison
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path for %s: %w", path, err)
+	}
+
+	absSourceDir, err := filepath.Abs(cleanSourceDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path for source directory: %w", err)
+	}
+
+	// Check if path is within source directory
+	if !strings.HasPrefix(absPath, absSourceDir) {
+		return fmt.Errorf("path %s is outside expected source directory %s", path, absSourceDir)
+	}
+
+	return nil
+}
+
 // NewConfigurePatcher creates a new Configure patcher
 func NewConfigurePatcher(sourceDir, perlVersion string, verbose bool) (*ConfigurePatcher, error) {
 	if runtime.GOOS != "darwin" {
@@ -90,6 +114,11 @@ func (cp *ConfigurePatcher) getStrategyName() string {
 // patchDarwinHints patches the hints/darwin.sh file to handle newer macOS versions
 func (cp *ConfigurePatcher) patchDarwinHints() error {
 	hintsFile := filepath.Join(cp.sourceDir, "hints", "darwin.sh")
+
+	// Validate file path to prevent directory traversal
+	if err := cp.validateFilePath(hintsFile); err != nil {
+		return fmt.Errorf("invalid hints file path: %w", err)
+	}
 
 	// Check if hints file exists
 	if _, err := os.Stat(hintsFile); os.IsNotExist(err) {
@@ -193,6 +222,11 @@ esac
 // patchConfigureScript directly patches the Configure script
 func (cp *ConfigurePatcher) patchConfigureScript() error {
 	configureFile := filepath.Join(cp.sourceDir, "Configure")
+
+	// Validate file path to prevent directory traversal
+	if err := cp.validateFilePath(configureFile); err != nil {
+		return fmt.Errorf("invalid Configure script path: %w", err)
+	}
 
 	// Check if Configure script exists
 	if _, err := os.Stat(configureFile); os.IsNotExist(err) {
