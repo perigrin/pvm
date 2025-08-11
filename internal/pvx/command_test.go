@@ -72,6 +72,50 @@ func TestPVXDebugOutput(t *testing.T) {
 	})
 }
 
+func TestPVXAutoInstallFlag(t *testing.T) {
+	t.Run("LongForm", func(t *testing.T) {
+		// Test that --auto-install flag is parsed correctly
+		cmd := NewCommand()
+
+		// Parse flags with long form
+		err := cmd.ParseFlags([]string{"--auto-install", "-e", "print 'test'"})
+		require.NoError(t, err)
+
+		// Check that auto-install flag is set
+		autoInstall, err := cmd.Flags().GetBool("auto-install")
+		require.NoError(t, err)
+		assert.True(t, autoInstall, "Auto-install flag should be true with long form")
+	})
+
+	t.Run("ShortForm", func(t *testing.T) {
+		// Test that -a flag is parsed correctly as alias for --auto-install
+		cmd := NewCommand()
+
+		// Parse flags with short form
+		err := cmd.ParseFlags([]string{"-a", "-e", "print 'test'"})
+		require.NoError(t, err)
+
+		// Check that auto-install flag is set via short alias
+		autoInstall, err := cmd.Flags().GetBool("auto-install")
+		require.NoError(t, err)
+		assert.True(t, autoInstall, "Auto-install flag should be true with short form -a")
+	})
+
+	t.Run("DefaultValue", func(t *testing.T) {
+		// Test that auto-install flag defaults to false
+		cmd := NewCommand()
+
+		// Parse flags without auto-install flag
+		err := cmd.ParseFlags([]string{"-e", "print 'test'"})
+		require.NoError(t, err)
+
+		// Check that auto-install flag is false by default
+		autoInstall, err := cmd.Flags().GetBool("auto-install")
+		require.NoError(t, err)
+		assert.False(t, autoInstall, "Auto-install flag should be false by default")
+	})
+}
+
 func TestPVXCommand(t *testing.T) {
 	// We need to import the setupTestMocks function from executor_test.go
 	// For now, we'll skip the integration test since it's more complex to mock

@@ -101,8 +101,34 @@ func TestDirectMethodScopeIsolation(t *testing.T) {
 
 	// Log final scope structure
 	t.Logf("=== FINAL SCOPE HIERARCHY ===")
-	// TODO: Re-implement logScopeStructure helper function
-	// logScopeStructure(t, symbolTable.GlobalScope, 0)
+	logScopeStructure(t, symbolTable.GlobalScope, 0)
+}
+
+// logScopeStructure recursively logs the scope hierarchy for debugging.
+// It displays each scope with its ID, kind (Global, Method, Block, etc.),
+// symbol count, and all contained symbols with proper indentation to show
+// the parent-child relationship. This is particularly useful for debugging
+// scope isolation issues in the binder tests.
+func logScopeStructure(t *testing.T, scope *Scope, depth int) {
+	if scope == nil {
+		return
+	}
+
+	indent := ""
+	for i := 0; i < depth; i++ {
+		indent += "  "
+	}
+
+	t.Logf("%sScope ID=%d Kind=%s Symbols=%d",
+		indent, scope.ScopeID, scope.Kind.String(), len(scope.Symbols))
+
+	for name, symbol := range scope.Symbols {
+		t.Logf("%s  Symbol: %s %s", indent, symbol.Kind.String(), name)
+	}
+
+	for _, child := range scope.Children {
+		logScopeStructure(t, child, depth+1)
+	}
 }
 
 // Helper to count method scopes in hierarchy

@@ -14,8 +14,8 @@ The PVM Ecosystem provides a comprehensive suite of tools for Perl development w
 ### Linux
 ```bash
 # Download for your platform
-wget https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-linux-amd64.tar.gz
-tar -xzf pvm-1.0.0-rc32-linux-amd64.tar.gz
+wget https://github.com/perigrin/pvm/releases/download/v1.0.0-rc43/pvm-1.0.0-rc43-linux-amd64.tar.gz
+tar -xzf pvm-1.0.0-rc43-linux-amd64.tar.gz
 
 # Make binaries executable and test
 chmod +x pvm-* pm-* pvx-*
@@ -25,8 +25,8 @@ chmod +x pvm-* pm-* pvx-*
 ### macOS
 ```bash
 # Download for your platform (Intel or Apple Silicon)
-wget https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-darwin-amd64.tar.gz
-tar -xzf pvm-1.0.0-rc32-darwin-amd64.tar.gz
+wget https://github.com/perigrin/pvm/releases/download/v1.0.0-rc43/pvm-1.0.0-rc43-darwin-amd64.tar.gz
+tar -xzf pvm-1.0.0-rc43-darwin-amd64.tar.gz
 
 # Make executable and remove quarantine flag
 chmod +x pvm-darwin-amd64
