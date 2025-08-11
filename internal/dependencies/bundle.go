@@ -61,16 +61,25 @@ type BundleEntry struct {
 	Relationship string `json:"relationship,omitempty"`
 }
 
+// Manager defines the interface for module management operations used by BundleManager
+type Manager interface {
+	// InstallBatch installs multiple modules, returning results for each
+	InstallBatch(ctx context.Context, modules []string, opts modules.InstallOptions) ([]*modules.InstallResult, error)
+
+	// IsInstalled checks if a module is already installed
+	IsInstalled(ctx context.Context, module string) (bool, error)
+}
+
 // BundleManager manages bundle operations
 type BundleManager struct {
 	resolver *DependencyResolver
-	manager  interface{} // TODO: Use proper manager interface
+	manager  Manager
 	tracker  progress.Tracker
 	logger   *log.Logger
 }
 
 // NewBundleManager creates a new bundle manager
-func NewBundleManager(resolver *DependencyResolver, manager interface{}, tracker progress.Tracker, logger *log.Logger) *BundleManager {
+func NewBundleManager(resolver *DependencyResolver, manager Manager, tracker progress.Tracker, logger *log.Logger) *BundleManager {
 	if logger == nil {
 		logger = log.New(os.Stderr, "[BundleManager] ", log.LstdFlags)
 	}
@@ -351,28 +360,32 @@ func (bm *BundleManager) InstallBundle(ctx context.Context, bundle *Bundle, opti
 		}
 
 		// Skip already installed modules if requested
-		if options.SkipInstalled {
-			// This would need integration with the module manager to check if installed
-			// For now, we'll install all modules
+		if options.SkipInstalled && bm.manager != nil {
+			if installed, err := bm.manager.IsInstalled(ctx, entry.Name); err != nil {
+				bm.logger.Printf("Failed to check if module %s is installed: %v", entry.Name, err)
+			} else if installed {
+				bm.logger.Printf("Skipping already installed module: %s", entry.Name)
+				continue
+			}
 		}
 
 		modulesToInstall = append(modulesToInstall, entry)
 	}
 
-	// Convert bundle entries to module install options
+	// Convert bundle entries to module names and prepare install options
 	var moduleNames []string
-	installOptions := make(map[string]modules.InstallOptions)
-
 	for _, entry := range modulesToInstall {
 		moduleNames = append(moduleNames, entry.Name)
+	}
 
-		installOptions[entry.Name] = modules.InstallOptions{
-			RunTests:         !options.SkipTests,
-			Force:            options.Force,
-			SkipDependencies: options.SkipDependencies,
-			Parallel:         options.Parallel,
-			Workers:          options.Workers,
-		}
+	// Prepare common install options for all modules
+	installOptions := modules.InstallOptions{
+		RunTests:         !options.SkipTests,
+		Force:            options.Force,
+		SkipDependencies: options.SkipDependencies,
+		Parallel:         options.Parallel,
+		Workers:          options.Workers,
+		Context:          ctx,
 	}
 
 	// Install modules
@@ -399,18 +412,8 @@ func (bm *BundleManager) InstallBundle(ctx context.Context, bundle *Bundle, opti
 			nil)
 	}
 
-	// TODO: Implement actual module installation once manager interface is resolved
-	// For now, create mock results
-	var results []*modules.InstallResult
-	for _, module := range moduleNames {
-		results = append(results, &modules.InstallResult{
-			ModuleName: module,
-			Version:    "1.0.0",
-			Success:    true,
-		})
-	}
-
-	return results, nil
+	// Install modules using the typed interface
+	return bm.manager.InstallBatch(ctx, moduleNames, installOptions)
 }
 
 // ValidateBundle validates a bundle's structure and content
