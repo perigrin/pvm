@@ -8,8 +8,11 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/config"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/lsp"
 )
@@ -69,7 +72,21 @@ func init() {
 
 // runLSPCommand executes the LSP server command
 func runLSPCommand(cmd *cobra.Command, args []string) error {
-	// Setup logging
+	// Load configuration
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		// If config loading fails, log a warning but continue with defaults
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load configuration: %v\n", err)
+		cfg = config.NewDefaultConfig()
+	}
+
+	// Apply LSP configuration to options (config file settings are defaults,
+	// command-line flags take precedence)
+	if cfg.PSC != nil && cfg.PSC.LSP != nil {
+		applyLSPConfig(lspOpts, cfg.PSC.LSP, cmd)
+	}
+
+	// Setup logging with applied configuration
 	logger := setupLSPLogging(lspOpts)
 
 	// Default to stdio if neither stdio nor tcp is specified
@@ -163,6 +180,63 @@ func setupLSPLogging(opts *lspOptions) *log.Logger {
 	}
 
 	return logger
+}
+
+// applyLSPConfig applies configuration values to LSP options.
+// Command-line flags take precedence over configuration file settings.
+func applyLSPConfig(opts *lspOptions, lspConfig *config.PSCLSPConfig, cmd *cobra.Command) {
+	// Apply communication mode from config if not explicitly set via command line
+	if !cmd.Flags().Changed("stdio") && !cmd.Flags().Changed("tcp") && lspConfig.DefaultMode != "" {
+		switch lspConfig.DefaultMode {
+		case "stdio":
+			opts.stdio = true
+			opts.tcp = false
+		case "tcp":
+			opts.stdio = false
+			opts.tcp = true
+		}
+	}
+
+	// Apply TCP port from config if not explicitly set via command line
+	if !cmd.Flags().Changed("port") && lspConfig.TCPPort > 0 {
+		opts.port = lspConfig.TCPPort
+	}
+
+	// Apply verbose setting from config if not explicitly set via command line
+	if !cmd.Flags().Changed("verbose") {
+		opts.verbose = lspConfig.Verbose
+	}
+
+	// Apply log file from config if not explicitly set via command line
+	if !cmd.Flags().Changed("log-file") && lspConfig.LogFile != "" {
+		// Expand environment variables and relative paths in log file path
+		logFile := expandPath(lspConfig.LogFile)
+		opts.logFile = logFile
+	}
+}
+
+// expandPath expands environment variables and converts relative paths to absolute paths
+func expandPath(path string) string {
+	// Handle XDG-style paths manually before general expansion
+	if strings.Contains(path, "$XDG_CACHE_HOME") {
+		if xdgCache := os.Getenv("XDG_CACHE_HOME"); xdgCache != "" {
+			path = strings.Replace(path, "$XDG_CACHE_HOME", xdgCache, -1)
+		} else if home := os.Getenv("HOME"); home != "" {
+			path = strings.Replace(path, "$XDG_CACHE_HOME", filepath.Join(home, ".cache"), -1)
+		}
+	}
+
+	// Then expand other environment variables
+	expanded := os.ExpandEnv(path)
+
+	// Convert to absolute path if not already absolute
+	if !filepath.IsAbs(expanded) {
+		if abs, err := filepath.Abs(expanded); err == nil {
+			expanded = abs
+		}
+	}
+
+	return expanded
 }
 
 // testLSPConnection tests the LSP server connection

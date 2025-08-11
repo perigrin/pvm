@@ -350,6 +350,57 @@ func mergePSCConfig(target, source *PSCConfig) {
 		target.WatchExclude = make([]string, len(source.WatchExclude))
 		copy(target.WatchExclude, source.WatchExclude)
 	}
+
+	// Merge nested LSP configuration
+	if source.LSP != nil {
+		if target.LSP == nil {
+			target.LSP = &PSCLSPConfig{}
+		}
+		mergePSCLSPConfig(target.LSP, source.LSP)
+	}
+}
+
+func mergePSCLSPConfig(target, source *PSCLSPConfig) {
+	// For all fields, source takes precedence over target
+
+	// String fields
+	if source.LogFile != "" {
+		target.LogFile = source.LogFile
+	}
+	if source.LogLevel != "" {
+		target.LogLevel = source.LogLevel
+	}
+	if source.DefaultMode != "" {
+		target.DefaultMode = source.DefaultMode
+	}
+
+	// Integer fields (always merge, allows zero to override)
+	target.TCPPort = source.TCPPort
+	target.MaxCacheSize = source.MaxCacheSize
+
+	// Duration fields (always merge)
+	target.RequestTimeout = source.RequestTimeout
+	target.DiagnosticsDelay = source.DiagnosticsDelay
+
+	// Boolean fields (always merge)
+	target.Verbose = source.Verbose
+	target.EnableHover = source.EnableHover
+	target.EnableCompletion = source.EnableCompletion
+	target.EnableDefinition = source.EnableDefinition
+	target.EnableReferences = source.EnableReferences
+	target.EnableFormatting = source.EnableFormatting
+	target.WorkspaceSymbols = source.WorkspaceSymbols
+	target.CrossFileAnalysis = source.CrossFileAnalysis
+
+	// Merge arrays (replace entirely)
+	if source.ExcludePatterns != nil {
+		target.ExcludePatterns = make([]string, len(source.ExcludePatterns))
+		copy(target.ExcludePatterns, source.ExcludePatterns)
+	}
+	if source.IncludeDirectories != nil {
+		target.IncludeDirectories = make([]string, len(source.IncludeDirectories))
+		copy(target.IncludeDirectories, source.IncludeDirectories)
+	}
 }
 
 func mergeProjectConfig(target, source *ProjectConfig) {
