@@ -15,6 +15,63 @@ import (
 	"tamarou.com/pvm/internal/cli"
 )
 
+func TestPVXDebugOutput(t *testing.T) {
+	t.Run("VerboseFlag", func(t *testing.T) {
+		// Test that --verbose flag is parsed correctly
+		cmd := NewCommand()
+
+		// Set up arguments with verbose flag
+		cmd.SetArgs([]string{"--verbose", "-e", "print 'test'"})
+
+		// Parse flags
+		err := cmd.ParseFlags([]string{"--verbose", "-e", "print 'test'"})
+		require.NoError(t, err)
+
+		// Check that verbose flag is set
+		verbose, err := cmd.Flags().GetBool("verbose")
+		require.NoError(t, err)
+		assert.True(t, verbose, "Verbose flag should be true")
+	})
+
+	t.Run("DebugFlag", func(t *testing.T) {
+		// Test that --debug flag is parsed correctly
+		cmd := NewCommand()
+
+		// Set up arguments with debug flag
+		cmd.SetArgs([]string{"--debug", "-e", "print 'test'"})
+
+		// Parse flags
+		err := cmd.ParseFlags([]string{"--debug", "-e", "print 'test'"})
+		require.NoError(t, err)
+
+		// Check that debug flag is set
+		debug, err := cmd.Flags().GetBool("debug")
+		require.NoError(t, err)
+		assert.True(t, debug, "Debug flag should be true")
+	})
+
+	t.Run("BothVerboseAndDebug", func(t *testing.T) {
+		// Test that both flags can be used together
+		cmd := NewCommand()
+
+		// Set up arguments with both flags
+		cmd.SetArgs([]string{"--verbose", "--debug", "-e", "print 'test'"})
+
+		// Parse flags
+		err := cmd.ParseFlags([]string{"--verbose", "--debug", "-e", "print 'test'"})
+		require.NoError(t, err)
+
+		// Check that both flags are set
+		verbose, err := cmd.Flags().GetBool("verbose")
+		require.NoError(t, err)
+		assert.True(t, verbose, "Verbose flag should be true")
+
+		debug, err := cmd.Flags().GetBool("debug")
+		require.NoError(t, err)
+		assert.True(t, debug, "Debug flag should be true")
+	})
+}
+
 func TestPVXCommand(t *testing.T) {
 	// We need to import the setupTestMocks function from executor_test.go
 	// For now, we'll skip the integration test since it's more complex to mock

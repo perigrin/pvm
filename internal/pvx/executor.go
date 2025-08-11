@@ -119,6 +119,9 @@ type ExecutionOptions struct {
 	// Whether to suppress all non-error output
 	Quiet bool
 
+	// Whether to enable debug output showing detailed version resolution process
+	Debug bool
+
 	// Whether to create an isolated environment for the script (deprecated, use IsolationLevel instead)
 	Isolated bool
 
@@ -243,22 +246,62 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 	}
 
 	// Resolve Perl version to use - we need the resolved version for both execution and module installation
-	resolvedVersion, err := perl.ResolveVersion(&perl.ResolutionOptions{
+	if options.Debug {
+		log.Infof("[DEBUG] Starting Perl version resolution process...")
+		log.Infof("[DEBUG] Explicit version: %s", options.PerlVersion)
+		log.Infof("[DEBUG] Script path: %s", options.ScriptPath)
+		log.Infof("[DEBUG] Environment variables:")
+		log.Infof("[DEBUG]   PVM_PERL_VERSION: %s", os.Getenv("PVM_PERL_VERSION"))
+		log.Infof("[DEBUG]   PLENV_VERSION: %s", os.Getenv("PLENV_VERSION"))
+		log.Infof("[DEBUG]   PERLBREW_PERL: %s", os.Getenv("PERLBREW_PERL"))
+	}
+
+	// Create resolution options with debug callback if needed
+	resolutionOptions := &perl.ResolutionOptions{
 		ExplicitVersion:     options.PerlVersion,
 		ScriptPath:          options.ScriptPath,
 		SkipVersionResolved: !options.Verbose, // Only log if verbose
-	})
+	}
+
+	// Add debug callback if debug mode is enabled
+	if options.Debug {
+		stepNumber := 0
+		resolutionOptions.DebugCallback = func(step string, details interface{}) {
+			stepNumber++
+			log.Infof("[DEBUG]   %d. %s: %v", stepNumber, step, details)
+		}
+	}
+
+	resolvedVersion, err := perl.ResolveVersion(resolutionOptions)
 	if err != nil {
+		if options.Debug {
+			log.Infof("[DEBUG] Version resolution failed: %v", err)
+		}
 		return "", errors.NewExecutionError(
 			ErrVersionNotFound,
 			"Failed to resolve Perl version",
 			err)
 	}
 
+	// Log resolution result
+	if options.Debug {
+		log.Infof("[DEBUG] Resolution result: %s (from %s)", resolvedVersion.Version, resolvedVersion.Source)
+		log.Infof("[DEBUG] Source path: %s", resolvedVersion.SourcePath)
+	}
+
 	// Get the Perl executable path using the existing function
+	if options.Debug {
+		log.Infof("[DEBUG] Resolving Perl executable path...")
+	}
 	perlExe, err := resolvePerlExecutable(options)
 	if err != nil {
+		if options.Debug {
+			log.Infof("[DEBUG] Failed to resolve Perl executable: %v", err)
+		}
 		return "", err
+	}
+	if options.Debug {
+		log.Infof("[DEBUG] Perl executable: %s", perlExe)
 	}
 
 	// Install required modules using PVI if needed
@@ -478,9 +521,23 @@ func ExecuteInlineCode(options *ExecutionOptions, uiOutput ...*ui.Output) (strin
 	}
 
 	// Resolve Perl version to use
+	if options.Debug {
+		log.Infof("[DEBUG] Starting Perl version resolution for inline code execution...")
+		log.Infof("[DEBUG] Explicit version: %s", options.PerlVersion)
+		log.Infof("[DEBUG] Environment variables:")
+		log.Infof("[DEBUG]   PVM_PERL_VERSION: %s", os.Getenv("PVM_PERL_VERSION"))
+		log.Infof("[DEBUG]   PLENV_VERSION: %s", os.Getenv("PLENV_VERSION"))
+		log.Infof("[DEBUG]   PERLBREW_PERL: %s", os.Getenv("PERLBREW_PERL"))
+	}
 	perlExe, err := resolvePerlExecutable(options)
 	if err != nil {
+		if options.Debug {
+			log.Infof("[DEBUG] Failed to resolve Perl executable for inline code: %v", err)
+		}
 		return "", err
+	}
+	if options.Debug {
+		log.Infof("[DEBUG] Using Perl executable for inline code: %s", perlExe)
 	}
 
 	// Build command arguments for inline code execution
@@ -757,11 +814,43 @@ func resolvePerlExecutableImpl(options *ExecutionOptions) (string, error) {
 	log.Debugf("Using Perl executable: %s (version %s from %s)",
 		perlExe, resolvedVersion.Version, resolvedVersion.Source)
 	if options.Verbose {
-		log.Infof("Using Perl version %s via %s",
-			resolvedVersion.Version, perlExe)
+		log.Infof("Using Perl version %s via %s", resolvedVersion.Version, perlExe)
+		log.Infof("Source: %s", getSourceDisplayName(resolvedVersion.Source, resolvedVersion.SourcePath))
 	}
 
 	return perlExe, nil
+}
+
+// getSourceDisplayName converts a resolution source to a user-friendly display name
+func getSourceDisplayName(source perl.ResolutionSource, sourcePath string) string {
+	switch source {
+	case perl.ExplicitVersion:
+		return "explicit version (command line)"
+	case perl.ProjectVersionFile:
+		if sourcePath != "" {
+			return fmt.Sprintf(".perl-version file (%s)", sourcePath)
+		}
+		return ".perl-version file"
+	case perl.ProjectConfig:
+		if sourcePath != "" {
+			return fmt.Sprintf("project configuration (%s)", sourcePath)
+		}
+		return "project configuration"
+	case perl.EnvironmentVariable:
+		if sourcePath != "" {
+			return fmt.Sprintf("environment variable (%s)", sourcePath)
+		}
+		return "environment variable"
+	case perl.UserConfig:
+		if sourcePath != "" {
+			return fmt.Sprintf("user configuration (%s)", sourcePath)
+		}
+		return "user configuration"
+	case perl.SystemPerlSource:
+		return "system Perl"
+	default:
+		return string(source)
+	}
 }
 
 // buildArguments creates the command line arguments for Perl
