@@ -14,6 +14,7 @@ import (
 	"tamarou.com/pvm/internal/build"
 	"tamarou.com/pvm/internal/cli"
 	"tamarou.com/pvm/internal/config"
+	"tamarou.com/pvm/internal/integration"
 	"tamarou.com/pvm/internal/project"
 )
 
@@ -58,6 +59,9 @@ Examples:
 	cmd.Flags().Bool("skip-metadata", false, "Skip metadata generation")
 	cmd.Flags().Bool("include-tests", true, "Include tests in distribution")
 	cmd.Flags().Bool("include-scripts", true, "Include scripts in distribution")
+
+	// Add build subcommands
+	cmd.AddCommand(newBuildCheckCommand())
 
 	return cmd
 }
@@ -456,4 +460,102 @@ func executeWatchBuild(ctx context.Context, cmd *cobra.Command, projectCtx *proj
 			}
 		}
 	}
+}
+
+// newBuildCheckCommand creates a new check command for type checking
+func newBuildCheckCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "check [files...]",
+		Short: "Type check Perl files with type annotations",
+		Long: `Performs comprehensive type checking on Perl files using PVM's
+typed-Perl type system.
+
+This command provides enhanced type checking by:
+- Using project configuration for consistent behavior
+- Resolving appropriate Perl version automatically
+- Generating type definitions for better IDE support
+- Providing structured error reporting
+- Integrating with workflow system for reliability`,
+		RunE: runBuildCheck,
+	}
+
+	cmd.Flags().String("perl", "", "Perl version to use for type checking")
+	cmd.Flags().Bool("verbose", false, "Enable verbose type checking output")
+
+	return cmd
+}
+
+// runBuildCheck executes the type checking workflow
+func runBuildCheck(cmd *cobra.Command, args []string) error {
+	perlVersion, _ := cmd.Flags().GetString("perl")
+	verbose, _ := cmd.Flags().GetBool("verbose")
+
+	// Determine script to check
+	var scriptPath string
+	if len(args) > 0 {
+		scriptPath = args[0]
+		// TODO: Handle multiple files - for now just check first one
+	} else {
+		return fmt.Errorf("no files specified for type checking")
+	}
+
+	ui := cli.GetUI(cmd)
+	ui.Status("Starting type checking...")
+
+	// Run type check workflow
+	result, err := integration.TypeCheckWorkflow(scriptPath, perlVersion, verbose)
+	if err != nil {
+		ui.Error("Type checking failed: %v", err)
+		return err
+	}
+
+	// Display type checking results
+	if result.TypeCheckPassed && len(result.TypeErrors) == 0 {
+		ui.Success("✓ Type checking completed successfully")
+	} else {
+		ui.Error("✗ Type checking failed")
+	}
+
+	if verbose || !result.TypeCheckPassed {
+		ui.Info("Type Check Details:")
+
+		if result.TypeCheckPassed {
+			ui.Success("  ✓ Type Checking: Success")
+			if len(result.TypeErrors) > 0 {
+				ui.Warning("  ⚠ Type Warnings: %d", len(result.TypeErrors))
+				if verbose {
+					for _, typeErr := range result.TypeErrors {
+						ui.Warning("    • %s:%d - %s", typeErr.Path, typeErr.Line, typeErr.Message)
+					}
+				}
+			}
+		} else {
+			ui.Error("  ✗ Type Checking: Failed")
+			if len(result.TypeErrors) > 0 {
+				ui.Error("  Type Errors: %d", len(result.TypeErrors))
+				if verbose {
+					for _, typeErr := range result.TypeErrors {
+						ui.Error("    • %s:%d - %s", typeErr.Path, typeErr.Line, typeErr.Message)
+					}
+				}
+			}
+		}
+
+		if len(result.Errors) > 0 {
+			ui.Error("Other Errors:")
+			for _, err := range result.Errors {
+				ui.Error("  • %v", err)
+			}
+		}
+
+		if result.Duration > 0 {
+			ui.Info("Type checking completed in %s", result.Duration)
+		}
+	}
+
+	if !result.TypeCheckPassed {
+		return fmt.Errorf("type checking failed")
+	}
+
+	return nil
 }

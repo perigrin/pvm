@@ -35,6 +35,47 @@ func TestNewBuildCommand(t *testing.T) {
 			t.Errorf("Expected flag %s to be present", flag)
 		}
 	}
+
+	// Check that the check subcommand is present
+	checkCmd := findSubcommand(cmd, "check")
+	if checkCmd == nil {
+		t.Error("Expected 'check' subcommand to be present in build command")
+	}
+}
+
+func TestNewBuildCheckCommand(t *testing.T) {
+	cmd := newBuildCheckCommand()
+
+	if cmd.Use != "check [files...]" {
+		t.Errorf("Expected Use to be 'check [files...]', got %s", cmd.Use)
+	}
+
+	if cmd.Short != "Type check Perl files with type annotations" {
+		t.Errorf("Expected Short description about type checking, got %s", cmd.Short)
+	}
+
+	// Check that command has the expected flags
+	expectedFlags := []string{"perl", "verbose"}
+	for _, flag := range expectedFlags {
+		if cmd.Flags().Lookup(flag) == nil {
+			t.Errorf("Expected flag %s to be present", flag)
+		}
+	}
+
+	// Check that RunE function is set
+	if cmd.RunE == nil {
+		t.Error("Expected RunE function to be set")
+	}
+}
+
+// Helper function to find subcommands
+func findSubcommand(parent *cobra.Command, name string) *cobra.Command {
+	for _, cmd := range parent.Commands() {
+		if cmd.Name() == name {
+			return cmd
+		}
+	}
+	return nil
 }
 
 func TestParseBuildOptions(t *testing.T) {

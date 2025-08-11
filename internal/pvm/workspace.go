@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli"
+	"tamarou.com/pvm/internal/integration"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/xdg"
@@ -75,6 +76,7 @@ func newWorkspaceCommand() *cobra.Command {
 		newWorkspaceStatusCommand(),
 		newWorkspaceDoctorCommand(),
 		newWorkspaceTemplatesCommand(),
+		newWorkspaceValidateCommand(),
 	)
 
 	return cmd
@@ -1247,4 +1249,96 @@ output_dir = "build"
 `, projectName)
 	path := filepath.Join(rootDir, "pvm.toml")
 	return os.WriteFile(path, []byte(config), 0644)
+}
+
+// newWorkspaceValidateCommand creates a new validate command for workspace validation
+func newWorkspaceValidateCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "validate [script]",
+		Short: "Validate complete workspace setup",
+		Long: `Validates the complete PVM workspace setup including configuration,
+dependencies, type checking, and execution.
+
+This command provides comprehensive workspace validation by:
+- Checking project configuration and structure
+- Verifying Perl version availability
+- Resolving and testing all dependencies
+- Running type checking on project files
+- Executing validation script if provided
+- Generating detailed validation report`,
+		RunE: runWorkspaceValidate,
+	}
+
+	cmd.Flags().Bool("verbose", false, "Enable verbose validation output")
+
+	return cmd
+}
+
+// runWorkspaceValidate executes the workspace validation workflow
+func runWorkspaceValidate(cmd *cobra.Command, args []string) error {
+	verbose, _ := cmd.Flags().GetBool("verbose")
+
+	// Determine validation script
+	var scriptPath string
+	if len(args) > 0 {
+		scriptPath = args[0]
+	}
+	// If no script provided, ValidationWorkflow will use defaults
+
+	ui := cli.GetUI(cmd)
+	ui.Status("Starting workspace validation...")
+
+	// Run validation workflow
+	result, err := integration.ValidationWorkflow(scriptPath)
+	if err != nil {
+		ui.Error("Workspace validation failed: %v", err)
+		return err
+	}
+
+	// Display validation results
+	success := len(result.Errors) == 0 && result.ExecutionExitCode == 0
+	if success {
+		ui.Success("✓ Workspace validation completed successfully")
+	} else {
+		ui.Error("✗ Workspace validation failed")
+	}
+
+	if verbose || !success {
+		ui.Info("Validation Details:")
+
+		if result.TypeCheckPassed {
+			ui.Success("  ✓ Type Checking: Success")
+			if len(result.TypeErrors) > 0 {
+				ui.Warning("  ⚠ Type Warnings: %d", len(result.TypeErrors))
+			}
+		} else {
+			ui.Error("  ✗ Type Checking: Failed")
+			if len(result.TypeErrors) > 0 {
+				ui.Error("  Type Errors: %d", len(result.TypeErrors))
+			}
+		}
+
+		if result.ExecutionExitCode == 0 {
+			ui.Success("  ✓ Execution: Success")
+		} else {
+			ui.Error("  ✗ Execution: Failed (exit code %d)", result.ExecutionExitCode)
+		}
+
+		if len(result.Errors) > 0 {
+			ui.Error("Errors:")
+			for _, err := range result.Errors {
+				ui.Error("  • %v", err)
+			}
+		}
+
+		if result.Duration > 0 {
+			ui.Info("Validation completed in %s", result.Duration)
+		}
+	}
+
+	if !success {
+		return fmt.Errorf("workspace validation failed")
+	}
+
+	return nil
 }
