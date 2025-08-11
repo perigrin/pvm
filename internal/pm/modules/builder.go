@@ -94,6 +94,9 @@ type ModuleBuildOptions struct {
 	// Run tests before installation
 	RunTests bool
 
+	// Skip tests completely
+	NoTest bool
+
 	// Force installation even if tests fail
 	Force bool
 
@@ -141,6 +144,9 @@ type ModuleBuildResult struct {
 
 	// Whether tests were run and passed
 	TestsPassed bool
+
+	// Detailed test results if tests were run
+	TestResults *errors.TestResults
 
 	// Warning messages from the build process
 	Warnings []string
@@ -416,7 +422,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 	// Run tests if requested
 	result.TestsPassed = !options.RunTests // If tests aren't run, consider them "passed"
 
-	if options.RunTests {
+	if options.RunTests && !options.NoTest {
 		updateStage(StageTest, "Running tests", 0.0)
 
 		var testCmd []string
@@ -436,16 +442,20 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 		output, err := runCommandWithEnv(options.ModuleDir, testCmd, options.Context, options.Environment)
 		outputBuffer.WriteString(output)
 
+		// Parse test output using the new parser
+		parser := NewTAPParser(options.Verbose)
+		testResults := parser.ParseTestOutput(output)
+		result.TestResults = testResults
+
 		if err != nil {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("Tests failed: %v", err))
+			// Create user-friendly error using new error type
+			testError := errors.NewModuleTestFailureError(options.ModuleName, "", testResults)
+
+			result.Warnings = append(result.Warnings, testError.Error())
 			log.Warnf("Tests failed for %s: %v", options.ModuleName, err)
 
 			if !options.Force {
-				return result, errors.NewSystemError(
-					ErrTestFailed,
-					"Module tests failed",
-					err).
-					WithLocation(options.ModuleDir)
+				return result, testError
 			}
 
 			// If Force is true, continue despite test failures
@@ -453,6 +463,9 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 		} else {
 			result.TestsPassed = true
 		}
+	} else if options.NoTest {
+		log.Infof("Skipping tests for %s (--notest flag)", options.ModuleName)
+		result.TestsPassed = true // Consider tests "passed" when skipped
 	}
 
 	// Install the module

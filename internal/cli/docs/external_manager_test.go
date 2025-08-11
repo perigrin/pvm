@@ -464,20 +464,28 @@ func TestExternalManagerErrorConditions(t *testing.T) {
 
 	t.Run("Network Timeout", func(t *testing.T) {
 		docsConfig := &config.DocsConfig{
-			Repository: "perigrin/pvm",
-			Branch:     "pu",
-			CacheDir:   tmpDir,
-			CacheTTL:   1,
-			MaxRetries: 1,
-			Timeout:    "1ms", // Very short timeout
+			Repository:  "perigrin/pvm",
+			Branch:      "pu",
+			CacheDir:    tmpDir,
+			CacheTTL:    1,
+			MaxRetries:  1,
+			Timeout:     "1ms", // Very short timeout
+			OfflineMode: false, // Ensure we try to connect
 		}
 
+		// Create a manager with no fallback
 		extManager := NewExternalDocumentManager(docsConfig, nil)
+
+		// Clear any potential cache
+		extManager.indexBuilt = false
+		extManager.index = make(map[string]DocumentInfo)
 
 		// This should timeout and fail
 		_, err := extManager.GetDocument("test")
 		if err == nil {
-			t.Error("Expected timeout error, got nil")
+			t.Error("Expected error due to timeout, got nil")
+		} else {
+			t.Logf("Got expected error: %v", err)
 		}
 	})
 

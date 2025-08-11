@@ -115,6 +115,9 @@ type InstallOptions struct {
 	// RunTests enables test execution during installation
 	RunTests bool
 
+	// NoTest skips test execution entirely
+	NoTest bool
+
 	// SkipDependencies skips dependency installation
 	SkipDependencies bool
 

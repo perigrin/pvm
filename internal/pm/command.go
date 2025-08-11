@@ -1218,6 +1218,7 @@ func newInstallCommand() *cobra.Command {
 		verbose    bool
 		force      bool
 		skipTests  bool
+		notest     bool
 		skipDeps   bool
 		noCache    bool
 		installDir string
@@ -1281,12 +1282,14 @@ func newInstallCommand() *cobra.Command {
 			)
 
 			// Set up install options
+			skipTestsOrNotest := skipTests || notest
 			installOptions := modules.InstallOptions{
 				PerlPath:          perlPath,
 				InstallDir:        resolveInstallDir(installDir, args),
 				VersionConstraint: version,
 				Force:             force,
-				RunTests:          !skipTests,
+				RunTests:          !skipTestsOrNotest,
+				NoTest:            skipTestsOrNotest,
 				SkipDependencies:  skipDeps,
 				Verbose:           verbose,
 				Cleanup:           true,
@@ -1313,6 +1316,7 @@ func newInstallCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force installation even if tests fail")
 	cmd.Flags().BoolVar(&skipTests, "skip-tests", false, "Skip running tests during installation")
+	cmd.Flags().BoolVar(&notest, "notest", false, "Skip running tests during installation (alias for --skip-tests)")
 	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency installation")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "Disable caching")
 	cmd.Flags().StringVar(&installDir, "install-dir", "", "Installation directory")
@@ -2059,8 +2063,8 @@ func (p *PMModuleInstaller) InstallModule(moduleName string, verbose bool) error
 	// Use system perl for installation (empty string means use system perl)
 	options := &pviModules.ModuleInstallOptions{
 		ModuleName:        moduleName,
-		VersionConstraint: "", // Use latest available version
-		PerlPath:          "", // Use system perl
+		VersionConstraint: "",    // Use latest available version
+		PerlPath:          "",    // Use system perl
 		RunTests:          false, // Skip tests for faster installation
 		Force:             false,
 		Cleanup:           true,

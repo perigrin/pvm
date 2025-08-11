@@ -373,7 +373,8 @@ func (e *ExternalDocumentManager) GetDocument(name string) ([]byte, error) {
 
 	// Build index if not built yet
 	if err := e.ensureIndexBuilt(); err != nil {
-		if e.config.PreferEmbedded && e.fallbackMgr != nil {
+		// If we can't build the index and have a fallback, use it
+		if e.fallbackMgr != nil {
 			return e.getFromFallback(name)
 		}
 		return nil, err

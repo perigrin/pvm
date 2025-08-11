@@ -69,7 +69,7 @@ func (d *DefaultModuleInstaller) InstallModule(moduleName string, verbose bool) 
 	if verbose {
 		fmt.Printf("%s not found - please install it using PM\n", moduleName)
 	}
-	
+
 	return fmt.Errorf(`%s is required but not installed.
 
 Please install it using PVM's PM command:
