@@ -43,7 +43,7 @@ field Int $precision = 2;
 field HashRef[Str] $operations = {};
 
 # Constructor
-sub new(Str $class) -> Calculator {
+sub Calculator new(Str $class) {
     my Calculator $self = bless {}, $class;
     return $self;
 }

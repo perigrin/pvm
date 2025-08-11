@@ -37,7 +37,7 @@ use strict;
 use warnings;
 
 # Constructor with basic types
-sub new(Str $class) -> SimpleTypes {
+sub SimpleTypes new(Str $class) {
     my SimpleTypes $self = bless {}, $class;
     return $self;
 }

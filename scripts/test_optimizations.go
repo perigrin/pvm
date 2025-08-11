@@ -55,7 +55,7 @@ sub BUILD {
 		},
 		{
 			name: "Type Annotations",
-			content: `sub add(Int $a, Int $b) -> Int {
+			content: `sub Int add(Int $a, Int $b) {
     return $a + $b;
 }`,
 			isSimple: true,
@@ -244,13 +244,13 @@ use warnings;
 my Str $name = "TestModule";
 my Int $version = 1;
 
-sub new(Str $class) -> Object {
+sub Object new(Str $class) {
     my $self = {};
     bless $self, $class;
     return $self;
 }
 
-sub process(Str $input) -> Str {
+sub Str process(Str $input) {
     my $result = $input;
     $result =~ s/test/processed/g;
     return $result;
