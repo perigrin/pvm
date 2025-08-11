@@ -12,7 +12,7 @@ PVM brings modern type safety to Perl through gradual typing while preserving fu
 ```bash
 # Download and verify
 curl -L --fail --proto '=https' --tlsv1.2 \
-  https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-linux-amd64.tar.gz \
+  https://github.com/perigrin/pvm/releases/download/v1.0.0-rc43/pvm-1.0.0-rc43-linux-amd64.tar.gz \
   -o pvm.tar.gz
 
 # Extract and test before installing
@@ -30,7 +30,7 @@ sudo install -m 755 pvm-* pm-* pvx-* psc-* /usr/local/bin/
 ```bash
 # Download and verify
 curl -L --fail --proto '=https' --tlsv1.2 \
-  https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-darwin-amd64.tar.gz \
+  https://github.com/perigrin/pvm/releases/download/v1.0.0-rc43/pvm-1.0.0-rc43-darwin-amd64.tar.gz \
   -o pvm.tar.gz
 
 # Extract and test before installing
@@ -49,7 +49,7 @@ sudo install -m 755 pvm-* pm-* pvx-* psc-* /usr/local/bin/
 ```bash
 # Download and verify
 curl -L --fail --proto '=https' --tlsv1.2 \
-  https://github.com/perigrin/pvm/releases/download/v1.0.0-rc32/pvm-1.0.0-rc32-darwin-arm64.tar.gz \
+  https://github.com/perigrin/pvm/releases/download/v1.0.0-rc43/pvm-1.0.0-rc43-darwin-arm64.tar.gz \
   -o pvm.tar.gz
 
 # Extract and test before installing

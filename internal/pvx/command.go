@@ -358,7 +358,7 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().StringArray("include-path", []string{}, "Add additional module paths to PERL5LIB (can be specified multiple times)")
 	cmd.Flags().String("module-path", "", "Specify a custom module installation path")
 	cmd.Flags().StringArray("require", []string{}, "Require specific modules and install if missing (can be specified multiple times)")
-	cmd.Flags().Bool("auto-install", false, "Automatically install required modules using PVI")
+	cmd.Flags().BoolP("auto-install", "a", false, "Automatically install required modules using PVI")
 	cmd.Flags().Bool("auto-detect-deps", true, "Automatically detect dependencies from use/require statements (default: true)")
 	cmd.Flags().StringArray("with", []string{}, "Add additional dependencies beyond auto-detected ones (can be specified multiple times)")
 

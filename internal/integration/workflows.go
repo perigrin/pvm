@@ -284,20 +284,6 @@ func ExecutionWorkflow(scriptPath string, perlVersion string, verbose bool) (*Wo
 	return CompleteWorkflow(options)
 }
 
-// DevelopmentWorkflow performs the complete development cycle
-func DevelopmentWorkflow(scriptPath string, perlVersion string) (*WorkflowResult, error) {
-	options := &WorkflowOptions{
-		ScriptPath:       scriptPath,
-		PerlVersion:      perlVersion,
-		Verbose:          true,
-		GenerateTypeDefs: true,
-		SaveTypeDefs:     true,
-		IsolationLevel:   pvx.IsolationLocal,
-	}
-
-	return CompleteWorkflow(options)
-}
-
 // resolveVersion resolves the Perl version to use
 func resolveVersion(options *WorkflowOptions) (*perl.ResolvedVersion, error) {
 	// For integration tests, when no explicit version is provided, use system Perl directly

@@ -122,45 +122,6 @@ print "Exit code: 0\n";
 	assert.False(t, result.TypeDefGenerated, "Type definitions should not be generated")
 }
 
-func TestDevelopmentWorkflow(t *testing.T) {
-	// Create a comprehensive development script
-	tempDir := t.TempDir()
-	testScript := filepath.Join(tempDir, "test_development.pl")
-
-	testCode := `#!/usr/bin/env perl
-use strict;
-use warnings;
-
-# Development workflow test with comprehensive features (system Perl compatible)
-my $project_name = "PVM Integration Test";
-my $features = ["type checking", "execution", "modules"];
-
-sub describe_project {
-    my ($name, $feat) = @_;
-    my $feature_list = join(", ", @$feat);
-    return "Project: $name\nFeatures: $feature_list";
-}
-
-print describe_project($project_name, $features) . "\n";
-print "Development workflow completed successfully\n";
-`
-
-	err := os.WriteFile(testScript, []byte(testCode), 0644)
-	require.NoError(t, err)
-
-	result, err := DevelopmentWorkflow(testScript, "")
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// Verify comprehensive workflow results
-	assert.NotEmpty(t, result.VersionUsed, "Should resolve a Perl version")
-	assert.True(t, result.TypeCheckPassed, "Type checking should pass")
-	assert.Contains(t, result.ExecutionOutput, "PVM Integration Test", "Should contain project output")
-	assert.Contains(t, result.ExecutionOutput, "Development workflow completed", "Should complete successfully")
-	assert.True(t, result.TypeDefGenerated, "Type definitions should be generated")
-	assert.Greater(t, result.Duration, time.Duration(0), "Should track execution time")
-}
-
 func TestValidationWorkflow(t *testing.T) {
 	// Test the built-in validation workflow
 	result, err := ValidationWorkflow("")
