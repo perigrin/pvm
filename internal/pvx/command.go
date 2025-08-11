@@ -37,6 +37,7 @@ func NewCommand() *cobra.Command {
 			typeCheck, _ := cmd.Flags().GetBool("type-check")
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			quiet, _ := cmd.Flags().GetBool("quiet")
+			debug, _ := cmd.Flags().GetBool("debug")
 			executeCode, _ := cmd.Flags().GetString("execute")
 			executeFeaturesCode, _ := cmd.Flags().GetString("execute-features")
 			forceVersion, _ := cmd.Flags().GetBool("force")
@@ -90,6 +91,7 @@ func NewCommand() *cobra.Command {
 				TypeCheck:    typeCheck,
 				Verbose:      verbose,
 				Quiet:        quiet,
+				Debug:        debug,
 				ForceVersion: forceVersion,
 				Env:          make(map[string]string),
 				Isolated:     isolated,
@@ -339,6 +341,7 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().Bool("type-check", false, "Enable type checking before execution")
 	cmd.Flags().BoolP("verbose", "v", false, "Show additional output")
 	cmd.Flags().BoolP("quiet", "q", false, "Suppress all non-error output")
+	cmd.Flags().Bool("debug", false, "Show detailed debug output including version resolution process")
 	cmd.Flags().BoolP("force", "f", false, "Force using specified Perl version")
 	cmd.Flags().BoolP("isolated", "i", false, "Create an isolated environment for the script (deprecated, use --isolation=local instead)")
 	cmd.Flags().String("isolation-dir", "", "Specify the directory to use for isolation (default: auto-generated temp dir)")

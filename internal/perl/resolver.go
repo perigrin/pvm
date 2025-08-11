@@ -79,6 +79,9 @@ type ResolutionOptions struct {
 	SkipSystemPerl      bool // Skip system Perl detection
 	SkipVersionResolved bool // Skip calling OnVersionResolved
 	SkipScriptAnalysis  bool // Skip script version requirement analysis
+
+	// Debug callback function called at each step of the resolution process
+	DebugCallback func(step string, details interface{})
 }
 
 // OnVersionResolved is a callback that will be called when a version is resolved
@@ -206,39 +209,94 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 
 	// 1. Check explicit version (highest precedence - CLI override)
 	// When someone passes 'pvm current 5.38.0', that should take precedence over everything
+	if options.DebugCallback != nil {
+		if options.ExplicitVersion != "" {
+			options.DebugCallback("Checking explicit version", options.ExplicitVersion)
+		} else {
+			options.DebugCallback("Checking explicit version", "none specified")
+		}
+	}
 	if options.ExplicitVersion != "" {
 		resolved, err := resolveExplicitVersion(options.ExplicitVersion, availableVersions, cfg)
 		if err == nil && resolved != nil {
+			if options.DebugCallback != nil {
+				options.DebugCallback("Explicit version resolved", fmt.Sprintf("%s (source: explicit)", resolved.Version))
+			}
 			notifyResolved(resolved, options)
 			return resolved, nil
+		} else if options.DebugCallback != nil {
+			options.DebugCallback("Explicit version failed", err.Error())
 		}
 	}
 
 	// 2. Check environment variables (SESSION level)
 	// PVM_PERL_VERSION (set by pvm use) and PLENV_VERSION should override project settings
 	if !options.SkipEnvVars {
+		if options.DebugCallback != nil {
+			envVars := map[string]string{
+				"PVM_PERL_VERSION": os.Getenv("PVM_PERL_VERSION"),
+				"PLENV_VERSION":    os.Getenv("PLENV_VERSION"),
+				"PERLBREW_PERL":    os.Getenv("PERLBREW_PERL"),
+			}
+			options.DebugCallback("Checking environment variables", envVars)
+		}
 		resolved, err := resolveFromEnvironment(availableVersions, cfg)
 		if err == nil && resolved != nil {
+			if options.DebugCallback != nil {
+				options.DebugCallback("Environment variable resolved", fmt.Sprintf("%s (source: %s)", resolved.Version, resolved.SourcePath))
+			}
 			notifyResolved(resolved, options)
 			return resolved, nil
+		} else if options.DebugCallback != nil {
+			options.DebugCallback("Environment variables failed", "no valid environment variables found")
 		}
+	} else if options.DebugCallback != nil {
+		options.DebugCallback("Skipping environment variables", "disabled by options")
 	}
 
 	// 3. Check project-local .perl-version file (if not skipped)
 	if !options.SkipLocal && options.ProjectDir != "" {
+		if options.DebugCallback != nil {
+			options.DebugCallback("Checking project .perl-version file", options.ProjectDir)
+		}
 		resolved, err := resolveFromPerlVersionFile(options.ProjectDir, availableVersions, cfg)
 		if err == nil && resolved != nil {
+			if options.DebugCallback != nil {
+				options.DebugCallback("Project .perl-version resolved", fmt.Sprintf("%s (from %s)", resolved.Version, resolved.SourcePath))
+			}
 			notifyResolved(resolved, options)
 			return resolved, nil
+		} else if options.DebugCallback != nil {
+			options.DebugCallback("Project .perl-version failed", "no valid .perl-version file found")
+		}
+	} else if options.DebugCallback != nil {
+		if options.SkipLocal {
+			options.DebugCallback("Skipping project .perl-version file", "disabled by options")
+		} else {
+			options.DebugCallback("Skipping project .perl-version file", "no project directory specified")
 		}
 	}
 
 	// 4. Check project-local .pvm/pvm.toml (if not skipped)
 	if !options.SkipLocal && options.ProjectDir != "" {
+		if options.DebugCallback != nil {
+			options.DebugCallback("Checking project configuration", fmt.Sprintf("%s/.pvm/pvm.toml", options.ProjectDir))
+		}
 		resolved, err := resolveFromProjectConfig(options.ProjectDir, availableVersions, cfg)
 		if err == nil && resolved != nil {
+			if options.DebugCallback != nil {
+				options.DebugCallback("Project configuration resolved", fmt.Sprintf("%s (from %s)", resolved.Version, resolved.SourcePath))
+			}
 			notifyResolved(resolved, options)
 			return resolved, nil
+		} else if options.DebugCallback != nil {
+			options.DebugCallback("Project configuration failed", "no valid project configuration found")
+		}
+	} else if options.DebugCallback != nil {
+		if options.SkipLocal {
+			options.DebugCallback("Skipping project configuration", "disabled by options")
+		} else {
+			options.DebugCallback("Skipping project configuration", "no project directory specified")
 		}
 	}
 
@@ -247,20 +305,48 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 
 	// 6. Check user-level configuration (if not skipped)
 	if !options.SkipUserConfig && cfg != nil && cfg.PVM != nil {
+		if options.DebugCallback != nil {
+			defaultPerl := "not set"
+			if cfg.PVM.DefaultPerl != "" {
+				defaultPerl = cfg.PVM.DefaultPerl
+			}
+			options.DebugCallback("Checking user configuration", defaultPerl)
+		}
 		resolved, err := resolveFromUserConfig(cfg, availableVersions)
 		if err == nil && resolved != nil {
+			if options.DebugCallback != nil {
+				options.DebugCallback("User configuration resolved", fmt.Sprintf("%s (from %s)", resolved.Version, resolved.SourcePath))
+			}
 			notifyResolved(resolved, options)
 			return resolved, nil
+		} else if options.DebugCallback != nil {
+			options.DebugCallback("User configuration failed", "no valid user configuration found")
+		}
+	} else if options.DebugCallback != nil {
+		if options.SkipUserConfig {
+			options.DebugCallback("Skipping user configuration", "disabled by options")
+		} else {
+			options.DebugCallback("Skipping user configuration", "no configuration available")
 		}
 	}
 
 	// 7. Fallback to system Perl (if not skipped)
 	if !options.SkipSystemPerl {
+		if options.DebugCallback != nil {
+			options.DebugCallback("Checking system Perl", "fallback option")
+		}
 		resolved, err := resolveFromSystemPerl()
 		if err == nil && resolved != nil {
+			if options.DebugCallback != nil {
+				options.DebugCallback("System Perl resolved", fmt.Sprintf("%s (from system)", resolved.Version))
+			}
 			notifyResolved(resolved, options)
 			return resolved, nil
+		} else if options.DebugCallback != nil {
+			options.DebugCallback("System Perl failed", "no system Perl found")
 		}
+	} else if options.DebugCallback != nil {
+		options.DebugCallback("Skipping system Perl", "disabled by options")
 	}
 
 	// No version could be resolved
