@@ -358,6 +358,39 @@ type PSCConfig struct {
 
 	// CheckBeforeRun specifies whether to check types before running a script
 	CheckBeforeRun bool `toml:"check_before_run" json:"check_before_run"`
+
+	// LSP server configuration
+	LSP *PSCLSPConfig `toml:"lsp" json:"lsp"`
+}
+
+// PSCLSPConfig represents configuration for PSC LSP server
+type PSCLSPConfig struct {
+	// Logging configuration
+	LogFile  string `toml:"log_file" json:"log_file"`
+	LogLevel string `toml:"log_level" json:"log_level"` // debug, info, warn, error
+	Verbose  bool   `toml:"verbose" json:"verbose"`
+
+	// Communication settings
+	DefaultMode string `toml:"default_mode" json:"default_mode"` // stdio, tcp
+	TCPPort     int    `toml:"tcp_port" json:"tcp_port"`
+
+	// Feature toggles
+	EnableHover      bool `toml:"enable_hover" json:"enable_hover"`
+	EnableCompletion bool `toml:"enable_completion" json:"enable_completion"`
+	EnableDefinition bool `toml:"enable_definition" json:"enable_definition"`
+	EnableReferences bool `toml:"enable_references" json:"enable_references"`
+	EnableFormatting bool `toml:"enable_formatting" json:"enable_formatting"`
+
+	// Performance settings
+	MaxCacheSize     int           `toml:"max_cache_size" json:"max_cache_size"`
+	RequestTimeout   time.Duration `toml:"request_timeout" json:"request_timeout"`
+	DiagnosticsDelay time.Duration `toml:"diagnostics_delay" json:"diagnostics_delay"`
+
+	// Project-specific settings
+	WorkspaceSymbols   bool     `toml:"workspace_symbols" json:"workspace_symbols"`
+	CrossFileAnalysis  bool     `toml:"cross_file_analysis" json:"cross_file_analysis"`
+	ExcludePatterns    []string `toml:"exclude_patterns" json:"exclude_patterns"`
+	IncludeDirectories []string `toml:"include_directories" json:"include_directories"`
 }
 
 // MCPConfig represents configuration for the MCP Server
@@ -781,6 +814,33 @@ func NewDefaultConfig() *Config {
 			WatchExclude:         []string{"**/node_modules/**", "**/.git/**", "**/local/**"},
 			GenerateMissingTypes: true,
 			CheckBeforeRun:       true,
+			LSP: &PSCLSPConfig{
+				// Logging configuration - reasonable defaults
+				LogLevel: "info",
+				Verbose:  false,
+
+				// Communication settings - prefer stdio for editor integration
+				DefaultMode: "stdio",
+				TCPPort:     9999,
+
+				// Feature toggles - enable all features by default
+				EnableHover:      true,
+				EnableCompletion: true,
+				EnableDefinition: true,
+				EnableReferences: true,
+				EnableFormatting: true,
+
+				// Performance settings - reasonable defaults
+				MaxCacheSize:     1000,
+				RequestTimeout:   5 * time.Second,
+				DiagnosticsDelay: 500 * time.Millisecond,
+
+				// Project-specific settings - sensible defaults
+				WorkspaceSymbols:   true,
+				CrossFileAnalysis:  true,
+				ExcludePatterns:    []string{"**/test_data/**", "**/temp/**", "**/.git/**"},
+				IncludeDirectories: []string{"lib", "script"},
+			},
 		},
 		MCP: &MCPConfig{
 			Port:                      3000,
@@ -1182,6 +1242,89 @@ func (c *PSCConfig) Validate() []error {
 	// Validate TypeDefinitionsPath
 	if c.TypeDefinitionsPath == "" {
 		errors = append(errors, ValidateError("TypeDefinitionsPath cannot be empty"))
+	}
+
+	// Validate LSP configuration
+	if c.LSP != nil {
+		errors = append(errors, c.LSP.Validate()...)
+	}
+
+	return errors
+}
+
+// Validate checks if the PSCLSPConfig is valid
+func (c *PSCLSPConfig) Validate() []error {
+	var errors []error
+
+	// Validate LogLevel
+	if c.LogLevel != "" {
+		validLevels := map[string]bool{
+			"debug": true,
+			"info":  true,
+			"warn":  true,
+			"error": true,
+		}
+		if !validLevels[c.LogLevel] {
+			errors = append(errors, ValidateError("LSP log_level must be one of: debug, info, warn, error"))
+		}
+	}
+
+	// Validate DefaultMode
+	if c.DefaultMode != "" {
+		validModes := map[string]bool{
+			"stdio": true,
+			"tcp":   true,
+		}
+		if !validModes[c.DefaultMode] {
+			errors = append(errors, ValidateError("LSP default_mode must be one of: stdio, tcp"))
+		}
+	}
+
+	// Validate TCPPort
+	if c.TCPPort != 0 && (c.TCPPort < 1 || c.TCPPort > 65535) {
+		errors = append(errors, ValidateError("LSP tcp_port must be between 1 and 65535"))
+	}
+
+	// Validate MaxCacheSize
+	if c.MaxCacheSize < 0 {
+		errors = append(errors, ValidateError("LSP max_cache_size cannot be negative"))
+	}
+
+	// Validate RequestTimeout (must be positive if specified)
+	if c.RequestTimeout < 0 {
+		errors = append(errors, ValidateError("LSP request_timeout cannot be negative"))
+	}
+
+	// Validate DiagnosticsDelay (must be positive if specified)
+	if c.DiagnosticsDelay < 0 {
+		errors = append(errors, ValidateError("LSP diagnostics_delay cannot be negative"))
+	}
+
+	// Validate LogFile path (basic validation)
+	if c.LogFile != "" {
+		// Check for null bytes and control characters
+		for _, r := range c.LogFile {
+			if r == 0 || (r < 32 && r != '\t') {
+				errors = append(errors, ValidateError("LSP log_file cannot contain null bytes or control characters"))
+				break
+			}
+		}
+	}
+
+	// Validate ExcludePatterns
+	for _, pattern := range c.ExcludePatterns {
+		if pattern == "" {
+			errors = append(errors, ValidateError("LSP exclude_patterns cannot contain empty patterns"))
+			break
+		}
+	}
+
+	// Validate IncludeDirectories
+	for _, dir := range c.IncludeDirectories {
+		if dir == "" {
+			errors = append(errors, ValidateError("LSP include_directories cannot contain empty directories"))
+			break
+		}
 	}
 
 	return errors
