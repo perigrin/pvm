@@ -5,7 +5,9 @@ package lsp
 
 import (
 	"fmt"
+	"strings"
 
+	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/binder"
 	"tamarou.com/pvm/internal/ls"
 )
@@ -124,8 +126,9 @@ func (s *TypeQueryService) QueryTypeAtPosition(query TypeQuery) (*TypeInfo, erro
 
 	// Add signature information for functions/methods
 	if symbol.Kind == binder.SymbolSubroutine || symbol.Kind == binder.SymbolMethod {
+		parameters := extractParametersFromAST(symbol.Declaration)
 		typeInfo.Signature = &FunctionSig{
-			Parameters: []ParameterInfo{}, // TODO: Extract from AST if available
+			Parameters: parameters,
 			ReturnType: symbol.Type,
 		}
 	}
@@ -196,8 +199,9 @@ func (s *TypeQueryService) QuerySymbol(uri, symbolName string) (*TypeInfo, error
 
 	// Add signature information for functions/methods
 	if symbol.Kind == binder.SymbolSubroutine || symbol.Kind == binder.SymbolMethod {
+		parameters := extractParametersFromAST(symbol.Declaration)
 		typeInfo.Signature = &FunctionSig{
-			Parameters: []ParameterInfo{}, // TODO: Extract from AST if available
+			Parameters: parameters,
 			ReturnType: symbol.Type,
 		}
 	}
@@ -274,8 +278,9 @@ func (s *TypeQueryService) GetAvailableSymbols(uri string) ([]TypeInfo, error) {
 
 		// Add signature for functions/methods
 		if symbol.Kind == binder.SymbolSubroutine || symbol.Kind == binder.SymbolMethod {
+			parameters := extractParametersFromAST(symbol.Declaration)
 			typeInfo.Signature = &FunctionSig{
-				Parameters: []ParameterInfo{}, // TODO: Extract from AST
+				Parameters: parameters,
 				ReturnType: symbol.Type,
 			}
 		}
@@ -385,4 +390,77 @@ func (s *TypeQueryService) generateExamplesForSymbol(symbol *binder.Symbol) []st
 	}
 
 	return examples
+}
+
+// extractParametersFromAST extracts function parameters from AST node
+func extractParametersFromAST(decl ast.Node) []ParameterInfo {
+	// Check if this is a SubDecl (subroutine declaration)
+	if subDecl, ok := decl.(*ast.SubDecl); ok {
+		params := subDecl.Parameters()
+		if len(params) == 0 {
+			return nil
+		}
+
+		result := make([]ParameterInfo, len(params))
+		for i, param := range params {
+			result[i] = ParameterInfo{
+				Name: param.Name,
+				Type: extractTypeString(param.TypeExpr),
+			}
+		}
+		return result
+	}
+
+	return nil
+}
+
+// extractTypeString converts a type expression to a string representation
+func extractTypeString(typeExpr *ast.TypeExpression) string {
+	if typeExpr == nil {
+		return "Any"
+	}
+
+	// Handle different type expression kinds
+	switch typeExpr.Kind {
+	case ast.SimpleTypeKind:
+		return typeExpr.Name
+	case ast.UnionTypeKind:
+		// For union types like Int|Str, join with |
+		if len(typeExpr.UnionTypes) > 0 {
+			var types []string
+			for _, t := range typeExpr.UnionTypes {
+				types = append(types, extractTypeString(t))
+			}
+			return strings.Join(types, "|")
+		}
+		return typeExpr.Name
+	case ast.ParameterizedTypeKind:
+		// For parameterized types like ArrayRef[Int]
+		if len(typeExpr.Parameters) > 0 {
+			var params []string
+			for _, p := range typeExpr.Parameters {
+				params = append(params, extractTypeString(p))
+			}
+			return fmt.Sprintf("%s[%s]", typeExpr.Name, strings.Join(params, ", "))
+		}
+		return typeExpr.Name
+	case ast.IntersectionTypeKind:
+		// For intersection types like Object&Serializable
+		if len(typeExpr.IntersectionTypes) > 0 {
+			var types []string
+			for _, t := range typeExpr.IntersectionTypes {
+				types = append(types, extractTypeString(t))
+			}
+			return strings.Join(types, "&")
+		}
+		return typeExpr.Name
+	case ast.NegationTypeKind:
+		// For negation types like !Undef
+		if typeExpr.NegatedType != nil {
+			return "!" + extractTypeString(typeExpr.NegatedType)
+		}
+		return "!" + typeExpr.Name
+	default:
+		return typeExpr.Name
+	}
 }
