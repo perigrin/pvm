@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/platform"
 	"tamarou.com/pvm/internal/xdg"
 )
@@ -526,9 +527,13 @@ func verifyBinaryInstallation(installDir, expectedVersion string) error {
 		}
 	}
 
-	// TODO: Add version verification by executing the binary
-	// This would require careful handling of environment variables
-	// and might be better suited for a separate validation step
+	// Attempt to verify that the installed version matches the expected version
+	// This is a best-effort validation - some test environments may not support execution
+	if err := ValidateExpectedVersion(installDir, expectedVersion); err != nil {
+		// Log the warning but don't fail the installation verification
+		// This allows test environments and edge cases to proceed
+		log.Warnf("Version verification failed (non-fatal): %v", err)
+	}
 
 	return nil
 }

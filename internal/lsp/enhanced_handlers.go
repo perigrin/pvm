@@ -189,21 +189,72 @@ func convertToLSPWorkspaceSymbols(symbols []*binder.Symbol) []WorkspaceSymbol {
 
 // getSignatureHelpFromLanguageService gets signature help at a position
 func (s *Server) getSignatureHelpFromLanguageService(uri string, pos ls.Position) (*SignatureHelp, error) {
-	// For now, return a simple signature help response
-	// This is a placeholder implementation that can be enhanced
-	// by accessing the language service documents directly
+	// Try to find a function symbol at or near the position
+	symbol, err := s.languageService.FindSymbolAtPosition(uri, pos)
+	if err != nil || symbol == nil {
+		// Fallback to empty signature help if no symbol found
+		return &SignatureHelp{
+			Signatures:      []SignatureInformation{},
+			ActiveSignature: nil,
+			ActiveParameter: nil,
+		}, nil
+	}
 
-	// Simple signature help for common Perl functions
+	// Only provide signature help for functions/methods
+	if symbol.Kind != binder.SymbolSubroutine && symbol.Kind != binder.SymbolMethod {
+		return &SignatureHelp{
+			Signatures:      []SignatureInformation{},
+			ActiveSignature: nil,
+			ActiveParameter: nil,
+		}, nil
+	}
+
+	// Extract parameters from the function's AST declaration
+	parameters := s.extractParametersFromDeclaration(symbol.Declaration)
+
+	// Build the function signature label
+	label := fmt.Sprintf("sub %s", symbol.Name)
+	if len(parameters) > 0 {
+		var paramLabels []string
+		for _, param := range parameters {
+			if param.Type != "" && param.Type != "Any" {
+				paramLabels = append(paramLabels, fmt.Sprintf("%s %s", param.Type, param.Name))
+			} else {
+				paramLabels = append(paramLabels, param.Name)
+			}
+		}
+		label += fmt.Sprintf("(%s)", strings.Join(paramLabels, ", "))
+	} else {
+		label += "()"
+	}
+
+	// Add return type if available
+	if symbol.Type != "" {
+		label += fmt.Sprintf(" -> %s", symbol.Type)
+	}
+
+	// Create parameter information for LSP
+	var paramInfo []ParameterInformation
+	for _, param := range parameters {
+		info := ParameterInformation{
+			Label: param.Name,
+		}
+		if param.Type != "" && param.Type != "Any" {
+			info.Documentation = &MarkupContent{
+				Kind:  MarkupKindMarkdown,
+				Value: fmt.Sprintf("**Type**: %s", param.Type),
+			}
+		}
+		paramInfo = append(paramInfo, info)
+	}
+
 	signatureInfo := &SignatureInformation{
-		Label: "sub function_name",
+		Label: label,
 		Documentation: &MarkupContent{
 			Kind:  MarkupKindMarkdown,
-			Value: "Function signature help (simplified implementation)",
+			Value: fmt.Sprintf("Function signature for `%s`", symbol.Name),
 		},
-		Parameters: []ParameterInformation{
-			{Label: "$param1"},
-			{Label: "$param2"},
-		},
+		Parameters: paramInfo,
 	}
 
 	signatureHelp := &SignatureHelp{
@@ -213,6 +264,78 @@ func (s *Server) getSignatureHelpFromLanguageService(uri string, pos ls.Position
 	}
 
 	return signatureHelp, nil
+}
+
+// extractParametersFromDeclaration extracts parameter information from AST declaration
+func (s *Server) extractParametersFromDeclaration(decl ast.Node) []ParameterInfo {
+	if subDecl, ok := decl.(*ast.SubDecl); ok {
+		params := subDecl.Parameters()
+		if len(params) == 0 {
+			return nil
+		}
+
+		result := make([]ParameterInfo, len(params))
+		for i, param := range params {
+			result[i] = ParameterInfo{
+				Name: param.Name,
+				Type: s.extractTypeString(param.TypeExpr),
+			}
+		}
+		return result
+	}
+
+	return nil
+}
+
+// extractTypeString converts a type expression to a string representation
+func (s *Server) extractTypeString(typeExpr *ast.TypeExpression) string {
+	if typeExpr == nil {
+		return "Any"
+	}
+
+	// Handle different type expression kinds
+	switch typeExpr.Kind {
+	case ast.SimpleTypeKind:
+		return typeExpr.Name
+	case ast.UnionTypeKind:
+		// For union types like Int|Str, join with |
+		if len(typeExpr.UnionTypes) > 0 {
+			var types []string
+			for _, t := range typeExpr.UnionTypes {
+				types = append(types, s.extractTypeString(t))
+			}
+			return strings.Join(types, "|")
+		}
+		return typeExpr.Name
+	case ast.ParameterizedTypeKind:
+		// For parameterized types like ArrayRef[Int]
+		if len(typeExpr.Parameters) > 0 {
+			var params []string
+			for _, p := range typeExpr.Parameters {
+				params = append(params, s.extractTypeString(p))
+			}
+			return fmt.Sprintf("%s[%s]", typeExpr.Name, strings.Join(params, ", "))
+		}
+		return typeExpr.Name
+	case ast.IntersectionTypeKind:
+		// For intersection types like Object&Serializable
+		if len(typeExpr.IntersectionTypes) > 0 {
+			var types []string
+			for _, t := range typeExpr.IntersectionTypes {
+				types = append(types, s.extractTypeString(t))
+			}
+			return strings.Join(types, "&")
+		}
+		return typeExpr.Name
+	case ast.NegationTypeKind:
+		// For negation types like !Undef
+		if typeExpr.NegatedType != nil {
+			return "!" + s.extractTypeString(typeExpr.NegatedType)
+		}
+		return "!" + typeExpr.Name
+	default:
+		return typeExpr.Name
+	}
 }
 
 // handleInlayHint handles textDocument/inlayHint requests
