@@ -12,6 +12,12 @@ import (
 
 // TestRecoveryManager_FindCompatibleVersion tests the FindCompatibleVersion method
 func TestRecoveryManager_FindCompatibleVersion(t *testing.T) {
+	// Skip GitHub API calls in CI to avoid rate limit conflicts with other tests
+	if isCI() {
+		t.Skip("Skipping GitHub API test in CI environment to prevent rate limit conflicts")
+		return
+	}
+
 	rm := NewRecoveryManager()
 
 	// Test the actual method (may fail due to network/GitHub API in CI)
@@ -302,6 +308,12 @@ func TestRecoveryManager_getRecoveryStrategies(t *testing.T) {
 
 // Benchmark tests for performance
 func BenchmarkRecoveryManager_FindCompatibleVersion(b *testing.B) {
+	// Skip GitHub API calls in CI to avoid rate limit conflicts with other tests
+	if isCI() {
+		b.Skip("Skipping GitHub API benchmark in CI environment to prevent rate limit conflicts")
+		return
+	}
+
 	rm := NewRecoveryManager()
 
 	b.ResetTimer()
@@ -327,4 +339,25 @@ func BenchmarkRecoveryManager_DiagnoseFailure(b *testing.B) {
 			b.Errorf("Unexpected scenario: %v", scenario)
 		}
 	}
+}
+
+// Helper functions
+
+// isCI detects if we're running in a CI environment
+func isCI() bool {
+	ciEnvVars := []string{
+		"CI",             // Generic CI
+		"GITHUB_ACTIONS", // GitHub Actions
+		"TRAVIS",         // Travis CI
+		"CIRCLECI",       // Circle CI
+		"JENKINS_URL",    // Jenkins
+		"BUILDKITE",      // Buildkite
+	}
+
+	for _, envVar := range ciEnvVars {
+		if os.Getenv(envVar) != "" {
+			return true
+		}
+	}
+	return false
 }

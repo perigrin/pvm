@@ -223,6 +223,12 @@ func TestRecoveryManager_Integration_RecoveryWorkflow(t *testing.T) {
 
 // TestRecoveryManager_Integration_PlatformCompatibility tests platform detection in recovery
 func TestRecoveryManager_Integration_PlatformCompatibility(t *testing.T) {
+	// Skip GitHub API calls in CI to avoid rate limit conflicts with other tests
+	if isCI() {
+		t.Skip("Skipping GitHub API test in CI environment to prevent rate limit conflicts")
+		return
+	}
+
 	rm := NewRecoveryManager()
 
 	// Test that FindCompatibleVersion handles platform detection correctly
