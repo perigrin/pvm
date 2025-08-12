@@ -118,7 +118,7 @@ sub Int add_numbers(Int $a, Int $b) {
 }
 
 # Method with type annotations
-sub new(Str $class, Str $name) -> Object {
+sub Object new(Str $class, Str $name) {
     my $self = { name => $name };
     return bless $self, $class;
 }
@@ -286,7 +286,7 @@ func TestPSCFlowSensitiveAnalysis(t *testing.T) {
 use v5.36;
 
 # Test definedness checks
-sub process_maybe(Maybe[Str] $input) -> Str {
+sub Str process_maybe(Maybe[Str] $input) {
     if (defined($input)) {
         # $input should be refined to Str here
         return length($input);  # This should be valid
@@ -296,7 +296,7 @@ sub process_maybe(Maybe[Str] $input) -> Str {
 }
 
 # Test pattern matching refinements
-sub process_string(Str $input) -> Union[Int, Str] {
+sub Union[Int, Str] process_string(Str $input) {
     if ($input =~ /^\d+$/) {
         # $input refined to be numeric
         return int($input) * 2;
@@ -306,7 +306,7 @@ sub process_string(Str $input) -> Union[Int, Str] {
 }
 
 # Test ref type checking
-sub process_ref(Scalar $input) -> Str {
+sub Str process_ref(Scalar $input) {
     if (ref($input) eq 'ARRAY') {
         # $input refined to ArrayRef
         return "Array with " . scalar(@$input) . " elements";
