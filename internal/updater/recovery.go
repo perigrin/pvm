@@ -8,9 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"tamarou.com/pvm/internal/download"
+	"tamarou.com/pvm/internal/version"
 )
 
 // RecoveryManager handles advanced error recovery scenarios
@@ -357,9 +359,64 @@ func (rm *RecoveryManager) redownloadAndVerify(ctx *RecoveryContext) error {
 }
 
 func (rm *RecoveryManager) downloadCompatibleVersion(ctx *RecoveryContext) error {
-	// This would involve finding and downloading a compatible version
-	// Based on system architecture and OS
-	return fmt.Errorf("compatible version detection not implemented")
+	// Find a compatible version for the current system
+	updateInfo, err := rm.FindCompatibleVersion()
+	if err != nil {
+		return fmt.Errorf("failed to find compatible version: %w", err)
+	}
+
+	// Get the platform for asset selection
+	platform := version.DetectPlatform()
+	asset, err := version.GetUpdateAsset(updateInfo.Release, platform)
+	if err != nil {
+		return fmt.Errorf("failed to get compatible asset: %w", err)
+	}
+
+	// Create download options
+	downloadOpts := &download.DownloadOptions{
+		URL:             asset.BrowserDownloadURL,
+		DestinationPath: ctx.TargetPath + ".recovery",
+		Resume:          false, // Fresh download for recovery
+		ProgressCallback: func(total, transferred int64, done bool) {
+			if total > 0 && !done {
+				percent := (transferred * 100) / total
+				fmt.Printf("Downloading compatible version: %d%%\r", percent)
+			}
+		},
+	}
+
+	// Download the compatible version
+	fmt.Printf("Downloading compatible version %s for platform %s...\n",
+		updateInfo.LatestVersion.String(), platform.String())
+
+	result, err := rm.downloader.Download(downloadOpts)
+	if err != nil {
+		return fmt.Errorf("failed to download compatible version: %w", err)
+	}
+
+	// Validate the downloaded binary
+	if err := download.ValidateDownloadedBinary(result.Path, ""); err != nil {
+		// Clean up failed download
+		os.Remove(result.Path)
+		return fmt.Errorf("downloaded binary validation failed: %w", err)
+	}
+
+	// Atomically replace the target binary
+	if err := os.Rename(result.Path, ctx.TargetPath); err != nil {
+		// Clean up on failure
+		os.Remove(result.Path)
+		return fmt.Errorf("failed to install compatible version: %w", err)
+	}
+
+	// Make executable on Unix systems
+	if platform.OS != "windows" {
+		if err := os.Chmod(ctx.TargetPath, 0755); err != nil {
+			return fmt.Errorf("failed to make binary executable: %w", err)
+		}
+	}
+
+	fmt.Printf("Successfully installed compatible version %s\n", updateInfo.LatestVersion.String())
+	return nil
 }
 
 func (rm *RecoveryManager) emergencyRollback(ctx *RecoveryContext) error {
@@ -439,17 +496,17 @@ func (rm *RecoveryManager) DiagnoseFailure(targetPath string, err error) Recover
 
 	// Pattern matching on error messages
 	switch {
-	case contains(errorMsg, "permission denied", "access denied"):
+	case containsAnyString(errorMsg, "permission denied", "access denied"):
 		return ScenarioPermissionDenied
-	case contains(errorMsg, "no space", "disk full", "file too large"):
+	case containsAnyString(errorMsg, "no space", "disk full", "file too large"):
 		return ScenarioFileSystemFull
-	case contains(errorMsg, "checksum", "hash", "integrity"):
+	case containsAnyString(errorMsg, "checksum", "hash", "integrity"):
 		return ScenarioChecksumMismatch
-	case contains(errorMsg, "network", "connection", "timeout", "dns"):
+	case containsAnyString(errorMsg, "network", "connection", "timeout", "dns"):
 		return ScenarioNetworkFailure
-	case contains(errorMsg, "exec format", "cannot execute", "incompatible"):
+	case containsAnyString(errorMsg, "exec format", "cannot execute", "incompatible"):
 		return ScenarioIncompatibleBinary
-	case contains(errorMsg, "interrupted", "partial", "incomplete"):
+	case containsAnyString(errorMsg, "interrupted", "partial", "incomplete"):
 		return ScenarioPartialUpdate
 	}
 
@@ -463,15 +520,11 @@ func (rm *RecoveryManager) DiagnoseFailure(targetPath string, err error) Recover
 	return ScenarioUnknownFailure
 }
 
-// Helper function to check if error message contains any of the given strings
-func contains(message string, patterns ...string) bool {
+// containsAnyString checks if message contains any of the given patterns using standard library
+func containsAnyString(message string, patterns ...string) bool {
 	for _, pattern := range patterns {
-		if len(message) >= len(pattern) {
-			for i := 0; i <= len(message)-len(pattern); i++ {
-				if message[i:i+len(pattern)] == pattern {
-					return true
-				}
-			}
+		if strings.Contains(message, pattern) {
+			return true
 		}
 	}
 	return false
@@ -498,6 +551,98 @@ func (rm *RecoveryManager) CreateRecoveryContext(targetPath, failedVersion strin
 		PreviousBackup: previousBackup,
 		ErrorDetails:   err,
 		AttemptCount:   0,
-		MaxAttempts:    3,
+		MaxAttempts:    3, // Allow up to 3 recovery attempts to balance reliability vs. speed
 	}
+}
+
+// FindCompatibleVersion finds and returns a compatible version for the current system
+func (rm *RecoveryManager) FindCompatibleVersion() (*version.UpdateInfo, error) {
+	// Detect current platform
+	platform := version.DetectPlatform()
+	if !platform.IsSupported() {
+		return nil, fmt.Errorf("platform %s is not supported for updates", platform.String())
+	}
+
+	// Create GitHub client for querying releases
+	client := version.NewGitHubClient()
+
+	// Get available releases (including prereleases for recovery)
+	releases, err := client.GetReleases("perigrin", "pvm", true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query available releases: %w", err)
+	}
+
+	if len(releases) == 0 {
+		return nil, fmt.Errorf("no releases found in repository")
+	}
+
+	// Filter releases to find compatible versions
+	var compatibleReleases []version.GitHubRelease
+	for _, release := range releases {
+		// Skip draft releases
+		if release.Draft {
+			continue
+		}
+
+		// Check if release has assets compatible with current platform
+		if asset, err := version.GetUpdateAsset(&release, platform); err == nil && asset != nil {
+			// Validate binary compatibility
+			if err := version.ValidateBinaryCompatibility(asset, platform); err == nil {
+				compatibleReleases = append(compatibleReleases, release)
+			}
+		}
+	}
+
+	if len(compatibleReleases) == 0 {
+		return nil, fmt.Errorf("no compatible versions found for platform %s", platform.String())
+	}
+
+	// Select best compatible version (prefer stable over prereleases)
+	var selectedRelease *version.GitHubRelease
+
+	// First, try to find the latest stable release
+	for i := range compatibleReleases {
+		release := &compatibleReleases[i]
+		if !release.Prerelease {
+			if selectedRelease == nil || release.CreatedAt.After(selectedRelease.CreatedAt) {
+				selectedRelease = release
+			}
+		}
+	}
+
+	// If no stable release found, select latest prerelease
+	if selectedRelease == nil {
+		for i := range compatibleReleases {
+			release := &compatibleReleases[i]
+			if selectedRelease == nil || release.CreatedAt.After(selectedRelease.CreatedAt) {
+				selectedRelease = release
+			}
+		}
+	}
+
+	if selectedRelease == nil {
+		return nil, fmt.Errorf("no suitable compatible version found")
+	}
+
+	// Parse version information
+	currentVersion, err := version.ParseVersion("0.0.0") // Use dummy version for recovery
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse current version: %w", err)
+	}
+
+	compatibleVersion, err := version.ParseVersion(selectedRelease.TagName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse compatible version %s: %w", selectedRelease.TagName, err)
+	}
+
+	// Create UpdateInfo for the compatible version
+	updateInfo := &version.UpdateInfo{
+		CurrentVersion: currentVersion,
+		LatestVersion:  compatibleVersion,
+		Release:        selectedRelease,
+		UpdateNeeded:   true,
+		IsPrerelease:   selectedRelease.Prerelease,
+	}
+
+	return updateInfo, nil
 }
