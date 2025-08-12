@@ -1174,15 +1174,37 @@ func (nc *nodeCompiler) generateBasicVariableFromTreeSitter(node ast.Node) (stri
 
 // compileSubroutineDeclaration compiles a subroutine_declaration_statement node
 func (nc *nodeCompiler) compileSubroutineDeclaration(node ast.Node) (string, error) {
-	// For now, preserve the original text
-	// TODO: Add type annotations for parameters and return types
+	// Extract subroutine information from tree-sitter node
+	subInfo, err := nc.extractSubroutineInfo(node, false)
+	if err != nil {
+		// Fall back to original text if extraction fails
+		return node.Text(), nil
+	}
+
+	// Generate typed signature if we have sufficient type information
+	if nc.hasTypeInfoForSubroutine(subInfo) {
+		return nc.generateTypedSubroutineSignature(subInfo)
+	}
+
+	// Fall back to original text if no type information
 	return node.Text(), nil
 }
 
 // compileMethodDeclaration compiles a method_declaration_statement node
 func (nc *nodeCompiler) compileMethodDeclaration(node ast.Node) (string, error) {
-	// For now, preserve the original text
-	// TODO: Add type annotations for parameters and return types
+	// Extract method information from tree-sitter node
+	subInfo, err := nc.extractSubroutineInfo(node, true)
+	if err != nil {
+		// Fall back to original text if extraction fails
+		return node.Text(), nil
+	}
+
+	// Generate typed signature if we have sufficient type information
+	if nc.hasTypeInfoForSubroutine(subInfo) {
+		return nc.generateTypedSubroutineSignature(subInfo)
+	}
+
+	// Fall back to original text if no type information
 	return node.Text(), nil
 }
 
@@ -1220,4 +1242,301 @@ func (nc *nodeCompiler) compileBlock(node ast.Node) (string, error) {
 	}
 
 	return "{\n" + strings.Join(parts, "\n") + "\n}", nil
+}
+
+// SubroutineInfo holds extracted information about a subroutine or method from tree-sitter
+type SubroutineInfo struct {
+	Name         string
+	IsMethod     bool
+	IsLexical    bool
+	Parameters   []ParsedParameterInfo
+	Body         string
+	StartPos     ast.Position
+	EndPos       ast.Position
+	OriginalText string
+}
+
+// ParsedParameterInfo holds information about a parameter extracted from tree-sitter
+type ParsedParameterInfo struct {
+	Name     string
+	Variable string // Full variable name like $self, $input
+	StartPos ast.Position
+	EndPos   ast.Position
+}
+
+// extractSubroutineInfo extracts subroutine or method information from a tree-sitter node
+func (nc *nodeCompiler) extractSubroutineInfo(node ast.Node, isMethod bool) (*SubroutineInfo, error) {
+	info := &SubroutineInfo{
+		IsMethod:     isMethod,
+		StartPos:     node.Start(),
+		EndPos:       node.End(),
+		OriginalText: node.Text(),
+	}
+
+	// Parse the original text to extract components
+	text := node.Text()
+	lines := strings.Split(text, "\n")
+	if len(lines) == 0 {
+		return nil, fmt.Errorf("empty subroutine text")
+	}
+
+	// Parse the first line for declaration
+	declaration := lines[0]
+	parts := strings.Fields(declaration)
+
+	// Handle different declaration patterns
+	var nameIndex int
+	if len(parts) >= 2 {
+		if parts[0] == "my" && (parts[1] == "sub" || parts[1] == "method") {
+			info.IsLexical = true
+			nameIndex = 2
+		} else if parts[0] == "sub" || parts[0] == "method" {
+			nameIndex = 1
+		}
+	}
+
+	if nameIndex < len(parts) {
+		// Extract name, removing any signature part
+		name := parts[nameIndex]
+		if parenIndex := strings.Index(name, "("); parenIndex >= 0 {
+			info.Name = name[:parenIndex]
+		} else {
+			info.Name = name
+		}
+	}
+
+	// Extract parameters from signature if present
+	if sigStart := strings.Index(declaration, "("); sigStart >= 0 {
+		if sigEnd := strings.Index(declaration[sigStart:], ")"); sigEnd >= 0 {
+			signature := declaration[sigStart+1 : sigStart+sigEnd]
+			info.Parameters = nc.parseParametersFromSignature(signature, info.StartPos)
+		}
+	}
+
+	// Extract body (everything after the first line)
+	if len(lines) > 1 {
+		info.Body = strings.Join(lines[1:], "\n")
+	}
+
+	return info, nil
+}
+
+// parseParametersFromSignature parses parameter information from a signature string
+func (nc *nodeCompiler) parseParametersFromSignature(signature string, basePos ast.Position) []ParsedParameterInfo {
+	var params []ParsedParameterInfo
+	if strings.TrimSpace(signature) == "" {
+		return params
+	}
+
+	// Split by comma, but be careful of nested structures
+	paramStrs := nc.splitParameters(signature)
+
+	for i, paramStr := range paramStrs {
+		paramStr = strings.TrimSpace(paramStr)
+		if paramStr == "" {
+			continue
+		}
+
+		param := ParsedParameterInfo{
+			StartPos: ast.Position{
+				Line:   basePos.Line,
+				Column: basePos.Column + i*10, // Approximate position
+				Offset: basePos.Offset + i*10,
+			},
+			EndPos: ast.Position{
+				Line:   basePos.Line,
+				Column: basePos.Column + (i+1)*10,
+				Offset: basePos.Offset + (i+1)*10,
+			},
+		}
+
+		// Extract variable name (look for $, @, % prefixed names)
+		fields := strings.Fields(paramStr)
+		for _, field := range fields {
+			if strings.HasPrefix(field, "$") || strings.HasPrefix(field, "@") || strings.HasPrefix(field, "%") {
+				param.Variable = field
+				// Extract base name without sigil
+				param.Name = field[1:]
+				break
+			}
+		}
+
+		// If no variable found, try to extract from the parameter string
+		if param.Variable == "" && len(fields) > 0 {
+			// Assume the last field is the variable
+			lastField := fields[len(fields)-1]
+			if strings.Contains(lastField, "$") {
+				param.Variable = lastField
+				param.Name = strings.TrimPrefix(lastField, "$")
+			}
+		}
+
+		params = append(params, param)
+	}
+
+	return params
+}
+
+// splitParameters splits a parameter string by commas, handling nested structures
+func (nc *nodeCompiler) splitParameters(signature string) []string {
+	var params []string
+	var current strings.Builder
+	depth := 0
+
+	for _, char := range signature {
+		switch char {
+		case '(':
+			depth++
+			current.WriteRune(char)
+		case ')':
+			depth--
+			current.WriteRune(char)
+		case ',':
+			if depth == 0 {
+				params = append(params, current.String())
+				current.Reset()
+			} else {
+				current.WriteRune(char)
+			}
+		default:
+			current.WriteRune(char)
+		}
+	}
+
+	if current.Len() > 0 {
+		params = append(params, current.String())
+	}
+
+	return params
+}
+
+// hasTypeInfoForSubroutine checks if we have sufficient type information for a subroutine
+func (nc *nodeCompiler) hasTypeInfoForSubroutine(info *SubroutineInfo) bool {
+	// Check if we have type info for any parameters
+	for _, param := range info.Parameters {
+		if typeInfo := nc.getParameterTypeInfoByPosition(param); typeInfo != nil {
+			if typeInfo.Confidence >= nc.options.MinimumConfidence {
+				return true
+			}
+		}
+	}
+
+	// Check if we have return type info
+	if returnInfo := nc.getReturnTypeInfoByPosition(info); returnInfo != nil {
+		if returnInfo.Confidence >= nc.options.MinimumConfidence {
+			return true
+		}
+	}
+
+	return false
+}
+
+// getParameterTypeInfoByPosition gets type info for a parameter by position
+func (nc *nodeCompiler) getParameterTypeInfoByPosition(param ParsedParameterInfo) *types.TypeInfo {
+	// Try different ID formats for parameter lookup
+	paramID := fmt.Sprintf("parameter_%d_%d", param.StartPos.Column, param.EndPos.Column)
+	if info, exists := nc.typeInfoMap[paramID]; exists {
+		return info
+	}
+
+	// Try variable-based lookup
+	if param.Variable != "" {
+		varID := fmt.Sprintf("variable_declaration_%d_%d", param.StartPos.Column, param.EndPos.Column)
+		if info, exists := nc.typeInfoMap[varID]; exists {
+			return info
+		}
+	}
+
+	return nil
+}
+
+// getReturnTypeInfoByPosition gets return type info for a subroutine by position
+func (nc *nodeCompiler) getReturnTypeInfoByPosition(info *SubroutineInfo) *types.TypeInfo {
+	var returnID string
+	if info.IsMethod {
+		returnID = fmt.Sprintf("method_return_%d_%d", info.StartPos.Column, info.EndPos.Column)
+	} else {
+		returnID = fmt.Sprintf("subroutine_return_%d_%d", info.StartPos.Column, info.EndPos.Column)
+	}
+
+	if typeInfo, exists := nc.typeInfoMap[returnID]; exists {
+		return typeInfo
+	}
+
+	return nil
+}
+
+// generateTypedSubroutineSignature generates a typed signature for a subroutine or method
+func (nc *nodeCompiler) generateTypedSubroutineSignature(info *SubroutineInfo) (string, error) {
+	var parts []string
+
+	// Add declaration keyword
+	if info.IsLexical {
+		if info.IsMethod {
+			parts = append(parts, "my method")
+		} else {
+			parts = append(parts, "my sub")
+		}
+	} else {
+		if info.IsMethod {
+			parts = append(parts, "method")
+		} else {
+			parts = append(parts, "sub")
+		}
+	}
+
+	// Add return type if available
+	if returnInfo := nc.getReturnTypeInfoByPosition(info); returnInfo != nil {
+		if returnInfo.Confidence >= nc.options.MinimumConfidence {
+			returnType := nc.formatType(returnInfo.Type)
+			parts = append(parts, returnType)
+		}
+	}
+
+	// Add name
+	parts = append(parts, info.Name)
+
+	// Generate typed parameters
+	paramList := nc.generateTypedParameterList(info)
+	parts = append(parts, fmt.Sprintf("(%s)", paramList))
+
+	// Add body
+	if info.Body != "" {
+		result := strings.Join(parts, " ") + " " + info.Body
+		return result, nil
+	}
+
+	return strings.Join(parts, " ") + " { ... }", nil
+}
+
+// generateTypedParameterList generates a typed parameter list for a subroutine
+func (nc *nodeCompiler) generateTypedParameterList(info *SubroutineInfo) string {
+	var paramStrs []string
+
+	for _, param := range info.Parameters {
+		paramStr := ""
+
+		// Try to get inferred type info for this parameter
+		if paramTypeInfo := nc.getParameterTypeInfoByPosition(param); paramTypeInfo != nil {
+			if paramTypeInfo.Confidence >= nc.options.MinimumConfidence {
+				typeStr := nc.formatType(paramTypeInfo.Type)
+				paramStr = typeStr + " " + param.Variable
+			} else {
+				paramStr = param.Variable
+			}
+		} else {
+			// For methods, add Object type for $self if it's the first parameter
+			if info.IsMethod && len(paramStrs) == 0 && param.Variable == "$self" {
+				paramStr = "Object " + param.Variable
+			} else {
+				paramStr = param.Variable
+			}
+		}
+
+		if paramStr != "" {
+			paramStrs = append(paramStrs, paramStr)
+		}
+	}
+
+	return strings.Join(paramStrs, ", ")
 }
