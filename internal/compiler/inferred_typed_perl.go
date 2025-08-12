@@ -39,6 +39,9 @@ type InferredCompilerOptions struct {
 
 	// VerboseOutput includes additional debugging information
 	VerboseOutput bool
+
+	// MinimumConfidence sets the minimum confidence level for type annotations
+	MinimumConfidence float64
 }
 
 // NewInferredTypedPerlCompiler creates a new inferred typed Perl compiler
@@ -130,8 +133,10 @@ func (itpc *InferredTypedPerlCompiler) Compile(inputAST AST) (string, error) {
 	var astImpl *ast.AST
 
 	// Try direct cast first
+	//nolint:sloppyTypeAssert // Type assertion from interface to concrete type is intentional
 	if directAST, ok := inputAST.(*ast.AST); ok {
 		astImpl = directAST
+		//nolint:sloppyTypeAssert // Type assertion from interface to concrete type is intentional
 	} else if adapter, ok := inputAST.(*ParserASTAdapter); ok {
 		// Extract from adapter
 		astImpl = adapter.ast
@@ -213,8 +218,37 @@ func (itpc *InferredTypedPerlCompiler) addInferenceAnnotations(inferredAST ast.I
 		return content, nil
 	}
 
-	// Use the transformation pipeline for direct CST type injection
-	return itpc.addInferenceAnnotationsWithPipeline(inferredAST, content, typeInfo)
+	// Create a node compiler to handle AST-based compilation with type annotations
+	formatter := NewTypeFormatter()
+	annotationOptions := AnnotationOptions{
+		AnnotateVariables: true,
+		AnnotateMethods:   true,
+		AnnotateFields:    true,
+		AnnotateReturns:   true,
+		MinConfidence:     itpc.options.MinimumConfidence,
+		PreferredStyle:    itpc.options.AnnotationStyle,
+		ContextAware:      true,
+	}
+
+	nc := &nodeCompiler{
+		inferredAST:         inferredAST,
+		annotationGenerator: NewAnnotationGeneratorWithOptions(formatter, annotationOptions),
+		options:             itpc.options,
+		typeInfoMap:         typeInfo,
+	}
+
+	// Compile the AST with type annotations
+	rootNode, err := inferredAST.GetRootNode()
+	if err != nil {
+		return "", fmt.Errorf("failed to get root node: %w", err)
+	}
+
+	result, err := nc.compileNode(rootNode)
+	if err != nil {
+		return "", fmt.Errorf("failed to compile with type annotations: %w", err)
+	}
+
+	return result, nil
 }
 
 // addInferenceAnnotationsWithPipeline uses the transformation pipeline to inject type nodes
@@ -289,19 +323,73 @@ type nodeCompiler struct {
 	inferredAST         ast.InferredAST
 	annotationGenerator *AnnotationGenerator
 	options             InferredCompilerOptions
-	nodeCounter         int // For generating unique node IDs
+	nodeCounter         int                        // For generating unique node IDs
+	typeInfoMap         map[string]*types.TypeInfo // Map of node IDs to type information
 }
 
-// generateNodeID generates a unique ID for a node
+// generateNodeID generates a position-based ID for a node that matches the inference engine format
 func (nc *nodeCompiler) generateNodeID(node ast.Node) string {
-	nc.nodeCounter++
-	return fmt.Sprintf("%s_%d", node.Type(), nc.nodeCounter)
+	// Generate ID based on node type and position
+	// Format: nodetype_startcol_endcol (e.g., "variable_declaration_4_10")
+	startPos := node.Start()
+	endPos := node.End()
+
+	// Map AST node types to inference engine node types
+	nodeType := nc.mapNodeType(node)
+
+	return fmt.Sprintf("%s_%d_%d", nodeType, startPos.Column, endPos.Column)
 }
 
-// getOrGenerateNodeID gets type info for a node, generating an ID if needed
+// mapNodeType maps AST node types to the format expected by the inference engine
+func (nc *nodeCompiler) mapNodeType(node ast.Node) string {
+	switch n := node.(type) {
+	case *ast.VarDecl:
+		return "variable_declaration"
+	case *ast.SubDecl:
+		if n.IsMethod {
+			return "method_declaration"
+		}
+		return "subroutine_declaration"
+	case *ast.FieldDecl:
+		return "field_declaration"
+	default:
+		// Use the node's Type() method but convert to snake_case
+		return strings.ToLower(strings.ReplaceAll(node.Type(), " ", "_"))
+	}
+}
+
+// getNodeTypeInfo gets type info for a node using position-based ID lookup
 func (nc *nodeCompiler) getNodeTypeInfo(node ast.Node) *types.TypeInfo {
+	// Try multiple ID formats to find type info
+	// First try position-based ID
 	nodeID := nc.generateNodeID(node)
-	return nc.inferredAST.GetTypeInfo(nodeID)
+	if info, exists := nc.typeInfoMap[nodeID]; exists {
+		return info
+	}
+
+	// Try with node kind and byte positions (alternative format)
+	startPos := node.Start()
+	endPos := node.End()
+	alternativeID := fmt.Sprintf("%s_%d_%d", node.Type(), startPos.Offset, endPos.Offset)
+	if info, exists := nc.typeInfoMap[alternativeID]; exists {
+		return info
+	}
+
+	// For special nodes like return types, try context-based IDs
+	if subDecl, ok := node.(*ast.SubDecl); ok {
+		returnID := fmt.Sprintf("subroutine_return_%d_%d", startPos.Column, endPos.Column)
+		if info, exists := nc.typeInfoMap[returnID]; exists {
+			return info
+		}
+		if subDecl.IsMethod {
+			methodReturnID := fmt.Sprintf("method_return_%d_%d", startPos.Column, endPos.Column)
+			if info, exists := nc.typeInfoMap[methodReturnID]; exists {
+				return info
+			}
+		}
+	}
+
+	return nil
 }
 
 // compileNode compiles a single AST node to Perl code
@@ -398,16 +486,141 @@ func (nc *nodeCompiler) compileProgramStmt(node *ast.ProgramStmt) (string, error
 
 // compileVarDecl compiles a variable declaration with type annotations
 func (nc *nodeCompiler) compileVarDecl(node *ast.VarDecl) (string, error) {
-	// Get type information for this variable
-	typeInfo := nc.getNodeTypeInfo(node)
+	var parts []string
 
-	if typeInfo != nil {
-		// Generate annotated variable declaration
-		return nc.annotationGenerator.GenerateVariableAnnotation(node, typeInfo), nil
+	// Start with declaration type (my, our, state)
+	parts = append(parts, node.DeclType)
+
+	// Process variables with potential type annotations
+	var varDecls []string
+	for _, variable := range node.Variables() {
+		// Try to get type info for this specific variable
+		varTypeInfo := nc.getVariableTypeInfo(variable)
+
+		if varTypeInfo != nil && varTypeInfo.Confidence >= nc.options.MinimumConfidence {
+			// Add type annotation based on style
+			varDecl := nc.formatVariableWithType(variable, varTypeInfo)
+			varDecls = append(varDecls, varDecl)
+		} else {
+			// No type info or low confidence, use plain variable
+			varDecls = append(varDecls, variable.FullName())
+		}
 	}
 
-	// Fall back to basic variable declaration
-	return nc.compileBasicVarDecl(node)
+	// Handle multiple variables
+	if len(varDecls) > 1 {
+		parts = append(parts, "("+strings.Join(varDecls, ", ")+")")
+	} else if len(varDecls) == 1 {
+		parts = append(parts, varDecls[0])
+	}
+
+	// Add initializer if present
+	if node.Initializer != nil {
+		parts = append(parts, "=")
+		initCode, err := nc.compileNode(node.Initializer)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, initCode)
+	}
+
+	result := strings.Join(parts, " ") + ";"
+
+	// Add verbose comments if requested
+	if nc.options.AnnotationStyle == StyleVerbose && len(varDecls) > 0 {
+		for _, variable := range node.Variables() {
+			if varTypeInfo := nc.getVariableTypeInfo(variable); varTypeInfo != nil {
+				comment := fmt.Sprintf("# Type: %s (confidence: %.2f)",
+					nc.formatType(varTypeInfo.Type), varTypeInfo.Confidence)
+				result = comment + "\n" + result
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// getVariableTypeInfo looks up type info for a specific variable
+func (nc *nodeCompiler) getVariableTypeInfo(variable *ast.VariableExpr) *types.TypeInfo {
+	// Generate ID for this specific variable based on its position
+	startPos := variable.Start()
+	endPos := variable.End()
+	varID := fmt.Sprintf("variable_declaration_%d_%d", startPos.Column, endPos.Column)
+
+	if info, exists := nc.typeInfoMap[varID]; exists {
+		return info
+	}
+
+	return nil
+}
+
+// formatVariableWithType formats a variable with its type annotation
+func (nc *nodeCompiler) formatVariableWithType(variable *ast.VariableExpr, typeInfo *types.TypeInfo) string {
+	typeStr := nc.formatType(typeInfo.Type)
+
+	switch nc.options.AnnotationStyle {
+	case StyleInline:
+		return typeStr + " " + variable.FullName()
+	case StyleCompact:
+		return typeStr + " " + variable.FullName()
+	case StyleVerbose:
+		return typeStr + " " + variable.FullName()
+	case StyleCommentOnly:
+		return variable.FullName() + " # Type: " + typeStr
+	default:
+		return typeStr + " " + variable.FullName()
+	}
+}
+
+// formatType converts a types.Type to its string representation
+func (nc *nodeCompiler) formatType(t types.Type) string {
+	if t == nil {
+		return "Any"
+	}
+
+	// Use the Type's String() method for consistent formatting
+	if stringer, ok := t.(fmt.Stringer); ok {
+		typeStr := stringer.String()
+
+		// Map internal type names to Perl type annotation format
+		switch typeStr {
+		case "int":
+			return "Int"
+		case "str":
+			return "Str"
+		case "bool":
+			return "Bool"
+		case "num":
+			return "Num"
+		case "any":
+			return "Any"
+		case "scalar":
+			return "Scalar"
+		case "arrayref":
+			return "ArrayRef"
+		case "hashref":
+			return "HashRef"
+		default:
+			// For complex types, try to format them properly
+			if strings.HasPrefix(typeStr, "arrayref[") {
+				return "ArrayRef" + typeStr[8:] // Replace "arrayref" with "ArrayRef"
+			}
+			if strings.HasPrefix(typeStr, "hashref[") {
+				return "HashRef" + typeStr[7:] // Replace "hashref" with "HashRef"
+			}
+			if strings.Contains(typeStr, "|") {
+				// Union type - ensure proper formatting
+				return "(" + typeStr + ")"
+			}
+			// Capitalize first letter for consistency
+			if len(typeStr) > 0 {
+				return strings.ToUpper(typeStr[:1]) + typeStr[1:]
+			}
+			return typeStr
+		}
+	}
+
+	return "Any"
 }
 
 // compileBasicVarDecl compiles a variable declaration without type annotations
@@ -458,20 +671,18 @@ func (nc *nodeCompiler) compileSubDecl(node *ast.SubDecl) (string, error) {
 	// Add name
 	parts = append(parts, node.Name)
 
-	// Add parameters
-	paramList, err := nc.compileParameters(node.Parameters())
+	// Add parameters with type annotations
+	paramList, err := nc.compileParametersWithTypes(node.Parameters())
 	if err != nil {
 		return "", err
 	}
 	parts = append(parts, fmt.Sprintf("(%s)", paramList))
 
-	// Add return type if present and confident
-	if node.ReturnType != nil {
-		typeInfo := nc.getNodeTypeInfo(node)
-		if typeInfo != nil {
-			returnTypeStr := node.ReturnType.String()
-			parts = append(parts, "->", returnTypeStr)
-		}
+	// Add return type if we have type info for it
+	returnTypeInfo := nc.getReturnTypeInfo(node)
+	if returnTypeInfo != nil && returnTypeInfo.Confidence >= nc.options.MinimumConfidence {
+		returnTypeStr := nc.formatType(returnTypeInfo.Type)
+		parts = append(parts, ":", returnTypeStr)
 	}
 
 	// Add body
@@ -488,16 +699,42 @@ func (nc *nodeCompiler) compileSubDecl(node *ast.SubDecl) (string, error) {
 
 // compileMethodDecl compiles a method declaration
 func (nc *nodeCompiler) compileMethodDecl(node *ast.MethodDecl) (string, error) {
-	// Get method signature information
-	signature := nc.buildMethodSignatureInfo(node.SubDecl)
+	var parts []string
 
-	if signature != nil {
-		// Generate annotated method signature
-		return nc.annotationGenerator.GenerateMethodAnnotation(node, signature), nil
+	// Add method keyword
+	if node.IsLexical {
+		parts = append(parts, "my method")
+	} else {
+		parts = append(parts, "method")
 	}
 
-	// Fall back to basic method declaration
-	return nc.compileBasicMethodDecl(node)
+	// Add name
+	parts = append(parts, node.Name)
+
+	// Add parameters with type annotations
+	paramList, err := nc.compileParametersWithTypes(node.Parameters())
+	if err != nil {
+		return "", err
+	}
+	parts = append(parts, fmt.Sprintf("(%s)", paramList))
+
+	// Add return type if we have type info for it
+	returnTypeInfo := nc.getReturnTypeInfo(node.SubDecl)
+	if returnTypeInfo != nil && returnTypeInfo.Confidence >= nc.options.MinimumConfidence {
+		returnTypeStr := nc.formatType(returnTypeInfo.Type)
+		parts = append(parts, ":", returnTypeStr)
+	}
+
+	// Add body
+	if node.Body != nil {
+		bodyCode, err := nc.compileNode(node.Body)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, bodyCode)
+	}
+
+	return strings.Join(parts, " "), nil
 }
 
 // compileBasicMethodDecl compiles a method declaration without type annotations
@@ -514,7 +751,7 @@ func (nc *nodeCompiler) compileBasicMethodDecl(node *ast.MethodDecl) (string, er
 	// Add name and parameters
 	parts = append(parts, node.Name)
 
-	paramList, err := nc.compileParameters(node.Parameters())
+	paramList, err := nc.compileParametersWithTypes(node.Parameters())
 	if err != nil {
 		return "", err
 	}
@@ -534,16 +771,43 @@ func (nc *nodeCompiler) compileBasicMethodDecl(node *ast.MethodDecl) (string, er
 
 // compileFieldDecl compiles a field declaration
 func (nc *nodeCompiler) compileFieldDecl(node *ast.FieldDecl) (string, error) {
-	// Get type information for this field
-	typeInfo := nc.getNodeTypeInfo(node)
+	var parts []string
+	parts = append(parts, "field")
 
-	if typeInfo != nil {
-		// Generate annotated field declaration
-		return nc.annotationGenerator.GenerateFieldAnnotation(node, typeInfo), nil
+	// Get type information for this field
+	var fieldTypeInfo *types.TypeInfo
+	if node.Variable != nil {
+		fieldTypeInfo = nc.getFieldTypeInfo(node.Variable)
 	}
 
-	// Fall back to basic field declaration
-	return nc.compileBasicFieldDecl(node)
+	// Add field with type annotation if available
+	if fieldTypeInfo != nil && fieldTypeInfo.Confidence >= nc.options.MinimumConfidence {
+		typeStr := nc.formatType(fieldTypeInfo.Type)
+		if node.Variable != nil {
+			parts = append(parts, typeStr, node.Variable.FullName())
+		} else {
+			parts = append(parts, typeStr, "$"+node.Name)
+		}
+	} else {
+		// No type info or low confidence
+		if node.Variable != nil {
+			parts = append(parts, node.Variable.FullName())
+		} else {
+			parts = append(parts, "$"+node.Name)
+		}
+	}
+
+	// Add initializer if present
+	if node.Initializer != nil {
+		parts = append(parts, "=")
+		initCode, err := nc.compileNode(node.Initializer)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, initCode)
+	}
+
+	return strings.Join(parts, " ") + ";", nil
 }
 
 // compileBasicFieldDecl compiles a field declaration without type annotations
@@ -570,17 +834,22 @@ func (nc *nodeCompiler) compileBasicFieldDecl(node *ast.FieldDecl) (string, erro
 	return strings.Join(parts, " ") + ";", nil
 }
 
-// compileParameters compiles a list of parameters
-func (nc *nodeCompiler) compileParameters(params []*ast.Parameter) (string, error) {
+// compileParametersWithTypes compiles a list of parameters with type annotations from inference
+func (nc *nodeCompiler) compileParametersWithTypes(params []*ast.Parameter) (string, error) {
 	var paramStrs []string
 
 	for _, param := range params {
 		paramStr := ""
 
-		// Add type annotation if present and confident
-		if param.TypeExpr != nil {
-			// For parameters, we'll use a simplified approach since Parameter doesn't implement Node
-			// In a real implementation, we'd need to track parameter type info differently
+		// Try to get inferred type info for this parameter
+		paramTypeInfo := nc.getParameterTypeInfo(param)
+
+		if paramTypeInfo != nil && paramTypeInfo.Confidence >= nc.options.MinimumConfidence {
+			// Add inferred type annotation
+			typeStr := nc.formatType(paramTypeInfo.Type)
+			paramStr += typeStr + " "
+		} else if param.TypeExpr != nil {
+			// Fall back to explicit type annotation if present
 			paramStr += param.TypeExpr.String() + " "
 		}
 
@@ -606,54 +875,52 @@ func (nc *nodeCompiler) compileParameters(params []*ast.Parameter) (string, erro
 	return strings.Join(paramStrs, ", "), nil
 }
 
-// buildMethodSignatureInfo builds method signature information from a SubDecl
-func (nc *nodeCompiler) buildMethodSignatureInfo(node *ast.SubDecl) *MethodSignatureInfo {
-	var params []ParameterInfo
-	totalConfidence := 0.0
-	confidenceCount := 0
+// getParameterTypeInfo gets type info for a parameter based on its position
+func (nc *nodeCompiler) getParameterTypeInfo(param *ast.Parameter) *types.TypeInfo {
+	// Generate position-based ID for parameter
+	if param.Variable != nil {
+		startPos := param.Variable.Start()
+		endPos := param.Variable.End()
+		paramID := fmt.Sprintf("parameter_%d_%d", startPos.Column, endPos.Column)
 
-	for _, param := range node.Parameters() {
-		paramInfo := ParameterInfo{
-			Name:       param.Name,
-			IsOptional: param.IsOptional,
-		}
-
-		// Get type information if available
-		// For parameters, we'll use a simplified approach since Parameter doesn't implement Node
-		// In a real implementation, we'd need to track parameter type info differently
-		paramInfo.Confidence = 0.8 // Default confidence for explicitly typed parameters
-		if param.TypeExpr != nil {
-			totalConfidence += paramInfo.Confidence
-			confidenceCount++
-		} else {
-			paramInfo.Confidence = 0.0
-		}
-
-		params = append(params, paramInfo)
-	}
-
-	// Calculate overall confidence
-	overallConfidence := 0.0
-	if confidenceCount > 0 {
-		overallConfidence = totalConfidence / float64(confidenceCount)
-	}
-
-	// Get return type information
-	var returnType types.Type
-	returnConfidence := 0.0
-	if node.ReturnType != nil {
-		if typeInfo := nc.getNodeTypeInfo(node); typeInfo != nil {
-			returnType = typeInfo.Type
-			returnConfidence = typeInfo.Confidence
+		if info, exists := nc.typeInfoMap[paramID]; exists {
+			return info
 		}
 	}
 
-	return &MethodSignatureInfo{
-		Parameters:        params,
-		ReturnType:        returnType,
-		ReturnConfidence:  returnConfidence,
-		OverallConfidence: overallConfidence,
+	return nil
+}
+
+// getReturnTypeInfo gets type info for a subroutine or method return type
+func (nc *nodeCompiler) getReturnTypeInfo(node *ast.SubDecl) *types.TypeInfo {
+	startPos := node.Start()
+	endPos := node.End()
+
+	var returnID string
+	if node.IsMethod {
+		returnID = fmt.Sprintf("method_return_%d_%d", startPos.Column, endPos.Column)
+	} else {
+		returnID = fmt.Sprintf("subroutine_return_%d_%d", startPos.Column, endPos.Column)
 	}
+
+	if info, exists := nc.typeInfoMap[returnID]; exists {
+		return info
+	}
+
+	return nil
+}
+
+// getFieldTypeInfo gets type info for a field declaration
+func (nc *nodeCompiler) getFieldTypeInfo(variable *ast.VariableExpr) *types.TypeInfo {
+	startPos := variable.Start()
+	endPos := variable.End()
+	fieldID := fmt.Sprintf("field_declaration_%d_%d", startPos.Column, endPos.Column)
+
+	if info, exists := nc.typeInfoMap[fieldID]; exists {
+		return info
+	}
+
+	return nil
 }
 
 // Helper methods for other node types - delegating to existing implementations

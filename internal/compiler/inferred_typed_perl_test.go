@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"tamarou.com/pvm/internal/ast"
+	"tamarou.com/pvm/internal/types"
 )
 
 func TestInferredTypedPerlCompiler(t *testing.T) {
@@ -288,18 +289,25 @@ func TestMethodCompilation(t *testing.T) {
 	compiler := NewInferredTypedPerlCompiler()
 
 	// Test that the compiler can handle method compilation without panicking
-	t.Run("Method signature info building", func(t *testing.T) {
+	t.Run("Method compilation basic check", func(t *testing.T) {
 		// Create a simple SubDecl for testing
 		subDecl := ast.NewSubDecl("test_method", []*ast.Parameter{}, nil, nil, true, ast.Position{}, ast.Position{})
 
 		nodeCompiler := &nodeCompiler{
-			options: compiler.options,
+			options:     compiler.options,
+			typeInfoMap: make(map[string]*types.TypeInfo),
 		}
 
-		// This should not panic
-		signature := nodeCompiler.buildMethodSignatureInfo(subDecl)
-		if signature == nil {
-			t.Error("Expected method signature info, got nil")
+		// This should not panic when trying to compile
+		methodDecl := &ast.MethodDecl{SubDecl: subDecl}
+		result, err := nodeCompiler.compileMethodDecl(methodDecl)
+		if err != nil {
+			t.Errorf("Method compilation failed: %v", err)
+		}
+
+		// Should contain method keyword
+		if !strings.Contains(result, "method") {
+			t.Error("Result should contain 'method' keyword")
 		}
 	})
 }
