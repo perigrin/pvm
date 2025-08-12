@@ -91,7 +91,7 @@ type WorkflowOptions struct {
 	// ReadOnlyPaths for filesystem isolation
 	ReadOnlyPaths []string
 
-	// ReadWritePaths for filesystem isolation  
+	// ReadWritePaths for filesystem isolation
 	ReadWritePaths []string
 
 	// IsolatedOutput enables output isolation
@@ -444,24 +444,24 @@ func installModules(options *WorkflowOptions, resolvedVersion *perl.ResolvedVers
 // executeScript executes the script with the resolved version
 func executeScript(options *WorkflowOptions, resolvedVersion *perl.ResolvedVersion) (*ExecutionResult, error) {
 	execOptions := &pvx.ExecutionOptions{
-		ScriptPath:       options.ScriptPath,
-		PerlVersion:      resolvedVersion.Version,
-		ForceVersion:     options.ForceVersion,
-		Verbose:          options.Verbose,
-		IsolationLevel:   options.IsolationLevel,
-		Timeout:          30 * time.Second, // Set reasonable timeout for integration tests
-		EnvName:                   options.EnvironmentName,
-		AdditionalModulePaths:    options.ModulePaths,
-		ReadOnlyPaths:            options.ReadOnlyPaths,
-		ReadWritePaths:           options.ReadWritePaths,
-		IsolatedOutput:           options.IsolatedOutput,
-		SaveOutputDir:            options.SaveOutputDir,
-		NoCleanup:                options.NoCleanup,
-		AutoDetectDependencies:   options.AutoDetectDeps,
-		InlineCode:       options.ExecuteCode,
-		Args:             options.AdditionalArgs,
+		ScriptPath:             options.ScriptPath,
+		PerlVersion:            resolvedVersion.Version,
+		ForceVersion:           options.ForceVersion,
+		Verbose:                options.Verbose,
+		IsolationLevel:         options.IsolationLevel,
+		Timeout:                30 * time.Second, // Set reasonable timeout for integration tests
+		EnvName:                options.EnvironmentName,
+		AdditionalModulePaths:  options.ModulePaths,
+		ReadOnlyPaths:          options.ReadOnlyPaths,
+		ReadWritePaths:         options.ReadWritePaths,
+		IsolatedOutput:         options.IsolatedOutput,
+		SaveOutputDir:          options.SaveOutputDir,
+		NoCleanup:              options.NoCleanup,
+		AutoDetectDependencies: options.AutoDetectDeps,
+		InlineCode:             options.ExecuteCode,
+		Args:                   options.AdditionalArgs,
 	}
-	
+
 	// Handle environment variable configuration
 	if len(options.PreserveEnv) > 0 || len(options.ClearEnv) > 0 {
 		if execOptions.Env == nil {
@@ -478,7 +478,7 @@ func executeScript(options *WorkflowOptions, resolvedVersion *perl.ResolvedVersi
 
 	var output string
 	var err error
-	
+
 	// Choose execution method based on options
 	if options.ExecuteCode != "" || options.ExecuteFeatures != "" {
 		// Execute inline code

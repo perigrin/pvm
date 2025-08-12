@@ -597,7 +597,7 @@ func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 			if installed {
 				ui.Success("  Status: installed")
 			} else {
-				ui.Warning("  Status: not installed (run 'pvm install %s')" , ctx.PerlVersion)
+				ui.Warning("  Status: not installed (run 'pvm install %s')", ctx.PerlVersion)
 			}
 		} else {
 			ui.Warning("  Status: unable to check (%v)", err)
@@ -613,7 +613,7 @@ func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 		if installed, missing := checkDependenciesInstalled(ctx); installed {
 			ui.Success("  Status: all dependencies installed")
 		} else if missing > 0 {
-			ui.Warning("  Status: %d dependencies missing (run 'pvm module install')" , missing)
+			ui.Warning("  Status: %d dependencies missing (run 'pvm module install')", missing)
 		} else {
 			ui.Info("  Status: unable to check")
 		}
@@ -1392,7 +1392,7 @@ func checkDependenciesInstalled(ctx *project.ProjectContext) (bool, int) {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "requires '") {
-			// Extract module name from "requires 'Module::Name'" 
+			// Extract module name from "requires 'Module::Name'"
 			parts := strings.Split(line, "'")
 			if len(parts) >= 2 {
 				moduleName := parts[1]
@@ -1422,10 +1422,10 @@ func checkDependenciesInstalled(ctx *project.ProjectContext) (bool, int) {
 func isModuleInstalled(localLibDir, moduleName string) bool {
 	// Convert Module::Name to Module/Name.pm
 	modulePath := strings.ReplaceAll(moduleName, "::", "/") + ".pm"
-	
+
 	// Check in local lib perl5 directory
 	perl5Dir := filepath.Join(localLibDir, "perl5")
-	
+
 	// Search for the module file
 	found := false
 	filepath.Walk(perl5Dir, func(path string, info os.FileInfo, err error) error {
@@ -1438,6 +1438,6 @@ func isModuleInstalled(localLibDir, moduleName string) bool {
 		}
 		return nil
 	})
-	
+
 	return found
 }
