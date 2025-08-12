@@ -1,0 +1,3487 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>updater: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+
+				<option value="file0">tamarou.com/pvm/internal/updater/auto_update.go (78.1%)</option>
+
+				<option value="file1">tamarou.com/pvm/internal/updater/backup.go (6.3%)</option>
+
+				<option value="file2">tamarou.com/pvm/internal/updater/permissions.go (0.0%)</option>
+
+				<option value="file3">tamarou.com/pvm/internal/updater/recovery.go (33.7%)</option>
+
+				<option value="file4">tamarou.com/pvm/internal/updater/replacer.go (27.2%)</option>
+
+				<option value="file5">tamarou.com/pvm/internal/updater/rollback.go (18.0%)</option>
+
+				<option value="file6">tamarou.com/pvm/internal/updater/shell_integration.go (0.6%)</option>
+
+				<option value="file7">tamarou.com/pvm/internal/updater/updater.go (19.8%)</option>
+
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+
+			</div>
+		</div>
+		<div id="content">
+
+		<pre class="file" id="file0" style="display: none">// ABOUTME: Auto-update checking and notification system for PVM
+// ABOUTME: Handles background update checks, notifications, and update channel management
+
+package updater
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "os"
+        "path/filepath"
+        "strings"
+        "time"
+
+        "tamarou.com/pvm/internal/version"
+)
+
+// AutoUpdateManager handles automatic update checking and notifications
+type AutoUpdateManager struct {
+        versionChecker *version.GitHubClient
+        configPath     string
+        config         *AutoUpdateConfig
+}
+
+// AutoUpdateConfig stores auto-update configuration
+type AutoUpdateConfig struct {
+        Enabled           bool                `json:"enabled"`
+        CheckInterval     time.Duration       `json:"check_interval"`
+        Channel           UpdateChannel       `json:"channel"`
+        LastCheckTime     time.Time           `json:"last_check_time"`
+        LastNotification  time.Time           `json:"last_notification"`
+        NotificationDelay time.Duration       `json:"notification_delay"`
+        Repository        string              `json:"repository"`
+        GitHubToken       string              `json:"github_token,omitempty"`
+        QuietMode         bool                `json:"quiet_mode"`
+        AutoInstall       bool                `json:"auto_install"`
+        InstallationTime  AutoInstallSchedule `json:"installation_time"`
+        // testClient is used for dependency injection in tests (not serialized)
+        testClient version.GitHubClientInterface `json:"-"`
+}
+
+// UpdateChannel represents different update channels
+type UpdateChannel string
+
+const (
+        ChannelStable    UpdateChannel = "stable"
+        ChannelBeta      UpdateChannel = "beta"
+        ChannelAlpha     UpdateChannel = "alpha"
+        ChannelNightly   UpdateChannel = "nightly"
+        ChannelDeveloper UpdateChannel = "developer"
+)
+
+// AutoInstallSchedule defines when auto-installation should occur
+type AutoInstallSchedule struct {
+        Enabled    bool  `json:"enabled"`
+        DaysOfWeek []int `json:"days_of_week"` // 0=Sunday, 1=Monday, etc.
+        Hour       int   `json:"hour"`         // 0-23
+        Minute     int   `json:"minute"`       // 0-59
+}
+
+// UpdateNotification represents an update notification
+type UpdateNotification struct {
+        Available      bool          `json:"available"`
+        CurrentVersion string        `json:"current_version"`
+        LatestVersion  string        `json:"latest_version"`
+        Channel        UpdateChannel `json:"channel"`
+        ReleaseNotes   string        `json:"release_notes"`
+        Urgent         bool          `json:"urgent"`
+        SecurityUpdate bool          `json:"security_update"`
+        DownloadSize   int64         `json:"download_size"`
+        Timestamp      time.Time     `json:"timestamp"`
+}
+
+// DefaultAutoUpdateConfig returns default auto-update configuration
+func DefaultAutoUpdateConfig() *AutoUpdateConfig <span class="cov8" title="1">{
+        return &amp;AutoUpdateConfig{
+                Enabled:           true,
+                CheckInterval:     24 * time.Hour, // Check daily
+                Channel:           ChannelStable,
+                NotificationDelay: 4 * time.Hour, // Wait 4 hours between notifications
+                Repository:        "perigrin/pvm",
+                QuietMode:         false,
+                AutoInstall:       false,
+                InstallationTime: AutoInstallSchedule{
+                        Enabled:    false,
+                        DaysOfWeek: []int{0}, // Sunday
+                        Hour:       2,        // 2 AM
+                        Minute:     0,
+                },
+        }
+}</span>
+
+// NewAutoUpdateManager creates a new auto-update manager
+func NewAutoUpdateManager(configPath string) (*AutoUpdateManager, error) <span class="cov8" title="1">{
+        manager := &amp;AutoUpdateManager{
+                versionChecker: version.NewGitHubClient(),
+                configPath:     configPath,
+        }
+
+        // Load or create config
+        config, err := manager.loadConfig()
+        if err != nil </span><span class="cov8" title="1">{
+                // If config doesn't exist, create default
+                config = DefaultAutoUpdateConfig()
+                if err := manager.saveConfig(config); err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("failed to create default config: %w", err)
+                }</span>
+        }
+
+        <span class="cov8" title="1">manager.config = config
+        return manager, nil</span>
+}
+
+// NewAutoUpdateManagerWithToken creates a new auto-update manager with GitHub token
+func NewAutoUpdateManagerWithToken(configPath, token string) (*AutoUpdateManager, error) <span class="cov0" title="0">{
+        manager, err := NewAutoUpdateManager(configPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">manager.versionChecker = version.NewGitHubClientWithToken(token)
+        manager.config.GitHubToken = token
+        return manager, nil</span>
+}
+
+// CheckForUpdates performs an update check and returns notification if available
+func (m *AutoUpdateManager) CheckForUpdates(ctx context.Context) (*UpdateNotification, error) <span class="cov8" title="1">{
+        if !m.config.Enabled </span><span class="cov0" title="0">{
+                return nil, nil
+        }</span>
+
+        // Check if enough time has passed since last check
+        <span class="cov8" title="1">if time.Since(m.config.LastCheckTime) &lt; m.config.CheckInterval </span><span class="cov0" title="0">{
+                return nil, nil
+        }</span>
+
+        // Perform version check
+        <span class="cov8" title="1">checkOpts := &amp;version.CheckOptions{
+                IncludePrerelease: m.shouldIncludePrerelease(),
+                Repository:        m.config.Repository,
+                GitHubToken:       m.config.GitHubToken,
+                Timeout:           30 * time.Second,
+                Client:            m.config.testClient, // For dependency injection in tests
+        }
+
+        updateInfo, err := version.GetUpdateInfo(checkOpts)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to check for updates: %w", err)
+        }</span>
+
+        // Update last check time
+        <span class="cov8" title="1">m.config.LastCheckTime = time.Now()
+        if err := m.saveConfig(m.config); err != nil </span><span class="cov0" title="0">{
+                // Log error but don't fail the check
+                _ = err
+        }</span>
+
+        // Check if update is needed
+        <span class="cov8" title="1">if !updateInfo.UpdateNeeded </span><span class="cov0" title="0">{
+                return &amp;UpdateNotification{
+                        Available:      false,
+                        CurrentVersion: updateInfo.CurrentVersion.String(),
+                        Channel:        m.config.Channel,
+                        Timestamp:      time.Now(),
+                }, nil
+        }</span>
+
+        // Check if we should show notification (not too frequent)
+        <span class="cov8" title="1">if !m.config.QuietMode &amp;&amp; time.Since(m.config.LastNotification) &lt; m.config.NotificationDelay </span><span class="cov0" title="0">{
+                return nil, nil
+        }</span>
+
+        // Create notification
+        <span class="cov8" title="1">notification := &amp;UpdateNotification{
+                Available:      true,
+                CurrentVersion: updateInfo.CurrentVersion.String(),
+                LatestVersion:  updateInfo.LatestVersion.String(),
+                Channel:        m.config.Channel,
+                Timestamp:      time.Now(),
+        }
+
+        // Add release notes if available
+        if updateInfo.Release != nil </span><span class="cov8" title="1">{
+                notification.ReleaseNotes = updateInfo.Release.Body
+                notification.SecurityUpdate = m.isSecurityUpdate(updateInfo.Release.Body)
+                notification.Urgent = m.isUrgentUpdate(updateInfo.Release.Body)
+
+                // Try to get download size
+                if asset, err := version.GetUpdateAsset(updateInfo.Release, version.DetectPlatform()); err == nil </span><span class="cov0" title="0">{
+                        notification.DownloadSize = int64(asset.Size)
+                }</span>
+        }
+
+        // Update last notification time
+        <span class="cov8" title="1">if !m.config.QuietMode </span><span class="cov8" title="1">{
+                m.config.LastNotification = time.Now()
+                if err := m.saveConfig(m.config); err != nil </span><span class="cov0" title="0">{
+                        // Log error but don't fail
+                        _ = err
+                }</span>
+        }
+
+        <span class="cov8" title="1">return notification, nil</span>
+}
+
+// ShouldAutoInstall checks if an auto-installation should be performed
+func (m *AutoUpdateManager) ShouldAutoInstall() bool <span class="cov8" title="1">{
+        if !m.config.AutoInstall || !m.config.InstallationTime.Enabled </span><span class="cov8" title="1">{
+                return false
+        }</span>
+
+        <span class="cov8" title="1">now := time.Now()
+        schedule := m.config.InstallationTime
+
+        // Check if current day of week matches
+        currentDay := int(now.Weekday())
+        dayMatches := false
+        for _, day := range schedule.DaysOfWeek </span><span class="cov8" title="1">{
+                if day == currentDay </span><span class="cov8" title="1">{
+                        dayMatches = true
+                        break</span>
+                }
+        }
+
+        <span class="cov8" title="1">if !dayMatches </span><span class="cov8" title="1">{
+                return false
+        }</span>
+
+        // Check if current time matches (within 1 hour window)
+        <span class="cov8" title="1">currentHour := now.Hour()
+        return currentHour == schedule.Hour</span>
+}
+
+// GetConfig returns the current configuration
+func (m *AutoUpdateManager) GetConfig() *AutoUpdateConfig <span class="cov8" title="1">{
+        return m.config
+}</span>
+
+// UpdateConfig updates the configuration
+func (m *AutoUpdateManager) UpdateConfig(config *AutoUpdateConfig) error <span class="cov8" title="1">{
+        m.config = config
+        return m.saveConfig(config)
+}</span>
+
+// shouldIncludePrerelease determines if pre-release versions should be included
+func (m *AutoUpdateManager) shouldIncludePrerelease() bool <span class="cov8" title="1">{
+        switch m.config.Channel </span>{
+        case ChannelStable:<span class="cov8" title="1">
+                return false</span>
+        case ChannelBeta, ChannelAlpha, ChannelNightly, ChannelDeveloper:<span class="cov8" title="1">
+                return true</span>
+        default:<span class="cov0" title="0">
+                return false</span>
+        }
+}
+
+// isSecurityUpdate checks if the release notes indicate a security update
+func (m *AutoUpdateManager) isSecurityUpdate(releaseNotes string) bool <span class="cov8" title="1">{
+        // Simple keyword matching - could be enhanced with more sophisticated detection
+        keywords := []string{"security", "vulnerability", "CVE-", "exploit", "patch"}
+        lowerNotes := strings.ToLower(releaseNotes)
+
+        for _, keyword := range keywords </span><span class="cov8" title="1">{
+                if strings.Contains(lowerNotes, keyword) </span><span class="cov8" title="1">{
+                        return true
+                }</span>
+        }
+        <span class="cov8" title="1">return false</span>
+}
+
+// isUrgentUpdate checks if the release notes indicate an urgent update
+func (m *AutoUpdateManager) isUrgentUpdate(releaseNotes string) bool <span class="cov8" title="1">{
+        keywords := []string{"urgent", "critical", "emergency", "hotfix", "immediate"}
+        lowerNotes := strings.ToLower(releaseNotes)
+
+        for _, keyword := range keywords </span><span class="cov8" title="1">{
+                if strings.Contains(lowerNotes, keyword) </span><span class="cov8" title="1">{
+                        return true
+                }</span>
+        }
+        <span class="cov8" title="1">return false</span>
+}
+
+// loadConfig loads configuration from file
+func (m *AutoUpdateManager) loadConfig() (*AutoUpdateConfig, error) <span class="cov8" title="1">{
+        data, err := os.ReadFile(m.configPath)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">var config AutoUpdateConfig
+        if err := json.Unmarshal(data, &amp;config); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to parse config: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;config, nil</span>
+}
+
+// saveConfig saves configuration to file
+func (m *AutoUpdateManager) saveConfig(config *AutoUpdateConfig) error <span class="cov8" title="1">{
+        // Ensure directory exists
+        dir := filepath.Dir(m.configPath)
+        if err := os.MkdirAll(dir, 0o755); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to create config directory: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">data, err := json.MarshalIndent(config, "", "  ")
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to marshal config: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if err := os.WriteFile(m.configPath, data, 0o644); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to write config file: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// SetTestClient sets a test client for dependency injection (testing only)
+func (m *AutoUpdateManager) SetTestClient(client version.GitHubClientInterface) <span class="cov8" title="1">{
+        m.config.testClient = client
+}</span>
+
+// String methods for enums
+func (c UpdateChannel) String() string <span class="cov0" title="0">{
+        return string(c)
+}</span>
+
+func (c UpdateChannel) IsValid() bool <span class="cov8" title="1">{
+        switch c </span>{
+        case ChannelStable, ChannelBeta, ChannelAlpha, ChannelNightly, ChannelDeveloper:<span class="cov8" title="1">
+                return true</span>
+        default:<span class="cov8" title="1">
+                return false</span>
+        }
+}
+</pre>
+
+		<pre class="file" id="file1" style="display: none">// ABOUTME: Backup creation and management for PVM binary updates
+// ABOUTME: Handles backup creation, validation, and cleanup with proper metadata
+
+package updater
+
+import (
+        "crypto/sha256"
+        "encoding/json"
+        "fmt"
+        "io"
+        "os"
+        "path/filepath"
+        "time"
+)
+
+// BackupManager handles backup operations for binary updates
+type BackupManager struct {
+        backupDir string
+}
+
+// NewBackupManager creates a new backup manager
+func NewBackupManager() *BackupManager <span class="cov8" title="1">{
+        return &amp;BackupManager{}
+}</span>
+
+// NewBackupManagerWithDir creates a backup manager with a specific backup directory
+func NewBackupManagerWithDir(backupDir string) *BackupManager <span class="cov0" title="0">{
+        return &amp;BackupManager{
+                backupDir: backupDir,
+        }
+}</span>
+
+// BackupMetadata contains information about a backup
+type BackupMetadata struct {
+        OriginalPath string    `json:"original_path"`
+        BackupPath   string    `json:"backup_path"`
+        CreatedAt    time.Time `json:"created_at"`
+        OriginalSize int64     `json:"original_size"`
+        Checksum     string    `json:"checksum"`
+        Version      string    `json:"version,omitempty"`
+}
+
+// CreateBackup creates a backup of the specified file
+func (bm *BackupManager) CreateBackup(filePath string) (string, error) <span class="cov0" title="0">{
+        // Ensure backup directory exists
+        backupDir, err := bm.getBackupDir()
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("getting backup directory: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if err := os.MkdirAll(backupDir, 0755); err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("creating backup directory: %w", err)
+        }</span>
+
+        // Get file info
+        <span class="cov0" title="0">fileInfo, err := os.Stat(filePath)
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("getting file info: %w", err)
+        }</span>
+
+        // Generate backup filename with timestamp
+        <span class="cov0" title="0">fileName := filepath.Base(filePath)
+        timestamp := time.Now().Format("20060102-150405")
+        backupFileName := fmt.Sprintf("%s.backup.%s", fileName, timestamp)
+        backupPath := filepath.Join(backupDir, backupFileName)
+
+        // Copy file to backup location
+        if err := bm.copyFile(filePath, backupPath); err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("copying file to backup: %w", err)
+        }</span>
+
+        // Calculate checksum for verification
+        <span class="cov0" title="0">checksum, err := bm.calculateChecksum(filePath)
+        if err != nil </span><span class="cov0" title="0">{
+                // Don't fail backup creation if checksum fails
+                checksum = ""
+        }</span>
+
+        // Create metadata file
+        <span class="cov0" title="0">metadata := &amp;BackupMetadata{
+                OriginalPath: filePath,
+                BackupPath:   backupPath,
+                CreatedAt:    time.Now(),
+                OriginalSize: fileInfo.Size(),
+                Checksum:     checksum,
+        }
+
+        metadataPath := backupPath + ".meta"
+        if err := bm.saveMetadata(metadata, metadataPath); err != nil </span><span class="cov0" title="0">{
+                // Don't fail backup creation if metadata save fails
+                _ = err
+        }</span>
+
+        <span class="cov0" title="0">return backupPath, nil</span>
+}
+
+// ValidateBackup validates a backup against its metadata
+func (bm *BackupManager) ValidateBackup(backupPath string) error <span class="cov0" title="0">{
+        // Check if backup file exists
+        if _, err := os.Stat(backupPath); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                return fmt.Errorf("backup file not found: %s", backupPath)
+        }</span>
+
+        // Load metadata
+        <span class="cov0" title="0">metadataPath := backupPath + ".meta"
+        metadata, err := bm.loadMetadata(metadataPath)
+        if err != nil </span><span class="cov0" title="0">{
+                // If no metadata, do basic validation
+                return bm.basicBackupValidation(backupPath)
+        }</span>
+
+        // Validate file size
+        <span class="cov0" title="0">fileInfo, err := os.Stat(backupPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("getting backup file info: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if fileInfo.Size() != metadata.OriginalSize </span><span class="cov0" title="0">{
+                return fmt.Errorf("backup file size mismatch: expected %d, got %d",
+                        metadata.OriginalSize, fileInfo.Size())
+        }</span>
+
+        // Validate checksum if available
+        <span class="cov0" title="0">if metadata.Checksum != "" </span><span class="cov0" title="0">{
+                actualChecksum, err := bm.calculateChecksum(backupPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("calculating backup checksum: %w", err)
+                }</span>
+
+                <span class="cov0" title="0">if actualChecksum != metadata.Checksum </span><span class="cov0" title="0">{
+                        return fmt.Errorf("backup checksum mismatch")
+                }</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// ListBackups lists all available backups
+func (bm *BackupManager) ListBackups() ([]*BackupMetadata, error) <span class="cov8" title="1">{
+        backupDir, err := bm.getBackupDir()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("getting backup directory: %w", err)
+        }</span>
+
+        // Check if backup directory exists
+        <span class="cov8" title="1">if _, err := os.Stat(backupDir); os.IsNotExist(err) </span><span class="cov8" title="1">{
+                return []*BackupMetadata{}, nil
+        }</span>
+
+        // Read directory entries
+        <span class="cov0" title="0">entries, err := os.ReadDir(backupDir)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("reading backup directory: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">var backups []*BackupMetadata
+
+        for _, entry := range entries </span><span class="cov0" title="0">{
+                if entry.IsDir() || !entry.Type().IsRegular() </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                // Skip metadata files
+                <span class="cov0" title="0">if filepath.Ext(entry.Name()) == ".meta" </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                // Try to load metadata for this backup
+                <span class="cov0" title="0">backupPath := filepath.Join(backupDir, entry.Name())
+                metadataPath := backupPath + ".meta"
+
+                metadata, err := bm.loadMetadata(metadataPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        // Create basic metadata if none exists
+                        info, err := entry.Info()
+                        if err != nil </span><span class="cov0" title="0">{
+                                continue</span>
+                        }
+
+                        <span class="cov0" title="0">metadata = &amp;BackupMetadata{
+                                BackupPath:   backupPath,
+                                CreatedAt:    info.ModTime(),
+                                OriginalSize: info.Size(),
+                        }</span>
+                }
+
+                <span class="cov0" title="0">backups = append(backups, metadata)</span>
+        }
+
+        <span class="cov0" title="0">return backups, nil</span>
+}
+
+// CleanupOldBackups removes backups older than the specified duration
+func (bm *BackupManager) CleanupOldBackups(maxAge time.Duration) error <span class="cov0" title="0">{
+        backups, err := bm.ListBackups()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("listing backups: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">cutoff := time.Now().Add(-maxAge)
+        var removedCount int
+
+        for _, backup := range backups </span><span class="cov0" title="0">{
+                if backup.CreatedAt.Before(cutoff) </span><span class="cov0" title="0">{
+                        if err := bm.RemoveBackup(backup.BackupPath); err != nil </span><span class="cov0" title="0">{
+                                // Log error but continue with other backups
+                                continue</span>
+                        }
+                        <span class="cov0" title="0">removedCount++</span>
+                }
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// RemoveBackup removes a specific backup and its metadata
+func (bm *BackupManager) RemoveBackup(backupPath string) error <span class="cov0" title="0">{
+        // Remove backup file
+        if err := os.Remove(backupPath); err != nil &amp;&amp; !os.IsNotExist(err) </span><span class="cov0" title="0">{
+                return fmt.Errorf("removing backup file: %w", err)
+        }</span>
+
+        // Remove metadata file
+        <span class="cov0" title="0">metadataPath := backupPath + ".meta"
+        if err := os.Remove(metadataPath); err != nil &amp;&amp; !os.IsNotExist(err) </span><span class="cov0" title="0">{
+                // Don't fail if metadata file doesn't exist
+                _ = err
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// RestoreFromBackup restores a file from backup
+func (bm *BackupManager) RestoreFromBackup(backupPath, targetPath string) error <span class="cov0" title="0">{
+        // Validate backup first
+        if err := bm.ValidateBackup(backupPath); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("backup validation failed: %w", err)
+        }</span>
+
+        // Copy backup to target location
+        <span class="cov0" title="0">if err := bm.copyFile(backupPath, targetPath); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("restoring from backup: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// getBackupDir returns the backup directory path
+func (bm *BackupManager) getBackupDir() (string, error) <span class="cov8" title="1">{
+        if bm.backupDir != "" </span><span class="cov0" title="0">{
+                return bm.backupDir, nil
+        }</span>
+
+        // Use XDG cache directory for backups
+        <span class="cov8" title="1">cacheDir, err := os.UserCacheDir()
+        if err != nil </span><span class="cov0" title="0">{
+                // Fallback to temp directory
+                return filepath.Join(os.TempDir(), "pvm-backups"), nil
+        }</span>
+
+        <span class="cov8" title="1">return filepath.Join(cacheDir, "pvm", "backups"), nil</span>
+}
+
+// copyFile copies a file from src to dst
+func (bm *BackupManager) copyFile(src, dst string) error <span class="cov0" title="0">{
+        srcFile, err := os.Open(src)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("opening source file: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer srcFile.Close()
+
+        // Ensure destination directory exists
+        dstDir := filepath.Dir(dst)
+        if err := os.MkdirAll(dstDir, 0755); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("creating destination directory: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">dstFile, err := os.Create(dst)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("creating destination file: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer dstFile.Close()
+
+        // Copy file contents
+        _, err = io.Copy(dstFile, srcFile)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("copying file contents: %w", err)
+        }</span>
+
+        // Copy file permissions
+        <span class="cov0" title="0">srcInfo, err := srcFile.Stat()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("getting source file info: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if err := os.Chmod(dst, srcInfo.Mode()); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("setting file permissions: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// calculateChecksum calculates SHA256 checksum of a file
+func (bm *BackupManager) calculateChecksum(filePath string) (string, error) <span class="cov0" title="0">{
+        file, err := os.Open(filePath)
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("opening file: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer file.Close()
+
+        hash := sha256.New()
+        if _, err := io.Copy(hash, file); err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("calculating hash: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return fmt.Sprintf("%x", hash.Sum(nil)), nil</span>
+}
+
+// saveMetadata saves backup metadata to a file
+func (bm *BackupManager) saveMetadata(metadata *BackupMetadata, path string) error <span class="cov0" title="0">{
+        data, err := json.MarshalIndent(metadata, "", "  ")
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("marshaling metadata: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if err := os.WriteFile(path, data, 0644); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("writing metadata file: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// loadMetadata loads backup metadata from a file
+func (bm *BackupManager) loadMetadata(path string) (*BackupMetadata, error) <span class="cov0" title="0">{
+        data, err := os.ReadFile(path)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("reading metadata file: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">var metadata BackupMetadata
+        if err := json.Unmarshal(data, &amp;metadata); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("unmarshaling metadata: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;metadata, nil</span>
+}
+
+// basicBackupValidation performs basic validation when no metadata is available
+func (bm *BackupManager) basicBackupValidation(backupPath string) error <span class="cov0" title="0">{
+        // Check if file exists and is regular
+        info, err := os.Stat(backupPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("getting backup file info: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if !info.Mode().IsRegular() </span><span class="cov0" title="0">{
+                return fmt.Errorf("backup is not a regular file")
+        }</span>
+
+        // Check minimum size
+        <span class="cov0" title="0">if info.Size() &lt; 1024 </span><span class="cov0" title="0">{
+                return fmt.Errorf("backup file too small: %d bytes", info.Size())
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+
+		<pre class="file" id="file2" style="display: none">// ABOUTME: Cross-platform file permissions and ownership handling for PVM updates
+// ABOUTME: Provides platform-specific implementations for permission preservation
+
+package updater
+
+import (
+        "fmt"
+        "os"
+        "runtime"
+        "syscall"
+)
+
+// chownFile copies ownership from srcInfo to the destination file (Unix-like systems only)
+func (r *BinaryReplacer) chownFile(dst string, srcInfo os.FileInfo) error <span class="cov0" title="0">{
+        if runtime.GOOS == "windows" </span><span class="cov0" title="0">{
+                // Windows doesn't use Unix-style ownership
+                return nil
+        }</span>
+
+        // Extract ownership information from file info
+        <span class="cov0" title="0">stat, ok := srcInfo.Sys().(*syscall.Stat_t)
+        if !ok </span><span class="cov0" title="0">{
+                // If we can't get syscall.Stat_t, skip ownership copy
+                return nil
+        }</span>
+
+        // Attempt to change ownership
+        <span class="cov0" title="0">err := os.Chown(dst, int(stat.Uid), int(stat.Gid))
+        if err != nil </span><span class="cov0" title="0">{
+                // Don't fail if we can't change ownership - might not have permissions
+                // This is common when running as a non-root user
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// PreserveExtendedAttributes preserves extended attributes and metadata
+func PreserveExtendedAttributes(src, dst string) error <span class="cov0" title="0">{
+        switch runtime.GOOS </span>{
+        case "darwin":<span class="cov0" title="0">
+                return preserveMacOSAttributes(src, dst)</span>
+        case "linux":<span class="cov0" title="0">
+                return preserveLinuxAttributes(src, dst)</span>
+        case "windows":<span class="cov0" title="0">
+                return preserveWindowsAttributes(src, dst)</span>
+        default:<span class="cov0" title="0">
+                // For other platforms, just preserve basic permissions
+                return preserveBasicPermissions(src, dst)</span>
+        }
+}
+
+// preserveBasicPermissions preserves just file mode/permissions
+func preserveBasicPermissions(src, dst string) error <span class="cov0" title="0">{
+        srcInfo, err := os.Stat(src)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("getting source file info: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return os.Chmod(dst, srcInfo.Mode())</span>
+}
+
+// preserveMacOSAttributes preserves macOS-specific attributes
+func preserveMacOSAttributes(src, dst string) error <span class="cov0" title="0">{
+        // First preserve basic permissions
+        if err := preserveBasicPermissions(src, dst); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        // TODO: Preserve extended attributes, quarantine flags, etc.
+        // This would require platform-specific code using syscalls or cgo
+        // For now, we'll just preserve basic permissions
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// preserveLinuxAttributes preserves Linux-specific attributes
+func preserveLinuxAttributes(src, dst string) error <span class="cov0" title="0">{
+        // First preserve basic permissions
+        if err := preserveBasicPermissions(src, dst); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        // TODO: Preserve extended attributes, ACLs, etc.
+        // This would require platform-specific code using syscalls
+        // For now, we'll just preserve basic permissions
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// preserveWindowsAttributes preserves Windows-specific attributes
+func preserveWindowsAttributes(src, dst string) error <span class="cov0" title="0">{
+        // First preserve basic permissions
+        if err := preserveBasicPermissions(src, dst); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        // TODO: Preserve Windows file attributes, ACLs, etc.
+        // This would require Windows-specific code
+        // For now, we'll just preserve basic permissions
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// EnsureExecutable ensures the file is executable on the current platform
+func EnsureExecutable(filePath string) error <span class="cov0" title="0">{
+        info, err := os.Stat(filePath)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("getting file info: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">switch runtime.GOOS </span>{
+        case "windows":<span class="cov0" title="0">
+                // On Windows, executability is determined by file extension
+                // .exe files should already be executable
+                return nil</span>
+        default:<span class="cov0" title="0">
+                // On Unix-like systems, ensure executable bit is set
+                mode := info.Mode()
+                if mode&amp;0111 == 0 </span><span class="cov0" title="0">{
+                        // Add executable permissions for owner, group, and others
+                        newMode := mode | 0111
+                        return os.Chmod(filePath, newMode)
+                }</span>
+                <span class="cov0" title="0">return nil</span>
+        }
+}
+
+// CheckWritePermissions checks if we have permission to write to the target path
+func CheckWritePermissions(targetPath string) error <span class="cov0" title="0">{
+        // Check if the file exists
+        if info, err := os.Stat(targetPath); err == nil </span><span class="cov0" title="0">{
+                // File exists - check if we can write to it
+                if info.Mode()&amp;0200 == 0 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("no write permission for file: %s", targetPath)
+                }</span>
+
+                // Try to open for writing to be sure
+                <span class="cov0" title="0">file, err := os.OpenFile(targetPath, os.O_WRONLY, 0)
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("cannot open file for writing: %w", err)
+                }</span>
+                <span class="cov0" title="0">file.Close()
+
+                return nil</span>
+        } else<span class="cov0" title="0"> if os.IsNotExist(err) </span><span class="cov0" title="0">{
+                // File doesn't exist - check if we can write to the directory
+                dir := targetPath
+                if info, err := os.Stat(targetPath); err == nil &amp;&amp; !info.IsDir() </span><span class="cov0" title="0">{
+                        dir = targetPath[:len(targetPath)-len(info.Name())-1]
+                }</span>
+
+                // Check directory write permissions
+                <span class="cov0" title="0">dirInfo, err := os.Stat(dir)
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("target directory does not exist: %s", dir)
+                }</span>
+
+                <span class="cov0" title="0">if dirInfo.Mode()&amp;0200 == 0 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("no write permission for directory: %s", dir)
+                }</span>
+
+                <span class="cov0" title="0">return nil</span>
+        } else<span class="cov0" title="0"> {
+                return fmt.Errorf("error checking target path: %w", err)
+        }</span>
+}
+
+// IsRunningWithSufficientPrivileges checks if we have sufficient privileges for update
+func IsRunningWithSufficientPrivileges(targetPath string) (bool, error) <span class="cov0" title="0">{
+        // Check write permissions to target
+        if err := CheckWritePermissions(targetPath); err != nil </span><span class="cov0" title="0">{
+                return false, err
+        }</span>
+
+        // Additional privilege checks could go here:
+        // - Check if running as administrator on Windows
+        // - Check specific capabilities on Linux
+        // - Check code signing permissions on macOS
+
+        <span class="cov0" title="0">return true, nil</span>
+}
+
+// RequireElevation determines if elevation is required for the update
+func RequireElevation(targetPath string) (bool, string) <span class="cov0" title="0">{
+        // Check current permissions
+        sufficient, err := IsRunningWithSufficientPrivileges(targetPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return true, fmt.Sprintf("Permission check failed: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">if sufficient </span><span class="cov0" title="0">{
+                return false, ""
+        }</span>
+
+        // Provide platform-specific elevation instructions
+        <span class="cov0" title="0">switch runtime.GOOS </span>{
+        case "windows":<span class="cov0" title="0">
+                return true, "Run as Administrator to update PVM"</span>
+        case "darwin":<span class="cov0" title="0">
+                return true, "Use 'sudo pvm update' to update PVM with administrator privileges"</span>
+        default:<span class="cov0" title="0">
+                return true, "Use 'sudo pvm update' to update PVM with root privileges"</span>
+        }
+}
+</pre>
+
+		<pre class="file" id="file3" style="display: none">// ABOUTME: Advanced error recovery for PVM update failures
+// ABOUTME: Provides comprehensive recovery strategies for various failure scenarios
+
+package updater
+
+import (
+        "fmt"
+        "os"
+        "path/filepath"
+        "sort"
+        "time"
+
+        "tamarou.com/pvm/internal/download"
+        "tamarou.com/pvm/internal/version"
+)
+
+// RecoveryManager handles advanced error recovery scenarios
+type RecoveryManager struct {
+        rollbackManager *RollbackManager
+        backupManager   *BackupManager
+        downloader      *download.Downloader
+}
+
+// NewRecoveryManager creates a new recovery manager
+func NewRecoveryManager() *RecoveryManager <span class="cov8" title="1">{
+        return &amp;RecoveryManager{
+                rollbackManager: NewRollbackManager(),
+                backupManager:   NewBackupManager(),
+                downloader:      download.NewDownloader(),
+        }
+}</span>
+
+// RecoveryScenario represents different types of recovery scenarios
+type RecoveryScenario int
+
+const (
+        ScenarioCorruptedBinary RecoveryScenario = iota
+        ScenarioPartialUpdate
+        ScenarioPermissionDenied
+        ScenarioFileSystemFull
+        ScenarioNetworkFailure
+        ScenarioChecksumMismatch
+        ScenarioIncompatibleBinary
+        ScenarioUnknownFailure
+)
+
+// RecoveryStrategy defines how to handle each scenario
+type RecoveryStrategy struct {
+        Scenario    RecoveryScenario
+        Description string
+        Priority    int // Lower = higher priority
+        Automatic   bool
+        Action      func(*RecoveryContext) error
+}
+
+// RecoveryContext contains information needed for recovery
+type RecoveryContext struct {
+        Scenario       RecoveryScenario
+        TargetPath     string
+        FailedVersion  string
+        PreviousBackup string
+        ErrorDetails   error
+        AttemptCount   int
+        MaxAttempts    int
+}
+
+// RecoveryResult contains the outcome of recovery attempts
+type RecoveryResult struct {
+        Success          bool
+        Strategy         string
+        Duration         time.Duration
+        RecoveredPath    string
+        AttemptsUsed     int
+        RemainingBackups int
+        Message          string
+}
+
+// PerformRecovery attempts to recover from update failures
+func (rm *RecoveryManager) PerformRecovery(ctx *RecoveryContext) (*RecoveryResult, error) <span class="cov8" title="1">{
+        startTime := time.Now()
+
+        result := &amp;RecoveryResult{
+                AttemptsUsed: ctx.AttemptCount,
+        }
+
+        // Get available recovery strategies for this scenario
+        strategies := rm.getRecoveryStrategies(ctx.Scenario)
+
+        // Sort strategies by priority
+        sort.Slice(strategies, func(i, j int) bool </span><span class="cov8" title="1">{
+                return strategies[i].Priority &lt; strategies[j].Priority
+        }</span>)
+
+        // Try each strategy in order
+        <span class="cov8" title="1">for _, strategy := range strategies </span><span class="cov8" title="1">{
+                if ctx.AttemptCount &gt;= ctx.MaxAttempts </span><span class="cov0" title="0">{
+                        break</span>
+                }
+
+                <span class="cov8" title="1">ctx.AttemptCount++
+                result.AttemptsUsed++
+
+                fmt.Printf("Attempting recovery strategy: %s\n", strategy.Description)
+
+                if err := strategy.Action(ctx); err != nil </span><span class="cov8" title="1">{
+                        fmt.Printf("Recovery strategy failed: %v\n", err)
+                        continue</span>
+                }
+
+                // Strategy succeeded
+                <span class="cov0" title="0">result.Success = true
+                result.Strategy = strategy.Description
+                result.Duration = time.Since(startTime)
+                result.RecoveredPath = ctx.TargetPath
+                result.Message = fmt.Sprintf("Successfully recovered using: %s", strategy.Description)
+
+                // Check remaining backups
+                backups, _ := rm.backupManager.ListBackups()
+                result.RemainingBackups = len(backups)
+
+                return result, nil</span>
+        }
+
+        // All strategies failed
+        <span class="cov8" title="1">result.Duration = time.Since(startTime)
+        result.Message = "All recovery strategies failed"
+
+        return result, fmt.Errorf("recovery failed after %d attempts", result.AttemptsUsed)</span>
+}
+
+// getRecoveryStrategies returns applicable strategies for a scenario
+func (rm *RecoveryManager) getRecoveryStrategies(scenario RecoveryScenario) []*RecoveryStrategy <span class="cov8" title="1">{
+        strategies := []*RecoveryStrategy{
+                {
+                        Scenario:    ScenarioCorruptedBinary,
+                        Description: "Rollback to most recent backup",
+                        Priority:    1,
+                        Automatic:   true,
+                        Action:      rm.rollbackToLatestBackup,
+                },
+                {
+                        Scenario:    ScenarioCorruptedBinary,
+                        Description: "Rollback to stable backup",
+                        Priority:    2,
+                        Automatic:   true,
+                        Action:      rm.rollbackToStableBackup,
+                },
+                {
+                        Scenario:    ScenarioPartialUpdate,
+                        Description: "Complete interrupted update",
+                        Priority:    1,
+                        Automatic:   true,
+                        Action:      rm.completeInterruptedUpdate,
+                },
+                {
+                        Scenario:    ScenarioPartialUpdate,
+                        Description: "Clean rollback and retry",
+                        Priority:    2,
+                        Automatic:   false,
+                        Action:      rm.cleanRollbackAndRetry,
+                },
+                {
+                        Scenario:    ScenarioPermissionDenied,
+                        Description: "Fix permissions and retry",
+                        Priority:    1,
+                        Automatic:   true,
+                        Action:      rm.fixPermissionsAndRetry,
+                },
+                {
+                        Scenario:    ScenarioFileSystemFull,
+                        Description: "Clean temporary files and retry",
+                        Priority:    1,
+                        Automatic:   true,
+                        Action:      rm.cleanTempFilesAndRetry,
+                },
+                {
+                        Scenario:    ScenarioChecksumMismatch,
+                        Description: "Re-download and verify",
+                        Priority:    1,
+                        Automatic:   true,
+                        Action:      rm.redownloadAndVerify,
+                },
+                {
+                        Scenario:    ScenarioIncompatibleBinary,
+                        Description: "Download previous compatible version",
+                        Priority:    1,
+                        Automatic:   false,
+                        Action:      rm.downloadCompatibleVersion,
+                },
+                {
+                        Scenario:    ScenarioUnknownFailure,
+                        Description: "Emergency rollback to last known good",
+                        Priority:    1,
+                        Automatic:   true,
+                        Action:      rm.emergencyRollback,
+                },
+        }
+
+        // Filter strategies for the specific scenario
+        var applicable []*RecoveryStrategy
+        for _, strategy := range strategies </span><span class="cov8" title="1">{
+                if strategy.Scenario == scenario </span><span class="cov8" title="1">{
+                        applicable = append(applicable, strategy)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return applicable</span>
+}
+
+// Recovery action implementations
+
+func (rm *RecoveryManager) rollbackToLatestBackup(ctx *RecoveryContext) error <span class="cov8" title="1">{
+        opts := &amp;RollbackOptions{
+                TargetPath:     ctx.TargetPath,
+                ValidateBackup: true,
+                DryRun:         false,
+        }
+
+        result, err := rm.rollbackManager.PerformRollback(opts)
+        if err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("latest backup rollback failed: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if !result.Success </span><span class="cov0" title="0">{
+                return fmt.Errorf("latest backup rollback was not successful")
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (rm *RecoveryManager) rollbackToStableBackup(ctx *RecoveryContext) error <span class="cov8" title="1">{
+        // Find the oldest backup (more likely to be stable)
+        backups, err := rm.backupManager.ListBackups()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("listing backups: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if len(backups) == 0 </span><span class="cov8" title="1">{
+                return fmt.Errorf("no backups available for stable rollback")
+        }</span>
+
+        // Sort by creation time (oldest first)
+        <span class="cov0" title="0">sort.Slice(backups, func(i, j int) bool </span><span class="cov0" title="0">{
+                return backups[i].CreatedAt.Before(backups[j].CreatedAt)
+        }</span>)
+
+        <span class="cov0" title="0">stableBackup := backups[0]
+
+        opts := &amp;RollbackOptions{
+                TargetPath:     ctx.TargetPath,
+                BackupPath:     stableBackup.BackupPath,
+                ValidateBackup: true,
+                DryRun:         false,
+        }
+
+        result, err := rm.rollbackManager.PerformRollback(opts)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("stable backup rollback failed: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if !result.Success </span><span class="cov0" title="0">{
+                return fmt.Errorf("stable backup rollback was not successful")
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (rm *RecoveryManager) completeInterruptedUpdate(ctx *RecoveryContext) error <span class="cov0" title="0">{
+        // Look for partially downloaded files
+        tempDir := os.TempDir()
+        pattern := filepath.Join(tempDir, "pvm-update-*")
+
+        matches, err := filepath.Glob(pattern)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("searching for partial downloads: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">for _, match := range matches </span><span class="cov0" title="0">{
+                // Try to resume download or clean up
+                if info, err := os.Stat(match); err == nil </span><span class="cov0" title="0">{
+                        if time.Since(info.ModTime()) &gt; 24*time.Hour </span><span class="cov0" title="0">{
+                                // Old file, clean it up
+                                os.Remove(match)
+                        }</span>
+                }
+        }
+
+        // Check if update can be completed
+        // This would involve checking for partial state and attempting to complete
+        // For now, we'll indicate that manual intervention is needed
+        <span class="cov0" title="0">return fmt.Errorf("partial update state requires manual cleanup")</span>
+}
+
+func (rm *RecoveryManager) cleanRollbackAndRetry(ctx *RecoveryContext) error <span class="cov0" title="0">{
+        // First, perform a clean rollback
+        if err := rm.rollbackToLatestBackup(ctx); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("clean rollback failed: %w", err)
+        }</span>
+
+        // Clean up any temporary files
+        <span class="cov0" title="0">if err := rm.cleanupTemporaryFiles(); err != nil </span><span class="cov0" title="0">{
+                // Log warning but don't fail
+                fmt.Printf("Warning: failed to clean temporary files: %v\n", err)
+        }</span>
+
+        // Reset state for retry
+        <span class="cov0" title="0">return fmt.Errorf("rollback completed, manual retry required")</span>
+}
+
+func (rm *RecoveryManager) fixPermissionsAndRetry(ctx *RecoveryContext) error <span class="cov8" title="1">{
+        // Check and fix permissions on target directory
+        targetDir := filepath.Dir(ctx.TargetPath)
+
+        // Check if we can write to the target directory
+        info, err := os.Stat(targetDir)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("cannot access target directory: %w", err)
+        }</span>
+
+        // Check write permissions
+        <span class="cov8" title="1">if info.Mode()&amp;0200 == 0 </span><span class="cov0" title="0">{
+                // Try to fix permissions (this might fail if we don't have permission)
+                if err := os.Chmod(targetDir, info.Mode()|0200); err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("cannot fix directory permissions: %w", err)
+                }</span>
+        }
+
+        // Check target file permissions if it exists
+        <span class="cov8" title="1">if info, err := os.Stat(ctx.TargetPath); err == nil </span><span class="cov0" title="0">{
+                if info.Mode()&amp;0200 == 0 </span><span class="cov0" title="0">{
+                        if err := os.Chmod(ctx.TargetPath, info.Mode()|0700); err != nil </span><span class="cov0" title="0">{
+                                return fmt.Errorf("cannot fix file permissions: %w", err)
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+func (rm *RecoveryManager) cleanTempFilesAndRetry(ctx *RecoveryContext) error <span class="cov0" title="0">{
+        if err := rm.cleanupTemporaryFiles(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("cleanup failed: %w", err)
+        }</span>
+
+        // Check available disk space
+        <span class="cov0" title="0">targetDir := filepath.Dir(ctx.TargetPath)
+        if err := rm.checkDiskSpace(targetDir); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("insufficient disk space after cleanup: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (rm *RecoveryManager) redownloadAndVerify(ctx *RecoveryContext) error <span class="cov0" title="0">{
+        // This would involve re-downloading the binary and verifying checksums
+        // For now, we'll indicate that a fresh download is needed
+        return fmt.Errorf("re-download required, checksum verification failed")
+}</span>
+
+func (rm *RecoveryManager) downloadCompatibleVersion(ctx *RecoveryContext) error <span class="cov8" title="1">{
+        // Find a compatible version for the current system
+        updateInfo, err := rm.FindCompatibleVersion()
+        if err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("failed to find compatible version: %w", err)
+        }</span>
+
+        // Get the platform for asset selection
+        <span class="cov0" title="0">platform := version.DetectPlatform()
+        asset, err := version.GetUpdateAsset(updateInfo.Release, platform)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to get compatible asset: %w", err)
+        }</span>
+
+        // Create download options
+        <span class="cov0" title="0">downloadOpts := &amp;download.DownloadOptions{
+                URL:             asset.BrowserDownloadURL,
+                DestinationPath: ctx.TargetPath + ".recovery",
+                Resume:          false, // Fresh download for recovery
+                ProgressCallback: func(total, transferred int64, done bool) </span><span class="cov0" title="0">{
+                        if total &gt; 0 &amp;&amp; !done </span><span class="cov0" title="0">{
+                                percent := (transferred * 100) / total
+                                fmt.Printf("Downloading compatible version: %d%%\r", percent)
+                        }</span>
+                },
+        }
+
+        // Download the compatible version
+        <span class="cov0" title="0">fmt.Printf("Downloading compatible version %s for platform %s...\n",
+                updateInfo.LatestVersion.String(), platform.String())
+
+        result, err := rm.downloader.Download(downloadOpts)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to download compatible version: %w", err)
+        }</span>
+
+        // Validate the downloaded binary
+        <span class="cov0" title="0">if err := download.ValidateDownloadedBinary(result.Path, ""); err != nil </span><span class="cov0" title="0">{
+                // Clean up failed download
+                os.Remove(result.Path)
+                return fmt.Errorf("downloaded binary validation failed: %w", err)
+        }</span>
+
+        // Atomically replace the target binary
+        <span class="cov0" title="0">if err := os.Rename(result.Path, ctx.TargetPath); err != nil </span><span class="cov0" title="0">{
+                // Clean up on failure
+                os.Remove(result.Path)
+                return fmt.Errorf("failed to install compatible version: %w", err)
+        }</span>
+
+        // Make executable on Unix systems
+        <span class="cov0" title="0">if platform.OS != "windows" </span><span class="cov0" title="0">{
+                if err := os.Chmod(ctx.TargetPath, 0755); err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to make binary executable: %w", err)
+                }</span>
+        }
+
+        <span class="cov0" title="0">fmt.Printf("Successfully installed compatible version %s\n", updateInfo.LatestVersion.String())
+        return nil</span>
+}
+
+func (rm *RecoveryManager) emergencyRollback(ctx *RecoveryContext) error <span class="cov0" title="0">{
+        // Last resort: rollback to any available backup
+        backups, err := rm.backupManager.ListBackups()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("emergency rollback: no backups available: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if len(backups) == 0 </span><span class="cov0" title="0">{
+                return fmt.Errorf("emergency rollback: no backups found")
+        }</span>
+
+        // Try each backup until one works
+        <span class="cov0" title="0">for _, backup := range backups </span><span class="cov0" title="0">{
+                opts := &amp;RollbackOptions{
+                        TargetPath:     ctx.TargetPath,
+                        BackupPath:     backup.BackupPath,
+                        ValidateBackup: false, // Skip validation in emergency
+                        DryRun:         false,
+                }
+
+                if result, err := rm.rollbackManager.PerformRollback(opts); err == nil &amp;&amp; result.Success </span><span class="cov0" title="0">{
+                        return nil
+                }</span>
+        }
+
+        <span class="cov0" title="0">return fmt.Errorf("emergency rollback: all backups failed")</span>
+}
+
+// Helper methods
+
+func (rm *RecoveryManager) cleanupTemporaryFiles() error <span class="cov0" title="0">{
+        tempDir := os.TempDir()
+        pattern := filepath.Join(tempDir, "pvm-*")
+
+        matches, err := filepath.Glob(pattern)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("finding temp files: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">for _, match := range matches </span><span class="cov0" title="0">{
+                if err := os.RemoveAll(match); err != nil </span><span class="cov0" title="0">{
+                        // Log but continue with other files
+                        fmt.Printf("Failed to remove temp file %s: %v\n", match, err)
+                }</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (rm *RecoveryManager) checkDiskSpace(dir string) error <span class="cov0" title="0">{
+        // This is a simplified check - in practice, we'd use syscalls to check available space
+        tempFile, err := os.CreateTemp(dir, "pvm-space-check-*")
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("disk space check failed: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer os.Remove(tempFile.Name())
+        defer tempFile.Close()
+
+        // Try to write a small amount of data
+        testData := make([]byte, 1024*1024) // 1MB
+        if _, err := tempFile.Write(testData); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("insufficient disk space: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// DiagnoseFailure attempts to determine the failure scenario
+func (rm *RecoveryManager) DiagnoseFailure(targetPath string, err error) RecoveryScenario <span class="cov8" title="1">{
+        if err == nil </span><span class="cov8" title="1">{
+                return ScenarioUnknownFailure
+        }</span>
+
+        <span class="cov8" title="1">errorMsg := err.Error()
+
+        // Pattern matching on error messages
+        switch </span>{
+        case contains(errorMsg, "permission denied", "access denied"):<span class="cov8" title="1">
+                return ScenarioPermissionDenied</span>
+        case contains(errorMsg, "no space", "disk full", "file too large"):<span class="cov8" title="1">
+                return ScenarioFileSystemFull</span>
+        case contains(errorMsg, "checksum", "hash", "integrity"):<span class="cov8" title="1">
+                return ScenarioChecksumMismatch</span>
+        case contains(errorMsg, "network", "connection", "timeout", "dns"):<span class="cov8" title="1">
+                return ScenarioNetworkFailure</span>
+        case contains(errorMsg, "exec format", "cannot execute", "incompatible"):<span class="cov8" title="1">
+                return ScenarioIncompatibleBinary</span>
+        case contains(errorMsg, "interrupted", "partial", "incomplete"):<span class="cov8" title="1">
+                return ScenarioPartialUpdate</span>
+        }
+
+        // Check if binary exists and is corrupted
+        <span class="cov8" title="1">if info, statErr := os.Stat(targetPath); statErr == nil </span><span class="cov8" title="1">{
+                if info.Size() == 0 || info.Mode()&amp;0111 == 0 </span><span class="cov8" title="1">{
+                        return ScenarioCorruptedBinary
+                }</span>
+        }
+
+        <span class="cov8" title="1">return ScenarioUnknownFailure</span>
+}
+
+// Helper function to check if error message contains any of the given strings
+func contains(message string, patterns ...string) bool <span class="cov8" title="1">{
+        for _, pattern := range patterns </span><span class="cov8" title="1">{
+                if len(message) &gt;= len(pattern) </span><span class="cov8" title="1">{
+                        for i := 0; i &lt;= len(message)-len(pattern); i++ </span><span class="cov8" title="1">{
+                                if message[i:i+len(pattern)] == pattern </span><span class="cov8" title="1">{
+                                        return true
+                                }</span>
+                        }
+                }
+        }
+        <span class="cov8" title="1">return false</span>
+}
+
+// CreateRecoveryContext creates a recovery context from an update failure
+func (rm *RecoveryManager) CreateRecoveryContext(targetPath, failedVersion string, err error) *RecoveryContext <span class="cov8" title="1">{
+        scenario := rm.DiagnoseFailure(targetPath, err)
+
+        // Find the most recent backup for context
+        var previousBackup string
+        if backups, listErr := rm.backupManager.ListBackups(); listErr == nil &amp;&amp; len(backups) &gt; 0 </span><span class="cov0" title="0">{
+                // Sort by creation time (newest first)
+                sort.Slice(backups, func(i, j int) bool </span><span class="cov0" title="0">{
+                        return backups[i].CreatedAt.After(backups[j].CreatedAt)
+                }</span>)
+                <span class="cov0" title="0">previousBackup = backups[0].BackupPath</span>
+        }
+
+        <span class="cov8" title="1">return &amp;RecoveryContext{
+                Scenario:       scenario,
+                TargetPath:     targetPath,
+                FailedVersion:  failedVersion,
+                PreviousBackup: previousBackup,
+                ErrorDetails:   err,
+                AttemptCount:   0,
+                MaxAttempts:    3,
+        }</span>
+}
+
+// FindCompatibleVersion finds and returns a compatible version for the current system
+func (rm *RecoveryManager) FindCompatibleVersion() (*version.UpdateInfo, error) <span class="cov8" title="1">{
+        // Detect current platform
+        platform := version.DetectPlatform()
+        if !platform.IsSupported() </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("platform %s is not supported for updates", platform.String())
+        }</span>
+
+        // Create GitHub client for querying releases
+        <span class="cov8" title="1">client := version.NewGitHubClient()
+
+        // Get available releases (including prereleases for recovery)
+        releases, err := client.GetReleases("perigrin", "pvm", true)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("failed to query available releases: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if len(releases) == 0 </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("no releases found in repository")
+        }</span>
+
+        // Filter releases to find compatible versions
+        <span class="cov0" title="0">var compatibleReleases []version.GitHubRelease
+        for _, release := range releases </span><span class="cov0" title="0">{
+                // Skip draft releases
+                if release.Draft </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                // Check if release has assets compatible with current platform
+                <span class="cov0" title="0">if asset, err := version.GetUpdateAsset(&amp;release, platform); err == nil &amp;&amp; asset != nil </span><span class="cov0" title="0">{
+                        // Validate binary compatibility
+                        if err := version.ValidateBinaryCompatibility(asset, platform); err == nil </span><span class="cov0" title="0">{
+                                compatibleReleases = append(compatibleReleases, release)
+                        }</span>
+                }
+        }
+
+        <span class="cov0" title="0">if len(compatibleReleases) == 0 </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("no compatible versions found for platform %s", platform.String())
+        }</span>
+
+        // Select best compatible version (prefer stable over prereleases)
+        <span class="cov0" title="0">var selectedRelease *version.GitHubRelease
+
+        // First, try to find the latest stable release
+        for i := range compatibleReleases </span><span class="cov0" title="0">{
+                release := &amp;compatibleReleases[i]
+                if !release.Prerelease </span><span class="cov0" title="0">{
+                        if selectedRelease == nil || release.CreatedAt.After(selectedRelease.CreatedAt) </span><span class="cov0" title="0">{
+                                selectedRelease = release
+                        }</span>
+                }
+        }
+
+        // If no stable release found, select latest prerelease
+        <span class="cov0" title="0">if selectedRelease == nil </span><span class="cov0" title="0">{
+                for i := range compatibleReleases </span><span class="cov0" title="0">{
+                        release := &amp;compatibleReleases[i]
+                        if selectedRelease == nil || release.CreatedAt.After(selectedRelease.CreatedAt) </span><span class="cov0" title="0">{
+                                selectedRelease = release
+                        }</span>
+                }
+        }
+
+        <span class="cov0" title="0">if selectedRelease == nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("no suitable compatible version found")
+        }</span>
+
+        // Parse version information
+        <span class="cov0" title="0">currentVersion, err := version.ParseVersion("0.0.0") // Use dummy version for recovery
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to parse current version: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">compatibleVersion, err := version.ParseVersion(selectedRelease.TagName)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to parse compatible version %s: %w", selectedRelease.TagName, err)
+        }</span>
+
+        // Create UpdateInfo for the compatible version
+        <span class="cov0" title="0">updateInfo := &amp;version.UpdateInfo{
+                CurrentVersion: currentVersion,
+                LatestVersion:  compatibleVersion,
+                Release:        selectedRelease,
+                UpdateNeeded:   true,
+                IsPrerelease:   selectedRelease.Prerelease,
+        }
+
+        return updateInfo, nil</span>
+}
+</pre>
+
+		<pre class="file" id="file4" style="display: none">// ABOUTME: Atomic binary replacement logic for PVM self-updater
+// ABOUTME: Handles safe binary replacement with proper file operations and error handling
+
+package updater
+
+import (
+        "fmt"
+        "os"
+        "os/exec"
+        "path/filepath"
+        "runtime"
+        "strings"
+        "time"
+)
+
+// BinaryReplacer handles atomic replacement of the PVM binary
+type BinaryReplacer struct {
+        backupManager *BackupManager
+}
+
+// NewBinaryReplacer creates a new binary replacer
+func NewBinaryReplacer() *BinaryReplacer <span class="cov8" title="1">{
+        return &amp;BinaryReplacer{
+                backupManager: NewBackupManager(),
+        }
+}</span>
+
+// ReplacementOptions configures binary replacement behavior
+type ReplacementOptions struct {
+        CurrentPath    string // Path to current PVM binary
+        NewPath        string // Path to new binary file
+        BackupEnabled  bool   // Whether to create backup before replacement
+        ValidateBinary bool   // Whether to validate the new binary before replacement
+        DryRun         bool   // Whether to simulate replacement without actual changes
+}
+
+// ReplacementResult contains information about the replacement operation
+type ReplacementResult struct {
+        Success       bool          // Whether replacement was successful
+        BackupPath    string        // Path to backup file (if created)
+        Duration      time.Duration // Time taken for replacement
+        ValidationOK  bool          // Whether binary validation passed
+        SimulatedOnly bool          // Whether this was a dry run
+}
+
+// ReplaceBinary performs atomic binary replacement
+func (r *BinaryReplacer) ReplaceBinary(opts *ReplacementOptions) (*ReplacementResult, error) <span class="cov0" title="0">{
+        startTime := time.Now()
+
+        if opts == nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("replacement options cannot be nil")
+        }</span>
+
+        <span class="cov0" title="0">result := &amp;ReplacementResult{
+                SimulatedOnly: opts.DryRun,
+        }
+
+        // Validate inputs
+        if err := r.validateReplacementOptions(opts); err != nil </span><span class="cov0" title="0">{
+                return result, fmt.Errorf("invalid options: %w", err)
+        }</span>
+
+        // Check if running process would be affected
+        <span class="cov0" title="0">if err := r.checkRunningProcess(opts.CurrentPath); err != nil </span><span class="cov0" title="0">{
+                return result, fmt.Errorf("running process check failed: %w", err)
+        }</span>
+
+        // Validate new binary if requested
+        <span class="cov0" title="0">if opts.ValidateBinary </span><span class="cov0" title="0">{
+                if err := r.validateNewBinary(opts.NewPath); err != nil </span><span class="cov0" title="0">{
+                        return result, fmt.Errorf("binary validation failed: %w", err)
+                }</span>
+                <span class="cov0" title="0">result.ValidationOK = true</span>
+        }
+
+        // Create backup if enabled
+        <span class="cov0" title="0">if opts.BackupEnabled </span><span class="cov0" title="0">{
+                backupPath, err := r.backupManager.CreateBackup(opts.CurrentPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        return result, fmt.Errorf("backup creation failed: %w", err)
+                }</span>
+                <span class="cov0" title="0">result.BackupPath = backupPath</span>
+        }
+
+        // Perform replacement (skip if dry run)
+        <span class="cov0" title="0">if !opts.DryRun </span><span class="cov0" title="0">{
+                if err := r.performAtomicReplacement(opts.CurrentPath, opts.NewPath); err != nil </span><span class="cov0" title="0">{
+                        // If replacement fails and we have a backup, attempt rollback
+                        if result.BackupPath != "" </span><span class="cov0" title="0">{
+                                rollbackErr := r.performRollback(opts.CurrentPath, result.BackupPath)
+                                if rollbackErr != nil </span><span class="cov0" title="0">{
+                                        return result, fmt.Errorf("replacement failed and rollback failed: %w (original error: %v)", rollbackErr, err)
+                                }</span>
+                        }
+                        <span class="cov0" title="0">return result, fmt.Errorf("atomic replacement failed: %w", err)</span>
+                }
+        }
+
+        <span class="cov0" title="0">result.Success = true
+        result.Duration = time.Since(startTime)
+        return result, nil</span>
+}
+
+// validateReplacementOptions validates the replacement options
+func (r *BinaryReplacer) validateReplacementOptions(opts *ReplacementOptions) error <span class="cov0" title="0">{
+        if opts.CurrentPath == "" </span><span class="cov0" title="0">{
+                return fmt.Errorf("current binary path cannot be empty")
+        }</span>
+
+        <span class="cov0" title="0">if opts.NewPath == "" </span><span class="cov0" title="0">{
+                return fmt.Errorf("new binary path cannot be empty")
+        }</span>
+
+        // Check if current binary exists
+        <span class="cov0" title="0">if _, err := os.Stat(opts.CurrentPath); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                return fmt.Errorf("current binary not found: %s", opts.CurrentPath)
+        }</span>
+
+        // Check if new binary exists
+        <span class="cov0" title="0">if _, err := os.Stat(opts.NewPath); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                return fmt.Errorf("new binary not found: %s", opts.NewPath)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// checkRunningProcess checks if the current process might be affected by replacement
+func (r *BinaryReplacer) checkRunningProcess(currentPath string) error <span class="cov0" title="0">{
+        // Get the executable path of the current process
+        execPath, err := os.Executable()
+        if err != nil </span><span class="cov0" title="0">{
+                // If we can't determine the executable path, proceed with caution
+                return nil
+        }</span>
+
+        // Resolve any symlinks
+        <span class="cov0" title="0">resolvedExecPath, err := filepath.EvalSymlinks(execPath)
+        if err == nil </span><span class="cov0" title="0">{
+                execPath = resolvedExecPath
+        }</span>
+
+        <span class="cov0" title="0">resolvedCurrentPath, err := filepath.EvalSymlinks(currentPath)
+        if err == nil </span><span class="cov0" title="0">{
+                currentPath = resolvedCurrentPath
+        }</span>
+
+        // Check if we're trying to replace the currently running binary
+        <span class="cov0" title="0">if execPath == currentPath </span><span class="cov0" title="0">{
+                // On Windows, this would likely fail due to file locking
+                if runtime.GOOS == "windows" </span><span class="cov0" title="0">{
+                        return fmt.Errorf("cannot replace currently running binary on Windows")
+                }</span>
+                // On Unix-like systems, this is generally safe but warn the user
+                // The replacement will work, but the current process will continue
+                // running the old binary until it exits
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// validateNewBinary performs basic validation of the new binary
+func (r *BinaryReplacer) validateNewBinary(newPath string) error <span class="cov0" title="0">{
+        // Check file permissions
+        info, err := os.Stat(newPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("getting file info: %w", err)
+        }</span>
+
+        // Ensure it's a regular file
+        <span class="cov0" title="0">if !info.Mode().IsRegular() </span><span class="cov0" title="0">{
+                return fmt.Errorf("new binary is not a regular file")
+        }</span>
+
+        // Check if it's executable (on Unix-like systems)
+        <span class="cov0" title="0">if runtime.GOOS != "windows" </span><span class="cov0" title="0">{
+                if info.Mode()&amp;0111 == 0 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("new binary is not executable")
+                }</span>
+        }
+
+        // Basic size check (executable should be reasonably sized)
+        <span class="cov0" title="0">minSize := int64(1024 * 1024)       // 1MB minimum
+        maxSize := int64(100 * 1024 * 1024) // 100MB maximum
+
+        if info.Size() &lt; minSize </span><span class="cov0" title="0">{
+                return fmt.Errorf("new binary is too small (%d bytes, minimum %d)", info.Size(), minSize)
+        }</span>
+
+        <span class="cov0" title="0">if info.Size() &gt; maxSize </span><span class="cov0" title="0">{
+                return fmt.Errorf("new binary is too large (%d bytes, maximum %d)", info.Size(), maxSize)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// performAtomicReplacement performs the actual atomic replacement
+func (r *BinaryReplacer) performAtomicReplacement(currentPath, newPath string) error <span class="cov0" title="0">{
+        // Get directory of current binary
+        currentDir := filepath.Dir(currentPath)
+        currentName := filepath.Base(currentPath)
+
+        // Create temporary name for atomic operation
+        tempName := fmt.Sprintf(".%s.tmp.%d", currentName, time.Now().UnixNano())
+        tempPath := filepath.Join(currentDir, tempName)
+
+        // Copy new binary to temporary location in same directory
+        // This ensures the rename operation will be atomic on most filesystems
+        if err := r.copyFile(newPath, tempPath); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("copying new binary to temp location: %w", err)
+        }</span>
+
+        // Ensure cleanup of temp file if something goes wrong
+        <span class="cov0" title="0">defer func() </span><span class="cov0" title="0">{
+                if _, err := os.Stat(tempPath); err == nil </span><span class="cov0" title="0">{
+                        os.Remove(tempPath)
+                }</span>
+        }()
+
+        // Copy permissions from original file
+        <span class="cov0" title="0">if err := r.copyPermissions(currentPath, tempPath); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("copying permissions: %w", err)
+        }</span>
+
+        // Perform atomic rename
+        <span class="cov0" title="0">if err := os.Rename(tempPath, currentPath); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("atomic rename failed: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// performRollback rolls back to the backup binary
+func (r *BinaryReplacer) performRollback(currentPath, backupPath string) error <span class="cov0" title="0">{
+        // Use the same atomic replacement logic for rollback
+        return r.performAtomicReplacement(currentPath, backupPath)
+}</span>
+
+// copyFile copies a file from src to dst
+func (r *BinaryReplacer) copyFile(src, dst string) error <span class="cov0" title="0">{
+        srcFile, err := os.Open(src)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("opening source file: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer srcFile.Close()
+
+        dstFile, err := os.Create(dst)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("creating destination file: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer dstFile.Close()
+
+        // Copy file contents
+        _, err = srcFile.WriteTo(dstFile)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("copying file contents: %w", err)
+        }</span>
+
+        // Ensure data is written to disk
+        <span class="cov0" title="0">if err := dstFile.Sync(); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("syncing destination file: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// copyPermissions copies file permissions and ownership from src to dst
+func (r *BinaryReplacer) copyPermissions(src, dst string) error <span class="cov0" title="0">{
+        srcInfo, err := os.Stat(src)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("getting source file info: %w", err)
+        }</span>
+
+        // Copy file mode/permissions
+        <span class="cov0" title="0">if err := os.Chmod(dst, srcInfo.Mode()); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("setting file permissions: %w", err)
+        }</span>
+
+        // On Unix-like systems, try to copy ownership
+        <span class="cov0" title="0">if runtime.GOOS != "windows" </span><span class="cov0" title="0">{
+                if err := r.copyOwnership(src, dst); err != nil </span><span class="cov0" title="0">{
+                        // Don't fail on ownership copy errors - it might not be possible
+                        // if running as non-root user
+                        _ = err
+                }</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// copyOwnership copies file ownership from src to dst (Unix-like systems only)
+func (r *BinaryReplacer) copyOwnership(src, dst string) error <span class="cov0" title="0">{
+        srcInfo, err := os.Stat(src)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        // This is platform-specific and might not work in all cases
+        // We'll implement a basic version that works on most Unix-like systems
+        <span class="cov0" title="0">return r.chownFile(dst, srcInfo)</span>
+}
+
+// GetCurrentBinaryPath attempts to determine the path of the currently running PVM binary
+func GetCurrentBinaryPath() (string, error) <span class="cov8" title="1">{
+        // Get the executable path
+        execPath, err := os.Executable()
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("getting executable path: %w", err)
+        }</span>
+
+        // Resolve symlinks to get the actual binary path
+        <span class="cov8" title="1">resolvedPath, err := filepath.EvalSymlinks(execPath)
+        if err != nil </span><span class="cov0" title="0">{
+                // If we can't resolve symlinks, use the original path
+                return execPath, nil
+        }</span>
+
+        <span class="cov8" title="1">return resolvedPath, nil</span>
+}
+
+// DetectInstallationMethod determines how PVM was installed
+func DetectInstallationMethod(binaryPath string) (InstallationMethod, error) <span class="cov8" title="1">{
+        lowerPath := strings.ToLower(binaryPath)
+
+        // Platform-specific detection
+        switch runtime.GOOS </span>{
+        case "windows":<span class="cov0" title="0">
+                return detectWindowsInstallationMethod(lowerPath)</span>
+        case "darwin", "linux":<span class="cov8" title="1">
+                return detectUnixInstallationMethod(lowerPath)</span>
+        default:<span class="cov0" title="0">
+                // Fallback for other platforms
+                return InstallationBinary, nil</span>
+        }
+}
+
+// detectWindowsInstallationMethod detects installation method on Windows
+func detectWindowsInstallationMethod(lowerPath string) (InstallationMethod, error) <span class="cov0" title="0">{
+        // Check for Windows package managers
+        if strings.Contains(lowerPath, "chocolatey") </span><span class="cov0" title="0">{
+                return InstallationChocolatey, nil
+        }</span>
+
+        <span class="cov0" title="0">if strings.Contains(lowerPath, "scoop") </span><span class="cov0" title="0">{
+                return InstallationScoop, nil
+        }</span>
+
+        <span class="cov0" title="0">if strings.Contains(lowerPath, "windowsapps") || strings.Contains(lowerPath, "winget") </span><span class="cov0" title="0">{
+                return InstallationWinget, nil
+        }</span>
+
+        // Check for standard Windows paths that suggest system installation
+        <span class="cov0" title="0">if strings.HasPrefix(lowerPath, "c:\\program files\\") ||
+                strings.HasPrefix(lowerPath, "c:\\program files (x86)\\") </span><span class="cov0" title="0">{
+                return InstallationSystemPackage, nil
+        }</span>
+
+        // Default to binary installation
+        <span class="cov0" title="0">return InstallationBinary, nil</span>
+}
+
+// detectUnixInstallationMethod detects installation method on Unix-like systems
+func detectUnixInstallationMethod(lowerPath string) (InstallationMethod, error) <span class="cov8" title="1">{
+        // Check for Homebrew first (most specific)
+        if strings.Contains(lowerPath, "/homebrew/") ||
+                strings.Contains(lowerPath, "/opt/homebrew/") ||
+                strings.Contains(lowerPath, "/usr/local/cellar/") </span><span class="cov8" title="1">{
+                return InstallationHomebrew, nil
+        }</span>
+
+        // Check for Snap packages
+        <span class="cov8" title="1">if strings.Contains(lowerPath, "/snap/") </span><span class="cov8" title="1">{
+                return InstallationSnap, nil
+        }</span>
+
+        // Check for Flatpak
+        <span class="cov8" title="1">if strings.Contains(lowerPath, "/flatpak/") ||
+                strings.Contains(lowerPath, "/.local/share/flatpak/") </span><span class="cov8" title="1">{
+                return InstallationFlatpak, nil
+        }</span>
+
+        // Check for system package manager installations
+        <span class="cov8" title="1">if strings.HasPrefix(lowerPath, "/usr/bin/") </span><span class="cov8" title="1">{
+                // Detect specific package manager by checking which commands are available
+                return detectSpecificPackageManager()
+        }</span>
+
+        // Check for /usr/local/bin (could be Homebrew on older macOS or manual install)
+        <span class="cov8" title="1">if strings.HasPrefix(lowerPath, "/usr/local/bin/") </span><span class="cov8" title="1">{
+                // On macOS, /usr/local/bin is typically Homebrew
+                // On Linux, could be manual install or system package
+                if runtime.GOOS == "darwin" </span><span class="cov0" title="0">{
+                        return InstallationHomebrew, nil
+                }</span>
+                <span class="cov8" title="1">return InstallationSystemPackage, nil</span>
+        }
+
+        // Default to binary installation for other paths
+        <span class="cov8" title="1">return InstallationBinary, nil</span>
+}
+
+// detectSpecificPackageManager tries to detect the specific package manager
+func detectSpecificPackageManager() (InstallationMethod, error) <span class="cov8" title="1">{
+        // Check for package manager commands in order of preference
+        packageManagers := []struct {
+                command string
+                method  InstallationMethod
+        }{
+                {"apt", InstallationAPT},
+                {"dnf", InstallationDNF},
+                {"yum", InstallationYum},
+                {"pacman", InstallationPacman},
+                {"snap", InstallationSnap},
+        }
+
+        for _, pm := range packageManagers </span><span class="cov8" title="1">{
+                if isCommandAvailable(pm.command) </span><span class="cov8" title="1">{
+                        return pm.method, nil
+                }</span>
+        }
+
+        // If no specific package manager is detected, return generic system package
+        <span class="cov0" title="0">return InstallationSystemPackage, nil</span>
+}
+
+// isCommandAvailable checks if a command is available in PATH
+func isCommandAvailable(command string) bool <span class="cov8" title="1">{
+        _, err := exec.LookPath(command)
+        return err == nil
+}</span>
+
+// InstallationMethod represents how PVM was installed
+type InstallationMethod int
+
+const (
+        InstallationBinary InstallationMethod = iota
+        InstallationHomebrew
+        InstallationSystemPackage // Generic system package manager (APT, YUM, DNF, etc.)
+        InstallationAPT
+        InstallationYum
+        InstallationDNF
+        InstallationPacman
+        InstallationSnap
+        InstallationFlatpak
+        InstallationChocolatey
+        InstallationScoop
+        InstallationWinget
+)
+
+func (i InstallationMethod) String() string <span class="cov8" title="1">{
+        switch i </span>{
+        case InstallationBinary:<span class="cov8" title="1">
+                return "binary"</span>
+        case InstallationHomebrew:<span class="cov8" title="1">
+                return "homebrew"</span>
+        case InstallationSystemPackage:<span class="cov0" title="0">
+                return "system package"</span>
+        case InstallationAPT:<span class="cov8" title="1">
+                return "apt"</span>
+        case InstallationYum:<span class="cov8" title="1">
+                return "yum"</span>
+        case InstallationDNF:<span class="cov0" title="0">
+                return "dnf"</span>
+        case InstallationPacman:<span class="cov8" title="1">
+                return "pacman"</span>
+        case InstallationSnap:<span class="cov0" title="0">
+                return "snap"</span>
+        case InstallationFlatpak:<span class="cov0" title="0">
+                return "flatpak"</span>
+        case InstallationChocolatey:<span class="cov8" title="1">
+                return "chocolatey"</span>
+        case InstallationScoop:<span class="cov8" title="1">
+                return "scoop"</span>
+        case InstallationWinget:<span class="cov0" title="0">
+                return "winget"</span>
+        default:<span class="cov8" title="1">
+                return "unknown"</span>
+        }
+}
+
+// CanSelfUpdate returns whether PVM can self-update given the installation method
+func (i InstallationMethod) CanSelfUpdate() bool <span class="cov8" title="1">{
+        switch i </span>{
+        case InstallationBinary:<span class="cov8" title="1">
+                return true</span>
+        case InstallationHomebrew:<span class="cov8" title="1">
+                return false</span> // Should use 'brew upgrade pvm' instead
+        case InstallationSystemPackage, InstallationAPT, InstallationYum, InstallationDNF, InstallationPacman:<span class="cov8" title="1">
+                return false</span> // Should use system package manager
+        case InstallationSnap:<span class="cov0" title="0">
+                return false</span> // Should use 'snap refresh pvm'
+        case InstallationFlatpak:<span class="cov0" title="0">
+                return false</span> // Should use 'flatpak update pvm'
+        case InstallationChocolatey, InstallationScoop, InstallationWinget:<span class="cov8" title="1">
+                return false</span> // Should use respective package manager
+        default:<span class="cov8" title="1">
+                return false</span>
+        }
+}
+
+// GetUpdateInstructions returns instructions for updating via the installation method
+func (i InstallationMethod) GetUpdateInstructions() string <span class="cov8" title="1">{
+        switch i </span>{
+        case InstallationBinary:<span class="cov8" title="1">
+                return "Use 'pvm update' to update to the latest version"</span>
+        case InstallationHomebrew:<span class="cov8" title="1">
+                return "Use 'brew upgrade pvm' to update via Homebrew"</span>
+        case InstallationSystemPackage:<span class="cov0" title="0">
+                return "Use your system package manager to update pvm"</span>
+        case InstallationAPT:<span class="cov8" title="1">
+                return "Use 'sudo apt update &amp;&amp; sudo apt upgrade pvm' to update via APT"</span>
+        case InstallationYum:<span class="cov8" title="1">
+                return "Use 'sudo yum update pvm' to update via YUM"</span>
+        case InstallationDNF:<span class="cov0" title="0">
+                return "Use 'sudo dnf update pvm' to update via DNF"</span>
+        case InstallationPacman:<span class="cov8" title="1">
+                return "Use 'sudo pacman -Syu pvm' to update via Pacman"</span>
+        case InstallationSnap:<span class="cov0" title="0">
+                return "Use 'sudo snap refresh pvm' to update via Snap"</span>
+        case InstallationFlatpak:<span class="cov0" title="0">
+                return "Use 'flatpak update pvm' to update via Flatpak"</span>
+        case InstallationChocolatey:<span class="cov8" title="1">
+                return "Use 'choco upgrade pvm' to update via Chocolatey"</span>
+        case InstallationScoop:<span class="cov8" title="1">
+                return "Use 'scoop update pvm' to update via Scoop"</span>
+        case InstallationWinget:<span class="cov0" title="0">
+                return "Use 'winget upgrade pvm' to update via Winget"</span>
+        default:<span class="cov0" title="0">
+                return "Update method unknown for this installation"</span>
+        }
+}
+</pre>
+
+		<pre class="file" id="file5" style="display: none">// ABOUTME: Rollback functionality for failed PVM updates
+// ABOUTME: Handles automatic and manual rollback operations with validation
+
+package updater
+
+import (
+        "fmt"
+        "os"
+        "time"
+)
+
+// RollbackManager handles rollback operations
+type RollbackManager struct {
+        backupManager *BackupManager
+        replacer      *BinaryReplacer
+}
+
+// NewRollbackManager creates a new rollback manager
+func NewRollbackManager() *RollbackManager <span class="cov8" title="1">{
+        return &amp;RollbackManager{
+                backupManager: NewBackupManager(),
+                replacer:      NewBinaryReplacer(),
+        }
+}</span>
+
+// RollbackOptions configures rollback behavior
+type RollbackOptions struct {
+        TargetPath     string // Path to restore the binary to
+        BackupPath     string // Specific backup to restore from (optional)
+        ValidateBackup bool   // Whether to validate backup before rollback
+        DryRun         bool   // Whether to simulate rollback without actual changes
+}
+
+// RollbackResult contains information about the rollback operation
+type RollbackResult struct {
+        Success          bool          // Whether rollback was successful
+        BackupPath       string        // Path to backup that was used
+        Duration         time.Duration // Time taken for rollback
+        ValidationPassed bool          // Whether backup validation passed
+        SimulatedOnly    bool          // Whether this was a dry run
+}
+
+// PerformRollback performs a rollback operation
+func (rm *RollbackManager) PerformRollback(opts *RollbackOptions) (*RollbackResult, error) <span class="cov8" title="1">{
+        startTime := time.Now()
+
+        if opts == nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("rollback options cannot be nil")
+        }</span>
+
+        <span class="cov8" title="1">result := &amp;RollbackResult{
+                SimulatedOnly: opts.DryRun,
+        }
+
+        // Validate options
+        if err := rm.validateRollbackOptions(opts); err != nil </span><span class="cov0" title="0">{
+                return result, fmt.Errorf("invalid options: %w", err)
+        }</span>
+
+        // Determine which backup to use
+        <span class="cov8" title="1">backupPath := opts.BackupPath
+        if backupPath == "" </span><span class="cov8" title="1">{
+                // Find the most recent backup
+                latestBackup, err := rm.findLatestBackup()
+                if err != nil </span><span class="cov0" title="0">{
+                        return result, fmt.Errorf("finding latest backup: %w", err)
+                }</span>
+                <span class="cov8" title="1">if latestBackup == nil </span><span class="cov8" title="1">{
+                        return result, fmt.Errorf("no backups available for rollback")
+                }</span>
+                <span class="cov0" title="0">backupPath = latestBackup.BackupPath</span>
+        }
+
+        <span class="cov0" title="0">result.BackupPath = backupPath
+
+        // Validate backup if requested
+        if opts.ValidateBackup </span><span class="cov0" title="0">{
+                if err := rm.backupManager.ValidateBackup(backupPath); err != nil </span><span class="cov0" title="0">{
+                        return result, fmt.Errorf("backup validation failed: %w", err)
+                }</span>
+                <span class="cov0" title="0">result.ValidationPassed = true</span>
+        }
+
+        // Perform rollback (skip if dry run)
+        <span class="cov0" title="0">if !opts.DryRun </span><span class="cov0" title="0">{
+                if err := rm.performRollbackOperation(opts.TargetPath, backupPath); err != nil </span><span class="cov0" title="0">{
+                        return result, fmt.Errorf("rollback operation failed: %w", err)
+                }</span>
+        }
+
+        <span class="cov0" title="0">result.Success = true
+        result.Duration = time.Since(startTime)
+        return result, nil</span>
+}
+
+// FindAvailableBackups returns a list of available backups for rollback
+func (rm *RollbackManager) FindAvailableBackups() ([]*BackupMetadata, error) <span class="cov0" title="0">{
+        return rm.backupManager.ListBackups()
+}</span>
+
+// ValidateRollbackTarget validates that rollback can be performed to the target
+func (rm *RollbackManager) ValidateRollbackTarget(targetPath string) error <span class="cov0" title="0">{
+        // Check if target directory exists and is writable
+        targetDir := targetPath
+        if info, err := os.Stat(targetPath); err == nil &amp;&amp; !info.IsDir() </span><span class="cov0" title="0">{
+                // If target is a file, check its directory
+                targetDir = targetPath[:len(targetPath)-len(info.Name())-1]
+        }</span>
+
+        // Check if directory exists
+        <span class="cov0" title="0">if _, err := os.Stat(targetDir); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                return fmt.Errorf("target directory does not exist: %s", targetDir)
+        }</span>
+
+        // Check if we can write to the target location
+        // Try creating a temporary file to test write permissions
+        <span class="cov0" title="0">tempFile, err := os.CreateTemp(targetDir, ".pvm-rollback-test-*")
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("cannot write to target directory: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer os.Remove(tempFile.Name())
+        defer tempFile.Close()
+
+        return nil</span>
+}
+
+// AutoRollback performs automatic rollback after a failed update
+func (rm *RollbackManager) AutoRollback(targetPath string) error <span class="cov0" title="0">{
+        opts := &amp;RollbackOptions{
+                TargetPath:     targetPath,
+                ValidateBackup: true,
+                DryRun:         false,
+        }
+
+        result, err := rm.PerformRollback(opts)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("auto-rollback failed: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if !result.Success </span><span class="cov0" title="0">{
+                return fmt.Errorf("auto-rollback did not complete successfully")
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// GetRollbackStatus checks if a rollback is needed or possible
+func (rm *RollbackManager) GetRollbackStatus(targetPath string) (*RollbackStatus, error) <span class="cov0" title="0">{
+        status := &amp;RollbackStatus{
+                TargetPath: targetPath,
+        }
+
+        // Check if target exists
+        if _, err := os.Stat(targetPath); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                status.TargetExists = false
+                status.RollbackNeeded = true
+                status.Reason = "target binary is missing"
+        }</span> else<span class="cov0" title="0"> {
+                status.TargetExists = true
+        }</span>
+
+        // Find available backups
+        <span class="cov0" title="0">backups, err := rm.backupManager.ListBackups()
+        if err != nil </span><span class="cov0" title="0">{
+                return status, fmt.Errorf("listing backups: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">status.AvailableBackups = len(backups)
+        if len(backups) == 0 </span><span class="cov0" title="0">{
+                status.RollbackPossible = false
+                status.Reason = "no backups available"
+                return status, nil
+        }</span>
+
+        <span class="cov0" title="0">status.RollbackPossible = true
+
+        // Find the most recent backup
+        var latestBackup *BackupMetadata
+        for _, backup := range backups </span><span class="cov0" title="0">{
+                if latestBackup == nil || backup.CreatedAt.After(latestBackup.CreatedAt) </span><span class="cov0" title="0">{
+                        latestBackup = backup
+                }</span>
+        }
+
+        <span class="cov0" title="0">if latestBackup != nil </span><span class="cov0" title="0">{
+                status.LatestBackupDate = latestBackup.CreatedAt
+                status.LatestBackupPath = latestBackup.BackupPath
+        }</span>
+
+        <span class="cov0" title="0">return status, nil</span>
+}
+
+// RollbackStatus contains information about rollback availability
+type RollbackStatus struct {
+        TargetPath       string    `json:"target_path"`
+        TargetExists     bool      `json:"target_exists"`
+        RollbackNeeded   bool      `json:"rollback_needed"`
+        RollbackPossible bool      `json:"rollback_possible"`
+        AvailableBackups int       `json:"available_backups"`
+        LatestBackupDate time.Time `json:"latest_backup_date,omitempty"`
+        LatestBackupPath string    `json:"latest_backup_path,omitempty"`
+        Reason           string    `json:"reason,omitempty"`
+}
+
+// validateRollbackOptions validates the rollback options
+func (rm *RollbackManager) validateRollbackOptions(opts *RollbackOptions) error <span class="cov8" title="1">{
+        if opts.TargetPath == "" </span><span class="cov0" title="0">{
+                return fmt.Errorf("target path cannot be empty")
+        }</span>
+
+        // If a specific backup is specified, check if it exists
+        <span class="cov8" title="1">if opts.BackupPath != "" </span><span class="cov0" title="0">{
+                if _, err := os.Stat(opts.BackupPath); os.IsNotExist(err) </span><span class="cov0" title="0">{
+                        return fmt.Errorf("specified backup not found: %s", opts.BackupPath)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// findLatestBackup finds the most recent backup
+func (rm *RollbackManager) findLatestBackup() (*BackupMetadata, error) <span class="cov8" title="1">{
+        backups, err := rm.backupManager.ListBackups()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("listing backups: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if len(backups) == 0 </span><span class="cov8" title="1">{
+                return nil, nil
+        }</span>
+
+        // Find the most recent backup
+        <span class="cov0" title="0">var latestBackup *BackupMetadata
+        for _, backup := range backups </span><span class="cov0" title="0">{
+                if latestBackup == nil || backup.CreatedAt.After(latestBackup.CreatedAt) </span><span class="cov0" title="0">{
+                        latestBackup = backup
+                }</span>
+        }
+
+        <span class="cov0" title="0">return latestBackup, nil</span>
+}
+
+// performRollbackOperation performs the actual rollback
+func (rm *RollbackManager) performRollbackOperation(targetPath, backupPath string) error <span class="cov0" title="0">{
+        // Use the atomic replacement logic to restore from backup
+        opts := &amp;ReplacementOptions{
+                CurrentPath:    targetPath,
+                NewPath:        backupPath,
+                BackupEnabled:  false, // Don't backup when rolling back
+                ValidateBinary: true,  // Validate the backup before using it
+                DryRun:         false,
+        }
+
+        result, err := rm.replacer.ReplaceBinary(opts)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("atomic rollback failed: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if !result.Success </span><span class="cov0" title="0">{
+                return fmt.Errorf("rollback operation did not complete successfully")
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// CleanupAfterRollback performs cleanup after a successful rollback
+func (rm *RollbackManager) CleanupAfterRollback(usedBackupPath string) error <span class="cov0" title="0">{
+        // Optionally remove the backup that was used for rollback
+        // This is conservative - we might want to keep it for forensic purposes
+        // For now, we'll leave the backup in place
+
+        // Could add logic here to:
+        // 1. Mark the backup as "used for rollback"
+        // 2. Move it to a different location
+        // 3. Update metadata
+
+        return nil
+}</span>
+
+// ValidatePostRollback validates the system after a rollback
+func (rm *RollbackManager) ValidatePostRollback(targetPath string) error <span class="cov0" title="0">{
+        // Check if target binary exists and is executable
+        info, err := os.Stat(targetPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("rollback target validation failed: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if !info.Mode().IsRegular() </span><span class="cov0" title="0">{
+                return fmt.Errorf("rollback target is not a regular file")
+        }</span>
+
+        // On Unix-like systems, check if it's executable
+        <span class="cov0" title="0">if info.Mode()&amp;0111 == 0 </span><span class="cov0" title="0">{
+                return fmt.Errorf("rollback target is not executable")
+        }</span>
+
+        // Could add more validation here:
+        // 1. Try running the binary with --version
+        // 2. Check binary format/magic bytes
+        // 3. Verify digital signature
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+
+		<pre class="file" id="file6" style="display: none">// ABOUTME: Shell integration updates for PVM binary replacement
+// ABOUTME: Ensures shell configuration remains functional after updates
+
+package updater
+
+import (
+        "bufio"
+        "fmt"
+        "os"
+        "path/filepath"
+        "regexp"
+        "runtime"
+        "strings"
+)
+
+// ShellIntegrationManager handles shell configuration updates
+type ShellIntegrationManager struct {
+        detectedShells []ShellInfo
+}
+
+// NewShellIntegrationManager creates a new shell integration manager
+func NewShellIntegrationManager() *ShellIntegrationManager <span class="cov8" title="1">{
+        return &amp;ShellIntegrationManager{}
+}</span>
+
+// ShellInfo contains information about a detected shell
+type ShellInfo struct {
+        Type       ShellType
+        ConfigPath string
+        Version    string
+        IsActive   bool
+}
+
+// ShellType represents different shell types
+type ShellType int
+
+const (
+        ShellUnknown ShellType = iota
+        ShellBash
+        ShellZsh
+        ShellFish
+        ShellPowerShell
+        ShellCmd
+)
+
+// String returns the string representation of a shell type
+func (st ShellType) String() string <span class="cov0" title="0">{
+        switch st </span>{
+        case ShellBash:<span class="cov0" title="0">
+                return "bash"</span>
+        case ShellZsh:<span class="cov0" title="0">
+                return "zsh"</span>
+        case ShellFish:<span class="cov0" title="0">
+                return "fish"</span>
+        case ShellPowerShell:<span class="cov0" title="0">
+                return "powershell"</span>
+        case ShellCmd:<span class="cov0" title="0">
+                return "cmd"</span>
+        default:<span class="cov0" title="0">
+                return "unknown"</span>
+        }
+}
+
+// IntegrationResult contains the result of shell integration updates
+type IntegrationResult struct {
+        UpdatedShells   []ShellInfo
+        SkippedShells   []ShellInfo
+        FailedShells    []ShellInfo
+        RequiresRestart bool
+        Instructions    []string
+}
+
+// UpdateShellIntegration updates shell configurations after binary replacement
+func (sim *ShellIntegrationManager) UpdateShellIntegration(oldPath, newPath string) (*IntegrationResult, error) <span class="cov0" title="0">{
+        result := &amp;IntegrationResult{}
+
+        // Detect available shells
+        shells, err := sim.detectShells()
+        if err != nil </span><span class="cov0" title="0">{
+                return result, fmt.Errorf("detecting shells: %w", err)
+        }</span>
+
+        // Update each shell configuration
+        <span class="cov0" title="0">for _, shell := range shells </span><span class="cov0" title="0">{
+                if err := sim.updateShellConfig(shell, oldPath, newPath); err != nil </span><span class="cov0" title="0">{
+                        result.FailedShells = append(result.FailedShells, shell)
+                        fmt.Printf("Failed to update %s configuration: %v\n", shell.Type.String(), err)
+                }</span> else<span class="cov0" title="0"> {
+                        result.UpdatedShells = append(result.UpdatedShells, shell)
+                }</span>
+        }
+
+        // Generate user instructions
+        <span class="cov0" title="0">result.Instructions = sim.generateInstructions(result)
+        result.RequiresRestart = len(result.UpdatedShells) &gt; 0
+
+        return result, nil</span>
+}
+
+// detectShells finds available shells and their configuration files
+func (sim *ShellIntegrationManager) detectShells() ([]ShellInfo, error) <span class="cov0" title="0">{
+        var shells []ShellInfo
+        homeDir, err := os.UserHomeDir()
+        if err != nil </span><span class="cov0" title="0">{
+                return shells, fmt.Errorf("getting home directory: %w", err)
+        }</span>
+
+        // Detect shells based on platform
+        <span class="cov0" title="0">if runtime.GOOS == "windows" </span><span class="cov0" title="0">{
+                shells = append(shells, sim.detectWindowsShells(homeDir)...)
+        }</span> else<span class="cov0" title="0"> {
+                shells = append(shells, sim.detectUnixShells(homeDir)...)
+        }</span>
+
+        // Filter out shells without config files
+        <span class="cov0" title="0">var validShells []ShellInfo
+        for _, shell := range shells </span><span class="cov0" title="0">{
+                if _, err := os.Stat(shell.ConfigPath); err == nil </span><span class="cov0" title="0">{
+                        validShells = append(validShells, shell)
+                }</span>
+        }
+
+        <span class="cov0" title="0">return validShells, nil</span>
+}
+
+// detectUnixShells detects Unix-like shell configurations
+func (sim *ShellIntegrationManager) detectUnixShells(homeDir string) []ShellInfo <span class="cov0" title="0">{
+        var shells []ShellInfo
+
+        // Bash configurations
+        bashConfigs := []string{
+                ".bashrc",
+                ".bash_profile",
+                ".profile",
+        }
+
+        for _, config := range bashConfigs </span><span class="cov0" title="0">{
+                configPath := filepath.Join(homeDir, config)
+                if sim.containsPVMReference(configPath) </span><span class="cov0" title="0">{
+                        shells = append(shells, ShellInfo{
+                                Type:       ShellBash,
+                                ConfigPath: configPath,
+                                IsActive:   sim.isActiveShell("bash"),
+                        })
+                }</span>
+        }
+
+        // Zsh configurations
+        <span class="cov0" title="0">zshConfigs := []string{
+                ".zshrc",
+                ".zprofile",
+        }
+
+        for _, config := range zshConfigs </span><span class="cov0" title="0">{
+                configPath := filepath.Join(homeDir, config)
+                if sim.containsPVMReference(configPath) </span><span class="cov0" title="0">{
+                        shells = append(shells, ShellInfo{
+                                Type:       ShellZsh,
+                                ConfigPath: configPath,
+                                IsActive:   sim.isActiveShell("zsh"),
+                        })
+                }</span>
+        }
+
+        // Fish configuration
+        <span class="cov0" title="0">fishConfigPath := filepath.Join(homeDir, ".config", "fish", "config.fish")
+        if sim.containsPVMReference(fishConfigPath) </span><span class="cov0" title="0">{
+                shells = append(shells, ShellInfo{
+                        Type:       ShellFish,
+                        ConfigPath: fishConfigPath,
+                        IsActive:   sim.isActiveShell("fish"),
+                })
+        }</span>
+
+        <span class="cov0" title="0">return shells</span>
+}
+
+// detectWindowsShells detects Windows shell configurations
+func (sim *ShellIntegrationManager) detectWindowsShells(homeDir string) []ShellInfo <span class="cov0" title="0">{
+        var shells []ShellInfo
+
+        // PowerShell profile
+        psProfile := filepath.Join(homeDir, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1")
+        if sim.containsPVMReference(psProfile) </span><span class="cov0" title="0">{
+                shells = append(shells, ShellInfo{
+                        Type:       ShellPowerShell,
+                        ConfigPath: psProfile,
+                        IsActive:   true, // Assume PowerShell is available on Windows
+                })
+        }</span>
+
+        // Windows PowerShell (5.x) profile
+        <span class="cov0" title="0">winPsProfile := filepath.Join(homeDir, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1")
+        if sim.containsPVMReference(winPsProfile) </span><span class="cov0" title="0">{
+                shells = append(shells, ShellInfo{
+                        Type:       ShellPowerShell,
+                        ConfigPath: winPsProfile,
+                        IsActive:   true,
+                })
+        }</span>
+
+        <span class="cov0" title="0">return shells</span>
+}
+
+// containsPVMReference checks if a file contains PVM-related configurations
+func (sim *ShellIntegrationManager) containsPVMReference(configPath string) bool <span class="cov0" title="0">{
+        file, err := os.Open(configPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return false
+        }</span>
+        <span class="cov0" title="0">defer file.Close()
+
+        scanner := bufio.NewScanner(file)
+        pvmPattern := regexp.MustCompile(`(?i)(pvm|\.pvm|pvm_|PVM_)`)
+
+        for scanner.Scan() </span><span class="cov0" title="0">{
+                line := scanner.Text()
+                if pvmPattern.MatchString(line) </span><span class="cov0" title="0">{
+                        return true
+                }</span>
+        }
+
+        <span class="cov0" title="0">return false</span>
+}
+
+// isActiveShell checks if a shell is currently active/available
+func (sim *ShellIntegrationManager) isActiveShell(shellName string) bool <span class="cov0" title="0">{
+        // Check if shell is available in PATH
+        _, err := os.Stat(fmt.Sprintf("/bin/%s", shellName))
+        if err == nil </span><span class="cov0" title="0">{
+                return true
+        }</span>
+
+        <span class="cov0" title="0">_, err = os.Stat(fmt.Sprintf("/usr/bin/%s", shellName))
+        return err == nil</span>
+}
+
+// updateShellConfig updates a shell configuration to use the new binary path
+func (sim *ShellIntegrationManager) updateShellConfig(shell ShellInfo, oldPath, newPath string) error <span class="cov0" title="0">{
+        // Read the configuration file
+        content, err := os.ReadFile(shell.ConfigPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("reading config file: %w", err)
+        }</span>
+
+        // Create backup of original config
+        <span class="cov0" title="0">backupPath := shell.ConfigPath + ".pvm-backup"
+        if err := os.WriteFile(backupPath, content, 0644); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("creating backup: %w", err)
+        }</span>
+
+        // Update content based on shell type
+        <span class="cov0" title="0">updatedContent := sim.updateConfigContent(string(content), shell.Type, oldPath, newPath)
+
+        // Write updated configuration
+        if err := os.WriteFile(shell.ConfigPath, []byte(updatedContent), 0644); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("writing updated config: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// updateConfigContent updates the configuration content for a specific shell
+func (sim *ShellIntegrationManager) updateConfigContent(content string, shellType ShellType, oldPath, newPath string) string <span class="cov0" title="0">{
+        lines := strings.Split(content, "\n")
+        var updatedLines []string
+
+        for _, line := range lines </span><span class="cov0" title="0">{
+                updatedLine := sim.updateConfigLine(line, shellType, oldPath, newPath)
+                updatedLines = append(updatedLines, updatedLine)
+        }</span>
+
+        <span class="cov0" title="0">return strings.Join(updatedLines, "\n")</span>
+}
+
+// updateConfigLine updates a single configuration line
+func (sim *ShellIntegrationManager) updateConfigLine(line string, shellType ShellType, oldPath, newPath string) string <span class="cov0" title="0">{
+        // Patterns to match and update
+        patterns := []struct {
+                regex       *regexp.Regexp
+                replacement string
+        }{
+                // Direct path references
+                {
+                        regex:       regexp.MustCompile(regexp.QuoteMeta(oldPath)),
+                        replacement: newPath,
+                },
+                // Directory references (update to new directory)
+                {
+                        regex:       regexp.MustCompile(regexp.QuoteMeta(filepath.Dir(oldPath))),
+                        replacement: filepath.Dir(newPath),
+                },
+        }
+
+        updatedLine := line
+        for _, pattern := range patterns </span><span class="cov0" title="0">{
+                updatedLine = pattern.regex.ReplaceAllString(updatedLine, pattern.replacement)
+        }</span>
+
+        <span class="cov0" title="0">return updatedLine</span>
+}
+
+// generateInstructions creates user instructions for completing the integration
+func (sim *ShellIntegrationManager) generateInstructions(result *IntegrationResult) []string <span class="cov0" title="0">{
+        var instructions []string
+
+        if len(result.UpdatedShells) &gt; 0 </span><span class="cov0" title="0">{
+                instructions = append(instructions, "Shell configurations have been updated.")
+                instructions = append(instructions, "")
+                instructions = append(instructions, "To activate the changes:")
+
+                for _, shell := range result.UpdatedShells </span><span class="cov0" title="0">{
+                        switch shell.Type </span>{
+                        case ShellBash:<span class="cov0" title="0">
+                                instructions = append(instructions, fmt.Sprintf("  • For Bash: source %s", shell.ConfigPath))</span>
+                        case ShellZsh:<span class="cov0" title="0">
+                                instructions = append(instructions, fmt.Sprintf("  • For Zsh: source %s", shell.ConfigPath))</span>
+                        case ShellFish:<span class="cov0" title="0">
+                                instructions = append(instructions, "  • For Fish: restart your terminal or run 'exec fish'")</span>
+                        case ShellPowerShell:<span class="cov0" title="0">
+                                instructions = append(instructions, "  • For PowerShell: restart your PowerShell session")</span>
+                        }
+                }
+
+                <span class="cov0" title="0">instructions = append(instructions, "")
+                instructions = append(instructions, "Alternatively, restart your terminal to apply all changes.")</span>
+        }
+
+        <span class="cov0" title="0">if len(result.FailedShells) &gt; 0 </span><span class="cov0" title="0">{
+                instructions = append(instructions, "")
+                instructions = append(instructions, "Manual updates may be required for:")
+                for _, shell := range result.FailedShells </span><span class="cov0" title="0">{
+                        instructions = append(instructions, fmt.Sprintf("  • %s configuration: %s", shell.Type.String(), shell.ConfigPath))
+                }</span>
+        }
+
+        <span class="cov0" title="0">return instructions</span>
+}
+
+// ValidateShellIntegration checks if shell integration is working correctly
+func (sim *ShellIntegrationManager) ValidateShellIntegration(binaryPath string) error <span class="cov0" title="0">{
+        shells, err := sim.detectShells()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("detecting shells for validation: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">for _, shell := range shells </span><span class="cov0" title="0">{
+                if err := sim.validateShellConfig(shell, binaryPath); err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("validating %s config: %w", shell.Type.String(), err)
+                }</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// validateShellConfig validates that a shell configuration is correct
+func (sim *ShellIntegrationManager) validateShellConfig(shell ShellInfo, binaryPath string) error <span class="cov0" title="0">{
+        content, err := os.ReadFile(shell.ConfigPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("reading config file: %w", err)
+        }</span>
+
+        // Check if the binary path is referenced correctly
+        <span class="cov0" title="0">configText := string(content)
+        binaryDir := filepath.Dir(binaryPath)
+
+        if !strings.Contains(configText, binaryPath) &amp;&amp; !strings.Contains(configText, binaryDir) </span><span class="cov0" title="0">{
+                return fmt.Errorf("binary path not found in configuration")
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// RestoreShellBackups restores shell configurations from backups
+func (sim *ShellIntegrationManager) RestoreShellBackups() error <span class="cov0" title="0">{
+        homeDir, err := os.UserHomeDir()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("getting home directory: %w", err)
+        }</span>
+
+        // Find backup files
+        <span class="cov0" title="0">pattern := filepath.Join(homeDir, "**", "*.pvm-backup")
+        matches, err := filepath.Glob(pattern)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("finding backup files: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">for _, backupPath := range matches </span><span class="cov0" title="0">{
+                originalPath := strings.TrimSuffix(backupPath, ".pvm-backup")
+
+                // Read backup content
+                content, err := os.ReadFile(backupPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("Failed to read backup %s: %v\n", backupPath, err)
+                        continue</span>
+                }
+
+                // Restore original file
+                <span class="cov0" title="0">if err := os.WriteFile(originalPath, content, 0644); err != nil </span><span class="cov0" title="0">{
+                        fmt.Printf("Failed to restore %s: %v\n", originalPath, err)
+                        continue</span>
+                }
+
+                // Remove backup file
+                <span class="cov0" title="0">os.Remove(backupPath)
+                fmt.Printf("Restored shell configuration: %s\n", originalPath)</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// GetShellStatus returns information about current shell integration status
+func (sim *ShellIntegrationManager) GetShellStatus() (*ShellStatus, error) <span class="cov0" title="0">{
+        shells, err := sim.detectShells()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("detecting shells: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">status := &amp;ShellStatus{
+                DetectedShells: len(shells),
+                ActiveShells:   0,
+        }
+
+        for _, shell := range shells </span><span class="cov0" title="0">{
+                if shell.IsActive </span><span class="cov0" title="0">{
+                        status.ActiveShells++
+                }</span>
+                <span class="cov0" title="0">status.Shells = append(status.Shells, shell)</span>
+        }
+
+        <span class="cov0" title="0">return status, nil</span>
+}
+
+// ShellStatus contains information about shell integration status
+type ShellStatus struct {
+        DetectedShells int         `json:"detected_shells"`
+        ActiveShells   int         `json:"active_shells"`
+        Shells         []ShellInfo `json:"shells"`
+}
+</pre>
+
+		<pre class="file" id="file7" style="display: none">// ABOUTME: Main updater orchestration for PVM self-updater
+// ABOUTME: Coordinates version checking, downloading, and atomic replacement
+
+package updater
+
+import (
+        "context"
+        "fmt"
+        "os"
+        "path/filepath"
+        "time"
+
+        "tamarou.com/pvm/internal/download"
+        "tamarou.com/pvm/internal/version"
+)
+
+// Updater orchestrates the complete update process
+type Updater struct {
+        versionChecker *version.GitHubClient
+        downloader     *download.Downloader
+        replacer       *BinaryReplacer
+        rollbackMgr    *RollbackManager
+        recoveryMgr    *RecoveryManager
+        shellMgr       *ShellIntegrationManager
+}
+
+// NewUpdater creates a new updater instance
+func NewUpdater() *Updater <span class="cov8" title="1">{
+        return &amp;Updater{
+                versionChecker: version.NewGitHubClient(),
+                downloader:     download.NewDownloader(),
+                replacer:       NewBinaryReplacer(),
+                rollbackMgr:    NewRollbackManager(),
+                recoveryMgr:    NewRecoveryManager(),
+                shellMgr:       NewShellIntegrationManager(),
+        }
+}</span>
+
+// NewUpdaterWithToken creates a new updater with GitHub authentication
+func NewUpdaterWithToken(token string) *Updater <span class="cov8" title="1">{
+        return &amp;Updater{
+                versionChecker: version.NewGitHubClientWithToken(token),
+                downloader:     download.NewDownloader(),
+                replacer:       NewBinaryReplacer(),
+                rollbackMgr:    NewRollbackManager(),
+                recoveryMgr:    NewRecoveryManager(),
+                shellMgr:       NewShellIntegrationManager(),
+        }
+}</span>
+
+// UpdateOptions configures the update process
+type UpdateOptions struct {
+        // Version selection
+        TargetVersion     string // Specific version to update to (empty = latest)
+        IncludePrerelease bool   // Whether to consider pre-release versions
+
+        // Repository configuration
+        Repository  string // GitHub repository (owner/repo format)
+        GitHubToken string // Optional GitHub token for higher rate limits
+
+        // Update behavior
+        Force        bool // Skip version checks and force update
+        DryRun       bool // Simulate update without making changes
+        Backup       bool // Create backup before updating (default: true)
+        AutoRollback bool // Automatically rollback on failure (default: true)
+
+        // Installation method handling
+        IgnoreInstallMethod bool // Ignore installation method and force self-update
+
+        // Shell integration
+        UpdateShellConfigs bool // Update shell configurations after replacement (default: true)
+
+        // Progress reporting
+        ProgressCallback func(stage UpdateStage, message string, progress float64)
+
+        // Context for cancellation
+        Context context.Context
+}
+
+// DefaultUpdateOptions returns default update options
+func DefaultUpdateOptions() *UpdateOptions <span class="cov8" title="1">{
+        return &amp;UpdateOptions{
+                Repository:         "perigrin/pvm",
+                IncludePrerelease:  true, // Include prereleases by default since stable releases may not be available
+                Backup:             true,
+                AutoRollback:       true,
+                UpdateShellConfigs: true,
+                Context:            context.Background(),
+        }
+}</span>
+
+// UpdateStage represents different stages of the update process
+type UpdateStage int
+
+const (
+        StageCheckingVersion UpdateStage = iota
+        StageDetectingPlatform
+        StageDownloading
+        StageValidating
+        StageCreatingBackup
+        StageReplacing
+        StageValidatingUpdate
+        StageUpdatingShellConfigs
+        StageCleaningUp
+        StageRollingBack
+        StageDone
+)
+
+func (s UpdateStage) String() string <span class="cov8" title="1">{
+        switch s </span>{
+        case StageCheckingVersion:<span class="cov8" title="1">
+                return "Checking for updates"</span>
+        case StageDetectingPlatform:<span class="cov8" title="1">
+                return "Detecting platform"</span>
+        case StageDownloading:<span class="cov8" title="1">
+                return "Downloading update"</span>
+        case StageValidating:<span class="cov8" title="1">
+                return "Validating download"</span>
+        case StageCreatingBackup:<span class="cov8" title="1">
+                return "Creating backup"</span>
+        case StageReplacing:<span class="cov8" title="1">
+                return "Installing update"</span>
+        case StageValidatingUpdate:<span class="cov8" title="1">
+                return "Validating installation"</span>
+        case StageUpdatingShellConfigs:<span class="cov0" title="0">
+                return "Updating shell configurations"</span>
+        case StageCleaningUp:<span class="cov8" title="1">
+                return "Cleaning up"</span>
+        case StageRollingBack:<span class="cov8" title="1">
+                return "Rolling back"</span>
+        case StageDone:<span class="cov8" title="1">
+                return "Update complete"</span>
+        default:<span class="cov8" title="1">
+                return "Unknown stage"</span>
+        }
+}
+
+// UpdateResult contains information about the update operation
+type UpdateResult struct {
+        Success           bool          `json:"success"`
+        UpdatePerformed   bool          `json:"update_performed"`
+        PreviousVersion   string        `json:"previous_version"`
+        NewVersion        string        `json:"new_version"`
+        Duration          time.Duration `json:"duration"`
+        BackupCreated     bool          `json:"backup_created"`
+        BackupPath        string        `json:"backup_path,omitempty"`
+        RollbackPerformed bool          `json:"rollback_performed"`
+        DryRun            bool          `json:"dry_run"`
+        Message           string        `json:"message"`
+}
+
+// CheckForUpdates checks if an update is available
+func (u *Updater) CheckForUpdates(opts *UpdateOptions) (*version.UpdateInfo, error) <span class="cov8" title="1">{
+        if opts == nil </span><span class="cov8" title="1">{
+                opts = DefaultUpdateOptions()
+        }</span>
+
+        // Create version check options
+        <span class="cov8" title="1">checkOpts := &amp;version.CheckOptions{
+                IncludePrerelease: opts.IncludePrerelease,
+                Repository:        opts.Repository,
+                GitHubToken:       opts.GitHubToken,
+                Timeout:           30 * time.Second,
+        }
+
+        return version.GetUpdateInfo(checkOpts)</span>
+}
+
+// PerformUpdate performs the complete update process
+func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) <span class="cov8" title="1">{
+        startTime := time.Now()
+
+        if opts == nil </span><span class="cov0" title="0">{
+                opts = DefaultUpdateOptions()
+        }</span>
+
+        <span class="cov8" title="1">result := &amp;UpdateResult{
+                DryRun: opts.DryRun,
+        }
+
+        if opts.Context == nil </span><span class="cov0" title="0">{
+                opts.Context = context.Background()
+        }</span>
+
+        // Report progress
+        <span class="cov8" title="1">reportProgress := func(stage UpdateStage, message string, progress float64) </span><span class="cov8" title="1">{
+                if opts.ProgressCallback != nil </span><span class="cov0" title="0">{
+                        opts.ProgressCallback(stage, message, progress)
+                }</span>
+        }
+
+        // Get current binary path
+        <span class="cov8" title="1">reportProgress(StageCheckingVersion, "Detecting current installation", 0.0)
+        currentPath, err := GetCurrentBinaryPath()
+        if err != nil </span><span class="cov0" title="0">{
+                result.Message = fmt.Sprintf("Failed to detect current binary: %v", err)
+                return result, err
+        }</span>
+
+        // Check installation method
+        <span class="cov8" title="1">if !opts.IgnoreInstallMethod </span><span class="cov8" title="1">{
+                installMethod, err := DetectInstallationMethod(currentPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        result.Message = fmt.Sprintf("Failed to detect installation method: %v", err)
+                        return result, err
+                }</span>
+
+                <span class="cov8" title="1">if !installMethod.CanSelfUpdate() </span><span class="cov0" title="0">{
+                        result.Message = fmt.Sprintf("Cannot self-update: %s. %s",
+                                installMethod.String(), installMethod.GetUpdateInstructions())
+                        return result, fmt.Errorf("self-update not supported for %s installations", installMethod.String())
+                }</span>
+        }
+
+        // Check for updates
+        <span class="cov8" title="1">reportProgress(StageCheckingVersion, "Checking for updates", 0.1)
+        updateInfo, err := u.CheckForUpdates(opts)
+        if err != nil </span><span class="cov8" title="1">{
+                result.Message = fmt.Sprintf("Failed to check for updates: %v", err)
+                return result, err
+        }</span>
+
+        <span class="cov0" title="0">result.PreviousVersion = updateInfo.CurrentVersion.String()
+
+        // Check if update is needed
+        if !updateInfo.UpdateNeeded &amp;&amp; !opts.Force </span><span class="cov0" title="0">{
+                result.Message = fmt.Sprintf("Already up to date (version %s)", updateInfo.CurrentVersion.String())
+                result.Success = true
+                result.Duration = time.Since(startTime)
+                return result, nil
+        }</span>
+
+        <span class="cov0" title="0">result.NewVersion = updateInfo.LatestVersion.String()
+
+        // Detect platform
+        reportProgress(StageDetectingPlatform, "Detecting platform", 0.2)
+        platform := version.DetectPlatform()
+        if !platform.IsSupported() </span><span class="cov0" title="0">{
+                result.Message = fmt.Sprintf("Platform %s is not supported for updates", platform.String())
+                return result, fmt.Errorf("unsupported platform: %s", platform.String())
+        }</span>
+
+        // Get update asset
+        <span class="cov0" title="0">asset, err := version.GetUpdateAsset(updateInfo.Release, platform)
+        if err != nil </span><span class="cov0" title="0">{
+                result.Message = fmt.Sprintf("Failed to find update asset: %v", err)
+                return result, err
+        }</span>
+
+        // Download update
+        <span class="cov0" title="0">reportProgress(StageDownloading, fmt.Sprintf("Downloading %s", asset.Name), 0.3)
+        tempDir, err := os.MkdirTemp("", "pvm-update-*")
+        if err != nil </span><span class="cov0" title="0">{
+                result.Message = fmt.Sprintf("Failed to create temp directory: %v", err)
+                return result, err
+        }</span>
+        <span class="cov0" title="0">defer os.RemoveAll(tempDir)
+
+        downloadPath := filepath.Join(tempDir, asset.Name)
+        downloadOpts := &amp;download.DownloadOptions{
+                URL:             asset.BrowserDownloadURL,
+                DestinationPath: downloadPath,
+                Context:         opts.Context,
+                ProgressCallback: func(total, transferred int64, done bool) </span><span class="cov0" title="0">{
+                        if total &gt; 0 </span><span class="cov0" title="0">{
+                                progress := 0.3 + (0.3 * float64(transferred) / float64(total))
+                                reportProgress(StageDownloading, fmt.Sprintf("Downloaded %d/%d bytes", transferred, total), progress)
+                        }</span>
+                },
+        }
+
+        <span class="cov0" title="0">downloadResult, err := u.downloader.Download(downloadOpts)
+        if err != nil </span><span class="cov0" title="0">{
+                result.Message = fmt.Sprintf("Failed to download update: %v", err)
+
+                // Attempt recovery for download failures
+                if opts.AutoRollback </span><span class="cov0" title="0">{
+                        recoveryCtx := u.recoveryMgr.CreateRecoveryContext(currentPath, result.NewVersion, err)
+                        if recoveryCtx.Scenario == ScenarioNetworkFailure || recoveryCtx.Scenario == ScenarioChecksumMismatch </span><span class="cov0" title="0">{
+                                // Only attempt recovery for certain scenarios that make sense during download
+                                recoveryResult, recoveryErr := u.recoveryMgr.PerformRecovery(recoveryCtx)
+                                if recoveryErr == nil &amp;&amp; recoveryResult.Success </span><span class="cov0" title="0">{
+                                        result.Message = fmt.Sprintf("Download failed but recovery succeeded: %s", recoveryResult.Message)
+                                        // Note: This might not actually complete the update, but it ensures system stability
+                                }</span>
+                        }
+                }
+
+                <span class="cov0" title="0">return result, err</span>
+        }
+
+        // Validate downloaded binary with version verification
+        <span class="cov0" title="0">reportProgress(StageValidating, "Validating download", 0.6)
+        if err := download.ValidateDownloadedBinaryWithVersion(downloadResult.Path, "", result.NewVersion); err != nil </span><span class="cov0" title="0">{
+                result.Message = fmt.Sprintf("Downloaded binary validation failed: %v", err)
+                return result, err
+        }</span>
+
+        // Perform replacement (or simulate if dry run)
+        <span class="cov0" title="0">if opts.DryRun </span><span class="cov0" title="0">{
+                result.Message = fmt.Sprintf("Dry run: would update from %s to %s",
+                        result.PreviousVersion, result.NewVersion)
+                result.Success = true
+                result.Duration = time.Since(startTime)
+                return result, nil
+        }</span>
+
+        // Create backup
+        <span class="cov0" title="0">var backupPath string
+        if opts.Backup </span><span class="cov0" title="0">{
+                reportProgress(StageCreatingBackup, "Creating backup", 0.7)
+                backupMgr := NewBackupManager()
+                backupPath, err = backupMgr.CreateBackup(currentPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        result.Message = fmt.Sprintf("Failed to create backup: %v", err)
+                        return result, err
+                }</span>
+                <span class="cov0" title="0">result.BackupCreated = true
+                result.BackupPath = backupPath</span>
+        }
+
+        // Perform atomic replacement
+        <span class="cov0" title="0">reportProgress(StageReplacing, "Installing update", 0.8)
+        replaceOpts := &amp;ReplacementOptions{
+                CurrentPath:    currentPath,
+                NewPath:        downloadResult.Path,
+                BackupEnabled:  false, // We already created backup above
+                ValidateBinary: true,
+                DryRun:         false,
+        }
+
+        replaceResult, err := u.replacer.ReplaceBinary(replaceOpts)
+        if err != nil </span><span class="cov0" title="0">{
+                // Attempt advanced recovery if enabled
+                if opts.AutoRollback </span><span class="cov0" title="0">{
+                        reportProgress(StageRollingBack, "Attempting recovery", 0.9)
+
+                        // Create recovery context
+                        recoveryCtx := u.recoveryMgr.CreateRecoveryContext(currentPath, result.NewVersion, err)
+
+                        // Attempt recovery
+                        recoveryResult, recoveryErr := u.recoveryMgr.PerformRecovery(recoveryCtx)
+                        if recoveryErr == nil &amp;&amp; recoveryResult.Success </span><span class="cov0" title="0">{
+                                result.RollbackPerformed = true
+                                result.Message = fmt.Sprintf("Update failed but recovery succeeded: %s", recoveryResult.Message)
+                        }</span> else<span class="cov0" title="0"> {
+                                // Fallback to simple rollback if recovery fails
+                                if backupPath != "" </span><span class="cov0" title="0">{
+                                        rollbackErr := u.rollbackMgr.AutoRollback(currentPath)
+                                        if rollbackErr != nil </span><span class="cov0" title="0">{
+                                                result.Message = fmt.Sprintf("Update failed, recovery failed, and rollback failed: %v (recovery error: %v, original error: %v)", rollbackErr, recoveryErr, err)
+                                        }</span> else<span class="cov0" title="0"> {
+                                                result.RollbackPerformed = true
+                                                result.Message = fmt.Sprintf("Update failed, recovery failed, but simple rollback succeeded: %v", err)
+                                        }</span>
+                                } else<span class="cov0" title="0"> {
+                                        result.Message = fmt.Sprintf("Update failed and recovery failed: %v (original error: %v)", recoveryErr, err)
+                                }</span>
+                        }
+                } else<span class="cov0" title="0"> {
+                        result.Message = fmt.Sprintf("Update failed: %v", err)
+                }</span>
+                <span class="cov0" title="0">return result, err</span>
+        }
+
+        <span class="cov0" title="0">if !replaceResult.Success </span><span class="cov0" title="0">{
+                result.Message = "Binary replacement did not complete successfully"
+                return result, fmt.Errorf("replacement failed")
+        }</span>
+
+        // Validate update
+        <span class="cov0" title="0">reportProgress(StageValidatingUpdate, "Validating installation", 0.9)
+        if err := u.rollbackMgr.ValidatePostRollback(currentPath); err != nil </span><span class="cov0" title="0">{
+                result.Message = fmt.Sprintf("Update validation failed: %v", err)
+
+                // Attempt advanced recovery if enabled
+                if opts.AutoRollback </span><span class="cov0" title="0">{
+                        reportProgress(StageRollingBack, "Attempting recovery from validation failure", 0.95)
+
+                        // Create recovery context for corrupted binary scenario
+                        recoveryCtx := u.recoveryMgr.CreateRecoveryContext(currentPath, result.NewVersion, err)
+                        recoveryCtx.Scenario = ScenarioCorruptedBinary
+
+                        // Attempt recovery
+                        recoveryResult, recoveryErr := u.recoveryMgr.PerformRecovery(recoveryCtx)
+                        if recoveryErr == nil &amp;&amp; recoveryResult.Success </span><span class="cov0" title="0">{
+                                result.RollbackPerformed = true
+                                result.Message = fmt.Sprintf("Validation failed but recovery succeeded: %s", recoveryResult.Message)
+                                // Recovery succeeded, continue with the update process
+                        }</span> else<span class="cov0" title="0"> {
+                                // Fallback to simple rollback if recovery fails
+                                if backupPath != "" </span><span class="cov0" title="0">{
+                                        rollbackErr := u.rollbackMgr.AutoRollback(currentPath)
+                                        if rollbackErr != nil </span><span class="cov0" title="0">{
+                                                result.Message = fmt.Sprintf("Update validation failed, recovery failed, and rollback failed: %v (recovery error: %v, original error: %v)", rollbackErr, recoveryErr, err)
+                                        }</span> else<span class="cov0" title="0"> {
+                                                result.RollbackPerformed = true
+                                                result.Message = fmt.Sprintf("Update validation failed, recovery failed, but simple rollback succeeded: %v", err)
+                                        }</span>
+                                } else<span class="cov0" title="0"> {
+                                        result.Message = fmt.Sprintf("Update validation failed and recovery failed: %v (original error: %v)", recoveryErr, err)
+                                }</span>
+                                <span class="cov0" title="0">return result, err</span>
+                        }
+                } else<span class="cov0" title="0"> {
+                        return result, err
+                }</span>
+        }
+
+        // Update shell configurations if enabled
+        <span class="cov0" title="0">if opts.UpdateShellConfigs </span><span class="cov0" title="0">{
+                reportProgress(StageUpdatingShellConfigs, "Updating shell configurations", 0.92)
+
+                shellResult, err := u.shellMgr.UpdateShellIntegration("", currentPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        // Shell integration failure is not critical - log warning but continue
+                        fmt.Printf("Warning: Failed to update shell configurations: %v\n", err)
+                }</span> else<span class="cov0" title="0"> if len(shellResult.UpdatedShells) &gt; 0 </span><span class="cov0" title="0">{
+                        fmt.Printf("Updated %d shell configurations\n", len(shellResult.UpdatedShells))
+
+                        // Add shell integration instructions to result message
+                        if len(shellResult.Instructions) &gt; 0 </span><span class="cov0" title="0">{
+                                result.Message += "\n\nShell Integration:\n"
+                                for _, instruction := range shellResult.Instructions </span><span class="cov0" title="0">{
+                                        result.Message += instruction + "\n"
+                                }</span>
+                        }
+                }
+        }
+
+        // Cleanup
+        <span class="cov0" title="0">reportProgress(StageCleaningUp, "Cleaning up", 0.95)
+        // Temporary files will be cleaned up by deferred os.RemoveAll
+
+        reportProgress(StageDone, "Update complete", 1.0)
+        result.Success = true
+        result.UpdatePerformed = true
+        result.Duration = time.Since(startTime)
+        result.Message = fmt.Sprintf("Successfully updated from %s to %s",
+                result.PreviousVersion, result.NewVersion)
+
+        return result, nil</span>
+}
+
+// PerformRecovery attempts to recover from update failures
+func (u *Updater) PerformRecovery(targetPath string, failureError error) (*RecoveryResult, error) <span class="cov0" title="0">{
+        ctx := u.recoveryMgr.CreateRecoveryContext(targetPath, "", failureError)
+        return u.recoveryMgr.PerformRecovery(ctx)
+}</span>
+
+// DiagnoseFailure attempts to determine the type of failure
+func (u *Updater) DiagnoseFailure(targetPath string, err error) RecoveryScenario <span class="cov0" title="0">{
+        return u.recoveryMgr.DiagnoseFailure(targetPath, err)
+}</span>
+
+// GetRecoveryStatus provides information about available recovery options
+func (u *Updater) GetRecoveryStatus(targetPath string) (*RecoveryStatus, error) <span class="cov0" title="0">{
+        backups, err := u.recoveryMgr.backupManager.ListBackups()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("checking recovery status: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">status := &amp;RecoveryStatus{
+                AvailableBackups: len(backups),
+                RecoveryPossible: len(backups) &gt; 0,
+        }
+
+        if len(backups) &gt; 0 </span><span class="cov0" title="0">{
+                // Sort by creation time to find latest
+                for _, backup := range backups </span><span class="cov0" title="0">{
+                        if status.LatestBackup.IsZero() || backup.CreatedAt.After(status.LatestBackup) </span><span class="cov0" title="0">{
+                                status.LatestBackup = backup.CreatedAt
+                        }</span>
+                }
+        }
+
+        <span class="cov0" title="0">return status, nil</span>
+}
+
+// RecoveryStatus provides information about recovery capabilities
+type RecoveryStatus struct {
+        AvailableBackups int       `json:"available_backups"`
+        RecoveryPossible bool      `json:"recovery_possible"`
+        LatestBackup     time.Time `json:"latest_backup,omitempty"`
+}
+
+// UpdateShellIntegration manually updates shell configurations
+func (u *Updater) UpdateShellIntegration(oldPath, newPath string) (*IntegrationResult, error) <span class="cov0" title="0">{
+        return u.shellMgr.UpdateShellIntegration(oldPath, newPath)
+}</span>
+
+// GetShellStatus returns current shell integration status
+func (u *Updater) GetShellStatus() (*ShellStatus, error) <span class="cov0" title="0">{
+        return u.shellMgr.GetShellStatus()
+}</span>
+
+// ValidateShellIntegration checks if shell integration is working
+func (u *Updater) ValidateShellIntegration(binaryPath string) error <span class="cov0" title="0">{
+        return u.shellMgr.ValidateShellIntegration(binaryPath)
+}</span>
+
+// RestoreShellBackups restores shell configurations from backups
+func (u *Updater) RestoreShellBackups() error <span class="cov0" title="0">{
+        return u.shellMgr.RestoreShellBackups()
+}</span>
+
+// Rollback performs a manual rollback to a previous version
+func (u *Updater) Rollback(targetPath string, backupPath string) error <span class="cov0" title="0">{
+        opts := &amp;RollbackOptions{
+                TargetPath:     targetPath,
+                BackupPath:     backupPath,
+                ValidateBackup: true,
+                DryRun:         false,
+        }
+
+        result, err := u.rollbackMgr.PerformRollback(opts)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov0" title="0">if !result.Success </span><span class="cov0" title="0">{
+                return fmt.Errorf("rollback operation did not complete successfully")
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
