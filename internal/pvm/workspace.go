@@ -592,7 +592,16 @@ func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 	// Perl version
 	if ctx.PerlVersion != "" {
 		ui.Info("Perl Version: %s", ctx.PerlVersion)
-		// TODO: Check if this version is actually installed
+		// Check if this version is actually installed
+		if installed, err := checkPerlVersionInstalled(ctx.PerlVersion); err == nil {
+			if installed {
+				ui.Success("  Status: installed")
+			} else {
+				ui.Warning("  Status: not installed (run 'pvm install %s')" , ctx.PerlVersion)
+			}
+		} else {
+			ui.Warning("  Status: unable to check (%v)", err)
+		}
 	} else {
 		ui.Warning("Perl Version: not specified")
 	}
@@ -600,7 +609,14 @@ func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 	// Dependencies
 	if ctx.HasCpanfile {
 		ui.Info("Dependencies: cpanfile present")
-		// TODO: Check if dependencies are installed
+		// Check if dependencies are installed
+		if installed, missing := checkDependenciesInstalled(ctx); installed {
+			ui.Success("  Status: all dependencies installed")
+		} else if missing > 0 {
+			ui.Warning("  Status: %d dependencies missing (run 'pvm module install')" , missing)
+		} else {
+			ui.Info("  Status: unable to check")
+		}
 	} else {
 		ui.Warning("Dependencies: no cpanfile")
 	}
@@ -609,7 +625,13 @@ func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 	ui.Info("Local lib: %s", ctx.LocalLibDir)
 	if _, err := os.Stat(ctx.LocalLibDir); err == nil {
 		ui.Info("  Status: exists")
-		// TODO: Count installed modules
+		// Count installed modules
+		moduleCount := countInstalledModules(ctx.LocalLibDir)
+		if moduleCount > 0 {
+			ui.Success("  Modules: %d installed", moduleCount)
+		} else {
+			ui.Info("  Modules: none installed")
+		}
 	} else {
 		ui.Warning("  Status: not created")
 	}
@@ -1341,4 +1363,81 @@ func runWorkspaceValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// checkPerlVersionInstalled checks if a specific Perl version is installed
+func checkPerlVersionInstalled(version string) (bool, error) {
+	return perl.IsVersionInstalled(version)
+}
+
+// checkDependenciesInstalled checks if dependencies from cpanfile are installed
+// Returns (all_installed bool, missing_count int)
+func checkDependenciesInstalled(ctx *project.ProjectContext) (bool, int) {
+	// Parse cpanfile to get required dependencies
+	cpanfilePath := filepath.Join(ctx.RootDir, "cpanfile")
+	if _, err := os.Stat(cpanfilePath); err != nil {
+		return false, 0
+	}
+
+	// Read cpanfile to get dependency list
+	data, err := os.ReadFile(cpanfilePath)
+	if err != nil {
+		return false, 0
+	}
+
+	// Simple parse for required modules (basic implementation)
+	// In production, we'd use a proper cpanfile parser
+	lines := strings.Split(string(data), "\n")
+	var requiredModules []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "requires '") {
+			// Extract module name from "requires 'Module::Name'" 
+			parts := strings.Split(line, "'")
+			if len(parts) >= 2 {
+				moduleName := parts[1]
+				if moduleName != "perl" { // Skip perl version requirement
+					requiredModules = append(requiredModules, moduleName)
+				}
+			}
+		}
+	}
+
+	if len(requiredModules) == 0 {
+		return true, 0 // No dependencies to check
+	}
+
+	// Check each module in local lib
+	missingCount := 0
+	for _, module := range requiredModules {
+		if !isModuleInstalled(ctx.LocalLibDir, module) {
+			missingCount++
+		}
+	}
+
+	return missingCount == 0, missingCount
+}
+
+// isModuleInstalled checks if a specific module is installed in local lib
+func isModuleInstalled(localLibDir, moduleName string) bool {
+	// Convert Module::Name to Module/Name.pm
+	modulePath := strings.ReplaceAll(moduleName, "::", "/") + ".pm"
+	
+	// Check in local lib perl5 directory
+	perl5Dir := filepath.Join(localLibDir, "perl5")
+	
+	// Search for the module file
+	found := false
+	filepath.Walk(perl5Dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if strings.HasSuffix(path, modulePath) {
+			found = true
+			return filepath.SkipDir // Stop walking once found
+		}
+		return nil
+	})
+	
+	return found
 }

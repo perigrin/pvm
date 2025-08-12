@@ -59,6 +59,52 @@ type WorkflowOptions struct {
 
 	// SaveTypeDefs saves generated type definitions
 	SaveTypeDefs bool
+
+	// PVX-specific options for workflow orchestration
+	// EnvironmentName for named persistent environments
+	EnvironmentName string
+
+	// PreserveEnv lists environment variables to preserve
+	PreserveEnv []string
+
+	// ClearEnv lists environment variables to clear
+	ClearEnv []string
+
+	// ModulePaths contains additional PERL5LIB paths
+	ModulePaths []string
+
+	// ExecuteCode for direct code execution (-e flag)
+	ExecuteCode string
+
+	// ExecuteFeatures for direct code execution with features (-E flag)
+	ExecuteFeatures string
+
+	// AutoDetectDeps enables automatic dependency detection
+	AutoDetectDeps bool
+
+	// ForceVersion forces using the specified version
+	ForceVersion bool
+
+	// NoInstall disables automatic installation
+	NoInstall bool
+
+	// ReadOnlyPaths for filesystem isolation
+	ReadOnlyPaths []string
+
+	// ReadWritePaths for filesystem isolation  
+	ReadWritePaths []string
+
+	// IsolatedOutput enables output isolation
+	IsolatedOutput bool
+
+	// SaveOutputDir for saving isolated output
+	SaveOutputDir string
+
+	// NoCleanup disables cleanup after execution
+	NoCleanup bool
+
+	// AdditionalArgs for script execution
+	AdditionalArgs []string
 }
 
 // WorkflowResult contains the result of an end-to-end workflow
@@ -398,15 +444,55 @@ func installModules(options *WorkflowOptions, resolvedVersion *perl.ResolvedVers
 // executeScript executes the script with the resolved version
 func executeScript(options *WorkflowOptions, resolvedVersion *perl.ResolvedVersion) (*ExecutionResult, error) {
 	execOptions := &pvx.ExecutionOptions{
-		ScriptPath:     options.ScriptPath,
-		PerlVersion:    resolvedVersion.Version,
-		ForceVersion:   true, // Force fallback to system Perl when version not found
-		Verbose:        options.Verbose,
-		IsolationLevel: options.IsolationLevel,
-		Timeout:        30 * time.Second, // Set reasonable timeout for integration tests
+		ScriptPath:       options.ScriptPath,
+		PerlVersion:      resolvedVersion.Version,
+		ForceVersion:     options.ForceVersion,
+		Verbose:          options.Verbose,
+		IsolationLevel:   options.IsolationLevel,
+		Timeout:          30 * time.Second, // Set reasonable timeout for integration tests
+		EnvName:                   options.EnvironmentName,
+		AdditionalModulePaths:    options.ModulePaths,
+		ReadOnlyPaths:            options.ReadOnlyPaths,
+		ReadWritePaths:           options.ReadWritePaths,
+		IsolatedOutput:           options.IsolatedOutput,
+		SaveOutputDir:            options.SaveOutputDir,
+		NoCleanup:                options.NoCleanup,
+		AutoDetectDependencies:   options.AutoDetectDeps,
+		InlineCode:       options.ExecuteCode,
+		Args:             options.AdditionalArgs,
+	}
+	
+	// Handle environment variable configuration
+	if len(options.PreserveEnv) > 0 || len(options.ClearEnv) > 0 {
+		if execOptions.Env == nil {
+			execOptions.Env = make(map[string]string)
+		}
+		// Apply environment variable preservation/clearing logic
+		// This is a simplified implementation - full logic would be more complex
+		for _, envVar := range options.PreserveEnv {
+			if value := os.Getenv(envVar); value != "" {
+				execOptions.Env[envVar] = value
+			}
+		}
 	}
 
-	output, err := pvx.ExecuteScript(execOptions)
+	var output string
+	var err error
+	
+	// Choose execution method based on options
+	if options.ExecuteCode != "" || options.ExecuteFeatures != "" {
+		// Execute inline code
+		if options.ExecuteFeatures != "" {
+			execOptions.InlineCode = options.ExecuteFeatures
+			execOptions.EnableFeatures = true
+		} else {
+			execOptions.InlineCode = options.ExecuteCode
+		}
+		output, err = pvx.ExecuteInlineCode(execOptions)
+	} else {
+		// Execute script file
+		output, err = pvx.ExecuteScript(execOptions)
+	}
 	if err != nil {
 		// Check if this is an execution error with exit code
 		if execErr, ok := err.(interface{ ExitCode() int }); ok {

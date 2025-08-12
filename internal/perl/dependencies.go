@@ -256,13 +256,6 @@ type ModuleDependencyInfo struct {
 	Outdated  []string
 }
 
-// InstallSystemDependencies attempts to install missing dependencies
-func (dc *DependencyChecker) InstallSystemDependencies(deps []string) error {
-	// This would attempt to install dependencies using the system package manager
-	// For security reasons, we'll just provide instructions instead
-	return fmt.Errorf("automatic dependency installation not implemented for security reasons")
-}
-
 // GetPlatformSpecificNotes returns platform-specific build notes
 func GetPlatformSpecificNotes() string {
 	switch runtime.GOOS {
