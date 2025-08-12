@@ -240,12 +240,13 @@ func TestExternalDocumentManager(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	docsConfig := &config.DocsConfig{
-		Repository: "test/repo",
-		Branch:     "main",
-		CacheDir:   tmpDir,
-		CacheTTL:   1,
-		MaxRetries: 1,
-		Timeout:    "1ms", // Very short timeout to ensure failure
+		Repository:  "test/repo",
+		Branch:      "main",
+		CacheDir:    tmpDir,
+		CacheTTL:    1,
+		MaxRetries:  1,
+		Timeout:     "1ms", // Very short timeout to ensure failure
+		OfflineMode: true,  // Force offline mode to ensure failure
 	}
 	manager := NewExternalDocumentManager(docsConfig, nil)
 
