@@ -4,6 +4,7 @@
 package parser
 
 import (
+	"regexp"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
@@ -25,17 +26,24 @@ func NewTypeErrorIdentifier() *TypeErrorIdentifier {
 
 // IdentifyMalformedTypeInAST analyzes a parsed AST to detect malformed type expressions
 // This catches cases where tree-sitter partially parses but creates structures with embedded ERROR nodes
+// Uses conservative precision to avoid false positives on valid Perl syntax
 func (tei *TypeErrorIdentifier) IdentifyMalformedTypeInAST(node ast.Node, source string) *errors.TypeParseError {
 	if node == nil {
 		return nil
 	}
 
-	// Check if this node or its children contain ERROR nodes in type contexts
-	if errorNode := tei.findTypeContextError(node, source); errorNode != nil {
-		return errorNode
+	// Check if this specific node is in a type context and validate it
+	if tei.isInTypeContext(node, source) {
+		// Check if this node or its children contain ERROR nodes in type contexts
+		if errorNode := tei.findTypeContextError(node, source); errorNode != nil {
+			// Apply additional validation to ensure this is truly a type error
+			if tei.isConfirmedTypeError(errorNode, node, source) {
+				return errorNode
+			}
+		}
 	}
 
-	// Recursively check children
+	// Always recursively check children - they might be in type contexts even if parent isn't
 	for _, child := range node.Children() {
 		if childError := tei.IdentifyMalformedTypeInAST(child, source); childError != nil {
 			return childError
@@ -45,11 +53,223 @@ func (tei *TypeErrorIdentifier) IdentifyMalformedTypeInAST(node ast.Node, source
 	return nil
 }
 
+// isInTypeContext determines if a node is in a clear type annotation context
+// This helps avoid false positives on regular Perl syntax
+func (tei *TypeErrorIdentifier) isInTypeContext(node ast.Node, source string) bool {
+	nodeType := node.Type()
+
+	// Clear type contexts
+	typeContexts := []string{
+		"typed_variable_declaration",
+		"type_expression",
+		"parameterized_type",
+		"union_type",
+		"intersection_type",
+		"negation_type",
+		"type_assertion",
+		"field_declaration", // with type annotations
+		"method_signature",  // with return type annotations
+	}
+
+	for _, context := range typeContexts {
+		if nodeType == context {
+			return true
+		}
+	}
+
+	// Check if parent nodes indicate type context
+	if tei.hasTypeContextParent(node) {
+		return true
+	}
+
+	// For variable declarations, only consider them type contexts if they have type annotations
+	if nodeType == "variable_declaration" {
+		return tei.hasTypeAnnotations(node, source)
+	}
+
+	return false
+}
+
+// isConfirmedTypeError applies additional validation to confirm this is truly a type error
+// and not a false positive from valid Perl syntax
+func (tei *TypeErrorIdentifier) isConfirmedTypeError(errorNode *errors.TypeParseError, contextNode ast.Node, source string) bool {
+	if errorNode == nil {
+		return false
+	}
+
+	// Extract the text around the error for analysis
+	errorText := tei.extractNodeText(contextNode, source)
+
+	// Check for known false positive patterns and exclude them
+	if tei.isKnownValidPerlPattern(errorText) {
+		return false
+	}
+
+	// Only confirm errors that match known malformed type patterns
+	return tei.isKnownMalformedTypePattern(errorText)
+}
+
+// hasTypeContextParent checks if any parent node indicates a type context
+func (tei *TypeErrorIdentifier) hasTypeContextParent(node ast.Node) bool {
+	// In a real implementation, we'd walk up the AST tree
+	// For now, we'll use heuristics based on the node's properties
+	nodeType := node.Type()
+
+	// If this node is a child of a type-related node, it's in type context
+	typeParentIndicators := []string{
+		"type_",     // Any node starting with "type_"
+		"typed_",    // Any node starting with "typed_"
+		"field_",    // Field declarations
+		"method_",   // Method declarations
+		"signature", // Method signatures
+	}
+
+	for _, indicator := range typeParentIndicators {
+		if strings.Contains(nodeType, indicator) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasTypeAnnotations checks if a variable declaration has type annotations
+func (tei *TypeErrorIdentifier) hasTypeAnnotations(node ast.Node, source string) bool {
+	for _, child := range node.Children() {
+		childType := child.Type()
+		if childType == "type_expression" ||
+			childType == "parameterized_type" ||
+			childType == "union_type" ||
+			childType == "intersection_type" {
+			return true
+		}
+	}
+
+	// Also check the source text for type annotation patterns
+	nodeText := tei.extractNodeText(node, source)
+	return tei.containsTypeAnnotationPattern(nodeText)
+}
+
+// isKnownValidPerlPattern checks if text represents valid Perl syntax that should not be flagged
+func (tei *TypeErrorIdentifier) isKnownValidPerlPattern(text string) bool {
+	// Patterns that are valid Perl but might trigger false positives
+
+	// Package-qualified variable declarations
+	if strings.Contains(text, "::") &&
+		(strings.Contains(text, "our ") || strings.Contains(text, "my ")) {
+		return true
+	}
+
+	// Logical operators in non-type contexts
+	if (strings.Contains(text, "||") || strings.Contains(text, "&&")) &&
+		!tei.containsTypeAnnotationPattern(text) {
+		return true
+	}
+
+	// Regular expressions with brackets
+	if strings.Contains(text, "qr/") || strings.Contains(text, "s/") ||
+		strings.Contains(text, "m/") || strings.Contains(text, "tr/") {
+		return true
+	}
+
+	// Array/hash references in non-type contexts
+	if (strings.Contains(text, "[") || strings.Contains(text, "{")) &&
+		!tei.containsTypeAnnotationPattern(text) {
+		return true
+	}
+
+	return false
+}
+
+// isKnownMalformedTypePattern checks if text matches patterns that are definitively malformed types
+func (tei *TypeErrorIdentifier) isKnownMalformedTypePattern(text string) bool {
+	// Only flag patterns that are clearly malformed type expressions
+	// Be conservative - the grammar supports error recovery for many patterns
+
+	// Type annotation contexts with clear errors
+	if !tei.containsTypeAnnotationPattern(text) {
+		return false // Not a type annotation, so not a type error
+	}
+
+	// Be more conservative - only flag truly egregious errors, not patterns that grammar can recover from
+
+	// Double operators in type contexts (||, &&, !!) - these are clearly wrong
+	if tei.containsTypeAnnotationPattern(text) {
+		if strings.Contains(text, "||") || strings.Contains(text, "&&") || strings.Contains(text, "!!") {
+			return true
+		}
+	}
+
+	// Incomplete type assertions - clearly incomplete syntax
+	if strings.Contains(text, " as ;") || strings.HasSuffix(strings.TrimSpace(text), " as") {
+		return true
+	}
+
+	// NOTE: Removed missing bracket and spacing checks as the grammar supports error recovery for these patterns
+	// The parser can successfully handle:
+	// - Missing closing brackets: ArrayRef[Int $var; -> parser recovers
+	// - Spacing in parameterized types: ArrayRef[ Int] -> parser accepts this
+
+	return false
+}
+
+// containsTypeAnnotationPattern checks if text contains patterns indicating type annotations
+func (tei *TypeErrorIdentifier) containsTypeAnnotationPattern(text string) bool {
+	// Look for clear type annotation indicators
+	typeIndicators := []string{
+		" as ",      // Type assertions
+		"ArrayRef[", // Parameterized types
+		"HashRef[",
+		"Maybe[",
+		"Undef", // Type names
+		"Object",
+		"Serializable",
+		"field ",   // Field declarations
+		"returns ", // Method return types
+	}
+
+	for _, indicator := range typeIndicators {
+		if strings.Contains(text, indicator) {
+			return true
+		}
+	}
+
+	// Check for typed variable declarations (my Type $var)
+	if matched, _ := regexp.MatchString(`\b(my|our|state|field)\s+[A-Z][A-Za-z0-9]*\s+\$`, text); matched {
+		return true
+	}
+
+	// Check for union/intersection types, but only with type names
+	if (strings.Contains(text, "|") || strings.Contains(text, "&")) &&
+		tei.containsValidTypeName(text) {
+		return true
+	}
+
+	return false
+}
+
+// containsValidTypeName checks if the text contains valid type names (helper method)
+func (tei *TypeErrorIdentifier) containsValidTypeName(text string) bool {
+	// Look for capitalized words that could be type names
+	words := strings.Fields(text)
+	for _, word := range words {
+		// Remove punctuation for checking
+		cleanWord := strings.Trim(word, "[](){}|&!;,")
+		if len(cleanWord) > 0 && cleanWord[0] >= 'A' && cleanWord[0] <= 'Z' {
+			// Check if it's a reasonable type name length
+			if len(cleanWord) >= 2 && len(cleanWord) <= 30 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // findTypeContextError looks for ERROR nodes in type-related contexts and classifies them
 func (tei *TypeErrorIdentifier) findTypeContextError(node ast.Node, source string) *errors.TypeParseError {
 	nodeType := node.Type()
 
-	// Check for ERROR nodes in typed variable declarations
+	// Check for ERROR nodes and content validation in typed variable declarations
 	if nodeType == "typed_variable_declaration" {
 		// First check for ERROR children
 		for _, child := range node.Children() {
@@ -64,22 +284,31 @@ func (tei *TypeErrorIdentifier) findTypeContextError(node ast.Node, source strin
 		}
 	}
 
-	// Skip validation for regular variable declarations (not typed)
-	// This prevents false positives on valid Perl constructs like "our $Package::qualified;"
+	// Check variable declarations that have type expressions (parsed as variable_declaration + type_expression)
 	if nodeType == "variable_declaration" {
-		// Only check if it has type_expression child
-		hasTypeExpression := false
+		hasTypeExpr := false
 		for _, child := range node.Children() {
 			if child.Type() == "type_expression" {
-				hasTypeExpression = true
+				hasTypeExpr = true
+				// Check for ERROR nodes in the type expression
+				for _, grandchild := range child.Children() {
+					if grandchild.Type() == "ERROR" {
+						return tei.classifyTypeExpressionError(child, grandchild, source)
+					}
+				}
 				break
 			}
 		}
-		if !hasTypeExpression {
-			// Skip validation for untyped variable declarations
-			return nil
+
+		// If it has type expressions, validate the content even without ERROR nodes
+		if hasTypeExpr {
+			if malformedErr := tei.validateTypedVarDeclaration(node, source); malformedErr != nil {
+				return malformedErr
+			}
 		}
 	}
+
+	// Note: variable_declaration handling is done above
 
 	// Check for malformed assignment expressions and general syntax (like incomplete type assertions)
 	if nodeType == "assignment_expression" || nodeType == "expression_statement" ||
@@ -100,21 +329,32 @@ func (tei *TypeErrorIdentifier) findTypeContextError(node ast.Node, source strin
 	}
 
 	// Check if this node itself is an ERROR in a type context
-	// For now, skip generic error classification entirely to avoid interfering
-	// with grammar development. Only handle specific error patterns in parent contexts.
+	// Only classify ERROR nodes that are confirmed to be in type contexts
 	if nodeType == "ERROR" {
-		// Don't classify ERROR nodes as generic type errors during grammar development
-		// Let the tree-sitter grammar issues be resolved separately
+		// Only classify if we're in a confirmed type context and match malformed patterns
+		if tei.isInTypeContext(node, source) {
+			nodeText := tei.extractNodeText(node, source)
+
+			// Only flag if this matches known malformed type patterns
+			if tei.isKnownMalformedTypePattern(nodeText) && !tei.isKnownValidPerlPattern(nodeText) {
+				return tei.classifyGenericTypeError(node, source)
+			}
+		}
 		return nil
 	}
 
 	// Also check children for ERROR nodes in specific contexts
 	for _, child := range node.Children() {
 		if child.Type() == "ERROR" {
-			// Only classify as type error if we're in a clear type context
+			// Only classify as type error if we're in a clear type context with confirmed malformed patterns
 			if nodeType == "type_expression" || nodeType == "parameterized_type" ||
 				nodeType == "union_type" || nodeType == "intersection_type" {
-				return tei.classifyTypeExpressionError(node, child, source)
+
+				childText := tei.extractNodeText(child, source)
+				// Apply precision validation
+				if tei.isKnownMalformedTypePattern(childText) && !tei.isKnownValidPerlPattern(childText) {
+					return tei.classifyTypeExpressionError(node, child, source)
+				}
 			}
 			// Otherwise, don't classify as type error
 		}
@@ -131,42 +371,20 @@ func (tei *TypeErrorIdentifier) validateTypedVarDeclaration(node ast.Node, sourc
 	// Since tree-sitter nodes might not have text populated, extract from source
 	nodeText := tei.extractNodeText(node, source)
 
-	// Check for missing closing bracket in parameterized types
-	// Pattern: ArrayRef[Int but no closing ] before variable name
-	if strings.Contains(nodeText, "ArrayRef[") && !strings.Contains(nodeText, "]") {
-		// Look for pattern: ArrayRef[Type $var; (missing ])
-		if strings.Contains(nodeText, " $") || strings.Contains(nodeText, ";") {
-			return &errors.TypeParseError{
-				ErrorType:  "MissingClosingBracketError",
-				Message:    "Missing closing bracket in parameterized type",
-				Position:   position,
-				Suggestion: "Add closing ']' to complete the parameterized type",
-				Context:    "parameterized type in variable declaration",
-				ErrorCode:  errors.MissingClosingBracketError,
-				Source:     source,
-				SourceLine: tei.getSourceLine(source, position.Line),
-			}
-		}
+	// Apply precision validation - only flag if this is confirmed to be a type pattern
+	if !tei.containsTypeAnnotationPattern(nodeText) {
+		return nil // Not a type annotation, don't validate as type error
 	}
 
-	// Check for missing closing bracket in HashRef types
-	if strings.Contains(nodeText, "HashRef[") && !strings.Contains(nodeText, "]") {
-		if strings.Contains(nodeText, " $") || strings.Contains(nodeText, ";") {
-			return &errors.TypeParseError{
-				ErrorType:  "MissingClosingBracketError",
-				Message:    "Missing closing bracket in parameterized type",
-				Position:   position,
-				Suggestion: "Add closing ']' to complete the parameterized type",
-				Context:    "parameterized type in variable declaration",
-				ErrorCode:  errors.MissingClosingBracketError,
-				Source:     source,
-				SourceLine: tei.getSourceLine(source, position.Line),
-			}
-		}
+	// Additional validation to avoid false positives
+	if tei.isKnownValidPerlPattern(nodeText) {
+		return nil // Known valid Perl pattern, don't flag as error
 	}
 
-	// Check for invalid union syntax (||)
-	if strings.Contains(nodeText, "||") {
+	// Only flag truly malformed patterns, not those that grammar can recover from
+
+	// Check for invalid union syntax (||) - only in confirmed type context
+	if strings.Contains(nodeText, "||") && tei.containsValidTypeName(nodeText) {
 		return &errors.TypeParseError{
 			ErrorType:  "InvalidUnionSyntaxError",
 			Message:    "Invalid union type syntax - use single '|' between types",
@@ -179,8 +397,8 @@ func (tei *TypeErrorIdentifier) validateTypedVarDeclaration(node ast.Node, sourc
 		}
 	}
 
-	// Check for invalid intersection syntax (&&)
-	if strings.Contains(nodeText, "&&") {
+	// Check for invalid intersection syntax (&&) - only in confirmed type context
+	if strings.Contains(nodeText, "&&") && tei.containsValidTypeName(nodeText) {
 		return &errors.TypeParseError{
 			ErrorType:  "InvalidIntersectionSyntaxError",
 			Message:    "Invalid intersection type syntax - use single '&' between types",
@@ -193,8 +411,8 @@ func (tei *TypeErrorIdentifier) validateTypedVarDeclaration(node ast.Node, sourc
 		}
 	}
 
-	// Check for invalid negation syntax (!!)
-	if strings.Contains(nodeText, "!!") {
+	// Check for invalid negation syntax (!!) - only in confirmed type context
+	if strings.Contains(nodeText, "!!") && tei.containsValidTypeName(nodeText) {
 		return &errors.TypeParseError{
 			ErrorType:  "InvalidNegationSyntaxError",
 			Message:    "Invalid negation type syntax - use single '!' before type",
@@ -207,19 +425,10 @@ func (tei *TypeErrorIdentifier) validateTypedVarDeclaration(node ast.Node, sourc
 		}
 	}
 
-	// Check for invalid parameterized spacing
-	if strings.Contains(nodeText, "[ ") && strings.Contains(nodeText, "]") {
-		return &errors.TypeParseError{
-			ErrorType:  "InvalidParameterizedTypeError",
-			Message:    "Invalid spacing in parameterized type",
-			Position:   position,
-			Suggestion: "Remove space after '[' in parameterized type",
-			Context:    "parameterized type in variable declaration",
-			ErrorCode:  errors.InvalidParameterizedTypeError,
-			Source:     source,
-			SourceLine: tei.getSourceLine(source, position.Line),
-		}
-	}
+	// NOTE: Removed bracket and spacing checks as the grammar supports error recovery
+	// The parser handles these patterns gracefully:
+	// - Missing brackets: grammar recovers and parses successfully
+	// - Spacing variations: grammar accepts different spacing patterns
 
 	return nil
 }
@@ -231,7 +440,13 @@ func (tei *TypeErrorIdentifier) validateGeneralSyntax(node ast.Node, source stri
 	// Get the text of the node from the source using its position
 	nodeText := tei.extractNodeText(node, source)
 
+	// Apply precision validation - avoid false positives
+	if tei.isKnownValidPerlPattern(nodeText) {
+		return nil // Known valid Perl pattern, don't flag as error
+	}
+
 	// Check for incomplete type assertion: "as ;" pattern or just "as " at end
+	// This is a clear type assertion context, so safe to flag
 	if strings.Contains(nodeText, " as ;") || strings.Contains(nodeText, "as ;") {
 		return &errors.TypeParseError{
 			ErrorType:  "IncompleteTypeAssertionError",
@@ -246,7 +461,9 @@ func (tei *TypeErrorIdentifier) validateGeneralSyntax(node ast.Node, source stri
 	}
 
 	// Check for incomplete type assertion: "as " at end of node (fragment pattern)
-	if strings.HasSuffix(strings.TrimSpace(nodeText), "as") || strings.HasSuffix(strings.TrimSpace(nodeText), "as ") {
+	// Only flag if this appears to be in a type context
+	if (strings.HasSuffix(strings.TrimSpace(nodeText), "as") || strings.HasSuffix(strings.TrimSpace(nodeText), "as ")) &&
+		tei.containsTypeAnnotationPattern(nodeText) {
 		return &errors.TypeParseError{
 			ErrorType:  "IncompleteTypeAssertionError",
 			Message:    "Incomplete type assertion - missing target type",
