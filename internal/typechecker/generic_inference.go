@@ -119,19 +119,53 @@ func (engine *GenericInferenceEngine) ClearBindings() {
 // Helper functions
 
 func extractTypeParameters(node *ast.SubDecl) []string {
-	// TODO: Extract type parameters from AST node
-	// For now, return empty - will implement when AST support is complete
-	return []string{}
+	if node == nil || node.TypeParameters == nil {
+		return []string{}
+	}
+
+	var params []string
+	for _, param := range node.TypeParameters {
+		if param != nil {
+			params = append(params, param.Name)
+		}
+	}
+	return params
 }
 
 func extractConstraints(node *ast.SubDecl) []*typedef.TypeConstraint {
-	// TODO: Extract constraints from where clauses
-	return []*typedef.TypeConstraint{}
+	if node == nil || node.Constraints == nil {
+		return []*typedef.TypeConstraint{}
+	}
+
+	var constraints []*typedef.TypeConstraint
+	for _, constraint := range node.Constraints {
+		if constraint != nil {
+			typedefConstraint := &typedef.TypeConstraint{
+				Parameter:  constraint.Parameter,
+				Kind:       convertASTConstraintKind(constraint.Kind),
+				Expression: convertExpressionToType(constraint.Expression),
+			}
+			constraints = append(constraints, typedefConstraint)
+		}
+	}
+	return constraints
 }
 
 func extractParameterTypes(sig *ast.MethodSignature) []typedef.Type {
-	// TODO: Convert AST parameter types to typedef types
-	return []typedef.Type{}
+	if sig == nil || sig.Parameters == nil {
+		return []typedef.Type{}
+	}
+
+	var types []typedef.Type
+	for _, param := range sig.Parameters {
+		if param != nil && param.Type != nil {
+			types = append(types, convertASTTypeToTypedef(param.Type))
+		} else {
+			// If no type specified, default to Any
+			types = append(types, &typedef.SimpleType{Name: "Any"})
+		}
+	}
+	return types
 }
 
 func convertASTTypeToTypedef(astType *ast.TypeExpression) typedef.Type {
@@ -194,4 +228,38 @@ func createUsageType(sig *GenericSignature, argTypes []typedef.Type) typedef.Typ
 	// Create a synthetic function type representing the usage
 	// This helps the inference engine match patterns
 	return &typedef.SimpleType{Name: "Usage"}
+}
+
+// convertASTConstraintKind converts ast.ConstraintKind to typedef.ConstraintKind
+func convertASTConstraintKind(astKind ast.ConstraintKind) typedef.ConstraintKind {
+	switch astKind {
+	case ast.TypeConstraintKind:
+		return typedef.TraitConstraint
+	case ast.ProtocolConstraint:
+		return typedef.ProtocolConstraint
+	case ast.CapabilityConstraint:
+		return typedef.CapabilityConstraint
+	case ast.ValueConstraint:
+		return typedef.ValueConstraint
+	default:
+		// Default to trait constraint for unknown kinds
+		return typedef.TraitConstraint
+	}
+}
+
+// convertExpressionToType converts ast.ExpressionNode to typedef.Type
+func convertExpressionToType(expr ast.ExpressionNode) typedef.Type {
+	if expr == nil {
+		return &typedef.SimpleType{Name: "Any"}
+	}
+
+	// Try to extract type information from the expression
+	// For now, use a simple approach - convert to string and create SimpleType
+	// This could be enhanced to handle more complex expressions
+	exprText := expr.Text()
+	if exprText == "" {
+		return &typedef.SimpleType{Name: "Any"}
+	}
+
+	return &typedef.SimpleType{Name: exprText}
 }
