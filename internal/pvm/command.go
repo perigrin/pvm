@@ -4725,14 +4725,12 @@ func newEnhancedHelpCommand() *cobra.Command {
 		Long: `Help provides help for any command in the application.
 Simply type pvm help [path to command] for full details.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Create help manager for consistent Fang UI styling
-			helpManager := cli.NewHelpManager()
-
 			// Get the root command to access all commands
 			rootCmd := cmd.Root()
 			if len(args) == 0 {
-				// No arguments - show contextual help with Fang UI styling instead of basic Cobra help
-				return showContextualHelpWithCommands(cmd, helpManager, rootCmd)
+				// No arguments - show hybrid help that matches 'pvm -h' for consistency
+				cli.ShowHybridHelp(rootCmd, args)
+				return nil
 			}
 
 			// Try to find the command they're asking about

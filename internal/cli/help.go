@@ -433,10 +433,19 @@ func (h *HelpManager) SuggestNextSteps() []string {
 			"Add a dependency: pvm module add DBI",
 		)
 	} else {
-		suggestions = append(suggestions,
-			"Install dependencies: pvm module install",
-			"Add a new dependency: pvm module add Module::Name",
-		)
+		// Has cpanfile - check if dependencies are already installed
+		if hasLocalLib() {
+			suggestions = append(suggestions,
+				"Sync dependencies to latest versions: pvm module sync",
+				"Alternative sync command: pm sync",
+				"Add a new dependency: pvm module add Module::Name",
+			)
+		} else {
+			suggestions = append(suggestions,
+				"Install dependencies: pvm module install",
+				"Add a new dependency: pvm module add Module::Name",
+			)
+		}
 	}
 
 	// Check if project has tests
@@ -466,6 +475,19 @@ func hasTestDirectory() bool {
 		return true
 	}
 	if _, err := os.Stat("test"); err == nil {
+		return true
+	}
+	return false
+}
+
+// hasLocalLib checks if the project has a local-lib installation
+func hasLocalLib() bool {
+	// Check for local/ directory with lib/ subdirectory (typical local-lib structure)
+	if _, err := os.Stat("local/lib"); err == nil {
+		return true
+	}
+	// Also check for .carton/local which is another common structure
+	if _, err := os.Stat(".carton/local/lib"); err == nil {
 		return true
 	}
 	return false
@@ -1069,4 +1091,119 @@ func showDocumentationHelp(cmd *cobra.Command, helpManager *HelpManager, args []
 		docName := subCommand
 		return helpManager.ShowDocument(docName)
 	}
+}
+
+// ShowHybridHelp displays a concise command listing with pointers to detailed help topics
+// This provides the best of both worlds: brevity of cobra's default help with access to rich help content
+func ShowHybridHelp(cmd *cobra.Command, args []string) {
+	ui := GetUI(cmd)
+
+	// Show basic command information with Fang UI styling
+	ui.Header(fmt.Sprintf("%s - %s", cmd.Name(), cmd.Short))
+	ui.Println("")
+
+	if cmd.Long != "" && cmd.Long != cmd.Short {
+		ui.Println(cmd.Long)
+		ui.Println("")
+	}
+
+	// Show usage
+	ui.SubHeader("USAGE")
+	ui.Printf("  %s\n", cmd.UseLine())
+	ui.Println("")
+
+	// Show available commands in a concise format
+	commands := cmd.Commands()
+	if len(commands) > 0 {
+		ui.SubHeader("COMMANDS")
+
+		// Group commands for better organization
+		coreCommands := []string{}
+		managementCommands := []string{}
+		utilityCommands := []string{}
+
+		for _, subCmd := range commands {
+			if subCmd.Hidden {
+				continue
+			}
+
+			cmdLine := fmt.Sprintf("  %-30s %s", subCmd.Use, subCmd.Short)
+
+			// Categorize commands based on their names/functions
+			cmdName := subCmd.Name()
+			switch {
+			case cmdName == "install" || cmdName == "uninstall" || cmdName == "versions" ||
+				cmdName == "available" || cmdName == "current":
+				coreCommands = append(coreCommands, cmdLine)
+			case cmdName == "build" || cmdName == "test" || cmdName == "dev" ||
+				cmdName == "module" || cmdName == "workspace":
+				managementCommands = append(managementCommands, cmdLine)
+			default:
+				utilityCommands = append(utilityCommands, cmdLine)
+			}
+		}
+
+		// Print core commands first
+		for _, cmdLine := range coreCommands {
+			ui.Printf("%s\n", cmdLine)
+		}
+		for _, cmdLine := range managementCommands {
+			ui.Printf("%s\n", cmdLine)
+		}
+		for _, cmdLine := range utilityCommands {
+			ui.Printf("%s\n", cmdLine)
+		}
+		ui.Println("")
+	}
+
+	// Show global flags
+	if cmd.HasAvailableFlags() {
+		ui.SubHeader("FLAGS")
+		flagUsages := cmd.Flags().FlagUsages()
+		if flagUsages != "" {
+			ui.Printf("%s", flagUsages)
+		}
+		ui.Println("")
+	}
+
+	// Add context-dependent pointers to detailed help
+	showContextualHelpPointers(ui)
+}
+
+// showContextualHelpPointers displays context-aware help pointers
+func showContextualHelpPointers(ui *ui.Output) {
+	// Detect project context
+	projectCtx, _ := project.GetCurrentProject()
+	isInProject := projectCtx != nil && projectCtx.IsProject
+
+	ui.SubHeader("DETAILED HELP")
+
+	if isInProject {
+		// Inside a project - show project-focused help
+		ui.Info("For project workflows:")
+		ui.Printf("  pvm help next             Your next steps for this project\n")
+		ui.Printf("  pvm dev --help            Development environment guide\n")
+		ui.Printf("  pvm help workflows        Common development workflows\n")
+		ui.Printf("  pvm help troubleshooting  Fix project issues\n")
+		ui.Println("")
+
+		ui.Info("For general guidance:")
+		ui.Printf("  pvm help                  Show contextual help based on your project\n")
+		ui.Printf("  pvm help getting-started  New user onboarding guide\n")
+	} else {
+		// Outside a project - show setup-focused help
+		ui.Info("For getting started:")
+		ui.Printf("  pvm help getting-started  New user onboarding guide\n")
+		ui.Printf("  pvm workspace init --help Create a new workspace\n")
+		ui.Printf("  pvm help next             Suggested next steps\n")
+		ui.Println("")
+
+		ui.Info("For advanced usage:")
+		ui.Printf("  pvm help workflows        Development workflows\n")
+		ui.Printf("  pvm help troubleshooting  Diagnostic commands\n")
+	}
+
+	ui.Printf("\n")
+	ui.Info("For command-specific help:")
+	ui.Printf("  pvm [command] --help      Show detailed help for any command\n")
 }

@@ -143,5 +143,33 @@ func CreateRootCommand(component string) *cobra.Command {
 		}
 	}
 
+	// Disable Cobra's automatic help flag and command to use our own
+	rootCmd.SetHelpCommand(&cobra.Command{
+		Use:    "no-help",
+		Hidden: true,
+	})
+
+	// Add our own help flag handling
+	var showHelp bool
+	rootCmd.Flags().BoolVarP(&showHelp, "help", "h", false, "Help for "+component)
+
+	// Override pre-run to handle our help flag
+	origPreRun := rootCmd.PreRun
+	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
+		if showHelp {
+			ShowHybridHelp(cmd, args)
+			os.Exit(0)
+		}
+		if origPreRun != nil {
+			origPreRun(cmd, args)
+		}
+	}
+
+	// Override the help function to use our hybrid help system for consistent output
+	// This ensures both 'pvm help' and 'pvm -h' produce the same hybrid output
+	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		ShowHybridHelp(cmd, args)
+	})
+
 	return rootCmd
 }
