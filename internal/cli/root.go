@@ -286,10 +286,11 @@ func FangExecuteWithPager(ctx context.Context, rootCmd *cobra.Command) error {
 	// Create Fang color scheme from UI styles
 	colorScheme := styles.FangColorScheme()
 
-	// Check if we're showing help and should use pager
+	// Check if we're showing basic help (no arguments) and use our hybrid help system instead of Fang's
 	args := os.Args[1:]
-	if isHelpCommand(args) && shouldEnablePager() {
-		return executeWithPagerIfNeeded(ctx, rootCmd, colorScheme)
+	if isBasicHelpCommand(args) {
+		ShowHybridHelp(rootCmd, args)
+		return nil
 	}
 
 	// Use standard Fang execution
@@ -316,6 +317,25 @@ func isHelpCommand(args []string) bool {
 
 	// Check for help command
 	if args[0] == "help" {
+		return true
+	}
+
+	return false
+}
+
+// isBasicHelpCommand checks if the command is basic help (no specific topic)
+func isBasicHelpCommand(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+
+	// Check for help flags at the root level (no other commands)
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		return true
+	}
+
+	// Check for help command without arguments
+	if args[0] == "help" && len(args) == 1 {
 		return true
 	}
 
