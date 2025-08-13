@@ -1098,6 +1098,13 @@ func showDocumentationHelp(cmd *cobra.Command, helpManager *HelpManager, args []
 func ShowHybridHelp(cmd *cobra.Command, args []string) {
 	ui := GetUI(cmd)
 
+	// Help should always be shown, even in quiet mode, since user explicitly requested it
+	originalQuiet := ui.Context().Quiet
+	if originalQuiet {
+		ui.SetQuiet(false)
+		defer ui.SetQuiet(true)
+	}
+
 	// Show basic command information with Fang UI styling
 	ui.Header(fmt.Sprintf("%s - %s", cmd.Name(), cmd.Short))
 	ui.Println("")
@@ -1172,6 +1179,13 @@ func ShowHybridHelp(cmd *cobra.Command, args []string) {
 
 // showContextualHelpPointers displays context-aware help pointers
 func showContextualHelpPointers(ui *ui.Output) {
+	// Help should always be shown, even in quiet mode, since user explicitly requested it
+	originalQuiet := ui.Context().Quiet
+	if originalQuiet {
+		ui.SetQuiet(false)
+		defer ui.SetQuiet(true)
+	}
+
 	// Detect project context
 	projectCtx, _ := project.GetCurrentProject()
 	isInProject := projectCtx != nil && projectCtx.IsProject
