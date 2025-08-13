@@ -18,6 +18,12 @@ unrelated to the current work.
 - Lint: `golangci-lint run`
 - Clean: `make clean`
 
+### Dependency Management
+- Check system dependencies: `make check-system-deps` (automatically checks and installs missing tools)
+- Install tree-sitter CLI: `make install-tree-sitter` (requires Node.js and npm)
+- The build system automatically handles tree-sitter CLI installation when possible
+- After `git clean -dxf`, simply run `make` - dependency checking is integrated
+
 ### Understanding Test Results
 
 **Always use `make test` for comprehensive test status** - it provides:
