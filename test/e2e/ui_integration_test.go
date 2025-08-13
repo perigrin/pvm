@@ -402,7 +402,7 @@ print "Cross-component test\n";
 		stdout := helpers.AssertPVMSucceeds(t, env,
 			[]string{"--help"},
 			"pvm help should work")
-		assert.Contains(t, stdout, "Usage:",
+		assert.Contains(t, stdout, "USAGE",
 			"pvm help should contain usage information")
 
 		// Test subcommand help
