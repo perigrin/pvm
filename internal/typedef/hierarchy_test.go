@@ -42,23 +42,29 @@ func TestSubtypeRelationships(t *testing.T) {
 	hierarchy := NewTypeHierarchy(storage)
 	require.NotNil(t, hierarchy)
 
-	// Test direct subtype relationships
+	// Test direct subtype relationships in new hierarchy
 	assert.True(t, hierarchy.IsSubtypeOf("Int", "Num"))
-	assert.True(t, hierarchy.IsSubtypeOf("Str", "Scalar"))
-	assert.True(t, hierarchy.IsSubtypeOf("Bool", "Scalar"))
-	assert.True(t, hierarchy.IsSubtypeOf("ArrayRef", "Ref"))
-	assert.True(t, hierarchy.IsSubtypeOf("HashRef", "Ref"))
+	assert.True(t, hierarchy.IsSubtypeOf("Str", "Value"))          // Updated: Str → Value
+	assert.True(t, hierarchy.IsSubtypeOf("Bool", "Value"))         // Updated: Bool → Value
+	assert.True(t, hierarchy.IsSubtypeOf("ArrayRef", "Reference")) // Updated: use Reference not Ref
+	assert.True(t, hierarchy.IsSubtypeOf("HashRef", "Reference"))  // Updated: use Reference not Ref
 
 	// Test transitive subtype relationships
-	assert.True(t, hierarchy.IsSubtypeOf("Int", "Scalar"))
-	assert.True(t, hierarchy.IsSubtypeOf("Float", "Scalar"))
-	assert.True(t, hierarchy.IsSubtypeOf("ArrayRef", "Any"))
-	assert.True(t, hierarchy.IsSubtypeOf("Str", "Any"))
+	assert.True(t, hierarchy.IsSubtypeOf("Int", "Scalar"))   // Int → Num → Str → Value → Scalar
+	assert.True(t, hierarchy.IsSubtypeOf("Float", "Scalar")) // Float → Num → Str → Value → Scalar
+	assert.True(t, hierarchy.IsSubtypeOf("ArrayRef", "Any")) // ArrayRef → Reference → Scalar → Item → Any
+	assert.True(t, hierarchy.IsSubtypeOf("Str", "Any"))      // Str → Value → Scalar → Item → Any
+
+	// Test new hierarchy relationships
+	assert.True(t, hierarchy.IsSubtypeOf("Value", "Scalar"))     // Value is subtype of Scalar
+	assert.True(t, hierarchy.IsSubtypeOf("Reference", "Scalar")) // Reference is subtype of Scalar
+	assert.True(t, hierarchy.IsSubtypeOf("Scalar", "Item"))      // Scalar is subtype of Item
+	assert.True(t, hierarchy.IsSubtypeOf("Item", "Any"))         // Item is subtype of Any
 
 	// Test non-subtype relationships
-	assert.False(t, hierarchy.IsSubtypeOf("Str", "Int")) // Str is NOT a subtype of Int
-	assert.False(t, hierarchy.IsSubtypeOf("ArrayRef", "HashRef"))
-	assert.False(t, hierarchy.IsSubtypeOf("Ref", "Scalar"))
+	assert.False(t, hierarchy.IsSubtypeOf("Str", "Int"))          // Str is NOT a subtype of Int
+	assert.False(t, hierarchy.IsSubtypeOf("ArrayRef", "HashRef")) // ArrayRef is NOT a subtype of HashRef
+	assert.False(t, hierarchy.IsSubtypeOf("Reference", "Value"))  // Reference is NOT a subtype of Value
 }
 
 // TestParameterizedTypes tests parameterized types

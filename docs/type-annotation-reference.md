@@ -555,9 +555,55 @@ When adding type annotations:
 4. **Performance testing**: Verify type annotations don't degrade performance
 5. **Syntax validation**: Ensure all method signatures use supported syntax
 
+## PVM's Type System Architecture
+
+PVM implements a Perl-native type hierarchy that respects Perl's core semantics while providing enhanced Types::Standard compatibility.
+
+### Core Design Philosophy
+
+**Perl-Native Approach:**
+- Follows Perl's scalar/list context distinction (`Item` vs `List`)
+- Preserves Perl's universal container model (scalars hold values OR references)
+- Maintains native coercion behavior (`Num` → `Str`)
+- Respects Perl's reference semantics (any structure can be referenced)
+
+**Enhanced Type Safety:**
+- Adds type constraints without breaking Perl idioms
+- Provides structured validation while preserving flexibility
+- Enables gradual typing adoption
+
+### Type Hierarchy Overview
+
+```
+Unknown → Any → Item | List
+                 ↓       ↓
+              Scalar | (Array | Hash)
+                 ↓
+        (Value | Reference | Undef)
+            ↓        ↓
+   (Str|Num|Int|Bool) (ScalarRef|ArrayRef|HashRef|ObjectRef|etc)
+                       ↓
+                   Object (blessed)
+```
+
+**Key Principles:**
+- **Unknown**: For type inference failures (explicitly allowed exceptions)
+- **Scalar**: Universal container (can hold values OR references, following Perl semantics)
+- **Value vs Reference**: Fundamental distinction in what scalars contain
+- **Object**: Blessed references (any reference type can be blessed)
+
+### Future Enhancements
+
+**Planned Extensions:**
+- **Literal[T]**: Source provenance tracking (distinguishes `1` from `!!1`)
+- **Advanced object validation**: `InstanceOf[Class]`, `ConsumerOf[Role]`, `HasMethods[...]`
+- **Structured types**: Enhanced `Dict[key=>type,...]` for precise hash validation
+- **Enhanced enums**: Proper literal value constraint validation
+- **Pattern validation**: `StrMatch[regexp]` for string constraints
+
 ## Types::Standard Alignment
 
-PVM's type system aligns with Perl's **Types::Standard** module for consistency and interoperability:
+PVM provides compatibility with Perl's **Types::Standard** module while preserving Perl's native semantics:
 
 ### Bool Type Constraints
 
@@ -616,7 +662,34 @@ my Bool $flag = 1;                                      # ✅ Valid Bool value
 my Bool $flag = ($value > 0) ? 1 : 0;                 # ✅ Explicit conversion
 ```
 
-This alignment ensures compatibility with existing Perl type checking tools and provides more precise type semantics.
+### Design Decisions vs Types::Standard
+
+**Where PVM Differs (Intentionally):**
+
+**Numeric Coercion Preservation:**
+- **PVM**: Maintains `Num` → `Str` relationship (follows Perl's native coercion)
+- **Types::Standard**: Treats `Num` and `Str` as parallel types
+- **Rationale**: Perl's coercion is fundamental; artificial boundaries break idiomatic patterns
+
+**Enhanced Type System:**
+- **PVM**: Adds intersection types (`A&B`), traits (`Callable`, `Iterable`), system types (`File`, `Dir`)
+- **Types::Standard**: Focuses on core scalar/reference validation
+- **Rationale**: PVM extends beyond Types::Standard while maintaining compatibility
+
+**Universal Compatibility:**
+```perl
+# Types::Standard patterns work in PVM
+my Item $anything = $data;
+my Defined $not_undef = $value;
+my Value $scalar_data = "hello";
+
+# PVM extensions also work
+my Object&Serializable $data = $obj;        # Intersection types
+my Result[User, Error] $result = try_load(); # Advanced types
+my File $handle = open_file($path);         # System types
+```
+
+This approach provides the best of both worlds: standards compliance with Perl-native enhancements.
 
 ## Conclusion
 
