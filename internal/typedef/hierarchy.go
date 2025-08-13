@@ -142,8 +142,7 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 
 	h.addSubtypeRelation("Int", "Num")
 	h.addSubtypeRelation("Float", "Num")
-	h.addSubtypeRelation("Bool", "Scalar") // Bool is a scalar type
-	h.addSubtypeRelation("Int", "Bool")    // Int can be used in boolean context in Perl
+	h.addSubtypeRelation("Bool", "Scalar") // Bool is a scalar type (but not a supertype of Int per Types::Standard)
 
 	h.addSubtypeRelation("ClassName", "Str")
 	h.addSubtypeRelation("RoleName", "Str")
@@ -181,12 +180,10 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	}
 
 	h.parameterizedTypes["HashRef"] = func(params []string) (string, error) {
-		if len(params) == 1 {
-			return fmt.Sprintf("HashRef[%s]", params[0]), nil
-		} else if len(params) == 2 {
-			return fmt.Sprintf("HashRef[%s,%s]", params[0], params[1]), nil
+		if len(params) != 1 {
+			return "", fmt.Errorf("HashRef requires exactly one type parameter for values (use Map[KeyType, ValueType] for key-value constraints)")
 		}
-		return "", fmt.Errorf("HashRef requires one or two type parameters")
+		return fmt.Sprintf("HashRef[%s]", params[0]), nil
 	}
 
 	h.parameterizedTypes["Maybe"] = func(params []string) (string, error) {
@@ -900,6 +897,33 @@ func (h *TypeHierarchy) CheckIntersectionTypeCompatibility(sourceType, targetTyp
 
 	// Neither is intersection, shouldn't reach here in normal flow
 	return fmt.Errorf("internal error: non-intersection types in intersection compatibility check")
+}
+
+// ValidateValue validates that a value conforms to a specific type
+func (h *TypeHierarchy) ValidateValue(value, typeName string) error {
+	// Handle Bool type validation per Types::Standard specification
+	if typeName == "Bool" {
+		return h.validateBoolValue(value)
+	}
+
+	// For other types, we currently only do type-level validation
+	// Value-level validation could be extended here for other types
+	return nil
+}
+
+// validateBoolValue validates Bool values per Types::Standard specification
+// Bool only accepts: 1, 0, "" (empty string), undef
+func (h *TypeHierarchy) validateBoolValue(value string) error {
+	switch value {
+	case "1", "0", `""`, "undef":
+		return nil
+	default:
+		return errors.NewTypeError(
+			ErrTypeInvalid,
+			fmt.Sprintf("Invalid Bool value '%s'. Bool only accepts: 1, 0, \"\" (empty string), or undef", value),
+			nil,
+		)
+	}
 }
 
 // ValidateIntersectionType performs comprehensive validation of an intersection type

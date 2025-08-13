@@ -41,13 +41,20 @@ func TestUnionTypeBackwardCompatibility(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "ArrayRef[Int]", paramType)
 
-		hashType, err := hierarchy.CreateParameterizedType("HashRef", []string{"Str", "Int"})
+		// Test single-parameter HashRef (values only)
+		hashType, err := hierarchy.CreateParameterizedType("HashRef", []string{"Int"})
 		assert.NoError(t, err)
-		assert.Equal(t, "HashRef[Str,Int]", hashType)
+		assert.Equal(t, "HashRef[Int]", hashType)
+
+		// Test Map for key-value constraints
+		mapType, err := hierarchy.CreateParameterizedType("Map", []string{"Str", "Int"})
+		assert.NoError(t, err)
+		assert.Equal(t, "Map[Str, Int]", mapType)
 
 		// Test validation
 		assert.NoError(t, hierarchy.ValidateType(paramType))
 		assert.NoError(t, hierarchy.ValidateType(hashType))
+		assert.NoError(t, hierarchy.ValidateType(mapType))
 	})
 
 	t.Run("TypeCompatibilityStillWorks", func(t *testing.T) {

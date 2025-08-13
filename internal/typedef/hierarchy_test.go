@@ -141,8 +141,12 @@ func TestTypeValidation(t *testing.T) {
 	assert.NoError(t, hierarchy.ValidateType("Int"))
 	assert.NoError(t, hierarchy.ValidateType("Str"))
 	assert.NoError(t, hierarchy.ValidateType("ArrayRef[Int]"))
-	assert.NoError(t, hierarchy.ValidateType("HashRef[Str,Int]"))
+	assert.NoError(t, hierarchy.ValidateType("HashRef[Int]")) // Single parameter for values
+	assert.NoError(t, hierarchy.ValidateType("Map[Str,Int]")) // Key-value constraints
 	assert.NoError(t, hierarchy.ValidateType("Maybe[ArrayRef[Int]]"))
+
+	// Test that old HashRef[K,V] syntax now fails per Types::Standard alignment
+	assert.Error(t, hierarchy.ValidateType("HashRef[Str,Int]"))
 
 	// Test invalid types
 	// For simple implementation these might actually pass if we're just doing name validation
@@ -167,9 +171,19 @@ func TestCreateParameterizedType(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "ArrayRef[Int]", arrayRefInt)
 
-	hashRefStrInt, err := hierarchy.CreateParameterizedType("HashRef", []string{"Str", "Int"})
+	// Test new single-parameter HashRef (values only)
+	hashRefInt, err := hierarchy.CreateParameterizedType("HashRef", []string{"Int"})
 	assert.NoError(t, err)
-	assert.Equal(t, "HashRef[Str,Int]", hashRefStrInt)
+	assert.Equal(t, "HashRef[Int]", hashRefInt)
+
+	// Test that old two-parameter HashRef now fails
+	_, err = hierarchy.CreateParameterizedType("HashRef", []string{"Str", "Int"})
+	assert.Error(t, err)
+
+	// Test Map for key-value constraints
+	mapStrInt, err := hierarchy.CreateParameterizedType("Map", []string{"Str", "Int"})
+	assert.NoError(t, err)
+	assert.Equal(t, "Map[Str, Int]", mapStrInt)
 
 	maybeStr, err := hierarchy.CreateParameterizedType("Maybe", []string{"Str"})
 	assert.NoError(t, err)
@@ -413,4 +427,100 @@ func TestIntersectionTypeCompatibilityWithHierarchy(t *testing.T) {
 	err = hierarchy.CheckTypeCompatibility("Str&Callable", "Int&Comparable")
 	// Different intersection types should be incompatible
 	assert.Error(t, err)
+}
+
+// TestTypesStandardAlignment tests alignment with Types::Standard specifications
+func TestTypesStandardAlignment(t *testing.T) {
+	// Create a mock storage
+	storage, err := NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Test Bool type is NOT a supertype of Int (per Types::Standard)
+	assert.False(t, hierarchy.IsSubtypeOf("Int", "Bool"), "Int should NOT be a subtype of Bool per Types::Standard")
+	assert.Error(t, hierarchy.CheckTypeCompatibility("Int", "Bool"), "Int should NOT be assignable to Bool per Types::Standard")
+
+	// Test HashRef parameter restriction (should only accept single parameter for values)
+	validHashRef, err := hierarchy.CreateParameterizedType("HashRef", []string{"Str"})
+	assert.NoError(t, err)
+	assert.Equal(t, "HashRef[Str]", validHashRef)
+
+	// Test HashRef with two parameters should fail (use Map instead)
+	_, err = hierarchy.CreateParameterizedType("HashRef", []string{"Str", "Int"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "use Map[KeyType, ValueType]", "Error should suggest using Map for key-value constraints")
+
+	// Test Map still works for two parameters
+	validMap, err := hierarchy.CreateParameterizedType("Map", []string{"Str", "Int"})
+	assert.NoError(t, err)
+	assert.Equal(t, "Map[Str, Int]", validMap)
+}
+
+// TestBoolValueValidation tests Bool value validation per Types::Standard
+func TestBoolValueValidation(t *testing.T) {
+	// Create a mock storage
+	storage, err := NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Test valid Bool values per Types::Standard
+	validBoolValues := []string{"1", "0", `""`, "undef"}
+	for _, value := range validBoolValues {
+		assert.NoError(t, hierarchy.ValidateValue(value, "Bool"),
+			"Value '%s' should be valid for Bool type", value)
+	}
+
+	// Test invalid Bool values
+	invalidBoolValues := []string{"2", "-1", "42", "true", "false", "abc", "' '", "null"}
+	for _, value := range invalidBoolValues {
+		assert.Error(t, hierarchy.ValidateValue(value, "Bool"),
+			"Value '%s' should be invalid for Bool type", value)
+	}
+
+	// Test that other types don't have value validation (yet)
+	assert.NoError(t, hierarchy.ValidateValue("42", "Int"), "Int values should not be validated yet")
+	assert.NoError(t, hierarchy.ValidateValue("hello", "Str"), "Str values should not be validated yet")
+}
+
+// TestHashRefSingleParameterOnly tests that HashRef only accepts single parameter
+func TestHashRefSingleParameterOnly(t *testing.T) {
+	// Create a mock storage
+	storage, err := NewStorageWithPath(t.TempDir())
+	require.NoError(t, err)
+
+	// Create a type hierarchy
+	hierarchy := NewTypeHierarchy(storage)
+	require.NotNil(t, hierarchy)
+
+	// Test that HashRef accepts exactly one parameter (value type)
+	validHashRef, err := hierarchy.CreateParameterizedType("HashRef", []string{"Int"})
+	assert.NoError(t, err)
+	assert.Equal(t, "HashRef[Int]", validHashRef)
+
+	// Test that HashRef rejects zero parameters
+	_, err = hierarchy.CreateParameterizedType("HashRef", []string{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "exactly one type parameter")
+
+	// Test that HashRef rejects two parameters (should use Map instead)
+	_, err = hierarchy.CreateParameterizedType("HashRef", []string{"Str", "Int"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "exactly one type parameter")
+	assert.Contains(t, err.Error(), "Map[KeyType, ValueType]")
+
+	// Test that HashRef rejects three or more parameters
+	_, err = hierarchy.CreateParameterizedType("HashRef", []string{"Str", "Int", "Bool"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "exactly one type parameter")
+
+	// Verify that Map still works for key-value constraints
+	validMap, err := hierarchy.CreateParameterizedType("Map", []string{"Str", "Int"})
+	assert.NoError(t, err)
+	assert.Equal(t, "Map[Str, Int]", validMap)
 }
