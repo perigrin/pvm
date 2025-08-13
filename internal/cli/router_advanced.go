@@ -82,6 +82,8 @@ func DetectInvocation() *InvocationInfo {
 	switch exeName {
 	case ComponentPVM, ComponentPVX, ComponentPM, ComponentPSC:
 		// This is a known component, keep it
+	case ComponentCpanm, ComponentCarton, ComponentPerlbrew, ComponentPlenv:
+		// This is a compatibility component, keep it
 	case "pvi":
 		// Backward compatibility: pvi -> pm
 		info.Component = ComponentPM
