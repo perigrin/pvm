@@ -13,18 +13,26 @@ import (
 
 // Component names
 const (
-	ComponentPVM = "pvm"
-	ComponentPVX = "pvx"
-	ComponentPM  = "pm"
-	ComponentPSC = "psc"
+	ComponentPVM      = "pvm"
+	ComponentPVX      = "pvx"
+	ComponentPM       = "pm"
+	ComponentPSC      = "psc"
+	ComponentCpanm    = "cpanm"
+	ComponentCarton   = "carton"
+	ComponentPerlbrew = "perlbrew"
+	ComponentPlenv    = "plenv"
 )
 
 // Component descriptions
 const (
-	DescriptionPVM = "Perl Version Manager - Manages Perl installations and versions"
-	DescriptionPVX = "Perl Version eXecutor - Executes modules/scripts in isolated environments"
-	DescriptionPM  = "Perl Module - Manages CPAN modules for installed Perl versions"
-	DescriptionPSC = "Perl Script Compiler - Provides static type checking for Perl code"
+	DescriptionPVM      = "Perl Version Manager - Manages Perl installations and versions"
+	DescriptionPVX      = "Perl Version eXecutor - Executes modules/scripts in isolated environments"
+	DescriptionPM       = "Perl Module - Manages CPAN modules for installed Perl versions"
+	DescriptionPSC      = "Perl Script Compiler - Provides static type checking for Perl code"
+	DescriptionCpanm    = "cpanm compatibility interface - Install CPAN modules using cpanm syntax"
+	DescriptionCarton   = "carton compatibility interface - Manage dependencies using carton syntax"
+	DescriptionPerlbrew = "perlbrew compatibility interface - Manage Perl versions using perlbrew syntax"
+	DescriptionPlenv    = "plenv compatibility interface - Manage Perl versions using plenv syntax"
 )
 
 // DetectComponent detects which component to run based on the binary name
@@ -55,6 +63,14 @@ func GetComponentDescription(component string) string {
 		return DescriptionPM
 	case ComponentPSC:
 		return DescriptionPSC
+	case ComponentCpanm:
+		return DescriptionCpanm
+	case ComponentCarton:
+		return DescriptionCarton
+	case ComponentPerlbrew:
+		return DescriptionPerlbrew
+	case ComponentPlenv:
+		return DescriptionPlenv
 	default:
 		return "Unknown component"
 	}
@@ -73,6 +89,19 @@ func CreateRootCommand(component string) *cobra.Command {
 			// Add version information to the description
 			pvxCmd.Long = pvxCmd.Long + "\n\nVersion: " + version.GetVersion()
 			return pvxCmd
+		}
+	}
+
+	// Special handling for compatibility components - they should be the root command
+	if component == ComponentCpanm || component == ComponentCarton ||
+		component == ComponentPerlbrew || component == ComponentPlenv {
+		provider, exists := GlobalRegistry.Get(component)
+		if exists {
+			// Return the compatibility command directly as the root command
+			compatCmd := provider()
+			// Add version information to the description
+			compatCmd.Long = compatCmd.Long + "\n\nVersion: " + version.GetVersion()
+			return compatCmd
 		}
 	}
 
