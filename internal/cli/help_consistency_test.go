@@ -5,6 +5,7 @@ package cli
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -147,7 +148,10 @@ func TestHelpSystemRegression(t *testing.T) {
 				// Ensure output contains key elements
 				assert.Contains(t, output, "DETAILED HELP",
 					"%s should contain DETAILED HELP section", tc.name)
-				assert.Contains(t, output, "For contextual help and workflows:",
+				// Check for either project or non-project context help pointers
+				hasProjectHelp := strings.Contains(output, "For project workflows:")
+				hasGettingStartedHelp := strings.Contains(output, "For getting started:")
+				assert.True(t, hasProjectHelp || hasGettingStartedHelp,
 					"%s should contain contextual help pointer", tc.name)
 			})
 		}

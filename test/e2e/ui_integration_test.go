@@ -32,7 +32,7 @@ func TestUIFramework_ComponentConsistency(t *testing.T) {
 		{
 			name:           "PVM help",
 			command:        []string{"--help"},
-			expectContains: []string{"Usage:", "Commands:", "Flags:"},
+			expectContains: []string{"USAGE", "COMMANDS", "FLAGS"},
 		},
 		{
 			name:           "PVX help",
