@@ -108,8 +108,10 @@ func TestAssignmentChecking(t *testing.T) {
 
 	// Test valid assignments
 	assert.NoError(t, checker.CheckAssignment("Int", "Int", pos))
-	assert.NoError(t, checker.CheckAssignment("Int", "Str", pos))  // Numbers can be stringified
-	assert.NoError(t, checker.CheckAssignment("Int", "Bool", pos)) // Numbers can be used as booleans
+	assert.NoError(t, checker.CheckAssignment("Int", "Str", pos)) // Numbers can be stringified
+
+	// Test invalid assignments (updated for Types::Standard compatibility)
+	assert.Error(t, checker.CheckAssignment("Int", "Bool", pos)) // Per Types::Standard: Int is NOT assignable to Bool
 
 	// Test invalid assignments
 	assert.Error(t, checker.CheckAssignment("Str", "Int", pos))      // Strings can't become numbers

@@ -20,10 +20,11 @@ my Num $pi = 3.14159;
 **Supported Built-in Types:**
 - `Int` - Integer values
 - `Str` - String values
-- `Bool` - Boolean values (0 or 1)
+- `Bool` - Boolean values (accepts only: `1`, `0`, `""`, `undef` per Types::Standard)
 - `Num` - Numeric values (including floats)
 - `ArrayRef` - Array references
-- `HashRef` - Hash references
+- `HashRef` - Hash references (value-type only, use `Map` for key-value constraints)
+- `Map` - Hash references with key-value type constraints
 - `CodeRef` - Code references
 - `ScalarRef` - Scalar references
 - `GlobRef` - Glob references
@@ -34,10 +35,17 @@ my Num $pi = 3.14159;
 Arrays and hashes can be typed with parameterized types:
 
 ```perl
+# Array references with element types
 my ArrayRef[Int] @numbers = (1, 2, 3);
-my HashRef[Str] %config = (key => 'value');
 my ArrayRef[Str] $array_ref = ["a", "b", "c"];
+
+# Hash references with value types only
+my HashRef[Str] %config = (key => 'value');
 my HashRef[Int] $hash_ref = {x => 1, y => 2};
+
+# Map for both key and value type constraints (per Types::Standard)
+my Map[Str, Int] %scores = (alice => 95, bob => 87);
+my Map[UserID, UserData] $user_map = { 1 => $user_data };
 ```
 
 ### Custom Types
@@ -88,21 +96,22 @@ Parameterized types specify type parameters using bracket notation:
 ```perl
 # Basic parameterized types
 my ArrayRef[Int] @numbers;
-my HashRef[Str] %strings;
+my HashRef[Str] %strings;        # Single parameter: value type only
 my CodeRef[Int, Str] $function;
 
-# Multiple parameters
-my Map[Str, Int] %mapping;
+# Key-value constraints using Map (per Types::Standard)
+my Map[Str, Int] %mapping;       # Key type: Str, Value type: Int
 my Tuple[Int, Str, Bool] $triple;
 
 # Nested parameterization
 my ArrayRef[ArrayRef[Int]] @matrix;
-my HashRef[ArrayRef[Str]] %grouped_strings;
-my ArrayRef[HashRef[Int]] @array_of_hashes;
+my HashRef[ArrayRef[Str]] %grouped_strings;  # Values are ArrayRef[Str]
+my ArrayRef[Map[Str, Int]] @array_of_maps;   # Array of string-to-int maps
 
 # Parameterized with unions
 my ArrayRef[Int|Str] @mixed;
-my HashRef[Bool|Undef] %flags;
+my HashRef[Bool|Undef] %flags;   # Hash with Bool or Undef values
+my Map[UserID|Str, UserData] %users;  # Keys can be UserID or Str
 ```
 
 ### Intersection Types
@@ -545,6 +554,142 @@ When adding type annotations:
 3. **Test mixed scenarios**: Ensure typed and untyped code interact correctly
 4. **Performance testing**: Verify type annotations don't degrade performance
 5. **Syntax validation**: Ensure all method signatures use supported syntax
+
+## PVM's Type System Architecture
+
+PVM implements a Perl-native type hierarchy that respects Perl's core semantics while providing enhanced Types::Standard compatibility.
+
+### Core Design Philosophy
+
+**Perl-Native Approach:**
+- Follows Perl's scalar/list context distinction (`Item` vs `List`)
+- Preserves Perl's universal container model (scalars hold values OR references)
+- Maintains native coercion behavior (`Num` → `Str`)
+- Respects Perl's reference semantics (any structure can be referenced)
+
+**Enhanced Type Safety:**
+- Adds type constraints without breaking Perl idioms
+- Provides structured validation while preserving flexibility
+- Enables gradual typing adoption
+
+### Type Hierarchy Overview
+
+```
+Unknown → Any → Item | List
+                 ↓       ↓
+              Scalar | (Array | Hash)
+                 ↓
+        (Value | Reference | Undef)
+            ↓        ↓
+   (Str|Num|Int|Bool) (ScalarRef|ArrayRef|HashRef|ObjectRef|etc)
+                       ↓
+                   Object (blessed)
+```
+
+**Key Principles:**
+- **Unknown**: For type inference failures (explicitly allowed exceptions)
+- **Scalar**: Universal container (can hold values OR references, following Perl semantics)
+- **Value vs Reference**: Fundamental distinction in what scalars contain
+- **Object**: Blessed references (any reference type can be blessed)
+
+### Future Enhancements
+
+**Planned Extensions:**
+- **Literal[T]**: Source provenance tracking (distinguishes `1` from `!!1`)
+- **Advanced object validation**: `InstanceOf[Class]`, `ConsumerOf[Role]`, `HasMethods[...]`
+- **Structured types**: Enhanced `Dict[key=>type,...]` for precise hash validation
+- **Enhanced enums**: Proper literal value constraint validation
+- **Pattern validation**: `StrMatch[regexp]` for string constraints
+
+## Types::Standard Alignment
+
+PVM provides compatibility with Perl's **Types::Standard** module while preserving Perl's native semantics:
+
+### Bool Type Constraints
+
+The `Bool` type follows Types::Standard semantics, accepting only these values:
+
+```perl
+my Bool $valid_true = 1;        # ✅ Numeric one
+my Bool $valid_false = 0;       # ✅ Numeric zero
+my Bool $empty_string = "";     # ✅ Empty string
+my Bool $undefined = undef;     # ✅ Undefined value
+
+# These are NOT valid Bool values:
+my Bool $invalid = 2;           # ❌ Other numbers
+my Bool $invalid = "true";      # ❌ String literals
+my Bool $invalid = "false";     # ❌ String literals
+my Bool $invalid = -1;          # ❌ Negative numbers
+```
+
+**Important**: Unlike traditional Perl boolean context, `Int` values are **not** automatically compatible with `Bool` types. Use explicit conversion or appropriate type annotations.
+
+### HashRef vs Map Distinction
+
+Following Types::Standard conventions:
+
+```perl
+# HashRef: constrains VALUES only (keys are always strings)
+my HashRef[Int] %scores = (alice => 95, bob => 87);     # ✅ Value constraint only
+my HashRef[UserData] %users = (id1 => $user1);         # ✅ Any string keys
+
+# Map: constrains BOTH keys and values
+my Map[UserID, UserData] %user_map = (123 => $user1);  # ✅ Key and value constraints
+my Map[Str, Int] %string_to_int = (key => 42);         # ✅ Explicit key type
+
+# This syntax is no longer supported:
+my HashRef[UserID, UserData] %old_syntax;              # ❌ Use Map instead
+```
+
+### Migration from Legacy Syntax
+
+**Old HashRef syntax**:
+```perl
+# Before (no longer supported)
+my HashRef[Str, Int] %mapping = (key => 42);           # ❌ Error
+
+# After (Types::Standard compliant)
+my Map[Str, Int] %mapping = (key => 42);               # ✅ Correct
+```
+
+**Type compatibility changes**:
+```perl
+# Before: Int could be assigned to Bool
+my Bool $flag = 42;                                     # ❌ No longer valid
+
+# After: Explicit Bool values required
+my Bool $flag = 1;                                      # ✅ Valid Bool value
+my Bool $flag = ($value > 0) ? 1 : 0;                 # ✅ Explicit conversion
+```
+
+### Design Decisions vs Types::Standard
+
+**Where PVM Differs (Intentionally):**
+
+**Numeric Coercion Preservation:**
+- **PVM**: Maintains `Num` → `Str` relationship (follows Perl's native coercion)
+- **Types::Standard**: Treats `Num` and `Str` as parallel types
+- **Rationale**: Perl's coercion is fundamental; artificial boundaries break idiomatic patterns
+
+**Enhanced Type System:**
+- **PVM**: Adds intersection types (`A&B`), traits (`Callable`, `Iterable`), system types (`File`, `Dir`)
+- **Types::Standard**: Focuses on core scalar/reference validation
+- **Rationale**: PVM extends beyond Types::Standard while maintaining compatibility
+
+**Universal Compatibility:**
+```perl
+# Types::Standard patterns work in PVM
+my Item $anything = $data;
+my Defined $not_undef = $value;
+my Value $scalar_data = "hello";
+
+# PVM extensions also work
+my Object&Serializable $data = $obj;        # Intersection types
+my Result[User, Error] $result = try_load(); # Advanced types
+my File $handle = open_file($path);         # System types
+```
+
+This approach provides the best of both worlds: standards compliance with Perl-native enhancements.
 
 ## Conclusion
 

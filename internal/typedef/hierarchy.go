@@ -65,37 +65,65 @@ func NewTypeHierarchy(store *Storage) *TypeHierarchy {
 }
 
 // initializeBuiltinTypes sets up the initial type hierarchy for built-in types
+//
+// Type Hierarchy Design:
+// This implements a Perl-native type hierarchy that respects Perl's semantics while
+// providing compatibility with Types::Standard where sensible.
+//
+// Core Philosophy:
+// - Unknown → Any → Item | List (following Perl's scalar/list context distinction)
+// - Scalars can contain Values OR References (Perl's universal container model)
+// - References point to any structure type (ScalarRef, ArrayRef, ObjectRef, etc.)
+// - Objects are blessed references (any reference can be blessed)
+// - Preserve Perl's native coercion (Num → Str) rather than artificial type boundaries
+//
+// Future Enhancements Planned:
+// - Literal[T]: Source provenance tracking (literal vs calculated values)
+// - Trait system: Callable, Iterable as additional supertypes
+// - Advanced object validation: InstanceOf[Class], ConsumerOf[Role], HasMethods[...]
 func (h *TypeHierarchy) initializeBuiltinTypes() {
-	// Create basic type hierarchy
-	// Any is the root type
-	h.addBuiltinType("Any", "Top type - all types are subtypes of Any", "scalar")
+	// Root type hierarchy - Unknown for inference failures, Any for known types
+	h.addBuiltinType("Unknown", "Unknown type for untyped variables before inference", "scalar")
+	h.addBuiltinType("Any", "Top type - all known types are subtypes of Any", "scalar")
 
-	// Unknown represents untyped variables before inference
-	h.addBuiltinType("Unknown", "Unknown type for untyped variables", "scalar")
+	// Main categories following Perl's scalar/list context distinction
+	h.addBuiltinType("Item", "Single thing (scalar context)", "item")
+	h.addBuiltinType("List", "Multiple things (list context)", "list")
 
-	// Basic scalar types
-	h.addBuiltinType("Scalar", "Basic scalar value", "scalar")
+	// Defined type excludes Undef - needed for Types::Standard compatibility
+	h.addBuiltinType("Defined", "Any defined value (excludes undef)", "defined")
+
+	// Scalar types - Scalars are Perl's universal container (can hold values OR references)
+	h.addBuiltinType("Scalar", "Scalar variable (can contain value or reference)", "scalar")
+	h.addBuiltinType("Value", "Runtime scalar value (not a reference)", "value")
+	h.addBuiltinType("Reference", "Reference to other structures", "reference")
+	h.addBuiltinType("Undef", "Undefined value (special case)", "undef")
+
+	// Value subtypes - preserving existing Perl-native coercion chain
 	h.addBuiltinType("Str", "String value", "scalar")
 	h.addBuiltinType("Num", "Numeric value", "scalar")
 	h.addBuiltinType("Int", "Integer value", "scalar")
 	h.addBuiltinType("Float", "Floating point value", "scalar")
-	h.addBuiltinType("Bool", "Boolean value", "scalar")
-	h.addBuiltinType("Undef", "Undefined value", "scalar")
+	h.addBuiltinType("Bool", "Boolean value (1, 0, \"\", undef per Types::Standard)", "scalar")
 
-	// Reference types
-	h.addBuiltinType("Ref", "Reference", "ref")
-	h.addBuiltinType("ScalarRef", "Scalar reference", "ref")
-	h.addBuiltinType("ArrayRef", "Array reference", "ref")
-	h.addBuiltinType("HashRef", "Hash reference", "ref")
-	h.addBuiltinType("CodeRef", "Code reference", "ref")
-	h.addBuiltinType("RegexpRef", "Regular expression reference", "ref")
-	h.addBuiltinType("GlobRef", "Glob reference", "ref")
-	h.addBuiltinType("FileHandle", "File handle", "ref")
+	// Reference subtypes - all references point to specific structure types
+	h.addBuiltinType("ScalarRef", "Reference to scalar", "ref")
+	h.addBuiltinType("ArrayRef", "Reference to array", "ref")
+	h.addBuiltinType("HashRef", "Reference to hash", "ref")
+	h.addBuiltinType("ObjectRef", "Reference to object structure", "ref")
+	h.addBuiltinType("CodeRef", "Reference to code", "ref")
+	h.addBuiltinType("RegexpRef", "Reference to regexp", "ref")
+	h.addBuiltinType("GlobRef", "Reference to glob", "ref")
+	h.addBuiltinType("FileHandle", "File handle (special GlobRef)", "ref")
 
-	// Container types
-	h.addBuiltinType("List", "List type", "container")
-	h.addBuiltinType("Array", "Array type", "container")
-	h.addBuiltinType("Hash", "Hash type", "container")
+	// List structure types
+	h.addBuiltinType("Array", "Array structure", "array")
+	h.addBuiltinType("Hash", "Hash structure", "hash")
+
+	// Object types - blessed references
+	h.addBuiltinType("Object", "Blessed reference (any reference can be blessed)", "blessed")
+
+	// Legacy container types (preserved for compatibility)
 	h.addBuiltinType("Code", "Code type", "container")
 	h.addBuiltinType("Glob", "Glob type", "container")
 
@@ -125,26 +153,47 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	h.addBuiltinType("Char", "Character value", "scalar")
 	h.addBuiltinType("VarName", "Variable name", "scalar")
 
-	// Set up subtype relationships
-	h.addSubtypeRelation("Scalar", "Any")
-	h.addSubtypeRelation("Ref", "Any")
+	// Set up subtype relationships following the refined hierarchy
+	// Root relationships
+	h.addSubtypeRelation("Any", "Unknown") // Any is more specific than Unknown
+
+	// Main category relationships under Any
+	h.addSubtypeRelation("Item", "Any")
 	h.addSubtypeRelation("List", "Any")
-	h.addSubtypeRelation("Code", "Any")
-	h.addSubtypeRelation("Glob", "Any")
-	h.addSubtypeRelation("IO", "Any")
+	h.addSubtypeRelation("Defined", "Any")
 
-	// Unknown can be assigned to Any but needs special handling
-	h.addSubtypeRelation("Unknown", "Any")
+	// Scalar hierarchy under Item
+	h.addSubtypeRelation("Scalar", "Item")
+	h.addSubtypeRelation("Scalar", "Defined") // Most scalars are defined (except Undef)
+	h.addSubtypeRelation("Value", "Scalar")
+	h.addSubtypeRelation("Reference", "Scalar")
+	h.addSubtypeRelation("Undef", "Item") // Undef is an Item but NOT Defined
 
-	h.addSubtypeRelation("Str", "Scalar")
+	// Value hierarchy - preserving Perl's native coercion (Num → Str)
+	h.addSubtypeRelation("Str", "Value")
 	h.addSubtypeRelation("Num", "Str") // Numbers can be automatically stringified in Perl
-	h.addSubtypeRelation("Undef", "Scalar")
-
 	h.addSubtypeRelation("Int", "Num")
 	h.addSubtypeRelation("Float", "Num")
-	h.addSubtypeRelation("Bool", "Scalar") // Bool is a scalar type
-	h.addSubtypeRelation("Int", "Bool")    // Int can be used in boolean context in Perl
+	h.addSubtypeRelation("Bool", "Value") // Bool is parallel to Str, not under it
 
+	// Reference hierarchy - all references are subtypes of Reference
+	h.addSubtypeRelation("ScalarRef", "Reference")
+	h.addSubtypeRelation("ArrayRef", "Reference")
+	h.addSubtypeRelation("HashRef", "Reference")
+	h.addSubtypeRelation("ObjectRef", "Reference")
+	h.addSubtypeRelation("CodeRef", "Reference")
+	h.addSubtypeRelation("RegexpRef", "Reference")
+	h.addSubtypeRelation("GlobRef", "Reference")
+	h.addSubtypeRelation("FileHandle", "GlobRef") // FileHandle is special GlobRef
+
+	// Object relationships - blessed references
+	h.addSubtypeRelation("Object", "Reference") // Objects are blessed references
+
+	// List structure relationships
+	h.addSubtypeRelation("Array", "List")
+	h.addSubtypeRelation("Hash", "List")
+
+	// Legacy/additional scalar types under Str
 	h.addSubtypeRelation("ClassName", "Str")
 	h.addSubtypeRelation("RoleName", "Str")
 	h.addSubtypeRelation("MethodName", "Str")
@@ -152,21 +201,23 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	h.addSubtypeRelation("Char", "Str")
 	h.addSubtypeRelation("VarName", "Str")
 
-	h.addSubtypeRelation("ScalarRef", "Ref")
-	h.addSubtypeRelation("ArrayRef", "Ref")
-	h.addSubtypeRelation("HashRef", "Ref")
-	h.addSubtypeRelation("CodeRef", "Ref")
-	h.addSubtypeRelation("RegexpRef", "Ref")
-	h.addSubtypeRelation("GlobRef", "Ref")
-	h.addSubtypeRelation("FileHandle", "Ref")
+	// Legacy container relationships (preserved for compatibility)
+	h.addSubtypeRelation("Code", "Any")
+	h.addSubtypeRelation("Glob", "Any")
 
-	h.addSubtypeRelation("Array", "List")
-	h.addSubtypeRelation("Hash", "Associative")
-	h.addSubtypeRelation("Array", "Positional")
-	h.addSubtypeRelation("Hash", "Iterable")
-	h.addSubtypeRelation("Array", "Iterable")
-	h.addSubtypeRelation("Code", "Callable")
-	h.addSubtypeRelation("CodeRef", "Callable")
+	// Trait system relationships - temporarily enabled for test compatibility
+	// TODO: These should be moved to a proper trait system implementation
+	h.addSubtypeRelation("Array", "Iterable")   // Array is iterable
+	h.addSubtypeRelation("Array", "Positional") // Array has indexed elements
+	h.addSubtypeRelation("Hash", "Iterable")    // Hash is iterable
+	h.addSubtypeRelation("Hash", "Associative") // Hash has key-value pairs
+	h.addSubtypeRelation("CodeRef", "Callable") // CodeRef is callable
+	h.addSubtypeRelation("Code", "Callable")    // Code is callable
+
+	// Future trait enhancements planned:
+	// h.addSubtypeRelation("FileHandle", "Iterable")   // FileHandle is also Iterable
+	// h.addSubtypeRelation("ArrayRef", "Iterable")     // ArrayRef is also Iterable
+	// h.addSubtypeRelation("HashRef", "Iterable")      // HashRef is also Iterable
 
 	h.addSubtypeRelation("File", "IO")
 	h.addSubtypeRelation("Dir", "IO")
@@ -181,12 +232,10 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	}
 
 	h.parameterizedTypes["HashRef"] = func(params []string) (string, error) {
-		if len(params) == 1 {
-			return fmt.Sprintf("HashRef[%s]", params[0]), nil
-		} else if len(params) == 2 {
-			return fmt.Sprintf("HashRef[%s,%s]", params[0], params[1]), nil
+		if len(params) != 1 {
+			return "", fmt.Errorf("HashRef requires exactly one type parameter for values (use Map[KeyType, ValueType] for key-value constraints)")
 		}
-		return "", fmt.Errorf("HashRef requires one or two type parameters")
+		return fmt.Sprintf("HashRef[%s]", params[0]), nil
 	}
 
 	h.parameterizedTypes["Maybe"] = func(params []string) (string, error) {
@@ -293,6 +342,22 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 		}
 		return fmt.Sprintf("Intersection[%s]", strings.Join(params, ", ")), nil
 	}
+
+	// Types::Standard compatibility aliases
+	// These enable Types::Standard code to work with PVM's hierarchy
+	h.addTypeAlias("Ref", "Reference") // Types::Standard "Ref" maps to our "Reference"
+	// Note: We intentionally do NOT alias "Value" to anything - Value and Literal are distinct
+	// concepts in our system (runtime value vs source literal)
+
+	// Future Types::Standard enhancements planned:
+	// - InstanceOf[Class]: Runtime class validation for blessed objects
+	// - ConsumerOf[Role]: Role/interface checking for objects
+	// - HasMethods[methods...]: Duck-typing method validation
+	// - Dict[key=>type,...]: Structured hash validation
+	// - Enhanced Enum implementation with proper literal validation
+	// - StrMatch[regexp]: Pattern-based string constraints
+	// - Tied[T]: Tied variable validation
+	// - LaxNum vs StrictNum: Configurable numeric validation strictness
 }
 
 // addBuiltinType adds a built-in type to the hierarchy
@@ -307,6 +372,20 @@ func (h *TypeHierarchy) addBuiltinType(name, description, kind string) {
 // addSubtypeRelation adds a subtype relationship (child is a subtype of parent)
 func (h *TypeHierarchy) addSubtypeRelation(child, parent string) {
 	h.subtypeRelations[child] = append(h.subtypeRelations[child], parent)
+}
+
+// addTypeAlias creates an alias for an existing type for compatibility
+func (h *TypeHierarchy) addTypeAlias(alias, target string) {
+	if targetInfo, exists := h.BuiltinTypes[target]; exists {
+		h.BuiltinTypes[alias] = &TypeInfo{
+			Name:        alias,
+			Description: fmt.Sprintf("Alias for %s (Types::Standard compatibility)", target),
+			Kind:        targetInfo.Kind,
+		}
+		// Note: We do NOT copy subtype relationships for aliases to avoid
+		// unintended inheritance. Aliases should be handled at the type
+		// resolution level, not the hierarchy level.
+	}
 }
 
 // IsBuiltinType checks if a type is a built-in type
@@ -900,6 +979,33 @@ func (h *TypeHierarchy) CheckIntersectionTypeCompatibility(sourceType, targetTyp
 
 	// Neither is intersection, shouldn't reach here in normal flow
 	return fmt.Errorf("internal error: non-intersection types in intersection compatibility check")
+}
+
+// ValidateValue validates that a value conforms to a specific type
+func (h *TypeHierarchy) ValidateValue(value, typeName string) error {
+	// Handle Bool type validation per Types::Standard specification
+	if typeName == "Bool" {
+		return h.validateBoolValue(value)
+	}
+
+	// For other types, we currently only do type-level validation
+	// Value-level validation could be extended here for other types
+	return nil
+}
+
+// validateBoolValue validates Bool values per Types::Standard specification
+// Bool only accepts: 1, 0, "" (empty string), undef
+func (h *TypeHierarchy) validateBoolValue(value string) error {
+	switch value {
+	case "1", "0", `""`, "undef":
+		return nil
+	default:
+		return errors.NewTypeError(
+			ErrTypeInvalid,
+			fmt.Sprintf("Invalid Bool value '%s'. Bool only accepts: 1, 0, \"\" (empty string), or undef", value),
+			nil,
+		)
+	}
 }
 
 // ValidateIntersectionType performs comprehensive validation of an intersection type
