@@ -6,11 +6,14 @@ package pvx
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/log"
 	"tamarou.com/pvm/internal/parser"
+	"tamarou.com/pvm/internal/perl"
 )
 
 // AutoDetectDependencies extracts dependencies from a Perl script using PSC
@@ -33,6 +36,50 @@ func AutoDetectDependencies(scriptPath string) ([]string, error) {
 	}
 
 	return dependencies, nil
+}
+
+// AutoDetectAndStripTypedDependencies extracts dependencies and strips type annotations from typed modules
+func AutoDetectAndStripTypedDependencies(scriptPath string, options *ExecutionOptions) ([]string, map[string]string, []func(), error) {
+	// First detect all dependencies
+	dependencies, err := AutoDetectDependencies(scriptPath)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Map of original module paths to stripped module paths
+	strippedModulePaths := make(map[string]string)
+	var cleanupFuncs []func()
+
+	// Find and strip typed modules
+	for _, dep := range dependencies {
+		modulePath, err := findModulePath(dep, options)
+		if err != nil {
+			log.Debugf("Could not find module path for %s: %v", dep, err)
+			continue
+		}
+
+		// Check if module contains type annotations
+		if ContainsTypeAnnotations(modulePath) {
+			log.Debugf("Module %s contains type annotations, stripping...", dep)
+
+			// Strip type annotations from the module
+			strippedPath, cleanupFunc, err := stripTypeAnnotationsFromScript(modulePath)
+			if err != nil {
+				log.Warnf("Failed to strip type annotations from module %s: %v", dep, err)
+				continue
+			}
+
+			// Store the mapping and cleanup function
+			strippedModulePaths[modulePath] = strippedPath
+			cleanupFuncs = append(cleanupFuncs, cleanupFunc)
+		}
+	}
+
+	if len(strippedModulePaths) > 0 {
+		log.Debugf("Stripped type annotations from %d typed modules", len(strippedModulePaths))
+	}
+
+	return dependencies, strippedModulePaths, cleanupFuncs, nil
 }
 
 // extractDependenciesFromContent extracts module dependencies from Perl source code using AST parsing
@@ -327,4 +374,67 @@ func AutoDetectDependenciesWithOptions(scriptPath string, includeCoreModules boo
 	}
 
 	return dependencies, nil
+}
+
+// findModulePath attempts to locate a Perl module file in the filesystem
+func findModulePath(moduleName string, options *ExecutionOptions) (string, error) {
+	// Convert module name to file path (e.g., "My::Module" -> "My/Module.pm")
+	filePath := strings.ReplaceAll(moduleName, "::", "/") + ".pm"
+
+	// Get Perl version and resolve executable
+	perlVersion := options.PerlVersion
+	if perlVersion == "" {
+		perlVersion = "system" // Default to system Perl
+	}
+
+	resolvedVersion, err := perl.ResolveVersion(&perl.ResolutionOptions{
+		ExplicitVersion: perlVersion,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve Perl version %s: %w", perlVersion, err)
+	}
+
+	// Get Perl's @INC directories
+	incDirs, err := getPerlIncDirectories(resolvedVersion.Path)
+	if err != nil {
+		return "", fmt.Errorf("failed to get Perl @INC directories: %w", err)
+	}
+
+	// Add any additional module paths from options
+	if len(options.AdditionalModulePaths) > 0 {
+		incDirs = append(options.AdditionalModulePaths, incDirs...)
+	}
+
+	// Search for the module file in @INC directories
+	for _, incDir := range incDirs {
+		fullPath := filepath.Join(incDir, filePath)
+		if _, err := os.Stat(fullPath); err == nil {
+			return fullPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("module %s not found in @INC directories", moduleName)
+}
+
+// getPerlIncDirectories gets the @INC directories from a Perl executable
+func getPerlIncDirectories(perlPath string) ([]string, error) {
+	// Use perl -E 'say for @INC' to get the include directories
+	cmd := exec.Command(perlPath, "-E", "say for @INC")
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute perl command: %w", err)
+	}
+
+	// Split output into lines and filter out empty lines
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var incDirs []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			incDirs = append(incDirs, line)
+		}
+	}
+
+	return incDirs, nil
 }

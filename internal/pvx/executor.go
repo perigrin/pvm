@@ -113,6 +113,15 @@ type ExecutionOptions struct {
 	// Whether to enable type checking before execution
 	TypeCheck bool
 
+	// Whether to skip the type checking phase entirely (PSC integration)
+	SkipTypeCheck bool
+
+	// Whether to enable flow-sensitive type analysis (PSC integration)
+	FlowSensitive bool
+
+	// Whether to skip flow checks but still perform type refinements (PSC integration)
+	SkipFlowChecks bool
+
 	// Whether to enable verbose output
 	Verbose bool
 
@@ -213,21 +222,50 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 			err)
 	}
 
+	// Handle typed module dependencies if script contains type annotations
+	var strippedModulePaths map[string]string
+	var moduleCleanupFuncs []func()
+
 	// Auto-detect dependencies using PSC parsing if enabled (superior to manual metadata)
 	if options.AutoDetectDependencies {
 		if uiOut != nil && options.Verbose {
 			uiOut.Status("Analyzing script dependencies...")
 		}
-		autoDeps, err := AutoDetectDependenciesWithOptions(options.ScriptPath, false) // Filter out core modules
-		if err != nil {
-			if options.Verbose {
-				if uiOut != nil {
-					uiOut.Warning("Could not auto-detect dependencies (continuing without): %v", err)
-				} else {
-					log.Infof("Could not auto-detect dependencies (continuing without): %v", err)
-				}
+
+		var autoDeps []string
+		var err error
+
+		// Check if this is a typed script that needs enhanced dependency handling
+		if ContainsTypeAnnotations(options.ScriptPath) {
+			if uiOut != nil && options.Verbose {
+				uiOut.Info("Script contains type annotations, using enhanced dependency detection...")
 			}
-			autoDeps = []string{}
+
+			// Enhanced dependency detection that handles typed modules
+			autoDeps, strippedModulePaths, moduleCleanupFuncs, err = AutoDetectAndStripTypedDependencies(options.ScriptPath, options)
+			if err != nil {
+				if options.Verbose {
+					if uiOut != nil {
+						uiOut.Warning("Could not auto-detect typed dependencies (continuing without): %v", err)
+					} else {
+						log.Infof("Could not auto-detect typed dependencies (continuing without): %v", err)
+					}
+				}
+				autoDeps = []string{}
+			}
+		} else {
+			// Standard dependency detection for non-typed scripts
+			autoDeps, err = AutoDetectDependenciesWithOptions(options.ScriptPath, false) // Filter out core modules
+			if err != nil {
+				if options.Verbose {
+					if uiOut != nil {
+						uiOut.Warning("Could not auto-detect dependencies (continuing without): %v", err)
+					} else {
+						log.Infof("Could not auto-detect dependencies (continuing without): %v", err)
+					}
+				}
+				autoDeps = []string{}
+			}
 		}
 
 		// Merge auto-detected dependencies with execution options
@@ -236,12 +274,40 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 				if uiOut != nil {
 					uiOut.Info("Auto-detected %d dependencies from script", len(autoDeps))
 					uiOut.List(autoDeps)
+					if len(strippedModulePaths) > 0 {
+						uiOut.Info("Stripped type annotations from %d typed modules", len(strippedModulePaths))
+					}
 				} else {
 					log.Infof("Auto-detected %d dependencies from script: %v", len(autoDeps), autoDeps)
+					if len(strippedModulePaths) > 0 {
+						log.Infof("Stripped type annotations from %d typed modules", len(strippedModulePaths))
+					}
 				}
 			}
 			// Add auto-detected dependencies to required modules
 			options.RequiredModules = append(options.RequiredModules, autoDeps...)
+		}
+	}
+
+	// Add stripped module directories to module paths for typed modules
+	if len(strippedModulePaths) > 0 {
+		// Extract unique directories containing stripped modules
+		strippedDirs := make(map[string]bool)
+		for _, strippedPath := range strippedModulePaths {
+			dir := filepath.Dir(strippedPath)
+			strippedDirs[dir] = true
+		}
+
+		// Add these directories to AdditionalModulePaths so they're included in PERL5LIB
+		for dir := range strippedDirs {
+			options.AdditionalModulePaths = append(options.AdditionalModulePaths, dir)
+			if options.Verbose {
+				if uiOut != nil {
+					uiOut.Info("Adding stripped module directory to module path: %s", dir)
+				} else {
+					log.Infof("Adding stripped module directory to module path: %s", dir)
+				}
+			}
 		}
 	}
 
@@ -383,10 +449,63 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 		}
 	}
 
-	// Check if script contains type annotations and strip them if needed
+	// Check if script contains type annotations and handle PSC type checking if needed
 	var needsCleanup bool
 
 	if ContainsTypeAnnotations(options.ScriptPath) {
+		// Perform PSC-style type checking if requested and not explicitly skipped
+		if (options.TypeCheck || options.FlowSensitive) && !options.SkipTypeCheck {
+			if options.Verbose {
+				if uiOut != nil {
+					uiOut.Info("Performing PSC-style type checking...")
+				} else {
+					log.Infof("Performing PSC-style type checking...")
+				}
+			}
+
+			// Create type checker
+			typeChecker, err := parser.NewTypeCheck()
+			if err != nil {
+				return "", errors.NewExecutionError(
+					ErrExecutionFailed,
+					fmt.Sprintf("Failed to create type checker: %v", err),
+					err)
+			}
+
+			// Configure type checking options
+			typeChecker.EnableFlowSensitiveAnalysis = options.FlowSensitive
+			typeChecker.SkipFlowChecks = options.SkipFlowChecks
+
+			// Perform type checking
+			checkResult, err := typeChecker.CheckFile(options.ScriptPath)
+			if err != nil {
+				return "", errors.NewExecutionError(
+					ErrExecutionFailed,
+					fmt.Sprintf("Type checking failed: %v", err),
+					err)
+			}
+
+			// Report type errors if any
+			if len(checkResult.Errors) > 0 {
+				errorMsg := fmt.Sprintf("Type checking found %d error(s):", len(checkResult.Errors))
+				for _, typeErr := range checkResult.Errors {
+					errorMsg += fmt.Sprintf("\n  %s:%d:%d: %s", typeErr.Path, typeErr.Line, typeErr.Column, typeErr.Message)
+				}
+				return "", errors.NewExecutionError(
+					ErrExecutionFailed,
+					errorMsg,
+					nil)
+			}
+
+			if options.Verbose {
+				if uiOut != nil {
+					uiOut.Success("Type checking completed successfully")
+				} else {
+					log.Infof("Type checking completed successfully")
+				}
+			}
+		}
+
 		if options.Verbose {
 			if uiOut != nil {
 				uiOut.Info("Detected type annotations in script, stripping types for execution")
@@ -408,10 +527,16 @@ func ExecuteScript(options *ExecutionOptions, uiOutput ...*ui.Output) (string, e
 		options.ScriptPath = strippedPath
 		needsCleanup = true
 
-		// Set up cleanup of the temporary stripped script file
+		// Set up cleanup of the temporary stripped script file and modules
 		defer func() {
 			if needsCleanup {
 				cleanupFunc()
+			}
+			// Clean up stripped module files
+			for _, moduleCleanup := range moduleCleanupFuncs {
+				if moduleCleanup != nil {
+					moduleCleanup()
+				}
 			}
 		}()
 

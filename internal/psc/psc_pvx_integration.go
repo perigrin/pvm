@@ -6,10 +6,8 @@ package psc
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
-	"tamarou.com/pvm/internal/compiler"
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/parser"
 	"tamarou.com/pvm/internal/pm"
@@ -373,67 +371,4 @@ func containsModule(modules []string, module string) bool {
 		}
 	}
 	return false
-}
-
-// StripAndExecute strips type annotations and then executes a Perl script
-func StripAndExecute(scriptPath string, args []string, perlVersion string, verbose bool) (string, error) {
-	// Create a temporary file for the stripped code
-	dir := filepath.Dir(scriptPath)
-	baseName := filepath.Base(scriptPath)
-	strippedPath := filepath.Join(dir, "."+baseName+".stripped.pl")
-
-	// Parse the file using parser pool for thread safety
-	ast, err := parser.PooledParserFunc(func(p parser.Parser) (*parser.AST, error) {
-		return p.ParseFile(scriptPath)
-	})
-	if err != nil {
-		return "", errors.NewTypeError(
-			ErrIntegrationFailed,
-			"Failed to parse file",
-			err).WithLocation(scriptPath)
-	}
-
-	// Strip type annotations using compiler
-	registry := compiler.NewCompilerRegistry()
-	strippedCode, err := registry.Compile(ast, compiler.TargetCleanPerl)
-	if err != nil {
-		return "", errors.NewTypeError(
-			ErrIntegrationFailed,
-			"Failed to strip type annotations",
-			err).WithLocation(scriptPath)
-	}
-
-	// Write the stripped code to a temporary file
-	if err := os.WriteFile(strippedPath, []byte(strippedCode), 0644); err != nil {
-		return "", errors.NewTypeError(
-			ErrIntegrationFailed,
-			"Failed to write stripped code",
-			err).WithLocation(strippedPath)
-	}
-
-	// Set up deferred cleanup of the temporary file
-	defer func() {
-		if verbose {
-			fmt.Printf("Cleaning up temporary file: %s\n", strippedPath)
-		}
-		_ = os.Remove(strippedPath)
-	}()
-
-	// Execute the stripped script using PVX
-	execOptions := &pvx.ExecutionOptions{
-		ScriptPath:  strippedPath,
-		Args:        args,
-		PerlVersion: perlVersion,
-		Verbose:     verbose,
-	}
-
-	output, err := pvx.ExecuteScript(execOptions)
-	if err != nil {
-		return output, errors.NewTypeError(
-			ErrExecutionFailed,
-			"Failed to execute stripped script",
-			err).WithLocation(strippedPath)
-	}
-
-	return output, nil
 }

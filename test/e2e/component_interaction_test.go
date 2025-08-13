@@ -109,9 +109,7 @@ print "Basic type integration test completed\n";
 		[]string{"psc", "check", "--verbose", testScript},
 		"Test script using basic types should type check")
 
-	// TODO: PSC run with typed modules is not fully implemented
-	// The run command strips the main script but doesn't handle typed module dependencies
-	t.Skip("TODO: PSC run execution with typed module dependencies not yet fully implemented")
+	// PSC run with typed modules now implemented via enhanced PVX integration
 }
 
 func TestComponentInteraction_PSC_PVX_ErrorPropagation(t *testing.T) {
@@ -168,9 +166,7 @@ print "Valid type script completed\n";
 	_, _, err = env.RunPVM("psc", "check", validScript)
 	assert.NoError(t, err, "Valid script should type check successfully")
 
-	// TODO: PSC run with typed scripts is not fully implemented
-	// The run command may not handle all type annotation cases correctly on all platforms
-	t.Skip("TODO: PSC run execution not yet fully implemented on all platforms")
+	// PSC run with typed scripts now implemented via enhanced PVX integration
 }
 
 func TestComponentInteraction_PVI_PVX_ModuleInstallation(t *testing.T) {
