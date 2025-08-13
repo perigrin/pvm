@@ -32,6 +32,11 @@ func NewHelpManager() *HelpManager {
 	}
 }
 
+// GetProjectContext returns the current project context
+func (h *HelpManager) GetProjectContext() *project.ProjectContext {
+	return h.projectContext
+}
+
 // HelpCategory represents different types of help content
 type HelpCategory struct {
 	Name        string

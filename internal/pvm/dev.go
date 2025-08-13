@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/build"
 	"tamarou.com/pvm/internal/cli"
+	"tamarou.com/pvm/internal/integration"
 	"tamarou.com/pvm/internal/project"
 	"tamarou.com/pvm/internal/pvx"
 	"tamarou.com/pvm/internal/typechecker"
@@ -472,11 +473,16 @@ func (t *TestRunnerService) Status() ServiceStatus {
 	}
 }
 
-// runTests executes project tests using prove or direct perl execution
+// runTests executes project tests using validation workflow or fallback to prove/perl
 func (t *TestRunnerService) runTests() TestResult {
 	startTime := time.Now()
 
-	// Discover test files
+	// Try ValidationWorkflow first for comprehensive testing
+	if result := t.tryValidationWorkflow(startTime); result.Success || result.Error == nil {
+		return result
+	}
+
+	// Fallback to traditional test discovery and execution
 	testFiles, err := t.discoverTestFiles()
 	if err != nil {
 		return TestResult{
@@ -497,6 +503,94 @@ func (t *TestRunnerService) runTests() TestResult {
 
 	// Execute tests using prove or direct perl execution
 	return t.executeTestFiles(testFiles, startTime)
+}
+
+// tryValidationWorkflow attempts to use ValidationWorkflow for comprehensive testing
+func (t *TestRunnerService) tryValidationWorkflow(startTime time.Time) TestResult {
+	// Find a test script to validate with
+	testScript := t.findTestScript()
+
+	// Use ValidationWorkflow for comprehensive validation
+	workflowResult, err := integration.ValidationWorkflow(testScript)
+	if err != nil {
+		// Return a failed result but allow fallback
+		return TestResult{
+			Success:  false,
+			Duration: time.Since(startTime),
+			Error:    err,
+			Output:   fmt.Sprintf("Validation workflow failed: %v", err),
+		}
+	}
+
+	if workflowResult == nil {
+		return TestResult{
+			Success:  false,
+			Duration: time.Since(startTime),
+			Error:    fmt.Errorf("validation workflow returned nil result"),
+		}
+	}
+
+	// Convert workflow result to test result
+	success := workflowResult.TypeCheckPassed && workflowResult.ExecutionExitCode == 0
+
+	return TestResult{
+		Success:   success,
+		TestCount: 1, // Validation workflow is one comprehensive test
+		Passed: func() int {
+			if success {
+				return 1
+			}
+			return 0
+		}(),
+		Failed: func() int {
+			if success {
+				return 0
+			}
+			return 1
+		}(),
+		Duration: workflowResult.Duration,
+		Output:   t.formatValidationOutput(workflowResult),
+		Error:    nil,
+	}
+}
+
+// findTestScript finds a suitable test script for validation workflow
+func (t *TestRunnerService) findTestScript() string {
+	// Let ValidationWorkflow create its own test script by passing empty string
+	// This ensures consistent validation across different project types
+	return ""
+}
+
+// formatValidationOutput formats validation workflow results for test display
+func (t *TestRunnerService) formatValidationOutput(result *integration.WorkflowResult) string {
+	var output strings.Builder
+
+	output.WriteString(fmt.Sprintf("Validation using Perl %s", result.VersionUsed))
+
+	if result.TypeCheckPassed && result.ExecutionExitCode == 0 {
+		output.WriteString(" - validation passed")
+	} else {
+		output.WriteString(" - validation failed")
+		if !result.TypeCheckPassed {
+			output.WriteString(fmt.Sprintf(" (type check failed: %d errors)", len(result.TypeErrors)))
+		}
+		if result.ExecutionExitCode != 0 {
+			output.WriteString(fmt.Sprintf(" (execution failed with exit code %d)", result.ExecutionExitCode))
+		}
+	}
+
+	// Add execution output if available
+	if result.ExecutionOutput != "" {
+		output.WriteString("\nExecution output:\n")
+		output.WriteString(result.ExecutionOutput)
+	}
+
+	// Add type definition information
+	if result.TypeDefGenerated {
+		output.WriteString(fmt.Sprintf("\nType definitions validated: %s", result.TypeDefPath))
+	}
+
+	return output.String()
 }
 
 // NewTypeCheckerService creates a new type checker service
@@ -563,30 +657,34 @@ func (tc *TypeCheckerService) Status() ServiceStatus {
 	}
 }
 
-// runTypeCheck executes type checking using PSC
+// runTypeCheck executes type checking using integration workflows
 func (tc *TypeCheckerService) runTypeCheck() TypeCheckResult {
 	startTime := time.Now()
 
-	// Discover Perl files to check
-	perlFiles, err := tc.discoverPerlFiles()
+	// Find the main script or library entry point for type checking
+	scriptPath, err := tc.findMainScriptPath()
 	if err != nil {
 		return TypeCheckResult{
 			Success:  false,
 			Duration: time.Since(startTime),
-			Error:    err,
+			Error:    fmt.Errorf("failed to find script for type checking: %w", err),
 		}
 	}
 
-	if len(perlFiles) == 0 {
+	if scriptPath == "" {
 		return TypeCheckResult{
 			Success:  true,
 			Duration: time.Since(startTime),
-			Output:   "No Perl files found for type checking",
+			Output:   "No suitable files found for type checking",
 		}
 	}
 
-	// Use incremental file-level checking for development environment
-	return tc.runFileLevelTypeCheck(perlFiles, startTime)
+	// Use TypeCheckWorkflow for comprehensive type checking
+	perlVersion := tc.resolvePerlVersion()
+	workflowResult, err := integration.TypeCheckWorkflow(scriptPath, perlVersion, false)
+
+	// Convert WorkflowResult to TypeCheckResult
+	return tc.convertWorkflowResult(workflowResult, err, time.Since(startTime))
 }
 
 // discoverTestFiles finds all test files in the project
@@ -946,6 +1044,208 @@ func (tc *TypeCheckerService) discoverPerlFiles() ([]string, error) {
 	}
 
 	return perlFiles, nil
+}
+
+// findMainScriptPath finds the main script or entry point for type checking
+func (tc *TypeCheckerService) findMainScriptPath() (string, error) {
+	// Priority order for finding type check entry points:
+	// 1. Main script in bin/ directory
+	// 2. .pl files in root directory
+	// 3. Main module in lib/ directory
+	// 4. First .pl or .pm file found
+
+	var candidates []string
+
+	if tc.projectCtx.IsProject {
+		rootDir := tc.projectCtx.RootDir
+
+		// Check bin/ directory for main scripts
+		binDir := filepath.Join(rootDir, "bin")
+		if _, err := os.Stat(binDir); !os.IsNotExist(err) {
+			if binFiles, err := tc.findPerlFilesInDir(binDir); err == nil {
+				candidates = append(candidates, binFiles...)
+			}
+		}
+
+		// Check root directory for .pl files
+		if rootFiles, err := tc.findPerlFilesInDir(rootDir); err == nil {
+			for _, file := range rootFiles {
+				if strings.HasSuffix(file, ".pl") {
+					candidates = append(candidates, file)
+				}
+			}
+		}
+
+		// Check lib/ directory for main modules
+		libDir := filepath.Join(rootDir, "lib")
+		if _, err := os.Stat(libDir); !os.IsNotExist(err) {
+			if libFiles, err := tc.findPerlFilesInDir(libDir); err == nil {
+				candidates = append(candidates, libFiles...)
+			}
+		}
+	} else {
+		// For non-project directories, look in current directory
+		if files, err := tc.findPerlFilesInDir("."); err == nil {
+			candidates = files
+		}
+	}
+
+	if len(candidates) == 0 {
+		return "", nil
+	}
+
+	// Return the first candidate (prioritized by order above)
+	return candidates[0], nil
+}
+
+// findPerlFilesInDir finds Perl files in a specific directory (non-recursive)
+func (tc *TypeCheckerService) findPerlFilesInDir(dir string) ([]string, error) {
+	var perlFiles []string
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if strings.HasSuffix(name, ".pl") || strings.HasSuffix(name, ".pm") {
+			fullPath := filepath.Join(dir, name)
+			perlFiles = append(perlFiles, fullPath)
+		}
+	}
+
+	return perlFiles, nil
+}
+
+// resolvePerlVersion determines which Perl version to use for type checking
+func (tc *TypeCheckerService) resolvePerlVersion() string {
+	// Use project-specific version if available
+	if tc.projectCtx.IsProject && tc.projectCtx.PerlVersion != "" {
+		return tc.projectCtx.PerlVersion
+	}
+
+	// Look for .perl-version file
+	if version := tc.readVersionFile(".perl-version"); version != "" {
+		return version
+	}
+
+	// Fall back to empty string (let integration workflow handle system Perl)
+	return ""
+}
+
+// readVersionFile reads version from a file
+func (tc *TypeCheckerService) readVersionFile(filename string) string {
+	var filePath string
+	if tc.projectCtx.IsProject {
+		filePath = filepath.Join(tc.projectCtx.RootDir, filename)
+	} else {
+		filePath = filename
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(content))
+}
+
+// convertWorkflowResult converts integration.WorkflowResult to TypeCheckResult
+func (tc *TypeCheckerService) convertWorkflowResult(workflowResult *integration.WorkflowResult, workflowErr error, duration time.Duration) TypeCheckResult {
+	if workflowErr != nil {
+		return TypeCheckResult{
+			Success:    false,
+			ErrorCount: 1,
+			Duration:   duration,
+			Error:      workflowErr,
+			Output:     fmt.Sprintf("Workflow failed: %v", workflowErr),
+		}
+	}
+
+	if workflowResult == nil {
+		return TypeCheckResult{
+			Success:  false,
+			Duration: duration,
+			Error:    fmt.Errorf("workflow returned nil result"),
+		}
+	}
+
+	// Extract type checking information from workflow result
+	typeCheckPassed := workflowResult.TypeCheckPassed
+	errorCount := len(workflowResult.TypeErrors)
+
+	// Estimate warnings from type errors (using existing heuristic)
+	warningCount := 0
+	for _, typeErr := range workflowResult.TypeErrors {
+		if strings.Contains(strings.ToLower(typeErr.Message), "warning") ||
+			strings.Contains(strings.ToLower(typeErr.Message), "unused") ||
+			strings.Contains(strings.ToLower(typeErr.Message), "deprecated") {
+			warningCount++
+		}
+	}
+
+	// Format output with rich information from workflow
+	output := tc.formatWorkflowOutput(workflowResult, errorCount, warningCount)
+
+	return TypeCheckResult{
+		Success:    typeCheckPassed && errorCount == 0,
+		ErrorCount: errorCount,
+		Warnings:   warningCount,
+		Duration:   workflowResult.Duration,
+		Output:     output,
+		Error:      nil,
+	}
+}
+
+// formatWorkflowOutput formats workflow results for display
+func (tc *TypeCheckerService) formatWorkflowOutput(result *integration.WorkflowResult, errorCount, warningCount int) string {
+	var output strings.Builder
+
+	output.WriteString(fmt.Sprintf("Type checked using Perl %s", result.VersionUsed))
+
+	if errorCount == 0 && warningCount == 0 {
+		output.WriteString(" - no issues found")
+	} else {
+		if errorCount > 0 {
+			output.WriteString(fmt.Sprintf(" - %d error(s)", errorCount))
+		}
+		if warningCount > 0 {
+			if errorCount > 0 {
+				output.WriteString(",")
+			}
+			output.WriteString(fmt.Sprintf(" %d warning(s)", warningCount))
+		}
+	}
+
+	// Add type definition information
+	if result.TypeDefGenerated {
+		output.WriteString(fmt.Sprintf("\nType definitions generated: %s", result.TypeDefPath))
+	}
+
+	// Add error details (limited for dev environment)
+	if len(result.TypeErrors) > 0 {
+		output.WriteString("\n\nType checking issues:")
+		maxErrors := 5 // Fewer errors for dev display
+		for i, typeErr := range result.TypeErrors {
+			if i >= maxErrors {
+				output.WriteString(fmt.Sprintf("\n... and %d more issues (use 'psc check' for complete output)", len(result.TypeErrors)-maxErrors))
+				break
+			}
+			output.WriteString(fmt.Sprintf("\n  %s:%d:%d: %s",
+				typeErr.Path, typeErr.Line, typeErr.Column, typeErr.Message))
+		}
+	}
+
+	// Add module information if relevant
+	if len(result.ModulesInstalled) > 0 {
+		output.WriteString(fmt.Sprintf("\nModules installed: %d", len(result.ModulesInstalled)))
+	}
+
+	return output.String()
 }
 
 // runFileLevelTypeCheck performs incremental type checking on individual files

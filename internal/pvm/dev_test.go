@@ -165,14 +165,14 @@ func TestTestRunnerServiceRunTests(t *testing.T) {
 	service := NewTestRunnerService(projectCtx, time.Second)
 	result := service.runTests()
 
-	// Verify real test runner behavior - no test files found should return success with informative message
+	// Verify ValidationWorkflow integration - should run comprehensive validation
 	assert.True(t, result.Success)
-	assert.Equal(t, 0, result.TestCount)
-	assert.Equal(t, 0, result.Passed)
+	assert.Equal(t, 1, result.TestCount) // ValidationWorkflow runs 1 comprehensive test
+	assert.Equal(t, 1, result.Passed)
 	assert.Equal(t, 0, result.Failed)
 	assert.Equal(t, 0, result.Skipped)
 	assert.True(t, result.Duration > 0)
-	assert.Equal(t, "No test files found", result.Output)
+	assert.Contains(t, result.Output, "Validation using Perl")
 	assert.Nil(t, result.Error)
 }
 
@@ -185,12 +185,12 @@ func TestTypeCheckerServiceRunTypeCheck(t *testing.T) {
 	service := NewTypeCheckerService(projectCtx, time.Second)
 	result := service.runTypeCheck()
 
-	// Verify real type checker behavior - no Perl files found should return success with informative message
+	// Verify TypeCheckWorkflow integration - should provide improved messaging
 	assert.True(t, result.Success)
 	assert.Equal(t, 0, result.ErrorCount)
 	assert.Equal(t, 0, result.Warnings)
 	assert.True(t, result.Duration > 0)
-	assert.Equal(t, "No Perl files found for type checking", result.Output)
+	assert.Equal(t, "No suitable files found for type checking", result.Output)
 	assert.Nil(t, result.Error)
 }
 
@@ -250,28 +250,28 @@ func TestDevServices_Issues19_216_219_Regression(t *testing.T) {
 		RootDir:   "/non/existent/project", // Intentionally non-existent to test no-files behavior
 	}
 
-	// Test Issue #216: Test Runner Service should return real results
+	// Test Issue #216: Test Runner Service should return real results (now uses ValidationWorkflow)
 	t.Run("TestRunnerService_RealImplementation_Issue216", func(t *testing.T) {
 		testService := NewTestRunnerService(projectCtx, time.Second)
 		result := testService.runTests()
 
-		// Should return informative message instead of empty placeholder
-		assert.True(t, result.Success, "No test files should still be considered successful")
-		assert.Equal(t, "No test files found", result.Output, "Should provide informative message about no test files")
+		// With ValidationWorkflow integration, it should now run comprehensive validation
+		assert.True(t, result.Success, "ValidationWorkflow should pass for basic validation")
+		assert.Contains(t, result.Output, "Validation using Perl", "Should show validation results from ValidationWorkflow")
 		assert.True(t, result.Duration > 0, "Should have measured execution time")
-		assert.Nil(t, result.Error, "Should not error when no test files found")
+		assert.Nil(t, result.Error, "Should not error during validation")
 	})
 
-	// Test Issue #219: Type Checker Service should return real results
+	// Test Issue #219: Type Checker Service should return real results (now uses TypeCheckWorkflow)
 	t.Run("TypeCheckerService_RealImplementation_Issue219", func(t *testing.T) {
 		typeService := NewTypeCheckerService(projectCtx, time.Second)
 		result := typeService.runTypeCheck()
 
-		// Should return informative message instead of empty placeholder
-		assert.True(t, result.Success, "No Perl files should still be considered successful")
-		assert.Equal(t, "No Perl files found for type checking", result.Output, "Should provide informative message about no Perl files")
+		// With TypeCheckWorkflow integration, it should provide better error messages
+		assert.True(t, result.Success, "No suitable files should still be considered successful")
+		assert.Equal(t, "No suitable files found for type checking", result.Output, "Should provide improved message about no suitable files")
 		assert.True(t, result.Duration > 0, "Should have measured execution time")
-		assert.Nil(t, result.Error, "Should not error when no Perl files found")
+		assert.Nil(t, result.Error, "Should not error when no suitable files found")
 	})
 
 	// Test Issue #19: Overall development services should provide real value
