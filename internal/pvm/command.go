@@ -4725,20 +4725,31 @@ func newEnhancedHelpCommand() *cobra.Command {
 		Long: `Help provides help for any command in the application.
 Simply type pvm help [path to command] for full details.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Create help manager for consistent Fang UI styling
+			helpManager := cli.NewHelpManager()
+
 			// Get the root command to access all commands
 			rootCmd := cmd.Root()
 			if len(args) == 0 {
-				// No arguments - show standard help by calling root command help directly
-				return rootCmd.Help()
+				// No arguments - show contextual help with Fang UI styling instead of basic Cobra help
+				return showContextualHelpWithCommands(cmd, helpManager, rootCmd)
 			}
 
 			// Try to find the command they're asking about
 			topic := args[0]
+
+			// Check for special help topics using the CLI help system
+			helpCmd := cli.CreateHelpCommand()
+			if helpRunE := helpCmd.RunE; helpRunE != nil {
+				return helpRunE(cmd, args)
+			}
+
+			// Try to find a specific command
 			if targetCmd, _, err := rootCmd.Find([]string{topic}); err == nil && targetCmd != rootCmd {
 				return targetCmd.Help()
 			}
 
-			// Command not found
+			// Command not found - show styled error with suggestions
 			ui := cli.GetUI(cmd)
 			ui.Error("Unknown help topic: %s", topic)
 			ui.Println("")
@@ -4747,7 +4758,7 @@ Simply type pvm help [path to command] for full details.`,
 			ui.Info("  getting-started  - New user onboarding")
 			ui.Info("  troubleshooting  - Diagnostic and problem-solving")
 			ui.Info("  next             - Suggested next steps")
-			ui.Info("")
+			ui.Println("")
 			ui.Info("Use 'pvm help [command]' for help on any command.")
 			return fmt.Errorf("unknown help topic: %s", topic)
 		},
@@ -4762,6 +4773,59 @@ Simply type pvm help [path to command] for full details.`,
 	)
 
 	return helpCmd
+}
+
+// showContextualHelpWithCommands displays contextual help with Fang UI styling
+func showContextualHelpWithCommands(cmd *cobra.Command, helpManager *cli.HelpManager, rootCmd *cobra.Command) error {
+	// Use the existing CLI contextual help system which already has proper Fang UI styling
+	ui := cli.GetUI(cmd)
+
+	// Show contextual help first using the CLI's help system
+	categories := helpManager.GetContextualHelp()
+
+	// Show project context with Fang UI styling
+	if helpManager.GetProjectContext() != nil && helpManager.GetProjectContext().IsProject {
+		ui.Info("📁 Project Context: %s (detected via %s)",
+			helpManager.GetProjectContext().RootDir,
+			helpManager.GetProjectContext().DetectionInfo)
+		ui.Println("")
+	} else {
+		ui.Info("📁 Context: Not in a Perl workspace directory")
+		ui.Println("")
+	}
+
+	// Show each category with proper Fang UI styling
+	for _, category := range categories {
+		ui.Header(category.Name)
+		ui.Info("%s", category.Description)
+		ui.Println("")
+
+		for _, suggestion := range category.Commands {
+			ui.KeyValue(map[string]string{
+				suggestion.Command: suggestion.Description,
+			})
+			if suggestion.Example != "" {
+				ui.Printf("  Example: %s", suggestion.Example)
+			}
+			if suggestion.Relevance != "" {
+				ui.Printf("  Relevance: %s", suggestion.Relevance)
+			}
+		}
+		ui.Println("")
+	}
+
+	// Add footer with additional help information
+	ui.Info("💡 For topic-specific guidance:")
+	ui.KeyValue(map[string]string{
+		"pvm help workflows":       "Development workflows",
+		"pvm help getting-started": "New user onboarding",
+		"pvm help troubleshooting": "Diagnostic commands",
+		"pvm help next":            "Suggested next steps",
+	})
+	ui.Println("")
+	ui.Info("Use 'pvm help [command]' for detailed command help.")
+
+	return nil
 }
 
 // newHelpWorkflowsCommand creates the workflows help subcommand
