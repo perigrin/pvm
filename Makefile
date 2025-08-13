@@ -1,7 +1,7 @@
 .PHONY: all test clean install tree-sitter vendor cross-compile release install-tools check-tools
 .PHONY: build-dev build-release lint check fmt check-generate generate
 .PHONY: test-performance test-stress test-integration test-unit profile optimize performance-analysis test-repository-consistency
-.PHONY: install-test-perl test-with-binary-perl
+.PHONY: install-test-perl test-with-binary-perl check-system-deps install-tree-sitter
 
 # Define binaries - we only build pvm, others are symlinks
 BINARIES := pvm
@@ -41,10 +41,53 @@ vendor:
 	go mod vendor
 
 # Build tree-sitter-typed-perl library
-tree-sitter: $(LIBDIR)
+tree-sitter: $(LIBDIR) check-system-deps
 	@echo "Building tree-sitter-typed-perl parser..."
 	cd tree-sitter-typed-perl && $(MAKE) generate && $(MAKE) libtree-sitter-typed-perl.a
 	@echo "Tree-sitter-typed-perl build complete"
+
+# System dependency management
+check-system-deps:
+	@echo "Checking system dependencies..."
+	@missing_deps=""; \
+	command -v node >/dev/null 2>&1 || missing_deps="$$missing_deps node"; \
+	command -v npm >/dev/null 2>&1 || missing_deps="$$missing_deps npm"; \
+	command -v tree-sitter >/dev/null 2>&1 || missing_deps="$$missing_deps tree-sitter"; \
+	command -v make >/dev/null 2>&1 || missing_deps="$$missing_deps make"; \
+	command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || command -v clang >/dev/null 2>&1 || missing_deps="$$missing_deps c-compiler"; \
+	if [ ! -z "$$missing_deps" ]; then \
+		echo "❌ Missing system dependencies:$$missing_deps"; \
+		echo ""; \
+		echo "Required dependencies:"; \
+		echo "  - Node.js and npm (for tree-sitter CLI)"; \
+		echo "  - tree-sitter CLI (install with: npm install -g tree-sitter-cli)"; \
+		echo "  - C compiler (gcc, clang, or equivalent for CGO)"; \
+		echo "  - make (build system)"; \
+		echo ""; \
+		if echo "$$missing_deps" | grep -q "tree-sitter"; then \
+			if command -v npm >/dev/null 2>&1; then \
+				echo "Installing tree-sitter CLI..."; \
+				npm install -g tree-sitter-cli; \
+			else \
+				echo "Cannot install tree-sitter CLI: npm not found"; \
+				echo "Please install Node.js and npm first"; \
+				exit 1; \
+			fi; \
+		else \
+			exit 1; \
+		fi; \
+	fi
+	@echo "✅ All system dependencies are available"
+
+install-tree-sitter:
+	@echo "Installing tree-sitter CLI..."
+	@if ! command -v npm >/dev/null 2>&1; then \
+		echo "❌ npm not found. Please install Node.js and npm first."; \
+		echo "Visit: https://nodejs.org/ or use your system package manager"; \
+		exit 1; \
+	fi
+	npm install -g tree-sitter-cli
+	@echo "✅ tree-sitter CLI installed successfully"
 
 # Tool management
 install-tools:
