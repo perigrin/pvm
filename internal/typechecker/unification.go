@@ -482,9 +482,9 @@ func (u *TypeUnifier) UnifyWithConstraintPropagation(generic *typedef.GenericTyp
 //
 // Examples:
 //
-//	Container<T: Serializable> ∪ Container<U: Serializable> → success
-//	Container<T: Serializable> ∪ Container<U: Display>      → failure
-//	Container<T: Serializable> ∪ Container<U>               → success (no constraints)
+//	Container<T: Serializable> ∪ Container<U: Serializable> → success (same constraint)
+//	Container<T: Serializable> ∪ Container<U: Display>      → failure (Serializable ≠ Display)
+//	Container<T: Serializable> ∪ Container<U>               → success (no constraints on U)
 func (u *TypeUnifier) unifyConstraints(
 	constraints1, constraints2 []typedef.TypeConstraint,
 	paramMap map[string]string,

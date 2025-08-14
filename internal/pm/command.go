@@ -1071,17 +1071,18 @@ This ensures reproducible builds similar to package-lock.json (npm) or Gemfile.l
 				cpanfileExists = true
 			}
 
-			if snapshotExists {
+			switch {
+			case snapshotExists:
 				// Snapshot exists - install from it
 				ui.Info("Found cpanfile.snapshot - installing exact versions")
 				return installFromSnapshot(cmd, projectCtx, verbose)
-			} else if cpanfileExists {
+			case cpanfileExists:
 				// No snapshot but cpanfile exists - install then generate snapshot
 				ui.Info("No cpanfile.snapshot found - installing from cpanfile and generating snapshot")
-				
+
 				// First install modules from cpanfile
 				ui.Info("Step 1/2: Installing modules from cpanfile...")
-				
+
 				// Resolve modules to install
 				moduleNames, err := resolveModuleNames([]string{}, dev)
 				if err != nil {
@@ -1153,7 +1154,7 @@ This ensures reproducible builds similar to package-lock.json (npm) or Gemfile.l
 				// Then generate snapshot
 				ui.Info("Step 2/2: Generating cpanfile.snapshot...")
 				return generateSnapshot(cmd, projectCtx, verbose)
-			} else {
+			default:
 				return fmt.Errorf("neither cpanfile nor cpanfile.snapshot found. Use 'pvm module add <module>' to add dependencies first")
 			}
 		},

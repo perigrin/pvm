@@ -448,107 +448,107 @@ func TestSyncCommand_SmartDefaults(t *testing.T) {
 	t.Run("InstallFromSnapshot_WhenExists", func(t *testing.T) {
 		tempDir := t.TempDir()
 		createTestSnapshot(t, tempDir)
-		
+
 		// Create cpanfile
 		cpanfilePath := filepath.Join(tempDir, "cpanfile")
 		err := os.WriteFile(cpanfilePath, []byte("requires 'Test::More';\n"), 0644)
 		if err != nil {
 			t.Fatalf("Failed to create test cpanfile: %v", err)
 		}
-		
+
 		// Change to test directory
 		originalDir, err := os.Getwd()
 		if err != nil {
 			t.Fatalf("Failed to get current directory: %v", err)
 		}
 		defer os.Chdir(originalDir)
-		
+
 		err = os.Chdir(tempDir)
 		if err != nil {
 			t.Fatalf("Failed to change to test directory: %v", err)
 		}
-		
+
 		// Create sync command with no flags - should detect snapshot and install from it
 		cmd := newSyncCommand()
 		cmd.SetArgs([]string{})
-		
+
 		err = cmd.Execute()
 		// Expected to fail during actual installation but should attempt to install from snapshot
 		if err != nil && !strings.Contains(err.Error(), "snapshot") {
 			t.Logf("Command error (expected during test): %v", err)
 		}
 	})
-	
+
 	t.Run("GenerateSnapshot_WhenNotExists", func(t *testing.T) {
 		tempDir := t.TempDir()
-		
+
 		// Create only cpanfile, no snapshot
 		cpanfilePath := filepath.Join(tempDir, "cpanfile")
 		err := os.WriteFile(cpanfilePath, []byte("requires 'Test::More';\n"), 0644)
 		if err != nil {
 			t.Fatalf("Failed to create test cpanfile: %v", err)
 		}
-		
+
 		// Change to test directory
 		originalDir, err := os.Getwd()
 		if err != nil {
 			t.Fatalf("Failed to get current directory: %v", err)
 		}
 		defer os.Chdir(originalDir)
-		
+
 		err = os.Chdir(tempDir)
 		if err != nil {
 			t.Fatalf("Failed to change to test directory: %v", err)
 		}
-		
+
 		// Create sync command - should attempt to install then generate snapshot
 		cmd := newSyncCommand()
 		cmd.SetArgs([]string{})
-		
+
 		err = cmd.Execute()
 		// Expected to fail during module installation but should attempt the workflow
 		if err != nil {
 			t.Logf("Command error (expected during test): %v", err)
 		}
 	})
-	
+
 	t.Run("ExplicitFlags", func(t *testing.T) {
 		tempDir := t.TempDir()
 		createTestSnapshot(t, tempDir)
-		
+
 		// Create cpanfile
 		cpanfilePath := filepath.Join(tempDir, "cpanfile")
 		err := os.WriteFile(cpanfilePath, []byte("requires 'Test::More';\n"), 0644)
 		if err != nil {
 			t.Fatalf("Failed to create test cpanfile: %v", err)
 		}
-		
+
 		// Change to test directory
 		originalDir, err := os.Getwd()
 		if err != nil {
 			t.Fatalf("Failed to get current directory: %v", err)
 		}
 		defer os.Chdir(originalDir)
-		
+
 		err = os.Chdir(tempDir)
 		if err != nil {
 			t.Fatalf("Failed to change to test directory: %v", err)
 		}
-		
+
 		// Test --generate-only flag
 		cmd := newSyncCommand()
 		cmd.SetArgs([]string{"--generate-only"})
-		
+
 		err = cmd.Execute()
 		// Should attempt to generate snapshot
 		if err != nil {
 			t.Logf("Command error with --generate-only (expected during test): %v", err)
 		}
-		
+
 		// Test --install-only flag
 		cmd = newSyncCommand()
 		cmd.SetArgs([]string{"--install-only"})
-		
+
 		err = cmd.Execute()
 		// Should attempt to install from snapshot
 		if err != nil {
