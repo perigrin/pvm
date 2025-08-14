@@ -320,7 +320,7 @@ func (u *TypeUnifier) checkSubtype(left, right typedef.Type, ctx *UnificationCon
 
 // checkProtocol checks if a type implements a protocol/role
 func (u *TypeUnifier) checkProtocol(typ, protocol typedef.Type, ctx *UnificationContext) error {
-	// TODO: Implement protocol checking
+	// TODO: See issue #321 - Implement interface checking for type compatibility validation
 	return fmt.Errorf("protocol checking not yet implemented")
 }
 

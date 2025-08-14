@@ -17,8 +17,7 @@ import (
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
-// TestBuildInstallWorkflow_BuildOnly removed - building Perl from source is too slow
-// TODO: Replace with faster build system tests when appropriate
+// TestBuildInstallWorkflow_BuildOnly removed - building Perl from source is too slow for CI
 
 func TestBuildInstallWorkflow_BuildOnlyFlagValidation(t *testing.T) {
 	env := helpers.NewTestEnv(t)
