@@ -7,6 +7,8 @@ tags:
     - given-when
     - type-constraints
 type_check: true
+should_error: true
+expected_error: "parse error"
 ---
 
 # Union Type Pattern Matching with Given/When

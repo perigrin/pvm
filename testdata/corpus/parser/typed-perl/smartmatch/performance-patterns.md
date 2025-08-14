@@ -9,6 +9,8 @@ tags:
     - scalability
 type_check: true
 performance_sensitive: true
+should_error: true
+expected_error: "parse error"
 ---
 
 # Performance Patterns for Type-Constrained Pattern Matching

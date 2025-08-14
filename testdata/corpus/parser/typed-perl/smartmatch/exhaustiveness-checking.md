@@ -8,6 +8,8 @@ tags:
     - missing-cases
     - unreachable-patterns
 type_check: true
+should_error: true
+expected_error: "parse error"
 ---
 
 # Exhaustiveness Checking for Pattern Matching

@@ -7,6 +7,8 @@ tags:
     - union-types
     - operator-behavior
 type_check: true
+should_error: true
+expected_error: "parse error"
 ---
 
 # Smartmatch with Type-Constrained Values

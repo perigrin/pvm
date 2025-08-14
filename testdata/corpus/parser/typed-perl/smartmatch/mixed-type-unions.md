@@ -8,6 +8,8 @@ tags:
     - boolean-conversion
     - edge-cases
 type_check: true
+should_error: true
+expected_error: "parse error"
 ---
 
 # Mixed Type Union Pattern Matching

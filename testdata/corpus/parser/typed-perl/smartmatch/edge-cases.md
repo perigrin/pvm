@@ -8,6 +8,8 @@ tags:
     - object-dispatch
     - complex-structures
 type_check: true
+should_error: true
+expected_error: "parse error"
 ---
 
 # Controversial Smartmatch Edge Cases with Type Constraints
