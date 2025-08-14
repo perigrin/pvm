@@ -564,7 +564,6 @@ pvm module sync [options]
 **Options:**
 - `--generate-only` - Only generate snapshot, don't install
 - `--install-only` - Only install from snapshot, don't generate  
-- `--from-snapshot` - (Deprecated) Alias for --install-only
 - `--verbose` - Show detailed installation progress
 - `--dev` - Include development dependencies
 

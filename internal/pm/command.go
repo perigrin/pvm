@@ -1162,13 +1162,9 @@ This ensures reproducible builds similar to package-lock.json (npm) or Gemfile.l
 	// Add flags
 	cmd.Flags().BoolVar(&generateOnly, "generate-only", false, "Only generate snapshot, don't install")
 	cmd.Flags().BoolVar(&installOnly, "install-only", false, "Only install from snapshot, don't generate")
-	cmd.Flags().BoolVar(&installOnly, "from-snapshot", false, "Install from snapshot (deprecated, use --install-only)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force regeneration even if snapshot is newer than cpanfile")
 	cmd.Flags().BoolVar(&dev, "dev", false, "Include development dependencies")
-
-	// Mark from-snapshot as deprecated and hidden
-	cmd.Flags().MarkDeprecated("from-snapshot", "use --install-only instead, or rely on automatic detection")
 
 	return cmd
 }
