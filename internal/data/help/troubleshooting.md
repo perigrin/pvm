@@ -16,7 +16,7 @@
 **Commands:** `pvm workspace status`, `pvm workspace doctor`
 
 ### Build Issues
-**Problem:** Build fails with type errors  
+**Problem:** Build fails with type errors
 **Solution:** Check PSC configuration and fix type annotations
 **Commands:** `pvm build --check-only`, `pvm workspace doctor`
 
@@ -29,7 +29,7 @@
 
 - Check overall workspace health: `pvm self doctor`
 - View detailed workspace status: `pvm workspace status --json`
-- Check dependency status: `pvm module status`  
+- Check dependency status: `pvm module status`
 - Verify Perl version resolution: `pvm perl resolve`
 
 ## Getting Help

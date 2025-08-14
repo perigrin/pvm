@@ -5,8 +5,9 @@ This directory contains Markdown templates for PVM help content. These templates
 ## Available Templates
 
 - `getting-started.md` - Getting started guide for new users
-- `troubleshooting.md` - Common issues and solutions  
+- `troubleshooting.md` - Common issues and solutions
 - `workflows.md` - Common development workflows
+- `types.md` - Type system documentation and examples
 
 ## Template System
 

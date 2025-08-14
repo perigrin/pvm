@@ -95,6 +95,31 @@ func TestInstallCommandFlags(t *testing.T) {
 	}
 }
 
+func TestNewHelpTypesCommand(t *testing.T) {
+	cmd := newHelpTypesCommand()
+
+	// Test basic command configuration
+	if cmd.Use != "types" {
+		t.Errorf("Expected Use 'types', got '%s'", cmd.Use)
+	}
+
+	if cmd.Short == "" {
+		t.Error("Expected non-empty Short description")
+	}
+
+	if !strings.Contains(cmd.Short, "Type system") || !strings.Contains(cmd.Short, "documentation") {
+		t.Errorf("Short description should mention type system documentation, got: %s", cmd.Short)
+	}
+
+	if cmd.Long == "" {
+		t.Error("Expected non-empty Long description")
+	}
+
+	if cmd.RunE == nil {
+		t.Error("Expected RunE function to be set")
+	}
+}
+
 func TestVersionsCommand_FormatFlag(t *testing.T) {
 	cmd := newVersionsCommand()
 

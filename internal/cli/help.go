@@ -683,6 +683,7 @@ Available topics:
   getting-started - New user onboarding
   troubleshooting - Diagnostic and problem-solving commands
   next          - Suggested next steps based on current context
+  types         - Type system documentation and examples
   docs          - List embedded documentation (if available)
   docs <name>   - View specific documentation
   docs search <query> - Search documentation
@@ -705,6 +706,8 @@ Without a topic, shows contextual help based on your current project state.`,
 				return showTroubleshootingHelp(cmd, helpManager)
 			case "next":
 				return showNextStepsHelp(cmd, helpManager)
+			case "types":
+				return showTypesHelp(cmd, helpManager)
 			case "docs":
 				return showDocumentationHelp(cmd, helpManager, args[1:])
 			default:
@@ -717,7 +720,7 @@ Without a topic, shows contextual help based on your current project state.`,
 				ui := GetUI(cmd)
 				ui.Error("unknown help topic: %s", topic)
 				ui.Println("")
-				ui.Info("Available topics: workflows, getting-started, troubleshooting, next, docs")
+				ui.Info("Available topics: workflows, getting-started, troubleshooting, next, types, docs")
 				return fmt.Errorf("unknown help topic: %s", topic)
 			}
 		},
@@ -985,6 +988,24 @@ func showNextStepsHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 	}
 	ui.List(moreHelp)
 
+	return nil
+}
+
+// showTypesHelp displays type system documentation and examples
+func showTypesHelp(cmd *cobra.Command, helpManager *HelpManager) error {
+	output := GetUI(cmd)
+	// Use template system for types help
+	templateData := HelpTemplateData{
+		// Add any template variables needed
+	}
+	content, err := RenderHelpTemplate("types", templateData)
+	if err != nil {
+		// Fallback to basic error message if template fails
+		output.Error("Failed to load type system help: %v", err)
+		return err
+	}
+	// Render the markdown content as formatted help
+	RenderMarkdownAsHelp(content, output)
 	return nil
 }
 

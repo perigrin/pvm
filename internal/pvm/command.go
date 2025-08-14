@@ -4756,6 +4756,7 @@ Simply type pvm help [path to command] for full details.`,
 			ui.Info("  getting-started  - New user onboarding")
 			ui.Info("  troubleshooting  - Diagnostic and problem-solving")
 			ui.Info("  next             - Suggested next steps")
+			ui.Info("  types            - Type system documentation and examples")
 			ui.Println("")
 			ui.Info("Use 'pvm help [command]' for help on any command.")
 			return fmt.Errorf("unknown help topic: %s", topic)
@@ -4768,6 +4769,7 @@ Simply type pvm help [path to command] for full details.`,
 		newHelpGettingStartedCommand(),
 		newHelpTroubleshootingCommand(),
 		newHelpNextCommand(),
+		newHelpTypesCommand(),
 	)
 
 	return helpCmd
@@ -4874,6 +4876,19 @@ func newHelpNextCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			helpManager := cli.NewHelpManager()
 			return showNextStepsHelp(cmd, helpManager)
+		},
+	}
+}
+
+// newHelpTypesCommand creates the types help subcommand
+func newHelpTypesCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "types",
+		Short: "Type system documentation and examples",
+		Long:  "Comprehensive guide to PVM's type system including syntax, examples, and migration tips",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			helpManager := cli.NewHelpManager()
+			return showTypesHelp(cmd, helpManager)
 		},
 	}
 }
@@ -5008,6 +5023,23 @@ func showNextStepsHelp(cmd *cobra.Command, helpManager *cli.HelpManager) error {
 	return nil
 }
 
+func showTypesHelp(cmd *cobra.Command, helpManager *cli.HelpManager) error {
+	output := cli.GetUI(cmd)
+	// Use template system for types help
+	templateData := cli.HelpTemplateData{
+		// Add any template variables needed
+	}
+	content, err := cli.RenderHelpTemplate("types", templateData)
+	if err != nil {
+		// Fallback to basic error message if template fails
+		output.Error("Failed to load type system help: %v", err)
+		return err
+	}
+	// Render the markdown content as formatted help
+	cli.RenderMarkdownAsHelp(content, output)
+	return nil
+}
+
 func showDocumentationHelp(cmd *cobra.Command, helpManager *cli.HelpManager, args []string) error {
 	if len(args) == 0 {
 		// List all documentation
@@ -5061,6 +5093,10 @@ func customHelpFunc(cmd *cobra.Command, args []string) {
 			helpManager := cli.NewHelpManager()
 			showNextStepsHelp(cmd, helpManager)
 			return
+		case "types":
+			helpManager := cli.NewHelpManager()
+			showTypesHelp(cmd, helpManager)
+			return
 		case "docs":
 			helpManager := cli.NewHelpManager()
 			showDocumentationHelp(cmd, helpManager, args[1:])
@@ -5088,7 +5124,7 @@ func customHelpFunc(cmd *cobra.Command, args []string) {
 			}
 
 			// Add special topics
-			specialTopics := []string{"workflows", "getting-started", "troubleshooting", "next", "docs"}
+			specialTopics := []string{"workflows", "getting-started", "troubleshooting", "next", "types", "docs"}
 			availableCommands = append(availableCommands, specialTopics...)
 
 			suggestions := cli.SuggestCommand(topic, availableCommands)
@@ -5098,7 +5134,7 @@ func customHelpFunc(cmd *cobra.Command, args []string) {
 					ui.Printf("  pvm help %s\n", suggestion)
 				}
 			} else {
-				ui.Info("Available topics: workflows, getting-started, troubleshooting, next, docs")
+				ui.Info("Available topics: workflows, getting-started, troubleshooting, next, types, docs")
 				ui.Info("Use 'pvm help [command]' for command-specific help")
 			}
 			return
