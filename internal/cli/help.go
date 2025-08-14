@@ -707,7 +707,7 @@ Without a topic, shows contextual help based on your current project state.`,
 			case "next":
 				return showNextStepsHelp(cmd, helpManager)
 			case "types":
-				return ShowTypesHelp(cmd, helpManager)
+				return showTypesHelp(cmd, helpManager)
 			case "docs":
 				return showDocumentationHelp(cmd, helpManager, args[1:])
 			default:
@@ -991,8 +991,8 @@ func showNextStepsHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 	return nil
 }
 
-// ShowTypesHelp displays type system documentation and examples
-func ShowTypesHelp(cmd *cobra.Command, helpManager *HelpManager) error {
+// showTypesHelp displays type system documentation and examples
+func showTypesHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 	ui := GetUI(cmd)
 
 	ui.Header("PVM Type System Reference")

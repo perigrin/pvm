@@ -340,8 +340,8 @@ func TestShowTypesHelp(t *testing.T) {
 
 	helpManager := NewHelpManager()
 
-	// Call ShowTypesHelp
-	err := ShowTypesHelp(cmd, helpManager)
+	// Call showTypesHelp
+	err := showTypesHelp(cmd, helpManager)
 	if err != nil {
 		t.Fatalf("ShowTypesHelp returned unexpected error: %v", err)
 	}
