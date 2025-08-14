@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/project"
 )
 
@@ -310,5 +312,83 @@ func TestHasTestDirectory(t *testing.T) {
 	os.Mkdir("test", 0755)
 	if !hasTestDirectory() {
 		t.Error("Expected true when test/ directory exists")
+	}
+}
+
+func TestShowTypesHelp(t *testing.T) {
+	// Create a test command and help manager
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	// Create a UI context that captures output
+	var output strings.Builder
+	ctx := &ui.UIContext{
+		Writer:      &output,
+		ErrorWriter: &output,
+		ColorMode:   ui.ColorNever, // Disable colors for testing
+		Quiet:       false,
+		Verbose:     false,
+		Interactive: false,
+		RawMarkdown: true,
+	}
+
+	// Temporarily override global UI
+	oldUI := globalUI
+	defer func() { globalUI = oldUI }()
+	globalUI = ui.NewOutput(ctx)
+
+	helpManager := NewHelpManager()
+
+	// Call ShowTypesHelp
+	err := ShowTypesHelp(cmd, helpManager)
+	if err != nil {
+		t.Fatalf("ShowTypesHelp returned unexpected error: %v", err)
+	}
+
+	// Verify output contains expected sections
+	outputStr := output.String()
+
+	expectedSections := []string{
+		"PVM Type System Reference",
+		"Basic Type Syntax",
+		"Parameterized Types",
+		"Union & Intersection Types",
+		"Types::Standard Migration",
+		"Bool Type Validation",
+		"Type Hierarchy Overview",
+		"Common Type Patterns",
+		"Getting More Help",
+	}
+
+	for _, section := range expectedSections {
+		if !strings.Contains(outputStr, section) {
+			t.Errorf("Expected output to contain section '%s'", section)
+		}
+	}
+
+	// Check for specific content examples
+	expectedContent := []string{
+		"my Int $count = 42;",
+		"my ArrayRef[Int] @numbers;",
+		"my Map[Str, Int] %mapping;",
+		"my Int|Str $flexible;",
+		"Bool type has strict validation rules:",
+		"Any",
+		"├── Defined",
+		"Maybe[Str] $name",
+		"pvm help workflows",
+		"pvm dev",
+	}
+
+	for _, content := range expectedContent {
+		if !strings.Contains(outputStr, content) {
+			t.Errorf("Expected output to contain content '%s'", content)
+		}
+	}
+
+	// Verify no error message in output
+	if strings.Contains(outputStr, "Error") || strings.Contains(outputStr, "error") {
+		t.Error("Output should not contain error messages")
 	}
 }

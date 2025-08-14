@@ -997,7 +997,7 @@ func ShowTypesHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 
 	ui.Header("PVM Type System Reference")
 	ui.Println("")
-	ui.Println("PVM provides a comprehensive type system for Perl with TypeScript-quality developer experience.")
+	ui.Println("PVM provides a comprehensive type system for Perl with modern developer experience.")
 	ui.Println("")
 
 	ui.SubHeader("Basic Type Syntax")
