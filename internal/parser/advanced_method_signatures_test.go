@@ -33,7 +33,7 @@ func TestComplexMethodSignatures(t *testing.T) {
 				}
 			`,
 			expectParseError:   false,
-			expectedReturnType: "", // TODO: Generic method syntax not yet supported in grammar
+			expectedReturnType: "", // TODO: See issue #330 - Add grammar support for generic method syntax
 			expectedParams:     1,  // Parameter annotation found despite method ERROR node
 		},
 		{

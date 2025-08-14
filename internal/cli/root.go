@@ -260,7 +260,7 @@ func setupUI(cmd *cobra.Command) {
 		ColorMode:   ui.ColorAuto,
 		Quiet:       Quiet,
 		Verbose:     Verbose,
-		Interactive: true, // TODO: Detect TTY
+		Interactive: true, // TODO: See issue #352 - Implement proper TTY detection for interactive CLI features
 		RawMarkdown: rawMarkdown,
 	}
 

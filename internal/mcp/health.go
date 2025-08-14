@@ -192,10 +192,7 @@ func (e *EmbeddingHealthChecker) HealthCheck(ctx context.Context) ComponentStatu
 		}
 	}
 
-	// TODO: Add actual health check logic:
-	// - Test connection to chromem database
-	// - Check disk space for persistent storage
-	// - Verify collection accessibility
+	// TODO: See issue #353 - Implement comprehensive MCP component health monitoring
 
 	return ComponentStatus{
 		Name:      "embedding_store",
@@ -230,10 +227,7 @@ func (v *ValidatorHealthChecker) HealthCheck(ctx context.Context) ComponentStatu
 		}
 	}
 
-	// TODO: Add actual health check logic:
-	// - Test type checking functionality
-	// - Check cache health and size
-	// - Verify parser availability
+	// TODO: See issue #353 - Implement comprehensive MCP component health monitoring
 
 	return ComponentStatus{
 		Name:      "validator",
@@ -268,10 +262,7 @@ func (m *MemoryHealthChecker) HealthCheck(ctx context.Context) ComponentStatus {
 		}
 	}
 
-	// TODO: Add actual health check logic:
-	// - Check memory usage vs limits
-	// - Verify session cleanup is working
-	// - Test session creation/retrieval
+	// TODO: See issue #353 - Implement comprehensive MCP component health monitoring
 
 	return ComponentStatus{
 		Name:      "memory_manager",

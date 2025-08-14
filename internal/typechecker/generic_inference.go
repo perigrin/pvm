@@ -195,7 +195,7 @@ func convertASTTypeToTypedef(astType *ast.TypeExpression) typedef.Type {
 }
 
 func extractFunctionName(funcNode ast.Node) string {
-	// TODO: Extract function name from various node types
+	// TODO: See issue #337 - Implement function signature analysis for variadic functions and parameter parsing
 	return ""
 }
 
@@ -220,7 +220,7 @@ func convertConstraintsValue(constraints []*typedef.TypeConstraint) []typedef.Ty
 }
 
 func extractArgumentTypes(args []ast.ExpressionNode) []typedef.Type {
-	// TODO: Extract types from argument expressions
+	// TODO: See issue #337 - Implement function signature analysis for variadic functions and parameter parsing
 	return []typedef.Type{}
 }
 
