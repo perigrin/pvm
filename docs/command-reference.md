@@ -555,19 +555,77 @@ pvm module add DBI --backup local    # Add with forced local backup
 ```
 
 ### pvm module sync
-Generate or update cpanfile.snapshot lockfile.
+Synchronize project dependencies using cpanfile.snapshot lockfile.
 
 ```bash
-pvm module sync
+pvm module sync [options]
 ```
 
 **Options:**
-- `--from-snapshot` - Install exact versions from lockfile
+- `--generate-only` - Only generate snapshot, don't install
+- `--install-only` - Only install from snapshot, don't generate  
+- `--verbose` - Show detailed installation progress
+- `--dev` - Include development dependencies
+
+**Smart Default Behavior:**
+- **If cpanfile.snapshot exists**: Installs exact versions from snapshot
+- **If only cpanfile exists**: Installs from cpanfile, then generates snapshot
+- **If neither exists**: Returns error with helpful guidance
+
+This automatic behavior ensures your team always has synchronized dependencies without remembering specific flags.
+
+**Workflow Examples:**
+
+**Initial Setup (Developer A):**
+```bash
+# Start with cpanfile, no snapshot yet
+pvm module sync                       # Installs deps + creates snapshot
+git add cpanfile.snapshot            # Commit the lockfile
+git commit -m "Add dependency lockfile"
+```
+
+**Team Synchronization (Developer B):**
+```bash
+git pull                              # Get latest with snapshot
+pvm module sync                       # Automatically installs from snapshot
+```
+
+**Updating Dependencies:**
+```bash
+pvm module add DBI                   # Add new dependency
+pvm module sync --generate-only      # Regenerate snapshot with new module
+```
+
+**Explicit Control:**
+```bash
+pvm module sync --install-only       # Force install from snapshot
+pvm module sync --generate-only      # Force snapshot generation
+```
+
+### pvm module install
+Install modules with project-aware behavior and automatic snapshot support.
+
+```bash
+pvm module install [modules...] [options]
+```
+
+**Options:**
+- `--dev` - Include development dependencies (when installing from cpanfile)
+- `--ignore-snapshot` - Ignore cpanfile.snapshot and install from cpanfile instead
+- `--force` - Force installation even if tests fail
+- `--verbose` - Show detailed installation progress
+
+**Snapshot Behavior:**
+- **When no modules specified**: Automatically uses `cpanfile.snapshot` if present, otherwise uses `cpanfile`
+- **Reproducible builds**: Installs exact versions from snapshot for consistent environments
+- **Team collaboration**: Ensures all team members get identical dependency versions
 
 **Examples:**
 ```bash
-pvm module sync                       # Generate/update lockfile
-pvm module install --from-snapshot   # Install from exact lockfile
+pvm module install                    # Install from snapshot (if present) or cpanfile
+pvm module install --ignore-snapshot # Force install from cpanfile
+pvm module install DBI DBD::mysql    # Install specific modules (ignores snapshot)
+pvm module install --dev             # Install dev deps from snapshot or cpanfile
 ```
 
 ---
