@@ -187,3 +187,289 @@ func TestTypeUnifier_ChainedSubstitutions(t *testing.T) {
 		t.Fatalf("Expected Int after chained substitution, got %s", result.GetName())
 	}
 }
+
+// TestTypeUnifier_UnifyGenericsWithCompatibleConstraints tests unifying two generic types
+// with compatible constraints
+func TestTypeUnifier_UnifyGenericsWithCompatibleConstraints(t *testing.T) {
+	hierarchy := typedef.NewTypeHierarchy(nil)
+	unifier := NewTypeUnifier(hierarchy)
+
+	// Create first generic: Container<T: Serializable>
+	g1 := &typedef.GenericType{
+		Name: "Container",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "T"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "T",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Serializable"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Container"},
+	}
+
+	// Create second generic: Container<U: Serializable> (same constraint)
+	g2 := &typedef.GenericType{
+		Name: "Container",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "U"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "U",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Serializable"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Container"},
+	}
+
+	subs, err := unifier.Unify(g1, g2)
+	if err != nil {
+		t.Fatalf("Expected unification to succeed for compatible constraints, got error: %v", err)
+	}
+	if len(subs) != 0 {
+		t.Fatalf("Expected no substitutions for compatible generics, got: %v", subs)
+	}
+}
+
+// TestTypeUnifier_UnifyGenericsWithIncompatibleConstraints tests unifying two generic types
+// with incompatible constraints
+func TestTypeUnifier_UnifyGenericsWithIncompatibleConstraints(t *testing.T) {
+	hierarchy := typedef.NewTypeHierarchy(nil)
+	unifier := NewTypeUnifier(hierarchy)
+
+	// Create first generic: Container<T: Serializable>
+	g1 := &typedef.GenericType{
+		Name: "Container",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "T"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "T",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Serializable"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Container"},
+	}
+
+	// Create second generic: Container<U: Display> (incompatible constraint)
+	g2 := &typedef.GenericType{
+		Name: "Container",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "U"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "U",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Display"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Container"},
+	}
+
+	_, err := unifier.Unify(g1, g2)
+	if err == nil {
+		t.Fatalf("Expected unification to fail for incompatible constraints")
+	}
+	if !strings.Contains(err.Error(), "constraint unification failed") {
+		t.Fatalf("Expected constraint unification error, got: %v", err)
+	}
+}
+
+// TestTypeUnifier_UnifyGenericsWithMultipleConstraints tests unifying generics with
+// multiple constraints per parameter
+func TestTypeUnifier_UnifyGenericsWithMultipleConstraints(t *testing.T) {
+	hierarchy := typedef.NewTypeHierarchy(nil)
+	unifier := NewTypeUnifier(hierarchy)
+
+	// Create first generic: Handler<T: Serializable, T: Display>
+	g1 := &typedef.GenericType{
+		Name: "Handler",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "T"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "T",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Serializable"},
+			},
+			{
+				Parameter:  "T",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Display"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Handler"},
+	}
+
+	// Create second generic: Handler<U: Display, U: Serializable> (same constraints, different order)
+	g2 := &typedef.GenericType{
+		Name: "Handler",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "U"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "U",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Display"},
+			},
+			{
+				Parameter:  "U",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Serializable"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Handler"},
+	}
+
+	subs, err := unifier.Unify(g1, g2)
+	if err != nil {
+		t.Fatalf("Expected unification to succeed for compatible multiple constraints, got error: %v", err)
+	}
+	if len(subs) != 0 {
+		t.Fatalf("Expected no substitutions for compatible generics, got: %v", subs)
+	}
+}
+
+// TestTypeUnifier_UnifyGenericsWithProtocolConstraints tests unifying generics with
+// protocol constraints
+func TestTypeUnifier_UnifyGenericsWithProtocolConstraints(t *testing.T) {
+	hierarchy := typedef.NewTypeHierarchy(nil)
+	unifier := NewTypeUnifier(hierarchy)
+
+	// Create first generic: Listener<T does EventHandler>
+	g1 := &typedef.GenericType{
+		Name: "Listener",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "T"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "T",
+				Kind:       typedef.ProtocolConstraint,
+				Expression: &typedef.SimpleType{Name: "EventHandler"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Listener"},
+	}
+
+	// Create second generic: Listener<U does EventHandler>
+	g2 := &typedef.GenericType{
+		Name: "Listener",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "U"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "U",
+				Kind:       typedef.ProtocolConstraint,
+				Expression: &typedef.SimpleType{Name: "EventHandler"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Listener"},
+	}
+
+	subs, err := unifier.Unify(g1, g2)
+	if err != nil {
+		t.Fatalf("Expected unification to succeed for compatible protocol constraints, got error: %v", err)
+	}
+	if len(subs) != 0 {
+		t.Fatalf("Expected no substitutions for compatible generics, got: %v", subs)
+	}
+}
+
+// TestTypeUnifier_UnifyGenericsWithMixedConstraints tests unifying generics with
+// different constraint types
+func TestTypeUnifier_UnifyGenericsWithMixedConstraints(t *testing.T) {
+	hierarchy := typedef.NewTypeHierarchy(nil)
+	unifier := NewTypeUnifier(hierarchy)
+
+	// Create first generic: Processor<T: Serializable>
+	g1 := &typedef.GenericType{
+		Name: "Processor",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "T"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "T",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Serializable"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Processor"},
+	}
+
+	// Create second generic: Processor<U does EventHandler> (different constraint type)
+	g2 := &typedef.GenericType{
+		Name: "Processor",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "U"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "U",
+				Kind:       typedef.ProtocolConstraint,
+				Expression: &typedef.SimpleType{Name: "EventHandler"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Processor"},
+	}
+
+	_, err := unifier.Unify(g1, g2)
+	if err == nil {
+		t.Fatalf("Expected unification to fail for different constraint types")
+	}
+	if !strings.Contains(err.Error(), "constraint unification failed") {
+		t.Fatalf("Expected constraint unification error, got: %v", err)
+	}
+}
+
+// TestTypeUnifier_UnifyGenericsWithNoConstraints tests unifying a generic with
+// constraints against one without constraints
+func TestTypeUnifier_UnifyGenericsWithNoConstraints(t *testing.T) {
+	hierarchy := typedef.NewTypeHierarchy(nil)
+	unifier := NewTypeUnifier(hierarchy)
+
+	// Create first generic: Container<T: Serializable>
+	g1 := &typedef.GenericType{
+		Name: "Container",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "T"},
+		},
+		Constraints: []typedef.TypeConstraint{
+			{
+				Parameter:  "T",
+				Kind:       typedef.TraitConstraint,
+				Expression: &typedef.SimpleType{Name: "Serializable"},
+			},
+		},
+		BaseType: &typedef.SimpleType{Name: "Container"},
+	}
+
+	// Create second generic: Container<U> (no constraints)
+	g2 := &typedef.GenericType{
+		Name: "Container",
+		TypeParameters: []typedef.TypeParameter{
+			{Name: "U"},
+		},
+		Constraints: []typedef.TypeConstraint{},
+		BaseType:    &typedef.SimpleType{Name: "Container"},
+	}
+
+	subs, err := unifier.Unify(g1, g2)
+	if err != nil {
+		t.Fatalf("Expected unification to succeed when one generic has no constraints, got error: %v", err)
+	}
+	if len(subs) != 0 {
+		t.Fatalf("Expected no substitutions, got: %v", subs)
+	}
+}
