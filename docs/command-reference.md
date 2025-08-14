@@ -555,19 +555,53 @@ pvm module add DBI --backup local    # Add with forced local backup
 ```
 
 ### pvm module sync
-Generate or update cpanfile.snapshot lockfile.
+Generate or update cpanfile.snapshot lockfile, or install from existing snapshot.
 
 ```bash
-pvm module sync
+pvm module sync [options]
 ```
 
 **Options:**
-- `--from-snapshot` - Install exact versions from lockfile
+- `--from-snapshot` - Install exact versions from existing cpanfile.snapshot
+- `--verbose` - Show detailed installation progress and dependency information
+
+**Behavior:**
+- **Default mode**: Generates `cpanfile.snapshot` lockfile from currently installed modules
+- **With --from-snapshot**: Installs exact module versions specified in `cpanfile.snapshot`
+- **Dependency ordering**: Automatically installs modules in correct dependency order
+- **Version locking**: Ensures reproducible builds by installing exact versions
 
 **Examples:**
 ```bash
-pvm module sync                       # Generate/update lockfile
-pvm module install --from-snapshot   # Install from exact lockfile
+pvm module sync                       # Generate/update cpanfile.snapshot
+pvm module sync --from-snapshot      # Install exact versions from snapshot
+pvm module sync --from-snapshot -v   # Install with verbose output
+```
+
+### pvm module install
+Install modules with project-aware behavior and automatic snapshot support.
+
+```bash
+pvm module install [modules...] [options]
+```
+
+**Options:**
+- `--dev` - Include development dependencies (when installing from cpanfile)
+- `--ignore-snapshot` - Ignore cpanfile.snapshot and install from cpanfile instead
+- `--force` - Force installation even if tests fail
+- `--verbose` - Show detailed installation progress
+
+**Snapshot Behavior:**
+- **When no modules specified**: Automatically uses `cpanfile.snapshot` if present, otherwise uses `cpanfile`
+- **Reproducible builds**: Installs exact versions from snapshot for consistent environments
+- **Team collaboration**: Ensures all team members get identical dependency versions
+
+**Examples:**
+```bash
+pvm module install                    # Install from snapshot (if present) or cpanfile
+pvm module install --ignore-snapshot # Force install from cpanfile
+pvm module install DBI DBD::mysql    # Install specific modules (ignores snapshot)
+pvm module install --dev             # Install dev deps from snapshot or cpanfile
 ```
 
 ---
