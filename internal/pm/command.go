@@ -1015,18 +1015,23 @@ func newAddCommand() *cobra.Command {
 
 func newSyncCommand() *cobra.Command {
 	var (
-		fromSnapshot bool
+		generateOnly bool
+		installOnly  bool
 		verbose      bool
 		force        bool
+		dev          bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "sync",
-		Short: "Generate or install from cpanfile.snapshot",
-		Long: `Generate cpanfile.snapshot lockfile from installed modules or install from existing snapshot.
+		Short: "Synchronize dependencies with cpanfile.snapshot",
+		Long: `Synchronize project dependencies using cpanfile.snapshot lockfile.
 
-By default, generates cpanfile.snapshot with exact versions of all installed dependencies.
-Use --from-snapshot to install exact versions from an existing cpanfile.snapshot file.`,
+Default behavior:
+- If cpanfile.snapshot exists: Install exact versions from snapshot
+- If no snapshot exists: Install from cpanfile then generate snapshot
+
+This ensures reproducible builds similar to package-lock.json (npm) or Gemfile.lock (bundler).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Detect project context
 			projectCtx, err := project.GetCurrentProject()
@@ -1038,20 +1043,132 @@ Use --from-snapshot to install exact versions from an existing cpanfile.snapshot
 				return fmt.Errorf("not in a project directory. Use 'pvm workspace init' to create a project")
 			}
 
-			if fromSnapshot {
-				// Install from snapshot
-				return installFromSnapshot(cmd, projectCtx, verbose)
-			} else {
-				// Generate snapshot
+			ui := cli.GetUI(cmd)
+			snapshotPath := filepath.Join(projectCtx.RootDir, "cpanfile.snapshot")
+			cpanfilePath := filepath.Join(projectCtx.RootDir, "cpanfile")
+
+			// Handle explicit flags
+			if generateOnly && installOnly {
+				return fmt.Errorf("cannot use both --generate-only and --install-only flags")
+			}
+
+			if generateOnly {
 				return generateSnapshot(cmd, projectCtx, verbose)
+			}
+
+			if installOnly {
+				return installFromSnapshot(cmd, projectCtx, verbose)
+			}
+
+			// Smart default behavior
+			snapshotExists := false
+			if _, err := os.Stat(snapshotPath); err == nil {
+				snapshotExists = true
+			}
+
+			cpanfileExists := false
+			if _, err := os.Stat(cpanfilePath); err == nil {
+				cpanfileExists = true
+			}
+
+			if snapshotExists {
+				// Snapshot exists - install from it
+				ui.Info("Found cpanfile.snapshot - installing exact versions")
+				return installFromSnapshot(cmd, projectCtx, verbose)
+			} else if cpanfileExists {
+				// No snapshot but cpanfile exists - install then generate snapshot
+				ui.Info("No cpanfile.snapshot found - installing from cpanfile and generating snapshot")
+				
+				// First install modules from cpanfile
+				ui.Info("Step 1/2: Installing modules from cpanfile...")
+				
+				// Resolve modules to install
+				moduleNames, err := resolveModuleNames([]string{}, dev)
+				if err != nil {
+					return fmt.Errorf("failed to resolve modules: %w", err)
+				}
+
+				// Load configuration and create provider/resolver
+				cfg, err := config.LoadEffectiveConfig()
+				if err != nil {
+					return err
+				}
+
+				providerResult, err := NewProviderBuilder().
+					WithConfig(cfg).
+					WithResolver().
+					Build()
+				if err != nil {
+					return fmt.Errorf("failed to setup provider: %w", err)
+				}
+
+				// Get current Perl path
+				perlPath, err := perl.GetCurrentPerlPath()
+				if err != nil {
+					return fmt.Errorf("failed to get Perl path: %w", err)
+				}
+
+				// Install modules
+				installer := newModuleInstaller(
+					providerResult.Provider,
+					newProgressTracker(ui, verbose),
+				)
+
+				coordinator := modules.NewParallelCoordinator(
+					installer,
+					4,
+					newParallelProgressTracker(ui, verbose),
+				)
+
+				installOptions := modules.InstallOptions{
+					PerlPath:         perlPath,
+					InstallDir:       projectCtx.LocalLibDir,
+					Force:            false,
+					RunTests:         true,
+					SkipDependencies: false,
+					Verbose:          verbose,
+					Cleanup:          true,
+					Parallel:         len(moduleNames) > 1,
+					Workers:          4,
+					Context:          cmd.Context(),
+				}
+
+				results, err := coordinator.InstallModules(cmd.Context(), moduleNames, installOptions)
+				if err != nil {
+					return fmt.Errorf("failed to install modules: %w", err)
+				}
+
+				// Check if any installations failed
+				failedCount := 0
+				for _, result := range results {
+					if !result.Success {
+						failedCount++
+					}
+				}
+
+				if failedCount > 0 {
+					ui.Warning("%d modules failed to install", failedCount)
+				}
+
+				// Then generate snapshot
+				ui.Info("Step 2/2: Generating cpanfile.snapshot...")
+				return generateSnapshot(cmd, projectCtx, verbose)
+			} else {
+				return fmt.Errorf("neither cpanfile nor cpanfile.snapshot found. Use 'pvm module add <module>' to add dependencies first")
 			}
 		},
 	}
 
 	// Add flags
-	cmd.Flags().BoolVar(&fromSnapshot, "from-snapshot", false, "Install from existing cpanfile.snapshot instead of generating one")
+	cmd.Flags().BoolVar(&generateOnly, "generate-only", false, "Only generate snapshot, don't install")
+	cmd.Flags().BoolVar(&installOnly, "install-only", false, "Only install from snapshot, don't generate")
+	cmd.Flags().BoolVar(&installOnly, "from-snapshot", false, "Install from snapshot (deprecated, use --install-only)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force regeneration even if snapshot is newer than cpanfile")
+	cmd.Flags().BoolVar(&dev, "dev", false, "Include development dependencies")
+
+	// Mark from-snapshot as deprecated and hidden
+	cmd.Flags().MarkDeprecated("from-snapshot", "use --install-only instead, or rely on automatic detection")
 
 	return cmd
 }
@@ -1191,7 +1308,7 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 	// Extract all modules with exact versions from snapshot
 	var moduleSpecs []string
 	moduleVersionMap := make(map[string]string)
-	
+
 	// First pass: collect all modules and versions
 	for distName, entry := range snapshot.Distributions {
 		for module, version := range entry.Provides {
@@ -1202,7 +1319,7 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 			ui.Info("Distribution %s provides: %v", distName, entry.Provides)
 		}
 	}
-	
+
 	// Second pass: build dependency map for ordering
 	moduleDependencies := make(map[string][]string)
 	for _, entry := range snapshot.Distributions {
@@ -1290,19 +1407,20 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 	var allResults []*modules.InstallResult
 	for _, module := range orderedModules {
 		exactVersion := moduleVersionMap[module]
-		
+
 		// Create module-specific options with exact version constraint
 		moduleOptions := installOptions
 		moduleOptions.VersionConstraint = "== " + exactVersion
-		
+
 		ui.Info("Installing %s version %s", module, exactVersion)
-		
+
 		result, err := installer.InstallModule(cmd.Context(), module, moduleOptions)
 		if result != nil {
 			allResults = append(allResults, result)
 		}
-		
-		if err != nil {
+
+		switch {
+		case err != nil:
 			ui.Error("Failed to install %s version %s: %v", module, exactVersion, err)
 			if verbose {
 				ui.Info("Installation failure details:")
@@ -1312,9 +1430,9 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 				ui.Info("  - Try manual installation: cpan %s", module)
 			}
 			// Continue with other modules rather than failing completely
-		} else if result != nil && result.Success {
+		case result != nil && result.Success:
 			ui.Success("Successfully installed %s version %s", module, exactVersion)
-		} else if result != nil && !result.Success {
+		case result != nil && !result.Success:
 			ui.Warning("Installation completed with issues for %s", module)
 			if len(result.Warnings) > 0 && verbose {
 				for _, warning := range result.Warnings {
@@ -1336,7 +1454,7 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 	}
 
 	ui.Info("Snapshot installation completed: %d successful, %d failed", successful, failed)
-	
+
 	if failed > 0 {
 		ui.Warning("%d modules failed to install", failed)
 		ui.Info("Recovery options:")
@@ -1344,7 +1462,7 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 		ui.Info("  2. Install missing modules manually: pvm module install <module_name>")
 		ui.Info("  3. Check verbose output: pvm module sync --from-snapshot --verbose")
 		ui.Info("  4. Regenerate snapshot: pvm module sync")
-		
+
 		// List failed modules for user convenience
 		if verbose {
 			var failedModules []string
@@ -1357,7 +1475,7 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 				ui.Info("Failed modules: %v", failedModules)
 			}
 		}
-		
+
 		return fmt.Errorf("snapshot installation partially failed: %d/%d modules installed", successful, len(moduleSpecs))
 	}
 
@@ -1369,19 +1487,19 @@ func installFromSnapshot(cmd *cobra.Command, projectCtx *project.ProjectContext,
 // newInstallCommand implements the refactored install command using extracted packages
 func newInstallCommand() *cobra.Command {
 	var (
-		verbose      bool
-		force        bool
-		skipTests    bool
-		notest       bool
-		skipDeps     bool
-		noCache      bool
-		installDir   string
-		version      string
-		source       string
-		workers      int
-		parallel     bool
-		timing       bool
-		dev          bool
+		verbose        bool
+		force          bool
+		skipTests      bool
+		notest         bool
+		skipDeps       bool
+		noCache        bool
+		installDir     string
+		version        string
+		source         string
+		workers        int
+		parallel       bool
+		timing         bool
+		dev            bool
 		ignoreSnapshot bool
 	)
 
@@ -2274,13 +2392,13 @@ func topologicalSort(modules []string, dependencies map[string][]string) []strin
 	// Kahn's algorithm for topological sorting
 	inDegree := make(map[string]int)
 	adjList := make(map[string][]string)
-	
+
 	// Initialize in-degrees and adjacency list
 	for _, module := range modules {
 		inDegree[module] = 0
 		adjList[module] = []string{}
 	}
-	
+
 	// Build the graph
 	for module, deps := range dependencies {
 		for _, dep := range deps {
@@ -2290,7 +2408,7 @@ func topologicalSort(modules []string, dependencies map[string][]string) []strin
 			}
 		}
 	}
-	
+
 	// Find all nodes with no incoming edges
 	var queue []string
 	for module, degree := range inDegree {
@@ -2298,14 +2416,14 @@ func topologicalSort(modules []string, dependencies map[string][]string) []strin
 			queue = append(queue, module)
 		}
 	}
-	
+
 	var result []string
 	for len(queue) > 0 {
 		// Remove node from queue
 		current := queue[0]
 		queue = queue[1:]
 		result = append(result, current)
-		
+
 		// Remove edges from current node
 		for _, neighbor := range adjList[current] {
 			inDegree[neighbor]--
@@ -2314,7 +2432,7 @@ func topologicalSort(modules []string, dependencies map[string][]string) []strin
 			}
 		}
 	}
-	
+
 	// If result doesn't contain all nodes, there's a cycle
 	return result
 }

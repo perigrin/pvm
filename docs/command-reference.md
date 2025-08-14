@@ -555,27 +555,52 @@ pvm module add DBI --backup local    # Add with forced local backup
 ```
 
 ### pvm module sync
-Generate or update cpanfile.snapshot lockfile, or install from existing snapshot.
+Synchronize project dependencies using cpanfile.snapshot lockfile.
 
 ```bash
 pvm module sync [options]
 ```
 
 **Options:**
-- `--from-snapshot` - Install exact versions from existing cpanfile.snapshot
-- `--verbose` - Show detailed installation progress and dependency information
+- `--generate-only` - Only generate snapshot, don't install
+- `--install-only` - Only install from snapshot, don't generate  
+- `--from-snapshot` - (Deprecated) Alias for --install-only
+- `--verbose` - Show detailed installation progress
+- `--dev` - Include development dependencies
 
-**Behavior:**
-- **Default mode**: Generates `cpanfile.snapshot` lockfile from currently installed modules
-- **With --from-snapshot**: Installs exact module versions specified in `cpanfile.snapshot`
-- **Dependency ordering**: Automatically installs modules in correct dependency order
-- **Version locking**: Ensures reproducible builds by installing exact versions
+**Smart Default Behavior:**
+- **If cpanfile.snapshot exists**: Installs exact versions from snapshot
+- **If only cpanfile exists**: Installs from cpanfile, then generates snapshot
+- **If neither exists**: Returns error with helpful guidance
 
-**Examples:**
+This automatic behavior ensures your team always has synchronized dependencies without remembering specific flags.
+
+**Workflow Examples:**
+
+**Initial Setup (Developer A):**
 ```bash
-pvm module sync                       # Generate/update cpanfile.snapshot
-pvm module sync --from-snapshot      # Install exact versions from snapshot
-pvm module sync --from-snapshot -v   # Install with verbose output
+# Start with cpanfile, no snapshot yet
+pvm module sync                       # Installs deps + creates snapshot
+git add cpanfile.snapshot            # Commit the lockfile
+git commit -m "Add dependency lockfile"
+```
+
+**Team Synchronization (Developer B):**
+```bash
+git pull                              # Get latest with snapshot
+pvm module sync                       # Automatically installs from snapshot
+```
+
+**Updating Dependencies:**
+```bash
+pvm module add DBI                   # Add new dependency
+pvm module sync --generate-only      # Regenerate snapshot with new module
+```
+
+**Explicit Control:**
+```bash
+pvm module sync --install-only       # Force install from snapshot
+pvm module sync --generate-only      # Force snapshot generation
 ```
 
 ### pvm module install

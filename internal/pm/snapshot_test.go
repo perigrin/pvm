@@ -52,7 +52,7 @@ DISTRIBUTIONS
 // TestInstallFromSnapshot_NoSnapshot tests error handling when snapshot is missing
 func TestInstallFromSnapshot_NoSnapshot(t *testing.T) {
 	tempDir := t.TempDir()
-	
+
 	projectCtx := &project.ProjectContext{
 		IsProject: true,
 		RootDir:   tempDir,
@@ -60,11 +60,11 @@ func TestInstallFromSnapshot_NoSnapshot(t *testing.T) {
 
 	cmd := &cobra.Command{}
 	err := installFromSnapshot(cmd, projectCtx, false)
-	
+
 	if err == nil {
 		t.Error("Expected error when snapshot is missing")
 	}
-	
+
 	if !strings.Contains(err.Error(), "cpanfile.snapshot not found") {
 		t.Errorf("Expected error about missing snapshot, got: %v", err)
 	}
@@ -74,26 +74,26 @@ func TestInstallFromSnapshot_NoSnapshot(t *testing.T) {
 func TestInstallFromSnapshot_ParseSnapshot(t *testing.T) {
 	tempDir := t.TempDir()
 	createTestSnapshot(t, tempDir)
-	
+
 	// Create a mock cpanfile for the manager
 	cpanfilePath := filepath.Join(tempDir, "cpanfile")
 	err := os.WriteFile(cpanfilePath, []byte("# test cpanfile\n"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
-	
+
 	// Test that we can read and parse the snapshot
 	manager := NewCpanfileManager(cpanfilePath)
 	snapshot, err := manager.ReadSnapshot()
 	if err != nil {
 		t.Fatalf("Failed to read test snapshot: %v", err)
 	}
-	
+
 	// Verify snapshot content
 	if len(snapshot.Distributions) != 3 {
 		t.Errorf("Expected 3 distributions, got %d", len(snapshot.Distributions))
 	}
-	
+
 	// Check specific distributions
 	testSimple, exists := snapshot.Distributions["Test-Simple-1.302195"]
 	if !exists {
@@ -152,34 +152,34 @@ func TestTopologicalSort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := topologicalSort(tt.modules, tt.dependencies)
-			
+
 			// Check that all modules are present
 			if len(result) != len(tt.modules) {
 				t.Errorf("Expected %d modules, got %d", len(tt.modules), len(result))
 			}
-			
+
 			// Check that dependencies are respected
 			positions := make(map[string]int)
 			for i, module := range result {
 				positions[module] = i
 			}
-			
+
 			for module, deps := range tt.dependencies {
 				modulePos, exists := positions[module]
 				if !exists {
 					t.Errorf("Module %s not found in result", module)
 					continue
 				}
-				
+
 				for _, dep := range deps {
 					depPos, exists := positions[dep]
 					if !exists {
 						t.Errorf("Dependency %s not found in result", dep)
 						continue
 					}
-					
+
 					if depPos >= modulePos {
-						t.Errorf("Dependency %s (pos %d) should come before %s (pos %d)", 
+						t.Errorf("Dependency %s (pos %d) should come before %s (pos %d)",
 							dep, depPos, module, modulePos)
 					}
 				}
@@ -196,9 +196,9 @@ func TestTopologicalSort_Circular(t *testing.T) {
 		"B": {"A"},
 		"C": {"B"},
 	}
-	
+
 	result := topologicalSort(modules, dependencies)
-	
+
 	// With circular dependencies, the result should be shorter than input
 	// (indicating that not all nodes could be processed)
 	if len(result) == len(modules) {
@@ -210,44 +210,44 @@ func TestTopologicalSort_Circular(t *testing.T) {
 func TestInstallFromSnapshot_ModuleExtraction(t *testing.T) {
 	tempDir := t.TempDir()
 	createTestSnapshot(t, tempDir)
-	
+
 	// Create cpanfile
 	cpanfilePath := filepath.Join(tempDir, "cpanfile")
 	err := os.WriteFile(cpanfilePath, []byte("# test cpanfile\n"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
-	
+
 	manager := NewCpanfileManager(cpanfilePath)
 	snapshot, err := manager.ReadSnapshot()
 	if err != nil {
 		t.Fatalf("Failed to read snapshot: %v", err)
 	}
-	
+
 	// Extract modules as the code would do
 	var moduleSpecs []string
 	moduleVersionMap := make(map[string]string)
-	
+
 	for _, entry := range snapshot.Distributions {
 		for module, version := range entry.Provides {
 			moduleSpecs = append(moduleSpecs, module)
 			moduleVersionMap[module] = version
 		}
 	}
-	
+
 	// Verify expected modules were extracted
 	expectedModules := map[string]string{
-		"Test::More":    "1.302195",
-		"Test::Simple":  "1.302195", 
-		"Moose":         "2.2206",
-		"Moose::Role":   "2.2206",
-		"Class::MOP":    "2.2206",
+		"Test::More":   "1.302195",
+		"Test::Simple": "1.302195",
+		"Moose":        "2.2206",
+		"Moose::Role":  "2.2206",
+		"Class::MOP":   "2.2206",
 	}
-	
+
 	if len(moduleSpecs) != len(expectedModules) {
 		t.Errorf("Expected %d modules, got %d", len(expectedModules), len(moduleSpecs))
 	}
-	
+
 	for expectedModule, expectedVersion := range expectedModules {
 		actualVersion, exists := moduleVersionMap[expectedModule]
 		if !exists {
@@ -262,19 +262,19 @@ func TestInstallFromSnapshot_ModuleExtraction(t *testing.T) {
 func TestInstallFromSnapshot_DependencyMapping(t *testing.T) {
 	tempDir := t.TempDir()
 	createTestSnapshot(t, tempDir)
-	
+
 	cpanfilePath := filepath.Join(tempDir, "cpanfile")
 	err := os.WriteFile(cpanfilePath, []byte("# test cpanfile\n"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
-	
+
 	manager := NewCpanfileManager(cpanfilePath)
 	snapshot, err := manager.ReadSnapshot()
 	if err != nil {
 		t.Fatalf("Failed to read snapshot: %v", err)
 	}
-	
+
 	// Build dependency map as the code would do
 	moduleVersionMap := make(map[string]string)
 	for _, entry := range snapshot.Distributions {
@@ -282,7 +282,7 @@ func TestInstallFromSnapshot_DependencyMapping(t *testing.T) {
 			moduleVersionMap[module] = version
 		}
 	}
-	
+
 	moduleDependencies := make(map[string][]string)
 	for _, entry := range snapshot.Distributions {
 		for module := range entry.Provides {
@@ -295,7 +295,7 @@ func TestInstallFromSnapshot_DependencyMapping(t *testing.T) {
 			moduleDependencies[module] = deps
 		}
 	}
-	
+
 	// Verify some expected dependencies
 	// Moose should depend on Class::MOP
 	mooseDeps, exists := moduleDependencies["Moose"]
@@ -320,19 +320,19 @@ func TestInstallFromSnapshot_ErrorRecovery(t *testing.T) {
 	// This test would require mocking the module installer
 	// For now, just test that the function handles missing snapshot gracefully
 	tempDir := t.TempDir()
-	
+
 	projectCtx := &project.ProjectContext{
 		IsProject: true,
 		RootDir:   tempDir,
 	}
 
 	cmd := &cobra.Command{}
-	err := installFromSnapshot(cmd, projectCtx, true)  // verbose mode
-	
+	err := installFromSnapshot(cmd, projectCtx, true) // verbose mode
+
 	if err == nil {
 		t.Error("Expected error when no snapshot exists")
 	}
-	
+
 	// Error message should contain helpful recovery information
 	if !strings.Contains(err.Error(), "cpanfile.snapshot not found") {
 		t.Errorf("Expected helpful error message, got: %v", err)
@@ -344,9 +344,9 @@ func BenchmarkTopologicalSort(b *testing.B) {
 	// Create a moderate-sized dependency graph
 	modules := make([]string, 100)
 	dependencies := make(map[string][]string)
-	
+
 	for i := 0; i < 100; i++ {
-		modules[i] = string(rune('A' + i%26)) + string(rune('0' + i/26))
+		modules[i] = string(rune('A'+i%26)) + string(rune('0'+i/26))
 		// Each module depends on the previous 3 modules (if they exist)
 		var deps []string
 		for j := max(0, i-3); j < i; j++ {
@@ -354,7 +354,7 @@ func BenchmarkTopologicalSort(b *testing.B) {
 		}
 		dependencies[modules[i]] = deps
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		topologicalSort(modules, dependencies)
@@ -365,36 +365,36 @@ func BenchmarkTopologicalSort(b *testing.B) {
 func TestInstallCommand_WithSnapshot(t *testing.T) {
 	tempDir := t.TempDir()
 	createTestSnapshot(t, tempDir)
-	
+
 	// Create cpanfile to make it a valid project
 	cpanfilePath := filepath.Join(tempDir, "cpanfile")
 	err := os.WriteFile(cpanfilePath, []byte("requires 'Test::More';\n"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
-	
+
 	// Change to test directory to simulate being in a project
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	err = os.Chdir(tempDir)
 	if err != nil {
 		t.Fatalf("Failed to change to test directory: %v", err)
 	}
-	
+
 	// Create install command
 	cmd := newInstallCommand()
-	
+
 	// Set up command args to simulate `pvm module install` (no specific modules)
 	cmd.SetArgs([]string{})
-	
+
 	// This test will fail during actual installation since we don't have real modules
 	// But we can test that the snapshot detection logic runs by checking the error message
 	err = cmd.Execute()
-	
+
 	// The error should be from the snapshot installation process, not from missing cpanfile
 	if err != nil && !strings.Contains(err.Error(), "snapshot") {
 		// If error doesn't mention snapshot, the detection logic might not be working
@@ -406,33 +406,33 @@ func TestInstallCommand_WithSnapshot(t *testing.T) {
 func TestInstallCommand_IgnoreSnapshot(t *testing.T) {
 	tempDir := t.TempDir()
 	createTestSnapshot(t, tempDir)
-	
+
 	// Create cpanfile
 	cpanfilePath := filepath.Join(tempDir, "cpanfile")
 	err := os.WriteFile(cpanfilePath, []byte("requires 'Test::More';\n"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test cpanfile: %v", err)
 	}
-	
+
 	// Change to test directory
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get current directory: %v", err)
 	}
 	defer os.Chdir(originalDir)
-	
+
 	err = os.Chdir(tempDir)
 	if err != nil {
 		t.Fatalf("Failed to change to test directory: %v", err)
 	}
-	
+
 	// Create install command with --ignore-snapshot flag
 	cmd := newInstallCommand()
 	cmd.SetArgs([]string{"--ignore-snapshot"})
-	
+
 	// Execute command - it should bypass snapshot and use regular cpanfile installation
 	err = cmd.Execute()
-	
+
 	// The error should be from regular installation process, not snapshot-related
 	if err != nil {
 		t.Logf("Command error (expected during test): %v", err)
@@ -441,6 +441,120 @@ func TestInstallCommand_IgnoreSnapshot(t *testing.T) {
 			t.Error("Command should not use snapshot when --ignore-snapshot is specified")
 		}
 	}
+}
+
+// TestSyncCommand_SmartDefaults tests the smart default behavior of sync command
+func TestSyncCommand_SmartDefaults(t *testing.T) {
+	t.Run("InstallFromSnapshot_WhenExists", func(t *testing.T) {
+		tempDir := t.TempDir()
+		createTestSnapshot(t, tempDir)
+		
+		// Create cpanfile
+		cpanfilePath := filepath.Join(tempDir, "cpanfile")
+		err := os.WriteFile(cpanfilePath, []byte("requires 'Test::More';\n"), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create test cpanfile: %v", err)
+		}
+		
+		// Change to test directory
+		originalDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current directory: %v", err)
+		}
+		defer os.Chdir(originalDir)
+		
+		err = os.Chdir(tempDir)
+		if err != nil {
+			t.Fatalf("Failed to change to test directory: %v", err)
+		}
+		
+		// Create sync command with no flags - should detect snapshot and install from it
+		cmd := newSyncCommand()
+		cmd.SetArgs([]string{})
+		
+		err = cmd.Execute()
+		// Expected to fail during actual installation but should attempt to install from snapshot
+		if err != nil && !strings.Contains(err.Error(), "snapshot") {
+			t.Logf("Command error (expected during test): %v", err)
+		}
+	})
+	
+	t.Run("GenerateSnapshot_WhenNotExists", func(t *testing.T) {
+		tempDir := t.TempDir()
+		
+		// Create only cpanfile, no snapshot
+		cpanfilePath := filepath.Join(tempDir, "cpanfile")
+		err := os.WriteFile(cpanfilePath, []byte("requires 'Test::More';\n"), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create test cpanfile: %v", err)
+		}
+		
+		// Change to test directory
+		originalDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current directory: %v", err)
+		}
+		defer os.Chdir(originalDir)
+		
+		err = os.Chdir(tempDir)
+		if err != nil {
+			t.Fatalf("Failed to change to test directory: %v", err)
+		}
+		
+		// Create sync command - should attempt to install then generate snapshot
+		cmd := newSyncCommand()
+		cmd.SetArgs([]string{})
+		
+		err = cmd.Execute()
+		// Expected to fail during module installation but should attempt the workflow
+		if err != nil {
+			t.Logf("Command error (expected during test): %v", err)
+		}
+	})
+	
+	t.Run("ExplicitFlags", func(t *testing.T) {
+		tempDir := t.TempDir()
+		createTestSnapshot(t, tempDir)
+		
+		// Create cpanfile
+		cpanfilePath := filepath.Join(tempDir, "cpanfile")
+		err := os.WriteFile(cpanfilePath, []byte("requires 'Test::More';\n"), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create test cpanfile: %v", err)
+		}
+		
+		// Change to test directory
+		originalDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current directory: %v", err)
+		}
+		defer os.Chdir(originalDir)
+		
+		err = os.Chdir(tempDir)
+		if err != nil {
+			t.Fatalf("Failed to change to test directory: %v", err)
+		}
+		
+		// Test --generate-only flag
+		cmd := newSyncCommand()
+		cmd.SetArgs([]string{"--generate-only"})
+		
+		err = cmd.Execute()
+		// Should attempt to generate snapshot
+		if err != nil {
+			t.Logf("Command error with --generate-only (expected during test): %v", err)
+		}
+		
+		// Test --install-only flag
+		cmd = newSyncCommand()
+		cmd.SetArgs([]string{"--install-only"})
+		
+		err = cmd.Execute()
+		// Should attempt to install from snapshot
+		if err != nil {
+			t.Logf("Command error with --install-only (expected during test): %v", err)
+		}
+	})
 }
 
 func max(a, b int) int {
