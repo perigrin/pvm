@@ -1,1 +1,0 @@
-../../../data/help/types.md
