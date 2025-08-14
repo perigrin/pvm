@@ -993,138 +993,19 @@ func showNextStepsHelp(cmd *cobra.Command, helpManager *HelpManager) error {
 
 // showTypesHelp displays type system documentation and examples
 func showTypesHelp(cmd *cobra.Command, helpManager *HelpManager) error {
-	ui := GetUI(cmd)
-
-	ui.Header("PVM Type System Reference")
-	ui.Println("")
-	ui.Println("PVM provides a comprehensive type system for Perl with modern developer experience.")
-	ui.Println("")
-
-	ui.SubHeader("Basic Type Syntax")
-	ui.Println("Type annotations follow the pattern: `my Type $variable = value;`")
-	ui.Println("")
-	basicExamples := []string{
-		"my Int $count = 42;",
-		"my Str $name = \"example\";",
-		"my Bool $flag = 1;         # Only accepts: 1, 0, \"\", undef",
-		"my Num $price = 19.99;",
-		"my ArrayRef $items = [];",
-		"my HashRef $config = {};",
+	output := GetUI(cmd)
+	// Use template system for types help
+	templateData := HelpTemplateData{
+		// Add any template variables needed
 	}
-	for _, example := range basicExamples {
-		ui.Printf("  %s\n", example)
+	content, err := RenderHelpTemplate("types", templateData)
+	if err != nil {
+		// Fallback to basic error message if template fails
+		output.Error("Failed to load type system help: %v", err)
+		return err
 	}
-	ui.Println("")
-
-	ui.SubHeader("Parameterized Types")
-	ui.Println("Types can be parameterized to specify the types of contained elements:")
-	ui.Println("")
-	paramExamples := []string{
-		"my ArrayRef[Int] @numbers;             # Array of integers",
-		"my HashRef[Str] %values;               # Hash with string values",
-		"my Map[Str, Int] %mapping;             # Key-value constraints",
-		"my Maybe[Str] $optional_name;          # Optional string value",
-		"my ArrayRef[HashRef[Str]] @records;    # Nested parameterized types",
-	}
-	for _, example := range paramExamples {
-		ui.Printf("  %s\n", example)
-	}
-	ui.Println("")
-
-	ui.SubHeader("Union & Intersection Types")
-	ui.Println("Combine types for flexible type constraints:")
-	ui.Println("")
-	unionExamples := []string{
-		"my Int|Str $flexible;                  # Either integer or string",
-		"my ArrayRef|HashRef $collection;       # Array or hash reference",
-		"my Object&Serializable $obj;           # Object that implements Serializable",
-		"my !Undef $required;                   # Any type except undefined",
-	}
-	for _, example := range unionExamples {
-		ui.Printf("  %s\n", example)
-	}
-	ui.Println("")
-
-	ui.SubHeader("Types::Standard Migration")
-	ui.Warning("Important: PVM uses Types::Standard-compliant type names")
-	ui.Println("")
-	migrationExamples := []string{
-		"# ❌ OLD (no longer supported)",
-		"my HashRef[Str, Int] %old;",
-		"",
-		"# ✅ NEW (Types::Standard compliant)",
-		"my Map[Str, Int] %new;                 # Correct key-value mapping",
-		"my HashRef[Int] %values;               # Hash with integer values only",
-	}
-	for _, example := range migrationExamples {
-		if example == "" {
-			ui.Println("")
-		} else {
-			ui.Printf("  %s\n", example)
-		}
-	}
-	ui.Println("")
-
-	ui.SubHeader("Bool Type Validation")
-	ui.Info("Bool type has strict validation rules:")
-	boolRules := []string{
-		"✅ Accepted values: 1, 0, \"\", undef",
-		"❌ Rejected: \"true\", \"false\", 2, -1, \"yes\", \"no\"",
-		"Use explicit conversion for other values: !!$value",
-	}
-	ui.List(boolRules)
-	ui.Println("")
-
-	ui.SubHeader("Type Hierarchy Overview")
-	ui.Println("PVM's type system follows this hierarchy:")
-	ui.Println("")
-	hierarchy := []string{
-		"Any",
-		"├── Defined",
-		"│   ├── Value",
-		"│   │   ├── Str",
-		"│   │   ├── Num (Int, Rat)",
-		"│   │   └── Bool",
-		"│   └── Ref",
-		"│       ├── ScalarRef",
-		"│       ├── ArrayRef[T]",
-		"│       ├── HashRef[T]",
-		"│       ├── CodeRef",
-		"│       └── Object",
-		"└── Undef",
-	}
-	for _, line := range hierarchy {
-		ui.Printf("  %s\n", line)
-	}
-	ui.Println("")
-
-	ui.SubHeader("Common Type Patterns")
-	ui.Println("Frequently used type combinations:")
-	ui.Println("")
-	patterns := []string{
-		"Optional values:     Maybe[Str] $name",
-		"Collections:         ArrayRef[HashRef[Str]] @records",
-		"Callbacks:           CodeRef $handler",
-		"Configuration:       Map[Str, Any] %config",
-		"Flexible input:      Str|ArrayRef[Str] $input",
-		"Type assertions:     $value as Int",
-	}
-	for _, pattern := range patterns {
-		ui.Printf("  %s\n", pattern)
-	}
-	ui.Println("")
-
-	ui.SubHeader("Getting More Help")
-	moreHelp := []string{
-		"pvm help workflows              # Development workflows with types",
-		"pvm build --check-only          # Type-check your code",
-		"pvm workspace doctor            # Diagnose type-related issues",
-	}
-	ui.List(moreHelp)
-
-	ui.Println("")
-	ui.Info("💡 For interactive examples, use 'pvm dev' to get real-time type checking feedback.")
-
+	// Render the markdown content as formatted help
+	RenderMarkdownAsHelp(content, output)
 	return nil
 }
 

@@ -40,5 +40,5 @@ PVM (Perl Version Manager) provides modern tooling for Perl development with Typ
 
 - Check workspace status: `pvm workspace status`
 - Get contextual help: `pvm help`
-- See workflows: `pvm help workflows` 
+- See workflows: `pvm help workflows`
 - Diagnose issues: `pvm workspace doctor`
