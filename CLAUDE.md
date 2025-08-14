@@ -166,6 +166,24 @@ PSC commands (`psc strip`, `psc run`) use the compiler package for:
 
 **If repository configuration tests fail, DO NOT bypass them - fix the underlying configuration issue.**
 
+## Pre-commit Hook Compliance
+
+**CRITICAL**: Never bypass pre-commit hooks using `--no-verify` or `SKIP=` environment variables.
+
+### Why Pre-commit Hooks Are Non-Negotiable
+
+1. **Technical Debt Prevention**: Hooks catch issues early before they accumulate
+2. **Code Quality Maintenance**: Enforces consistent formatting, linting, and style
+3. **Regression Prevention**: Catches breaking changes and test failures immediately
+4. **Team Standards**: Ensures all contributors follow the same quality standards
+
+### When Hooks Fail on Unrelated Files
+
+**DO**: Fix the underlying issues in those files (formatting, linting, etc.)
+**DON'T**: Skip the hooks to avoid dealing with unrelated technical debt
+
+This is exactly why we have hooks - to prevent technical debt from accumulating and being mixed into unrelated commits. Taking shortcuts undermines the entire quality control system.
+
 ## PVM Project Patterns
 
 ### Test Failure Protocol

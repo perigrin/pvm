@@ -274,7 +274,9 @@ func (u *TypeUnifier) unifyGenerics(g1, g2 *typedef.GenericType, ctx *Unificatio
 	}
 
 	// Unify constraints
-	// TODO: Implement constraint unification
+	if err := u.unifyConstraints(g1.Constraints, g2.Constraints, paramMap, ctx); err != nil {
+		return fmt.Errorf("constraint unification failed: %w", err)
+	}
 
 	return nil
 }
@@ -467,4 +469,138 @@ func (u *TypeUnifier) UnifyWithConstraintPropagation(generic *typedef.GenericTyp
 	}
 
 	return result, nil
+}
+
+// unifyConstraints unifies constraints between two generic types.
+// This is the core constraint unification algorithm that ensures constraints
+// are compatible when unifying Container<T: Serializable> with Container<U: Serializable>.
+//
+// The algorithm works by:
+// 1. Mapping constraints from the second generic to the first's parameter namespace
+// 2. For each type parameter, checking that constraints from both generics are compatible
+// 3. Requiring bidirectional compatibility (each constraint must have a match)
+//
+// Examples:
+//
+//	Container<T: Serializable> ∪ Container<U: Serializable> → success (same constraint)
+//	Container<T: Serializable> ∪ Container<U: Display>      → failure (Serializable ≠ Display)
+//	Container<T: Serializable> ∪ Container<U>               → success (no constraints on U)
+func (u *TypeUnifier) unifyConstraints(
+	constraints1, constraints2 []typedef.TypeConstraint,
+	paramMap map[string]string,
+	ctx *UnificationContext,
+) error {
+	// Create a map of constraints by parameter for easy lookup
+	c1Map := make(map[string][]typedef.TypeConstraint)
+	for _, c := range constraints1 {
+		c1Map[c.Parameter] = append(c1Map[c.Parameter], c)
+	}
+
+	c2Map := make(map[string][]typedef.TypeConstraint)
+	for _, c := range constraints2 {
+		// Map parameter names from g2 to g1's namespace
+		mappedParam := c.Parameter
+		// Reverse lookup: find g1's parameter that maps to g2's parameter
+		for k, v := range paramMap {
+			if v == c.Parameter {
+				mappedParam = k
+				break
+			}
+		}
+		c2Map[mappedParam] = append(c2Map[mappedParam], c)
+	}
+
+	// Check constraint compatibility for each parameter
+	allParams := make(map[string]bool)
+	for param := range c1Map {
+		allParams[param] = true
+	}
+	for param := range c2Map {
+		allParams[param] = true
+	}
+
+	for param := range allParams {
+		c1List := c1Map[param]
+		c2List := c2Map[param]
+
+		if err := u.unifyParameterConstraints(param, c1List, c2List, ctx); err != nil {
+			return fmt.Errorf("failed to unify constraints for parameter %s: %w", param, err)
+		}
+	}
+
+	return nil
+}
+
+// unifyParameterConstraints unifies constraints for a single type parameter.
+// Checks bidirectional compatibility: every constraint in the first set must have
+// a compatible constraint in the second set, and vice versa.
+func (u *TypeUnifier) unifyParameterConstraints(
+	param string,
+	constraints1, constraints2 []typedef.TypeConstraint,
+	ctx *UnificationContext,
+) error {
+	// If one side has no constraints, unification succeeds
+	if len(constraints1) == 0 || len(constraints2) == 0 {
+		return nil
+	}
+
+	// For each constraint in the first set, find a compatible constraint in the second set
+	for _, c1 := range constraints1 {
+		compatible := false
+		for _, c2 := range constraints2 {
+			if isConstraintCompatible(c1, c2) {
+				compatible = true
+				break
+			}
+		}
+		if !compatible {
+			return fmt.Errorf("constraint %s:%s from first generic has no compatible constraint in second generic",
+				c1.Parameter, c1.Expression.GetName())
+		}
+	}
+
+	// Check the reverse direction
+	for _, c2 := range constraints2 {
+		compatible := false
+		for _, c1 := range constraints1 {
+			if isConstraintCompatible(c1, c2) {
+				compatible = true
+				break
+			}
+		}
+		if !compatible {
+			return fmt.Errorf("constraint %s:%s from second generic has no compatible constraint in first generic",
+				c2.Parameter, c2.Expression.GetName())
+		}
+	}
+
+	return nil
+}
+
+// isConstraintCompatible checks if two constraints are compatible for unification.
+// Two constraints are compatible if:
+// 1. They have the same constraint kind (trait, protocol, etc.)
+// 2. For trait/protocol constraints, they reference the same trait/protocol name
+// 3. Value constraints are currently considered always compatible
+//
+// Future enhancements could add trait inheritance checking where Serializable
+// might be compatible with a base trait like Object.
+func isConstraintCompatible(c1, c2 typedef.TypeConstraint) bool {
+	// Same constraint kind is required
+	if c1.Kind != c2.Kind {
+		return false
+	}
+
+	// For trait and protocol constraints, check if the types are the same
+	// In a more sophisticated implementation, this would check for trait inheritance
+	if c1.Kind == typedef.TraitConstraint || c1.Kind == typedef.ProtocolConstraint {
+		return c1.Expression.GetName() == c2.Expression.GetName()
+	}
+
+	// Value constraints are always considered compatible for now
+	if c1.Kind == typedef.ValueConstraint {
+		return true
+	}
+
+	return false
 }

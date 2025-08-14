@@ -5,6 +5,7 @@ package typechecker
 
 import (
 	"fmt"
+	"sort"
 
 	"tamarou.com/pvm/internal/typedef"
 )
@@ -386,14 +387,10 @@ func (cp *ConstraintPropagator) validateConstraintAssignment(
 
 // sortConstraintsByPriority sorts constraints by priority (highest first)
 func (cp *ConstraintPropagator) sortConstraintsByPriority(constraints []TypeConstraintInfo) {
-	// Simple bubble sort by priority (descending)
-	for i := 0; i < len(constraints)-1; i++ {
-		for j := 0; j < len(constraints)-i-1; j++ {
-			if constraints[j].Priority < constraints[j+1].Priority {
-				constraints[j], constraints[j+1] = constraints[j+1], constraints[j]
-			}
-		}
-	}
+	// Use efficient sort.Slice for O(n log n) performance
+	sort.Slice(constraints, func(i, j int) bool {
+		return constraints[i].Priority > constraints[j].Priority
+	})
 }
 
 // getPriorityForConstraintKind returns the priority for a constraint kind
