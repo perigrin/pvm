@@ -175,8 +175,7 @@ func TestPSCCompleteWorkflow(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Use a simple working Perl file without type annotations for now
-	// TODO: Add type annotations when parser supports them properly
+	// Create test file with type annotations
 	typedPerlFile := filepath.Join(env.RootDir, "complex_sample.pl")
 	typedPerlContent := `#!/usr/bin/perl
 use v5.36;
@@ -243,8 +242,7 @@ func TestPSCRoundTripConsistency(t *testing.T) {
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
-	// Create a Perl file without type annotations
-	// TODO: Add type annotations when parser supports them properly
+	// Create test file for round-trip testing
 	originalFile := filepath.Join(env.RootDir, "roundtrip_original.pl")
 	originalContent := `#!/usr/bin/perl
 use v5.36;

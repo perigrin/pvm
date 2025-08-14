@@ -205,8 +205,7 @@ func (h *TypeHierarchy) initializeBuiltinTypes() {
 	h.addSubtypeRelation("Code", "Any")
 	h.addSubtypeRelation("Glob", "Any")
 
-	// Trait system relationships - temporarily enabled for test compatibility
-	// TODO: These should be moved to a proper trait system implementation
+	// Trait system relationships
 	h.addSubtypeRelation("Array", "Iterable")   // Array is iterable
 	h.addSubtypeRelation("Array", "Positional") // Array has indexed elements
 	h.addSubtypeRelation("Hash", "Iterable")    // Hash is iterable
