@@ -14,23 +14,23 @@
 # ARITHMETIC OPERATORS
 # ============================================================================
 
-# Addition - numeric context coercion
-sub Int operator_add(Int $left, Int $right);
+# Addition - numeric context coercion (ordered from most specific to least specific)
 sub Num operator_add(Num $left, Num $right);
+sub Int operator_add(Int $left, Int $right);
 sub Num operator_add(Int $left, Num $right);
 sub Num operator_add(Num $left, Int $right);
 sub Num operator_add(Any $left, Any $right);  # Perl coerces to numbers
 
-# Subtraction - numeric context coercion
-sub Int operator_sub(Int $left, Int $right);
+# Subtraction - numeric context coercion (ordered from most specific to least specific)
 sub Num operator_sub(Num $left, Num $right);
+sub Int operator_sub(Int $left, Int $right);
 sub Num operator_sub(Int $left, Num $right);
 sub Num operator_sub(Num $left, Int $right);
 sub Num operator_sub(Any $left, Any $right);  # Perl coerces to numbers
 
-# Multiplication - numeric context coercion
-sub Int operator_mul(Int $left, Int $right);
+# Multiplication - numeric context coercion (ordered from most specific to least specific)
 sub Num operator_mul(Num $left, Num $right);
+sub Int operator_mul(Int $left, Int $right);
 sub Num operator_mul(Int $left, Num $right);
 sub Num operator_mul(Num $left, Int $right);
 sub Num operator_mul(Any $left, Any $right);  # Perl coerces to numbers

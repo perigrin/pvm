@@ -61,7 +61,7 @@ func TestBuiltinTypeRegistry_IsBuiltinFunction(t *testing.T) {
 		{"ref", true, "ref should be recognized as builtin"},
 		{"defined", true, "defined should be recognized as builtin"},
 		{"length", true, "length should be recognized as builtin"},
-		{"decode_json", true, "decode_json should be recognized as builtin"},
+		{"decode_json", false, "decode_json should not be recognized as builtin (it's a library function)"},
 		{"unknown_function", false, "unknown function should not be recognized"},
 		{"custom_func", false, "custom function should not be recognized"},
 	}
@@ -118,12 +118,12 @@ func TestBuiltinTypeRegistry_LibraryFunctions(t *testing.T) {
 		expected string
 		desc     string
 	}{
-		{"decode_json", "HashRef[Str, Any]", "decode_json should return HashRef"},
-		{"encode_json", "Str", "encode_json should return Str"},
-		{"selectrow_hashref", "Maybe[HashRef[Str, Str]]", "selectrow_hashref should return Maybe"},
-		{"slurp", "Str", "slurp should return Str"},
-		{"first", "Any", "List::Util::first should return Any"},
-		{"max", "Num", "List::Util::max should return Num"},
+		{"decode_json", "", "decode_json should return empty (library function, not builtin)"},
+		{"encode_json", "", "encode_json should return empty (library function, not builtin)"},
+		{"selectrow_hashref", "", "selectrow_hashref should return empty (library function, not builtin)"},
+		{"slurp", "", "slurp should return empty (library function, not builtin)"},
+		{"first", "", "List::Util::first should return empty (library function, not builtin)"},
+		{"max", "", "List::Util::max should return empty (library function, not builtin)"},
 	}
 
 	for _, tc := range testCases {

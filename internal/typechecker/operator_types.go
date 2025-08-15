@@ -311,7 +311,14 @@ func (r *OperatorTypeRegistry) GetOperatorType(operator, leftType, rightType str
 		return "Any" // Unknown operator
 	}
 
-	// Find best matching signature
+	// First, try to find exact matches
+	for _, sig := range signatures {
+		if sig.LeftType == leftType && sig.RightType == rightType {
+			return sig.ResultType
+		}
+	}
+
+	// Then, try compatible matches
 	for _, sig := range signatures {
 		if r.typesMatch(sig.LeftType, leftType) && r.typesMatch(sig.RightType, rightType) {
 			return sig.ResultType
