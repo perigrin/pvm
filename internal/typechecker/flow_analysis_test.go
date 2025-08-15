@@ -161,8 +161,16 @@ sub handle_file($filename) {
 			for varName, expectedType := range tc.expectedInferences {
 				found := false
 				for _, block := range cfg.Nodes {
-					if block.TypeState != nil && block.TypeState.VariableTypes != nil {
-						if actualType, exists := block.TypeState.VariableTypes[varName]; exists {
+					// Check both TypeState (entry) and ExitTypeState for variable types
+					var variableTypes map[string]string
+					if block.ExitTypeState != nil && block.ExitTypeState.VariableTypes != nil {
+						variableTypes = block.ExitTypeState.VariableTypes
+					} else if block.TypeState != nil && block.TypeState.VariableTypes != nil {
+						variableTypes = block.TypeState.VariableTypes
+					}
+
+					if variableTypes != nil {
+						if actualType, exists := variableTypes[varName]; exists {
 							if strings.Contains(actualType, expectedType) || actualType == expectedType {
 								found = true
 								break

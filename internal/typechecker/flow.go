@@ -242,6 +242,8 @@ func (fa *FlowAnalyzer) processNode(node ast.Node, currentBlock *BasicBlock, blo
 		return fa.processLoop(node, currentBlock, blockID, cfg)
 	case "given_statement":
 		return fa.processGivenWhen(node, currentBlock, blockID, cfg)
+	case "sub_decl", "method_decl":
+		return fa.processSubroutine(node, currentBlock, blockID, cfg)
 	default:
 		// Regular statement - add to current block
 		currentBlock.Statements = append(currentBlock.Statements, node)
@@ -249,6 +251,31 @@ func (fa *FlowAnalyzer) processNode(node ast.Node, currentBlock *BasicBlock, blo
 		fa.updateTypeStateForStatement(node, currentBlock)
 		return currentBlock, blockID, nil
 	}
+}
+
+// processSubroutine handles subroutine declarations by processing their body statements
+func (fa *FlowAnalyzer) processSubroutine(node ast.Node, currentBlock *BasicBlock, blockID int, cfg *ControlFlowGraph) (*BasicBlock, int, error) {
+	// For subroutines, we need to process the statements in the body
+	// First, find the body (typically a block_stmt child)
+	for _, child := range node.Children() {
+		if child.Type() == "block_stmt" {
+			// Process each statement in the block
+			for _, stmt := range child.Children() {
+				if stmt.Type() == "token" {
+					// Skip tokens like { and }
+					continue
+				}
+				newBlock, newID, err := fa.processNode(stmt, currentBlock, blockID, cfg)
+				if err != nil {
+					return nil, 0, err
+				}
+				currentBlock = newBlock
+				blockID = newID
+			}
+			break
+		}
+	}
+	return currentBlock, blockID, nil
 }
 
 // processConditional handles if/unless statements
@@ -520,9 +547,106 @@ func (fa *FlowAnalyzer) processStatement(stmt ast.Node, state *TypeState) []erro
 		errors = append(errors, fa.processAssignment(stmt, state)...)
 	case "function_call":
 		errors = append(errors, fa.processFunctionCall(stmt, state)...)
+	case "expression_stmt":
+		errors = append(errors, fa.processExpressionStatement(stmt, state)...)
 	default:
 		// For unknown statement types, we don't change the type state
 		// In a full implementation, we'd handle more statement types
+	}
+
+	return errors
+}
+
+// processExpressionStatement processes expression statements that might contain variable declarations or assignments
+func (fa *FlowAnalyzer) processExpressionStatement(stmt ast.Node, state *TypeState) []error {
+	var errors []error
+
+	// Expression statements may contain various types of expressions
+	// Look for the actual expression inside the expression_stmt node
+	for _, child := range stmt.Children() {
+		if child.Type() == "token" {
+			// Skip tokens like semicolons
+			continue
+		}
+
+		// Process based on the child type
+		switch child.Type() {
+		case "variable_declaration":
+			errors = append(errors, fa.processVariableDeclaration(child, state)...)
+		case "assignment", "assignment_expr":
+			errors = append(errors, fa.processAssignment(child, state)...)
+		case "call_expr":
+			errors = append(errors, fa.processFunctionCall(child, state)...)
+		case "literal":
+			// Check if this is a literal that contains variable declarations
+			if literalExpr, ok := child.(*ast.LiteralExpr); ok {
+				// For now, try to parse variable declarations from literals
+				if strings.Contains(literalExpr.Value, "my $") {
+					// This might be a variable declaration that wasn't properly parsed
+					errors = append(errors, fa.processLiteralAsVariableDeclaration(literalExpr, state)...)
+				}
+			}
+		default:
+			// Try to process as a generic statement
+			childErrors := fa.processStatement(child, state)
+			errors = append(errors, childErrors...)
+		}
+	}
+
+	return errors
+}
+
+// processLiteralAsVariableDeclaration processes literals that contain variable declarations
+func (fa *FlowAnalyzer) processLiteralAsVariableDeclaration(literal *ast.LiteralExpr, state *TypeState) []error {
+	var errors []error
+
+	// Initialize type maps if needed
+	if state.VariableTypes == nil {
+		state.VariableTypes = make(map[string]string)
+	}
+
+	// Parse patterns like "my $var = func()" from the literal value
+	// This is a simplified parser for the literal content
+	content := strings.TrimSpace(literal.Value)
+
+	// Handle "my $var = function_call" pattern
+	if strings.HasPrefix(content, "my $") {
+		// Extract variable name and function call
+		parts := strings.Split(content, "=")
+		if len(parts) == 2 {
+			varPart := strings.TrimSpace(parts[0])
+			funcPart := strings.TrimSpace(parts[1])
+
+			// Extract variable name from "my $varname"
+			varMatch := strings.TrimPrefix(varPart, "my $")
+			varName := strings.TrimSpace(varMatch)
+
+			// Try to infer type from the function call
+			if strings.Contains(funcPart, "(") {
+				// Extract function name (e.g., "ref($input)" -> "ref")
+				funcName := strings.Split(funcPart, "(")[0]
+				funcName = strings.TrimSpace(funcName)
+
+				// Create a dummy call expression for type inference
+				inferredType := fa.inferBuiltinFunctionType(funcName, nil)
+				if inferredType == "" {
+					// Fallback to hardcoded inference
+					switch funcName {
+					case "ref":
+						inferredType = "Str"
+					case "defined":
+						inferredType = "Bool"
+					case "keys":
+						inferredType = "ArrayRef[Str]"
+					default:
+						inferredType = "Any"
+					}
+				}
+
+				// Store the variable type
+				state.VariableTypes[varName] = inferredType
+			}
+		}
 	}
 
 	return errors
