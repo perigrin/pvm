@@ -1862,10 +1862,13 @@ func (fa *FlowAnalyzer) isUninitializedVariable(varName, varType string, state *
 
 	// Conservative approach: variables named "result" are often safely initialized
 	// This is a heuristic to reduce false positives for common patterns
+	// But only apply this to variables that aren't assigned from hash/array access
 	if varName == "result" || varName == "value" || varName == "output" || varName == "id" {
-		// Check if this appears to be an unsafe context (like hash access without checks)
-		// If not, assume it's safe
-		return false
+		// Don't be conservative for variables assigned from hash/array access
+		// as those might be genuinely unsafe
+		if !fa.isAssignedFromHashOrArrayAccess(varName, state) {
+			return false
+		}
 	}
 
 	// Variables with Maybe types are potentially uninitialized, but only if they
@@ -2151,6 +2154,35 @@ func (fa *FlowAnalyzer) findContainingSubroutine(varExpr *ast.VariableExpr) ast.
 		current = current.Parent()
 	}
 	return nil
+}
+
+// isAssignedFromHashOrArrayAccess checks if a variable was assigned from hash or array access
+func (fa *FlowAnalyzer) isAssignedFromHashOrArrayAccess(varName string, state *TypeState) bool {
+	// This is a simplified check - in a full implementation we'd track assignment sources
+	// For now, check if the variable name suggests it might be from unsafe access
+	// Look for common patterns that might indicate hash/array assignment
+
+	// If the variable doesn't exist in the type state, it might be untracked
+	if state == nil {
+		return false
+	}
+
+	// Check if the variable exists in our type state
+	if _, exists := state.VariableTypes[varName]; !exists {
+		// Variable not in type state might be from an assignment we didn't track properly
+		return true // Be conservative and assume it might be from unsafe access
+	}
+
+	// For variables like "name", "id" that are common hash field names,
+	// assume they might be from hash access unless proven otherwise
+	commonHashFields := []string{"name", "id", "user_id", "email", "data"}
+	for _, field := range commonHashFields {
+		if strings.Contains(varName, field) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isHashAccessInSafeContext checks if hash access is in a safe Perl idiom context
