@@ -2,6 +2,9 @@
 # Comprehensive coverage of all Perl built-in functions from perlfunc
 # Using actual Perl subroutine syntax that the parser understands
 #
+# NOTE: This file should logically be moved to data/typechecker/ in the future
+# for better organization as a project-wide data resource.
+#
 # COVERAGE: ~97% of callable Perl built-in functions (238+ functions)
 #
 # INTENTIONALLY EXCLUDED (~3% remaining):

@@ -6,6 +6,9 @@
 #
 # This file replaces hardcoded operator type logic in FlowAnalyzer
 # with systematic .ptd-based type definitions.
+#
+# NOTE: This file should logically be moved to data/typechecker/ in the future
+# for better organization as a project-wide data resource.
 
 # ============================================================================
 # ARITHMETIC OPERATORS
