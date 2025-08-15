@@ -567,7 +567,7 @@ func (fa *FlowAnalyzer) processBlock(block *BasicBlock) []error {
 		}
 	}
 
-	// Update exit state
+	// Save the updated state as the block's exit state
 	block.ExitTypeState = currentState
 
 	return errors
@@ -649,19 +649,23 @@ func (fa *FlowAnalyzer) processReturnStatement(stmt ast.Node, state *TypeState) 
 
 		// Check for variable references in return expression
 		switch child.Type() {
-		case "variable":
+		case "variable", "var_expr":
 			if varExpr, ok := child.(*ast.VariableExpr); ok {
 				varName := varExpr.Name
-				if _, exists := state.VariableTypes[varName]; !exists {
-					errors = append(errors, fmt.Errorf("Variable %s may be uninitialized in return statement", varName))
+				if varName != "" && !strings.HasPrefix(varName, "$") {
+					// Ensure variable name doesn't have sigil already
+					if _, exists := state.VariableTypes[varName]; !exists {
+						errors = append(errors, fmt.Errorf("Variable $%s may be uninitialized in return statement", varName))
+					}
 				}
 			}
 		case "literal":
 			// Literals in return statements are generally safe
 			continue
 		default:
-			// For other expression types, recursively check for variables
-			// This is a simplified approach
+			// For other expression types, recursively check for unsafe patterns
+			// TODO: Implement comprehensive expression safety checking
+			// For now, skip complex expressions in return statements
 		}
 	}
 
@@ -1082,14 +1086,20 @@ func (fa *FlowAnalyzer) processAssignment(stmt ast.Node, state *TypeState) []err
 		return errors
 	}
 
-	// For simple assignment (=), check type compatibility
-	if targetType != "" && targetType != "Any" && sourceType != "Any" {
-		if err := fa.checkTypeCompatibility(sourceType, targetType, assign.Start()); err != nil {
-			errors = append(errors, err)
+	// For simple assignment (=), always update the type
+	if sourceType != "" && sourceType != "Any" {
+		// Store the inferred type
+		state.VariableTypes[targetVar] = sourceType
+
+		// Also check type compatibility if there was a previous type
+		if targetType != "" && targetType != "Any" && targetType != sourceType {
+			if err := fa.checkTypeCompatibility(sourceType, targetType, assign.Start()); err != nil {
+				errors = append(errors, err)
+			}
 		}
 	} else if targetType == "" || targetType == "Any" {
-		// Variable not previously declared or has Any type - refine to source type
-		if sourceType != "Any" {
+		// Variable not previously declared or has Any type
+		if sourceType != "" {
 			state.VariableTypes[targetVar] = sourceType
 		} else {
 			state.VariableTypes[targetVar] = "Any"
@@ -1655,6 +1665,12 @@ func (fa *FlowAnalyzer) checkVariableSafety(varExpr *ast.VariableExpr, state *Ty
 	}
 
 	varName := varExpr.Name
+
+	// Skip if variable name is empty or just a sigil
+	if varName == "" || varName == "$" {
+		return errors
+	}
+
 	varType := fa.getVariableTypeFromState(varName, state)
 
 	// Check for uninitialized variable usage in contexts where it matters
@@ -1911,11 +1927,26 @@ func (fa *FlowAnalyzer) isDefinedOrOperatorContext(parent ast.Node, varExpr *ast
 		return false
 	}
 
-	// Look for binary expression with // operator
+	// Check if parent is a binary expression with // operator
+	if parent.Type() == "binary_expr" {
+		if binaryExpr, ok := parent.(*ast.BinaryExpr); ok {
+			if binaryExpr.Operator == "//" {
+				// Check if our variable is the left operand
+				if leftVar, ok := binaryExpr.Left.(*ast.VariableExpr); ok {
+					return leftVar.Name == varExpr.Name
+				}
+			}
+		}
+	}
+
+	// Fallback: check parent text for // operator pattern
 	parentText := parent.Text()
 	varText := varExpr.Text()
+	if varText == "" {
+		varText = "$" + varExpr.Name
+	}
 
-	// Simple heuristic: check if parent contains both variable and //
+	// Check if parent contains variable followed by //
 	return strings.Contains(parentText, varText) && strings.Contains(parentText, "//")
 }
 
@@ -2003,6 +2034,24 @@ func (fa *FlowAnalyzer) isHashAccessInSafeContext(hashRef *ast.HashRefExpr) bool
 func (fa *FlowAnalyzer) isHashInDefinedOrContext(parent ast.Node, hashRef *ast.HashRefExpr) bool {
 	if parent == nil {
 		return false
+	}
+
+	// Check if parent is a binary expression with // operator
+	if parent.Type() == "binary_expr" {
+		if binaryExpr, ok := parent.(*ast.BinaryExpr); ok {
+			if binaryExpr.Operator == "//" {
+				// Check if our hash access is the left operand
+				if leftHash, ok := binaryExpr.Left.(*ast.HashRefExpr); ok {
+					// Compare hash access (simplified check)
+					return leftHash == hashRef
+				}
+			}
+		}
+	}
+
+	// Also check if the parent's parent is a binary expression (for nested expressions)
+	if parent.Parent() != nil && parent.Parent().Type() == "binary_expr" {
+		return fa.isHashInDefinedOrContext(parent.Parent(), hashRef)
 	}
 
 	parentText := parent.Text()
