@@ -48,9 +48,9 @@ func TestCFGConstructionPerformance(t *testing.T) {
 		},
 		{
 			name:        "very_large_linear_code",
-			lines:       5000,
+			lines:       1000,
 			complexity:  "linear",
-			maxDuration: 30 * time.Second,
+			maxDuration: 2 * time.Second,
 			description: "Should handle very large linear code files",
 		},
 	}
