@@ -58,7 +58,7 @@ AST {
         type_expr
         block_stmt
           token
-          return_stmt
+          expression_stmt
             literal
           token
           token
@@ -67,15 +67,14 @@ AST {
         block_stmt
           token
           return_stmt
-            literal
+            variable
           token
           token
       method_decl
         type_expr
         block_stmt
           token
-          return_stmt
-            literal
+          for_stmt
           return_stmt
             literal
           token
@@ -105,7 +104,7 @@ AST {
         type_expr
         block_stmt
           token
-          return_stmt
+          expression_stmt
             literal
           token
           token
@@ -114,15 +113,14 @@ AST {
         block_stmt
           token
           return_stmt
-            literal
+            variable
           token
           token
       method_decl
         type_expr
         block_stmt
           token
-          return_stmt
-            literal
+          for_stmt
           return_stmt
             literal
           token

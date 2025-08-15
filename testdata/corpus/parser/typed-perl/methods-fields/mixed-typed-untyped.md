@@ -80,6 +80,7 @@ AST {
             literal
     token
     method_decl
+      type_expr
       block_stmt
         token
         return_stmt
@@ -89,14 +90,14 @@ AST {
     sub_decl
       block_stmt
         token
-        return_stmt
+        expression_stmt
           literal
-        token
         return_stmt
           literal
         token
         token
     method_decl
+      type_expr
       block_stmt
         token
         return_stmt
@@ -176,6 +177,7 @@ AST {
             literal
     token
     method_decl
+      type_expr
       block_stmt
         token
         return_stmt
@@ -185,14 +187,14 @@ AST {
     sub_decl
       block_stmt
         token
-        return_stmt
+        expression_stmt
           literal
-        token
         return_stmt
           literal
         token
         token
     method_decl
+      type_expr
       block_stmt
         token
         return_stmt
