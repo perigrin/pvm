@@ -57,7 +57,23 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
+        return_stmt
+          literal
+        token
+        token
+    method_decl
+      type_expr
+      block_stmt
+        token
+        return_stmt
+          literal
+        token
+        token
+    method_decl
+      type_expr
+      block_stmt
+        token
+        return_stmt
           literal
         token
         token
@@ -67,12 +83,6 @@ AST {
         token
         expression_stmt
           literal
-        token
-        token
-    method_decl
-      type_expr
-      block_stmt
-        token
         expression_stmt
           literal
         token
@@ -81,17 +91,7 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
-          literal
-        expression_stmt
-          literal
-        token
-        token
-    method_decl
-      type_expr
-      block_stmt
-        token
-        expression_stmt
+        return_stmt
           literal
         token
         token
@@ -140,7 +140,23 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
+        return_stmt
+          literal
+        token
+        token
+    method_decl
+      type_expr
+      block_stmt
+        token
+        return_stmt
+          literal
+        token
+        token
+    method_decl
+      type_expr
+      block_stmt
+        token
+        return_stmt
           literal
         token
         token
@@ -150,12 +166,6 @@ AST {
         token
         expression_stmt
           literal
-        token
-        token
-    method_decl
-      type_expr
-      block_stmt
-        token
         expression_stmt
           literal
         token
@@ -164,17 +174,7 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
-          literal
-        expression_stmt
-          literal
-        token
-        token
-    method_decl
-      type_expr
-      block_stmt
-        token
-        expression_stmt
+        return_stmt
           literal
         token
         token

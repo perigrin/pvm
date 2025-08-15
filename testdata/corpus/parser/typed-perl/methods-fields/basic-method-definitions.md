@@ -50,7 +50,7 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
+        return_stmt
           literal
         token
         token
@@ -58,7 +58,7 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
+        return_stmt
           literal
         token
         token
@@ -66,8 +66,8 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
-          literal
+        return_stmt
+          variable
         token
         token
 }
@@ -132,7 +132,7 @@ AST {
                 "text": "{"
               },
               {
-                "type": "expression_stmt",
+                "type": "return_stmt",
                 "start": {
                   "Line": 2,
                   "Column": 5,
@@ -235,7 +235,7 @@ AST {
                 "text": "{"
               },
               {
-                "type": "expression_stmt",
+                "type": "return_stmt",
                 "start": {
                   "Line": 6,
                   "Column": 5,
@@ -338,7 +338,7 @@ AST {
                 "text": "{"
               },
               {
-                "type": "expression_stmt",
+                "type": "return_stmt",
                 "start": {
                   "Line": 10,
                   "Column": 5,
@@ -584,7 +584,7 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
+        return_stmt
           literal
         token
         token
@@ -592,7 +592,7 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
+        return_stmt
           literal
         token
         token
@@ -600,8 +600,8 @@ AST {
       type_expr
       block_stmt
         token
-        expression_stmt
-          literal
+        return_stmt
+          variable
         token
         token
 }

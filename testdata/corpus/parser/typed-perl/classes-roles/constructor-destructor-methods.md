@@ -85,10 +85,49 @@ AST {
         type_expr
         block_stmt
           token
-          expression_stmt
+          return_stmt
             literal
           token
-          expression_stmt
+          return_stmt
+            literal
+          token
+          return_stmt
+            literal
+          token
+          token
+      method_decl
+        type_expr
+        block_stmt
+          token
+          return_stmt
+            literal
+          token
+          return_stmt
+            literal
+          token
+          return_stmt
+            literal
+          token
+          token
+      method_decl
+        type_expr
+        block_stmt
+          token
+          return_stmt
+            literal
+          token
+          token
+      method_decl
+        type_expr
+        block_stmt
+          token
+          return_stmt
+            literal
+          token
+          return_stmt
+            literal
+          token
+          return_stmt
             literal
           token
           expression_stmt
@@ -99,52 +138,13 @@ AST {
         type_expr
         block_stmt
           token
-          expression_stmt
+          return_stmt
             literal
           token
-          expression_stmt
+          return_stmt
             literal
           token
-          expression_stmt
-            literal
-          token
-          token
-      method_decl
-        type_expr
-        block_stmt
-          token
-          expression_stmt
-            literal
-          token
-          token
-      method_decl
-        type_expr
-        block_stmt
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
-            literal
-          token
-          token
-      method_decl
-        type_expr
-        block_stmt
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
+          return_stmt
             literal
           token
           expression_stmt
@@ -185,10 +185,49 @@ AST {
         type_expr
         block_stmt
           token
-          expression_stmt
+          return_stmt
             literal
           token
-          expression_stmt
+          return_stmt
+            literal
+          token
+          return_stmt
+            literal
+          token
+          token
+      method_decl
+        type_expr
+        block_stmt
+          token
+          return_stmt
+            literal
+          token
+          return_stmt
+            literal
+          token
+          return_stmt
+            literal
+          token
+          token
+      method_decl
+        type_expr
+        block_stmt
+          token
+          return_stmt
+            literal
+          token
+          token
+      method_decl
+        type_expr
+        block_stmt
+          token
+          return_stmt
+            literal
+          token
+          return_stmt
+            literal
+          token
+          return_stmt
             literal
           token
           expression_stmt
@@ -199,52 +238,13 @@ AST {
         type_expr
         block_stmt
           token
-          expression_stmt
+          return_stmt
             literal
           token
-          expression_stmt
+          return_stmt
             literal
           token
-          expression_stmt
-            literal
-          token
-          token
-      method_decl
-        type_expr
-        block_stmt
-          token
-          expression_stmt
-            literal
-          token
-          token
-      method_decl
-        type_expr
-        block_stmt
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
-            literal
-          token
-          token
-      method_decl
-        type_expr
-        block_stmt
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
-            literal
-          token
-          expression_stmt
+          return_stmt
             literal
           token
           expression_stmt

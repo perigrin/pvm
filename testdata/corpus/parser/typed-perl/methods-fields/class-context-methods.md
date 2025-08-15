@@ -53,20 +53,23 @@ AST {
   source_file
     class_decl
       method_decl
+        type_expr
         block_stmt
           token
-          expression_stmt
+          return_stmt
             literal
           token
           token
       method_decl
+        type_expr
         block_stmt
           token
-          expression_stmt
-            literal
+          return_stmt
+            variable
           token
           token
       method_decl
+        type_expr
         block_stmt
           token
           expression_stmt
@@ -624,20 +627,23 @@ AST {
   source_file
     class_decl
       method_decl
+        type_expr
         block_stmt
           token
-          expression_stmt
+          return_stmt
             literal
           token
           token
       method_decl
+        type_expr
         block_stmt
           token
-          expression_stmt
-            literal
+          return_stmt
+            variable
           token
           token
       method_decl
+        type_expr
         block_stmt
           token
           expression_stmt
