@@ -179,14 +179,15 @@ func (fa *FlowAnalyzer) buildControlFlowGraph(ast *ast.AST) (*ControlFlowGraph, 
 		Edges: []*FlowEdge{},
 	}
 
-	// Create entry block
+	// Create entry block with type state populated from symbol table
+	initialTypeState := fa.createInitialTypeState()
 	entry := &BasicBlock{
 		ID:            0,
 		Statements:    nil,
 		Predecessors:  []*BasicBlock{},
 		Successors:    []*BasicBlock{},
-		TypeState:     fa.TypeChecker.TypeState,
-		ExitTypeState: fa.copyTypeState(fa.TypeChecker.TypeState),
+		TypeState:     initialTypeState,
+		ExitTypeState: fa.copyTypeState(initialTypeState),
 	}
 	cfg.Entry = entry
 	cfg.Nodes = append(cfg.Nodes, entry)
@@ -226,6 +227,43 @@ func (fa *FlowAnalyzer) buildControlFlowGraph(ast *ast.AST) (*ControlFlowGraph, 
 
 	fa.CFG = cfg
 	return cfg, nil
+}
+
+// createInitialTypeState creates the initial type state for flow analysis
+// by populating it with variable types from the TypeChecker's symbol table
+func (fa *FlowAnalyzer) createInitialTypeState() *TypeState {
+	state := &TypeState{
+		VariableTypes: make(map[string]string),
+		RefinedTypes:  make(map[string]string),
+		Conditions:    []Condition{},
+	}
+
+	// Populate from TypeChecker's symbol table information
+	if fa.TypeChecker != nil {
+		// Copy all variable types from TypeChecker
+		for varName, varType := range fa.TypeChecker.VariableTypes {
+			state.VariableTypes[varName] = varType
+		}
+
+		// Also include type annotations that might not be in VariableTypes
+		for varName, varType := range fa.TypeChecker.TypeAnnotations {
+			if _, exists := state.VariableTypes[varName]; !exists {
+				state.VariableTypes[varName] = varType
+			}
+		}
+
+		// Preserve any existing flow-sensitive state if it exists
+		if fa.TypeChecker.TypeState != nil {
+			// Copy refined types from existing flow state
+			for varName, refinedType := range fa.TypeChecker.TypeState.RefinedTypes {
+				state.RefinedTypes[varName] = refinedType
+			}
+			// Copy conditions from existing flow state
+			state.Conditions = append(state.Conditions, fa.TypeChecker.TypeState.Conditions...)
+		}
+	}
+
+	return state
 }
 
 // processNode processes a single AST node and updates the control flow graph

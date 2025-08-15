@@ -15,7 +15,7 @@ import (
 
 // TestBuiltinFunctionInference tests type inference from Perl built-in functions
 func TestBuiltinFunctionInference(t *testing.T) {
-	t.Skip("TEMPORARY: Type inference broken by AST processing changes - needs separate fix")
+	// Re-enabled: Flow analysis should now work with TypeChecker symbol information
 	testCases := []struct {
 		name          string
 		code          string
@@ -128,7 +128,7 @@ sub string_operations($text) {
 
 // TestLibraryFunctionInference tests inference from common library functions
 func TestLibraryFunctionInference(t *testing.T) {
-	t.Skip("TEMPORARY: Type inference broken by AST processing changes - needs separate fix")
+	// Re-enabled: Flow analysis should now work with TypeChecker symbol information
 	testCases := []struct {
 		name          string
 		code          string
@@ -229,7 +229,7 @@ sub utility_operations($data, $pattern) {
 
 // TestConstructorCallInference tests type inference from constructor patterns
 func TestConstructorCallInference(t *testing.T) {
-	t.Skip("TEMPORARY: Type inference broken by AST processing changes - needs separate fix")
+	// Re-enabled: Flow analysis should now work with TypeChecker symbol information
 	testCases := []struct {
 		name          string
 		code          string
@@ -310,7 +310,7 @@ sub factory_patterns() {
 
 // TestMethodChainInference tests type inference through method chains
 func TestMethodChainInference(t *testing.T) {
-	t.Skip("TEMPORARY: Type inference broken by AST processing changes - needs separate fix")
+	// Re-enabled: Flow analysis should now work with TypeChecker symbol information
 	testCases := []struct {
 		name          string
 		code          string
@@ -387,7 +387,7 @@ sub object_chains($user) {
 
 // TestBinaryExpressionInference tests type inference from binary expressions
 func TestBinaryExpressionInference(t *testing.T) {
-	t.Skip("TEMPORARY: Type inference broken by AST processing changes - needs separate fix")
+	// Re-enabled: Flow analysis should now work with TypeChecker symbol information
 	testCases := []struct {
 		name          string
 		code          string
@@ -476,7 +476,7 @@ sub comparisons($x, $y, $a, $b) {
 
 // TestConditionalExpressionInference tests type inference from conditional expressions
 func TestConditionalExpressionInference(t *testing.T) {
-	t.Skip("TEMPORARY: Type inference broken by AST processing changes - needs separate fix")
+	// Re-enabled: Flow analysis should now work with TypeChecker symbol information
 	testCases := []struct {
 		name          string
 		code          string

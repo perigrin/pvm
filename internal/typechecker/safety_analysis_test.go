@@ -15,7 +15,7 @@ import (
 
 // TestSafetyAnalysis_NoFalsePositives tests patterns that should NOT trigger safety errors
 func TestSafetyAnalysis_NoFalsePositives(t *testing.T) {
-	t.Skip("TEMPORARY: Safety analysis broken by AST processing changes - needs separate fix")
+	// Re-enabled: Flow analysis should now work with TypeChecker symbol information
 	testCases := []struct {
 		name string
 		code string
@@ -117,7 +117,7 @@ sub extract_fields(HashRef $data) {
 
 // TestSafetyAnalysis_TruePositives tests patterns that SHOULD trigger safety errors
 func TestSafetyAnalysis_TruePositives(t *testing.T) {
-	t.Skip("TEMPORARY: Safety analysis broken by AST processing changes - needs separate fix")
+	// Re-enabled: Flow analysis should now work with TypeChecker symbol information
 	testCases := []struct {
 		name           string
 		code           string
@@ -215,7 +215,7 @@ sub get_nested_value(HashRef $config) {
 
 // TestSafetyAnalysis_PerlIdioms tests that common Perl idioms are recognized as safe
 func TestSafetyAnalysis_PerlIdioms(t *testing.T) {
-	t.Skip("TEMPORARY: Safety analysis broken by AST processing changes - needs separate fix")
+	// Re-enabled: Flow analysis should now work with TypeChecker symbol information
 	testCases := []struct {
 		name string
 		code string
