@@ -377,8 +377,8 @@ sub Bool dbmclose(HashRef $hash);
 # ============================================================================
 
 # Hash utilities
-sub Bool delete(HashRef $hash, Str $key);
-sub Bool delete(ArrayRef $array, Int $index);
+sub Any delete(Hash $hash, Str $key);
+sub Any delete(Array $array, Int $index);
 
 # Reset functions
 sub Void reset(Str $expression);
@@ -390,8 +390,8 @@ sub Str q(Str $string);
 sub Str qq(Str $string);
 sub RegexRef qr(Str $string);
 
-# Context and special variables access
-sub Str|ArrayRef|HashRef given(Any $expression);
+# Context and special variables access (control flow statement)
+# Note: given is a control flow statement, not a function with return value
 
 # Advanced features
 sub Any lock(Any $thing);
