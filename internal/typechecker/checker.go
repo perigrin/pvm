@@ -68,6 +68,9 @@ type TypeChecker struct {
 
 	// Debug enables debug mode
 	Debug bool
+
+	// SafetyAnalysisEnabled controls whether safety analysis is performed
+	SafetyAnalysisEnabled bool
 }
 
 // NewTypeChecker creates a new TypeChecker with the given type hierarchy and symbol table

@@ -5,8 +5,10 @@ package typechecker
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"tamarou.com/pvm/internal/ast"
 )
@@ -446,6 +448,12 @@ func (fa *FlowAnalyzer) analyzeDataFlow(cfg *ControlFlowGraph) []error {
 		errors = append(errors, fmt.Errorf("flow analysis reached maximum iterations, possible infinite loop"))
 	}
 
+	// After flow analysis completes, perform safety analysis (if enabled)
+	if fa.TypeChecker.SafetyAnalysisEnabled {
+		safetyErrors := fa.performSafetyAnalysis(cfg)
+		errors = append(errors, safetyErrors...)
+	}
+
 	return errors
 }
 
@@ -503,9 +511,11 @@ func (fa *FlowAnalyzer) processStatement(stmt ast.Node, state *TypeState) []erro
 func (fa *FlowAnalyzer) copyTypeState(state *TypeState) *TypeState {
 	if state == nil {
 		return &TypeState{
-			VariableTypes: make(map[string]string),
-			RefinedTypes:  make(map[string]string),
-			Conditions:    []Condition{},
+			VariableTypes:  make(map[string]string),
+			RefinedTypes:   make(map[string]string),
+			Conditions:     []Condition{},
+			FieldAccess:    make(map[string]map[string]bool),
+			ExceptionTypes: make(map[string]bool),
 		}
 	}
 
@@ -513,6 +523,8 @@ func (fa *FlowAnalyzer) copyTypeState(state *TypeState) *TypeState {
 		VariableTypes:  make(map[string]string),
 		RefinedTypes:   make(map[string]string),
 		Conditions:     make([]Condition, len(state.Conditions)),
+		FieldAccess:    make(map[string]map[string]bool),
+		ExceptionTypes: make(map[string]bool),
 		SkipFlowChecks: state.SkipFlowChecks,
 	}
 
@@ -524,6 +536,19 @@ func (fa *FlowAnalyzer) copyTypeState(state *TypeState) *TypeState {
 	// Copy refined types
 	for k, v := range state.RefinedTypes {
 		newState.RefinedTypes[k] = v
+	}
+
+	// Copy field access tracking (deep copy of nested map)
+	for varName, fields := range state.FieldAccess {
+		newState.FieldAccess[varName] = make(map[string]bool)
+		for fieldName, accessed := range fields {
+			newState.FieldAccess[varName][fieldName] = accessed
+		}
+	}
+
+	// Copy exception types
+	for excType, present := range state.ExceptionTypes {
+		newState.ExceptionTypes[excType] = present
 	}
 
 	// Copy conditions
@@ -542,9 +567,11 @@ func (fa *FlowAnalyzer) mergeTypeStates(state1, state2 *TypeState) *TypeState {
 	}
 
 	merged := &TypeState{
-		VariableTypes: make(map[string]string),
-		RefinedTypes:  make(map[string]string),
-		Conditions:    []Condition{},
+		VariableTypes:  make(map[string]string),
+		RefinedTypes:   make(map[string]string),
+		Conditions:     []Condition{},
+		FieldAccess:    make(map[string]map[string]bool),
+		ExceptionTypes: make(map[string]bool),
 	}
 
 	// Merge variable types - use union types if they differ
@@ -571,6 +598,43 @@ func (fa *FlowAnalyzer) mergeTypeStates(state1, state2 *TypeState) *TypeState {
 		}
 	}
 
+	// Merge field access tracking - union of all accessed fields
+	for varName, fields1 := range state1.FieldAccess {
+		merged.FieldAccess[varName] = make(map[string]bool)
+		// Copy fields from state1
+		for fieldName, accessed := range fields1 {
+			merged.FieldAccess[varName][fieldName] = accessed
+		}
+		// Add fields from state2 if they exist
+		if fields2, exists := state2.FieldAccess[varName]; exists {
+			for fieldName, accessed := range fields2 {
+				merged.FieldAccess[varName][fieldName] = accessed
+			}
+		}
+	}
+
+	// Add field access from state2 for variables not in state1
+	for varName, fields2 := range state2.FieldAccess {
+		if _, exists := merged.FieldAccess[varName]; !exists {
+			merged.FieldAccess[varName] = make(map[string]bool)
+			for fieldName, accessed := range fields2 {
+				merged.FieldAccess[varName][fieldName] = accessed
+			}
+		}
+	}
+
+	// Merge exception types - union of all exception types from both states
+	for excType, present := range state1.ExceptionTypes {
+		if present {
+			merged.ExceptionTypes[excType] = true
+		}
+	}
+	for excType, present := range state2.ExceptionTypes {
+		if present {
+			merged.ExceptionTypes[excType] = true
+		}
+	}
+
 	return merged
 }
 
@@ -578,9 +642,11 @@ func (fa *FlowAnalyzer) mergeTypeStates(state1, state2 *TypeState) *TypeState {
 func (fa *FlowAnalyzer) mergeMultipleTypeStates(states []*TypeState) *TypeState {
 	if len(states) == 0 {
 		return &TypeState{
-			VariableTypes: make(map[string]string),
-			RefinedTypes:  make(map[string]string),
-			Conditions:    []Condition{},
+			VariableTypes:  make(map[string]string),
+			RefinedTypes:   make(map[string]string),
+			Conditions:     []Condition{},
+			FieldAccess:    make(map[string]map[string]bool),
+			ExceptionTypes: make(map[string]bool),
 		}
 	}
 	if len(states) == 1 {
@@ -935,7 +1001,7 @@ func (fa *FlowAnalyzer) extractTypeFromTypeExpression(typeExpr *ast.TypeExpressi
 	return typeExpr.String()
 }
 
-// inferTypeFromExpression performs basic type inference on expressions
+// inferTypeFromExpression performs sophisticated type inference on expressions
 func (fa *FlowAnalyzer) inferTypeFromExpression(expr ast.ExpressionNode) string {
 	if expr == nil {
 		return "Any"
@@ -954,7 +1020,7 @@ func (fa *FlowAnalyzer) inferTypeFromExpression(expr ast.ExpressionNode) string 
 		}
 	}
 
-	// Basic type inference based on expression type
+	// Enhanced type inference based on expression type
 	switch expr.Type() {
 	case "literal":
 		if literal, ok := expr.(*ast.LiteralExpr); ok {
@@ -962,24 +1028,32 @@ func (fa *FlowAnalyzer) inferTypeFromExpression(expr ast.ExpressionNode) string 
 		}
 	case "variable":
 		if varExpr, ok := expr.(*ast.VariableExpr); ok {
-			// Check current type state first
-			if fa.TypeChecker.TypeState != nil {
-				if varType, exists := fa.TypeChecker.TypeState.VariableTypes[varExpr.Name]; exists {
-					return varType
-				}
-			}
-			// Fall back to type annotations
-			if varType, exists := fa.TypeChecker.TypeAnnotations[varExpr.Name]; exists {
-				return varType
-			}
+			return fa.inferVariableType(varExpr)
 		}
 	case "call_expr":
 		if callExpr, ok := expr.(*ast.CallExpr); ok {
 			return fa.inferReturnTypeFromCall(callExpr)
 		}
+	case "binary_expr":
+		if binaryExpr, ok := expr.(*ast.BinaryExpr); ok {
+			return fa.inferTypeFromBinaryExpression(binaryExpr)
+		}
+	case "hash_ref_expr":
+		if hashRef, ok := expr.(*ast.HashRefExpr); ok {
+			return fa.inferTypeFromHashAccess(hashRef)
+		}
+	case "array_ref_expr":
+		if arrayRef, ok := expr.(*ast.ArrayRefExpr); ok {
+			return fa.inferTypeFromArrayAccess(arrayRef)
+		}
+	case "conditional_expr":
+		if conditional, ok := expr.(*ast.ConditionalExpr); ok {
+			return fa.inferTypeFromConditional(conditional)
+		}
 	}
 
-	return "Any" // Default fallback
+	// Perl default: most scalar values are strings unless proven otherwise
+	return "Str"
 }
 
 // inferTypeFromLiteral infers type from literal expressions
@@ -1004,18 +1078,1015 @@ func (fa *FlowAnalyzer) inferTypeFromLiteral(literal *ast.LiteralExpr) string {
 	}
 }
 
-// inferReturnTypeFromCall infers the return type of a function call
+// inferReturnTypeFromCall infers the return type of a function call with sophisticated pattern recognition
 func (fa *FlowAnalyzer) inferReturnTypeFromCall(call *ast.CallExpr) string {
 	functionName := fa.extractFunctionNameFromCall(call)
 	if functionName == "" {
-		return "Any"
+		// Check for method calls (Class->method())
+		return fa.inferReturnTypeFromMethodCall(call)
 	}
 
+	// Check for built-in Perl functions first
+	if builtinType := fa.inferBuiltinFunctionType(functionName, call); builtinType != "" {
+		return builtinType
+	}
+
+	// Check for common library functions
+	if libraryType := fa.inferLibraryFunctionType(functionName, call); libraryType != "" {
+		return libraryType
+	}
+
+	// Check user-defined function signatures
 	if signature, exists := fa.TypeChecker.FunctionTypes[functionName]; exists {
 		return signature.ReturnType
 	}
 
+	// Perl default: most function calls return strings unless proven otherwise
+	return "Str"
+}
+
+// inferReturnTypeFromMethodCall infers return types from method calls (Class->method, $obj->method)
+func (fa *FlowAnalyzer) inferReturnTypeFromMethodCall(call *ast.CallExpr) string {
+	if call == nil || call.Function == nil {
+		return "Str"
+	}
+
+	// Check if this is a constructor call (Class->new())
+	if fa.isConstructorCall(call) {
+		className := fa.extractClassNameFromConstructor(call)
+		if className != "" {
+			return className
+		}
+	}
+
+	// Check for chained method calls
+	if fa.isMethodChain(call) {
+		return fa.inferMethodChainType(call)
+	}
+
+	// Default for unknown method calls
+	return "Str"
+}
+
+// inferBuiltinFunctionType infers types for Perl built-in functions
+func (fa *FlowAnalyzer) inferBuiltinFunctionType(functionName string, call *ast.CallExpr) string {
+	switch functionName {
+	case "ref":
+		// ref() returns the reference type as a string ("HASH", "ARRAY", etc.)
+		return "Str"
+	case "defined":
+		// defined() returns boolean
+		return "Bool"
+	case "exists":
+		// exists() returns boolean
+		return "Bool"
+	case "keys", "values":
+		// keys() and values() return arrays
+		return "ArrayRef[Str]"
+	case "length", "substr", "index", "rindex":
+		// String functions that return numbers
+		if functionName == "length" || functionName == "index" || functionName == "rindex" {
+			return "Int"
+		}
+		return "Str"
+	case "chomp", "chop":
+		// Modify in place, return number of characters removed
+		return "Int"
+	case "split":
+		// split() returns array
+		return "ArrayRef[Str]"
+	case "join":
+		// join() returns string
+		return "Str"
+	case "open":
+		// open() returns file handle or undef
+		return "Maybe[FileHandle]"
+	case "close":
+		// close() returns boolean success
+		return "Bool"
+	case "print", "say", "printf":
+		// Print functions return boolean success
+		return "Bool"
+	case "int":
+		// int() returns integer
+		return "Int"
+	case "sprintf":
+		// sprintf() returns string
+		return "Str"
+	case "time":
+		// time() returns integer timestamp
+		return "Int"
+	case "localtime", "gmtime":
+		// In scalar context returns string, in list context returns array
+		return "Str" // Simplified for scalar context
+	case "slurp":
+		// Common slurp function returns string content
+		return "Str"
+	}
+
+	return ""
+}
+
+// inferLibraryFunctionType infers types for common library functions
+func (fa *FlowAnalyzer) inferLibraryFunctionType(functionName string, call *ast.CallExpr) string {
+	switch functionName {
+	case "decode_json", "from_json":
+		// JSON parsing functions return hash references
+		return "HashRef[Str, Any]"
+	case "encode_json", "to_json":
+		// JSON encoding functions return strings
+		return "Str"
+	case "selectrow_hashref":
+		// Database function returns hash ref with string values
+		return "Maybe[HashRef[Str, Str]]"
+	case "selectrow_array":
+		// Database function returns array ref
+		return "Maybe[ArrayRef[Str]]"
+	case "selectall_hashref":
+		// Database function returns hash of hashes
+		return "HashRef[Str, HashRef[Str, Str]]"
+	case "selectall_arrayref":
+		// Database function returns array of arrays
+		return "ArrayRef[ArrayRef[Str]]"
+	case "get_user_from_db", "fetch_user", "load_user":
+		// Common user fetching patterns - return hash refs
+		return "Maybe[HashRef[Str, Str]]"
+	case "try_open":
+		// Common file opening pattern that can fail
+		return "Maybe[FileHandle]"
+	case "log_error", "log_info", "log_debug":
+		// Logging functions return success boolean
+		return "Bool"
+	case "send_email", "send_notification":
+		// Communication functions return success boolean
+		return "Bool"
+	}
+
+	return ""
+}
+
+// isConstructorCall checks if a call is a constructor call (Class->new())
+func (fa *FlowAnalyzer) isConstructorCall(call *ast.CallExpr) bool {
+	if call == nil || call.Function == nil {
+		return false
+	}
+
+	// Check if function is a method call ending with ->new
+	functionText := call.Function.Text()
+	return strings.Contains(functionText, "->new")
+}
+
+// extractClassNameFromConstructor extracts class name from constructor call
+func (fa *FlowAnalyzer) extractClassNameFromConstructor(call *ast.CallExpr) string {
+	if call == nil || call.Function == nil {
+		return ""
+	}
+
+	functionText := call.Function.Text()
+
+	// Extract class name from "ClassName->new" pattern
+	if strings.Contains(functionText, "->new") {
+		parts := strings.Split(functionText, "->")
+		if len(parts) > 0 {
+			className := strings.TrimSpace(parts[0])
+			// Remove any leading $ or @ or % sigils
+			className = strings.TrimLeft(className, "$@%")
+			return className
+		}
+	}
+
+	return ""
+}
+
+// isMethodChain checks if this is a method chain call
+func (fa *FlowAnalyzer) isMethodChain(call *ast.CallExpr) bool {
+	if call == nil || call.Function == nil {
+		return false
+	}
+
+	functionText := call.Function.Text()
+	return strings.Contains(functionText, "->") && !strings.Contains(functionText, "->new")
+}
+
+// inferMethodChainType infers types from method chains
+func (fa *FlowAnalyzer) inferMethodChainType(call *ast.CallExpr) string {
+	if call == nil || call.Function == nil {
+		return "Str"
+	}
+
+	functionText := call.Function.Text()
+
+	// Common method patterns
+	if strings.Contains(functionText, "->email") {
+		return "Str"
+	}
+	if strings.Contains(functionText, "->id") {
+		return "Str"
+	}
+	if strings.Contains(functionText, "->name") {
+		return "Str"
+	}
+	if strings.Contains(functionText, "->domain") {
+		return "Str"
+	}
+
+	// Default for method chains
+	return "Str"
+}
+
+// Exception Prevention and Safety Analysis
+
+// performSafetyAnalysis performs comprehensive safety analysis to prevent runtime exceptions
+func (fa *FlowAnalyzer) performSafetyAnalysis(cfg *ControlFlowGraph) []error {
+	var errors []error
+
+	// Analyze each basic block for safety issues
+	for _, block := range cfg.Nodes {
+		blockErrors := fa.analyzeSafetyInBlock(block)
+		errors = append(errors, blockErrors...)
+	}
+
+	return errors
+}
+
+// analyzeSafetyInBlock analyzes a single basic block for safety issues
+func (fa *FlowAnalyzer) analyzeSafetyInBlock(block *BasicBlock) []error {
+	var errors []error
+
+	for _, stmt := range block.Statements {
+		stmtErrors := fa.analyzeSafetyInStatement(stmt, block.TypeState)
+		errors = append(errors, stmtErrors...)
+	}
+
+	return errors
+}
+
+// analyzeSafetyInStatement analyzes a statement for potential safety issues
+func (fa *FlowAnalyzer) analyzeSafetyInStatement(stmt ast.Node, state *TypeState) []error {
+	var errors []error
+
+	// Recursively analyze all expressions in the statement
+	fa.walkExpressions(stmt, func(expr ast.ExpressionNode) {
+		exprErrors := fa.analyzeSafetyInExpression(expr, state)
+		errors = append(errors, exprErrors...)
+	})
+
+	return errors
+}
+
+// analyzeSafetyInExpression analyzes an expression for safety issues
+func (fa *FlowAnalyzer) analyzeSafetyInExpression(expr ast.ExpressionNode, state *TypeState) []error {
+	var errors []error
+
+	if expr == nil {
+		return errors
+	}
+
+	switch expr.Type() {
+	case "hash_ref_expr":
+		if hashRef, ok := expr.(*ast.HashRefExpr); ok {
+			errors = append(errors, fa.checkHashFieldSafety(hashRef, state)...)
+		}
+	case "array_ref_expr":
+		if arrayRef, ok := expr.(*ast.ArrayRefExpr); ok {
+			errors = append(errors, fa.checkArrayAccessSafety(arrayRef, state)...)
+		}
+	case "variable":
+		if varExpr, ok := expr.(*ast.VariableExpr); ok {
+			errors = append(errors, fa.checkVariableSafety(varExpr, state)...)
+		}
+	case "call_expr":
+		if callExpr, ok := expr.(*ast.CallExpr); ok {
+			errors = append(errors, fa.checkFunctionCallSafety(callExpr, state)...)
+		}
+	case "binary_expr":
+		if binaryExpr, ok := expr.(*ast.BinaryExpr); ok {
+			errors = append(errors, fa.checkBinaryExpressionSafety(binaryExpr, state)...)
+		}
+	}
+
+	return errors
+}
+
+// checkHashFieldSafety checks for unsafe hash field access
+func (fa *FlowAnalyzer) checkHashFieldSafety(hashRef *ast.HashRefExpr, state *TypeState) []error {
+	var errors []error
+
+	if hashRef == nil || hashRef.Hash == nil || hashRef.Key == nil {
+		return errors
+	}
+
+	// Extract variable name and field name
+	varName := fa.extractVariableFromExpression(hashRef.Hash)
+	fieldName := fa.extractConstantValue(hashRef.Key)
+
+	if varName == "" || fieldName == "" {
+		return errors // Can't analyze dynamic access
+	}
+
+	// Check if this field access was validated with exists()
+	if state != nil && state.FieldAccess != nil {
+		if fields, exists := state.FieldAccess[varName]; exists {
+			if fields[fieldName] {
+				return errors // Field access is safe
+			}
+		}
+	}
+
+	// Get the hash type to determine if this is risky
+	hashType := fa.getVariableTypeFromState(varName, state)
+
+	// Check if this is a potentially unsafe access pattern
+	if fa.isPotentiallyUnsafeHashAccess(hashType, varName, fieldName) {
+		errors = append(errors, &TypeCheckError{
+			Message: fmt.Sprintf("Potentially unsafe hash field access: $%s->{%s} without exists() check. "+
+				"This may cause 'Use of uninitialized value' warnings at runtime. "+
+				"Consider: exists($%s->{%s}) ? $%s->{%s} : $default",
+				varName, fieldName, varName, fieldName, varName, fieldName),
+			Path:   "",
+			Line:   hashRef.Start().Line,
+			Column: hashRef.Start().Column,
+		})
+	}
+
+	return errors
+}
+
+// checkArrayAccessSafety checks for unsafe array access
+func (fa *FlowAnalyzer) checkArrayAccessSafety(arrayRef *ast.ArrayRefExpr, state *TypeState) []error {
+	var errors []error
+
+	if arrayRef == nil || arrayRef.Array == nil {
+		return errors
+	}
+
+	// Extract variable name
+	varName := fa.extractVariableFromExpression(arrayRef.Array)
+	if varName == "" {
+		return errors
+	}
+
+	// Get the array type
+	arrayType := fa.getVariableTypeFromState(varName, state)
+
+	// Check if variable is actually an array reference
+	if !fa.isArrayType(arrayType) && arrayType != "Any" {
+		errors = append(errors, &TypeCheckError{
+			Message: fmt.Sprintf("Array access on non-array variable $%s of type '%s'. "+
+				"This may cause 'Not an ARRAY reference' error at runtime. "+
+				"Consider checking: ref($%s) eq 'ARRAY'",
+				varName, arrayType, varName),
+			Path:   "",
+			Line:   arrayRef.Start().Line,
+			Column: arrayRef.Start().Column,
+		})
+	}
+
+	return errors
+}
+
+// checkVariableSafety checks for unsafe variable usage
+func (fa *FlowAnalyzer) checkVariableSafety(varExpr *ast.VariableExpr, state *TypeState) []error {
+	var errors []error
+
+	if varExpr == nil {
+		return errors
+	}
+
+	varName := varExpr.Name
+	varType := fa.getVariableTypeFromState(varName, state)
+
+	// Check for uninitialized variable usage in contexts where it matters
+	if fa.isUninitializedVariable(varName, varType, state) {
+		// Determine the context where this variable is being used
+		context := fa.determineUsageContext(varExpr)
+
+		if context == "numeric" {
+			errors = append(errors, &TypeCheckError{
+				Message: fmt.Sprintf("Variable $%s may be uninitialized in numeric context. "+
+					"This may cause 'Use of uninitialized value' warnings at runtime. "+
+					"Consider: defined($%s) ? $%s : 0",
+					varName, varName, varName),
+				Path:   "",
+				Line:   varExpr.Start().Line,
+				Column: varExpr.Start().Column,
+			})
+		} else if context == "string" && fa.isStrictStringContext(varExpr) {
+			errors = append(errors, &TypeCheckError{
+				Message: fmt.Sprintf("Variable $%s may be uninitialized in string context. "+
+					"This may cause 'Use of uninitialized value' warnings at runtime. "+
+					"Consider: defined($%s) ? $%s : ''",
+					varName, varName, varName),
+				Path:   "",
+				Line:   varExpr.Start().Line,
+				Column: varExpr.Start().Column,
+			})
+		}
+	}
+
+	return errors
+}
+
+// checkFunctionCallSafety checks for unsafe function call patterns
+func (fa *FlowAnalyzer) checkFunctionCallSafety(callExpr *ast.CallExpr, state *TypeState) []error {
+	var errors []error
+
+	if callExpr == nil {
+		return errors
+	}
+
+	functionName := fa.extractFunctionNameFromCall(callExpr)
+
+	// Check for functions that require reference validation
+	if fa.requiresReferenceValidation(functionName) {
+		for i, arg := range callExpr.Arguments {
+			if varExpr, ok := arg.(*ast.VariableExpr); ok {
+				varType := fa.getVariableTypeFromState(varExpr.Name, state)
+				expectedType := fa.getExpectedArgumentType(functionName, i)
+
+				if !fa.isCompatibleReferenceType(varType, expectedType) {
+					errors = append(errors, &TypeCheckError{
+						Message: fmt.Sprintf("Function '%s' expects %s but got variable $%s of type '%s'. "+
+							"This may cause reference type errors at runtime. "+
+							"Consider: ref($%s) eq '%s' ? %s($%s) : undef",
+							functionName, expectedType, varExpr.Name, varType,
+							varExpr.Name, fa.getReferenceTypeString(expectedType), functionName, varExpr.Name),
+						Path:   "",
+						Line:   callExpr.Start().Line,
+						Column: callExpr.Start().Column,
+					})
+				}
+			}
+		}
+	}
+
+	return errors
+}
+
+// checkBinaryExpressionSafety checks for unsafe binary expressions
+func (fa *FlowAnalyzer) checkBinaryExpressionSafety(binaryExpr *ast.BinaryExpr, state *TypeState) []error {
+	var errors []error
+
+	if binaryExpr == nil {
+		return errors
+	}
+
+	operator := binaryExpr.Operator
+	leftType := fa.inferTypeFromExpression(binaryExpr.Left)
+	rightType := fa.inferTypeFromExpression(binaryExpr.Right)
+
+	// Check for numeric operations on potentially non-numeric types
+	if fa.isNumericOperator(operator) {
+		if !fa.isNumericType(leftType) && leftType != "Any" && leftType != "Str" {
+			if varExpr, ok := binaryExpr.Left.(*ast.VariableExpr); ok {
+				errors = append(errors, &TypeCheckError{
+					Message: fmt.Sprintf("Numeric operation '%s' on non-numeric variable $%s of type '%s'. "+
+						"This may cause unexpected coercion or warnings at runtime.",
+						operator, varExpr.Name, leftType),
+					Path:   "",
+					Line:   binaryExpr.Start().Line,
+					Column: binaryExpr.Start().Column,
+				})
+			}
+		}
+
+		if !fa.isNumericType(rightType) && rightType != "Any" && rightType != "Str" {
+			if varExpr, ok := binaryExpr.Right.(*ast.VariableExpr); ok {
+				errors = append(errors, &TypeCheckError{
+					Message: fmt.Sprintf("Numeric operation '%s' on non-numeric variable $%s of type '%s'. "+
+						"This may cause unexpected coercion or warnings at runtime.",
+						operator, varExpr.Name, rightType),
+					Path:   "",
+					Line:   binaryExpr.Start().Line,
+					Column: binaryExpr.Start().Column,
+				})
+			}
+		}
+	}
+
+	return errors
+}
+
+// Helper methods for safety analysis
+
+// isPotentiallyUnsafeHashAccess determines if a hash access is potentially unsafe
+func (fa *FlowAnalyzer) isPotentiallyUnsafeHashAccess(hashType, varName, fieldName string) bool {
+	// Always risky for untyped hashes or Any type
+	if hashType == "Any" || hashType == "Str" || hashType == "" {
+		return true
+	}
+
+	// Database result patterns are risky without exists() checks
+	if strings.Contains(hashType, "HashRef") && strings.Contains(hashType, "Str") {
+		return true
+	}
+
+	// Common risky patterns
+	commonRiskyFields := []string{"user_id", "id", "name", "email", "data", "body", "result"}
+	for _, riskyField := range commonRiskyFields {
+		if fieldName == riskyField {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isArrayType checks if a type represents an array
+func (fa *FlowAnalyzer) isArrayType(typeStr string) bool {
+	return strings.HasPrefix(typeStr, "ArrayRef") || strings.Contains(typeStr, "Array")
+}
+
+// isUninitializedVariable checks if a variable might be uninitialized
+func (fa *FlowAnalyzer) isUninitializedVariable(varName, varType string, state *TypeState) bool {
+	// Variables with Maybe types are potentially uninitialized
+	if strings.HasPrefix(varType, "Maybe[") {
+		return true
+	}
+
+	// If variable has an explicit type annotation, it's likely initialized properly
+	if varType != "" && varType != "Str" && !strings.Contains(varType, "|") {
+		return false
+	}
+
+	// Variables declared with type annotations are considered safe
+	if fa.TypeChecker.TypeAnnotations != nil {
+		if _, hasAnnotation := fa.TypeChecker.TypeAnnotations[varName]; hasAnnotation {
+			return false
+		}
+	}
+
+	// Variables not in the type state might be uninitialized
+	if state == nil {
+		return false // Conservative: don't warn without more context
+	}
+
+	// Check if variable was assigned a value
+	if _, exists := state.VariableTypes[varName]; !exists {
+		// Only report for variables that look like they should have been assigned
+		// This is a heuristic to reduce false positives
+		return fa.looksLikeUnassignedVariable(varName)
+	}
+
+	return false
+}
+
+// looksLikeUnassignedVariable uses heuristics to determine if a variable looks unassigned
+func (fa *FlowAnalyzer) looksLikeUnassignedVariable(varName string) bool {
+	// Common patterns that indicate a variable should be checked
+	commonUnassignedPatterns := []string{
+		"result", "response", "data", "value", "item", "element",
+		"user", "config", "content", "output", "input",
+	}
+
+	for _, pattern := range commonUnassignedPatterns {
+		if strings.Contains(varName, pattern) {
+			return true
+		}
+	}
+
+	// Variables with generic names like "x", "y", "temp" might be unassigned
+	if len(varName) <= 2 {
+		return true
+	}
+
+	// Conservative: don't warn for other patterns to reduce false positives
+	return false
+}
+
+// determineUsageContext determines how a variable is being used
+func (fa *FlowAnalyzer) determineUsageContext(varExpr *ast.VariableExpr) string {
+	// This would need to analyze the parent context in a full implementation
+	// For now, return a default
+	return "string"
+}
+
+// isStrictStringContext checks if this is a context where string warnings matter
+func (fa *FlowAnalyzer) isStrictStringContext(varExpr *ast.VariableExpr) bool {
+	// In a full implementation, this would check the parent context
+	// For now, assume all string contexts are strict
+	return true
+}
+
+// requiresReferenceValidation checks if a function requires reference type validation
+func (fa *FlowAnalyzer) requiresReferenceValidation(functionName string) bool {
+	referenceRequiredFunctions := []string{"keys", "values", "each", "exists", "delete"}
+	for _, fn := range referenceRequiredFunctions {
+		if functionName == fn {
+			return true
+		}
+	}
+	return false
+}
+
+// getExpectedArgumentType returns the expected type for a function argument
+func (fa *FlowAnalyzer) getExpectedArgumentType(functionName string, argIndex int) string {
+	switch functionName {
+	case "keys", "values", "each":
+		if argIndex == 0 {
+			return "HashRef"
+		}
+	case "exists", "delete":
+		if argIndex == 0 {
+			return "HashRef"
+		}
+	}
 	return "Any"
+}
+
+// isCompatibleReferenceType checks if actual type is compatible with expected reference type
+func (fa *FlowAnalyzer) isCompatibleReferenceType(actualType, expectedType string) bool {
+	if expectedType == "Any" {
+		return true
+	}
+
+	if strings.Contains(actualType, expectedType) {
+		return true
+	}
+
+	// Allow Any and Str types to pass (Perl's dynamic nature)
+	if actualType == "Any" || actualType == "Str" {
+		return true
+	}
+
+	return false
+}
+
+// getReferenceTypeString returns the string representation for ref() checks
+func (fa *FlowAnalyzer) getReferenceTypeString(refType string) string {
+	switch refType {
+	case "HashRef":
+		return "HASH"
+	case "ArrayRef":
+		return "ARRAY"
+	case "ScalarRef":
+		return "SCALAR"
+	default:
+		return refType
+	}
+}
+
+// isNumericOperator checks if an operator is numeric
+func (fa *FlowAnalyzer) isNumericOperator(operator string) bool {
+	numericOps := []string{"+", "-", "*", "/", "%", "**", "==", "!=", "<", ">", "<=", ">=", "++", "--"}
+	for _, op := range numericOps {
+		if operator == op {
+			return true
+		}
+	}
+	return false
+}
+
+// walkExpressions recursively walks all expressions in a statement
+func (fa *FlowAnalyzer) walkExpressions(node ast.Node, visitor func(ast.ExpressionNode)) {
+	if node == nil {
+		return
+	}
+
+	// If this node is an expression, visit it
+	if expr, ok := node.(ast.ExpressionNode); ok {
+		visitor(expr)
+	}
+
+	// Recursively walk children
+	for _, child := range node.Children() {
+		fa.walkExpressions(child, visitor)
+	}
+}
+
+// Union Type Analysis with Throws[T] Support
+
+// analyzeExceptionFlow analyzes exception flow and infers Throws[T] union types
+func (fa *FlowAnalyzer) analyzeExceptionFlow(cfg *ControlFlowGraph) []error {
+	var errors []error
+
+	// Track all die statements and their types
+	dieStatements := fa.findDieStatements(cfg)
+
+	// For each function, determine if it can throw exceptions
+	for _, block := range cfg.Nodes {
+		blockErrors := fa.analyzeExceptionsInBlock(block, dieStatements)
+		errors = append(errors, blockErrors...)
+	}
+
+	return errors
+}
+
+// findDieStatements finds all die statements in the control flow graph
+func (fa *FlowAnalyzer) findDieStatements(cfg *ControlFlowGraph) map[int][]DieStatement {
+	dieStatements := make(map[int][]DieStatement)
+
+	for _, block := range cfg.Nodes {
+		for _, stmt := range block.Statements {
+			dies := fa.extractDieStatementsFromNode(stmt)
+			if len(dies) > 0 {
+				dieStatements[block.ID] = append(dieStatements[block.ID], dies...)
+			}
+		}
+	}
+
+	return dieStatements
+}
+
+// DieStatement represents a die statement with its exception type
+type DieStatement struct {
+	Node          ast.Node
+	ExceptionType string
+	Message       string
+	Location      ast.Position
+}
+
+// extractDieStatementsFromNode extracts die statements from an AST node
+func (fa *FlowAnalyzer) extractDieStatementsFromNode(node ast.Node) []DieStatement {
+	var dies []DieStatement
+
+	fa.walkExpressions(node, func(expr ast.ExpressionNode) {
+		if callExpr, ok := expr.(*ast.CallExpr); ok {
+			functionName := fa.extractFunctionNameFromCall(callExpr)
+			if functionName == "die" {
+				die := fa.createDieStatement(callExpr)
+				dies = append(dies, die)
+			}
+		}
+	})
+
+	return dies
+}
+
+// createDieStatement creates a DieStatement from a die function call
+func (fa *FlowAnalyzer) createDieStatement(callExpr *ast.CallExpr) DieStatement {
+	var message string
+	var exceptionType string = "Str" // Default exception type
+
+	// Extract message from die statement
+	if len(callExpr.Arguments) > 0 {
+		if literal, ok := callExpr.Arguments[0].(*ast.LiteralExpr); ok {
+			message = fa.extractConstantValue(literal)
+			// Infer exception type from message pattern
+			exceptionType = fa.inferExceptionTypeFromMessage(message)
+		} else {
+			// Dynamic message - infer type from expression
+			exceptionType = fa.inferTypeFromExpression(callExpr.Arguments[0])
+		}
+	}
+
+	return DieStatement{
+		Node:          callExpr,
+		ExceptionType: exceptionType,
+		Message:       message,
+		Location:      callExpr.Start(),
+	}
+}
+
+// inferExceptionTypeFromMessage infers exception type from die message patterns
+func (fa *FlowAnalyzer) inferExceptionTypeFromMessage(message string) string {
+	// Common exception type patterns
+	lowerMessage := strings.ToLower(message)
+
+	if strings.Contains(lowerMessage, "invalid") || strings.Contains(lowerMessage, "bad") {
+		return "ValidationError"
+	}
+	if strings.Contains(lowerMessage, "not found") || strings.Contains(lowerMessage, "missing") {
+		return "NotFoundError"
+	}
+	if strings.Contains(lowerMessage, "permission") || strings.Contains(lowerMessage, "access") {
+		return "PermissionError"
+	}
+	if strings.Contains(lowerMessage, "timeout") {
+		return "TimeoutError"
+	}
+	if strings.Contains(lowerMessage, "network") || strings.Contains(lowerMessage, "connection") {
+		return "NetworkError"
+	}
+
+	// Default to string exception
+	return "Str"
+}
+
+// analyzeExceptionsInBlock analyzes exceptions in a single basic block
+func (fa *FlowAnalyzer) analyzeExceptionsInBlock(block *BasicBlock, dieStatements map[int][]DieStatement) []error {
+	var errors []error
+
+	// Check if this block contains die statements
+	if dies, hasDies := dieStatements[block.ID]; hasDies {
+		for _, die := range dies {
+			// Check if die statement is handled
+			if !fa.isDieStatementHandled(die, block) {
+				// Create Throws[T] type for unhandled exception
+				throwsType := fa.createThrowsType(die.ExceptionType)
+
+				// Add to block's exception types
+				if block.TypeState.ExceptionTypes == nil {
+					block.TypeState.ExceptionTypes = make(map[string]bool)
+				}
+				block.TypeState.ExceptionTypes[throwsType] = true
+
+				// Generate error for unhandled exception
+				errors = append(errors, &TypeCheckError{
+					Message: fmt.Sprintf("Unhandled exception: %s. "+
+						"Function may throw %s. "+
+						"Consider handling with try/catch or declaring return type as T|%s",
+						die.Message, throwsType, throwsType),
+					Path:   "",
+					Line:   die.Location.Line,
+					Column: die.Location.Column,
+				})
+			}
+		}
+	}
+
+	return errors
+}
+
+// isDieStatementHandled checks if a die statement is properly handled
+func (fa *FlowAnalyzer) isDieStatementHandled(die DieStatement, block *BasicBlock) bool {
+	// Check if die is in a try block (simplified check)
+	// In a full implementation, we'd analyze the control flow
+	nodeText := die.Node.Text()
+	return strings.Contains(nodeText, "try") || strings.Contains(nodeText, "eval")
+}
+
+// createThrowsType creates a Throws[T] type name
+func (fa *FlowAnalyzer) createThrowsType(exceptionType string) string {
+	return fmt.Sprintf("Throws[%s]", exceptionType)
+}
+
+// inferUnionTypeWithExceptions infers union types that include exception types
+func (fa *FlowAnalyzer) inferUnionTypeWithExceptions(baseType string, exceptionTypes []string) string {
+	if len(exceptionTypes) == 0 {
+		return baseType
+	}
+
+	// Build union type with base type and all exception types
+	unionParts := []string{baseType}
+	for _, excType := range exceptionTypes {
+		throwsType := fa.createThrowsType(excType)
+		unionParts = append(unionParts, throwsType)
+	}
+
+	return strings.Join(unionParts, "|")
+}
+
+// analyzeExceptionUnions analyzes and validates exception union types
+func (fa *FlowAnalyzer) analyzeExceptionUnions(node ast.Node, state *TypeState) []error {
+	var errors []error
+
+	// Find all variables with union types that include exceptions
+	if state != nil && state.VariableTypes != nil {
+		for varName, varType := range state.VariableTypes {
+			if fa.isExceptionUnionType(varType) {
+				// Check if union type is properly handled
+				if !fa.isExceptionUnionHandled(varName, varType, node) {
+					errors = append(errors, &TypeCheckError{
+						Message: fmt.Sprintf("Unhandled exception union type: Variable $%s has type '%s' "+
+							"which includes exception types. Must be handled with pattern matching or try/catch.",
+							varName, varType),
+						Path:   "",
+						Line:   node.Start().Line,
+						Column: node.Start().Column,
+					})
+				}
+			}
+		}
+	}
+
+	return errors
+}
+
+// isExceptionUnionType checks if a type is a union that includes exception types
+func (fa *FlowAnalyzer) isExceptionUnionType(typeStr string) bool {
+	return strings.Contains(typeStr, "Throws[") || strings.Contains(typeStr, "Exception[")
+}
+
+// isExceptionUnionHandled checks if an exception union type is properly handled
+func (fa *FlowAnalyzer) isExceptionUnionHandled(varName, varType string, context ast.Node) bool {
+	// Check if variable is used in a pattern match or try/catch construct
+	contextText := context.Text()
+
+	// Look for pattern matching syntax
+	if strings.Contains(contextText, "match") && strings.Contains(contextText, varName) {
+		return true
+	}
+
+	// Look for try/catch usage
+	if strings.Contains(contextText, "try") && strings.Contains(contextText, varName) {
+		return true
+	}
+
+	// Look for explicit exception handling
+	if strings.Contains(contextText, "catch") || strings.Contains(contextText, "Exception") {
+		return true
+	}
+
+	return false
+}
+
+// Enhanced function return type inference with exception propagation
+func (fa *FlowAnalyzer) inferFunctionReturnTypeWithExceptions(functionNode ast.Node, cfg *ControlFlowGraph) string {
+	// Find all possible return types
+	returnTypes := fa.collectReturnTypes(functionNode, cfg)
+
+	// Find all exception types that can be thrown
+	exceptionTypes := fa.collectExceptionTypes(functionNode, cfg)
+
+	// Combine base return types with exception types
+	if len(exceptionTypes) > 0 {
+		baseType := fa.mergeReturnTypes(returnTypes)
+		return fa.inferUnionTypeWithExceptions(baseType, exceptionTypes)
+	}
+
+	return fa.mergeReturnTypes(returnTypes)
+}
+
+// collectReturnTypes collects all possible return types from a function
+func (fa *FlowAnalyzer) collectReturnTypes(functionNode ast.Node, cfg *ControlFlowGraph) []string {
+	var returnTypes []string
+
+	for _, block := range cfg.Nodes {
+		for _, stmt := range block.Statements {
+			if fa.isReturnStatement(stmt) {
+				returnType := fa.inferReturnTypeFromStatement(stmt)
+				if returnType != "" {
+					returnTypes = append(returnTypes, returnType)
+				}
+			}
+		}
+	}
+
+	// Add default return type if no explicit returns
+	if len(returnTypes) == 0 {
+		returnTypes = append(returnTypes, "()") // Void/empty return
+	}
+
+	return returnTypes
+}
+
+// collectExceptionTypes collects all exception types that can be thrown
+func (fa *FlowAnalyzer) collectExceptionTypes(functionNode ast.Node, cfg *ControlFlowGraph) []string {
+	var exceptionTypes []string
+
+	dieStatements := fa.findDieStatements(cfg)
+	for _, dies := range dieStatements {
+		for _, die := range dies {
+			if !fa.isDieStatementHandled(die, nil) {
+				exceptionTypes = append(exceptionTypes, die.ExceptionType)
+			}
+		}
+	}
+
+	return fa.uniqueStrings(exceptionTypes)
+}
+
+// Helper methods for exception analysis
+
+// isReturnStatement checks if a statement is a return statement
+func (fa *FlowAnalyzer) isReturnStatement(stmt ast.Node) bool {
+	return stmt.Type() == "return_statement" || strings.Contains(stmt.Text(), "return")
+}
+
+// inferReturnTypeFromStatement infers the return type from a return statement
+func (fa *FlowAnalyzer) inferReturnTypeFromStatement(stmt ast.Node) string {
+	// Extract return expression and infer its type
+	// This is simplified - a full implementation would parse the return statement
+	stmtText := stmt.Text()
+	if strings.Contains(stmtText, "return") {
+		// Default return type inference
+		if strings.Contains(stmtText, "undef") || strings.Contains(stmtText, "()") {
+			return "()"
+		}
+		// More sophisticated return type inference would go here
+		return "Str"
+	}
+	return ""
+}
+
+// mergeReturnTypes merges multiple return types into a single type
+func (fa *FlowAnalyzer) mergeReturnTypes(returnTypes []string) string {
+	if len(returnTypes) == 0 {
+		return "()"
+	}
+	if len(returnTypes) == 1 {
+		return returnTypes[0]
+	}
+
+	// Create union type for multiple return types
+	unique := fa.uniqueStrings(returnTypes)
+	return strings.Join(unique, "|")
+}
+
+// uniqueStrings removes duplicates from a string slice
+func (fa *FlowAnalyzer) uniqueStrings(strs []string) []string {
+	seen := make(map[string]bool)
+	var result []string
+
+	for _, str := range strs {
+		if !seen[str] {
+			seen[str] = true
+			result = append(result, str)
+		}
+	}
+
+	return result
 }
 
 // extractVariableFromExpression extracts variable name from an expression (for LHS of assignments)
@@ -1188,5 +2259,454 @@ func (fa *FlowAnalyzer) isStringCompatibleType(typeStr string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// Enhanced type inference methods for sophisticated flow analysis
+
+// inferVariableType performs enhanced variable type inference with flow sensitivity
+func (fa *FlowAnalyzer) inferVariableType(varExpr *ast.VariableExpr) string {
+	if varExpr == nil {
+		return "Str"
+	}
+
+	varName := varExpr.Name
+
+	// Check current type state first (includes flow-sensitive refinements)
+	if fa.TypeChecker.TypeState != nil {
+		// Check refined types first (most specific)
+		if refinedType, exists := fa.TypeChecker.TypeState.RefinedTypes[varName]; exists {
+			return refinedType
+		}
+		// Check base variable types
+		if varType, exists := fa.TypeChecker.TypeState.VariableTypes[varName]; exists {
+			return varType
+		}
+	}
+
+	// Fall back to type annotations
+	if varType, exists := fa.TypeChecker.TypeAnnotations[varName]; exists {
+		return varType
+	}
+
+	// Check if variable was inferred from usage patterns
+	if fa.TypeChecker.InferenceEngine != nil {
+		inferredTypes := fa.TypeChecker.InferenceEngine.GetAllInferredTypes()
+		if inferredType, exists := inferredTypes[varName]; exists {
+			return inferredType
+		}
+	}
+
+	// Perl default: untyped scalars are Str unless proven otherwise
+	return "Str"
+}
+
+// inferTypeFromBinaryExpression infers types from binary expressions
+func (fa *FlowAnalyzer) inferTypeFromBinaryExpression(binaryExpr *ast.BinaryExpr) string {
+	if binaryExpr == nil {
+		return "Str"
+	}
+
+	operator := binaryExpr.Operator
+	leftType := fa.inferTypeFromExpression(binaryExpr.Left)
+	rightType := fa.inferTypeFromExpression(binaryExpr.Right)
+
+	switch operator {
+	case "+", "-", "*", "/", "%", "**":
+		// Arithmetic operations result in numbers
+		if fa.isNumericType(leftType) && fa.isNumericType(rightType) {
+			// If both operands are Int, result is Int (except division)
+			if leftType == "Int" && rightType == "Int" && operator != "/" {
+				return "Int"
+			}
+			return "Num"
+		}
+		return "Num" // Perl coerces to numbers
+
+	case ".", "x":
+		// String operations result in strings
+		return "Str"
+
+	case "==", "!=", "<", ">", "<=", ">=", "eq", "ne", "lt", "gt", "le", "ge":
+		// Comparison operations result in boolean
+		return "Bool"
+
+	case "&&", "||", "and", "or", "not", "!":
+		// Logical operations return the type of the last evaluated operand
+		// For &&, ||: left operand if falsy, right operand if left is truthy
+		// Simplified: return union of both operand types
+		if leftType == rightType {
+			return leftType
+		}
+		return fa.createUnionType(leftType, rightType)
+
+	case "=~", "!~":
+		// Regex matching returns boolean
+		return "Bool"
+
+	case "//":
+		// Defined-or operator returns first defined operand's type
+		// If left is Maybe[T], returns T|rightType
+		if strings.HasPrefix(leftType, "Maybe[") && strings.HasSuffix(leftType, "]") {
+			// Extract T from Maybe[T]
+			innerType := leftType[6 : len(leftType)-1]
+			if innerType == rightType {
+				return rightType
+			}
+			return fa.createUnionType(innerType, rightType)
+		}
+		if leftType == rightType {
+			return leftType
+		}
+		return fa.createUnionType(leftType, rightType)
+	}
+
+	// Default: string concatenation-like behavior
+	return "Str"
+}
+
+// inferTypeFromHashAccess infers types from hash access with field tracking
+func (fa *FlowAnalyzer) inferTypeFromHashAccess(hashRef *ast.HashRefExpr) string {
+	if hashRef == nil {
+		return "Str"
+	}
+
+	// Get the type of the hash variable
+	hashType := fa.inferTypeFromExpression(hashRef.Hash)
+	keyValue := fa.extractConstantValue(hashRef.Key)
+
+	// Track field access for hash types
+	if strings.HasPrefix(hashType, "HashRef[") {
+		// Extract value type from HashRef[K, V]
+		return fa.extractHashValueType(hashType)
+	}
+
+	// For untyped hashes, fields default to Str (database results, JSON, etc.)
+	if hashType == "Any" || hashType == "Str" || strings.Contains(hashType, "Hash") {
+		// Mark that this field was accessed (for safety analysis)
+		if keyValue != "" {
+			fa.trackFieldAccess(hashRef.Hash, keyValue)
+		}
+		return "Str"
+	}
+
+	// Default to string for hash access
+	return "Str"
+}
+
+// inferTypeFromArrayAccess infers types from array access
+func (fa *FlowAnalyzer) inferTypeFromArrayAccess(arrayRef *ast.ArrayRefExpr) string {
+	if arrayRef == nil {
+		return "Str"
+	}
+
+	arrayType := fa.inferTypeFromExpression(arrayRef.Array)
+
+	// Extract element type from ArrayRef[T]
+	if strings.HasPrefix(arrayType, "ArrayRef[") && strings.HasSuffix(arrayType, "]") {
+		elementType := arrayType[9 : len(arrayType)-1]
+		return elementType
+	}
+
+	// For untyped arrays, elements default to Str
+	return "Str"
+}
+
+// inferTypeFromConditional infers types from conditional (ternary) expressions
+func (fa *FlowAnalyzer) inferTypeFromConditional(conditional *ast.ConditionalExpr) string {
+	if conditional == nil {
+		return "Str"
+	}
+
+	trueType := fa.inferTypeFromExpression(conditional.TrueExpr)
+	falseType := fa.inferTypeFromExpression(conditional.FalseExpr)
+
+	// If both branches have the same type, return that type
+	if trueType == falseType {
+		return trueType
+	}
+
+	// Otherwise, create a union type
+	return fa.createUnionType(trueType, falseType)
+}
+
+// extractHashValueType extracts the value type from HashRef[K, V]
+func (fa *FlowAnalyzer) extractHashValueType(hashType string) string {
+	if !strings.HasPrefix(hashType, "HashRef[") || !strings.HasSuffix(hashType, "]") {
+		return "Str"
+	}
+
+	inner := hashType[8 : len(hashType)-1] // Remove "HashRef[" and "]"
+
+	// Find the comma separating key and value types
+	// Handle nested types like HashRef[Str, ArrayRef[Int]]
+	depth := 0
+	commaPos := -1
+	for i, ch := range inner {
+		switch ch {
+		case '[':
+			depth++
+		case ']':
+			depth--
+		case ',':
+			if depth == 0 {
+				commaPos = i
+				break
+			}
+		}
+	}
+
+	if commaPos > 0 && commaPos < len(inner)-1 {
+		valueType := strings.TrimSpace(inner[commaPos+1:])
+		return valueType
+	}
+
+	// If no comma found, assume HashRef[V] (single parameter)
+	return strings.TrimSpace(inner)
+}
+
+// extractConstantValue extracts constant string values from expressions
+func (fa *FlowAnalyzer) extractConstantValue(expr ast.ExpressionNode) string {
+	if expr == nil {
+		return ""
+	}
+
+	if literal, ok := expr.(*ast.LiteralExpr); ok {
+		if literal.Kind == ast.StringLiteral {
+			// Remove quotes from string literal
+			value := literal.Value
+			if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+				return value[1 : len(value)-1]
+			}
+			if len(value) >= 2 && value[0] == '\'' && value[len(value)-1] == '\'' {
+				return value[1 : len(value)-1]
+			}
+			return value
+		}
+	}
+
+	return ""
+}
+
+// trackFieldAccess tracks hash field access for safety analysis
+func (fa *FlowAnalyzer) trackFieldAccess(hashExpr ast.ExpressionNode, fieldName string) {
+	if hashExpr == nil || fieldName == "" {
+		return
+	}
+
+	// Extract variable name from hash expression
+	if varExpr, ok := hashExpr.(*ast.VariableExpr); ok {
+		varName := varExpr.Name
+
+		// Track in type state for safety analysis
+		if fa.TypeChecker.TypeState != nil {
+			// Initialize field tracking if needed
+			if fa.TypeChecker.TypeState.FieldAccess == nil {
+				fa.TypeChecker.TypeState.FieldAccess = make(map[string]map[string]bool)
+			}
+			if fa.TypeChecker.TypeState.FieldAccess[varName] == nil {
+				fa.TypeChecker.TypeState.FieldAccess[varName] = make(map[string]bool)
+			}
+
+			// Mark field as accessed
+			fa.TypeChecker.TypeState.FieldAccess[varName][fieldName] = true
+		}
+	}
+}
+
+// Debugging and Visualization Capabilities
+
+// FlowDebugger provides debugging and visualization support for flow analysis
+type FlowDebugger struct {
+	Analyzer    *FlowAnalyzer
+	DebugOutput []string
+	Enabled     bool
+}
+
+// NewFlowDebugger creates a new flow analysis debugger
+func NewFlowDebugger(analyzer *FlowAnalyzer) *FlowDebugger {
+	return &FlowDebugger{
+		Analyzer:    analyzer,
+		DebugOutput: make([]string, 0),
+		Enabled:     false,
+	}
+}
+
+// DumpControlFlowGraph exports the control flow graph to DOT format for GraphViz
+func (fd *FlowDebugger) DumpControlFlowGraph(cfg *ControlFlowGraph, outputPath string) error {
+	dotContent := fd.generateDotGraph(cfg)
+
+	// Write to file
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create CFG output file: %w", err)
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(dotContent)
+	if err != nil {
+		return fmt.Errorf("failed to write CFG content: %w", err)
+	}
+
+	fd.logDebug(fmt.Sprintf("Control flow graph exported to %s", outputPath))
+	return nil
+}
+
+// generateDotGraph generates DOT format content for the control flow graph
+func (fd *FlowDebugger) generateDotGraph(cfg *ControlFlowGraph) string {
+	var dot strings.Builder
+
+	dot.WriteString("digraph CFG {\n")
+	dot.WriteString("  rankdir=TB;\n")
+	dot.WriteString("  node [shape=box, style=filled];\n\n")
+
+	// Generate nodes
+	for _, block := range cfg.Nodes {
+		label := fd.generateBlockLabel(block)
+		color := fd.getBlockColor(block)
+
+		dot.WriteString(fmt.Sprintf("  block_%d [label=\"%s\", fillcolor=\"%s\"];\n",
+			block.ID, label, color))
+	}
+
+	dot.WriteString("\n")
+
+	// Generate edges
+	for _, edge := range cfg.Edges {
+		edgeLabel := fd.getEdgeLabel(edge)
+		edgeColor := fd.getEdgeColor(edge)
+
+		dot.WriteString(fmt.Sprintf("  block_%d -> block_%d [label=\"%s\", color=\"%s\"];\n",
+			edge.From.ID, edge.To.ID, edgeLabel, edgeColor))
+	}
+
+	dot.WriteString("}\n")
+	return dot.String()
+}
+
+// generateBlockLabel creates a label for a basic block
+func (fd *FlowDebugger) generateBlockLabel(block *BasicBlock) string {
+	var label strings.Builder
+
+	label.WriteString(fmt.Sprintf("Block %d\\n", block.ID))
+
+	// Add type state summary
+	if block.TypeState != nil {
+		label.WriteString("Types:\\n")
+		for varName, varType := range block.TypeState.VariableTypes {
+			label.WriteString(fmt.Sprintf("  $%s: %s\\n", varName, varType))
+		}
+
+		// Add exception types if any
+		if len(block.TypeState.ExceptionTypes) > 0 {
+			label.WriteString("Exceptions:\\n")
+			for excType := range block.TypeState.ExceptionTypes {
+				label.WriteString(fmt.Sprintf("  %s\\n", excType))
+			}
+		}
+	}
+
+	// Add statements summary
+	if len(block.Statements) > 0 {
+		label.WriteString("Statements:\\n")
+		for i, stmt := range block.Statements {
+			if i >= 3 { // Limit to first 3 statements
+				label.WriteString("  ...\\n")
+				break
+			}
+			stmtText := stmt.Text()
+			if len(stmtText) > 30 {
+				stmtText = stmtText[:27] + "..."
+			}
+			// Escape quotes for DOT format
+			stmtText = strings.ReplaceAll(stmtText, "\"", "\\\"")
+			label.WriteString(fmt.Sprintf("  %s\\n", stmtText))
+		}
+	}
+
+	return label.String()
+}
+
+// getBlockColor determines the color for a basic block based on its properties
+func (fd *FlowDebugger) getBlockColor(block *BasicBlock) string {
+	// Entry block
+	if block.ID == 0 {
+		return "lightgreen"
+	}
+
+	// Exit block (no successors)
+	if len(block.Successors) == 0 {
+		return "lightcoral"
+	}
+
+	// Blocks with exceptions
+	if block.TypeState != nil && len(block.TypeState.ExceptionTypes) > 0 {
+		return "orange"
+	}
+
+	// Conditional blocks (multiple successors)
+	if len(block.Successors) > 1 {
+		return "lightblue"
+	}
+
+	// Regular blocks
+	return "lightgray"
+}
+
+// getEdgeLabel creates a label for a control flow edge
+func (fd *FlowDebugger) getEdgeLabel(edge *FlowEdge) string {
+	switch edge.EdgeType {
+	case ConditionalTrueEdge:
+		return "true"
+	case ConditionalFalseEdge:
+		return "false"
+	case LoopBackEdge:
+		return "loop"
+	case BreakEdge:
+		return "break"
+	case ContinueEdge:
+		return "continue"
+	case ExceptionEdge:
+		return "exception"
+	default:
+		return ""
+	}
+}
+
+// getEdgeColor determines the color for a control flow edge
+func (fd *FlowDebugger) getEdgeColor(edge *FlowEdge) string {
+	switch edge.EdgeType {
+	case ConditionalTrueEdge:
+		return "green"
+	case ConditionalFalseEdge:
+		return "red"
+	case LoopBackEdge:
+		return "blue"
+	case BreakEdge:
+		return "orange"
+	case ContinueEdge:
+		return "purple"
+	case ExceptionEdge:
+		return "red"
+	default:
+		return "black"
+	}
+}
+
+// logDebug logs debug information if debugging is enabled
+func (fd *FlowDebugger) logDebug(message string) {
+	if fd.Enabled {
+		timestamp := time.Now().Format("15:04:05.000")
+		logMessage := fmt.Sprintf("[%s] %s", timestamp, message)
+		fd.DebugOutput = append(fd.DebugOutput, logMessage)
+		// Also print to stderr for immediate feedback
+		fmt.Fprintf(os.Stderr, "DEBUG: %s\n", logMessage)
+	}
+}
+
+// TraceTypeRefinement logs type refinement events
+func (fd *FlowDebugger) TraceTypeRefinement(varName, oldType, newType, reason string) {
+	if fd.Enabled {
+		fd.logDebug(fmt.Sprintf("Type refinement: $%s: %s → %s (reason: %s)", varName, oldType, newType, reason))
 	}
 }

@@ -116,6 +116,12 @@ type TypeState struct {
 	// Conditions tracks the conditions that led to this state
 	Conditions []Condition
 
+	// FieldAccess tracks which hash fields have been accessed for safety analysis
+	FieldAccess map[string]map[string]bool
+
+	// ExceptionTypes tracks exception types that can be thrown from this state
+	ExceptionTypes map[string]bool
+
 	// SkipFlowChecks controls whether to skip flow-sensitive type checks
 	// but still perform type refinements based on control flow
 	SkipFlowChecks bool
