@@ -234,13 +234,6 @@ func (fa *FlowAnalyzer) processNode(node ast.Node, currentBlock *BasicBlock, blo
 		return currentBlock, blockID, nil
 	}
 
-	// DEBUG: Log actual node types being processed
-	nodeText := ""
-	if len(node.Children()) > 0 {
-		nodeText = fmt.Sprintf(" (first child: %s)", node.Children()[0].Type())
-	}
-	fmt.Printf("DEBUG AST: Processing node type: '%s'%s\n", node.Type(), nodeText)
-
 	// Handle different node types
 	switch node.Type() {
 	case "if_statement", "unless_statement", "if_stmt":
@@ -546,9 +539,6 @@ func (fa *FlowAnalyzer) processBlock(block *BasicBlock) []error {
 func (fa *FlowAnalyzer) processStatement(stmt ast.Node, state *TypeState) []error {
 	var errors []error
 
-	// DEBUG: Log actual statement types being processed
-	fmt.Printf("DEBUG STMT: Processing statement type: '%s'\n", stmt.Type())
-
 	// Handle different statement types
 	switch stmt.Type() {
 	case "variable_declaration":
@@ -579,11 +569,6 @@ func (fa *FlowAnalyzer) processExpressionStatement(stmt ast.Node, state *TypeSta
 		if child.Type() == "token" {
 			// Skip tokens like semicolons
 			continue
-		}
-
-		// DEBUG: Show what's actually in the expression statement
-		if literalExpr, ok := child.(*ast.LiteralExpr); ok {
-			fmt.Printf("DEBUG EXPR: Found literal in expression_stmt: '%s'\n", literalExpr.Value)
 		}
 
 		// Process based on the child type
@@ -2908,8 +2893,7 @@ func (fd *FlowDebugger) logDebug(message string) {
 		timestamp := time.Now().Format("15:04:05.000")
 		logMessage := fmt.Sprintf("[%s] %s", timestamp, message)
 		fd.DebugOutput = append(fd.DebugOutput, logMessage)
-		// Also print to stderr for immediate feedback
-		fmt.Fprintf(os.Stderr, "DEBUG: %s\n", logMessage)
+		// Debug output collected in DebugOutput slice
 	}
 }
 
