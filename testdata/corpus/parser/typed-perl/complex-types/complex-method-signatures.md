@@ -58,7 +58,7 @@ method Result[Array[ProcessedData], ProcessingError] process(Map[Str, ArrayRef[D
 
 # Expected AST
 
-## Text AST
+## Before Type Inference
 
 ```
 AST {
@@ -75,6 +75,7 @@ AST {
   Tree Structure:
   source_file
     method_decl
+      type_expr
       block_stmt
         token
         return_stmt
@@ -82,6 +83,42 @@ AST {
         token
         token
     method_decl
+      type_expr
+      block_stmt
+        token
+        return_stmt
+          literal
+        token
+        token
+}
+```
+
+## After Type Inference
+
+```
+AST {
+  Path: /tmp/complex-method-signatures.pl
+  Source length: 311 characters
+  Type Annotations:
+    MethodReturnAnnotation: transform :: HashRef[ArrayRef[Int]|Str] at 1:8
+    MethodParamAnnotation: $input :: ArrayRef[HashRef[Int|Str]] at 1:45
+    MethodParamAnnotation: $validator :: CodeRef[Str, Bool] at 1:80
+    MethodReturnAnnotation: process :: Result[Array[ProcessedData], ProcessingError] at 5:8
+    MethodParamAnnotation: $complex_input :: Map[Str, ArrayRef[Data|Error]] at 5:62
+    MethodParamAnnotation: $handler :: Optional[Handler[Request|Response]] at 5:109
+  Root: source_file
+  Tree Structure:
+  source_file
+    method_decl
+      type_expr
+      block_stmt
+        token
+        return_stmt
+          literal
+        token
+        token
+    method_decl
+      type_expr
       block_stmt
         token
         return_stmt

@@ -90,8 +90,7 @@ AST {
     sub_decl
       block_stmt
         token
-        expression_stmt
-          literal
+        token
         return_stmt
           literal
         token
@@ -187,8 +186,7 @@ AST {
     sub_decl
       block_stmt
         token
-        expression_stmt
-          literal
+        token
         return_stmt
           literal
         token
