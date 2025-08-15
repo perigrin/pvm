@@ -109,6 +109,9 @@ type FlowAnalyzer struct {
 
 	// BuiltinTypes provides type signatures for Perl built-in functions
 	BuiltinTypes *BuiltinTypeRegistry
+
+	// OperatorTypes provides type signatures for Perl binary operators
+	OperatorTypes *OperatorTypeRegistry
 }
 
 // NewFlowAnalyzer creates a new flow analyzer
@@ -121,11 +124,19 @@ func NewFlowAnalyzer(tc *TypeChecker) *FlowAnalyzer {
 		builtinTypes = nil
 	}
 
+	// Initialize operator type registry
+	operatorTypes, err := NewOperatorTypeRegistry()
+	if err != nil {
+		// Log error but don't fail - fall back to hardcoded operator logic
+		operatorTypes = nil
+	}
+
 	return &FlowAnalyzer{
 		TypeChecker:     tc,
 		ProcessedBlocks: make(map[int]bool),
 		MaxIterations:   100, // Reasonable default to prevent infinite loops
 		BuiltinTypes:    builtinTypes,
+		OperatorTypes:   operatorTypes,
 	}
 }
 
@@ -2300,6 +2311,42 @@ func (fa *FlowAnalyzer) inferTypeFromBinaryExpression(binaryExpr *ast.BinaryExpr
 	leftType := fa.inferTypeFromExpression(binaryExpr.Left)
 	rightType := fa.inferTypeFromExpression(binaryExpr.Right)
 
+	// Use operator registry if available
+	if fa.OperatorTypes != nil {
+		resultType := fa.OperatorTypes.GetOperatorType(operator, leftType, rightType)
+		if resultType != "Any" {
+			// Handle special logic cases that need custom processing
+			switch operator {
+			case "&&", "||", "and", "or":
+				// Logical operations return the type of the last evaluated operand
+				// For &&, ||: left operand if falsy, right operand if left is truthy
+				// Simplified: return union of both operand types
+				if leftType == rightType {
+					return leftType
+				}
+				return fa.createUnionType(leftType, rightType)
+			case "//":
+				// Defined-or operator returns first defined operand's type
+				// If left is Maybe[T], returns T|rightType
+				if strings.HasPrefix(leftType, "Maybe[") && strings.HasSuffix(leftType, "]") {
+					// Extract T from Maybe[T]
+					innerType := leftType[6 : len(leftType)-1]
+					if innerType == rightType {
+						return rightType
+					}
+					return fa.createUnionType(innerType, rightType)
+				}
+				if leftType == rightType {
+					return leftType
+				}
+				return fa.createUnionType(leftType, rightType)
+			default:
+				return resultType
+			}
+		}
+	}
+
+	// Fallback to hardcoded logic if operator registry is unavailable or incomplete
 	switch operator {
 	case "+", "-", "*", "/", "%", "**":
 		// Arithmetic operations result in numbers

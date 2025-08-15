@@ -1,0 +1,274 @@
+# Perl Binary Operator Type Definitions
+# Comprehensive coverage of all Perl binary operators with their type signatures
+# Using operator function syntax that the parser can understand
+#
+# COVERAGE: All major Perl binary operators with proper type inference rules
+#
+# This file replaces hardcoded operator type logic in FlowAnalyzer
+# with systematic .ptd-based type definitions.
+
+# ============================================================================
+# ARITHMETIC OPERATORS
+# ============================================================================
+
+# Addition - numeric context coercion
+sub Int operator_add(Int $left, Int $right);
+sub Num operator_add(Num $left, Num $right);
+sub Num operator_add(Int $left, Num $right);
+sub Num operator_add(Num $left, Int $right);
+sub Num operator_add(Any $left, Any $right);  # Perl coerces to numbers
+
+# Subtraction - numeric context coercion
+sub Int operator_sub(Int $left, Int $right);
+sub Num operator_sub(Num $left, Num $right);
+sub Num operator_sub(Int $left, Num $right);
+sub Num operator_sub(Num $left, Int $right);
+sub Num operator_sub(Any $left, Any $right);  # Perl coerces to numbers
+
+# Multiplication - numeric context coercion
+sub Int operator_mul(Int $left, Int $right);
+sub Num operator_mul(Num $left, Num $right);
+sub Num operator_mul(Int $left, Num $right);
+sub Num operator_mul(Num $left, Int $right);
+sub Num operator_mul(Any $left, Any $right);  # Perl coerces to numbers
+
+# Division - always returns Num in Perl (floating point division)
+sub Num operator_div(Int $left, Int $right);
+sub Num operator_div(Num $left, Num $right);
+sub Num operator_div(Int $left, Num $right);
+sub Num operator_div(Num $left, Int $right);
+sub Num operator_div(Any $left, Any $right);
+
+# Modulo - numeric context coercion
+sub Int operator_mod(Int $left, Int $right);
+sub Num operator_mod(Num $left, Num $right);
+sub Num operator_mod(Int $left, Num $right);
+sub Num operator_mod(Num $left, Int $right);
+sub Num operator_mod(Any $left, Any $right);
+
+# Exponentiation - numeric context coercion
+sub Int operator_pow(Int $left, Int $right);  # Only if result fits in Int
+sub Num operator_pow(Num $left, Num $right);
+sub Num operator_pow(Int $left, Num $right);
+sub Num operator_pow(Num $left, Int $right);
+sub Num operator_pow(Any $left, Any $right);
+
+# ============================================================================
+# STRING OPERATORS
+# ============================================================================
+
+# String concatenation - string context coercion
+sub Str operator_concat(Str $left, Str $right);
+sub Str operator_concat(Any $left, Any $right);  # Perl coerces to strings
+
+# String repetition - first operand is string, second is count
+sub Str operator_repeat(Str $string, Int $count);
+sub Str operator_repeat(Any $string, Any $count);  # Perl coerces appropriately
+
+# ============================================================================
+# NUMERIC COMPARISON OPERATORS
+# ============================================================================
+
+# Numeric equality
+sub Bool operator_num_eq(Int $left, Int $right);
+sub Bool operator_num_eq(Num $left, Num $right);
+sub Bool operator_num_eq(Any $left, Any $right);  # Numeric context
+
+# Numeric inequality
+sub Bool operator_num_ne(Int $left, Int $right);
+sub Bool operator_num_ne(Num $left, Num $right);
+sub Bool operator_num_ne(Any $left, Any $right);
+
+# Numeric less than
+sub Bool operator_num_lt(Int $left, Int $right);
+sub Bool operator_num_lt(Num $left, Num $right);
+sub Bool operator_num_lt(Any $left, Any $right);
+
+# Numeric greater than
+sub Bool operator_num_gt(Int $left, Int $right);
+sub Bool operator_num_gt(Num $left, Num $right);
+sub Bool operator_num_gt(Any $left, Any $right);
+
+# Numeric less than or equal
+sub Bool operator_num_le(Int $left, Int $right);
+sub Bool operator_num_le(Num $left, Num $right);
+sub Bool operator_num_le(Any $left, Any $right);
+
+# Numeric greater than or equal
+sub Bool operator_num_ge(Int $left, Int $right);
+sub Bool operator_num_ge(Num $left, Num $right);
+sub Bool operator_num_ge(Any $left, Any $right);
+
+# ============================================================================
+# STRING COMPARISON OPERATORS
+# ============================================================================
+
+# String equality
+sub Bool operator_str_eq(Str $left, Str $right);
+sub Bool operator_str_eq(Any $left, Any $right);  # String context
+
+# String inequality
+sub Bool operator_str_ne(Str $left, Str $right);
+sub Bool operator_str_ne(Any $left, Any $right);
+
+# String less than
+sub Bool operator_str_lt(Str $left, Str $right);
+sub Bool operator_str_lt(Any $left, Any $right);
+
+# String greater than
+sub Bool operator_str_gt(Str $left, Str $right);
+sub Bool operator_str_gt(Any $left, Any $right);
+
+# String less than or equal
+sub Bool operator_str_le(Str $left, Str $right);
+sub Bool operator_str_le(Any $left, Any $right);
+
+# String greater than or equal
+sub Bool operator_str_ge(Str $left, Str $right);
+sub Bool operator_str_ge(Any $left, Any $right);
+
+# ============================================================================
+# LOGICAL OPERATORS
+# ============================================================================
+
+# Logical AND - returns last evaluated operand
+# In Perl: $a && $b returns $a if falsy, $b if $a is truthy
+sub Any operator_and(Any $left, Any $right);
+
+# Logical OR - returns last evaluated operand
+# In Perl: $a || $b returns $a if truthy, $b if $a is falsy
+sub Any operator_or(Any $left, Any $right);
+
+# Low-precedence logical AND
+sub Any operator_and_word(Any $left, Any $right);
+
+# Low-precedence logical OR
+sub Any operator_or_word(Any $left, Any $right);
+
+# Logical NOT - always returns Bool
+sub Bool operator_not(Any $operand);
+sub Bool operator_not_symbol(Any $operand);  # ! operator
+
+# ============================================================================
+# REGEX OPERATORS
+# ============================================================================
+
+# Pattern matching - returns Bool in boolean context, list in list context
+sub Bool operator_match(Str $string, RegexRef $pattern);
+sub ArrayRef[Str] operator_match(Str $string, RegexRef $pattern);  # List context
+sub Bool operator_match(Any $string, Any $pattern);  # General case
+
+# Pattern non-matching - always returns Bool
+sub Bool operator_not_match(Str $string, RegexRef $pattern);
+sub Bool operator_not_match(Any $string, Any $pattern);
+
+# ============================================================================
+# SPECIAL OPERATORS
+# ============================================================================
+
+# Defined-or operator - returns first defined operand
+# If left is Maybe[T], extracts T and unions with right type
+sub Any operator_defined_or(Maybe[Any] $left, Any $right);
+sub Any operator_defined_or(Any $left, Any $right);
+
+# Smart match - context-dependent matching (Perl 5.10+)
+sub Bool operator_smart_match(Any $left, Any $right);
+
+# ============================================================================
+# BITWISE OPERATORS
+# ============================================================================
+
+# Bitwise AND - numeric context
+sub Int operator_bit_and(Int $left, Int $right);
+sub Int operator_bit_and(Any $left, Any $right);
+
+# Bitwise OR - numeric context
+sub Int operator_bit_or(Int $left, Int $right);
+sub Int operator_bit_or(Any $left, Any $right);
+
+# Bitwise XOR - numeric context
+sub Int operator_bit_xor(Int $left, Int $right);
+sub Int operator_bit_xor(Any $left, Any $right);
+
+# Bitwise left shift
+sub Int operator_bit_lshift(Int $left, Int $right);
+sub Int operator_bit_lshift(Any $left, Any $right);
+
+# Bitwise right shift
+sub Int operator_bit_rshift(Int $left, Int $right);
+sub Int operator_bit_rshift(Any $left, Any $right);
+
+# Bitwise complement (unary)
+sub Int operator_bit_complement(Int $operand);
+sub Int operator_bit_complement(Any $operand);
+
+# ============================================================================
+# ASSIGNMENT OPERATORS
+# ============================================================================
+
+# Basic assignment - returns the assigned value
+sub Any operator_assign(Any $lvalue, Any $rvalue);
+
+# Compound assignment operators
+sub Any operator_add_assign(Any $lvalue, Any $rvalue);
+sub Any operator_sub_assign(Any $lvalue, Any $rvalue);
+sub Any operator_mul_assign(Any $lvalue, Any $rvalue);
+sub Any operator_div_assign(Any $lvalue, Any $rvalue);
+sub Any operator_mod_assign(Any $lvalue, Any $rvalue);
+sub Any operator_pow_assign(Any $lvalue, Any $rvalue);
+sub Any operator_concat_assign(Any $lvalue, Any $rvalue);
+sub Any operator_repeat_assign(Any $lvalue, Any $rvalue);
+sub Any operator_and_assign(Any $lvalue, Any $rvalue);
+sub Any operator_or_assign(Any $lvalue, Any $rvalue);
+sub Any operator_xor_assign(Any $lvalue, Any $rvalue);
+sub Any operator_lshift_assign(Any $lvalue, Any $rvalue);
+sub Any operator_rshift_assign(Any $lvalue, Any $rvalue);
+sub Any operator_defined_or_assign(Any $lvalue, Any $rvalue);
+
+# ============================================================================
+# RANGE OPERATORS
+# ============================================================================
+
+# Range operator in list context - creates array of values
+sub ArrayRef[Any] operator_range(Any $start, Any $end);
+
+# Flip-flop operator in scalar context - stateful boolean
+sub Bool operator_flip_flop(Any $start_condition, Any $end_condition);
+
+# ============================================================================
+# COMMA OPERATORS
+# ============================================================================
+
+# Comma operator - evaluates left, returns right
+sub Any operator_comma(Any $left, Any $right);
+
+# Fat comma (=>) - like comma but quotes left operand if it's a bareword
+sub Any operator_fat_comma(Any $left, Any $right);
+
+# ============================================================================
+# FILE TEST OPERATORS (as binary operators with explicit operands)
+# ============================================================================
+
+# These are provided for cases where file test operators are used in
+# binary operator contexts, though they're typically unary operators
+
+# File test with explicit handle/filename
+sub Bool operator_file_test(Str $test_type, Str $filename);
+sub Bool operator_file_test(Str $test_type, FileHandle $handle);
+
+# ============================================================================
+# REFERENCE OPERATORS
+# ============================================================================
+
+# Reference creation - returns appropriate reference type
+sub ScalarRef operator_ref_scalar(Scalar $value);
+sub ArrayRef operator_ref_array(Array $value);
+sub HashRef operator_ref_hash(Hash $value);
+sub CodeRef operator_ref_code(Code $value);
+sub Any operator_ref(Any $value);  # General reference operator
+
+# Dereference operators would be unary, but included for completeness
+sub Any operator_deref_scalar(ScalarRef $ref);
+sub Array operator_deref_array(ArrayRef $ref);
+sub Hash operator_deref_hash(HashRef $ref);
+sub Any operator_deref_code(CodeRef $ref);
