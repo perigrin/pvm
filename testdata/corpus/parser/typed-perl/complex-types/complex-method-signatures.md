@@ -77,14 +77,14 @@ AST {
     method_decl
       block_stmt
         token
-        expression_stmt
+        return_stmt
           literal
         token
         token
     method_decl
       block_stmt
         token
-        expression_stmt
+        return_stmt
           literal
         token
         token
