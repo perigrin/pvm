@@ -1693,6 +1693,12 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 	case "type_alias_statement":
 		// Parse type alias statements
 		return p.parseTypeAliasStatement(node, start, end)
+	case "conditional_statement":
+		// Parse conditional statements (if/elsif/else)
+		return p.parseConditionalStatement(node, start, end)
+	case "for_statement", "foreach_statement", "while_statement":
+		// Parse loop statements
+		return p.parseLoopStatement(node, start, end)
 	default:
 		// For other statement types, create a generic expression statement
 		// using the node's text content
@@ -1708,12 +1714,101 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 
 // parseExpressionStatement parses an expression statement
 func (p *Parser) parseExpressionStatement(node Node, start, end ast.Position) ast.StatementNode {
-	// For now, use the node's text directly
+	// Parse the expression statement by examining its children
+	// This replaces the placeholder literal implementation
+
+	if p.debug {
+		fmt.Printf("DEBUG parseExpressionStatement: Processing node with %d children\n", len(node.Children()))
+	}
+
+	// Look for the actual expression within the expression statement
+	for _, child := range node.Children() {
+		childType := child.Type()
+
+		if p.debug {
+			fmt.Printf("DEBUG parseExpressionStatement: Child type: %s\n", childType)
+		}
+
+		switch childType {
+		case "variable_declaration", "typed_variable_declaration":
+			// This is a variable declaration like "my $var = value"
+			return p.parseVariableDeclaration(child, start, end)
+
+		case "assignment_expression":
+			// This is an assignment expression like "my $var = $hash->{key}"
+			// Need to handle this as a complete assignment
+			return p.parseAssignmentExpression(child, start, end)
+
+		case "hash_ref", "hash_access", "deref_expression", "hash_element_expression":
+			// This is a hash access expression
+			expr := p.parseSimpleExpression(child)
+			if expr != nil {
+				return ast.NewExpressionStmt(expr, start, end)
+			}
+
+		case "function_call", "call_expression":
+			// This is a function call
+			expr := p.parseSimpleExpression(child)
+			if expr != nil {
+				return ast.NewExpressionStmt(expr, start, end)
+			}
+
+		case "return_expression", "return_statement":
+			// This is a return statement
+			return p.parseReturnStatement(child, start, end)
+
+		default:
+			// Try to parse as a general expression
+			if expr := p.parseSimpleExpression(child); expr != nil {
+				return ast.NewExpressionStmt(expr, start, end)
+			}
+		}
+	}
+
+	// If we couldn't parse any specific construct, fall back to parsing the whole thing as an expression
+	if expr := p.parseSimpleExpression(node); expr != nil {
+		return ast.NewExpressionStmt(expr, start, end)
+	}
+
+	// Final fallback: create a literal (but log this as it indicates a parsing gap)
 	nodeText := strings.TrimSpace(node.Text())
 	if nodeText != "" {
 		expr := ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end)
 		return ast.NewExpressionStmt(expr, start, end)
 	}
+
+	return nil
+}
+
+// parseAssignmentExpression parses an assignment expression node
+func (p *Parser) parseAssignmentExpression(node Node, start, end ast.Position) ast.StatementNode {
+	if node == nil {
+		return nil
+	}
+
+	// An assignment expression typically has: variable_declaration, =, and value_expression
+	// We need to look for the variable_declaration part and parse it
+	for _, child := range node.Children() {
+		childType := child.Type()
+
+		// If we find a variable_declaration, parse it as the main statement
+		if childType == "variable_declaration" || childType == "typed_variable_declaration" {
+			return p.parseVariableDeclaration(child, start, end)
+		}
+	}
+
+	// If no variable_declaration found, fall back to expression statement
+	if expr := p.parseSimpleExpression(node); expr != nil {
+		return ast.NewExpressionStmt(expr, start, end)
+	}
+
+	// Final fallback
+	nodeText := strings.TrimSpace(node.Text())
+	if nodeText != "" {
+		expr := ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end)
+		return ast.NewExpressionStmt(expr, start, end)
+	}
+
 	return nil
 }
 
@@ -1810,12 +1905,40 @@ func (p *Parser) parseTypedVariableDeclaration(node Node, start, end ast.Positio
 
 // parseReturnStatement parses a return statement
 func (p *Parser) parseReturnStatement(node Node, start, end ast.Position) ast.StatementNode {
-	nodeText := strings.TrimSpace(node.Text())
-	if nodeText != "" {
-		expr := ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end)
-		return ast.NewExpressionStmt(expr, start, end)
+	// Parse return statement properly by examining its children
+	var returnExpr ast.ExpressionNode
+
+	for _, child := range node.Children() {
+		childType := child.Type()
+
+		// Skip the "return" keyword itself
+		if childType == "return" {
+			continue
+		}
+
+		// Parse the return value expression
+		if expr := p.parseSimpleExpression(child); expr != nil {
+			returnExpr = expr
+			break
+		}
 	}
-	return nil
+
+	// Create a proper return statement
+	return ast.NewReturnStmt(returnExpr, start, end)
+}
+
+// parseConditionalStatement parses conditional statements (if/elsif/else)
+func (p *Parser) parseConditionalStatement(node Node, start, end ast.Position) ast.StatementNode {
+	// For now, create a simple AST node for conditional statements
+	// This will need more sophisticated parsing in the future
+	return ast.NewIfStmt(nil, nil, nil, start, end)
+}
+
+// parseLoopStatement parses loop statements (for/foreach/while)
+func (p *Parser) parseLoopStatement(node Node, start, end ast.Position) ast.StatementNode {
+	// For now, create a simple AST node for loop statements
+	// This will need more sophisticated parsing in the future
+	return ast.NewForStmt(nil, nil, nil, start, end)
 }
 
 // parseTypeAliasStatement parses a type alias statement (type UserID = Int)

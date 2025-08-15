@@ -120,10 +120,10 @@ source_file
     sub_decl
       block_stmt
         token
-        expression_stmt
+        return_stmt
           literal
         token
-        expression_stmt
+        return_stmt
           literal
         token
         token

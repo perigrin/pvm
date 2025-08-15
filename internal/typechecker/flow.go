@@ -234,11 +234,18 @@ func (fa *FlowAnalyzer) processNode(node ast.Node, currentBlock *BasicBlock, blo
 		return currentBlock, blockID, nil
 	}
 
+	// DEBUG: Log actual node types being processed
+	nodeText := ""
+	if len(node.Children()) > 0 {
+		nodeText = fmt.Sprintf(" (first child: %s)", node.Children()[0].Type())
+	}
+	fmt.Printf("DEBUG AST: Processing node type: '%s'%s\n", node.Type(), nodeText)
+
 	// Handle different node types
 	switch node.Type() {
-	case "if_statement", "unless_statement":
+	case "if_statement", "unless_statement", "if_stmt":
 		return fa.processConditional(node, currentBlock, blockID, cfg)
-	case "while_statement", "until_statement", "for_statement", "foreach_statement":
+	case "while_statement", "until_statement", "for_statement", "foreach_statement", "for_stmt", "while_stmt":
 		return fa.processLoop(node, currentBlock, blockID, cfg)
 	case "given_statement":
 		return fa.processGivenWhen(node, currentBlock, blockID, cfg)
@@ -539,6 +546,9 @@ func (fa *FlowAnalyzer) processBlock(block *BasicBlock) []error {
 func (fa *FlowAnalyzer) processStatement(stmt ast.Node, state *TypeState) []error {
 	var errors []error
 
+	// DEBUG: Log actual statement types being processed
+	fmt.Printf("DEBUG STMT: Processing statement type: '%s'\n", stmt.Type())
+
 	// Handle different statement types
 	switch stmt.Type() {
 	case "variable_declaration":
@@ -549,6 +559,8 @@ func (fa *FlowAnalyzer) processStatement(stmt ast.Node, state *TypeState) []erro
 		errors = append(errors, fa.processFunctionCall(stmt, state)...)
 	case "expression_stmt":
 		errors = append(errors, fa.processExpressionStatement(stmt, state)...)
+	case "return_stmt":
+		errors = append(errors, fa.processReturnStatement(stmt, state)...)
 	default:
 		// For unknown statement types, we don't change the type state
 		// In a full implementation, we'd handle more statement types
@@ -567,6 +579,11 @@ func (fa *FlowAnalyzer) processExpressionStatement(stmt ast.Node, state *TypeSta
 		if child.Type() == "token" {
 			// Skip tokens like semicolons
 			continue
+		}
+
+		// DEBUG: Show what's actually in the expression statement
+		if literalExpr, ok := child.(*ast.LiteralExpr); ok {
+			fmt.Printf("DEBUG EXPR: Found literal in expression_stmt: '%s'\n", literalExpr.Value)
 		}
 
 		// Process based on the child type
@@ -590,6 +607,38 @@ func (fa *FlowAnalyzer) processExpressionStatement(stmt ast.Node, state *TypeSta
 			// Try to process as a generic statement
 			childErrors := fa.processStatement(child, state)
 			errors = append(errors, childErrors...)
+		}
+	}
+
+	return errors
+}
+
+// processReturnStatement processes return statements and their expressions
+func (fa *FlowAnalyzer) processReturnStatement(stmt ast.Node, state *TypeState) []error {
+	var errors []error
+
+	// Process the return expression to check for variable usage
+	for _, child := range stmt.Children() {
+		if child.Type() == "token" {
+			// Skip tokens like semicolons
+			continue
+		}
+
+		// Check for variable references in return expression
+		switch child.Type() {
+		case "variable":
+			if varExpr, ok := child.(*ast.VariableExpr); ok {
+				varName := varExpr.Name
+				if _, exists := state.VariableTypes[varName]; !exists {
+					errors = append(errors, fmt.Errorf("Variable %s may be uninitialized in return statement", varName))
+				}
+			}
+		case "literal":
+			// Literals in return statements are generally safe
+			continue
+		default:
+			// For other expression types, recursively check for variables
+			// This is a simplified approach
 		}
 	}
 
