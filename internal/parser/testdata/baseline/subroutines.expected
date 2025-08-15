@@ -18,6 +18,7 @@ AST {
         token
         token
     sub_decl
+      type_expr
       block_stmt
         token
         expression_stmt

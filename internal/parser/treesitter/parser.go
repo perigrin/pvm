@@ -1389,6 +1389,7 @@ func (p *Parser) convertToSubDeclAST(node Node, start, end ast.Position) ast.Nod
 	// For typed subroutines: subroutine_declaration_statement has children: sub, bareword, signature, return_type, block
 	// For simple subroutines: subroutine_declaration_statement has children: sub, bareword, block
 	children := node.Children()
+
 	for _, child := range children {
 		childType := child.Type()
 
@@ -1399,9 +1400,9 @@ func (p *Parser) convertToSubDeclAST(node Node, start, end ast.Position) ast.Nod
 		case "signature":
 			// Parse typed method parameters
 			params = p.parseSignatureParams(child)
-		case "method_return_type":
-			// Parse return type
-			returnType = p.parseReturnType(child)
+		case "type_expression":
+			// Parse return type - tree-sitter presents it as a direct type_expression
+			returnType = p.parseTreeSitterTypeExpression(child)
 		case "block":
 			// Convert the block to a BlockStmt
 			blockStart := ast.Position{
@@ -2440,8 +2441,11 @@ func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
 			case "signature":
 				// Extract parameters from signature
 				parameters = p.extractMethodParameters(child)
+			case "type_expression":
+				// Parse return type - tree-sitter presents it as a direct type_expression
+				returnType = p.parseTreeSitterTypeExpression(child)
 			case "return_type":
-				// Extract return type from return_type node
+				// Extract return type from return_type node (legacy case)
 				returnType = p.parseReturnType(child)
 			case "block":
 				// Convert block to BlockStmt

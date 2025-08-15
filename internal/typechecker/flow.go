@@ -106,14 +106,26 @@ type FlowAnalyzer struct {
 
 	// MaxIterations prevents infinite loops in analysis
 	MaxIterations int
+
+	// BuiltinTypes provides type signatures for Perl built-in functions
+	BuiltinTypes *BuiltinTypeRegistry
 }
 
 // NewFlowAnalyzer creates a new flow analyzer
 func NewFlowAnalyzer(tc *TypeChecker) *FlowAnalyzer {
+	// Initialize built-in type registry
+	builtinTypes, err := NewBuiltinTypeRegistry()
+	if err != nil {
+		// Log error but don't fail - fall back to hardcoded types
+		// In production, you might want to handle this differently
+		builtinTypes = nil
+	}
+
 	return &FlowAnalyzer{
 		TypeChecker:     tc,
 		ProcessedBlocks: make(map[int]bool),
 		MaxIterations:   100, // Reasonable default to prevent infinite loops
+		BuiltinTypes:    builtinTypes,
 	}
 }
 
@@ -1128,63 +1140,40 @@ func (fa *FlowAnalyzer) inferReturnTypeFromMethodCall(call *ast.CallExpr) string
 	return "Str"
 }
 
-// inferBuiltinFunctionType infers types for Perl built-in functions
+// inferBuiltinFunctionType infers types for Perl built-in functions using the type registry
 func (fa *FlowAnalyzer) inferBuiltinFunctionType(functionName string, call *ast.CallExpr) string {
-	switch functionName {
-	case "ref":
-		// ref() returns the reference type as a string ("HASH", "ARRAY", etc.)
-		return "Str"
-	case "defined":
-		// defined() returns boolean
-		return "Bool"
-	case "exists":
-		// exists() returns boolean
-		return "Bool"
-	case "keys", "values":
-		// keys() and values() return arrays
-		return "ArrayRef[Str]"
-	case "length", "substr", "index", "rindex":
-		// String functions that return numbers
-		if functionName == "length" || functionName == "index" || functionName == "rindex" {
-			return "Int"
+	// Use the type registry if available
+	if fa.BuiltinTypes != nil {
+		// Count parameters to help with overload resolution
+		paramCount := 0
+		if call != nil && call.Arguments != nil {
+			paramCount = len(call.Arguments)
 		}
-		return "Str"
-	case "chomp", "chop":
-		// Modify in place, return number of characters removed
-		return "Int"
-	case "split":
-		// split() returns array
-		return "ArrayRef[Str]"
-	case "join":
-		// join() returns string
-		return "Str"
-	case "open":
-		// open() returns file handle or undef
-		return "Maybe[FileHandle]"
-	case "close":
-		// close() returns boolean success
-		return "Bool"
-	case "print", "say", "printf":
-		// Print functions return boolean success
-		return "Bool"
-	case "int":
-		// int() returns integer
-		return "Int"
-	case "sprintf":
-		// sprintf() returns string
-		return "Str"
-	case "time":
-		// time() returns integer timestamp
-		return "Int"
-	case "localtime", "gmtime":
-		// In scalar context returns string, in list context returns array
-		return "Str" // Simplified for scalar context
-	case "slurp":
-		// Common slurp function returns string content
-		return "Str"
+
+		if returnType := fa.BuiltinTypes.GetFunctionType(functionName, paramCount); returnType != "" {
+			return returnType
+		}
 	}
 
-	return ""
+	// Fallback to hardcoded types for critical built-ins if registry failed
+	switch functionName {
+	case "ref":
+		return "Str"
+	case "defined", "exists":
+		return "Bool"
+	case "keys", "values":
+		return "ArrayRef[Str]"
+	case "length", "index", "rindex":
+		return "Int"
+	case "substr", "sprintf":
+		return "Str"
+	case "int":
+		return "Int"
+	case "time":
+		return "Int"
+	default:
+		return ""
+	}
 }
 
 // inferLibraryFunctionType infers types for common library functions
