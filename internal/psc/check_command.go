@@ -72,6 +72,12 @@ Examples:
 			dumpAST, _ := cmd.Flags().GetBool("dump-ast")
 			format, _ := cmd.Flags().GetString("format")
 
+			// Flow-sensitive analysis flags (TODO: integrate with TypeChecker)
+			// flowAnalysis, _ := cmd.Flags().GetBool("flow-analysis")
+			// safetyAnalysis, _ := cmd.Flags().GetBool("safety-analysis")
+			// flowDebug, _ := cmd.Flags().GetBool("flow-debug")
+			// flowDebugDir, _ := cmd.Flags().GetString("flow-debug-dir")
+
 			// Validate format flag
 			validFormats := []string{"text", "json"}
 			isValid := false
@@ -182,6 +188,12 @@ Examples:
 	cmd.Flags().BoolP("show-inferred", "i", false, "Show inferred types")
 	cmd.Flags().Bool("dump-ast", false, "Dump AST structure for debugging")
 	cmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+
+	// Flow-sensitive analysis flags
+	cmd.Flags().Bool("flow-analysis", true, "Enable flow-sensitive type analysis")
+	cmd.Flags().Bool("safety-analysis", true, "Enable safety analysis for runtime error prevention")
+	cmd.Flags().Bool("flow-debug", false, "Generate DOT graphs for flow analysis debugging")
+	cmd.Flags().String("flow-debug-dir", "./flow-debug", "Directory for flow analysis debug output")
 
 	return cmd
 }
