@@ -81,14 +81,12 @@ AST {
         return_stmt
           literal
         token
-        token
     method_decl
       type_expr
       block_stmt
         token
         return_stmt
           literal
-        token
         token
 }
 ```
@@ -116,14 +114,12 @@ AST {
         return_stmt
           literal
         token
-        token
     method_decl
       type_expr
       block_stmt
         token
         return_stmt
           literal
-        token
         token
 }
 ```
