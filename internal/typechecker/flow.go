@@ -1580,6 +1580,11 @@ func (fa *FlowAnalyzer) checkHashFieldSafety(hashRef *ast.HashRefExpr, state *Ty
 		return errors // Can't analyze dynamic access
 	}
 
+	// Check if this hash access is in a safe Perl idiom context
+	if fa.isHashAccessInSafeContext(hashRef) {
+		return errors // Safe context, no warning needed
+	}
+
 	// Check if this field access was validated with exists()
 	if state != nil && state.FieldAccess != nil {
 		if fields, exists := state.FieldAccess[varName]; exists {
@@ -1859,9 +1864,180 @@ func (fa *FlowAnalyzer) determineUsageContext(varExpr *ast.VariableExpr) string 
 
 // isStrictStringContext checks if this is a context where string warnings matter
 func (fa *FlowAnalyzer) isStrictStringContext(varExpr *ast.VariableExpr) bool {
-	// In a full implementation, this would check the parent context
-	// For now, assume all string contexts are strict
+	// Check if the variable is used in a safe Perl idiom context
+	if fa.isInSafePerlIdiomContext(varExpr) {
+		return false // Not strict if it's in a safe context
+	}
+
+	// In a full implementation, this would check other parent contexts
+	// For now, assume remaining string contexts are strict
 	return true
+}
+
+// isInSafePerlIdiomContext checks if a variable is used in a context that safely handles undef
+func (fa *FlowAnalyzer) isInSafePerlIdiomContext(varExpr *ast.VariableExpr) bool {
+	if varExpr == nil || varExpr.Parent() == nil {
+		return false
+	}
+
+	parent := varExpr.Parent()
+
+	// Check for defined-or operator: $var // default
+	if fa.isDefinedOrOperatorContext(parent, varExpr) {
+		return true
+	}
+
+	// Check for ternary with defined check: defined($var) ? $var : default
+	if fa.isSafeTernaryContext(parent, varExpr) {
+		return true
+	}
+
+	// Check for ||= assignment: $var ||= default
+	if fa.isLogicalOrAssignmentContext(parent, varExpr) {
+		return true
+	}
+
+	// Check for exists/defined guard context
+	if fa.isInGuardedContext(varExpr) {
+		return true
+	}
+
+	return false
+}
+
+// isDefinedOrOperatorContext checks if variable is left operand of // operator
+func (fa *FlowAnalyzer) isDefinedOrOperatorContext(parent ast.Node, varExpr *ast.VariableExpr) bool {
+	if parent == nil {
+		return false
+	}
+
+	// Look for binary expression with // operator
+	parentText := parent.Text()
+	varText := varExpr.Text()
+
+	// Simple heuristic: check if parent contains both variable and //
+	return strings.Contains(parentText, varText) && strings.Contains(parentText, "//")
+}
+
+// isSafeTernaryContext checks if variable is in a ternary with defined() check
+func (fa *FlowAnalyzer) isSafeTernaryContext(parent ast.Node, varExpr *ast.VariableExpr) bool {
+	if parent == nil {
+		return false
+	}
+
+	parentText := parent.Text()
+	varText := varExpr.Text()
+
+	// Check for ternary pattern: defined($var) ? $var : default
+	return strings.Contains(parentText, "defined("+varText+")") &&
+		strings.Contains(parentText, "?") &&
+		strings.Contains(parentText, ":")
+}
+
+// isLogicalOrAssignmentContext checks for ||= assignment operator
+func (fa *FlowAnalyzer) isLogicalOrAssignmentContext(parent ast.Node, varExpr *ast.VariableExpr) bool {
+	if parent == nil {
+		return false
+	}
+
+	parentText := parent.Text()
+	varText := varExpr.Text()
+
+	// Check for ||= assignment pattern
+	return strings.Contains(parentText, varText) && strings.Contains(parentText, "||=")
+}
+
+// isInGuardedContext checks if variable access is protected by early returns or guards
+func (fa *FlowAnalyzer) isInGuardedContext(varExpr *ast.VariableExpr) bool {
+	// This is a simplified implementation
+	// In practice, would need to analyze control flow to see if there are
+	// preceding exists/defined checks that protect this access
+
+	// For now, look for simple patterns in the surrounding text
+	if varExpr.Parent() != nil {
+		grandParent := varExpr.Parent().Parent()
+		if grandParent != nil {
+			text := grandParent.Text()
+			varName := varExpr.Name
+
+			// Look for exists/defined checks before this usage
+			if strings.Contains(text, "exists") && strings.Contains(text, varName) {
+				return true
+			}
+			if strings.Contains(text, "defined("+varName+")") {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// isHashAccessInSafeContext checks if hash access is in a safe Perl idiom context
+func (fa *FlowAnalyzer) isHashAccessInSafeContext(hashRef *ast.HashRefExpr) bool {
+	if hashRef == nil || hashRef.Parent() == nil {
+		return false
+	}
+
+	parent := hashRef.Parent()
+
+	// Check for defined-or operator: $hash->{key} // default
+	if fa.isHashInDefinedOrContext(parent, hashRef) {
+		return true
+	}
+
+	// Check for ternary with exists check: exists($hash->{key}) ? $hash->{key} : default
+	if fa.isHashInSafeTernaryContext(parent, hashRef) {
+		return true
+	}
+
+	// Check for ||= assignment: $hash->{key} ||= default
+	if fa.isHashInLogicalOrAssignmentContext(parent, hashRef) {
+		return true
+	}
+
+	return false
+}
+
+// isHashInDefinedOrContext checks if hash access is left operand of // operator
+func (fa *FlowAnalyzer) isHashInDefinedOrContext(parent ast.Node, hashRef *ast.HashRefExpr) bool {
+	if parent == nil {
+		return false
+	}
+
+	parentText := parent.Text()
+	hashText := hashRef.Text()
+
+	// Check if parent contains both hash access and //
+	return strings.Contains(parentText, hashText) && strings.Contains(parentText, "//")
+}
+
+// isHashInSafeTernaryContext checks if hash access is in a ternary with exists() check
+func (fa *FlowAnalyzer) isHashInSafeTernaryContext(parent ast.Node, hashRef *ast.HashRefExpr) bool {
+	if parent == nil {
+		return false
+	}
+
+	parentText := parent.Text()
+	hashText := hashRef.Text()
+
+	// Check for ternary pattern: exists($hash->{key}) ? $hash->{key} : default
+	return strings.Contains(parentText, "exists("+hashText+")") &&
+		strings.Contains(parentText, "?") &&
+		strings.Contains(parentText, ":")
+}
+
+// isHashInLogicalOrAssignmentContext checks for ||= assignment with hash access
+func (fa *FlowAnalyzer) isHashInLogicalOrAssignmentContext(parent ast.Node, hashRef *ast.HashRefExpr) bool {
+	if parent == nil {
+		return false
+	}
+
+	parentText := parent.Text()
+	hashText := hashRef.Text()
+
+	// Check for ||= assignment pattern
+	return strings.Contains(parentText, hashText) && strings.Contains(parentText, "||=")
 }
 
 // requiresReferenceValidation checks if a function requires reference type validation
