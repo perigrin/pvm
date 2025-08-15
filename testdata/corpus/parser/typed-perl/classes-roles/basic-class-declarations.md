@@ -71,8 +71,8 @@ AST {
         type_expr
         block_stmt
           token
-          expression_stmt
-            literal
+          return_stmt
+            variable
           token
           token
 }
@@ -115,8 +115,8 @@ AST {
         type_expr
         block_stmt
           token
-          expression_stmt
-            literal
+          return_stmt
+            variable
           token
           token
 }
