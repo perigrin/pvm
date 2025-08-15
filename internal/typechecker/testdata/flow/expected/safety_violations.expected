@@ -1,0 +1,24 @@
+# Expected safety violations for safety_violations.pl
+
+# unsafe_hash_access function
+safety_error: unsafe hash field access: $api_response->{body}
+
+# unsafe_array_access function
+safety_error: unsafe array access: $data->[0]
+
+# uninitialized_usage function
+safety_error: Variable $maybe_value may be uninitialized in numeric context
+safety_error: Variable $maybe_value may be uninitialized in string context
+
+# unsafe_method_call function
+safety_error: unsafe method call on potentially undefined variable: $maybe_object->method()
+
+# double_hash_access function
+safety_error: unsafe hash field access: $config->{database}
+
+# unsafe_numeric_context function
+safety_error: unsafe hash field access: $hash->{price}
+safety_error: Variable $price may be uninitialized in numeric context
+
+# Total expected safety errors
+safety_errors: 7

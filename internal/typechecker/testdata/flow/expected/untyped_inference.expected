@@ -1,0 +1,24 @@
+# Expected type inferences for untyped_inference.pl
+
+# process_user_data function
+input: HashRef[Str, Any]  # after ref() check
+user_id: Str             # from hash access
+numeric_user_id: Int     # from int() function
+db_result: Maybe[HashRef[Str, Str]]  # from get_user_from_db
+processed: HashRef[Str, Str]         # constructed hash
+
+# analyze_data_types function
+type: Str                # from ref() function
+is_defined: Bool         # from defined() function
+keys: ArrayRef[Str]      # from keys() function
+length: Int              # from length() function
+
+# math_operations function
+sum: Num                 # from arithmetic operation
+product: Num             # from arithmetic operation
+quotient: Num            # from division operation
+int_val: Int             # from int() function
+abs_val: Num             # from abs() function
+
+# No safety errors expected (well-written code)
+safety_errors: 0
