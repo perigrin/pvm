@@ -47,6 +47,7 @@ AST {
   Tree Structure:
   source_file
     method_decl
+      type_expr
       block_stmt
         token
         expression_stmt
@@ -54,6 +55,7 @@ AST {
         token
         token
     method_decl
+      type_expr
       block_stmt
         token
         expression_stmt
@@ -61,6 +63,7 @@ AST {
         token
         token
     method_decl
+      type_expr
       block_stmt
         token
         expression_stmt
@@ -578,6 +581,7 @@ AST {
   Tree Structure:
   source_file
     method_decl
+      type_expr
       block_stmt
         token
         expression_stmt
@@ -585,6 +589,7 @@ AST {
         token
         token
     method_decl
+      type_expr
       block_stmt
         token
         expression_stmt
@@ -592,6 +597,7 @@ AST {
         token
         token
     method_decl
+      type_expr
       block_stmt
         token
         expression_stmt
