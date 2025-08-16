@@ -55,6 +55,8 @@ type ParserTestCase struct {
 
 	// Compilation outcome expectations
 	ExpectedCompilationOutcomes *CompilationOutcomes `json:"expected_compilation_outcomes,omitempty"`
+	// Source file path for baseline updates
+	SourceFilePath string `json:"-"` // Not serialized to JSON
 }
 
 // CompilationOutcomes represents expected outputs for all compilation targets
@@ -212,6 +214,11 @@ func (f *ParserTestFramework) LoadMarkdownTestCases(filePath string) ([]*ParserT
 	testCases, err := f.parseMarkdownTestCases(content, metadata, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse test cases from %s: %w", filePath, err)
+	}
+
+	// Set source file path for each test case to enable baseline updates
+	for _, testCase := range testCases {
+		testCase.SourceFilePath = filePath
 	}
 
 	return testCases, nil
@@ -655,24 +662,24 @@ func (f *ParserTestFramework) RunTestCase(t *testing.T, testCase *ParserTestCase
 
 	// Compare expected AST before type inference
 	if testCase.ExpectedASTBeforeInfer != "" {
-		f.CompareASTString(t, testCase.ExpectedASTBeforeInfer, ast, testCase.Name, "before type inference")
+		f.CompareASTString(t, testCase.ExpectedASTBeforeInfer, ast, testCase, "before type inference")
 	}
 
 	// TODO: Add type inference and compare after inference AST
 	if testCase.ExpectedASTAfterInfer != "" {
 		// For now, just compare against the same AST until type inference is implemented
-		f.CompareASTString(t, testCase.ExpectedASTAfterInfer, ast, testCase.Name, "after type inference")
+		f.CompareASTString(t, testCase.ExpectedASTAfterInfer, ast, testCase, "after type inference")
 	}
 
 	// Compare expected JSON AST before type inference
 	if testCase.ExpectedJSONASTBeforeInfer != "" {
-		f.CompareASTJSON(t, testCase.ExpectedJSONASTBeforeInfer, ast, testCase.Name, "before type inference (JSON)")
+		f.CompareASTJSON(t, testCase.ExpectedJSONASTBeforeInfer, ast, testCase, "before type inference (JSON)")
 	}
 
 	// Compare expected JSON AST after type inference
 	if testCase.ExpectedJSONASTAfterInfer != "" {
 		// For now, just compare against the same AST until type inference is implemented
-		f.CompareASTJSON(t, testCase.ExpectedJSONASTAfterInfer, ast, testCase.Name, "after type inference (JSON)")
+		f.CompareASTJSON(t, testCase.ExpectedJSONASTAfterInfer, ast, testCase, "after type inference (JSON)")
 	}
 
 	// Run type checking if enabled
@@ -731,11 +738,11 @@ func (f *ParserTestFramework) ValidateAST(t *testing.T, ast *ast.AST, testName s
 }
 
 // CompareASTString compares an AST against an expected string representation
-func (f *ParserTestFramework) CompareASTString(t *testing.T, expectedStr string, actual *ast.AST, testName, phase string) bool {
+func (f *ParserTestFramework) CompareASTString(t *testing.T, expectedStr string, actual *ast.AST, testCase *ParserTestCase, phase string) bool {
 	t.Helper()
 
 	if actual == nil {
-		t.Errorf("Test %s (%s): AST is nil", testName, phase)
+		t.Errorf("Test %s (%s): AST is nil", testCase.Name, phase)
 		return false
 	}
 
@@ -748,35 +755,39 @@ func (f *ParserTestFramework) CompareASTString(t *testing.T, expectedStr string,
 
 	if expectedStr != actualStr {
 		if f.UpdateMode {
-			t.Logf("Test %s (%s): AST mismatch - updating baseline in update mode", testName, phase)
+			if err := f.updateMarkdownBaseline(testCase, phase, "text", actualStr); err != nil {
+				t.Errorf("Test %s (%s): Failed to update baseline: %v", testCase.Name, phase, err)
+				return false
+			}
+			t.Logf("Test %s (%s): Updated AST baseline", testCase.Name, phase)
 			return true
 		}
 
 		diff := cmp.Diff(expectedStr, actualStr)
-		t.Errorf("Test %s (%s): AST mismatch (-expected +actual):\n%s", testName, phase, diff)
+		t.Errorf("Test %s (%s): AST mismatch (-expected +actual):\n%s", testCase.Name, phase, diff)
 		return false
 	}
 
 	if f.Verbose {
-		t.Logf("Test %s (%s): AST matches expected structure", testName, phase)
+		t.Logf("Test %s (%s): AST matches expected structure", testCase.Name, phase)
 	}
 
 	return true
 }
 
 // CompareASTJSON compares an AST against an expected JSON representation
-func (f *ParserTestFramework) CompareASTJSON(t *testing.T, expectedJSON string, actual *ast.AST, testName, phase string) bool {
+func (f *ParserTestFramework) CompareASTJSON(t *testing.T, expectedJSON string, actual *ast.AST, testCase *ParserTestCase, phase string) bool {
 	t.Helper()
 
 	if actual == nil {
-		t.Errorf("Test %s (%s): AST is nil", testName, phase)
+		t.Errorf("Test %s (%s): AST is nil", testCase.Name, phase)
 		return false
 	}
 
 	// Convert actual AST to JSON representation
 	actualJSON, err := json.MarshalIndent(actual, "", "  ")
 	if err != nil {
-		t.Errorf("Test %s (%s): Failed to marshal AST to JSON: %v", testName, phase, err)
+		t.Errorf("Test %s (%s): Failed to marshal AST to JSON: %v", testCase.Name, phase, err)
 		return false
 	}
 
@@ -788,24 +799,28 @@ func (f *ParserTestFramework) CompareASTJSON(t *testing.T, expectedJSON string, 
 	var expectedObj, actualObj interface{}
 
 	if err := json.Unmarshal([]byte(expectedJSON), &expectedObj); err != nil {
-		t.Errorf("Test %s (%s): Expected JSON is invalid: %v", testName, phase, err)
+		t.Errorf("Test %s (%s): Expected JSON is invalid: %v", testCase.Name, phase, err)
 		return false
 	}
 
 	if err := json.Unmarshal(actualJSON, &actualObj); err != nil {
-		t.Errorf("Test %s (%s): Actual JSON is invalid: %v", testName, phase, err)
+		t.Errorf("Test %s (%s): Actual JSON is invalid: %v", testCase.Name, phase, err)
 		return false
 	}
 
 	// Compare the parsed objects
 	if !cmp.Equal(expectedObj, actualObj) {
 		if f.UpdateMode {
-			t.Logf("Test %s (%s): JSON AST mismatch - updating baseline in update mode", testName, phase)
+			if err := f.updateMarkdownBaseline(testCase, phase, "json", actualJSONStr); err != nil {
+				t.Errorf("Test %s (%s): Failed to update JSON baseline: %v", testCase.Name, phase, err)
+				return false
+			}
+			t.Logf("Test %s (%s): Updated JSON AST baseline", testCase.Name, phase)
 			return true
 		}
 
 		diff := cmp.Diff(expectedObj, actualObj)
-		t.Errorf("Test %s (%s): JSON AST mismatch (-expected +actual):\n%s", testName, phase, diff)
+		t.Errorf("Test %s (%s): JSON AST mismatch (-expected +actual):\n%s", testCase.Name, phase, diff)
 
 		// Also log the JSON strings for easier debugging
 		t.Logf("Expected JSON:\n%s", expectedJSON)
@@ -814,7 +829,7 @@ func (f *ParserTestFramework) CompareASTJSON(t *testing.T, expectedJSON string, 
 	}
 
 	if f.Verbose {
-		t.Logf("Test %s (%s): JSON AST matches expected structure", testName, phase)
+		t.Logf("Test %s (%s): JSON AST matches expected structure", testCase.Name, phase)
 	}
 
 	return true
@@ -1292,4 +1307,96 @@ func (f *ParserTestFramework) validateCompilationTarget(ast *ast.AST, target str
 	// This would need to be implemented with the actual compiler registry
 	// For now, return a placeholder implementation
 	return fmt.Errorf("compilation validation not yet implemented for target: %s", target)
+}
+
+// updateMarkdownBaseline updates the baseline in a markdown test file
+func (f *ParserTestFramework) updateMarkdownBaseline(testCase *ParserTestCase, phase, format, newBaseline string) error {
+	if testCase.SourceFilePath == "" {
+		return fmt.Errorf("no source file path available for test case %s", testCase.Name)
+	}
+
+	// Read the current markdown file
+	data, err := os.ReadFile(testCase.SourceFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read source file %s: %w", testCase.SourceFilePath, err)
+	}
+
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	// Find the section that needs to be updated
+	var sectionName string
+	switch {
+	case phase == "before type inference" && format == "text":
+		sectionName = "## Before Type Inference"
+	case phase == "after type inference" && format == "text":
+		sectionName = "## After Type Inference"
+	case phase == "before type inference (JSON)" && format == "json":
+		sectionName = "## JSON Format"
+	case phase == "after type inference (JSON)" && format == "json":
+		sectionName = "## JSON Format"
+	default:
+		return fmt.Errorf("unknown phase/format combination: %s/%s", phase, format)
+	}
+
+	// Find the section and update it
+	inTargetSection := false
+	inCodeBlock := false
+	var newLines []string
+	i := 0
+
+	for i < len(lines) {
+		line := lines[i]
+
+		// Check if we're entering the target section
+		if strings.Contains(line, sectionName) {
+			inTargetSection = true
+			newLines = append(newLines, line)
+			i++
+			continue
+		}
+
+		// Check if we're leaving the target section (hitting another ## header)
+		if inTargetSection && strings.HasPrefix(strings.TrimSpace(line), "##") && !strings.Contains(line, sectionName) {
+			inTargetSection = false
+		}
+
+		// If we're in the target section, look for the code block
+		if inTargetSection {
+			if strings.HasPrefix(strings.TrimSpace(line), "```") && !inCodeBlock {
+				// Starting a code block
+				inCodeBlock = true
+				newLines = append(newLines, line)
+
+				// Replace the content of this code block with the new baseline
+				newLines = append(newLines, newBaseline)
+
+				// Skip to the end of the original code block
+				i++
+				for i < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[i]), "```") {
+					i++
+				}
+
+				// Add the closing ```
+				if i < len(lines) {
+					newLines = append(newLines, lines[i])
+				}
+				inCodeBlock = false
+			} else if !inCodeBlock {
+				newLines = append(newLines, line)
+			}
+		} else {
+			newLines = append(newLines, line)
+		}
+
+		i++
+	}
+
+	// Write the updated content back to the file
+	updatedContent := strings.Join(newLines, "\n")
+	if err := os.WriteFile(testCase.SourceFilePath, []byte(updatedContent), 0644); err != nil {
+		return fmt.Errorf("failed to write updated content to %s: %w", testCase.SourceFilePath, err)
+	}
+
+	return nil
 }

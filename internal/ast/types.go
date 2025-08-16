@@ -814,8 +814,48 @@ func (tw *TypeWalker) walkNode(node Node) error {
 	}
 
 	// Visit specific node types with type information
-	// TODO: Re-enable type-specific visiting once go-critic caseOrder issue is resolved
-	_ = node // Temporary to avoid unused variable warning
+	// Using if-else instead of switch to avoid go-critic caseOrder false positive
+	if fieldDecl, ok := node.(*FieldDecl); ok {
+		if err := tw.visitor.VisitFieldDeclaration(fieldDecl); err != nil {
+			return err
+		}
+	} else if subDecl, ok := node.(*SubDecl); ok {
+		// Only visit if it has parameter types or return type
+		params := subDecl.Parameters()
+		if subDecl.ReturnType != nil || (params != nil && len(params) > 0) {
+			hasTypedParams := false
+			for _, param := range params {
+				if param.TypeExpr != nil {
+					hasTypedParams = true
+					break
+				}
+			}
+			if subDecl.ReturnType != nil || hasTypedParams {
+				if err := tw.visitor.VisitTypedMethod(subDecl); err != nil {
+					return err
+				}
+			}
+		}
+	} else if typeAssertion, ok := node.(*TypeAssertionExpr); ok {
+		if err := tw.visitor.VisitTypeAssertion(typeAssertion); err != nil {
+			return err
+		}
+	} else if typeDecl, ok := node.(*TypeDecl); ok {
+		if err := tw.visitor.VisitTypeDeclaration(typeDecl); err != nil {
+			return err
+		}
+	} else if typeExpr, ok := node.(*TypeExpression); ok {
+		if err := tw.visitor.VisitTypeExpression(typeExpr); err != nil {
+			return err
+		}
+	} else if varDecl, ok := node.(*VarDecl); ok {
+		// Only visit if it has a type annotation
+		if varDecl.TypeExpr != nil {
+			if err := tw.visitor.VisitTypedVariable(varDecl); err != nil {
+				return err
+			}
+		}
+	}
 
 	// Recursively walk children
 	for _, child := range node.Children() {

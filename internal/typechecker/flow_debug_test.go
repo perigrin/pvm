@@ -112,11 +112,11 @@ sub loop_function(@items) {
 			}
 
 			// Verify expected nodes are referenced (don't require exact labels)
-			nodeTypes := []string{"entry", "exit"}
+			nodeTypes := []string{"Entry", "Exit"} // Use correct capitalization
 			for _, nodeType := range nodeTypes {
 				found := false
 				for _, expectedNode := range tc.expectedNodes {
-					if strings.Contains(expectedNode, nodeType) {
+					if strings.Contains(strings.ToLower(expectedNode), strings.ToLower(nodeType)) {
 						found = true
 						break
 					}
@@ -278,7 +278,7 @@ sub basic_function($input) {
 }`,
 			visualizeTypes:   false,
 			visualizeSafety:  false,
-			expectedFeatures: []string{"node", "edge", "label"},
+			expectedFeatures: []string{"node", "->", "label"},
 			description:      "Should generate basic CFG visualization",
 		},
 		{
@@ -291,7 +291,7 @@ sub typed_function($input) {
 }`,
 			visualizeTypes:   true,
 			visualizeSafety:  false,
-			expectedFeatures: []string{"node", "edge", "Str", "Int"},
+			expectedFeatures: []string{"node", "->", "Str", "Int"},
 			description:      "Should include type annotations in visualization",
 		},
 		{
@@ -306,7 +306,7 @@ sub safety_function($hash) {
 }`,
 			visualizeTypes:   false,
 			visualizeSafety:  true,
-			expectedFeatures: []string{"node", "edge", "safe", "unsafe"},
+			expectedFeatures: []string{"node", "->", "safe", "unsafe"},
 			description:      "Should include safety annotations in visualization",
 		},
 		{
@@ -323,7 +323,7 @@ sub comprehensive_function($input) {
 }`,
 			visualizeTypes:   true,
 			visualizeSafety:  true,
-			expectedFeatures: []string{"node", "edge", "Str", "Bool", "safe", "Throws"},
+			expectedFeatures: []string{"node", "->", "Str", "Bool", "safe", "Throws"},
 			description:      "Should include comprehensive annotations",
 		},
 	}

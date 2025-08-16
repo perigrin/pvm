@@ -126,6 +126,7 @@ AST {
           token
           var_decl
             variable
+            literal
           token
           expression_stmt
             literal
@@ -143,9 +144,11 @@ AST {
           token
           var_decl
             variable
+            variable
           token
           var_decl
             variable
+            literal
           token
           return_stmt
             literal
@@ -226,6 +229,7 @@ AST {
           token
           var_decl
             variable
+            literal
           token
           expression_stmt
             literal
@@ -243,9 +247,11 @@ AST {
           token
           var_decl
             variable
+            variable
           token
           var_decl
             variable
+            literal
           token
           return_stmt
             literal

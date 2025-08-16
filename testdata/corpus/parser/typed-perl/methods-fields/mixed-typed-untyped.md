@@ -90,6 +90,8 @@ AST {
     sub_decl
       block_stmt
         token
+        var_decl
+          variable
         token
         return_stmt
           literal
@@ -186,6 +188,8 @@ AST {
     sub_decl
       block_stmt
         token
+        var_decl
+          variable
         token
         return_stmt
           literal
