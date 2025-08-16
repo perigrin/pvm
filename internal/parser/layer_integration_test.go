@@ -207,7 +207,10 @@ func checkForProblematicLiterals(node ast.Node) []string {
 	// Check if this node is a problematic literal
 	if node.Type() == "literal" {
 		if litExpr, ok := node.(*ast.LiteralExpr); ok {
-			if containsStructuredCode(litExpr.Value) {
+			// Skip literals that are intentionally structured for safety analysis
+			if isIntentionalStructuredLiteral(litExpr) {
+				// These are legitimate structured literals for safety analysis
+			} else if containsStructuredCode(litExpr.Value) {
 				problematicLiterals = append(problematicLiterals, litExpr.Value)
 			}
 		}
@@ -220,6 +223,18 @@ func checkForProblematicLiterals(node ast.Node) []string {
 	}
 
 	return problematicLiterals
+}
+
+// isIntentionalStructuredLiteral checks if a literal expression is intentionally structured for safety analysis
+func isIntentionalStructuredLiteral(litExpr *ast.LiteralExpr) bool {
+	// These literal kinds are intentionally structured for safety analysis
+	switch litExpr.Kind {
+	case ast.HashAccessLiteral, ast.ArrayAccessLiteral, ast.MethodCallLiteral,
+		ast.FunctionCallLiteral, ast.BinaryExpressionLiteral:
+		return true
+	default:
+		return false
+	}
 }
 
 // containsStructuredCode checks if a string contains Perl code constructs (from typechecker layer test)

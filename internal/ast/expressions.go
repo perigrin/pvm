@@ -25,6 +25,12 @@ const (
 	BooleanLiteral
 	UndefLiteral
 	RegexLiteral
+	HashAccessLiteral       // For $input->{name}
+	ArrayAccessLiteral      // For $data->[0]
+	MethodCallLiteral       // For $obj->method()
+	FunctionCallLiteral     // For length($string)
+	BinaryExpressionLiteral // For $a // $b
+	ExpressionLiteral       // Generic expression fallback
 )
 
 // NewLiteralExpr creates a new literal expression

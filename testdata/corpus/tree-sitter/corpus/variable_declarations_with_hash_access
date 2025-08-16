@@ -1,0 +1,368 @@
+================================================================================
+my $name = $input->{name};
+================================================================================
+my $id = $input->{user_id};
+my $email = $config->{settings}->{email};
+--------------------------------------------------------------------------------
+
+## Text AST
+
+EXPECTED:
+(source_file
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (hash_element_expression
+        hash: (scalar
+          (varname))
+        key: (autoquoted_bareword))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (hash_element_expression
+        hash: (scalar
+          (varname))
+        key: (autoquoted_bareword))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (hash_element_expression
+        hash: (hash_element_expression
+          hash: (scalar
+            (varname))
+          key: (autoquoted_bareword))
+        key: (autoquoted_bareword)))))
+
+ACTUAL: (This test documents the current broken behavior)
+(source_file
+  (expression_statement
+    (variable_declaration
+      variable: (scalar
+        (varname))))
+  (expression_statement
+    (variable_declaration
+      variable: (scalar
+        (varname))))
+  (expression_statement
+    (variable_declaration
+      variable: (scalar
+        (varname)))))
+
+## JSON AST
+
+{
+  "description": "GRAMMAR BUG: Variable declarations with hash access assignments are not parsed correctly",
+  "issue": "The tree-sitter grammar does not capture assignment expressions in variable declarations",
+  "impact": "This breaks safety analysis because hash access expressions like $input->{name} are not visible in the AST",
+  "expected_structure": "assignment_expression with variable_declaration on left and hash_element_expression on right",
+  "actual_structure": "just variable_declaration nodes with no assignment expressions captured",
+  "required_fix": "Grammar needs to properly handle my $var = $hash->{key} as assignment_expression"
+}
+
+================================================================================
+my $first = $data->[0];
+================================================================================
+my $result = $obj->method();
+my $length = length($string);
+--------------------------------------------------------------------------------
+
+## Text AST
+
+EXPECTED:
+(source_file
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (array_element_expression
+        array: (scalar
+          (varname))
+        index: (number))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (method_call_expression
+        object: (scalar
+          (varname))
+        method: (method_name))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (function_call_expression
+        function: (function_name)
+        arguments: (scalar
+          (varname))))))
+
+ACTUAL: (This test documents the current broken behavior)
+(source_file
+  (expression_statement
+    (variable_declaration
+      variable: (scalar
+        (varname))))
+  (expression_statement
+    (variable_declaration
+      variable: (scalar
+        (varname))))
+  (expression_statement
+    (variable_declaration
+      variable: (scalar
+        (varname)))))
+
+## JSON AST
+
+{
+  "description": "GRAMMAR BUG: Variable declarations with complex expression assignments are not parsed correctly",
+  "examples": [
+    "Array access: my $first = $data->[0]",
+    "Method calls: my $result = $obj->method()",
+    "Function calls: my $length = length($string)"
+  ],
+  "impact": "Safety analysis cannot detect unsafe patterns in variable initializers",
+  "current_status": "All assignment expressions are being dropped from the AST"
+}
+
+================================================================================
+my $timeout = $config->{timeout} // 30;
+================================================================================
+my $name = $user->{profile}->{name} || "Unknown";
+my $id = exists($data->{id}) ? $data->{id} : generate_id();
+--------------------------------------------------------------------------------
+
+## Text AST
+
+EXPECTED:
+(source_file
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (binary_expression
+        left: (hash_element_expression
+          hash: (scalar
+            (varname))
+          key: (autoquoted_bareword))
+        operator: "//"
+        right: (number))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (binary_expression
+        left: (hash_element_expression
+          hash: (hash_element_expression
+            hash: (scalar
+              (varname))
+            key: (autoquoted_bareword))
+          key: (autoquoted_bareword))
+        operator: "||"
+        right: (string_literal))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (ternary_expression
+        condition: (function_call_expression
+          function: (function_name)
+          arguments: (hash_element_expression
+            hash: (scalar
+              (varname))
+            key: (autoquoted_bareword)))
+        true_value: (hash_element_expression
+          hash: (scalar
+            (varname))
+          key: (autoquoted_bareword))
+        false_value: (function_call_expression
+          function: (function_name))))))
+
+ACTUAL: (This test documents the current broken behavior)
+(source_file
+  (expression_statement
+    (variable_declaration
+      variable: (scalar
+        (varname))))
+  (expression_statement
+    (variable_declaration
+      variable: (scalar
+        (varname))))
+  (expression_statement
+    (variable_declaration
+      variable: (scalar
+        (varname)))))
+
+## JSON AST
+
+{
+  "description": "GRAMMAR BUG: Variable declarations with complex conditional assignments are not parsed correctly",
+  "critical_patterns": [
+    "Defined-or with hash access: my $timeout = $config->{timeout} // 30",
+    "Logical-or with nested hash: my $name = $user->{profile}->{name} || \"Unknown\"",
+    "Ternary with exists check: my $id = exists($data->{id}) ? $data->{id} : generate_id()"
+  ],
+  "impact": "These are common Perl safety patterns that flow analysis needs to understand",
+  "safety_analysis_impact": "Cannot detect unsafe hash access or validate safe patterns"
+}
+
+================================================================================
+my Str $name = $input->{name};
+================================================================================
+my Int $count = $data->{items} ? scalar(@{$data->{items}}) : 0;
+my HashRef[Str] $settings = $config->{user_settings} // {};
+--------------------------------------------------------------------------------
+
+## Text AST
+
+EXPECTED:
+(source_file
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        type: (type_expression
+          (simple_type))
+        variable: (scalar
+          (varname)))
+      right: (hash_element_expression
+        hash: (scalar
+          (varname))
+        key: (autoquoted_bareword))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        type: (type_expression
+          (simple_type))
+        variable: (scalar
+          (varname)))
+      right: (ternary_expression
+        condition: (hash_element_expression
+          hash: (scalar
+            (varname))
+          key: (autoquoted_bareword))
+        true_value: (function_call_expression
+          function: (function_name)
+          arguments: (dereference_expression
+            reference: (hash_element_expression
+              hash: (scalar
+                (varname))
+              key: (autoquoted_bareword))))
+        false_value: (number))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        type: (type_expression
+          (parameterized_type
+            base: (simple_type)
+            parameters: (type_parameter_list
+              (type_expression
+                (simple_type)))))
+        variable: (scalar
+          (varname)))
+      right: (binary_expression
+        left: (hash_element_expression
+          hash: (scalar
+            (varname))
+          key: (autoquoted_bareword))
+        operator: "//"
+        right: (anonymous_hash_expression)))))
+
+ACTUAL: (This test documents the current broken behavior)
+(source_file
+  (expression_statement
+    (variable_declaration
+      type: (type_expression
+        (simple_type))
+      variable: (scalar
+        (varname))))
+  (expression_statement
+    (variable_declaration
+      type: (type_expression
+        (simple_type))
+      variable: (scalar
+        (varname))))
+  (expression_statement
+    (variable_declaration
+      type: (type_expression
+        (parameterized_type
+          base: (simple_type)
+          parameters: (type_parameter_list
+            (type_expression
+              (simple_type)))))
+      variable: (scalar
+        (varname)))))
+
+## JSON AST
+
+{
+  "description": "GRAMMAR BUG: Typed variable declarations with hash access assignments are not parsed correctly",
+  "critical_for_typed_perl": true,
+  "examples": [
+    "Simple typed hash access: my Str $name = $input->{name}",
+    "Complex conditional typed assignment: my Int $count = $data->{items} ? scalar(@{$data->{items}}) : 0",
+    "Parameterized type with defined-or: my HashRef[Str] $settings = $config->{user_settings} // {}"
+  ],
+  "impact": "Type checker cannot validate that assignments match declared types",
+  "safety_analysis_impact": "Cannot detect type mismatches or unsafe access patterns in typed variable declarations"
+}
+
+================================================================================
+REGRESSION TEST: Verify simple assignments still work
+================================================================================
+my $simple = 42;
+my $string = "hello";
+my @array = (1, 2, 3);
+my %hash = (key => "value");
+--------------------------------------------------------------------------------
+
+## Text AST
+
+(source_file
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (number)))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (scalar
+          (varname)))
+      right: (string_literal
+        content: (string_content))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (array
+          (varname)))
+      right: (list_expression
+        (number)
+        (number)
+        (number))))
+  (expression_statement
+    (assignment_expression
+      left: (variable_declaration
+        variable: (hash
+          (varname)))
+      right: (list_expression
+        (autoquoted_bareword)
+        (string_literal
+          content: (string_content))))))
+
+## JSON AST
+
+{
+  "description": "REGRESSION TEST: These simple cases should continue to work after grammar fixes",
+  "note": "This verifies that fixing variable declarations with hash access doesn't break existing functionality"
+}

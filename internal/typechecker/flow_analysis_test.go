@@ -25,8 +25,8 @@ func TestSafetyAnalysisDetection(t *testing.T) {
 			name: "unsafe_hash_field_access",
 			code: `
 sub process_data($input) {
-    my $name = $input->{name};     # Unsafe: no exists check
-    my $id = $input->{user_id};    # Unsafe: no exists check
+    my $name = $input->{name};
+    my $id = $input->{user_id};
     return "$name:$id";
 }`,
 			expectedErrors: []string{"unsafe hash field access", "name", "user_id"},

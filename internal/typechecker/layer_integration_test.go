@@ -164,7 +164,7 @@ func TestTypeCheckerLayerFlowAnalysis(t *testing.T) {
 			shouldDetect: []string{
 				"unsafe hash access",
 			},
-			shouldNotError: true,
+			shouldNotError: false, // Should produce errors since we're detecting unsafe hash access
 			description:    "Safety analysis should detect unsafe hash field access",
 		},
 		{

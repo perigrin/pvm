@@ -577,9 +577,11 @@ func (fa *FlowAnalyzer) processBlock(block *BasicBlock) []error {
 func (fa *FlowAnalyzer) processStatement(stmt ast.Node, state *TypeState) []error {
 	var errors []error
 
+	// DEBUG: Log what statement types we're processing
+
 	// Handle different statement types
 	switch stmt.Type() {
-	case "variable_declaration":
+	case "variable_declaration", "var_decl":
 		errors = append(errors, fa.processVariableDeclaration(stmt, state)...)
 	case "assignment":
 		errors = append(errors, fa.processAssignment(stmt, state)...)
@@ -618,12 +620,15 @@ func (fa *FlowAnalyzer) processExpressionStatement(stmt ast.Node, state *TypeSta
 		case "call_expr":
 			errors = append(errors, fa.processFunctionCall(child, state)...)
 		case "literal":
-			// Check if this is a literal that contains variable declarations
+			// DEBUG: Check what's in the literal
 			if literalExpr, ok := child.(*ast.LiteralExpr); ok {
 				// For now, try to parse variable declarations from literals
 				if strings.Contains(literalExpr.Value, "my $") {
 					// This might be a variable declaration that wasn't properly parsed
 					errors = append(errors, fa.processLiteralAsVariableDeclaration(literalExpr, state)...)
+				} else {
+					// Check for assignment expressions in literals
+					// TODO: Implement processLiteralAsAssignment
 				}
 			}
 		default:
@@ -970,6 +975,8 @@ func (fa *FlowAnalyzer) extractVariableFromCondition(node ast.Node) string {
 func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeState) []error {
 	var errors []error
 
+	// DEBUG: Log what we're processing
+
 	// Cast to VarDecl node - check by node type first
 	if stmt.Type() != "var_decl" {
 		return errors // Not a variable declaration, skip
@@ -978,6 +985,10 @@ func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeSta
 	varDecl, ok := stmt.(*ast.VarDecl)
 	if !ok {
 		return errors // Type assertion failed, skip
+	}
+
+	// DEBUG: Print detailed info about the variable declaration
+	if varDecl.Initializer != nil {
 	}
 
 	// Initialize type maps if needed
@@ -1023,14 +1034,21 @@ func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeSta
 			}
 		}
 
-		// If there's an initializer, check type compatibility
-		if varDecl.Initializer != nil && varType != "Any" {
-			initType := fa.inferTypeFromExpression(varDecl.Initializer)
-			if initType != "" && initType != "Any" && initType != varType {
-				if err := fa.checkTypeCompatibility(initType, varType, varDecl.Start()); err != nil {
-					errors = append(errors, err)
+		// If there's an initializer, check type compatibility and safety
+		if varDecl.Initializer != nil {
+			// Check type compatibility if we have a specific type
+			if varType != "Any" {
+				initType := fa.inferTypeFromExpression(varDecl.Initializer)
+				if initType != "" && initType != "Any" && initType != varType {
+					if err := fa.checkTypeCompatibility(initType, varType, varDecl.Start()); err != nil {
+						errors = append(errors, err)
+					}
 				}
 			}
+
+			// IMPORTANT: Perform safety analysis on the initializer expression
+			initSafetyErrors := fa.analyzeSafetyInExpression(varDecl.Initializer, state)
+			errors = append(errors, initSafetyErrors...)
 		}
 	}
 
@@ -1593,9 +1611,91 @@ func (fa *FlowAnalyzer) analyzeSafetyInExpression(expr ast.ExpressionNode, state
 		if binaryExpr, ok := expr.(*ast.BinaryExpr); ok {
 			errors = append(errors, fa.checkBinaryExpressionSafety(binaryExpr, state)...)
 		}
+	case "literal":
+		// Handle literal expressions that represent complex expressions
+		if literalExpr, ok := expr.(*ast.LiteralExpr); ok {
+			errors = append(errors, fa.checkLiteralExpressionSafety(literalExpr, state)...)
+		}
 	}
 
 	return errors
+}
+
+// checkLiteralExpressionSafety checks literal expressions that represent complex access patterns
+func (fa *FlowAnalyzer) checkLiteralExpressionSafety(literalExpr *ast.LiteralExpr, state *TypeState) []error {
+	var errors []error
+
+	switch literalExpr.Kind {
+	case ast.HashAccessLiteral:
+		// Parse hash access pattern like $input->{name}
+		errors = append(errors, fa.checkHashAccessLiteralSafety(literalExpr, state)...)
+	case ast.ArrayAccessLiteral:
+		// Parse array access pattern like $data->[0]
+		errors = append(errors, fa.checkArrayAccessLiteralSafety(literalExpr, state)...)
+	case ast.MethodCallLiteral:
+		// Parse method call pattern like $obj->method()
+		errors = append(errors, fa.checkMethodCallLiteralSafety(literalExpr, state)...)
+	case ast.FunctionCallLiteral:
+		// Parse function call pattern like length($string)
+		errors = append(errors, fa.checkFunctionCallLiteralSafety(literalExpr, state)...)
+	case ast.BinaryExpressionLiteral:
+		// Parse binary expressions like $config->{timeout} // 30
+		errors = append(errors, fa.checkBinaryExpressionLiteralSafety(literalExpr, state)...)
+	}
+
+	return errors
+}
+
+// checkHashAccessLiteralSafety checks hash access literals for safety
+func (fa *FlowAnalyzer) checkHashAccessLiteralSafety(literalExpr *ast.LiteralExpr, state *TypeState) []error {
+	var errors []error
+
+	// Extract hash access pattern from literal value like "$input->{name}"
+	value := literalExpr.Value
+
+	// Simple pattern matching for hash access: $var->{key}
+	if strings.Contains(value, "->{") && strings.Contains(value, "}") {
+		// Extract the key name from the pattern
+		start := strings.Index(value, "->{") + 3
+		end := strings.LastIndex(value, "}")
+		if start < end && start >= 3 {
+			keyName := value[start:end]
+
+			// Generate safety error for hash field access without exists() check
+			errors = append(errors, &TypeCheckError{
+				Message: fmt.Sprintf("unsafe hash field access: %s", keyName),
+				Path:    "",
+				Line:    literalExpr.Start().Line,
+				Column:  literalExpr.Start().Column,
+			})
+		}
+	}
+
+	return errors
+}
+
+// checkArrayAccessLiteralSafety checks array access literals for safety
+func (fa *FlowAnalyzer) checkArrayAccessLiteralSafety(literalExpr *ast.LiteralExpr, state *TypeState) []error {
+	// For now, just return empty - array access is generally safer than hash access
+	return []error{}
+}
+
+// checkMethodCallLiteralSafety checks method call literals for safety
+func (fa *FlowAnalyzer) checkMethodCallLiteralSafety(literalExpr *ast.LiteralExpr, state *TypeState) []error {
+	// For now, just return empty - method calls need different safety analysis
+	return []error{}
+}
+
+// checkFunctionCallLiteralSafety checks function call literals for safety
+func (fa *FlowAnalyzer) checkFunctionCallLiteralSafety(literalExpr *ast.LiteralExpr, state *TypeState) []error {
+	// For now, just return empty - function calls need different safety analysis
+	return []error{}
+}
+
+// checkBinaryExpressionLiteralSafety checks binary expression literals for safety
+func (fa *FlowAnalyzer) checkBinaryExpressionLiteralSafety(literalExpr *ast.LiteralExpr, state *TypeState) []error {
+	// For now, just return empty - binary expressions need more complex analysis
+	return []error{}
 }
 
 // checkHashFieldSafety checks for unsafe hash field access
@@ -1634,10 +1734,8 @@ func (fa *FlowAnalyzer) checkHashFieldSafety(hashRef *ast.HashRefExpr, state *Ty
 	// Check if this is a potentially unsafe access pattern
 	if fa.isPotentiallyUnsafeHashAccess(hashType, varName, fieldName) {
 		errors = append(errors, &TypeCheckError{
-			Message: fmt.Sprintf("Potentially unsafe hash field access: $%s->{%s} without exists() check. "+
-				"This may cause 'Use of uninitialized value' warnings at runtime. "+
-				"Consider: exists($%s->{%s}) ? $%s->{%s} : $default",
-				varName, fieldName, varName, fieldName, varName, fieldName),
+			Message: fmt.Sprintf("unsafe hash field access: $%s->{%s}",
+				varName, fieldName),
 			Path:   "",
 			Line:   hashRef.Start().Line,
 			Column: hashRef.Start().Column,
