@@ -763,6 +763,7 @@ module.exports = grammar({
         choice(
           field('variable', $._declared_vars),
           field('variables', $._decl_variable_list)),
+        optional(seq('=', field('initializer', $._term))),
         optseq(':', optional(field('attributes', $.attrlist))))
     ),
 

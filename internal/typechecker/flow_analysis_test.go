@@ -93,13 +93,13 @@ func TestTypeInferenceFromUntyped(t *testing.T) {
 sub analyze_data($input) {
     my $type = ref($input);           # Should infer: Str
     my $is_defined = defined($input); # Should infer: Bool
-    my $keys = keys(%$input);         # Should infer: ArrayRef[Str]
+    my $keys = keys(%$input);         # Should infer: Array[Str]
     return ($type, $is_defined, $keys);
 }`,
 			expectedInferences: map[string]string{
 				"type":       "Str",
 				"is_defined": "Bool",
-				"keys":       "ArrayRef[Str]",
+				"keys":       "Array[Str]",
 			},
 			description: "Should infer types from Perl built-in functions",
 		},

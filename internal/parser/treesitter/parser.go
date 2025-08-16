@@ -924,7 +924,16 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 		(strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "state ")) {
-		return p.convertToVarDeclAST(nodeText, start, end)
+		// fmt.Printf("DEBUG: Processing assignment_expression as VarDecl: %q\n", nodeText)
+		return p.convertAssignmentToVarDeclAST(node, start, end)
+	}
+
+	// Handle variable_declaration nodes
+	if nodeType == "variable_declaration" {
+		// fmt.Printf("DEBUG: Processing variable_declaration node: %q\n", nodeText)
+		// Skip processing this node directly - let the assignment_expression handle it
+		// This prevents duplicate VarDecl nodes from being created
+		return nil
 	}
 
 	// For nodes with children, create a container node that preserves structure
@@ -938,8 +947,89 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 		start, end)
 }
 
-// convertToVarDeclAST converts a variable declaration text to ast.VarDecl
+// convertAssignmentToVarDeclAST converts an assignment_expression containing a variable declaration to ast.VarDecl
+func (p *Parser) convertAssignmentToVarDeclAST(node Node, start, end ast.Position) ast.Node {
+	fmt.Printf("DEBUG: convertAssignmentToVarDeclAST called\n")
+	// Parse the assignment_expression structure:
+	// assignment_expression
+	//   variable_declaration (left side)
+	//   = (operator)
+	//   <initializer> (right side)
+
+	var varDeclNode Node
+	var initializerNode Node
+
+	children := node.Children()
+	for _, child := range children {
+		childType := child.Type()
+
+		if childType == "variable_declaration" {
+			varDeclNode = child
+		} else if childType == "=" {
+			// Skip the assignment operator
+			continue
+		} else {
+			// This should be the initializer (number, function call, etc.)
+			initializerNode = child
+		}
+	}
+
+	if varDeclNode == nil {
+		// Fallback to old string-based parsing if structure is unexpected
+		return p.convertToVarDeclAST(node.Text(), start, end)
+	}
+
+	// Parse the variable declaration part
+	var declType string
+	var variables []*ast.VariableExpr
+
+	for _, child := range varDeclNode.Children() {
+		childType := child.Type()
+		childText := strings.TrimSpace(child.Text())
+
+		switch childType {
+		case "my", "state", "our", "field", "local":
+			declType = childText
+		case "scalar", "array", "hash":
+			varName := p.extractVariableName(child)
+			if varName != "" {
+				variables = append(variables, ast.NewVariableExpr("", varName, start, end))
+			}
+		}
+	}
+
+	// Parse the initializer if present
+	var initializer ast.ExpressionNode
+	if initializerNode != nil {
+		initStart := ast.Position{
+			Line:   initializerNode.Start().Line,
+			Column: initializerNode.Start().Column,
+			Offset: initializerNode.Start().Offset,
+		}
+		initEnd := ast.Position{
+			Line:   initializerNode.End().Line,
+			Column: initializerNode.End().Column,
+			Offset: initializerNode.End().Offset,
+		}
+		initializer = p.parseInitializerExpression(initializerNode, initStart, initEnd)
+	}
+
+	// Create VarDecl with the initializer
+	if len(variables) > 0 {
+		result := ast.NewVarDecl(declType, variables, nil, initializer, start, end)
+		fmt.Printf("DEBUG: Created VarDecl with initializer: %v\n", result.Initializer != nil)
+		if result.Initializer != nil {
+			fmt.Printf("DEBUG: Initializer type: %s, text: %q\n", result.Initializer.Type(), result.Initializer.Text())
+		}
+		return result
+	}
+
+	return nil
+}
+
+// convertToVarDeclAST converts a variable declaration text to ast.VarDecl (fallback)
 func (p *Parser) convertToVarDeclAST(nodeText string, start, end ast.Position) ast.Node {
+	fmt.Printf("DEBUG: convertToVarDeclAST (fallback) called with text: %q\n", nodeText)
 	// Parse the variable declaration
 	parts := strings.Fields(strings.TrimSpace(nodeText))
 	if len(parts) < 2 {
@@ -1671,13 +1761,48 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 	}
 
 	// Handle different statement types
+	fmt.Printf("DEBUG: convertToStatement called with nodeType: %s, text: %q\n", nodeType, node.Text())
 	switch nodeType {
+	case "assignment_expression":
+		// Handle variable declarations with assignments (my $var = value)
+		nodeText := node.Text()
+		if strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
+			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
+			strings.HasPrefix(strings.TrimSpace(nodeText), "state ") {
+			fmt.Printf("DEBUG: convertToStatement processing assignment_expression as VarDecl: %q\n", nodeText)
+			if result := p.convertAssignmentToVarDeclAST(node, start, end); result != nil {
+				if stmt, ok := result.(ast.StatementNode); ok {
+					return stmt
+				}
+			}
+		}
+		// Fall back to expression statement
+		return p.parseExpressionStatement(node, start, end)
 	case "expression_statement":
+		// Check if this expression statement contains a variable declaration
+		nodeText := node.Text()
+		if strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
+			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
+			strings.HasPrefix(strings.TrimSpace(nodeText), "state ") {
+			fmt.Printf("DEBUG: convertToStatement found variable declaration in expression_statement: %q\n", nodeText)
+			// Look for assignment_expression child
+			for _, child := range node.Children() {
+				if child.Type() == "assignment_expression" {
+					fmt.Printf("DEBUG: convertToStatement processing assignment_expression child\n")
+					if result := p.convertAssignmentToVarDeclAST(child, start, end); result != nil {
+						if stmt, ok := result.(ast.StatementNode); ok {
+							return stmt
+						}
+					}
+				}
+			}
+		}
 		// Parse expression statements (e.g., "return $a + $b;")
 		return p.parseExpressionStatement(node, start, end)
 	case "variable_declaration":
-		// Parse variable declarations
-		return p.parseVariableDeclaration(node, start, end)
+		// Skip standalone variable declarations - they should be part of assignment_expression
+		fmt.Printf("DEBUG: convertToStatement skipping variable_declaration: %q\n", node.Text())
+		return nil
 	case "typed_variable_declaration":
 		// Parse typed variable declarations
 		return p.parseTypedVariableDeclaration(node, start, end)
@@ -1911,6 +2036,9 @@ func (p *Parser) parseInitializerExpression(node Node, start, end ast.Position) 
 		return ast.NewLiteralExpr(nodeText, ast.MethodCallLiteral, start, end)
 	case "function_call_expression":
 		// Function call: length($string)
+		return ast.NewLiteralExpr(nodeText, ast.FunctionCallLiteral, start, end)
+	case "func1op_call_expression":
+		// Single-operand function call: ref($data)
 		return ast.NewLiteralExpr(nodeText, ast.FunctionCallLiteral, start, end)
 	case "scalar":
 		// Variable reference: $variable

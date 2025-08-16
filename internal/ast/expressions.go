@@ -35,8 +35,10 @@ const (
 
 // NewLiteralExpr creates a new literal expression
 func NewLiteralExpr(value string, kind LiteralKind, start, end Position) *LiteralExpr {
+	baseNode := NewBaseNode("literal", start, end)
+	baseNode.SetText(value) // Set the text so Text() method returns the value
 	return &LiteralExpr{
-		BaseNode: NewBaseNode("literal", start, end),
+		BaseNode: baseNode,
 		Value:    value,
 		Kind:     kind,
 	}

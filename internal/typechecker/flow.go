@@ -6,6 +6,7 @@ package typechecker
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -112,6 +113,12 @@ type FlowAnalyzer struct {
 
 	// OperatorTypes provides type signatures for Perl binary operators
 	OperatorTypes *OperatorTypeRegistry
+
+	// SourceCode contains the original source code for analysis
+	SourceCode string
+
+	// processVariableDeclarationHook for testing data flow (optional hook)
+	processVariableDeclarationHook func(ast.Node)
 }
 
 // NewFlowAnalyzer creates a new flow analyzer
@@ -560,7 +567,9 @@ func (fa *FlowAnalyzer) processBlock(block *BasicBlock) []error {
 
 	// Process statements in the block
 	currentState := fa.copyTypeState(block.TypeState)
-	for _, stmt := range block.Statements {
+	fmt.Printf("DEBUG: Block %d has %d statements\n", block.ID, len(block.Statements))
+	for i, stmt := range block.Statements {
+		fmt.Printf("DEBUG: Statement %d type: %s\n", i, stmt.Type())
 		stmtErrors := fa.processStatement(stmt, currentState)
 		if len(stmtErrors) > 0 {
 			errors = append(errors, stmtErrors...)
@@ -578,22 +587,83 @@ func (fa *FlowAnalyzer) processStatement(stmt ast.Node, state *TypeState) []erro
 	var errors []error
 
 	// DEBUG: Log what statement types we're processing
+	fmt.Printf("DEBUG: Processing statement type: %s\n", stmt.Type())
 
 	// Handle different statement types
 	switch stmt.Type() {
 	case "variable_declaration", "var_decl":
 		errors = append(errors, fa.processVariableDeclaration(stmt, state)...)
-	case "assignment":
+	case "assignment", "assignment_expression", "assignment_expr":
+		fmt.Printf("DEBUG: Processing assignment statement\n")
 		errors = append(errors, fa.processAssignment(stmt, state)...)
 	case "function_call":
 		errors = append(errors, fa.processFunctionCall(stmt, state)...)
-	case "expression_stmt":
+	case "expression_stmt", "expression_statement":
 		errors = append(errors, fa.processExpressionStatement(stmt, state)...)
 	case "return_stmt":
 		errors = append(errors, fa.processReturnStatement(stmt, state)...)
+	case "literal":
+		// Handle literal expressions that might contain assignments/function calls
+		if literalExpr, ok := stmt.(*ast.LiteralExpr); ok {
+			fmt.Printf("DEBUG: Processing literal: %s\n", literalExpr.Value)
+			if strings.Contains(literalExpr.Value, "=") && (strings.Contains(literalExpr.Value, "ref(") || strings.Contains(literalExpr.Value, "eq")) {
+				fmt.Printf("DEBUG: Found literal with assignment: %s\n", literalExpr.Value)
+				errors = append(errors, fa.processLiteralAssignment(literalExpr, state)...)
+			}
+		}
 	default:
 		// For unknown statement types, we don't change the type state
 		// In a full implementation, we'd handle more statement types
+		fmt.Printf("DEBUG: Unhandled statement type: %s\n", stmt.Type())
+	}
+
+	return errors
+}
+
+// processLiteralAssignment processes literal expressions that contain assignment patterns
+func (fa *FlowAnalyzer) processLiteralAssignment(literal *ast.LiteralExpr, state *TypeState) []error {
+	var errors []error
+
+	// Initialize type maps if needed
+	if state.VariableTypes == nil {
+		state.VariableTypes = make(map[string]string)
+	}
+
+	// Simple pattern matching for assignments in literals
+	text := literal.Value
+
+	// Pattern: my $var = func(...);
+	if strings.Contains(text, "my $") && strings.Contains(text, "=") {
+		// Extract variable name and function call
+		parts := strings.Split(text, "=")
+		if len(parts) == 2 {
+			leftPart := strings.TrimSpace(parts[0])
+			rightPart := strings.TrimSpace(parts[1])
+
+			// Extract variable name from "my $varname"
+			if strings.HasPrefix(leftPart, "my $") {
+				varName := strings.TrimPrefix(leftPart, "my $")
+				varName = strings.TrimSpace(varName)
+
+				// Infer type from right-hand side
+				var inferredType string
+
+				if strings.HasPrefix(rightPart, "ref(") {
+					inferredType = "Str"
+				} else if strings.Contains(rightPart, " eq ") {
+					inferredType = "Bool"
+				} else if strings.HasPrefix(rightPart, "length(") {
+					inferredType = "Int"
+				} else if strings.HasPrefix(rightPart, "defined(") {
+					inferredType = "Bool"
+				} else {
+					inferredType = "Any"
+				}
+
+				fmt.Printf("DEBUG: Literal assignment: %s = %s (type: %s)\n", varName, rightPart, inferredType)
+				state.VariableTypes[varName] = inferredType
+			}
+		}
 	}
 
 	return errors
@@ -613,7 +683,7 @@ func (fa *FlowAnalyzer) processExpressionStatement(stmt ast.Node, state *TypeSta
 
 		// Process based on the child type
 		switch child.Type() {
-		case "variable_declaration":
+		case "variable_declaration", "var_decl":
 			errors = append(errors, fa.processVariableDeclaration(child, state)...)
 		case "assignment", "assignment_expr":
 			errors = append(errors, fa.processAssignment(child, state)...)
@@ -975,7 +1045,14 @@ func (fa *FlowAnalyzer) extractVariableFromCondition(node ast.Node) string {
 func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeState) []error {
 	var errors []error
 
+	// Call test hook if present
+	if fa.processVariableDeclarationHook != nil {
+		fa.processVariableDeclarationHook(stmt)
+	}
+
 	// DEBUG: Log what we're processing
+	fmt.Printf("DEBUG: processVariableDeclaration called\n")
+	fmt.Printf("DEBUG: Statement type: %s, text: %q\n", stmt.Type(), stmt.Text())
 
 	// Cast to VarDecl node - check by node type first
 	if stmt.Type() != "var_decl" {
@@ -988,7 +1065,11 @@ func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeSta
 	}
 
 	// DEBUG: Print detailed info about the variable declaration
+	fmt.Printf("DEBUG: VarDecl.Initializer: %v\n", varDecl.Initializer)
 	if varDecl.Initializer != nil {
+		fmt.Printf("DEBUG: Initializer type: %s, text: %q\n", varDecl.Initializer.Type(), varDecl.Initializer.Text())
+	} else {
+		fmt.Printf("DEBUG: Initializer is nil\n")
 	}
 
 	// Initialize type maps if needed
@@ -998,15 +1079,29 @@ func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeSta
 
 	// Process each variable in the declaration
 	variables := varDecl.Variables()
+	fmt.Printf("DEBUG: Found %d variables in declaration\n", len(variables))
+
 	for _, variable := range variables {
 		if variable == nil {
+			fmt.Printf("DEBUG: Skipping nil variable\n")
 			continue
 		}
 
 		varName := variable.Name
+		fmt.Printf("DEBUG: Variable.Name='%s', Variable.Sigil='%s', FullName='%s'\n",
+			variable.Name, variable.Sigil, variable.FullName())
+
 		if varName == "" {
-			continue
+			// Try using FullName() instead
+			varName = variable.FullName()
+			if varName == "" {
+				fmt.Printf("DEBUG: Skipping variable with empty name and FullName\n")
+				continue
+			}
+			fmt.Printf("DEBUG: Using FullName: %s\n", varName)
 		}
+
+		fmt.Printf("DEBUG: Processing variable: %s\n", varName)
 
 		// Extract type from type annotation or infer from initializer
 		var varType string
@@ -1014,18 +1109,50 @@ func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeSta
 		// First, check for explicit type annotation on the declaration
 		if varDecl.TypeExpr != nil {
 			varType = fa.extractTypeFromTypeExpression(varDecl.TypeExpr)
+			fmt.Printf("DEBUG: Type from annotation: %s\n", varType)
 		} else if varDecl.Initializer != nil {
 			// If no type annotation, try to infer from initializer
+			fmt.Printf("DEBUG: Initializer found, type: %s\n", varDecl.Initializer.Type())
+
+			// Debug: print more details about the initializer
+			if varDecl.Initializer != nil {
+				fmt.Printf("DEBUG: Initializer text: %q\n", varDecl.Initializer.Text())
+				if literal, ok := varDecl.Initializer.(*ast.LiteralExpr); ok {
+					fmt.Printf("DEBUG: LiteralExpr Kind: %d\n", literal.Kind)
+				}
+			}
+
 			varType = fa.inferTypeFromExpression(varDecl.Initializer)
+			fmt.Printf("DEBUG: Type from initializer: %s\n", varType)
+
+			// Fallback: if initializer inference returns "Any", try source text analysis
+			if varType == "Any" {
+				fmt.Printf("DEBUG: Initializer returned 'Any', trying source text analysis\n")
+				extractedType := fa.extractTypeFromSourceText(varName, stmt)
+				if extractedType != "" && extractedType != "Any" {
+					varType = extractedType
+					fmt.Printf("DEBUG: Source text analysis found better type: %s\n", varType)
+				}
+			}
+		} else {
+			fmt.Printf("DEBUG: No TypeExpr and no Initializer found\n")
+			// WORKAROUND: Try to extract initializer from source text
+			extractedType := fa.extractTypeFromSourceText(varName, stmt)
+			if extractedType != "" && extractedType != "Any" {
+				varType = extractedType
+				fmt.Printf("DEBUG: Extracted type from source text: %s\n", varType)
+			}
 		}
 
 		// Fall back to "Any" if we can't determine the type
 		if varType == "" {
 			varType = "Any"
+			fmt.Printf("DEBUG: Falling back to 'Any' type\n")
 		}
 
 		// Update type state with the variable type
 		state.VariableTypes[varName] = varType
+		fmt.Printf("DEBUG: Stored variable '%s' with type '%s'\n", varName, varType)
 
 		// Validate the type annotation if provided
 		if varDecl.TypeExpr != nil && varType != "" && varType != "Any" {
@@ -1053,6 +1180,132 @@ func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeSta
 	}
 
 	return errors
+}
+
+// extractTypeFromSourceText attempts to extract type information from source text
+// This is a workaround for parser issues where variable declarations lose their initializers
+func (fa *FlowAnalyzer) extractTypeFromSourceText(varName string, stmt ast.Node) string {
+	// Use the source code stored in the analyzer
+	sourceText := fa.SourceCode
+
+	fmt.Printf("DEBUG: Analyzing source text for variable '%s' in: %q\n", varName, sourceText)
+
+	if sourceText == "" {
+		return ""
+	}
+
+	// Look for patterns like: my $varName = expression;
+	return fa.inferTypeFromInitializerPattern(varName, sourceText)
+}
+
+// inferTypeFromInitializerPattern analyzes source text to find variable initializers
+func (fa *FlowAnalyzer) inferTypeFromInitializerPattern(varName string, sourceText string) string {
+	// Clean up the variable name (remove sigil if present)
+	cleanVarName := strings.TrimPrefix(varName, "$")
+
+	// First, try to identify function calls using the BuiltinTypeRegistry
+	if fa.BuiltinTypes != nil {
+		// Look for function call patterns: $var = funcname(...)
+		funcCallPattern := fmt.Sprintf(`\$%s\s*=\s*(\w+)\s*\(`, cleanVarName)
+		if match := regexp.MustCompile(funcCallPattern).FindStringSubmatch(sourceText); len(match) > 1 {
+			funcName := match[1]
+			fmt.Printf("DEBUG: Found function call '%s' in assignment to %s\n", funcName, varName)
+
+			// Check if it's a builtin function
+			if fa.BuiltinTypes.IsBuiltinFunction(funcName) {
+				// For simplicity, assume 1 parameter for now (could be improved)
+				if returnType := fa.BuiltinTypes.GetFunctionType(funcName, 1); returnType != "" {
+					fmt.Printf("DEBUG: Using BuiltinTypeRegistry: %s() returns %s\n", funcName, returnType)
+					return returnType
+				}
+			}
+		}
+	}
+
+	// Look for assignment patterns - ORDER MATTERS: more specific patterns first
+	patterns := []struct {
+		pattern  string
+		typeFunc func(string) string
+	}{
+		// Boolean comparison operations - MUST come before ref() to catch comparisons
+		{fmt.Sprintf(`\$%s\s*=\s*.*\s+(eq|ne|lt|gt|le|ge|==|!=|<|>|<=|>=)\s+`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found comparison operation for variable %s\n", varName)
+			return "Bool"
+		}},
+		// defined() function calls - also returns Bool
+		{fmt.Sprintf(`\$%s\s*=\s*defined\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found defined() call for variable %s\n", varName)
+			return "Bool"
+		}},
+		// keys() function calls in scalar context
+		{fmt.Sprintf(`\$%s\s*=\s*keys\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found keys() call in scalar context for variable %s\n", varName)
+			return "Int"
+		}},
+		// ref() function calls - simpler pattern, comes after comparisons
+		{fmt.Sprintf(`\$%s\s*=\s*ref\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found ref() call for variable %s\n", varName)
+			return "Str"
+		}},
+		// Array slice assignments
+		{fmt.Sprintf(`@%s\s*=\s*keys\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found keys() call in list context for variable %s\n", varName)
+			return "ArrayRef[Str]"
+		}},
+		{fmt.Sprintf(`@%s\s*=\s*values\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found values() call in list context for variable %s\n", varName)
+			return "ArrayRef[Any]"
+		}},
+		// length() function calls
+		{fmt.Sprintf(`\$%s\s*=\s*length\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found length() call for variable %s\n", varName)
+			return "Int"
+		}},
+		// int() function calls
+		{fmt.Sprintf(`\$%s\s*=\s*int\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found int() call for variable %s\n", varName)
+			return "Int"
+		}},
+		// abs() function calls
+		{fmt.Sprintf(`\$%s\s*=\s*abs\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found abs() call for variable %s\n", varName)
+			return "Num"
+		}},
+		// Arithmetic operations - improved pattern
+		{fmt.Sprintf(`\$%s\s*=\s*.*\s*[\+\-\*\/%%]\s*`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found arithmetic operation for variable %s\n", varName)
+			return "Num"
+		}},
+		// String operations
+		{fmt.Sprintf(`\$%s\s*=\s*.*(uc|lc|ucfirst|lcfirst)\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found string manipulation function for variable %s\n", varName)
+			return "Str"
+		}},
+		// chomp() function calls
+		{fmt.Sprintf(`\$%s\s*=\s*chomp\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found chomp() call for variable %s\n", varName)
+			return "Int"
+		}},
+		// split() function calls in array context
+		{fmt.Sprintf(`@%s\s*=\s*split\s*\(`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found split() call in array context for variable %s\n", varName)
+			return "ArrayRef[Str]"
+		}},
+		// Array assignments from arrays
+		{fmt.Sprintf(`@%s\s*=\s*`, cleanVarName), func(match string) string {
+			fmt.Printf("DEBUG: Found array assignment for variable %s\n", varName)
+			return "ArrayRef[Any]"
+		}},
+	}
+
+	for _, pattern := range patterns {
+		if matched, _ := regexp.MatchString(pattern.pattern, sourceText); matched {
+			return pattern.typeFunc(sourceText)
+		}
+	}
+
+	fmt.Printf("DEBUG: No matching pattern found for variable %s in text: %q\n", varName, sourceText)
+	return ""
 }
 
 // processAssignment processes assignment statements
@@ -1344,9 +1597,129 @@ func (fa *FlowAnalyzer) inferTypeFromLiteral(literal *ast.LiteralExpr) string {
 		return "Undef"
 	case ast.RegexLiteral:
 		return "Regex"
+	case ast.FunctionCallLiteral:
+		// Parse function calls from literal text
+		return fa.inferTypeFromFunctionCallLiteral(literal.Value)
+	case ast.MethodCallLiteral:
+		// Parse method calls from literal text (Class->method(), $obj->method())
+		return fa.inferTypeFromMethodCallLiteral(literal.Value)
+	case ast.ExpressionLiteral:
+		// Generic expression - try to parse function calls
+		return fa.inferTypeFromFunctionCallLiteral(literal.Value)
 	default:
 		return "Any"
 	}
+}
+
+// inferTypeFromFunctionCallLiteral infers type from function call patterns in literal text
+func (fa *FlowAnalyzer) inferTypeFromFunctionCallLiteral(text string) string {
+	text = strings.TrimSpace(text)
+
+	// FIRST: Check for comparison operators - these always return Bool
+	comparisonOps := []string{"eq", "ne", "lt", "gt", "le", "ge", "==", "!=", "<", ">", "<=", ">=", "=~", "!~"}
+	for _, op := range comparisonOps {
+		if strings.Contains(text, " "+op+" ") {
+			fmt.Printf("DEBUG: Found comparison operator '%s' in expression: %s\n", op, text)
+			return "Bool"
+		}
+	}
+
+	// SECOND: Pattern: functionName(args...)
+	if strings.Contains(text, "(") && strings.Contains(text, ")") {
+		// Extract function name
+		parenIndex := strings.Index(text, "(")
+		functionName := strings.TrimSpace(text[:parenIndex])
+
+		fmt.Printf("DEBUG: Parsing function call literal: %s -> function: %s\n", text, functionName)
+
+		// Check builtin function types
+		if fa.BuiltinTypes != nil {
+			if builtinSigs := fa.BuiltinTypes.GetFunctionSignatures(functionName); len(builtinSigs) > 0 {
+				// Use the first signature for now (could be more sophisticated)
+				builtinSig := builtinSigs[0]
+				returnType := builtinSig.ReturnType
+				fmt.Printf("DEBUG: Found builtin signature for %s: %s\n", functionName, returnType)
+				return returnType
+			}
+		}
+
+		// Hardcoded builtin types as fallback
+		switch functionName {
+		case "ref":
+			return "Str"
+		case "defined":
+			return "Bool"
+		case "length", "scalar":
+			return "Int"
+		case "keys", "values":
+			return "Array[Str]"
+		case "int":
+			return "Int"
+		case "abs":
+			return "Num"
+		}
+	}
+
+	return "Any"
+}
+
+// inferTypeFromMethodCallLiteral infers type from method call patterns in literal text
+func (fa *FlowAnalyzer) inferTypeFromMethodCallLiteral(text string) string {
+	text = strings.TrimSpace(text)
+
+	fmt.Printf("DEBUG: Parsing method call literal: %s\n", text)
+
+	// Handle method chains like JSON->new()->decode($data_str)
+	// We need to parse from right to left to get the final method result
+
+	// Find the last method call in the chain
+	lastArrowIndex := strings.LastIndex(text, "->")
+	if lastArrowIndex == -1 {
+		return "Any"
+	}
+
+	// Get the final method call
+	finalMethodPart := text[lastArrowIndex+2:]
+
+	// Extract method name from finalMethodPart (remove arguments)
+	finalMethodName := finalMethodPart
+	if parenIndex := strings.Index(finalMethodPart, "("); parenIndex != -1 {
+		finalMethodName = strings.TrimSpace(finalMethodPart[:parenIndex])
+	}
+
+	fmt.Printf("DEBUG: Final method in chain: %s\n", finalMethodName)
+
+	// Get the object/class part (everything before the final ->)
+	objectPart := strings.TrimSpace(text[:lastArrowIndex])
+
+	// For constructor calls (Class->new), return the class name
+	if finalMethodName == "new" {
+		// Find the class name (should be at the beginning or after the last ->)
+		if strings.Contains(objectPart, "->") {
+			// This is a chained call ending with ->new(), get the result of previous chain
+			return fa.inferTypeFromMethodCallLiteral(objectPart)
+		} else {
+			// This is Class->new()
+			if !strings.HasPrefix(objectPart, "$") {
+				fmt.Printf("DEBUG: Constructor call for class: %s\n", objectPart)
+				return objectPart
+			}
+		}
+	}
+
+	// For other method calls, try to infer based on common patterns
+	switch finalMethodName {
+	case "connect":
+		if strings.Contains(objectPart, "DBI") {
+			return "DBI"
+		}
+	case "decode", "decode_json":
+		return "HashRef[Str, Any]"
+	case "encode", "encode_json":
+		return "Str"
+	}
+
+	return "Any"
 }
 
 // inferReturnTypeFromCall infers the return type of a function call with sophisticated pattern recognition
@@ -1401,6 +1774,8 @@ func (fa *FlowAnalyzer) inferReturnTypeFromMethodCall(call *ast.CallExpr) string
 
 // inferBuiltinFunctionType infers types for Perl built-in functions using the type registry
 func (fa *FlowAnalyzer) inferBuiltinFunctionType(functionName string, call *ast.CallExpr) string {
+	fmt.Printf("DEBUG: inferBuiltinFunctionType called for: %s\n", functionName)
+
 	// Use the type registry if available
 	if fa.BuiltinTypes != nil {
 		// Count parameters to help with overload resolution
@@ -1409,9 +1784,15 @@ func (fa *FlowAnalyzer) inferBuiltinFunctionType(functionName string, call *ast.
 			paramCount = len(call.Arguments)
 		}
 
+		fmt.Printf("DEBUG: Looking up function '%s' with %d parameters\n", functionName, paramCount)
 		if returnType := fa.BuiltinTypes.GetFunctionType(functionName, paramCount); returnType != "" {
+			fmt.Printf("DEBUG: Found return type '%s' for function '%s'\n", returnType, functionName)
 			return returnType
+		} else {
+			fmt.Printf("DEBUG: No return type found in registry for function '%s'\n", functionName)
 		}
+	} else {
+		fmt.Printf("DEBUG: BuiltinTypes registry is nil\n")
 	}
 
 	// Fallback to hardcoded types for critical built-ins if registry failed

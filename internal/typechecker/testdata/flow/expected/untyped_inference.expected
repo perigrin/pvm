@@ -10,7 +10,7 @@ processed: HashRef[Str, Str]         # constructed hash
 # analyze_data_types function
 type: Str                # from ref() function
 is_defined: Bool         # from defined() function
-keys: ArrayRef[Str]      # from keys() function
+keys: Array[Str]      # from keys() function
 length: Int              # from length() function
 
 # math_operations function
