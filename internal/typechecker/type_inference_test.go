@@ -64,7 +64,7 @@ sub hash_operations(%input) {
     return (\@keys, \@values, $count);
 }`,
 			expectedTypes: map[string]string{
-				"keys":   "ArrayRef[Str]",
+				"keys":   "Array[Str]",
 				"values": "ArrayRef[Any]",
 				"count":  "Int",
 			},
