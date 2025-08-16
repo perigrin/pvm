@@ -645,14 +645,11 @@ func (p *Parser) parseStringInternal(ctx context.Context, content string) (*ast.
 
 	// Check for ERROR nodes in the tree-sitter parse result
 	if os.Getenv("PARSER_DEBUG") != "" {
-		fmt.Printf("[PARSER_DEBUG] Checking for ERROR nodes in content: %q\n", content)
-		fmt.Printf("[PARSER_DEBUG] AST root type: %s, text: %q\n", astRoot.Type(), astRoot.Text())
 	}
 	if errorNodes := p.findErrorNodes(astRoot); len(errorNodes) > 0 {
 		if os.Getenv("PARSER_DEBUG") != "" {
-			fmt.Printf("[PARSER_DEBUG] Found %d ERROR nodes\n", len(errorNodes))
-			for i, node := range errorNodes {
-				fmt.Printf("[PARSER_DEBUG] ERROR node %d: %q at %d:%d\n", i, node.Content, node.StartPoint.Line, node.StartPoint.Column)
+			for _, node := range errorNodes {
+				_ = node // Use node to avoid compiler error
 			}
 		}
 
@@ -665,7 +662,6 @@ func (p *Parser) parseStringInternal(ctx context.Context, content string) (*ast.
 		return nil, errors.NewSystemError("007", errorMessage, nil)
 	}
 	if os.Getenv("PARSER_DEBUG") != "" {
-		fmt.Printf("[PARSER_DEBUG] No ERROR nodes found\n")
 	}
 
 	// Create an AST from the parse tree
@@ -924,13 +920,11 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 		(strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "state ")) {
-		// fmt.Printf("DEBUG: Processing assignment_expression as VarDecl: %q\n", nodeText)
 		return p.convertAssignmentToVarDeclAST(node, start, end)
 	}
 
 	// Handle variable_declaration nodes
 	if nodeType == "variable_declaration" {
-		// fmt.Printf("DEBUG: Processing variable_declaration node: %q\n", nodeText)
 		// Skip processing this node directly - let the assignment_expression handle it
 		// This prevents duplicate VarDecl nodes from being created
 		return nil
@@ -949,7 +943,6 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 
 // convertAssignmentToVarDeclAST converts an assignment_expression containing a variable declaration to ast.VarDecl
 func (p *Parser) convertAssignmentToVarDeclAST(node Node, start, end ast.Position) ast.Node {
-	fmt.Printf("DEBUG: convertAssignmentToVarDeclAST called\n")
 	// Parse the assignment_expression structure:
 	// assignment_expression
 	//   variable_declaration (left side)
@@ -1017,9 +1010,7 @@ func (p *Parser) convertAssignmentToVarDeclAST(node Node, start, end ast.Positio
 	// Create VarDecl with the initializer
 	if len(variables) > 0 {
 		result := ast.NewVarDecl(declType, variables, nil, initializer, start, end)
-		fmt.Printf("DEBUG: Created VarDecl with initializer: %v\n", result.Initializer != nil)
 		if result.Initializer != nil {
-			fmt.Printf("DEBUG: Initializer type: %s, text: %q\n", result.Initializer.Type(), result.Initializer.Text())
 		}
 		return result
 	}
@@ -1029,7 +1020,6 @@ func (p *Parser) convertAssignmentToVarDeclAST(node Node, start, end ast.Positio
 
 // convertToVarDeclAST converts a variable declaration text to ast.VarDecl (fallback)
 func (p *Parser) convertToVarDeclAST(nodeText string, start, end ast.Position) ast.Node {
-	fmt.Printf("DEBUG: convertToVarDeclAST (fallback) called with text: %q\n", nodeText)
 	// Parse the variable declaration
 	parts := strings.Fields(strings.TrimSpace(nodeText))
 	if len(parts) < 2 {
@@ -1522,17 +1512,14 @@ func (p *Parser) parseSignatureParams(signatureNode Node) []*ast.Parameter {
 	for _, child := range children {
 		childType := child.Type()
 		if p.debug {
-			fmt.Printf("DEBUG: Signature child type: %s, text: '%s'\n", childType, child.Text())
 		}
 		switch childType {
 		case "typed_method_parameter", "mandatory_parameter", "optional_parameter":
 			if p.debug {
-				fmt.Printf("DEBUG: Parsing parameter of type %s\n", childType)
 			}
 			param := p.parseTypedParameter(child)
 			if param != nil {
 				if p.debug {
-					fmt.Printf("DEBUG: Created parameter %s, default: %v\n", param.Name, param.Default != nil)
 				}
 				params = append(params, param)
 			}
@@ -1591,14 +1578,12 @@ func (p *Parser) parseTypedParameter(paramNode Node) *ast.Parameter {
 	if nodeType == "optional_parameter" && defaultValue == nil {
 		paramText := paramNode.Text()
 		if p.debug {
-			fmt.Printf("DEBUG parseTypedParameter: optional_parameter text='%s'\n", paramText)
 		}
 		// Look for pattern: Type $var = value or $var = value
 		if equalPos := strings.Index(paramText, " = "); equalPos != -1 {
 			// Extract everything after " = "
 			defaultStr := strings.TrimSpace(paramText[equalPos+3:])
 			if p.debug {
-				fmt.Printf("DEBUG parseTypedParameter: found default value='%s'\n", defaultStr)
 			}
 			if defaultStr != "" {
 				// Create a simple literal expression for the default value
@@ -1620,7 +1605,6 @@ func (p *Parser) parseTypedParameter(paramNode Node) *ast.Parameter {
 				}
 				defaultValue = ast.NewLiteralExpr(defaultStr, literalKind, pos, pos)
 				if p.debug {
-					fmt.Printf("DEBUG parseTypedParameter: created default value node\n")
 				}
 			}
 		}
@@ -1761,7 +1745,6 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 	}
 
 	// Handle different statement types
-	fmt.Printf("DEBUG: convertToStatement called with nodeType: %s, text: %q\n", nodeType, node.Text())
 	switch nodeType {
 	case "assignment_expression":
 		// Handle variable declarations with assignments (my $var = value)
@@ -1769,7 +1752,6 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 		if strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "state ") {
-			fmt.Printf("DEBUG: convertToStatement processing assignment_expression as VarDecl: %q\n", nodeText)
 			if result := p.convertAssignmentToVarDeclAST(node, start, end); result != nil {
 				if stmt, ok := result.(ast.StatementNode); ok {
 					return stmt
@@ -1784,11 +1766,9 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 		if strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "state ") {
-			fmt.Printf("DEBUG: convertToStatement found variable declaration in expression_statement: %q\n", nodeText)
 			// Look for assignment_expression child
 			for _, child := range node.Children() {
 				if child.Type() == "assignment_expression" {
-					fmt.Printf("DEBUG: convertToStatement processing assignment_expression child\n")
 					if result := p.convertAssignmentToVarDeclAST(child, start, end); result != nil {
 						if stmt, ok := result.(ast.StatementNode); ok {
 							return stmt
@@ -1801,7 +1781,6 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 		return p.parseExpressionStatement(node, start, end)
 	case "variable_declaration":
 		// Skip standalone variable declarations - they should be part of assignment_expression
-		fmt.Printf("DEBUG: convertToStatement skipping variable_declaration: %q\n", node.Text())
 		return nil
 	case "typed_variable_declaration":
 		// Parse typed variable declarations
@@ -1843,7 +1822,6 @@ func (p *Parser) parseExpressionStatement(node Node, start, end ast.Position) as
 	// This replaces the placeholder literal implementation
 
 	if p.debug {
-		fmt.Printf("DEBUG parseExpressionStatement: Processing node with %d children\n", len(node.Children()))
 	}
 
 	// Look for the actual expression within the expression statement
@@ -1851,7 +1829,6 @@ func (p *Parser) parseExpressionStatement(node Node, start, end ast.Position) as
 		childType := child.Type()
 
 		if p.debug {
-			fmt.Printf("DEBUG parseExpressionStatement: Child type: %s\n", childType)
 		}
 
 		switch childType {
@@ -2099,12 +2076,6 @@ func (p *Parser) parseVariableDeclaration(node Node, start, end ast.Position) as
 	var typeExpr *ast.TypeExpression
 	var initializer ast.ExpressionNode
 
-	// DEBUG: Log children of variable declaration node
-	fmt.Printf("DEBUG: parseVariableDeclaration - node has %d children\n", len(node.Children()))
-	for i, child := range node.Children() {
-		fmt.Printf("DEBUG: Child %d: type=%s, text=%q\n", i, child.Type(), child.Text())
-	}
-
 	// Parse children to extract components
 	for _, child := range node.Children() {
 		childType := child.Type()
@@ -2155,7 +2126,6 @@ func (p *Parser) parseVariableDeclaration(node Node, start, end ast.Position) as
 	// because tree-sitter may not include assignment as child nodes
 	if initializer == nil {
 		nodeText := strings.TrimSpace(node.Text())
-		fmt.Printf("DEBUG: Fallback text parsing with nodeText: %q\n", nodeText)
 		if nodeText != "" {
 			// Check for assignment in the text
 			if strings.Contains(nodeText, "=") {

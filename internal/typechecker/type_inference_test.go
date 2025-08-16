@@ -4,7 +4,6 @@
 package typechecker
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -565,35 +564,11 @@ func buildInferenceCFG(t *testing.T, analyzer *FlowAnalyzer, code string) *Contr
 	// Set the source code in the analyzer for text analysis
 	analyzer.SourceCode = code
 
-	// DEBUG: Print the AST structure to understand parsing
-	fmt.Printf("DEBUG: AST String representation:\n%s\n", astResult.String())
-
-	// DEBUG: Print detailed tree structure
-	fmt.Printf("DEBUG: Detailed tree structure:\n")
-	printNodeTree(astResult.Root, 0)
-
 	cfg, err := analyzer.buildControlFlowGraph(astResult)
 	if err != nil {
 		t.Fatalf("Failed to build CFG: %v", err)
 	}
 	return cfg
-}
-
-func printNodeTree(node ast.Node, depth int) {
-	if node == nil {
-		return
-	}
-
-	indent := ""
-	for i := 0; i < depth; i++ {
-		indent += "  "
-	}
-
-	fmt.Printf("%s%s: %q\n", indent, node.Type(), node.Text())
-
-	for _, child := range node.Children() {
-		printNodeTree(child, depth+1)
-	}
 }
 
 func parseInferenceCode(t *testing.T, code string) *ast.AST {
@@ -611,10 +586,7 @@ func parseInferenceCode(t *testing.T, code string) *ast.AST {
 }
 
 func verifyTypeInferred(cfg *ControlFlowGraph, varName, expectedType string) bool {
-	// Debug: Print all variable types found in all blocks
-	fmt.Printf("DEBUG: Looking for variable '%s' with expected type '%s'\n", varName, expectedType)
-
-	for i, block := range cfg.Nodes {
+	for _, block := range cfg.Nodes {
 		// Check both TypeState and ExitTypeState
 		statesToCheck := []*TypeState{}
 
@@ -626,22 +598,11 @@ func verifyTypeInferred(cfg *ControlFlowGraph, varName, expectedType string) boo
 			statesToCheck = append(statesToCheck, block.ExitTypeState)
 		}
 
-		for stateIdx, state := range statesToCheck {
-			stateType := "TypeState"
-			if stateIdx == 1 {
-				stateType = "ExitTypeState"
-			}
-
-			fmt.Printf("DEBUG: Block %d %s has %d variables:\n", i, stateType, len(state.VariableTypes))
-			for k, v := range state.VariableTypes {
-				fmt.Printf("  %s: %s\n", k, v)
-			}
-
+		for _, state := range statesToCheck {
 			// Check both with and without sigil
 			variationsToCheck := []string{varName, "$" + varName}
 			for _, checkVar := range variationsToCheck {
 				if actualType, exists := state.VariableTypes[checkVar]; exists {
-					fmt.Printf("DEBUG: Found variable '%s' with type '%s'\n", checkVar, actualType)
 					if strings.Contains(actualType, expectedType) || actualType == expectedType {
 						return true
 					}
@@ -649,6 +610,5 @@ func verifyTypeInferred(cfg *ControlFlowGraph, varName, expectedType string) boo
 			}
 		}
 	}
-	fmt.Printf("DEBUG: Variable '%s' not found in any block\n", varName)
 	return false
 }
