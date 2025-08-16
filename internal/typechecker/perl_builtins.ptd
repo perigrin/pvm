@@ -25,7 +25,7 @@ sub Bool defined(Any $value);
 sub Bool exists(HashRef $hash, Str $key);
 
 # String manipulation
-sub Str chomp(Str $string);
+sub Int chomp(Str $string);
 sub Int chomp(Array[Str] $strings);
 sub Str chop(Str $string);
 sub Str chop(Array[Str] $strings);
@@ -76,6 +76,8 @@ sub Num srand(Num $expr);
 # Hash and array access
 sub Array[Str] keys(HashRef $hash);
 sub Array[Any] keys(Array $array);
+sub Int keys(HashRef $hash);  # scalar context
+sub Int keys(Array $array);   # scalar context
 sub Array[Any] values(HashRef $hash);
 sub Array[Any] values(Array $array);
 sub Any each(HashRef $hash);

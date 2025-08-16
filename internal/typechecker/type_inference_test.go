@@ -66,7 +66,7 @@ sub hash_operations(%input) {
 }`,
 			expectedTypes: map[string]string{
 				"keys":   "Array[Str]",
-				"values": "ArrayRef[Any]",
+				"values": "Array[Any]",
 				"count":  "Int",
 			},
 			description: "Should infer array types from keys/values and scalar context",
@@ -103,7 +103,7 @@ sub string_operations($text) {
 				"upper":        "Str",
 				"lower":        "Str",
 				"chomp_result": "Int",
-				"split_result": "ArrayRef[Str]",
+				"split_result": "Array[Str]",
 			},
 			description: "Should infer string types from string manipulation functions",
 		},

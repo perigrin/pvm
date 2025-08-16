@@ -2121,6 +2121,15 @@ func (p *Parser) parseVariableDeclaration(node Node, start, end ast.Position) as
 				varExpr := ast.NewVariableExpr(name, sigil, start, end)
 				variables = append(variables, varExpr)
 			}
+		case "array":
+			// This is an array variable like @name
+			varText := child.Text()
+			if len(varText) > 1 && varText[0] == '@' {
+				name := varText[1:]
+				sigil := "@"
+				varExpr := ast.NewVariableExpr(name, sigil, start, end)
+				variables = append(variables, varExpr)
+			}
 		case "type_expression":
 			// Parse type annotation
 			typeStr := child.Text()
@@ -2492,19 +2501,23 @@ func (p *Parser) extractVariableName(node Node) string {
 		return ""
 	}
 
-	// Extract variable name from scalar node children
+	// Extract variable name from scalar/array/hash node children
 	for _, child := range node.Children() {
-		if child.Type() != "$" && child.Type() != "token" {
+		if child.Type() != "$" && child.Type() != "@" && child.Type() != "%" && child.Type() != "token" {
 			text := strings.TrimSpace(child.Text())
-			if text != "$" && text != "" {
+			if text != "$" && text != "@" && text != "%" && text != "" {
 				return text
 			}
 		}
 	}
 
-	// Fallback - extract from full text
+	// Fallback - extract from full text, handling all sigils
 	text := strings.TrimSpace(node.Text())
-	return strings.TrimPrefix(text, "$")
+	// Remove common Perl sigils
+	text = strings.TrimPrefix(text, "$")
+	text = strings.TrimPrefix(text, "@")
+	text = strings.TrimPrefix(text, "%")
+	return text
 }
 
 // extractMethodParameters extracts parameters from a method signature node
