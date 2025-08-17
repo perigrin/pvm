@@ -60,6 +60,7 @@ AST {
         token
         var_decl
           variable
+          literal
         token
         return_stmt
           literal
@@ -138,6 +139,7 @@ AST {
         token
         var_decl
           variable
+          literal
         token
         return_stmt
           literal

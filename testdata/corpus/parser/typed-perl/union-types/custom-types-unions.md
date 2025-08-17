@@ -33,63 +33,14 @@ AST {
   Root: source_file
   Tree Structure:
   source_file
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          union_type
-            type_expression
-              expression_stmt
-                literal
-            expression_stmt
-              literal
-            type_expression
-              expression_stmt
-                literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          union_type
-            type_expression
-              expression_stmt
-                literal
-            expression_stmt
-              literal
-            type_expression
-              expression_stmt
-                literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          union_type
-            type_expression
-              union_type
-                type_expression
-                  expression_stmt
-                    literal
-                expression_stmt
-                  literal
-                type_expression
-                  expression_stmt
-                    literal
-            expression_stmt
-              literal
-            type_expression
-              expression_stmt
-                literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
 }
 ```
@@ -604,63 +555,14 @@ AST {
   Root: source_file
   Tree Structure:
   source_file
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          union_type
-            type_expression
-              expression_stmt
-                literal
-            expression_stmt
-              literal
-            type_expression
-              expression_stmt
-                literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          union_type
-            type_expression
-              expression_stmt
-                literal
-            expression_stmt
-              literal
-            type_expression
-              expression_stmt
-                literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          union_type
-            type_expression
-              union_type
-                type_expression
-                  expression_stmt
-                    literal
-                expression_stmt
-                  literal
-                type_expression
-                  expression_stmt
-                    literal
-            expression_stmt
-              literal
-            type_expression
-              expression_stmt
-                literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
 }
 ```

@@ -60,7 +60,7 @@ func TestVariableDeclarationWithInitializer(t *testing.T) {
 						t.Logf("Found %s node", nodeType)
 
 						// Check for initializer by examining children
-						if children, ok := node.(interface{ Children() []interface{} }); ok {
+						if children, ok := node.(interface{ Children() []Node }); ok {
 							for i, child := range children.Children() {
 								if child == nil {
 									continue
@@ -82,7 +82,7 @@ func TestVariableDeclarationWithInitializer(t *testing.T) {
 					}
 
 					// Walk children recursively
-					if nodeWithChildren, ok := node.(interface{ Children() []interface{} }); ok {
+					if nodeWithChildren, ok := node.(interface{ Children() []Node }); ok {
 						childList := nodeWithChildren.Children()
 						t.Logf("Node %s has %d children", nodeType, len(childList))
 						for _, child := range childList {

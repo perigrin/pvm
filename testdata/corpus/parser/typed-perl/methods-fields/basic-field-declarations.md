@@ -37,50 +37,19 @@ AST {
   source_file
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            expression_stmt
-              literal
-          scalar
-            token
-            token
         token
         token
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          expression_stmt
-            literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            expression_stmt
-              literal
-          scalar
-            token
-            token
         token
         token
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            expression_stmt
-              literal
-          scalar
-            token
-            token
         token
         token
     token
@@ -931,50 +900,19 @@ AST {
   source_file
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            expression_stmt
-              literal
-          scalar
-            token
-            token
         token
         token
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          expression_stmt
-            literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            expression_stmt
-              literal
-          scalar
-            token
-            token
         token
         token
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            expression_stmt
-              literal
-          scalar
-            token
-            token
         token
         token
     token

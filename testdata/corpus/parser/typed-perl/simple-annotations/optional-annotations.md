@@ -36,57 +36,19 @@ AST {
   Root: source_file
   Tree Structure:
   source_file
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          expression_stmt
-            literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          parameterized_type
-            expression_stmt
-              literal
-            expression_stmt
-              literal
-            type_parameter_list
-              type_expression
-                expression_stmt
-                  literal
-            expression_stmt
-              literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          parameterized_type
-            expression_stmt
-              literal
-            expression_stmt
-              literal
-            type_parameter_list
-              type_expression
-                expression_stmt
-                  literal
-            expression_stmt
-              literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
 }
 ```
@@ -105,57 +67,19 @@ AST {
   Root: source_file
   Tree Structure:
   source_file
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          expression_stmt
-            literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          parameterized_type
-            expression_stmt
-              literal
-            expression_stmt
-              literal
-            type_parameter_list
-              type_expression
-                expression_stmt
-                  literal
-            expression_stmt
-              literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          parameterized_type
-            expression_stmt
-              literal
-            expression_stmt
-              literal
-            type_parameter_list
-              type_expression
-                expression_stmt
-                  literal
-            expression_stmt
-              literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
 }
 ```

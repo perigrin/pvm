@@ -40,23 +40,6 @@ AST {
   source_file
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            parameterized_type
-              expression_stmt
-                literal
-              expression_stmt
-                literal
-              type_parameter_list
-                type_expression
-                  expression_stmt
-                    literal
-              expression_stmt
-                literal
-          scalar
-            token
-            token
         token
         anonymous_array_expression
           expression_stmt
@@ -66,99 +49,19 @@ AST {
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            parameterized_type
-              expression_stmt
-                literal
-              expression_stmt
-                literal
-              type_parameter_list
-                type_expression
-                  expression_stmt
-                    literal
-              expression_stmt
-                literal
-          scalar
-            token
-            token
         token
         anonymous_hash_expression
           token
           token
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          parameterized_type
-            expression_stmt
-              literal
-            expression_stmt
-              literal
-            type_parameter_list
-              type_expression
-                expression_stmt
-                  literal
-              expression_stmt
-                literal
-              type_expression
-                expression_stmt
-                  literal
-            expression_stmt
-              literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          parameterized_type
-            expression_stmt
-              literal
-            expression_stmt
-              literal
-            type_parameter_list
-              type_expression
-                expression_stmt
-                  literal
-            expression_stmt
-              literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            parameterized_type
-              expression_stmt
-                literal
-              expression_stmt
-                literal
-              type_parameter_list
-                type_expression
-                  parameterized_type
-                    expression_stmt
-                      literal
-                    expression_stmt
-                      literal
-                    type_parameter_list
-                      type_expression
-                        expression_stmt
-                          literal
-                    expression_stmt
-                      literal
-              expression_stmt
-                literal
-          scalar
-            token
-            token
         token
         anonymous_hash_expression
           token
@@ -207,23 +110,6 @@ AST {
   source_file
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            parameterized_type
-              expression_stmt
-                literal
-              expression_stmt
-                literal
-              type_parameter_list
-                type_expression
-                  expression_stmt
-                    literal
-              expression_stmt
-                literal
-          scalar
-            token
-            token
         token
         anonymous_array_expression
           expression_stmt
@@ -233,99 +119,19 @@ AST {
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            parameterized_type
-              expression_stmt
-                literal
-              expression_stmt
-                literal
-              type_parameter_list
-                type_expression
-                  expression_stmt
-                    literal
-              expression_stmt
-                literal
-          scalar
-            token
-            token
         token
         anonymous_hash_expression
           token
           token
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          parameterized_type
-            expression_stmt
-              literal
-            expression_stmt
-              literal
-            type_parameter_list
-              type_expression
-                expression_stmt
-                  literal
-              expression_stmt
-                literal
-              type_expression
-                expression_stmt
-                  literal
-            expression_stmt
-              literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
-    expression_statement
-      variable_declaration
-        token
-        type_expression
-          parameterized_type
-            expression_stmt
-              literal
-            expression_stmt
-              literal
-            type_parameter_list
-              type_expression
-                expression_stmt
-                  literal
-            expression_stmt
-              literal
-        scalar
-          token
-          token
+    expression_stmt
+      literal
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            parameterized_type
-              expression_stmt
-                literal
-              expression_stmt
-                literal
-              type_parameter_list
-                type_expression
-                  parameterized_type
-                    expression_stmt
-                      literal
-                    expression_stmt
-                      literal
-                    type_parameter_list
-                      type_expression
-                        expression_stmt
-                          literal
-                    expression_stmt
-                      literal
-              expression_stmt
-                literal
-          scalar
-            token
-            token
         token
         anonymous_hash_expression
           token

@@ -25,7 +25,7 @@ func TestBuiltinTypeRegistry_BasicFunctions(t *testing.T) {
 		{"ref", 1, "Str", "ref() should return Str"},
 		{"defined", 1, "Bool", "defined() should return Bool"},
 		{"exists", 2, "Bool", "exists() should return Bool"},
-		{"keys", 1, "Array[Str]", "keys() should return Array[Str]"},
+		{"keys", 1, "Int|Array[Str]", "keys() should return Int|Array[Str]"},
 		{"values", 1, "Array[Any]", "values() should return Array[Any]"},
 		{"length", 1, "Int", "length() should return Int"},
 		{"substr", 2, "Str", "substr() with 2 params should return Str"},

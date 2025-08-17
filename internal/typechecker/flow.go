@@ -1101,11 +1101,8 @@ func (fa *FlowAnalyzer) processVariableDeclaration(stmt ast.Node, state *TypeSta
 				}
 			}
 		} else {
-			// WORKAROUND: Try to extract initializer from source text
-			extractedType := fa.extractTypeFromSourceText(varName, stmt)
-			if extractedType != "" && extractedType != "Any" {
-				varType = extractedType
-			}
+			// No explicit type annotation and no initializer found in AST
+			// This is fine - uninitialized variables have type "Any"
 		}
 
 		// Fall back to "Any" if we can't determine the type

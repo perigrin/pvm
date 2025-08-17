@@ -39,22 +39,27 @@ AST {
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
 }
 ```
@@ -75,22 +80,27 @@ AST {
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
 }
 ```

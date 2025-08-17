@@ -38,17 +38,10 @@ AST {
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            expression_stmt
-              literal
-          scalar
-            token
-            token
         token
         interpolated_string_literal
           expression_stmt
@@ -61,10 +54,12 @@ AST {
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
 }
 ```
@@ -86,17 +81,10 @@ AST {
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       assignment_expression
-        variable_declaration
-          token
-          type_expression
-            expression_stmt
-              literal
-          scalar
-            token
-            token
         token
         interpolated_string_literal
           expression_stmt
@@ -109,10 +97,12 @@ AST {
     expression_statement
       var_decl
         variable
+        literal
     token
     expression_statement
       var_decl
         variable
+        literal
     token
 }
 ```

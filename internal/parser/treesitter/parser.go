@@ -930,6 +930,11 @@ func (p *Parser) convertToASTNode(node Node) ast.Node {
 		return nil
 	}
 
+	// Handle var_decl nodes (these need proper parsing with initializers)
+	if nodeType == "var_decl" {
+		return p.parseVariableDeclaration(node, start, end)
+	}
+
 	// For nodes with children, create a container node that preserves structure
 	if len(children) > 0 {
 		return p.createContainerNode(nodeType, children, start, end)
@@ -1766,13 +1771,17 @@ func (p *Parser) convertToStatement(node Node) ast.StatementNode {
 		if strings.HasPrefix(strings.TrimSpace(nodeText), "my ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "our ") ||
 			strings.HasPrefix(strings.TrimSpace(nodeText), "state ") {
-			// Look for assignment_expression child
+			// Look for assignment_expression or var_decl child
 			for _, child := range node.Children() {
 				if child.Type() == "assignment_expression" {
 					if result := p.convertAssignmentToVarDeclAST(child, start, end); result != nil {
 						if stmt, ok := result.(ast.StatementNode); ok {
 							return stmt
 						}
+					}
+				} else if child.Type() == "var_decl" {
+					if result := p.parseVariableDeclaration(child, start, end); result != nil {
+						return result
 					}
 				}
 			}

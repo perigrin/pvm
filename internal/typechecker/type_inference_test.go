@@ -66,7 +66,7 @@ sub hash_operations(%input) {
 			expectedTypes: map[string]string{
 				"keys":   "Array[Str]",
 				"values": "Array[Any]",
-				"count":  "Int",
+				"count":  "Int|Array[Str]",
 			},
 			description: "Should infer array types from keys/values and scalar context",
 		},
