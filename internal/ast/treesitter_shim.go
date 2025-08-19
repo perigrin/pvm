@@ -349,7 +349,7 @@ func (ts *TreeSitterNode) GetFieldName() string {
 	// Get the parent's tree-sitter node
 	// TODO(#366): go-critic thinks this type assertion is redundant because ts.parent is Node interface,
 	// but we need to assert to *TreeSitterNode specifically to access tree-sitter fields
-	parentTS, ok := ts.parent.(*TreeSitterNode)
+	parentTS, ok := ts.parent.(*TreeSitterNode) //nolint:gocritic,sloppyTypeAssert
 	if !ok || parentTS.node == nil {
 		return ""
 	}
@@ -389,7 +389,7 @@ func (ts *TreeSitterNode) WalkNodes(visitor func(*TreeSitterNode) bool) {
 	// Then visit children
 	for _, child := range ts.Children() {
 		// TODO(#366): go-critic sees Node interface but we need *TreeSitterNode for tree-sitter methods
-		if tsChild, ok := child.(*TreeSitterNode); ok {
+		if tsChild, ok := child.(*TreeSitterNode); ok { //nolint:gocritic,sloppyTypeAssert
 			tsChild.WalkNodes(visitor)
 		}
 	}
@@ -411,7 +411,7 @@ func (ts *TreeSitterNode) FindNodeRecursive(predicate func(*TreeSitterNode) bool
 	// Then search children recursively
 	for _, child := range ts.Children() {
 		// TODO(#366): go-critic sees Node interface but we need *TreeSitterNode for recursive calls
-		if tsChild, ok := child.(*TreeSitterNode); ok {
+		if tsChild, ok := child.(*TreeSitterNode); ok { //nolint:gocritic,sloppyTypeAssert
 			if result := tsChild.FindNodeRecursive(predicate); result != nil {
 				return result
 			}
@@ -428,7 +428,7 @@ func (ts *TreeSitterNode) GetAncestor(nodeType string) *TreeSitterNode {
 	current := ts.parent
 	for current != nil {
 		// TODO(#366): go-critic sees Node interface but we need *TreeSitterNode to access .parent field
-		if tsParent, ok := current.(*TreeSitterNode); ok {
+		if tsParent, ok := current.(*TreeSitterNode); ok { //nolint:gocritic,sloppyTypeAssert
 			if tsParent.Type() == nodeType {
 				return tsParent
 			}
@@ -458,7 +458,7 @@ func (ts *TreeSitterNode) GetRange() (Position, Position) {
 // AsVarDecl attempts to interpret this node as a variable declaration
 // This is a specialized method that extracts type information from CST
 func (ts *TreeSitterNode) AsVarDecl() *VarDeclNode {
-	if ts.node == nil || ts.Type() != "var_declaration" {
+	if ts.node == nil || ts.Type() != "variable_declaration" {
 		return nil
 	}
 
@@ -469,8 +469,15 @@ func (ts *TreeSitterNode) AsVarDecl() *VarDeclNode {
 
 // VarDeclNode is a specialized wrapper for variable declaration nodes
 // This provides direct access to type information from the CST
+// It implements the VarDecl interface while preserving CST-direct access
 type VarDeclNode struct {
 	*TreeSitterNode
+
+	// Cached extracted values to avoid repeated CST traversal
+	cachedVariables []*VariableExpr
+	cachedTypeExpr  *TypeExpression
+	cachedKeyword   string
+	cachedInit      Node
 }
 
 // GetVariableName extracts the variable name from the declaration
@@ -514,4 +521,255 @@ func (vd *VarDeclNode) GetTypeExpression() *TypeExpression {
 // HasTypeAnnotation returns true if this variable declaration has a type annotation
 func (vd *VarDeclNode) HasTypeAnnotation() bool {
 	return vd.GetTypeExpression() != nil
+}
+
+// VarDecl interface implementation for compatibility with existing code
+
+// GetKeyword returns the declaration keyword (my, our, state, local)
+func (vd *VarDeclNode) GetKeyword() string {
+	if vd.cachedKeyword != "" {
+		return vd.cachedKeyword
+	}
+
+	if vd.TreeSitterNode == nil {
+		return ""
+	}
+
+	// Look for the keyword token in the CST
+	for _, child := range vd.GetNamedChildren() {
+		childType := child.Type()
+		if childType == "my" || childType == "our" || childType == "state" || childType == "local" {
+			vd.cachedKeyword = child.GetTextContent()
+			return vd.cachedKeyword
+		}
+	}
+
+	// Fallback: check the first token
+	if vd.node.ChildCount() > 0 {
+		firstChild := vd.node.Child(0)
+		if firstChild != nil {
+			keyword := firstChild.Utf8Text(vd.source)
+			if keyword == "my" || keyword == "our" || keyword == "state" || keyword == "local" {
+				vd.cachedKeyword = keyword
+				return vd.cachedKeyword
+			}
+		}
+	}
+
+	return ""
+}
+
+// GetVariables returns the list of variables being declared
+func (vd *VarDeclNode) GetVariables() []*VariableExpr {
+	if vd.cachedVariables != nil {
+		return vd.cachedVariables
+	}
+
+	if vd.TreeSitterNode == nil {
+		return nil
+	}
+
+	var variables []*VariableExpr
+
+	// Search for variable nodes in the CST
+	for _, child := range vd.GetNamedChildren() {
+		childType := child.Type()
+
+		// Handle different variable types
+		switch childType {
+		case "scalar", "array", "hash", "scalar_variable", "array_variable", "hash_variable":
+			varText := child.GetTextContent()
+			if varText != "" {
+				// Extract variable name and sigil
+				sigil := ""
+				name := varText
+				if len(varText) > 0 {
+					sigil = string(varText[0])
+					if len(varText) > 1 {
+						name = varText[1:]
+					}
+				}
+
+				pos := child.Start()
+				end := child.End()
+
+				varExpr := NewVariableExpr(name, sigil, pos, end)
+				variables = append(variables, varExpr)
+			}
+
+		case "variable_list":
+			// Handle lists of variables like (my $a, $b, $c)
+			for _, listChild := range child.GetNamedChildren() {
+				if listChild.Type() == "scalar" || listChild.Type() == "array" || listChild.Type() == "hash" ||
+					listChild.Type() == "scalar_variable" ||
+					listChild.Type() == "array_variable" ||
+					listChild.Type() == "hash_variable" {
+					varText := listChild.GetTextContent()
+					if varText != "" {
+						sigil := ""
+						name := varText
+						if len(varText) > 0 {
+							sigil = string(varText[0])
+							if len(varText) > 1 {
+								name = varText[1:]
+							}
+						}
+
+						pos := listChild.Start()
+						end := listChild.End()
+
+						varExpr := NewVariableExpr(name, sigil, pos, end)
+						variables = append(variables, varExpr)
+					}
+				}
+			}
+		}
+	}
+
+	vd.cachedVariables = variables
+	return vd.cachedVariables
+}
+
+// GetTypeExpr returns the type expression for this declaration
+func (vd *VarDeclNode) GetTypeExpr() *TypeExpression {
+	if vd.cachedTypeExpr != nil {
+		return vd.cachedTypeExpr
+	}
+
+	// Use the existing GetTypeExpression method
+	vd.cachedTypeExpr = vd.GetTypeExpression()
+	return vd.cachedTypeExpr
+}
+
+// GetInit returns the initialization expression if present
+func (vd *VarDeclNode) GetInit() Node {
+	if vd.cachedInit != nil {
+		return vd.cachedInit
+	}
+
+	if vd.TreeSitterNode == nil {
+		return nil
+	}
+
+	// The initialization value is typically in the parent assignment_expression node
+	// Look up to the parent to find the assignment value
+	parentNode := vd.Parent()
+	if parentNode != nil {
+		// Check if parent is an assignment_expression
+		//nolint:gocritic,sloppyTypeAssert // TODO(#366): go-critic sees Node interface but we need *TreeSitterNode for tree-sitter methods
+		if tsParent, ok := parentNode.(*TreeSitterNode); ok && tsParent.Type() == "assignment_expression" {
+			// Find the value part after the "=" operator
+			for i := uint(0); i < tsParent.node.ChildCount(); i++ {
+				child := tsParent.node.Child(i)
+				if child != nil && child.Utf8Text(tsParent.source) == "=" {
+					// The next sibling should be the initialization value
+					if i+1 < tsParent.node.ChildCount() {
+						nextChild := tsParent.node.Child(i + 1)
+						if nextChild != nil {
+							initNode := NewTreeSitterNode(nextChild, tsParent.source)
+							vd.cachedInit = initNode
+							return vd.cachedInit
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback: look for assignment or initialization expressions in children
+	for _, child := range vd.GetNamedChildren() {
+		childType := child.Type()
+
+		// Look for assignment operators and following expressions
+		if childType == "assignment_expression" ||
+			childType == "expression" ||
+			childType == "literal_expression" ||
+			childType == "number" ||
+			childType == "string" {
+			vd.cachedInit = child
+			return vd.cachedInit
+		}
+	}
+
+	return nil
+}
+
+// GetPosition returns the position of this declaration
+func (vd *VarDeclNode) GetPosition() Position {
+	return vd.Start()
+}
+
+// IsTyped returns true if this declaration has a type annotation
+func (vd *VarDeclNode) IsTyped() bool {
+	return vd.HasTypeAnnotation()
+}
+
+// GetTypedVariable returns the first variable with its type information
+// This is a convenience method for single-variable declarations
+func (vd *VarDeclNode) GetTypedVariable() (*VariableExpr, *TypeExpression) {
+	variables := vd.GetVariables()
+	if len(variables) == 0 {
+		return nil, nil
+	}
+
+	return variables[0], vd.GetTypeExpr()
+}
+
+// GetDeclarationKind returns the kind of declaration as a string
+func (vd *VarDeclNode) GetDeclarationKind() string {
+	// This would need to be determined from context
+	// For now, assume it's a variable declaration
+	return "variable"
+}
+
+// Clone creates a copy of this VarDeclNode
+func (vd *VarDeclNode) Clone() *VarDeclNode {
+	if vd.TreeSitterNode == nil {
+		return nil
+	}
+
+	// Create a new wrapper around the same tree-sitter node
+	// Note: tree-sitter nodes are immutable, so this is safe
+	return &VarDeclNode{
+		TreeSitterNode: &TreeSitterNode{
+			node:     vd.node,
+			source:   vd.source,
+			parent:   vd.parent,
+			children: vd.children,
+		},
+		// Don't copy cached values - let them be recomputed
+	}
+}
+
+// String returns a string representation of this variable declaration
+func (vd *VarDeclNode) String() string {
+	if vd.TreeSitterNode == nil {
+		return "VarDeclNode{nil}"
+	}
+
+	keyword := vd.GetKeyword()
+	variables := vd.GetVariables()
+	typeExpr := vd.GetTypeExpr()
+
+	result := "VarDeclNode{" + keyword
+
+	if typeExpr != nil {
+		result += " " + typeExpr.String()
+	}
+
+	for i, variable := range variables {
+		if i > 0 {
+			result += ", "
+		} else {
+			result += " "
+		}
+		result += variable.Sigil + variable.Name
+	}
+
+	if init := vd.GetInit(); init != nil {
+		result += " = " + init.Text()
+	}
+
+	result += "}"
+	return result
 }

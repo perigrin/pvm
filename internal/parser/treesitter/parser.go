@@ -590,6 +590,97 @@ func (p *Parser) ParseString(content string) (*ast.AST, error) {
 	return p.parseStringInternal(ctx, content)
 }
 
+// ParseStringShim parses a string and returns a tree-sitter shim AST
+// This bypasses the CST → AST → CST conversion for better performance and accuracy
+func (p *Parser) ParseStringShim(content string) (*ast.TreeSitterAST, error) {
+	return p.parseStringShimInternal(content, "")
+}
+
+// ParseFileShim parses a file and returns a tree-sitter shim AST
+// This bypasses the CST → AST → CST conversion for better performance and accuracy
+func (p *Parser) ParseFileShim(path string) (*ast.TreeSitterAST, error) {
+	// Check if the file exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, errors.NewSystemError("001",
+			"File does not exist", err).
+			WithLocation(path)
+	}
+
+	// Read the file content
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.NewSystemError("002",
+			"Failed to read file", err).
+			WithLocation(path)
+	}
+
+	return p.parseStringShimInternal(string(content), path)
+}
+
+// parseStringShimInternal contains the actual shim parsing logic
+func (p *Parser) parseStringShimInternal(content, path string) (*ast.TreeSitterAST, error) {
+	// Parse the string using tree-sitter
+	tree, err := p.perlParser.ParseString(content)
+	if err != nil {
+		return nil, errors.NewSystemError("004",
+			"Failed to parse string", err)
+	}
+
+	// Create tree-sitter shim AST directly - no conversion!
+	shimAST := ast.NewTreeSitterAST(path, tree.Tree, content)
+	if shimAST == nil {
+		return nil, errors.NewSystemError("005",
+			"Failed to create tree-sitter shim AST", err)
+	}
+
+	// Extract type annotations using tree-sitter shim nodes
+	if shimAST.Root != nil {
+		p.extractTypeAnnotationsFromShim(shimAST)
+	}
+
+	return shimAST, nil
+}
+
+// extractTypeAnnotationsFromShim extracts type annotations using the tree-sitter shim
+// This preserves all original type information without conversion loss
+func (p *Parser) extractTypeAnnotationsFromShim(shimAST *ast.TreeSitterAST) {
+	if shimAST.Root == nil {
+		return
+	}
+
+	var annotations []*ast.TypeAnnotation
+
+	// Walk the tree-sitter shim nodes to find type annotations
+	shimAST.Root.WalkNodes(func(node *ast.TreeSitterNode) bool {
+		// Check for variable declarations with type annotations
+		if node.Type() == "variable_declaration" {
+			if varDecl := node.AsVarDecl(); varDecl != nil && varDecl.HasTypeAnnotation() {
+				// Extract type annotation directly from CST
+				variables := varDecl.GetVariables()
+				typeExpr := varDecl.GetTypeExpr()
+
+				if len(variables) > 0 && typeExpr != nil {
+					for _, variable := range variables {
+						annotation := &ast.TypeAnnotation{
+							Kind:           ast.VarAnnotation,
+							AnnotatedItem:  variable.Sigil + variable.Name,
+							TypeExpression: typeExpr,
+							Pos:            variable.Start(),
+						}
+						annotations = append(annotations, annotation)
+					}
+				}
+			}
+		}
+
+		// Continue walking
+		return true
+	})
+
+	// Set the extracted annotations
+	shimAST.TypeAnnotations = annotations
+}
+
 // parseStringInternal contains the actual parsing logic
 func (p *Parser) parseStringInternal(ctx context.Context, content string) (*ast.AST, error) {
 	// Parse the string using tree-sitter
