@@ -205,6 +205,13 @@ func (ts *TreeSitterAST) GetTreeSitterRoot() *sitter.Node {
 	return ts.tree.RootNode()
 }
 
+// GetCSTRoot returns the tree-sitter CST root node for compiler compatibility
+// This allows TreeSitterAST to be recognized as a CST-based AST by the compiler
+// eliminating redundant re-parsing during compilation
+func (ts *TreeSitterAST) GetCSTRoot() *sitter.Node {
+	return ts.GetTreeSitterRoot()
+}
+
 // Utility functions for working with tree-sitter nodes
 
 // ConvertTreeSitterPosition converts a tree-sitter Point to our Position
