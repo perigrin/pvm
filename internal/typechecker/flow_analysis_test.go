@@ -179,6 +179,16 @@ sub handle_file($filename) {
 					}
 				}
 				if !found {
+					// Debug: print all found variable types for this test
+					t.Logf("Debug: Variable types found in blocks:")
+					for i, block := range cfg.Nodes {
+						if block.ExitTypeState != nil && block.ExitTypeState.VariableTypes != nil {
+							t.Logf("  Block %d exit types: %v", i, block.ExitTypeState.VariableTypes)
+						}
+						if block.TypeState != nil && block.TypeState.VariableTypes != nil {
+							t.Logf("  Block %d entry types: %v", i, block.TypeState.VariableTypes)
+						}
+					}
 					t.Errorf("%s: Expected to infer type '%s' for variable $%s",
 						tc.description, expectedType, varName)
 				}

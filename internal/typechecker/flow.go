@@ -1821,6 +1821,9 @@ func (fa *FlowAnalyzer) inferLibraryFunctionType(functionName string, call *ast.
 	case "send_email", "send_notification":
 		// Communication functions return success boolean
 		return "Bool"
+	case "slurp", "read_file", "file_get_contents":
+		// File reading functions return string content
+		return "Str"
 	}
 
 	return ""
