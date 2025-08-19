@@ -172,47 +172,45 @@ type shimParserWrapper struct {
 	parser *treesitter.Parser
 }
 
-// ParseFile implements the Parser interface
-func (w *shimParserWrapper) ParseFile(path string) (*ast.AST, error) {
-	tsAst, err := w.parser.ParseFile(path)
+// ParseFile implements the traditional Parser interface (delegates to tree-sitter parser)
+func (s *shimParserWrapper) ParseFile(path string) (*ast.AST, error) {
+	return s.parser.ParseFile(path)
+}
+
+// ParseString implements the traditional Parser interface (delegates to tree-sitter parser)
+func (s *shimParserWrapper) ParseString(content string) (*ast.AST, error) {
+	return s.parser.ParseString(content)
+}
+
+// ParseReader implements the traditional Parser interface (delegates to tree-sitter parser)
+func (s *shimParserWrapper) ParseReader(reader io.Reader) (*ast.AST, error) {
+	return s.parser.ParseReader(reader)
+}
+
+// ParseFileShim parses a file and returns a tree-sitter shim AST
+// This bypasses CST → AST → CST conversion for better performance and accuracy
+func (s *shimParserWrapper) ParseFileShim(path string) (*ast.TreeSitterAST, error) {
+	// Read the file content
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %s: %w", path, err)
+	}
+
+	// Parse using shim method
+	shimAST, err := s.ParseStringShim(string(content))
 	if err != nil {
 		return nil, err
 	}
 
-	// The tree-sitter parser now returns *ast.AST directly, no conversion needed
-	return tsAst, nil
+	// Set the path
+	shimAST.Path = path
+	return shimAST, nil
 }
 
-// ParseString implements the Parser interface
-func (w *shimParserWrapper) ParseString(content string) (*ast.AST, error) {
-	tsAst, err := w.parser.ParseString(content)
-	if err != nil {
-		return nil, err
-	}
-
-	// The tree-sitter parser now returns *ast.AST directly, no conversion needed
-	return tsAst, nil
-}
-
-// ParseReader implements the Parser interface
-func (w *shimParserWrapper) ParseReader(reader io.Reader) (*ast.AST, error) {
-	tsAst, err := w.parser.ParseReader(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	// The tree-sitter parser now returns *ast.AST directly, no conversion needed
-	return tsAst, nil
-}
-
-// ParseFileShim implements the ShimParser interface for direct CST access
-func (w *shimParserWrapper) ParseFileShim(path string) (*ast.TreeSitterAST, error) {
-	return w.parser.ParseFileShim(path)
-}
-
-// ParseStringShim implements the ShimParser interface for direct CST access
-func (w *shimParserWrapper) ParseStringShim(content string) (*ast.TreeSitterAST, error) {
-	return w.parser.ParseStringShim(content)
+// ParseStringShim parses a string and returns a tree-sitter shim AST
+// This bypasses CST → AST → CST conversion for better performance and accuracy
+func (s *shimParserWrapper) ParseStringShim(content string) (*ast.TreeSitterAST, error) {
+	return s.parser.ParseStringShim(content)
 }
 
 // CachedParser is a Parser implementation that caches ASTs
