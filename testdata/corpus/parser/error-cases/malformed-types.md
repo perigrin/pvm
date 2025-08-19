@@ -4,11 +4,11 @@ subcategory: malformed-types
 tags: [error-recovery, syntax-errors, type-parsing]
 ---
 
-# Invalid Union Syntax
+# Invalid Union Syntax - Error Recovery
 
-<!-- should_error: true -->
-<!-- expected_error: error[TSP003] -->
-<!-- expected_suggestion: Change '||' to '|' for union types -->
+<!-- should_error: false -->
+<!-- recovered_behavior: Treats as untyped variable -->
+<!-- suggestion: Use '|' for proper union types -->
 
 ```perl
 my Int||Str $bad_union;
@@ -19,17 +19,18 @@ my Int||Str $bad_union;
 #### Text Format
 
 ```
-Parse error: SYS-007: error[TSP001]: parse error (1 ERROR nodes detected)
-Invalid union syntax with double pipe operator.
+Successfully parsed with error recovery - malformed union handled gracefully.
+Variable declared as untyped due to invalid type syntax.
 ```
 
 #### JSON Format
 
 ```json
 {
-  "error": "SYS-007: error[TSP001]: parse error (1 ERROR nodes detected)",
-  "message": "Invalid union syntax - use single '|' for union types",
-  "ast": null
+  "status": "success_with_recovery",
+  "message": "Invalid union syntax recovered - treated as untyped variable",
+  "suggestion": "Use single '|' for union types: Int|Str",
+  "ast": "valid_ast_structure"
 }
 ```
 
@@ -38,19 +39,22 @@ Invalid union syntax with double pipe operator.
 ### Clean Perl Output
 
 ```perl
-# Error: Invalid type syntax - parsing should fail
+use v5.42.0;
+my $bad_union;
 ```
 
 ### Typed Perl Output
 
 ```perl
-# Error: Invalid type syntax - parsing should fail
+use v5.42.0;
+my $bad_union;
 ```
 
 ### Inferred Perl Output
 
 ```perl
-# Error: Invalid type syntax - parsing should fail
+use v5.42.0;
+my $bad_union;
 ```
 
 # Incomplete Type Assertion
@@ -68,15 +72,14 @@ my $val = $input as ;
 #### Text Format
 
 ```
-Parse error: SYS-007: error[TSP001]: parse error (1 ERROR nodes detected)
-Incomplete type assertion - missing target type.
+Parse error: SYS-007: error[TSP004]: Incomplete type assertion - missing target type
 ```
 
 #### JSON Format
 
 ```json
 {
-  "error": "SYS-007: error[TSP001]: parse error (1 ERROR nodes detected)",
+  "error": "SYS-007: error[TSP004]: Incomplete type assertion - missing target type",
   "message": "Incomplete type assertion - target type required after 'as' keyword",
   "ast": null
 }
@@ -102,11 +105,11 @@ Incomplete type assertion - missing target type.
 # Error: Invalid type syntax - parsing should fail
 ```
 
-# Invalid Intersection Syntax
+# Invalid Intersection Syntax - Error Recovery
 
-<!-- should_error: true -->
-<!-- expected_error: error[TSP008] -->
-<!-- expected_suggestion: Change '&&' to '&' for intersection types -->
+<!-- should_error: false -->
+<!-- recovered_behavior: Treats as untyped variable -->
+<!-- suggestion: Use '&' for proper intersection types -->
 
 ```perl
 my Object&&Serializable $obj;

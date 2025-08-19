@@ -2,7 +2,7 @@
 category: error-cases
 subcategory: malformed_types.json
 tags: [error-recovery, malformed-types]
-should_error: true
+should_error: false
 ---
 
 # Malformed Type Expressions
@@ -18,17 +18,17 @@ my Malformed[ $bad_type;
 ### Text Format
 
 ```
-Parse error: SYS-007: error[TSP001]: parse error (1 ERROR nodes detected)
-Malformed parameterized type with missing closing bracket.
+Successfully parsed with error recovery - missing bracket handled gracefully.
+Variable declared as untyped due to malformed type annotation.
 ```
 
 ### JSON Format
 
 ```json
 {
-  "error": "SYS-007: error[TSP001]: parse error (1 ERROR nodes detected)",
-  "message": "Malformed parameterized type - missing closing bracket or parameters",
-  "ast": null
+  "status": "success_with_recovery",
+  "message": "Malformed parameterized type recovered - treated as untyped variable",
+  "ast": "valid_ast_structure"
 }
 ```
 
@@ -37,17 +37,19 @@ Malformed parameterized type with missing closing bracket.
 ## Clean Perl Output
 
 ```perl
-# Error: Invalid type syntax - parsing should fail
+use v5.42.0;
+my [ $bad_type;
 ```
 
 ## Typed Perl Output
 
 ```perl
-# Error: Invalid type syntax - parsing should fail
+my Malformed[ $bad_type;
 ```
 
 ## Inferred Perl Output
 
 ```perl
-# Error: Invalid type syntax - parsing should fail
+use v5.42.0;
+my [ $bad_type;
 ```

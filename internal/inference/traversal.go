@@ -83,6 +83,8 @@ func (at *ASTTraverser) visitNode(node ast.Node, inferredAST ast.InferredAST) er
 		return at.handleAssignmentNode(node, inferredAST)
 	case "declaration":
 		return at.handleDeclarationNode(node, inferredAST)
+	case "var_decl":
+		return at.handleVarDeclNode(node, inferredAST)
 	case "function_call":
 		return at.handleFunctionCallNode(node, inferredAST)
 	case "block":
@@ -174,6 +176,30 @@ func (at *ASTTraverser) handleAssignmentNode(node ast.Node, inferredAST ast.Infe
 func (at *ASTTraverser) handleDeclarationNode(node ast.Node, inferredAST ast.InferredAST) error {
 	// For now, just traverse children
 	// Real implementation would add variables to scope
+	return at.traverseChildren(node, inferredAST)
+}
+
+// handleVarDeclNode handles VarDecl nodes and preserves existing type annotations
+func (at *ASTTraverser) handleVarDeclNode(node ast.Node, inferredAST ast.InferredAST) error {
+	// Type assert to VarDecl to access TypeExpr field
+	if varDecl, ok := node.(*ast.VarDecl); ok {
+		// If the VarDecl already has a TypeExpr, preserve it
+		if varDecl.TypeExpr != nil {
+			// The original type annotation exists - preserve it
+			// Note: We don't need to do anything special here because
+			// the InferredAST wrapper preserves the original AST structure
+			// including the TypeExpr field.
+
+			// Still traverse children to handle nested inference
+			return at.traverseChildren(node, inferredAST)
+		}
+
+		// No existing type annotation - proceed with normal inference
+		// This is where we could add type inference for untyped variables
+		return at.traverseChildren(node, inferredAST)
+	}
+
+	// Not a VarDecl (shouldn't happen), just traverse children
 	return at.traverseChildren(node, inferredAST)
 }
 

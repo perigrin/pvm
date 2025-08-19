@@ -120,12 +120,14 @@ func NewBinaryExpr(left, right ExpressionNode, operator string, start, end Posit
 		Operator: operator,
 	}
 
-	// Add children
+	// Set parent relationships manually to ensure correct type
 	if left != nil {
-		expr.AddChild(left)
+		left.SetParent(expr)
+		expr.BaseNode.children = append(expr.BaseNode.children, left)
 	}
 	if right != nil {
-		expr.AddChild(right)
+		right.SetParent(expr)
+		expr.BaseNode.children = append(expr.BaseNode.children, right)
 	}
 
 	return expr

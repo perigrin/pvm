@@ -10,7 +10,6 @@ import (
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/compiler/pipeline"
 	"tamarou.com/pvm/internal/current"
-	"tamarou.com/pvm/internal/inference"
 	"tamarou.com/pvm/internal/types"
 )
 
@@ -102,15 +101,6 @@ func (itpc *InferredTypedPerlCompiler) Validate(inputAST AST) error {
 		}
 	}
 
-	// Handle typed nil case (common Go interface gotcha)
-	//nolint:sloppyTypeAssert // Type assertion from interface to concrete type is intentional
-	if concreteAST, ok := inputAST.(*ast.AST); ok && concreteAST == nil {
-		return &CompilerError{
-			Code:    "INVALID_AST",
-			Message: "AST cannot be nil",
-		}
-	}
-
 	root, err := inputAST.GetRootNode()
 	if err != nil || root == nil {
 		return &CompilerError{
@@ -129,41 +119,46 @@ func (itpc *InferredTypedPerlCompiler) Compile(inputAST AST) (string, error) {
 		return "", err
 	}
 
-	// Extract underlying *ast.AST from adapter if needed
-	var astImpl *ast.AST
-
-	// Try direct cast first
-	//nolint:sloppyTypeAssert // Type assertion from interface to concrete type is intentional
-	if directAST, ok := inputAST.(*ast.AST); ok {
-		astImpl = directAST
-		//nolint:sloppyTypeAssert // Type assertion from interface to concrete type is intentional
-	} else if adapter, ok := inputAST.(*ParserASTAdapter); ok {
-		// Extract from adapter
-		astImpl = adapter.ast
-	} else {
-		return "", &CompilerError{
-			Code:    "INVALID_AST_TYPE",
-			Message: "AST must be *ast.AST or ParserASTAdapter for type inference",
-		}
-	}
-
-	if astImpl == nil {
-		return "", &CompilerError{
-			Code:    "INVALID_AST",
-			Message: "Underlying AST is nil",
-		}
-	}
-
-	// Perform type inference on the AST
-	inferenceEngine := inference.NewTypeInferenceEngine()
-	inferredAST, err := inferenceEngine.InferTypes(astImpl)
+	// Use CST-based compilation directly (like CompileInferred does)
+	content, err := inputAST.GetContent()
 	if err != nil {
 		return "", &CompilerError{
-			Code:    "INFERENCE_FAILED",
-			Message: fmt.Sprintf("Type inference failed: %v", err),
+			Code:    "COMPILATION_FAILED",
+			Message: fmt.Sprintf("Failed to get source content: %v", err),
 		}
 	}
-	return itpc.CompileInferred(inferredAST)
+
+	// Re-parse using tree-sitter to get CST that preserves type annotations
+	cstAST, err := NewCSTBasedAST(inputAST.GetPath(), content)
+	if err != nil {
+		return "", &CompilerError{
+			Code:    "COMPILATION_FAILED",
+			Message: fmt.Sprintf("Failed to parse content for CST: %v", err),
+		}
+	}
+
+	// Use CreateTypedPerl to preserve existing type annotations
+	result, err := CreateTypedPerl(cstAST.Root, []byte(content))
+	if err != nil {
+		return "", &CompilerError{
+			Code:    "COMPILATION_FAILED",
+			Message: fmt.Sprintf("Failed to create typed Perl: %v", err),
+		}
+	}
+
+	if !result.Success {
+		errorMsg := "CST transformation failed"
+		if result.Error != nil {
+			errorMsg = result.Error.Error()
+		}
+		return "", &CompilerError{
+			Code:    "COMPILATION_FAILED",
+			Message: errorMsg,
+		}
+	}
+
+	// Add version pragma
+	return itpc.addPerlVersionPragma(result.TransformedCode), nil
 }
 
 // CompileInferred generates typed Perl code from an already-inferred AST with type information
@@ -183,7 +178,6 @@ func (itpc *InferredTypedPerlCompiler) CompileInferred(inferredAST ast.InferredA
 		}
 	}
 
-	// For now, use a simplified approach similar to other compilers
 	// Get the original source content
 	content, err := inferredAST.GetContent()
 	if err != nil {
@@ -193,20 +187,43 @@ func (itpc *InferredTypedPerlCompiler) CompileInferred(inferredAST ast.InferredA
 		}
 	}
 
-	// For integration testing, start with adding the pragma and preserving most content
-	// Add actual type inference annotations based on inferredAST.GetAllTypeInfo()
-	result := itpc.addPerlVersionPragma(content)
-
-	// Apply type annotations based on inference results
-	annotatedResult, err := itpc.addInferenceAnnotations(inferredAST, result)
+	// Use CST-based compilation like the working TargetTypedPerl path
+	// Re-parse content using tree-sitter to get CST that preserves type annotations
+	cstAST, err := NewCSTBasedAST(inferredAST.GetPath(), content)
 	if err != nil {
 		return "", &CompilerError{
-			Code:    "ANNOTATION_FAILED",
-			Message: fmt.Sprintf("Failed to add type annotations: %v", err),
+			Code:    "COMPILATION_FAILED",
+			Message: fmt.Sprintf("Failed to parse content for CST: %v", err),
 		}
 	}
 
-	return annotatedResult, nil
+	// Use CreateTypedPerl to preserve existing type annotations (like --disable-inference)
+	result, err := CreateTypedPerl(cstAST.Root, []byte(content))
+	if err != nil {
+		return "", &CompilerError{
+			Code:    "COMPILATION_FAILED",
+			Message: fmt.Sprintf("Failed to create typed Perl: %v", err),
+		}
+	}
+
+	if !result.Success {
+		errorMsg := "CST transformation failed"
+		if result.Error != nil {
+			errorMsg = result.Error.Error()
+		}
+		return "", &CompilerError{
+			Code:    "COMPILATION_FAILED",
+			Message: errorMsg,
+		}
+	}
+
+	// Add version pragma
+	finalResult := itpc.addPerlVersionPragma(result.TransformedCode)
+
+	// TODO: Add inferred type annotations for variables that don't have explicit types
+	// For now, we preserve existing types and this fixes the main issue
+
+	return finalResult, nil
 }
 
 // addInferenceAnnotations adds type annotations based on inference results using the transformation pipeline
@@ -399,6 +416,7 @@ func (nc *nodeCompiler) compileNode(node ast.Node) (string, error) {
 	}
 
 	nodeType := node.Type()
+	fmt.Printf("DEBUG INFERRED COMPILER: compileNode type=%s text='%s'\n", nodeType, node.Text())
 
 	// Handle tree-sitter specific node types
 	switch nodeType {
@@ -451,6 +469,10 @@ func (nc *nodeCompiler) compileNode(node ast.Node) (string, error) {
 			return nc.compileUseStmt(n)
 		case *ast.PackageStmt:
 			return nc.compilePackageStmt(n)
+		case *ast.LiteralExpr:
+			return nc.compileLiteralExpr(n)
+		case *ast.VariableExpr:
+			return nc.compileVariableExpr(n)
 		default:
 			// For other node types, compile children
 			return nc.compileGenericNode(node)
@@ -484,6 +506,68 @@ func (nc *nodeCompiler) compileProgramStmt(node *ast.ProgramStmt) (string, error
 	return strings.Join(parts, "\n"), nil
 }
 
+// compileTypeExpression compiles a type expression to its string representation
+func (nc *nodeCompiler) compileTypeExpression(typeExpr *ast.TypeExpression) (string, error) {
+	if typeExpr == nil {
+		return "", nil
+	}
+
+	// Handle different type expression kinds
+	switch typeExpr.Kind {
+	case ast.SimpleTypeKind:
+		return typeExpr.Name, nil
+	case ast.ParameterizedTypeKind:
+		// e.g., ArrayRef[Int]
+		if len(typeExpr.Parameters) > 0 {
+			params := make([]string, 0, len(typeExpr.Parameters))
+			for _, param := range typeExpr.Parameters {
+				paramStr, err := nc.compileTypeExpression(param)
+				if err != nil {
+					return "", err
+				}
+				params = append(params, paramStr)
+			}
+			return typeExpr.Name + "[" + strings.Join(params, ", ") + "]", nil
+		}
+		return typeExpr.Name, nil
+	case ast.UnionTypeKind:
+		// e.g., Int|Str
+		parts := []string{typeExpr.Name}
+		for _, param := range typeExpr.Parameters {
+			paramStr, err := nc.compileTypeExpression(param)
+			if err != nil {
+				return "", err
+			}
+			parts = append(parts, paramStr)
+		}
+		return strings.Join(parts, "|"), nil
+	case ast.IntersectionTypeKind:
+		// e.g., Object&Serializable
+		parts := []string{typeExpr.Name}
+		for _, param := range typeExpr.Parameters {
+			paramStr, err := nc.compileTypeExpression(param)
+			if err != nil {
+				return "", err
+			}
+			parts = append(parts, paramStr)
+		}
+		return strings.Join(parts, "&"), nil
+	case ast.NegationTypeKind:
+		// e.g., !Undef
+		if len(typeExpr.Parameters) > 0 {
+			paramStr, err := nc.compileTypeExpression(typeExpr.Parameters[0])
+			if err != nil {
+				return "", err
+			}
+			return "!" + paramStr, nil
+		}
+		return "!" + typeExpr.Name, nil
+	default:
+		// Fallback: just use the name
+		return typeExpr.Name, nil
+	}
+}
+
 // compileVarDecl compiles a variable declaration with type annotations
 func (nc *nodeCompiler) compileVarDecl(node *ast.VarDecl) (string, error) {
 	var parts []string
@@ -491,19 +575,36 @@ func (nc *nodeCompiler) compileVarDecl(node *ast.VarDecl) (string, error) {
 	// Start with declaration type (my, our, state)
 	parts = append(parts, node.DeclType)
 
+	// Check if this VarDecl already has a type annotation (from typed Perl source)
+	fmt.Printf("DEBUG INFERRED COMPILER: VarDecl TypeExpr: %v\n", node.TypeExpr != nil)
+	if node.TypeExpr != nil {
+		fmt.Printf("DEBUG INFERRED COMPILER: TypeExpr Name: %s, Kind: %v\n", node.TypeExpr.Name, node.TypeExpr.Kind)
+		// Preserve the original type annotation
+		typeStr, err := nc.compileTypeExpression(node.TypeExpr)
+		fmt.Printf("DEBUG INFERRED COMPILER: Compiled to: %s (err: %v)\n", typeStr, err)
+		if err == nil && typeStr != "" {
+			parts = append(parts, typeStr)
+		}
+	}
+
 	// Process variables with potential type annotations
 	var varDecls []string
 	for _, variable := range node.Variables() {
-		// Try to get type info for this specific variable
-		varTypeInfo := nc.getVariableTypeInfo(variable)
-
-		if varTypeInfo != nil && varTypeInfo.Confidence >= nc.options.MinimumConfidence {
-			// Add type annotation based on style
-			varDecl := nc.formatVariableWithType(variable, varTypeInfo)
-			varDecls = append(varDecls, varDecl)
-		} else {
-			// No type info or low confidence, use plain variable
+		// If we already have a type annotation from the source, just use the variable name
+		if node.TypeExpr != nil {
 			varDecls = append(varDecls, variable.FullName())
+		} else {
+			// Try to get inferred type info for this specific variable
+			varTypeInfo := nc.getVariableTypeInfo(variable)
+
+			if varTypeInfo != nil && varTypeInfo.Confidence >= nc.options.MinimumConfidence {
+				// Add type annotation based on style
+				varDecl := nc.formatVariableWithType(variable, varTypeInfo)
+				varDecls = append(varDecls, varDecl)
+			} else {
+				// No type info or low confidence, use plain variable
+				varDecls = append(varDecls, variable.FullName())
+			}
 		}
 	}
 
@@ -1076,6 +1177,16 @@ func (nc *nodeCompiler) compileGenericNode(node ast.Node) (string, error) {
 	}
 
 	return strings.Join(parts, " "), nil
+}
+
+// compileLiteralExpr compiles literal expressions
+func (nc *nodeCompiler) compileLiteralExpr(node *ast.LiteralExpr) (string, error) {
+	return node.Value, nil
+}
+
+// compileVariableExpr compiles variable expressions
+func (nc *nodeCompiler) compileVariableExpr(node *ast.VariableExpr) (string, error) {
+	return node.FullName(), nil
 }
 
 // Tree-sitter node compilation methods

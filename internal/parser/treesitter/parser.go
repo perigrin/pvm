@@ -991,7 +991,24 @@ func (p *Parser) convertAssignmentToVarDeclAST(node Node, start, end ast.Positio
 		case "scalar", "array", "hash":
 			varName := p.extractVariableName(child)
 			if varName != "" {
-				variables = append(variables, ast.NewVariableExpr("", varName, start, end))
+				// Determine sigil from node type
+				var sigil string
+				switch child.Type() {
+				case "scalar":
+					sigil = "$"
+				case "array":
+					sigil = "@"
+				case "hash":
+					sigil = "%"
+				default:
+					sigil = "$" // default
+				}
+				// Extract name without sigil if varName includes it
+				name := varName
+				if len(varName) > 1 && (varName[0] == '$' || varName[0] == '@' || varName[0] == '%') {
+					name = varName[1:]
+				}
+				variables = append(variables, ast.NewVariableExpr(name, sigil, start, end))
 			}
 		}
 	}
@@ -1970,7 +1987,24 @@ func (p *Parser) parseVariableDeclarationWithInitializer(varDeclNode Node, initi
 		case "scalar", "array", "hash":
 			varName := p.extractVariableName(child)
 			if varName != "" {
-				variables = append(variables, ast.NewVariableExpr("", varName, start, end))
+				// Determine sigil from node type
+				var sigil string
+				switch child.Type() {
+				case "scalar":
+					sigil = "$"
+				case "array":
+					sigil = "@"
+				case "hash":
+					sigil = "%"
+				default:
+					sigil = "$" // default
+				}
+				// Extract name without sigil if varName includes it
+				name := varName
+				if len(varName) > 1 && (varName[0] == '$' || varName[0] == '@' || varName[0] == '%') {
+					name = varName[1:]
+				}
+				variables = append(variables, ast.NewVariableExpr(name, sigil, start, end))
 			}
 		}
 	}
@@ -2015,8 +2049,8 @@ func (p *Parser) parseInitializerExpression(node Node, start, end ast.Position) 
 		// This is critical for safety analysis: $input->{name}
 		return ast.NewLiteralExpr(nodeText, ast.HashAccessLiteral, start, end)
 	case "array_element_expression":
-		// Array access: $data->[0]
-		return ast.NewLiteralExpr(nodeText, ast.ArrayAccessLiteral, start, end)
+		// Array access: $data->[0] - convert to proper ArrayRefExpr
+		return p.parseArrayElementExpression(node, start, end)
 	case "method_call_expression":
 		// Method call: $obj->method()
 		return ast.NewLiteralExpr(nodeText, ast.MethodCallLiteral, start, end)
@@ -2029,14 +2063,17 @@ func (p *Parser) parseInitializerExpression(node Node, start, end ast.Position) 
 	case "scalar":
 		// Variable reference: $variable
 		varName := strings.TrimPrefix(nodeText, "$")
-		return ast.NewVariableExpr("", varName, start, end)
+		return ast.NewVariableExpr(varName, "$", start, end)
 	case "number", "integer":
 		return ast.NewLiteralExpr(nodeText, ast.NumberLiteral, start, end)
 	case "string_literal", "string":
 		return ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end)
+	case "interpolated_string_literal":
+		// String interpolation: "Price: $variable" - parse variables inside
+		return p.parseInterpolatedString(node, start, end)
 	case "binary_expression":
-		// Complex expressions like $config->{timeout} // 30
-		return ast.NewLiteralExpr(nodeText, ast.BinaryExpressionLiteral, start, end)
+		// Binary expressions like $maybe_price * 0.1 - convert to proper BinaryExpr
+		return p.parseBinaryExpression(node, start, end)
 	default:
 		// Fallback: treat as generic expression
 		return ast.NewLiteralExpr(nodeText, ast.ExpressionLiteral, start, end)
@@ -2071,7 +2108,7 @@ func (p *Parser) parseSimpleExpression(node Node) ast.ExpressionNode {
 	case "scalar":
 		// Variable reference
 		varName := strings.TrimPrefix(nodeText, "$")
-		return ast.NewVariableExpr("", varName, start, end)
+		return ast.NewVariableExpr(varName, "$", start, end)
 	default:
 		// For other types, treat as literal
 		return ast.NewLiteralExpr(nodeText, ast.StringLiteral, start, end)
@@ -2863,6 +2900,178 @@ func extractParameterFromValueConstraint(text string) string {
 	return ""
 }
 
+// parseArrayElementExpression converts array_element_expression to ArrayRefExpr
+func (p *Parser) parseArrayElementExpression(node Node, start, end ast.Position) ast.ExpressionNode {
+	if node == nil {
+		return nil
+	}
+
+	// Parse array_element_expression: $data->[0]
+	// This should have children: the array expression and the index expression
+	children := node.Children()
+	if len(children) < 2 {
+		// Fallback to literal if we can't parse properly
+		return ast.NewLiteralExpr(node.Text(), ast.ArrayAccessLiteral, start, end)
+	}
+
+	var arrayExpr, indexExpr ast.ExpressionNode
+
+	// Find the array (left side) and index (inside brackets)
+	for _, child := range children {
+		childType := child.Type()
+
+		switch childType {
+		case "scalar", "variable":
+			// This is the array variable: $data
+			if arrayExpr == nil {
+				arrayExpr = p.parseSimpleExpression(child)
+			}
+		case "number", "string_literal":
+			// This is the index: 0
+			if indexExpr == nil {
+				indexExpr = p.parseSimpleExpression(child)
+			}
+		default:
+			// Try to parse as expression
+			if expr := p.parseSimpleExpression(child); expr != nil {
+				if arrayExpr == nil {
+					arrayExpr = expr
+				} else if indexExpr == nil {
+					indexExpr = expr
+				}
+			}
+		}
+	}
+
+	// Create ArrayRefExpr if we found both parts
+	if arrayExpr != nil && indexExpr != nil {
+		return ast.NewArrayRefExpr(arrayExpr, indexExpr, start, end)
+	}
+
+	// Fallback to literal if parsing failed
+	return ast.NewLiteralExpr(node.Text(), ast.ArrayAccessLiteral, start, end)
+}
+
+// parseBinaryExpression converts binary_expression to BinaryExpr
+func (p *Parser) parseBinaryExpression(node Node, start, end ast.Position) ast.ExpressionNode {
+	if node == nil {
+		return nil
+	}
+
+	// Parse binary_expression: $maybe_price * 0.1
+	// This should have children: left expression, operator, right expression
+	children := node.Children()
+	if len(children) < 3 {
+		// Fallback to literal if we can't parse properly
+		return ast.NewLiteralExpr(node.Text(), ast.BinaryExpressionLiteral, start, end)
+	}
+
+	var leftExpr, rightExpr ast.ExpressionNode
+	var operator string
+
+	// Find left operand, operator, and right operand
+	for _, child := range children {
+		childType := child.Type()
+		childText := strings.TrimSpace(child.Text())
+
+		switch childType {
+		case "scalar", "variable", "number", "string_literal":
+			// This is an operand
+			expr := p.parseSimpleExpression(child)
+			if leftExpr == nil {
+				leftExpr = expr
+			} else if rightExpr == nil {
+				rightExpr = expr
+			}
+		default:
+			// Check if this is an operator token
+			if childText != "" && len(childText) <= 3 && !strings.Contains(childText, " ") {
+				// This looks like an operator: +, -, *, /, //, etc.
+				if operator == "" {
+					operator = childText
+				}
+			} else {
+				// Try to parse as expression
+				if expr := p.parseSimpleExpression(child); expr != nil {
+					if leftExpr == nil {
+						leftExpr = expr
+					} else if rightExpr == nil {
+						rightExpr = expr
+					}
+				}
+			}
+		}
+	}
+
+	// Create BinaryExpr if we found all parts
+	if leftExpr != nil && rightExpr != nil && operator != "" {
+		return ast.NewBinaryExpr(leftExpr, rightExpr, operator, start, end)
+	}
+
+	// Fallback to literal if parsing failed
+	return ast.NewLiteralExpr(node.Text(), ast.BinaryExpressionLiteral, start, end)
+}
+
+// parseInterpolatedString parses string interpolation and extracts variables
+func (p *Parser) parseInterpolatedString(node Node, start, end ast.Position) ast.ExpressionNode {
+	if node == nil {
+		return nil
+	}
+
+	// Create a literal for the string itself
+	stringLiteral := ast.NewLiteralExpr(node.Text(), ast.StringLiteral, start, end)
+
+	// Parse children to find interpolated variables
+	children := node.Children()
+	for _, child := range children {
+		if child.Type() == "string_content" {
+			// Parse variables inside string content
+			p.parseStringContentVariables(child, stringLiteral)
+		} else if child.Type() == "scalar" {
+			// Found a variable inside the string: $variable
+			varText := child.Text()
+			if len(varText) > 1 && varText[0] == '$' {
+				varName := varText[1:] // Remove $ sigil
+
+				// Create variable expression with string as parent
+				childStart := ast.Position{Line: start.Line, Column: start.Column}
+				childEnd := ast.Position{Line: start.Line, Column: start.Column}
+				varExpr := ast.NewVariableExpr(varName, "$", childStart, childEnd)
+
+				// Set parent relationship for context detection
+				varExpr.SetParent(stringLiteral)
+				stringLiteral.AddChild(varExpr)
+			}
+		}
+	}
+
+	return stringLiteral
+}
+
+// parseStringContentVariables parses variables inside string_content nodes
+func (p *Parser) parseStringContentVariables(contentNode Node, parentString *ast.LiteralExpr) {
+	children := contentNode.Children()
+	for _, child := range children {
+		if child.Type() == "scalar" {
+			// Found a variable inside the string: $variable
+			varText := child.Text()
+			if len(varText) > 1 && varText[0] == '$' {
+				varName := varText[1:] // Remove $ sigil
+
+				// Create variable expression with string as parent
+				childStart := ast.Position{Line: 1, Column: 1}
+				childEnd := ast.Position{Line: 1, Column: 1}
+				varExpr := ast.NewVariableExpr(varName, "$", childStart, childEnd)
+
+				// Set parent relationship for context detection
+				varExpr.SetParent(parentString)
+				parentString.AddChild(varExpr)
+			}
+		}
+	}
+}
+
+// extractMethodDecl extracts method declaration information from a node
 func (p *Parser) extractMethodDecl(stmt Node) *ast.MethodDecl {
 	start := ast.Position{Line: stmt.Start().Line, Column: stmt.Start().Column}
 	end := ast.Position{Line: stmt.End().Line, Column: stmt.End().Column}

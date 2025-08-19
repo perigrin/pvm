@@ -289,6 +289,21 @@ func (fa *FlowAnalyzer) processNode(node ast.Node, currentBlock *BasicBlock, blo
 		return fa.processGivenWhen(node, currentBlock, blockID, cfg)
 	case "sub_decl", "method_decl":
 		return fa.processSubroutine(node, currentBlock, blockID, cfg)
+	case "expression_statement":
+		// Extract the actual statement from expression_statement wrapper
+		for _, child := range node.Children() {
+			if child.Type() != "token" {
+				// Process the inner statement (e.g., var_decl)
+				return fa.processNode(child, currentBlock, blockID, cfg)
+			}
+		}
+		return currentBlock, blockID, nil
+	case "var_decl":
+		// Variable declarations are significant statements for CFG
+		currentBlock.Statements = append(currentBlock.Statements, node)
+		// Update type state based on this statement
+		fa.updateTypeStateForStatement(node, currentBlock)
+		return currentBlock, blockID, nil
 	default:
 		// Regular statement - add to current block
 		currentBlock.Statements = append(currentBlock.Statements, node)
@@ -300,8 +315,39 @@ func (fa *FlowAnalyzer) processNode(node ast.Node, currentBlock *BasicBlock, blo
 
 // processSubroutine handles subroutine declarations by processing their body statements
 func (fa *FlowAnalyzer) processSubroutine(node ast.Node, currentBlock *BasicBlock, blockID int, cfg *ControlFlowGraph) (*BasicBlock, int, error) {
-	// For subroutines, we need to process the statements in the body
-	// First, find the body (typically a block_stmt child)
+	// Initialize type state if needed
+	if currentBlock.TypeState == nil {
+		currentBlock.TypeState = &TypeState{
+			VariableTypes: make(map[string]string),
+		}
+	}
+	if currentBlock.ExitTypeState == nil {
+		currentBlock.ExitTypeState = &TypeState{
+			VariableTypes: make(map[string]string),
+		}
+	}
+
+	// First, process parameters - they are Any type unless explicitly typed
+	if subDecl, ok := node.(*ast.SubDecl); ok {
+		for _, param := range subDecl.Parameters() {
+			if param != nil {
+				paramName := param.Name
+				if paramName != "" {
+					// Parameters default to Any (which already includes undef)
+					paramType := "Any"
+					if param.TypeExpr != nil {
+						// Use the explicit type annotation
+						paramType = fa.extractTypeFromTypeExpression(param.TypeExpr)
+					}
+					currentBlock.TypeState.VariableTypes[paramName] = paramType
+					currentBlock.ExitTypeState.VariableTypes[paramName] = paramType
+				}
+			}
+		}
+	}
+
+	// Now process the statements in the body
+	// Find the body (typically a block_stmt child)
 	for _, child := range node.Children() {
 		if child.Type() == "block_stmt" {
 			// Process each statement in the block
@@ -1506,7 +1552,7 @@ func (fa *FlowAnalyzer) inferTypeFromExpression(expr ast.ExpressionNode) string 
 		if hashRef, ok := expr.(*ast.HashRefExpr); ok {
 			return fa.inferTypeFromHashAccess(hashRef)
 		}
-	case "array_ref_expr":
+	case "array_ref_expr", "array_element_expression", "array_ref":
 		if arrayRef, ok := expr.(*ast.ArrayRefExpr); ok {
 			return fa.inferTypeFromArrayAccess(arrayRef)
 		}
@@ -1902,7 +1948,7 @@ func (fa *FlowAnalyzer) analyzeSafetyInExpression(expr ast.ExpressionNode, state
 		if hashRef, ok := expr.(*ast.HashRefExpr); ok {
 			errors = append(errors, fa.checkHashFieldSafety(hashRef, state)...)
 		}
-	case "array_ref_expr":
+	case "array_ref_expr", "array_element_expression", "array_ref":
 		if arrayRef, ok := expr.(*ast.ArrayRefExpr); ok {
 			errors = append(errors, fa.checkArrayAccessSafety(arrayRef, state)...)
 		}
@@ -2070,15 +2116,24 @@ func (fa *FlowAnalyzer) checkArrayAccessSafety(arrayRef *ast.ArrayRefExpr, state
 	arrayType := fa.getVariableTypeFromState(varName, state)
 
 	// Check if variable is actually an array reference
-	if !fa.isArrayType(arrayType) && arrayType != "Any" {
-		errors = append(errors, &TypeCheckError{
-			Message: fmt.Sprintf("Array access on non-array variable $%s of type '%s'. "+
+	if !fa.isArrayType(arrayType) {
+		var message string
+		if arrayType == "Any" || arrayType == "" {
+			// Unsafe array access on unknown type
+			message = fmt.Sprintf("unsafe array access: $%s->[0]", varName)
+		} else {
+			// Array access on known non-array type
+			message = fmt.Sprintf("Array access on non-array variable $%s of type '%s'. "+
 				"This may cause 'Not an ARRAY reference' error at runtime. "+
 				"Consider checking: ref($%s) eq 'ARRAY'",
-				varName, arrayType, varName),
-			Path:   "",
-			Line:   arrayRef.Start().Line,
-			Column: arrayRef.Start().Column,
+				varName, arrayType, varName)
+		}
+
+		errors = append(errors, &TypeCheckError{
+			Message: message,
+			Path:    "",
+			Line:    arrayRef.Start().Line,
+			Column:  arrayRef.Start().Column,
 		})
 	}
 
@@ -2220,6 +2275,13 @@ func (fa *FlowAnalyzer) checkBinaryExpressionSafety(binaryExpr *ast.BinaryExpr, 
 		}
 	}
 
+	// Recursively check safety of left and right operands
+	leftSafetyErrors := fa.analyzeSafetyInExpression(binaryExpr.Left, state)
+	errors = append(errors, leftSafetyErrors...)
+
+	rightSafetyErrors := fa.analyzeSafetyInExpression(binaryExpr.Right, state)
+	errors = append(errors, rightSafetyErrors...)
+
 	return errors
 }
 
@@ -2258,8 +2320,9 @@ func (fa *FlowAnalyzer) isUninitializedVariable(varName, varType string, state *
 	// Check if variable was assigned a value
 	if state != nil {
 		if currentType, exists := state.VariableTypes[varName]; exists {
-			// If the variable has been assigned a concrete type (not Maybe[T]), it's safe
-			if !strings.HasPrefix(currentType, "Maybe[") {
+			// Variables with Maybe[T] or Any type could be uninitialized
+			// Any includes undef as a valid value, so we need to check usage context
+			if !strings.HasPrefix(currentType, "Maybe[") && currentType != "Any" {
 				return false
 			}
 		}
@@ -2276,14 +2339,14 @@ func (fa *FlowAnalyzer) isUninitializedVariable(varName, varType string, state *
 		}
 	}
 
-	// Variables with Maybe types are potentially uninitialized, but only if they
-	// haven't been safely assigned a concrete value
-	if strings.HasPrefix(varType, "Maybe[") {
+	// Variables with Maybe types or Any type are potentially uninitialized
+	if strings.HasPrefix(varType, "Maybe[") || varType == "Any" {
 		return true
 	}
 
-	// If variable has an explicit type annotation, it's likely initialized properly
-	if varType != "" && varType != "Str" && !strings.Contains(varType, "|") {
+	// If variable has an explicit concrete type annotation, it's likely initialized properly
+	// But exclude generic types like Str which could still be uninitialized
+	if varType != "" && varType != "Str" && varType != "Any" && !strings.Contains(varType, "|") {
 		return false
 	}
 
@@ -2334,8 +2397,52 @@ func (fa *FlowAnalyzer) looksLikeUnassignedVariable(varName string) bool {
 
 // determineUsageContext determines how a variable is being used
 func (fa *FlowAnalyzer) determineUsageContext(varExpr *ast.VariableExpr) string {
-	// This would need to analyze the parent context in a full implementation
-	// For now, return a default
+	if varExpr == nil || varExpr.Parent() == nil {
+		return "unknown"
+	}
+
+	parent := varExpr.Parent()
+
+	// Check if parent is a binary expression
+	if binaryExpr, ok := parent.(*ast.BinaryExpr); ok {
+		// Check the operator to determine context
+		operator := binaryExpr.Operator
+		if fa.isNumericOperator(operator) {
+			return "numeric"
+		} else if fa.isStringOperator(operator) {
+			return "string"
+		} else if fa.isComparisonOperator(operator) {
+			// Comparison context depends on the other operand
+			return "comparison"
+		}
+	}
+
+	// Check if parent is a string interpolation
+	if parent.Type() == "interpolated_string" || parent.Type() == "string_literal" {
+		return "string"
+	}
+
+	// Check if parent is a literal with string type (from parseInterpolatedString)
+	if literalExpr, ok := parent.(*ast.LiteralExpr); ok && literalExpr.Kind == ast.StringLiteral {
+		return "string"
+	}
+
+	// Check if parent is an array/hash index (numeric context)
+	if parent.Type() == "array_ref" || parent.Type() == "hash_ref" {
+		// Check if this variable is the index/key (numeric/string context)
+		if arrayRef, ok := parent.(*ast.ArrayRefExpr); ok {
+			if arrayRef.Index == varExpr {
+				return "numeric" // Array indices are typically numeric
+			}
+		}
+		if hashRef, ok := parent.(*ast.HashRefExpr); ok {
+			if hashRef.Key == varExpr {
+				return "string" // Hash keys are typically strings
+			}
+		}
+	}
+
+	// Default to string context for safety
 	return "string"
 }
 
@@ -2737,6 +2844,28 @@ func (fa *FlowAnalyzer) getReferenceTypeString(refType string) string {
 func (fa *FlowAnalyzer) isNumericOperator(operator string) bool {
 	numericOps := []string{"+", "-", "*", "/", "%", "**", "==", "!=", "<", ">", "<=", ">=", "++", "--"}
 	for _, op := range numericOps {
+		if operator == op {
+			return true
+		}
+	}
+	return false
+}
+
+// isStringOperator checks if an operator is primarily used for string operations
+func (fa *FlowAnalyzer) isStringOperator(operator string) bool {
+	stringOps := []string{".", "x", "cmp", "eq", "ne", "lt", "gt", "le", "ge"}
+	for _, op := range stringOps {
+		if operator == op {
+			return true
+		}
+	}
+	return false
+}
+
+// isComparisonOperator checks if an operator is used for comparison
+func (fa *FlowAnalyzer) isComparisonOperator(operator string) bool {
+	compOps := []string{"<=>", "cmp", "~~"}
+	for _, op := range compOps {
 		if operator == op {
 			return true
 		}

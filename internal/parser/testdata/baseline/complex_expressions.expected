@@ -7,17 +7,23 @@ AST {
     expression_statement
       var_decl
         variable
-        literal
+        binary_expr
+          variable
+          literal
     token
     expression_statement
       var_decl
         variable
-        literal
+        binary_expr
+          literal
+          literal
     token
     expression_statement
       var_decl
         variable
-        literal
+        array_ref
+          literal
+          literal
     token
     expression_statement
       var_decl
