@@ -207,3 +207,7 @@ local/
 test/e2e/local/
 issues_analysis.json
 vendor/
+
+# Planning and documentation files (private)
+*_PLAN.md
+TREE_SITTER_SHIM_RESTORATION_PLAN.md
