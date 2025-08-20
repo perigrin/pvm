@@ -86,14 +86,21 @@ func (pc *PipelineCompiler) Compile(ast AST) (string, error) {
 		return "", NewCompilerError(ErrInvalidAST, "failed to get AST content").WithCause(err)
 	}
 
+	// Phase 5 Task 7: Check if AST already has CST to avoid re-parsing
+	var cstRoot *sitter.Node
+
 	// Check if this is already a CST-based AST
-	//nolint:go-critic
-	if cstAST, ok := ast.(*CSTBasedAST); ok {
+	if cstAST, ok := ast.(*CSTBasedAST); ok { //nolint:gocritic // sloppyTypeAssert
 		return pc.compileFromCST(cstAST.GetCSTRoot(), []byte(content))
 	}
 
-	// For other AST types, we need to re-parse the content to get CST
-	// This is for backward compatibility with existing AST types
+	// Try to get CST directly from tree-sitter backed AST
+	if cstProvider, ok := ast.(interface{ GetCSTRoot() *sitter.Node }); ok { //nolint:gocritic // sloppyTypeAssert
+		cstRoot = cstProvider.GetCSTRoot()
+		return pc.compileFromCST(cstRoot, []byte(content))
+	}
+
+	// Fallback: Re-parse if not a tree-sitter backed AST (backward compatibility)
 	cstAST, err := NewCSTBasedAST(ast.GetPath(), content)
 	if err != nil {
 		return "", NewCompilerError(ErrInvalidAST, "failed to create CST from content").WithCause(err)
@@ -155,13 +162,15 @@ func (pc *PipelineCompiler) GetTransformationSteps(ast AST) (*pipeline.Transform
 		return nil, NewCompilerError(ErrInvalidAST, "failed to get AST content").WithCause(err)
 	}
 
-	// Get CST root
+	// Phase 5 Task 7: Get CST root directly if available
 	var root *sitter.Node
-	//nolint:go-critic
-	if cstAST, ok := ast.(*CSTBasedAST); ok {
+	if cstAST, ok := ast.(*CSTBasedAST); ok { //nolint:gocritic // sloppyTypeAssert
 		root = cstAST.GetCSTRoot()
+	} else if cstProvider, ok := ast.(interface{ GetCSTRoot() *sitter.Node }); ok { //nolint:gocritic // sloppyTypeAssert
+		// Try to get CST directly from tree-sitter backed AST
+		root = cstProvider.GetCSTRoot()
 	} else {
-		// Re-parse for backward compatibility
+		// Fallback: Re-parse for backward compatibility
 		cstAST, err := NewCSTBasedAST(ast.GetPath(), content)
 		if err != nil {
 			return nil, NewCompilerError(ErrInvalidAST, "failed to create CST from content").WithCause(err)

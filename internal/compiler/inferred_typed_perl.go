@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	sitter "github.com/tree-sitter/go-tree-sitter"
 	"tamarou.com/pvm/internal/ast"
 	"tamarou.com/pvm/internal/compiler/pipeline"
 	"tamarou.com/pvm/internal/current"
@@ -119,26 +120,44 @@ func (itpc *InferredTypedPerlCompiler) Compile(inputAST AST) (string, error) {
 		return "", err
 	}
 
-	// Use CST-based compilation directly (like CompileInferred does)
-	content, err := inputAST.GetContent()
-	if err != nil {
-		return "", &CompilerError{
-			Code:    "COMPILATION_FAILED",
-			Message: fmt.Sprintf("Failed to get source content: %v", err),
-		}
-	}
+	// Phase 5 Task 7: Check if AST already has CST to avoid re-parsing
+	var cstRoot *sitter.Node
+	var content string
+	var err error
 
-	// Re-parse using tree-sitter to get CST that preserves type annotations
-	cstAST, err := NewCSTBasedAST(inputAST.GetPath(), content)
-	if err != nil {
-		return "", &CompilerError{
-			Code:    "COMPILATION_FAILED",
-			Message: fmt.Sprintf("Failed to parse content for CST: %v", err),
+	// Try to get CST directly from tree-sitter backed AST
+	if cstProvider, ok := inputAST.(interface{ GetCSTRoot() *sitter.Node }); ok { //nolint:gocritic // sloppyTypeAssert
+		cstRoot = cstProvider.GetCSTRoot()
+		content, err = inputAST.GetContent()
+		if err != nil {
+			return "", &CompilerError{
+				Code:    "COMPILATION_FAILED",
+				Message: fmt.Sprintf("Failed to get source content: %v", err),
+			}
 		}
+	} else {
+		// Fallback: Re-parse if not a tree-sitter backed AST (backward compatibility)
+		content, err = inputAST.GetContent()
+		if err != nil {
+			return "", &CompilerError{
+				Code:    "COMPILATION_FAILED",
+				Message: fmt.Sprintf("Failed to get source content: %v", err),
+			}
+		}
+
+		// Only re-parse if we don't already have the CST
+		cstAST, err := NewCSTBasedAST(inputAST.GetPath(), content)
+		if err != nil {
+			return "", &CompilerError{
+				Code:    "COMPILATION_FAILED",
+				Message: fmt.Sprintf("Failed to parse content for CST: %v", err),
+			}
+		}
+		cstRoot = cstAST.Root
 	}
 
 	// Use CreateTypedPerl to preserve existing type annotations
-	result, err := CreateTypedPerl(cstAST.Root, []byte(content))
+	result, err := CreateTypedPerl(cstRoot, []byte(content))
 	if err != nil {
 		return "", &CompilerError{
 			Code:    "COMPILATION_FAILED",
@@ -178,27 +197,45 @@ func (itpc *InferredTypedPerlCompiler) CompileInferred(inferredAST ast.InferredA
 		}
 	}
 
-	// Get the original source content
-	content, err := inferredAST.GetContent()
-	if err != nil {
-		return "", &CompilerError{
-			Code:    "COMPILATION_FAILED",
-			Message: fmt.Sprintf("Failed to get source content: %v", err),
-		}
-	}
+	// Phase 5 Task 7: Check if InferredAST has underlying CST to avoid re-parsing
+	var cstRoot *sitter.Node
+	var content string
+	var err error
 
-	// Use CST-based compilation like the working TargetTypedPerl path
-	// Re-parse content using tree-sitter to get CST that preserves type annotations
-	cstAST, err := NewCSTBasedAST(inferredAST.GetPath(), content)
-	if err != nil {
-		return "", &CompilerError{
-			Code:    "COMPILATION_FAILED",
-			Message: fmt.Sprintf("Failed to parse content for CST: %v", err),
+	// InferredAST may wrap a tree-sitter backed AST
+	// Try to get CST directly if available
+	if cstProvider, ok := inferredAST.(interface{ GetCSTRoot() *sitter.Node }); ok { //nolint:gocritic // sloppyTypeAssert
+		cstRoot = cstProvider.GetCSTRoot()
+		content, err = inferredAST.GetContent()
+		if err != nil {
+			return "", &CompilerError{
+				Code:    "COMPILATION_FAILED",
+				Message: fmt.Sprintf("Failed to get source content: %v", err),
+			}
 		}
+	} else {
+		// Fallback: Re-parse if CST not available (backward compatibility)
+		content, err = inferredAST.GetContent()
+		if err != nil {
+			return "", &CompilerError{
+				Code:    "COMPILATION_FAILED",
+				Message: fmt.Sprintf("Failed to get source content: %v", err),
+			}
+		}
+
+		// Only re-parse if we don't already have the CST
+		cstAST, err := NewCSTBasedAST(inferredAST.GetPath(), content)
+		if err != nil {
+			return "", &CompilerError{
+				Code:    "COMPILATION_FAILED",
+				Message: fmt.Sprintf("Failed to parse content for CST: %v", err),
+			}
+		}
+		cstRoot = cstAST.Root
 	}
 
 	// Use CreateTypedPerl to preserve existing type annotations (like --disable-inference)
-	result, err := CreateTypedPerl(cstAST.Root, []byte(content))
+	result, err := CreateTypedPerl(cstRoot, []byte(content))
 	if err != nil {
 		return "", &CompilerError{
 			Code:    "COMPILATION_FAILED",
