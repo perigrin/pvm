@@ -248,3 +248,130 @@ func TestCSTBasedCompilationPath(t *testing.T) {
 	t.Logf("CST-based compilation path successful")
 	t.Logf("Result: %s", result)
 }
+
+// TestTreeSitterShimTypePreservation tests complex type preservation through complete workflow
+func TestTreeSitterShimTypePreservation(t *testing.T) {
+	complexTypes := []struct {
+		name     string
+		code     string
+		contains []string
+	}{
+		{
+			name:     "simple_types",
+			code:     `my Int $age = 30; my Str $name = "John";`,
+			contains: []string{"Int", "Str"},
+		},
+		{
+			name:     "parameterized_types",
+			code:     `my ArrayRef[Int] $scores = [95, 87, 92];`,
+			contains: []string{"ArrayRef[Int]"},
+		},
+		{
+			name:     "nested_parameterized",
+			code:     `my HashRef[ArrayRef[Str]] $data = { names => ["Alice", "Bob"] };`,
+			contains: []string{"HashRef[ArrayRef[Str]]"},
+		},
+		{
+			name:     "union_types",
+			code:     `my Int|Str $value = 42;`,
+			contains: []string{"Int|Str"},
+		},
+		{
+			name: "method_signatures",
+			code: `
+class Calculator {
+    method add(Int $a, Int $b) : Int {
+        return $a + $b;
+    }
+}`,
+			contains: []string{"method add(Int $a, Int $b) : Int"},
+		},
+	}
+
+	shimParser, err := parser.NewShimParser()
+	if err != nil {
+		t.Fatalf("Failed to create shim parser: %v", err)
+	}
+
+	// Test with TypedPerl target to preserve annotations
+	compiler := NewPerlCompiler(TargetTypedPerl)
+
+	for _, tc := range complexTypes {
+		t.Run(tc.name, func(t *testing.T) {
+			shimAST, err := shimParser.ParseStringShim(tc.code)
+			if err != nil {
+				t.Fatalf("Failed to parse %s: %v", tc.name, err)
+			}
+
+			output, err := compiler.Compile(shimAST)
+			if err != nil {
+				t.Fatalf("Failed to compile %s: %v", tc.name, err)
+			}
+
+			// Verify type annotations are preserved
+			for _, expected := range tc.contains {
+				if !strings.Contains(output, expected) {
+					t.Errorf("Type annotation %q not preserved in %s.\nOutput: %s", expected, tc.name, output)
+				}
+			}
+		})
+	}
+}
+
+// TestTreeSitterShimInferenceIntegration tests integration with inference engine
+func TestTreeSitterShimInferenceIntegration(t *testing.T) {
+	t.Skip("Skipping until inference integration is fully implemented")
+
+	// This test would verify that:
+	// 1. TreeSitter shim AST works with inference engine
+	// 2. Type information is correctly preserved through inference
+	// 3. InferredTypedPerlCompiler works with tree-sitter backed ASTs
+}
+
+// TestTreeSitterShimPerformanceImprovements tests performance characteristics
+func TestTreeSitterShimPerformanceImprovements(t *testing.T) {
+	// This is more of a documentation test than performance measurement
+	testCode := `
+use v5.38;
+my Int $count = 0;
+for my Int $i (1..100) {
+    $count += $i;
+}
+print "Sum: $count\n";
+`
+
+	shimParser, err := parser.NewShimParser()
+	if err != nil {
+		t.Fatalf("Failed to create shim parser: %v", err)
+	}
+
+	shimAST, err := shimParser.ParseStringShim(testCode)
+	if err != nil {
+		t.Fatalf("Failed to parse code: %v", err)
+	}
+
+	// Verify single-parse efficiency
+	if shimAST.GetCSTRoot() == nil {
+		t.Fatal("TreeSitterAST should provide direct CST access")
+	}
+
+	// Test multiple compilations - all should use same CST
+	compilers := []Compiler{
+		NewPerlCompiler(TargetCleanPerl),
+		NewPerlCompiler(TargetTypedPerl),
+	}
+
+	for _, compiler := range compilers {
+		output, err := compiler.Compile(shimAST)
+		if err != nil {
+			t.Errorf("Compilation failed: %v", err)
+			continue
+		}
+
+		if output == "" {
+			t.Error("Compilation produced empty output")
+		}
+	}
+
+	t.Log("Performance test passed - single parse, multiple compilations successful")
+}
