@@ -54,8 +54,14 @@ func (tc *TypeChecker) checkAssignmentsFromSourceText(filePath string, errors *[
 }
 
 // checkNodeForAssignments checks a node and its children for assignments and field encapsulation violations
+// Enhanced to support tree-sitter backed nodes (Phase 4 Task 6)
 func (tc *TypeChecker) checkNodeForAssignments(node ast.Node, errors *[]error) {
-	// Look for assignment statements
+	// Enhanced tree-sitter support: Handle TreeSitterNode and VarDeclNode types
+	if tc.handleTreeSitterAssignmentNode(node, errors) {
+		return // Tree-sitter specific handling completed
+	}
+
+	// Look for assignment statements (traditional AST handling)
 	if node.Type() == "expression_statement" {
 		nodeText := getNodeText(node)
 
@@ -332,4 +338,214 @@ func (tc *TypeChecker) addFieldEncapsulationError(varName, fieldName string, pos
 	}
 
 	*errors = append(*errors, typeError)
+}
+
+// handleTreeSitterAssignmentNode handles tree-sitter backed nodes for assignment checking
+// This provides enhanced type checking with direct CST access (Phase 4 Task 6)
+func (tc *TypeChecker) handleTreeSitterAssignmentNode(node ast.Node, errors *[]error) bool {
+	// Try tree-sitter backed VarDeclNode first (enhanced variable declarations)
+	if tsVarDecl, ok := node.(*ast.VarDeclNode); ok {
+		tc.handleTreeSitterVarDeclAssignment(tsVarDecl, errors)
+
+		// Still process children to find nested assignments
+		for _, child := range node.Children() {
+			tc.checkNodeForAssignments(child, errors)
+		}
+		return true
+	}
+
+	// Handle TreeSitterNode that might be an assignment or variable declaration
+	if tsNode, ok := node.(*ast.TreeSitterNode); ok {
+		switch tsNode.Type() {
+		case "variable_declaration":
+			// Convert to VarDeclNode for specialized handling
+			if varDeclNode := tsNode.AsVarDecl(); varDeclNode != nil {
+				tc.handleTreeSitterVarDeclAssignment(varDeclNode, errors)
+			}
+
+			// Still process children to find nested assignments
+			for _, child := range node.Children() {
+				tc.checkNodeForAssignments(child, errors)
+			}
+			return true
+
+		case "assignment_expression":
+			// Enhanced assignment expression handling with CST access
+			tc.handleTreeSitterAssignmentExpression(tsNode, errors)
+
+			// Still process children to find nested assignments
+			for _, child := range node.Children() {
+				tc.checkNodeForAssignments(child, errors)
+			}
+			return true
+
+		case "expression_statement":
+			// Check if this expression statement contains assignments
+			nodeText := tsNode.GetTextContent()
+			if strings.Contains(nodeText, "=") && !strings.Contains(nodeText, "==") {
+				tc.checkPossibleAssignment(nodeText, tsNode.Start(), errors)
+			}
+
+			// Check for field encapsulation violations with enhanced CST access
+			tc.checkTreeSitterFieldEncapsulation(tsNode, errors)
+
+			// Still process children to find nested assignments
+			for _, child := range node.Children() {
+				tc.checkNodeForAssignments(child, errors)
+			}
+			return true
+		}
+	}
+
+	return false // Not a tree-sitter node, use traditional handling
+}
+
+// handleTreeSitterVarDeclAssignment handles variable declaration assignments with type checking
+func (tc *TypeChecker) handleTreeSitterVarDeclAssignment(varDecl *ast.VarDeclNode, errors *[]error) {
+	// Extract type information directly from CST
+	if !varDecl.HasTypeAnnotation() {
+		return // No type annotation, no type checking needed
+	}
+
+	typeExpr := varDecl.GetTypeExpression()
+	if typeExpr == nil {
+		return
+	}
+
+	// Get initialization expression
+	initExpr := varDecl.GetInit()
+	if initExpr == nil {
+		return // No initialization, no assignment to check
+	}
+
+	// Get the first variable being declared
+	variables := varDecl.GetVariables()
+	if len(variables) == 0 {
+		return
+	}
+
+	varName := variables[0].Name
+	declaredType := typeExpr.String()
+
+	// Infer the type of the initialization expression
+	initType := tc.inferExpressionType(initExpr.Text())
+	if initType == "" || initType == "Unknown" {
+		return // Can't determine init expression type
+	}
+
+	// Check type compatibility
+	err := tc.CheckAssignment(initType, declaredType, varDecl.GetPosition())
+	if err != nil {
+		*errors = append(*errors, err)
+	}
+
+	// Update our variable type tracking
+	tc.VariableTypes[varName] = declaredType
+	tc.TypeAnnotations[varName] = declaredType
+}
+
+// handleTreeSitterAssignmentExpression handles assignment expressions with enhanced CST access
+func (tc *TypeChecker) handleTreeSitterAssignmentExpression(assignNode *ast.TreeSitterNode, errors *[]error) {
+	// Look for left-hand side (variable) and right-hand side (value) in the CST
+	var lhsNode, rhsNode *ast.TreeSitterNode
+
+	// Assignment expressions typically have: lhs = rhs structure
+	namedChildren := assignNode.GetNamedChildren()
+	if len(namedChildren) >= 2 {
+		// Look for the pattern: variable operator expression
+		for i, child := range namedChildren {
+			if child.Type() == "scalar_variable" || child.Type() == "variable" {
+				lhsNode = child
+				// Find the expression after the assignment operator
+				if i+1 < len(namedChildren) {
+					// Skip operator, get expression
+					for j := i + 1; j < len(namedChildren); j++ {
+						candidate := namedChildren[j]
+						if candidate.Type() != "=" && candidate.Type() != "assignment_operator" {
+							rhsNode = candidate
+							break
+						}
+					}
+				}
+				break
+			}
+		}
+	}
+
+	if lhsNode == nil || rhsNode == nil {
+		// Fallback to text-based parsing
+		nodeText := assignNode.GetTextContent()
+		tc.checkPossibleAssignment(nodeText, assignNode.Start(), errors)
+		return
+	}
+
+	// Extract variable name from LHS
+	varName := tc.extractVariableNameFromTreeSitterNode(lhsNode)
+	if varName == "" {
+		return
+	}
+
+	// Check if we know the type of this variable
+	varType, ok := tc.GetVariableType(varName)
+	if !ok {
+		// For untyped variables, infer type from the assignment
+		rightType := tc.inferExpressionType(rhsNode.GetTextContent())
+		if rightType != "" && rightType != "Unknown" {
+			tc.VariableTypes[varName] = rightType
+		}
+		return
+	}
+
+	// Infer the type of the right-hand side
+	rightType := tc.inferExpressionType(rhsNode.GetTextContent())
+	if rightType == "" {
+		return
+	}
+
+	// Check compatibility using direct CST position information
+	err := tc.CheckAssignment(rightType, varType, lhsNode.Start())
+	if err != nil {
+		*errors = append(*errors, err)
+	}
+}
+
+// extractVariableNameFromTreeSitterNode extracts variable name from a tree-sitter node
+func (tc *TypeChecker) extractVariableNameFromTreeSitterNode(varNode *ast.TreeSitterNode) string {
+	if varNode == nil {
+		return ""
+	}
+
+	text := varNode.GetTextContent()
+
+	// Handle simple variable references like "$x", "@arr", "%hash"
+	if strings.HasPrefix(text, "$") || strings.HasPrefix(text, "@") || strings.HasPrefix(text, "%") {
+		return text
+	}
+
+	// Look for variable in child nodes
+	for _, child := range varNode.GetNamedChildren() {
+		childText := child.GetTextContent()
+		if strings.HasPrefix(childText, "$") || strings.HasPrefix(childText, "@") || strings.HasPrefix(childText, "%") {
+			return childText
+		}
+	}
+
+	return ""
+}
+
+// checkTreeSitterFieldEncapsulation checks for field encapsulation violations using tree-sitter CST
+func (tc *TypeChecker) checkTreeSitterFieldEncapsulation(tsNode *ast.TreeSitterNode, errors *[]error) {
+	// Look for hash access patterns: $obj->{field}
+	if tsNode.Type() == "expression_statement" || tsNode.Type() == "hash_access" {
+		nodeText := tsNode.GetTextContent()
+
+		// Enhanced pattern detection using CST structure
+		if tc.containsHashAccessPattern(nodeText, "") {
+			if varName, fieldName := tc.extractHashAccessDetails(nodeText); varName != "" && fieldName != "" {
+				if tc.isModernClassInstance(varName) && tc.isClassField(varName, fieldName) {
+					tc.addFieldEncapsulationError(varName, fieldName, tsNode.Start(), errors)
+				}
+			}
+		}
+	}
 }

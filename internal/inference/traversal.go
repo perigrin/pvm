@@ -180,27 +180,72 @@ func (at *ASTTraverser) handleDeclarationNode(node ast.Node, inferredAST ast.Inf
 }
 
 // handleVarDeclNode handles VarDecl nodes and preserves existing type annotations
+// Supports both traditional VarDecl and tree-sitter backed VarDeclNode
 func (at *ASTTraverser) handleVarDeclNode(node ast.Node, inferredAST ast.InferredAST) error {
-	// Type assert to VarDecl to access TypeExpr field
-	if varDecl, ok := node.(*ast.VarDecl); ok {
-		// If the VarDecl already has a TypeExpr, preserve it
-		if varDecl.TypeExpr != nil {
-			// The original type annotation exists - preserve it
-			// Note: We don't need to do anything special here because
-			// the InferredAST wrapper preserves the original AST structure
-			// including the TypeExpr field.
+	// Try tree-sitter backed VarDeclNode first (Phase 4 Task 5)
+	if tsVarDecl, ok := node.(*ast.VarDeclNode); ok {
+		return at.handleTreeSitterVarDecl(tsVarDecl, inferredAST)
+	}
 
-			// Still traverse children to handle nested inference
-			return at.traverseChildren(node, inferredAST)
+	// Handle TreeSitterNode that might be a variable declaration
+	if tsNode, ok := node.(*ast.TreeSitterNode); ok {
+		if tsNode.Type() == "variable_declaration" {
+			// Convert to VarDeclNode for specialized handling
+			if varDeclNode := tsNode.AsVarDecl(); varDeclNode != nil {
+				return at.handleTreeSitterVarDecl(varDeclNode, inferredAST)
+			}
 		}
-
-		// No existing type annotation - proceed with normal inference
-		// This is where we could add type inference for untyped variables
+		// Not a variable declaration, just traverse children
 		return at.traverseChildren(node, inferredAST)
+	}
+
+	// Try traditional VarDecl (backward compatibility)
+	if varDecl, ok := node.(*ast.VarDecl); ok {
+		return at.handleTraditionalVarDecl(varDecl, inferredAST)
 	}
 
 	// Not a VarDecl (shouldn't happen), just traverse children
 	return at.traverseChildren(node, inferredAST)
+}
+
+// handleTreeSitterVarDecl handles tree-sitter backed variable declarations
+// This provides enhanced type annotation extraction from CST
+func (at *ASTTraverser) handleTreeSitterVarDecl(tsVarDecl *ast.VarDeclNode, inferredAST ast.InferredAST) error {
+	// Check if the VarDeclNode has type annotation from CST
+	if tsVarDecl.HasTypeAnnotation() {
+		// Tree-sitter node has type annotation - preserve it
+		typeExpr := tsVarDecl.GetTypeExpression()
+		if typeExpr != nil {
+			// Type annotation extracted from CST - this is preserved automatically
+			// because VarDeclNode extracts directly from tree-sitter structure
+
+			// Type annotation successfully extracted from tree-sitter CST
+			// The VarDeclNode preserves this information directly from the CST structure
+			// No additional processing needed - the tree-sitter shim handles preservation
+		}
+	}
+
+	// Always traverse children to handle nested inference
+	return at.traverseChildren(tsVarDecl, inferredAST)
+}
+
+// handleTraditionalVarDecl handles traditional AST variable declarations
+// Maintains backward compatibility with existing code
+func (at *ASTTraverser) handleTraditionalVarDecl(varDecl *ast.VarDecl, inferredAST ast.InferredAST) error {
+	// If the VarDecl already has a TypeExpr, preserve it
+	if varDecl.TypeExpr != nil {
+		// The original type annotation exists - preserve it
+		// Note: We don't need to do anything special here because
+		// the InferredAST wrapper preserves the original AST structure
+		// including the TypeExpr field.
+
+		// Still traverse children to handle nested inference
+		return at.traverseChildren(varDecl, inferredAST)
+	}
+
+	// No existing type annotation - proceed with normal inference
+	// This is where we could add type inference for untyped variables
+	return at.traverseChildren(varDecl, inferredAST)
 }
 
 // handleFunctionCallNode handles function call nodes
