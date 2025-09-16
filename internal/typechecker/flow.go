@@ -2172,6 +2172,11 @@ func (fa *FlowAnalyzer) checkVariableSafety(varExpr *ast.VariableExpr, state *Ty
 			return errors
 		}
 
+		// Additional check: Skip if variable is in return statement and was declared in same subroutine
+		if fa.isVariableInReturnAfterDeclaration(varName, varExpr) {
+			return errors
+		}
+
 		// Determine the context where this variable is being used
 		context := fa.determineUsageContext(varExpr)
 
@@ -2641,18 +2646,66 @@ func (fa *FlowAnalyzer) wasAssignedFromSafeExpression(varName string, varExpr *a
 			// Look for the variable assignment in the same subroutine
 			if subroutine := fa.findContainingSubroutine(varExpr); subroutine != nil {
 				subroutineText := subroutine.Text()
-				assignmentPattern := varName + " = defined("
-				if strings.Contains(subroutineText, assignmentPattern) {
+
+				// Check multiple assignment patterns that should be considered safe:
+				// 1. Direct assignment: $varName = defined(...)
+				assignmentPattern1 := "$" + varName + " = defined("
+				if strings.Contains(subroutineText, assignmentPattern1) {
 					return true
 				}
-				// Also check for ternary pattern without exact variable name
-				if strings.Contains(subroutineText, "my $"+varName) &&
+
+				// 2. Declaration assignment: my $varName = defined(...)
+				assignmentPattern2 := "my $" + varName + " = defined("
+				if strings.Contains(subroutineText, assignmentPattern2) {
+					return true
+				}
+
+				// 3. General ternary pattern within the same subroutine
+				if strings.Contains(subroutineText, "$"+varName) &&
+					strings.Contains(subroutineText, "=") &&
 					strings.Contains(subroutineText, "defined(") &&
 					strings.Contains(subroutineText, "?") &&
 					strings.Contains(subroutineText, ":") {
 					return true
 				}
 			}
+		}
+	}
+
+	return false
+}
+
+// isVariableInReturnAfterDeclaration checks if variable is used in return and was declared in same subroutine
+func (fa *FlowAnalyzer) isVariableInReturnAfterDeclaration(varName string, varExpr *ast.VariableExpr) bool {
+	// Check if this is in a return statement
+	if varExpr.Parent() == nil {
+		return false
+	}
+
+	parentText := varExpr.Parent().Text()
+	if !strings.Contains(parentText, "return") {
+		return false
+	}
+
+	// Find containing subroutine
+	subroutine := fa.findContainingSubroutine(varExpr)
+	if subroutine == nil {
+		return false
+	}
+
+	subroutineText := subroutine.Text()
+
+	// Check if variable is declared in this subroutine
+	declarationPatterns := []string{
+		"my $" + varName + " =",
+		"my (" + varName + ")",
+		"our $" + varName + " =",
+		"state $" + varName + " =",
+	}
+
+	for _, pattern := range declarationPatterns {
+		if strings.Contains(subroutineText, pattern) {
+			return true
 		}
 	}
 
