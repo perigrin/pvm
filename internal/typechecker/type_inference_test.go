@@ -599,8 +599,8 @@ func verifyTypeInferred(cfg *ControlFlowGraph, varName, expectedType string) boo
 		}
 
 		for _, state := range statesToCheck {
-			// Check both with and without sigil
-			variationsToCheck := []string{varName, "$" + varName}
+			// Check with various sigils: no sigil, $scalar, @array, %hash
+			variationsToCheck := []string{varName, "$" + varName, "@" + varName, "%" + varName}
 			for _, checkVar := range variationsToCheck {
 				if actualType, exists := state.VariableTypes[checkVar]; exists {
 					if strings.Contains(actualType, expectedType) || actualType == expectedType {

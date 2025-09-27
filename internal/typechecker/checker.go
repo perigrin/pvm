@@ -353,6 +353,10 @@ func (tc *TypeChecker) refineTypeAfterCondition(variable, condition string, posi
 				refinedType = "Undef"
 			}
 		}
+	case "ref":
+		// ref() checks are handled differently - type refinement is done in flow analyzer
+		// since it depends on the specific ref type being checked
+		return
 	}
 
 	if refinedType != "" {

@@ -1,5 +1,5 @@
-# Configuration for golangci-lint v1
-# Removed version field as it conflicts with v1
+# Configuration for golangci-lint v2
+version: 2
 run:
   go: "1.24"
 linters:

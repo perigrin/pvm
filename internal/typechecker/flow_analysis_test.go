@@ -482,9 +482,12 @@ sub extract_field($hash, $field) {
 			for varName, expectedTypes := range tc.expectedRefinements {
 				// Look for type refinements across blocks
 				refinementFound := false
-				for _, block := range cfg.Nodes {
+				for i, block := range cfg.Nodes {
 					if block.TypeState != nil {
+						t.Logf("Block %d TypeState.RefinedTypes: %v", i, block.TypeState.RefinedTypes)
+						t.Logf("Block %d TypeState.VariableTypes: %v", i, block.TypeState.VariableTypes)
 						if refined, exists := block.TypeState.RefinedTypes[varName]; exists {
+							t.Logf("Found refinement for %s: %s", varName, refined)
 							for _, expectedType := range expectedTypes {
 								if strings.Contains(refined, expectedType) {
 									refinementFound = true
