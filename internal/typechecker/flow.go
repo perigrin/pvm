@@ -1921,6 +1921,18 @@ func (fa *FlowAnalyzer) inferTypeFromFunctionCallLiteral(text string) string {
 			return "Int"
 		case "abs":
 			return "Num"
+		case "join":
+			return "Str"
+		case "split":
+			return "ArrayRef[Str]"
+		case "map":
+			return "ArrayRef[Str]"
+		case "grep":
+			return "ArrayRef[Str]"
+		case "chomp":
+			return "Int"
+		case "uc", "lc", "ucfirst", "lcfirst":
+			return "Str"
 		default:
 			// Check for functions known to throw exceptions
 			if exceptionType := fa.inferFunctionExceptionType(functionName); exceptionType != "" {
@@ -2120,6 +2132,20 @@ func (fa *FlowAnalyzer) inferBuiltinFunctionType(functionName string, call *ast.
 		return "Int"
 	case "time":
 		return "Int"
+	case "join":
+		return "Str"
+	case "split":
+		return "ArrayRef[Str]"
+	case "map":
+		// map returns an array/list, context dependent
+		return "ArrayRef[Str]"
+	case "grep":
+		// grep returns an array/list, context dependent
+		return "ArrayRef[Str]"
+	case "chomp":
+		return "Int"
+	case "uc", "lc", "ucfirst", "lcfirst":
+		return "Str"
 	default:
 		return ""
 	}
@@ -2206,7 +2232,19 @@ func (fa *FlowAnalyzer) isMethodChain(call *ast.CallExpr) bool {
 	}
 
 	functionText := call.Function.Text()
-	return strings.Contains(functionText, "->") && !strings.Contains(functionText, "->new")
+	fmt.Printf("DEBUG: isMethodChain checking: %s\n", functionText)
+
+	// Must contain -> to be a method call
+	if !strings.Contains(functionText, "->") {
+		fmt.Printf("DEBUG: No -> found, not a method chain\n")
+		return false
+	}
+
+	// Count the number of -> to determine if it's a chain
+	arrowCount := strings.Count(functionText, "->")
+	isChain := arrowCount > 1
+	fmt.Printf("DEBUG: Arrow count: %d, isChain: %v\n", arrowCount, isChain)
+	return isChain
 }
 
 // inferMethodChainType infers types from method chains
@@ -2216,23 +2254,195 @@ func (fa *FlowAnalyzer) inferMethodChainType(call *ast.CallExpr) string {
 	}
 
 	functionText := call.Function.Text()
+	fmt.Printf("DEBUG: inferMethodChainType called with: %s\n", functionText)
 
-	// Common method patterns
-	if strings.Contains(functionText, "->email") {
-		return "Str"
-	}
-	if strings.Contains(functionText, "->id") {
-		return "Str"
-	}
-	if strings.Contains(functionText, "->name") {
-		return "Str"
-	}
-	if strings.Contains(functionText, "->domain") {
+	// Parse the method chain to understand the sequence of calls
+	chain := fa.parseMethodChain(functionText)
+	if len(chain) == 0 {
 		return "Str"
 	}
 
-	// Default for method chains
+	fmt.Printf("DEBUG: Parsed chain: %v\n", chain)
+
+	// Start with the initial object/class type
+	currentType := fa.inferInitialChainType(chain[0])
+	fmt.Printf("DEBUG: Initial type: %s\n", currentType)
+
+	// Follow the chain, updating type at each step
+	for i := 1; i < len(chain); i++ {
+		prevType := currentType
+		currentType = fa.inferChainStepType(currentType, chain[i])
+		fmt.Printf("DEBUG: Step %d: %s -> %s (method: %s)\n", i, prevType, currentType, chain[i])
+	}
+
+	fmt.Printf("DEBUG: Final chain type: %s\n", currentType)
+	return currentType
+}
+
+// parseMethodChain parses a method chain text into individual method calls
+func (fa *FlowAnalyzer) parseMethodChain(text string) []string {
+	// Split on -> but preserve the arrows for context
+	parts := strings.Split(text, "->")
+	if len(parts) < 2 {
+		return []string{text}
+	}
+
+	var chain []string
+
+	// First part is the object/class
+	chain = append(chain, strings.TrimSpace(parts[0]))
+
+	// Subsequent parts are method calls
+	for i := 1; i < len(parts); i++ {
+		methodCall := strings.TrimSpace(parts[i])
+		if methodCall != "" {
+			chain = append(chain, methodCall)
+		}
+	}
+
+	return chain
+}
+
+// inferInitialChainType determines the starting type of a method chain
+func (fa *FlowAnalyzer) inferInitialChainType(initial string) string {
+	// Remove any sigils
+	initial = strings.TrimLeft(initial, "$@%")
+
+	// Check for class constructors (ClassName->new pattern)
+	if fa.isKnownClass(initial) {
+		return initial
+	}
+
+	// Check for variables - would need type state lookup in a full implementation
+	// For now, assume object types based on common patterns
+	if strings.HasPrefix(initial, "$") {
+		return "Object"
+	}
+
+	return initial
+}
+
+// inferChainStepType infers the return type of a method call given the current type
+func (fa *FlowAnalyzer) inferChainStepType(currentType, methodCall string) string {
+	// Extract method name (remove parentheses and arguments)
+	methodName := fa.extractMethodName(methodCall)
+
+	// Handle fluent interface patterns
+	if fa.isFluentMethod(currentType, methodName) {
+		return currentType // Fluent methods return self
+	}
+
+	// Handle specific method return types
+	switch methodName {
+	// String conversion methods
+	case "to_string", "as_string", "stringify", "encode", "build":
+		return "Str"
+
+	// Numeric conversion methods
+	case "to_number", "as_number", "to_int", "as_int":
+		return "Num"
+
+	// Boolean conversion methods
+	case "as_boolean", "to_bool", "is_true":
+		return "Bool"
+
+	// Content/data extraction methods
+	case "decode_content", "get_content", "content":
+		return "Str"
+
+	// Common getter methods that return strings
+	case "get_name", "name", "get_email", "email", "get_id", "id":
+		return "Str"
+
+	// Age/numeric getters
+	case "get_age", "age":
+		return "Num"
+
+	// Status/boolean getters
+	case "is_active", "active", "enabled", "is_enabled":
+		return "Bool"
+	}
+
+	// For JSON-related chains
+	if currentType == "JSON" {
+		switch methodName {
+		case "pretty", "canonical", "utf8", "latin1":
+			return "JSON" // Fluent interface
+		case "encode", "decode":
+			return "Str"
+		}
+	}
+
+	// For SQL builder chains
+	if currentType == "SQLBuilder" {
+		switch methodName {
+		case "select", "from", "where", "order", "group":
+			return "SQLBuilder" // Fluent interface
+		case "build", "to_sql":
+			return "Str"
+		}
+	}
+
+	// For HTTP client chains
+	if currentType == "HTTP::Client" {
+		switch methodName {
+		case "get", "post", "put", "delete":
+			return "HTTP::Response"
+		}
+	}
+
+	if currentType == "HTTP::Response" {
+		switch methodName {
+		case "decode_content", "content", "body":
+			return "Str"
+		case "status", "code":
+			return "Int"
+		case "is_success", "is_error":
+			return "Bool"
+		}
+	}
+
+	// Default assumption
 	return "Str"
+}
+
+// extractMethodName extracts the method name from a method call text (removes parentheses)
+func (fa *FlowAnalyzer) extractMethodName(methodCall string) string {
+	// Remove everything after the first opening parenthesis
+	if idx := strings.Index(methodCall, "("); idx != -1 {
+		return strings.TrimSpace(methodCall[:idx])
+	}
+	return strings.TrimSpace(methodCall)
+}
+
+// isFluentMethod checks if a method is part of a fluent interface (returns self)
+func (fa *FlowAnalyzer) isFluentMethod(objType, methodName string) bool {
+	// Common fluent method patterns
+	fluentPatterns := []string{"pretty", "canonical", "utf8", "select", "from", "where", "order", "group"}
+
+	for _, pattern := range fluentPatterns {
+		if methodName == pattern {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isKnownClass checks if the given name is a known class
+func (fa *FlowAnalyzer) isKnownClass(name string) bool {
+	knownClasses := []string{
+		"JSON", "SQLBuilder", "HTTP::Client", "Database", "User", "Logger",
+		"Config::Simple", "XML::Parser", "File::Writer", "Event::Handler",
+	}
+
+	for _, class := range knownClasses {
+		if name == class {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Exception Prevention and Safety Analysis
@@ -3978,10 +4188,11 @@ func (fa *FlowAnalyzer) inferTypeFromBinaryExpression(binaryExpr *ast.BinaryExpr
 		// Comparison operations result in boolean
 		return "Bool"
 
-	case "&&", "||", "and", "or", "not", "!":
+	case "&&", "||", "and", "or":
 		// Logical operations return the type of the last evaluated operand
 		// For &&, ||: left operand if falsy, right operand if left is truthy
-		// Simplified: return union of both operand types
+		// For and, or: similar to && and ||
+		// Return union of both operand types since we can't predict at compile time
 		if leftType == rightType {
 			return leftType
 		}
