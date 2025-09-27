@@ -1878,7 +1878,13 @@ func (fa *FlowAnalyzer) inferTypeFromLiteral(literal *ast.LiteralExpr) string {
 func (fa *FlowAnalyzer) inferTypeFromFunctionCallLiteral(text string) string {
 	text = strings.TrimSpace(text)
 
-	// FIRST: Check for comparison operators - these always return Bool
+	// FIRST: Handle complex Perl expressions (map/grep chains)
+	if strings.HasPrefix(text, "map ") && strings.Contains(text, "grep ") {
+		// This is a map/grep chain, result is ArrayRef
+		return "ArrayRef[Str]"
+	}
+
+	// SECOND: Check for comparison operators - these always return Bool
 	comparisonOps := []string{"eq", "ne", "lt", "gt", "le", "ge", "==", "!=", "<", ">", "<=", ">=", "=~", "!~"}
 	for _, op := range comparisonOps {
 		if strings.Contains(text, " "+op+" ") {
@@ -1910,28 +1916,40 @@ func (fa *FlowAnalyzer) inferTypeFromFunctionCallLiteral(text string) string {
 		// Hardcoded builtin types as fallback
 		switch functionName {
 		case "ref":
+			fmt.Printf("DEBUG: Matched builtin function: ref -> Str\n")
 			return "Str"
 		case "defined":
+			fmt.Printf("DEBUG: Matched builtin function: defined -> Bool\n")
 			return "Bool"
 		case "length", "scalar":
+			fmt.Printf("DEBUG: Matched builtin function: %s -> Int\n", functionName)
 			return "Int"
 		case "keys", "values":
+			fmt.Printf("DEBUG: Matched builtin function: %s -> Array[Str]\n", functionName)
 			return "Array[Str]"
 		case "int":
+			fmt.Printf("DEBUG: Matched builtin function: int -> Int\n")
 			return "Int"
 		case "abs":
+			fmt.Printf("DEBUG: Matched builtin function: abs -> Num\n")
 			return "Num"
 		case "join":
+			fmt.Printf("DEBUG: Matched builtin function: join -> Str\n")
 			return "Str"
 		case "split":
+			fmt.Printf("DEBUG: Matched builtin function: split -> ArrayRef[Str]\n")
 			return "ArrayRef[Str]"
 		case "map":
+			fmt.Printf("DEBUG: Matched builtin function: map -> ArrayRef[Str]\n")
 			return "ArrayRef[Str]"
 		case "grep":
+			fmt.Printf("DEBUG: Matched builtin function: grep -> ArrayRef[Str]\n")
 			return "ArrayRef[Str]"
 		case "chomp":
+			fmt.Printf("DEBUG: Matched builtin function: chomp -> Int\n")
 			return "Int"
 		case "uc", "lc", "ucfirst", "lcfirst":
+			fmt.Printf("DEBUG: Matched builtin function: %s -> Str\n", functionName)
 			return "Str"
 		default:
 			// Check for functions known to throw exceptions
@@ -1950,60 +1968,30 @@ func (fa *FlowAnalyzer) inferTypeFromFunctionCallLiteral(text string) string {
 // inferTypeFromMethodCallLiteral infers type from method call patterns in literal text
 func (fa *FlowAnalyzer) inferTypeFromMethodCallLiteral(text string) string {
 	text = strings.TrimSpace(text)
+	fmt.Printf("DEBUG: inferTypeFromMethodCallLiteral called with: %s\n", text)
 
-	// Handle method chains like JSON->new()->decode($data_str)
-	// We need to parse from right to left to get the final method result
-
-	// Find the last method call in the chain
-	lastArrowIndex := strings.LastIndex(text, "->")
-	if lastArrowIndex == -1 {
+	// Use the improved method chain parsing logic
+	chain := fa.parseMethodChain(text)
+	if len(chain) == 0 {
+		fmt.Printf("DEBUG: No chain parsed from literal, returning Any\n")
 		return "Any"
 	}
 
-	// Get the final method call
-	finalMethodPart := text[lastArrowIndex+2:]
+	fmt.Printf("DEBUG: Parsed chain from literal: %v\n", chain)
 
-	// Extract method name from finalMethodPart (remove arguments)
-	finalMethodName := finalMethodPart
-	if parenIndex := strings.Index(finalMethodPart, "("); parenIndex != -1 {
-		finalMethodName = strings.TrimSpace(finalMethodPart[:parenIndex])
+	// Start with the initial object/class type
+	currentType := fa.inferInitialChainType(chain[0])
+	fmt.Printf("DEBUG: Initial type from literal: %s\n", currentType)
+
+	// Follow the chain, updating type at each step
+	for i := 1; i < len(chain); i++ {
+		prevType := currentType
+		currentType = fa.inferChainStepType(currentType, chain[i])
+		fmt.Printf("DEBUG: Literal step %d: %s -> %s (method: %s)\n", i, prevType, currentType, chain[i])
 	}
 
-	// Get the object/class part (everything before the final ->)
-	objectPart := strings.TrimSpace(text[:lastArrowIndex])
-
-	// For constructor calls (Class->new), return the class name
-	if finalMethodName == "new" {
-		// Find the class name (should be at the beginning or after the last ->)
-		if strings.Contains(objectPart, "->") {
-			// This is a chained call ending with ->new(), get the result of previous chain
-			return fa.inferTypeFromMethodCallLiteral(objectPart)
-		} else {
-			// This is Class->new()
-			if !strings.HasPrefix(objectPart, "$") {
-				return objectPart
-			}
-		}
-	}
-
-	// Check library method types first
-	if libraryType := fa.inferLibraryFunctionType(finalMethodName, nil); libraryType != "" {
-		return libraryType
-	}
-
-	// For other method calls, try to infer based on common patterns
-	switch finalMethodName {
-	case "connect":
-		if strings.Contains(objectPart, "DBI") {
-			return "DBI"
-		}
-	case "decode", "decode_json":
-		return "HashRef[Str, Any]"
-	case "encode", "encode_json":
-		return "Str"
-	}
-
-	return "Any"
+	fmt.Printf("DEBUG: Final chain type from literal: %s\n", currentType)
+	return currentType
 }
 
 // inferReturnTypeFromCall infers the return type of a function call with sophisticated pattern recognition
@@ -2081,9 +2069,13 @@ func (fa *FlowAnalyzer) inferReturnTypeFromMethodCall(call *ast.CallExpr) string
 		return "Str"
 	}
 
+	functionText := call.Function.Text()
+	fmt.Printf("DEBUG: inferReturnTypeFromMethodCall called with: %s\n", functionText)
+
 	// Check if this is a constructor call (Class->new())
 	if fa.isConstructorCall(call) {
 		className := fa.extractClassNameFromConstructor(call)
+		fmt.Printf("DEBUG: Constructor call detected, className: %s\n", className)
 		if className != "" {
 			return className
 		}
@@ -2091,10 +2083,12 @@ func (fa *FlowAnalyzer) inferReturnTypeFromMethodCall(call *ast.CallExpr) string
 
 	// Check for chained method calls
 	if fa.isMethodChain(call) {
+		fmt.Printf("DEBUG: Method chain detected\n")
 		return fa.inferMethodChainType(call)
 	}
 
 	// Default for unknown method calls
+	fmt.Printf("DEBUG: Using default for method call\n")
 	return "Str"
 }
 
@@ -2326,6 +2320,11 @@ func (fa *FlowAnalyzer) inferInitialChainType(initial string) string {
 func (fa *FlowAnalyzer) inferChainStepType(currentType, methodCall string) string {
 	// Extract method name (remove parentheses and arguments)
 	methodName := fa.extractMethodName(methodCall)
+
+	// Handle constructor calls - new() method returns the same type as the current type
+	if methodName == "new" {
+		return currentType
+	}
 
 	// Handle fluent interface patterns
 	if fa.isFluentMethod(currentType, methodName) {
