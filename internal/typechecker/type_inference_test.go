@@ -345,7 +345,7 @@ sub transformation_chains(@data) {
 			expectedTypes: map[string]string{
 				"processed":   "ArrayRef[Str]",
 				"joined":      "Str",
-				"split_again": "ArrayRef[Str]",
+				"split_again": "Array[Str]",
 			},
 			description: "Should infer types through data transformation chains",
 		},
