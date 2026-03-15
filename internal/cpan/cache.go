@@ -150,18 +150,15 @@ func expandEnvironmentVariables(value string) string {
 		}
 		return match // Return original if env var not found
 	})
-	// Normalize path separators so that templates using "/" work on all platforms.
-	// This is safe because values that still contain unexpanded "$VAR" tokens are
-	// returned unchanged (the regex left the "$" in place), and URL values that
-	// contain no "$" tokens never reach this code path.
-	return filepath.FromSlash(expanded)
+	return expanded
 }
 
 // NewCache creates a new Cache with the given directory and TTL
 func NewCache(cacheDir string, ttl int) (*Cache, error) {
 
-	// Expand any environment variables in the cache directory path
-	cacheDir = expandEnvironmentVariables(cacheDir)
+	// Expand any environment variables in the cache directory path, then
+	// normalize separators for the current OS since this is a filesystem path.
+	cacheDir = filepath.FromSlash(expandEnvironmentVariables(cacheDir))
 
 	// Create the cache directory if it doesn't exist
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {

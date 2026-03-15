@@ -108,6 +108,10 @@ func TestProgressChangeTimeTracking(t *testing.T) {
 	tracker := NewTracker()
 	tracker.Start("test-operation", 100)
 
+	// Sleep before the first update so that elapsed time is measurable even on
+	// platforms with coarse timer resolution (e.g. Windows ~15ms tick).
+	time.Sleep(20 * time.Millisecond)
+
 	// Test that elapsed time is tracked correctly
 	tracker.Update(25, "Processing item 25")
 	status := tracker.GetProgress()
@@ -116,16 +120,16 @@ func TestProgressChangeTimeTracking(t *testing.T) {
 		t.Error("Expected elapsed time to be positive")
 	}
 
-	// Wait a bit and update again. Sleep for 50ms to ensure the elapsed time
+	// Wait a bit and update again. Sleep for 100ms to ensure the elapsed time
 	// is measurably larger than 10ms even on platforms with coarse timer resolution.
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	tracker.Update(30, "Processing item 30")
 	status = tracker.GetProgress()
 
-	// Elapsed time should have increased beyond a small threshold. Using 5ms as
-	// the lower bound leaves plenty of margin below the 50ms sleep duration.
-	if status.ElapsedTime <= 5*time.Millisecond {
+	// Elapsed time should have increased beyond a small threshold. Using 10ms as
+	// the lower bound leaves plenty of margin below the 100ms sleep duration.
+	if status.ElapsedTime <= 10*time.Millisecond {
 		t.Error("Expected elapsed time to increase with subsequent updates")
 	}
 

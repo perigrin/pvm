@@ -287,11 +287,7 @@ func expandEnvironmentVariables(value string) string {
 		}
 		return match // Return original if env var not found
 	})
-	// Normalize path separators so that templates using "/" work on all platforms.
-	// This is safe because values that still contain unexpanded "$VAR" tokens are
-	// returned unchanged (the regex left the "$" in place), and URL values that
-	// contain no "$" tokens never reach this code path.
-	return filepath.FromSlash(expanded)
+	return expanded
 }
 
 // GetStringWithDefault returns a string configuration value with a default fallback
