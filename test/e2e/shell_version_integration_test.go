@@ -17,6 +17,7 @@ import (
 // It tests with multiple Perl versions to catch version switching issues
 func TestShellUseAndCurrent(t *testing.T) {
 	helpers.SkipIfNotUnix(t)
+	helpers.ForceBashDetection(t)
 	// Use binary Perl for reliable testing
 	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
@@ -272,6 +273,7 @@ fi
 
 // TestShellUseWithoutIntegration tests the expected behavior without shell integration
 func TestShellUseWithoutIntegration(t *testing.T) {
+	helpers.ForceBashDetection(t)
 	// Use binary Perl for reliable testing
 	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
@@ -319,6 +321,7 @@ func TestShellUseWithoutIntegration(t *testing.T) {
 
 // TestEnvironmentVariableVersionResolution tests that PVM_PERL_VERSION is properly resolved
 func TestEnvironmentVariableVersionResolution(t *testing.T) {
+	helpers.ForceBashDetection(t)
 	// Use binary Perl for reliable testing
 	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
@@ -487,6 +490,7 @@ func TestLibrarySpecificUse(t *testing.T) {
 
 // TestLibraryEnvironmentResolution tests that library environments are properly resolved
 func TestLibraryEnvironmentResolution(t *testing.T) {
+	helpers.ForceBashDetection(t)
 	// Use binary Perl for reliable testing
 	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
@@ -549,6 +553,7 @@ func TestLibraryEnvironmentResolution(t *testing.T) {
 
 // TestLibrarySpecificUseSecurity tests security aspects of library-specific use syntax
 func TestLibrarySpecificUseSecurity(t *testing.T) {
+	helpers.ForceBashDetection(t)
 	// Use binary Perl for reliable testing
 	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 
