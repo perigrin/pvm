@@ -373,6 +373,7 @@ func TestEnvironmentVariableVersionResolution(t *testing.T) {
 
 // TestLibrarySpecificUse tests the new library-specific syntax for pvm use
 func TestLibrarySpecificUse(t *testing.T) {
+	helpers.ForceBashDetection(t)
 	// Use binary Perl for reliable testing
 	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 

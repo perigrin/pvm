@@ -34,6 +34,7 @@ func assertFortuneQuotePresent(t *testing.T, output, context string) {
 
 // TestShellInit tests the shell initialization command
 func TestShellInit(t *testing.T) {
+	helpers.ForceBashDetection(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -200,6 +201,7 @@ echo "Integration test completed"
 
 // TestShellSetup tests the shell setup command
 func TestShellSetup(t *testing.T) {
+	helpers.ForceBashDetection(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 

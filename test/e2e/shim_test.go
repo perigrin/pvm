@@ -4,7 +4,6 @@
 package e2e
 
 import (
-	"os"
 	"runtime"
 	"testing"
 
@@ -17,7 +16,7 @@ func TestShimCreation(t *testing.T) {
 	defer env.Cleanup()
 
 	// Force bash shell detection for consistent assertions
-	clearPSModulePath(t)
+	helpers.ForceBashDetection(t)
 
 	shimSuffix := ""
 	if runtime.GOOS == "windows" {
@@ -46,7 +45,7 @@ func TestShimExecutable(t *testing.T) {
 	defer env.Cleanup()
 
 	// Force bash shell detection for consistent assertions
-	clearPSModulePath(t)
+	helpers.ForceBashDetection(t)
 
 	// Verify shell integration generates correct PATH setup
 	output := helpers.AssertPVMSucceeds(t, env, []string{"init"}, "pvm init should work")
@@ -71,7 +70,7 @@ func TestShimPathPriority(t *testing.T) {
 	defer env.Cleanup()
 
 	// Force bash shell detection for consistent assertions
-	clearPSModulePath(t)
+	helpers.ForceBashDetection(t)
 
 	// Test that shell integration sets up correct PATH priority
 	output := helpers.AssertPVMSucceeds(t, env, []string{"init"}, "pvm init should work")
@@ -129,18 +128,4 @@ func TestShimVersionResolution(t *testing.T) {
 	// Test that pvm exec resolves versions correctly without explicit version
 	helpers.AssertPVMSucceedsOrSkipTODO(t, env, []string{"exec", "echo", "version resolved"}, "pvm exec should resolve version")
 
-}
-
-// clearPSModulePath temporarily clears PSModulePath so shell detection falls
-// through to SHELL env var instead of detecting PowerShell. CI runners have
-// PowerShell installed which sets PSModulePath even on Linux.
-func clearPSModulePath(t *testing.T) {
-	t.Helper()
-	orig := os.Getenv("PSModulePath")
-	os.Unsetenv("PSModulePath")
-	t.Cleanup(func() {
-		if orig != "" {
-			os.Setenv("PSModulePath", orig)
-		}
-	})
 }

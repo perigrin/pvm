@@ -87,6 +87,20 @@ func SkipIfNotUnix(t *testing.T) {
 	}
 }
 
+// ForceBashDetection clears PSModulePath so DetectShell returns bash instead
+// of PowerShell. CI runners have PowerShell installed which sets PSModulePath
+// even on Linux. Use in tests that check bash-specific pvm init output.
+func ForceBashDetection(t *testing.T) {
+	t.Helper()
+	orig := os.Getenv("PSModulePath")
+	os.Unsetenv("PSModulePath")
+	t.Cleanup(func() {
+		if orig != "" {
+			os.Setenv("PSModulePath", orig)
+		}
+	})
+}
+
 // NewTestEnv creates a new isolated test environment
 func NewTestEnv(t *testing.T) *TestEnv {
 	// Create root directory for test with test name

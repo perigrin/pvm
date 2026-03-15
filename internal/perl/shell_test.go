@@ -95,6 +95,15 @@ func TestDetectShell_PowerShellOnAnyOS(t *testing.T) {
 
 // Test shell detection
 func TestDetectShell(t *testing.T) {
+	// Save and clear PSModulePath so PowerShell doesn't override SHELL-based detection
+	origPSModulePath := os.Getenv("PSModulePath")
+	os.Unsetenv("PSModulePath")
+	defer func() {
+		if origPSModulePath != "" {
+			os.Setenv("PSModulePath", origPSModulePath)
+		}
+	}()
+
 	// Save original environment variables
 	origShell := os.Getenv("SHELL")
 	defer func() { _ = os.Setenv("SHELL", origShell) }()
