@@ -1,0 +1,730 @@
+// ABOUTME: Integration between PVI and PVX for automatic module installation
+// ABOUTME: Provides functionality for PVX to install required modules automatically
+
+package pm
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"tamarou.com/pvm/internal/cli/progress"
+	"tamarou.com/pvm/internal/config"
+	"tamarou.com/pvm/internal/cpan"
+	"tamarou.com/pvm/internal/errors"
+	"tamarou.com/pvm/internal/log"
+	"tamarou.com/pvm/internal/modules"
+	"tamarou.com/pvm/internal/perl"
+)
+
+// pvxProgressTracker implements progress.Tracker for PVX integration
+type pvxProgressTracker struct {
+	writer  io.Writer
+	verbose bool
+	status  *progress.Status
+	running bool
+}
+
+func (t *pvxProgressTracker) Start(operation string, total int) {
+	t.status = &progress.Status{
+		Operation: operation,
+		Total:     total,
+		Current:   0,
+		Message:   "Starting",
+	}
+	t.running = true
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "Starting %s for %d items\n", operation, total)
+	}
+}
+
+func (t *pvxProgressTracker) Update(current int, message string) {
+	if t.status != nil {
+		t.status.Current = current
+		t.status.Message = message
+	}
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "[%d] %s\n", current, message)
+	}
+}
+
+func (t *pvxProgressTracker) Finish(result *progress.Result) {
+	t.running = false
+	if t.verbose && t.writer != nil && result != nil {
+		if result.Success {
+			fmt.Fprintf(t.writer, "Completed %s successfully\n", result.Operation)
+		} else {
+			fmt.Fprintf(t.writer, "Failed %s: %s\n", result.Operation, result.Message)
+		}
+	}
+}
+
+func (t *pvxProgressTracker) SetTotal(total int) {
+	if t.status != nil {
+		t.status.Total = total
+	}
+}
+
+func (t *pvxProgressTracker) SetMessage(message string) {
+	if t.status != nil {
+		t.status.Message = message
+	}
+}
+
+func (t *pvxProgressTracker) IsRunning() bool {
+	return t.running
+}
+
+func (t *pvxProgressTracker) GetProgress() *progress.Status {
+	if t.status == nil {
+		return &progress.Status{
+			Operation: "unknown",
+			Total:     0,
+			Current:   0,
+			Message:   "Not started",
+		}
+	}
+	return t.status
+}
+
+// pvxParallelProgressTracker implements modules.ParallelProgressTracker for PVX integration
+type pvxParallelProgressTracker struct {
+	writer  io.Writer
+	verbose bool
+}
+
+func (t *pvxParallelProgressTracker) StartParallel(operations []string) {
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "Starting parallel operations: %v\n", operations)
+	}
+}
+
+func (t *pvxParallelProgressTracker) UpdateOperation(id string, status modules.OperationStatus, message string) {
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "[%s] %s\n", id, message)
+	}
+}
+
+func (t *pvxParallelProgressTracker) FinishParallel(results []*modules.OperationResult) {
+	if t.verbose && t.writer != nil {
+		fmt.Fprintf(t.writer, "Completed parallel operations: %d results\n", len(results))
+	}
+}
+
+// PVXIntegrationOptions contains options for automatic module installation
+type PVXIntegrationOptions struct {
+	// PerlVersion specifies which Perl version to install modules for
+	PerlVersion string
+
+	// RequiredModules is the list of modules to install
+	RequiredModules []string
+
+	// InstallDir is the directory to install modules to (optional)
+	InstallDir string
+
+	// Verbose enables verbose output
+	Verbose bool
+
+	// MaxRetries is the maximum number of retry attempts for failed installations
+	MaxRetries int
+
+	// SkipTests whether to skip running tests during installation
+	SkipTests bool
+
+	// Output writer for status messages (optional, defaults to discarding output)
+	OutputWriter io.Writer
+}
+
+// PVXIntegrationResult contains the result of automatic module installation
+type PVXIntegrationResult struct {
+	// InstalledModules contains successfully installed modules
+	InstalledModules []string
+
+	// FailedModules contains modules that failed to install
+	FailedModules []string
+
+	// SkippedModules contains modules that were already installed
+	SkippedModules []string
+
+	// Errors contains any errors encountered during installation
+	Errors []error
+}
+
+// InstallModulesForPVX automatically installs required modules for PVX execution
+func InstallModulesForPVX(options *PVXIntegrationOptions) (*PVXIntegrationResult, error) {
+	if options == nil {
+		return nil, errors.NewModuleError(
+			"PVI-901",
+			"No installation options provided",
+			nil,
+		)
+	}
+
+	result := &PVXIntegrationResult{
+		InstalledModules: []string{},
+		FailedModules:    []string{},
+		SkippedModules:   []string{},
+		Errors:           []error{},
+	}
+
+	if len(options.RequiredModules) == 0 {
+		if options.Verbose && options.OutputWriter != nil {
+			fmt.Fprintln(options.OutputWriter, "No modules required for installation")
+		}
+		return result, nil
+	}
+
+	if options.Verbose && options.OutputWriter != nil {
+		fmt.Fprintf(options.OutputWriter, "Installing %d required modules for Perl %s\n",
+			len(options.RequiredModules), options.PerlVersion)
+	}
+
+	// Get configuration
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return result, errors.NewModuleError(
+			"PVI-902",
+			"Failed to load configuration",
+			err,
+		)
+	}
+
+	// Resolve Perl executable
+	perlPath, err := resolvePerlExecutable(options.PerlVersion)
+	if err != nil {
+		return result, errors.NewModuleError(
+			"PVI-903",
+			fmt.Sprintf("Failed to resolve Perl executable for version %s", options.PerlVersion),
+			err,
+		)
+	}
+
+	// Create provider using builder pattern (extracted package)
+	source := "metacpan" // Default to MetaCPAN
+	if cfg.PM != nil && cfg.PM.MetadataSource != "" {
+		source = cfg.PM.MetadataSource
+	}
+
+	providerResult, err := NewProviderBuilder().
+		WithConfig(cfg).
+		WithSource(source).
+		WithResolver().
+		Build()
+	if err != nil {
+		return result, errors.NewModuleError(
+			"PVI-904",
+			"Failed to create CPAN provider",
+			err,
+		)
+	}
+
+	// Use the extracted modules system for installation
+
+	// Create progress tracker that outputs to PVX's writer
+	var tracker progress.Tracker
+	if options.OutputWriter != nil {
+		tracker = &pvxProgressTracker{
+			writer:  options.OutputWriter,
+			verbose: options.Verbose,
+		}
+	} else {
+		tracker = progress.NewNullTracker()
+	}
+
+	// Create logger for installer
+	logger := log.NewLogger(log.LevelInfo, os.Stderr, "PVX-Integration")
+
+	// Create unified installer (extracted package)
+	installer := modules.NewInstaller(
+		providerResult.Provider,
+		providerResult.Resolver,
+		tracker,
+		logger,
+	)
+
+	// Create parallel progress tracker
+	var parallelTracker modules.ParallelProgressTracker
+	if options.OutputWriter != nil {
+		parallelTracker = &pvxParallelProgressTracker{
+			writer:  options.OutputWriter,
+			verbose: options.Verbose,
+		}
+	} else {
+		parallelTracker = &pvxParallelProgressTracker{
+			writer:  nil,
+			verbose: false,
+		}
+	}
+
+	// Create parallel coordinator for batch installation
+	coordinator := modules.NewParallelCoordinator(
+		installer,
+		2, // Use only 2 workers for PVX to avoid overwhelming the system
+		parallelTracker,
+	)
+
+	// Set up install options using extracted modules types
+	installOptions := modules.InstallOptions{
+		PerlPath:          perlPath,
+		InstallDir:        options.InstallDir,
+		VersionConstraint: "", // No version constraint for PVX
+		Force:             false,
+		RunTests:          !options.SkipTests,
+		SkipDependencies:  false, // Install dependencies for PVX
+		Verbose:           options.Verbose,
+		Cleanup:           true,
+		Parallel:          len(options.RequiredModules) > 1,
+		Workers:           2,
+		Context:           context.Background(),
+	}
+
+	// Install modules using parallel coordinator
+	installResults, err := coordinator.InstallModules(context.Background(), options.RequiredModules, installOptions)
+	if err != nil {
+		return result, errors.NewModuleError(
+			"PVI-905",
+			fmt.Sprintf("Failed to install modules for PVX: %v", err),
+			err,
+		)
+	}
+
+	// Convert unified results to PVX results
+	for _, installResult := range installResults {
+		if installResult.Success {
+			result.InstalledModules = append(result.InstalledModules, installResult.ModuleName)
+			if options.Verbose && options.OutputWriter != nil {
+				fmt.Fprintf(options.OutputWriter, "Successfully installed module %s v%s\n",
+					installResult.ModuleName, installResult.Version)
+			}
+		} else {
+			result.FailedModules = append(result.FailedModules, installResult.ModuleName)
+			// Combine all errors into a single error message
+			errorMsg := strings.Join(installResult.Errors, "; ")
+			if errorMsg == "" {
+				errorMsg = "installation failed"
+			}
+			result.Errors = append(result.Errors, fmt.Errorf("%s", errorMsg))
+			if options.Verbose && options.OutputWriter != nil {
+				fmt.Fprintf(options.OutputWriter, "Failed to install module %s: %s\n",
+					installResult.ModuleName, errorMsg)
+			}
+		}
+	}
+
+	// Summary
+	if options.Verbose {
+		if options.OutputWriter != nil {
+			fmt.Fprintf(options.OutputWriter, "Module installation complete:\n")
+			fmt.Fprintf(options.OutputWriter, "  Installed: %d modules\n", len(result.InstalledModules))
+			fmt.Fprintf(options.OutputWriter, "  Skipped: %d modules\n", len(result.SkippedModules))
+			fmt.Fprintf(options.OutputWriter, "  Failed: %d modules\n", len(result.FailedModules))
+		}
+	}
+
+	return result, nil
+}
+
+// Helper functions for PVX integration
+
+// normalizeModuleName normalizes module names for comparison
+func normalizeModuleName(name string) string {
+	// Convert :: to - for comparison (common in some contexts)
+	// and make case-insensitive
+	return strings.ToLower(strings.ReplaceAll(name, "::", "-"))
+}
+
+// resolvePerlExecutable resolves the Perl executable for a given version
+func resolvePerlExecutable(perlVersion string) (string, error) {
+	if perlVersion == "" {
+		// Use system Perl when no version specified
+		systemPerl, err := perl.DetectSystemPerl()
+		if err != nil {
+			return "", err
+		}
+		return systemPerl.Path, nil
+	}
+
+	// For non-empty version strings, get the path directly using the version registry
+	// This avoids redundant version resolution when we already have a resolved version
+	perlPath, err := getPathForResolvedVersion(perlVersion)
+	if err == nil {
+		return perlPath, nil
+	}
+
+	// Fallback: if direct path resolution fails, try full version resolution
+	// This handles cases where the version might not be in the registry yet
+	options := &perl.ResolutionOptions{
+		ExplicitVersion: perlVersion,
+	}
+
+	resolved, err := perl.ResolveVersion(options)
+	if err != nil {
+		return "", errors.NewModuleError(
+			"PVI-903",
+			fmt.Sprintf("Failed to resolve Perl executable for version %s", perlVersion),
+			err,
+		)
+	}
+
+	return resolved.Path, nil
+}
+
+// getPathForResolvedVersion gets the path to perl binary for a resolved version string
+func getPathForResolvedVersion(version string) (string, error) {
+	// Get version info from registry
+	versionInfo, err := perl.GetVersionInfo(version)
+	if err != nil {
+		return "", err
+	}
+
+	if versionInfo == nil {
+		return "", fmt.Errorf("version info not found for version: %s", version)
+	}
+
+	var perlExe string
+	if versionInfo.Source == "system" {
+		// For system perl, InstallPath might be the directory or the executable itself
+		if filepath.Base(versionInfo.InstallPath) == "perl" ||
+			filepath.Base(versionInfo.InstallPath) == "perl.exe" {
+			perlExe = versionInfo.InstallPath
+		} else {
+			// Check bin/perl first, then fallback to perl
+			binPerlPath := filepath.Join(versionInfo.InstallPath, "bin", "perl")
+			if runtime.GOOS == "windows" {
+				binPerlPath = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+			}
+
+			if _, statErr := os.Stat(binPerlPath); statErr == nil {
+				perlExe = binPerlPath
+			} else {
+				perlExe = filepath.Join(versionInfo.InstallPath, "perl")
+				if runtime.GOOS == "windows" {
+					perlExe = filepath.Join(versionInfo.InstallPath, "perl.exe")
+				}
+			}
+		}
+	} else {
+		// For PVM-installed versions
+		perlExe = filepath.Join(versionInfo.InstallPath, "bin", "perl")
+		if runtime.GOOS == "windows" {
+			perlExe = filepath.Join(versionInfo.InstallPath, "bin", "perl.exe")
+		}
+	}
+
+	// Verify the executable exists
+	if _, err := os.Stat(perlExe); os.IsNotExist(err) {
+		return "", fmt.Errorf("perl executable not found at: %s", perlExe)
+	}
+
+	return perlExe, nil
+}
+
+// CheckModuleAvailability checks if modules are available for installation
+func CheckModuleAvailability(modules []string, perlVersion string) (*ModuleAvailabilityResult, error) {
+	result := &ModuleAvailabilityResult{
+		AvailableModules:   []string{},
+		UnavailableModules: []string{},
+		Errors:             []error{},
+	}
+
+	if len(modules) == 0 {
+		return result, nil
+	}
+
+	// Get configuration for CPAN access
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return result, errors.NewModuleError(
+			"PVI-905",
+			"Failed to load configuration for module availability check",
+			err,
+		)
+	}
+
+	// Set up CPAN provider
+	source := "metacpan" // Default to MetaCPAN
+	if cfg.PM != nil && cfg.PM.MetadataSource != "" {
+		source = cfg.PM.MetadataSource
+	}
+
+	var providerOptions []cpan.ProviderOption
+	if cfg.PM != nil {
+		if cfg.PM.DefaultMirror != "" {
+			providerOptions = append(providerOptions, cpan.WithBaseURL(cfg.PM.DefaultMirror))
+		}
+		if cfg.PM.CacheDir != "" && cfg.PM.CacheTTL > 0 {
+			providerOptions = append(providerOptions, cpan.WithCache(cfg.PM.CacheDir, cfg.PM.CacheTTL))
+		}
+	}
+
+	provider, err := cpan.NewProvider(source, providerOptions...)
+	if err != nil {
+		return result, errors.NewModuleError(
+			"PVI-906",
+			"Failed to create CPAN provider for availability check",
+			err,
+		)
+	}
+
+	// Check each module
+	ctx := context.Background()
+	for _, moduleName := range modules {
+		available, err := checkSingleModuleAvailability(provider, moduleName, ctx)
+		switch {
+		case err != nil:
+			result.Errors = append(result.Errors, err)
+			result.UnavailableModules = append(result.UnavailableModules, moduleName)
+		case available:
+			result.AvailableModules = append(result.AvailableModules, moduleName)
+		default:
+			result.UnavailableModules = append(result.UnavailableModules, moduleName)
+		}
+	}
+
+	return result, nil
+}
+
+// ModuleAvailabilityResult contains the result of module availability checking
+type ModuleAvailabilityResult struct {
+	// AvailableModules contains modules that are available for installation
+	AvailableModules []string
+
+	// UnavailableModules contains modules that are not available
+	UnavailableModules []string
+
+	// Errors contains any errors encountered during availability checking
+	Errors []error
+}
+
+// checkSingleModuleAvailability checks if a single module is available
+func checkSingleModuleAvailability(provider cpan.Provider, moduleName string, ctx context.Context) (bool, error) {
+	// Use the search functionality to check if module exists
+	searchResult, err := provider.SearchModules(ctx, moduleName, 1)
+	if err != nil {
+		return false, err
+	}
+
+	// Check if we found an exact match
+	for _, mod := range searchResult.Results {
+		if normalizeModuleName(mod.Name) == normalizeModuleName(moduleName) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// GetRequiredModulesForScript analyzes a Perl script to determine required modules using AST parsing
+// This is a helper function for PVX to determine what modules might be needed
+func GetRequiredModulesForScript(scriptPath string) ([]string, error) {
+	// Read the script file
+	content, err := os.ReadFile(scriptPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read script file: %w", err)
+	}
+
+	// Extract dependencies using AST-based parsing
+	dependencies, err := extractDependenciesFromContent(string(content))
+	if err != nil {
+		// Log the error but continue with empty dependencies for graceful degradation
+		log.Warnf("Failed to parse dependencies with AST, falling back to empty list: %v", err)
+		return []string{}, nil
+	}
+
+	// Filter out core modules since PVI typically manages CPAN modules
+	cpanModules := filterCPANModules(dependencies)
+
+	return cpanModules, nil
+}
+
+// extractDependenciesFromContent extracts module dependencies from Perl source code using regex heuristics
+// (AST-based parsing is not yet available in this build)
+func extractDependenciesFromContent(content string) ([]string, error) {
+	dependencies := extractDependenciesFromRegex(content)
+	return filterAndDeduplicateDependencies(dependencies), nil
+}
+
+// extractModuleFromRequireText extracts module name from require statement text (fallback)
+func extractModuleFromRequireText(text string) string {
+	text = strings.TrimSpace(text)
+
+	// Handle various require formats
+	if strings.HasPrefix(text, "require ") {
+		// Remove "require " prefix
+		module := strings.TrimPrefix(text, "require ")
+		// Remove trailing semicolon
+		module = strings.TrimSuffix(module, ";")
+		module = strings.TrimSpace(module)
+
+		return normalizeRequiredModule(module)
+	}
+
+	return ""
+}
+
+// normalizeRequiredModule normalizes a required module name
+func normalizeRequiredModule(module string) string {
+	// Remove quotes
+	module = strings.Trim(module, `"'`)
+
+	// Convert .pm file paths to module names
+	if strings.HasSuffix(module, ".pm") {
+		module = strings.TrimSuffix(module, ".pm")
+		module = strings.ReplaceAll(module, "/", "::")
+	}
+
+	// Skip empty modules
+	if module == "" {
+		return ""
+	}
+
+	return module
+}
+
+// extractDependenciesFromRegex provides regex-based extraction for use/require statements
+func extractDependenciesFromRegex(content string) []string {
+	var dependencies []string
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Skip comments
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Match 'use Module' statements
+		if strings.HasPrefix(line, "use ") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				module := parts[1]
+				// Remove trailing semicolons or other punctuation
+				module = strings.TrimSuffix(module, ";")
+				module = strings.TrimSuffix(module, "(")
+				if module != "" && !strings.HasPrefix(module, "v") {
+					dependencies = append(dependencies, module)
+				}
+			}
+		}
+
+		// Match require statements (with or without quotes)
+		if strings.HasPrefix(line, "require ") {
+			module := strings.TrimPrefix(line, "require ")
+			module = strings.TrimSuffix(module, ";")
+			module = strings.TrimSpace(module)
+			module = strings.Trim(module, `"'`)
+			if module != "" {
+				dependencies = append(dependencies, normalizeRequiredModule(module))
+			}
+		}
+	}
+
+	return dependencies
+}
+
+// filterAndDeduplicateDependencies removes duplicates and filters out Perl pragmas
+func filterAndDeduplicateDependencies(deps []string) []string {
+	seen := make(map[string]bool)
+	var filtered []string
+
+	// Use shared pragma list
+	pragmas := getPragmaList()
+
+	for _, dep := range deps {
+		if dep != "" && !seen[dep] && !pragmas[dep] {
+			seen[dep] = true
+			filtered = append(filtered, dep)
+		}
+	}
+
+	return filtered
+}
+
+// getPragmaList returns the map of Perl pragmas (shared between functions)
+func getPragmaList() map[string]bool {
+	return map[string]bool{
+		"strict": true, "warnings": true, "utf8": true, "feature": true,
+		"vars": true, "lib": true, "base": true, "parent": true,
+		"constant": true, "autodie": true, "experimental": true,
+		"bigint": true, "bignum": true, "bigrat": true, "integer": true,
+		"bytes": true, "charnames": true, "diagnostics": true,
+		"encoding": true, "fields": true, "filetest": true, "if": true,
+		"less": true, "locale": true, "open": true, "ops": true,
+		"overload": true, "re": true, "sigtrap": true, "sort": true,
+		"subs": true, "threads": true, "version": true,
+	}
+}
+
+// filterCPANModules filters out modules that are likely core or built-in
+func filterCPANModules(dependencies []string) []string {
+	var cpanModules []string
+
+	coreModules := map[string]bool{
+		// Core modules that ship with Perl
+		"Carp": true, "Data::Dumper": true, "File::Basename": true,
+		"File::Path": true, "File::Spec": true, "FindBin": true,
+		"Getopt::Long": true, "IO::File": true, "IO::Handle": true,
+		"List::Util": true, "Scalar::Util": true, "Time::Local": true,
+		"Time::Piece": true, "POSIX": true, "Storable": true,
+		"Socket": true, "Fcntl": true,
+	}
+
+	for _, dep := range dependencies {
+		// Include if it's not a core module
+		if !coreModules[dep] {
+			cpanModules = append(cpanModules, dep)
+		}
+	}
+
+	return cpanModules
+}
+
+// CreateModuleEnvironment creates an environment with the required modules installed
+// This is used by PVX to set up isolated environments with specific modules
+func CreateModuleEnvironment(perlVersion string, modules []string, targetDir string) (*ModuleEnvironmentResult, error) {
+	result := &ModuleEnvironmentResult{
+		EnvironmentDir:   targetDir,
+		InstalledModules: []string{},
+		Errors:           []error{},
+	}
+
+	if len(modules) == 0 {
+		return result, nil
+	}
+
+	// Install modules to the target directory
+	options := &PVXIntegrationOptions{
+		PerlVersion:     perlVersion,
+		RequiredModules: modules,
+		InstallDir:      targetDir,
+		Verbose:         false,
+		SkipTests:       true, // Skip tests for isolated environments
+	}
+
+	installResult, err := InstallModulesForPVX(options)
+	if err != nil {
+		return result, err
+	}
+
+	result.InstalledModules = installResult.InstalledModules
+	result.Errors = installResult.Errors
+
+	return result, nil
+}
+
+// ModuleEnvironmentResult contains the result of creating a module environment
+type ModuleEnvironmentResult struct {
+	// EnvironmentDir is the directory where modules were installed
+	EnvironmentDir string
+
+	// InstalledModules contains successfully installed modules
+	InstalledModules []string
+
+	// Errors contains any errors encountered
+	Errors []error
+}
