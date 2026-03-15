@@ -30,6 +30,7 @@ import (
 	"tamarou.com/pvm/internal/errors"
 	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/internal/pm"
+	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/pvx"
 	"tamarou.com/pvm/internal/shell"
 	"tamarou.com/pvm/internal/tool"
@@ -112,6 +113,9 @@ func NewCommand() *cobra.Command {
 
 		// Temporary backward compatibility alias for makefile
 		newBackwardCompatSymlinksCommand(),
+
+		// PSC subcommand for Perl Structural Checker
+		newPSCCommand(),
 
 		// Hidden subcommands for help purposes only
 		newHelpOnlyPVICommand(),
@@ -2426,16 +2430,9 @@ func newRunCommand() *cobra.Command {
 	return pvxCmd
 }
 
-// newPSCCommand creates a stub PSC command (not yet available in this build)
+// newPSCCommand creates the PSC subcommand dispatching to the psc package.
 func newPSCCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "psc",
-		Short: "Perl Script Compiler (not yet available)",
-		Long:  "Provides static type checking for Perl code with type annotations. Not yet available in this build.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("psc is not yet available in this build")
-		},
-	}
+	return psc.NewCommand()
 }
 
 // execCommand implements the exec command functionality
@@ -3611,17 +3608,11 @@ func newHelpOnlyPVXCommand() *cobra.Command {
 	return pvxCmd
 }
 
-// newHelpOnlyPSCCommand creates a hidden stub PSC subcommand (not yet available in this build)
+// newHelpOnlyPSCCommand creates a hidden PSC subcommand for help display.
 func newHelpOnlyPSCCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:    "psc",
-		Hidden: true,
-		Short:  "Perl Script Compiler (not yet available)",
-		Long:   "Provides static type checking for Perl code with type annotations. Not yet available in this build.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("psc is not yet available in this build")
-		},
-	}
+	cmd := psc.NewCommand()
+	cmd.Hidden = true
+	return cmd
 }
 
 // newComponentVersionCommand creates a version command for a specific component
