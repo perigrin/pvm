@@ -42,6 +42,11 @@ jobs:
             runner: macos-latest
             goos: darwin
             goarch: arm64
+          - platform: windows-amd64
+            runner: ubuntu-latest
+            goos: windows
+            goarch: amd64
+            ext: .exe
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
@@ -97,24 +102,41 @@ jobs:
       run: |
         mkdir -p build/release
         LDFLAGS="-s -w -X 'tamarou.com/pvm/internal/version.Version=${VERSION}' -X 'tamarou.com/pvm/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)' -X 'tamarou.com/pvm/internal/version.CommitHash=${COMMIT}' -X 'tamarou.com/pvm/internal/version.GitHubToken=${GITHUB_TOKEN}'"
-        go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }} ./cmd/pvm
+        go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }}${{ matrix.ext }} ./cmd/pvm
 
     - name: Test binary
       if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
-      run: ./build/release/pvm-${{ matrix.platform }} version
+      run: ./build/release/pvm-${{ matrix.platform }}${{ matrix.ext }} version
 
-    - name: Create archive
+    - name: Create archive (Unix)
+      if: matrix.goos != 'windows'
       env:
         VERSION: ${{ steps.version.outputs.version }}
       run: |
         cd build/release
         tar -czf "pvm-${VERSION}-${{ matrix.platform }}.tar.gz" "pvm-${{ matrix.platform }}"
 
-    - name: Upload artifact
+    - name: Create archive (Windows)
+      if: matrix.goos == 'windows'
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        cd build/release
+        zip "pvm-${VERSION}-${{ matrix.platform }}.zip" "pvm-${{ matrix.platform }}.exe"
+
+    - name: Upload artifact (Unix)
+      if: matrix.goos != 'windows'
       uses: actions/upload-artifact@v4
       with:
         name: pvm-${{ matrix.platform }}
         path: build/release/pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz
+
+    - name: Upload artifact (Windows)
+      if: matrix.goos == 'windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: pvm-${{ matrix.platform }}
+        path: build/release/pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.zip
         retention-days: 7
 
   create-release:
@@ -190,6 +212,7 @@ jobs:
           echo "| Linux AMD64 | pvm-${VERSION}-linux-amd64.tar.gz |"
           echo "| Linux ARM64 | pvm-${VERSION}-linux-arm64.tar.gz |"
           echo "| macOS Apple Silicon | pvm-${VERSION}-darwin-arm64.tar.gz |"
+          echo "| Windows AMD64 | pvm-${VERSION}-windows-amd64.zip |"
           echo ""
           echo "## Installation"
           echo ""

@@ -11,8 +11,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"syscall"
-	"unsafe"
 
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
@@ -387,33 +385,6 @@ func isTerminal(f *os.File) bool {
 		return false
 	}
 	return (fileInfo.Mode() & os.ModeCharDevice) != 0
-}
-
-// getTerminalHeight returns the height of the terminal in rows
-func getTerminalHeight() int {
-	type winsize struct {
-		Row    uint16
-		Col    uint16
-		Xpixel uint16
-		Ypixel uint16
-	}
-
-	ws := &winsize{}
-	retCode, _, errno := syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdin),
-		uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(ws)))
-
-	if int(retCode) == -1 {
-		// Fall back to environment variable if syscall fails
-		return getTerminalHeightFromEnv()
-	}
-
-	if errno != 0 {
-		return getTerminalHeightFromEnv()
-	}
-
-	return int(ws.Row)
 }
 
 // getTerminalHeightFromEnv gets terminal height from environment variables
