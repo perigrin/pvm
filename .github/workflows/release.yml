@@ -1,5 +1,5 @@
 # ABOUTME: Automated cross-platform release workflow for PVM
-# ABOUTME: Uses Makefile targets to build and package releases
+# ABOUTME: Pure Go build — no CGO required for cross-compilation
 
 name: Release
 
@@ -20,7 +20,7 @@ on:
         type: boolean
 
 permissions:
-  contents: write  # Required for creating releases and tags
+  contents: write
 
 jobs:
   build-matrix:
@@ -34,10 +34,10 @@ jobs:
             runner: ubuntu-latest
             goos: linux
             goarch: amd64
-          - platform: darwin-amd64
-            runner: macos-13
-            goos: darwin
-            goarch: amd64
+          - platform: linux-arm64
+            runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
           - platform: darwin-arm64
             runner: macos-latest
             goos: darwin
@@ -57,41 +57,24 @@ jobs:
       with:
         go-version: '1.24.4'
 
-    - name: Set up Node.js (for tree-sitter)
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: Install system dependencies (Linux)
-      if: startsWith(matrix.runner, 'ubuntu-latest')
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential
-        npm install -g tree-sitter-cli
-
-    - name: Install system dependencies (macOS)
-      if: startsWith(matrix.runner, 'macos-')
-      run: |
-        npm install -g tree-sitter-cli
-        xcode-select --install 2>/dev/null || true
-
     - name: Get version info
       id: version
       shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_TAG: ${{ github.event.inputs.tag }}
+        INPUT_PRERELEASE: ${{ github.event.inputs.prerelease }}
       run: |
-        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-          TAG="${{ github.event.inputs.tag }}"
-          PRERELEASE="${{ github.event.inputs.prerelease }}"
+        if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
+          TAG="$INPUT_TAG"
+          PRERELEASE="$INPUT_PRERELEASE"
 
-          # Validate tag format for security
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
-            echo "❌ Invalid tag format: $TAG"
-            echo "Tag must match pattern: v1.0.0 or v1.0.0-rc1"
+            echo "Invalid tag format: $TAG"
             exit 1
           fi
         else
           TAG=${GITHUB_REF#refs/tags/}
-          # Auto-detect prerelease based on tag
           if [[ "$TAG" =~ -rc[0-9]+$ ]] || [[ "$TAG" =~ -alpha[0-9]*$ ]] || [[ "$TAG" =~ -beta[0-9]*$ ]]; then
             PRERELEASE="true"
           else
@@ -103,33 +86,29 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "prerelease=$PRERELEASE" >> $GITHUB_OUTPUT
 
-    - name: Build tree-sitter
-      run: make tree-sitter
-
     - name: Build binary
       env:
         VERSION: ${{ steps.version.outputs.version }}
-        BUILD_TIME: ${{ steps.version.outputs.build_time }}
         COMMIT: ${{ github.sha }}
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: '0'
         GITHUB_TOKEN: ${{ secrets.PVM_RELEASE_TOKEN }}
       run: |
         mkdir -p build/release
         LDFLAGS="-s -w -X 'tamarou.com/pvm/internal/version.Version=${VERSION}' -X 'tamarou.com/pvm/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)' -X 'tamarou.com/pvm/internal/version.CommitHash=${COMMIT}' -X 'tamarou.com/pvm/internal/version.GitHubToken=${GITHUB_TOKEN}'"
-
         go build -ldflags="$LDFLAGS" -o build/release/pvm-${{ matrix.platform }} ./cmd/pvm
 
     - name: Test binary
-      run: |
-        echo "Testing ${{ matrix.platform }} binary..."
-        ./build/release/pvm-${{ matrix.platform }} version
-
+      if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+      run: ./build/release/pvm-${{ matrix.platform }} version
 
     - name: Create archive
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
       run: |
         cd build/release
-        tar -czf pvm-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz pvm-${{ matrix.platform }}
+        tar -czf "pvm-${VERSION}-${{ matrix.platform }}.tar.gz" "pvm-${{ matrix.platform }}"
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -156,20 +135,20 @@ jobs:
     - name: Get version info
       id: version
       shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_TAG: ${{ github.event.inputs.tag }}
+        INPUT_PRERELEASE: ${{ github.event.inputs.prerelease }}
       run: |
-        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-          TAG="${{ github.event.inputs.tag }}"
-          PRERELEASE="${{ github.event.inputs.prerelease }}"
-
-          # Validate tag format for security
+        if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
+          TAG="$INPUT_TAG"
+          PRERELEASE="$INPUT_PRERELEASE"
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
-            echo "❌ Invalid tag format: $TAG"
-            echo "Tag must match pattern: v1.0.0 or v1.0.0-rc1"
+            echo "Invalid tag format: $TAG"
             exit 1
           fi
         else
           TAG=${GITHUB_REF#refs/tags/}
-          # Auto-detect prerelease based on tag
           if [[ "$TAG" =~ -rc[0-9]+$ ]] || [[ "$TAG" =~ -alpha[0-9]*$ ]] || [[ "$TAG" =~ -beta[0-9]*$ ]]; then
             PRERELEASE="true"
           else
@@ -184,135 +163,64 @@ jobs:
     - name: Organize release files
       run: |
         mkdir -p release-files
-        find artifacts -name "*.tar.gz" | while read file; do
-          cp "$file" release-files/
-        done
+        find artifacts -name "*.tar.gz" -exec cp {} release-files/ \;
         ls -la release-files/
 
     - name: Generate release notes
-      id: release_notes
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
+        TAG: ${{ steps.version.outputs.tag }}
       run: |
-        VERSION="${{ steps.version.outputs.version }}"
-        TAG="${{ steps.version.outputs.tag }}"
-
-        # Get previous tag for changelog
         PREV_TAG=$(git tag --sort=-version:refname | grep -v "$TAG" | head -n1 || echo "")
 
-        cat > release_notes.md << EOF
-        # PVM $TAG
-
-        ## 🚀 What's New
-
-        $(if [ -n "$PREV_TAG" ]; then
-          echo "### Changes since $PREV_TAG"
-          git log --pretty=format:"- %s" "$PREV_TAG..$TAG" | head -20
-        else
-          echo "First release of PVM (Perl Version Manager) with comprehensive typed Perl support."
-        fi)
-
-        ## 📦 Release Assets
-
-        This release includes binaries for multiple platforms:
-
-        ### Linux
-        - **Linux AMD64**: \`pvm-${VERSION}-linux-amd64.tar.gz\` (includes PSC with tree-sitter)
-
-        ### macOS
-        - **macOS Intel**: \`pvm-${VERSION}-darwin-amd64.tar.gz\` (includes PSC)
-        - **macOS Apple Silicon**: \`pvm-${VERSION}-darwin-arm64.tar.gz\` (includes PSC)
-
-        ## 🔧 Installation
-
-        ### Linux
-        \`\`\`bash
-        # Download for your platform
-        wget https://github.com/perigrin/pvm/releases/download/$TAG/pvm-${VERSION}-linux-amd64.tar.gz
-        tar -xzf pvm-${VERSION}-linux-amd64.tar.gz
-
-        # Make binaries executable and test
-        chmod +x pvm-* pvi-* pvx-*
-        ./pvm-linux-amd64 version
-        \`\`\`
-
-        ### macOS
-        \`\`\`bash
-        # Download for your platform (Intel or Apple Silicon)
-        wget https://github.com/perigrin/pvm/releases/download/$TAG/pvm-${VERSION}-darwin-amd64.tar.gz
-        tar -xzf pvm-${VERSION}-darwin-amd64.tar.gz
-
-        # Make executable and remove quarantine flag
-        chmod +x pvm-darwin-amd64
-        xattr -d com.apple.quarantine pvm-darwin-amd64
-
-        # Test installation
-        ./pvm-darwin-amd64 version
-        \`\`\`
-
-        **⚠️ macOS Security Notice**: These binaries are unsigned. If you get a security warning:
-        1. **Right-click the binary** → **"Open"** → **"Open"** (bypasses Gatekeeper)
-        2. **Or use Terminal**: \`xattr -d com.apple.quarantine pvm-darwin-*\`
-        3. **Or temporarily disable Gatekeeper**: \`sudo spctl --master-disable\` (re-enable with \`--master-enable\`)
-
-        ## 🧪 Components
-
-        | Component | Description | Platforms |
-        |-----------|-------------|-----------|
-        | **pvm** | Main Perl version manager | Linux, macOS |
-        | **pvi** | Package installer with dependency management | Linux, macOS |
-        | **pvx** | Perl script executor with isolation | Linux, macOS |
-        | **psc** | Perl script compiler with type checking | Linux, macOS |
-
-        ## ⚠️ Notes
-
-        - **PSC** (Perl Script Compiler) with tree-sitter support is available on all platforms
-        - **Windows support** is temporarily disabled - see GitHub issues for status
-        - Some advanced features require additional Perl modules to be installed
-        - $(if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then echo "This is a pre-release build - not recommended for production use"; else echo "This is a stable release suitable for production use"; fi)
-
-        ## 📋 Support
-
-        - **Documentation**: See the [README](https://github.com/perigrin/pvm/blob/main/README.md)
-        - **Issues**: Report bugs and feature requests via [GitHub Issues](https://github.com/perigrin/pvm/issues)
-        - **Discussions**: Join the conversation in [GitHub Discussions](https://github.com/perigrin/pvm/discussions)
-        EOF
+        {
+          echo "## What's New"
+          echo ""
+          if [ -n "$PREV_TAG" ]; then
+            echo "### Changes since $PREV_TAG"
+            git log --pretty=format:"- %s" "$PREV_TAG..$TAG" | head -20
+          else
+            echo "First pure-Go release of PVM."
+          fi
+          echo ""
+          echo "## Release Assets"
+          echo ""
+          echo "| Platform | File |"
+          echo "|----------|------|"
+          echo "| Linux AMD64 | pvm-${VERSION}-linux-amd64.tar.gz |"
+          echo "| Linux ARM64 | pvm-${VERSION}-linux-arm64.tar.gz |"
+          echo "| macOS Apple Silicon | pvm-${VERSION}-darwin-arm64.tar.gz |"
+          echo ""
+          echo "## Installation"
+          echo ""
+          echo '```bash'
+          echo "tar -xzf pvm-${VERSION}-<platform>.tar.gz"
+          echo "chmod +x pvm-*"
+          echo "sudo mv pvm-* /usr/local/bin/pvm"
+          echo "pvm version"
+          echo '```'
+        } > release_notes.md
 
     - name: Create GitHub Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ steps.version.outputs.tag }}
+        IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
       run: |
-        # Validate tag format for security
-        TAG="${{ steps.version.outputs.tag }}"
         if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
-          echo "❌ Invalid tag format: $TAG"
+          echo "Invalid tag format: $TAG"
           exit 1
         fi
 
-        # Prepare release flags
         RELEASE_FLAGS=""
-        if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then
+        if [[ "$IS_PRERELEASE" == "true" ]]; then
           RELEASE_FLAGS="--prerelease"
         else
           RELEASE_FLAGS="--latest"
         fi
 
-        # Create release using official GitHub CLI
         gh release create "$TAG" \
           --title "PVM $TAG" \
           --notes-file release_notes.md \
           $RELEASE_FLAGS \
           release-files/*
-      env:
-        GH_TOKEN: ${{ github.token }}
-
-    - name: Update release summary
-      run: |
-        echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Tag**: ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Pre-release**: ${{ steps.version.outputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📦 Release Assets" >> $GITHUB_STEP_SUMMARY
-        ls -la release-files/ >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
-        echo "- [Release Page](https://github.com/perigrin/pvm/releases/tag/${{ steps.version.outputs.tag }})" >> $GITHUB_STEP_SUMMARY
-        echo "- [All Releases](https://github.com/perigrin/pvm/releases)" >> $GITHUB_STEP_SUMMARY
