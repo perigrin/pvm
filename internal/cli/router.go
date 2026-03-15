@@ -28,7 +28,7 @@ const (
 	DescriptionPVM      = "Perl Version Manager - Manages Perl installations and versions"
 	DescriptionPVX      = "Perl Version eXecutor - Executes modules/scripts in isolated environments"
 	DescriptionPM       = "Perl Module - Manages CPAN modules for installed Perl versions"
-	DescriptionPSC      = "Perl Script Compiler - Provides static type checking for Perl code"
+	DescriptionPSC      = "Perl Structural Checker - Parse and analyze Perl source code"
 	DescriptionCpanm    = "cpanm compatibility interface - Install CPAN modules using cpanm syntax"
 	DescriptionCarton   = "carton compatibility interface - Manage dependencies using carton syntax"
 	DescriptionPerlbrew = "perlbrew compatibility interface - Manage Perl versions using perlbrew syntax"

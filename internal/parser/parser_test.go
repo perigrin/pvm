@@ -33,8 +33,9 @@ func TestParseVariableDeclaration(t *testing.T) {
 }
 
 // TestParseStringLiteral verifies that the parser processes string literals.
-// Note: the gotreesitter Perl grammar has limited support for string literals;
-// they may produce error nodes due to incomplete lexer porting.
+// The gotreesitter Perl grammar has limited support for string literals and
+// produces ERROR nodes for double-quoted strings due to incomplete lexer porting.
+// When this grammar limitation is fixed, this test should be updated to assert HasError() == false.
 func TestParseStringLiteral(t *testing.T) {
 	p := parser.New()
 	source := []byte(`my $x = "hello world";` + "\n")
@@ -45,8 +46,11 @@ func TestParseStringLiteral(t *testing.T) {
 
 	root := tree.RootNode()
 	require.NotNil(t, root)
-	// The grammar produces a tree (possibly with error nodes for complex string interpolation)
-	assert.NotNil(t, root, "root node should not be nil")
+	// Known grammar limitation: double-quoted strings produce ERROR nodes.
+	// Assert this explicitly so a grammar improvement will cause this test to fail,
+	// prompting an update to remove the HasError assertion.
+	t.Log("Known gotreesitter grammar limitation: double-quoted strings produce ERROR nodes")
+	assert.True(t, root.HasError(), "expected ERROR nodes for double-quoted string (known grammar limitation)")
 }
 
 func TestParseSubroutineDefinition(t *testing.T) {
@@ -78,8 +82,9 @@ func TestParseClass(t *testing.T) {
 }
 
 // TestParseHeredoc verifies that the parser handles heredocs without panicking.
-// Note: heredoc syntax may produce error nodes in the gotreesitter Perl grammar
-// due to the complexity of heredoc lexing.
+// The gotreesitter Perl grammar produces ERROR nodes for heredoc syntax due to
+// the complexity of heredoc lexing. When this grammar limitation is fixed,
+// this test should be updated to assert HasError() == false.
 func TestParseHeredoc(t *testing.T) {
 	p := parser.New()
 	source := []byte("my $text = <<END;\nHello\nEND\n")
@@ -90,11 +95,17 @@ func TestParseHeredoc(t *testing.T) {
 
 	root := tree.RootNode()
 	require.NotNil(t, root, "root node should not be nil for heredoc parse")
+	// Known grammar limitation: heredoc syntax produces ERROR nodes.
+	// Assert this explicitly so a grammar improvement will cause this test to fail,
+	// prompting an update to remove the HasError assertion.
+	t.Log("Known gotreesitter grammar limitation: heredoc syntax produces ERROR nodes")
+	assert.True(t, root.HasError(), "expected ERROR nodes for heredoc (known grammar limitation)")
 }
 
 // TestParseRegexMatch verifies that the parser handles regex without panicking.
-// Note: regex and other quotelike operators may produce error nodes in the
-// gotreesitter Perl grammar due to lexer porting limitations.
+// The gotreesitter Perl grammar produces ERROR nodes for regex and other quotelike
+// operators due to lexer porting limitations. When this grammar limitation is fixed,
+// this test should be updated to assert HasError() == false.
 func TestParseRegexMatch(t *testing.T) {
 	p := parser.New()
 	source := []byte("my $matched = ($str =~ /hello/);\n")
@@ -105,6 +116,11 @@ func TestParseRegexMatch(t *testing.T) {
 
 	root := tree.RootNode()
 	require.NotNil(t, root, "root node should not be nil for regex parse")
+	// Known grammar limitation: regex match produces ERROR nodes.
+	// Assert this explicitly so a grammar improvement will cause this test to fail,
+	// prompting an update to remove the HasError assertion.
+	t.Log("Known gotreesitter grammar limitation: regex match produces ERROR nodes")
+	assert.True(t, root.HasError(), "expected ERROR nodes for regex match (known grammar limitation)")
 }
 
 func TestNodeNavigation(t *testing.T) {

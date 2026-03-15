@@ -44,7 +44,6 @@ func NewCommand() *cobra.Command {
 		newRemoveCommand(),
 		newDepsCommand(),
 		newBundleCommand(),
-		newTypeCommand(),
 		newMirrorCommand(),
 		newOutdatedCommand(),
 	)
@@ -588,19 +587,6 @@ func newBundleCommand() *cobra.Command {
 
 	// Add subcommands
 	cmd.AddCommand(exportCmd, importCmd)
-
-	return cmd
-}
-
-func newTypeCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "type",
-		Short: "Manage type definitions",
-		Long:  "Create, list, and manage type definitions for Perl modules",
-	}
-
-	// Add subcommands from type_command.go
-	createTypeCommands(cmd)
 
 	return cmd
 }

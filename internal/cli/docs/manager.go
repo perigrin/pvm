@@ -153,8 +153,6 @@ func (e *EmbeddedDocumentManager) generateDescription(name string) string {
 		"architecture-overview":     "System architecture overview",
 		"compiler_architecture":     "Compiler architecture details",
 		"troubleshooting":           "Common issues and solutions",
-		"typed-perl-specification":  "Type annotation specification",
-		"type-annotation-reference": "Type annotation reference",
 		"workflow-new-development":  "Workflow for new project development",
 		"workflow-legacy-codebase":  "Workflow for legacy codebase migration",
 		"workflow-existing-project": "Workflow for existing projects",

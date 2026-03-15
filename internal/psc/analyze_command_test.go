@@ -43,9 +43,11 @@ func TestAnalyzeCommandSingleFile(t *testing.T) {
 
 	// The output should mention the dependencies found
 	output := out.String()
-	// The analyze command should produce output (even if dependencies are listed)
-	// Grammar may not fully parse 'use strict' but the command should run
 	t.Logf("analyze output: %q", output)
+	// Grammar may not fully parse 'use strict' due to known gotreesitter limitations,
+	// but the analyze command should still report what it finds.
+	assert.Contains(t, output, "strict")
+	assert.Contains(t, output, "warnings")
 }
 
 func TestAnalyzeCommandDirectory(t *testing.T) {

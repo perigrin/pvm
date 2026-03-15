@@ -36,13 +36,13 @@ func NewLSPServer() *LSPServer {
 // OpenDocument parses the given source and stores it under uri.
 // If the uri is already open, the document is replaced.
 func (s *LSPServer) OpenDocument(uri string, source []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	tree, err := s.parser.Parse(source)
 	if err != nil {
 		return fmt.Errorf("parse %s: %w", uri, err)
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	s.documents[uri] = &document{
 		uri:    uri,

@@ -68,7 +68,7 @@ Developing a CPAN Module:
    # Edit pvm.toml to configure author, license, etc.
    ```
 
-3. Develop with type checking:
+3. Start development:
    ```
    pvm dev
    ```
@@ -133,12 +133,7 @@ Build Workflows:
    pvm build --watch
    ```
 
-4. Type-check only:
-   ```
-   pvm build --check-only
-   ```
-
-5. Clean build:
+4. Clean build:
    ```
    pvm build --clean
    ```

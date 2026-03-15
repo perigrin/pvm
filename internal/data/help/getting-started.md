@@ -33,7 +33,7 @@ PVM (Perl Version Manager) provides modern tooling for Perl development with Typ
 
 - **Project Context**: PVM automatically detects projects via .perl-version, cpanfile, or pvm.toml
 - **Module Management**: Use 'pvm module' commands for dependency management
-- **Build System**: 'pvm build' provides type checking and distribution creation
+- **Build System**: 'pvm build' provides distribution creation and packaging
 - **Development Mode**: 'pvm dev' watches files and provides instant feedback
 
 ## Need Help?

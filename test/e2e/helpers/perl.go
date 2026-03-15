@@ -4,7 +4,6 @@
 package helpers
 
 import (
-	"os/exec"
 	"runtime"
 	"testing"
 
@@ -55,15 +54,10 @@ func EnsureBinaryPerl(t *testing.T, version string) string {
 	return "/usr/bin/perl" // Placeholder - PVM will use correct version automatically
 }
 
-// HasTreeSitter checks if the tree-sitter library is available
+// HasTreeSitter checks if the tree-sitter library is available.
+// gotreesitter is compiled into the binary, so tree-sitter is always available.
 func HasTreeSitter() bool {
-	// Tree-sitter is built into the binary now, so we just need to check
-	// if the tree-sitter-typed-perl directory exists and is properly built
-
-	// For now, we'll use a simple check - try to find the tree-sitter CLI
-	// In production, PSC would use the embedded tree-sitter library
-	_, err := exec.LookPath("tree-sitter")
-	return err == nil
+	return true
 }
 
 // SkipIfNoTreeSitter skips the test if tree-sitter is not available

@@ -667,7 +667,7 @@ func outputStatusHuman(cmd *cobra.Command, ctx *project.ProjectContext) error {
 		ui.Info("- Set Perl version in .perl-version file")
 	}
 	ui.Info("- Install dependencies with 'pvm module install'")
-	ui.Info("- Run type check with 'pvm build --check-only'")
+	ui.Info("- Run build with 'pvm build'")
 
 	return nil
 }
@@ -766,7 +766,7 @@ func showNextSteps(cmd *cobra.Command, createdDir bool, projectDir string) {
 
 	cmd.Printf("  pvm module install          # Install dependencies\n")
 	cmd.Printf("  pvm workspace status        # Check workspace health\n")
-	cmd.Printf("  pvm build --check-only      # Run type checking\n")
+	cmd.Printf("  pvm build                   # Build for distribution\n")
 	cmd.Printf("\nLearn more:\n")
 	cmd.Printf("  pvm help workspace          # Workspace management commands\n")
 	cmd.Printf("  pvm help module             # Module management commands\n")
@@ -1284,7 +1284,6 @@ This command provides comprehensive workspace validation by:
 - Checking project configuration and structure
 - Verifying Perl version availability
 - Resolving and testing all dependencies
-- Running type checking on project files
 - Executing validation script if provided
 - Generating detailed validation report`,
 		RunE: runWorkspaceValidate,

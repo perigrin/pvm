@@ -350,15 +350,9 @@ func TestShowTypesHelp(t *testing.T) {
 	outputStr := output.String()
 
 	expectedSections := []string{
-		"PVM Type System Reference",
+		"PVM Type Annotations",
 		"Basic Type Syntax",
-		"Parameterized Types",
-		"Union & Intersection Types",
-		"Types::Standard Migration",
-		"Bool Type Validation",
-		"Type Hierarchy Overview",
-		"Common Type Patterns",
-		"Getting More Help",
+		"Parsing Type-Annotated Perl",
 	}
 
 	for _, section := range expectedSections {
@@ -370,25 +364,13 @@ func TestShowTypesHelp(t *testing.T) {
 	// Check for specific content examples
 	expectedContent := []string{
 		"my Int $count = 42;",
-		"my ArrayRef[Int] @numbers;",
-		"my Map[Str, Int] %mapping;",
-		"my Int|Str $flexible;",
-		"Bool type has strict validation rules:",
-		"Any",
-		"├── Defined",
-		"Maybe[Str] $name",
-		"pvm help workflows",
-		"pvm dev",
+		"psc parse",
+		"psc analyze",
 	}
 
 	for _, content := range expectedContent {
 		if !strings.Contains(outputStr, content) {
 			t.Errorf("Expected output to contain content '%s'", content)
 		}
-	}
-
-	// Verify no error message in output
-	if strings.Contains(outputStr, "Error") || strings.Contains(outputStr, "error") {
-		t.Error("Output should not contain error messages")
 	}
 }

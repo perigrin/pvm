@@ -162,7 +162,7 @@ func (h *HelpManager) getBuildAndTestCategory() HelpCategory {
 			Command:     "pvm build --inline",
 			Description: "Build for development (.pmc files)",
 			Example:     "pvm build --inline",
-			Relevance:   "Fast development builds with type checking",
+			Relevance:   "Fast development builds",
 		},
 		{
 			Command:     "pvm build --watch",
@@ -355,7 +355,7 @@ Developing a CPAN Module:
 2. Set up distribution metadata:
    # Edit pvm.toml to configure author, license, etc.
 
-3. Develop with type checking:
+3. Start development:
    pvm dev
 
 4. Build for distribution:
@@ -888,7 +888,7 @@ func showGettingStartedHelp(cmd *cobra.Command, helpManager *HelpManager) error 
 	concepts := []string{
 		"**Project Context**: PVM automatically detects projects via .perl-version, cpanfile, or pvm.toml",
 		"**Module Management**: Use 'pvm module' commands for dependency management",
-		"**Build System**: 'pvm build' provides type checking and distribution creation",
+		"**Build System**: 'pvm build' provides distribution creation and packaging",
 		"**Development Mode**: 'pvm dev' watches files and provides instant feedback",
 	}
 	ui.List(concepts)
