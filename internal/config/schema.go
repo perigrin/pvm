@@ -348,7 +348,26 @@ func (sv *SchemaValidator) matchesPattern(value, pattern string) bool {
 		}
 		return true
 	case "path":
-		return len(value) > 0 && (strings.HasPrefix(value, "/") || strings.Contains(value, "$"))
+		if len(value) == 0 {
+			return false
+		}
+		// Unix absolute path
+		if strings.HasPrefix(value, "/") {
+			return true
+		}
+		// Contains an environment variable reference
+		if strings.Contains(value, "$") {
+			return true
+		}
+		// Windows absolute path: drive letter followed by colon (e.g. "C:\..." or "C:/...")
+		if len(value) >= 2 && value[1] == ':' {
+			return true
+		}
+		// Windows UNC path
+		if strings.HasPrefix(value, `\\`) {
+			return true
+		}
+		return false
 	default:
 		// For now, assume other patterns are valid
 		return true

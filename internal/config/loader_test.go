@@ -147,10 +147,11 @@ func TestGetProjectRoot(t *testing.T) {
 		}
 
 		root := GetProjectRoot()
-		// On macOS, /var/folders resolves to /private/var/folders, so use filepath.EvalSymlinks
-		// to compare normalized paths
+		// Normalize both paths to handle symlinks (macOS) and short path names
+		// (Windows 8.3 format), so the comparison is platform-independent.
 		expectedPath, _ := filepath.EvalSymlinks(projectRoot)
-		if root != expectedPath {
+		normalizedRoot, _ := filepath.EvalSymlinks(root)
+		if normalizedRoot != expectedPath {
 			t.Errorf("Expected root to be %s, got %s", expectedPath, root)
 		}
 	})
@@ -162,10 +163,11 @@ func TestGetProjectRoot(t *testing.T) {
 		}
 
 		root := GetProjectRoot()
-		// On macOS, /var/folders resolves to /private/var/folders, so use filepath.EvalSymlinks
-		// to compare normalized paths
+		// Normalize both paths to handle symlinks (macOS) and short path names
+		// (Windows 8.3 format), so the comparison is platform-independent.
 		expectedPath, _ := filepath.EvalSymlinks(projectRoot)
-		if root != expectedPath {
+		normalizedRoot, _ := filepath.EvalSymlinks(root)
+		if normalizedRoot != expectedPath {
 			t.Errorf("Expected root to be %s, got %s", expectedPath, root)
 		}
 	})

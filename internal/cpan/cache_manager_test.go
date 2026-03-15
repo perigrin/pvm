@@ -341,17 +341,25 @@ func TestCacheManagerOptimizeCache(t *testing.T) {
 }
 
 func TestCacheManagerNonExistentDirectory(t *testing.T) {
-	nonExistentDir := "/this/path/does/not/exist"
+	// Use a path guaranteed to fail on all platforms: a subdirectory of a regular
+	// file. Creating a directory inside a file is impossible on Linux, macOS, and
+	// Windows, unlike a Unix-rooted path such as "/this/path/does/not/exist" which
+	// Windows may interpret relative to the current drive and create successfully.
+	tempDir := t.TempDir()
+	blockingFile := filepath.Join(tempDir, "not-a-dir")
+	if err := os.WriteFile(blockingFile, []byte("block"), 0644); err != nil {
+		t.Fatalf("Failed to create blocking file: %v", err)
+	}
+	nonExistentDir := filepath.Join(blockingFile, "subdir")
 	logger := log.New(os.Stderr, "[TestCache] ", log.LstdFlags)
 
-	// Should create the directory
 	cm, err := NewCacheManager(nonExistentDir, logger)
 	if err == nil {
 		t.Error("Expected error for non-existent directory path, but got none")
 		// Clean up if it somehow succeeded
 		os.RemoveAll(nonExistentDir)
 	} else if cm != nil {
-		// This is expected - the directory creation should fail due to permissions
+		// The cache manager should be nil when creation fails
 		t.Error("Expected nil cache manager when creation fails")
 	}
 }
