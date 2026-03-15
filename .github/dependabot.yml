@@ -1,0 +1,59 @@
+# ABOUTME: Dependabot configuration for automated dependency updates
+# ABOUTME: Manages Go modules, GitHub Actions, and tree-sitter dependencies
+
+version: 2
+updates:
+  # Go module dependencies
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "perigrin"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "go"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "06:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "perigrin"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "ci/cd"
+
+  # Tree-sitter npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/tree-sitter-typed-perl"
+    schedule:
+      interval: "monthly"
+      day: "first-monday"
+      time: "06:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "perigrin"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "tree-sitter"
+    ignore:
+      # Ignore major version updates for tree-sitter CLI to avoid breaking changes
+      - dependency-name: "tree-sitter-cli"
+        update-types: ["version-update:semver-major"]

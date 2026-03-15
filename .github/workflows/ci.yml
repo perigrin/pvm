@@ -1,0 +1,133 @@
+# ABOUTME: Multi-platform CI pipeline testing Linux and macOS
+# ABOUTME: Uses PVM to ensure consistent Perl versions across all platforms
+
+name: CI
+
+on:
+  push:
+    branches: [ pu ]
+  pull_request:
+    branches: [ pu ]
+
+jobs:
+  test-linux:
+    name: Test & Build (Linux)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.4'
+
+    - name: Set up Node.js (for tree-sitter)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+        npm install -g tree-sitter-cli
+
+    - name: Install PVM and project Perl version
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        # Download latest PVM release using gh CLI (Linux AMD64 only)
+        gh release download "$(gh release list --repo perigrin/pvm --json tagName,name --jq '.[] | .tagName' | head -1)" --repo perigrin/pvm --pattern '*linux-amd64*'
+
+        # Extract and install PVM
+        tar -xzf pvm-*-linux-amd64.tar.gz
+        sudo mv pvm-linux-amd64 /usr/local/bin/pvm
+
+        # Install the Perl version specified in .perl-version
+        PERL_VERSION=$(cat .perl-version)
+        echo "Installing Perl $PERL_VERSION via PVM..."
+        pvm install -B $PERL_VERSION
+
+        # Set up shell integration for the test environment
+        eval "$(pvm init)"
+        echo 'eval "$(pvm init)"' >> ~/.bashrc
+
+    - name: Build
+      run: |
+        eval "$(pvm init)"
+        make
+
+    - name: Test
+      run: |
+        eval "$(pvm init)"
+        make test
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts-linux
+        path: build/
+        retention-days: 7
+
+  test-macos:
+    name: Test & Build (macOS)
+    runs-on: macos-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.4'
+
+    - name: Set up Node.js (for tree-sitter)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install system dependencies
+      run: |
+        npm install -g tree-sitter-cli
+
+    - name: Install PVM and project Perl version
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        # Download latest PVM release using gh CLI (macOS ARM64 only)
+        gh release download "$(gh release list --repo perigrin/pvm --json tagName,name --jq '.[] | .tagName' | head -1)" --repo perigrin/pvm --pattern '*darwin-arm64*'
+
+        # Extract and install PVM
+        tar -xzf pvm-*-darwin-arm64.tar.gz
+        sudo mv pvm-darwin-arm64 /usr/local/bin/pvm
+
+        # Install the Perl version specified in .perl-version
+        PERL_VERSION=$(cat .perl-version)
+        echo "Installing Perl $PERL_VERSION via PVM..."
+        pvm install -B $PERL_VERSION
+
+        # Set up shell integration for the test environment
+        eval "$(pvm init)"
+        echo 'eval "$(pvm init)"' >> ~/.bash_profile
+
+    - name: Build
+      run: |
+        eval "$(pvm init)"
+        make
+
+    - name: Test
+      run: |
+        eval "$(pvm init)"
+        make test
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts-macos
+        path: build/
+        retention-days: 7

@@ -1,0 +1,218 @@
+# ABOUTME: GitHub Actions workflow for building Perl binaries across multiple platforms
+# ABOUTME: Uses pvm build-perl --upload command with platform matrix
+
+name: Build Perl Binaries
+
+on:
+  # Manual trigger only
+  workflow_dispatch:
+    inputs:
+      perl_versions:
+        description: 'Perl versions to build (comma-separated or "latest2" for most recent 2 versions)'
+        required: false
+        default: 'latest2'
+        type: string
+
+# Required permissions for GitHub token to create releases and upload assets
+permissions:
+  contents: write    # Required to create releases and upload assets
+  actions: read      # Required to read workflow artifacts (if needed)
+
+jobs:
+  # Get latest Perl versions and prepare matrix
+  prepare:
+    name: Prepare Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.versions.outputs.versions }}
+      versions_array: ${{ steps.matrix.outputs.versions_array }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Download latest PVM release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest release tag (including pre-releases)
+          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Using release: $LATEST_TAG"
+
+          # Download the linux-amd64 release asset
+          echo "Downloading release assets..."
+          gh release download "$LATEST_TAG" --repo ${{ github.repository }} --pattern "*linux-amd64.tar.gz"
+
+          # List downloaded files for debugging
+          echo "Downloaded files:"
+          ls -la *.tar.gz 2>/dev/null || echo "No tar.gz files found"
+
+          # Extract and make executable
+          echo "Extracting archive..."
+          tar -xzf *-linux-amd64.tar.gz
+
+          # List extracted files for debugging
+          echo "Extracted files:"
+          ls -la pvm-linux-amd64 2>/dev/null || echo "No pvm-linux-amd64 found"
+
+          chmod +x pvm-linux-amd64
+
+          # Rename for easy access
+          echo "Renaming binary..."
+          mv pvm-linux-amd64 pvm
+
+          # Verify it works
+          echo "Testing pvm..."
+          ./pvm version
+
+      - name: Get Perl versions
+        id: versions
+        run: |
+          if [[ "${{ github.event.inputs.perl_versions }}" == "latest2" ]]; then
+            # Get the 2 most recent stable versions
+            VERSIONS=$(./pvm available --format=json | jq -r '[.[] | select(.type == "stable") | .version] | sort_by(.) | reverse | .[0:2] | join(",")')
+          else
+            VERSIONS="${{ github.event.inputs.perl_versions }}"
+          fi
+          echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
+          echo "Selected Perl versions: $VERSIONS"
+
+      - name: Generate build matrix
+        id: matrix
+        run: |
+          # Convert comma-separated versions to JSON array
+          VERSIONS_JSON=$(echo "${{ steps.versions.outputs.versions }}" | jq -R 'split(",") | map(select(length > 0))')
+
+          # Platform matrix (same as release workflow)
+          PLATFORMS='["linux-amd64", "darwin-amd64", "darwin-arm64"]'
+
+          MATRIX=$(jq -n --argjson versions "$VERSIONS_JSON" --argjson platforms "$PLATFORMS" '{
+            include: [
+              $versions[] as $version | $platforms[] as $platform | {
+                version: $version,
+                platform: $platform,
+                runner: (
+                  if $platform == "linux-amd64" then "ubuntu-latest"
+                  elif $platform == "darwin-amd64" then "macos-13"
+                  elif $platform == "darwin-arm64" then "macos-latest"
+                  else "ubuntu-latest" end
+                )
+              }
+            ]
+          }')
+
+          # Output the matrix as a single line for GitHub Actions
+          echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
+          echo "versions_array=$(echo "$VERSIONS_JSON" | jq -c .)" >> $GITHUB_OUTPUT
+          echo "Generated matrix:"
+          echo "$MATRIX" | jq .
+
+  # Build binaries using pvm build-perl --upload
+  build:
+    name: Build ${{ matrix.version }} on ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+
+    steps:
+      - name: Download latest PVM release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest release tag (including pre-releases)
+          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Using release: $LATEST_TAG"
+
+          # Download the release asset for the current platform
+          echo "Downloading release assets..."
+          gh release download "$LATEST_TAG" --repo ${{ github.repository }} --pattern "*${{ matrix.platform }}.tar.gz"
+
+          # List downloaded files for debugging
+          echo "Downloaded files:"
+          ls -la *.tar.gz 2>/dev/null || echo "No tar.gz files found"
+
+          # Extract and make executable
+          echo "Extracting archive..."
+          tar -xzf *-${{ matrix.platform }}.tar.gz
+
+          # List extracted files for debugging
+          echo "Extracted files:"
+          ls -la pvm-${{ matrix.platform }} 2>/dev/null || echo "No pvm-${{ matrix.platform }} found"
+
+          chmod +x pvm-${{ matrix.platform }}
+
+          # Rename for easy access
+          echo "Renaming binary..."
+          mv pvm-${{ matrix.platform }} pvm
+
+          # Verify it works
+          echo "Testing pvm..."
+          ./pvm version
+
+      - name: Build Perl binary (no upload)
+        run: |
+          ./pvm perl build ${{ matrix.version }}
+        timeout-minutes: 120
+
+      - name: Create binary archive
+        run: |
+          # Use PVM's native perl tarball command for reliable cross-platform archive creation
+          ./pvm perl tarball ${{ matrix.version }} \
+            --output ~/.local/share/pvm/versions/${{ matrix.version }}/perl-${{ matrix.version }}-${{ matrix.platform }}.tar.gz \
+            --exclude "*.log" --exclude "*.tmp" --exclude ".pvm-*"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: perl-${{ matrix.version }}-${{ matrix.platform }}
+          path: ~/.local/share/pvm/versions/${{ matrix.version }}/perl-${{ matrix.version }}-${{ matrix.platform }}.tar.gz
+          retention-days: 1
+
+  # Upload job - creates releases with all platform binaries
+  upload:
+    name: Upload Perl ${{ matrix.version }} Binaries
+    runs-on: ubuntu-latest
+    needs: [prepare, build]
+    if: success()
+    strategy:
+      matrix:
+        version: ${{ fromJson(needs.prepare.outputs.versions_array) }}
+    steps:
+      - name: Download all artifacts for version ${{ matrix.version }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: perl-${{ matrix.version }}-*
+          path: ./binaries
+          merge-multiple: true
+
+      - name: Create GitHub release with all binaries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create release for this Perl version
+          gh release create perl-${{ matrix.version }} \
+            --repo ${{ github.repository }} \
+            --title "Perl ${{ matrix.version }} Binaries" \
+            --notes "Pre-built Perl ${{ matrix.version }} binaries for Linux and macOS platforms" \
+            ./binaries/perl-${{ matrix.version }}-*.tar.gz
+
+  # Summary job
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [prepare, build, upload]
+    if: always()
+    steps:
+      - name: Build Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Perl Versions**: ${{ needs.prepare.outputs.versions }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Status**: ${{ needs.build.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Upload Status**: ${{ needs.upload.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.build.result }}" == "success" && "${{ needs.upload.result }}" == "success" ]]; then
+            echo "✅ All binaries built and uploaded successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some builds or uploads failed - check individual job logs" >> $GITHUB_STEP_SUMMARY
+          fi
