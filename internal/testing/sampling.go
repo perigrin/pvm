@@ -31,8 +31,3 @@ func SampleTest(t *testing.T, sampleRate float64) {
 func SampleE2ETest(t *testing.T) {
 	SampleTest(t, 0.1)
 }
-
-// SampleTypeCheckerTest is a convenience function for typechecker tests with 10% sampling
-func SampleTypeCheckerTest(t *testing.T) {
-	SampleTest(t, 0.1)
-}

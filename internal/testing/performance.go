@@ -321,19 +321,6 @@ func (bh *BenchmarkHelper) BenchmarkParser(b *testing.B, name string, parseFunc 
 	}
 }
 
-// BenchmarkTypeChecker benchmarks type checking operations
-func (bh *BenchmarkHelper) BenchmarkTypeChecker(b *testing.B, name string, checkFunc func() error) {
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		err := checkFunc()
-		if err != nil {
-			b.Fatalf("Type check failed: %v", err)
-		}
-	}
-}
-
 // BenchmarkMemoryUsage measures memory usage of operations
 func (bh *BenchmarkHelper) BenchmarkMemoryUsage(b *testing.B, name string, operation func()) {
 	b.ResetTimer()

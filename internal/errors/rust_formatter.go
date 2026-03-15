@@ -24,28 +24,6 @@ func NewRustStyleFormatter() *RustStyleFormatter {
 	}
 }
 
-// FormatTypeParseError formats a TypeParseError in Rust style
-func (rsf *RustStyleFormatter) FormatTypeParseError(err *TypeParseError, filePath string) string {
-	var result strings.Builder
-
-	// Main error header with specific error code
-	result.WriteString(fmt.Sprintf("error[TSP%03d]: %s", int(err.ErrorCode)+1, err.Message))
-
-	if rsf.ShowContext && err.SourceLine != "" {
-		result.WriteString("\n")
-		result.WriteString(rsf.formatErrorLocation(err.Position, filePath))
-		result.WriteString(rsf.formatSourceContext(err.SourceLine, err.Position))
-	}
-
-	// Add suggestion if available
-	if rsf.ShowHelp && err.Suggestion != "" {
-		result.WriteString("\n")
-		result.WriteString(fmt.Sprintf("help: %s\n", err.Suggestion))
-	}
-
-	return result.String()
-}
-
 // FormatTreeSitterError formats generic tree-sitter errors in Rust style
 func (rsf *RustStyleFormatter) FormatTreeSitterError(errNodes []ErrorNodeInfo, filePath, sourceContent string) string {
 	var result strings.Builder
