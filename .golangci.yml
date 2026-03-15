@@ -1,0 +1,45 @@
+# Configuration for golangci-lint v1
+# Removed version field as it conflicts with v1
+run:
+  go: "1.24"
+linters:
+  default: none
+  enable:
+    - ineffassign
+    - misspell
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -SA9003
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test\.go
+      - linters:
+          - errcheck
+        path: cmd/
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
