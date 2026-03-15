@@ -171,16 +171,26 @@ func TestGenerateShellScript(t *testing.T) {
 			if !strings.Contains(script, "XDG_BIN_HOME") {
 				t.Errorf("Fish script does not contain XDG_BIN_HOME integration")
 			}
-		case ShellPowerShell, ShellCmd:
-			// PowerShell and CMD templates are not currently implemented (empty by design)
-			// We expect them to return empty scripts, so we skip validation
-			// This is noted in the code as "not currently maintained"
+		case ShellPowerShell:
+			// PowerShell template is implemented - check for proper structure
+			if script == "" {
+				t.Errorf("GenerateShellScript(%v) returned empty script", shellType)
+				continue
+			}
+			if !strings.Contains(script, "ABOUTME: PVM Shell Integration for PowerShell") {
+				t.Errorf("PowerShell script missing ABOUTME header")
+			}
+			if !strings.Contains(script, data.PVMPath) {
+				t.Errorf("PowerShell script does not contain PVM path")
+			}
+			if !strings.Contains(script, "{{.FortuneQuote}}") {
+				// After template execution, the fortune quote placeholder should be replaced
+				// (empty string in test data means it stays empty or is substituted)
+			}
+		case ShellCmd:
+			// CMD template is not currently implemented (empty by design)
 			if script != "" {
-				// If they ever get implemented, check for proper headers
-				if shellType == ShellPowerShell && !strings.Contains(script, "# PVM Shell Integration for PowerShell") {
-					t.Errorf("PowerShell script missing header")
-				}
-				if shellType == ShellCmd && !strings.Contains(script, "@echo off") {
+				if !strings.Contains(script, "@echo off") {
 					t.Errorf("CMD script missing header")
 				}
 			}

@@ -29,8 +29,10 @@ var zshTemplate string
 //go:embed shell_templates/pvm.fish
 var fishTemplate string
 
-// PowerShell and CMD templates (not embedded - not currently maintained)
-var powershellTemplate = ""
+//go:embed shell_templates/pvm.ps1
+var powershellTemplate string
+
+// CMD template (not embedded - not currently maintained)
 var cmdTemplate = ""
 
 // Shell-related error codes
