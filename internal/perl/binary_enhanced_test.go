@@ -509,6 +509,12 @@ func BenchmarkBandwidthLimiter(b *testing.B) {
 }
 
 func TestEnhancedBinaryValidation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// The mock Perl executable is a bash script that cannot run on Windows.
+		// A proper Windows mock would require a .bat or .ps1 script, which is
+		// out of scope for this cross-platform test.
+		t.Skip("Mock bash Perl executable cannot execute on Windows")
+	}
 	tmpDir := t.TempDir()
 
 	// Create a mock Perl installation structure

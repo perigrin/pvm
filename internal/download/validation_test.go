@@ -150,7 +150,12 @@ func TestValidateDownloadedBinary_Archive(t *testing.T) {
 
 	// Test tar.gz archive
 	t.Run("tar.gz archive", func(t *testing.T) {
-		archivePath := createTestTarGz(t, "pvm", binaryContent)
+		// Use correct filename for current platform
+		tarFilename := "pvm"
+		if runtime.GOOS == "windows" {
+			tarFilename = "pvm.exe"
+		}
+		archivePath := createTestTarGz(t, tarFilename, binaryContent)
 		defer os.Remove(archivePath)
 
 		err := ValidateDownloadedBinary(archivePath, "")

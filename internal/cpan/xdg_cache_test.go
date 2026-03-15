@@ -6,6 +6,7 @@ package cpan
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,6 +100,11 @@ func TestXDGCacheHomeExpansion(t *testing.T) {
 	})
 
 	t.Run("XDG_CACHE_HOME_Embedded_In_Path", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// Embedding one absolute Windows path inside another does not produce
+			// a valid filesystem path, so this Unix-specific scenario is skipped.
+			t.Skip("Embedded absolute paths are not supported on Windows")
+		}
 		// Test embedded environment variable in path
 		tempCacheDir := t.TempDir()
 		tempPrefix := t.TempDir()
@@ -148,6 +154,11 @@ func TestXDGCacheHomeExpansion(t *testing.T) {
 	})
 
 	t.Run("Multiple_Environment_Variables", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// Embedding one absolute Windows path inside another does not produce
+			// a valid filesystem path, so this Unix-specific scenario is skipped.
+			t.Skip("Embedded absolute paths are not supported on Windows")
+		}
 		// Test multiple environment variables in path
 		tempCacheDir := t.TempDir()
 		tempPrefix := t.TempDir()
