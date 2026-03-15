@@ -1,0 +1,209 @@
+.claude/
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Binaries but not directories
+/pvm
+/pvx
+/pvi
+/psc
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+!vendor/modules.txt
+
+# Go workspace file
+go.work
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+coverage.html
+/build
+
+# Backup files
+*.bak
+tree-sitter-perl/
+vendor/tree-sitter-perl/
+/lib/
+
+# Generated parser files
+src/parser.c
+tree-sitter-typed-perl/parser.c
+tree-sitter-typed-perl/node-types.json
+*.so
+*.dylib
+
+# Test artifacts
+test/e2e/test_output_file.txt
+test/e2e/lib/
+test/e2e/lib/lib/perl5/
+test/e2e/lib/man/
+
+# Temporary and miscellaneous files
+lib.c
+run_inference_tests.go
+*.tmp
+*.log
+
+# Build performance metrics
+.build-metrics/
+
+# Binary tools
+bin/act
+
+# Debug and test files
+debug_*.go
+debug_*.pl
+test_*.pl
+test_*.go
+test-results.json
+test-results-*.json
+test_output.txt
+
+# Test data directories
+internal/parser/testdata/input/
+internal/parser/testdata/integration-results/
+internal/typechecker/testdata/input/
+
+# Build artifacts
+tmp-golangci-build/
+test-pvm
+
+# Cache files and temporary data
+**/\$XDG_CACHE_HOME/
+**/*.tar.gz
+internal/integration/\$XDG_CACHE_HOME/
+internal/pvm/*.tar.gz
+
+# Cache and local directories
+.cache/
+.local/
+**/.cache/
+**/.local/
+internal/config/.cache/
+internal/config/.local/
+
+# Test project directories
+test-auto-import/
+test-project/
+test/corpus/parser/input/
+test/corpus/parser/integration-results/
+testdata/corpus/parser/input/
+testdata/corpus/parser/integration-results/
+
+# Performance and profiling files
+performance-profiles/
+*.prof
+*.pprof
+*.mem
+*.cpu
+
+# Performance baseline files
+**/baselines/*.json
+**/baselines.backup/*.json
+
+# Security-sensitive files
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+*.cert
+*.der
+
+# Environment and secrets
+.env
+.env.*
+.secrets
+.auth
+.token
+.credentials
+
+# SSH keys
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+known_hosts
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cloud provider config
+.aws/
+.gcp/
+.azure/
+service-account*.json
+
+# Additional tree-sitter build artifacts
+tree-sitter-typed-perl/build/
+tree-sitter-typed-perl/node_modules/
+tree-sitter-typed-perl/package-lock.json
+tree-sitter-typed-perl/libtree-sitter-typed-perl.so.1
+tree-sitter-typed-perl/typed-perl.so
+tree-sitter-typed-perl/tree-sitter-perl.pc
+tree-sitter-typed-perl/libtree-sitter-typed-perl.a
+tree-sitter-typed-perl/src/scanner.o
+tree-sitter-typed-perl/src/parser.o
+tree-sitter-typed-perl/src/scanner-upstream.o
+libtree-sitter-typed-perl.so
+
+# JavaScript and Node.js files
+yarn.lock
+package-lock.json
+
+# Go workspace files
+go.work.sum
+
+# Additional backup files
+*.backup
+*.orig
+*.rej
+*.patch
+*.go.backup
+
+# Enhanced IDE files
+.vscode/settings.json
+.vscode/launch.json
+.idea/workspace.xml
+.idea/tasks.xml
+
+# Documentation files (generated)
+*.3pm
+perllocal.pod
+
+# Additional Perl installation files
+lib/lib/perl5/
+lib/man/
+
+# Core dumps and debug files
+core
+core.*
+*.dump
+*.dmp
+
+# Local test artifacts
+local/
+test/e2e/local/
+issues_analysis.json
+vendor/
