@@ -16,6 +16,7 @@ import (
 // This test simulates: pvm use X.Y.Z && pvm current
 // It tests with multiple Perl versions to catch version switching issues
 func TestShellUseAndCurrent(t *testing.T) {
+	helpers.SkipIfNotUnix(t)
 	// Use binary Perl for reliable testing
 	helpers.SetupTestPerlEnvironment(t, helpers.DefaultTestPerlVersion)
 

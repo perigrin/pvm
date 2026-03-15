@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -69,6 +70,23 @@ type TestEnv struct {
 	Stderr bytes.Buffer
 }
 
+// pvmBinaryName returns the platform-appropriate PVM binary filename.
+func pvmBinaryName() string {
+	if runtime.GOOS == "windows" {
+		return "pvm.exe"
+	}
+	return "pvm"
+}
+
+// SkipIfNotUnix skips the test if not running on a Unix-like OS.
+// Use for tests that depend on bash/zsh/fish shell integration.
+func SkipIfNotUnix(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("test requires Unix shell integration")
+	}
+}
+
 // NewTestEnv creates a new isolated test environment
 func NewTestEnv(t *testing.T) *TestEnv {
 	// Create root directory for test with test name
@@ -123,7 +141,7 @@ func NewTestEnv(t *testing.T) *TestEnv {
 	}
 
 	// Copy shared binary to test environment
-	env.PVMBinary = filepath.Join(env.PVMBinDir, "pvm")
+	env.PVMBinary = filepath.Join(env.PVMBinDir, pvmBinaryName())
 	if err := env.CopyFile(sharedBinary, env.PVMBinary); err != nil {
 		t.Fatalf("Failed to copy shared PVM binary: %v", err)
 	}
@@ -192,7 +210,7 @@ func getSharedPVMBinary() (string, error) {
 	}
 
 	// Set the shared binary path (built to project root by Makefile)
-	sharedBinaryPath = filepath.Join(projectRoot, "pvm")
+	sharedBinaryPath = filepath.Join(projectRoot, pvmBinaryName())
 
 	// Verify the binary was built
 	if _, err := os.Stat(sharedBinaryPath); err != nil {
@@ -244,7 +262,8 @@ func (e *TestEnv) setEnvironment() {
 	}
 
 	// Add PVM bin and shims directories to PATH
-	path := fmt.Sprintf("%s:%s:%s", e.PVMBinDir, e.PVMShimsDir, os.Getenv("PATH"))
+	sep := string(os.PathListSeparator)
+	path := fmt.Sprintf("%s%s%s%s%s", e.PVMBinDir, sep, e.PVMShimsDir, sep, os.Getenv("PATH"))
 	_ = os.Setenv("PATH", path)
 
 	// Set PVM_HOME
@@ -307,7 +326,7 @@ func (e *TestEnv) setupShellIntegration() {
 		// In practice, the init script prepends the shims directory
 		currentPath := os.Getenv("PATH")
 		if !strings.Contains(currentPath, e.PVMShimsDir) {
-			newPath := fmt.Sprintf("%s:%s", e.PVMShimsDir, currentPath)
+			newPath := fmt.Sprintf("%s%s%s", e.PVMShimsDir, string(os.PathListSeparator), currentPath)
 			_ = os.Setenv("PATH", newPath)
 			e.T.Logf("Updated PATH for shell integration: %s", newPath)
 		}

@@ -64,6 +64,7 @@ func TestShellInit(t *testing.T) {
 
 // TestBashIntegration tests bash-specific shell integration
 func TestBashIntegration(t *testing.T) {
+	helpers.SkipIfNotUnix(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -129,6 +130,7 @@ echo "Integration test completed"
 
 // Test .perl-version detection in shell integration
 func TestPerlVersionFileDetection(t *testing.T) {
+	helpers.SkipIfNotUnix(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
@@ -325,6 +327,7 @@ func TestShellConflictDetection(t *testing.T) {
 
 // TestXDGBinHomePathIntegration tests that XDG_BIN_HOME is properly added and preserved in PATH
 func TestXDGBinHomePathIntegration(t *testing.T) {
+	helpers.SkipIfNotUnix(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 
