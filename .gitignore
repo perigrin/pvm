@@ -11,7 +11,12 @@
 /pvm
 /pvx
 /pvi
+/pm
 /psc
+/pvm-linux-amd64
+/pvm-linux-arm64
+/pvm-darwin-amd64
+/pvm-darwin-arm64
 
 # Test binary, built with `go test -c`
 *.test
