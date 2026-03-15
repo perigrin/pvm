@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.1
 	github.com/google/go-cmp v0.6.0
+	github.com/odvcencio/gotreesitter v0.6.0
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.21.0
