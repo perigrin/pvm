@@ -105,7 +105,7 @@ The CGO build chain is eliminated entirely:
 
 Each step compiles and passes tests before proceeding.
 
-1. **Bootstrap** -- orphan branch `rewrite`, go.mod, Makefile, CLAUDE.md
+1. **Bootstrap** -- orphan branch `pure-go`, go.mod, Makefile, CLAUDE.md
 2. **Core infrastructure** -- config, version, errors, memory, ui
 3. **Perl toolchain** -- perl, updater
 4. **PVM core** -- pvm, cli, cmd/pvm entry point
