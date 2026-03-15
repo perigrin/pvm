@@ -642,6 +642,12 @@ func TestGenerateShellUse(t *testing.T) {
 		}
 	}
 
+	// Save and clear PSModulePath so DetectShell doesn't pick up PowerShell
+	// when testing bash/fish cases
+	origPSModulePath := os.Getenv("PSModulePath")
+	_ = os.Setenv("PSModulePath", "")
+	defer func() { _ = os.Setenv("PSModulePath", origPSModulePath) }()
+
 	// Save original SHELL environment variable
 	origShell := os.Getenv("SHELL")
 	defer func() { _ = os.Setenv("SHELL", origShell) }()
@@ -651,6 +657,7 @@ func TestGenerateShellUse(t *testing.T) {
 		version         string
 		library         string
 		shell           string
+		psModulePath    string // non-empty triggers PowerShell detection
 		wantError       bool
 		wantContains    []string
 		wantNotContains []string
@@ -708,6 +715,34 @@ func TestGenerateShellUse(t *testing.T) {
 			},
 		},
 		{
+			name:         "ValidVersionWithLibraryPowerShell",
+			version:      "5.38.0",
+			library:      "testlib",
+			shell:        "",
+			psModulePath: "/some/powershell/path",
+			wantError:    false,
+			wantContains: []string{
+				"$env:PVM_PERL_VERSION = '5.38.0'",
+				"$env:PVM_PERL_LIBRARY = 'testlib'",
+				"$env:PVM_PERL_VERSION_FULL = '5.38.0@testlib'",
+				"Write-Host 'Using Perl 5.38.0@testlib'",
+			},
+		},
+		{
+			name:         "ValidVersionWithoutLibraryPowerShell",
+			version:      "5.42.0",
+			library:      "",
+			shell:        "",
+			psModulePath: "/some/powershell/path",
+			wantError:    false,
+			wantContains: []string{
+				"$env:PVM_PERL_VERSION = '5.42.0'",
+				"Remove-Item Env:PVM_PERL_LIBRARY -ErrorAction SilentlyContinue",
+				"$env:PVM_PERL_VERSION_FULL = '5.42.0'",
+				"Write-Host 'Using Perl 5.42.0'",
+			},
+		},
+		{
 			name:      "InvalidVersion",
 			version:   "999.999.999",
 			library:   "",
@@ -727,6 +762,8 @@ func TestGenerateShellUse(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Set SHELL environment variable
 			_ = os.Setenv("SHELL", tc.shell)
+			// Set PSModulePath for PowerShell detection (clear for non-PS cases)
+			_ = os.Setenv("PSModulePath", tc.psModulePath)
 
 			// Capture output by temporarily redirecting stdout
 			origStdout := os.Stdout

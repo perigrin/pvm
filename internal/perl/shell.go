@@ -620,14 +620,12 @@ func GenerateShellUse(version string, library string) error {
 		return err
 	}
 
-	// Detect shell type from environment
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/sh"
+	// Detect shell type using environment-first detection
+	shellType, err := DetectShell()
+	if err != nil {
+		// Fallback to bash on detection failure
+		shellType = ShellBash
 	}
-
-	// Extract shell name from full path
-	shellName := filepath.Base(shell)
 
 	// Build display string
 	displayVersion := version
@@ -636,8 +634,8 @@ func GenerateShellUse(version string, library string) error {
 	}
 
 	// Generate shell-specific environment commands with proper escaping
-	switch shellName {
-	case "fish":
+	switch shellType {
+	case ShellFish:
 		fmt.Printf("set -gx PVM_PERL_VERSION %s\n", escapeShellArg(version))
 		if library != "" {
 			fmt.Printf("set -gx PVM_PERL_LIBRARY %s\n", escapeShellArg(library))
@@ -647,7 +645,17 @@ func GenerateShellUse(version string, library string) error {
 			fmt.Printf("set -gx PVM_PERL_VERSION_FULL %s\n", escapeShellArg(version))
 		}
 		fmt.Printf("echo %s\n", escapeShellArg("Using Perl "+displayVersion))
-	default: // bash, zsh, sh
+	case ShellPowerShell:
+		fmt.Printf("$env:PVM_PERL_VERSION = '%s'\n", version)
+		if library != "" {
+			fmt.Printf("$env:PVM_PERL_LIBRARY = '%s'\n", library)
+			fmt.Printf("$env:PVM_PERL_VERSION_FULL = '%s'\n", displayVersion)
+		} else {
+			fmt.Println("Remove-Item Env:PVM_PERL_LIBRARY -ErrorAction SilentlyContinue")
+			fmt.Printf("$env:PVM_PERL_VERSION_FULL = '%s'\n", version)
+		}
+		fmt.Printf("Write-Host 'Using Perl %s'\n", displayVersion)
+	default: // bash, zsh, sh, cmd
 		fmt.Printf("export PVM_PERL_VERSION=%s\n", escapeShellArg(version))
 		if library != "" {
 			fmt.Printf("export PVM_PERL_LIBRARY=%s\n", escapeShellArg(library))
