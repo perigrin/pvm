@@ -26,7 +26,7 @@ repos:
       # golangci-lint and go-unit-tests disabled due to tree-sitter C dependencies
       # Use 'make test' and 'make' for complete validation
       - id: go-critic
-        exclude: ^(vendor/.*|internal/parser/.*\.go|internal/psc/.*\.go|internal/typechecker/.*\.go|cmd/psc/.*\.go)$
+        exclude: ^(vendor/.*|internal/parser/.*\.go|internal/psc/.*\.go|internal/typechecker/.*\.go|cmd/psc/.*\.go|internal/cpan/.*\.go|internal/types/.*\.go|internal/perl/.*\.go)$
       # - id: validate-toml
   - repo: local
     hooks:

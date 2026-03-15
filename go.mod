@@ -3,9 +3,11 @@ module tamarou.com/pvm
 go 1.24.3
 
 require (
+	github.com/google/go-cmp v0.6.0
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
+	github.com/ulikunitz/xz v0.5.15
 )
 
 require (
