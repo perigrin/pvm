@@ -152,4 +152,4 @@ pvm import-from perlbrew   # Register perlbrew-installed Perls
 
 ## License
 
-MIT
+Artistic License 2.0
