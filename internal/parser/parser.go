@@ -187,3 +187,35 @@ func (n *Node) SExpr() string {
 	}
 	return n.inner.SExpr(n.lang)
 }
+
+// Edit describes a single source-text edit for incremental parsing.
+// StartByte is the byte offset where the change begins.
+// OldEndByte is the byte offset of the end of the old text (exclusive).
+// NewEndByte is the byte offset of the end of the new text (exclusive).
+type Edit struct {
+	StartByte  uint32
+	OldEndByte uint32
+	NewEndByte uint32
+}
+
+// ParseIncremental re-parses source after an edit was applied to oldTree,
+// reusing unchanged subtrees for efficiency. If oldTree is nil, it falls
+// back to a full parse.
+func (p *Parser) ParseIncremental(source []byte, oldTree *Tree, edit Edit) (*Tree, error) {
+	if oldTree == nil {
+		return p.Parse(source)
+	}
+
+	// Record the edit on the old tree so the incremental parser knows what changed.
+	oldTree.inner.Edit(gotreesitter.InputEdit{
+		StartByte:  edit.StartByte,
+		OldEndByte: edit.OldEndByte,
+		NewEndByte: edit.NewEndByte,
+	})
+
+	tree, err := p.inner.ParseIncremental(source, oldTree.inner)
+	if err != nil {
+		return nil, err
+	}
+	return &Tree{inner: tree, lang: p.lang, source: source}, nil
+}
