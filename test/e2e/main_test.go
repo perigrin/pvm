@@ -5,7 +5,9 @@ package e2e
 
 import (
 	"flag"
+	"fmt"
 	"os"
+	"runtime"
 	"testing"
 
 	"tamarou.com/pvm/test/e2e/helpers"
@@ -19,6 +21,13 @@ var (
 func TestMain(m *testing.M) {
 	// Parse flags
 	flag.Parse()
+
+	// E2E tests depend on Unix shell integration and path conventions.
+	// Skip the entire suite on Windows until platform-specific support is added.
+	if runtime.GOOS == "windows" {
+		fmt.Println("SKIP: E2E tests not yet supported on Windows")
+		os.Exit(0)
+	}
 
 	// Set up global test configuration
 	helpers.SetPreserveEnv(*preserveFlag)
