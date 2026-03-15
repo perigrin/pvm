@@ -68,6 +68,12 @@ func (cm *ConfigManager) DetectShellConfig() (*ShellConfig, error) {
 	case perl.ShellFish:
 		config.ConfigFiles = []string{".config/fish/config.fish"}
 		config.InitCommand = `pvm init | source`
+	case perl.ShellPowerShell:
+		config.ConfigFiles = []string{
+			filepath.Join("Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"),
+			filepath.Join("Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"),
+		}
+		config.InitCommand = `pvm init | Invoke-Expression`
 	default:
 		return nil, errors.NewSystemError("011",
 			fmt.Sprintf("Unsupported shell type: %s", shell), nil)
