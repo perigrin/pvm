@@ -1,0 +1,49 @@
+# Web application template with Dancer2
+name = "web"
+description = "Web application template with Dancer2 and common tools"
+
+[directories]
+create = [
+    "lib",
+    "t",
+    "views",
+    "public",
+    "public/css",
+    "public/js",
+    "public/images",
+    "config",
+    "bin"
+]
+
+[dependencies]
+Dancer2 = ""
+"Template::Toolkit" = ""
+DBI = ""
+"DBD::SQLite" = ""
+"DBIx::Class" = ""
+# Core pragmas (strict, warnings, utf8) are built-in to Perl
+
+[dev_dependencies]
+"Perl::Critic" = ""
+"Perl::Tidy" = ""
+"Plack::Test" = ""
+"Test::WWW::Mechanize::PSGI" = ""
+
+[test_dependencies]
+"Test::More" = ">= 0.98"
+"Test::Exception" = ""
+"HTTP::Request::Common" = ""
+"Test::WWW::Mechanize::PSGI" = ""
+
+[config]
+web_port = {{.WebPort | default "3000"}}
+database_url = "{{.DatabaseURL | default "sqlite:db/app.db"}}"
+template_engine = "template_toolkit"
+
+[gitignore_additions]
+entries = [
+    "db/*.db",
+    "sessions/",
+    "logs/",
+    "config/environments/production.yml"
+]
