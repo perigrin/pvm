@@ -326,8 +326,8 @@ func TestExpandEnvironmentVariables_XDGFallbacks(t *testing.T) {
 		homeDir, _ := os.UserHomeDir()
 		result := expandEnvironmentVariables("$TEST_PREFIX/$XDG_CACHE_HOME/pvm")
 		// When XDG_CACHE_HOME is unset, it expands to absolute path ~/.cache
-		// So the result will be "custom" + "/" + "/home/user/.cache" + "/pvm"
-		expected := "custom" + "/" + filepath.Join(homeDir, ".cache") + "/pvm"
+		// filepath.Clean normalizes the double slash between "custom" and the absolute fallback
+		expected := filepath.Clean("custom" + "/" + filepath.Join(homeDir, ".cache") + "/pvm")
 
 		if result != expected {
 			t.Errorf("expandEnvironmentVariables($TEST_PREFIX/$XDG_CACHE_HOME/pvm) = %s, expected %s", result, expected)

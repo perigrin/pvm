@@ -267,6 +267,7 @@ func expandEnvironmentVariables(value string) string {
 
 	// Handle embedded variables like /path/$VAR/subdir
 	re := regexp.MustCompile(`\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)`)
+	didExpand := false
 	expanded := re.ReplaceAllStringFunc(value, func(match string) string {
 		var envVar string
 		if strings.HasPrefix(match, "${") {
@@ -279,14 +280,21 @@ func expandEnvironmentVariables(value string) string {
 
 		envValue, exists := os.LookupEnv(envVar)
 		if exists {
+			didExpand = true
 			return envValue
 		}
 		// Try XDG fallback for unset XDG variables
 		if fallback := getXDGFallback(envVar); fallback != "" {
+			didExpand = true
 			return fallback
 		}
 		return match // Return original if env var not found
 	})
+	// Normalize path separators when variables were expanded, so that
+	// "$XDG_DATA_HOME/pvm/types" produces consistent separators on Windows.
+	if didExpand {
+		expanded = filepath.Clean(expanded)
+	}
 	return expanded
 }
 

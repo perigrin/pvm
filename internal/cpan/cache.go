@@ -130,6 +130,7 @@ func expandEnvironmentVariables(value string) string {
 
 	// Handle embedded variables like /path/$VAR/subdir
 	re := regexp.MustCompile(`\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)`)
+	didExpand := false
 	expanded := re.ReplaceAllStringFunc(value, func(match string) string {
 		var envVar string
 		if strings.HasPrefix(match, "${") {
@@ -142,23 +143,30 @@ func expandEnvironmentVariables(value string) string {
 
 		envValue, exists := os.LookupEnv(envVar)
 		if exists {
+			didExpand = true
 			return envValue
 		}
 		// Try XDG fallback for unset XDG variables
 		if fallback := getXDGFallback(envVar); fallback != "" {
+			didExpand = true
 			return fallback
 		}
 		return match // Return original if env var not found
 	})
+	// Normalize path separators when variables were expanded, so that
+	// "$XDG_CACHE_HOME/pvm/cpan" produces consistent separators on Windows.
+	if didExpand {
+		expanded = filepath.Clean(expanded)
+	}
 	return expanded
 }
 
 // NewCache creates a new Cache with the given directory and TTL
 func NewCache(cacheDir string, ttl int) (*Cache, error) {
 
-	// Expand any environment variables in the cache directory path, then
-	// normalize separators for the current OS since this is a filesystem path.
-	cacheDir = filepath.FromSlash(expandEnvironmentVariables(cacheDir))
+	// Expand any environment variables in the cache directory path.
+	// expandEnvironmentVariables normalizes separators via filepath.Clean.
+	cacheDir = expandEnvironmentVariables(cacheDir)
 
 	// Create the cache directory if it doesn't exist
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
