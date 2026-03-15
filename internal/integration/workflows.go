@@ -12,28 +12,11 @@ import (
 
 // Workflow error codes
 const (
-	ErrWorkflowFailed         = "WF-001" // General workflow failure
-	ErrVersionResolution      = "WF-002" // Version resolution failed
-	ErrTypeCheck              = "WF-003" // Type checking failed
-	ErrModuleInstallation     = "WF-004" // Module installation failed
-	ErrScriptExecution        = "WF-005" // Script execution failed
-	ErrTypeDefinitionGenerate = "WF-006" // Type definition generation failed
+	ErrWorkflowFailed     = "WF-001" // General workflow failure
+	ErrVersionResolution  = "WF-002" // Version resolution failed
+	ErrModuleInstallation = "WF-004" // Module installation failed
+	ErrScriptExecution    = "WF-005" // Script execution failed
 )
-
-// TypeCheckError represents a type-checking error from a Perl file
-type TypeCheckError struct {
-	// Path is the file path where the error occurred
-	Path string
-
-	// Line is the line number of the error
-	Line int
-
-	// Column is the column number of the error
-	Column int
-
-	// Message is the error message
-	Message string
-}
 
 // WorkflowOptions contains configuration for end-to-end workflows
 type WorkflowOptions struct {
@@ -46,26 +29,17 @@ type WorkflowOptions struct {
 	// Verbose enables detailed output
 	Verbose bool
 
-	// SkipTypeCheck disables type checking
-	SkipTypeCheck bool
-
 	// SkipModuleInstall disables automatic module installation
 	SkipModuleInstall bool
 
 	// SkipExecution disables script execution
 	SkipExecution bool
 
-	// GenerateTypeDefs enables type definition generation
-	GenerateTypeDefs bool
-
 	// RequiredModules lists additional modules to install
 	RequiredModules []string
 
 	// IsolationLevel for script execution
 	IsolationLevel pvx.IsolationLevel
-
-	// SaveTypeDefs saves generated type definitions
-	SaveTypeDefs bool
 
 	// PVX-specific options for workflow orchestration
 	// EnvironmentName for named persistent environments
@@ -119,12 +93,6 @@ type WorkflowResult struct {
 	// VersionUsed is the resolved Perl version
 	VersionUsed string
 
-	// TypeCheckPassed indicates if type checking succeeded
-	TypeCheckPassed bool
-
-	// TypeErrors contains any type checking errors
-	TypeErrors []TypeCheckError
-
 	// ModulesInstalled lists installed modules
 	ModulesInstalled []string
 
@@ -140,12 +108,6 @@ type WorkflowResult struct {
 	// ExecutionExitCode is the script's exit code
 	ExecutionExitCode int
 
-	// TypeDefGenerated indicates if type definitions were generated
-	TypeDefGenerated bool
-
-	// TypeDefPath is the path to generated type definitions
-	TypeDefPath string
-
 	// Duration is the total workflow time
 	Duration time.Duration
 
@@ -154,25 +116,16 @@ type WorkflowResult struct {
 }
 
 // CompleteWorkflow runs a complete end-to-end workflow.
-// Type-checking steps are stubbed out until type-system components are available.
 func CompleteWorkflow(options *WorkflowOptions) (*WorkflowResult, error) {
 	return nil, fmt.Errorf("CompleteWorkflow is not yet available in this build")
 }
 
-// TypeCheckWorkflow runs type checking on a Perl script.
-// Stubbed out until type-system components are available.
-func TypeCheckWorkflow(scriptPath string, perlVersion string, verbose bool) (*WorkflowResult, error) {
-	return nil, fmt.Errorf("TypeCheckWorkflow is not yet available in this build")
-}
-
-// ExecutionWorkflow runs a Perl script without type checking.
-// Stubbed out until type-system components are available.
+// ExecutionWorkflow runs a Perl script through the PVX executor.
 func ExecutionWorkflow(scriptPath string, perlVersion string, verbose bool) (*WorkflowResult, error) {
 	return nil, fmt.Errorf("ExecutionWorkflow is not yet available in this build")
 }
 
 // ValidationWorkflow validates a workspace.
-// Stubbed out until type-system components are available.
 func ValidationWorkflow(testScript string) (*WorkflowResult, error) {
 	return nil, fmt.Errorf("ValidationWorkflow is not yet available in this build")
 }

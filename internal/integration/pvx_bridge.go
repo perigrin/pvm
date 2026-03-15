@@ -14,7 +14,6 @@ func PVXToWorkflowOptions(pvxOptions *pvx.ExecutionOptions) *WorkflowOptions {
 		ScriptPath:     pvxOptions.ScriptPath,
 		PerlVersion:    pvxOptions.PerlVersion,
 		Verbose:        pvxOptions.Verbose,
-		SkipTypeCheck:  !pvxOptions.TypeCheck,
 		SkipExecution:  false, // PVX always executes
 		IsolationLevel: pvxOptions.IsolationLevel,
 
@@ -68,7 +67,7 @@ func WorkflowToPVXResult(workflowResult *WorkflowResult) *pvx.ExecuteResult {
 // This is useful for direct integration with cobra command flags
 func CreateWorkflowFromPVXFlags(
 	scriptPath, perlVersion, envName, executeCode, executeFeaturesCode string,
-	typeCheck, verbose, forceVersion, autoInstall, autoDetectDeps, noCleanup bool,
+	verbose, forceVersion, autoInstall, autoDetectDeps, noCleanup bool,
 	isolationLevel pvx.IsolationLevel,
 	modulePaths, preserveEnv, clearEnv, readOnlyPaths, readWritePaths []string,
 	args []string,
@@ -77,7 +76,6 @@ func CreateWorkflowFromPVXFlags(
 		ScriptPath:      scriptPath,
 		PerlVersion:     perlVersion,
 		Verbose:         verbose,
-		SkipTypeCheck:   !typeCheck,
 		SkipExecution:   false,
 		IsolationLevel:  isolationLevel,
 		EnvironmentName: envName,

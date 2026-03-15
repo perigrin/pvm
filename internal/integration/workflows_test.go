@@ -25,13 +25,6 @@ func TestCompleteWorkflowStub(t *testing.T) {
 	assert.Contains(t, err.Error(), "not yet available")
 }
 
-func TestTypeCheckWorkflowStub(t *testing.T) {
-	result, err := TypeCheckWorkflow("/some/script.pl", "", false)
-	require.Error(t, err, "TypeCheckWorkflow should return error in stub build")
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "not yet available")
-}
-
 func TestExecutionWorkflowStub(t *testing.T) {
 	result, err := ExecutionWorkflow("/some/script.pl", "", false)
 	require.Error(t, err, "ExecutionWorkflow should return error in stub build")

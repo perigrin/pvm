@@ -34,7 +34,6 @@ func NewCommand() *cobra.Command {
 			// Get flags
 			perlVersion, _ := cmd.Flags().GetString("perl")
 			rootDir, _ := cmd.Flags().GetString("root")
-			typeCheck, _ := cmd.Flags().GetBool("type-check")
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			quiet, _ := cmd.Flags().GetBool("quiet")
 			debug, _ := cmd.Flags().GetBool("debug")
@@ -88,7 +87,6 @@ func NewCommand() *cobra.Command {
 				Args:         args,
 				PerlVersion:  perlVersion,
 				RootDir:      rootDir,
-				TypeCheck:    typeCheck,
 				Verbose:      verbose,
 				Quiet:        quiet,
 				Debug:        debug,
@@ -338,7 +336,6 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().StringP("execute", "e", "", "Execute Perl code directly")
 	cmd.Flags().StringP("execute-features", "E", "", "Execute Perl code with all features enabled")
 	cmd.Flags().String("root", "", "Set environment root directory")
-	cmd.Flags().Bool("type-check", false, "Enable type checking before execution")
 	cmd.Flags().BoolP("verbose", "v", false, "Show additional output")
 	cmd.Flags().BoolP("quiet", "q", false, "Suppress all non-error output")
 	cmd.Flags().Bool("debug", false, "Show detailed debug output including version resolution process")
