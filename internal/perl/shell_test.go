@@ -72,6 +72,27 @@ func setupShellTest(t *testing.T) func() {
 	}
 }
 
+// TestDetectShell_PowerShellOnAnyOS verifies that PSModulePath takes priority over SHELL
+func TestDetectShell_PowerShellOnAnyOS(t *testing.T) {
+	origPSModulePath := os.Getenv("PSModulePath")
+	origShell := os.Getenv("SHELL")
+	defer func() {
+		os.Setenv("PSModulePath", origPSModulePath)
+		os.Setenv("SHELL", origShell)
+	}()
+
+	os.Setenv("PSModulePath", "/some/path")
+	os.Setenv("SHELL", "/bin/bash")
+
+	shell, err := DetectShell()
+	if err != nil {
+		t.Fatalf("DetectShell() error: %v", err)
+	}
+	if shell != ShellPowerShell {
+		t.Errorf("expected PowerShell, got %s", shell)
+	}
+}
+
 // Test shell detection
 func TestDetectShell(t *testing.T) {
 	// Save original environment variables

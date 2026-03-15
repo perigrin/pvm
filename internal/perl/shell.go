@@ -89,39 +89,34 @@ func (s ShellScriptData) IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
 
-// DetectShell attempts to detect the user's shell type
+// DetectShell attempts to detect the user's shell type using environment-first logic.
+// PSModulePath is checked first on any OS (PowerShell 7 runs on Linux/macOS too),
+// then SHELL is checked, with an OS-based fallback last.
 func DetectShell() (ShellType, error) {
-	// On Windows, default to PowerShell or CMD
-	if runtime.GOOS == "windows" {
-		// Check if we're in PowerShell
-		if os.Getenv("PSModulePath") != "" {
-			return ShellPowerShell, nil
+	// Check PSModulePath first on any OS - PowerShell 7 (pwsh) runs on Linux/macOS
+	if os.Getenv("PSModulePath") != "" {
+		return ShellPowerShell, nil
+	}
+
+	// Check the SHELL environment variable (set by bash, zsh, fish on Unix)
+	shellPath := os.Getenv("SHELL")
+	if shellPath != "" {
+		shellName := filepath.Base(shellPath)
+		switch shellName {
+		case "bash":
+			return ShellBash, nil
+		case "zsh":
+			return ShellZsh, nil
+		case "fish":
+			return ShellFish, nil
 		}
+	}
+
+	// OS-based fallback: CMD on Windows, bash on Unix
+	if runtime.GOOS == "windows" {
 		return ShellCmd, nil
 	}
-
-	// On Unix-like systems, check the SHELL environment variable
-	shellPath := os.Getenv("SHELL")
-	if shellPath == "" {
-		// Fallback to bash
-		return ShellBash, nil
-	}
-
-	// Extract the shell name from the path
-	shellName := filepath.Base(shellPath)
-
-	// Determine the shell type based on name
-	switch shellName {
-	case "bash":
-		return ShellBash, nil
-	case "zsh":
-		return ShellZsh, nil
-	case "fish":
-		return ShellFish, nil
-	default:
-		// Default to bash for unknown shells
-		return ShellBash, nil
-	}
+	return ShellBash, nil
 }
 
 // CreateShellInitScripts generates shell initialization scripts for all supported shells
