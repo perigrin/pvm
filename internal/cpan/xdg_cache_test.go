@@ -182,31 +182,31 @@ func TestEnvironmentVariableExpansion(t *testing.T) {
 	}()
 
 	t.Run("Simple_Variable", func(t *testing.T) {
-		_ = os.Setenv("XDG_CACHE_HOME", "/tmp/test-cache")
+		_ = os.Setenv("XDG_CACHE_HOME", filepath.FromSlash("/tmp/test-cache"))
 
 		result := expandEnvironmentVariables("$XDG_CACHE_HOME")
-		assert.Equal(t, "/tmp/test-cache", result, "Simple variable should be expanded")
+		assert.Equal(t, filepath.FromSlash("/tmp/test-cache"), result, "Simple variable should be expanded")
 	})
 
 	t.Run("Variable_With_Braces", func(t *testing.T) {
-		_ = os.Setenv("XDG_CACHE_HOME", "/tmp/test-cache")
+		_ = os.Setenv("XDG_CACHE_HOME", filepath.FromSlash("/tmp/test-cache"))
 
 		result := expandEnvironmentVariables("${XDG_CACHE_HOME}")
-		assert.Equal(t, "/tmp/test-cache", result, "Variable with braces should be expanded")
+		assert.Equal(t, filepath.FromSlash("/tmp/test-cache"), result, "Variable with braces should be expanded")
 	})
 
 	t.Run("Variable_In_Path", func(t *testing.T) {
-		_ = os.Setenv("XDG_CACHE_HOME", "/tmp/test-cache")
+		_ = os.Setenv("XDG_CACHE_HOME", filepath.FromSlash("/tmp/test-cache"))
 
 		result := expandEnvironmentVariables("$XDG_CACHE_HOME/subdir")
-		assert.Equal(t, "/tmp/test-cache/subdir", result, "Variable in path should be expanded")
+		assert.Equal(t, filepath.FromSlash("/tmp/test-cache/subdir"), result, "Variable in path should be expanded")
 	})
 
 	t.Run("Variable_With_Braces_In_Path", func(t *testing.T) {
-		_ = os.Setenv("XDG_CACHE_HOME", "/tmp/test-cache")
+		_ = os.Setenv("XDG_CACHE_HOME", filepath.FromSlash("/tmp/test-cache"))
 
 		result := expandEnvironmentVariables("${XDG_CACHE_HOME}/subdir")
-		assert.Equal(t, "/tmp/test-cache/subdir", result, "Variable with braces in path should be expanded")
+		assert.Equal(t, filepath.FromSlash("/tmp/test-cache/subdir"), result, "Variable with braces in path should be expanded")
 	})
 
 	t.Run("Nonexistent_XDG_Variable", func(t *testing.T) {
@@ -229,21 +229,21 @@ func TestEnvironmentVariableExpansion(t *testing.T) {
 	})
 
 	t.Run("Multiple_Variables", func(t *testing.T) {
-		_ = os.Setenv("XDG_CACHE_HOME", "/tmp/cache")
+		_ = os.Setenv("XDG_CACHE_HOME", filepath.FromSlash("/tmp/cache"))
 		_ = os.Setenv("TEST_VAR", "test")
 		defer func() { _ = os.Unsetenv("TEST_VAR") }()
 
 		result := expandEnvironmentVariables("$XDG_CACHE_HOME/$TEST_VAR/subdir")
-		assert.Equal(t, "/tmp/cache/test/subdir", result, "Multiple variables should be expanded")
+		assert.Equal(t, filepath.FromSlash("/tmp/cache/test/subdir"), result, "Multiple variables should be expanded")
 	})
 
 	t.Run("Mixed_Formats", func(t *testing.T) {
-		_ = os.Setenv("XDG_CACHE_HOME", "/tmp/cache")
+		_ = os.Setenv("XDG_CACHE_HOME", filepath.FromSlash("/tmp/cache"))
 		_ = os.Setenv("TEST_VAR", "test")
 		defer func() { _ = os.Unsetenv("TEST_VAR") }()
 
 		result := expandEnvironmentVariables("$XDG_CACHE_HOME/${TEST_VAR}/subdir")
-		assert.Equal(t, "/tmp/cache/test/subdir", result, "Mixed variable formats should be expanded")
+		assert.Equal(t, filepath.FromSlash("/tmp/cache/test/subdir"), result, "Mixed variable formats should be expanded")
 	})
 
 	// Test comprehensive XDG fallback behavior for all XDG variables

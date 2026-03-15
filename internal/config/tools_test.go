@@ -157,22 +157,22 @@ func TestEnvironmentVariableExpansion(t *testing.T) {
 			name:     "Simple variable",
 			input:    "$HOME/test",
 			envVar:   "HOME",
-			envValue: "/home/user",
-			expected: "/home/user/test",
+			envValue: filepath.FromSlash("/home/user"),
+			expected: filepath.FromSlash("/home/user/test"),
 		},
 		{
 			name:     "Braced variable",
 			input:    "${XDG_CONFIG_HOME}/pvm",
 			envVar:   "XDG_CONFIG_HOME",
-			envValue: "/home/user/.config",
-			expected: "/home/user/.config/pvm",
+			envValue: filepath.FromSlash("/home/user/.config"),
+			expected: filepath.FromSlash("/home/user/.config/pvm"),
 		},
 		{
 			name:     "Multiple variables",
 			input:    "$HOME/${USER}/config",
 			envVar:   "HOME",
-			envValue: "/home/test",
-			expected: "/home/test/perigrin/config", // HOME expanded to test value, USER expanded to current env value
+			envValue: filepath.FromSlash("/home/test"),
+			expected: filepath.FromSlash("/home/test/perigrin/config"), // HOME expanded to test value, USER expanded to current env value
 		},
 		{
 			name:     "No variables",

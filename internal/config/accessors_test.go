@@ -66,7 +66,7 @@ func TestGetString(t *testing.T) {
 
 	// Test environment variable expansion
 	oldXDGDataHome := os.Getenv("XDG_DATA_HOME")
-	_ = os.Setenv("XDG_DATA_HOME", "/home/user/.local/share")
+	_ = os.Setenv("XDG_DATA_HOME", filepath.FromSlash("/home/user/.local/share"))
 	defer func() {
 		if oldXDGDataHome == "" {
 			os.Unsetenv("XDG_DATA_HOME")
@@ -76,7 +76,7 @@ func TestGetString(t *testing.T) {
 	}()
 
 	value := config.GetString("psc", "type_definitions_path")
-	if value != "/home/user/.local/share/pvm/types" {
+	if value != filepath.FromSlash("/home/user/.local/share/pvm/types") {
 		t.Errorf("Environment variable not expanded correctly, got %s", value)
 	}
 }
