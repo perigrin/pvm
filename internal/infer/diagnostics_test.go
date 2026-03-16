@@ -99,3 +99,39 @@ func TestFormatDiagnosticMultiLine(t *testing.T) {
 		assert.Equal(t, "script.pl:3:1: error: arity error [arity-mismatch]", result)
 	})
 }
+
+func TestFormatDiagnosticEdgeCases(t *testing.T) {
+	t.Run("offset beyond source length", func(t *testing.T) {
+		source := []byte("abc\n")
+		d := infer.Diagnostic{StartByte: 100, EndByte: 110, Severity: infer.Error, Message: "bad offset", Code: "test"}
+		// Should not panic; clamps to end of source
+		result := infer.FormatDiagnostic("test.pl", source, d)
+		assert.Contains(t, result, "test.pl:")
+	})
+
+	t.Run("empty source", func(t *testing.T) {
+		d := infer.Diagnostic{StartByte: 0, EndByte: 0, Severity: infer.Warning, Message: "empty", Code: "test"}
+		result := infer.FormatDiagnostic("test.pl", []byte{}, d)
+		assert.Equal(t, "test.pl:1:1: warning: empty [test]", result)
+	})
+
+	t.Run("offset at newline boundary", func(t *testing.T) {
+		source := []byte("abc\ndef\n")
+		d := infer.Diagnostic{StartByte: 3, EndByte: 4, Severity: infer.Info, Message: "at newline", Code: "test"}
+		result := infer.FormatDiagnostic("test.pl", source, d)
+		// Byte 3 is the \n character, which is column 4 of line 1
+		assert.Equal(t, "test.pl:1:4: info: at newline [test]", result)
+	})
+
+	t.Run("offset at end of source", func(t *testing.T) {
+		source := []byte("abc\ndef\nghi\n")
+		d := infer.Diagnostic{StartByte: 12, EndByte: 12, Severity: infer.Info, Message: "at end", Code: "test"}
+		result := infer.FormatDiagnostic("test.pl", source, d)
+		// Byte 12 is past the last \n — line 4, col 1
+		assert.Equal(t, "test.pl:4:1: info: at end [test]", result)
+	})
+}
+
+func TestSeverityStringUnknown(t *testing.T) {
+	assert.Equal(t, "unknown", infer.Severity(99).String())
+}

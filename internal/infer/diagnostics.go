@@ -61,7 +61,12 @@ func FormatDiagnostic(filename string, source []byte, d Diagnostic) string {
 
 // byteOffsetToLineCol converts a byte offset into 1-based line and column
 // numbers by counting newlines in the prefix of source up to the offset.
+// Column is byte-based (not character or UTF-16 code unit count),
+// matching tree-sitter's byte offset model.
 func byteOffsetToLineCol(source []byte, offset uint32) (line, col int) {
+	if int(offset) > len(source) {
+		offset = uint32(len(source))
+	}
 	prefix := source[:offset]
 	line = bytes.Count(prefix, []byte{'\n'}) + 1
 	lastNewline := bytes.LastIndexByte(prefix, '\n')
