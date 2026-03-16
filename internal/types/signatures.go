@@ -103,7 +103,7 @@ var binaryOps = map[string]BinaryOpSig{
 	">":   {Left: Num, Right: Num, Result: Bool},
 	"<=":  {Left: Num, Right: Num, Result: Bool},
 	">=":  {Left: Num, Right: Num, Result: Bool},
-	"<=>": {Left: Num, Right: Num, Result: Bool},
+	"<=>": {Left: Num, Right: Num, Result: Int},
 
 	// String comparison
 	"eq":  {Left: Str, Right: Str, Result: Bool},
@@ -112,7 +112,7 @@ var binaryOps = map[string]BinaryOpSig{
 	"gt":  {Left: Str, Right: Str, Result: Bool},
 	"le":  {Left: Str, Right: Str, Result: Bool},
 	"ge":  {Left: Str, Right: Str, Result: Bool},
-	"cmp": {Left: Str, Right: Str, Result: Bool},
+	"cmp": {Left: Str, Right: Str, Result: Int},
 
 	// Logical
 	"&&":  {Left: Any, Right: Any, Result: Any},

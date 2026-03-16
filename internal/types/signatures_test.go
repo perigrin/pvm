@@ -124,7 +124,7 @@ func TestGetBinaryOpConcat(t *testing.T) {
 
 // TestGetBinaryOpComparison verifies numeric comparison operators.
 func TestGetBinaryOpComparison(t *testing.T) {
-	ops := []string{"==", "!=", "<", ">", "<=", ">=", "<=>"}
+	ops := []string{"==", "!=", "<", ">", "<=", ">="}
 	for _, op := range ops {
 		t.Run(op, func(t *testing.T) {
 			sig, ok := types.GetBinaryOp(op)
@@ -136,9 +136,19 @@ func TestGetBinaryOpComparison(t *testing.T) {
 	}
 }
 
+// TestGetBinaryOpSpaceship verifies the <=> operator returns Int (not Bool),
+// since it produces -1, 0, or 1.
+func TestGetBinaryOpSpaceship(t *testing.T) {
+	sig, ok := types.GetBinaryOp("<=>")
+	require.True(t, ok, "\"<=>\" should be a known binary op")
+	assert.Equal(t, types.Num, sig.Left)
+	assert.Equal(t, types.Num, sig.Right)
+	assert.Equal(t, types.Int, sig.Result)
+}
+
 // TestGetBinaryOpStringCmp verifies string comparison operators.
 func TestGetBinaryOpStringCmp(t *testing.T) {
-	ops := []string{"eq", "ne", "lt", "gt", "le", "ge", "cmp"}
+	ops := []string{"eq", "ne", "lt", "gt", "le", "ge"}
 	for _, op := range ops {
 		t.Run(op, func(t *testing.T) {
 			sig, ok := types.GetBinaryOp(op)
@@ -148,6 +158,16 @@ func TestGetBinaryOpStringCmp(t *testing.T) {
 			assert.Equal(t, types.Bool, sig.Result)
 		})
 	}
+}
+
+// TestGetBinaryOpCmp verifies the cmp operator returns Int (not Bool),
+// since it produces -1, 0, or 1.
+func TestGetBinaryOpCmp(t *testing.T) {
+	sig, ok := types.GetBinaryOp("cmp")
+	require.True(t, ok, "\"cmp\" should be a known binary op")
+	assert.Equal(t, types.Str, sig.Left)
+	assert.Equal(t, types.Str, sig.Right)
+	assert.Equal(t, types.Int, sig.Result)
 }
 
 // TestGetBinaryOpUnknown verifies that an unknown operator name returns false.
