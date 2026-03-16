@@ -1,4 +1,5 @@
 .claude/
+.worktrees/
 
 # Binaries for programs and plugins
 *.exe
