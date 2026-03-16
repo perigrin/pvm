@@ -15,6 +15,7 @@ func NewCommand() *cobra.Command {
 
 	cmd.AddCommand(newParseCommand())
 	cmd.AddCommand(newAnalyzeCommand())
+	cmd.AddCommand(newCheckCommand())
 	cmd.AddCommand(newLSPCommand())
 
 	return cmd
