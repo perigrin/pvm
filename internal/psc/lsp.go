@@ -50,8 +50,7 @@ func (s *LSPServer) OpenDocument(uri string, source []byte) error {
 		return fmt.Errorf("parse %s: %w", uri, err)
 	}
 
-	annotations, diagnostics := infer.Analyze(tree, source)
-	symbols := infer.CollectDeclarations(tree, source)
+	annotations, diagnostics, symbols := infer.Analyze(tree, source)
 
 	s.documents[uri] = &document{
 		uri:         uri,

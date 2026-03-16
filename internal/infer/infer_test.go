@@ -21,7 +21,7 @@ func analyzeSource(t *testing.T, source []byte) (map[uint32]types.Type, []infer.
 	p := parser.New()
 	tree, err := p.Parse(source)
 	require.NoError(t, err, "parse must succeed")
-	annotations, diags := infer.Analyze(tree, source)
+	annotations, diags, _ := infer.Analyze(tree, source)
 	return annotations, diags
 }
 

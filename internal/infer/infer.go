@@ -16,16 +16,16 @@ import (
 // The annotation map keys are node StartByte values; each value is the
 // inferred types.Type for the node starting at that byte offset.
 // Diagnostics describe any type errors or arity mismatches found.
-func Analyze(tree *parser.Tree, source []byte) (map[uint32]types.Type, []Diagnostic) {
+func Analyze(tree *parser.Tree, source []byte) (map[uint32]types.Type, []Diagnostic, *SymbolTable) {
 	annotations := make(map[uint32]types.Type)
 	diags := make([]Diagnostic, 0)
 
 	if tree == nil {
-		return annotations, diags
+		return annotations, diags, NewSymbolTable()
 	}
 	root := tree.RootNode()
 	if root == nil {
-		return annotations, diags
+		return annotations, diags, NewSymbolTable()
 	}
 
 	// Pass 1: collect declarations into a symbol table.
@@ -34,7 +34,7 @@ func Analyze(tree *parser.Tree, source []byte) (map[uint32]types.Type, []Diagnos
 	// Pass 2: bottom-up type walk.
 	walkNode(root, source, st, annotations, &diags)
 
-	return annotations, diags
+	return annotations, diags, st
 }
 
 // walkNode performs a post-order (bottom-up) traversal of the CST, computing
