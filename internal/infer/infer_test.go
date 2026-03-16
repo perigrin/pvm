@@ -250,6 +250,22 @@ func TestDiagnosticArityMismatch(t *testing.T) {
 	assert.True(t, found, "should find an arity-mismatch diagnostic for push()")
 }
 
+func TestDiagnosticTypeMismatch(t *testing.T) {
+	src := []byte("my $x = 1;\npush($x, 1);\n")
+	_, diags := analyzeSource(t, src)
+	require.NotEmpty(t, diags, "should emit at least one diagnostic for push($x, 1)")
+
+	var found bool
+	for _, d := range diags {
+		if d.Code == infer.CodeTypeMismatch {
+			found = true
+			assert.Equal(t, infer.Error, d.Severity, "type mismatch should be an Error")
+			break
+		}
+	}
+	assert.True(t, found, "should find a type-mismatch diagnostic for push($x, 1) where $x is Scalar not Array")
+}
+
 func TestMethodCallAnnotatedAny(t *testing.T) {
 	src := []byte("my $obj; $obj->method();")
 	annotations, _ := analyzeSource(t, src)
