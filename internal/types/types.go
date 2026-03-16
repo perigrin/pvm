@@ -69,7 +69,7 @@ func (t Type) String() string {
 }
 
 // parentMap records the direct parent of each type in the type hierarchy.
-// Types not present (Any, None) have no parent in the DAG.
+// Types not present (Unknown, Any, None) have no parent in the DAG.
 var parentMap = map[Type]Type{
 	Scalar:    Any,
 	Undef:     Scalar,
