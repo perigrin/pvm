@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"strconv"
 	"strings"
 
 	"tamarou.com/pvm/internal/parser"
@@ -411,25 +412,11 @@ func builtinArgType(sig types.BuiltinSig, i int) types.Type {
 // arityMessage produces a human-readable arity mismatch message.
 func arityMessage(name string, min, got int) string {
 	return "call to " + name + ": expected at least " +
-		itoa(min) + " argument(s), got " + itoa(got)
+		strconv.Itoa(min) + " argument(s), got " + strconv.Itoa(got)
 }
 
 // typeMismatchMessage produces a human-readable type mismatch message.
 func typeMismatchMessage(name string, argIdx int, expected, actual types.Type) string {
-	return "call to " + name + ": argument " + itoa(argIdx+1) +
+	return "call to " + name + ": argument " + strconv.Itoa(argIdx+1) +
 		" expects " + expected.String() + ", got " + actual.String()
-}
-
-// itoa converts a non-negative integer to a decimal string without importing
-// the strconv package.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	buf := make([]byte, 0, 10)
-	for n > 0 {
-		buf = append([]byte{byte('0' + n%10)}, buf...)
-		n /= 10
-	}
-	return string(buf)
 }
