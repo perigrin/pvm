@@ -31,8 +31,13 @@ type Symbol struct {
 // Scope is a single lexical scope that may refer back to its enclosing parent.
 type Scope struct {
 	Name    string
-	Parent  *Scope
+	parent  *Scope
 	symbols map[string]Symbol
+}
+
+// Parent returns the enclosing scope, or nil for the root scope.
+func (s *Scope) Parent() *Scope {
+	return s.parent
 }
 
 // SymbolTable tracks the full lexical scope chain.  The current scope is the
@@ -47,7 +52,7 @@ type SymbolTable struct {
 func NewSymbolTable() *SymbolTable {
 	root := &Scope{
 		Name:    "main",
-		Parent:  nil,
+		parent:  nil,
 		symbols: make(map[string]Symbol),
 	}
 	return &SymbolTable{root: root, current: root}
@@ -62,7 +67,7 @@ func (st *SymbolTable) Define(sym Symbol) {
 // Lookup searches the current scope and each ancestor for name, returning the
 // first match found.  The inner-most definition wins (shadowing).
 func (st *SymbolTable) Lookup(name string) (Symbol, bool) {
-	for s := st.current; s != nil; s = s.Parent {
+	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
 			return sym, true
 		}
@@ -75,7 +80,7 @@ func (st *SymbolTable) Lookup(name string) (Symbol, bool) {
 func (st *SymbolTable) EnterScope(name string) {
 	child := &Scope{
 		Name:    name,
-		Parent:  st.current,
+		parent:  st.current,
 		symbols: make(map[string]Symbol),
 	}
 	st.current = child
@@ -84,16 +89,16 @@ func (st *SymbolTable) EnterScope(name string) {
 // ExitScope pops the current scope back to its parent.  Calling ExitScope on
 // the root scope is a no-op to avoid panics from unbalanced enter/exit pairs.
 func (st *SymbolTable) ExitScope() {
-	if st.current.Parent != nil {
-		st.current = st.current.Parent
+	if st.current.parent != nil {
+		st.current = st.current.parent
 	}
 }
 
 // CurrentPackage returns the name of the nearest ancestor scope (inclusive)
 // that was created by a package declaration, or "main" if none is found.
 func (st *SymbolTable) CurrentPackage() string {
-	for s := st.current; s != nil; s = s.Parent {
-		if s.Parent == nil {
+	for s := st.current; s != nil; s = s.parent {
+		if s.parent == nil {
 			// The root is always the implicit package scope
 			return s.Name
 		}
