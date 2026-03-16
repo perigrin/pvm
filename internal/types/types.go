@@ -6,9 +6,10 @@ package types
 // Type represents a Perl type in the PSC type system.
 type Type int
 
-// Type constants in hierarchy order. The zero value (iota start) is Any.
+// Type constants in hierarchy order. The zero value is Unknown (uninitialized sentinel).
 const (
-	Any       Type = iota // Top type — accepts any value
+	Unknown   Type = iota // Zero value sentinel for uninitialized/unknown types
+	Any                   // Top type — accepts any value
 	Scalar                // Any scalar value
 	Undef                 // Undefined value
 	Bool                  // Boolean value
@@ -34,6 +35,7 @@ const (
 
 // typeNames maps Type values to their human-readable string representations.
 var typeNames = map[Type]string{
+	Unknown:   "Unknown",
 	Any:       "Any",
 	Scalar:    "Scalar",
 	Undef:     "Undef",
@@ -135,7 +137,7 @@ func IsSubtype(child, parent Type) bool {
 //
 // Rules:
 //   - required == Any accepts everything.
-//   - actual == zero value (unknown) passes permissively.
+//   - actual == Unknown passes permissively (type not yet determined).
 //   - IsSubtype(actual, required) covers normal subtype relationships.
 //   - For polymorphic types (Any, Scalar, List): also accepts when required is a
 //     subtype of actual, because a polymorphic variable could hold the required type
@@ -146,8 +148,8 @@ func TypeSatisfies(actual, required Type) bool {
 		return true
 	}
 
-	// Zero value (unknown) passes permissively
-	if actual == 0 {
+	// Unknown type passes permissively (type not yet determined)
+	if actual == Unknown {
 		return true
 	}
 

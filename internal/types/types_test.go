@@ -16,6 +16,7 @@ func TestTypeString(t *testing.T) {
 		typ      types.Type
 		expected string
 	}{
+		{types.Unknown, "Unknown"},
 		{types.Any, "Any"},
 		{types.Scalar, "Scalar"},
 		{types.Undef, "Undef"},
@@ -45,6 +46,11 @@ func TestTypeString(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.typ.String())
 		})
 	}
+}
+
+func TestTypeStringOutOfRange(t *testing.T) {
+	// Out-of-range Type values get a fallback string
+	assert.Equal(t, "Unknown", types.Type(999).String())
 }
 
 func TestIsSubtypeDirect(t *testing.T) {
