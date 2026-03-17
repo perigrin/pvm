@@ -194,6 +194,59 @@ func TestNarrowByGuardIsa(t *testing.T) {
 	assert.Equal(t, types.Object, narrowed, "Ref under isa guard narrows to Object")
 }
 
+// TestNegateGuardDefined verifies that negating a defined() guard narrows to Undef.
+func TestNegateGuardDefined(t *testing.T) {
+	guard := types.GuardPattern{Kind: types.GuardDefined}
+
+	narrowed, ok := types.NegateGuard(types.Scalar, guard)
+	assert.True(t, ok, "Scalar negates under defined guard")
+	assert.Equal(t, types.Undef, narrowed)
+
+	narrowed, ok = types.NegateGuard(types.Any, guard)
+	assert.True(t, ok, "Any negates under defined guard")
+	assert.Equal(t, types.Undef, narrowed)
+
+	narrowed, ok = types.NegateGuard(types.Undef, guard)
+	assert.True(t, ok, "Undef negates under defined guard")
+	assert.Equal(t, types.Undef, narrowed)
+
+	narrowed, ok = types.NegateGuard(types.Int, guard)
+	assert.False(t, ok, "Int does not negate meaningfully under defined guard")
+	assert.Equal(t, types.Int, narrowed)
+}
+
+func TestNegateGuardRef(t *testing.T) {
+	guard := types.GuardPattern{Kind: types.GuardRef}
+
+	narrowed, ok := types.NegateGuard(types.Scalar, guard)
+	assert.True(t, ok, "Scalar negates under ref guard")
+	assert.Equal(t, types.Scalar, narrowed)
+
+	narrowed, ok = types.NegateGuard(types.Any, guard)
+	assert.True(t, ok, "Any negates under ref guard")
+	assert.Equal(t, types.Scalar, narrowed)
+
+	narrowed, ok = types.NegateGuard(types.Undef, guard)
+	assert.False(t, ok, "Undef does not negate meaningfully under ref guard")
+	assert.Equal(t, types.Undef, narrowed)
+}
+
+func TestNegateGuardRefWithType(t *testing.T) {
+	guard := types.GuardPattern{Kind: types.GuardRef, RefType: "HASH"}
+
+	narrowed, ok := types.NegateGuard(types.Scalar, guard)
+	assert.False(t, ok, "ref eq TYPE negation is not useful")
+	assert.Equal(t, types.Scalar, narrowed)
+}
+
+func TestNegateGuardIsa(t *testing.T) {
+	guard := types.GuardPattern{Kind: types.GuardIsa}
+
+	narrowed, ok := types.NegateGuard(types.Scalar, guard)
+	assert.False(t, ok, "isa negation is not useful")
+	assert.Equal(t, types.Scalar, narrowed)
+}
+
 // TestNarrowByGuardRefEq verifies that a ref() eq 'TYPE' guard narrows to the
 // appropriate specific reference type.
 func TestNarrowByGuardRefEq(t *testing.T) {
