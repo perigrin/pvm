@@ -512,6 +512,74 @@ func inferAssignmentNarrowing(
 	return rhsType
 }
 
+// guardResult holds the result of extracting a guard pattern from a condition node.
+type guardResult struct {
+	VarName string
+	Guard   types.GuardPattern
+}
+
+// extractGuardPattern examines a condition expression node and returns the
+// guard pattern if the condition matches a recognized form (defined($x) or
+// ref($x)). Returns nil if no guard pattern is recognized.
+//
+// Recognized CST shapes:
+//
+//	func1op_call_expression with keyword "defined" and scalar child → GuardDefined
+//	func1op_call_expression with keyword "ref" and scalar child → GuardRef
+func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
+	if node == nil {
+		return nil
+	}
+
+	kind := node.Kind()
+
+	// Pattern: defined($x) or ref($x)
+	if kind == "func1op_call_expression" {
+		return extractFunc1opGuard(node, source)
+	}
+
+	return nil
+}
+
+// extractFunc1opGuard extracts a guard from a func1op_call_expression node.
+// It looks for the function keyword (defined, ref) and a scalar argument.
+func extractFunc1opGuard(node *parser.Node, source []byte) *guardResult {
+	var funcName string
+	var varNode *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			text := child.Text(source)
+			if text != "(" && text != ")" {
+				funcName = text
+			}
+			continue
+		}
+		if child.Kind() == "scalar" {
+			varNode = child
+		}
+	}
+
+	if varNode == nil {
+		return nil
+	}
+
+	varName := sigildName("$", varNode, source)
+
+	switch funcName {
+	case "defined":
+		return &guardResult{VarName: varName, Guard: types.GuardPattern{Kind: types.GuardDefined}}
+	case "ref":
+		return &guardResult{VarName: varName, Guard: types.GuardPattern{Kind: types.GuardRef}}
+	}
+
+	return nil
+}
+
 // extractVarNameFromDecl pulls the sigil-prefixed variable name from a
 // variable_declaration node (e.g. "my $x" -> "$x").
 func extractVarNameFromDecl(node *parser.Node, source []byte) string {

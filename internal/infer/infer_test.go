@@ -404,3 +404,117 @@ func TestStringLiteralNodeKindHandled(t *testing.T) {
 	require.True(t, ok, "concat expression should be annotated")
 	assert.Equal(t, types.Str, typ, "concat should return Str (proves Str type works in engine)")
 }
+
+// --- Flow narrowing tests ---
+
+func TestFlowNarrowingDefinedGuard(t *testing.T) {
+	// if (defined($x)): if-body $x → Scalar (non-Undef), else-body $x → Undef.
+	// Note: "my $x = undef" does NOT narrow $x to Undef because the undef
+	// keyword produces Unknown type, so $x stays at sigil type Scalar.
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=declaration, [1]=condition defined($x), [2]=if-body, [3]=else-body
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ifOk := annotations[offsets[2]]
+	assert.True(t, ifOk, "if-body $x should be annotated")
+	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x should be Scalar (defined guard on Scalar)")
+
+	elseBodyTyp, elseOk := annotations[offsets[3]]
+	assert.True(t, elseOk, "else-body $x should be annotated")
+	assert.Equal(t, types.Undef, elseBodyTyp, "else-body $x should be Undef (negated defined guard)")
+}
+
+func TestFlowNarrowingRefGuard(t *testing.T) {
+	// Inside if (ref($x)), $x should be narrowed to Ref.
+	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	ifBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[ifBodyXOffset]
+	assert.True(t, ok, "if-body $x at offset %d should be annotated", ifBodyXOffset)
+	assert.Equal(t, types.Ref, typ, "if-body $x should be Ref after ref() guard")
+}
+
+func TestFlowNarrowingUnlessDefinedGuard(t *testing.T) {
+	// Inside unless (defined($x)), $x should be Undef (negated defined).
+	src := []byte("my $x = undef;\nunless (defined($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	ifBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[ifBodyXOffset]
+	assert.True(t, ok, "unless-body $x should be annotated")
+	assert.Equal(t, types.Undef, typ, "unless-body $x should be Undef (negated defined guard)")
+}
+
+func TestFlowNarrowingWhileDefinedGuard(t *testing.T) {
+	// Inside while (defined($x)), $x should be Scalar (non-Undef).
+	src := []byte("my $x = undef;\nwhile (defined($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	whileBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[whileBodyXOffset]
+	assert.True(t, ok, "while-body $x should be annotated")
+	assert.Equal(t, types.Scalar, typ, "while-body $x should be Scalar (defined guard)")
+}
+
+func TestFlowNarrowingIfElseRefGuard(t *testing.T) {
+	// if (ref($x)) → Ref in if-body, Scalar in else-body
+	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0] = declaration "my $x", offsets[1] = ref($x) condition,
+	// offsets[2] = if-body $x, offsets[3] = else-body $x
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ifOk := annotations[offsets[2]]
+	assert.True(t, ifOk, "if-body $x should be annotated")
+	assert.Equal(t, types.Ref, ifBodyTyp, "if-body $x should be Ref after ref() guard")
+
+	elseBodyTyp, elseOk := annotations[offsets[3]]
+	assert.True(t, elseOk, "else-body $x should be annotated")
+	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (negated ref guard)")
+}
+
+func TestFlowNarrowingScopeRestoration(t *testing.T) {
+	// After the if block, $x should revert to its pre-narrowed type.
+	// "my $x = undef" leaves $x at sigil type Scalar (undef keyword → Unknown,
+	// so no assignment narrowing occurs).
+	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n}\nmy $z = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=condition ref($x), [2]=if-body, [3]=after-if
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x")
+
+	afterIfTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	assert.Equal(t, types.Scalar, afterIfTyp, "post-if $x should revert to Scalar (pre-narrowed sigil type)")
+}
+
+// findLastVarOffset returns the byte offset of the last occurrence of varName in source.
+func findLastVarOffset(source []byte, varName string) uint32 {
+	needle := []byte(varName)
+	last := -1
+	for i := 0; i <= len(source)-len(needle); i++ {
+		if string(source[i:i+len(needle)]) == string(needle) {
+			last = i
+		}
+	}
+	return uint32(last)
+}
+
+// findAllVarOffsets returns all byte offsets where varName appears in source.
+func findAllVarOffsets(source []byte, varName string) []uint32 {
+	needle := []byte(varName)
+	var offsets []uint32
+	for i := 0; i <= len(source)-len(needle); i++ {
+		if string(source[i:i+len(needle)]) == string(needle) {
+			offsets = append(offsets, uint32(i))
+		}
+	}
+	return offsets
+}
