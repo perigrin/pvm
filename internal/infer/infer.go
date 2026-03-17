@@ -79,15 +79,17 @@ func inferNodeType(
 		return inferNumberType(node.Text(source))
 
 	// --- Variables ---
+	// If the symbol table has a narrowed type for the variable, use that;
+	// otherwise fall back to the sigil type.
 
 	case "scalar":
-		return types.Scalar
+		return lookupNarrowedType(node, source, st, "$", types.Scalar)
 
 	case "array":
-		return types.Array
+		return lookupNarrowedType(node, source, st, "@", types.Array)
 
 	case "hash":
-		return types.Hash
+		return lookupNarrowedType(node, source, st, "%", types.Hash)
 
 	case "arraylen":
 		return types.Int
@@ -425,6 +427,18 @@ func arityMessage(name string, min, got int) string {
 func typeMismatchMessage(name string, argIdx int, expected, actual types.Type) string {
 	return "call to " + name + ": argument " + strconv.Itoa(argIdx+1) +
 		" expects " + expected.String() + ", got " + actual.String()
+}
+
+// lookupNarrowedType checks the symbol table for a narrowed type for the
+// variable represented by a scalar/array/hash node.  If a symbol is found
+// and its type is not Unknown, the refined type is returned; otherwise the
+// fallback sigil type is returned.
+func lookupNarrowedType(node *parser.Node, source []byte, st *SymbolTable, sigil string, fallback types.Type) types.Type {
+	name := sigildName(sigil, node, source)
+	if sym, ok := st.Lookup(name); ok && sym.Type != types.Unknown {
+		return sym.Type
+	}
+	return fallback
 }
 
 // inferAssignmentNarrowing handles assignment_expression nodes. It extracts

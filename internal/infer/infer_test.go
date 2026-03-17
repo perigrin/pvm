@@ -100,19 +100,19 @@ func TestInferScalarVariable(t *testing.T) {
 	src := []byte("my $x = 1; $x;")
 	annotations, _ := analyzeSource(t, src)
 
-	// The second $x occurrence is at a different byte offset than the declaration.
-	// We look for offset of $x in "$x;" (after "my $x = 1; ")
-	// "my $x = 1; " is 11 bytes, so $x is at offset 11.
-	found := false
-	for offset, typ := range annotations {
-		if int(offset) < len(src) && string(src[offset:offset+2]) == "$x" {
-			// Any scalar annotation for $x is valid
-			assert.Equal(t, types.Scalar, typ, "scalar variable should have type Scalar")
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "should find annotation for $x")
+	// The $x in the declaration (offset 3) is visited before narrowing, so
+	// it gets the sigil type Scalar. The $x reference (offset 11) is visited
+	// after the assignment narrows $x to Int.
+	declOffset := uint32(3) // "my " is 3 bytes
+	refOffset := uint32(11) // "my $x = 1; " is 11 bytes
+
+	declType, declOk := annotations[declOffset]
+	require.True(t, declOk, "declaration $x at offset %d should be annotated", declOffset)
+	assert.Equal(t, types.Scalar, declType, "declaration $x should have sigil type Scalar")
+
+	refType, refOk := annotations[refOffset]
+	require.True(t, refOk, "reference $x at offset %d should be annotated", refOffset)
+	assert.Equal(t, types.Int, refType, "reference $x should have narrowed type Int")
 }
 
 func TestInferArrayVariable(t *testing.T) {
@@ -319,4 +319,37 @@ func TestNarrowingReassignment(t *testing.T) {
 	sym, ok := st.Lookup("$x")
 	require.True(t, ok, "$x should be in the symbol table")
 	assert.Equal(t, types.Num, sym.Type, "$x should be narrowed to Num after reassignment with 3.14")
+}
+
+// --- Narrowed variable annotation tests ---
+
+func TestNarrowedVariableAnnotation(t *testing.T) {
+	// After "my $x = 42;", a subsequent reference to $x should be annotated as
+	// Int (the narrowed type), not Scalar (the sigil type).
+	src := []byte("my $x = 42; $x;")
+	annotations, _ := analyzeSource(t, src)
+
+	// The second $x reference starts at byte offset 12 ("my $x = 42; " is 12 bytes)
+	refOffset := uint32(12)
+	typ, ok := annotations[refOffset]
+	require.True(t, ok, "the $x reference node at offset %d should be annotated", refOffset)
+	assert.Equal(t, types.Int, typ, "$x reference should be annotated as Int after narrowing")
+}
+
+func TestNarrowedVariableInBuiltinCall(t *testing.T) {
+	// chr() expects Int. After "my $n = 3.14;", $n is narrowed to Num.
+	// TypeSatisfies(Num, Int) is false, so a type-mismatch diagnostic
+	// should be produced. Without narrowing, $n would be Scalar (polymorphic)
+	// and no diagnostic would fire.
+	src := []byte("my $n = 3.14; chr($n);")
+	_, diags := analyzeSource(t, src)
+
+	var found bool
+	for _, d := range diags {
+		if d.Code == infer.CodeTypeMismatch {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "chr(Num) should produce a type-mismatch diagnostic because chr expects Int")
 }
