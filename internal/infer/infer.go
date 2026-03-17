@@ -78,6 +78,9 @@ func inferNodeType(
 	case "number":
 		return inferNumberType(node.Text(source))
 
+	case "string_literal", "interpolated_string_literal":
+		return types.Str
+
 	// --- Variables ---
 	// If the symbol table has a narrowed type for the variable, use that;
 	// otherwise fall back to the sigil type.
