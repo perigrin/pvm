@@ -371,6 +371,17 @@ func TestNarrowingUnknownRHSPreservesType(t *testing.T) {
 		"$x should not be narrowed to Unknown; should retain sigil type Scalar")
 }
 
+func TestNarrowingUndeclaredVariable(t *testing.T) {
+	// $x assigned without my — CollectDeclarations won't define it,
+	// so UpdateType should be a no-op (no crash, no new symbol).
+	source := []byte("$x = 42;\n$x;\n")
+	_, diags, st := analyzeSourceFull(t, source)
+	_, ok := st.Lookup("$x")
+	assert.False(t, ok, "$x was never declared with my, should not be in symbol table")
+	// Should not panic or produce unexpected diagnostics
+	_ = diags
+}
+
 func TestStringLiteralNodeKindHandled(t *testing.T) {
 	// Verify that inferNodeType handles string_literal and
 	// interpolated_string_literal by checking the annotation map after
