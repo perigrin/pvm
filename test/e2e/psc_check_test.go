@@ -79,10 +79,30 @@ func TestPSCCheckDiagnostics(t *testing.T) {
 
 	_, stderr, err := runPSCCheck(t, diagFile)
 	assert.Error(t, err, "psc check on a file with errors should return a non-zero exit")
+
+	// Arity mismatch: push() with no arguments
 	assert.Contains(t, stderr, "arity-mismatch",
 		"stderr should contain an arity-mismatch diagnostic for push() with no arguments")
+
+	// Container-level type mismatches: wrong sigil for the builtin
+	expectedDiagnostics := []struct {
+		fragment string
+		reason   string
+	}{
+		{"push", "push($scalar, 1) — push expects Array, got Scalar"},
+		{"keys", "keys($scalar) — keys expects Hash, got Scalar"},
+		{"length", "length(@arr) — length expects Str, got Array"},
+		{"defined", "defined(@arr) — defined expects Scalar, got Array"},
+		{"splice", "splice($scalar) — splice expects Array, got Scalar"},
+	}
+	for _, diag := range expectedDiagnostics {
+		assert.Contains(t, stderr, diag.fragment,
+			"stderr should contain diagnostic for %s", diag.reason)
+	}
+
+	// Verify we get type-mismatch codes (not just the function names)
 	assert.Contains(t, stderr, "type-mismatch",
-		"stderr should contain a type-mismatch diagnostic for push($scalar, 1)")
+		"stderr should contain type-mismatch diagnostic codes")
 }
 
 // TestTypeInferenceAccuracy exercises infer.Analyze directly to verify that
