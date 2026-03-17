@@ -25,6 +25,16 @@ func analyzeSource(t *testing.T, source []byte) (map[uint32]types.Type, []infer.
 	return annotations, diags
 }
 
+// analyzeSourceFull is like analyzeSource but also returns the SymbolTable,
+// which is needed for tests that verify assignment-based type narrowing.
+func analyzeSourceFull(t *testing.T, source []byte) (map[uint32]types.Type, []infer.Diagnostic, *infer.SymbolTable) {
+	t.Helper()
+	p := parser.New()
+	tree, err := p.Parse(source)
+	require.NoError(t, err, "parse must succeed")
+	return infer.Analyze(tree, source)
+}
+
 // findNodeType searches the annotation map for the first node whose source
 // text matches want, returning its type. It iterates all byte offsets for
 // which source[offset:] starts with want.
@@ -280,4 +290,33 @@ func TestConditionalExpressionAnnotatedAny(t *testing.T) {
 	typ, ok := findNodeType(annotations, src, "$x ? $y : 0")
 	require.True(t, ok, "conditional_expression should be annotated")
 	assert.Equal(t, types.Any, typ, "conditional expression should have type Any")
+}
+
+// --- Assignment narrowing tests ---
+
+func TestNarrowingIntegerAssignment(t *testing.T) {
+	src := []byte("my $x = 42;")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, ok := st.Lookup("$x")
+	require.True(t, ok, "$x should be in the symbol table")
+	assert.Equal(t, types.Int, sym.Type, "$x should be narrowed to Int after 'my $x = 42'")
+}
+
+func TestNarrowingFloatAssignment(t *testing.T) {
+	src := []byte("my $n = 3.14;")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, ok := st.Lookup("$n")
+	require.True(t, ok, "$n should be in the symbol table")
+	assert.Equal(t, types.Num, sym.Type, "$n should be narrowed to Num after 'my $n = 3.14'")
+}
+
+func TestNarrowingReassignment(t *testing.T) {
+	src := []byte("my $x = 42; $x = 3.14;")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, ok := st.Lookup("$x")
+	require.True(t, ok, "$x should be in the symbol table")
+	assert.Equal(t, types.Num, sym.Type, "$x should be narrowed to Num after reassignment with 3.14")
 }

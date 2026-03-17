@@ -124,6 +124,12 @@ func inferNodeType(
 	case "method_call_expression":
 		return types.Any
 
+	// --- Assignments ---
+	// Narrow the LHS variable type based on the RHS expression type.
+
+	case "assignment_expression":
+		return inferAssignmentNarrowing(node, source, st, annotations, childTypes)
+
 	// --- Ternary / conditional ---
 
 	case "conditional_expression":
@@ -419,4 +425,90 @@ func arityMessage(name string, min, got int) string {
 func typeMismatchMessage(name string, argIdx int, expected, actual types.Type) string {
 	return "call to " + name + ": argument " + strconv.Itoa(argIdx+1) +
 		" expects " + expected.String() + ", got " + actual.String()
+}
+
+// inferAssignmentNarrowing handles assignment_expression nodes. It extracts
+// the LHS variable name and the RHS type, then updates the symbol table to
+// narrow the variable's type based on the assigned value.
+//
+// Tree structure:
+//
+//	assignment_expression
+//	  variable_declaration (or scalar/array/hash for plain assignments)
+//	  = (anonymous)
+//	  <rhs expression>
+func inferAssignmentNarrowing(
+	node *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	childTypes []types.Type,
+) types.Type {
+	// Find the LHS variable name and the RHS type.
+	var varName string
+	var rhsType types.Type
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		ck := child.Kind()
+
+		switch ck {
+		case "variable_declaration":
+			// my $x = ... — extract the sigil-prefixed name from the child
+			varName = extractVarNameFromDecl(child, source)
+
+		case "scalar":
+			// $x = ... (plain assignment, LHS only)
+			if varName == "" {
+				varName = sigildName("$", child, source)
+			}
+		case "array":
+			if varName == "" {
+				varName = sigildName("@", child, source)
+			}
+		case "hash":
+			if varName == "" {
+				varName = sigildName("%", child, source)
+			}
+		}
+	}
+
+	// The RHS is the last named child (after the = operator).
+	// Its type is the corresponding entry in childTypes.
+	for i := node.ChildCount() - 1; i >= 0; i-- {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() {
+			rhsType = childTypes[i]
+			break
+		}
+	}
+
+	if varName != "" && rhsType != types.Unknown {
+		st.UpdateType(varName, rhsType)
+	}
+
+	return rhsType
+}
+
+// extractVarNameFromDecl pulls the sigil-prefixed variable name from a
+// variable_declaration node (e.g. "my $x" -> "$x").
+func extractVarNameFromDecl(node *parser.Node, source []byte) string {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		switch child.Kind() {
+		case "scalar":
+			return sigildName("$", child, source)
+		case "array":
+			return sigildName("@", child, source)
+		case "hash":
+			return sigildName("%", child, source)
+		}
+	}
+	return ""
 }
