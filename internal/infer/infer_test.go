@@ -518,3 +518,35 @@ func findAllVarOffsets(source []byte, varName string) []uint32 {
 	}
 	return offsets
 }
+
+func TestFlowNarrowingNonGuardCondition(t *testing.T) {
+	// if ($x > 0) is not a recognized guard; $x should keep its type.
+	src := []byte("my $x = 42;\nif ($x > 0) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=condition, [2]=if-body
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x")
+
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Int, ifBodyTyp, "if-body $x should keep Int (no guard narrowing)")
+}
+
+func TestFlowNarrowingUnlessRefWithElse(t *testing.T) {
+	// unless (ref($x)): body $x → Scalar (negated ref), else $x → Ref (positive ref)
+	src := []byte("my $x = undef;\nunless (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=condition, [2]=unless-body, [3]=else-body
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	unlessBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "unless-body $x should be annotated")
+	assert.Equal(t, types.Scalar, unlessBodyTyp, "unless-body $x should be Scalar (negated ref guard)")
+
+	elseBodyTyp, elseOk := annotations[offsets[3]]
+	assert.True(t, elseOk, "else-body $x should be annotated")
+	assert.Equal(t, types.Ref, elseBodyTyp, "else-body $x should be Ref (positive ref guard)")
+}
