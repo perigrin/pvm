@@ -628,6 +628,14 @@ func walkConditionalStatement(
 			}
 		case "else":
 			elseNode = child
+		case "elsif":
+			// Walk the elsif subtree without guard narrowing (deferred).
+			// The elsif node has the same structure as a conditional_statement
+			// (condition, block, optional else) so walking its children gives
+			// them type annotations even though we don't apply guard narrowing.
+			for j := 0; j < child.ChildCount(); j++ {
+				walkNode(child.Child(j), source, st, annotations, diags)
+			}
 		default:
 			// The condition is the only named non-block, non-else child.
 			// Enclosing parentheses are anonymous nodes in the CST, so the

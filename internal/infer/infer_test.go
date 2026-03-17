@@ -550,3 +550,19 @@ func TestFlowNarrowingUnlessRefWithElse(t *testing.T) {
 	assert.True(t, elseOk, "else-body $x should be annotated")
 	assert.Equal(t, types.Ref, elseBodyTyp, "else-body $x should be Ref (positive ref guard)")
 }
+
+func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
+	// elsif blocks should get type annotations even though guard narrowing
+	// is deferred for elsif conditions. Verify that $x inside the elsif body
+	// is annotated (with its sigil type Scalar, since no narrowing is applied).
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $y = $x;\n} elsif (ref($x)) {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=if-condition, [2]=if-body, [3]=elsif-condition, [4]=elsif-body
+	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
+
+	elsifBodyTyp, ok := annotations[offsets[4]]
+	assert.True(t, ok, "elsif-body $x should be annotated (not skipped)")
+	assert.Equal(t, types.Scalar, elsifBodyTyp, "elsif-body $x should have sigil type Scalar (no narrowing applied)")
+}
