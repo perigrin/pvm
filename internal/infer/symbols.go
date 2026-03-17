@@ -94,6 +94,20 @@ func (st *SymbolTable) ExitScope() {
 	}
 }
 
+// UpdateType walks the scope chain from the current scope to root, looking
+// for the first scope that contains name.  If found, it updates the symbol's
+// Type to typ and returns true.  If no scope contains name, it returns false.
+func (st *SymbolTable) UpdateType(name string, typ types.Type) bool {
+	for s := st.current; s != nil; s = s.parent {
+		if sym, ok := s.symbols[name]; ok {
+			sym.Type = typ
+			s.symbols[name] = sym
+			return true
+		}
+	}
+	return false
+}
+
 // CurrentPackage returns the name of the nearest ancestor scope (inclusive)
 // that was created by a package declaration, or "main" if none is found.
 func (st *SymbolTable) CurrentPackage() string {
