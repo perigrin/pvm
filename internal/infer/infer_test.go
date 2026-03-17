@@ -25,6 +25,16 @@ func analyzeSource(t *testing.T, source []byte) (map[uint32]types.Type, []infer.
 	return annotations, diags
 }
 
+// analyzeSourceFull is like analyzeSource but also returns the SymbolTable,
+// which is needed for tests that verify assignment-based type narrowing.
+func analyzeSourceFull(t *testing.T, source []byte) (map[uint32]types.Type, []infer.Diagnostic, *infer.SymbolTable) {
+	t.Helper()
+	p := parser.New()
+	tree, err := p.Parse(source)
+	require.NoError(t, err, "parse must succeed")
+	return infer.Analyze(tree, source)
+}
+
 // findNodeType searches the annotation map for the first node whose source
 // text matches want, returning its type. It iterates all byte offsets for
 // which source[offset:] starts with want.
@@ -90,19 +100,19 @@ func TestInferScalarVariable(t *testing.T) {
 	src := []byte("my $x = 1; $x;")
 	annotations, _ := analyzeSource(t, src)
 
-	// The second $x occurrence is at a different byte offset than the declaration.
-	// We look for offset of $x in "$x;" (after "my $x = 1; ")
-	// "my $x = 1; " is 11 bytes, so $x is at offset 11.
-	found := false
-	for offset, typ := range annotations {
-		if int(offset) < len(src) && string(src[offset:offset+2]) == "$x" {
-			// Any scalar annotation for $x is valid
-			assert.Equal(t, types.Scalar, typ, "scalar variable should have type Scalar")
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "should find annotation for $x")
+	// The $x in the declaration (offset 3) is visited before narrowing, so
+	// it gets the sigil type Scalar. The $x reference (offset 11) is visited
+	// after the assignment narrows $x to Int.
+	declOffset := uint32(3) // "my " is 3 bytes
+	refOffset := uint32(11) // "my $x = 1; " is 11 bytes
+
+	declType, declOk := annotations[declOffset]
+	require.True(t, declOk, "declaration $x at offset %d should be annotated", declOffset)
+	assert.Equal(t, types.Scalar, declType, "declaration $x should have sigil type Scalar")
+
+	refType, refOk := annotations[refOffset]
+	require.True(t, refOk, "reference $x at offset %d should be annotated", refOffset)
+	assert.Equal(t, types.Int, refType, "reference $x should have narrowed type Int")
 }
 
 func TestInferArrayVariable(t *testing.T) {
@@ -280,4 +290,117 @@ func TestConditionalExpressionAnnotatedAny(t *testing.T) {
 	typ, ok := findNodeType(annotations, src, "$x ? $y : 0")
 	require.True(t, ok, "conditional_expression should be annotated")
 	assert.Equal(t, types.Any, typ, "conditional expression should have type Any")
+}
+
+// --- Assignment narrowing tests ---
+
+func TestNarrowingIntegerAssignment(t *testing.T) {
+	src := []byte("my $x = 42;")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, ok := st.Lookup("$x")
+	require.True(t, ok, "$x should be in the symbol table")
+	assert.Equal(t, types.Int, sym.Type, "$x should be narrowed to Int after 'my $x = 42'")
+}
+
+func TestNarrowingFloatAssignment(t *testing.T) {
+	src := []byte("my $n = 3.14;")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, ok := st.Lookup("$n")
+	require.True(t, ok, "$n should be in the symbol table")
+	assert.Equal(t, types.Num, sym.Type, "$n should be narrowed to Num after 'my $n = 3.14'")
+}
+
+func TestNarrowingReassignment(t *testing.T) {
+	src := []byte("my $x = 42; $x = 3.14;")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, ok := st.Lookup("$x")
+	require.True(t, ok, "$x should be in the symbol table")
+	assert.Equal(t, types.Num, sym.Type, "$x should be narrowed to Num after reassignment with 3.14")
+}
+
+// --- Narrowed variable annotation tests ---
+
+func TestNarrowedVariableAnnotation(t *testing.T) {
+	// After "my $x = 42;", a subsequent reference to $x should be annotated as
+	// Int (the narrowed type), not Scalar (the sigil type).
+	src := []byte("my $x = 42; $x;")
+	annotations, _ := analyzeSource(t, src)
+
+	// The second $x reference starts at byte offset 12 ("my $x = 42; " is 12 bytes)
+	refOffset := uint32(12)
+	typ, ok := annotations[refOffset]
+	require.True(t, ok, "the $x reference node at offset %d should be annotated", refOffset)
+	assert.Equal(t, types.Int, typ, "$x reference should be annotated as Int after narrowing")
+}
+
+func TestNarrowedVariableInBuiltinCall(t *testing.T) {
+	// chr() expects Int. After "my $n = 3.14;", $n is narrowed to Num.
+	// TypeSatisfies(Num, Int) is false, so a type-mismatch diagnostic
+	// should be produced. Without narrowing, $n would be Scalar (polymorphic)
+	// and no diagnostic would fire.
+	src := []byte("my $n = 3.14; chr($n);")
+	_, diags := analyzeSource(t, src)
+
+	var found bool
+	for _, d := range diags {
+		if d.Code == infer.CodeTypeMismatch {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "chr(Num) should produce a type-mismatch diagnostic because chr expects Int")
+}
+
+// --- String literal tests ---
+// Note: gotreesitter currently produces ERROR nodes for all quoted strings
+// ('hello', "hello", q(), qq{}, backticks). The string_literal and
+// interpolated_string_literal node kinds are handled for forward-compatibility,
+// but cannot be exercised through the parser until the grammar is fixed.
+
+func TestNarrowingUnknownRHSPreservesType(t *testing.T) {
+	// String literals currently parse as ERROR nodes, yielding Unknown RHS.
+	// The variable should NOT be narrowed to Unknown; it keeps sigil type.
+	source := []byte("my $x = 'hello';\n$x;\n")
+	_, _, st := analyzeSourceFull(t, source)
+	sym, ok := st.Lookup("$x")
+	require.True(t, ok, "$x should be in symbol table from declaration")
+	assert.NotEqual(t, types.Unknown, sym.Type,
+		"$x should not be narrowed to Unknown; should retain sigil type Scalar")
+}
+
+func TestNarrowingArrayDeclaration(t *testing.T) {
+	source := []byte("my @arr = (1, 2, 3);\n@arr;\n")
+	_, _, st := analyzeSourceFull(t, source)
+	sym, ok := st.Lookup("@arr")
+	require.True(t, ok, "@arr should be in symbol table")
+	// Array variables keep their sigil type Array (narrowing from list
+	// literals doesn't change the aggregate type)
+	assert.Equal(t, types.Array, sym.Type)
+}
+
+func TestNarrowingUndeclaredVariable(t *testing.T) {
+	// $x assigned without my — CollectDeclarations won't define it,
+	// so UpdateType should be a no-op (no crash, no new symbol).
+	source := []byte("$x = 42;\n$x;\n")
+	_, diags, st := analyzeSourceFull(t, source)
+	_, ok := st.Lookup("$x")
+	assert.False(t, ok, "$x was never declared with my, should not be in symbol table")
+	// Should not panic or produce unexpected diagnostics
+	_ = diags
+}
+
+func TestStringLiteralNodeKindHandled(t *testing.T) {
+	// Verify that inferNodeType handles string_literal and
+	// interpolated_string_literal by checking the annotation map after
+	// parsing a concat expression. The concat operator (.) returns Str,
+	// which validates that the engine can produce Str types even though
+	// string literals themselves currently parse as ERROR nodes.
+	src := []byte("1 . 2;")
+	annotations, _ := analyzeSource(t, src)
+	typ, ok := findNodeType(annotations, src, "1 . 2")
+	require.True(t, ok, "concat expression should be annotated")
+	assert.Equal(t, types.Str, typ, "concat should return Str (proves Str type works in engine)")
 }

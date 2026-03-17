@@ -117,6 +117,63 @@ func TestSymbolTableExitScope(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// --- UpdateType tests ---
+
+func TestSymbolTableUpdateType(t *testing.T) {
+	st := infer.NewSymbolTable()
+
+	st.Define(infer.Symbol{
+		Name: "$x",
+		Type: types.Scalar,
+		Kind: infer.SymVariable,
+	})
+
+	// Update $x from Scalar to Int
+	ok := st.UpdateType("$x", types.Int)
+	require.True(t, ok, "UpdateType should return true for a defined symbol")
+
+	found, lok := st.Lookup("$x")
+	require.True(t, lok)
+	assert.Equal(t, types.Int, found.Type, "$x should now have type Int after UpdateType")
+}
+
+func TestSymbolTableUpdateTypeUnknown(t *testing.T) {
+	st := infer.NewSymbolTable()
+
+	// Updating a symbol that does not exist should return false
+	ok := st.UpdateType("$notdefined", types.Int)
+	assert.False(t, ok, "UpdateType should return false for an undefined symbol")
+}
+
+func TestSymbolTableUpdateTypeInnerScope(t *testing.T) {
+	st := infer.NewSymbolTable()
+
+	// Define $x in the outer (root) scope
+	st.Define(infer.Symbol{
+		Name: "$x",
+		Type: types.Scalar,
+		Kind: infer.SymVariable,
+	})
+
+	// Enter an inner scope
+	st.EnterScope("block")
+
+	// Update $x from within the inner scope — should walk up and find it
+	ok := st.UpdateType("$x", types.Num)
+	require.True(t, ok, "UpdateType should find $x in the outer scope")
+
+	// Verify from the inner scope
+	found, lok := st.Lookup("$x")
+	require.True(t, lok)
+	assert.Equal(t, types.Num, found.Type, "$x should be Num after UpdateType from inner scope")
+
+	// Exit back to outer scope and verify there too
+	st.ExitScope()
+	found, lok = st.Lookup("$x")
+	require.True(t, lok)
+	assert.Equal(t, types.Num, found.Type, "$x should still be Num in the outer scope")
+}
+
 // --- Integration tests: CollectDeclarations (uses parser) ---
 
 func TestCollectVariableDeclarations(t *testing.T) {
