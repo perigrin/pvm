@@ -360,6 +360,17 @@ func TestNarrowedVariableInBuiltinCall(t *testing.T) {
 // interpolated_string_literal node kinds are handled for forward-compatibility,
 // but cannot be exercised through the parser until the grammar is fixed.
 
+func TestNarrowingUnknownRHSPreservesType(t *testing.T) {
+	// String literals currently parse as ERROR nodes, yielding Unknown RHS.
+	// The variable should NOT be narrowed to Unknown; it keeps sigil type.
+	source := []byte("my $x = 'hello';\n$x;\n")
+	_, _, st := analyzeSourceFull(t, source)
+	sym, ok := st.Lookup("$x")
+	require.True(t, ok, "$x should be in symbol table from declaration")
+	assert.NotEqual(t, types.Unknown, sym.Type,
+		"$x should not be narrowed to Unknown; should retain sigil type Scalar")
+}
+
 func TestStringLiteralNodeKindHandled(t *testing.T) {
 	// Verify that inferNodeType handles string_literal and
 	// interpolated_string_literal by checking the annotation map after
