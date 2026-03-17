@@ -159,9 +159,13 @@ func TestTypeSatisfiesPolymorphic(t *testing.T) {
 }
 
 func TestTypeSatisfiesUnknown(t *testing.T) {
-	// Zero value (unknown type) passes permissively against any required type
+	// Unknown is non-permissive: it does NOT satisfy specific type requirements
+	// (matches TypeScript's unknown semantics)
 	var unknown types.Type
-	assert.True(t, types.TypeSatisfies(unknown, types.Int), "unknown type satisfies Int permissively")
-	assert.True(t, types.TypeSatisfies(unknown, types.Str), "unknown type satisfies Str permissively")
-	assert.True(t, types.TypeSatisfies(unknown, types.Any), "unknown type satisfies Any permissively")
+	assert.False(t, types.TypeSatisfies(unknown, types.Int), "Unknown should NOT satisfy Int")
+	assert.False(t, types.TypeSatisfies(unknown, types.Str), "Unknown should NOT satisfy Str")
+	assert.False(t, types.TypeSatisfies(unknown, types.Num), "Unknown should NOT satisfy Num")
+	assert.False(t, types.TypeSatisfies(unknown, types.Scalar), "Unknown should NOT satisfy Scalar")
+	// Unknown DOES satisfy Any (Any accepts everything, checked first)
+	assert.True(t, types.TypeSatisfies(unknown, types.Any), "Unknown satisfies Any")
 }
