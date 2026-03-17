@@ -371,6 +371,16 @@ func TestNarrowingUnknownRHSPreservesType(t *testing.T) {
 		"$x should not be narrowed to Unknown; should retain sigil type Scalar")
 }
 
+func TestNarrowingArrayDeclaration(t *testing.T) {
+	source := []byte("my @arr = (1, 2, 3);\n@arr;\n")
+	_, _, st := analyzeSourceFull(t, source)
+	sym, ok := st.Lookup("@arr")
+	require.True(t, ok, "@arr should be in symbol table")
+	// Array variables keep their sigil type Array (narrowing from list
+	// literals doesn't change the aggregate type)
+	assert.Equal(t, types.Array, sym.Type)
+}
+
 func TestNarrowingUndeclaredVariable(t *testing.T) {
 	// $x assigned without my — CollectDeclarations won't define it,
 	// so UpdateType should be a no-op (no crash, no new symbol).
