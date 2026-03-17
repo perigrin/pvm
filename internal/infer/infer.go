@@ -498,7 +498,9 @@ func inferAssignmentNarrowing(
 	for i := node.ChildCount() - 1; i >= 0; i-- {
 		child := node.Child(i)
 		if child != nil && child.IsNamed() {
-			rhsType = childTypes[i]
+			if i < len(childTypes) {
+				rhsType = childTypes[i]
+			}
 			break
 		}
 	}
