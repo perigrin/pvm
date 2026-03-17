@@ -81,6 +81,8 @@ func TestPSCCheckDiagnostics(t *testing.T) {
 	assert.Error(t, err, "psc check on a file with errors should return a non-zero exit")
 	assert.Contains(t, stderr, "arity-mismatch",
 		"stderr should contain an arity-mismatch diagnostic for push() with no arguments")
+	assert.Contains(t, stderr, "type-mismatch",
+		"stderr should contain a type-mismatch diagnostic for push($scalar, 1)")
 }
 
 // TestTypeInferenceAccuracy exercises infer.Analyze directly to verify that
