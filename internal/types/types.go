@@ -137,7 +137,7 @@ func IsSubtype(child, parent Type) bool {
 //
 // Rules:
 //   - required == Any accepts everything.
-//   - actual == Unknown does NOT satisfy specific type requirements (non-permissive).
+//   - actual == Unknown passes permissively (type not yet determined).
 //   - IsSubtype(actual, required) covers normal subtype relationships.
 //   - For polymorphic types (Any, Scalar, List): also accepts when required is a
 //     subtype of actual, because a polymorphic variable could hold the required type
@@ -145,6 +145,11 @@ func IsSubtype(child, parent Type) bool {
 func TypeSatisfies(actual, required Type) bool {
 	// required == Any accepts everything
 	if required == Any {
+		return true
+	}
+
+	// Unknown type passes permissively (type not yet determined)
+	if actual == Unknown {
 		return true
 	}
 
