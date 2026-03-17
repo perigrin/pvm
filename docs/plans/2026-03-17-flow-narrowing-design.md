@@ -62,7 +62,7 @@ disappears and the original type is restored. No new scope machinery required.
 ## Walker Changes
 
 `walkNode` in `infer.go` gains a check before the generic child recursion loop.
-When the node is `if_statement`, `unless_statement`, or `while_statement`:
+When the node is `conditional_statement` (if/unless) or `loop_statement` (while):
 
 1. Identify the condition expression, if-block, and else-block children
 2. Walk the condition with `walkNode`
