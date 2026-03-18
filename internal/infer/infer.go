@@ -529,13 +529,14 @@ type guardResult struct {
 }
 
 // extractGuardPattern examines a condition expression node and returns the
-// guard pattern if the condition matches a recognized form (defined($x) or
-// ref($x)). Returns nil if no guard pattern is recognized.
+// guard pattern if the condition matches a recognized form. Returns nil if
+// no guard pattern is recognized.
 //
 // Recognized CST shapes:
 //
 //	func1op_call_expression with keyword "defined" and scalar child → GuardDefined
 //	func1op_call_expression with keyword "ref" and scalar child → GuardRef
+//	relational_expression with "isa" operator, scalar LHS, bareword RHS → GuardIsa
 func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 	if node == nil {
 		return nil
@@ -548,7 +549,43 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 		return extractFunc1opGuard(node, source)
 	}
 
+	// Pattern: $x isa Foo
+	if kind == "relational_expression" {
+		return extractIsaGuard(node, source)
+	}
+
 	return nil
+}
+
+// extractIsaGuard extracts a guard from a relational_expression node of the
+// form "$x isa Foo". The CST has children: scalar (named), "isa" (anonymous),
+// bareword (named).
+func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
+	var varNode *parser.Node
+	hasIsa := false
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			if child.Text(source) == "isa" {
+				hasIsa = true
+			}
+			continue
+		}
+		if child.Kind() == "scalar" && varNode == nil {
+			varNode = child
+		}
+	}
+
+	if !hasIsa || varNode == nil {
+		return nil
+	}
+
+	varName := sigildName("$", varNode, source)
+	return &guardResult{VarName: varName, Guard: types.GuardPattern{Kind: types.GuardIsa}}
 }
 
 // extractFunc1opGuard extracts a guard from a func1op_call_expression node.
