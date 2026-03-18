@@ -540,7 +540,26 @@ func TestFlowNarrowingEarlyDieNarrowsRef(t *testing.T) {
 }
 ```
 
-### Step 4: Write failing test — unless with early exit
+### Step 4: Write failing test — early exit
+
+- [ ] Add test:
+
+```go
+func TestFlowNarrowingEarlyExitNarrowsDefined(t *testing.T) {
+	// if (!defined($x)) { exit; } — after the if, $x should be Scalar (non-undef).
+	src := []byte("my $x = undef;\nif (!defined($x)) {\n    exit;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	postIfTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	assert.Equal(t, types.Scalar, postIfTyp, "post-if $x should be Scalar (defined guard after early exit)")
+}
+```
+
+### Step 5: Write failing test — unless with early exit
 
 - [ ] Add test:
 
@@ -559,7 +578,7 @@ func TestFlowNarrowingUnlessEarlyReturn(t *testing.T) {
 }
 ```
 
-### Step 5: Write failing test — non-negated guard with early exit
+### Step 6: Write failing test — non-negated guard with early exit
 
 - [ ] Add test:
 
@@ -579,10 +598,10 @@ func TestFlowNarrowingNonNegatedEarlyReturn(t *testing.T) {
 }
 ```
 
-- [ ] Run all five new tests: `go test ./internal/infer/ -run "TestFlowNarrowingEarly|TestFlowNarrowingNoEarly|TestFlowNarrowingUnlessEarly|TestFlowNarrowingNonNegated" -v`
-- Expected: FAIL for the four early-exit tests (no post-if narrowing yet), PASS for the negative test (no narrowing expected anyway — might pass accidentally)
+- [ ] Run all six new tests: `go test ./internal/infer/ -run "TestFlowNarrowingEarly|TestFlowNarrowingNoEarly|TestFlowNarrowingUnlessEarly|TestFlowNarrowingNonNegated" -v`
+- Expected: FAIL for the five early-exit tests (no post-if narrowing yet), PASS for the negative test (no narrowing expected anyway — might pass accidentally)
 
-### Step 6: Implement `blockAlwaysExits`
+### Step 7: Implement `blockAlwaysExits`
 
 - [ ] Add to `internal/infer/infer.go` before `walkBlockWithGuard`:
 
@@ -630,7 +649,7 @@ func blockAlwaysExits(block *parser.Node, source []byte) bool {
 }
 ```
 
-### Step 7: Wire post-if narrowing into `walkConditionalStatement`
+### Step 8: Wire post-if narrowing into `walkConditionalStatement`
 
 - [ ] In `walkConditionalStatement`, after walking the if-block and before walking the else body, add:
 
@@ -671,12 +690,12 @@ And in the scanning loop's `"elsif"` case, add:
 		walkElsifNode(child, source, st, annotations, diags)
 ```
 
-### Step 8: Run tests to verify they pass
+### Step 9: Run tests to verify they pass
 
 - [ ] Run: `go test ./internal/infer/ -v`
 - Expected: ALL PASS
 
-### Step 9: Commit
+### Step 10: Commit
 
 - [ ] ```bash
 git add internal/infer/infer.go internal/infer/infer_test.go
