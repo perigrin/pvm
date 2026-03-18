@@ -707,3 +707,84 @@ func TestExtractGuardPatternNotKeyword(t *testing.T) {
 	assert.True(t, ok2, "else-body $x should be annotated")
 	assert.Equal(t, types.Ref, elseBodyTyp, "else-body $x should be Ref (positive ref guard)")
 }
+
+func TestFlowNarrowingEarlyReturnNarrowsDefined(t *testing.T) {
+	// if (!defined($x)) { return; } — after the if, $x should be Scalar (non-undef).
+	src := []byte("my $x = undef;\nif (!defined($x)) {\n    return;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// [0]=decl, [1]=condition, [2]=post-if reference
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	postIfTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	assert.Equal(t, types.Scalar, postIfTyp, "post-if $x should be Scalar (defined guard after early return)")
+}
+
+func TestFlowNarrowingNoEarlyExitNoNarrowing(t *testing.T) {
+	// if (!defined($x)) { $x = 1; } — block does not exit, so no post-if narrowing.
+	src := []byte("my $x = undef;\nif (!defined($x)) {\n    $x = 1;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// [0]=decl, [1]=condition, [2]=if-body assignment LHS, [3]=post-if ref
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	postIfTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	assert.Equal(t, types.Scalar, postIfTyp, "post-if $x should remain Scalar (no early exit, no narrowing)")
+}
+
+func TestFlowNarrowingEarlyDieNarrowsRef(t *testing.T) {
+	// if (!ref($x)) { die; } — after the if, $x should be Ref.
+	src := []byte("my $x = undef;\nif (!ref($x)) {\n    die;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	postIfTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	assert.Equal(t, types.Ref, postIfTyp, "post-if $x should be Ref (ref guard after early die)")
+}
+
+func TestFlowNarrowingEarlyExitNarrowsDefined(t *testing.T) {
+	// if (!defined($x)) { exit; } — after the if, $x should be Scalar (non-undef).
+	src := []byte("my $x = undef;\nif (!defined($x)) {\n    exit;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	postIfTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	assert.Equal(t, types.Scalar, postIfTyp, "post-if $x should be Scalar (defined guard after early exit)")
+}
+
+func TestFlowNarrowingUnlessEarlyReturn(t *testing.T) {
+	// unless (defined($x)) { return; } — after the unless, $x should be Scalar.
+	src := []byte("my $x = undef;\nunless (defined($x)) {\n    return;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	postIfTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "post-unless $x should be annotated")
+	assert.Equal(t, types.Scalar, postIfTyp, "post-unless $x should be Scalar (defined after early return)")
+}
+
+func TestFlowNarrowingNonNegatedEarlyReturn(t *testing.T) {
+	// if (defined($x)) { return; } — after the if, $x should be Undef
+	// (NegateGuard applied because the exiting branch proved defined).
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    return;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	postIfTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	assert.Equal(t, types.Undef, postIfTyp, "post-if $x should be Undef (negated defined guard after early return)")
+}

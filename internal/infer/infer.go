@@ -720,6 +720,7 @@ func walkConditionalStatement(
 	var conditionNode *parser.Node
 	var ifBlock *parser.Node
 	var elseNode *parser.Node
+	hasNoElsif := true
 
 	// Identify children: keyword, condition, block, and optional else.
 	for i := 0; i < node.ChildCount(); i++ {
@@ -742,6 +743,7 @@ func walkConditionalStatement(
 		case "else":
 			elseNode = child
 		case "elsif":
+			hasNoElsif = false
 			walkElsifNode(child, source, st, annotations, diags)
 		default:
 			// The condition is the only named non-block, non-else child.
@@ -772,6 +774,31 @@ func walkConditionalStatement(
 	// Walk the if/unless body with appropriate narrowing.
 	if ifBlock != nil {
 		walkBlockWithGuard(ifBlock, source, st, annotations, diags, guard, ifBodyNegate)
+	}
+
+	// Early-exit narrowing: if the if-body always exits and there is no
+	// else/elsif, apply the else-branch guard to the rest of the scope.
+	// Note: if the if-body contains assignments before the exit (e.g.
+	// $x = 1; return;), the assignment narrowing may have already mutated
+	// the symbol table entry. The post-exit narrowing uses the current
+	// symbol table type, so assignment narrowing takes precedence.
+	if ifBlock != nil && guard != nil && elseNode == nil && hasNoElsif &&
+		blockAlwaysExits(ifBlock, source) {
+		sym, found := st.Lookup(guard.VarName)
+		if found {
+			var elseType types.Type
+			var narrowed bool
+			if ifBodyNegate {
+				// If-body had negated guard, so else-branch is the positive guard.
+				elseType, narrowed = types.NarrowByGuard(sym.Type, guard.Guard)
+			} else {
+				// If-body had positive guard, so else-branch is the negated guard.
+				elseType, narrowed = types.NegateGuard(sym.Type, guard.Guard)
+			}
+			if narrowed {
+				st.UpdateType(guard.VarName, elseType)
+			}
+		}
 	}
 
 	// Walk the else body with the opposite narrowing.
@@ -903,6 +930,48 @@ func walkLoopStatement(
 	}
 
 	return types.Unknown
+}
+
+// blockAlwaysExits returns true if the block contains a top-level statement
+// that unconditionally exits the current scope (return, die, exit).
+// Only checks direct children of the block — nested exits inside inner
+// conditions are ignored (conservative to avoid false positives).
+func blockAlwaysExits(block *parser.Node, source []byte) bool {
+	if block == nil {
+		return false
+	}
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child == nil {
+			continue
+		}
+		// Check inside expression_statement wrappers.
+		target := child
+		if child.Kind() == "expression_statement" && child.ChildCount() > 0 {
+			target = child.Child(0)
+			if target == nil {
+				continue
+			}
+		}
+
+		switch target.Kind() {
+		case "return_expression":
+			return true
+		case "func1op_call_expression":
+			// exit and exit N
+			for j := 0; j < target.ChildCount(); j++ {
+				c := target.Child(j)
+				if c != nil && !c.IsNamed() && c.Text(source) == "exit" {
+					return true
+				}
+			}
+		case "bareword":
+			if target.Text(source) == "die" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // walkBlockWithGuard walks a block node with an optional guard-based type
