@@ -666,13 +666,7 @@ func walkConditionalStatement(
 		case "else":
 			elseNode = child
 		case "elsif":
-			// Walk the elsif subtree without guard narrowing (deferred).
-			// The elsif node has the same structure as a conditional_statement
-			// (condition, block, optional else) so walking its children gives
-			// them type annotations even though we don't apply guard narrowing.
-			for j := 0; j < child.ChildCount(); j++ {
-				walkNode(child.Child(j), source, st, annotations, diags)
-			}
+			walkElsifNode(child, source, st, annotations, diags)
 		default:
 			// The condition is the only named non-block, non-else child.
 			// Enclosing parentheses are anonymous nodes in the CST, so the
@@ -715,6 +709,77 @@ func walkConditionalStatement(
 	}
 
 	return types.Unknown
+}
+
+// walkElsifNode handles a single elsif node with guard-based flow narrowing.
+// It mirrors walkConditionalStatement: walk condition, extract guard, walk
+// block with guard, then handle the trailing else or elsif recursively.
+func walkElsifNode(
+	node *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+) {
+	var conditionNode *parser.Node
+	var block *parser.Node
+	var elseNode *parser.Node
+	var elsifNode *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			continue
+		}
+		switch child.Kind() {
+		case "block":
+			if block == nil {
+				block = child
+			}
+		case "else":
+			elseNode = child
+		case "elsif":
+			elsifNode = child
+		default:
+			if conditionNode == nil {
+				conditionNode = child
+			}
+		}
+	}
+
+	// Walk the condition to type its children.
+	if conditionNode != nil {
+		walkNode(conditionNode, source, st, annotations, diags)
+	}
+
+	guard := extractGuardPattern(conditionNode, source)
+
+	// Walk the elsif body with the guard.
+	if block != nil {
+		walkBlockWithGuard(block, source, st, annotations, diags, guard, false)
+	}
+
+	// Handle trailing else or elsif.
+	if elseNode != nil {
+		var elseBlock *parser.Node
+		for i := 0; i < elseNode.ChildCount(); i++ {
+			child := elseNode.Child(i)
+			if child != nil && child.Kind() == "block" {
+				elseBlock = child
+				break
+			}
+		}
+		if elseBlock != nil {
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, true)
+		}
+	}
+
+	if elsifNode != nil {
+		walkElsifNode(elsifNode, source, st, annotations, diags)
+	}
 }
 
 // walkLoopStatement handles while statements with guard-based flow narrowing.

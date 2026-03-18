@@ -577,9 +577,8 @@ func TestFlowNarrowingUnlessRefWithElse(t *testing.T) {
 }
 
 func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
-	// elsif blocks should get type annotations even though guard narrowing
-	// is deferred for elsif conditions. Verify that $x inside the elsif body
-	// is annotated (with its sigil type Scalar, since no narrowing is applied).
+	// elsif blocks get type annotations with guard narrowing applied.
+	// elsif (ref($x)) narrows $x to Ref in the elsif body.
 	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $y = $x;\n} elsif (ref($x)) {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -589,7 +588,7 @@ func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
 
 	elsifBodyTyp, ok := annotations[offsets[4]]
 	assert.True(t, ok, "elsif-body $x should be annotated (not skipped)")
-	assert.Equal(t, types.Scalar, elsifBodyTyp, "elsif-body $x should have sigil type Scalar (no narrowing applied)")
+	assert.Equal(t, types.Ref, elsifBodyTyp, "elsif-body $x should be Ref (ref guard narrowing in elsif)")
 }
 
 func TestFlowNarrowingIsaGuard(t *testing.T) {
@@ -622,4 +621,53 @@ func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
 	elseBodyTyp, elseOk := annotations[offsets[3]]
 	assert.True(t, elseOk, "else-body $x should be annotated")
 	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (isa negation is not useful)")
+}
+
+func TestFlowNarrowingElsifWithRefGuard(t *testing.T) {
+	// elsif (ref($x)) should narrow $x to Ref in the elsif body.
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $y = $x;\n} elsif (ref($x)) {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
+
+	elsifBodyTyp, ok := annotations[offsets[4]]
+	assert.True(t, ok, "elsif-body $x should be annotated")
+	assert.Equal(t, types.Ref, elsifBodyTyp, "elsif-body $x should be Ref (ref guard in elsif)")
+}
+
+func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
+	// Three branches: if + elsif + elsif. Each should get its own guard.
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} elsif ($x isa Foo) {\n    my $c = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// [0]=decl, [1]=if-cond, [2]=if-body, [3]=elsif1-cond, [4]=elsif1-body, [5]=elsif2-cond, [6]=elsif2-body
+	require.True(t, len(offsets) >= 7, "should find at least 7 occurrences of $x, got %d", len(offsets))
+
+	elsif1BodyTyp, ok := annotations[offsets[4]]
+	assert.True(t, ok, "first elsif-body $x should be annotated")
+	assert.Equal(t, types.Ref, elsif1BodyTyp, "first elsif-body $x should be Ref")
+
+	elsif2BodyTyp, ok2 := annotations[offsets[6]]
+	assert.True(t, ok2, "second elsif-body $x should be annotated")
+	assert.Equal(t, types.Object, elsif2BodyTyp, "second elsif-body $x should be Object (isa guard)")
+}
+
+func TestFlowNarrowingElsifWithElse(t *testing.T) {
+	// elsif (ref($x)) with else: elsif-body → Ref, else-body → Scalar (negated ref)
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// [0]=decl, [1]=if-cond, [2]=if-body, [3]=elsif-cond, [4]=elsif-body, [5]=else-body
+	require.True(t, len(offsets) >= 6, "should find at least 6 occurrences of $x, got %d", len(offsets))
+
+	elsifBodyTyp, ok := annotations[offsets[4]]
+	assert.True(t, ok, "elsif-body $x should be annotated")
+	assert.Equal(t, types.Ref, elsifBodyTyp, "elsif-body $x should be Ref (ref guard)")
+
+	elseBodyTyp, ok2 := annotations[offsets[5]]
+	assert.True(t, ok2, "else-body $x should be annotated")
+	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (negated ref guard)")
 }
