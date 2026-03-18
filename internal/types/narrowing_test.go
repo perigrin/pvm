@@ -247,6 +247,37 @@ func TestNegateGuardIsa(t *testing.T) {
 	assert.Equal(t, types.Scalar, narrowed)
 }
 
+// TestNarrowByGuardRefPreservesSubtypes verifies that a plain ref() guard does
+// not widen types that are already subtypes of Ref.
+func TestNarrowByGuardRefPreservesSubtypes(t *testing.T) {
+	guard := types.GuardPattern{Kind: types.GuardRef}
+
+	// HashRef is a subtype of Ref — ref($x) should not widen it to Ref.
+	narrowed, ok := types.NarrowByGuard(types.HashRef, guard)
+	assert.False(t, ok, "HashRef should not narrow under plain ref guard (already a Ref subtype)")
+	assert.Equal(t, types.HashRef, narrowed, "HashRef should be preserved, not widened to Ref")
+
+	// ArrayRef is a subtype of Ref.
+	narrowed, ok = types.NarrowByGuard(types.ArrayRef, guard)
+	assert.False(t, ok, "ArrayRef should not narrow under plain ref guard")
+	assert.Equal(t, types.ArrayRef, narrowed, "ArrayRef should be preserved")
+
+	// CodeRef is a subtype of Ref.
+	narrowed, ok = types.NarrowByGuard(types.CodeRef, guard)
+	assert.False(t, ok, "CodeRef should not narrow under plain ref guard")
+	assert.Equal(t, types.CodeRef, narrowed, "CodeRef should be preserved")
+
+	// Object is a subtype of Ref.
+	narrowed, ok = types.NarrowByGuard(types.Object, guard)
+	assert.False(t, ok, "Object should not narrow under plain ref guard")
+	assert.Equal(t, types.Object, narrowed, "Object should be preserved")
+
+	// Ref itself should still narrow (identity — it's exactly Ref, not more specific).
+	narrowed, ok = types.NarrowByGuard(types.Ref, guard)
+	assert.True(t, ok, "Ref narrows under ref guard (it is Ref, not a subtype)")
+	assert.Equal(t, types.Ref, narrowed, "Ref under ref guard stays Ref")
+}
+
 // TestNarrowByGuardRefEq verifies that a ref() eq 'TYPE' guard narrows to the
 // appropriate specific reference type.
 func TestNarrowByGuardRefEq(t *testing.T) {

@@ -115,15 +115,28 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 		if guard.RefType != "" {
 			// ref($x) eq 'TYPE' — narrow to specific reference subtype
 			if specific, ok := refTypeMap[guard.RefType]; ok {
+				if IsSubtype(typ, specific) {
+					return typ, false
+				}
 				return specific, true
 			}
 			// Unknown ref type string means a blessed reference (class name)
+			if IsSubtype(typ, Object) {
+				return typ, false
+			}
 			return Object, true
 		}
-		// Plain ref($x) — narrows to generic Ref
+		// Plain ref($x) — if typ is already a subtype of Ref, preserve it.
+		if typ != Ref && IsSubtype(typ, Ref) {
+			return typ, false
+		}
 		return Ref, true
 
 	case GuardIsa:
+		// If typ is already a subtype of Object, preserve it.
+		if IsSubtype(typ, Object) {
+			return typ, false
+		}
 		return Object, true
 
 	default:
