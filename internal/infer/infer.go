@@ -540,6 +540,8 @@ type guardResult struct {
 //	func1op_call_expression with keyword "defined" and scalar child → GuardDefined
 //	func1op_call_expression with keyword "ref" and scalar child → GuardRef
 //	relational_expression with "isa" operator, scalar LHS, bareword RHS → GuardIsa
+//	unary_expression with "!" wrapping a recognized guard → Negated guard
+//	ambiguous_function_call_expression with "not" wrapping a recognized guard → Negated guard
 func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 	if node == nil {
 		return nil
