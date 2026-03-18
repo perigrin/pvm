@@ -764,6 +764,7 @@ func walkBlockWithGuard(
 
 		if narrowed {
 			st.EnterScope("guard")
+			defer st.ExitScope()
 			st.Define(Symbol{
 				Name: guard.VarName,
 				Type: narrowedType,
@@ -772,7 +773,6 @@ func walkBlockWithGuard(
 			for i := 0; i < block.ChildCount(); i++ {
 				walkNode(block.Child(i), source, st, annotations, diags)
 			}
-			st.ExitScope()
 			return
 		}
 	}
