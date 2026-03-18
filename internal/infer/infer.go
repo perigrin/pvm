@@ -743,10 +743,16 @@ func walkBlockWithGuard(
 ) {
 	if guard != nil {
 		// Look up the variable's current type for narrowing.
-		currentType := types.Scalar // default for undeclared
-		if sym, ok := st.Lookup(guard.VarName); ok {
-			currentType = sym.Type
+		// If the variable was never declared, skip narrowing entirely
+		// to avoid creating phantom shadow entries in the guard scope.
+		sym, found := st.Lookup(guard.VarName)
+		if !found {
+			for i := 0; i < block.ChildCount(); i++ {
+				walkNode(block.Child(i), source, st, annotations, diags)
+			}
+			return
 		}
+		currentType := sym.Type
 
 		var narrowedType types.Type
 		var narrowed bool

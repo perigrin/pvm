@@ -519,6 +519,31 @@ func findAllVarOffsets(source []byte, varName string) []uint32 {
 	return offsets
 }
 
+func TestFlowNarrowingUndeclaredVariableNoPhantomNarrowing(t *testing.T) {
+	// An undeclared variable (no my) inside a defined() guard should NOT get
+	// a phantom Scalar annotation from a guard scope shadow. Without the fix,
+	// walkBlockWithGuard defaults currentType to Scalar for undeclared vars,
+	// NarrowByGuard(Scalar, GuardDefined) returns (Scalar, true), and a
+	// phantom shadow is created. The reference to $x inside the block would
+	// then be annotated as Scalar instead of the normal sigil type Scalar.
+	//
+	// The observable difference: with the phantom shadow, the guard scope
+	// contains $x with type Scalar. Without it, $x falls through to the
+	// sigil-based annotation. The net annotation is the same (Scalar either
+	// way for defined guard), so we verify via ref() guard instead, where
+	// the phantom would produce Ref (wrong) vs Scalar (correct sigil type).
+	src := []byte("if (ref($x)) {\n    $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	// The $x reference inside the block: if a phantom shadow was created,
+	// it would be Ref (from NarrowByGuard on undeclared Scalar). If no
+	// phantom, lookupNarrowedType returns the sigil fallback Scalar.
+	refOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[refOffset]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Scalar, typ, "undeclared $x inside ref() guard should be Scalar (sigil type), not Ref (phantom narrowing)")
+}
+
 func TestFlowNarrowingNonGuardCondition(t *testing.T) {
 	// if ($x > 0) is not a recognized guard; $x should keep its type.
 	src := []byte("my $x = 42;\nif ($x > 0) {\n    my $y = $x;\n}\n")
