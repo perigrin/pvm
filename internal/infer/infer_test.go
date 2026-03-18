@@ -788,3 +788,58 @@ func TestFlowNarrowingNonNegatedEarlyReturn(t *testing.T) {
 	assert.True(t, ok, "post-if $x should be annotated")
 	assert.Equal(t, types.Undef, postIfTyp, "post-if $x should be Undef (negated defined guard after early return)")
 }
+
+func TestFlowNarrowingForLoopVariable(t *testing.T) {
+	// for my $item (@arr) { $item; } — $item should be Scalar inside the body.
+	src := []byte("my @arr;\nfor my $item (@arr) {\n    $item;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	itemOffset := findLastVarOffset(src, "$item")
+	typ, ok := annotations[itemOffset]
+	assert.True(t, ok, "for-body $item should be annotated")
+	assert.Equal(t, types.Scalar, typ, "for-body $item should be Scalar")
+}
+
+func TestFlowNarrowingForLoopVariableNoLeak(t *testing.T) {
+	// After the for loop, $item should not be in the symbol table.
+	src := []byte("my @arr;\nfor my $item (@arr) {\n    $item;\n}\n$item;\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	_, ok := st.Lookup("$item")
+	assert.False(t, ok, "$item should not be in symbol table after for loop")
+}
+
+func TestFlowNarrowingForLoopOverList(t *testing.T) {
+	// for my $n (1, 2, 3) { $n; } — $n should be Scalar inside the body.
+	src := []byte("for my $n (1, 2, 3) {\n    $n;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	nOffset := findLastVarOffset(src, "$n")
+	typ, ok := annotations[nOffset]
+	assert.True(t, ok, "for-body $n should be annotated")
+	assert.Equal(t, types.Scalar, typ, "for-body $n should be Scalar")
+}
+
+func TestFlowNarrowingForLoopWithoutMy(t *testing.T) {
+	// for $item (@arr) { $item; } — same behavior, no my keyword.
+	src := []byte("my @arr;\nfor $item (@arr) {\n    $item;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	itemOffset := findLastVarOffset(src, "$item")
+	typ, ok := annotations[itemOffset]
+	assert.True(t, ok, "for-body $item should be annotated")
+	assert.Equal(t, types.Scalar, typ, "for-body $item should be Scalar")
+}
+
+func TestFlowNarrowingCStyleForInitializer(t *testing.T) {
+	// for (my $i = 0; ...) — $i should be narrowed to Int by assignment.
+	src := []byte("for (my $i = 0; $i < 10; $i++) {\n    $i;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$i")
+	// Find the $i inside the block body (last occurrence).
+	bodyOffset := offsets[len(offsets)-1]
+	typ, ok := annotations[bodyOffset]
+	assert.True(t, ok, "for-body $i should be annotated")
+	assert.Equal(t, types.Int, typ, "for-body $i should be Int (narrowed by assignment)")
+}

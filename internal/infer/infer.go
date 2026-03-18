@@ -54,6 +54,8 @@ func walkNode(node *parser.Node, source []byte, st *SymbolTable, annotations map
 		return walkConditionalStatement(node, source, st, annotations, diags)
 	case "loop_statement":
 		return walkLoopStatement(node, source, st, annotations, diags)
+	case "for_statement":
+		return walkForStatement(node, source, st, annotations, diags)
 	}
 
 	// Recurse into all children first (post-order).
@@ -929,6 +931,77 @@ func walkLoopStatement(
 		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, guard, false)
 	}
 
+	return types.Unknown
+}
+
+// walkForStatement handles for/foreach loops with proper variable scoping.
+// The loop variable is defined as Scalar in a dedicated scope that spans
+// the loop body, preventing it from leaking into the enclosing scope.
+//
+// Note: inner "my" declarations inside the for-body have the same pass-1/pass-2
+// scope limitation as walkBlockWithGuard — UpdateType for those inner variables
+// will be no-ops.
+func walkForStatement(
+	node *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+) types.Type {
+	var loopVar *parser.Node
+	var iterSource *parser.Node
+	var bodyBlock *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			continue
+		}
+		switch child.Kind() {
+		case "scalar":
+			if loopVar == nil {
+				loopVar = child
+			}
+		case "block":
+			bodyBlock = child
+		default:
+			// The iteration source is the other named child (array or list_expression).
+			if iterSource == nil {
+				iterSource = child
+			}
+		}
+	}
+
+	// Walk the iteration source to type it.
+	if iterSource != nil {
+		walkNode(iterSource, source, st, annotations, diags)
+	}
+
+	// Walk the loop body with the loop variable scoped.
+	if bodyBlock != nil && loopVar != nil {
+		varName := sigildName("$", loopVar, source)
+		st.EnterScope("for")
+		defer st.ExitScope()
+		st.Define(Symbol{
+			Name: varName,
+			Type: types.Scalar,
+			Kind: SymVariable,
+		})
+		// Annotate the loop variable node itself.
+		annotations[loopVar.StartByte()] = types.Scalar
+		for i := 0; i < bodyBlock.ChildCount(); i++ {
+			walkNode(bodyBlock.Child(i), source, st, annotations, diags)
+		}
+		return types.Unknown
+	}
+
+	// Fallback: walk all children generically.
+	for i := 0; i < node.ChildCount(); i++ {
+		walkNode(node.Child(i), source, st, annotations, diags)
+	}
 	return types.Unknown
 }
 
