@@ -526,6 +526,7 @@ func inferAssignmentNarrowing(
 type guardResult struct {
 	VarName string
 	Guard   types.GuardPattern
+	Negated bool
 }
 
 // extractGuardPattern examines a condition expression node and returns the
@@ -552,6 +553,16 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 	// Pattern: $x isa Foo
 	if kind == "relational_expression" {
 		return extractIsaGuard(node, source)
+	}
+
+	// Pattern: !guard (unary negation)
+	if kind == "unary_expression" {
+		return extractNegatedGuard(node, source)
+	}
+
+	// Pattern: not guard (low-precedence negation)
+	if kind == "ambiguous_function_call_expression" {
+		return extractNotGuard(node, source)
 	}
 
 	return nil
@@ -586,6 +597,71 @@ func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 
 	varName := sigildName("$", varNode, source)
 	return &guardResult{VarName: varName, Guard: types.GuardPattern{Kind: types.GuardIsa}}
+}
+
+// extractNegatedGuard unwraps a unary_expression with "!" to find the inner
+// guard pattern. CST: unary_expression -> "!" (anon) + inner expression (named).
+func extractNegatedGuard(node *parser.Node, source []byte) *guardResult {
+	hasNot := false
+	var innerNode *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			if child.Text(source) == "!" {
+				hasNot = true
+			}
+			continue
+		}
+		if innerNode == nil {
+			innerNode = child
+		}
+	}
+
+	if !hasNot || innerNode == nil {
+		return nil
+	}
+
+	result := extractGuardPattern(innerNode, source)
+	if result != nil {
+		result.Negated = !result.Negated
+	}
+	return result
+}
+
+// extractNotGuard unwraps an ambiguous_function_call_expression with
+// function "not" to find the inner guard pattern.
+// CST: ambiguous_function_call_expression -> function:"not" + inner expression (named).
+func extractNotGuard(node *parser.Node, source []byte) *guardResult {
+	hasNot := false
+	var innerNode *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "function" && child.Text(source) == "not" {
+			hasNot = true
+			continue
+		}
+		if child.IsNamed() && innerNode == nil {
+			innerNode = child
+		}
+	}
+
+	if !hasNot || innerNode == nil {
+		return nil
+	}
+
+	result := extractGuardPattern(innerNode, source)
+	if result != nil {
+		result.Negated = !result.Negated
+	}
+	return result
 }
 
 // extractFunc1opGuard extracts a guard from a func1op_call_expression node.
@@ -686,11 +762,16 @@ func walkConditionalStatement(
 	// Extract guard pattern from the condition.
 	guard := extractGuardPattern(conditionNode, source)
 
-	isUnless := keyword == "unless"
+	// Compute the negate flag for the if-body. "unless" flips it,
+	// and a negated condition (e.g. !defined) flips it again.
+	ifBodyNegate := keyword == "unless"
+	if guard != nil && guard.Negated {
+		ifBodyNegate = !ifBodyNegate
+	}
 
 	// Walk the if/unless body with appropriate narrowing.
 	if ifBlock != nil {
-		walkBlockWithGuard(ifBlock, source, st, annotations, diags, guard, isUnless)
+		walkBlockWithGuard(ifBlock, source, st, annotations, diags, guard, ifBodyNegate)
 	}
 
 	// Walk the else body with the opposite narrowing.
@@ -704,7 +785,7 @@ func walkConditionalStatement(
 			}
 		}
 		if elseBlock != nil {
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !isUnless)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !ifBodyNegate)
 		}
 	}
 

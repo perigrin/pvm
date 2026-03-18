@@ -671,3 +671,39 @@ func TestFlowNarrowingElsifWithElse(t *testing.T) {
 	assert.True(t, ok2, "else-body $x should be annotated")
 	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (negated ref guard)")
 }
+
+func TestExtractGuardPatternNegatedDefined(t *testing.T) {
+	// if (!defined($x)): the condition is a negated defined guard.
+	// The if-body should get the negated guard (Undef), not the positive (Scalar).
+	src := []byte("my $x = undef;\nif (!defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// [0]=decl, [1]=condition, [2]=if-body, [3]=else-body
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Undef, ifBodyTyp, "if-body $x should be Undef (negated defined guard)")
+
+	elseBodyTyp, ok2 := annotations[offsets[3]]
+	assert.True(t, ok2, "else-body $x should be annotated")
+	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (positive defined guard)")
+}
+
+func TestExtractGuardPatternNotKeyword(t *testing.T) {
+	// if (not ref($x)): "not" is an ambiguous_function_call_expression wrapping ref.
+	src := []byte("my $x = undef;\nif (not ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x should be Scalar (negated ref guard)")
+
+	elseBodyTyp, ok2 := annotations[offsets[3]]
+	assert.True(t, ok2, "else-body $x should be annotated")
+	assert.Equal(t, types.Ref, elseBodyTyp, "else-body $x should be Ref (positive ref guard)")
+}
