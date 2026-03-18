@@ -158,6 +158,12 @@ func TestNarrowByGuardDefined(t *testing.T) {
 	narrowed, narrowed_ok = types.NarrowByGuard(types.Str, guard)
 	assert.False(t, narrowed_ok, "Str does not narrow under defined guard (already non-undef)")
 	assert.Equal(t, types.Str, narrowed, "Str under defined guard is unchanged")
+
+	// Unknown is a top type (type not yet determined) — defined() narrows it to Scalar.
+	// This is consistent with GuardRef which narrows Unknown to Ref.
+	narrowed, narrowed_ok = types.NarrowByGuard(types.Unknown, guard)
+	assert.True(t, narrowed_ok, "Unknown narrows under defined guard")
+	assert.Equal(t, types.Scalar, narrowed, "Unknown under defined guard narrows to Scalar")
 }
 
 // TestNarrowByGuardRef verifies that a plain ref() guard narrows any type to Ref.

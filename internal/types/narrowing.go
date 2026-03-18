@@ -104,8 +104,9 @@ var refTypeMap = map[string]Type{
 func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 	switch guard.Kind {
 	case GuardDefined:
-		// Types that could hold an undef value at runtime
-		if typ == Scalar || typ == Undef || typ == Any {
+		// Types that could hold an undef value at runtime, plus Unknown
+		// (type not yet determined — treated as a top type like Any).
+		if typ == Scalar || typ == Undef || typ == Any || typ == Unknown {
 			return Scalar, true
 		}
 		// All other types are already known non-undef
