@@ -591,3 +591,35 @@ func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
 	assert.True(t, ok, "elsif-body $x should be annotated (not skipped)")
 	assert.Equal(t, types.Scalar, elsifBodyTyp, "elsif-body $x should have sigil type Scalar (no narrowing applied)")
 }
+
+func TestFlowNarrowingIsaGuard(t *testing.T) {
+	// if ($x isa Foo): if-body $x → Object (isa guard narrows to Object).
+	src := []byte("my $x = undef;\nif ($x isa Foo) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=condition, [2]=if-body
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Object, ifBodyTyp, "if-body $x should be Object after isa guard")
+}
+
+func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
+	// if ($x isa Foo): if-body → Object, else-body → Scalar (isa negation is not useful).
+	src := []byte("my $x = undef;\nif ($x isa Foo) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=condition, [2]=if-body, [3]=else-body
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ifOk := annotations[offsets[2]]
+	assert.True(t, ifOk, "if-body $x should be annotated")
+	assert.Equal(t, types.Object, ifBodyTyp, "if-body $x should be Object after isa guard")
+
+	elseBodyTyp, elseOk := annotations[offsets[3]]
+	assert.True(t, elseOk, "else-body $x should be annotated")
+	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (isa negation is not useful)")
+}
