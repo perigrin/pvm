@@ -104,8 +104,9 @@ var refTypeMap = map[string]Type{
 func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 	switch guard.Kind {
 	case GuardDefined:
-		// Types that could hold an undef value at runtime
-		if typ == Scalar || typ == Undef || typ == Any {
+		// Types that could hold an undef value at runtime, plus Unknown
+		// (type not yet determined — treated as a top type like Any).
+		if typ == Scalar || typ == Undef || typ == Any || typ == Unknown {
 			return Scalar, true
 		}
 		// All other types are already known non-undef
@@ -115,16 +116,64 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 		if guard.RefType != "" {
 			// ref($x) eq 'TYPE' — narrow to specific reference subtype
 			if specific, ok := refTypeMap[guard.RefType]; ok {
+				if IsSubtype(typ, specific) {
+					return typ, false
+				}
 				return specific, true
 			}
 			// Unknown ref type string means a blessed reference (class name)
+			if IsSubtype(typ, Object) {
+				return typ, false
+			}
 			return Object, true
 		}
-		// Plain ref($x) — narrows to generic Ref
+		// Plain ref($x) — if typ is already a subtype of Ref, preserve it.
+		if typ != Ref && IsSubtype(typ, Ref) {
+			return typ, false
+		}
 		return Ref, true
 
 	case GuardIsa:
+		// If typ is already a subtype of Object, preserve it.
+		if IsSubtype(typ, Object) {
+			return typ, false
+		}
 		return Object, true
+
+	default:
+		return typ, false
+	}
+}
+
+// NegateGuard returns the type that typ narrows to when a guard expression is
+// known to be FALSE. The second return value is true when useful narrowing
+// occurred.
+//
+// Rules:
+//   - GuardDefined: If typ could be undef (Scalar, Undef, Any), narrows to Undef.
+//     Concrete non-undef types produce no useful narrowing.
+//   - GuardRef (plain): Narrows to Scalar (non-reference).
+//   - GuardRef with RefType: No useful narrowing ("not a HashRef" could be anything).
+//   - GuardIsa: No useful narrowing ("not a Foo" could be anything).
+func NegateGuard(typ Type, guard GuardPattern) (Type, bool) {
+	switch guard.Kind {
+	case GuardDefined:
+		if typ == Scalar || typ == Undef || typ == Any {
+			return Undef, true
+		}
+		return typ, false
+
+	case GuardRef:
+		if guard.RefType != "" {
+			return typ, false
+		}
+		if typ == Scalar || typ == Any || typ == Ref {
+			return Scalar, true
+		}
+		return typ, false
+
+	case GuardIsa:
+		return typ, false
 
 	default:
 		return typ, false

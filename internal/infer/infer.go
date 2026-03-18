@@ -46,6 +46,16 @@ func walkNode(node *parser.Node, source []byte, st *SymbolTable, annotations map
 		return types.Unknown
 	}
 
+	// Special-case: flow narrowing for conditional and loop statements.
+	// These need condition-first walking with scoped type overrides,
+	// which the generic post-order loop cannot provide.
+	switch node.Kind() {
+	case "conditional_statement":
+		return walkConditionalStatement(node, source, st, annotations, diags)
+	case "loop_statement":
+		return walkLoopStatement(node, source, st, annotations, diags)
+	}
+
 	// Recurse into all children first (post-order).
 	childTypes := make([]types.Type, node.ChildCount())
 	for i := 0; i < node.ChildCount(); i++ {
@@ -510,6 +520,267 @@ func inferAssignmentNarrowing(
 	}
 
 	return rhsType
+}
+
+// guardResult holds the result of extracting a guard pattern from a condition node.
+type guardResult struct {
+	VarName string
+	Guard   types.GuardPattern
+}
+
+// extractGuardPattern examines a condition expression node and returns the
+// guard pattern if the condition matches a recognized form (defined($x) or
+// ref($x)). Returns nil if no guard pattern is recognized.
+//
+// Recognized CST shapes:
+//
+//	func1op_call_expression with keyword "defined" and scalar child → GuardDefined
+//	func1op_call_expression with keyword "ref" and scalar child → GuardRef
+func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
+	if node == nil {
+		return nil
+	}
+
+	kind := node.Kind()
+
+	// Pattern: defined($x) or ref($x)
+	if kind == "func1op_call_expression" {
+		return extractFunc1opGuard(node, source)
+	}
+
+	return nil
+}
+
+// extractFunc1opGuard extracts a guard from a func1op_call_expression node.
+// It looks for the function keyword (defined, ref) and a scalar argument.
+func extractFunc1opGuard(node *parser.Node, source []byte) *guardResult {
+	var funcName string
+	var varNode *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			text := child.Text(source)
+			if text != "(" && text != ")" {
+				funcName = text
+			}
+			continue
+		}
+		if child.Kind() == "scalar" {
+			varNode = child
+		}
+	}
+
+	if varNode == nil {
+		return nil
+	}
+
+	varName := sigildName("$", varNode, source)
+
+	switch funcName {
+	case "defined":
+		return &guardResult{VarName: varName, Guard: types.GuardPattern{Kind: types.GuardDefined}}
+	case "ref":
+		return &guardResult{VarName: varName, Guard: types.GuardPattern{Kind: types.GuardRef}}
+	}
+
+	return nil
+}
+
+// walkConditionalStatement handles if/unless statements with guard-based flow
+// narrowing. It walks the condition first, extracts a guard pattern, then walks
+// the if-body and else-body with appropriate scoped type overrides.
+//
+// For "if", the if-body gets the positive guard narrowing and the else-body
+// gets the negated guard. For "unless", the narrowing is flipped.
+func walkConditionalStatement(
+	node *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+) types.Type {
+	var keyword string
+	var conditionNode *parser.Node
+	var ifBlock *parser.Node
+	var elseNode *parser.Node
+
+	// Identify children: keyword, condition, block, and optional else.
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			text := child.Text(source)
+			if text == "if" || text == "unless" {
+				keyword = text
+			}
+			continue
+		}
+		switch child.Kind() {
+		case "block":
+			if ifBlock == nil {
+				ifBlock = child
+			}
+		case "else":
+			elseNode = child
+		case "elsif":
+			// Walk the elsif subtree without guard narrowing (deferred).
+			// The elsif node has the same structure as a conditional_statement
+			// (condition, block, optional else) so walking its children gives
+			// them type annotations even though we don't apply guard narrowing.
+			for j := 0; j < child.ChildCount(); j++ {
+				walkNode(child.Child(j), source, st, annotations, diags)
+			}
+		default:
+			// The condition is the only named non-block, non-else child.
+			// Enclosing parentheses are anonymous nodes in the CST, so the
+			// condition expression (e.g. func1op_call_expression) appears
+			// directly as a named child of conditional_statement.
+			if conditionNode == nil {
+				conditionNode = child
+			}
+		}
+	}
+
+	// Walk the condition node to type its children.
+	if conditionNode != nil {
+		walkNode(conditionNode, source, st, annotations, diags)
+	}
+
+	// Extract guard pattern from the condition.
+	guard := extractGuardPattern(conditionNode, source)
+
+	isUnless := keyword == "unless"
+
+	// Walk the if/unless body with appropriate narrowing.
+	if ifBlock != nil {
+		walkBlockWithGuard(ifBlock, source, st, annotations, diags, guard, isUnless)
+	}
+
+	// Walk the else body with the opposite narrowing.
+	if elseNode != nil {
+		var elseBlock *parser.Node
+		for i := 0; i < elseNode.ChildCount(); i++ {
+			child := elseNode.Child(i)
+			if child != nil && child.Kind() == "block" {
+				elseBlock = child
+				break
+			}
+		}
+		if elseBlock != nil {
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !isUnless)
+		}
+	}
+
+	return types.Unknown
+}
+
+// walkLoopStatement handles while statements with guard-based flow narrowing.
+func walkLoopStatement(
+	node *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+) types.Type {
+	var conditionNode *parser.Node
+	var bodyBlock *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			continue
+		}
+		switch child.Kind() {
+		case "block":
+			bodyBlock = child
+		default:
+			if conditionNode == nil {
+				conditionNode = child
+			}
+		}
+	}
+
+	if conditionNode != nil {
+		walkNode(conditionNode, source, st, annotations, diags)
+	}
+
+	guard := extractGuardPattern(conditionNode, source)
+
+	if bodyBlock != nil {
+		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, guard, false)
+	}
+
+	return types.Unknown
+}
+
+// walkBlockWithGuard walks a block node with an optional guard-based type
+// override. If guard is non-nil, it enters a new "guard" scope, shadows the
+// guarded variable with the narrowed type, walks the block children, then exits
+// the scope. If negate is true, the negated guard type is applied instead.
+//
+// Note: inner "my" declarations inside the block were processed by pass 1
+// (CollectDeclarations) in block scopes that no longer exist by pass 2.
+// UpdateType calls for those inner variables will be no-ops. This is a known
+// limitation — guard narrowing applies to the guarded variable, not to new
+// declarations inside the block.
+func walkBlockWithGuard(
+	block *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+	guard *guardResult,
+	negate bool,
+) {
+	if guard != nil {
+		// Look up the variable's current type for narrowing.
+		// If the variable was never declared, skip narrowing entirely
+		// to avoid creating phantom shadow entries in the guard scope.
+		sym, found := st.Lookup(guard.VarName)
+		if !found {
+			for i := 0; i < block.ChildCount(); i++ {
+				walkNode(block.Child(i), source, st, annotations, diags)
+			}
+			return
+		}
+		currentType := sym.Type
+
+		var narrowedType types.Type
+		var narrowed bool
+		if negate {
+			narrowedType, narrowed = types.NegateGuard(currentType, guard.Guard)
+		} else {
+			narrowedType, narrowed = types.NarrowByGuard(currentType, guard.Guard)
+		}
+
+		if narrowed {
+			st.EnterScope("guard")
+			defer st.ExitScope()
+			st.Define(Symbol{
+				Name: guard.VarName,
+				Type: narrowedType,
+				Kind: SymVariable,
+			})
+			for i := 0; i < block.ChildCount(); i++ {
+				walkNode(block.Child(i), source, st, annotations, diags)
+			}
+			return
+		}
+	}
+
+	// No guard or no narrowing: walk normally.
+	for i := 0; i < block.ChildCount(); i++ {
+		walkNode(block.Child(i), source, st, annotations, diags)
+	}
 }
 
 // extractVarNameFromDecl pulls the sigil-prefixed variable name from a
