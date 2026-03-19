@@ -1548,3 +1548,19 @@ func TestExtractSubReturnExprMultipleReturns(t *testing.T) {
 	expr := infer.ExtractSubReturnExpr(block, src)
 	assert.Nil(t, expr, "multiple returns should be rejected")
 }
+
+func TestUserDefinedGuardFuncDefined(t *testing.T) {
+	src := []byte("sub is_defined { defined($_[0]) }\nmy $x = undef;\nif (is_defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4, "need at least 4 $x occurrences, got %d", len(offsets))
+
+	ifBodyTyp, ifOk := annotations[offsets[2]]
+	assert.True(t, ifOk, "if-body $x should be annotated")
+	assert.Equal(t, types.Scalar&^types.Undef, ifBodyTyp, "if-body $x should have Undef removed")
+
+	elseBodyTyp, elseOk := annotations[offsets[3]]
+	assert.True(t, elseOk, "else-body $x should be annotated")
+	assert.Equal(t, types.Undef, elseBodyTyp, "else-body $x should be Undef")
+}

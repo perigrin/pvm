@@ -1074,12 +1074,77 @@ func extractFunctionCallGuard(node *parser.Node, source []byte, st *SymbolTable)
 	}
 
 	guard, ok := guardFunctionTable[baseName]
-	if !ok {
+	if ok {
+		varName := sigildName("$", varNode, source)
+		return &guardResult{VarName: varName, Guard: guard}
+	}
+
+	// Fallback: check if this is a user-defined guard function.
+	if st == nil {
+		return nil
+	}
+	return extractUserDefinedGuard(funcName, varNode, source, st)
+}
+
+// extractUserDefinedGuard attempts to resolve a function call as a
+// user-defined type guard. It looks up the sub in the symbol table,
+// finds its AST node, resolves the parameter variable, extracts the
+// return expression, and runs extractGuardPattern on it recursively.
+// The resulting guard's VarName is remapped from the sub's parameter
+// to the call-site argument.
+func extractUserDefinedGuard(funcName string, argNode *parser.Node, source []byte, st *SymbolTable) *guardResult {
+	sym, ok := st.Lookup(funcName)
+	if !ok || sym.Kind != SymSubroutine {
 		return nil
 	}
 
-	varName := sigildName("$", varNode, source)
-	return &guardResult{VarName: varName, Guard: guard}
+	// Find the sub's AST node by walking up from argNode to the root,
+	// then searching top-level children.
+	root := argNode
+	for root.Parent() != nil {
+		root = root.Parent()
+	}
+
+	subNode := FindSubDeclNode(root, sym.StartByte, sym.EndByte)
+	if subNode == nil {
+		return nil
+	}
+
+	// Resolve the parameter variable.
+	paramName, paramOk := ResolveSubParam(subNode, source)
+	if !paramOk {
+		return nil
+	}
+
+	// Find the body block.
+	var bodyBlock *parser.Node
+	for i := 0; i < subNode.ChildCount(); i++ {
+		child := subNode.Child(i)
+		if child != nil && child.Kind() == "block" {
+			bodyBlock = child
+		}
+	}
+	if bodyBlock == nil {
+		return nil
+	}
+
+	// Extract the return expression.
+	returnExpr := ExtractSubReturnExpr(bodyBlock, source)
+	if returnExpr == nil {
+		return nil
+	}
+
+	// Recursively extract a guard pattern from the return expression.
+	// Pass nil for st to prevent infinite recursion (1-level limit).
+	innerGuard := extractGuardPattern(returnExpr, source, nil)
+	if innerGuard == nil {
+		return nil
+	}
+
+	// Remap the guard's variable from the parameter name to the
+	// call-site argument.
+	callSiteArg := sigildName("$", argNode, source)
+	return remapGuardVar(innerGuard, paramName, callSiteArg)
 }
 
 // extractFunc1opGuard extracts a guard from a func1op_call_expression node.
