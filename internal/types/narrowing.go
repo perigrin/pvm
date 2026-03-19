@@ -1,5 +1,5 @@
 // ABOUTME: Context-based and guard-based type narrowing for the PSC type inference engine.
-// ABOUTME: Implements NarrowByContext and NarrowByGuard following Chalk's narrow_type semantics.
+// ABOUTME: Implements NarrowByContext and NarrowByGuard using bitset operations on the uint32 Type.
 
 package types
 
@@ -34,7 +34,9 @@ func (c Context) String() string {
 // The second return value is false when the type is discarded (void context), true otherwise.
 //
 // Rules (matching Chalk's narrow_type):
-//   - ScalarCtx: Array or Hash → Int (element/bucket count). List → Scalar. Everything else unchanged.
+//   - ScalarCtx: Array or Hash bits become Int (element/bucket count). Other bits pass through.
+//     For union types the narrowing is applied per-bit: each Array or Hash bit in the mask
+//     is replaced by an Int bit, all other bits pass through unchanged.
 //   - ListCtx: Unchanged (pass through).
 //   - VoidCtx: Returns (Unknown, false) — type is discarded.
 //   - UnknownCtx: Unchanged (pass through).
@@ -44,14 +46,16 @@ func NarrowByContext(typ Type, ctx Context) (Type, bool) {
 		return Unknown, false
 
 	case ScalarCtx:
-		switch typ {
-		case Array, Hash:
-			return Int, true
-		case List:
-			return Scalar, true
-		default:
+		// For union types we apply scalar context per-bit: Array and Hash bits
+		// become Int; all other bits pass through unchanged.
+		if typ&(Array|Hash) == 0 {
+			// No Array or Hash bits — pass through unchanged.
 			return typ, true
 		}
+		// Remove Array and Hash bits, add Int for each that was present.
+		result := typ &^ (Array | Hash)
+		result |= Int
+		return result, true
 
 	case ListCtx, UnknownCtx:
 		return typ, true
@@ -89,56 +93,72 @@ var refTypeMap = map[string]Type{
 	"REF":    Ref,
 }
 
+// narrowResult encodes the three possible outcomes of a bitset narrowing operation.
+// When result == 0 (empty set), the branch is unreachable.
+// When result == typ, the type is already more specific than the guard can determine.
+// Otherwise, narrowing occurred.
+func narrowResult(result, typ Type) (Type, bool) {
+	if result == 0 {
+		// Empty set — the branch is unreachable.
+		return None, true
+	}
+	if result == typ {
+		// No change — already as specific as this guard can determine.
+		return typ, false
+	}
+	return result, true
+}
+
 // NarrowByGuard returns the type that typ narrows to when a guard expression
 // is known to be true. The second return value is true when narrowing occurred,
 // false when the type is already more specific than the guard can determine.
 //
-// Rules:
-//   - GuardDefined: If typ is Scalar, Undef, or Any (could be undef), narrows to Scalar.
-//     Otherwise the type is already non-undef; returns (typ, false).
-//   - GuardRef (plain): Narrows to Ref.
-//   - GuardIsa: Narrows to Object.
-//   - GuardRef with RefType: Maps the ref-type string to a specific Type:
-//     "HASH"→HashRef, "ARRAY"→ArrayRef, "SCALAR"→ScalarRef, "CODE"→CodeRef,
-//     "GLOB"→GlobRef, "REF"→Ref, anything else→Object (blessed reference).
+// Rules (bitset operations):
+//   - GuardDefined: result = typ &^ Undef (remove the Undef bit).
+//     Empty result → (None, true) — unreachable branch.
+//     Result == typ → (typ, false) — type already has no Undef bit.
+//   - GuardRef plain: treat Unknown as Any; result = typ & Ref (intersection with Ref mask).
+//     Empty → (None, true). Result == typ → (typ, false).
+//   - GuardRef with RefType: look up specific type in refTypeMap; result = typ & specificType.
+//     For an unknown class name the specific type is Object.
+//   - GuardIsa: result = typ & Object.
 func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 	switch guard.Kind {
 	case GuardDefined:
-		// Types that could hold an undef value at runtime, plus Unknown
-		// (type not yet determined — treated as a top type like Any).
-		if typ == Scalar || typ == Undef || typ == Any || typ == Unknown {
-			return Scalar, true
+		effective := typ
+		if effective == Unknown {
+			// Unknown means no type information — treat as Any (top type).
+			effective = Any
 		}
-		// All other types are already known non-undef
-		return typ, false
+		result := effective &^ Undef
+		return narrowResult(result, effective)
 
 	case GuardRef:
+		effective := typ
+		if effective == Unknown {
+			effective = Any
+		}
 		if guard.RefType != "" {
-			// ref($x) eq 'TYPE' — narrow to specific reference subtype
-			if specific, ok := refTypeMap[guard.RefType]; ok {
-				if IsSubtype(typ, specific) {
-					return typ, false
-				}
-				return specific, true
+			// ref($x) eq 'TYPE' — narrow to specific reference subtype.
+			specificType, ok := refTypeMap[guard.RefType]
+			if !ok {
+				// Unknown ref type string means a blessed reference (class name).
+				specificType = Object
 			}
-			// Unknown ref type string means a blessed reference (class name)
-			if IsSubtype(typ, Object) {
-				return typ, false
-			}
-			return Object, true
+			result := effective & specificType
+			return narrowResult(result, effective)
 		}
-		// Plain ref($x) — if typ is already a subtype of Ref, preserve it.
-		if typ != Ref && IsSubtype(typ, Ref) {
-			return typ, false
-		}
-		return Ref, true
+		// Plain ref($x) — intersection with the full Ref mask.
+		result := effective & Ref
+		return narrowResult(result, effective)
 
 	case GuardIsa:
-		// If typ is already a subtype of Object, preserve it.
-		if IsSubtype(typ, Object) {
-			return typ, false
+		effective := typ
+		if effective == Unknown {
+			effective = Any
 		}
-		return Object, true
+		result := effective & Object
+		return narrowResult(result, effective)
 
 	default:
 		return typ, false
@@ -149,33 +169,38 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 // known to be FALSE. The second return value is true when useful narrowing
 // occurred.
 //
-// Rules:
-//   - GuardDefined: If typ could be undef (Scalar, Undef, Any), narrows to Undef.
-//     Concrete non-undef types produce no useful narrowing.
-//   - GuardRef (plain): Narrows to Scalar (non-reference).
-//   - GuardRef with RefType: No useful narrowing ("not a HashRef" could be anything).
-//   - GuardIsa: No useful narrowing ("not a Foo" could be anything).
+// Rules (bitset operations):
+//   - GuardDefined: result = typ & Undef (keep only the Undef bit).
+//     Empty result → (None, true) — type has no Undef bit, negated branch unreachable.
+//     Result == typ → (typ, false) — type is already pure Undef, no change.
+//   - GuardRef plain: result = typ &^ Ref (remove all Ref bits).
+//     Empty → (None, true). Result == typ → (typ, false).
+//   - GuardRef with RefType: return (typ, false) — "not a HashRef" could be anything.
+//   - GuardIsa: return (typ, false) — "not a Foo" could be anything.
 func NegateGuard(typ Type, guard GuardPattern) (Type, bool) {
+	effective := typ
+	if effective == Unknown {
+		effective = Any
+	}
+
 	switch guard.Kind {
 	case GuardDefined:
-		if typ == Scalar || typ == Undef || typ == Any {
-			return Undef, true
-		}
-		return typ, false
+		result := effective & Undef
+		return narrowResult(result, effective)
 
 	case GuardRef:
 		if guard.RefType != "" {
-			return typ, false
+			// "not ref eq TYPE" — not useful, anything could be not-that-type.
+			return effective, false
 		}
-		if typ == Scalar || typ == Any || typ == Ref {
-			return Scalar, true
-		}
-		return typ, false
+		result := effective &^ Ref
+		return narrowResult(result, effective)
 
 	case GuardIsa:
-		return typ, false
+		// "not isa Foo" — not useful, anything could be not-that-class.
+		return effective, false
 
 	default:
-		return typ, false
+		return effective, false
 	}
 }

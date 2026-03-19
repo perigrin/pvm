@@ -127,9 +127,13 @@ in bit-position order for deterministic output.
 **types.go:** `Type` becomes `uint32`. Leaf constants use `1 << N`. Parent
 masks defined as OR of children. `parentMap` removed — replaced by mask
 constants. `IsSubtype` becomes a one-line mask check (with `None` special case).
-`TypeSatisfies` adapts: polymorphic check becomes `actual & required != 0`
-(the polymorphic type's mask overlaps the required type). `String()` checks a
-name table for known masks, falls back to `A|B` display.
+`TypeSatisfies` adapts: for polymorphic types (`Any`, `Scalar`, `List`), keep
+the existing reverse-subtype check (`IsSubtype(required, actual)`) rather than
+the simpler `actual & required != 0`. The simpler check would make
+`TypeSatisfies(Str, Int)` return true (since `Str`'s mask contains `Int`'s
+bit), but `Str` should NOT satisfy `Int` — a string might hold non-numeric
+data. Only the three top-level container types are polymorphic. `String()`
+checks a name table for known masks, falls back to `A|B` display.
 
 **narrowing.go:** `NarrowByGuard` and `NegateGuard` use bit operations.
 `NarrowByGuard(GuardDefined)` removes the Undef bit: `typ &^ Undef`. If the

@@ -408,7 +408,8 @@ func TestStringLiteralNodeKindHandled(t *testing.T) {
 // --- Flow narrowing tests ---
 
 func TestFlowNarrowingDefinedGuard(t *testing.T) {
-	// if (defined($x)): if-body $x → Scalar (non-Undef), else-body $x → Undef.
+	// if (defined($x)): if-body $x → Scalar &^ Undef (defined, all non-undef scalar bits),
+	// else-body $x → Undef.
 	// Note: "my $x = undef" does NOT narrow $x to Undef because the undef
 	// keyword produces Unknown type, so $x stays at sigil type Scalar.
 	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
@@ -420,7 +421,7 @@ func TestFlowNarrowingDefinedGuard(t *testing.T) {
 
 	ifBodyTyp, ifOk := annotations[offsets[2]]
 	assert.True(t, ifOk, "if-body $x should be annotated")
-	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x should be Scalar (defined guard on Scalar)")
+	assert.Equal(t, types.Scalar&^types.Undef, ifBodyTyp, "if-body $x should be Scalar &^ Undef (defined guard removes Undef bit)")
 
 	elseBodyTyp, elseOk := annotations[offsets[3]]
 	assert.True(t, elseOk, "else-body $x should be annotated")
@@ -450,18 +451,18 @@ func TestFlowNarrowingUnlessDefinedGuard(t *testing.T) {
 }
 
 func TestFlowNarrowingWhileDefinedGuard(t *testing.T) {
-	// Inside while (defined($x)), $x should be Scalar (non-Undef).
+	// Inside while (defined($x)), $x should be Scalar &^ Undef (non-Undef scalar bits).
 	src := []byte("my $x = undef;\nwhile (defined($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	whileBodyXOffset := findLastVarOffset(src, "$x")
 	typ, ok := annotations[whileBodyXOffset]
 	assert.True(t, ok, "while-body $x should be annotated")
-	assert.Equal(t, types.Scalar, typ, "while-body $x should be Scalar (defined guard)")
+	assert.Equal(t, types.Scalar&^types.Undef, typ, "while-body $x should be Scalar &^ Undef (defined guard removes Undef bit)")
 }
 
 func TestFlowNarrowingIfElseRefGuard(t *testing.T) {
-	// if (ref($x)) → Ref in if-body, Scalar in else-body
+	// if (ref($x)) → Ref in if-body, Scalar &^ Ref in else-body (non-reference scalar bits)
 	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -476,7 +477,7 @@ func TestFlowNarrowingIfElseRefGuard(t *testing.T) {
 
 	elseBodyTyp, elseOk := annotations[offsets[3]]
 	assert.True(t, elseOk, "else-body $x should be annotated")
-	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (negated ref guard)")
+	assert.Equal(t, types.Scalar&^types.Ref, elseBodyTyp, "else-body $x should be Scalar &^ Ref (negated ref guard removes Ref bits)")
 }
 
 func TestFlowNarrowingScopeRestoration(t *testing.T) {
@@ -559,7 +560,8 @@ func TestFlowNarrowingNonGuardCondition(t *testing.T) {
 }
 
 func TestFlowNarrowingUnlessRefWithElse(t *testing.T) {
-	// unless (ref($x)): body $x → Scalar (negated ref), else $x → Ref (positive ref)
+	// unless (ref($x)): body $x → Scalar &^ Ref (negated ref removes Ref bits),
+	// else $x → Ref (positive ref)
 	src := []byte("my $x = undef;\nunless (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -569,7 +571,7 @@ func TestFlowNarrowingUnlessRefWithElse(t *testing.T) {
 
 	unlessBodyTyp, ok := annotations[offsets[2]]
 	assert.True(t, ok, "unless-body $x should be annotated")
-	assert.Equal(t, types.Scalar, unlessBodyTyp, "unless-body $x should be Scalar (negated ref guard)")
+	assert.Equal(t, types.Scalar&^types.Ref, unlessBodyTyp, "unless-body $x should be Scalar &^ Ref (negated ref guard removes Ref bits)")
 
 	elseBodyTyp, elseOk := annotations[offsets[3]]
 	assert.True(t, elseOk, "else-body $x should be annotated")
@@ -625,7 +627,8 @@ func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
 
 func TestFlowNarrowingElsifNegatedGuard(t *testing.T) {
 	// elsif (!defined($x)) should narrow $x to Undef in the elsif body
-	// (negated defined guard), not Scalar (positive defined guard).
+	// (negated defined guard).
+	// else-body $x → Scalar &^ Undef (positive defined guard, which removed the Undef bit).
 	src := []byte("my $x = undef;\nif ($x isa Foo) {\n    my $a = $x;\n} elsif (!defined($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -639,7 +642,7 @@ func TestFlowNarrowingElsifNegatedGuard(t *testing.T) {
 
 	elseBodyTyp, ok2 := annotations[offsets[5]]
 	assert.True(t, ok2, "else-body $x should be annotated")
-	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (positive defined guard, negated for else)")
+	assert.Equal(t, types.Scalar&^types.Undef, elseBodyTyp, "else-body $x should be Scalar &^ Undef (positive defined guard removes Undef bit)")
 }
 
 func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
@@ -661,7 +664,7 @@ func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
 }
 
 func TestFlowNarrowingElsifWithElse(t *testing.T) {
-	// elsif (ref($x)) with else: elsif-body → Ref, else-body → Scalar (negated ref)
+	// elsif (ref($x)) with else: elsif-body → Ref, else-body → Scalar &^ Ref (negated ref removes Ref bits)
 	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -675,12 +678,12 @@ func TestFlowNarrowingElsifWithElse(t *testing.T) {
 
 	elseBodyTyp, ok2 := annotations[offsets[5]]
 	assert.True(t, ok2, "else-body $x should be annotated")
-	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (negated ref guard)")
+	assert.Equal(t, types.Scalar&^types.Ref, elseBodyTyp, "else-body $x should be Scalar &^ Ref (negated ref guard removes Ref bits)")
 }
 
 func TestExtractGuardPatternNegatedDefined(t *testing.T) {
 	// if (!defined($x)): the condition is a negated defined guard.
-	// The if-body should get the negated guard (Undef), not the positive (Scalar).
+	// The if-body should get the negated guard (Undef), not the positive (Scalar &^ Undef).
 	src := []byte("my $x = undef;\nif (!defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -694,11 +697,12 @@ func TestExtractGuardPatternNegatedDefined(t *testing.T) {
 
 	elseBodyTyp, ok2 := annotations[offsets[3]]
 	assert.True(t, ok2, "else-body $x should be annotated")
-	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (positive defined guard)")
+	assert.Equal(t, types.Scalar&^types.Undef, elseBodyTyp, "else-body $x should be Scalar &^ Undef (positive defined guard removes Undef bit)")
 }
 
 func TestExtractGuardPatternNotKeyword(t *testing.T) {
 	// if (not ref($x)): "not" is an ambiguous_function_call_expression wrapping ref.
+	// The if-body gets the negated guard (Scalar &^ Ref), else gets the positive guard (Ref).
 	src := []byte("my $x = undef;\nif (not ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -707,7 +711,7 @@ func TestExtractGuardPatternNotKeyword(t *testing.T) {
 
 	ifBodyTyp, ok := annotations[offsets[2]]
 	assert.True(t, ok, "if-body $x should be annotated")
-	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x should be Scalar (negated ref guard)")
+	assert.Equal(t, types.Scalar&^types.Ref, ifBodyTyp, "if-body $x should be Scalar &^ Ref (negated ref guard removes Ref bits)")
 
 	elseBodyTyp, ok2 := annotations[offsets[3]]
 	assert.True(t, ok2, "else-body $x should be annotated")
@@ -715,7 +719,8 @@ func TestExtractGuardPatternNotKeyword(t *testing.T) {
 }
 
 func TestFlowNarrowingEarlyReturnNarrowsDefined(t *testing.T) {
-	// if (!defined($x)) { return; } — after the if, $x should be Scalar (non-undef).
+	// if (!defined($x)) { return; } — after the if, $x should be Scalar &^ Undef
+	// (defined guard removes the Undef bit from Scalar).
 	src := []byte("my $x = undef;\nif (!defined($x)) {\n    return;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -725,7 +730,7 @@ func TestFlowNarrowingEarlyReturnNarrowsDefined(t *testing.T) {
 
 	postIfTyp, ok := annotations[offsets[2]]
 	assert.True(t, ok, "post-if $x should be annotated")
-	assert.Equal(t, types.Scalar, postIfTyp, "post-if $x should be Scalar (defined guard after early return)")
+	assert.Equal(t, types.Scalar&^types.Undef, postIfTyp, "post-if $x should be Scalar &^ Undef (defined guard after early return removes Undef bit)")
 }
 
 func TestFlowNarrowingNoEarlyExitNoNarrowing(t *testing.T) {
@@ -769,7 +774,8 @@ func TestFlowNarrowingEarlyDieWithArgNarrowsRef(t *testing.T) {
 }
 
 func TestFlowNarrowingEarlyExitNarrowsDefined(t *testing.T) {
-	// if (!defined($x)) { exit; } — after the if, $x should be Scalar (non-undef).
+	// if (!defined($x)) { exit; } — after the if, $x should be Scalar &^ Undef
+	// (defined guard removes the Undef bit from Scalar).
 	src := []byte("my $x = undef;\nif (!defined($x)) {\n    exit;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -778,11 +784,12 @@ func TestFlowNarrowingEarlyExitNarrowsDefined(t *testing.T) {
 
 	postIfTyp, ok := annotations[offsets[2]]
 	assert.True(t, ok, "post-if $x should be annotated")
-	assert.Equal(t, types.Scalar, postIfTyp, "post-if $x should be Scalar (defined guard after early exit)")
+	assert.Equal(t, types.Scalar&^types.Undef, postIfTyp, "post-if $x should be Scalar &^ Undef (defined guard after early exit removes Undef bit)")
 }
 
 func TestFlowNarrowingUnlessEarlyReturn(t *testing.T) {
-	// unless (defined($x)) { return; } — after the unless, $x should be Scalar.
+	// unless (defined($x)) { return; } — after the unless, $x should be Scalar &^ Undef
+	// (defined guard removes the Undef bit from Scalar).
 	src := []byte("my $x = undef;\nunless (defined($x)) {\n    return;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -791,7 +798,7 @@ func TestFlowNarrowingUnlessEarlyReturn(t *testing.T) {
 
 	postIfTyp, ok := annotations[offsets[2]]
 	assert.True(t, ok, "post-unless $x should be annotated")
-	assert.Equal(t, types.Scalar, postIfTyp, "post-unless $x should be Scalar (defined after early return)")
+	assert.Equal(t, types.Scalar&^types.Undef, postIfTyp, "post-unless $x should be Scalar &^ Undef (defined guard after early return removes Undef bit)")
 }
 
 func TestFlowNarrowingNonNegatedEarlyReturn(t *testing.T) {
@@ -861,4 +868,229 @@ func TestFlowNarrowingCStyleForInitializer(t *testing.T) {
 	typ, ok := annotations[bodyOffset]
 	assert.True(t, ok, "for-body $i should be annotated")
 	assert.Equal(t, types.Int, typ, "for-body $i should be Int (narrowed by assignment)")
+}
+
+// --- Compound guard extraction tests ---
+// These tests verify that compound conditions (&&, ||, and, or) are handled
+// correctly. Partial compound guards (where only one operand is a recognized
+// guard) fall back to that single guard's narrowing behavior. Full compound
+// guards (both operands recognized) apply all leaf guards simultaneously via
+// flattenGuards + walkBlockWithGuard.
+
+func TestCompoundGuardAmpAmpNarrowsBoth(t *testing.T) {
+	// if (defined($x) && ref($x)) — full compound: both sides are guards.
+	// && with negate=false: both guards apply → defined removes Undef, ref
+	// keeps only Ref bits → result is Ref.
+	src := []byte("my $x = undef;\nif (defined($x) && ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=defined($x) condition, [2]=ref($x) condition, [3]=if-body
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "if-body $x should be annotated with compound && guard")
+	assert.Equal(t, types.Ref, ifBodyTyp, "if-body $x should be Ref: defined removes Undef, ref keeps only Ref bits")
+}
+
+func TestCompoundGuardAndKeywordNarrowsBoth(t *testing.T) {
+	// if (defined($x) and ref($x)) — lowprec_logical_expression with "and".
+	// "and" normalizes to "&&", so both guards apply → Ref (same as &&).
+	src := []byte("my $x = undef;\nif (defined($x) and ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "if-body $x should be annotated with compound 'and' guard")
+	assert.Equal(t, types.Ref, ifBodyTyp, "if-body $x should be Ref: 'and' behaves like && — both guards apply")
+}
+
+func TestCompoundGuardOrNoNarrowingInBody(t *testing.T) {
+	// if (defined($x) || ref($x)) — || with negate=false: either could be
+	// true, so no narrowing applies in the if-body → $x stays Scalar.
+	src := []byte("my $x = undef;\nif (defined($x) || ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "if-body $x should be annotated with compound || guard")
+	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar: || means either could be true, no narrowing")
+}
+
+func TestCompoundGuardOrNarrowsElse(t *testing.T) {
+	// if (defined($x) || ref($x)) {} else { $x }
+	// else-branch: both guards are false → !defined AND !ref → Undef &^ Ref = Undef.
+	src := []byte("my $x = undef;\nif (defined($x) || ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=defined cond, [2]=ref cond, [3]=if-body, [4]=else-body
+	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
+
+	elseBodyTyp, ok := annotations[offsets[4]]
+	assert.True(t, ok, "else-body $x should be annotated with compound || guard")
+	assert.Equal(t, types.Undef, elseBodyTyp, "else-body $x should be Undef: || else means !defined && !ref")
+}
+
+func TestCompoundGuardAndDifferentVars(t *testing.T) {
+	// if (defined($x) && ref($y)) — two different variables guarded.
+	// $x narrowed by defined (Undef removed), $y narrowed by ref → Ref.
+	src := []byte("my $x = undef;\nmy $y = undef;\nif (defined($x) && ref($y)) {\n    my $a = $x;\n    my $b = $y;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	xOffsets := findAllVarOffsets(src, "$x")
+	yOffsets := findAllVarOffsets(src, "$y")
+
+	// $x: offsets[0]=decl, [1]=defined cond, [2]=if-body
+	require.True(t, len(xOffsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(xOffsets))
+	xBody, xOk := annotations[xOffsets[2]]
+	assert.True(t, xOk, "if-body $x should be annotated")
+	assert.True(t, xBody&types.Undef == 0, "if-body $x should have Undef removed (defined guard)")
+
+	// $y: offsets[0]=decl, [1]=ref cond, [2]=if-body
+	require.True(t, len(yOffsets) >= 3, "should find at least 3 occurrences of $y, got %d", len(yOffsets))
+	yBody, yOk := annotations[yOffsets[2]]
+	assert.True(t, yOk, "if-body $y should be annotated")
+	assert.Equal(t, types.Ref, yBody, "if-body $y should be Ref (ref guard)")
+}
+
+func TestCompoundGuardPartialOneNonGuardSide(t *testing.T) {
+	// if (defined($x) && $y > 0) — partial compound: the right side ($y > 0)
+	// is not a recognized guard. extractCompoundGuard returns the defined($x)
+	// guard directly (the non-guard side is dropped). walkBlockWithGuard applies
+	// the defined guard, narrowing $x to Scalar &^ Undef.
+	src := []byte("my $x = undef;\nmy $y = 1;\nif (defined($x) && $y > 0) {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=defined($x) condition, [2]=if-body $x
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	// The defined guard was extracted as the surviving single guard.
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Scalar&^types.Undef, ifBodyTyp, "if-body $x should be Scalar &^ Undef from partial compound defined guard")
+}
+
+func TestCompoundGuardNegatedAmpAmpDeMorganNarrows(t *testing.T) {
+	// if (!(defined($x) && ref($x))) — De Morgan applied:
+	// becomes compound {Op:"||", Left:!defined($x), Right:!ref($x)}.
+	// || with negate=false: no narrowing in if-body → $x stays Scalar.
+	src := []byte("my $x = undef;\nif (!(defined($x) && ref($x))) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "if-body $x should be annotated with negated compound && guard")
+	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar: !(A && B) becomes (||) which applies no narrowing in the body")
+}
+
+func TestCompoundGuardArithmeticBinaryNotExtracted(t *testing.T) {
+	// if (1 + 2) — binary_expression with non-boolean operator.
+	// extractCompoundGuard returns nil (op is "+" not "&&"/"||").
+	// No guard narrowing is attempted; $x retains its declared type.
+	src := []byte("my $x = 42;\nif (1 + 2) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=if-body
+	require.True(t, len(offsets) >= 2, "should find at least 2 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[1]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Int, ifBodyTyp, "if-body $x should be Int (arithmetic binary_expression is not a guard)")
+}
+
+// --- Branch merging at join points ---
+// After an if/elsif/else chain, the post-if type is the union (OR) of all
+// branch types for guarded variables. Early-exit branches are excluded from
+// the join. When there is no else branch, the implicit else contributes the
+// pre-if type.
+
+func TestBranchMergingIfElseJoinType(t *testing.T) {
+	// After if (ref($x)) {...} else {...}, $x should be the union of branch types.
+	// if-body: Ref; else-body: Scalar &^ Ref; union = Ref | (Scalar &^ Ref) = Scalar.
+	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\nmy $w = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=condition, [2]=if-body, [3]=else-body, [4]=post-if
+	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
+
+	postTyp, ok := annotations[offsets[len(offsets)-1]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	// Ref | (Scalar &^ Ref) = Scalar
+	assert.Equal(t, types.Scalar, postTyp, "post-if/else $x should be Scalar (union of Ref and non-Ref branches)")
+}
+
+func TestBranchMergingIfNoElse(t *testing.T) {
+	// if (ref($x)) {...} — implicit else contributes pre-if type (Scalar).
+	// if-body: Ref; implicit else: Scalar; union = Ref | Scalar = Scalar.
+	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n}\nmy $z = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=condition, [2]=if-body, [3]=post-if
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	postTyp, ok := annotations[offsets[len(offsets)-1]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	// Ref | Scalar (pre-if) = Scalar
+	assert.Equal(t, types.Scalar, postTyp, "post-if (no else) $x should be Scalar (union of Ref branch and implicit else Scalar)")
+}
+
+func TestBranchMergingEarlyExitExcluded(t *testing.T) {
+	// if (!defined($x)) { return; } — early exit: the if-body does NOT
+	// contribute to the join. Post-if type is narrowed via early-exit logic.
+	src := []byte("my $x = undef;\nif (!defined($x)) {\n    return;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=condition, [2]=post-if
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	postTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "post-early-exit $x should be annotated")
+	assert.True(t, postTyp&types.Undef == 0, "post-early-exit $x should not include Undef (early-exit narrowing removes Undef)")
+}
+
+func TestBranchMergingElsifChain(t *testing.T) {
+	// if/elsif/else: join type is union of all branch types for $x.
+	// if-body: Scalar &^ Undef (defined guard); elsif-body: Ref; else-body: Undef.
+	// union = (Scalar &^ Undef) | Ref | Undef = Scalar.
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\nmy $d = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	xOffsets := findAllVarOffsets(src, "$x")
+	// Last occurrence is the post-chain $x.
+	require.True(t, len(xOffsets) >= 6, "should find at least 6 occurrences of $x, got %d", len(xOffsets))
+
+	postTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok, "post-chain $x should be annotated")
+	// All branches together cover Scalar territory; union should be Scalar.
+	assert.Equal(t, types.Scalar, postTyp, "post-chain $x should be Scalar (union of all branch types)")
+}
+
+func TestBranchMergingAssignmentInsideBranch(t *testing.T) {
+	// $x starts as Scalar. if-body assigns Int (1), else-body assigns Num (3.14).
+	// After the if/else, $x should be the join of the two branch-end types: Int | Num.
+	// Without branch merging, scope restoration would revert $x to Scalar.
+	// Int | Num = Num (since Num includes Int in the type hierarchy).
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    $x = 1;\n} else {\n    $x = 3.14;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	xOffsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=cond, [2]=if-body assign LHS, [3]=else-body assign LHS, [4]=post-if ref
+	require.True(t, len(xOffsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(xOffsets))
+
+	postTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok, "post-if/else $x should be annotated")
+	// Int | Num = Num (Num = numLeaf | Int, which already includes Int).
+	assert.Equal(t, types.Num, postTyp, "post-if/else $x should be Num (union of Int from if-body and Num from else-body)")
 }

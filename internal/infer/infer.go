@@ -524,11 +524,22 @@ func inferAssignmentNarrowing(
 	return rhsType
 }
 
+// compoundGuard holds the structure of a compound boolean guard expression.
+// Op is "&&" for AND conditions and "||" for OR conditions.
+// Left and Right are the sub-guards, each of which may itself be compound.
+type compoundGuard struct {
+	Op    string // "&&" or "||"
+	Left  *guardResult
+	Right *guardResult
+}
+
 // guardResult holds the result of extracting a guard pattern from a condition node.
+// When Compound is non-nil, this is a compound guard and VarName/Guard/Negated are unused.
 type guardResult struct {
-	VarName string
-	Guard   types.GuardPattern
-	Negated bool
+	VarName  string
+	Guard    types.GuardPattern
+	Negated  bool
+	Compound *compoundGuard
 }
 
 // extractGuardPattern examines a condition expression node and returns the
@@ -540,6 +551,8 @@ type guardResult struct {
 //	func1op_call_expression with keyword "defined" and scalar child → GuardDefined
 //	func1op_call_expression with keyword "ref" and scalar child → GuardRef
 //	relational_expression with "isa" operator, scalar LHS, bareword RHS → GuardIsa
+//	binary_expression with "&&" or "||" between two guards → compound guard
+//	lowprec_logical_expression with "and" or "or" between two guards → compound guard
 //	unary_expression with "!" wrapping a recognized guard → Negated guard
 //	ambiguous_function_call_expression with "not" wrapping a recognized guard → Negated guard
 func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
@@ -559,6 +572,14 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 		return extractIsaGuard(node, source)
 	}
 
+	// Pattern: guard1 && guard2 or guard1 || guard2 (high-precedence binary)
+	// Pattern: guard1 and guard2 or guard1 or guard2 (low-precedence logical)
+	// These are checked before unary_expression so that negated sub-guards
+	// inside compound conditions are handled by recursive calls to extractGuardPattern.
+	if kind == "binary_expression" || kind == "lowprec_logical_expression" {
+		return extractCompoundGuard(node, source)
+	}
+
 	// Pattern: !guard (unary negation)
 	if kind == "unary_expression" {
 		return extractNegatedGuard(node, source)
@@ -570,6 +591,76 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 	}
 
 	return nil
+}
+
+// extractCompoundGuard extracts a compound guard from a binary_expression or
+// lowprec_logical_expression node. It finds the boolean operator token (&&, ||,
+// and, or) and recursively extracts guards from the left and right sub-expressions.
+//
+// Operator normalization: "and" → "&&", "or" → "||".
+//
+// If both sides yield guards, a compound guardResult is returned.
+// If only one side yields a guard, that single guard is returned directly
+// (partial compound — the non-guard side is dropped).
+// If neither side yields a guard, nil is returned.
+func extractCompoundGuard(node *parser.Node, source []byte) *guardResult {
+	var op string
+	var leftNode *parser.Node
+	var rightNode *parser.Node
+
+	// Scan children: anonymous nodes hold the operator token;
+	// named nodes are the left and right sub-expressions.
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			// Operator token — capture only the boolean operators we recognize.
+			text := child.Text(source)
+			switch text {
+			case "&&", "||":
+				op = text
+			case "and":
+				op = "&&"
+			case "or":
+				op = "||"
+			}
+			continue
+		}
+		// Named children are sub-expressions: first is left, second is right.
+		if leftNode == nil {
+			leftNode = child
+		} else if rightNode == nil {
+			rightNode = child
+		}
+	}
+
+	// If we didn't find a recognized boolean operator, this is not a compound guard
+	// (e.g. it could be an arithmetic binary_expression like 1 + 2).
+	if op == "" {
+		return nil
+	}
+
+	leftGuard := extractGuardPattern(leftNode, source)
+	rightGuard := extractGuardPattern(rightNode, source)
+
+	// Both sides are guards: return a compound guard.
+	if leftGuard != nil && rightGuard != nil {
+		return &guardResult{
+			Compound: &compoundGuard{
+				Op:    op,
+				Left:  leftGuard,
+				Right: rightGuard,
+			},
+		}
+	}
+
+	// Only one side is a guard: return it directly (partial compound).
+	if leftGuard != nil {
+		return leftGuard
+	}
+	return rightGuard
 }
 
 // extractIsaGuard extracts a guard from a relational_expression node of the
@@ -605,6 +696,11 @@ func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 
 // extractNegatedGuard unwraps a unary_expression with "!" to find the inner
 // guard pattern. CST: unary_expression -> "!" (anon) + inner expression (named).
+//
+// For simple guards, the Negated flag is toggled.
+// For compound guards, De Morgan's law is applied:
+//   - !(A && B) becomes (!A || !B): flip Op from && to ||, negate both sub-guards
+//   - !(A || B) becomes (!A && !B): flip Op from || to &&, negate both sub-guards
 func extractNegatedGuard(node *parser.Node, source []byte) *guardResult {
 	hasNot := false
 	var innerNode *parser.Node
@@ -630,15 +726,40 @@ func extractNegatedGuard(node *parser.Node, source []byte) *guardResult {
 	}
 
 	result := extractGuardPattern(innerNode, source)
-	if result != nil {
-		result.Negated = !result.Negated
+	if result == nil {
+		return nil
 	}
+
+	// Apply De Morgan's law for compound guards, or toggle Negated for simple guards.
+	if result.Compound != nil {
+		flippedOp := "||"
+		if result.Compound.Op == "||" {
+			flippedOp = "&&"
+		}
+		// Negate each sub-guard (shallow copy and toggle Negated).
+		negatedLeft := *result.Compound.Left
+		negatedLeft.Negated = !negatedLeft.Negated
+		negatedRight := *result.Compound.Right
+		negatedRight.Negated = !negatedRight.Negated
+		return &guardResult{
+			Compound: &compoundGuard{
+				Op:    flippedOp,
+				Left:  &negatedLeft,
+				Right: &negatedRight,
+			},
+		}
+	}
+
+	result.Negated = !result.Negated
 	return result
 }
 
 // extractNotGuard unwraps an ambiguous_function_call_expression with
 // function "not" to find the inner guard pattern.
 // CST: ambiguous_function_call_expression -> function:"not" + inner expression (named).
+//
+// For simple guards, the Negated flag is toggled.
+// For compound guards, De Morgan's law is applied (same as extractNegatedGuard).
 func extractNotGuard(node *parser.Node, source []byte) *guardResult {
 	hasNot := false
 	var innerNode *parser.Node
@@ -662,9 +783,30 @@ func extractNotGuard(node *parser.Node, source []byte) *guardResult {
 	}
 
 	result := extractGuardPattern(innerNode, source)
-	if result != nil {
-		result.Negated = !result.Negated
+	if result == nil {
+		return nil
 	}
+
+	// Apply De Morgan's law for compound guards, or toggle Negated for simple guards.
+	if result.Compound != nil {
+		flippedOp := "||"
+		if result.Compound.Op == "||" {
+			flippedOp = "&&"
+		}
+		negatedLeft := *result.Compound.Left
+		negatedLeft.Negated = !negatedLeft.Negated
+		negatedRight := *result.Compound.Right
+		negatedRight.Negated = !negatedRight.Negated
+		return &guardResult{
+			Compound: &compoundGuard{
+				Op:    flippedOp,
+				Left:  &negatedLeft,
+				Right: &negatedRight,
+			},
+		}
+	}
+
+	result.Negated = !result.Negated
 	return result
 }
 
@@ -713,6 +855,11 @@ func extractFunc1opGuard(node *parser.Node, source []byte) *guardResult {
 //
 // For "if", the if-body gets the positive guard narrowing and the else-body
 // gets the negated guard. For "unless", the narrowing is flipped.
+//
+// After all branches complete, the types of guarded variables are updated to
+// the union (bitwise OR) of each branch's end-of-block type. Early-exit
+// branches do not contribute to the join. When there is no else branch, the
+// implicit else contributes the pre-if type.
 func walkConditionalStatement(
 	node *parser.Node,
 	source []byte,
@@ -724,9 +871,9 @@ func walkConditionalStatement(
 	var conditionNode *parser.Node
 	var ifBlock *parser.Node
 	var elseNode *parser.Node
-	hasNoElsif := true
+	var elsifNodes []*parser.Node
 
-	// Identify children: keyword, condition, block, and optional else.
+	// Identify children: keyword, condition, block, and optional else/elsif.
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		if child == nil {
@@ -747,8 +894,7 @@ func walkConditionalStatement(
 		case "else":
 			elseNode = child
 		case "elsif":
-			hasNoElsif = false
-			walkElsifNode(child, source, st, annotations, diags)
+			elsifNodes = append(elsifNodes, child)
 		default:
 			// The condition is the only named non-block, non-else child.
 			// Enclosing parentheses are anonymous nodes in the CST, so the
@@ -768,44 +914,74 @@ func walkConditionalStatement(
 	// Extract guard pattern from the condition.
 	guard := extractGuardPattern(conditionNode, source)
 
-	// Compute the negate flag for the if-body. "unless" flips it,
-	// and a negated condition (e.g. !defined) flips it again.
+	// Compute the negate flag for the if-body. "unless" flips the narrowing
+	// direction relative to the condition. Negated conditions (e.g. !defined)
+	// are handled inside flattenGuards via XOR with each leaf's Negated flag,
+	// so we do not flip ifBodyNegate here for guard.Negated.
 	ifBodyNegate := keyword == "unless"
-	if guard != nil && guard.Negated {
-		ifBodyNegate = !ifBodyNegate
-	}
+
+	// Collect the pre-if types of all guarded variables for the implicit-else
+	// contribution and for the final join computation.
+	preIfTypes := collectPreIfTypes(guard, st)
+
+	hasNoElsif := len(elsifNodes) == 0
+	ifBodyExits := ifBlock != nil && blockAlwaysExits(ifBlock, source)
 
 	// Walk the if/unless body with appropriate narrowing.
+	// Capture branch-end types for the join, unless the branch always exits.
+	var ifBranchTypes map[string]types.Type
 	if ifBlock != nil {
-		walkBlockWithGuard(ifBlock, source, st, annotations, diags, guard, ifBodyNegate)
+		if !ifBodyExits {
+			ifBranchTypes = make(map[string]types.Type)
+		}
+		walkBlockWithGuard(ifBlock, source, st, annotations, diags, flattenGuards(guard, ifBodyNegate), ifBranchTypes)
 	}
 
 	// Early-exit narrowing: if the if-body always exits and there is no
-	// else/elsif, apply the else-branch guard to the rest of the scope.
+	// else/elsif, the continuation (code after the if) knows the if-condition
+	// was false. This is identical to the else-branch narrowing, so we apply
+	// the same guard list that the else-body would have received.
+	//
 	// Note: if the if-body contains assignments before the exit (e.g.
 	// $x = 1; return;), the assignment narrowing may have already mutated
 	// the symbol table entry. The post-exit narrowing uses the current
 	// symbol table type, so assignment narrowing takes precedence.
-	if ifBlock != nil && guard != nil && elseNode == nil && hasNoElsif &&
-		blockAlwaysExits(ifBlock, source) {
-		sym, found := st.Lookup(guard.VarName)
-		if found {
+	//
+	// Early-exit narrowing only works for simple (leaf) guards — compound
+	// guards have VarName == "" which causes st.Lookup to return found=false.
+	if ifBodyExits && guard != nil && guard.VarName != "" && elseNode == nil && hasNoElsif {
+		// The continuation gets the else-branch guard: flattenGuards(guard, !ifBodyNegate).
+		// For a simple guard, this is one leaf with Negated = guard.Negated XOR !ifBodyNegate.
+		elseGuards := flattenGuards(guard, !ifBodyNegate)
+		for _, eg := range elseGuards {
+			sym, found := st.Lookup(eg.VarName)
+			if !found {
+				continue
+			}
 			var elseType types.Type
 			var narrowed bool
-			if ifBodyNegate {
-				// If-body had negated guard, so else-branch is the positive guard.
-				elseType, narrowed = types.NarrowByGuard(sym.Type, guard.Guard)
+			if eg.Negated {
+				elseType, narrowed = types.NegateGuard(sym.Type, eg.Guard)
 			} else {
-				// If-body had positive guard, so else-branch is the negated guard.
-				elseType, narrowed = types.NegateGuard(sym.Type, guard.Guard)
+				elseType, narrowed = types.NarrowByGuard(sym.Type, eg.Guard)
 			}
 			if narrowed {
-				st.UpdateType(guard.VarName, elseType)
+				st.UpdateType(eg.VarName, elseType)
 			}
 		}
+		// Early-exit handles post-if narrowing directly; skip branch merging.
+		return types.Unknown
+	}
+
+	// Walk elsif branches, collecting their join types.
+	var elsifJoinTypes map[string]types.Type
+	for _, elsifNode := range elsifNodes {
+		elsifTypes := walkElsifNode(elsifNode, source, st, annotations, diags)
+		elsifJoinTypes = mergeBranchTypes(elsifJoinTypes, elsifTypes)
 	}
 
 	// Walk the else body with the opposite narrowing.
+	var elseBranchTypes map[string]types.Type
 	if elseNode != nil {
 		var elseBlock *parser.Node
 		for i := 0; i < elseNode.ChildCount(); i++ {
@@ -816,27 +992,151 @@ func walkConditionalStatement(
 			}
 		}
 		if elseBlock != nil {
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !ifBodyNegate)
+			elseBranchTypes = make(map[string]types.Type)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !ifBodyNegate), elseBranchTypes)
 		}
 	}
 
+	// Compute the join type for each guarded variable and apply it.
+	// The join is the OR of:
+	//   - if-branch end type (if not early-exit)
+	//   - elsif chain join types (if any)
+	//   - else-branch end type (if present), or pre-if type (implicit else)
+	applyBranchJoin(guard, preIfTypes, ifBranchTypes, elsifJoinTypes, elseBranchTypes, elseNode, st)
+
 	return types.Unknown
+}
+
+// collectPreIfTypes returns the current types of all variables referenced by
+// the guard (leaf guards only). This records the pre-if types for the implicit
+// else and for the join computation.
+func collectPreIfTypes(guard *guardResult, st *SymbolTable) map[string]types.Type {
+	if guard == nil {
+		return nil
+	}
+	result := make(map[string]types.Type)
+	collectLeafVarTypes(guard, st, result)
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// collectLeafVarTypes recursively walks a guardResult tree and collects the
+// current symbol-table type for each leaf variable referenced.
+func collectLeafVarTypes(guard *guardResult, st *SymbolTable, out map[string]types.Type) {
+	if guard == nil {
+		return
+	}
+	if guard.Compound != nil {
+		collectLeafVarTypes(guard.Compound.Left, st, out)
+		collectLeafVarTypes(guard.Compound.Right, st, out)
+		return
+	}
+	if guard.VarName != "" {
+		if _, already := out[guard.VarName]; !already {
+			if sym, found := st.Lookup(guard.VarName); found {
+				out[guard.VarName] = sym.Type
+			}
+		}
+	}
+}
+
+// mergeBranchTypes ORs the types from src into dst, creating dst if nil.
+// Variables present only in one map are taken as-is.
+func mergeBranchTypes(dst, src map[string]types.Type) map[string]types.Type {
+	if src == nil {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string]types.Type)
+	}
+	for name, typ := range src {
+		if existing, ok := dst[name]; ok {
+			dst[name] = existing | typ
+		} else {
+			dst[name] = typ
+		}
+	}
+	return dst
+}
+
+// applyBranchJoin computes the post-if join type for each guarded variable and
+// applies it to the outer scope via UpdateType.
+//
+// The join is the OR of all non-early-exit branch-end types. When there is no
+// else branch, the implicit else contributes the pre-if type.
+func applyBranchJoin(
+	guard *guardResult,
+	preIfTypes map[string]types.Type,
+	ifBranchTypes map[string]types.Type,
+	elsifJoinTypes map[string]types.Type,
+	elseBranchTypes map[string]types.Type,
+	elseNode *parser.Node,
+	st *SymbolTable,
+) {
+	if preIfTypes == nil {
+		return
+	}
+
+	for name, preTyp := range preIfTypes {
+		// Start with the if-branch contribution.
+		var joinType types.Type
+		hasContribution := false
+
+		if ifBranchTypes != nil {
+			if t, ok := ifBranchTypes[name]; ok {
+				joinType |= t
+				hasContribution = true
+			}
+		}
+
+		// Add elsif contributions.
+		if elsifJoinTypes != nil {
+			if t, ok := elsifJoinTypes[name]; ok {
+				joinType |= t
+				hasContribution = true
+			}
+		}
+
+		// Add else contribution or implicit-else pre-if type.
+		if elseNode != nil {
+			if elseBranchTypes != nil {
+				if t, ok := elseBranchTypes[name]; ok {
+					joinType |= t
+					hasContribution = true
+				}
+			}
+		} else {
+			// No else: implicit else contributes pre-if type.
+			joinType |= preTyp
+			hasContribution = true
+		}
+
+		if hasContribution && joinType != preTyp {
+			st.UpdateType(name, joinType)
+		}
+	}
 }
 
 // walkElsifNode handles a single elsif node with guard-based flow narrowing.
 // It mirrors walkConditionalStatement: walk condition, extract guard, walk
 // block with guard, then handle the trailing else or elsif recursively.
+//
+// It returns the union of branch-end types for all guarded variables across
+// this elsif and any trailing elsif/else blocks, for use by the caller's
+// join computation.
 func walkElsifNode(
 	node *parser.Node,
 	source []byte,
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
-) {
+) map[string]types.Type {
 	var conditionNode *parser.Node
 	var block *parser.Node
 	var elseNode *parser.Node
-	var elsifNode *parser.Node
+	var trailingElsif *parser.Node
 
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
@@ -854,7 +1154,7 @@ func walkElsifNode(
 		case "else":
 			elseNode = child
 		case "elsif":
-			elsifNode = child
+			trailingElsif = child
 		default:
 			if conditionNode == nil {
 				conditionNode = child
@@ -869,19 +1169,23 @@ func walkElsifNode(
 
 	guard := extractGuardPattern(conditionNode, source)
 
-	// Compute the negate flag for the elsif body. A negated condition
-	// (e.g. !defined) flips the narrowing direction, same as in
-	// walkConditionalStatement. Note: elsif has no "unless" variant,
-	// so there is no keyword-based flip here.
+	// The elsif body negate flag starts false (no "unless" keyword in elsif).
+	// Negated conditions (e.g. !defined) are handled inside flattenGuards
+	// via XOR with each leaf's Negated flag, so we do not flip here.
 	elsifBodyNegate := false
-	if guard != nil && guard.Negated {
-		elsifBodyNegate = !elsifBodyNegate
+
+	// Walk the elsif body with the guard, capturing branch-end types.
+	var elsifBranchTypes map[string]types.Type
+	blockExits := block != nil && blockAlwaysExits(block, source)
+	if block != nil {
+		if !blockExits {
+			elsifBranchTypes = make(map[string]types.Type)
+		}
+		walkBlockWithGuard(block, source, st, annotations, diags, flattenGuards(guard, elsifBodyNegate), elsifBranchTypes)
 	}
 
-	// Walk the elsif body with the guard.
-	if block != nil {
-		walkBlockWithGuard(block, source, st, annotations, diags, guard, elsifBodyNegate)
-	}
+	// Accumulate join types starting from this elsif's branch.
+	joinTypes := elsifBranchTypes
 
 	// Handle trailing else or elsif.
 	if elseNode != nil {
@@ -894,13 +1198,18 @@ func walkElsifNode(
 			}
 		}
 		if elseBlock != nil {
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !elsifBodyNegate)
+			elseBranchTypes := make(map[string]types.Type)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !elsifBodyNegate), elseBranchTypes)
+			joinTypes = mergeBranchTypes(joinTypes, elseBranchTypes)
 		}
 	}
 
-	if elsifNode != nil {
-		walkElsifNode(elsifNode, source, st, annotations, diags)
+	if trailingElsif != nil {
+		trailingTypes := walkElsifNode(trailingElsif, source, st, annotations, diags)
+		joinTypes = mergeBranchTypes(joinTypes, trailingTypes)
 	}
+
+	return joinTypes
 }
 
 // walkLoopStatement handles while statements with guard-based flow narrowing.
@@ -939,7 +1248,7 @@ func walkLoopStatement(
 	guard := extractGuardPattern(conditionNode, source)
 
 	if bodyBlock != nil {
-		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, guard, false)
+		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, flattenGuards(guard, false), nil)
 	}
 
 	return types.Unknown
@@ -1069,10 +1378,82 @@ func blockAlwaysExits(block *parser.Node, source []byte) bool {
 	return false
 }
 
-// walkBlockWithGuard walks a block node with an optional guard-based type
-// override. If guard is non-nil, it enters a new "guard" scope, shadows the
-// guarded variable with the narrowed type, walks the block children, then exits
-// the scope. If negate is true, the negated guard type is applied instead.
+// flattenGuards converts a guardResult (possibly compound) into a flat list
+// of leaf guards with the Negated flag resolved per compound semantics.
+//
+// The negate parameter represents an outer negation to XOR into each leaf's
+// own Negated flag:
+//
+//   - For && (negate=false): both sub-guards apply → recurse into each.
+//   - For || (negate=false): neither can be guaranteed → return nil.
+//   - For && (negate=true, De Morgan → ||): no narrowing → return nil.
+//   - For || (negate=true, De Morgan → &&): both negated sub-guards apply → recurse.
+//
+// For simple (non-compound) guards: return a one-element slice with Negated
+// set to guard.Negated XOR negate.
+func flattenGuards(guard *guardResult, negate bool) []*guardResult {
+	if guard == nil {
+		return nil
+	}
+
+	if guard.Compound == nil {
+		// Leaf guard: resolve the final Negated flag and return it.
+		leaf := &guardResult{
+			VarName: guard.VarName,
+			Guard:   guard.Guard,
+			Negated: guard.Negated != negate, // XOR: outer negate flips the leaf
+		}
+		return []*guardResult{leaf}
+	}
+
+	// Compound guard: determine whether this compound's semantics yield all-leaf
+	// or no-leaf based on the operator and the outer negate.
+	//
+	// Effective operator after applying De Morgan for the outer negation:
+	//   negate=false: keep Op as-is.
+	//   negate=true:  flip Op (De Morgan: !(A&&B) = !A||!B, !(A||B) = !A&&!B).
+	effectiveOp := guard.Compound.Op
+	if negate {
+		if effectiveOp == "&&" {
+			effectiveOp = "||"
+		} else {
+			effectiveOp = "&&"
+		}
+	}
+
+	switch effectiveOp {
+	case "&&":
+		// Both sub-guards apply — flatten each with the (possibly flipped) negate.
+		left := flattenGuards(guard.Compound.Left, negate)
+		right := flattenGuards(guard.Compound.Right, negate)
+		return append(left, right...)
+	case "||":
+		// Either sub-guard could be the true one — no narrowing is certain.
+		return nil
+	}
+
+	return nil
+}
+
+// walkBlockWithGuard walks a block node with an optional list of leaf guards
+// for flow-narrowing. If guards is non-nil and non-empty, it enters a single
+// "guard" scope, shadows each guarded variable with its narrowed type, walks
+// the block children, then exits the scope.
+//
+// Each guard's Negated flag is already fully resolved by flattenGuards: when
+// Negated is true, NegateGuard is applied; otherwise NarrowByGuard is applied.
+//
+// Guards that share the same variable are applied sequentially (the output
+// type of one guard becomes the input type for the next), so that compound
+// conditions on the same variable (e.g. defined($x) && ref($x)) correctly
+// intersect their effects.
+//
+// If a variable referenced by a guard was never declared, that guard is
+// silently skipped (no phantom shadow entries in the scope).
+//
+// If branchTypes is non-nil, the type of each guarded variable is captured
+// into branchTypes just before the guard scope exits. Callers use this to
+// compute the join type at the if/elsif/else merge point.
 //
 // Note: inner "my" declarations inside the block were processed by pass 1
 // (CollectDeclarations) in block scopes that no longer exist by pass 2.
@@ -1085,48 +1466,76 @@ func walkBlockWithGuard(
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
-	guard *guardResult,
-	negate bool,
+	guards []*guardResult,
+	branchTypes map[string]types.Type,
 ) {
-	if guard != nil {
-		// Look up the variable's current type for narrowing.
-		// If the variable was never declared, skip narrowing entirely
-		// to avoid creating phantom shadow entries in the guard scope.
-		sym, found := st.Lookup(guard.VarName)
-		if !found {
-			for i := 0; i < block.ChildCount(); i++ {
-				walkNode(block.Child(i), source, st, annotations, diags)
+	// Build accumulated narrowed types by applying guards sequentially.
+	// working tracks the current type for each variable as guards are applied,
+	// whether or not each individual guard produced a change.
+	// shadows collects only variables where at least one guard narrowed.
+	working := make(map[string]types.Type)
+	shadows := make(map[string]types.Type)
+
+	for _, guard := range guards {
+		// Determine the starting type for this variable: use the working type
+		// from prior guards, or look up the declared type for the first guard.
+		currentType, seen := working[guard.VarName]
+		if !seen {
+			sym, found := st.Lookup(guard.VarName)
+			if !found {
+				// Variable was never declared — skip to avoid phantom shadows.
+				continue
 			}
-			return
+			currentType = sym.Type
 		}
-		currentType := sym.Type
 
 		var narrowedType types.Type
-		var narrowed bool
-		if negate {
-			narrowedType, narrowed = types.NegateGuard(currentType, guard.Guard)
+		var didNarrow bool
+		if guard.Negated {
+			narrowedType, didNarrow = types.NegateGuard(currentType, guard.Guard)
 		} else {
-			narrowedType, narrowed = types.NarrowByGuard(currentType, guard.Guard)
+			narrowedType, didNarrow = types.NarrowByGuard(currentType, guard.Guard)
 		}
 
-		if narrowed {
-			st.EnterScope("guard")
-			defer st.ExitScope()
-			st.Define(Symbol{
-				Name: guard.VarName,
-				Type: narrowedType,
-				Kind: SymVariable,
-			})
-			for i := 0; i < block.ChildCount(); i++ {
-				walkNode(block.Child(i), source, st, annotations, diags)
-			}
-			return
+		if didNarrow {
+			working[guard.VarName] = narrowedType
+			shadows[guard.VarName] = narrowedType
+		} else {
+			// Guard did not change the type, but record the working type so
+			// subsequent guards for the same variable chain from it.
+			working[guard.VarName] = currentType
 		}
 	}
 
-	// No guard or no narrowing: walk normally.
+	scopeEntered := false
+	if len(shadows) > 0 {
+		st.EnterScope("guard")
+		scopeEntered = true
+		for name, typ := range shadows {
+			st.Define(Symbol{
+				Name: name,
+				Type: typ,
+				Kind: SymVariable,
+			})
+		}
+	}
+
 	for i := 0; i < block.ChildCount(); i++ {
 		walkNode(block.Child(i), source, st, annotations, diags)
+	}
+
+	// Capture branch-end types of guarded variables before the scope exits,
+	// so the caller can compute the join type at the merge point.
+	if branchTypes != nil && scopeEntered {
+		for name := range shadows {
+			if sym, found := st.Lookup(name); found {
+				branchTypes[name] = sym.Type
+			}
+		}
+	}
+
+	if scopeEntered {
+		st.ExitScope()
 	}
 }
 
