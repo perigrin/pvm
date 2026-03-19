@@ -56,6 +56,8 @@ func walkNode(node *parser.Node, source []byte, st *SymbolTable, annotations map
 		return walkLoopStatement(node, source, st, annotations, diags)
 	case "for_statement":
 		return walkForStatement(node, source, st, annotations, diags)
+	case "subroutine_declaration_statement":
+		return walkSubroutineDeclaration(node, source, st, annotations, diags)
 	}
 
 	// Recurse into all children first (post-order).
@@ -128,7 +130,7 @@ func inferNodeType(
 
 	case "function_call_expression",
 		"ambiguous_function_call_expression":
-		return inferFunctionCallType(node, source, annotations, diags)
+		return inferFunctionCallType(node, source, st, annotations, diags)
 
 	case "func1op_call_expression":
 		return inferFunc1opCallType(node, source, annotations, diags)
@@ -229,6 +231,7 @@ func findOperatorText(node *parser.Node, source []byte) string {
 func inferFunctionCallType(
 	node *parser.Node,
 	source []byte,
+	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
 ) types.Type {
@@ -245,8 +248,15 @@ func inferFunctionCallType(
 		return types.Unknown
 	}
 
+	// Check builtins first (authoritative — prevents user subs from
+	// shadowing builtin return types).
 	sig, ok := types.GetBuiltin(name)
 	if !ok {
+		// Not a builtin — check symbol table for user-defined sub with
+		// an inferred return type.
+		if sym, found := st.Lookup(name); found && sym.ReturnType != types.Unknown {
+			return sym.ReturnType
+		}
 		return types.Unknown
 	}
 
@@ -1379,6 +1389,188 @@ func walkForStatement(
 		walkNode(node.Child(i), source, st, annotations, diags)
 	}
 	return types.Unknown
+}
+
+// collectExplicitReturns recursively searches the subtree rooted at node for
+// all return_expression nodes. For each found, the type of the returned value
+// (first named child of the return_expression) is looked up in annotations.
+// A bare "return;" with no named child contributes Undef. All found types are
+// ORed together and returned. Returns Unknown when no return expressions exist.
+func collectExplicitReturns(node *parser.Node, source []byte, annotations map[uint32]types.Type) types.Type {
+	if node == nil {
+		return types.Unknown
+	}
+
+	var result types.Type
+
+	if node.Kind() == "return_expression" {
+		// Look for the first named child — the returned value.
+		var valueNode *parser.Node
+		for i := 0; i < node.ChildCount(); i++ {
+			child := node.Child(i)
+			if child != nil && child.IsNamed() {
+				valueNode = child
+				break
+			}
+		}
+		if valueNode == nil {
+			// bare return; → Undef
+			result = types.Undef
+		} else {
+			if typ, ok := annotations[valueNode.StartByte()]; ok {
+				result = typ
+			}
+		}
+		return result
+	}
+
+	// Recurse into all children to find nested return_expression nodes.
+	for i := 0; i < node.ChildCount(); i++ {
+		result |= collectExplicitReturns(node.Child(i), source, annotations)
+	}
+	return result
+}
+
+// collectImplicitReturn inspects the last statement in block and returns the
+// type that would be implicitly returned by falling off the end of the block.
+//
+// Recognized last-statement shapes:
+//   - expression_statement: return the type of its first named child.
+//   - conditional_statement: recurse into the if-block and else-block (if any),
+//     union their implicit return types. A missing else contributes Unknown.
+//   - anything else: return Unknown.
+func collectImplicitReturn(block *parser.Node, source []byte, annotations map[uint32]types.Type) types.Type {
+	if block == nil {
+		return types.Unknown
+	}
+
+	// Find the last named child of the block (the last statement).
+	var lastStmt *parser.Node
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child != nil && child.IsNamed() {
+			lastStmt = child
+		}
+	}
+
+	if lastStmt == nil {
+		return types.Unknown
+	}
+
+	switch lastStmt.Kind() {
+	case "expression_statement":
+		// The implicit return value is the first named child.
+		for i := 0; i < lastStmt.ChildCount(); i++ {
+			child := lastStmt.Child(i)
+			if child != nil && child.IsNamed() {
+				if typ, ok := annotations[child.StartByte()]; ok {
+					return typ
+				}
+				return types.Unknown
+			}
+		}
+		return types.Unknown
+
+	case "conditional_statement":
+		// Collect implicit returns from each branch of the conditional.
+		// The implicit return of a conditional is the union of all branches.
+		var result types.Type
+		var ifBlock *parser.Node
+		var elseBlock *parser.Node
+
+		for i := 0; i < lastStmt.ChildCount(); i++ {
+			child := lastStmt.Child(i)
+			if child == nil {
+				continue
+			}
+			switch child.Kind() {
+			case "block":
+				if ifBlock == nil {
+					ifBlock = child
+				}
+			case "else":
+				// Find the block inside the else node.
+				for j := 0; j < child.ChildCount(); j++ {
+					ec := child.Child(j)
+					if ec != nil && ec.Kind() == "block" {
+						elseBlock = ec
+						break
+					}
+				}
+			}
+		}
+
+		result |= collectImplicitReturn(ifBlock, source, annotations)
+		result |= collectImplicitReturn(elseBlock, source, annotations)
+		return result
+	}
+
+	return types.Unknown
+}
+
+// walkSubroutineDeclaration handles subroutine_declaration_statement nodes
+// during pass 2. It walks all body statements (so expression nodes inside the
+// body get type annotations), then collects all return paths — both explicit
+// return expressions and the implicit return of the last statement — and stores
+// their union as the subroutine's ReturnType in the symbol table.
+//
+// The sub is defined in the enclosing (main) scope by pass 1. After walking
+// the body in a dedicated scope, ExitScope returns to main, where
+// UpdateReturnType can find and update the symbol.
+func walkSubroutineDeclaration(
+	node *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+) types.Type {
+	var subName string
+	var bodyBlock *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		switch child.Kind() {
+		case "bareword":
+			subName = child.Text(source)
+		case "block":
+			bodyBlock = child
+		}
+	}
+
+	if bodyBlock == nil {
+		// No body — nothing to infer.
+		return types.Code
+	}
+
+	// Enter a sub-level scope for pass-2 type narrowing (mirrors pass 1).
+	st.EnterScope(subName)
+
+	// Walk all body children so that all expression nodes are annotated.
+	for i := 0; i < bodyBlock.ChildCount(); i++ {
+		walkNode(bodyBlock.Child(i), source, st, annotations, diags)
+	}
+
+	// Collect explicit return types (all return_expression nodes in the body).
+	explicit := collectExplicitReturns(bodyBlock, source, annotations)
+
+	// Collect implicit return type (the last expression in the body).
+	implicit := collectImplicitReturn(bodyBlock, source, annotations)
+
+	// Union all return paths.
+	returnType := explicit | implicit
+
+	// Exit the sub scope before updating the symbol, which lives in the
+	// enclosing (main) scope.
+	st.ExitScope()
+
+	if subName != "" && returnType != types.Unknown {
+		st.UpdateReturnType(subName, returnType)
+	}
+
+	return types.Code
 }
 
 // blockAlwaysExits returns true if the block contains a top-level statement

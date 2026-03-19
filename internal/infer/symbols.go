@@ -21,11 +21,12 @@ const (
 // Symbol records a single declared name together with its inferred type,
 // syntactic role, and source location.
 type Symbol struct {
-	Name      string
-	Type      types.Type
-	Kind      SymbolKind
-	StartByte uint32
-	EndByte   uint32
+	Name       string
+	Type       types.Type
+	ReturnType types.Type // Inferred return type (subroutines only, zero = unknown)
+	Kind       SymbolKind
+	StartByte  uint32
+	EndByte    uint32
 }
 
 // Scope is a single lexical scope that may refer back to its enclosing parent.
@@ -101,6 +102,21 @@ func (st *SymbolTable) UpdateType(name string, typ types.Type) bool {
 	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
 			sym.Type = typ
+			s.symbols[name] = sym
+			return true
+		}
+	}
+	return false
+}
+
+// UpdateReturnType walks the scope chain from the current scope to root,
+// looking for the first scope that contains name. If found, it updates the
+// symbol's ReturnType to typ and returns true. Used to store inferred
+// subroutine return types after analyzing the sub body.
+func (st *SymbolTable) UpdateReturnType(name string, typ types.Type) bool {
+	for s := st.current; s != nil; s = s.parent {
+		if sym, ok := s.symbols[name]; ok {
+			sym.ReturnType = typ
 			s.symbols[name] = sym
 			return true
 		}

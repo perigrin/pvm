@@ -1163,3 +1163,106 @@ func TestGuardLibraryCompoundWithBuiltin(t *testing.T) {
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Object, ifBodyTyp, "defined && blessed → Object")
 }
+
+// --- Subroutine return type inference ---
+
+func TestReturnTypeExplicitReturn(t *testing.T) {
+	src := []byte("sub foo { return 42; }\n")
+	_, _, st := analyzeSourceFull(t, src)
+	sym, ok := st.Lookup("foo")
+	require.True(t, ok, "sub foo must be in symbol table")
+	assert.Equal(t, types.Int, sym.ReturnType, "sub foo with 'return 42' should have return type Int")
+}
+
+func TestReturnTypeImplicitReturn(t *testing.T) {
+	src := []byte("sub bar { 42; }\n")
+	_, _, st := analyzeSourceFull(t, src)
+	sym, ok := st.Lookup("bar")
+	require.True(t, ok, "sub bar must be in symbol table")
+	assert.Equal(t, types.Int, sym.ReturnType, "sub bar with implicit 42 should have return type Int")
+}
+
+func TestReturnTypeMultipleReturns(t *testing.T) {
+	src := []byte("my $x = 1;\nsub qux { if ($x) { return 0; } return 3.14; }\n")
+	_, _, st := analyzeSourceFull(t, src)
+	sym, ok := st.Lookup("qux")
+	require.True(t, ok, "sub qux must be in symbol table")
+	assert.Equal(t, types.Num, sym.ReturnType, "sub qux with int and float returns should have return type Num (Int | Num = Num)")
+}
+
+func TestReturnTypeEmptySub(t *testing.T) {
+	src := []byte("sub empty { }\n")
+	_, _, st := analyzeSourceFull(t, src)
+	sym, ok := st.Lookup("empty")
+	require.True(t, ok, "sub empty must be in symbol table")
+	assert.Equal(t, types.Unknown, sym.ReturnType, "empty sub should have Unknown return type")
+}
+
+func TestReturnTypeImplicitConditional(t *testing.T) {
+	// sub pick { if ($x) { 42; } else { 3.14; } }
+	// implicit return from if → Int, from else → Num; union = Num
+	src := []byte("my $x = 1;\nsub pick { if ($x) { 42; } else { 3.14; } }\n")
+	_, _, st := analyzeSourceFull(t, src)
+	sym, ok := st.Lookup("pick")
+	require.True(t, ok, "sub pick must be in symbol table")
+	assert.Equal(t, types.Num, sym.ReturnType, "sub pick with if/else returning Int and Num should have return type Num")
+}
+
+func TestReturnTypeBareReturn(t *testing.T) {
+	src := []byte("sub noop { return; }\n")
+	_, _, st := analyzeSourceFull(t, src)
+	sym, ok := st.Lookup("noop")
+	require.True(t, ok, "sub noop must be in symbol table")
+	assert.Equal(t, types.Undef, sym.ReturnType, "bare return; should have return type Undef")
+}
+
+func TestReturnTypeExplicitPlusImplicit(t *testing.T) {
+	// sub mixed { if ($x) { return 42; } 3.14; }
+	// explicit return: Int, implicit return: Num → union = Num
+	src := []byte("my $x = 1;\nsub mixed { if ($x) { return 42; } 3.14; }\n")
+	_, _, st := analyzeSourceFull(t, src)
+	sym, ok := st.Lookup("mixed")
+	require.True(t, ok, "sub mixed must be in symbol table")
+	assert.Equal(t, types.Num, sym.ReturnType, "sub mixed with explicit Int return and implicit Num return should have return type Num")
+}
+
+// --- Call site return type lookup tests ---
+
+func TestCallSiteUsesReturnType(t *testing.T) {
+	// sub foo { return 42; } my $x = foo(); — $x should be Int
+	src := []byte("sub foo { return 42; }\nmy $x = foo();\n$x;\n")
+	annotations, _ := analyzeSource(t, src)
+	xOffsets := findAllVarOffsets(src, "$x")
+	refTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok, "$x reference should be annotated")
+	assert.Equal(t, types.Int, refTyp, "$x should be Int from foo()'s return type")
+}
+
+func TestCallSiteImplicitReturn(t *testing.T) {
+	// sub bar { 3.14; } my $y = bar(); — $y should be Num
+	src := []byte("sub bar { 3.14; }\nmy $y = bar();\n$y;\n")
+	annotations, _ := analyzeSource(t, src)
+	yOffsets := findAllVarOffsets(src, "$y")
+	refTyp, ok := annotations[yOffsets[len(yOffsets)-1]]
+	assert.True(t, ok)
+	assert.Equal(t, types.Num, refTyp, "$y should be Num from bar()'s implicit return")
+}
+
+func TestCallSiteForwardRefUnknown(t *testing.T) {
+	// my $x = foo(); sub foo { return 42; } — forward ref, $x stays Scalar
+	src := []byte("my $x = foo();\nsub foo { return 42; }\n$x;\n")
+	annotations, _ := analyzeSource(t, src)
+	xOffsets := findAllVarOffsets(src, "$x")
+	refTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok)
+	assert.Equal(t, types.Scalar, refTyp, "$x should be Scalar (forward ref, no return type yet)")
+}
+
+func TestCallSiteBuiltinPriority(t *testing.T) {
+	// Builtins should not be overridden by user subs
+	src := []byte("my @a;\nmy $x = push(@a, 1);\n")
+	annotations, _ := analyzeSource(t, src)
+	pushTyp, ok := findNodeType(annotations, src, "push(@a, 1)")
+	assert.True(t, ok)
+	assert.Equal(t, types.Int, pushTyp, "builtin push should return Int")
+}
