@@ -442,3 +442,38 @@ func TestNarrowByGuardRefEq(t *testing.T) {
 		})
 	}
 }
+
+// --- GuardBool tests (builtin::is_bool) ---
+
+func TestNarrowByGuardBool(t *testing.T) {
+	guard := types.GuardPattern{Kind: types.GuardBool}
+
+	// Scalar under is_bool guard → Bool
+	narrowed, ok := types.NarrowByGuard(types.Scalar, guard)
+	assert.True(t, ok, "Scalar narrows under bool guard")
+	assert.Equal(t, types.Bool, narrowed, "Scalar under bool guard → Bool")
+
+	// Bool under is_bool guard → unchanged
+	narrowed, ok = types.NarrowByGuard(types.Bool, guard)
+	assert.False(t, ok, "Bool already matches bool guard")
+	assert.Equal(t, types.Bool, narrowed)
+
+	// Int under is_bool guard → None (Int has no Bool bit)
+	narrowed, ok = types.NarrowByGuard(types.Int, guard)
+	assert.True(t, ok, "Int under bool guard narrows")
+	assert.Equal(t, types.None, narrowed, "Int under bool guard → None (unreachable)")
+}
+
+func TestNegateGuardBool(t *testing.T) {
+	guard := types.GuardPattern{Kind: types.GuardBool}
+
+	// Scalar negated by is_bool → Scalar minus Bool bit
+	narrowed, ok := types.NegateGuard(types.Scalar, guard)
+	assert.True(t, ok, "Scalar negates under bool guard")
+	assert.True(t, narrowed&types.Bool == 0, "negated bool should remove Bool bit")
+
+	// Bool negated by is_bool → None (unreachable)
+	narrowed, ok = types.NegateGuard(types.Bool, guard)
+	assert.True(t, ok, "Bool negates under bool guard")
+	assert.Equal(t, types.None, narrowed, "Bool negated by bool guard → None")
+}

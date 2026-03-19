@@ -72,6 +72,7 @@ const (
 	GuardDefined GuardKind = iota // defined($x) — tests that value is not undef
 	GuardRef                      // ref($x) — tests that value is a reference
 	GuardIsa                      // $x isa Foo — tests that value is an instance of a class
+	GuardBool                     // builtin::is_bool($x) — tests that value is a boolean
 )
 
 // GuardPattern describes a guard expression used to narrow a type at a branch point.
@@ -160,6 +161,14 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 		result := effective & Object
 		return narrowResult(result, effective)
 
+	case GuardBool:
+		effective := typ
+		if effective == Unknown {
+			effective = Any
+		}
+		result := effective & Bool
+		return narrowResult(result, effective)
+
 	default:
 		return typ, false
 	}
@@ -199,6 +208,10 @@ func NegateGuard(typ Type, guard GuardPattern) (Type, bool) {
 	case GuardIsa:
 		// "not isa Foo" — not useful, anything could be not-that-class.
 		return effective, false
+
+	case GuardBool:
+		result := effective &^ Bool
+		return narrowResult(result, effective)
 
 	default:
 		return effective, false
