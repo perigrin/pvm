@@ -869,9 +869,18 @@ func walkElsifNode(
 
 	guard := extractGuardPattern(conditionNode, source)
 
+	// Compute the negate flag for the elsif body. A negated condition
+	// (e.g. !defined) flips the narrowing direction, same as in
+	// walkConditionalStatement. Note: elsif has no "unless" variant,
+	// so there is no keyword-based flip here.
+	elsifBodyNegate := false
+	if guard != nil && guard.Negated {
+		elsifBodyNegate = !elsifBodyNegate
+	}
+
 	// Walk the elsif body with the guard.
 	if block != nil {
-		walkBlockWithGuard(block, source, st, annotations, diags, guard, false)
+		walkBlockWithGuard(block, source, st, annotations, diags, guard, elsifBodyNegate)
 	}
 
 	// Handle trailing else or elsif.
@@ -885,7 +894,7 @@ func walkElsifNode(
 			}
 		}
 		if elseBlock != nil {
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, true)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !elsifBodyNegate)
 		}
 	}
 
@@ -1037,6 +1046,17 @@ func blockAlwaysExits(block *parser.Node, source []byte) bool {
 			for j := 0; j < target.ChildCount(); j++ {
 				c := target.Child(j)
 				if c != nil && !c.IsNamed() && c.Text(source) == "exit" {
+					return true
+				}
+			}
+		case "ambiguous_function_call_expression", "function_call_expression":
+			// die $msg, die($obj), and similar forms where die is the
+			// function name. The string-argument form die("msg") produces
+			// broken CST due to the gotreesitter string grammar limitation,
+			// but die $var is handled here.
+			for j := 0; j < target.ChildCount(); j++ {
+				c := target.Child(j)
+				if c != nil && c.Kind() == "function" && c.Text(source) == "die" {
 					return true
 				}
 			}

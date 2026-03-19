@@ -623,17 +623,23 @@ func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
 	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (isa negation is not useful)")
 }
 
-func TestFlowNarrowingElsifWithRefGuard(t *testing.T) {
-	// elsif (ref($x)) should narrow $x to Ref in the elsif body.
-	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $y = $x;\n} elsif (ref($x)) {\n    my $z = $x;\n}\n")
+func TestFlowNarrowingElsifNegatedGuard(t *testing.T) {
+	// elsif (!defined($x)) should narrow $x to Undef in the elsif body
+	// (negated defined guard), not Scalar (positive defined guard).
+	src := []byte("my $x = undef;\nif ($x isa Foo) {\n    my $a = $x;\n} elsif (!defined($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
-	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
+	// [0]=decl, [1]=if-cond, [2]=if-body, [3]=elsif-cond, [4]=elsif-body, [5]=else-body
+	require.True(t, len(offsets) >= 6, "should find at least 6 occurrences of $x, got %d", len(offsets))
 
 	elsifBodyTyp, ok := annotations[offsets[4]]
 	assert.True(t, ok, "elsif-body $x should be annotated")
-	assert.Equal(t, types.Ref, elsifBodyTyp, "elsif-body $x should be Ref (ref guard in elsif)")
+	assert.Equal(t, types.Undef, elsifBodyTyp, "elsif-body $x should be Undef (negated defined guard in elsif)")
+
+	elseBodyTyp, ok2 := annotations[offsets[5]]
+	assert.True(t, ok2, "else-body $x should be annotated")
+	assert.Equal(t, types.Scalar, elseBodyTyp, "else-body $x should be Scalar (positive defined guard, negated for else)")
 }
 
 func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
@@ -747,6 +753,19 @@ func TestFlowNarrowingEarlyDieNarrowsRef(t *testing.T) {
 	postIfTyp, ok := annotations[offsets[2]]
 	assert.True(t, ok, "post-if $x should be annotated")
 	assert.Equal(t, types.Ref, postIfTyp, "post-if $x should be Ref (ref guard after early die)")
+}
+
+func TestFlowNarrowingEarlyDieWithArgNarrowsRef(t *testing.T) {
+	// if (!ref($x)) { die $msg; } — die with argument should also be detected as early exit.
+	src := []byte("my $msg;\nmy $x = undef;\nif (!ref($x)) {\n    die $msg;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	postIfTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	assert.Equal(t, types.Ref, postIfTyp, "post-if $x should be Ref (ref guard after die $msg)")
 }
 
 func TestFlowNarrowingEarlyExitNarrowsDefined(t *testing.T) {
