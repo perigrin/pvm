@@ -551,6 +551,8 @@ type guardResult struct {
 //	func1op_call_expression with keyword "defined" and scalar child → GuardDefined
 //	func1op_call_expression with keyword "ref" and scalar child → GuardRef
 //	relational_expression with "isa" operator, scalar LHS, bareword RHS → GuardIsa
+//	function_call_expression with known guard function name and scalar arg → per table
+//	  (builtin::blessed → GuardIsa, builtin::reftype → GuardRef, builtin::is_bool → GuardBool)
 //	binary_expression with "&&" or "||" between two guards → compound guard
 //	lowprec_logical_expression with "and" or "or" between two guards → compound guard
 //	unary_expression with "!" wrapping a recognized guard → Negated guard
@@ -570,6 +572,11 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 	// Pattern: $x isa Foo
 	if kind == "relational_expression" {
 		return extractIsaGuard(node, source)
+	}
+
+	// Pattern: builtin::blessed($x), builtin::reftype($x), builtin::is_bool($x)
+	if kind == "function_call_expression" {
+		return extractFunctionCallGuard(node, source)
 	}
 
 	// Pattern: guard1 && guard2 or guard1 || guard2 (high-precedence binary)
@@ -808,6 +815,55 @@ func extractNotGuard(node *parser.Node, source []byte) *guardResult {
 
 	result.Negated = !result.Negated
 	return result
+}
+
+// guardFunctionTable maps known guard function base names to their guard patterns.
+// Both bare names and fully-qualified names are recognized — the package prefix
+// is stripped before lookup.
+var guardFunctionTable = map[string]types.GuardPattern{
+	"blessed": {Kind: types.GuardIsa},
+	"reftype": {Kind: types.GuardRef},
+	"is_bool": {Kind: types.GuardBool},
+}
+
+// extractFunctionCallGuard extracts a guard from a function_call_expression node.
+// Recognizes known guard functions from builtin:: (and bare imports).
+// CST: function_call_expression -> function (named) + scalar (named).
+func extractFunctionCallGuard(node *parser.Node, source []byte) *guardResult {
+	var funcName string
+	var varNode *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "function" {
+			funcName = child.Text(source)
+			continue
+		}
+		if child.Kind() == "scalar" && varNode == nil {
+			varNode = child
+		}
+	}
+
+	if funcName == "" || varNode == nil {
+		return nil
+	}
+
+	// Strip package prefix to get the base name.
+	baseName := funcName
+	if idx := strings.LastIndex(funcName, "::"); idx >= 0 {
+		baseName = funcName[idx+2:]
+	}
+
+	guard, ok := guardFunctionTable[baseName]
+	if !ok {
+		return nil
+	}
+
+	varName := sigildName("$", varNode, source)
+	return &guardResult{VarName: varName, Guard: guard}
 }
 
 // extractFunc1opGuard extracts a guard from a func1op_call_expression node.

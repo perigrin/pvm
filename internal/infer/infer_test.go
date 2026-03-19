@@ -1094,3 +1094,72 @@ func TestBranchMergingAssignmentInsideBranch(t *testing.T) {
 	// Int | Num = Num (Num = numLeaf | Int, which already includes Int).
 	assert.Equal(t, types.Num, postTyp, "post-if/else $x should be Num (union of Int from if-body and Num from else-body)")
 }
+
+// --- Guard pattern library tests (builtin:: functions) ---
+
+func TestGuardLibraryBlessedNarrows(t *testing.T) {
+	// if (builtin::blessed($x)): body $x → Object
+	src := []byte("my $x = undef;\nif (builtin::blessed($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3)
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Object, ifBodyTyp, "blessed guard narrows to Object")
+}
+
+func TestGuardLibraryBlessedBareNarrows(t *testing.T) {
+	// if (blessed($x)): bare name, same effect
+	src := []byte("my $x = undef;\nif (blessed($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3)
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Object, ifBodyTyp, "bare blessed guard narrows to Object")
+}
+
+func TestGuardLibraryReftypeNarrows(t *testing.T) {
+	// if (builtin::reftype($x)): body $x → Ref
+	src := []byte("my $x = undef;\nif (builtin::reftype($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3)
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Ref, ifBodyTyp, "reftype guard narrows to Ref")
+}
+
+func TestGuardLibraryIsBoolNarrows(t *testing.T) {
+	// if (builtin::is_bool($x)): body $x → Bool
+	src := []byte("my $x = undef;\nif (builtin::is_bool($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 3)
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Bool, ifBodyTyp, "is_bool guard narrows to Bool")
+}
+
+func TestGuardLibraryNegatedBlessed(t *testing.T) {
+	// if (!builtin::blessed($x)) { } else { $x } — else $x → Object
+	src := []byte("my $x = undef;\nif (!builtin::blessed($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4)
+	elseBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "else-body $x should be annotated")
+	assert.Equal(t, types.Object, elseBodyTyp, "negated blessed: else → Object")
+}
+
+func TestGuardLibraryCompoundWithBuiltin(t *testing.T) {
+	// if (defined($x) && builtin::blessed($x)): body $x → Object
+	// offsets: [0]=decl, [1]=defined($x), [2]=blessed($x), [3]=if-body ref
+	src := []byte("my $x = undef;\nif (defined($x) && builtin::blessed($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4, "should find at least 4 $x, got %d", len(offsets))
+	ifBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Object, ifBodyTyp, "defined && blessed → Object")
+}
