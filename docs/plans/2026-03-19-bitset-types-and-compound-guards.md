@@ -15,63 +15,90 @@ All three require types that can express "this value is one of these types."
 
 ## Approach: Bitset Encoding
 
-Replace `type Type int` with `type Type uint32` where each concrete type gets a
-unique bit. Parent types are the bitwise OR of their children. Unions are native
-OR operations. Intersections are native AND.
+Replace `type Type int` with `type Type uint32` where each leaf type gets a
+unique bit. Parent types are bitmasks — the OR of their descendant leaf bits.
+Unions are native OR operations. Intersections are native AND.
 
-### Bit Assignment
+### Leaf-Only Bit Assignment
 
-22 types fit in 32 bits with 10 bits of headroom. Perl's type lattice is stable
-— the only future additions would be user-defined class names, which are
-subtypes of Object and can share Object's bit or get a name tag.
+Only leaf types (types with no children in the hierarchy) get their own bit.
+Parent types like `Scalar`, `Ref`, `List`, and `Any` are derived masks — the
+OR of all their descendant leaf bits. A concrete value of type `Num` holds only
+the `Num` bit. A variable declared as `my $x` (type `Scalar`) holds the full
+`Scalar` mask, meaning it could be any scalar subtype.
+
+This distinction matters: a single bit means "this value IS this type." A
+multi-bit mask means "this value COULD BE any of these types." The bitset
+representation unifies both — `Num` is just a mask that happens to have one bit.
 
 ```
-Bit  Type        Parent mask
----  ----        -----------
-0    Undef       Undef
-1    Bool        Bool
-2    Int         Int
-3    Num         Int | Num
-4    Str         Int | Num | Str
-5    DualVar     DualVar
-6    Regex       Regex
-7    ScalarRef   ScalarRef
-8    ArrayRef    ArrayRef
-9    HashRef     HashRef
-10   CodeRef     CodeRef
-11   GlobRef     GlobRef
-12   Object      Object
-13   Array       Array
-14   Hash        Hash
-15   Code        Code
-16   Glob        Glob
-17   None        (special: zero or all-bits, see below)
+Bit  Type        Notes
+---  ----        -----
+0    Undef
+1    Bool
+2    Int
+3    Num         Leaf: 3.14 is Num but not Int
+4    Str         Leaf: "hello" is Str but not Num
+5    DualVar
+6    Regex
+7    ScalarRef
+8    ArrayRef
+9    HashRef
+10   CodeRef
+11   GlobRef
+12   Object
+13   Array
+14   Hash
+15   Code
+16   Glob
 
-Derived masks:
+Derived parent masks (OR of descendant bits):
+  Num     includes Int (because Int <: Num), so: NumBit | IntBit
+  Str     includes Num, Int: StrBit | NumBit | IntBit
   Ref     = ScalarRef | ArrayRef | HashRef | CodeRef | GlobRef | Object
-  Scalar  = Undef | Bool | Str | Num | Int | DualVar | Regex | Ref
+  Scalar  = Undef | Bool | Str | Num | Int | DualVar | Regex | Ref (all bits)
   List    = Array | Hash
   Any     = Scalar | List | Code | Glob
 ```
 
-Note: `Num` includes the `Int` bit because Int <: Num. `Str` includes both
-`Int` and `Num` bits because Num <: Str. Each parent mask contains all its
-descendants' bits. This makes `IsSubtype(child, parent)` a single mask
-operation: `parent & child == child`.
+Wait — `Num` and `Str` are NOT leaf types in the hierarchy (Int <: Num <: Str).
+But they DO need their own bits because a value can be concretely `Num` (3.14)
+without being `Int`. So every type that a concrete value can inhabit gets a bit,
+even if it has subtypes. The "parent masks" are the convenience aliases that
+include all descendant bits for subtype checking.
+
+To clarify the dual role:
+- `Num` as a **concrete type** (the result of `3.14`) = just bit 3
+- `Num` as a **type constraint** (accepts Int too) = bit 3 | bit 2 = `NumMask`
+
+We define both:
+```go
+const (
+    Num     Type = 1 << 3   // concrete: this value is a float
+    NumMask Type = Num | Int // constraint: accepts Num or Int
+)
+```
+
+`IsSubtype(child, parent)` uses the mask form: `parentMask & child == child`.
+`IsSubtype(Int, NumMask)` → `(Num|Int) & Int == Int` → true.
+`IsSubtype(Num, Int)` → `Int & Num == Num` → false (Int doesn't contain Num).
 
 ### Special Types
 
-- **Unknown** = `0` (no bits set). The zero value. Comparisons like
-  `typ != Unknown` become `typ != 0`.
-- **None** = bottom type. `IsSubtype(None, anything)` returns true. Represented
-  as a sentinel constant, not a bitmask — no value inhabits None.
+- **Unknown** = `0` (no bits set). The zero value sentinel. `typ != Unknown`
+  becomes `typ != 0`.
+- **None** = bottom type, represented as a named sentinel constant (e.g.,
+  `1 << 31`). No concrete value inhabits None. `IsSubtype(None, anything)`
+  returns true via special case. When guard narrowing produces the empty set
+  (e.g., `defined()` on a value known to be only `Undef`), the result is `None`
+  — the branch is unreachable.
 - **Any** = all concrete type bits OR'd together. Top of the lattice.
 
 ### Operations
 
 ```go
 // Union: what types could this value be?
-union := typeA | typeB           // Scalar | Ref
+union := typeA | typeB           // e.g., Int | Str
 
 // Intersection: what types satisfy both constraints?
 inter := typeA & typeB           // narrows
@@ -79,8 +106,8 @@ inter := typeA & typeB           // narrows
 // Subtraction: remove a type from a union
 without := typ &^ Undef          // remove Undef possibility
 
-// Subtype check: is child contained within parent?
-IsSubtype(child, parent) = parent & child == child
+// Subtype check: is child contained within parent mask?
+IsSubtype(child, parent) = parentMask & child == child
 
 // Could-be check: could this value be Undef?
 couldBeUndef := typ & Undef != 0
@@ -89,18 +116,30 @@ couldBeUndef := typ & Undef != 0
 LUB(a, b) = a | b               // just OR — the bitset IS the LUB
 ```
 
+### String Display
+
+`String()` prints the canonical name for known masks (e.g., `Scalar`, `Ref`,
+`NumMask` displays as `Num`) or `A|B` for arbitrary unions. Bits are printed
+in bit-position order for deterministic output.
+
 ### What Changes
 
-**types.go:** `Type` becomes `uint32`. Constants become bit positions.
-`parentMap` is replaced by the mask definitions. `IsSubtype` becomes a one-line
-mask check. `TypeSatisfies` and `polymorphicTypes` adapt to bitmasks. The
-`String()` method prints the canonical name for single-bit types or `A|B` for
-unions.
+**types.go:** `Type` becomes `uint32`. Leaf constants use `1 << N`. Parent
+masks defined as OR of children. `parentMap` removed — replaced by mask
+constants. `IsSubtype` becomes a one-line mask check (with `None` special case).
+`TypeSatisfies` adapts: polymorphic check becomes `actual & required != 0`
+(the polymorphic type's mask overlaps the required type). `String()` checks a
+name table for known masks, falls back to `A|B` display.
 
 **narrowing.go:** `NarrowByGuard` and `NegateGuard` use bit operations.
-`NarrowByGuard(GuardDefined)` becomes `typ &^ Undef` (remove Undef bit).
-`NegateGuard(GuardDefined)` becomes `typ & Undef` (keep only Undef bit).
-`refTypeMap` stays — it maps strings to specific bitmask values.
+`NarrowByGuard(GuardDefined)` removes the Undef bit: `typ &^ Undef`. If the
+result is zero (empty set), return `(None, true)` — the branch is unreachable.
+`NegateGuard(GuardDefined)` keeps only the Undef bit: `typ & Undef`. Same
+empty-set → None rule. `refTypeMap` stays — maps strings to bitmask values.
+
+**NarrowByContext with unions:** When a union contains bits that narrow
+differently in context, apply context narrowing per-bit and OR the results.
+For `Array | Str` in scalar context: Array → Int, Str → Str, result = `Int | Str`.
 
 **signatures.go:** No structural change. Signature constants use the new bit
 values. `GetBuiltin`, `GetBinaryOp`, `GetUnaryOp` unchanged.
@@ -109,6 +148,17 @@ values. `GetBuiltin`, `GetBinaryOp`, `GetUnaryOp` unchanged.
 same. Branch merging added at join points (see below).
 
 **symbols.go:** `Symbol.Type` is already `types.Type` — no change needed.
+
+**lsp.go:** `TypeAtByte` returns `types.Type` — no change. The `String()`
+method handles display.
+
+### Effort Note
+
+The bitset rewrite is ~60% of the total implementation effort. It is mechanical
+— every constant keeps its name, just changes its value — but `NarrowByGuard`
+and `NegateGuard` have hand-written logic per guard kind that must be carefully
+rewritten as bit operations. All existing tests compare by constant name
+(`types.Int`), not numeric value, so they adapt automatically.
 
 ## Compound Guards
 
@@ -164,9 +214,7 @@ type compoundGuard struct {
 
 **`&&` / `and` (conjunction):** Both guards hold in the if-body. Apply both
 narrowings — intersection. With bitsets: `narrowByGuard(A) & narrowByGuard(B)`.
-In the else-body, at least one guard is false — apply neither (conservative).
-
-Actually, the else-body semantics for `&&` are: `!(A && B)` = `!A || !B`. We
+In the else-body, at least one guard is false — `!(A && B)` = `!A || !B`. We
 cannot apply both negated guards (that would be `!A && !B`, too strong). The
 conservative choice is to apply no narrowing in the else-body of a `&&` guard.
 
@@ -185,8 +233,10 @@ Summary:
 ### Multi-variable guards
 
 `defined($x) && ref($y)` guards two different variables. Each guard applies
-independently to its own variable. `walkBlockWithGuard` must handle a list of
-guards, entering a scope that shadows multiple variables.
+independently to its own variable. `walkBlockWithGuard` takes a list of guards
+(`[]*guardResult`) and enters one scope that shadows all guarded variables. The
+signature changes from a single `*guardResult` to `[]*guardResult`; all callers
+are updated. Single-guard callers wrap in a one-element slice.
 
 ### Interaction with Negated flag
 
@@ -219,22 +269,20 @@ If there is no else branch, the "implicit else" contributes the pre-if type
 ### Example
 
 ```perl
-my $x = undef;           # $x: Scalar (sigil type)
+my $x = undef;           # $x: Scalar (full mask — all scalar subtypes)
 if (defined($x)) {
-    # $x: Scalar (non-Undef, narrowed by defined guard)
+    # $x: Scalar &^ Undef (Scalar minus Undef bit)
     my $y = $x;
 } elsif (ref($x)) {
-    # $x: Ref
+    # $x: Ref mask
     my $z = $x;
 } else {
-    # $x: Scalar (negated ref on already-narrowed type)
+    # $x: negated ref on already-narrowed type
     my $w = $x;
 }
-# join point: Scalar | Ref | Scalar = Scalar (Ref is a subtype of Scalar)
+# join point: (Scalar &^ Undef) | Ref | (narrowed else type)
+# With bitsets this is a single OR across all branch types.
 ```
-
-With bitsets, the union computation is a single OR across branch types. If the
-result equals the pre-if type, no update is needed.
 
 ### elsif Chain Merging
 
@@ -254,11 +302,13 @@ ORs them with the if-branch type.
 
 ## Implementation Order
 
-1. **Bitset type system** — rewrite `types.go`, update `narrowing.go` and
-   `signatures.go`, fix all tests. No changes to `infer.go` needed — the
-   annotation map value type stays `types.Type`, it just holds bitmasks now.
+1. **Bitset type system** (~60% of effort) — rewrite `types.go` with leaf-bit
+   constants and parent masks, update `narrowing.go` (bit operations, empty-set
+   → None), update `signatures.go` constants, fix all tests. No changes to
+   `infer.go` needed — the annotation map value type stays `types.Type`.
 2. **Compound guard extraction** — add `compoundGuard` struct, extend
    `extractGuardPattern` for `binary_expression` / `lowprec_logical_expression`,
-   update `walkBlockWithGuard` to handle compound guards.
+   change `walkBlockWithGuard` to accept `[]*guardResult` and shadow multiple
+   variables in one scope.
 3. **Branch merging** — extend `walkConditionalStatement` and `walkElsifNode`
-   to track branch types and compute union at join points.
+   to track branch types and compute union (OR) at join points.
