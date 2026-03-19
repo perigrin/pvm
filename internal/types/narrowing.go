@@ -50,8 +50,6 @@ func NarrowByContext(typ Type, ctx Context) (Type, bool) {
 		// become Int; all other bits pass through unchanged.
 		if typ&(Array|Hash) == 0 {
 			// No Array or Hash bits — pass through unchanged.
-			// Special case: List = Array|Hash exactly, but if typ == List the
-			// check above passes since List contains both bits. Re-check below.
 			return typ, true
 		}
 		// Remove Array and Hash bits, add Int for each that was present.
@@ -180,24 +178,29 @@ func NarrowByGuard(typ Type, guard GuardPattern) (Type, bool) {
 //   - GuardRef with RefType: return (typ, false) — "not a HashRef" could be anything.
 //   - GuardIsa: return (typ, false) — "not a Foo" could be anything.
 func NegateGuard(typ Type, guard GuardPattern) (Type, bool) {
+	effective := typ
+	if effective == Unknown {
+		effective = Any
+	}
+
 	switch guard.Kind {
 	case GuardDefined:
-		result := typ & Undef
-		return narrowResult(result, typ)
+		result := effective & Undef
+		return narrowResult(result, effective)
 
 	case GuardRef:
 		if guard.RefType != "" {
 			// "not ref eq TYPE" — not useful, anything could be not-that-type.
-			return typ, false
+			return effective, false
 		}
-		result := typ &^ Ref
-		return narrowResult(result, typ)
+		result := effective &^ Ref
+		return narrowResult(result, effective)
 
 	case GuardIsa:
 		// "not isa Foo" — not useful, anything could be not-that-class.
-		return typ, false
+		return effective, false
 
 	default:
-		return typ, false
+		return effective, false
 	}
 }
