@@ -749,7 +749,7 @@ type guardResult struct {
 //	lowprec_logical_expression with "and" or "or" between two guards → compound guard
 //	unary_expression with "!" wrapping a recognized guard → Negated guard
 //	ambiguous_function_call_expression with "not" wrapping a recognized guard → Negated guard
-func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
+func extractGuardPattern(node *parser.Node, source []byte, st *SymbolTable) *guardResult {
 	if node == nil {
 		return nil
 	}
@@ -768,7 +768,7 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 
 	// Pattern: builtin::blessed($x), builtin::reftype($x), builtin::is_bool($x)
 	if kind == "function_call_expression" {
-		return extractFunctionCallGuard(node, source)
+		return extractFunctionCallGuard(node, source, st)
 	}
 
 	// Pattern: guard1 && guard2 or guard1 || guard2 (high-precedence binary)
@@ -776,17 +776,17 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 	// These are checked before unary_expression so that negated sub-guards
 	// inside compound conditions are handled by recursive calls to extractGuardPattern.
 	if kind == "binary_expression" || kind == "lowprec_logical_expression" {
-		return extractCompoundGuard(node, source)
+		return extractCompoundGuard(node, source, st)
 	}
 
 	// Pattern: !guard (unary negation)
 	if kind == "unary_expression" {
-		return extractNegatedGuard(node, source)
+		return extractNegatedGuard(node, source, st)
 	}
 
 	// Pattern: not guard (low-precedence negation)
 	if kind == "ambiguous_function_call_expression" {
-		return extractNotGuard(node, source)
+		return extractNotGuard(node, source, st)
 	}
 
 	return nil
@@ -802,7 +802,7 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 // If only one side yields a guard, that single guard is returned directly
 // (partial compound — the non-guard side is dropped).
 // If neither side yields a guard, nil is returned.
-func extractCompoundGuard(node *parser.Node, source []byte) *guardResult {
+func extractCompoundGuard(node *parser.Node, source []byte, st *SymbolTable) *guardResult {
 	var op string
 	var leftNode *parser.Node
 	var rightNode *parser.Node
@@ -841,8 +841,8 @@ func extractCompoundGuard(node *parser.Node, source []byte) *guardResult {
 		return nil
 	}
 
-	leftGuard := extractGuardPattern(leftNode, source)
-	rightGuard := extractGuardPattern(rightNode, source)
+	leftGuard := extractGuardPattern(leftNode, source, st)
+	rightGuard := extractGuardPattern(rightNode, source, st)
 
 	// Both sides are guards: return a compound guard.
 	if leftGuard != nil && rightGuard != nil {
@@ -911,7 +911,7 @@ func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 // For compound guards, De Morgan's law is applied:
 //   - !(A && B) becomes (!A || !B): flip Op from && to ||, negate both sub-guards
 //   - !(A || B) becomes (!A && !B): flip Op from || to &&, negate both sub-guards
-func extractNegatedGuard(node *parser.Node, source []byte) *guardResult {
+func extractNegatedGuard(node *parser.Node, source []byte, st *SymbolTable) *guardResult {
 	hasNot := false
 	var innerNode *parser.Node
 
@@ -935,7 +935,7 @@ func extractNegatedGuard(node *parser.Node, source []byte) *guardResult {
 		return nil
 	}
 
-	result := extractGuardPattern(innerNode, source)
+	result := extractGuardPattern(innerNode, source, st)
 	if result == nil {
 		return nil
 	}
@@ -970,7 +970,7 @@ func extractNegatedGuard(node *parser.Node, source []byte) *guardResult {
 //
 // For simple guards, the Negated flag is toggled.
 // For compound guards, De Morgan's law is applied (same as extractNegatedGuard).
-func extractNotGuard(node *parser.Node, source []byte) *guardResult {
+func extractNotGuard(node *parser.Node, source []byte, st *SymbolTable) *guardResult {
 	hasNot := false
 	var innerNode *parser.Node
 
@@ -992,7 +992,7 @@ func extractNotGuard(node *parser.Node, source []byte) *guardResult {
 		return nil
 	}
 
-	result := extractGuardPattern(innerNode, source)
+	result := extractGuardPattern(innerNode, source, st)
 	if result == nil {
 		return nil
 	}
@@ -1032,7 +1032,7 @@ var guardFunctionTable = map[string]types.GuardPattern{
 // extractFunctionCallGuard extracts a guard from a function_call_expression node.
 // Recognizes known guard functions from builtin:: (and bare imports).
 // CST: function_call_expression -> function (named) + scalar (named).
-func extractFunctionCallGuard(node *parser.Node, source []byte) *guardResult {
+func extractFunctionCallGuard(node *parser.Node, source []byte, st *SymbolTable) *guardResult {
 	var funcName string
 	var varNode *parser.Node
 
@@ -1173,7 +1173,7 @@ func walkConditionalStatement(
 	}
 
 	// Extract guard pattern from the condition.
-	guard := extractGuardPattern(conditionNode, source)
+	guard := extractGuardPattern(conditionNode, source, st)
 
 	// Compute the negate flag for the if-body. "unless" flips the narrowing
 	// direction relative to the condition. Negated conditions (e.g. !defined)
@@ -1430,7 +1430,7 @@ func walkElsifNode(
 		walkNode(conditionNode, source, st, annotations, diags, idx, classTypes)
 	}
 
-	guard := extractGuardPattern(conditionNode, source)
+	guard := extractGuardPattern(conditionNode, source, st)
 
 	// The elsif body negate flag starts false (no "unless" keyword in elsif).
 	// Negated conditions (e.g. !defined) are handled inside flattenGuards
@@ -1510,7 +1510,7 @@ func walkLoopStatement(
 		walkNode(conditionNode, source, st, annotations, diags, idx, classTypes)
 	}
 
-	guard := extractGuardPattern(conditionNode, source)
+	guard := extractGuardPattern(conditionNode, source, st)
 
 	if bodyBlock != nil {
 		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, flattenGuards(guard, false), nil, idx, classTypes)
