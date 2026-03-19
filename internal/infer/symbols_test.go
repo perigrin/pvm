@@ -235,3 +235,33 @@ func TestCollectBlockScoping(t *testing.T) {
 	_, ok = st.Lookup("$inner")
 	assert.False(t, ok, "$inner should not be visible in the top-level scope after collection")
 }
+
+func TestSymbolReturnType(t *testing.T) {
+	st := infer.NewSymbolTable()
+	st.Define(infer.Symbol{
+		Name:       "foo",
+		Type:       types.Code,
+		Kind:       infer.SymSubroutine,
+		ReturnType: types.Int,
+	})
+	sym, ok := st.Lookup("foo")
+	require.True(t, ok)
+	assert.Equal(t, types.Int, sym.ReturnType, "ReturnType should be preserved")
+}
+
+func TestUpdateReturnType(t *testing.T) {
+	st := infer.NewSymbolTable()
+	st.Define(infer.Symbol{
+		Name: "bar",
+		Type: types.Code,
+		Kind: infer.SymSubroutine,
+	})
+	ok := st.UpdateReturnType("bar", types.Num)
+	assert.True(t, ok, "should find and update bar")
+	sym, found := st.Lookup("bar")
+	require.True(t, found)
+	assert.Equal(t, types.Num, sym.ReturnType)
+
+	ok = st.UpdateReturnType("nonexistent", types.Int)
+	assert.False(t, ok, "nonexistent should return false")
+}
