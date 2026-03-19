@@ -1427,3 +1427,19 @@ func TestFindSubDeclNodeNotFound(t *testing.T) {
 	subNode := infer.FindSubDeclNode(root, 99, 199)
 	assert.Nil(t, subNode, "should return nil when no matching sub found")
 }
+
+// --- ResolveSubParam ---
+
+func TestResolveSubParamArrayElement(t *testing.T) {
+	src := []byte("sub is_ref { ref($_[0]) }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+	subNode := root.Child(0)
+	require.Equal(t, "subroutine_declaration_statement", subNode.Kind())
+
+	paramName, ok := infer.ResolveSubParam(subNode, src)
+	assert.True(t, ok, "should resolve parameter")
+	assert.Equal(t, "$_[0]", paramName)
+}

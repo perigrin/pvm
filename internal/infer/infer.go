@@ -2065,3 +2065,93 @@ func FindSubDeclNode(root *parser.Node, startByte, endByte uint32) *parser.Node 
 	}
 	return nil
 }
+
+// ResolveSubParam identifies the parameter variable in a single-argument
+// subroutine declaration. It recognizes three styles:
+//   - $_[0]: body contains an array_element_expression for @_[0]
+//   - Signature: sub foo($x) { ... } — extracts first param name
+//   - Shift: my $x = shift — extracts the variable name
+//
+// Returns the parameter name and true if recognized, or ("", false) if the
+// sub doesn't match any recognized single-arg pattern.
+func ResolveSubParam(subNode *parser.Node, source []byte) (string, bool) {
+	if subNode == nil {
+		return "", false
+	}
+
+	// Find the block (body) and optional signature.
+	var bodyBlock *parser.Node
+	var sigNode *parser.Node
+	for i := 0; i < subNode.ChildCount(); i++ {
+		child := subNode.Child(i)
+		if child == nil {
+			continue
+		}
+		switch child.Kind() {
+		case "block":
+			bodyBlock = child
+		case "signature":
+			sigNode = child
+		}
+	}
+
+	// Style 2: Signature parameter — sub foo($x) { ... }
+	if sigNode != nil {
+		paramName := extractFirstSigParam(sigNode, source)
+		if paramName != "" {
+			return paramName, true
+		}
+		return "", false
+	}
+
+	if bodyBlock == nil {
+		return "", false
+	}
+
+	// Style 3: Shift — my $x = shift (first statement in body)
+	if paramName := extractShiftParam(bodyBlock, source); paramName != "" {
+		return paramName, true
+	}
+
+	// Style 1: $_[0] — check if the body references $_[0] anywhere.
+	if bodyReferencesArg0(bodyBlock, source) {
+		return "$_[0]", true
+	}
+
+	return "", false
+}
+
+// bodyReferencesArg0 checks if a block contains any reference to $_[0]
+// (array_element_expression whose text is "$_[0]").
+func bodyReferencesArg0(block *parser.Node, source []byte) bool {
+	return nodeContainsArg0(block, source)
+}
+
+// nodeContainsArg0 recursively checks if any descendant node is an
+// array_element_expression with text "$_[0]".
+func nodeContainsArg0(node *parser.Node, source []byte) bool {
+	if node == nil {
+		return false
+	}
+	if node.Kind() == "array_element_expression" {
+		if node.Text(source) == "$_[0]" {
+			return true
+		}
+	}
+	for i := 0; i < node.ChildCount(); i++ {
+		if nodeContainsArg0(node.Child(i), source) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractFirstSigParam is a stub — implemented in Task 5.
+func extractFirstSigParam(sigNode *parser.Node, source []byte) string {
+	return ""
+}
+
+// extractShiftParam is a stub — implemented in Task 6.
+func extractShiftParam(block *parser.Node, source []byte) string {
+	return ""
+}
