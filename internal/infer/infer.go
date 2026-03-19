@@ -524,11 +524,22 @@ func inferAssignmentNarrowing(
 	return rhsType
 }
 
+// compoundGuard holds the structure of a compound boolean guard expression.
+// Op is "&&" for AND conditions and "||" for OR conditions.
+// Left and Right are the sub-guards, each of which may itself be compound.
+type compoundGuard struct {
+	Op    string // "&&" or "||"
+	Left  *guardResult
+	Right *guardResult
+}
+
 // guardResult holds the result of extracting a guard pattern from a condition node.
+// When Compound is non-nil, this is a compound guard and VarName/Guard/Negated are unused.
 type guardResult struct {
-	VarName string
-	Guard   types.GuardPattern
-	Negated bool
+	VarName  string
+	Guard    types.GuardPattern
+	Negated  bool
+	Compound *compoundGuard
 }
 
 // extractGuardPattern examines a condition expression node and returns the
@@ -540,6 +551,8 @@ type guardResult struct {
 //	func1op_call_expression with keyword "defined" and scalar child → GuardDefined
 //	func1op_call_expression with keyword "ref" and scalar child → GuardRef
 //	relational_expression with "isa" operator, scalar LHS, bareword RHS → GuardIsa
+//	binary_expression with "&&" or "||" between two guards → compound guard
+//	lowprec_logical_expression with "and" or "or" between two guards → compound guard
 //	unary_expression with "!" wrapping a recognized guard → Negated guard
 //	ambiguous_function_call_expression with "not" wrapping a recognized guard → Negated guard
 func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
@@ -559,6 +572,14 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 		return extractIsaGuard(node, source)
 	}
 
+	// Pattern: guard1 && guard2 or guard1 || guard2 (high-precedence binary)
+	// Pattern: guard1 and guard2 or guard1 or guard2 (low-precedence logical)
+	// These are checked before unary_expression so that negated sub-guards
+	// inside compound conditions are handled by recursive calls to extractGuardPattern.
+	if kind == "binary_expression" || kind == "lowprec_logical_expression" {
+		return extractCompoundGuard(node, source)
+	}
+
 	// Pattern: !guard (unary negation)
 	if kind == "unary_expression" {
 		return extractNegatedGuard(node, source)
@@ -570,6 +591,76 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 	}
 
 	return nil
+}
+
+// extractCompoundGuard extracts a compound guard from a binary_expression or
+// lowprec_logical_expression node. It finds the boolean operator token (&&, ||,
+// and, or) and recursively extracts guards from the left and right sub-expressions.
+//
+// Operator normalization: "and" → "&&", "or" → "||".
+//
+// If both sides yield guards, a compound guardResult is returned.
+// If only one side yields a guard, that single guard is returned directly
+// (partial compound — the non-guard side is dropped).
+// If neither side yields a guard, nil is returned.
+func extractCompoundGuard(node *parser.Node, source []byte) *guardResult {
+	var op string
+	var leftNode *parser.Node
+	var rightNode *parser.Node
+
+	// Scan children: anonymous nodes hold the operator token;
+	// named nodes are the left and right sub-expressions.
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			// Operator token — capture only the boolean operators we recognize.
+			text := child.Text(source)
+			switch text {
+			case "&&", "||":
+				op = text
+			case "and":
+				op = "&&"
+			case "or":
+				op = "||"
+			}
+			continue
+		}
+		// Named children are sub-expressions: first is left, second is right.
+		if leftNode == nil {
+			leftNode = child
+		} else if rightNode == nil {
+			rightNode = child
+		}
+	}
+
+	// If we didn't find a recognized boolean operator, this is not a compound guard
+	// (e.g. it could be an arithmetic binary_expression like 1 + 2).
+	if op == "" {
+		return nil
+	}
+
+	leftGuard := extractGuardPattern(leftNode, source)
+	rightGuard := extractGuardPattern(rightNode, source)
+
+	// Both sides are guards: return a compound guard.
+	if leftGuard != nil && rightGuard != nil {
+		return &guardResult{
+			Compound: &compoundGuard{
+				Op:    op,
+				Left:  leftGuard,
+				Right: rightGuard,
+			},
+		}
+	}
+
+	// Only one side is a guard: return it directly (partial compound).
+	if leftGuard != nil {
+		return leftGuard
+	}
+	return rightGuard
 }
 
 // extractIsaGuard extracts a guard from a relational_expression node of the
@@ -605,6 +696,11 @@ func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 
 // extractNegatedGuard unwraps a unary_expression with "!" to find the inner
 // guard pattern. CST: unary_expression -> "!" (anon) + inner expression (named).
+//
+// For simple guards, the Negated flag is toggled.
+// For compound guards, De Morgan's law is applied:
+//   - !(A && B) becomes (!A || !B): flip Op from && to ||, negate both sub-guards
+//   - !(A || B) becomes (!A && !B): flip Op from || to &&, negate both sub-guards
 func extractNegatedGuard(node *parser.Node, source []byte) *guardResult {
 	hasNot := false
 	var innerNode *parser.Node
@@ -630,15 +726,40 @@ func extractNegatedGuard(node *parser.Node, source []byte) *guardResult {
 	}
 
 	result := extractGuardPattern(innerNode, source)
-	if result != nil {
-		result.Negated = !result.Negated
+	if result == nil {
+		return nil
 	}
+
+	// Apply De Morgan's law for compound guards, or toggle Negated for simple guards.
+	if result.Compound != nil {
+		flippedOp := "||"
+		if result.Compound.Op == "||" {
+			flippedOp = "&&"
+		}
+		// Negate each sub-guard (shallow copy and toggle Negated).
+		negatedLeft := *result.Compound.Left
+		negatedLeft.Negated = !negatedLeft.Negated
+		negatedRight := *result.Compound.Right
+		negatedRight.Negated = !negatedRight.Negated
+		return &guardResult{
+			Compound: &compoundGuard{
+				Op:    flippedOp,
+				Left:  &negatedLeft,
+				Right: &negatedRight,
+			},
+		}
+	}
+
+	result.Negated = !result.Negated
 	return result
 }
 
 // extractNotGuard unwraps an ambiguous_function_call_expression with
 // function "not" to find the inner guard pattern.
 // CST: ambiguous_function_call_expression -> function:"not" + inner expression (named).
+//
+// For simple guards, the Negated flag is toggled.
+// For compound guards, De Morgan's law is applied (same as extractNegatedGuard).
 func extractNotGuard(node *parser.Node, source []byte) *guardResult {
 	hasNot := false
 	var innerNode *parser.Node
@@ -662,9 +783,30 @@ func extractNotGuard(node *parser.Node, source []byte) *guardResult {
 	}
 
 	result := extractGuardPattern(innerNode, source)
-	if result != nil {
-		result.Negated = !result.Negated
+	if result == nil {
+		return nil
 	}
+
+	// Apply De Morgan's law for compound guards, or toggle Negated for simple guards.
+	if result.Compound != nil {
+		flippedOp := "||"
+		if result.Compound.Op == "||" {
+			flippedOp = "&&"
+		}
+		negatedLeft := *result.Compound.Left
+		negatedLeft.Negated = !negatedLeft.Negated
+		negatedRight := *result.Compound.Right
+		negatedRight.Negated = !negatedRight.Negated
+		return &guardResult{
+			Compound: &compoundGuard{
+				Op:    flippedOp,
+				Left:  &negatedLeft,
+				Right: &negatedRight,
+			},
+		}
+	}
+
+	result.Negated = !result.Negated
 	return result
 }
 

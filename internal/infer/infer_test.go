@@ -869,3 +869,92 @@ func TestFlowNarrowingCStyleForInitializer(t *testing.T) {
 	assert.True(t, ok, "for-body $i should be annotated")
 	assert.Equal(t, types.Int, typ, "for-body $i should be Int (narrowed by assignment)")
 }
+
+// --- Compound guard extraction tests ---
+// These tests verify that compound conditions (&&, ||, and, or) are handled
+// without crashing and that partial compound guards (where only one operand is
+// a recognized guard) fall back to that single guard's narrowing behavior.
+// Full compound narrowing (applying both sub-guards simultaneously) requires
+// walkBlockWithGuard changes that are part of a subsequent task.
+
+func TestCompoundGuardAmpAmpNoCrash(t *testing.T) {
+	// if (defined($x) && ref($x)) — full compound: both sides are guards.
+	// extractGuardPattern returns a compound guardResult (VarName="").
+	// walkBlockWithGuard does not narrow compound guards yet (Task 4);
+	// $x retains its sigil type Scalar inside the body.
+	src := []byte("my $x = undef;\nif (defined($x) && ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=defined($x) condition, [2]=ref($x) condition, [3]=if-body
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	// No crash, and $x in body is annotated (type is Scalar — compound narrowing not yet applied).
+	ifBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "if-body $x should be annotated even with compound guard")
+	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar when compound narrowing is not yet applied")
+}
+
+func TestCompoundGuardAndKeywordNoCrash(t *testing.T) {
+	// if (defined($x) and ref($x)) — lowprec_logical_expression with "and".
+	// Same behavior as && variant: full compound, no narrowing applied yet.
+	src := []byte("my $x = undef;\nif (defined($x) and ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "if-body $x should be annotated with 'and' compound guard")
+	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar when compound 'and' narrowing is not yet applied")
+}
+
+func TestCompoundGuardPartialOneNonGuardSide(t *testing.T) {
+	// if (defined($x) && $y > 0) — partial compound: the right side ($y > 0)
+	// is not a recognized guard. extractCompoundGuard returns the defined($x)
+	// guard directly (the non-guard side is dropped). walkBlockWithGuard applies
+	// the defined guard, narrowing $x to Scalar &^ Undef.
+	src := []byte("my $x = undef;\nmy $y = 1;\nif (defined($x) && $y > 0) {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=defined($x) condition, [2]=if-body $x
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	// The defined guard was extracted as the surviving single guard.
+	ifBodyTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Scalar&^types.Undef, ifBodyTyp, "if-body $x should be Scalar &^ Undef from partial compound defined guard")
+}
+
+func TestCompoundGuardNegatedAmpAmpDeMorganNoCrash(t *testing.T) {
+	// if (!(defined($x) && ref($x))) — De Morgan applied:
+	// becomes compound {Op:"||", Left:!defined($x), Right:!ref($x)}.
+	// Still a compound guard, so walkBlockWithGuard does not narrow yet.
+	// $x retains Scalar type inside the body.
+	src := []byte("my $x = undef;\nif (!(defined($x) && ref($x))) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "if-body $x should be annotated even with negated compound guard")
+	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar when negated compound narrowing is not yet applied")
+}
+
+func TestCompoundGuardArithmeticBinaryNotExtracted(t *testing.T) {
+	// if (1 + 2) — binary_expression with non-boolean operator.
+	// extractCompoundGuard returns nil (op is "+" not "&&"/"||").
+	// No guard narrowing is attempted; $x retains its declared type.
+	src := []byte("my $x = 42;\nif (1 + 2) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=if-body
+	require.True(t, len(offsets) >= 2, "should find at least 2 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[1]]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Int, ifBodyTyp, "if-body $x should be Int (arithmetic binary_expression is not a guard)")
+}
