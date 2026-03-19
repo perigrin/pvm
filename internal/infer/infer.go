@@ -130,7 +130,7 @@ func inferNodeType(
 
 	case "function_call_expression",
 		"ambiguous_function_call_expression":
-		return inferFunctionCallType(node, source, annotations, diags)
+		return inferFunctionCallType(node, source, st, annotations, diags)
 
 	case "func1op_call_expression":
 		return inferFunc1opCallType(node, source, annotations, diags)
@@ -231,6 +231,7 @@ func findOperatorText(node *parser.Node, source []byte) string {
 func inferFunctionCallType(
 	node *parser.Node,
 	source []byte,
+	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
 ) types.Type {
@@ -247,8 +248,15 @@ func inferFunctionCallType(
 		return types.Unknown
 	}
 
+	// Check builtins first (authoritative — prevents user subs from
+	// shadowing builtin return types).
 	sig, ok := types.GetBuiltin(name)
 	if !ok {
+		// Not a builtin — check symbol table for user-defined sub with
+		// an inferred return type.
+		if sym, found := st.Lookup(name); found && sym.ReturnType != types.Unknown {
+			return sym.ReturnType
+		}
 		return types.Unknown
 	}
 

@@ -1225,3 +1225,44 @@ func TestReturnTypeExplicitPlusImplicit(t *testing.T) {
 	require.True(t, ok, "sub mixed must be in symbol table")
 	assert.Equal(t, types.Num, sym.ReturnType, "sub mixed with explicit Int return and implicit Num return should have return type Num")
 }
+
+// --- Call site return type lookup tests ---
+
+func TestCallSiteUsesReturnType(t *testing.T) {
+	// sub foo { return 42; } my $x = foo(); — $x should be Int
+	src := []byte("sub foo { return 42; }\nmy $x = foo();\n$x;\n")
+	annotations, _ := analyzeSource(t, src)
+	xOffsets := findAllVarOffsets(src, "$x")
+	refTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok, "$x reference should be annotated")
+	assert.Equal(t, types.Int, refTyp, "$x should be Int from foo()'s return type")
+}
+
+func TestCallSiteImplicitReturn(t *testing.T) {
+	// sub bar { 3.14; } my $y = bar(); — $y should be Num
+	src := []byte("sub bar { 3.14; }\nmy $y = bar();\n$y;\n")
+	annotations, _ := analyzeSource(t, src)
+	yOffsets := findAllVarOffsets(src, "$y")
+	refTyp, ok := annotations[yOffsets[len(yOffsets)-1]]
+	assert.True(t, ok)
+	assert.Equal(t, types.Num, refTyp, "$y should be Num from bar()'s implicit return")
+}
+
+func TestCallSiteForwardRefUnknown(t *testing.T) {
+	// my $x = foo(); sub foo { return 42; } — forward ref, $x stays Scalar
+	src := []byte("my $x = foo();\nsub foo { return 42; }\n$x;\n")
+	annotations, _ := analyzeSource(t, src)
+	xOffsets := findAllVarOffsets(src, "$x")
+	refTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok)
+	assert.Equal(t, types.Scalar, refTyp, "$x should be Scalar (forward ref, no return type yet)")
+}
+
+func TestCallSiteBuiltinPriority(t *testing.T) {
+	// Builtins should not be overridden by user subs
+	src := []byte("my @a;\nmy $x = push(@a, 1);\n")
+	annotations, _ := analyzeSource(t, src)
+	pushTyp, ok := findNodeType(annotations, src, "push(@a, 1)")
+	assert.True(t, ok)
+	assert.Equal(t, types.Int, pushTyp, "builtin push should return Int")
+}
