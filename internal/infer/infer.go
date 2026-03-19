@@ -2240,3 +2240,80 @@ func matchShiftAssignment(stmt *parser.Node, source []byte) string {
 	}
 	return ""
 }
+
+// ExtractSubReturnExpr finds the expression that a subroutine body returns.
+// It handles two cases:
+//   - Explicit return: a single return_expression node in the body
+//   - Implicit return: the last expression statement in the body
+//
+// Returns nil if the body has multiple return statements (too complex),
+// or if the body is empty / has no expression.
+func ExtractSubReturnExpr(block *parser.Node, source []byte) *parser.Node {
+	if block == nil {
+		return nil
+	}
+
+	var returnExpr *parser.Node
+	returnCount := 0
+	countReturns(block, &returnCount, &returnExpr)
+
+	if returnCount > 1 {
+		return nil
+	}
+
+	if returnCount == 1 && returnExpr != nil {
+		for i := 0; i < returnExpr.ChildCount(); i++ {
+			child := returnExpr.Child(i)
+			if child != nil && child.IsNamed() {
+				return child
+			}
+		}
+		return nil
+	}
+
+	var lastExpr *parser.Node
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if child.Kind() == "expression_statement" {
+			lastExpr = child
+		}
+	}
+	if lastExpr == nil {
+		return nil
+	}
+
+	for i := 0; i < lastExpr.ChildCount(); i++ {
+		child := lastExpr.Child(i)
+		if child != nil && child.IsNamed() {
+			return child
+		}
+	}
+	return nil
+}
+
+// countReturns recursively counts return_expression nodes in a subtree.
+// It stops descending into nested subroutine_declaration_statement nodes
+// to avoid counting returns from inner subs.
+func countReturns(node *parser.Node, count *int, found **parser.Node) {
+	if node == nil {
+		return
+	}
+	if node.Kind() == "return_expression" {
+		*count++
+		*found = node
+		return
+	}
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "subroutine_declaration_statement" {
+			continue
+		}
+		countReturns(child, count, found)
+	}
+}

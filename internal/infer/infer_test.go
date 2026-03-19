@@ -1483,3 +1483,68 @@ func TestResolveSubParamShift(t *testing.T) {
 	assert.True(t, ok, "should resolve shift parameter")
 	assert.Equal(t, "$val", paramName)
 }
+
+func TestExtractSubReturnExprExplicit(t *testing.T) {
+	src := []byte("sub is_ref { return ref($_[0]) }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+	subNode := root.Child(0)
+
+	var block *parser.Node
+	for i := 0; i < subNode.ChildCount(); i++ {
+		child := subNode.Child(i)
+		if child != nil && child.Kind() == "block" {
+			block = child
+		}
+	}
+	require.NotNil(t, block)
+
+	expr := infer.ExtractSubReturnExpr(block, src)
+	require.NotNil(t, expr, "should find return expression")
+	assert.Contains(t, expr.Text(src), "ref")
+}
+
+func TestExtractSubReturnExprImplicit(t *testing.T) {
+	src := []byte("sub is_ref { ref($_[0]) }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+	subNode := root.Child(0)
+
+	var block *parser.Node
+	for i := 0; i < subNode.ChildCount(); i++ {
+		child := subNode.Child(i)
+		if child != nil && child.Kind() == "block" {
+			block = child
+		}
+	}
+	require.NotNil(t, block)
+
+	expr := infer.ExtractSubReturnExpr(block, src)
+	require.NotNil(t, expr, "should find implicit return expression")
+	assert.Contains(t, expr.Text(src), "ref")
+}
+
+func TestExtractSubReturnExprMultipleReturns(t *testing.T) {
+	src := []byte("sub check { if ($x) { return 1 } return 0 }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+	subNode := root.Child(0)
+
+	var block *parser.Node
+	for i := 0; i < subNode.ChildCount(); i++ {
+		child := subNode.Child(i)
+		if child != nil && child.Kind() == "block" {
+			block = child
+		}
+	}
+	require.NotNil(t, block)
+
+	expr := infer.ExtractSubReturnExpr(block, src)
+	assert.Nil(t, expr, "multiple returns should be rejected")
+}
