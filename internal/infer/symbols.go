@@ -24,6 +24,7 @@ type Symbol struct {
 	Name       string
 	Type       types.Type
 	ReturnType types.Type // Inferred return type (subroutines only, zero = unknown)
+	ClassType  string     // Class name for object variables (e.g. "Foo" for Foo->new())
 	Kind       SymbolKind
 	StartByte  uint32
 	EndByte    uint32
@@ -117,6 +118,21 @@ func (st *SymbolTable) UpdateReturnType(name string, typ types.Type) bool {
 	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
 			sym.ReturnType = typ
+			s.symbols[name] = sym
+			return true
+		}
+	}
+	return false
+}
+
+// UpdateClassType walks the scope chain from the current scope to root,
+// looking for the first scope that contains name. If found, it updates the
+// symbol's ClassType to className and returns true. Used to store the class
+// name inferred from constructor calls like Foo->new().
+func (st *SymbolTable) UpdateClassType(name string, className string) bool {
+	for s := st.current; s != nil; s = s.parent {
+		if sym, ok := s.symbols[name]; ok {
+			sym.ClassType = className
 			s.symbols[name] = sym
 			return true
 		}
