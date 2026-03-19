@@ -1430,6 +1430,32 @@ func TestFindSubDeclNodeNotFound(t *testing.T) {
 
 // --- ResolveSubParam ---
 
+func TestResolveSubParamSignature(t *testing.T) {
+	src := []byte("sub is_defined ($val) { defined($val) }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+	subNode := root.Child(0)
+	require.Equal(t, "subroutine_declaration_statement", subNode.Kind())
+
+	paramName, ok := infer.ResolveSubParam(subNode, src)
+	assert.True(t, ok, "should resolve signature parameter")
+	assert.Equal(t, "$val", paramName)
+}
+
+func TestResolveSubParamMultiArgRejected(t *testing.T) {
+	src := []byte("sub check ($x, $y) { defined($x) }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+	subNode := root.Child(0)
+
+	_, ok := infer.ResolveSubParam(subNode, src)
+	assert.False(t, ok, "multi-arg sub should not be recognized as guard")
+}
+
 func TestResolveSubParamArrayElement(t *testing.T) {
 	src := []byte("sub is_ref { ref($_[0]) }\n")
 	p := parser.New()

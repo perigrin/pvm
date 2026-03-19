@@ -2146,8 +2146,32 @@ func nodeContainsArg0(node *parser.Node, source []byte) bool {
 	return false
 }
 
-// extractFirstSigParam is a stub — implemented in Task 5.
+// extractFirstSigParam finds the first scalar parameter in a signature node.
+// Returns the parameter name (e.g. "$val") or "" if not found or if signature
+// has more than one parameter (multi-arg subs are not supported).
+//
+// CST: signature → mandatory_parameter → scalar
 func extractFirstSigParam(sigNode *parser.Node, source []byte) string {
+	var params []string
+	for i := 0; i < sigNode.ChildCount(); i++ {
+		child := sigNode.Child(i)
+		if child == nil {
+			continue
+		}
+		// Signature params are wrapped in mandatory_parameter nodes.
+		if child.Kind() == "mandatory_parameter" {
+			for j := 0; j < child.ChildCount(); j++ {
+				inner := child.Child(j)
+				if inner != nil && inner.Kind() == "scalar" {
+					params = append(params, inner.Text(source))
+				}
+			}
+		}
+	}
+	// Only single-arg subs are supported.
+	if len(params) == 1 {
+		return params[0]
+	}
 	return ""
 }
 
