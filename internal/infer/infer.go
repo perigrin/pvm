@@ -1850,6 +1850,31 @@ func blockAlwaysExits(block *parser.Node, source []byte) bool {
 	return false
 }
 
+// remapGuardVar replaces occurrences of paramName in the guard result's
+// VarName with argName. For compound guards, it recursively remaps both
+// sides. Returns nil if the guard is nil.
+func remapGuardVar(guard *guardResult, paramName, argName string) *guardResult {
+	if guard == nil {
+		return nil
+	}
+
+	result := *guard // shallow copy
+
+	if result.Compound != nil {
+		result.Compound = &compoundGuard{
+			Op:    guard.Compound.Op,
+			Left:  remapGuardVar(guard.Compound.Left, paramName, argName),
+			Right: remapGuardVar(guard.Compound.Right, paramName, argName),
+		}
+		return &result
+	}
+
+	if result.VarName == paramName {
+		result.VarName = argName
+	}
+	return &result
+}
+
 // flattenGuards converts a guardResult (possibly compound) into a flat list
 // of leaf guards with the Negated flag resolved per compound semantics.
 //
