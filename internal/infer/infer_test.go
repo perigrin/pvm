@@ -1469,3 +1469,17 @@ func TestResolveSubParamArrayElement(t *testing.T) {
 	assert.True(t, ok, "should resolve parameter")
 	assert.Equal(t, "$_[0]", paramName)
 }
+
+func TestResolveSubParamShift(t *testing.T) {
+	src := []byte("sub is_ref { my $val = shift; ref($val) }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+	subNode := root.Child(0)
+	require.Equal(t, "subroutine_declaration_statement", subNode.Kind())
+
+	paramName, ok := infer.ResolveSubParam(subNode, src)
+	assert.True(t, ok, "should resolve shift parameter")
+	assert.Equal(t, "$val", paramName)
+}

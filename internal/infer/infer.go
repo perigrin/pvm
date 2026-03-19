@@ -2175,7 +2175,68 @@ func extractFirstSigParam(sigNode *parser.Node, source []byte) string {
 	return ""
 }
 
-// extractShiftParam is a stub — implemented in Task 6.
+// extractShiftParam checks if the first statement in a block is
+// "my $var = shift" or "my $var = shift @_", returning $var or "".
 func extractShiftParam(block *parser.Node, source []byte) string {
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if child.Kind() != "expression_statement" {
+			break // Only check the first named child.
+		}
+		return matchShiftAssignment(child, source)
+	}
+	return ""
+}
+
+// matchShiftAssignment checks if a statement node is "my $var = shift"
+// and returns the variable name, or "" if it doesn't match.
+//
+// CST: expression_statement → assignment_expression →
+//
+//	variable_declaration (my + scalar) + func1op_call_expression (shift)
+func matchShiftAssignment(stmt *parser.Node, source []byte) string {
+	// Unwrap expression_statement to get the assignment.
+	var assignNode *parser.Node
+	for i := 0; i < stmt.ChildCount(); i++ {
+		child := stmt.Child(i)
+		if child != nil && child.Kind() == "assignment_expression" {
+			assignNode = child
+			break
+		}
+	}
+	if assignNode == nil {
+		return ""
+	}
+
+	var varName string
+	var rhsIsShift bool
+	for i := 0; i < assignNode.ChildCount(); i++ {
+		child := assignNode.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "variable_declaration" {
+			for j := 0; j < child.ChildCount(); j++ {
+				inner := child.Child(j)
+				if inner != nil && inner.Kind() == "scalar" {
+					varName = inner.Text(source)
+				}
+			}
+		}
+		// Bare "shift" parses as func1op_call_expression in this grammar.
+		if child.Kind() == "func1op_call_expression" {
+			text := child.Text(source)
+			if text == "shift" || strings.HasPrefix(text, "shift ") || strings.HasPrefix(text, "shift(@_)") {
+				rhsIsShift = true
+			}
+		}
+	}
+
+	if varName != "" && rhsIsShift {
+		return varName
+	}
 	return ""
 }
