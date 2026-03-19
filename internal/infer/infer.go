@@ -868,6 +868,7 @@ func extractCompoundGuard(node *parser.Node, source []byte, st *SymbolTable) *gu
 func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 	var varNode *parser.Node
 	var classNode *parser.Node
+	var varName string
 	hasIsa := false
 
 	for i := 0; i < node.ChildCount(); i++ {
@@ -881,10 +882,20 @@ func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 			}
 			continue
 		}
-		if child.Kind() == "scalar" && varNode == nil {
-			varNode = child
-		} else if child.Kind() == "bareword" && classNode == nil {
-			classNode = child
+		switch child.Kind() {
+		case "scalar":
+			if varNode == nil {
+				varNode = child
+			}
+		case "array_element_expression":
+			if varNode == nil {
+				varNode = child
+				varName = child.Text(source)
+			}
+		case "bareword":
+			if classNode == nil {
+				classNode = child
+			}
 		}
 	}
 
@@ -892,7 +903,9 @@ func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 		return nil
 	}
 
-	varName := sigildName("$", varNode, source)
+	if varName == "" {
+		varName = sigildName("$", varNode, source)
+	}
 	className := ""
 	if classNode != nil {
 		className = classNode.Text(source)
@@ -1074,6 +1087,7 @@ func extractFunctionCallGuard(node *parser.Node, source []byte, st *SymbolTable)
 func extractFunc1opGuard(node *parser.Node, source []byte) *guardResult {
 	var funcName string
 	var varNode *parser.Node
+	var varName string
 
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
@@ -1089,6 +1103,10 @@ func extractFunc1opGuard(node *parser.Node, source []byte) *guardResult {
 		}
 		if child.Kind() == "scalar" {
 			varNode = child
+		} else if child.Kind() == "array_element_expression" && varNode == nil {
+			// Support $_[0] as a guard argument.
+			varNode = child
+			varName = child.Text(source)
 		}
 	}
 
@@ -1096,7 +1114,10 @@ func extractFunc1opGuard(node *parser.Node, source []byte) *guardResult {
 		return nil
 	}
 
-	varName := sigildName("$", varNode, source)
+	// Use extracted text for array_element_expression, sigildName for scalar.
+	if varName == "" {
+		varName = sigildName("$", varNode, source)
+	}
 
 	switch funcName {
 	case "defined":
