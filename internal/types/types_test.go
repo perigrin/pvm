@@ -48,9 +48,13 @@ func TestTypeString(t *testing.T) {
 	}
 }
 
-func TestTypeStringOutOfRange(t *testing.T) {
-	// Out-of-range Type values get a fallback string
-	assert.Equal(t, "Unknown", types.Type(999).String())
+func TestTypeStringArbitraryUnion(t *testing.T) {
+	// Arbitrary union types that have no named mask decompose to "A|B" notation.
+	// Type(999) = 0b1111100111 = Undef|Bool|Int|DualVar|Regex|ScalarRef|ArrayRef|HashRef.
+	// The zero value with no bits set is Unknown.
+	assert.Equal(t, "Unknown", types.Type(0).String())
+	// A union of two named leaf types that has no named mask is displayed as A|B.
+	assert.Equal(t, "Undef|Bool", types.Type(types.Undef|types.Bool).String())
 }
 
 func TestIsSubtypeDirect(t *testing.T) {
