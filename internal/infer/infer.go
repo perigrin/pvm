@@ -855,6 +855,11 @@ func extractFunc1opGuard(node *parser.Node, source []byte) *guardResult {
 //
 // For "if", the if-body gets the positive guard narrowing and the else-body
 // gets the negated guard. For "unless", the narrowing is flipped.
+//
+// After all branches complete, the types of guarded variables are updated to
+// the union (bitwise OR) of each branch's end-of-block type. Early-exit
+// branches do not contribute to the join. When there is no else branch, the
+// implicit else contributes the pre-if type.
 func walkConditionalStatement(
 	node *parser.Node,
 	source []byte,
@@ -866,9 +871,9 @@ func walkConditionalStatement(
 	var conditionNode *parser.Node
 	var ifBlock *parser.Node
 	var elseNode *parser.Node
-	hasNoElsif := true
+	var elsifNodes []*parser.Node
 
-	// Identify children: keyword, condition, block, and optional else.
+	// Identify children: keyword, condition, block, and optional else/elsif.
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		if child == nil {
@@ -889,8 +894,7 @@ func walkConditionalStatement(
 		case "else":
 			elseNode = child
 		case "elsif":
-			hasNoElsif = false
-			walkElsifNode(child, source, st, annotations, diags)
+			elsifNodes = append(elsifNodes, child)
 		default:
 			// The condition is the only named non-block, non-else child.
 			// Enclosing parentheses are anonymous nodes in the CST, so the
@@ -916,9 +920,21 @@ func walkConditionalStatement(
 	// so we do not flip ifBodyNegate here for guard.Negated.
 	ifBodyNegate := keyword == "unless"
 
+	// Collect the pre-if types of all guarded variables for the implicit-else
+	// contribution and for the final join computation.
+	preIfTypes := collectPreIfTypes(guard, st)
+
+	hasNoElsif := len(elsifNodes) == 0
+	ifBodyExits := ifBlock != nil && blockAlwaysExits(ifBlock, source)
+
 	// Walk the if/unless body with appropriate narrowing.
+	// Capture branch-end types for the join, unless the branch always exits.
+	var ifBranchTypes map[string]types.Type
 	if ifBlock != nil {
-		walkBlockWithGuard(ifBlock, source, st, annotations, diags, flattenGuards(guard, ifBodyNegate))
+		if !ifBodyExits {
+			ifBranchTypes = make(map[string]types.Type)
+		}
+		walkBlockWithGuard(ifBlock, source, st, annotations, diags, flattenGuards(guard, ifBodyNegate), ifBranchTypes)
 	}
 
 	// Early-exit narrowing: if the if-body always exits and there is no
@@ -933,8 +949,7 @@ func walkConditionalStatement(
 	//
 	// Early-exit narrowing only works for simple (leaf) guards — compound
 	// guards have VarName == "" which causes st.Lookup to return found=false.
-	if ifBlock != nil && guard != nil && guard.VarName != "" && elseNode == nil && hasNoElsif &&
-		blockAlwaysExits(ifBlock, source) {
+	if ifBodyExits && guard != nil && guard.VarName != "" && elseNode == nil && hasNoElsif {
 		// The continuation gets the else-branch guard: flattenGuards(guard, !ifBodyNegate).
 		// For a simple guard, this is one leaf with Negated = guard.Negated XOR !ifBodyNegate.
 		elseGuards := flattenGuards(guard, !ifBodyNegate)
@@ -954,9 +969,19 @@ func walkConditionalStatement(
 				st.UpdateType(eg.VarName, elseType)
 			}
 		}
+		// Early-exit handles post-if narrowing directly; skip branch merging.
+		return types.Unknown
+	}
+
+	// Walk elsif branches, collecting their join types.
+	var elsifJoinTypes map[string]types.Type
+	for _, elsifNode := range elsifNodes {
+		elsifTypes := walkElsifNode(elsifNode, source, st, annotations, diags)
+		elsifJoinTypes = mergeBranchTypes(elsifJoinTypes, elsifTypes)
 	}
 
 	// Walk the else body with the opposite narrowing.
+	var elseBranchTypes map[string]types.Type
 	if elseNode != nil {
 		var elseBlock *parser.Node
 		for i := 0; i < elseNode.ChildCount(); i++ {
@@ -967,27 +992,151 @@ func walkConditionalStatement(
 			}
 		}
 		if elseBlock != nil {
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !ifBodyNegate))
+			elseBranchTypes = make(map[string]types.Type)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !ifBodyNegate), elseBranchTypes)
 		}
 	}
 
+	// Compute the join type for each guarded variable and apply it.
+	// The join is the OR of:
+	//   - if-branch end type (if not early-exit)
+	//   - elsif chain join types (if any)
+	//   - else-branch end type (if present), or pre-if type (implicit else)
+	applyBranchJoin(guard, preIfTypes, ifBranchTypes, elsifJoinTypes, elseBranchTypes, elseNode, st)
+
 	return types.Unknown
+}
+
+// collectPreIfTypes returns the current types of all variables referenced by
+// the guard (leaf guards only). This records the pre-if types for the implicit
+// else and for the join computation.
+func collectPreIfTypes(guard *guardResult, st *SymbolTable) map[string]types.Type {
+	if guard == nil {
+		return nil
+	}
+	result := make(map[string]types.Type)
+	collectLeafVarTypes(guard, st, result)
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// collectLeafVarTypes recursively walks a guardResult tree and collects the
+// current symbol-table type for each leaf variable referenced.
+func collectLeafVarTypes(guard *guardResult, st *SymbolTable, out map[string]types.Type) {
+	if guard == nil {
+		return
+	}
+	if guard.Compound != nil {
+		collectLeafVarTypes(guard.Compound.Left, st, out)
+		collectLeafVarTypes(guard.Compound.Right, st, out)
+		return
+	}
+	if guard.VarName != "" {
+		if _, already := out[guard.VarName]; !already {
+			if sym, found := st.Lookup(guard.VarName); found {
+				out[guard.VarName] = sym.Type
+			}
+		}
+	}
+}
+
+// mergeBranchTypes ORs the types from src into dst, creating dst if nil.
+// Variables present only in one map are taken as-is.
+func mergeBranchTypes(dst, src map[string]types.Type) map[string]types.Type {
+	if src == nil {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string]types.Type)
+	}
+	for name, typ := range src {
+		if existing, ok := dst[name]; ok {
+			dst[name] = existing | typ
+		} else {
+			dst[name] = typ
+		}
+	}
+	return dst
+}
+
+// applyBranchJoin computes the post-if join type for each guarded variable and
+// applies it to the outer scope via UpdateType.
+//
+// The join is the OR of all non-early-exit branch-end types. When there is no
+// else branch, the implicit else contributes the pre-if type.
+func applyBranchJoin(
+	guard *guardResult,
+	preIfTypes map[string]types.Type,
+	ifBranchTypes map[string]types.Type,
+	elsifJoinTypes map[string]types.Type,
+	elseBranchTypes map[string]types.Type,
+	elseNode *parser.Node,
+	st *SymbolTable,
+) {
+	if preIfTypes == nil {
+		return
+	}
+
+	for name, preTyp := range preIfTypes {
+		// Start with the if-branch contribution.
+		var joinType types.Type
+		hasContribution := false
+
+		if ifBranchTypes != nil {
+			if t, ok := ifBranchTypes[name]; ok {
+				joinType |= t
+				hasContribution = true
+			}
+		}
+
+		// Add elsif contributions.
+		if elsifJoinTypes != nil {
+			if t, ok := elsifJoinTypes[name]; ok {
+				joinType |= t
+				hasContribution = true
+			}
+		}
+
+		// Add else contribution or implicit-else pre-if type.
+		if elseNode != nil {
+			if elseBranchTypes != nil {
+				if t, ok := elseBranchTypes[name]; ok {
+					joinType |= t
+					hasContribution = true
+				}
+			}
+		} else {
+			// No else: implicit else contributes pre-if type.
+			joinType |= preTyp
+			hasContribution = true
+		}
+
+		if hasContribution && joinType != preTyp {
+			st.UpdateType(name, joinType)
+		}
+	}
 }
 
 // walkElsifNode handles a single elsif node with guard-based flow narrowing.
 // It mirrors walkConditionalStatement: walk condition, extract guard, walk
 // block with guard, then handle the trailing else or elsif recursively.
+//
+// It returns the union of branch-end types for all guarded variables across
+// this elsif and any trailing elsif/else blocks, for use by the caller's
+// join computation.
 func walkElsifNode(
 	node *parser.Node,
 	source []byte,
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
-) {
+) map[string]types.Type {
 	var conditionNode *parser.Node
 	var block *parser.Node
 	var elseNode *parser.Node
-	var elsifNode *parser.Node
+	var trailingElsif *parser.Node
 
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
@@ -1005,7 +1154,7 @@ func walkElsifNode(
 		case "else":
 			elseNode = child
 		case "elsif":
-			elsifNode = child
+			trailingElsif = child
 		default:
 			if conditionNode == nil {
 				conditionNode = child
@@ -1025,10 +1174,18 @@ func walkElsifNode(
 	// via XOR with each leaf's Negated flag, so we do not flip here.
 	elsifBodyNegate := false
 
-	// Walk the elsif body with the guard.
+	// Walk the elsif body with the guard, capturing branch-end types.
+	var elsifBranchTypes map[string]types.Type
+	blockExits := block != nil && blockAlwaysExits(block, source)
 	if block != nil {
-		walkBlockWithGuard(block, source, st, annotations, diags, flattenGuards(guard, elsifBodyNegate))
+		if !blockExits {
+			elsifBranchTypes = make(map[string]types.Type)
+		}
+		walkBlockWithGuard(block, source, st, annotations, diags, flattenGuards(guard, elsifBodyNegate), elsifBranchTypes)
 	}
+
+	// Accumulate join types starting from this elsif's branch.
+	joinTypes := elsifBranchTypes
 
 	// Handle trailing else or elsif.
 	if elseNode != nil {
@@ -1041,13 +1198,18 @@ func walkElsifNode(
 			}
 		}
 		if elseBlock != nil {
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !elsifBodyNegate))
+			elseBranchTypes := make(map[string]types.Type)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !elsifBodyNegate), elseBranchTypes)
+			joinTypes = mergeBranchTypes(joinTypes, elseBranchTypes)
 		}
 	}
 
-	if elsifNode != nil {
-		walkElsifNode(elsifNode, source, st, annotations, diags)
+	if trailingElsif != nil {
+		trailingTypes := walkElsifNode(trailingElsif, source, st, annotations, diags)
+		joinTypes = mergeBranchTypes(joinTypes, trailingTypes)
 	}
+
+	return joinTypes
 }
 
 // walkLoopStatement handles while statements with guard-based flow narrowing.
@@ -1086,7 +1248,7 @@ func walkLoopStatement(
 	guard := extractGuardPattern(conditionNode, source)
 
 	if bodyBlock != nil {
-		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, flattenGuards(guard, false))
+		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, flattenGuards(guard, false), nil)
 	}
 
 	return types.Unknown
@@ -1289,6 +1451,10 @@ func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 // If a variable referenced by a guard was never declared, that guard is
 // silently skipped (no phantom shadow entries in the scope).
 //
+// If branchTypes is non-nil, the type of each guarded variable is captured
+// into branchTypes just before the guard scope exits. Callers use this to
+// compute the join type at the if/elsif/else merge point.
+//
 // Note: inner "my" declarations inside the block were processed by pass 1
 // (CollectDeclarations) in block scopes that no longer exist by pass 2.
 // UpdateType calls for those inner variables will be no-ops. This is a known
@@ -1301,6 +1467,7 @@ func walkBlockWithGuard(
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
 	guards []*guardResult,
+	branchTypes map[string]types.Type,
 ) {
 	// Build accumulated narrowed types by applying guards sequentially.
 	// working tracks the current type for each variable as guards are applied,
@@ -1340,9 +1507,10 @@ func walkBlockWithGuard(
 		}
 	}
 
+	scopeEntered := false
 	if len(shadows) > 0 {
 		st.EnterScope("guard")
-		defer st.ExitScope()
+		scopeEntered = true
 		for name, typ := range shadows {
 			st.Define(Symbol{
 				Name: name,
@@ -1354,6 +1522,20 @@ func walkBlockWithGuard(
 
 	for i := 0; i < block.ChildCount(); i++ {
 		walkNode(block.Child(i), source, st, annotations, diags)
+	}
+
+	// Capture branch-end types of guarded variables before the scope exits,
+	// so the caller can compute the join type at the merge point.
+	if branchTypes != nil && scopeEntered {
+		for name := range shadows {
+			if sym, found := st.Lookup(name); found {
+				branchTypes[name] = sym.Type
+			}
+		}
+	}
+
+	if scopeEntered {
+		st.ExitScope()
 	}
 }
 

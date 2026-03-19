@@ -1006,3 +1006,91 @@ func TestCompoundGuardArithmeticBinaryNotExtracted(t *testing.T) {
 	assert.True(t, ok, "if-body $x should be annotated")
 	assert.Equal(t, types.Int, ifBodyTyp, "if-body $x should be Int (arithmetic binary_expression is not a guard)")
 }
+
+// --- Branch merging at join points ---
+// After an if/elsif/else chain, the post-if type is the union (OR) of all
+// branch types for guarded variables. Early-exit branches are excluded from
+// the join. When there is no else branch, the implicit else contributes the
+// pre-if type.
+
+func TestBranchMergingIfElseJoinType(t *testing.T) {
+	// After if (ref($x)) {...} else {...}, $x should be the union of branch types.
+	// if-body: Ref; else-body: Scalar &^ Ref; union = Ref | (Scalar &^ Ref) = Scalar.
+	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\nmy $w = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=condition, [2]=if-body, [3]=else-body, [4]=post-if
+	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
+
+	postTyp, ok := annotations[offsets[len(offsets)-1]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	// Ref | (Scalar &^ Ref) = Scalar
+	assert.Equal(t, types.Scalar, postTyp, "post-if/else $x should be Scalar (union of Ref and non-Ref branches)")
+}
+
+func TestBranchMergingIfNoElse(t *testing.T) {
+	// if (ref($x)) {...} — implicit else contributes pre-if type (Scalar).
+	// if-body: Ref; implicit else: Scalar; union = Ref | Scalar = Scalar.
+	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n}\nmy $z = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=condition, [2]=if-body, [3]=post-if
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	postTyp, ok := annotations[offsets[len(offsets)-1]]
+	assert.True(t, ok, "post-if $x should be annotated")
+	// Ref | Scalar (pre-if) = Scalar
+	assert.Equal(t, types.Scalar, postTyp, "post-if (no else) $x should be Scalar (union of Ref branch and implicit else Scalar)")
+}
+
+func TestBranchMergingEarlyExitExcluded(t *testing.T) {
+	// if (!defined($x)) { return; } — early exit: the if-body does NOT
+	// contribute to the join. Post-if type is narrowed via early-exit logic.
+	src := []byte("my $x = undef;\nif (!defined($x)) {\n    return;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=condition, [2]=post-if
+	require.True(t, len(offsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(offsets))
+
+	postTyp, ok := annotations[offsets[2]]
+	assert.True(t, ok, "post-early-exit $x should be annotated")
+	assert.True(t, postTyp&types.Undef == 0, "post-early-exit $x should not include Undef (early-exit narrowing removes Undef)")
+}
+
+func TestBranchMergingElsifChain(t *testing.T) {
+	// if/elsif/else: join type is union of all branch types for $x.
+	// if-body: Scalar &^ Undef (defined guard); elsif-body: Ref; else-body: Undef.
+	// union = (Scalar &^ Undef) | Ref | Undef = Scalar.
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\nmy $d = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	xOffsets := findAllVarOffsets(src, "$x")
+	// Last occurrence is the post-chain $x.
+	require.True(t, len(xOffsets) >= 6, "should find at least 6 occurrences of $x, got %d", len(xOffsets))
+
+	postTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok, "post-chain $x should be annotated")
+	// All branches together cover Scalar territory; union should be Scalar.
+	assert.Equal(t, types.Scalar, postTyp, "post-chain $x should be Scalar (union of all branch types)")
+}
+
+func TestBranchMergingAssignmentInsideBranch(t *testing.T) {
+	// $x starts as Scalar. if-body assigns Int (1), else-body assigns Num (3.14).
+	// After the if/else, $x should be the join of the two branch-end types: Int | Num.
+	// Without branch merging, scope restoration would revert $x to Scalar.
+	// Int | Num = Num (since Num includes Int in the type hierarchy).
+	src := []byte("my $x = undef;\nif (defined($x)) {\n    $x = 1;\n} else {\n    $x = 3.14;\n}\nmy $y = $x;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	xOffsets := findAllVarOffsets(src, "$x")
+	// offsets: [0]=decl, [1]=cond, [2]=if-body assign LHS, [3]=else-body assign LHS, [4]=post-if ref
+	require.True(t, len(xOffsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(xOffsets))
+
+	postTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok, "post-if/else $x should be annotated")
+	// Int | Num = Num (Num = numLeaf | Int, which already includes Int).
+	assert.Equal(t, types.Num, postTyp, "post-if/else $x should be Num (union of Int from if-body and Num from else-body)")
+}
