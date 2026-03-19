@@ -2045,3 +2045,23 @@ func extractVarNameFromDecl(node *parser.Node, source []byte) string {
 	}
 	return ""
 }
+
+// FindSubDeclNode walks top-level children of root to find a
+// subroutine_declaration_statement whose byte range matches the given
+// startByte and endByte. Returns nil if no match is found.
+func FindSubDeclNode(root *parser.Node, startByte, endByte uint32) *parser.Node {
+	if root == nil {
+		return nil
+	}
+	for i := 0; i < root.ChildCount(); i++ {
+		child := root.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "subroutine_declaration_statement" &&
+			child.StartByte() == startByte && child.EndByte() == endByte {
+			return child
+		}
+	}
+	return nil
+}

@@ -1392,3 +1392,38 @@ func TestIsaGuardEnablesMethodResolution(t *testing.T) {
 	assert.True(t, ok, "method call $x->speak() should be annotated")
 	assert.Equal(t, types.Int, callTyp, "method call should resolve to Int from Dog::speak()")
 }
+
+func TestFindSubDeclNode(t *testing.T) {
+	src := []byte("my $x = 1;\nsub is_ref { ref($_[0]) }\nmy $y = 2;\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+
+	// Find the sub node using its byte range.
+	var subStart, subEnd uint32
+	for i := 0; i < root.ChildCount(); i++ {
+		child := root.Child(i)
+		if child != nil && child.Kind() == "subroutine_declaration_statement" {
+			subStart = child.StartByte()
+			subEnd = child.EndByte()
+		}
+	}
+	require.NotZero(t, subEnd, "should find a sub in the source")
+
+	subNode := infer.FindSubDeclNode(root, subStart, subEnd)
+	require.NotNil(t, subNode, "should find the sub declaration node")
+	assert.Equal(t, "subroutine_declaration_statement", subNode.Kind())
+	assert.Contains(t, subNode.Text(src), "is_ref")
+}
+
+func TestFindSubDeclNodeNotFound(t *testing.T) {
+	src := []byte("my $x = 1;\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+
+	subNode := infer.FindSubDeclNode(root, 99, 199)
+	assert.Nil(t, subNode, "should return nil when no matching sub found")
+}
