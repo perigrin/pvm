@@ -54,6 +54,8 @@ func walkNode(node *parser.Node, source []byte, st *SymbolTable, annotations map
 		return walkConditionalStatement(node, source, st, annotations, diags)
 	case "loop_statement":
 		return walkLoopStatement(node, source, st, annotations, diags)
+	case "for_statement":
+		return walkForStatement(node, source, st, annotations, diags)
 	}
 
 	// Recurse into all children first (post-order).
@@ -526,6 +528,7 @@ func inferAssignmentNarrowing(
 type guardResult struct {
 	VarName string
 	Guard   types.GuardPattern
+	Negated bool
 }
 
 // extractGuardPattern examines a condition expression node and returns the
@@ -537,6 +540,8 @@ type guardResult struct {
 //	func1op_call_expression with keyword "defined" and scalar child → GuardDefined
 //	func1op_call_expression with keyword "ref" and scalar child → GuardRef
 //	relational_expression with "isa" operator, scalar LHS, bareword RHS → GuardIsa
+//	unary_expression with "!" wrapping a recognized guard → Negated guard
+//	ambiguous_function_call_expression with "not" wrapping a recognized guard → Negated guard
 func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 	if node == nil {
 		return nil
@@ -552,6 +557,16 @@ func extractGuardPattern(node *parser.Node, source []byte) *guardResult {
 	// Pattern: $x isa Foo
 	if kind == "relational_expression" {
 		return extractIsaGuard(node, source)
+	}
+
+	// Pattern: !guard (unary negation)
+	if kind == "unary_expression" {
+		return extractNegatedGuard(node, source)
+	}
+
+	// Pattern: not guard (low-precedence negation)
+	if kind == "ambiguous_function_call_expression" {
+		return extractNotGuard(node, source)
 	}
 
 	return nil
@@ -586,6 +601,71 @@ func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 
 	varName := sigildName("$", varNode, source)
 	return &guardResult{VarName: varName, Guard: types.GuardPattern{Kind: types.GuardIsa}}
+}
+
+// extractNegatedGuard unwraps a unary_expression with "!" to find the inner
+// guard pattern. CST: unary_expression -> "!" (anon) + inner expression (named).
+func extractNegatedGuard(node *parser.Node, source []byte) *guardResult {
+	hasNot := false
+	var innerNode *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			if child.Text(source) == "!" {
+				hasNot = true
+			}
+			continue
+		}
+		if innerNode == nil {
+			innerNode = child
+		}
+	}
+
+	if !hasNot || innerNode == nil {
+		return nil
+	}
+
+	result := extractGuardPattern(innerNode, source)
+	if result != nil {
+		result.Negated = !result.Negated
+	}
+	return result
+}
+
+// extractNotGuard unwraps an ambiguous_function_call_expression with
+// function "not" to find the inner guard pattern.
+// CST: ambiguous_function_call_expression -> function:"not" + inner expression (named).
+func extractNotGuard(node *parser.Node, source []byte) *guardResult {
+	hasNot := false
+	var innerNode *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "function" && child.Text(source) == "not" {
+			hasNot = true
+			continue
+		}
+		if child.IsNamed() && innerNode == nil {
+			innerNode = child
+		}
+	}
+
+	if !hasNot || innerNode == nil {
+		return nil
+	}
+
+	result := extractGuardPattern(innerNode, source)
+	if result != nil {
+		result.Negated = !result.Negated
+	}
+	return result
 }
 
 // extractFunc1opGuard extracts a guard from a func1op_call_expression node.
@@ -644,6 +724,7 @@ func walkConditionalStatement(
 	var conditionNode *parser.Node
 	var ifBlock *parser.Node
 	var elseNode *parser.Node
+	hasNoElsif := true
 
 	// Identify children: keyword, condition, block, and optional else.
 	for i := 0; i < node.ChildCount(); i++ {
@@ -666,13 +747,8 @@ func walkConditionalStatement(
 		case "else":
 			elseNode = child
 		case "elsif":
-			// Walk the elsif subtree without guard narrowing (deferred).
-			// The elsif node has the same structure as a conditional_statement
-			// (condition, block, optional else) so walking its children gives
-			// them type annotations even though we don't apply guard narrowing.
-			for j := 0; j < child.ChildCount(); j++ {
-				walkNode(child.Child(j), source, st, annotations, diags)
-			}
+			hasNoElsif = false
+			walkElsifNode(child, source, st, annotations, diags)
 		default:
 			// The condition is the only named non-block, non-else child.
 			// Enclosing parentheses are anonymous nodes in the CST, so the
@@ -692,11 +768,41 @@ func walkConditionalStatement(
 	// Extract guard pattern from the condition.
 	guard := extractGuardPattern(conditionNode, source)
 
-	isUnless := keyword == "unless"
+	// Compute the negate flag for the if-body. "unless" flips it,
+	// and a negated condition (e.g. !defined) flips it again.
+	ifBodyNegate := keyword == "unless"
+	if guard != nil && guard.Negated {
+		ifBodyNegate = !ifBodyNegate
+	}
 
 	// Walk the if/unless body with appropriate narrowing.
 	if ifBlock != nil {
-		walkBlockWithGuard(ifBlock, source, st, annotations, diags, guard, isUnless)
+		walkBlockWithGuard(ifBlock, source, st, annotations, diags, guard, ifBodyNegate)
+	}
+
+	// Early-exit narrowing: if the if-body always exits and there is no
+	// else/elsif, apply the else-branch guard to the rest of the scope.
+	// Note: if the if-body contains assignments before the exit (e.g.
+	// $x = 1; return;), the assignment narrowing may have already mutated
+	// the symbol table entry. The post-exit narrowing uses the current
+	// symbol table type, so assignment narrowing takes precedence.
+	if ifBlock != nil && guard != nil && elseNode == nil && hasNoElsif &&
+		blockAlwaysExits(ifBlock, source) {
+		sym, found := st.Lookup(guard.VarName)
+		if found {
+			var elseType types.Type
+			var narrowed bool
+			if ifBodyNegate {
+				// If-body had negated guard, so else-branch is the positive guard.
+				elseType, narrowed = types.NarrowByGuard(sym.Type, guard.Guard)
+			} else {
+				// If-body had positive guard, so else-branch is the negated guard.
+				elseType, narrowed = types.NegateGuard(sym.Type, guard.Guard)
+			}
+			if narrowed {
+				st.UpdateType(guard.VarName, elseType)
+			}
+		}
 	}
 
 	// Walk the else body with the opposite narrowing.
@@ -710,11 +816,91 @@ func walkConditionalStatement(
 			}
 		}
 		if elseBlock != nil {
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !isUnless)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !ifBodyNegate)
 		}
 	}
 
 	return types.Unknown
+}
+
+// walkElsifNode handles a single elsif node with guard-based flow narrowing.
+// It mirrors walkConditionalStatement: walk condition, extract guard, walk
+// block with guard, then handle the trailing else or elsif recursively.
+func walkElsifNode(
+	node *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+) {
+	var conditionNode *parser.Node
+	var block *parser.Node
+	var elseNode *parser.Node
+	var elsifNode *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			continue
+		}
+		switch child.Kind() {
+		case "block":
+			if block == nil {
+				block = child
+			}
+		case "else":
+			elseNode = child
+		case "elsif":
+			elsifNode = child
+		default:
+			if conditionNode == nil {
+				conditionNode = child
+			}
+		}
+	}
+
+	// Walk the condition to type its children.
+	if conditionNode != nil {
+		walkNode(conditionNode, source, st, annotations, diags)
+	}
+
+	guard := extractGuardPattern(conditionNode, source)
+
+	// Compute the negate flag for the elsif body. A negated condition
+	// (e.g. !defined) flips the narrowing direction, same as in
+	// walkConditionalStatement. Note: elsif has no "unless" variant,
+	// so there is no keyword-based flip here.
+	elsifBodyNegate := false
+	if guard != nil && guard.Negated {
+		elsifBodyNegate = !elsifBodyNegate
+	}
+
+	// Walk the elsif body with the guard.
+	if block != nil {
+		walkBlockWithGuard(block, source, st, annotations, diags, guard, elsifBodyNegate)
+	}
+
+	// Handle trailing else or elsif.
+	if elseNode != nil {
+		var elseBlock *parser.Node
+		for i := 0; i < elseNode.ChildCount(); i++ {
+			child := elseNode.Child(i)
+			if child != nil && child.Kind() == "block" {
+				elseBlock = child
+				break
+			}
+		}
+		if elseBlock != nil {
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !elsifBodyNegate)
+		}
+	}
+
+	if elsifNode != nil {
+		walkElsifNode(elsifNode, source, st, annotations, diags)
+	}
 }
 
 // walkLoopStatement handles while statements with guard-based flow narrowing.
@@ -757,6 +943,130 @@ func walkLoopStatement(
 	}
 
 	return types.Unknown
+}
+
+// walkForStatement handles for/foreach loops with proper variable scoping.
+// The loop variable is defined as Scalar in a dedicated scope that spans
+// the loop body, preventing it from leaking into the enclosing scope.
+//
+// Note: inner "my" declarations inside the for-body have the same pass-1/pass-2
+// scope limitation as walkBlockWithGuard — UpdateType for those inner variables
+// will be no-ops.
+func walkForStatement(
+	node *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+) types.Type {
+	var loopVar *parser.Node
+	var iterSource *parser.Node
+	var bodyBlock *parser.Node
+
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			continue
+		}
+		switch child.Kind() {
+		case "scalar":
+			if loopVar == nil {
+				loopVar = child
+			}
+		case "block":
+			bodyBlock = child
+		default:
+			// The iteration source is the other named child (array or list_expression).
+			if iterSource == nil {
+				iterSource = child
+			}
+		}
+	}
+
+	// Walk the iteration source to type it.
+	if iterSource != nil {
+		walkNode(iterSource, source, st, annotations, diags)
+	}
+
+	// Walk the loop body with the loop variable scoped.
+	if bodyBlock != nil && loopVar != nil {
+		varName := sigildName("$", loopVar, source)
+		st.EnterScope("for")
+		defer st.ExitScope()
+		st.Define(Symbol{
+			Name: varName,
+			Type: types.Scalar,
+			Kind: SymVariable,
+		})
+		// Annotate the loop variable node itself.
+		annotations[loopVar.StartByte()] = types.Scalar
+		for i := 0; i < bodyBlock.ChildCount(); i++ {
+			walkNode(bodyBlock.Child(i), source, st, annotations, diags)
+		}
+		return types.Unknown
+	}
+
+	// Fallback: walk all children generically.
+	for i := 0; i < node.ChildCount(); i++ {
+		walkNode(node.Child(i), source, st, annotations, diags)
+	}
+	return types.Unknown
+}
+
+// blockAlwaysExits returns true if the block contains a top-level statement
+// that unconditionally exits the current scope (return, die, exit).
+// Only checks direct children of the block — nested exits inside inner
+// conditions are ignored (conservative to avoid false positives).
+func blockAlwaysExits(block *parser.Node, source []byte) bool {
+	if block == nil {
+		return false
+	}
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child == nil {
+			continue
+		}
+		// Check inside expression_statement wrappers.
+		target := child
+		if child.Kind() == "expression_statement" && child.ChildCount() > 0 {
+			target = child.Child(0)
+			if target == nil {
+				continue
+			}
+		}
+
+		switch target.Kind() {
+		case "return_expression":
+			return true
+		case "func1op_call_expression":
+			// exit and exit N
+			for j := 0; j < target.ChildCount(); j++ {
+				c := target.Child(j)
+				if c != nil && !c.IsNamed() && c.Text(source) == "exit" {
+					return true
+				}
+			}
+		case "ambiguous_function_call_expression", "function_call_expression":
+			// die $msg, die($obj), and similar forms where die is the
+			// function name. The string-argument form die("msg") produces
+			// broken CST due to the gotreesitter string grammar limitation,
+			// but die $var is handled here.
+			for j := 0; j < target.ChildCount(); j++ {
+				c := target.Child(j)
+				if c != nil && c.Kind() == "function" && c.Text(source) == "die" {
+					return true
+				}
+			}
+		case "bareword":
+			if target.Text(source) == "die" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // walkBlockWithGuard walks a block node with an optional guard-based type
