@@ -169,3 +169,51 @@ func TestTypeSatisfiesUnknown(t *testing.T) {
 	assert.True(t, types.TypeSatisfies(unknown, types.Str), "unknown type satisfies Str permissively")
 	assert.True(t, types.TypeSatisfies(unknown, types.Any), "unknown type satisfies Any permissively")
 }
+
+// --- Bitset structural invariant tests ---
+
+func TestBitsetLeafTypesAreDistinct(t *testing.T) {
+	// Every leaf type must be a power of two (single bit set).
+	leaves := []types.Type{
+		types.Undef, types.Bool, types.Int,
+		types.DualVar, types.Regex, types.ScalarRef, types.ArrayRef,
+		types.HashRef, types.CodeRef, types.GlobRef, types.Object,
+		types.Array, types.Hash, types.Code, types.Glob,
+	}
+	seen := types.Type(0)
+	for _, leaf := range leaves {
+		assert.True(t, leaf != 0, "%s should not be zero", leaf)
+		assert.True(t, leaf&(leaf-1) == 0, "%s should be a single bit (power of 2)", leaf)
+		assert.True(t, seen&leaf == 0, "%s bit collides with a previous leaf", leaf)
+		seen |= leaf
+	}
+}
+
+func TestParentMasksContainDescendants(t *testing.T) {
+	// Num mask includes Int (Int <: Num)
+	assert.True(t, types.Num&types.Int == types.Int, "Num mask should contain Int")
+	// Str mask includes Num and Int
+	assert.True(t, types.Str&types.Num == types.Num, "Str mask should contain Num mask")
+	assert.True(t, types.Str&types.Int == types.Int, "Str mask should contain Int")
+	// Ref mask includes all ref subtypes
+	assert.True(t, types.Ref&types.HashRef == types.HashRef, "Ref should contain HashRef")
+	assert.True(t, types.Ref&types.Object == types.Object, "Ref should contain Object")
+	assert.True(t, types.Ref&types.ScalarRef == types.ScalarRef, "Ref should contain ScalarRef")
+	// Scalar includes everything scalar
+	assert.True(t, types.Scalar&types.Int == types.Int, "Scalar should contain Int")
+	assert.True(t, types.Scalar&types.Undef == types.Undef, "Scalar should contain Undef")
+	assert.True(t, types.Scalar&types.Ref == types.Ref, "Scalar should contain full Ref mask")
+	// Any includes everything
+	assert.True(t, types.Any&types.Scalar == types.Scalar, "Any should contain Scalar")
+	assert.True(t, types.Any&types.Array == types.Array, "Any should contain Array")
+	assert.True(t, types.Any&types.Code == types.Code, "Any should contain Code")
+	assert.True(t, types.Any&types.Glob == types.Glob, "Any should contain Glob")
+}
+
+func TestStringUnionDisplay(t *testing.T) {
+	union := types.Int | types.Bool
+	s := union.String()
+	assert.Contains(t, s, "Int")
+	assert.Contains(t, s, "Bool")
+	assert.Contains(t, s, "|")
+}

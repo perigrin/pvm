@@ -204,6 +204,10 @@ func IsSubtype(child, parent Type) bool {
 // that could hold any of their subtypes at runtime. Numeric and string
 // family types (Num, Str) are intentionally excluded: a Str variable
 // cannot satisfy an Int requirement because it may hold non-numeric data.
+// Ref is also excluded: a generic Ref could be any reference subtype at
+// runtime, but Perl code that expects a specific ref type (e.g. HashRef)
+// should get a diagnostic when passed a generic Ref. This matches the
+// pre-bitset behavior.
 var polymorphicMasks = map[Type]bool{
 	Any:    true,
 	Scalar: true,

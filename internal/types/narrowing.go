@@ -1,5 +1,10 @@
 // ABOUTME: Context-based and guard-based type narrowing for the PSC type inference engine.
 // ABOUTME: Implements NarrowByContext and NarrowByGuard following Chalk's narrow_type semantics.
+//
+// NOTE: Guard narrowing still uses equality-based dispatch (typ == Scalar, etc.).
+// When union types from compound guards or branch merging pass through here,
+// this must be rewritten to use bit operations (typ &^ Undef, typ & Ref, etc.)
+// per the bitset design doc. See GitHub issue #386.
 
 package types
 
