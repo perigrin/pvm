@@ -1356,7 +1356,6 @@ func TestMethodResolutionViaProjectIndex(t *testing.T) {
 	assert.Equal(t, types.Int, refTyp, "$n should be Int from Counter::count()")
 }
 
-// TestIsaGuardEnablesMethodResolution verifies that an "isa" guard in an if
 func TestFlowNarrowingDefinedGuardArrayElement(t *testing.T) {
 	// defined($_[0]) inside a sub body uses array_element_expression.
 	// Verify that extractFunc1opGuard handles this node type.
@@ -1367,6 +1366,7 @@ func TestFlowNarrowingDefinedGuardArrayElement(t *testing.T) {
 	_ = annotations // Mainly verifying no crash; array element guard is new behavior.
 }
 
+// TestIsaGuardEnablesMethodResolution verifies that an "isa" guard in an if
 // condition narrows the variable's ClassType within the block, enabling method
 // call resolution through the ProjectIndex. The method call expression itself
 // is annotated with the resolved return type.
