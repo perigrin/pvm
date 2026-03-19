@@ -4,6 +4,8 @@
 package infer_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +23,7 @@ func analyzeSource(t *testing.T, source []byte) (map[uint32]types.Type, []infer.
 	p := parser.New()
 	tree, err := p.Parse(source)
 	require.NoError(t, err, "parse must succeed")
-	annotations, diags, _ := infer.Analyze(tree, source)
+	annotations, diags, _ := infer.Analyze(tree, source, nil)
 	return annotations, diags
 }
 
@@ -32,7 +34,7 @@ func analyzeSourceFull(t *testing.T, source []byte) (map[uint32]types.Type, []in
 	p := parser.New()
 	tree, err := p.Parse(source)
 	require.NoError(t, err, "parse must succeed")
-	return infer.Analyze(tree, source)
+	return infer.Analyze(tree, source, nil)
 }
 
 // findNodeType searches the annotation map for the first node whose source
@@ -1265,4 +1267,59 @@ func TestCallSiteBuiltinPriority(t *testing.T) {
 	pushTyp, ok := findNodeType(annotations, src, "push(@a, 1)")
 	assert.True(t, ok)
 	assert.Equal(t, types.Int, pushTyp, "builtin push should return Int")
+}
+
+// --- Cross-file analysis tests ---
+
+// TestUseStatementTriggersAnalysis verifies that when a ProjectIndex is provided,
+// a "use Foo;" statement causes the corresponding Foo.pm to be analysed and its
+// symbols to be registered in the index so that LookupSymbol succeeds afterward.
+func TestUseStatementTriggersAnalysis(t *testing.T) {
+	dir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(dir, "lib"), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(
+		filepath.Join(dir, "lib", "Foo.pm"),
+		[]byte("package Foo;\nsub bar { return 42; }\n"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	idx := infer.NewProjectIndex(dir)
+	src := []byte("use Foo;\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	infer.Analyze(tree, src, idx)
+
+	sym, ok := idx.LookupSymbol("Foo", "bar")
+	assert.True(t, ok, "use Foo should trigger analysis of Foo.pm")
+	assert.Equal(t, types.Int, sym.ReturnType, "bar should have return type Int")
+}
+
+// TestFQCallResolution verifies that a fully-qualified function call like
+// Foo::Bar::baz() is resolved through the ProjectIndex and its return type
+// propagates to the assigned variable.
+func TestFQCallResolution(t *testing.T) {
+	dir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(dir, "lib", "Foo"), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(
+		filepath.Join(dir, "lib", "Foo", "Bar.pm"),
+		[]byte("package Foo::Bar;\nsub baz { return 42; }\n"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	idx := infer.NewProjectIndex(dir)
+	src := []byte("use Foo::Bar;\nmy $x = Foo::Bar::baz();\n$x;\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	annotations, _, _ := infer.Analyze(tree, src, idx)
+
+	xOffsets := findAllVarOffsets(src, "$x")
+	refTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok, "$x reference should be annotated")
+	assert.Equal(t, types.Int, refTyp, "$x should be Int from Foo::Bar::baz()")
 }

@@ -85,7 +85,7 @@ func checkFile(w interface{ Write([]byte) (int, error) }, p *parser.Parser, path
 		return false, fmt.Errorf("parse %s: %w", path, err)
 	}
 
-	_, diags, _ := infer.Analyze(tree, source)
+	_, diags, _ := infer.Analyze(tree, source, nil)
 
 	for _, d := range diags {
 		fmt.Fprintln(w, infer.FormatDiagnostic(path, source, d))

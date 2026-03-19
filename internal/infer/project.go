@@ -81,7 +81,7 @@ func (idx *ProjectIndex) AnalyzeFile(path string) (*FileAnalysis, error) {
 		return nil, fmt.Errorf("AnalyzeFile: parse %q: %w", path, err)
 	}
 
-	annotations, diags, st := Analyze(tree, source)
+	annotations, diags, st := Analyze(tree, source, nil)
 
 	result := &FileAnalysis{
 		Annotations: annotations,

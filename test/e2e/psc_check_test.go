@@ -171,7 +171,7 @@ func TestTypeInferenceAccuracy(t *testing.T) {
 			tree, err := p.Parse(src)
 			require.NoError(t, err, "parse must succeed for %q", tc.source)
 
-			annotations, _, _ := infer.Analyze(tree, src)
+			annotations, _, _ := infer.Analyze(tree, src, nil)
 
 			// Search the annotation map for a node whose source text starts with
 			// the expected fragment, optionally skipping offsets below minOffset
