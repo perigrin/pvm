@@ -910,39 +910,48 @@ func walkConditionalStatement(
 	// Extract guard pattern from the condition.
 	guard := extractGuardPattern(conditionNode, source)
 
-	// Compute the negate flag for the if-body. "unless" flips it,
-	// and a negated condition (e.g. !defined) flips it again.
+	// Compute the negate flag for the if-body. "unless" flips the narrowing
+	// direction relative to the condition. Negated conditions (e.g. !defined)
+	// are handled inside flattenGuards via XOR with each leaf's Negated flag,
+	// so we do not flip ifBodyNegate here for guard.Negated.
 	ifBodyNegate := keyword == "unless"
-	if guard != nil && guard.Negated {
-		ifBodyNegate = !ifBodyNegate
-	}
 
 	// Walk the if/unless body with appropriate narrowing.
 	if ifBlock != nil {
-		walkBlockWithGuard(ifBlock, source, st, annotations, diags, guard, ifBodyNegate)
+		walkBlockWithGuard(ifBlock, source, st, annotations, diags, flattenGuards(guard, ifBodyNegate))
 	}
 
 	// Early-exit narrowing: if the if-body always exits and there is no
-	// else/elsif, apply the else-branch guard to the rest of the scope.
+	// else/elsif, the continuation (code after the if) knows the if-condition
+	// was false. This is identical to the else-branch narrowing, so we apply
+	// the same guard list that the else-body would have received.
+	//
 	// Note: if the if-body contains assignments before the exit (e.g.
 	// $x = 1; return;), the assignment narrowing may have already mutated
 	// the symbol table entry. The post-exit narrowing uses the current
 	// symbol table type, so assignment narrowing takes precedence.
-	if ifBlock != nil && guard != nil && elseNode == nil && hasNoElsif &&
+	//
+	// Early-exit narrowing only works for simple (leaf) guards — compound
+	// guards have VarName == "" which causes st.Lookup to return found=false.
+	if ifBlock != nil && guard != nil && guard.VarName != "" && elseNode == nil && hasNoElsif &&
 		blockAlwaysExits(ifBlock, source) {
-		sym, found := st.Lookup(guard.VarName)
-		if found {
+		// The continuation gets the else-branch guard: flattenGuards(guard, !ifBodyNegate).
+		// For a simple guard, this is one leaf with Negated = guard.Negated XOR !ifBodyNegate.
+		elseGuards := flattenGuards(guard, !ifBodyNegate)
+		for _, eg := range elseGuards {
+			sym, found := st.Lookup(eg.VarName)
+			if !found {
+				continue
+			}
 			var elseType types.Type
 			var narrowed bool
-			if ifBodyNegate {
-				// If-body had negated guard, so else-branch is the positive guard.
-				elseType, narrowed = types.NarrowByGuard(sym.Type, guard.Guard)
+			if eg.Negated {
+				elseType, narrowed = types.NegateGuard(sym.Type, eg.Guard)
 			} else {
-				// If-body had positive guard, so else-branch is the negated guard.
-				elseType, narrowed = types.NegateGuard(sym.Type, guard.Guard)
+				elseType, narrowed = types.NarrowByGuard(sym.Type, eg.Guard)
 			}
 			if narrowed {
-				st.UpdateType(guard.VarName, elseType)
+				st.UpdateType(eg.VarName, elseType)
 			}
 		}
 	}
@@ -958,7 +967,7 @@ func walkConditionalStatement(
 			}
 		}
 		if elseBlock != nil {
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !ifBodyNegate)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !ifBodyNegate))
 		}
 	}
 
@@ -1011,18 +1020,14 @@ func walkElsifNode(
 
 	guard := extractGuardPattern(conditionNode, source)
 
-	// Compute the negate flag for the elsif body. A negated condition
-	// (e.g. !defined) flips the narrowing direction, same as in
-	// walkConditionalStatement. Note: elsif has no "unless" variant,
-	// so there is no keyword-based flip here.
+	// The elsif body negate flag starts false (no "unless" keyword in elsif).
+	// Negated conditions (e.g. !defined) are handled inside flattenGuards
+	// via XOR with each leaf's Negated flag, so we do not flip here.
 	elsifBodyNegate := false
-	if guard != nil && guard.Negated {
-		elsifBodyNegate = !elsifBodyNegate
-	}
 
 	// Walk the elsif body with the guard.
 	if block != nil {
-		walkBlockWithGuard(block, source, st, annotations, diags, guard, elsifBodyNegate)
+		walkBlockWithGuard(block, source, st, annotations, diags, flattenGuards(guard, elsifBodyNegate))
 	}
 
 	// Handle trailing else or elsif.
@@ -1036,7 +1041,7 @@ func walkElsifNode(
 			}
 		}
 		if elseBlock != nil {
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, guard, !elsifBodyNegate)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !elsifBodyNegate))
 		}
 	}
 
@@ -1081,7 +1086,7 @@ func walkLoopStatement(
 	guard := extractGuardPattern(conditionNode, source)
 
 	if bodyBlock != nil {
-		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, guard, false)
+		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, flattenGuards(guard, false))
 	}
 
 	return types.Unknown
@@ -1211,10 +1216,78 @@ func blockAlwaysExits(block *parser.Node, source []byte) bool {
 	return false
 }
 
-// walkBlockWithGuard walks a block node with an optional guard-based type
-// override. If guard is non-nil, it enters a new "guard" scope, shadows the
-// guarded variable with the narrowed type, walks the block children, then exits
-// the scope. If negate is true, the negated guard type is applied instead.
+// flattenGuards converts a guardResult (possibly compound) into a flat list
+// of leaf guards with the Negated flag resolved per compound semantics.
+//
+// The negate parameter represents an outer negation to XOR into each leaf's
+// own Negated flag:
+//
+//   - For && (negate=false): both sub-guards apply → recurse into each.
+//   - For || (negate=false): neither can be guaranteed → return nil.
+//   - For && (negate=true, De Morgan → ||): no narrowing → return nil.
+//   - For || (negate=true, De Morgan → &&): both negated sub-guards apply → recurse.
+//
+// For simple (non-compound) guards: return a one-element slice with Negated
+// set to guard.Negated XOR negate.
+func flattenGuards(guard *guardResult, negate bool) []*guardResult {
+	if guard == nil {
+		return nil
+	}
+
+	if guard.Compound == nil {
+		// Leaf guard: resolve the final Negated flag and return it.
+		leaf := &guardResult{
+			VarName: guard.VarName,
+			Guard:   guard.Guard,
+			Negated: guard.Negated != negate, // XOR: outer negate flips the leaf
+		}
+		return []*guardResult{leaf}
+	}
+
+	// Compound guard: determine whether this compound's semantics yield all-leaf
+	// or no-leaf based on the operator and the outer negate.
+	//
+	// Effective operator after applying De Morgan for the outer negation:
+	//   negate=false: keep Op as-is.
+	//   negate=true:  flip Op (De Morgan: !(A&&B) = !A||!B, !(A||B) = !A&&!B).
+	effectiveOp := guard.Compound.Op
+	if negate {
+		if effectiveOp == "&&" {
+			effectiveOp = "||"
+		} else {
+			effectiveOp = "&&"
+		}
+	}
+
+	switch effectiveOp {
+	case "&&":
+		// Both sub-guards apply — flatten each with the (possibly flipped) negate.
+		left := flattenGuards(guard.Compound.Left, negate)
+		right := flattenGuards(guard.Compound.Right, negate)
+		return append(left, right...)
+	case "||":
+		// Either sub-guard could be the true one — no narrowing is certain.
+		return nil
+	}
+
+	return nil
+}
+
+// walkBlockWithGuard walks a block node with an optional list of leaf guards
+// for flow-narrowing. If guards is non-nil and non-empty, it enters a single
+// "guard" scope, shadows each guarded variable with its narrowed type, walks
+// the block children, then exits the scope.
+//
+// Each guard's Negated flag is already fully resolved by flattenGuards: when
+// Negated is true, NegateGuard is applied; otherwise NarrowByGuard is applied.
+//
+// Guards that share the same variable are applied sequentially (the output
+// type of one guard becomes the input type for the next), so that compound
+// conditions on the same variable (e.g. defined($x) && ref($x)) correctly
+// intersect their effects.
+//
+// If a variable referenced by a guard was never declared, that guard is
+// silently skipped (no phantom shadow entries in the scope).
 //
 // Note: inner "my" declarations inside the block were processed by pass 1
 // (CollectDeclarations) in block scopes that no longer exist by pass 2.
@@ -1227,46 +1300,58 @@ func walkBlockWithGuard(
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
-	guard *guardResult,
-	negate bool,
+	guards []*guardResult,
 ) {
-	if guard != nil {
-		// Look up the variable's current type for narrowing.
-		// If the variable was never declared, skip narrowing entirely
-		// to avoid creating phantom shadow entries in the guard scope.
-		sym, found := st.Lookup(guard.VarName)
-		if !found {
-			for i := 0; i < block.ChildCount(); i++ {
-				walkNode(block.Child(i), source, st, annotations, diags)
+	// Build accumulated narrowed types by applying guards sequentially.
+	// working tracks the current type for each variable as guards are applied,
+	// whether or not each individual guard produced a change.
+	// shadows collects only variables where at least one guard narrowed.
+	working := make(map[string]types.Type)
+	shadows := make(map[string]types.Type)
+
+	for _, guard := range guards {
+		// Determine the starting type for this variable: use the working type
+		// from prior guards, or look up the declared type for the first guard.
+		currentType, seen := working[guard.VarName]
+		if !seen {
+			sym, found := st.Lookup(guard.VarName)
+			if !found {
+				// Variable was never declared — skip to avoid phantom shadows.
+				continue
 			}
-			return
+			currentType = sym.Type
 		}
-		currentType := sym.Type
 
 		var narrowedType types.Type
-		var narrowed bool
-		if negate {
-			narrowedType, narrowed = types.NegateGuard(currentType, guard.Guard)
+		var didNarrow bool
+		if guard.Negated {
+			narrowedType, didNarrow = types.NegateGuard(currentType, guard.Guard)
 		} else {
-			narrowedType, narrowed = types.NarrowByGuard(currentType, guard.Guard)
+			narrowedType, didNarrow = types.NarrowByGuard(currentType, guard.Guard)
 		}
 
-		if narrowed {
-			st.EnterScope("guard")
-			defer st.ExitScope()
-			st.Define(Symbol{
-				Name: guard.VarName,
-				Type: narrowedType,
-				Kind: SymVariable,
-			})
-			for i := 0; i < block.ChildCount(); i++ {
-				walkNode(block.Child(i), source, st, annotations, diags)
-			}
-			return
+		if didNarrow {
+			working[guard.VarName] = narrowedType
+			shadows[guard.VarName] = narrowedType
+		} else {
+			// Guard did not change the type, but record the working type so
+			// subsequent guards for the same variable chain from it.
+			working[guard.VarName] = currentType
 		}
 	}
 
-	// No guard or no narrowing: walk normally.
+	if len(shadows) > 0 {
+		st.EnterScope("guard")
+		defer st.ExitScope()
+		for name, typ := range shadows {
+			st.Define(Symbol{
+				Name: name,
+				Type: typ,
+				Kind: SymVariable,
+			})
+		}
+	}
+
 	for i := 0; i < block.ChildCount(); i++ {
 		walkNode(block.Child(i), source, st, annotations, diags)
 	}

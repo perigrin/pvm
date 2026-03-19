@@ -872,16 +872,15 @@ func TestFlowNarrowingCStyleForInitializer(t *testing.T) {
 
 // --- Compound guard extraction tests ---
 // These tests verify that compound conditions (&&, ||, and, or) are handled
-// without crashing and that partial compound guards (where only one operand is
-// a recognized guard) fall back to that single guard's narrowing behavior.
-// Full compound narrowing (applying both sub-guards simultaneously) requires
-// walkBlockWithGuard changes that are part of a subsequent task.
+// correctly. Partial compound guards (where only one operand is a recognized
+// guard) fall back to that single guard's narrowing behavior. Full compound
+// guards (both operands recognized) apply all leaf guards simultaneously via
+// flattenGuards + walkBlockWithGuard.
 
-func TestCompoundGuardAmpAmpNoCrash(t *testing.T) {
+func TestCompoundGuardAmpAmpNarrowsBoth(t *testing.T) {
 	// if (defined($x) && ref($x)) — full compound: both sides are guards.
-	// extractGuardPattern returns a compound guardResult (VarName="").
-	// walkBlockWithGuard does not narrow compound guards yet (Task 4);
-	// $x retains its sigil type Scalar inside the body.
+	// && with negate=false: both guards apply → defined removes Undef, ref
+	// keeps only Ref bits → result is Ref.
 	src := []byte("my $x = undef;\nif (defined($x) && ref($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -889,15 +888,14 @@ func TestCompoundGuardAmpAmpNoCrash(t *testing.T) {
 	// offsets[0]=decl, [1]=defined($x) condition, [2]=ref($x) condition, [3]=if-body
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
-	// No crash, and $x in body is annotated (type is Scalar — compound narrowing not yet applied).
 	ifBodyTyp, ok := annotations[offsets[3]]
-	assert.True(t, ok, "if-body $x should be annotated even with compound guard")
-	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar when compound narrowing is not yet applied")
+	assert.True(t, ok, "if-body $x should be annotated with compound && guard")
+	assert.Equal(t, types.Ref, ifBodyTyp, "if-body $x should be Ref: defined removes Undef, ref keeps only Ref bits")
 }
 
-func TestCompoundGuardAndKeywordNoCrash(t *testing.T) {
+func TestCompoundGuardAndKeywordNarrowsBoth(t *testing.T) {
 	// if (defined($x) and ref($x)) — lowprec_logical_expression with "and".
-	// Same behavior as && variant: full compound, no narrowing applied yet.
+	// "and" normalizes to "&&", so both guards apply → Ref (same as &&).
 	src := []byte("my $x = undef;\nif (defined($x) and ref($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -905,8 +903,59 @@ func TestCompoundGuardAndKeywordNoCrash(t *testing.T) {
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
 	ifBodyTyp, ok := annotations[offsets[3]]
-	assert.True(t, ok, "if-body $x should be annotated with 'and' compound guard")
-	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar when compound 'and' narrowing is not yet applied")
+	assert.True(t, ok, "if-body $x should be annotated with compound 'and' guard")
+	assert.Equal(t, types.Ref, ifBodyTyp, "if-body $x should be Ref: 'and' behaves like && — both guards apply")
+}
+
+func TestCompoundGuardOrNoNarrowingInBody(t *testing.T) {
+	// if (defined($x) || ref($x)) — || with negate=false: either could be
+	// true, so no narrowing applies in the if-body → $x stays Scalar.
+	src := []byte("my $x = undef;\nif (defined($x) || ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
+
+	ifBodyTyp, ok := annotations[offsets[3]]
+	assert.True(t, ok, "if-body $x should be annotated with compound || guard")
+	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar: || means either could be true, no narrowing")
+}
+
+func TestCompoundGuardOrNarrowsElse(t *testing.T) {
+	// if (defined($x) || ref($x)) {} else { $x }
+	// else-branch: both guards are false → !defined AND !ref → Undef &^ Ref = Undef.
+	src := []byte("my $x = undef;\nif (defined($x) || ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	offsets := findAllVarOffsets(src, "$x")
+	// offsets[0]=decl, [1]=defined cond, [2]=ref cond, [3]=if-body, [4]=else-body
+	require.True(t, len(offsets) >= 5, "should find at least 5 occurrences of $x, got %d", len(offsets))
+
+	elseBodyTyp, ok := annotations[offsets[4]]
+	assert.True(t, ok, "else-body $x should be annotated with compound || guard")
+	assert.Equal(t, types.Undef, elseBodyTyp, "else-body $x should be Undef: || else means !defined && !ref")
+}
+
+func TestCompoundGuardAndDifferentVars(t *testing.T) {
+	// if (defined($x) && ref($y)) — two different variables guarded.
+	// $x narrowed by defined (Undef removed), $y narrowed by ref → Ref.
+	src := []byte("my $x = undef;\nmy $y = undef;\nif (defined($x) && ref($y)) {\n    my $a = $x;\n    my $b = $y;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	xOffsets := findAllVarOffsets(src, "$x")
+	yOffsets := findAllVarOffsets(src, "$y")
+
+	// $x: offsets[0]=decl, [1]=defined cond, [2]=if-body
+	require.True(t, len(xOffsets) >= 3, "should find at least 3 occurrences of $x, got %d", len(xOffsets))
+	xBody, xOk := annotations[xOffsets[2]]
+	assert.True(t, xOk, "if-body $x should be annotated")
+	assert.True(t, xBody&types.Undef == 0, "if-body $x should have Undef removed (defined guard)")
+
+	// $y: offsets[0]=decl, [1]=ref cond, [2]=if-body
+	require.True(t, len(yOffsets) >= 3, "should find at least 3 occurrences of $y, got %d", len(yOffsets))
+	yBody, yOk := annotations[yOffsets[2]]
+	assert.True(t, yOk, "if-body $y should be annotated")
+	assert.Equal(t, types.Ref, yBody, "if-body $y should be Ref (ref guard)")
 }
 
 func TestCompoundGuardPartialOneNonGuardSide(t *testing.T) {
@@ -927,11 +976,10 @@ func TestCompoundGuardPartialOneNonGuardSide(t *testing.T) {
 	assert.Equal(t, types.Scalar&^types.Undef, ifBodyTyp, "if-body $x should be Scalar &^ Undef from partial compound defined guard")
 }
 
-func TestCompoundGuardNegatedAmpAmpDeMorganNoCrash(t *testing.T) {
+func TestCompoundGuardNegatedAmpAmpDeMorganNarrows(t *testing.T) {
 	// if (!(defined($x) && ref($x))) — De Morgan applied:
 	// becomes compound {Op:"||", Left:!defined($x), Right:!ref($x)}.
-	// Still a compound guard, so walkBlockWithGuard does not narrow yet.
-	// $x retains Scalar type inside the body.
+	// || with negate=false: no narrowing in if-body → $x stays Scalar.
 	src := []byte("my $x = undef;\nif (!(defined($x) && ref($x))) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -939,8 +987,8 @@ func TestCompoundGuardNegatedAmpAmpDeMorganNoCrash(t *testing.T) {
 	require.True(t, len(offsets) >= 4, "should find at least 4 occurrences of $x, got %d", len(offsets))
 
 	ifBodyTyp, ok := annotations[offsets[3]]
-	assert.True(t, ok, "if-body $x should be annotated even with negated compound guard")
-	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar when negated compound narrowing is not yet applied")
+	assert.True(t, ok, "if-body $x should be annotated with negated compound && guard")
+	assert.Equal(t, types.Scalar, ifBodyTyp, "if-body $x stays Scalar: !(A && B) becomes (||) which applies no narrowing in the body")
 }
 
 func TestCompoundGuardArithmeticBinaryNotExtracted(t *testing.T) {
