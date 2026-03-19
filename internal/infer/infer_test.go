@@ -4,6 +4,8 @@
 package infer_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +23,7 @@ func analyzeSource(t *testing.T, source []byte) (map[uint32]types.Type, []infer.
 	p := parser.New()
 	tree, err := p.Parse(source)
 	require.NoError(t, err, "parse must succeed")
-	annotations, diags, _ := infer.Analyze(tree, source)
+	annotations, diags, _ := infer.Analyze(tree, source, nil)
 	return annotations, diags
 }
 
@@ -32,7 +34,7 @@ func analyzeSourceFull(t *testing.T, source []byte) (map[uint32]types.Type, []in
 	p := parser.New()
 	tree, err := p.Parse(source)
 	require.NoError(t, err, "parse must succeed")
-	return infer.Analyze(tree, source)
+	return infer.Analyze(tree, source, nil)
 }
 
 // findNodeType searches the annotation map for the first node whose source
@@ -1265,4 +1267,118 @@ func TestCallSiteBuiltinPriority(t *testing.T) {
 	pushTyp, ok := findNodeType(annotations, src, "push(@a, 1)")
 	assert.True(t, ok)
 	assert.Equal(t, types.Int, pushTyp, "builtin push should return Int")
+}
+
+// --- Cross-file analysis tests ---
+
+// TestUseStatementTriggersAnalysis verifies that when a ProjectIndex is provided,
+// a "use Foo;" statement causes the corresponding Foo.pm to be analysed and its
+// symbols to be registered in the index so that LookupSymbol succeeds afterward.
+func TestUseStatementTriggersAnalysis(t *testing.T) {
+	dir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(dir, "lib"), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(
+		filepath.Join(dir, "lib", "Foo.pm"),
+		[]byte("package Foo;\nsub bar { return 42; }\n"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	idx := infer.NewProjectIndex(dir)
+	src := []byte("use Foo;\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	infer.Analyze(tree, src, idx)
+
+	sym, ok := idx.LookupSymbol("Foo", "bar")
+	assert.True(t, ok, "use Foo should trigger analysis of Foo.pm")
+	assert.Equal(t, types.Int, sym.ReturnType, "bar should have return type Int")
+}
+
+// TestFQCallResolution verifies that a fully-qualified function call like
+// Foo::Bar::baz() is resolved through the ProjectIndex and its return type
+// propagates to the assigned variable.
+func TestFQCallResolution(t *testing.T) {
+	dir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(dir, "lib", "Foo"), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(
+		filepath.Join(dir, "lib", "Foo", "Bar.pm"),
+		[]byte("package Foo::Bar;\nsub baz { return 42; }\n"),
+		0644,
+	)
+	require.NoError(t, err)
+
+	idx := infer.NewProjectIndex(dir)
+	src := []byte("use Foo::Bar;\nmy $x = Foo::Bar::baz();\n$x;\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	annotations, _, _ := infer.Analyze(tree, src, idx)
+
+	xOffsets := findAllVarOffsets(src, "$x")
+	refTyp, ok := annotations[xOffsets[len(xOffsets)-1]]
+	assert.True(t, ok, "$x reference should be annotated")
+	assert.Equal(t, types.Int, refTyp, "$x should be Int from Foo::Bar::baz()")
+}
+
+// TestConstructorSetsClassType verifies that calling Foo->new() on a bareword
+// class name sets the ClassType field on the assigned variable's Symbol.
+func TestConstructorSetsClassType(t *testing.T) {
+	src := []byte("my $obj = Foo->new();\n")
+	_, _, st := analyzeSourceFull(t, src)
+	sym, ok := st.Lookup("$obj")
+	require.True(t, ok)
+	assert.Equal(t, "Foo", sym.ClassType)
+}
+
+// TestMethodResolutionViaProjectIndex verifies that calling a method on an
+// object whose class was established by a constructor call resolves the method
+// through the ProjectIndex and propagates the return type to the result variable.
+func TestMethodResolutionViaProjectIndex(t *testing.T) {
+	dir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(dir, "lib"), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, "lib", "Counter.pm"),
+		[]byte("package Counter;\nsub count { return 42; }\n"), 0644)
+	require.NoError(t, err)
+	idx := infer.NewProjectIndex(dir)
+	src := []byte("use Counter;\nmy $c = Counter->new();\nmy $n = $c->count();\n$n;\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	annotations, _, _ := infer.Analyze(tree, src, idx)
+	nOffsets := findAllVarOffsets(src, "$n")
+	refTyp, ok := annotations[nOffsets[len(nOffsets)-1]]
+	assert.True(t, ok)
+	assert.Equal(t, types.Int, refTyp, "$n should be Int from Counter::count()")
+}
+
+// TestIsaGuardEnablesMethodResolution verifies that an "isa" guard in an if
+// condition narrows the variable's ClassType within the block, enabling method
+// call resolution through the ProjectIndex. The method call expression itself
+// is annotated with the resolved return type.
+func TestIsaGuardEnablesMethodResolution(t *testing.T) {
+	dir := t.TempDir()
+	err := os.MkdirAll(filepath.Join(dir, "lib"), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, "lib", "Dog.pm"),
+		[]byte("package Dog;\nsub speak { return 1; }\n"), 0644)
+	require.NoError(t, err)
+	idx := infer.NewProjectIndex(dir)
+	// The method call $x->speak() is annotated at the position of $x (the invocant).
+	// We find the $x inside the block (after "isa Dog) {") by using the last
+	// occurrence of $x before "->speak".
+	src := []byte("use Dog;\nmy $x = undef;\nif ($x isa Dog) {\n    my $v = $x->speak();\n}\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	annotations, _, _ := infer.Analyze(tree, src, idx)
+	// The method_call_expression node starts at the invocant ($x in $x->speak()).
+	// findNodeType searches for annotations whose offset matches the start of "$x->speak()".
+	callTyp, ok := findNodeType(annotations, src, "$x->speak()")
+	assert.True(t, ok, "method call $x->speak() should be annotated")
+	assert.Equal(t, types.Int, callTyp, "method call should resolve to Int from Dog::speak()")
 }

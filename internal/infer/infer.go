@@ -11,15 +11,62 @@ import (
 	"tamarou.com/pvm/internal/types"
 )
 
+// walkUseStatement handles use_statement CST nodes. When a ProjectIndex is
+// provided, it resolves the module name to a file path and triggers analysis of
+// that file so its symbols are available for cross-file lookup.
+//
+// If idx is nil (single-file mode), or if the module cannot be resolved, this
+// is a no-op. The function always returns types.Unknown because a use statement
+// is not an expression.
+func walkUseStatement(node *parser.Node, source []byte, idx *ProjectIndex) types.Type {
+	if idx == nil {
+		return types.Unknown
+	}
+
+	// The package name is held in the "package" named child of the use_statement.
+	var modName string
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "package" {
+			modName = child.Text(source)
+			break
+		}
+	}
+
+	if modName == "" {
+		return types.Unknown
+	}
+
+	path, err := idx.ResolveModule(modName)
+	if err != nil {
+		// Module not found in lib dirs — skip silently.
+		return types.Unknown
+	}
+
+	// Trigger analysis (result is cached on subsequent calls).
+	_, _ = idx.AnalyzeFile(path)
+	return types.Unknown
+}
+
 // Analyze runs both inference passes over the parsed tree and source and
 // returns an annotation map and a slice of diagnostics.
 //
 // The annotation map keys are node StartByte values; each value is the
 // inferred types.Type for the node starting at that byte offset.
 // Diagnostics describe any type errors or arity mismatches found.
-func Analyze(tree *parser.Tree, source []byte) (map[uint32]types.Type, []Diagnostic, *SymbolTable) {
+//
+// idx is an optional ProjectIndex for cross-file analysis. Pass nil for
+// single-file mode; use statements and fully-qualified calls are then ignored.
+func Analyze(tree *parser.Tree, source []byte, idx *ProjectIndex) (map[uint32]types.Type, []Diagnostic, *SymbolTable) {
 	annotations := make(map[uint32]types.Type)
 	diags := make([]Diagnostic, 0)
+	// classTypes maps a node's StartByte to the class name of the object
+	// produced at that position (e.g. from Foo->new()). It is written by
+	// inferMethodCallType and read by inferAssignmentNarrowing.
+	classTypes := make(map[uint32]string)
 
 	if tree == nil {
 		return annotations, diags, NewSymbolTable()
@@ -33,7 +80,7 @@ func Analyze(tree *parser.Tree, source []byte) (map[uint32]types.Type, []Diagnos
 	st := CollectDeclarations(tree, source)
 
 	// Pass 2: bottom-up type walk.
-	walkNode(root, source, st, annotations, &diags)
+	walkNode(root, source, st, annotations, &diags, idx, classTypes)
 
 	return annotations, diags, st
 }
@@ -41,7 +88,10 @@ func Analyze(tree *parser.Tree, source []byte) (map[uint32]types.Type, []Diagnos
 // walkNode performs a post-order (bottom-up) traversal of the CST, computing
 // a types.Type for every node that has a meaningful type and storing it in the
 // annotations map keyed by the node's StartByte.
-func walkNode(node *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type, diags *[]Diagnostic) types.Type {
+//
+// idx is threaded through for cross-file analysis; it may be nil in single-file mode.
+// classTypes maps node StartByte values to class names for constructor call results.
+func walkNode(node *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type, diags *[]Diagnostic, idx *ProjectIndex, classTypes map[uint32]string) types.Type {
 	if node == nil {
 		return types.Unknown
 	}
@@ -51,22 +101,24 @@ func walkNode(node *parser.Node, source []byte, st *SymbolTable, annotations map
 	// which the generic post-order loop cannot provide.
 	switch node.Kind() {
 	case "conditional_statement":
-		return walkConditionalStatement(node, source, st, annotations, diags)
+		return walkConditionalStatement(node, source, st, annotations, diags, idx, classTypes)
 	case "loop_statement":
-		return walkLoopStatement(node, source, st, annotations, diags)
+		return walkLoopStatement(node, source, st, annotations, diags, idx, classTypes)
 	case "for_statement":
-		return walkForStatement(node, source, st, annotations, diags)
+		return walkForStatement(node, source, st, annotations, diags, idx, classTypes)
 	case "subroutine_declaration_statement":
-		return walkSubroutineDeclaration(node, source, st, annotations, diags)
+		return walkSubroutineDeclaration(node, source, st, annotations, diags, idx, classTypes)
+	case "use_statement":
+		return walkUseStatement(node, source, idx)
 	}
 
 	// Recurse into all children first (post-order).
 	childTypes := make([]types.Type, node.ChildCount())
 	for i := 0; i < node.ChildCount(); i++ {
-		childTypes[i] = walkNode(node.Child(i), source, st, annotations, diags)
+		childTypes[i] = walkNode(node.Child(i), source, st, annotations, diags, idx, classTypes)
 	}
 
-	typ := inferNodeType(node, source, st, annotations, childTypes, diags)
+	typ := inferNodeType(node, source, st, annotations, childTypes, diags, idx, classTypes)
 	if typ != types.Unknown {
 		annotations[node.StartByte()] = typ
 	}
@@ -75,6 +127,10 @@ func walkNode(node *parser.Node, source []byte, st *SymbolTable, annotations map
 
 // inferNodeType dispatches on node.Kind() and returns the inferred type for
 // the node, emitting any diagnostics as a side effect.
+//
+// idx is forwarded to inferFunctionCallType for cross-file FQ call resolution;
+// it may be nil in single-file mode.
+// classTypes maps node StartByte values to class names for constructor call results.
 func inferNodeType(
 	node *parser.Node,
 	source []byte,
@@ -82,6 +138,8 @@ func inferNodeType(
 	annotations map[uint32]types.Type,
 	childTypes []types.Type,
 	diags *[]Diagnostic,
+	idx *ProjectIndex,
+	classTypes map[uint32]string,
 ) types.Type {
 	kind := node.Kind()
 
@@ -130,7 +188,7 @@ func inferNodeType(
 
 	case "function_call_expression",
 		"ambiguous_function_call_expression":
-		return inferFunctionCallType(node, source, st, annotations, diags)
+		return inferFunctionCallType(node, source, st, annotations, diags, idx)
 
 	case "func1op_call_expression":
 		return inferFunc1opCallType(node, source, annotations, diags)
@@ -141,13 +199,13 @@ func inferNodeType(
 	// --- Method calls ---
 
 	case "method_call_expression":
-		return types.Any
+		return inferMethodCallType(node, source, st, idx, classTypes)
 
 	// --- Assignments ---
 	// Narrow the LHS variable type based on the RHS expression type.
 
 	case "assignment_expression":
-		return inferAssignmentNarrowing(node, source, st, annotations, childTypes)
+		return inferAssignmentNarrowing(node, source, st, annotations, childTypes, classTypes)
 
 	// --- Ternary / conditional ---
 
@@ -228,12 +286,17 @@ func findOperatorText(node *parser.Node, source []byte) string {
 // ambiguous_function_call_expression nodes. It extracts the function name
 // from a "function" child, looks it up as a builtin, validates arity and
 // argument types, and returns the builtin's return type.
+//
+// When the name contains "::" and a ProjectIndex is available, the function
+// splits the name into package and sub-name components and performs a
+// cross-file symbol lookup via the index.
 func inferFunctionCallType(
 	node *parser.Node,
 	source []byte,
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
+	idx *ProjectIndex,
 ) types.Type {
 	// Extract function name from the "function" child node.
 	name := ""
@@ -252,6 +315,15 @@ func inferFunctionCallType(
 	// shadowing builtin return types).
 	sig, ok := types.GetBuiltin(name)
 	if !ok {
+		// Fully-qualified call (e.g. Foo::Bar::baz) — resolve via index.
+		if idx != nil && strings.Contains(name, "::") {
+			sep := strings.LastIndex(name, "::")
+			pkg := name[:sep]
+			funcName := name[sep+2:]
+			if sym, found := idx.LookupSymbol(pkg, funcName); found && sym.ReturnType != types.Unknown {
+				return sym.ReturnType
+			}
+		}
 		// Not a builtin — check symbol table for user-defined sub with
 		// an inferred return type.
 		if sym, found := st.Lookup(name); found && sym.ReturnType != types.Unknown {
@@ -292,6 +364,101 @@ func inferFunctionCallType(
 	}
 
 	return sig.ReturnType
+}
+
+// inferMethodCallType handles method_call_expression nodes such as Foo->new()
+// or $obj->method(). It resolves the method via the ProjectIndex when possible.
+//
+// CST shape: method_call_expression has an invocant (scalar or bareword), an
+// anonymous "->" token, and a method name (bareword or named).
+//
+//   - Bareword invocant + method "new" → returns types.Object, writes className to classTypes.
+//   - Bareword invocant + other method → looks up className::method in the index.
+//   - Scalar invocant → looks up the variable's ClassType from the symbol table.
+//     If set and idx is available → looks up classType::method in the index.
+//   - Fallback → types.Any.
+func inferMethodCallType(
+	node *parser.Node,
+	source []byte,
+	st *SymbolTable,
+	idx *ProjectIndex,
+	classTypes map[uint32]string,
+) types.Type {
+	var invocantNode *parser.Node
+	var methodName string
+
+	// Walk children: invocant is the first named child, method name follows "->".
+	// The grammar places the method name as the last named child.
+	namedChildren := make([]*parser.Node, 0, node.ChildCount())
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() {
+			namedChildren = append(namedChildren, child)
+		}
+	}
+
+	if len(namedChildren) >= 2 {
+		invocantNode = namedChildren[0]
+		lastChild := namedChildren[len(namedChildren)-1]
+		methodName = lastChild.Text(source)
+	} else if len(namedChildren) == 1 {
+		// Only an invocant but no method name found yet — check anonymous children.
+		invocantNode = namedChildren[0]
+	}
+
+	// If methodName is still empty, look for bareword in last position among all children.
+	if methodName == "" {
+		for i := node.ChildCount() - 1; i >= 0; i-- {
+			child := node.Child(i)
+			if child == nil {
+				continue
+			}
+			if child.Kind() == "bareword" || child.Kind() == "method" {
+				methodName = child.Text(source)
+				break
+			}
+		}
+	}
+
+	if invocantNode == nil || methodName == "" {
+		return types.Any
+	}
+
+	invocantKind := invocantNode.Kind()
+
+	switch invocantKind {
+	case "bareword":
+		// Class method call: ClassName->method(...)
+		className := invocantNode.Text(source)
+		if methodName == "new" {
+			// Constructor call: record the class name for the calling node.
+			classTypes[node.StartByte()] = className
+			return types.Object
+		}
+		// Class method (non-constructor): resolve via index.
+		if idx != nil {
+			if sym, found := idx.LookupSymbol(className, methodName); found && sym.ReturnType != types.Unknown {
+				return sym.ReturnType
+			}
+		}
+		return types.Any
+
+	case "scalar":
+		// Instance method call: $obj->method(...)
+		varName := sigildName("$", invocantNode, source)
+		sym, found := st.Lookup(varName)
+		if !found || sym.ClassType == "" {
+			return types.Any
+		}
+		if idx != nil {
+			if methodSym, ok := idx.LookupSymbol(sym.ClassType, methodName); ok && methodSym.ReturnType != types.Unknown {
+				return methodSym.ReturnType
+			}
+		}
+		return types.Any
+	}
+
+	return types.Any
 }
 
 // inferFunc1opCallType handles func1op_call_expression nodes such as
@@ -470,6 +637,9 @@ func lookupNarrowedType(node *parser.Node, source []byte, st *SymbolTable, sigil
 // the LHS variable name and the RHS type, then updates the symbol table to
 // narrow the variable's type based on the assigned value.
 //
+// When the RHS is a method_call_expression that produced a class name in
+// classTypes (e.g. Foo->new()), the ClassType is propagated to the LHS symbol.
+//
 // Tree structure:
 //
 //	assignment_expression
@@ -482,6 +652,7 @@ func inferAssignmentNarrowing(
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	childTypes []types.Type,
+	classTypes map[uint32]string,
 ) types.Type {
 	// Find the LHS variable name and the RHS type.
 	var varName string
@@ -517,18 +688,27 @@ func inferAssignmentNarrowing(
 
 	// The RHS is the last named child (after the = operator).
 	// Its type is the corresponding entry in childTypes.
+	var rhsNode *parser.Node
 	for i := node.ChildCount() - 1; i >= 0; i-- {
 		child := node.Child(i)
 		if child != nil && child.IsNamed() {
 			if i < len(childTypes) {
 				rhsType = childTypes[i]
 			}
+			rhsNode = child
 			break
 		}
 	}
 
 	if varName != "" && rhsType != types.Unknown {
 		st.UpdateType(varName, rhsType)
+	}
+
+	// Propagate ClassType when the RHS is a constructor call (Foo->new()).
+	if varName != "" && rhsNode != nil {
+		if className, ok := classTypes[rhsNode.StartByte()]; ok && className != "" {
+			st.UpdateClassType(varName, className)
+		}
 	}
 
 	return rhsType
@@ -545,11 +725,13 @@ type compoundGuard struct {
 
 // guardResult holds the result of extracting a guard pattern from a condition node.
 // When Compound is non-nil, this is a compound guard and VarName/Guard/Negated are unused.
+// ClassName is set for GuardIsa guards and holds the class name from the "isa" RHS bareword.
 type guardResult struct {
-	VarName  string
-	Guard    types.GuardPattern
-	Negated  bool
-	Compound *compoundGuard
+	VarName   string
+	Guard     types.GuardPattern
+	Negated   bool
+	ClassName string // Set for GuardIsa guards: the class name on the RHS of "isa"
+	Compound  *compoundGuard
 }
 
 // extractGuardPattern examines a condition expression node and returns the
@@ -682,9 +864,10 @@ func extractCompoundGuard(node *parser.Node, source []byte) *guardResult {
 
 // extractIsaGuard extracts a guard from a relational_expression node of the
 // form "$x isa Foo". The CST has children: scalar (named), "isa" (anonymous),
-// bareword (named).
+// bareword (named). ClassName is populated from the bareword RHS.
 func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 	var varNode *parser.Node
+	var classNode *parser.Node
 	hasIsa := false
 
 	for i := 0; i < node.ChildCount(); i++ {
@@ -700,6 +883,8 @@ func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 		}
 		if child.Kind() == "scalar" && varNode == nil {
 			varNode = child
+		} else if child.Kind() == "bareword" && classNode == nil {
+			classNode = child
 		}
 	}
 
@@ -708,7 +893,15 @@ func extractIsaGuard(node *parser.Node, source []byte) *guardResult {
 	}
 
 	varName := sigildName("$", varNode, source)
-	return &guardResult{VarName: varName, Guard: types.GuardPattern{Kind: types.GuardIsa}}
+	className := ""
+	if classNode != nil {
+		className = classNode.Text(source)
+	}
+	return &guardResult{
+		VarName:   varName,
+		Guard:     types.GuardPattern{Kind: types.GuardIsa},
+		ClassName: className,
+	}
 }
 
 // extractNegatedGuard unwraps a unary_expression with "!" to find the inner
@@ -932,6 +1125,8 @@ func walkConditionalStatement(
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
+	idx *ProjectIndex,
+	classTypes map[uint32]string,
 ) types.Type {
 	var keyword string
 	var conditionNode *parser.Node
@@ -974,7 +1169,7 @@ func walkConditionalStatement(
 
 	// Walk the condition node to type its children.
 	if conditionNode != nil {
-		walkNode(conditionNode, source, st, annotations, diags)
+		walkNode(conditionNode, source, st, annotations, diags, idx, classTypes)
 	}
 
 	// Extract guard pattern from the condition.
@@ -1000,7 +1195,7 @@ func walkConditionalStatement(
 		if !ifBodyExits {
 			ifBranchTypes = make(map[string]types.Type)
 		}
-		walkBlockWithGuard(ifBlock, source, st, annotations, diags, flattenGuards(guard, ifBodyNegate), ifBranchTypes)
+		walkBlockWithGuard(ifBlock, source, st, annotations, diags, flattenGuards(guard, ifBodyNegate), ifBranchTypes, idx, classTypes)
 	}
 
 	// Early-exit narrowing: if the if-body always exits and there is no
@@ -1042,7 +1237,7 @@ func walkConditionalStatement(
 	// Walk elsif branches, collecting their join types.
 	var elsifJoinTypes map[string]types.Type
 	for _, elsifNode := range elsifNodes {
-		elsifTypes := walkElsifNode(elsifNode, source, st, annotations, diags)
+		elsifTypes := walkElsifNode(elsifNode, source, st, annotations, diags, idx, classTypes)
 		elsifJoinTypes = mergeBranchTypes(elsifJoinTypes, elsifTypes)
 	}
 
@@ -1059,7 +1254,7 @@ func walkConditionalStatement(
 		}
 		if elseBlock != nil {
 			elseBranchTypes = make(map[string]types.Type)
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !ifBodyNegate), elseBranchTypes)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !ifBodyNegate), elseBranchTypes, idx, classTypes)
 		}
 	}
 
@@ -1198,6 +1393,8 @@ func walkElsifNode(
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
+	idx *ProjectIndex,
+	classTypes map[uint32]string,
 ) map[string]types.Type {
 	var conditionNode *parser.Node
 	var block *parser.Node
@@ -1230,7 +1427,7 @@ func walkElsifNode(
 
 	// Walk the condition to type its children.
 	if conditionNode != nil {
-		walkNode(conditionNode, source, st, annotations, diags)
+		walkNode(conditionNode, source, st, annotations, diags, idx, classTypes)
 	}
 
 	guard := extractGuardPattern(conditionNode, source)
@@ -1247,7 +1444,7 @@ func walkElsifNode(
 		if !blockExits {
 			elsifBranchTypes = make(map[string]types.Type)
 		}
-		walkBlockWithGuard(block, source, st, annotations, diags, flattenGuards(guard, elsifBodyNegate), elsifBranchTypes)
+		walkBlockWithGuard(block, source, st, annotations, diags, flattenGuards(guard, elsifBodyNegate), elsifBranchTypes, idx, classTypes)
 	}
 
 	// Accumulate join types starting from this elsif's branch.
@@ -1265,13 +1462,13 @@ func walkElsifNode(
 		}
 		if elseBlock != nil {
 			elseBranchTypes := make(map[string]types.Type)
-			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !elsifBodyNegate), elseBranchTypes)
+			walkBlockWithGuard(elseBlock, source, st, annotations, diags, flattenGuards(guard, !elsifBodyNegate), elseBranchTypes, idx, classTypes)
 			joinTypes = mergeBranchTypes(joinTypes, elseBranchTypes)
 		}
 	}
 
 	if trailingElsif != nil {
-		trailingTypes := walkElsifNode(trailingElsif, source, st, annotations, diags)
+		trailingTypes := walkElsifNode(trailingElsif, source, st, annotations, diags, idx, classTypes)
 		joinTypes = mergeBranchTypes(joinTypes, trailingTypes)
 	}
 
@@ -1285,6 +1482,8 @@ func walkLoopStatement(
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
+	idx *ProjectIndex,
+	classTypes map[uint32]string,
 ) types.Type {
 	var conditionNode *parser.Node
 	var bodyBlock *parser.Node
@@ -1308,13 +1507,13 @@ func walkLoopStatement(
 	}
 
 	if conditionNode != nil {
-		walkNode(conditionNode, source, st, annotations, diags)
+		walkNode(conditionNode, source, st, annotations, diags, idx, classTypes)
 	}
 
 	guard := extractGuardPattern(conditionNode, source)
 
 	if bodyBlock != nil {
-		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, flattenGuards(guard, false), nil)
+		walkBlockWithGuard(bodyBlock, source, st, annotations, diags, flattenGuards(guard, false), nil, idx, classTypes)
 	}
 
 	return types.Unknown
@@ -1333,6 +1532,8 @@ func walkForStatement(
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
+	idx *ProjectIndex,
+	classTypes map[uint32]string,
 ) types.Type {
 	var loopVar *parser.Node
 	var iterSource *parser.Node
@@ -1363,7 +1564,7 @@ func walkForStatement(
 
 	// Walk the iteration source to type it.
 	if iterSource != nil {
-		walkNode(iterSource, source, st, annotations, diags)
+		walkNode(iterSource, source, st, annotations, diags, idx, classTypes)
 	}
 
 	// Walk the loop body with the loop variable scoped.
@@ -1379,14 +1580,14 @@ func walkForStatement(
 		// Annotate the loop variable node itself.
 		annotations[loopVar.StartByte()] = types.Scalar
 		for i := 0; i < bodyBlock.ChildCount(); i++ {
-			walkNode(bodyBlock.Child(i), source, st, annotations, diags)
+			walkNode(bodyBlock.Child(i), source, st, annotations, diags, idx, classTypes)
 		}
 		return types.Unknown
 	}
 
 	// Fallback: walk all children generically.
 	for i := 0; i < node.ChildCount(); i++ {
-		walkNode(node.Child(i), source, st, annotations, diags)
+		walkNode(node.Child(i), source, st, annotations, diags, idx, classTypes)
 	}
 	return types.Unknown
 }
@@ -1523,6 +1724,8 @@ func walkSubroutineDeclaration(
 	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
+	idx *ProjectIndex,
+	classTypes map[uint32]string,
 ) types.Type {
 	var subName string
 	var bodyBlock *parser.Node
@@ -1550,7 +1753,7 @@ func walkSubroutineDeclaration(
 
 	// Walk all body children so that all expression nodes are annotated.
 	for i := 0; i < bodyBlock.ChildCount(); i++ {
-		walkNode(bodyBlock.Child(i), source, st, annotations, diags)
+		walkNode(bodyBlock.Child(i), source, st, annotations, diags, idx, classTypes)
 	}
 
 	// Collect explicit return types (all return_expression nodes in the body).
@@ -1646,10 +1849,13 @@ func flattenGuards(guard *guardResult, negate bool) []*guardResult {
 
 	if guard.Compound == nil {
 		// Leaf guard: resolve the final Negated flag and return it.
+		// ClassName is preserved so that GuardIsa guards retain the class name
+		// when the flattened leaf is used to shadow variables in walkBlockWithGuard.
 		leaf := &guardResult{
-			VarName: guard.VarName,
-			Guard:   guard.Guard,
-			Negated: guard.Negated != negate, // XOR: outer negate flips the leaf
+			VarName:   guard.VarName,
+			Guard:     guard.Guard,
+			Negated:   guard.Negated != negate, // XOR: outer negate flips the leaf
+			ClassName: guard.ClassName,
 		}
 		return []*guardResult{leaf}
 	}
@@ -1716,13 +1922,17 @@ func walkBlockWithGuard(
 	diags *[]Diagnostic,
 	guards []*guardResult,
 	branchTypes map[string]types.Type,
+	idx *ProjectIndex,
+	classTypes map[uint32]string,
 ) {
 	// Build accumulated narrowed types by applying guards sequentially.
 	// working tracks the current type for each variable as guards are applied,
 	// whether or not each individual guard produced a change.
 	// shadows collects only variables where at least one guard narrowed.
+	// guardClassNames records the class name for GuardIsa guards by variable name.
 	working := make(map[string]types.Type)
 	shadows := make(map[string]types.Type)
+	guardClassNames := make(map[string]string)
 
 	for _, guard := range guards {
 		// Determine the starting type for this variable: use the working type
@@ -1753,6 +1963,12 @@ func walkBlockWithGuard(
 			// subsequent guards for the same variable chain from it.
 			working[guard.VarName] = currentType
 		}
+
+		// Record the class name for GuardIsa guards so the shadow symbol can
+		// carry ClassType, enabling method resolution inside the block.
+		if guard.Guard.Kind == types.GuardIsa && guard.ClassName != "" && !guard.Negated {
+			guardClassNames[guard.VarName] = guard.ClassName
+		}
 	}
 
 	scopeEntered := false
@@ -1760,16 +1976,18 @@ func walkBlockWithGuard(
 		st.EnterScope("guard")
 		scopeEntered = true
 		for name, typ := range shadows {
+			className := guardClassNames[name]
 			st.Define(Symbol{
-				Name: name,
-				Type: typ,
-				Kind: SymVariable,
+				Name:      name,
+				Type:      typ,
+				ClassType: className,
+				Kind:      SymVariable,
 			})
 		}
 	}
 
 	for i := 0; i < block.ChildCount(); i++ {
-		walkNode(block.Child(i), source, st, annotations, diags)
+		walkNode(block.Child(i), source, st, annotations, diags, idx, classTypes)
 	}
 
 	// Capture branch-end types of guarded variables before the scope exits,
