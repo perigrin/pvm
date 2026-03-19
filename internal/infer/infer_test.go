@@ -1564,3 +1564,81 @@ func TestUserDefinedGuardFuncDefined(t *testing.T) {
 	assert.True(t, elseOk, "else-body $x should be annotated")
 	assert.Equal(t, types.Undef, elseBodyTyp, "else-body $x should be Undef")
 }
+
+func TestUserDefinedGuardFuncRefArrayAccess(t *testing.T) {
+	src := []byte("sub is_ref { ref($_[0]) }\nmy $x = undef;\nif (is_ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	ifBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[ifBodyXOffset]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Ref, typ, "if-body $x should be Ref after user-defined ref guard")
+}
+
+func TestUserDefinedGuardFuncSignature(t *testing.T) {
+	src := []byte("sub is_defined ($val) { defined($val) }\nmy $x = undef;\nif (is_defined($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	ifBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[ifBodyXOffset]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Scalar&^types.Undef, typ, "if-body $x should have Undef removed after signature-style guard")
+}
+
+func TestUserDefinedGuardFuncShift(t *testing.T) {
+	src := []byte("sub is_ref { my $val = shift; ref($val) }\nmy $x = undef;\nif (is_ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	ifBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[ifBodyXOffset]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Ref, typ, "if-body $x should be Ref after shift-style guard")
+}
+
+func TestUserDefinedGuardFuncIsa(t *testing.T) {
+	src := []byte("sub is_foo { $_[0] isa Foo }\nmy $x = undef;\nif (is_foo($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	ifBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[ifBodyXOffset]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Object, typ, "if-body $x should be Object after isa guard")
+}
+
+func TestUserDefinedGuardFuncNegatedDefined(t *testing.T) {
+	src := []byte("sub is_defined { defined($_[0]) }\nmy $x = undef;\nunless (is_defined($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	// unless(is_defined($x)) means body gets negated guard -> Undef.
+	unlessBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[unlessBodyXOffset]
+	assert.True(t, ok, "unless-body $x should be annotated")
+	assert.Equal(t, types.Undef, typ, "unless-body $x should be Undef (negated defined guard)")
+}
+
+func TestUserDefinedGuardFuncCompound(t *testing.T) {
+	src := []byte("sub is_defined_ref { defined($_[0]) && ref($_[0]) }\nmy $x = undef;\nif (is_defined_ref($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	ifBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[ifBodyXOffset]
+	assert.True(t, ok, "if-body $x should be annotated")
+	assert.Equal(t, types.Ref, typ, "if-body $x should be Ref after compound guard (defined+ref)")
+}
+
+func TestUserDefinedGuardFuncNonGuardIgnored(t *testing.T) {
+	src := []byte("sub do_stuff { 42 }\nmy $x = undef;\nif (do_stuff($x)) {\n    my $y = $x;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+
+	ifBodyXOffset := findLastVarOffset(src, "$x")
+	typ, ok := annotations[ifBodyXOffset]
+	if ok {
+		assert.Equal(t, types.Scalar, typ, "if-body $x should stay Scalar (non-guard sub)")
+	}
+}
+
+func TestUserDefinedGuardFuncComplexArgNoCrash(t *testing.T) {
+	src := []byte("sub is_ref { ref($_[0]) }\nmy @arr;\nif (is_ref($arr[0])) {\n    my $y = 1;\n}\n")
+	annotations, _ := analyzeSource(t, src)
+	_ = annotations // Just verify no panic.
+}
