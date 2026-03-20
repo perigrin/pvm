@@ -22,19 +22,22 @@ applies. Backward compatible — existing consumers ignore unknown fields.
 
 ### Guard Selection Rules
 
-`suggestGuard` examines the bitset difference between actual and expected types
-to pick the right guard. First match wins:
+`suggestGuard` tries each guard candidate in priority order. A guard is only
+suggested if applying its narrowing to actual would produce a type that
+satisfies expected (checked via `types.TypeSatisfies`). This prevents
+suggesting `defined()` when the real problem is structural (e.g., Scalar vs
+Array). First match wins:
 
-| Priority | Condition | Suggestion |
-|----------|-----------|------------|
-| 1 | `actual` has Undef, `expected` does not | `if (defined($var)) { ... }` |
-| 2 | `expected` within Ref mask, `actual` broader | `if (ref($var)) { ... }` |
-| 3 | `expected` is Object | `if (ref($var)) { ... }` |
-| 4 | `expected` is Bool, `actual` broader | `if (builtin::is_bool($var)) { ... }` |
-| — | No clear guard maps | No suggestion |
+| Priority | Guard | Narrowing |
+|----------|-------|-----------|
+| 1 | `defined($var)` | `actual &^ Undef` |
+| 2 | `ref($var)` | `actual & Ref` |
+| 3 | `builtin::is_bool($var)` | `actual & Bool` |
+| — | No suggestion | — |
 
-When multiple bits differ (e.g., Scalar includes Undef+Bool+Int+Num+Str), the
-function picks the single most useful guard. No compound guard suggestions.
+Each guard is only suggested when `TypeSatisfies(narrowedType, expected)`
+returns true. This means suggestions fire when the actual type is close to
+expected and a single guard resolves the mismatch.
 
 ### Variable Name Extraction
 
@@ -58,8 +61,8 @@ literal.
 `FormatDiagnostic` appends a hint line when `Suggestion` is non-empty:
 
 ```
-file.pl:3:5: error: call to push: argument 1 expects Array, got Scalar [type-mismatch]
-  hint: Add guard: if (ref($x)) { ... }
+file.pl:3:5: error: call to bless: argument 1 expects Ref, got Undef [type-mismatch]
+  hint: Add guard: if (defined($x)) { ... }
 ```
 
 No hint line when Suggestion is empty — fully backward compatible.
@@ -75,17 +78,19 @@ No hint line when Suggestion is empty — fully backward compatible.
 
 ### Unit Tests for suggestGuard
 
-- Scalar vs Int → `defined($x)` (Undef is the extra bit)
-- Scalar vs Ref → `ref($x)`
-- Scalar vs Object → `ref($x)`
-- Scalar vs Bool → `builtin::is_bool($x)`
-- Int vs Str → no suggestion (structural mismatch)
+- Scalar vs Int → `defined($x)` (Undef removal leaves union containing Int)
+- Scalar vs Ref → `defined($x)` (Undef removal leaves union containing Ref)
+- Scalar vs Object → `defined($x)` (Undef removal leaves union containing Object)
+- Scalar vs Bool → `defined($x)` (Undef removal leaves union containing Bool)
+- Ref|Int vs Ref → `ref($x)` (no Undef, ref guard fires directly)
+- Bool|Int vs Bool → `builtin::is_bool($x)` (no Undef, is_bool fires directly)
+- Scalar vs Array → no suggestion (structural mismatch)
 - Array vs Hash → no suggestion
 - Empty var name → no suggestion
 
 ### Integration Tests
 
-- `push($x, 1)` where `$x` is Scalar → diagnostic with ref suggestion
+- `push($x, 1)` where `$x` is Scalar → diagnostic with no suggestion (structural)
 - Guard already in place → no diagnostic
 - Types match → no diagnostic
 
