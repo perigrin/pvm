@@ -353,12 +353,14 @@ func inferFunctionCallType(
 		argType := annotations[arg.StartByte()]
 		expectedType := builtinArgType(sig, i)
 		if argType != types.Unknown && !types.TypeSatisfies(argType, expectedType) {
+			argVarName := ExtractArgVarName(arg, source)
 			*diags = append(*diags, Diagnostic{
-				StartByte: arg.StartByte(),
-				EndByte:   arg.EndByte(),
-				Severity:  Error,
-				Code:      CodeTypeMismatch,
-				Message:   typeMismatchMessage(name, i, expectedType, argType),
+				StartByte:  arg.StartByte(),
+				EndByte:    arg.EndByte(),
+				Severity:   Error,
+				Code:       CodeTypeMismatch,
+				Message:    typeMismatchMessage(name, i, expectedType, argType),
+				Suggestion: SuggestGuard(argVarName, argType, expectedType),
 			})
 		}
 	}
@@ -508,12 +510,14 @@ func inferFunc1opCallType(
 		argType := annotations[arg.StartByte()]
 		expectedType := builtinArgType(sig, i)
 		if argType != types.Unknown && !types.TypeSatisfies(argType, expectedType) {
+			argVarName := ExtractArgVarName(arg, source)
 			*diags = append(*diags, Diagnostic{
-				StartByte: arg.StartByte(),
-				EndByte:   arg.EndByte(),
-				Severity:  Error,
-				Code:      CodeTypeMismatch,
-				Message:   typeMismatchMessage(name, i, expectedType, argType),
+				StartByte:  arg.StartByte(),
+				EndByte:    arg.EndByte(),
+				Severity:   Error,
+				Code:       CodeTypeMismatch,
+				Message:    typeMismatchMessage(name, i, expectedType, argType),
+				Suggestion: SuggestGuard(argVarName, argType, expectedType),
 			})
 		}
 	}

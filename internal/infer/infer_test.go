@@ -1694,3 +1694,34 @@ func TestExtractArgVarNameScalar(t *testing.T) {
 func TestExtractArgVarNameNil(t *testing.T) {
 	assert.Equal(t, "", infer.ExtractArgVarName(nil, nil))
 }
+
+func TestTypeMismatchDiagnosticSuggestionWired(t *testing.T) {
+	// push expects Array as first arg. Passing Scalar $x triggers
+	// a type-mismatch diagnostic. No guard can narrow Scalar to Array,
+	// so Suggestion should be empty.
+	src := []byte("my $x;\npush($x, 1);\n")
+	_, diags := analyzeSource(t, src)
+
+	require.True(t, len(diags) > 0, "should have at least one diagnostic")
+
+	var found bool
+	for _, d := range diags {
+		if d.Code == infer.CodeTypeMismatch {
+			assert.Empty(t, d.Suggestion,
+				"Scalar vs Array mismatch should have no suggestion")
+			found = true
+		}
+	}
+	assert.True(t, found, "should find a type-mismatch diagnostic")
+}
+
+func TestTypeMismatchDiagnosticNoSuggestionWhenClean(t *testing.T) {
+	// push expects Array. Passing @arr is correct — no diagnostic at all.
+	src := []byte("my @arr;\npush(@arr, 1);\n")
+	_, diags := analyzeSource(t, src)
+
+	for _, d := range diags {
+		assert.NotEqual(t, infer.CodeTypeMismatch, d.Code,
+			"clean code should have no type-mismatch diagnostics")
+	}
+}
