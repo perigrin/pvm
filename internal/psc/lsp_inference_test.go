@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/types"
 )
@@ -146,7 +147,7 @@ func TestLSPDiagnosticSuggestionField(t *testing.T) {
 
 	var found bool
 	for _, d := range diags {
-		if d.Code == "type-mismatch" {
+		if d.Code == infer.CodeTypeMismatch {
 			// Scalar vs Array: empty suggestion is correct.
 			assert.Empty(t, d.Suggestion)
 			found = true
