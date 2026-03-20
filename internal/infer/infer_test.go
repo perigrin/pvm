@@ -1691,6 +1691,35 @@ func TestExtractArgVarNameScalar(t *testing.T) {
 	assert.Equal(t, "", noName)
 }
 
+func TestExtractArgVarNameHash(t *testing.T) {
+	src := []byte("keys(%h);\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+
+	// Navigate CST: source_file > expression_statement > func1op_call_expression > hash
+	root := tree.RootNode()
+	exprStmt := root.Child(0)
+	require.NotNil(t, exprStmt)
+	callExpr := exprStmt.Child(0)
+	require.NotNil(t, callExpr)
+	require.Equal(t, "func1op_call_expression", callExpr.Kind())
+
+	// Find the hash child
+	var hashArg *parser.Node
+	for i := 0; i < callExpr.ChildCount(); i++ {
+		child := callExpr.Child(i)
+		if child != nil && child.Kind() == "hash" {
+			hashArg = child
+			break
+		}
+	}
+	require.NotNil(t, hashArg, "should find hash node")
+
+	name := infer.ExtractArgVarName(hashArg, src)
+	assert.Equal(t, "%h", name)
+}
+
 func TestExtractArgVarNameNil(t *testing.T) {
 	assert.Equal(t, "", infer.ExtractArgVarName(nil, nil))
 }

@@ -16,7 +16,8 @@ import (
 func TestSuggestGuardDefined(t *testing.T) {
 	// Scalar actual vs Int expected. Scalar includes Undef; Int does not.
 	// Removing Undef from Scalar leaves Bool|Str|DualVar|Regex|Ref, which
-	// still contains Int (IsSubtype(Int, narrowed) = true), so defined()
+	// still contains Int's bits via the Str/Num chain (Str includes Num,
+	// Num includes Int), so IsSubtype(Int, narrowed) = true and defined()
 	// is suggested.
 	suggestion := infer.SuggestGuard("$x", types.Scalar, types.Int)
 	assert.Equal(t, "Add guard: if (defined($x)) { ... }", suggestion)

@@ -142,6 +142,14 @@ func SuggestGuard(varName string, actual, expected types.Type) string {
 // a broad union that lost its polymorphic status in polymorphicMasks but
 // still contains the expected type's bits (e.g. Int is a subtype of
 // Scalar &^ Undef).
+//
+// This is a best-effort heuristic. The IsSubtype fallback can suggest
+// guards that do not fully resolve the mismatch when the narrowed type is
+// a non-polymorphic union broader than expected (e.g. Num|Undef narrowed
+// to Num still fails TypeSatisfies(Num, Int)). Today this is rare because
+// most variables are typed Scalar (polymorphic). As the type system gains
+// precision, consider extending polymorphicMasks to cover common narrowed
+// unions so both SuggestGuard and the inference engine agree.
 func guardNarrowingSatisfies(narrowed, expected types.Type) bool {
 	if types.TypeSatisfies(narrowed, expected) {
 		return true
