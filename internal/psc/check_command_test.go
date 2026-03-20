@@ -117,3 +117,25 @@ func TestCheckCommandNoArgs(t *testing.T) {
 	err := cmd.Execute()
 	assert.Error(t, err, "check with no arguments should return an error")
 }
+
+func TestCheckCommandWithTypeMismatchNoHint(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "mismatch.pl")
+	// push($x, 1) where $x is a scalar — triggers type-mismatch.
+	// No guard can narrow Scalar to Array, so no hint line appears.
+	content := "my $x;\npush($x, 1);\n"
+	require.NoError(t, os.WriteFile(file, []byte(content), 0644))
+
+	cmd := psc.NewCommand()
+	cmd.SetArgs([]string{"check", file})
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+
+	err := cmd.Execute()
+	assert.Error(t, err, "check should report diagnostics")
+	assert.Contains(t, stderr.String(), "type-mismatch", "should contain type-mismatch diagnostic")
+	assert.NotContains(t, stderr.String(), "hint:", "no hint when no guard helps")
+}
