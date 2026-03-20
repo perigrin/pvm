@@ -1642,3 +1642,55 @@ func TestUserDefinedGuardFuncComplexArgNoCrash(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	_ = annotations // Just verify no panic.
 }
+
+func TestExtractArgVarNameScalar(t *testing.T) {
+	src := []byte("push($x, 1);\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+
+	// Navigate CST: source_file > expression_statement > function_call_expression > list_expression > scalar
+	root := tree.RootNode()
+	exprStmt := root.Child(0) // expression_statement
+	require.NotNil(t, exprStmt)
+	callExpr := exprStmt.Child(0) // function_call_expression
+	require.NotNil(t, callExpr)
+	require.Equal(t, "function_call_expression", callExpr.Kind())
+
+	// Find the list_expression child
+	var listExpr *parser.Node
+	for i := 0; i < callExpr.ChildCount(); i++ {
+		child := callExpr.Child(i)
+		if child != nil && child.Kind() == "list_expression" {
+			listExpr = child
+			break
+		}
+	}
+	require.NotNil(t, listExpr, "should find list_expression")
+
+	// First child of list_expression is the scalar arg
+	scalarArg := listExpr.Child(0)
+	require.NotNil(t, scalarArg)
+	require.Equal(t, "scalar", scalarArg.Kind())
+
+	name := infer.ExtractArgVarName(scalarArg, src)
+	assert.Equal(t, "$x", name)
+
+	// The second real arg is "1" (a number) — should return empty
+	// Find the number node
+	var numArg *parser.Node
+	for i := 0; i < listExpr.ChildCount(); i++ {
+		child := listExpr.Child(i)
+		if child != nil && child.Kind() == "number" {
+			numArg = child
+			break
+		}
+	}
+	require.NotNil(t, numArg)
+	noName := infer.ExtractArgVarName(numArg, src)
+	assert.Equal(t, "", noName)
+}
+
+func TestExtractArgVarNameNil(t *testing.T) {
+	assert.Equal(t, "", infer.ExtractArgVarName(nil, nil))
+}

@@ -2407,3 +2407,21 @@ func countReturns(node *parser.Node, count *int, found **parser.Node) {
 		countReturns(child, count, found)
 	}
 }
+
+// ExtractArgVarName extracts a sigil-prefixed variable name from a call
+// argument CST node. Returns empty string for non-variable arguments
+// (literals, complex expressions, function calls).
+func ExtractArgVarName(node *parser.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	switch node.Kind() {
+	case "scalar":
+		return sigildName("$", node, source)
+	case "array":
+		return sigildName("@", node, source)
+	case "hash":
+		return sigildName("%", node, source)
+	}
+	return ""
+}
