@@ -199,3 +199,35 @@ func TestFormatDiagnosticEdgeCases(t *testing.T) {
 func TestSeverityStringUnknown(t *testing.T) {
 	assert.Equal(t, "unknown", infer.Severity(99).String())
 }
+
+func TestFormatDiagnosticWithSuggestion(t *testing.T) {
+	source := []byte("my $x = 1;\npush($x, 1);\n")
+
+	d := infer.Diagnostic{
+		StartByte:  15,
+		EndByte:    17,
+		Severity:   infer.Error,
+		Message:    "call to push: argument 1 expects Array, got Scalar",
+		Code:       infer.CodeTypeMismatch,
+		Suggestion: "Add guard: if (ref($x)) { ... }",
+	}
+
+	result := infer.FormatDiagnostic("test.pl", source, d)
+	assert.Contains(t, result, "type-mismatch")
+	assert.Contains(t, result, "\n  hint: Add guard: if (ref($x)) { ... }")
+}
+
+func TestFormatDiagnosticWithoutSuggestion(t *testing.T) {
+	source := []byte("push();\n")
+
+	d := infer.Diagnostic{
+		StartByte: 0,
+		EndByte:   6,
+		Severity:  infer.Error,
+		Message:   "call to push: expected at least 2 argument(s), got 0",
+		Code:      infer.CodeArityMismatch,
+	}
+
+	result := infer.FormatDiagnostic("test.pl", source, d)
+	assert.NotContains(t, result, "hint:")
+}

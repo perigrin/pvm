@@ -57,9 +57,14 @@ const (
 // the source text and returns a human-readable diagnostic string.
 //
 // Output format: filename:line:col: severity: message [code]
+// When Suggestion is non-empty, a hint line is appended.
 func FormatDiagnostic(filename string, source []byte, d Diagnostic) string {
 	line, col := byteOffsetToLineCol(source, d.StartByte)
-	return fmt.Sprintf("%s:%d:%d: %s: %s [%s]", filename, line, col, d.Severity, d.Message, d.Code)
+	result := fmt.Sprintf("%s:%d:%d: %s: %s [%s]", filename, line, col, d.Severity, d.Message, d.Code)
+	if d.Suggestion != "" {
+		result += "\n  hint: " + d.Suggestion
+	}
+	return result
 }
 
 // byteOffsetToLineCol converts a byte offset into 1-based line and column
