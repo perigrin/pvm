@@ -36,11 +36,12 @@ func (s Severity) String() string {
 
 // Diagnostic holds a single analysis finding with its source location.
 type Diagnostic struct {
-	StartByte uint32
-	EndByte   uint32
-	Severity  Severity
-	Message   string
-	Code      string // machine-readable identifier, e.g. "arity-mismatch"
+	StartByte  uint32
+	EndByte    uint32
+	Severity   Severity
+	Message    string
+	Code       string // machine-readable identifier, e.g. "arity-mismatch"
+	Suggestion string // guard suggestion text, e.g. "Add guard: if (defined($x)) { ... }"
 }
 
 // Machine-readable diagnostic code constants.
