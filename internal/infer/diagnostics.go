@@ -6,6 +6,8 @@ package infer
 import (
 	"bytes"
 	"fmt"
+
+	"tamarou.com/pvm/internal/types"
 )
 
 // Severity represents the importance level of a diagnostic message.
@@ -77,4 +79,67 @@ func byteOffsetToLineCol(source []byte, offset uint32) (line, col int) {
 		col = int(offset) - lastNewline
 	}
 	return line, col
+}
+
+// SuggestGuard returns a guard suggestion string for a type mismatch where
+// actual is the variable's current type and expected is what the callee
+// requires. Returns empty string when no guard can help.
+//
+// Each candidate guard is tried in priority order. A guard is only suggested
+// if applying its narrowing to actual would make the result compatible with
+// expected. Compatibility is checked two ways:
+//   - types.TypeSatisfies(narrowed, expected) — standard subtype/polymorphic check
+//   - types.IsSubtype(expected, narrowed) — "expected fits within narrowed",
+//     handles cases where narrowed is a broad union that lost polymorphic status
+//     (e.g. Scalar &^ Undef is not in polymorphicMasks but still contains Int)
+//
+// Priority order (first match wins):
+//  1. defined() guard — narrows by removing Undef bit
+//  2. ref() guard — narrows to Ref mask
+//  3. builtin::is_bool() guard — narrows to Bool
+//  4. No match → empty string
+func SuggestGuard(varName string, actual, expected types.Type) string {
+	if varName == "" {
+		return ""
+	}
+
+	// Priority 1: defined() — would removing Undef make actual compatible?
+	if actual&types.Undef != 0 && expected&types.Undef == 0 {
+		narrowed := actual &^ types.Undef
+		if guardNarrowingSatisfies(narrowed, expected) {
+			return "Add guard: if (defined(" + varName + ")) { ... }"
+		}
+	}
+
+	// Priority 2: ref() — would narrowing to Ref make actual compatible?
+	if actual&types.Ref != 0 {
+		narrowed := actual & types.Ref
+		if guardNarrowingSatisfies(narrowed, expected) {
+			return "Add guard: if (ref(" + varName + ")) { ... }"
+		}
+	}
+
+	// Priority 3: builtin::is_bool() — would narrowing to Bool help?
+	if actual&types.Bool != 0 {
+		narrowed := actual & types.Bool
+		if guardNarrowingSatisfies(narrowed, expected) {
+			return "Add guard: if (builtin::is_bool(" + varName + ")) { ... }"
+		}
+	}
+
+	return ""
+}
+
+// guardNarrowingSatisfies checks whether a narrowed type is compatible with
+// the expected type. It uses TypeSatisfies first (handles polymorphic types
+// and standard subtype checks), then falls back to checking if expected is
+// a subtype of narrowed. The fallback handles cases like Scalar &^ Undef:
+// a broad union that lost its polymorphic status in polymorphicMasks but
+// still contains the expected type's bits (e.g. Int is a subtype of
+// Scalar &^ Undef).
+func guardNarrowingSatisfies(narrowed, expected types.Type) bool {
+	if types.TypeSatisfies(narrowed, expected) {
+		return true
+	}
+	return types.IsSubtype(expected, narrowed)
 }
