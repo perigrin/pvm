@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"tamarou.com/pvm/internal/infer"
 	"tamarou.com/pvm/internal/psc"
 	"tamarou.com/pvm/internal/types"
 )
@@ -129,4 +130,28 @@ func TestLSPDefinitionAtByte(t *testing.T) {
 	sym, ok := s.DefinitionAtByte("file:///test.pl", 3)
 	require.True(t, ok, "DefinitionAtByte should find $x at offset 3")
 	assert.Equal(t, "$x", sym.Name)
+}
+
+func TestLSPDiagnosticSuggestionField(t *testing.T) {
+	server := psc.NewLSPServer()
+	// push($x, 1) where $x is Scalar triggers type-mismatch.
+	// Verifies the Suggestion field exists on the Diagnostic struct
+	// and is accessible via the LSP API. No guard helps here (Scalar
+	// cannot be narrowed to Array), so Suggestion is empty.
+	source := []byte("my $x;\npush($x, 1);\n")
+	err := server.OpenDocument("file:///test.pl", source)
+	require.NoError(t, err)
+
+	diags := server.Diagnostics("file:///test.pl")
+	require.True(t, len(diags) > 0, "should have diagnostics")
+
+	var found bool
+	for _, d := range diags {
+		if d.Code == infer.CodeTypeMismatch {
+			// Scalar vs Array: empty suggestion is correct.
+			assert.Empty(t, d.Suggestion)
+			found = true
+		}
+	}
+	assert.True(t, found, "should find type-mismatch diagnostic via LSP")
 }

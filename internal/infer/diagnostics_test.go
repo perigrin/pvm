@@ -10,7 +10,72 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/types"
 )
+
+func TestSuggestGuardDefined(t *testing.T) {
+	// Scalar actual vs Int expected. Scalar includes Undef; Int does not.
+	// Removing Undef from Scalar leaves Bool|Str|DualVar|Regex|Ref, which
+	// still contains Int's bits via the Str/Num chain (Str includes Num,
+	// Num includes Int), so IsSubtype(Int, narrowed) = true and defined()
+	// is suggested.
+	suggestion := infer.SuggestGuard("$x", types.Scalar, types.Int)
+	assert.Equal(t, "Add guard: if (defined($x)) { ... }", suggestion)
+}
+
+func TestSuggestGuardRef(t *testing.T) {
+	// Scalar actual, Ref expected — defined() fires first because removing
+	// Undef from Scalar still contains Ref (IsSubtype(Ref, Scalar&^Undef)).
+	// The defined() guard is less invasive than ref().
+	suggestion := infer.SuggestGuard("$x", types.Scalar, types.Ref)
+	assert.Equal(t, "Add guard: if (defined($x)) { ... }", suggestion)
+}
+
+func TestSuggestGuardRefDirect(t *testing.T) {
+	// Ref|Int actual (no Undef), Ref expected — P1 skips (no Undef).
+	// P2: narrowed = Ref. guardNarrowingSatisfies(Ref, Ref) = true.
+	suggestion := infer.SuggestGuard("$x", types.Ref|types.Int, types.Ref)
+	assert.Equal(t, "Add guard: if (ref($x)) { ... }", suggestion)
+}
+
+func TestSuggestGuardNoMatchStructural(t *testing.T) {
+	// Scalar actual, Array expected — no guard can make Scalar satisfy Array.
+	suggestion := infer.SuggestGuard("$x", types.Scalar, types.Array)
+	assert.Equal(t, "", suggestion)
+}
+
+func TestSuggestGuardNoMatchSubtype(t *testing.T) {
+	// Array vs Hash — structural mismatch, no suggestion.
+	suggestion := infer.SuggestGuard("@arr", types.Array, types.Hash)
+	assert.Equal(t, "", suggestion)
+}
+
+func TestSuggestGuardEmptyVarName(t *testing.T) {
+	suggestion := infer.SuggestGuard("", types.Scalar, types.Ref)
+	assert.Equal(t, "", suggestion)
+}
+
+func TestSuggestGuardObject(t *testing.T) {
+	// Scalar actual, Object expected — defined() fires because removing
+	// Undef from Scalar still contains Object (IsSubtype(Object, narrowed)).
+	suggestion := infer.SuggestGuard("$x", types.Scalar, types.Object)
+	assert.Equal(t, "Add guard: if (defined($x)) { ... }", suggestion)
+}
+
+func TestSuggestGuardBool(t *testing.T) {
+	// Scalar actual, Bool expected — defined() fires first because
+	// Scalar &^ Undef still contains Bool.
+	suggestion := infer.SuggestGuard("$x", types.Scalar, types.Bool)
+	assert.Equal(t, "Add guard: if (defined($x)) { ... }", suggestion)
+}
+
+func TestSuggestGuardBoolDirect(t *testing.T) {
+	// Bool|Int actual, Bool expected — no Undef bit, so P1 skips.
+	// P2 (ref): no Ref bits, skips. P3 (is_bool): Bool & (Bool|Int) = Bool,
+	// guardNarrowingSatisfies(Bool, Bool) = true.
+	suggestion := infer.SuggestGuard("$x", types.Bool|types.Int, types.Bool)
+	assert.Equal(t, "Add guard: if (builtin::is_bool($x)) { ... }", suggestion)
+}
 
 func TestDiagnosticCreation(t *testing.T) {
 	d := infer.Diagnostic{
@@ -134,4 +199,36 @@ func TestFormatDiagnosticEdgeCases(t *testing.T) {
 
 func TestSeverityStringUnknown(t *testing.T) {
 	assert.Equal(t, "unknown", infer.Severity(99).String())
+}
+
+func TestFormatDiagnosticWithSuggestion(t *testing.T) {
+	source := []byte("my $x = 1;\npush($x, 1);\n")
+
+	d := infer.Diagnostic{
+		StartByte:  15,
+		EndByte:    17,
+		Severity:   infer.Error,
+		Message:    "call to push: argument 1 expects Array, got Scalar",
+		Code:       infer.CodeTypeMismatch,
+		Suggestion: "Add guard: if (ref($x)) { ... }",
+	}
+
+	result := infer.FormatDiagnostic("test.pl", source, d)
+	assert.Contains(t, result, "type-mismatch")
+	assert.Contains(t, result, "\n  hint: Add guard: if (ref($x)) { ... }")
+}
+
+func TestFormatDiagnosticWithoutSuggestion(t *testing.T) {
+	source := []byte("push();\n")
+
+	d := infer.Diagnostic{
+		StartByte: 0,
+		EndByte:   6,
+		Severity:  infer.Error,
+		Message:   "call to push: expected at least 2 argument(s), got 0",
+		Code:      infer.CodeArityMismatch,
+	}
+
+	result := infer.FormatDiagnostic("test.pl", source, d)
+	assert.NotContains(t, result, "hint:")
 }

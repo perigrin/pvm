@@ -1642,3 +1642,115 @@ func TestUserDefinedGuardFuncComplexArgNoCrash(t *testing.T) {
 	annotations, _ := analyzeSource(t, src)
 	_ = annotations // Just verify no panic.
 }
+
+func TestExtractArgVarNameScalar(t *testing.T) {
+	src := []byte("push($x, 1);\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+
+	// Navigate CST: source_file > expression_statement > function_call_expression > list_expression > scalar
+	root := tree.RootNode()
+	exprStmt := root.Child(0) // expression_statement
+	require.NotNil(t, exprStmt)
+	callExpr := exprStmt.Child(0) // function_call_expression
+	require.NotNil(t, callExpr)
+	require.Equal(t, "function_call_expression", callExpr.Kind())
+
+	// Find the list_expression child
+	var listExpr *parser.Node
+	for i := 0; i < callExpr.ChildCount(); i++ {
+		child := callExpr.Child(i)
+		if child != nil && child.Kind() == "list_expression" {
+			listExpr = child
+			break
+		}
+	}
+	require.NotNil(t, listExpr, "should find list_expression")
+
+	// First child of list_expression is the scalar arg
+	scalarArg := listExpr.Child(0)
+	require.NotNil(t, scalarArg)
+	require.Equal(t, "scalar", scalarArg.Kind())
+
+	name := infer.ExtractArgVarName(scalarArg, src)
+	assert.Equal(t, "$x", name)
+
+	// The second real arg is "1" (a number) — should return empty
+	// Find the number node
+	var numArg *parser.Node
+	for i := 0; i < listExpr.ChildCount(); i++ {
+		child := listExpr.Child(i)
+		if child != nil && child.Kind() == "number" {
+			numArg = child
+			break
+		}
+	}
+	require.NotNil(t, numArg)
+	noName := infer.ExtractArgVarName(numArg, src)
+	assert.Equal(t, "", noName)
+}
+
+func TestExtractArgVarNameHash(t *testing.T) {
+	src := []byte("keys(%h);\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+
+	// Navigate CST: source_file > expression_statement > func1op_call_expression > hash
+	root := tree.RootNode()
+	exprStmt := root.Child(0)
+	require.NotNil(t, exprStmt)
+	callExpr := exprStmt.Child(0)
+	require.NotNil(t, callExpr)
+	require.Equal(t, "func1op_call_expression", callExpr.Kind())
+
+	// Find the hash child
+	var hashArg *parser.Node
+	for i := 0; i < callExpr.ChildCount(); i++ {
+		child := callExpr.Child(i)
+		if child != nil && child.Kind() == "hash" {
+			hashArg = child
+			break
+		}
+	}
+	require.NotNil(t, hashArg, "should find hash node")
+
+	name := infer.ExtractArgVarName(hashArg, src)
+	assert.Equal(t, "%h", name)
+}
+
+func TestExtractArgVarNameNil(t *testing.T) {
+	assert.Equal(t, "", infer.ExtractArgVarName(nil, nil))
+}
+
+func TestTypeMismatchDiagnosticSuggestionWired(t *testing.T) {
+	// push expects Array as first arg. Passing Scalar $x triggers
+	// a type-mismatch diagnostic. No guard can narrow Scalar to Array,
+	// so Suggestion should be empty.
+	src := []byte("my $x;\npush($x, 1);\n")
+	_, diags := analyzeSource(t, src)
+
+	require.True(t, len(diags) > 0, "should have at least one diagnostic")
+
+	var found bool
+	for _, d := range diags {
+		if d.Code == infer.CodeTypeMismatch {
+			assert.Empty(t, d.Suggestion,
+				"Scalar vs Array mismatch should have no suggestion")
+			found = true
+		}
+	}
+	assert.True(t, found, "should find a type-mismatch diagnostic")
+}
+
+func TestTypeMismatchDiagnosticNoSuggestionWhenClean(t *testing.T) {
+	// push expects Array. Passing @arr is correct — no diagnostic at all.
+	src := []byte("my @arr;\npush(@arr, 1);\n")
+	_, diags := analyzeSource(t, src)
+
+	for _, d := range diags {
+		assert.NotEqual(t, infer.CodeTypeMismatch, d.Code,
+			"clean code should have no type-mismatch diagnostics")
+	}
+}
