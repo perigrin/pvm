@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Declare dependencies inside Perl scripts using inline metadata — comment or POD format.">
+  <meta property="og:title" content="Inline Scripts — PVM">
+  <meta property="og:description" content="Declare dependencies inside Perl scripts using inline metadata — comment or POD format.">
+  <meta property="og:url" content="https://pvm.tools/guides/inline-scripts.html">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>Inline Scripts — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+      </ul>
+      <ul>
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="../reference/pvm.html">pvm</a></li>
+              <li><a href="../reference/pvm-complete.html">pvm (full)</a></li>
+              <li><a href="../reference/pvx.html">pvx</a></li>
+              <li><a href="../reference/pm.html">pm</a></li>
+              <li><a href="../reference/psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="inline-scripts.html" aria-current="page">Inline Scripts</a></li>
+              <li><a href="isolation.html">Isolation Levels</a></li>
+              <li><a href="type-checking.html">Type Checking</a></li>
+              <li><a href="version-resolution.html">Version Resolution</a></li>
+              <li><a href="configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+        <li><button id="theme-toggle" class="outline">Dark</button></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h1>Inline Scripts</h1>
+      <p>PVX lets you declare a script's dependencies and Perl version requirements directly inside the script file itself. Instead of maintaining a separate <code>cpanfile</code> or passing flags on the command line every time you run the script, the metadata lives alongside the code that needs it.</p>
+      <p>Two formats are supported: a comment-based format modeled after <a href="https://peps.python.org/pep-0723/">PEP 723</a>, and a POD-based format that fits naturally into Perl's documentation conventions.</p>
+    </section>
+
+    <section>
+      <h2>Comment format</h2>
+      <p>The comment format uses a fenced block of <code>#</code>-prefixed lines. The fence markers are <code># ///</code> followed by the block name <code>pvm</code> to open, and <code># ///</code> alone to close. Everything inside is TOML.</p>
+
+      <pre><code>#!/usr/bin/env pvx
+# /// pvm
+# dependencies = [
+#   "DBI",
+#   "JSON::PP >= 4.0",
+# ]
+# perl_version = "5.30"
+# description = "Database export script"
+# ///
+
+use DBI;
+use JSON::PP;
+# ... rest of script</code></pre>
+
+      <p>The block can appear anywhere in the file, but convention is at the top, immediately after the shebang. PVX strips the leading <code># </code> (note the space) from each line before parsing.</p>
+      <p>This format has one field that the POD format does not: <code>exclude_newer</code>. It accepts an ISO 8601 timestamp and tells PVX to ignore any module releases published after that date, giving you time-pinned reproducibility without a lockfile.</p>
+
+      <pre><code>#!/usr/bin/env pvx
+# /// pvm
+# dependencies = ["Moo", "Type::Tiny"]
+# perl_version = "5.36"
+# exclude_newer = "2024-01-01T00:00:00Z"
+# ///</code></pre>
+    </section>
+
+    <section>
+      <h2>POD format</h2>
+      <p>The POD format uses a standard <code>=begin</code> / <code>=end</code> block with the section name <code>pvm</code>. The content inside is the same TOML, but without comment prefixes. This is often easier to read in scripts that already have POD documentation.</p>
+
+      <pre><code>#!/usr/bin/env pvx
+
+=begin pvm
+dependencies = [
+  "DBI",
+  "JSON::PP >= 4.0",
+]
+perl_version = "5.30"
+description = "Database export script"
+=end pvm
+=cut
+
+use DBI;
+use JSON::PP;
+# ... rest of script</code></pre>
+
+      <p>The <code>=cut</code> after <code>=end pvm</code> is required for well-formed POD and tells Perl's parser to return to code mode. Omitting it will cause warnings from any tool that processes your POD.</p>
+    </section>
+
+    <section>
+      <h2>Fields</h2>
+      <dl>
+        <dt><code>dependencies</code></dt>
+        <dd>
+          <p>An array of module names to install before the script runs. Each entry is a string. Version constraints use the <code>&gt;=</code> operator, separated from the module name by a space.</p>
+          <pre><code>dependencies = [
+  "DBI",
+  "Moo >= 2.0",
+  "JSON::PP >= 4.0",
+]</code></pre>
+        </dd>
+
+        <dt><code>perl_version</code></dt>
+        <dd>
+          <p>The minimum Perl version the script requires. PVX will refuse to run the script under an older Perl and will select an appropriate version if multiple are available.</p>
+          <pre><code>perl_version = "5.36"</code></pre>
+        </dd>
+
+        <dt><code>description</code></dt>
+        <dd>
+          <p>A short human-readable description of what the script does. Optional. Not used by PVX at runtime — it is documentation for anyone reading the file.</p>
+          <pre><code>description = "Export database tables to JSON"</code></pre>
+        </dd>
+
+        <dt><code>exclude_newer</code> <small>(comment format only)</small></dt>
+        <dd>
+          <p>An ISO 8601 timestamp. PVX will not install any module version released after this date. This gives scripts a form of time-based reproducibility: the exact same module versions will be resolved on any machine, on any date, without requiring a lockfile.</p>
+          <pre><code>exclude_newer = "2024-06-01T00:00:00Z"</code></pre>
+        </dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2>How it works</h2>
+      <p>When you run <code>pvx script.pl</code>, PVX reads the file and checks for inline metadata in both formats. The comment format is checked first; if no <code># /// pvm</code> block is found, PVX looks for a <code>=begin pvm</code> block.</p>
+      <p>If metadata is found and declares dependencies, PVX installs them into the script's execution environment before running the script. The installation respects the isolation level in effect — with <code>--isolation clean</code>, dependencies are installed into a fresh, empty environment that is discarded after the run.</p>
+
+      <pre><code># Run with full isolation — dependencies installed fresh, nothing from your
+# system or project environment leaks in
+pvx --isolation clean script.pl</code></pre>
+
+      <p>This combination — inline metadata plus clean isolation — is what makes a script truly self-contained. You can copy the file to any machine with PVX installed and run it without any prior setup.</p>
+      <p>See the <a href="isolation.html">Isolation Levels</a> guide for a full explanation of how the three isolation levels interact with dependency installation.</p>
+    </section>
+
+    <section>
+      <h2>Auto-dependency detection</h2>
+      <p>Inline metadata is not required. When no metadata block is present, PVX can still infer dependencies by scanning the script for <code>use</code> and <code>require</code> statements using regex heuristics. This works well for straightforward cases.</p>
+
+      <pre><code># No metadata block needed — PVX detects DBI and Moo from the use statements
+#!/usr/bin/env pvx
+use DBI;
+use Moo;
+
+my $dbh = DBI->connect(...);</code></pre>
+
+      <p>For scripts with dynamic requires, conditional loading, or complex import patterns, the regex approach can miss dependencies or pick up false positives. In those cases, <code>psc analyze</code> provides more precise detection by parsing the script with a full tree-sitter AST instead of pattern matching on text.</p>
+
+      <pre><code>psc analyze script.pl</code></pre>
+
+      <p>The analysis output lists the modules <code>psc</code> identified. You can use that list to write an accurate <code>dependencies</code> block in your script's metadata.</p>
+    </section>
+
+    <section>
+      <h2>Choosing a format</h2>
+      <p>Both formats parse the same TOML fields and behave identically at runtime, with the single exception of <code>exclude_newer</code>, which is only available in the comment format.</p>
+      <p>Use the comment format if you want time-pinned reproducibility or if your script has no other POD. Use the POD format if your script has existing documentation and you want the metadata to sit alongside it in a familiar Perl idiom.</p>
+      <p>Do not use both formats in the same file. PVX uses the first one it finds and ignores any subsequent block.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/theme-toggle.js"></script>
+  <script src="../scripts/copy-code.js"></script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="How PVM resolves Perl versions — .perl-version files, environment variables, global settings, and shell integration.">
+  <meta property="og:title" content="Version Resolution — PVM">
+  <meta property="og:description" content="How PVM resolves Perl versions — .perl-version files, environment variables, global settings, and shell integration.">
+  <meta property="og:url" content="https://pvm.tools/guides/version-resolution.html">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>Version Resolution — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+      </ul>
+      <ul>
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="../reference/pvm.html">pvm</a></li>
+              <li><a href="../reference/pvm-complete.html">pvm (full)</a></li>
+              <li><a href="../reference/pvx.html">pvx</a></li>
+              <li><a href="../reference/pm.html">pm</a></li>
+              <li><a href="../reference/psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="isolation.html">Isolation Levels</a></li>
+              <li><a href="type-checking.html">Type Checking</a></li>
+              <li><a href="version-resolution.html" aria-current="page">Version Resolution</a></li>
+              <li><a href="configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+        <li><button id="theme-toggle" class="outline">Dark</button></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Version Resolution</h1>
+    <p>When you run a Perl command through PVM, it needs to decide which Perl version to use. PVM checks several sources in a fixed order, using the first one that produces a result.</p>
+
+    <h2>Resolution order</h2>
+    <p>PVM resolves the active Perl version using this precedence, from highest to lowest:</p>
+    <ol>
+      <li><code>PVM_PERL_VERSION</code> environment variable</li>
+      <li><code>.perl-version</code> file in the current directory or any parent directory</li>
+      <li>Global version set via <code>pvm global</code></li>
+      <li>System Perl (fallback)</li>
+    </ol>
+    <p>The first source that specifies a version wins. If none of the first three are set, PVM falls back to whatever <code>perl</code> is on your <code>PATH</code>.</p>
+
+    <h2>.perl-version files</h2>
+    <p>Placing a <code>.perl-version</code> file in a directory pins the Perl version for that project. PVM searches upward from the current working directory, so you can put the file at the root of your project and it applies throughout the tree.</p>
+
+    <pre><code>echo "5.40.2" > .perl-version</code></pre>
+
+    <p>The file contains a single version string. PVM reads it the same way plenv does, so if you are migrating from plenv, your existing <code>.perl-version</code> files work without modification.</p>
+
+    <h2>Setting versions</h2>
+    <p>PVM provides three commands for controlling which version is active, each targeting a different scope:</p>
+
+    <pre><code>pvm global 5.40.2       # Set default for all shells
+pvm local 5.40.2        # Write .perl-version in current dir
+pvm use 5.40.2          # Set for current shell session only
+pvm global system       # Fall back to system Perl</code></pre>
+
+    <dl>
+      <dt><code>pvm global</code></dt>
+      <dd>Writes the version to PVM's global configuration. This is the default used everywhere you haven't set a more specific version.</dd>
+
+      <dt><code>pvm local</code></dt>
+      <dd>Writes a <code>.perl-version</code> file in the current directory. Commit this file to version control to share the version requirement with your team.</dd>
+
+      <dt><code>pvm use</code></dt>
+      <dd>Sets <code>PVM_PERL_VERSION</code> in the current shell session. It does not persist across shells or terminals. Useful when you need to temporarily override the project version.</dd>
+
+      <dt><code>pvm global system</code></dt>
+      <dd>Removes the PVM global version setting, letting the system Perl serve as the default.</dd>
+    </dl>
+
+    <h2>Checking the active version</h2>
+    <p>To see which version PVM has resolved and why:</p>
+
+    <pre><code>pvm current             # Show active version
+pvm current --detailed  # Show version + resolution source
+pvm current --path      # Show path to perl binary</code></pre>
+
+    <p><code>pvm current --detailed</code> is particularly useful when debugging unexpected version selections. It reports not just the version but which source in the resolution chain provided it — environment variable, <code>.perl-version</code> file, global config, or system fallback.</p>
+
+    <h2>Shell integration</h2>
+    <p>Shell integration enables automatic version switching when you change into a directory that contains a <code>.perl-version</code> file. Without it, you need to run <code>pvm use</code> manually.</p>
+
+    <p>Add the appropriate line to your shell profile:</p>
+
+    <pre><code># bash/zsh (~/.bashrc or ~/.zshrc)
+eval "$(pvm init)"
+
+# fish (~/.config/fish/config.fish)
+pvm init | source
+
+# PowerShell ($PROFILE)
+pvm init | Invoke-Expression</code></pre>
+
+    <p>After adding this and restarting your shell (or sourcing the profile), PVM will automatically activate the correct Perl version whenever you <code>cd</code> into a project directory.</p>
+
+    <h2>Migrating from plenv or perlbrew</h2>
+    <p>PVM is designed to be a drop-in replacement for plenv's version management. If you have existing <code>.perl-version</code> files, they work immediately — no changes needed.</p>
+
+    <p>To bring your existing Perl installations under PVM management:</p>
+
+    <pre><code>pvm import-system       # Import system Perl
+pvm versions            # See what's available</code></pre>
+
+    <p>If you have Perl versions installed via plenv or perlbrew, install the same versions through PVM and your project configurations will continue to work. The <code>.perl-version</code> file format is shared across all three tools.</p>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/theme-toggle.js"></script>
+  <script src="../scripts/copy-code.js"></script>
+</body>
+</html>

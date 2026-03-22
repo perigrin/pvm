@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="PVM configuration — pvm.toml, cpanfile, XDG directories, environment variables, and CPAN mirrors.">
+  <meta property="og:title" content="Configuration — PVM">
+  <meta property="og:description" content="PVM configuration — pvm.toml, cpanfile, XDG directories, environment variables, and CPAN mirrors.">
+  <meta property="og:url" content="https://pvm.tools/guides/configuration.html">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>Configuration — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+      </ul>
+      <ul>
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="../reference/pvm.html">pvm</a></li>
+              <li><a href="../reference/pvm-complete.html">pvm (full)</a></li>
+              <li><a href="../reference/pvx.html">pvx</a></li>
+              <li><a href="../reference/pm.html">pm</a></li>
+              <li><a href="../reference/psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="isolation.html">Isolation Levels</a></li>
+              <li><a href="type-checking.html">Type Checking</a></li>
+              <li><a href="version-resolution.html">Version Resolution</a></li>
+              <li><a href="configuration.html" aria-current="page">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+        <li><button id="theme-toggle" class="outline">Dark</button></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Configuration</h1>
+    <p>PVM uses three configuration mechanisms that compose together: a project-level file checked into your repository, a user-level file for personal preferences, and a Perl-standard dependency declaration. Most projects only need the first two.</p>
+
+    <h2>pvm.toml</h2>
+    <p>Project-level configuration. Place this file in your project root alongside <code>cpanfile</code>. It declares the project name and the Perl version the project requires, and can carry update settings for CI or team environments where you want a specific token or policy.</p>
+
+    <pre><code>[project]
+name = "my-app"
+perl_version = "5.40.2"
+
+[pvm.update]
+github_token = ""
+check_prerelease = false</code></pre>
+
+    <p>The <code>perl_version</code> field is the version PVM will select when you run <code>pvm use</code> or when <code>pvx</code> resolves the interpreter for a script. If the version is not installed, PVM will tell you what to run to install it.</p>
+
+    <p>Commit <code>pvm.toml</code> to version control. It belongs alongside your code. Leave <code>github_token</code> empty here and set it in your user configuration or as an environment variable instead — tokens should not live in repositories.</p>
+
+    <h2>User configuration</h2>
+    <p>User-level preferences live at <code>~/.config/pvm/config.toml</code> (following the XDG Base Directory spec). Settings here apply to all projects on your machine and are not checked into version control.</p>
+
+    <pre><code>[pvm.update]
+github_token = "ghp_..."
+auto_update = true</code></pre>
+
+    <p>This is the right place for your GitHub token. Setting <code>auto_update = true</code> means PVM will check for newer releases and update itself in the background. The token is used to raise GitHub API rate limits when PVM checks for new Perl releases or its own updates.</p>
+
+    <h2>cpanfile</h2>
+    <p>Perl's standard format for declaring module dependencies. PVM and <code>pm</code> read this file to know what to install. If you have an existing Perl project, you likely already have one.</p>
+
+    <pre><code>requires 'DBI', '>= 1.643';
+requires 'Mojolicious', '>= 9.0';
+
+on 'test' => sub {
+    requires 'Test::More', '>= 1.302';
+};
+
+on 'develop' => sub {
+    requires 'Perl::Critic';
+};</code></pre>
+
+    <p>The top-level <code>requires</code> calls declare runtime dependencies. The <code>on 'test'</code> and <code>on 'develop'</code> blocks scope dependencies to specific phases. <code>pm install</code> installs runtime dependencies by default; pass <code>--with-test</code> or <code>--with-develop</code> to include the other phases.</p>
+
+    <h2>cpanfile.snapshot</h2>
+    <p>The lockfile. When you run <code>pm sync</code>, PVM reads your <code>cpanfile</code>, resolves the full dependency graph, and writes <code>cpanfile.snapshot</code> with exact version pins for every module in the tree. Subsequent installs read from the snapshot rather than resolving again, so every developer and every CI run gets the same versions.</p>
+
+    <pre><code>pm sync                    # Install from snapshot, or generate if missing
+pm sync --generate-only    # Generate snapshot without installing
+pm sync --install-only     # Install from existing snapshot</code></pre>
+
+    <p>Commit <code>cpanfile.snapshot</code> to version control alongside <code>cpanfile</code>. The snapshot is what makes builds reproducible. Update it deliberately with <code>pm sync --generate-only</code> when you want to pick up new versions, then review the diff before committing.</p>
+
+    <h2>XDG Base Directory locations</h2>
+    <p>PVM follows the <a href="https://specifications.freedesktop.org/basedir-spec/latest/">XDG Base Directory Specification</a> for all file placement. The defaults work on any standard Linux or macOS system. Override them by setting the corresponding environment variables.</p>
+
+    <dl>
+      <dt><strong>Config</strong></dt>
+      <dd><code>$XDG_CONFIG_HOME/pvm/</code> &mdash; defaults to <code>~/.config/pvm/</code>. Holds <code>config.toml</code>.</dd>
+
+      <dt><strong>Data</strong></dt>
+      <dd><code>$XDG_DATA_HOME/pvm/</code> &mdash; defaults to <code>~/.local/share/pvm/</code>. Holds installed Perl versions and named environments.</dd>
+
+      <dt><strong>Cache</strong></dt>
+      <dd><code>$XDG_CACHE_HOME/pvm/</code> &mdash; defaults to <code>~/.cache/pvm/</code>. Holds downloaded archives and module caches. Safe to delete; PVM will repopulate on demand.</dd>
+    </dl>
+
+    <h2>Environment variables</h2>
+    <p>Environment variables take effect immediately without editing any file. They override file-based configuration and are useful in CI environments, containers, and one-off overrides.</p>
+
+    <dl>
+      <dt><code>PVM_PERL_VERSION</code></dt>
+      <dd>Override the active Perl version, regardless of what <code>pvm.toml</code> or <code>.perl-version</code> specifies.</dd>
+
+      <dt><code>GITHUB_TOKEN</code></dt>
+      <dd>GitHub token for release access. Raises API rate limits when PVM checks for Perl releases or its own updates. Equivalent to setting <code>github_token</code> in user configuration.</dd>
+
+      <dt><code>NO_COLOR</code></dt>
+      <dd>Disable all colored output. PVM respects the <a href="https://no-color.org/">no-color.org</a> convention: set this variable to any value to suppress color, regardless of terminal capabilities.</dd>
+
+      <dt><code>CLICOLOR_FORCE=1</code></dt>
+      <dd>Force colored output even when stdout is not a TTY. Useful when piping output to a pager or log collector that renders ANSI codes.</dd>
+
+      <dt><code>CLICOLOR=0</code></dt>
+      <dd>Disable colored output. An alternative to <code>NO_COLOR</code> for environments that use the CLICOLOR convention.</dd>
+    </dl>
+
+    <h2>CPAN mirrors</h2>
+    <p><code>pm</code> fetches modules from CPAN mirrors. The default mirror list covers the major public mirrors, and <code>pm</code> will fall back to the next mirror if one is unavailable. You can set a preferred mirror explicitly — useful when you are behind a corporate proxy or want a geographically close mirror.</p>
+
+    <pre><code>pm mirror https://cpan.metacpan.org    # Set mirror
+pm mirror                              # Show current mirror</code></pre>
+
+    <p>Default mirrors, tried in order:</p>
+    <ul>
+      <li><code>cpan.metacpan.org</code></li>
+      <li><code>cpan.mirror.co.uk</code></li>
+      <li><code>www.cpan.org</code></li>
+    </ul>
+
+    <p>The configured mirror is stored in user configuration and applies to all projects. Setting a mirror in one project does not override another project's mirror setting.</p>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/theme-toggle.js"></script>
+  <script src="../scripts/copy-code.js"></script>
+</body>
+</html>

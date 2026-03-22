@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="PSC type inference for Perl — catch type mismatches, arity errors, and get guard suggestions without annotations.">
+  <meta property="og:title" content="Type Checking — PVM">
+  <meta property="og:description" content="PSC type inference for Perl — catch type mismatches, arity errors, and get guard suggestions without annotations.">
+  <meta property="og:url" content="https://pvm.tools/guides/type-checking.html">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>Type Checking — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+      </ul>
+      <ul>
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="../reference/pvm.html">pvm</a></li>
+              <li><a href="../reference/pvm-complete.html">pvm (full)</a></li>
+              <li><a href="../reference/pvx.html">pvx</a></li>
+              <li><a href="../reference/pm.html">pm</a></li>
+              <li><a href="../reference/psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary aria-current="page">Guides</summary>
+            <ul>
+              <li><a href="../guides/inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="../guides/isolation.html">Isolation Levels</a></li>
+              <li><a href="../guides/type-checking.html" aria-current="page">Type Checking</a></li>
+              <li><a href="../guides/version-resolution.html">Version Resolution</a></li>
+              <li><a href="../guides/configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+        <li><button id="theme-toggle" class="outline">Dark</button></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h1>Type Checking with PSC</h1>
+      <p>PSC infers types from your Perl code without requiring any annotations. It works by analyzing the structure of your program — variable declarations, sigils, and call sites — and using that information to catch bugs that would otherwise surface at runtime.</p>
+    </section>
+
+    <section>
+      <h2>Basic usage</h2>
+      <p>Run <code>psc check</code> against a file or an entire directory:</p>
+      <pre><code>psc check lib/MyModule.pm
+psc check lib/              # Check entire directory</code></pre>
+      <p>Diagnostics are written to stdout in a format compatible with most editors and CI systems. A zero exit code means no errors were found.</p>
+    </section>
+
+    <section>
+      <h2>What it catches</h2>
+
+      <h3>Arity mismatches</h3>
+      <p>PSC knows the expected argument counts for Perl's built-in functions. Calls that pass the wrong number of arguments are flagged immediately:</p>
+      <pre><code>push();           # error: expected at least 2 arguments, got 0
+chr("hello", 2);  # error: expected 1 argument, got 2</code></pre>
+      <p>These errors carry the diagnostic code <code>arity-mismatch</code>.</p>
+
+      <h3>Type mismatches</h3>
+      <p>When a variable's inferred type does not match what a function expects, PSC reports the conflict:</p>
+      <pre><code>my $x;
+push($x, 1);     # error: argument 1 expects Array, got Scalar</code></pre>
+      <p>The first argument to <code>push</code> must be an Array. Because <code>$x</code> is declared with a scalar sigil, its inferred type is Scalar, and the mismatch is caught statically. These errors carry the diagnostic code <code>type-mismatch</code>.</p>
+    </section>
+
+    <section>
+      <h2>How inference works</h2>
+      <p>PSC uses a two-pass architecture over the syntax tree.</p>
+
+      <h3>Pass 1: Declaration collection</h3>
+      <p>The first pass walks the tree top-down, collecting every variable declaration it encounters. The type of each variable is initialized from its sigil: <code>$</code> variables start as Scalar, <code>@</code> variables start as Array, and <code>%</code> variables start as Hash. This gives PSC a complete picture of what names are in scope before any expression analysis begins.</p>
+
+      <h3>Pass 2: Bottom-up inference</h3>
+      <p>The second pass walks the tree bottom-up, inferring types for expressions and validating function call sites against their expected signatures. Flow narrowing is applied within guard blocks during this pass.</p>
+
+      <h3>The type system</h3>
+      <p>Types are represented internally as bitsets (<code>uint32</code>), which makes union and intersection operations fast. The type hierarchy covers the full range of Perl values: Undef, Bool, Int, Num, Str, Array, Hash, Ref — and for Ref, the subtypes ScalarRef, ArrayRef, HashRef, CodeRef, and Object. A variable's inferred type at any point is the union of all types it could hold at that point in the program.</p>
+    </section>
+
+    <section>
+      <h2>Guard suggestions</h2>
+      <p>When PSC detects a type mismatch, it looks at the inferred type and checks whether a guard pattern would eliminate the problematic cases. If one would, it includes a hint in the diagnostic output:</p>
+      <pre><code>lib/app.pl:5:3: error: call to chr: argument 1 expects Int, got Scalar [type-mismatch]
+  hint: Add guard: if (defined($x)) { ... }</code></pre>
+      <p>The hint is telling you that wrapping the call in a <code>defined</code> check would narrow <code>$x</code>'s type enough to satisfy the constraint. PSC supports three guard patterns:</p>
+      <ul>
+        <li><code>defined($x)</code> — removes Undef from the variable's type inside the block</li>
+        <li><code>ref($x)</code> — narrows to reference types inside the block</li>
+        <li><code>builtin::is_bool($x)</code> — narrows to Bool inside the block</li>
+      </ul>
+      <p>Suggestions are hints, not requirements. PSC surfaces them when they represent the most direct path to making the code statically valid. Whether to act on them is your decision.</p>
+    </section>
+
+    <section>
+      <h2>Flow narrowing</h2>
+      <p>PSC tracks how guard expressions affect variable types inside their blocks. A variable's type at any given statement is the type it has after all enclosing guards have been applied:</p>
+      <pre><code>my $x;              # Scalar (broad union, includes Undef)
+if (defined($x)) {
+    chr($x);        # OK — $x is narrowed to Scalar without Undef
+}</code></pre>
+      <p>Outside the <code>if</code> block, <code>$x</code> retains its original broad type. Narrowing is scoped to the guard block. This means PSC can validate code that handles missing values correctly without treating every Scalar as an error.</p>
+    </section>
+
+    <section>
+      <h2>Cross-file analysis</h2>
+      <p>PSC resolves <code>use</code> statements and follows them into the modules they load. Return types inferred from one file are available when checking code that calls into it:</p>
+      <pre><code>use MyModule;
+my $result = MyModule::process($data);  # return type inferred from MyModule</code></pre>
+      <p>This means that checking a directory with <code>psc check lib/</code> gives you whole-program analysis, not just per-file analysis. Errors at call sites in one file can be traced back to type decisions made in another.</p>
+    </section>
+
+    <section>
+      <h2>Diagnostic output format</h2>
+      <p>Every diagnostic follows this structure:</p>
+      <pre><code>filename:line:col: severity: message [code]</code></pre>
+      <p>The diagnostic codes are:</p>
+      <ul>
+        <li><code>arity-mismatch</code> — wrong number of arguments to a built-in function</li>
+        <li><code>type-mismatch</code> — argument type does not match the expected type</li>
+        <li><code>unknown-builtin</code> — PSC does not recognize the function being called</li>
+      </ul>
+      <p>The <code>code</code> field makes it straightforward to filter or suppress specific categories of diagnostic in a CI pipeline or editor integration.</p>
+    </section>
+
+    <section>
+      <h2>LSP server</h2>
+      <p>PSC ships with a built-in LSP server, which means it can deliver diagnostics directly inside your editor without any separate language server installation. Start it with:</p>
+      <pre><code>psc lsp</code></pre>
+      <p>The LSP server supports:</p>
+      <ul>
+        <li><strong>Hover tooltips</strong> — shows the inferred type of the symbol under the cursor</li>
+        <li><strong>Inline diagnostics</strong> — type mismatches and arity errors appear as you type</li>
+        <li><strong>Go-to-definition</strong> — jumps to the declaration of a variable or subroutine</li>
+        <li><strong>Document symbols</strong> — lists all symbols defined in the current file</li>
+      </ul>
+      <p>Guard suggestions appear as diagnostic hints alongside the inline errors, so you can see them without leaving your editor. See the <a href="../reference/psc.html">psc reference</a> for editor configuration details.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/theme-toggle.js"></script>
+  <script src="../scripts/copy-code.js"></script>
+</body>
+</html>
