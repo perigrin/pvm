@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta name="description" content="PVM — a fast, cross-platform Perl development toolkit. Single binary. Pure Go. No dependencies.">
+  <meta name="description" content="PVM — a fast, cross-platform Perl development toolkit. Version management, modules, script execution, and static analysis in a single binary.">
   <meta property="og:title" content="PVM — Perl Version Manager">
-  <meta property="og:description" content="A fast, cross-platform Perl development toolkit with version management, module management, script execution, and static analysis.">
+  <meta property="og:description" content="A fast, cross-platform Perl development toolkit. Single binary. Pure Go. No dependencies.">
   <meta property="og:url" content="https://pvm.tools/">
   <meta property="og:type" content="website">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
@@ -17,7 +17,7 @@
   <header>
     <nav>
       <ul>
-        <li><a href="/"><strong>PVM</strong></a></li>
+        <li><a href="/" aria-current="page"><strong>PVM</strong></a></li>
       </ul>
       <ul>
         <li><a href="getting-started.html">Docs</a></li>
@@ -51,16 +51,105 @@
       </ul>
     </nav>
   </header>
+
   <main>
+    <!-- Hero -->
     <section class="hero">
       <h1>PVM</h1>
       <p class="tagline">A fast, cross-platform Perl development toolkit.</p>
       <p>Single binary. Pure Go. No dependencies.</p>
-      <p>Site under construction — full content coming soon.</p>
+
+      <div class="install-block">
+        <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-amd64.tar.gz
+tar -xzf pvm-linux-amd64.tar.gz
+sudo mv pvm-linux-amd64 /usr/local/bin/pvm
+eval "$(pvm init)"</code></pre>
+      </div>
+
+      <div class="cta-group">
+        <a href="getting-started.html" role="button">Get Started</a>
+        <a href="https://github.com/perigrin/pvm" role="button" class="outline">View on GitHub</a>
+      </div>
+    </section>
+
+    <!-- Four Tools -->
+    <section>
+      <h2>Four tools, one binary</h2>
+      <div class="tool-grid">
+        <article class="tool-card">
+          <h3>pvm</h3>
+          <p>Perl Version Manager</p>
+          <p>Install, switch, and manage Perl versions. Binary and source builds. Shell integration for bash, zsh, fish, and PowerShell.</p>
+          <pre><code>pvm install 5.40.2
+pvm use 5.40.2</code></pre>
+        </article>
+
+        <article class="tool-card">
+          <h3>pvx</h3>
+          <p>Perl Version eXecutor</p>
+          <p>Run scripts in isolated environments with automatic dependency detection. Three isolation levels. Inline script metadata.</p>
+          <pre><code>pvx --require DBI app.pl
+pvx --isolation clean script.pl</code></pre>
+        </article>
+
+        <article class="tool-card">
+          <h3>pm</h3>
+          <p>Perl Module Manager</p>
+          <p>Install and manage CPAN modules. Lockfile support via cpanfile.snapshot. Search, sync, and dependency tracking.</p>
+          <pre><code>pm install Mojolicious
+pm sync</code></pre>
+        </article>
+
+        <article class="tool-card">
+          <h3>psc</h3>
+          <p>Perl Structural Checker</p>
+          <p>Type inference, static analysis, and an LSP server. Guard suggestions, flow narrowing, cross-file analysis. Nothing else in the Perl ecosystem does this.</p>
+          <pre><code>psc check lib/
+psc analyze lib/MyModule.pm</code></pre>
+        </article>
+      </div>
+    </section>
+
+    <!-- Selling Points -->
+    <section>
+      <div class="selling-points">
+        <div>
+          <h3>Single Binary</h3>
+          <p>Pure Go. No CGO, no C compiler, no tree-sitter CLI, no Node.js. Cross-compiles to Linux and macOS. Download and run.</p>
+        </div>
+        <div>
+          <h3>Modern Developer Experience</h3>
+          <p>Feature parity with Python's uv. Lockfiles, inline script metadata, auto-dependency detection, isolated execution environments. The tooling Perl deserves.</p>
+        </div>
+        <div>
+          <h3>Static Analysis</h3>
+          <p>PSC infers types from your Perl code without annotations. Catches type mismatches, suggests guard patterns, and serves diagnostics via LSP. No other Perl tool does this.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Start -->
+    <section>
+      <h2>Quick start</h2>
+      <pre><code>pvm install 5.40.2          # Install Perl
+pvm use 5.40.2              # Switch to it
+pm install Mojolicious      # Install a module
+pvx app.pl                  # Run a script
+psc check lib/              # Type-check your code</code></pre>
+    </section>
+
+    <!-- Migration -->
+    <section>
+      <h2>Coming from plenv or perlbrew?</h2>
+      <p>PVM reads <code>.perl-version</code> files and can import existing installations. Your workflow stays the same. PVM adds lockfiles, isolation, static analysis, and a module manager.</p>
+      <pre><code>pvm import-system           # Import your system Perl
+pvm versions                # See what you have</code></pre>
+      <p><a href="why-pvm.html">See the full comparison &rarr;</a></p>
     </section>
   </main>
+
   <footer>
-    <p>PVM is licensed under the Artistic License 2.0. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
   </footer>
   <script src="scripts/theme-toggle.js"></script>
   <script src="scripts/copy-code.js"></script>
