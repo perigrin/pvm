@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="PVM exhaustive command reference — every command, flag, and option.">
+  <meta property="og:title" content="PVM Complete Reference — PVM">
+  <meta property="og:description" content="PVM exhaustive command reference — every command, flag, and option.">
+  <meta property="og:url" content="https://pvm.tools/reference/pvm-complete.html">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>PVM Complete Reference — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+      </ul>
+      <ul>
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="pvm.html">pvm</a></li>
+              <li><a href="pvm-complete.html" aria-current="page">pvm (full)</a></li>
+              <li><a href="pvx.html">pvx</a></li>
+              <li><a href="pm.html">pm</a></li>
+              <li><a href="psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="../guides/inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="../guides/isolation.html">Isolation Levels</a></li>
+              <li><a href="../guides/type-checking.html">Type Checking</a></li>
+              <li><a href="../guides/version-resolution.html">Version Resolution</a></li>
+              <li><a href="../guides/configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+        <li><button id="theme-toggle" class="outline">Dark</button></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>PVM Complete Reference</h1>
+    <p>Every command, every flag, every option. See <a href="pvm.html">pvm</a> for the concise version.</p>
+
+    <pre><code>pvm &lt;command&gt; [flags] [args...]</code></pre>
+
+    <h2>Version Management</h2>
+
+    <dl>
+      <dt><code>install [version]</code></dt>
+      <dd>
+        Install a Perl version. Accepts a version number, a partial version, or a URL. Downloads a binary release by default; falls back to building from source if no binary is available.
+        <dl>
+          <dt><code>--source</code></dt>
+          <dd>Force a source build even when a binary is available.</dd>
+          <dt><code>--prefix &lt;path&gt;</code></dt>
+          <dd>Install to a custom prefix instead of the default PVM root.</dd>
+          <dt><code>--jobs &lt;n&gt;</code></dt>
+          <dd>Number of parallel make jobs during a source build. Default: number of CPUs.</dd>
+          <dt><code>--test</code></dt>
+          <dd>Run the Perl test suite after a source build.</dd>
+          <dt><code>--skip-build</code></dt>
+          <dd>Download only; do not build or install.</dd>
+          <dt><code>--binary-only</code></dt>
+          <dd>Fail if no binary release is available for the requested version.</dd>
+          <dt><code>--prefer-binary</code></dt>
+          <dd>Use a binary release when available; fall back to source otherwise. This is the default.</dd>
+          <dt><code>--force-source</code></dt>
+          <dd>Alias for <code>--source</code>.</dd>
+          <dt><code>--mirror &lt;url&gt;</code></dt>
+          <dd>Override the binary mirror URL for this installation.</dd>
+          <dt><code>--skip-cache</code></dt>
+          <dd>Re-download even if a cached download exists.</dd>
+          <dt><code>--skip-checksum</code></dt>
+          <dd>Skip SHA256 verification of the downloaded archive.</dd>
+          <dt><code>--no-patchperl</code></dt>
+          <dd>Skip applying patchperl fixes during a source build.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>use [version[@library]]</code></dt>
+      <dd>
+        Activate a Perl version in the current shell session. The optional <code>@library</code> suffix selects a local::lib library directory. Outputs shell code; must be evaluated via <code>eval "$(pvm use ...)"</code> or the shell integration.
+      </dd>
+
+      <dt><code>global [version]</code></dt>
+      <dd>
+        Set the global default Perl version, written to <code>~/.pvm/version</code>. Accepts a version string or the special value <code>system</code> to defer to the system Perl. With no argument, prints the current global version.
+        <dl>
+          <dt><code>--unset</code></dt>
+          <dd>Remove the global version setting, reverting to system Perl.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>local [version]</code></dt>
+      <dd>
+        Set the local Perl version for the current directory, written to <code>.perl-version</code>. With no argument, prints the current local version.
+        <dl>
+          <dt><code>--unset</code></dt>
+          <dd>Remove the <code>.perl-version</code> file.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>versions</code> (alias: <code>list</code>)</dt>
+      <dd>
+        List all installed Perl versions. Marks the active version.
+        <dl>
+          <dt><code>--paths</code></dt>
+          <dd>Show the installation path for each version.</dd>
+          <dt><code>--source</code></dt>
+          <dd>Show how each version was installed (binary or source).</dd>
+          <dt><code>--format &lt;text|json&gt;</code></dt>
+          <dd>Output format. Default: <code>text</code>.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>available</code></dt>
+      <dd>
+        List Perl versions available to install from the configured mirrors.
+        <dl>
+          <dt><code>--include-dev</code></dt>
+          <dd>Include development and release-candidate versions.</dd>
+          <dt><code>--format &lt;text|json|plain&gt;</code></dt>
+          <dd>Output format. Default: <code>text</code>.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>current</code></dt>
+      <dd>
+        Show the active Perl version.
+        <dl>
+          <dt><code>--bare</code></dt>
+          <dd>Print the version string only, no labels.</dd>
+          <dt><code>--detailed</code></dt>
+          <dd>Include source, path, and configuration summary.</dd>
+          <dt><code>--json</code></dt>
+          <dd>Output as JSON.</dd>
+          <dt><code>--path</code></dt>
+          <dd>Print the path to the perl binary.</dd>
+          <dt><code>--validate</code></dt>
+          <dd>Exit non-zero if the active version is not installed.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>uninstall [version]</code></dt>
+      <dd>Remove an installed Perl version and its entire directory tree.</dd>
+
+      <dt><code>resolve [version]</code></dt>
+      <dd>Resolve a version string (partial, alias, or range) to the best matching installed version and print it. Useful for scripting.</dd>
+
+      <dt><code>detect-version</code></dt>
+      <dd>Walk up the directory tree from the current directory looking for a <code>.perl-version</code> file and print the version it contains.</dd>
+
+      <dt><code>download [version]</code></dt>
+      <dd>Download the source archive for a Perl version without building or installing it.</dd>
+
+      <dt><code>rehash</code></dt>
+      <dd>
+        Regenerate the shims in <code>~/.pvm/shims</code> so newly installed executables are visible on <code>PATH</code>.
+        <dl>
+          <dt><code>--dry-run</code></dt>
+          <dd>Show what would be done without making changes.</dd>
+          <dt><code>--verbose</code></dt>
+          <dd>Print each shim as it is created or removed.</dd>
+        </dl>
+      </dd>
+    </dl>
+
+    <h2>Build &amp; Import</h2>
+
+    <dl>
+      <dt><code>build-perl [version|URL]</code></dt>
+      <dd>
+        Build Perl from source. Accepts a version number or a direct URL to a source tarball.
+        <dl>
+          <dt><code>--jobs &lt;n&gt;</code></dt>
+          <dd>Number of parallel make jobs. Default: number of CPUs.</dd>
+          <dt><code>--prefix &lt;path&gt;</code></dt>
+          <dd>Installation prefix for the build output.</dd>
+          <dt><code>--configure-args &lt;args&gt;</code></dt>
+          <dd>Extra arguments to pass to <code>Configure</code>.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>install-perl</code></dt>
+      <dd>Install Perl from a pre-built archive, a local directory, or a URL. Intended for use after <code>build-perl</code> or when integrating externally built binaries.</dd>
+
+      <dt><code>import-system</code></dt>
+      <dd>
+        Register the system Perl installation with PVM so it appears in <code>pvm versions</code> and can be selected.
+        <dl>
+          <dt><code>--force</code></dt>
+          <dd>Re-import even if the system Perl is already registered.</dd>
+        </dl>
+      </dd>
+    </dl>
+
+    <h2>Project Management</h2>
+
+    <dl>
+      <dt><code>workspace init [name]</code></dt>
+      <dd>
+        Initialize a PVM-managed project in the current directory. Creates <code>pvm.toml</code> and optionally a starter layout.
+        <dl>
+          <dt><code>--template &lt;name&gt;</code></dt>
+          <dd>Use a named project template. See <code>workspace templates</code> for available names.</dd>
+          <dt><code>--force</code></dt>
+          <dd>Overwrite an existing <code>pvm.toml</code>.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>workspace status</code></dt>
+      <dd>Show the status of the current workspace: active Perl version, installed modules, and any pending changes relative to the lockfile.</dd>
+
+      <dt><code>workspace doctor</code></dt>
+      <dd>
+        Check the workspace for configuration problems, missing dependencies, and version mismatches.
+        <dl>
+          <dt><code>--fix</code></dt>
+          <dd>Automatically resolve detected problems where possible.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>workspace templates</code></dt>
+      <dd>List available project templates and their descriptions.</dd>
+
+      <dt><code>workspace validate</code></dt>
+      <dd>Validate <code>pvm.toml</code> against the schema and report any errors.</dd>
+
+      <dt><code>test [pattern]</code></dt>
+      <dd>
+        Run tests for the current project. Discovers test files automatically; accepts an optional glob pattern to filter.
+        <dl>
+          <dt><code>--verbose</code></dt>
+          <dd>Print each test as it runs.</dd>
+          <dt><code>--parallel</code></dt>
+          <dd>Run tests in parallel.</dd>
+          <dt><code>--coverage</code></dt>
+          <dd>Collect code coverage data using Devel::Cover.</dd>
+          <dt><code>--perl &lt;version&gt;</code></dt>
+          <dd>Run tests under a specific Perl version.</dd>
+          <dt><code>--test-dir &lt;path&gt;</code></dt>
+          <dd>Look for tests in a specific directory instead of the default <code>t/</code>.</dd>
+        </dl>
+      </dd>
+    </dl>
+
+    <h2>Module Management</h2>
+
+    <dl>
+      <dt><code>module</code></dt>
+      <dd>Unified module management. Delegates to <code>pm</code>. Accepts all <code>pm</code> subcommands and flags. See <a href="pm.html">pm reference</a>.</dd>
+    </dl>
+
+    <h2>Execution</h2>
+
+    <dl>
+      <dt><code>run</code></dt>
+      <dd>Unified script and tool execution. Delegates to <code>pvx</code>. Accepts all <code>pvx</code> options and flags. See <a href="pvx.html">pvx reference</a>.</dd>
+    </dl>
+
+    <h2>Tool Management</h2>
+
+    <dl>
+      <dt><code>tool add [tool[@version]]</code></dt>
+      <dd>Install a Perl tool (a CPAN distribution that provides executables) into the PVM tools directory, isolated from project dependencies.</dd>
+
+      <dt><code>tool run</code></dt>
+      <dd>Run a managed tool without adding it to the active environment's PATH.</dd>
+
+      <dt><code>tool list</code></dt>
+      <dd>List installed tools and their versions.</dd>
+
+      <dt><code>tool upgrade</code></dt>
+      <dd>Upgrade all installed tools to their latest available versions.</dd>
+
+      <dt><code>tool uninstall</code></dt>
+      <dd>Remove a managed tool.</dd>
+
+      <dt><code>tool shim install</code></dt>
+      <dd>Install shell integration for tool shims, adding the shims directory to <code>PATH</code>.</dd>
+
+      <dt><code>tool shim remove</code></dt>
+      <dd>Remove tool shim shell integration.</dd>
+
+      <dt><code>tool shim list</code></dt>
+      <dd>List installed tool shims.</dd>
+
+      <dt><code>tool shim status</code></dt>
+      <dd>Show whether shim integration is active and which tools have shims.</dd>
+
+      <dt><code>tool lsp</code></dt>
+      <dd>LSP server integration for tools. Not yet available.</dd>
+    </dl>
+
+    <h2>Environment Management</h2>
+
+    <dl>
+      <dt><code>env list</code></dt>
+      <dd>List named persistent execution environments and their active Perl version.</dd>
+
+      <dt><code>env activate [name]</code></dt>
+      <dd>Activate a named environment in the current shell. Outputs shell code; must be evaluated.</dd>
+
+      <dt><code>env remove [name]</code></dt>
+      <dd>Delete a named environment and its module directory.</dd>
+
+      <dt><code>env info [name]</code></dt>
+      <dd>Show details about a named environment: Perl version, path, installed modules.</dd>
+    </dl>
+
+    <h2>Shell Integration</h2>
+
+    <dl>
+      <dt><code>init [shell]</code></dt>
+      <dd>Emit shell initialization code. When <code>shell</code> is omitted, auto-detects the current shell. Add <code>eval "$(pvm init)"</code> to your shell profile. Supports <code>bash</code>, <code>zsh</code>, <code>fish</code>, and <code>pwsh</code>.</dd>
+
+      <dt><code>shell setup</code></dt>
+      <dd>Interactive shell setup wizard. Detects the current shell, edits the profile file, and verifies the integration.</dd>
+
+      <dt><code>completion</code></dt>
+      <dd>Generate shell completion scripts for the current or specified shell. Pipe to a file and source it, or follow the printed instructions.</dd>
+    </dl>
+
+    <h2>Self Management</h2>
+
+    <dl>
+      <dt><code>self</code></dt>
+      <dd>Self-management command group. Subcommands manage the PVM binary itself.</dd>
+
+      <dt><code>update</code></dt>
+      <dd>
+        Update the PVM binary to the latest release.
+        <dl>
+          <dt><code>--dry-run</code></dt>
+          <dd>Check for an update and report what would happen without downloading or replacing.</dd>
+          <dt><code>--no-backup</code></dt>
+          <dd>Do not keep a backup of the previous binary.</dd>
+          <dt><code>--no-rollback</code></dt>
+          <dd>Do not restore the previous binary if the update fails.</dd>
+          <dt><code>--prerelease</code></dt>
+          <dd>Allow updating to pre-release versions.</dd>
+          <dt><code>--token &lt;token&gt;</code></dt>
+          <dd>GitHub personal access token for accessing private or rate-limited releases.</dd>
+          <dt><code>--ignore-install-method</code></dt>
+          <dd>Update even when PVM was installed by a package manager or other external method.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>auto-update [enable|disable|config|check|status]</code></dt>
+      <dd>
+        Manage automatic background update checks.
+        <dl>
+          <dt><code>enable</code></dt>
+          <dd>Enable automatic update checks.</dd>
+          <dt><code>disable</code></dt>
+          <dd>Disable automatic update checks.</dd>
+          <dt><code>config</code></dt>
+          <dd>Show or edit auto-update configuration (interval, channel, token).</dd>
+          <dt><code>check</code></dt>
+          <dd>Run an update check immediately without waiting for the next scheduled check.</dd>
+          <dt><code>status</code></dt>
+          <dd>Show whether auto-update is enabled, the last check time, and any pending update.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>version</code></dt>
+      <dd>Print the PVM version string and exit.</dd>
+
+      <dt><code>doctor</code></dt>
+      <dd>
+        Diagnose common PVM installation and configuration issues.
+        <dl>
+          <dt><code>--fix</code></dt>
+          <dd>Attempt to automatically resolve detected issues.</dd>
+        </dl>
+      </dd>
+
+      <dt><code>changelog</code></dt>
+      <dd>Display the full PVM changelog.</dd>
+
+      <dt><code>release-notes [version]</code></dt>
+      <dd>Display release notes for a specific version. Defaults to the current version.</dd>
+
+      <dt><code>shims-dir</code></dt>
+      <dd>Print the path to the PVM shims directory. Useful for configuring <code>PATH</code> manually.</dd>
+
+      <dt><code>upload-binary [directory]</code></dt>
+      <dd>Upload built binaries to the release mirror. Maintainer command; requires appropriate credentials.</dd>
+    </dl>
+
+    <h2>Configuration</h2>
+
+    <dl>
+      <dt><code>config</code></dt>
+      <dd>Read, write, and manage PVM configuration. Without a subcommand, prints the active configuration. Subcommands: <code>get &lt;key&gt;</code>, <code>set &lt;key&gt; &lt;value&gt;</code>, <code>unset &lt;key&gt;</code>, <code>list</code>, <code>edit</code> (open in <code>$EDITOR</code>).</dd>
+    </dl>
+
+    <h2>Internal Commands</h2>
+
+    <p>These commands are invoked by shell integration and are not intended for direct use.</p>
+
+    <dl>
+      <dt><code>sh-use [version[@library]]</code> (internal)</dt>
+      <dd>Generate the shell code needed to activate a Perl version and optional local::lib library in the current shell session. Called by the <code>pvm use</code> shell function created by <code>pvm init</code>.</dd>
+
+      <dt><code>sh-env-activate [name]</code> (internal)</dt>
+      <dd>Generate the shell code needed to activate a named environment. Called by the <code>pvm env activate</code> shell function.</dd>
+
+      <dt><code>show-alerts</code> (internal)</dt>
+      <dd>Check whether there are pending alerts or notices to display in the user's terminal (e.g. available updates, deprecation warnings). Called during shell initialization. Exits zero silently when there is nothing to show.</dd>
+    </dl>
+
+    <h2>Help System</h2>
+
+    <dl>
+      <dt><code>help [command]</code></dt>
+      <dd>Print help for any command. With no argument, prints a summary of all top-level commands.</dd>
+
+      <dt><code>help workflows</code></dt>
+      <dd>Print descriptions of common multi-step workflows with example command sequences.</dd>
+
+      <dt><code>help getting-started</code></dt>
+      <dd>Print the new-user guide: installation, first version, first project.</dd>
+
+      <dt><code>help troubleshooting</code></dt>
+      <dd>Print troubleshooting guidance for common problems.</dd>
+
+      <dt><code>help next</code></dt>
+      <dd>Print suggested next steps based on the current project state.</dd>
+
+      <dt><code>help types</code></dt>
+      <dd>Print documentation for the PVM type system and PSC type inference.</dd>
+    </dl>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/theme-toggle.js"></script>
+  <script src="../scripts/copy-code.js"></script>
+</body>
+</html>

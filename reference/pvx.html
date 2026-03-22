@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="PVX command reference — Perl Version eXecutor for isolated script execution.">
+  <meta property="og:title" content="PVX Reference — PVM">
+  <meta property="og:description" content="PVX command reference — Perl Version eXecutor for isolated script execution.">
+  <meta property="og:url" content="https://pvm.tools/reference/pvx.html">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>PVX Reference — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+      </ul>
+      <ul>
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="pvm.html">pvm</a></li>
+              <li><a href="pvm-complete.html">pvm (full)</a></li>
+              <li><a href="pvx.html" aria-current="page">pvx</a></li>
+              <li><a href="pm.html">pm</a></li>
+              <li><a href="psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="../guides/inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="../guides/isolation.html">Isolation Levels</a></li>
+              <li><a href="../guides/type-checking.html">Type Checking</a></li>
+              <li><a href="../guides/version-resolution.html">Version Resolution</a></li>
+              <li><a href="../guides/configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+        <li><button id="theme-toggle" class="outline">Dark</button></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>pvx</h1>
+    <p>Perl Version eXecutor. Executes Perl code in isolated environments.</p>
+
+    <pre><code>pvx [options] script.pl [args...]</code></pre>
+
+    <h2>Execution modes</h2>
+    <p>Mode is auto-detected from the invocation:</p>
+    <ol>
+      <li><strong>Tool execution</strong> — recognized Perl tools invoked by name</li>
+      <li><strong>Script execution</strong> — <code>.pl</code> or <code>.pm</code> files</li>
+      <li><strong>Inline code execution</strong> — <code>-e</code> or <code>-E</code> flags</li>
+    </ol>
+
+    <h2>Options</h2>
+
+    <h3>Execution</h3>
+    <dl>
+      <dt><code>-e, --execute &lt;code&gt;</code></dt>
+      <dd>Execute Perl code directly.</dd>
+
+      <dt><code>-E, --execute-features &lt;code&gt;</code></dt>
+      <dd>Execute with all features enabled (<code>say</code>, <code>state</code>, etc.).</dd>
+
+      <dt><code>-p, --perl &lt;version&gt;</code></dt>
+      <dd>Use a specific Perl version.</dd>
+
+      <dt><code>-f, --force</code></dt>
+      <dd>Force using the specified version.</dd>
+    </dl>
+
+    <h3>Isolation</h3>
+    <dl>
+      <dt><code>--isolation &lt;level&gt;</code></dt>
+      <dd>Set isolation level. One of: <code>global</code>, <code>local</code>, <code>clean</code>.</dd>
+
+      <dt><code>--isolation-dir &lt;path&gt;</code></dt>
+      <dd>Specify the isolation directory.</dd>
+
+      <dt><code>--no-cleanup</code></dt>
+      <dd>Keep the isolation directory after execution.</dd>
+
+      <dt><code>--name &lt;name&gt;</code></dt>
+      <dd>Create or reuse a named persistent isolation environment.</dd>
+    </dl>
+
+    <h3>Module management</h3>
+    <dl>
+      <dt><code>-a, --auto-install</code></dt>
+      <dd>Auto-install required modules.</dd>
+
+      <dt><code>--no-install</code></dt>
+      <dd>Don't install missing modules.</dd>
+
+      <dt><code>--require &lt;module&gt;</code></dt>
+      <dd>Require a specific module. Repeatable.</dd>
+
+      <dt><code>--with &lt;dep&gt;</code></dt>
+      <dd>Add an additional dependency. Repeatable.</dd>
+
+      <dt><code>--include-path &lt;path&gt;</code></dt>
+      <dd>Add a path to <code>PERL5LIB</code>. Repeatable.</dd>
+
+      <dt><code>--module-path &lt;path&gt;</code></dt>
+      <dd>Custom module installation path.</dd>
+
+      <dt><code>--auto-detect-deps</code></dt>
+      <dd>Auto-detect dependencies from <code>use</code> and <code>require</code> statements. Default: true.</dd>
+    </dl>
+
+    <h3>Environment</h3>
+    <dl>
+      <dt><code>--preserve-env &lt;var&gt;</code></dt>
+      <dd>Preserve a specific environment variable. Repeatable.</dd>
+
+      <dt><code>--clear-env &lt;var&gt;</code></dt>
+      <dd>Remove an environment variable. Repeatable.</dd>
+    </dl>
+
+    <h3>Output</h3>
+    <dl>
+      <dt><code>-v, --verbose</code></dt>
+      <dd>Show additional output.</dd>
+
+      <dt><code>-q, --quiet</code></dt>
+      <dd>Suppress non-error output.</dd>
+
+      <dt><code>--debug</code></dt>
+      <dd>Show detailed debug output.</dd>
+    </dl>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/theme-toggle.js"></script>
+  <script src="../scripts/copy-code.js"></script>
+</body>
+</html>
