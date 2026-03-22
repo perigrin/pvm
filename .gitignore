@@ -1,0 +1,19 @@
+# Build artifacts from pu branch
+internal/
+cmd/
+test/
+docs/
+paad/
+.claude/
+.worktrees/
+local/
+
+# Binaries
+pvm
+pvx
+pm
+psc
+
+# OS files
+.DS_Store
+Thumbs.db
