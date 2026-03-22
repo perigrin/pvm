@@ -124,12 +124,6 @@ nav details[open] > ul li a {
   white-space: nowrap;
 }
 
-/* Theme toggle — smaller inline button in nav */
-#theme-toggle {
-  font-size: 0.8rem;
-  padding: 0.25rem 0.75rem;
-  margin: 0;
-}
 
 /* Code copy button */
 pre {
