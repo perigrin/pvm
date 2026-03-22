@@ -1,4 +1,5 @@
-// Adds copy-to-clipboard buttons to all <pre><code> blocks.
+// ABOUTME: Adds copy-to-clipboard buttons to all <pre><code> blocks.
+// ABOUTME: Uses the Clipboard API and provides visual feedback on copy.
 
 (function () {
   document.addEventListener("DOMContentLoaded", function () {
@@ -9,6 +10,7 @@
       var btn = document.createElement("button");
       btn.className = "copy-btn";
       btn.textContent = "Copy";
+      btn.setAttribute("aria-label", "Copy code to clipboard");
       btn.addEventListener("click", function () {
         navigator.clipboard.writeText(code.textContent).then(function () {
           btn.textContent = "Copied!";

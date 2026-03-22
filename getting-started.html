@@ -9,6 +9,8 @@
   <meta property="og:description" content="Install PVM, set up shell integration, and create your first Perl project. Step-by-step guide for new users.">
   <meta property="og:url" content="https://pvm.tools/getting-started.html">
   <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
   <link rel="stylesheet" href="assets/style.css">
   <title>Getting Started — PVM</title>
@@ -18,6 +20,7 @@
     <nav>
       <ul>
         <li><a href="/"><strong>PVM</strong></a></li>
+        <li><button class="nav-toggle" aria-expanded="false" aria-label="Menu">&#9776;</button></li>
       </ul>
       <ul>
         <li><a href="getting-started.html" aria-current="page">Docs</a></li>
@@ -64,13 +67,18 @@
       <h3>Linux (AMD64)</h3>
       <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-amd64.tar.gz
 tar -xzf pvm-linux-amd64.tar.gz
-sudo mv pvm-linux-amd64 /usr/local/bin/pvm</code></pre>
+sudo mv pvm /usr/local/bin/pvm</code></pre>
+
+      <h3>Linux (ARM64)</h3>
+      <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-arm64.tar.gz
+tar -xzf pvm-linux-arm64.tar.gz
+sudo mv pvm /usr/local/bin/pvm</code></pre>
 
       <h3>macOS (Apple Silicon)</h3>
       <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-darwin-arm64.tar.gz
 tar -xzf pvm-darwin-arm64.tar.gz
-chmod +x pvm-darwin-arm64
-sudo mv pvm-darwin-arm64 /usr/local/bin/pvm</code></pre>
+chmod +x pvm
+sudo mv pvm /usr/local/bin/pvm</code></pre>
 
       <h3>Build from source (Go 1.24+)</h3>
       <pre><code>git clone https://github.com/perigrin/pvm.git &amp;&amp; cd pvm &amp;&amp; make</code></pre>
@@ -149,5 +157,6 @@ pm install                   # Install everything in the cpanfile</code></pre>
     <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
   </footer>
   <script src="scripts/copy-code.js"></script>
+  <script src="scripts/nav.js"></script>
 </body>
 </html>

@@ -1,3 +1,6 @@
+/* ABOUTME: Custom styles for pvm.tools, overriding Pico CSS classless defaults.
+   ABOUTME: Covers hero, tool cards, nav dropdowns, platform tabs, mobile nav, and copy buttons. */
+
 /* Brand overrides for Pico CSS */
 
 :root {
@@ -27,6 +30,42 @@
   max-width: 40rem;
   margin: 0 auto 2rem;
   text-align: left;
+}
+
+/* Platform tabs for install block */
+.platform-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+  margin-bottom: 0;
+}
+
+.platform-tabs [role="tab"] {
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--pico-muted-color);
+  border-radius: var(--pico-border-radius) var(--pico-border-radius) 0 0;
+  margin-bottom: -1px;
+}
+
+.platform-tabs [role="tab"][aria-selected="true"] {
+  color: var(--pico-color);
+  border-color: var(--pico-muted-border-color);
+  background: var(--pico-card-background-color, var(--pico-background-color));
+  font-weight: bold;
+}
+
+.platform-tabs [role="tab"]:hover {
+  color: var(--pico-color);
+}
+
+[role="tabpanel"] pre {
+  margin-top: 0;
+  border-top-left-radius: 0;
 }
 
 /* CTA buttons */
@@ -70,6 +109,55 @@
 /* Nav active state */
 nav a[aria-current="page"] {
   font-weight: bold;
+}
+
+/* Mobile nav toggle */
+.nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  color: var(--pico-color);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+@media (max-width: 768px) {
+  .nav-toggle {
+    display: block;
+  }
+
+  nav > ul:last-child {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--pico-card-background-color, var(--pico-background-color));
+    border-bottom: 1px solid var(--pico-muted-border-color);
+    padding: 1rem;
+    z-index: 20;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  nav > ul:last-child.open {
+    display: flex;
+  }
+
+  nav {
+    position: relative;
+  }
+
+  /* Make dropdown menus inline on mobile instead of absolute */
+  nav details[open] > ul {
+    position: static;
+    box-shadow: none;
+    border: none;
+    padding-left: 1rem;
+    margin-top: 0.25rem;
+  }
 }
 
 /* Nav dropdown overrides — Pico classless styles <details> as an accordion,

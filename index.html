@@ -9,6 +9,11 @@
   <meta property="og:description" content="A fast, cross-platform Perl development toolkit. Single binary. Pure Go. No dependencies.">
   <meta property="og:url" content="https://pvm.tools/">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="https://pvm.tools/assets/og-image.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="PVM — Perl Version Manager">
+  <meta name="twitter:description" content="A fast, cross-platform Perl development toolkit. Single binary. Pure Go. No dependencies.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
   <link rel="stylesheet" href="assets/style.css">
   <title>PVM — Perl Version Manager</title>
@@ -18,6 +23,7 @@
     <nav>
       <ul>
         <li><a href="/" aria-current="page"><strong>PVM</strong></a></li>
+        <li><button class="nav-toggle" aria-expanded="false" aria-label="Menu">&#9776;</button></li>
       </ul>
       <ul>
         <li><a href="getting-started.html">Docs</a></li>
@@ -59,10 +65,30 @@
       <p>Single binary. Pure Go. No dependencies.</p>
 
       <div class="install-block">
-        <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-amd64.tar.gz
+        <div class="platform-tabs" role="tablist" aria-label="Platform">
+          <button role="tab" aria-selected="true" aria-controls="install-linux-amd64" id="tab-linux-amd64">Linux (AMD64)</button>
+          <button role="tab" aria-selected="false" aria-controls="install-linux-arm64" id="tab-linux-arm64">Linux (ARM64)</button>
+          <button role="tab" aria-selected="false" aria-controls="install-darwin-arm64" id="tab-darwin-arm64">macOS (Apple Silicon)</button>
+        </div>
+        <div role="tabpanel" id="install-linux-amd64" aria-labelledby="tab-linux-amd64">
+          <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-amd64.tar.gz
 tar -xzf pvm-linux-amd64.tar.gz
-sudo mv pvm-linux-amd64 /usr/local/bin/pvm
+sudo mv pvm /usr/local/bin/pvm
 eval "$(pvm init)"</code></pre>
+        </div>
+        <div role="tabpanel" id="install-linux-arm64" aria-labelledby="tab-linux-arm64" hidden>
+          <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-arm64.tar.gz
+tar -xzf pvm-linux-arm64.tar.gz
+sudo mv pvm /usr/local/bin/pvm
+eval "$(pvm init)"</code></pre>
+        </div>
+        <div role="tabpanel" id="install-darwin-arm64" aria-labelledby="tab-darwin-arm64" hidden>
+          <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-darwin-arm64.tar.gz
+tar -xzf pvm-darwin-arm64.tar.gz
+chmod +x pvm
+sudo mv pvm /usr/local/bin/pvm
+eval "$(pvm init)"</code></pre>
+        </div>
       </div>
 
       <div class="cta-group">
@@ -151,5 +177,7 @@ pvm versions                # See what you have</code></pre>
     <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
   </footer>
   <script src="scripts/copy-code.js"></script>
+  <script src="scripts/nav.js"></script>
+  <script src="scripts/platform-tabs.js"></script>
 </body>
 </html>

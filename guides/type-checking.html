@@ -9,6 +9,8 @@
   <meta property="og:description" content="PSC type inference for Perl — catch type mismatches, arity errors, and get guard suggestions without annotations.">
   <meta property="og:url" content="https://pvm.tools/guides/type-checking.html">
   <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
   <link rel="stylesheet" href="../assets/style.css">
   <title>Type Checking — PVM</title>
@@ -18,6 +20,7 @@
     <nav>
       <ul>
         <li><a href="/"><strong>PVM</strong></a></li>
+        <li><button class="nav-toggle" aria-expanded="false" aria-label="Menu">&#9776;</button></li>
       </ul>
       <ul>
         <li><a href="../getting-started.html">Docs</a></li>
@@ -159,5 +162,6 @@ my $result = MyModule::process($data);  # return type inferred from MyModule</co
     <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
   </footer>
   <script src="../scripts/copy-code.js"></script>
+  <script src="../scripts/nav.js"></script>
 </body>
 </html>
