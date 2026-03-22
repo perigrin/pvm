@@ -161,7 +161,9 @@ nav a[aria-current="page"] {
 }
 
 /* Nav dropdown overrides — Pico classless styles <details> as an accordion,
-   but we need inline dropdown menus in the nav bar. */
+   but we need inline dropdown menus in the nav bar. These overrides must
+   cancel Pico's accordion chevron, colors, and spacing to get plain
+   inline dropdown menus. */
 nav li:has(details) {
   position: relative;
 }
@@ -170,6 +172,7 @@ nav details {
   border: none;
   padding: 0;
   margin: 0;
+  margin-bottom: 0;
 }
 
 nav details summary {
@@ -179,9 +182,33 @@ nav details summary {
   color: var(--pico-color);
 }
 
+nav details summary:not([role]) {
+  color: var(--pico-color);
+}
+
+nav details[open] > summary {
+  margin-bottom: 0;
+}
+
+nav details[open] > summary:not([role]):not(:focus) {
+  color: var(--pico-color);
+}
+
 nav details summary::after {
-  content: " \25BE";
+  /* Override Pico's chevron background-image with a simple text caret */
+  display: inline;
+  float: none;
+  width: auto;
+  height: auto;
+  margin-inline-start: 0.25em;
+  background-image: none;
+  transform: none;
+  content: "\25BE";
   font-size: 0.75em;
+}
+
+nav details[open] > summary::after {
+  transform: none;
 }
 
 nav details summary::marker,
