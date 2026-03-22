@@ -57,7 +57,27 @@
   <main>
     <section>
       <h1>Type Checking with PSC</h1>
-      <p>PSC infers types from your Perl code without requiring any annotations. It works by analyzing the structure of your program — variable declarations, sigils, and call sites — and using that information to catch bugs that would otherwise surface at runtime.</p>
+      <p>PSC is a static type checker for Perl. If that sentence surprises you, read on — this section explains why it shouldn't.</p>
+    </section>
+
+    <section>
+      <h2>Perl already has a type system</h2>
+      <p>Every time you write <code>my $x</code>, you declare a Scalar. Every time you write <code>my @xs</code>, you declare an Array. Every time you write <code>my %h</code>, you declare a Hash. Sigils are type declarations. Perl has had them since the beginning.</p>
+      <p>Below the surface there is more structure than most people realize. A Scalar is not just "a scalar" — it can hold an Int, a Num, a Str, Undef, a Bool, or a Ref. Perl tracks these distinctions internally. The runtime knows when <code>$x</code> holds an integer versus a string. It just never tells you when you use the wrong one.</p>
+      <p>That is the gap PSC fills. Perl has a real type system — a lattice with proper subtyping relationships: Int is a subtype of Num, Num is a subtype of Str, Str is a subtype of Scalar. These are not inventions bolted on after the fact. They fall out of how Perl values actually behave: an Int can do everything a Num can do, a Num can do everything a Str can do. PSC formalizes what was always there and checks it.</p>
+      <p>Consider what happens when you use a string where a number is expected:</p>
+      <pre><code>my $x = "hello";
+my $y = $x + 1;   # Perl: no error, $y is 1 ("hello" coerces to 0)
+                   # PSC: error — argument expects Num, got Str [type-mismatch]</code></pre>
+      <p>Perl does not complain. It coerces <code>"hello"</code> to <code>0</code> and moves on. You get <code>1</code> and a silent bug. PSC catches the mismatch before the code runs. The type information was always in the program — in the sigils, in the operations, in the structure. PSC reads what Perl already knows and holds you to it.</p>
+      <p>For the formally curious, the type system is documented in two companion papers: a <a href="https://gist.github.com/perigrin/c4780a7511ba1421e49a4a8b385aaa3d">practical guide and a formal definition</a> of Perl's latent dynamic type system, covering the subtyping lattice, type membership via round-trip coercion, and behavioral contracts.</p>
+    </section>
+
+    <section>
+      <h2>No annotations, no opt-in</h2>
+      <p>PSC works on your existing Perl code as-is. You do not add type annotations. You do not opt in. You do not change how you write Perl. The types come from what Perl already knows: sigils declare container types, operations constrain value types, and control flow narrows both. PSC infers the rest.</p>
+      <p>Run it against a file. If there are no type errors, you get silence and a zero exit code. If there are errors, you get a diagnostic that names the file, line, column, and the specific mismatch. That is the entire interface.</p>
+      <p><strong>Note:</strong> PSC is under active development. The type checker grows more capable with each release — the set of diagnostics it produces today will expand as inference covers more of Perl's semantics. What it catches, it catches correctly. What it does not yet catch is on the roadmap.</p>
     </section>
 
     <section>
