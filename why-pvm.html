@@ -110,7 +110,7 @@ psc lsp                     # Start the LSP server</code></pre>
     <!-- Feature parity with modern tooling -->
     <section>
       <h2>Feature parity with modern tooling</h2>
-      <p>Python's <a href="https://github.com/astral-sh/uv">uv</a> set a new standard for what language tooling should look like: fast, self-contained, opinionated, and complete. PVM brings that same standard to Perl — and goes further in two areas where uv has no answer.</p>
+      <p>Python's <a href="https://github.com/astral-sh/uv">uv</a> set a new standard for what language tooling should look like: fast, self-contained, opinionated, and complete. PVM brings that same standard to Perl — with integrated static analysis and fine-grained execution isolation that go beyond what uv offers out of the box.</p>
 
       <table>
         <thead>
@@ -149,12 +149,12 @@ psc lsp                     # Start the LSP server</code></pre>
           <tr>
             <td>Static Analysis</td>
             <td><strong><code>psc check</code> / <code>psc analyze</code> / <code>psc lsp</code></strong></td>
-            <td><em>nothing</em></td>
+            <td><code>ty</code> (by Astral, separate tool)</td>
           </tr>
           <tr>
             <td>Isolation Levels</td>
             <td><strong><code>pvx --isolation global/local/clean</code></strong></td>
-            <td><em>nothing</em></td>
+            <td><code>uv venv</code> (virtualenvs)</td>
           </tr>
           <tr>
             <td>Inline Metadata</td>
@@ -165,8 +165,8 @@ psc lsp                     # Start the LSP server</code></pre>
       </table>
 
       <h3>Where PVM leads</h3>
-      <p><strong>Static analysis.</strong> <code>psc</code> performs structural type inference on real Perl code — no annotations, no new syntax. It catches type mismatches, infers guard conditions, reports diagnostics in your editor via LSP. uv has no equivalent. No Python tool in common use does what <code>psc</code> does for Perl.</p>
-      <p><strong>Isolation levels.</strong> <code>pvx</code> gives you a named, explicit choice about the execution environment: inherit the global install, restrict to project-local modules, or start completely clean. uv runs scripts but does not offer this degree of isolation control.</p>
+      <p><strong>Integrated static analysis.</strong> <code>psc</code> performs structural type inference on real Perl code — no annotations, no new syntax. It catches type mismatches, infers guard conditions, and reports diagnostics in your editor via LSP. Astral's <code>ty</code> brings similar capabilities to Python, but it's a separate tool. <code>psc</code> ships inside PVM — one binary, zero extra setup.</p>
+      <p><strong>Explicit isolation levels.</strong> <code>pvx</code> gives you a named, explicit choice about the execution environment: inherit the global install, restrict to project-local modules, or start completely clean. uv manages virtualenvs, but <code>pvx</code> goes further with auto-dependency detection from source code and the ability to run scripts in a completely fresh environment with no pre-existing modules.</p>
 
       <h3>Where PVM matches</h3>
       <p>Version pinning, lockfiles, reproducible installs, inline script deps, tool management — PVM covers the same ground uv covers. Perl tooling has caught up.</p>
