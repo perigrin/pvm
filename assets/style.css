@@ -176,17 +176,22 @@ nav details {
 }
 
 nav details summary {
+  /* Match Pico's nav link styling so summary looks like Docs, Why PVM, etc. */
   padding: 0;
   list-style: none;
   cursor: pointer;
-  color: var(--pico-color);
+  color: var(--pico-primary);
   line-height: inherit;
 }
 
 nav details summary:not([role]),
 nav details summary:focus:not([role]),
 nav details summary:focus-visible:not([role]) {
-  color: var(--pico-color);
+  color: var(--pico-primary);
+}
+
+nav details summary:hover {
+  color: var(--pico-primary-hover);
 }
 
 nav details[open] > summary {
@@ -194,7 +199,7 @@ nav details[open] > summary {
 }
 
 nav details[open] > summary:not([role]):not(:focus) {
-  color: var(--pico-color);
+  color: var(--pico-primary);
 }
 
 nav details summary::after {
