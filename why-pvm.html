@@ -110,66 +110,79 @@ psc lsp                     # Start the LSP server</code></pre>
     <!-- Feature parity with modern tooling -->
     <section>
       <h2>Feature parity with modern tooling</h2>
-      <p>Python's <a href="https://github.com/astral-sh/uv">uv</a> set a new standard for what language tooling should look like: fast, self-contained, opinionated, and complete. PVM brings that same standard to Perl — with integrated static analysis and fine-grained execution isolation that go beyond what uv offers out of the box.</p>
+      <p>The best language tooling today is fast, self-contained, and complete. PVM brings that standard to Perl. Here's how it compares across ecosystems.</p>
 
       <table>
         <thead>
           <tr>
             <th>Category</th>
-            <th>PVM</th>
-            <th>uv</th>
+            <th>PVM (Perl)</th>
+            <th>uv (Python)</th>
+            <th>npm / bun (JS)</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td>Version Management</td>
-            <td><code>pvm install</code> / <code>pvm use</code> / <code>pvm global</code></td>
-            <td><code>uv python install</code> / <code>uv python pin</code></td>
+            <td><code>pvm install</code> / <code>pvm use</code></td>
+            <td><code>uv python install</code></td>
+            <td><code>nvm</code> / built into bun</td>
           </tr>
           <tr>
             <td>Package Management</td>
-            <td><code>pm install</code> / <code>pm add</code> / <code>pm sync</code></td>
+            <td><code>pm install</code> / <code>pm add</code></td>
             <td><code>uv pip install</code> / <code>uv add</code></td>
+            <td><code>npm install</code> / <code>bun add</code></td>
           </tr>
           <tr>
             <td>Lockfile</td>
-            <td><code>cpanfile</code> + <code>cpanfile.snapshot</code></td>
+            <td><code>cpanfile.snapshot</code></td>
             <td><code>uv.lock</code></td>
+            <td><code>package-lock.json</code> / <code>bun.lock</code></td>
           </tr>
           <tr>
             <td>Script Execution</td>
-            <td><code>pvx</code> with isolation + auto-detect deps</td>
+            <td><code>pvx</code> with auto-detect deps</td>
             <td><code>uv run</code></td>
+            <td><code>npx</code> / <code>bunx</code></td>
           </tr>
           <tr>
             <td>Tool Management</td>
-            <td><code>pvm tool add</code> / <code>pvm tool run</code> / <code>pvm tool list</code></td>
+            <td><code>pvm tool add</code> / <code>pvm tool run</code></td>
             <td><code>uv tool install</code> / <code>uvx</code></td>
+            <td><code>npx</code> / <code>bunx</code></td>
           </tr>
           <tr>
             <td>Static Analysis</td>
-            <td><strong><code>psc check</code> / <code>psc analyze</code> / <code>psc lsp</code></strong></td>
-            <td><code>ty</code> (by Astral, separate tool)</td>
+            <td><strong><code>psc check</code> / <code>psc lsp</code></strong> (integrated)</td>
+            <td><code>ty</code> (separate tool by Astral)</td>
+            <td><code>tsc</code> (separate tool)</td>
           </tr>
           <tr>
-            <td>Isolation Levels</td>
+            <td>Isolation</td>
             <td><strong><code>pvx --isolation global/local/clean</code></strong></td>
             <td><code>uv venv</code> (virtualenvs)</td>
+            <td><code>node_modules</code> (per-project)</td>
           </tr>
           <tr>
             <td>Inline Metadata</td>
             <td><code># /// pvm</code> + <code>=begin pvm</code></td>
             <td>PEP 723 (<code># /// script</code>)</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>Single Binary</td>
+            <td><strong>Yes</strong> (pure Go)</td>
+            <td>Yes (Rust)</td>
+            <td>bun: yes / npm: needs Node</td>
           </tr>
         </tbody>
       </table>
 
-      <h3>Where PVM leads</h3>
-      <p><strong>Integrated static analysis.</strong> <code>psc</code> performs structural type inference on real Perl code — no annotations, no new syntax. It catches type mismatches, infers guard conditions, and reports diagnostics in your editor via LSP. Astral's <code>ty</code> brings similar capabilities to Python, but it's a separate tool. <code>psc</code> ships inside PVM — one binary, zero extra setup.</p>
-      <p><strong>Explicit isolation levels.</strong> <code>pvx</code> gives you a named, explicit choice about the execution environment: inherit the global install, restrict to project-local modules, or start completely clean. uv manages virtualenvs, but <code>pvx</code> goes further with auto-dependency detection from source code and the ability to run scripts in a completely fresh environment with no pre-existing modules.</p>
-
-      <h3>Where PVM matches</h3>
-      <p>Version pinning, lockfiles, reproducible installs, inline script deps, tool management — PVM covers the same ground uv covers. Perl tooling has caught up.</p>
+      <h3>Where PVM stands out</h3>
+      <p><strong>Integrated static analysis.</strong> Python has <code>ty</code>, JavaScript has <code>tsc</code> — both are separate tools you install and configure independently. <code>psc</code> ships inside PVM. One binary, zero extra setup. It infers types from your Perl code without annotations, catches mismatches, suggests guard patterns, and serves diagnostics to your editor via LSP.</p>
+      <p><strong>Fine-grained isolation.</strong> Python has virtualenvs, JavaScript has <code>node_modules</code>. PVM gives you an explicit choice: global (use everything), local (project deps only), or clean (start from zero). Combined with auto-dependency detection from source code, <code>pvx</code> can run a script in a completely fresh environment and install only what the code actually needs.</p>
+      <p><strong>Everything in one binary.</strong> bun achieved this for JavaScript. uv achieved it for Python. PVM achieves it for Perl — version management, package management, script execution, and static analysis, all in a single Go binary with no external dependencies.</p>
     </section>
   </main>
 
