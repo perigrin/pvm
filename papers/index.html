@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Papers on Perl's latent dynamic type system — practical guide and formal definition.">
+  <meta property="og:title" content="Type System Papers — PVM">
+  <meta property="og:description" content="Practical guide and formal definition of Perl's latent dynamic type system.">
+  <meta property="og:url" content="https://pvm.tools/papers/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>Type System Papers — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+        <li><button class="nav-toggle" aria-expanded="false" aria-label="Menu">&#9776;</button></li>
+      </ul>
+      <ul>
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="../reference/pvm.html">pvm</a></li>
+              <li><a href="../reference/pvm-complete.html">pvm (full)</a></li>
+              <li><a href="../reference/pvx.html">pvx</a></li>
+              <li><a href="../reference/pm.html">pm</a></li>
+              <li><a href="../reference/psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="../guides/inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="../guides/isolation.html">Isolation Levels</a></li>
+              <li><a href="../guides/type-checking.html">Type Checking</a></li>
+              <li><a href="../guides/version-resolution.html">Version Resolution</a></li>
+              <li><a href="../guides/configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h1>Perl's Type System</h1>
+      <p>Two companion papers defining the type system that PSC checks. Perl has always had types — sigils, context, coercion — but no one had written them down formally until now.</p>
+    </section>
+
+    <section>
+      <h2>Understanding Perl's Type System: A Practical Guide</h2>
+      <p>The practitioner-facing paper. Covers the two tests for type membership (round-trip conversion and behavioral correctness), the full type hierarchy from Scalar down to Int, special cases like Bool and DualVar, and how existing tools (Moose, Types::Tiny) map onto the formal framework. Includes real-world scenarios: CSV parsing, API validation, money/float precision, debugging type confusion.</p>
+      <p><a href="perl-types-practical.md">Read the practical guide</a> &#183; <a href="https://gist.github.com/perigrin/c4780a7511ba1421e49a4a8b385aaa3d">View on GitHub Gist</a></p>
+    </section>
+
+    <section>
+      <h2>Formal Definition of Perl's Latent Dynamic Type System</h2>
+      <p>The mathematical companion. Defines the value space, observational equivalence, coercion judgments, and the complete type lattice with proofs. Establishes that type membership requires both syntactic preservation and semantic fulfillment, proves the subtyping chain Int &lt;: Num &lt;: Str &lt;: Scalar, and works seven examples including the NaN edge case. References Cartwright &amp; Fagan (soft typing), Tobin-Hochstadt &amp; Felleisen (occurrence typing), and Siek &amp; Taha (gradual typing).</p>
+      <p><a href="perl-types-formal.md">Read the formal definition</a> &#183; <a href="https://gist.github.com/perigrin/c4780a7511ba1421e49a4a8b385aaa3d">View on GitHub Gist</a></p>
+    </section>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/copy-code.js"></script>
+  <script src="../scripts/nav.js"></script>
+</body>
+</html>

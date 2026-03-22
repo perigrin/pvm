@@ -70,7 +70,7 @@
 my $y = $x + 1;   # Perl: no error, $y is 1 ("hello" coerces to 0)
                    # PSC: error — argument expects Num, got Str [type-mismatch]</code></pre>
       <p>Perl does not complain. It coerces <code>"hello"</code> to <code>0</code> and moves on. You get <code>1</code> and a silent bug. PSC catches the mismatch before the code runs. The type information was always in the program — in the sigils, in the operations, in the structure. PSC reads what Perl already knows and holds you to it.</p>
-      <p>For the formally curious, the type system is documented in two companion papers: a <a href="https://gist.github.com/perigrin/c4780a7511ba1421e49a4a8b385aaa3d">practical guide and a formal definition</a> of Perl's latent dynamic type system, covering the subtyping lattice, type membership via round-trip coercion, and behavioral contracts.</p>
+      <p>For the formally curious, the type system is documented in two companion papers: a <a href="../papers/perl-types-practical.md">practical guide</a> and a <a href="../papers/perl-types-formal.md">formal definition</a> of Perl's latent dynamic type system, covering the subtyping lattice, type membership via round-trip coercion, and behavioral contracts.</p>
     </section>
 
     <section>
