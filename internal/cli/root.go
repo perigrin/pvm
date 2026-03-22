@@ -255,10 +255,10 @@ func setupUI(cmd *cobra.Command) {
 	ctx := &ui.UIContext{
 		Writer:      writer,
 		ErrorWriter: os.Stderr, // Errors should always go to stderr
-		ColorMode:   ui.ColorAuto,
+		ColorMode:   detectColorMode(),
 		Quiet:       Quiet,
 		Verbose:     Verbose,
-		Interactive: true, // TODO: See issue #352 - Implement proper TTY detection for interactive CLI features
+		Interactive: isTerminal(os.Stdout),
 		RawMarkdown: rawMarkdown,
 	}
 
@@ -385,6 +385,25 @@ func isTerminal(f *os.File) bool {
 		return false
 	}
 	return (fileInfo.Mode() & os.ModeCharDevice) != 0
+}
+
+// detectColorMode determines the color mode based on environment variables
+// and terminal capabilities. Respects the NO_COLOR (https://no-color.org/)
+// and CLICOLOR/CLICOLOR_FORCE conventions.
+func detectColorMode() ui.ColorMode {
+	// NO_COLOR takes precedence when set (any value, including empty)
+	if _, ok := os.LookupEnv("NO_COLOR"); ok {
+		return ui.ColorNever
+	}
+	// CLICOLOR_FORCE=1 forces color even when not a TTY
+	if os.Getenv("CLICOLOR_FORCE") == "1" {
+		return ui.ColorAlways
+	}
+	// CLICOLOR=0 disables color
+	if os.Getenv("CLICOLOR") == "0" {
+		return ui.ColorNever
+	}
+	return ui.ColorAuto
 }
 
 // getTerminalHeightFromEnv gets terminal height from environment variables
