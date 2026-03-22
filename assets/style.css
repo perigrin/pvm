@@ -180,9 +180,12 @@ nav details summary {
   list-style: none;
   cursor: pointer;
   color: var(--pico-color);
+  line-height: inherit;
 }
 
-nav details summary:not([role]) {
+nav details summary:not([role]),
+nav details summary:focus:not([role]),
+nav details summary:focus-visible:not([role]) {
   color: var(--pico-color);
 }
 
@@ -202,7 +205,9 @@ nav details summary::after {
   height: auto;
   margin-inline-start: 0.25em;
   background-image: none;
+  background-size: 0;
   transform: none;
+  transition: none;
   content: "\25BE";
   font-size: 0.75em;
 }
