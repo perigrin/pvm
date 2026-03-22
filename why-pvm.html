@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Why PVM — modern Perl development tooling with version management, modules, isolation, and static analysis in a single binary.">
+  <meta property="og:title" content="Why PVM">
+  <meta property="og:description" content="Why PVM — modern Perl development tooling with version management, modules, isolation, and static analysis in a single binary.">
+  <meta property="og:url" content="https://pvm.tools/why-pvm.html">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <title>Why PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+      </ul>
+      <ul>
+        <li><a href="getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="reference/pvm.html">pvm</a></li>
+              <li><a href="reference/pvm-complete.html">pvm (full)</a></li>
+              <li><a href="reference/pvx.html">pvx</a></li>
+              <li><a href="reference/pm.html">pm</a></li>
+              <li><a href="reference/psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="guides/inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="guides/isolation.html">Isolation Levels</a></li>
+              <li><a href="guides/type-checking.html">Type Checking</a></li>
+              <li><a href="guides/version-resolution.html">Version Resolution</a></li>
+              <li><a href="guides/configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="why-pvm.html" aria-current="page">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+        <li><button id="theme-toggle" class="outline">Dark</button></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h1>Why PVM</h1>
+      <p>PVM brings modern tooling standards to Perl. The same quality of developer experience that Python developers enjoy — lockfiles, isolated execution, inline script metadata, static analysis — available today, in a single binary.</p>
+    </section>
+
+    <!-- Coming from plenv/perlbrew -->
+    <section>
+      <h2>Coming from plenv or perlbrew</h2>
+      <p>If you already use plenv or perlbrew, PVM will feel immediately familiar. It reads <code>.perl-version</code> files, understands your existing installations, and slots into your current workflow without disruption.</p>
+      <pre><code>pvm import-system           # Import your existing system Perl
+pvm versions                # See all available versions
+pvm use 5.40.2              # Switch — same as plenv use</code></pre>
+      <p>The difference is what PVM adds on top of version management.</p>
+
+      <h3>Module management with lockfiles</h3>
+      <p>plenv and perlbrew manage Perl versions. For modules you reach for cpanm separately. PVM includes <code>pm</code>, a module manager that works with <code>cpanfile</code> and produces a <code>cpanfile.snapshot</code> for reproducible installs — no separate tooling needed.</p>
+      <pre><code>pm install Mojolicious      # Install a module
+pm add DBI                  # Add to cpanfile
+pm sync                     # Reproduce a locked install</code></pre>
+
+      <h3>Isolated script execution</h3>
+      <p><code>pvx</code> runs scripts in isolated environments with automatic dependency detection. You choose the isolation level: global (use the active Perl), local (project deps only), or clean (a fresh environment). plenv and perlbrew have no equivalent.</p>
+      <pre><code>pvx app.pl                          # Auto-detect deps, run
+pvx --require DBI --require Moo app.pl
+pvx --isolation clean script.pl     # Completely fresh environment</code></pre>
+
+      <h3>Inline script metadata</h3>
+      <p>Declare dependencies directly inside your script. PVM supports both a comment format and a POD block format. <code>pvx</code> reads these automatically — no separate <code>cpanfile</code> needed for standalone scripts.</p>
+      <pre><code># /// pvm
+# [dependencies]
+# requires = ["Mojolicious", "DBI"]
+# ///
+
+use Mojolicious;
+use DBI;</code></pre>
+      <pre><code>=begin pvm
+
+[dependencies]
+requires = ["Mojolicious"]
+
+=end pvm</code></pre>
+
+      <h3>Static analysis</h3>
+      <p><code>psc</code> performs type inference on your Perl code without requiring any annotations. It catches type mismatches, suggests guard patterns, and serves diagnostics to your editor via LSP. Nothing else in the Perl ecosystem does this.</p>
+      <pre><code>psc check lib/              # Type-check a directory
+psc analyze lib/MyModule.pm # Detailed analysis
+psc lsp                     # Start the LSP server</code></pre>
+
+      <h3>Single binary, no bootstrap</h3>
+      <p>plenv and perlbrew are shell scripts that need a working Perl to install themselves. PVM is a compiled Go binary. Download it, make it executable, run it. No Perl required to manage Perl.</p>
+    </section>
+
+    <!-- Feature parity with modern tooling -->
+    <section>
+      <h2>Feature parity with modern tooling</h2>
+      <p>Python's <a href="https://github.com/astral-sh/uv">uv</a> set a new standard for what language tooling should look like: fast, self-contained, opinionated, and complete. PVM brings that same standard to Perl — and goes further in two areas where uv has no answer.</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>PVM</th>
+            <th>uv</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Version Management</td>
+            <td><code>pvm install</code> / <code>pvm use</code> / <code>pvm global</code></td>
+            <td><code>uv python install</code> / <code>uv python pin</code></td>
+          </tr>
+          <tr>
+            <td>Package Management</td>
+            <td><code>pm install</code> / <code>pm add</code> / <code>pm sync</code></td>
+            <td><code>uv pip install</code> / <code>uv add</code></td>
+          </tr>
+          <tr>
+            <td>Lockfile</td>
+            <td><code>cpanfile</code> + <code>cpanfile.snapshot</code></td>
+            <td><code>uv.lock</code></td>
+          </tr>
+          <tr>
+            <td>Script Execution</td>
+            <td><code>pvx</code> with isolation + auto-detect deps</td>
+            <td><code>uv run</code></td>
+          </tr>
+          <tr>
+            <td>Tool Management</td>
+            <td><code>pvm tool add</code> / <code>pvm tool run</code> / <code>pvm tool list</code></td>
+            <td><code>uv tool install</code> / <code>uvx</code></td>
+          </tr>
+          <tr>
+            <td>Static Analysis</td>
+            <td><strong><code>psc check</code> / <code>psc analyze</code> / <code>psc lsp</code></strong></td>
+            <td><em>nothing</em></td>
+          </tr>
+          <tr>
+            <td>Isolation Levels</td>
+            <td><strong><code>pvx --isolation global/local/clean</code></strong></td>
+            <td><em>nothing</em></td>
+          </tr>
+          <tr>
+            <td>Inline Metadata</td>
+            <td><code># /// pvm</code> + <code>=begin pvm</code></td>
+            <td>PEP 723 (<code># /// script</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Where PVM leads</h3>
+      <p><strong>Static analysis.</strong> <code>psc</code> performs structural type inference on real Perl code — no annotations, no new syntax. It catches type mismatches, infers guard conditions, reports diagnostics in your editor via LSP. uv has no equivalent. No Python tool in common use does what <code>psc</code> does for Perl.</p>
+      <p><strong>Isolation levels.</strong> <code>pvx</code> gives you a named, explicit choice about the execution environment: inherit the global install, restrict to project-local modules, or start completely clean. uv runs scripts but does not offer this degree of isolation control.</p>
+
+      <h3>Where PVM matches</h3>
+      <p>Version pinning, lockfiles, reproducible installs, inline script deps, tool management — PVM covers the same ground uv covers. Perl tooling has caught up.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="scripts/theme-toggle.js"></script>
+  <script src="scripts/copy-code.js"></script>
+</body>
+</html>

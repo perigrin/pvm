@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Troubleshooting common PVM issues — project detection, module installation, build errors, and environment problems.">
+  <meta property="og:title" content="Troubleshooting — PVM">
+  <meta property="og:description" content="Troubleshooting common PVM issues — project detection, module installation, build errors, and environment problems.">
+  <meta property="og:url" content="https://pvm.tools/troubleshooting.html">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <title>Troubleshooting — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+      </ul>
+      <ul>
+        <li><a href="getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="reference/pvm.html">pvm</a></li>
+              <li><a href="reference/pvm-complete.html">pvm (full)</a></li>
+              <li><a href="reference/pvx.html">pvx</a></li>
+              <li><a href="reference/pm.html">pm</a></li>
+              <li><a href="reference/psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="guides/inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="guides/isolation.html">Isolation Levels</a></li>
+              <li><a href="guides/type-checking.html">Type Checking</a></li>
+              <li><a href="guides/version-resolution.html">Version Resolution</a></li>
+              <li><a href="guides/configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+        <li><button id="theme-toggle" class="outline">Dark</button></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Troubleshooting</h1>
+    <p>This page covers the four most common problems people run into with PVM, along with diagnostic commands and where to get help.</p>
+
+    <section>
+      <h2>Project Detection</h2>
+      <p><strong>Problem:</strong> PVM does not recognize a directory as a project and falls back to global settings.</p>
+      <p><strong>Why it happens:</strong> PVM identifies a project by looking for one of several marker files in the current directory or its parents. If none are present, there is no project context to detect.</p>
+      <p><strong>Solution:</strong> Add at least one of the following to your project root:</p>
+      <ul>
+        <li><code>.perl-version</code> — a plain-text file containing the Perl version string (e.g. <code>5.40.2</code>)</li>
+        <li><code>cpanfile</code> — a module dependency file</li>
+        <li><code>pvm.toml</code> — a full PVM project configuration file</li>
+      </ul>
+      <pre><code># Quickest fix: pin the Perl version
+echo "5.40.2" > .perl-version</code></pre>
+      <p>To confirm PVM now sees the project:</p>
+      <pre><code>pvm current --detailed</code></pre>
+    </section>
+
+    <section>
+      <h2>Module Installation</h2>
+      <p><strong>Problem:</strong> Module installation fails, or installed modules are not found at runtime.</p>
+      <p><strong>Why it happens:</strong> Modules are installed relative to a project context. If PVM cannot detect a project (see above), it may install to the wrong location, or the runtime may pick up a different Perl than the one modules were installed for.</p>
+      <p><strong>Solution:</strong> First confirm you are in a recognized project directory, then run the workspace doctor:</p>
+      <pre><code>pvm workspace status --json
+pvm self doctor</code></pre>
+      <p>The <code>workspace status</code> output shows the active Perl version, module search paths, and any configuration inconsistencies. The <code>self doctor</code> command checks PVM's own installation and shell integration.</p>
+      <p>Once the project context is correct, reinstall the missing module:</p>
+      <pre><code>pm install Module::Name</code></pre>
+    </section>
+
+    <section>
+      <h2>Build Issues</h2>
+      <p><strong>Problem:</strong> Build fails with type errors or unexpected PSC diagnostics.</p>
+      <p><strong>Why it happens:</strong> PSC infers types from your Perl source without requiring annotations. If the configuration is not pointing at the right files, or if the inferred types do not match what you expect, the checker will report errors.</p>
+      <p><strong>Solution:</strong> Check your PSC configuration and run the checker directly against the file in question:</p>
+      <pre><code>psc check lib/</code></pre>
+      <p>PSC will report the inferred type alongside any mismatch. For a given file, <code>psc analyze</code> provides a more detailed breakdown:</p>
+      <pre><code>psc analyze lib/MyModule.pm</code></pre>
+      <p>If the errors appear in files you did not change, run the workspace doctor to rule out environment drift:</p>
+      <pre><code>pvm self doctor</code></pre>
+      <p>See the <a href="guides/type-checking.html">Type Checking guide</a> for a full explanation of how PSC infers types and how to interpret its diagnostics.</p>
+    </section>
+
+    <section>
+      <h2>Environment Issues</h2>
+      <p><strong>Problem:</strong> The wrong Perl version is active — scripts run under a different version than expected.</p>
+      <p><strong>Why it happens:</strong> PVM resolves the active Perl version by walking up the directory tree looking for <code>.perl-version</code> or <code>pvm.toml</code>, then falling back to the global default. If shell integration is not set up correctly, the PATH may bypass PVM entirely.</p>
+      <p><strong>Solution:</strong> Start by checking what version PVM thinks is active and how it arrived at that choice:</p>
+      <pre><code>pvm current --detailed
+pvm versions</code></pre>
+      <p><code>pvm current --detailed</code> shows the resolved version and the source file that set it. <code>pvm versions</code> lists every installed version so you can confirm the one you want is present.</p>
+      <p>If PVM is being bypassed entirely, the shell integration is likely missing. Add the following to your shell startup file (<code>~/.bashrc</code>, <code>~/.zshrc</code>, or equivalent) and open a new shell:</p>
+      <pre><code>eval "$(pvm init)"</code></pre>
+      <p>After reopening the shell, verify the path is correct:</p>
+      <pre><code>which perl
+perl -v</code></pre>
+    </section>
+
+    <section>
+      <h2>Diagnostic Commands</h2>
+      <p>These commands are useful starting points for any PVM problem:</p>
+      <dl>
+        <dt><code>pvm self doctor</code></dt>
+        <dd>Checks PVM's installation, shell integration, and configuration for common problems.</dd>
+        <dt><code>pvm self doctor --fix</code></dt>
+        <dd>Attempts to automatically correct the issues <code>self doctor</code> finds.</dd>
+        <dt><code>pvm workspace status</code></dt>
+        <dd>Shows the active project context, Perl version, and module paths.</dd>
+        <dt><code>pvm workspace status --json</code></dt>
+        <dd>Same information in machine-readable form, useful for scripts and bug reports.</dd>
+        <dt><code>pvm current --detailed</code></dt>
+        <dd>Shows the resolved Perl version and the file or setting that determined it.</dd>
+        <dt><code>pvm versions</code></dt>
+        <dd>Lists all installed Perl versions.</dd>
+        <dt><code>pvm --verbose [command]</code></dt>
+        <dd>Runs any PVM command with verbose output. Add this flag to any failing command to see more detail.</dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2>Getting Help</h2>
+      <p>If the steps above do not resolve your issue, the most useful thing to bring to a bug report is the output of:</p>
+      <pre><code>pvm workspace status
+pvm self doctor</code></pre>
+      <p>Report issues at <a href="https://github.com/perigrin/pvm/issues">https://github.com/perigrin/pvm/issues</a>. Include the verbose output of the failing command and the output of the two diagnostic commands above.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="scripts/theme-toggle.js"></script>
+  <script src="scripts/copy-code.js"></script>
+</body>
+</html>

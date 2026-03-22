@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Get started with PVM — install Perl, manage versions, add modules, and set up your first project in minutes.">
+  <meta property="og:title" content="Getting Started — PVM">
+  <meta property="og:description" content="Install PVM, set up shell integration, and create your first Perl project. Step-by-step guide for new users.">
+  <meta property="og:url" content="https://pvm.tools/getting-started.html">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <title>Getting Started — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+      </ul>
+      <ul>
+        <li><a href="getting-started.html" aria-current="page">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="reference/pvm.html">pvm</a></li>
+              <li><a href="reference/pvm-complete.html">pvm (full)</a></li>
+              <li><a href="reference/pvx.html">pvx</a></li>
+              <li><a href="reference/pm.html">pm</a></li>
+              <li><a href="reference/psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="guides/inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="guides/isolation.html">Isolation Levels</a></li>
+              <li><a href="guides/type-checking.html">Type Checking</a></li>
+              <li><a href="guides/version-resolution.html">Version Resolution</a></li>
+              <li><a href="guides/configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+        <li><button id="theme-toggle" class="outline">Dark</button></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h1>Getting Started with PVM</h1>
+      <p>PVM is a fast, cross-platform Perl development toolkit. This guide walks you through installation, shell integration, and creating your first project. By the end you will have a working Perl environment managed entirely by PVM.</p>
+    </section>
+
+    <section>
+      <h2>Install PVM</h2>
+      <p>Download the binary for your platform and place it somewhere on your <code>PATH</code>.</p>
+
+      <h3>Linux (AMD64)</h3>
+      <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-amd64.tar.gz
+tar -xzf pvm-linux-amd64.tar.gz
+sudo mv pvm-linux-amd64 /usr/local/bin/pvm</code></pre>
+
+      <h3>macOS (Apple Silicon)</h3>
+      <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-darwin-arm64.tar.gz
+tar -xzf pvm-darwin-arm64.tar.gz
+chmod +x pvm-darwin-arm64
+sudo mv pvm-darwin-arm64 /usr/local/bin/pvm</code></pre>
+
+      <h3>Build from source (Go 1.24+)</h3>
+      <pre><code>git clone https://github.com/perigrin/pvm.git &amp;&amp; cd pvm &amp;&amp; make</code></pre>
+
+      <h3>Verify the installation</h3>
+      <p>Once the binary is on your path, confirm it is working:</p>
+      <pre><code>pvm version</code></pre>
+    </section>
+
+    <section>
+      <h2>Set up shell integration</h2>
+      <p>Shell integration lets PVM automatically switch Perl versions when you enter a project directory. Add the appropriate line to your shell's startup file.</p>
+
+      <h3>bash / zsh</h3>
+      <pre><code>eval "$(pvm init)"</code></pre>
+
+      <h3>fish</h3>
+      <pre><code>pvm init | source</code></pre>
+
+      <h3>PowerShell</h3>
+      <pre><code>pvm init | Invoke-Expression</code></pre>
+
+      <p>Open a new terminal session (or reload your shell config) after adding the line. Shell integration is what makes <code>.perl-version</code> files effective — PVM reads the file and switches to the right Perl version automatically.</p>
+    </section>
+
+    <section>
+      <h2>Install a Perl version</h2>
+      <p>Check which versions are available, then install the one you want.</p>
+      <pre><code>pvm available          # List versions you can install
+pvm install 5.40.2     # Install a specific version</code></pre>
+      <p>PVM downloads a prebuilt binary when one is available for your platform, falling back to a source build if needed. After installation, switch to the new version:</p>
+      <pre><code>pvm use 5.40.2</code></pre>
+    </section>
+
+    <section>
+      <h2>Create your first project</h2>
+      <p>PVM organizes work around projects. A project is any directory that contains a <code>.perl-version</code>, <code>cpanfile</code>, or <code>pvm.toml</code> file. Use the workspace command to set one up:</p>
+      <pre><code>pvm workspace init my-app
+cd my-app</code></pre>
+      <p>This creates a <code>pvm.toml</code> and a <code>.perl-version</code> file pinned to your current Perl version.</p>
+    </section>
+
+    <section>
+      <h2>Add and install dependencies</h2>
+      <p>PVM ships with <code>pm</code>, a module manager that tracks your dependencies in a <code>cpanfile</code> and locks them in a <code>cpanfile.snapshot</code>.</p>
+      <pre><code>pm add DBI                   # Add a runtime dependency
+pm add Test::More --dev      # Add a development dependency
+pm install                   # Install everything in the cpanfile</code></pre>
+      <p>The <code>--dev</code> flag marks a module as a development-only dependency — it will not be included when you package your project for distribution.</p>
+    </section>
+
+    <section>
+      <h2>Key concepts</h2>
+
+      <h3>Project context</h3>
+      <p>PVM detects which project you are in by looking for <code>.perl-version</code>, <code>cpanfile</code>, or <code>pvm.toml</code> in the current directory and its parents. When shell integration is active, the Perl version switches automatically as you move between projects.</p>
+
+      <h3>Module management</h3>
+      <p>The <code>pm</code> command handles everything related to CPAN modules: adding dependencies, installing them, syncing lockfiles, and searching the registry. Run <code>pm --help</code> for the full list of subcommands.</p>
+
+      <h3>Version resolution</h3>
+      <p>PVM resolves which Perl to use in this order: the <code>PERL_VERSION</code> environment variable, then <code>.perl-version</code> in the current or nearest parent directory, then the global default set with <code>pvm use</code>. See <a href="guides/version-resolution.html">Version Resolution</a> for the full rules.</p>
+
+      <h3>What to read next</h3>
+      <ul>
+        <li><a href="reference/pvm.html">pvm reference</a> — full command reference for the version manager</li>
+        <li><a href="reference/pm.html">pm reference</a> — full command reference for the module manager</li>
+        <li><a href="reference/pvx.html">pvx reference</a> — run scripts in isolated environments</li>
+        <li><a href="reference/psc.html">psc reference</a> — static analysis and type checking</li>
+        <li><a href="guides/type-checking.html">Type Checking guide</a> — get editor diagnostics with PSC and LSP</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="scripts/theme-toggle.js"></script>
+  <script src="scripts/copy-code.js"></script>
+</body>
+</html>
