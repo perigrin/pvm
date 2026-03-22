@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Understanding Perl's Type System: A Practical Guide</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css" />
+  <link rel="stylesheet" href="../assets/style.css" />
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <header>
+    <nav>
+      <ul>
+        <li><a href="/"><strong>PVM</strong></a></li>
+        <li><button class="nav-toggle" aria-expanded="false" aria-label="Menu">&#9776;</button></li>
+      </ul>
+      <ul>
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li>
+          <details>
+            <summary>Reference</summary>
+            <ul>
+              <li><a href="../reference/pvm.html">pvm</a></li>
+              <li><a href="../reference/pvm-complete.html">pvm (full)</a></li>
+              <li><a href="../reference/pvx.html">pvx</a></li>
+              <li><a href="../reference/pm.html">pm</a></li>
+              <li><a href="../reference/psc.html">psc</a></li>
+            </ul>
+          </details>
+        </li>
+        <li>
+          <details>
+            <summary>Guides</summary>
+            <ul>
+              <li><a href="../guides/inline-scripts.html">Inline Scripts</a></li>
+              <li><a href="../guides/isolation.html">Isolation Levels</a></li>
+              <li><a href="../guides/type-checking.html">Type Checking</a></li>
+              <li><a href="../guides/version-resolution.html">Version Resolution</a></li>
+              <li><a href="../guides/configuration.html">Configuration</a></li>
+            </ul>
+          </details>
+        </li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+<header id="title-block-header">
+<h1 class="title">Understanding Perl's Type System: A Practical
+Guide</h1>
+</header>
+<h1 id="understanding-perls-type-system-a-practical-guide">Understanding
+Perl’s Type System: A Practical Guide</h1>
+<p><strong>Authors:</strong> [TBD]</p>
+<p><strong>Acknowledgments:</strong> [TBD]</p>
+<h2 id="abstract">Abstract</h2>
+<p>Perl doesn’t have explicit type declarations like <code>int</code> or
+<code>string</code>, but values still have types. When you write
+<code>"42" + 1</code>, Perl knows <code>"42"</code> can be treated as a
+number. This guide presents a practical framework for understanding how
+Perl determines which values belong to which types through two simple
+tests: round-trip conversion (can a value survive conversion to a type
+and back?) and behavioral correctness (does it work properly with that
+type’s operations?). We explain how these tests define a type hierarchy
+from general (Scalar) to specific (Int), connect this framework to
+existing tools like Moose and Types::Tiny, and provide practical
+guidance for debugging type-related bugs and designing better APIs. This
+framework is grounded in a formal mathematical treatment presented in
+our companion paper.</p>
+<p><strong>Keywords:</strong> Perl, type system, dynamic typing, scalar
+values, type coercion</p>
+<h2 id="overview">Overview</h2>
+<p>Perl doesn’t have explicit type declarations like <code>int</code> or
+<code>string</code>, but values still have types. When you write
+<code>"42" + 1</code>, Perl knows <code>"42"</code> can be treated as a
+number. When you write <code>print "The answer is $x"</code>, Perl knows
+<code>$x</code> can be treated as a string. This guide explains how Perl
+determines which values belong to which types.</p>
+<p><strong>Key insight:</strong> A value belongs to a type if: 1. It
+survives conversion to that type without losing information (you can
+convert it and back and get the same thing) 2. It behaves correctly when
+used with that type’s operations (numeric operations work meaningfully
+on numbers)</p>
+<p><strong>Perl Version:</strong> This guide applies to Perl 5.36+.
+While the core type system (Str, Num, Int, Ref) applies to all Perl 5
+versions, some features discussed require: - Perl 5.36+: Primitive
+boolean values (<code>true</code>, <code>false</code>,
+<code>is_bool()</code>) - Perl 5.38+: Native class objects
+(<code>feature 'class'</code>) - Perl 5.40+: Stabilized class
+feature</p>
+<p>Examples were tested on Perl 5.38.2.</p>
+<p><strong>For the formal mathematical treatment:</strong> See [1] for
+the complete formalization with proofs and precise definitions.</p>
+<h2 id="why-does-this-matter">Why Does This Matter?</h2>
+<p>Understanding Perl’s type system helps you: - Write code that behaves
+predictably - Debug type-related bugs faster - Understand why certain
+operations produce unexpected results - Build better static analysis
+tools</p>
+<h2 id="the-two-tests-for-type-membership">The Two Tests for Type
+Membership</h2>
+<h3 id="test-1-can-it-round-trip">Test 1: Can It Round-Trip?</h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Does &quot;42&quot; belong to the number type?</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$original</span> = <span class="ot">&quot;</span><span class="st">42</span><span class="ot">&quot;</span>;</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$as_num</span> = <span class="dv">0</span> + <span class="dt">$original</span>;    <span class="co"># Force numeric: 42</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$back</span> = <span class="ot">&quot;</span><span class="dt">$as_num</span><span class="ot">&quot;</span>;           <span class="co"># Back to string: &quot;42&quot;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># $back eq $original? YES - &quot;42&quot; is a number</span></span></code></pre></div>
+<p>If converting to a type and back changes the value, information was
+lost, so the original didn’t really “fit” that type.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Does &quot;hello&quot; belong to the number type?</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$original</span> = <span class="ot">&quot;</span><span class="st">hello</span><span class="ot">&quot;</span>;</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$as_num</span> = <span class="dv">0</span> + <span class="dt">$original</span>;    <span class="co"># Force numeric: 0 (with warning)</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$back</span> = <span class="ot">&quot;</span><span class="dt">$as_num</span><span class="ot">&quot;</span>;           <span class="co"># Back to string: &quot;0&quot;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># $back eq $original? NO - &quot;hello&quot; is NOT a number</span></span></code></pre></div>
+<h3 id="test-2-does-it-behave-correctly">Test 2: Does It Behave
+Correctly?</h3>
+<p>Even if a value survives round-tripping, it needs to behave correctly
+with the type’s operations.</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># &quot;NaN&quot; (the string) round-trips through numeric conversion:</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$nan_str</span> = <span class="ot">&quot;</span><span class="st">NaN</span><span class="ot">&quot;</span>;</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$as_num</span> = <span class="dv">0</span> + <span class="dt">$nan_str</span>;     <span class="co"># Becomes IEEE NaN float</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$back</span> = <span class="ot">&quot;</span><span class="dt">$as_num</span><span class="ot">&quot;</span>;           <span class="co"># Back to &quot;NaN&quot;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Survives round-trip!</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># But it fails behavioral tests (tested on Perl 5.38.2):</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> POSIX <span class="ot">qw(</span>isnan<span class="ot">)</span>;</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dt">$as_num</span> == <span class="dt">$as_num</span>;         <span class="co"># FALSE - NaN != NaN</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dt">$as_num</span> - <span class="dt">$as_num</span>;          <span class="co"># NaN, not 0</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Violates expected number behavior, so &quot;NaN&quot; is NOT a number</span></span></code></pre></div>
+<h2 id="the-type-hierarchy">The Type Hierarchy</h2>
+<p>Perl’s types form a hierarchy from most general to most specific:</p>
+<pre><code>Any/Unknown (everything)
+├── Scalar (single values)
+│   ├── Undef
+│   ├── Bool (true/false) *
+│   ├── Str (strings)
+│   │   └── Num (numbers)
+│   │       └── Int (integers)
+│   ├── DualVar (values with independent string/numeric aspects)
+│   ├── Regex (compiled regular expressions)
+│   └── Ref (references)
+│       ├── ScalarRef
+│       ├── ArrayRef
+│       ├── HashRef
+│       ├── CodeRef
+│       ├── GlobRef
+│       └── Object
+├── List (sequences)
+│   ├── Array
+│   └── Hash
+├── Code (subroutines)
+├── Glob (symbol table entries)
+└── None (never returns)
+
+* Bool is special - see note below</code></pre>
+<h3 id="important-relationships">Important Relationships</h3>
+<p><strong>Every Int is a Num:</strong></p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$x</span> = <span class="dv">42</span>;</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dt">$x</span> + <span class="dv">1</span>;     <span class="co"># Works: 43</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="dt">$x</span><span class="ot">&quot;</span>;       <span class="co"># Works: &quot;42&quot;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 42 is an Int, which is also a Num, which is also a Str</span></span></code></pre></div>
+<p><strong>Not every Num is an Int:</strong></p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$x</span> = <span class="fl">3.14</span>;</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dt">$x</span> + <span class="dv">1</span>;     <span class="co"># Works: 4.14</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$as_int</span> = <span class="fu">int</span>(<span class="dt">$x</span>);</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="dt">$as_int</span><span class="ot">&quot;</span>;  <span class="co"># &quot;3&quot; - lost the .14</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3.14 is a Num but NOT an Int (fails round-trip test)</span></span></code></pre></div>
+<p><strong>Not every Str is a Num:</strong></p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$x</span> = <span class="ot">&quot;</span><span class="st">hello</span><span class="ot">&quot;</span>;</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dt">$x</span> + <span class="dv">1</span>;     <span class="co"># 1 (warns) - &quot;hello&quot; becomes 0</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># &quot;hello&quot; is a Str but NOT a Num (fails round-trip test)</span></span></code></pre></div>
+<h3 id="special-case-bool">Special Case: Bool</h3>
+<p>Bool membership is determined by the round-trip test through boolean
+context. Values like 1, 0, ’’, and undef are Bool members because they
+survive the round-trip: converting to true/false in boolean context and
+back preserves their truthiness.</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Traditional boolean members (round-trip through boolean context)</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">@bools</span> = (<span class="dv">1</span>, <span class="dv">0</span>, <span class="ot">&#39;&#39;</span>, <span class="ot">&#39;</span><span class="ss">string</span><span class="ot">&#39;</span>, <span class="fu">undef</span>);</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> <span class="kw">my</span> <span class="dt">$val</span> (<span class="dt">@bools</span>) {</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$as_bool</span> = !!<span class="dt">$val</span>;           <span class="co"># Force boolean context</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$truthy</span> = <span class="dt">$val</span> ? <span class="dv">1</span> : <span class="dv">0</span>;      <span class="co"># Test truthiness</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># All survive: truthiness is preserved</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>The <code>builtin::is_bool()</code> function (Perl 5.36+) is
+<strong>not</strong> a Bool operation, but rather a membership test for
+the <em>primitive</em> boolean values <code>true</code> and
+<code>false</code>. Think of it as testing membership in a subset
+<strong>PrimitiveBool ⊂ Bool</strong>.</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> builtin <span class="ot">qw(</span>is_bool true false<span class="ot">)</span>;</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> is_bool(true);   <span class="co"># true - primitive boolean</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> is_bool(false);  <span class="co"># true - primitive boolean</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> is_bool(<span class="dv">1</span>);      <span class="co"># false - boolean, but not primitive</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> is_bool(<span class="dv">0</span>);      <span class="co"># false - boolean, but not primitive</span></span></code></pre></div>
+<p>This distinction is important for API design where you need to
+differentiate between actual primitive boolean values and other
+truthy/falsy values:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># API that accepts optional boolean flags</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">sub </span><span class="fu">process_data</span> {</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> (<span class="dt">$data</span>, <span class="dt">$verbose</span>) = <span class="dt">@_</span>;</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Using primitive booleans makes intent explicit</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (is_bool(<span class="dt">$verbose</span>)) {</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Caller explicitly passed true/false</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> verbose_process(<span class="dt">$data</span>) <span class="cf">if</span> <span class="dt">$verbose</span>;</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Caller passed something else (1, 0, undef, etc.)</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Use traditional truthiness</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> verbose_process(<span class="dt">$data</span>) <span class="cf">if</span> <span class="dt">$verbose</span>;</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Clear intent with primitive booleans</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>process_data(<span class="dt">$data</span>, true);   <span class="co"># Explicitly verbose</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>process_data(<span class="dt">$data</span>, false);  <span class="co"># Explicitly quiet</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Backward compatible with traditional booleans</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>process_data(<span class="dt">$data</span>, <span class="dv">1</span>);      <span class="co"># Also works</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>process_data(<span class="dt">$data</span>, <span class="dv">0</span>);      <span class="co"># Also works</span></span></code></pre></div>
+<p><strong>Practical Guidance:</strong> Use <code>is_bool()</code> when
+you need to detect primitive boolean values for API clarity or
+serialization. For general truthiness testing, use boolean context
+directly (<code>if ($x)</code>).</p>
+<h2 id="common-type-scenarios">Common Type Scenarios</h2>
+<h3 id="numeric-strings">Numeric Strings</h3>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$x</span> = <span class="ot">&quot;</span><span class="st">42</span><span class="ot">&quot;</span>;</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Is it a string? YES - already is one</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Is it a number? YES - round-trips: &quot;42&quot; -&gt; 42 -&gt; &quot;42&quot;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$y</span> = <span class="ot">&quot;</span><span class="st">42.5</span><span class="ot">&quot;</span>;</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Is it an integer? NO - 42.5 -&gt; 42 -&gt; &quot;42&quot; (lost .5)</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Is it a number? YES - round-trips through numeric conversion</span></span></code></pre></div>
+<h3 id="references-dont-stringify-losslessly">References Don’t Stringify
+Losslessly</h3>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$hash</span> = { foo =&gt; <span class="ot">&#39;</span><span class="ss">bar</span><span class="ot">&#39;</span> };</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$str</span> = <span class="ot">&quot;</span><span class="dt">$hash</span><span class="ot">&quot;</span>;       <span class="co"># &quot;HASH(0x00000001f42a)&quot;</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Can&#39;t convert &quot;HASH(0x00000001f42a)&quot; back to the original hash</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># References are NOT strings (fail round-trip test)</span></span></code></pre></div>
+<h3 id="dualvars-when-one-value-has-two-faces">DualVars: When One Value
+Has Two Faces</h3>
+<p>DualVars are values with independent string and numeric
+representations, commonly used for error codes that need both
+human-readable messages and numeric values. The most familiar example is
+<code>$!</code> (errno), which stringifies to an error message but
+numerifies to an error code.</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># A practical DualVar example: $! (errno)</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">open</span> <span class="kw">my</span> <span class="dt">$fh</span>, <span class="ot">&#39;</span><span class="ss">&lt;</span><span class="ot">&#39;</span>, <span class="ot">&#39;</span><span class="ss">/nonexistent/file</span><span class="ot">&#39;</span> <span class="ot">or</span> <span class="kw">do</span> {</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">say</span> <span class="ot">&quot;</span><span class="st">Error: </span><span class="wa">$!</span><span class="ot">&quot;</span>;        <span class="co"># &quot;No such file or directory&quot; (string)</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">say</span> <span class="ot">&quot;</span><span class="st">Code: </span><span class="ot">&quot;</span>, <span class="dv">0</span> + <span class="wa">$!</span>;   <span class="co"># 2 (numeric errno)</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>};</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Creating a custom DualVar</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Scalar::Util</span> <span class="fu">qw</span>(dualvar);</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$status</span> = dualvar(<span class="dv">404</span>, <span class="ot">&quot;</span><span class="st">Not Found</span><span class="ot">&quot;</span>);</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="st">HTTP Status: </span><span class="dt">$status</span><span class="ot">&quot;</span>;      <span class="co"># &quot;Not Found&quot; (string part)</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="st">Status Code: </span><span class="ot">&quot;</span>, <span class="dv">0</span> + <span class="dt">$status</span>; <span class="co"># 404 (numeric part)</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Round-trip as number: &quot;Not Found&quot; -&gt; 0 -&gt; &quot;0&quot; (FAILS)</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Round-trip as string: 404 -&gt; &quot;404&quot; -&gt; ... (FAILS)</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="co"># DualVar is neither Num nor Str, but IS Scalar</span></span></code></pre></div>
+<p>This demonstrates that Scalar is a real type, not just a category -
+it contains values that aren’t in any of its more specific subtypes.
+DualVars are particularly useful in APIs where you want to return both
+machine-readable codes and human-readable messages.</p>
+<h2 id="comparison-to-existing-type-systems">Comparison to Existing Type
+Systems</h2>
+<h3 id="moose-type-system">Moose Type System</h3>
+<p>Moose provides a comprehensive type system with runtime checking:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span> Person {</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">use</span> Moose;</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    has <span class="ot">&#39;</span><span class="ss">age</span><span class="ot">&#39;</span> =&gt; (</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>        is  =&gt; <span class="ot">&#39;</span><span class="ss">rw</span><span class="ot">&#39;</span>,</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>        isa =&gt; <span class="ot">&#39;</span><span class="ss">Int</span><span class="ot">&#39;</span>,</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    );</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    has <span class="ot">&#39;</span><span class="ss">name</span><span class="ot">&#39;</span> =&gt; (</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>        is  =&gt; <span class="ot">&#39;</span><span class="ss">rw</span><span class="ot">&#39;</span>,</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>        isa =&gt; <span class="ot">&#39;</span><span class="ss">Str</span><span class="ot">&#39;</span>,</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    );</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>How it relates to this formalism:</strong> - Moose’s
+<code>Str</code>, <code>Num</code>, <code>Int</code> types correspond
+directly to the types defined here - Moose checks types at runtime using
+similar coercion-based tests - Moose’s <code>Maybe[T]</code> and
+<code>Undef</code> align with the Undef type here - Moose’s
+<code>ArrayRef[T]</code>, <code>HashRef[T]</code> are parameterized
+versions of our ArrayRef/HashRef - Moose’s type hierarchy mirrors the
+subtyping relationships we formalize</p>
+<p><strong>Key difference:</strong> - Moose types are opt-in (you
+declare them on attributes) - This formalism describes the
+<em>inherent</em> types that all Perl values have, whether declared or
+not</p>
+<h3 id="typestiny">Types::Tiny</h3>
+<p>Types::Tiny provides a lighter-weight type system compatible with
+Moose but faster:</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Types::Standard</span> <span class="fu">qw</span>(Int Str ArrayRef);</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$age_check</span> = Int;</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dt">$age_check</span>-&gt;<span class="dt">check</span>(<span class="dv">42</span>);      <span class="co"># true</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dt">$age_check</span>-&gt;<span class="dt">check</span>(<span class="ot">&quot;</span><span class="st">42</span><span class="ot">&quot;</span>);    <span class="co"># true (numeric string)</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dt">$age_check</span>-&gt;<span class="dt">check</span>(<span class="ot">&quot;</span><span class="st">hello</span><span class="ot">&quot;</span>); <span class="co"># false</span></span></code></pre></div>
+<p><strong>How it relates to this formalism:</strong> - Types::Tiny’s
+standard types (<code>Str</code>, <code>Num</code>, <code>Int</code>,
+etc.) match our definitions - Types::Tiny uses coercion-based membership
+similar to our syntactic preservation test - Types::Tiny’s
+<code>InstanceOf</code>, <code>ConsumerOf</code> correspond to our
+Object type semantics</p>
+<p><strong>Key difference:</strong> - Types::Tiny focuses on runtime
+validation and coercion for practical use - This formalism explains
+<em>why</em> those validation rules are correct based on operational
+semantics</p>
+<p><strong>Practical mapping:</strong></p>
+<table>
+<thead>
+<tr>
+<th>This Formalism</th>
+<th>Moose</th>
+<th>Types::Tiny</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Scalar</td>
+<td>Value</td>
+<td>Value</td>
+</tr>
+<tr>
+<td>Str</td>
+<td>Str</td>
+<td>Str</td>
+</tr>
+<tr>
+<td>Num</td>
+<td>Num</td>
+<td>Num</td>
+</tr>
+<tr>
+<td>Int</td>
+<td>Int</td>
+<td>Int</td>
+</tr>
+<tr>
+<td>Bool</td>
+<td>Bool</td>
+<td>Bool</td>
+</tr>
+<tr>
+<td>ArrayRef</td>
+<td>ArrayRef</td>
+<td>ArrayRef</td>
+</tr>
+<tr>
+<td>HashRef</td>
+<td>HashRef</td>
+<td>HashRef</td>
+</tr>
+<tr>
+<td>CodeRef</td>
+<td>CodeRef</td>
+<td>CodeRef</td>
+</tr>
+<tr>
+<td>Object</td>
+<td>Object</td>
+<td>Object</td>
+</tr>
+<tr>
+<td>Undef</td>
+<td>Undef</td>
+<td>Undef</td>
+</tr>
+</tbody>
+</table>
+<p>Both Moose and Types::Tiny provide additional features beyond basic
+type checking (parameterized types, type unions, custom validators), but
+their core types align with this formalism’s definitions. This formalism
+provides the theoretical foundation explaining why their type checks
+work the way they do.</p>
+<h2 id="practical-tooling-and-workflow-integration">Practical Tooling
+and Workflow Integration</h2>
+<p>Understanding Perl’s type system isn’t just theoretical - it has
+practical implications for everyday development workflows and
+tooling.</p>
+<h3 id="runtime-type-checking">Runtime Type Checking</h3>
+<p><strong>Moose and Moo attributes</strong> provide runtime type
+validation:</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span> Employee {</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">use</span> Moo;</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">use</span> <span class="fu">Types::Standard</span> <span class="fu">qw</span>(Int Str);</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    has <span class="ot">&#39;</span><span class="ss">employee_id</span><span class="ot">&#39;</span> =&gt; (is =&gt; <span class="ot">&#39;</span><span class="ss">ro</span><span class="ot">&#39;</span>, isa =&gt; Int);</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    has <span class="ot">&#39;</span><span class="ss">name</span><span class="ot">&#39;</span> =&gt; (is =&gt; <span class="ot">&#39;</span><span class="ss">rw</span><span class="ot">&#39;</span>, isa =&gt; Str);</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$emp</span> = Employee-&gt;new(</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    employee_id =&gt; <span class="ot">&quot;</span><span class="st">42</span><span class="ot">&quot;</span>,    <span class="co"># OK - &quot;42&quot; is an Int (round-trips)</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>    name =&gt; <span class="ot">&quot;</span><span class="st">Alice</span><span class="ot">&quot;</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>);</span></code></pre></div>
+<p><strong>Type::Tiny’s assertion methods</strong> offer fine-grained
+control:</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Types::Standard</span> <span class="fu">qw</span>(Int Str);</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="kw">sub </span><span class="fu">process_id</span> {</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$id</span> = Int-&gt;assert_coerce(<span class="fu">shift</span>);  <span class="co"># Coerce and validate</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dt">$id</span> <span class="ot">*</span> <span class="dv">2</span>;</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Modern Perl classes</strong> (Perl 5.38+) integrate with type
+systems:</p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> v5.<span class="dv">38</span>;</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> feature <span class="ot">&#39;</span><span class="ss">class</span><span class="ot">&#39;</span>;</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Types::Standard</span> <span class="fu">qw</span>(Int Str);</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>class Employee {</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    field <span class="dt">$employee_id</span> :param :reader;</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    field <span class="dt">$name</span> :param :reader;</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    ADJUST {</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Manual type validation until native support arrives</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>        Int-&gt;assert_valid(<span class="dt">$employee_id</span>);</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>        Str-&gt;assert_valid(<span class="dt">$name</span>);</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$emp</span> = Employee-&gt;new(</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>    employee_id =&gt; <span class="dv">42</span>,</span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>    name =&gt; <span class="ot">&quot;</span><span class="st">Alice</span><span class="ot">&quot;</span></span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>);</span></code></pre></div>
+<p>The <code>class</code> feature (stabilized in 5.40) provides native
+object syntax. While it doesn’t currently include built-in type
+constraints on fields, it integrates naturally with Type::Tiny and
+similar libraries for validation. This represents Perl’s evolution
+toward more structured type handling while maintaining backward
+compatibility.</p>
+<h3 id="static-analysis-with-perlcritic">Static Analysis with
+Perl::Critic</h3>
+<p>While Perl::Critic doesn’t perform full type checking, it can catch
+common type-related errors:</p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># .perlcriticrc</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>[<span class="fu">ValuesAndExpressions::ProhibitMismatchedOperators</span>]</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>severity = <span class="dv">4</span></span></code></pre></div>
+<p>This policy warns about operations like
+<code>"hello" == "goodbye"</code> where non-numeric strings are compared
+numerically.</p>
+<h3 id="development-workflow-integration">Development Workflow
+Integration</h3>
+<p><strong>Pre-commit hooks</strong> can enforce type-safe patterns:</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># .pre-commit-config.yaml</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">-</span><span class="at"> </span><span class="fu">repo</span><span class="kw">:</span><span class="at"> local</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">hooks</span><span class="kw">:</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">id</span><span class="kw">:</span><span class="at"> type-check</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Check type constraints</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">entry</span><span class="kw">:</span><span class="at"> prove -l t/type-constraints.t</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">language</span><span class="kw">:</span><span class="at"> system</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">pass_filenames</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span></span></code></pre></div>
+<p><strong>Editor integration</strong> with Perl::LanguageServer
+provides real-time feedback: - Type mismatches in Moose/Moo attributes -
+Invalid coercions - Type constraint violations</p>
+<h3 id="testing-type-behavior">Testing Type Behavior</h3>
+<p>When testing code that depends on type behavior, be explicit:</p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Test::More</span>;</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Test::Fatal</span>;</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Test that type constraints work as expected</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>like(</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    exception { Person-&gt;new(age =&gt; <span class="ot">&quot;</span><span class="st">hello</span><span class="ot">&quot;</span>) },</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="ot">qr/type constraint/i</span>,</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    <span class="ot">&#39;</span><span class="ss">age rejects non-numeric strings</span><span class="ot">&#39;</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Test that numeric strings are accepted</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>is(</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    exception { Person-&gt;new(age =&gt; <span class="ot">&quot;</span><span class="st">42</span><span class="ot">&quot;</span>) },</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">undef</span>,</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>    <span class="ot">&#39;</span><span class="ss">age accepts numeric strings</span><span class="ot">&#39;</span></span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>);</span></code></pre></div>
+<h3 id="debugging-type-issues">Debugging Type Issues</h3>
+<p>When debugging unexpected type behavior:</p>
+<ol type="1">
+<li><p><strong>Check round-trip conversion</strong>:</p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Data::Dumper</span>;</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$val</span> = <span class="ot">&quot;</span><span class="st">42.5</span><span class="ot">&quot;</span>;</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="fu">warn</span> Dumper({</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    original =&gt; <span class="dt">$val</span>,</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    as_int =&gt; <span class="fu">int</span>(<span class="dt">$val</span>),</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    back =&gt; <span class="ot">&quot;&quot;</span> . <span class="fu">int</span>(<span class="dt">$val</span>),</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    matches =&gt; (<span class="dt">$val</span> <span class="ot">eq</span> <span class="ot">&quot;&quot;</span> . <span class="fu">int</span>(<span class="dt">$val</span>))</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>});</span></code></pre></div></li>
+<li><p><strong>Use Devel::Peek to see internal
+representation</strong>:</p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Devel::Peek</span>;</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>Dump(<span class="dt">$val</span>);  <span class="co"># Shows both string and numeric slots</span></span></code></pre></div></li>
+<li><p><strong>Test with explicit type checkers</strong>:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Scalar::Util</span> <span class="fu">qw</span>(looks_like_number);</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Types::Standard</span> <span class="fu">qw</span>(Int Str Num);</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="st">Looks numeric: </span><span class="ot">&quot;</span>, looks_like_number(<span class="dt">$val</span>);</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="st">Is Int: </span><span class="ot">&quot;</span>, Int-&gt;check(<span class="dt">$val</span>);</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="st">Is Num: </span><span class="ot">&quot;</span>, Num-&gt;check(<span class="dt">$val</span>);</span></code></pre></div></li>
+</ol>
+<h2 id="when-values-cross-type-boundaries">When Values Cross Type
+Boundaries</h2>
+<h3 id="coercion-is-not-membership">Coercion Is Not Membership</h3>
+<p>Just because a value <em>can</em> be coerced to a type doesn’t mean
+it <em>is</em> that type:</p>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$ref</span> = { foo =&gt; <span class="ot">&#39;</span><span class="ss">bar</span><span class="ot">&#39;</span> };</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="dt">$ref</span><span class="ot">&quot;</span>;     <span class="co"># &quot;HASH(0x00000001f42a)&quot; - coerces to string</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="co"># But $ref is NOT a Str (fails round-trip test)</span></span></code></pre></div>
+<h3 id="some-values-belong-to-multiple-types">Some Values Belong to
+Multiple Types</h3>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$x</span> = <span class="ot">&quot;</span><span class="st">42</span><span class="ot">&quot;</span>;</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="co"># $x is a Str: &quot;42&quot; -&gt; &quot;42&quot; (round-trips)</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co"># $x is a Num: &quot;42&quot; -&gt; 42 -&gt; &quot;42&quot; (round-trips)</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co"># $x is an Int: &quot;42&quot; -&gt; 42 -&gt; &quot;42&quot; (round-trips, no fraction lost)</span></span></code></pre></div>
+<p>This is the subtyping relationship: Int ⊂ Num ⊂ Str ⊂ Scalar</p>
+<h2 id="practical-implications">Practical Implications</h2>
+<h3 id="why-hello-goodbye-is-true-and-wrong">Why
+<code>"hello" == "goodbye"</code> Is True (and Wrong)</h3>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="st">hello</span><span class="ot">&quot;</span> == <span class="ot">&quot;</span><span class="st">goodbye</span><span class="ot">&quot;</span>;  <span class="co"># TRUE (both become 0)</span></span></code></pre></div>
+<p>Both strings fail the round-trip test for numbers (they become 0), so
+they’re not numbers. But Perl performs the comparison anyway. The
+operation executes, but the result is semantically meaningless. A
+type-aware static analyzer could warn about this.</p>
+<h3 id="why-0-but-true-is-special">Why <code>"0 but true"</code> Is
+Special</h3>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$x</span> = <span class="ot">&quot;</span><span class="st">0 but true</span><span class="ot">&quot;</span>;</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dv">0</span> + <span class="dt">$x</span>;       <span class="co"># 0 (numeric part)</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> !!<span class="dt">$x</span>;         <span class="co"># true (string is truthy)</span></span></code></pre></div>
+<p>This is a DualVar-like value that’s useful for returning success
+(truthy) with a numeric 0 result.</p>
+<h3 id="why-you-cant-always-trust-stringification">Why You Can’t Always
+Trust Stringification</h3>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$x</span> = <span class="ot">&quot;</span><span class="st">NaN</span><span class="ot">&quot;</span>;</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$y</span> = <span class="dv">0</span> + <span class="dt">$x</span>;   <span class="co"># IEEE NaN</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="dt">$y</span><span class="ot">&quot;</span>;         <span class="co"># &quot;NaN&quot; - round-trips!</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dt">$y</span> == <span class="dt">$y</span>;     <span class="co"># FALSE - but violates number semantics</span></span></code></pre></div>
+<p>Round-tripping alone isn’t enough - behavior matters too.</p>
+<h3 id="real-world-scenario-csv-data-parsing">Real-World Scenario: CSV
+Data Parsing</h3>
+<p>Type understanding prevents subtle bugs when processing external
+data:</p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Text::CSV</span>;</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$csv</span> = <span class="fu">Text::CSV</span>-&gt;new();</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="co"># CSV data: &quot;employee_id,salary\n42,50000\n&quot;</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> (<span class="kw">my</span> <span class="dt">$row</span> = <span class="dt">$csv</span>-&gt;<span class="dt">getline</span>(<span class="dt">$fh</span>)) {</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> (<span class="dt">$id</span>, <span class="dt">$salary</span>) = <span class="dt">@$row</span>;</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># WRONG: assumes strings are numbers</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="dt">$salary</span> &gt; <span class="dv">40000</span>) {  <span class="co"># Works, but fragile</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>        process_high_earner(<span class="dt">$id</span>, <span class="dt">$salary</span>);</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># BETTER: explicit type validation</span></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">use</span> <span class="fu">Types::Standard</span> <span class="fu">qw</span>(Int);</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (Int-&gt;check(<span class="dt">$salary</span>) &amp;&amp; <span class="dt">$salary</span> &gt; <span class="dv">40000</span>) {</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>        process_high_earner(<span class="dt">$id</span>, <span class="dt">$salary</span>);</span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>If CSV contains malformed data like <code>"50,000"</code> or
+<code>"N/A"</code>, the first version silently compares
+<code>0 &gt; 40000</code> (false), missing the error. The second version
+catches invalid data.</p>
+<h3 id="real-world-scenario-api-parameter-validation">Real-World
+Scenario: API Parameter Validation</h3>
+<p>Understanding type membership improves API robustness:</p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span> UserService {</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">use</span> Moo;</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">use</span> <span class="fu">Types::Standard</span> <span class="fu">qw</span>(Int Str);</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">sub </span><span class="fu">update_age</span> {</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">my</span> (<span class="dt">$self</span>, <span class="dt">$user_id</span>, <span class="dt">$age</span>) = <span class="dt">@_</span>;</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Type checking catches edge cases:</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># - &quot;25&quot; (string) passes - it&#39;s an Int</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>        <span class="co"># - 25.5 fails - not an Int</span></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>        <span class="co"># - &quot;twenty-five&quot; fails - not a number at all</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>        Int-&gt;assert_valid(<span class="dt">$user_id</span>);</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>        Int-&gt;assert_valid(<span class="dt">$age</span>);</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">$self</span>-&gt;<span class="dt">db</span>-&gt;<span class="dt">update</span>(users =&gt; {age =&gt; <span class="dt">$age</span>}, {id =&gt; <span class="dt">$user_id</span>});</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>This prevents issues where <code>age =&gt; "25.5"</code> might
+round-trip as <code>"25"</code> in the database, or where
+<code>age =&gt; "25 years"</code> becomes <code>0</code>.</p>
+<h3 id="real-world-scenario-configuration-file-handling">Real-World
+Scenario: Configuration File Handling</h3>
+<p>Type awareness prevents configuration errors:</p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">YAML::XS</span> <span class="fu">qw</span>(LoadFile);</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$config</span> = LoadFile(<span class="ot">&#39;</span><span class="ss">config.yml</span><span class="ot">&#39;</span>);</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="co"># config.yml contains: timeout: &quot;30&quot;</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$timeout</span> = <span class="dt">$config</span>-&gt;{timeout};</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a><span class="co"># SUBTLE </span><span class="al">BUG</span><span class="co">: string &quot;30&quot; in boolean context</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="dt">$timeout</span>) {  <span class="co"># Always true, even if timeout is &quot;0&quot;</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sleep</span> <span class="dt">$timeout</span>;  <span class="co"># Numeric coercion works here</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a><span class="co"># CORRECT: explicit numeric check</span></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Scalar::Util</span> <span class="fu">qw</span>(looks_like_number);</span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (looks_like_number(<span class="dt">$timeout</span>) &amp;&amp; <span class="dt">$timeout</span> &gt; <span class="dv">0</span>) {</span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sleep</span> <span class="dt">$timeout</span>;</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>The bug here is that even <code>timeout: "0"</code> is truthy as a
+string, so the first version always sleeps. Type-aware checking catches
+this.</p>
+<h2 id="when-this-matters-in-real-code">When This Matters in Real
+Code</h2>
+<p>Understanding Perl’s type system isn’t just theoretical - it helps
+you debug real problems and design better APIs.</p>
+<h3 id="debugging-type-confusion">Debugging Type Confusion</h3>
+<p>If you see unexpected behavior, check whether values belong to the
+types you think they do:</p>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Bug: function returns reference when it should return count</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="kw">sub </span><span class="fu">get_user_count</span> {</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$users</span> = <span class="fu">shift</span>;</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dt">$users</span>;  <span class="co"># Oops! Returns hashref, not count</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$count</span> = get_user_count(\<span class="dt">%users</span>);</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="co"># This comparison always succeeds because hashrefs numify to large addresses</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="dt">$count</span> &gt; <span class="dv">10</span>) {  <span class="co"># </span><span class="al">BUG</span><span class="co">: Always true if $count is a hashref!</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    send_alert(<span class="ot">&quot;</span><span class="st">High user count: </span><span class="dt">$count</span><span class="ot">&quot;</span>);</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a><span class="co"># The hashref &quot;HASH(0x55d4a8f2b1a0)&quot; becomes a large number when numified</span></span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Output: &quot;High user count: 94381521662368&quot;</span></span></code></pre></div>
+<p><strong>Debugging strategy:</strong> Test round-trip conversion to
+verify type assumptions:</p>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Data::Dumper</span>;</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$value</span> = get_user_count(\<span class="dt">%users</span>);</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="fu">warn</span> Dumper({</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>    value =&gt; <span class="dt">$value</span>,</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>    as_num =&gt; <span class="dv">0</span> + <span class="dt">$value</span>,</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>    back =&gt; <span class="ot">&quot;&quot;</span> . (<span class="dv">0</span> + <span class="dt">$value</span>),</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>    is_num =&gt; (<span class="dt">$value</span> <span class="ot">eq</span> <span class="ot">&quot;&quot;</span> . (<span class="dv">0</span> + <span class="dt">$value</span>)),</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>    ref_type =&gt; <span class="fu">ref</span>(<span class="dt">$value</span>)</span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>});</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Output shows: ref_type =&gt; &#39;HASH&#39;, is_num =&gt; &#39;&#39;, revealing the bug</span></span></code></pre></div>
+<h3 id="api-design-being-explicit-about-type-expectations">API Design:
+Being Explicit About Type Expectations</h3>
+<p>When designing APIs, be explicit about what types you accept and
+validate them:</p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># BAD: Implicit assumptions about types</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="kw">sub </span><span class="fu">calculate_average</span> {</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> (<span class="dt">@numbers</span>) = <span class="dt">@_</span>;</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$sum</span> = <span class="dv">0</span>;</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">$sum</span> += <span class="wa">$_</span> <span class="cf">for</span> <span class="dt">@numbers</span>;</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dt">$sum</span> / <span class="dt">@numbers</span>;</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Silently accepts non-numbers and produces nonsense</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>calculate_average(<span class="ot">&quot;</span><span class="st">hello</span><span class="ot">&quot;</span>, <span class="ot">&quot;</span><span class="st">world</span><span class="ot">&quot;</span>);  <span class="co"># Returns 0 (both become 0)</span></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a><span class="co"># GOOD: Explicit type validation</span></span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a><span class="kw">sub </span><span class="fu">calculate_average</span> {</span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> (<span class="dt">@numbers</span>) = <span class="dt">@_</span>;</span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verify each argument is actually a number</span></span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="kw">my</span> <span class="dt">$n</span> (<span class="dt">@numbers</span>) {</span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>        <span class="kw">my</span> <span class="dt">$original</span> = <span class="dt">$n</span>;</span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a>        <span class="kw">my</span> <span class="dt">$as_num</span> = <span class="dv">0</span> + <span class="dt">$n</span>;</span>
+<span id="cb35-20"><a href="#cb35-20" aria-hidden="true" tabindex="-1"></a>        <span class="kw">my</span> <span class="dt">$back</span> = <span class="ot">&quot;</span><span class="dt">$as_num</span><span class="ot">&quot;</span>;</span>
+<span id="cb35-21"><a href="#cb35-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-22"><a href="#cb35-22" aria-hidden="true" tabindex="-1"></a>        <span class="fu">die</span> <span class="ot">&quot;</span><span class="st">&#39;</span><span class="dt">$original</span><span class="ot">&#39;</span><span class="st"> is not a number</span><span class="ot">&quot;</span></span>
+<span id="cb35-23"><a href="#cb35-23" aria-hidden="true" tabindex="-1"></a>            <span class="cf">unless</span> <span class="dt">$original</span> <span class="ot">eq</span> <span class="dt">$back</span> &amp;&amp; !<span class="fu">ref</span>(<span class="dt">$n</span>);</span>
+<span id="cb35-24"><a href="#cb35-24" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb35-25"><a href="#cb35-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-26"><a href="#cb35-26" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$sum</span> = <span class="dv">0</span>;</span>
+<span id="cb35-27"><a href="#cb35-27" aria-hidden="true" tabindex="-1"></a>    <span class="dt">$sum</span> += <span class="wa">$_</span> <span class="cf">for</span> <span class="dt">@numbers</span>;</span>
+<span id="cb35-28"><a href="#cb35-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dt">$sum</span> / <span class="dt">@numbers</span>;</span>
+<span id="cb35-29"><a href="#cb35-29" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb35-30"><a href="#cb35-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-31"><a href="#cb35-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Now it fails fast with a clear error</span></span>
+<span id="cb35-32"><a href="#cb35-32" aria-hidden="true" tabindex="-1"></a>calculate_average(<span class="ot">&quot;</span><span class="st">hello</span><span class="ot">&quot;</span>, <span class="ot">&quot;</span><span class="st">world</span><span class="ot">&quot;</span>);  <span class="co"># Dies: &#39;hello&#39; is not a number</span></span></code></pre></div>
+<h3 id="avoiding-silent-failures">Avoiding Silent Failures</h3>
+<p>Type confusion often leads to silent failures where code “works” but
+produces wrong results:</p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Reading user input</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$quantity</span> = <span class="kw">&lt;STDIN&gt;</span>;  <span class="co"># User types &quot;5\n&quot;</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="fu">chomp</span> <span class="dt">$quantity</span>;</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Silent bug: quantity is string &quot;5&quot;, inventory is array reference</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$inventory</span> = get_inventory();</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="co"># This comparison is nonsense but Perl allows it</span></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="dt">$quantity</span> &gt; <span class="dt">$inventory</span>) {  <span class="co"># Compares &quot;5&quot; to array address</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>    reorder_stock();</span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a><span class="co"># BETTER: Validate types explicitly</span></span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Types::Standard</span> <span class="fu">qw</span>(Int ArrayRef);</span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$quantity</span> = <span class="kw">&lt;STDIN&gt;</span>;</span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a><span class="fu">chomp</span> <span class="dt">$quantity</span>;</span>
+<span id="cb36-18"><a href="#cb36-18" aria-hidden="true" tabindex="-1"></a>Int-&gt;assert_valid(<span class="dt">$quantity</span>);  <span class="co"># Verify it&#39;s a valid integer</span></span>
+<span id="cb36-19"><a href="#cb36-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-20"><a href="#cb36-20" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$inventory</span> = get_inventory();</span>
+<span id="cb36-21"><a href="#cb36-21" aria-hidden="true" tabindex="-1"></a>ArrayRef-&gt;assert_valid(<span class="dt">$inventory</span>);  <span class="co"># Verify it&#39;s an array reference</span></span>
+<span id="cb36-22"><a href="#cb36-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-23"><a href="#cb36-23" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="dt">$quantity</span> &gt; <span class="fu">scalar</span>(<span class="dt">@$inventory</span>)) {  <span class="co"># Correct comparison</span></span>
+<span id="cb36-24"><a href="#cb36-24" aria-hidden="true" tabindex="-1"></a>    reorder_stock();</span>
+<span id="cb36-25"><a href="#cb36-25" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="when-round-trip-tests-catch-real-bugs">When Round-Trip Tests
+Catch Real Bugs</h3>
+<p>The round-trip test catches a common class of bugs where data gets
+corrupted through type conversions:</p>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Bug: Money amounts stored as floats lose precision</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="kw">sub </span><span class="fu">calculate_total</span> {</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">@items</span> = <span class="dt">@_</span>;</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$total</span> = <span class="fl">0.0</span>;</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="kw">my</span> <span class="dt">$item</span> (<span class="dt">@items</span>) {</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">$total</span> += <span class="dt">$item</span>-&gt;{price};  <span class="co"># price is &quot;19.99&quot;</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dt">$total</span>;</span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Float arithmetic introduces errors</span></span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$total</span> = calculate_total(</span>
+<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>    {price =&gt; <span class="ot">&quot;</span><span class="st">19.99</span><span class="ot">&quot;</span>},</span>
+<span id="cb37-16"><a href="#cb37-16" aria-hidden="true" tabindex="-1"></a>    {price =&gt; <span class="ot">&quot;</span><span class="st">29.99</span><span class="ot">&quot;</span>},</span>
+<span id="cb37-17"><a href="#cb37-17" aria-hidden="true" tabindex="-1"></a>    {price =&gt; <span class="ot">&quot;</span><span class="st">9.99</span><span class="ot">&quot;</span>}</span>
+<span id="cb37-18"><a href="#cb37-18" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb37-19"><a href="#cb37-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-20"><a href="#cb37-20" aria-hidden="true" tabindex="-1"></a><span class="co"># $total is 59.970000000000006, not 59.99!</span></span>
+<span id="cb37-21"><a href="#cb37-21" aria-hidden="true" tabindex="-1"></a><span class="fu">printf</span> <span class="ot">&quot;</span><span class="st">Total: \$%.2f</span><span class="ch">\n</span><span class="ot">&quot;</span>, <span class="dt">$total</span>;  <span class="co"># Prints $59.97</span></span>
+<span id="cb37-22"><a href="#cb37-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-23"><a href="#cb37-23" aria-hidden="true" tabindex="-1"></a><span class="co"># BETTER: Use integer cents</span></span>
+<span id="cb37-24"><a href="#cb37-24" aria-hidden="true" tabindex="-1"></a><span class="kw">sub </span><span class="fu">calculate_total</span> {</span>
+<span id="cb37-25"><a href="#cb37-25" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">@items</span> = <span class="dt">@_</span>;</span>
+<span id="cb37-26"><a href="#cb37-26" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$total_cents</span> = <span class="dv">0</span>;</span>
+<span id="cb37-27"><a href="#cb37-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-28"><a href="#cb37-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="kw">my</span> <span class="dt">$item</span> (<span class="dt">@items</span>) {</span>
+<span id="cb37-29"><a href="#cb37-29" aria-hidden="true" tabindex="-1"></a>        <span class="kw">my</span> <span class="dt">$price</span> = <span class="dt">$item</span>-&gt;{price};</span>
+<span id="cb37-30"><a href="#cb37-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-31"><a href="#cb37-31" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Verify it round-trips as a number</span></span>
+<span id="cb37-32"><a href="#cb37-32" aria-hidden="true" tabindex="-1"></a>        <span class="fu">die</span> <span class="ot">&quot;</span><span class="st">Invalid price: </span><span class="dt">$price</span><span class="ot">&quot;</span></span>
+<span id="cb37-33"><a href="#cb37-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">unless</span> <span class="dt">$price</span> <span class="ot">eq</span> <span class="ot">&quot;&quot;</span> . (<span class="dv">0</span> + <span class="dt">$price</span>);</span>
+<span id="cb37-34"><a href="#cb37-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-35"><a href="#cb37-35" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Convert to cents (integers round-trip perfectly)</span></span>
+<span id="cb37-36"><a href="#cb37-36" aria-hidden="true" tabindex="-1"></a>        <span class="dt">$total_cents</span> += <span class="fu">int</span>(<span class="dt">$price</span> <span class="ot">*</span> <span class="dv">100</span> + <span class="fl">0.5</span>);</span>
+<span id="cb37-37"><a href="#cb37-37" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb37-38"><a href="#cb37-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-39"><a href="#cb37-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dt">$total_cents</span> / <span class="dv">100</span>;</span>
+<span id="cb37-40"><a href="#cb37-40" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h2 id="testing-implications">Testing Implications</h2>
+<p>Understanding type membership directly impacts how you should write
+tests.</p>
+<h3 id="test-type-boundaries-not-just-values">Test Type Boundaries, Not
+Just Values</h3>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Test::More</span>;</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Test::Fatal</span>;</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Don&#39;t just test the happy path</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>is(add(<span class="dv">2</span>, <span class="dv">3</span>), <span class="dv">5</span>, <span class="ot">&#39;</span><span class="ss">add two numbers</span><span class="ot">&#39;</span>);</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Test type boundaries</span></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>is(add(<span class="ot">&quot;</span><span class="st">2</span><span class="ot">&quot;</span>, <span class="ot">&quot;</span><span class="st">3</span><span class="ot">&quot;</span>), <span class="dv">5</span>, <span class="ot">&#39;</span><span class="ss">add numeric strings</span><span class="ot">&#39;</span>);</span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>is(add(<span class="fl">2.5</span>, <span class="fl">3.5</span>), <span class="dv">6</span>, <span class="ot">&#39;</span><span class="ss">add floats</span><span class="ot">&#39;</span>);</span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>like(</span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>    exception { add(<span class="ot">&quot;</span><span class="st">hello</span><span class="ot">&quot;</span>, <span class="ot">&quot;</span><span class="st">world</span><span class="ot">&quot;</span>) },</span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>    <span class="ot">qr/invalid.</span><span class="ch">*</span><span class="ot">number/i</span>,</span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a>    <span class="ot">&#39;</span><span class="ss">add rejects non-numeric strings</span><span class="ot">&#39;</span></span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a>like(</span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a>    exception { add([], {}) },</span>
+<span id="cb38-19"><a href="#cb38-19" aria-hidden="true" tabindex="-1"></a>    <span class="ot">qr/invalid.</span><span class="ch">*</span><span class="ot">number/i</span>,</span>
+<span id="cb38-20"><a href="#cb38-20" aria-hidden="true" tabindex="-1"></a>    <span class="ot">&#39;</span><span class="ss">add rejects references</span><span class="ot">&#39;</span></span>
+<span id="cb38-21"><a href="#cb38-21" aria-hidden="true" tabindex="-1"></a>);</span></code></pre></div>
+<h3 id="test-round-trip-behavior">Test Round-Trip Behavior</h3>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co"># If your code stores and retrieves values, test round-tripping</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="kw">sub </span><span class="fu">test_round_trip</span> {</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> (<span class="dt">$storage</span>, <span class="dt">$value</span>, <span class="dt">$type_name</span>) = <span class="dt">@_</span>;</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">$storage</span>-&gt;<span class="dt">set</span>(test_key =&gt; <span class="dt">$value</span>);</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$retrieved</span> = <span class="dt">$storage</span>-&gt;<span class="dt">get</span>(<span class="ot">&#39;</span><span class="ss">test_key</span><span class="ot">&#39;</span>);</span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>    is(<span class="dt">$retrieved</span>, <span class="dt">$value</span>, <span class="ot">&quot;</span><span class="dt">$type_name</span><span class="st"> round-trips correctly</span><span class="ot">&quot;</span>);</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>    is(<span class="fu">ref</span>(<span class="dt">$retrieved</span>), <span class="fu">ref</span>(<span class="dt">$value</span>), <span class="ot">&quot;</span><span class="dt">$type_name</span><span class="st"> reference type preserved</span><span class="ot">&quot;</span>)</span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="fu">ref</span>(<span class="dt">$value</span>);</span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a>test_round_trip(<span class="dt">$storage</span>, <span class="dv">42</span>, <span class="ot">&#39;</span><span class="ss">integer</span><span class="ot">&#39;</span>);</span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a>test_round_trip(<span class="dt">$storage</span>, <span class="ot">&quot;</span><span class="st">42</span><span class="ot">&quot;</span>, <span class="ot">&#39;</span><span class="ss">numeric string</span><span class="ot">&#39;</span>);</span>
+<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a>test_round_trip(<span class="dt">$storage</span>, {foo =&gt; <span class="ot">&#39;</span><span class="ss">bar</span><span class="ot">&#39;</span>}, <span class="ot">&#39;</span><span class="ss">hash reference</span><span class="ot">&#39;</span>);</span></code></pre></div>
+<h3 id="test-type-coercion-explicitly">Test Type Coercion
+Explicitly</h3>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># When your code relies on type coercion, test it explicitly</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>subtest <span class="ot">&#39;</span><span class="ss">accepts various numeric representations</span><span class="ot">&#39;</span> =&gt; <span class="kw">sub </span>{</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">@valid_ages</span> = (<span class="dv">25</span>, <span class="ot">&quot;</span><span class="st">25</span><span class="ot">&quot;</span>, <span class="ot">&quot;</span><span class="st">25.0</span><span class="ot">&quot;</span>);</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="kw">my</span> <span class="dt">$age</span> (<span class="dt">@valid_ages</span>) {</span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>        ok(</span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>            lives { <span class="dt">$user</span>-&gt;<span class="dt">update_age</span>(<span class="dt">$age</span>) },</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>            <span class="ot">&quot;</span><span class="st">accepts age: </span><span class="dt">$age</span><span class="ot">&quot;</span></span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>        );</span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a>        is(<span class="dt">$user</span>-&gt;<span class="dt">age</span>, <span class="dv">25</span>, <span class="ot">&quot;</span><span class="st">stores age as 25 regardless of input format</span><span class="ot">&quot;</span>);</span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a>};</span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a>subtest <span class="ot">&#39;</span><span class="ss">rejects non-numeric ages</span><span class="ot">&#39;</span> =&gt; <span class="kw">sub </span>{</span>
+<span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">@invalid_ages</span> = (<span class="ot">&quot;</span><span class="st">twenty-five</span><span class="ot">&quot;</span>, <span class="ot">&quot;</span><span class="st">N/A</span><span class="ot">&quot;</span>, [], {});</span>
+<span id="cb40-16"><a href="#cb40-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-17"><a href="#cb40-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="kw">my</span> <span class="dt">$age</span> (<span class="dt">@invalid_ages</span>) {</span>
+<span id="cb40-18"><a href="#cb40-18" aria-hidden="true" tabindex="-1"></a>        like(</span>
+<span id="cb40-19"><a href="#cb40-19" aria-hidden="true" tabindex="-1"></a>            exception { <span class="dt">$user</span>-&gt;<span class="dt">update_age</span>(<span class="dt">$age</span>) },</span>
+<span id="cb40-20"><a href="#cb40-20" aria-hidden="true" tabindex="-1"></a>            <span class="ot">qr/type constraint/i</span>,</span>
+<span id="cb40-21"><a href="#cb40-21" aria-hidden="true" tabindex="-1"></a>            <span class="ot">&quot;</span><span class="st">rejects invalid age: </span><span class="ot">&quot;</span> . (<span class="fu">ref</span>(<span class="dt">$age</span>) || <span class="dt">$age</span>)</span>
+<span id="cb40-22"><a href="#cb40-22" aria-hidden="true" tabindex="-1"></a>        );</span>
+<span id="cb40-23"><a href="#cb40-23" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb40-24"><a href="#cb40-24" aria-hidden="true" tabindex="-1"></a>};</span></code></pre></div>
+<h3 id="property-based-testing-for-type-invariants">Property-Based
+Testing for Type Invariants</h3>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Test::LectroTest</span>;</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Property: Int round-trips through string conversion</span></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>Property {</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">##[ x &lt;- Int ]##</span></span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$original</span> = <span class="dt">$x</span>;</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$as_string</span> = <span class="ot">&quot;</span><span class="dt">$x</span><span class="ot">&quot;</span>;</span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$back</span> = <span class="dv">0</span> + <span class="dt">$as_string</span>;</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">$back</span> == <span class="dt">$original</span>;</span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>}, name =&gt; <span class="ot">&quot;</span><span class="st">integers round-trip through stringification</span><span class="ot">&quot;</span>;</span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Property: Non-numeric strings become 0</span></span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a>Property {</span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">##[ s &lt;- String(charset =&gt; &quot;a-zA-Z&quot;, length =&gt; [1,10]) ]##</span></span>
+<span id="cb41-16"><a href="#cb41-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$as_num</span> = <span class="dv">0</span> + <span class="dt">$s</span>;</span>
+<span id="cb41-17"><a href="#cb41-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-18"><a href="#cb41-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">$as_num</span> == <span class="dv">0</span>;</span>
+<span id="cb41-19"><a href="#cb41-19" aria-hidden="true" tabindex="-1"></a>}, name =&gt; <span class="ot">&quot;</span><span class="st">alphabetic strings numify to 0</span><span class="ot">&quot;</span>;</span></code></pre></div>
+<h2 id="limitations-and-edge-cases">Limitations and Edge Cases</h2>
+<p>While the round-trip test and behavioral correctness provide a solid
+foundation for understanding Perl’s type system, there are important
+limitations and edge cases to be aware of.</p>
+<h3 id="what-this-model-doesnt-cover">What This Model Doesn’t Cover</h3>
+<p><strong>Tied Variables</strong> can change behavior dynamically:</p>
+<div class="sourceCode" id="cb42"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> <span class="fu">Tie::Scalar</span>;</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="fu">tie</span> <span class="kw">my</span> <span class="dt">$magic</span>, <span class="ot">&#39;</span><span class="ss">Tie::StdScalar</span><span class="ot">&#39;</span>;</span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a><span class="dt">$magic</span> = <span class="dv">42</span>;</span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Tied variables can change their value between accesses</span></span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Round-trip test assumptions may not hold</span></span>
+<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$original</span> = <span class="dt">$magic</span>;</span>
+<span id="cb42-9"><a href="#cb42-9" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$as_num</span> = <span class="dv">0</span> + <span class="dt">$magic</span>;</span>
+<span id="cb42-10"><a href="#cb42-10" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$back</span> = <span class="ot">&quot;</span><span class="dt">$as_num</span><span class="ot">&quot;</span>;</span>
+<span id="cb42-11"><a href="#cb42-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-12"><a href="#cb42-12" aria-hidden="true" tabindex="-1"></a><span class="co"># If the tie implementation changes the value between accesses,</span></span>
+<span id="cb42-13"><a href="#cb42-13" aria-hidden="true" tabindex="-1"></a><span class="co"># $original may not equal $back even for valid numbers</span></span></code></pre></div>
+<p><strong>Overloading</strong> allows objects to customize
+stringification and numification:</p>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span> Money {</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">use</span> overload</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>        <span class="ot">&#39;</span><span class="ss">&quot;&quot;</span><span class="ot">&#39;</span> =&gt; <span class="kw">sub </span>{ <span class="fu">sprintf</span> <span class="ot">&quot;</span><span class="st">\$%.2f</span><span class="ot">&quot;</span>, <span class="wa">$_</span>[<span class="dv">0</span>]{cents} / <span class="dv">100</span> },</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>        <span class="ot">&#39;</span><span class="ss">0+</span><span class="ot">&#39;</span> =&gt; <span class="kw">sub </span>{ <span class="wa">$_</span>[<span class="dv">0</span>]{cents} / <span class="dv">100</span> },</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>        fallback =&gt; <span class="dv">1</span>;</span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">sub </span><span class="fu">new</span> {</span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>        <span class="kw">my</span> (<span class="dt">$class</span>, <span class="dt">$dollars</span>) = <span class="dt">@_</span>;</span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>        <span class="fu">bless</span> { cents =&gt; <span class="fu">int</span>(<span class="dt">$dollars</span> <span class="ot">*</span> <span class="dv">100</span>) }, <span class="dt">$class</span>;</span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$price</span> = Money-&gt;new(<span class="fl">19.99</span>);</span>
+<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="ot">&quot;</span><span class="dt">$price</span><span class="ot">&quot;</span>;       <span class="co"># &quot;$19.99&quot;</span></span>
+<span id="cb43-15"><a href="#cb43-15" aria-hidden="true" tabindex="-1"></a><span class="fu">say</span> <span class="dv">0</span> + <span class="dt">$price</span>;     <span class="co"># 19.99</span></span>
+<span id="cb43-16"><a href="#cb43-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-17"><a href="#cb43-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Overloaded objects can appear to pass round-trip tests</span></span>
+<span id="cb43-18"><a href="#cb43-18" aria-hidden="true" tabindex="-1"></a><span class="co"># even though they&#39;re objects, not primitive numbers</span></span></code></pre></div>
+<p><strong>Magic Variables</strong> like <code>$!</code> have special
+behaviors:</p>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co"># $! behaves as a DualVar with errno-specific magic</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="fu">open</span> <span class="kw">my</span> <span class="dt">$fh</span>, <span class="ot">&#39;</span><span class="ss">&lt;</span><span class="ot">&#39;</span>, <span class="ot">&#39;</span><span class="ss">/nonexistent</span><span class="ot">&#39;</span> <span class="ot">or</span> <span class="kw">do</span> {</span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$error</span> = <span class="wa">$!</span>;</span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># String value depends on current locale</span></span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Numeric value is the errno</span></span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Behavior can change based on system state</span></span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>};</span></code></pre></div>
+<p><strong>Locales</strong> affect numeric parsing:</p>
+<div class="sourceCode" id="cb45"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu">use</span> POSIX <span class="ot">qw(</span>setlocale LC_NUMERIC<span class="ot">)</span>;</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a><span class="co"># In some locales, &quot;,&quot; is the decimal separator</span></span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>setlocale(LC_NUMERIC, <span class="ot">&quot;</span><span class="st">de_DE.UTF-8</span><span class="ot">&quot;</span>);</span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$val</span> = <span class="ot">&quot;</span><span class="st">3,14</span><span class="ot">&quot;</span>;  <span class="co"># May or may not be treated as 3.14</span></span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Round-trip behavior depends on locale settings</span></span></code></pre></div>
+<h3 id="when-to-use-type-checking-tools">When to Use Type Checking
+Tools</h3>
+<p>The type system described here is most useful for understanding
+Perl’s core behavior. Different approaches work better in different
+contexts:</p>
+<p><strong>Use runtime type checking (Moose/Types::Tiny) when:</strong>
+- Working on large codebases with multiple developers - Building APIs
+with clear contracts that need to be enforced - Refactoring legacy code
+where type assumptions may be unclear - Integrating with external
+systems that require strict type guarantees</p>
+<div class="sourceCode" id="cb46"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Good use case: Public API with strict requirements</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span> UserService {</span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">use</span> Moo;</span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">use</span> <span class="fu">Types::Standard</span> <span class="fu">qw</span>(Int Str);</span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a>    method create_user(Int <span class="dt">$id</span>, Str <span class="dt">$name</span>) {</span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Type checking ensures contract is met</span></span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">$self</span>-&gt;<span class="dt">db</span>-&gt;<span class="dt">insert</span>(users =&gt; {id =&gt; <span class="dt">$id</span>, name =&gt; <span class="dt">$name</span>});</span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb46-10"><a href="#cb46-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Use the round-trip test when:</strong> - Debugging unexpected
+behavior in existing code - Understanding why Perl’s coercion rules work
+the way they do - Teaching type concepts to developers new to Perl -
+Analyzing whether a value truly “is” a certain type versus just coercing
+to it</p>
+<div class="sourceCode" id="cb47"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Good use case: Debugging mysterious behavior</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="kw">sub </span><span class="fu">debug_value</span> {</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> (<span class="dt">$val</span>, <span class="dt">$type_name</span>) = <span class="dt">@_</span>;</span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$as_num</span> = <span class="dv">0</span> + <span class="dt">$val</span>;</span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$back</span> = <span class="ot">&quot;</span><span class="dt">$as_num</span><span class="ot">&quot;</span>;</span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">warn</span> <span class="ot">&quot;</span><span class="dt">$val</span><span class="st"> is </span><span class="ot">&quot;</span> . (<span class="dt">$val</span> <span class="ot">eq</span> <span class="dt">$back</span> ? <span class="ot">&quot;&quot;</span> : <span class="ot">&quot;</span><span class="st">NOT </span><span class="ot">&quot;</span>) . <span class="ot">&quot;</span><span class="st">a number</span><span class="ch">\n</span><span class="ot">&quot;</span>;</span>
+<span id="cb47-9"><a href="#cb47-9" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Use static analysis (Perl::Critic) when:</strong> - Enforcing
+coding standards across a team - Catching common type-confusion bugs
+during code review - Preventing known problematic patterns from entering
+the codebase</p>
+<div class="sourceCode" id="cb48"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="co"># .perlcriticrc catches common mistakes</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>[<span class="fu">ValuesAndExpressions::ProhibitMismatchedOperators</span>]</span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>severity = <span class="dv">4</span></span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Warns about: &quot;hello&quot; == &quot;goodbye&quot;</span></span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Warns about: $hashref &gt; 10</span></span></code></pre></div>
+<h3 id="performance-implications">Performance Implications</h3>
+<p>Understanding types can help you write more efficient code:</p>
+<div class="sourceCode" id="cb49"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="co"># SLOW: Repeated type conversions</span></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> <span class="kw">my</span> <span class="dt">$i</span> (<span class="fl">1.</span>.<span class="dv">1000000</span>) {</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$str</span> = <span class="ot">&quot;</span><span class="st">Value: </span><span class="dt">$i</span><span class="ot">&quot;</span>;  <span class="co"># Number to string</span></span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">my</span> <span class="dt">$num</span> = <span class="dv">0</span> + <span class="dt">$i</span>;       <span class="co"># String to number (if $i is string)</span></span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>    process(<span class="dt">$str</span>, <span class="dt">$num</span>);</span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a><span class="co"># FASTER: Minimize conversions</span></span>
+<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> <span class="kw">my</span> <span class="dt">$i</span> (<span class="fl">1.</span>.<span class="dv">1000000</span>) {</span>
+<span id="cb49-10"><a href="#cb49-10" aria-hidden="true" tabindex="-1"></a>    process(<span class="ot">&quot;</span><span class="st">Value: </span><span class="dt">$i</span><span class="ot">&quot;</span>, <span class="dt">$i</span>);  <span class="co"># Single conversion</span></span>
+<span id="cb49-11"><a href="#cb49-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>Type coercion has a cost. When performance matters, keep values in
+their “natural” type and convert only when necessary.</p>
+<h3 id="when-type-theory-breaks-down">When Type Theory Breaks Down</h3>
+<p>Some Perl features fundamentally challenge the type model:</p>
+<div class="sourceCode" id="cb50"><pre
+class="sourceCode perl"><code class="sourceCode perl"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="co"># lvalues can change type context</span></span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a><span class="fu">substr</span>(<span class="dt">$string</span>, <span class="dv">0</span>, <span class="dv">1</span>) = <span class="ot">&quot;</span><span class="st">X</span><span class="ot">&quot;</span>;  <span class="co"># $string is both value and target</span></span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Aliasing means one &quot;value&quot; can have multiple representations</span></span>
+<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> <span class="kw">my</span> <span class="dt">$item</span> (<span class="dt">@array</span>) {</span>
+<span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">$item</span>++;  <span class="co"># Modifies @array element directly</span></span>
+<span id="cb50-7"><a href="#cb50-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb50-8"><a href="#cb50-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-9"><a href="#cb50-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Context affects behavior in ways beyond simple type conversion</span></span>
+<span id="cb50-10"><a href="#cb50-10" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">@list</span> = somefunction();  <span class="co"># List context</span></span>
+<span id="cb50-11"><a href="#cb50-11" aria-hidden="true" tabindex="-1"></a><span class="kw">my</span> <span class="dt">$count</span> = somefunction(); <span class="co"># Scalar context - may return different value!</span></span></code></pre></div>
+<p>These features reflect Perl’s philosophy that context and intent
+matter as much as type.</p>
+<h2 id="summary">Summary</h2>
+<p>Perl’s type system is based on two principles:</p>
+<ol type="1">
+<li><strong>Structure:</strong> Can the value survive conversion to the
+type and back?</li>
+<li><strong>Behavior:</strong> Does it work correctly with the type’s
+operations?</li>
+</ol>
+<p>Both tests must pass for true membership. This explains why: -
+<code>"42"</code> is a number (survives conversion, behaves correctly) -
+<code>"hello"</code> isn’t a number (fails conversion test) -
+<code>"NaN"</code> isn’t a number (passes conversion but fails behavior
+test) - References aren’t strings (can’t convert string representation
+back)</p>
+<p>Understanding this helps you write better Perl code and avoid common
+pitfalls around type coercion.</p>
+<p><strong>For the complete formal treatment:</strong> See [1].</p>
+<h2 id="references">References</h2>
+<p>[1] <strong>Understanding Perl’s Type System: A Formal
+Treatment</strong> (companion paper, unpublished). Provides the complete
+mathematical formalization with proofs, operational semantics, and
+precise definitions of the type system described in this practical
+guide. Available from the authors upon request.</p>
+  </main>
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/copy-code.js"></script>
+  <script src="../scripts/nav.js"></script>
+</body>
+</html>
