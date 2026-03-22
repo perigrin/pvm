@@ -181,7 +181,7 @@ psc lsp                     # Start the LSP server</code></pre>
 
       <h3>Where PVM stands out</h3>
       <p><strong>Integrated static analysis.</strong> Python has <code>ty</code>, JavaScript has <code>tsc</code> — both are separate tools you install and configure independently. <code>psc</code> ships inside PVM. One binary, zero extra setup. It infers types from your Perl code without annotations, catches mismatches, suggests guard patterns, and serves diagnostics to your editor via LSP.</p>
-      <p><strong>Fine-grained isolation.</strong> Python has virtualenvs, JavaScript has <code>node_modules</code>. PVM gives you an explicit choice: global (use everything), local (project deps only), or clean (start from zero). Combined with auto-dependency detection from source code, <code>pvx</code> can run a script in a completely fresh environment and install only what the code actually needs.</p>
+      <p><strong>Isolation + detection in one step.</strong> Python has virtualenvs. JavaScript has <code>node_modules</code>. These work well but require separate setup. <code>pvx</code> combines isolation with auto-dependency detection from source code in a single command — scan your <code>use</code> statements, install what's needed, run in an isolated environment. One command instead of a multi-step workflow.</p>
       <p><strong>Everything in one binary.</strong> bun achieved this for JavaScript. uv achieved it for Python. PVM achieves it for Perl — version management, package management, script execution, and static analysis, all in a single Go binary with no external dependencies.</p>
     </section>
   </main>
