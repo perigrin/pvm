@@ -29,39 +29,39 @@ type UnaryOpSig struct {
 // The last element in ArgTypes is variadic — it may appear more than once.
 var builtins = map[string]BuiltinSig{
 	"push":    {MinArity: 2, ArgTypes: []Type{Array, Any}, ReturnType: Int},
-	"pop":     {MinArity: 1, ArgTypes: []Type{Array}, ReturnType: Scalar},
-	"shift":   {MinArity: 1, ArgTypes: []Type{Array}, ReturnType: Scalar},
+	"pop":     {MinArity: 0, ArgTypes: []Type{Array}, ReturnType: Scalar},
+	"shift":   {MinArity: 0, ArgTypes: []Type{Array}, ReturnType: Scalar},
 	"unshift": {MinArity: 2, ArgTypes: []Type{Array, Any}, ReturnType: Int},
-	"splice":  {MinArity: 1, ArgTypes: []Type{Array, Num, Num, Any}, ReturnType: List},
+	"splice":  {MinArity: 1, ArgTypes: []Type{Array, Int, Int, Any}, ReturnType: List},
 
-	"keys":   {MinArity: 1, ArgTypes: []Type{Hash}, ReturnType: List},
-	"values": {MinArity: 1, ArgTypes: []Type{Hash}, ReturnType: List},
+	"keys":   {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
+	"values": {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
 	"delete": {MinArity: 1, ArgTypes: []Type{Scalar}, ReturnType: Scalar},
 	"exists": {MinArity: 1, ArgTypes: []Type{Scalar}, ReturnType: Bool},
-	"each":   {MinArity: 1, ArgTypes: []Type{Hash}, ReturnType: List},
+	"each":   {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
 
 	"length": {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Int},
-	"chomp":  {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Int},
-	"chop":   {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Str},
-	"chr":    {MinArity: 1, ArgTypes: []Type{Int}, ReturnType: Str},
+	"chomp":  {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Int},
+	"chop":   {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Str},
+	"chr":    {MinArity: 0, ArgTypes: []Type{Int}, ReturnType: Str},
 	"ord":    {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Int},
 
-	"join":    {MinArity: 2, ArgTypes: []Type{Str, Any}, ReturnType: Str},
-	"split":   {MinArity: 1, ArgTypes: []Type{Scalar, Str, Num}, ReturnType: List},
+	"join":    {MinArity: 2, ArgTypes: []Type{Str, Str}, ReturnType: Str},
+	"split":   {MinArity: 0, ArgTypes: []Type{Regex, Str, Int}, ReturnType: List},
 	"sprintf": {MinArity: 1, ArgTypes: []Type{Str, Any}, ReturnType: Str},
 	"substr":  {MinArity: 2, ArgTypes: []Type{Str, Num, Num}, ReturnType: Str},
 
-	"defined": {MinArity: 1, ArgTypes: []Type{Scalar}, ReturnType: Bool},
-	"ref":     {MinArity: 1, ArgTypes: []Type{Scalar}, ReturnType: Str},
+	"defined": {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Bool},
+	"ref":     {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Str},
 	"scalar":  {MinArity: 1, ArgTypes: []Type{Any}, ReturnType: Scalar},
 
-	"die":  {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: None},
-	"warn": {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Bool},
+	"die":  {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: None},
+	"warn": {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
 
 	"bless": {MinArity: 1, ArgTypes: []Type{Ref, Str}, ReturnType: Object},
 
-	"print":  {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Bool},
-	"say":    {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Bool},
+	"print":  {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
+	"say":    {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
 	"return": {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Any},
 
 	"map":  {MinArity: 2, ArgTypes: []Type{Code, List}, ReturnType: List},

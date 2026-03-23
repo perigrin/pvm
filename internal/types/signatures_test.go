@@ -61,8 +61,8 @@ func TestGetBuiltinPush(t *testing.T) {
 func TestGetBuiltinSplit(t *testing.T) {
 	sig, ok := types.GetBuiltin("split")
 	require.True(t, ok, "split should be a known builtin")
-	assert.Equal(t, 1, sig.MinArity)
-	assert.Equal(t, []types.Type{types.Scalar, types.Str, types.Num}, sig.ArgTypes)
+	assert.Equal(t, 0, sig.MinArity)
+	assert.Equal(t, []types.Type{types.Regex, types.Str, types.Int}, sig.ArgTypes)
 	assert.Equal(t, types.List, sig.ReturnType)
 }
 
@@ -70,7 +70,7 @@ func TestGetBuiltinSplit(t *testing.T) {
 func TestGetBuiltinDefined(t *testing.T) {
 	sig, ok := types.GetBuiltin("defined")
 	require.True(t, ok, "defined should be a known builtin")
-	assert.Equal(t, 1, sig.MinArity)
+	assert.Equal(t, 0, sig.MinArity)
 	assert.Equal(t, []types.Type{types.Scalar}, sig.ArgTypes)
 	assert.Equal(t, types.Bool, sig.ReturnType)
 }
