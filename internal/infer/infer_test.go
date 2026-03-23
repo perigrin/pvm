@@ -1861,6 +1861,111 @@ func TestInitializedSymbolTableType(t *testing.T) {
 		"my $x = 42 should have type Int after assignment narrowing")
 }
 
+// --- Multi-param inference tests ---
+
+// TestResolveSubParamsSignature verifies that multi-param signatures are identified.
+func TestResolveSubParamsSignature(t *testing.T) {
+	src := []byte("sub add($x, $y) { $x + $y }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+
+	// Find the subroutine_declaration_statement
+	var subNode *parser.Node
+	for i := 0; i < root.ChildCount(); i++ {
+		child := root.Child(i)
+		if child != nil && child.Kind() == "subroutine_declaration_statement" {
+			subNode = child
+			break
+		}
+	}
+	require.NotNil(t, subNode, "should find a subroutine_declaration_statement")
+
+	params := infer.ResolveSubParams(subNode, src)
+	assert.Equal(t, []string{"$x", "$y"}, params,
+		"should identify both params from signature sub add($x, $y)")
+}
+
+// TestResolveSubParamsShiftChain verifies that sequential shift assignments
+// are identified as parameters.
+func TestResolveSubParamsShiftChain(t *testing.T) {
+	src := []byte("sub method { my $self = shift; my $name = shift; $self + $name }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+
+	var subNode *parser.Node
+	for i := 0; i < root.ChildCount(); i++ {
+		child := root.Child(i)
+		if child != nil && child.Kind() == "subroutine_declaration_statement" {
+			subNode = child
+			break
+		}
+	}
+	require.NotNil(t, subNode, "should find a subroutine_declaration_statement")
+
+	params := infer.ResolveSubParams(subNode, src)
+	assert.Equal(t, []string{"$self", "$name"}, params,
+		"should identify both params from shift chain")
+}
+
+// TestResolveSubParamsAtUnderscoreUnpacking verifies that my ($x, $y) = @_;
+// is recognized as parameter identification.
+func TestResolveSubParamsAtUnderscoreUnpacking(t *testing.T) {
+	src := []byte("sub foo { my ($x, $y) = @_; $x + $y }\n")
+	p := parser.New()
+	tree, err := p.Parse(src)
+	require.NoError(t, err)
+	root := tree.RootNode()
+
+	var subNode *parser.Node
+	for i := 0; i < root.ChildCount(); i++ {
+		child := root.Child(i)
+		if child != nil && child.Kind() == "subroutine_declaration_statement" {
+			subNode = child
+			break
+		}
+	}
+	require.NotNil(t, subNode, "should find a subroutine_declaration_statement")
+
+	params := infer.ResolveSubParams(subNode, src)
+	assert.Equal(t, []string{"$x", "$y"}, params,
+		"should identify both params from @_ unpacking")
+}
+
+// TestParamTypeInferenceFromUsage verifies that parameter types are inferred
+// from how they are used in the function body.
+func TestParamTypeInferenceFromUsage(t *testing.T) {
+	// $x is used in arithmetic ($x + 1) → Num constraint
+	src := []byte("sub calc { my $x = shift; my $result = $x + 1; }\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("calc")
+	require.True(t, found, "calc should be in the symbol table")
+	require.NotNil(t, sym.ParamTypes, "calc should have ParamTypes")
+	require.Len(t, sym.ParamTypes, 1, "calc has 1 parameter")
+	assert.Equal(t, types.Num, sym.ParamTypes[0],
+		"$x used in arithmetic should be inferred as Num")
+}
+
+// TestParamTypeInferenceNoUsefulType verifies that parameters only used in
+// permissive contexts (like assignment) get Unknown, not Any.
+func TestParamTypeInferenceNoUsefulType(t *testing.T) {
+	// $x is only assigned, never used in a type-constraining operation
+	src := []byte("sub passthrough { my $x = shift; return $x; }\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("passthrough")
+	require.True(t, found, "passthrough should be in the symbol table")
+	// ParamTypes should either be nil or have Unknown entries
+	if sym.ParamTypes != nil && len(sym.ParamTypes) > 0 {
+		assert.Equal(t, types.Unknown, sym.ParamTypes[0],
+			"param used only in permissive context should be Unknown, not Any")
+	}
+}
+
 // TestNoCoercionIntWithEq verifies that eq on Int operands produces no
 // coercion-mismatch (Int <: Str, so eq on integers is type-safe).
 func TestNoCoercionIntWithEq(t *testing.T) {

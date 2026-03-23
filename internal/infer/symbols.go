@@ -23,8 +23,10 @@ const (
 type Symbol struct {
 	Name       string
 	Type       types.Type
-	ReturnType types.Type // Inferred return type (subroutines only, zero = unknown)
-	ClassType  string     // Class name for object variables (e.g. "Foo" for Foo->new())
+	ReturnType types.Type   // Inferred return type (subroutines only, zero = unknown)
+	ParamTypes []types.Type // Inferred parameter types (subroutines only, positional)
+	ParamNames []string     // Parameter variable names (subroutines only, positional)
+	ClassType  string       // Class name for object variables (e.g. "Foo" for Foo->new())
 	Kind       SymbolKind
 	StartByte  uint32
 	EndByte    uint32
@@ -118,6 +120,22 @@ func (st *SymbolTable) UpdateReturnType(name string, typ types.Type) bool {
 	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
 			sym.ReturnType = typ
+			s.symbols[name] = sym
+			return true
+		}
+	}
+	return false
+}
+
+// UpdateParamTypes walks the scope chain from the current scope to root,
+// looking for the first scope that contains name. If found, it updates the
+// symbol's ParamTypes and ParamNames and returns true. Used to store inferred
+// subroutine parameter types after analyzing the sub body.
+func (st *SymbolTable) UpdateParamTypes(name string, paramNames []string, paramTypes []types.Type) bool {
+	for s := st.current; s != nil; s = s.parent {
+		if sym, ok := s.symbols[name]; ok {
+			sym.ParamNames = paramNames
+			sym.ParamTypes = paramTypes
 			s.symbols[name] = sym
 			return true
 		}

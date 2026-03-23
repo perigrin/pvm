@@ -1928,12 +1928,30 @@ func walkSubroutineDeclaration(
 	// Union all return paths.
 	returnType := explicit | implicit
 
+	// Infer parameter types from usage in the body.
+	paramNames := ResolveSubParams(node, source)
+
 	// Exit the sub scope before updating the symbol, which lives in the
 	// enclosing (main) scope.
 	st.ExitScope()
 
 	if subName != "" && returnType != types.Unknown {
 		st.UpdateReturnType(subName, returnType)
+	}
+
+	if subName != "" && len(paramNames) > 0 {
+		paramTypes := inferParamTypesFromUsage(bodyBlock, source, paramNames, annotations)
+		// Only store if at least one param has a useful inferred type.
+		hasUseful := false
+		for _, pt := range paramTypes {
+			if pt != types.Unknown {
+				hasUseful = true
+				break
+			}
+		}
+		if hasUseful {
+			st.UpdateParamTypes(subName, paramNames, paramTypes)
+		}
 	}
 
 	return types.Code
@@ -2501,4 +2519,397 @@ func ExtractArgVarName(node *parser.Node, source []byte) string {
 		return sigildName("%", node, source)
 	}
 	return ""
+}
+
+// inferParamTypesFromUsage traces each parameter variable through the function
+// body to determine what types it is used as. Returns a slice of inferred types
+// parallel to paramNames. Parameters with no useful type get Unknown.
+//
+// The algorithm walks the body looking for binary expressions where a param
+// is an operand. For each match, the operator signature's expected type for
+// that operand position is recorded as a constraint. Also checks function
+// call arguments against builtin signatures. All constraints are intersected
+// (bitwise AND starting from Any) to produce the most specific inferred type.
+// If the result is still Any, it is replaced with Unknown (no useful inference).
+func inferParamTypesFromUsage(
+	bodyBlock *parser.Node,
+	source []byte,
+	paramNames []string,
+	annotations map[uint32]types.Type,
+) []types.Type {
+	// Build a set for fast param name lookup.
+	paramSet := make(map[string]int, len(paramNames))
+	for i, name := range paramNames {
+		paramSet[name] = i
+	}
+
+	// Start each param at Any (no constraints).
+	constraints := make([]types.Type, len(paramNames))
+	for i := range constraints {
+		constraints[i] = types.Any
+	}
+
+	// Walk the body collecting constraints.
+	collectParamConstraints(bodyBlock, source, paramSet, constraints, annotations)
+
+	// Replace Any with Unknown (no useful inference).
+	for i := range constraints {
+		if constraints[i] == types.Any {
+			constraints[i] = types.Unknown
+		}
+	}
+
+	return constraints
+}
+
+// collectParamConstraints recursively walks the body looking for operators
+// and function calls where a param is used, recording type constraints.
+func collectParamConstraints(
+	node *parser.Node,
+	source []byte,
+	paramSet map[string]int,
+	constraints []types.Type,
+	annotations map[uint32]types.Type,
+) {
+	if node == nil {
+		return
+	}
+
+	switch node.Kind() {
+	case "binary_expression", "equality_expression", "relational_expression":
+		collectBinaryConstraints(node, source, paramSet, constraints)
+
+	case "function_call_expression", "ambiguous_function_call_expression":
+		collectCallConstraints(node, source, paramSet, constraints)
+
+	case "func1op_call_expression":
+		collectFunc1opConstraints(node, source, paramSet, constraints)
+	}
+
+	// Recurse into children.
+	for i := 0; i < node.ChildCount(); i++ {
+		collectParamConstraints(node.Child(i), source, paramSet, constraints, annotations)
+	}
+}
+
+// collectBinaryConstraints checks if either operand of a binary expression is a
+// param variable, and if so, records the operator's expected type as a constraint.
+func collectBinaryConstraints(
+	node *parser.Node,
+	source []byte,
+	paramSet map[string]int,
+	constraints []types.Type,
+) {
+	op := findOperatorText(node, source)
+	if op == "" {
+		return
+	}
+	sig, ok := types.GetBinaryOp(op)
+	if !ok {
+		return
+	}
+
+	// Find left and right operands.
+	var left, right *parser.Node
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if left == nil {
+			left = child
+		} else {
+			right = child
+			break
+		}
+	}
+
+	// Check if left operand is a param.
+	if left != nil {
+		name := resolveVarName(left, source)
+		if idx, ok := paramSet[name]; ok && sig.Left != types.Any {
+			constraints[idx] &= sig.Left
+		}
+	}
+
+	// Check if right operand is a param.
+	if right != nil {
+		name := resolveVarName(right, source)
+		if idx, ok := paramSet[name]; ok && sig.Right != types.Any {
+			constraints[idx] &= sig.Right
+		}
+	}
+}
+
+// collectCallConstraints checks if any arguments to a builtin function call
+// are param variables, recording the expected arg type as a constraint.
+func collectCallConstraints(
+	node *parser.Node,
+	source []byte,
+	paramSet map[string]int,
+	constraints []types.Type,
+) {
+	// Extract function name.
+	var funcName string
+	var args []*parser.Node
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "function" || child.Kind() == "bareword" {
+			funcName = child.Text(source)
+		} else if child.IsNamed() && funcName != "" {
+			args = append(args, child)
+		}
+	}
+
+	sig, ok := types.GetBuiltin(funcName)
+	if !ok {
+		return
+	}
+
+	for i, arg := range args {
+		name := resolveVarName(arg, source)
+		idx, isParam := paramSet[name]
+		if !isParam {
+			continue
+		}
+		expectedType := builtinArgType(sig, i)
+		if expectedType != types.Any {
+			constraints[idx] &= expectedType
+		}
+	}
+}
+
+// collectFunc1opConstraints checks if the argument to a single-arg builtin
+// (like defined, ref, etc.) is a param variable.
+func collectFunc1opConstraints(
+	node *parser.Node,
+	source []byte,
+	paramSet map[string]int,
+	constraints []types.Type,
+) {
+	var funcName string
+	var arg *parser.Node
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			funcName = child.Text(source)
+		} else if arg == nil {
+			arg = child
+		}
+	}
+
+	if arg == nil {
+		return
+	}
+
+	sig, ok := types.GetBuiltin(funcName)
+	if !ok {
+		return
+	}
+
+	name := resolveVarName(arg, source)
+	idx, isParam := paramSet[name]
+	if !isParam {
+		return
+	}
+
+	expectedType := builtinArgType(sig, 0)
+	if expectedType != types.Any {
+		constraints[idx] &= expectedType
+	}
+}
+
+// resolveVarName returns the sigil+name of a variable node, or empty string
+// if the node is not a scalar/array/hash variable.
+func resolveVarName(node *parser.Node, source []byte) string {
+	if node == nil {
+		return ""
+	}
+	switch node.Kind() {
+	case "scalar":
+		return node.Text(source)
+	case "array":
+		return node.Text(source)
+	case "hash":
+		return node.Text(source)
+	}
+	return ""
+}
+
+// ResolveSubParams identifies all parameter variables in a subroutine
+// declaration node, supporting three patterns:
+//   - Signatures: sub foo($x, $y) { ... }
+//   - @_ unpacking: my ($x, $y) = @_;
+//   - shift chains: my $self = shift; my $x = shift;
+//
+// Returns a slice of parameter names in positional order, or nil if no
+// recognized pattern is found.
+func ResolveSubParams(subNode *parser.Node, source []byte) []string {
+	if subNode == nil {
+		return nil
+	}
+
+	var bodyBlock *parser.Node
+	var sigNode *parser.Node
+	for i := 0; i < subNode.ChildCount(); i++ {
+		child := subNode.Child(i)
+		if child == nil {
+			continue
+		}
+		switch child.Kind() {
+		case "block":
+			bodyBlock = child
+		case "signature":
+			sigNode = child
+		}
+	}
+
+	// Pattern 1: Signatures — sub foo($x, $y) { ... }
+	if sigNode != nil {
+		params := extractAllSigParams(sigNode, source)
+		if len(params) > 0 {
+			return params
+		}
+		return nil
+	}
+
+	if bodyBlock == nil {
+		return nil
+	}
+
+	// Pattern 2: @_ unpacking — my ($x, $y) = @_;
+	if params := extractAtUnderscoreUnpacking(bodyBlock, source); len(params) > 0 {
+		return params
+	}
+
+	// Pattern 3: shift chains — my $self = shift; my $x = shift;
+	if params := extractShiftChain(bodyBlock, source); len(params) > 0 {
+		return params
+	}
+
+	return nil
+}
+
+// extractAllSigParams returns all scalar parameter names from a signature node.
+func extractAllSigParams(sigNode *parser.Node, source []byte) []string {
+	var params []string
+	for i := 0; i < sigNode.ChildCount(); i++ {
+		child := sigNode.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "mandatory_parameter" {
+			for j := 0; j < child.ChildCount(); j++ {
+				inner := child.Child(j)
+				if inner != nil && inner.Kind() == "scalar" {
+					params = append(params, inner.Text(source))
+				}
+			}
+		}
+	}
+	return params
+}
+
+// extractAtUnderscoreUnpacking checks if the first statement in a block is
+// a list assignment from @_ (e.g., my ($x, $y) = @_;). Returns the list of
+// variable names from the LHS, or nil if the pattern doesn't match.
+func extractAtUnderscoreUnpacking(block *parser.Node, source []byte) []string {
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if child.Kind() != "expression_statement" {
+			break
+		}
+
+		// Look for assignment_expression inside the expression_statement
+		for j := 0; j < child.ChildCount(); j++ {
+			expr := child.Child(j)
+			if expr == nil || !expr.IsNamed() {
+				continue
+			}
+			if expr.Kind() != "assignment_expression" {
+				continue
+			}
+
+			// Check RHS is @_ — find the last named child
+			var lhs, rhs *parser.Node
+			for k := 0; k < expr.ChildCount(); k++ {
+				ec := expr.Child(k)
+				if ec == nil || !ec.IsNamed() {
+					continue
+				}
+				if lhs == nil {
+					lhs = ec
+				} else {
+					rhs = ec
+				}
+			}
+
+			if rhs == nil || rhs.Text(source) != "@_" {
+				return nil
+			}
+
+			// Extract variable names from LHS
+			// LHS is typically a variable_declaration or list node with scalars
+			return extractVarNamesFromDecl(lhs, source)
+		}
+		break
+	}
+	return nil
+}
+
+// extractVarNamesFromDecl extracts variable names from a variable_declaration
+// node or a list of scalars (for list assignment patterns like my ($x, $y) = @_).
+func extractVarNamesFromDecl(node *parser.Node, source []byte) []string {
+	if node == nil {
+		return nil
+	}
+
+	var params []string
+	// Walk all descendants looking for scalar nodes
+	collectScalarNames(node, source, &params)
+	return params
+}
+
+// collectScalarNames recursively collects scalar variable names from a subtree.
+func collectScalarNames(node *parser.Node, source []byte, params *[]string) {
+	if node == nil {
+		return
+	}
+	if node.Kind() == "scalar" {
+		*params = append(*params, node.Text(source))
+		return
+	}
+	for i := 0; i < node.ChildCount(); i++ {
+		collectScalarNames(node.Child(i), source, params)
+	}
+}
+
+// extractShiftChain collects all sequential "my $var = shift;" statements
+// at the top of a block. Returns parameter names in positional order.
+func extractShiftChain(block *parser.Node, source []byte) []string {
+	var params []string
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if child.Kind() != "expression_statement" {
+			break
+		}
+		name := matchShiftAssignment(child, source)
+		if name == "" {
+			break
+		}
+		params = append(params, name)
+	}
+	return params
 }
