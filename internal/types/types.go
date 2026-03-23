@@ -20,13 +20,15 @@ type Type uint32
 // Unexported leaf bits are used where the exported type name is a mask
 // (a union of this leaf plus descendants).
 const (
-	Undef   Type = 1 << 0 // Undefined value
-	Bool    Type = 1 << 1 // Boolean value
-	Int     Type = 1 << 2 // Integer value
-	numLeaf Type = 1 << 3 // Floating-point leaf (3.14 — Num but not Int)
-	strLeaf Type = 1 << 4 // String leaf ("hello" — Str but not Num)
-	DualVar Type = 1 << 5 // Dual-valued scalar (string + numeric)
-	Regex   Type = 1 << 6 // Regular expression
+	Undef   Type = 1 << 0  // Undefined value
+	Bool    Type = 1 << 1  // Boolean value
+	Int     Type = 1 << 2  // Integer value
+	numLeaf Type = 1 << 3  // Floating-point leaf (3.14 — Num but not Int)
+	strLeaf Type = 1 << 4  // String leaf ("hello" — Str but not Num)
+	DualVar Type = 1 << 5  // Dual-valued scalar (string + numeric)
+	NaN     Type = 1 << 17 // IEEE 754 Not-a-Number (Scalar, not Str or Num)
+	Inf     Type = 1 << 18 // IEEE 754 Infinity (Scalar, not Str or Num)
+	Regex   Type = 1 << 6  // Regular expression
 
 	ScalarRef Type = 1 << 7  // Reference to a scalar
 	ArrayRef  Type = 1 << 8  // Reference to an array
@@ -73,7 +75,7 @@ const (
 	Ref Type = ScalarRef | ArrayRef | HashRef | CodeRef | GlobRef | Object
 
 	// Scalar is the scalar family mask — all types that fit in a scalar variable.
-	Scalar Type = Undef | Bool | Str | DualVar | Regex | Ref
+	Scalar Type = Undef | Bool | Str | DualVar | NaN | Inf | Regex | Ref
 
 	// List is the aggregate family mask.
 	List Type = Array | Hash
@@ -92,6 +94,8 @@ var typeNames = map[Type]string{
 	Num:       "Num",
 	Str:       "Str",
 	DualVar:   "DualVar",
+	NaN:       "NaN",
+	Inf:       "Inf",
 	Regex:     "Regex",
 	ScalarRef: "ScalarRef",
 	ArrayRef:  "ArrayRef",
@@ -134,6 +138,8 @@ var allLeafBits = []struct {
 	{Hash, "Hash"},
 	{Code, "Code"},
 	{Glob, "Glob"},
+	{NaN, "NaN"},
+	{Inf, "Inf"},
 }
 
 // String returns the human-readable name for the type. Known masks return
@@ -235,6 +241,16 @@ func TypeSatisfies(actual, required Type) bool {
 
 	// Exact subtype check: all of actual's bits are within required.
 	if IsSubtype(actual, required) {
+		return true
+	}
+
+	// Union containment check: actual is an ad-hoc union type (not a named
+	// parent mask like Str, Num, Scalar) whose bits include all of required's
+	// bits. For example, Object|HashRef satisfies Object because the union
+	// contains the Object bit. Named parent masks are excluded because Str
+	// contains Int's bits but Str should NOT satisfy Int — Str is a wider
+	// type that may hold non-numeric values.
+	if _, isNamed := typeNames[actual]; !isNamed && actual&required == required {
 		return true
 	}
 

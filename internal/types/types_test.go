@@ -25,6 +25,8 @@ func TestTypeString(t *testing.T) {
 		{types.Num, "Num"},
 		{types.Int, "Int"},
 		{types.DualVar, "DualVar"},
+		{types.NaN, "NaN"},
+		{types.Inf, "Inf"},
 		{types.Regex, "Regex"},
 		{types.Ref, "Ref"},
 		{types.ScalarRef, "ScalarRef"},
@@ -70,6 +72,8 @@ func TestIsSubtypeDirect(t *testing.T) {
 		{types.Num, types.Str},
 		{types.Int, types.Num},
 		{types.DualVar, types.Scalar},
+		{types.NaN, types.Scalar},
+		{types.Inf, types.Scalar},
 		{types.Regex, types.Scalar},
 		{types.Ref, types.Scalar},
 		{types.ScalarRef, types.Ref},
@@ -176,7 +180,7 @@ func TestBitsetLeafTypesAreDistinct(t *testing.T) {
 	// Every leaf type must be a power of two (single bit set).
 	leaves := []types.Type{
 		types.Undef, types.Bool, types.Int,
-		types.DualVar, types.Regex, types.ScalarRef, types.ArrayRef,
+		types.DualVar, types.NaN, types.Inf, types.Regex, types.ScalarRef, types.ArrayRef,
 		types.HashRef, types.CodeRef, types.GlobRef, types.Object,
 		types.Array, types.Hash, types.Code, types.Glob,
 	}
@@ -203,6 +207,8 @@ func TestParentMasksContainDescendants(t *testing.T) {
 	assert.True(t, types.Scalar&types.Int == types.Int, "Scalar should contain Int")
 	assert.True(t, types.Scalar&types.Undef == types.Undef, "Scalar should contain Undef")
 	assert.True(t, types.Scalar&types.Ref == types.Ref, "Scalar should contain full Ref mask")
+	assert.True(t, types.Scalar&types.NaN == types.NaN, "Scalar should contain NaN")
+	assert.True(t, types.Scalar&types.Inf == types.Inf, "Scalar should contain Inf")
 	// Any includes everything
 	assert.True(t, types.Any&types.Scalar == types.Scalar, "Any should contain Scalar")
 	assert.True(t, types.Any&types.Array == types.Array, "Any should contain Array")
