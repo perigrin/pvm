@@ -110,9 +110,11 @@ func SuggestGuard(varName string, actual, expected types.Type) string {
 	}
 
 	// Priority 1: defined() — would removing Undef make actual compatible?
+	// Skip when narrowing would produce an empty set (pure Undef with no
+	// other type bits cannot become the expected type by removing Undef).
 	if actual&types.Undef != 0 && expected&types.Undef == 0 {
 		narrowed := actual &^ types.Undef
-		if guardNarrowingSatisfies(narrowed, expected) {
+		if narrowed != 0 && guardNarrowingSatisfies(narrowed, expected) {
 			return "Add guard: if (defined(" + varName + ")) { ... }"
 		}
 	}

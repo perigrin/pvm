@@ -1806,6 +1806,61 @@ func TestNoCoercionIntInArithmetic(t *testing.T) {
 	}
 }
 
+// --- Undef propagation tests ---
+
+// TestUndefPropagationInArithmetic verifies that an uninitialized variable
+// used in arithmetic produces a coercion-mismatch diagnostic.
+func TestUndefPropagationInArithmetic(t *testing.T) {
+	src := []byte("my $x;\nmy $y = $x + 1;\n")
+	_, diags := analyzeSource(t, src)
+
+	var found bool
+	for _, d := range diags {
+		if d.Code == infer.CodeCoercionMismatch {
+			found = true
+			assert.Equal(t, infer.Error, d.Severity, "Undef in arithmetic should be Error")
+			break
+		}
+	}
+	assert.True(t, found, "should find a coercion-mismatch for uninitialized $x in arithmetic")
+}
+
+// TestUndefPropagationWithAssignment verifies that an initialized variable
+// does NOT produce an undef diagnostic.
+func TestUndefPropagationWithAssignment(t *testing.T) {
+	src := []byte("my $x = 42;\nmy $y = $x + 1;\n")
+	_, diags := analyzeSource(t, src)
+
+	for _, d := range diags {
+		assert.NotEqual(t, infer.CodeCoercionMismatch, d.Code,
+			"initialized variable should produce no coercion-mismatch")
+	}
+}
+
+// TestUndefSymbolTableType verifies that an uninitialized my-variable gets
+// type Undef in the symbol table (not Scalar).
+func TestUndefSymbolTableType(t *testing.T) {
+	src := []byte("my $x;\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$x")
+	require.True(t, found, "$x should be in the symbol table")
+	assert.Equal(t, types.Undef, sym.Type,
+		"uninitialized my $x should have type Undef, not Scalar")
+}
+
+// TestInitializedSymbolTableType verifies that an initialized my-variable
+// keeps the normal narrowed type (not Undef).
+func TestInitializedSymbolTableType(t *testing.T) {
+	src := []byte("my $x = 42;\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$x")
+	require.True(t, found, "$x should be in the symbol table")
+	assert.Equal(t, types.Int, sym.Type,
+		"my $x = 42 should have type Int after assignment narrowing")
+}
+
 // TestNoCoercionIntWithEq verifies that eq on Int operands produces no
 // coercion-mismatch (Int <: Str, so eq on integers is type-safe).
 func TestNoCoercionIntWithEq(t *testing.T) {

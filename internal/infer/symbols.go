@@ -237,6 +237,13 @@ func collectPackageStatement(node *parser.Node, source []byte, st *SymbolTable) 
 // collectVariableDeclaration extracts the variable name and derives its type
 // from the sigil: $ → Scalar, @ → Array, % → Hash.
 func collectVariableDeclaration(node *parser.Node, source []byte, st *SymbolTable) {
+	// Check whether this declaration is part of an assignment (my $x = ...).
+	// If not, the variable is uninitialized and scalars get type Undef.
+	hasInitializer := false
+	if parent := node.Parent(); parent != nil && parent.Kind() == "assignment_expression" {
+		hasInitializer = true
+	}
+
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		if child == nil {
@@ -245,9 +252,13 @@ func collectVariableDeclaration(node *parser.Node, source []byte, st *SymbolTabl
 		switch child.Kind() {
 		case "scalar":
 			name := sigildName("$", child, source)
+			scalarType := types.Scalar
+			if !hasInitializer {
+				scalarType = types.Undef
+			}
 			st.Define(Symbol{
 				Name:      name,
-				Type:      types.Scalar,
+				Type:      scalarType,
 				Kind:      SymVariable,
 				StartByte: node.StartByte(),
 				EndByte:   node.EndByte(),

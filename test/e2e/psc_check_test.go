@@ -241,6 +241,20 @@ func TestPSCCheckDirectoryScan(t *testing.T) {
 		"stderr should contain arity-mismatch from diagnostics.pl when scanning the directory")
 }
 
+// TestPSCCheckUndefPropagation verifies that psc check detects uninitialized
+// variables used in arithmetic context.
+func TestPSCCheckUndefPropagation(t *testing.T) {
+	undefFile := filepath.Join(testdataDir(t), "undef_propagation.pl")
+	_, statErr := os.Stat(undefFile)
+	require.NoError(t, statErr, "testdata/check/undef_propagation.pl must exist")
+
+	_, stderr, err := runPSCCheck(t, undefFile)
+	assert.Error(t, err, "psc check on undef_propagation.pl should return a non-zero exit")
+
+	assert.Contains(t, stderr, "coercion-mismatch",
+		"stderr should contain coercion-mismatch for undef in arithmetic")
+}
+
 // TestPSCCheckCoercionDiagnostics verifies that psc check detects value-level
 // type coercion issues: string in arithmetic, == on strings, ref in concat.
 func TestPSCCheckCoercionDiagnostics(t *testing.T) {
