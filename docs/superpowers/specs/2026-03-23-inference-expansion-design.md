@@ -54,9 +54,18 @@ are about implicit type conversion at operator boundaries.
 ### Implementation
 
 Modify `inferBinaryExprType` to accept the annotations map and diags slice.
+The function is called from four node-kind cases in `inferNodeType`
+(binary_expression, equality_expression, relational_expression,
+lowprec_logical_expression) — all four call sites need updating.
+
 After looking up the operator signature, check each operand's annotated type
-against the signature's Left/Right types using `TypeSatisfies`. Emit
-diagnostics for mismatches.
+against the signature's Left/Right types using `TypeSatisfies`. Skip
+operands with Unknown type (avoid false positives). Emit diagnostics for
+mismatches.
+
+Note: NaN and Inf operand checking is structurally ready but untestable
+in this iteration because `inferNumberType` does not yet produce NaN or
+Inf types. NaN/Inf literal inference is tracked as a follow-up.
 
 Key files: internal/infer/infer.go, internal/infer/diagnostics.go
 
@@ -64,18 +73,28 @@ Key files: internal/infer/infer.go, internal/infer/diagnostics.go
 
 ### Uninitialized variables
 
-Change `CollectDeclarations` so that `my $x;` (no initializer) is typed
-as `Undef` instead of the sigil type (Scalar). The existing assignment
-narrowing already upgrades the type on first assignment:
+Change `collectVariableDeclaration` in pass 1 so that `my $x;` (no
+initializer) is typed as `Undef` instead of the sigil type (Scalar).
+Distinguish by checking whether the `variable_declaration` node's parent
+is an `assignment_expression` — if so, keep Scalar (pass 2 will narrow
+it); if not, set Undef. The existing assignment narrowing already upgrades
+the type on first assignment:
 
-    my $x;         # type: Undef
-    $x = 42;       # type: Int (narrowed by assignment)
+    my $x;         # type: Undef (parent is NOT assignment_expression)
+    my $y = 42;    # type: Scalar in pass 1, narrowed to Int in pass 2
+    $x = 42;       # type: Int (narrowed by assignment in pass 2)
 
 ### Undef in operators
 
 When a binary operator or builtin receives an `Undef`-typed operand where
-a defined value is expected, emit a diagnostic. Include a `defined()` guard
-suggestion via the existing `SuggestGuard` function.
+a defined value is expected, emit a `coercion-mismatch` diagnostic at
+severity Error (same as other type mismatches — Perl warns at runtime,
+PSC treats it as an error). Include a `defined()` guard suggestion via
+the existing `SuggestGuard` function.
+
+Operands with Unknown type (no type information available) are silently
+skipped — no diagnostic. This avoids false positives when type info is
+missing (e.g., from unresolvable cross-file calls).
 
 ### Guard narrowing
 
@@ -95,12 +114,22 @@ to produce the function's return type.
 
 Rules:
 - `return 42` → Int
-- `return @arr` → List (not Array — returns a list of values)
-- `return %hash` → List (not Hash — returns a list of key-value pairs)
+- `return @arr` → List (not Array — returns a list of values in list context)
+- `return %hash` → List (not Hash — returns key-value pairs in list context)
 - `return` (bare) → Undef in scalar context
 - Multiple returns → union of all return types
 
+The return type collector must coerce Array and Hash annotations to List,
+since the inference walker annotates `@arr` as Array but returning it
+produces a list. This coercion happens in the return type collector, not
+in the general annotation system.
+
 Store the inferred return type in the SymbolTable entry for the sub.
+
+Known limitation: cross-file resolution is single-hop. When AnalyzeFile
+processes a dependency, it passes nil for the ProjectIndex, so the
+dependency's own imports are not resolved. Multi-hop resolution is a
+follow-up.
 
 ### Cross-file call resolution
 
@@ -140,8 +169,16 @@ by examining how each variable is used:
 - Used in string concatenation → Str
 - Used in `defined()` check → may be Undef
 
-Collect all usage constraints and intersect to produce the inferred
-parameter type. Store in the SymbolTable entry for the sub.
+Collect all usage constraints and narrow progressively: start with Any
+(no information) and for each usage, intersect with the constraint type
+to produce a more specific type. If `$x` is used in `$x + 1` (Num) and
+`push(@arr, $x)` (Any for arg 1), the result is Num (Any & Num = Num,
+since Num is more specific). If constraints conflict (e.g., used as both
+Array and Hash), the result is the intersection — potentially None
+(unreachable, indicating a type error in the function).
+
+Store inferred parameter types as `[]types.Type` (positional, parallel
+to the parameter names list) in the SymbolTable entry for the sub.
 
 For this issue, parameter types are stored but NOT used for call-site
 validation. Call-site checking is a follow-up.
