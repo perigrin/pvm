@@ -4,6 +4,7 @@
 package infer
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -177,7 +178,7 @@ func inferNodeType(
 		"equality_expression",
 		"relational_expression",
 		"lowprec_logical_expression":
-		return inferBinaryExprType(node, source)
+		return inferBinaryExprType(node, source, annotations, diags)
 
 	// --- Unary expressions ---
 
@@ -239,8 +240,10 @@ func inferNumberType(text string) types.Type {
 }
 
 // inferBinaryExprType finds the operator among the direct children of a
-// binary-family expression node and looks it up in the type signatures table.
-func inferBinaryExprType(node *parser.Node, source []byte) types.Type {
+// binary-family expression node, looks it up in the type signatures table,
+// checks whether operand types are compatible with the operator's signature,
+// and emits coercion-mismatch diagnostics for mismatches.
+func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint32]types.Type, diags *[]Diagnostic) types.Type {
 	op := findOperatorText(node, source)
 	if op == "" {
 		return types.Unknown
@@ -249,7 +252,77 @@ func inferBinaryExprType(node *parser.Node, source []byte) types.Type {
 	if !ok {
 		return types.Unknown
 	}
+
+	// Collect the two named children (left and right operands).
+	var left, right *parser.Node
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if left == nil {
+			left = child
+		} else {
+			right = child
+			break
+		}
+	}
+
+	// Check operand types against the signature.
+	checkBinaryOperand(left, source, annotations, diags, sig.Left, op, "left")
+	checkBinaryOperand(right, source, annotations, diags, sig.Right, op, "right")
+
 	return sig.Result
+}
+
+// checkBinaryOperand verifies that an operand's inferred type satisfies the
+// operator's expected type. Emits a coercion-mismatch diagnostic on failure.
+// Skips Unknown operands to avoid false positives.
+//
+// Comparison operators (==, !=, <, >, <=, >=, <=>) get Warning severity
+// because the code executes via coercion but the result is likely unintended.
+// All other operators get Error severity.
+func checkBinaryOperand(
+	operand *parser.Node,
+	source []byte,
+	annotations map[uint32]types.Type,
+	diags *[]Diagnostic,
+	expected types.Type,
+	op string,
+	side string,
+) {
+	if operand == nil {
+		return
+	}
+
+	actual, ok := annotations[operand.StartByte()]
+	if !ok || actual == types.Unknown {
+		return
+	}
+
+	// Skip logical and assignment operators — they accept any type.
+	if expected == types.Any {
+		return
+	}
+
+	if types.TypeSatisfies(actual, expected) {
+		return
+	}
+
+	// Determine severity: comparison operators get Warning, others get Error.
+	severity := Error
+	switch op {
+	case "==", "!=", "<", ">", "<=", ">=", "<=>":
+		severity = Warning
+	}
+
+	*diags = append(*diags, Diagnostic{
+		StartByte: operand.StartByte(),
+		EndByte:   operand.EndByte(),
+		Severity:  severity,
+		Code:      CodeCoercionMismatch,
+		Message:   fmt.Sprintf("%s operand of %q: expected %s, got %s", side, op, expected, actual),
+	})
 }
 
 // inferUnaryExprType finds the operator among the direct children of a

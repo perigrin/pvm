@@ -240,3 +240,17 @@ func TestPSCCheckDirectoryScan(t *testing.T) {
 	assert.Contains(t, stderr, "arity-mismatch",
 		"stderr should contain arity-mismatch from diagnostics.pl when scanning the directory")
 }
+
+// TestPSCCheckCoercionDiagnostics verifies that psc check detects value-level
+// type coercion issues: string in arithmetic, == on strings, ref in concat.
+func TestPSCCheckCoercionDiagnostics(t *testing.T) {
+	coercionFile := filepath.Join(testdataDir(t), "coercion.pl")
+	_, statErr := os.Stat(coercionFile)
+	require.NoError(t, statErr, "testdata/check/coercion.pl must exist")
+
+	_, stderr, err := runPSCCheck(t, coercionFile)
+	assert.Error(t, err, "psc check on coercion.pl should return a non-zero exit")
+
+	assert.Contains(t, stderr, "coercion-mismatch",
+		"stderr should contain coercion-mismatch diagnostic codes")
+}

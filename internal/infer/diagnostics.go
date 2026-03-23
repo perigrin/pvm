@@ -48,9 +48,10 @@ type Diagnostic struct {
 
 // Machine-readable diagnostic code constants.
 const (
-	CodeArityMismatch  = "arity-mismatch"
-	CodeTypeMismatch   = "type-mismatch"
-	CodeUnknownBuiltin = "unknown-builtin"
+	CodeArityMismatch    = "arity-mismatch"
+	CodeTypeMismatch     = "type-mismatch"
+	CodeCoercionMismatch = "coercion-mismatch"
+	CodeUnknownBuiltin   = "unknown-builtin"
 )
 
 // FormatDiagnostic converts byte offsets to 1-based line:col positions using

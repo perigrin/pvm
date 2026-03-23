@@ -1754,3 +1754,66 @@ func TestTypeMismatchDiagnosticNoSuggestionWhenClean(t *testing.T) {
 			"clean code should have no type-mismatch diagnostics")
 	}
 }
+
+// --- Coercion-mismatch diagnostic tests ---
+
+// TestCoercionListInArithmetic verifies that a List value (from keys()) used
+// as an operand in arithmetic context produces a coercion-mismatch diagnostic.
+// Note: string literal tests are deferred because the gotreesitter Perl grammar
+// has a known parsing issue with quoted strings that corrupts the CST.
+func TestCoercionListInArithmetic(t *testing.T) {
+	// keys(%hash) returns List; using it in addition is a type error.
+	src := []byte("my %h;\nmy $y = keys(%h) + 1;\n")
+	_, diags := analyzeSource(t, src)
+
+	var found bool
+	for _, d := range diags {
+		if d.Code == infer.CodeCoercionMismatch {
+			found = true
+			assert.Equal(t, infer.Error, d.Severity, "List in arithmetic should be Error severity")
+			break
+		}
+	}
+	assert.True(t, found, "should find a coercion-mismatch for List in arithmetic (keys(%h) + 1)")
+}
+
+// TestCoercionArrayInConcat verifies that an Array used in string concatenation
+// produces a coercion-mismatch diagnostic.
+func TestCoercionArrayInConcat(t *testing.T) {
+	// @arr in string concat is a type error (Array does not satisfy Str).
+	src := []byte("my @arr;\nmy $s = @arr . 1;\n")
+	_, diags := analyzeSource(t, src)
+
+	var found bool
+	for _, d := range diags {
+		if d.Code == infer.CodeCoercionMismatch {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "should find a coercion-mismatch for Array in string concatenation")
+}
+
+// TestNoCoercionIntInArithmetic verifies that Int in arithmetic produces
+// no coercion-mismatch (Int <: Num, so this is type-safe).
+func TestNoCoercionIntInArithmetic(t *testing.T) {
+	src := []byte("my $x = 42;\nmy $y = $x + 1;\n")
+	_, diags := analyzeSource(t, src)
+
+	for _, d := range diags {
+		assert.NotEqual(t, infer.CodeCoercionMismatch, d.Code,
+			"Int in arithmetic should produce no coercion-mismatch")
+	}
+}
+
+// TestNoCoercionIntWithEq verifies that eq on Int operands produces no
+// coercion-mismatch (Int <: Str, so eq on integers is type-safe).
+func TestNoCoercionIntWithEq(t *testing.T) {
+	src := []byte("my $x = 42;\nmy $y = 99;\nmy $c = ($x eq $y);\n")
+	_, diags := analyzeSource(t, src)
+
+	for _, d := range diags {
+		assert.NotEqual(t, infer.CodeCoercionMismatch, d.Code,
+			"eq on Int operands should produce no coercion-mismatch (Int <: Str)")
+	}
+}
