@@ -138,6 +138,9 @@ func TestGetCurrentBinaryPath(t *testing.T) {
 }
 
 func TestDetectInstallationMethodBasic(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix installation method detection not applicable on Windows")
+	}
 	tests := []struct {
 		path     string
 		expected InstallationMethod

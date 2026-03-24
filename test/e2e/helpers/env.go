@@ -210,21 +210,23 @@ func getSharedPVMBinary() (string, error) {
 		return "", fmt.Errorf("failed to find project root: %w", err)
 	}
 
-	// Build the binary using make
-	makeCmd := exec.Command("make", "pvm")
-	makeCmd.Dir = projectRoot
+	// Build the binary using go build directly (works on all platforms
+	// including Windows where make may not be available).
+	binaryName := pvmBinaryName()
+	buildCmd := exec.Command("go", "build", "-o", binaryName, "./cmd/pvm/")
+	buildCmd.Dir = projectRoot
 
 	var stdout, stderr bytes.Buffer
-	makeCmd.Stdout = &stdout
-	makeCmd.Stderr = &stderr
+	buildCmd.Stdout = &stdout
+	buildCmd.Stderr = &stderr
 
-	if err := makeCmd.Run(); err != nil {
-		return "", fmt.Errorf("failed to build PVM binary with make: %w\nOutput: %s\nError: %s",
+	if err := buildCmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to build PVM binary: %w\nOutput: %s\nError: %s",
 			err, stdout.String(), stderr.String())
 	}
 
-	// Set the shared binary path (built to project root by Makefile)
-	sharedBinaryPath = filepath.Join(projectRoot, pvmBinaryName())
+	// Set the shared binary path (built to project root)
+	sharedBinaryPath = filepath.Join(projectRoot, binaryName)
 
 	// Verify the binary was built
 	if _, err := os.Stat(sharedBinaryPath); err != nil {

@@ -10,6 +10,9 @@ import (
 )
 
 func TestDetectInstallationMethodPaths(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix package manager path detection not applicable on Windows")
+	}
 	tests := []struct {
 		name           string
 		binaryPath     string
@@ -152,6 +155,9 @@ func TestDetectRealInstallationMethod(t *testing.T) {
 }
 
 func TestPackageManagerIntegration(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix package manager integration not applicable on Windows")
+	}
 	// Test that we can detect and delegate to package managers
 	testCases := []struct {
 		name          string
@@ -202,6 +208,9 @@ func TestPackageManagerIntegration(t *testing.T) {
 }
 
 func TestValidatePackageManagerPaths(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix package manager path validation not applicable on Windows")
+	}
 	// Create temporary test directories to simulate package manager paths
 	tempDir := t.TempDir()
 
