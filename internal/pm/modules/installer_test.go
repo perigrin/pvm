@@ -16,6 +16,17 @@ import (
 	"tamarou.com/pvm/internal/xdg"
 )
 
+// testPerlPath returns a path to a Perl executable for testing.
+// It detects the system Perl using the same logic as production code.
+func testPerlPath(t *testing.T) string {
+	t.Helper()
+	systemPerl, err := perl.DetectSystemPerl()
+	if err != nil {
+		t.Skipf("No system Perl available: %v", err)
+	}
+	return systemPerl.Path
+}
+
 // Test helper functions for module installer testing
 
 // createMockProvider creates a mock CPAN provider for testing
@@ -206,7 +217,7 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 			// Create test options
 			options := &ModuleInstallOptions{
 				ModuleName:     "Test::Module",
-				PerlPath:       "/usr/bin/perl", // Use system perl for consistent testing
+				PerlPath:       testPerlPath(t),
 				ProjectContext: tt.projectContext,
 				ForceGlobal:    tt.forceGlobal,
 			}
@@ -273,9 +284,12 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 
 // TestSetupIsolationEnvironment_PERL5LIB_Preservation tests that existing PERL5LIB is preserved
 func TestSetupIsolationEnvironment_PERL5LIB_Preservation(t *testing.T) {
-	// Set up existing PERL5LIB
+	// Set up existing PERL5LIB using platform-appropriate separator
 	originalPERL5LIB := os.Getenv("PERL5LIB")
-	testPERL5LIB := "/existing/perl/lib:/another/lib"
+	sep := string(os.PathListSeparator)
+	existingPath1 := filepath.Join(os.TempDir(), "existing-perl-lib")
+	existingPath2 := filepath.Join(os.TempDir(), "another-lib")
+	testPERL5LIB := existingPath1 + sep + existingPath2
 	os.Setenv("PERL5LIB", testPERL5LIB)
 	defer func() {
 		if originalPERL5LIB != "" {
@@ -287,7 +301,7 @@ func TestSetupIsolationEnvironment_PERL5LIB_Preservation(t *testing.T) {
 
 	options := &ModuleInstallOptions{
 		ModuleName: "Test::Module",
-		PerlPath:   "/usr/bin/perl", // Use system perl for consistent testing
+		PerlPath:   testPerlPath(t),
 	}
 
 	_, envVars, err := setupIsolationEnvironment(options)
@@ -296,11 +310,11 @@ func TestSetupIsolationEnvironment_PERL5LIB_Preservation(t *testing.T) {
 	}
 
 	perl5lib := envVars["PERL5LIB"]
-	if !containsPath(perl5lib, "/existing/perl/lib") {
-		t.Errorf("Expected PERL5LIB to preserve existing path /existing/perl/lib, got %s", perl5lib)
+	if !containsPath(perl5lib, existingPath1) {
+		t.Errorf("Expected PERL5LIB to preserve existing path %s, got %s", existingPath1, perl5lib)
 	}
-	if !containsPath(perl5lib, "/another/lib") {
-		t.Errorf("Expected PERL5LIB to preserve existing path /another/lib, got %s", perl5lib)
+	if !containsPath(perl5lib, existingPath2) {
+		t.Errorf("Expected PERL5LIB to preserve existing path %s, got %s", existingPath2, perl5lib)
 	}
 }
 

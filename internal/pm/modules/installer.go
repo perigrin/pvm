@@ -269,6 +269,8 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 	envVars["PERL_MM_OPT"] = fmt.Sprintf("INSTALL_BASE=%s", installDir)
 
 	// Set up PERL5LIB with project context awareness
+	// Use os.PathListSeparator for cross-platform path list joining
+	sep := string(os.PathListSeparator)
 	perl5lib := libDir
 
 	// If we're in a project context, ensure project lib is also in the path
@@ -276,19 +278,19 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 		projectLib := filepath.Join(options.ProjectContext.RootDir, "lib", "perl5")
 		if projectLib != libDir {
 			// Add both the install lib and project lib to PERL5LIB
-			perl5lib = fmt.Sprintf("%s:%s", libDir, projectLib)
+			perl5lib = libDir + sep + projectLib
 		}
 
 		// Also include the project's root lib directory for project modules
 		projectRootLib := filepath.Join(options.ProjectContext.RootDir, "lib")
 		if projectRootLib != libDir && projectRootLib != projectLib {
-			perl5lib = fmt.Sprintf("%s:%s", perl5lib, projectRootLib)
+			perl5lib = perl5lib + sep + projectRootLib
 		}
 	}
 
 	// Check if there's an existing PERL5LIB and preserve it
 	if existingPerl5Lib := os.Getenv("PERL5LIB"); existingPerl5Lib != "" {
-		perl5lib = fmt.Sprintf("%s:%s", perl5lib, existingPerl5Lib)
+		perl5lib = perl5lib + sep + existingPerl5Lib
 	}
 
 	envVars["PERL5LIB"] = perl5lib
@@ -296,7 +298,7 @@ func setupIsolationEnvironment(options *ModuleInstallOptions) (string, map[strin
 	// Update PATH to include bin directory
 	currentPath := os.Getenv("PATH")
 	if currentPath != "" {
-		envVars["PATH"] = fmt.Sprintf("%s:%s", binDir, currentPath)
+		envVars["PATH"] = binDir + sep + currentPath
 	} else {
 		envVars["PATH"] = binDir
 	}
@@ -418,8 +420,11 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 	}
 
 	// Create timestamp-based build directory for this module
+	// Sanitize module name for filesystem use: Perl module names contain "::"
+	// which is illegal in Windows paths
+	sanitizedName := strings.ReplaceAll(options.ModuleName, "::", "-")
 	timestamp := time.Now().Format("20060102-150405")
-	buildDir := filepath.Join(modulesBuildDir, fmt.Sprintf("%s-%s", options.ModuleName, timestamp))
+	buildDir := filepath.Join(modulesBuildDir, fmt.Sprintf("%s-%s", sanitizedName, timestamp))
 	if err := os.MkdirAll(buildDir, 0755); err != nil {
 		return result, errors.NewSystemError("004",
 			"Failed to create module build directory", err)

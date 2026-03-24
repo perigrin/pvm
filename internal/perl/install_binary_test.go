@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -196,7 +197,9 @@ func TestVerifyBinaryInstallation(t *testing.T) {
 				perlPath := filepath.Join(binDir, "perl")
 				return os.WriteFile(perlPath, []byte("#!/usr/bin/perl\n"), 0644) // Not executable
 			},
-			expectError: true,
+			// Windows does not have Unix-style executable permission bits,
+			// so the production code skips the executable check on Windows
+			expectError: runtime.GOOS != "windows",
 		},
 	}
 
@@ -228,7 +231,7 @@ func TestVerifyBinaryInstallation(t *testing.T) {
 
 func TestSetBinaryPermissions(t *testing.T) {
 	// Skip on Windows as it doesn't have Unix permissions
-	if os.Getenv("GOOS") == "windows" {
+	if runtime.GOOS == "windows" {
 		t.Skip("Skipping permission test on Windows")
 	}
 

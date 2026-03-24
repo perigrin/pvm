@@ -280,9 +280,10 @@ func TestStrategyMetrics(t *testing.T) {
 	assert.True(t, result.Success)
 
 	// Check metrics
-	assert.True(t, result.Metrics.EndTime.After(result.Metrics.StartTime))
-	assert.True(t, result.Metrics.EndTime.Before(end) || result.Metrics.EndTime.Equal(end))
-	assert.True(t, result.Metrics.StartTime.After(start) || result.Metrics.StartTime.Equal(start))
+	// Allow equal times: Windows timer resolution is ~15ms, fast operations may start and end in same tick
+	assert.True(t, !result.Metrics.EndTime.Before(result.Metrics.StartTime))
+	assert.True(t, !result.Metrics.EndTime.After(end))
+	assert.True(t, !result.Metrics.StartTime.Before(start))
 	assert.Equal(t, 1, result.Metrics.ConflictsProcessed)
 	assert.Equal(t, 1, result.Metrics.ConflictsResolved)
 	assert.Greater(t, result.Metrics.VersionsEvaluated, 0)

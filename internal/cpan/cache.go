@@ -233,7 +233,9 @@ func (c *Cache) Get(key string, result interface{}) bool {
 	}
 
 	// Check if the cache entry has expired
-	if time.Now().After(entry.Metadata.Expires) {
+	// Use !Before instead of After so entries expiring at exactly now are
+	// treated as expired (matters on Windows with coarse timer resolution)
+	if !time.Now().Before(entry.Metadata.Expires) {
 		// Cache entry has expired
 		return false
 	}
@@ -391,7 +393,7 @@ func (c *Cache) Cleanup() error {
 		}
 
 		// Check if the cache entry has expired
-		if time.Now().After(entry.Metadata.Expires) {
+		if !time.Now().Before(entry.Metadata.Expires) {
 			// Cache entry has expired, delete it
 			if err := os.Remove(filepath.Join(c.cacheDir, file.Name())); err != nil {
 				// If there's an error deleting the cache file, log it and continue

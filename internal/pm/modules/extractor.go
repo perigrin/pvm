@@ -271,10 +271,16 @@ func extractModuleArchive(archivePath, targetDir string, ctx context.Context) (*
 
 // sanitizePath normalizes a file path from an archive
 func sanitizePath(path string) string {
+	// Reject Unix-style absolute paths before converting separators,
+	// since filepath.IsAbs on Windows won't detect "/etc/passwd" as absolute
+	if strings.HasPrefix(path, "/") {
+		return ""
+	}
+
 	// Convert to platform-specific path separator
 	path = filepath.FromSlash(path)
 
-	// Reject absolute paths for security
+	// Reject absolute paths for security (catches Windows-style C:\ and UNC \\)
 	if filepath.IsAbs(path) {
 		return ""
 	}
@@ -317,8 +323,9 @@ func selectBestRootDirectory(targetDir string, seenDirs map[string]bool, allEntr
 		}
 
 		// Check if this directory contains build system files
+		// Use forward slashes for lookup since tar archive entries use forward slashes
 		for i, buildFile := range buildFiles {
-			buildPath := filepath.Join(dirName, buildFile)
+			buildPath := dirName + "/" + buildFile
 			if _, exists := allEntries[buildPath]; exists {
 				candidate.HasBuildFile = true
 				candidate.BuildFile = buildFile

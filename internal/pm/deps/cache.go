@@ -66,7 +66,7 @@ func (c *DependencyCache) Get(moduleName string, optionsKey string) (*Dependency
 
 	// Check if cache file exists
 	info, err := os.Stat(cacheFile)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return nil, false
 	}
 
