@@ -1,4 +1,4 @@
-# ABOUTME: CI pipeline testing Linux and macOS
+# ABOUTME: CI pipeline testing Linux, macOS, and Windows
 # ABOUTME: Pure Go build — no CGO, no tree-sitter CLI, no Node.js required
 
 name: CI
@@ -21,6 +21,8 @@ jobs:
             runner: ubuntu-latest
           - os: macOS
             runner: macos-latest
+          - os: Windows
+            runner: windows-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
