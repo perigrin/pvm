@@ -213,6 +213,10 @@ func (d *Downloader) attemptDownload(opts *DownloadOptions, startTime time.Time)
 		opts.ProgressCallback(totalSize, transferred, true)
 	}
 
+	// Close the file before checksum verification so the file handle is
+	// released. On Windows, open file handles prevent deletion.
+	outFile.Close()
+
 	// Calculate checksum if expected
 	var checksum string
 	if opts.ExpectedChecksum != "" {

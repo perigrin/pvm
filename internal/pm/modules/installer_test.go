@@ -16,6 +16,17 @@ import (
 	"tamarou.com/pvm/internal/xdg"
 )
 
+// testPerlPath returns a path to a Perl executable for testing.
+// It detects the system Perl using the same logic as production code.
+func testPerlPath(t *testing.T) string {
+	t.Helper()
+	systemPerl, err := perl.DetectSystemPerl()
+	if err != nil {
+		t.Skipf("No system Perl available: %v", err)
+	}
+	return systemPerl.Path
+}
+
 // Test helper functions for module installer testing
 
 // createMockProvider creates a mock CPAN provider for testing
@@ -206,7 +217,7 @@ func TestSetupIsolationEnvironment_ProjectContext(t *testing.T) {
 			// Create test options
 			options := &ModuleInstallOptions{
 				ModuleName:     "Test::Module",
-				PerlPath:       "/usr/bin/perl", // Use system perl for consistent testing
+				PerlPath:       testPerlPath(t),
 				ProjectContext: tt.projectContext,
 				ForceGlobal:    tt.forceGlobal,
 			}
@@ -287,7 +298,7 @@ func TestSetupIsolationEnvironment_PERL5LIB_Preservation(t *testing.T) {
 
 	options := &ModuleInstallOptions{
 		ModuleName: "Test::Module",
-		PerlPath:   "/usr/bin/perl", // Use system perl for consistent testing
+		PerlPath:   testPerlPath(t),
 	}
 
 	_, envVars, err := setupIsolationEnvironment(options)

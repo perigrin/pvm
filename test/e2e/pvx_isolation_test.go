@@ -206,7 +206,8 @@ print "Script completed successfully\n";
 
 		// Extract the isolation directory path from the output
 		var isolationDir string
-		lines := strings.Split(result, "\n")
+		// Normalize CRLF for cross-platform compatibility (Windows outputs \r\n)
+		lines := strings.Split(strings.ReplaceAll(result, "\r\n", "\n"), "\n")
 		for _, line := range lines {
 			switch {
 			case strings.HasPrefix(line, "Created isolation directory: "):
@@ -248,7 +249,8 @@ print "Script completed successfully\n";
 
 		// Extract the isolation directory path from the output
 		var isolationDir string
-		lines := strings.Split(result, "\n")
+		// Normalize CRLF for cross-platform compatibility (Windows outputs \r\n)
+		lines := strings.Split(strings.ReplaceAll(result, "\r\n", "\n"), "\n")
 		for _, line := range lines {
 			switch {
 			case strings.HasPrefix(line, "Created isolation directory: "):

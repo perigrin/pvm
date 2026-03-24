@@ -484,6 +484,7 @@ echo "PATH_TEST_COMPLETED"
 
 // TestShellIntegrationDoctorDetection tests that 'pvm self doctor' correctly detects shell integration
 func TestShellIntegrationDoctorDetection(t *testing.T) {
+	helpers.SkipIfNotUnix(t)
 	env := helpers.NewTestEnv(t)
 	defer env.Cleanup()
 

@@ -103,8 +103,11 @@ func TestDependencyChecker(t *testing.T) {
 		t.Error("No dependencies detected")
 	}
 
-	// Check that basic tools are detected
+	// Check that basic tools are detected (platform-specific)
 	basicTools := []string{"make", "tar", "gzip"}
+	if runtime.GOOS == "windows" {
+		basicTools = []string{"nmake", "cl"}
+	}
 	for _, tool := range basicTools {
 		found := false
 		for _, dep := range info.Required {

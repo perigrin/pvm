@@ -55,7 +55,8 @@ func TestPVXExecuteFeatures(t *testing.T) {
 			[]string{"pvx", "--execute-features", "state $x = 0; say ++$x; say ++$x"},
 			"PVX -E flag with state variables")
 
-		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		// Normalize CRLF to LF for cross-platform compatibility (Windows outputs \r\n)
+		lines := strings.Split(strings.TrimSpace(strings.ReplaceAll(stdout, "\r\n", "\n")), "\n")
 		if len(lines) != 2 {
 			t.Fatalf("Expected 2 lines of output, got %d: %v", len(lines), lines)
 		}

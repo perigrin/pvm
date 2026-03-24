@@ -6,6 +6,7 @@ package perl
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,8 +90,12 @@ func TestResolveExplicitVersion_SystemIdentifier(t *testing.T) {
 		err := os.MkdirAll(binDir, 0755)
 		assert.NoError(t, err)
 
-		// Create a fake perl binary
-		perlPath := filepath.Join(binDir, "perl")
+		// Create a fake perl binary (use .exe on Windows)
+		perlName := "perl"
+		if runtime.GOOS == "windows" {
+			perlName = "perl.exe"
+		}
+		perlPath := filepath.Join(binDir, perlName)
 		err = os.WriteFile(perlPath, []byte("#!/bin/sh\necho fake perl"), 0755)
 		assert.NoError(t, err)
 
@@ -134,8 +139,12 @@ func TestResolveExplicitVersion_SystemIdentifier(t *testing.T) {
 		err := os.MkdirAll(binDir, 0755)
 		assert.NoError(t, err)
 
-		// Create a fake perl binary
-		perlPath := filepath.Join(binDir, "perl")
+		// Create a fake perl binary (use .exe on Windows)
+		perlName := "perl"
+		if runtime.GOOS == "windows" {
+			perlName = "perl.exe"
+		}
+		perlPath := filepath.Join(binDir, perlName)
 		err = os.WriteFile(perlPath, []byte("#!/bin/sh\necho fake perl"), 0755)
 		assert.NoError(t, err)
 

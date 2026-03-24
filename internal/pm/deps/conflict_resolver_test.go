@@ -390,9 +390,10 @@ func TestConflictResolver_PerformanceMetrics(t *testing.T) {
 	assert.True(t, resResult.Success)
 
 	// Check that metrics are populated
-	assert.True(t, resResult.Metrics.EndTime.After(resResult.Metrics.StartTime))
-	assert.True(t, resResult.Metrics.EndTime.Before(end) || resResult.Metrics.EndTime.Equal(end))
-	assert.True(t, resResult.Metrics.StartTime.After(start) || resResult.Metrics.StartTime.Equal(start))
+	// Allow equal times: Windows timer resolution is ~15ms, fast operations may start and end in same tick
+	assert.True(t, !resResult.Metrics.EndTime.Before(resResult.Metrics.StartTime))
+	assert.True(t, !resResult.Metrics.EndTime.After(end))
+	assert.True(t, !resResult.Metrics.StartTime.Before(start))
 	assert.Equal(t, 1, resResult.Metrics.ConflictsFound)
 	assert.Equal(t, 1, resResult.Metrics.ConflictsResolved)
 }

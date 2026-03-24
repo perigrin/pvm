@@ -297,5 +297,7 @@ func (cm *CacheManager) isCacheFileExpired(filePath string) (bool, error) {
 		return false, err
 	}
 
-	return time.Now().After(entry.Metadata.Expires), nil
+	// Use !Before instead of After so that entries expiring at exactly now
+	// are considered expired (matters on Windows where timer resolution is coarse)
+	return !time.Now().Before(entry.Metadata.Expires), nil
 }

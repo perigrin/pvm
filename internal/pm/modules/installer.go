@@ -418,8 +418,11 @@ func InstallModule(options *ModuleInstallOptions) (*ModuleInstallResult, error) 
 	}
 
 	// Create timestamp-based build directory for this module
+	// Sanitize module name for filesystem use: Perl module names contain "::"
+	// which is illegal in Windows paths
+	sanitizedName := strings.ReplaceAll(options.ModuleName, "::", "-")
 	timestamp := time.Now().Format("20060102-150405")
-	buildDir := filepath.Join(modulesBuildDir, fmt.Sprintf("%s-%s", options.ModuleName, timestamp))
+	buildDir := filepath.Join(modulesBuildDir, fmt.Sprintf("%s-%s", sanitizedName, timestamp))
 	if err := os.MkdirAll(buildDir, 0755); err != nil {
 		return result, errors.NewSystemError("004",
 			"Failed to create module build directory", err)
