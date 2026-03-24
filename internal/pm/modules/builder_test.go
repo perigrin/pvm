@@ -5,6 +5,7 @@ package modules
 
 import (
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -46,5 +47,47 @@ func TestDetectMakeCommand_Fallback(t *testing.T) {
 
 	if cmd != "make" {
 		t.Errorf("detectMakeCommand should fall back to 'make', got %q", cmd)
+	}
+}
+
+// TestBuildPLCommand verifies that buildPLCommand returns the correct command
+// for the current platform with no extra arguments.
+func TestBuildPLCommand(t *testing.T) {
+	cmd := buildPLCommand("/usr/bin/perl")
+	if runtime.GOOS == "windows" {
+		if len(cmd) != 2 || cmd[0] != "/usr/bin/perl" || cmd[1] != "Build" {
+			t.Errorf("Expected [/usr/bin/perl Build], got %v", cmd)
+		}
+	} else {
+		if len(cmd) != 1 || cmd[0] != "./Build" {
+			t.Errorf("Expected [./Build], got %v", cmd)
+		}
+	}
+}
+
+// TestBuildPLCommand_WithArgs verifies that buildPLCommand correctly threads
+// extra arguments after the base command on both platforms.
+func TestBuildPLCommand_WithArgs(t *testing.T) {
+	cmd := buildPLCommand("/usr/bin/perl", "install", "--verbose")
+	if runtime.GOOS == "windows" {
+		expected := []string{"/usr/bin/perl", "Build", "install", "--verbose"}
+		if len(cmd) != 4 {
+			t.Fatalf("Expected 4 elements, got %d: %v", len(cmd), cmd)
+		}
+		for i, v := range expected {
+			if cmd[i] != v {
+				t.Errorf("cmd[%d] = %q, want %q", i, cmd[i], v)
+			}
+		}
+	} else {
+		expected := []string{"./Build", "install", "--verbose"}
+		if len(cmd) != 3 {
+			t.Fatalf("Expected 3 elements, got %d: %v", len(cmd), cmd)
+		}
+		for i, v := range expected {
+			if cmd[i] != v {
+				t.Errorf("cmd[%d] = %q, want %q", i, cmd[i], v)
+			}
+		}
 	}
 }

@@ -281,6 +281,12 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 	log.Debugf("Detected build system: %s", buildSystem)
 	updateStage(StagePrepare, fmt.Sprintf("Detected build system: %s", buildSystem), 0.5)
 
+	// Detect the correct make command for this Perl installation
+	makeCmd, err := detectMakeCommand(options.PerlPath)
+	if err != nil {
+		log.Warnf("Could not detect make command, falling back to 'make': %v", err)
+	}
+
 	// Create build script based on the detected build system
 	updateStage(StageCreateBuildScript, "Creating build script", 0.0)
 
@@ -314,7 +320,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 			}
 
 			// Now the ./Build script should exist
-			installCmd = []string{"./Build", "install"}
+			installCmd = buildPLCommand(options.PerlPath, "install")
 			if options.Force {
 				installCmd = append(installCmd, "--force")
 			}
@@ -349,7 +355,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 			}
 
 			// Now make should work
-			installCmd = []string{"make", "install"}
+			installCmd = []string{makeCmd, "install"}
 			if options.Force {
 				installCmd = append(installCmd, "FORCE=1")
 			}
@@ -360,7 +366,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 			updateStage(StageCreateBuildScript, "Using existing Makefile", 0.5)
 
 			// Use make directly
-			installCmd = []string{"make", "install"}
+			installCmd = []string{makeCmd, "install"}
 			if options.Force {
 				installCmd = append(installCmd, "FORCE=1")
 			}
@@ -381,7 +387,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 	switch buildSystem {
 	case "Build.PL":
 		// Build with Module::Build
-		cmd := []string{"./Build"}
+		cmd := buildPLCommand(options.PerlPath)
 		if options.Verbose {
 			cmd = append(cmd, "--verbose")
 		}
@@ -400,7 +406,7 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 
 	case "Makefile.PL", "Makefile":
 		// Build with make
-		cmd := []string{"make"}
+		cmd := []string{makeCmd}
 
 		// Determine number of parallel jobs (for make -j)
 		jobs := runtime.NumCPU()
@@ -428,12 +434,12 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 		var testCmd []string
 		switch buildSystem {
 		case "Build.PL":
-			testCmd = []string{"./Build", "test"}
+			testCmd = buildPLCommand(options.PerlPath, "test")
 			if options.Verbose {
 				testCmd = append(testCmd, "--verbose")
 			}
 		case "Makefile.PL", "Makefile":
-			testCmd = []string{"make", "test"}
+			testCmd = []string{makeCmd, "test"}
 		}
 
 		// Add any user-specified test arguments
@@ -528,6 +534,16 @@ func detectMakeCommand(perlPath string) (string, error) {
 		return "make", nil
 	}
 	return cmd, nil
+}
+
+// buildPLCommand returns the command to run a Module::Build script.
+// On Unix, ./Build is directly executable via shebang.
+// On Windows, it must be invoked through the Perl interpreter.
+func buildPLCommand(perlPath string, args ...string) []string {
+	if runtime.GOOS == "windows" {
+		return append([]string{perlPath, "Build"}, args...)
+	}
+	return append([]string{"./Build"}, args...)
 }
 
 // runCommandWithEnv runs a command in the specified directory with custom environment variables
