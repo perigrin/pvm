@@ -515,6 +515,21 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 	return result, nil
 }
 
+// detectMakeCommand queries the active Perl for its configured make command.
+// Perl's Config.pm knows which make to use for the current installation
+// (e.g., "make" on Unix, "gmake" on Strawberry Perl, "nmake" on MSVC Perl).
+func detectMakeCommand(perlPath string) (string, error) {
+	out, err := exec.Command(perlPath, "-MConfig", "-e", `print $Config{make}`).Output()
+	if err != nil {
+		return "make", err
+	}
+	cmd := strings.TrimSpace(string(out))
+	if cmd == "" {
+		return "make", nil
+	}
+	return cmd, nil
+}
+
 // runCommandWithEnv runs a command in the specified directory with custom environment variables
 func runCommandWithEnv(dir string, command []string, ctx context.Context, envVars map[string]string) (string, error) {
 	if len(command) == 0 {
