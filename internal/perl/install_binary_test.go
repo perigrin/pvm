@@ -184,7 +184,11 @@ func TestVerifyBinaryInstallation(t *testing.T) {
 					return err
 				}
 
-				perlPath := filepath.Join(binDir, "perl")
+				perlName := "perl"
+				if runtime.GOOS == "windows" {
+					perlName = "perl.exe"
+				}
+				perlPath := filepath.Join(binDir, perlName)
 				return os.WriteFile(perlPath, []byte("#!/usr/bin/perl\n"), 0755)
 			},
 			expectError: false,
@@ -205,7 +209,11 @@ func TestVerifyBinaryInstallation(t *testing.T) {
 					return err
 				}
 
-				perlPath := filepath.Join(binDir, "perl")
+				perlName := "perl"
+				if runtime.GOOS == "windows" {
+					perlName = "perl.exe"
+				}
+				perlPath := filepath.Join(binDir, perlName)
 				return os.WriteFile(perlPath, []byte("#!/usr/bin/perl\n"), 0644) // Not executable
 			},
 			// Windows does not have Unix-style executable permission bits,
