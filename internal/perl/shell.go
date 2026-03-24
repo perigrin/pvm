@@ -32,8 +32,8 @@ var fishTemplate string
 //go:embed shell_templates/pvm.ps1
 var powershellTemplate string
 
-// CMD template (not embedded - not currently maintained)
-var cmdTemplate = ""
+//go:embed shell_templates/pvm.cmd
+var cmdTemplate string
 
 // Shell-related error codes
 const (
@@ -810,6 +810,12 @@ func CheckShellInit(shellType ShellType) (bool, string, error) {
 		// Check for initialization in PowerShell profile
 		// This is more complex on Windows, so we'll just return a recommendation
 		return false, "Add 'pvm init | Invoke-Expression' to your PowerShell profile", nil
+
+	case ShellCmd:
+		// CMD has no persistent initialization file like .bashrc.
+		// The standard approach is the AutoRun registry key, but checking
+		// that is complex and fragile. Return a recommendation instead.
+		return false, "Run 'pvm init' in each new CMD session", nil
 
 	default:
 		return false, "", errors.NewVersionError(
