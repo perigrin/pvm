@@ -284,7 +284,10 @@ func buildAndInstallModule(options *ModuleBuildOptions) (*ModuleBuildResult, err
 	// Detect the correct make command for this Perl installation
 	makeCmd, err := detectMakeCommand(options.PerlPath)
 	if err != nil {
-		log.Warnf("Could not detect make command, falling back to 'make': %v", err)
+		if runtime.GOOS == "windows" {
+			makeCmd = "gmake"
+		}
+		log.Warnf("Could not detect make command, falling back to %q: %v", makeCmd, err)
 	}
 
 	// Create build script based on the detected build system
