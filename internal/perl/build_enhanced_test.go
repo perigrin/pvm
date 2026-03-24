@@ -106,7 +106,7 @@ func TestDependencyChecker(t *testing.T) {
 	// Check that basic tools are detected (platform-specific)
 	basicTools := []string{"make", "tar", "gzip"}
 	if runtime.GOOS == "windows" {
-		basicTools = []string{"nmake", "cl"}
+		basicTools = []string{"gmake", "gcc"}
 	}
 	for _, tool := range basicTools {
 		found := false
