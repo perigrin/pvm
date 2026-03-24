@@ -24,6 +24,13 @@ Each phase is independently useful. Phase A enables building forks. Phase B
 enables distributing them as binaries. Phase C enables a full CI/CD pipeline
 for fork maintenance.
 
+## Prerequisites
+
+Phase A requires the `git` CLI to be installed on the system. PVM uses git
+for clone, fetch, and tag listing operations on fork remotes. When git is
+not found, `pvm remote` and `pvm install <fork>` commands fail with a clear
+error message: "git is required for fork operations but was not found in PATH."
+
 ## Core Concept: PVM Remotes
 
 PVM remotes work like git remotes. Each remote is a source of Perl variants.
@@ -33,6 +40,44 @@ PVM remotes work like git remotes. Each remote is a source of Perl variants.
 - Forks are namespaced under their remote: `mycompany/myfork-5.40.2`.
 - Stock Perl has no namespace prefix, preserving backwards compatibility.
 
+`origin` is a special case: it uses MetaCPAN and binary mirrors for version
+discovery (the existing `pvm available` behavior), not git tags. All other
+remotes use git tags for discovery.
+
+## Fork Identifier Grammar
+
+A fork identifier has the form `<remote>/<forkname>-<base_version>`:
+
+```
+fork_identifier  = remote "/" fork_version
+remote           = [a-z0-9][a-z0-9-]*     (no "/" allowed in remote names)
+fork_version     = fork_name "-" base_version
+fork_name        = [a-z][a-z0-9-]*         (not "perl")
+base_version     = <standard perl version>  (parsed by ParseVersion)
+```
+
+Examples:
+- `mycompany/myfork-5.40.2` → remote=mycompany, fork=myfork, base=5.40.2
+- `otherteam/experiment-5.41.1` → remote=otherteam, fork=experiment, base=5.41.1
+
+A bare version with no `/` is always stock Perl from origin (backwards
+compatible). The remote name `origin` is reserved and cannot be used as
+a fork remote prefix in identifiers.
+
+### Parsing Strategy
+
+A new `ParseForkIdentifier` function decomposes the identifier:
+
+1. Split on first `/` → remote prefix and fork version
+2. If no `/` → stock Perl, delegate to existing `ParseVersion`
+3. Split fork version on last `-` followed by a digit → fork name and base version
+4. Validate base version with existing `ParseVersion`
+
+All registry and resolver callsites that accept user input go through
+`ParseForkIdentifier` first. The base version is what `ParseVersion`
+validates. The full identifier (including remote prefix) is never passed
+to `ParseVersion` directly.
+
 ## UX
 
 ```
@@ -41,6 +86,7 @@ pvm remote list
 pvm remote remove mycompany
 pvm available --remote mycompany
 pvm install mycompany/myfork-5.40.2
+pvm uninstall mycompany/myfork-5.40.2
 pvm use mycompany/myfork-5.40.2
 pvm versions
 ```
@@ -53,26 +99,42 @@ pvm versions
 * mycompany/myfork-5.40.2        (mycompany)
 ```
 
+### Error Cases
+
+- `pvm remote add <existing-name>` → error: "remote '<name>' already exists"
+- `pvm remote add origin` → error: "cannot add 'origin' -- it is reserved"
+- `pvm remote remove origin` → error: "cannot remove 'origin'"
+- `pvm remote add <name> <unreachable-url>` → succeeds (URL not validated
+  until first use, same as git)
+- `pvm install <remote>/<fork>` where remote is unknown → error:
+  "remote '<name>' not configured. Run 'pvm remote add <name> <url>' first."
+
 ## Remote Configuration (pvm.toml)
 
-Remotes live in pvm.toml alongside other config. The three-level config
-hierarchy (system/user/project) applies: project-level remotes override
-user-level, etc.
+Remotes nest under `[pvm]` to match the existing config structure:
 
 ```toml
-[[remotes]]
-name = "origin"
-url = "https://github.com/Perl/perl5.git"
-type = "git"
-
-[[remotes]]
+[[pvm.remotes]]
 name = "mycompany"
 url = "git@github.com:mycompany/perl-fork.git"
 type = "git"
 ```
 
 `origin` is implicit -- present even without config. Its URL can be
-overridden but not removed. All other remotes are user-configured.
+overridden but not removed.
+
+### Config Merging
+
+Remote lists are merged additively across config levels (system + user +
+project). When the same remote name appears at multiple levels, the
+higher-precedence level wins (project overrides user overrides system).
+This lets a project override a remote's URL without affecting the user's
+global config.
+
+### Remote Validation
+
+Remote names must match `[a-z0-9][a-z0-9-]*`. URLs must be non-empty.
+The `type` field defaults to `"git"` if omitted (the only type in phase A).
 
 Phase B adds `mirror_url` and `auth` fields to the remote config.
 Phase C adds `publish_url` for writable endpoints.
@@ -90,7 +152,7 @@ base_version = "5.40.2"
 license = "Artistic-2.0"
 
 [build]
-configure_flags = ["-Dusethreads", "-Duse64bitall"]
+configure_flags = ["-Duse64bitall"]
 ```
 
 ### Manifest Fields (Phase A)
@@ -101,7 +163,7 @@ configure_flags = ["-Dusethreads", "-Duse64bitall"]
 | fork.description | no | Human-readable description |
 | fork.base_version | yes | Upstream perl version this derives from |
 | fork.license | no | License identifier |
-| build.configure_flags | no | Additional Configure flags (appended to defaults) |
+| build.configure_flags | no | Additional Configure flags (appended to PVM defaults; duplicates are harmless) |
 
 ### Future Manifest Fields
 
@@ -136,37 +198,56 @@ they do not recognize.
 ### Missing Manifest
 
 If `.pvm-fork.toml` is absent, PVM treats the repo as a straight perl5.git
-clone. The fork name defaults to the remote name, and the version derives
-from the checked-out tag. Build uses default Configure flags. This supports
-quick experimentation without manifest overhead.
+clone. The fork name defaults to the remote name, the base version derives
+from the checked-out tag (parsed as a perl version). Build uses default
+Configure flags. This supports quick experimentation without manifest
+overhead.
 
 ## Version Discovery
 
 `pvm available --remote mycompany`:
 
-1. Shallow-clone or fetch the remote repo (cached in `$XDG_CACHE_HOME/pvm/remotes/`)
-2. List tags matching version patterns (e.g., `v5.40.2-1`, `myfork-5.40.2`)
-3. For each tag, read `.pvm-fork.toml` if present
+1. Clone or fetch the remote repo (see "Clone Caching" below)
+2. List git tags
+3. For tags that match a perl version pattern (e.g., `v5.40.2`, `v5.40.2-1`),
+   read `.pvm-fork.toml` from that tag
 4. Display as `mycompany/<forkname>-<base_version>`
 
-For `origin`, this is equivalent to the existing `pvm available` behavior
-(querying MetaCPAN and binary mirrors). Fork remotes use git tags.
+### Tag Convention
+
+Fork repos should tag releases with a version pattern. PVM recognizes:
+- `v<perl_version>` → e.g., `v5.40.2`
+- `v<perl_version>-<release>` → e.g., `v5.40.2-1` (first release)
+- `<forkname>-<perl_version>` → e.g., `myfork-5.40.2`
+
+Tags that do not contain a recognizable perl version are ignored.
+
+### Clone Caching
+
+Cached remote clones live in `$XDG_CACHE_HOME/pvm/remotes/<remote_name>/`.
+
+- First access: `git clone --bare --no-single-branch <url>` (bare clone,
+  all branches/tags visible)
+- Subsequent access: `git fetch --tags` on the cached clone
+- Cache invalidation: `pvm remote remove` deletes the cached clone
+- No automatic expiration (these are small -- just git metadata)
 
 ## Installation Flow
 
 `pvm install mycompany/myfork-5.40.2`:
 
-1. Parse the identifier: remote=`mycompany`, name=`myfork-5.40.2`
+1. Parse with `ParseForkIdentifier`: remote=`mycompany`, fork=`myfork`,
+   base=`5.40.2`
 2. Look up the remote URL in the merged config
 3. (**Phase B/C**: check manifest for binaries -- skip in phase A)
 4. Clone or fetch the repo, checkout the matching tag
 5. Read `.pvm-fork.toml` for fork metadata and configure flags
 6. Call the existing `BuildPerl()` infrastructure with:
-   - Source directory = the cloned repo (not a CPAN tarball)
-   - Configure flags = defaults + fork's custom flags
+   - `SourceDir` = the cloned repo checkout (not a CPAN tarball)
+   - Configure flags = PVM defaults + fork's custom flags
    - Install prefix = namespaced path under versions/
 7. Install to `~/.local/share/pvm/versions/mycompany/myfork-5.40.2/`
-8. Register in the version registry with full qualified name and fork metadata
+8. Register in the version registry with fork metadata
 
 ### Building from Git (vs Tarball)
 
@@ -184,6 +265,16 @@ SourceDir string  // Local directory containing perl source (from git clone)
 When `SourceDir` is set, the download/extract steps are skipped and the
 build proceeds directly from the specified directory.
 
+### Uninstall
+
+`pvm uninstall mycompany/myfork-5.40.2`:
+
+1. Parse with `ParseForkIdentifier`
+2. Look up in registry by full qualified name
+3. Remove the install directory
+4. Remove the registry entry
+5. Do NOT remove the remote's cached clone (other versions may use it)
+
 ## Disk Layout
 
 ```
@@ -200,8 +291,8 @@ build proceeds directly from the specified directory.
       experiment-5.41.1/
 
 ~/.cache/pvm/
-  remotes/                           # cached remote clones
-    mycompany/                       # shallow clone of fork repo
+  remotes/                           # cached bare clones
+    mycompany/                       # bare clone of fork repo
     otherteam/
 ```
 
@@ -213,30 +304,32 @@ Existing installs and `.perl-version` files work unchanged.
 
 ## Version Registry
 
-The existing registry JSON gains fork metadata fields:
+The existing registry uses UUID keys with `VersionInfo` values. Fork
+metadata is added as fields on `VersionInfo`:
 
-```json
-{
-  "versions": {
-    "5.40.2": {
-      "version": "5.40.2",
-      "install_path": "/home/user/.local/share/pvm/versions/5.40.2",
-      "source": "pvm"
-    },
-    "mycompany/myfork-5.40.2": {
-      "version": "myfork-5.40.2",
-      "install_path": "/home/user/.local/share/pvm/versions/mycompany/myfork-5.40.2",
-      "source": "pvm",
-      "remote": "mycompany",
-      "fork_name": "myfork",
-      "base_version": "5.40.2"
-    }
-  }
+```go
+type VersionInfo struct {
+    // ... existing fields ...
+    Remote      string  // Remote name ("" = origin)
+    ForkName    string  // Fork product name ("" = stock perl)
+    BaseVersion string  // Upstream perl version the fork derives from
 }
 ```
 
-Entries without a `remote` field are implicitly `origin`. No migration of
-existing registry data is needed.
+The `DisplayName` for a fork is `<remote>/<forkname>-<base_version>`.
+For stock Perl, it is the bare version string. Lookup functions gain
+a `FindByDisplayName` variant for fork identifiers.
+
+### RebuildRegistry
+
+`RebuildRegistry` gains a two-level directory scan:
+
+1. Scan `versions/` entries
+2. If entry contains `bin/perl` directly → stock install (existing behavior)
+3. If entry is a directory with no `bin/perl` → potential remote namespace
+4. Scan its subdirectories for `bin/perl` → fork installs
+5. Reconstruct fork metadata from the directory path
+   (`versions/<remote>/<forkname-version>/`)
 
 ## Version Resolution
 
@@ -248,11 +341,25 @@ The existing resolver gains fork awareness:
 - If no `/` is present, the version is stock (origin) -- backwards compatible
 - Version aliases (`@latest`, `@stable`) only apply to origin
 
+### Shell Integration
+
+`pvm sh-use` and `pvm sh-env-activate` must handle the `/` in fork
+identifiers when constructing the PATH to `versions/<path>/bin`. The
+install path is looked up from the registry (not constructed from the
+version string), so the namespaced directory structure is transparent
+to the shell integration layer.
+
+### plenv/perlbrew Compatibility
+
+A `.perl-version` file containing a fork identifier (`mycompany/myfork-5.40.2`)
+will not be understood by plenv or perlbrew. This is intentional: projects
+that require a custom fork have already moved beyond those tools.
+
 ## Files to Create
 
 - `internal/pvm/remote_command.go` -- `pvm remote add/list/remove` subcommands
 - `internal/perl/fork.go` -- fork manifest parsing, git clone/fetch, version
-  discovery from remote tags
+  discovery from remote tags, `ParseForkIdentifier`
 - `internal/perl/remote.go` -- remote configuration types and lookup
 
 ## Files to Modify
@@ -261,10 +368,10 @@ The existing resolver gains fork awareness:
   field to PVMConfig
 - `internal/perl/build.go` -- extend `BuildOptions` with `SourceDir` field,
   skip download when set
-- `internal/perl/registry.go` -- extend `VersionInfo` with `Remote`,
-  `ForkName`, `BaseVersion` fields
-- `internal/perl/resolver.go` -- parse `remote/name` version identifiers,
-  resolve from registry
+- `internal/perl/registry.go` -- extend `VersionInfo` with fork fields,
+  add `FindByDisplayName`, update `RebuildRegistry` for two-level scan
+- `internal/perl/resolver.go` -- route fork identifiers through
+  `ParseForkIdentifier`, resolve from registry by display name
 - `internal/pvm/command.go` -- wire `remote` subcommand into the command tree
 
 ## What Phase A Does NOT Include
@@ -280,11 +387,14 @@ The existing resolver gains fork awareness:
 
 ### Unit tests
 
-- Remote config parsing and lookup (add/list/remove)
-- Fork manifest parsing (.pvm-fork.toml)
-- Version identifier parsing (`mycompany/myfork-5.40.2` → remote + name)
-- Registry with fork metadata (store, lookup, list)
-- Resolver handling of fork identifiers
+- `ParseForkIdentifier` parsing: valid identifiers, bare versions, edge cases
+- Remote config parsing, validation, and lookup (add/list/remove)
+- Remote config merging across levels (additive, same-name override)
+- Fork manifest parsing (.pvm-fork.toml) with all field combinations
+- Missing manifest fallback behavior
+- Registry with fork metadata (store, lookup by display name, list)
+- `RebuildRegistry` with mixed stock and fork installs
+- Resolver handling of fork identifiers in `.perl-version` and env vars
 
 ### Integration tests
 
@@ -293,8 +403,11 @@ The existing resolver gains fork awareness:
 - Coexistence of stock and fork versions
 - `.perl-version` with fork identifier
 - `pvm versions` showing both stock and fork
+- Uninstall fork version
 
 ### E2E tests
 
 - `pvm remote add` / `pvm remote list` / `pvm remote remove`
+- `pvm remote add` error cases (duplicate, origin, invalid name)
 - `pvm install mycompany/myfork-5.40.2` from a test git repo
+- `pvm uninstall mycompany/myfork-5.40.2`
