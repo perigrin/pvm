@@ -94,6 +94,10 @@ type BinaryDownloadOptions struct {
 
 	// Verify checksum during transfer (streaming validation)
 	StreamingChecksum bool
+
+	// DirectURL overrides URL generation and downloads from this exact URL.
+	// When set, RepoURL and Platform are not used for URL construction.
+	DirectURL string
 }
 
 // BinaryDownloadResult contains information about the downloaded binary
@@ -272,10 +276,16 @@ func doDownloadPerlBinary(options *BinaryDownloadOptions) (*BinaryDownloadResult
 	}
 	version := parsedVersion.String()
 
-	// Generate binary URL
-	url, err := GenerateBinaryURLWithRepo(options.RepoURL, version, options.Platform)
-	if err != nil {
-		return nil, err
+	// Generate binary URL, or use the direct URL if one was provided
+	var url string
+	if options.DirectURL != "" {
+		url = options.DirectURL
+	} else {
+		var err error
+		url, err = GenerateBinaryURLWithRepo(options.RepoURL, version, options.Platform)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Get cache directory

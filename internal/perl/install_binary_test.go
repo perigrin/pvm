@@ -17,6 +17,17 @@ import (
 	"time"
 )
 
+func TestBinaryInstallOptions_StrawberryURL(t *testing.T) {
+	opts := &BinaryInstallOptions{
+		Version:       "5.38.0",
+		StrawberryURL: "https://example.com/strawberry.zip",
+	}
+	// Verify field is accessible and set correctly
+	if opts.StrawberryURL != "https://example.com/strawberry.zip" {
+		t.Error("StrawberryURL not set correctly")
+	}
+}
+
 func TestInstallFromBinary(t *testing.T) {
 	// Skip test if we can't create temp directories
 	tmpDir, err := os.MkdirTemp("", "pvm-binary-install-test")

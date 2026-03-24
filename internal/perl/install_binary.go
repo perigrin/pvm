@@ -55,6 +55,11 @@ type BinaryInstallOptions struct {
 
 	// Metrics collector for tracking installation performance (optional)
 	MetricsCollector *MetricsCollector
+
+	// StrawberryURL is the download URL for Strawberry Perl portable zip.
+	// When set, download from this URL instead of the PVM binary mirror.
+	// Only used on Windows.
+	StrawberryURL string
 }
 
 // BinaryInstallResult contains information about the binary installation
@@ -181,6 +186,7 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 		SkipChecksum:     options.SkipChecksum,
 		Context:          options.Context,
 		RepoURL:          options.RepoURL,
+		DirectURL:        options.StrawberryURL,
 	}
 
 	// Start download phase metrics tracking
@@ -238,6 +244,21 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 		return nil, err
 	}
 
+	// Relocate Strawberry Perl layout to match PVM expectations
+	if options.StrawberryURL != "" {
+		if err := relocateStrawberryLayout(installDir); err != nil {
+			// Complete metrics for layout relocation failure
+			if metrics != nil {
+				errorMsg := "Failed to relocate Strawberry Perl layout"
+				metrics.Complete(false, &errorMsg)
+			}
+			// Clean up on failure
+			_ = os.RemoveAll(installDir)
+			return nil, errors.NewSystemError("SYS-810",
+				"Failed to relocate Strawberry Perl layout", err)
+		}
+	}
+
 	// Verify installation
 	err = verifyBinaryInstallation(installDir, version)
 	if err != nil {
@@ -270,11 +291,15 @@ func InstallFromBinary(options *BinaryInstallOptions) (*BinaryInstallResult, err
 	}
 
 	// Register the installation
+	source := "binary"
+	if options.StrawberryURL != "" {
+		source = "strawberry"
+	}
 	versionInfo := VersionInfo{
 		Version:     version,
 		InstallPath: installDir,
 		InstallTime: time.Now(),
-		Source:      "binary",
+		Source:      source,
 	}
 
 	err = RegisterVersion(versionInfo)
