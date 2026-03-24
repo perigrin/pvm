@@ -13,6 +13,11 @@ import (
 )
 
 func TestValidateBinaryInstallation(t *testing.T) {
+	// Skip on Windows: these tests create fake perl executables with shell script
+	// content that Windows cannot execute (invalid PE format)
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping binary validation tests on Windows (cannot create fake executables)")
+	}
 	// Create a temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "pvm-validate-test")
 	if err != nil {
@@ -122,6 +127,9 @@ func TestValidateBinaryInstallation(t *testing.T) {
 }
 
 func TestValidateBinaryInstallationDetailed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping binary validation tests on Windows (cannot create fake executables)")
+	}
 	// Create a temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "pvm-validate-detailed-test")
 	if err != nil {
@@ -362,6 +370,9 @@ This is free software`,
 }
 
 func TestValidateExpectedVersion(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping binary validation tests on Windows (cannot create fake executables)")
+	}
 	// This test requires a real Perl installation to work properly
 	// For now, we'll just test the error cases
 

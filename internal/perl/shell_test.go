@@ -109,6 +109,12 @@ func TestDetectShell(t *testing.T) {
 	defer func() { _ = os.Setenv("SHELL", origShell) }()
 
 	// Test cases
+	// Default shell when SHELL env is empty depends on OS
+	defaultShell := ShellBash
+	if runtime.GOOS == "windows" {
+		defaultShell = ShellCmd
+	}
+
 	testCases := []struct {
 		shellEnv  string
 		expected  ShellType
@@ -117,7 +123,7 @@ func TestDetectShell(t *testing.T) {
 		{"/bin/bash", ShellBash, false},
 		{"/usr/bin/zsh", ShellZsh, false},
 		{"/usr/bin/fish", ShellFish, false},
-		{"", ShellBash, false},                               // Default case
+		{"", defaultShell, false},                            // Default case (OS-dependent)
 		{"powershell", ShellBash, runtime.GOOS != "windows"}, // Skip on non-Windows
 	}
 
@@ -550,14 +556,29 @@ func TestCheckShellInit(t *testing.T) {
 		}
 	}
 
-	// Test checking initialization status
-	testCases := []struct {
+	// Test checking initialization status (platform-specific shells)
+	var testCases []struct {
 		shellType      ShellType
 		expectedStatus bool
-	}{
-		{ShellBash, false},
-		{ShellZsh, true},
-		{ShellFish, false},
+	}
+
+	if runtime.GOOS == "windows" {
+		testCases = []struct {
+			shellType      ShellType
+			expectedStatus bool
+		}{
+			{ShellPowerShell, false},
+			{ShellCmd, false},
+		}
+	} else {
+		testCases = []struct {
+			shellType      ShellType
+			expectedStatus bool
+		}{
+			{ShellBash, false},
+			{ShellZsh, true},
+			{ShellFish, false},
+		}
 	}
 
 	for _, tc := range testCases {

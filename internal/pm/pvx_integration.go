@@ -370,7 +370,39 @@ func resolvePerlExecutable(perlVersion string) (string, error) {
 		)
 	}
 
-	return resolved.Path, nil
+	return ensurePerlExecutablePath(resolved.Path), nil
+}
+
+// ensurePerlExecutablePath ensures the path points to the perl executable,
+// not a directory. Some resolution paths return the install directory
+// instead of the actual executable.
+func ensurePerlExecutablePath(perlPath string) string {
+	info, err := os.Stat(perlPath)
+	if err != nil {
+		return perlPath
+	}
+	if !info.IsDir() {
+		return perlPath
+	}
+
+	// Path is a directory — look for perl executable inside it
+	perlName := "perl"
+	if runtime.GOOS == "windows" {
+		perlName = "perl.exe"
+	}
+
+	// Try bin/perl first, then perl directly
+	candidates := []string{
+		filepath.Join(perlPath, "bin", perlName),
+		filepath.Join(perlPath, perlName),
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+
+	return perlPath
 }
 
 // getPathForResolvedVersion gets the path to perl binary for a resolved version string
