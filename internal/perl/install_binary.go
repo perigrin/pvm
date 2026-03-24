@@ -536,6 +536,9 @@ func extractZipArchive(archivePath, installDir string) (int64, error) {
 func verifyBinaryInstallation(installDir, expectedVersion string) error {
 	// Check that the perl binary exists
 	perlBinary := filepath.Join(installDir, "bin", "perl")
+	if runtime.GOOS == "windows" {
+		perlBinary = filepath.Join(installDir, "bin", "perl.exe")
+	}
 	if _, err := os.Stat(perlBinary); os.IsNotExist(err) {
 		return fmt.Errorf("perl binary not found at expected location: %s", perlBinary)
 	}

@@ -71,7 +71,8 @@ func bestStrawberryAsset(perlVersion string, assets []strawberryAsset) (string, 
 // repository and returns the download URL of the 64-bit portable zip for the
 // given 3-part Perl version (e.g. "5.38.2").
 func FindStrawberryRelease(perlVersion string) (string, error) {
-	const apiURL = "https://api.github.com/repos/StrawberryPerl/Perl-Dist-Strawberry/releases"
+	// Fetch up to 100 releases to cover older Perl versions
+	const apiURL = "https://api.github.com/repos/StrawberryPerl/Perl-Dist-Strawberry/releases?per_page=100"
 
 	client := &http.Client{Timeout: 30 * time.Second}
 
@@ -81,8 +82,13 @@ func FindStrawberryRelease(perlVersion string) (string, error) {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	// Support GITHUB_TOKEN for higher rate limits (e.g. in CI).
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+	// Support GitHub auth tokens for higher rate limits (e.g. in CI).
+	// Check GH_TOKEN first (matches binary.go convention), then GITHUB_TOKEN.
+	token := os.Getenv("GH_TOKEN")
+	if token == "" {
+		token = os.Getenv("GITHUB_TOKEN")
+	}
+	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 

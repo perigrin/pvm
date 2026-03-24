@@ -260,8 +260,9 @@ Examples:
 					cmd.Printf("Warning: Failed to check binary availability, falling back to source: %v\n", err)
 				} else {
 					// On Windows, fall back to Strawberry Perl when no PVM binary available
+					// Skip if user provided an explicit --mirror override
 					var strawberryURL string
-					if !available && runtime.GOOS == "windows" {
+					if !available && runtime.GOOS == "windows" && mirror == "" {
 						url, strawberryErr := perl.FindStrawberryRelease(version)
 						if strawberryErr == nil {
 							available = true

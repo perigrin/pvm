@@ -41,24 +41,21 @@ func relocateStrawberryLayout(installDir string) error {
 		return fmt.Errorf("strawberry layout: stat perl subdir: %w", err)
 	}
 
-	// Subdirectories inside perl/ that need to be moved to the root.
-	// site/ is optional — skip it if absent.
-	subDirs := []string{"bin", "lib", "site"}
+	// Move all contents of perl/ to the install root.
+	// Known subdirs include bin, lib, site, and vendor, but we move
+	// everything to handle future Strawberry layout changes.
+	entries, err := os.ReadDir(perlDir)
+	if err != nil {
+		return fmt.Errorf("strawberry layout: read perl subdir: %w", err)
+	}
 
-	for _, sub := range subDirs {
-		src := filepath.Join(perlDir, sub)
-		dst := filepath.Join(installDir, sub)
+	for _, entry := range entries {
+		src := filepath.Join(perlDir, entry.Name())
+		dst := filepath.Join(installDir, entry.Name())
 
-		if _, err := os.Stat(src); os.IsNotExist(err) {
-			// Optional subdirectory not present; skip.
+		// Skip if destination already exists at root (e.g., c/ is at both levels)
+		if _, err := os.Stat(dst); err == nil {
 			continue
-		} else if err != nil {
-			return fmt.Errorf("strawberry layout: stat %s: %w", src, err)
-		}
-
-		// Ensure the parent of dst exists (dst itself must not exist for Rename).
-		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-			return fmt.Errorf("strawberry layout: mkdirall for %s: %w", dst, err)
 		}
 
 		if err := os.Rename(src, dst); err != nil {
@@ -68,7 +65,10 @@ func relocateStrawberryLayout(installDir string) error {
 
 	// Remove the now-empty perl/ directory.
 	if err := os.Remove(perlDir); err != nil {
-		return fmt.Errorf("strawberry layout: remove perl subdir: %w", err)
+		// Use RemoveAll as a fallback in case any files remain
+		if err2 := os.RemoveAll(perlDir); err2 != nil {
+			return fmt.Errorf("strawberry layout: remove perl subdir: %w", err2)
+		}
 	}
 
 	return nil
