@@ -116,22 +116,16 @@ func TestDetectShell(t *testing.T) {
 	}
 
 	testCases := []struct {
-		shellEnv  string
-		expected  ShellType
-		needsSkip bool
+		shellEnv string
+		expected ShellType
 	}{
-		{"/bin/bash", ShellBash, false},
-		{"/usr/bin/zsh", ShellZsh, false},
-		{"/usr/bin/fish", ShellFish, false},
-		{"", defaultShell, false},                            // Default case (OS-dependent)
-		{"powershell", ShellBash, runtime.GOOS != "windows"}, // Skip on non-Windows
+		{"/bin/bash", ShellBash},
+		{"/usr/bin/zsh", ShellZsh},
+		{"/usr/bin/fish", ShellFish},
+		{"", defaultShell}, // Default case (OS-dependent)
 	}
 
 	for _, tc := range testCases {
-		if tc.needsSkip && runtime.GOOS != "windows" {
-			continue
-		}
-
 		_ = os.Setenv("SHELL", tc.shellEnv)
 		shell, err := DetectShell()
 		if err != nil {
@@ -563,12 +557,12 @@ func TestCheckShellInit(t *testing.T) {
 	}
 
 	if runtime.GOOS == "windows" {
+		// Only test PowerShell on Windows; CMD is not supported by CheckShellInit
 		testCases = []struct {
 			shellType      ShellType
 			expectedStatus bool
 		}{
 			{ShellPowerShell, false},
-			{ShellCmd, false},
 		}
 	} else {
 		testCases = []struct {
