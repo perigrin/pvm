@@ -103,10 +103,10 @@ func (dc *DependencyChecker) getRequiredDependencies() []dependency {
 			dependency{name: "bzip2", command: "bzip2"},
 		)
 	case "windows":
-		// Windows has different requirements
+		// Strawberry Perl includes GNU toolchain (gmake, gcc)
 		deps = []dependency{
-			{name: "nmake", command: "nmake"},
-			{name: "cl", command: "cl"},
+			{name: "gmake", command: "gmake"},
+			{name: "gcc", command: "gcc"},
 		}
 	}
 
@@ -208,8 +208,8 @@ func (dc *DependencyChecker) getInstallHint(dep string) string {
 			"xz":       "apt-get install xz-utils (Debian/Ubuntu) or yum install xz (RHEL/CentOS)",
 		},
 		"windows": {
-			"nmake": "Install Visual Studio or Build Tools for Visual Studio",
-			"cl":    "Install Visual Studio or Build Tools for Visual Studio",
+			"gmake": "Install Strawberry Perl (https://strawberryperl.com) which includes gmake",
+			"gcc":   "Install Strawberry Perl (https://strawberryperl.com) which includes gcc",
 			"git":   "Download from https://git-scm.com/download/win",
 			"wget":  "Install from chocolatey: choco install wget",
 		},
@@ -278,9 +278,8 @@ func GetPlatformSpecificNotes() string {
 	case "windows":
 		return strings.Join([]string{
 			"Windows Build Notes:",
-			"- Visual Studio or Build Tools for Visual Studio required",
-			"- Consider using WSL2 for a more Unix-like build environment",
-			"- Native Windows builds may have limited functionality",
+			"- Strawberry Perl (https://strawberryperl.com) includes gmake and gcc",
+			"- Alternatively, use WSL2 for a Unix-like build environment",
 		}, "\n")
 
 	default:
