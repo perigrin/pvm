@@ -259,6 +259,18 @@ Examples:
 					// For prefer-binary, continue to source installation
 					cmd.Printf("Warning: Failed to check binary availability, falling back to source: %v\n", err)
 				} else {
+					// On Windows, fall back to Strawberry Perl when no PVM binary available
+					// Skip if user provided an explicit --mirror override
+					var strawberryURL string
+					if !available && runtime.GOOS == "windows" && mirror == "" {
+						url, strawberryErr := perl.FindStrawberryRelease(version)
+						if strawberryErr == nil {
+							available = true
+							strawberryURL = url
+							cmd.Printf("No PVM binary available, downloading Strawberry Perl portable...\n")
+						}
+					}
+
 					// No error, determine strategy based on availability and preference
 					switch {
 					case available:
@@ -298,7 +310,8 @@ Examples:
 									}
 								}
 							},
-							Context: cmd.Context(),
+							Context:       cmd.Context(),
+							StrawberryURL: strawberryURL,
 						}
 
 						// Attempt binary installation

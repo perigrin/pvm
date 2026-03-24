@@ -218,11 +218,18 @@ func TestGenerateShellScript(t *testing.T) {
 				// (empty string in test data means it stays empty or is substituted)
 			}
 		case ShellCmd:
-			// CMD template is not currently implemented (empty by design)
-			if script != "" {
-				if !strings.Contains(script, "@echo off") {
-					t.Errorf("CMD script missing header")
-				}
+			if script == "" {
+				t.Errorf("GenerateShellScript(%v) returned empty script", shellType)
+				continue
+			}
+			if !strings.Contains(script, "ABOUTME: PVM Shell Integration for CMD") {
+				t.Errorf("CMD script missing ABOUTME header")
+			}
+			if !strings.Contains(script, "@echo off") {
+				t.Errorf("CMD script missing @echo off")
+			}
+			if !strings.Contains(script, data.PVMPath) {
+				t.Errorf("CMD script does not contain PVM path")
 			}
 		}
 	}
@@ -557,12 +564,12 @@ func TestCheckShellInit(t *testing.T) {
 	}
 
 	if runtime.GOOS == "windows" {
-		// Only test PowerShell on Windows; CMD is not supported by CheckShellInit
 		testCases = []struct {
 			shellType      ShellType
 			expectedStatus bool
 		}{
 			{ShellPowerShell, false},
+			{ShellCmd, false},
 		}
 	} else {
 		testCases = []struct {

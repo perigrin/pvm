@@ -17,6 +17,17 @@ import (
 	"time"
 )
 
+func TestBinaryInstallOptions_StrawberryURL(t *testing.T) {
+	opts := &BinaryInstallOptions{
+		Version:       "5.38.0",
+		StrawberryURL: "https://example.com/strawberry.zip",
+	}
+	// Verify field is accessible and set correctly
+	if opts.StrawberryURL != "https://example.com/strawberry.zip" {
+		t.Error("StrawberryURL not set correctly")
+	}
+}
+
 func TestInstallFromBinary(t *testing.T) {
 	// Skip test if we can't create temp directories
 	tmpDir, err := os.MkdirTemp("", "pvm-binary-install-test")
@@ -173,7 +184,11 @@ func TestVerifyBinaryInstallation(t *testing.T) {
 					return err
 				}
 
-				perlPath := filepath.Join(binDir, "perl")
+				perlName := "perl"
+				if runtime.GOOS == "windows" {
+					perlName = "perl.exe"
+				}
+				perlPath := filepath.Join(binDir, perlName)
 				return os.WriteFile(perlPath, []byte("#!/usr/bin/perl\n"), 0755)
 			},
 			expectError: false,
@@ -194,7 +209,11 @@ func TestVerifyBinaryInstallation(t *testing.T) {
 					return err
 				}
 
-				perlPath := filepath.Join(binDir, "perl")
+				perlName := "perl"
+				if runtime.GOOS == "windows" {
+					perlName = "perl.exe"
+				}
+				perlPath := filepath.Join(binDir, perlName)
 				return os.WriteFile(perlPath, []byte("#!/usr/bin/perl\n"), 0644) // Not executable
 			},
 			// Windows does not have Unix-style executable permission bits,
