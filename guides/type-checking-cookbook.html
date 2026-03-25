@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Practical examples of PSC type checking — real Perl patterns, what PSC catches, and how to fix each one.">
+  <meta property="og:title" content="Type Checking Cookbook — PVM">
+  <meta property="og:description" content="Practical examples of PSC type checking — real Perl patterns, what PSC catches, and how to fix each one.">
+  <meta property="og:url" content="https://pvm.tools/guides/type-checking-cookbook.html">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>Type Checking Cookbook — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="/" class="site-name">PVM</a>
+      <button class="nav-toggle" aria-expanded="false" aria-label="Menu">&#9776;</button>
+      <ul class="nav-links">
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li><a href="../reference/pvm.html">Reference</a></li>
+        <li><a href="../guides/inline-scripts.html">Guides</a></li>
+        <li><a href="../papers/index.html">Papers</a></li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h1>Type Checking Cookbook</h1>
+      <p>Real Perl patterns that PSC catches, with explanations and fixes. Each recipe shows the code, the diagnostic, and how to resolve it. For background on why PSC works the way it does, see the <a href="type-checking.html">Type Checking guide</a>.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Arity Mismatches</h2>
+      <p>PSC knows how many arguments each built-in function expects. Pass too few or too many and it flags the call.</p>
+
+      <h3>Missing arguments</h3>
+      <pre><code>push();                    # forgot the arguments entirely
+splice($x);               # splice needs at least 2 args</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:1:1: error: expected at least 2 arguments for push, got 0 [arity-mismatch]
+file.pl:2:1: error: expected at least 2 arguments for splice, got 1 [arity-mismatch]</code></pre>
+      <p><strong>Fix:</strong> Supply the required arguments. <code>push</code> needs an array and at least one value. <code>splice</code> needs an array and an offset.</p>
+      <pre><code>push(@items, $value);
+splice(@items, 0);</code></pre>
+
+      <h3>Too many arguments</h3>
+      <pre><code>chr("hello", 2);           # chr takes exactly 1 argument</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:1:1: error: expected 1 argument for chr, got 2 [arity-mismatch]</code></pre>
+      <p><strong>Fix:</strong> Remove the extra argument.</p>
+      <pre><code>chr(72);                   # returns "H"</code></pre>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Container Type Mismatches</h2>
+      <p>Many built-in functions require a specific container type. Passing a scalar where an array or hash is expected produces a type mismatch.</p>
+
+      <h3>Scalar where Array expected</h3>
+      <pre><code>my $x = 1;
+push($x, 1);              # push needs an array, not a scalar</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:2:1: error: argument 1 of push expects Array, got Scalar [type-mismatch]</code></pre>
+      <p><strong>Why:</strong> The sigil <code>$</code> declares <code>$x</code> as Scalar. <code>push</code> requires Array as its first argument. Even if <code>$x</code> holds an array reference at runtime, the container type is Scalar.</p>
+      <p><strong>Fix:</strong> Use an array variable, or dereference:</p>
+      <pre><code>my @items;
+push(@items, 1);           # correct: @items is Array
+
+# or, with a reference:
+my $ref = [];
+push(@$ref, 1);            # dereference to get Array</code></pre>
+
+      <h3>Scalar where Hash expected</h3>
+      <pre><code>my $x = 1;
+keys($x);                 # keys needs a hash or array</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:2:1: error: argument 1 of keys expects Hash, got Scalar [type-mismatch]</code></pre>
+      <p><strong>Fix:</strong> Use a hash variable:</p>
+      <pre><code>my %lookup = (foo => 1, bar => 2);
+keys(%lookup);             # correct</code></pre>
+
+      <h3>Hash where Array expected</h3>
+      <pre><code>my %hash = (a => 1);
+push(%hash, 1);            # push needs an array, got a hash</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:2:1: error: argument 1 of push expects Array, got Hash [type-mismatch]</code></pre>
+      <p><strong>Fix:</strong> Use the correct container. If you meant to add a key-value pair to the hash:</p>
+      <pre><code>$hash{b} = 2;              # assign directly</code></pre>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Value Type Mismatches</h2>
+      <p>PSC tracks the specific type of a variable through assignment. When you assign <code>42</code> to <code>$n</code>, PSC narrows its type from Scalar to Int. Functions that expect Hash or Array then reject it.</p>
+
+      <h3>Int where Hash expected</h3>
+      <pre><code>my $n = 42;
+keys($n);                  # keys needs Hash, $n is Int</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:2:1: error: argument 1 of keys expects Hash, got Int [type-mismatch]</code></pre>
+      <p><strong>Why:</strong> The assignment <code>$n = 42</code> narrows <code>$n</code> from Scalar to Int. Int is more specific than Scalar — PSC uses the most precise type available. An Int is not a Hash.</p>
+
+      <h3>Int where Array expected</h3>
+      <pre><code>my $count = 42;
+splice($count);            # splice needs Array, $count is Int</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:2:1: error: argument 1 of splice expects Array, got Int [type-mismatch]</code></pre>
+
+      <h3>Num where Hash expected</h3>
+      <pre><code>my $f = 3.14;
+values($f);                # values needs Hash, $f is Num</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:2:1: error: argument 1 of values expects Hash, got Num [type-mismatch]</code></pre>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Coercion Mismatches</h2>
+      <p>Perl silently coerces values across types. Adding a string to a number produces <code>0</code>. Concatenating an array produces a count. These coercions are legal Perl but usually wrong. PSC flags them.</p>
+
+      <h3>List in arithmetic context</h3>
+      <pre><code>my %h;
+my $a = keys(%h) + 1;     # keys returns List, + expects Num</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:2:10: warning: left operand of + expects Num, got List [coercion-mismatch]</code></pre>
+      <p><strong>Why:</strong> <code>keys(%h)</code> returns a List. The <code>+</code> operator expects Num operands. Perl coerces the list to its count, which works — but the intent is ambiguous. Did you mean the count?</p>
+      <p><strong>Fix:</strong> Be explicit about the count:</p>
+      <pre><code>my $a = scalar(keys(%h)) + 1;  # explicit count</code></pre>
+
+      <h3>Array in string context</h3>
+      <pre><code>my @arr;
+my $b = @arr . 1;         # . expects Str, @arr is Array</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:2:10: warning: left operand of . expects Str, got Array [coercion-mismatch]</code></pre>
+      <p><strong>Why:</strong> The <code>.</code> concatenation operator expects strings. An array in string context becomes its count, so <code>@arr . 1</code> produces something like <code>"01"</code>. This is rarely what you want.</p>
+      <p><strong>Fix:</strong> Join the array or use its count explicitly:</p>
+      <pre><code>my $b = join(",", @arr) . 1;   # concatenate elements
+my $b = scalar(@arr) . 1;      # concatenate count</code></pre>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Undef Propagation</h2>
+      <p>An uninitialized variable has type Scalar, which includes Undef. Using it in arithmetic is a common source of bugs.</p>
+
+      <h3>Uninitialized variable in arithmetic</h3>
+      <pre><code>my $x;
+my $y = $x + 1;           # $x may be undef</code></pre>
+      <p><strong>Diagnostic:</strong></p>
+      <pre><code>file.pl:2:10: warning: left operand of + expects Num, got Scalar [coercion-mismatch]</code></pre>
+      <p><strong>Why:</strong> <code>$x</code> is declared but never assigned, so its type is Scalar (the broadest scalar type, which includes Undef). The <code>+</code> operator expects Num. Perl coerces <code>undef</code> to <code>0</code>, but this is usually a bug — you forgot to initialize the variable.</p>
+      <p><strong>Fix:</strong> Initialize the variable, or add a <code>defined</code> guard:</p>
+      <pre><code>my $x = 0;                 # initialize
+my $y = $x + 1;           # $x is now Int, no warning
+
+# or guard against undef:
+my $x;
+if (defined($x)) {
+    my $y = $x + 1;        # inside guard, $x is non-Undef
+}</code></pre>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Guard Patterns</h2>
+      <p>PSC narrows variable types inside guard blocks. A guard is a conditional that tests a variable's type at runtime. Inside the block where the guard holds, PSC uses the narrower type.</p>
+
+      <h3><code>defined</code> — remove Undef</h3>
+      <pre><code>my $name;                  # Scalar (may be Undef)
+
+if (defined($name)) {
+    print length($name);   # OK: $name is Scalar without Undef
+}
+
+print length($name);       # warning: Scalar includes Undef</code></pre>
+      <p>The <code>defined</code> guard removes Undef from the type. Outside the block, the original type applies.</p>
+
+      <h3><code>ref</code> — narrow to reference type</h3>
+      <pre><code>my $data;                  # Scalar
+
+if (ref($data)) {
+    # $data is now Ref — a reference of some kind
+}
+
+if (ref($data) eq 'HASH') {
+    keys($data);           # OK: $data is HashRef
+}
+
+if (ref($data) eq 'ARRAY') {
+    push(@$data, 1);       # OK: $data is ArrayRef
+}</code></pre>
+      <p>A bare <code>ref($data)</code> narrows to Ref. Comparing <code>ref($data) eq 'TYPE'</code> narrows to the specific reference type.</p>
+
+      <h3><code>isa</code> — narrow to Object</h3>
+      <pre><code>my $obj;                   # Scalar
+
+if ($obj isa Some::Class) {
+    # $obj is now Object
+    $obj->method();        # OK
+}</code></pre>
+
+      <h3>Negated guards</h3>
+      <pre><code>my $val;                   # Scalar
+
+unless (defined($val)) {
+    # $val is Undef here
+    return;
+}
+
+# After the unless block, $val is non-Undef
+print length($val);        # OK</code></pre>
+      <p>Negated guards (via <code>unless</code> or <code>else</code> blocks) apply the inverse narrowing.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Clean Code</h2>
+      <p>PSC produces no output for correct code. Here is a file that passes all checks:</p>
+      <pre><code>use strict;
+use warnings;
+
+my @numbers = (1, 2, 3);
+my $count = push(@numbers, 4);     # push returns Int (count)
+
+my %lookup = (foo => 1, bar => 2);
+my @keys = keys(%lookup);          # keys returns List
+my $exists = exists($lookup{foo}); # exists returns Bool</code></pre>
+      <pre><code>$ psc check clean.pl
+$ echo $?
+0</code></pre>
+      <p>No output and exit code 0 means no type errors.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>The Type Hierarchy</h2>
+      <p>PSC uses this type hierarchy, derived from how Perl values behave:</p>
+      <pre><code>Any
+ ├── Scalar
+ │    ├── Str
+ │    │    ├── Num
+ │    │    │    └── Int
+ │    │    └── Bool
+ │    ├── Undef
+ │    ├── DualVar
+ │    ├── NaN
+ │    ├── Inf
+ │    ├── Regex
+ │    └── Ref
+ │         ├── ScalarRef
+ │         ├── ArrayRef
+ │         ├── HashRef
+ │         ├── CodeRef
+ │         ├── GlobRef
+ │         └── Object
+ ├── Array
+ ├── Hash
+ ├── Code
+ └── Glob</code></pre>
+      <p>Arrows point from subtype to supertype. Int is a subtype of Num because every integer is a valid number. Num is a subtype of Str because every number can be represented as a string. This mirrors Perl's coercion chain.</p>
+      <p>PSC infers the most specific type it can. A literal <code>42</code> is Int, not Scalar. A variable <code>my $x</code> with no assignment is Scalar — the broadest scalar type. The more PSC knows, the more it can check.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Where Types Come From</h2>
+      <p>PSC infers types from five sources. You write no annotations — the types are already in the code.</p>
+      <table>
+        <thead>
+          <tr><th>Source</th><th>Example</th><th>Inferred Type</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Sigil</td><td><code>my $x</code></td><td>Scalar</td></tr>
+          <tr><td>Sigil</td><td><code>my @xs</code></td><td>Array</td></tr>
+          <tr><td>Sigil</td><td><code>my %h</code></td><td>Hash</td></tr>
+          <tr><td>Literal</td><td><code>42</code></td><td>Int</td></tr>
+          <tr><td>Literal</td><td><code>3.14</code></td><td>Num</td></tr>
+          <tr><td>Literal</td><td><code>"hello"</code></td><td>Str</td></tr>
+          <tr><td>Literal</td><td><code>/pattern/</code></td><td>Regex</td></tr>
+          <tr><td>Literal</td><td><code>undef</code></td><td>Undef</td></tr>
+          <tr><td>Operator</td><td><code>$a + $b</code></td><td>Num</td></tr>
+          <tr><td>Operator</td><td><code>$a . $b</code></td><td>Str</td></tr>
+          <tr><td>Operator</td><td><code>$a == $b</code></td><td>Bool</td></tr>
+          <tr><td>Builtin</td><td><code>push(@a, $v)</code></td><td>Int (count)</td></tr>
+          <tr><td>Builtin</td><td><code>keys(%h)</code></td><td>List</td></tr>
+          <tr><td>Builtin</td><td><code>defined($x)</code></td><td>Bool</td></tr>
+          <tr><td>Assignment</td><td><code>my $n = 42</code></td><td>Int (narrowed from Scalar)</td></tr>
+          <tr><td>Guard</td><td><code>if (defined($x))</code></td><td>non-Undef inside block</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Diagnostic Codes</h2>
+      <table>
+        <thead>
+          <tr><th>Code</th><th>Severity</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>arity-mismatch</code></td><td>error</td><td>Wrong number of arguments to a built-in function</td></tr>
+          <tr><td><code>type-mismatch</code></td><td>error</td><td>Argument type incompatible with what the function expects</td></tr>
+          <tr><td><code>coercion-mismatch</code></td><td>warning</td><td>Operator receives a type that Perl coerces silently — likely a bug</td></tr>
+          <tr><td><code>unknown-builtin</code></td><td>warning</td><td>PSC does not recognize the function name</td></tr>
+        </tbody>
+      </table>
+      <p>Every diagnostic line follows this format:</p>
+      <pre><code>filename:line:col: severity: message [code]
+  hint: suggestion (when available)</code></pre>
+      <p>Hints appear only when PSC can suggest a guard that resolves the mismatch.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Further Reading</h2>
+      <ul>
+        <li><a href="type-checking.html">Type Checking Guide</a> — philosophy and architecture</li>
+        <li><a href="../reference/psc.html">PSC Reference</a> — command-line usage</li>
+        <li><a href="../papers/perl-types-practical.html">Practical Type System Paper</a> — the type hierarchy in detail</li>
+        <li><a href="../papers/perl-types-formal.html">Formal Type System Paper</a> — mathematical foundations</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/copy-code.js"></script>
+  <script src="../scripts/nav.js"></script>
+</body>
+</html>
