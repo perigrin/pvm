@@ -13,6 +13,184 @@ import (
 	"tamarou.com/pvm/internal/xdg"
 )
 
+// TestResolveForkIdentifierFromPerlVersionFile verifies that a .perl-version file
+// containing a fork identifier (e.g. "mycompany/myfork-5.40.2") resolves to the
+// install path recorded in the registry for that fork.
+func TestResolveForkIdentifierFromPerlVersionFile(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+
+	const forkDisplayName = "mycompany/myfork-5.40.2"
+	const forkInstallPath = "/mock/pvm/mycompany/myfork-5.40.2"
+
+	// Seed the registry with the fork entry
+	origLoadRegistry := LoadRegistry
+	defer func() { LoadRegistry = origLoadRegistry }()
+	LoadRegistry = func() (*VersionRegistry, error) {
+		return &VersionRegistry{
+			Versions: map[string]VersionInfo{
+				"uuid-fork-1": {
+					Version:     "myfork-5.40.2",
+					InstallPath: forkInstallPath,
+					Source:      "pvm",
+					Remote:      "mycompany",
+					ForkName:    "myfork",
+					BaseVersion: "5.40.2",
+				},
+			},
+		}, nil
+	}
+
+	// Mock FindDotPerlVersionFiles and ReadPerlVersionFile to return the fork identifier
+	origFind := FindDotPerlVersionFiles
+	defer func() { FindDotPerlVersionFiles = origFind }()
+	versionFilePath := filepath.Join(env.versionFileDir, ".perl-version")
+	FindDotPerlVersionFiles = func(startDir string) ([]string, error) {
+		return []string{versionFilePath}, nil
+	}
+
+	origRead := ReadPerlVersionFile
+	defer func() { ReadPerlVersionFile = origRead }()
+	ReadPerlVersionFile = func(dir string) (string, error) {
+		return forkDisplayName, nil
+	}
+
+	options := &ResolutionOptions{
+		ProjectDir:          env.versionFileDir,
+		AvailableVersions:   []string{"5.40.2"},
+		SkipVersionResolved: true,
+	}
+
+	resolved, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve fork identifier from .perl-version file: %v", err)
+	}
+
+	if resolved.Version != forkDisplayName {
+		t.Errorf("Expected version %q, got %q", forkDisplayName, resolved.Version)
+	}
+
+	if resolved.Source != ProjectVersionFile {
+		t.Errorf("Expected source ProjectVersionFile, got %s", resolved.Source)
+	}
+
+	expectedPath := filepath.Join(forkInstallPath, "bin", "perl")
+	if resolved.Path != expectedPath {
+		t.Errorf("Expected path %q, got %q", expectedPath, resolved.Path)
+	}
+}
+
+// TestResolveForkIdentifierFromEnvVar verifies that PVM_PERL_VERSION containing a
+// fork identifier resolves to the correct install path from the registry.
+func TestResolveForkIdentifierFromEnvVar(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+
+	const forkDisplayName = "mycompany/myfork-5.40.2"
+	const forkInstallPath = "/mock/pvm/mycompany/myfork-5.40.2"
+
+	// Seed the registry with the fork entry
+	origLoadRegistry := LoadRegistry
+	defer func() { LoadRegistry = origLoadRegistry }()
+	LoadRegistry = func() (*VersionRegistry, error) {
+		return &VersionRegistry{
+			Versions: map[string]VersionInfo{
+				"uuid-fork-2": {
+					Version:     "myfork-5.40.2",
+					InstallPath: forkInstallPath,
+					Source:      "pvm",
+					Remote:      "mycompany",
+					ForkName:    "myfork",
+					BaseVersion: "5.40.2",
+				},
+			},
+		}, nil
+	}
+
+	_ = os.Setenv("PVM_PERL_VERSION", forkDisplayName)
+	defer os.Unsetenv("PVM_PERL_VERSION")
+
+	options := &ResolutionOptions{
+		AvailableVersions:   []string{"5.40.2"},
+		SkipLocal:           true,
+		SkipVersionResolved: true,
+	}
+
+	resolved, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Failed to resolve fork identifier from PVM_PERL_VERSION: %v", err)
+	}
+
+	if resolved.Version != forkDisplayName {
+		t.Errorf("Expected version %q, got %q", forkDisplayName, resolved.Version)
+	}
+
+	if resolved.Source != EnvironmentVariable {
+		t.Errorf("Expected source EnvironmentVariable, got %s", resolved.Source)
+	}
+
+	expectedPath := filepath.Join(forkInstallPath, "bin", "perl")
+	if resolved.Path != expectedPath {
+		t.Errorf("Expected path %q, got %q", expectedPath, resolved.Path)
+	}
+}
+
+// TestResolveStockVersionBackwardsCompat verifies that version strings without "/"
+// continue to use the normal (stock) resolution path unchanged.
+func TestResolveStockVersionBackwardsCompat(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+
+	options := &ResolutionOptions{
+		ExplicitVersion:     "5.38.0",
+		AvailableVersions:   []string{"5.38.0", "5.36.0"},
+		SkipVersionResolved: true,
+	}
+
+	resolved, err := ResolveVersion(options)
+	if err != nil {
+		t.Fatalf("Stock version resolution failed: %v", err)
+	}
+
+	if resolved.Version != "5.38.0" {
+		t.Errorf("Expected 5.38.0, got %s", resolved.Version)
+	}
+
+	if resolved.Source != ExplicitVersion {
+		t.Errorf("Expected ExplicitVersion source, got %s", resolved.Source)
+	}
+}
+
+// TestResolveForkIdentifierNotInRegistry verifies that requesting a fork not present
+// in the registry returns an appropriate error.
+func TestResolveForkIdentifierNotInRegistry(t *testing.T) {
+	env := setupResolverTest(t)
+	defer env.cleanup_()
+
+	// Registry with no fork entries
+	origLoadRegistry := LoadRegistry
+	defer func() { LoadRegistry = origLoadRegistry }()
+	LoadRegistry = func() (*VersionRegistry, error) {
+		return &VersionRegistry{
+			Versions: map[string]VersionInfo{},
+		}, nil
+	}
+
+	_ = os.Setenv("PVM_PERL_VERSION", "mycompany/myfork-5.40.2")
+	defer os.Unsetenv("PVM_PERL_VERSION")
+
+	options := &ResolutionOptions{
+		AvailableVersions:   []string{"5.40.2"},
+		SkipLocal:           true,
+		SkipVersionResolved: true,
+	}
+
+	_, err := ResolveVersion(options)
+	if err == nil {
+		t.Fatal("Expected error for fork not in registry, got nil")
+	}
+}
+
 // Setup for testing
 type resolverTestEnv struct {
 	// Original environment variables

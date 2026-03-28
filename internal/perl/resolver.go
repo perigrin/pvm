@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"tamarou.com/pvm/internal/config"
@@ -356,6 +357,41 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 		nil)
 }
 
+// resolveForkVersion resolves a fork identifier (a version string containing "/")
+// by looking it up in the registry via FindByDisplayName.
+// Returns nil, nil when versionStr does not contain "/" so callers can fall through
+// to stock resolution logic unchanged.
+// Returns nil, err when "/" is present but no matching registry entry is found.
+func resolveForkVersion(versionStr string, source ResolutionSource, sourcePath string) (*ResolvedVersion, error) {
+	if !strings.Contains(versionStr, "/") {
+		return nil, nil
+	}
+
+	// Look up the fork in the registry by its display name.
+	// Display names use the form "<remote>/<forkname>-<version>" or "<remote>/<version>".
+	info := FindByDisplayName(versionStr)
+	if info == nil {
+		return nil, errors.NewVersionError(
+			ErrUnsatisfiedVersion,
+			"Fork not installed: "+versionStr,
+			nil)
+	}
+
+	// Construct the path to the perl binary within the fork's install directory
+	perlPath := filepath.Join(info.InstallPath, "bin", "perl")
+	if runtime.GOOS == "windows" {
+		perlPath = filepath.Join(info.InstallPath, "bin", "perl.exe")
+	}
+
+	return &ResolvedVersion{
+		Version:    versionStr,
+		Library:    "",
+		Source:     source,
+		Path:       perlPath,
+		SourcePath: sourcePath,
+	}, nil
+}
+
 // resolveExplicitVersion resolves an explicitly specified version
 func resolveExplicitVersion(version string, availableVersions []string, cfg *config.Config) (*ResolvedVersion, error) {
 	// Handle special "system" identifier
@@ -480,6 +516,11 @@ func resolveFromPerlVersionFile(projectDir string, availableVersions []string, c
 		return nil, err
 	}
 
+	// Fork identifiers (containing "/") are resolved via registry lookup
+	if forkResolved, forkErr := resolveForkVersion(resolvedVersion, ProjectVersionFile, versionFile); forkResolved != nil || forkErr != nil {
+		return forkResolved, forkErr
+	}
+
 	// Check if the version is available
 	if !IsVersionAvailable(resolvedVersion, availableVersions) {
 		return nil, errors.NewVersionError(
@@ -592,6 +633,14 @@ func resolveFromEnvironment(availableVersions []string, cfg *config.Config) (*Re
 		resolvedVersion, err := ResolveVersionAlias(versionStr, aliases)
 		if err != nil {
 			return nil, err
+		}
+
+		// Fork identifiers (containing "/") are resolved via registry lookup
+		if forkResolved, forkErr := resolveForkVersion(resolvedVersion, EnvironmentVariable, "PVM_PERL_VERSION"); forkResolved != nil || forkErr != nil {
+			if forkResolved != nil {
+				forkResolved.Library = os.Getenv("PVM_PERL_LIBRARY")
+			}
+			return forkResolved, forkErr
 		}
 
 		// Check if the version is available
