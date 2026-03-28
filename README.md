@@ -12,22 +12,15 @@ modules, and execution environments from a single Go binary.
 
 ## Installation
 
-### From Release
+### Quick Install
 
 ```bash
-# Linux (AMD64)
-curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-amd64.tar.gz
-tar -xzf pvm-linux-amd64.tar.gz
-sudo mv pvm-linux-amd64 /usr/local/bin/pvm
-
-# macOS (Apple Silicon)
-curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-darwin-arm64.tar.gz
-tar -xzf pvm-darwin-arm64.tar.gz
-chmod +x pvm-darwin-arm64
-sudo mv pvm-darwin-arm64 /usr/local/bin/pvm
+curl -fsSL https://pvm.tools/install.sh | sh
 ```
 
-Add shell integration to your profile:
+Installs to `~/.local/bin/pvm`. Set `PVM_INSTALL_DIR` to change the location.
+
+Then add shell integration to your profile:
 
 ```bash
 # bash (~/.bashrc) or zsh (~/.zshrc)
