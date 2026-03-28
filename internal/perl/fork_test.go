@@ -4,6 +4,8 @@
 package perl
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -220,4 +222,118 @@ func TestForkIdentifierIsFork(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.id.IsFork())
 		})
 	}
+}
+
+func TestParseForkManifest(t *testing.T) {
+	t.Run("full manifest", func(t *testing.T) {
+		dir := t.TempDir()
+		content := `[fork]
+name = "myfork"
+description = "My custom Perl fork"
+base_version = "5.40.2"
+license = "Artistic-2.0"
+
+[build]
+configure_flags = ["-Duse64bitall", "-Dusethreads"]
+`
+		err := os.WriteFile(filepath.Join(dir, ".pvm-fork.toml"), []byte(content), 0644)
+		require.NoError(t, err)
+
+		m, err := ParseForkManifest(dir)
+		require.NoError(t, err)
+		require.NotNil(t, m)
+
+		assert.Equal(t, "myfork", m.Name)
+		assert.Equal(t, "My custom Perl fork", m.Description)
+		assert.Equal(t, "5.40.2", m.BaseVersion)
+		assert.Equal(t, "Artistic-2.0", m.License)
+		assert.Equal(t, []string{"-Duse64bitall", "-Dusethreads"}, m.ConfigureFlags)
+	})
+
+	t.Run("minimal manifest with required fields only", func(t *testing.T) {
+		dir := t.TempDir()
+		content := `[fork]
+name = "myfork"
+base_version = "5.40.2"
+`
+		err := os.WriteFile(filepath.Join(dir, ".pvm-fork.toml"), []byte(content), 0644)
+		require.NoError(t, err)
+
+		m, err := ParseForkManifest(dir)
+		require.NoError(t, err)
+		require.NotNil(t, m)
+
+		assert.Equal(t, "myfork", m.Name)
+		assert.Equal(t, "5.40.2", m.BaseVersion)
+		assert.Empty(t, m.Description)
+		assert.Empty(t, m.License)
+		assert.Nil(t, m.ConfigureFlags)
+	})
+
+	t.Run("missing manifest returns nil without error", func(t *testing.T) {
+		dir := t.TempDir()
+
+		m, err := ParseForkManifest(dir)
+		assert.NoError(t, err)
+		assert.Nil(t, m)
+	})
+
+	t.Run("missing required name", func(t *testing.T) {
+		dir := t.TempDir()
+		content := `[fork]
+base_version = "5.40.2"
+`
+		err := os.WriteFile(filepath.Join(dir, ".pvm-fork.toml"), []byte(content), 0644)
+		require.NoError(t, err)
+
+		_, err = ParseForkManifest(dir)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "name")
+	})
+
+	t.Run("missing required base_version", func(t *testing.T) {
+		dir := t.TempDir()
+		content := `[fork]
+name = "myfork"
+`
+		err := os.WriteFile(filepath.Join(dir, ".pvm-fork.toml"), []byte(content), 0644)
+		require.NoError(t, err)
+
+		_, err = ParseForkManifest(dir)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "base_version")
+	})
+
+	t.Run("fork name perl is reserved", func(t *testing.T) {
+		dir := t.TempDir()
+		content := `[fork]
+name = "perl"
+base_version = "5.40.2"
+`
+		err := os.WriteFile(filepath.Join(dir, ".pvm-fork.toml"), []byte(content), 0644)
+		require.NoError(t, err)
+
+		_, err = ParseForkManifest(dir)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "perl")
+	})
+
+	t.Run("unknown fields are ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		content := `[fork]
+name = "myfork"
+base_version = "5.40.2"
+future_field = "ignored"
+
+[publish]
+url = "s3://bucket/"
+`
+		err := os.WriteFile(filepath.Join(dir, ".pvm-fork.toml"), []byte(content), 0644)
+		require.NoError(t, err)
+
+		m, err := ParseForkManifest(dir)
+		require.NoError(t, err)
+		require.NotNil(t, m)
+		assert.Equal(t, "myfork", m.Name)
+	})
 }

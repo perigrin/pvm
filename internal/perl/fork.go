@@ -5,8 +5,12 @@ package perl
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+
+	toml "github.com/pelletier/go-toml/v2"
 
 	"tamarou.com/pvm/internal/errors"
 )
@@ -169,4 +173,75 @@ func (f *ForkIdentifier) InstallPath() string {
 // IsFork returns true if this identifier refers to a non-origin fork.
 func (f *ForkIdentifier) IsFork() bool {
 	return f.Remote != "origin"
+}
+
+// ForkManifest holds metadata parsed from a .pvm-fork.toml file in a fork repo
+type ForkManifest struct {
+	Name           string   // Fork product name (required, cannot be "perl")
+	Description    string   // Human-readable description
+	BaseVersion    string   // Upstream perl version this derives from (required)
+	License        string   // License identifier
+	ConfigureFlags []string // Additional Configure flags for building
+}
+
+// Fork manifest error codes
+const (
+	ErrInvalidManifest = "208" // Invalid or incomplete fork manifest
+)
+
+// Manifest filename
+const forkManifestFile = ".pvm-fork.toml"
+
+// forkManifestTOML mirrors the TOML structure for unmarshaling
+type forkManifestTOML struct {
+	Fork struct {
+		Name        string `toml:"name"`
+		Description string `toml:"description"`
+		BaseVersion string `toml:"base_version"`
+		License     string `toml:"license"`
+	} `toml:"fork"`
+	Build struct {
+		ConfigureFlags []string `toml:"configure_flags"`
+	} `toml:"build"`
+}
+
+// ParseForkManifest reads and validates a .pvm-fork.toml file from the given directory.
+// Returns nil without error if the manifest file does not exist.
+func ParseForkManifest(dir string) (*ForkManifest, error) {
+	path := filepath.Join(dir, forkManifestFile)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read fork manifest: %w", err)
+	}
+
+	var raw forkManifestTOML
+	if err := toml.Unmarshal(data, &raw); err != nil {
+		return nil, errors.NewVersionError(ErrInvalidManifest,
+			fmt.Sprintf("parse fork manifest: %s", err), err)
+	}
+
+	if raw.Fork.Name == "" {
+		return nil, errors.NewVersionError(ErrInvalidManifest,
+			"fork manifest missing required field: fork.name", nil)
+	}
+	if raw.Fork.Name == "perl" {
+		return nil, errors.NewVersionError(ErrReservedForkName,
+			"'perl' cannot be used as a fork name in manifest", nil)
+	}
+	if raw.Fork.BaseVersion == "" {
+		return nil, errors.NewVersionError(ErrInvalidManifest,
+			"fork manifest missing required field: fork.base_version", nil)
+	}
+
+	return &ForkManifest{
+		Name:           raw.Fork.Name,
+		Description:    raw.Fork.Description,
+		BaseVersion:    raw.Fork.BaseVersion,
+		License:        raw.Fork.License,
+		ConfigureFlags: raw.Build.ConfigureFlags,
+	}, nil
 }
