@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="PVM guides — practical walkthroughs for type checking, editor integration, scripting, isolation, and configuration.">
+  <meta property="og:title" content="Guides — PVM">
+  <meta property="og:description" content="PVM guides — practical walkthroughs for type checking, editor integration, scripting, isolation, and configuration.">
+  <meta property="og:url" content="https://pvm.tools/guides/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>Guides — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="/" class="site-name">PVM</a>
+      <button class="nav-toggle" aria-expanded="false" aria-label="Menu">&#9776;</button>
+      <ul class="nav-links">
+        <li><a href="/getting-started.html">Docs</a></li>
+        <li><a href="/reference/pvm.html">Reference</a></li>
+        <li><a href="/guides/index.html">Guides</a></li>
+        <li><a href="/papers/index.html">Papers</a></li>
+        <li><a href="/why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Guides</h1>
+    <p>Practical walkthroughs for common tasks. Each guide is self-contained — start with whichever one matches what you are trying to do.</p>
+
+    <section>
+      <h2>Static Analysis</h2>
+      <dl>
+        <dt><a href="type-checking.html">Type Checking</a></dt>
+        <dd>How PSC infers types from your Perl code, what it catches, and how flow narrowing works.</dd>
+
+        <dt><a href="type-checking-cookbook.html">Type Checking Cookbook</a></dt>
+        <dd>Concrete examples of every check PSC performs — the Perl code, the diagnostic, and the fix.</dd>
+
+        <dt><a href="editor-setup.html">Editor Setup</a></dt>
+        <dd>Copy-paste configurations for running PSC in Vim, Neovim, VS Code, Emacs, Sublime Text, and Helix.</dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2>Scripting and Execution</h2>
+      <dl>
+        <dt><a href="inline-scripts.html">Inline Scripts</a></dt>
+        <dd>Self-contained Perl scripts with embedded metadata — dependencies, version constraints, and execution in one file.</dd>
+
+        <dt><a href="isolation.html">Isolation Levels</a></dt>
+        <dd>How PVX isolates script execution — shared, isolated, and clean environments.</dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2>Configuration</h2>
+      <dl>
+        <dt><a href="configuration.html">Configuration</a></dt>
+        <dd>The pvm.toml format, configuration precedence, and per-project settings.</dd>
+
+        <dt><a href="version-resolution.html">Version Resolution</a></dt>
+        <dd>How PVM decides which Perl to use — .perl-version files, environment variables, and resolution order.</dd>
+      </dl>
+    </section>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/copy-code.js"></script>
+  <script src="../scripts/nav.js"></script>
+</body>
+</html>
