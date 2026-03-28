@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Set up PSC in your editor — copy-paste configurations for Vim, Neovim, VS Code, Emacs, Sublime Text, and Helix.">
+  <meta property="og:title" content="Editor Setup — PVM">
+  <meta property="og:description" content="Set up PSC in your editor — copy-paste configurations for Vim, Neovim, VS Code, Emacs, Sublime Text, and Helix.">
+  <meta property="og:url" content="https://pvm.tools/guides/editor-setup.html">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <title>Editor Setup — PVM</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="/" class="site-name">PVM</a>
+      <button class="nav-toggle" aria-expanded="false" aria-label="Menu">&#9776;</button>
+      <ul class="nav-links">
+        <li><a href="../getting-started.html">Docs</a></li>
+        <li><a href="../reference/pvm.html">Reference</a></li>
+        <li><a href="../guides/inline-scripts.html">Guides</a></li>
+        <li><a href="../papers/index.html">Papers</a></li>
+        <li><a href="../why-pvm.html">Why PVM</a></li>
+        <li><a href="https://github.com/perigrin/pvm">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section>
+      <h1>Editor Setup</h1>
+      <p>PSC produces diagnostics in the standard <code>filename:line:col: severity: message [code]</code> format. Every editor that can parse compiler output can run PSC. This page gives copy-paste configurations for the most common editors.</p>
+      <p>Each configuration runs <code>psc check</code> on the current file and displays the results as inline diagnostics. For background on what PSC catches, see the <a href="type-checking.html">Type Checking guide</a>.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Vim</h2>
+
+      <h3>ALE (recommended)</h3>
+      <p><a href="https://github.com/dense-analysis/ale">ALE</a> runs linters asynchronously and displays results as you edit. Add to your <code>.vimrc</code>:</p>
+      <pre><code>" Run PSC on Perl files
+let g:ale_linters = { 'perl': ['psc'] }
+
+" Define PSC as a linter
+call ale#linter#Define('perl', {
+\   'name': 'psc',
+\   'executable': 'psc',
+\   'command': 'psc check %s',
+\   'callback': 'ale#handlers#gcc#HandleGCCFormat',
+\ })</code></pre>
+      <p>Save a Perl file and diagnostics appear in the sign column.</p>
+
+      <h3>Syntastic</h3>
+      <p><a href="https://github.com/vim-syntastic/syntastic">Syntastic</a> checks files on save. Add to your <code>.vimrc</code>:</p>
+      <pre><code>let g:syntastic_perl_checkers = ['psc']
+let g:syntastic_perl_psc_exec = 'psc'
+let g:syntastic_perl_psc_args = 'check'</code></pre>
+
+      <h3>Compiler plugin (no plugin required)</h3>
+      <p>Vim's built-in <code>:compiler</code> mechanism works with PSC's output format. Create <code>~/.vim/compiler/psc.vim</code>:</p>
+      <pre><code>CompilerSet makeprg=psc\ check\ %
+CompilerSet errorformat=%f:%l:%c:\ %t%*[^:]:\ %m</code></pre>
+      <p>Then run <code>:compiler psc</code> and <code>:make</code> to populate the quickfix list.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Neovim</h2>
+
+      <h3>nvim-lint (recommended)</h3>
+      <p><a href="https://github.com/mfussenegger/nvim-lint">nvim-lint</a> runs linters asynchronously. Add to your Lua config:</p>
+      <pre><code>require('lint').linters.psc = {
+  cmd = 'psc',
+  args = { 'check' },
+  stdin = false,
+  append_fname = true,
+  stream = 'stderr',
+  parser = require('lint.parser').from_errorformat(
+    '%f:%l:%c: %trror: %m,%f:%l:%c: %tarning: %m,%f:%l:%c: %tint: %m',
+    { source = 'psc' }
+  ),
+}
+
+require('lint').linters_by_ft = {
+  perl = { 'psc' },
+}
+
+-- Lint on save
+vim.api.nvim_create_autocmd({ 'BufWritePost' }, {
+  callback = function() require('lint').try_lint() end,
+})</code></pre>
+
+      <h3>efm-langserver</h3>
+      <p><a href="https://github.com/mattn/efm-langserver">efm-langserver</a> wraps command-line tools as LSP servers. Add to your efm config (<code>~/.config/efm-langserver/config.yaml</code>):</p>
+      <pre><code>languages:
+  perl:
+    - lint-command: 'psc check ${INPUT}'
+      lint-stdin: false
+      lint-formats:
+        - '%f:%l:%c: %trror: %m'
+        - '%f:%l:%c: %tarning: %m'
+        - '%f:%l:%c: %tint: %m'</code></pre>
+      <p>Then register efm as a language server in your Neovim config:</p>
+      <pre><code>require('lspconfig').efm.setup({
+  filetypes = { 'perl' },
+  init_options = { documentFormatting = false },
+})</code></pre>
+
+      <h3>Compiler command (no plugin required)</h3>
+      <pre><code>vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'perl',
+  callback = function()
+    vim.bo.makeprg = 'psc check %'
+    vim.bo.errorformat = '%f:%l:%c: %trror: %m,%f:%l:%c: %tint: %m'
+  end,
+})</code></pre>
+      <p>Run <code>:make</code> and results appear in the quickfix list. Jump between them with <code>:cnext</code> and <code>:cprev</code>.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>VS Code</h2>
+
+      <h3>Tasks + Problem Matcher</h3>
+      <p>VS Code can run PSC as a build task and parse its output into the Problems panel. Add to <code>.vscode/tasks.json</code>:</p>
+      <pre><code>{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PSC: Check current file",
+      "type": "shell",
+      "command": "psc",
+      "args": ["check", "${file}"],
+      "group": "build",
+      "problemMatcher": {
+        "owner": "psc",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+):\\s+(error|warning|hint):\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "PSC: Check project",
+      "type": "shell",
+      "command": "psc",
+      "args": ["check", "lib/"],
+      "group": "build",
+      "problemMatcher": {
+        "owner": "psc",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+):\\s+(error|warning|hint):\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    }
+  ]
+}</code></pre>
+      <p>Run with <kbd>Ctrl+Shift+B</kbd> (or <kbd>Cmd+Shift+B</kbd> on macOS) and select the task. Diagnostics appear in the Problems panel with clickable file locations.</p>
+
+      <h3>Run on Save (optional)</h3>
+      <p>Install the <a href="https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave">Run on Save</a> extension and add to <code>.vscode/settings.json</code>:</p>
+      <pre><code>{
+  "emeraldwalk.runonsave": {
+    "commands": [
+      {
+        "match": "\\.(pl|pm|t)$",
+        "cmd": "psc check ${file}"
+      }
+    ]
+  }
+}</code></pre>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Emacs</h2>
+
+      <h3>Flycheck (recommended)</h3>
+      <p><a href="https://www.flycheck.org/">Flycheck</a> displays inline diagnostics as you edit. Add to your init file:</p>
+      <pre><code>(require 'flycheck)
+
+(flycheck-define-checker perl-psc
+  "A Perl type checker using PSC."
+  :command ("psc" "check" source)
+  :error-patterns
+  ((error line-start (file-name) ":" line ":" column ": error: " (message) line-end)
+   (warning line-start (file-name) ":" line ":" column ": warning: " (message) line-end)
+   (info line-start (file-name) ":" line ":" column ": hint: " (message) line-end))
+  :modes (perl-mode cperl-mode))
+
+(add-to-list 'flycheck-checkers 'perl-psc)</code></pre>
+
+      <h3>Flymake (built-in)</h3>
+      <p>Flymake ships with Emacs 26+. No external package required:</p>
+      <pre><code>(defun flymake-psc-init ()
+  "Set up Flymake for PSC."
+  (let ((temp-file (flymake-proc-init-create-temp-buffer-copy
+                    'flymake-proc-create-temp-inplace)))
+    (list "psc" (list "check" temp-file))))
+
+(add-to-list 'flymake-proc-allowed-file-name-masks
+             '("\\.p[lm]\\'" flymake-psc-init))
+
+(add-hook 'perl-mode-hook #'flymake-mode)
+(add-hook 'cperl-mode-hook #'flymake-mode)</code></pre>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Sublime Text</h2>
+
+      <h3>SublimeLinter</h3>
+      <p>Install <a href="https://github.com/SublimeLinter/SublimeLinter">SublimeLinter</a> via Package Control, then add to your SublimeLinter settings (<code>Preferences &gt; Package Settings &gt; SublimeLinter &gt; Settings</code>):</p>
+      <pre><code>{
+  "linters": {
+    "psc": {
+      "cmd": "psc check ${file}",
+      "regex": "^(?P&lt;file&gt;.+):(?P&lt;line&gt;\\d+):(?P&lt;col&gt;\\d+): (?P&lt;error&gt;error|warning|hint): (?P&lt;message&gt;.+)$",
+      "selector": "source.perl"
+    }
+  }
+}</code></pre>
+
+      <h3>Build System (no plugin required)</h3>
+      <p>Create a build system via <code>Tools &gt; Build System &gt; New Build System</code>:</p>
+      <pre><code>{
+  "cmd": ["psc", "check", "$file"],
+  "file_regex": "^(.+):(\\d+):(\\d+): (error|warning|hint): (.+)$",
+  "selector": "source.perl"
+}</code></pre>
+      <p>Save as <code>PSC.sublime-build</code>. Run with <kbd>Ctrl+B</kbd> (or <kbd>Cmd+B</kbd> on macOS) and double-click results to jump to the source.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>Helix</h2>
+      <p>Helix supports external formatters and language servers. Until PSC's built-in LSP server ships, use efm-langserver as a bridge. Add to <code>~/.config/helix/languages.toml</code>:</p>
+      <pre><code>[[language]]
+name = "perl"
+language-servers = ["efm-lsp-perl"]
+
+[language-server.efm-lsp-perl]
+command = "efm-langserver"</code></pre>
+      <p>Then configure efm-langserver to run PSC as described in the <a href="#neovim">Neovim efm-langserver section</a> above.</p>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>CI / command line</h2>
+      <p>PSC works in any pipeline that can run a binary. It exits 0 on success and non-zero when diagnostics are found:</p>
+      <pre><code># Check a single file
+psc check lib/MyModule.pm
+
+# Check an entire project
+psc check lib/
+
+# Use in a Makefile
+check:
+&#9;psc check lib/ t/</code></pre>
+      <p>In GitHub Actions:</p>
+      <pre><code>- name: Type-check Perl
+  run: psc check lib/</code></pre>
+    </section>
+
+    <!-- ============================================================= -->
+    <section>
+      <h2>LSP server (coming soon)</h2>
+      <p>PSC includes a built-in LSP server (<code>psc lsp</code>) that will deliver hover tooltips, inline diagnostics, go-to-definition, and document symbols directly to any LSP-capable editor. When it ships, editor configuration will be a single entry pointing at the <code>psc lsp</code> command — no bridge tools required.</p>
+      <p>In the meantime, the <code>psc check</code> integrations above give you the same diagnostic coverage. The LSP server will add real-time feedback as you type.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>PVM is licensed under the <a href="https://opensource.org/license/artistic-2-0">Artistic License 2.0</a>. <a href="https://github.com/perigrin/pvm">GitHub</a></p>
+  </footer>
+  <script src="../scripts/copy-code.js"></script>
+  <script src="../scripts/nav.js"></script>
+</body>
+</html>

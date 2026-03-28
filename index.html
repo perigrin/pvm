@@ -43,30 +43,8 @@
       <p>Single binary. Pure Go. No dependencies.</p>
 
       <div class="install-block">
-        <div class="platform-tabs" role="tablist" aria-label="Platform">
-          <button role="tab" aria-selected="true" aria-controls="install-linux-amd64" id="tab-linux-amd64">Linux (AMD64)</button>
-          <button role="tab" aria-selected="false" aria-controls="install-linux-arm64" id="tab-linux-arm64">Linux (ARM64)</button>
-          <button role="tab" aria-selected="false" aria-controls="install-darwin-arm64" id="tab-darwin-arm64">macOS (Apple Silicon)</button>
-        </div>
-        <div role="tabpanel" id="install-linux-amd64" aria-labelledby="tab-linux-amd64">
-          <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-amd64.tar.gz
-tar -xzf pvm-linux-amd64.tar.gz
-sudo mv pvm /usr/local/bin/pvm
-eval "$(pvm init)"</code></pre>
-        </div>
-        <div role="tabpanel" id="install-linux-arm64" aria-labelledby="tab-linux-arm64" hidden>
-          <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-arm64.tar.gz
-tar -xzf pvm-linux-arm64.tar.gz
-sudo mv pvm /usr/local/bin/pvm
-eval "$(pvm init)"</code></pre>
-        </div>
-        <div role="tabpanel" id="install-darwin-arm64" aria-labelledby="tab-darwin-arm64" hidden>
-          <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-darwin-arm64.tar.gz
-tar -xzf pvm-darwin-arm64.tar.gz
-chmod +x pvm
-sudo mv pvm /usr/local/bin/pvm
-eval "$(pvm init)"</code></pre>
-        </div>
+        <pre><code>curl -fsSL https://pvm.tools/install.sh | sh</code></pre>
+        <p style="margin-top: 0.5em; font-size: 0.9em; opacity: 0.7;">Detects your platform automatically. Installs to <code>~/.local/bin</code>.</p>
       </div>
 
       <div class="cta-group">
