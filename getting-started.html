@@ -41,23 +41,12 @@
 
     <section>
       <h2>Install PVM</h2>
-      <p>Download the binary for your platform and place it somewhere on your <code>PATH</code>.</p>
+      <p>The install script detects your platform, downloads the latest release, and places the binary in <code>~/.local/bin</code>.</p>
 
-      <h3>Linux (AMD64)</h3>
-      <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-amd64.tar.gz
-tar -xzf pvm-linux-amd64.tar.gz
-sudo mv pvm /usr/local/bin/pvm</code></pre>
+      <pre><code>curl -fsSL https://pvm.tools/install.sh | sh</code></pre>
 
-      <h3>Linux (ARM64)</h3>
-      <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-linux-arm64.tar.gz
-tar -xzf pvm-linux-arm64.tar.gz
-sudo mv pvm /usr/local/bin/pvm</code></pre>
-
-      <h3>macOS (Apple Silicon)</h3>
-      <pre><code>curl -LO https://github.com/perigrin/pvm/releases/latest/download/pvm-darwin-arm64.tar.gz
-tar -xzf pvm-darwin-arm64.tar.gz
-chmod +x pvm
-sudo mv pvm /usr/local/bin/pvm</code></pre>
+      <p>Set <code>PVM_INSTALL_DIR</code> to install somewhere else:</p>
+      <pre><code>PVM_INSTALL_DIR=/usr/local/bin curl -fsSL https://pvm.tools/install.sh | sh</code></pre>
 
       <h3>Build from source (Go 1.24+)</h3>
       <pre><code>git clone https://github.com/perigrin/pvm.git &amp;&amp; cd pvm &amp;&amp; make</code></pre>
