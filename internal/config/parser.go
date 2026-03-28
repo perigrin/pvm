@@ -246,6 +246,11 @@ func mergePVMConfig(target, source *PVMConfig) {
 		}
 	}
 
+	// Merge remote sources — additive, same-name entry from source wins
+	if len(source.Remotes) > 0 {
+		target.Remotes = mergeRemoteConfigs(target.Remotes, source.Remotes)
+	}
+
 	// Merge Update configuration
 	if source.Update != nil {
 		if target.Update == nil {
