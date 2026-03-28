@@ -118,7 +118,41 @@ func (m *AdvancedMerger) mergePVMConfigAdvanced(target, source *PVMConfig) *PVMC
 	// Merge map with advanced strategy
 	target.VersionAliases = m.mergeStringMap(target.VersionAliases, source.VersionAliases)
 
+	// Merge remotes: additive, same-name override wins from higher-precedence source
+	target.Remotes = mergeRemoteConfigs(target.Remotes, source.Remotes)
+
 	return target
+}
+
+// mergeRemoteConfigs merges two remote config slices. Source entries override
+// target entries with the same name.
+func mergeRemoteConfigs(target, source []PVMRemoteConfig) []PVMRemoteConfig {
+	if len(source) == 0 {
+		return target
+	}
+	if len(target) == 0 {
+		result := make([]PVMRemoteConfig, len(source))
+		copy(result, source)
+		return result
+	}
+
+	merged := make([]PVMRemoteConfig, len(target))
+	copy(merged, target)
+
+	for _, s := range source {
+		found := false
+		for i, t := range merged {
+			if t.Name == s.Name {
+				merged[i] = s
+				found = true
+				break
+			}
+		}
+		if !found {
+			merged = append(merged, s)
+		}
+	}
+	return merged
 }
 
 // mergePVXConfigAdvanced performs advanced PVX configuration merging

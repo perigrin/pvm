@@ -71,6 +71,21 @@ type PVMConfig struct {
 
 	// Shell integration configuration
 	Shell *PVMShellConfig `toml:"shell" json:"shell"`
+
+	// Remotes specifies fork remote sources for custom Perl builds
+	Remotes []PVMRemoteConfig `toml:"remotes" json:"remotes"`
+}
+
+// PVMRemoteConfig represents a fork remote source in configuration
+type PVMRemoteConfig struct {
+	// Name is the remote identifier (e.g., "mycompany")
+	Name string `toml:"name" json:"name"`
+
+	// URL is the git repository URL
+	URL string `toml:"url" json:"url"`
+
+	// Type specifies the remote type (default: "git")
+	Type string `toml:"type" json:"type"`
 }
 
 // PVMCustomMirrorConfig represents a custom mirror with authentication
