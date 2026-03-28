@@ -286,6 +286,9 @@ type BuildOptions struct {
 
 	// NoPatchPerl disables automatic Devel::PatchPerl patching
 	NoPatchPerl bool
+
+	// SourceDir is a local directory containing perl source (from git clone); skips download when set
+	SourceDir string
 }
 
 // BuildResult contains information about the build
@@ -427,86 +430,93 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 	}
 	result.InstallPath = installDir
 
-	// Find or download source archive
-	sourceFile := options.SourceFile
-	if sourceFile == "" {
-		// Check if the source is already cached
-		archiveFilename := ""
+	// Determine source directory: use SourceDir directly (fork builds) or download/extract
+	var srcDir string
+	if options.SourceDir != "" {
+		// Use the provided local source directory; skip download and extract
+		srcDir = options.SourceDir
+	} else {
+		// Find or download source archive
+		sourceFile := options.SourceFile
+		if sourceFile == "" {
+			// Check if the source is already cached
+			archiveFilename := ""
 
-		// Determine the correct archive extension based on version
-		majorVersion := parsedVersion.Major
-		minorVersion := parsedVersion.Minor
-		patchVersion := parsedVersion.Patch
+			// Determine the correct archive extension based on version
+			majorVersion := parsedVersion.Major
+			minorVersion := parsedVersion.Minor
+			patchVersion := parsedVersion.Patch
 
-		if majorVersion > 5 || (majorVersion == 5 && (minorVersion > 14 || (minorVersion == 14 && patchVersion >= 0))) {
-			archiveFilename = fmt.Sprintf("perl-%s.tar.xz", version)
-		} else {
-			archiveFilename = fmt.Sprintf("perl-%s.tar.gz", version)
-		}
-
-		sourceFile = filepath.Join(dirs.SourcesDir, archiveFilename)
-
-		// Check if the source archive exists
-		if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
-			// Download the source archive
-			downloadOptions := &DownloadOptions{
-				Version:          version,
-				Mirror:           options.Mirror,
-				ProgressCallback: nil, // TODO: Adapt download progress to build progress
-				SkipCache:        options.SkipCache,
-				SkipChecksum:     options.SkipChecksum,
-				Context:          options.Context,
+			if majorVersion > 5 || (majorVersion == 5 && (minorVersion > 14 || (minorVersion == 14 && patchVersion >= 0))) {
+				archiveFilename = fmt.Sprintf("perl-%s.tar.xz", version)
+			} else {
+				archiveFilename = fmt.Sprintf("perl-%s.tar.gz", version)
 			}
 
-			downloadResult, err := DownloadPerlSource(downloadOptions)
-			if err != nil {
-				return nil, errors.NewVersionError(
-					ErrExtractionFailed,
-					"Failed to download source archive",
-					err)
+			sourceFile = filepath.Join(dirs.SourcesDir, archiveFilename)
+
+			// Check if the source archive exists
+			if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
+				// Download the source archive
+				downloadOptions := &DownloadOptions{
+					Version:          version,
+					Mirror:           options.Mirror,
+					ProgressCallback: nil, // TODO: Adapt download progress to build progress
+					SkipCache:        options.SkipCache,
+					SkipChecksum:     options.SkipChecksum,
+					Context:          options.Context,
+				}
+
+				downloadResult, err := DownloadPerlSource(downloadOptions)
+				if err != nil {
+					return nil, errors.NewVersionError(
+						ErrExtractionFailed,
+						"Failed to download source archive",
+						err)
+				}
+
+				sourceFile = downloadResult.Path
 			}
-
-			sourceFile = downloadResult.Path
 		}
-	}
 
-	// Start extraction
-	updateStage(StageExtract, "Extracting source archive", 0.0)
+		// Start extraction
+		updateStage(StageExtract, "Extracting source archive", 0.0)
 
-	// Extract source archive
-	extractedDir, err := extractArchive(sourceFile, buildDir, options.Context)
-	if err != nil {
-		return nil, errors.NewVersionError(
-			ErrExtractionFailed,
-			"Failed to extract source archive",
-			err)
-	}
-
-	// Move to the extracted directory
-	srcDir := extractedDir
-	if srcDir == "" {
-		// Try to find the source directory
-		entries, err := os.ReadDir(buildDir)
+		// Extract source archive
+		extractedDir, err := extractArchive(sourceFile, buildDir, options.Context)
 		if err != nil {
 			return nil, errors.NewVersionError(
 				ErrExtractionFailed,
-				"Failed to read build directory",
+				"Failed to extract source archive",
 				err)
 		}
 
-		// Look for the first directory
-		for _, entry := range entries {
-			if entry.IsDir() {
-				srcDir = filepath.Join(buildDir, entry.Name())
-				break
-			}
-		}
-
+		// Move to the extracted directory
+		srcDir = extractedDir
 		if srcDir == "" {
-			return nil, errors.NewVersionError(
-				ErrExtractionFailed,
-				"Could not find source directory in extracted archive",
-				nil)
+			// Try to find the source directory
+			entries, err := os.ReadDir(buildDir)
+			if err != nil {
+				return nil, errors.NewVersionError(
+					ErrExtractionFailed,
+					"Failed to read build directory",
+					err)
+			}
+
+			// Look for the first directory
+			for _, entry := range entries {
+				if entry.IsDir() {
+					srcDir = filepath.Join(buildDir, entry.Name())
+					break
+				}
+			}
+
+			if srcDir == "" {
+				return nil, errors.NewVersionError(
+					ErrExtractionFailed,
+					"Could not find source directory in extracted archive",
+					nil)
+			}
 		}
 	}
 
