@@ -110,6 +110,7 @@ func NewCommand() *cobra.Command {
 		// These are implemented in their own files
 		newConfigCommand(), // from config.go
 		newPerlCommand(),   // from perl.go
+		newRemoteCommand(), // from remote_command.go
 
 		// Temporary backward compatibility alias for makefile
 		newBackwardCompatSymlinksCommand(),
