@@ -149,6 +149,19 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
 
+			// Route fork installs (remote/fork@version or remote/version) to the fork path.
+			if isForkInstall(version) {
+				fi, err := perl.ParseForkIdentifier(version)
+				if err != nil {
+					return fmt.Errorf("invalid fork identifier %q: %w", version, err)
+				}
+				cfg, err := config.LoadEffectiveConfig()
+				if err != nil {
+					return fmt.Errorf("failed to load configuration: %w", err)
+				}
+				return installFork(cmd, fi, cfg)
+			}
+
 			// Get include-dev flag
 			includeDev, err := cmd.Flags().GetBool("include-dev")
 			if err != nil {
