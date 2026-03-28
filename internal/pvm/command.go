@@ -821,24 +821,31 @@ func newVersionsCommand() *cobra.Command {
 					decoration = " (latest)"
 				}
 
+				// Use DisplayName so fork versions show as "remote/forkname-version"
+				displayName := versionInfo.DisplayName()
+
 				// Basic output
 				if !showPath && !showSource {
-					// Add import source indicator for imported versions
+					// Add source indicator: remote for forks, tool for imported versions
 					var sourceIndicator string
-					switch versionInfo.Source {
-					case "plenv":
-						sourceIndicator = " (imported from plenv)"
-					case "perlbrew":
-						sourceIndicator = " (imported from perlbrew)"
-					case "system":
-						sourceIndicator = " (system)"
+					if versionInfo.Remote != "" && versionInfo.Remote != "origin" {
+						sourceIndicator = fmt.Sprintf(" (%s)", versionInfo.Remote)
+					} else {
+						switch versionInfo.Source {
+						case "plenv":
+							sourceIndicator = " (imported from plenv)"
+						case "perlbrew":
+							sourceIndicator = " (imported from perlbrew)"
+						case "system":
+							sourceIndicator = " (system)"
+						}
 					}
-					ui.Printf("  %s%s%s\n", versionInfo.Version, decoration, sourceIndicator)
+					ui.Printf("  %s%s%s\n", displayName, decoration, sourceIndicator)
 					continue
 				}
 
 				// Detailed output
-				ui.Printf("  %s%s", versionInfo.Version, decoration)
+				ui.Printf("  %s%s", displayName, decoration)
 
 				if showPath {
 					ui.Info("    Path: %s", versionInfo.InstallPath)
@@ -1385,8 +1392,49 @@ func newUninstallCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
+			ui := cli.GetUI(cmd)
 
-			// Check if the version is installed
+			// Fork identifiers contain "/"; look them up by display name
+			if strings.Contains(version, "/") {
+				versionInfo := perl.FindByDisplayName(version)
+				if versionInfo == nil {
+					return fmt.Errorf("version %s is not installed", version)
+				}
+
+				// Get force flag
+				force, err := cmd.Flags().GetBool("force")
+				if err != nil {
+					return err
+				}
+
+				// Get confirmation unless force flag is used
+				if !force {
+					ui.Printf("Are you sure you want to uninstall Perl %s? [y/N] ", version)
+					var response string
+					_, _ = fmt.Scanln(&response)
+
+					response = strings.ToLower(strings.TrimSpace(response))
+					if response != "y" && response != "yes" {
+						ui.Info("Uninstall cancelled.")
+						return nil
+					}
+				}
+
+				if versionInfo.Source == "system" {
+					ui.Warning("Note: This is a system Perl installation.")
+					ui.Info("The installation will be unregistered from PVM but the actual files will not be removed.")
+				}
+
+				ui.Info("Uninstalling Perl %s...", version)
+				if err := perl.UninstallVersionByDisplayName(version); err != nil {
+					return err
+				}
+
+				ui.Success("Perl %s has been uninstalled.", version)
+				return nil
+			}
+
+			// Stock version: look up by version string
 			versionInfo, err := perl.GetVersionInfo(version)
 			if err != nil {
 				return err
@@ -1399,7 +1447,6 @@ func newUninstallCommand() *cobra.Command {
 			}
 
 			// Get confirmation unless force flag is used
-			ui := cli.GetUI(cmd)
 			if !force {
 				ui.Printf("Are you sure you want to uninstall Perl %s? [y/N] ", version)
 				var response string

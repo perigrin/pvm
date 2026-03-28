@@ -310,8 +310,8 @@ func getInstalledVersionsFunc() ([]VersionInfo, error) {
 // allowing it to be replaced in tests
 var GetInstalledVersions = getInstalledVersionsFunc
 
-// GetVersionInfo returns information about a specific installed version
-func GetVersionInfo(version string) (*VersionInfo, error) {
+// getVersionInfoFunc returns information about a specific installed version
+func getVersionInfoFunc(version string) (*VersionInfo, error) {
 	// Parse version to normalize format
 	parsedVersion, err := ParseVersion(version)
 	if err != nil {
@@ -328,7 +328,7 @@ func GetVersionInfo(version string) (*VersionInfo, error) {
 		return nil, err
 	}
 
-	// Look up version by searching through all entries
+	// Look up version by searching through all entries (registry is UUID-keyed)
 	for _, versionInfo := range registry.Versions {
 		if versionInfo.Version == normalizedVersion {
 			return &versionInfo, nil
@@ -341,11 +341,15 @@ func GetVersionInfo(version string) (*VersionInfo, error) {
 		nil)
 }
 
-// FindByDisplayName looks up a VersionInfo by its display name.
+// GetVersionInfo is a variable that points to getVersionInfoFunc,
+// allowing it to be replaced in tests
+var GetVersionInfo = getVersionInfoFunc
+
+// findByDisplayNameFunc looks up a VersionInfo by its display name.
 // For stock installs the display name is the bare version (e.g. "5.38.0").
 // For fork installs it is "<remote>/<forkname>-<version>" or "<remote>/<version>".
 // Returns nil when no matching entry is found.
-func FindByDisplayName(name string) *VersionInfo {
+func findByDisplayNameFunc(name string) *VersionInfo {
 	registry, err := LoadRegistry()
 	if err != nil {
 		return nil
@@ -360,6 +364,10 @@ func FindByDisplayName(name string) *VersionInfo {
 	}
 	return nil
 }
+
+// FindByDisplayName is a variable that points to findByDisplayNameFunc,
+// allowing it to be replaced in tests
+var FindByDisplayName = findByDisplayNameFunc
 
 // isVersionInstalledFunc checks if a specific version is installed
 func isVersionInstalledFunc(version string) (bool, error) {
@@ -392,8 +400,8 @@ func isVersionInstalledFunc(version string) (bool, error) {
 // allowing it to be replaced in tests
 var IsVersionInstalled = isVersionInstalledFunc
 
-// UninstallVersion removes a Perl version from the system
-func UninstallVersion(version string) error {
+// uninstallVersionFunc removes a Perl version from the system
+func uninstallVersionFunc(version string) error {
 	// Parse version to normalize format
 	parsedVersion, err := ParseVersion(version)
 	if err != nil {
@@ -410,9 +418,18 @@ func UninstallVersion(version string) error {
 		return err
 	}
 
-	// Check if version exists
-	versionInfo, exists := registry.Versions[normalizedVersion]
-	if !exists {
+	// Find the registry key for this version (registry is UUID-keyed, not version-keyed)
+	registryKey := ""
+	var versionInfo VersionInfo
+	for key, info := range registry.Versions {
+		if info.Version == normalizedVersion {
+			registryKey = key
+			versionInfo = info
+			break
+		}
+	}
+
+	if registryKey == "" {
 		return errors.NewVersionError(
 			ErrVersionNotFound,
 			fmt.Sprintf("Version %s is not installed", normalizedVersion),
@@ -421,7 +438,7 @@ func UninstallVersion(version string) error {
 
 	// If this is a system Perl, don't remove it, just unregister
 	if versionInfo.Source == "system" {
-		delete(registry.Versions, normalizedVersion)
+		delete(registry.Versions, registryKey)
 		return SaveRegistry(registry)
 	}
 
@@ -436,11 +453,71 @@ func UninstallVersion(version string) error {
 	}
 
 	// Remove from registry
-	delete(registry.Versions, normalizedVersion)
+	delete(registry.Versions, registryKey)
 
 	// Save updated registry
 	return SaveRegistry(registry)
 }
+
+// UninstallVersion is a variable that points to uninstallVersionFunc,
+// allowing it to be replaced in tests
+var UninstallVersion = uninstallVersionFunc
+
+// uninstallVersionByDisplayNameFunc removes a Perl version identified by its display name.
+// For stock installs the display name is the bare version (e.g. "5.38.0").
+// For fork installs it is "<remote>/<forkname>-<version>" or "<remote>/<version>".
+// The clone cache is NOT removed, since other versions may share it.
+func uninstallVersionByDisplayNameFunc(displayName string) error {
+	// Load registry
+	registry, err := LoadRegistry()
+	if err != nil {
+		return err
+	}
+
+	// Find the registry entry by display name
+	registryKey := ""
+	var versionInfo VersionInfo
+	for key, info := range registry.Versions {
+		if info.DisplayName() == displayName {
+			registryKey = key
+			versionInfo = info
+			break
+		}
+	}
+
+	if registryKey == "" {
+		return errors.NewVersionError(
+			ErrVersionNotFound,
+			fmt.Sprintf("Version %s is not installed", displayName),
+			nil)
+	}
+
+	// If this is a system Perl, don't remove it, just unregister
+	if versionInfo.Source == "system" {
+		delete(registry.Versions, registryKey)
+		return SaveRegistry(registry)
+	}
+
+	// Remove installation directory
+	err = osRemoveAll(versionInfo.InstallPath)
+	if err != nil {
+		return errors.NewVersionError(
+			ErrUninstallFailed,
+			fmt.Sprintf("Failed to remove installation directory for %s", displayName),
+			err).
+			WithLocation(versionInfo.InstallPath)
+	}
+
+	// Remove from registry
+	delete(registry.Versions, registryKey)
+
+	// Save updated registry
+	return SaveRegistry(registry)
+}
+
+// UninstallVersionByDisplayName is a variable that points to uninstallVersionByDisplayNameFunc,
+// allowing it to be replaced in tests
+var UninstallVersionByDisplayName = uninstallVersionByDisplayNameFunc
 
 // ImportSystemPerl imports the system Perl into the registry
 func ImportSystemPerl() error {

@@ -50,8 +50,15 @@ func GetCurrentVersion() (*CurrentVersionInfo, error) {
 	// Convert resolver source to user-friendly description
 	sourceDesc := formatSourceDescription(resolved.Source, resolved.SourcePath)
 
+	// Use the display name from the registry when available, so fork versions are
+	// shown as "remote/forkname-version" rather than the bare internal version string.
+	displayVersion := resolved.Version
+	if versionInfo, err := perl.GetVersionInfo(resolved.Version); err == nil {
+		displayVersion = versionInfo.DisplayName()
+	}
+
 	return &CurrentVersionInfo{
-		Version:           resolved.Version,
+		Version:           displayVersion,
 		Source:            string(resolved.Source),
 		SourceDescription: sourceDesc,
 		Path:              resolved.Path,
