@@ -6,6 +6,7 @@ package perl
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -809,6 +810,213 @@ func TestGetVersionInfo(t *testing.T) {
 	_, err = GetVersionInfo("5.40.0")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not installed")
+}
+
+// TestVersionInfoDisplayName tests the DisplayName method on VersionInfo
+func TestVersionInfoDisplayName(t *testing.T) {
+	tests := []struct {
+		name     string
+		info     VersionInfo
+		expected string
+	}{
+		{
+			name: "stock install with no fork metadata",
+			info: VersionInfo{
+				Version:     "5.38.0",
+				InstallPath: "/opt/perl/5.38.0",
+				Source:      "pvm",
+			},
+			expected: "5.38.0",
+		},
+		{
+			name: "fork install with remote and fork name",
+			info: VersionInfo{
+				Version:     "5.40.2",
+				InstallPath: "/opt/perl/mycompany/myfork-5.40.2",
+				Source:      "pvm",
+				Remote:      "mycompany",
+				ForkName:    "myfork",
+				BaseVersion: "5.40.2",
+			},
+			expected: "mycompany/myfork-5.40.2",
+		},
+		{
+			name: "fork install with remote only (no fork name)",
+			info: VersionInfo{
+				Version:     "5.40.2",
+				InstallPath: "/opt/perl/mycompany/5.40.2",
+				Source:      "pvm",
+				Remote:      "mycompany",
+				ForkName:    "",
+				BaseVersion: "5.40.2",
+			},
+			expected: "mycompany/5.40.2",
+		},
+		{
+			name: "origin remote treated as stock",
+			info: VersionInfo{
+				Version:     "5.38.0",
+				InstallPath: "/opt/perl/5.38.0",
+				Source:      "pvm",
+				Remote:      "origin",
+				ForkName:    "",
+				BaseVersion: "5.38.0",
+			},
+			expected: "5.38.0",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.info.DisplayName())
+		})
+	}
+}
+
+// TestFindByDisplayName tests looking up VersionInfo by display name
+func TestFindByDisplayName(t *testing.T) {
+	// Set up test registry
+	registry, _, cleanup := setupTestRegistry(t)
+	defer cleanup()
+
+	// Add stock version
+	registry.Versions["uuid-stock"] = VersionInfo{
+		Version:     "5.38.0",
+		InstallPath: "/opt/perl/5.38.0",
+		InstallTime: time.Now(),
+		Source:      "pvm",
+	}
+
+	// Add fork version with remote and fork name
+	registry.Versions["uuid-fork1"] = VersionInfo{
+		Version:     "5.40.2",
+		InstallPath: "/opt/perl/mycompany/myfork-5.40.2",
+		InstallTime: time.Now(),
+		Source:      "pvm",
+		Remote:      "mycompany",
+		ForkName:    "myfork",
+		BaseVersion: "5.40.2",
+	}
+
+	// Add fork version with remote only
+	registry.Versions["uuid-fork2"] = VersionInfo{
+		Version:     "5.40.0",
+		InstallPath: "/opt/perl/acme/5.40.0",
+		InstallTime: time.Now(),
+		Source:      "pvm",
+		Remote:      "acme",
+		ForkName:    "",
+		BaseVersion: "5.40.0",
+	}
+
+	// Look up stock version by display name
+	found := FindByDisplayName("5.38.0")
+	require.NotNil(t, found, "Should find stock version by display name")
+	assert.Equal(t, "5.38.0", found.Version)
+	assert.Equal(t, "/opt/perl/5.38.0", found.InstallPath)
+
+	// Look up fork with remote/forkname-version
+	found = FindByDisplayName("mycompany/myfork-5.40.2")
+	require.NotNil(t, found, "Should find fork by display name")
+	assert.Equal(t, "5.40.2", found.Version)
+	assert.Equal(t, "mycompany", found.Remote)
+	assert.Equal(t, "myfork", found.ForkName)
+
+	// Look up fork with remote/version
+	found = FindByDisplayName("acme/5.40.0")
+	require.NotNil(t, found, "Should find remote-only fork by display name")
+	assert.Equal(t, "5.40.0", found.Version)
+	assert.Equal(t, "acme", found.Remote)
+	assert.Equal(t, "", found.ForkName)
+
+	// Look up non-existent name
+	found = FindByDisplayName("nonexistent/1.0.0")
+	assert.Nil(t, found, "Should return nil for non-existent display name")
+}
+
+// TestRebuildRegistryForkInstalls tests RebuildRegistry with mixed stock and fork installs
+func TestRebuildRegistryForkInstalls(t *testing.T) {
+	// Create a temporary directory tree with stock and fork perl installs
+	tempDir, err := os.MkdirTemp("", "pvm-rebuild-fork-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	versionsDir := filepath.Join(tempDir, "versions")
+	require.NoError(t, os.MkdirAll(versionsDir, 0755))
+
+	// Stock install: versions/5.38.0/bin/perl
+	stockBin := filepath.Join(versionsDir, "5.38.0", "bin")
+	require.NoError(t, os.MkdirAll(stockBin, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(stockBin, "perl"), []byte("#!/bin/perl"), 0755))
+
+	// Fork install: versions/mycompany/myfork-5.40.2/bin/perl
+	forkBin := filepath.Join(versionsDir, "mycompany", "myfork-5.40.2", "bin")
+	require.NoError(t, os.MkdirAll(forkBin, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(forkBin, "perl"), []byte("#!/bin/perl"), 0755))
+
+	// Fork install with no fork name: versions/acme/5.40.0/bin/perl
+	forkBin2 := filepath.Join(versionsDir, "acme", "5.40.0", "bin")
+	require.NoError(t, os.MkdirAll(forkBin2, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(forkBin2, "perl"), []byte("#!/bin/perl"), 0755))
+
+	// Override xdg.GetDirs and SaveRegistry for this test
+	originalGetDirs := xdg.GetDirs
+	originalSaveRegistry := SaveRegistry
+	originalDetectSystemPerl := detectSystemPerl
+	defer func() {
+		xdg.GetDirs = originalGetDirs
+		SaveRegistry = originalSaveRegistry
+		detectSystemPerl = originalDetectSystemPerl
+	}()
+
+	xdg.GetDirs = func() (*xdg.Dirs, error) {
+		return &xdg.Dirs{
+			DataDir:     tempDir,
+			VersionsDir: versionsDir,
+			EnsureDirs:  func() error { return nil },
+		}, nil
+	}
+
+	// Suppress system perl detection
+	detectSystemPerl = func() (*SystemPerl, error) {
+		return nil, fmt.Errorf("no system perl in test")
+	}
+
+	// Capture registry saved
+	var savedRegistry *VersionRegistry
+	SaveRegistry = func(r *VersionRegistry) error {
+		savedRegistry = r
+		return nil
+	}
+
+	err = RebuildRegistry()
+	require.NoError(t, err)
+	require.NotNil(t, savedRegistry)
+
+	// Check stock install was found
+	var stockFound, forkWithNameFound, forkWithoutNameFound bool
+	for _, v := range savedRegistry.Versions {
+		switch v.DisplayName() {
+		case "5.38.0":
+			stockFound = true
+			assert.Equal(t, "", v.Remote, "stock install should have empty Remote")
+			assert.Equal(t, "", v.ForkName, "stock install should have empty ForkName")
+			assert.Equal(t, "", v.BaseVersion, "stock install should have empty BaseVersion")
+		case "mycompany/myfork-5.40.2":
+			forkWithNameFound = true
+			assert.Equal(t, "mycompany", v.Remote)
+			assert.Equal(t, "myfork", v.ForkName)
+			assert.Equal(t, "5.40.2", v.BaseVersion)
+		case "acme/5.40.0":
+			forkWithoutNameFound = true
+			assert.Equal(t, "acme", v.Remote)
+			assert.Equal(t, "", v.ForkName)
+			assert.Equal(t, "5.40.0", v.BaseVersion)
+		}
+	}
+	assert.True(t, stockFound, "Stock install 5.38.0 should be found in rebuilt registry")
+	assert.True(t, forkWithNameFound, "Fork mycompany/myfork-5.40.2 should be found in rebuilt registry")
+	assert.True(t, forkWithoutNameFound, "Fork acme/5.40.0 should be found in rebuilt registry")
 }
 
 // TestIsVersionInstalled tests checking if a version is installed

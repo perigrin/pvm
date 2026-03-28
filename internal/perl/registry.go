@@ -87,6 +87,28 @@ type VersionInfo struct {
 
 	// BuildOptions contains the options used to build this version (if built by pvm)
 	BuildOptions *BuildOptions `json:"build_options,omitempty"`
+
+	// Remote is the fork remote name (e.g. "mycompany"); empty for stock origin installs
+	Remote string `json:"remote,omitempty"`
+
+	// ForkName is the name of the fork (e.g. "myfork"); empty when not a named fork
+	ForkName string `json:"fork_name,omitempty"`
+
+	// BaseVersion is the upstream Perl version the fork is based on; empty for stock installs
+	BaseVersion string `json:"base_version,omitempty"`
+}
+
+// DisplayName returns the human-readable name for this version.
+// For fork installs it returns "<remote>/<forkname>-<version>" or "<remote>/<version>".
+// For stock (origin) installs it returns the bare version string.
+func (v VersionInfo) DisplayName() string {
+	if v.Remote == "" || v.Remote == "origin" {
+		return v.Version
+	}
+	if v.ForkName == "" {
+		return v.Remote + "/" + v.BaseVersion
+	}
+	return v.Remote + "/" + v.ForkName + "-" + v.BaseVersion
 }
 
 // VersionRegistry holds information about all installed Perl versions
@@ -319,6 +341,26 @@ func GetVersionInfo(version string) (*VersionInfo, error) {
 		nil)
 }
 
+// FindByDisplayName looks up a VersionInfo by its display name.
+// For stock installs the display name is the bare version (e.g. "5.38.0").
+// For fork installs it is "<remote>/<forkname>-<version>" or "<remote>/<version>".
+// Returns nil when no matching entry is found.
+func FindByDisplayName(name string) *VersionInfo {
+	registry, err := LoadRegistry()
+	if err != nil {
+		return nil
+	}
+
+	for _, info := range registry.Versions {
+		if info.DisplayName() == name {
+			// Return a copy so callers cannot mutate registry internals
+			v := info
+			return &v
+		}
+	}
+	return nil
+}
+
 // isVersionInstalledFunc checks if a specific version is installed
 func isVersionInstalledFunc(version string) (bool, error) {
 	// Parse version to normalize format
@@ -475,34 +517,91 @@ func RebuildRegistry() error {
 			err)
 	}
 
-	// Process each entry
+	// Process each entry with a two-level scan.
+	// - If an entry contains bin/perl directly it is a stock install.
+	// - If an entry is a directory with no bin/perl it is treated as a remote
+	//   namespace and its subdirectories are scanned for fork installs.
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 
-		version := entry.Name()
-		installPath := filepath.Join(versionsDir, version)
+		entryName := entry.Name()
+		entryPath := filepath.Join(versionsDir, entryName)
 
-		// Check if perl binary exists
-		perlBinary := filepath.Join(installPath, "bin", "perl")
-		if _, err := os.Stat(perlBinary); os.IsNotExist(err) {
+		// Check if perl binary exists directly inside this entry (stock install)
+		perlBinary := filepath.Join(entryPath, "bin", "perl")
+		if _, err := os.Stat(perlBinary); err == nil {
+			// Stock install found
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			uuid := generateUUID()
+			newRegistry.Versions[uuid] = VersionInfo{
+				Version:     entryName,
+				InstallPath: entryPath,
+				InstallTime: info.ModTime(),
+				Source:      "pvm", // Installations in PVM versions directory are from PVM
+			}
 			continue
 		}
 
-		// Get directory info for install time
-		info, err := entry.Info()
+		// No bin/perl at this level — treat as a remote namespace and scan subdirs
+		remoteName := entryName
+		subEntries, err := os.ReadDir(entryPath)
 		if err != nil {
 			continue
 		}
+		for _, subEntry := range subEntries {
+			if !subEntry.IsDir() {
+				continue
+			}
+			subName := subEntry.Name()
+			subPath := filepath.Join(entryPath, subName)
 
-		// Add to registry with UUID
-		uuid := generateUUID()
-		newRegistry.Versions[uuid] = VersionInfo{
-			Version:     version,
-			InstallPath: installPath,
-			InstallTime: info.ModTime(),
-			Source:      "pvm", // Installations in PVM versions directory are from PVM
+			// Check for perl binary in the subdirectory
+			subPerlBinary := filepath.Join(subPath, "bin", "perl")
+			if _, err := os.Stat(subPerlBinary); os.IsNotExist(err) {
+				continue
+			}
+
+			// Reconstruct fork metadata from the directory name.
+			// Fork dirs follow the pattern "<forkname>-<version>" or just "<version>".
+			var forkName, baseVersion string
+			if idx := strings.LastIndex(subName, "-"); idx != -1 {
+				// Potential "<forkname>-<version>" — verify the version portion parses
+				candidate := subName[idx+1:]
+				if _, err := ParseVersion(candidate); err == nil {
+					forkName = subName[:idx]
+					baseVersion = candidate
+				}
+			}
+			// If forkName is still empty, subName itself should be a bare version
+			if forkName == "" {
+				if _, err := ParseVersion(subName); err == nil {
+					baseVersion = subName
+				}
+			}
+			// Skip entries where we could not determine a valid base version
+			if baseVersion == "" {
+				continue
+			}
+
+			info, err := subEntry.Info()
+			if err != nil {
+				continue
+			}
+			uuid := generateUUID()
+			newRegistry.Versions[uuid] = VersionInfo{
+				Version:     subName,
+				InstallPath: subPath,
+				InstallTime: info.ModTime(),
+				Source:      "pvm",
+				Remote:      remoteName,
+				ForkName:    forkName,
+				BaseVersion: baseVersion,
+			}
 		}
 	}
 
