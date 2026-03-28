@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAvailableCommand_CommandSetup(t *testing.T) {
@@ -73,4 +74,42 @@ func TestAvailableCommand_FormatValidation(t *testing.T) {
 	cmd.SetArgs([]string{"--format", "invalid"})
 	err := cmd.ParseFlags([]string{"--format", "invalid"})
 	assert.NoError(t, err, "Flag parsing should succeed even for invalid format values")
+}
+
+func TestAvailableCommand_RemoteFlag_Registered(t *testing.T) {
+	cmd := newAvailableCommand()
+
+	// The --remote flag must be registered.
+	flag := cmd.Flags().Lookup("remote")
+	require.NotNil(t, flag, "--remote flag should be registered on the available command")
+
+	// Default value should be empty string (no remote).
+	assert.Equal(t, "", flag.DefValue, "--remote default should be empty string")
+
+	// Flag type should be string.
+	assert.Equal(t, "string", flag.Value.Type(), "--remote should be a string flag")
+}
+
+func TestAvailableCommand_RemoteFlag_ParsesWithoutError(t *testing.T) {
+	cmd := newAvailableCommand()
+
+	// Parsing --remote with a value must not return an error.
+	err := cmd.ParseFlags([]string{"--remote", "mycompany"})
+	assert.NoError(t, err, "--remote flag should parse without error")
+
+	val, err := cmd.Flags().GetString("remote")
+	require.NoError(t, err)
+	assert.Equal(t, "mycompany", val, "--remote should hold the parsed value")
+}
+
+func TestAvailableCommand_RemoteFlag_EmptyByDefault(t *testing.T) {
+	cmd := newAvailableCommand()
+
+	// When --remote is not provided, the value must be empty.
+	err := cmd.ParseFlags([]string{})
+	require.NoError(t, err)
+
+	val, err := cmd.Flags().GetString("remote")
+	require.NoError(t, err)
+	assert.Equal(t, "", val, "--remote should be empty when not provided")
 }

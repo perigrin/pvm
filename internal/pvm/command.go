@@ -953,13 +953,24 @@ func newAvailableCommand() *cobra.Command {
 		Long: `List all Perl versions available for installation.
 
 By default, only stable versions are shown. Use --include-dev to also show development versions.
+Use --remote <name> to list versions available from a configured fork remote.
 
 Examples:
   pvm available                    # Show stable versions only
   pvm available --include-dev      # Show both stable and development versions
   pvm available --format=json     # JSON output format
-  pvm available --format=plain    # Plain text, one version per line`,
+  pvm available --format=plain    # Plain text, one version per line
+  pvm available --remote myco     # List versions from the 'myco' fork remote`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Handle --remote flag: list versions from a configured fork remote.
+			remoteName, err := cmd.Flags().GetString("remote")
+			if err != nil {
+				return err
+			}
+			if remoteName != "" {
+				return runAvailableRemote(cmd, remoteName)
+			}
+
 			// Get format flag
 			format, err := cmd.Flags().GetString("format")
 			if err != nil {
@@ -1182,7 +1193,63 @@ Examples:
 	// Add include-dev flag
 	cmd.Flags().Bool("include-dev", false, "Include development versions in output")
 
+	// Add remote flag for listing fork remote versions
+	cmd.Flags().String("remote", "", "List versions from a named fork remote (configured via 'pvm remote add')")
+
 	return cmd
+}
+
+// runAvailableRemote handles the --remote path for 'pvm available'.
+// It loads the effective config, finds the named remote, fetches its git tags,
+// and prints each discovered version in <remote>/<forkname>@<base_version>
+// (with fork) or <remote>/<version> (without fork) format.
+func runAvailableRemote(cmd *cobra.Command, remoteName string) error {
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return err
+	}
+
+	// Find the named remote in config.
+	var foundRemote *config.PVMRemoteConfig
+	if cfg.PVM != nil {
+		for i := range cfg.PVM.Remotes {
+			if cfg.PVM.Remotes[i].Name == remoteName {
+				foundRemote = &cfg.PVM.Remotes[i]
+				break
+			}
+		}
+	}
+	if foundRemote == nil {
+		return fmt.Errorf("remote %q not configured. Run 'pvm remote add %s <url>' first.", remoteName, remoteName)
+	}
+
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		return fmt.Errorf("failed to get XDG directories: %w", err)
+	}
+
+	remote := perl.Remote{Name: foundRemote.Name, URL: foundRemote.URL, Type: foundRemote.Type}
+	versions, err := perl.ListRemoteVersions(remote, dirs.CacheDir)
+	if err != nil {
+		return fmt.Errorf("failed to list versions for remote %q: %w", remoteName, err)
+	}
+
+	ui := cli.GetUI(cmd)
+	ui.Header(fmt.Sprintf("Available versions from remote '%s':", remoteName))
+
+	for _, dv := range versions {
+		if dv.ForkName != "" {
+			ui.Println(fmt.Sprintf("  %s/%s@%s", remoteName, dv.ForkName, dv.Version.String()))
+		} else {
+			ui.Println(fmt.Sprintf("  %s/%s", remoteName, dv.Version.String()))
+		}
+	}
+
+	if len(versions) == 0 {
+		ui.Println("  (none)")
+	}
+
+	return nil
 }
 
 func newDownloadCommand() *cobra.Command {
