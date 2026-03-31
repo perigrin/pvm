@@ -122,6 +122,33 @@ func (st *SymbolTable) AllSymbols() []Symbol {
 	return result
 }
 
+// LookupAll searches every scope in the symbol table tree for name, returning
+// the first match found via a depth-first walk from the root. Unlike Lookup,
+// which only searches the current scope chain upward, LookupAll also finds
+// symbols defined in child scopes that are no longer current — for example,
+// symbols inside subroutine bodies after analysis has completed and current
+// has returned to root.
+func (st *SymbolTable) LookupAll(name string) (Symbol, bool) {
+	var found Symbol
+	var ok bool
+	var walk func(s *Scope)
+	walk = func(s *Scope) {
+		if ok {
+			return
+		}
+		if sym, exists := s.symbols[name]; exists {
+			found = sym
+			ok = true
+			return
+		}
+		for _, child := range s.children {
+			walk(child)
+		}
+	}
+	walk(st.root)
+	return found, ok
+}
+
 // UpdateType walks the scope chain from the current scope to root, looking
 // for the first scope that contains name.  If found, it updates the symbol's
 // Type to typ and returns true.  If no scope contains name, it returns false.

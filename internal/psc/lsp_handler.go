@@ -56,6 +56,15 @@ func (h *handler) handle(msg *jsonRPCMessage) error {
 		return h.handleInitialize(msg)
 	}
 
+	// Reject any request (has an ID) sent after shutdown per LSP spec.
+	// Notifications (no ID) are silently dropped.
+	if h.isShutdown {
+		if msg.ID != nil {
+			h.transport.sendError(msg.ID, -32600, "server is shutting down")
+		}
+		return nil
+	}
+
 	// Reject any request (has an ID) that arrives before initialize completes.
 	if !h.initialized {
 		if msg.ID != nil {
@@ -125,7 +134,7 @@ func (h *handler) handleShutdown(msg *jsonRPCMessage) error {
 func (h *handler) handleDidOpen(msg *jsonRPCMessage) error {
 	var params lspDidOpenParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		return err
+		return nil
 	}
 
 	uri := params.TextDocument.URI
@@ -159,7 +168,7 @@ func (h *handler) handleDidOpen(msg *jsonRPCMessage) error {
 func (h *handler) handleDidChange(msg *jsonRPCMessage) error {
 	var params lspDidChangeParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		return err
+		return nil
 	}
 
 	uri := params.TextDocument.URI
@@ -195,7 +204,7 @@ func (h *handler) handleDidChange(msg *jsonRPCMessage) error {
 func (h *handler) handleDidClose(msg *jsonRPCMessage) error {
 	var params lspDidCloseParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		return err
+		return nil
 	}
 
 	uri := params.TextDocument.URI
@@ -253,7 +262,8 @@ func (h *handler) publishDiagnostics(uri string, source []byte) {
 func (h *handler) handleHover(msg *jsonRPCMessage) error {
 	var params lspTextDocumentPositionParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		return err
+		h.transport.sendError(msg.ID, -32602, "invalid params: "+err.Error())
+		return nil
 	}
 	uri := params.TextDocument.URI
 	source := h.sources[uri]
@@ -284,7 +294,8 @@ func (h *handler) handleHover(msg *jsonRPCMessage) error {
 func (h *handler) handleDefinition(msg *jsonRPCMessage) error {
 	var params lspTextDocumentPositionParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		return err
+		h.transport.sendError(msg.ID, -32602, "invalid params: "+err.Error())
+		return nil
 	}
 	uri := params.TextDocument.URI
 	source := h.sources[uri]
@@ -317,7 +328,8 @@ func (h *handler) handleDefinition(msg *jsonRPCMessage) error {
 func (h *handler) handleDocumentSymbol(msg *jsonRPCMessage) error {
 	var params lspDocumentSymbolParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		return err
+		h.transport.sendError(msg.ID, -32602, "invalid params: "+err.Error())
+		return nil
 	}
 	uri := params.TextDocument.URI
 	source := h.sources[uri]
@@ -363,24 +375,35 @@ func symbolKindForInfer(kind infer.SymbolKind) int {
 }
 
 // positionToOffset converts a zero-based line and character position to a
-// byte offset within source. Returns len(source) if line exceeds the
-// document's line count.
+// byte offset within source. Negative col values are treated as 0. If the
+// computed offset would exceed len(source) it is clamped to len(source).
+// Returns len(source) if line exceeds the document's line count.
 func positionToOffset(source []byte, line, col int) uint32 {
-	offset := 0
+	if col < 0 {
+		col = 0
+	}
 	currentLine := 0
 	for i, b := range source {
 		if currentLine == line {
-			offset = i + col
-			break
+			offset := i + col
+			if offset > len(source) {
+				return uint32(len(source))
+			}
+			return uint32(offset)
 		}
 		if b == '\n' {
 			currentLine++
 		}
 	}
-	if currentLine < line {
-		return uint32(len(source))
+	// Target line starts at end of source (e.g. after the final newline).
+	if currentLine == line {
+		offset := len(source) + col
+		if offset > len(source) {
+			return uint32(len(source))
+		}
+		return uint32(offset)
 	}
-	return uint32(offset)
+	return uint32(len(source))
 }
 
 // offsetToPosition converts a byte offset within source to a zero-based

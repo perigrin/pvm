@@ -13,6 +13,10 @@ import (
 	"sync"
 )
 
+// maxContentLength caps the Content-Length value accepted from clients to
+// 50 MB, preventing memory exhaustion from malicious or malformed messages.
+const maxContentLength = 50 * 1024 * 1024
+
 // jsonRPCMessage is the envelope for all JSON-RPC 2.0 messages: requests,
 // responses, and notifications.
 type jsonRPCMessage struct {
@@ -78,6 +82,9 @@ func (t *transport) readMessage() (*jsonRPCMessage, error) {
 			n, err := strconv.Atoi(strings.TrimSpace(value))
 			if err != nil {
 				return nil, fmt.Errorf("invalid Content-Length value %q: %w", value, err)
+			}
+			if n > maxContentLength {
+				return nil, fmt.Errorf("Content-Length %d exceeds maximum %d", n, maxContentLength)
 			}
 			contentLength = n
 		}

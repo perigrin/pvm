@@ -209,7 +209,7 @@ func (s *LSPServer) DefinitionAtByte(uri string, offset uint32) (*infer.Symbol, 
 		return nil, false
 	}
 
-	sym, found := doc.symbols.Lookup(name)
+	sym, found := doc.symbols.LookupAll(name)
 	if !found {
 		return nil, false
 	}

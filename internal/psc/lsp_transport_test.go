@@ -79,6 +79,17 @@ func TestTransportMalformedHeader(t *testing.T) {
 	assert.Contains(t, err.Error(), "Content-Length")
 }
 
+func TestTransportContentLengthLimit(t *testing.T) {
+	// A Content-Length value exceeding the 50MB cap must be rejected before
+	// any allocation attempt.
+	frame := fmt.Sprintf("Content-Length: %d\r\n\r\n", maxContentLength+1)
+	tr := newTransport(strings.NewReader(frame), io.Discard)
+
+	_, err := tr.readMessage()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds maximum")
+}
+
 func TestTransportLargeBody(t *testing.T) {
 	// Build a body larger than the typical bufio default buffer (4096 bytes).
 	largeValue := strings.Repeat("x", 9000)

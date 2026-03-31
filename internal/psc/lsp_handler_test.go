@@ -459,6 +459,101 @@ func TestHandlerDocumentSymbol(t *testing.T) {
 	assert.True(t, names["foo"], "symbols should include foo")
 }
 
+func TestHandlerRequestAfterShutdown(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+	h.isShutdown = true
+
+	rawID := json.RawMessage(`99`)
+	msg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		ID:      &rawID,
+		Method:  "textDocument/hover",
+		Params:  json.RawMessage(`{"textDocument":{"uri":"file:///a.pl"},"position":{"line":0,"character":0}}`),
+	}
+	err := h.handle(msg)
+	require.NoError(t, err)
+
+	resp := readResponse(t, out)
+	require.NotNil(t, resp)
+	require.NotNil(t, resp.Error, "request after shutdown should produce an error response")
+	assert.Equal(t, -32600, resp.Error.Code)
+}
+
+func TestHandlerNotificationAfterShutdownDropped(t *testing.T) {
+	// Notifications (no ID) after shutdown are silently dropped — no response.
+	h, _ := newTestHandler(t)
+	h.initialized = true
+	h.isShutdown = true
+
+	msg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		// No ID — this is a notification.
+		Method: "textDocument/didOpen",
+		Params: json.RawMessage(`{"textDocument":{"uri":"file:///a.pl","languageId":"perl","version":1,"text":""}}`),
+	}
+	err := h.handle(msg)
+	require.NoError(t, err)
+}
+
+func TestHandlerHoverMalformedParams(t *testing.T) {
+	// Malformed JSON params on a request handler must produce an InvalidParams
+	// error response, not crash the server.
+	h, out := newTestHandler(t)
+	h.initialized = true
+
+	rawID := json.RawMessage(`55`)
+	msg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		ID:      &rawID,
+		Method:  "textDocument/hover",
+		Params:  json.RawMessage(`not-valid-json`),
+	}
+	err := h.handle(msg)
+	require.NoError(t, err, "handler must not return an error for malformed params")
+
+	resp := readResponse(t, out)
+	require.NotNil(t, resp)
+	require.NotNil(t, resp.Error, "malformed params should produce an error response")
+	assert.Equal(t, -32602, resp.Error.Code, "error code should be InvalidParams")
+}
+
+func TestHandlerDidOpenMalformedParams(t *testing.T) {
+	// Malformed JSON params on a notification handler must be silently dropped.
+	h, _ := newTestHandler(t)
+	h.initialized = true
+
+	msg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		// No ID — notification.
+		Method: "textDocument/didOpen",
+		Params: json.RawMessage(`not-valid-json`),
+	}
+	err := h.handle(msg)
+	require.NoError(t, err, "notification handler must not return an error for malformed params")
+}
+
+func TestPositionConversionEdgeCases(t *testing.T) {
+	source := []byte("abc\ndef\n")
+
+	// Column beyond the end of line 0 is clamped to len(source).
+	offset := positionToOffset(source, 0, 100)
+	assert.LessOrEqual(t, offset, uint32(len(source)), "col beyond line should be clamped to document end")
+
+	// Line beyond the end of the document returns len(source).
+	offset2 := positionToOffset(source, 99, 0)
+	assert.Equal(t, uint32(len(source)), offset2, "line beyond document should return len(source)")
+
+	// Last line (after final newline): line 2 col 0 should be len(source).
+	// The source "abc\ndef\n" has lines 0="abc", 1="def", 2="" (after final '\n').
+	offset3 := positionToOffset(source, 2, 0)
+	assert.Equal(t, uint32(len(source)), offset3, "position at last empty line should be len(source)")
+
+	// Negative col should be treated as 0.
+	offset4 := positionToOffset(source, 0, -1)
+	assert.Equal(t, uint32(0), offset4, "negative col should be clamped to 0")
+}
+
 func TestPositionConversion(t *testing.T) {
 	source := []byte("my $x = 42;\nprint $x;\n")
 

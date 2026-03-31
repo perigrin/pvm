@@ -266,6 +266,44 @@ func TestUpdateReturnType(t *testing.T) {
 	assert.False(t, ok, "nonexistent should return false")
 }
 
+func TestLookupAll(t *testing.T) {
+	st := infer.NewSymbolTable()
+
+	// Define one symbol in the root scope.
+	st.Define(infer.Symbol{
+		Name: "$root",
+		Type: types.Scalar,
+		Kind: infer.SymVariable,
+	})
+
+	// Enter a child scope and define a symbol there.
+	st.EnterScope("block")
+	st.Define(infer.Symbol{
+		Name: "$child",
+		Type: types.Int,
+		Kind: infer.SymVariable,
+	})
+	st.ExitScope()
+
+	// After ExitScope, current is back at root. Lookup cannot see $child.
+	_, ok := st.Lookup("$child")
+	assert.False(t, ok, "Lookup should not find $child after exiting its scope")
+
+	// LookupAll must find $child by searching all scopes.
+	found, ok := st.LookupAll("$child")
+	require.True(t, ok, "LookupAll should find $child in a child scope")
+	assert.Equal(t, types.Int, found.Type)
+
+	// LookupAll must also find symbols in the root scope.
+	foundRoot, ok := st.LookupAll("$root")
+	require.True(t, ok, "LookupAll should find $root in the root scope")
+	assert.Equal(t, types.Scalar, foundRoot.Type)
+
+	// LookupAll must return false for names that do not exist anywhere.
+	_, ok = st.LookupAll("$nowhere")
+	assert.False(t, ok, "LookupAll should return false for an undefined symbol")
+}
+
 func TestAllSymbols(t *testing.T) {
 	st := infer.NewSymbolTable()
 
