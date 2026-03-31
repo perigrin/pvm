@@ -4,7 +4,6 @@
 package psc_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,17 +60,4 @@ func TestLSPCommandExists(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, lspCmd)
 	assert.Equal(t, "lsp", lspCmd.Name())
-}
-
-func TestLSPCommandReturnsNotImplemented(t *testing.T) {
-	cmd := psc.NewCommand()
-	cmd.SetArgs([]string{"lsp"})
-
-	var out strings.Builder
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-
-	err := cmd.Execute()
-	assert.Error(t, err, "lsp command should return an error (not yet implemented)")
-	assert.Contains(t, err.Error(), "not yet implemented")
 }
