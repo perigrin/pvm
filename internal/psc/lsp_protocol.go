@@ -7,6 +7,15 @@ package psc
 const (
 	codeServerNotInitialized = -32002
 	codeMethodNotFound       = -32601
+	codeInvalidRequest       = -32600
+	codeInvalidParams        = -32602
+)
+
+// LSP diagnostic severity constants.
+const (
+	lspSeverityError       = 1
+	lspSeverityWarning     = 2
+	lspSeverityInformation = 3
 )
 
 // LSP symbol kind constants (subset used by PSC).

@@ -78,6 +78,19 @@ func (s *LSPServer) CloseDocument(uri string) {
 	delete(s.documents, uri)
 }
 
+// Source returns the raw source bytes for the document at uri, or nil
+// if the uri is not currently open.
+func (s *LSPServer) Source(uri string) []byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	doc, ok := s.documents[uri]
+	if !ok {
+		return nil
+	}
+	return doc.source
+}
+
 // Annotations returns the type annotation map for the document at uri,
 // or nil if the uri is not currently open.
 func (s *LSPServer) Annotations(uri string) map[uint32]types.Type {

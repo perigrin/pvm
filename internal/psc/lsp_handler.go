@@ -17,7 +17,6 @@ import (
 type handler struct {
 	server      *LSPServer
 	transport   *transport
-	sources     map[string][]byte // document source for position conversion
 	initialized bool
 	isShutdown  bool
 	exitFn      func(int) // injectable for testing; defaults to os.Exit
@@ -29,7 +28,6 @@ func newHandler(server *LSPServer, tr *transport) *handler {
 	return &handler{
 		server:    server,
 		transport: tr,
-		sources:   make(map[string][]byte),
 		exitFn:    func(int) {}, // replaced by os.Exit in production
 	}
 }
@@ -60,7 +58,7 @@ func (h *handler) handle(msg *jsonRPCMessage) error {
 	// Notifications (no ID) are silently dropped.
 	if h.isShutdown {
 		if msg.ID != nil {
-			h.transport.sendError(msg.ID, -32600, "server is shutting down")
+			h.transport.sendError(msg.ID, codeInvalidRequest, "server is shutting down")
 		}
 		return nil
 	}
@@ -127,89 +125,66 @@ func (h *handler) handleShutdown(msg *jsonRPCMessage) error {
 	return nil
 }
 
-// handleDidOpen handles textDocument/didOpen notifications. It stores the
-// source text, runs inference via OpenDocument, and publishes diagnostics.
-// If OpenDocument fails, a single error diagnostic spanning the whole
-// document is published instead.
+// updateDocument calls OpenDocument on the server for the given uri and
+// source. On success it publishes diagnostics. On failure it publishes a
+// single error diagnostic spanning the whole document.
+func (h *handler) updateDocument(uri string, source []byte) {
+	if err := h.server.OpenDocument(uri, source); err != nil {
+		// Publish a single error diagnostic covering the whole document.
+		docEnd := offsetToPosition(source, uint32(len(source)))
+		h.transport.sendNotification("textDocument/publishDiagnostics", lspPublishDiagnosticsParams{
+			URI: uri,
+			Diagnostics: []lspDiagnostic{{
+				Range:    lspRange{Start: lspPosition{}, End: docEnd},
+				Severity: lspSeverityError,
+				Source:   "psc",
+				Message:  err.Error(),
+			}},
+		})
+		return
+	}
+	h.publishDiagnostics(uri, source)
+}
+
+// handleDidOpen handles textDocument/didOpen notifications. It runs inference
+// via OpenDocument and publishes diagnostics. If OpenDocument fails, a single
+// error diagnostic spanning the whole document is published instead.
 func (h *handler) handleDidOpen(msg *jsonRPCMessage) error {
 	var params lspDidOpenParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
 		return nil
 	}
 
-	uri := params.TextDocument.URI
-	source := []byte(params.TextDocument.Text)
-	h.sources[uri] = source
-
-	if err := h.server.OpenDocument(uri, source); err != nil {
-		// Publish a single error diagnostic covering the whole document.
-		docEnd := offsetToPosition(source, uint32(len(source)))
-		h.transport.sendNotification("textDocument/publishDiagnostics", lspPublishDiagnosticsParams{
-			URI: uri,
-			Diagnostics: []lspDiagnostic{
-				{
-					Range:    lspRange{Start: lspPosition{Line: 0, Character: 0}, End: docEnd},
-					Severity: 1, // Error
-					Source:   "psc",
-					Message:  err.Error(),
-				},
-			},
-		})
-		return nil
-	}
-
-	h.publishDiagnostics(uri, source)
+	h.updateDocument(params.TextDocument.URI, []byte(params.TextDocument.Text))
 	return nil
 }
 
 // handleDidChange handles textDocument/didChange notifications. It takes the
-// full text from the first content change event (full sync mode), updates the
-// source store, re-runs inference, and publishes diagnostics.
+// full text from the first content change event (full sync mode), re-runs
+// inference, and publishes diagnostics.
 func (h *handler) handleDidChange(msg *jsonRPCMessage) error {
 	var params lspDidChangeParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
 		return nil
 	}
 
-	uri := params.TextDocument.URI
 	if len(params.ContentChanges) == 0 {
 		return nil
 	}
 
-	source := []byte(params.ContentChanges[0].Text)
-	h.sources[uri] = source
-
-	if err := h.server.OpenDocument(uri, source); err != nil {
-		docEnd := offsetToPosition(source, uint32(len(source)))
-		h.transport.sendNotification("textDocument/publishDiagnostics", lspPublishDiagnosticsParams{
-			URI: uri,
-			Diagnostics: []lspDiagnostic{
-				{
-					Range:    lspRange{Start: lspPosition{Line: 0, Character: 0}, End: docEnd},
-					Severity: 1,
-					Source:   "psc",
-					Message:  err.Error(),
-				},
-			},
-		})
-		return nil
-	}
-
-	h.publishDiagnostics(uri, source)
+	h.updateDocument(params.TextDocument.URI, []byte(params.ContentChanges[0].Text))
 	return nil
 }
 
 // handleDidClose handles textDocument/didClose notifications. It removes the
-// document from both the source store and the LSP server.
+// document from the LSP server.
 func (h *handler) handleDidClose(msg *jsonRPCMessage) error {
 	var params lspDidCloseParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
 		return nil
 	}
 
-	uri := params.TextDocument.URI
-	h.server.CloseDocument(uri)
-	delete(h.sources, uri)
+	h.server.CloseDocument(params.TextDocument.URI)
 	return nil
 }
 
@@ -224,13 +199,13 @@ func (h *handler) publishDiagnostics(uri string, source []byte) {
 		var severity int
 		switch d.Severity {
 		case infer.Error:
-			severity = 1
+			severity = lspSeverityError
 		case infer.Warning:
-			severity = 2
+			severity = lspSeverityWarning
 		case infer.Info:
-			severity = 3
+			severity = lspSeverityInformation
 		default:
-			severity = 1
+			severity = lspSeverityError
 		}
 
 		message := d.Message
@@ -262,11 +237,11 @@ func (h *handler) publishDiagnostics(uri string, source []byte) {
 func (h *handler) handleHover(msg *jsonRPCMessage) error {
 	var params lspTextDocumentPositionParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		h.transport.sendError(msg.ID, -32602, "invalid params: "+err.Error())
+		h.transport.sendError(msg.ID, codeInvalidParams, "invalid params: "+err.Error())
 		return nil
 	}
 	uri := params.TextDocument.URI
-	source := h.sources[uri]
+	source := h.server.Source(uri)
 	if source == nil {
 		h.transport.sendResponse(msg.ID, nil)
 		return nil
@@ -294,11 +269,11 @@ func (h *handler) handleHover(msg *jsonRPCMessage) error {
 func (h *handler) handleDefinition(msg *jsonRPCMessage) error {
 	var params lspTextDocumentPositionParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		h.transport.sendError(msg.ID, -32602, "invalid params: "+err.Error())
+		h.transport.sendError(msg.ID, codeInvalidParams, "invalid params: "+err.Error())
 		return nil
 	}
 	uri := params.TextDocument.URI
-	source := h.sources[uri]
+	source := h.server.Source(uri)
 	if source == nil {
 		h.transport.sendResponse(msg.ID, nil)
 		return nil
@@ -328,11 +303,11 @@ func (h *handler) handleDefinition(msg *jsonRPCMessage) error {
 func (h *handler) handleDocumentSymbol(msg *jsonRPCMessage) error {
 	var params lspDocumentSymbolParams
 	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		h.transport.sendError(msg.ID, -32602, "invalid params: "+err.Error())
+		h.transport.sendError(msg.ID, codeInvalidParams, "invalid params: "+err.Error())
 		return nil
 	}
 	uri := params.TextDocument.URI
-	source := h.sources[uri]
+	source := h.server.Source(uri)
 	st := h.server.SymbolTable(uri)
 	if st == nil || source == nil {
 		h.transport.sendResponse(msg.ID, []lspDocumentSymbol{})

@@ -13,46 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// makeRequest builds a Content-Length-framed JSON-RPC request message and
-// writes it into buf so a transport can read it back.
-func makeRequest(t *testing.T, buf *bytes.Buffer, id int, method string, params interface{}) {
-	t.Helper()
-	rawParams, err := json.Marshal(params)
-	require.NoError(t, err)
-
-	rawID := json.RawMessage(fmt.Sprintf("%d", id))
-	msg := jsonRPCMessage{
-		JSONRPC: "2.0",
-		ID:      &rawID,
-		Method:  method,
-		Params:  rawParams,
-	}
-	body, err := json.Marshal(msg)
-	require.NoError(t, err)
-
-	frame := fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(body), string(body))
-	buf.WriteString(frame)
-}
-
-// makeNotification builds a Content-Length-framed JSON-RPC notification (no
-// ID) and writes it into buf.
-func makeNotification(t *testing.T, buf *bytes.Buffer, method string, params interface{}) {
-	t.Helper()
-	rawParams, err := json.Marshal(params)
-	require.NoError(t, err)
-
-	msg := jsonRPCMessage{
-		JSONRPC: "2.0",
-		Method:  method,
-		Params:  rawParams,
-	}
-	body, err := json.Marshal(msg)
-	require.NoError(t, err)
-
-	frame := fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(body), string(body))
-	buf.WriteString(frame)
-}
-
 // newTestHandler creates a handler wired to a pair of in-memory buffers and
 // returns the handler plus the output buffer so tests can inspect responses.
 func newTestHandler(t *testing.T) (*handler, *bytes.Buffer) {
@@ -315,9 +275,8 @@ func TestHandlerDidClose(t *testing.T) {
 
 	// Diagnostics should be nil after close.
 	assert.Nil(t, h.server.Diagnostics(uri), "Diagnostics should be nil after close")
-	// sources map should not contain the uri.
-	_, inSources := h.sources[uri]
-	assert.False(t, inSources, "sources map should not contain uri after close")
+	// Source should be nil after close.
+	assert.Nil(t, h.server.Source(uri), "Source should be nil after close")
 }
 
 // openDoc is a shared test helper that sends a textDocument/didOpen message
@@ -477,7 +436,7 @@ func TestHandlerRequestAfterShutdown(t *testing.T) {
 	resp := readResponse(t, out)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Error, "request after shutdown should produce an error response")
-	assert.Equal(t, -32600, resp.Error.Code)
+	assert.Equal(t, codeInvalidRequest, resp.Error.Code)
 }
 
 func TestHandlerNotificationAfterShutdownDropped(t *testing.T) {
@@ -515,7 +474,7 @@ func TestHandlerHoverMalformedParams(t *testing.T) {
 	resp := readResponse(t, out)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Error, "malformed params should produce an error response")
-	assert.Equal(t, -32602, resp.Error.Code, "error code should be InvalidParams")
+	assert.Equal(t, codeInvalidParams, resp.Error.Code, "error code should be InvalidParams")
 }
 
 func TestHandlerDidOpenMalformedParams(t *testing.T) {
