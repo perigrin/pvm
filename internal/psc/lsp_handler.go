@@ -5,8 +5,10 @@ package psc
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"tamarou.com/pvm/internal/infer"
+	"tamarou.com/pvm/internal/types"
 )
 
 // handler dispatches incoming JSON-RPC messages to the appropriate LSP method
@@ -76,9 +78,13 @@ func (h *handler) handle(msg *jsonRPCMessage) error {
 	case "textDocument/didClose":
 		return h.handleDidClose(msg)
 
-	// Query methods — implemented in Tasks 6-8.
-	case "textDocument/hover", "textDocument/definition", "textDocument/documentSymbol":
-		return nil
+	// Query methods.
+	case "textDocument/hover":
+		return h.handleHover(msg)
+	case "textDocument/definition":
+		return h.handleDefinition(msg)
+	case "textDocument/documentSymbol":
+		return h.handleDocumentSymbol(msg)
 
 	default:
 		if msg.ID != nil {
@@ -239,6 +245,121 @@ func (h *handler) publishDiagnostics(uri string, source []byte) {
 		URI:         uri,
 		Diagnostics: lspDiags,
 	})
+}
+
+// handleHover handles textDocument/hover requests. It resolves the inferred
+// type at the cursor position and returns it as a markdown hover card. If no
+// type annotation is found, it returns a null result per the LSP specification.
+func (h *handler) handleHover(msg *jsonRPCMessage) error {
+	var params lspTextDocumentPositionParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		return err
+	}
+	uri := params.TextDocument.URI
+	source := h.sources[uri]
+	if source == nil {
+		h.transport.sendResponse(msg.ID, nil)
+		return nil
+	}
+
+	offset := positionToOffset(source, params.Position.Line, params.Position.Character)
+	typ, ok := h.server.TypeAtByte(uri, offset)
+	if !ok || typ == types.Unknown {
+		h.transport.sendResponse(msg.ID, nil)
+		return nil
+	}
+
+	h.transport.sendResponse(msg.ID, lspHover{
+		Contents: lspMarkupContent{
+			Kind:  "markdown",
+			Value: fmt.Sprintf("**Type:** `%s`", typ.String()),
+		},
+	})
+	return nil
+}
+
+// handleDefinition handles textDocument/definition requests. It resolves the
+// symbol at the cursor position and returns the declaration location. If no
+// symbol is found, it returns a null result per the LSP specification.
+func (h *handler) handleDefinition(msg *jsonRPCMessage) error {
+	var params lspTextDocumentPositionParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		return err
+	}
+	uri := params.TextDocument.URI
+	source := h.sources[uri]
+	if source == nil {
+		h.transport.sendResponse(msg.ID, nil)
+		return nil
+	}
+
+	offset := positionToOffset(source, params.Position.Line, params.Position.Character)
+	sym, ok := h.server.DefinitionAtByte(uri, offset)
+	if !ok {
+		h.transport.sendResponse(msg.ID, nil)
+		return nil
+	}
+
+	h.transport.sendResponse(msg.ID, lspLocation{
+		URI: uri, // same document — single-file only
+		Range: lspRange{
+			Start: offsetToPosition(source, sym.StartByte),
+			End:   offsetToPosition(source, sym.EndByte),
+		},
+	})
+	return nil
+}
+
+// handleDocumentSymbol handles textDocument/documentSymbol requests. It
+// returns all symbols from the document's symbol table converted to LSP
+// DocumentSymbol format. An empty array is returned if the document has no
+// symbol table or is not open.
+func (h *handler) handleDocumentSymbol(msg *jsonRPCMessage) error {
+	var params lspDocumentSymbolParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		return err
+	}
+	uri := params.TextDocument.URI
+	source := h.sources[uri]
+	st := h.server.SymbolTable(uri)
+	if st == nil || source == nil {
+		h.transport.sendResponse(msg.ID, []lspDocumentSymbol{})
+		return nil
+	}
+
+	allSyms := st.AllSymbols()
+	result := make([]lspDocumentSymbol, 0, len(allSyms))
+	for _, sym := range allSyms {
+		r := lspRange{
+			Start: offsetToPosition(source, sym.StartByte),
+			End:   offsetToPosition(source, sym.EndByte),
+		}
+		result = append(result, lspDocumentSymbol{
+			Name:           sym.Name,
+			Kind:           symbolKindForInfer(sym.Kind),
+			Range:          r,
+			SelectionRange: r, // Phase 1: selectionRange == range
+		})
+	}
+	h.transport.sendResponse(msg.ID, result)
+	return nil
+}
+
+// symbolKindForInfer maps an infer.SymbolKind to the corresponding LSP symbol
+// kind constant. Unknown kinds fall back to symbolKindVariable.
+func symbolKindForInfer(kind infer.SymbolKind) int {
+	switch kind {
+	case infer.SymVariable:
+		return symbolKindVariable
+	case infer.SymSubroutine:
+		return symbolKindFunction
+	case infer.SymPackage:
+		return symbolKindModule
+	case infer.SymMethod:
+		return symbolKindMethod
+	default:
+		return symbolKindVariable
+	}
 }
 
 // positionToOffset converts a zero-based line and character position to a

@@ -320,6 +320,145 @@ func TestHandlerDidClose(t *testing.T) {
 	assert.False(t, inSources, "sources map should not contain uri after close")
 }
 
+// openDoc is a shared test helper that sends a textDocument/didOpen message
+// for the given URI and source text, then drains the resulting
+// publishDiagnostics notification from out.
+func openDoc(t *testing.T, h *handler, out *bytes.Buffer, uri, text string) {
+	t.Helper()
+	params := lspDidOpenParams{
+		TextDocument: lspTextDocumentItem{
+			URI:        uri,
+			LanguageID: "perl",
+			Version:    1,
+			Text:       text,
+		},
+	}
+	rawParams, err := json.Marshal(params)
+	require.NoError(t, err)
+	msg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		Method:  "textDocument/didOpen",
+		Params:  rawParams,
+	}
+	require.NoError(t, h.handle(msg))
+	// Drain the publishDiagnostics notification.
+	_ = readResponse(t, out)
+}
+
+// sendRequest is a shared test helper that sends a JSON-RPC request with the
+// given id, method, and params to the handler and returns the response.
+func sendRequest(t *testing.T, h *handler, out *bytes.Buffer, id int, method string, params interface{}) *jsonRPCMessage {
+	t.Helper()
+	rawParams, err := json.Marshal(params)
+	require.NoError(t, err)
+	rawID := json.RawMessage(fmt.Sprintf("%d", id))
+	msg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		ID:      &rawID,
+		Method:  method,
+		Params:  rawParams,
+	}
+	require.NoError(t, h.handle(msg))
+	return readResponse(t, out)
+}
+
+func TestHandlerHover(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+
+	const uri = "file:///hover.pl"
+	openDoc(t, h, out, uri, "my $x = 42;\n")
+	out.Reset()
+
+	resp := sendRequest(t, h, out, 10, "textDocument/hover", map[string]interface{}{
+		"textDocument": map[string]string{"uri": uri},
+		"position":     map[string]int{"line": 0, "character": 3},
+	})
+
+	require.NotNil(t, resp)
+	require.Nil(t, resp.Error, "hover should not return an error")
+	require.NotNil(t, resp.Result, "hover result must not be nil")
+	require.NotEqual(t, json.RawMessage("null"), resp.Result, "hover result must not be JSON null")
+
+	var hover lspHover
+	require.NoError(t, json.Unmarshal(resp.Result, &hover))
+	assert.Equal(t, "markdown", hover.Contents.Kind)
+	assert.Contains(t, hover.Contents.Value, "Type")
+}
+
+func TestHandlerHoverNoType(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+
+	const uri = "file:///hover_no_type.pl"
+	// A comment-only file produces no type annotations anywhere in the document.
+	openDoc(t, h, out, uri, "# just a comment\n")
+	out.Reset()
+
+	// Position (0, 0) is the '#' — no type annotation exists in this file.
+	resp := sendRequest(t, h, out, 11, "textDocument/hover", map[string]interface{}{
+		"textDocument": map[string]string{"uri": uri},
+		"position":     map[string]int{"line": 0, "character": 0},
+	})
+
+	require.NotNil(t, resp)
+	require.Nil(t, resp.Error, "hover should not return an error")
+	assert.Equal(t, json.RawMessage("null"), resp.Result, "hover at non-type position should return null")
+}
+
+func TestHandlerDefinition(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+
+	const uri = "file:///def.pl"
+	openDoc(t, h, out, uri, "my $x = 42;\nprint $x;\n")
+	out.Reset()
+
+	// Position (1, 6) is inside "$x" on line 1 (the usage "print $x;").
+	resp := sendRequest(t, h, out, 20, "textDocument/definition", map[string]interface{}{
+		"textDocument": map[string]string{"uri": uri},
+		"position":     map[string]int{"line": 1, "character": 6},
+	})
+
+	require.NotNil(t, resp)
+	require.Nil(t, resp.Error, "definition should not return an error")
+	require.NotNil(t, resp.Result, "definition result must not be nil")
+	require.NotEqual(t, json.RawMessage("null"), resp.Result, "definition result must not be JSON null")
+
+	var loc lspLocation
+	require.NoError(t, json.Unmarshal(resp.Result, &loc))
+	assert.Equal(t, uri, loc.URI)
+	assert.Equal(t, 0, loc.Range.Start.Line, "declaration should be on line 0")
+}
+
+func TestHandlerDocumentSymbol(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+
+	const uri = "file:///syms.pl"
+	openDoc(t, h, out, uri, "my $x = 1;\nsub foo { }\n")
+	out.Reset()
+
+	resp := sendRequest(t, h, out, 30, "textDocument/documentSymbol", map[string]interface{}{
+		"textDocument": map[string]string{"uri": uri},
+	})
+
+	require.NotNil(t, resp)
+	require.Nil(t, resp.Error, "documentSymbol should not return an error")
+	require.NotNil(t, resp.Result, "documentSymbol result must not be nil")
+
+	var syms []lspDocumentSymbol
+	require.NoError(t, json.Unmarshal(resp.Result, &syms))
+	assert.GreaterOrEqual(t, len(syms), 2, "should have at least 2 symbols")
+
+	names := make(map[string]bool)
+	for _, s := range syms {
+		names[s.Name] = true
+	}
+	assert.True(t, names["$x"], "symbols should include $x")
+	assert.True(t, names["foo"], "symbols should include foo")
+}
+
 func TestPositionConversion(t *testing.T) {
 	source := []byte("my $x = 42;\nprint $x;\n")
 
