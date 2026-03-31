@@ -181,3 +181,163 @@ func TestHandlerExitAfterShutdown(t *testing.T) {
 
 	assert.Equal(t, 0, capturedCode, "exit after shutdown should call exitFn with code 0")
 }
+
+func TestHandlerDidOpenPublishesDiagnostics(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+
+	// "push();\n" is known to produce an arity-mismatch diagnostic.
+	params := lspDidOpenParams{
+		TextDocument: lspTextDocumentItem{
+			URI:        "file:///test.pl",
+			LanguageID: "perl",
+			Version:    1,
+			Text:       "push();\n",
+		},
+	}
+	rawParams, err := json.Marshal(params)
+	require.NoError(t, err)
+
+	msg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		Method:  "textDocument/didOpen",
+		Params:  rawParams,
+	}
+	require.NoError(t, h.handle(msg))
+
+	// The handler must send a textDocument/publishDiagnostics notification.
+	notification := readResponse(t, out)
+	require.NotNil(t, notification)
+	assert.Equal(t, "textDocument/publishDiagnostics", notification.Method)
+
+	var diagParams lspPublishDiagnosticsParams
+	require.NoError(t, json.Unmarshal(notification.Params, &diagParams))
+	assert.Equal(t, "file:///test.pl", diagParams.URI)
+	assert.NotEmpty(t, diagParams.Diagnostics, "push() with no args should produce diagnostics")
+}
+
+func TestHandlerDidChange(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+
+	// Open a clean file first.
+	openParams := lspDidOpenParams{
+		TextDocument: lspTextDocumentItem{
+			URI:        "file:///test.pl",
+			LanguageID: "perl",
+			Version:    1,
+			Text:       "my $x = 42;\n",
+		},
+	}
+	rawOpen, err := json.Marshal(openParams)
+	require.NoError(t, err)
+
+	openMsg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		Method:  "textDocument/didOpen",
+		Params:  rawOpen,
+	}
+	require.NoError(t, h.handle(openMsg))
+	// Drain the publishDiagnostics notification from didOpen.
+	_ = readResponse(t, out)
+	out.Reset()
+
+	// Now send didChange with bad source.
+	changeParams := lspDidChangeParams{
+		TextDocument: lspVersionedTextDocumentIdentifier{
+			URI:     "file:///test.pl",
+			Version: 2,
+		},
+		ContentChanges: []lspTextDocumentContentChangeEvent{
+			{Text: "push();\n"},
+		},
+	}
+	rawChange, err := json.Marshal(changeParams)
+	require.NoError(t, err)
+
+	changeMsg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		Method:  "textDocument/didChange",
+		Params:  rawChange,
+	}
+	require.NoError(t, h.handle(changeMsg))
+
+	notification := readResponse(t, out)
+	require.NotNil(t, notification)
+	assert.Equal(t, "textDocument/publishDiagnostics", notification.Method)
+
+	var diagParams lspPublishDiagnosticsParams
+	require.NoError(t, json.Unmarshal(notification.Params, &diagParams))
+	assert.Equal(t, "file:///test.pl", diagParams.URI)
+	assert.NotEmpty(t, diagParams.Diagnostics)
+}
+
+func TestHandlerDidClose(t *testing.T) {
+	h, out := newTestHandler(t)
+	h.initialized = true
+
+	uri := "file:///test.pl"
+
+	// Open first.
+	openParams := lspDidOpenParams{
+		TextDocument: lspTextDocumentItem{
+			URI:        uri,
+			LanguageID: "perl",
+			Version:    1,
+			Text:       "my $x = 42;\n",
+		},
+	}
+	rawOpen, err := json.Marshal(openParams)
+	require.NoError(t, err)
+
+	openMsg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		Method:  "textDocument/didOpen",
+		Params:  rawOpen,
+	}
+	require.NoError(t, h.handle(openMsg))
+	// Drain the publishDiagnostics notification.
+	_ = readResponse(t, out)
+
+	// Now close.
+	closeParams := lspDidCloseParams{
+		TextDocument: lspTextDocumentIdentifier{URI: uri},
+	}
+	rawClose, err := json.Marshal(closeParams)
+	require.NoError(t, err)
+
+	closeMsg := &jsonRPCMessage{
+		JSONRPC: "2.0",
+		Method:  "textDocument/didClose",
+		Params:  rawClose,
+	}
+	require.NoError(t, h.handle(closeMsg))
+
+	// Diagnostics should be nil after close.
+	assert.Nil(t, h.server.Diagnostics(uri), "Diagnostics should be nil after close")
+	// sources map should not contain the uri.
+	_, inSources := h.sources[uri]
+	assert.False(t, inSources, "sources map should not contain uri after close")
+}
+
+func TestPositionConversion(t *testing.T) {
+	source := []byte("my $x = 42;\nprint $x;\n")
+
+	// (line=0, col=3) should be offset 3.
+	offset := positionToOffset(source, 0, 3)
+	assert.Equal(t, uint32(3), offset)
+
+	// offset 3 should round-trip back to (line=0, col=3).
+	pos := offsetToPosition(source, 3)
+	assert.Equal(t, 0, pos.Line)
+	assert.Equal(t, 3, pos.Character)
+
+	// (line=1, col=0) should be offset 12 (length of "my $x = 42;\n").
+	offset2 := positionToOffset(source, 1, 0)
+	assert.Equal(t, uint32(12), offset2)
+
+	// offset 12 should round-trip back to (line=1, col=0).
+	pos2 := offsetToPosition(source, 12)
+	assert.Equal(t, 1, pos2.Line)
+	assert.Equal(t, 0, pos2.Character)
+}
