@@ -33,10 +33,13 @@ type Symbol struct {
 }
 
 // Scope is a single lexical scope that may refer back to its enclosing parent.
+// children holds every scope created by EnterScope while this scope was current,
+// enabling AllSymbols to traverse the full scope tree after analysis is complete.
 type Scope struct {
-	Name    string
-	parent  *Scope
-	symbols map[string]Symbol
+	Name     string
+	parent   *Scope
+	children []*Scope
+	symbols  map[string]Symbol
 }
 
 // Parent returns the enclosing scope, or nil for the root scope.
@@ -80,13 +83,15 @@ func (st *SymbolTable) Lookup(name string) (Symbol, bool) {
 }
 
 // EnterScope pushes a new child scope onto the scope stack and makes it
-// current.
+// current.  The child is appended to the parent's children slice so that
+// AllSymbols can traverse the full scope tree later.
 func (st *SymbolTable) EnterScope(name string) {
 	child := &Scope{
 		Name:    name,
 		parent:  st.current,
 		symbols: make(map[string]Symbol),
 	}
+	st.current.children = append(st.current.children, child)
 	st.current = child
 }
 
@@ -96,6 +101,25 @@ func (st *SymbolTable) ExitScope() {
 	if st.current.parent != nil {
 		st.current = st.current.parent
 	}
+}
+
+// AllSymbols returns every symbol defined across all scopes in the symbol
+// table by recursively walking the scope tree from the root.  The order of
+// symbols within a scope is not guaranteed (map iteration), and scopes are
+// visited depth-first (parent before children).
+func (st *SymbolTable) AllSymbols() []Symbol {
+	var result []Symbol
+	var walk func(s *Scope)
+	walk = func(s *Scope) {
+		for _, sym := range s.symbols {
+			result = append(result, sym)
+		}
+		for _, child := range s.children {
+			walk(child)
+		}
+	}
+	walk(st.root)
+	return result
 }
 
 // UpdateType walks the scope chain from the current scope to root, looking

@@ -265,3 +265,39 @@ func TestUpdateReturnType(t *testing.T) {
 	ok = st.UpdateReturnType("nonexistent", types.Int)
 	assert.False(t, ok, "nonexistent should return false")
 }
+
+func TestAllSymbols(t *testing.T) {
+	st := infer.NewSymbolTable()
+
+	// Define one symbol in the root scope
+	st.Define(infer.Symbol{
+		Name: "$root",
+		Type: types.Scalar,
+		Kind: infer.SymVariable,
+	})
+
+	// Enter a child scope and define two more symbols
+	st.EnterScope("block")
+	st.Define(infer.Symbol{
+		Name: "$child1",
+		Type: types.Int,
+		Kind: infer.SymVariable,
+	})
+	st.Define(infer.Symbol{
+		Name: "$child2",
+		Type: types.Num,
+		Kind: infer.SymVariable,
+	})
+	st.ExitScope()
+
+	all := st.AllSymbols()
+	assert.Len(t, all, 3, "AllSymbols should return all symbols across all scopes")
+
+	names := make(map[string]bool, len(all))
+	for _, sym := range all {
+		names[sym.Name] = true
+	}
+	assert.True(t, names["$root"], "AllSymbols should include $root from the root scope")
+	assert.True(t, names["$child1"], "AllSymbols should include $child1 from the child scope")
+	assert.True(t, names["$child2"], "AllSymbols should include $child2 from the child scope")
+}
