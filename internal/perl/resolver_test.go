@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"tamarou.com/pvm/internal/config"
@@ -74,7 +75,11 @@ func TestResolveForkIdentifierFromPerlVersionFile(t *testing.T) {
 		t.Errorf("Expected source ProjectVersionFile, got %s", resolved.Source)
 	}
 
-	expectedPath := filepath.Join(forkInstallPath, "bin", "perl")
+	perlBin := "perl"
+	if runtime.GOOS == "windows" {
+		perlBin = "perl.exe"
+	}
+	expectedPath := filepath.Join(forkInstallPath, "bin", perlBin)
 	if resolved.Path != expectedPath {
 		t.Errorf("Expected path %q, got %q", expectedPath, resolved.Path)
 	}
@@ -129,7 +134,11 @@ func TestResolveForkIdentifierFromEnvVar(t *testing.T) {
 		t.Errorf("Expected source EnvironmentVariable, got %s", resolved.Source)
 	}
 
-	expectedPath := filepath.Join(forkInstallPath, "bin", "perl")
+	perlBin := "perl"
+	if runtime.GOOS == "windows" {
+		perlBin = "perl.exe"
+	}
+	expectedPath := filepath.Join(forkInstallPath, "bin", perlBin)
 	if resolved.Path != expectedPath {
 		t.Errorf("Expected path %q, got %q", expectedPath, resolved.Path)
 	}
