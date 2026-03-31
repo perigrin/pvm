@@ -283,9 +283,55 @@ check:
 
     <!-- ============================================================= -->
     <section>
-      <h2>LSP server (coming soon)</h2>
-      <p>PSC includes a built-in LSP server (<code>psc lsp</code>) that will deliver hover tooltips, inline diagnostics, go-to-definition, and document symbols directly to any LSP-capable editor. When it ships, editor configuration will be a single entry pointing at the <code>psc lsp</code> command — no bridge tools required.</p>
-      <p>In the meantime, the <code>psc check</code> integrations above give you the same diagnostic coverage. The LSP server will add real-time feedback as you type.</p>
+      <h2>LSP server</h2>
+      <p>PSC includes a built-in LSP server that delivers hover tooltips, inline diagnostics, go-to-definition, and document symbols directly to any LSP-capable editor. Start it with <code>psc lsp</code> — no bridge tools or separate installations required.</p>
+
+      <h3>Neovim (lspconfig)</h3>
+      <pre><code>require('lspconfig.configs').psc = {
+  default_config = {
+    cmd = { 'psc', 'lsp' },
+    filetypes = { 'perl' },
+    root_dir = require('lspconfig.util').root_pattern('.perl-version', 'cpanfile', '.git'),
+  },
+}
+require('lspconfig').psc.setup({})</code></pre>
+
+      <h3>VS Code</h3>
+      <p>Add to <code>.vscode/settings.json</code> (requires a generic LSP client extension like <a href="https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd">vscode-languageclient</a> or <a href="https://marketplace.visualstudio.com/items?itemName=matklad.hax">Hax</a>):</p>
+      <pre><code>{
+  "perl.lsp.serverCommand": ["psc", "lsp"]
+}</code></pre>
+      <p>Or configure it as a custom language server in your LSP client extension's settings.</p>
+
+      <h3>Emacs (eglot)</h3>
+      <p>Eglot ships with Emacs 29+:</p>
+      <pre><code>(add-to-list 'eglot-server-programs '((perl-mode cperl-mode) "psc" "lsp"))
+(add-hook 'perl-mode-hook #'eglot-ensure)
+(add-hook 'cperl-mode-hook #'eglot-ensure)</code></pre>
+
+      <h3>Helix</h3>
+      <p>Add to <code>~/.config/helix/languages.toml</code>:</p>
+      <pre><code>[[language]]
+name = "perl"
+language-servers = ["psc-lsp"]
+
+[language-server.psc-lsp]
+command = "psc"
+args = ["lsp"]</code></pre>
+
+      <h3>Sublime Text (LSP package)</h3>
+      <p>Install the <a href="https://github.com/sublimelsp/LSP">LSP</a> package, then add to LSP settings:</p>
+      <pre><code>{
+  "clients": {
+    "psc": {
+      "enabled": true,
+      "command": ["psc", "lsp"],
+      "selector": "source.perl"
+    }
+  }
+}</code></pre>
+
+      <p>The <code>psc check</code> linter integrations above remain available as an alternative for editors without LSP support or for CI pipelines.</p>
     </section>
   </main>
 
