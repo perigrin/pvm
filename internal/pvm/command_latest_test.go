@@ -364,6 +364,8 @@ func TestInstallCommand_HelpText(t *testing.T) {
 	assert.Contains(t, helpText, "latest-dev")
 	assert.Contains(t, helpText, "--include-dev")
 	assert.Contains(t, helpText, "Examples:")
+	assert.Contains(t, helpText, "pre-compiled binary first")
+	assert.Contains(t, helpText, "--force-source")
 }
 
 func TestAvailableCommand_HelpText_WithDev(t *testing.T) {

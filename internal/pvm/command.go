@@ -134,6 +134,10 @@ func newInstallCommand() *cobra.Command {
 		Short: "Install a Perl version",
 		Long: `Download and install a specific version of Perl.
 
+By default, pvm checks for a pre-compiled binary first and falls back to
+building from source if one is not available. Use --force-source to always
+build from source.
+
 Version can be:
   - Specific version: 5.38.2, 5.40.0
   - Latest stable: latest (installs most recent stable version)
@@ -144,7 +148,8 @@ Examples:
   pvm install 5.38.2        # Install specific version
   pvm install latest        # Install latest stable version
   pvm install latest-dev    # Install latest development version
-  pvm install latest --include-dev  # Install absolute latest (including dev)`,
+  pvm install latest --include-dev   # Install absolute latest (including dev)
+  pvm install 5.40.0 --force-source  # Force source compilation`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			version := args[0]
@@ -175,20 +180,23 @@ Examples:
 			}
 
 			// Resolve version aliases (latest, latest-dev, etc.)
-			versionAliases := map[string]string{}
-			if cfg.PVM != nil && cfg.PVM.VersionAliases != nil {
-				versionAliases = cfg.PVM.VersionAliases
-			}
-			resolvedVersion, err := perl.ResolveVersionAlias(version, versionAliases)
-			if err != nil {
-				return fmt.Errorf("failed to resolve version alias: %w", err)
-			}
-
-			// If using --include-dev with "latest", resolve to latest dev version
+			// When --include-dev is set with "latest", resolve to the absolute
+			// latest version (including dev candidates) to avoid a wasted HTTP
+			// call that would only fetch stable versions.
+			var resolvedVersion string
 			if includeDev && (version == "latest" || version == "@latest") {
 				resolvedVersion, err = perl.ResolveLatestDevVersion()
 				if err != nil {
 					return fmt.Errorf("failed to resolve latest dev version: %w", err)
+				}
+			} else {
+				versionAliases := map[string]string{}
+				if cfg.PVM != nil && cfg.PVM.VersionAliases != nil {
+					versionAliases = cfg.PVM.VersionAliases
+				}
+				resolvedVersion, err = perl.ResolveVersionAlias(version, versionAliases)
+				if err != nil {
+					return fmt.Errorf("failed to resolve version alias: %w", err)
 				}
 			}
 
