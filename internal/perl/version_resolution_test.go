@@ -149,13 +149,23 @@ func TestResolveVersionAlias_LatestAliases(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name:          "latest without @ (returns as-is)",
+			name:          "bare latest resolves like @latest",
 			alias:         "latest",
 			expectedError: false,
 		},
 		{
-			name:          "latest-dev without @ (returns as-is)",
+			name:          "bare latest-dev resolves like @latest-dev",
 			alias:         "latest-dev",
+			expectedError: false,
+		},
+		{
+			name:          "bare stable resolves like @stable",
+			alias:         "stable",
+			expectedError: false,
+		},
+		{
+			name:          "bare dev resolves like @dev",
+			alias:         "dev",
 			expectedError: false,
 		},
 		{
@@ -178,16 +188,10 @@ func TestResolveVersionAlias_LatestAliases(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotEmpty(t, version)
 
-			// For non-@ aliases, they are returned as-is, so they may not be valid versions
-			if tt.alias == "latest" || tt.alias == "latest-dev" {
-				// These are special cases that return as-is
-				assert.Equal(t, tt.alias, version)
-			} else {
-				// For real aliases, should be parseable as a version
-				parsedVersion, err := ParseVersion(version)
-				require.NoError(t, err)
-				assert.True(t, parsedVersion.Major >= 5)
-			}
+			// All aliases (bare and @-prefixed) should resolve to parseable versions
+			parsedVersion, err := ParseVersion(version)
+			require.NoError(t, err, "alias %q should resolve to a parseable version, got %q", tt.alias, version)
+			assert.True(t, parsedVersion.Major >= 5)
 		})
 	}
 }

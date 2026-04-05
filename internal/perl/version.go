@@ -261,16 +261,16 @@ func (cs ConstraintSet) String() string {
 
 // ResolveVersionAlias resolves a version alias to an actual version
 // Uses the provided map of aliases (from configuration)
+// Accepts aliases with or without the "@" prefix (e.g. "latest" or "@latest")
 func ResolveVersionAlias(alias string, aliases map[string]string) (string, error) {
-	// If it's not an alias, return as is
-	if !strings.HasPrefix(alias, "@") {
-		return alias, nil
+	// Normalize: strip "@" prefix if present so both forms route the same way
+	aliasName := alias
+	isExplicitAlias := strings.HasPrefix(alias, "@")
+	if isExplicitAlias {
+		aliasName = alias[1:]
 	}
 
-	// Remove @ prefix
-	aliasName := alias[1:]
-
-	// Look up in the aliases map
+	// Look up in the user-defined aliases map
 	if version, ok := aliases[aliasName]; ok {
 		return version, nil
 	}
@@ -282,15 +282,21 @@ func ResolveVersionAlias(alias string, aliases map[string]string) (string, error
 	case "dev", "latest-dev":
 		return ResolveLatestDevVersion()
 	case "latest":
-		return ResolveLatestStableVersion() // Latest stable for install latest
+		return ResolveLatestStableVersion()
 	case "system":
 		return GetSystemVersionString()
 	}
 
-	return "", errors.NewVersionError(
-		ErrInvalidVersionAlias,
-		fmt.Sprintf("Unknown version alias: %s", alias),
-		nil)
+	// Not a known alias — if it was @-prefixed, that's an error;
+	// otherwise it's a literal version string, return as-is
+	if isExplicitAlias {
+		return "", errors.NewVersionError(
+			ErrInvalidVersionAlias,
+			fmt.Sprintf("Unknown version alias: %s", alias),
+			nil)
+	}
+
+	return alias, nil
 }
 
 // ResolveLatestStableVersion returns the latest stable Perl version

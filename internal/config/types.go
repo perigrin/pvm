@@ -772,7 +772,7 @@ func NewDefaultConfig() *Config {
 				SkipChecksums:        false,
 			},
 			Binary: &PVMBinaryConfig{
-				DefaultInstallMethod: "source",
+				DefaultInstallMethod: "prefer-binary",
 				BinaryMirrors: []string{
 					"https://github.com/perigrin/pvm/releases/download",
 				},

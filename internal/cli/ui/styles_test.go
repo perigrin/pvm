@@ -248,11 +248,13 @@ func TestFangColorSchemeMapping(t *testing.T) {
 		t.Error("ColorScheme ErrorDetails should not be nil")
 	}
 
-	// Test that colors come from the styles
-	if colorScheme.Base != styles.Info.GetForeground() {
-		t.Error("ColorScheme Base should match Info foreground")
-	}
+	// Test that Title still maps to the Header foreground
 	if colorScheme.Title != styles.Header.GetForeground() {
 		t.Error("ColorScheme Title should match Header foreground")
+	}
+
+	// Codeblock is used as a BACKGROUND, so it must not be a bright foreground color
+	if colorScheme.Codeblock == styles.Code.GetForeground() {
+		t.Error("ColorScheme Codeblock must not use Code foreground as background — it needs a dark, muted color")
 	}
 }

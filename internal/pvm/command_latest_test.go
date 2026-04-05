@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tamarou.com/pvm/internal/config"
 )
 
 func TestInstallCommand_LatestAlias(t *testing.T) {
@@ -386,6 +387,71 @@ func TestInstallCommand_FlagDefinitions(t *testing.T) {
 	assert.Equal(t, "bool", flag.Value.Type())
 	assert.Equal(t, "false", flag.DefValue)
 	assert.Contains(t, flag.Usage, "development versions")
+}
+
+func TestInstallCommand_ConfigDefaultInstallMethod(t *testing.T) {
+	// The install command should apply the config's DefaultInstallMethod
+	// when no explicit --binary-only, --prefer-binary, or --force-source flag is set.
+	// The default config sets DefaultInstallMethod to "prefer-binary".
+	tests := []struct {
+		name                 string
+		args                 []string
+		expectedPreferBinary bool
+		expectedForceSource  bool
+	}{
+		{
+			name:                 "no flags — config default prefer-binary applies",
+			args:                 []string{"5.38.0"},
+			expectedPreferBinary: true,
+			expectedForceSource:  false,
+		},
+		{
+			name:                 "explicit --force-source overrides config",
+			args:                 []string{"--force-source", "5.38.0"},
+			expectedPreferBinary: false,
+			expectedForceSource:  true,
+		},
+		{
+			name:                 "explicit --binary-only overrides config",
+			args:                 []string{"--binary-only", "5.38.0"},
+			expectedPreferBinary: false,
+			expectedForceSource:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := newInstallCommand()
+			cmd.SetArgs(tt.args)
+
+			cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				preferBinary, err := cmd.Flags().GetBool("prefer-binary")
+				require.NoError(t, err)
+
+				forceSource, err := cmd.Flags().GetBool("force-source")
+				require.NoError(t, err)
+
+				binaryOnly, err := cmd.Flags().GetBool("binary-only")
+				require.NoError(t, err)
+
+				// Apply config default when no explicit install method flag is set
+				if !preferBinary && !binaryOnly && !forceSource {
+					cfg, cfgErr := config.LoadEffectiveConfig()
+					require.NoError(t, cfgErr)
+					preferBinary = applyConfigInstallMethod(cfg)
+				}
+
+				assert.Equal(t, tt.expectedPreferBinary, preferBinary,
+					"preferBinary mismatch")
+				assert.Equal(t, tt.expectedForceSource, forceSource,
+					"forceSource mismatch")
+				return nil
+			}
+
+			err := cmd.Execute()
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestAvailableCommand_FlagDefinitions(t *testing.T) {

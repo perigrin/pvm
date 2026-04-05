@@ -162,6 +162,12 @@ Examples:
 				return installFork(cmd, fi, cfg)
 			}
 
+			// Load config once for alias resolution and install method defaults
+			cfg, err := config.LoadEffectiveConfig()
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
 			// Get include-dev flag
 			includeDev, err := cmd.Flags().GetBool("include-dev")
 			if err != nil {
@@ -169,7 +175,11 @@ Examples:
 			}
 
 			// Resolve version aliases (latest, latest-dev, etc.)
-			resolvedVersion, err := perl.ResolveVersionAlias(version, map[string]string{})
+			versionAliases := map[string]string{}
+			if cfg.PVM != nil && cfg.PVM.VersionAliases != nil {
+				versionAliases = cfg.PVM.VersionAliases
+			}
+			resolvedVersion, err := perl.ResolveVersionAlias(version, versionAliases)
 			if err != nil {
 				return fmt.Errorf("failed to resolve version alias: %w", err)
 			}
@@ -251,6 +261,11 @@ Examples:
 			// Validate mutually exclusive flags
 			if binaryOnly && forceSource {
 				return fmt.Errorf("--binary-only and --force-source are mutually exclusive")
+			}
+
+			// Apply config default when no explicit install method flag is set
+			if !preferBinary && !binaryOnly && !forceSource {
+				preferBinary = applyConfigInstallMethod(cfg)
 			}
 
 			if skipBuild {
@@ -486,6 +501,21 @@ Examples:
 	cmd.Flags().Bool("no-patchperl", false, "Disable automatic Devel::PatchPerl source patching")
 
 	return cmd
+}
+
+// applyConfigInstallMethod checks the config and returns true if the
+// configured default install method is "prefer-binary" or "binary".
+func applyConfigInstallMethod(cfg *config.Config) bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.PVM != nil && cfg.PVM.Binary != nil {
+		switch cfg.PVM.Binary.DefaultInstallMethod {
+		case "prefer-binary", "binary":
+			return true
+		}
+	}
+	return false
 }
 
 func newUseCommand() *cobra.Command {
