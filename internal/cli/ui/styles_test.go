@@ -86,7 +86,7 @@ func TestStylesCreation(t *testing.T) {
 
 func TestFangColorSchemeCreation(t *testing.T) {
 	styles := GetDefaultStyles()
-	colorScheme := styles.FangColorScheme()
+	colorScheme := styles.FangColorScheme(true)
 
 	// Test that ColorScheme is created properly
 	if colorScheme.Base == nil {
@@ -232,29 +232,78 @@ func TestStylesConsistency(t *testing.T) {
 
 func TestFangColorSchemeMapping(t *testing.T) {
 	styles := GetDefaultStyles()
-	colorScheme := styles.FangColorScheme()
 
-	// Test that color scheme has all required colors
-	if colorScheme.Base == nil {
-		t.Error("ColorScheme Base should not be nil")
-	}
-	if colorScheme.Title == nil {
-		t.Error("ColorScheme Title should not be nil")
-	}
-	if colorScheme.Command == nil {
-		t.Error("ColorScheme Command should not be nil")
-	}
-	if colorScheme.ErrorDetails == nil {
-		t.Error("ColorScheme ErrorDetails should not be nil")
-	}
+	t.Run("dark mode", func(t *testing.T) {
+		colorScheme := styles.FangColorScheme(true)
 
-	// Test that Title still maps to the Header foreground
-	if colorScheme.Title != styles.Header.GetForeground() {
-		t.Error("ColorScheme Title should match Header foreground")
-	}
+		if colorScheme.Base == nil {
+			t.Error("ColorScheme Base should not be nil")
+		}
+		if colorScheme.Title == nil {
+			t.Error("ColorScheme Title should not be nil")
+		}
+		if colorScheme.Command == nil {
+			t.Error("ColorScheme Command should not be nil")
+		}
+		if colorScheme.ErrorDetails == nil {
+			t.Error("ColorScheme ErrorDetails should not be nil")
+		}
+		if colorScheme.Title != styles.Header.GetForeground() {
+			t.Error("ColorScheme Title should match Header foreground")
+		}
+		if colorScheme.Codeblock == styles.Code.GetForeground() {
+			t.Error("ColorScheme Codeblock must not use Code foreground as background")
+		}
+	})
 
-	// Codeblock is used as a BACKGROUND, so it must not be a bright foreground color
-	if colorScheme.Codeblock == styles.Code.GetForeground() {
-		t.Error("ColorScheme Codeblock must not use Code foreground as background — it needs a dark, muted color")
-	}
+	t.Run("light mode", func(t *testing.T) {
+		colorScheme := styles.FangColorScheme(false)
+
+		if colorScheme.Base == nil {
+			t.Error("ColorScheme Base should not be nil")
+		}
+		if colorScheme.Title == nil {
+			t.Error("ColorScheme Title should not be nil")
+		}
+		if colorScheme.Command == nil {
+			t.Error("ColorScheme Command should not be nil")
+		}
+		if colorScheme.ErrorDetails == nil {
+			t.Error("ColorScheme ErrorDetails should not be nil")
+		}
+	})
+
+	t.Run("light mode Title matches Header foreground", func(t *testing.T) {
+		colorScheme := styles.FangColorScheme(false)
+		if colorScheme.Title != styles.Header.GetForeground() {
+			t.Error("Light mode Title should match Header foreground")
+		}
+	})
+
+	t.Run("dark and light produce different colors", func(t *testing.T) {
+		dark := styles.FangColorScheme(true)
+		light := styles.FangColorScheme(false)
+
+		if dark.Codeblock == light.Codeblock {
+			t.Error("Dark and light codeblock backgrounds should differ")
+		}
+		if dark.Base == light.Base {
+			t.Error("Dark and light base text colors should differ")
+		}
+		if dark.Program == light.Program {
+			t.Error("Dark and light program colors should differ")
+		}
+		if dark.Command == light.Command {
+			t.Error("Dark and light command colors should differ")
+		}
+		if dark.Flag == light.Flag {
+			t.Error("Dark and light flag colors should differ")
+		}
+		if dark.Description == light.Description {
+			t.Error("Dark and light description colors should differ")
+		}
+		if dark.ErrorDetails == light.ErrorDetails {
+			t.Error("Dark and light error details colors should differ")
+		}
+	})
 }
