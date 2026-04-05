@@ -286,69 +286,74 @@ func (v *BinaryValidator) validateFileFormat(header []byte, filePath string) err
 	return fmt.Errorf("unrecognized file format (not a valid executable)")
 }
 
-// ValidateDownloadedBinary performs comprehensive validation of a downloaded binary or archive
-func ValidateDownloadedBinary(filePath, expectedChecksum string) error {
+// ValidateDownloadedBinary performs comprehensive validation of a downloaded binary or archive.
+// Returns the path to the usable binary (which may be an extracted file from an archive).
+// The caller is responsible for cleaning up any extracted temporary files.
+func ValidateDownloadedBinary(filePath, expectedChecksum string) (string, error) {
 	return ValidateDownloadedBinaryWithVersion(filePath, expectedChecksum, "")
 }
 
-// ValidateDownloadedBinaryWithVersion performs comprehensive validation including version verification
-func ValidateDownloadedBinaryWithVersion(filePath, expectedChecksum, expectedVersion string) error {
+// ValidateDownloadedBinaryWithVersion performs comprehensive validation including version verification.
+// Returns the path to the validated binary. For archives, this is the path to the extracted
+// binary in a temporary directory — the caller must clean up this path when done.
+func ValidateDownloadedBinaryWithVersion(filePath, expectedChecksum, expectedVersion string) (string, error) {
 	// First validate checksum if provided
 	if expectedChecksum != "" {
 		validator := NewChecksumValidator()
 		if err := validator.ValidateFile(filePath, expectedChecksum); err != nil {
-			return fmt.Errorf("checksum validation failed: %w", err)
+			return "", fmt.Errorf("checksum validation failed: %w", err)
 		}
 	}
 
 	// Check if this is an archive that needs extraction
 	var binaryPath string
-	var cleanup func() error
+	var extractor *archive.BinaryExtractor
 
 	if isArchive(filePath) {
 		// Extract binary from archive
-		extractor := archive.NewBinaryExtractor()
+		extractor = archive.NewBinaryExtractor()
 		platform := detectPlatform()
 
 		extractedPath, err := extractor.ExtractExecutable(filePath, platform)
 		if err != nil {
-			return fmt.Errorf("archive extraction failed: %w", err)
+			return "", fmt.Errorf("archive extraction failed: %w", err)
 		}
 
 		binaryPath = extractedPath
-		cleanup = func() error { return extractor.Cleanup(extractedPath) }
 	} else {
 		binaryPath = filePath
-		cleanup = func() error { return nil }
 	}
-
-	// Ensure cleanup happens
-	defer func() {
-		if err := cleanup(); err != nil {
-			// Log cleanup error but don't fail validation
-			fmt.Fprintf(os.Stderr, "Warning: cleanup failed: %v\n", err)
-		}
-	}()
 
 	// Validate binary format
 	binaryValidator := NewBinaryValidator()
 	if err := binaryValidator.ValidateExecutable(binaryPath); err != nil {
-		return fmt.Errorf("binary validation failed: %w", err)
+		cleanupExtracted(extractor, binaryPath)
+		return "", fmt.Errorf("binary validation failed: %w", err)
 	}
 
 	// Validate version if provided
 	if expectedVersion != "" {
 		if err := validateExecutableVersion(binaryPath, expectedVersion); err != nil {
-			return fmt.Errorf("version validation failed: %w", err)
+			cleanupExtracted(extractor, binaryPath)
+			return "", fmt.Errorf("version validation failed: %w", err)
 		}
 	}
 
 	// Perform execution test
 	if err := validateExecutableCanRun(binaryPath); err != nil {
-		return fmt.Errorf("execution validation failed: %w", err)
+		cleanupExtracted(extractor, binaryPath)
+		return "", fmt.Errorf("execution validation failed: %w", err)
 	}
 
-	return nil
+	return binaryPath, nil
+}
+
+// cleanupExtracted removes the extracted temp directory on validation failure.
+// Safe to call with nil extractor (no-op for non-archive paths).
+func cleanupExtracted(extractor *archive.BinaryExtractor, extractedPath string) {
+	if extractor != nil {
+		extractor.Cleanup(extractedPath)
+	}
 }
 
 // isArchive checks if the file is an archive format
