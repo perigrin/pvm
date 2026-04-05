@@ -112,17 +112,21 @@ jobs:
       if: matrix.goos != 'windows'
       env:
         VERSION: ${{ steps.version.outputs.version }}
+        PLATFORM: ${{ matrix.platform }}
       run: |
         cd build/release
-        tar -czf "pvm-${VERSION}-${{ matrix.platform }}.tar.gz" "pvm-${{ matrix.platform }}"
+        mv "pvm-${PLATFORM}" pvm
+        tar -czf "pvm-${VERSION}-${PLATFORM}.tar.gz" pvm
 
     - name: Create archive (Windows)
       if: matrix.goos == 'windows'
       env:
         VERSION: ${{ steps.version.outputs.version }}
+        PLATFORM: ${{ matrix.platform }}
       run: |
         cd build/release
-        zip "pvm-${VERSION}-${{ matrix.platform }}.zip" "pvm-${{ matrix.platform }}.exe"
+        mv "pvm-${PLATFORM}.exe" pvm.exe
+        zip "pvm-${VERSION}-${PLATFORM}.zip" pvm.exe
 
     - name: Upload artifact (Unix)
       if: matrix.goos != 'windows'
@@ -185,7 +189,7 @@ jobs:
     - name: Organize release files
       run: |
         mkdir -p release-files
-        find artifacts -name "*.tar.gz" -exec cp {} release-files/ \;
+        find artifacts \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-files/ \;
         ls -la release-files/
 
     - name: Generate release notes
@@ -218,8 +222,8 @@ jobs:
           echo ""
           echo '```bash'
           echo "tar -xzf pvm-${VERSION}-<platform>.tar.gz"
-          echo "chmod +x pvm-*"
-          echo "sudo mv pvm-* /usr/local/bin/pvm"
+          echo "chmod +x pvm"
+          echo "sudo mv pvm /usr/local/bin/pvm"
           echo "pvm version"
           echo '```'
         } > release_notes.md

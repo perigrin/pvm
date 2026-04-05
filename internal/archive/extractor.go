@@ -236,12 +236,15 @@ func (e *BinaryExtractor) validatePath(path string) error {
 
 // findMainExecutable finds the main executable from extracted files
 func (e *BinaryExtractor) findMainExecutable(extractedFiles []string, platform string) (string, error) {
-	// Define expected executable names by platform
+	// Define expected executable names by platform.
+	// Prefer the canonical name (pvm / pvm.exe) but also accept
+	// platform-suffixed names (pvm-linux-amd64, pvm-darwin-arm64)
+	// for backwards compatibility with older release archives.
 	var expectedNames []string
 	if strings.HasPrefix(platform, "windows") {
-		expectedNames = []string{"pvm.exe"}
+		expectedNames = []string{"pvm.exe", "pvm-" + platform + ".exe"}
 	} else {
-		expectedNames = []string{"pvm"}
+		expectedNames = []string{"pvm", "pvm-" + platform}
 	}
 
 	// Look for executable in common locations
@@ -277,6 +280,19 @@ func (e *BinaryExtractor) findMainExecutable(extractedFiles []string, platform s
 	}
 
 	if len(candidates) > 1 {
+		// If candidates have different base names (e.g. "pvm" and "pvm-linux-amd64"),
+		// prefer the canonical name (first in expectedNames). If they have the same
+		// base name in different directories, that is genuinely ambiguous.
+		canonicalName := expectedNames[0]
+		var canonicalCandidates []string
+		for _, c := range candidates {
+			if filepath.Base(c) == canonicalName {
+				canonicalCandidates = append(canonicalCandidates, c)
+			}
+		}
+		if len(canonicalCandidates) == 1 {
+			return canonicalCandidates[0], nil
+		}
 		return "", fmt.Errorf("multiple executables found: %v", candidates)
 	}
 
