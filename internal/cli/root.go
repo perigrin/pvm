@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/fang"
+	"github.com/charmbracelet/lipgloss/v2"
 	"github.com/spf13/cobra"
 	"tamarou.com/pvm/internal/cli/ui"
 	"tamarou.com/pvm/internal/current"
@@ -281,8 +282,14 @@ func FangExecuteWithPager(ctx context.Context, rootCmd *cobra.Command) error {
 	ui := GetUI(rootCmd)
 	styles := ui.Styles()
 
-	// Create Fang color scheme from UI styles
-	colorScheme := styles.FangColorScheme()
+	// Detect terminal background and create adapted Fang color scheme.
+	// Only query the terminal when attached to a tty to avoid a 2-second
+	// timeout in non-responsive environments (screen, some containers).
+	isDark := true
+	if isTerminal(os.Stdin) || isTerminal(os.Stdout) {
+		isDark = lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	}
+	colorScheme := styles.FangColorScheme(isDark)
 
 	// Check if we're showing basic help (no arguments) and use our hybrid help system instead of Fang's
 	args := os.Args[1:]

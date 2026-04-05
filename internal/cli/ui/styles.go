@@ -158,34 +158,37 @@ func NewStyles(theme Theme) Styles {
 	}
 }
 
-// FangColorScheme creates Fang-compatible color scheme from PVM theme.
+// FangColorScheme creates a Fang-compatible color scheme adapted for the
+// terminal's background brightness. Pass isDark=true for dark terminals,
+// isDark=false for light terminals.
 //
 // Fang uses Codeblock as a BACKGROUND color for code example blocks, so it
-// must be a dark, muted shade — not a bright foreground color. All foreground
-// colors rendered inside the codeblock (Program, Command, Flag, Argument,
-// DimmedArgument, Comment, QuotedString) must contrast against it.
+// must contrast with the terminal background. All foreground colors rendered
+// inside the codeblock must contrast against the codeblock background.
 //
 // Colors are chosen to be distinguishable under common forms of color
 // blindness (protanopia, deuteranopia): we avoid pairing red and green,
 // and rely on blue/purple/amber hue differences instead.
-func (s Styles) FangColorScheme() fang.ColorScheme {
+func (s Styles) FangColorScheme(isDark bool) fang.ColorScheme {
+	c := lipgloss.LightDark(isDark)
+
 	return fang.ColorScheme{
-		Base:           lipgloss.Color("#DFDBDD"),                                            // Light gray body text — readable on dark and light terminals
-		Title:          s.Header.GetForeground(),                                             // Purple (#7C3AED) — section headers
-		Description:    lipgloss.Color("#BFBCC8"),                                            // Muted lavender-gray — flag/command descriptions
-		Codeblock:      lipgloss.Color("#2D2B36"),                                            // Dark gray BG for code blocks — high contrast with all FG colors
-		Program:        lipgloss.Color("#9B8AFF"),                                            // Soft purple — program name, distinct from command
-		DimmedArgument: s.Muted.GetForeground(),                                              // Medium gray (#9CA3AF) — optional args
-		Comment:        lipgloss.Color("#9896A6"),                                            // Gray — code comments
-		Flag:           lipgloss.Color("#F5C542"),                                            // Warm gold — flags, distinct from all other hues under CVD
-		FlagDefault:    s.Muted.GetForeground(),                                              // Medium gray (#9CA3AF) — default values
-		Command:        lipgloss.Color("#5EB5FF"),                                            // Sky blue — subcommands, easily separated from purple and gold
-		QuotedString:   lipgloss.Color("#DFDBDD"),                                            // Light gray — quoted strings, neutral
-		Argument:       lipgloss.Color("#DFDBDD"),                                            // Light gray — argument values
-		Help:           lipgloss.Color("#DFDBDD"),                                            // Light gray — help text
-		Dash:           s.Muted.GetForeground(),                                              // Medium gray (#9CA3AF) — flag dashes
-		ErrorHeader:    [2]color.Color{lipgloss.Color("#FFFAF1"), lipgloss.Color("#C43A5A")}, // Cream on deep rose — error badge
-		ErrorDetails:   lipgloss.Color("#F08090"),                                            // Soft rose — error text, not pure red
+		Base:           c(lipgloss.Color("#3A3943"), lipgloss.Color("#DFDBDD")),                                                                          // Body text
+		Title:          s.Header.GetForeground(),                                                                                                         // Purple — section headers
+		Description:    c(lipgloss.Color("#605F6B"), lipgloss.Color("#BFBCC8")),                                                                          // Flag/command descriptions
+		Codeblock:      c(lipgloss.Color("#F0EDE8"), lipgloss.Color("#2D2B36")),                                                                          // Code block background
+		Program:        c(lipgloss.Color("#4A30D9"), lipgloss.Color("#9B8AFF")),                                                                          // Purple — program name
+		DimmedArgument: c(lipgloss.Color("#6B6A78"), s.Muted.GetForeground()),                                                                            // Gray — optional args
+		Comment:        c(lipgloss.Color("#6B6A78"), lipgloss.Color("#9896A6")),                                                                          // Gray — code comments
+		Flag:           c(lipgloss.Color("#785A0F"), lipgloss.Color("#F5C542")),                                                                          // Amber — flags
+		FlagDefault:    c(lipgloss.Color("#6B6A78"), s.Muted.GetForeground()),                                                                            // Gray — default values
+		Command:        c(lipgloss.Color("#1A5276"), lipgloss.Color("#5EB5FF")),                                                                          // Blue — subcommands
+		QuotedString:   c(lipgloss.Color("#3A3943"), lipgloss.Color("#DFDBDD")),                                                                          // Neutral — quoted strings
+		Argument:       c(lipgloss.Color("#3A3943"), lipgloss.Color("#DFDBDD")),                                                                          // Neutral — argument values
+		Help:           c(lipgloss.Color("#3A3943"), lipgloss.Color("#DFDBDD")),                                                                          // Neutral — help text
+		Dash:           c(lipgloss.Color("#6B6A78"), s.Muted.GetForeground()),                                                                            // Gray — flag dashes
+		ErrorHeader:    [2]color.Color{c(lipgloss.Color("#FFFAF1"), lipgloss.Color("#FFFAF1")), c(lipgloss.Color("#B0304A"), lipgloss.Color("#C43A5A"))}, // Error badge
+		ErrorDetails:   c(lipgloss.Color("#B0304A"), lipgloss.Color("#F08090")),                                                                          // Error text
 	}
 }
 
