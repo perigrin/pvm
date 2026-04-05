@@ -253,6 +253,11 @@ Examples:
 				return fmt.Errorf("--binary-only and --force-source are mutually exclusive")
 			}
 
+			// Apply config default when no explicit install method flag is set
+			if !preferBinary && !binaryOnly && !forceSource {
+				preferBinary = applyConfigInstallMethod()
+			}
+
 			if skipBuild {
 				ui := cli.GetUI(cmd)
 				ui.Warning("Skip-build specified but no import functionality implemented yet.")
@@ -486,6 +491,22 @@ Examples:
 	cmd.Flags().Bool("no-patchperl", false, "Disable automatic Devel::PatchPerl source patching")
 
 	return cmd
+}
+
+// applyConfigInstallMethod checks the effective config and returns true if the
+// configured default install method is "prefer-binary" or "binary".
+func applyConfigInstallMethod() bool {
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return false
+	}
+	if cfg.PVM != nil && cfg.PVM.Binary != nil {
+		switch cfg.PVM.Binary.DefaultInstallMethod {
+		case "prefer-binary", "binary":
+			return true
+		}
+	}
+	return false
 }
 
 func newUseCommand() *cobra.Command {

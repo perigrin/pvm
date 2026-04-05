@@ -312,3 +312,10 @@ func TestSchemaValidator(t *testing.T) {
 		}
 	})
 }
+
+func TestDefaultConfig_PreferBinary(t *testing.T) {
+	cfg := NewDefaultConfig()
+	if cfg.PVM.Binary.DefaultInstallMethod != "prefer-binary" {
+		t.Errorf("expected default install method to be 'prefer-binary', got %q", cfg.PVM.Binary.DefaultInstallMethod)
+	}
+}
