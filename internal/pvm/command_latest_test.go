@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tamarou.com/pvm/internal/config"
 )
 
 func TestInstallCommand_LatestAlias(t *testing.T) {
@@ -435,7 +436,9 @@ func TestInstallCommand_ConfigDefaultInstallMethod(t *testing.T) {
 
 				// Apply config default when no explicit install method flag is set
 				if !preferBinary && !binaryOnly && !forceSource {
-					preferBinary = applyConfigInstallMethod()
+					cfg, cfgErr := config.LoadEffectiveConfig()
+					require.NoError(t, cfgErr)
+					preferBinary = applyConfigInstallMethod(cfg)
 				}
 
 				assert.Equal(t, tt.expectedPreferBinary, preferBinary,

@@ -2331,8 +2331,12 @@ type PMModuleInstaller struct{}
 
 // InstallModule installs a module using PM's internal module installation
 func (p *PMModuleInstaller) InstallModule(moduleName string, verbose bool) error {
-	// Create a CPAN provider for metadata resolution
-	provider, err := NewProviderBuilder().BuildProvider()
+	// Create a CPAN provider for metadata resolution, respecting user config
+	cfg, err := config.LoadEffectiveConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	provider, err := NewProviderBuilder().WithConfig(cfg).BuildProvider()
 	if err != nil {
 		return fmt.Errorf("failed to create CPAN provider: %w", err)
 	}
