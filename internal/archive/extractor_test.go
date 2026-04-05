@@ -42,6 +42,14 @@ func TestBinaryExtractor_ExtractExecutable(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "tar.gz with platform-named binary (fallback)",
+			createArchive: func(t *testing.T) string {
+				return createTestTarGz(t, "pvm-darwin-arm64", createMockBinary())
+			},
+			platform:    "darwin-arm64",
+			expectError: false,
+		},
+		{
 			name: "archive without executable",
 			createArchive: func(t *testing.T) string {
 				return createTestTarGz(t, "README.txt", []byte("documentation"))
@@ -85,12 +93,14 @@ func TestBinaryExtractor_ExtractExecutable(t *testing.T) {
 				_, err := os.Stat(extractedPath)
 				assert.NoError(t, err)
 
-				// Verify it has correct name
+				// Verify the extracted file has a recognized name
 				filename := filepath.Base(extractedPath)
 				if strings.HasPrefix(tt.platform, "windows") {
-					assert.Equal(t, "pvm.exe", filename)
+					assert.True(t, filename == "pvm.exe" || filename == "pvm-"+tt.platform+".exe",
+						"expected pvm.exe or pvm-%s.exe, got %s", tt.platform, filename)
 				} else {
-					assert.Equal(t, "pvm", filename)
+					assert.True(t, filename == "pvm" || filename == "pvm-"+tt.platform,
+						"expected pvm or pvm-%s, got %s", tt.platform, filename)
 				}
 
 				// Cleanup
@@ -181,6 +191,25 @@ func TestBinaryExtractor_FindMainExecutable(t *testing.T) {
 			platform:     "windows-amd64",
 			expectError:  false,
 			expectedFile: "pvm.exe",
+		},
+		{
+			name: "platform-named binary (pvm-darwin-arm64)",
+			files: map[string][]byte{
+				"pvm-darwin-arm64": createMockBinary(),
+				"README.txt":       []byte("documentation"),
+			},
+			platform:     "darwin-arm64",
+			expectError:  false,
+			expectedFile: "pvm-darwin-arm64",
+		},
+		{
+			name: "platform-named binary (pvm-linux-amd64)",
+			files: map[string][]byte{
+				"pvm-linux-amd64": createMockBinary(),
+			},
+			platform:     "linux-amd64",
+			expectError:  false,
+			expectedFile: "pvm-linux-amd64",
 		},
 		{
 			name: "no executable found",

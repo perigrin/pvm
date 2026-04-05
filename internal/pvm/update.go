@@ -5,6 +5,7 @@ package pvm
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -54,15 +55,6 @@ func executeUpdateCommand(cmd *cobra.Command, args []string) error {
 		updaterInstance = updater.NewUpdaterWithToken(effectiveToken)
 	} else {
 		updaterInstance = updater.NewUpdater()
-		// Warn about GitHub token requirement for private repositories
-		cmd.Printf("Warning: No GitHub token configured.\n")
-		cmd.Printf("A GitHub token is required to access releases from private repositories.\n")
-		cmd.Printf("To configure authentication:\n")
-		cmd.Printf("  1. Use --token flag: pvm update --token YOUR_TOKEN\n")
-		cmd.Printf("  2. Set environment variable: export GITHUB_TOKEN=YOUR_TOKEN\n")
-		cmd.Printf("  3. Configure permanently in ~/.config/pvm/config.toml:\n")
-		cmd.Printf("     [pvm.update]\n")
-		cmd.Printf("     github_token = \"${GITHUB_TOKEN}\"\n\n")
 	}
 
 	// Determine effective prerelease setting (flag overrides config)
@@ -126,6 +118,13 @@ func executeUpdateCommand(cmd *cobra.Command, args []string) error {
 	cmd.Println("Checking for updates...")
 	updateInfo, err := updaterInstance.CheckForUpdates(opts)
 	if err != nil {
+		// Provide a helpful hint if the error looks like an auth or rate limit problem
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "returned 401") || strings.Contains(errMsg, "returned 403") || strings.Contains(errMsg, "rate limit") {
+			cmd.Println("Hint: A GitHub token may be required. Configure one with:")
+			cmd.Println("  pvm update --token YOUR_TOKEN")
+			cmd.Println("  export GITHUB_TOKEN=YOUR_TOKEN")
+		}
 		return fmt.Errorf("failed to check for updates: %w", err)
 	}
 
