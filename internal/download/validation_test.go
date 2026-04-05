@@ -158,8 +158,13 @@ func TestValidateDownloadedBinary_Archive(t *testing.T) {
 		archivePath := createTestTarGz(t, tarFilename, binaryContent)
 		defer os.Remove(archivePath)
 
-		err := ValidateDownloadedBinary(archivePath, "")
+		binaryPath, err := ValidateDownloadedBinary(archivePath, "")
 		assert.NoError(t, err)
+		if err == nil {
+			assert.NotEqual(t, archivePath, binaryPath, "should return extracted binary path, not archive path")
+			_, statErr := os.Stat(binaryPath)
+			assert.NoError(t, statErr, "extracted binary should exist")
+		}
 	})
 
 	// Test zip archive
@@ -173,8 +178,11 @@ func TestValidateDownloadedBinary_Archive(t *testing.T) {
 		archivePath := createTestZip(t, filename, binaryContent)
 		defer os.Remove(archivePath)
 
-		err := ValidateDownloadedBinary(archivePath, "")
+		binaryPath, err := ValidateDownloadedBinary(archivePath, "")
 		assert.NoError(t, err)
+		if err == nil {
+			assert.NotEqual(t, archivePath, binaryPath, "should return extracted binary path, not archive path")
+		}
 	})
 }
 
@@ -194,8 +202,9 @@ func TestValidateDownloadedBinary_Direct(t *testing.T) {
 	err = os.Chmod(tempFile.Name(), 0755)
 	require.NoError(t, err)
 
-	err = ValidateDownloadedBinary(tempFile.Name(), "")
+	binaryPath, err := ValidateDownloadedBinary(tempFile.Name(), "")
 	assert.NoError(t, err)
+	assert.Equal(t, tempFile.Name(), binaryPath, "for direct binaries, should return the same path")
 }
 
 func TestIsArchive(t *testing.T) {

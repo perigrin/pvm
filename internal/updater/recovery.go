@@ -395,16 +395,22 @@ func (rm *RecoveryManager) downloadCompatibleVersion(ctx *RecoveryContext) error
 	}
 
 	// Validate the downloaded binary
-	if err := download.ValidateDownloadedBinary(result.Path, ""); err != nil {
+	validatedPath, err := download.ValidateDownloadedBinary(result.Path, "")
+	if err != nil {
 		// Clean up failed download
 		os.Remove(result.Path)
 		return fmt.Errorf("downloaded binary validation failed: %w", err)
 	}
 
-	// Atomically replace the target binary
-	if err := os.Rename(result.Path, ctx.TargetPath); err != nil {
+	// Clean up extraction temp directory when done (no-op for direct binaries)
+	if validatedPath != result.Path {
+		defer os.RemoveAll(filepath.Dir(validatedPath))
+	}
+
+	// Atomically replace the target binary using the validated binary path
+	if err := os.Rename(validatedPath, ctx.TargetPath); err != nil {
 		// Clean up on failure
-		os.Remove(result.Path)
+		os.Remove(validatedPath)
 		return fmt.Errorf("failed to install compatible version: %w", err)
 	}
 

@@ -495,11 +495,13 @@ func TestUpdateWithArchiveExtraction_Integration(t *testing.T) {
 		defer os.Remove(archivePath)
 
 		// Test that ValidateDownloadedBinary works with archives
-		err := download.ValidateDownloadedBinary(archivePath, "")
+		binaryPath, err := download.ValidateDownloadedBinary(archivePath, "")
 		if err != nil {
 			t.Logf("Archive validation failed (expected in test environment): %v", err)
 			// This may fail in test environment due to execution validation,
 			// but we want to test that archive extraction works
+		} else if binaryPath == archivePath {
+			t.Error("ValidateDownloadedBinary should return extracted binary path, not archive path")
 		}
 	})
 
@@ -542,7 +544,7 @@ func TestUpdateValidationFailure_Integration(t *testing.T) {
 		defer os.Remove(invalidArchive)
 
 		// Test that validation properly fails
-		err := download.ValidateDownloadedBinary(invalidArchive, "")
+		_, err := download.ValidateDownloadedBinary(invalidArchive, "")
 		if err == nil {
 			t.Error("Expected validation to fail for invalid archive")
 		}
@@ -553,7 +555,7 @@ func TestUpdateValidationFailure_Integration(t *testing.T) {
 		archivePath := createArchiveWithoutExecutable(t)
 		defer os.Remove(archivePath)
 
-		err := download.ValidateDownloadedBinary(archivePath, "")
+		_, err := download.ValidateDownloadedBinary(archivePath, "")
 		if err == nil {
 			t.Error("Expected validation to fail for archive without executable")
 		}

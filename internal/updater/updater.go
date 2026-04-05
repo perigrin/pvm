@@ -289,11 +289,18 @@ func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) {
 		return result, err
 	}
 
-	// Validate downloaded binary with version verification
+	// Validate downloaded binary with version verification.
+	// For archives, this extracts the binary and returns the extracted path.
 	reportProgress(StageValidating, "Validating download", 0.6)
-	if err := download.ValidateDownloadedBinaryWithVersion(downloadResult.Path, "", result.NewVersion); err != nil {
+	validatedBinaryPath, err := download.ValidateDownloadedBinaryWithVersion(downloadResult.Path, "", result.NewVersion)
+	if err != nil {
 		result.Message = fmt.Sprintf("Downloaded binary validation failed: %v", err)
 		return result, err
+	}
+
+	// Clean up the extraction temp directory when done (no-op for direct binaries)
+	if validatedBinaryPath != downloadResult.Path {
+		defer os.RemoveAll(filepath.Dir(validatedBinaryPath))
 	}
 
 	// Perform replacement (or simulate if dry run)
@@ -323,7 +330,7 @@ func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) {
 	reportProgress(StageReplacing, "Installing update", 0.8)
 	replaceOpts := &ReplacementOptions{
 		CurrentPath:    currentPath,
-		NewPath:        downloadResult.Path,
+		NewPath:        validatedBinaryPath,
 		BackupEnabled:  false, // We already created backup above
 		ValidateBinary: true,
 		DryRun:         false,
