@@ -15,6 +15,23 @@ import (
 var origGetDirs = xdg.GetDirs
 var origExecutablePath = executablePath
 
+// saveAndClearShellDetectionEnv saves and clears PSModulePath and saves SHELL,
+// so tests that vary these for DetectShell() don't leak state to siblings.
+// Returns a restore func for defer.
+func saveAndClearShellDetectionEnv(t *testing.T) func() {
+	t.Helper()
+	origPSModulePath := os.Getenv("PSModulePath")
+	origShell := os.Getenv("SHELL")
+	origPVMShell := os.Getenv("PVM_SHELL")
+	_ = os.Setenv("PSModulePath", "")
+	_ = os.Unsetenv("PVM_SHELL")
+	return func() {
+		_ = os.Setenv("PSModulePath", origPSModulePath)
+		_ = os.Setenv("SHELL", origShell)
+		_ = os.Setenv("PVM_SHELL", origPVMShell)
+	}
+}
+
 // Setup/teardown helpers
 func setupShellTest(t *testing.T) func() {
 	// Create a temporary directory for testing
@@ -98,15 +115,7 @@ func TestDetectShell_PowerShellOnAnyOS(t *testing.T) {
 // Without this, a fish user whose login shell is bash would get POSIX
 // output for fish-invoked pvm commands.
 func TestDetectShell_PVMShellOverridesLoginShell(t *testing.T) {
-	origPVMShell := os.Getenv("PVM_SHELL")
-	origShell := os.Getenv("SHELL")
-	origPSModulePath := os.Getenv("PSModulePath")
-	defer func() {
-		_ = os.Setenv("PVM_SHELL", origPVMShell)
-		_ = os.Setenv("SHELL", origShell)
-		_ = os.Setenv("PSModulePath", origPSModulePath)
-	}()
-	_ = os.Setenv("PSModulePath", "")
+	defer saveAndClearShellDetectionEnv(t)()
 	_ = os.Setenv("SHELL", "/bin/bash")
 
 	cases := []struct {
@@ -117,6 +126,12 @@ func TestDetectShell_PVMShellOverridesLoginShell(t *testing.T) {
 		{"zsh", ShellZsh},
 		{"bash", ShellBash},
 		{"powershell", ShellPowerShell},
+		// Hand-set values with stray case/whitespace should still match:
+		// users writing CI configs or dotfiles shouldn't silently fall
+		// through to $SHELL-based detection.
+		{"Fish", ShellFish},
+		{"  zsh  ", ShellZsh},
+		{"BASH", ShellBash},
 	}
 	for _, tc := range cases {
 		_ = os.Setenv("PVM_SHELL", tc.pvmShell)
@@ -720,15 +735,7 @@ func TestGenerateShellUse(t *testing.T) {
 		}
 	}
 
-	// Save and clear PSModulePath so DetectShell doesn't pick up PowerShell
-	// when testing bash/fish cases
-	origPSModulePath := os.Getenv("PSModulePath")
-	_ = os.Setenv("PSModulePath", "")
-	defer func() { _ = os.Setenv("PSModulePath", origPSModulePath) }()
-
-	// Save original SHELL environment variable
-	origShell := os.Getenv("SHELL")
-	defer func() { _ = os.Setenv("SHELL", origShell) }()
+	defer saveAndClearShellDetectionEnv(t)()
 
 	testCases := []struct {
 		name            string
@@ -1048,11 +1055,7 @@ func TestGenerateShellUseSystem(t *testing.T) {
 		t.Fatalf("Failed to create test library: %v", err)
 	}
 
-	origPSModulePath := os.Getenv("PSModulePath")
-	_ = os.Setenv("PSModulePath", "")
-	defer func() { _ = os.Setenv("PSModulePath", origPSModulePath) }()
-	origShell := os.Getenv("SHELL")
-	defer func() { _ = os.Setenv("SHELL", origShell) }()
+	defer saveAndClearShellDetectionEnv(t)()
 
 	cases := []struct {
 		name            string

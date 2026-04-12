@@ -1,5 +1,5 @@
 // ABOUTME: End-to-end verification that `pvm use <version>` refreshes PATH
-// ABOUTME: across bash, zsh, and fish — the user-visible contract of issue #433.
+// ABOUTME: across bash, zsh, and fish in the current shell.
 
 package e2e
 
@@ -11,18 +11,15 @@ import (
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/perl"
 	"tamarou.com/pvm/test/e2e/helpers"
 )
 
-// TestPvmUseRefreshesPathAcrossShells verifies the core user-visible contract
-// of issue #433: after `pvm use X`, the activated Perl's bin directory is at
-// the front of PATH in the same shell. This is stronger than the static-text
-// assertion in TestShellTemplatesRefreshPathAfterShUse (which only checks the
-// template contains _pvm_update_perl_path) because it actually sources the
-// template and inspects PATH after `pvm use` runs.
-//
-// The test runs against bash, zsh, and fish when each is available; missing
-// shells are skipped rather than failing.
+// TestPvmUseRefreshesPathAcrossShells verifies that after `pvm use X`, the
+// activated Perl's bin directory is at the front of PATH in the same shell.
+// Stronger than TestShellTemplatesRefreshPathAfterShUse (which only checks
+// the template text) because this actually sources the template and inspects
+// PATH after `pvm use` runs. Missing shells are skipped rather than failing.
 func TestPvmUseRefreshesPathAcrossShells(t *testing.T) {
 	helpers.SkipIfNotUnix(t)
 
@@ -41,9 +38,9 @@ func TestPvmUseRefreshesPathAcrossShells(t *testing.T) {
 		t.Fatalf("import-system failed: %v\nstdout: %s\nstderr: %s", err, stdout, stderr)
 	}
 
-	version := extractFirstInstalledVersion(t, env)
+	version := firstInstalledPerlVersion(t)
 	if version == "" {
-		t.Skipf("no installed Perl version available to test with")
+		t.Fatalf("import-system succeeded but no installed Perl version is registered")
 	}
 	expectedBin := filepath.Join(env.DataHome, "pvm", "versions", version, "bin")
 
@@ -132,27 +129,18 @@ echo "PATH_AFTER_USE=$PATH"
 	}
 }
 
-// extractFirstInstalledVersion queries `pvm list` and returns the first
-// version string it finds, or "" if none are installed.
-func extractFirstInstalledVersion(t *testing.T, env *helpers.TestEnv) string {
+// firstInstalledPerlVersion returns the first 5.x Perl version from the
+// registry, reading directly from the XDG data dirs the test env sets up.
+// Returns "" if nothing is installed.
+func firstInstalledPerlVersion(t *testing.T) string {
 	t.Helper()
-	stdout, stderr, err := env.RunPVM("list")
+	versions, err := perl.GetInstalledVersions()
 	if err != nil {
-		t.Fatalf("pvm list failed: %v\nstderr: %s", err, stderr)
+		t.Fatalf("perl.GetInstalledVersions: %v", err)
 	}
-	for _, line := range strings.Split(stdout+stderr, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.Contains(line, ".") || strings.Contains(line, "No Perl versions") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
-		candidate := strings.TrimPrefix(fields[0], "*")
-		candidate = strings.TrimSpace(candidate)
-		if strings.HasPrefix(candidate, "5.") {
-			return candidate
+	for _, v := range versions {
+		if strings.HasPrefix(v.Version, "5.") {
+			return v.Version
 		}
 	}
 	return ""
