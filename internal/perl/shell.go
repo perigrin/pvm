@@ -93,12 +93,28 @@ func (s ShellScriptData) IsWindows() bool {
 // PSModulePath is checked first on any OS (PowerShell 7 runs on Linux/macOS too),
 // then SHELL is checked, with an OS-based fallback last.
 func DetectShell() (ShellType, error) {
-	// Check PSModulePath first on any OS - PowerShell 7 (pwsh) runs on Linux/macOS
+	// PVM_SHELL is set by the shell integration templates, which know the
+	// shell they run in. It is the most authoritative signal because $SHELL
+	// reflects the user's login shell, not the shell currently running pvm.
+	switch os.Getenv("PVM_SHELL") {
+	case "fish":
+		return ShellFish, nil
+	case "zsh":
+		return ShellZsh, nil
+	case "bash":
+		return ShellBash, nil
+	case "powershell":
+		return ShellPowerShell, nil
+	case "cmd":
+		return ShellCmd, nil
+	}
+
+	// Check PSModulePath - PowerShell 7 (pwsh) runs on Linux/macOS
 	if os.Getenv("PSModulePath") != "" {
 		return ShellPowerShell, nil
 	}
 
-	// Check the SHELL environment variable (set by bash, zsh, fish on Unix)
+	// Fall back to $SHELL (set by the login shell on Unix).
 	shellPath := os.Getenv("SHELL")
 	if shellPath != "" {
 		shellName := filepath.Base(shellPath)

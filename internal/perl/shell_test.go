@@ -93,6 +93,43 @@ func TestDetectShell_PowerShellOnAnyOS(t *testing.T) {
 	}
 }
 
+// TestDetectShell_PVMShellOverridesLoginShell verifies that PVM_SHELL
+// (set by the shell integration templates) takes precedence over $SHELL.
+// Without this, a fish user whose login shell is bash would get POSIX
+// output for fish-invoked pvm commands.
+func TestDetectShell_PVMShellOverridesLoginShell(t *testing.T) {
+	origPVMShell := os.Getenv("PVM_SHELL")
+	origShell := os.Getenv("SHELL")
+	origPSModulePath := os.Getenv("PSModulePath")
+	defer func() {
+		_ = os.Setenv("PVM_SHELL", origPVMShell)
+		_ = os.Setenv("SHELL", origShell)
+		_ = os.Setenv("PSModulePath", origPSModulePath)
+	}()
+	_ = os.Setenv("PSModulePath", "")
+	_ = os.Setenv("SHELL", "/bin/bash")
+
+	cases := []struct {
+		pvmShell string
+		want     ShellType
+	}{
+		{"fish", ShellFish},
+		{"zsh", ShellZsh},
+		{"bash", ShellBash},
+		{"powershell", ShellPowerShell},
+	}
+	for _, tc := range cases {
+		_ = os.Setenv("PVM_SHELL", tc.pvmShell)
+		got, err := DetectShell()
+		if err != nil {
+			t.Fatalf("DetectShell() error with PVM_SHELL=%q: %v", tc.pvmShell, err)
+		}
+		if got != tc.want {
+			t.Errorf("PVM_SHELL=%q SHELL=/bin/bash: got %q, want %q", tc.pvmShell, got, tc.want)
+		}
+	}
+}
+
 // Test shell detection
 func TestDetectShell(t *testing.T) {
 	// Save and clear PSModulePath so PowerShell doesn't override SHELL-based detection
@@ -101,6 +138,16 @@ func TestDetectShell(t *testing.T) {
 	defer func() {
 		if origPSModulePath != "" {
 			os.Setenv("PSModulePath", origPSModulePath)
+		}
+	}()
+
+	// PVM_SHELL would take precedence over SHELL; clear it so these cases
+	// exercise the SHELL fallback path.
+	origPVMShell := os.Getenv("PVM_SHELL")
+	os.Unsetenv("PVM_SHELL")
+	defer func() {
+		if origPVMShell != "" {
+			os.Setenv("PVM_SHELL", origPVMShell)
 		}
 	}()
 
@@ -1101,6 +1148,28 @@ func TestGenerateShellUseSystem(t *testing.T) {
 				if strings.Contains(outputStr, unwant) {
 					t.Errorf("output unexpectedly contains %q\nfull output: %s", unwant, outputStr)
 				}
+			}
+		})
+	}
+}
+
+// TestShellTemplatesExportPVMShell verifies each shell template exports
+// PVM_SHELL so pvm subprocesses can detect the invoking shell reliably,
+// regardless of the user's login $SHELL.
+func TestShellTemplatesExportPVMShell(t *testing.T) {
+	cases := []struct {
+		name     string
+		template string
+		want     string
+	}{
+		{"bash", bashTemplate, "export PVM_SHELL=bash"},
+		{"zsh", zshTemplate, "export PVM_SHELL=zsh"},
+		{"fish", fishTemplate, "set -gx PVM_SHELL fish"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(tc.template, tc.want) {
+				t.Errorf("%s template missing %q", tc.name, tc.want)
 			}
 		})
 	}
