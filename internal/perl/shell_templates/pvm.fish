@@ -117,6 +117,8 @@ function pvm_init
             end
             # Use the sh-use command to generate shell code and eval it
             eval (command "$pvm_exec" sh-use "$version")
+            # sh-use exports PVM_PERL_VERSION but does not rewrite PATH.
+            _pvm_update_perl_path
         else if test "$command" = "env" -a "$argv[2]" = "activate"
             # Handle 'pvm env activate' with shell integration
             set env_name $argv[3]

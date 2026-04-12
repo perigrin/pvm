@@ -982,3 +982,44 @@ func TestShellEscaping(t *testing.T) {
 		})
 	}
 }
+
+// TestShellTemplatesRefreshPathAfterShUse verifies each shell integration
+// template calls _pvm_update_perl_path after the sh-use eval. sh-use only
+// exports PVM_PERL_VERSION — it does not rewrite PATH — so without the
+// refresh, `perl` keeps resolving to the previously-active version's bin.
+func TestShellTemplatesRefreshPathAfterShUse(t *testing.T) {
+	cases := []struct {
+		name     string
+		template string
+		refresh  string // the PATH-refresh call expected to follow sh-use
+	}{
+		{"bash", bashTemplate, "_pvm_update_perl_path"},
+		{"zsh", zshTemplate, "_pvm_update_perl_path"},
+		{"fish", fishTemplate, "_pvm_update_perl_path"},
+	}
+
+	// The refresh must appear between the sh-use eval and the next control-flow
+	// boundary that ends the `use` branch (elif / else / end); anywhere later
+	// in the template doesn't help the `use` path.
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			shUseIdx := strings.Index(tc.template, "sh-use")
+			if shUseIdx < 0 {
+				t.Fatalf("%s template does not mention sh-use", tc.name)
+			}
+
+			tail := tc.template[shUseIdx:]
+			branchEnd := len(tail)
+			for _, marker := range []string{"\n        elif ", "\n        else if ", "\n        else\n", "\n        end\n"} {
+				if i := strings.Index(tail, marker); i >= 0 && i < branchEnd {
+					branchEnd = i
+				}
+			}
+			branchBody := tail[:branchEnd]
+
+			if !strings.Contains(branchBody, tc.refresh) {
+				t.Errorf("%s template: expected %q inside the `use` branch after the sh-use eval (to rewrite PATH for the new version), but the branch body is:\n---\n%s\n---", tc.name, tc.refresh, branchBody)
+			}
+		})
+	}
+}

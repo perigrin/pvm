@@ -81,6 +81,9 @@ func NewCommand() *cobra.Command {
 	cmd.AddCommand(
 		hiddenHelpCmd, // Hidden version for subcommands to work
 		newInstallCommand(),
+		newUseCommand(), // top-level `pvm use`; shell integration normally intercepts before cobra
+		newGlobalCommand(),
+		newLocalCommand(),
 		newShUseCommand(),
 		newShEnvActivateCommand(),
 		newDetectVersionCommand(),
