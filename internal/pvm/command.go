@@ -567,20 +567,6 @@ func newShUseCommand() *cobra.Command {
 				}
 			}
 
-			// Handle special "system" case
-			if version == "system" {
-				// Generate shell code to unset PVM_PERL_VERSION and PVM_PERL_LIBRARY
-				fmt.Println("unset PVM_PERL_VERSION")
-				if library != "" {
-					fmt.Println("unset PVM_PERL_LIBRARY")
-					fmt.Printf("echo \"Using system Perl with library '%s'\"\n", library)
-				} else {
-					fmt.Println("unset PVM_PERL_LIBRARY")
-					fmt.Printf("echo \"Using system Perl\"\n")
-				}
-				return nil
-			}
-
 			return perl.GenerateShellUse(version, library)
 		},
 	}

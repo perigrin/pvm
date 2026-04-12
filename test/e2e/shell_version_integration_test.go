@@ -467,8 +467,10 @@ func TestLibrarySpecificUse(t *testing.T) {
 			"sh-use system@library should unset PVM_PERL_VERSION")
 		helpers.AssertStringContains(t, shellOutput, "unset PVM_PERL_LIBRARY",
 			"sh-use system@library should unset PVM_PERL_LIBRARY")
-		helpers.AssertStringContains(t, shellOutput, "Using system Perl with library '"+testLibraryName+"'",
-			"sh-use should show system with library message")
+		helpers.AssertStringContains(t, shellOutput, testLibraryName,
+			"sh-use should reference the library in the confirmation message")
+		helpers.AssertStringContains(t, shellOutput, "Using system Perl with library",
+			"sh-use should show system-with-library confirmation")
 	})
 
 	// Test 4: Test clearing library (version without @library)

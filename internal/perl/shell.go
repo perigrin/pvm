@@ -606,68 +606,117 @@ func validateLibraryEnvironmentImpl(library string) error {
 	return nil
 }
 
-// GenerateShellUse outputs shell commands to set up the environment for a specific Perl version and optional library
+// GenerateShellUse outputs shell commands to set up the environment for a specific
+// Perl version and optional library. When version is "system", PVM_PERL_VERSION
+// (and PVM_PERL_LIBRARY when no library is given) are unset so the resolver
+// falls back to the system Perl.
+//
+// The output is eval'd by the shell integration templates. Callers are
+// responsible for refreshing PATH afterward (the templates call
+// _pvm_update_perl_path) — this function does not touch PATH.
 func GenerateShellUse(version string, library string) error {
-	// Allow "system" as a special case, otherwise validate the version
-	if version != "system" {
+	isSystem := version == "system"
+
+	if !isSystem {
 		if err := ValidateVersion(version); err != nil {
 			return err
 		}
 	}
 
-	// Validate library environment if specified
 	if err := ValidateLibraryEnvironment(library); err != nil {
 		return err
 	}
 
-	// Detect shell type using environment-first detection
 	shellType, err := DetectShell()
 	if err != nil {
-		// Fallback to bash on detection failure
 		shellType = ShellBash
 	}
 
-	// Build display string
 	displayVersion := version
 	if library != "" {
 		displayVersion = fmt.Sprintf("%s@%s", version, library)
 	}
 
-	// Generate shell-specific environment commands with proper escaping
+	// For the "system" fallback we always clear both env vars: the library
+	// name in version@library is accepted (and validated) only so the
+	// confirmation message can reference it, not to activate the library.
+	exportLibrary := !isSystem && library != ""
+
 	switch shellType {
 	case ShellFish:
-		fmt.Printf("set -gx PVM_PERL_VERSION %s\n", escapeShellArg(version))
-		if library != "" {
+		if isSystem {
+			fmt.Println("set -e PVM_PERL_VERSION 2>/dev/null; or true")
+		} else {
+			fmt.Printf("set -gx PVM_PERL_VERSION %s\n", escapeShellArg(version))
+		}
+		if exportLibrary {
 			fmt.Printf("set -gx PVM_PERL_LIBRARY %s\n", escapeShellArg(library))
 			fmt.Printf("set -gx PVM_PERL_VERSION_FULL %s\n", escapeShellArg(displayVersion))
 		} else {
-			fmt.Println("set -e PVM_PERL_LIBRARY 2>/dev/null || true")
-			fmt.Printf("set -gx PVM_PERL_VERSION_FULL %s\n", escapeShellArg(version))
+			fmt.Println("set -e PVM_PERL_LIBRARY 2>/dev/null; or true")
+			if isSystem {
+				fmt.Println("set -e PVM_PERL_VERSION_FULL 2>/dev/null; or true")
+			} else {
+				fmt.Printf("set -gx PVM_PERL_VERSION_FULL %s\n", escapeShellArg(version))
+			}
 		}
-		fmt.Printf("echo %s\n", escapeShellArg("Using Perl "+displayVersion))
+		fmt.Printf("echo %s\n", escapeShellArg(useMessage(isSystem, library, displayVersion)))
 	case ShellPowerShell:
-		fmt.Printf("$env:PVM_PERL_VERSION = '%s'\n", version)
-		if library != "" {
-			fmt.Printf("$env:PVM_PERL_LIBRARY = '%s'\n", library)
-			fmt.Printf("$env:PVM_PERL_VERSION_FULL = '%s'\n", displayVersion)
+		if isSystem {
+			fmt.Println("Remove-Item Env:PVM_PERL_VERSION -ErrorAction SilentlyContinue")
+		} else {
+			fmt.Printf("$env:PVM_PERL_VERSION = %s\n", escapePowerShellArg(version))
+		}
+		if exportLibrary {
+			fmt.Printf("$env:PVM_PERL_LIBRARY = %s\n", escapePowerShellArg(library))
+			fmt.Printf("$env:PVM_PERL_VERSION_FULL = %s\n", escapePowerShellArg(displayVersion))
 		} else {
 			fmt.Println("Remove-Item Env:PVM_PERL_LIBRARY -ErrorAction SilentlyContinue")
-			fmt.Printf("$env:PVM_PERL_VERSION_FULL = '%s'\n", version)
+			if isSystem {
+				fmt.Println("Remove-Item Env:PVM_PERL_VERSION_FULL -ErrorAction SilentlyContinue")
+			} else {
+				fmt.Printf("$env:PVM_PERL_VERSION_FULL = %s\n", escapePowerShellArg(version))
+			}
 		}
-		fmt.Printf("Write-Host 'Using Perl %s'\n", displayVersion)
+		fmt.Printf("Write-Host %s\n", escapePowerShellArg(useMessage(isSystem, library, displayVersion)))
 	default: // bash, zsh, sh, cmd
-		fmt.Printf("export PVM_PERL_VERSION=%s\n", escapeShellArg(version))
-		if library != "" {
+		if isSystem {
+			fmt.Println("unset PVM_PERL_VERSION")
+		} else {
+			fmt.Printf("export PVM_PERL_VERSION=%s\n", escapeShellArg(version))
+		}
+		if exportLibrary {
 			fmt.Printf("export PVM_PERL_LIBRARY=%s\n", escapeShellArg(library))
 			fmt.Printf("export PVM_PERL_VERSION_FULL=%s\n", escapeShellArg(displayVersion))
 		} else {
 			fmt.Println("unset PVM_PERL_LIBRARY")
-			fmt.Printf("export PVM_PERL_VERSION_FULL=%s\n", escapeShellArg(version))
+			if isSystem {
+				fmt.Println("unset PVM_PERL_VERSION_FULL")
+			} else {
+				fmt.Printf("export PVM_PERL_VERSION_FULL=%s\n", escapeShellArg(version))
+			}
 		}
-		fmt.Printf("echo %s\n", escapeShellArg("Using Perl "+displayVersion))
+		fmt.Printf("echo %s\n", escapeShellArg(useMessage(isSystem, library, displayVersion)))
 	}
 
 	return nil
+}
+
+// useMessage returns the confirmation text printed after switching.
+func useMessage(isSystem bool, library, displayVersion string) string {
+	if isSystem {
+		if library != "" {
+			return fmt.Sprintf("Using system Perl with library '%s'", library)
+		}
+		return "Using system Perl"
+	}
+	return "Using Perl " + displayVersion
+}
+
+// escapePowerShellArg wraps a value in PowerShell single quotes, doubling any
+// embedded single quotes per PowerShell literal-string rules.
+func escapePowerShellArg(arg string) string {
+	return "'" + strings.ReplaceAll(arg, "'", "''") + "'"
 }
 
 // validateVersionImpl is the actual implementation

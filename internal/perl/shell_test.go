@@ -740,7 +740,7 @@ func TestGenerateShellUse(t *testing.T) {
 			wantError: false,
 			wantContains: []string{
 				"set -gx PVM_PERL_VERSION '5.42.0'",
-				"set -e PVM_PERL_LIBRARY 2>/dev/null || true",
+				"set -e PVM_PERL_LIBRARY 2>/dev/null; or true",
 				"set -gx PVM_PERL_VERSION_FULL '5.42.0'",
 				"Using Perl 5.42.0",
 			},
@@ -978,6 +978,129 @@ func TestShellEscaping(t *testing.T) {
 			result := escapeShellArg(tc.input)
 			if result != tc.expected {
 				t.Errorf("escapeShellArg(%q) = %q, want %q", tc.input, result, tc.expected)
+			}
+		})
+	}
+}
+
+// TestGenerateShellUseSystem verifies the "system" version case: it must
+// detect the shell (fish uses `set -e`, PowerShell uses `Remove-Item`, POSIX
+// uses `unset`) and must reject unsafe library names the same way the
+// non-system path does, since the output is eval'd by the shell integration.
+func TestGenerateShellUseSystem(t *testing.T) {
+	cleanup := setupShellTest(t)
+	defer cleanup()
+
+	// Create a real library environment so ValidateLibraryEnvironment passes
+	// for the "valid library" cases.
+	dirs, err := xdg.GetDirs()
+	if err != nil {
+		t.Fatalf("Failed to get XDG dirs: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dirs.DataDir, "environments", "tools"), 0755); err != nil {
+		t.Fatalf("Failed to create test library: %v", err)
+	}
+
+	origPSModulePath := os.Getenv("PSModulePath")
+	_ = os.Setenv("PSModulePath", "")
+	defer func() { _ = os.Setenv("PSModulePath", origPSModulePath) }()
+	origShell := os.Getenv("SHELL")
+	defer func() { _ = os.Setenv("SHELL", origShell) }()
+
+	cases := []struct {
+		name            string
+		library         string
+		shell           string
+		psModulePath    string
+		wantError       bool
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{
+			name:            "bash system no library emits POSIX unset",
+			shell:           "/bin/bash",
+			wantContains:    []string{"unset PVM_PERL_VERSION", "unset PVM_PERL_LIBRARY"},
+			wantNotContains: []string{"set -e PVM_PERL_VERSION", "Remove-Item"},
+		},
+		{
+			name:            "fish system no library emits fish set -e",
+			shell:           "/usr/bin/fish",
+			wantContains:    []string{"set -e PVM_PERL_VERSION"},
+			wantNotContains: []string{"unset PVM_PERL_VERSION"},
+		},
+		{
+			name:            "powershell system no library emits Remove-Item",
+			shell:           "/bin/bash",
+			psModulePath:    "C:\\Program Files\\PowerShell\\Modules",
+			wantContains:    []string{"Remove-Item Env:PVM_PERL_VERSION"},
+			wantNotContains: []string{"unset PVM_PERL_VERSION"},
+		},
+		{
+			name:    "bash system@validlib unsets both and references library in message",
+			library: "tools",
+			shell:   "/bin/bash",
+			wantContains: []string{
+				"unset PVM_PERL_VERSION",
+				"unset PVM_PERL_LIBRARY",
+				"Using system Perl with library",
+				"tools",
+			},
+			wantNotContains: []string{
+				"export PVM_PERL_LIBRARY",
+			},
+		},
+		{
+			name:      "system@<injection> is rejected",
+			library:   "x';id #",
+			shell:     "/bin/bash",
+			wantError: true,
+		},
+		{
+			name:      "system@<path traversal> is rejected",
+			library:   "../../etc/passwd",
+			shell:     "/bin/bash",
+			wantError: true,
+		},
+		{
+			name:      "system@<unknown> is rejected",
+			library:   "nonexistent",
+			shell:     "/bin/bash",
+			wantError: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_ = os.Setenv("SHELL", tc.shell)
+			_ = os.Setenv("PSModulePath", tc.psModulePath)
+
+			origStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			err := GenerateShellUse("system", tc.library)
+
+			w.Close()
+			os.Stdout = origStdout
+			output := make([]byte, 4096)
+			n, _ := r.Read(output)
+			outputStr := string(output[:n])
+
+			if tc.wantError && err == nil {
+				t.Fatalf("expected error but got none; output: %s", outputStr)
+			}
+			if !tc.wantError && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			for _, want := range tc.wantContains {
+				if !strings.Contains(outputStr, want) {
+					t.Errorf("output missing %q\nfull output: %s", want, outputStr)
+				}
+			}
+			for _, unwant := range tc.wantNotContains {
+				if strings.Contains(outputStr, unwant) {
+					t.Errorf("output unexpectedly contains %q\nfull output: %s", unwant, outputStr)
+				}
 			}
 		})
 	}
