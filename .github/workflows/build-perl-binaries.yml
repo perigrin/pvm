@@ -114,6 +114,17 @@ jobs:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
 
     steps:
+      - name: Install build-time dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # patchelf rewrites DT_RUNPATH on the built Perl ELF binaries so
+          # libperl.so resolves via $ORIGIN-relative paths instead of the
+          # build host's absolute prefix. Without this, every released
+          # binary fails at runtime on users' machines with "libperl.so:
+          # cannot open shared object file".
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends patchelf
+
       - name: Download latest PVM release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

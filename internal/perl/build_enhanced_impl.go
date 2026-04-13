@@ -444,6 +444,19 @@ func (bm *BuildManager) installWithVerification(ctx *BuildContext, progress *Pro
 		return installErr
 	}
 
+	// Make the install relocatable by rewriting baked-in RPATH entries to
+	// $ORIGIN-relative form. Without this, the Perl binary's DT_RUNPATH
+	// points at the build host's absolute prefix and every install to a
+	// different path breaks with "libperl.so: cannot open shared object
+	// file". A no-op on non-linux. Not fatal when patchelf is missing —
+	// local builds where build prefix == install prefix still work.
+	progress.Update(StageInstall, "Making binaries relocatable", 0.85)
+	if err := makeRelocatable(ctx.InstallDir); err != nil {
+		ctx.Logger.Warningf("Could not make binaries relocatable: %v", err)
+		ctx.Logger.Warningf("The built Perl will only run when installed at %s", ctx.InstallDir)
+		ctx.Logger.Warningf("To fix: install patchelf and re-run `pvm build-perl`")
+	}
+
 	// Verify installation
 	progress.Update(StageInstall, "Verifying installation", 0.9)
 
