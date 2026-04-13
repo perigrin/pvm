@@ -28,12 +28,20 @@ docker build -t pvm-smoke:latest "$here"
 echo ""
 failures=0
 
+# Propagate selected host env vars into each docker run. Callers (CI, or a
+# dev debugging locally) can set PVM_SMOKE_SKIP_BINARY_INSTALL=1 to gate
+# off the two-version binary-install section of Section 3b.
+docker_env_flags=()
+if [ -n "${PVM_SMOKE_SKIP_BINARY_INSTALL-}" ]; then
+    docker_env_flags+=(-e "PVM_SMOKE_SKIP_BINARY_INSTALL=$PVM_SMOKE_SKIP_BINARY_INSTALL")
+fi
+
 # Run the shell-agnostic suite once (from bash) before the three per-shell
 # journeys. Cheaper than running it three times and keeps the per-shell
 # journey files focused on integration-dependent workflows.
 for suite in core-commands.sh advanced-commands.sh; do
     echo "==> Running $suite (shell-agnostic)"
-    if docker run --rm pvm-smoke:latest bash "/smoke/journeys/$suite"; then
+    if docker run --rm "${docker_env_flags[@]}" pvm-smoke:latest bash "/smoke/journeys/$suite"; then
         echo "   ✓ $suite passed"
     else
         echo "   ✗ $suite FAILED"
@@ -46,7 +54,7 @@ for shell_script in bash:bash-journey.sh zsh:zsh-journey.sh fish:fish-journey.fi
     shell="${shell_script%%:*}"
     script="${shell_script#*:}"
     echo "==> Running $shell journey"
-    if docker run --rm pvm-smoke:latest "$shell" "/smoke/journeys/$script"; then
+    if docker run --rm "${docker_env_flags[@]}" pvm-smoke:latest "$shell" "/smoke/journeys/$script"; then
         echo "   ✓ $shell journey passed"
     else
         echo "   ✗ $shell journey FAILED"

@@ -71,11 +71,19 @@ fi
 ############################################################################
 
 SECOND_VERSION="5.40.2"
-(
-    unset PVM_SKIP_NETWORK_CALLS
-    pvm install "$SECOND_VERSION" --binary-only >/tmp/install.log 2>&1
-)
-install_rc=$?
+# CI sets PVM_SMOKE_SKIP_BINARY_INSTALL=1 to skip the networked binary-fetch
+# path until the release workflow ships signed SHA256 checksums. The
+# single-version fallback below still exercises the cd hook + PATH refresh.
+if [ "${PVM_SMOKE_SKIP_BINARY_INSTALL-}" = "1" ]; then
+    install_rc=1
+    smoke_pass "binary-install gated off (PVM_SMOKE_SKIP_BINARY_INSTALL=1)"
+else
+    (
+        unset PVM_SKIP_NETWORK_CALLS
+        pvm install "$SECOND_VERSION" --binary-only >/tmp/install.log 2>&1
+    )
+    install_rc=$?
+fi
 if [ "$install_rc" -ne 0 ]; then
     smoke_pass "skipping two-version auto-switch (install rc=$install_rc; network?)"
     unset PVM_PERL_VERSION

@@ -77,11 +77,20 @@ smoke_pass "pvm use <bogus> short-circuits `; and` chains"
 ############################################################################
 
 set -l second_version "5.40.2"
-begin
-    set -e PVM_SKIP_NETWORK_CALLS
-    pvm install "$second_version" --binary-only >/tmp/install.log 2>&1
+# CI sets PVM_SMOKE_SKIP_BINARY_INSTALL=1 to skip the networked binary-fetch
+# path until the release workflow ships signed SHA256 checksums. The
+# single-version fallback below still exercises the PWD hook + PATH refresh.
+set -l install_rc
+if test "$PVM_SMOKE_SKIP_BINARY_INSTALL" = "1"
+    set install_rc 1
+    smoke_pass "binary-install gated off (PVM_SMOKE_SKIP_BINARY_INSTALL=1)"
+else
+    begin
+        set -e PVM_SKIP_NETWORK_CALLS
+        pvm install "$second_version" --binary-only >/tmp/install.log 2>&1
+    end
+    set install_rc $status
 end
-set -l install_rc $status
 if test $install_rc -ne 0
     smoke_pass "skipping two-version auto-switch (install rc=$install_rc; network?)"
     set -e PVM_PERL_VERSION
