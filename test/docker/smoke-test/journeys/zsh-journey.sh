@@ -24,7 +24,7 @@ smoke_contains "$root_help" "use [version"     "pvm use listed in root help"
 
 pvm import-system >/dev/null 2>&1 || smoke_fail "import-system failed"
 
-VERSION=$(pvm list 2>/dev/null | grep -oE '5\.[0-9]+\.[0-9]+' | head -1)
+VERSION=$(smoke_first_installed_version)
 [ -n "$VERSION" ] || smoke_fail "no Perl version found after import-system"
 
 smoke_setup_stub_perl "$VERSION"
@@ -36,14 +36,8 @@ smoke_setup_stub_perl "$VERSION"
 # shellcheck disable=SC1090
 source <(pvm init zsh)
 
-# `pvm use` / `pvm env activate` modify the shell env. Running them under
-# a pipe or $(…) puts them in a subshell and the exports are lost.
-pvm_use_log=""
-pvm_use_run() {
-    pvm_use_log=$(mktemp)
-    pvm "$@" > "$pvm_use_log" 2>&1
-}
-
+# pvm_use_run + pvm_use_log live in common.sh — tempfile pattern preserves
+# env exports from pvm in the parent shell.
 pvm_use_run use "$VERSION"
 smoke_contains "$(cat "$pvm_use_log")" "Using Perl $VERSION" "pvm use prints Using Perl"
 rm -f "$pvm_use_log"
@@ -70,7 +64,7 @@ fi
 # Section 3b — G2: cd auto-switch between TWO installed versions
 ############################################################################
 
-SECOND_VERSION="5.40.2"
+SECOND_VERSION="$SMOKE_SECOND_VERSION"
 # CI sets PVM_SMOKE_SKIP_BINARY_INSTALL=1 to skip the networked binary-fetch
 # path until the release workflow ships signed SHA256 checksums. The
 # single-version fallback below still exercises the cd hook + PATH refresh.

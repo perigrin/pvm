@@ -51,6 +51,27 @@ function smoke_exit_eq
     end
 end
 
+# Second Perl version used by Section 3b (G2) for the two-version cd
+# auto-switch. Hoisted here so bumping the pinned binary-fetch target is
+# a one-line change. Accepts override from the environment.
+if not set -q SMOKE_SECOND_VERSION
+    set -gx SMOKE_SECOND_VERSION "5.40.2"
+end
+
+# Extract the first 5.x.y version pvm reports as installed.
+function smoke_first_installed_version
+    pvm list 2>/dev/null | string match -rg '(5\.[0-9]+\.[0-9]+)' | head -1
+end
+
+# Run `pvm use ...` and capture output to a tempfile so env exports in the
+# parent shell survive. Callers read $pvm_use_log afterwards and rm -f it.
+# See common.sh's pvm_use_run for the rationale.
+set -g pvm_use_log ""
+function pvm_use_run
+    set -g pvm_use_log (mktemp)
+    pvm $argv > $pvm_use_log 2>&1
+end
+
 # Create a stub perl executable under $XDG_DATA_HOME/pvm/versions/$1/bin/perl
 # whose `perl -v` output matches the canonical real-perl shape. Emit three
 # integers for major/minor/patch so any future regex-based parser finds the

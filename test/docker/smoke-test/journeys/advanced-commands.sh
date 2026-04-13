@@ -13,7 +13,7 @@ echo "=== advanced commands smoke test (shell-agnostic) ==="
 # core-commands.sh's import-system but the journey should be standalone-
 # runnable; both are idempotent.
 pvm import-system >/dev/null 2>&1 || smoke_fail "import-system failed"
-VERSION=$(pvm list 2>/dev/null | grep -oE '5\.[0-9]+\.[0-9]+' | head -1)
+VERSION=$(smoke_first_installed_version)
 [ -n "$VERSION" ] || smoke_fail "no Perl version found after import-system"
 
 ############################################################################

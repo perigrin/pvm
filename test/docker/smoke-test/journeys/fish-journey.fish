@@ -24,7 +24,7 @@ smoke_contains "$root_help" "use [version"     "pvm use listed in root help"
 pvm import-system >/dev/null 2>&1
 or smoke_fail "import-system failed"
 
-set -l requested_version (pvm list 2>/dev/null | string match -rg '(5\.[0-9]+\.[0-9]+)' | head -1)
+set -l requested_version (smoke_first_installed_version)
 test -n "$requested_version"
 or smoke_fail "no Perl version found after import-system"
 
@@ -38,15 +38,8 @@ pvm init fish | source
 or smoke_fail "sourcing pvm init fish failed"
 smoke_pass "sourced pvm init fish cleanly"
 
-# `pvm use` / `pvm env activate` modify the shell's env. Running them under
-# `(…)` command substitution puts them in a subshell and the exports are
-# lost. Use a tempfile to inspect output while keeping the env changes.
-set -g pvm_use_log ""
-function pvm_use_run
-    set -g pvm_use_log (mktemp)
-    pvm $argv > $pvm_use_log 2>&1
-end
-
+# pvm_use_run + pvm_use_log live in common.fish — tempfile pattern
+# preserves env exports from pvm in the parent shell.
 pvm_use_run use "$requested_version"
 set -l use_out (cat $pvm_use_log | string collect)
 smoke_contains "$use_out" "Using Perl $requested_version" "pvm use prints Using Perl"
@@ -76,7 +69,7 @@ smoke_pass "pvm use <bogus> short-circuits `; and` chains"
 # Section 3b — G2: cd auto-switch between TWO installed versions
 ############################################################################
 
-set -l second_version "5.40.2"
+set -l second_version "$SMOKE_SECOND_VERSION"
 # CI sets PVM_SMOKE_SKIP_BINARY_INSTALL=1 to skip the networked binary-fetch
 # path until the release workflow ships signed SHA256 checksums. The
 # single-version fallback below still exercises the PWD hook + PATH refresh.
