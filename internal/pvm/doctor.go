@@ -498,6 +498,21 @@ func checkPathConfiguration(ui *ui.Output, issues *[]string, warnings *[]string)
 	// Check if PVM executable is in PATH
 	if pvmPath, err := exec.LookPath("pvm"); err == nil {
 		ui.Success("PVM executable found in system PATH at %s", pvmPath)
+
+		// Check for additional pvm binaries in PATH — stale installs often
+		// live at /usr/local/bin/pvm or ~/.local/bin/pvm after a reinstall
+		// or version bump, and the one earlier in PATH wins. Shell
+		// integration then calls the stale binary, producing wrong-shell
+		// syntax or missing features that match the running pvm's
+		// template but not the older binary.
+		if stale := findStalePvmInstalls(path, pvmPath); len(stale) > 0 {
+			msg := fmt.Sprintf("Multiple pvm binaries in PATH; only %s will be used. Other copies: %s",
+				pvmPath, strings.Join(stale, ", "))
+			*warnings = append(*warnings, msg)
+			ui.Warning("%s", msg)
+			ui.Info("This can cause shell integration to call an older pvm than expected (e.g., 'Unknown command: unset' from fish).")
+			ui.Info("Remove the older copies or update them to match.")
+		}
 	} else {
 		*warnings = append(*warnings, "PVM executable not found in system PATH")
 		ui.Warning("Consider adding PVM to your system PATH for easier access")

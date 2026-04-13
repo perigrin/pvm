@@ -1,4 +1,4 @@
-.PHONY: all build test clean pvm pvx pm psc cross-compile
+.PHONY: all build test smoke-test clean pvm pvx pm psc cross-compile
 
 BINARIES = pvm pvx pm psc
 
@@ -20,6 +20,12 @@ psc:
 
 test:
 	go test ./... -count=1
+
+# Docker-based user-journey smoke test. Simulates a fresh install against
+# bash/zsh/fish and asserts the original #432/#433 bug scenarios stay fixed.
+# Requires docker (or a docker-compatible runtime).
+smoke-test:
+	./test/docker/smoke-test/run-smoke.sh
 
 clean:
 	rm -f $(BINARIES)
