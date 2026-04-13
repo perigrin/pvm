@@ -51,7 +51,11 @@
       </dd>
 
       <dt><code>use [version]</code></dt>
-      <dd>Activate a Perl version in the current shell session. Requires shell integration (<code>pvm init</code>).</dd>
+      <dd>
+        Activate a Perl version in the current shell session. Requires shell integration (<code>pvm init</code>).
+        <br>Accepts <code>version@library</code> to activate a named library environment alongside the Perl version (see the <a href="../guides/isolation.html">isolation guide</a>).
+        <br>Pass <code>system</code> to clear <code>PVM_PERL_VERSION</code>; note this falls through the resolution chain, so <code>.perl-version</code> files still apply (see the <a href="../guides/version-resolution.html">version resolution guide</a>).
+      </dd>
 
       <dt><code>global [version]</code></dt>
       <dd>

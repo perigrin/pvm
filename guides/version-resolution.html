@@ -76,6 +76,13 @@ pvm global system       # Fall back to system Perl</code></pre>
       <dd>Removes the PVM global version setting, letting the system Perl serve as the default.</dd>
     </dl>
 
+    <h3>Passing <code>system</code> to <code>pvm use</code></h3>
+    <p><code>pvm use system</code> clears <code>PVM_PERL_VERSION</code> in the current shell. That removes the env-var override at the top of the resolution chain — but the chain still applies. In a directory with a <code>.perl-version</code> file (or a parent that has one), PVM will resolve to <em>that</em> version, not the OS Perl.</p>
+    <p>To actually activate the OS Perl when inside a project directory, either <code>cd</code> somewhere outside the project tree before running <code>pvm use system</code>, or unpin the project temporarily:</p>
+    <pre><code>pvm local --unset       # remove .perl-version in current dir
+pvm use system          # now genuinely uses OS Perl</code></pre>
+    <p>Use <code>pvm current --detailed</code> to confirm which source PVM is reading from after the switch.</p>
+
     <h2>Checking the active version</h2>
     <p>To see which version PVM has resolved and why:</p>
 

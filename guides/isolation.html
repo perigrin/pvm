@@ -77,6 +77,16 @@ pvm env remove myproject   # Delete environment</code></pre>
 
     <p>Activating an environment in your current shell sets <code>PERL5LIB</code> so that interactive use and editor tooling pick up the same modules your scripts see.</p>
 
+    <h3>Pairing a Perl version with a library</h3>
+    <p>Named environments are normally scoped to the currently-active Perl version. If you want to switch Perl version and library in one step, <code>pvm use</code> accepts a <code>version@library</code> syntax:</p>
+
+    <pre><code>pvm use 5.42.0@myproject      # use Perl 5.42.0 with the 'myproject' library
+pvm use system@tools          # use system Perl with the 'tools' library</code></pre>
+
+    <p>This activates both the Perl version and the named environment in the current shell: <code>PATH</code> gets the version's <code>bin</code>, and <code>PERL5LIB</code> gets the environment's module tree. Drop the <code>@library</code> part to activate just the Perl version; run <code>pvm use &lt;version&gt;</code> again to clear a previously-active library.</p>
+
+    <p>The library environment must already exist — create one with <code>pvx --name</code> before passing it to <code>pvm use</code>. Use <code>pvm env list</code> to see available environments.</p>
+
     <h2>Environment Variable Control</h2>
     <p>Isolation controls which modules are visible. Environment variable control is a separate concern: which variables from your current shell are passed into the script.</p>
 
