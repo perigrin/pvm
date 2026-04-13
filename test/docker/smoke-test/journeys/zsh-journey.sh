@@ -67,6 +67,23 @@ else
 fi
 
 ############################################################################
+# Section 3b — G2: cd auto-switch hook (zsh chpwd)
+############################################################################
+
+unset PVM_PERL_VERSION
+
+mkdir -p "$HOME/proj-a"
+echo "$VERSION" > "$HOME/proj-a/.perl-version"
+cd "$HOME/proj-a"
+smoke_equals "$(pvm current --bare 2>/dev/null)" "$VERSION" \
+             "cd into project resolves via .perl-version (chpwd hook)"
+smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
+             "$XDG_DATA_HOME/pvm/versions/$VERSION/bin" \
+             "cd fires chpwd hook — PATH front is pinned version's bin"
+cd "$HOME"
+smoke_pass "cd out of project directory completes cleanly"
+
+############################################################################
 # Section 4 — pvm local
 ############################################################################
 

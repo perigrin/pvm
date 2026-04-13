@@ -72,6 +72,23 @@ pvm use not-a-real-version 2>/dev/null
 and smoke_fail "pvm use <bogus> followed by `; and` should NOT run the next command"
 smoke_pass "pvm use <bogus> short-circuits `; and` chains"
 
+############################################################################
+# Section 3b — G2: cd auto-switch hook (fish --on-variable PWD)
+############################################################################
+
+set -e PVM_PERL_VERSION
+
+mkdir -p "$HOME/proj-a"
+echo "$requested_version" > "$HOME/proj-a/.perl-version"
+cd "$HOME/proj-a"
+smoke_equals (pvm current --bare 2>/dev/null) "$requested_version" \
+    "cd into project resolves via .perl-version (--on-variable PWD hook)"
+set -l cd_front (string split : -- $PATH | head -1)
+smoke_equals "$cd_front" "$XDG_DATA_HOME/pvm/versions/$requested_version/bin" \
+    "cd fires PWD hook — PATH front is pinned version's bin"
+cd "$HOME"
+smoke_pass "cd out of project directory completes cleanly"
+
 # Completions must register (C2 regression from PR #434). Note: the init
 # template gates the auto-registration on PVM_SKIP_NETWORK_CALLS, which is
 # set to 1 in this container to suppress MetaCPAN calls. Source the

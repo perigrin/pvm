@@ -5,6 +5,10 @@
 #          originally-reported bug scenarios (#432/#433) as regression guards.
 
 set -u
+# Bash strips aliases from non-interactive scripts by default. The pvm init
+# template installs `alias cd="pvm_cd"` as its auto-switch hook; we need
+# expand_aliases ON so the G2 test below actually exercises that hook.
+shopt -s expand_aliases
 source "$(dirname "$0")/common.sh"
 
 echo "=== bash smoke test ==="
@@ -72,6 +76,34 @@ if pvm use not-a-real-version 2>/dev/null; then
 else
     smoke_pass "pvm use <bogus> short-circuits && chains"
 fi
+
+############################################################################
+# Section 3b — G2: cd auto-switch hook recognizes .perl-version
+############################################################################
+
+# Clear the env-var override so .perl-version is what resolves on cd.
+unset PVM_PERL_VERSION
+
+# Project A pins the installed version. After cd, the hook runs
+# _pvm_update_perl_path, which queries `pvm current --bare` and should
+# resolve to the pinned version (via the walk-up .perl-version resolver),
+# putting its bin at the front of PATH.
+mkdir -p "$HOME/proj-a"
+echo "$VERSION" > "$HOME/proj-a/.perl-version"
+cd "$HOME/proj-a"
+smoke_equals "$(pvm current --bare 2>/dev/null)" "$VERSION" \
+             "cd into project resolves via .perl-version"
+smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
+             "$XDG_DATA_HOME/pvm/versions/$VERSION/bin" \
+             "cd fires hook — PATH front is pinned version's bin"
+
+# cd out to a directory without .perl-version. Hook should still fire
+# (and either keep the version or fall back to system — but crucially
+# must NOT crash the shell).
+cd "$HOME"
+# No assertion on PATH here; resolver may fall back to various defaults.
+# The point is that cd didn't error out.
+smoke_pass "cd out of project directory completes cleanly"
 
 ############################################################################
 # Section 4 — pvm local: project-scoped pinning

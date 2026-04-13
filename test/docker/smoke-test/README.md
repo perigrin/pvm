@@ -13,11 +13,20 @@ Covers `pvm version`, `pvm --help`, `pvm list`/`versions`, `pvm available`
 / `pvm current --bare`, plus `--help` for every top-level command to
 catch cobra registration bugs.
 
-## Per-shell journeys (~29–32 assertions each)
+## `advanced-commands.sh` (shell-agnostic, ~29 assertions)
+
+Jobs-To-Be-Done workflows that Perl devs regularly exercise: resolution
+source attribution (`current --detailed`/`--json`, `PVM_PERL_VERSION`
+override precedence), broken-pin degradation, `workspace init` scaffold
+(creates `.perl-version`/`cpanfile`/`pvm.toml`/`lib`/`t`),
+`config set/get/unset/validate/sources` round-trip, `remote add/remove`
+write-path, `self symlinks verify`, `rehash --dry-run` idempotence.
+
+## Per-shell journeys (~32–35 assertions each)
 
 `bash-journey.sh` / `zsh-journey.sh` / `fish-journey.fish` each source
 the real shell integration and exercise workflows that depend on the
-shell (env-var exports, PATH rewriting). Eight sections per shell:
+shell (env-var exports, PATH rewriting). Nine sections per shell:
 
 1. **Top-level command presence** — root `pvm --help` lists `local`,
    `global`, `use [version[@library]]` (regression guard for #432).
@@ -26,6 +35,10 @@ shell (env-var exports, PATH rewriting). Eight sections per shell:
 3. **`pvm use`** — PATH rewrite, `PVM_PERL_VERSION` export, `perl -v`
    reflects the switch, bogus version exits non-zero AND short-circuits
    `&&` / `; and` chains (regression guard for #433).
+3b. **`cd` auto-switch hook** — `cd` into a directory with a
+    `.perl-version` pin triggers the shell-specific hook (bash's
+    `pvm_cd`, zsh's `chpwd`, fish's `--on-variable PWD`) and PATH
+    updates to match.
 4. **`pvm local`** — writes `.perl-version`, `detect-version` sees it,
    `--unset` removes it.
 5. **`pvm global`** — writes global config, `pvm current --bare` picks
@@ -45,11 +58,13 @@ Fish additionally asserts: no `Unknown command` errors from the template
 
 ## Total coverage
 
-~128 assertions across the four suites, covering roughly 20 of the 31
-top-level pvm commands. The six commands that require real Perl install
-(`install`, `build-perl`, `install-perl`, `module`, `run`/pvx, `psc`)
-intentionally stay out of smoke scope — they belong in the Go e2e suite
-(`test/docker/shell-integration/`) or a separate slow-tier CI job.
+~166 assertions across five suites, covering roughly 25 of the 31
+top-level pvm commands plus the `cd`-hook auto-switch that every
+version manager promises. The six commands that require real Perl
+install (`install`, `build-perl`, `install-perl`, `module`, `run`/pvx,
+`psc`) intentionally stay out of smoke scope — they belong in the Go
+e2e suite (`test/docker/shell-integration/`) or a separate slow-tier
+CI job.
 
 ## Running
 
