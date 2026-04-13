@@ -31,8 +31,20 @@ type CurrentVersionInfo struct {
 
 // GetCurrentVersion retrieves information about the currently active Perl version
 func GetCurrentVersion() (*CurrentVersionInfo, error) {
-	// Use the existing resolver to get the current version
-	resolved, err := perl.ResolveVersion(nil)
+	return getCurrentVersion(&perl.ResolutionOptions{})
+}
+
+// GetCurrentVersionFast is like GetCurrentVersion but skips the MetaCPAN
+// downloadable-versions fetch, so it returns immediately instead of blocking
+// up to 10s on cold cache. Use from shell-integration hot paths (e.g.,
+// `pvm current --bare` called on every `pvm use`) where the set of
+// installed versions is sufficient to resolve.
+func GetCurrentVersionFast() (*CurrentVersionInfo, error) {
+	return getCurrentVersion(&perl.ResolutionOptions{SkipNetworkFetch: true})
+}
+
+func getCurrentVersion(opts *perl.ResolutionOptions) (*CurrentVersionInfo, error) {
+	resolved, err := perl.ResolveVersion(opts)
 	if err != nil {
 		return nil, enhanceResolutionError(err)
 	}

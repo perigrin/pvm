@@ -80,6 +80,7 @@ type ResolutionOptions struct {
 	SkipSystemPerl      bool // Skip system Perl detection
 	SkipVersionResolved bool // Skip calling OnVersionResolved
 	SkipScriptAnalysis  bool // Skip script version requirement analysis
+	SkipNetworkFetch    bool // Skip fetching MetaCPAN downloadable versions list
 
 	// Debug callback function called at each step of the resolution process
 	DebugCallback func(step string, details interface{})
@@ -138,9 +139,11 @@ func ResolveVersion(options *ResolutionOptions) (*ResolvedVersion, error) {
 			}
 		}
 
-		// Add downloadable versions from MetaCPAN (skip during tests)
-		// Use PVM_SKIP_NETWORK_CALLS environment variable to disable network calls
-		if os.Getenv("PVM_SKIP_NETWORK_CALLS") == "" {
+		// Add downloadable versions from MetaCPAN (skip during tests).
+		// PVM_SKIP_NETWORK_CALLS disables all network calls.
+		// options.SkipNetworkFetch lets callers like `pvm current --bare`
+		// avoid the 10s timeout when they only need installed versions.
+		if os.Getenv("PVM_SKIP_NETWORK_CALLS") == "" && !options.SkipNetworkFetch {
 			// Use a short timeout to avoid blocking version resolution
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()

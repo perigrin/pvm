@@ -25,9 +25,14 @@ if defined XDG_DATA_HOME (
     set "PVM_DATA_DIR=%USERPROFILE%\.local\share\pvm"
 )
 
-REM Get current Perl version from PVM
+REM Get current Perl version from PVM. Set PVM_SHELL for the subprocess only;
+REM clear it after so child processes of a different shell don't inherit.
+set "_PVM_OLD_SHELL=%PVM_SHELL%"
+set "PVM_SHELL=cmd"
 set "PVM_CURRENT="
 for /f "delims=" %%v in ('"%PVM_EXEC%" current --bare 2^>nul') do set "PVM_CURRENT=%%v"
+set "PVM_SHELL=%_PVM_OLD_SHELL%"
+set "_PVM_OLD_SHELL="
 if not defined PVM_CURRENT goto :pvm_show_fortune
 if "%PVM_CURRENT%"=="system" goto :pvm_show_fortune
 

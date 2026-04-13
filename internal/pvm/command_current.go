@@ -117,8 +117,15 @@ Examples:
 				options.ShowComparison = true
 			}
 
-			// Get current version information
-			info, err := current.GetCurrentVersion()
+			// Get current version information. --bare is called from shell
+			// integration on every pvm use / cd, so use the fast path that
+			// skips the MetaCPAN downloadable-versions fetch.
+			var info *current.CurrentVersionInfo
+			if bare {
+				info, err = current.GetCurrentVersionFast()
+			} else {
+				info, err = current.GetCurrentVersion()
+			}
 			if err != nil {
 				return fmt.Errorf("failed to get current version: %w", err)
 			}

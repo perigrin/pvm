@@ -93,6 +93,13 @@ echo "PATH_AFTER_USE=$PATH"
 	for _, tc := range cases {
 		t.Run(tc.shell, func(t *testing.T) {
 			if _, err := exec.LookPath(tc.shell); err != nil {
+				// PVM_REQUIRE_ALL_SHELLS=1 forces the CI container (which
+				// installs all three shells on purpose) to fail rather
+				// than silently skip when a shell is missing — otherwise
+				// a broken Docker image defeats its own purpose.
+				if os.Getenv("PVM_REQUIRE_ALL_SHELLS") == "1" {
+					t.Fatalf("%s not available in PATH and PVM_REQUIRE_ALL_SHELLS=1", tc.shell)
+				}
 				t.Skipf("%s not available in PATH", tc.shell)
 			}
 

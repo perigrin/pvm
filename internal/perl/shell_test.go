@@ -1156,23 +1156,71 @@ func TestGenerateShellUseSystem(t *testing.T) {
 	}
 }
 
-// TestShellTemplatesExportPVMShell verifies each shell template exports
-// PVM_SHELL so pvm subprocesses can detect the invoking shell reliably,
-// regardless of the user's login $SHELL.
-func TestShellTemplatesExportPVMShell(t *testing.T) {
+// TestShellTemplatesPassPVMShellInline verifies each shell template passes
+// PVM_SHELL inline on each pvm invocation, rather than exporting it globally.
+// Exporting would leak the value into child shells of a different family
+// (bash -c from fish, etc.), causing pvm to emit wrong-shell syntax.
+func TestShellTemplatesPassPVMShellInline(t *testing.T) {
 	cases := []struct {
-		name     string
-		template string
-		want     string
+		name        string
+		template    string
+		mustHave    []string
+		mustNotHave []string
 	}{
-		{"bash", bashTemplate, "export PVM_SHELL=bash"},
-		{"zsh", zshTemplate, "export PVM_SHELL=zsh"},
-		{"fish", fishTemplate, "set -gx PVM_SHELL fish"},
+		{
+			name:     "bash",
+			template: bashTemplate,
+			mustHave: []string{
+				"_PVM_SHELL_TYPE=bash",
+				`PVM_SHELL="$_PVM_SHELL_TYPE"`,
+			},
+			mustNotHave: []string{"export PVM_SHELL="},
+		},
+		{
+			name:     "zsh",
+			template: zshTemplate,
+			mustHave: []string{
+				"_PVM_SHELL_TYPE=zsh",
+				`PVM_SHELL="$_PVM_SHELL_TYPE"`,
+			},
+			mustNotHave: []string{"export PVM_SHELL="},
+		},
+		{
+			name:     "fish",
+			template: fishTemplate,
+			mustHave: []string{
+				"set -g _pvm_shell_type fish",
+				"set -lx PVM_SHELL $_pvm_shell_type",
+			},
+			mustNotHave: []string{"set -gx PVM_SHELL "},
+		},
+		{
+			name:     "powershell",
+			template: powershellTemplate,
+			mustHave: []string{
+				`$script:_pvm_shell_type = "powershell"`,
+				"_pvm_invoke",
+			},
+		},
+		{
+			name:     "cmd",
+			template: cmdTemplate,
+			mustHave: []string{
+				"set \"PVM_SHELL=cmd\"",
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if !strings.Contains(tc.template, tc.want) {
-				t.Errorf("%s template missing %q", tc.name, tc.want)
+			for _, want := range tc.mustHave {
+				if !strings.Contains(tc.template, want) {
+					t.Errorf("%s template missing %q", tc.name, want)
+				}
+			}
+			for _, unwant := range tc.mustNotHave {
+				if strings.Contains(tc.template, unwant) {
+					t.Errorf("%s template must not contain %q (would leak PVM_SHELL to child processes)", tc.name, unwant)
+				}
 			}
 		})
 	}
