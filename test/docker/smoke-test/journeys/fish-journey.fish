@@ -14,6 +14,9 @@ smoke_contains "$local_help" "local [version]" "pvm local is a top-level command
 set -l global_help (pvm global --help 2>&1 | string collect)
 smoke_contains "$global_help" "global [version]" "pvm global is a top-level command"
 
+set -l use_help (pvm --help 2>&1 | string collect)
+smoke_contains "$use_help" "use [version" "pvm use listed in root help"
+
 # Import system perl + fake version dir
 pvm import-system >/dev/null 2>&1
 or smoke_fail "import-system failed"
@@ -22,11 +25,7 @@ set -l VERSION (pvm list 2>/dev/null | string match -rg '(5\.[0-9]+\.[0-9]+)' | 
 test -n "$VERSION"
 or smoke_fail "no Perl version found after import-system"
 
-mkdir -p "$XDG_DATA_HOME/pvm/versions/$VERSION/bin"
-printf '#!/bin/sh\necho "This is perl 5, version %s, subversion 0 (v%s) stub"\n' \
-    (string replace '5.' '' $VERSION) $VERSION \
-    > "$XDG_DATA_HOME/pvm/versions/$VERSION/bin/perl"
-chmod +x "$XDG_DATA_HOME/pvm/versions/$VERSION/bin/perl"
+smoke_setup_stub_perl "$VERSION"
 
 # Source pvm init — must not error
 pvm init fish | source
@@ -55,6 +54,12 @@ smoke_contains "$perl_out" "v$VERSION" "perl -v reflects pvm use version"
 pvm use not-a-real-version >/dev/null 2>&1
 set -l rc $status
 smoke_exit_eq "$rc" "1" "pvm use <bogus> returns non-zero exit"
+
+# Shell-level contract: `pvm use <bogus>; and ...` must short-circuit
+# (fish uses `; and` where POSIX uses `&&`).
+pvm use not-a-real-version 2>/dev/null
+and smoke_fail "pvm use <bogus> followed by `; and` should NOT run the next command"
+smoke_pass "pvm use <bogus> short-circuits `; and` chains"
 
 # Completion must actually register (C2 regression)
 set -l pvm_completions (complete -c pvm 2>/dev/null | count)

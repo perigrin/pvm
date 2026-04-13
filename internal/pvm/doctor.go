@@ -499,19 +499,49 @@ func checkPathConfiguration(ui *ui.Output, issues *[]string, warnings *[]string)
 	if pvmPath, err := exec.LookPath("pvm"); err == nil {
 		ui.Success("PVM executable found in system PATH at %s", pvmPath)
 
-		// Check for additional pvm binaries in PATH — stale installs often
-		// live at /usr/local/bin/pvm or ~/.local/bin/pvm after a reinstall
-		// or version bump, and the one earlier in PATH wins. Shell
-		// integration then calls the stale binary, producing wrong-shell
-		// syntax or missing features that match the running pvm's
-		// template but not the older binary.
+		// Check for additional pvm binaries in PATH — different installs
+		// often live at /usr/local/bin/pvm and ~/.local/bin/pvm after a
+		// reinstall or version bump, and the one earlier in PATH wins.
+		// Shell integration then calls that binary, which may not match
+		// the one the user just upgraded.
+		runningPath, _ := os.Executable()
 		if stale := findStalePvmInstalls(path, pvmPath); len(stale) > 0 {
-			msg := fmt.Sprintf("Multiple pvm binaries in PATH; only %s will be used. Other copies: %s",
-				pvmPath, strings.Join(stale, ", "))
+			// Disambiguate: when the user invokes this doctor via absolute
+			// path to a newly-installed pvm, but an older copy is still
+			// first-in-PATH, say so explicitly rather than listing the
+			// running binary as "stale".
+			runningCanonical := canonicalize(runningPath)
+			runningDiffers := runningPath != "" && runningCanonical != canonicalize(pvmPath)
+
+			// Filter the running binary out of the "other copies" list when
+			// we're going to name it separately in the message.
+			others := stale
+			if runningDiffers {
+				others = others[:0]
+				for _, p := range stale {
+					if canonicalize(p) != runningCanonical {
+						others = append(others, p)
+					}
+				}
+			}
+
+			var msg string
+			if runningDiffers {
+				if len(others) == 0 {
+					msg = fmt.Sprintf("Multiple pvm binaries in PATH; shells will invoke %s, but this doctor is running from %s.",
+						pvmPath, runningPath)
+				} else {
+					msg = fmt.Sprintf("Multiple pvm binaries in PATH; shells will invoke %s, but this doctor is running from %s. Also found: %s",
+						pvmPath, runningPath, strings.Join(others, ", "))
+				}
+			} else {
+				msg = fmt.Sprintf("Multiple pvm binaries in PATH; only %s will be used. Other copies: %s",
+					pvmPath, strings.Join(others, ", "))
+			}
 			*warnings = append(*warnings, msg)
 			ui.Warning("%s", msg)
-			ui.Info("This can cause shell integration to call an older pvm than expected (e.g., 'Unknown command: unset' from fish).")
-			ui.Info("Remove the older copies or update them to match.")
+			ui.Info("This can cause shell integration to call a different pvm than expected (e.g., 'Unknown command: unset' from fish when the first-in-PATH binary predates the running fish template).")
+			ui.Info("Remove the extra copies, or adjust PATH so the intended pvm is first.")
 		}
 	} else {
 		*warnings = append(*warnings, "PVM executable not found in system PATH")

@@ -13,17 +13,15 @@ smoke_contains "$local_help" "local [version]" "pvm local is a top-level command
 global_help=$(pvm global --help 2>&1)
 smoke_contains "$global_help" "global [version]" "pvm global is a top-level command"
 
+use_help=$(pvm --help 2>&1)
+smoke_contains "$use_help" "use [version" "pvm use listed in root help"
+
 pvm import-system >/dev/null 2>&1 || smoke_fail "import-system failed"
 
 VERSION=$(pvm list 2>/dev/null | grep -oE '5\.[0-9]+\.[0-9]+' | head -1)
 [ -n "$VERSION" ] || smoke_fail "no Perl version found after import-system"
 
-mkdir -p "$XDG_DATA_HOME/pvm/versions/$VERSION/bin"
-cat > "$XDG_DATA_HOME/pvm/versions/$VERSION/bin/perl" <<EOF
-#!/bin/sh
-echo "This is perl 5, version ${VERSION#5.}, subversion 0 (v$VERSION) stub"
-EOF
-chmod +x "$XDG_DATA_HOME/pvm/versions/$VERSION/bin/perl"
+smoke_setup_stub_perl "$VERSION"
 
 # shellcheck disable=SC1090
 source <(pvm init zsh)
@@ -44,6 +42,13 @@ smoke_contains "$perl_out" "v$VERSION" "perl -v reflects pvm use version"
 pvm use not-a-real-version >/dev/null 2>&1
 rc=$?
 smoke_exit_eq "$rc" "1" "pvm use <bogus> returns non-zero exit"
+
+# Shell-level contract: `pvm use <bogus>` must short-circuit an && chain.
+if pvm use not-a-real-version 2>/dev/null; then
+    smoke_fail "pvm use <bogus> followed by && should NOT run the next command"
+else
+    smoke_pass "pvm use <bogus> short-circuits && chains"
+fi
 
 echo ""
 echo "=== zsh smoke test: all assertions passed ==="

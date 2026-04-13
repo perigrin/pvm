@@ -46,3 +46,21 @@ function smoke_exit_eq
         smoke_fail "$label: expected exit $expected, got $actual"
     end
 end
+
+# Create a stub perl executable under $XDG_DATA_HOME/pvm/versions/$1/bin/perl
+# whose `perl -v` output matches the canonical real-perl shape. Emit three
+# integers for major/minor/patch so any future regex-based parser finds the
+# right components. NB: fish has a read-only $version referring to its own
+# version, so we use $requested_version for the argument.
+function smoke_setup_stub_perl
+    set -l requested_version $argv[1]
+    set -l bin_dir "$XDG_DATA_HOME/pvm/versions/$requested_version/bin"
+    set -l parts (string split . -- $requested_version)
+    set -l major $parts[1]
+    set -l minor $parts[2]
+    set -l patch $parts[3]
+    mkdir -p "$bin_dir"
+    printf '#!/bin/sh\necho "This is perl %s, version %s, subversion %s (v%s) stub"\n' \
+        $major $minor $patch $requested_version > "$bin_dir/perl"
+    chmod +x "$bin_dir/perl"
+end

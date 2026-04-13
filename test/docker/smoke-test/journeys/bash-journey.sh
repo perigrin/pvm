@@ -24,13 +24,7 @@ pvm import-system >/dev/null 2>&1 || smoke_fail "import-system failed"
 VERSION=$(pvm list 2>/dev/null | grep -oE '5\.[0-9]+\.[0-9]+' | head -1)
 [ -n "$VERSION" ] || smoke_fail "no Perl version found after import-system"
 
-mkdir -p "$XDG_DATA_HOME/pvm/versions/$VERSION/bin"
-# Minimal stub perl so `perl -v` works
-cat > "$XDG_DATA_HOME/pvm/versions/$VERSION/bin/perl" <<EOF
-#!/bin/sh
-echo "This is perl 5, version ${VERSION#5.}, subversion 0 (v$VERSION) stub"
-EOF
-chmod +x "$XDG_DATA_HOME/pvm/versions/$VERSION/bin/perl"
+smoke_setup_stub_perl "$VERSION"
 
 # --- issue #433 core: source integration, pvm use, PATH changes -------------
 # shellcheck disable=SC1090

@@ -44,3 +44,21 @@ smoke_exit_eq() {
         smoke_fail "$label: expected exit $expected, got $actual"
     fi
 }
+
+# Create a stub perl executable under $XDG_DATA_HOME/pvm/versions/$1/bin/perl
+# whose `perl -v` output matches the canonical real-perl shape. Emit three
+# integers for major/minor/patch so any future regex-based parser finds the
+# right components (real perl prints "version N, subversion M", not
+# "version N.M, subversion 0").
+smoke_setup_stub_perl() {
+    local version="$1"
+    local bin_dir="$XDG_DATA_HOME/pvm/versions/$version/bin"
+    local major minor patch
+    IFS=. read -r major minor patch <<< "$version"
+    mkdir -p "$bin_dir"
+    cat > "$bin_dir/perl" <<EOF
+#!/bin/sh
+echo "This is perl $major, version $minor, subversion $patch (v$version) stub"
+EOF
+    chmod +x "$bin_dir/perl"
+}

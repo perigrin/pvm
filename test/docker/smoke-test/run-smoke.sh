@@ -13,8 +13,10 @@ echo "==> Building pvm binary for the smoke-test image"
 mkdir -p "$here/build"
 (
     cd "$repo_root"
-    # Build for Linux since the container runs Debian.
-    GOOS=linux GOARCH=amd64 go build -o "$here/build/pvm" ./cmd/pvm/
+    # Build for Linux since the container runs Debian. CGO_ENABLED=0 matches
+    # the Makefile's cross-compile convention and guarantees the binary runs
+    # regardless of the host's libc.
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$here/build/pvm" ./cmd/pvm/
 )
 
 echo "==> Building smoke-test container"

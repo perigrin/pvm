@@ -12,27 +12,26 @@ import (
 
 // findStalePvmInstalls scans the entries of PATH looking for pvm executables
 // beyond the one the shell resolves first. `activePath` is the canonical path
-// returned by exec.LookPath("pvm"); any additional executable named pvm
-// (or pvm.exe on Windows) on PATH is considered stale because only the
-// first-in-PATH copy is ever invoked.
+// returned by exec.LookPath("pvm") — the binary shells will invoke. Any
+// additional pvm (or pvm.exe on Windows) on PATH is returned so the caller
+// can warn about it. Entries are returned in the order they appear in PATH.
 //
-// Returns an empty slice when only the active path is present or PATH is
-// empty. Entries are returned in the order they appear in PATH.
+// The caller is responsible for disambiguating the "running" binary
+// (os.Executable()) in the warning message — findStalePvmInstalls treats all
+// non-active copies uniformly because the doctor's job is to tell the user
+// "these extras exist"; deciding which extra is which is presentation-layer
+// work that has access to all three paths (active, running, extras).
 func findStalePvmInstalls(pathEnv, activePath string) []string {
 	if pathEnv == "" {
 		return nil
 	}
 
-	binName := "pvm"
-	if runtime.GOOS == "windows" {
-		binName = "pvm.exe"
+	binName := pvmBinaryName()
+
+	seen := map[string]struct{}{}
+	if activePath != "" {
+		seen[canonicalize(activePath)] = struct{}{}
 	}
-
-	// Resolve the active path through symlinks once so we can compare
-	// canonical forms when different PATH entries point at the same file.
-	activeCanonical := canonicalize(activePath)
-
-	seen := map[string]struct{}{activeCanonical: {}}
 	var stale []string
 
 	for _, dir := range strings.Split(pathEnv, string(os.PathListSeparator)) {
@@ -52,6 +51,16 @@ func findStalePvmInstalls(pathEnv, activePath string) []string {
 		stale = append(stale, candidate)
 	}
 	return stale
+}
+
+// pvmBinaryName returns the platform-specific executable name. Factored out
+// so tests can exercise the Windows branch on non-Windows hosts by injecting
+// the name via a parameterized helper (see doctor_path_test.go).
+func pvmBinaryName() string {
+	if runtime.GOOS == "windows" {
+		return "pvm.exe"
+	}
+	return "pvm"
 }
 
 // canonicalize returns the evaluated symlink form of a path, or the input
