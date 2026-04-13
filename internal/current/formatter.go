@@ -61,15 +61,15 @@ func formatDefault(info *CurrentVersionInfo, options *DisplayOptions) string {
 
 // formatJSON returns structured JSON output
 func formatJSON(info *CurrentVersionInfo, options *DisplayOptions) (string, error) {
+	// JSON schema is a consumer contract — always emit every top-level key.
+	// Use an empty string for `path` when no resolved interpreter is
+	// available so downstream tooling doesn't have to branch on presence.
 	output := map[string]interface{}{
 		"version":            info.Version,
 		"source":             info.Source,
 		"source_description": info.SourceDescription,
 		"available":          info.IsAvailable,
-	}
-
-	if info.Path != "" {
-		output["path"] = info.Path
+		"path":               info.Path,
 	}
 
 	if options.ShowWarnings || options.ShowComparison || options.Validate {
