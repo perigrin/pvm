@@ -185,7 +185,7 @@ smoke_pass "pvm global --unset clears default"
 ############################################################################
 
 pvm use "$VERSION" >/dev/null 2>&1
-smoke_equals "$PVM_PERL_VERSION" "$VERSION" "sanity: version active before use system"
+smoke_equals "${PVM_PERL_VERSION-}" "$VERSION" "sanity: version active before use system"
 
 pvm_use_run use system
 smoke_contains "$(cat "$pvm_use_log")" "Using system Perl" \

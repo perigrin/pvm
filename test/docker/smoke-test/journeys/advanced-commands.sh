@@ -132,10 +132,11 @@ pvm config set pvm.build_jobs 8 >/dev/null 2>&1
 smoke_exit_eq "$?" "0" "config set exits 0"
 
 got=$(pvm config get pvm.build_jobs 2>&1)
-case "$got" in
-    *8*) smoke_pass "config get round-trips pvm.build_jobs=8" ;;
-    *)   smoke_fail "config get returned [$got], expected to contain 8" ;;
-esac
+# `pvm config get` prints the raw value with a trailing newline. Trim and
+# assert equality — the previous *8* glob matched any output with an 8
+# anywhere (e.g., 128, paths, error keys) which defeated the round-trip.
+smoke_equals "$(echo "$got" | tr -d '[:space:]')" "8" \
+             "config get round-trips pvm.build_jobs=8"
 
 smoke_contains "$(pvm config sources 2>&1)" "Configuration Sources" \
                "config sources reports source-list header"
