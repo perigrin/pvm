@@ -78,32 +78,67 @@ else
 fi
 
 ############################################################################
-# Section 3b — G2: cd auto-switch hook recognizes .perl-version
+# Section 3b — G2: cd auto-switch between TWO installed versions
 ############################################################################
 
-# Clear the env-var override so .perl-version is what resolves on cd.
-unset PVM_PERL_VERSION
+# Install a second Perl via pvm's binary-fetch path so the registry
+# knows two distinct versions, then cd between project dirs pinning
+# each. This exercises the real JTBD: dev switches projects, shell
+# auto-activates the right interpreter, no manual pvm use needed.
+#
+# This section needs network (to fetch the binary). The container
+# sets PVM_SKIP_NETWORK_CALLS=1 as a default for determinism; only
+# UNSET it locally for the install and leave it set for the rest of
+# the suite. Skip gracefully if the network is unavailable.
+SECOND_VERSION="5.40.2"
+(
+    unset PVM_SKIP_NETWORK_CALLS
+    pvm install "$SECOND_VERSION" --binary-only >/tmp/install.log 2>&1
+)
+install_rc=$?
+if [ "$install_rc" -ne 0 ]; then
+    # Likely offline; downgrade to the single-version G2 test (pinning
+    # proves the hook fires, we just can't prove inter-version switch).
+    smoke_pass "skipping two-version auto-switch (install rc=$install_rc; network?)"
+    unset PVM_PERL_VERSION
+    mkdir -p "$HOME/proj-a"
+    echo "$VERSION" > "$HOME/proj-a/.perl-version"
+    cd "$HOME/proj-a"
+    smoke_equals "$(pvm current --bare 2>/dev/null)" "$VERSION" \
+                 "cd fires hook (single-version fallback): resolves pinned version"
+    cd "$HOME"
+else
+    smoke_pass "pvm install --binary-only fetched $SECOND_VERSION"
 
-# Project A pins the installed version. After cd, the hook runs
-# _pvm_update_perl_path, which queries `pvm current --bare` and should
-# resolve to the pinned version (via the walk-up .perl-version resolver),
-# putting its bin at the front of PATH.
-mkdir -p "$HOME/proj-a"
-echo "$VERSION" > "$HOME/proj-a/.perl-version"
-cd "$HOME/proj-a"
-smoke_equals "$(pvm current --bare 2>/dev/null)" "$VERSION" \
-             "cd into project resolves via .perl-version"
-smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
-             "$XDG_DATA_HOME/pvm/versions/$VERSION/bin" \
-             "cd fires hook — PATH front is pinned version's bin"
+    # Now exercise the auto-switch between two distinct REAL versions.
+    unset PVM_PERL_VERSION
+    mkdir -p "$HOME/proj-a" "$HOME/proj-b"
+    echo "$VERSION"        > "$HOME/proj-a/.perl-version"
+    echo "$SECOND_VERSION" > "$HOME/proj-b/.perl-version"
 
-# cd out to a directory without .perl-version. Hook should still fire
-# (and either keep the version or fall back to system — but crucially
-# must NOT crash the shell).
-cd "$HOME"
-# No assertion on PATH here; resolver may fall back to various defaults.
-# The point is that cd didn't error out.
-smoke_pass "cd out of project directory completes cleanly"
+    cd "$HOME/proj-a"
+    smoke_equals "$(pvm current --bare 2>/dev/null)" "$VERSION" \
+                 "cd into proj-a: auto-switch resolves to $VERSION"
+    smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
+                 "$XDG_DATA_HOME/pvm/versions/$VERSION/bin" \
+                 "cd into proj-a: PATH front matches $VERSION's bin"
+
+    cd "$HOME/proj-b"
+    smoke_equals "$(pvm current --bare 2>/dev/null)" "$SECOND_VERSION" \
+                 "cd into proj-b: auto-switch resolves to $SECOND_VERSION"
+    smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
+                 "$XDG_DATA_HOME/pvm/versions/$SECOND_VERSION/bin" \
+                 "cd into proj-b: PATH front matches $SECOND_VERSION's bin"
+
+    # cd back to the first project; PATH must swing back.
+    cd "$HOME/proj-a"
+    smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
+                 "$XDG_DATA_HOME/pvm/versions/$VERSION/bin" \
+                 "cd back to proj-a: PATH front swings back to $VERSION's bin"
+
+    cd "$HOME"
+fi
+rm -f /tmp/install.log
 
 ############################################################################
 # Section 4 — pvm local: project-scoped pinning

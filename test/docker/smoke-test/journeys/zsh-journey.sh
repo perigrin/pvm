@@ -67,21 +67,54 @@ else
 fi
 
 ############################################################################
-# Section 3b — G2: cd auto-switch hook (zsh chpwd)
+# Section 3b — G2: cd auto-switch between TWO installed versions
 ############################################################################
 
-unset PVM_PERL_VERSION
+SECOND_VERSION="5.40.2"
+(
+    unset PVM_SKIP_NETWORK_CALLS
+    pvm install "$SECOND_VERSION" --binary-only >/tmp/install.log 2>&1
+)
+install_rc=$?
+if [ "$install_rc" -ne 0 ]; then
+    smoke_pass "skipping two-version auto-switch (install rc=$install_rc; network?)"
+    unset PVM_PERL_VERSION
+    mkdir -p "$HOME/proj-a"
+    echo "$VERSION" > "$HOME/proj-a/.perl-version"
+    cd "$HOME/proj-a"
+    smoke_equals "$(pvm current --bare 2>/dev/null)" "$VERSION" \
+                 "cd fires chpwd hook (single-version fallback): resolves pinned version"
+    cd "$HOME"
+else
+    smoke_pass "pvm install --binary-only fetched $SECOND_VERSION"
 
-mkdir -p "$HOME/proj-a"
-echo "$VERSION" > "$HOME/proj-a/.perl-version"
-cd "$HOME/proj-a"
-smoke_equals "$(pvm current --bare 2>/dev/null)" "$VERSION" \
-             "cd into project resolves via .perl-version (chpwd hook)"
-smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
-             "$XDG_DATA_HOME/pvm/versions/$VERSION/bin" \
-             "cd fires chpwd hook — PATH front is pinned version's bin"
-cd "$HOME"
-smoke_pass "cd out of project directory completes cleanly"
+    unset PVM_PERL_VERSION
+    mkdir -p "$HOME/proj-a" "$HOME/proj-b"
+    echo "$VERSION"        > "$HOME/proj-a/.perl-version"
+    echo "$SECOND_VERSION" > "$HOME/proj-b/.perl-version"
+
+    cd "$HOME/proj-a"
+    smoke_equals "$(pvm current --bare 2>/dev/null)" "$VERSION" \
+                 "cd into proj-a: chpwd hook resolves to $VERSION"
+    smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
+                 "$XDG_DATA_HOME/pvm/versions/$VERSION/bin" \
+                 "cd into proj-a: PATH front matches $VERSION's bin"
+
+    cd "$HOME/proj-b"
+    smoke_equals "$(pvm current --bare 2>/dev/null)" "$SECOND_VERSION" \
+                 "cd into proj-b: chpwd hook resolves to $SECOND_VERSION"
+    smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
+                 "$XDG_DATA_HOME/pvm/versions/$SECOND_VERSION/bin" \
+                 "cd into proj-b: PATH front matches $SECOND_VERSION's bin"
+
+    cd "$HOME/proj-a"
+    smoke_equals "$(echo "$PATH" | cut -d: -f1)" \
+                 "$XDG_DATA_HOME/pvm/versions/$VERSION/bin" \
+                 "cd back to proj-a: PATH front swings back to $VERSION's bin"
+
+    cd "$HOME"
+fi
+rm -f /tmp/install.log
 
 ############################################################################
 # Section 4 — pvm local

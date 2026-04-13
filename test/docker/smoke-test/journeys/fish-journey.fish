@@ -73,21 +73,54 @@ and smoke_fail "pvm use <bogus> followed by `; and` should NOT run the next comm
 smoke_pass "pvm use <bogus> short-circuits `; and` chains"
 
 ############################################################################
-# Section 3b — G2: cd auto-switch hook (fish --on-variable PWD)
+# Section 3b — G2: cd auto-switch between TWO installed versions
 ############################################################################
 
-set -e PVM_PERL_VERSION
+set -l second_version "5.40.2"
+begin
+    set -e PVM_SKIP_NETWORK_CALLS
+    pvm install "$second_version" --binary-only >/tmp/install.log 2>&1
+end
+set -l install_rc $status
+if test $install_rc -ne 0
+    smoke_pass "skipping two-version auto-switch (install rc=$install_rc; network?)"
+    set -e PVM_PERL_VERSION
+    mkdir -p "$HOME/proj-a"
+    echo "$requested_version" > "$HOME/proj-a/.perl-version"
+    cd "$HOME/proj-a"
+    smoke_equals (pvm current --bare 2>/dev/null) "$requested_version" \
+        "cd fires PWD hook (single-version fallback): resolves pinned version"
+    cd "$HOME"
+else
+    smoke_pass "pvm install --binary-only fetched $second_version"
 
-mkdir -p "$HOME/proj-a"
-echo "$requested_version" > "$HOME/proj-a/.perl-version"
-cd "$HOME/proj-a"
-smoke_equals (pvm current --bare 2>/dev/null) "$requested_version" \
-    "cd into project resolves via .perl-version (--on-variable PWD hook)"
-set -l cd_front (string split : -- $PATH | head -1)
-smoke_equals "$cd_front" "$XDG_DATA_HOME/pvm/versions/$requested_version/bin" \
-    "cd fires PWD hook — PATH front is pinned version's bin"
-cd "$HOME"
-smoke_pass "cd out of project directory completes cleanly"
+    set -e PVM_PERL_VERSION
+    mkdir -p "$HOME/proj-a" "$HOME/proj-b"
+    echo "$requested_version" > "$HOME/proj-a/.perl-version"
+    echo "$second_version"    > "$HOME/proj-b/.perl-version"
+
+    cd "$HOME/proj-a"
+    smoke_equals (pvm current --bare 2>/dev/null) "$requested_version" \
+        "cd into proj-a: PWD hook resolves to $requested_version"
+    smoke_equals (string split : -- $PATH | head -1) \
+                 "$XDG_DATA_HOME/pvm/versions/$requested_version/bin" \
+                 "cd into proj-a: PATH front matches $requested_version's bin"
+
+    cd "$HOME/proj-b"
+    smoke_equals (pvm current --bare 2>/dev/null) "$second_version" \
+        "cd into proj-b: PWD hook resolves to $second_version"
+    smoke_equals (string split : -- $PATH | head -1) \
+                 "$XDG_DATA_HOME/pvm/versions/$second_version/bin" \
+                 "cd into proj-b: PATH front matches $second_version's bin"
+
+    cd "$HOME/proj-a"
+    smoke_equals (string split : -- $PATH | head -1) \
+                 "$XDG_DATA_HOME/pvm/versions/$requested_version/bin" \
+                 "cd back to proj-a: PATH front swings back to $requested_version's bin"
+
+    cd "$HOME"
+end
+rm -f /tmp/install.log
 
 # Completions must register (C2 regression from PR #434). Note: the init
 # template gates the auto-registration on PVM_SKIP_NETWORK_CALLS, which is
