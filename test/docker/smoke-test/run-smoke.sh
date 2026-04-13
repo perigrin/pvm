@@ -27,6 +27,19 @@ docker build -t pvm-smoke:latest "$here"
 
 echo ""
 failures=0
+
+# Run the shell-agnostic suite once (from bash) before the three per-shell
+# journeys. Cheaper than running it three times and keeps the per-shell
+# journey files focused on integration-dependent workflows.
+echo "==> Running core-commands suite (shell-agnostic)"
+if docker run --rm pvm-smoke:latest bash "/smoke/journeys/core-commands.sh"; then
+    echo "   ✓ core-commands suite passed"
+else
+    echo "   ✗ core-commands suite FAILED"
+    failures=$((failures + 1))
+fi
+echo ""
+
 for shell_script in bash:bash-journey.sh zsh:zsh-journey.sh fish:fish-journey.fish; do
     shell="${shell_script%%:*}"
     script="${shell_script#*:}"
@@ -41,8 +54,8 @@ for shell_script in bash:bash-journey.sh zsh:zsh-journey.sh fish:fish-journey.fi
 done
 
 if [ "$failures" -gt 0 ]; then
-    echo "==> $failures shell journey(s) failed"
+    echo "==> $failures suite(s) failed"
     exit 1
 fi
 
-echo "==> All shell journeys passed"
+echo "==> All smoke suites passed"

@@ -16,12 +16,20 @@ smoke_pass() {
 }
 
 # Assert a string contains a substring. First arg is the actual value, second
-# is the expected substring, third is a human-readable label.
+# is the expected substring, third is a human-readable label. Error messages
+# truncate long `actual` values to keep failure output readable (completion
+# scripts are hundreds of lines).
 smoke_contains() {
     local actual="$1" expected="$2" label="$3"
     case "$actual" in
         *"$expected"*) smoke_pass "$label" ;;
-        *) smoke_fail "$label: expected to contain [$expected], got [$actual]" ;;
+        *)
+            local truncated="$actual"
+            if [ "${#truncated}" -gt 200 ]; then
+                truncated="${truncated:0:200}… (truncated, ${#actual} chars total)"
+            fi
+            smoke_fail "$label: expected to contain [$expected], got [$truncated]"
+            ;;
     esac
 }
 

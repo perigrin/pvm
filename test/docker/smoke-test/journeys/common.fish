@@ -19,7 +19,11 @@ function smoke_contains
     if string match -q "*$expected*" -- $actual
         smoke_pass $label
     else
-        smoke_fail "$label: expected to contain [$expected], got [$actual]"
+        set -l truncated $actual
+        if test (string length -- "$actual") -gt 200
+            set truncated (string sub -l 200 -- "$actual")"… (truncated)"
+        end
+        smoke_fail "$label: expected to contain [$expected], got [$truncated]"
     end
 end
 
