@@ -1240,3 +1240,29 @@ func (m *mockUI) Status(message string) {
 func (m *mockUI) Progress(current, total int, message string) {
 	m.messages = append(m.messages, fmt.Sprintf("PROGRESS: %d/%d %s", current, total, message))
 }
+
+// TestRootLocalAndGlobalCommandsRegistered verifies the top-level "local",
+// "global", and "use" commands are registered on the root pvm command,
+// matching the documented CLI surface at pvm.tools/reference/pvm.html.
+func TestRootLocalAndGlobalCommandsRegistered(t *testing.T) {
+	root := NewCommand()
+
+	expected := map[string]bool{
+		"local":  false,
+		"global": false,
+		"use":    false,
+	}
+
+	for _, sub := range root.Commands() {
+		name := sub.Name()
+		if _, ok := expected[name]; ok {
+			expected[name] = true
+		}
+	}
+
+	for name, found := range expected {
+		if !found {
+			t.Errorf("expected top-level command %q to be registered on root pvm command, but it is missing", name)
+		}
+	}
+}

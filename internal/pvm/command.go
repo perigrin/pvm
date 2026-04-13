@@ -81,6 +81,9 @@ func NewCommand() *cobra.Command {
 	cmd.AddCommand(
 		hiddenHelpCmd, // Hidden version for subcommands to work
 		newInstallCommand(),
+		newUseCommand(), // top-level `pvm use`; shell integration normally intercepts before cobra
+		newGlobalCommand(),
+		newLocalCommand(),
 		newShUseCommand(),
 		newShEnvActivateCommand(),
 		newDetectVersionCommand(),
@@ -562,20 +565,6 @@ func newShUseCommand() *cobra.Command {
 				if library == "" {
 					return fmt.Errorf("library name cannot be empty after @")
 				}
-			}
-
-			// Handle special "system" case
-			if version == "system" {
-				// Generate shell code to unset PVM_PERL_VERSION and PVM_PERL_LIBRARY
-				fmt.Println("unset PVM_PERL_VERSION")
-				if library != "" {
-					fmt.Println("unset PVM_PERL_LIBRARY")
-					fmt.Printf("echo \"Using system Perl with library '%s'\"\n", library)
-				} else {
-					fmt.Println("unset PVM_PERL_LIBRARY")
-					fmt.Printf("echo \"Using system Perl\"\n")
-				}
-				return nil
 			}
 
 			return perl.GenerateShellUse(version, library)
