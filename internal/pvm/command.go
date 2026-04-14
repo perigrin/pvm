@@ -1056,50 +1056,63 @@ Examples:
 				installedMap[info.Version] = true
 			}
 
-			// Get cache directory for MetaCPAN data
-			dirs, err := xdg.GetDirs()
-			if err != nil {
-				return fmt.Errorf("failed to get XDG directories: %w", err)
-			}
-
-			// Create MetaCPAN provider with 72-hour cache TTL
-			provider, err := cpan.NewMetaCPANProvider(
-				cpan.WithCache(dirs.CacheDir, 72), // 72 hours
-			)
-			if err != nil {
-				return fmt.Errorf("failed to create MetaCPAN provider: %w", err)
-			}
-
-			// Fetch available Perl versions from MetaCPAN (with cache fallback)
-			ctx := context.Background()
-
-			// Fetch stable versions
-			stableVersions, err := provider.GetPerlCoreVersions(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to fetch Perl versions from MetaCPAN: %w", err)
-			}
-
-			// Fetch development versions if requested
+			// Honor PVM_SKIP_NETWORK_CALLS the same way resolver.go and the
+			// shell templates do. In offline mode, report only installed
+			// versions — enough for smoke tests and offline CI, avoids a
+			// 10s+ DNS/connect timeout to MetaCPAN.
+			var stableVersions []string
 			var devVersions []string
-			if includeDev {
-				allVersions, err := provider.GetPerlCoreVersionsWithDev(ctx, true)
-				if err != nil {
-					return fmt.Errorf("failed to fetch development versions from MetaCPAN: %w", err)
-				}
+			skipNetwork := os.Getenv("PVM_SKIP_NETWORK_CALLS") == "1"
 
-				// Filter out stable versions to get only dev versions
-				stableMap := make(map[string]bool)
-				for _, version := range stableVersions {
-					stableMap[version] = true
-				}
-
-				for _, version := range allVersions {
-					if !stableMap[version] {
-						devVersions = append(devVersions, version)
-					}
+			if skipNetwork {
+				for _, info := range installedVersions {
+					stableVersions = append(stableVersions, info.Version)
 				}
 			} else {
-				devVersions = []string{}
+				// Get cache directory for MetaCPAN data
+				dirs, err := xdg.GetDirs()
+				if err != nil {
+					return fmt.Errorf("failed to get XDG directories: %w", err)
+				}
+
+				// Create MetaCPAN provider with 72-hour cache TTL
+				provider, err := cpan.NewMetaCPANProvider(
+					cpan.WithCache(dirs.CacheDir, 72), // 72 hours
+				)
+				if err != nil {
+					return fmt.Errorf("failed to create MetaCPAN provider: %w", err)
+				}
+
+				// Fetch available Perl versions from MetaCPAN (with cache fallback)
+				ctx := context.Background()
+
+				// Fetch stable versions
+				stableVersions, err = provider.GetPerlCoreVersions(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to fetch Perl versions from MetaCPAN: %w", err)
+				}
+
+				// Fetch development versions if requested
+				if includeDev {
+					allVersions, err := provider.GetPerlCoreVersionsWithDev(ctx, true)
+					if err != nil {
+						return fmt.Errorf("failed to fetch development versions from MetaCPAN: %w", err)
+					}
+
+					// Filter out stable versions to get only dev versions
+					stableMap := make(map[string]bool)
+					for _, version := range stableVersions {
+						stableMap[version] = true
+					}
+
+					for _, version := range allVersions {
+						if !stableMap[version] {
+							devVersions = append(devVersions, version)
+						}
+					}
+				} else {
+					devVersions = []string{}
+				}
 			}
 
 			// Handle JSON format

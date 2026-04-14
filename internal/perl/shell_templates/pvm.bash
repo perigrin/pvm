@@ -7,7 +7,7 @@
 # sub-shells of a different family (bash -c from fish, zsh scripts, etc.)
 # must not inherit a stale value; they detect their own shell via $SHELL or
 # their own sourced template.
-if [ -n "$ZSH_VERSION" ]; then
+if [ -n "${ZSH_VERSION-}" ]; then
     _PVM_SHELL_TYPE=zsh
 else
     _PVM_SHELL_TYPE=bash
@@ -35,7 +35,7 @@ _pvm_find_executable() {
 
 # Function to get PVM executable path
 _pvm_executable() {
-    if [ -z "$PVM_EXEC_CACHE" ]; then
+    if [ -z "${PVM_EXEC_CACHE-}" ]; then
         PVM_EXEC_CACHE="$(_pvm_find_executable)"
         if [ $? -ne 0 ]; then
             return 1
@@ -122,13 +122,13 @@ _pvm_update_perl_path() {
     fi
 
     # Handle library environment if PVM_PERL_LIBRARY is set
-    if [ -n "$PVM_PERL_LIBRARY" ]; then
+    if [ -n "${PVM_PERL_LIBRARY-}" ]; then
         local library_env_dir="$xdg_data_home/pvm/environments/$PVM_PERL_LIBRARY"
         if [ -d "$library_env_dir" ]; then
             # Add library environment's lib/perl5 to PERL5LIB
             local library_lib_dir="$library_env_dir/lib/perl5"
             if [ -d "$library_lib_dir" ]; then
-                if [ -n "$PERL5LIB" ]; then
+                if [ -n "${PERL5LIB-}" ]; then
                     export PERL5LIB="$library_lib_dir:$PERL5LIB"
                 else
                     export PERL5LIB="$library_lib_dir"
@@ -144,7 +144,7 @@ _pvm_update_perl_path() {
     else
         # Clear library-specific PERL5LIB when no library is active
         # Only clear if it contains PVM environment paths
-        if [ -n "$PERL5LIB" ]; then
+        if [ -n "${PERL5LIB-}" ]; then
             local cleaned_perl5lib=""
             local remaining_perl5lib="$PERL5LIB"
             while [ -n "$remaining_perl5lib" ]; do
@@ -262,7 +262,7 @@ pvm_init() {
     }
 
     # Set up cd override (if supported)
-    if [ -n "$ZSH_VERSION" ]; then
+    if [ -n "${ZSH_VERSION-}" ]; then
         # For Zsh, use chpwd hook
         pvm_chpwd() {
             # Update PATH to reflect current directory's Perl version
@@ -293,8 +293,8 @@ pvm_init() {
 pvm_init
 
 # Set up completion (skip during tests)
-if [ "$PVM_SKIP_NETWORK_CALLS" != "1" ]; then
-    if [ -n "$ZSH_VERSION" ]; then
+if [ "${PVM_SKIP_NETWORK_CALLS-}" != "1" ]; then
+    if [ -n "${ZSH_VERSION-}" ]; then
         eval "$(PVM_SHELL="$_PVM_SHELL_TYPE" "$(_pvm_executable)" completion zsh 2>/dev/null || true)"
     else
         eval "$(PVM_SHELL="$_PVM_SHELL_TYPE" "$(_pvm_executable)" completion bash 2>/dev/null || true)"

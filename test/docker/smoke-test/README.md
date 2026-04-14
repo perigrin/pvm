@@ -1,17 +1,70 @@
 # Smoke-test container
 
 Exercises the real user-facing journey against a fresh-install PVM on a
-Debian-based system with bash, zsh, and fish available. Asserts the two
-originally-reported bug scenarios stay fixed:
+Debian-based system with bash, zsh, and fish available. Runs four suites
+per invocation, covering the commands a typical user touches:
 
-1. **`pvm local` / `pvm global` are top-level commands** (issue #432).
-2. **`pvm use X` actually changes the active `perl`** — PATH refresh works,
-   `PVM_PERL_VERSION` exports, and `perl -v` reflects the new version in
-   the same shell (issue #433). Also exits non-zero for bogus versions.
+## `core-commands.sh` (shell-agnostic, ~38 assertions)
 
-Fish gets extra assertions covering the bugs uncovered during PR #434
-development: no fish parse errors in the templates, completions actually
-register after `pvm init fish | source`.
+Command-surface guarantees that don't depend on which shell invokes pvm.
+Covers `pvm version`, `pvm --help`, `pvm list`/`versions`, `pvm available`
+(offline), `pvm completion {bash,zsh,fish}`, `pvm config`, `pvm env list`,
+`pvm remote list`, `pvm detect-version`, `pvm self doctor`, `pvm current`
+/ `pvm current --bare`, plus `--help` for every top-level command to
+catch cobra registration bugs.
+
+## `advanced-commands.sh` (shell-agnostic, ~29 assertions)
+
+Jobs-To-Be-Done workflows that Perl devs regularly exercise: resolution
+source attribution (`current --detailed`/`--json`, `PVM_PERL_VERSION`
+override precedence), broken-pin degradation, `workspace init` scaffold
+(creates `.perl-version`/`cpanfile`/`pvm.toml`/`lib`/`t`),
+`config set/get/unset/validate/sources` round-trip, `remote add/remove`
+write-path, `self symlinks verify`, `rehash --dry-run` idempotence.
+
+## Per-shell journeys (~32–35 assertions each)
+
+`bash-journey.sh` / `zsh-journey.sh` / `fish-journey.fish` each source
+the real shell integration and exercise workflows that depend on the
+shell (env-var exports, PATH rewriting). Nine sections per shell:
+
+1. **Top-level command presence** — root `pvm --help` lists `local`,
+   `global`, `use [version[@library]]` (regression guard for #432).
+2. **Setup** — `pvm import-system` + fake version bin via
+   `smoke_setup_stub_perl`.
+3. **`pvm use`** — PATH rewrite, `PVM_PERL_VERSION` export, `perl -v`
+   reflects the switch, bogus version exits non-zero AND short-circuits
+   `&&` / `; and` chains (regression guard for #433).
+3b. **`cd` auto-switch hook** — `cd` into a directory with a
+    `.perl-version` pin triggers the shell-specific hook (bash's
+    `pvm_cd`, zsh's `chpwd`, fish's `--on-variable PWD`) and PATH
+    updates to match.
+4. **`pvm local`** — writes `.perl-version`, `detect-version` sees it,
+   `--unset` removes it.
+5. **`pvm global`** — writes global config, `pvm current --bare` picks
+   it up, `--unset` clears it.
+6. **`pvm use system`** — clears `PVM_PERL_VERSION`.
+7. **Library environments** — `pvm env list` shows a manually-created
+   env, `pvm use X@testlib` exports `PVM_PERL_LIBRARY`, library bin
+   lands on PATH, library `lib/perl5` lands on `PERL5LIB`, clearing
+   via `pvm use X` unexports the library, `pvm env remove` tears it
+   down.
+8. **Doctor sanity** — `pvm self doctor` exits 0 on a clean container
+   and does NOT falsely flag stale installs (regression guard for
+   PR #436's disambiguation logic).
+
+Fish additionally asserts: no `Unknown command` errors from the template
+(PR #434 fish-template regressions), and completions actually register.
+
+## Total coverage
+
+~166 assertions across five suites, covering roughly 25 of the 31
+top-level pvm commands plus the `cd`-hook auto-switch that every
+version manager promises. The six commands that require real Perl
+install (`install`, `build-perl`, `install-perl`, `module`, `run`/pvx,
+`psc`) intentionally stay out of smoke scope — they belong in the Go
+e2e suite (`test/docker/shell-integration/`) or a separate slow-tier
+CI job.
 
 ## Running
 

@@ -39,3 +39,24 @@ jobs:
 
     - name: Test
       run: go test ./... -count=1
+
+  smoke-test:
+    name: Smoke Test (bash, zsh, fish)
+    runs-on: ubuntu-latest
+    needs: test
+    env:
+      # Gate the two-version binary-install section off in CI until the
+      # release artifacts ship signed SHA256 manifests. Issue tracked
+      # separately. Journeys fall through to the single-version fallback.
+      PVM_SMOKE_SKIP_BINARY_INSTALL: "1"
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.4'
+
+    - name: Run smoke-test suite
+      run: ./test/docker/smoke-test/run-smoke.sh
