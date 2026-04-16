@@ -28,8 +28,14 @@ import (
 //
 // Requires patchelf on PATH. Returns a descriptive error when patchelf is
 // missing so the caller can decide whether to continue with a warning or
-// fail the build. No-op on non-linux platforms — Mach-O relocation for
-// macOS is tracked as a follow-up (see issue filed alongside PR #438).
+// fail the build.
+//
+// No-op on non-linux platforms. macOS Mach-O relocation (install_name_tool
+// + LC_RPATH rewriting) is NOT yet implemented — tracked as issue #440.
+// Until that lands, macOS tarballs produced by the release workflow will
+// have the build-host absolute prefix baked in via LC_LOAD_DYLIB and fail
+// on user machines. Do not ship macOS release binaries built from this
+// code path without the follow-up fix.
 func makeRelocatable(installDir string) error {
 	if runtime.GOOS != "linux" {
 		return nil
