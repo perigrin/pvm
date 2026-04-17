@@ -444,11 +444,12 @@ func (bm *BuildManager) installWithVerification(ctx *BuildContext, progress *Pro
 		return installErr
 	}
 
-	// Make the install relocatable by rewriting baked-in RPATH entries to
-	// $ORIGIN-relative form. Without this, the Perl binary's DT_RUNPATH
-	// points at the build host's absolute prefix and every install to a
-	// different path breaks with "libperl.so: cannot open shared object
-	// file". A no-op on non-linux (macOS relocation tracked as follow-up).
+	// Make the install relocatable by rewriting baked-in dynamic-linker
+	// paths. Linux: patchelf rewrites DT_RUNPATH to $ORIGIN-relative.
+	// macOS: install_name_tool rewrites LC_LOAD_DYLIB to @rpath and adds
+	// per-file @loader_path LC_RPATH entries. Without this, the built
+	// Perl carries the build host's absolute prefix and breaks when
+	// installed elsewhere.
 	//
 	// For release builds (--upload), failure is fatal — the tarball would
 	// silently ship broken. For local builds we warn; the baked-in RPATH

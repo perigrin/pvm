@@ -107,6 +107,10 @@ func makeRelocatableDarwin(installDir string) error {
 		return fmt.Errorf("install_name_tool not found on PATH: %w "+
 			"(ships with Xcode Command Line Tools)", err)
 	}
+	if _, err := exec.LookPath("otool"); err != nil {
+		return fmt.Errorf("otool not found on PATH: %w "+
+			"(ships with Xcode Command Line Tools)", err)
+	}
 
 	coreDir, err := findCoreDir(installDir)
 	if err != nil {
@@ -146,7 +150,7 @@ func makeRelocatableDarwin(installDir string) error {
 		}
 		loaderRpath := "@loader_path/" + rel
 
-		if patchErr := patchMachO(inameTool, codesign, path, coreDir, loaderRpath, libperlName); patchErr != nil {
+		if patchErr := patchMachO(inameTool, codesign, path, loaderRpath, libperlName); patchErr != nil {
 			walkErrs = append(walkErrs, patchErr)
 			return nil
 		}
@@ -171,7 +175,7 @@ func findLibperlName(coreDir string) (string, error) {
 	}
 	for _, e := range entries {
 		name := e.Name()
-		if name == "libperl.dylib" || strings.HasPrefix(name, "libperl.") && strings.HasSuffix(name, ".dylib") {
+		if name == "libperl.dylib" || (strings.HasPrefix(name, "libperl.") && strings.HasSuffix(name, ".dylib")) {
 			return name, nil
 		}
 	}
@@ -194,7 +198,7 @@ func findLibperlName(coreDir string) (string, error) {
 //     any reference libperl via an absolute path, -change <old> @rpath/<name>.
 //  3. For every file: -add_rpath <loaderRpath> so @rpath resolves to CORE.
 //  4. Ad-hoc re-sign with codesign -f -s - (macOS 11+ requirement).
-func patchMachO(inameTool, codesign, path, coreDir, loaderRpath, libperlName string) error {
+func patchMachO(inameTool, codesign, path, loaderRpath, libperlName string) error {
 	base := filepath.Base(path)
 
 	// If this is libperl itself, set its install name to @rpath/<name> so
