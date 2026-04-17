@@ -254,6 +254,12 @@ type BuildOptions struct {
 	// BuildOnly indicates whether to build without installing (creates relocatable build)
 	BuildOnly bool
 
+	// ReleaseBuild indicates this is a release/--upload build where any
+	// failure to make binaries relocatable is fatal. Local builds where
+	// build prefix equals install prefix work fine with the baked-in
+	// RPATH; release tarballs ship to other machines and must not.
+	ReleaseBuild bool
+
 	// ProgressCallback is called to report progress
 	ProgressCallback BuildProgressCallback `json:"-"`
 
@@ -724,6 +730,36 @@ func BuildPerl(options *BuildOptions) (*BuildResult, error) {
 				"Installation failed",
 				installErr).
 				WithLocation(srcDir)
+		}
+
+		// Rewrite RPATH to $ORIGIN-relative form so the installed tree
+		// works at any path. Without this, Perl's Configure bakes the
+		// build-time prefix into DT_RUNPATH and every release tarball
+		// fails on user machines with "libperl.so: cannot open shared
+		// object file". No-op on non-linux (macOS relocation is tracked
+		// as a follow-up; see internal/perl/relocatable.go).
+		//
+		// For release builds (--upload), a failure here is fatal: the
+		// tarball would be silently broken. For local builds (where
+		// build prefix == install prefix) a warning is fine because the
+		// baked-in RPATH still resolves on the build host.
+		if relocErr := makeRelocatable(installDir); relocErr != nil {
+			if options.ReleaseBuild {
+				return nil, errors.NewVersionError(
+					ErrInstallFailed,
+					"Failed to make the built Perl relocatable "+
+						"(required for release builds)",
+					relocErr).
+					WithLocation(installDir)
+			}
+			if options.ProgressCallback != nil {
+				options.ProgressCallback(StageInstall,
+					fmt.Sprintf("Warning: could not make binaries relocatable: %v", relocErr),
+					1.0)
+				options.ProgressCallback(StageInstall,
+					fmt.Sprintf("The built Perl will run at %s but may break if moved", installDir),
+					1.0)
+			}
 		}
 	}
 

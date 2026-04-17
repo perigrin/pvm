@@ -1898,6 +1898,9 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 		CleanupBuildDir:  cleanupBuildDir,
 		ConfigureOptions: finalConfigureOptions,
 		BuildOnly:        buildOnly,
+		// A release/--upload build must produce a tarball that works on
+		// other machines — any failure to rewrite baked-in RPATH is fatal.
+		ReleaseBuild:     upload,
 		ProgressCallback: progressCallback,
 		Context:          cmd.Context(),
 	}

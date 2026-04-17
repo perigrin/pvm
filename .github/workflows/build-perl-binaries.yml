@@ -80,8 +80,14 @@ jobs:
           # Convert comma-separated versions to JSON array
           VERSIONS_JSON=$(echo "${{ steps.versions.outputs.versions }}" | jq -R 'split(",") | map(select(length > 0))')
 
-          # Platform matrix (same as release workflow)
-          PLATFORMS='["linux-amd64", "darwin-amd64", "darwin-arm64"]'
+          # Platform matrix. macOS is temporarily disabled: Mach-O
+          # relocation (LC_LOAD_DYLIB + LC_RPATH rewriting with
+          # install_name_tool) is not yet implemented — see issue #440.
+          # Until that lands, darwin tarballs would ship with build-host
+          # absolute paths baked in and fail on user machines. Re-enable
+          # once #440 is resolved:
+          #   PLATFORMS='["linux-amd64", "darwin-amd64", "darwin-arm64"]'
+          PLATFORMS='["linux-amd64"]'
 
           MATRIX=$(jq -n --argjson versions "$VERSIONS_JSON" --argjson platforms "$PLATFORMS" '{
             include: [
@@ -114,6 +120,17 @@ jobs:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
 
     steps:
+      - name: Install build-time dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # patchelf rewrites DT_RUNPATH on the built Perl ELF binaries so
+          # libperl.so resolves via $ORIGIN-relative paths instead of the
+          # build host's absolute prefix. Without this, every released
+          # binary fails at runtime on users' machines with "libperl.so:
+          # cannot open shared object file".
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends patchelf
+
       - name: Download latest PVM release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
