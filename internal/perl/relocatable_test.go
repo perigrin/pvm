@@ -241,8 +241,10 @@ func TestMakeRelocatable_Darwin_EndToEnd(t *testing.T) {
 	}
 	libOut := filepath.Join(coreDir, "libperl.dylib")
 	// Build with a deliberately bad install_name (simulating what Perl's
-	// Configure bakes in on the build host).
+	// Configure bakes in on the build host). -headerpad_max_install_names
+	// leaves room for install_name_tool to rewrite paths later.
 	if out, err := exec.Command("clang", "-shared", "-fPIC", libSrc, "-o", libOut,
+		"-Wl,-headerpad_max_install_names",
 		"-install_name", "/nonsense/build/host/path/libperl.dylib").CombinedOutput(); err != nil {
 		t.Fatalf("compile libperl.dylib: %v (%s)", err, string(out))
 	}
@@ -253,9 +255,13 @@ func TestMakeRelocatable_Darwin_EndToEnd(t *testing.T) {
 	if err := os.WriteFile(binSrc, []byte("int perl_hello(void);int main(void){return perl_hello()==42?0:1;}\n"), 0o644); err != nil {
 		t.Fatalf("write perl.c: %v", err)
 	}
+	// -headerpad_max_install_names ensures the Mach-O header has enough
+	// room for install_name_tool to add LC_RPATH entries later. Real Perl
+	// builds get this from Configure; our stub binaries need it explicitly.
 	binOut := filepath.Join(binDir, "perl")
 	if out, err := exec.Command("clang", binSrc, "-o", binOut,
 		"-L", coreDir, "-lperl",
+		"-Wl,-headerpad_max_install_names",
 		"-Wl,-rpath,/nonsense/path/that/doesnt/exist").CombinedOutput(); err != nil {
 		t.Fatalf("compile perl: %v (%s)", err, string(out))
 	}
@@ -268,6 +274,7 @@ func TestMakeRelocatable_Darwin_EndToEnd(t *testing.T) {
 	xsOut := filepath.Join(xsDir, "Foo.bundle")
 	if out, err := exec.Command("clang", "-bundle", xsSrc, "-o", xsOut,
 		"-L", coreDir, "-lperl",
+		"-Wl,-headerpad_max_install_names",
 		"-Wl,-rpath,/nonsense/path").CombinedOutput(); err != nil {
 		t.Fatalf("compile Foo.bundle: %v (%s)", err, string(out))
 	}
