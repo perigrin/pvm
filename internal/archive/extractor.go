@@ -181,8 +181,17 @@ func (e *BinaryExtractor) extractTarFile(reader io.Reader, targetPath string, mo
 		return fmt.Errorf("copying file content: %w", err)
 	}
 
-	// Set permissions
-	if err := os.Chmod(targetPath, os.FileMode(mode)); err != nil {
+	// Set permissions. Mask to os.ModePerm so POSIX file-type bits in the
+	// tar header (e.g. S_IFREG 0100000) don't leak into the chmod call,
+	// and ensure the executable bit is set — a tar that shipped the
+	// binary with 0644 would otherwise leave us with a non-executable
+	// file and an obscure "not executable" failure downstream in the
+	// updater's validation step.
+	perm := os.FileMode(mode) & os.ModePerm
+	if perm&0111 == 0 {
+		perm |= 0755
+	}
+	if err := os.Chmod(targetPath, perm); err != nil {
 		return fmt.Errorf("setting file permissions: %w", err)
 	}
 
@@ -215,8 +224,15 @@ func (e *BinaryExtractor) extractZipFile(file *zip.File, targetPath string) erro
 		return fmt.Errorf("copying file content: %w", err)
 	}
 
-	// Set permissions
-	if err := os.Chmod(targetPath, file.FileInfo().Mode()); err != nil {
+	// Set permissions. ZIP mode bits are unreliable on cross-platform
+	// archives (Windows-authored zips often have mode 0 or 0644), so mask
+	// to os.ModePerm and force the executable bit — if the file is in the
+	// archive because we want to run it, we need +x regardless.
+	perm := file.FileInfo().Mode() & os.ModePerm
+	if perm&0111 == 0 {
+		perm |= 0755
+	}
+	if err := os.Chmod(targetPath, perm); err != nil {
 		return fmt.Errorf("setting file permissions: %w", err)
 	}
 

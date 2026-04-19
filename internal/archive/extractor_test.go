@@ -423,3 +423,52 @@ func createMaliciousTarGz(t *testing.T) string {
 
 	return tempFile.Name()
 }
+
+// createTestTarGzWithMode builds a tar.gz where the file header carries
+// the supplied mode. Used to regression-test extraction when the archive
+// author forgot to set the executable bit.
+func createTestTarGzWithMode(t *testing.T, filename string, content []byte, mode int64) string {
+	tempFile, err := os.CreateTemp("", "test-mode-*.tar.gz")
+	require.NoError(t, err)
+	defer tempFile.Close()
+
+	gzWriter := gzip.NewWriter(tempFile)
+	defer gzWriter.Close()
+
+	tarWriter := tar.NewWriter(gzWriter)
+	defer tarWriter.Close()
+
+	require.NoError(t, tarWriter.WriteHeader(&tar.Header{
+		Name: filename,
+		Size: int64(len(content)),
+		Mode: mode,
+	}))
+	_, err = tarWriter.Write(content)
+	require.NoError(t, err)
+
+	return tempFile.Name()
+}
+
+// TestBinaryExtractor_ExtractNonExecutableTarEntry is the regression test
+// for the bad-update bug that produced rc71's "binary validation failed:
+// new binary is not executable" rollback. Cross-platform packaging can
+// strip the executable bit; the extractor must defensively re-apply 0755
+// so downstream validation doesn't reject a perfectly good binary.
+func TestBinaryExtractor_ExtractNonExecutableTarEntry(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits are POSIX-only")
+	}
+
+	archive := createTestTarGzWithMode(t, "pvm", createMockBinary(), 0o644)
+	defer os.Remove(archive)
+
+	extractor := NewBinaryExtractor()
+	got, err := extractor.ExtractExecutable(archive, "linux-amd64")
+	require.NoError(t, err, "extraction should succeed even when tar mode is 0644")
+	defer os.RemoveAll(filepath.Dir(got))
+
+	info, err := os.Stat(got)
+	require.NoError(t, err)
+	mode := info.Mode().Perm()
+	assert.NotZerof(t, mode&0o111, "extracted binary must be executable, got mode %o", mode)
+}
