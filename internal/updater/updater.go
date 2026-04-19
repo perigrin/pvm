@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"tamarou.com/pvm/internal/download"
+	platformpkg "tamarou.com/pvm/internal/platform"
 	"tamarou.com/pvm/internal/version"
 )
 
@@ -106,6 +106,15 @@ const (
 	StageRollingBack
 	StageDone
 )
+
+// HasContinuousProgress reports whether this stage fires progress
+// callbacks often enough (e.g. per HTTP chunk during download) to warrant
+// an in-place \r-based progress bar instead of one status line per event.
+// Stages that fire a single callback per transition should use line-based
+// rendering so the status actually appears.
+func (s UpdateStage) HasContinuousProgress() bool {
+	return s == StageDownloading
+}
 
 func (s UpdateStage) String() string {
 	switch s {
@@ -304,19 +313,13 @@ func (u *Updater) PerformUpdate(opts *UpdateOptions) (*UpdateResult, error) {
 		defer os.RemoveAll(filepath.Dir(validatedBinaryPath))
 	}
 
-	// Defensive: ensure the extracted binary is executable before handing
-	// it to the replacer. Tar headers should carry 0755 for Go-built
-	// binaries, but there have been cases where mode bits get stripped
-	// during extraction (file-type bits in header.Mode, zip archives
-	// without proper mode, stricter platform chmod semantics). Without
-	// this, ReplaceBinary's validation rejects the new binary with
-	// "new binary is not executable" and triggers a full rollback — even
-	// though the binary itself is fine, just with the wrong chmod bits.
-	if runtime.GOOS != "windows" {
-		if chmodErr := os.Chmod(validatedBinaryPath, 0755); chmodErr != nil {
-			result.Message = fmt.Sprintf("Failed to set executable bit on new binary: %v", chmodErr)
-			return result, chmodErr
-		}
+	// Defense-in-depth: ensure +x on the extracted binary. Extraction
+	// occasionally drops the exec bit (odd tar mode bits, windows-authored
+	// zips); without this, ReplaceBinary's validation rejects the binary
+	// and triggers a rollback even though the binary itself is fine.
+	if chmodErr := platformpkg.MakeExecutable(validatedBinaryPath); chmodErr != nil {
+		result.Message = fmt.Sprintf("Failed to set executable bit on new binary: %v", chmodErr)
+		return result, chmodErr
 	}
 
 	// Perform replacement (or simulate if dry run)

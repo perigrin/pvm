@@ -472,3 +472,51 @@ func TestBinaryExtractor_ExtractNonExecutableTarEntry(t *testing.T) {
 	mode := info.Mode().Perm()
 	assert.NotZerof(t, mode&0o111, "extracted binary must be executable, got mode %o", mode)
 }
+
+// createTestZipWithMode builds a zip where the entry's FileInfo mode is
+// the supplied value. Windows-authored zips commonly carry mode 0 or 0644
+// for what is actually a Unix executable; this fixture reproduces that.
+func createTestZipWithMode(t *testing.T, filename string, content []byte, mode os.FileMode) string {
+	tempFile, err := os.CreateTemp("", "test-mode-*.zip")
+	require.NoError(t, err)
+	defer tempFile.Close()
+
+	zipWriter := zip.NewWriter(tempFile)
+	defer zipWriter.Close()
+
+	header := &zip.FileHeader{
+		Name:   filename,
+		Method: zip.Deflate,
+	}
+	header.SetMode(mode)
+
+	writer, err := zipWriter.CreateHeader(header)
+	require.NoError(t, err)
+	_, err = writer.Write(content)
+	require.NoError(t, err)
+
+	return tempFile.Name()
+}
+
+// TestBinaryExtractor_ExtractNonExecutableZipEntry mirrors the tar-path
+// regression for zip archives — Windows-authored zips can ship mode 0 or
+// 0644 for what is actually a Unix executable. The extractor must still
+// produce a runnable binary.
+func TestBinaryExtractor_ExtractNonExecutableZipEntry(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits are POSIX-only")
+	}
+
+	archive := createTestZipWithMode(t, "pvm", createMockBinary(), 0o644)
+	defer os.Remove(archive)
+
+	extractor := NewBinaryExtractor()
+	got, err := extractor.ExtractExecutable(archive, "linux-amd64")
+	require.NoError(t, err, "extraction should succeed even when zip mode is 0644")
+	defer os.RemoveAll(filepath.Dir(got))
+
+	info, err := os.Stat(got)
+	require.NoError(t, err)
+	mode := info.Mode().Perm()
+	assert.NotZerof(t, mode&0o111, "extracted binary must be executable, got mode %o", mode)
+}

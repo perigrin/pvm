@@ -181,18 +181,8 @@ func (e *BinaryExtractor) extractTarFile(reader io.Reader, targetPath string, mo
 		return fmt.Errorf("copying file content: %w", err)
 	}
 
-	// Set permissions. Mask to os.ModePerm so POSIX file-type bits in the
-	// tar header (e.g. S_IFREG 0100000) don't leak into the chmod call,
-	// and ensure the executable bit is set — a tar that shipped the
-	// binary with 0644 would otherwise leave us with a non-executable
-	// file and an obscure "not executable" failure downstream in the
-	// updater's validation step.
-	perm := os.FileMode(mode) & os.ModePerm
-	if perm&0111 == 0 {
-		perm |= 0755
-	}
-	if err := os.Chmod(targetPath, perm); err != nil {
-		return fmt.Errorf("setting file permissions: %w", err)
+	if err := applyExecutablePermissions(targetPath, os.FileMode(mode)); err != nil {
+		return err
 	}
 
 	return nil
@@ -224,18 +214,25 @@ func (e *BinaryExtractor) extractZipFile(file *zip.File, targetPath string) erro
 		return fmt.Errorf("copying file content: %w", err)
 	}
 
-	// Set permissions. ZIP mode bits are unreliable on cross-platform
-	// archives (Windows-authored zips often have mode 0 or 0644), so mask
-	// to os.ModePerm and force the executable bit — if the file is in the
-	// archive because we want to run it, we need +x regardless.
-	perm := file.FileInfo().Mode() & os.ModePerm
-	if perm&0111 == 0 {
-		perm |= 0755
+	if err := applyExecutablePermissions(targetPath, file.FileInfo().Mode()); err != nil {
+		return err
 	}
+
+	return nil
+}
+
+// applyExecutablePermissions sets the mode on an extracted file, masking
+// POSIX file-type bits (S_IFREG 0100000) out of tar header modes and ZIP
+// FileInfo().Mode() before passing to os.Chmod. The target binary's
+// executable bit is guaranteed separately by the updater's call to
+// platform.MakeExecutable in internal/updater/updater.go — doing it here
+// too would over-chmod every archive entry (man pages, completions) and
+// silently mark them executable.
+func applyExecutablePermissions(targetPath string, raw os.FileMode) error {
+	perm := raw & os.ModePerm
 	if err := os.Chmod(targetPath, perm); err != nil {
 		return fmt.Errorf("setting file permissions: %w", err)
 	}
-
 	return nil
 }
 
@@ -279,15 +276,23 @@ func (e *BinaryExtractor) findMainExecutable(extractedFiles []string, platform s
 
 		fileName := filepath.Base(file)
 
-		// Check if this matches expected executable name
+		// Check if this matches an expected executable name. We match
+		// by name only — mode bits are unreliable on cross-platform
+		// tarballs (a packaging step occasionally strips +x). When a
+		// matching candidate is found without the exec bit, re-apply
+		// 0755 so downstream validation succeeds. This is scoped to the
+		// single binary we care about; other archive entries are left
+		// with whatever mode the archive specified.
 		for _, expected := range expectedNames {
-			if fileName == expected {
-				// Check if it's executable on Unix-like systems
-				if runtime.GOOS != "windows" && info.Mode()&0111 == 0 {
-					continue
-				}
-				candidates = append(candidates, file)
+			if fileName != expected {
+				continue
 			}
+			if runtime.GOOS != "windows" && info.Mode()&0111 == 0 {
+				if err := os.Chmod(file, 0755); err != nil {
+					return "", fmt.Errorf("setting executable bit on %s: %w", file, err)
+				}
+			}
+			candidates = append(candidates, file)
 		}
 	}
 
