@@ -1,3 +1,6 @@
+// ABOUTME: Tests for CLI error construction and formatting in the cli package
+// ABOUTME: Validates that NewError delegates correctly to the errors package and preserves prefix, category, and code fields
+
 package cli
 
 import (

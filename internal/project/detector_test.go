@@ -1,3 +1,6 @@
+// ABOUTME: Tests for Perl project root detection in the project package
+// ABOUTME: Exercises marker-file discovery (cpanfile, dist.ini, Makefile.PL, etc.) and detection cache invalidation
+
 package project
 
 import (

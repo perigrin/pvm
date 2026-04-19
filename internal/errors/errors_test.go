@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the structured Error type in the errors package
+// ABOUTME: Validates error code formatting, category embedding, Is/As unwrapping, and hint text rendering
+
 package errors
 
 import (

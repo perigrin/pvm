@@ -1,3 +1,6 @@
+// ABOUTME: Tests for structured error logging integration in the errors package
+// ABOUTME: Verifies that LogError routes PVM Error types and standard errors to the correct log levels and formats
+
 package errors
 
 import (

@@ -1,3 +1,6 @@
+// ABOUTME: Tests for PSCLSPConfig validation and merge behavior in the config package
+// ABOUTME: Covers log levels, transport modes, port ranges, timeouts, and default value assertions
+
 package config
 
 import (

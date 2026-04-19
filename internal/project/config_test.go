@@ -1,3 +1,6 @@
+// ABOUTME: Tests for project-aware configuration path resolution in the project package
+// ABOUTME: Verifies that GetProjectAwareConfigPath returns the correct per-project pvm.toml location
+
 package project
 
 import (

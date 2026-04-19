@@ -1,3 +1,6 @@
+// ABOUTME: Tests for shell detection and shell integration script generation in the perl package
+// ABOUTME: Exercises DetectShell, init-script output, and environment isolation across shell types
+
 package perl
 
 import (

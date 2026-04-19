@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the MemoryMonitor type in the memory package
+// ABOUTME: Validates runtime stats collection, bounded history, alert threshold callbacks, and context-driven background monitoring
+
 package memory
 
 import (

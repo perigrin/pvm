@@ -1,3 +1,6 @@
+// ABOUTME: Tests for config accessor methods (GetString, GetInt, GetBool, GetStringSlice, GetStringMap)
+// ABOUTME: Includes XDG environment variable expansion fallback behavior verification
+
 package config
 
 import (

@@ -1,3 +1,6 @@
+// ABOUTME: Tests for enhanced binary download behavior in the perl package
+// ABOUTME: Covers progress tracking, bandwidth limiting, retry logic, and checksum verification using an HTTP test server
+
 package perl
 
 import (

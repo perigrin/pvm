@@ -1,3 +1,6 @@
+// ABOUTME: Tests for PMBackupConfig validation in the config package
+// ABOUTME: Verifies that backup mode, retention days, and max backup limits are correctly validated
+
 package config
 
 import (

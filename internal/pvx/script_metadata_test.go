@@ -1,3 +1,6 @@
+// ABOUTME: Tests for Perl script metadata parsing in the pvx package
+// ABOUTME: Validates POD-block and comment-block metadata formats, dependency extraction, and format serialization
+
 package pvx
 
 import (

@@ -1,3 +1,6 @@
+// ABOUTME: Tests for automatic Perl dependency detection in the pvx package
+// ABOUTME: Covers use/require statement extraction, pragma filtering, core module exclusion, and edge cases
+
 package pvx
 
 import (

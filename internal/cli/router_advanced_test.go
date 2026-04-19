@@ -1,3 +1,6 @@
+// ABOUTME: Advanced invocation detection tests for the cli router
+// ABOUTME: Covers DetectInvocation for direct, symlink, and unknown binary name scenarios
+
 package cli
 
 import (

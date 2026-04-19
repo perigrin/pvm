@@ -1,3 +1,6 @@
+// ABOUTME: Tests for sync.Pool-backed typed pool helpers in the memory package
+// ABOUTME: Exercises Get/Put lifecycle, concurrent access, and per-pool statistics for tree node and byte-slice pools
+
 package memory
 
 import (
