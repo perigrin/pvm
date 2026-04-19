@@ -89,28 +89,31 @@ func executeUpdateCommand(cmd *cobra.Command, args []string) error {
 		Context:             cmd.Context(),
 	}
 
-	// Set up progress callback
+	// Set up progress callback. Continuous-progress stages (downloads
+	// fire on every HTTP chunk) let showProgressBar own the line via \r;
+	// the per-tick message is skipped because a trailing \n would scroll
+	// the bar. Other stages print one status line per event.
 	var lastStage updater.UpdateStage
 	opts.ProgressCallback = func(stage updater.UpdateStage, message string, progress float64) {
-		// Only print stage header when it changes
+		// Stage-transition header clears any in-progress bar.
 		if stage != lastStage {
 			cmd.Printf("\n=== %s ===\n", stage.String())
 			lastStage = stage
 		}
 
-		// Print progress with message
+		if stage.HasContinuousProgress() {
+			if progress > 0 && progress < 1.0 {
+				showProgressBar(progress, 40)
+			}
+			return
+		}
+
 		if message != "" {
 			if progress > 0 && progress < 1.0 {
 				cmd.Printf("%s (%.1f%%)\n", message, progress*100)
 			} else {
 				cmd.Println(message)
 			}
-		}
-
-		// Show progress bar for longer operations
-		if progress > 0 && progress < 1.0 &&
-			(stage == updater.StageDownloading || stage == updater.StageReplacing) {
-			showProgressBar(progress, 40)
 		}
 	}
 
