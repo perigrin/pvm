@@ -89,28 +89,40 @@ func executeUpdateCommand(cmd *cobra.Command, args []string) error {
 		Context:             cmd.Context(),
 	}
 
-	// Set up progress callback
+	// Set up progress callback. The download/replace stages fire on every
+	// HTTP read chunk (potentially 100+ per second), so only the \r-based
+	// progress bar renders inside those stages — printing `message` with
+	// a trailing \n on every tick would push the bar onto a new line each
+	// time and produce the "scrolling bars" bug. For other stages the
+	// message is printed once as a status line.
 	var lastStage updater.UpdateStage
 	opts.ProgressCallback = func(stage updater.UpdateStage, message string, progress float64) {
-		// Only print stage header when it changes
+		barStage := stage == updater.StageDownloading || stage == updater.StageReplacing
+
+		// Print stage header on transitions. Leading \n clears any
+		// in-progress bar from the previous stage.
 		if stage != lastStage {
 			cmd.Printf("\n=== %s ===\n", stage.String())
 			lastStage = stage
 		}
 
-		// Print progress with message
+		if barStage {
+			// Bar-owned stage: let showProgressBar own the line via \r.
+			// Don't print the per-tick message — that would newline and
+			// the bar would scroll instead of overwrite.
+			if progress > 0 && progress < 1.0 {
+				showProgressBar(progress, 40)
+			}
+			return
+		}
+
+		// Non-bar stage: one status line per event.
 		if message != "" {
 			if progress > 0 && progress < 1.0 {
 				cmd.Printf("%s (%.1f%%)\n", message, progress*100)
 			} else {
 				cmd.Println(message)
 			}
-		}
-
-		// Show progress bar for longer operations
-		if progress > 0 && progress < 1.0 &&
-			(stage == updater.StageDownloading || stage == updater.StageReplacing) {
-			showProgressBar(progress, 40)
 		}
 	}
 
