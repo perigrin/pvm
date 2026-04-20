@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the TOML configuration parser including environment variable interpolation
+// ABOUTME: Exercises strict vs permissive modes, unknown-field warnings, merge semantics, and file I/O round-trips
+
 package config
 
 import (

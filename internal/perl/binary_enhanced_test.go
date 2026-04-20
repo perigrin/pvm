@@ -1,3 +1,6 @@
+// ABOUTME: Tests for binary download with progress tracking, bandwidth limiting, retries, and checksum verification
+// ABOUTME: Uses httptest.Server-backed fixtures and a bandwidth limiter to exercise download infrastructure
+
 package perl
 
 import (

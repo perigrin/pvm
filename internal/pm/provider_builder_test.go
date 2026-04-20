@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the CPAN ProviderBuilder in the pm package
+// ABOUTME: Validates default provider selection, explicit source override, and config-driven provider construction
+
 package pm
 
 import (

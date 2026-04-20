@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the parallel CPAN module installer in the pm/modules package
+// ABOUTME: Validates task queuing, concurrent execution, empty/nil input handling, and aggregate result reporting
+
 package modules
 
 import (

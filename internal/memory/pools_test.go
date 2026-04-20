@@ -1,3 +1,6 @@
+// ABOUTME: Tests for sync.Pool-backed typed pool helpers in the memory package
+// ABOUTME: Exercises Get/Put lifecycle, concurrent access, and Clear semantics across SyncPool, SlicePool, and StringInterner
+
 package memory
 
 import (

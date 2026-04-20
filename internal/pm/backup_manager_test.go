@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the BackupManager type in the pm package
+// ABOUTME: Covers backup creation, retention policy enforcement, rotation limits, and cache directory placement
+
 package pm
 
 import (

@@ -1,3 +1,6 @@
+// ABOUTME: Tests for shim file creation and the Rehash/GenerateShims workflow in the perl package
+// ABOUTME: Uses a mocked XDG directory tree and a fake PVM binary to verify shim content and permissions
+
 // Tests for the shim generation functionality
 
 package perl

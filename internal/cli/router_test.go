@@ -1,3 +1,6 @@
+// ABOUTME: Tests for component detection and command routing in the cli package
+// ABOUTME: Verifies that DetectComponent resolves the correct PVM/PVX/PM/PSC component from the invoked binary name
+
 package cli
 
 import (

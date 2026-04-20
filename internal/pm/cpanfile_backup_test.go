@@ -1,3 +1,6 @@
+// ABOUTME: Tests for CpanfileManager backup behavior in the pm package
+// ABOUTME: Validates that cpanfile modifications create backups in local or cache locations as configured
+
 package pm
 
 import (

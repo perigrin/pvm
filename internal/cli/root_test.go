@@ -1,3 +1,6 @@
+// ABOUTME: Tests for root command construction in the cli package
+// ABOUTME: Validates that NewRootCommand attaches the verbose flag, version subcommand, and correct usage metadata
+
 package cli
 
 import (

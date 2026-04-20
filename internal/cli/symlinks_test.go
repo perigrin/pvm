@@ -1,3 +1,6 @@
+// ABOUTME: Tests for symlink verification of PVM component binaries in the cli package
+// ABOUTME: Validates that VerifySymlinks correctly reports present and absent component symlinks
+
 package cli
 
 import (

@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the structured logger in the log package
+// ABOUTME: Verifies level filtering, prefix formatting, global logger configuration, and output routing
+
 package log
 
 import (

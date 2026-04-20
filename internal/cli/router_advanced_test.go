@@ -1,3 +1,6 @@
+// ABOUTME: Advanced invocation detection tests for the cli router
+// ABOUTME: Covers DetectInvocation direct/symlink/unknown scenarios, PrintDebugInfo output, and getWorkingDir helper
+
 package cli
 
 import (

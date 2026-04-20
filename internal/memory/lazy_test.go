@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the LazyValue type in the memory package
+// ABOUTME: Verifies on-demand loading, single-load guarantee under concurrency, error propagation, and cache invalidation
+
 package memory
 
 import (

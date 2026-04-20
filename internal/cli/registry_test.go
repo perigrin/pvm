@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the CommandRegistry in the cli package
+// ABOUTME: Verifies command registration, retrieval, listing, and deregistration semantics
+
 package cli
 
 import (

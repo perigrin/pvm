@@ -1,3 +1,6 @@
+// ABOUTME: Tests for the generic arena-style Pool type in the core package
+// ABOUTME: Validates allocation, slice allocation, reset, clear, concurrent access, and the PoolManager registry
+
 package core
 
 import (
