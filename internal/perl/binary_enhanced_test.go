@@ -1,5 +1,5 @@
-// ABOUTME: Tests for enhanced binary download behavior in the perl package
-// ABOUTME: Covers progress tracking, bandwidth limiting, retry logic, and checksum verification using an HTTP test server
+// ABOUTME: Tests for binary download with progress tracking, bandwidth limiting, retries, and checksum verification
+// ABOUTME: Uses httptest.Server-backed fixtures and a bandwidth limiter to exercise download infrastructure
 
 package perl
 
