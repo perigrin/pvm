@@ -3248,7 +3248,7 @@ func installTool(cmd *cobra.Command, toolSpec string, global bool) error {
 
 		errorMsg += "\n\nTo troubleshoot:"
 		errorMsg += fmt.Sprintf("\n  pvm tool add %s --verbose  # For detailed output", toolName)
-		errorMsg += "\n  pvm doctor                   # Check system health"
+		errorMsg += "\n  pvm self doctor              # Check system health"
 
 		return fmt.Errorf("%s\n\nOriginal error: %v", errorMsg, err)
 	}
@@ -5449,7 +5449,7 @@ func runAutoFix(ui *ui.Output, dryRun, skipConfirmation bool) error {
 
 	// Show verification command
 	if !dryRun && (len(result.Fixed) > 0 || result.RequiresRestart) {
-		ui.Info("Verify installation: pvm doctor")
+		ui.Info("Verify installation: pvm self doctor")
 		if result.RequiresRestart {
 			ui.Info("After restarting shell: pvm current")
 		}
@@ -5506,7 +5506,7 @@ func handleRollback(ui *ui.Output) {
 	}
 
 	ui.Success("✓ Successfully rolled back %d files", len(session.Backups))
-	ui.Info("Run 'pvm doctor' to verify the current state")
+	ui.Info("Run 'pvm self doctor' to verify the current state")
 }
 
 // runTraditionalDiagnostics runs the traditional diagnostic checks without auto-fix

@@ -44,3 +44,19 @@ func TestEnhanceResolutionErrorReturnsNilForNil(t *testing.T) {
 		t.Errorf("expected nil for nil input, got %v", got)
 	}
 }
+
+func TestEnhanceResolutionErrorDoesNotSuggestPerlResolveDebug(t *testing.T) {
+	// 'pvm perl resolve --debug' was tried as a replacement for the dead
+	// 'pvm resolve' suggestion. The --debug flag is a root persistent flag
+	// that prints a generic ecosystem-info banner, not resolver internals,
+	// so the suggestion promised debug behavior the command does not deliver.
+	// Plain 'pvm perl resolve' already prints Resolved version, Source, and
+	// Path — sufficient for the user's debugging need.
+	enhanced := enhanceResolutionError(stdErrors.New("could not find perl"))
+	if enhanced == nil {
+		t.Fatal("expected non-nil enhanced error")
+	}
+	if strings.Contains(enhanced.Error(), "pvm perl resolve --debug") {
+		t.Errorf("error suggests 'pvm perl resolve --debug' which produces no resolver-specific debug output: %q", enhanced.Error())
+	}
+}

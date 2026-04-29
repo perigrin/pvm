@@ -286,7 +286,7 @@ func (p *TAPParser) GetRecoveryActions(module string, results *errors.TestResult
 	if strings.Contains(cause, "XS compilation") {
 		actions = append(actions, errors.ActionOption{
 			Description: "Check build tools",
-			Command:     "pvm doctor --build-tools",
+			Command:     "pvm self doctor",
 		})
 	}
 

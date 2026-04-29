@@ -337,7 +337,7 @@ func NewPerlInstallFailureError(version string, stage string, cause error) *Vers
 		actions = []ActionOption{
 			{
 				Description: "Check build dependencies",
-				Command:     "pvm doctor",
+				Command:     "pvm self doctor",
 			},
 			{
 				Description: "See compilation errors",
