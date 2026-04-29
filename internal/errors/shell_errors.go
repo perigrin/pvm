@@ -93,8 +93,8 @@ func (sie *ShellIntegrationError) addShellIntegrationGuidance() {
 	}
 
 	// Add verification step
-	sie.WithRecoveryAction("Verify installation: pvm doctor")
-	sie.WithRecoveryAction("Quick fix: pvm doctor --fix")
+	sie.WithRecoveryAction("Verify installation: pvm self doctor")
+	sie.WithRecoveryAction("Quick fix: pvm self doctor --fix")
 
 	// Add context about detected configuration
 	sie.WithContext("detected_shell", sie.shellType)
@@ -121,7 +121,7 @@ func (sie *ShellIntegrationError) addShellConfigGuidance() {
 	}
 
 	sie.WithRecoveryAction("Restart your shell or run 'source <config_file>'")
-	sie.WithRecoveryAction("Auto-fix: pvm doctor --fix")
+	sie.WithRecoveryAction("Auto-fix: pvm self doctor --fix")
 }
 
 // addEnvironmentGuidance provides guidance for environment setup issues
@@ -178,7 +178,7 @@ func (sie *ShellIntegrationError) addDirectoryGuidance() {
 
 	sie.WithRecoveryAction("Required PVM directories are missing")
 	sie.WithRecoveryAction("Run: pvm init (creates required directories)")
-	sie.WithRecoveryAction("Auto-fix: pvm doctor --fix")
+	sie.WithRecoveryAction("Auto-fix: pvm self doctor --fix")
 
 	// Add specific directory information
 	xdgBinHome := os.Getenv("XDG_BIN_HOME")

@@ -111,6 +111,24 @@ func (afe *AutoFixEngine) registerFixes() {
 	})
 }
 
+// HasApplicableFixes reports whether any registered auto-fix would actually
+// run against the current environment. Used by the doctor summary to decide
+// whether suggesting `--fix` will resolve the user's warnings or just be
+// noise. CheckFunc errors are treated as "needs investigation" (returns true)
+// so we err on the side of pointing the user at --fix when uncertain.
+func (afe *AutoFixEngine) HasApplicableFixes(ctx *FixContext) bool {
+	for _, fix := range afe.fixes {
+		needsFix, err := fix.CheckFunc(ctx)
+		if err != nil {
+			return true
+		}
+		if needsFix {
+			return true
+		}
+	}
+	return false
+}
+
 // RunAutoFixes executes auto-fixes based on the provided context
 func (afe *AutoFixEngine) RunAutoFixes(ctx *FixContext) (*FixResult, error) {
 	result := &FixResult{

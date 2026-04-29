@@ -940,7 +940,7 @@ func showTroubleshootingHelp(cmd *cobra.Command, helpManager *HelpManager) error
 	ui.Warning("Environment Issues")
 	ui.Info("Problem: Wrong Perl version being used")
 	ui.Success("Solution: Check version resolution and shell integration")
-	ui.Printf("Commands: pvm resolve, pvm shell setup\n")
+	ui.Printf("Commands: pvm perl resolve, pvm shell setup\n")
 	ui.Println("")
 
 	ui.SubHeader("Diagnostic Commands")
@@ -948,7 +948,7 @@ func showTroubleshootingHelp(cmd *cobra.Command, helpManager *HelpManager) error
 		"Check overall workspace health: pvm workspace doctor",
 		"View detailed workspace status: pvm workspace status --json",
 		"Check dependency status: pvm module status",
-		"Verify Perl version resolution: pvm resolve",
+		"Verify Perl version resolution: pvm perl resolve",
 	}
 	ui.List(diagnosticCommands)
 

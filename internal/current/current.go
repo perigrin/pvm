@@ -261,7 +261,7 @@ func enhanceResolutionError(err error) error {
 	}
 
 	// For other errors, just add a generic helpful message
-	return fmt.Errorf("failed to resolve current Perl version: %w\n\nFor help with version resolution, run 'pvm help' or 'pvm resolve' to debug", err)
+	return fmt.Errorf("failed to resolve current Perl version: %w\n\nFor help with version resolution, run 'pvm help' or 'pvm perl resolve --debug' to debug", err)
 }
 
 // ShouldShowDirectoryChangeAlerts checks if directory change alerts should be shown

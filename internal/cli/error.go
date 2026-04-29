@@ -366,23 +366,25 @@ func DisplayEnhancedError(output *ui.Output, err *errors.EnhancedError) {
 		output.Error("%s-%s: %s", err.Prefix(), err.Code(), err.Message())
 	}
 
-	output.Printf("")
+	output.Println()
 
-	// Display context information if available
+	// Display context information if available. Printf does not append a
+	// trailing newline, so each line-oriented field needs an explicit \n;
+	// otherwise they collapse into a single line of output.
 	if context := err.Context(); len(context) > 0 {
 		if cmdName, ok := context["command"].(string); ok {
-			output.Printf("Command: %s", cmdName)
+			output.Printf("Command: %s\n", cmdName)
 		}
 		if desc, ok := context["description"].(string); ok {
-			output.Printf("Issue: %s", desc)
+			output.Printf("Issue: %s\n", desc)
 		}
 		if shell, ok := context["detected_shell"].(string); ok {
-			output.Printf("Detected shell: %s", shell)
+			output.Printf("Detected shell: %s\n", shell)
 		}
 		if conflicts, ok := context["detected_conflicts"].([]string); ok && len(conflicts) > 0 {
-			output.Printf("Conflicting version managers: %v", conflicts)
+			output.Printf("Conflicting version managers: %v\n", conflicts)
 		}
-		output.Printf("")
+		output.Println()
 	}
 
 	// Display recovery actions with clear formatting
@@ -391,25 +393,25 @@ func DisplayEnhancedError(output *ui.Output, err *errors.EnhancedError) {
 		for i, action := range actions {
 			// Skip numbered actions for examples
 			if strings.HasPrefix(action, "Examples") {
-				output.Printf("")
+				output.Println()
 				output.Info("%s", action)
 				continue
 			}
 			// Format action items nicely
 			if strings.HasPrefix(action, "  ") {
 				// This is an example or sub-item, show it indented
-				output.Printf("%s", action)
+				output.Printf("%s\n", action)
 			} else {
 				// This is a main action item, number it
-				output.Printf("%d. %s", i+1, action)
+				output.Printf("%d. %s\n", i+1, action)
 			}
 		}
-		output.Printf("")
+		output.Println()
 	}
 
 	// Display hint if available
 	if hint := err.Hint(); hint != "" {
 		output.Info("Hint: %s", hint)
-		output.Printf("")
+		output.Println()
 	}
 }

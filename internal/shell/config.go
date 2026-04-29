@@ -238,7 +238,7 @@ func (cm *ConfigManager) appendPVMInit(filePath string, config *ShellConfig) err
 	content := fmt.Sprintf(`
 
 # PVM (Perl Version Manager) initialization
-# Added by 'pvm doctor --fix'
+# Added by 'pvm self doctor --fix'
 %s
 `, config.InitCommand)
 
@@ -261,9 +261,13 @@ func (cm *ConfigManager) removePVMInit(filePath string) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Check if this line starts a PVM section
+		// Check if this line starts a PVM section. Match both the legacy
+		// "pvm doctor --fix" marker (still present in shell rc files written
+		// by older PVM versions) and the current "pvm self doctor --fix"
+		// marker, so removal works on both.
 		if strings.Contains(line, "PVM (Perl Version Manager)") ||
-			strings.Contains(line, "Added by 'pvm doctor --fix'") {
+			strings.Contains(line, "Added by 'pvm doctor --fix'") ||
+			strings.Contains(line, "Added by 'pvm self doctor --fix'") {
 			inPVMSection = true
 			continue
 		}

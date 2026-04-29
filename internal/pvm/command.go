@@ -5585,7 +5585,6 @@ func runTraditionalDiagnostics(ui *ui.Output) {
 			ui.Println()
 		}
 
-		ui.Info("💡 Run 'pvm doctor --fix' to automatically resolve common issues")
-		ui.Info("💡 Run 'pvm doctor --dry-run' to preview what would be fixed")
+		ui.Info("💡 %s", doctorSummaryTip(hasApplicableAutoFixes(ui)))
 	}
 }
