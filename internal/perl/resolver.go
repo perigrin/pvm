@@ -837,9 +837,13 @@ func resolveFromUserConfig(cfg *config.Config, availableVersions []string) (*Res
 	}, nil
 }
 
-// resolveFromSystemPerl falls back to using the system Perl installation
+// resolveFromSystemPerl falls back to using the system Perl installation.
+// Prefers an explicit registry entry (Source=="system") so that
+// `pvm import-system` results stay authoritative, but falls back to runtime
+// PATH detection so users who never imported still get a working resolution
+// after `pvm use system`.
 func resolveFromSystemPerl() (*ResolvedVersion, error) {
-	// Find system perl in registry by looking for version with source="system"
+	// Prefer the registry entry when present.
 	installedVersions, err := GetInstalledVersions()
 	if err != nil {
 		return nil, err
@@ -847,7 +851,6 @@ func resolveFromSystemPerl() (*ResolvedVersion, error) {
 
 	for _, versionInfo := range installedVersions {
 		if versionInfo.Source == "system" {
-			// Found system perl in registry
 			// For system perl, InstallPath might be either the prefix directory (e.g., /usr) or the bin directory (e.g., /usr/bin)
 			var perlPath string
 			if filepath.Base(versionInfo.InstallPath) == "bin" {
@@ -873,9 +876,25 @@ func resolveFromSystemPerl() (*ResolvedVersion, error) {
 		}
 	}
 
+	// No registry entry. Detect on PATH. This is the path users hit when
+	// they run `pvm use system` without ever having run `pvm import-system`.
+	// Without this fallback, `pvm current` after `pvm use system` errors
+	// out with "Failed to resolve Perl version using any method" even
+	// though /usr/bin/perl is right there.
+	systemPerl, detectErr := DetectSystemPerl()
+	if detectErr == nil && systemPerl != nil {
+		return &ResolvedVersion{
+			Version:    systemPerl.Version,
+			Library:    "",
+			Source:     SystemPerlSource,
+			Path:       systemPerl.Path,
+			SourcePath: "",
+		}, nil
+	}
+
 	return nil, errors.NewVersionError(
 		ErrResolutionFailed,
-		"System Perl not found in registry. Run 'pvm import-system' to register it.",
+		"System Perl not found. No registry entry (run 'pvm import-system') and none detectable on PATH.",
 		nil)
 }
 
