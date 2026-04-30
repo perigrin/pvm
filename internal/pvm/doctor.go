@@ -267,11 +267,13 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 			*issues = append(*issues, "Registry missing but versions directory contains installations")
 			ui.Error("Registry file missing: %s", registryPath)
 			return nil
-		} else {
-			*warnings = append(*warnings, "Registry file doesn't exist (no versions installed)")
-			ui.Warning("No registry file found, but no versions are installed")
-			return nil
 		}
+		// Fresh install: no registry, no versions. This is the expected
+		// steady state — the registry is created on first install. Show
+		// it as a positive check rather than a warning so users don't
+		// learn to ignore doctor output.
+		ui.Success("Registry will be created when you install your first Perl version")
+		return nil
 	}
 
 	// Load and validate registry
