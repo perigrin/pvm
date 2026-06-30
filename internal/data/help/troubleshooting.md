@@ -27,7 +27,7 @@
 
 ## Diagnostic Commands
 
-- Check overall workspace health: `pvm self doctor`
+- Check overall workspace health: `pvm workspace doctor`
 - View detailed workspace status: `pvm workspace status --json`
 - Check dependency status: `pvm module status`
 - Verify Perl version resolution: `pvm perl resolve`

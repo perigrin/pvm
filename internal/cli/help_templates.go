@@ -75,8 +75,12 @@ func RenderMarkdownAsHelp(markdown string, output *ui.Output) {
 			// Commands
 			output.Printf("%s\n", line)
 		case strings.HasPrefix(line, "- "):
-			// List items - collect and render as list
-			continue // We'll handle list rendering separately
+			// List item — print as a bulleted line. The earlier "collect
+			// and render as list separately" plan was never implemented,
+			// so the bullets were silently dropped, hiding the
+			// "Diagnostic Commands" section of troubleshooting.md from
+			// users.
+			output.Printf("  %s\n", line)
 		case strings.HasPrefix(line, "`") && strings.HasSuffix(line, "`"):
 			// Inline code
 			output.Printf("  %s\n", line)
