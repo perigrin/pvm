@@ -351,6 +351,33 @@ func FormatError(err error) string {
 	return formatter.Format(err)
 }
 
+// sanitizeForTerminal strips control bytes from s so attacker-influenceable
+// input (e.g. PATH directory names that flow into "detected_conflicts")
+// cannot inject ANSI escape sequences, overwrite output via \r, or fake
+// extra lines via \n. Tabs (0x09) and newlines (0x0a) are stripped along
+// with the rest because we apply this to single-line VALUES — the
+// surrounding format strings provide their own line breaks. Each stripped
+// byte is replaced with '?' so the user sees that something was removed
+// rather than getting silently truncated content.
+func sanitizeForTerminal(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return '?'
+		}
+		return r
+	}, s)
+}
+
+// sanitizeStrings applies sanitizeForTerminal to every element of in,
+// returning a new slice (in is not mutated).
+func sanitizeStrings(in []string) []string {
+	out := make([]string, len(in))
+	for i, s := range in {
+		out[i] = sanitizeForTerminal(s)
+	}
+	return out
+}
+
 // DisplayEnhancedError displays an enhanced error using the provided UI output
 // This is used by commands that want to show detailed error information
 func DisplayEnhancedError(output *ui.Output, err *errors.EnhancedError) {
@@ -371,26 +398,35 @@ func DisplayEnhancedError(output *ui.Output, err *errors.EnhancedError) {
 	// Display context information if available. Printf does not append a
 	// trailing newline, so each line-oriented field needs an explicit \n;
 	// otherwise they collapse into a single line of output.
+	//
+	// Every value sourced from context is sanitized before printing —
+	// some context values (notably "detected_conflicts", which is built
+	// from PATH directory names) carry attacker-influenceable bytes.
+	// Without sanitization a malicious PATH entry could inject ANSI
+	// escape codes, overwrite output via \r, or fake fresh lines via \n.
 	if context := err.Context(); len(context) > 0 {
 		if cmdName, ok := context["command"].(string); ok {
-			output.Printf("Command: %s\n", cmdName)
+			output.Printf("Command: %s\n", sanitizeForTerminal(cmdName))
 		}
 		if desc, ok := context["description"].(string); ok {
-			output.Printf("Issue: %s\n", desc)
+			output.Printf("Issue: %s\n", sanitizeForTerminal(desc))
 		}
 		if shell, ok := context["detected_shell"].(string); ok {
-			output.Printf("Detected shell: %s\n", shell)
+			output.Printf("Detected shell: %s\n", sanitizeForTerminal(shell))
 		}
 		if conflicts, ok := context["detected_conflicts"].([]string); ok && len(conflicts) > 0 {
-			output.Printf("Conflicting version managers: %v\n", conflicts)
+			output.Printf("Conflicting version managers: %v\n", sanitizeStrings(conflicts))
 		}
 		output.Println()
 	}
 
-	// Display recovery actions with clear formatting
+	// Display recovery actions with clear formatting. Recovery actions can
+	// interpolate paths derived from $HOME (via WithRecoveryAction +
+	// fmt.Sprintf), so the same sanitation applies.
 	if actions := err.RecoveryActions(); len(actions) > 0 {
 		output.Info("To fix this issue:")
 		for i, action := range actions {
+			action = sanitizeForTerminal(action)
 			// Skip numbered actions for examples
 			if strings.HasPrefix(action, "Examples") {
 				output.Println()
@@ -411,7 +447,7 @@ func DisplayEnhancedError(output *ui.Output, err *errors.EnhancedError) {
 
 	// Display hint if available
 	if hint := err.Hint(); hint != "" {
-		output.Info("Hint: %s", hint)
+		output.Info("Hint: %s", sanitizeForTerminal(hint))
 		output.Println()
 	}
 }
