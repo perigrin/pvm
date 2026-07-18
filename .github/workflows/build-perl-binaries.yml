@@ -17,6 +17,11 @@ on:
         required: false
         default: ''
         type: string
+      platforms:
+        description: 'Comma-separated platforms to build (subset of: linux-amd64,darwin-amd64,darwin-arm64). Use to skip a platform whose runner is unavailable.'
+        required: false
+        default: 'linux-amd64,darwin-amd64,darwin-arm64'
+        type: string
 
 # Required permissions for GitHub token to create releases and upload assets
 permissions:
@@ -77,14 +82,17 @@ jobs:
 
       - name: Generate build matrix
         id: matrix
+        env:
+          # Passed via env (not inline ${{ }}) to avoid shell injection.
+          PLATFORMS_INPUT: ${{ github.event.inputs.platforms }}
         run: |
           # Convert comma-separated versions to JSON array
           VERSIONS_JSON=$(echo "${{ steps.versions.outputs.versions }}" | jq -R 'split(",") | map(select(length > 0))')
 
-          # Platform matrix. macOS relocation (install_name_tool +
-          # codesign) is implemented in internal/perl/relocatable.go
-          # alongside the Linux patchelf path.
-          PLATFORMS='["linux-amd64", "darwin-amd64", "darwin-arm64"]'
+          # Platform matrix from the dispatch input (defaults to all three).
+          # macOS relocation (install_name_tool + codesign) is implemented in
+          # internal/perl/relocatable.go alongside the Linux patchelf path.
+          PLATFORMS=$(printf '%s' "$PLATFORMS_INPUT" | jq -R 'split(",") | map(select(length > 0))')
 
           MATRIX=$(jq -n --argjson versions "$VERSIONS_JSON" --argjson platforms "$PLATFORMS" '{
             include: [
