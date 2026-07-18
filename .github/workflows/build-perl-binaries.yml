@@ -165,9 +165,20 @@ jobs:
           PERL_SOURCE_URL: ${{ github.event.inputs.perl_source_url }}
           MATRIX_VERSION: ${{ matrix.version }}
         run: |
-          if [ -n "$PERL_SOURCE_URL" ]; then
-            echo "Building from source URL: $PERL_SOURCE_URL"
+          # The URL override only applies to the matrix version it names, so a
+          # multi-version dispatch with a single URL builds the other versions
+          # normally instead of pointing them all at the same source.
+          if [ -n "$PERL_SOURCE_URL" ] && printf '%s' "$PERL_SOURCE_URL" | grep -qF "perl-$MATRIX_VERSION."; then
+            echo "Building version $MATRIX_VERSION from source URL: $PERL_SOURCE_URL"
             ./pvm perl build "$PERL_SOURCE_URL"
+            # pvm names the install dir from the version detected in the tarball.
+            # Downstream steps (tarball, artifact, release tag) use $MATRIX_VERSION,
+            # so refuse to continue if the detected version diverged — otherwise we
+            # would publish a binary under the wrong tag.
+            if [ ! -x "$HOME/.local/share/pvm/versions/$MATRIX_VERSION/bin/perl" ]; then
+              echo "::error::URL build did not produce versions/$MATRIX_VERSION; detected version differs from $MATRIX_VERSION, refusing to publish under the wrong tag" >&2
+              exit 1
+            fi
           else
             ./pvm perl build "$MATRIX_VERSION"
           fi
