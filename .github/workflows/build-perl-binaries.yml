@@ -17,6 +17,11 @@ on:
         required: false
         default: ''
         type: string
+      platforms:
+        description: 'Comma-separated platforms to build (subset of: linux-amd64,darwin-amd64,darwin-arm64). Use to skip a platform whose runner is unavailable.'
+        required: false
+        default: 'linux-amd64,darwin-amd64,darwin-arm64'
+        type: string
 
 # Required permissions for GitHub token to create releases and upload assets
 permissions:
@@ -77,14 +82,17 @@ jobs:
 
       - name: Generate build matrix
         id: matrix
+        env:
+          # Passed via env (not inline ${{ }}) to avoid shell injection.
+          PLATFORMS_INPUT: ${{ github.event.inputs.platforms }}
         run: |
           # Convert comma-separated versions to JSON array
           VERSIONS_JSON=$(echo "${{ steps.versions.outputs.versions }}" | jq -R 'split(",") | map(select(length > 0))')
 
-          # Platform matrix. macOS relocation (install_name_tool +
-          # codesign) is implemented in internal/perl/relocatable.go
-          # alongside the Linux patchelf path.
-          PLATFORMS='["linux-amd64", "darwin-amd64", "darwin-arm64"]'
+          # Platform matrix from the dispatch input (defaults to all three).
+          # macOS relocation (install_name_tool + codesign) is implemented in
+          # internal/perl/relocatable.go alongside the Linux patchelf path.
+          PLATFORMS=$(printf '%s' "$PLATFORMS_INPUT" | jq -R 'split(",") | map(select(length > 0))')
 
           MATRIX=$(jq -n --argjson versions "$VERSIONS_JSON" --argjson platforms "$PLATFORMS" '{
             include: [
@@ -95,7 +103,7 @@ jobs:
                   if $platform == "linux-amd64" then "ubuntu-latest"
                   elif $platform == "darwin-amd64" then "macos-13"
                   elif $platform == "darwin-arm64" then "macos-latest"
-                  else "ubuntu-latest" end
+                  else error("unknown platform: \($platform) (valid: linux-amd64, darwin-amd64, darwin-arm64)") end
                 )
               }
             ]
@@ -218,13 +226,29 @@ jobs:
       - name: Create GitHub release with all binaries
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ matrix.version }}
+          REPO: ${{ github.repository }}
         run: |
-          # Create release for this Perl version
-          gh release create perl-${{ matrix.version }} \
-            --repo ${{ github.repository }} \
-            --title "Perl ${{ matrix.version }} Binaries" \
-            --notes "Pre-built Perl ${{ matrix.version }} binaries for Linux and macOS platforms" \
-            ./binaries/perl-${{ matrix.version }}-*.tar.gz
+          # Derive the platforms actually present from the downloaded tarballs,
+          # so a partial build (e.g. a platform skipped for runner availability)
+          # produces honest release notes instead of claiming all platforms.
+          PLATFORMS_PRESENT=$(ls ./binaries/perl-"$VERSION"-*.tar.gz \
+            | sed -E "s#.*perl-$VERSION-##; s#\.tar\.gz\$##" | paste -sd, -)
+          NOTES="Pre-built Perl $VERSION binaries. Platforms in this release: $PLATFORMS_PRESENT"
+
+          # Create the release if the tag is new, otherwise add/replace assets on
+          # the existing one, so a later run can fill in a platform that was
+          # skipped earlier without failing on the existing tag.
+          if gh release view "perl-$VERSION" --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload "perl-$VERSION" --repo "$REPO" --clobber \
+              ./binaries/perl-"$VERSION"-*.tar.gz
+          else
+            gh release create "perl-$VERSION" \
+              --repo "$REPO" \
+              --title "Perl $VERSION Binaries" \
+              --notes "$NOTES" \
+              ./binaries/perl-"$VERSION"-*.tar.gz
+          fi
 
   # Summary job
   summary:
