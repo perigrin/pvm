@@ -12,6 +12,11 @@ on:
         required: false
         default: 'latest2'
         type: string
+      perl_source_url:
+        description: 'Optional source tarball URL to build from (e.g. author path for a release not yet on /src/5.0/). Only valid for a single version in perl_versions.'
+        required: false
+        default: ''
+        type: string
 
 # Required permissions for GitHub token to create releases and upload assets
 permissions:
@@ -154,8 +159,29 @@ jobs:
           ./pvm version
 
       - name: Build Perl binary (no upload)
+        env:
+          # Optional source URL for a release not yet mirrored to /src/5.0/.
+          # Passed via env (not inline ${{ }}) to avoid shell injection.
+          PERL_SOURCE_URL: ${{ github.event.inputs.perl_source_url }}
+          MATRIX_VERSION: ${{ matrix.version }}
         run: |
-          ./pvm perl build ${{ matrix.version }}
+          # The URL override only applies to the matrix version it names, so a
+          # multi-version dispatch with a single URL builds the other versions
+          # normally instead of pointing them all at the same source.
+          if [ -n "$PERL_SOURCE_URL" ] && printf '%s' "$PERL_SOURCE_URL" | grep -qF "perl-$MATRIX_VERSION."; then
+            echo "Building version $MATRIX_VERSION from source URL: $PERL_SOURCE_URL"
+            ./pvm perl build "$PERL_SOURCE_URL"
+            # pvm names the install dir from the version detected in the tarball.
+            # Downstream steps (tarball, artifact, release tag) use $MATRIX_VERSION,
+            # so refuse to continue if the detected version diverged — otherwise we
+            # would publish a binary under the wrong tag.
+            if [ ! -x "$HOME/.local/share/pvm/versions/$MATRIX_VERSION/bin/perl" ]; then
+              echo "::error::URL build did not produce versions/$MATRIX_VERSION; detected version differs from $MATRIX_VERSION, refusing to publish under the wrong tag" >&2
+              exit 1
+            fi
+          else
+            ./pvm perl build "$MATRIX_VERSION"
+          fi
         timeout-minutes: 120
 
       - name: Create binary archive
