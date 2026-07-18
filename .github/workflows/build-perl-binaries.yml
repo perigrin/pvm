@@ -12,6 +12,11 @@ on:
         required: false
         default: 'latest2'
         type: string
+      perl_source_url:
+        description: 'Optional source tarball URL to build from (e.g. author path for a release not yet on /src/5.0/). Only valid for a single version in perl_versions.'
+        required: false
+        default: ''
+        type: string
 
 # Required permissions for GitHub token to create releases and upload assets
 permissions:
@@ -154,8 +159,18 @@ jobs:
           ./pvm version
 
       - name: Build Perl binary (no upload)
+        env:
+          # Optional source URL for a release not yet mirrored to /src/5.0/.
+          # Passed via env (not inline ${{ }}) to avoid shell injection.
+          PERL_SOURCE_URL: ${{ github.event.inputs.perl_source_url }}
+          MATRIX_VERSION: ${{ matrix.version }}
         run: |
-          ./pvm perl build ${{ matrix.version }}
+          if [ -n "$PERL_SOURCE_URL" ]; then
+            echo "Building from source URL: $PERL_SOURCE_URL"
+            ./pvm perl build "$PERL_SOURCE_URL"
+          else
+            ./pvm perl build "$MATRIX_VERSION"
+          fi
         timeout-minutes: 120
 
       - name: Create binary archive
