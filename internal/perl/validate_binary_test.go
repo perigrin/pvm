@@ -6,6 +6,7 @@ package perl
 import (
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -424,4 +425,88 @@ func createCompleteTestInstallation(installDir string) error {
 	}
 
 	return os.WriteFile(perlPath, []byte("#!/usr/bin/perl\n"), 0755)
+}
+
+// A binary whose @INC is broken can still run `perl -v` and a no-module
+// one-liner, but fails to load core modules. Validation must reject it (#472),
+// not report success as it did for the pre-#449 non-relocatable binaries.
+func TestValidatePerlModuleLoad(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake shell-script perl not applicable on Windows")
+	}
+	tmp := t.TempDir()
+	perlPath := filepath.Join(tmp, "perl")
+
+	// Fake perl: answers -v and a plain -e, but fails when asked to load a
+	// module (any invocation containing -M), like an @INC-broken binary.
+	script := `#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in
+    -M*) echo "Can't locate Config.pm in @INC" >&2; exit 2 ;;
+  esac
+done
+case "$1" in
+  -v) echo "This is perl 5, version 44, subversion 0 (v5.44.0)"; exit 0 ;;
+  -e) printf 'Hello World'; exit 0 ;;
+esac
+exit 0
+`
+	if err := os.WriteFile(perlPath, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake perl: %v", err)
+	}
+
+	_, _, _, err := testPerlExecution(perlPath)
+	if err == nil {
+		t.Error("testPerlExecution should fail for a binary that cannot load core modules (broken @INC)")
+	}
+}
+
+// A healthy perl — one that answers -v, a plain -e, AND a module-load -e —
+// must pass validation. This guards against the probe itself being malformed
+// (e.g. an -e argument that a working perl rejects), which would otherwise
+// reject every good binary while the broken-@INC test above still passed.
+func TestValidatePerlModuleLoad_HealthyPerlPasses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake shell-script perl not applicable on Windows")
+	}
+	tmp := t.TempDir()
+	perlPath := filepath.Join(tmp, "perl")
+
+	// Fake perl that succeeds for every invocation testPerlExecution makes:
+	// `-v`, `-e 'print "Hello World"'`, and the `-MConfig -e ...` module probe.
+	script := `#!/bin/sh
+case "$1" in
+  -v) echo "This is perl 5, version 44, subversion 0 (v5.44.0)"; exit 0 ;;
+  -e) printf 'Hello World'; exit 0 ;;
+  -M*) exit 0 ;;
+esac
+exit 0
+`
+	if err := os.WriteFile(perlPath, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake perl: %v", err)
+	}
+
+	if _, _, _, err := testPerlExecution(perlPath); err != nil {
+		t.Errorf("testPerlExecution should pass for a healthy perl, got: %v", err)
+	}
+}
+
+// Run the real system perl through testPerlExecution. A fake shell perl can't
+// catch a malformed probe (e.g. an `-e` argument the interpreter rejects) —
+// only a real perl parses the flags. This is the guard that would have caught
+// a module probe that fails on a working binary.
+func TestValidatePerlModuleLoad_RealPerlPasses(t *testing.T) {
+	perlPath, err := exec.LookPath("perl")
+	if err != nil {
+		t.Skip("no system perl available")
+	}
+	// Confirm the real perl can load Config at all; if not, skip rather than
+	// fail (the host perl itself may be broken/unusual).
+	if err := exec.Command(perlPath, "-MConfig", "-e", "print 1").Run(); err != nil {
+		t.Skipf("system perl cannot load Config, skipping: %v", err)
+	}
+
+	if _, _, _, err := testPerlExecution(perlPath); err != nil {
+		t.Errorf("testPerlExecution should pass for the real system perl, got: %v", err)
+	}
 }
