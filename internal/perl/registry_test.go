@@ -120,6 +120,58 @@ func TestRegisterVersion(t *testing.T) {
 	assert.True(t, found, "Version 5.38.0 should be found in file registry")
 }
 
+// TestRegisterVersionIsIdempotent verifies that re-registering the same version
+// at the same path updates the existing entry instead of appending a duplicate.
+// Without this, install/uninstall cycles accumulate duplicate registry entries
+// and `pvm list` shows the same version many times (#471).
+func TestRegisterVersionIsIdempotent(t *testing.T) {
+	registry, _, cleanup := setupTestRegistry(t)
+	defer cleanup()
+
+	versionInfo := VersionInfo{
+		Version:     "5.44.0",
+		InstallPath: "/opt/perl/5.44.0",
+		InstallTime: time.Now(),
+		Source:      "pvm",
+	}
+
+	// Register the same version three times (simulating install/uninstall cycles).
+	for i := 0; i < 3; i++ {
+		require.NoError(t, RegisterVersion(versionInfo))
+	}
+
+	// Only one entry should exist for the version.
+	count := 0
+	for _, v := range registry.Versions {
+		if v.Version == "5.44.0" {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "re-registering the same version must not create duplicates")
+}
+
+// A different install path for the same version is a distinct install and must
+// not be collapsed into one entry.
+func TestRegisterVersionDistinctPathsKept(t *testing.T) {
+	registry, _, cleanup := setupTestRegistry(t)
+	defer cleanup()
+
+	require.NoError(t, RegisterVersion(VersionInfo{
+		Version: "5.44.0", InstallPath: "/opt/a/5.44.0", Source: "pvm",
+	}))
+	require.NoError(t, RegisterVersion(VersionInfo{
+		Version: "5.44.0", InstallPath: "/opt/b/5.44.0", Source: "pvm",
+	}))
+
+	count := 0
+	for _, v := range registry.Versions {
+		if v.Version == "5.44.0" {
+			count++
+		}
+	}
+	assert.Equal(t, 2, count, "distinct install paths must be kept as separate entries")
+}
+
 // TestRegisterVersionNormalization tests version normalization during registration
 func TestRegisterVersionNormalization(t *testing.T) {
 	// Set up test registry
@@ -162,8 +214,8 @@ func TestRegisterVersionNormalization(t *testing.T) {
 	assert.False(t, foundUnnormalized, "Unnormalized version v5.38 should not be found in registry")
 }
 
-// TestRegisterVersionAlreadyExists tests handling of duplicate version registration
-// Note: Current registry implementation allows duplicates (uses UUID keys)
+// TestRegisterVersionAlreadyExists tests that re-registering the same install
+// updates in place rather than creating a duplicate entry (#471).
 func TestRegisterVersionAlreadyExists(t *testing.T) {
 	// Set up test registry
 	registry, _, cleanup := setupTestRegistry(t)
@@ -184,21 +236,21 @@ func TestRegisterVersionAlreadyExists(t *testing.T) {
 	// Verify first registration worked
 	assert.Len(t, registry.Versions, 1)
 
-	// Register the same version again (should succeed with current implementation)
+	// Register the same version+path again: it must update the existing entry
+	// in place, not append a duplicate (#471).
 	err = RegisterVersion(versionInfo)
 	require.NoError(t, err)
 
-	// Verify we now have two entries (with different UUIDs) for the same version
-	assert.Len(t, registry.Versions, 2)
+	// Still exactly one entry for the version.
+	assert.Len(t, registry.Versions, 1)
 
-	// Both entries should have the same version string
 	versionCount := 0
 	for _, v := range registry.Versions {
 		if v.Version == "5.38.0" {
 			versionCount++
 		}
 	}
-	assert.Equal(t, 2, versionCount, "Should have two entries for version 5.38.0")
+	assert.Equal(t, 1, versionCount, "Re-registering the same install must not duplicate the entry")
 }
 
 // TestRegisterVersionInvalidVersion tests handling of invalid version strings
@@ -1051,4 +1103,49 @@ func TestIsVersionInstalled(t *testing.T) {
 	// Test invalid version
 	_, err = IsVersionInstalled("not-a-version")
 	assert.Error(t, err)
+}
+
+// TestDeduplicateRegistry collapses pre-existing duplicate entries (same
+// version + install path + remote) that were accumulated before RegisterVersion
+// became idempotent (#471), while preserving genuinely distinct installs.
+func TestDeduplicateRegistry(t *testing.T) {
+	reg := &VersionRegistry{Versions: map[string]VersionInfo{
+		"u1": {Version: "5.44.0", InstallPath: "/opt/5.44.0", Source: "pvm"},
+		"u2": {Version: "5.44.0", InstallPath: "/opt/5.44.0", Source: "pvm"},   // dup of u1
+		"u3": {Version: "5.44.0", InstallPath: "/opt/5.44.0", Source: "pvm"},   // dup of u1
+		"u4": {Version: "5.44.0", InstallPath: "/other/5.44.0", Source: "pvm"}, // distinct path
+		"u5": {Version: "5.40.0", InstallPath: "/opt/5.40.0", Source: "pvm"},
+	}}
+
+	removed := deduplicateRegistryEntries(reg)
+
+	if removed != 2 {
+		t.Errorf("expected 2 duplicates removed, got %d", removed)
+	}
+	// Distinct installs remain: 5.44.0@/opt, 5.44.0@/other, 5.40.0@/opt = 3
+	if len(reg.Versions) != 3 {
+		t.Errorf("expected 3 entries after dedup, got %d", len(reg.Versions))
+	}
+}
+
+// Trailing-slash (or otherwise uncanonical) variants of the same install path
+// must be treated as one install, so installIdentity cleans the path (#471, L1).
+func TestRegisterVersionPathVariantsDedup(t *testing.T) {
+	registry, _, cleanup := setupTestRegistry(t)
+	defer cleanup()
+
+	require.NoError(t, RegisterVersion(VersionInfo{
+		Version: "5.44.0", InstallPath: "/opt/5.44.0", Source: "pvm",
+	}))
+	require.NoError(t, RegisterVersion(VersionInfo{
+		Version: "5.44.0", InstallPath: "/opt/5.44.0/", Source: "pvm", // trailing slash
+	}))
+
+	count := 0
+	for _, v := range registry.Versions {
+		if v.Version == "5.44.0" {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "trailing-slash path variant must not create a duplicate")
 }

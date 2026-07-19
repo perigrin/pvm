@@ -357,8 +357,25 @@ func checkRegistryIntegrity(ui *ui.Output, issues *[]string, warnings *[]string)
 		}
 	}
 
+	// Remove duplicate entries (same version + install path + remote) that
+	// accumulated before registration became idempotent, so `pvm list` no
+	// longer shows a version repeatedly (#471).
+	if removed, err := perl.DeduplicateRegistry(); err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("Could not deduplicate registry: %v", err))
+	} else if removed > 0 {
+		ui.Success("Removed %d duplicate registry entr%s", removed, plural(removed, "y", "ies"))
+	}
+
 	ui.Success("Registry integrity check passed")
 	return nil
+}
+
+// plural returns singular or plural form based on n.
+func plural(n int, singular, pluralForm string) string {
+	if n == 1 {
+		return singular
+	}
+	return pluralForm
 }
 
 // checkFilesystemLocations shows where PVM stores its files
