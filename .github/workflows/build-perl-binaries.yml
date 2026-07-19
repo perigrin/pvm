@@ -43,7 +43,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Get the latest release tag (including pre-releases)
-          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          # Select the latest pvm release (tag starts with "v"), not the newest
+          # release overall — perl-* binary releases published by this workflow
+          # would otherwise be picked up as the "latest" and break the download.
+          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --json tagName --jq 'map(.tagName | select(startswith("v"))) | .[0]')
           echo "Using release: $LATEST_TAG"
 
           # Download the linux-amd64 release asset
@@ -141,7 +144,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Get the latest release tag (including pre-releases)
-          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          # Select the latest pvm release (tag starts with "v"), not the newest
+          # release overall — perl-* binary releases published by this workflow
+          # would otherwise be picked up as the "latest" and break the download.
+          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --json tagName --jq 'map(.tagName | select(startswith("v"))) | .[0]')
           echo "Using release: $LATEST_TAG"
 
           # Download the release asset for the current platform
