@@ -226,6 +226,41 @@ func DownloadPerlBinary(options *BinaryDownloadOptions) (*BinaryDownloadResult, 
 	return DownloadPerlBinaryFunc(options)
 }
 
+// cachedBinaryIsFresh reports whether a cached binary of size localSize still
+// matches the remote asset. It issues a HEAD request and compares the remote
+// Content-Length to the cached file size: a republished asset that changed size
+// is stale and must be re-downloaded (#470).
+//
+// The check is best-effort: if the HEAD request fails or the server does not
+// report a usable Content-Length (e.g. offline, or a mirror that omits it), the
+// cache is trusted so offline installs keep working. It defends against silently
+// serving a superseded binary, not against a same-size rebuild — cryptographic
+// validation against a published checksum is tracked separately (#439).
+func cachedBinaryIsFresh(url string, localSize int64) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return true // can't check; trust the cache
+	}
+	// Authenticate like the download requests do; without the token a
+	// rate-limited or private release returns non-200, and the check below
+	// would then wrongly trust a stale cache. Go strips the header on the
+	// cross-host github.com->S3 redirect, so it's safe to always set it.
+	setGitHubAuthIfAvailable(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return true // offline / server error; trust the cache
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK || resp.ContentLength < 0 {
+		return true // no usable size to compare; trust the cache
+	}
+	return resp.ContentLength == localSize
+}
+
 // doDownloadPerlBinary is the actual implementation of downloading a Perl binary archive
 func doDownloadPerlBinary(options *BinaryDownloadOptions) (*BinaryDownloadResult, error) {
 	// Use default options if not specified
@@ -314,15 +349,17 @@ func doDownloadPerlBinary(options *BinaryDownloadOptions) (*BinaryDownloadResult
 	filename := filepath.Base(url)
 	destPath := filepath.Join(binariesDir, filename)
 
-	// Check if file exists in cache
-	if !options.SkipCache {
-		if fileInfo, err := os.Stat(destPath); err == nil && fileInfo.Size() > 0 {
-			// File exists in cache, validate checksum if required
+	// Check if a cached copy exists and whether it still matches the remote
+	// asset size. A republished binary (e.g. a rebuilt release) changes size, so
+	// a stale copy must not be served (#470) — and it must also be removed before
+	// re-downloading, since the resumable downloader would otherwise append to
+	// the stale bytes and produce a corrupt archive.
+	if fileInfo, err := os.Stat(destPath); err == nil && fileInfo.Size() > 0 {
+		if !options.SkipCache && cachedBinaryIsFresh(url, fileInfo.Size()) {
+			// File exists in cache and is current, validate checksum if required
 			if !options.SkipChecksum {
 				checksum, err := calculateFileChecksum(destPath)
 				if err == nil {
-					// For now, we'll accept the cached file
-					// In a real implementation, we would compare with known checksums
 					return &BinaryDownloadResult{
 						Path:      destPath,
 						Version:   version,
@@ -333,6 +370,10 @@ func doDownloadPerlBinary(options *BinaryDownloadOptions) (*BinaryDownloadResult
 						Duration:  0,
 					}, nil
 				}
+				// Checksum couldn't be computed: fall through to re-download
+				// without removing the file. Safe because the file is fresh
+				// (its size equals the remote's), so the downloader won't try
+				// to resume and will overwrite it via its .tmp+rename path.
 			} else {
 				// Skip checksum validation
 				return &BinaryDownloadResult{
@@ -344,6 +385,10 @@ func doDownloadPerlBinary(options *BinaryDownloadOptions) (*BinaryDownloadResult
 					Duration:  0,
 				}, nil
 			}
+		} else {
+			// Stale (or bypassed) cache: drop it so the resumable download starts
+			// from a clean file instead of appending to the old bytes.
+			_ = os.Remove(destPath)
 		}
 	}
 
