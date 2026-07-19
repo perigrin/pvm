@@ -18,9 +18,9 @@ on:
         default: ''
         type: string
       platforms:
-        description: 'Comma-separated platforms to build (subset of: linux-amd64,darwin-amd64,darwin-arm64). Use to skip a platform whose runner is unavailable.'
+        description: 'Comma-separated platforms to build (subset of: linux-amd64,darwin-amd64,darwin-arm64). darwin-amd64 is off by default due to macos-13 runner scarcity; add it explicitly to build it.'
         required: false
-        default: 'linux-amd64,darwin-amd64,darwin-arm64'
+        default: 'linux-amd64,darwin-arm64'
         type: string
 
 # Required permissions for GitHub token to create releases and upload assets
