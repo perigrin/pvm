@@ -273,6 +273,22 @@ func testPerlExecution(perlPath string) (float64, string, []string, error) {
 		score += 0.2 // Simple script works
 	}
 
+	// Verify the interpreter can load a core module. `perl -v` and a
+	// module-free one-liner both succeed even when @INC is baked to a path
+	// that doesn't exist on this machine (e.g. a non-relocatable binary built
+	// on a CI runner), so they can't detect that breakage. Config is a
+	// generated module loaded from @INC and present in every pvm-built Perl,
+	// so `-MConfig` exercises @INC and fails loudly on such a binary — only
+	// the load matters, so the one-liner does nothing. Treat a failure as
+	// fatal rather than a warning (#472).
+	cmd = exec.Command(perlPath, "-MConfig", "-e", "print 1")
+	if _, err = cmd.Output(); err != nil {
+		return score, version, warnings, errors.NewSystemError(ErrBinaryExecutionFailed,
+			"Perl cannot load the core Config module; @INC is likely broken "+
+				"(the binary may be non-relocatable or corrupt)", err).
+			WithLocation(perlPath)
+	}
+
 	return score, version, warnings, nil
 }
 
