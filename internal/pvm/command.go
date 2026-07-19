@@ -1659,6 +1659,30 @@ func extractVersionFromArchive(archivePath string) (string, error) {
 	return "", fmt.Errorf("unsupported archive format")
 }
 
+// buildConfigureOptions assembles the Configure options for a Perl build from
+// the caller-supplied base options plus the relocatable and shared-lib toggles.
+//
+//   - relocatable adds -Duserelocatableinc so @INC resolves relative to the
+//     binary at runtime instead of baking in the build-time prefix.
+//   - sharedLib adds -Duseshrplib to build libperl as a shared object.
+//
+// Perl's Configure rejects -Duserelocatableinc together with -Duseshrplib
+// ("Cannot build with both"), so relocatable wins: when relocatable is set,
+// shared libperl is suppressed and Perl is built with a static libperl. A
+// static relocatable Perl is self-contained (no libperl.so to locate), so it
+// needs no RPATH rewriting to work at any install path.
+func buildConfigureOptions(base []string, relocatable, sharedLib bool) []string {
+	opts := make([]string, len(base))
+	copy(opts, base)
+	if relocatable {
+		opts = append(opts, "-Duserelocatableinc")
+	}
+	if sharedLib && !relocatable {
+		opts = append(opts, "-Duseshrplib")
+	}
+	return opts
+}
+
 // buildPerlFromSource handles building Perl from source
 func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 	if versionOrURL == "" {
@@ -1740,7 +1764,8 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 		return err
 	}
 
-	// Get Perl configuration flags
+	// Get Perl configuration flags. Relocatable defaults on; opt out with
+	// --relocatable=false.
 	relocatable, err := cmd.Flags().GetBool("relocatable")
 	if err != nil {
 		return err
@@ -1803,25 +1828,15 @@ func buildPerlFromSource(cmd *cobra.Command, versionOrURL string) error {
 		return fmt.Errorf("--platforms flag requires --upload to be enabled")
 	}
 
-	// Automatically enable relocatable builds for upload
+	// Relocatable builds are the default, so uploads are relocatable without a
+	// special case here. Warn if someone explicitly opted out for an upload,
+	// since the resulting release tarball would bake in the build prefix and
+	// break on user machines.
 	if upload && !relocatable {
-		relocatable = true
-		ui.Info("Upload mode enabled - automatically enabling relocatable builds")
+		ui.Warning("--relocatable=false with --upload: the released binary will bake in the build prefix and may not work when installed elsewhere")
 	}
 
-	// Build final configure options with Perl configuration
-	finalConfigureOptions := make([]string, len(configureOptions))
-	copy(finalConfigureOptions, configureOptions)
-
-	// Add relocatable @INC if requested
-	if relocatable {
-		finalConfigureOptions = append(finalConfigureOptions, "-Duserelocatableinc")
-	}
-
-	// Add shared library support if requested and not conflicting with relocatable
-	if sharedLib && !relocatable {
-		finalConfigureOptions = append(finalConfigureOptions, "-Duseshrplib")
-	}
+	finalConfigureOptions := buildConfigureOptions(configureOptions, relocatable, sharedLib)
 
 	// Create progress callback to display build progress
 	var currentStage perl.BuildProgressStage
