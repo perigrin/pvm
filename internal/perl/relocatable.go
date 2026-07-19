@@ -42,16 +42,20 @@ func makeRelocatable(installDir string) error {
 // ---------------------------------------------------------------------------
 
 func makeRelocatableLinux(installDir string) error {
+	coreDir, err := findCoreDir(installDir)
+	if errors.Is(err, errNoSharedLibperl) {
+		// Static libperl (e.g. a relocatable build): nothing to relocate.
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("locate CORE dir: %w", err)
+	}
+
 	patchelf, err := exec.LookPath("patchelf")
 	if err != nil {
 		return fmt.Errorf("patchelf not found on PATH: %w "+
 			"(required to make the built Perl relocatable; "+
 			"install via apt/dnf/brew)", err)
-	}
-
-	coreDir, err := findCoreDir(installDir)
-	if err != nil {
-		return fmt.Errorf("locate CORE dir: %w", err)
 	}
 
 	var walkErrs []error
@@ -102,6 +106,15 @@ func makeRelocatableLinux(installDir string) error {
 // because macOS 11+ rejects binaries whose signatures are invalidated by
 // install_name_tool.
 func makeRelocatableDarwin(installDir string) error {
+	coreDir, err := findCoreDir(installDir)
+	if errors.Is(err, errNoSharedLibperl) {
+		// Static libperl (e.g. a relocatable build): nothing to relocate.
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("locate CORE dir: %w", err)
+	}
+
 	inameTool, err := exec.LookPath("install_name_tool")
 	if err != nil {
 		return fmt.Errorf("install_name_tool not found on PATH: %w "+
@@ -110,11 +123,6 @@ func makeRelocatableDarwin(installDir string) error {
 	if _, err := exec.LookPath("otool"); err != nil {
 		return fmt.Errorf("otool not found on PATH: %w "+
 			"(ships with Xcode Command Line Tools)", err)
-	}
-
-	coreDir, err := findCoreDir(installDir)
-	if err != nil {
-		return fmt.Errorf("locate CORE dir: %w", err)
 	}
 
 	// Discover the absolute build-host path to libperl that will be baked
@@ -321,10 +329,24 @@ func findCoreDir(installDir string) (string, error) {
 		return "", err
 	}
 	if coreDir == "" {
-		return "", fmt.Errorf("libperl.{so,dylib} not found in a CORE/ directory under %s", installDir)
+		return "", errNoSharedLibperl
 	}
 	return coreDir, nil
 }
+
+// errNoSharedLibperl signals that no shared libperl was found under the install
+// tree. This is the expected state for a static build (e.g. a relocatable Perl,
+// which Perl forces to static libperl): there is no shared object to relocate,
+// so callers treat this as a no-op rather than a failure.
+//
+// ponytail: makeRelocatable infers "static, expected" from the artifact's
+// absence rather than from build intent, so it cannot distinguish an expected
+// static build from a shared build that lost its .so. That is acceptable here
+// because makeRelocatable runs only after `make install` succeeds, and Perl's
+// build fails before install if a requested shared libperl cannot be produced.
+// If that ever stops holding, thread the shared/relocatable intent down and
+// error when a shared lib was expected but absent (tracked as a follow-up).
+var errNoSharedLibperl = errors.New("no shared libperl found; nothing to relocate")
 
 // isLibperl returns true for filenames matching libperl shared libraries on
 // either platform: libperl.so, libperl.so.5.40.2, libperl.dylib,

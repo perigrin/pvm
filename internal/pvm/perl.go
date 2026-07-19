@@ -111,9 +111,12 @@ func newPerlBuildCommand() *cobra.Command {
 	cmd.Flags().Bool("build-only", false, "Build Perl without installing (creates relocatable build in output directory)")
 	cmd.Flags().StringArray("configure-options", nil, "Additional options to pass to Configure (can be specified multiple times)")
 
-	// Perl configuration flags
-	cmd.Flags().Bool("relocatable", false, "Build relocatable Perl (enables -Duserelocatableinc)")
-	cmd.Flags().Bool("shared-lib", true, "Build shared libperl (enables -Duseshrplib)")
+	// Perl configuration flags. Relocatable defaults on so built Perl works
+	// at any install path; without it, Configure bakes the build-time prefix
+	// into @INC and the binary breaks when installed elsewhere (e.g. a CI
+	// runner's home dir on a user's machine). Opt out with --relocatable=false.
+	cmd.Flags().Bool("relocatable", true, "Build relocatable Perl (enables -Duserelocatableinc). Opt out with --relocatable=false to bake the install prefix into @INC.")
+	cmd.Flags().Bool("shared-lib", true, "Build shared libperl (enables -Duseshrplib). Ignored under the relocatable default; use --relocatable=false to enable shared libperl.")
 
 	// Upload integration flags
 	cmd.Flags().Bool("upload", false, "Upload built binary after successful build")

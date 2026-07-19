@@ -162,6 +162,91 @@ func TestPerlBuildCommandFlags(t *testing.T) {
 	}
 }
 
+// Relocatable builds are the default so a built Perl works at any install
+// path; without -Duserelocatableinc, Configure bakes the build-time prefix
+// into @INC and the binary breaks when installed elsewhere.
+func TestPerlBuildRelocatableDefaultsTrue(t *testing.T) {
+	cmd := newPerlBuildCommand()
+	cmd.RunE = func(cmd *cobra.Command, args []string) error { return nil }
+	cmd.SetArgs([]string{"5.38.0"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	relocatable, err := cmd.Flags().GetBool("relocatable")
+	if err != nil {
+		t.Fatalf("relocatable flag missing: %v", err)
+	}
+	if !relocatable {
+		t.Error("relocatable should default to true")
+	}
+}
+
+func TestPerlBuildRelocatableOptOut(t *testing.T) {
+	cmd := newPerlBuildCommand()
+	cmd.RunE = func(cmd *cobra.Command, args []string) error { return nil }
+	cmd.SetArgs([]string{"5.38.0", "--relocatable=false"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("--relocatable=false should parse: %v", err)
+	}
+	relocatable, err := cmd.Flags().GetBool("relocatable")
+	if err != nil {
+		t.Fatalf("relocatable flag missing: %v", err)
+	}
+	if relocatable {
+		t.Error("--relocatable=false should set relocatable to false")
+	}
+}
+
+// buildConfigureOptions is the assembly #449 depends on: a relocatable build
+// must pass -Duserelocatableinc. Perl's Configure forbids -Duserelocatableinc
+// together with -Duseshrplib, so a relocatable build must NOT pass
+// -Duseshrplib even when shared-lib is requested (relocatable wins, producing
+// a static libperl).
+func TestBuildConfigureOptions(t *testing.T) {
+	has := func(opts []string, want string) bool {
+		for _, o := range opts {
+			if o == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	tests := []struct {
+		name        string
+		base        []string
+		relocatable bool
+		sharedLib   bool
+		wantReloc   bool
+		wantShared  bool
+	}{
+		// Default: relocatable on, shared requested -> shared suppressed
+		// because Perl forbids the combination.
+		{"default: relocatable suppresses shared", nil, true, true, true, false},
+		{"opt out of relocatable keeps shared", nil, false, true, false, true},
+		{"relocatable without shared", nil, true, false, true, false},
+		{"neither", nil, false, false, false, false},
+		{"preserves base options", []string{"-Dusethreads"}, true, false, true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := buildConfigureOptions(tt.base, tt.relocatable, tt.sharedLib)
+			if got := has(opts, "-Duserelocatableinc"); got != tt.wantReloc {
+				t.Errorf("-Duserelocatableinc present=%v, want %v (opts=%v)", got, tt.wantReloc, opts)
+			}
+			if got := has(opts, "-Duseshrplib"); got != tt.wantShared {
+				t.Errorf("-Duseshrplib present=%v, want %v (opts=%v)", got, tt.wantShared, opts)
+			}
+			for _, b := range tt.base {
+				if !has(opts, b) {
+					t.Errorf("base option %q dropped (opts=%v)", b, opts)
+				}
+			}
+		})
+	}
+}
+
 func TestPerlTarballCommandStructure(t *testing.T) {
 	cmd := newPerlTarballCommand()
 

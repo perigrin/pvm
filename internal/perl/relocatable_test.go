@@ -5,6 +5,7 @@
 package perl
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,8 +58,26 @@ func TestFindCoreDir_Dylib(t *testing.T) {
 func TestFindCoreDir_NoLibperl(t *testing.T) {
 	tmp := t.TempDir()
 	_, err := findCoreDir(tmp)
-	if err == nil {
-		t.Errorf("expected error when libperl.so is absent, got nil")
+	if !errors.Is(err, errNoSharedLibperl) {
+		t.Errorf("expected errNoSharedLibperl when libperl.so is absent, got %v", err)
+	}
+}
+
+// A static build (no shared libperl, e.g. a relocatable Perl) has nothing to
+// relocate, so makeRelocatable must succeed as a no-op rather than error.
+// Without this, relocatable release builds (--upload) fail fatally.
+func TestMakeRelocatable_NoSharedLibIsNoOp(t *testing.T) {
+	tmp := t.TempDir()
+	// A tree with a CORE dir but only a static libperl.a — no shared lib.
+	coreDir := filepath.Join(tmp, "lib", "perl5", "5.44.0", "arch", "CORE")
+	if err := os.MkdirAll(coreDir, 0o755); err != nil {
+		t.Fatalf("mkdir CORE: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(coreDir, "libperl.a"), []byte("!<arch>\n"), 0o644); err != nil {
+		t.Fatalf("write libperl.a: %v", err)
+	}
+	if err := makeRelocatable(tmp); err != nil {
+		t.Errorf("makeRelocatable should no-op for a static build, got: %v", err)
 	}
 }
 
