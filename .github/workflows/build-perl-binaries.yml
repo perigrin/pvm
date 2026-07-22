@@ -206,7 +206,7 @@ jobs:
             --exclude "*.log" --exclude "*.tmp" --exclude ".pvm-*"
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: perl-${{ matrix.version }}-${{ matrix.platform }}
           path: ~/.local/share/pvm/versions/${{ matrix.version }}/perl-${{ matrix.version }}-${{ matrix.platform }}.tar.gz
@@ -223,7 +223,7 @@ jobs:
         version: ${{ fromJson(needs.prepare.outputs.versions_array) }}
     steps:
       - name: Download all artifacts for version ${{ matrix.version }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: perl-${{ matrix.version }}-*
           path: ./binaries
