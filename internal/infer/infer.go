@@ -62,6 +62,66 @@ func walkUseStatement(node *parser.Node, source []byte, idx *ProjectIndex) types
 // idx is an optional ProjectIndex for cross-file analysis. Pass nil for
 // single-file mode; use statements and fully-qualified calls are then ignored.
 func Analyze(tree *parser.Tree, source []byte, idx *ProjectIndex) (map[uint32]types.Type, []Diagnostic, *SymbolTable) {
+	return AnalyzeWithOptions(tree, source, idx, Options{})
+}
+
+// Options controls how analysis reports what it could not determine.
+type Options struct {
+	// Strict makes an un-inferred value satisfy nothing rather than
+	// everything. By default Unknown behaves as TypeScript's `any` — it
+	// passes every check, so the checker goes quiet exactly where it knows
+	// least. Under Strict it behaves as TypeScript's `unknown`: a value whose
+	// type could not be determined must be narrowed before it is used.
+	//
+	// There is ONE Unknown, and it is a status rather than a diagnosis. A
+	// value reaches it by two quite different routes:
+	//
+	//   the question was never asked — `unlink` has no entry in the builtin
+	//   signature table, so nothing was consulted and nothing came back. That
+	//   is a gap in PSC's knowledge and it is fixable by adding the entry.
+	//
+	//   the question was asked and has no answer — `my $line = <$T>` was
+	//   analysed and Perl does not determine the type statically. No table
+	//   will fix that; it is a property of the language.
+	//
+	// Inference can distinguish these AT THE POINT IT RUNS, because it knows
+	// whether it consulted anything. The stored Unknown cannot: once written
+	// it carries no record of the route, and every consumer sees the same
+	// value. Strict mode operates on the stored status, so it reports both
+	// alike — correctly, since for the purpose of "must this be narrowed
+	// before use?" the answer is yes either way.
+	//
+	// Telling the two apart in REPORTING would mean recording the route at
+	// inference time rather than splitting the type. That is worth doing —
+	// it separates a PSC to-do list from an irreducible property of Perl —
+	// and it is not what this flag does.
+	Strict bool
+}
+
+// satisfies reports whether actual satisfies required under opts.
+//
+// This is the single place strictness is applied, so the difference between
+// the two modes stays one function rather than a flag threaded through every
+// walk site.
+func (o Options) satisfies(actual, required types.Type) bool {
+	if o.Strict {
+		return types.TypeSatisfiesStrict(actual, required)
+	}
+	return types.TypeSatisfies(actual, required)
+}
+
+// skipUnknownOperand reports whether an operand of the given type should be
+// passed over without checking. Permissively an un-inferred operand is skipped
+// to avoid false positives; strictly it is exactly what we want to report.
+func (o Options) skipUnknownOperand(actual types.Type) bool {
+	return actual == types.Unknown && !o.Strict
+}
+
+// AnalyzeWithOptions is Analyze with explicit options.
+func AnalyzeWithOptions(tree *parser.Tree, source []byte, idx *ProjectIndex, opts Options) (map[uint32]types.Type, []Diagnostic, *SymbolTable) {
+	activeOptions = opts
+	defer func() { activeOptions = Options{} }()
+
 	annotations := make(map[uint32]types.Type)
 	diags := make([]Diagnostic, 0)
 	// classTypes maps a node's StartByte to the class name of the object
@@ -277,7 +337,11 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 
 // checkBinaryOperand verifies that an operand's inferred type satisfies the
 // operator's expected type. Emits a coercion-mismatch diagnostic on failure.
-// Skips Unknown operands to avoid false positives.
+//
+// An un-inferred operand is skipped by default, to avoid reporting a mismatch
+// PSC has no evidence for. Under Options.Strict it is reported instead: an
+// operand whose type could not be determined is precisely what strict mode
+// exists to surface.
 //
 // Comparison operators (==, !=, <, >, <=, >=, <=>) get Warning severity
 // because the code executes via coercion but the result is likely unintended.
@@ -296,7 +360,10 @@ func checkBinaryOperand(
 	}
 
 	actual, ok := annotations[operand.StartByte()]
-	if !ok || actual == types.Unknown {
+	if !ok {
+		actual = types.Unknown
+	}
+	if activeOptions.skipUnknownOperand(actual) {
 		return
 	}
 
@@ -305,7 +372,7 @@ func checkBinaryOperand(
 		return
 	}
 
-	if types.TypeSatisfies(actual, expected) {
+	if activeOptions.satisfies(actual, expected) {
 		return
 	}
 
@@ -425,7 +492,7 @@ func inferFunctionCallType(
 	for i, arg := range args {
 		argType := annotations[arg.StartByte()]
 		expectedType := builtinArgType(sig, i)
-		if argType != types.Unknown && !types.TypeSatisfies(argType, expectedType) {
+		if !activeOptions.skipUnknownOperand(argType) && !activeOptions.satisfies(argType, expectedType) {
 			argVarName := ExtractArgVarName(arg, source)
 			*diags = append(*diags, Diagnostic{
 				StartByte:  arg.StartByte(),
@@ -582,7 +649,7 @@ func inferFunc1opCallType(
 	for i, arg := range args {
 		argType := annotations[arg.StartByte()]
 		expectedType := builtinArgType(sig, i)
-		if argType != types.Unknown && !types.TypeSatisfies(argType, expectedType) {
+		if !activeOptions.skipUnknownOperand(argType) && !activeOptions.satisfies(argType, expectedType) {
 			argVarName := ExtractArgVarName(arg, source)
 			*diags = append(*diags, Diagnostic{
 				StartByte:  arg.StartByte(),
@@ -2924,3 +2991,16 @@ func extractShiftChain(block *parser.Node, source []byte) []string {
 	}
 	return params
 }
+
+// activeOptions holds the Options for the analysis currently running.
+//
+// walkNode and its callees already thread seven parameters through a deep
+// recursion, and strictness is read at three leaf sites; threading an eighth
+// parameter to reach them would touch every call in the chain for no gain in
+// clarity. AnalyzeWithOptions sets this and restores it on return.
+//
+// Analysis is single-threaded per invocation (Analyze is documented as
+// stateless per call and the walk never spawns goroutines), so this is safe
+// for the sequential use PSC makes of it. It would need to become a field on
+// a walk context if the walk were ever parallelised.
+var activeOptions Options

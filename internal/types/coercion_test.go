@@ -156,3 +156,64 @@ func TestCoercionMismatch(t *testing.T) {
 	assert.False(t, types.CoercionMismatch(types.Unknown, types.Num),
 		"Unknown never produces a diagnostic — inference has not determined a type")
 }
+
+// --- Strict mode: Unknown must not silently satisfy ---
+//
+// PSC's Unknown has behaved as TypeScript's `any`: it satisfies every
+// requirement, so an un-inferred value passes every check and the checker goes
+// quiet exactly where it knows least. TypeScript separates these — `any`
+// disables checking, `unknown` must be narrowed before use — and Unknown is
+// the second thing, not the first.
+//
+// TypeSatisfiesStrict is the `unknown` reading: an un-inferred value satisfies
+// nothing until inference or a guard establishes what it is.
+
+func TestStrictUnknownSatisfiesNothing(t *testing.T) {
+	for _, required := range []types.Type{
+		types.Int, types.Num, types.Str, types.Bool, types.Scalar,
+		types.HashRef, types.ArrayRef, types.Object, types.List,
+	} {
+		assert.False(t, types.TypeSatisfiesStrict(types.Unknown, required),
+			"strict: Unknown must NOT satisfy %s — narrow it first", required)
+		assert.True(t, types.TypeSatisfies(types.Unknown, required),
+			"permissive: Unknown satisfies %s (the default, unchanged)", required)
+	}
+}
+
+// Any is the escape hatch and keeps `any` semantics in BOTH modes: a required
+// type of Any means the position accepts anything by construction.
+
+func TestStrictAnyStillAccepts(t *testing.T) {
+	assert.True(t, types.TypeSatisfiesStrict(types.Unknown, types.Any),
+		"strict: a required type of Any accepts even Unknown — that is what Any means")
+	assert.True(t, types.TypeSatisfiesStrict(types.Str, types.Any),
+		"strict: Any accepts Str")
+}
+
+// Strict mode changes ONLY the Unknown case. Every other judgement is
+// identical, so turning it on cannot alter an existing verdict about a value
+// whose type IS known.
+
+func TestStrictDiffersOnlyOnUnknown(t *testing.T) {
+	known := []types.Type{
+		types.Undef, types.Bool, types.Int, types.Num, types.Str,
+		types.NaN, types.Inf, types.DualVar, types.Regex,
+		types.ScalarRef, types.ArrayRef, types.HashRef, types.CodeRef,
+		types.GlobRef, types.Object, types.Ref, types.Scalar,
+		types.Array, types.Hash, types.List, types.Code, types.Glob,
+	}
+	for _, a := range known {
+		for _, r := range known {
+			assert.Equal(t, types.TypeSatisfies(a, r), types.TypeSatisfiesStrict(a, r),
+				"strict and permissive must agree on %s vs %s — only Unknown differs", a, r)
+		}
+	}
+}
+
+// None is the bottom type and remains a subtype of everything in both modes:
+// an unreachable branch is not an un-inferred value.
+
+func TestStrictNoneUnaffected(t *testing.T) {
+	assert.True(t, types.TypeSatisfiesStrict(types.None, types.Int),
+		"strict: None satisfies Int — bottom is a subtype of everything")
+}

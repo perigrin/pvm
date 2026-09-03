@@ -16,6 +16,8 @@ import (
 )
 
 func newCheckCommand() *cobra.Command {
+	var strict bool
+
 	cmd := &cobra.Command{
 		Use:   "check <file|directory>",
 		Short: "Type-check Perl files and report diagnostics",
@@ -30,6 +32,7 @@ func newCheckCommand() *cobra.Command {
 			}
 
 			p := parser.New()
+			opts := infer.Options{Strict: strict}
 			var foundDiags bool
 
 			if info.IsDir() {
@@ -41,7 +44,7 @@ func newCheckCommand() *cobra.Command {
 						return nil
 					}
 					if isPerlFile(path) {
-						had, checkErr := checkFile(errW, p, path)
+						had, checkErr := checkFile(errW, p, path, opts)
 						if checkErr != nil {
 							return checkErr
 						}
@@ -55,7 +58,7 @@ func newCheckCommand() *cobra.Command {
 					return walkErr
 				}
 			} else {
-				had, checkErr := checkFile(errW, p, target)
+				had, checkErr := checkFile(errW, p, target, opts)
 				if checkErr != nil {
 					return checkErr
 				}
@@ -69,12 +72,15 @@ func newCheckCommand() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&strict, "strict", false,
+		"report values whose type could not be inferred instead of accepting them")
+
 	return cmd
 }
 
 // checkFile parses and type-checks a single Perl file, printing any diagnostics
 // to w. It returns true if any diagnostics were found.
-func checkFile(w interface{ Write([]byte) (int, error) }, p *parser.Parser, path string) (bool, error) {
+func checkFile(w interface{ Write([]byte) (int, error) }, p *parser.Parser, path string, opts infer.Options) (bool, error) {
 	source, err := os.ReadFile(path)
 	if err != nil {
 		return false, fmt.Errorf("read %s: %w", path, err)
@@ -85,7 +91,7 @@ func checkFile(w interface{ Write([]byte) (int, error) }, p *parser.Parser, path
 		return false, fmt.Errorf("parse %s: %w", path, err)
 	}
 
-	_, diags, _ := infer.Analyze(tree, source, nil)
+	_, diags, _ := infer.AnalyzeWithOptions(tree, source, nil, opts)
 
 	for _, d := range diags {
 		fmt.Fprintln(w, infer.FormatDiagnostic(path, source, d))

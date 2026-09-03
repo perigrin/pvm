@@ -139,3 +139,38 @@ func TestCheckCommandWithTypeMismatchNoHint(t *testing.T) {
 	assert.Contains(t, stderr.String(), "type-mismatch", "should contain type-mismatch diagnostic")
 	assert.NotContains(t, stderr.String(), "hint:", "no hint when no guard helps")
 }
+
+// TestCheckStrictReportsUnknown verifies that --strict reports values whose
+// type could not be inferred, and that the default does not.
+//
+// The default is permissive because an un-inferred value is not evidence of a
+// bug — PSC simply has nothing to say about it. That silence is also the
+// failure mode strictness exists to break: without it the checker is quietest
+// exactly where it knows least.
+func TestCheckStrictReportsUnknown(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "strict.pl")
+	// unlink has no entry in the builtin signature table, so its result is
+	// Unknown. Passing it straight into print's Str argument keeps it
+	// un-inferred at the point of the check — assigning it to a declared
+	// variable first would give that variable a type from context.
+	content := "print unlink 'nonexistent';\n"
+	require.NoError(t, os.WriteFile(file, []byte(content), 0644))
+
+	runCheck := func(args ...string) string {
+		cmd := psc.NewCommand()
+		cmd.SetArgs(append([]string{"check", file}, args...))
+		var stdout strings.Builder
+		var stderr strings.Builder
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&stderr)
+		// Diagnostics make Execute return an error; the output is the subject.
+		_ = cmd.Execute()
+		return stderr.String()
+	}
+
+	assert.NotContains(t, runCheck(), "Unknown",
+		"default mode should not report un-inferred values")
+	assert.Contains(t, runCheck("--strict"), "Unknown",
+		"--strict should report the un-inferred operand")
+}

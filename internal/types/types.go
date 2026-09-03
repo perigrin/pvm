@@ -279,14 +279,38 @@ func listSatisfiesAggregate(actual, required Type) bool {
 // gap between them — coercible but not a subtype — is where a
 // coercion-mismatch diagnostic belongs, and CoercionMismatch below names it.
 func TypeSatisfies(actual, required Type) bool {
-	// required == Any accepts everything.
+	return typeSatisfies(actual, required, false)
+}
+
+// TypeSatisfiesStrict is TypeSatisfies with the Unknown escape hatch closed.
+//
+// PSC's Unknown has behaved as TypeScript's `any`: it satisfies every
+// requirement, so an un-inferred value passes every check and the checker
+// falls silent exactly where it knows least. TypeScript draws the line this
+// function draws — `any` disables checking, `unknown` must be narrowed before
+// use — and Unknown is the second of those, not the first. A value whose type
+// inference could not determine is not a value known to be acceptable.
+//
+// Nothing else changes: for every pair of KNOWN types the two functions agree,
+// so enabling strictness cannot alter a verdict about a value whose type is
+// established. Any keeps its meaning in both modes, since a required type of
+// Any is a position that accepts anything by construction — that is the
+// deliberate escape hatch, and it must be written in the code being checked
+// rather than inferred from the absence of information.
+func TypeSatisfiesStrict(actual, required Type) bool {
+	return typeSatisfies(actual, required, true)
+}
+
+func typeSatisfies(actual, required Type, strict bool) bool {
+	// required == Any accepts everything, in both modes.
 	if required == Any {
 		return true
 	}
 
-	// Unknown type passes permissively (type not yet determined).
+	// An un-inferred value. Permissively it satisfies anything; strictly it
+	// satisfies nothing until narrowed.
 	if actual == Unknown {
-		return true
+		return !strict
 	}
 
 	// (1) Membership: all of actual's bits are within required.
