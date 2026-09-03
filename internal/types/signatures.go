@@ -64,6 +64,23 @@ var builtins = map[string]BuiltinSig{
 	"say":    {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
 	"return": {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Any},
 
+	// String transforms. Each takes a string and yields one; return types
+	// measured on 5.42 rather than transcribed.
+	"uc":      {MinArity: 1, ArgTypes: []Type{Str}, ReturnType: Str},
+	"lc":      {MinArity: 1, ArgTypes: []Type{Str}, ReturnType: Str},
+	"ucfirst": {MinArity: 1, ArgTypes: []Type{Str}, ReturnType: Str},
+	"lcfirst": {MinArity: 1, ArgTypes: []Type{Str}, ReturnType: Str},
+
+	// index/rindex search a string for a substring and yield a position, or
+	// -1 when absent — an Int either way.
+	"index":  {MinArity: 2, ArgTypes: []Type{Str, Str, Int}, ReturnType: Int},
+	"rindex": {MinArity: 2, ArgTypes: []Type{Str, Str, Int}, ReturnType: Int},
+
+	// reverse is context-dependent: a reversed list in list context, a
+	// reversed string in scalar context. List covers both under the arity
+	// ordering, since Scalar <: List.
+	"reverse": {MinArity: 1, ArgTypes: []Type{List}, ReturnType: List},
+
 	"map":  {MinArity: 2, ArgTypes: []Type{Code, List}, ReturnType: List},
 	"grep": {MinArity: 2, ArgTypes: []Type{Code, List}, ReturnType: List},
 	"sort": {MinArity: 1, ArgTypes: []Type{List}, ReturnType: List},
