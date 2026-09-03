@@ -1770,41 +1770,26 @@ func TestTypeMismatchDiagnosticNoSuggestionWhenClean(t *testing.T) {
 
 // --- Coercion-mismatch diagnostic tests ---
 
-// TestCoercionListInArithmetic verifies that a List value (from keys()) used
-// as an operand in arithmetic context produces a coercion-mismatch diagnostic.
-// Note: string literal tests are deferred because the gotreesitter Perl grammar
-// has a known parsing issue with quoted strings that corrupts the CST.
+// TestCoercionListInArithmetic verifies that a List in arithmetic is read as
+// its element count rather than reported.
+//
+// This previously asserted the opposite. `keys(%h) + 1` is ordinary Perl —
+// measured, it is 3 for a two-key hash — because a numeric operator imposes
+// scalar context and an aggregate in scalar context is its count. The old
+// expectation encoded PSC's missing context handling as though it were a rule
+// about Perl.
 func TestCoercionListInArithmetic(t *testing.T) {
-	// keys(%hash) returns List; using it in addition is a type error.
 	src := []byte("my %h;\nmy $y = keys(%h) + 1;\n")
 	_, diags := analyzeSource(t, src)
-
-	var found bool
-	for _, d := range diags {
-		if d.Code == infer.CodeCoercionMismatch {
-			found = true
-			assert.Equal(t, infer.Error, d.Severity, "List in arithmetic should be Error severity")
-			break
-		}
-	}
-	assert.True(t, found, "should find a coercion-mismatch for List in arithmetic (keys(%h) + 1)")
+	assert.Empty(t, diags, "keys(%h) + 1 is the count plus one, not a type error")
 }
 
-// TestCoercionArrayInConcat verifies that an Array used in string concatenation
-// produces a coercion-mismatch diagnostic.
+// TestCoercionArrayInConcat verifies that an Array in string concatenation is
+// read as its count. Measured: `@arr . "x"` is "3x" for a three-element array.
 func TestCoercionArrayInConcat(t *testing.T) {
-	// @arr in string concat is a type error (Array does not satisfy Str).
 	src := []byte("my @arr;\nmy $s = @arr . 1;\n")
 	_, diags := analyzeSource(t, src)
-
-	var found bool
-	for _, d := range diags {
-		if d.Code == infer.CodeCoercionMismatch {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "should find a coercion-mismatch for Array in string concatenation")
+	assert.Empty(t, diags, "@arr . 1 concatenates the count, not a type error")
 }
 
 // TestNoCoercionIntInArithmetic verifies that Int in arithmetic produces
@@ -1998,10 +1983,11 @@ func TestNoCoercionIntWithEq(t *testing.T) {
 // parenthesized operand puts "(" in that position, so the lookup failed and
 // the whole expression bailed out as Unknown before any operand was examined.
 func TestParenthesizedOperandIsChecked(t *testing.T) {
-	// An array in a numeric position is a coercion mismatch. Wrapping the
-	// operand in parentheses must not hide it.
-	bare := []byte("my @a;\nmy $x = @a + 1;\n")
-	parens := []byte("my @a;\nmy $x = (@a) + 1;\n")
+	// A hashref in a numeric position is a real coercion mismatch — unlike an
+	// array, which yields its count. Wrapping the operand in parentheses must
+	// not hide it.
+	bare := []byte("my $h = {};\nmy $x = $h + 1;\n")
+	parens := []byte("my $h = {};\nmy $x = ($h) + 1;\n")
 
 	_, bareDiags := analyzeSource(t, bare)
 	_, parenDiags := analyzeSource(t, parens)
@@ -2122,4 +2108,33 @@ func TestListOperatorArgsFromEnclosingList(t *testing.T) {
 		}
 		assert.Empty(t, arity, "%s: should report no arity error, got %v", tc.name, arity)
 	}
+}
+
+// TestArrayInNumericContextIsCount verifies that an array compared numerically
+// is read as its element count rather than reported as a type error.
+//
+// `@fields == 3`, `while (@_ > 1)`, `die unless @_ == 1` are the ordinary Perl
+// idiom: a numeric operator imposes scalar context, and an array in scalar
+// context yields its count. types.NarrowByContext already modelled this; the
+// operand check simply never applied it, which produced 104 of the diagnostics
+// on perl5/lib — the largest single false-positive class.
+func TestArrayInNumericContextIsCount(t *testing.T) {
+	cases := []string{
+		"my @fields;\nmy $ok = (@fields == 3);\n",
+		"my @a;\nmy $ok = (@a > 1);\n",
+		"my %h;\nmy $ok = (%h == 0);\n",
+	}
+	for _, src := range cases {
+		_, diags := analyzeSource(t, []byte(src))
+		assert.Empty(t, diags,
+			"an aggregate in numeric context is its count, not a type error: %q", src)
+	}
+}
+
+// The counterpart: scalar context does NOT excuse a genuinely wrong operand.
+// A hashref is one value in any context and still cannot be a number.
+func TestScalarContextDoesNotExcuseRefs(t *testing.T) {
+	src := []byte("my $h = {};\nmy $n = $h + 1;\n")
+	_, diags := analyzeSource(t, src)
+	assert.NotEmpty(t, diags, "a hashref in arithmetic is still reported")
 }

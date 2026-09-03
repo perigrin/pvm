@@ -62,7 +62,9 @@ func TestGetBuiltinSplit(t *testing.T) {
 	sig, ok := types.GetBuiltin("split")
 	require.True(t, ok, "split should be a known builtin")
 	assert.Equal(t, 0, sig.MinArity)
-	assert.Equal(t, []types.Type{types.Regex, types.Str, types.Int}, sig.ArgTypes)
+	// The pattern position takes a compiled Regex or a plain Str — perl
+	// compiles a string into a pattern, so `split ":", $x` is ordinary Perl.
+	assert.Equal(t, []types.Type{types.Regex | types.Str, types.Str, types.Int}, sig.ArgTypes)
 	assert.Equal(t, types.List, sig.ReturnType)
 }
 

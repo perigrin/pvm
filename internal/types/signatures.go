@@ -49,8 +49,13 @@ var builtins = map[string]BuiltinSig{
 	// join takes a separator and then a LIST, not a series of strings: the
 	// variadic tail repeats the last ArgTypes entry, so Str there rejected
 	// `join ":", @foo`. Measured: join(":", @f) flattens the array.
-	"join":    {MinArity: 2, ArgTypes: []Type{Str, List}, ReturnType: Str},
-	"split":   {MinArity: 0, ArgTypes: []Type{Regex, Str, Int}, ReturnType: List},
+	"join": {MinArity: 2, ArgTypes: []Type{Str, List}, ReturnType: Str},
+	// split's pattern may be a compiled Regex or a plain Str: perl compiles a
+	// string into a pattern, so `split ":", $x` is ordinary Perl. Measured on
+	// 5.42, /:/ and ":" and $sep and qr/:/ all behave identically. Regex
+	// alone rejected the string form, which was the largest single class of
+	// false positives on perl5/lib.
+	"split":   {MinArity: 0, ArgTypes: []Type{Regex | Str, Str, Int}, ReturnType: List},
 	"sprintf": {MinArity: 1, ArgTypes: []Type{Str, Any}, ReturnType: Str},
 	"substr":  {MinArity: 2, ArgTypes: []Type{Str, Num, Num}, ReturnType: Str},
 

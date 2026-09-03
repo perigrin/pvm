@@ -448,6 +448,29 @@ func checkBinaryOperand(
 	if !ok {
 		actual = types.Unknown
 	}
+	// A scalar-context operator imposes that context on its operand, and an
+	// aggregate in scalar context is its element count: `@fields == 3` and
+	// `while (@_ > 1)` are the ordinary idiom, not type errors. Apply the
+	// context before judging the operand.
+	//
+	// This narrows ONLY the aggregate bits — a reference is one value in any
+	// context and still cannot be a number, so `$hashref + 1` is unaffected.
+	//
+	// The test is whether the operator wants an AGGREGATE, not whether its
+	// expected type intersects List: under the arity ordering Scalar <: List,
+	// so List contains Num's bits and `expected & List` is non-zero for every
+	// scalar operator. Only an operator whose expected type is List itself
+	// takes an aggregate without imposing scalar context.
+	// Narrow only a genuine aggregate. Applying this to a broad type such as
+	// Any would strip its Array and Hash bits and hand back the remaining
+	// union, which then satisfies nothing — turning a type that accepted
+	// everything into one that accepts nothing.
+	if expected != types.List && (actual == types.Array || actual == types.Hash || actual == types.List) {
+		if narrowed, ok := types.NarrowByContext(actual, types.ScalarCtx); ok {
+			actual = narrowed
+		}
+	}
+
 	if activeOptions.skipUnknownOperand(actual) {
 		return
 	}

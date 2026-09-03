@@ -75,15 +75,32 @@ func TestAuditKeysValuesEachAcceptArray(t *testing.T) {
 	}
 }
 
-// --- split: first arg is Regex, not Scalar ---
-// perldoc: split /PATTERN/, EXPR, LIMIT
+// --- split: the pattern is a Regex OR a Str ---
+// perldoc writes it `split /PATTERN/, EXPR, LIMIT`, but perl compiles a plain
+// string into a pattern, so all of these are ordinary correct Perl:
+//
+//	split /:/, $x      split ":", $x      split $sep, $x      split qr/:/, $x
+//
+// Measured on 5.42: all four yield ("a","b","c") for "a:b:c". Requiring Regex
+// alone made `split ":", $x` a type error, which was 51 of the diagnostics on
+// perl5/lib — the single largest false-positive class.
+//
+// Regex|Str rather than Scalar: the position must still reject a reference,
+// and it does.
 
 func TestAuditSplitPatternType(t *testing.T) {
 	sig, ok := types.GetBuiltin("split")
 	require.True(t, ok, "split should be a known builtin")
 	require.True(t, len(sig.ArgTypes) >= 1, "split should have at least 1 arg type")
-	assert.Equal(t, types.Regex, sig.ArgTypes[0],
-		"split first arg should be Regex (the /PATTERN/), not Scalar")
+
+	assert.True(t, types.TypeSatisfies(types.Regex, sig.ArgTypes[0]),
+		"split /:/, $x — a compiled pattern is accepted")
+	assert.True(t, types.TypeSatisfies(types.Str, sig.ArgTypes[0]),
+		"split \":\", $x — a string pattern is accepted, perl compiles it")
+	assert.False(t, types.TypeSatisfies(types.HashRef, sig.ArgTypes[0]),
+		"split $hashref, $x — a reference is still rejected")
+	assert.NotEqual(t, types.Any, sig.ArgTypes[0],
+		"the position must still constrain something")
 }
 
 // --- join: separator then a LIST ---
