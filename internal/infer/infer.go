@@ -268,12 +268,66 @@ func inferNodeType(
 	case "assignment_expression":
 		return inferAssignmentNarrowing(node, source, st, annotations, childTypes, classTypes)
 
+	// --- Reference constructors ---
+	// The expressions that BUILD a reference. Each denotes the reference
+	// itself, not what it points at.
+
+	case "anonymous_hash_expression":
+		return types.HashRef
+
+	case "anonymous_array_expression":
+		return types.ArrayRef
+
+	case "anonymous_subroutine_expression":
+		// `sub { ... }` is a CodeRef, not a Code. Code is the compiled CV
+		// itself, which no perl scalar ever holds; what an assignment
+		// receives is a reference to it.
+		return types.CodeRef
+
+	case "quoted_regexp":
+		// qr// is blessed into Regexp, which is this lattice's Object.
+		return types.Regex
+
+	case "refgen_expression":
+		return inferRefgenType(node)
+
 	// --- Ternary / conditional ---
 
 	case "conditional_expression":
 		return inferConditionalType(node, childTypes)
 	}
 
+	return types.Unknown
+}
+
+// refgenTypes maps the node kind of a reference-taking operand to the type of
+// the reference produced. `\$x` is a ScalarRef, `\@a` an ArrayRef, and so on:
+// a single fixed result would be wrong for four of the five.
+var refgenTypes = map[string]types.Type{
+	"scalar":   types.ScalarRef,
+	"array":    types.ArrayRef,
+	"hash":     types.HashRef,
+	"function": types.CodeRef,
+	"glob":     types.GlobRef,
+}
+
+// inferRefgenType types `\EXPR` from what the reference is taken TO.
+//
+// The CST is the "\" token followed by the operand as the sole named child.
+// An operand kind not in the table yields Unknown rather than a guess — taking
+// a reference to something PSC does not model is not evidence about which
+// reference type results.
+func inferRefgenType(node *parser.Node) types.Type {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if t, ok := refgenTypes[child.Kind()]; ok {
+			return t
+		}
+		return types.Unknown
+	}
 	return types.Unknown
 }
 

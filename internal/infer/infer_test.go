@@ -2030,3 +2030,62 @@ func TestConditionalExpressionJoinsArms(t *testing.T) {
 	assert.NotEmpty(t, mixedDiags,
 		"a ternary that might yield an Array does not satisfy Num")
 }
+
+// --- Reference-producing expressions ---
+
+// TestInferAnonymousConstructors verifies that the expressions which BUILD a
+// reference are typed as that reference.
+//
+// These were absent from the inference switch, so `my $h = {}` left $h
+// Unknown — every hashref in a program was invisible, and no diagnostic about
+// misusing one could fire.
+func TestInferAnonymousConstructors(t *testing.T) {
+	cases := []struct {
+		src  string
+		expr string
+		want types.Type
+	}{
+		{"my $h = {};\n", "{}", types.HashRef},
+		{"my $a = [];\n", "[]", types.ArrayRef},
+		{"my $c = sub { 1 };\n", "sub { 1 }", types.CodeRef},
+		{"my $q = qr/x/;\n", "qr/x/", types.Regex},
+	}
+	for _, tc := range cases {
+		annotations, _ := analyzeSource(t, []byte(tc.src))
+		typ, ok := findNodeType(annotations, []byte(tc.src), tc.expr)
+		require.True(t, ok, "%s should be annotated", tc.expr)
+		assert.Equal(t, tc.want, typ, "%s is a %s", tc.expr, tc.want)
+	}
+}
+
+// TestInferRefgen verifies that \$x, \@a, \%h, \&f and \*G are typed from
+// what they take a reference TO. A single fixed type would be wrong for four
+// of the five.
+func TestInferRefgen(t *testing.T) {
+	cases := []struct {
+		src  string
+		expr string
+		want types.Type
+	}{
+		{"my $s;\nmy $r = \\$s;\n", "\\$s", types.ScalarRef},
+		{"my @a;\nmy $r = \\@a;\n", "\\@a", types.ArrayRef},
+		{"my %h;\nmy $r = \\%h;\n", "\\%h", types.HashRef},
+		{"my $r = \\&f;\n", "\\&f", types.CodeRef},
+		{"my $r = \\*STDOUT;\n", "\\*STDOUT", types.GlobRef},
+	}
+	for _, tc := range cases {
+		annotations, _ := analyzeSource(t, []byte(tc.src))
+		typ, ok := findNodeType(annotations, []byte(tc.src), tc.expr)
+		require.True(t, ok, "%s should be annotated", tc.expr)
+		assert.Equal(t, tc.want, typ, "%s is a %s", tc.expr, tc.want)
+	}
+}
+
+// TestAnonymousRefInArithmeticIsReported is the payoff: with these typed, a
+// reference used as a number is reportable. It was silent before, because the
+// value had no type to disagree with.
+func TestAnonymousRefInArithmeticIsReported(t *testing.T) {
+	src := []byte("my $h = {};\nmy $n = $h + 1;\n")
+	_, diags := analyzeSource(t, src)
+	assert.NotEmpty(t, diags, "a hashref in arithmetic should be reported")
+}
