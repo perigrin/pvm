@@ -181,3 +181,161 @@ func TestPaperRegexIsObject(t *testing.T) {
 	assert.False(t, types.IsSubtype(types.Regex, types.Str),
 		"Regex is NOT a subtype of Str — restringifying a pattern wraps it, losing the value")
 }
+
+// --- Every edge in the paper's hierarchy ---
+// The paper's %PARENT table (appendix-a/lattice-check.pl) is the canonical
+// edge list, and the "Complete Type Hierarchy" section draws the same tree.
+// Testing only the edges a change happened to touch leaves the rest of the
+// lattice unverified, so this table walks every edge PSC can represent.
+//
+// Types the paper defines but PSC's bitset does not model are listed in
+// paperTypesNotModelled below rather than silently omitted.
+
+func TestPaperEveryHierarchyEdge(t *testing.T) {
+	edges := []struct {
+		child, parent types.Type
+	}{
+		// Arity ordering: List is the top of the value hierarchy.
+		{types.Scalar, types.List},
+		{types.Array, types.List},
+		{types.Hash, types.List},
+
+		// Scalar branch.
+		{types.Undef, types.Scalar},
+		{types.Str, types.Scalar},
+		{types.Bool, types.Scalar},
+		{types.DualVar, types.Scalar},
+		{types.Ref, types.Scalar},
+
+		// Str branch.
+		{types.Num, types.Str},
+		{types.Int, types.Num},
+		{types.NaN, types.Str},
+		{types.Inf, types.Str},
+
+		// Ref branch.
+		{types.Object, types.Ref},
+		{types.Regex, types.Object},
+		{types.ScalarRef, types.Ref},
+		{types.ArrayRef, types.Ref},
+		{types.HashRef, types.Ref},
+		{types.CodeRef, types.Ref},
+		{types.GlobRef, types.Ref},
+
+		// Top-level types: not under Scalar or List.
+		{types.Code, types.Any},
+		{types.Glob, types.Any},
+	}
+
+	for _, e := range edges {
+		assert.True(t, types.IsSubtype(e.child, e.parent),
+			"paper edge %s <: %s should hold", e.child, e.parent)
+	}
+}
+
+// TestPaperEdgesAreProper verifies each edge is a PROPER subtype relation:
+// the parent must not also be a subtype of the child. A lattice where both
+// directions hold has collapsed the two types into one, which the containment
+// check alone would not catch.
+
+func TestPaperEdgesAreProper(t *testing.T) {
+	pairs := []struct {
+		child, parent types.Type
+	}{
+		{types.Int, types.Num},
+		{types.Num, types.Str},
+		{types.Str, types.Scalar},
+		{types.Scalar, types.List},
+		{types.Regex, types.Object},
+		{types.Object, types.Ref},
+		{types.Ref, types.Scalar},
+		{types.Array, types.List},
+		{types.Hash, types.List},
+	}
+
+	for _, p := range pairs {
+		assert.True(t, types.IsSubtype(p.child, p.parent),
+			"%s <: %s", p.child, p.parent)
+		assert.False(t, types.IsSubtype(p.parent, p.child),
+			"%s is NOT a subtype of %s — the relation must be proper, not an alias",
+			p.parent, p.child)
+	}
+}
+
+// TestPaperNonEdges verifies pairs the paper's tree keeps APART. Sibling
+// branches must not be related in either direction: a bitset lattice makes
+// accidental containment easy, and only negative assertions catch it.
+
+func TestPaperNonEdges(t *testing.T) {
+	// Aggregates are not scalars, and scalars are not aggregates.
+	assert.False(t, types.IsSubtype(types.Array, types.Scalar),
+		"Array is NOT a Scalar — different arity")
+	assert.False(t, types.IsSubtype(types.Hash, types.Scalar),
+		"Hash is NOT a Scalar — different arity")
+
+	// Code and Glob sit beside List, not under Scalar.
+	assert.False(t, types.IsSubtype(types.Code, types.Scalar),
+		"Code is NOT a Scalar — a CV is not a scalar value")
+	assert.False(t, types.IsSubtype(types.Glob, types.Scalar),
+		"Glob is NOT a Scalar")
+	assert.False(t, types.IsSubtype(types.Code, types.List),
+		"Code is NOT under List")
+	assert.False(t, types.IsSubtype(types.Glob, types.List),
+		"Glob is NOT under List")
+
+	// Glob and GlobRef are distinct: a bareword filehandle is a Glob, a
+	// lexical one (open my $fh) is a GlobRef. One operand requirement
+	// cannot cover both.
+	assert.False(t, types.IsSubtype(types.Glob, types.GlobRef),
+		"Glob is NOT a GlobRef — bareword and lexical filehandles differ")
+	assert.False(t, types.IsSubtype(types.GlobRef, types.Glob),
+		"GlobRef is NOT a Glob")
+
+	// Code (the CV) and CodeRef (a reference to one) are likewise distinct.
+	assert.False(t, types.IsSubtype(types.Code, types.CodeRef),
+		"Code is NOT a CodeRef — the CV itself cannot live in a scalar slot")
+	assert.False(t, types.IsSubtype(types.CodeRef, types.Code),
+		"CodeRef is NOT a Code")
+
+	// Sibling reference types are mutually unrelated.
+	refSiblings := []types.Type{
+		types.ScalarRef, types.ArrayRef, types.HashRef, types.CodeRef, types.GlobRef,
+	}
+	for i, a := range refSiblings {
+		for j, b := range refSiblings {
+			if i == j {
+				continue
+			}
+			assert.False(t, types.IsSubtype(a, b),
+				"%s and %s are sibling reference types, not related", a, b)
+		}
+	}
+
+	// Undef, Bool and DualVar are siblings of Str under Scalar, not under it.
+	for _, sibling := range []types.Type{types.Undef, types.Bool, types.DualVar} {
+		assert.False(t, types.IsSubtype(sibling, types.Str),
+			"%s is NOT under Str — it is a sibling of Str beneath Scalar", sibling)
+		assert.True(t, types.IsSubtype(sibling, types.Scalar),
+			"%s IS under Scalar", sibling)
+	}
+}
+
+// TestPaperTypesNotModelled documents the paper types PSC's bitset does not
+// represent. This is a record of known, deliberate incompleteness rather than
+// a silent gap: if one of these is added later, this test is where the edge
+// assertions belong.
+//
+// Void      — arity 0, the type of a void-context computation. PSC has no
+//             arity-0 type; Unknown stands in for "no value inferred".
+// VString   — v-strings (Str carrying 'V' magic).
+// LValueRef — \substr($s,0,2), which writes a RANGE rather than a whole scalar.
+// IO        — the object in a glob's IO slot, one level below a GlobRef.
+// Format    — a write() template, the FORMAT glob slot.
+//
+// Boolean is spelled Bool in PSC and IS modelled; the name differs, not the
+// placement.
+
+func TestPaperTypesNotModelled(t *testing.T) {
+	t.Log("Paper types absent from the PSC bitset: Void, VString, LValueRef, IO, Format")
+	t.Log("Adding any of them requires a new leaf bit plus its edge assertions above")
+}
