@@ -43,10 +43,13 @@ func TestNarrowByContextScalar(t *testing.T) {
 	assert.True(t, valid, "Hash in scalar context is valid")
 	assert.Equal(t, types.Int, narrowed, "Hash in scalar context narrows to Int (count)")
 
-	// List (Array|Hash) in scalar context: both aggregate bits become Int
+	// List in scalar context: the aggregate bits become Int (a count), while
+	// the Scalar bits List contains under the arity ordering pass through — a
+	// list denoting a single value yields that value, not a count.
 	narrowed, valid = types.NarrowByContext(types.List, types.ScalarCtx)
 	assert.True(t, valid, "List in scalar context is valid")
-	assert.Equal(t, types.Int, narrowed, "List in scalar context narrows to Int (both Array and Hash become count)")
+	assert.Equal(t, types.Scalar|types.Int, narrowed,
+		"List in scalar context narrows aggregates to Int and passes Scalar through")
 
 	// Str in scalar context passes through unchanged
 	narrowed, valid = types.NarrowByContext(types.Str, types.ScalarCtx)

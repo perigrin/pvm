@@ -30,12 +30,12 @@ const (
 	Inf     Type = 1 << 18 // IEEE 754 Infinity (Scalar, not Str or Num)
 	Regex   Type = 1 << 6  // Regular expression
 
-	ScalarRef Type = 1 << 7  // Reference to a scalar
-	ArrayRef  Type = 1 << 8  // Reference to an array
-	HashRef   Type = 1 << 9  // Reference to a hash
-	CodeRef   Type = 1 << 10 // Reference to code (subroutine)
-	GlobRef   Type = 1 << 11 // Reference to a glob
-	Object    Type = 1 << 12 // Blessed reference (object)
+	ScalarRef  Type = 1 << 7  // Reference to a scalar
+	ArrayRef   Type = 1 << 8  // Reference to an array
+	HashRef    Type = 1 << 9  // Reference to a hash
+	CodeRef    Type = 1 << 10 // Reference to code (subroutine)
+	GlobRef    Type = 1 << 11 // Reference to a glob
+	objectLeaf Type = 1 << 12 // Blessed-reference leaf (blessed, but not a Regexp)
 
 	Array Type = 1 << 13 // Array
 	Hash  Type = 1 << 14 // Hash
@@ -69,19 +69,34 @@ const (
 
 	// Str is the string family: accepts string, float, and integer values.
 	// A concrete string literal is annotated as Str; Num and Int are subtypes.
-	Str Type = strLeaf | Num
+	//
+	// NaN and Inf are members of Str, not Num. Both pass syntactic
+	// preservation ("NaN" -> NaN -> "NaN" round-trips) and satisfy the string
+	// operation contracts; they are excluded from Num by the semantic
+	// component alone — NaN violates Contract_== and Contract_-, Inf violates
+	// Contract_- (Inf - Inf = NaN).
+	Str Type = strLeaf | Num | NaN | Inf
+
+	// Object is the blessed-reference family mask. Regex is a subtype of
+	// Object: a compiled pattern is blessed into Regexp and participates in
+	// method dispatch.
+	Object Type = objectLeaf | Regex
 
 	// Ref is the reference family mask.
 	Ref Type = ScalarRef | ArrayRef | HashRef | CodeRef | GlobRef | Object
 
 	// Scalar is the scalar family mask — all types that fit in a scalar variable.
-	Scalar Type = Undef | Bool | Str | DualVar | NaN | Inf | Regex | Ref
+	Scalar Type = Undef | Bool | Str | DualVar | Ref
 
-	// List is the aggregate family mask.
-	List Type = Array | Hash
+	// List is the aggregate family mask. Arity orders the top of the lattice:
+	// Scalar denotes {1} and List denotes {0,1,2,...}, so Scalar <: List by
+	// subset inclusion on arities. This states Perl's list-flattening rule as
+	// a subtype fact — a scalar satisfies a list position because one value is
+	// one of the arities a list admits.
+	List Type = Array | Hash | Scalar
 
 	// Any is the top type — all concrete type bits.
-	Any Type = Scalar | List | Code | Glob
+	Any Type = List | Code | Glob
 )
 
 // typeNames maps known Type masks/values to their canonical string names.
@@ -133,7 +148,7 @@ var allLeafBits = []struct {
 	{HashRef, "HashRef"},
 	{CodeRef, "CodeRef"},
 	{GlobRef, "GlobRef"},
-	{Object, "Object"},
+	{objectLeaf, "Object"},
 	{Array, "Array"},
 	{Hash, "Hash"},
 	{Code, "Code"},
@@ -214,10 +229,29 @@ func IsSubtype(child, parent Type) bool {
 // runtime, but Perl code that expects a specific ref type (e.g. HashRef)
 // should get a diagnostic when passed a generic Ref. This matches the
 // pre-bitset behavior.
+//
+// List is handled separately by listSatisfiesAggregate rather than listed
+// here: it stands above Scalar in the arity ordering rather than beside it,
+// so a blanket polymorphic check would let every scalar requirement be
+// satisfied by a list-returning expression.
 var polymorphicMasks = map[Type]bool{
 	Any:    true,
 	Scalar: true,
-	List:   true,
+}
+
+// listSatisfiesAggregate reports whether a List actual can satisfy required.
+//
+// A list-producing expression may stand where an aggregate is expected —
+// sort() returns List and can feed an Array position. It may NOT stand where
+// a scalar is expected: under the arity ordering Scalar <: List, so a blanket
+// reverse-subtype check would make `keys(%h) + 1` type-check as arithmetic.
+// Arity is a claim about how many values arrive, not about which scalar type
+// one of them has, so only aggregate requirements are satisfied this way.
+func listSatisfiesAggregate(actual, required Type) bool {
+	if actual != List {
+		return false
+	}
+	return required&^(Array|Hash) == 0 && required != Unknown
 }
 
 // TypeSatisfies reports whether a value of actual type can satisfy a required type.
@@ -258,6 +292,11 @@ func TypeSatisfies(actual, required Type) bool {
 	// any of its subtypes at runtime. If required is a subtype of actual,
 	// the variable might hold a value of that required type.
 	if polymorphicMasks[actual] && IsSubtype(required, actual) {
+		return true
+	}
+
+	// A List can stand where an aggregate is expected, but not where a scalar is.
+	if listSatisfiesAggregate(actual, required) {
 		return true
 	}
 

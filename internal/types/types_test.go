@@ -181,7 +181,7 @@ func TestBitsetLeafTypesAreDistinct(t *testing.T) {
 	leaves := []types.Type{
 		types.Undef, types.Bool, types.Int,
 		types.DualVar, types.NaN, types.Inf, types.Regex, types.ScalarRef, types.ArrayRef,
-		types.HashRef, types.CodeRef, types.GlobRef, types.Object,
+		types.HashRef, types.CodeRef, types.GlobRef,
 		types.Array, types.Hash, types.Code, types.Glob,
 	}
 	seen := types.Type(0)

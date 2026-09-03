@@ -50,36 +50,6 @@ func TestPaperDualVarExclusion(t *testing.T) {
 		"DualVar IS a subtype of Scalar — maintains identity through scalar operations")
 }
 
-// --- NaN exclusion ---
-// The paper proves NaN sits in Scalar but outside Str and Num.
-// "NaN" passes syntactic preservation for Num ("NaN" -> NaN -> "NaN" round-trips)
-// but fails semantic fulfillment (NaN != NaN violates reflexivity).
-// NaN is excluded from Str because its string representation is a representational
-// artifact, not a meaningful string identity.
-
-func TestPaperNaNExclusion(t *testing.T) {
-	assert.False(t, types.IsSubtype(types.NaN, types.Num),
-		"NaN is NOT a subtype of Num — fails semantic fulfillment (NaN != NaN)")
-	assert.False(t, types.IsSubtype(types.NaN, types.Str),
-		"NaN is NOT a subtype of Str — 'NaN' is a representational artifact")
-	assert.True(t, types.IsSubtype(types.NaN, types.Scalar),
-		"NaN IS a subtype of Scalar")
-}
-
-// --- Inf exclusion ---
-// Inf sits in Scalar but outside Str and Num, same lattice position as NaN.
-// Inf passes syntactic preservation but fails semantic fulfillment
-// (Inf - Inf = NaN violates subtraction identity).
-
-func TestPaperInfExclusion(t *testing.T) {
-	assert.False(t, types.IsSubtype(types.Inf, types.Num),
-		"Inf is NOT a subtype of Num — Inf - Inf = NaN violates subtraction identity")
-	assert.False(t, types.IsSubtype(types.Inf, types.Str),
-		"Inf is NOT a subtype of Str — 'Inf' is a representational artifact")
-	assert.True(t, types.IsSubtype(types.Inf, types.Scalar),
-		"Inf IS a subtype of Scalar")
-}
-
 // --- NaN and Inf are distinct ---
 
 func TestPaperNaNInfDistinct(t *testing.T) {
@@ -148,4 +118,66 @@ func TestPaperBottomTopTypes(t *testing.T) {
 		"Any should contain NaN")
 	assert.True(t, types.Any&types.Inf == types.Inf,
 		"Any should contain Inf")
+}
+
+// --- NaN and Inf are Str, not Num (paper §"Example 3", line 2102) ---
+// The paper places NaN and Inf in Str: both pass syntactic preservation
+// ("NaN" -> NaN -> "NaN" round-trips) and are excluded from Num by the
+// SEMANTIC component alone. Example 3 states it directly: "NaN" ∈ Str
+// because it satisfies both the syntactic and semantic requirements for
+// string membership. The contract table distinguishes them — NaN fails
+// Contract_==, Contract_- and Contract_+; Inf fails Contract_- alone.
+
+func TestPaperNaNInfAreStrings(t *testing.T) {
+	assert.True(t, types.IsSubtype(types.NaN, types.Str),
+		"NaN IS a subtype of Str — stable string representation, correct under string operations")
+	assert.True(t, types.IsSubtype(types.Inf, types.Str),
+		"Inf IS a subtype of Str — stable string representation, correct under string operations")
+
+	assert.False(t, types.IsSubtype(types.NaN, types.Num),
+		"NaN is NOT a subtype of Num — fails Contract_== (NaN != NaN) and Contract_-")
+	assert.False(t, types.IsSubtype(types.Inf, types.Num),
+		"Inf is NOT a subtype of Num — passes Contract_== but fails Contract_- (Inf - Inf = NaN)")
+}
+
+// --- Arity ordering: Scalar <: List (paper §"Complete Type Hierarchy") ---
+// Scalar, Void and List are distinguished by how many values they denote, and
+// the subtype relation between them is subset inclusion on those arities:
+// Scalar {1} ⊆ List {0,1,2,...} gives Scalar <: List. This states Perl's
+// list-flattening rule as a subtype fact: a scalar satisfies a list position
+// BECAUSE one value is one of the arities a list admits.
+
+func TestPaperArityOrdering(t *testing.T) {
+	assert.True(t, types.IsSubtype(types.Scalar, types.List),
+		"Scalar <: List — {1} is one of the arities a list admits (list flattening)")
+	assert.True(t, types.IsSubtype(types.Array, types.List),
+		"Array <: List")
+	assert.True(t, types.IsSubtype(types.Hash, types.List),
+		"Hash <: List")
+	assert.True(t, types.IsSubtype(types.Int, types.List),
+		"Int <: List — transitive through Num, Str, Scalar")
+
+	// List is NOT a subtype of Scalar: {0,1,2,...} is not contained in {1}.
+	assert.False(t, types.IsSubtype(types.List, types.Scalar),
+		"List is NOT a subtype of Scalar — a list may denote zero or many values")
+}
+
+// --- Regex <: Object <: Ref (paper §"Regex") ---
+// Regex := {v ∈ Object | ref(v) eq 'Regexp'}. A compiled pattern is a blessed
+// reference — ref is 'Regexp', blessed is 'Regexp', reftype is 'REGEXP' — which
+// is this paper's definition of Object. So Regex is a subtype of Object rather
+// than a sibling of Ref, and it participates in method dispatch.
+
+func TestPaperRegexIsObject(t *testing.T) {
+	assert.True(t, types.IsSubtype(types.Regex, types.Object),
+		"Regex <: Object — a compiled pattern is a blessed reference")
+	assert.True(t, types.IsSubtype(types.Regex, types.Ref),
+		"Regex <: Ref — transitive through Object")
+	assert.True(t, types.IsSubtype(types.Object, types.Ref),
+		"Object <: Ref")
+
+	// Regex is NOT a Str: syntactic preservation fails because qr// applied to
+	// a stringified pattern NESTS it rather than reconstructing the original.
+	assert.False(t, types.IsSubtype(types.Regex, types.Str),
+		"Regex is NOT a subtype of Str — restringifying a pattern wraps it, losing the value")
 }
