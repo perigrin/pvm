@@ -271,10 +271,41 @@ func inferNodeType(
 	// --- Ternary / conditional ---
 
 	case "conditional_expression":
-		return types.Any
+		return inferConditionalType(node, childTypes)
 	}
 
 	return types.Unknown
+}
+
+// inferConditionalType types `$c ? $a : $b` as the join of its two arms.
+//
+// The CST is condition, "?", true-arm, ":", false-arm, with the condition and
+// the arms as the three named children. The value that leaves the expression
+// came from one arm or the other, so its type is the least type covering both
+// — which is what types.Join computes.
+//
+// This previously returned Any, which is unsound rather than merely imprecise:
+// Any satisfies every requirement by construction, so `(1 ? $hashref : $x) + 1`
+// reported nothing even under strict mode. A join keeps whatever both arms
+// agree on and no more.
+func inferConditionalType(node *parser.Node, childTypes []types.Type) types.Type {
+	var arms []types.Type
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if i < len(childTypes) {
+			arms = append(arms, childTypes[i])
+		}
+	}
+
+	// condition, true-arm, false-arm. The condition's own type says nothing
+	// about the value produced, so only the arms are joined.
+	if len(arms) < 3 {
+		return types.Unknown
+	}
+	return types.Join(arms[1], arms[2])
 }
 
 // inferNumberType determines whether the number text represents an integer
@@ -406,17 +437,34 @@ func inferUnaryExprType(node *parser.Node, source []byte) types.Type {
 	return sig.Result
 }
 
-// findOperatorText returns the text of the first non-named (anonymous)
-// child of node, which in the Perl grammar is the operator token.
+// findOperatorText returns the operator token of a binary-family node.
+//
+// Anonymous children are punctuation and operators both, so the first one is
+// not reliably the operator: a parenthesised operand puts "(" there. Taking it
+// blindly made `(@a) + 1` look like an expression whose operator was "(",
+// which no signature matches, so the caller bailed out as Unknown and never
+// checked either operand — hiding a diagnostic that the unparenthesised form
+// reports.
+//
+// The first anonymous child that NAMES A KNOWN OPERATOR is the operator.
+// Punctuation is skipped rather than enumerated, so the set of things that can
+// appear around an operand does not have to be listed here.
+//
+// Both operator tables are consulted because this is shared by the binary and
+// unary paths; checking only the binary table would drop "!" and the other
+// unary operators on the floor.
 func findOperatorText(node *parser.Node, source []byte) string {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if child == nil {
+		if child == nil || child.IsNamed() {
 			continue
 		}
-		// Anonymous nodes are punctuation/operators in tree-sitter grammars.
-		if !child.IsNamed() {
-			return child.Text(source)
+		text := child.Text(source)
+		if _, ok := types.GetBinaryOp(text); ok {
+			return text
+		}
+		if _, ok := types.GetUnaryOp(text); ok {
+			return text
 		}
 	}
 	return ""

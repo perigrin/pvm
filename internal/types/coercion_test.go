@@ -217,3 +217,80 @@ func TestStrictNoneUnaffected(t *testing.T) {
 	assert.True(t, types.TypeSatisfiesStrict(types.None, types.Int),
 		"strict: None satisfies Int — bottom is a subtype of everything")
 }
+
+// --- Join: the type of a value arriving from two branches ---
+//
+// Every control-flow merge — $c ? $a : $b, if/else, //, && — must give one
+// type to a value that came from either arm. The paper calls that the join:
+// the least T with A <: T and B <: T.
+
+func TestJoinBasics(t *testing.T) {
+	// Same type joins to itself.
+	assert.Equal(t, types.Int, types.Join(types.Int, types.Int),
+		"Int ⊔ Int = Int")
+
+	// A subtype joins to its supertype: the supertype already contains it.
+	assert.Equal(t, types.Num, types.Join(types.Int, types.Num),
+		"Int ⊔ Num = Num — Int <: Num, so Num is the least upper bound")
+	assert.Equal(t, types.Str, types.Join(types.Int, types.Str),
+		"Int ⊔ Str = Str")
+
+	// Bottom is the identity of join. The paper makes this load-bearing:
+	// a recursive function types from its base case only if T ⊔ None = T.
+	for _, ty := range []types.Type{types.Int, types.Str, types.HashRef, types.Scalar} {
+		assert.Equal(t, ty, types.Join(ty, types.None),
+			"%s ⊔ None = %s — bottom is the join identity", ty, ty)
+	}
+}
+
+// The paper's worked example, and the one 04c8107 corrected: a boolean merged
+// with an integer widens past Str, because Boolean is a sibling of Str beneath
+// Scalar rather than a member of it.
+//
+// The paper states this over NAMED types, where the answer is Scalar. A bitset
+// carries the exact member set, so the join is Bool|Int — strictly more
+// precise, and a subtype of Scalar. What matters is the property the paper's
+// answer was defending: the merge must NOT come out as Str, since `false`
+// stringifies to "" where `0` gives "0", so the merged value is not
+// guaranteed to behave as a string.
+
+func TestJoinBooleanInt(t *testing.T) {
+	for _, other := range []types.Type{types.Int, types.Str, types.Undef} {
+		j := types.Join(types.Bool, other)
+
+		assert.True(t, types.IsSubtype(j, types.Scalar),
+			"Bool ⊔ %s is within Scalar", other)
+		assert.False(t, types.IsSubtype(j, types.Str),
+			"Bool ⊔ %s must NOT be within Str — `false` stringifies to \"\", not \"0\"", other)
+
+		// Both arms survive the merge.
+		assert.True(t, types.IsSubtype(types.Bool, j), "Bool <: Bool ⊔ %s", other)
+		assert.True(t, types.IsSubtype(other, j), "%s <: Bool ⊔ %s", other, other)
+	}
+}
+
+// Unknown must NOT absorb a known arm. It is not a claim about a value; it is
+// the statement that inference has not determined one. As the top of the
+// lattice a naive least-upper-bound would let it swallow every typed arm, so
+// join drops Unknown arms and joins the remainder.
+
+func TestJoinUnknownDoesNotAbsorb(t *testing.T) {
+	assert.Equal(t, types.Int, types.Join(types.Int, types.Unknown),
+		"Int ⊔ Unknown = Int — Unknown contributes no constraint, it does not erase one")
+	assert.Equal(t, types.Int, types.Join(types.Unknown, types.Int),
+		"join is commutative in this")
+	assert.Equal(t, types.Unknown, types.Join(types.Unknown, types.Unknown),
+		"Unknown ⊔ Unknown = Unknown — nothing was determined on either arm")
+}
+
+// The join of two unrelated types is their union, which is what makes the
+// result usable: a value that is Int-or-HashRef satisfies neither Int nor
+// HashRef alone, and a diagnostic can say so.
+
+func TestJoinUnrelated(t *testing.T) {
+	j := types.Join(types.Int, types.HashRef)
+	assert.True(t, types.IsSubtype(types.Int, j), "Int <: Int ⊔ HashRef")
+	assert.True(t, types.IsSubtype(types.HashRef, j), "HashRef <: Int ⊔ HashRef")
+	assert.False(t, types.TypeSatisfies(j, types.Int),
+		"a value that might be a HashRef does not satisfy Int")
+}

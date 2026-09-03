@@ -286,12 +286,18 @@ func TestMethodCallAnnotatedAny(t *testing.T) {
 	assert.Equal(t, types.Any, typ, "method call return type should be Any")
 }
 
-func TestConditionalExpressionAnnotatedAny(t *testing.T) {
+// TestConditionalExpressionJoinsItsArms verifies a ternary is typed as the
+// join of its arms.
+//
+// This previously asserted Any, which accepted every subsequent use by
+// construction — unsound rather than imprecise. Both arms here are Int, so the
+// join is Int and the result stays checkable.
+func TestConditionalExpressionJoinsItsArms(t *testing.T) {
 	src := []byte("my $x = 1; my $y = 2; $x ? $y : 0;")
 	annotations, _ := analyzeSource(t, src)
 	typ, ok := findNodeType(annotations, src, "$x ? $y : 0")
 	require.True(t, ok, "conditional_expression should be annotated")
-	assert.Equal(t, types.Any, typ, "conditional expression should have type Any")
+	assert.Equal(t, types.Int, typ, "a ternary over two Ints is Int, not Any")
 }
 
 // --- Assignment narrowing tests ---
@@ -1983,4 +1989,44 @@ func TestNoCoercionIntWithEq(t *testing.T) {
 		assert.NotEqual(t, infer.CodeCoercionMismatch, d.Code,
 			"eq on Int operands should produce no coercion-mismatch (Int <: Str)")
 	}
+}
+
+// TestParenthesizedOperandIsChecked verifies that a binary expression whose
+// left operand is parenthesized still has its operands checked.
+//
+// The operator was previously found by taking the first anonymous child, but a
+// parenthesized operand puts "(" in that position, so the lookup failed and
+// the whole expression bailed out as Unknown before any operand was examined.
+func TestParenthesizedOperandIsChecked(t *testing.T) {
+	// An array in a numeric position is a coercion mismatch. Wrapping the
+	// operand in parentheses must not hide it.
+	bare := []byte("my @a;\nmy $x = @a + 1;\n")
+	parens := []byte("my @a;\nmy $x = (@a) + 1;\n")
+
+	_, bareDiags := analyzeSource(t, bare)
+	_, parenDiags := analyzeSource(t, parens)
+
+	assert.NotEmpty(t, bareDiags, "precondition: @a + 1 is a diagnostic")
+	assert.Equal(t, len(bareDiags), len(parenDiags),
+		"parenthesising the operand must not change what is reported")
+}
+
+// TestConditionalExpressionJoinsArms verifies that a ternary is typed as the
+// join of its arms rather than as Any.
+//
+// Any satisfies every requirement by construction, so typing a ternary as Any
+// made every value that passed through one unverifiable — unsound rather than
+// merely imprecise.
+func TestConditionalExpressionJoinsArms(t *testing.T) {
+	// Both arms Int: the merge is Int, and using it as a number is fine.
+	src := []byte("my $x = 1 ? 42 : 43;\nmy $y = $x + 1;\n")
+	_, diags := analyzeSource(t, src)
+	assert.Empty(t, diags, "a ternary over two Ints is a Num and needs no diagnostic")
+
+	// Arms of unrelated types: the merge satisfies neither, so a numeric use
+	// is reported.
+	mixed := []byte("my @a;\nmy $x = (1 ? @a : 42) + 1;\n")
+	_, mixedDiags := analyzeSource(t, mixed)
+	assert.NotEmpty(t, mixedDiags,
+		"a ternary that might yield an Array does not satisfy Num")
 }

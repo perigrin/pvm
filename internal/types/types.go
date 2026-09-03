@@ -320,15 +320,16 @@ func typeSatisfies(actual, required Type, strict bool) bool {
 
 	// (2) The value might be of the required type at runtime.
 	//
-	// Union containment: actual is an ad-hoc union (not a named parent mask)
-	// whose bits include all of required's. Object|HashRef satisfies Object
-	// because the union carries the Object bit. Named masks are excluded
-	// because Str contains Int's bits while a Str should not satisfy an Int
-	// requirement — it may hold non-numeric data.
-	if _, isNamed := typeNames[actual]; !isNamed && actual&required == required {
-		return true
-	}
-
+	// A union is an EITHER, never a both. Object|HashRef is the value that
+	// came out of a merge whose arms were an object and a plain hashref, and
+	// perl keeps those apart: `ref` reports the class for a blessed reference
+	// and HASH for a plain one, measured on 5.42, so no value is both. The
+	// same shape arises from `$c ? $a : $b`, and it means the same thing.
+	//
+	// So a union does NOT satisfy a requirement that only some of its members
+	// meet — that is the whole point of tracking it. Satisfaction for unions
+	// is the subtype check in (1): every member must be acceptable.
+	//
 	// Polymorphic: actual is a general container that could hold any of its
 	// subtypes at runtime, so a required subtype might be what it holds.
 	if polymorphicMasks[actual] && IsSubtype(required, actual) {

@@ -61,32 +61,36 @@ func TestPaperNaNInfDistinct(t *testing.T) {
 		"NaN and Inf occupy different bit positions")
 }
 
-// --- Blessed reference unions ---
-// The paper says a blessed hashref satisfies both Object AND HashRef.
-// In the bitset, Object|HashRef is a union type representing this.
+// --- Unions are an EITHER, never a both ---
+// A union type is the value that came out of a merge: it is one of its
+// members, and PSC does not know which. Object|HashRef arises where one arm
+// gave a blessed reference and the other a plain hashref.
+//
+// Perl keeps those apart. Measured on 5.42, `ref` reports the class for a
+// blessed reference and HASH for a plain one, and `blessed` is defined for
+// exactly one of them — so no value inhabits both, and a union of the two
+// cannot be treated as a value that satisfies both.
 
-func TestPaperBlessedRefUnion(t *testing.T) {
-	blessedHashRef := types.Object | types.HashRef
+func TestPaperUnionIsEither(t *testing.T) {
+	objOrHash := types.Object | types.HashRef
 
-	// A blessed hashref is a subtype of Ref
-	assert.True(t, types.IsSubtype(blessedHashRef, types.Ref),
-		"Object|HashRef is a subtype of Ref")
-
-	// A blessed hashref is a subtype of Scalar
-	assert.True(t, types.IsSubtype(blessedHashRef, types.Scalar),
+	// Every member is a Ref, so the union is a Ref.
+	assert.True(t, types.IsSubtype(objOrHash, types.Ref),
+		"Object|HashRef is a subtype of Ref — both members are references")
+	assert.True(t, types.IsSubtype(objOrHash, types.Scalar),
 		"Object|HashRef is a subtype of Scalar")
 
-	// A blessed hashref satisfies Object requirements
-	assert.True(t, types.TypeSatisfies(blessedHashRef, types.Object),
-		"Object|HashRef satisfies Object — can call methods")
+	// But it satisfies NEITHER member requirement: the value might be the
+	// other one. Calling a method on it is unsound if it is the plain
+	// hashref, and dereferencing it as a hash is unsound if it is the object.
+	assert.False(t, types.TypeSatisfies(objOrHash, types.Object),
+		"Object|HashRef does NOT satisfy Object — the value might be the plain hashref")
+	assert.False(t, types.TypeSatisfies(objOrHash, types.HashRef),
+		"Object|HashRef does NOT satisfy HashRef — the value might be the object")
 
-	// A blessed hashref satisfies HashRef requirements
-	assert.True(t, types.TypeSatisfies(blessedHashRef, types.HashRef),
-		"Object|HashRef satisfies HashRef — can dereference as hash")
-
-	// A blessed hashref satisfies Ref requirements
-	assert.True(t, types.TypeSatisfies(blessedHashRef, types.Ref),
-		"Object|HashRef satisfies Ref")
+	// It does satisfy a requirement every member meets.
+	assert.True(t, types.TypeSatisfies(objOrHash, types.Ref),
+		"Object|HashRef satisfies Ref — every member is a reference")
 }
 
 // --- Bottom and top type properties ---
