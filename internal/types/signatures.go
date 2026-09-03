@@ -46,7 +46,10 @@ var builtins = map[string]BuiltinSig{
 	"chr":    {MinArity: 0, ArgTypes: []Type{Int}, ReturnType: Str},
 	"ord":    {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Int},
 
-	"join":    {MinArity: 2, ArgTypes: []Type{Str, Str}, ReturnType: Str},
+	// join takes a separator and then a LIST, not a series of strings: the
+	// variadic tail repeats the last ArgTypes entry, so Str there rejected
+	// `join ":", @foo`. Measured: join(":", @f) flattens the array.
+	"join":    {MinArity: 2, ArgTypes: []Type{Str, List}, ReturnType: Str},
 	"split":   {MinArity: 0, ArgTypes: []Type{Regex, Str, Int}, ReturnType: List},
 	"sprintf": {MinArity: 1, ArgTypes: []Type{Str, Any}, ReturnType: Str},
 	"substr":  {MinArity: 2, ArgTypes: []Type{Str, Num, Num}, ReturnType: Str},

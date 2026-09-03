@@ -86,16 +86,30 @@ func TestAuditSplitPatternType(t *testing.T) {
 		"split first arg should be Regex (the /PATTERN/), not Scalar")
 }
 
-// --- join: second arg accepts Str (the list elements to join) ---
-// perldoc: join EXPR, LIST — joins string representations.
-// The variadic list elements should be Str, not Any.
+// --- join: separator then a LIST ---
+// perldoc: join EXPR, LIST. The second position is the list itself, not one
+// string: `join ":", @foo` passes an array that flattens into LIST, and the
+// variadic tail repeats this entry, so Str here rejected every array — 15 of
+// the arity/type diagnostics on perl5/lib were exactly that.
+//
+// List rather than Any: the point of the audit is that the position must
+// still constrain something, and List excludes Code and Glob, which cannot
+// appear in a list to be joined.
 
 func TestAuditJoinListElements(t *testing.T) {
 	sig, ok := types.GetBuiltin("join")
 	require.True(t, ok, "join should be a known builtin")
 	require.True(t, len(sig.ArgTypes) >= 2, "join should have at least 2 arg types")
-	assert.Equal(t, types.Str, sig.ArgTypes[1],
-		"join list elements should be Str (not Any) — elements are stringified")
+	assert.Equal(t, types.List, sig.ArgTypes[1],
+		"join's second position is LIST — an array flattens into it")
+	assert.NotEqual(t, types.Any, sig.ArgTypes[1],
+		"but not Any: the position must still constrain something")
+
+	// A Str is still acceptable there, since Scalar <: List.
+	assert.True(t, types.TypeSatisfies(types.Str, sig.ArgTypes[1]),
+		"join \":\", \"a\", \"b\" — strings satisfy the list position")
+	assert.True(t, types.TypeSatisfies(types.Array, sig.ArgTypes[1]),
+		"join \":\", @foo — an array satisfies the list position")
 }
 
 // --- chomp/chop accept Str, not Any ---

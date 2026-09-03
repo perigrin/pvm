@@ -2089,3 +2089,37 @@ func TestAnonymousRefInArithmeticIsReported(t *testing.T) {
 	_, diags := analyzeSource(t, src)
 	assert.NotEmpty(t, diags, "a hashref in arithmetic should be reported")
 }
+
+// TestListOperatorArgsFromEnclosingList verifies that a paren-less list
+// operator gets its full argument list even when the grammar leaves the later
+// arguments OUTSIDE the call node.
+//
+// The Perl grammar produces two different shapes for the same call:
+//
+//	push @todo, [1,2];          call(function, list_expression(array, ref))
+//	push @todo, [1,2] unless $o; list_expression(call(function, array), ref)
+//
+// In the second, only the first argument is inside the call and the rest are
+// siblings in the enclosing list_expression. Counting only the call's own
+// children therefore reported a bogus arity error — 168 of 804 diagnostics on
+// perl5/lib were this, across push, join, substr, unshift and index.
+func TestListOperatorArgsFromEnclosingList(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{"statement modifier unless", "my @todo; my $o = 1;\npush @todo, [1, 2] unless $o;\n"},
+		{"statement modifier if", "my @todo; my $o = 1;\npush @todo, 'x' if $o;\n"},
+		{"join with paren-less args", "my @a;\nmy $s = join \",\", @a;\n"},
+	}
+	for _, tc := range cases {
+		_, diags := analyzeSource(t, []byte(tc.src))
+		var arity []string
+		for _, d := range diags {
+			if d.Code == infer.CodeArityMismatch {
+				arity = append(arity, d.Message)
+			}
+		}
+		assert.Empty(t, arity, "%s: should report no arity error, got %v", tc.name, arity)
+	}
+}

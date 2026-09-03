@@ -800,8 +800,76 @@ func inferFunc0opCallType(
 // collectCallArgs gathers the actual argument nodes for a function call.
 // For calls with parentheses the arguments are inside a list_expression child;
 // for ambiguous calls without parens, they may be direct children after the
-// function name.
+// function name, or SIBLINGS of the call — see collectTrailingListArgs.
 func collectCallArgs(node *parser.Node, source []byte) []*parser.Node {
+	args := collectOwnCallArgs(node, source)
+	return append(args, collectTrailingListArgs(node)...)
+}
+
+// collectTrailingListArgs returns the arguments a paren-less list operator
+// takes that the grammar placed OUTSIDE the call node.
+//
+// A list operator without parentheses parses two different ways depending on
+// what follows it:
+//
+//	push @todo, [1,2];           call(function, list_expression(array, ref))
+//	push @todo, [1,2] unless $o; list_expression(call(function, array), ref)
+//	join ",", @a;                list_expression(call(function, str), array)
+//
+// In the second and third the call node holds only the FIRST argument and the
+// remainder are siblings in the enclosing list_expression. Counting only the
+// call's own children then under-reports the arity — which produced 168 of 804
+// diagnostics on perl5/lib, every one of them spurious.
+//
+// The siblings belong to this call only when the call is the list's FIRST
+// element: `f(1), g(2)` is two complete calls in a list, and g's argument must
+// not be handed to f. Anything before the call in the list means the call is
+// an element rather than the head, so nothing is claimed.
+func collectTrailingListArgs(node *parser.Node) []*parser.Node {
+	parent := node.Parent()
+
+	// The call may sit under an assignment whose whole right-hand side is the
+	// list: `my $s = join ",", @a` nests the call inside an
+	// assignment_expression, which is itself the head of the list_expression.
+	// Walk up through such wrappers so the trailing arguments are still found.
+	self := node
+	for parent != nil && parent.Kind() != "list_expression" {
+		switch parent.Kind() {
+		case "assignment_expression", "variable_declaration":
+			self = parent
+			parent = parent.Parent()
+		default:
+			return nil
+		}
+	}
+	if parent == nil {
+		return nil
+	}
+	node = self
+
+	var trailing []*parser.Node
+	seenSelf := false
+	for i := 0; i < parent.ChildCount(); i++ {
+		child := parent.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if child.StartByte() == node.StartByte() && child.Kind() == node.Kind() {
+			seenSelf = true
+			continue
+		}
+		if !seenSelf {
+			// Something precedes the call, so it is an element of the list
+			// rather than the operator consuming it.
+			return nil
+		}
+		trailing = append(trailing, child)
+	}
+	return trailing
+}
+
+// collectOwnCallArgs gathers the argument nodes held by the call node itself.
+func collectOwnCallArgs(node *parser.Node, source []byte) []*parser.Node {
 	var args []*parser.Node
 
 	// First, try to find a list_expression child.
