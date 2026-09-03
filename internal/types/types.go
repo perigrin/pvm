@@ -254,14 +254,30 @@ func listSatisfiesAggregate(actual, required Type) bool {
 	return required&^(Array|Hash) == 0 && required != Unknown
 }
 
-// TypeSatisfies reports whether a value of actual type can satisfy a required type.
+// TypeSatisfies reports whether a value of actual type can satisfy a required
+// type at a use site — a call argument, an operator operand.
 //
-// Rules:
-//   - required == Any accepts everything.
-//   - actual == Unknown passes permissively (type not yet determined).
-//   - IsSubtype(actual, required) covers exact and subtype relationships.
-//   - For polymorphic types (Any, Scalar, List): required is a subtype of actual,
-//     meaning the actual variable could hold a value of the required type at runtime.
+// It asks two questions:
+//
+//  1. Is actual already a member of required? (IsSubtype — nothing happens at
+//     runtime and the value survives unchanged.)
+//  2. Could a value of the required type be hiding inside actual? (The union
+//     and polymorphic cases below — a variable whose inferred type is a broad
+//     family may hold a value of the required type.)
+//
+// It deliberately does NOT ask whether Perl would coerce. Coercibility is far
+// too permissive to gate a diagnostic on: Perl stringifies and numifies
+// everything, so `IsCoercible(Undef, Num)` and `IsCoercible(NaN, Int)` are
+// both true, and accepting them here silently deletes exactly the diagnostics
+// PSC exists to emit — `chr($n)` on a float, `undef` in arithmetic, NaN where
+// an integer is wanted. Measured: routing this function through IsCoercible
+// turns four such diagnostics off.
+//
+// So the two relations serve opposite ends. IsCoercible answers "will this
+// run?", which is the question a code GENERATOR asks. TypeSatisfies answers
+// "does this mean what it says?", which is the question a CHECKER asks. The
+// gap between them — coercible but not a subtype — is where a
+// coercion-mismatch diagnostic belongs, and CoercionMismatch below names it.
 func TypeSatisfies(actual, required Type) bool {
 	// required == Any accepts everything.
 	if required == Any {
@@ -273,29 +289,30 @@ func TypeSatisfies(actual, required Type) bool {
 		return true
 	}
 
-	// Exact subtype check: all of actual's bits are within required.
+	// (1) Membership: all of actual's bits are within required.
 	if IsSubtype(actual, required) {
 		return true
 	}
 
-	// Union containment check: actual is an ad-hoc union type (not a named
-	// parent mask like Str, Num, Scalar) whose bits include all of required's
-	// bits. For example, Object|HashRef satisfies Object because the union
-	// contains the Object bit. Named parent masks are excluded because Str
-	// contains Int's bits but Str should NOT satisfy Int — Str is a wider
-	// type that may hold non-numeric values.
+	// (2) The value might be of the required type at runtime.
+	//
+	// Union containment: actual is an ad-hoc union (not a named parent mask)
+	// whose bits include all of required's. Object|HashRef satisfies Object
+	// because the union carries the Object bit. Named masks are excluded
+	// because Str contains Int's bits while a Str should not satisfy an Int
+	// requirement — it may hold non-numeric data.
 	if _, isNamed := typeNames[actual]; !isNamed && actual&required == required {
 		return true
 	}
 
-	// Polymorphic check: actual is a general container type that could hold
-	// any of its subtypes at runtime. If required is a subtype of actual,
-	// the variable might hold a value of that required type.
+	// Polymorphic: actual is a general container that could hold any of its
+	// subtypes at runtime, so a required subtype might be what it holds.
 	if polymorphicMasks[actual] && IsSubtype(required, actual) {
 		return true
 	}
 
-	// A List can stand where an aggregate is expected, but not where a scalar is.
+	// A List can stand where an aggregate is expected, but not where a scalar
+	// is — see listSatisfiesAggregate.
 	if listSatisfiesAggregate(actual, required) {
 		return true
 	}
