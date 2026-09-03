@@ -1649,13 +1649,20 @@ func TestExtractArgVarNameScalar(t *testing.T) {
 	tree, err := p.Parse(src)
 	require.NoError(t, err)
 
-	// Navigate CST: source_file > expression_statement > function_call_expression > list_expression > scalar
+	// Navigate CST: source_file > expression_statement > <call> > list_expression > scalar.
+	// The grammar labels the call either function_call_expression or
+	// ambiguous_function_call_expression depending on whether it can tell a
+	// call from a bareword-plus-parens; which one push() gets has moved
+	// between grammar versions, and this test is about extractArgVarName
+	// rather than about the label.
 	root := tree.RootNode()
 	exprStmt := root.Child(0) // expression_statement
 	require.NotNil(t, exprStmt)
-	callExpr := exprStmt.Child(0) // function_call_expression
+	callExpr := exprStmt.Child(0)
 	require.NotNil(t, callExpr)
-	require.Equal(t, "function_call_expression", callExpr.Kind())
+	require.Contains(t,
+		[]string{"function_call_expression", "ambiguous_function_call_expression"},
+		callExpr.Kind())
 
 	// Find the list_expression child
 	var listExpr *parser.Node

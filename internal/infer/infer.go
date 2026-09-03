@@ -844,8 +844,18 @@ func extractGuardPattern(node *parser.Node, source []byte, st *SymbolTable) *gua
 	}
 
 	// Pattern: builtin::blessed($x), builtin::reftype($x), builtin::is_bool($x)
-	if kind == "function_call_expression" {
-		return extractFunctionCallGuard(node, source, st)
+	//
+	// Both call node kinds are tried. The grammar labels a call
+	// "ambiguous_function_call_expression" when it cannot tell a call from a
+	// bareword-plus-parens at parse time, and which label a given guard gets
+	// has moved between grammar versions — builtin::blessed($x) was a plain
+	// function_call_expression before gotreesitter v0.51.0 and is ambiguous
+	// after. Matching only one kind silently stops narrowing rather than
+	// failing loudly, so both are accepted here.
+	if kind == "function_call_expression" || kind == "ambiguous_function_call_expression" {
+		if g := extractFunctionCallGuard(node, source, st); g != nil {
+			return g
+		}
 	}
 
 	// Pattern: guard1 && guard2 or guard1 || guard2 (high-precedence binary)
@@ -861,7 +871,8 @@ func extractGuardPattern(node *parser.Node, source []byte, st *SymbolTable) *gua
 		return extractNegatedGuard(node, source, st)
 	}
 
-	// Pattern: not guard (low-precedence negation)
+	// Pattern: not guard (low-precedence negation). Reached when the call
+	// above did not yield a guard, so "not <guard>" still resolves.
 	if kind == "ambiguous_function_call_expression" {
 		return extractNotGuard(node, source, st)
 	}
