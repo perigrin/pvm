@@ -209,3 +209,85 @@ inside ERROR subtrees — so that a file the parser mis-reads reports
 "not analysed" rather than 495 confident diagnostics about text that was
 never there. That does not move coverage, and it should not be mistaken
 for fixing this.
+
+---
+
+## Fork, abandon tree-sitter, or abandon Go?
+
+Two of the three are ruled out by requirements PSC ALREADY HAS, not by
+preference. Worth writing down so nobody re-opens them casually.
+
+### Abandoning tree-sitter for perl's own parser is ruled out by the LSP
+
+PSC ships an LSP server (`internal/psc/lsp*.go`) and the parser exposes
+`ParseIncremental`. An editor sends edits against a buffer that is usually
+SYNTACTICALLY INVALID mid-keystroke, and the answer has to come back in
+milliseconds. `perl -c`, B::Concise and PPI all want a complete, valid
+program: perl's own parser is not incremental, not error-recovering, and
+not reusable across edits.
+
+Using perl as the ORACLE is different and already works — the precision
+harness runs real perl to observe types. That is a batch check against a
+program that runs. It is not a substitute for parsing one that does not.
+
+### Abandoning pure-Go for CGO is ruled out by what PVM IS
+
+    CGO_ENABLED=0 GOOS=linux   GOARCH=amd64
+    CGO_ENABLED=0 GOOS=linux   GOARCH=arm64
+    CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64
+
+PVM is a perl VERSION MANAGER: the thing you install BEFORE you have a
+toolchain. CLAUDE.md states the premise directly — "No CGO, no C
+compiler, no tree-sitter CLI, no Node.js required". Requiring a C
+compiler to install the tool that installs your compiler is a
+bootstrapping problem, and cross-compiling four targets from one host
+stops working.
+
+### So the answer is fork — and the fork is smaller than it looks
+
+The scanner is NOT 1146 lines of irreducible work. Measured:
+
+    grammar externals (current)     54
+    symbols the Go scanner declares 39
+    missing by name                 28   incl. format_content, the quote
+                                         handlers, 5 _RECOVER_* tokens
+
+But the fragility is a SEPARATE, cheaper problem, and it is the one worth
+fixing first:
+
+    plSymApostrophe  gotreesitter.Symbol = 252
+    plSymDoubleQuote gotreesitter.Symbol = 253
+    ...                                   through 290
+
+Hard-coded ABSOLUTE ids. Tree-sitter assigns external symbol IDs after
+every other symbol, so ANY grammar change shifts the whole block — which
+is exactly why regenerating tables produced `(srand)` for `!1`. The
+runtime already carries `symbolNameMap` (language.go:1509), a
+name -> Symbol map built from `SymbolNames`. A scanner that resolved its
+symbols by NAME at init would survive regeneration.
+
+Recommended order:
+
+1. **Make symbol resolution name-based.** Small, mechanical, and it makes
+   every later regeneration safe rather than a re-break. This alone would
+   have turned the failed experiment into a working one for the subset
+   the scanner already implements.
+2. **Regenerate tables with a matched ts2go** — already proven to work
+   (595 symbols, `format_statement` present, no `(srand)`).
+3. **Port the missing externals incrementally**, measuring parse-error
+   rate over `t/op` after each. 89 -> 0 is the target and the metric
+   already exists.
+
+This is upstream-shaped work: steps 1 and 3 belong in gotreesitter and
+benefit every consumer. A PVM fork is the fallback if upstream is not
+interested, and carries the usual cost — a vendored dependency that has
+to be re-merged.
+
+### What to do TODAY, independent of the above
+
+Suppress diagnostics inside ERROR subtrees. A file the parser mis-reads
+should report "not analysed" rather than 495 confident diagnostics about
+text that was never there (`header_parser.t`). It does not move coverage
+and must not be mistaken for fixing this — but it stops PSC lying about
+files it cannot read.
