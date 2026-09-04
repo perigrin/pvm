@@ -1219,6 +1219,121 @@ func inferElementType(node *parser.Node, source []byte, st *SymbolTable) types.T
 	return sym.ElemType
 }
 
+// callElementType returns the element type of a list-returning call.
+//
+// sort and grep preserve their input's elements; map's come from its body.
+// Anything else yields Unknown, so the container records no element type and
+// a read falls back to Scalar rather than to a guess.
+func callElementType(call *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) types.Type {
+	// The grammar gives sort and map/grep their own node kinds rather than
+	// treating them as calls, and map_grep_expression covers BOTH map and
+	// grep — which behave differently, so the keyword decides.
+	switch call.Kind() {
+	case "sort_expression":
+		return preservedElemType(call, source, st, annotations)
+	case "map_grep_expression":
+		if strings.HasPrefix(strings.TrimSpace(call.Text(source)), "grep") {
+			return preservedElemType(call, source, st, annotations)
+		}
+		for i := 0; i < call.ChildCount(); i++ {
+			child := call.Child(i)
+			if child != nil && child.Kind() == "block" {
+				return blockResultType(child, annotations)
+			}
+		}
+		return types.Unknown
+	}
+
+	name := ""
+	var named []*parser.Node
+	for i := 0; i < call.ChildCount(); i++ {
+		child := call.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if child.Kind() == "function" {
+			name = child.Text(source)
+			continue
+		}
+		named = append(named, child)
+	}
+
+	switch name {
+	case "sort", "grep", "reverse":
+		// The elements are the source's. The source is the last named child,
+		// after any comparator or predicate block.
+		for i := len(named) - 1; i >= 0; i-- {
+			if t, ok := aggregateElemType(named[i], source, st, annotations); ok {
+				return t
+			}
+		}
+	case "map":
+		// The body decides. It is the block, whose value is its last
+		// expression statement.
+		for _, n := range named {
+			if n.Kind() == "block" {
+				return blockResultType(n, annotations)
+			}
+		}
+	}
+	return types.Unknown
+}
+
+// preservedElemType returns the element type of the aggregate a
+// element-preserving operation reads from, which is its last named child.
+func preservedElemType(node *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) types.Type {
+	for i := node.ChildCount() - 1; i >= 0; i-- {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if t, ok := aggregateElemType(child, source, st, annotations); ok {
+			return t
+		}
+	}
+	return types.Unknown
+}
+
+// aggregateElemType returns the element type of an array, hash, or list
+// argument.
+func aggregateElemType(n *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) (types.Type, bool) {
+	switch n.Kind() {
+	case "array":
+		if sym, ok := st.Lookup(sigildName("@", n, source)); ok && sym.ElemType != types.Unknown {
+			return sym.ElemType, true
+		}
+	case "hash":
+		if sym, ok := st.Lookup(sigildName("%", n, source)); ok && sym.ElemType != types.Unknown {
+			return sym.ElemType, true
+		}
+	case "list_expression":
+		if t := listElementType(n, source, st, annotations); t != types.Unknown {
+			return t, true
+		}
+	}
+	return types.Unknown, false
+}
+
+// blockResultType returns the type of a block's value, which is its last
+// expression statement.
+func blockResultType(block *parser.Node, annotations map[uint32]types.Type) types.Type {
+	result := types.Unknown
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child == nil || !child.IsNamed() || child.Kind() != "expression_statement" {
+			continue
+		}
+		for j := 0; j < child.ChildCount(); j++ {
+			inner := child.Child(j)
+			if inner != nil && inner.IsNamed() {
+				result = operandType(inner, annotations)
+				break
+			}
+		}
+	}
+	return result
+}
+
 // listElementType returns the join of the element types in a list literal.
 //
 // `my @m = (1, "s")` contributes Int and Str, so an element read is their
@@ -1226,7 +1341,7 @@ func inferElementType(node *parser.Node, source []byte, st *SymbolTable) types.T
 // hash literal alternates keys and values, and both are elements of the flat
 // list perl actually assigns, so both are joined — `%h = (a => 1)` really
 // does hold the string "a" as well as 1.
-func listElementType(rhs *parser.Node, source []byte, annotations map[uint32]types.Type) types.Type {
+func listElementType(rhs *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) types.Type {
 	if rhs == nil {
 		return types.Unknown
 	}
@@ -1238,9 +1353,18 @@ func listElementType(rhs *parser.Node, source []byte, annotations map[uint32]typ
 		for i := 0; i < rhs.ChildCount(); i++ {
 			child := rhs.Child(i)
 			if child != nil && child.IsNamed() && child.Kind() == "list_expression" {
-				return listElementType(child, source, annotations)
+				return listElementType(child, source, st, annotations)
 			}
 		}
+	case "sort_expression", "map_grep_expression",
+		"function_call_expression", "ambiguous_function_call_expression":
+		// sort and grep hand back the SAME elements — one reorders and the
+		// other selects — so the element type carries through. map
+		// TRANSFORMS, and its element type is whatever the body produced:
+		// measured, `map { $_*2 } @ints` gives Ints and `map { "x$_" }` gives
+		// Strs from the same input.
+		return callElementType(rhs, source, st, annotations)
+
 	case "binary_expression":
 		// `my @a = (0) x $n` is LIST repetition: the elements are copies of
 		// the LEFT OPERAND, not values of the operator's own result type.
@@ -1788,13 +1912,13 @@ func inferAssignmentNarrowing(
 	if rhsNode != nil {
 		switch {
 		case strings.HasPrefix(varName, "@"), strings.HasPrefix(varName, "%"):
-			if elem := listElementType(rhsNode, source, annotations); elem != types.Unknown {
+			if elem := listElementType(rhsNode, source, st, annotations); elem != types.Unknown {
 				st.UpdateElemType(varName, elem)
 			}
 		case strings.HasPrefix(varName, "$"):
 			switch rhsNode.Kind() {
 			case "anonymous_array_expression", "anonymous_hash_expression":
-				if elem := listElementType(rhsNode, source, annotations); elem != types.Unknown {
+				if elem := listElementType(rhsNode, source, st, annotations); elem != types.Unknown {
 					st.UpdateElemType(varName, elem)
 				}
 			}
