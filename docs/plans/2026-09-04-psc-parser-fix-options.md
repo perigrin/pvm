@@ -364,3 +364,85 @@ still align exactly.
 
 Step 3 is the real work and it is incremental: each token can be added and
 measured on its own.
+
+---
+
+## STEP 3 (partial): 89 -> 64 files, and a floor we did not know about
+
+Patch: `docs/plans/patches/2026-09-04-gotreesitter-perl-scanner-step3.patch`
+(1165 lines). Full report: `docs/plans/2026-09-04-triage-scanner.md`.
+
+### Measured, and independently reproduced
+
+    shipped blob      89 of 227 t/op files with parse errors, 756 error nodes
+    with this patch   64 of 227 (28%), 955 error nodes
+    upstream floor    31-35 of 227 — measured by running tree-sitter's OWN
+                      CLI over the same corpus
+
+**The target of 0 in the brief was wrong and unreachable.** Upstream's own
+parser errors on ~14% of `t/op`. The real remaining gap is 29 files, not 64.
+
+### The brief was also wrong about the index shift
+
+I described two inserted tokens shifting the tail by 2. Re-deriving from
+`grammar.json` found a THIRD — the legacy grammar also lacks
+`_fat_comma_autoquoted_ahead` — so the shift is 3. Rather than a second
+constant block, the patch adds `plExternalLayout()` translating
+canonical -> language indices, which handles both blobs.
+
+The non-obvious part: `validSymbols[]` is indexed the LANGUAGE's way too, so
+the translation is needed on the query side as well. Fixing only the emit
+side would have silently asked the wrong questions.
+
+### Implemented
+
+- `format_content` and `_x_op` — 72 -> 65 files. These are the `format` and
+  `/x` bugs from the triage.
+- The five `_KW_*` keywords — neutral on `t/op`, kept because targeted tests
+  show `class`/`method`/`try`/`async` and bareword `class => 1` all parse.
+- Three genuine divergences from `scanner.c`, found by reading it: the
+  heredoc delimiter commit condition, the heredoc FIFO (the port held ONE,
+  upstream holds 8), and the fileglob-vs-relational-`<` heuristic (the port
+  emitted fileglob unconditionally).
+
+### Declined, deliberately
+
+- `_regexp_open_bracket` / `_regexp_open_brace` — need `body_leads_with_delim`,
+  a lookahead flag the Go state does not carry.
+- The five `_RECOVER_*` — need `recovery_emitted` threading plus a 40KB
+  keyword-table peek. A half-working recovery cascade corrupts trees that
+  parse fine today.
+
+### Two honest caveats from the report
+
+**Error nodes rose 756 -> 955.** Entirely `switch.t` (+113), a file broken
+before and after. I checked this and got 0 upstream errors — because I used
+`-q`, which suppresses the tree being counted. Without it, upstream reports
+**84 error nodes on switch.t too**. The agent was right and my check was
+wrong. Excluding that file, the last change improved both metrics.
+
+**The 29-file gap is NOT in the scanner.** Instrumented: `f(<<'EOI')` fails
+while `my $x = <<'EOI'` works. `_PERLY_HEREDOC` is offered but `_NONASSOC`
+fires first and the parser never advances — and `scanner.c` has the SAME
+ordering with the same `valid_symbols`, yet upstream parses it. That is the
+runtime's zero-width-token handling under GLR, not the scanner. A
+scanner-side workaround changed nothing and departed from `scanner.c`, so it
+was reverted.
+
+### PSC status
+
+With the SHIPPED blob: 0 failures, everything green.
+
+With the REGENERATED blob: 2 `internal/infer` failures, and they are the
+node renaming this document predicted — the new grammar emits
+`logical_not_expression` and `func1op_call_expression` where PSC matches
+`ambiguous_function_call_expression` by name. Not caused by the scanner
+work; confirmed by running the patched scanner against the shipped blob
+(green).
+
+### Remaining, in order
+
+1. Fix PSC's node-kind matching for the new grammar (2 tests).
+2. Investigate the GLR zero-width-token handling — that is the 29 files,
+   and it is a runtime bug rather than a scanner one.
+3. `_regexp_open_*` and `_RECOVER_*` if the lookahead state is added.
