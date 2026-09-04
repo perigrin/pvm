@@ -6,6 +6,7 @@ package infer_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -3023,4 +3024,43 @@ func TestIntegerArrayIndexIsClean(t *testing.T) {
 	src := []byte("my @a = (1, 2);\nmy $i = 1;\nmy $y = $a[$i];\n")
 	_, diags := analyzeSource(t, src)
 	assert.Empty(t, diags, "an Int index is correct")
+}
+
+// TestSubstitutionReturnTypes verifies that s/// is not a boolean.
+//
+// PSC typed it Bool, reusing the =~ signature. Measured on 5.42:
+//
+//	"aaa" =~ s/a/b/g   3    the COUNT of substitutions
+//	"xxx" =~ s/a/b/g   ""   the empty string — defined, false, NOT 0
+//	"aaa" =~ s/a/b/gr  "bbb"  with /r, the MODIFIED COPY
+//	"xxx" =~ s/a/b/gr  "xxx"  unchanged copy, still a string
+//
+// Count-or-empty-string is Str in this lattice: Int when it matched and ""
+// when it did not, and both are defined, so only truth distinguishes them.
+// The /r form never yields a count at all — it hands back a string and leaves
+// the target alone.
+//
+// Measured while answering a question from the perl5-son session, which is
+// blocked on this construct from the IR side.
+func TestSubstitutionReturnTypes(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"s/// yields a count or empty string", "my $s = \"aaa\";\nmy $n = ($s =~ s/a/b/g);\n", types.Str},
+		{"s///r yields the modified string", "my $t = \"xxx\";\nmy $r = ($t =~ s/a/b/gr);\n", types.Str},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		name := "$n"
+		if strings.Contains(tc.src, "$r =") {
+			name = "$r"
+		}
+		sym, found := st.Lookup(name)
+		require.True(t, found, "%s: %s should be in the symbol table", tc.name, name)
+		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
+		assert.NotEqual(t, types.Bool, sym.Type,
+			"%s: a substitution is not a boolean", tc.name)
+	}
 }

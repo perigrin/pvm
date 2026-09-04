@@ -459,6 +459,16 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 	// arms. The signature says Any, which is the annotation escape hatch
 	// standing in for an answer nobody computed; it satisfied every later
 	// requirement by construction.
+	// A SUBSTITUTION is not a match. `=~` types as Bool, which is right for
+	// m// and wrong for s///: measured, `"aaa" =~ s/a/b/g` is 3 and
+	// `"xxx" =~ s/a/b/g` is "" — a count when it matched and the empty string
+	// when it did not, both defined, so only truth separates them. That is
+	// Str in this lattice. With /r the result is the MODIFIED COPY and there
+	// is no count anywhere in the form.
+	if op == "=~" && hasChildOfKind(node, "substitution_regexp") {
+		return types.Str
+	}
+
 	if sig.Result == types.Any && logicalOps[op] {
 		return types.Join(operandType(left, annotations), operandType(right, annotations))
 	}
@@ -1611,6 +1621,17 @@ func isCountOfAssignment(node *parser.Node) bool {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		if child != nil && child.IsNamed() && child.Kind() == "stub_expression" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasChildOfKind reports whether any named child of node has the given kind.
+func hasChildOfKind(node *parser.Node, kind string) bool {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() && child.Kind() == kind {
 			return true
 		}
 	}
