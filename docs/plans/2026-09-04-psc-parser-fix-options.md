@@ -578,9 +578,22 @@ this session established we need. It is an older, reduced fork. Adopting
 it would lose ground.
 
 **Its native Rust parser — 127130 lines** across `perl-lexer` and
-`perl-parser-core`. Nearly four times perl's own C parser. That is not a
-dependency PSC can absorb; it is a different project that happens to
-contain a parser.
+`perl-parser-core`. That figure is TESTS INCLUDED and is the wrong number
+to reason from. Split:
+
+    perl-lexer                src  10476   tests  24602
+    perl-parser-core          src  43168   tests  48385
+    perl-ast                  src   5740   tests   8426
+    perl-incremental-parsing  src    228   tests   4895
+    PRODUCTION TOTAL          ~59.6k
+
+So ~60k lines of production Rust, not 127k, and the LEXER — the part that
+carries perl's context-dependence — is 10.5k. Incremental parsing is a
+single 9KB file.
+
+It is not usable as a DEPENDENCY (Rust, and the binary route costs the
+static-binary premise). But as a design reference for a Go implementation
+it is a different proposition, addressed below.
 
 **Its binary over LSP** — `perllsp --stdio` is a real, supported entry
 point. But PSC IS an LSP server. Shelling out to another LSP to serve
@@ -588,7 +601,44 @@ PSC's LSP is an architecture, and it breaks the same constraint CGO does:
 PVM would ship a Rust binary per platform, or require one installed, in a
 tool whose premise is a single static Go binary with no toolchain.
 
-### Neither is a language-boundary argument
+### A PORT of perl-lsp's approach, not an embedding
+
+Rewriting their design in Go — no tree-sitter, no Rust, their code as
+reference only — is the option neither of the two above describes, and it
+is the only one that survives the objections raised against the others.
+
+What makes it plausible where porting perl's C parser is not: perl-lsp
+already solved the runtime-dependence problem for a STATIC parser.
+`perl-lexer/src` carries a `symbol_table.rs` and `checkpoint_impl.rs`,
+with 22 `prototype`/`BEGIN` references in `lib.rs` alone. They track
+declared subs and their prototypes as they lex, which is the approximation
+perl gets for free by having an interpreter. It cannot be exact — no
+static parser can run a `BEGIN` block — but it is a designed answer rather
+than an omission.
+
+Scale, honestly: ~60k lines of production code is roughly 6x the current
+Go scanner and 2x perl's toke.c. That is a multi-month project, not a
+sprint. The parts are separable though, and the ordering is natural: a
+lexer (10.5k) is useful on its own, an AST (5.7k) after it, the parser
+engine (43k) last.
+
+What it would buy that nothing else does:
+
+  - No grammar drift. The reason this session's parse failures exist is a
+    hand-ported scanner falling behind a generated grammar. A hand-written
+    parser has no generated half to fall behind.
+  - Error recovery designed in rather than bolted on — the `_RECOVER_*`
+    tokens the step-3 agent declined are tree-sitter's answer to a problem
+    a hand-written recursive-descent parser handles structurally.
+  - Incremental reparse under our own control, which is what the LSP needs
+    and what the current GLR bug is blocking.
+
+What it costs beyond the writing: every node-kind PSC matches on today
+would change, all 40-odd sites; the type inference is written against
+tree-sitter's CST shape; and the precision oracle would need re-pinning
+against the new tree. None of that is hard, but none of it is free.
+
+### Neither of the FIRST TWO is a language-boundary argument
 
 C and Rust are equally "not Go" — that distinction does not separate
 them. What separates them is SIZE and FIT:
