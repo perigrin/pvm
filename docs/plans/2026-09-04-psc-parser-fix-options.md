@@ -531,6 +531,41 @@ over a complete program; the LSP needs to reparse a half-typed buffer in
 milliseconds. Porting perl's parser gets a batch checker, which is the
 thing the oracle already provides by RUNNING perl.
 
+**And the port would be INCOMPLETE BY CONSTRUCTION**, which is the
+decisive objection rather than the size. perl's parser is not a standalone
+component: it leans on the RUNTIME to decide what the text means, so
+extracting it leaves the deciding part behind.
+
+`toke.c:10568` is the whole argument in one line:
+
+    call_sv(cv, G_SCALAR | ( PL_in_eval ? 0 : G_EVAL));
+
+The LEXER calls a perl subroutine, mid-tokenization. Alongside it are 18
+`PL_rsfp_filters`/`FILTER_READ` references — source filters, which rewrite
+the program text before the lexer ever sees it. Measured examples of the
+same phenomenon:
+
+    sub mylen(\@) { ... }   mylen(@a)   a PROTOTYPE changes how the CALL
+                                        parses, and only if the sub was
+                                        already compiled
+
+    BEGIN { *greet = $ENV{X} ? sub{"dynamic"} : sub{"static"} }
+                                        arbitrary code runs AT PARSE TIME
+                                        and decides what the rest of the
+                                        file means. Same file, same
+                                        parser, different answer
+                                        depending on the ENVIRONMENT.
+
+So a faithful port of toke.c + perly.y + op.c does not yield a parser for
+perl. It yields a parser for the subset of perl that does not use
+prototypes, BEGIN, source filters, or `use` of anything that does either
+— and every one of those is common in the corpus we are trying to parse.
+Getting the rest right means porting the interpreter too.
+
+This is exactly why the ORACLE approach works and the PORT does not: the
+oracle RUNS perl, so the runtime is present and does its job. A static
+port has to reimplement it.
+
 ### perl-lsp (EffortlessMetrics)
 
 Rust, dual MIT/Apache-2.0, 27 stars, actively developed. It is a serious
