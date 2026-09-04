@@ -871,7 +871,7 @@ func inferFunc0opCallType(
 // for ambiguous calls without parens, they may be direct children after the
 // function name, or SIBLINGS of the call — see collectTrailingListArgs.
 func collectCallArgs(node *parser.Node, source []byte) []*parser.Node {
-	args := collectOwnCallArgs(node, source)
+	args := unwrapSwallowedArgs(collectOwnCallArgs(node, source))
 	return append(args, collectTrailingListArgs(node)...)
 }
 
@@ -904,7 +904,8 @@ func collectTrailingListArgs(node *parser.Node) []*parser.Node {
 	self := node
 	for parent != nil && parent.Kind() != "list_expression" {
 		switch parent.Kind() {
-		case "assignment_expression", "variable_declaration":
+		case "assignment_expression", "variable_declaration", "binary_expression",
+			"return_expression":
 			self = parent
 			parent = parent.Parent()
 		default:
@@ -935,6 +936,58 @@ func collectTrailingListArgs(node *parser.Node) []*parser.Node {
 		trailing = append(trailing, child)
 	}
 	return trailing
+}
+
+// comparisonKinds are the node kinds the grammar can wrongly nest INSIDE a
+// call when a comparison follows a paren-less-capable list operator.
+var comparisonKinds = map[string]bool{
+	"equality_expression":   true,
+	"relational_expression": true,
+	"binary_expression":     true,
+	// `substr($f, 1, 0) = "-"` is lvalue substr, and the assignment swallows
+	// the argument list exactly as a comparison does.
+	"assignment_expression": true,
+}
+
+// unwrapSwallowedArgs returns the real argument list when the grammar has
+// buried it under a comparison.
+//
+// `substr($s,0,2) eq "he"` parses as
+//
+//	call(function, equality_expression(list_expression($s,0,2), "he"))
+//
+// rather than as a comparison whose left side is the call. The arguments are
+// therefore one level down, in the comparison's own first operand, and a call
+// that looks like it received a single argument actually received three.
+//
+// Only a lone comparison child is unwrapped: a call whose argument genuinely
+// IS a comparison — `f($a == $b)` — has that comparison inside a
+// list_expression, so it does not reach here.
+func unwrapSwallowedArgs(args []*parser.Node) []*parser.Node {
+	if len(args) != 1 || args[0] == nil || !comparisonKinds[args[0].Kind()] {
+		return args
+	}
+	inner := args[0]
+	for i := 0; i < inner.ChildCount(); i++ {
+		child := inner.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if child.Kind() != "list_expression" {
+			// The first operand is not an argument list, so the comparison
+			// really was the single argument.
+			return args
+		}
+		var unwrapped []*parser.Node
+		for j := 0; j < child.ChildCount(); j++ {
+			item := child.Child(j)
+			if item != nil && item.IsNamed() {
+				unwrapped = append(unwrapped, item)
+			}
+		}
+		return unwrapped
+	}
+	return args
 }
 
 // collectOwnCallArgs gathers the argument nodes held by the call node itself.

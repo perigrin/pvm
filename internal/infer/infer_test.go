@@ -2309,3 +2309,71 @@ func TestPlainRefInNumericPositionStaysError(t *testing.T) {
 	assert.Equal(t, infer.Error, diags[0].Severity,
 		"a raw reference has no conversion table — it can only yield an address")
 }
+
+// TestCallSwallowedComparisonStillCountsArgs verifies that a call whose
+// arguments the grammar buried under a comparison still counts them.
+//
+// When a paren-less-capable list operator is followed by a comparison, the
+// grammar makes the comparison the call's argument rather than the other way
+// round:
+//
+//	substr($s, 0, 2)               call(function, list(scalar, num, num))
+//	substr($s, 0, 2) eq "he"       call(function, equality(list(scalar, num, num), str))
+//
+// The real arguments are one level down, inside the comparison's own first
+// operand. Counting only the call's direct children saw ONE argument — the
+// comparison — and reported a bogus arity error. This is the same upstream
+// shape that affects index() and any unrecognised call: `foo($x) >= 0` parses
+// as `foo(($x) >= 0)`.
+func TestCallSwallowedComparisonStillCountsArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{"substr in eq", "my $s = \"hello\";\nmy $b = (substr($s, 0, 2) eq \"he\");\n"},
+		{"substr in ne", "my $s = \"hello\";\nmy $b = (substr($s, 0, 1) ne \"h\");\n"},
+		{"index in >=", "my $s = \"hello\";\nmy $b = (index($s, \"e\") >= 0);\n"},
+	}
+	for _, tc := range cases {
+		_, diags := analyzeSource(t, []byte(tc.src))
+		var arity []string
+		for _, d := range diags {
+			if d.Code == infer.CodeArityMismatch {
+				arity = append(arity, d.Message)
+			}
+		}
+		assert.Empty(t, arity, "%s: should report no arity error, got %v", tc.name, arity)
+	}
+}
+
+// TestLvalueSubstrAndNestedCallArgs covers two more shapes where the grammar
+// moves a call's arguments somewhere the call node cannot see them.
+//
+//	substr($f, 1, 0) = "-";      lvalue substr — the ASSIGNMENT swallows the
+//	                             argument list, exactly as a comparison does
+//	my $x = "k " . substr $s, 1; the call is nested in the concatenation, and
+//	                             its trailing argument is a sibling one level
+//	                             further out
+//
+// Both are ordinary Perl: measured, the first makes "abc" into "a-bc" and the
+// second yields "k ello".
+func TestLvalueSubstrAndNestedCallArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{"lvalue substr", "my $f = \"abc\";\nsubstr($f, 1, 0) = \"-\";\n"},
+		{"call nested in concat", "my $s = \"hello\";\nmy $x = \"k \" . substr $s, 1;\n"},
+		{"call inside return", "sub f { return join ' ', @_; }\n"},
+	}
+	for _, tc := range cases {
+		_, diags := analyzeSource(t, []byte(tc.src))
+		var arity []string
+		for _, d := range diags {
+			if d.Code == infer.CodeArityMismatch {
+				arity = append(arity, d.Message)
+			}
+		}
+		assert.Empty(t, arity, "%s: should report no arity error, got %v", tc.name, arity)
+	}
+}
