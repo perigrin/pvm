@@ -239,7 +239,29 @@ annotation map is `map[uint32]types.Type` keyed by `StartByte`
 re-parse. That costs cache correctness, and only becomes worth fixing once
 re-parsing is cheap enough for reuse to matter.
 
-## 0.9 A citation corrected
+## 0.9 The lexer decides things the grammar cannot express
+
+`toke.c`'s `S_lop` returns `FUNC` when the next character is `(` and `LSTOP`
+otherwise. That single lookahead changes how much of the line a list operator
+swallows, and no precedence table can represent it:
+
+```
+$ perl -e 'print (1+2)*3'     # prints 3
+$ perl -e 'print 1+2*3'       # prints 7
+```
+
+Deparsed, the first is `(print(3) * 3)` — the parenthesis makes `(1+2)` the
+*complete* argument list, and the multiplication applies to `print`'s return
+value. The second is `print(7)`.
+
+This is the general shape of the problem in Chapter 3: a Go implementation
+needs its parser and lexer coupled, because the token a construct produces
+depends on parse state and on lookahead simultaneously. A clean lexer/parser
+split — the design every textbook recommends — cannot parse Perl, and both
+reference implementations that tried it ended up re-scanning characters from
+inside the parser to compensate.
+
+## 0.10 A citation corrected
 
 `toke.c:10568` is `call_sv` inside `S_new_constant`, which implements
 overloaded constants via `$^H`. It is **not** the source-filter mechanism.
