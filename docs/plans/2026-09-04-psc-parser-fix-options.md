@@ -704,3 +704,57 @@ design a language server can port — and why it is the largest.
 
 That is worth knowing BEFORE writing 60k lines: the size difference is not
 inefficiency, it is the cost of not having an interpreter to call.
+
+---
+
+## The oracle can measure the approximations too
+
+The objection to a static parser is that it APPROXIMATES what perl
+resolves at runtime. That is only a fatal objection if the approximation
+is unmeasurable — and it is not.
+
+The precision oracle already runs perl to observe TYPES. The same
+mechanism answers PARSE questions, because perl will report how it parsed
+something:
+
+    perl -MO=Concise -e 'sub f(\@){} my @a; f(@a)'   -> srefgen present
+    perl -MO=Concise -e 'sub f{}    my @a; f(@a)'    -> srefgen absent
+
+Identical source shape, different parse, and the optree says which.
+`prototype(\&f)` reports the prototype directly. So the two hardest cases
+for a static parser are both observable:
+
+    prototypes   does `f @a` pass a LIST or a REFERENCE?
+                 -> srefgen in the optree, or prototype(\&f)
+    BEGIN        what did the file mean after the block ran?
+                 -> compile it and read the resulting optree
+
+### What this changes about the port decision
+
+It converts "the approximation will be wrong somewhere" from a reason not
+to start into a measurable quantity, exactly as the type oracle did:
+
+    coverage    how much parses at all          (the t/op error count)
+    precision   how much parses CORRECTLY       (optree agreement)
+
+A Go port would get the same three-bucket report the type work uses —
+exact / wider / WRONG — against perl's own parse of the same file. The
+`t/op` corpus is 620 files that all compile, so the ground truth is free.
+
+And it applies to the CURRENT parser immediately, before any port:
+nothing has ever checked whether tree-sitter's tree AGREES with perl's
+parse, only whether it contains ERROR nodes. A file can parse cleanly and
+still be parsed WRONG — `f @a` as a list where perl took a reference
+produces no error node and a wrong tree. That is the same blind spot the
+type oracle found in the type work, one level down.
+
+### Worth doing regardless of the port
+
+    1. Extend the oracle to emit parse facts from perl:
+       prototypes in scope, and per-call whether srefgen appears.
+    2. Compare against PSC's tree on the same file.
+    3. Report exact / wider / WRONG.
+
+If the current parser scores well, the port is less urgent than it looks.
+If it scores badly, that is a defect class nobody has measured, and it is
+present in the parser we ship today.
