@@ -17,9 +17,21 @@ separate lexer pass to hide behind.
 
 **Empirical claims are checked, not assumed.** Where this chapter asserts that
 something parses, errors, or produces a particular result, it was run against
-perl v5.42.0. That discipline caught three places where the grammar is more
-permissive than the language and one where a plausible-sounding rule is simply
-false (§5.5.7, §5.6.2, §5.2.2). If you extend this chapter, run the example.
+perl v5.42.0. That discipline caught six errors during drafting, in three
+categories:
+
+* **The grammar is more permissive than the language.** `sub f ($x =) {}`
+  reduces in `perly.y` but is rejected by a later check (§5.6.2).
+* **A plausible-sounding rule is simply false.** A lexical sub is *not* visible
+  in its own body (§5.5.7); stacked labels do not all attach to the loop
+  (§5.2.2).
+* **A reference implementation diverges from Perl.** PerlOnJava strips a leading
+  underscore when deriving a `:reader` name, and ignores constructor arguments
+  for `//=`/`||=` field defaults. Perl does neither (§5.7.3, §5.7.6).
+
+That last category is the reason to treat the secondary references as evidence
+about *engineering*, not about *semantics*. If you extend this chapter, run the
+example.
 
 Two secondary references are cited for engineering decisions rather than
 semantics:
@@ -1892,13 +1904,25 @@ is a parent and `bless {}, $class` otherwise (`:256-286`), then per-field
 initialisation, then each ADJUST invoked as `$adjustSub->($self)` (`:304-318`),
 then `return $self`.
 
-**`:param` interacts with the default operator differently from a plain
-default** (`generateFieldInitialization`, `:403`, and `:451-505`). With `=` the
-generated code is `$self->{f} = $args{f} // default`. With `//=` or `||=` the
-constructor argument is **ignored entirely** — the emitted code is
-`$self->{f} //= default` against the field. That asymmetry is easy to miss and
-worth a diagnostic. Without `:param`, an `@` field defaults to `[]` and a `%`
-field to `{}` (`:464-490`).
+**`:param` with a default behaves exactly like a signature default** (§5.6.2),
+which is the useful thing to know since it means one rule covers both. Verified
+against v5.42.0:
+
+| Declaration | `new(x => 3)` | `new()` | `new(x => undef)` | `new(x => 0)` |
+| --- | --- | --- | --- | --- |
+| `field $x :param = 7` | 3 | 7 | **undef** | **0** |
+| `field $x :param //= 7` | 3 | 7 | **7** | 0 |
+| `field $x :param ||= 7` | 3 | 7 | 7 | **7** |
+
+So `=` is presence-based and `//=`/`||=` are value-based, matching
+`pod/perlclass.pod:119-123`. Note this differs from PerlOnJava, whose codegen
+ignores `%args` entirely for `//=` and `||=`
+(`ClassTransformer.java:451-505`) — follow Perl.
+
+A `:param` field with **no** default is required; omitting it dies with
+`Required parameter 'x' is missing for "P" constructor`. Without `:param`, an
+`@` field defaults to `[]` and a `%` field to `{}`
+(`ClassTransformer.java:464-490`).
 
 **Beware `:reader` name derivation — the references diverge from Perl here.**
 PerlOnJava strips one leading underscore, so `field $_x :reader` yields a reader
