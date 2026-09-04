@@ -15,6 +15,12 @@ decided by the *lexer* rather than the grammar — and in Perl that is often —
 the chapter says so explicitly, because a recursive-descent parser has no
 separate lexer pass to hide behind.
 
+**Empirical claims are checked, not assumed.** Where this chapter asserts that
+something parses, errors, or produces a particular result, it was run against
+perl v5.42.0. That discipline caught three places where the grammar is more
+permissive than the language and one where a plausible-sounding rule is simply
+false (§5.5.7, §5.6.2, §5.2.2). If you extend this chapter, run the example.
+
 Two secondary references are cited for engineering decisions rather than
 semantics:
 
@@ -225,9 +231,26 @@ labfullstmt:	LABEL barestmt
 	;
 ```
 
-Note the second `labfullstmt` alternative: **labels stack**. `A: B: C: for
-(...) {...}` is legal and attaches three labels. Your AST should hold a
-`[]Label`, not a single optional label.
+Note the second `labfullstmt` alternative: **labels stack syntactically**. `A:
+B: C: for (...) {...}` parses, and all three labels are in the tree — so your
+AST should hold a `[]Label`, not a single optional label.
+
+But only the **innermost** label attaches to the loop. Verified against
+v5.42.0 with `perl -MO=Deparse -e 'A: B: for (1..3){ last B }'`:
+
+```perl
+A: B: ;
+foreach $_ (1 .. 3) {
+    last B;
+}
+```
+
+The outer labels degenerate to empty labeled statements. `last B` works;
+`last A` dies with `Label not found for "last A"`. PerlOnJava reaches the same
+result by keeping only the last label of a run (`ParseBlock.java:135-141`),
+though it also records each as a `LabelNode` statement — which is the more
+faithful shape, and the one to copy: keep every label for hover and
+go-to-definition, but resolve `last`/`next`/`redo` only against the innermost.
 
 The full `barestmt` alternative list is `perly.y:877-903`. As of this tree it
 is a flat list of 24 named nonterminals, alphabetically sorted — a recent
@@ -294,6 +317,13 @@ func (p *Parser) atLabel() bool {
     return true
 }
 ```
+
+Two guards, both from PerlOnJava's `ParseBlock.parseLabel`
+(`ParseBlock.java:224-235`), that you will need:
+
+* **Reject quote-like operators.** `m:...:` is a match with `:` delimiters, not a
+  label named `m` (`:227-230`). Same for `s`, `tr`, `y`, `q`, `qq`, `qw`, `qr`.
+* **Reject `sub`** (`:233-235`).
 
 Labels are conventionally uppercase but that is style, not grammar. A label may
 precede *any* bare statement, not only a loop — `FOO: print "hi";` parses. It
@@ -1283,10 +1313,41 @@ does that lookup:
         }
 ```
 
-A name containing `::` is never a lexical sub. A name found in the pad is. Note
-that a lexical sub is visible *from its own body* (so it can recurse) but only
-*after* the declaration statement completes for outside callers — the classic
-`my sub f { f() }` works, `f(); my sub f {...}` does not.
+A name containing `::` is never a lexical sub. A name found in the pad is.
+
+Visibility is the subtle part, and it is the opposite of what most people
+expect: **a lexical sub is not visible inside its own body.** The name is
+introduced into the pad only once the declaration statement completes, so a
+naive recursive definition fails at runtime. Verified against perl v5.42.0:
+
+```perl
+my sub fact { my $n = shift; $n <= 1 ? 1 : $n * fact($n-1) }
+say fact(5);
+# Undefined subroutine &main::fact called at ... line 1.
+```
+
+`state sub` behaves identically. The documented idiom is to forward-declare, so
+the name is in the pad before the body is parsed:
+
+```perl
+my sub fact;                                     # declaration: name enters pad
+sub fact { my $n = shift; $n <= 1 ? 1 : $n * fact($n-1) }
+say fact(5);                                     # 120
+```
+
+PerlOnJava models this correctly and explicitly, adding `&subName` to the symbol
+table *after* the body is parsed to make the sub "invisible inside itself"
+(`StatementResolver.java:411-413, 500-505`).
+
+For your parser this means the pad update for a lexical sub happens **at the end
+of the declaration**, not at the name. Get the order wrong and you will resolve
+`fact` inside the body to the lexical rather than reporting it unresolved.
+
+Two further wrinkles PerlOnJava documents. `our sub` creates a package sub *plus*
+a lexical alias carrying the fully-qualified name, so it resolves across
+subsequent `package` switches (`StatementResolver.java:370-390`). And `state
+sub`, plus `my sub` at file scope, has its assignment executed at compile time
+via a synthetic `BEGIN`, so that `use overload => \&foo` can see it (`:513-537`).
 
 `toke.c:5901-5906` is the error path: `my sub` with no name croaks `Missing
 name in "my sub"`.
@@ -1402,8 +1463,20 @@ optsigscalardefault:
         |       term
 ```
 
-`sub f ($x =) {}` therefore parses. It makes `$x` optional with an
-implicit-`undef` default. Obscure, but it is in the grammar, so parse it.
+This is a case where the grammar is more permissive than the language. `sub f
+($x =) {}` reduces successfully, but a later check rejects it — verified against
+v5.42.0:
+
+```
+$ perl -e 'use v5.36; sub f($x=){}'
+Optional parameter lacks default expression at -e line 1, near "=)"
+```
+
+Write `$x = undef` if that is what you mean. **The lesson generalises: `perly.y`
+alone is not the specification.** Several constructs reduce in the grammar and
+are then rejected by an action, a `croak` in `toke.c`, or a check in `op.c`.
+Where this chapter states that something parses, it has been checked against a
+real perl; where you extend it, do the same.
 
 The three assignment operators differ in *when* the default applies:
 
@@ -1534,7 +1607,7 @@ type Param struct {
     Sigil   byte   // '$', '@', '%'
     Name    string // "" for the nameless placeholder forms
     Named   bool   // `:$x` form
-    Default Expr   // nil if none; non-nil-but-empty for `$x =`
+    Default Expr   // nil if none
     DefOp   string // "=", "//=", "||="; "" if no default
     Span    Span
 }
@@ -1620,8 +1693,15 @@ the enclosing block's `}` or EOF; the `BLOCK` form's ends at its own `}`.
 
 ### 5.7.2 `class`
 
-New in 5.38, still experimental. `perly.y:277-291` and `perly.y:293-314` mirror
-the `package` productions exactly, with an attribute list added:
+New in 5.38, still experimental, and **not in any feature bundle** — `use
+v5.42;` alone does not enable it, you need an explicit `use feature 'class';`
+(verified against v5.42.0). That makes `class` a feature gate you cannot skip:
+without it, `class Point { ... }` is a syntax error, and with the gate off a
+parser that accepts it silently will mis-parse code that meant `class` as an
+ordinary bareword.
+
+`perly.y:277-291` and `perly.y:293-314` mirror the `package` productions
+exactly, with an attribute list added:
 
 ```ebnf
 ClassStmt = "class" IDENT [ Version ] { Attribute } ";"
@@ -1650,6 +1730,18 @@ Class attributes:
 * `:isa(Parent)` — single inheritance. **One superclass only.**
 * `:isa(Parent 2.345)` — with a minimum version; will `require` the parent if
   not already loaded (`pod/perlclass.pod:230-238`).
+
+A `class NAME;` (unit-class) declaration is **not** a no-op: it still needs a
+constructor generated, so it behaves as though an empty class block followed
+(PerlOnJava synthesises exactly that, `StatementParser.java:1191-1229`).
+
+Scoping inside a class block has a wrinkle worth knowing before you design your
+scope handling. PerlOnJava uses a deliberate two-scope structure
+(`StatementParser.java:1343-1351`) and **delays the inner scope exit** so that
+generated accessors and the constructor are registered while class-level
+lexicals are still visible (`:1379-1382`, `:1424-1440`), with the synthetic
+members registered after the exit (`:1443-1458`). If you generate anything from
+`:reader`/`:param`, you will hit the same ordering problem.
 
 Inside a `class` block, three new statement forms become legal, and *only*
 inside one — `toke.c:8543` calls `croak_kw_unless_class("field")` and
@@ -1699,6 +1791,14 @@ The field initialiser is parsed in a special scope —
 `class_prepare_initfield_parse()` at `perly.y:1775` — where `$self` and earlier
 fields are visible. Field initialisers run in declaration order at construction
 time, so `field $b = $a * 2;` after `field $a = 3;` works.
+
+A field must be registered in the scope **as it is parsed**, under both its
+plain name and a namespaced form, so that a later field's default can reference
+an earlier field (`field $two = $one + 1`). PerlOnJava registers each field three
+times (`FieldParser.java:87-100`): as `field:NAME`, as `$NAME`/`@NAME`/`%NAME`,
+and in a global registry for inheritance. Field attributes are best stored
+generically (`"attr:" + name` → value, `FieldParser.java:172`) rather than
+enumerated at parse time — the attribute set is still growing.
 
 ```go
 type FieldDecl struct {
@@ -1764,6 +1864,16 @@ order (`pod/perlclass.pod:331-334`). They see `$self` and all fields. Multiple
 Note the grammar routes `ADJUST` through `startsub` and `optsubbody`
 (`perly.y:574-586`), so `ADJUST;` — a bodyless phaser — parses. It does nothing.
 
+`ADJUST` is the one construct in the class family that both references agree
+must be **context-gated** rather than feature-gated: perl-lsp requires
+`in_class_body > 0` (`statements.rs:114-123`) and PerlOnJava throws "ADJUST
+blocks are only allowed inside class blocks"
+(`SpecialBlockParser.java:87-91`). PerlOnJava also registers `$self` in a fresh
+scope before parsing the body so strict-vars checking works (`:96-105`), and —
+importantly — **does not execute the block at parse time**, unlike the other
+phasers: it is wrapped as an anonymous sub and handed to the class transformer
+(`:157-173`).
+
 ### 5.7.6 Class construction ordering
 
 For diagnostics, the order at `new()` time is:
@@ -1772,6 +1882,37 @@ For diagnostics, the order at `new()` time is:
 2. Field initialisers evaluated in declaration order (for fields not bound by
    `:param`, or bound-but-defaulted).
 3. `ADJUST` blocks in declaration order.
+
+PerlOnJava's `ClassTransformer` is the clearest worked implementation, and three
+of its decisions are worth knowing even though you are only parsing.
+
+**The generated constructor** (`generateConstructor`,
+`ClassTransformer.java:221`) is `my $self = $class->SUPER::new(%args)` when there
+is a parent and `bless {}, $class` otherwise (`:256-286`), then per-field
+initialisation, then each ADJUST invoked as `$adjustSub->($self)` (`:304-318`),
+then `return $self`.
+
+**`:param` interacts with the default operator differently from a plain
+default** (`generateFieldInitialization`, `:403`, and `:451-505`). With `=` the
+generated code is `$self->{f} = $args{f} // default`. With `//=` or `||=` the
+constructor argument is **ignored entirely** — the emitted code is
+`$self->{f} //= default` against the field. That asymmetry is easy to miss and
+worth a diagnostic. Without `:param`, an `@` field defaults to `[]` and a `%`
+field to `{}` (`:464-490`).
+
+**Beware `:reader` name derivation — the references diverge from Perl here.**
+PerlOnJava strips one leading underscore, so `field $_x :reader` yields a reader
+named `x` (`defaultAccessorName`, `:675-677`). Real Perl does not: verified
+against v5.42.0, `field $_x :reader` generates `_x`, and calling `->x` dies with
+`Can't locate object method "x"`. Follow Perl. `:writer` generates `set_<name>`
+in both.
+
+Note also what `method` does *not* do: PerlOnJava prepends `my $self = shift
+@_;` (`transformMethod`, `:576-585`) and inserts the signature after it
+(`:592-601`), but explicitly does **not** alias fields into the method body,
+with a comment that automatic injection would break lexical scoping
+(`:587-590`). Real Perl does make fields directly visible; if you are resolving
+symbols, fields are in scope in every method of the class.
 
 The core tests live in `t/class/` — `field.t`, `accessor.t`, `construct.t`,
 `method.t`, `inherit.t`, `phasers.t`. Use them as a conformance suite.
@@ -2549,7 +2690,8 @@ care for the errors your users actually make:
 | `sub f (@r = 1) {}` | "a slurpy parameter may not have a default value" |
 | `sub f (@r, $x) {}` | "slurpy parameter not last" |
 | `sub f ($x = 1, $y) {}` | "mandatory parameter follows optional parameter" |
-| `field $x;` outside a class | "`field` is only valid inside a `class`" |
+| `field $x;` outside a class | "Cannot 'field' outside of a 'class'" (perl's own wording) |
+| `ADJUST { }` outside a class | "Cannot 'ADJUST' outside of a 'class'" |
 | `for my $x (;;)` | "C-style `for` cannot have a loop variable" |
 | `while ()` vs `until ()` | `while ()` is legal (infinite); `until ()` is not |
 

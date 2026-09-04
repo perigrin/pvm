@@ -768,8 +768,20 @@ Two forms:
   `Foo::bar`.
 
 The apostrophe form is **not deprecated and not removed — it is version-gated.**
-It is a default-on feature, `apostrophe_as_package_separator`, which switches
-**off** under `use v5.40` or later. The gate is at `toke.c:10808-10811`, with
+It is a default-on named feature, `apostrophe_as_package_separator`, which the
+`use v5.42` bundle switches **off**. Measured on 5.42.0: `use v5.38` and
+`use v5.40` both still accept it; `use v5.42` does not.
+
+It can also be switched off directly, independent of any version bundle:
+
+```perl
+no feature "apostrophe_as_package_separator";
+$Foo::bar = 7;
+print $Foo'bar;               # Can't find string terminator "'" before EOF
+```
+
+So a lexer cannot infer this mode from the version declaration alone — it must
+track the feature bit, which `use VERSION` sets as one input among several. The gate is at `toke.c:10808-10811`, with
 four call sites.
 
 **[verified]** against perl 5.42.0 — the same code differs by one line:
@@ -790,7 +802,7 @@ print &Foo'bar(), "\n";        # Can't find string terminator "'" before EOF
 **Implementation consequence.** This is a lexer feature flag driven by a
 `use VERSION` statement *earlier in the same file*. A lexer must track the
 declared version and change identifier scanning accordingly — which means
-`use v5.40;` has a lexical effect on everything after it, in the same way
+`use v5.42;` has a lexical effect on everything after it, in the same way
 `use utf8` does (§2.3.1). Both belong in the checkpoint state (§2.14.1).
 
 A useful consequence of the lookahead rule: `'` is only a separator when
@@ -1357,13 +1369,30 @@ Three conditions for a heredoc:
 3. **`s[2] != '>'`** — excludes `<<>>`, the no-magic-open `ARGV` read, which
    goes to `scan_inputsymbol` instead.
 
-So:
+**The rule is purely `PL_expect` — there is no lookahead and no
+backtracking.** Perl does not inspect what follows `<<` to guess whether it
+looks like a terminator.
 
 ```perl
 print <<EOF;    # heredoc  -- term expected
 $x = $y << 2;   # left shift -- operator expected after $y
 while (<<>>) {} # ARGV read, not a heredoc
 ```
+
+> **Divergence (perl-lsp) — a known false positive.** Lacking a real
+> expectation state, it guesses (`lib.rs:757-759`):
+> ```rust
+> if self.mode == LexerMode::ExpectOperator && self.paren_depth > 0 { return None; }
+> ```
+> The `paren_depth > 0` condition is required because `print $fh <<END` is
+> legal at depth 0. The consequence is that a **statement-level shift by a
+> bareword constant** is mis-lexed as a heredoc:
+> ```perl
+> my $mask = 1 << WIDTH;   # perl-lsp: heredoc named WIDTH
+> ```
+> Perl gets this right unconditionally. This is the clearest single argument
+> for implementing the full expectation enum (§2.2.2) rather than a
+> previous-token heuristic.
 
 ### 2.9.3 Terminator forms
 
@@ -2445,13 +2474,38 @@ copied.
 | 15 | perl-lsp | Checkpoint `Format.start_position` marked `// Approximate` | §2.14.1 |
 | 16 | perl-lsp | Checkpoint `QuoteLike.operator` left empty | §2.14.1 |
 | 17 | both | Neither implements `PL_infix_plugin` operator terminals | §2.1.1 |
+| 18 | perl-lsp | Claims whitespace before a delimiter needs a paired delimiter; rejects `s /a/b/`, `q \|x\|`, `m !x!` — all legal **[verified]** | §2.10.3 |
+| 19 | PerlOnJava | Takes `#` as a delimiter with a gap; perl sees a comment | §2.10.3 |
+| 20 | perl-lsp | Tracks character classes in regex delimiter scanning; accepts `m{[}]}` which perl rejects **[verified]** | §2.10.3 |
+| 21 | both | Collapse perl's four modifier sets into one; accept `m//r`, `qr//g` | §2.11.2 |
+| 22 | perl-lsp | Lexer consumes digits as regex modifiers | §2.11.2 |
+| 23 | both | Neither models the `keep_bracketed_quoted` escape matrix | §2.10.3 |
+| 24 | perl-lsp | Rejects `<<1` (digit heredoc label), which perl accepts **[verified]** | §2.9.3 |
+| 25 | perl-lsp | Accepts trailing whitespace after a heredoc terminator; perl rejects it **[verified]**, and its code comment claims otherwise | §2.9.3 |
+| 26 | perl-lsp | No `<<~` indentation stripping and no mismatch error | §2.9.7 |
+| 27 | PerlOnJava | Exempts partial-whitespace lines under `<<~`; perl makes them fatal | §2.9.7 |
+| 28 | perl-lsp | No `/x` comment handling — interpolates inside `/x` comments | §2.11.4 |
+| 29 | perl-lsp | `<<` heuristic `mode==ExpectOperator && paren_depth>0` mis-lexes `1 << WIDTH` at statement level as a heredoc | §2.9.2 |
 
-Two corrections to widely held beliefs, both established by running perl
-5.42.0 directly:
+### Corrections to widely held beliefs
 
-- **Binary and octal floats work** (`0b1.1p2`, `017.4p1`). The `p` exponent is
-  not hex-only, because `HEXFP_PEEK` is tested in the generic radix loop
-  (§2.8.6).
-- **POD cannot appear mid-expression.** It requires `PL_expect == XSTATE` and
-  column 0. It *can* appear at any statement boundary, which is the genuinely
-  awkward part (§2.5.3).
+Each established by running perl 5.42.0 directly:
+
+1. **Binary and octal floats work** (`0b1.1p2`, `017.4p1`). The `p` exponent is
+   not hex-only — `HEXFP_PEEK` is tested in the generic radix loop (§2.8.6).
+2. **POD cannot appear mid-expression.** It requires `PL_expect == XSTATE`,
+   column 0, and an alpha after `=`. It *can* appear at any statement boundary,
+   which is the genuinely awkward part (§2.5.3).
+3. **A stray `=cut` starts a POD block** and silently swallows the rest of the
+   file (§2.5.3).
+4. **Whitespace before a quote delimiter is always allowed**, for every
+   delimiter kind. Only `#` is special, and only by adjacency (§2.10.3).
+5. **The archaic `'` package separator is not deprecated — it is
+   version-gated**, switching off under `use v5.42`+ (§2.6.3).
+6. **`__END__`/`__DATA__` are keywords, not line-anchored markers** — no
+   column-0 requirement, unlike POD (§2.5.4).
+7. **`m?pattern?` still works**; only *bare* `?pattern?` was removed (§2.11.6).
+8. **`/x` is a lexer concern**, not purely a regex-engine one — it suppresses
+   interpolation inside pattern comments (§2.11.4).
+9. **Delimiter scanning is character-class-blind by design.** `m{[}]}` is a
+   syntax error in perl; a lexer that "fixes" this diverges (§2.10.3).
