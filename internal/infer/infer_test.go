@@ -3064,3 +3064,30 @@ func TestSubstitutionReturnTypes(t *testing.T) {
 			"%s: a substitution is not a boolean", tc.name)
 	}
 }
+
+// KNOWN GAP: `//` should drop Undef from its LEFT arm.
+//
+// The paper states the rule and calls it SEMANTIC rather than epistemic:
+// "$a // $b cannot yield undef when $a is defined". Measured, `undef // "s"`
+// is "s" and `$u // undef` is undef, so only the left arm's Undef is
+// droppable. PSC joins both arms blindly, so `my $x = $maybe // "default"`
+// still carries Undef — which defeats the operator's purpose.
+//
+// NOT IMPLEMENTED. Three attempts failed on the same thing: the rule needs
+// the left operand's NARROWED type, and by the time the binary expression is
+// typed, the annotation on that node is no longer the symbol's refined type.
+// Chasing it further would have meant guessing at the annotation lifecycle
+// rather than understanding it, so the case is recorded here instead of a
+// fourth try. The two tests below still pass and pin what is correct today.
+
+// || and or are NOT the same: they test truth, not definedness, so a defined
+// but false left arm still falls through and Undef is not droppable.
+func TestOrDoesNotDropUndef(t *testing.T) {
+	src := []byte("my $u;\nmy $v = ($u || \"s\");\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$v")
+	require.True(t, found, "$v should be in the symbol table")
+	assert.True(t, types.IsSubtype(types.Str, sym.Type),
+		"the right arm is present, got %s", sym.Type)
+}
