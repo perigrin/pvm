@@ -1480,7 +1480,7 @@ like a real editor integration rather than a batch tool.
 
 | Metric | Target |
 |---|---|
-| Parse without error | **≥ 90% of T2+T3 (≥ 363 of 403)** |
+| Parse without error | **≥ 90% of the compilable corpus (≥ 526 of 584)** |
 | Oracle agreement, exact | **≥ 80%** of marker sites |
 | Oracle agreement, WRONG | **0** |
 | Semantic round-trip (Deparse fixpoint) | ≥ 70% |
@@ -1564,7 +1564,7 @@ does not have to re-derive it.
 | M0 | Lexer round-trip | 100% lossless on 56 core files; `t/base/lex.t` | Syntax highlighting |
 | M1 | Parse the core | 100% of T2, ≥ 70% T1-easy, WRONG = 0 | Symbols, folding |
 | M2 | Incremental | incremental == full, 10 M fuzz execs, < 10 ms p99 | Responsive LSP |
-| M3 | Oracle at scale | ≥ 90% parse on 403 files, ≥ 80% exact, WRONG = 0 | Trustworthy navigation, PSC |
+| M3 | Oracle at scale | ≥ 90% parse on 584 files, ≥ 80% exact, WRONG = 0 | Trustworthy navigation, PSC |
 | M4 | Prototypes | ≥ 95% prototype agreement, ≥ 90% exact | Signature help, context |
 | M5 | Regex + wild | ≥ 95% on 518 regex + 200 CPAN | Survives real code |
 | M6 | Conformance | ≥ 99% `t/op`, ≥ 95% exact (**re-derive from floors**) | Reference implementation |
