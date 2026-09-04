@@ -512,6 +512,11 @@ That is the whole contract. Ten methods, all already declared in
 them — `ChildByFieldName` is worth keeping because it is the readable way to
 express structure, `SExpr` is worth keeping for tests.
 
+Independently recounted across `internal/infer/*.go` including tests, the
+ordering and the conclusion hold: `Child` 119, `Kind` 112, `ChildCount` 109,
+`IsNamed` 50, `Text` 47, `StartByte` 29, `EndByte` 13, `Parent` 6. The absolute
+counts differ with scoping; the contract does not.
+
 **This is the good news of the whole chapter: the migration surface is ten
 methods.** `internal/parser/parser.go` is already a thin façade over
 `gotreesitter` (its ABOUTME says exactly that). Reimplement the façade over a
