@@ -250,7 +250,7 @@ func inferNodeType(
 	// --- Unary expressions ---
 
 	case "unary_expression":
-		return inferUnaryExprType(node, source)
+		return inferUnaryExprType(node, source, annotations)
 
 	// --- Function call expressions ---
 
@@ -259,7 +259,7 @@ func inferNodeType(
 		return inferFunctionCallType(node, source, st, annotations, diags, idx)
 
 	case "func1op_call_expression":
-		return inferFunc1opCallType(node, source, annotations, diags)
+		return inferFunc1opCallType(node, source, st, annotations, diags)
 
 	case "func0op_call_expression":
 		return inferFunc0opCallType(node, source, annotations, diags)
@@ -585,7 +585,7 @@ func checkBinaryOperand(
 
 // inferUnaryExprType finds the operator among the direct children of a
 // unary_expression node and looks it up in the type signatures table.
-func inferUnaryExprType(node *parser.Node, source []byte) types.Type {
+func inferUnaryExprType(node *parser.Node, source []byte, annotations map[uint32]types.Type) types.Type {
 	op := findOperatorText(node, source)
 	if op == "" {
 		return types.Unknown
@@ -594,6 +594,24 @@ func inferUnaryExprType(node *parser.Node, source []byte) types.Type {
 	if !ok {
 		return types.Unknown
 	}
+
+	// Unary minus and plus PRESERVE the operand's type: measured, -5 is an Int
+	// and -5.5 is a Num. The signature says Num for both, which is true (Int
+	// <: Num) and loses the distinction — and it propagates, since abs(-5)
+	// then follows its argument and reports Num for an integer.
+	if op == "-" || op == "+" {
+		for i := 0; i < node.ChildCount(); i++ {
+			child := node.Child(i)
+			if child == nil || !child.IsNamed() {
+				continue
+			}
+			if t := operandType(child, annotations); types.IsSubtype(t, types.Num) {
+				return t
+			}
+			break
+		}
+	}
+
 	return sig.Result
 }
 
@@ -705,7 +723,7 @@ func inferFunctionCallType(
 			*diags = append(*diags, Diagnostic{
 				StartByte:  arg.StartByte(),
 				EndByte:    arg.EndByte(),
-				Severity:   Error,
+				Severity:   argumentSeverity(argType, expectedType),
 				Code:       CodeTypeMismatch,
 				Message:    typeMismatchMessage(name, i, expectedType, argType),
 				Suggestion: SuggestGuard(argVarName, argType, expectedType),
@@ -713,7 +731,7 @@ func inferFunctionCallType(
 		}
 	}
 
-	if t, ok := contextualReturnType(name, args, source, annotations); ok {
+	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
 		return t
 	}
 	return sig.ReturnType
@@ -828,6 +846,7 @@ func inferMethodCallType(
 func inferFunc1opCallType(
 	node *parser.Node,
 	source []byte,
+	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
 ) types.Type {
@@ -874,7 +893,7 @@ func inferFunc1opCallType(
 			*diags = append(*diags, Diagnostic{
 				StartByte:  arg.StartByte(),
 				EndByte:    arg.EndByte(),
-				Severity:   Error,
+				Severity:   argumentSeverity(argType, expectedType),
 				Code:       CodeTypeMismatch,
 				Message:    typeMismatchMessage(name, i, expectedType, argType),
 				Suggestion: SuggestGuard(argVarName, argType, expectedType),
@@ -882,7 +901,7 @@ func inferFunc1opCallType(
 		}
 	}
 
-	if t, ok := contextualReturnType(name, args, source, annotations); ok {
+	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
 		return t
 	}
 	return sig.ReturnType
@@ -896,10 +915,42 @@ func inferFunc1opCallType(
 // type, so it says Scalar — the right family, and silent about which member.
 // Imposing scalar context on the argument is exactly what the builtin does,
 // and NarrowByContext already implements that rule.
-func contextualReturnType(name string, args []*parser.Node, source []byte, annotations map[uint32]types.Type) (types.Type, bool) {
+func contextualReturnType(name string, args []*parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) (types.Type, bool) {
 	if name == "sprintf" && len(args) >= 1 {
 		return sprintfResultType(args[0], source, annotations)
 	}
+
+	// int() truncates toward zero, so the result is an Int whatever went in —
+	// measured, int(3.9) and int(-3.9) are both Int. This one does not depend
+	// on the argument and could be a signature, except that Int is currently
+	// spelled Num there.
+	if name == "int" {
+		return types.Int, true
+	}
+
+	// abs() follows its ARGUMENT: abs(-5) is Int and abs(-5.5) is Num.
+	if name == "abs" && len(args) == 1 {
+		argType := operandType(args[0], annotations)
+		if argType == types.Unknown {
+			return types.Unknown, false
+		}
+		if types.IsSubtype(argType, types.Num) {
+			return argType, true
+		}
+		return types.Num, true
+	}
+
+	// pop and shift yield ONE ELEMENT of the array, so they follow its
+	// element type — measured, popping an Int array gives Int and a Str array
+	// gives Str. An array PSC never saw filled falls back to the signature's
+	// Scalar rather than a guess.
+	if (name == "pop" || name == "shift") && len(args) == 1 {
+		if elem, ok := arrayElemTypeOf(args[0], source, st); ok {
+			return elem, true
+		}
+		return types.Unknown, false
+	}
+
 	if name != "scalar" || len(args) != 1 {
 		return types.Unknown, false
 	}
@@ -1227,6 +1278,39 @@ func listElementType(rhs *parser.Node, source []byte, annotations map[uint32]typ
 		result = types.Join(result, operandType(child, annotations))
 	}
 	return result
+}
+
+// argumentSeverity mirrors the operator rule for builtin arguments: a
+// conversion that is defined and preserves a value is a warning, and one that
+// cannot happen at all is an error.
+//
+// An OBJECT is the case this exists for. A class declaring `use overload '0+'`
+// has a real numeric conversion — `int($money)` is a defined operation — and
+// PSC cannot see whether a given class declares one without resolving it
+// across files. Reporting an error asserts the conversion is impossible.
+func argumentSeverity(actual, expected types.Type) Severity {
+	valueLike := types.Bool | types.Str | types.DualVar | types.Object
+	if types.IsCoercible(actual, expected) &&
+		types.IsSubtype(actual, valueLike) && types.IsSubtype(expected, valueLike) {
+		return Warning
+	}
+	return Error
+}
+
+// arrayElemTypeOf returns the recorded element type of an array argument.
+func arrayElemTypeOf(arg *parser.Node, source []byte, st *SymbolTable) (types.Type, bool) {
+	if arg == nil || arg.Kind() != "array" {
+		return types.Unknown, false
+	}
+	sym, ok := st.Lookup(sigildName("@", arg, source))
+	if !ok || sym.ElemType == types.Unknown {
+		return types.Unknown, false
+	}
+	// An element is one value whatever the container holds.
+	if narrowed, nok := types.NarrowByContext(sym.ElemType, types.ScalarCtx); nok {
+		return narrowed, true
+	}
+	return sym.ElemType, true
 }
 
 // sprintfResultType narrows a sprintf result when the format can only produce

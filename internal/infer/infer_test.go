@@ -224,12 +224,15 @@ func TestInferUnaryNot(t *testing.T) {
 }
 
 func TestInferUnaryMinus(t *testing.T) {
+	// Unary minus PRESERVES its operand's type: $x is 2, so -$x is an Int.
+	// Measured, -5 is an Int and -5.5 is a Num. This previously expected Num
+	// for both, which is true (Int <: Num) and loses the distinction — and it
+	// propagated, since abs(-5) follows its argument.
 	src := []byte("my $x = 2; -$x;")
 	annotations, _ := analyzeSource(t, src)
-	// "-$x" starts at offset 11
 	typ, ok := findNodeType(annotations, src, "-$x")
 	require.True(t, ok, "unary_expression '-$x' should be annotated")
-	assert.Equal(t, types.Num, typ, "unary minus should return Num")
+	assert.Equal(t, types.Int, typ, "negating an Int gives an Int")
 }
 
 // --- Builtin function call inference ---
@@ -2853,4 +2856,50 @@ func TestSprintfNumericFormatsAreNumeric(t *testing.T) {
 		require.True(t, found, "%s: $f should be in the symbol table", tc.name)
 		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
 	}
+}
+
+// TestArgumentDirectedBuiltins verifies the builtins whose result type
+// follows their argument rather than being fixed by the signature.
+//
+// Three different rules, all measured:
+//
+//	abs(-5)    Int    abs(-5.5)  Num     follows the ARGUMENT
+//	int(3.9)   Int    int(-3.9)  Int     ALWAYS Int, whatever goes in
+//	pop @ints  Int    pop @strs  Str     follows the array's ELEMENT type
+//
+// All three returned the sigil default of Scalar, which is correct and says
+// nothing. This is the same shape scalar() had: a signature can name one type
+// and these answers depend on what was passed.
+func TestArgumentDirectedBuiltins(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"abs of an int", "my $n = abs(-5);\n", types.Int},
+		{"abs of a float", "my $n = abs(-5.5);\n", types.Num},
+		{"int truncates to Int", "my $n = int(3.9);\n", types.Int},
+		{"int of an int", "my $n = int(7);\n", types.Int},
+		{"pop an int array", "my @a = (1, 2);\nmy $n = pop @a;\n", types.Int},
+		{"pop a str array", "my @a = (\"x\", \"y\");\nmy $n = pop @a;\n", types.Str},
+		{"shift an int array", "my @a = (1, 2);\nmy $n = shift @a;\n", types.Int},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		sym, found := st.Lookup("$n")
+		require.True(t, found, "%s: $n should be in the symbol table", tc.name)
+		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
+	}
+}
+
+// An array PSC never saw filled still yields Scalar from pop: one value of
+// unknown type, which is what Scalar says.
+func TestPopUnknownArrayIsScalar(t *testing.T) {
+	src := []byte("my $n = pop @unseen;\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$n")
+	require.True(t, found, "$n should be in the symbol table")
+	assert.Equal(t, types.Scalar, sym.Type,
+		"popping an unknown array is a Scalar, not a guess")
 }

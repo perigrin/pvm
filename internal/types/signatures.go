@@ -83,6 +83,12 @@ var builtins = map[string]BuiltinSig{
 	"say":    {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
 	"return": {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Any},
 
+	// Numeric transforms. abs follows its argument and int always truncates
+	// to an integer; both are narrowed further by contextualReturnType, which
+	// a signature cannot express.
+	"abs": {MinArity: 1, ArgTypes: []Type{Num}, ReturnType: Num},
+	"int": {MinArity: 1, ArgTypes: []Type{Num}, ReturnType: Int},
+
 	// String transforms. Each takes a string and yields one; return types
 	// measured on 5.42 rather than transcribed.
 	"uc":      {MinArity: 1, ArgTypes: []Type{Str}, ReturnType: Str},
