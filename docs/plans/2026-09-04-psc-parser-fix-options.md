@@ -652,3 +652,55 @@ gotreesitter's GLR, with a two-line reproduction and upstream's own
 scanner as the reference for correct behaviour. It closes most of the gap
 that remains after step 3. Neither rewrite is worth starting before that
 is either fixed or proven unfixable.
+
+---
+
+### PerlOnJava (fglock) — a third reference, and the most instructive one
+
+Not a grammar file: a full Perl-to-JVM compiler. Measured from a clone:
+
+    frontend total              33281 lines Java
+      lexer      645 lines in   3 files
+      parser   24003 lines in  36 files
+
+The shape is the OPPOSITE of perl-lsp's, and that is the interesting part:
+
+    PerlOnJava   lexer   645   parser 24003
+    perl-lsp     lexer 10476   parser 43168
+
+perl-lsp pushes perl's context-dependence into a big lexer with a symbol
+table and checkpoints. PerlOnJava keeps a tiny lexer and resolves context
+in the parser — `PrototypeArgs.java` alone is 1506 lines, because knowing
+whether `foo @a` passes a list or a reference is a PARSING decision there.
+
+**But PerlOnJava solves the BEGIN problem the way perl does — by having a
+runtime.** `SpecialBlockParser.java:434`:
+
+    result = PerlLanguageProvider.executePerlAST(
+
+The parser CALLS THE INTERPRETER mid-parse to execute a BEGIN block, with
+a scope snapshot so the block can mutate the enclosing parser scope. That
+is the same answer as `toke.c:10568`'s `call_sv`, and it is available to
+them because a JVM Perl runtime is sitting right there.
+
+PSC cannot copy it. Running arbitrary `BEGIN` blocks from a language
+server means executing untrusted code from an editor buffer on every
+keystroke.
+
+It also has no incremental reparse and no error recovery — greps find
+neither in the frontend. It parses complete, valid programs, because that
+is what a compiler needs. Same limit as porting perl's own parser.
+
+### What the three references actually teach
+
+    perl's toke.c   34320  runs perl to resolve context      (call_sv)
+    PerlOnJava      33281  runs perl to resolve context      (executePerlAST)
+    perl-lsp        59.6k  APPROXIMATES it statically        (symbol_table)
+
+Two of the three, written decades and platforms apart, independently
+concluded that resolving perl's parse needs the runtime. Only perl-lsp
+attempts it statically, which is why it is the only one of the three whose
+design a language server can port — and why it is the largest.
+
+That is worth knowing BEFORE writing 60k lines: the size difference is not
+inefficiency, it is the cost of not having an interpreter to call.
