@@ -503,3 +503,67 @@ One construct, one runtime behaviour, ~32 files. Fixing it would take
 `t/op` from 64 failing to roughly the upstream floor of 35 — the point
 where PSC parses Perl as well as tree-sitter does, and further progress
 means fixing the grammar upstream rather than the port.
+
+---
+
+## Port perl's C parser, or adopt perl-lsp?
+
+Both were measured rather than estimated. Neither is cheaper than the
+runtime bug above, and one of them is far larger than it appears.
+
+### Perl's own parser
+
+    toke.c    14708 lines   the lexer
+    perly.y    1897         the yacc grammar
+    op.c      17715         optree construction
+    TOTAL     34320
+
+toke.c carries 240 references to `PL_lex_state`/`PL_expect`/`PL_lex_stuff`
+and 279 keyword cases. That state is the reason perl needs a hand-written
+lexer at all: `/` is division or a regex depending on what came before,
+`{` is a block or a hashref, a bareword is a filehandle or a function
+depending on what is declared. Porting it means porting that state
+machine faithfully, and a faithful port of 34k lines of C is a project,
+not a task.
+
+It also would not give an incremental parser. perl's lexer is single-pass
+over a complete program; the LSP needs to reparse a half-typed buffer in
+milliseconds. Porting perl's parser gets a batch checker, which is the
+thing the oracle already provides by RUNNING perl.
+
+### perl-lsp (EffortlessMetrics)
+
+Rust, dual MIT/Apache-2.0, 27 stars, actively developed. It is a serious
+project. Three ways it could be used, all measured:
+
+**Its tree-sitter grammar — a REGRESSION.** `tree-sitter-perl/grammar.js`
+is 1322 lines against upstream's 1581, and greps 0 for `format_statement`,
+`_x_op`, `_regexp_open_bracket` and `_RECOVER_PAREN_CLOSE` — every token
+this session established we need. It is an older, reduced fork. Adopting
+it would lose ground.
+
+**Its native Rust parser — 127130 lines** across `perl-lexer` and
+`perl-parser-core`. Nearly four times perl's own C parser. That is not a
+dependency PSC can absorb; it is a different project that happens to
+contain a parser.
+
+**Its binary over LSP** — `perllsp --stdio` is a real, supported entry
+point. But PSC IS an LSP server. Shelling out to another LSP to serve
+PSC's LSP is an architecture, and it breaks the same constraint CGO does:
+PVM would ship a Rust binary per platform, or require one installed, in a
+tool whose premise is a single static Go binary with no toolchain.
+
+### Neither is a language-boundary argument
+
+C and Rust are equally "not Go" — that distinction does not separate
+them. What separates them is SIZE and FIT:
+
+    perl's parser     34k lines, faithful port, gives a BATCH parser
+    perl-lsp native  127k lines, or a second binary, gives an LSP we have
+    the runtime bug   one construct, one behaviour, ~32 files
+
+The heredoc-as-call-argument bug is one zero-width-token ordering issue in
+gotreesitter's GLR, with a two-line reproduction and upstream's own
+scanner as the reference for correct behaviour. It closes most of the gap
+that remains after step 3. Neither rewrite is worth starting before that
+is either fixed or proven unfixable.
