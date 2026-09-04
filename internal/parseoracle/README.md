@@ -66,45 +66,49 @@ file, which is the reason to cache at corpus scale.
 ## Running against perl's own test suite
 
 perl's tests are **not** runnable in place. `t/test.pl:119` does `@INC = ()`
-and then unshifts `../lib`, so they only compile inside a built perl tree —
-`PERL5LIB` cannot help, since `@INC` is cleared after it is read. 498 of the
-620 files follow this convention.
+and then unshifts `../lib`, so they only compile inside a tree where `../lib`
+is populated — `PERL5LIB` cannot help, since `@INC` is cleared after it is
+read. 498 of the 620 files follow this convention.
 
-The shim: a directory holding a copy of `t/` beside a populated `lib/`.
+Populate the shim from **both** library roots. `Config.pm` and every XS
+module's `.pm` half live in the architecture-specific directory; leaving it out
+costs ~170 files and makes the corpus look far harder than it is.
 
 ```sh
 mkdir -p shim/lib && cp -r perl5/t shim/t
-cp -r "$(perl -e 'print $INC[-1]')"/* shim/lib/
+
+perl -e 'for (@INC) { print "$_\n" if -d && !/site_perl|vendor_perl/ }' \
+  | while read d; do cp -rn "$d"/* shim/lib/ 2>/dev/null; done
+
 cd shim/t && perl -c op/sub.t          # syntax OK
 ```
 
 ## Ground-truth ceiling
 
-Measured with perl 5.42.0. This is what perl itself can compile here, and
-therefore the ceiling any conformance target must be stated against — a goal of
-"parse all 620" would be measuring against files perl cannot compile either.
+Measured with perl 5.42.0 and the shim above: **584/620 (94.2%)** compile.
+Nine of fourteen directories are at 100%; `porting/` (43.2%) tests perl's own
+source tree rather than the language.
 
-| Directory | Compiles | Rate |
-|---|---|---|
-| base | 9/9 | 100% |
-| comp | 25/25 | 100% |
-| cmd | 5/5 | 100% |
-| opbasic | 5/5 | 100% |
-| lib | 9/10 | 90% |
-| mro | 62/73 | 84.9% |
-| op | 160/228 | 70.2% |
-| uni | 21/30 | 70% |
-| re | 55/80 | 68.8% |
-| run | 18/28 | 64.3% |
-| io | 22/44 | 50% |
-| porting | 10/37 | 27% |
-| class | 1/12 | 8.3% |
-| **total** | **411/620** | **66.3%** |
+Classifying by stderr rather than exit status — measured against the earlier
+*incomplete* shim, when 185 files were failing — shows how little of it was
+ever about Perl:
 
-The failures are environmental, not syntactic: unbuilt XS, `Config`,
-platform-specific tests. `porting/` tests perl's source tree rather than the
-language. `class/` is 5.38 syntax this perl mostly rejects — it becomes
-available on a newer toolchain rather than being permanently out of reach.
+| Cause | Files |
+|---|---:|
+| Missing module / `@INC` | 167 |
+| Version or feature skew | 1 |
+| **Genuine syntax error** | **1** (`op/for-many.t`) |
+| Other (exit status, timeouts) | 16 |
 
-`base`, `comp`, `cmd` and `opbasic` at 100% are the natural first milestones:
-49 files that perl compiles cleanly, so any failure there is ours.
+The completed shim recovers almost all of the first row, which is how 411/620
+became 584/620.
+
+**One file in 620 fails for a reason about the language** — `op/for-many.t`,
+which uses `foreach my ( \@array ) (...)`, a blead-only refaliasing form that
+5.42 cannot parse. The corpus here is blead 5.45 while the interpreter is
+5.42.0, so pin both and treat a mismatch as a reason to re-baseline.
+
+The harness must classify stderr. An exit status cannot tell "your parser is
+wrong" from "this machine lacks `Config.pm`", and a ratchet built on exit
+status encodes the second as though it were the first. A pass rate well under
+94% is evidence the setup is broken, not that Perl is hard.

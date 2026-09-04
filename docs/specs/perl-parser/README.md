@@ -41,6 +41,12 @@ parse. Parse-relevant `BEGIN` is ~21 files (3.4%); source filters are 2 (0.3%).
 The difference between those two readings is the difference between an
 impossible project and a tractable one.
 
+The same trap caught this document. An incomplete test shim reported that perl
+could compile only 66% of its own suite, and those failures were written up as
+properties of the corpus. Completing the shim took it to **94.2%**, and
+classification showed exactly **one** file in 620 failing for a reason about
+the language. Measure the harness before you believe the measurement.
+
 **2. Fidelity is measurable, and nobody has measured it.**
 
 ```

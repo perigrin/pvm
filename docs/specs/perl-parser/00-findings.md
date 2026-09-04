@@ -84,38 +84,72 @@ scores both as a success. One of them is parsed wrong.
 This is the blind spot the specification exists to close, and it is not
 specific to tree-sitter — any parser without a prototype table has it.
 
-## 0.5 Perl's test suite needs a built perl
+## 0.5 Perl's test suite needs a correctly built shim
 
 `t/test.pl:119` does `@INC = ()` and then unshifts `../lib`. `PERL5LIB` cannot
 help, because `@INC` is cleared *after* it is read. 498 of 620 files use this
 convention, so the corpus only compiles inside a tree where `../lib` is
 populated.
 
-With that shim in place, measured on perl 5.42.0:
+**Populate it from both library roots.** The pure-perl library alone is not
+enough: `Config.pm` and every XS module's `.pm` half live in the
+architecture-specific directory, and omitting it costs ~170 files.
 
-| Directory | Compiles | Rate | Note |
-|---|---:|---:|---|
-| base | 9/9 | 100% | |
-| comp | 25/25 | 100% | |
-| cmd | 5/5 | 100% | |
-| opbasic | 5/5 | 100% | |
-| lib | 9/10 | 90% | |
-| mro | 62/73 | 84.9% | |
-| op | 160/228 | 70.2% | |
-| uni | 21/30 | 70% | |
-| re | 55/80 | 68.8% | |
-| run | 18/28 | 64.3% | |
-| io | 22/44 | 50% | XS-dependent |
-| porting | 10/37 | 27% | Tests perl's source, not the language |
-| class | 1/12 | 8.3% | 5.38 syntax this perl rejects |
-| **Total** | **411/620** | **66.3%** | |
+```sh
+mkdir -p shim/lib && cp -r perl5/t shim/t
 
-**This is the ceiling.** A conformance target of "parse all 620 files" would be
-measured against files perl itself cannot compile here. Targets must be stated
-against the 411, or against a named subset.
+perl -e 'for (@INC) { print "$_\n" if -d && !/site_perl|vendor_perl/ }' \
+  | while read d; do cp -rn "$d"/* shim/lib/ 2>/dev/null; done
 
-`base`, `comp`, `cmd`, and `opbasic` — 44 files at 100% — are the natural first
-milestone: perl compiles every one, so any failure is ours.
+cd shim/t && perl -c op/sub.t          # syntax OK
+```
+
+Measured on perl 5.42.0 with that shim:
+
+| Directory | Compiles | Rate |
+|---|---:|---:|
+| base | 9/9 | 100% |
+| comp | 25/25 | 100% |
+| cmd | 5/5 | 100% |
+| opbasic | 5/5 | 100% |
+| lib | 10/10 | 100% |
+| mro | 73/73 | 100% |
+| uni | 30/30 | 100% |
+| io | 44/44 | 100% |
+| re | 79/80 | 98.8% |
+| op | 223/228 | 97.8% |
+| run | 27/28 | 96.4% |
+| class | 10/12 | 83.3% |
+| perf | 3/5 | 60% |
+| porting | 16/37 | 43.2% |
+| **Total** | **584/620** | **94.2%** |
+
+### The first measurement was wrong, and the way it was wrong is instructive
+
+An earlier shim copied only the pure-perl library and reported **411/620
+(66.3%)**, with `class/` at 8.3% and `io/` at 50%. Those numbers were read as
+facts about the corpus — "5.38 syntax this perl rejects", "XS-dependent" — and
+they were nothing of the kind. Adding the architecture-specific directory moved
+`class/` to 83%, `io/` to 100%, `mro/` to 100%, and the total to 94.2%.
+
+Classifying every failure by its stderr rather than its exit status shows how
+little of it was ever about the language:
+
+| Cause | Files |
+|---|---:|
+| Missing module / `@INC` | 167 |
+| Version or feature skew | 1 |
+| **Genuine syntax error** | **1** — `op/for-many.t`, §0.6 |
+| Other (exit status, timeouts) | 16 |
+
+**One file in 620 fails for a reason about Perl.**
+
+Two consequences for the harness. It must classify stderr: an exit status
+cannot distinguish "your parser is wrong" from "this machine lacks
+`Config.pm`", and a ratchet built on exit status silently encodes the second as
+the first. And a low pass rate is a claim about the harness until proven
+otherwise — the corpus is almost entirely compilable, so a number well under
+94% means the setup is broken, not that Perl is hard.
 
 ## 0.6 The corpus and the oracle must be version-pinned together
 
