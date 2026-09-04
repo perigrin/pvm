@@ -920,6 +920,14 @@ func contextualReturnType(name string, args []*parser.Node, source []byte, st *S
 		return sprintfResultType(args[0], source, annotations)
 	}
 
+	// reverse is the exception to "a List in scalar context is a count":
+	// measured, `reverse("abc")` is "cba" and `reverse(@a)` on (1,2,3) is
+	// "321" — it concatenates its arguments and reverses the STRING. Every
+	// other List-returning builtin gives a count.
+	if name == "reverse" {
+		return types.Str, true
+	}
+
 	// int() truncates toward zero, so the result is an Int whatever went in —
 	// measured, int(3.9) and int(-3.9) are both Int. This one does not depend
 	// on the argument and could be a signature, except that Int is currently
@@ -1248,7 +1256,15 @@ func callElementType(call *parser.Node, source []byte, st *SymbolTable, annotati
 	var named []*parser.Node
 	for i := 0; i < call.ChildCount(); i++ {
 		child := call.Child(i)
-		if child == nil || !child.IsNamed() {
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			// func1op nodes carry their keyword as an anonymous child rather
+			// than in a "function" node.
+			if text := child.Text(source); name == "" && text != "(" && text != ")" {
+				name = text
+			}
 			continue
 		}
 		if child.Kind() == "function" {
@@ -1259,6 +1275,21 @@ func callElementType(call *parser.Node, source []byte, st *SymbolTable, annotati
 	}
 
 	switch name {
+	case "keys":
+		// A hash KEY is always a string: perl stringifies it on the way in,
+		// so $h{1} and $h{"1"} are the same slot and the key comes back "1".
+		// The element type of the key list is Str whatever the hash holds.
+		return types.Str
+
+	case "values", "splice":
+		// values yields the stored VALUES and splice the REMOVED ELEMENTS —
+		// both are elements of the aggregate they read.
+		for i := len(named) - 1; i >= 0; i-- {
+			if t, ok := aggregateElemType(named[i], source, st, annotations); ok {
+				return t
+			}
+		}
+
 	case "sort", "grep", "reverse":
 		// The elements are the source's. The source is the last named child,
 		// after any comparator or predicate block.
@@ -1356,7 +1387,7 @@ func listElementType(rhs *parser.Node, source []byte, st *SymbolTable, annotatio
 				return listElementType(child, source, st, annotations)
 			}
 		}
-	case "sort_expression", "map_grep_expression",
+	case "sort_expression", "map_grep_expression", "func1op_call_expression",
 		"function_call_expression", "ambiguous_function_call_expression":
 		// sort and grep hand back the SAME elements — one reorders and the
 		// other selects — so the element type carries through. map

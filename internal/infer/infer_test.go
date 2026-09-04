@@ -2936,3 +2936,68 @@ func TestSortGrepPreserveElementType(t *testing.T) {
 		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
 	}
 }
+
+// TestKeysValuesSpliceElementTypes verifies the element types of the
+// remaining list-returning builtins.
+//
+// Measured, and each is a different rule:
+//
+//	keys %h     Str    hash keys are ALWAYS strings, whatever was stored
+//	values %h   Int    follows the stored values
+//	splice @a   Int    hands back the REMOVED elements
+//	reverse @a  Int    reorders, so elements are unchanged
+//
+// keys is the one worth stating: perl stringifies a hash key on the way in,
+// so `$h{1}` and `$h{"1"}` are the same slot and the key comes back "1". The
+// element type of the key list is Str no matter what the hash holds.
+func TestKeysValuesSpliceElementTypes(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"keys are strings", "my %h = (a => 1);\nmy @k = keys %h;\nmy $e = $k[0];\n", types.Str},
+		// values follows the stored values: measured, `values %h` on (a => 1)
+		// gives 1, an Int. My first assertion here said Str and was simply
+		// wrong — PSC had it right.
+		{"values follow the hash", "my %h = (a => 1);\nmy @v = values %h;\nmy $e = $v[0];\n", types.Int},
+		{"splice removes elements", "my @a = (1, 2, 3);\nmy @s = splice(@a, 0, 2);\nmy $e = $s[0];\n", types.Int},
+		{"reverse preserves", "my @a = (1, 2);\nmy @r = reverse @a;\nmy $e = $r[0];\n", types.Int},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		sym, found := st.Lookup("$e")
+		require.True(t, found, "%s: $e should be in the symbol table", tc.name)
+		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
+	}
+}
+
+// keys in SCALAR context is a count, which is a different question from its
+// element type.
+func TestKeysInScalarContextIsCount(t *testing.T) {
+	src := []byte("my %h = (a => 1);\nmy $n = keys %h;\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$n")
+	require.True(t, found, "$n should be in the symbol table")
+	assert.Equal(t, types.Int, sym.Type, "keys in scalar context is a count")
+}
+
+// TestReverseInScalarContextIsString verifies that reverse is the exception to
+// "a list in scalar context is a count".
+//
+// Measured: `reverse("abc")` is "cba" and `reverse(@a)` on (1,2,3) is "321".
+// It concatenates its arguments and reverses the resulting STRING, where every
+// other List-returning builtin gives an element count.
+//
+// The precision oracle caught this the moment List started narrowing to a
+// count: $rev went from a widening to the only WRONG answer in the run.
+func TestReverseInScalarContextIsString(t *testing.T) {
+	src := []byte("my $r = reverse(\"abc\");\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$r")
+	require.True(t, found, "$r should be in the symbol table")
+	assert.Equal(t, types.Str, sym.Type,
+		"reverse in scalar context reverses a string, it does not count")
+}
