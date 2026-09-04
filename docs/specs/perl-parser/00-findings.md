@@ -117,7 +117,28 @@ against the 411, or against a named subset.
 `base`, `comp`, `cmd`, and `opbasic` — 44 files at 100% — are the natural first
 milestone: perl compiles every one, so any failure is ours.
 
-## 0.6 The parser, not the type checker, is the latency problem
+## 0.6 The corpus and the oracle must be version-pinned together
+
+The `perl5` checkout here is **blead 5.45** (`patchlevel.h`: `PERL_VERSION 45`);
+the installed interpreter is **5.42.0**. Testing a parser against the newer
+suite while asking the older interpreter for ground truth produces failures
+that belong to neither.
+
+`t/op/for-many.t:474` is a genuine syntax error on 5.42:
+
+```perl
+foreach my ( \@array ) ( ["A"], ["B"], ["C"] ) {   # refaliasing in multi-var foreach
+```
+
+Multi-var `foreach` alone is fine on 5.42 — `for my ($k,$v) (%h)` runs — so
+this is specifically the newer refaliasing form. A parser measured against it
+would be marked wrong for agreeing with the interpreter it was checked against.
+
+**Consequence for the harness:** record the interpreter version *and* the
+corpus commit in the ratchet header, and treat a mismatch as a reason to
+re-baseline rather than as a regression.
+
+## 0.7 The parser, not the type checker, is the latency problem
 
 The intuitive assumption — a type checker walking every node must cost more
 than a parse — is wrong here by one to two orders of magnitude. Measured with
@@ -155,7 +176,7 @@ annotation map is `map[uint32]types.Type` keyed by `StartByte`
 re-parse. That costs cache correctness, and only becomes worth fixing once
 re-parsing is cheap enough for reuse to matter.
 
-## 0.7 A citation corrected
+## 0.8 A citation corrected
 
 `toke.c:10568` is `call_sv` inside `S_new_constant`, which implements
 overloaded constants via `$^H`. It is **not** the source-filter mechanism.
