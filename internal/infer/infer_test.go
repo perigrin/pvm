@@ -3068,24 +3068,30 @@ func TestSubstitutionReturnTypes(t *testing.T) {
 // KNOWN GAP: `//` should drop Undef from its LEFT arm.
 //
 // The paper states the rule and calls it SEMANTIC rather than epistemic:
-// "$a // $b cannot yield undef when $a is defined". Measured over all four
-// combinations of arm definedness:
+// "$a // $b cannot yield undef when $a is defined". The load-bearing witness
+// is a DEFINED left arm against an undef right one, since that is the
+// precondition the rule names:
 //
-//	left    right   result
-//	undef   undef   UNDEF
-//	undef   def     defined
-//	def     undef   defined
-//	def     def     defined
+//	my $l = "L";  ($l // undef)   is "L"    <- the claim itself
+//	my $u;        ($u // undef)   is undef  <- falls through
+//	my $f = 0;    ($f // "fb")    is 0      <- defined-but-false still wins
 //
-// So the result is undef only when BOTH arms are, and the type rule is
+// The last row is why // is not ||: it tests DEFINEDNESS, so a defined 0 or
+// "" beats the fallback.
+//
+// So the result is undef only when both arms are, and the type rule is
 // (left &^ Undef) | right. PSC joins both arms blindly, so
 // `my $x = $maybe // "default"` still carries Undef — which defeats the
 // operator's purpose.
 //
-// An earlier version of this comment justified the rule with `$u // undef`
-// being undef, which proves nothing: $u was itself undef there, so the
-// expression fell through to an undef right arm. The truth table above is the
-// evidence; that single row was not.
+// TWO EARLIER VERSIONS OF THIS COMMENT WERE JUSTIFIED BY WITNESSES THAT DID
+// NOT TEST THE RULE. The first cited `$u // undef` being undef; $u was itself
+// undef there, so the expression fell through and the row says nothing about
+// a defined left arm. The second added a four-row table built from a helper
+// returning undef-or-value — better, but still never pinning a left arm that
+// is definitely defined, which is the only case the rule constrains. An
+// unassigned `my $x` IS undef, so any witness that leaves the left arm
+// unassigned tests the fall-through path and not the claim.
 //
 // NOT IMPLEMENTED. Three attempts failed on the same thing: the rule needs
 // the left operand's NARROWED type, and by the time the binary expression is
