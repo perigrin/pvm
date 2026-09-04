@@ -89,3 +89,67 @@ of 227 files today.
 The paren-less-call and `my %h = 1..20` bugs from the triage were NOT
 confirmed as upstream-fixed and may be genuine grammar limitations or
 PSC-side issues; they need separate investigation.
+
+---
+
+## ATTEMPTED 2026-09-04: regenerate the blob. Reverted.
+
+### What was tried
+
+1. `go list -m -u` — **v0.51.0 IS the newest release.** There is no version
+   to bump to; the stale grammar is baked into the current release.
+2. Upstream gotreesitter `main` (2c19a78c) pins perl to `ad74e6db`, which
+   is OLDER than the release branch and has `format_statement` count = 0.
+   Pinning a pseudo-version would not have fixed anything.
+3. `format_statement` was added in tree-sitter-perl `d1c2417`
+   ("Grammar fixes + corpus coverage from real-world triage #254"), and
+   master is at `c3e17b3` (1.2.1).
+4. Regenerated from master: `tree-sitter generate` (28MB parser.c), then
+   `go run ./cmd/ts2go` → 5749 states, 585 symbols vs 488 today.
+
+### The result was decisive in both directions
+
+**The grammar fix works.** With the regenerated blob:
+
+    t/op: 227 files, 0 with parse errors (0%), 0 error nodes
+
+down from **89 files, 756 error nodes**. `/a/x`, `format NAME = ... .`
+and heredocs all parse with zero errors.
+
+**But the blob is broken.** 149 tests fail across `internal/{infer,parser,psc}`,
+and not because of renamed node kinds — the root node comes back as
+`srand`:
+
+    "!1;"             -> (srand)
+    "push @a, 1;"     -> (srand (function))
+    "my $x = 42;"     -> (source_file (expression_statement ...))   correct
+
+The symbol table is MISALIGNED: symbol IDs in the generated blob do not
+match the names the runtime resolves. Simple statements parse correctly
+and anything reaching a different symbol range does not. That is a
+ts2go/runtime version mismatch, not a PSC problem and not something to
+paper over.
+
+Everything was reverted: `~/dev/gotreesitter` restored, `go.mod`
+unmodified, `third_party/` removed, `make test` green.
+
+### What this establishes
+
+The parse-error problem is REAL and FIXABLE — 39% to 0% is not a marginal
+gain — but the generation toolchain in the pinned gotreesitter cannot
+currently produce a working blob from the current upstream grammar. The
+fix has to happen in gotreesitter, either by its maintainer regenerating
+with a matched ts2go, or by finding which ts2go revision produces an
+aligned symbol table for the 1.2.x grammar.
+
+Vendoring was the chosen approach and is not viable until that is
+resolved: a vendored blob that misparses is worse than a stale one that
+parses a subset correctly.
+
+### Reproduction, for whoever picks this up
+
+    cd /tmp/.../tsp && git checkout master && tree-sitter generate
+    cd ~/dev/gotreesitter && go run ./cmd/ts2go \
+        -input .../tsp/src/parser.c -output /tmp/perl_new.go -name perl
+    # writes grammar_blobs/perl.bin alongside the .go file
+    # swap it in, then: my $x = 42  parses; !1  comes back as (srand)
