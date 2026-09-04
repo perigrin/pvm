@@ -337,6 +337,12 @@ would be a wrong answer; declining is a missing one.
     regenerated blob: no more (srand); format_statement parses;
                       the func1op nesting is gone
     PSC:              0 test failures against the patched scanner
+    gotreesitter:     the scanner/external/perl tests pass patched and
+                      unpatched alike. A full `go test ./...` reports one
+                      FAIL for the root package, and it is a 600s TIMEOUT
+                      rather than an assertion — no test emits `--- FAIL`,
+                      and the same run times out unpatched. That suite is
+                      simply long; it is not a regression.
 
 ### What step 1 does NOT fix
 
