@@ -436,9 +436,8 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 // operand whose type could not be determined is precisely what strict mode
 // exists to surface.
 //
-// Comparison operators (==, !=, <, >, <=, >=, <=>) get Warning severity
-// because the code executes via coercion but the result is likely unintended.
-// All other operators get Error severity.
+// Severity distinguishes a defined coercion from an impossible one: see the
+// comment at the severity decision below.
 func checkBinaryOperand(
 	operand *parser.Node,
 	source []byte,
@@ -492,8 +491,37 @@ func checkBinaryOperand(
 		return
 	}
 
-	// Determine severity: comparison operators get Warning, others get Error.
+	// Severity follows the COERCION, not the operator.
+	//
+	// If perl will convert the value and the conversion is defined, the code
+	// runs and does something specific — `0 .. 3.7` is (0 1 2 3), `"ab" x 2.9`
+	// is "abab", `$level / 8` really is 2.5 and `"\t" x 2.5` is two tabs. The
+	// paper calls Num -> Int a coercion that truncates toward zero, not a
+	// failure, and perl emits no warning of its own. Calling that an error
+	// claims the program is broken when the language defines the behaviour.
+	//
+	// A REFERENCE is the other case, and IsCoercible alone does not separate
+	// it: perl numifies a reference too, but to its ADDRESS. `$hashref + 1`
+	// measured 94453646558489 — not a numeric interpretation of the value, the
+	// way 3.7 -> 3 is, but a fact about where it happens to live. This is the
+	// paper's own argument for references not being in Str, applied to Num.
+	// So the conversion has to preserve a value, which means both sides must
+	// be in the non-reference scalar family.
+	//
+	// Undef is excluded from that family here, and perl's own diagnostics are
+	// the reason: it warns "Use of uninitialized value" for `undef + 1` and
+	// says NOTHING for `0 .. 3.7` or `"ab" x 2.9`. Undef is not a value being
+	// converted, it is the absence of one, so it keeps Error severity while
+	// truncation drops to Warning.
+	//
+	// Comparison operators stay a warning regardless, since they execute via
+	// coercion in every case.
 	severity := Error
+	valueLike := types.Bool | types.Str | types.DualVar
+	if types.IsCoercible(actual, expected) &&
+		types.IsSubtype(actual, valueLike) && types.IsSubtype(expected, valueLike) {
+		severity = Warning
+	}
 	switch op {
 	case "==", "!=", "<", ">", "<=", ">=", "<=>":
 		severity = Warning

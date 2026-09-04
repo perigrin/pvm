@@ -2223,3 +2223,45 @@ func TestIndirectObjectStillChecksRealArgs(t *testing.T) {
 	assert.NotEmpty(t, diags,
 		"a hashref passed as print's argument is still reported")
 }
+
+// TestNumInIntPositionIsWarningNotError verifies that a Num where an Int is
+// wanted is reported as a warning rather than an error.
+//
+// The paper defines Num -> Int as a COERCION — "truncate toward zero" — not a
+// failure, and perl performs it silently, with no warning even under -w:
+//
+//	0 .. 3.7            measured (0 1 2 3)
+//	"ab" x 2.9          measured "abab"
+//	7 >> 1.5            measured 3
+//	"\t" x ($lvl / 8)   $lvl/8 really is 2.5, and this is real code
+//
+// Reporting it as an error claims the code is broken when the language
+// defines the behaviour. It is still worth saying — truncation is often
+// unintended — so it stays a diagnostic, at the severity the paper's
+// coercion/membership split implies. 39 of the 297 diagnostics on perl5/lib
+// were this, at Error severity.
+func TestNumInIntPositionIsWarningNotError(t *testing.T) {
+	cases := []string{
+		"my $n = 3.7;\nmy @r = (0 .. $n);\n",
+		"my $n = 2.9;\nmy $s = \"ab\" x $n;\n",
+		"my $lvl = 20;\nmy $t = \"\\t\" x ($lvl / 8);\n",
+	}
+	for _, src := range cases {
+		_, diags := analyzeSource(t, []byte(src))
+		for _, d := range diags {
+			assert.Equal(t, infer.Warning, d.Severity,
+				"Num in an Int position truncates rather than failing: %q -> %s", src, d.Message)
+		}
+	}
+}
+
+// The counterpart: an operand that cannot coerce at all is still an Error.
+// A hashref in arithmetic yields its address, which is never a computation
+// anyone intended.
+func TestUncoercibleOperandStaysError(t *testing.T) {
+	src := []byte("my $h = {};\nmy $n = $h + 1;\n")
+	_, diags := analyzeSource(t, src)
+	require.NotEmpty(t, diags, "a hashref in arithmetic is reported")
+	assert.Equal(t, infer.Error, diags[0].Severity,
+		"a reference in a numeric position is an error, not a truncation")
+}
