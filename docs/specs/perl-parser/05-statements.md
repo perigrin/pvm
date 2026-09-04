@@ -133,9 +133,27 @@ type DataSection struct {
 }
 ```
 
-The distinction between `__END__` and `__DATA__` is purely conventional
-(`__END__` in the main script, `__DATA__` in a module); the parser treats them
-identically. Both must be at the start of a line and followed by end-of-line.
+Both must be at the start of a line, and must be followed by whitespace or a
+newline — `__DATA__FOO` does not match
+(PerlOnJava, `DataSection.java:261-268`).
+
+The distinction between `__END__` and `__DATA__` is conventional for *stopping*
+— `perly.y` and `toke.c` treat them identically — but it is **not** conventional
+for the filehandle. PerlOnJava's `dataHandleName` (`DataSection.java:201`)
+records the rule: a top-level `__END__` always yields `main::DATA` even if a
+`package` was declared earlier in the file, whereas `__DATA__` is
+package-relative (`getCurrentPackage() + "::DATA"`). And an `__END__` in a
+*required module* (not the top-level script) halts parsing without creating a
+handle at all (`:318`). That is why the `Package` field above exists.
+
+One more, if you ever read the section's bytes: `<DATA>` reads **raw bytes**, so
+the content must be preserved undecoded. PerlOnJava extracts it from the raw
+file rather than from the token stream for exactly this reason
+(`DataSection.java:333-336`) — UTF-8-decoding the source would corrupt a
+Latin-1 payload.
+
+`toke.c` and PerlOnJava also both honour literal `^D` (chr 4) and `^Z` (chr 26)
+at the start of a line as end-of-file markers (`DataSection.java:217`).
 
 ### 5.1.3 POD
 
@@ -399,6 +417,47 @@ Since `..` and `...` are also operators, the lexer decides by expectation.
 ```
 
 ---
+
+### 5.2.7 Statement line attribution
+
+Every statement in Perl carries a line number, used by `caller`, `warn`, `die`,
+and the debugger. Getting it right is not optional for a language server, since
+it is what makes a stack trace map to the right line.
+
+`perly.y` threads `parser->copline` through nearly every statement action —
+`parser->copline = (line_t)$KW_IF` (`perly.y:527`), `= (line_t)$KW_FOR`
+(`perly.y:377`), `= NOLINE` for the empty statement (`perly.y:535`), and the
+`if (parser->copline > (line_t)$PERLY_BRACE_OPEN)` clamp in every block rule
+(`perly.y:776-777`, `:800-801`, `:1226-1227`, `:1245-1246`). The clamp exists so
+a multi-line block reports its opening brace, not its last line.
+
+The rule is subtler than "the line the statement starts on", and PerlOnJava
+models it in a dedicated class, `StatementCopline.java`, whose class comment
+(`:11-47`) is the best specification available. Two behaviours:
+
+**1. Only some tokens arm the line.** Only tokens that reach `TERM()`/`LOP()` in
+`toke.c` set the pending line. PerlOnJava keeps an explicit `NON_ARMING_WORDS`
+set (`StatementCopline.java:59-79`) containing `my`, `return`, `if`, `sub`, and
+most named unary operators — and *deliberately excludes* the quote-like
+operators `q qq m s tr qr`, because those arm via `sublex_start()`
+(`:53-57`). `ARMING_OPERATORS` (`:86-90`) is sigils, `)`, `]`, quote characters,
+`++`, `--`. The consequence, from their comment: `sub f { return\n $x\n ->m; }`
+reports the `$x` line, not the `return` line.
+
+**2. A brace-terminated statement swallows one lookahead token.** Deciding that
+a compound statement has ended requires reading one token past its `}` — which
+is the *next* statement's first token — and building the next statement's line
+record discards whatever that token armed. So a compound statement shifts the
+line attributed to its successor.
+
+Constructs that produce no line record do not consume anything and so do not
+shift: a named `sub`, `package NAME;`, a phaser. PerlOnJava's
+`leavesLookaheadSwallowed` (`ParseBlock.java:67`) exempts nodes annotated
+`compileTimeOnly` or `noReturnValue` for exactly this reason.
+
+If you do not need `caller`-accurate line numbers, record the start line of each
+statement and move on. If you do, budget for this; it is fiddly and it is the
+kind of thing that is much cheaper to build in than to retrofit.
 
 ## 5.3 Control flow
 
@@ -1348,11 +1407,18 @@ implicit-`undef` default. Obscure, but it is in the grammar, so parse it.
 
 The three assignment operators differ in *when* the default applies:
 
-| Op | Default applies when |
-| --- | --- |
-| `=` | the argument was not passed at all |
-| `//=` | not passed, **or** passed as `undef` |
-| `||=` | not passed, **or** passed as false |
+| Op | Default applies when | Test performed |
+| --- | --- | --- |
+| `=` | the argument was not passed at all | **arity**: `@_ < n` |
+| `//=` | not passed, **or** passed as `undef` | **value**: `$x // default` |
+| `||=` | not passed, **or** passed as false | **value**: `$x || default` |
+
+The arity-versus-value distinction is real and observable: with `=`, passing an
+explicit `undef` keeps the `undef`; with `//=` it is replaced. PerlOnJava's
+codegen makes it explicit — `generateDefaultAssignment`
+(`SignatureParser.java:311-336`) emits `@_ < (paramIndex+1) && ($var = default)`
+for `=`, and a plain `BinaryOperatorNode(op, variable, defaultValue)` for the
+other two. **Record which operator was written; do not normalise it away.**
 
 The default expression is a full `term`, evaluated at call time, in a scope
 where **earlier parameters are already bound**. So this works:
@@ -1407,6 +1473,14 @@ enforces:
 
 Enforce these in your parser after collecting the list — they are simple
 post-checks and they produce far better messages than a grammar-level rejection.
+`SignatureParser.java` is the best worked example: it catches "param after
+slurpy" twice, once at the top of the *next* parameter
+(`SignatureParser.java:149-151`) and once eagerly inside the slurpy handler
+(`:249-259`), where it distinguishes "Multiple slurpy parameters not allowed"
+(next token is `@`/`%`) from "Slurpy parameter not last". It also rejects `$#`
+with "'#' not allowed immediately following a sigil in a subroutine signature"
+(`:211`), `$_` as a parameter name (`:175-177`), and `$b += 1` with "Illegal
+operator following parameter in a subroutine signature" (`:186-192`).
 
 ### 5.6.4 Named parameters
 
@@ -1421,6 +1495,17 @@ f(1, verbose => 1);
 `optcolon` is `perly.y:1115-1119`. This is very new — check
 `FEATURE_*_IS_ENABLED` gating in the tree you target before relying on it. Parse
 it, and record it, but flag it as version-gated.
+
+Two semantic wrinkles, from PerlOnJava's implementation
+(`SignatureParser.java:379-424`). Named parameters desugar to a shared
+`my %__named_args__ = @_;` plus per-parameter `delete`, which means the
+**maximum-arity check is not emitted** when named parameters are present
+(`:475-488`) — key/value pairs are unbounded. And the default-operator mapping
+changes: for named parameters `=` and `//=` **both** become `//` (`:418-424`),
+so the arity-versus-value distinction of §5.6.2 does not apply to them.
+
+Also note `"Named parameters cannot be slurpy"` (`:157-159`) and `"Named
+parameters must actually have a name"` (`:180-182`) — `:$` is not legal.
 
 ### 5.6.5 Signature is a lexical scope wrinkle
 
@@ -2015,6 +2100,12 @@ Structure:
   values for the fields.
 * A lone `.` on a line ends the format.
 
+Note that "picture line then argument line" is the *convention*, not something
+the syntax enforces. PerlOnJava classifies each line independently with a single
+regex — `FIELD_PATTERN = Pattern.compile("[@^]([<>|#*]+|\\*|#+\\.?#+?)")`
+(`FormatParser.java:30`); a line that matches is a picture line, one that does
+not is an argument line (`:257-266`). There is no alternation check.
+
 Field specifiers in a picture line:
 
 | Spec | Meaning |
@@ -2043,6 +2134,17 @@ The lexer enters format mode via `PL_lex_formbrack` (`toke.c:9764-9770`):
 In this mode, **whitespace and newlines are significant**, and the ordinary
 tokeniser is bypassed. Your Go parser needs the same: `format` switches your
 scanner into a line-oriented mode until the terminating `.`.
+
+Two implementation notes worth having. Field **width is the specifier length
+excluding the leading `@`/`^`** — `@<<<` is a 4-character field of width 3 in
+PerlOnJava's accounting (`FormatParser.java`), which differs from Perl's own; get
+this right against `t/op/write.t` rather than against either reference.
+
+And argument lines need a *nested* parse: PerlOnJava spins up a fresh lexer and
+parser over just that line's text (`FormatParser.java:375-380`), then loops
+`parseExpression` split on commas, falling back to treating the whole line as a
+string literal if anything throws (`:407-411`) so a bad argument line never
+fails the enclosing parse. That fallback is good recovery design — copy it.
 
 `write` is an ordinary named unary operator (`write` or `write FILEHANDLE`), not
 a statement form.

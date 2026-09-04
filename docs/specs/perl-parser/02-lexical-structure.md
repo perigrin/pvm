@@ -393,6 +393,21 @@ Where it matters most is heredoc terminator matching and `__END__` detection.
 Note `PERLIO_USING_CRLF` handling at `toke.c:7684-7688`: the byte offset used
 for BOM detection is allowed to be off by one to account for a swallowed CR.
 
+**Normalization is targeted, not global.** Ordinary code is not CRLF-normalized
+— `\r` is simply whitespace. But three multi-line-literal scanners *do*
+normalize, converting `\r\n`, `\n\r` and bare `\r` all to `\n`:
+
+| Site | Citation |
+| --- | --- |
+| Heredoc pre-pass over the remaining buffer | `toke.c:11687-11708` |
+| Heredoc per-streamed-chunk | `toke.c:11914-11926` |
+| `scan_str` body loop | `toke.c:12522-12534` |
+
+This is what makes heredoc terminator matching work on CRLF files — the
+terminator comparison never sees a CR. A Go implementation that normalizes
+globally will produce wrong spans; one that never normalizes will fail to match
+heredoc terminators on Windows files. Normalize in exactly these three places.
+
 > **Divergence (PerlOnJava).** `isAsciiWhitespace` (`Lexer.java:104-106`)
 > includes `\r`, and `consumeWhitespace` (`Lexer.java:190-197`) deliberately
 > *preserves* it in the token text. The comment (`Lexer.java:98-102`) explains
@@ -426,6 +441,10 @@ and line number. The recognized forms:
 This matters for an LSP: a generated file may claim to be another file, and
 diagnostics should be mapped accordingly. At minimum, record the directive
 rather than silently treating it as an ordinary comment.
+
+Implementation detail: perl stores **N − 1** (`toke.c:1986`), because
+`COPLINE_INC_WITH_HERELINES` has already fired at `toke.c:1939`. The number in
+the directive names the *next* line, not the current one.
 
 ### 2.3.6 VCS conflict markers
 
@@ -470,20 +489,26 @@ Whitespace is generally insignificant, with these exceptions:
 `#` begins a comment that runs to the end of the line. The newline itself is
 not part of the comment.
 
-**`#` is not a comment when:**
+**`#` is not a comment in these nine contexts:**
 
-- It is inside a string, regex, or other quote-like body.
-- It is the *delimiter* of a quote-like operator: `q#foo#` is the string
-  `foo`. See `toke.c:9441` — the guard `(!anydelim || *s != '#')` explicitly
-  suppresses the `=>` lookahead when `#` could be a delimiter.
-- It is part of `$#` (last-index sigil) or `$#{...}` / `$#array`.
-- It follows `$` in the punctuation variable `$#` (deprecated output format
-  variable).
-- It is inside a `/x` regex where it introduces a *regex* comment — lexically
-  still inside the pattern.
-- It is within a `(?#...)` regex comment group.
+| Context | Notes | Citation |
+| --- | --- | --- |
+| Inside a string, regex, or quote-like body | Ordinary content | — |
+| The *delimiter* of a quote-like operator | `q#foo#` — only when **adjacent** (§2.10.3) | `toke.c:9441-9442` |
+| `$#` last-index sigil | `$#array`, `$#{...}`, `$#$ref` | — |
+| `$#` the deprecated format variable | Fatal on use since 5.30 | `gv.c:2388` |
+| `(?#...)` regex comment group | Skipped wholesale | `toke.c:3714-3732` |
+| `#` in an `/x` pattern | A *regex* comment — copied through, not dropped | `toke.c:3743-3751` |
+| Quoted heredoc terminators | `<<"E#ND"` keeps the `#` | `toke.c:11646-11653` |
+| Format picture lines | Part of the picture | `toke.c:13297` |
+| Inside `qw()` | A literal word; warns under `WARN_QW` | `toke.c:6163-6167` |
 
-The `$#` case is worth stating explicitly because it is a common lexer bug:
+One further case is an **error**, not a comment: `#` immediately after a sigil
+in a subroutine signature (`toke.c:5555-5559`). The source comment states the
+rule directly — *`'$#' is banned, while '$ # comment' isn't`*.
+
+The `$#` cases are worth stating explicitly because they are a common lexer
+bug:
 
 ```perl
 my $last = $#array;      # $# is the last-index sigil, not a comment

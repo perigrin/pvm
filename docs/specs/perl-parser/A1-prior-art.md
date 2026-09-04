@@ -1145,12 +1145,36 @@ provenance before redistributing those specific subdirectories.
 |---|---|---|
 | License | Artistic 1.0 **or** GPL v1+ | MIT **or** Apache-2.0 |
 | Read for reference | Yes | Yes |
-| Copy code into a permissive Go project | **No** — copyleft | **Yes**, with attribution |
-| Reuse test corpus | **No** — same copyleft | **Yes**, with attribution (check `real_projects/`) |
+| Copy code into **PVM specifically** | Plausible — see below | **Yes**, with attribution |
+| Copy code into a permissive project | **No** — copyleft | **Yes**, with attribution |
 | Best used for | Semantics: what Perl *means*, prototype tables, precedence, pragma scoping | Architecture: mode lexer, heredoc queue, error recovery, **and the test corpus** |
 
-The asymmetry is convenient. Take architecture and tests from perl-lsp;
-take semantic knowledge from PerlOnJava by reading it and reimplementing.
+#### PVM's own license changes the PerlOnJava answer
+
+PVM is licensed **Artistic License 2.0** (`LICENSE`, "Copyright (c) 2025
+Chris Prather"). PerlOnJava offers the Artistic License as one of its two
+branches. These are the same license family Perl itself ships under, so the
+blunt reading — "copyleft, therefore off limits" — is too strong for this
+project in particular.
+
+That is a materially different position from a generic MIT-licensed Go
+project, and it is worth a deliberate decision rather than an assumption in
+either direction. Artistic 1.0 and Artistic 2.0 are not the same document,
+and their modification-and-distribution clauses differ. This appendix quotes
+what the licenses say and stops there; the choice of whether to copy, and
+under which branch, belongs to the project owner and not to this
+specification.
+
+The conservative path remains available and costs little: read PerlOnJava for
+semantics and reimplement in Go. The parser is being rewritten anyway, so
+almost nothing would be copied verbatim even if it were unambiguously
+permitted.
+
+**Test corpora are the more valuable question.** perl-lsp's corpus is
+permissively licensed and directly reusable with attribution. PerlOnJava's
+~1,935 `.t` files carry its dual license — but note that many derive from
+perl's own suite, which is itself Artistic-or-GPL, so their provenance needs
+checking file by file rather than in bulk.
 
 ---
 
