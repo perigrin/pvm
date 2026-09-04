@@ -872,7 +872,32 @@ func inferFunc1opCallType(
 		}
 	}
 
+	if t, ok := contextualReturnType(name, args, annotations); ok {
+		return t
+	}
 	return sig.ReturnType
+}
+
+// contextualReturnType handles builtins whose result type depends on the
+// ARGUMENT rather than being fixed by the signature.
+//
+// scalar() is the whole of it: measured, `scalar(@a)` on a two-element array
+// is 2 and `scalar($s)` on "str" is "str". A signature can only name one
+// type, so it says Scalar — the right family, and silent about which member.
+// Imposing scalar context on the argument is exactly what the builtin does,
+// and NarrowByContext already implements that rule.
+func contextualReturnType(name string, args []*parser.Node, annotations map[uint32]types.Type) (types.Type, bool) {
+	if name != "scalar" || len(args) != 1 {
+		return types.Unknown, false
+	}
+	argType := operandType(args[0], annotations)
+	if argType == types.Unknown {
+		return types.Unknown, false
+	}
+	if narrowed, ok := types.NarrowByContext(argType, types.ScalarCtx); ok {
+		return narrowed, true
+	}
+	return argType, true
 }
 
 // inferFunc0opCallType handles func0op_call_expression nodes.

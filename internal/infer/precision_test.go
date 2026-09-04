@@ -85,6 +85,33 @@ func runObserver(t *testing.T) []observation {
 	return obs
 }
 
+// latticeDistance counts how many steps up the subtype chain separate the
+// observed type from the inferred one.
+//
+// It walks the named types between them: Int -> Num -> Str -> Scalar. A
+// distance of 1 means PSC gave the immediate supertype, which on the numeric
+// spine is exactly the shape a genuine Num-vs-Str confusion takes.
+func latticeDistance(observed, inferred types.Type) int {
+	chain := []types.Type{types.Int, types.Num, types.Str, types.Scalar, types.List}
+
+	start := -1
+	for i, ty := range chain {
+		if ty == observed {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return -1 // observed type is not on the scalar spine
+	}
+	for i := start + 1; i < len(chain); i++ {
+		if chain[i] == inferred {
+			return i - start
+		}
+	}
+	return -1
+}
+
 // repoRoot returns the module root, since the corpus requires the observer by
 // a repo-relative path.
 func repoRoot(t *testing.T) string {
@@ -110,7 +137,7 @@ func TestInferencePrecision(t *testing.T) {
 	ann, _, st := infer.Analyze(tree, src, nil)
 	_ = ann
 
-	var exact, compatible, wrong, unknown int
+	var exact, compatible, wrong, unknown, nearMiss int
 	var disagreements []string
 	var widened []string
 
@@ -133,10 +160,25 @@ func TestInferencePrecision(t *testing.T) {
 		case types.IsSubtype(want, got):
 			// PSC was wider than the observed value but not wrong: an Int
 			// really is a Num. Correct, less precise.
+			//
+			// The DISTANCE matters, and this bucket is less benign than its
+			// name suggests. Str is a genuine supertype of Int in this
+			// lattice, so a real numeric/string confusion — the single most
+			// likely inference defect — lands here looking identical to
+			// honest imprecision. bson hit this verifying its own oracle: it
+			// injected Str where Int was expected, and the check PASSED
+			// because the injection was not wrong, only wider.
+			//
+			// One hop up the Int -> Num -> Str spine is where a defect would
+			// hide; three hops to Scalar is inference declining to commit.
 			compatible++
+			d := latticeDistance(want, got)
+			if d == 1 {
+				nearMiss++
+			}
 			widened = append(widened,
-				fmt.Sprintf("  line %d %-9s observed %-9s PSC said %s",
-					o.Line, o.Name, o.Type, got))
+				fmt.Sprintf("  line %d %-9s observed %-9s PSC said %-9s (%d hop)",
+					o.Line, o.Name, o.Type, got, d))
 		default:
 			wrong++
 			disagreements = append(disagreements,
@@ -151,6 +193,8 @@ func TestInferencePrecision(t *testing.T) {
 	fmt.Printf("\nPRECISION against %d observed values:\n", total)
 	fmt.Printf("  exact:      %3d (%.1f%%)\n", exact, pct(exact))
 	fmt.Printf("  wider:      %3d (%.1f%%)  correct but less precise\n", compatible, pct(compatible))
+	fmt.Printf("    of which one hop: %d — the Int/Num/Str spine, where a real\n", nearMiss)
+	fmt.Printf("    numeric-vs-string defect would be indistinguishable\n")
 	fmt.Printf("  WRONG:      %3d (%.1f%%)\n", wrong, pct(wrong))
 	fmt.Printf("  no answer:  %3d (%.1f%%)\n", unknown, pct(unknown))
 	if len(widened) > 0 {

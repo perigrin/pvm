@@ -243,11 +243,16 @@ func TestInferBuiltinReturnType(t *testing.T) {
 }
 
 func TestInferFunc1opReturnType(t *testing.T) {
+	// `scalar(42)` IS 42 — the builtin imposes scalar context and hands back
+	// the value, so the answer is Int. This previously expected the whole
+	// Scalar family, which is the correct family and says nothing about which
+	// member; the signature could not express a result that depends on the
+	// argument.
 	src := []byte("scalar(42);")
 	annotations, _ := analyzeSource(t, src)
 	typ, ok := findNodeType(annotations, src, "scalar(42)")
 	require.True(t, ok, "scalar() call should be annotated")
-	assert.Equal(t, types.Scalar, typ, "scalar() should return Scalar")
+	assert.Equal(t, types.Int, typ, "scalar(42) is 42, an Int")
 }
 
 func TestInferAmbiguousFunctionCallReturnType(t *testing.T) {
@@ -2639,4 +2644,33 @@ func TestPushToPostfixDerefIsClean(t *testing.T) {
 	src := []byte("my %r = (op => [1, 2]);\npush $r{op}->@*, 3;\n")
 	_, diags := analyzeSource(t, src)
 	assert.Empty(t, diags, "push to a dereferenced arrayref is correct Perl")
+}
+
+// TestScalarBuiltinNarrowsItsArgument verifies that scalar() reports the
+// count for an aggregate and passes a scalar through.
+//
+// Measured: `scalar(@a)` on a two-element array is 2, `scalar($s)` on "str"
+// is "str". A fixed Scalar return type cannot express either — it is the
+// correct family and says nothing about which member. This is the same
+// scalar-context rule NarrowByContext already implements, applied to a
+// builtin whose whole job is to impose that context.
+func TestScalarBuiltinNarrowsItsArgument(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"array yields a count", "my @a = (1, 2);\nmy $n = scalar(@a);\n", types.Int},
+		{"hash yields a count", "my %h = (a => 1);\nmy $n = scalar(%h);\n", types.Int},
+		{"scalar passes through", "my $s = \"str\";\nmy $n = scalar($s);\n", types.Str},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		sym, found := st.Lookup("$n")
+		require.True(t, found, "%s: $n should be in the symbol table", tc.name)
+		assert.True(t, types.IsSubtype(tc.want, sym.Type),
+			"%s: %s should be within the inferred %s", tc.name, tc.want, sym.Type)
+		assert.NotEqual(t, types.Scalar, sym.Type,
+			"%s: the answer should be narrower than the whole scalar family", tc.name)
+	}
 }

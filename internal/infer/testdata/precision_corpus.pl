@@ -96,3 +96,29 @@ my $joined2 = join("-", 1, 2);      ::__observe(__LINE__, '$joined2', $joined2);
 # --- defined-or and boolean results ---
 my $dor    = undef // "fallback";   ::__observe(__LINE__, '$dor',    $dor);
 my $neg    = !1;                    ::__observe(__LINE__, '$neg',    $neg);
+
+# --- mutation, then read: the family bson found silent miscompiles in ---
+# PSC is a checker with no memory model, so these measure whether a read
+# AFTER a mutation still reports the right type.
+my @mut = (1, 2, 3);
+shift @mut;
+my $after_shift = scalar(@mut);     ::__observe(__LINE__, '$after_shift', $after_shift);
+push @mut, 9;
+my $after_push  = scalar(@mut);     ::__observe(__LINE__, '$after_push',  $after_push);
+splice(@mut, 0, 1);
+my $after_splice = scalar(@mut);    ::__observe(__LINE__, '$after_splice', $after_splice);
+
+# Return values, which are easy to get wrong by symmetry.
+my @rv = (1, 2);
+my $push_rv  = push @rv, 3;         ::__observe(__LINE__, '$push_rv',  $push_rv);
+my $unsh_rv  = unshift @rv, 0;      ::__observe(__LINE__, '$unsh_rv',  $unsh_rv);
+my @spl = (1, 2, 3);
+my $spl_rv   = splice(@spl, 1, 1);  ::__observe(__LINE__, '$spl_rv',   $spl_rv);
+my $pop_rv   = pop @spl;            ::__observe(__LINE__, '$pop_rv',   $pop_rv);
+my $shift_rv = shift @spl;          ::__observe(__LINE__, '$shift_rv', $shift_rv);
+
+# A foreach variable ALIASES the array, so a body write mutates the source.
+my @alias = (1, 2, 3);
+for my $x (@alias) { $x = $x * 10 }
+my $aliased = $alias[0];            ::__observe(__LINE__, '$aliased', $aliased);
+my $alias_str = "@alias";           ::__observe(__LINE__, '$alias_str', $alias_str);

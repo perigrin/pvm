@@ -67,7 +67,12 @@ var builtins = map[string]BuiltinSig{
 
 	"defined": {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Bool},
 	"ref":     {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Str},
-	"scalar":  {MinArity: 1, ArgTypes: []Type{Any}, ReturnType: Scalar},
+	// scalar() imposes scalar context on anything, so List rather than Any:
+	// every value can be evaluated in scalar context, and List still excludes
+	// Code and Glob. The RETURN type depends on the argument and is computed
+	// by contextualReturnType — a signature can only name one type, and this
+	// builtin's answer is "whatever the argument becomes".
+	"scalar": {MinArity: 1, ArgTypes: []Type{List}, ReturnType: Scalar},
 
 	"die":  {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: None},
 	"warn": {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
