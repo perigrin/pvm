@@ -223,8 +223,8 @@ func inferNodeType(
 		// hands back the matched SUBSTRING. `$2` on a run of digits is a Str
 		// whose text happens to look numeric, which is a fact about the
 		// subject rather than about the capture.
-		if isCaptureVariable(node, source) {
-			return types.Str
+		if n, isCapture := captureIndex(node, source); isCapture {
+			return captureType(node, n, source)
 		}
 		return lookupNarrowedType(node, source, st, "$", types.Scalar)
 
@@ -1277,23 +1277,168 @@ func declaredNames(decl *parser.Node, source []byte) []string {
 	return names
 }
 
-// isCaptureVariable reports whether a scalar node is a numbered regex capture
-// such as $1 or $12. $0 is the program name rather than a capture.
-func isCaptureVariable(node *parser.Node, source []byte) bool {
+// captureIndex reports whether a scalar node is a numbered regex capture such
+// as $1 or $12, and which group it refers to. $0 is the program name rather
+// than a capture.
+func captureIndex(node *parser.Node, source []byte) (int, bool) {
 	name := sigildName("$", node, source)
 	if len(name) < 2 || name[0] != '$' {
-		return false
+		return 0, false
 	}
 	digits := name[1:]
-	if digits == "0" {
+	n, err := strconv.Atoi(digits)
+	if err != nil || n < 1 {
+		return 0, false
+	}
+	return n, true
+}
+
+// captureType returns the type of the n-th capture group.
+//
+// A capture is a SUBSTRING, so Str is always true — but Int <: Num <: Str, so
+// a group that can only match digits is an Int, which is the more precise true
+// statement. perl agrees: `$1 + 1` on a digit capture is silent, and on a
+// letter capture warns "isn't numeric".
+//
+// The pattern is the evidence, and it has to be the NEAREST preceding match in
+// the same scope. Finding no pattern, or a group whose body admits anything
+// but digits, leaves Str.
+func captureType(node *parser.Node, n int, source []byte) types.Type {
+	pattern, ok := nearestPatternBefore(node, source)
+	if !ok {
+		return types.Str
+	}
+	groups := captureGroups(pattern)
+	if n > len(groups) {
+		return types.Str
+	}
+	if isNumericOnlyGroup(groups[n-1]) {
+		return types.Int
+	}
+	return types.Str
+}
+
+// nearestPatternBefore walks up to the enclosing block and back through the
+// statements preceding node, returning the text of the last regexp_content
+// that appears before it.
+func nearestPatternBefore(node *parser.Node, source []byte) (string, bool) {
+	start := node.StartByte()
+
+	root := node
+	for root.Parent() != nil {
+		root = root.Parent()
+	}
+
+	var best string
+	var bestAt uint32
+	var found bool
+
+	var walk func(n *parser.Node)
+	walk = func(n *parser.Node) {
+		if n == nil {
+			return
+		}
+		if n.Kind() == "regexp_content" && n.StartByte() < start {
+			if !found || n.StartByte() > bestAt {
+				best, bestAt, found = n.Text(source), n.StartByte(), true
+			}
+		}
+		for i := 0; i < n.ChildCount(); i++ {
+			walk(n.Child(i))
+		}
+	}
+	walk(root)
+
+	return best, found
+}
+
+// captureGroups returns the body of each top-level capture group in a pattern,
+// in order. Non-capturing groups (?:...) and lookarounds are skipped, since
+// they do not consume a $N.
+func captureGroups(pattern string) []string {
+	var groups []string
+	depth := 0
+	var current []rune
+	capturing := []bool{}
+
+	runes := []rune(pattern)
+	for i := 0; i < len(runes); i++ {
+		c := runes[i]
+
+		if c == '\\' && i+1 < len(runes) {
+			if depth > 0 {
+				current = append(current, c, runes[i+1])
+			}
+			i++
+			continue
+		}
+
+		switch c {
+		case '(':
+			isCap := !(i+1 < len(runes) && runes[i+1] == '?')
+			capturing = append(capturing, isCap)
+			depth++
+			if depth == 1 && isCap {
+				current = nil
+			} else if depth > 1 {
+				current = append(current, c)
+			}
+		case ')':
+			if depth > 0 {
+				depth--
+				wasCap := capturing[len(capturing)-1]
+				capturing = capturing[:len(capturing)-1]
+				if depth == 0 && wasCap {
+					groups = append(groups, string(current))
+					current = nil
+				} else if depth > 0 {
+					current = append(current, c)
+				}
+			}
+		default:
+			if depth > 0 {
+				current = append(current, c)
+			}
+		}
+	}
+	return groups
+}
+
+// isNumericOnlyGroup reports whether a capture group's body can match nothing
+// but digits.
+//
+// Deliberately narrow: only \d and [0-9] with the usual quantifiers. Anything
+// it does not recognise stays Str, because a wrong Int here would claim a
+// capture is numeric when it can hold letters — and unlike the reverse, that
+// is a claim perl contradicts.
+func isNumericOnlyGroup(body string) bool {
+	if body == "" {
 		return false
 	}
-	for _, r := range digits {
-		if r < '0' || r > '9' {
+	rest := body
+	saw := false
+	for len(rest) > 0 {
+		switch {
+		case strings.HasPrefix(rest, `\d`):
+			rest = rest[2:]
+			saw = true
+		case strings.HasPrefix(rest, "[0-9]"):
+			rest = rest[5:]
+			saw = true
+		case strings.HasPrefix(rest, "+"), strings.HasPrefix(rest, "*"),
+			strings.HasPrefix(rest, "?"):
+			rest = rest[1:]
+		case strings.HasPrefix(rest, "{"):
+			end := strings.Index(rest, "}")
+			if end < 0 {
+				return false
+			}
+			rest = rest[end+1:]
+		default:
 			return false
 		}
 	}
-	return true
+	return saw
 }
 
 // logicalOps are the operators that return one of their operands rather than

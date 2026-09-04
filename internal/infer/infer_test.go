@@ -2744,15 +2744,21 @@ func TestMatchInScalarContextIsBool(t *testing.T) {
 	assert.Equal(t, types.Bool, sym.Type, "a scalar-context match is a boolean")
 }
 
-// TestCaptureVariableIsStr verifies that $1, $2 are Str.
+// TestCaptureVariableIsStr verifies that a capture is narrower than the sigil
+// default.
+//
+// The witness is a non-numeric group deliberately: `(\d+)` is now typed Int,
+// since Int <: Num <: Str makes Int the more precise TRUE statement about a
+// digit capture. This case is about the general shape — a capture is a
+// substring, so Str — and TestNumericCaptureIsInt covers the refinement.
 func TestCaptureVariableIsStr(t *testing.T) {
-	src := []byte("my $s = \"a1\";\n$s =~ /(\\d+)/;\nmy $c = $1;\n")
+	src := []byte("my $s = \"ab\";\n$s =~ /([a-z]+)/;\nmy $c = $1;\n")
 	_, _, st := analyzeSourceFull(t, src)
 
 	sym, found := st.Lookup("$c")
 	require.True(t, found, "$c should be in the symbol table")
-	assert.True(t, types.IsSubtype(types.Str, sym.Type),
-		"a capture variable is a Str, got %s", sym.Type)
+	assert.Equal(t, types.Str, sym.Type,
+		"a capture of letters is a Str, got %s", sym.Type)
 	assert.NotEqual(t, types.Scalar, sym.Type,
 		"a capture is narrower than the whole scalar family")
 }
@@ -2773,4 +2779,37 @@ func TestCountOfIdiomIsInt(t *testing.T) {
 	require.True(t, found, "$n should be in the symbol table")
 	assert.Equal(t, types.Int, sym.Type,
 		"the count-of idiom yields a count, not the match's boolean")
+}
+
+// TestNumericCaptureIsInt verifies that a capture group which can only match
+// digits is typed Int rather than the blanket Str.
+//
+// Str for every capture is TRUE but coarse: Int <: Num <: Str, so a digit
+// capture really is a Str — and it is also an Int, which is the more precise
+// true statement. perl distinguishes them, measured:
+//
+//	"abc123" =~ /(\d+)/;  $1 + 1   is 124, no warning
+//	"abcxyz" =~ /([a-z]+)/; $1 + 1 is 1, and warns "isn't numeric"
+//
+// The pattern says which. `(\d+)` cannot match a non-digit, so the capture is
+// an Int; anything else stays Str, since a capture is a substring and that is
+// all PSC can establish.
+func TestNumericCaptureIsInt(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"digits only", "my $s = \"a1\";\n$s =~ /(\\d+)/;\nmy $c = $1;\n", types.Int},
+		{"letters", "my $s = \"ab\";\n$s =~ /([a-z]+)/;\nmy $c = $1;\n", types.Str},
+		{"mixed word chars", "my $s = \"a1\";\n$s =~ /(\\w+)/;\nmy $c = $1;\n", types.Str},
+		{"second group numeric", "my $s = \"a1\";\n$s =~ /([a-z]+)(\\d+)/;\nmy $c = $2;\n", types.Int},
+		{"first group not numeric", "my $s = \"a1\";\n$s =~ /([a-z]+)(\\d+)/;\nmy $c = $1;\n", types.Str},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		sym, found := st.Lookup("$c")
+		require.True(t, found, "%s: $c should be in the symbol table", tc.name)
+		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
+	}
 }
