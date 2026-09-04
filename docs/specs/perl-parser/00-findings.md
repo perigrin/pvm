@@ -151,7 +151,36 @@ the first. And a low pass rate is a claim about the harness until proven
 otherwise — the corpus is almost entirely compilable, so a number well under
 94% means the setup is broken, not that Perl is hard.
 
-## 0.6 The corpus and the oracle must be version-pinned together
+## 0.6 The starting line, measured
+
+The 44 files in `t/base`, `t/comp`, `t/cmd` and `t/opbasic` all compile under
+perl, so any failure on them is ours. Against the parser shipping today:
+
+**29 clean, 15 with error nodes — 65.9%.**
+
+```
+base/lex.t              comp/hints.t          comp/require.t
+base/num.t              comp/package.t        comp/uproto.t
+comp/decl.t             comp/parser.t         cmd/switch.t
+comp/final_line_num.t   comp/parser_run.t     opbasic/arith.t
+comp/form_scope.t       comp/proto.t          opbasic/qq.t
+```
+
+This is the number M1 has to move, and it is worth reading the list rather than
+the percentage. `comp/proto.t` and `comp/uproto.t` are the prototype files;
+`base/lex.t` and `comp/parser.t` exist specifically to abuse the lexer;
+`cmd/switch.t` is the heredoc-as-call-argument case already known from the
+tree-sitter work. The failures cluster exactly where Chapters 2 and 3 say the
+difficulty is, which is weak evidence that those chapters describe the real
+problem rather than an imagined one.
+
+Note also what this measures: **coverage**, the weak metric. All 29 "clean"
+files are clean only in the sense of having no error node. How many are parsed
+*correctly* is unmeasured, and §0.4 shows the parser cannot currently
+distinguish cases perl distinguishes. The true starting number is therefore at
+most 29, probably less.
+
+## 0.7 The corpus and the oracle must be version-pinned together
 
 The `perl5` checkout here is **blead 5.45** (`patchlevel.h`: `PERL_VERSION 45`);
 the installed interpreter is **5.42.0**. Testing a parser against the newer
@@ -172,7 +201,7 @@ would be marked wrong for agreeing with the interpreter it was checked against.
 corpus commit in the ratchet header, and treat a mismatch as a reason to
 re-baseline rather than as a regression.
 
-## 0.7 The parser, not the type checker, is the latency problem
+## 0.8 The parser, not the type checker, is the latency problem
 
 The intuitive assumption — a type checker walking every node must cost more
 than a parse — is wrong here by one to two orders of magnitude. Measured with
@@ -210,7 +239,7 @@ annotation map is `map[uint32]types.Type` keyed by `StartByte`
 re-parse. That costs cache correctness, and only becomes worth fixing once
 re-parsing is cheap enough for reuse to matter.
 
-## 0.8 A citation corrected
+## 0.9 A citation corrected
 
 `toke.c:10568` is `call_sv` inside `S_new_constant`, which implements
 overloaded constants via `$^H`. It is **not** the source-filter mechanism.
