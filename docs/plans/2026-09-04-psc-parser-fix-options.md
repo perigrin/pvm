@@ -291,3 +291,70 @@ should report "not analysed" rather than 495 confident diagnostics about
 text that was never there (`header_parser.t`). It does not move coverage
 and must not be mistaken for fixing this — but it stops PSC lying about
 files it cannot read.
+
+---
+
+## STEP 1 DONE: symbol resolution is no longer hard-coded
+
+Patch: `docs/plans/patches/2026-09-04-gotreesitter-perl-scanner-name-resolution.patch`
+(132 lines, `external.go` + `grammars/perl_scanner.go`, against gotreesitter
+`main` @ 2c19a78c)
+
+### What was wrong
+
+    plSymApostrophe gotreesitter.Symbol = 252   ... through 290
+
+39 hard-coded ABSOLUTE symbol ids. tree-sitter assigns external symbols
+after every other symbol, so the whole block shifts when the grammar gains
+a rule — which is exactly why regenerating tables reported `!1` as
+`(srand)`.
+
+### The fix is smaller than expected, because the runtime already had it
+
+`Language.ExternalSymbols` is a `[]Symbol` of length 54, external token
+index → symbol, in grammar declaration order. The scanner's own `plTok*`
+indices are STABLE — they are its internal numbering — so they index
+straight into it. No name lookup needed.
+
+`SymbolByName` does NOT work for this: hidden externals (a leading `_`)
+are absent from `SymbolNames`, so `_single_quote`, `_filetest` and the
+`_RECOVER_*` tokens all resolve false. Only public ones — `pod`,
+`format_content`, `_NONASSOC`, `_ERROR` — are there. That was the first
+attempt and it is recorded because the failure is not obvious.
+
+`RunExternalScanner` already receives the `*Language` and dropped it; it
+now offers it through an optional `LanguageAwareScanner` interface, so no
+existing scanner is affected.
+
+A token index past what the language declares resolves to
+`plSymUnresolved` and is DECLINED rather than reported. Emitting symbol 0
+would be a wrong answer; declining is a missing one.
+
+### Verified
+
+    shipped blob:     !1 -> unary_expression, strings and heredocs parse
+                      IDENTICAL to before — zero regression
+    regenerated blob: no more (srand); format_statement parses;
+                      the func1op nesting is gone
+    PSC:              0 test failures against the patched scanner
+
+### What step 1 does NOT fix
+
+`/a/x`, heredocs and `!1` still fail against the REGENERATED blob, because
+the scanner implements 39 of the grammar's 54 externals. The 15 it does
+not know are declined cleanly instead of mis-reported — which is the
+point of step 1 — but they are still missing.
+
+Notably `_regexp_open_bracket` and `_regexp_open_brace` were INSERTED at
+indices 20-21 in the current grammar, shifting everything after them. The
+scanner is a port of a grammar from before they existed, and indices 0-19
+still align exactly.
+
+### Remaining, in order
+
+2. Regenerate tables with a matched ts2go — already proven to work.
+3. Implement the 15 missing externals, measuring `t/op` parse errors after
+   each. 89 -> 0 is the target and the metric exists.
+
+Step 3 is the real work and it is incremental: each token can be added and
+measured on its own.
