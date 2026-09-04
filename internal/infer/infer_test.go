@@ -2813,3 +2813,44 @@ func TestNumericCaptureIsInt(t *testing.T) {
 		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
 	}
 }
+
+// TestSprintfNumericFormatsAreNumeric verifies that sprintf with a purely
+// numeric decimal format is typed Int or Num rather than the blanket Str.
+//
+// Same reasoning as digit captures: Int <: Num <: Str, so Str is true for
+// every sprintf result and Int is the more precise true statement when the
+// format can only produce a decimal number.
+//
+// THE RADIX FORMATS ARE EXCLUDED AND THAT IS THE POINT. %o and %b produce
+// digit strings whose numeric VALUE is not the number that was formatted:
+//
+//	sprintf("%o", 8)  is "10",  and "10" + 1 is 11, not 9
+//	sprintf("%b", 5)  is "101", and "101" + 1 is 102, not 6
+//
+// Calling those Int would be true of the text and misleading about the value,
+// so they stay Str along with %x (which gives "2a"), %c (a character) and %s.
+func TestSprintfNumericFormatsAreNumeric(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"%d is Int", "my $f = sprintf(\"%d\", 42);\n", types.Int},
+		{"%05d is Int", "my $f = sprintf(\"%05d\", 42);\n", types.Int},
+		{"%+d is Int", "my $f = sprintf(\"%+d\", 42);\n", types.Int},
+		{"%.2f is Num", "my $f = sprintf(\"%.2f\", 3.14);\n", types.Num},
+		{"%e is Num", "my $f = sprintf(\"%e\", 3.14);\n", types.Num},
+		{"%s stays Str", "my $f = sprintf(\"%s\", \"x\");\n", types.Str},
+		{"%x stays Str", "my $f = sprintf(\"%x\", 255);\n", types.Str},
+		{"%o stays Str", "my $f = sprintf(\"%o\", 8);\n", types.Str},
+		{"%b stays Str", "my $f = sprintf(\"%b\", 5);\n", types.Str},
+		{"mixed stays Str", "my $f = sprintf(\"%s=%d\", \"a\", 1);\n", types.Str},
+		{"literal text stays Str", "my $f = sprintf(\"n=%d\", 1);\n", types.Str},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		sym, found := st.Lookup("$f")
+		require.True(t, found, "%s: $f should be in the symbol table", tc.name)
+		assert.Equal(t, tc.want, sym.Type, "%s", tc.name)
+	}
+}

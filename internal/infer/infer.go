@@ -713,6 +713,9 @@ func inferFunctionCallType(
 		}
 	}
 
+	if t, ok := contextualReturnType(name, args, source, annotations); ok {
+		return t
+	}
 	return sig.ReturnType
 }
 
@@ -879,7 +882,7 @@ func inferFunc1opCallType(
 		}
 	}
 
-	if t, ok := contextualReturnType(name, args, annotations); ok {
+	if t, ok := contextualReturnType(name, args, source, annotations); ok {
 		return t
 	}
 	return sig.ReturnType
@@ -893,7 +896,10 @@ func inferFunc1opCallType(
 // type, so it says Scalar — the right family, and silent about which member.
 // Imposing scalar context on the argument is exactly what the builtin does,
 // and NarrowByContext already implements that rule.
-func contextualReturnType(name string, args []*parser.Node, annotations map[uint32]types.Type) (types.Type, bool) {
+func contextualReturnType(name string, args []*parser.Node, source []byte, annotations map[uint32]types.Type) (types.Type, bool) {
+	if name == "sprintf" && len(args) >= 1 {
+		return sprintfResultType(args[0], source, annotations)
+	}
 	if name != "scalar" || len(args) != 1 {
 		return types.Unknown, false
 	}
@@ -1221,6 +1227,80 @@ func listElementType(rhs *parser.Node, source []byte, annotations map[uint32]typ
 		result = types.Join(result, operandType(child, annotations))
 	}
 	return result
+}
+
+// sprintfResultType narrows a sprintf result when the format can only produce
+// a decimal number.
+//
+// Str is true of every sprintf result, and Int <: Num <: Str makes Int the
+// more precise true statement when the format admits nothing else — the same
+// reasoning that types a digit capture Int.
+//
+// The format has to be a literal, since only then is it evidence. A single
+// conversion with no surrounding text and no width that pads with spaces
+// gives a bare number; anything else keeps Str.
+//
+// THE RADIX FORMATS ARE EXCLUDED DELIBERATELY. %o and %b produce digit
+// strings whose numeric value is not the number formatted — measured,
+// sprintf("%o", 8) is "10" and "10" + 1 is 11 rather than 9. Calling those Int
+// would be true of the TEXT and misleading about the VALUE.
+func sprintfResultType(format *parser.Node, source []byte, annotations map[uint32]types.Type) (types.Type, bool) {
+	if format == nil {
+		return types.Unknown, false
+	}
+	switch format.Kind() {
+	case "string_literal", "interpolated_string_literal":
+	default:
+		return types.Unknown, false
+	}
+
+	var content *parser.Node
+	for i := 0; i < format.ChildCount(); i++ {
+		child := format.Child(i)
+		if child != nil && child.Kind() == "string_content" {
+			content = child
+			break
+		}
+	}
+	if content == nil {
+		return types.Unknown, false
+	}
+
+	if t, ok := numericFormatType(content.Text(source)); ok {
+		return t, true
+	}
+	return types.Unknown, false
+}
+
+// numericFormatType reports the type of a format string that consists of
+// exactly one numeric conversion and nothing else.
+func numericFormatType(format string) (types.Type, bool) {
+	if len(format) < 2 || format[0] != '%' {
+		return types.Unknown, false
+	}
+	body := format[1:]
+
+	// Flags that do not introduce non-numeric characters. "-" is excluded:
+	// left-justification pads with TRAILING SPACES, so the result is not a
+	// bare number even though it still numifies.
+	for len(body) > 0 && (body[0] == '0' || body[0] == '+' || body[0] == ' ') {
+		body = body[1:]
+	}
+	// Width and precision.
+	for len(body) > 0 && (body[0] >= '0' && body[0] <= '9' || body[0] == '.') {
+		body = body[1:]
+	}
+	if len(body) != 1 {
+		return types.Unknown, false
+	}
+
+	switch body[0] {
+	case 'd', 'i', 'u':
+		return types.Int, true
+	case 'f', 'e', 'g':
+		return types.Num, true
+	}
+	return types.Unknown, false
 }
 
 // isCountOfAssignment reports whether a node is an inner `() = EXPR`, the
