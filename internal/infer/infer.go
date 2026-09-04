@@ -268,6 +268,26 @@ func inferNodeType(
 	case "assignment_expression":
 		return inferAssignmentNarrowing(node, source, st, annotations, childTypes, classTypes)
 
+	// --- Postfix dereference ---
+	// `$ref->@*` and `$ref->%*` yield the WHOLE aggregate, not the scalar
+	// holding the reference. Measured: `my @c = $a->@*` copies every element,
+	// and `push $r{op}->@*, 3` appends — so the deref is passing an Array to
+	// push, which is what push's first argument wants.
+
+	case "array_deref_expression":
+		return types.Array
+
+	case "hash_deref_expression":
+		return types.Hash
+
+	// --- Element access ---
+	// Reading one element of an aggregate yields the ELEMENT type, not the
+	// container's. Without this `$n[0]` fell back to the sigil default of
+	// Scalar, which is correct and says almost nothing.
+
+	case "array_element_expression", "hash_element_expression":
+		return inferElementType(node, source, st)
+
 	// --- undef ---
 	// The literal `undef` denotes the undefined value. Perl itself warns when
 	// one reaches a string or numeric operator ("Use of uninitialized value"),
@@ -1059,6 +1079,118 @@ func collectOwnCallArgs(node *parser.Node, source []byte) []*parser.Node {
 	return args
 }
 
+// inferElementType types `$n[0]`, `$h{k}`, `$aref->[0]` and `$href->{k}` as
+// the element type recorded for the container.
+//
+// The container is the first named child, and its kind says which spelling
+// this is: container_variable for `$n[0]` — where the sigil is $ but the
+// variable is @n — and scalar for `$aref->[0]`, where the variable really is
+// a scalar holding a reference.
+//
+// A container with no recorded element type falls back to Scalar rather than
+// guessing: an element of something PSC never saw filled is one value of
+// unknown type, which is exactly what Scalar says.
+func inferElementType(node *parser.Node, source []byte, st *SymbolTable) types.Type {
+	var container *parser.Node
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() {
+			container = child
+			break
+		}
+	}
+	if container == nil {
+		return types.Scalar
+	}
+
+	sigil := "@"
+	if node.Kind() == "hash_element_expression" {
+		sigil = "%"
+	}
+	if container.Kind() == "scalar" {
+		// `$aref->[0]` — the container is a scalar holding a reference, and
+		// its element type is recorded against the scalar itself.
+		sigil = "$"
+	}
+
+	name := sigildName(sigil, container, source)
+	sym, ok := st.Lookup(name)
+	if !ok || sym.ElemType == types.Unknown {
+		return types.Scalar
+	}
+
+	// An element is ONE VALUE, whatever the container holds. `my @l = split
+	// ...` records the call's return type, List, and an element of a List is
+	// not itself a List — reading `$l[0]` as List made `lc $l[0]` a
+	// type-mismatch on correct code. Scalar context is exactly this rule, and
+	// NarrowByContext already implements it.
+	if narrowed, nok := types.NarrowByContext(sym.ElemType, types.ScalarCtx); nok {
+		return narrowed
+	}
+	return sym.ElemType
+}
+
+// listElementType returns the join of the element types in a list literal.
+//
+// `my @m = (1, "s")` contributes Int and Str, so an element read is their
+// join: an index selects one of them and PSC does not evaluate indices. A
+// hash literal alternates keys and values, and both are elements of the flat
+// list perl actually assigns, so both are joined — `%h = (a => 1)` really
+// does hold the string "a" as well as 1.
+func listElementType(rhs *parser.Node, source []byte, annotations map[uint32]types.Type) types.Type {
+	if rhs == nil {
+		return types.Unknown
+	}
+	switch rhs.Kind() {
+	case "list_expression":
+		// fall through to the loop below
+	case "anonymous_array_expression", "anonymous_hash_expression":
+		// `[1,2]` may hold its elements directly or wrap them in a list.
+		for i := 0; i < rhs.ChildCount(); i++ {
+			child := rhs.Child(i)
+			if child != nil && child.IsNamed() && child.Kind() == "list_expression" {
+				return listElementType(child, source, annotations)
+			}
+		}
+	case "binary_expression":
+		// `my @a = (0) x $n` is LIST repetition: the elements are copies of
+		// the LEFT OPERAND, not values of the operator's own result type.
+		//
+		// The distinction matters because of how wide Str is. PSC's `x`
+		// signature says Str, which is right for the scalar form `"ab" x 3`,
+		// and recording it here is not FALSE — Num <: Str, so calling an Int
+		// element a Str is a true statement about it. It is too wide to be
+		// useful, though: TypeSatisfies(Str, Num) is false, since a Str may
+		// hold non-numeric data, so `$a[0] * 2` became a diagnostic on
+		// correct code.
+		//
+		// Taking the left operand keeps the precision instead of discarding
+		// it: `(0) x $n` records Int, which is what the array holds.
+		if op := findOperatorText(rhs, source); op == "x" {
+			for i := 0; i < rhs.ChildCount(); i++ {
+				child := rhs.Child(i)
+				if child != nil && child.IsNamed() {
+					return operandType(child, annotations)
+				}
+			}
+		}
+		return types.Unknown
+
+	default:
+		// A single-value assignment: `my @a = $x`.
+		return operandType(rhs, annotations)
+	}
+	result := types.Unknown
+	for i := 0; i < rhs.ChildCount(); i++ {
+		child := rhs.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		result = types.Join(result, operandType(child, annotations))
+	}
+	return result
+}
+
 // logicalOps are the operators that return one of their operands rather than
 // a value of their own.
 var logicalOps = map[string]bool{
@@ -1197,6 +1329,29 @@ func inferAssignmentNarrowing(
 		(rhsType == types.Array || rhsType == types.Hash || rhsType == types.List) {
 		if narrowed, ok := types.NarrowByContext(rhsType, types.ScalarCtx); ok {
 			rhsType = narrowed
+		}
+	}
+
+	// Record what an aggregate was filled with, so a later `$n[0]` can answer
+	// with the element type rather than the sigil default.
+	//
+	// A scalar holding an anonymous constructor gets the same treatment:
+	// `my $a = [1,2]` makes $a an ArrayRef whose elements are Ints, and
+	// `$a->[0]` should say Int. The elements are inside the constructor node
+	// rather than in a list assigned to the variable.
+	if rhsNode != nil {
+		switch {
+		case strings.HasPrefix(varName, "@"), strings.HasPrefix(varName, "%"):
+			if elem := listElementType(rhsNode, source, annotations); elem != types.Unknown {
+				st.UpdateElemType(varName, elem)
+			}
+		case strings.HasPrefix(varName, "$"):
+			switch rhsNode.Kind() {
+			case "anonymous_array_expression", "anonymous_hash_expression":
+				if elem := listElementType(rhsNode, source, annotations); elem != types.Unknown {
+					st.UpdateElemType(varName, elem)
+				}
+			}
 		}
 	}
 

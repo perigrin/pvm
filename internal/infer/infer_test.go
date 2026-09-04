@@ -2515,3 +2515,128 @@ func TestLogicalOperatorsJoinOperands(t *testing.T) {
 			"%s: %s should be within the inferred %s", tc.name, tc.want, sym.Type)
 	}
 }
+
+// --- Element type tracking ---
+
+// TestArrayElementType verifies that reading an element yields the element's
+// type rather than the sigil default.
+//
+// `my @n = (1,2); my $e = $n[0]` gives an Int. PSC said Scalar — correct but
+// unhelpfully broad, and six of the fourteen "wider" results in the precision
+// oracle came from this one gap.
+func TestArrayElementType(t *testing.T) {
+	src := []byte("my @n = (1, 2);\nmy $e = $n[0];\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$e")
+	require.True(t, found, "$e should be in the symbol table")
+	assert.Equal(t, types.Int, sym.Type, "an element of an Int array is an Int")
+}
+
+// TestHashElementType is the same for hashes.
+func TestHashElementType(t *testing.T) {
+	src := []byte("my %h = (a => \"x\");\nmy $v = $h{a};\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$v")
+	require.True(t, found, "$v should be in the symbol table")
+	assert.Equal(t, types.Str, sym.Type, "an element of a Str hash is a Str")
+}
+
+// TestMixedElementTypeIsTheJoin verifies that a container holding unlike
+// values yields the JOIN of them, not one arm or the other.
+//
+// `my @m = (1, "s")` holds an Int and a Str; an element read is whichever the
+// index selects, which is exactly a merge.
+func TestMixedElementTypeIsTheJoin(t *testing.T) {
+	src := []byte("my @m = (1, \"s\");\nmy $e = $m[0];\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$e")
+	require.True(t, found, "$e should be in the symbol table")
+	assert.True(t, types.IsSubtype(types.Int, sym.Type),
+		"the Int arm survives the join, got %s", sym.Type)
+	assert.True(t, types.IsSubtype(types.Str, sym.Type),
+		"the Str arm survives the join, got %s", sym.Type)
+}
+
+// An untracked container still yields Scalar rather than a guess: an element
+// of something PSC never saw filled is one value of unknown type.
+func TestUnknownContainerElementIsScalar(t *testing.T) {
+	src := []byte("my $e = $unseen[0];\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$e")
+	require.True(t, found, "$e should be in the symbol table")
+	assert.Equal(t, types.Scalar, sym.Type,
+		"an element of an unknown container is a Scalar, not a guess")
+}
+
+// TestArrowElementType verifies the same for the arrow forms, where the
+// container is a scalar holding a reference.
+//
+// `my $a = [1,2]` makes $a an ArrayRef whose elements are Ints, and
+// `$a->[0]` should say Int. The elements live inside the constructor node
+// rather than in a list assigned to the variable, so they are recorded from
+// there.
+func TestArrowElementType(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"arrayref element", "my $a = [1, 2];\nmy $e = $a->[0];\n", types.Int},
+		{"hashref element", "my $h = {k => \"v\"};\nmy $e = $h->{k};\n", types.Str},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		sym, found := st.Lookup("$e")
+		require.True(t, found, "%s: $e should be in the symbol table", tc.name)
+		assert.True(t, types.IsSubtype(tc.want, sym.Type),
+			"%s: %s should be within the inferred %s", tc.name, tc.want, sym.Type)
+		assert.NotEqual(t, types.Scalar, sym.Type,
+			"%s: the element type should be narrower than the sigil default", tc.name)
+	}
+}
+
+// TestPostfixDerefYieldsAggregate verifies that `$ref->@*` is an Array and
+// `$ref->%*` is a Hash, not the scalar that holds the reference.
+//
+// Measured: `my %r = (op => [1,2]); push $r{op}->@*, 3` appends, and
+// `my @c = $r{op}->@*` copies three elements. The deref yields the whole
+// aggregate, so `push $r{op}->@*, ...` is passing an ARRAY to push — exactly
+// what its first argument wants.
+//
+// PSC had no case for array_deref_expression, so the node fell through to the
+// element type of the thing being dereferenced. Once element typing started
+// answering with a real type, that produced a confident "expected Array, got
+// Scalar" on correct code.
+func TestPostfixDerefYieldsAggregate(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"array deref", "my $a = [1, 2];\nmy @c = $a->@*;\n", types.Array},
+		{"hash deref", "my $h = {k => 1};\nmy %c = $h->%*;\n", types.Hash},
+	}
+	for _, tc := range cases {
+		annotations, _ := analyzeSource(t, []byte(tc.src))
+		var found bool
+		for _, ty := range annotations {
+			if ty == tc.want {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "%s: some node should be typed %s", tc.name, tc.want)
+	}
+}
+
+// The payoff: push against a dereferenced arrayref is correct code and must
+// not be reported.
+func TestPushToPostfixDerefIsClean(t *testing.T) {
+	src := []byte("my %r = (op => [1, 2]);\npush $r{op}->@*, 3;\n")
+	_, diags := analyzeSource(t, src)
+	assert.Empty(t, diags, "push to a dereferenced arrayref is correct Perl")
+}

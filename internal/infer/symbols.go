@@ -27,9 +27,19 @@ type Symbol struct {
 	ParamTypes []types.Type // Inferred parameter types (subroutines only, positional)
 	ParamNames []string     // Parameter variable names (subroutines only, positional)
 	ClassType  string       // Class name for object variables (e.g. "Foo" for Foo->new())
-	Kind       SymbolKind
-	StartByte  uint32
-	EndByte    uint32
+
+	// ElemType is the type of an ELEMENT of an aggregate — the join of the
+	// values it was seen to hold. Reading `$n[0]` yields this rather than the
+	// sigil default, which is Scalar and says almost nothing.
+	//
+	// It is the join because an index selects one of the elements and PSC
+	// does not evaluate indices: `my @m = (1, "s")` holds an Int and a Str,
+	// and a read is whichever the index picks. Zero means no element type is
+	// known, and a read then falls back to Scalar rather than guessing.
+	ElemType  types.Type
+	Kind      SymbolKind
+	StartByte uint32
+	EndByte   uint32
 }
 
 // Scope is a single lexical scope that may refer back to its enclosing parent.
@@ -156,6 +166,23 @@ func (st *SymbolTable) UpdateType(name string, typ types.Type) bool {
 	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
 			sym.Type = typ
+			s.symbols[name] = sym
+			return true
+		}
+	}
+	return false
+}
+
+// UpdateElemType records the element type of an aggregate, joining it with
+// whatever was already known.
+//
+// Joining rather than replacing is what makes a container filled from several
+// places come out right: each assignment contributes an arm, and the element
+// type is the merge of all of them.
+func (st *SymbolTable) UpdateElemType(name string, typ types.Type) bool {
+	for s := st.current; s != nil; s = s.parent {
+		if sym, ok := s.symbols[name]; ok {
+			sym.ElemType = types.Join(sym.ElemType, typ)
 			s.symbols[name] = sym
 			return true
 		}
