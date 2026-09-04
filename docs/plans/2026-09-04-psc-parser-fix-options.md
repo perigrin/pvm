@@ -153,3 +153,59 @@ parses a subset correctly.
         -input .../tsp/src/parser.c -output /tmp/perl_new.go -name perl
     # writes grammar_blobs/perl.bin alongside the .go file
     # swap it in, then: my $x = 42  parses; !1  comes back as (srand)
+
+---
+
+## FOLLOW-UP: is gotreesitter up to date?
+
+PSC has the newest RELEASE (v0.51.0 = newest tag), so `go list -m -u`
+reports nothing to do. But that is not the same as current:
+
+    v0.51.0 tag              the newest release
+    origin/main 2c19a78c     v0.51.0-571-g2c19a78c, committed today
+    ~/dev/gotreesitter       3907 commits behind main, from 2026-03-03
+
+Since our clone: **24 commits touching `cmd/ts2go`** and **1 touching
+`grammars/grammar_blobs/perl.bin`**.
+
+### Retried with the CURRENT ts2go — the misalignment is fixed
+
+Regenerating the same `parser.c` with upstream main's `ts2go` and running
+it against upstream main's runtime:
+
+    "my $x = 42;"   (source_file (expression_statement ...))       correct
+    "!1;"           (source_file (expression_statement (func1op...  WRONG
+    format FOO =    (source_file (format_statement (bareword) ...   CORRECT
+
+No more `(srand)`. The symbol table lines up, and `format_statement`
+appears — so the 6-month-old ts2go was indeed the cause of that failure.
+
+### But the SCANNER is the remaining mismatch
+
+`/a/x` still errors, and `!1` parses as nested `func1op_call_expression`.
+The reason is not the tables:
+
+    gotreesitter grammars/perl_scanner.go   1146 lines  (hand-written Go)
+    tree-sitter-perl src/scanner.c          1601 lines  (upstream C)
+
+gotreesitter's Perl external scanner is a hand port of an OLDER
+`scanner.c`. Regenerating the parse tables from a newer grammar produces
+tables whose external tokens the ported scanner does not implement. Both
+halves have to move together, and only one of them is generated.
+
+Upstream main also still pins tree-sitter-perl to `ad74e6db` — the
+revision WITHOUT `format_statement` — so upstream is not carrying this
+fix either.
+
+### Revised conclusion
+
+This is not a version-bump problem and not something PSC can vendor
+around. It needs the Perl external scanner in gotreesitter re-ported
+against tree-sitter-perl 1.2.x, alongside a table regeneration with a
+matched ts2go. That is upstream work.
+
+What PSC can do meanwhile is option 3 from above — suppress diagnostics
+inside ERROR subtrees — so that a file the parser mis-reads reports
+"not analysed" rather than 495 confident diagnostics about text that was
+never there. That does not move coverage, and it should not be mistaken
+for fixing this.
