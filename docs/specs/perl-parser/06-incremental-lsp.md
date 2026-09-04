@@ -1660,12 +1660,37 @@ median and degrade explicitly beyond it.
 | Re-parse anchor region | 500 µs | One statement or sub |
 | Splice tree + copy arena | 100 µs | Bounded by damage region |
 | **Parse subtotal** | **~0.9 ms** | |
-| PSC `Analyze` (full tree) | **5–8 ms** | **The dominant term** |
+| PSC `Analyze` (full tree) | 0.5–2 ms | Measured, see below |
 | Diagnostic formatting | 100 µs | |
-| **Total** | **~9 ms** | |
+| **Total** | **~3 ms** | |
 
-The parse is not the problem. **PSC is** — `Analyze` walks the whole tree on
-every parse, and `infer.go` is 4,265 lines of per-node work. See §6.10.5.
+#### Measured today, and it is the reverse of the intuition
+
+The budget above is the *target* for a hand-written Go parser. Against the
+parser we actually ship, the ratio is inverted — parse dominates analysis by
+20-50×:
+
+| File | Lines | Parse | `Analyze` | Ratio |
+|---|---:|---:|---:|---:|
+| `charnames.pm` | 484 | 6.5 ms | 0.48 ms | 14× |
+| `FileHandle.pm` | 262 | 69.7 ms | 2.8 ms | 25× |
+| `overload.pm` | 1701 | 99.6 ms | 2.2 ms | 45× |
+| `sigtrap.pm` | 327 | 350.0 ms | 7.0 ms | 50× |
+| `_charnames.pm` | 858 | 521.7 ms | 19.3 ms | 27× |
+
+`go test -bench`, perl5/lib, 2026-09-04. Note that time tracks grammar
+pathology rather than file length — `sigtrap.pm` at 327 lines costs 5× what
+`overload.pm` costs at 1701.
+
+So PSC is **not** the bottleneck: at 0.5-2 ms it already fits the budget, while
+a single parse blows it by one to two orders of magnitude. The consequence for
+build order is direct — replacing the parser is what buys the interactive
+budget, and optimising `Analyze` first would be optimising the cheap half.
+
+`Analyze`'s incremental story is still a real problem, just not a latency one:
+its annotation map is `map[uint32]types.Type` keyed by `StartByte`
+(`infer.go:57-60`), so every key after an edit shifts and nothing survives a
+re-parse. That costs correctness of caching, not milliseconds.
 
 ### 6.10.3 What the budget forces
 
@@ -1723,26 +1748,39 @@ arrive; not before.
 
 ### 6.10.5 The biggest risk
 
-**PSC's full-tree re-analysis on every parse.**
+**The parser. Measured, not assumed.**
 
-The parse side has a clear path to sub-millisecond. `Analyze` does not: it
-walks every node, every time, and its cost grows with file size independent of
-edit size. At 5,000 lines it is 5–8 ms — most of the budget. At 15,000 lines it
-blows the budget by itself, and no amount of incremental parsing helps.
+The obvious suspect is PSC: `Analyze` walks every node, every time, and its
+cost grows with file size independent of edit size. Measured, though, it is 0.5-2 ms on real perl5/lib files — inside
+budget, and 20-50× *cheaper* than a single parse with the parser we ship today
+(§6.10.2). The intuition that the type checker must be the expensive half is
+simply wrong here.
 
-Mitigations in order of cost:
+**The measured risk is the parser.** A single parse of `sigtrap.pm` — 327
+lines — costs 350 ms, which is not 3× over an interactive budget but 35×. Cost
+tracks grammar pathology rather than file size, so it cannot be predicted from
+line count and cannot be debounced away: the user is typing in the file that is
+slow. This is the strongest available argument for the whole specification,
+and it is a stopwatch reading rather than a design preference.
 
-1. **Debounce diagnostics at 300 ms** while parsing at 15 ms. Hover and
-   completion get a fresh tree; PSC runs less often. This alone makes the
-   system feel fast and costs nothing.
-2. **Analyze only subs whose span intersects the damage region**, keeping
-   the previous `SymbolTable` for the rest. Sound when nothing in the damage
-   region changes a declaration — which the Class B trigger scan already tells
-   you.
-3. **Key annotations by node identity, not byte offset**, so a splice preserves
-   untouched types. The real fix, and a real project.
+Mitigations, revised to match the measurement:
 
-Ship (1) with the first version. Plan (2). Schedule (3).
+1. **Replace the parser.** This is the whole budget. Everything else is
+   rounding error until it is done.
+2. **Debounce diagnostics at 300 ms** while parsing at 15 ms. Cheap, and worth
+   doing regardless — it decouples PSC from the keystroke path even though PSC
+   is not currently the problem.
+3. **Key annotations by node identity, not byte offset.** `Analyze`'s map is
+   `map[uint32]types.Type` keyed by `StartByte` (`infer.go:57-60`), so every
+   key after an edit shifts and no annotation survives a re-parse. This is a
+   correctness-of-caching problem, not a latency one, and it only becomes
+   worth fixing once (1) has made re-parsing cheap enough that reuse matters.
+4. **Analyze only subs intersecting the damage region.** Sound when nothing in
+   that region changes a declaration, which the Class B trigger scan already
+   tells you. Do this last; at 2 ms there is nothing to win yet.
+
+Ship (1) first — the numbers leave no other reading. (2) is free. (3) and (4)
+wait for evidence, per step 4 of §6.11.
 
 ---
 

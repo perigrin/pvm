@@ -117,7 +117,45 @@ against the 411, or against a named subset.
 `base`, `comp`, `cmd`, and `opbasic` — 44 files at 100% — are the natural first
 milestone: perl compiles every one, so any failure is ours.
 
-## 0.6 A citation corrected
+## 0.6 The parser, not the type checker, is the latency problem
+
+The intuitive assumption — a type checker walking every node must cost more
+than a parse — is wrong here by one to two orders of magnitude. Measured with
+`go test -bench` against perl5/lib on 2026-09-04:
+
+| File | Lines | Parse | PSC `Analyze` | Ratio |
+|---|---:|---:|---:|---:|
+| `charnames.pm` | 484 | 6.5 ms | 0.48 ms | 14× |
+| `FileHandle.pm` | 262 | 69.7 ms | 2.8 ms | 25× |
+| `overload.pm` | 1701 | 99.6 ms | 2.2 ms | 45× |
+| `sigtrap.pm` | 327 | 350.0 ms | 7.0 ms | 50× |
+| `_charnames.pm` | 858 | 521.7 ms | 19.3 ms | 27× |
+
+Three things follow.
+
+**The parse cost is not a function of file size.** `sigtrap.pm` at 327 lines
+costs 5× what `overload.pm` costs at 1701. Cost tracks grammar pathology, which
+means it cannot be predicted, cannot be capped by refusing large files, and
+cannot be debounced away — the user is typing in the file that is slow.
+
+**A 350 ms parse is not 3× over an interactive budget, it is 35×.** No amount
+of incremental machinery layered on top recovers that; the constant factor is
+in the wrong place.
+
+**PSC is already fast enough.** At 0.5-2 ms it fits comfortably. Optimising it
+first — the obvious move, and the one an earlier draft of Chapter 6
+recommended — would be optimising the cheap half by a factor of 40.
+
+This is the strongest argument in this specification for replacing the parser,
+and it is a stopwatch reading rather than a design preference.
+
+`Analyze` does have an incremental defect, just not a latency one: its
+annotation map is `map[uint32]types.Type` keyed by `StartByte`
+(`infer.go:57-60`), so every key after an edit shifts and nothing survives a
+re-parse. That costs cache correctness, and only becomes worth fixing once
+re-parsing is cheap enough for reuse to matter.
+
+## 0.7 A citation corrected
 
 `toke.c:10568` is `call_sv` inside `S_new_constant`, which implements
 overloaded constants via `$^H`. It is **not** the source-filter mechanism.

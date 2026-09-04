@@ -169,13 +169,8 @@ problem. Full census, `wc -l` on
 | 200 | `ParseMapGrepSort.java` | Block-taking builtins |
 | 185 | `Whitespace.java` | Whitespace, comments, POD skipping |
 | 174 | `FieldParser.java` | `field $x :param` |
-| 162 | `TokenUtils.java` | `peek`/`consume` primitives |
-| 138 | `ParserNodeUtils.java` | Node construction helpers |
-| 119 | `FutureAsyncAwaitParser.java` | `async`/`await` |
-| 109 | `ConstantOverloadParser.java` | `overload::constant` hooks |
-| 91 | `FieldRegistry.java` | Field bookkeeping |
-| 75 | `StringSingleQuoted.java` | `'...'` |
 | 16 | `TestMoreHelper.java` | Test::More special-casing (see A1.1.7) |
+| 694 | *(6 more: TokenUtils, ParserNodeUtils, FutureAsyncAwait, ConstantOverload, FieldRegistry, StringSingleQuoted)* | |
 | **24,003** | **36 files** | |
 
 Nine of these — `StringParser`, `StringSegmentParser`, `StringDoubleQuoted`,
@@ -604,17 +599,47 @@ feature demands it.
    verdicts are encoded, so both regressions and improvements force an
    intentional edit. 50 cases, all passing.
 
-7. **Corpus ratchets with real baselines.** From
-   `crates/perl-parser-comparison/tests/corpus_differential.rs`:
+7. **Corpus ratchets with machine-generated receipts.** This is the best
+   measurement practice in either repository, and it is worth copying as a
+   *process*, not just a number. Baselines are JSON receipts in `.ci/`,
+   regenerated per merge, carrying commit, timestamp, and Perl version:
 
-   > Baselines established from corpus run (2026-05-16) on 1268-file corpus:
-   > v3 clean: 1242, v3 errors: 26, crashes: 0
+   | Corpus | Files | Clean | Rate | Error nodes | Receipt |
+   |---|---:|---:|---:|---:|---|
+   | Ubuntu system Perl 5.38.2 | 7,095 | 7,047 | **99.3%** | **0** | `.ci/parser-corpus-baseline.json` (2026-05-18, `f201b498c`) |
+   | CPAN top 1000 | 9,372 | 8,931 | **95.3%** | 3,015 | `.ci/cpan-corpus-baseline.json` (2026-04-09, `fb9484be`) |
+   | Project corpus | 96 | 96 | 100% | 0 | `test_corpus/` + `perl-corpus` |
 
-   1,242/1,268 = **97.9%**, with a hard regression floor at 1,179 (95%).
-   `test_corpus/` holds 1,323 files including `real_projects/`,
-   `real_world/`, and adversarial cases (`obscure_perl_constructs.pl`,
-   `parser_stress_cases.pl`, `source_filters.pl`,
-   `unknown_rest_unterminated_heredoc.pl`).
+   The system-Perl run parses 7,095 files in **4.8 seconds** with zero error
+   nodes. The CPAN run is the honest one — 435 files still fail, and the
+   failure buckets are a ready-made worklist:
+
+   | Bucket | Count | | Bucket | Count |
+   |---|---:|---|---|---:|
+   | `unexpected_comma_expr` | 48 | | `unclosed_paren` | 34 |
+   | `unclosed_paren_identifier` | 43 | | `unclosed_brace_semicolon` | 28 |
+   | `unclosed_brace` | 41 | | `expected_left_brace` | 24 |
+   | `unexpected_token_in_expr` | 41 | | `unclosed_brace_eof` | 24 |
+   | `unexpected_assign_expr` | 34 | | `expected_colon` | 20 |
+
+   Note what dominates: **unclosed delimiters**, which is what you get when
+   a quote-like construct's delimiter scan goes wrong and swallows the rest
+   of the file. That is the same failure class PerlOnJava patches with its
+   Test::More list. It is the hardest part of Perl, and it is still the top
+   failure bucket after 460k lines of Rust.
+
+   Separately, the v1/v2/v3 differential
+   (`crates/perl-parser-comparison/tests/corpus_differential.rs`) ratchets
+   against a 1,268-file corpus: *"v3 clean: 1242, v3 errors: 26,
+   crashes: 0"* (97.9%), floor at 1,179. `test_corpus/` holds 1,323 files
+   including `real_projects/`, `real_world/`, and adversarial cases
+   (`obscure_perl_constructs.pl`, `parser_stress_cases.pl`,
+   `source_filters.pl`, `unknown_rest_unterminated_heredoc.pl`).
+
+   Node-kind coverage is tracked too: **66/69 (95.7%)**, with *"0 actionable
+   never-seen; 3 recovery-only allowlisted"*
+   (`docs/project/status/parser.md`). Knowing which AST nodes your corpus
+   has never exercised is a metric worth stealing outright.
 
 8. **Naming the boundary rather than guessing.** Source filters are
    *detected* — `helpers.rs:311`, `fn is_filter_module()` matching `Filter`,
@@ -626,7 +651,56 @@ feature demands it.
    > Perl's own tools (`perl -c`).
    > — `docs/reference/KNOWN_LIMITATIONS.md:504`
 
-### A1.2.5 What perl-lsp got wrong
+### A1.2.5 What v3 still cannot do
+
+Measured markers, `crates/*/src`:
+
+| Marker | Count | Note |
+|---|---:|---|
+| TODO/FIXME/XXX/HACK, raw | 157 | Misleading |
+| …excluding `perl-ci-hygiene` | **22** | 131 of the 157 are inside the TODO-scanner itself |
+| `#[ignore]` in tests | 47 | 10 in `perl-parser`, but 9 of those are *commented-out* dead markers from when `s///` did not work |
+| Live lib tests | 6,470 | 17 tracked ignores, 100% pass |
+
+Twenty-two real markers across ~460k lines is exceptionally low, and it is
+low for a structural reason: `cargo xtask todos` ratchets the count of
+*unlinked* TODOs, so markers get converted into issue links rather than
+accumulating in source. That is a good gate; note it as a technique.
+
+The genuine v3 gaps, from `docs/reference/KNOWN_LIMITATIONS.md` (5 items,
+*"2% of edge case tests"*) — all ⚠️ Partial, nothing ❌:
+
+| Gap | Detail |
+|---|---|
+| Complex prototypes | `sub f($$$$;&@)` parses but *"AST accuracy varies"* |
+| Deep nested interpolation | `@{[ map { @{[ grep {...} @$_ ]} } @nested ]}` *"may fail"* |
+| Formats | Basic works; `^<<<` continuation and `@<<<` picture lines *"may have issues"* |
+| Emoji identifiers | ZWJ sequences, variation selectors not validated |
+| `5.` decimals | Parses; AST representation imprecise |
+
+Plus two from `docs/reference/FEATURES.md` that contradict the "~100%" claim:
+
+- **`my $x = Foo::Bar->new();` fails.** Bareword qualified names work as a
+  statement but *"FAILS in expression"* position.
+- **`my_function arg1, arg2;` fails.** User-defined subs without parens are
+  not supported; ~70 builtins are special-cased.
+
+That second pair matters more than the exotic ones. Calling a user sub
+without parens is ordinary Perl, and it is exactly the case that needs the
+prototype table — which is why PerlOnJava's `PrototypeArgs` is 1,506 lines
+and perl-lsp's is a fact table with confidence levels.
+
+Machine-readable gaps:
+`crates/perl-corpus/fixtures/parser_accuracy/manifest.json` labels
+**9 of 51 fixtures** `unsupported_constructs: 1` (`autoload_boundary`,
+`postderef_boundary`, `signatures_basic`, `malformed_heredoc_recovery`,
+`unterminated_heredoc`, `bad_heredoc_terminator`, …) and marks
+**13 `dynamic_boundaries`** across 7 fixtures (`eval_string_boundary`,
+`typeglob_alias`, `dynamic_require_boundary`, …). Also live:
+`variables.rs:2065` — *"known limitation for `&$var` without braces"* — and
+`pir/lower.rs` keeps a running `unsupported_construct_counts` map.
+
+### A1.2.6 What perl-lsp got wrong
 
 **They over-split into 132 crates and had to undo it.** ADR-0008 (2025-01-15)
 adopted a microcrate architecture. ADR-0041 (2026-04-14, 38 KB) reverses it.
@@ -666,11 +740,37 @@ comparison agent, both worth knowing because you will hit them:
   parser" there means **v2 pest**, which was subsequently abandoned. It is a
   historical artifact that reads like current guidance.
 
-**Coverage numbers are self-graded and inflated.**
-`KNOWN_LIMITATIONS.md` claims v3 is *"~100%"* overall and 98% on edge
-cases. The project's own corpus differential says **97.9%** (1,242/1,268),
-and 26 files still error. Both numbers are in the repository. Trust the
-one produced by a test.
+**The prose documentation lies; the generated receipts do not.** This is a
+process failure worth naming, because it will happen to any project that
+writes coverage claims by hand.
+
+| Source | Claim | Kind |
+|---|---|---|
+| `.ci/parser-corpus-baseline.json` | 99.3% (7047/7095), 0 error nodes | Generated receipt |
+| `.ci/cpan-corpus-baseline.json` | 95.3% (8931/9372), 3015 error nodes | Generated receipt |
+| `corpus_differential.rs` | 97.9% (1242/1268) | Test assertion |
+| `docs/reference/KNOWN_LIMITATIONS.md` | *"~100%"* | Hand-written |
+| `docs/reference/FEATURES.md` | *"~99.5%"* — and its own header says 99.996% | Hand-written, self-contradictory |
+| `SCOUT_CORPUS_TEST_STRATEGY.md` (2026-03-19) | **72.6%** (5139/7095) | Hand-written, **27 points stale** |
+
+`SCOUT_CORPUS_TEST_STRATEGY.md` quotes the *same 7,095-file corpus* at
+72.6% clean with 28,383 error nodes. The live receipt from two months later
+says 7,047 clean and zero error nodes. Same denominator, so it is a stale
+snapshot rather than a different measurement — but anyone citing that
+document is 27 points wrong. Its manifest count is off by 2.4× too (claims
+1,849 modules; `.ci/cpan-corpus-manifest.txt` is 4,492 lines).
+
+**The lesson is not "perl-lsp is dishonest" — it is the opposite.** Their
+generated receipts are excellent and internally consistent. The lesson is
+that a hand-written percentage in a Markdown file has a half-life of about
+a quarter. Generate the number or do not publish it.
+
+One soft spot in the live receipts:
+**`whitespace_invariance_rate = 0.3`** (n=44) — the parse is not stable
+under trailing-whitespace changes in 70% of sampled cases. For an LSP that
+re-parses on every keystroke, that is the metric to watch, and it is the
+only visibly bad scorer in the set. `strict-clean subset` reports
+`insufficient_data`.
 
 **Duplicate/competing modules.** `perl-ast` (5,740 lines) and `perl-ast-v2`
 (549 lines) coexist, v2 described as *"an updated AST that uses Range
