@@ -202,11 +202,15 @@ func TestInferStringConcatExpression(t *testing.T) {
 }
 
 func TestInferLowprecLogicalExpression(t *testing.T) {
+	// `1 and 2` yields 2 — the operator returns one of its operands, so the
+	// result is the join of the arms. Both are Int here, so the join is Int.
+	// This previously expected Any, which was the escape hatch standing in
+	// for an answer nobody computed.
 	src := []byte("1 and 2;")
 	annotations, _ := analyzeSource(t, src)
 	typ, ok := findNodeType(annotations, src, "1 and 2")
 	require.True(t, ok, "lowprec_logical_expression '1 and 2' should be annotated")
-	assert.Equal(t, types.Any, typ, "low-prec logical should return Any")
+	assert.Equal(t, types.Int, typ, "1 and 2 joins two Ints")
 }
 
 // --- Unary operator inference ---
@@ -2478,4 +2482,36 @@ func TestStrictSeesUnresolvedValue(t *testing.T) {
 
 	assert.Empty(t, permissive, "the default accepts an un-inferred value")
 	assert.NotEmpty(t, strict, "strict reports it — that is what strict is for")
+}
+
+// TestLogicalOperatorsJoinOperands verifies that &&, ||, //, and, or are
+// typed as the join of their operands rather than as Any.
+//
+// Each yields one of its two operands — measured: `undef // "s"` is "s",
+// `0 || 42` is 42, `1 && "x"` is "x" — so the result is exactly the join,
+// which is what a control-flow merge means. They were declared {Any, Any,
+// Any}, which is the annotation escape hatch standing in for an uncomputed
+// answer, and it satisfied every later requirement by construction.
+//
+// The operands stay unconstrained: any value has a truth value, so there is
+// nothing to reject on the input side. Only the RESULT was wrong.
+func TestLogicalOperatorsJoinOperands(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want types.Type
+	}{
+		{"defined-or picks the string", "my $x = undef // \"s\";\n", types.Str},
+		{"or over two ints", "my $x = 0 || 42;\n", types.Int},
+		{"and over int and string", "my $x = 1 && \"x\";\n", types.Str},
+	}
+	for _, tc := range cases {
+		_, _, st := analyzeSourceFull(t, []byte(tc.src))
+		sym, found := st.Lookup("$x")
+		require.True(t, found, "%s: $x should be in the symbol table", tc.name)
+		assert.NotEqual(t, types.Any, sym.Type,
+			"%s: a logical operator must not yield Any", tc.name)
+		assert.True(t, types.IsSubtype(tc.want, sym.Type),
+			"%s: %s should be within the inferred %s", tc.name, tc.want, sym.Type)
+	}
 }

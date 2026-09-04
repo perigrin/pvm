@@ -425,6 +425,16 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 	checkBinaryOperand(left, source, annotations, diags, sig.Left, op, "left")
 	checkBinaryOperand(right, source, annotations, diags, sig.Right, op, "right")
 
+	// A logical operator yields ONE OF ITS OPERANDS rather than a type of its
+	// own — measured, `undef // "s"` is "s", `0 || 42` is 42, `1 && "x"` is
+	// "x". That is a control-flow merge, so the result is the join of the two
+	// arms. The signature says Any, which is the annotation escape hatch
+	// standing in for an answer nobody computed; it satisfied every later
+	// requirement by construction.
+	if sig.Result == types.Any && logicalOps[op] {
+		return types.Join(operandType(left, annotations), operandType(right, annotations))
+	}
+
 	return sig.Result
 }
 
@@ -1047,6 +1057,23 @@ func collectOwnCallArgs(node *parser.Node, source []byte) []*parser.Node {
 		args = append(args, child)
 	}
 	return args
+}
+
+// logicalOps are the operators that return one of their operands rather than
+// a value of their own.
+var logicalOps = map[string]bool{
+	"&&": true, "||": true, "//": true, "and": true, "or": true,
+}
+
+// operandType reads a node's inferred type, or Unknown when it has none.
+func operandType(n *parser.Node, annotations map[uint32]types.Type) types.Type {
+	if n == nil {
+		return types.Unknown
+	}
+	if t, ok := annotations[n.StartByte()]; ok {
+		return t
+	}
+	return types.Unknown
 }
 
 // builtinArgType returns the expected type for the i-th argument of a builtin,
