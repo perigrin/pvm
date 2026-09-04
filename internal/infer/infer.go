@@ -293,6 +293,7 @@ func inferNodeType(
 	// Scalar, which is correct and says almost nothing.
 
 	case "array_element_expression", "hash_element_expression":
+		checkElementIndex(node, source, annotations, diags)
 		return inferElementType(node, source, st)
 
 	// --- undef ---
@@ -1174,6 +1175,65 @@ func collectOwnCallArgs(node *parser.Node, source []byte) []*parser.Node {
 		args = append(args, child)
 	}
 	return args
+}
+
+// checkElementIndex reports a reference used as an ARRAY index.
+//
+// An index is numified, and a reference numifies to its address — never the
+// element anyone wanted. perl warns about it directly: "Use of reference
+// "ARRAY(0x...)" as array index".
+//
+// Only array indices are checked. A HASH key is stringified rather than
+// numified, and while `$h{$ref}` is nearly always a mistake too, perl accepts
+// it silently and the key is a legitimate (if useless) string.
+func checkElementIndex(node *parser.Node, source []byte, annotations map[uint32]types.Type, diags *[]Diagnostic) {
+	if node.Kind() != "array_element_expression" {
+		return
+	}
+
+	// The container is the first named child and the index the second.
+	var index *parser.Node
+	seen := 0
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		seen++
+		if seen == 2 {
+			index = child
+			break
+		}
+	}
+	if index == nil {
+		return
+	}
+
+	actual := operandType(index, annotations)
+	if activeOptions.skipUnknownOperand(actual) {
+		return
+	}
+
+	// Only a REFERENCE is reported. A Str index is silent when its text is
+	// numeric — measured, `$a["1"]` is fine and only `$a["abc"]` warns — and
+	// Str covers both, so reporting it flags correct code like
+	// `$DB::dbline[$line]`. A reference always numifies to an address and
+	// perl always warns.
+	// IsSubtype, not a bit test: Scalar CONTAINS the Ref bits, so
+	// `actual & Ref != 0` matches every un-narrowed scalar and reported 186
+	// extra sites on perl5/lib. The question is whether the index is known to
+	// be a reference, not whether it might be one.
+	if !types.IsSubtype(actual, types.Ref) {
+		return
+	}
+
+	*diags = append(*diags, Diagnostic{
+		StartByte: index.StartByte(),
+		EndByte:   index.EndByte(),
+		Severity:  argumentSeverity(actual, types.Num),
+		Code:      CodeTypeMismatch,
+		Message:   fmt.Sprintf("array index expects Num, got %s", actual),
+	})
 }
 
 // inferElementType types `$n[0]`, `$h{k}`, `$aref->[0]` and `$href->{k}` as

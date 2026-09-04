@@ -3001,3 +3001,26 @@ func TestReverseInScalarContextIsString(t *testing.T) {
 	assert.Equal(t, types.Str, sym.Type,
 		"reverse in scalar context reverses a string, it does not count")
 }
+
+// TestArrayIndexMustBeNumeric verifies that a reference used as an array
+// index is reported.
+//
+// perl warns explicitly here — "Use of reference "ARRAY(0x...)" as array
+// index" — so this is agreement with perl's own diagnostics rather than a
+// stricter opinion. The index is numified, and a reference numifies to its
+// address, which is never the element anyone wanted.
+//
+// Found by widening the type-overwriting mutation corpus: PSC typed the
+// element access but never looked at the index expression.
+func TestArrayIndexMustBeNumeric(t *testing.T) {
+	src := []byte("my @a = (1, 2);\nmy $x = [];\nmy $y = $a[$x];\n")
+	_, diags := analyzeSource(t, src)
+	assert.NotEmpty(t, diags, "a reference used as an array index is reported")
+}
+
+// An ordinary integer index is not reported.
+func TestIntegerArrayIndexIsClean(t *testing.T) {
+	src := []byte("my @a = (1, 2);\nmy $i = 1;\nmy $y = $a[$i];\n")
+	_, diags := analyzeSource(t, src)
+	assert.Empty(t, diags, "an Int index is correct")
+}
