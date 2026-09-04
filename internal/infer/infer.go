@@ -268,6 +268,14 @@ func inferNodeType(
 	case "assignment_expression":
 		return inferAssignmentNarrowing(node, source, st, annotations, childTypes, classTypes)
 
+	// --- undef ---
+	// The literal `undef` denotes the undefined value. Perl itself warns when
+	// one reaches a string or numeric operator ("Use of uninitialized value"),
+	// so this is one of the few places PSC and perl's own diagnostics agree.
+
+	case "undef_expression":
+		return types.Undef
+
 	// --- Reference constructors ---
 	// The expressions that BUILD a reference. Each denotes the reference
 	// itself, not what it points at.

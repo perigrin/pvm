@@ -416,10 +416,13 @@ func TestStringLiteralNodeKindHandled(t *testing.T) {
 // --- Flow narrowing tests ---
 
 func TestFlowNarrowingDefinedGuard(t *testing.T) {
-	// if (defined($x)): if-body $x → Scalar &^ Undef (defined, all non-undef scalar bits),
-	// else-body $x → Undef.
-	// Note: "my $x = undef" does NOT narrow $x to Undef because the undef
-	// keyword produces Unknown type, so $x stays at sigil type Scalar.
+	// `my $x = undef` narrows $x to Undef, so `defined($x)` is a guard whose
+	// true branch is UNREACHABLE: narrowing Undef by "is defined" leaves the
+	// empty set, which is None. The else branch keeps Undef.
+	//
+	// This previously expected Scalar &^ Undef because the undef keyword had
+	// no type of its own and $x stayed at the sigil type. Typing undef makes
+	// the analysis sharper: PSC now knows the branch cannot be taken.
 	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
@@ -429,7 +432,8 @@ func TestFlowNarrowingDefinedGuard(t *testing.T) {
 
 	ifBodyTyp, ifOk := annotations[offsets[2]]
 	assert.True(t, ifOk, "if-body $x should be annotated")
-	assert.Equal(t, types.Scalar&^types.Undef, ifBodyTyp, "if-body $x should be Scalar &^ Undef (defined guard removes Undef bit)")
+	assert.Equal(t, types.None, ifBodyTyp,
+		"if-body $x is None — $x is definitely undef, so the defined() branch is unreachable")
 
 	elseBodyTyp, elseOk := annotations[offsets[3]]
 	assert.True(t, elseOk, "else-body $x should be annotated")
@@ -438,7 +442,11 @@ func TestFlowNarrowingDefinedGuard(t *testing.T) {
 
 func TestFlowNarrowingRefGuard(t *testing.T) {
 	// Inside if (ref($x)), $x should be narrowed to Ref.
-	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n}\n")
+	//
+	// The declaration is bare rather than `= undef`: an explicit undef now
+	// types as Undef, which would make the ref() branch unreachable (None) and
+	// test guard-on-a-dead-branch rather than ref narrowing itself.
+	src := []byte("my $x = get();\nif (ref($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
@@ -449,7 +457,7 @@ func TestFlowNarrowingRefGuard(t *testing.T) {
 
 func TestFlowNarrowingUnlessDefinedGuard(t *testing.T) {
 	// Inside unless (defined($x)), $x should be Undef (negated defined).
-	src := []byte("my $x = undef;\nunless (defined($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nunless (defined($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
@@ -460,7 +468,7 @@ func TestFlowNarrowingUnlessDefinedGuard(t *testing.T) {
 
 func TestFlowNarrowingWhileDefinedGuard(t *testing.T) {
 	// Inside while (defined($x)), $x should be Scalar &^ Undef (non-Undef scalar bits).
-	src := []byte("my $x = undef;\nwhile (defined($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nwhile (defined($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	whileBodyXOffset := findLastVarOffset(src, "$x")
@@ -471,7 +479,7 @@ func TestFlowNarrowingWhileDefinedGuard(t *testing.T) {
 
 func TestFlowNarrowingIfElseRefGuard(t *testing.T) {
 	// if (ref($x)) → Ref in if-body, Scalar &^ Ref in else-body (non-reference scalar bits)
-	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	src := []byte("my $x = get();\nif (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -490,9 +498,9 @@ func TestFlowNarrowingIfElseRefGuard(t *testing.T) {
 
 func TestFlowNarrowingScopeRestoration(t *testing.T) {
 	// After the if block, $x should revert to its pre-narrowed type.
-	// "my $x = undef" leaves $x at sigil type Scalar (undef keyword → Unknown,
+	// A bare "my $x" leaves $x at sigil type Scalar (the declaration says the
 	// so no assignment narrowing occurs).
-	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n}\nmy $z = $x;\n")
+	src := []byte("my $x = get();\nif (ref($x)) {\n    my $y = $x;\n}\nmy $z = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -570,7 +578,7 @@ func TestFlowNarrowingNonGuardCondition(t *testing.T) {
 func TestFlowNarrowingUnlessRefWithElse(t *testing.T) {
 	// unless (ref($x)): body $x → Scalar &^ Ref (negated ref removes Ref bits),
 	// else $x → Ref (positive ref)
-	src := []byte("my $x = undef;\nunless (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	src := []byte("my $x = get();\nunless (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -589,7 +597,7 @@ func TestFlowNarrowingUnlessRefWithElse(t *testing.T) {
 func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
 	// elsif blocks get type annotations with guard narrowing applied.
 	// elsif (ref($x)) narrows $x to Ref in the elsif body.
-	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $y = $x;\n} elsif (ref($x)) {\n    my $z = $x;\n}\n")
+	src := []byte("my $x = get();\nif (defined($x)) {\n    my $y = $x;\n} elsif (ref($x)) {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -603,7 +611,7 @@ func TestFlowNarrowingElsifBranchGetsAnnotations(t *testing.T) {
 
 func TestFlowNarrowingIsaGuard(t *testing.T) {
 	// if ($x isa Foo): if-body $x → Object (isa guard narrows to Object).
-	src := []byte("my $x = undef;\nif ($x isa Foo) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif ($x isa Foo) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -617,7 +625,7 @@ func TestFlowNarrowingIsaGuard(t *testing.T) {
 
 func TestFlowNarrowingIsaGuardWithElse(t *testing.T) {
 	// if ($x isa Foo): if-body → Object, else-body → Scalar (isa negation is not useful).
-	src := []byte("my $x = undef;\nif ($x isa Foo) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	src := []byte("my $x = get();\nif ($x isa Foo) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -637,7 +645,7 @@ func TestFlowNarrowingElsifNegatedGuard(t *testing.T) {
 	// elsif (!defined($x)) should narrow $x to Undef in the elsif body
 	// (negated defined guard).
 	// else-body $x → Scalar &^ Undef (positive defined guard, which removed the Undef bit).
-	src := []byte("my $x = undef;\nif ($x isa Foo) {\n    my $a = $x;\n} elsif (!defined($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
+	src := []byte("my $x = get();\nif ($x isa Foo) {\n    my $a = $x;\n} elsif (!defined($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -655,7 +663,7 @@ func TestFlowNarrowingElsifNegatedGuard(t *testing.T) {
 
 func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
 	// Three branches: if + elsif + elsif. Each should get its own guard.
-	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} elsif ($x isa Foo) {\n    my $c = $x;\n}\n")
+	src := []byte("my $x = get();\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} elsif ($x isa Foo) {\n    my $c = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -673,7 +681,7 @@ func TestFlowNarrowingElsifChainThreeBranches(t *testing.T) {
 
 func TestFlowNarrowingElsifWithElse(t *testing.T) {
 	// elsif (ref($x)) with else: elsif-body → Ref, else-body → Scalar &^ Ref (negated ref removes Ref bits)
-	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
+	src := []byte("my $x = get();\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -692,7 +700,7 @@ func TestFlowNarrowingElsifWithElse(t *testing.T) {
 func TestExtractGuardPatternNegatedDefined(t *testing.T) {
 	// if (!defined($x)): the condition is a negated defined guard.
 	// The if-body should get the negated guard (Undef), not the positive (Scalar &^ Undef).
-	src := []byte("my $x = undef;\nif (!defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	src := []byte("my $x = get();\nif (!defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -711,7 +719,7 @@ func TestExtractGuardPatternNegatedDefined(t *testing.T) {
 func TestExtractGuardPatternNotKeyword(t *testing.T) {
 	// if (not ref($x)): "not" is an ambiguous_function_call_expression wrapping ref.
 	// The if-body gets the negated guard (Scalar &^ Ref), else gets the positive guard (Ref).
-	src := []byte("my $x = undef;\nif (not ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	src := []byte("my $x = get();\nif (not ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -729,7 +737,7 @@ func TestExtractGuardPatternNotKeyword(t *testing.T) {
 func TestFlowNarrowingEarlyReturnNarrowsDefined(t *testing.T) {
 	// if (!defined($x)) { return; } — after the if, $x should be Scalar &^ Undef
 	// (defined guard removes the Undef bit from Scalar).
-	src := []byte("my $x = undef;\nif (!defined($x)) {\n    return;\n}\nmy $y = $x;\n")
+	src := []byte("my $x = get();\nif (!defined($x)) {\n    return;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -743,7 +751,7 @@ func TestFlowNarrowingEarlyReturnNarrowsDefined(t *testing.T) {
 
 func TestFlowNarrowingNoEarlyExitNoNarrowing(t *testing.T) {
 	// if (!defined($x)) { $x = 1; } — block does not exit, so no post-if narrowing.
-	src := []byte("my $x = undef;\nif (!defined($x)) {\n    $x = 1;\n}\nmy $y = $x;\n")
+	src := []byte("my $x = get();\nif (!defined($x)) {\n    $x = 1;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -757,7 +765,7 @@ func TestFlowNarrowingNoEarlyExitNoNarrowing(t *testing.T) {
 
 func TestFlowNarrowingEarlyDieNarrowsRef(t *testing.T) {
 	// if (!ref($x)) { die; } — after the if, $x should be Ref.
-	src := []byte("my $x = undef;\nif (!ref($x)) {\n    die;\n}\nmy $y = $x;\n")
+	src := []byte("my $x = get();\nif (!ref($x)) {\n    die;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -770,7 +778,7 @@ func TestFlowNarrowingEarlyDieNarrowsRef(t *testing.T) {
 
 func TestFlowNarrowingEarlyDieWithArgNarrowsRef(t *testing.T) {
 	// if (!ref($x)) { die $msg; } — die with argument should also be detected as early exit.
-	src := []byte("my $msg;\nmy $x = undef;\nif (!ref($x)) {\n    die $msg;\n}\nmy $y = $x;\n")
+	src := []byte("my $msg = get();\nmy $x = get();\nif (!ref($x)) {\n    die $msg;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -784,7 +792,7 @@ func TestFlowNarrowingEarlyDieWithArgNarrowsRef(t *testing.T) {
 func TestFlowNarrowingEarlyExitNarrowsDefined(t *testing.T) {
 	// if (!defined($x)) { exit; } — after the if, $x should be Scalar &^ Undef
 	// (defined guard removes the Undef bit from Scalar).
-	src := []byte("my $x = undef;\nif (!defined($x)) {\n    exit;\n}\nmy $y = $x;\n")
+	src := []byte("my $x = get();\nif (!defined($x)) {\n    exit;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -798,7 +806,7 @@ func TestFlowNarrowingEarlyExitNarrowsDefined(t *testing.T) {
 func TestFlowNarrowingUnlessEarlyReturn(t *testing.T) {
 	// unless (defined($x)) { return; } — after the unless, $x should be Scalar &^ Undef
 	// (defined guard removes the Undef bit from Scalar).
-	src := []byte("my $x = undef;\nunless (defined($x)) {\n    return;\n}\nmy $y = $x;\n")
+	src := []byte("my $x = get();\nunless (defined($x)) {\n    return;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -812,7 +820,7 @@ func TestFlowNarrowingUnlessEarlyReturn(t *testing.T) {
 func TestFlowNarrowingNonNegatedEarlyReturn(t *testing.T) {
 	// if (defined($x)) { return; } — after the if, $x should be Undef
 	// (NegateGuard applied because the exiting branch proved defined).
-	src := []byte("my $x = undef;\nif (defined($x)) {\n    return;\n}\nmy $y = $x;\n")
+	src := []byte("my $x = get();\nif (defined($x)) {\n    return;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -889,7 +897,7 @@ func TestCompoundGuardAmpAmpNarrowsBoth(t *testing.T) {
 	// if (defined($x) && ref($x)) — full compound: both sides are guards.
 	// && with negate=false: both guards apply → defined removes Undef, ref
 	// keeps only Ref bits → result is Ref.
-	src := []byte("my $x = undef;\nif (defined($x) && ref($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif (defined($x) && ref($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -904,7 +912,7 @@ func TestCompoundGuardAmpAmpNarrowsBoth(t *testing.T) {
 func TestCompoundGuardAndKeywordNarrowsBoth(t *testing.T) {
 	// if (defined($x) and ref($x)) — lowprec_logical_expression with "and".
 	// "and" normalizes to "&&", so both guards apply → Ref (same as &&).
-	src := []byte("my $x = undef;\nif (defined($x) and ref($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif (defined($x) and ref($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -918,7 +926,7 @@ func TestCompoundGuardAndKeywordNarrowsBoth(t *testing.T) {
 func TestCompoundGuardOrNoNarrowingInBody(t *testing.T) {
 	// if (defined($x) || ref($x)) — || with negate=false: either could be
 	// true, so no narrowing applies in the if-body → $x stays Scalar.
-	src := []byte("my $x = undef;\nif (defined($x) || ref($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif (defined($x) || ref($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -932,7 +940,7 @@ func TestCompoundGuardOrNoNarrowingInBody(t *testing.T) {
 func TestCompoundGuardOrNarrowsElse(t *testing.T) {
 	// if (defined($x) || ref($x)) {} else { $x }
 	// else-branch: both guards are false → !defined AND !ref → Undef &^ Ref = Undef.
-	src := []byte("my $x = undef;\nif (defined($x) || ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	src := []byte("my $x = get();\nif (defined($x) || ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -947,7 +955,7 @@ func TestCompoundGuardOrNarrowsElse(t *testing.T) {
 func TestCompoundGuardAndDifferentVars(t *testing.T) {
 	// if (defined($x) && ref($y)) — two different variables guarded.
 	// $x narrowed by defined (Undef removed), $y narrowed by ref → Ref.
-	src := []byte("my $x = undef;\nmy $y = undef;\nif (defined($x) && ref($y)) {\n    my $a = $x;\n    my $b = $y;\n}\n")
+	src := []byte("my $x = get();\nmy $y = get();\nif (defined($x) && ref($y)) {\n    my $a = $x;\n    my $b = $y;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	xOffsets := findAllVarOffsets(src, "$x")
@@ -971,7 +979,7 @@ func TestCompoundGuardPartialOneNonGuardSide(t *testing.T) {
 	// is not a recognized guard. extractCompoundGuard returns the defined($x)
 	// guard directly (the non-guard side is dropped). walkBlockWithGuard applies
 	// the defined guard, narrowing $x to Scalar &^ Undef.
-	src := []byte("my $x = undef;\nmy $y = 1;\nif (defined($x) && $y > 0) {\n    my $z = $x;\n}\n")
+	src := []byte("my $x = get();\nmy $y = 1;\nif (defined($x) && $y > 0) {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -988,7 +996,7 @@ func TestCompoundGuardNegatedAmpAmpDeMorganNarrows(t *testing.T) {
 	// if (!(defined($x) && ref($x))) — De Morgan applied:
 	// becomes compound {Op:"||", Left:!defined($x), Right:!ref($x)}.
 	// || with negate=false: no narrowing in if-body → $x stays Scalar.
-	src := []byte("my $x = undef;\nif (!(defined($x) && ref($x))) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif (!(defined($x) && ref($x))) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -1024,7 +1032,7 @@ func TestCompoundGuardArithmeticBinaryNotExtracted(t *testing.T) {
 func TestBranchMergingIfElseJoinType(t *testing.T) {
 	// After if (ref($x)) {...} else {...}, $x should be the union of branch types.
 	// if-body: Ref; else-body: Scalar &^ Ref; union = Ref | (Scalar &^ Ref) = Scalar.
-	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\nmy $w = $x;\n")
+	src := []byte("my $x = get();\nif (ref($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\nmy $w = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -1040,7 +1048,7 @@ func TestBranchMergingIfElseJoinType(t *testing.T) {
 func TestBranchMergingIfNoElse(t *testing.T) {
 	// if (ref($x)) {...} — implicit else contributes pre-if type (Scalar).
 	// if-body: Ref; implicit else: Scalar; union = Ref | Scalar = Scalar.
-	src := []byte("my $x = undef;\nif (ref($x)) {\n    my $y = $x;\n}\nmy $z = $x;\n")
+	src := []byte("my $x = get();\nif (ref($x)) {\n    my $y = $x;\n}\nmy $z = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -1056,7 +1064,7 @@ func TestBranchMergingIfNoElse(t *testing.T) {
 func TestBranchMergingEarlyExitExcluded(t *testing.T) {
 	// if (!defined($x)) { return; } — early exit: the if-body does NOT
 	// contribute to the join. Post-if type is narrowed via early-exit logic.
-	src := []byte("my $x = undef;\nif (!defined($x)) {\n    return;\n}\nmy $y = $x;\n")
+	src := []byte("my $x = get();\nif (!defined($x)) {\n    return;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -1072,7 +1080,7 @@ func TestBranchMergingElsifChain(t *testing.T) {
 	// if/elsif/else: join type is union of all branch types for $x.
 	// if-body: Scalar &^ Undef (defined guard); elsif-body: Ref; else-body: Undef.
 	// union = (Scalar &^ Undef) | Ref | Undef = Scalar.
-	src := []byte("my $x = undef;\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\nmy $d = $x;\n")
+	src := []byte("my $x = get();\nif (defined($x)) {\n    my $a = $x;\n} elsif (ref($x)) {\n    my $b = $x;\n} else {\n    my $c = $x;\n}\nmy $d = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	xOffsets := findAllVarOffsets(src, "$x")
@@ -1090,7 +1098,7 @@ func TestBranchMergingAssignmentInsideBranch(t *testing.T) {
 	// After the if/else, $x should be the join of the two branch-end types: Int | Num.
 	// Without branch merging, scope restoration would revert $x to Scalar.
 	// Int | Num = Num (since Num includes Int in the type hierarchy).
-	src := []byte("my $x = undef;\nif (defined($x)) {\n    $x = 1;\n} else {\n    $x = 3.14;\n}\nmy $y = $x;\n")
+	src := []byte("my $x = get();\nif (defined($x)) {\n    $x = 1;\n} else {\n    $x = 3.14;\n}\nmy $y = $x;\n")
 	annotations, _ := analyzeSource(t, src)
 
 	xOffsets := findAllVarOffsets(src, "$x")
@@ -1107,7 +1115,7 @@ func TestBranchMergingAssignmentInsideBranch(t *testing.T) {
 
 func TestGuardLibraryBlessedNarrows(t *testing.T) {
 	// if (builtin::blessed($x)): body $x → Object
-	src := []byte("my $x = undef;\nif (builtin::blessed($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif (builtin::blessed($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3)
@@ -1118,7 +1126,7 @@ func TestGuardLibraryBlessedNarrows(t *testing.T) {
 
 func TestGuardLibraryBlessedBareNarrows(t *testing.T) {
 	// if (blessed($x)): bare name, same effect
-	src := []byte("my $x = undef;\nif (blessed($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif (blessed($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3)
@@ -1129,7 +1137,7 @@ func TestGuardLibraryBlessedBareNarrows(t *testing.T) {
 
 func TestGuardLibraryReftypeNarrows(t *testing.T) {
 	// if (builtin::reftype($x)): body $x → Ref
-	src := []byte("my $x = undef;\nif (builtin::reftype($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif (builtin::reftype($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3)
@@ -1140,7 +1148,7 @@ func TestGuardLibraryReftypeNarrows(t *testing.T) {
 
 func TestGuardLibraryIsBoolNarrows(t *testing.T) {
 	// if (builtin::is_bool($x)): body $x → Bool
-	src := []byte("my $x = undef;\nif (builtin::is_bool($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif (builtin::is_bool($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 3)
@@ -1151,7 +1159,7 @@ func TestGuardLibraryIsBoolNarrows(t *testing.T) {
 
 func TestGuardLibraryNegatedBlessed(t *testing.T) {
 	// if (!builtin::blessed($x)) { } else { $x } — else $x → Object
-	src := []byte("my $x = undef;\nif (!builtin::blessed($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	src := []byte("my $x = get();\nif (!builtin::blessed($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4)
@@ -1163,7 +1171,7 @@ func TestGuardLibraryNegatedBlessed(t *testing.T) {
 func TestGuardLibraryCompoundWithBuiltin(t *testing.T) {
 	// if (defined($x) && builtin::blessed($x)): body $x → Object
 	// offsets: [0]=decl, [1]=defined($x), [2]=blessed($x), [3]=if-body ref
-	src := []byte("my $x = undef;\nif (defined($x) && builtin::blessed($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("my $x = get();\nif (defined($x) && builtin::blessed($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 	offsets := findAllVarOffsets(src, "$x")
 	require.True(t, len(offsets) >= 4, "should find at least 4 $x, got %d", len(offsets))
@@ -1387,7 +1395,7 @@ func TestIsaGuardEnablesMethodResolution(t *testing.T) {
 	// The method call $x->speak() is annotated at the position of $x (the invocant).
 	// We find the $x inside the block (after "isa Dog) {") by using the last
 	// occurrence of $x before "->speak".
-	src := []byte("use Dog;\nmy $x = undef;\nif ($x isa Dog) {\n    my $v = $x->speak();\n}\n")
+	src := []byte("use Dog;\nmy $x = get();\nif ($x isa Dog) {\n    my $v = $x->speak();\n}\n")
 	p := parser.New()
 	tree, err := p.Parse(src)
 	require.NoError(t, err)
@@ -1556,7 +1564,7 @@ func TestExtractSubReturnExprMultipleReturns(t *testing.T) {
 }
 
 func TestUserDefinedGuardFuncDefined(t *testing.T) {
-	src := []byte("sub is_defined { defined($_[0]) }\nmy $x = undef;\nif (is_defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
+	src := []byte("sub is_defined { defined($_[0]) }\nmy $x = get();\nif (is_defined($x)) {\n    my $y = $x;\n} else {\n    my $z = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	offsets := findAllVarOffsets(src, "$x")
@@ -1572,7 +1580,7 @@ func TestUserDefinedGuardFuncDefined(t *testing.T) {
 }
 
 func TestUserDefinedGuardFuncRefArrayAccess(t *testing.T) {
-	src := []byte("sub is_ref { ref($_[0]) }\nmy $x = undef;\nif (is_ref($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("sub is_ref { ref($_[0]) }\nmy $x = get();\nif (is_ref($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
@@ -1582,7 +1590,7 @@ func TestUserDefinedGuardFuncRefArrayAccess(t *testing.T) {
 }
 
 func TestUserDefinedGuardFuncSignature(t *testing.T) {
-	src := []byte("sub is_defined ($val) { defined($val) }\nmy $x = undef;\nif (is_defined($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("sub is_defined ($val) { defined($val) }\nmy $x = get();\nif (is_defined($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
@@ -1592,7 +1600,7 @@ func TestUserDefinedGuardFuncSignature(t *testing.T) {
 }
 
 func TestUserDefinedGuardFuncShift(t *testing.T) {
-	src := []byte("sub is_ref { my $val = shift; ref($val) }\nmy $x = undef;\nif (is_ref($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("sub is_ref { my $val = shift; ref($val) }\nmy $x = get();\nif (is_ref($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
@@ -1602,7 +1610,7 @@ func TestUserDefinedGuardFuncShift(t *testing.T) {
 }
 
 func TestUserDefinedGuardFuncIsa(t *testing.T) {
-	src := []byte("sub is_foo { $_[0] isa Foo }\nmy $x = undef;\nif (is_foo($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("sub is_foo { $_[0] isa Foo }\nmy $x = get();\nif (is_foo($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
@@ -1612,7 +1620,7 @@ func TestUserDefinedGuardFuncIsa(t *testing.T) {
 }
 
 func TestUserDefinedGuardFuncNegatedDefined(t *testing.T) {
-	src := []byte("sub is_defined { defined($_[0]) }\nmy $x = undef;\nunless (is_defined($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("sub is_defined { defined($_[0]) }\nmy $x;\nunless (is_defined($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	// unless(is_defined($x)) means body gets negated guard -> Undef.
@@ -1623,7 +1631,7 @@ func TestUserDefinedGuardFuncNegatedDefined(t *testing.T) {
 }
 
 func TestUserDefinedGuardFuncCompound(t *testing.T) {
-	src := []byte("sub is_defined_ref { defined($_[0]) && ref($_[0]) }\nmy $x = undef;\nif (is_defined_ref($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("sub is_defined_ref { defined($_[0]) && ref($_[0]) }\nmy $x = get();\nif (is_defined_ref($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
@@ -1633,7 +1641,7 @@ func TestUserDefinedGuardFuncCompound(t *testing.T) {
 }
 
 func TestUserDefinedGuardFuncNonGuardIgnored(t *testing.T) {
-	src := []byte("sub do_stuff { 42 }\nmy $x = undef;\nif (do_stuff($x)) {\n    my $y = $x;\n}\n")
+	src := []byte("sub do_stuff { 42 }\nmy $x = get();\nif (do_stuff($x)) {\n    my $y = $x;\n}\n")
 	annotations, _ := analyzeSource(t, src)
 
 	ifBodyXOffset := findLastVarOffset(src, "$x")
@@ -1809,7 +1817,10 @@ func TestNoCoercionIntInArithmetic(t *testing.T) {
 // TestUndefPropagationInArithmetic verifies that an uninitialized variable
 // used in arithmetic produces a coercion-mismatch diagnostic.
 func TestUndefPropagationInArithmetic(t *testing.T) {
-	src := []byte("my $x;\nmy $y = $x + 1;\n")
+	// An EXPLICIT undef is a claim the source makes, so it is reportable.
+	// A bare `my $x;` is not: perl binds names in more ways than inference can
+	// enumerate, and the variable may be assigned before this line is reached.
+	src := []byte("my $x = undef;\nmy $y = $x + 1;\n")
 	_, diags := analyzeSource(t, src)
 
 	var found bool
@@ -1820,7 +1831,7 @@ func TestUndefPropagationInArithmetic(t *testing.T) {
 			break
 		}
 	}
-	assert.True(t, found, "should find a coercion-mismatch for uninitialized $x in arithmetic")
+	assert.True(t, found, "should find a coercion-mismatch for explicit undef in arithmetic")
 }
 
 // TestUndefPropagationWithAssignment verifies that an initialized variable
@@ -1835,16 +1846,21 @@ func TestUndefPropagationWithAssignment(t *testing.T) {
 	}
 }
 
-// TestUndefSymbolTableType verifies that an uninitialized my-variable gets
-// type Undef in the symbol table (not Scalar).
+// TestUndefSymbolTableType verifies that a bare declaration gets Scalar, not
+// Undef.
+//
+// Undef is a definite claim and a declaration cannot establish it: the
+// variable may be assigned anywhere later, including by forms no textual scan
+// finds — `my ($k, $v) = each %h`, foreach aliasing, a sub signature. Claiming
+// Undef here reported every subsequent use of such a variable as an error.
 func TestUndefSymbolTableType(t *testing.T) {
 	src := []byte("my $x;\n")
 	_, _, st := analyzeSourceFull(t, src)
 
 	sym, found := st.Lookup("$x")
 	require.True(t, found, "$x should be in the symbol table")
-	assert.Equal(t, types.Undef, sym.Type,
-		"uninitialized my $x should have type Undef, not Scalar")
+	assert.Equal(t, types.Scalar, sym.Type,
+		"a bare declaration is Scalar — inference cannot prove the variable stays undef")
 }
 
 // TestInitializedSymbolTableType verifies that an initialized my-variable
@@ -2137,4 +2153,35 @@ func TestScalarContextDoesNotExcuseRefs(t *testing.T) {
 	src := []byte("my $h = {};\nmy $n = $h + 1;\n")
 	_, diags := analyzeSource(t, src)
 	assert.NotEmpty(t, diags, "a hashref in arithmetic is still reported")
+}
+
+// TestBareDeclarationIsNotPermanentlyUndef verifies that `my $v;` does not
+// pin the variable to Undef for the rest of the scope.
+//
+// A declaration without an initializer says the variable holds undef AT THAT
+// POINT, not that it always will. Perl's ordinary lazy-init idiom assigns it
+// through a call:
+//
+//	my $v_unicode_version;
+//	UnicodeVersion() unless defined $v_unicode_version;
+//	if ($v_unicode_version ge v2.0.0) { ... }
+//
+// Typing the declaration Undef made the third line a coercion mismatch, which
+// is a claim PSC cannot support: the call may well have assigned it. 42
+// diagnostics on perl5/lib were this shape, concentrated in Unicode/UCD.
+func TestBareDeclarationIsNotPermanentlyUndef(t *testing.T) {
+	src := []byte("my $v;\nsetit() unless defined $v;\nmy $ok = ($v ge 'a');\nsub setit { $v = 'x' }\n")
+	_, diags := analyzeSource(t, src)
+	assert.Empty(t, diags,
+		"a bare declaration must not pin the variable to Undef across a call")
+}
+
+// The genuine case still reports: an explicit assignment of undef, with
+// nothing between it and the use, IS evidence. Perl agrees — it warns "Use of
+// uninitialized value in string eq".
+func TestExplicitUndefAssignmentStillReports(t *testing.T) {
+	src := []byte("my $x = undef;\nmy $ok = ($x eq 'a');\n")
+	_, diags := analyzeSource(t, src)
+	assert.NotEmpty(t, diags,
+		"an explicit undef assignment used as a string is a real finding")
 }
