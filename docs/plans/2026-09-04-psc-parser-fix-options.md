@@ -446,3 +446,60 @@ work; confirmed by running the patched scanner against the shipped blob
 2. Investigate the GLR zero-width-token handling — that is the 29 files,
    and it is a runtime bug rather than a scanner one.
 3. `_regexp_open_*` and `_RECOVER_*` if the lookahead state is added.
+
+---
+
+## What the remaining files actually are
+
+Measured rather than inferred, by diffing PSC's failing set against
+upstream tree-sitter's over the same 227 `t/op` files.
+
+    PSC fails on          64
+    upstream fails on     35
+    SHARED (both fail)    32   <- the language's own difficulty
+    OURS ALONE            32   <- the real gap
+    upstream-only          3   <- files we parse and upstream does not
+
+The gap is **32 files, not 29**. My earlier figure came from subtracting
+counts rather than comparing sets, which is not the same thing when the
+sets overlap imperfectly — three files fail upstream and parse here.
+
+### One construct accounts for nearly all of it
+
+    f(<<'EOI');        PSC: 3 ERROR nodes    upstream: 0
+    my $x = <<'EOI';   PSC: 0 ERROR nodes    upstream: 0
+
+**A heredoc used as a CALL ARGUMENT.** The assignment form works; the call
+form does not. Counting occurrences across the files we alone fail on:
+
+    threads.t  16 occurrences   48 error nodes
+    eval.t      9               39
+    warn.t      4               11
+    caller.t    2               35
+    join.t      2               14
+    print.t     2               17
+
+Nine of ten sampled files contain it, and the counts track. `blocks.t`
+points straight at `fresh_perl_is(<<'SCRIPT', $expect, ...)` — the idiom
+perl's own test suite uses everywhere to run a snippet in a subprocess.
+
+Most other files report their error at LINE 1, which is not a line-1
+problem: an unterminated heredoc swallows the rest of the file, so the
+ERROR node spans everything and its start byte is the top.
+
+### It is a runtime bug, not a scanner one
+
+The step-3 agent instrumented this and I confirmed the shape:
+`_PERLY_HEREDOC` is offered, `_NONASSOC` fires first, and the parser never
+advances. `scanner.c` has the SAME token ordering with the same
+`valid_symbols` — and upstream parses the file. So the divergence is in how
+gotreesitter's GLR handles zero-width tokens, not in what the scanner
+reports. A scanner-side workaround was tried, changed nothing, departed
+from `scanner.c`, and was reverted.
+
+### Why this is the highest-value remaining item
+
+One construct, one runtime behaviour, ~32 files. Fixing it would take
+`t/op` from 64 failing to roughly the upstream floor of 35 — the point
+where PSC parses Perl as well as tree-sitter does, and further progress
+means fixing the grammar upstream rather than the port.
