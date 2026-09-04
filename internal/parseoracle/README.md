@@ -38,6 +38,31 @@ ORACLE_CHDIR=/path/to/t perl testdata/parse_facts.pl FILE
 Emits `ok`, the linear op sequence (`-exec` order, so it diffs cleanly),
 `srefgen`/`entersub` counts, and every prototype in scope.
 
+## What the optree can and cannot answer
+
+The optree is captured **after** the peephole optimiser, so it is not a
+faithful record of the parse tree:
+
+```
+$ perl -MO=Concise,-exec -e 'my $x = 1 + 2'
+3  <$> const[IV 3] s/FOLD
+```
+
+The `add` op is gone — constant folding happened before Concise saw it. Two
+rules follow.
+
+**Compare for the presence of a marker op, never for op counts or an exact
+sequence.** `srefgen` works as a signal because nothing folds it away. A
+whole-tree diff would report differences that are the optimiser's, not the
+parser's.
+
+**The `s/FOLD` flag is a gift.** Perl marks folded constants rather than
+silently rewriting them, so folding is detectable when it matters.
+
+Concise output is byte-identical across runs (verified by md5), so results are
+safe to cache on a content hash. `perl -c` costs ~9 ms and Concise ~25 ms per
+file, which is the reason to cache at corpus scale.
+
 ## Running against perl's own test suite
 
 perl's tests are **not** runnable in place. `t/test.pl:119` does `@INC = ()`
