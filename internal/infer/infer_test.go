@@ -2185,3 +2185,41 @@ func TestExplicitUndefAssignmentStillReports(t *testing.T) {
 	assert.NotEmpty(t, diags,
 		"an explicit undef assignment used as a string is a real finding")
 }
+
+// TestIndirectObjectIsFilehandleNotArgument verifies that the filehandle in
+// `print $fh "..."` is not counted as print's first argument.
+//
+// The grammar marks it with its own node kind, indirect_object:
+//
+//	print $OUT "text\n";
+//	  ambiguous_function_call_expression
+//	    function "print"
+//	    indirect_object -> scalar $OUT      <- the HANDLE
+//	    interpolated_string_literal         <- argument 1
+//
+// PSC counted the handle as argument 1 and required it to be a Str, so every
+// `print $fh ...` against a typed handle was a mismatch. perl5db.pl assigns
+// `$OUT = \*STDERR`, which is a GlobRef, and produced 43 of the 338
+// diagnostics on perl5/lib — the largest remaining class, and all from one
+// file.
+func TestIndirectObjectIsFilehandleNotArgument(t *testing.T) {
+	cases := []string{
+		"my $OUT = \\*STDERR;\nprint $OUT \"hello\\n\";\n",
+		"open my $fh, '>', '/dev/null';\nprint $fh \"hello\\n\";\n",
+		"print STDERR \"hello\\n\";\n",
+	}
+	for _, src := range cases {
+		_, diags := analyzeSource(t, []byte(src))
+		assert.Empty(t, diags,
+			"the filehandle is not an argument to print: %q", src)
+	}
+}
+
+// The real arguments are still checked: a reference in a print argument
+// position still reports, whether or not a filehandle precedes it.
+func TestIndirectObjectStillChecksRealArgs(t *testing.T) {
+	src := []byte("my $OUT = \\*STDERR;\nmy $h = {};\nprint $OUT $h;\n")
+	_, diags := analyzeSource(t, src)
+	assert.NotEmpty(t, diags,
+		"a hashref passed as print's argument is still reported")
+}

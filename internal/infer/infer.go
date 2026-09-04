@@ -900,6 +900,11 @@ func collectTrailingListArgs(node *parser.Node) []*parser.Node {
 }
 
 // collectOwnCallArgs gathers the argument nodes held by the call node itself.
+//
+// An indirect_object child is the FILEHANDLE of `print $fh "..."` or
+// `printf {$fh} ...`, not an argument. The grammar marks it with its own node
+// kind, so it is skipped rather than counted: treating it as argument 1 made
+// every print against a typed handle a Str mismatch.
 func collectOwnCallArgs(node *parser.Node, source []byte) []*parser.Node {
 	var args []*parser.Node
 
@@ -914,7 +919,7 @@ func collectOwnCallArgs(node *parser.Node, source []byte) []*parser.Node {
 			// anonymous "," tokens; collect the named children.
 			for j := 0; j < child.ChildCount(); j++ {
 				item := child.Child(j)
-				if item != nil && item.IsNamed() {
+				if item != nil && item.IsNamed() && item.Kind() != "indirect_object" {
 					args = append(args, item)
 				}
 			}
@@ -935,6 +940,9 @@ func collectOwnCallArgs(node *parser.Node, source []byte) []*parser.Node {
 		ck := child.Kind()
 		if ck == "function" {
 			continue // skip the function-name node
+		}
+		if ck == "indirect_object" {
+			continue // the filehandle of `print $fh ...`, not an argument
 		}
 		args = append(args, child)
 	}
