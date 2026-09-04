@@ -514,10 +514,20 @@ func checkBinaryOperand(
 	// converted, it is the absence of one, so it keeps Error severity while
 	// truncation drops to Warning.
 	//
+	// An OBJECT is included, and it is the one case where the answer depends
+	// on code PSC cannot see. A class declaring `use overload '0+'` has a
+	// real conversion — measured, `$money + 1` is 6 — while a plain blessed
+	// hashref numifies to its address like any other reference. Resolving
+	// which requires finding the class, so the honest severity is the one
+	// that does not assert the conversion is impossible. The paper is equally
+	// careful here: an overloaded object is still NOT a Num, because the
+	// conversion runs out of the type and nothing converts back, so this
+	// stays a diagnostic either way.
+	//
 	// Comparison operators stay a warning regardless, since they execute via
 	// coercion in every case.
 	severity := Error
-	valueLike := types.Bool | types.Str | types.DualVar
+	valueLike := types.Bool | types.Str | types.DualVar | types.Object
 	if types.IsCoercible(actual, expected) &&
 		types.IsSubtype(actual, valueLike) && types.IsSubtype(expected, valueLike) {
 		severity = Warning

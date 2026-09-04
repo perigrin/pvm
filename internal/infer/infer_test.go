@@ -2265,3 +2265,47 @@ func TestUncoercibleOperandStaysError(t *testing.T) {
 	assert.Equal(t, infer.Error, diags[0].Severity,
 		"a reference in a numeric position is an error, not a truncation")
 }
+
+// TestObjectInNumericPositionIsWarning verifies that an object where a number
+// is wanted is a warning rather than an error.
+//
+// The paper's Overloaded Objects section: a class declaring `use overload
+// '0+'` has a user-defined conversion, so `$obj + 1` is a defined operation —
+// measured, 6 for a Money-like class. The object is still NOT a Num (the
+// conversion runs out of the type and nothing converts back), so this remains
+// worth reporting.
+//
+// PSC cannot tell an overloaded class from a plain one without resolving the
+// class across files, and the two differ: a plain object numifies to its
+// ADDRESS. Warning is the honest severity for "this may be a real conversion",
+// where Error would assert it cannot be. 54 diagnostics on perl5/lib, all in
+// overload64.t and overloading.t — files whose test names literally read
+// "0+ overload with bit shift right".
+func TestObjectInNumericPositionIsWarning(t *testing.T) {
+	src := []byte("my $o = Foo->new;\nmy $n = $o + 1;\n")
+	_, diags := analyzeSource(t, src)
+	require.NotEmpty(t, diags, "an object in arithmetic is still reported")
+	for _, d := range diags {
+		assert.Equal(t, infer.Warning, d.Severity,
+			"an object may define a 0+ conversion: %s", d.Message)
+	}
+}
+
+// A plain reference is different and stays an Error: there is no overload
+// table on a raw hashref, so numifying it can only produce an address.
+//
+// Regex is the borderline case and it lands on the warning side, because the
+// paper makes a compiled pattern an Object — blessed into Regexp — and PSC
+// cannot see whether a class declares a conversion. Measured, Regexp does NOT
+// declare 0+, so `qr/a/ + 1` really is an address and Error would be the more
+// accurate call. Reaching that needs the class, which is cross-file analysis
+// PSC does not do; being wrong toward "may convert" costs a severity level,
+// while being wrong the other way asserts something false about code that
+// works.
+func TestPlainRefInNumericPositionStaysError(t *testing.T) {
+	src := []byte("my $h = {};\nmy $n = $h + 1;\n")
+	_, diags := analyzeSource(t, src)
+	require.NotEmpty(t, diags, "a hashref in arithmetic is reported")
+	assert.Equal(t, infer.Error, diags[0].Severity,
+		"a raw reference has no conversion table — it can only yield an address")
+}
