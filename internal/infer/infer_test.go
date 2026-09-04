@@ -2377,3 +2377,35 @@ func TestLvalueSubstrAndNestedCallArgs(t *testing.T) {
 		assert.Empty(t, arity, "%s: should report no arity error, got %v", tc.name, arity)
 	}
 }
+
+// TestScalarAssignmentImposesScalarContext verifies that assigning an
+// aggregate to a scalar yields the count, not the aggregate.
+//
+//	my @arr = (1,2,3);
+//	my $count = @arr;      # 3, measured
+//
+// PSC typed $count as Array, which is a type the value does not have. It
+// produced no diagnostic at the assignment but poisoned every later use of
+// $count. Found by the runtime precision oracle rather than by reading: the
+// observed value was Int and PSC had said Array.
+func TestScalarAssignmentImposesScalarContext(t *testing.T) {
+	src := []byte("my @arr = (1,2,3);\nmy $count = @arr;\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$count")
+	require.True(t, found, "$count should be in the symbol table")
+	assert.Equal(t, types.Int, sym.Type,
+		"an array assigned to a scalar is its count")
+}
+
+// Assigning to an array keeps the aggregate: `my @copy = @arr` is a list
+// assignment, not a count.
+func TestArrayAssignmentKeepsAggregate(t *testing.T) {
+	src := []byte("my @arr = (1,2,3);\nmy @copy = @arr;\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("@copy")
+	require.True(t, found, "@copy should be in the symbol table")
+	assert.Equal(t, types.Array, sym.Type,
+		"an array assigned to an array stays an Array")
+}

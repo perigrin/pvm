@@ -1130,6 +1130,14 @@ func inferAssignmentNarrowing(
 		}
 	}
 
+	// A scalar LHS imposes scalar context on the RHS, and an aggregate in
+	// scalar context is its element count: `my $count = @arr` is 3, not the
+	// array. Without this the variable carried a type its value never has,
+	// which produced no diagnostic at the assignment and a wrong one at every
+	// later use.
+	//
+	// The sigil of the name decides it, since that is what the LHS is.
+	//
 	// The RHS is the last named child (after the = operator).
 	// Its type is the corresponding entry in childTypes.
 	var rhsNode *parser.Node
@@ -1141,6 +1149,18 @@ func inferAssignmentNarrowing(
 			}
 			rhsNode = child
 			break
+		}
+	}
+
+	// Narrow only a genuine aggregate, for the same reason as the operand
+	// check: running this over a broad type such as Any strips its Array and
+	// Hash bits and hands back the remaining 17-member union, which satisfies
+	// nothing. A type that accepted everything would become one that accepts
+	// nothing.
+	if strings.HasPrefix(varName, "$") &&
+		(rhsType == types.Array || rhsType == types.Hash || rhsType == types.List) {
+		if narrowed, ok := types.NarrowByContext(rhsType, types.ScalarCtx); ok {
+			rhsType = narrowed
 		}
 	}
 
