@@ -161,3 +161,45 @@ func TestAuditDieWarnAcceptStr(t *testing.T) {
 		})
 	}
 }
+
+// --- push/unshift/splice take a LIST, not Any ---
+// perldoc: push ARRAY, LIST. Everything flattens into that list — measured on
+// 5.42, scalars, arrays, hashes and references all append — so List accepts
+// every value Any did.
+//
+// It is not the same claim, though, and that is the point. Any is the escape
+// hatch: it disables checking, and it only earns its keep once someone can
+// WRITE it in an annotation. With no annotation syntax, an Any in a signature
+// is an unexamined slot rather than a declared one. List still excludes Code
+// and Glob — the compiled CV and the typeglob, which no perl scalar holds —
+// so the position keeps constraining something.
+
+func TestAuditListOperatorsTakeList(t *testing.T) {
+	for _, name := range []string{"push", "unshift"} {
+		t.Run(name, func(t *testing.T) {
+			sig, ok := types.GetBuiltin(name)
+			require.True(t, ok, "%s should be a known builtin", name)
+			require.True(t, len(sig.ArgTypes) >= 2, "%s takes an array and a list", name)
+
+			assert.Equal(t, types.List, sig.ArgTypes[1],
+				"%s's second position is LIST", name)
+			assert.NotEqual(t, types.Any, sig.ArgTypes[1],
+				"%s must not use Any — it is the annotation escape hatch", name)
+
+			// Everything a value can be still satisfies it.
+			for _, ty := range []types.Type{
+				types.Int, types.Str, types.HashRef, types.ArrayRef,
+				types.CodeRef, types.Object, types.Array, types.Hash,
+			} {
+				assert.True(t, types.TypeSatisfies(ty, sig.ArgTypes[1]),
+					"%s accepts %s", name, ty)
+			}
+
+			// But the CV and the typeglob do not.
+			assert.False(t, types.TypeSatisfies(types.Code, sig.ArgTypes[1]),
+				"%s does not take a bare CV", name)
+			assert.False(t, types.TypeSatisfies(types.Glob, sig.ArgTypes[1]),
+				"%s does not take a typeglob", name)
+		})
+	}
+}

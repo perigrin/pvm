@@ -689,7 +689,16 @@ func inferFunctionCallType(
 //   - Bareword invocant + other method → looks up className::method in the index.
 //   - Scalar invocant → looks up the variable's ClassType from the symbol table.
 //     If set and idx is available → looks up classType::method in the index.
-//   - Fallback → types.Any.
+//   - Fallback → types.Unknown.
+//
+// Unknown rather than Any, and the distinction matters. Any is the escape
+// hatch that DISABLES checking, and an escape hatch only earns its keep when
+// someone can write it down; perl has no annotation syntax, so nothing in a
+// perl program ever requests it. Every Any produced by inference is really "I
+// could not determine this", which is what Unknown means. Returning Any made
+// an unresolved method call satisfy every requirement by construction, so it
+// was invisible even under --strict — the mode that exists to surface exactly
+// this. TypeScript made the same substitution early and reversed it.
 func inferMethodCallType(
 	node *parser.Node,
 	source []byte,
@@ -734,7 +743,7 @@ func inferMethodCallType(
 	}
 
 	if invocantNode == nil || methodName == "" {
-		return types.Any
+		return types.Unknown
 	}
 
 	invocantKind := invocantNode.Kind()
@@ -754,24 +763,24 @@ func inferMethodCallType(
 				return sym.ReturnType
 			}
 		}
-		return types.Any
+		return types.Unknown
 
 	case "scalar":
 		// Instance method call: $obj->method(...)
 		varName := sigildName("$", invocantNode, source)
 		sym, found := st.Lookup(varName)
 		if !found || sym.ClassType == "" {
-			return types.Any
+			return types.Unknown
 		}
 		if idx != nil {
 			if methodSym, ok := idx.LookupSymbol(sym.ClassType, methodName); ok && methodSym.ReturnType != types.Unknown {
 				return methodSym.ReturnType
 			}
 		}
-		return types.Any
+		return types.Unknown
 	}
 
-	return types.Any
+	return types.Unknown
 }
 
 // inferFunc1opCallType handles func1op_call_expression nodes such as

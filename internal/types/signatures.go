@@ -28,11 +28,16 @@ type UnaryOpSig struct {
 // builtins maps Perl builtin function names to their type signatures.
 // The last element in ArgTypes is variadic — it may appear more than once.
 var builtins = map[string]BuiltinSig{
-	"push":    {MinArity: 2, ArgTypes: []Type{Array, Any}, ReturnType: Int},
+	// push/unshift/splice take a LIST, not Any. Everything flattens into it —
+	// measured, scalars, arrays, hashes and refs all append — so List accepts
+	// every value Any did, while still excluding Code and Glob. Any is the
+	// annotation escape hatch and has no business standing in for an
+	// unexamined slot.
+	"push":    {MinArity: 2, ArgTypes: []Type{Array, List}, ReturnType: Int},
 	"pop":     {MinArity: 0, ArgTypes: []Type{Array}, ReturnType: Scalar},
 	"shift":   {MinArity: 0, ArgTypes: []Type{Array}, ReturnType: Scalar},
-	"unshift": {MinArity: 2, ArgTypes: []Type{Array, Any}, ReturnType: Int},
-	"splice":  {MinArity: 1, ArgTypes: []Type{Array, Int, Int, Any}, ReturnType: List},
+	"unshift": {MinArity: 2, ArgTypes: []Type{Array, List}, ReturnType: Int},
+	"splice":  {MinArity: 1, ArgTypes: []Type{Array, Int, Int, List}, ReturnType: List},
 
 	"keys":   {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
 	"values": {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
@@ -55,8 +60,9 @@ var builtins = map[string]BuiltinSig{
 	// 5.42, /:/ and ":" and $sep and qr/:/ all behave identically. Regex
 	// alone rejected the string form, which was the largest single class of
 	// false positives on perl5/lib.
-	"split":   {MinArity: 0, ArgTypes: []Type{Regex | Str, Str, Int}, ReturnType: List},
-	"sprintf": {MinArity: 1, ArgTypes: []Type{Str, Any}, ReturnType: Str},
+	"split": {MinArity: 0, ArgTypes: []Type{Regex | Str, Str, Int}, ReturnType: List},
+	// sprintf takes a format and then the LIST of values it interpolates.
+	"sprintf": {MinArity: 1, ArgTypes: []Type{Str, List}, ReturnType: Str},
 	"substr":  {MinArity: 2, ArgTypes: []Type{Str, Num, Num}, ReturnType: Str},
 
 	"defined": {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Bool},

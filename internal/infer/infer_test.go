@@ -27,6 +27,16 @@ func analyzeSource(t *testing.T, source []byte) (map[uint32]types.Type, []infer.
 	return annotations, diags
 }
 
+// analyzeSourceWithOptions is analyzeSource with explicit inference options,
+// for tests that compare permissive and strict behaviour.
+func analyzeSourceWithOptions(t *testing.T, source []byte, opts infer.Options) (map[uint32]types.Type, []infer.Diagnostic, *infer.SymbolTable) {
+	t.Helper()
+	p := parser.New()
+	tree, err := p.Parse(source)
+	require.NoError(t, err, "parse must succeed")
+	return infer.AnalyzeWithOptions(tree, source, nil, opts)
+}
+
 // analyzeSourceFull is like analyzeSource but also returns the SymbolTable,
 // which is needed for tests that verify assignment-based type narrowing.
 func analyzeSourceFull(t *testing.T, source []byte) (map[uint32]types.Type, []infer.Diagnostic, *infer.SymbolTable) {
@@ -278,12 +288,21 @@ func TestDiagnosticTypeMismatch(t *testing.T) {
 	assert.True(t, found, "should find a type-mismatch diagnostic for push($x, 1) where $x is Scalar not Array")
 }
 
-func TestMethodCallAnnotatedAny(t *testing.T) {
+// TestMethodCallNotAny verifies that an unresolvable method call does not
+// come back as Any.
+//
+// Any is the annotation escape hatch: it satisfies every requirement by
+// construction, which is right for a type someone WROTE and wrong for one
+// inference guessed. Perl has no annotation syntax, so nothing can request
+// it, and an unresolved call is an absence of knowledge rather than a
+// declared "anything goes".
+func TestMethodCallNotAny(t *testing.T) {
 	src := []byte("my $obj; $obj->method();")
 	annotations, _ := analyzeSource(t, src)
 	typ, ok := findNodeType(annotations, src, "$obj->method()")
 	require.True(t, ok, "method_call_expression should be annotated")
-	assert.Equal(t, types.Any, typ, "method call return type should be Any")
+	assert.NotEqual(t, types.Any, typ,
+		"an unresolved method call must not be Any")
 }
 
 // TestConditionalExpressionJoinsItsArms verifies a ternary is typed as the
@@ -2408,4 +2427,55 @@ func TestArrayAssignmentKeepsAggregate(t *testing.T) {
 	require.True(t, found, "@copy should be in the symbol table")
 	assert.Equal(t, types.Array, sym.Type,
 		"an array assigned to an array stays an Array")
+}
+
+// TestUnresolvedMethodCallIsUnknownNotAny verifies that a method call PSC
+// cannot resolve yields Unknown rather than Any.
+//
+// The two are not interchangeable, and TypeScript learned this the expensive
+// way: `any` disables checking, `unknown` demands narrowing. Any is the
+// ESCAPE HATCH, and an escape hatch is only meaningful when someone can write
+// it down. Perl has no annotation syntax, so nothing in a Perl program ever
+// requests Any — every Any produced by inference is really "I could not
+// determine this", which is Unknown's job.
+//
+// The difference is observable: Any satisfies every requirement by
+// construction, so an unresolved method call was invisible even under
+// --strict, which exists precisely to surface what inference does not know.
+func TestUnresolvedMethodCallIsUnknownNotAny(t *testing.T) {
+	// A class method that is not a constructor, with no project index to
+	// resolve it: this is the path that had no answer and returned Any.
+	// `Foo->new` is different — it yields Object by construction — and
+	// `$obj->m` reads the invocant's recorded class, so neither reaches here.
+	src := []byte("my $r = Foo->compute;\n")
+	annotations, _ := analyzeSource(t, src)
+
+	// walkNode records only non-Unknown types, so Unknown shows as the absence
+	// of an annotation. What matters is that it is NOT Any: Any would be
+	// recorded, and would satisfy every later requirement by construction.
+	typ, ok := findNodeType(annotations, src, "Foo->compute")
+	if ok {
+		assert.NotEqual(t, types.Any, typ,
+			"Any is the annotation escape hatch and cannot be requested in Perl")
+		assert.Equal(t, types.Unknown, typ,
+			"an unresolved method call is Unknown — inference could not determine it")
+	}
+}
+
+// Strict mode reports an un-inferred value where one is USED directly.
+//
+// A variable assigned from an unresolved call is a separate matter and is NOT
+// covered here: `my $r = Foo->compute` gives $r the sigil type Scalar rather
+// than the RHS's Unknown, so strict does not see through the assignment. That
+// is a real gap — the un-inferred result is laundered into a Scalar by the
+// declaration — and closing it means propagating Unknown through assignment
+// narrowing, which is a change with its own blast radius.
+func TestStrictSeesUnresolvedValue(t *testing.T) {
+	src := []byte("my $n = Foo->compute + 1;\n")
+
+	_, permissive, _ := analyzeSourceWithOptions(t, src, infer.Options{})
+	_, strict, _ := analyzeSourceWithOptions(t, src, infer.Options{Strict: true})
+
+	assert.Empty(t, permissive, "the default accepts an un-inferred value")
+	assert.NotEmpty(t, strict, "strict reports it — that is what strict is for")
 }
