@@ -2674,3 +2674,35 @@ func TestScalarBuiltinNarrowsItsArgument(t *testing.T) {
 			"%s: the answer should be narrower than the whole scalar family", tc.name)
 	}
 }
+
+// TestForeachAliasWriteWidensTheSource verifies that assigning to the loop
+// variable of a foreach updates the type of what it aliases.
+//
+// A foreach variable is an ALIAS, so a body write mutates the source:
+//
+//	my $n = 42;
+//	foreach ($n) { $_ = "x" }
+//	my $r = $n + 1;        # perl warns: Argument "x" isn't numeric
+//
+// PSC said nothing, because $n kept the Int from its initialiser and the
+// loop body was never connected back to it. bson found the same aliasing in
+// its IR from the other direction, where a list read after an alias write
+// returned the original elements.
+func TestForeachAliasWriteWidensTheSource(t *testing.T) {
+	src := []byte("my $n = 42;\nforeach ($n) { $_ = \"x\" }\nmy $r = $n + 1;\n")
+	_, diags := analyzeSource(t, src)
+	assert.NotEmpty(t, diags,
+		"a write through a foreach alias changes the source type; perl warns here")
+}
+
+// The named form aliases the ARRAY's elements, so a body write changes the
+// element type rather than any scalar.
+func TestForeachNamedAliasWidensElements(t *testing.T) {
+	src := []byte("my @a = (1, 2);\nfor my $x (@a) { $x = \"s\" }\nmy $e = $a[0];\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("@a")
+	require.True(t, found, "@a should be in the symbol table")
+	assert.True(t, types.IsSubtype(types.Str, sym.ElemType),
+		"a write through the loop alias adds Str to the element type, got %s", sym.ElemType)
+}

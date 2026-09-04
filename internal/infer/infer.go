@@ -2349,16 +2349,55 @@ func walkForStatement(
 		varName := sigildName("$", loopVar, source)
 		st.EnterScope("for")
 		defer st.ExitScope()
-		st.Define(Symbol{
-			Name: varName,
-			Type: types.Scalar,
-			Kind: SymVariable,
-		})
+		// `for my $x (@a)` introduces a NEW variable, so it is defined in the
+		// loop scope. `foreach ($n)` does not: $n is the aliased slot itself
+		// and must keep its outer binding, or the write-back below would
+		// join against the shadow rather than the real variable. That form
+		// refers to the slot as $_, which is defined here instead.
+		if iterSource != nil {
+			st.Define(Symbol{
+				Name: varName,
+				Type: types.Scalar,
+				Kind: SymVariable,
+			})
+		} else {
+			st.Define(Symbol{
+				Name: "$_",
+				Type: types.Scalar,
+				Kind: SymVariable,
+			})
+		}
 		// Annotate the loop variable node itself.
 		annotations[loopVar.StartByte()] = types.Scalar
 		for i := 0; i < bodyBlock.ChildCount(); i++ {
 			walkNode(bodyBlock.Child(i), source, st, annotations, diags, idx, classTypes)
 		}
+
+		// A foreach variable ALIASES what it iterates, so a write in the body
+		// mutates the source. Measured:
+		//
+		//	my $n = 42; foreach ($n) { $_ = "x" }   $n is "x", and perl warns
+		//	                                        "isn't numeric" on $n + 1
+		//	my @a = (1,2); for my $x (@a) { $x = "s" }   the elements change
+		//
+		// Whatever type the body left on the loop variable is joined back
+		// into the aliased target: joined rather than replaced, because the
+		// loop may not execute and the original value can survive.
+		// The write may land on the loop variable itself (`for my $x (@a) {
+		// $x = ... }`) or on the implicit $_ (`foreach ($n) { $_ = ... }`),
+		// which aliases the same slot. Take whichever the body actually
+		// narrowed.
+		written := types.Unknown
+		if final, ok := st.Lookup(varName); ok && final.Type != types.Scalar {
+			written = final.Type
+		}
+		if underscore, ok := st.Lookup("$_"); ok && underscore.Type != types.Scalar {
+			written = types.Join(written, underscore.Type)
+		}
+		if written != types.Unknown {
+			aliasWriteBack(iterSource, loopVar, written, source, st)
+		}
+
 		return types.Unknown
 	}
 
@@ -2367,6 +2406,33 @@ func walkForStatement(
 		walkNode(node.Child(i), source, st, annotations, diags, idx, classTypes)
 	}
 	return types.Unknown
+}
+
+// aliasWriteBack propagates a write through a foreach alias back to what the
+// loop iterates.
+//
+// The two spellings alias different things. `foreach ($n) { ... }` has no
+// separate loop variable — the grammar gives one named child before the block
+// — and aliases the SCALAR itself, so the scalar's type widens. `for my $x
+// (@a) { ... }` aliases the array's ELEMENTS, so the element type widens and
+// the array stays an Array.
+func aliasWriteBack(iterSource, loopVar *parser.Node, written types.Type, source []byte, st *SymbolTable) {
+	if iterSource == nil {
+		// `foreach ($n) { $_ = ... }` — the sole named child before the block
+		// IS the aliased scalar, and it was taken as the loop variable.
+		name := sigildName("$", loopVar, source)
+		if sym, ok := st.Lookup(name); ok {
+			st.UpdateType(name, types.Join(sym.Type, written))
+		}
+		return
+	}
+
+	switch iterSource.Kind() {
+	case "array":
+		st.UpdateElemType(sigildName("@", iterSource, source), written)
+	case "hash":
+		st.UpdateElemType(sigildName("%", iterSource, source), written)
+	}
 }
 
 // collectExplicitReturns recursively searches the subtree rooted at node for
