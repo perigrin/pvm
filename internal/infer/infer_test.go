@@ -2706,3 +2706,71 @@ func TestForeachNamedAliasWidensElements(t *testing.T) {
 	assert.True(t, types.IsSubtype(types.Str, sym.ElemType),
 		"a write through the loop alias adds Str to the element type, got %s", sym.ElemType)
 }
+
+// TestMatchInListContextYieldsCaptures verifies that `my ($a,$b) = $s =~ /../`
+// gives the CAPTURES, not the boolean.
+//
+// A match is context-dependent, which the `=~` signature cannot express:
+//
+//	my $ok = ("abc" =~ /b/);              1 — a boolean
+//	my ($a,$b) = ("x42" =~ /(\w)(\d+)/);  ("x","42") — the captures
+//	my $n = () = ("aaa" =~ /a/g);         3 — the count-of idiom
+//
+// PSC returned Bool for all three. A capture is always a Str: perl hands back
+// the matched substring, so `$2` on digits is a Str whose text happens to look
+// numeric.
+func TestMatchInListContextYieldsCaptures(t *testing.T) {
+	src := []byte("my ($a, $b) = (\"x42\" =~ /([a-z])(\\d+)/);\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	for _, name := range []string{"$a", "$b"} {
+		sym, found := st.Lookup(name)
+		require.True(t, found, "%s should be in the symbol table", name)
+		assert.NotEqual(t, types.Bool, sym.Type,
+			"%s is a capture, not the match's boolean", name)
+		assert.True(t, types.IsSubtype(types.Str, sym.Type),
+			"%s is a Str — perl hands back the matched substring, got %s", name, sym.Type)
+	}
+}
+
+// A match in SCALAR context is still a boolean, which is the case the
+// signature already had right.
+func TestMatchInScalarContextIsBool(t *testing.T) {
+	src := []byte("my $ok = (\"abc\" =~ /b/);\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$ok")
+	require.True(t, found, "$ok should be in the symbol table")
+	assert.Equal(t, types.Bool, sym.Type, "a scalar-context match is a boolean")
+}
+
+// TestCaptureVariableIsStr verifies that $1, $2 are Str.
+func TestCaptureVariableIsStr(t *testing.T) {
+	src := []byte("my $s = \"a1\";\n$s =~ /(\\d+)/;\nmy $c = $1;\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$c")
+	require.True(t, found, "$c should be in the symbol table")
+	assert.True(t, types.IsSubtype(types.Str, sym.Type),
+		"a capture variable is a Str, got %s", sym.Type)
+	assert.NotEqual(t, types.Scalar, sym.Type,
+		"a capture is narrower than the whole scalar family")
+}
+
+// TestCountOfIdiomIsInt verifies that `my $n = () = EXPR` yields a count.
+//
+// The empty list forces EXPR into list context, and the outer scalar
+// assignment then takes the LENGTH of that list. Measured: `my $n = () =
+// ("aaa" =~ /a/g)` is 3, not the boolean 1 that a scalar-context match gives.
+//
+// The grammar marks the empty list as a stub_expression, which makes the
+// idiom recognisable without guessing.
+func TestCountOfIdiomIsInt(t *testing.T) {
+	src := []byte("my $n = () = (\"aaa\" =~ /a/g);\n")
+	_, _, st := analyzeSourceFull(t, src)
+
+	sym, found := st.Lookup("$n")
+	require.True(t, found, "$n should be in the symbol table")
+	assert.Equal(t, types.Int, sym.Type,
+		"the count-of idiom yields a count, not the match's boolean")
+}

@@ -219,6 +219,13 @@ func inferNodeType(
 	// otherwise fall back to the sigil type.
 
 	case "scalar":
+		// $1, $2, ... are regex captures, and a capture is always a Str: perl
+		// hands back the matched SUBSTRING. `$2` on a run of digits is a Str
+		// whose text happens to look numeric, which is a fact about the
+		// subject rather than about the capture.
+		if isCaptureVariable(node, source) {
+			return types.Str
+		}
 		return lookupNarrowedType(node, source, st, "$", types.Scalar)
 
 	case "array":
@@ -1216,6 +1223,79 @@ func listElementType(rhs *parser.Node, source []byte, annotations map[uint32]typ
 	return result
 }
 
+// isCountOfAssignment reports whether a node is an inner `() = EXPR`, the
+// list-assignment half of the count-of idiom.
+func isCountOfAssignment(node *parser.Node) bool {
+	if node == nil || node.Kind() != "assignment_expression" {
+		return false
+	}
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() && child.Kind() == "stub_expression" {
+			return true
+		}
+	}
+	return false
+}
+
+// isListContextMatch reports whether a node is a regex match, whose result in
+// list context is the captures.
+func isListContextMatch(node *parser.Node) bool {
+	if node == nil {
+		return false
+	}
+	if node.Kind() != "binary_expression" {
+		return false
+	}
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() && child.Kind() == "match_regexp" {
+			return true
+		}
+	}
+	return false
+}
+
+// declaredNames returns every sigil-prefixed name bound by a declaration.
+// `my ($a, $b)` binds two; `my $x` binds one.
+func declaredNames(decl *parser.Node, source []byte) []string {
+	var names []string
+	for i := 0; i < decl.ChildCount(); i++ {
+		child := decl.Child(i)
+		if child == nil {
+			continue
+		}
+		switch child.Kind() {
+		case "scalar":
+			names = append(names, sigildName("$", child, source))
+		case "array":
+			names = append(names, sigildName("@", child, source))
+		case "hash":
+			names = append(names, sigildName("%", child, source))
+		}
+	}
+	return names
+}
+
+// isCaptureVariable reports whether a scalar node is a numbered regex capture
+// such as $1 or $12. $0 is the program name rather than a capture.
+func isCaptureVariable(node *parser.Node, source []byte) bool {
+	name := sigildName("$", node, source)
+	if len(name) < 2 || name[0] != '$' {
+		return false
+	}
+	digits := name[1:]
+	if digits == "0" {
+		return false
+	}
+	for _, r := range digits {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // logicalOps are the operators that return one of their operands rather than
 // a value of their own.
 var logicalOps = map[string]bool{
@@ -1294,6 +1374,7 @@ func inferAssignmentNarrowing(
 	// Find the LHS variable name and the RHS type.
 	var varName string
 	var rhsType types.Type
+	var declNode *parser.Node
 
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
@@ -1306,6 +1387,7 @@ func inferAssignmentNarrowing(
 		case "variable_declaration":
 			// my $x = ... — extract the sigil-prefixed name from the child
 			varName = extractVarNameFromDecl(child, source)
+			declNode = child
 
 		case "scalar":
 			// $x = ... (plain assignment, LHS only)
@@ -1354,6 +1436,36 @@ func inferAssignmentNarrowing(
 		(rhsType == types.Array || rhsType == types.Hash || rhsType == types.List) {
 		if narrowed, ok := types.NarrowByContext(rhsType, types.ScalarCtx); ok {
 			rhsType = narrowed
+		}
+	}
+
+	// `my $n = () = EXPR` is the count-of idiom: the empty list forces EXPR
+	// into list context, and the outer scalar assignment takes that list's
+	// LENGTH. Measured, `my $n = () = ("aaa" =~ /a/g)` is 3, where a
+	// scalar-context match would give the boolean 1.
+	//
+	// The grammar marks the empty list as stub_expression, so the shape is
+	// recognisable rather than guessed at.
+	if strings.HasPrefix(varName, "$") && isCountOfAssignment(rhsNode) {
+		st.UpdateType(varName, types.Int)
+		return types.Int
+	}
+
+	// A LIST assignment binds several names at once, and the RHS is evaluated
+	// in list context — which for a match means the CAPTURES rather than the
+	// boolean. Measured: `my ($a,$b) = ("x42" =~ /([a-z])(\d+)/)` gives
+	// ("x","42"), while `my $ok = ("abc" =~ /b/)` gives 1.
+	//
+	// Every capture is a Str, so each name binds Str. Handled here because
+	// the `=~` signature can only name one result type and the context is not
+	// visible to it.
+	if declNode != nil && rhsNode != nil && isListContextMatch(rhsNode) {
+		names := declaredNames(declNode, source)
+		if len(names) > 1 {
+			for _, n := range names {
+				st.UpdateType(n, types.Str)
+			}
+			return types.List
 		}
 	}
 

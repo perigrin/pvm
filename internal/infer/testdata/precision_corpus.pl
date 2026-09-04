@@ -122,3 +122,43 @@ my @alias = (1, 2, 3);
 for my $x (@alias) { $x = $x * 10 }
 my $aliased = $alias[0];            ::__observe(__LINE__, '$aliased', $aliased);
 my $alias_str = "@alias";           ::__observe(__LINE__, '$alias_str', $alias_str);
+
+# --- regex captures ---
+# A capture is ALWAYS a Str: perl hands back the matched substring. The
+# observer may report Int when the text happens to look numeric, which is a
+# fact about the input rather than about $1.
+my $subject = "abc123";
+$subject =~ /([a-z]+)(\d+)/;
+my $cap_alpha = $1;                 ::__observe(__LINE__, '$cap_alpha', $cap_alpha);
+my $cap_digit = $2;                 ::__observe(__LINE__, '$cap_digit', $cap_digit);
+my ($cap_l, $cap_d) = ("x42" =~ /([a-z])(\d+)/);
+::__observe(__LINE__, '$cap_l', $cap_l);
+::__observe(__LINE__, '$cap_d', $cap_d);
+
+# A match in scalar context is a boolean; a FAILED match is "" rather than
+# undef, which is why it observes as Str.
+my $matched = ("abc" =~ /b/);       ::__observe(__LINE__, '$matched', $matched);
+my $failed  = ("abc" =~ /z/);       ::__observe(__LINE__, '$failed',  $failed);
+my $mcount  = () = ("aaa" =~ /a/g); ::__observe(__LINE__, '$mcount',  $mcount);
+
+# --- sprintf is format-directed, and always a Str ---
+# Every one of these is a string by declaration; the observer sees Int or Num
+# only because the digits look numeric. %x is the case that proves it.
+my $f_d   = sprintf("%d", 42);      ::__observe(__LINE__, '$f_d',   $f_d);
+my $f_s   = sprintf("%s", "x");     ::__observe(__LINE__, '$f_s',   $f_s);
+my $f_f   = sprintf("%.2f", 3.14159); ::__observe(__LINE__, '$f_f', $f_f);
+my $f_pad = sprintf("%05d", 42);    ::__observe(__LINE__, '$f_pad', $f_pad);
+my $f_hex = sprintf("%x", 255);     ::__observe(__LINE__, '$f_hex', $f_hex);
+
+# --- sort, map, grep: the element type survives ---
+my @src = (3, 1, 2);
+my @sorted_d = sort @src;           my $sd = $sorted_d[0]; ::__observe(__LINE__, '$sd', $sd);
+my @sorted_n = sort { $a <=> $b } @src; my $sn = $sorted_n[0]; ::__observe(__LINE__, '$sn', $sn);
+my @words = qw(pear apple);
+my @sorted_s = sort { $a cmp $b } @words; my $ss = $sorted_s[0]; ::__observe(__LINE__, '$ss', $ss);
+my @doubled = map { $_ * 2 } @src;  my $md = $doubled[0]; ::__observe(__LINE__, '$md', $md);
+my @kept = grep { $_ > 1 } @src;    my $gk = $kept[0]; ::__observe(__LINE__, '$gk', $gk);
+
+# --- comparator results ---
+my $ship = (2 <=> 1);               ::__observe(__LINE__, '$ship', $ship);
+my $scmp = ("a" cmp "b");           ::__observe(__LINE__, '$scmp', $scmp);
