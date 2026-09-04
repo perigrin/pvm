@@ -3068,17 +3068,31 @@ func TestSubstitutionReturnTypes(t *testing.T) {
 // KNOWN GAP: `//` should drop Undef from its LEFT arm.
 //
 // The paper states the rule and calls it SEMANTIC rather than epistemic:
-// "$a // $b cannot yield undef when $a is defined". Measured, `undef // "s"`
-// is "s" and `$u // undef` is undef, so only the left arm's Undef is
-// droppable. PSC joins both arms blindly, so `my $x = $maybe // "default"`
-// still carries Undef — which defeats the operator's purpose.
+// "$a // $b cannot yield undef when $a is defined". Measured over all four
+// combinations of arm definedness:
+//
+//	left    right   result
+//	undef   undef   UNDEF
+//	undef   def     defined
+//	def     undef   defined
+//	def     def     defined
+//
+// So the result is undef only when BOTH arms are, and the type rule is
+// (left &^ Undef) | right. PSC joins both arms blindly, so
+// `my $x = $maybe // "default"` still carries Undef — which defeats the
+// operator's purpose.
+//
+// An earlier version of this comment justified the rule with `$u // undef`
+// being undef, which proves nothing: $u was itself undef there, so the
+// expression fell through to an undef right arm. The truth table above is the
+// evidence; that single row was not.
 //
 // NOT IMPLEMENTED. Three attempts failed on the same thing: the rule needs
 // the left operand's NARROWED type, and by the time the binary expression is
 // typed, the annotation on that node is no longer the symbol's refined type.
 // Chasing it further would have meant guessing at the annotation lifecycle
 // rather than understanding it, so the case is recorded here instead of a
-// fourth try. The two tests below still pass and pin what is correct today.
+// fourth try. The test below still passes and pins what is correct today.
 
 // || and or are NOT the same: they test truth, not definedness, so a defined
 // but false left arm still falls through and Undef is not droppable.
