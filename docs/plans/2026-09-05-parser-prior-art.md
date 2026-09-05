@@ -1,7 +1,14 @@
-<!-- ABOUTME: Appendix A1: engineering assessment of two from-scratch Perl parsers, PerlOnJava (Java) and perl-lsp (Rust). -->
+<!-- ABOUTME: Research notes: engineering assessment of two from-scratch Perl parsers, PerlOnJava (Java) and perl-lsp (Rust). -->
 <!-- ABOUTME: What each got right, what each got wrong, measured in real line counts, and what a Go implementation should copy. -->
 
 # A1. Prior Art — PerlOnJava and perl-lsp
+
+Moved out of `docs/specs/perl-parser/` on 2026-09-05: these are research
+notes on two other projects, not a specification of Perl, and kept inside
+the spec they asserted recommendations the spec's own chapters had since
+refuted (its round-1 review, `docs/specs/perl-parser/review/r1-cross.md`,
+contradictions 10, 11, 13, 16). Where this document and the spec disagree,
+the spec wins. "Chapter N" below means `docs/specs/perl-parser/0N-*.md`.
 
 Two people have already done this. One built a Perl compiler for the JVM;
 the other built a Perl language server in Rust. Both wrote the lexer and

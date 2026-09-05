@@ -112,7 +112,10 @@ dashboard.
 | 5 | Statements, declarations, program structure |
 | 6 | Incremental parsing and LSP architecture |
 | 7 | Conformance and test strategy |
-| A1 | Prior art — PerlOnJava and perl-lsp assessed |
+
+Two companion documents live in `docs/plans/`, not here: the conformance
+plan (milestones, ratchet, CI, corpus logistics) and the prior-art notes on
+PerlOnJava and perl-lsp. See the README.
 
 Chapters 2-5 specify the language. Chapter 6 specifies the machine that parses
 it incrementally. Chapter 7 specifies how the implementer knows it works.

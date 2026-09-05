@@ -17,20 +17,30 @@ is the definition, the other two are approximations of it.
 
 ## Read in this order
 
-| # | Chapter | Lines | What it settles |
+| # | Chapter | Size | What it settles |
 |---|---|---:|---|
-| 0 | [Measured findings](00-findings.md) | 127 | The numbers. Read first — several contradict the folklore. |
-| 1 | [Scope and goals](01-scope.md) | 133 | Constraints, and the three metrics kept distinct throughout |
-| 2 | [Lexical structure](02-lexical-structure.md) | 2,499 | Tokens, literals, quote-like operators, heredocs |
-| 3 | [The lexer feedback problem](03-lexer-feedback.md) | 987 | `PL_expect`, prototypes, what is undecidable |
-| 4 | [Expression grammar](04-expressions.md) | 1,652 | 32 precedence levels, the Pratt tables |
-| 5 | [Statements and declarations](05-statements.md) | 2,595 | Program structure, recovery, re-parse anchors |
-| 6 | [Incremental parsing and LSP](06-incremental-lsp.md) | 1,817 | The architecture, the latency budget |
-| 7 | [Conformance](07-conformance.md) | 1,647 | The milestone ladder and how "done" is measured |
-| A1 | [Prior art](A1-prior-art.md) | 1,215 | What the other two got right and wrong |
+| 0 | [Measured findings](00-findings.md) | ~300 | The numbers. Read first — several contradict the folklore. |
+| 1 | [Scope and goals](01-scope.md) | ~130 | Constraints, and the three metrics kept distinct throughout |
+| 2 | [Lexical structure](02-lexical-structure.md) | ~2.5k | Tokens, literals, quote-like operators, heredocs |
+| 3 | [The lexer feedback problem](03-lexer-feedback.md) | ~1k | `PL_expect`, prototypes, what is undecidable |
+| 4 | [Expression grammar](04-expressions.md) | ~1.7k | 32 precedence levels, the Pratt tables |
+| 5 | [Statements and declarations](05-statements.md) | ~3.2k | Program structure, recovery, re-parse anchors |
+| 6 | [Incremental parsing and LSP](06-incremental-lsp.md) | ~1.8k | The architecture, the latency budget |
+| 7 | [Conformance](07-conformance.md) | ~900 | How "correct" is measured: the oracle, the four metrics, differential testing |
 
-Roughly 12,700 lines. Chapters 2-5 specify the language; 6 specifies the
-machine; 7 specifies how you know it works.
+Eight documents, roughly 11,600 lines. Chapters 2-5 specify the language; 6
+specifies the machine; 7 specifies how you know it works.
+
+## Moved out of the specification
+
+- **The milestone ladder (M0–M6), the ratchet, CI shape, corpus vendoring and
+  licensing, and the harness code sketches** are in
+  [`docs/plans/2026-09-05-parser-conformance-plan.md`](../../plans/2026-09-05-parser-conformance-plan.md).
+  They are a project schedule and scaffolding, which change as work
+  progresses; chapter 7 keeps the definitions they measure against.
+- **Prior art — PerlOnJava and perl-lsp assessed** (formerly appendix A1) is
+  in [`docs/plans/2026-09-05-parser-prior-art.md`](../../plans/2026-09-05-parser-prior-art.md).
+  Research notes on two other projects, not a specification of Perl.
 
 ## The four findings that shape everything
 

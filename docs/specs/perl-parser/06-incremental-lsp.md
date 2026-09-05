@@ -95,7 +95,7 @@ case where an edit at byte *N* changes the correct parse of bytes far after *N*.
 | A7 | POD block boundary | inserting `=pod` at column 0 | Everything to `=cut` becomes documentation |
 | A8 | `__END__` / `__DATA__` inserted | typing `__END__` | Everything after stops being code entirely |
 | A9 | Comment `#` inserted | `#` before `my $x` | Rest of line is not code; if the line ended a heredoc terminator, cascades further |
-| A10 | Format block `format STDOUT =` | | To the terminating `.` line |
+| A10 | Format block `format STDOUT =` | | To the terminating `.` line. perl-lsp names this its own fallback reason, `ContextSensitiveFormat` (`incremental.rs:164`): format bodies need lexer state that token replay cannot reconstruct |
 
 **Class B — semantic triggers (parse of later text depends on an earlier declaration).**
 
@@ -161,6 +161,25 @@ finding in the prior art, and it is why this chapter is opinionated. **Measure
 elapsed time, never reuse percentage.** A reuse-rate metric can be gamed by an
 implementation that does all the work anyway. Chapter 6's acceptance test is a
 stopwatch.
+
+The older engine (`src/incremental.rs`, ~420 lines: checkpoint-bounded token
+replay, `CHECKPOINT_INTERVAL = 256` bytes, `MAX_INCREMENTAL_EDIT_BYTES = 4096`,
+prefix/suffix token splicing; its own header at `incremental.rs:5-7` says the
+AST is still rebuilt from scratch) teaches the other lesson. Its
+`FallbackReason::RecoveryDiagnosticsUnstable` (`incremental.rs:249-252`) is
+
+```rust
+if !diagnostics.is_empty() { /* fall back to a full parse */ }
+```
+
+**Any file with even one diagnostic never takes the incremental path.** A file
+being actively typed in almost always has a diagnostic, so the path fires only
+on already-clean files — precisely the files where a full re-parse was
+affordable anyway. Decide up front which case you are optimising and check
+that your invalidation rules do not exclude it: the mid-error file is the case
+that matters. Gate on structure (§6.5.1), never on "the file has no errors".
+§6.8.5's rule is narrower and different — never reuse a *subtree* that
+contains an error.
 
 The genuinely reusable ideas from perl-lsp are narrower and better:
 
@@ -384,24 +403,27 @@ equal. Encode the disambiguating decision in `Flags` and compare it.
 
 `LexState` is the complete resumable state of the Perl lexer. perl-lsp's
 version (`perl-lexer/src/checkpoint/core.rs:5-35`) is the best available
-inventory; here it is in Go, with the pending-heredoc queue promoted out of the
-`context` enum where it belongs:
+*inventory*, but it carries a two-state mode plus ad-hoc flags (`after_sub`,
+`after_arrow`, `hash_brace_depth`, `after_var_subscript`) that the
+eleven-state `Expect` and the bracket stack replace (chapter 3 §3.9.4), and it
+omits the heredoc queue and the sublex stack (chapter 2 §2.14.1). The union,
+in Go:
 
 ```go
 // LexState is everything the lexer needs to resume mid-file. If two lex
 // states are Equal, lexing forward from the same byte produces identical
 // tokens. This is the entire correctness basis for incremental re-lexing.
 type LexState struct {
-    Expect         ExpectMode // term vs. operator — Perl's PL_expect
-    DelimiterStack []rune     // nested delimiters in s{}{} etc.
-    ParenDepth     int32      // guards heredoc-vs-bitshift
-    HashBraceDepth int32      // suppresses quote-ops in hash subscripts
-    InPrototype    bool
-    PrototypeDepth int32
-    AfterSub       bool // saw `sub`, a prototype may follow
-    AfterArrow     bool // saw `->`, so s/tr/y are not quote-ops
-    AfterVarSub    bool // just emitted $var, so `{` is a subscript
-    HeredocQueue   []HeredocSpec // pending heredocs, in order
+    Expect         Expect        // PL_expect, all eleven states — ch3 §3.1
+    BrackStack     []Expect      // PL_lex_brackstack: what `}` restores — ch3 §3.1.4
+    LexMode        LexMode       // PL_lex_state: NORMAL / INTERP* / FORMLINE — ch2 §2.2.3
+    SublexStack    []SublexFrame // interpolation contexts — ch2 §2.2.4
+    DelimiterStack []rune        // nested delimiters in s{}{} etc.
+    ParenDepth     int32         // guards heredoc-vs-bitshift
+    HeredocQueue   []HeredocSpec // pending heredocs, in order — ch2 §2.9.4
+    LastLopOp      OpCode        // PL_last_lop_op: the sort / filehandle cases — ch3 §3.4.4
+    UTF8           bool          // `use utf8` in effect — ch2 §2.3.1
+    Features       FeatureBits   // the `'` package separator reads one — ch2 §2.6.3
     Context        LexContext    // Normal | Heredoc | POD | Format | Regex | QuoteLike
 }
 
@@ -423,8 +445,8 @@ ever be a heuristic. Capture the *actual* state, and add the strongest
 condition:
 
 > A byte offset is a **safe checkpoint** if and only if `Context == Normal`,
-> `HeredocQueue` is empty, `DelimiterStack` is empty, `Expect ==
-> ExpectTerm`, and `InPrototype` is false.
+> `Expect == XSTATE`, and `BrackStack`, `SublexStack`, `HeredocQueue` and
+> `DelimiterStack` are all empty.
 
 Record a checkpoint at every such offset that follows a `;` or `}` at brace
 depth 0, subject to a minimum spacing so a 5,000-line file holds hundreds, not
@@ -736,10 +758,11 @@ For `StrategyLocal`, widen the raw edit range outward until both ends sit on
 something the parser can restart from.
 
 **Backward** to the last safe lexer checkpoint (§6.3.1), then further back to
-the start of the enclosing statement or sub. Chapter 5 defines what a statement
-boundary is in Perl — the interaction of `;`, block-final statements without
-semicolons, statement modifiers, and `}` that does or does not end a statement.
-**Use chapter 5's `StatementBoundaries` predicate; do not re-derive it here.**
+the start of the enclosing safe boundary. Chapter 5 §5.14 says which Perl
+constructs those are — sub, method and `class` bodies, bare and control-flow
+blocks, `package NAME BLOCK`; never the file top level, a `use`, a `BEGIN` or
+a `package NAME;`. `isReparseAnchor` below is the node-kind projection of that
+table; do not re-derive the table here.
 
 **Forward** is not a fixed offset. It is wherever the resync loop succeeds
 (§6.5.3) — you cannot know it until you have re-lexed.
@@ -766,25 +789,26 @@ func widen(snap *Snapshot, e Edit) (cp Checkpoint, enclosing *Node) {
     return cp, enclosing
 }
 
-// isReparseAnchor names the node kinds we are willing to re-parse whole.
-// Chapter 5 owns the statement-boundary definition; this is the node-kind
-// projection of it.
+// isReparseAnchor names the node kinds we are willing to re-parse whole:
+// the safe boundaries of ch5 §5.14, by kind name (§6.4.1). Every body in
+// that table is a "block"; "source_file" is the full-reparse fallback.
 func isReparseAnchor(kind string) bool {
     switch kind {
-    case "expression_statement", "variable_declaration", "if_statement",
-        "unless_statement", "while_statement", "until_statement",
-        "for_statement", "foreach_statement", "block", "subroutine_declaration",
-        "package_statement", "source_file":
+    case "block", "subroutine_declaration", "source_file":
         return true
     }
     return false
 }
 ```
 
-Anchoring at a *sub* rather than a statement is often the better default even
-though it re-parses more: subs are the unit PSC scopes over, so a sub-level
-splice keeps the symbol table's shape stable. Start with statement-level and
-move up on failure.
+The innermost anchor is usually a block — a loop body inside a sub — and
+chapter 5's table says that is safe. Anchoring at the enclosing *sub* is
+coarser and often better: subs are the unit PSC scopes over, so a sub-level
+splice keeps the symbol table's shape stable, and re-parsing a sub instead of
+a block costs microseconds (§6.10.2). If block-level splices show PSC churn
+in step 4 of §6.11, walk up one more level. Do not anchor at single
+statements: the bookkeeping costs more than the parse, and nothing in §6.10
+asks for it.
 
 ### 6.5.3 The repair loop
 
@@ -1337,49 +1361,13 @@ The tokens worth synthesizing in Perl:
 
 ### 6.8.3 Panic-mode recovery, bounded
 
-When no missing token works, skip to a synchronization point:
-
-```go
-// syncKinds are tokens that reliably begin or end a statement. On an
-// unrecoverable error the parser skips forward to the nearest one and
-// resumes, wrapping everything skipped in a single error node.
-func isSyncToken(k TokenKind) bool {
-    switch k {
-    case TokSemicolon, TokRightBrace, TokEOF,
-        TokSub, TokPackage, TokIf, TokUnless, TokWhile, TokUntil,
-        TokFor, TokForeach, TokMy, TokOur, TokLocal, TokUse, TokNo:
-        return true
-    }
-    return false
-}
-
-// recover skips to a sync point and returns one error node spanning the
-// skipped text. Brace depth is tracked so a `}` that closes a nested block
-// is not mistaken for the end of the enclosing one.
-func (p *parser) recover(from int) *Node {
-    start := p.tok().Start
-    depth := 0
-    for !p.atEOF() {
-        switch {
-        case p.tok().Kind == TokLeftBrace:
-            depth++
-        case p.tok().Kind == TokRightBrace:
-            if depth == 0 {
-                return p.errorNode(start, p.tok().Start)
-            }
-            depth--
-        case depth == 0 && isSyncToken(p.tok().Kind):
-            return p.errorNode(start, p.tok().Start)
-        }
-        p.advance()
-    }
-    return p.errorNode(start, int32(len(p.src)))
-}
-```
-
-**How much to skip:** to the *nearest* sync token at the current brace depth,
-never further. Skipping to the next `sub` when a `;` is three tokens away
-throws away a whole statement the user could have gotten completion in.
+When no missing token works, skip to a synchronization point. The sync-point
+tiers (column-0 `sub`/`package` as a hard reset, line-start keywords,
+punctuation at the current depth), the recovery loop, the nearest-point rule
+and the 100-token cap are chapter 5 §5.13.4; this chapter adds nothing to
+them. What the live buffer needs from that loop is only that everything
+skipped becomes **one** error node (§6.8.2), so that §6.8.4's filter sees one
+diagnostic.
 
 ### 6.8.4 The anti-cascade rule
 
@@ -1795,7 +1783,11 @@ wait for evidence, per step 4 of §6.11.
 
 ## 6.11 Implementation Order
 
-Build in this order. Each step is independently testable and shippable.
+Build in this order. Each step is independently testable and shippable. This
+is the spec's only build order: the per-chapter checklists (§2.15, §3.12,
+§4.16, §5.16, §7.10) are acceptance lists, not sequences, and chapter 7 §7.8's
+ladder is the set of gates the steps must pass. Step 0, before any of it, is
+the oracle self-check test of chapter 7 §7.9.
 
 1. **`Document` + line table + position conversion** (§6.2, §6.6). Test with a
    non-ASCII corpus first — this is where the silent bugs live.
@@ -1826,7 +1818,7 @@ repeat that.
 | Document storage | `[]byte` + `[]int32` line table | O(log n) edits; irrelevant at 150 KB |
 | Line reindex | Suffix-only rebuild | Nothing |
 | Token cache | Tokens + per-token lexer state + safe checkpoints | ~2.4 MB/doc |
-| Reuse unit | Statement/sub-anchored splice | Fine-grained node reuse |
+| Reuse unit | Block/sub-anchored splice (§6.5.2) | Fine-grained node reuse; statement-level anchoring |
 | Trigger detection | Over-eager substring scan on old and new text | Some needless full reparses |
 | IR layers | Neither HIR nor PIR initially | Prebuilt dataflow analysis |
 | Node API | The 10 methods PSC already calls | Nothing — PSC is unchanged |

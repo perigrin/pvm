@@ -80,7 +80,7 @@ drives, and thread a parse-state struct through it. The minimum state:
 // ParseState is threaded through the whole parse. It is the Go equivalent of
 // the PL_expect / PL_hints / feature-bits soup in toke.c.
 type ParseState struct {
-    Expect   ExpectKind // XSTATE, XTERM, XOPERATOR, XBLOCK, XATTRBLOCK, XATTRTERM
+    Expect   Expect     // the eleven-state PL_expect enum, chapter 3 §3.1
     Features FeatureSet // signatures, say, isa, try, class, module_true, ...
     Strict   StrictBits
     InClass  bool       // `field`/`method`/`ADJUST` legal only here
@@ -89,10 +89,10 @@ type ParseState struct {
 }
 ```
 
-`ExpectKind` is not optional decoration. `toke.c` uses `PL_expect` to decide
+`Expect` is not optional decoration. `toke.c` uses `PL_expect` to decide
 whether `{` opens a block or an anonymous hash, whether `/` is division or a
-regex, and whether `BEGIN` is a phaser or a bareword. You need the same
-variable under a different name.
+regex, and whether `BEGIN` is a phaser or a bareword. Chapter 3 §3.1 specifies
+the enum, its transitions, and the bracket stack; carry it unchanged.
 
 ---
 
@@ -124,19 +124,12 @@ returning `nil` without treating that as an error or as end-of-input.
 
 ### 5.1.2 Where the file actually ends
 
-The token stream ends at any of:
-
-1. Physical end of file.
-2. `__END__` on a line by itself.
-3. `__DATA__` on a line by itself.
-
-`toke.c:8295-8299` routes both `KEY___DATA__` and `KEY___END__` to
-`yyl_fake_eof`, which is the same function used for real EOF. The parser cannot
-tell them apart, which is the point.
-
-Everything after the marker is *not parsed*. It is available at runtime through
-the `DATA` filehandle in the current package, but as far as your parser is
-concerned it is an opaque byte range. Record it as such:
+The token stream ends at physical EOF or at the first `__END__` / `__DATA__`
+keyword. Recognition — including the **[verified]** fact that neither marker
+is line-anchored — is chapter 2 §2.5.4; do not re-derive it here. On the
+parser side, `toke.c:8295-8299` routes both `KEY___DATA__` and `KEY___END__`
+to `yyl_fake_eof`, the same function used for real EOF, so the parser cannot
+tell them apart. Everything after the marker is *not parsed*:
 
 ```go
 type File struct {
@@ -151,54 +144,22 @@ type DataSection struct {
 }
 ```
 
-Both must be at the start of a line, and must be followed by whitespace or a
-newline — `__DATA__FOO` does not match
-(PerlOnJava, `DataSection.java:261-268`).
+The `Package` field exists because `__DATA__` opens `<current package>::DATA`
+while `__END__` always opens `main::DATA` (§2.5.4; PerlOnJava records the
+same rule in `dataHandleName`, `DataSection.java:201`, and the `require`d-file
+asymmetry at `:318`). `<DATA>` reads **raw bytes**, so the span must be taken
+from the undecoded source; PerlOnJava extracts it from the raw file for
+exactly this reason (`DataSection.java:333-336`).
 
-The distinction between `__END__` and `__DATA__` is conventional for *stopping*
-— `perly.y` and `toke.c` treat them identically — but it is **not** conventional
-for the filehandle. PerlOnJava's `dataHandleName` (`DataSection.java:201`)
-records the rule: a top-level `__END__` always yields `main::DATA` even if a
-`package` was declared earlier in the file, whereas `__DATA__` is
-package-relative (`getCurrentPackage() + "::DATA"`). And an `__END__` in a
-*required module* (not the top-level script) halts parsing without creating a
-handle at all (`:318`). That is why the `Package` field above exists.
-
-One more, if you ever read the section's bytes: `<DATA>` reads **raw bytes**, so
-the content must be preserved undecoded. PerlOnJava extracts it from the raw
-file rather than from the token stream for exactly this reason
-(`DataSection.java:333-336`) — UTF-8-decoding the source would corrupt a
-Latin-1 payload.
-
-`toke.c` and PerlOnJava also both honour literal `^D` (chr 4) and `^Z` (chr 26)
-at the start of a line as end-of-file markers (`DataSection.java:217`).
+> **Divergence (PerlOnJava).** `DataSection.java:261-268` requires the marker
+> at the start of a line. perl does not — §2.5.4, **[verified]** mid-line and
+> indented.
 
 ### 5.1.3 POD
 
-POD is a lexer-level skip, not a grammar construct. From `toke.c:9754-9756`:
-when a line begins with `=` followed by an identifier character *and the parser
-is expecting a statement*, the lexer sets `PL_parser->in_pod = 1` and consumes
-lines until it sees `=cut`:
-
-```c
-        if (PL_parser->in_pod) {
-            /* Incest with pod. */
-            if (    memBEGINPs(s, (STRLEN) (PL_bufend - s), "=cut")
-                && !isIDCONT_A(s[4]))
-```
-
-(`toke.c:7694-7704`.)
-
-Three rules that trip people up:
-
-* The `=` must be at **column 0**. `  =head1` is not POD; it is a syntax error
-  or a division, depending on context.
-* POD is recognised only where a statement can start. `$x = 1 =\n` is not POD.
-* An unterminated POD block (no `=cut`) swallows the rest of the file. This is
-  legal and common — POD at the end of a module usually has no `=cut`.
-
-For an LSP you should keep POD in the tree as trivia rather than discarding it,
-so that hover and folding work:
+POD recognition — column 0, `isALPHA` after `=`, only at `XSTATE`, the stray
+`=cut` hazard — is chapter 2 §2.5. For an LSP keep POD in the tree as trivia
+rather than discarding it, so that hover and folding work:
 
 ```go
 type Pod struct {
@@ -210,11 +171,8 @@ type Pod struct {
 
 ### 5.1.4 The shebang line
 
-Line 1 only, and only if the file was read from a real file handle
-(`toke.c:7713-7730`). A `#!` line with switches (`#!/usr/bin/perl -w`) causes
-Perl to re-process those switches. For a parser, the practical effect is that
-`-w`, `-l`, and similar flags on line 1 can change warning state. Treat the
-shebang as trivia but record any switches, since `-M` can enable pragmas.
+Chapter 2 §2.3.4. Treat it as trivia but record any switches — `-M` can enable
+pragmas that change the parse.
 
 ---
 
@@ -397,7 +355,7 @@ you need the same rule.
 
 In your AST you have two reasonable choices: return `nil` and skip it, or emit
 an `EmptyStmt` node. **For an LSP, emit the node.** You need the span so that a `;` deletion is a
-localised edit rather than a whole-file reparse (§5.14).
+localised edit rather than a whole-file reparse (chapter 6 §6.5).
 
 Note that a statement being `NULL` is *also* how `package NAME;`, `use`, `sub
 NAME {...}`, `format`, and `ADJUST` report themselves — they are compile-time
@@ -1395,7 +1353,7 @@ DESTROY  { ... }     # same as sub DESTROY  { ... }
 ```
 
 The `PL_expect == XSTATE` guard means `$h{AUTOLOAD}` still parses as a hash key.
-Reproduce that guard — it is why `ExpectKind` must be in your parse state.
+Reproduce that guard — it is why `Expect` must be in your parse state.
 
 Semantically: `AUTOLOAD` is called for undefined methods/subs, with the full
 name in `our $AUTOLOAD`. `DESTROY` is the destructor. Neither is special to the
@@ -2336,55 +2294,17 @@ Cap it at the next line that looks like a statement start in column 0 and report
 
 ## 5.11 The `{` problem
 
-At statement position, `{` may open:
-
-1. A **bare block statement** (`bare_statement_block`, `perly.y:269`).
-2. An **anonymous hash constructor** (`anonymous: HASHBRACK ...`,
-   `perly.y:1536-1537`) — an expression statement.
-
-`toke.c` disambiguates in `yyl_leftcurly` using `PL_expect` plus heuristics on
-what follows. The heuristics, which you should reproduce:
-
-* If a statement is expected (`XSTATE`/`XBLOCK`) → **block**, unless the
-  contents look strongly hash-ish.
-* Peek past the `{` and skip whitespace. Then:
-  * `}` immediately → ambiguous; Perl calls it an empty **block**. `+{}` forces
-    a hash, `{;}` forces a block.
-  * a bareword or quoted string followed by `=>` or `,` → **hash**.
-  * a `$scalar` followed by `=>` or `,` → **hash**.
-  * anything else → **block**.
-* If a term is expected (`XTERM`/`XOPERATOR`) → **hash**, always.
-
-The `+{...}` and `{; ...}` idioms exist precisely because these heuristics are
-imperfect, and users reach for them when the guess goes wrong. Support both.
-
-```go
-// Called only when the parser is at `{` in statement position.
-func (p *Parser) leftCurlyIsHash() bool {
-    i := 1
-    for p.peek(i).IsTrivia() { i++ }
-    switch t := p.peek(i); t.Kind {
-    case RBRACE:
-        return false // empty {} at statement position is a block
-    case SEMI:
-        return false // {; ...} explicitly a block
-    case IDENT, STRING, SCALAR_VAR:
-        j := i + 1
-        for p.peek(j).IsTrivia() { j++ }
-        k := p.peek(j).Kind
-        return k == FATCOMMA || k == COMMA
-    }
-    return false
-}
-```
-
-Record the guess in the AST node so that a "did you mean a hash?" quick fix can
-be offered when the block body fails to parse.
-
-The same problem appears in `map`/`grep`/`sort` argument position, where `{` may
-be a block or a hash — `map { $_ => 1 } @list` versus `map { +{ $_ => 1 } }
-@list`. That is an expression-level concern (Chapter 4), but the heuristic is
-the same one.
+At statement position, `{` may open a **bare block statement**
+(`bare_statement_block`, `perly.y:269`) or an **anonymous hash constructor**
+(`anonymous: HASHBRACK ...`, `perly.y:1536-1537`) as an expression statement.
+`toke.c` decides in `yyl_leftcurly` from `PL_expect` plus a lookahead
+heuristic. **Chapter 3 §3.3 specifies that heuristic; reproduce it verbatim
+there and call it from here.** Two consequences people get backwards, both
+**[verified]** with `B::Deparse` on 5.42.0: `{}` is an anon hash
+(`toke.c:6714`), and `{ $x => 1 }` is a block. Record the guess on the node so
+a "did you mean a hash?" quick fix (`+{` / `{;`) can be offered when the block
+body fails to parse. The same predicate serves `map`/`grep`/`sort` argument
+position (chapter 4 §4.9.2).
 
 ---
 
@@ -2408,7 +2328,7 @@ func (p *Parser) parseStatement() Stmt {
         return &EmptyStmt{Span: p.span(start)}
 
     case LBRACE:
-        if !p.leftCurlyIsHash() {
+        if !p.looksLikeAnonHash() { // ch3 §3.3
             return p.finishBlockStmt(labels, start) // + optional `continue`
         }
         // fall through to the expression statement path
@@ -2685,6 +2605,10 @@ error from eating a whole file; when the cap is hit, give up on that statement,
 emit one error node covering the skipped range, and let the outer loop try again
 from wherever you stopped.
 
+Skip to the *nearest* sync point at the current brace depth, never further.
+Skipping to the next `sub` when a `;` is three tokens away throws away a whole
+statement the user could have had completion in.
+
 ### 5.13.5 Accept, then diagnose
 
 `perly.y` uses this idiom at least five times: `catch` without parens
@@ -2842,40 +2766,13 @@ Define the error vocabulary you emit. Add variants when you emit them.
 
 ---
 
-## 5.14 Incremental re-parse boundaries
+## 5.14 Safe re-parse boundaries
 
-An LSP re-parses on every keystroke. The first thing to say is that a
-hand-written Go recursive-descent parser is fast enough to re-parse most real
-files from scratch on every keystroke, and you should establish that with a
-benchmark before building anything here.
-
-### 5.14.1 The cautionary tale
-
-perl-lsp has a complete incremental implementation (`src/incremental.rs`, ~420
-lines): checkpoint-bounded token replay, `CHECKPOINT_INTERVAL = 256` bytes,
-`MAX_INCREMENTAL_EDIT_BYTES = 4096`, lexer state restored from a
-`LexerCheckpoint`, prefix/suffix token splicing. Its own header is honest about
-the scope (`incremental.rs:5-7`): **the AST is still rebuilt from scratch** —
-this is token-level replay only, no subtree reuse.
-
-And then there is `FallbackReason::RecoveryDiagnosticsUnstable`
-(`incremental.rs:249-252`):
-
-```rust
-if !diagnostics.is_empty() { /* fall back to a full parse */ }
-```
-
-**Any file with even one diagnostic never takes the incremental path.** A file
-being actively typed in almost always has a diagnostic. So the incremental path
-fires only on already-clean files — precisely the files where a full re-parse
-was affordable anyway. The machinery exists, is tested, and does nothing for the
-case it was built for.
-
-The lesson is not "don't build incremental parsing". It is: **decide up front
-which case you are optimising, and check that your invalidation rules do not
-exclude it.** If you build this, the mid-error file is the case that matters.
-
-### 5.14.2 Safe boundaries
+Incremental re-parsing — checkpoints, damage triage, the repair loop, the
+splice-equals-fresh-parse test, and when to build any of it — is chapter 6.
+This section states the one thing the grammar can say with authority and
+chapter 6 §6.5.2 consumes: **which Perl constructs can be re-parsed in
+isolation.**
 
 A construct is a safe re-parse boundary if, given an edit strictly inside it,
 the parse of everything outside is unchanged. Requirements:
@@ -2899,79 +2796,10 @@ the parse of everything outside is unchanged. Requirements:
 **Never safe:** the file top level; anything containing a `use`, a `BEGIN`, or a
 `package NAME;`.
 
-### 5.14.3 What invalidates a cached parse
-
-**Global — reparse the whole file:**
-
-* Any change to a `use` or `no`. Changes features, strict state, imported names,
-  and possibly prototypes for the rest of the file.
-* Any change inside a `BEGIN`, `UNITCHECK`, or `CHECK` block.
-* Any change to a `package NAME;` (semicolon form).
-* Any edit that changes brace balance — including a `#` that swallows a brace or
-  a quote that does.
-* Any edit inside or adjacent to a heredoc terminator.
-* Adding or removing `__END__` / `__DATA__`.
-* Changing a `sub` name or prototype, if a call site could parse differently.
-  Adding `sub foo(&@)` changes how `foo { ... } @list` parses everywhere.
-* Anything involving `format`. perl-lsp calls this out as its own fallback
-  reason, `ContextSensitiveFormat` (`incremental.rs:164`), because format bodies
-  need lexer state that token replay cannot reconstruct. It is right.
-
-**Local — reparse the enclosing safe boundary:** any edit strictly inside a sub
-body, method body, or block, with brace balance in the edited region unchanged
-and none of the above present.
-
-### 5.14.4 A workable strategy
-
-```go
-type ParseCache struct {
-    Text     []byte
-    File     *File
-    Regions  []SafeRegion // sorted, non-overlapping
-    Barriers []Barrier    // offsets forcing a full reparse
-}
-
-type SafeRegion struct {
-    Span  Span
-    Node  Node
-    State ParseState // state at entry; required to reparse in isolation
-}
-
-func (c *ParseCache) Reparse(edit Edit, newText []byte) *File {
-    if c.editTouchesBarrier(edit)   { return FullParse(newText) }
-    r := c.innermostRegionContaining(edit.Span)
-    if r == nil                     { return FullParse(newText) }
-    if !bracesBalancedIn(newText, r.Span.Shift(edit)) { return FullParse(newText) }
-    return c.splice(r, newText, edit)
-}
-```
-
-`SafeRegion.State` is the crucial field. To re-parse a sub body in isolation you
-must restore the exact feature set, strict bits, current package, and lexical
-scope chain in effect at its opening brace. Capture them when the region is
-first parsed — retrofitting this is a rewrite.
-
-The brace-balance check on the edited region is the safety net for the whole
-scheme: cheap (a scan respecting strings and comments) and it catches nearly
-every case where incremental would go wrong.
-
-**Do not gate on "the file has no errors."** That is the mistake in §5.14.1.
-Gate on the structural conditions above, which are orthogonal to whether the
-file currently has diagnostics.
-
-### 5.14.5 Recommendation
-
-Start with **full reparse on every change**, and write the parser to be fast:
-no allocations in the scanner hot path, arena-allocated AST nodes, spans as
-`uint32` byte offsets rather than line/column pairs (convert lazily, with a
-line-start index).
-
-Add incremental re-parse only when profiling says it matters, and add it at the
-**sub-body** level first — where most edits land, and by far the easiest
-boundary to prove correct.
-
-Do not attempt statement-level incremental parsing. The bookkeeping costs more
-than the parse.
+To re-parse a boundary in isolation the parser must restore the `ParseState`
+(§5.0) in effect at its opening brace — feature set, strict bits, current
+package, lexical scope chain. Capture it when the region is first parsed;
+retrofitting this is a rewrite.
 
 ---
 
@@ -3053,22 +2881,15 @@ that the AST is statically empty — so `use Foo @list` with an empty runtime
 `Args == non-empty`.
 
 **The `{` heuristic.** PerlOnJava's `isHashLiteral`
-(`StatementResolver.java:998-1364`) is the most developed version in either
-codebase and worth reading in full before writing your own. Its decision ladder
-(`:1322-1364`): hash indicator (`=>` at depth 1) → block indicator (`;`, an
-assignment-shaped `=`, or a statement-modifier keyword not followed by `=>`) →
-empty `{}` is a **hash** → first token is `%`/`@` → first token key-like
-(STRING/NUMBER/quote, deliberately **not** bareword) plus a depth-1 comma →
-context flags → default **block**.
-
-Two details to steal. The bareword exclusion is deliberate and documented
-(`:1035-1045`): Perl treats `{ foo, 1 }` as a block because `foo` may be a call.
-And a substantial amount of the code exists purely to avoid false signals from
-inside strings (`:1073-1188`) — quoted-string mode with escapes and paired
-delimiter nesting, `q`/`qq` handling that verifies a real delimiter follows.
-Note that the empty-`{}` answer differs from what `perly.y` does at statement
-position (§5.11); PerlOnJava is calling it in expression context. Both are
-defensible; be explicit about which context you are in.
+(`StatementResolver.java:998-1364`) re-derives the decision with its own
+string scanner (see the prior-art notes, `docs/plans/2026-09-05-parser-prior-art.md`
+§A1.1.7); the rule to implement is `toke.c`'s, chapter 3 §3.3.
+Its decision ladder (`:1322-1364`) agrees with `toke.c` on the two points
+people get wrong: empty `{}` is a **hash** (`toke.c:6714`), and a lowercase
+bareword followed by a comma is deliberately **not** a hash indicator
+(`:1035-1045`; `toke.c:6806`) because `foo` may be a call. Most of the rest of
+the function (`:1073-1188`) exists to avoid false signals from inside strings —
+the cost of deciding this in the parser instead of the lexer.
 
 **Labels.** PerlOnJava detects them in `ParseBlock.parseLabel`
 (`ParseBlock.java:224`) with two guards worth copying: quote-like operators are
@@ -3124,6 +2945,8 @@ Test against the core suite. The directories that matter for this chapter:
 
 The `t/class/` suite is the best available specification for the new class
 syntax, since the pod is still catching up.
+
+Build order is chapter 6 §6.11; milestone gates are chapter 7 §7.8.
 
 ---
 
@@ -3184,7 +3007,8 @@ Ranked by how much time they will cost you.
    it is a rewrite. `toke.c:5862`.
 
 2. **`{` — block or hash?** No amount of local lookahead settles it in general.
-   Implement the heuristics of §5.11, record the guess, and offer a quick fix.
+   Implement the heuristic of chapter 3 §3.3 (called from §5.11), record the
+   guess, and offer a quick fix.
    Users write `+{` and `{;` precisely because Perl gets this wrong too.
 
 3. **`for`'s six shapes.** C-style versus six foreach variants, requiring a

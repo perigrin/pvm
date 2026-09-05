@@ -190,7 +190,8 @@ comp/final_line_num.t   comp/parser_run.t     opbasic/arith.t
 comp/form_scope.t       comp/proto.t          opbasic/qq.t
 ```
 
-This is the number M1 has to move, and it is worth reading the list rather than
+This is the number the conformance plan's M1 milestone
+(`docs/plans/2026-09-05-parser-conformance-plan.md` §5) has to move, and it is worth reading the list rather than
 the percentage. `comp/proto.t` and `comp/uproto.t` are the prototype files;
 `base/lex.t` and `comp/parser.t` exist specifically to abuse the lexer;
 `cmd/switch.t` is the heredoc-as-call-argument case already known from the
