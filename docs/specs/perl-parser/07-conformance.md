@@ -844,13 +844,14 @@ Seed these specifically. Each breaks the assumption that an edit's effect is
 | Delete a heredoc terminator | The heredoc swallows the remainder of the file |
 | Insert `=pod` at column 0 | POD mode until `=cut`. Everything after becomes trivia |
 | Insert `__END__` | Everything after becomes data |
-| Change `sub f()` to `sub f(\@)` | **A prototype edit changes how calls parse — possibly earlier in the file.** The one edit whose effect propagates *backwards* |
+| Change `sub f()` to `sub f(\@)` | **A prototype edit changes how every later call parses — anywhere after it in the file, outside any re-parse region** (chapter 3 §3.5.5). The one edit whose effect escapes its enclosing sub |
 | Insert `{` | Every brace after it re-associates |
 | Split a token (`$foo` -> `$f|oo`) | Edit lands inside a token, not between two |
 
-The prototype row deserves emphasis. Perl allows a prototype to affect calls
-*textually before* the declaration in some arrangements, and via `BEGIN` it
-can affect anything. **Any incremental parser must have a defined
+The prototype row deserves emphasis. A prototype affects only calls
+*textually after* the definition — forward calls are not list-operator
+parses (chapter 3 §3.5.4) — but "after" can be the whole rest of the file,
+and a `BEGIN`/`use` can install one from anywhere. **Any incremental parser must have a defined
 invalidation story for prototype edits, and this test is what proves the
 story is true.** If your answer is "invalidate the whole file on a prototype
 change" — that is a fine answer, and this test confirms you actually do it.

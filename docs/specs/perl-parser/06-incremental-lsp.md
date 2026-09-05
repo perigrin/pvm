@@ -422,6 +422,8 @@ type LexState struct {
     ParenDepth     int32         // guards heredoc-vs-bitshift
     HeredocQueue   []HeredocSpec // pending heredocs, in order — ch2 §2.9.4
     LastLopOp      OpCode        // PL_last_lop_op: the sort / filehandle cases — ch3 §3.4.4
+    AfterLop       bool          // the token just consumed was a list operator (PL_oldoldbufptr == PL_last_lop): `{` — ch3 §3.1.4 default row, §3.3 step 3; `$fh` — §3.1.2 XOPERATOR
+    AfterUni       bool          // ... or a named unary (PL_last_uni): `(` — ch3 §3.1.2 XTERM
     UTF8           bool          // `use utf8` in effect — ch2 §2.3.1
     Features       FeatureBits   // the `'` package separator reads one — ch2 §2.6.3
     Context        LexContext    // Normal | Heredoc | POD | Format | Regex | QuoteLike

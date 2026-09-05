@@ -70,10 +70,11 @@ call-site text. Confirmed to still hold when the prototype is installed by a
 string `eval` inside `BEGIN` — the undecidable case — and when installed by a
 glob assignment (`BEGIN { *g = sub(\@){} }`).
 
-Definition order matters, and perl's own behaviour on a not-yet-seen sub is the
-conservative default. A single-pass Go parser is therefore already
-bug-compatible with perl on forward calls, which is a smaller problem than it
-first appears.
+Definition order matters, and perl commits at the call site for a not-yet-seen
+sub: `f(@a)` is an ordinary unprototyped call, while the paren-less forms are
+an indirect method call or a compile error (chapter 3 §3.5.4). A single-pass
+Go parser therefore matches perl on parenthesised forward calls and must
+diagnose the rest, which is a smaller problem than it first appears.
 
 ## 0.4 The current parser cannot see this at all
 

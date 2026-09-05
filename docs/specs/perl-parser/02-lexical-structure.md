@@ -2295,7 +2295,10 @@ Everything that affects how the next character is interpreted:
 - Whether we are inside POD or past `__END__`/`__DATA__` (§2.5).
 - `use utf8` (§2.3.1) and the feature bits the lexer reads — the `'`
   separator (§2.6.3).
-- `PL_last_lop_op`, for `sort` and the filehandle cases (chapter 3 §3.4.4).
+- `PL_last_lop_op`, for `sort` and the filehandle cases (chapter 3 §3.4.4),
+  and whether the previous token was a list or named-unary operator
+  (`PL_last_lop`, `PL_last_uni`), which the `{` and `(` rules read
+  (chapter 3 §3.1.4, §3.3 step 3).
 
 > **Divergence (perl-lsp).** Its checkpoint (`checkpoint_impl.rs:23-36`)
 > captures `position`, `mode`, `delimiter_stack`, `in_prototype`,

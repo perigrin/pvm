@@ -95,7 +95,7 @@ Pratt parser (§4.2); it is `level * 10`, leaving room to insert.
 | 13 | 130 | `ANDAND` | **left** | `&&` | `toke.c:6913`. |
 | 14 | 140 | `BITOROP` | **left** | `\|` `^` `\|.` `^.` | `toke.c:265 BOop`, `toke.c:6984`, `toke.c:6452`. |
 | 15 | 150 | `BITANDOP` | **left** | `&` `&.` | `toke.c:266 BAop`, `toke.c:6938-6940`. |
-| 16 | 160 | `CHEQOP` `NCEQOP` | **left** | chaining: `==` `!=` `eq` `ne` — non-chaining: `<=>` `cmp` `~~` | `toke.c:275-276`. See §4.3 on comparison chaining. |
+| 16 | 160 | `CHEQOP` `NCEQOP` | **left** | chaining: `==` `!=` `eq` `ne` — non-chaining: `<=>` `cmp` `~~` | `toke.c:275-276`. See §4.3 on comparison chaining. `~~` lexes only while the `smartmatch` feature is on — off under `use v5.42` (chapter 3 §3.2). |
 | 17 | 170 | `CHRELOP` `NCRELOP` | **left** | chaining: `<` `>` `<=` `>=` `lt` `gt` `le` `ge` — non-chaining: `isa` | `toke.c:277-278`, `toke.c:8697 NCRop(OP_ISA)`. **`isa` is at relational level and is non-chaining.** |
 | 18 | 180 | `PLUGIN_REL_OP` | nonassoc | (plugins) | |
 | 19 | 190 | `UNIOP` `UNIOPSUB` | **nonassoc** | named unaries: `defined` `ref` `scalar` `lc` `uc` `length` `int` `abs` `exists` `delete` `each` `keys` `values` `shift` `pop` `chr` `ord` `hex` `oct` `log` `sqrt` `sin` `cos` `rand` `srand` `quotemeta` `readline` `caller` `sleep` `exit` `chdir` `rmdir` `stat` `lstat` `undef` `local`(§4.6) `my`(§4.6) `do EXPR`(§4.7); **plus all file test operators** `-e -f -d -r -w -x -s -z -l -p -S -b -c -t -u -g -k -T -B -A -M -C -o -R -W -X -O` | `toke.c:296 #define UNI(f)`; file tests via `toke.c:6255-6261 FTST(ftst)` which returns `UNIOP`. |
@@ -560,13 +560,13 @@ method ($x) { ... }      # 5.38+ anon method
 ```
 
 `HASHBRACK` versus a bare block is decided in `yyl_leftcurly`
-(`toke.c:6719-6730`) by `PL_expect` plus a lookahead heuristic that chapter 3
+(`toke.c:6643`; the heuristic at `6698-6842`) by `PL_expect` plus a lookahead heuristic that chapter 3
 §3.3 specifies step by step — including the lowercase-bareword asymmetry a
 one-line paraphrase loses. It is a documented heuristic, not a rule, and
 Perl's own advice is to disambiguate with `+{...}` or `{; ...}`:
 
 ```perl
-map { $_ => 1 } @list      # ambiguous! perl guesses BLOCK, this is a bug
+map { $_ => 1 } @list      # perl guesses BLOCK (ch3 §3.3 step 6: `$` does not move the scan); with "$_" it guesses HASH and fails
 map { ($_ => 1) } @list    # forced block
 map { +{ $_ => 1 } } @list # block returning a hashref
 map {; $_ => 1 } @list     # forced block via leading semicolon
@@ -624,7 +624,7 @@ sliceme: ary | term ARROW PERLY_SNAIL                                # perly.y:1
 kvslice: hsh | term ARROW PERLY_PERCENT_SIGN                         # perly.y:1876
 ```
 
-Note the lexer cooperation: `toke.c:6285-6296` sets `PL_expect = XPOSTDEREF`
+Note the lexer cooperation: `toke.c:6285-6293` sets `PL_expect = XPOSTDEREF`
 when it sees `->` followed by `$*`, `&*`, `$#*`, `@*`, `@[`, `@{`, `%*`, `%{`,
 `**`, or `*{`. Without that state, `->%*` would lex `%` as modulus.
 
@@ -980,8 +980,8 @@ produce a `Call` node with `Resolved: false` and let a later pass decide.
 
 ## 4.9 `sort` / `map` / `grep`
 
-These three are `LSTOP`s (`toke.c:8584` `LOP(OP_GREPSTART, XREF)`,
-`toke.c:8755` `LOP(OP_MAPSTART, XREF)`, `toke.c:9043` `LOP(OP_SORT, XREF)`) but
+These three are `LSTOP`s (`toke.c:8585` `LOP(OP_GREPSTART, XREF)`,
+`toke.c:8756` `LOP(OP_MAPSTART, XREF)`, `toke.c:9043` `LOP(OP_SORT, XREF)`) but
 their first argument has three mutually ambiguous forms.
 
 ### 4.9.1 The three shapes
@@ -1646,10 +1646,10 @@ Acceptance list; build order is chapter 6 §6.11.
 | `^^` is `OROR` | `toke.c:6429-6441` |
 | `x` is `MULOP` | `toke.c:9215` |
 | `sort` forces a bareword with `CHECK_KEYWORD` | `toke.c:9038-9043` |
-| `map` / `grep` are `LOP(..., XREF)` | `toke.c:8584`, `toke.c:8755` |
-| `->` postfix-deref lexer state (`XPOSTDEREF`) | `toke.c:6285-6300` |
+| `map` / `grep` are `LOP(..., XREF)` | `toke.c:8585`, `toke.c:8756` |
+| `->` postfix-deref lexer state (`XPOSTDEREF`) | `toke.c:6285-6293` |
 | `S_scan_inputsymbol` — `<FH>`, `<>`, `<<>>`, `<*.c>` | `toke.c:12051-12200` |
-| anon-hash vs block heuristic | `toke.c:6719-6730` |
+| anon-hash vs block heuristic | `toke.c:6698-6842` |
 | PerlOnJava precedence map | `ParserTables.java:326-349` |
 | PerlOnJava right-assoc set | `ParserTables.java:48-51` |
 | PerlOnJava driving loop | `Parser.java:245-340` |

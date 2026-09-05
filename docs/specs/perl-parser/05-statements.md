@@ -81,6 +81,7 @@ drives, and thread a parse-state struct through it. The minimum state:
 // the PL_expect / PL_hints / feature-bits soup in toke.c.
 type ParseState struct {
     Expect   Expect     // the eleven-state PL_expect enum, chapter 3 §3.1
+    BrackStack []Expect // PL_lex_brackstack: what `}` restores, chapter 3 §3.1.4
     Features FeatureSet // signatures, say, isa, try, class, module_true, ...
     Strict   StrictBits
     InClass  bool       // `field`/`method`/`ADJUST` legal only here
@@ -599,7 +600,8 @@ test may be empty meaning true.
 `cont`. Only the foreach forms have one. This is easy to get wrong.
 
 The grammar sets `parser->expect = XTERM` after each semicolon
-(`perly.y:353-355`, `perly.y:358-360`). In your parser this is the reminder
+(`perly.y:353-355`, `perly.y:358-360`), overriding the `XSTATE` the lexer set
+at the `;` (chapter 3 §3.1.2). In your parser this is the reminder
 that the `/` after a `for` semicolon is a regex, not division.
 
 **Disambiguating C-style from foreach.** The lexer does this at
@@ -1179,7 +1181,7 @@ Prototype characters, for the record:
 | `@` | slurpy list; consumes the rest |
 | `%` | slurpy hash; consumes the rest |
 | `&` | code ref; as *first* param allows `func { ... } @args` |
-| `*` | glob |
+| `*` | typeglob/filehandle slot; a bareword arrives as the plain string of its name, not a glob (chapter 3 §3.5.2) |
 | `\X` | reference to X; `\@` takes `@list` and passes `\@list` |
 | `\[$@%&*]` | reference to any of the listed types |
 | `;` | subsequent params are optional |
@@ -2887,7 +2889,7 @@ to implement is `toke.c`'s, chapter 3 §3.3.
 Its decision ladder (`:1322-1364`) agrees with `toke.c` on the two points
 people get wrong: empty `{}` is a **hash** (`toke.c:6714`), and a lowercase
 bareword followed by a comma is deliberately **not** a hash indicator
-(`:1035-1045`; `toke.c:6806`) because `foo` may be a call. Most of the rest of
+(`:1035-1045`; `toke.c:6810-6814`) because `foo` may be a call. Most of the rest of
 the function (`:1073-1188`) exists to avoid false signals from inside strings —
 the cost of deciding this in the parser instead of the lexer.
 
