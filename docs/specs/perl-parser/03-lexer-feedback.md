@@ -57,35 +57,45 @@ typedef enum {
     XBLOCKTERM,
     XPOSTDEREF,
     XTERMORDORDOR /* evil hack */
+    /* update exp_name[] in toke.c if adding to this enum */
 } expectation;
 ```
 
 The debug names live at `toke.c:5465-5469`, and reveal a historical wart: the
 name array lists `"SIGVAR"` between `POSTDEREF` and `TERMORDORDOR`, which no
 longer corresponds to an enum member. Do not use the debug array as the
-authoritative list; use `perl.h`.
+authoritative list; use `perl.h`. The practical consequence: the array has
+twelve entries and the enum eleven, so `exp_name[XTERMORDORDOR]` (index 10)
+prints as `"SIGVAR"`. A `-DT` trace that says `SIGVAR` means
+`XTERMORDORDOR`.
 
 ### 3.1.2 The eleven states
 
 | State | Meaning | Set by (examples) | The question it answers |
 |---|---|---|---|
-| `XOPERATOR` | A complete term was just consumed; an infix/postfix operator must follow. | `TERM()` macro (`toke.c:254`), end of any variable, string, number | `/` is divide, `{` is a subscript, `<` is less-than |
-| `XTERM` | A value is required here. | `OPERATOR()` macro (`toke.c:249`), after any infix operator, after `(` | `/` starts a regex, `{` is an anon hash, `<` starts a readline |
-| `XREF` | A dereference block/term follows a sigil, or an indirect-object slot. | `PREREF()` (`toke.c:253`), `${`, `@{`, `intuit_method`; `map`/`grep` via `LOP(OP_MAPSTART, XREF)` (`toke.c:8756`, `toke.c:8585`) | `{` after `@` is a deref block, not an anon hash; `map {` falls through to the §3.3 heuristic |
-| `XSTATE` | Start of a statement. | After `;`, after `{` opening a block (`toke.c:6684`) | A bareword followed by `:` is a **label** |
-| `XBLOCK` | A `{` here opens a block, unconditionally. | `PREBLOCK()` (`toke.c:251`), `PHASERBLOCK` (`toke.c:255`) | `{` is a block, never a hashref |
-| `XATTRBLOCK` | An attribute list (`:lvalue`) or a block. | `sub NAME` with attributes pending | `:` is an attribute marker, not the ternary colon |
-| `XATTRTERM` | An attribute list or a block, in term position (anon sub). | `sub {` with attributes pending | same, in an expression |
-| `XTERMBLOCK` | A term whose `{` opens a **block** but which is otherwise a term. | `eval {` (`toke.c:8495`), `do {` in a regex code block (`toke.c:10114`), an anon sub's attribute list (`XATTRTERM` → `XTERMBLOCK`, `toke.c:6474`) | `eval {` — the `{` is a block, never a hash |
-| `XBLOCKTERM` | A `{` opens a block, but a term is the overall result. | `METHCALL0` path (`toke.c:8213`) | `foo {...}` as indirect method |
-| `XPOSTDEREF` | Immediately after `->` where a postfix deref sigil may follow. | `->` handler | `$` `@` `%` `&` `*` are postfix-deref, not operators |
-| `XTERMORDORDOR` | "Evil hack" (perl's own word). Term expected, but `//` must still lex as defined-or. | `FTST()` macro (`toke.c:256`) — filetest operators | `-e //` — is `//` an empty regex or defined-or? |
+| `XOPERATOR` | A complete term was just consumed; an infix/postfix operator must follow. | `TERM()` macro (`toke.c:254`); `FUN0`/`FUN1` (`262`, `264`); the end of a variable (`yyl_dollar` `5793`, `yyl_snail` `7052`, `yyl_percent` `6419`, `yyl_star` `6360`), of a string (`S_sublex_done`, `2762`, `2821`), of `qw` (`6144`), of a readline/heredoc (`7180`); `}` whose stack entry was `XOPERATOR` (§3.1.4). One exception: after `$fh` directly following a list operator, `yyl_dollar` re-sets `XTERM` when what follows looks like a term (`5797-5845`: `print $fh -1`) | `/` is divide, `{` is a subscript, `<` is less-than |
+| `XTERM` | A value is required here. | `OPERATOR()` macro (`toke.c:249`) and the operator macros (`265-278`); `UNI()` named unary operators (`296`); `LOP(f, XTERM)` list operators (`2152`, `2188`); `(` unless it directly follows a list or named-unary operator (`7146-7149`); an anon-hash `{` (`OPERATOR(HASHBRACK)`, `6655`); `use`/`no` (`5443`); `sort` (`9041`); `}` whose stack entry was `XTERM` | `/` starts a regex, `{` is an anon hash, `<` starts a readline |
+| `XREF` | A dereference block/term follows a sigil, or an indirect-object slot. | `PREREF()` (`toke.c:253`) from a bare sigil — `$` (`5699`), `$#` (`5687`), `@` (`7034`), `%` (`6410`), `&` (`6951`), `*` (`6363`) — i.e. `${`, `@{`, `&{`; `LOP(f, XREF)` for `print`/`printf`/`say` (`8837`, `8841`, `8952`) and `map`/`grep` (`8756`, `8585`); `S_intuit_method` on `foo $bar` (`5106`); `S_scan_ident` at the end of an interpolated identifier (`11231`) | `{` after a bare sigil is a deref block, never an anon hash — `yyl_leftcurly` skips the §3.3 heuristic for it (`6719-6721`); after `print`/`map`/`grep` the `{` *does* go through the heuristic, because it directly follows a list operator |
+| `XSTATE` | Start of a statement. | After `;` (`toke.c:9669`); after every `{` that opens a block — all non-`HASHBRACK` arms of `yyl_leftcurly` (`6685`, `6691`, `6696`, `6837`, `6841`); after a `}` whose stack entry was `XSTATE` (`6862`); after a keyword-plugin statement (`9352`); around `format` lines (`9826`, `13337`) | A bareword followed by `:` is a **label**; `{` goes through the §3.3 heuristic (`{ a => 1 }` at statement start is a hash) |
+| `XBLOCK` | A `{` here opens a block, unconditionally. | `PREBLOCK()` (`toke.c:251`): `else` (`8475`), `continue` (`8393`), `try`/`catch`/`finally` (`9127`, `8371`, `8550`), `defer` (`8443`), `default` (`8439`), `package NAME` (`8862`), `format` (`5919`), a `)` directly followed by `{` — the end of an `if`/`while`/`for` condition (`7164`), a sub with an `&`-first prototype (`6636`); `PHASERBLOCK` (`255`) for `BEGIN`/`END` &c.; the `)` closing a signature (`5632`); `XATTRBLOCK` once `:` has been seen (`6471`) | `{` is a block, never a hashref |
+| `XATTRBLOCK` | An attribute list (`:lvalue`) or a block. | Unconditionally after the name in `sub NAME` / `method NAME` / `format NAME` (`yyl_sub`, `toke.c:5879`) and after `class NAME` (`8382`); the state says attributes *may* follow. `yyl_colon` turns it into `XBLOCK` on `:` (`6471`) | `:` is an attribute marker, not the ternary colon |
+| `XATTRTERM` | An attribute list or a block, in term position (anon sub). | After `sub`/`method` with no name following (`yyl_sub`, `toke.c:5907`). `yyl_colon` turns it into `XTERMBLOCK` on `:` (`6474`) | same, in an expression |
+| `XTERMBLOCK` | A term whose `{` opens a **block** but which is otherwise a term. | `PRETERMBLOCK()` (`toke.c:252`) for `do {` (`7514`); `eval {` (`8495`); a regex code block `(?{ ... })`, which the lexer hands to the parser as a synthetic `do {` (`10114`); an anon sub's attribute list (`XATTRTERM` → `XTERMBLOCK`, `6474`); a `format` argument line starting with `{` (`13343`) | `eval {`, `do {` — the `{` is a block, never a hash |
+| `XBLOCKTERM` | A `{` opens a block, but a term is the overall result. | `yyl_just_a_word`, when a bareword with no known sub is followed by `$` or `{` and the `indirect` feature is on — the `METHCALL0` path (`toke.c:8215-8224`) | `foo {...}` / `foo $x` as an indirect method call (`{...}->foo`) |
+| `XPOSTDEREF` | Immediately after `->` when the lexer has already seen that a postfix-deref form follows. | `yyl_hyphen`, when `->` is followed by `$*`, `$#*`, `@*`, `@[`, `@{`, `%*`, `%[`, `%{`, `&*`, `**` or `*{` (`toke.c:6285-6293`) | `$` `@` `%` `&` `*` are postfix-deref, not operators |
+| `XTERMORDORDOR` | "Evil hack" (perl's own word). Term expected, but `//` must still lex as defined-or. | `FTST()` macro (`toke.c:261`) — filetest operators; `UNIDOR()` (`297`) — named unary operators with an optional argument: `getc`, `pop`, `pos`, `readline`, backtick-`readpipe`, `readlink`, `shift`, `undef`, `umask` (`8594`, `8850`, `8853`, `8923`, `8926`, `8938`, `9009`, `9154`, `9163`) | `-e $f // die`, `shift // 0` — is `//` an empty regex or defined-or? |
 
-`XTERMORDORDOR` exists because filetest operators (`-e`, `-f`) are named
-unary operators that legitimately take no argument, so after `-e` both a term
-and an operator are grammatical. Perl resolves the specific `//` case toward
-the operator and everything else toward a term. Implement it as a distinct
-state, not as `XTERM`; collapsing it silently mis-lexes `-e $f // die`.
+`XTERMORDORDOR` exists because filetest operators (`-e`, `-f`) and the
+`UNIDOR` operators (`shift`, `pop`, …) are named unary operators that
+legitimately take no argument, so after `-e` or `shift` both a term and an
+operator are grammatical. Only four places in toke.c treat it differently
+from `XTERM`: `yyl_slash` reads `//` as defined-or (`toke.c:7060`; a single
+`/` is still a regex), `yyl_tilde` reads `~~` as smartmatch (`7129`),
+`yyl_leftcurly` treats `{` as an anon hash exactly as in `XTERM` (`6652`),
+and the v-string check at `9905-9907`. Everything else treats it as a term
+position. Implement it as a distinct state, not as `XTERM`; collapsing it
+silently mis-lexes `-e $f // die` and `shift // 0` (both verified with
+`Deparse` to be defined-or).
 
 ### 3.1.3 Transitions
 
@@ -93,8 +103,10 @@ The transitions are not written as a table in toke.c — they are encoded in
 the *return macros* at `toke.c:249-303`. This is the single most useful
 structural fact for a Go implementation: **almost every transition is a
 property of the token being emitted, not of a hand-written state graph.**
-There are 80 assignment sites to `PL_expect` in toke.c, but only ~10 distinct
-targets, and most flow through these macros:
+`grep -c 'PL_expect *=[^=]' toke.c` finds 98 assignments, 24 of them the
+macro definitions themselves; every one of the eleven enum members is a
+target somewhere, and most of the 74 remaining sites flow through these
+macros:
 
 | Macro | Definition site | Sets `PL_expect` to | Emitted for |
 |---|---|---|---|
@@ -102,13 +114,18 @@ targets, and most flow through these macros:
 | `OPERATOR(t)` | `toke.c:249` | `XTERM` | an infix or prefix operator |
 | `PREBLOCK(t)` | `toke.c:251` | `XBLOCK` | tokens that must be followed by a block |
 | `PREREF(t)` | `toke.c:253` | `XREF` | a bare sigil (`$` `@` `%` `&` `*` with no name) |
-| `Aop/Mop/BAop/SHop/...` | `toke.c:266-274` | `XTERM` | arithmetic/bitwise/shift operators |
-| `FUN0(f)` | `toke.c:262` | `XOPERATOR` | zero-argument functions (`time`, `wantarray`) |
-| `UNI(f)` | `toke.c:296` | `XTERM` | named unary operators |
-| `FTST(f)` | `toke.c:256` | `XTERMORDORDOR` | filetest operators |
-| `LOOPX(f)` | `toke.c:252` | `XOPERATOR` if a token was forced, else `XTERM` | `next`, `last`, `redo` |
-| `LOP(f,x)` | `toke.c:2152` | caller-supplied `x` | list operators |
-| `POSTDEREF(f)` | `toke.c:256` | `XOPERATOR` (via `S_postderef`, `toke.c:2227`) | postfix deref |
+| `PRETERMBLOCK(t)` | `toke.c:252` | `XTERMBLOCK` | `do {` (`toke.c:7514`) |
+| `Aop/Mop/BAop/BOop/SHop/PWop/PMop/ChEop/...` | `toke.c:265-278` | `XTERM` | arithmetic/bitwise/shift/match/comparison operators |
+| `FUN0(f)`, `FUN0OP`, `FUN1(f)` | `toke.c:262-264` | `XOPERATOR` | zero-argument functions (`time`, `wantarray`); one-argument functions written `f(`  |
+| `UNI(f)` | `toke.c:296` (via `UNI3`, `285`) | `XTERM` | named unary operators |
+| `UNIDOR(f)` | `toke.c:297` | `XTERMORDORDOR` | named unary operators with an optional argument (`shift`, `pop`, …) |
+| `UNIBRACK(f)` | `toke.c:303` | **unchanged** (`have_x = 0`) | `eval` — which is why `KEY_eval` sets `XTERMBLOCK`/`XTERM` by hand first (`8495-8505`) |
+| `UNIPROTO(f,opt)` | `toke.c:298` | `XTERM` (expands to `OPERATOR`) | a user sub whose prototype makes it a named unary (§3.5.3) |
+| `FTST(f)` | `toke.c:261` | `XTERMORDORDOR` | filetest operators |
+| `LOOPX(f)` | `toke.c:257` | `XOPERATOR` if a label token was forced, else `XTERM` | `next`, `last`, `redo`, `goto`, `dump` |
+| `LOP(f,x)` | `toke.c:2152` (`S_lop`, `2174`) | caller-supplied `x` — but **only if no token is already queued** (`PL_nexttoke`, `2186-2188`) | list operators |
+| `OLDLOP(f)` | `toke.c:382` | `XTERM` | `return` (`8893`) |
+| `POSTDEREF(f)` | `toke.c:256` | `XOPERATOR` (in `S_postderef`, `toke.c:2234`; assignments at `2244`, `2258`) | postfix deref |
 
 **Design consequence for Go.** Model this as a function
 `nextExpect(tok TokenKind, cur Expect) Expect` driven by a table keyed on
@@ -122,14 +139,14 @@ the code, and the exceptions are what you should spend review effort on.
 `PL_expect` alone is insufficient, because `}` must restore whatever
 expectation held before the matching `{`. Perl keeps a parallel stack,
 `PL_lex_brackstack`, pushed in `yyl_leftcurly` (`toke.c:6643`) and popped in
-`yyl_rightcurly` (`toke.c:6858`):
+`yyl_rightcurly` (`toke.c:6853`, the pop itself at `6862`):
 
 ```c
 PL_expect = (expectation)PL_lex_brackstack[--PL_lex_brackets];
 ```
 
 The value pushed is *the expectation that will hold after the closing brace*,
-and it differs by opening context (`toke.c:6653-6697`):
+and it differs by opening context (`toke.c:6650-6703`):
 
 | `PL_expect` at `{` | Pushed for the matching `}` | Token emitted for `{` |
 |---|---|---|
@@ -138,7 +155,12 @@ and it differs by opening context (`toke.c:6653-6697`):
 | `XATTRTERM`, `XTERMBLOCK` | `XOPERATOR` | `PERLY_BRACE_OPEN` |
 | `XATTRBLOCK`, `XBLOCK` | `XSTATE` | `PERLY_BRACE_OPEN` (block) |
 | `XBLOCKTERM` | `XTERM` | `PERLY_BRACE_OPEN` |
-| default | `XTERM` if after a list op, else `XOPERATOR` | disambiguated (§3.3) |
+| default (`XSTATE`, `XREF`, `XPOSTDEREF`) | `XTERM` if the `{` directly follows a list op (`PL_oldoldbufptr == PL_last_lop`), else `XOPERATOR` (`6700-6703`); **rewritten to `XSTATE`** at `6840` when the §3.3 heuristic decides "block" in a non-`XREF` state | disambiguated (§3.3) |
+
+The expectation *inside* the braces is set at the same time: `XTERM` for an
+anon hash (`OPERATOR(HASHBRACK)`, `6655`), `XSTATE` for every block arm
+(`6685`, `6691`, `6696`, `6837`, `6841`), and `XTERM` for the two `XREF`
+term outcomes of §3.3 step 8 (`6824`, `6833`).
 
 A Go parser needs this stack. A single scalar expectation cannot survive
 nesting.
@@ -154,7 +176,7 @@ information the lexer cannot get from the token stream.
 |---|---|---|---|---|
 | `/` | divide; `//` is defined-or | start of match regex | `XTERMORDORDOR`: `//` is defined-or, else regex | `yyl_slash`, `7058` |
 | `?` | ternary `?:` | (historically match delim; now a syntax error) | — | `9810` |
-| `{` | subscript | anon hash (`HASHBRACK`) | `XBLOCK`/`XSTATE`: block; `XREF`: deref block | `yyl_leftcurly`, `6643` |
+| `{` | subscript | anon hash (`HASHBRACK`) | `XBLOCK`/`XATTRBLOCK`/`XTERMBLOCK`/`XATTRTERM`/`XBLOCKTERM`: block; `XSTATE`/`XREF`/`XPOSTDEREF`: the §3.3 heuristic, except that a bare sigil's `{` (`${`, `@{`) is always a block | `yyl_leftcurly`, `6643` |
 | `}` | — | — | pops `PL_lex_brackstack` | `yyl_rightcurly`, `6853` |
 | `<` | less-than; `<<` shift; `<=>` | `<<HEREDOC` if `s[1]=='<' && s[2]!='>'`, else `<FH>` readline | — | `yyl_leftpointy`, `7169` |
 | `>` | greater-than; `>>` shift | (only reached as operator) | — | `yyl_rightpointy`, `7221` |
@@ -162,8 +184,8 @@ information the lexer cannot get from the token stream.
 | `%` | modulo | hash `%name`\* | `XPOSTDEREF`: postfix deref | `yyl_percent`, `6391` |
 | `&` | bitwise and; `&&` | sub call `&name` | `XPOSTDEREF`: postfix deref | `yyl_ampersand`, `6901` |
 | `+` | add; `++` is postincrement | unary plus; `++` is preincrement | — | `yyl_plus`, `6325` |
-| `-` | subtract; `--` postdec | unary minus; **filetest** `-e` if next is a single letter + non-word\* | — | `yyl_hyphen`, `6200` |
-| `~` | (n/a) | complement; `~~` smartmatch if `XOPERATOR` | — | `yyl_tilde`, `7125` |
+| `-` | subtract; `--` postdec | unary minus; **filetest** `-e` if next is a single letter + non-word (`6202`) and not followed by `=>` (`6213`)\* | — | `yyl_hyphen`, `6200` |
+| `~` | `~~` smartmatch, only while the `smartmatch` feature is enabled (`7128`; off under `use v5.42`) | complement (`~` or `~.` under `bitwise`) | `XTERMORDORDOR`: `~~` as in `XOPERATOR` | `yyl_tilde`, `7125` |
 | `(` | function-call parens | grouping / list | after list op: keeps `oldbufptr` for `print(STDOUT 1)` | `yyl_leftparen`, `7144` |
 | `:` | ternary colon | — | `XATTRBLOCK`/`XATTRTERM`: attribute; `XSTATE`+bareword: label | `yyl_colon`, `6456` |
 | bareword | error ("no operator expected") | sub / string / filehandle / class / label\* | — | `yyl_just_a_word`, `8023` |
@@ -183,11 +205,16 @@ $n = $c // 3;           # XOPERATOR + '//'                -> defined-or
 
 # { — block vs hashref
 my $h = { a => 1 };     # after '=' -> XTERM              -> anon hash
-sub f { 1 }             # sub NAME -> XBLOCK              -> block
+my $h = { $x => 1 };    # after '=' -> XTERM              -> anon hash (no heuristic)
+{ a => 1 }              # stmt start -> XSTATE, §3.3      -> anon hash
+{ $x => 1 }             # stmt start -> XSTATE, §3.3      -> block
+sub f { 1 }             # sub NAME -> XATTRBLOCK          -> block
 map { $_ } @l;          # map -> LOP(XREF), §3.3 heuristic -> block
 map {; $_ } @l;         # leading ';' disambiguates to block by force
 map { +{ a=>1 } } @l;   # unary + forces the inner one to a hashref
-print {$fh} "x";        # print -> XREF                   -> deref block
+map { "$_" => 1 } @l;   # string then => -> HASHBRACK      -> syntax error at @l
+print {$fh} "x";        # print -> LOP(XREF), heuristic   -> block
+@{ "foo", "bar" }       # bare sigil -> XREF, no heuristic -> block
 
 # < — readline vs less-than
 while (my $l = <STDIN>) {}   # after '=' -> XTERM         -> readline
@@ -206,8 +233,9 @@ static parser will need one too, and the same `+` works.**
 ## 3.3 `{` — the heuristic perl uses when expectation is not enough
 
 When `PL_expect` falls through to `default` in `yyl_leftcurly`
-(`toke.c:6698-6840`) — inside `eval ""`, or wherever context is genuinely
-unknown — perl runs a lookahead heuristic. It is worth reproducing because it
+(`toke.c:6698-6842`) — that is, in `XSTATE`, `XREF` or `XPOSTDEREF`: at
+statement start, after `print`/`map`/`grep`, after a bare sigil, inside
+`eval ""` — perl runs a lookahead heuristic. It is worth reproducing because it
 is one of the few places perl documents its own guesswork in comments:
 
 > This hack serves to disambiguate a pair of curlies as being a block or an
@@ -216,26 +244,44 @@ is one of the few places perl documents its own guesswork in comments:
 > we have to resolve the ambiguity. This code covers the case where the first
 > term in the curlies is a quoted string. Most other cases need to be
 > explicitly disambiguated by prepending a "+" before the opening curly.
-> — `toke.c:6722-6733`
+> — `toke.c:6723-6737`
 
 The algorithm:
 
-1. Skip whitespace after `{`.
-2. If the next char is `}` → anon hash (`HASHBRACK`), `toke.c:6714`.
-3. If the next char is `'`, `"` or `` ` `` → scan past the string, honouring
-   backslash escapes (`toke.c:6742-6748`).
-4. Else if it starts `q`, `qq`, `qx` → scan past the quote-like construct,
-   tracking nested bracket delimiters (`toke.c:6750-6786`).
-5. Else scan a bareword.
-6. Skip whitespace. If the next token is `,` (and the first char was `q` or
-   not lowercase) **or** `=>`, it is an anon hash (`toke.c:6806-6808`).
-7. Otherwise, in `XREF`: if followed by another `{` or by `sub` with an
-   attribute colon, treat as a term; else a statement (`toke.c:6810-6829`).
-8. Otherwise: a block.
+1. Push the stack entry (§3.1.4) and skip whitespace after `{`.
+2. If the next char is `}` → anon hash (`HASHBRACK`), `toke.c:6706-6715`
+   (inside an interpolated string, `${}` is instead a syntax error, `6707`).
+3. If `PL_expect == XREF` **and** the `{` does not directly follow a list
+   operator — i.e. `${`, `@{`, `%{`, `&{`, `*{` — skip steps 4–7 entirely
+   and go to step 8 (`toke.c:6719-6721`). `@{ "foo", "bar" }` is a block
+   even though a string followed by `,` would otherwise say "hash".
+4. If the next char is `'`, `"` or `` ` `` → scan past the string, honouring
+   backslash escapes (`toke.c:6740-6746`).
+5. Else if it starts `q`, `qq`, `qx` (followed by a non-word char) → if the
+   next non-space is `=>` it is an anon hash at once (`6760-6762`, `q =>`);
+   otherwise scan past the quote-like construct, tracking nested bracket
+   delimiters (`toke.c:6747-6788`). A plain word starting with `q` (`qux`)
+   is scanned as a bareword (`6789-6797`).
+6. Else if the next char is a word character, scan the bareword
+   (`toke.c:6799-6806`). Otherwise (`$`, `-`, `(`, `+`, …) the scan pointer
+   does not move, so the next step looks at that character itself — which
+   is why `{ $x => 1 }` is a block.
+7. Skip whitespace. If the next char is `,` (and the first char was `q` or
+   not lowercase) **or** `=>`, it is an anon hash (`toke.c:6810-6814`).
+8. Otherwise, in `XREF` (`toke.c:6815-6838`): if followed by another `{` or
+   by `sub` with an attribute colon, it is a term (`PL_expect = XTERM`,
+   `6824`, `6833`), so `${{...}}{k}` and `&{sub:attr...}` work; else a
+   statement (`PL_expect = XSTATE`, `6837`), so `map {no strict; ...}`
+   works.
+9. Otherwise: a block — `PL_expect = XSTATE` and the stack entry pushed in
+   step 1 is overwritten with `XSTATE` (`toke.c:6839-6841`).
 
-Note the asymmetry at step 6: `{ foo, ... }` with a *lowercase* bareword is
+Note the asymmetry at step 7: `{ foo, ... }` with a *lowercase* bareword is
 **not** treated as a hash, because `foo` is more likely a function call. This
-is a deliberate lean, not an oversight.
+is a deliberate lean, not an oversight. Verified against perl 5.42.0 with
+`Deparse`, all at statement start: `{ a => 1 }`, `{ Foo, 1 }`, `{ "foo", 1 }`,
+`{ q(foo), 1 }` are anon hashes; `{ foo, 1 }`, `{ $x => 1 }`, `{ lc($_) => 1 }`
+are blocks.
 
 **Static verdict.** Fully implementable — it reads only source text. It is
 also *wrong* sometimes in real perl, and your Go parser being wrong in
@@ -248,18 +294,19 @@ improve it.
 
 ### 3.4.1 What `S_intuit_more` actually decides
 
-`S_intuit_more` (`toke.c:4553-4913`) answers: "after this variable, is the
-following `[` or `{` a subscript, or something else?" Perl calls it from
-`yyl_snail` (`toke.c:7038`) and `yyl_percent` (`toke.c:6410`), and the
-consequences are structural — in `yyl_snail`, a `TRUE` return with a
-following `{` **rewrites the sigil**:
+`S_intuit_more` (docblock `toke.c:4553`, function `4576-5041`) answers:
+"after this variable, is the following `[` or `{` a subscript, or something
+else?" Perl calls it from `yyl_dollar` (`toke.c:5707`), `yyl_percent`
+(`6413`), `yyl_snail` (`7039`), and from two interpolation sites (`10129`,
+`11103`), and the consequences are structural — in `yyl_snail`, a `TRUE`
+return with a following `{` **rewrites the sigil**:
 
 ```c
 if (*s == '{')
     PL_tokenbuf[0] = '%';   /* @h{...} is a hash slice, not an array */
 ```
 
-The decision procedure, in order (`toke.c:4598-4650`):
+The decision procedure, in order (`toke.c:4598-4649`):
 
 1. Already inside brackets (`PL_lex_brackets`) → TRUE.
 2. Begins `->[` or `->{` → TRUE.
@@ -267,10 +314,10 @@ The decision procedure, in order (`toke.c:4598-4650`):
 4. Not `{` or `[` → FALSE.
 5. **Not inside a pattern → TRUE.** Outside a regex, `[` and `{` after a
    variable are always subscripts.
-6. Inside a pattern, `{` matching `regcurly` (i.e. `{2,3}`) → FALSE (a quantifier).
+6. Inside a pattern, `{` matching `regcurly` (i.e. `{2,3}`) → FALSE (a quantifier), `4637`; any other `{` → TRUE.
 7. Inside a pattern, `[`:
-   - `[]` or `[^` → FALSE (character class).
-   - **Symbol-table consultation** (`toke.c:4653-4688`): for `$foo[`, check
+   - `[]` or `[^` → FALSE (character class), `4648-4649`.
+   - **Symbol-table consultation** (`toke.c:4653-4695`): for `$foo[`, check
      whether a scalar `$foo` and/or an array `@foo` exist. Under `strict vars`
      this is decisive — if only `@foo` exists it is a subscript, if only
      `$foo` exists it is a character class, if neither exists it is an error.
@@ -282,41 +329,43 @@ regex — which is the overwhelming majority of `$x[` occurrences in real code
 
 ### 3.4.2 The weighting heuristic
 
-Only reached for `[` *inside a pattern*. `toke.c:4695-4913`. Perl's own
-comment: *"this is terrifying, and it mostly works. See GH #16478."* Weights
-(negative = subscript, non-negative = character class):
+Only reached for `[` *inside a pattern*. `toke.c:4696-5040`. Perl's own
+comment (`4714`): *"this is terrifying, and it mostly works. See GH #16478."*
+Weights (negative = subscript, non-negative = character class):
 
 | Condition | Δweight | Line |
 |---|---|---|
-| first char is `$` | −1 (init) | 4712 |
-| otherwise | +2 (init) | 4716 |
-| repeat of `@`, `&`, `$` | −10 × times seen | 4741 |
-| sigil + known multi-char global identifier | −100 | 4770 |
-| sigil + unknown identifier | −10 | 4788 |
-| `$` + punct-var char, then `]`/`}`/`)`/space/`=` | −10 | 4802 |
-| `$` + punct-var char, otherwise | −1 | 4804 |
-| `\w`, `\d`, `\s`, `\]` | +100 | 4813 |
-| `\` + `abcfnrtvx` | +40 | 4859 |
-| `\` + digits | +40 | 4862 |
-| `\` at end of string | +100 | 4879 |
-| `-\` | +50 | 4890 |
-| `a-`, `A-`, `0-`, `1-`, `!-`, ` -` | +30 | 4897 |
-| `-z`, `-Z`, `-7`, `-9`, `-~` | +30 | 4903 |
-| leading `-` then digit or `$` | −5 | 4908 |
-| non-word char then two alphas spelling a keyword | −150 | 4936 |
-| consecutive code points (`ab`, `12`) | +5 | 4948 |
-| repeated character | −(times seen) | 4960 |
-| digits only, length ≤ 2 | immediate TRUE (subscript) | 4700 |
+| no `]` before end of buffer | immediate TRUE (subscript) | 4698 |
+| digits only, length ≤ 2 | immediate TRUE (subscript) | 4711 |
+| first char is `$` | −1 (init) | 4728 |
+| otherwise | +2 (init) | 4732 |
+| repeat of `@`, `&`, `$` | −10 × times seen | 4762 |
+| sigil + known multi-char global identifier | −100 | 4807 |
+| sigil + unknown identifier | −10 | 4832 |
+| `$` + punct-var char, then `]`/`}`/`)`/space/`=` | −10 | 4844 |
+| `$` + punct-var char, otherwise | −1 | 4846 |
+| `\w`, `\d`, `\s`, `\]` | +100 | 4863 |
+| any other `\` once a `'` or `"` has been seen | +1 | 4869 |
+| `\` + `abcfnrtvx` | +40 | 4896 |
+| `\` + digits | +40 | 4899 |
+| `\` at end of string | +100 | 4918 |
+| `-\` | +50 | 4928 |
+| `a-`, `A-`, `0-`, `1-`, `!-`, ` -` (not at first position) | +30 | 4934 |
+| `-z`, `-Z`, `-7`, `-9`, `-~` | +30 | 4943 |
+| leading `-` then digit or `$` | −5 | 4948 |
+| non-word char then two alphas spelling a keyword | −150 | 4987 |
+| consecutive code points (`ab`, `12`) | +5 | 5003 |
+| repeated character | −(times seen) | 5016 |
 
-Result: `weight >= 0` → character class (FALSE); else subscript (TRUE).
+Result: `weight >= 0` → character class (FALSE), `5039`; else subscript (TRUE).
 
-The `−100` at line 4770 and the `strict vars` branch at 4653 are the only two
+The `−100` at line 4807 and the `strict vars` branch at 4653 are the only two
 symbol-table dependencies. Both are reachable **only inside a regex**.
 
 ### 3.4.3 `%h` vs `%` modulo
 
 Handled entirely by `PL_expect` in `yyl_percent` (`toke.c:6391-6423`):
-`XOPERATOR` → modulo; anything else → sigil. Then `intuit_more` runs, and if
+`XOPERATOR` → modulo; `XPOSTDEREF` → postfix deref; anything else → sigil. Then `intuit_more` runs, and if
 it returns TRUE with a following `[`, the sigil is rewritten `%` → `@`
 (`%h[...]` is a *hash slice returning values*, ergo an array-ish construct).
 
@@ -395,7 +444,7 @@ different types flowing into PSC.
 | `@` | Slurp all remaining args in list context | `sub f(@)` | greedy; nothing after it matters |
 | `%` | Slurp all remaining args (identical to `@` at parse time) | `sub f(%)` | greedy |
 | `&` | Code ref; **if first, allows a bare block with no comma** | `sub f(&@)` | `f { ... } @list` |
-| `*` | Typeglob/filehandle; bareword is **not** stringified | `sub f(*)` | `f STDIN` → glob, not `"STDIN"` |
+| `*` | Typeglob/filehandle slot: a bareword is accepted (no strict-subs error, not a sub call) and arrives as the plain string of its name; a glob or globref arrives as a globref | `sub f(*)` | `f STDIN` → `f('STDIN')` (verified: `ref \$_[0]` is `SCALAR`, value `STDIN`) |
 | `;` | Separates required from optional | `sub f($;$)` | second arg may be omitted |
 | `\X` | Take a **reference** to the next argument, which must be of type X | `sub f(\@)` | `f(@a)` → `f(\@a)` |
 | `\[XYZ]` | Reference to any of the listed types | `sub f(\[@%])` | `f(%h)` → `f(\%h)` |
@@ -411,8 +460,11 @@ a block where a term was expected.
 
 Two independent consumers:
 
-**`yyl_subproto` (`toke.c:6588-6640`)** decides the *token class* of the sub
-name, which determines its grammatical precedence:
+**`yyl_subproto` (`toke.c:6588-6640`)**, reached only from
+`yyl_constant_op` (`7973`) once `yyl_just_a_word` has found a CV, decides
+the *token class* of the sub name, which determines its grammatical
+precedence. An empty prototype makes the name a zero-argument term outright
+(`TERM(FUNC0SUB)`, `6596`) — this is what `use constant` relies on:
 
 ```c
 if ((( *proto == '$' || *proto == '_' || *proto == '*' || *proto == '+')
@@ -433,7 +485,7 @@ binds tighter than a comma. `sub f($); f $x, $y` parses as `f($x), $y`, not
 UNIOPSUB`), which sits between comparison and shift operators — so `f $a + 1`
 is `f($a + 1)` while `f $a > 1` is `f($a) > 1`.
 
-**`S_intuit_method` (`toke.c:5079-5087`)** uses the prototype to *suppress*
+**`S_intuit_method` (`toke.c:5087-5094`)** uses the prototype to *suppress*
 the indirect-object reading:
 
 ```c
@@ -448,16 +500,33 @@ if (cv && SvPOK(cv)) {
 
 ### 3.5.4 What happens when the sub has not been seen
 
-Nothing — and that is the point. `yyl_just_a_word` reaches the `c.cv` lookup
-at `toke.c:8107-8117`, gets `NULL`, and falls through to the default
-list-operator parse. There is no error, no warning, and no deferred fixup.
-Perl commits to the unprototyped parse permanently.
+`yyl_just_a_word` reaches the `c.cv` lookup at `toke.c:8113-8119`, gets
+`NULL`, and `yyl_subproto` is never consulted. What happens next depends only
+on the following character, and it is **not** a list-operator parse:
 
-**This is the single most important fact in this section for a static
-parser.** Perl's own behaviour on a not-yet-seen sub is *exactly* the
-conservative default: parse as a list operator, do not apply any prototype.
-A single-pass Go parser that ignores prototypes entirely is therefore already
-bug-compatible with perl for every forward call. The divergence is confined
+| `NAME` unknown, followed by | Result | toke.c | Verified (5.42.0) |
+|---|---|---|---|
+| `(` | sub call, unprototyped (`PERLY_AMPERSAND` + `BAREWORD`) | `8195-8212` | `f(@a)` → `entersub`, no `srefgen` |
+| `=>` | string | `8177-8193` | — |
+| `$var` or `{`, `indirect` on | indirect method call, `XBLOCKTERM` | `8214-8224` | `f $x, 1` → `($x->f, 1)` |
+| bareword, `indirect` on | `intuit_method` → method call | `8227-8250` | `f bar` → `'bar'->f` |
+| `;` or `}` | bareword string (error under `strict subs`) | `8261-8271` | `f;` → `'f'` |
+| anything else (`@a`, `1`, `"s"`) | bareword string, then the parser fails on the term | `8261-8271` | `f @a` → *"Array found where operator expected (Do you need to predeclare "f"?)"* |
+| any of the above with `use v5.36` (`indirect` off) | as above minus the two method rows, which become syntax errors | `8215`, `5071` | `f $x, 1` → syntax error |
+
+So there is no deferred fixup: perl commits at the call site. But the
+"conservative default" is only the parenthesised form. `f(@a)` before
+`sub f(\@)` compiles as an unprototyped call and stays that way. `f @a`
+before the definition does not compile at all, and `f $x` becomes a method
+call on `$x`.
+
+**What this means for a static parser.** Parse `NAME(...)` to an unknown
+`NAME` as a plain call, applying no prototype — that is exactly perl. For
+paren-less `NAME term` to an unknown `NAME`, perl has no list-operator
+reading; a Go parser that accepts it as one is *more permissive* than perl.
+That is a reasonable recovery for an LSP, but it must carry a diagnostic,
+because the construct is exactly what perl reports as *"Do you need to
+predeclare"*. The divergence from perl on prototypes proper is then confined
 to *backward* calls to prototyped subs — and that case is statically visible,
 because the definition is in the file, textually earlier.
 
@@ -492,8 +561,8 @@ parsed. That code can:
 - define subs (giving them prototypes that affect later calls),
 - install globs (`*name = sub(\@){...}`),
 - import prototyped subs from another module,
-- install a keyword plugin (`PL_keyword_plugin`, `toke.c:9341-9362`),
-- install an infix operator plugin (`PL_infix_plugin`, `toke.c:9366-9385`),
+- install a keyword plugin (`PL_keyword_plugin`, `toke.c:9338-9361`),
+- install an infix operator plugin (`PL_infix_plugin`, `toke.c:9363-9387`),
 - install an overloaded-constant handler (`$^H{...}`, consumed by
   `S_new_constant` at `toke.c:10568` via `call_sv`),
 - install a source filter (§3.7),
@@ -564,8 +633,11 @@ Two caveats against reading this as good news:
    measured here.
 2. `use constant` (5.2%) creates subs with prototype `()`, which makes the
    name a **term** rather than a list operator. `use constant PI => 3; my $x
-   = PI - 1;` parses as `PI() - 1` only because `PI` has an empty prototype;
-   without that knowledge a parser may read `PI(-1)`. This is the highest-
+   = PI - 1;` parses as `PI() - 1` only because `PI` has an empty prototype
+   (`TERM(FUNC0SUB)`, `toke.c:6596`). Without that knowledge perl itself
+   would read `'PI' - 1` — a bareword, then an operator — and a static parser
+   that treats unknown barewords as list operators would read `PI(-1)`;
+   both are wrong. This is the highest-
    frequency prototype-dependent construct in practice, and it is also the
    easiest to special-case: `use constant` is syntactically recognisable.
 
@@ -679,14 +751,14 @@ terminate.
 |---|---|---|---|
 | 1 | Followed by `::` and word is `CORE` | `CORE::` operator | 9324 |
 | 2 | Followed by `::` otherwise | fall to `just_a_word` as package name | 9326 |
-| 3 | Followed by `=>` (fat comma) | **auto-quoted string** | 9336 |
-| 4 | Registered keyword plugin claims it | `PLUGSTMT` / `PLUGEXPR` | 9341 |
-| 5 | Registered infix plugin claims it | custom infix operator | 9366 |
-| 6 | `PL_expect == XSTATE` and followed by `:` (not `::`) | **LABEL** | 9389 |
-| 7 | Lexical sub in scope (`pad_findmy_pvn` on `&name`) | lexical sub call | 9399 |
-| 8 | A built-in keyword (`keyword()`) | that keyword's handler | 9430 |
-| 9 | Keyword **and** followed by `=>` on the next line | auto-quoted string | 9436 |
-| 10 | otherwise | `yyl_just_a_word` | 9455 |
+| 3 | Followed by `=>` (fat comma) | **auto-quoted string** | 9333-9335 |
+| 4 | Registered keyword plugin claims it | `PLUGSTMT` / `PLUGEXPR` | 9338-9361 |
+| 5 | Registered infix plugin claims it | custom infix operator | 9363-9387 |
+| 6 | `PL_expect == XSTATE` and followed by `:` (not `::`) | **LABEL** | 9389-9396 |
+| 7 | Lexical sub in scope (`pad_findmy_pvn` on `&name`), unless `XOPERATOR` | lexical sub call | 9399-9433 |
+| 8 | A built-in keyword (`keyword()`) | that keyword's handler, via `yyl_word_or_keyword` | 9436, 9456 |
+| 9 | Keyword **and** followed by `=>` (possibly on the next line) | auto-quoted string | 9441-9453 |
+| 10 | otherwise | `yyl_word_or_keyword` → `yyl_just_a_word` | 9456 |
 
 Step 3 before step 4, and step 9 after step 8, together mean: **`=>` always
 wins over everything, including keywords.** `print => 1` is the string
@@ -700,19 +772,19 @@ is a label; `$h{FOO}: ...` is not.
 
 | # | Test | Result | Line |
 |---|---|---|---|
-| 1 | `PL_expect == XOPERATOR` | error/warning: two terms in a row | 8032 |
-| 2 | Followed by `'` or `::` | extend the package-qualified name | 8048 |
-| 3 | Name ends in `::` | bareword package name, done | 8068 |
-| 4 | In an indirect-object slot (`XREF`, or prior op takes `OA_FILEREF`) | try `intuit_method` (§3.8.3) | 8125 |
-| 5 | …and prior op is `sort`, **or** no known sub exists | **indirect object / filehandle** | 8153 |
-| 6 | `_` following a filetest operator | bareword | 8156 |
-| 7 | Followed by `=>` | auto-quoted string | 8173 |
-| 8 | Followed by `(` | **sub call**, unconditionally | 8191 |
-| 9 | Followed by `$` or `{`, no known sub, indirect enabled | **method call** (`METHCALL0`) | 8209 |
-| 10 | Followed by bareword or `$`, `intuit_method` says yes | method call | 8220 |
-| 11 | A known sub exists (`c.cv`) | sub call (constant-folded if constant) | 8244 |
-| 12 | `strict subs` in effect | compile error | 8251 |
-| 13 | otherwise | **bareword string** | 8256 |
+| 1 | `PL_expect == XOPERATOR` | error/warning: two terms in a row | 8033 |
+| 2 | Followed by `'` or `::` | extend the package-qualified name | 8046-8062 |
+| 3 | Name ends in `::` | bareword package name, done | 8068-8081 |
+| 4 | Directly after a list/unary op **and** in an indirect-object slot (`XREF`, or that op takes `OA_FILEREF`) | try `intuit_method` (§3.8.3) | 8122-8145 |
+| 5 | …and no `(` follows, and (prior op is `sort`, **or** no known sub exists and prior op is not `map`/`grep`) | **indirect object / filehandle** | 8156-8172 |
+| 6 | `_` following a filetest operator | bareword | 8162-8164 |
+| 7 | Followed by `=>` | auto-quoted string | 8177-8193 |
+| 8 | Followed by `(` | **sub call**, unconditionally | 8195-8212 |
+| 9 | Followed by `$` or `{`, no known sub, indirect enabled | **method call** (`METHCALL0`) | 8214-8224 |
+| 10 | Followed by bareword or `$`, `intuit_method` says yes | method call | 8227-8250 |
+| 11 | A known sub exists (`c.cv`) | sub call (constant-folded if constant) | 8253-8259 |
+| 12 | `strict subs` in effect | compile error (`OPpCONST_STRICT`) | 8263 |
+| 13 | otherwise | **bareword string** | 8261-8271 |
 
 Steps 5, 9, 10 and 11 all consult the symbol table. Step 8 does not:
 **a bareword followed by `(` is always a sub call**, which is the escape
@@ -720,7 +792,7 @@ hatch a static parser leans on hardest.
 
 ### 3.8.3 `S_intuit_method`
 
-`toke.c:5046-5142`. Its own docblock is the clearest statement of the rules:
+`toke.c:5046-5144`. Its own docblock is the clearest statement of the rules:
 
 > - Not a method if foo is a filehandle.
 > - Not a method if foo is a subroutine prototyped to take a filehandle.
