@@ -790,25 +790,25 @@ func widen(snap *Snapshot, e Edit) (cp Checkpoint, enclosing *Node) {
 }
 
 // isReparseAnchor names the node kinds we are willing to re-parse whole:
-// the safe boundaries of ch5 §5.14, by kind name (§6.4.1). Every body in
-// that table is a "block"; "source_file" is the full-reparse fallback.
+// sub bodies (ch5 §5.14; §6.11 step 4 decides whether blocks follow), with
+// "source_file" as the full-reparse fallback. Kind names are §6.4.1's.
 func isReparseAnchor(kind string) bool {
     switch kind {
-    case "block", "subroutine_declaration", "source_file":
+    case "subroutine_declaration", "source_file":
         return true
     }
     return false
 }
 ```
 
-The innermost anchor is usually a block — a loop body inside a sub — and
-chapter 5's table says that is safe. Anchoring at the enclosing *sub* is
-coarser and often better: subs are the unit PSC scopes over, so a sub-level
-splice keeps the symbol table's shape stable, and re-parsing a sub instead of
-a block costs microseconds (§6.10.2). If block-level splices show PSC churn
-in step 4 of §6.11, walk up one more level. Do not anchor at single
-statements: the bookkeeping costs more than the parse, and nothing in §6.10
-asks for it.
+The first implementation anchors at the enclosing **sub**, falling back to
+`source_file` — a full reparse — for edits at top level. Subs are the unit
+PSC scopes over, so a sub-level splice keeps the symbol table's shape stable,
+and re-parsing a whole sub rather than its innermost block costs microseconds
+against a budget measured in milliseconds (§6.10.2). Chapter 5 §5.14's table
+also admits bare and control-flow blocks; narrow to them only if step 4 of
+§6.11 shows sub-level re-parse missing the budget on oversized subs. Do not
+anchor at single statements — chapter 5 §5.14 says why.
 
 ### 6.5.3 The repair loop
 
@@ -1785,9 +1785,10 @@ wait for evidence, per step 4 of §6.11.
 
 Build in this order. Each step is independently testable and shippable. This
 is the spec's only build order: the per-chapter checklists (§2.15, §3.12,
-§4.16, §5.16, §7.10) are acceptance lists, not sequences, and chapter 7 §7.8's
-ladder is the set of gates the steps must pass. Step 0, before any of it, is
-the oracle self-check test of chapter 7 §7.9.
+§4.16, §5.16) are acceptance lists, not sequences, and the milestone ladder
+(chapter 7 §7.8, held in `docs/plans/2026-09-05-parser-conformance-plan.md`
+§5) is the set of gates the steps must pass. Step 0, before any of it, is the
+oracle self-check test (plan §6).
 
 1. **`Document` + line table + position conversion** (§6.2, §6.6). Test with a
    non-ASCII corpus first — this is where the silent bugs live.
@@ -1818,7 +1819,7 @@ repeat that.
 | Document storage | `[]byte` + `[]int32` line table | O(log n) edits; irrelevant at 150 KB |
 | Line reindex | Suffix-only rebuild | Nothing |
 | Token cache | Tokens + per-token lexer state + safe checkpoints | ~2.4 MB/doc |
-| Reuse unit | Block/sub-anchored splice (§6.5.2) | Fine-grained node reuse; statement-level anchoring |
+| Reuse unit | Sub-anchored splice (§6.5.2) | Fine-grained node reuse; block- and statement-level anchoring until measured |
 | Trigger detection | Over-eager substring scan on old and new text | Some needless full reparses |
 | IR layers | Neither HIR nor PIR initially | Prebuilt dataflow analysis |
 | Node API | The 10 methods PSC already calls | Nothing — PSC is unchanged |

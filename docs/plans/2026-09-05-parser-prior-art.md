@@ -927,7 +927,7 @@ keep the API.
 | **Heredocs** | `ParseHeredoc.java` (343). Parser-side deferred collection, with two `Parser` fields (`heredocSkipToIndex`, `heredocNewlineIndex`) to re-sync the token stream after BEGIN reordering. Backtick heredocs need a special case because the lexer splits `` <<`LABEL` `` into three tokens. | `syntax/heredoc.rs` (452) + ADR-0024. **FIFO `VecDeque<PendingHeredoc>`**, bodies collected at statement boundary. Carries `label`, `allow_indent`, `quote`, `decl_span`, `body_start`. | **perl-lsp's FIFO queue.** Cleaner, handles multiple heredocs per statement natively, ~450 lines. |
 | **Prototypes** | `PrototypeArgs.java` (1,506). Prototype string *drives* argument parsing. Same path for user subs and ~200 core builtins via `CORE_PROTOTYPES`. Correct semantics because BEGIN actually runs. | `PrototypeTable` / `PrototypeFact` in HIR — collected as facts with confidence, not applied during parse. Marked `⚠️ Partial` for complex protos like `sub f(&@)`. | **PerlOnJava's table-driven arg parser** for builtins (you know those statically); **perl-lsp's fact model** for user subs (you cannot run BEGIN). |
 | **`$x[` vs `$x [`** | `Variable.java` (1,445) + `insideBracedDereference` flag. | `engine/parser/variables.rs` (2,186) + `expressions/postfix.rs` (1,474). Lexer emits distinct token kinds. | Both spend ~1.5–2.2k lines. Budget it. Distinct token kinds from the lexer is cleaner. |
-| **Regex vs divide** | Parser-side. `StringParser.parseRawStrings(..., boolean isRegex)` — caller decides, based on which parse function is running. | **`LexerMode::ExpectTerm` / `ExpectOperator`**, ADR-0014, with a 6-row transition table and a dedicated 486-line test file (`slash_ambiguity_tests.rs`). | **perl-lsp's mode machine, verbatim.** It is small, documented, and testable. This is the copy-paste of the appendix. |
+| **Regex vs divide** | Parser-side. `StringParser.parseRawStrings(..., boolean isRegex)` — caller decides, based on which parse function is running. | **`LexerMode::ExpectTerm` / `ExpectOperator`**, ADR-0014, with a 6-row transition table and a dedicated 486-line test file (`slash_ambiguity_tests.rs`). | **perl-lsp's mode machine's *shape*** — a parser-fed enum with a transition table, small and testable — with perl's **eleven** states as its contents (chapter 3 §3.1). The five-state version loses `XTERMORDORDOR`, `XREF` and `XATTRBLOCK` (chapter 3 §3.9.4). |
 | **`{` block vs hash** | `StatementResolver.isHashLiteral()` — pre-scan with a *reimplemented* quote-state machine plus a hardcoded Test::More function list. See A1.1.7. | `parse_hash_or_block_inner()`, context-aware, using the lexer's real string boundaries. | **perl-lsp's.** PerlOnJava's version is the appendix's clearest cautionary tale, and it is caused by the thin lexer. |
 | **Barewords / indirect object** | `IdentifierParser.java` (786) + `FileHandle.java` (450) + `parsingIndirectObject` flag. Full support (`print $fh "text"`). | Curated builtin list + `is_indirect_call_pattern()`. v3 supports it; v1 and v2 do **not**. | Curated list. It is the only tractable approach — the general case needs the symbol table perl builds at runtime. |
 | **BEGIN blocks** | `SpecialBlockParser.java` (510). **Compiles and executes them mid-parse**, then resumes with the mutated symbol table. Correct. Also runs `use`. | Parsed as phase blocks (`statements.rs:393,1348`), *not* executed. `CompileEffect` / `CompilePhaseBlock` / `CompileDirective` record what it *would* do, with a `CompileConfidence`. | **perl-lsp's.** Executing user code in a language server is an RCE. Record the effect, mark confidence, move on. |
@@ -954,8 +954,8 @@ internal/
 │
 ├── lexer/           # Mode-aware tokenizer. THE core decision.
 │   ← perl-lsp perl-lexer (10,476), NOT PerlOnJava's 645
-│   Modes: ExpectTerm, ExpectOperator, ExpectDelimiter,
-│          InFormatBody, InDataSection, InHeredocBody
+│   Expect: perl's eleven PL_expect states (chapter 3 §3.1),
+│          plus delimiter / format / data / heredoc contexts
 │   Owns: quote-like delimiter scanning, heredoc declaration
 │         recognition, POD skip, __DATA__, numeric literals,
 │         string extents.
@@ -1208,8 +1208,9 @@ checking file by file rather than in bulk.
    536-line lexer pushed ~6,300 lines of character re-scanning into the
    parser and produced `isHashLiteral`, which reimplements string scanning
    and then hardcodes Test::More function names to patch the failures.
-   perl-lsp's `LexerMode` (5 states, one small transition table) solves the
-   same problems structurally. This is also *why tree-sitter failed*: the
+   perl-lsp's `LexerMode` (a parser-fed enum with one small transition
+   table) solves the same problems structurally — with perl's eleven states
+   as its contents, not perl-lsp's five (chapter 3 §3.1, §3.9.4). This is also *why tree-sitter failed*: the
    external scanner cannot query the parse stack. Build the mode machine on
    day one; it cannot be retrofitted.
 

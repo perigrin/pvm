@@ -2791,7 +2791,7 @@ the parse of everything outside is unchanged. Requirements:
 | **Loop / conditional body** | same |
 | **`class` block** | plus: a new `:reader` field adds a method name |
 | **`package NAME BLOCK`** | safe; the `package NAME;` form is **not** |
-| **Single statement** | usable, rarely worth the bookkeeping |
+| **Single statement** | do not anchor here: the bookkeeping costs more than the parse (chapter 6 §6.5.2) |
 
 **Never safe:** the file top level; anything containing a `use`, a `BEGIN`, or a
 `package NAME;`.
@@ -2882,8 +2882,8 @@ that the AST is statically empty — so `use Foo @list` with an empty runtime
 
 **The `{` heuristic.** PerlOnJava's `isHashLiteral`
 (`StatementResolver.java:998-1364`) re-derives the decision with its own
-string scanner (see the prior-art notes, `docs/plans/2026-09-05-parser-prior-art.md`
-§A1.1.7); the rule to implement is `toke.c`'s, chapter 3 §3.3.
+string scanner (`docs/plans/2026-09-05-parser-prior-art.md` §A1.1.7); the rule
+to implement is `toke.c`'s, chapter 3 §3.3.
 Its decision ladder (`:1322-1364`) agrees with `toke.c` on the two points
 people get wrong: empty `{}` is a **hash** (`toke.c:6714`), and a lowercase
 bareword followed by a comma is deliberately **not** a hash indicator

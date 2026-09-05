@@ -572,6 +572,11 @@ coverage is still low, and it is the discipline the whole ladder rests on.
 
 **Corpus:** M1's, plus fuzz-generated edit sequences.
 
+Spec chapter 6 §6.11 ships the full-reparse server first (step 3) and adds
+the token cache and damage/repair only after measurement (steps 6-7). This
+milestone is the gate that flips step 7's flag; it does not move that work
+earlier.
+
 | Metric | Target |
 |---|---|
 | Incremental == full re-parse | **100%. Zero counterexamples in 10 M fuzz execs** |
@@ -742,6 +747,9 @@ Everything else in chapter 7, and all of this plan, is scaffolding around that o
 ---
 
 ## 7. Checklist
+
+Acceptance list. Build order is spec chapter 6 §6.11; the test of §6 is its
+step 0.
 
 - [ ] `internal/oracle` package: `Compiles`, `Prototype`, `Concise`, `Deparse`
 - [ ] Oracle self-check test (§6) — **first**

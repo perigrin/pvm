@@ -45,12 +45,14 @@ print $x % 5;   # % is modulo
 
 `toke.c` resolves this with a state variable, `PL_expect`, holding an
 `expectation` enum (`perl.h:5972-5985`). Every lexer for Perl must carry an
-equivalent. Section 2.2 specifies it.
+equivalent. Chapter 3 §3.1 specifies it; §2.2 says how it meets the rest of
+the lexer.
 
 A consequence for the LSP use case: **the lexer is not resumable from an
 arbitrary byte offset.** Restarting mid-file requires restoring the whole
 context stack (expectation state, bracket depth, heredoc queue, sublex stack,
-POD/`__DATA__` flags). Section 2.14 covers incremental strategy.
+POD/`__DATA__` flags). §2.14 lists what the lexer must expose to a
+checkpoint; chapter 6 §6.3 owns the checkpoint itself.
 
 ---
 
@@ -258,57 +260,17 @@ structure rather than every token.
 
 ### 2.2.1 `PL_expect`
 
-Defined at `perl.h:5972-5985`, with debug names at `toke.c:5465-5469`:
-
-| Value | Meaning |
-| --- | --- |
-| `XOPERATOR` | An operator is expected next. `/` is division, `%` is modulo, `<` is less-than. |
-| `XTERM` | A term is expected. `/` starts a regex, `%` is a hash sigil, `<` starts `<FH>`. |
-| `XREF` | Expecting a reference (after a sigil in some deref contexts). |
-| `XSTATE` | At the start of a statement. **POD is only recognized here.** |
-| `XBLOCK` | A block is expected; `{` is a block, not an anon hash. |
-| `XATTRBLOCK` | An attribute list or a block. |
-| `XATTRTERM` | An attribute list, or a block in term position. |
-| `XTERMBLOCK` | Term or block. |
-| `XBLOCKTERM` | Block or term (opposite bias). |
-| `XPOSTDEREF` | After `->` in postfix-dereference position (`->$*`, `->@*`). |
-| `XTERMORDORDOR` | Commented in the source as `/* evil hack */` — term, or the `//` operator. |
-
-The `XTERMORDORDOR` state exists solely for the `//` defined-or ambiguity:
-after certain constructs, `//` could be an empty regex or the defined-or
-operator. Perl's own source calls this an evil hack; a from-scratch
-implementation needs an equivalent and should expect to tune it empirically.
+`PL_expect` (`perl.h:5972-5985`) has **eleven** states. Chapter 3 §3.1 owns
+them — the table, the transition macros, and the bracket stack that `}` pops.
+Every subsection of this chapter that says "in term position" or "at a
+statement boundary" means a value of that enum, and the lexer carries it
+unchanged. The one state this chapter leans on by name is `XSTATE`, because
+POD is recognized only there (§2.5.1).
 
 ### 2.2.2 The reduced model, and its cost
 
-perl-lsp reduces the eleven states to five (`mode.rs:39-63`):
-
-`ExpectTerm`, `ExpectOperator`, `ExpectDelimiter`, `InFormatBody`,
-`InDataSection`.
-
-Its own documentation gives the transition heuristics (`mode.rs:19-28`):
-
-| Previous token | Next mode |
-| --- | --- |
-| identifier | `ExpectOperator` |
-| number | `ExpectOperator` |
-| closing paren/bracket | `ExpectOperator` |
-| keyword / word-operator | `ExpectTerm` |
-| operator | `ExpectTerm` |
-| opening paren/bracket | `ExpectTerm` |
-
-> **Divergence (perl-lsp).** This two-state core is a genuine approximation.
-> It cannot express `XSTATE`, so perl-lsp cannot reproduce perl's rule that
-> POD is recognized *only* at a statement boundary (§2.5.3). It cannot express
-> `XBLOCK` vs `XTERM`, so the `{`-is-a-block versus `{`-is-an-anon-hash
-> decision is made by separate ad-hoc fields (`hash_brace_depth`, `after_sub`,
-> `after_arrow` — see `checkpoint_impl.rs:29-34`) rather than by the mode. The
-> approximation is defensible for an LSP that must never hang, and wrong for a
-> compiler.
-
-**Recommendation.** Implement the full eleven-state enum. The states are cheap
-(one byte) and the reduced model's failure cases (`{`, POD, `//`) are exactly
-the ones that produce confusing, hard-to-diagnose downstream errors.
+perl-lsp collapses the eleven states to five. Chapter 3 §3.9.4 has the
+mapping, what it loses, and why the Go lexer implements all eleven.
 
 ### 2.2.3 The lexer state `PL_lex_state`
 
@@ -425,7 +387,8 @@ follows the `CopLINE(PL_curcop) == 1` check at `toke.c:7712`. Switches like
 contain the string `perl`, perl may re-exec the named interpreter.
 
 **For a parser/LSP:** recognize the shebang as a comment token, and optionally
-extract `-w`/`-T`/`-C` as hints. Do not implement re-exec.
+extract `-w`/`-T`/`-C` as hints and `-M`, which can enable pragmas that change
+the parse (`#!perl -Mstrict`). Do not implement re-exec.
 
 ### 2.3.5 `#line` directives
 
@@ -660,7 +623,7 @@ blank-line-then-`=`, nor assume POD only appears after the last statement.
 An additional subtlety: because the guard is `PL_expect == XSTATE`, whether a
 given `=` at column 0 is POD depends on parser state. A lexer that does not
 track expectation *cannot* decide this correctly. This is a concrete case where
-perl-lsp's five-mode model (§2.2.2) is structurally unable to match perl.
+perl-lsp's five-mode model (chapter 3 §3.9.4) is structurally unable to match perl.
 
 ### 2.5.4 `__END__` and `__DATA__`
 
@@ -699,6 +662,9 @@ if (key && key != KEY___DATA__ && key != KEY___END__
 
 That exclusion exists because looking ahead past `__END__` would read into the
 data section.
+
+A literal `^D` (chr 4) or `^Z` (chr 26) is also treated as EOF, through the
+same `yyl_fake_eof` (`toke.c:9504-9508`; PerlOnJava `DataSection.java:217`).
 
 **For a parser/LSP:** emit `DataMarker` then a single `DataBody` token spanning
 to EOF. Do not attempt to lex the body. perl-lsp models exactly this with
@@ -1391,7 +1357,7 @@ while (<<>>) {} # ARGV read, not a heredoc
 > my $mask = 1 << WIDTH;   # perl-lsp: heredoc named WIDTH
 > ```
 > Perl gets this right unconditionally. This is the clearest single argument
-> for implementing the full expectation enum (§2.2.2) rather than a
+> for implementing the full expectation enum (chapter 3 §3.1) rather than a
 > previous-token heuristic.
 
 ### 2.9.3 Terminator forms
@@ -2140,7 +2106,7 @@ The `XTERMORDORDOR` state (`perl.h:5983`, commented `/* evil hack */`) exists
 for cases where both readings remain live.
 
 perl-lsp documents its heuristic table at `mode.rs:19-28` (reproduced in
-§2.2.2) and notes a 64KB `MAX_REGEX_BYTES` cap with graceful degradation to
+chapter 3 §3.9.4) and notes a 64KB `MAX_REGEX_BYTES` cap with graceful degradation to
 `UnknownRest` (`mode.rs:32-35`) — a reasonable LSP safety valve, and an
 explicit departure from perl, which has no such limit.
 
@@ -2312,28 +2278,24 @@ one opaque token with a correct span is an acceptable v1.
 
 ---
 
-## 2.14 Incremental lexing for the LSP
+## 2.14 What the lexer must expose to a checkpoint
+
+Incremental lexing — the checkpoint struct, where checkpoints are recorded,
+the restart-and-resync loop — is chapter 6 §6.3. This section lists only the
+state that is the lexer's to expose, and the two lexer behaviours an LSP needs
+that perl does not have.
 
 ### 2.14.1 What must be checkpointed
 
-A resumable lexer must capture everything that affects how the next character
-is interpreted:
+Everything that affects how the next character is interpreted:
 
-```go
-type Checkpoint struct {
-    Pos          int
-    Expect       expectation      // the 11-state enum, §2.2.1
-    LexState     lexState         // LEX_NORMAL .. LEX_FORMLINE, §2.2.3
-    BracketStack []byte           // open delimiters, for nesting
-    SublexStack  []sublexFrame    // interpolation contexts, §2.2.4
-    Heredocs     []pendingHeredoc // MUST be included -- §2.9.4
-    InPod        bool
-    InData       bool
-    UTF8         bool             // use utf8 in effect
-    ParenDepth   int
-    LineIndex    int
-}
-```
+- `PL_expect` and the bracket stack (chapter 3 §3.1, §3.1.4).
+- `PL_lex_state` (§2.2.3) and the sublex context stack (§2.2.4).
+- The pending-heredoc queue (§2.9.4). **Must** be included.
+- Whether we are inside POD or past `__END__`/`__DATA__` (§2.5).
+- `use utf8` (§2.3.1) and the feature bits the lexer reads — the `'`
+  separator (§2.6.3).
+- `PL_last_lop_op`, for `sort` and the filehandle cases (chapter 3 §3.4.4).
 
 > **Divergence (perl-lsp).** Its checkpoint (`checkpoint_impl.rs:23-36`)
 > captures `position`, `mode`, `delimiter_stack`, `in_prototype`,
@@ -2349,22 +2311,8 @@ type Checkpoint struct {
 
 ### 2.14.2 Safe restart points
 
-Not every offset is a valid restart point. The safe ones are positions where
-the checkpoint state is trivial:
-
-- Top-level statement boundaries (`Expect == XSTATE`, empty stacks, no pending
-  heredocs).
-- The start of a line at brace depth zero.
-
-**Recommended strategy.** Record a checkpoint at every top-level statement
-boundary. On an edit at offset `N`, find the last checkpoint at or before `N`,
-restore, and re-lex forward. Re-lex to the end of the enclosing top-level
-construct, then compare the resulting token stream to the old one; if tokens
-past that point are unchanged, splice rather than continue.
-
-This gives correct results with bounded work for the common case (editing
-inside one sub), and degrades to a full re-lex for pathological edits (typing
-an unterminated heredoc at the top of a file), which is the right tradeoff.
+Chapter 6 §6.3.1. The lexer-side condition is `Expect == XSTATE` with every
+stack above empty and no pending heredoc.
 
 ### 2.14.3 Budgets and recovery
 
@@ -2382,25 +2330,21 @@ editor it is unusable.
 
 ### 2.14.4 Recovery points
 
-When the lexer cannot make sense of input, resynchronize at:
-
-1. A `;` at bracket depth zero.
-2. A `}` that closes to depth zero.
-3. A line starting with `sub`, `package`, `use`, or `my` at depth zero.
-4. `__END__` / `__DATA__`.
+Parser-side resynchronisation is chapter 5 §5.13.4.
 
 ---
 
 ## 2.15 Implementation checklist
 
-Ordered by a suggested build sequence, each step producing something testable.
+Everything the lexer must do, grouped by dependency. Build order across the
+whole system is chapter 6 §6.11; milestone gates are chapter 7 §7.8.
 
 1. **Byte reader with a line index.** UTF-8 decode with `RuneError` recovery.
    BOM handling. `\r\n` normalization that preserves offsets.
 2. **Trivia.** Whitespace, `#` comments, `#line` directives, shebang. Retain
    as tokens with spans.
-3. **Expectation state machine.** All eleven states (§2.2.1). Get this in
-   early — everything else depends on it.
+3. **Expectation state machine.** All eleven states (chapter 3 §3.1).
+   Everything else depends on it.
 4. **Identifiers and package-qualified names.** Both separators, `::` and `'`.
    XID-based Unicode under a `utf8` flag. **Do not accept emoji** (§2.6.2).
 5. **Sigils and punctuation variables.** Table-driven on the character after
@@ -2466,7 +2410,7 @@ copied.
 | 7 | PerlOnJava | No `=>` escape hatch for v-strings | §2.8.8 |
 | 8 | perl-lsp | Accepts emoji as identifiers; perl rejects them **[verified]** | §2.6.2 |
 | 9 | perl-lsp | Accepts `'` unconditionally as identifier-continue | §2.6.3 |
-| 10 | perl-lsp | 5 modes cannot express `XSTATE`; POD rule unreachable | §2.2.2 |
+| 10 | perl-lsp | 5 modes cannot express `XSTATE`; POD rule unreachable | ch3 §3.9.4 |
 | 11 | perl-lsp | No bare `N.N.N` v-strings — `use 5.42.0` mis-lexed | §2.8.9 |
 | 12 | perl-lsp | No hex floats; no bare `0NNN` octal; no illegal-digit check | §2.8.9 |
 | 13 | perl-lsp | `should_consume_dot` allowlist approximates `s[1] != '.'` | §2.8.10 |

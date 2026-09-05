@@ -559,10 +559,11 @@ sub ($x, $y) { $x + $y } # coderef with signature (KW_SUB_anon_sig)
 method ($x) { ... }      # 5.38+ anon method
 ```
 
-`HASHBRACK` versus a bare block is decided in `toke.c` (`toke.c:6719-6730`) by
-peeking past the `{` for a `word =>` or `word ,` or `'string' ,` pattern. This
-is a documented heuristic, not a rule, and Perl's own advice is to disambiguate
-with `+{...}` or `{; ...}`:
+`HASHBRACK` versus a bare block is decided in `yyl_leftcurly`
+(`toke.c:6719-6730`) by `PL_expect` plus a lookahead heuristic that chapter 3
+§3.3 specifies step by step — including the lowercase-bareword asymmetry a
+one-line paraphrase loses. It is a documented heuristic, not a rule, and
+Perl's own advice is to disambiguate with `+{...}` or `{; ...}`:
 
 ```perl
 map { $_ => 1 } @list      # ambiguous! perl guesses BLOCK, this is a bug
@@ -1021,15 +1022,16 @@ or a comparator, and requires it between plain list elements.
 ### 4.9.2 The `{` decision
 
 The whole ambiguity reduces to: after `sort`/`map`/`grep`, is `{` a block or an
-anonymous hash? `toke.c` uses `PL_expect = XREF` plus the lookahead heuristic
-of §4.4.4. The practical rule for a Go implementation:
+anonymous hash? `toke.c` sets `PL_expect = XREF` (`toke.c:8756`) and
+`yyl_leftcurly` falls through to the lookahead heuristic of chapter 3 §3.3.
+The practical rule for a Go implementation:
 
 ```go
 // After sort/map/grep, a '{' is a BLOCK unless the lookahead says otherwise.
 // Mirrors toke.c's XREF handling plus the anon-hash heuristic.
 func (p *Parser) parseMapGrepSortFirstArg(name string) (Node, bool /*isBlock*/) {
 	if p.at("{") {
-		if p.looksLikeAnonHash() { // WORD => , or 'str' , or nothing but pairs
+		if p.looksLikeAnonHash() { // ch3 §3.3, verbatim
 			return p.parseTerm(), false
 		}
 		return p.parseBlock(), true
@@ -1046,8 +1048,8 @@ func (p *Parser) parseMapGrepSortFirstArg(name string) (Node, bool /*isBlock*/) 
 }
 ```
 
-`looksLikeAnonHash` must be the same predicate used in §4.4.4; keep one
-implementation. Record the guess on the node — `MapGrep{BlockGuessed: true}` —
+`looksLikeAnonHash` must be the same predicate used in §4.4.4 and in chapter
+5 §5.12; keep one implementation, specified by chapter 3 §3.3. Record the guess on the node — `MapGrep{BlockGuessed: true}` —
 so the LSP can offer the `+{` / `{;` disambiguation as a quick fix.
 
 ### 4.9.3 Context inside the block
@@ -1589,6 +1591,8 @@ context-polymorphic rather than trying to pick a branch.
 
 ## 4.16 Checklist for the implementer
 
+Acceptance list; build order is chapter 6 §6.11.
+
 - [ ] Encode the 32 levels of §4.2 as a table, not a function cascade.
 - [ ] Left-assoc passes `BP`, right-assoc passes `BP-1`; loop breaks on `<=`.
 - [ ] `AssocNone` levels (`..`, `...`, named unaries, `++`/`--`) reject a
@@ -1601,8 +1605,8 @@ context-polymorphic rather than trying to pick a branch.
 - [ ] The `(`-immediately-follows test happens in the lexer, before precedence,
       for both list operators and named unaries (§4.8.1).
 - [ ] `Paren` nodes survive into the AST (§4.10, §4.12).
-- [ ] One shared `looksLikeAnonHash` predicate, used by both `{` sites (§4.4.4,
-      §4.9.2), recording that it guessed.
+- [ ] One shared `looksLikeAnonHash` predicate (chapter 3 §3.3), used by every
+      `{` site (§4.4.4, §4.9.2, chapter 5 §5.12), recording that it guessed.
 - [ ] Postfix deref (`->@*`, `->%*`, `->$#*`, `->&*`, `->**`) requires lexer
       state; `->%*` must not lex `%` as modulus.
 - [ ] The arrow is optional between consecutive subscripts, required before a

@@ -71,12 +71,12 @@ authoritative list; use `perl.h`.
 |---|---|---|---|
 | `XOPERATOR` | A complete term was just consumed; an infix/postfix operator must follow. | `TERM()` macro (`toke.c:254`), end of any variable, string, number | `/` is divide, `{` is a subscript, `<` is less-than |
 | `XTERM` | A value is required here. | `OPERATOR()` macro (`toke.c:249`), after any infix operator, after `(` | `/` starts a regex, `{` is an anon hash, `<` starts a readline |
-| `XREF` | A dereference block/term follows a sigil, or an indirect-object slot. | `PREREF()` (`toke.c:253`), `${`, `@{`, `intuit_method` | `{` after `@` is a deref block, not an anon hash |
+| `XREF` | A dereference block/term follows a sigil, or an indirect-object slot. | `PREREF()` (`toke.c:253`), `${`, `@{`, `intuit_method`; `map`/`grep` via `LOP(OP_MAPSTART, XREF)` (`toke.c:8756`, `toke.c:8585`) | `{` after `@` is a deref block, not an anon hash; `map {` falls through to the §3.3 heuristic |
 | `XSTATE` | Start of a statement. | After `;`, after `{` opening a block (`toke.c:6684`) | A bareword followed by `:` is a **label** |
 | `XBLOCK` | A `{` here opens a block, unconditionally. | `PREBLOCK()` (`toke.c:251`), `PHASERBLOCK` (`toke.c:255`) | `{` is a block, never a hashref |
 | `XATTRBLOCK` | An attribute list (`:lvalue`) or a block. | `sub NAME` with attributes pending | `:` is an attribute marker, not the ternary colon |
 | `XATTRTERM` | An attribute list or a block, in term position (anon sub). | `sub {` with attributes pending | same, in an expression |
-| `XTERMBLOCK` | A term whose `{` opens a **block** but which is otherwise a term. | list operators taking blocks | `map {` |
+| `XTERMBLOCK` | A term whose `{` opens a **block** but which is otherwise a term. | `eval {` (`toke.c:8495`), `do {` in a regex code block (`toke.c:10114`), an anon sub's attribute list (`XATTRTERM` → `XTERMBLOCK`, `toke.c:6474`) | `eval {` — the `{` is a block, never a hash |
 | `XBLOCKTERM` | A `{` opens a block, but a term is the overall result. | `METHCALL0` path (`toke.c:8213`) | `foo {...}` as indirect method |
 | `XPOSTDEREF` | Immediately after `->` where a postfix deref sigil may follow. | `->` handler | `$` `@` `%` `&` `*` are postfix-deref, not operators |
 | `XTERMORDORDOR` | "Evil hack" (perl's own word). Term expected, but `//` must still lex as defined-or. | `FTST()` macro (`toke.c:256`) — filetest operators | `-e //` — is `//` an empty regex or defined-or? |
@@ -184,7 +184,7 @@ $n = $c // 3;           # XOPERATOR + '//'                -> defined-or
 # { — block vs hashref
 my $h = { a => 1 };     # after '=' -> XTERM              -> anon hash
 sub f { 1 }             # sub NAME -> XBLOCK              -> block
-map { $_ } @l;          # map -> XTERMBLOCK               -> block
+map { $_ } @l;          # map -> LOP(XREF), §3.3 heuristic -> block
 map {; $_ } @l;         # leading ';' disambiguates to block by force
 map { +{ a=>1 } } @l;   # unary + forces the inner one to a hashref
 print {$fh} "x";        # print -> XREF                   -> deref block
@@ -854,7 +854,7 @@ PerlOnJava also carries pragmatic special cases a static parser will need:
 `all`, `first`, `pairmap` and friends — tier 0 of §3.6.4, in production.
 
 **perl-lsp** approximates aggressively and states so. Its
-`crates/perl-lexer/src/mode.rs` collapses perl's eleven states into five:
+`crates/perl-lexer/src/mode.rs:39-63` collapses perl's eleven states into five:
 
 ```rust
 pub enum LexerMode {
@@ -868,7 +868,7 @@ pub enum LexerMode {
 
 The mapping is `XTERM|XREF|XSTATE|XBLOCK|XTERMBLOCK|XATTR* → ExpectTerm` and
 `XOPERATOR|XPOSTDEREF → ExpectOperator`, with `XTERMORDORDOR` lost. Its own
-documented transition table is by *previous token*, not by parser state — a
+documented transition table (`mode.rs:19-28`) is by *previous token*, not by parser state — a
 strictly weaker model, though it captures the common cases:
 
 | Previous token | Next mode |
@@ -887,7 +887,12 @@ the right instincts for an LSP: never hang, always return something.
 
 **Recommendation for the Go parser: eleven states, not five.** The five-state
 model will mis-lex `-e $f // die` (no `XTERMORDORDOR`), `print {$fh} $x`
-(no `XREF`), and `sub f :lvalue {}` (no `XATTRBLOCK`). The extra six states
+(no `XREF`), and `sub f :lvalue {}` (no `XATTRBLOCK`). It cannot express
+`XSTATE`, so perl's rule that POD is recognized only at a statement boundary
+(chapter 2 §2.5.1) is unreachable, and it decides `{` with ad-hoc fields
+(`hash_brace_depth`, `after_sub`, `after_arrow`; `checkpoint_impl.rs:29-34`)
+instead of the state — defensible for an LSP that must never hang, wrong for
+a compiler. The extra six states
 cost a handful of enum values and a bracket stack; they buy exact
 compatibility on the entire category-1 problem, which is the part that is
 actually solvable. Do not economise here — economise on the symbol-table
@@ -903,20 +908,11 @@ constraint explicitly.
 **Lexer state is not recoverable from a byte offset.** You cannot resume
 lexing at the edit point, because tokenizing requires `PL_expect`, the
 bracket stack, `PL_lex_state`, and (for `$x[` inside regexes) the accumulated
-prototype/sub map. A "resumable lexer state" is therefore:
-
-```go
-type LexState struct {
-    Expect      Expect     // 11-state enum
-    BrackStack  []Expect   // pushed at '{', popped at '}'
-    LexState    SubLexer   // NORMAL / INTERPNORMAL / INTERPEND / ...
-    HeredocQ    []Heredoc  // pending heredoc bodies
-    LastLopOp   OpCode     // for the sort/filehandle special cases
-}
-```
-
-Snapshot this at **statement boundaries** (where `Expect == XSTATE` and both
-stacks are empty) and you get safe restart points. In practice statement
+prototype/sub map. A resumable lexer state must therefore carry `Expect`,
+the bracket stack, `PL_lex_state`, the heredoc queue and `PL_last_lop_op`
+(for the `sort` and filehandle cases of §3.4.4); the struct itself is chapter
+6 §6.3.1. Snapshot it at **statement boundaries** (`Expect == XSTATE`, both
+stacks empty) and you get safe restart points. In practice statement
 boundaries at brace depth 0 are frequent enough that a re-parse after an edit
 touches one sub, not the file.
 
@@ -966,6 +962,8 @@ parser that was designed to always answer is much harder than designing for
 ---
 
 ## 3.12 Implementation checklist
+
+Acceptance list; build order is chapter 6 §6.11.
 
 - [ ] `Expect` enum with all 11 states, including `XTERMORDORDOR`.
 - [ ] Transition driven by emitted-token class (the macro table of §3.1.3), not per-site assignment.
