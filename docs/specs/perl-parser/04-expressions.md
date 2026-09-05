@@ -102,7 +102,7 @@ Pratt parser (§4.2); it is `level * 10`, leaving room to insert.
 | 20 | 200 | `KW_REQUIRE` | nonassoc | `require` | Its own level purely so `require Foo::Bar` parses the bareword specially (`perly.y:1673-1676`). |
 | 21 | 210 | `SHIFTOP` | **left** | `<<` `>>` | `toke.c:270`-adjacent; emitted from `yyl_leftpointy`/`yyl_rightpointy`. |
 | 22 | 220 | `ADDOP` | **left** | `+` `-` `.` | `toke.c:272 #define Aop`, `toke.c:6314`, `toke.c:6343`. **String concat `.` is an ADDOP** — same level as `+`. |
-| 23 | 230 | `MULOP` | **left** | `*` `/` `%` `x` | `toke.c:274 #define Mop`, `toke.c:6387`, `toke.c:6401`, `toke.c:9215 Mop(OP_REPEAT)`. **Repetition `x` is a MULOP.** |
+| 23 | 230 | `MULOP` | **left** | `*` `/` `%` `x` | `toke.c:274 #define Mop`, `toke.c:6387`, `toke.c:6401`, `toke.c:9216 Mop(OP_REPEAT)`. **Repetition `x` is a MULOP.** |
 | 24 | 240 | `MATCHOP` | **left** | `=~` `!~` | `toke.c:271 #define PMop`, `toke.c:7018`. |
 | 25 | 250 | `!` `~` `UMINUS` `REFGEN` | **right** | `!` `~` `~.` unary `-` unary `+` `\` | `perly.y:1497-1504` (`UMINUS`), `toke.c:7297 OPERATOR(REFGEN)`. Unary `+` is a no-op that exists solely to disambiguate (`perly.y:1499`). |
 | 26 | 260 | `POWOP` | **right** | `**` | `toke.c:270 PWop`, `toke.c:6376`. Right associative *and tighter than unary minus*: `-2**2 == -4`. |
@@ -1068,7 +1068,7 @@ my @hits  = grep { @$_ } @rows;      # block in boolean ctx: @$_ is a count
 
 ## 4.10 `x`: string repetition versus list repetition
 
-`x` is a `MULOP` (`toke.c:9215`), level 23, left associative. But its *meaning*
+`x` is a `MULOP` (`toke.c:9216`), level 23, left associative. But its *meaning*
 depends on the syntactic shape of its left operand, decided at
 `perly.y:1425-1428`:
 
@@ -1644,7 +1644,7 @@ Acceptance list; build order is chapter 6 §6.11.
 | `isa` is `NCRELOP` | `toke.c:8697` |
 | `xor` is `OROP` | `toke.c:9222-9226` |
 | `^^` is `OROR` | `toke.c:6429-6441` |
-| `x` is `MULOP` | `toke.c:9215` |
+| `x` is `MULOP` | `toke.c:9216` |
 | `sort` forces a bareword with `CHECK_KEYWORD` | `toke.c:9038-9043` |
 | `map` / `grep` are `LOP(..., XREF)` | `toke.c:8585`, `toke.c:8756` |
 | `->` postfix-deref lexer state (`XPOSTDEREF`) | `toke.c:6285-6293` |

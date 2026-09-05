@@ -2303,7 +2303,7 @@ At statement position, `{` may open a **bare block statement**
 heuristic. **Chapter 3 §3.3 specifies that heuristic; reproduce it verbatim
 there and call it from here.** Two consequences people get backwards, both
 **[verified]** with `B::Deparse` on 5.42.0: `{}` is an anon hash
-(`toke.c:6714`), and `{ $x => 1 }` is a block. Record the guess on the node so
+(`toke.c:6715`), and `{ $x => 1 }` is a block. Record the guess on the node so
 a "did you mean a hash?" quick fix (`+{` / `{;`) can be offered when the block
 body fails to parse. The same predicate serves `map`/`grep`/`sort` argument
 position (chapter 4 §4.9.2).
@@ -2887,7 +2887,7 @@ that the AST is statically empty — so `use Foo @list` with an empty runtime
 string scanner (`docs/plans/2026-09-05-parser-prior-art.md` §A1.1.7); the rule
 to implement is `toke.c`'s, chapter 3 §3.3.
 Its decision ladder (`:1322-1364`) agrees with `toke.c` on the two points
-people get wrong: empty `{}` is a **hash** (`toke.c:6714`), and a lowercase
+people get wrong: empty `{}` is a **hash** (`toke.c:6715`), and a lowercase
 bareword followed by a comma is deliberately **not** a hash indicator
 (`:1035-1045`; `toke.c:6810-6814`) because `foo` may be a call. Most of the rest of
 the function (`:1073-1188`) exists to avoid false signals from inside strings —

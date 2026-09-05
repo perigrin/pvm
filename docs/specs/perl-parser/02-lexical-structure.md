@@ -1472,7 +1472,7 @@ not yet charged to `CopLINE`. It is incremented per body line
 (`toke.c:11782`, `11813`, `11824`, `11911`) and decremented once at
 `toke.c:11802` because the indented scan overshoots onto the terminator line.
 The debt is settled by `COPLINE_INC_WITH_HERELINES` (`toke.c:390-397`) at each
-real end-of-line. `PL_multi_start = origline + 1 + herelines` (`toke.c:11719`)
+real end-of-line. `PL_multi_start = origline + 1 + herelines` (`toke.c:11720`)
 is set *before* scanning, which is what makes a second heredoc on the same line
 start after the first one's body.
 
@@ -1763,7 +1763,7 @@ guards, both carrying the comment *"or `s###` is misparsed"*:
 | `{` | `}` |
 | `<` | `>` |
 
-With a bracketing delimiter, the scanner tracks depth (`toke.c:12429`,
+With a bracketing delimiter, the scanner tracks depth (`toke.c:12430`,
 `12464-12500`): `int brackets = 1`, an inner open bracket increments
 (`toke.c:12492-12497`), a close decrements, and the literal ends when depth
 reaches zero (`toke.c:12466-12468`). Depth tracking is enabled only when
