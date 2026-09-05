@@ -622,7 +622,9 @@ on the whole tree after each parse. Justification: `Analyze` is a bottom-up
 walk over an in-memory tree with no I/O, and for 40,000 nodes that is a
 few milliseconds. It fits the budget. If it stops fitting, the fix is to make
 `Analyze` incremental per-sub — a much later project — not to patch a byte-keyed
-map. Note that this *is* the budget's tightest constraint; see §6.9.
+map. Measured, `Analyze` is 0.5-2 ms against a parse of 6-500 ms on the same
+files, so it is nowhere near the tightest constraint; see §6.10.2 and
+00-findings §0.8.
 
 The exception is `ProjectIndex` (`internal/infer/project.go`): cross-file
 analysis triggered from `walkUseStatement` (`infer.go:22-53`). Those results
@@ -1702,17 +1704,19 @@ re-parse. That costs correctness of caching, not milliseconds.
 1. **No allocation on the edit path.** Reuse buffers. `ApplyEdit`'s `cap`
    check exists for this. Set `GOGC=400` for the server process — heap is
    plentiful and GC pauses come straight out of budget.
-2. **Interned kind strings.** `Kind()` is called 99 times in PSC per…
-   frequently. Returning a `string` from a `[]string` indexed by `KindID` is a
-   pointer load. Building strings per call would dominate the walk.
+2. **Interned kind strings.** PSC calls `Kind()` at 95 sites and once per node
+   visited, so it runs constantly. Returning a `string` from a `[]string`
+   indexed by a `KindID` is a pointer load; building a string per call would
+   dominate the walk.
 3. **Arena-allocated nodes.** 40,000 individual allocations per parse is
    ~4 ms of GC pressure alone. One slice, one allocation.
 4. **No rope.** §6.2.1.
-5. **PSC must eventually be incremental.** The path: key annotations by
-   *node identity* rather than byte offset, so untouched subtrees keep their
-   types across a splice. That is a change to `infer.go`'s
-   `map[uint32]types.Type`, and it is the single highest-value follow-up in
-   this whole chapter.
+5. **PSC's annotation map is byte-keyed, so nothing survives a splice.** The
+   fix is to key by *node identity* rather than byte offset, changing
+   `infer.go`'s `map[uint32]types.Type`. This is a correctness-of-caching
+   problem, not a latency one — at 0.5-2 ms `Analyze` already fits — so it is
+   worth doing only once the parser is fast enough for reuse to matter. See
+   §6.10.5.
 6. **Degrade explicitly above a threshold.** perl-lsp has
    `max_file_size_bytes()` and skips parsing beyond it
    (`text_sync.rs:126-140`). Do the same, but degrade rather than refuse:

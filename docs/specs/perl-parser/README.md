@@ -23,7 +23,7 @@ is the definition, the other two are approximations of it.
 | 1 | [Scope and goals](01-scope.md) | 133 | Constraints, and the three metrics kept distinct throughout |
 | 2 | [Lexical structure](02-lexical-structure.md) | 2,499 | Tokens, literals, quote-like operators, heredocs |
 | 3 | [The lexer feedback problem](03-lexer-feedback.md) | 987 | `PL_expect`, prototypes, what is undecidable |
-| 4 | [Expression grammar](04-expressions.md) | 1,652 | 33 precedence levels, the Pratt tables |
+| 4 | [Expression grammar](04-expressions.md) | 1,652 | 32 precedence levels, the Pratt tables |
 | 5 | [Statements and declarations](05-statements.md) | 2,595 | Program structure, recovery, re-parse anchors |
 | 6 | [Incremental parsing and LSP](06-incremental-lsp.md) | 1,817 | The architecture, the latency budget |
 | 7 | [Conformance](07-conformance.md) | 1,647 | The milestone ladder and how "done" is measured |

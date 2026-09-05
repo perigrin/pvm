@@ -46,7 +46,7 @@ block, verbatim from `perly.y`, is:
 %left PERLY_BRACKET_OPEN PERLY_BRACE_OPEN     /* 183 */
 ```
 
-Everything in §4.1 is derived from those 33 lines. Where PerlOnJava or perl-lsp
+Everything in §4.1 is derived from those 32 lines. Where PerlOnJava or perl-lsp
 disagrees, this chapter follows `perly.y` and flags the disagreement — those
 flags are collected in §4.13.
 
@@ -74,7 +74,7 @@ implementer:
 
 ## 4.1 The complete precedence table
 
-Levels are numbered from loosest (1) to tightest (33), matching `perly.y`
+Levels are numbered from loosest (1) to tightest (32), matching `perly.y`
 declaration order. The **BP** column is the binding power recommended for a Go
 Pratt parser (§4.2); it is `level * 10`, leaving room to insert.
 
@@ -767,9 +767,13 @@ elsewhere:
    `print {1,2}` is ambiguous with the same heuristic as §4.4.4.
 3. **It changes the arity silently.** `new Foo 1, 2, 3` swallows to the end of
    the statement, `new Foo(1), 2` does not (§4.8).
-4. **It interacts with `use strict`.** Under `strict subs`, some but not all
-   indirect object forms become errors, so the same source parses differently
-   depending on pragmas in scope.
+4. **It is gated by the `indirect` feature, not by `use strict`.** Measured on
+   5.42: `use strict` does *not* disable it — `my $o = new Foo;` still parses
+   and runs under `use strict`. What disables it is turning off the `indirect`
+   feature, which `use v5.36` and later bundles do; `S_intuit_method` then
+   returns 0 immediately (`toke.c:5071`) and `new Foo` becomes a syntax error.
+   See 00-findings §0.2. So the pragma that matters is the version declaration
+   or an explicit `no feature 'indirect'`, and a lexer must track that bit.
 
 Recommendation: parse it, produce an `IndirectMethod` node, and mark it
 `Ambiguous: true`. Let PSC decline to infer through it rather than guess.
@@ -1352,8 +1356,8 @@ where the cascade order matches `perly.y`, and it does. Two observations:
   it left associative, so perl-lsp silently accepts `1 .. 2 .. 3`, which real
   perl rejects with `syntax error ... near "2 .."` (verified on 5.42).
 
-For a Go implementation, prefer the table (§4.2) over a cascade: 33 levels is
-33 functions to keep in the right order, and the two bugs above are exactly the
+For a Go implementation, prefer the table (§4.2) over a cascade: 32 levels is
+32 functions to keep in the right order, and the two bugs above are exactly the
 kind that a cascade invites and a table prevents.
 
 ### 4.13.8 Summary
@@ -1585,7 +1589,7 @@ context-polymorphic rather than trying to pick a branch.
 
 ## 4.16 Checklist for the implementer
 
-- [ ] Encode the 33 levels of §4.2 as a table, not a function cascade.
+- [ ] Encode the 32 levels of §4.2 as a table, not a function cascade.
 - [ ] Left-assoc passes `BP`, right-assoc passes `BP-1`; loop breaks on `<=`.
 - [ ] `AssocNone` levels (`..`, `...`, named unaries, `++`/`--`) reject a
       second occurrence at the same level rather than silently associating.
