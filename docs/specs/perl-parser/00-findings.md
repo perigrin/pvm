@@ -139,10 +139,34 @@ little of it was ever about the language:
 |---|---:|
 | Missing module / `@INC` | 167 |
 | Version or feature skew | 1 |
-| **Genuine syntax error** | **1** — `op/for-many.t`, §0.6 |
+| **Genuine syntax error** | **≥ 2** — see below |
 | Other (exit status, timeouts) | 16 |
 
-**One file in 620 fails for a reason about Perl.**
+**Roughly two files in 620 fail for a reason about Perl** — and that is a lower
+bound, for a reason worth stating.
+
+`perl -c` reports **one** error and stops. A classifier reading its stderr
+therefore sees only the *first* failure in each file, and a cheap early failure
+masks whatever is behind it. `t/op/signatures.t` fails at line 32 with
+`Unknown warnings category 'experimental::signature_named_parameters'` — feature
+skew. Delete that pragma and it fails again at line 927:
+
+```perl
+sub tnamed01 (:$alpha, :$beta) { ... }   # named parameters in signatures
+```
+```
+A signature parameter must start with '$', '@' or '%' ... near "(:"
+```
+
+Blead-only syntax, and a genuine parse failure on 5.42. It was filed as feature
+skew only because the pragma error came first. `op/for-many.t` (§0.7) is the
+other.
+
+**The method matters more than the count.** One-error-per-file makes this a
+lower bound on syntax errors and an upper bound on environmental ones; seeing
+past the first failure means fixing it and re-running. The conclusion — that
+these failures are overwhelmingly environmental rather than linguistic —
+survives. The exact figure does not.
 
 Two consequences for the harness. It must classify stderr: an exit status
 cannot distinguish "your parser is wrong" from "this machine lacks

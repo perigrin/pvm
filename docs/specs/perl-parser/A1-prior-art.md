@@ -240,10 +240,27 @@ is a keyword.
 
 ### A1.1.6 What PerlOnJava got right
 
-1. **The precedence table, verbatim.** `ParserTables.java:321-347` is 24
-   levels, from `or`/`xor` at 1 to `->` at 24, plus a `RIGHT_ASSOC_OP` set.
-   It is the cleanest transcription of `perlop` in either repository and
-   drops straight into a Pratt parser. Copy it as data.
+1. **The precedence table as a *shape*, not as data.** `ParserTables.java:321-347`
+   is 24 levels, from `or`/`xor` at 1 to `->` at 24, plus a `RIGHT_ASSOC_OP`
+   set. The *design* is right — precedence as a table rather than a function
+   cascade — and Chapter 4 recommends the same structure for exactly that
+   reason.
+
+   **Do not copy the contents.** Chapter 4 §4.13 documents four errors in this
+   table, verified against `perl -MO=Deparse,-p` on 5.42. The worst is
+   `ParserTables.java:338`:
+
+   ```java
+   addOperatorsToMap(16, "-d");        // file tests at 16, below "." at 18
+   ```
+
+   Perl puts file tests at level 19, *above* concatenation, so `-e $f . '.bak'`
+   is `-e($f . '.bak')` — measured. PerlOnJava's level would group it as
+   `(-e $f) . '.bak'`. The line also registers only `-d`, omitting the other 25
+   file-test operators.
+
+   Take the table from `perly.y:150-182` (32 levels), which Chapter 4 §4.2
+   already transcribes. Take the *idea* of a table from here.
 
 2. **Prototype-driven argument parsing as its own module.**
    `PrototypeArgs.java` (1,506 lines) takes a prototype string and parses
@@ -944,7 +961,7 @@ internal/
 ├── parser/          # Recursive descent + Pratt
 │   ← perl-parser-core/engine/parser (~15,000 of its 43,168)
 │   parser.go        driver, parseContext struct (NOT 15 bool fields)
-│   precedence.go    24-level table ← PerlOnJava ParserTables verbatim
+│   precedence.go    32-level table ← perly.y:150-182 (NOT PerlOnJava, see A1.1.6)
 │   expr.go          primary / postfix / unary / infix
 │   stmt.go          statements, modifiers, phase blocks
 │   decl.go          my/our/state/local, sub, package, class/field/method
@@ -1198,9 +1215,12 @@ checking file by file rather than in bulk.
    ~30, with only 1 of 4 goals met after 18 months. Ten Go packages, not
    forty. Architectural seams are not distribution units.
 
-4. **Copy the heredoc FIFO queue and the precedence table verbatim.** Both
-   are small, both are solved, both are in the appendix above. ~850 lines
-   you do not have to design.
+4. **Copy the heredoc FIFO queue's design; take precedence from `perly.y`.**
+   The heredoc queue is small, solved, and in the appendix above. The
+   precedence *structure* — a table, not a function cascade — is worth copying
+   too, but its *contents* must come from `perly.y:150-182`, not from
+   PerlOnJava's table, which Chapter 4 §4.13 shows has four measured errors
+   (A1.1.6). ~850 lines you do not have to design, none of it copied blind.
 
 5. **Budget ~25,000 lines for the parser.** Two independent teams in
    different languages converged there (24,003 and ~28,000). Plan around it
