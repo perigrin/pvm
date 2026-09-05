@@ -2860,7 +2860,7 @@ even and adding implicit `use strict` at ≥5.12 and `use warnings` at ≥5.35
 **Prefer PerlOnJava's approach**, with a caveat. Parsing the superset is
 attractive and it is what perl-lsp chose, but it means you can never report
 "`class` used without `use feature 'class'`", and — more importantly — you
-cannot resolve the prototype-versus-signature ambiguity of §5.18.1, which is not
+cannot resolve the prototype-versus-signature ambiguity of §5.18 item 1, which is not
 optional. The caveat: where a keyword could plausibly be a sub call
 (`try { } catch { };` under `Try::Tiny`), check the pad for a sub of that name
 before committing to the statement form.
