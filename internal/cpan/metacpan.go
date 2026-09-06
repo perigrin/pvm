@@ -625,7 +625,7 @@ func (p *MetaCPANProvider) GetModuleVersions(ctx context.Context, moduleName str
 	}
 
 	// Query MetaCPAN for all releases of this module
-	endpoint := fmt.Sprintf("/release/_search?q=name:%s&fields=version,status&size=100&sort=version:desc", url.QueryEscape(moduleName))
+	endpoint := fmt.Sprintf("/release/_search?q=name:%s&_source=version,status&size=100&sort=version:desc", url.QueryEscape(moduleName))
 	requestURL := p.baseURL + endpoint
 
 	// Make the request
@@ -963,7 +963,7 @@ func (p *MetaCPANProvider) GetPerlCoreVersionsWithDev(ctx context.Context, inclu
 	// Query MetaCPAN for Perl core releases
 	// Use the release endpoint to search for distributions named "perl"
 	// Include maturity and authorized fields to filter out RCs and unauthorized releases
-	endpoint := "/release/_search?q=distribution:perl&fields=version,date,maturity,authorized&size=100&sort=date:desc"
+	endpoint := "/release/_search?q=distribution:perl&_source=version,date,maturity,authorized&size=100&sort=date:desc"
 	requestURL := p.baseURL + endpoint
 
 	// Make the request
@@ -1022,12 +1022,12 @@ func (p *MetaCPANProvider) GetPerlCoreVersionsWithDev(ctx context.Context, inclu
 	var searchResponse struct {
 		Hits struct {
 			Hits []struct {
-				Fields struct {
+				Source struct {
 					Version    string `json:"version"`
 					Date       string `json:"date"`
 					Maturity   string `json:"maturity"`
 					Authorized bool   `json:"authorized"`
-				} `json:"fields"`
+				} `json:"_source"`
 			} `json:"hits"`
 		} `json:"hits"`
 	}
@@ -1047,9 +1047,9 @@ func (p *MetaCPANProvider) GetPerlCoreVersionsWithDev(ctx context.Context, inclu
 	seen := make(map[string]bool)
 
 	for _, hit := range searchResponse.Hits.Hits {
-		version := hit.Fields.Version
-		maturity := hit.Fields.Maturity
-		authorized := hit.Fields.Authorized
+		version := hit.Source.Version
+		maturity := hit.Source.Maturity
+		authorized := hit.Source.Authorized
 
 		// Skip unauthorized releases entirely
 		if !authorized {
