@@ -5,13 +5,90 @@ package parseoracle_test
 
 import (
 	"context"
+	"flag"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"tamarou.com/pvm/internal/parseoracle"
 )
+
+// corpusSweep opts into the full 620-file measurement. It is a flag rather
+// than the default because an AC bounds the default run at ten seconds, and
+// the whole corpus needs rather more than that.
+var corpusSweep = flag.Bool("parseoracle.corpus", false,
+	"run the oracle across the whole perl5 corpus and print the fidelity table")
+
+// TestCorpusSweep is the milestone's deliverable: how often our parser agrees
+// with perl across perl's own test suite. Opt in with
+//
+//	go test ./internal/parseoracle/ -run TestCorpusSweep -parseoracle.corpus -v
+//
+// A shim is built into a temp dir, because t/test.pl clears @INC and unshifts
+// ../lib: without a populated shim, 498 of 620 files report false failures.
+// $PARSEORACLE_SHIM reuses an already-built one.
+func TestCorpusSweep(t *testing.T) {
+	if !*corpusSweep {
+		t.Skip("full corpus sweep: pass -parseoracle.corpus")
+	}
+
+	shim := os.Getenv("PARSEORACLE_SHIM")
+	if shim == "" {
+		root := corpusRoot(t)
+		shim = t.TempDir()
+		if err := parseoracle.BuildShim(root, shim); err != nil {
+			t.Fatalf("BuildShim: %v", err)
+		}
+	}
+	shimT := filepath.Join(shim, "t")
+
+	// Paths are relative to the shim's t/, matching how perl's tests refer to
+	// each other and how the report's file names read.
+	var files []string
+	err := filepath.WalkDir(shimT, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(path, ".t") {
+			rel, err := filepath.Rel(shimT, path)
+			if err != nil {
+				return err
+			}
+			files = append(files, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking the corpus: %v", err)
+	}
+	sort.Strings(files)
+
+	start := time.Now()
+	report, err := parseoracle.Run(context.Background(), files,
+		parseoracle.RunOptions{Dir: shimT})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	elapsed := time.Since(start)
+
+	t.Logf("full corpus run: %d files in %s across %d workers\n%s",
+		len(files), elapsed.Round(time.Millisecond), runtime.NumCPU(), report)
+
+	// A ceiling on WRONG is not enough on its own -- see ExactRate's comment.
+	// Both are asserted so a failure names which one moved.
+	if wrong := report.Wrong(); len(wrong) > 0 {
+		t.Errorf("%d file(s) committed to a parse perl did not make: %v", len(wrong), wrong)
+	}
+	if rate := report.ExactRate(); rate <= 0 {
+		t.Errorf("exact rate is %v: a parser that never agrees exactly is not "+
+			"vindicated by a WRONG count of zero", rate)
+	}
+}
 
 // fixtureCorpus is the five-file corpus the default test run measures. It is
 // deliberately tiny: the full 620-file sweep is opt-in, because an AC requires
