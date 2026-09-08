@@ -52,7 +52,9 @@ func TestGetBuiltinPush(t *testing.T) {
 	sig, ok := types.GetBuiltin("push")
 	require.True(t, ok, "push should be a known builtin")
 	assert.Equal(t, 2, sig.MinArity)
-	assert.Equal(t, []types.Type{types.Array, types.Any}, sig.ArgTypes)
+	// The second position is LIST, not Any: everything flattens into it, so it
+	// accepts every value Any did while still excluding Code and Glob.
+	assert.Equal(t, []types.Type{types.Array, types.List}, sig.ArgTypes)
 	assert.Equal(t, types.Int, sig.ReturnType)
 }
 
@@ -62,7 +64,9 @@ func TestGetBuiltinSplit(t *testing.T) {
 	sig, ok := types.GetBuiltin("split")
 	require.True(t, ok, "split should be a known builtin")
 	assert.Equal(t, 0, sig.MinArity)
-	assert.Equal(t, []types.Type{types.Regex, types.Str, types.Int}, sig.ArgTypes)
+	// The pattern position takes a compiled Regex or a plain Str — perl
+	// compiles a string into a pattern, so `split ":", $x` is ordinary Perl.
+	assert.Equal(t, []types.Type{types.Regex | types.Str, types.Str, types.Int}, sig.ArgTypes)
 	assert.Equal(t, types.List, sig.ReturnType)
 }
 

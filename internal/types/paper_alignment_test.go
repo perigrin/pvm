@@ -50,36 +50,6 @@ func TestPaperDualVarExclusion(t *testing.T) {
 		"DualVar IS a subtype of Scalar — maintains identity through scalar operations")
 }
 
-// --- NaN exclusion ---
-// The paper proves NaN sits in Scalar but outside Str and Num.
-// "NaN" passes syntactic preservation for Num ("NaN" -> NaN -> "NaN" round-trips)
-// but fails semantic fulfillment (NaN != NaN violates reflexivity).
-// NaN is excluded from Str because its string representation is a representational
-// artifact, not a meaningful string identity.
-
-func TestPaperNaNExclusion(t *testing.T) {
-	assert.False(t, types.IsSubtype(types.NaN, types.Num),
-		"NaN is NOT a subtype of Num — fails semantic fulfillment (NaN != NaN)")
-	assert.False(t, types.IsSubtype(types.NaN, types.Str),
-		"NaN is NOT a subtype of Str — 'NaN' is a representational artifact")
-	assert.True(t, types.IsSubtype(types.NaN, types.Scalar),
-		"NaN IS a subtype of Scalar")
-}
-
-// --- Inf exclusion ---
-// Inf sits in Scalar but outside Str and Num, same lattice position as NaN.
-// Inf passes syntactic preservation but fails semantic fulfillment
-// (Inf - Inf = NaN violates subtraction identity).
-
-func TestPaperInfExclusion(t *testing.T) {
-	assert.False(t, types.IsSubtype(types.Inf, types.Num),
-		"Inf is NOT a subtype of Num — Inf - Inf = NaN violates subtraction identity")
-	assert.False(t, types.IsSubtype(types.Inf, types.Str),
-		"Inf is NOT a subtype of Str — 'Inf' is a representational artifact")
-	assert.True(t, types.IsSubtype(types.Inf, types.Scalar),
-		"Inf IS a subtype of Scalar")
-}
-
 // --- NaN and Inf are distinct ---
 
 func TestPaperNaNInfDistinct(t *testing.T) {
@@ -91,32 +61,36 @@ func TestPaperNaNInfDistinct(t *testing.T) {
 		"NaN and Inf occupy different bit positions")
 }
 
-// --- Blessed reference unions ---
-// The paper says a blessed hashref satisfies both Object AND HashRef.
-// In the bitset, Object|HashRef is a union type representing this.
+// --- Unions are an EITHER, never a both ---
+// A union type is the value that came out of a merge: it is one of its
+// members, and PSC does not know which. Object|HashRef arises where one arm
+// gave a blessed reference and the other a plain hashref.
+//
+// Perl keeps those apart. Measured on 5.42, `ref` reports the class for a
+// blessed reference and HASH for a plain one, and `blessed` is defined for
+// exactly one of them — so no value inhabits both, and a union of the two
+// cannot be treated as a value that satisfies both.
 
-func TestPaperBlessedRefUnion(t *testing.T) {
-	blessedHashRef := types.Object | types.HashRef
+func TestPaperUnionIsEither(t *testing.T) {
+	objOrHash := types.Object | types.HashRef
 
-	// A blessed hashref is a subtype of Ref
-	assert.True(t, types.IsSubtype(blessedHashRef, types.Ref),
-		"Object|HashRef is a subtype of Ref")
-
-	// A blessed hashref is a subtype of Scalar
-	assert.True(t, types.IsSubtype(blessedHashRef, types.Scalar),
+	// Every member is a Ref, so the union is a Ref.
+	assert.True(t, types.IsSubtype(objOrHash, types.Ref),
+		"Object|HashRef is a subtype of Ref — both members are references")
+	assert.True(t, types.IsSubtype(objOrHash, types.Scalar),
 		"Object|HashRef is a subtype of Scalar")
 
-	// A blessed hashref satisfies Object requirements
-	assert.True(t, types.TypeSatisfies(blessedHashRef, types.Object),
-		"Object|HashRef satisfies Object — can call methods")
+	// But it satisfies NEITHER member requirement: the value might be the
+	// other one. Calling a method on it is unsound if it is the plain
+	// hashref, and dereferencing it as a hash is unsound if it is the object.
+	assert.False(t, types.TypeSatisfies(objOrHash, types.Object),
+		"Object|HashRef does NOT satisfy Object — the value might be the plain hashref")
+	assert.False(t, types.TypeSatisfies(objOrHash, types.HashRef),
+		"Object|HashRef does NOT satisfy HashRef — the value might be the object")
 
-	// A blessed hashref satisfies HashRef requirements
-	assert.True(t, types.TypeSatisfies(blessedHashRef, types.HashRef),
-		"Object|HashRef satisfies HashRef — can dereference as hash")
-
-	// A blessed hashref satisfies Ref requirements
-	assert.True(t, types.TypeSatisfies(blessedHashRef, types.Ref),
-		"Object|HashRef satisfies Ref")
+	// It does satisfy a requirement every member meets.
+	assert.True(t, types.TypeSatisfies(objOrHash, types.Ref),
+		"Object|HashRef satisfies Ref — every member is a reference")
 }
 
 // --- Bottom and top type properties ---
@@ -148,4 +122,224 @@ func TestPaperBottomTopTypes(t *testing.T) {
 		"Any should contain NaN")
 	assert.True(t, types.Any&types.Inf == types.Inf,
 		"Any should contain Inf")
+}
+
+// --- NaN and Inf are Str, not Num (paper §"Example 3", line 2102) ---
+// The paper places NaN and Inf in Str: both pass syntactic preservation
+// ("NaN" -> NaN -> "NaN" round-trips) and are excluded from Num by the
+// SEMANTIC component alone. Example 3 states it directly: "NaN" ∈ Str
+// because it satisfies both the syntactic and semantic requirements for
+// string membership. The contract table distinguishes them — NaN fails
+// Contract_==, Contract_- and Contract_+; Inf fails Contract_- alone.
+
+func TestPaperNaNInfAreStrings(t *testing.T) {
+	assert.True(t, types.IsSubtype(types.NaN, types.Str),
+		"NaN IS a subtype of Str — stable string representation, correct under string operations")
+	assert.True(t, types.IsSubtype(types.Inf, types.Str),
+		"Inf IS a subtype of Str — stable string representation, correct under string operations")
+
+	assert.False(t, types.IsSubtype(types.NaN, types.Num),
+		"NaN is NOT a subtype of Num — fails Contract_== (NaN != NaN) and Contract_-")
+	assert.False(t, types.IsSubtype(types.Inf, types.Num),
+		"Inf is NOT a subtype of Num — passes Contract_== but fails Contract_- (Inf - Inf = NaN)")
+}
+
+// --- Arity ordering: Scalar <: List (paper §"Complete Type Hierarchy") ---
+// Scalar, Void and List are distinguished by how many values they denote, and
+// the subtype relation between them is subset inclusion on those arities:
+// Scalar {1} ⊆ List {0,1,2,...} gives Scalar <: List. This states Perl's
+// list-flattening rule as a subtype fact: a scalar satisfies a list position
+// BECAUSE one value is one of the arities a list admits.
+
+func TestPaperArityOrdering(t *testing.T) {
+	assert.True(t, types.IsSubtype(types.Scalar, types.List),
+		"Scalar <: List — {1} is one of the arities a list admits (list flattening)")
+	assert.True(t, types.IsSubtype(types.Array, types.List),
+		"Array <: List")
+	assert.True(t, types.IsSubtype(types.Hash, types.List),
+		"Hash <: List")
+	assert.True(t, types.IsSubtype(types.Int, types.List),
+		"Int <: List — transitive through Num, Str, Scalar")
+
+	// List is NOT a subtype of Scalar: {0,1,2,...} is not contained in {1}.
+	assert.False(t, types.IsSubtype(types.List, types.Scalar),
+		"List is NOT a subtype of Scalar — a list may denote zero or many values")
+}
+
+// --- Regex <: Object <: Ref (paper §"Regex") ---
+// Regex := {v ∈ Object | ref(v) eq 'Regexp'}. A compiled pattern is a blessed
+// reference — ref is 'Regexp', blessed is 'Regexp', reftype is 'REGEXP' — which
+// is this paper's definition of Object. So Regex is a subtype of Object rather
+// than a sibling of Ref, and it participates in method dispatch.
+
+func TestPaperRegexIsObject(t *testing.T) {
+	assert.True(t, types.IsSubtype(types.Regex, types.Object),
+		"Regex <: Object — a compiled pattern is a blessed reference")
+	assert.True(t, types.IsSubtype(types.Regex, types.Ref),
+		"Regex <: Ref — transitive through Object")
+	assert.True(t, types.IsSubtype(types.Object, types.Ref),
+		"Object <: Ref")
+
+	// Regex is NOT a Str: syntactic preservation fails because qr// applied to
+	// a stringified pattern NESTS it rather than reconstructing the original.
+	assert.False(t, types.IsSubtype(types.Regex, types.Str),
+		"Regex is NOT a subtype of Str — restringifying a pattern wraps it, losing the value")
+}
+
+// --- Every edge in the paper's hierarchy ---
+// The paper's %PARENT table (appendix-a/lattice-check.pl) is the canonical
+// edge list, and the "Complete Type Hierarchy" section draws the same tree.
+// Testing only the edges a change happened to touch leaves the rest of the
+// lattice unverified, so this table walks every edge PSC can represent.
+//
+// Types the paper defines but PSC's bitset does not model are listed in
+// paperTypesNotModelled below rather than silently omitted.
+
+func TestPaperEveryHierarchyEdge(t *testing.T) {
+	edges := []struct {
+		child, parent types.Type
+	}{
+		// Arity ordering: List is the top of the value hierarchy.
+		{types.Scalar, types.List},
+		{types.Array, types.List},
+		{types.Hash, types.List},
+
+		// Scalar branch.
+		{types.Undef, types.Scalar},
+		{types.Str, types.Scalar},
+		{types.Bool, types.Scalar},
+		{types.DualVar, types.Scalar},
+		{types.Ref, types.Scalar},
+
+		// Str branch.
+		{types.Num, types.Str},
+		{types.Int, types.Num},
+		{types.NaN, types.Str},
+		{types.Inf, types.Str},
+
+		// Ref branch.
+		{types.Object, types.Ref},
+		{types.Regex, types.Object},
+		{types.ScalarRef, types.Ref},
+		{types.ArrayRef, types.Ref},
+		{types.HashRef, types.Ref},
+		{types.CodeRef, types.Ref},
+		{types.GlobRef, types.Ref},
+
+		// Top-level types: not under Scalar or List.
+		{types.Code, types.Any},
+		{types.Glob, types.Any},
+	}
+
+	for _, e := range edges {
+		assert.True(t, types.IsSubtype(e.child, e.parent),
+			"paper edge %s <: %s should hold", e.child, e.parent)
+	}
+}
+
+// TestPaperEdgesAreProper verifies each edge is a PROPER subtype relation:
+// the parent must not also be a subtype of the child. A lattice where both
+// directions hold has collapsed the two types into one, which the containment
+// check alone would not catch.
+
+func TestPaperEdgesAreProper(t *testing.T) {
+	pairs := []struct {
+		child, parent types.Type
+	}{
+		{types.Int, types.Num},
+		{types.Num, types.Str},
+		{types.Str, types.Scalar},
+		{types.Scalar, types.List},
+		{types.Regex, types.Object},
+		{types.Object, types.Ref},
+		{types.Ref, types.Scalar},
+		{types.Array, types.List},
+		{types.Hash, types.List},
+	}
+
+	for _, p := range pairs {
+		assert.True(t, types.IsSubtype(p.child, p.parent),
+			"%s <: %s", p.child, p.parent)
+		assert.False(t, types.IsSubtype(p.parent, p.child),
+			"%s is NOT a subtype of %s — the relation must be proper, not an alias",
+			p.parent, p.child)
+	}
+}
+
+// TestPaperNonEdges verifies pairs the paper's tree keeps APART. Sibling
+// branches must not be related in either direction: a bitset lattice makes
+// accidental containment easy, and only negative assertions catch it.
+
+func TestPaperNonEdges(t *testing.T) {
+	// Aggregates are not scalars, and scalars are not aggregates.
+	assert.False(t, types.IsSubtype(types.Array, types.Scalar),
+		"Array is NOT a Scalar — different arity")
+	assert.False(t, types.IsSubtype(types.Hash, types.Scalar),
+		"Hash is NOT a Scalar — different arity")
+
+	// Code and Glob sit beside List, not under Scalar.
+	assert.False(t, types.IsSubtype(types.Code, types.Scalar),
+		"Code is NOT a Scalar — a CV is not a scalar value")
+	assert.False(t, types.IsSubtype(types.Glob, types.Scalar),
+		"Glob is NOT a Scalar")
+	assert.False(t, types.IsSubtype(types.Code, types.List),
+		"Code is NOT under List")
+	assert.False(t, types.IsSubtype(types.Glob, types.List),
+		"Glob is NOT under List")
+
+	// Glob and GlobRef are distinct: a bareword filehandle is a Glob, a
+	// lexical one (open my $fh) is a GlobRef. One operand requirement
+	// cannot cover both.
+	assert.False(t, types.IsSubtype(types.Glob, types.GlobRef),
+		"Glob is NOT a GlobRef — bareword and lexical filehandles differ")
+	assert.False(t, types.IsSubtype(types.GlobRef, types.Glob),
+		"GlobRef is NOT a Glob")
+
+	// Code (the CV) and CodeRef (a reference to one) are likewise distinct.
+	assert.False(t, types.IsSubtype(types.Code, types.CodeRef),
+		"Code is NOT a CodeRef — the CV itself cannot live in a scalar slot")
+	assert.False(t, types.IsSubtype(types.CodeRef, types.Code),
+		"CodeRef is NOT a Code")
+
+	// Sibling reference types are mutually unrelated.
+	refSiblings := []types.Type{
+		types.ScalarRef, types.ArrayRef, types.HashRef, types.CodeRef, types.GlobRef,
+	}
+	for i, a := range refSiblings {
+		for j, b := range refSiblings {
+			if i == j {
+				continue
+			}
+			assert.False(t, types.IsSubtype(a, b),
+				"%s and %s are sibling reference types, not related", a, b)
+		}
+	}
+
+	// Undef, Bool and DualVar are siblings of Str under Scalar, not under it.
+	for _, sibling := range []types.Type{types.Undef, types.Bool, types.DualVar} {
+		assert.False(t, types.IsSubtype(sibling, types.Str),
+			"%s is NOT under Str — it is a sibling of Str beneath Scalar", sibling)
+		assert.True(t, types.IsSubtype(sibling, types.Scalar),
+			"%s IS under Scalar", sibling)
+	}
+}
+
+// TestPaperTypesNotModelled documents the paper types PSC's bitset does not
+// represent. This is a record of known, deliberate incompleteness rather than
+// a silent gap: if one of these is added later, this test is where the edge
+// assertions belong.
+//
+// Void      — arity 0, the type of a void-context computation. PSC has no
+//             arity-0 type; Unknown stands in for "no value inferred".
+// VString   — v-strings (Str carrying 'V' magic).
+// LValueRef — \substr($s,0,2), which writes a RANGE rather than a whole scalar.
+// IO        — the object in a glob's IO slot, one level below a GlobRef.
+// Format    — a write() template, the FORMAT glob slot.
+//
+// Boolean is spelled Bool in PSC and IS modelled; the name differs, not the
+// placement.
+
+func TestPaperTypesNotModelled(t *testing.T) {
+	t.Log("Paper types absent from the PSC bitset: Void, VString, LValueRef, IO, Format")
+	t.Log("Adding any of them requires a new leaf bit plus its edge assertions above")
 }

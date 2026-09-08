@@ -219,6 +219,56 @@ func saveRegistryFunc(registry *VersionRegistry) error {
 // allowing it to be replaced in tests
 var SaveRegistry = saveRegistryFunc
 
+// installIdentity returns the key that identifies a distinct install:
+// version + install path + remote. Two entries with the same identity are the
+// same install and must not both appear in the registry (#471). The install
+// path is cleaned so trailing-slash or relative variants of the same directory
+// compare equal (it does not resolve symlinks, which are deliberately distinct
+// installs).
+func installIdentity(v VersionInfo) [3]string {
+	return [3]string{v.Version, filepath.Clean(v.InstallPath), v.Remote}
+}
+
+// deduplicateRegistryEntries collapses entries that share an install identity,
+// keeping one per identity. It returns the number of entries removed. Distinct
+// installs (different version, path, or remote) are preserved.
+func deduplicateRegistryEntries(registry *VersionRegistry) int {
+	seen := make(map[[3]string]bool, len(registry.Versions))
+	removed := 0
+	// Which duplicate survives depends on map iteration order, but that is
+	// immaterial: entries sharing an install identity describe the same
+	// on-disk install, so their metadata is equivalent and any one is a
+	// correct representative.
+	for key, v := range registry.Versions {
+		id := installIdentity(v)
+		if seen[id] {
+			delete(registry.Versions, key)
+			removed++
+			continue
+		}
+		seen[id] = true
+	}
+	return removed
+}
+
+// DeduplicateRegistry loads the registry, removes duplicate entries, and saves
+// it if any were removed. Returns the number of duplicates removed. Used by
+// `pvm self doctor` to clean up registries that accumulated duplicates before
+// RegisterVersion became idempotent (#471).
+func DeduplicateRegistry() (int, error) {
+	registry, err := LoadRegistry()
+	if err != nil {
+		return 0, err
+	}
+	removed := deduplicateRegistryEntries(registry)
+	if removed > 0 {
+		if err := SaveRegistry(registry); err != nil {
+			return 0, err
+		}
+	}
+	return removed, nil
+}
+
 // RegisterVersion adds a new Perl version to the registry
 func RegisterVersion(versionInfo VersionInfo) error {
 	// Validate version
@@ -239,7 +289,20 @@ func RegisterVersion(versionInfo VersionInfo) error {
 		return err
 	}
 
-	// Add to registry with new UUID (no duplicate checking)
+	// Update an existing entry for the same install rather than appending a
+	// duplicate. An install is identified by version + install path + remote,
+	// so distinct installs (e.g. a fork vs origin, or the same version at two
+	// paths) stay separate, but re-registering the same install after an
+	// install/uninstall cycle updates in place instead of accumulating
+	// duplicate entries that `pvm list` would show repeatedly (#471).
+	for key, existing := range registry.Versions {
+		if installIdentity(existing) == installIdentity(versionInfo) {
+			registry.Versions[key] = versionInfo
+			return SaveRegistry(registry)
+		}
+	}
+
+	// No existing entry; add a new one.
 	uuid := generateUUID()
 	registry.Versions[uuid] = versionInfo
 

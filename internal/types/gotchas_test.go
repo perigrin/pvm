@@ -98,17 +98,19 @@ func TestGotchaDualVarSemantics(t *testing.T) {
 }
 
 // --- NaN and Inf semantics ---
-// NaN and Inf are IEEE 754 special values that sit in Scalar but outside
-// both Str and Num. The type system must distinguish them for diagnostics.
+// NaN and Inf are IEEE 754 special values that belong to Str but not to Num.
+// They pass syntactic preservation and satisfy the string operation contracts;
+// the numeric contracts are what exclude them. The type system must
+// distinguish them from ordinary numbers for diagnostics.
 
 func TestGotchaNaNSemantics(t *testing.T) {
-	// NaN is Scalar but not Num or Str
+	// NaN is Str (and so Scalar) but not Num
 	assert.True(t, types.IsSubtype(types.NaN, types.Scalar),
 		"NaN is Scalar")
 	assert.False(t, types.IsSubtype(types.NaN, types.Num),
 		"NaN is NOT Num — NaN != NaN violates reflexivity")
-	assert.False(t, types.IsSubtype(types.NaN, types.Str),
-		"NaN is NOT Str — 'NaN' is a representational artifact")
+	assert.True(t, types.IsSubtype(types.NaN, types.Str),
+		"NaN IS Str — 'NaN' round-trips and behaves correctly under string operations")
 
 	// NaN does not satisfy Num or Int requirements
 	assert.False(t, types.TypeSatisfies(types.NaN, types.Num),
@@ -118,13 +120,13 @@ func TestGotchaNaNSemantics(t *testing.T) {
 }
 
 func TestGotchaInfSemantics(t *testing.T) {
-	// Inf is Scalar but not Num or Str
+	// Inf is Str (and so Scalar) but not Num
 	assert.True(t, types.IsSubtype(types.Inf, types.Scalar),
 		"Inf is Scalar")
 	assert.False(t, types.IsSubtype(types.Inf, types.Num),
 		"Inf is NOT Num — Inf - Inf = NaN violates subtraction identity")
-	assert.False(t, types.IsSubtype(types.Inf, types.Str),
-		"Inf is NOT Str — 'Inf' is a representational artifact")
+	assert.True(t, types.IsSubtype(types.Inf, types.Str),
+		"Inf IS Str — 'Inf' round-trips and behaves correctly under string operations")
 
 	// Inf does not satisfy Num or Int requirements
 	assert.False(t, types.TypeSatisfies(types.Inf, types.Num),

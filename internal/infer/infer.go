@@ -62,6 +62,66 @@ func walkUseStatement(node *parser.Node, source []byte, idx *ProjectIndex) types
 // idx is an optional ProjectIndex for cross-file analysis. Pass nil for
 // single-file mode; use statements and fully-qualified calls are then ignored.
 func Analyze(tree *parser.Tree, source []byte, idx *ProjectIndex) (map[uint32]types.Type, []Diagnostic, *SymbolTable) {
+	return AnalyzeWithOptions(tree, source, idx, Options{})
+}
+
+// Options controls how analysis reports what it could not determine.
+type Options struct {
+	// Strict makes an un-inferred value satisfy nothing rather than
+	// everything. By default Unknown behaves as TypeScript's `any` — it
+	// passes every check, so the checker goes quiet exactly where it knows
+	// least. Under Strict it behaves as TypeScript's `unknown`: a value whose
+	// type could not be determined must be narrowed before it is used.
+	//
+	// There is ONE Unknown, and it is a status rather than a diagnosis. A
+	// value reaches it by two quite different routes:
+	//
+	//   the question was never asked — `unlink` has no entry in the builtin
+	//   signature table, so nothing was consulted and nothing came back. That
+	//   is a gap in PSC's knowledge and it is fixable by adding the entry.
+	//
+	//   the question was asked and has no answer — `my $line = <$T>` was
+	//   analysed and Perl does not determine the type statically. No table
+	//   will fix that; it is a property of the language.
+	//
+	// Inference can distinguish these AT THE POINT IT RUNS, because it knows
+	// whether it consulted anything. The stored Unknown cannot: once written
+	// it carries no record of the route, and every consumer sees the same
+	// value. Strict mode operates on the stored status, so it reports both
+	// alike — correctly, since for the purpose of "must this be narrowed
+	// before use?" the answer is yes either way.
+	//
+	// Telling the two apart in REPORTING would mean recording the route at
+	// inference time rather than splitting the type. That is worth doing —
+	// it separates a PSC to-do list from an irreducible property of Perl —
+	// and it is not what this flag does.
+	Strict bool
+}
+
+// satisfies reports whether actual satisfies required under opts.
+//
+// This is the single place strictness is applied, so the difference between
+// the two modes stays one function rather than a flag threaded through every
+// walk site.
+func (o Options) satisfies(actual, required types.Type) bool {
+	if o.Strict {
+		return types.TypeSatisfiesStrict(actual, required)
+	}
+	return types.TypeSatisfies(actual, required)
+}
+
+// skipUnknownOperand reports whether an operand of the given type should be
+// passed over without checking. Permissively an un-inferred operand is skipped
+// to avoid false positives; strictly it is exactly what we want to report.
+func (o Options) skipUnknownOperand(actual types.Type) bool {
+	return actual == types.Unknown && !o.Strict
+}
+
+// AnalyzeWithOptions is Analyze with explicit options.
+func AnalyzeWithOptions(tree *parser.Tree, source []byte, idx *ProjectIndex, opts Options) (map[uint32]types.Type, []Diagnostic, *SymbolTable) {
+	activeOptions = opts
+	defer func() { activeOptions = Options{} }()
+
 	annotations := make(map[uint32]types.Type)
 	diags := make([]Diagnostic, 0)
 	// classTypes maps a node's StartByte to the class name of the object
@@ -159,6 +219,13 @@ func inferNodeType(
 	// otherwise fall back to the sigil type.
 
 	case "scalar":
+		// $1, $2, ... are regex captures, and a capture is always a Str: perl
+		// hands back the matched SUBSTRING. `$2` on a run of digits is a Str
+		// whose text happens to look numeric, which is a fact about the
+		// subject rather than about the capture.
+		if n, isCapture := captureIndex(node, source); isCapture {
+			return captureType(node, n, source)
+		}
 		return lookupNarrowedType(node, source, st, "$", types.Scalar)
 
 	case "array":
@@ -183,7 +250,7 @@ func inferNodeType(
 	// --- Unary expressions ---
 
 	case "unary_expression":
-		return inferUnaryExprType(node, source)
+		return inferUnaryExprType(node, source, annotations)
 
 	// --- Function call expressions ---
 
@@ -192,7 +259,7 @@ func inferNodeType(
 		return inferFunctionCallType(node, source, st, annotations, diags, idx)
 
 	case "func1op_call_expression":
-		return inferFunc1opCallType(node, source, annotations, diags)
+		return inferFunc1opCallType(node, source, st, annotations, diags)
 
 	case "func0op_call_expression":
 		return inferFunc0opCallType(node, source, annotations, diags)
@@ -208,13 +275,127 @@ func inferNodeType(
 	case "assignment_expression":
 		return inferAssignmentNarrowing(node, source, st, annotations, childTypes, classTypes)
 
+	// --- Postfix dereference ---
+	// `$ref->@*` and `$ref->%*` yield the WHOLE aggregate, not the scalar
+	// holding the reference. Measured: `my @c = $a->@*` copies every element,
+	// and `push $r{op}->@*, 3` appends — so the deref is passing an Array to
+	// push, which is what push's first argument wants.
+
+	case "array_deref_expression":
+		return types.Array
+
+	case "hash_deref_expression":
+		return types.Hash
+
+	// --- Element access ---
+	// Reading one element of an aggregate yields the ELEMENT type, not the
+	// container's. Without this `$n[0]` fell back to the sigil default of
+	// Scalar, which is correct and says almost nothing.
+
+	case "array_element_expression", "hash_element_expression":
+		checkElementIndex(node, source, annotations, diags)
+		return inferElementType(node, source, st)
+
+	// --- undef ---
+	// The literal `undef` denotes the undefined value. Perl itself warns when
+	// one reaches a string or numeric operator ("Use of uninitialized value"),
+	// so this is one of the few places PSC and perl's own diagnostics agree.
+
+	case "undef_expression":
+		return types.Undef
+
+	// --- Reference constructors ---
+	// The expressions that BUILD a reference. Each denotes the reference
+	// itself, not what it points at.
+
+	case "anonymous_hash_expression":
+		return types.HashRef
+
+	case "anonymous_array_expression":
+		return types.ArrayRef
+
+	case "anonymous_subroutine_expression":
+		// `sub { ... }` is a CodeRef, not a Code. Code is the compiled CV
+		// itself, which no perl scalar ever holds; what an assignment
+		// receives is a reference to it.
+		return types.CodeRef
+
+	case "quoted_regexp":
+		// qr// is blessed into Regexp, which is this lattice's Object.
+		return types.Regex
+
+	case "refgen_expression":
+		return inferRefgenType(node)
+
 	// --- Ternary / conditional ---
 
 	case "conditional_expression":
-		return types.Any
+		return inferConditionalType(node, childTypes)
 	}
 
 	return types.Unknown
+}
+
+// refgenTypes maps the node kind of a reference-taking operand to the type of
+// the reference produced. `\$x` is a ScalarRef, `\@a` an ArrayRef, and so on:
+// a single fixed result would be wrong for four of the five.
+var refgenTypes = map[string]types.Type{
+	"scalar":   types.ScalarRef,
+	"array":    types.ArrayRef,
+	"hash":     types.HashRef,
+	"function": types.CodeRef,
+	"glob":     types.GlobRef,
+}
+
+// inferRefgenType types `\EXPR` from what the reference is taken TO.
+//
+// The CST is the "\" token followed by the operand as the sole named child.
+// An operand kind not in the table yields Unknown rather than a guess — taking
+// a reference to something PSC does not model is not evidence about which
+// reference type results.
+func inferRefgenType(node *parser.Node) types.Type {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if t, ok := refgenTypes[child.Kind()]; ok {
+			return t
+		}
+		return types.Unknown
+	}
+	return types.Unknown
+}
+
+// inferConditionalType types `$c ? $a : $b` as the join of its two arms.
+//
+// The CST is condition, "?", true-arm, ":", false-arm, with the condition and
+// the arms as the three named children. The value that leaves the expression
+// came from one arm or the other, so its type is the least type covering both
+// — which is what types.Join computes.
+//
+// This previously returned Any, which is unsound rather than merely imprecise:
+// Any satisfies every requirement by construction, so `(1 ? $hashref : $x) + 1`
+// reported nothing even under strict mode. A join keeps whatever both arms
+// agree on and no more.
+func inferConditionalType(node *parser.Node, childTypes []types.Type) types.Type {
+	var arms []types.Type
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if i < len(childTypes) {
+			arms = append(arms, childTypes[i])
+		}
+	}
+
+	// condition, true-arm, false-arm. The condition's own type says nothing
+	// about the value produced, so only the arms are joined.
+	if len(arms) < 3 {
+		return types.Unknown
+	}
+	return types.Join(arms[1], arms[2])
 }
 
 // inferNumberType determines whether the number text represents an integer
@@ -272,16 +453,39 @@ func inferBinaryExprType(node *parser.Node, source []byte, annotations map[uint3
 	checkBinaryOperand(left, source, annotations, diags, sig.Left, op, "left")
 	checkBinaryOperand(right, source, annotations, diags, sig.Right, op, "right")
 
+	// A logical operator yields ONE OF ITS OPERANDS rather than a type of its
+	// own — measured, `undef // "s"` is "s", `0 || 42` is 42, `1 && "x"` is
+	// "x". That is a control-flow merge, so the result is the join of the two
+	// arms. The signature says Any, which is the annotation escape hatch
+	// standing in for an answer nobody computed; it satisfied every later
+	// requirement by construction.
+	// A SUBSTITUTION is not a match. `=~` types as Bool, which is right for
+	// m// and wrong for s///: measured, `"aaa" =~ s/a/b/g` is 3 and
+	// `"xxx" =~ s/a/b/g` is "" — a count when it matched and the empty string
+	// when it did not, both defined, so only truth separates them. That is
+	// Str in this lattice. With /r the result is the MODIFIED COPY and there
+	// is no count anywhere in the form.
+	if op == "=~" && hasChildOfKind(node, "substitution_regexp") {
+		return types.Str
+	}
+
+	if sig.Result == types.Any && logicalOps[op] {
+		return types.Join(operandType(left, annotations), operandType(right, annotations))
+	}
+
 	return sig.Result
 }
 
 // checkBinaryOperand verifies that an operand's inferred type satisfies the
 // operator's expected type. Emits a coercion-mismatch diagnostic on failure.
-// Skips Unknown operands to avoid false positives.
 //
-// Comparison operators (==, !=, <, >, <=, >=, <=>) get Warning severity
-// because the code executes via coercion but the result is likely unintended.
-// All other operators get Error severity.
+// An un-inferred operand is skipped by default, to avoid reporting a mismatch
+// PSC has no evidence for. Under Options.Strict it is reported instead: an
+// operand whose type could not be determined is precisely what strict mode
+// exists to surface.
+//
+// Severity distinguishes a defined coercion from an impossible one: see the
+// comment at the severity decision below.
 func checkBinaryOperand(
 	operand *parser.Node,
 	source []byte,
@@ -296,7 +500,33 @@ func checkBinaryOperand(
 	}
 
 	actual, ok := annotations[operand.StartByte()]
-	if !ok || actual == types.Unknown {
+	if !ok {
+		actual = types.Unknown
+	}
+	// A scalar-context operator imposes that context on its operand, and an
+	// aggregate in scalar context is its element count: `@fields == 3` and
+	// `while (@_ > 1)` are the ordinary idiom, not type errors. Apply the
+	// context before judging the operand.
+	//
+	// This narrows ONLY the aggregate bits — a reference is one value in any
+	// context and still cannot be a number, so `$hashref + 1` is unaffected.
+	//
+	// The test is whether the operator wants an AGGREGATE, not whether its
+	// expected type intersects List: under the arity ordering Scalar <: List,
+	// so List contains Num's bits and `expected & List` is non-zero for every
+	// scalar operator. Only an operator whose expected type is List itself
+	// takes an aggregate without imposing scalar context.
+	// Narrow only a genuine aggregate. Applying this to a broad type such as
+	// Any would strip its Array and Hash bits and hand back the remaining
+	// union, which then satisfies nothing — turning a type that accepted
+	// everything into one that accepts nothing.
+	if expected != types.List && (actual == types.Array || actual == types.Hash || actual == types.List) {
+		if narrowed, ok := types.NarrowByContext(actual, types.ScalarCtx); ok {
+			actual = narrowed
+		}
+	}
+
+	if activeOptions.skipUnknownOperand(actual) {
 		return
 	}
 
@@ -305,12 +535,51 @@ func checkBinaryOperand(
 		return
 	}
 
-	if types.TypeSatisfies(actual, expected) {
+	if activeOptions.satisfies(actual, expected) {
 		return
 	}
 
-	// Determine severity: comparison operators get Warning, others get Error.
+	// Severity follows the COERCION, not the operator.
+	//
+	// If perl will convert the value and the conversion is defined, the code
+	// runs and does something specific — `0 .. 3.7` is (0 1 2 3), `"ab" x 2.9`
+	// is "abab", `$level / 8` really is 2.5 and `"\t" x 2.5` is two tabs. The
+	// paper calls Num -> Int a coercion that truncates toward zero, not a
+	// failure, and perl emits no warning of its own. Calling that an error
+	// claims the program is broken when the language defines the behaviour.
+	//
+	// A REFERENCE is the other case, and IsCoercible alone does not separate
+	// it: perl numifies a reference too, but to its ADDRESS. `$hashref + 1`
+	// measured 94453646558489 — not a numeric interpretation of the value, the
+	// way 3.7 -> 3 is, but a fact about where it happens to live. This is the
+	// paper's own argument for references not being in Str, applied to Num.
+	// So the conversion has to preserve a value, which means both sides must
+	// be in the non-reference scalar family.
+	//
+	// Undef is excluded from that family here, and perl's own diagnostics are
+	// the reason: it warns "Use of uninitialized value" for `undef + 1` and
+	// says NOTHING for `0 .. 3.7` or `"ab" x 2.9`. Undef is not a value being
+	// converted, it is the absence of one, so it keeps Error severity while
+	// truncation drops to Warning.
+	//
+	// An OBJECT is included, and it is the one case where the answer depends
+	// on code PSC cannot see. A class declaring `use overload '0+'` has a
+	// real conversion — measured, `$money + 1` is 6 — while a plain blessed
+	// hashref numifies to its address like any other reference. Resolving
+	// which requires finding the class, so the honest severity is the one
+	// that does not assert the conversion is impossible. The paper is equally
+	// careful here: an overloaded object is still NOT a Num, because the
+	// conversion runs out of the type and nothing converts back, so this
+	// stays a diagnostic either way.
+	//
+	// Comparison operators stay a warning regardless, since they execute via
+	// coercion in every case.
 	severity := Error
+	valueLike := types.Bool | types.Str | types.DualVar | types.Object
+	if types.IsCoercible(actual, expected) &&
+		types.IsSubtype(actual, valueLike) && types.IsSubtype(expected, valueLike) {
+		severity = Warning
+	}
 	switch op {
 	case "==", "!=", "<", ">", "<=", ">=", "<=>":
 		severity = Warning
@@ -327,7 +596,7 @@ func checkBinaryOperand(
 
 // inferUnaryExprType finds the operator among the direct children of a
 // unary_expression node and looks it up in the type signatures table.
-func inferUnaryExprType(node *parser.Node, source []byte) types.Type {
+func inferUnaryExprType(node *parser.Node, source []byte, annotations map[uint32]types.Type) types.Type {
 	op := findOperatorText(node, source)
 	if op == "" {
 		return types.Unknown
@@ -336,20 +605,55 @@ func inferUnaryExprType(node *parser.Node, source []byte) types.Type {
 	if !ok {
 		return types.Unknown
 	}
+
+	// Unary minus and plus PRESERVE the operand's type: measured, -5 is an Int
+	// and -5.5 is a Num. The signature says Num for both, which is true (Int
+	// <: Num) and loses the distinction — and it propagates, since abs(-5)
+	// then follows its argument and reports Num for an integer.
+	if op == "-" || op == "+" {
+		for i := 0; i < node.ChildCount(); i++ {
+			child := node.Child(i)
+			if child == nil || !child.IsNamed() {
+				continue
+			}
+			if t := operandType(child, annotations); types.IsSubtype(t, types.Num) {
+				return t
+			}
+			break
+		}
+	}
+
 	return sig.Result
 }
 
-// findOperatorText returns the text of the first non-named (anonymous)
-// child of node, which in the Perl grammar is the operator token.
+// findOperatorText returns the operator token of a binary-family node.
+//
+// Anonymous children are punctuation and operators both, so the first one is
+// not reliably the operator: a parenthesised operand puts "(" there. Taking it
+// blindly made `(@a) + 1` look like an expression whose operator was "(",
+// which no signature matches, so the caller bailed out as Unknown and never
+// checked either operand — hiding a diagnostic that the unparenthesised form
+// reports.
+//
+// The first anonymous child that NAMES A KNOWN OPERATOR is the operator.
+// Punctuation is skipped rather than enumerated, so the set of things that can
+// appear around an operand does not have to be listed here.
+//
+// Both operator tables are consulted because this is shared by the binary and
+// unary paths; checking only the binary table would drop "!" and the other
+// unary operators on the floor.
 func findOperatorText(node *parser.Node, source []byte) string {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if child == nil {
+		if child == nil || child.IsNamed() {
 			continue
 		}
-		// Anonymous nodes are punctuation/operators in tree-sitter grammars.
-		if !child.IsNamed() {
-			return child.Text(source)
+		text := child.Text(source)
+		if _, ok := types.GetBinaryOp(text); ok {
+			return text
+		}
+		if _, ok := types.GetUnaryOp(text); ok {
+			return text
 		}
 	}
 	return ""
@@ -425,12 +729,12 @@ func inferFunctionCallType(
 	for i, arg := range args {
 		argType := annotations[arg.StartByte()]
 		expectedType := builtinArgType(sig, i)
-		if argType != types.Unknown && !types.TypeSatisfies(argType, expectedType) {
+		if !activeOptions.skipUnknownOperand(argType) && !activeOptions.satisfies(argType, expectedType) {
 			argVarName := ExtractArgVarName(arg, source)
 			*diags = append(*diags, Diagnostic{
 				StartByte:  arg.StartByte(),
 				EndByte:    arg.EndByte(),
-				Severity:   Error,
+				Severity:   argumentSeverity(argType, expectedType),
 				Code:       CodeTypeMismatch,
 				Message:    typeMismatchMessage(name, i, expectedType, argType),
 				Suggestion: SuggestGuard(argVarName, argType, expectedType),
@@ -438,6 +742,9 @@ func inferFunctionCallType(
 		}
 	}
 
+	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
+		return t
+	}
 	return sig.ReturnType
 }
 
@@ -451,7 +758,16 @@ func inferFunctionCallType(
 //   - Bareword invocant + other method → looks up className::method in the index.
 //   - Scalar invocant → looks up the variable's ClassType from the symbol table.
 //     If set and idx is available → looks up classType::method in the index.
-//   - Fallback → types.Any.
+//   - Fallback → types.Unknown.
+//
+// Unknown rather than Any, and the distinction matters. Any is the escape
+// hatch that DISABLES checking, and an escape hatch only earns its keep when
+// someone can write it down; perl has no annotation syntax, so nothing in a
+// perl program ever requests it. Every Any produced by inference is really "I
+// could not determine this", which is what Unknown means. Returning Any made
+// an unresolved method call satisfy every requirement by construction, so it
+// was invisible even under --strict — the mode that exists to surface exactly
+// this. TypeScript made the same substitution early and reversed it.
 func inferMethodCallType(
 	node *parser.Node,
 	source []byte,
@@ -496,7 +812,7 @@ func inferMethodCallType(
 	}
 
 	if invocantNode == nil || methodName == "" {
-		return types.Any
+		return types.Unknown
 	}
 
 	invocantKind := invocantNode.Kind()
@@ -516,24 +832,24 @@ func inferMethodCallType(
 				return sym.ReturnType
 			}
 		}
-		return types.Any
+		return types.Unknown
 
 	case "scalar":
 		// Instance method call: $obj->method(...)
 		varName := sigildName("$", invocantNode, source)
 		sym, found := st.Lookup(varName)
 		if !found || sym.ClassType == "" {
-			return types.Any
+			return types.Unknown
 		}
 		if idx != nil {
 			if methodSym, ok := idx.LookupSymbol(sym.ClassType, methodName); ok && methodSym.ReturnType != types.Unknown {
 				return methodSym.ReturnType
 			}
 		}
-		return types.Any
+		return types.Unknown
 	}
 
-	return types.Any
+	return types.Unknown
 }
 
 // inferFunc1opCallType handles func1op_call_expression nodes such as
@@ -541,6 +857,7 @@ func inferMethodCallType(
 func inferFunc1opCallType(
 	node *parser.Node,
 	source []byte,
+	st *SymbolTable,
 	annotations map[uint32]types.Type,
 	diags *[]Diagnostic,
 ) types.Type {
@@ -582,12 +899,12 @@ func inferFunc1opCallType(
 	for i, arg := range args {
 		argType := annotations[arg.StartByte()]
 		expectedType := builtinArgType(sig, i)
-		if argType != types.Unknown && !types.TypeSatisfies(argType, expectedType) {
+		if !activeOptions.skipUnknownOperand(argType) && !activeOptions.satisfies(argType, expectedType) {
 			argVarName := ExtractArgVarName(arg, source)
 			*diags = append(*diags, Diagnostic{
 				StartByte:  arg.StartByte(),
 				EndByte:    arg.EndByte(),
-				Severity:   Error,
+				Severity:   argumentSeverity(argType, expectedType),
 				Code:       CodeTypeMismatch,
 				Message:    typeMismatchMessage(name, i, expectedType, argType),
 				Suggestion: SuggestGuard(argVarName, argType, expectedType),
@@ -595,7 +912,75 @@ func inferFunc1opCallType(
 		}
 	}
 
+	if t, ok := contextualReturnType(name, args, source, st, annotations); ok {
+		return t
+	}
 	return sig.ReturnType
+}
+
+// contextualReturnType handles builtins whose result type depends on the
+// ARGUMENT rather than being fixed by the signature.
+//
+// scalar() is the whole of it: measured, `scalar(@a)` on a two-element array
+// is 2 and `scalar($s)` on "str" is "str". A signature can only name one
+// type, so it says Scalar — the right family, and silent about which member.
+// Imposing scalar context on the argument is exactly what the builtin does,
+// and NarrowByContext already implements that rule.
+func contextualReturnType(name string, args []*parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) (types.Type, bool) {
+	if name == "sprintf" && len(args) >= 1 {
+		return sprintfResultType(args[0], source, annotations)
+	}
+
+	// reverse is the exception to "a List in scalar context is a count":
+	// measured, `reverse("abc")` is "cba" and `reverse(@a)` on (1,2,3) is
+	// "321" — it concatenates its arguments and reverses the STRING. Every
+	// other List-returning builtin gives a count.
+	if name == "reverse" {
+		return types.Str, true
+	}
+
+	// int() truncates toward zero, so the result is an Int whatever went in —
+	// measured, int(3.9) and int(-3.9) are both Int. This one does not depend
+	// on the argument and could be a signature, except that Int is currently
+	// spelled Num there.
+	if name == "int" {
+		return types.Int, true
+	}
+
+	// abs() follows its ARGUMENT: abs(-5) is Int and abs(-5.5) is Num.
+	if name == "abs" && len(args) == 1 {
+		argType := operandType(args[0], annotations)
+		if argType == types.Unknown {
+			return types.Unknown, false
+		}
+		if types.IsSubtype(argType, types.Num) {
+			return argType, true
+		}
+		return types.Num, true
+	}
+
+	// pop and shift yield ONE ELEMENT of the array, so they follow its
+	// element type — measured, popping an Int array gives Int and a Str array
+	// gives Str. An array PSC never saw filled falls back to the signature's
+	// Scalar rather than a guess.
+	if (name == "pop" || name == "shift") && len(args) == 1 {
+		if elem, ok := arrayElemTypeOf(args[0], source, st); ok {
+			return elem, true
+		}
+		return types.Unknown, false
+	}
+
+	if name != "scalar" || len(args) != 1 {
+		return types.Unknown, false
+	}
+	argType := operandType(args[0], annotations)
+	if argType == types.Unknown {
+		return types.Unknown, false
+	}
+	if narrowed, ok := types.NarrowByContext(argType, types.ScalarCtx); ok {
+		return narrowed, true
+	}
+	return argType, true
 }
 
 // inferFunc0opCallType handles func0op_call_expression nodes.
@@ -631,8 +1016,134 @@ func inferFunc0opCallType(
 // collectCallArgs gathers the actual argument nodes for a function call.
 // For calls with parentheses the arguments are inside a list_expression child;
 // for ambiguous calls without parens, they may be direct children after the
-// function name.
+// function name, or SIBLINGS of the call — see collectTrailingListArgs.
 func collectCallArgs(node *parser.Node, source []byte) []*parser.Node {
+	args := unwrapSwallowedArgs(collectOwnCallArgs(node, source))
+	return append(args, collectTrailingListArgs(node)...)
+}
+
+// collectTrailingListArgs returns the arguments a paren-less list operator
+// takes that the grammar placed OUTSIDE the call node.
+//
+// A list operator without parentheses parses two different ways depending on
+// what follows it:
+//
+//	push @todo, [1,2];           call(function, list_expression(array, ref))
+//	push @todo, [1,2] unless $o; list_expression(call(function, array), ref)
+//	join ",", @a;                list_expression(call(function, str), array)
+//
+// In the second and third the call node holds only the FIRST argument and the
+// remainder are siblings in the enclosing list_expression. Counting only the
+// call's own children then under-reports the arity — which produced 168 of 804
+// diagnostics on perl5/lib, every one of them spurious.
+//
+// The siblings belong to this call only when the call is the list's FIRST
+// element: `f(1), g(2)` is two complete calls in a list, and g's argument must
+// not be handed to f. Anything before the call in the list means the call is
+// an element rather than the head, so nothing is claimed.
+func collectTrailingListArgs(node *parser.Node) []*parser.Node {
+	parent := node.Parent()
+
+	// The call may sit under an assignment whose whole right-hand side is the
+	// list: `my $s = join ",", @a` nests the call inside an
+	// assignment_expression, which is itself the head of the list_expression.
+	// Walk up through such wrappers so the trailing arguments are still found.
+	self := node
+	for parent != nil && parent.Kind() != "list_expression" {
+		switch parent.Kind() {
+		case "assignment_expression", "variable_declaration", "binary_expression",
+			"return_expression":
+			self = parent
+			parent = parent.Parent()
+		default:
+			return nil
+		}
+	}
+	if parent == nil {
+		return nil
+	}
+	node = self
+
+	var trailing []*parser.Node
+	seenSelf := false
+	for i := 0; i < parent.ChildCount(); i++ {
+		child := parent.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if child.StartByte() == node.StartByte() && child.Kind() == node.Kind() {
+			seenSelf = true
+			continue
+		}
+		if !seenSelf {
+			// Something precedes the call, so it is an element of the list
+			// rather than the operator consuming it.
+			return nil
+		}
+		trailing = append(trailing, child)
+	}
+	return trailing
+}
+
+// comparisonKinds are the node kinds the grammar can wrongly nest INSIDE a
+// call when a comparison follows a paren-less-capable list operator.
+var comparisonKinds = map[string]bool{
+	"equality_expression":   true,
+	"relational_expression": true,
+	"binary_expression":     true,
+	// `substr($f, 1, 0) = "-"` is lvalue substr, and the assignment swallows
+	// the argument list exactly as a comparison does.
+	"assignment_expression": true,
+}
+
+// unwrapSwallowedArgs returns the real argument list when the grammar has
+// buried it under a comparison.
+//
+// `substr($s,0,2) eq "he"` parses as
+//
+//	call(function, equality_expression(list_expression($s,0,2), "he"))
+//
+// rather than as a comparison whose left side is the call. The arguments are
+// therefore one level down, in the comparison's own first operand, and a call
+// that looks like it received a single argument actually received three.
+//
+// Only a lone comparison child is unwrapped: a call whose argument genuinely
+// IS a comparison — `f($a == $b)` — has that comparison inside a
+// list_expression, so it does not reach here.
+func unwrapSwallowedArgs(args []*parser.Node) []*parser.Node {
+	if len(args) != 1 || args[0] == nil || !comparisonKinds[args[0].Kind()] {
+		return args
+	}
+	inner := args[0]
+	for i := 0; i < inner.ChildCount(); i++ {
+		child := inner.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if child.Kind() != "list_expression" {
+			// The first operand is not an argument list, so the comparison
+			// really was the single argument.
+			return args
+		}
+		var unwrapped []*parser.Node
+		for j := 0; j < child.ChildCount(); j++ {
+			item := child.Child(j)
+			if item != nil && item.IsNamed() {
+				unwrapped = append(unwrapped, item)
+			}
+		}
+		return unwrapped
+	}
+	return args
+}
+
+// collectOwnCallArgs gathers the argument nodes held by the call node itself.
+//
+// An indirect_object child is the FILEHANDLE of `print $fh "..."` or
+// `printf {$fh} ...`, not an argument. The grammar marks it with its own node
+// kind, so it is skipped rather than counted: treating it as argument 1 made
+// every print against a typed handle a Str mismatch.
+func collectOwnCallArgs(node *parser.Node, source []byte) []*parser.Node {
 	var args []*parser.Node
 
 	// First, try to find a list_expression child.
@@ -646,7 +1157,7 @@ func collectCallArgs(node *parser.Node, source []byte) []*parser.Node {
 			// anonymous "," tokens; collect the named children.
 			for j := 0; j < child.ChildCount(); j++ {
 				item := child.Child(j)
-				if item != nil && item.IsNamed() {
+				if item != nil && item.IsNamed() && item.Kind() != "indirect_object" {
 					args = append(args, item)
 				}
 			}
@@ -668,9 +1179,683 @@ func collectCallArgs(node *parser.Node, source []byte) []*parser.Node {
 		if ck == "function" {
 			continue // skip the function-name node
 		}
+		if ck == "indirect_object" {
+			continue // the filehandle of `print $fh ...`, not an argument
+		}
 		args = append(args, child)
 	}
 	return args
+}
+
+// checkElementIndex reports a reference used as an ARRAY index.
+//
+// An index is numified, and a reference numifies to its address — never the
+// element anyone wanted. perl warns about it directly: "Use of reference
+// "ARRAY(0x...)" as array index".
+//
+// Only array indices are checked. A HASH key is stringified rather than
+// numified, and while `$h{$ref}` is nearly always a mistake too, perl accepts
+// it silently and the key is a legitimate (if useless) string.
+func checkElementIndex(node *parser.Node, source []byte, annotations map[uint32]types.Type, diags *[]Diagnostic) {
+	if node.Kind() != "array_element_expression" {
+		return
+	}
+
+	// The container is the first named child and the index the second.
+	var index *parser.Node
+	seen := 0
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		seen++
+		if seen == 2 {
+			index = child
+			break
+		}
+	}
+	if index == nil {
+		return
+	}
+
+	actual := operandType(index, annotations)
+	if activeOptions.skipUnknownOperand(actual) {
+		return
+	}
+
+	// Only a REFERENCE is reported. A Str index is silent when its text is
+	// numeric — measured, `$a["1"]` is fine and only `$a["abc"]` warns — and
+	// Str covers both, so reporting it flags correct code like
+	// `$DB::dbline[$line]`. A reference always numifies to an address and
+	// perl always warns.
+	// IsSubtype, not a bit test: Scalar CONTAINS the Ref bits, so
+	// `actual & Ref != 0` matches every un-narrowed scalar and reported 186
+	// extra sites on perl5/lib. The question is whether the index is known to
+	// be a reference, not whether it might be one.
+	if !types.IsSubtype(actual, types.Ref) {
+		return
+	}
+
+	*diags = append(*diags, Diagnostic{
+		StartByte: index.StartByte(),
+		EndByte:   index.EndByte(),
+		Severity:  argumentSeverity(actual, types.Num),
+		Code:      CodeTypeMismatch,
+		Message:   fmt.Sprintf("array index expects Num, got %s", actual),
+	})
+}
+
+// inferElementType types `$n[0]`, `$h{k}`, `$aref->[0]` and `$href->{k}` as
+// the element type recorded for the container.
+//
+// The container is the first named child, and its kind says which spelling
+// this is: container_variable for `$n[0]` — where the sigil is $ but the
+// variable is @n — and scalar for `$aref->[0]`, where the variable really is
+// a scalar holding a reference.
+//
+// A container with no recorded element type falls back to Scalar rather than
+// guessing: an element of something PSC never saw filled is one value of
+// unknown type, which is exactly what Scalar says.
+func inferElementType(node *parser.Node, source []byte, st *SymbolTable) types.Type {
+	var container *parser.Node
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() {
+			container = child
+			break
+		}
+	}
+	if container == nil {
+		return types.Scalar
+	}
+
+	sigil := "@"
+	if node.Kind() == "hash_element_expression" {
+		sigil = "%"
+	}
+	if container.Kind() == "scalar" {
+		// `$aref->[0]` — the container is a scalar holding a reference, and
+		// its element type is recorded against the scalar itself.
+		sigil = "$"
+	}
+
+	name := sigildName(sigil, container, source)
+	sym, ok := st.Lookup(name)
+	if !ok || sym.ElemType == types.Unknown {
+		return types.Scalar
+	}
+
+	// An element is ONE VALUE, whatever the container holds. `my @l = split
+	// ...` records the call's return type, List, and an element of a List is
+	// not itself a List — reading `$l[0]` as List made `lc $l[0]` a
+	// type-mismatch on correct code. Scalar context is exactly this rule, and
+	// NarrowByContext already implements it.
+	if narrowed, nok := types.NarrowByContext(sym.ElemType, types.ScalarCtx); nok {
+		return narrowed
+	}
+	return sym.ElemType
+}
+
+// callElementType returns the element type of a list-returning call.
+//
+// sort and grep preserve their input's elements; map's come from its body.
+// Anything else yields Unknown, so the container records no element type and
+// a read falls back to Scalar rather than to a guess.
+func callElementType(call *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) types.Type {
+	// The grammar gives sort and map/grep their own node kinds rather than
+	// treating them as calls, and map_grep_expression covers BOTH map and
+	// grep — which behave differently, so the keyword decides.
+	switch call.Kind() {
+	case "sort_expression":
+		return preservedElemType(call, source, st, annotations)
+	case "map_grep_expression":
+		if strings.HasPrefix(strings.TrimSpace(call.Text(source)), "grep") {
+			return preservedElemType(call, source, st, annotations)
+		}
+		for i := 0; i < call.ChildCount(); i++ {
+			child := call.Child(i)
+			if child != nil && child.Kind() == "block" {
+				return blockResultType(child, annotations)
+			}
+		}
+		return types.Unknown
+	}
+
+	name := ""
+	var named []*parser.Node
+	for i := 0; i < call.ChildCount(); i++ {
+		child := call.Child(i)
+		if child == nil {
+			continue
+		}
+		if !child.IsNamed() {
+			// func1op nodes carry their keyword as an anonymous child rather
+			// than in a "function" node.
+			if text := child.Text(source); name == "" && text != "(" && text != ")" {
+				name = text
+			}
+			continue
+		}
+		if child.Kind() == "function" {
+			name = child.Text(source)
+			continue
+		}
+		named = append(named, child)
+	}
+
+	switch name {
+	case "keys":
+		// A hash KEY is always a string: perl stringifies it on the way in,
+		// so $h{1} and $h{"1"} are the same slot and the key comes back "1".
+		// The element type of the key list is Str whatever the hash holds.
+		return types.Str
+
+	case "values", "splice":
+		// values yields the stored VALUES and splice the REMOVED ELEMENTS —
+		// both are elements of the aggregate they read.
+		for i := len(named) - 1; i >= 0; i-- {
+			if t, ok := aggregateElemType(named[i], source, st, annotations); ok {
+				return t
+			}
+		}
+
+	case "sort", "grep", "reverse":
+		// The elements are the source's. The source is the last named child,
+		// after any comparator or predicate block.
+		for i := len(named) - 1; i >= 0; i-- {
+			if t, ok := aggregateElemType(named[i], source, st, annotations); ok {
+				return t
+			}
+		}
+	case "map":
+		// The body decides. It is the block, whose value is its last
+		// expression statement.
+		for _, n := range named {
+			if n.Kind() == "block" {
+				return blockResultType(n, annotations)
+			}
+		}
+	}
+	return types.Unknown
+}
+
+// preservedElemType returns the element type of the aggregate a
+// element-preserving operation reads from, which is its last named child.
+func preservedElemType(node *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) types.Type {
+	for i := node.ChildCount() - 1; i >= 0; i-- {
+		child := node.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		if t, ok := aggregateElemType(child, source, st, annotations); ok {
+			return t
+		}
+	}
+	return types.Unknown
+}
+
+// aggregateElemType returns the element type of an array, hash, or list
+// argument.
+func aggregateElemType(n *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) (types.Type, bool) {
+	switch n.Kind() {
+	case "array":
+		if sym, ok := st.Lookup(sigildName("@", n, source)); ok && sym.ElemType != types.Unknown {
+			return sym.ElemType, true
+		}
+	case "hash":
+		if sym, ok := st.Lookup(sigildName("%", n, source)); ok && sym.ElemType != types.Unknown {
+			return sym.ElemType, true
+		}
+	case "list_expression":
+		if t := listElementType(n, source, st, annotations); t != types.Unknown {
+			return t, true
+		}
+	}
+	return types.Unknown, false
+}
+
+// blockResultType returns the type of a block's value, which is its last
+// expression statement.
+func blockResultType(block *parser.Node, annotations map[uint32]types.Type) types.Type {
+	result := types.Unknown
+	for i := 0; i < block.ChildCount(); i++ {
+		child := block.Child(i)
+		if child == nil || !child.IsNamed() || child.Kind() != "expression_statement" {
+			continue
+		}
+		for j := 0; j < child.ChildCount(); j++ {
+			inner := child.Child(j)
+			if inner != nil && inner.IsNamed() {
+				result = operandType(inner, annotations)
+				break
+			}
+		}
+	}
+	return result
+}
+
+// listElementType returns the join of the element types in a list literal.
+//
+// `my @m = (1, "s")` contributes Int and Str, so an element read is their
+// join: an index selects one of them and PSC does not evaluate indices. A
+// hash literal alternates keys and values, and both are elements of the flat
+// list perl actually assigns, so both are joined — `%h = (a => 1)` really
+// does hold the string "a" as well as 1.
+func listElementType(rhs *parser.Node, source []byte, st *SymbolTable, annotations map[uint32]types.Type) types.Type {
+	if rhs == nil {
+		return types.Unknown
+	}
+	switch rhs.Kind() {
+	case "list_expression":
+		// fall through to the loop below
+	case "anonymous_array_expression", "anonymous_hash_expression":
+		// `[1,2]` may hold its elements directly or wrap them in a list.
+		for i := 0; i < rhs.ChildCount(); i++ {
+			child := rhs.Child(i)
+			if child != nil && child.IsNamed() && child.Kind() == "list_expression" {
+				return listElementType(child, source, st, annotations)
+			}
+		}
+	case "sort_expression", "map_grep_expression", "func1op_call_expression",
+		"function_call_expression", "ambiguous_function_call_expression":
+		// sort and grep hand back the SAME elements — one reorders and the
+		// other selects — so the element type carries through. map
+		// TRANSFORMS, and its element type is whatever the body produced:
+		// measured, `map { $_*2 } @ints` gives Ints and `map { "x$_" }` gives
+		// Strs from the same input.
+		return callElementType(rhs, source, st, annotations)
+
+	case "binary_expression":
+		// `my @a = (0) x $n` is LIST repetition: the elements are copies of
+		// the LEFT OPERAND, not values of the operator's own result type.
+		//
+		// The distinction matters because of how wide Str is. PSC's `x`
+		// signature says Str, which is right for the scalar form `"ab" x 3`,
+		// and recording it here is not FALSE — Num <: Str, so calling an Int
+		// element a Str is a true statement about it. It is too wide to be
+		// useful, though: TypeSatisfies(Str, Num) is false, since a Str may
+		// hold non-numeric data, so `$a[0] * 2` became a diagnostic on
+		// correct code.
+		//
+		// Taking the left operand keeps the precision instead of discarding
+		// it: `(0) x $n` records Int, which is what the array holds.
+		if op := findOperatorText(rhs, source); op == "x" {
+			for i := 0; i < rhs.ChildCount(); i++ {
+				child := rhs.Child(i)
+				if child != nil && child.IsNamed() {
+					return operandType(child, annotations)
+				}
+			}
+		}
+		return types.Unknown
+
+	default:
+		// A single-value assignment: `my @a = $x`.
+		return operandType(rhs, annotations)
+	}
+	result := types.Unknown
+	for i := 0; i < rhs.ChildCount(); i++ {
+		child := rhs.Child(i)
+		if child == nil || !child.IsNamed() {
+			continue
+		}
+		result = types.Join(result, operandType(child, annotations))
+	}
+	return result
+}
+
+// argumentSeverity mirrors the operator rule for builtin arguments: a
+// conversion that is defined and preserves a value is a warning, and one that
+// cannot happen at all is an error.
+//
+// An OBJECT is the case this exists for. A class declaring `use overload '0+'`
+// has a real numeric conversion — `int($money)` is a defined operation — and
+// PSC cannot see whether a given class declares one without resolving it
+// across files. Reporting an error asserts the conversion is impossible.
+func argumentSeverity(actual, expected types.Type) Severity {
+	valueLike := types.Bool | types.Str | types.DualVar | types.Object
+	if types.IsCoercible(actual, expected) &&
+		types.IsSubtype(actual, valueLike) && types.IsSubtype(expected, valueLike) {
+		return Warning
+	}
+	return Error
+}
+
+// arrayElemTypeOf returns the recorded element type of an array argument.
+func arrayElemTypeOf(arg *parser.Node, source []byte, st *SymbolTable) (types.Type, bool) {
+	if arg == nil || arg.Kind() != "array" {
+		return types.Unknown, false
+	}
+	sym, ok := st.Lookup(sigildName("@", arg, source))
+	if !ok || sym.ElemType == types.Unknown {
+		return types.Unknown, false
+	}
+	// An element is one value whatever the container holds.
+	if narrowed, nok := types.NarrowByContext(sym.ElemType, types.ScalarCtx); nok {
+		return narrowed, true
+	}
+	return sym.ElemType, true
+}
+
+// sprintfResultType narrows a sprintf result when the format can only produce
+// a decimal number.
+//
+// Str is true of every sprintf result, and Int <: Num <: Str makes Int the
+// more precise true statement when the format admits nothing else — the same
+// reasoning that types a digit capture Int.
+//
+// The format has to be a literal, since only then is it evidence. A single
+// conversion with no surrounding text and no width that pads with spaces
+// gives a bare number; anything else keeps Str.
+//
+// THE RADIX FORMATS ARE EXCLUDED DELIBERATELY. %o and %b produce digit
+// strings whose numeric value is not the number formatted — measured,
+// sprintf("%o", 8) is "10" and "10" + 1 is 11 rather than 9. Calling those Int
+// would be true of the TEXT and misleading about the VALUE.
+func sprintfResultType(format *parser.Node, source []byte, annotations map[uint32]types.Type) (types.Type, bool) {
+	if format == nil {
+		return types.Unknown, false
+	}
+	switch format.Kind() {
+	case "string_literal", "interpolated_string_literal":
+	default:
+		return types.Unknown, false
+	}
+
+	var content *parser.Node
+	for i := 0; i < format.ChildCount(); i++ {
+		child := format.Child(i)
+		if child != nil && child.Kind() == "string_content" {
+			content = child
+			break
+		}
+	}
+	if content == nil {
+		return types.Unknown, false
+	}
+
+	if t, ok := numericFormatType(content.Text(source)); ok {
+		return t, true
+	}
+	return types.Unknown, false
+}
+
+// numericFormatType reports the type of a format string that consists of
+// exactly one numeric conversion and nothing else.
+func numericFormatType(format string) (types.Type, bool) {
+	if len(format) < 2 || format[0] != '%' {
+		return types.Unknown, false
+	}
+	body := format[1:]
+
+	// Flags that do not introduce non-numeric characters. "-" is excluded:
+	// left-justification pads with TRAILING SPACES, so the result is not a
+	// bare number even though it still numifies.
+	for len(body) > 0 && (body[0] == '0' || body[0] == '+' || body[0] == ' ') {
+		body = body[1:]
+	}
+	// Width and precision.
+	for len(body) > 0 && (body[0] >= '0' && body[0] <= '9' || body[0] == '.') {
+		body = body[1:]
+	}
+	if len(body) != 1 {
+		return types.Unknown, false
+	}
+
+	switch body[0] {
+	case 'd', 'i', 'u':
+		return types.Int, true
+	case 'f', 'e', 'g':
+		return types.Num, true
+	}
+	return types.Unknown, false
+}
+
+// isCountOfAssignment reports whether a node is an inner `() = EXPR`, the
+// list-assignment half of the count-of idiom.
+func isCountOfAssignment(node *parser.Node) bool {
+	if node == nil || node.Kind() != "assignment_expression" {
+		return false
+	}
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() && child.Kind() == "stub_expression" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasChildOfKind reports whether any named child of node has the given kind.
+func hasChildOfKind(node *parser.Node, kind string) bool {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() && child.Kind() == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// isListContextMatch reports whether a node is a regex match, whose result in
+// list context is the captures.
+func isListContextMatch(node *parser.Node) bool {
+	if node == nil {
+		return false
+	}
+	if node.Kind() != "binary_expression" {
+		return false
+	}
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child != nil && child.IsNamed() && child.Kind() == "match_regexp" {
+			return true
+		}
+	}
+	return false
+}
+
+// declaredNames returns every sigil-prefixed name bound by a declaration.
+// `my ($a, $b)` binds two; `my $x` binds one.
+func declaredNames(decl *parser.Node, source []byte) []string {
+	var names []string
+	for i := 0; i < decl.ChildCount(); i++ {
+		child := decl.Child(i)
+		if child == nil {
+			continue
+		}
+		switch child.Kind() {
+		case "scalar":
+			names = append(names, sigildName("$", child, source))
+		case "array":
+			names = append(names, sigildName("@", child, source))
+		case "hash":
+			names = append(names, sigildName("%", child, source))
+		}
+	}
+	return names
+}
+
+// captureIndex reports whether a scalar node is a numbered regex capture such
+// as $1 or $12, and which group it refers to. $0 is the program name rather
+// than a capture.
+func captureIndex(node *parser.Node, source []byte) (int, bool) {
+	name := sigildName("$", node, source)
+	if len(name) < 2 || name[0] != '$' {
+		return 0, false
+	}
+	digits := name[1:]
+	n, err := strconv.Atoi(digits)
+	if err != nil || n < 1 {
+		return 0, false
+	}
+	return n, true
+}
+
+// captureType returns the type of the n-th capture group.
+//
+// A capture is a SUBSTRING, so Str is always true — but Int <: Num <: Str, so
+// a group that can only match digits is an Int, which is the more precise true
+// statement. perl agrees: `$1 + 1` on a digit capture is silent, and on a
+// letter capture warns "isn't numeric".
+//
+// The pattern is the evidence, and it has to be the NEAREST preceding match in
+// the same scope. Finding no pattern, or a group whose body admits anything
+// but digits, leaves Str.
+func captureType(node *parser.Node, n int, source []byte) types.Type {
+	pattern, ok := nearestPatternBefore(node, source)
+	if !ok {
+		return types.Str
+	}
+	groups := captureGroups(pattern)
+	if n > len(groups) {
+		return types.Str
+	}
+	if isNumericOnlyGroup(groups[n-1]) {
+		return types.Int
+	}
+	return types.Str
+}
+
+// nearestPatternBefore walks up to the enclosing block and back through the
+// statements preceding node, returning the text of the last regexp_content
+// that appears before it.
+func nearestPatternBefore(node *parser.Node, source []byte) (string, bool) {
+	start := node.StartByte()
+
+	root := node
+	for root.Parent() != nil {
+		root = root.Parent()
+	}
+
+	var best string
+	var bestAt uint32
+	var found bool
+
+	var walk func(n *parser.Node)
+	walk = func(n *parser.Node) {
+		if n == nil {
+			return
+		}
+		if n.Kind() == "regexp_content" && n.StartByte() < start {
+			if !found || n.StartByte() > bestAt {
+				best, bestAt, found = n.Text(source), n.StartByte(), true
+			}
+		}
+		for i := 0; i < n.ChildCount(); i++ {
+			walk(n.Child(i))
+		}
+	}
+	walk(root)
+
+	return best, found
+}
+
+// captureGroups returns the body of each top-level capture group in a pattern,
+// in order. Non-capturing groups (?:...) and lookarounds are skipped, since
+// they do not consume a $N.
+func captureGroups(pattern string) []string {
+	var groups []string
+	depth := 0
+	var current []rune
+	capturing := []bool{}
+
+	runes := []rune(pattern)
+	for i := 0; i < len(runes); i++ {
+		c := runes[i]
+
+		if c == '\\' && i+1 < len(runes) {
+			if depth > 0 {
+				current = append(current, c, runes[i+1])
+			}
+			i++
+			continue
+		}
+
+		switch c {
+		case '(':
+			isCap := !(i+1 < len(runes) && runes[i+1] == '?')
+			capturing = append(capturing, isCap)
+			depth++
+			if depth == 1 && isCap {
+				current = nil
+			} else if depth > 1 {
+				current = append(current, c)
+			}
+		case ')':
+			if depth > 0 {
+				depth--
+				wasCap := capturing[len(capturing)-1]
+				capturing = capturing[:len(capturing)-1]
+				if depth == 0 && wasCap {
+					groups = append(groups, string(current))
+					current = nil
+				} else if depth > 0 {
+					current = append(current, c)
+				}
+			}
+		default:
+			if depth > 0 {
+				current = append(current, c)
+			}
+		}
+	}
+	return groups
+}
+
+// isNumericOnlyGroup reports whether a capture group's body can match nothing
+// but digits.
+//
+// Deliberately narrow: only \d and [0-9] with the usual quantifiers. Anything
+// it does not recognise stays Str, because a wrong Int here would claim a
+// capture is numeric when it can hold letters — and unlike the reverse, that
+// is a claim perl contradicts.
+func isNumericOnlyGroup(body string) bool {
+	if body == "" {
+		return false
+	}
+	rest := body
+	saw := false
+	for len(rest) > 0 {
+		switch {
+		case strings.HasPrefix(rest, `\d`):
+			rest = rest[2:]
+			saw = true
+		case strings.HasPrefix(rest, "[0-9]"):
+			rest = rest[5:]
+			saw = true
+		case strings.HasPrefix(rest, "+"), strings.HasPrefix(rest, "*"),
+			strings.HasPrefix(rest, "?"):
+			rest = rest[1:]
+		case strings.HasPrefix(rest, "{"):
+			end := strings.Index(rest, "}")
+			if end < 0 {
+				return false
+			}
+			rest = rest[end+1:]
+		default:
+			return false
+		}
+	}
+	return saw
+}
+
+// logicalOps are the operators that return one of their operands rather than
+// a value of their own.
+var logicalOps = map[string]bool{
+	"&&": true, "||": true, "//": true, "and": true, "or": true,
+}
+
+// operandType reads a node's inferred type, or Unknown when it has none.
+func operandType(n *parser.Node, annotations map[uint32]types.Type) types.Type {
+	if n == nil {
+		return types.Unknown
+	}
+	if t, ok := annotations[n.StartByte()]; ok {
+		return t
+	}
+	return types.Unknown
 }
 
 // builtinArgType returns the expected type for the i-th argument of a builtin,
@@ -734,6 +1919,7 @@ func inferAssignmentNarrowing(
 	// Find the LHS variable name and the RHS type.
 	var varName string
 	var rhsType types.Type
+	var declNode *parser.Node
 
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
@@ -746,6 +1932,7 @@ func inferAssignmentNarrowing(
 		case "variable_declaration":
 			// my $x = ... — extract the sigil-prefixed name from the child
 			varName = extractVarNameFromDecl(child, source)
+			declNode = child
 
 		case "scalar":
 			// $x = ... (plain assignment, LHS only)
@@ -763,6 +1950,14 @@ func inferAssignmentNarrowing(
 		}
 	}
 
+	// A scalar LHS imposes scalar context on the RHS, and an aggregate in
+	// scalar context is its element count: `my $count = @arr` is 3, not the
+	// array. Without this the variable carried a type its value never has,
+	// which produced no diagnostic at the assignment and a wrong one at every
+	// later use.
+	//
+	// The sigil of the name decides it, since that is what the LHS is.
+	//
 	// The RHS is the last named child (after the = operator).
 	// Its type is the corresponding entry in childTypes.
 	var rhsNode *parser.Node
@@ -774,6 +1969,71 @@ func inferAssignmentNarrowing(
 			}
 			rhsNode = child
 			break
+		}
+	}
+
+	// Narrow only a genuine aggregate, for the same reason as the operand
+	// check: running this over a broad type such as Any strips its Array and
+	// Hash bits and hands back the remaining 17-member union, which satisfies
+	// nothing. A type that accepted everything would become one that accepts
+	// nothing.
+	if strings.HasPrefix(varName, "$") &&
+		(rhsType == types.Array || rhsType == types.Hash || rhsType == types.List) {
+		if narrowed, ok := types.NarrowByContext(rhsType, types.ScalarCtx); ok {
+			rhsType = narrowed
+		}
+	}
+
+	// `my $n = () = EXPR` is the count-of idiom: the empty list forces EXPR
+	// into list context, and the outer scalar assignment takes that list's
+	// LENGTH. Measured, `my $n = () = ("aaa" =~ /a/g)` is 3, where a
+	// scalar-context match would give the boolean 1.
+	//
+	// The grammar marks the empty list as stub_expression, so the shape is
+	// recognisable rather than guessed at.
+	if strings.HasPrefix(varName, "$") && isCountOfAssignment(rhsNode) {
+		st.UpdateType(varName, types.Int)
+		return types.Int
+	}
+
+	// A LIST assignment binds several names at once, and the RHS is evaluated
+	// in list context — which for a match means the CAPTURES rather than the
+	// boolean. Measured: `my ($a,$b) = ("x42" =~ /([a-z])(\d+)/)` gives
+	// ("x","42"), while `my $ok = ("abc" =~ /b/)` gives 1.
+	//
+	// Every capture is a Str, so each name binds Str. Handled here because
+	// the `=~` signature can only name one result type and the context is not
+	// visible to it.
+	if declNode != nil && rhsNode != nil && isListContextMatch(rhsNode) {
+		names := declaredNames(declNode, source)
+		if len(names) > 1 {
+			for _, n := range names {
+				st.UpdateType(n, types.Str)
+			}
+			return types.List
+		}
+	}
+
+	// Record what an aggregate was filled with, so a later `$n[0]` can answer
+	// with the element type rather than the sigil default.
+	//
+	// A scalar holding an anonymous constructor gets the same treatment:
+	// `my $a = [1,2]` makes $a an ArrayRef whose elements are Ints, and
+	// `$a->[0]` should say Int. The elements are inside the constructor node
+	// rather than in a list assigned to the variable.
+	if rhsNode != nil {
+		switch {
+		case strings.HasPrefix(varName, "@"), strings.HasPrefix(varName, "%"):
+			if elem := listElementType(rhsNode, source, st, annotations); elem != types.Unknown {
+				st.UpdateElemType(varName, elem)
+			}
+		case strings.HasPrefix(varName, "$"):
+			switch rhsNode.Kind() {
+			case "anonymous_array_expression", "anonymous_hash_expression":
+				if elem := listElementType(rhsNode, source, st, annotations); elem != types.Unknown {
+					st.UpdateElemType(varName, elem)
+				}
+			}
 		}
 	}
 
@@ -844,8 +2104,18 @@ func extractGuardPattern(node *parser.Node, source []byte, st *SymbolTable) *gua
 	}
 
 	// Pattern: builtin::blessed($x), builtin::reftype($x), builtin::is_bool($x)
-	if kind == "function_call_expression" {
-		return extractFunctionCallGuard(node, source, st)
+	//
+	// Both call node kinds are tried. The grammar labels a call
+	// "ambiguous_function_call_expression" when it cannot tell a call from a
+	// bareword-plus-parens at parse time, and which label a given guard gets
+	// has moved between grammar versions — builtin::blessed($x) was a plain
+	// function_call_expression before gotreesitter v0.51.0 and is ambiguous
+	// after. Matching only one kind silently stops narrowing rather than
+	// failing loudly, so both are accepted here.
+	if kind == "function_call_expression" || kind == "ambiguous_function_call_expression" {
+		if g := extractFunctionCallGuard(node, source, st); g != nil {
+			return g
+		}
 	}
 
 	// Pattern: guard1 && guard2 or guard1 || guard2 (high-precedence binary)
@@ -861,7 +2131,8 @@ func extractGuardPattern(node *parser.Node, source []byte, st *SymbolTable) *gua
 		return extractNegatedGuard(node, source, st)
 	}
 
-	// Pattern: not guard (low-precedence negation)
+	// Pattern: not guard (low-precedence negation). Reached when the call
+	// above did not yield a guard, so "not <guard>" still resolves.
 	if kind == "ambiguous_function_call_expression" {
 		return extractNotGuard(node, source, st)
 	}
@@ -1735,16 +3006,55 @@ func walkForStatement(
 		varName := sigildName("$", loopVar, source)
 		st.EnterScope("for")
 		defer st.ExitScope()
-		st.Define(Symbol{
-			Name: varName,
-			Type: types.Scalar,
-			Kind: SymVariable,
-		})
+		// `for my $x (@a)` introduces a NEW variable, so it is defined in the
+		// loop scope. `foreach ($n)` does not: $n is the aliased slot itself
+		// and must keep its outer binding, or the write-back below would
+		// join against the shadow rather than the real variable. That form
+		// refers to the slot as $_, which is defined here instead.
+		if iterSource != nil {
+			st.Define(Symbol{
+				Name: varName,
+				Type: types.Scalar,
+				Kind: SymVariable,
+			})
+		} else {
+			st.Define(Symbol{
+				Name: "$_",
+				Type: types.Scalar,
+				Kind: SymVariable,
+			})
+		}
 		// Annotate the loop variable node itself.
 		annotations[loopVar.StartByte()] = types.Scalar
 		for i := 0; i < bodyBlock.ChildCount(); i++ {
 			walkNode(bodyBlock.Child(i), source, st, annotations, diags, idx, classTypes)
 		}
+
+		// A foreach variable ALIASES what it iterates, so a write in the body
+		// mutates the source. Measured:
+		//
+		//	my $n = 42; foreach ($n) { $_ = "x" }   $n is "x", and perl warns
+		//	                                        "isn't numeric" on $n + 1
+		//	my @a = (1,2); for my $x (@a) { $x = "s" }   the elements change
+		//
+		// Whatever type the body left on the loop variable is joined back
+		// into the aliased target: joined rather than replaced, because the
+		// loop may not execute and the original value can survive.
+		// The write may land on the loop variable itself (`for my $x (@a) {
+		// $x = ... }`) or on the implicit $_ (`foreach ($n) { $_ = ... }`),
+		// which aliases the same slot. Take whichever the body actually
+		// narrowed.
+		written := types.Unknown
+		if final, ok := st.Lookup(varName); ok && final.Type != types.Scalar {
+			written = final.Type
+		}
+		if underscore, ok := st.Lookup("$_"); ok && underscore.Type != types.Scalar {
+			written = types.Join(written, underscore.Type)
+		}
+		if written != types.Unknown {
+			aliasWriteBack(iterSource, loopVar, written, source, st)
+		}
+
 		return types.Unknown
 	}
 
@@ -1753,6 +3063,33 @@ func walkForStatement(
 		walkNode(node.Child(i), source, st, annotations, diags, idx, classTypes)
 	}
 	return types.Unknown
+}
+
+// aliasWriteBack propagates a write through a foreach alias back to what the
+// loop iterates.
+//
+// The two spellings alias different things. `foreach ($n) { ... }` has no
+// separate loop variable — the grammar gives one named child before the block
+// — and aliases the SCALAR itself, so the scalar's type widens. `for my $x
+// (@a) { ... }` aliases the array's ELEMENTS, so the element type widens and
+// the array stays an Array.
+func aliasWriteBack(iterSource, loopVar *parser.Node, written types.Type, source []byte, st *SymbolTable) {
+	if iterSource == nil {
+		// `foreach ($n) { $_ = ... }` — the sole named child before the block
+		// IS the aliased scalar, and it was taken as the loop variable.
+		name := sigildName("$", loopVar, source)
+		if sym, ok := st.Lookup(name); ok {
+			st.UpdateType(name, types.Join(sym.Type, written))
+		}
+		return
+	}
+
+	switch iterSource.Kind() {
+	case "array":
+		st.UpdateElemType(sigildName("@", iterSource, source), written)
+	case "hash":
+		st.UpdateElemType(sigildName("%", iterSource, source), written)
+	}
 }
 
 // collectExplicitReturns recursively searches the subtree rooted at node for
@@ -2913,3 +4250,16 @@ func extractShiftChain(block *parser.Node, source []byte) []string {
 	}
 	return params
 }
+
+// activeOptions holds the Options for the analysis currently running.
+//
+// walkNode and its callees already thread seven parameters through a deep
+// recursion, and strictness is read at three leaf sites; threading an eighth
+// parameter to reach them would touch every call in the chain for no gain in
+// clarity. AnalyzeWithOptions sets this and restores it on return.
+//
+// Analysis is single-threaded per invocation (Analyze is documented as
+// stateless per call and the walk never spawns goroutines), so this is safe
+// for the sequential use PSC makes of it. It would need to become a field on
+// a walk context if the walk were ever parallelised.
+var activeOptions Options

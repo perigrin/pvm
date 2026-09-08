@@ -30,12 +30,12 @@ const (
 	Inf     Type = 1 << 18 // IEEE 754 Infinity (Scalar, not Str or Num)
 	Regex   Type = 1 << 6  // Regular expression
 
-	ScalarRef Type = 1 << 7  // Reference to a scalar
-	ArrayRef  Type = 1 << 8  // Reference to an array
-	HashRef   Type = 1 << 9  // Reference to a hash
-	CodeRef   Type = 1 << 10 // Reference to code (subroutine)
-	GlobRef   Type = 1 << 11 // Reference to a glob
-	Object    Type = 1 << 12 // Blessed reference (object)
+	ScalarRef  Type = 1 << 7  // Reference to a scalar
+	ArrayRef   Type = 1 << 8  // Reference to an array
+	HashRef    Type = 1 << 9  // Reference to a hash
+	CodeRef    Type = 1 << 10 // Reference to code (subroutine)
+	GlobRef    Type = 1 << 11 // Reference to a glob
+	objectLeaf Type = 1 << 12 // Blessed-reference leaf (blessed, but not a Regexp)
 
 	Array Type = 1 << 13 // Array
 	Hash  Type = 1 << 14 // Hash
@@ -69,19 +69,34 @@ const (
 
 	// Str is the string family: accepts string, float, and integer values.
 	// A concrete string literal is annotated as Str; Num and Int are subtypes.
-	Str Type = strLeaf | Num
+	//
+	// NaN and Inf are members of Str, not Num. Both pass syntactic
+	// preservation ("NaN" -> NaN -> "NaN" round-trips) and satisfy the string
+	// operation contracts; they are excluded from Num by the semantic
+	// component alone — NaN violates Contract_== and Contract_-, Inf violates
+	// Contract_- (Inf - Inf = NaN).
+	Str Type = strLeaf | Num | NaN | Inf
+
+	// Object is the blessed-reference family mask. Regex is a subtype of
+	// Object: a compiled pattern is blessed into Regexp and participates in
+	// method dispatch.
+	Object Type = objectLeaf | Regex
 
 	// Ref is the reference family mask.
 	Ref Type = ScalarRef | ArrayRef | HashRef | CodeRef | GlobRef | Object
 
 	// Scalar is the scalar family mask — all types that fit in a scalar variable.
-	Scalar Type = Undef | Bool | Str | DualVar | NaN | Inf | Regex | Ref
+	Scalar Type = Undef | Bool | Str | DualVar | Ref
 
-	// List is the aggregate family mask.
-	List Type = Array | Hash
+	// List is the aggregate family mask. Arity orders the top of the lattice:
+	// Scalar denotes {1} and List denotes {0,1,2,...}, so Scalar <: List by
+	// subset inclusion on arities. This states Perl's list-flattening rule as
+	// a subtype fact — a scalar satisfies a list position because one value is
+	// one of the arities a list admits.
+	List Type = Array | Hash | Scalar
 
 	// Any is the top type — all concrete type bits.
-	Any Type = Scalar | List | Code | Glob
+	Any Type = List | Code | Glob
 )
 
 // typeNames maps known Type masks/values to their canonical string names.
@@ -133,7 +148,7 @@ var allLeafBits = []struct {
 	{HashRef, "HashRef"},
 	{CodeRef, "CodeRef"},
 	{GlobRef, "GlobRef"},
-	{Object, "Object"},
+	{objectLeaf, "Object"},
 	{Array, "Array"},
 	{Hash, "Hash"},
 	{Code, "Code"},
@@ -214,50 +229,116 @@ func IsSubtype(child, parent Type) bool {
 // runtime, but Perl code that expects a specific ref type (e.g. HashRef)
 // should get a diagnostic when passed a generic Ref. This matches the
 // pre-bitset behavior.
+//
+// List is handled separately by listSatisfiesAggregate rather than listed
+// here: it stands above Scalar in the arity ordering rather than beside it,
+// so a blanket polymorphic check would let every scalar requirement be
+// satisfied by a list-returning expression.
 var polymorphicMasks = map[Type]bool{
 	Any:    true,
 	Scalar: true,
-	List:   true,
 }
 
-// TypeSatisfies reports whether a value of actual type can satisfy a required type.
+// listSatisfiesAggregate reports whether a List actual can satisfy required.
 //
-// Rules:
-//   - required == Any accepts everything.
-//   - actual == Unknown passes permissively (type not yet determined).
-//   - IsSubtype(actual, required) covers exact and subtype relationships.
-//   - For polymorphic types (Any, Scalar, List): required is a subtype of actual,
-//     meaning the actual variable could hold a value of the required type at runtime.
+// A list-producing expression may stand where an aggregate is expected —
+// sort() returns List and can feed an Array position. It may NOT stand where
+// a scalar is expected: under the arity ordering Scalar <: List, so a blanket
+// reverse-subtype check would make `keys(%h) + 1` type-check as arithmetic.
+// Arity is a claim about how many values arrive, not about which scalar type
+// one of them has, so only aggregate requirements are satisfied this way.
+func listSatisfiesAggregate(actual, required Type) bool {
+	if actual != List {
+		return false
+	}
+	return required&^(Array|Hash) == 0 && required != Unknown
+}
+
+// TypeSatisfies reports whether a value of actual type can satisfy a required
+// type at a use site — a call argument, an operator operand.
+//
+// It asks two questions:
+//
+//  1. Is actual already a member of required? (IsSubtype — nothing happens at
+//     runtime and the value survives unchanged.)
+//  2. Could a value of the required type be hiding inside actual? (The union
+//     and polymorphic cases below — a variable whose inferred type is a broad
+//     family may hold a value of the required type.)
+//
+// It deliberately does NOT ask whether Perl would coerce. Coercibility is far
+// too permissive to gate a diagnostic on: Perl stringifies and numifies
+// everything, so `IsCoercible(Undef, Num)` and `IsCoercible(NaN, Int)` are
+// both true, and accepting them here silently deletes exactly the diagnostics
+// PSC exists to emit — `chr($n)` on a float, `undef` in arithmetic, NaN where
+// an integer is wanted. Measured: routing this function through IsCoercible
+// turns four such diagnostics off.
+//
+// So the two relations serve opposite ends. IsCoercible answers "will this
+// run?", which is the question a code GENERATOR asks. TypeSatisfies answers
+// "does this mean what it says?", which is the question a CHECKER asks. The
+// gap between them — coercible but not a subtype — is where a
+// coercion-mismatch diagnostic belongs, and CoercionMismatch below names it.
 func TypeSatisfies(actual, required Type) bool {
-	// required == Any accepts everything.
+	return typeSatisfies(actual, required, false)
+}
+
+// TypeSatisfiesStrict is TypeSatisfies with the Unknown escape hatch closed.
+//
+// PSC's Unknown has behaved as TypeScript's `any`: it satisfies every
+// requirement, so an un-inferred value passes every check and the checker
+// falls silent exactly where it knows least. TypeScript draws the line this
+// function draws — `any` disables checking, `unknown` must be narrowed before
+// use — and Unknown is the second of those, not the first. A value whose type
+// inference could not determine is not a value known to be acceptable.
+//
+// Nothing else changes: for every pair of KNOWN types the two functions agree,
+// so enabling strictness cannot alter a verdict about a value whose type is
+// established. Any keeps its meaning in both modes, since a required type of
+// Any is a position that accepts anything by construction — that is the
+// deliberate escape hatch, and it must be written in the code being checked
+// rather than inferred from the absence of information.
+func TypeSatisfiesStrict(actual, required Type) bool {
+	return typeSatisfies(actual, required, true)
+}
+
+func typeSatisfies(actual, required Type, strict bool) bool {
+	// required == Any accepts everything, in both modes.
 	if required == Any {
 		return true
 	}
 
-	// Unknown type passes permissively (type not yet determined).
+	// An un-inferred value. Permissively it satisfies anything; strictly it
+	// satisfies nothing until narrowed.
 	if actual == Unknown {
-		return true
+		return !strict
 	}
 
-	// Exact subtype check: all of actual's bits are within required.
+	// (1) Membership: all of actual's bits are within required.
 	if IsSubtype(actual, required) {
 		return true
 	}
 
-	// Union containment check: actual is an ad-hoc union type (not a named
-	// parent mask like Str, Num, Scalar) whose bits include all of required's
-	// bits. For example, Object|HashRef satisfies Object because the union
-	// contains the Object bit. Named parent masks are excluded because Str
-	// contains Int's bits but Str should NOT satisfy Int — Str is a wider
-	// type that may hold non-numeric values.
-	if _, isNamed := typeNames[actual]; !isNamed && actual&required == required {
+	// (2) The value might be of the required type at runtime.
+	//
+	// A union is an EITHER, never a both. Object|HashRef is the value that
+	// came out of a merge whose arms were an object and a plain hashref, and
+	// perl keeps those apart: `ref` reports the class for a blessed reference
+	// and HASH for a plain one, measured on 5.42, so no value is both. The
+	// same shape arises from `$c ? $a : $b`, and it means the same thing.
+	//
+	// So a union does NOT satisfy a requirement that only some of its members
+	// meet — that is the whole point of tracking it. Satisfaction for unions
+	// is the subtype check in (1): every member must be acceptable.
+	//
+	// Polymorphic: actual is a general container that could hold any of its
+	// subtypes at runtime, so a required subtype might be what it holds.
+	if polymorphicMasks[actual] && IsSubtype(required, actual) {
 		return true
 	}
 
-	// Polymorphic check: actual is a general container type that could hold
-	// any of its subtypes at runtime. If required is a subtype of actual,
-	// the variable might hold a value of that required type.
-	if polymorphicMasks[actual] && IsSubtype(required, actual) {
+	// A List can stand where an aggregate is expected, but not where a scalar
+	// is — see listSatisfiesAggregate.
+	if listSatisfiesAggregate(actual, required) {
 		return true
 	}
 

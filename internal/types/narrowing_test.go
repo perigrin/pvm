@@ -43,10 +43,15 @@ func TestNarrowByContextScalar(t *testing.T) {
 	assert.True(t, valid, "Hash in scalar context is valid")
 	assert.Equal(t, types.Int, narrowed, "Hash in scalar context narrows to Int (count)")
 
-	// List (Array|Hash) in scalar context: both aggregate bits become Int
+	// List in scalar context is its element COUNT. An earlier version of this
+	// test expected Scalar|Int, on the reasoning that the Scalar bits List
+	// contains under the arity ordering should pass through — but `my $n =
+	// keys %h` is the number of keys, not one of them, and every
+	// List-returning builtin behaves that way.
 	narrowed, valid = types.NarrowByContext(types.List, types.ScalarCtx)
 	assert.True(t, valid, "List in scalar context is valid")
-	assert.Equal(t, types.Int, narrowed, "List in scalar context narrows to Int (both Array and Hash become count)")
+	assert.Equal(t, types.Int, narrowed,
+		"a list in scalar context is its element count")
 
 	// Str in scalar context passes through unchanged
 	narrowed, valid = types.NarrowByContext(types.Str, types.ScalarCtx)
@@ -476,4 +481,22 @@ func TestNegateGuardBool(t *testing.T) {
 	narrowed, ok = types.NegateGuard(types.Bool, guard)
 	assert.True(t, ok, "Bool negates under bool guard")
 	assert.Equal(t, types.None, narrowed, "Bool negated by bool guard → None")
+}
+
+// TestNarrowListInScalarContextIsCount verifies that a List in scalar context
+// is a count.
+//
+// `my $n = keys %h` is the number of keys, and a builtin returning List — keys,
+// values, splice, sort — assigned to a scalar gives its length. Narrowing
+// produced Scalar instead: List contains the Scalar bits under the arity
+// ordering, so stripping Array and Hash left them behind rather than yielding
+// the count.
+//
+// Array and Hash already narrowed to Int; List is the same question one level
+// up.
+func TestNarrowListInScalarContextIsCount(t *testing.T) {
+	narrowed, ok := types.NarrowByContext(types.List, types.ScalarCtx)
+	assert.True(t, ok, "List in scalar context is valid")
+	assert.Equal(t, types.Int, narrowed,
+		"a list in scalar context is its element count")
 }

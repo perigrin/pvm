@@ -75,27 +75,58 @@ func TestAuditKeysValuesEachAcceptArray(t *testing.T) {
 	}
 }
 
-// --- split: first arg is Regex, not Scalar ---
-// perldoc: split /PATTERN/, EXPR, LIMIT
+// --- split: the pattern is a Regex OR a Str ---
+// perldoc writes it `split /PATTERN/, EXPR, LIMIT`, but perl compiles a plain
+// string into a pattern, so all of these are ordinary correct Perl:
+//
+//	split /:/, $x      split ":", $x      split $sep, $x      split qr/:/, $x
+//
+// Measured on 5.42: all four yield ("a","b","c") for "a:b:c". Requiring Regex
+// alone made `split ":", $x` a type error, which was 51 of the diagnostics on
+// perl5/lib — the single largest false-positive class.
+//
+// Regex|Str rather than Scalar: the position must still reject a reference,
+// and it does.
 
 func TestAuditSplitPatternType(t *testing.T) {
 	sig, ok := types.GetBuiltin("split")
 	require.True(t, ok, "split should be a known builtin")
 	require.True(t, len(sig.ArgTypes) >= 1, "split should have at least 1 arg type")
-	assert.Equal(t, types.Regex, sig.ArgTypes[0],
-		"split first arg should be Regex (the /PATTERN/), not Scalar")
+
+	assert.True(t, types.TypeSatisfies(types.Regex, sig.ArgTypes[0]),
+		"split /:/, $x — a compiled pattern is accepted")
+	assert.True(t, types.TypeSatisfies(types.Str, sig.ArgTypes[0]),
+		"split \":\", $x — a string pattern is accepted, perl compiles it")
+	assert.False(t, types.TypeSatisfies(types.HashRef, sig.ArgTypes[0]),
+		"split $hashref, $x — a reference is still rejected")
+	assert.NotEqual(t, types.Any, sig.ArgTypes[0],
+		"the position must still constrain something")
 }
 
-// --- join: second arg accepts Str (the list elements to join) ---
-// perldoc: join EXPR, LIST — joins string representations.
-// The variadic list elements should be Str, not Any.
+// --- join: separator then a LIST ---
+// perldoc: join EXPR, LIST. The second position is the list itself, not one
+// string: `join ":", @foo` passes an array that flattens into LIST, and the
+// variadic tail repeats this entry, so Str here rejected every array — 15 of
+// the arity/type diagnostics on perl5/lib were exactly that.
+//
+// List rather than Any: the point of the audit is that the position must
+// still constrain something, and List excludes Code and Glob, which cannot
+// appear in a list to be joined.
 
 func TestAuditJoinListElements(t *testing.T) {
 	sig, ok := types.GetBuiltin("join")
 	require.True(t, ok, "join should be a known builtin")
 	require.True(t, len(sig.ArgTypes) >= 2, "join should have at least 2 arg types")
-	assert.Equal(t, types.Str, sig.ArgTypes[1],
-		"join list elements should be Str (not Any) — elements are stringified")
+	assert.Equal(t, types.List, sig.ArgTypes[1],
+		"join's second position is LIST — an array flattens into it")
+	assert.NotEqual(t, types.Any, sig.ArgTypes[1],
+		"but not Any: the position must still constrain something")
+
+	// A Str is still acceptable there, since Scalar <: List.
+	assert.True(t, types.TypeSatisfies(types.Str, sig.ArgTypes[1]),
+		"join \":\", \"a\", \"b\" — strings satisfy the list position")
+	assert.True(t, types.TypeSatisfies(types.Array, sig.ArgTypes[1]),
+		"join \":\", @foo — an array satisfies the list position")
 }
 
 // --- chomp/chop accept Str, not Any ---
@@ -127,6 +158,48 @@ func TestAuditDieWarnAcceptStr(t *testing.T) {
 			require.Len(t, sig.ArgTypes, 1, "%s should have 1 arg type", name)
 			assert.Equal(t, types.Str, sig.ArgTypes[0],
 				"%s should accept Str (not Any) — message is stringified", name)
+		})
+	}
+}
+
+// --- push/unshift/splice take a LIST, not Any ---
+// perldoc: push ARRAY, LIST. Everything flattens into that list — measured on
+// 5.42, scalars, arrays, hashes and references all append — so List accepts
+// every value Any did.
+//
+// It is not the same claim, though, and that is the point. Any is the escape
+// hatch: it disables checking, and it only earns its keep once someone can
+// WRITE it in an annotation. With no annotation syntax, an Any in a signature
+// is an unexamined slot rather than a declared one. List still excludes Code
+// and Glob — the compiled CV and the typeglob, which no perl scalar holds —
+// so the position keeps constraining something.
+
+func TestAuditListOperatorsTakeList(t *testing.T) {
+	for _, name := range []string{"push", "unshift"} {
+		t.Run(name, func(t *testing.T) {
+			sig, ok := types.GetBuiltin(name)
+			require.True(t, ok, "%s should be a known builtin", name)
+			require.True(t, len(sig.ArgTypes) >= 2, "%s takes an array and a list", name)
+
+			assert.Equal(t, types.List, sig.ArgTypes[1],
+				"%s's second position is LIST", name)
+			assert.NotEqual(t, types.Any, sig.ArgTypes[1],
+				"%s must not use Any — it is the annotation escape hatch", name)
+
+			// Everything a value can be still satisfies it.
+			for _, ty := range []types.Type{
+				types.Int, types.Str, types.HashRef, types.ArrayRef,
+				types.CodeRef, types.Object, types.Array, types.Hash,
+			} {
+				assert.True(t, types.TypeSatisfies(ty, sig.ArgTypes[1]),
+					"%s accepts %s", name, ty)
+			}
+
+			// But the CV and the typeglob do not.
+			assert.False(t, types.TypeSatisfies(types.Code, sig.ArgTypes[1]),
+				"%s does not take a bare CV", name)
+			assert.False(t, types.TypeSatisfies(types.Glob, sig.ArgTypes[1]),
+				"%s does not take a typeglob", name)
 		})
 	}
 }

@@ -27,9 +27,19 @@ type Symbol struct {
 	ParamTypes []types.Type // Inferred parameter types (subroutines only, positional)
 	ParamNames []string     // Parameter variable names (subroutines only, positional)
 	ClassType  string       // Class name for object variables (e.g. "Foo" for Foo->new())
-	Kind       SymbolKind
-	StartByte  uint32
-	EndByte    uint32
+
+	// ElemType is the type of an ELEMENT of an aggregate — the join of the
+	// values it was seen to hold. Reading `$n[0]` yields this rather than the
+	// sigil default, which is Scalar and says almost nothing.
+	//
+	// It is the join because an index selects one of the elements and PSC
+	// does not evaluate indices: `my @m = (1, "s")` holds an Int and a Str,
+	// and a read is whichever the index picks. Zero means no element type is
+	// known, and a read then falls back to Scalar rather than guessing.
+	ElemType  types.Type
+	Kind      SymbolKind
+	StartByte uint32
+	EndByte   uint32
 }
 
 // Scope is a single lexical scope that may refer back to its enclosing parent.
@@ -156,6 +166,23 @@ func (st *SymbolTable) UpdateType(name string, typ types.Type) bool {
 	for s := st.current; s != nil; s = s.parent {
 		if sym, ok := s.symbols[name]; ok {
 			sym.Type = typ
+			s.symbols[name] = sym
+			return true
+		}
+	}
+	return false
+}
+
+// UpdateElemType records the element type of an aggregate, joining it with
+// whatever was already known.
+//
+// Joining rather than replacing is what makes a container filled from several
+// places come out right: each assignment contributes an arm, and the element
+// type is the merge of all of them.
+func (st *SymbolTable) UpdateElemType(name string, typ types.Type) bool {
+	for s := st.current; s != nil; s = s.parent {
+		if sym, ok := s.symbols[name]; ok {
+			sym.ElemType = types.Join(sym.ElemType, typ)
 			s.symbols[name] = sym
 			return true
 		}
@@ -307,12 +334,32 @@ func collectPackageStatement(node *parser.Node, source []byte, st *SymbolTable) 
 // from the sigil: $ → Scalar, @ → Array, % → Hash.
 func collectVariableDeclaration(node *parser.Node, source []byte, st *SymbolTable) {
 	// Check whether this declaration is part of an assignment (my $x = ...).
-	// If not, the variable is uninitialized and scalars get type Undef.
-	hasInitializer := false
-	if parent := node.Parent(); parent != nil && parent.Kind() == "assignment_expression" {
-		hasInitializer = true
-	}
-
+	// A declaration without an initializer holds undef AT THAT POINT, which is
+	// not the same as holding undef for the rest of its scope. Perl's ordinary
+	// lazy-init idiom assigns it somewhere else entirely:
+	//
+	//	my $v_unicode_version;                              # line 162
+	//	UnicodeVersion() unless defined $v_unicode_version; # line 1029
+	//	if ($v_unicode_version ge v2.0.0) { ... }           # line 1030
+	//	...
+	//	$v_unicode_version = pack "C*", ...;                # line 4743
+	//
+	// Typing the declaration Undef reported line 1030 as a mismatch, on the
+	// strength of a claim the file itself contradicts 3700 lines later.
+	//
+	// An earlier attempt kept Undef when nothing in the file appeared to assign
+	// the variable, using a textual scan for `$name =`. That is not sound
+	// enough to make a definite claim on: `my ($key, $val) = each %h` assigns
+	// $val and matches no such pattern, so the scan said "never assigned" and
+	// PSC reported every later use of $val as undef. Perl binds names in more
+	// ways than a regex can enumerate — list assignment, foreach aliasing,
+	// local, sub signatures, typeglobs.
+	//
+	// Undef is a DEFINITE claim, and PSC cannot establish it from a
+	// declaration alone. Scalar is the honest type: the variable holds one
+	// value and inference does not yet know which. An explicit `my $x = undef`
+	// still narrows to Undef through assignment narrowing, because there the
+	// source says so.
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		if child == nil {
@@ -322,9 +369,6 @@ func collectVariableDeclaration(node *parser.Node, source []byte, st *SymbolTabl
 		case "scalar":
 			name := sigildName("$", child, source)
 			scalarType := types.Scalar
-			if !hasInitializer {
-				scalarType = types.Undef
-			}
 			st.Define(Symbol{
 				Name:      name,
 				Type:      scalarType,

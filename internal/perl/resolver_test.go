@@ -192,6 +192,14 @@ func TestResolveForkIdentifierNotInRegistry(t *testing.T) {
 		AvailableVersions:   []string{"5.40.2"},
 		SkipLocal:           true,
 		SkipVersionResolved: true,
+		// SkipSystemPerl prevents the resolver's step-7 fallback from
+		// finding a real /usr/bin/perl on the test host. Without this,
+		// the env-step's "fork not found" error is swallowed and the
+		// system fallback succeeds — masking what this test is meant
+		// to assert (that an unsatisfied fork bubbles up). The
+		// fall-through behavior in the env step is a separate issue
+		// (see #456); this test is scoped to fork resolution.
+		SkipSystemPerl: true,
 	}
 
 	_, err := ResolveVersion(options)

@@ -12,6 +12,16 @@ on:
         required: false
         default: 'latest2'
         type: string
+      perl_source_url:
+        description: 'Optional source tarball URL to build from (e.g. author path for a release not yet on /src/5.0/). Only valid for a single version in perl_versions.'
+        required: false
+        default: ''
+        type: string
+      platforms:
+        description: 'Comma-separated platforms to build (subset of: linux-amd64,darwin-amd64,darwin-arm64). darwin-amd64 is off by default due to macos-13 runner scarcity; add it explicitly to build it.'
+        required: false
+        default: 'linux-amd64,darwin-arm64'
+        type: string
 
 # Required permissions for GitHub token to create releases and upload assets
 permissions:
@@ -33,7 +43,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Get the latest release tag (including pre-releases)
-          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          # Select the latest pvm release (tag starts with "v"), not the newest
+          # release overall — perl-* binary releases published by this workflow
+          # would otherwise be picked up as the "latest" and break the download.
+          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --json tagName --jq 'map(.tagName | select(startswith("v"))) | .[0]')
           echo "Using release: $LATEST_TAG"
 
           # Download the linux-amd64 release asset
@@ -50,13 +63,9 @@ jobs:
 
           # List extracted files for debugging
           echo "Extracted files:"
-          ls -la pvm-linux-amd64 2>/dev/null || echo "No pvm-linux-amd64 found"
+          ls -la pvm 2>/dev/null || echo "No pvm binary found"
 
-          chmod +x pvm-linux-amd64
-
-          # Rename for easy access
-          echo "Renaming binary..."
-          mv pvm-linux-amd64 pvm
+          chmod +x pvm
 
           # Verify it works
           echo "Testing pvm..."
@@ -76,14 +85,17 @@ jobs:
 
       - name: Generate build matrix
         id: matrix
+        env:
+          # Passed via env (not inline ${{ }}) to avoid shell injection.
+          PLATFORMS_INPUT: ${{ github.event.inputs.platforms }}
         run: |
           # Convert comma-separated versions to JSON array
           VERSIONS_JSON=$(echo "${{ steps.versions.outputs.versions }}" | jq -R 'split(",") | map(select(length > 0))')
 
-          # Platform matrix. macOS relocation (install_name_tool +
-          # codesign) is implemented in internal/perl/relocatable.go
-          # alongside the Linux patchelf path.
-          PLATFORMS='["linux-amd64", "darwin-amd64", "darwin-arm64"]'
+          # Platform matrix from the dispatch input (defaults to all three).
+          # macOS relocation (install_name_tool + codesign) is implemented in
+          # internal/perl/relocatable.go alongside the Linux patchelf path.
+          PLATFORMS=$(printf '%s' "$PLATFORMS_INPUT" | jq -R 'split(",") | map(select(length > 0))')
 
           MATRIX=$(jq -n --argjson versions "$VERSIONS_JSON" --argjson platforms "$PLATFORMS" '{
             include: [
@@ -94,7 +106,7 @@ jobs:
                   if $platform == "linux-amd64" then "ubuntu-latest"
                   elif $platform == "darwin-amd64" then "macos-13"
                   elif $platform == "darwin-arm64" then "macos-latest"
-                  else "ubuntu-latest" end
+                  else error("unknown platform: \($platform) (valid: linux-amd64, darwin-amd64, darwin-arm64)") end
                 )
               }
             ]
@@ -132,7 +144,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Get the latest release tag (including pre-releases)
-          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          # Select the latest pvm release (tag starts with "v"), not the newest
+          # release overall — perl-* binary releases published by this workflow
+          # would otherwise be picked up as the "latest" and break the download.
+          LATEST_TAG=$(gh release list --repo ${{ github.repository }} --json tagName --jq 'map(.tagName | select(startswith("v"))) | .[0]')
           echo "Using release: $LATEST_TAG"
 
           # Download the release asset for the current platform
@@ -149,21 +164,38 @@ jobs:
 
           # List extracted files for debugging
           echo "Extracted files:"
-          ls -la pvm-${{ matrix.platform }} 2>/dev/null || echo "No pvm-${{ matrix.platform }} found"
+          ls -la pvm 2>/dev/null || echo "No pvm binary found"
 
-          chmod +x pvm-${{ matrix.platform }}
-
-          # Rename for easy access
-          echo "Renaming binary..."
-          mv pvm-${{ matrix.platform }} pvm
+          chmod +x pvm
 
           # Verify it works
           echo "Testing pvm..."
           ./pvm version
 
       - name: Build Perl binary (no upload)
+        env:
+          # Optional source URL for a release not yet mirrored to /src/5.0/.
+          # Passed via env (not inline ${{ }}) to avoid shell injection.
+          PERL_SOURCE_URL: ${{ github.event.inputs.perl_source_url }}
+          MATRIX_VERSION: ${{ matrix.version }}
         run: |
-          ./pvm perl build ${{ matrix.version }}
+          # The URL override only applies to the matrix version it names, so a
+          # multi-version dispatch with a single URL builds the other versions
+          # normally instead of pointing them all at the same source.
+          if [ -n "$PERL_SOURCE_URL" ] && printf '%s' "$PERL_SOURCE_URL" | grep -qF "perl-$MATRIX_VERSION."; then
+            echo "Building version $MATRIX_VERSION from source URL: $PERL_SOURCE_URL"
+            ./pvm perl build "$PERL_SOURCE_URL"
+            # pvm names the install dir from the version detected in the tarball.
+            # Downstream steps (tarball, artifact, release tag) use $MATRIX_VERSION,
+            # so refuse to continue if the detected version diverged — otherwise we
+            # would publish a binary under the wrong tag.
+            if [ ! -x "$HOME/.local/share/pvm/versions/$MATRIX_VERSION/bin/perl" ]; then
+              echo "::error::URL build did not produce versions/$MATRIX_VERSION; detected version differs from $MATRIX_VERSION, refusing to publish under the wrong tag" >&2
+              exit 1
+            fi
+          else
+            ./pvm perl build "$MATRIX_VERSION"
+          fi
         timeout-minutes: 120
 
       - name: Create binary archive
@@ -174,7 +206,7 @@ jobs:
             --exclude "*.log" --exclude "*.tmp" --exclude ".pvm-*"
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: perl-${{ matrix.version }}-${{ matrix.platform }}
           path: ~/.local/share/pvm/versions/${{ matrix.version }}/perl-${{ matrix.version }}-${{ matrix.platform }}.tar.gz
@@ -191,7 +223,7 @@ jobs:
         version: ${{ fromJson(needs.prepare.outputs.versions_array) }}
     steps:
       - name: Download all artifacts for version ${{ matrix.version }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: perl-${{ matrix.version }}-*
           path: ./binaries
@@ -200,13 +232,29 @@ jobs:
       - name: Create GitHub release with all binaries
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ matrix.version }}
+          REPO: ${{ github.repository }}
         run: |
-          # Create release for this Perl version
-          gh release create perl-${{ matrix.version }} \
-            --repo ${{ github.repository }} \
-            --title "Perl ${{ matrix.version }} Binaries" \
-            --notes "Pre-built Perl ${{ matrix.version }} binaries for Linux and macOS platforms" \
-            ./binaries/perl-${{ matrix.version }}-*.tar.gz
+          # Derive the platforms actually present from the downloaded tarballs,
+          # so a partial build (e.g. a platform skipped for runner availability)
+          # produces honest release notes instead of claiming all platforms.
+          PLATFORMS_PRESENT=$(ls ./binaries/perl-"$VERSION"-*.tar.gz \
+            | sed -E "s#.*perl-$VERSION-##; s#\.tar\.gz\$##" | paste -sd, -)
+          NOTES="Pre-built Perl $VERSION binaries. Platforms in this release: $PLATFORMS_PRESENT"
+
+          # Create the release if the tag is new, otherwise add/replace assets on
+          # the existing one, so a later run can fill in a platform that was
+          # skipped earlier without failing on the existing tag.
+          if gh release view "perl-$VERSION" --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload "perl-$VERSION" --repo "$REPO" --clobber \
+              ./binaries/perl-"$VERSION"-*.tar.gz
+          else
+            gh release create "perl-$VERSION" \
+              --repo "$REPO" \
+              --title "Perl $VERSION Binaries" \
+              --notes "$NOTES" \
+              ./binaries/perl-"$VERSION"-*.tar.gz
+          fi
 
   # Summary job
   summary:

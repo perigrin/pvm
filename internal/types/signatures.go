@@ -28,11 +28,16 @@ type UnaryOpSig struct {
 // builtins maps Perl builtin function names to their type signatures.
 // The last element in ArgTypes is variadic — it may appear more than once.
 var builtins = map[string]BuiltinSig{
-	"push":    {MinArity: 2, ArgTypes: []Type{Array, Any}, ReturnType: Int},
+	// push/unshift/splice take a LIST, not Any. Everything flattens into it —
+	// measured, scalars, arrays, hashes and refs all append — so List accepts
+	// every value Any did, while still excluding Code and Glob. Any is the
+	// annotation escape hatch and has no business standing in for an
+	// unexamined slot.
+	"push":    {MinArity: 2, ArgTypes: []Type{Array, List}, ReturnType: Int},
 	"pop":     {MinArity: 0, ArgTypes: []Type{Array}, ReturnType: Scalar},
 	"shift":   {MinArity: 0, ArgTypes: []Type{Array}, ReturnType: Scalar},
-	"unshift": {MinArity: 2, ArgTypes: []Type{Array, Any}, ReturnType: Int},
-	"splice":  {MinArity: 1, ArgTypes: []Type{Array, Int, Int, Any}, ReturnType: List},
+	"unshift": {MinArity: 2, ArgTypes: []Type{Array, List}, ReturnType: Int},
+	"splice":  {MinArity: 1, ArgTypes: []Type{Array, Int, Int, List}, ReturnType: List},
 
 	"keys":   {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
 	"values": {MinArity: 1, ArgTypes: []Type{Hash | Array}, ReturnType: List},
@@ -46,14 +51,28 @@ var builtins = map[string]BuiltinSig{
 	"chr":    {MinArity: 0, ArgTypes: []Type{Int}, ReturnType: Str},
 	"ord":    {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Int},
 
-	"join":    {MinArity: 2, ArgTypes: []Type{Str, Str}, ReturnType: Str},
-	"split":   {MinArity: 0, ArgTypes: []Type{Regex, Str, Int}, ReturnType: List},
-	"sprintf": {MinArity: 1, ArgTypes: []Type{Str, Any}, ReturnType: Str},
+	// join takes a separator and then a LIST, not a series of strings: the
+	// variadic tail repeats the last ArgTypes entry, so Str there rejected
+	// `join ":", @foo`. Measured: join(":", @f) flattens the array.
+	"join": {MinArity: 2, ArgTypes: []Type{Str, List}, ReturnType: Str},
+	// split's pattern may be a compiled Regex or a plain Str: perl compiles a
+	// string into a pattern, so `split ":", $x` is ordinary Perl. Measured on
+	// 5.42, /:/ and ":" and $sep and qr/:/ all behave identically. Regex
+	// alone rejected the string form, which was the largest single class of
+	// false positives on perl5/lib.
+	"split": {MinArity: 0, ArgTypes: []Type{Regex | Str, Str, Int}, ReturnType: List},
+	// sprintf takes a format and then the LIST of values it interpolates.
+	"sprintf": {MinArity: 1, ArgTypes: []Type{Str, List}, ReturnType: Str},
 	"substr":  {MinArity: 2, ArgTypes: []Type{Str, Num, Num}, ReturnType: Str},
 
 	"defined": {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Bool},
 	"ref":     {MinArity: 0, ArgTypes: []Type{Scalar}, ReturnType: Str},
-	"scalar":  {MinArity: 1, ArgTypes: []Type{Any}, ReturnType: Scalar},
+	// scalar() imposes scalar context on anything, so List rather than Any:
+	// every value can be evaluated in scalar context, and List still excludes
+	// Code and Glob. The RETURN type depends on the argument and is computed
+	// by contextualReturnType — a signature can only name one type, and this
+	// builtin's answer is "whatever the argument becomes".
+	"scalar": {MinArity: 1, ArgTypes: []Type{List}, ReturnType: Scalar},
 
 	"die":  {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: None},
 	"warn": {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
@@ -63,6 +82,29 @@ var builtins = map[string]BuiltinSig{
 	"print":  {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
 	"say":    {MinArity: 0, ArgTypes: []Type{Str}, ReturnType: Bool},
 	"return": {MinArity: 0, ArgTypes: []Type{Any}, ReturnType: Any},
+
+	// Numeric transforms. abs follows its argument and int always truncates
+	// to an integer; both are narrowed further by contextualReturnType, which
+	// a signature cannot express.
+	"abs": {MinArity: 1, ArgTypes: []Type{Num}, ReturnType: Num},
+	"int": {MinArity: 1, ArgTypes: []Type{Num}, ReturnType: Int},
+
+	// String transforms. Each takes a string and yields one; return types
+	// measured on 5.42 rather than transcribed.
+	"uc":      {MinArity: 1, ArgTypes: []Type{Str}, ReturnType: Str},
+	"lc":      {MinArity: 1, ArgTypes: []Type{Str}, ReturnType: Str},
+	"ucfirst": {MinArity: 1, ArgTypes: []Type{Str}, ReturnType: Str},
+	"lcfirst": {MinArity: 1, ArgTypes: []Type{Str}, ReturnType: Str},
+
+	// index/rindex search a string for a substring and yield a position, or
+	// -1 when absent — an Int either way.
+	"index":  {MinArity: 2, ArgTypes: []Type{Str, Str, Int}, ReturnType: Int},
+	"rindex": {MinArity: 2, ArgTypes: []Type{Str, Str, Int}, ReturnType: Int},
+
+	// reverse is context-dependent: a reversed list in list context, a
+	// reversed string in scalar context. List covers both under the arity
+	// ordering, since Scalar <: List.
+	"reverse": {MinArity: 1, ArgTypes: []Type{List}, ReturnType: List},
 
 	"map":  {MinArity: 2, ArgTypes: []Type{Code, List}, ReturnType: List},
 	"grep": {MinArity: 2, ArgTypes: []Type{Code, List}, ReturnType: List},
