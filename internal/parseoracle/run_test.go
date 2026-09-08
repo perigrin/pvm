@@ -254,6 +254,52 @@ func TestReportNamesWrongFiles(t *testing.T) {
 	}
 }
 
+// TestRunBoundsAWedgedFile is what keeps one pathological file from stalling a
+// whole corpus run. It is not hypothetical: t/re/pat_psycho.t calls test.pl's
+// `watchdog(5 * 60)` from a BEGIN block, so `perl -c` FORKS a monitor process
+// that inherits the pipe the oracle reads. Measured, that file is the sweep's
+// one runner error, and it costs exactly the timeout and nothing more.
+//
+// A run must therefore charge a wedged file its timeout and move on, rather
+// than waiting out a grandchild's own lifetime.
+func TestRunBoundsAWedgedFile(t *testing.T) {
+	dir := t.TempDir()
+	// A compile-time fork that outlives its parent and inherits its pipes,
+	// which is the shape watchdog() creates.
+	const src = "BEGIN { my $pid = fork(); if (!$pid) { sleep 60; exit } }\nmy $x = 1;\n"
+	path := filepath.Join(dir, "wedged.pl")
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatalf("writing fixture: %v", err)
+	}
+
+	// Two seconds is plenty for a two-line file, and far less than the 60s
+	// the forked child lives.
+	const budget = 2 * time.Second
+	start := time.Now()
+	report, err := parseoracle.Run(context.Background(), []string{path},
+		parseoracle.RunOptions{Dir: dir, Timeout: budget})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	t.Logf("Run returned after %s", elapsed.Round(time.Millisecond))
+	if elapsed > 10*time.Second {
+		t.Errorf("Run took %s with a %s per-file timeout: a compile-time fork "+
+			"is holding the output pipe open, so one wedged corpus file stalls "+
+			"the whole run", elapsed.Round(time.Millisecond), budget)
+	}
+	// A file the runner could not measure is an error, never a verdict.
+	// Bucketing it would put a timeout in the fidelity numbers.
+	if report.Errors != 1 {
+		t.Errorf("report counts %d runner errors, want 1", report.Errors)
+	}
+	if report.Measured() != 0 {
+		t.Errorf("a file the oracle could not answer for must not reach a bucket, got %d measured",
+			report.Measured())
+	}
+}
+
 // TestReportAssertsExactFloor is the trap the previous issue documented on
 // BucketWider. Our grammar emits `ambiguous_function_call_expression`, which
 // honestly declines to commit, so every prototype-driven call buckets wider

@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"tamarou.com/pvm/internal/parser"
 )
@@ -143,6 +144,14 @@ type RunOptions struct {
 	Dir string
 	// Workers bounds concurrent perl invocations. Zero means NumCPU.
 	Workers int
+	// Timeout bounds ONE file, not the run. Zero means DefaultTimeout.
+	//
+	// It has to be per-file because at least one corpus file wedges:
+	// t/re/pat_psycho.t calls test.pl's watchdog(5 * 60) from a BEGIN block,
+	// forking a monitor that inherits the pipe the oracle reads. That file
+	// costs its timeout and is recorded as a runner error, which is the
+	// honest answer -- it never reaches a bucket.
+	Timeout time.Duration
 }
 
 // Run compiles every file in the corpus through perl, parses it with our
@@ -208,7 +217,11 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 		return r
 	}
 
-	facts, err := AskFile(ctx, path, Options{Dir: opts.Dir, Shebang: wantsTaint(src)})
+	facts, err := AskFile(ctx, path, Options{
+		Dir:     opts.Dir,
+		Shebang: wantsTaint(src),
+		Timeout: opts.Timeout,
+	})
 	if err != nil {
 		r.Err = err.Error()
 		return r
