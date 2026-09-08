@@ -4,50 +4,22 @@
 package parseoracle_test
 
 import (
-	"encoding/json"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"context"
 	"strings"
 	"testing"
 
+	"tamarou.com/pvm/internal/parseoracle"
 	"tamarou.com/pvm/internal/parser"
 )
 
-// parseFacts is what perl reports about its own parse of a file.
-type parseFacts struct {
-	OK         int               `json:"ok"`
-	Ops        []string          `json:"ops"`
-	OpCount    int               `json:"op_count"`
-	Srefgen    int               `json:"srefgen"`
-	Entersub   int               `json:"entersub"`
-	Prototypes map[string]string `json:"prototypes"`
-}
-
 // askPerl compiles src and returns perl's parse facts. Perl reports how it
 // parsed something, which is what makes fidelity measurable at all.
-func askPerl(t *testing.T, src string) parseFacts {
+func askPerl(t *testing.T, src string) parseoracle.Facts {
 	t.Helper()
 
-	dir := t.TempDir()
-	file := filepath.Join(dir, "probe.pl")
-	if err := os.WriteFile(file, []byte(src), 0o644); err != nil {
-		t.Fatalf("write probe: %v", err)
-	}
-
-	script, err := filepath.Abs("testdata/parse_facts.pl")
-	if err != nil {
-		t.Fatalf("resolve oracle: %v", err)
-	}
-
-	out, err := exec.Command("perl", script, file).Output()
+	facts, err := parseoracle.Ask(context.Background(), []byte(src), parseoracle.Options{})
 	if err != nil {
 		t.Skipf("perl unavailable or oracle failed: %v", err)
-	}
-
-	var facts parseFacts
-	if err := json.Unmarshal(out, &facts); err != nil {
-		t.Fatalf("decode oracle output %q: %v", out, err)
 	}
 	return facts
 }
@@ -61,8 +33,9 @@ func TestOracleDiscriminatesPrototypes(t *testing.T) {
 	with := askPerl(t, "sub f(\\@){}\nmy @a;\nf(@a);\n")
 	without := askPerl(t, "sub f{}\nmy @a;\nf(@a);\n")
 
-	if with.OK != 1 || without.OK != 1 {
-		t.Fatalf("both probes must compile: with=%d without=%d", with.OK, without.OK)
+	if !with.OK || !without.OK {
+		t.Fatalf("both probes must compile: with=%v (%s) without=%v (%s)",
+			with.OK, with.Stderr, without.OK, without.Stderr)
 	}
 	if with.Srefgen == 0 {
 		t.Errorf("prototype \\@ must produce srefgen, got ops %v", with.Ops)
