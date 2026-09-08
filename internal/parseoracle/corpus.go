@@ -129,6 +129,84 @@ func copyTree(src, dst string) error {
 	})
 }
 
+// Pin records the two things a corpus measurement depends on. Both halves
+// matter: the corpus here is blead 5.45 while the interpreter is 5.42.0, and
+// t/op/for-many.t uses `foreach my ( \@array ) (...)`, a blead-only form that
+// 5.42 genuinely cannot parse. Pinning only one half lets a parser be marked
+// wrong for agreeing with its own oracle.
+type Pin struct {
+	Interpreter string // perl's $], e.g. "5.042000"
+	Revision    string // the perl5 checkout's git revision
+}
+
+// PinMismatchError reports a drifted pin. It names both the pinned and the
+// observed value, because "does not match" cannot tell you which side moved.
+type PinMismatchError struct {
+	Field          string
+	Pinned, Actual string
+}
+
+func (e *PinMismatchError) Error() string {
+	return fmt.Sprintf("corpus pin mismatch: %s is %q but the pin records %q — "+
+		"re-baseline deliberately rather than measuring across the skew",
+		e.Field, e.Actual, e.Pinned)
+}
+
+// Check compares a pin against the interpreter and corpus actually present.
+// Both halves are checked; a pin that verifies only one is a pin that
+// silently drifts.
+func (p Pin) Check(interpreter, revision string) error {
+	if p.Interpreter != interpreter {
+		return &PinMismatchError{Field: "interpreter version", Pinned: p.Interpreter, Actual: interpreter}
+	}
+	if !revisionsAgree(p.Revision, revision) {
+		return &PinMismatchError{Field: "corpus revision", Pinned: p.Revision, Actual: revision}
+	}
+	return nil
+}
+
+// revisionsAgree compares git revisions that may be abbreviated to different
+// lengths, which is how they are quoted in practice.
+func revisionsAgree(pinned, actual string) bool {
+	if pinned == "" || actual == "" {
+		return false
+	}
+	if len(pinned) > len(actual) {
+		pinned, actual = actual, pinned
+	}
+	return strings.HasPrefix(actual, pinned)
+}
+
+// ReadPin loads a pin file: `key = value` lines, `#` comments.
+func ReadPin(path string) (Pin, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Pin{}, fmt.Errorf("reading pin: %w", err)
+	}
+
+	var pin Pin
+	for _, line := range strings.Split(string(data), "\n") {
+		if i := strings.IndexByte(line, '#'); i >= 0 {
+			line = line[:i]
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		switch strings.TrimSpace(key) {
+		case "interpreter":
+			pin.Interpreter = strings.TrimSpace(value)
+		case "revision":
+			pin.Revision = strings.TrimSpace(value)
+		}
+	}
+
+	if pin.Interpreter == "" || pin.Revision == "" {
+		return Pin{}, fmt.Errorf("pin %s must record both interpreter and revision, got %+v", path, pin)
+	}
+	return pin, nil
+}
+
 func copyFile(src, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
