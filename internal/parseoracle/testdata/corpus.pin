@@ -1,0 +1,10 @@
+# ABOUTME: Pins the corpus measurement to one interpreter and one corpus revision.
+# ABOUTME: A measurement taken across a skew in either half is an anecdote, not a result.
+#
+# Both halves are load-bearing. The corpus is blead 5.45 while the interpreter
+# is 5.42.0, so t/op/for-many.t:474 — `foreach my ( \@array ) (...)` — is a
+# genuine syntax error here rather than a parser bug. Change either value only
+# as a deliberate re-baseline.
+
+interpreter = 5.042000
+revision    = 94e5086608bcf1d01cd2d836f11ca8378a3320b6

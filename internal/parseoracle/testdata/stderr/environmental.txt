@@ -1,0 +1,2 @@
+Can't locate Config.pm in @INC (you may need to install the Config module) (@INC entries checked: ../lib) at op/magic.t line 49.
+BEGIN failed--compilation aborted at op/magic.t line 49.
