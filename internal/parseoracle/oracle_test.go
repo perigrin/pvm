@@ -129,22 +129,35 @@ func TestShebangPassthrough(t *testing.T) {
 // TestAskCancellation guards the corpus runner against a wedged child. The
 // script shells out to an inner `sh -c perl`, which holds the stdout pipe
 // open, so cancelling the context is not by itself enough to return.
+//
+// The probe blocks in BEGIN because the oracle only ever compiles: a plain
+// `sleep` is never reached under perl -c, and a test using one would race the
+// oracle's own 60ms runtime rather than measure cancellation.
 func TestAskCancellation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := parseoracle.Ask(ctx, []byte("sleep 60;\n"), parseoracle.Options{})
+		_, err := parseoracle.Ask(ctx, []byte("BEGIN { sleep 60 }\n"), parseoracle.Options{})
 		done <- err
 	}()
+
+	// Cancel once the child is demonstrably blocked, so the test measures
+	// cancellation rather than whether a deadline beat a normal exit.
+	select {
+	case err := <-done:
+		t.Fatalf("probe did not block in BEGIN, so there was nothing to cancel (err: %v)", err)
+	case <-time.After(2 * time.Second):
+	}
+	cancel()
 
 	select {
 	case err := <-done:
 		if err == nil {
 			t.Error("expected an error from a cancelled context")
 		}
-	case <-time.After(15 * time.Second):
+	case <-time.After(20 * time.Second):
 		t.Fatal("Ask did not return after its context was cancelled")
 	}
 }
