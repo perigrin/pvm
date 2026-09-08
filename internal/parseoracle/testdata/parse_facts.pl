@@ -27,6 +27,13 @@ for my $line (split /\n/, $concise) {
     push @ops, $1;
 }
 
+# A failing compile leaves its diagnostic in the captured output, and that
+# diagnostic is the only thing that separates "your parser is wrong" from
+# "this machine lacks Config.pm". Exit status cannot tell them apart, so
+# discarding it would make a ratchet built on this output encode the second
+# as though it were the first.
+my $stderr = $compiles ? '' : $concise;
+
 # Prototypes are the single highest-value parse fact: they change the parse at
 # every call site, and they are the thing a static parser cannot know without
 # having already seen the definition.
@@ -54,6 +61,7 @@ print encode({
     srefgen   => scalar(grep { $_ eq 'srefgen' } @ops),
     entersub  => scalar(grep { $_ eq 'entersub' } @ops),
     prototypes=> \%proto,
+    stderr    => $stderr,
 }), "\n";
 
 # Run perl on the file with the given flags, returning combined output. The
@@ -63,7 +71,7 @@ print encode({
 # a third of the corpus reports a BEGIN failure that is about @INC, not syntax.
 sub capture {
     my ($flags, $path) = @_;
-    my $cmd = sprintf("perl %s -c %s 2>&1", $flags, quote($path));
+    my $cmd = sprintf("perl%s %s -c %s 2>&1", taint(), $flags, quote($path));
     $cmd = sprintf("cd %s && %s", quote($ENV{ORACLE_CHDIR}), $cmd)
         if $ENV{ORACLE_CHDIR};
     return scalar `$cmd`;
@@ -81,7 +89,7 @@ sub capture_with_end {
     open my $out, '>', $tmp or return '';
     print $out $probe, $src;
     close $out;
-    my $cmd = "perl -c @{[quote($tmp)]} 2>&1";
+    my $cmd = "perl@{[taint()]} -c @{[quote($tmp)]} 2>&1";
     $cmd = sprintf("cd %s && %s", quote($ENV{ORACLE_CHDIR}), $cmd)
         if $ENV{ORACLE_CHDIR};
     my $res = scalar `$cmd`;
@@ -90,6 +98,11 @@ sub capture_with_end {
 }
 
 sub quote { my $s = shift; $s =~ s/'/'\\''/g; return "'$s'" }
+
+# Three corpus files carry `#!./perl -T`, and perl refuses to compile a file
+# whose shebang asks for taint mode unless -T is on the command line too. The
+# caller decides, because reading the shebang is the caller's job.
+sub taint { return $ENV{ORACLE_TAINT} ? ' -T' : '' }
 
 # A dependency-free encoder: the harness must run against any perl, including
 # one with no non-core modules installed.
