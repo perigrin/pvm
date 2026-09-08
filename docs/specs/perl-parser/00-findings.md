@@ -206,6 +206,11 @@ files are clean only in the sense of having no error node. How many are parsed
 distinguish cases perl distinguishes. The true starting number is therefore at
 most 29, probably less.
 
+§0.11 measures those 29 against perl for the first time. None of them is
+WRONG on the one marker the harness currently tests — but only 7 of the 44
+files exercise that marker at all, so 29 remains a ceiling rather than a
+result.
+
 ## 0.7 The corpus and the oracle must be version-pinned together
 
 The `perl5` checkout here is **blead 5.45** (`patchlevel.h`: `PERL_VERSION 45`);
@@ -295,3 +300,66 @@ Source filters go through `Perl_filter_add` (`toke.c:5164`) and `FILTER_READ`
 (`toke.c:5270`). Both are arbitrary compile-time code execution, but they are
 different features, and the distinction matters when deciding what to detect
 and bail out on.
+
+## 0.11 Fidelity across the whole corpus, measured
+
+*2026-09-08. Corpus `perl5` at `94e5086608`, interpreter 5.42.0 (the pin in
+`internal/parseoracle/testdata/corpus.pin`).*
+
+```
+PARSEORACLE_SHIM=/tmp/oracletree PERL5_CORPUS=~/dev/perl5 \
+  go test ./internal/parseoracle/ -run TestCorpusSweep -parseoracle.corpus -v
+```
+
+All 620 `.t` files, each compiled by perl and by our parser and the two
+bucketed against each other:
+
+| Bucket | Files | Share of measured |
+|---|---:|---:|
+| exact | 379 | 63.9% |
+| wider | 11 | 1.9% |
+| **WRONG** | **0** | **0.0%** |
+| no-answer | 203 | 34.2% |
+| *measured (denominator)* | *593* | |
+| excluded, environmental | 26 | — |
+| runner error | 1 | — |
+
+Two independent runs produced identical counts. Wall time was 5m52s and
+6m10s across 24 workers.
+
+**WRONG is zero, and that is worth less than it sounds.** The comparison
+tests one marker — `srefgen`, perl taking a reference at a call site — and
+our grammar emits `ambiguous_function_call_expression` where it cannot settle
+a prototype. An honest refusal buckets `wider`, never WRONG, so the eleven
+`wider` files are every prototype-driven call in the corpus and the zero is
+mostly a statement about what the harness currently asks.
+
+**`exact` is weaker than "parses like perl", and by a measurable amount.** On
+the 44 baseline files of §0.6 the sweep reports 29 exact and 15 no-answer —
+reproducing that section's coverage split exactly. But only **7 of those 44
+files take a reference at all**, and **25 of the 29 exact verdicts had no
+marker in play**. For those 25, `exact` means only "perl took no reference
+our source did not write", which is true of any file that takes no
+references. The 63.9% is therefore a ceiling on agreement, not a measurement
+of it; adding markers (`rv2hv`, `match`, `readline`, `anonhash`) is what
+converts it into one.
+
+**The `no-answer` third is our coverage gap, not perl's.** 203 files carry an
+error node from our parser. Those 203 are the population the conformance
+plan's M1 has to move, and they are the honest reading of "how much of Perl
+we cannot parse".
+
+**Two corpus facts stay separate from the parser's score.** 26 files fail
+because this machine's environment cannot satisfy them — a missing module is
+not a parse error — and they leave the denominator by way of `Classify`. One
+file, `t/re/pat_psycho.t`, is a runner error: it calls `test.pl`'s
+`watchdog(5 * 60)` from a `BEGIN` block, so `perl -c` forks a monitor that
+inherits the oracle's pipe. It costs its 60-second timeout and reaches no
+bucket.
+
+**Cost.** The plan's §2 estimated ~25 ms per file for `B::Concise`; measured
+on real corpus files it is **~600 ms** (`op/sub.t`, 1055 ops), and ten files
+cost 9.3 s sequentially of which the prototype probe is only ~10%. That is
+where six minutes goes, and it is a real argument for the content-hash cache
+§2 describes — deferred to its own issue rather than built speculatively
+here.
