@@ -112,3 +112,28 @@ The harness must classify stderr. An exit status cannot tell "your parser is
 wrong" from "this machine lacks `Config.pm`", and a ratchet built on exit
 status encodes the second as though it were the first. A pass rate well under
 94% is evidence the setup is broken, not that Perl is hard.
+
+## These counts are bounds, not totals
+
+`perl -c` reports one error and stops, so classification only ever sees each
+file's **first** failure. Every number in the table above inherits that:
+
+| Count | Bound | Why |
+|---|---|---|
+| Genuine syntax error | **LOWER** | A later parse failure is never reached |
+| Missing module / `@INC` | **UPPER** | Some of those files fail again once fixed |
+
+`t/op/signatures.t` is the worked example. It aborts at line 32 on a warnings
+category 5.42 does not have — version skew — which hides a real parse failure
+at line 927. Fix the environment and the file does not become a pass; it
+becomes a different failure.
+
+Any report built on these counts has to say so. Reading the syntax-error count
+as a total is precisely how a measurement turns into a confident wrong
+explanation.
+
+## Pinning
+
+`testdata/corpus.pin` records the interpreter's `$]` and the `perl5` revision.
+`ReadPin` checks **both** — a pin that verifies one half is a pin that silently
+drifts, and both halves have drifted here already.

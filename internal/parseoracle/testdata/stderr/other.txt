@@ -1,0 +1,1 @@
+"-T" is on the #! line, it must also be used on the command line at op/taint.t line 1.

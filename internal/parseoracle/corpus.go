@@ -207,6 +207,96 @@ func ReadPin(path string) (Pin, error) {
 	return pin, nil
 }
 
+// FailureKind is why a corpus file did not compile.
+//
+// The distinction is the whole point of classifying stderr. An exit status
+// cannot tell "your parser is wrong" from "this machine lacks Config.pm", and
+// a ratchet built on exit status encodes the second as though it were the
+// first — which is how a broken shim was once read as evidence that Perl is
+// hard to parse.
+type FailureKind int
+
+const (
+	// NoFailure means the file compiled.
+	NoFailure FailureKind = iota
+
+	// Environmental is a missing module, a missing file, an unpopulated
+	// @INC — a fact about this machine, not about the language.
+	Environmental
+
+	// VersionSkew is the corpus asking for something this interpreter does
+	// not have. The corpus is blead 5.45; the interpreter is 5.42.0.
+	VersionSkew
+
+	// SyntaxError is perl itself refusing to parse the file. This is the
+	// only kind that says anything about the language.
+	SyntaxError
+
+	// Other is a failure that matched nothing above, and should be read
+	// before being counted as anything.
+	Other
+)
+
+func (k FailureKind) String() string {
+	switch k {
+	case NoFailure:
+		return "NoFailure"
+	case Environmental:
+		return "Environmental"
+	case VersionSkew:
+		return "VersionSkew"
+	case SyntaxError:
+		return "SyntaxError"
+	default:
+		return "Other"
+	}
+}
+
+// Classify reads why `perl -c` rejected a file.
+//
+// IMPORTANT — these counts are BOUNDS, not totals. `perl -c` reports one error
+// and stops, so Classify only ever sees each file's FIRST failure. A file
+// whose missing module aborts compilation at line 32 never reaches the parse
+// failure at line 927; t/op/signatures.t is exactly that file. Therefore:
+//
+//	SyntaxError count    is a LOWER bound — later syntax errors stay hidden
+//	Environmental count  is an UPPER bound — some of those files fail again
+//	                     for a real reason once the environment is fixed
+//
+// Any report derived from these numbers must say so. Reading the syntax-error
+// count as a total is how a measurement becomes a confident wrong explanation.
+//
+// Classification is by message, and ordered: environmental causes are checked
+// first because they abort compilation before the parser reaches the rest of
+// the file, so a later "syntax error" line is not evidence about the language.
+func Classify(stderr string) FailureKind {
+	switch {
+	case strings.TrimSpace(stderr) == "":
+		return NoFailure
+
+	// A missing module or unreadable file is a fact about this machine.
+	case strings.Contains(stderr, "Can't locate"),
+		strings.Contains(stderr, "Can't open perl script"):
+		return Environmental
+
+	// The corpus asking 5.42 for something blead has.
+	case strings.Contains(stderr, "Unknown warnings category"),
+		strings.Contains(stderr, "Perl version"),
+		strings.Contains(stderr, "is only avail"):
+		return VersionSkew
+
+	case strings.Contains(stderr, "syntax error"):
+		return SyntaxError
+
+	// "syntax OK" with other noise on stderr is still a successful compile.
+	case strings.Contains(stderr, "syntax OK"):
+		return NoFailure
+
+	default:
+		return Other
+	}
+}
+
 func copyFile(src, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {

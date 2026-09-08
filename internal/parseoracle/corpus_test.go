@@ -142,3 +142,60 @@ func TestReadPinReadsBothHalves(t *testing.T) {
 		t.Error("pin records no corpus revision")
 	}
 }
+
+// TestClassifyFixtures runs Classify over stderr captured from real `perl -c`
+// runs against this corpus, not over hand-written strings. Exit status cannot
+// separate "your parser is wrong" from "this machine lacks Config.pm", and a
+// ratchet built on exit status encodes the second as though it were the first.
+//
+// Each fixture is a recorded failure:
+//   - environmental: op/magic.t compiled WITHOUT the shim
+//   - versionskew:   op/signatures.t, a warnings category 5.42 lacks
+//   - syntaxerror:   op/for-many.t, blead-only refaliasing
+//   - other:         op/taint.t, which needs -T on the command line
+func TestClassifyFixtures(t *testing.T) {
+	for _, tc := range []struct {
+		fixture string
+		want    parseoracle.FailureKind
+	}{
+		{"environmental.txt", parseoracle.Environmental},
+		{"versionskew.txt", parseoracle.VersionSkew},
+		{"syntaxerror.txt", parseoracle.SyntaxError},
+		{"other.txt", parseoracle.Other},
+	} {
+		t.Run(tc.fixture, func(t *testing.T) {
+			path := filepath.Join("testdata", "stderr", tc.fixture)
+			stderr, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading fixture: %v", err)
+			}
+			if got := parseoracle.Classify(string(stderr)); got != tc.want {
+				t.Errorf("Classify(%s) = %v, want %v\nstderr was:\n%s",
+					tc.fixture, got, tc.want, stderr)
+			}
+		})
+	}
+}
+
+// TestClassifyPrefersEnvironmentalOverSyntax records the ordering that keeps a
+// broken setup from being reported as a language failure. `perl -c` stops at
+// the FIRST error, so a file whose missing module aborts compilation never
+// reaches whatever else is wrong with it.
+func TestClassifyPrefersEnvironmentalOverSyntax(t *testing.T) {
+	const mixed = "Can't locate Config.pm in @INC (you may need to install the Config module) at t/op/x.t line 3.\n" +
+		"syntax error at t/op/x.t line 9, near \"( \\\"\n"
+
+	if got := parseoracle.Classify(mixed); got != parseoracle.Environmental {
+		t.Errorf("Classify = %v, want Environmental: a missing module aborts "+
+			"compilation before the parser reaches later lines, so this is not "+
+			"evidence of a syntax problem", got)
+	}
+}
+
+// TestClassifyCleanStderrIsNoFailure guards the empty case: a file that
+// compiled has nothing to classify.
+func TestClassifyCleanStderrIsNoFailure(t *testing.T) {
+	if got := parseoracle.Classify("op/sub.t syntax OK\n"); got != parseoracle.NoFailure {
+		t.Errorf("Classify(clean) = %v, want NoFailure", got)
+	}
+}
