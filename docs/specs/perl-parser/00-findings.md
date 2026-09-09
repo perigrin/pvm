@@ -177,6 +177,18 @@ What this gives up, stated plainly:
   signal degrades silently. `TestDroppedRHSFamilyHasNoErrorNode` pins the
   status quo so a grammar that starts emitting real error nodes fails loudly
   and points at the compensation to delete.
+- **It does not survive the rewrite this specification proposes.** A hidden
+  rule leaking is a property of *tree-sitter's* recovery, and a hand-written
+  Go parser has no hidden rules to leak. If the parser described in chapters
+  2-6 is built, `IsDegenerate()` becomes meaningless and must be replaced by
+  that parser's own account of where it gave up.
+
+  This is worth stating plainly because the harness is meant to be the
+  rewrite's acceptance test. Most of it transfers: the oracle, the four
+  buckets, the corpus, the pin, the ratchet all measure perl against *any*
+  parser. This one signal does not — it is scaffolding against the parser we
+  ship today, and it should be budgeted as such rather than mistaken for part
+  of the permanent apparatus.
 
 **The honest summary**: the grammar has two separate defects here — it accepts
 the malformed assignment family, and it mis-parses forward declarations. One
