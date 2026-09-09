@@ -85,6 +85,105 @@ scores both as a success. One of them is parsed wrong.
 This is the blind spot the specification exists to close, and it is not
 specific to tree-sitter — any parser without a prototype table has it.
 
+### 0.4.1 The grammar also accepts source perl rejects
+
+§0.4 is the coverage-vs-fidelity gap in its familiar direction: we chose a
+different parse. There is a second direction, and it is worse — we accept
+something that is not Perl at all.
+
+The grammar reports **no error node** for a family of malformed assignments
+that `perl -c` rejects outright, and it silently drops the right-hand side:
+
+| Source | `perl -c` | `HasError()` | Our tree |
+|---|---|---|---|
+| `my $x = ;` | syntax error near `= ;` | `false` | `(_term (variable_declaration ...))` — RHS gone |
+| `my @a = ;` | syntax error near `= ;` | `false` | `(_term (variable_declaration ...))` |
+| `my %h = ;` | syntax error near `= ;` | `false` | `(_term (variable_declaration ...))` |
+| `$x = ;` | syntax error near `= ;` | `false` | `(_term (_variables ...))` |
+| `my ($a) = ;` | syntax error near `= ;` | `false` | `(_term (variable_declaration ...))` |
+| `1 +;` | syntax error near `+;` | `false` | `(_term (primitive (number)))` — operator gone |
+| `my $y = 1 +;` | syntax error near `+;` | `false` | **two sibling `_term`s** — one expression became two statements |
+| `f( ;` | syntax error near `( ;` | `true` | error node, correctly declined |
+| `return ;` | **syntax OK** | `false` | `(return_expression)` — valid, correctly accepted |
+
+So this is a **family, not one construct**: every binding form and bare binary
+operators share it. `f( ;` is the near miss that shows the grammar *can* report
+these — it just does not for the assignment family. `return ;` is the trap:
+it looks like the family and is legal Perl.
+
+`my $y = 1 +;` is the most damaging row. A consumer reading that tree sees two
+unrelated statements where the source wrote one expression, with the `+`
+nowhere in the tree and nothing marking the loss.
+
+**Why the harness escaped this only by luck.** `Compare` declined on
+`HasError()`, and perl refuses the whole file, so `Facts.OK` was false and
+comparison never reached a verdict. Put the construct inside a file that
+otherwise compiles and it scored **`exact`** while being parsed wrong —
+verified: all seven family members returned `BucketExact` with the detail
+"perl took 0 reference(s), all explicit in the source".
+
+**What was done, and what was given up.** The grammar lives in an external
+module (`gotreesitter/grammars`, a compiled table), so fixing it at the source
+is out of reach from this repo, and reimplementing perl's expression grammar to
+second-guess the parser would be writing the parser twice. Neither was
+attempted. Instead the limitation is made **detectable**:
+`parser.Tree.IsDegenerate()` / `DegenerateKinds()`, and `Compare` now routes a
+degenerate tree to `no-answer`.
+
+The signal is structural, not semantic. A node kind beginning with `_` is a
+*hidden* tree-sitter rule — `_term` is tree-sitter-perl's expression supertype.
+Hidden rules are inlined into their parents in a successful parse and are never
+supposed to surface as nodes. When one does, recovery bailed out mid-rule and
+kept the fragment. The underscore is therefore an artifact of the *failure*,
+not a property of the source, which is what separates these rows from
+`return ;`. It is a signal about the *tree*, not about perl's verdict — see the
+measured cost below, where two files that compile fine still leak.
+
+What this buys: such a file can no longer score `exact`, and it lands in the
+coverage number (`no-answer`) rather than inflating the fidelity one, with the
+leaked rule named in the verdict detail for triage.
+
+**Measured cost.** Over a perl5 checkout, 3585 files under 8KB, 3306 of which
+parse cleanly: **2 files (0.06%) flag degenerate, and both compile under
+`perl -c`** — `cpan/Digest/lib/Digest/base.pm` and
+`dist/Tie-File/t/29a_upcopy.t`. The trigger is consecutive `sub NAME;` forward
+declarations.
+
+Those two are not noise, and they sharpen what the flag actually means. The
+grammar genuinely degrades there too: `sub new;` comes back as a bare
+`(bareword)` with the `sub` keyword gone, so the tree is wrong in the same way
+the malformed family is wrong. What the flag does *not* mean is "perl rejects
+this". It means "this tree is not a faithful parse" — the weaker claim, and the
+only one the signal supports.
+
+For the harness that is a small, known coverage loss rather than a wrong
+verdict: those files land in `no-answer` instead of being scored. Erring toward
+declining is the conservative direction, which is what makes the gate worth
+having at this precision. `TestForwardDeclarationsAlsoLeak` pins it so the cost
+cannot be quietly forgotten.
+
+What this gives up, stated plainly:
+
+- **We still do not reject the source.** `IsDegenerate()` says "this tree is
+  not trustworthy", not "this is not Perl". A linter wanting a syntax error
+  still has nothing to report.
+- **It is a proxy, and not a precise one.** It detects the grammar giving up
+  mid-rule, not malformed Perl. It over-fires on valid forward declarations
+  (measured above) and stays silent on any malformed construct the grammar
+  recovers from *without* leaking a hidden rule. This closes the measured
+  family and makes no claim beyond it.
+- **It is coupled to a grammar-internal naming convention.** If a future
+  version renames `_term` or stops surfacing hidden rules on recovery, the
+  signal degrades silently. `TestDroppedRHSFamilyHasNoErrorNode` pins the
+  status quo so a grammar that starts emitting real error nodes fails loudly
+  and points at the compensation to delete.
+
+**The honest summary**: the grammar has two separate defects here — it accepts
+the malformed assignment family, and it mis-parses forward declarations. One
+detector catches both because both are the same underlying event: recovery
+bailing out and leaking an internal rule name into the tree. Neither defect is
+fixed; both are now visible.
+
 ## 0.5 Perl's test suite needs a correctly built shim
 
 `t/test.pl:119` does `@INC = ()` and then unshifts `../lib`. `PERL5LIB` cannot

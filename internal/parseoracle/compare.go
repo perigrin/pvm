@@ -5,6 +5,7 @@ package parseoracle
 
 import (
 	"fmt"
+	"strings"
 
 	"tamarou.com/pvm/internal/parser"
 )
@@ -108,6 +109,19 @@ func Compare(facts Facts, tree *parser.Tree, _ []byte) Verdict {
 	if root.HasError() {
 		return Verdict{BucketNoAnswer, MarkerNone, "our parse contains an error node"}
 	}
+	// A missing error node is not the same as a parse. The grammar accepts
+	// `my $x = ;` -- which perl rejects -- by dropping the right-hand side
+	// and reporting no error, so HasError alone lets a tree that is not a
+	// parse of this source reach a verdict and score exact. Comparing
+	// against source we threw away measures nothing, so decline: no-answer
+	// is what "we declined" means, and it keeps the limitation visible in
+	// the coverage number instead of inflating the fidelity one.
+	if kinds := tree.DegenerateKinds(); len(kinds) > 0 {
+		return Verdict{BucketNoAnswer, MarkerNone,
+			fmt.Sprintf("our parse dropped source without an error node "+
+				"(hidden grammar rule%s surfaced: %s)",
+				plural(len(kinds)), strings.Join(kinds, ", "))}
+	}
 	if !facts.OK {
 		// No ground truth means no verdict to reach. Scoring this WRONG
 		// would blame our parser for perl's refusal -- and the corpus is
@@ -164,6 +178,13 @@ func compareSrefgen(facts Facts, root *parser.Node) Verdict {
 	return Verdict{BucketWrong, MarkerSrefgen,
 		fmt.Sprintf("perl took %d reference(s) the source did not write, and our tree "+
 			"committed to %d call(s) with no reference and no hedge", unexplained, committed)}
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 func markerFor(srefgen int) Marker {
