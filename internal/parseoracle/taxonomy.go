@@ -141,7 +141,11 @@ var taxonomyRules = []struct {
 	// knowing the operator and its delimiter. The heredoc introducer is
 	// listed first because it changes where the NEXT lines are read from.
 	{CategoryQuoteLike, regexp.MustCompile(
-		"<<[~]?['\"`\\\\]?\\w|\\b(qw|qq|qr|tr|y|q)\\s*[^\\w\\s,;)=]|\\bformat\\b|\\b__(DATA|END)__\\b")},
+		// The heredoc introducer accepts an interpolating tag body, not just
+		// a bare word: t/comp/parser.t opens `<<"${a}{`, and a rule that
+		// required \w after the quote filed that under General.
+		"<<[~]?(['\"`\\\\][^\\n]*|\\w)|\\b(qw|qq|qr|tr|y|q)\\s*[^\\w\\s,;)=]|" +
+			"\\bformat\\b|\\b__(DATA|END)__\\b")},
 
 	// P2: regex, where modifiers change how the pattern body itself reads.
 	{CategoryRegex, regexp.MustCompile(
@@ -158,7 +162,7 @@ var taxonomyRules = []struct {
 
 	// P2: control flow, including the statement-modifier and label forms.
 	{CategoryControlFlow, regexp.MustCompile(
-		`\b(unless|until|foreach|for|while|if|elsif|else)\b|\bdo\s*\{|` +
+		`\b(unless|until|foreach|for|while|if|elsif|else|continue)\b|\bdo\s*\{|` +
 			`^\s*\w+\s*:\s*(for|while|until|\{)|\b(last|next|redo|goto)\b`)},
 }
 

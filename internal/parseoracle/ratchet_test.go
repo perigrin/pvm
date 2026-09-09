@@ -394,6 +394,12 @@ func TestBaselineCategoryFollowsConstruct(t *testing.T) {
 		{"subroutine", "sub f( { }\n", parseoracle.CategorySubroutine},
 		{"attributes", "sub f :lvalue :method { }\nsub g( {\n", parseoracle.CategorySubroutine},
 		{"controlflow", "if ($x) { foo()\n", parseoracle.CategoryControlFlow},
+
+		// Found filed under General against the real corpus, and a real
+		// rule gap rather than an honest P3: t/comp/parser.t opens a
+		// heredoc whose tag interpolates (`<<"${a}{`), which a rule
+		// requiring a word character after the quote never matched.
+		{"heredoc-interpolating-tag", "is(<<\"${a}{\", \"A{\");\n", parseoracle.CategoryQuoteLike},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := parseoracle.CategoriseSource([]byte(tc.src))
