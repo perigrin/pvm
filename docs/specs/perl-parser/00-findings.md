@@ -412,6 +412,42 @@ Source filters go through `Perl_filter_add` (`toke.c:5164`) and `FILTER_READ`
 different features, and the distinction matters when deciding what to detect
 and bail out on.
 
+## 0.12 The sweep's cost is our parser, not perl
+
+*2026-09-09.* The corpus sweep takes ~6 minutes, and the caching issue was
+filed on the assumption that `B::Concise` dominated it — ~600ms/file,
+extrapolated from `t/op/sub.t`. Building the cache disproved that.
+
+| Phase | Cold | Warm |
+|---|---:|---:|
+| Oracle (perl) | ~33-39 s | **0.82 s** |
+| Our tree-sitter parser | 5m28s | 5m28s |
+| Whole sweep | ~6m50s | 6m18s |
+
+The cache is a **40-48x** speedup on the oracle and an **8%** speedup on the
+sweep, because roughly 87% of the sweep is our own parser. Measured directly
+here at **412ms/file** over 40 `t/op` files with no perl in the loop at all.
+
+**The cost that matters cannot be cached.** The oracle's answers are stable —
+perl does not change between runs, which is what makes a content-hash cache
+correct. Our parser's output is the thing under test; caching it would cache
+the measurement.
+
+Two consequences:
+
+- Making the sweep fast enough to gate a commit is a **parser-performance**
+  problem, not a harness problem. §0.8 already measured the same thing from
+  another direction: a single parse costs 6-500 ms and tracks grammar
+  pathology rather than file size.
+- The caching issue's third acceptance criterion — "finishes fast enough to
+  gate a commit" — is **not met and cannot be met by caching**. It was
+  reported as failed rather than quietly redefined, which is the right
+  outcome: 6m18s warm is still 6m18s.
+
+The cache earns its place anyway. A re-baseline, a comparison change, or any
+iteration on the *parser* side now costs 0.82s of perl instead of 35s, and the
+oracle stops being a reason not to re-run.
+
 ## 0.11 Fidelity across the whole corpus, measured
 
 *2026-09-08. Corpus `perl5` at `94e5086608`, interpreter 5.42.0 (the pin in
