@@ -6,9 +6,11 @@ package parseoracle
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Category is the construct that explains a file's first parse error.
@@ -170,16 +172,39 @@ func (b Baseline) Render() string {
 }
 
 // NewBaseline freezes a report against a pin.
-func NewBaseline(pin Pin, report Report) Baseline {
-	b := Baseline{Pin: pin}
-	for _, f := range report.Files {
-		b.Rows = append(b.Rows, Row{
-			Status:   status(f),
-			Metric:   f.Facts.Srefgen,
-			Category: Categorise(f),
-			Path:     f.Path,
-		})
+//
+// dir is the working directory the report was measured from — RunOptions.Dir.
+// It is needed because the runner records corpus paths relative to the shim's
+// t/ while the taxonomy has to re-read each file to categorise it. Pass "" for
+// a report whose paths resolve from the process working directory.
+//
+// Categorisation runs in parallel because it re-parses every no-answer file,
+// and there are 203 of those in the corpus. Measured serially that pass costs
+// more than the perl sweep it follows, which would make a re-baseline
+// something nobody runs — and an unrunnable re-baseline is how the ratchet
+// ends up lagging reality, which is the exact failure this whole issue exists
+// to prevent.
+func NewBaseline(pin Pin, report Report, dir string) Baseline {
+	b := Baseline{Pin: pin, Rows: make([]Row, len(report.Files))}
+
+	sem := make(chan struct{}, runtime.NumCPU())
+	var wg sync.WaitGroup
+	for i, f := range report.Files {
+		wg.Add(1)
+		go func(i int, f Result) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			b.Rows[i] = Row{
+				Status:   status(f),
+				Metric:   f.Facts.Srefgen,
+				Category: Categorise(f, dir),
+				Path:     f.Path,
+			}
+		}(i, f)
 	}
+	wg.Wait()
+
 	sort.Slice(b.Rows, func(i, j int) bool { return b.Rows[i].Path < b.Rows[j].Path })
 	return b
 }

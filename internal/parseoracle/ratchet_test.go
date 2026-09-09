@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -22,6 +24,55 @@ import (
 // into decoration.
 var updateBaseline = flag.Bool("parseoracle.update", false,
 	"rewrite the committed ratchet baseline from this run's verdicts")
+
+// corpusReport measures the whole corpus through a shim, the same way
+// TestCorpusSweep does. $PARSEORACLE_SHIM reuses an already-built shim, which
+// is what makes a re-baseline affordable at all.
+//
+// The shim's t/ is returned alongside the report because the runner records
+// paths relative to it, and the taxonomy has to re-read each file.
+func corpusReport(t *testing.T) (parseoracle.Report, string) {
+	t.Helper()
+
+	shim := os.Getenv("PARSEORACLE_SHIM")
+	if shim == "" {
+		root, err := parseoracle.CorpusRoot()
+		if err != nil {
+			t.Skipf("no corpus: %v", err)
+		}
+		shim = t.TempDir()
+		if err := parseoracle.BuildShim(root, shim); err != nil {
+			t.Fatalf("BuildShim: %v", err)
+		}
+	}
+	shimT := filepath.Join(shim, "t")
+
+	var files []string
+	err := filepath.WalkDir(shimT, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(path, ".t") {
+			rel, err := filepath.Rel(shimT, path)
+			if err != nil {
+				return err
+			}
+			files = append(files, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking the corpus: %v", err)
+	}
+	sort.Strings(files)
+
+	report, err := parseoracle.Run(context.Background(), files,
+		parseoracle.RunOptions{Dir: shimT})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return report, shimT
+}
 
 // runFixture measures the five-file fixture corpus that TestCorpusRun uses.
 func runFixture(t *testing.T) parseoracle.Report {
@@ -114,7 +165,7 @@ func TestRatchet(t *testing.T) {
 			t.Fatalf("ReadPin: %v", err)
 		}
 		if err := parseoracle.WriteBaseline(fixtureBaselinePath(),
-			parseoracle.NewBaseline(pin, report)); err != nil {
+			parseoracle.NewBaseline(pin, report, "")); err != nil {
 			t.Fatalf("WriteBaseline: %v", err)
 		}
 		t.Logf("rewrote %s from this run; commit it in the same commit as the change that moved it",
@@ -133,6 +184,62 @@ func TestRatchet(t *testing.T) {
 func fixtureReport(t *testing.T) parseoracle.Report {
 	t.Helper()
 	return runFixture(t)
+}
+
+// corpusBaselinePath is the full 620-file baseline: the frozen form of
+// findings §0.11. It is gated behind -parseoracle.corpus because the sweep
+// costs ~6 minutes, which is why TestRatchet above gates on the fixture
+// instead — but the corpus numbers are the ones that matter, so they are
+// frozen too rather than left as a paragraph in a document that decays.
+func corpusBaselinePath() string {
+	return filepath.Join("testdata", "ratchet", "baseline.txt")
+}
+
+// TestRatchetCorpus is the same ratchet at corpus scale.
+//
+//	PARSEORACLE_SHIM=/tmp/oracletree PERL5_CORPUS=~/dev/perl5 \
+//	  go test ./internal/parseoracle/ -run TestRatchetCorpus -parseoracle.corpus
+//
+// Add -parseoracle.update to re-baseline. Both flags are required together
+// for a rewrite, so neither a plain run nor a plain sweep can move it.
+func TestRatchetCorpus(t *testing.T) {
+	if !*corpusSweep {
+		t.Skip("full corpus ratchet: pass -parseoracle.corpus")
+	}
+
+	report, shimT := corpusReport(t)
+	pin, err := parseoracle.ReadPin(filepath.Join("testdata", "corpus.pin"))
+	if err != nil {
+		t.Fatalf("ReadPin: %v", err)
+	}
+
+	if *updateBaseline {
+		if err := parseoracle.WriteBaseline(corpusBaselinePath(),
+			parseoracle.NewBaseline(pin, report, shimT)); err != nil {
+			t.Fatalf("WriteBaseline: %v", err)
+		}
+		t.Logf("rewrote %s: %s", corpusBaselinePath(), summarise(report))
+		return
+	}
+
+	base, err := parseoracle.LoadBaseline(corpusBaselinePath())
+	if err != nil {
+		t.Fatalf("LoadBaseline: %v", err)
+	}
+	// Skew first: comparing verdicts across a moved pin measures the version
+	// bump, not the parser, and reporting that as hundreds of regressions is
+	// how a ratchet earns its reputation for crying wolf.
+	if err := base.CheckPin(pin); err != nil {
+		t.Fatalf("%v", err)
+	}
+	if err := base.Check(report); err != nil {
+		t.Fatalf("the corpus no longer matches its committed baseline:\n%v", err)
+	}
+}
+
+// summarise renders the bucket totals for a log line.
+func summarise(r parseoracle.Report) string {
+	return strings.TrimSpace(r.String())
 }
 
 // TestRatchetFailsOnRegression is the property perl-lsp's version lost. Their
@@ -366,7 +473,7 @@ func TestBaselineUpdateOnly(t *testing.T) {
 	}
 
 	// -update is the path that rewrites it.
-	if err := parseoracle.WriteBaseline(path, parseoracle.NewBaseline(loaded.Pin, changed)); err != nil {
+	if err := parseoracle.WriteBaseline(path, parseoracle.NewBaseline(loaded.Pin, changed, "")); err != nil {
 		t.Fatalf("WriteBaseline: %v", err)
 	}
 	updated, err := os.ReadFile(path)

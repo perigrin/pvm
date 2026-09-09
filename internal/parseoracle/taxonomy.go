@@ -17,7 +17,10 @@ import (
 // gets CategoryNone rather than a guess. Only the files in the no-answer
 // bucket — the coverage gap the conformance plan's M1 has to move — carry a
 // real category.
-func Categorise(r Result) Category {
+//
+// dir is RunOptions.Dir, since the runner records corpus paths relative to the
+// shim's t/ and this has to re-read the file.
+func Categorise(r Result, dir string) Category {
 	if r.Err != "" || r.Excluded {
 		return CategoryNone
 	}
@@ -25,7 +28,7 @@ func Categorise(r Result) Category {
 		return CategoryNone
 	}
 
-	src, err := os.ReadFile(r.Path)
+	src, err := os.ReadFile(resolve(r.Path, dir))
 	if err != nil {
 		return CategoryGeneral
 	}
