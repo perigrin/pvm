@@ -175,6 +175,42 @@ func TestSplitStatementLossIsTheWorstCase(t *testing.T) {
 	assert.True(t, tree.IsDegenerate(), "and nothing but this flag marks the loss")
 }
 
+// TestForwardDeclarationsAlsoLeak is the measured cost of the signal, pinned
+// so it cannot be forgotten.
+//
+// Measured over 3306 cleanly-parsed files from a perl5 checkout, exactly 2
+// flagged degenerate, and BOTH compile under `perl -c`. The trigger is
+// consecutive `sub NAME;` forward declarations.
+//
+// These are not false alarms about the tree, only about perl's verdict. The
+// grammar really does degrade here: `sub new;` comes back as a bare
+// `(bareword)` with the `sub` keyword gone, so the tree is wrong in the same
+// way the malformed family is wrong. What the flag does NOT mean is "perl
+// rejects this" -- it means "this tree is not a faithful parse", which is the
+// weaker claim IsDegenerate is documented to make.
+//
+// The consequence for the harness is a small, known loss of coverage rather
+// than a wrong verdict: these files land in no-answer instead of being scored.
+// That is the conservative direction, and it is why the gate is worth having
+// at this precision.
+func TestForwardDeclarationsAlsoLeak(t *testing.T) {
+	p := parser.New()
+
+	tree, err := p.Parse([]byte("sub new;\nsub clone;\n1;\n"))
+	require.NoError(t, err)
+	assert.True(t, tree.IsDegenerate(),
+		"consecutive forward declarations leak hidden rules despite compiling")
+	assert.Contains(t, tree.RootNode().SExpr(), "bareword",
+		"and the tree really is degraded: the sub keyword is gone")
+
+	// A single forward declaration does not trigger it, so this is about the
+	// grammar losing its place across a run of them.
+	single, err := p.Parse([]byte("sub new;\n1;\n"))
+	require.NoError(t, err)
+	assert.False(t, single.IsDegenerate(),
+		"a lone forward declaration does not leak")
+}
+
 // TestDegenerateKindsNamesTheLeak reports WHICH hidden rule leaked, so a
 // report can say what it saw rather than only that something was wrong.
 func TestDegenerateKindsNamesTheLeak(t *testing.T) {

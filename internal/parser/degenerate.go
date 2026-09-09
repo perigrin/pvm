@@ -34,6 +34,17 @@ import (
 // which is why it separates these cases from valid Perl that merely looks
 // similar: `return ;` compiles, and parses to a real `return_expression`.
 //
+// This reports on the TREE, not on perl's verdict. It is not a syntax check:
+// a true result means "this tree is not a faithful parse", which is strictly
+// weaker than "perl would reject this". Measured over 3306 cleanly-parsed
+// files from a perl5 checkout, 2 flag true and both compile -- consecutive
+// `sub NAME;` forward declarations, where the grammar also drops the `sub`
+// keyword. So the tree really is degraded in those files too; only the
+// inference to "malformed source" would be wrong. See
+// TestForwardDeclarationsAlsoLeak and docs/specs/perl-parser/00-findings.md
+// §0.4.1. Callers should treat a true result as "do not trust this tree",
+// never as a diagnostic to show a user.
+//
 // ponytail: kind-prefix check, not a grammar reimplementation. If a future
 // grammar version starts naming hidden rules without recovering, or fixes the
 // gap so real error nodes appear, TestDroppedRHSFamilyHasNoErrorNode fails and

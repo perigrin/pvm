@@ -135,26 +135,54 @@ The signal is structural, not semantic. A node kind beginning with `_` is a
 Hidden rules are inlined into their parents in a successful parse and are never
 supposed to surface as nodes. When one does, recovery bailed out mid-rule and
 kept the fragment. The underscore is therefore an artifact of the *failure*,
-not a property of the source, which is what separates these rows from `return ;`.
+not a property of the source, which is what separates these rows from
+`return ;`. It is a signal about the *tree*, not about perl's verdict — see the
+measured cost below, where two files that compile fine still leak.
 
 What this buys: such a file can no longer score `exact`, and it lands in the
 coverage number (`no-answer`) rather than inflating the fidelity one, with the
 leaked rule named in the verdict detail for triage.
+
+**Measured cost.** Over a perl5 checkout, 3585 files under 8KB, 3306 of which
+parse cleanly: **2 files (0.06%) flag degenerate, and both compile under
+`perl -c`** — `cpan/Digest/lib/Digest/base.pm` and
+`dist/Tie-File/t/29a_upcopy.t`. The trigger is consecutive `sub NAME;` forward
+declarations.
+
+Those two are not noise, and they sharpen what the flag actually means. The
+grammar genuinely degrades there too: `sub new;` comes back as a bare
+`(bareword)` with the `sub` keyword gone, so the tree is wrong in the same way
+the malformed family is wrong. What the flag does *not* mean is "perl rejects
+this". It means "this tree is not a faithful parse" — the weaker claim, and the
+only one the signal supports.
+
+For the harness that is a small, known coverage loss rather than a wrong
+verdict: those files land in `no-answer` instead of being scored. Erring toward
+declining is the conservative direction, which is what makes the gate worth
+having at this precision. `TestForwardDeclarationsAlsoLeak` pins it so the cost
+cannot be quietly forgotten.
 
 What this gives up, stated plainly:
 
 - **We still do not reject the source.** `IsDegenerate()` says "this tree is
   not trustworthy", not "this is not Perl". A linter wanting a syntax error
   still has nothing to report.
-- **It is a proxy.** It detects the grammar giving up mid-rule, not malformed
-  Perl in general. Any malformed construct the grammar recovers from *without*
-  leaking a hidden rule stays invisible; this closes the measured family, and
-  makes no claim beyond it.
+- **It is a proxy, and not a precise one.** It detects the grammar giving up
+  mid-rule, not malformed Perl. It over-fires on valid forward declarations
+  (measured above) and stays silent on any malformed construct the grammar
+  recovers from *without* leaking a hidden rule. This closes the measured
+  family and makes no claim beyond it.
 - **It is coupled to a grammar-internal naming convention.** If a future
   version renames `_term` or stops surfacing hidden rules on recovery, the
   signal degrades silently. `TestDroppedRHSFamilyHasNoErrorNode` pins the
   status quo so a grammar that starts emitting real error nodes fails loudly
   and points at the compensation to delete.
+
+**The honest summary**: the grammar has two separate defects here — it accepts
+the malformed assignment family, and it mis-parses forward declarations. One
+detector catches both because both are the same underlying event: recovery
+bailing out and leaking an internal rule name into the tree. Neither defect is
+fixed; both are now visible.
 
 ## 0.5 Perl's test suite needs a correctly built shim
 
