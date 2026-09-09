@@ -152,6 +152,14 @@ type RunOptions struct {
 	// costs its timeout and is recorded as a runner error, which is the
 	// honest answer -- it never reaches a bucket.
 	Timeout time.Duration
+	// Cache serves perl's facts from disk instead of spawning perl. Nil
+	// asks perl for every file, which is a ~6 minute sweep and too slow to
+	// gate a commit.
+	//
+	// Only the facts are cached. Verdicts are recomputed every run, because
+	// they depend on our parser and a cached verdict would hide exactly the
+	// movement a ratchet exists to detect.
+	Cache *Cache
 }
 
 // Run compiles every file in the corpus through perl, parses it with our
@@ -217,11 +225,12 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 		return r
 	}
 
-	facts, err := AskFile(ctx, path, Options{
+	ask := Options{
 		Dir:     opts.Dir,
 		Shebang: wantsTaint(src),
 		Timeout: opts.Timeout,
-	})
+	}
+	facts, err := opts.Cache.askFile(ctx, path, ask)
 	if err != nil {
 		r.Err = err.Error()
 		return r
