@@ -85,6 +85,77 @@ scores both as a success. One of them is parsed wrong.
 This is the blind spot the specification exists to close, and it is not
 specific to tree-sitter — any parser without a prototype table has it.
 
+### 0.4.1 The grammar also accepts source perl rejects
+
+§0.4 is the coverage-vs-fidelity gap in its familiar direction: we chose a
+different parse. There is a second direction, and it is worse — we accept
+something that is not Perl at all.
+
+The grammar reports **no error node** for a family of malformed assignments
+that `perl -c` rejects outright, and it silently drops the right-hand side:
+
+| Source | `perl -c` | `HasError()` | Our tree |
+|---|---|---|---|
+| `my $x = ;` | syntax error near `= ;` | `false` | `(_term (variable_declaration ...))` — RHS gone |
+| `my @a = ;` | syntax error near `= ;` | `false` | `(_term (variable_declaration ...))` |
+| `my %h = ;` | syntax error near `= ;` | `false` | `(_term (variable_declaration ...))` |
+| `$x = ;` | syntax error near `= ;` | `false` | `(_term (_variables ...))` |
+| `my ($a) = ;` | syntax error near `= ;` | `false` | `(_term (variable_declaration ...))` |
+| `1 +;` | syntax error near `+;` | `false` | `(_term (primitive (number)))` — operator gone |
+| `my $y = 1 +;` | syntax error near `+;` | `false` | **two sibling `_term`s** — one expression became two statements |
+| `f( ;` | syntax error near `( ;` | `true` | error node, correctly declined |
+| `return ;` | **syntax OK** | `false` | `(return_expression)` — valid, correctly accepted |
+
+So this is a **family, not one construct**: every binding form and bare binary
+operators share it. `f( ;` is the near miss that shows the grammar *can* report
+these — it just does not for the assignment family. `return ;` is the trap:
+it looks like the family and is legal Perl.
+
+`my $y = 1 +;` is the most damaging row. A consumer reading that tree sees two
+unrelated statements where the source wrote one expression, with the `+`
+nowhere in the tree and nothing marking the loss.
+
+**Why the harness escaped this only by luck.** `Compare` declined on
+`HasError()`, and perl refuses the whole file, so `Facts.OK` was false and
+comparison never reached a verdict. Put the construct inside a file that
+otherwise compiles and it scored **`exact`** while being parsed wrong —
+verified: all seven family members returned `BucketExact` with the detail
+"perl took 0 reference(s), all explicit in the source".
+
+**What was done, and what was given up.** The grammar lives in an external
+module (`gotreesitter/grammars`, a compiled table), so fixing it at the source
+is out of reach from this repo, and reimplementing perl's expression grammar to
+second-guess the parser would be writing the parser twice. Neither was
+attempted. Instead the limitation is made **detectable**:
+`parser.Tree.IsDegenerate()` / `DegenerateKinds()`, and `Compare` now routes a
+degenerate tree to `no-answer`.
+
+The signal is structural, not semantic. A node kind beginning with `_` is a
+*hidden* tree-sitter rule — `_term` is tree-sitter-perl's expression supertype.
+Hidden rules are inlined into their parents in a successful parse and are never
+supposed to surface as nodes. When one does, recovery bailed out mid-rule and
+kept the fragment. The underscore is therefore an artifact of the *failure*,
+not a property of the source, which is what separates these rows from `return ;`.
+
+What this buys: such a file can no longer score `exact`, and it lands in the
+coverage number (`no-answer`) rather than inflating the fidelity one, with the
+leaked rule named in the verdict detail for triage.
+
+What this gives up, stated plainly:
+
+- **We still do not reject the source.** `IsDegenerate()` says "this tree is
+  not trustworthy", not "this is not Perl". A linter wanting a syntax error
+  still has nothing to report.
+- **It is a proxy.** It detects the grammar giving up mid-rule, not malformed
+  Perl in general. Any malformed construct the grammar recovers from *without*
+  leaking a hidden rule stays invisible; this closes the measured family, and
+  makes no claim beyond it.
+- **It is coupled to a grammar-internal naming convention.** If a future
+  version renames `_term` or stops surfacing hidden rules on recovery, the
+  signal degrades silently. `TestDroppedRHSFamilyHasNoErrorNode` pins the
+  status quo so a grammar that starts emitting real error nodes fails loudly
+  and points at the compensation to delete.
+
 ## 0.5 Perl's test suite needs a correctly built shim
 
 `t/test.pl:119` does `@INC = ()` and then unshifts `../lib`. `PERL5LIB` cannot
