@@ -59,6 +59,16 @@ type CacheIdentity struct {
 	Script      string
 }
 
+// DefaultCacheDir is where a locally generated cache lives, relative to the
+// repository root.
+//
+// It is gitignored rather than committed. The conformance plan assumed the
+// opposite, on the reasoning that CI would then spawn no perl — but the whole
+// oracle phase costs ~35 seconds cold across 620 files, which does not justify
+// carrying 620 files of perl output in the repo forever and re-churning them
+// on every re-baseline of the interpreter or the corpus pin.
+const DefaultCacheDir = "internal/parseoracle/testdata/oracle_cache"
+
 // OpenCache opens a cache at dir, deriving the identity from the interpreter
 // on PATH, the pin's corpus revision, and the current parse_facts.pl.
 func OpenCache(dir string) (*Cache, error) {

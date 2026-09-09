@@ -351,3 +351,25 @@ func TestCacheSurvivesCorruptEntry(t *testing.T) {
 		t.Errorf("recovered facts differ: got %d ops, want %d", got.OpCount, want.OpCount)
 	}
 }
+
+// TestDefaultCacheDirIsGitIgnored enforces the commit/don't-commit decision
+// rather than only documenting it.
+//
+// The conformance plan assumed a committed cache so CI would spawn no perl.
+// The measurement removed most of that argument: the oracle phase is ~35s
+// cold across the whole corpus, against carrying 620 files of perl output in
+// the repo forever and re-churning them on every re-baseline. So the cache is
+// generated locally, and this test fails if someone later stages one.
+func TestDefaultCacheDirIsGitIgnored(t *testing.T) {
+	root, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		t.Skipf("not a git checkout: %v", err)
+	}
+	dir := filepath.Join(strings.TrimSpace(string(root)), parseoracle.DefaultCacheDir)
+
+	out, err := exec.Command("git", "check-ignore", dir).CombinedOutput()
+	if err != nil {
+		t.Errorf("%s is not gitignored (%v): a generated cache must not be "+
+			"committable by accident\n%s", parseoracle.DefaultCacheDir, err, out)
+	}
+}
