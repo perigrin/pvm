@@ -193,6 +193,12 @@ func (c *Cache) store(path string, e entry) {
 		os.Remove(name)
 		return
 	}
+	// CreateTemp makes 0o600, and a committed cache is meant to be readable
+	// by whoever checks the tree out.
+	if err := os.Chmod(name, 0o644); err != nil {
+		os.Remove(name)
+		return
+	}
 	if err := os.Rename(name, path); err != nil {
 		os.Remove(name)
 	}
