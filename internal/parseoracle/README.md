@@ -59,9 +59,47 @@ parser's.
 **The `s/FOLD` flag is a gift.** Perl marks folded constants rather than
 silently rewriting them, so folding is detectable when it matters.
 
-Concise output is byte-identical across runs (verified by md5), so results are
-safe to cache on a content hash. `perl -c` costs ~9 ms and Concise ~25 ms per
-file, which is the reason to cache at corpus scale.
+Concise output is byte-identical across runs (verified by md5 on repeated runs
+of the same input), so results are safe to cache on a content hash.
+
+## The cache
+
+A cold sweep of all 620 files costs **~6 minutes** across 24 workers. The cost
+is `B::Concise`, at **~600 ms** on a real corpus file — not the ~25 ms an
+earlier estimate extrapolated from a bare `perl -c`. The prototype probe's
+second compile is only ~10% of it. Six minutes is too slow to gate a commit,
+which is what the ratchet needs the sweep for.
+
+```go
+cache, err := parseoracle.OpenCache("testdata/oracle_cache")
+report, err := parseoracle.Run(ctx, files, parseoracle.RunOptions{
+    Dir: shimT, Cache: cache,
+})
+```
+
+The key is `sha256` over everything that can change perl's answer:
+
+| Component | Why it is in the key |
+|---|---|
+| source bytes | An edited file is a different question. |
+| interpreter `$]` | A different perl parses differently. |
+| corpus revision | A re-baselined corpus must not inherit old answers. |
+| working directory | `Dir` changes what `@INC` finds. |
+| taint mode | `-T` changes what perl accepts outright. |
+| **`parse_facts.pl`'s hash** | The script is the measuring instrument. Omit it and a change to what is measured silently returns facts the current script would never have produced. |
+
+**Only `Facts` are cached, never verdicts.** Facts depend on perl, which does
+not change between commits. Verdicts depend on our parser, which changes
+constantly, and a cached verdict would hide exactly the movement a ratchet
+exists to detect.
+
+There is no eviction, size cap, or TTL. One entry per (content, identity)
+means the cache is bounded by the corpus. A corrupt entry is treated as a miss
+rather than an error, so a hand-edited or truncated file costs one perl
+invocation and can never break a build.
+
+Entries are indented JSON naming the source they answer for, so a committed
+cache reads as a diff of what perl said.
 
 ## Running against perl's own test suite
 
