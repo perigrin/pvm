@@ -626,6 +626,83 @@ a second compiler.
 
 ---
 
+### 7.5.5 The subject protocol
+
+Differential testing is only possible if a second implementation can be
+measured on the same terms as the first. That requires a contract neither side
+owns.
+
+**The boundary is a subprocess.** The harness invokes an implementation, hands
+it a file path, and reads JSON from stdout. This is not an aesthetic
+preference: the implementations worth comparing are not written in one
+language.
+
+| Subject | Language |
+|---|---|
+| PSC | Go |
+| perl-lsp | Rust |
+| PerlOnJava | JVM |
+| Chalk | Perl |
+| perl | C (the reference) |
+
+A Go interface would admit only the first. A subprocess admits all five, and a
+shell script besides — which is what the harness's own tests use, precisely so
+that passing proves no language-specific type crossed the boundary.
+
+**The payload is facts, not a tree.** This is the part that is easy to get
+wrong. The obvious thing to emit is a syntax tree, and it does not work:
+
+```
+$ psc parse --format sexpr proto.pl
+(source_file (subroutine_declaration_statement (bareword) (prototype) (block))
+             (expression_statement (ambiguous_function_call_expression ...
+```
+
+That vocabulary is tree-sitter's. PerlOnJava and Chalk name the same constructs
+differently, so comparing trees across implementations means first agreeing a
+universal Perl AST — a research project, not a harness. Emitting a tree
+relocates the coupling rather than removing it.
+
+Instead the subject answers the same questions the oracle answers:
+
+```json
+{
+  "ok": true,
+  "prototypes": {"f": "\\@"},
+  "call_sites": [{"line": 3, "name": "f", "took_reference": true, "unresolved": false}],
+  "declined": false,
+  "declined_reason": ""
+}
+```
+
+| Field | Question | Why it is answerable by anyone |
+|---|---|---|
+| `ok` | Is this valid Perl? | Every parser has an opinion |
+| `prototypes` | What prototypes did you resolve? | A name and a string, not a node |
+| `call_sites[].took_reference` | Did this call pass a reference? | The conclusion, not how it was reached |
+| `call_sites[].unresolved` | Did you decline to settle this call? | What separates `wider` from `WRONG` |
+| `declined` | Did you silently drop source you could not handle? | See below |
+
+**`declined` is the portable form of a parser-specific signal.** Our
+tree-sitter grammar accepts `my $x = ;` — which perl rejects — by dropping the
+right-hand side and reporting no error. We detect it by noticing a hidden
+grammar rule surfacing as a node (`00-findings.md` §0.4.1). A hand-written
+parser has no hidden rules, so that detector is meaningless there. The general
+question is not: *did you drop source you could not handle?* Every parser can
+answer it in its own terms, and it is what makes `no-answer` a portable bucket
+instead of a tree-sitter special case.
+
+**An omitted field is not an answer.** A subject that leaves out `call_sites`
+has said nothing about references, and the harness scores that dimension
+`no-answer` rather than assuming zero. Without this rule a subject could score
+perfectly by staying silent, which is the degenerate strategy any metric must
+be closed against.
+
+**Conformance is therefore incremental.** A new implementation can answer `ok`
+alone and be measured on coverage; adding `call_sites` opts it into the
+reference dimension. It is never required to expose its internals, only its
+conclusions.
+
 ## 7.6 Fuzzing
 
 Go's native fuzzer is standard library — `testing.F`, `go test -fuzz` — so

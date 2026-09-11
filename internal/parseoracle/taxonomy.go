@@ -50,6 +50,14 @@ func Categorise(r Result, dir string) Category {
 // parser twice, and the answer only has to be good enough to sort a work
 // queue. If a category ever needs to be exact, it needs a rule in the grammar,
 // not a better regexp here.
+//
+// This function is deliberately NOT part of the portable contract, and its
+// dependency on internal/parser is not the coupling that subject.go exists to
+// remove. Categorisation asks "where did THIS parser give up", which only that
+// parser can answer; the comparison asks "did perl and the subject agree",
+// which any implementation can answer. A second subject that wants its
+// no-answer files triaged supplies its own categoriser, exactly as it supplies
+// its own facts. What matters is that a verdict never depends on this.
 func CategoriseSource(src []byte) Category {
 	tree, err := parser.New().Parse(src)
 	if err != nil || tree == nil {

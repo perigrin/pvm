@@ -116,6 +116,21 @@ func (r Report) String() string {
 	// ratchet floors, and a ceiling on WRONG alone proves nothing.
 	fmt.Fprintf(&b, "exact rate %s\n", percent(r.Totals[BucketExact], n))
 
+	// Runner errors are named for the same reason WRONG files are: a count
+	// cannot be triaged. These are also the least stable number in the
+	// report -- a runner error is usually a per-file timeout, and a timeout
+	// is load-sensitive, so the count moves between runs on a busy machine
+	// while every bucket stays put. Naming them is what tells a reader which
+	// of those two things happened.
+	if r.Errors > 0 {
+		b.WriteString("runner error files:\n")
+		for _, f := range r.Files {
+			if f.Err != "" {
+				fmt.Fprintf(&b, "  %s: %s\n", f.Path, f.Err)
+			}
+		}
+	}
+
 	if wrong := r.Wrong(); len(wrong) > 0 {
 		b.WriteString("WRONG files:\n")
 		for _, f := range r.Files {
@@ -136,6 +151,15 @@ func percent(count, total int) string {
 
 // RunOptions controls a corpus run.
 type RunOptions struct {
+	// Subject is the implementation being measured. Zero means our own
+	// tree-sitter parser, which keeps every existing caller working.
+	//
+	// This is what makes the harness implementation-agnostic: perl-lsp,
+	// PerlOnJava, Chalk or a future hand-written Go parser can each be
+	// measured by supplying a command that reports SubjectFacts. Nothing
+	// below this line knows what parsed the file.
+	Subject *Subject
+
 	// Dir is the working directory every file is compiled from, and for
 	// perl's own test suite it is mandatory: t/test.pl clears @INC and
 	// unshifts ../lib, so a corpus file compiles only from inside a
@@ -247,13 +271,29 @@ func measure(ctx context.Context, path string, opts RunOptions) Result {
 		return r
 	}
 
-	tree, err := parser.New().Parse(src)
+	subject, err := askSubject(ctx, opts.Subject, path, src)
 	if err != nil {
-		r.Err = fmt.Sprintf("our parser failed on %s: %v", path, err)
+		r.Err = err.Error()
 		return r
 	}
-	r.Verdict = Compare(facts, tree, src)
+	r.Verdict = CompareFacts(facts, subject)
 	return r
+}
+
+// askSubject gets the subject's account of one file. A nil Subject means our
+// own parser, taken in-process: it is already linked in, and spawning a copy
+// of ourselves per file to ask a question we can ask directly would cost the
+// sweep 620 processes for nothing. The contract is identical either way, which
+// is the advantage of having defined it as data rather than as a Go interface.
+func askSubject(ctx context.Context, s *Subject, path string, src []byte) (SubjectFacts, error) {
+	if s != nil {
+		return s.Parse(ctx, path)
+	}
+	tree, err := parser.New().Parse(src)
+	if err != nil {
+		return SubjectFacts{}, fmt.Errorf("our parser failed on %s: %w", path, err)
+	}
+	return TreeSitterSubject(tree), nil
 }
 
 // resolve mirrors AskFile: a relative path is relative to Dir, which is how

@@ -5,7 +5,6 @@ package parseoracle
 
 import (
 	"fmt"
-	"strings"
 
 	"tamarou.com/pvm/internal/parser"
 )
@@ -100,36 +99,13 @@ type Verdict struct {
 // or a quote-like operator's delimiter cannot be settled from node kinds alone.
 // The srefgen rule deliberately does not use it: see compareSrefgen.
 func Compare(facts Facts, tree *parser.Tree, _ []byte) Verdict {
-	root := treeRoot(tree)
-
-	// Either side may decline, and a refusal is not a wrong answer.
-	if root == nil {
-		return Verdict{BucketNoAnswer, MarkerNone, "our parser produced no tree"}
-	}
-	if root.HasError() {
-		return Verdict{BucketNoAnswer, MarkerNone, "our parse contains an error node"}
-	}
-	// A missing error node is not the same as a parse. The grammar accepts
-	// `my $x = ;` -- which perl rejects -- by dropping the right-hand side
-	// and reporting no error, so HasError alone lets a tree that is not a
-	// parse of this source reach a verdict and score exact. Comparing
-	// against source we threw away measures nothing, so decline: no-answer
-	// is what "we declined" means, and it keeps the limitation visible in
-	// the coverage number instead of inflating the fidelity one.
-	if kinds := tree.DegenerateKinds(); len(kinds) > 0 {
-		return Verdict{BucketNoAnswer, MarkerNone,
-			fmt.Sprintf("our parse dropped source without an error node "+
-				"(hidden grammar rule%s surfaced: %s)",
-				plural(len(kinds)), strings.Join(kinds, ", "))}
-	}
-	if !facts.OK {
-		// No ground truth means no verdict to reach. Scoring this WRONG
-		// would blame our parser for perl's refusal -- and the corpus is
-		// full of files that fail for environmental reasons (see Classify).
-		return Verdict{BucketNoAnswer, MarkerNone, "perl declined to compile the file"}
-	}
-
-	return compareSrefgen(facts, root)
+	// Compare is now a thin adapter: it turns our tree into the same
+	// SubjectFacts any other implementation would report, then defers to the
+	// parser-agnostic core. Routing both paths through CompareFacts is what
+	// makes "the harness measures any parser" a property of the code rather
+	// than an aspiration -- and it means the tree-sitter path cannot drift
+	// away from the contract other subjects are held to.
+	return CompareFacts(facts, TreeSitterSubject(tree))
 }
 
 // compareSrefgen decides the srefgen marker.
