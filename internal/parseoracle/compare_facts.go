@@ -34,6 +34,39 @@ func CompareFacts(oracle Facts, subject SubjectFacts) Verdict {
 		return Verdict{BucketNoAnswer, MarkerNone, "perl declined to compile the file"}
 	}
 
+	// Success with no optree is not a parse. A corpus file that calls
+	// skip_all inside a BEGIN block exits DURING compilation, so perl reports
+	// ok:1 having built nothing:
+	//
+	//	uni/greek.t  ->  ok: 1   op_count: 0   srefgen: 0
+	//
+	// Our parser meanwhile produces a whole tree for the same file, finds no
+	// references in it, and the two zero totals match trivially -- so the file
+	// scored exact against a parse that never happened. Ten corpus files
+	// report this shape and six of them were being counted as agreement.
+	//
+	// A genuinely empty Perl file has no optree either, and both sides would
+	// honestly agree there is nothing there. It is NOT distinguished here, and
+	// that is deliberate: the corpus contains no such file (measured: all ten
+	// no-optree files have source, the smallest 647 bytes), so a rule to
+	// separate them would be untested code guarding a case that does not
+	// arise. Source length is also the wrong discriminator -- it cannot tell
+	// an empty file from one that is entirely comments, and both are the same
+	// honest zero. Declining on a truly empty file is a small, honest loss;
+	// scoring a skipped file is a lie.
+	//
+	// This is NOT a comparison of op counts, which compare.go forbids for good
+	// reason: the optree is post-peephole, so `my $x = 1+2` loses its add op
+	// and any count-based rule reports the optimiser's work as the parser's.
+	// The question here is whether an optree exists at all. Zero is not a
+	// point on that spectrum -- it is perl telling us it never got far enough
+	// to build one.
+	if noOptree(oracle) {
+		return Verdict{BucketNoAnswer, MarkerNone,
+			"perl reported success but produced no optree, so it never finished " +
+				"parsing the file and there is nothing to compare against"}
+	}
+
 	// An unanswered question is not agreement. A subject that omits call_sites
 	// has told us nothing about references, and treating silence as "no
 	// references taken" would let it score exact by staying quiet.
@@ -116,4 +149,16 @@ func compareReferences(oracle Facts, subject SubjectFacts) Verdict {
 	return Verdict{BucketWrong, MarkerSrefgen,
 		fmt.Sprintf("perl took %d reference(s) the subject did not, and the subject "+
 			"committed to its calls with no reference and no hedge", unexplained)}
+}
+
+// noOptree reports that perl compiled successfully without building an optree,
+// which is how a file that exits during compilation looks from out here.
+//
+// Both signals are required, and requiring both is what keeps this from
+// becoming the op-count comparison compare.go forbids. perl reports the op
+// list and its length together; a file that really was parsed has ops. A
+// caller that supplies ops while claiming a zero count is describing an
+// interpreter that does not exist, and is trusted rather than declined.
+func noOptree(oracle Facts) bool {
+	return oracle.OpCount == 0 && len(oracle.Ops) == 0
 }

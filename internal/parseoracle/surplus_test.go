@@ -35,7 +35,7 @@ func TestSurplusIsNotScored(t *testing.T) {
 	}
 	// Perl took one reference; the subject reports two. The counts are of
 	// different populations, so there is nothing to conclude from them.
-	oracle := Facts{OK: true, Srefgen: 1}
+	oracle := withSrefgen(1)
 
 	v := CompareFacts(oracle, subject)
 	assert.Equal(t, BucketNoAnswer, v.Bucket,
@@ -51,7 +51,7 @@ func TestSurplusIsNotWrongEither(t *testing.T) {
 		KnowsCallSites: true,
 		CallSites:      []SubjectCallSite{{TookReference: true}, {TookReference: true}},
 	}
-	v := CompareFacts(Facts{OK: true, Srefgen: 0}, subject)
+	v := CompareFacts(withSrefgen(0), subject)
 	assert.NotEqual(t, BucketWrong, v.Bucket, v.Detail)
 	assert.Equal(t, BucketNoAnswer, v.Bucket, v.Detail)
 }
@@ -75,7 +75,7 @@ func TestHedgeStillSeparatesWiderFromWrong(t *testing.T) {
 		KnowsCallSites: true,
 		CallSites:      []SubjectCallSite{{}},
 	}
-	oracle := Facts{OK: true, Srefgen: 1}
+	oracle := withSrefgen(1)
 
 	assert.Equal(t, BucketWider, CompareFacts(oracle, hedging).Bucket)
 	assert.Equal(t, BucketWrong, CompareFacts(oracle, committed).Bucket)
@@ -94,7 +94,7 @@ func TestCleanAgreementIsStillExact(t *testing.T) {
 			{}, // a committed call with no reference
 		},
 	}
-	oracle := Facts{OK: true, Srefgen: 1}
+	oracle := withSrefgen(1)
 
 	v := CompareFacts(oracle, subject)
 	assert.Equal(t, BucketExact, v.Bucket, v.Detail)
@@ -108,7 +108,7 @@ func TestNoReferencesEitherSideIsExact(t *testing.T) {
 		KnowsCallSites: true,
 		CallSites:      []SubjectCallSite{{}, {}},
 	}
-	oracle := Facts{OK: true, Srefgen: 0}
+	oracle := withSrefgen(0)
 
 	v := CompareFacts(oracle, subject)
 	assert.Equal(t, BucketExact, v.Bucket, v.Detail)

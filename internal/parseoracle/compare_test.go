@@ -55,7 +55,7 @@ func TestComparePrototypePair(t *testing.T) {
 func TestCompareWrongIsReachable(t *testing.T) {
 	// Perl took a reference; our tree is a definite, non-hedging call with a
 	// plain array argument. That is a commitment to a different parse.
-	facts := Facts{OK: true, Srefgen: 1, Entersub: 1}
+	facts := withSrefgen(1)
 
 	src := "sub f{} my @a; &f(@a);\n"
 	tree, err := parser.New().Parse([]byte(src))
@@ -114,25 +114,34 @@ func TestCompareIgnoresConstantFolding(t *testing.T) {
 // TestCompareIgnoresOpCounts asserts the comparison is blind to op counts and
 // to op order. Feeding it wildly different Ops and OpCount for the same tree
 // must not move the verdict: only marker presence may.
+//
+// Every case here describes a file perl actually compiled, which is the whole
+// range this rule governs. An optree that is ABSENT is a different question
+// and a different bucket -- see TestNoOptreeIsNoAnswer -- because perl builds
+// no optree for a file it never finished parsing, and comparing against a
+// parse that did not happen is not blindness to op counts but blindness to
+// whether there was a parse.
 func TestCompareIgnoresOpCounts(t *testing.T) {
 	src := "sub f{} my @a; f(@a);\n"
 	tree, err := parser.New().Parse([]byte(src))
 	require.NoError(t, err)
 
-	base := Facts{OK: true, Entersub: 1, Ops: []string{"enter", "nextstate", "padav", "gv", "entersub", "leave"}}
+	base := Facts{OK: true, Entersub: 1, OpCount: 6,
+		Ops: []string{"enter", "nextstate", "padav", "gv", "entersub", "leave"}}
 
 	// Same markers, absurd op sequence and count.
 	noisy := base
 	noisy.Ops = []string{"leave", "entersub", "padav", "aelem", "helem", "add", "concat", "enter"}
 	noisy.OpCount = 512
 
-	// Same markers, no ops reported at all.
-	empty := base
-	empty.Ops = nil
-	empty.OpCount = 0
+	// Same markers, an optree pared down to almost nothing. One op is the
+	// smallest an optree gets while still being one.
+	minimal := base
+	minimal.Ops = []string{"leave"}
+	minimal.OpCount = 1
 
 	want := Compare(base, tree, []byte(src))
-	for name, facts := range map[string]Facts{"noisy": noisy, "empty": empty} {
+	for name, facts := range map[string]Facts{"noisy": noisy, "minimal": minimal} {
 		got := Compare(facts, tree, []byte(src))
 		assert.Equal(t, want.Bucket, got.Bucket,
 			"%s: op counts and sequence must not change the verdict (%s)", name, got.Detail)
@@ -173,7 +182,7 @@ func TestCompareAllBucketsReachable(t *testing.T) {
 	src := "sub f{} my @a; &f(@a);\n"
 	tree, err := parser.New().Parse([]byte(src))
 	require.NoError(t, err)
-	seen[Compare(Facts{OK: true, Srefgen: 1, Entersub: 1}, tree, []byte(src)).Bucket] = "committed non-ref call"
+	seen[Compare(withSrefgen(1), tree, []byte(src)).Bucket] = "committed non-ref call"
 
 	for _, b := range []Bucket{BucketExact, BucketWider, BucketWrong, BucketNoAnswer} {
 		assert.Contains(t, seen, b, "bucket %s is defined but no input reaches it", b)
