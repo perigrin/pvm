@@ -26,8 +26,16 @@ var updateBaseline = flag.Bool("parseoracle.update", false,
 	"rewrite the committed ratchet baseline from this run's verdicts")
 
 // corpusReport measures the whole corpus through a shim, the same way
-// TestCorpusSweep does. $PARSEORACLE_SHIM reuses an already-built shim, which
-// is what makes a re-baseline affordable at all.
+// TestCorpusSweep does. $PARSEORACLE_SHIM names a shim to reuse, which is
+// what makes a re-baseline affordable at all.
+//
+// A named shim that is not built yet is BUILT there rather than assumed
+// ready. That is the cache-miss path: CI restores $PARSEORACLE_SHIM from
+// actions/cache, and on a miss the directory exists but is empty. Treating an
+// empty directory as a corpus would walk zero files, and a run with zero
+// files does not fail loudly — it fails as 620 "baseline row has no file in
+// this run" lines, which reads like the corpus vanished rather than like the
+// cache missed.
 //
 // The shim's t/ is returned alongside the report because the runner records
 // paths relative to it, and the taxonomy has to re-read each file.
@@ -36,13 +44,15 @@ func corpusReport(t *testing.T) (parseoracle.Report, string) {
 
 	shim := os.Getenv("PARSEORACLE_SHIM")
 	if shim == "" {
+		shim = t.TempDir()
+	}
+	if _, err := os.Stat(filepath.Join(shim, "t", "test.pl")); err != nil {
 		root, err := parseoracle.CorpusRoot()
 		if err != nil {
 			t.Skipf("no corpus: %v", err)
 		}
-		shim = t.TempDir()
 		if err := parseoracle.BuildShim(root, shim); err != nil {
-			t.Fatalf("BuildShim: %v", err)
+			t.Fatalf("BuildShim into %s: %v", shim, err)
 		}
 	}
 	shimT := filepath.Join(shim, "t")
@@ -67,7 +77,7 @@ func corpusReport(t *testing.T) (parseoracle.Report, string) {
 	sort.Strings(files)
 
 	report, err := parseoracle.Run(context.Background(), files,
-		parseoracle.RunOptions{Dir: shimT})
+		parseoracle.RunOptions{Dir: shimT, Timeout: sweepTimeout(t)})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

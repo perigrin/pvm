@@ -212,3 +212,44 @@ explanation.
 `testdata/corpus.pin` records the interpreter's `$]` and the `perl5` revision.
 `ReadPin` checks **both** — a pin that verifies one half is a pin that silently
 drifts, and both halves have drifted here already.
+
+## In CI
+
+`.github/workflows/parse-fidelity.yml` runs `TestRatchetCorpus` on every push
+and PR to `pu`. It installs the pinned interpreter, checks out `perl5` at the
+pinned revision, and caches both.
+
+It never passes `-parseoracle.update`. A job that rewrites the baseline it is
+checking against launders every regression into the baseline and can never
+fail — which is how perl-lsp arrived at a parser ratchet whose baseline file
+contains the single line `0`. Re-baselining is a deliberate local act that
+lands in the same commit as the change that moved it.
+
+A workflow cannot be run before it is merged, so the file is thin glue over
+parts that are tested locally. `ci_test.go` runs in the normal suite and
+holds the invariants a reviewer would otherwise have to eyeball: that the
+workflow parses, that it passes `-parseoracle.corpus` and not
+`-parseoracle.update`, that it reads `corpus.pin` through
+`.github/scripts/parseoracle-pin.sh` rather than carrying a second copy of
+the revision, and that it checks the interpreter before spending a sweep on a
+runner that cannot produce a comparable answer.
+
+The job spawns perl 620 times on every push, because no sweep passes a
+`*Cache` — the cache above is built and unit-tested but wired to nothing.
+Tracked as `01a095cb`. It is a speedup, not a correctness fix, so the workflow
+ships without it.
+
+### Why the sweep gets a longer per-file timeout
+
+`DefaultTimeout` is 60s, calibrated here. Timed across the corpus, the most
+expensive file is `op/pack.t` at **37 seconds of CPU, unloaded** — B::Concise
+walks a very large optree, and that cost is the file's rather than the load's.
+62% of the budget with nothing else running is not enough margin for a shared
+runner.
+
+A file that overruns is recorded as a runner error, which moves it out of its
+baseline bucket, and the ratchet reports a regression caused by nothing but
+load. `$PARSEORACLE_TIMEOUT` raises the bound to 8m in CI so that a timeout
+still means what it should: `re/pat_psycho.t` calls `watchdog(5 * 60)` from a
+`BEGIN` block and wedges on any budget, which is why it is baselined as
+`error`.
