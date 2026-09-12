@@ -9,18 +9,21 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestSurplusDoesNotMaskAProtoReference is the reviewer's reproduction.
+// TestSurplusIsNotScored is the defect, stated as the corpus shows it.
 //
 // The oracle counts only srefgen. The adapter counts every source `\` as a
-// TookReference. Those are not the same population: a list-form `\(@a)` emits
-// refgen, not srefgen, so it contributes to the subject's side and not to
-// perl's. That difference is headroom, and headroom absorbs exactly the thing
-// this harness exists to detect.
+// TookReference. Measured, those are not the same population:
 //
-// Here two subject references cover an oracle Srefgen of 2 -- but only one of
-// perl's two is the explicit one. The other was resolved by a prototype at the
-// call the subject marked unresolved. Scoring this exact is the mask.
-func TestSurplusDoesNotMaskAProtoReference(t *testing.T) {
+//	\@a  \%h  \&f  \$x  \(&f)   -> srefgen
+//	\(@a)  \(@a,@b)  \($x,$y)   -> refgen
+//
+// so a list-form `\( ... )` contributes to the subject's total and not to
+// perl's. The old rule was `oracle.Srefgen <= accounted -> exact`, which read
+// that difference as agreement. It is not agreement; it is headroom, and
+// headroom big enough to swallow a prototype-driven reference whole.
+//
+// op/aassign.t is the real instance: srefgen=8, accounted=27, surplus=19.
+func TestSurplusIsNotScored(t *testing.T) {
 	subject := SubjectFacts{
 		OK:             true,
 		KnowsCallSites: true,
@@ -30,33 +33,52 @@ func TestSurplusDoesNotMaskAProtoReference(t *testing.T) {
 			{Unresolved: true},
 		},
 	}
-	oracle := Facts{OK: true, Srefgen: 2}
-
-	v := CompareFacts(oracle, subject)
-	assert.NotEqual(t, BucketExact, v.Bucket,
-		"a surplus of subject references must not score exact while a call is unresolved: %s", v.Detail)
-}
-
-// TestHedgeIsConsultedWhenTotalsMatch is the short-circuit, stated on its own.
-//
-// `oracle.Srefgen <= accounted` returns before the hedge is ever looked at, so
-// a file carrying hundreds of unresolved calls scores exact on a matching
-// total. A file that admits it could not resolve 300 calls has not agreed with
-// perl about them; it has declined to answer.
-func TestHedgeIsConsultedWhenTotalsMatch(t *testing.T) {
-	subject := SubjectFacts{
-		OK:             true,
-		KnowsCallSites: true,
-		CallSites: []SubjectCallSite{
-			{TookReference: true},
-			{Unresolved: true},
-		},
-	}
+	// Perl took one reference; the subject reports two. The counts are of
+	// different populations, so there is nothing to conclude from them.
 	oracle := Facts{OK: true, Srefgen: 1}
 
 	v := CompareFacts(oracle, subject)
-	assert.NotEqual(t, BucketExact, v.Bucket,
-		"an unresolved call must be consulted even when the totals match: %s", v.Detail)
+	assert.Equal(t, BucketNoAnswer, v.Bucket,
+		"a surplus means the populations disagree, so the comparison is not meaningful: %s", v.Detail)
+}
+
+// TestSurplusIsNotWrongEither guards the other direction. A surplus is an
+// unanswerable question, not a subject error: scoring it WRONG would blame the
+// subject for a counting mismatch the harness created.
+func TestSurplusIsNotWrongEither(t *testing.T) {
+	subject := SubjectFacts{
+		OK:             true,
+		KnowsCallSites: true,
+		CallSites:      []SubjectCallSite{{TookReference: true}, {TookReference: true}},
+	}
+	v := CompareFacts(Facts{OK: true, Srefgen: 0}, subject)
+	assert.NotEqual(t, BucketWrong, v.Bucket, v.Detail)
+	assert.Equal(t, BucketNoAnswer, v.Bucket, v.Detail)
+}
+
+// TestHedgeStillSeparatesWiderFromWrong keeps the hedge load-bearing where it
+// is actually evidence: when perl took a reference the subject did NOT.
+//
+// The hedge is deliberately not consulted on a matching total, and that is a
+// measured decision rather than an oversight. Our grammar marks every
+// unqualified `f(...)` call unresolved -- op/aassign.t hedges 181 times -- so
+// `hedged > 0` is near-universal and says nothing on its own. A hedge is
+// evidence only when there is an unexplained reference for it to explain.
+func TestHedgeStillSeparatesWiderFromWrong(t *testing.T) {
+	hedging := SubjectFacts{
+		OK:             true,
+		KnowsCallSites: true,
+		CallSites:      []SubjectCallSite{{Unresolved: true}},
+	}
+	committed := SubjectFacts{
+		OK:             true,
+		KnowsCallSites: true,
+		CallSites:      []SubjectCallSite{{}},
+	}
+	oracle := Facts{OK: true, Srefgen: 1}
+
+	assert.Equal(t, BucketWider, CompareFacts(oracle, hedging).Bucket)
+	assert.Equal(t, BucketWrong, CompareFacts(oracle, committed).Bucket)
 }
 
 // TestCleanAgreementIsStillExact guards the fix from overshooting. A subject
